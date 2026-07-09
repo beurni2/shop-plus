@@ -1,0 +1,26 @@
+[
+  {
+    "key": "app.title",
+    "fr": "Shop+",
+    "register": "neutral",
+    "screenClass": "general"
+  },
+  {
+    "key": "opportunity.net_label",
+    "fr": "Votre gain net",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "opportunity.customer_price_label",
+    "fr": "Prix pour la cliente",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "opportunity.example_product",
+    "fr": "Pagne tissé — exemple",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  }
+]
