@@ -1,17 +1,21 @@
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { shopPlusTheme as theme } from '@platform/ui-tokens';
-import { computeWaterfall } from '@platform/contracts';
-import { WORKED_BASELINE_INPUT } from '@shop-plus/commerce-core';
-import { buildOpportunityCard, formatFcfa } from './src/earnings';
+import { formatFcfa, type OpportunityCardModel } from './src/earnings';
+import exampleCard from './src/opportunity-example.json';
 import { t } from './src/i18n';
 
 /**
  * SP0.1 reseller shell: one sparse screen on ui-tokens (shop-plus theme) and
  * catalog strings, showing one NET-FIRST opportunity card (SP-I04/SP-I12) —
  * the net is the large primary figure; gross never renders. Sparse ≠ ugly.
+ *
+ * The example values are a checked-in snapshot: the RN bundle must not
+ * import the @platform/contracts barrel (its node-only drift-check modules
+ * do not bundle under Metro); a vitest test pins this snapshot to the pinned
+ * computeWaterfall §5.4 baseline, so the numbers can never drift from canon.
  */
-const card = buildOpportunityCard(computeWaterfall(WORKED_BASELINE_INPUT));
+const card: OpportunityCardModel = exampleCard;
 
 export default function App() {
   return (

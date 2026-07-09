@@ -4,3 +4,4 @@ dist/
 _evidence/
 *.tsbuildinfo
 .expo/
+test-results/

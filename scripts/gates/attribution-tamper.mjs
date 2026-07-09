@@ -27,22 +27,25 @@ try {
   process.exit(2);
 }
 const { testKey, token } = fixture ?? {};
-if (!testKey || !token?.payload || typeof token.signature !== 'string') {
+if (!testKey || typeof token?.signature !== 'string' || typeof token?.resellerId !== 'string') {
   console.error(`attribution-tamper: ${file} is not a token fixture`);
   process.exit(2);
 }
-// This gate proves SIGNATURE integrity (tamper → closed rejection). Expiry
-// is enforced by verifyAttributionToken under an injected clock in the
-// attribution-service unit tests — a wall-clock check here would turn the
-// checked-in fixture into a CI time bomb.
+// The token is the CANONICAL §5.6 AttributionToken; the signature covers the
+// canonical JSON of the token minus `signature`. This gate proves SIGNATURE
+// integrity (tamper → closed rejection). Expiry is enforced by
+// verifyAttributionToken under an injected clock in the attribution-service
+// unit tests — a wall-clock check here would turn the checked-in fixture
+// into a CI time bomb.
 const verdict = (() => {
+  const { signature, ...unsigned } = token;
   const expected = createHmac('sha256', testKey)
-    .update(canonicalJsonStringify(token.payload))
+    .update(canonicalJsonStringify(unsigned))
     .digest('hex');
   const a = Buffer.from(expected, 'hex');
-  const b = Buffer.from(token.signature, 'hex');
+  const b = Buffer.from(signature, 'hex');
   if (a.length !== b.length || !timingSafeEqual(a, b)) return { ok: false, reason: 'bad_signature' };
-  return { ok: true, resellerId: token.payload.resellerId };
+  return { ok: true, resellerId: token.resellerId };
 })();
 if (verdict.ok) {
   console.log(`attribution-tamper OK — token verifies; attribution locked to ${verdict.resellerId} (SP-I09)`);

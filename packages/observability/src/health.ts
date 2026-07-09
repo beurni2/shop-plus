@@ -1,7 +1,7 @@
 import { CORRELATION_HEADER, correlationIdFrom, createLogger, type LogSink } from './logger.js';
 
 /**
- * Shared /health handler for the B0.1 Workers service stubs — folders,
+ * Shared /health handler for the E0 Workers service stubs — folders,
  * types, health endpoints; no features. The hello-world request carries the
  * correlation id end-to-end: inbound header → structured log → response
  * header (Contract E0 exit).

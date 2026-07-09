@@ -32,6 +32,26 @@ describe('net-first-display — opportunity card', () => {
   it('FCFA formatting is large plain francs (no decimals, fr-FR grouping)', () => {
     expect(formatFcfa(2_000)).toBe('2 000 F');
   });
+  it('the checked-in shell snapshot equals the pinned waterfall output (Metro-safe, canon-pinned)', () => {
+    const snapshot = JSON.parse(
+      readFileSync(join(appDir, 'src/opportunity-example.json'), 'utf8'),
+    );
+    expect(snapshot).toEqual(buildOpportunityCard(computeWaterfall(WORKED_BASELINE_INPUT)));
+  });
+
+  it('the shell bundle imports no node-only barrel (runtime imports of contracts/i18n/commerce-core banned)', () => {
+    for (const file of ['App.tsx', 'src/i18n.ts', 'src/earnings.ts']) {
+      const source = readFileSync(join(appDir, file), 'utf8');
+      const runtimeImports = [...source.matchAll(/^import (?!type )[^;]*from '([^']+)';/gm)].map(
+        (m) => m[1],
+      );
+      for (const spec of runtimeImports) {
+        expect(spec, `${file} runtime-imports ${spec}`).not.toMatch(
+          /@platform\/(contracts|i18n)|@shop-plus\/commerce-core/,
+        );
+      }
+    }
+  });
 });
 
 describe('reseller-app catalog discipline (same law as every app)', () => {
