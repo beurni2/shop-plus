@@ -1,0 +1,15 @@
+{
+  "listingId": "l_9",
+  "productVersionId": "pv_9",
+  "productName": "Sac cuir",
+  "category": "bags",
+  "resellerId": "res_9",
+  "storeName": "Chez Awa",
+  "customerPriceFcfa": 9000,
+  "deliveryFeeFcfa": 1000,
+  "buyerTotalFcfa": 10000,
+  "supplierName": "Atelier Cuir SARL",
+  "supplierPhone": "+226 70 00 00 00",
+  "sellerFundedCommission": 800,
+  "supplierPickupZone": "Gounghin"
+}

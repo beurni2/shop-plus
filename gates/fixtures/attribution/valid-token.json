@@ -1,0 +1,14 @@
+{
+  "testKey": "sp0.1-test-signing-key-NOT-A-REAL-KEY",
+  "token": {
+    "payload": {
+      "resellerId": "res_123",
+      "scope": "listing",
+      "scopeRef": "listing_456",
+      "issuedAt": "2026-07-09T00:00:00Z",
+      "expiresAt": "2026-08-09T00:00:00Z",
+      "version": "v1"
+    },
+    "signature": "1bbd8b653c2c908afbe7de446bc87bf0ca842ef681a16e3375982d8686dd4840"
+  }
+}

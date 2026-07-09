@@ -1,0 +1,14 @@
+{
+  "listingId": "l_1",
+  "productVersionId": "pv_1",
+  "productName": "Pagne tissé",
+  "category": "fashion",
+  "resellerId": "res_1",
+  "storeName": "Boutique Mariam",
+  "customerPriceFcfa": 11500,
+  "deliveryFeeFcfa": 1000,
+  "buyerTotalFcfa": 12500,
+  "assetRefs": [
+    "asset_hero_1"
+  ]
+}
