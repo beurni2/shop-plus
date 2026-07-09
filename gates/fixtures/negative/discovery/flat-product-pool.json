@@ -1,0 +1,16 @@
+{
+  "products": [
+    {
+      "productVersionId": "pv_1",
+      "name": "Pagne tissé",
+      "price": 11500,
+      "resellerId": "res_1"
+    },
+    {
+      "productVersionId": "pv_2",
+      "name": "Sac cuir",
+      "price": 8000,
+      "resellerId": "res_2"
+    }
+  ]
+}

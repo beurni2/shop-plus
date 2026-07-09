@@ -1,0 +1,8 @@
+{
+  "surface": "opportunity-card",
+  "moneyFieldsInRenderOrder": [
+    "resellerGrossEarnings",
+    "resellerNet",
+    "customerPrice"
+  ]
+}

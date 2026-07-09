@@ -1,0 +1,20 @@
+[
+  {
+    "key": "app.title",
+    "fr": "Shop+",
+    "register": "neutral",
+    "screenClass": "general"
+  },
+  {
+    "key": "discover.heading",
+    "fr": "Découvrez les boutiques de votre quartier.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "discover.empty_state",
+    "fr": "Les premières boutiques arrivent bientôt.",
+    "register": "neutral",
+    "screenClass": "status"
+  }
+]

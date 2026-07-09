@@ -1,0 +1,29 @@
+{
+  "stores": [
+    {
+      "storefrontId": "sf_3",
+      "resellerId": "res_3",
+      "storeName": "Aïcha Mode",
+      "zone": "Dassasgho"
+    },
+    {
+      "storefrontId": "sf_1",
+      "resellerId": "res_1",
+      "storeName": "Boutique Mariam",
+      "zone": "Dassasgho",
+      "matchingItemPreviews": [
+        {
+          "listingId": "l_1",
+          "productName": "Pagne tissé",
+          "customerPriceFcfa": 11500
+        }
+      ]
+    },
+    {
+      "storefrontId": "sf_2",
+      "resellerId": "res_2",
+      "storeName": "Chez Awa",
+      "zone": "Gounghin"
+    }
+  ]
+}
