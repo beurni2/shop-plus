@@ -19,9 +19,12 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'pnpm preview',
+    // --host 127.0.0.1: vite preview binds `localhost` by default, which on
+    // GitHub runners resolves to ::1 only — the 127.0.0.1 probe then times
+    // out. Bind exactly what we probe.
+    command: 'pnpm preview --host 127.0.0.1',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: false,
-    timeout: 30_000,
+    timeout: 60_000,
   },
 });
