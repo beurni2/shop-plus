@@ -108,7 +108,7 @@ export class OrderSpine {
     const amount = p['amount'];
     const status = p['status'];
     // FULL_PREPAY: the checkout leg must equal amountPaidAtCheckout (== buyerTotal).
-    if (amount !== this.quote.amountPaidAtCheckout) {
+    if (typeof amount !== 'number' || amount !== this.quote.amountPaidAtCheckout) {
       return { applied: false, reason: 'amount_mismatch' };
     }
     if (status !== 'held' && status !== 'captured') {
@@ -121,7 +121,9 @@ export class OrderSpine {
       paymentAttemptId: String(p['payment_attempt_id'] ?? ''),
       legType: 'checkout',
       collectRef: String(p['collectRef'] ?? event.envelope.command_id),
-      amount: this.quote.amountPaidAtCheckout,
+      // Provider truth, copied — `amount` is the webhook's own figure, already
+      // proven equal to the immutable Quote's amountPaidAtCheckout above.
+      amount,
       fee: typeof p['fee'] === 'number' ? p['fee'] : 0,
       status,
     });

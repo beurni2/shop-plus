@@ -160,6 +160,15 @@ describe('§3 misbehavior — payment provider mock vs the spine', () => {
     expect(spine.onProviderPaymentEvent(good)).toEqual({ applied: true, duplicate: false });
   });
 
+  it('OUT OF ORDER (reordered plan): reverseOrder delivers later charges first — the knob provably reorders', () => {
+    const provider = new MockPaymentProvider({ reverseOrder: true });
+    const base = { orderId: 'ord-1', amount: 12_500, correlationId: 'corr-spine', requestedAtIso: T };
+    provider.initiateCharge({ ...base, paymentAttemptId: 'pay-first' });
+    provider.initiateCharge({ ...base, paymentAttemptId: 'pay-second' });
+    const plan = provider.webhookDeliveryPlan();
+    expect(plan.map((d) => d.event.payload['payment_attempt_id'])).toEqual(['pay-second', 'pay-first']);
+  });
+
   it('STALE PROJECTION: status reads lie after the charge; the spine trusts the webhook, never the read', () => {
     const quote = issuedQuote();
     const spine = spineAtPaymentPending(quote);
@@ -210,7 +219,7 @@ describe('§3 misbehavior — Séra eligibility mock vs the spine', () => {
   it('OUT OF ORDER (early): eligibility before the order is confirmed refuses closed; redelivery converges', () => {
     const quote = issuedQuote();
     const spine = spineAtPaymentPending(quote); // not confirmed yet
-    const { plan } = validatedPlan({ deliverEarly: true });
+    const { plan } = validatedPlan({});
     expect(spine.onEligibilityEvent(plan[0]!.event)).toEqual({ applied: false, reason: 'out_of_order' });
     expect(spine.ledger.obligationsFor('ord-1')).toHaveLength(0);
     // Catch up, then redeliver.
@@ -263,6 +272,22 @@ describe('§3 misbehavior — Séra eligibility mock vs the spine', () => {
       outcome: 'rejected_invalid',
       reason: 'already_validated',
     });
+  });
+
+  it('STALE PROJECTION: validation-status reads deny a done validation; the spine trusts the event, never the read', () => {
+    const quote = issuedQuote();
+    const spine = confirmedSpine(quote);
+    const { sera, plan } = validatedPlan({ staleStatusReads: 2 });
+    expect(spine.onEligibilityEvent(plan[0]!.event)).toEqual({ applied: true, duplicate: false });
+    // The projection is STALE — it claims the validation never happened…
+    expect(sera.getValidationStatus('ord-1')).toEqual({ status: 'unknown' });
+    expect(sera.getValidationStatus('ord-1')).toEqual({ status: 'unknown' });
+    // …but the obligations came from the event and never regress on a stale read.
+    expect(spine.ledger.obligationsFor('ord-1')).toHaveLength(2);
+    expect(spine.journey.state).toBe('confirmed');
+    expect(sera.getValidationStatus('ord-1')).toEqual({ status: 'validated' }); // truth catches up
+    // An order the mock never validated reads unknown honestly, stale or not.
+    expect(sera.getValidationStatus('ord-ghost')).toEqual({ status: 'unknown' });
   });
 
   it('SPINE rejects a foreign event name on the eligibility path (closed refusal)', () => {

@@ -5,11 +5,13 @@ import { PlatformEventSchema, type PlatformEvent } from '@platform/contracts';
  * §2.3 step 13 (one validated settlement-eligibility event). Séra emits
  * `delivery.validated.v1` after its validation pipeline; this mock emits the
  * same canonical event THROUGH the pinned PlatformEventSchema and, per
- * config: duplicates it, delivers it early (out of order, before the order
- * is confirmed), delays it, times out (never emits), partially fails (emits
- * for only some orders), and rejects invalid transitions (validating an
- * order it never saw delivered, or validating twice with a NEW command —
- * a real Séra validates once). Deterministic: config only, no randomness.
+ * config: duplicates it, delivers it out of order (the test drives early
+ * delivery against the consumer's state), delays it, serves STALE validation
+ * projections (reads that deny a validation that already happened), times
+ * out (never emits), partially fails (emits for only some orders), and
+ * rejects invalid transitions (validating an order it never saw delivered,
+ * or validating twice with a NEW command — a real Séra validates once).
+ * Deterministic: config only, no randomness.
  *
  * NOTE (JOURNAL'd): formal certification against the shared conformance
  * suite happens at E1 assembly, after WO-1.0.
@@ -18,10 +20,10 @@ import { PlatformEventSchema, type PlatformEvent } from '@platform/contracts';
 export interface EligibilityMockConfig {
   /** Deliver every eligibility event this many times (≥1). */
   eventCopies?: number;
-  /** Deliver before the consumer expects it (test drives the early delivery). */
-  deliverEarly?: boolean;
   /** Delay delivery by this many ms of virtual time. */
   deliveryDelayMs?: number;
+  /** Serve this many STALE validation-status reads before the fresh one. */
+  staleStatusReads?: number;
   /** Timeout: validation never completes, no event is emitted. */
   timeout?: boolean;
   /** Partial failure: emit for at most this many orders, then go silent. */
@@ -47,8 +49,25 @@ export interface PlannedEligibility {
 export class MockSeraEligibilityEmitter {
   private readonly delivered = new Set<string>();
   private readonly validated = new Map<string, ValidationRequest>();
+  private staleReadsRemaining: number;
 
-  constructor(private readonly config: EligibilityMockConfig = {}) {}
+  constructor(private readonly config: EligibilityMockConfig = {}) {
+    this.staleReadsRemaining = config.staleStatusReads ?? 0;
+  }
+
+  /**
+   * Validation-status projection — STALE per config: the first N reads deny
+   * a validation that already happened. Consumers must treat the
+   * `delivery.validated.v1` event, never this read, as eligibility truth.
+   */
+  getValidationStatus(orderId: string): { status: 'unknown' | 'validated' } {
+    if (!this.validated.has(orderId)) return { status: 'unknown' };
+    if (this.staleReadsRemaining > 0) {
+      this.staleReadsRemaining -= 1;
+      return { status: 'unknown' }; // stale projection
+    }
+    return { status: 'validated' };
+  }
 
   /** Séra learns a delivery happened (drop code recorded) — precondition for validation. */
   recordDelivered(orderId: string): void {

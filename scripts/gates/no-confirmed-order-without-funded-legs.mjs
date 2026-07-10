@@ -21,6 +21,14 @@ try { assertQuoteReconciles(quote); } catch (e) { console.error(`fixture quote d
 
 if (!journey.order || typeof journey.order.status !== 'string') { console.error('fixture has no order.status'); process.exit(2); }
 
+// Only the five E1 states are legible — "Confirmed", "CONFIRMED", or any
+// unknown string must not slip past as "not confirmed".
+const E1_STATES = ['quote_issued', 'reserved', 'payment_pending', 'paid', 'confirmed'];
+if (!E1_STATES.includes(journey.order.status)) {
+  console.error(`unknown order status '${journey.order.status}' — not an E1 state`);
+  process.exit(2);
+}
+
 if (journey.order.status !== 'confirmed') {
   console.log(`order status '${journey.order.status}' — gate applies only to confirmed orders. OK`);
   process.exit(0);
