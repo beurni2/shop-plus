@@ -94,5 +94,101 @@
     "fr": "Ce lien vient d'un autre vendeur. Votre commande reste avec le premier vendeur.",
     "register": "selling",
     "screenClass": "status"
+  },
+  {
+    "key": "checkout.heading",
+    "fr": "Comment voulez-vous payer ?",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "checkout.pay_now_label",
+    "fr": "À payer maintenant :",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "checkout.pay_at_door_label",
+    "fr": "À payer à la livraison :",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "checkout.option_a.title",
+    "fr": "Tout payer maintenant — recommandé",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "checkout.option_a.body",
+    "fr": "Votre paiement est protégé auprès de notre partenaire de paiement jusqu'à la confirmation de votre livraison. Le vendeur n'est payé qu'après validation.",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "checkout.option_a.choose",
+    "fr": "Payer maintenant",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "checkout.option_b.title",
+    "fr": "Payer le produit à la livraison",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "checkout.option_b.summary",
+    "fr": "Vous payez la livraison maintenant. Le produit, {amount} F, à la réception.",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "checkout.option_b.body",
+    "fr": "Payez seulement les frais de livraison ({amount} F) maintenant. À l'arrivée du livreur, vérifiez votre article, puis payez le montant du produit de manière sécurisée avant de le recevoir.",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "checkout.option_b.fee_warning",
+    "fr": "Frais de livraison non remboursables si vous annulez ou êtes absent(e).",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "checkout.replay",
+    "fr": "Vous payez {now} F maintenant et {door} F à la livraison — d'accord ?",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "checkout.option_b.choose",
+    "fr": "Payer à la livraison",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "checkout.option_b.unavailable",
+    "fr": "Le paiement à la livraison n'est pas disponible pour cette commande. Vous pouvez tout payer maintenant, en toute sécurité.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "order.door_pending.fee_paid",
+    "fr": "Livraison déjà payée. Le produit se paie à la réception.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "order.door_pending.next",
+    "fr": "Le livreur arrive. Vérifiez votre article, puis payez le produit avant de le recevoir.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "order.door_paid.body",
+    "fr": "Produit payé. Le livreur vous remet votre commande.",
+    "register": "money",
+    "screenClass": "status"
   }
 ]

@@ -1,6 +1,7 @@
 import { shopPlusTheme as theme } from '@platform/ui-tokens';
 import { t } from './i18n';
 import { renderOrderView, type OrderViewModel } from './order-view';
+import { renderCheckoutOptions } from './checkout-view';
 
 /**
  * SP0.1 buyer PWA shell: one sparse page, entirely on ui-tokens (shop-plus
@@ -73,6 +74,22 @@ style.textContent = `
     font-size: var(--type-body);
     font-weight: 600;
   }
+  /* WO-2.5 two-option checkout (§6.1): calm cards, bold FCFA lines, the
+     unavailable state designed — dignified, never an error wall. */
+  .checkout-view { display: grid; gap: var(--space-lg); }
+  .checkout-option {
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    display: grid;
+    gap: var(--space-lg);
+  }
+  .checkout-option h3 { margin: 0; font-size: var(--type-body); font-weight: 700; }
+  .fcfa-line { margin: 0; font-size: var(--type-body); }
+  .fcfa-figure-inline { font-weight: 700; }
+  .fee-warning, .option-summary, .replay-line { margin: 0; font-size: var(--type-body); }
+  .checkout-option-unavailable { color: var(--ink-muted); }
 `;
 document.head.appendChild(style);
 
@@ -93,13 +110,35 @@ if (app) {
 
   // E2 order-view demo surface (no backend at E2): the Playwright harness
   // drives ?demo-order=<state> to exercise the honest failure states.
-  const demoState = new URLSearchParams(window.location.search).get('demo-order');
+  const params = new URLSearchParams(window.location.search);
+  const demoState = params.get('demo-order');
   const DEMO_STATES: ReadonlyArray<OrderViewModel['state']> = [
     'payment_failed', 'cancelled', 'confirmed', 'paid_cancel_refused',
+    'door_pending', 'door_paid',
   ];
   if (demoState && (DEMO_STATES as readonly string[]).includes(demoState)) {
     const section = document.createElement('div');
-    section.innerHTML = renderOrderView({ state: demoState as OrderViewModel['state'], buyerTotalFcfa: 12_500 });
+    section.innerHTML = renderOrderView({
+      state: demoState as OrderViewModel['state'],
+      buyerTotalFcfa: 12_500,
+      amountDueAtDeliveryFcfa: 11_500, // §5.4 baseline under Option B
+    });
+    main.append(section);
+  }
+
+  // WO-2.5: two-option checkout demo (§6.1) — amounts are the §5.4 baseline
+  // split written by the pinned waterfall (A: 12,500/0 · B: 1,000/11,500).
+  const demoCheckout = params.get('demo-checkout');
+  if (demoCheckout === 'available' || demoCheckout === 'unavailable') {
+    const section = document.createElement('div');
+    section.innerHTML = renderCheckoutOptions({
+      buyerTotalFcfa: 12_500,
+      optionA: { payNowFcfa: 12_500, dueAtDoorFcfa: 0 },
+      optionB:
+        demoCheckout === 'available'
+          ? { available: true, payNowFcfa: 1_000, dueAtDoorFcfa: 11_500 }
+          : { available: false },
+    });
     main.append(section);
   }
 

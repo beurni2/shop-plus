@@ -33,22 +33,53 @@ export class LedgerRecords {
   private readonly obligationsByOrderId = new Map<string, SettlementObligation[]>();
 
   /**
-   * Provider payment confirmation → one EscrowTxn record. Idempotent on
-   * (orderId, collectRef): a replay returns the existing record untouched.
+   * Provider payment confirmation → the order's EscrowTxn record. Idempotent
+   * on (orderId, collectRef): a replay returns the existing record untouched.
+   *
+   * Legs per §5.5/§5.6 `paymentLegs[{legType(checkout|door)...}]`:
+   * the FIRST confirmation for an order MUST be its checkout leg; an Option-B
+   * order's DOOR leg is APPENDED to that record (WO-2.5) — exactly one of
+   * each, ever. A second different leg of a type already recorded refuses
+   * closed; a door leg with no checkout leg before it refuses closed. Money
+   * records are never merged or overwritten — append-only, amounts copied.
    */
   recordEscrowFromProvider(
     confirmation: ProviderLegConfirmation,
   ):
     | { ok: true; record: EscrowTxn; replay: boolean }
-    | { ok: false; reason: 'conflicting_escrow_for_order' } {
+    | { ok: false; reason: 'conflicting_escrow_for_order' | 'door_leg_before_checkout_leg' } {
     const existing = this.escrowByOrderId.get(confirmation.orderId);
     if (existing) {
       const sameLeg = existing.paymentLegs.some((leg) => leg.collectRef === confirmation.collectRef);
       if (sameLeg) return { ok: true, record: existing, replay: true };
-      // E1 is FULL_PREPAY: exactly one checkout leg. A second, different leg
-      // on the same order is not expressible until Option B (E2/E3) — refuse
-      // closed, never merge or overwrite a money record.
-      return { ok: false, reason: 'conflicting_escrow_for_order' };
+      const legOfSameType = existing.paymentLegs.some((leg) => leg.legType === confirmation.legType);
+      if (legOfSameType) {
+        // A DIFFERENT confirmation for a leg type already funded — refuse
+        // closed, never merge or overwrite a money record.
+        return { ok: false, reason: 'conflicting_escrow_for_order' };
+      }
+      // The one modeled append: an Option-B door leg joining its checkout leg.
+      const record = EscrowTxnSchema.parse({
+        ...existing,
+        paymentLegs: [
+          ...existing.paymentLegs,
+          {
+            legType: confirmation.legType,
+            collectRef: confirmation.collectRef,
+            amount: confirmation.amount, // provider truth, copied
+            fee: confirmation.fee, // provider truth, copied
+            status: confirmation.status,
+          },
+        ],
+      });
+      this.escrowByOrderId.set(confirmation.orderId, record);
+      return { ok: true, record, replay: false };
+    }
+    if (confirmation.legType === 'door') {
+      // §5.5 boundary: select mode → fund legs → ... the checkout leg (D)
+      // funds FIRST; a door confirmation with no escrow record is provider
+      // truth arriving against an order this ledger never saw funded.
+      return { ok: false, reason: 'door_leg_before_checkout_leg' };
     }
     const record = EscrowTxnSchema.parse({
       orderId: confirmation.orderId,

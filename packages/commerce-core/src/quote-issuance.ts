@@ -6,17 +6,25 @@ import {
   type Quote,
 } from '@platform/contracts';
 import { isKilled, type FlagSnapshot } from '@shop-plus/flags-client';
+import {
+  decidePayAtDoorEligibility,
+  PAY_AT_DOOR_POLICY_DEFAULTS,
+  type PayAtDoorPolicy,
+  type PayAtDoorRefusalReason,
+} from './pay-at-door-policy.js';
 
 /**
- * QUOTE ISSUANCE (WO-1.1 a; Contract §2.3 step 6; SP3.2). Every money field
- * comes from the pinned computeWaterfall — nothing is computed locally. The
- * quote is validated against the strict canonical QuoteSchema AND
- * assertQuoteReconciles at issue time (runtime, not only CI), serialized
- * byte-stably, and persisted immutable-with-expiry.
+ * QUOTE ISSUANCE (WO-1.1 a, extended WO-2.5; Contract §2.3 step 6; SP3.2/
+ * SP3.3). Every money field comes from the pinned computeWaterfall — nothing
+ * is computed locally. The quote is validated against the strict canonical
+ * QuoteSchema AND assertQuoteReconciles at issue time (runtime, not only CI),
+ * serialized byte-stably, and persisted immutable-with-expiry.
  *
- * E1: FULL_PREPAY only. Option-B legs are E2/E3 (WO FORBIDDEN) — any other
- * mode refuses closed. Checkout kill-switch (Contract §7.2) refuses closed
- * BEFORE any quote exists.
+ * Modes: FULL_PREPAY unconditionally; DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR
+ * ONLY through the §6.1 eligibility gate (pay-at-door-policy.ts) — an
+ * ineligible request refuses closed BEFORE any quote exists. Any other mode
+ * string refuses closed. Checkout kill-switch (Contract §7.2) refuses closed
+ * first of all.
  */
 
 export const QUOTE_TTL_MS = 15 * 60 * 1000; // short expiry per SP3.2
@@ -40,11 +48,32 @@ export interface QuoteIssuanceInput {
   resellerMarkup: number;
   /** D — integer FCFA, from the DeliveryFeeQuote; outside both fee bases. */
   deliveryFee: number;
+  /**
+   * REQUIRED when paymentMode is DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR —
+   * the §6.1 gate's inputs. Absent context = ineligible (fails closed).
+   */
+  payAtDoor?: {
+    eligibility: unknown;
+    sellerTier: string;
+    category: string;
+    zoneTo: string;
+    /** Versioned policy; defaults to the conservative v0 values. */
+    policy?: PayAtDoorPolicy;
+  };
+  /** Clock for the eligibility window checks; falls back to deps.now(). */
+  nowIso?: string;
 }
 
 export type QuoteIssuanceRefusal =
   | { ok: false; reason: 'checkout_killed' }
-  | { ok: false; reason: 'payment_mode_not_available_e1' }
+  | { ok: false; reason: 'payment_mode_unknown' }
+  | {
+      ok: false;
+      reason: 'pay_at_door_not_eligible';
+      /** Ops detail — the buyer sees ONE honest catalog line, never this. */
+      refusal: PayAtDoorRefusalReason | 'context_missing';
+      policyVersion: string;
+    }
   | { ok: false; reason: 'quote_does_not_reconcile'; failures: readonly string[] };
 
 export type QuoteIssuanceOutcome =
@@ -55,17 +84,50 @@ export function issueQuote(deps: QuoteIssuanceDeps, input: QuoteIssuanceInput): 
   if (isKilled(deps.flags, 'checkout')) {
     return { ok: false, reason: 'checkout_killed' };
   }
-  if (input.paymentMode !== 'FULL_PREPAY') {
-    return { ok: false, reason: 'payment_mode_not_available_e1' };
+  if (input.paymentMode !== 'FULL_PREPAY' && input.paymentMode !== 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') {
+    return { ok: false, reason: 'payment_mode_unknown' };
   }
 
+  // The pinned waterfall computes BOTH modes' splits (§5.5) — nothing local.
   const { roundingLawVersion: _law, ...money } = computeWaterfall({
     sellerBasePrice: input.sellerBasePrice,
     sellerFundedCommission: input.sellerFundedCommission,
     resellerMarkup: input.resellerMarkup,
     deliveryFee: input.deliveryFee,
-    paymentMode: 'FULL_PREPAY',
+    paymentMode: input.paymentMode,
   });
+
+  if (input.paymentMode === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') {
+    // §6.1 gate, evaluated at quote — FAILS CLOSED on missing context.
+    const policy = input.payAtDoor?.policy ?? PAY_AT_DOOR_POLICY_DEFAULTS;
+    if (input.payAtDoor === undefined) {
+      return {
+        ok: false,
+        reason: 'pay_at_door_not_eligible',
+        refusal: 'context_missing',
+        policyVersion: policy.version,
+      };
+    }
+    const decision = decidePayAtDoorEligibility(
+      {
+        eligibility: input.payAtDoor.eligibility,
+        sellerTier: input.payAtDoor.sellerTier,
+        category: input.payAtDoor.category,
+        zoneTo: input.payAtDoor.zoneTo,
+        buyerTotalFcfa: money.buyerTotal,
+        nowIso: input.nowIso ?? deps.now().toISOString(),
+      },
+      policy,
+    );
+    if (!decision.eligible) {
+      return {
+        ok: false,
+        reason: 'pay_at_door_not_eligible',
+        refusal: decision.reason,
+        policyVersion: decision.policyVersion,
+      };
+    }
+  }
 
   const issuedAt = deps.now();
   const quote: Quote = QuoteSchema.parse({
