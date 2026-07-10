@@ -49,6 +49,15 @@ capture money-reconciliation-positive pass node scripts/gates/money-reconciliati
 log "gate: money-reconciliation — NEGATIVE FIXTURE (independent-multiplication sellerNet, must fail)"
 capture money-reconciliation-negative fail node scripts/gates/money-reconciliation.mjs gates/fixtures/negative/quote.independent-multiplication.json
 
+log "gate: money-reconciliation — Option-B quote from the pinned waterfall (§5.5 split, must pass)"
+capture money-reconciliation-option-b-positive pass node scripts/gates/money-reconciliation.mjs gates/fixtures/quote.option-b.json
+
+log "gate: money-reconciliation — NEGATIVE FIXTURE (Option-B split shift: reconciles to the pinned checker but paid != D, must fail)"
+capture money-reconciliation-option-b-negative fail node scripts/gates/money-reconciliation.mjs gates/fixtures/negative/quote.option-b.split-shift.json
+
+log "gate: money-reconciliation — NEGATIVE FIXTURE (paymentMode omitted: the split check may not be skipped, must fail)"
+capture money-reconciliation-missing-mode-negative fail node scripts/gates/money-reconciliation.mjs gates/fixtures/negative/quote.missing-mode.json
+
 log "gate: net-first-display — real opportunity-card surface (must pass)"
 capture net-first-display-positive pass node scripts/gates/net-first-display.mjs gates/fixtures/surfaces/opportunity-card.json
 
@@ -63,6 +72,15 @@ capture funded-legs-positive pass node scripts/gates/no-confirmed-order-without-
 
 log "gate: no-confirmed-order-without-funded-legs — NEGATIVE FIXTURE (confirmed order, short+refunded leg, must fail)"
 capture funded-legs-negative fail node scripts/gates/no-confirmed-order-without-funded-legs.mjs gates/fixtures/negative/order-journey.confirmed-unfunded.json
+
+log "gate: no-confirmed-order-without-funded-legs — Option-B journey confirms on its D-funded leg (per mode, must pass)"
+capture funded-legs-option-b-positive pass node scripts/gates/no-confirmed-order-without-funded-legs.mjs gates/fixtures/order-journey.option-b.happy.json
+
+log "gate: no-confirmed-order-without-funded-legs — NEGATIVE FIXTURE (full-prepay funding LIE on a PAY_AT_DOOR order, must fail)"
+capture funded-legs-option-b-negative fail node scripts/gates/no-confirmed-order-without-funded-legs.mjs gates/fixtures/negative/order-journey.option-b.prepay-lie.json
+
+log "gate: no-confirmed-order-without-funded-legs — NEGATIVE FIXTURE (coherent lie: split-shifted PAY_AT_DOOR quote + matching oversized leg, must fail)"
+capture funded-legs-split-lie-negative fail node scripts/gates/no-confirmed-order-without-funded-legs.mjs gates/fixtures/negative/order-journey.option-b.split-lie.json
 
 log "gate: settlement-copies-never-recomputes — happy journey + ledger source scan (must pass)"
 capture settlement-copies-positive pass node scripts/gates/settlement-copies-never-recomputes.mjs gates/fixtures/order-journey.happy.json
@@ -141,6 +159,15 @@ capture problem-path-positive pass node scripts/gates/problem-path-never-release
 
 log "gate: problem-path-never-releases — NEGATIVE (planted money machinery, must fail)"
 capture problem-path-negative fail node scripts/gates/problem-path-never-releases.mjs gates/fixtures/negative/problem-path-releases
+
+log "gate: E2 door path — Option-B through the real service path end-to-end (must pass)"
+capture e2-door-path pass node scripts/e2-door-path.mjs
+
+log "gate: door-signal-requires-provider — real provider confirmation reaches the signal (must pass)"
+capture door-signal-positive pass node scripts/gates/door-signal-requires-provider.mjs gates/fixtures/door-signal.happy.json
+
+log "gate: door-signal-requires-provider — NEGATIVE (locally-asserted door payment claims the signal, must fail)"
+capture door-signal-negative fail node scripts/gates/door-signal-requires-provider.mjs gates/fixtures/negative/door-signal.local-assert.json
 
 log "gate: contracts drift-check — honest /docs copy vs pinned canon manifest (must pass)"
 capture drift-check-positive pass pnpm exec drift-check docs --pinned-version 0.5.0

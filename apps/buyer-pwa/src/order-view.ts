@@ -21,8 +21,16 @@ export const ORDER_ACTION_SURFACE = {
 } as const;
 
 export interface OrderViewModel {
-  state: 'payment_failed' | 'cancelled' | 'confirmed' | 'paid_cancel_refused';
+  state:
+    | 'payment_failed'
+    | 'cancelled'
+    | 'confirmed'
+    | 'paid_cancel_refused'
+    | 'door_pending'
+    | 'door_paid';
   buyerTotalFcfa: number;
+  /** Option-B tracking (WO-2.5): the product amount still due at the door. */
+  amountDueAtDeliveryFcfa?: number;
 }
 
 const FCFA = new Intl.NumberFormat('fr-FR');
@@ -69,6 +77,26 @@ export function renderOrderView(model: OrderViewModel): string {
         `<h2>${t('order.view.heading')}</h2>`,
         amount,
         actionRow(ORDER_ACTION_SURFACE.equalPairs[1]),
+        `</section>`,
+      ].join('');
+    // WO-2.5 Option-B tracking: both amounts explicit and honest — what was
+    // already paid, and the product figure due at the door (register:money).
+    case 'door_pending': {
+      const due = `<p class="fcfa-figure">${FCFA.format(model.amountDueAtDeliveryFcfa ?? 0)} F CFA</p>`;
+      return [
+        `<section class="order-view" data-state="door_pending">`,
+        `<h2>${t('order.view.heading')}</h2>`,
+        `<p>${t('order.door_pending.fee_paid')}</p>`,
+        due,
+        `<p>${t('order.door_pending.next')}</p>`,
+        `</section>`,
+      ].join('');
+    }
+    case 'door_paid':
+      return [
+        `<section class="order-view" data-state="door_paid">`,
+        `<h2>${t('order.view.heading')}</h2>`,
+        `<p>${t('order.door_paid.body')}</p>`,
         `</section>`,
       ].join('');
   }

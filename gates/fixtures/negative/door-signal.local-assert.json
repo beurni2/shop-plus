@@ -1,0 +1,15 @@
+{
+  "claims": {
+    "doorPaid": true,
+    "signalEmitted": true
+  },
+  "timeline": [
+    {
+      "step": "confirm_option_b_order"
+    },
+    {
+      "step": "local_assert_door_paid",
+      "amount": 11500
+    }
+  ]
+}

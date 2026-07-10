@@ -82,12 +82,22 @@ describe('quote issuance — reconciliation enforced at issue time (WO-1.1 a, SP
     expect(outcome.ok).toBe(true);
   });
 
-  it('E1 is FULL_PREPAY only: Option B refuses closed (E2/E3 own it)', () => {
+  it('Option B without eligibility context refuses closed (the §6.1 gate fails closed; WO-2.5)', () => {
     const outcome = issueQuote(deps(), {
       ...input(WORKED_BASELINE_INPUT),
       paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
     });
-    expect(outcome).toEqual({ ok: false, reason: 'payment_mode_not_available_e1' });
+    expect(outcome).toEqual({
+      ok: false,
+      reason: 'pay_at_door_not_eligible',
+      refusal: 'context_missing',
+      policyVersion: 'option-b-policy.v0-conservative',
+    });
+  });
+
+  it('an unknown payment mode string still refuses closed', () => {
+    const outcome = issueQuote(deps(), { ...input(WORKED_BASELINE_INPUT), paymentMode: 'CASH_ON_DELIVERY' });
+    expect(outcome).toEqual({ ok: false, reason: 'payment_mode_unknown' });
   });
 
   it('byte-stable serialization: same quote → identical canonical bytes, independent of key insertion order', () => {

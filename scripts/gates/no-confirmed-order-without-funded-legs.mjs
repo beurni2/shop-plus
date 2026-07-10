@@ -19,6 +19,29 @@ if (!quoteParse.success) { console.error('fixture quote is not canonical'); proc
 const quote = quoteParse.data;
 try { assertQuoteReconciles(quote); } catch (e) { console.error(`fixture quote does not reconcile: ${e.message}`); process.exit(2); }
 
+// §5.5 per-mode split on the journey's OWN quote (WO-2.5 verifier finding 3):
+// the pinned checker binds paid+due=buyerTotal but not WHERE the split falls,
+// so a coherently-lying journey (split-shifted quote + matching oversized leg)
+// would otherwise walk through this gate. A shifted split is a VIOLATION
+// (exit 1), not unusable input — it is exactly the lie this gate exists for.
+const splitViolations = [];
+if (quote.paymentMode === 'FULL_PREPAY') {
+  if (quote.amountPaidAtCheckout !== quote.buyerTotal)
+    splitViolations.push(`FULL_PREPAY: amountPaidAtCheckout (${quote.amountPaidAtCheckout}) != buyerTotal (${quote.buyerTotal})`);
+  if (quote.amountDueAtDelivery !== 0)
+    splitViolations.push(`FULL_PREPAY: amountDueAtDelivery (${quote.amountDueAtDelivery}) != 0`);
+} else if (quote.paymentMode === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') {
+  if (quote.amountPaidAtCheckout !== quote.deliveryFee)
+    splitViolations.push(`Option B: amountPaidAtCheckout (${quote.amountPaidAtCheckout}) != deliveryFee D (${quote.deliveryFee})`);
+  if (quote.amountDueAtDelivery !== quote.productSubtotal)
+    splitViolations.push(`Option B: amountDueAtDelivery (${quote.amountDueAtDelivery}) != productSubtotal (${quote.productSubtotal})`);
+}
+if (splitViolations.length > 0) {
+  console.error('VIOLATION: the journey quote violates the §5.5 per-mode split:');
+  for (const v of splitViolations) console.error(`  ${v}`);
+  process.exit(1);
+}
+
 if (!journey.order || typeof journey.order.status !== 'string') { console.error('fixture has no order.status'); process.exit(2); }
 
 // Only the five E1 states are legible — "Confirmed", "CONFIRMED", or any

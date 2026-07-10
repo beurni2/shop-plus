@@ -4,6 +4,7 @@
 // Every shape is the pinned canon; every amount comes from the pinned
 // waterfall or is copied from provider truth / the immutable Quote.
 export * from './fixtures.js';
+export * from './pay-at-door-policy.js';
 export * from './quote-issuance.js';
 export * from './reservation.js';
 export * from './order-machine.js';

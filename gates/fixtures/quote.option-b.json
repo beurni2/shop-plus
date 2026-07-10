@@ -1,0 +1,17 @@
+{
+  "sellerBasePrice": 10000,
+  "sellerFundedCommission": 1000,
+  "resellerMarkup": 1500,
+  "deliveryFee": 1000,
+  "paymentMode": "DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR",
+  "productSubtotal": 11500,
+  "buyerTotal": 12500,
+  "sellerPlatformFee": 500,
+  "sellerNet": 8500,
+  "resellerGrossEarnings": 2500,
+  "resellerPlatformFee": 500,
+  "resellerNet": 2000,
+  "platformProductFeeRevenue": 1000,
+  "amountPaidAtCheckout": 1000,
+  "amountDueAtDelivery": 11500
+}

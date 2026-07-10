@@ -1,0 +1,78 @@
+{
+  "quote": {
+    "id": "quote-b-0001",
+    "attributionResellerId": "reseller-b",
+    "paymentMode": "DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR",
+    "sellerBasePrice": 10000,
+    "sellerFundedCommission": 1000,
+    "resellerMarkup": 1500,
+    "productSubtotal": 11500,
+    "deliveryFee": 1000,
+    "buyerTotal": 12500,
+    "amountPaidAtCheckout": 1000,
+    "amountDueAtDelivery": 11500,
+    "sellerPlatformFee": 500,
+    "sellerNet": 8500,
+    "resellerGrossEarnings": 2500,
+    "resellerPlatformFee": 500,
+    "resellerNet": 2000,
+    "platformProductFeeRevenue": 1000,
+    "paymentProcessingFeeEstimate": 0,
+    "taxFields": {},
+    "policyVersions": {
+      "settlementPolicyVersion": "e1-sandbox",
+      "inspectionPolicyVersion": "e1-sandbox"
+    },
+    "expiry": "2026-07-10T12:15:00.000Z"
+  },
+  "order": {
+    "id": "order-b-0001",
+    "status": "confirmed"
+  },
+  "escrow": {
+    "orderId": "order-b-0001",
+    "provider": "sandbox-provider",
+    "paymentLegs": [
+      {
+        "legType": "checkout",
+        "collectRef": "collect-att-b-0001",
+        "amount": 1000,
+        "fee": 0,
+        "status": "held"
+      },
+      {
+        "legType": "door",
+        "collectRef": "collect-door-att-0001",
+        "amount": 11500,
+        "fee": 0,
+        "status": "held"
+      }
+    ],
+    "status": "hold",
+    "splitBreakdown": {},
+    "payoutRefs": []
+  },
+  "doorSignal": {
+    "name": "order.status_projection_updated.v1",
+    "envelope": {
+      "command_id": "door-signal-order-b-0001",
+      "correlation_id": "corr-b-0001",
+      "aggregateVersion": 5,
+      "actor": "commerce-core:door",
+      "serverTime": "2026-07-10T12:00:00.000Z",
+      "version": "1"
+    },
+    "payload": {
+      "quote_id": "quote-b-0001",
+      "reservation_id": "res-b-0001",
+      "payment_attempt_id": "att-b-0001",
+      "order_id": "order-b-0001",
+      "status": "confirmed",
+      "door_leg": "paid",
+      "door_collect_ref": "collect-door-att-0001",
+      "amount_due_at_delivery_confirmed": 11500,
+      "provider": "sandbox-provider"
+    }
+  },
+  "events": []
+}
