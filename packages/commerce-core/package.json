@@ -26,6 +26,7 @@
     "@shop-plus/flags-client": "workspace:*"
   },
   "devDependencies": {
+    "@platform/certification": "git+https://github.com/beurni2/platform-contracts.git#0ff6696a4d0d89bef24822711e452c9a0ff07f9f&path:packages/certification",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4",
     "@cloudflare/workers-types": "^4.20250705.0",
