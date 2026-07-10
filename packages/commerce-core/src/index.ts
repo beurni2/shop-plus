@@ -9,5 +9,7 @@ export * from './reservation.js';
 export * from './order-machine.js';
 export * from './order-spine.js';
 export * from './ledger.js';
+export * from './problem-path.js';
+export * from './dlq.js';
 export * from './mocks/payment-provider-mock.js';
 export * from './mocks/sera-eligibility-mock.js';

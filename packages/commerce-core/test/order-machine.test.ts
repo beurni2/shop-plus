@@ -80,13 +80,18 @@ describe('thin order state machine — five states, refuse closed (WO-1.1 c)', (
     expect(advanceOrder(j, cmd('cb', 'reserved'))).toMatchObject({ ok: false, reason: 'out_of_order' });
   });
 
-  it('UNKNOWN states refuse closed — no terminal/failure state exists at E1 (E2 owns those)', () => {
-    const j = fullJourney();
-    for (const attempted of ['failed', 'cancelled', 'refunded', 'delivered', 'anything_else']) {
+  it('UNKNOWN states refuse closed; canon E2 states refuse FROM confirmed for the right reasons', () => {
+    const j = fullJourney(); // state: confirmed — money moved and delivered
+    // not in the canon enum at all → unknown_state (incl. the SE-I10-banned generic)
+    for (const attempted of ['failed', 'delivered', 'anything_else']) {
       const out = advanceOrder(j, cmd(`c-${attempted}`, attempted));
       expect(out, attempted).toMatchObject({ ok: false, reason: 'unknown_state' });
     }
-    // confirmed is the E1 end: even a valid state name cannot advance past it.
+    // canon members, but unreachable from confirmed: cancel needs the E3
+    // refund saga (honest reason); refunded has no inbound path at E2.
+    expect(advanceOrder(j, cmd('c-cancel', 'cancelled'))).toMatchObject({ ok: false, reason: 'refund_required_e3' });
+    expect(advanceOrder(j, cmd('c-refund', 'refunded'))).toMatchObject({ ok: false, reason: 'out_of_order' });
+    // confirmed is still the happy end: no re-entry.
     expect(advanceOrder(j, cmd('c-again', 'confirmed'))).toMatchObject({ ok: false, reason: 'out_of_order' });
   });
 

@@ -62,7 +62,11 @@ export class LedgerRecords {
           status: confirmation.status,
         },
       ],
-      status: confirmation.status,
+      // v0.5.0 canon: EscrowTxn.status is the aggregator-flow stage
+      // (collect|hold|split|payout|refunded). A provider-confirmed checkout
+      // leg means the provider HOLDS the funds; the leg itself carries the
+      // held/captured provider truth above. Split/payout are later stages.
+      status: 'hold',
       splitBreakdown: {},
       payoutRefs: [],
     });

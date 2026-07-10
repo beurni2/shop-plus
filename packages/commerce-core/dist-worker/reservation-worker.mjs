@@ -49,6 +49,29 @@ function decideReservation(state, cmd) {
       }
       return { ok: false, state, reason: "no_reservation" };
     }
+    case "release": {
+      if (state.status === "reserved") {
+        const next = {
+          status: "released",
+          quoteId: state.quoteId,
+          priorReservationId: state.reservationId,
+          releaseCommandId: cmd.command_id,
+          releaseReason: cmd.reason
+        };
+        return { ok: true, state: next, reservationId: state.reservationId, idempotentReplay: false };
+      }
+      if (state.status === "released") {
+        if (state.releaseCommandId === cmd.command_id) {
+          return { ok: true, state, reservationId: state.priorReservationId, idempotentReplay: true };
+        }
+        return { ok: true, state, reservationId: state.priorReservationId, idempotentReplay: true };
+      }
+      return {
+        ok: false,
+        state,
+        reason: state.status === "none" ? "no_reservation" : "already_confirmed"
+      };
+    }
     case "expire": {
       if (state.status === "reserved" && expired(state, cmd.nowIso)) {
         const next = {
