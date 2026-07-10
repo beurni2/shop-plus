@@ -24,3 +24,7 @@ jobs:
         run: pnpm --filter @shop-plus/buyer-pwa exec playwright install --with-deps chromium
       - name: Run every invariant gate (positives + negative fixtures)
         run: bash scripts/run-gates.sh
+      - name: Authorize read access to platform-contracts (CI-only, SSH forms)
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "git@github.com:beurni2/platform-contracts"
+          git config --global url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "ssh://git@github.com/beurni2/platform-contracts"
