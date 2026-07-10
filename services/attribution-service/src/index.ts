@@ -12,6 +12,7 @@ export const SERVICE_NAME = 'attribution-service';
 export type AttributionServiceShapes = { attributionToken: AttributionToken };
 
 export * from './attribution.js';
+export * from './lock.js';
 
 export const handleRequest = makeHealthFetch(SERVICE_NAME);
 

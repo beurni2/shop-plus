@@ -1,0 +1,18 @@
+{
+  "journey": {
+    "state": "payment_failed",
+    "chain": {
+      "quote_id": "quote-e2-0001",
+      "order_id": "order-e2-0001"
+    }
+  },
+  "reservation": {
+    "status": "reserved",
+    "quoteId": "quote-e2-0001",
+    "reservationId": "res-e2-0001",
+    "holderRef": "buyer-e2",
+    "reserveCommandId": "cmd-reserve-e2",
+    "expiresAt": "2026-07-10T12:02:00.000Z"
+  },
+  "events": []
+}

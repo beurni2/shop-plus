@@ -16,5 +16,83 @@
     "fr": "Les premières boutiques arrivent bientôt.",
     "register": "neutral",
     "screenClass": "status"
+  },
+  {
+    "key": "order.view.heading",
+    "fr": "Votre commande",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "order.payment_failed.title",
+    "fr": "Le paiement n'est pas passé.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "order.payment_failed.body",
+    "fr": "Votre argent n'a pas été débité. Vous pouvez réessayer ou arrêter la commande.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "order.action.retry",
+    "fr": "Réessayer le paiement",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "order.action.abandon",
+    "fr": "Arrêter la commande",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "order.cancelled.title",
+    "fr": "Commande arrêtée.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "order.cancelled.body",
+    "fr": "Rien n'a été débité. Vous pouvez recommander quand vous voulez.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "order.paid_cancel_refused.body",
+    "fr": "Cette commande est déjà payée. Signalez un problème et notre équipe s'occupe du remboursement.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "order.action.confirm_receipt",
+    "fr": "J'ai bien reçu",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "order.action.report_problem",
+    "fr": "Signaler un problème",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "order.problem.ack",
+    "fr": "Signalement bien reçu. Une personne de l'équipe vous répond.",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "order.offline.queued",
+    "fr": "C'est noté sur votre téléphone. Envoi dès que le réseau revient.",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "attribution.collision",
+    "fr": "Ce lien vient d'un autre vendeur. Votre commande reste avec le premier vendeur.",
+    "register": "selling",
+    "screenClass": "status"
   }
 ]

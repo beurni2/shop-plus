@@ -121,6 +121,27 @@ capture copy-lint-pwa-positive pass pnpm exec copy-lint apps/buyer-pwa/i18n/cata
 log "gate: French Voice copy-lint — NEGATIVE FIXTURE (veuillez/séquestre + marketing-in-money + Mooré-in-instruction, must fail)"
 capture copy-lint-negative fail pnpm exec copy-lint gates/fixtures/negative/catalog.negative.json
 
+log "gate: E2 failure path — the real service path end-to-end (must pass)"
+capture e2-failure-path pass node scripts/e2-failure-path.mjs
+
+log "gate: reservation-release-on-failure — real released world (must pass)"
+capture release-on-failure-positive pass node scripts/gates/reservation-release-on-failure.mjs gates/fixtures/payment-fail-released.json
+
+log "gate: reservation-release-on-failure — NEGATIVE (held after payment fail, no alert, must fail)"
+capture release-on-failure-negative fail node scripts/gates/reservation-release-on-failure.mjs gates/fixtures/negative/payment-fail-held.json
+
+log "gate: attribution-lock-first-wins — collision refused, lock never moves (must pass)"
+capture attribution-lock-positive pass node scripts/gates/attribution-lock-first-wins.mjs gates/fixtures/attribution-first-lock.json
+
+log "gate: attribution-lock-first-wins — NEGATIVE (re-attribution claim, must fail)"
+capture attribution-lock-negative fail node scripts/gates/attribution-lock-first-wins.mjs gates/fixtures/negative/attribution-re-lock.json
+
+log "gate: problem-path-never-releases — real source scan (must pass)"
+capture problem-path-positive pass node scripts/gates/problem-path-never-releases.mjs
+
+log "gate: problem-path-never-releases — NEGATIVE (planted money machinery, must fail)"
+capture problem-path-negative fail node scripts/gates/problem-path-never-releases.mjs gates/fixtures/negative/problem-path-releases
+
 log "gate: contracts drift-check — honest /docs copy vs pinned canon manifest (must pass)"
 capture drift-check-positive pass pnpm exec drift-check docs --pinned-version 0.5.0
 

@@ -1,5 +1,6 @@
 import { shopPlusTheme as theme } from '@platform/ui-tokens';
 import { t } from './i18n';
+import { renderOrderView, type OrderViewModel } from './order-view';
 
 /**
  * SP0.1 buyer PWA shell: one sparse page, entirely on ui-tokens (shop-plus
@@ -58,6 +59,20 @@ style.textContent = `
     color: var(--ink-muted);
     font-size: var(--type-body);
   }
+  .order-view { display: grid; gap: var(--space-lg); }
+  .fcfa-figure { margin: 0; font-size: var(--type-title); font-weight: 700; }
+  /* EQUAL PROMINENCE (M4): one shared weight class, one shared row — the
+     problem/abandon side is never smaller, dimmer, or demoted. */
+  .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
+  .action.action-equal {
+    min-height: 48px;
+    border: 1px solid var(--primary);
+    border-radius: var(--radius-lg);
+    background: var(--surface-raised);
+    color: var(--ink);
+    font-size: var(--type-body);
+    font-weight: 600;
+  }
 `;
 document.head.appendChild(style);
 
@@ -75,6 +90,18 @@ if (app) {
   empty.className = 'empty-state';
   empty.textContent = t('discover.empty_state');
   main.append(heading, empty);
+
+  // E2 order-view demo surface (no backend at E2): the Playwright harness
+  // drives ?demo-order=<state> to exercise the honest failure states.
+  const demoState = new URLSearchParams(window.location.search).get('demo-order');
+  const DEMO_STATES: ReadonlyArray<OrderViewModel['state']> = [
+    'payment_failed', 'cancelled', 'confirmed', 'paid_cancel_refused',
+  ];
+  if (demoState && (DEMO_STATES as readonly string[]).includes(demoState)) {
+    const section = document.createElement('div');
+    section.innerHTML = renderOrderView({ state: demoState as OrderViewModel['state'], buyerTotalFcfa: 12_500 });
+    main.append(section);
+  }
 
   app.append(header, main);
 }
