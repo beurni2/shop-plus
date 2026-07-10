@@ -2,7 +2,7 @@
   "name": "@shop-plus/commerce-core",
   "version": "0.0.1",
   "private": true,
-  "description": "Scaffold against the pinned canonical shapes (ADR-001). Fixture builders over the pinned money waterfall only — no authoritative order state machine, no shape redefinition.",
+  "description": "THE authoritative commerce-core (ADR-002, founder ruling E1-D1): immutable Quote issuance, atomic reservation DO, thin E1 order state machine, EscrowTxn/SettlementObligation ledger records \u2014 all on the pinned canonical shapes.",
   "license": "UNLICENSED",
   "type": "module",
   "main": "./dist/index.js",
@@ -15,15 +15,21 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json",
+    "test": "vitest run",
+    "bundle:worker": "esbuild worker/reservation-do.ts --bundle --format=esm --outfile=dist-worker/reservation-worker.mjs --platform=neutral --conditions=import",
+    "pretest": "pnpm bundle:worker"
   },
   "dependencies": {
     "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#b10f4822b173c9cd4b162f416ad213bf580ab652&path:packages/contracts",
-    "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#b10f4822b173c9cd4b162f416ad213bf580ab652&path:packages/kernel-types"
+    "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#b10f4822b173c9cd4b162f416ad213bf580ab652&path:packages/kernel-types",
+    "@shop-plus/flags-client": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "@cloudflare/workers-types": "^4.20250705.0",
+    "esbuild": "^0.25.5",
+    "miniflare": "^4.20250705.0"
   }
 }
