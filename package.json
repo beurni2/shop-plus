@@ -2,7 +2,7 @@
   "name": "shop-plus",
   "version": "0.0.1",
   "private": true,
-  "description": "Shop+ — reseller commerce, storefront & buyer experience. Consumes @platform/* from platform-contracts at a pinned git ref.",
+  "description": "Shop+ \u2014 reseller commerce, storefront & buyer experience. Consumes @platform/* from platform-contracts at a pinned git ref.",
   "license": "UNLICENSED",
   "type": "module",
   "engines": {
@@ -20,7 +20,8 @@
     "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#b10f4822b173c9cd4b162f416ad213bf580ab652&path:packages/contracts",
     "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#b10f4822b173c9cd4b162f416ad213bf580ab652&path:packages/kernel-types",
     "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#b10f4822b173c9cd4b162f416ad213bf580ab652&path:packages/i18n",
-    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#b10f4822b173c9cd4b162f416ad213bf580ab652&path:packages/ui-tokens"
+    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#b10f4822b173c9cd4b162f416ad213bf580ab652&path:packages/ui-tokens",
+    "@shop-plus/commerce-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

@@ -55,6 +55,21 @@ capture net-first-display-positive pass node scripts/gates/net-first-display.mjs
 log "gate: net-first-display — NEGATIVE FIXTURE (gross-first earnings surface, must fail)"
 capture net-first-display-negative fail node scripts/gates/net-first-display.mjs gates/fixtures/negative/surfaces/gross-first-card.json
 
+log "E1 happy path — full spine run through the SERVICE path, chain + reconciliation (must pass)"
+capture e1-happy-path pass node scripts/e1-happy-path.mjs
+
+log "gate: no-confirmed-order-without-funded-legs — happy journey (must pass)"
+capture funded-legs-positive pass node scripts/gates/no-confirmed-order-without-funded-legs.mjs gates/fixtures/order-journey.happy.json
+
+log "gate: no-confirmed-order-without-funded-legs — NEGATIVE FIXTURE (confirmed order, short+refunded leg, must fail)"
+capture funded-legs-negative fail node scripts/gates/no-confirmed-order-without-funded-legs.mjs gates/fixtures/negative/order-journey.confirmed-unfunded.json
+
+log "gate: settlement-copies-never-recomputes — happy journey + ledger source scan (must pass)"
+capture settlement-copies-positive pass node scripts/gates/settlement-copies-never-recomputes.mjs gates/fixtures/order-journey.happy.json
+
+log "gate: settlement-copies-never-recomputes — NEGATIVE FIXTURE (recomputed-with-different-rounding amounts, must fail)"
+capture settlement-copies-negative fail node scripts/gates/settlement-copies-never-recomputes.mjs gates/fixtures/negative/settlement.recomputed.json
+
 log "gate: discovery-returns-stores — real discovery response (must pass)"
 capture discovery-returns-stores-positive pass node scripts/gates/discovery-returns-stores.mjs gates/fixtures/discovery/stores-response.json
 
