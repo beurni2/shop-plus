@@ -9,7 +9,7 @@ import {
 /**
  * LEDGER RECORDS (WO-1.1 d; Contract §2.3 steps 13–15). RECORDS ONLY: this
  * module appends canonical EscrowTxn and SettlementObligation records. It
- * holds no funds, keeps no balance, executes no payout, and COPIES every
+ * holds nothing, sums nothing, executes no payout, and COPIES every
  * amount from provider truth or the immutable Quote — it never recomputes.
  * The settlement-copies-never-recomputes gate scans this file: importing the
  * waterfall or fee constants here is a CI failure by name.
