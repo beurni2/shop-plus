@@ -35,8 +35,15 @@ try {
   process.exit(1);
 }
 
-// §5.5 per-mode split (WO-2.5) — only when the fixture names its mode.
-if (quote.paymentMode !== undefined) {
+// §5.5 per-mode split (WO-2.5). Absence is a FAILURE, not a skip (verifier
+// finding 2): a quote that names no mode has an unverifiable split, and the
+// canonical QuoteSchema requires paymentMode anyway — no honest fixture
+// omits it.
+if (quote.paymentMode === undefined) {
+  console.error(`money-reconciliation FAILED on ${file}: quote names no paymentMode — the §5.5 split cannot be verified`);
+  process.exit(1);
+}
+{
   const splitFailures = [];
   if (quote.paymentMode === 'FULL_PREPAY') {
     if (quote.amountPaidAtCheckout !== quote.buyerTotal)

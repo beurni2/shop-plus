@@ -55,6 +55,9 @@ capture money-reconciliation-option-b-positive pass node scripts/gates/money-rec
 log "gate: money-reconciliation — NEGATIVE FIXTURE (Option-B split shift: reconciles to the pinned checker but paid != D, must fail)"
 capture money-reconciliation-option-b-negative fail node scripts/gates/money-reconciliation.mjs gates/fixtures/negative/quote.option-b.split-shift.json
 
+log "gate: money-reconciliation — NEGATIVE FIXTURE (paymentMode omitted: the split check may not be skipped, must fail)"
+capture money-reconciliation-missing-mode-negative fail node scripts/gates/money-reconciliation.mjs gates/fixtures/negative/quote.missing-mode.json
+
 log "gate: net-first-display — real opportunity-card surface (must pass)"
 capture net-first-display-positive pass node scripts/gates/net-first-display.mjs gates/fixtures/surfaces/opportunity-card.json
 
@@ -75,6 +78,9 @@ capture funded-legs-option-b-positive pass node scripts/gates/no-confirmed-order
 
 log "gate: no-confirmed-order-without-funded-legs — NEGATIVE FIXTURE (full-prepay funding LIE on a PAY_AT_DOOR order, must fail)"
 capture funded-legs-option-b-negative fail node scripts/gates/no-confirmed-order-without-funded-legs.mjs gates/fixtures/negative/order-journey.option-b.prepay-lie.json
+
+log "gate: no-confirmed-order-without-funded-legs — NEGATIVE FIXTURE (coherent lie: split-shifted PAY_AT_DOOR quote + matching oversized leg, must fail)"
+capture funded-legs-split-lie-negative fail node scripts/gates/no-confirmed-order-without-funded-legs.mjs gates/fixtures/negative/order-journey.option-b.split-lie.json
 
 log "gate: settlement-copies-never-recomputes — happy journey + ledger source scan (must pass)"
 capture settlement-copies-positive pass node scripts/gates/settlement-copies-never-recomputes.mjs gates/fixtures/order-journey.happy.json
