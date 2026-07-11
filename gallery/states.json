@@ -1,35 +1,83 @@
 {
   "surface": "Shop+ — parcours acheteur (PWA)",
-  "viewport": { "width": 390, "height": 844 },
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
   "groups": [
     {
       "title": "Accueil",
       "states": [
-        { "id": "accueil", "url": "/", "caption": "Découverte — l'état vide honnête (aucune boutique encore)" }
+        {
+          "id": "accueil",
+          "url": "/",
+          "caption": "Découverte — l'état vide honnête (aucune boutique encore)"
+        }
       ]
     },
     {
       "title": "Paiement — les deux options (§6.1)",
       "states": [
-        { "id": "paiement-deux-options", "url": "/?demo-checkout=available", "caption": "Les deux options côte à côte : tout payer maintenant, ou l'essentiel à la porte" },
-        { "id": "paiement-option-b-indisponible", "url": "/?demo-checkout=unavailable", "caption": "Option à la porte indisponible — l'état est expliqué, jamais un mur d'erreur" }
+        {
+          "id": "paiement-deux-options",
+          "url": "/?demo-checkout=available",
+          "caption": "Les deux options côte à côte : tout payer maintenant, ou l'essentiel à la porte"
+        },
+        {
+          "id": "paiement-option-b-indisponible",
+          "url": "/?demo-checkout=unavailable",
+          "caption": "Option à la porte indisponible — l'état est expliqué, jamais un mur d'erreur"
+        }
       ]
     },
     {
       "title": "Ma commande — les états honnêtes",
       "states": [
-        { "id": "commande-paiement-echoue", "url": "/?demo-order=payment_failed", "caption": "Paiement échoué — réessayer et abandonner ont le MÊME poids (chemin du problème, M4)" },
-        { "id": "commande-annulee", "url": "/?demo-order=cancelled", "caption": "Commande annulée — l'état est dit calmement, cause et suite en mots simples" },
-        { "id": "commande-confirmee", "url": "/?demo-order=confirmed", "caption": "Commande confirmée — signaler un souci est aussi visible que confirmer la réception" },
-        { "id": "commande-annulation-refusee", "url": "/?demo-order=paid_cancel_refused", "caption": "Annulation refusée après paiement — le chemin du problème garde toute sa place" },
-        { "id": "commande-porte-en-attente", "url": "/?demo-order=door_pending", "caption": "Paiement à la porte EN ATTENTE — le montant dû à la livraison, en clair" },
-        { "id": "commande-porte-payee", "url": "/?demo-order=door_paid", "caption": "Paiement à la porte CONFIRMÉ par le réseau" }
+        {
+          "id": "commande-paiement-echoue",
+          "url": "/?demo-order=payment_failed",
+          "caption": "Paiement échoué — réessayer et abandonner ont le MÊME poids (chemin du problème, M4)"
+        },
+        {
+          "id": "commande-annulee",
+          "url": "/?demo-order=cancelled",
+          "caption": "Commande annulée — l'état est dit calmement, cause et suite en mots simples"
+        },
+        {
+          "id": "commande-confirmee",
+          "url": "/?demo-order=confirmed",
+          "caption": "Commande confirmée — signaler un souci est aussi visible que confirmer la réception"
+        },
+        {
+          "id": "commande-annulation-refusee",
+          "url": "/?demo-order=paid_cancel_refused",
+          "caption": "Annulation refusée après paiement — le chemin du problème garde toute sa place"
+        },
+        {
+          "id": "commande-porte-en-attente",
+          "url": "/?demo-order=door_pending",
+          "caption": "Paiement à la porte EN ATTENTE — le montant dû à la livraison, en clair"
+        },
+        {
+          "id": "commande-porte-payee",
+          "url": "/?demo-order=door_paid",
+          "caption": "Paiement à la porte CONFIRMÉ par le réseau"
+        }
       ]
     }
   ],
   "gaps": [
-    { "name": "File hors ligne (offline queue)", "reason": "État non construit dans la PWA acheteur à ce jour — aucun écran à capturer ; nommé ici plutôt que passé sous silence." },
-    { "name": "Suivi du colis (tracking)", "reason": "Écran non construit dans la PWA acheteur à ce jour — le suivi vit côté console Séra ; nommé ici plutôt que passé sous silence." },
-    { "name": "Parcours revendeuse (app RN, WO-4.1) — accueil · opportunités · sélection · vitrine · lien signé · gains", "reason": "Ces écrans existent dans l'app revendeuse (React Native, aperçu Expo Go) — cette galerie Playwright ne capture que la PWA acheteur ; le canal visuel du parcours revendeuse est WALKTHROUGH.md + l'aperçu Expo Go. Nommés ici plutôt que passés sous silence." }
+    {
+      "name": "File hors ligne (offline queue)",
+      "reason": "État non construit dans la PWA acheteur à ce jour — aucun écran à capturer ; nommé ici plutôt que passé sous silence."
+    },
+    {
+      "name": "Suivi du colis (tracking)",
+      "reason": "Écran non construit dans la PWA acheteur à ce jour — le suivi vit côté console Séra ; nommé ici plutôt que passé sous silence."
+    },
+    {
+      "name": "Parcours revendeuse (app RN, WO-4.1 · restylé WO-4.2R « le visage ») — les 6 écrans sur le kit ui-tokens v2 (chrome, gains en compte-montant, chips d'état, transitions)",
+      "reason": "Ces écrans existent dans l'app revendeuse (React Native, aperçu Expo Go) et portent depuis WO-4.2R la couche visuelle du kit — cette galerie Playwright ne capture que la PWA acheteur ; le canal visuel avant/après du parcours revendeuse est WALKTHROUGH.md + l'aperçu Expo Go sur le téléphone du fondateur. Nommés ici plutôt que passés sous silence."
+    }
   ]
 }
