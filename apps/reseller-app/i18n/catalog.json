@@ -214,5 +214,29 @@
     "fr": "Séra livre. L'argent suit les règles. Votre part vous revient.",
     "register": "money",
     "screenClass": "general"
+  },
+  {
+    "key": "nav.tab_accueil",
+    "fr": "Accueil",
+    "register": "neutral",
+    "screenClass": "general"
+  },
+  {
+    "key": "nav.tab_opportunites",
+    "fr": "Opportunités",
+    "register": "neutral",
+    "screenClass": "general"
+  },
+  {
+    "key": "nav.tab_gains",
+    "fr": "Gains",
+    "register": "neutral",
+    "screenClass": "general"
+  },
+  {
+    "key": "money.amount_f",
+    "fr": "{amount} F",
+    "register": "money",
+    "screenClass": "general"
   }
 ]

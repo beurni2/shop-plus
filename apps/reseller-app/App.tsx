@@ -19,34 +19,62 @@ import {
   type DemoWorld,
   type GainsLine,
 } from './src/demo/store';
+import {
+  AppHeader,
+  Card,
+  CountUpAmount,
+  EmptyState,
+  ListRow,
+  Overline,
+  PrimaryButton,
+  ScreenTransition,
+  SecondaryButton,
+  StatusChip,
+  TabBar,
+  WaxBand,
+} from './src/ui/kit';
 
 /**
- * WO-4.1 — LE MONDE NAVIGABLE. The SP0.1 net-first card becomes a walkable
- * reseller journey over src/journey.ts: accueil → les opportunités (FlatList,
- * seeded, NET-FIRST — gross-first UI is prohibited by canon) → ma sélection →
- * l'aperçu de la vitrine (what the customer sees) → le lien signé (sandbox,
- * visibly non-functional) → mes gains (net largest; the honest 20 % fee and
- * the gross beside it, never instead of it). No new business capability: the
- * demo world's every franc derives from the pinned waterfall via the
- * checked-in seed snapshot (see src/demo/store.ts — the Metro-safe snapshot
- * law of this repo). « Recommencer la démo » resets world + stack.
+ * WO-4.2R — LE VISAGE over WO-4.1's walkable world. Same screens, same
+ * edges, same back law, same money from the same frozen seed — the visual
+ * layer is the kit (src/ui/kit.tsx, ui-tokens v2), the navigation SEMANTICS
+ * are untouched. Tabs are waypoint RESETS under the ratified
+ * two-level-ladder law (they jump only to states already reachable from
+ * START along declared edges — accueil→opportunites, accueil→gains);
+ * go() and its edge guard are byte-identical to WO-4.1.
  */
 
+/* The money lines (prototype `.ml`/`.mlTot`): gross and the honest 20 % fee
+ * as calm muted lines, a dashed rule, then the net — the strongest line,
+ * never gross-first (SP-I04/SP-I12). */
 function GainsBreakdown({ line, style }: { line: GainsLine; style?: object }) {
   return (
-    <View style={style}>
-      <Text style={styles.detailLine}>
+    <View style={[styles.moneyBlock, style]}>
+      <Text style={styles.moneyLine}>
         {t('gains.brut').replace('{amount}', formatFcfa(line.grossFcfa))}
       </Text>
-      <Text style={styles.detailLine}>
+      <Text style={styles.moneyLine}>
         {t('gains.part').replace('{amount}', formatFcfa(line.feeFcfa))}
       </Text>
-      <Text style={styles.detailNetLine}>
+      <View style={styles.moneyRule} />
+      <Text style={styles.moneyNetLine}>
         {t('gains.net').replace('{amount}', formatFcfa(line.netFcfa))}
       </Text>
     </View>
   );
 }
+
+/** The bottom hubs (WO-4.2R): Accueil · Opportunités · Gains. */
+const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'gains'];
+
+const SCREEN_TITLE_KEY: Record<Screen, string> = {
+  accueil: 'app.title',
+  opportunites: 'opportunites.title',
+  selection: 'selection.title',
+  vitrine: 'vitrine.title',
+  lien: 'lien.title',
+  gains: 'gains.title',
+};
 
 export default function App() {
   const [world, setWorld] = useState<DemoWorld>(() => createDemoWorld());
@@ -65,6 +93,11 @@ export default function App() {
     setWorld(createDemoWorld());
     setStack([START]);
   }, []);
+  // Waypoint reset, never an edge: each hub state is already reachable
+  // from START along declared edges; the tab jumps to that exact state.
+  const toHub = useCallback((hub: Screen) => {
+    setStack(hub === START ? [START] : [START, hub]);
+  }, []);
 
   const selection = selectedOpportunities(world);
   const totals = gainsTotal(world.opportunities);
@@ -76,170 +109,161 @@ export default function App() {
           ruling ③ — pre-edge-to-edge Android draws a default bar; the
           surface token is the correct fill. */}
       <StatusBar style="dark" backgroundColor={theme.colors.surface} />
+      <WaxBand />
       {IS_PREVIEW && (
         <View style={styles.previewBanner}>
           <Text style={styles.previewBannerText}>{t('preview.banner')}</Text>
         </View>
       )}
 
-      <View style={styles.header}>
-        {stack.length > 1 ? (
-          <Pressable style={styles.backAction} onPress={back}>
-            <Text style={styles.backActionText}>← {t('nav.retour')}</Text>
-          </Pressable>
-        ) : (
-          <Text style={styles.brand}>{t('app.title')}</Text>
-        )}
-      </View>
+      <AppHeader
+        title={t(SCREEN_TITLE_KEY[screen])}
+        subtitle={screen === 'accueil' ? t('accueil.tagline') : undefined}
+        backLabel={`← ${t('nav.retour')}`}
+        onBack={stack.length > 1 ? back : undefined}
+      />
 
+      <ScreenTransition screenKey={screen}>
       <View style={styles.content}>
         {screen === 'accueil' && (
           <View style={styles.stackGap}>
-            <Text style={styles.brand}>{t('app.title')}</Text>
-            <Text style={styles.message}>{t('accueil.tagline')}</Text>
-            <Pressable style={styles.primaryAction} onPress={() => go('opportunites')}>
-              <Text style={styles.primaryActionText}>{t('accueil.card_opportunites')}</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryCard} onPress={() => go('gains')}>
-              <Text style={styles.secondaryCardText}>{t('accueil.card_gains')}</Text>
-            </Pressable>
+            <View style={styles.statGrid}>
+              <Card style={styles.statCard}>
+                <Overline>{t('opportunites.title')}</Overline>
+                <Text style={styles.statValue}>{world.opportunities.length}</Text>
+              </Card>
+              <Card style={styles.statCard}>
+                <Overline>{t('selection.title')}</Overline>
+                <Text style={styles.statValue}>{world.selectedIds.length}</Text>
+              </Card>
+            </View>
+            <PrimaryButton label={t('accueil.card_opportunites')} onPress={() => go('opportunites')} />
+            <SecondaryButton label={t('accueil.card_gains')} onPress={() => go('gains')} />
           </View>
         )}
 
         {screen === 'opportunites' && (
           <View style={styles.listWrap}>
-            <Text style={styles.heading}>{t('opportunites.title')}</Text>
             <FlatList
               data={world.opportunities}
               keyExtractor={(o) => o.id}
               initialNumToRender={6}
               windowSize={5}
+              contentContainerStyle={styles.listContent}
               renderItem={({ item }) => {
                 const card = opportunityCard(item);
                 return (
-                  <View style={styles.listRow}>
-                    <Text style={styles.listName}>{item.name}</Text>
-                    <Text style={styles.listMeta}>
-                      {t('opportunites.repere')} : {item.landmark}
-                    </Text>
-                    <Text style={styles.listNet}>
-                      {t('opportunity.net_label')} : {formatFcfa(card.netFcfa)}
-                    </Text>
-                    <Text style={styles.listMeta}>
-                      {t('opportunity.customer_price_label')} : {formatFcfa(card.customerPriceFcfa)}
-                    </Text>
-                  </View>
+                  <ListRow
+                    glyph={item.name.slice(0, 1)}
+                    title={item.name}
+                    meta={`${t('opportunites.repere')} : ${item.landmark}`}
+                    net={`${t('opportunity.net_label')} : ${formatFcfa(card.netFcfa)}`}
+                    detail={`${t('opportunity.customer_price_label')} : ${formatFcfa(card.customerPriceFcfa)}`}
+                  />
                 );
               }}
             />
-            <Pressable style={styles.primaryAction} onPress={() => go('selection')}>
-              <Text style={styles.primaryActionText}>{t('opportunites.action')}</Text>
-            </Pressable>
+            <PrimaryButton label={t('opportunites.action')} onPress={() => go('selection')} />
           </View>
         )}
 
         {screen === 'selection' && (
           <View style={styles.listWrap}>
-            <Text style={styles.heading}>{t('selection.title')}</Text>
-            <Text style={styles.message}>{t('selection.hint')}</Text>
+            <Text style={styles.noteLine}>{t('selection.hint')}</Text>
             <FlatList
               data={world.opportunities}
               keyExtractor={(o) => o.id}
               initialNumToRender={6}
               windowSize={5}
+              contentContainerStyle={styles.listContent}
               renderItem={({ item }) => (
-                <Pressable
-                  style={isSelected(world, item.id) ? styles.listRowSelected : styles.listRow}
+                <ListRow
+                  glyph={item.name.slice(0, 1)}
+                  title={item.name}
+                  net={`${t('opportunity.net_label')} : ${formatFcfa(opportunityCard(item).netFcfa)}`}
+                  chip={
+                    isSelected(world, item.id) ? (
+                      <StatusChip tone="ok" label={t('selection.choisi')} />
+                    ) : (
+                      <StatusChip tone="muted" label={t('selection.ajouter')} />
+                    )
+                  }
+                  selected={isSelected(world, item.id)}
                   onPress={() => setWorld(toggleSelection(world, item.id))}
-                >
-                  <Text style={styles.listName}>{item.name}</Text>
-                  <Text style={styles.listNet}>
-                    {t('opportunity.net_label')} : {formatFcfa(opportunityCard(item).netFcfa)}
-                  </Text>
-                  <Text style={isSelected(world, item.id) ? styles.badgeOk : styles.badgeMuted}>
-                    {isSelected(world, item.id) ? t('selection.choisi') : t('selection.ajouter')}
-                  </Text>
-                </Pressable>
+                />
               )}
             />
-            <Text style={styles.footerHint}>
+            <Text style={styles.noteLine}>
               {t('selection.compte').replace('{count}', String(world.selectedIds.length))}
             </Text>
-            <Pressable style={styles.primaryAction} onPress={() => go('vitrine')}>
-              <Text style={styles.primaryActionText}>{t('selection.action')}</Text>
-            </Pressable>
+            <PrimaryButton label={t('selection.action')} onPress={() => go('vitrine')} />
           </View>
         )}
 
         {screen === 'vitrine' && (
           <View style={styles.listWrap}>
-            <Text style={styles.heading}>{t('vitrine.title')}</Text>
-            <Text style={styles.message}>{t('vitrine.note')}</Text>
+            <Text style={styles.noteLine}>{t('vitrine.note')}</Text>
             {selection.length === 0 ? (
-              <View style={styles.card}>
-                <Text style={styles.message}>{t('vitrine.vide')}</Text>
-              </View>
+              <EmptyState glyph="🛍️" title={t('vitrine.vide')} />
             ) : (
               <FlatList
                 data={selection}
                 keyExtractor={(o) => o.id}
                 initialNumToRender={6}
                 windowSize={5}
+                contentContainerStyle={styles.listContent}
                 renderItem={({ item }) => (
-                  <View style={styles.listRow}>
-                    <Text style={styles.listName}>{item.name}</Text>
-                    <Text style={styles.vitrinePrice}>
-                      {formatFcfa(opportunityCard(item).customerPriceFcfa)}
-                    </Text>
-                  </View>
+                  <ListRow
+                    glyph={item.name.slice(0, 1)}
+                    title={item.name}
+                    net={formatFcfa(opportunityCard(item).customerPriceFcfa)}
+                  />
                 )}
               />
             )}
-            <Pressable style={styles.primaryAction} onPress={() => go('lien')}>
-              <Text style={styles.primaryActionText}>{t('vitrine.action')}</Text>
-            </Pressable>
+            <PrimaryButton label={t('vitrine.action')} onPress={() => go('lien')} />
           </View>
         )}
 
         {screen === 'lien' && (
-          <View style={styles.card}>
-            <Text style={styles.heading}>{t('lien.title')}</Text>
-            <View style={styles.linkCard}>
+          <Card>
+            <View style={styles.linkBox}>
               <Text style={styles.linkText}>{DEMO_SHARE_LINK}</Text>
               <Text style={styles.linkHint}>{t('lien.hint')}</Text>
             </View>
             <Text style={styles.message}>{t('lien.explication')}</Text>
-            <Pressable style={styles.primaryAction} onPress={() => go('gains')}>
-              <Text style={styles.primaryActionText}>{t('lien.action')}</Text>
-            </Pressable>
-          </View>
+            <PrimaryButton label={t('lien.action')} onPress={() => go('gains')} />
+          </Card>
         )}
 
         {screen === 'gains' && (
           <View style={styles.stackGap}>
-            <Text style={styles.heading}>{t('gains.title')}</Text>
-            <Text style={styles.netLabel}>{t('gains.total_label')}</Text>
-            <Text style={styles.netAmount}>{formatFcfa(totals.netFcfa)}</Text>
-            <View style={styles.detailCard}>
-              <Text style={styles.detailTitle}>{t('gains.detail_titre')}</Text>
+            <Card>
+              <CountUpAmount
+                label={t('gains.total_label')}
+                amount={totals.netFcfa}
+                template={t('money.amount_f')}
+              />
+            </Card>
+            <Card>
+              <Overline>{t('gains.detail_titre')}</Overline>
               <GainsBreakdown line={totals} />
-            </View>
-            <View style={styles.detailCard}>
-              <Text style={styles.detailTitle}>
+            </Card>
+            <Card>
+              <Text style={styles.cardTitle}>
                 {t('gains.baseline_titre').replace(
                   '{amount}',
                   formatFcfa(baselineProductPriceFcfa()),
                 )}
               </Text>
               <GainsBreakdown line={baseline} />
-            </View>
-            <Text style={styles.message}>{t('gains.suite')}</Text>
-            <Pressable style={styles.secondaryCard} onPress={() => go('opportunites')}>
-              <Text style={styles.secondaryCardText}>{t('opportunites.title')}</Text>
-            </Pressable>
+            </Card>
+            <Text style={styles.noteLine}>{t('gains.suite')}</Text>
+            <SecondaryButton label={t('opportunites.title')} onPress={() => go('opportunites')} />
           </View>
         )}
       </View>
+      </ScreenTransition>
 
       <View style={styles.footer}>
         <Text style={styles.footerHint}>{t('demo.donnees')}</Text>
@@ -247,159 +271,81 @@ export default function App() {
           <Text style={styles.resetActionText}>{t('nav.recommencer')}</Text>
         </Pressable>
       </View>
+
+      {HUBS.includes(screen) && (
+        <TabBar
+          items={[
+            { key: 'accueil', icon: '🏠', label: t('nav.tab_accueil'), active: screen === 'accueil', onPress: () => toHub('accueil') },
+            { key: 'opportunites', icon: '🛍️', label: t('nav.tab_opportunites'), active: screen === 'opportunites', onPress: () => toHub('opportunites') },
+            { key: 'gains', icon: '💰', label: t('nav.tab_gains'), active: screen === 'gains', onPress: () => toHub('gains') },
+          ]}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: theme.colors.surface,
-  },
-  header: {
-    paddingHorizontal: theme.spacing.xl,
-    paddingTop: theme.spacing.md,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
+  screen: { flex: 1, backgroundColor: theme.colors.surface },
   content: {
     flex: 1,
-    paddingHorizontal: theme.spacing.xl,
-    gap: theme.spacing.lg,
-    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.sm,
+    gap: theme.spacing.md,
   },
-  stackGap: { gap: theme.spacing.lg },
-  brand: {
-    color: theme.colors.primary,
-    fontSize: theme.typeScale.title.size,
-    lineHeight: theme.typeScale.title.lineHeight,
-    fontWeight: theme.typeScale.title.weight,
-    textAlign: 'center',
-  },
-  heading: {
+  stackGap: { gap: theme.spacing.md, paddingTop: theme.spacing.sm },
+  statGrid: { flexDirection: 'row', gap: theme.spacing.md },
+  statCard: { flex: 1 },
+  statValue: {
     color: theme.colors.ink,
-    fontSize: theme.typeScale.heading.size,
-    lineHeight: theme.typeScale.heading.lineHeight,
-    fontWeight: theme.typeScale.heading.weight,
-    textAlign: 'center',
+    fontSize: theme.typeScale.displayFcfa.size,
+    lineHeight: theme.typeScale.displayFcfa.lineHeight,
+    fontWeight: theme.typeScale.displayFcfa.weight,
+    fontVariant: ['tabular-nums'],
   },
+  listWrap: { flex: 1, gap: theme.spacing.md },
+  listContent: { gap: theme.spacing.sm, paddingBottom: theme.spacing.sm },
   message: {
     color: theme.colors.ink,
     fontSize: theme.typeScale.bodyLarge.size,
     lineHeight: theme.typeScale.bodyLarge.lineHeight,
-    textAlign: 'center',
   },
-  card: {
-    backgroundColor: theme.colors.surfaceRaised,
-    borderRadius: theme.radius.lg,
-    borderColor: theme.colors.line,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: theme.spacing.xl,
-    gap: theme.spacing.lg,
-  },
-  listWrap: { flex: 1, gap: theme.spacing.md, paddingVertical: theme.spacing.md },
-  listRow: {
-    backgroundColor: theme.colors.surfaceRaised,
-    borderRadius: theme.radius.lg,
-    borderColor: theme.colors.line,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: theme.spacing.lg,
-    marginBottom: theme.spacing.md,
-    gap: theme.spacing.xs,
-    minHeight: 44,
-  },
-  listRowSelected: {
-    backgroundColor: theme.colors.surfaceRaised,
-    borderRadius: theme.radius.lg,
-    borderColor: theme.colors.primary,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: theme.spacing.lg,
-    marginBottom: theme.spacing.md,
-    gap: theme.spacing.xs,
-    minHeight: 44,
-  },
-  listName: {
-    color: theme.colors.ink,
-    fontSize: theme.typeScale.bodyLarge.size,
-    lineHeight: theme.typeScale.bodyLarge.lineHeight,
-    fontWeight: theme.typeScale.heading.weight,
-  },
-  listMeta: {
+  noteLine: {
     color: theme.colors.inkMuted,
-    fontSize: theme.typeScale.label.size,
-    lineHeight: theme.typeScale.label.lineHeight,
+    fontSize: theme.typeScale.body.size,
+    lineHeight: theme.typeScale.body.lineHeight,
   },
-  listNet: {
-    color: theme.colors.success,
-    fontSize: theme.typeScale.bodyLarge.size,
-    lineHeight: theme.typeScale.bodyLarge.lineHeight,
-    fontWeight: theme.typeScale.title.weight,
-  },
-  badgeOk: {
-    color: theme.colors.primary,
-    fontSize: theme.typeScale.label.size,
-    lineHeight: theme.typeScale.label.lineHeight,
-    fontWeight: theme.typeScale.label.weight,
-  },
-  badgeMuted: {
-    color: theme.colors.inkMuted,
-    fontSize: theme.typeScale.label.size,
-    lineHeight: theme.typeScale.label.lineHeight,
-    fontWeight: theme.typeScale.label.weight,
-  },
-  vitrinePrice: {
-    color: theme.colors.ink,
-    fontSize: theme.typeScale.heading.size,
-    lineHeight: theme.typeScale.heading.lineHeight,
-    fontWeight: theme.typeScale.heading.weight,
-  },
-  netLabel: {
-    color: theme.colors.inkMuted,
-    fontSize: theme.typeScale.label.size,
-    lineHeight: theme.typeScale.label.lineHeight,
-    fontWeight: theme.typeScale.label.weight,
-    textAlign: 'center',
-  },
-  netAmount: {
-    color: theme.colors.success,
-    fontSize: theme.typeScale.displayFcfa.size,
-    lineHeight: theme.typeScale.displayFcfa.lineHeight,
-    fontWeight: theme.typeScale.displayFcfa.weight,
-    textAlign: 'center',
-  },
-  detailCard: {
-    backgroundColor: theme.colors.surfaceRaised,
-    borderRadius: theme.radius.lg,
-    borderColor: theme.colors.line,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.xs,
-  },
-  detailTitle: {
+  cardTitle: {
     color: theme.colors.ink,
     fontSize: theme.typeScale.body.size,
     lineHeight: theme.typeScale.body.lineHeight,
     fontWeight: theme.typeScale.heading.weight,
-    textAlign: 'center',
   },
-  detailLine: {
+  moneyBlock: { gap: theme.spacing.xs },
+  moneyLine: {
     color: theme.colors.inkMuted,
-    fontSize: theme.typeScale.label.size,
-    lineHeight: theme.typeScale.label.lineHeight,
-    textAlign: 'center',
+    fontSize: theme.typeScale.body.size,
+    lineHeight: theme.typeScale.body.lineHeight,
+    fontVariant: ['tabular-nums'],
   },
-  detailNetLine: {
-    color: theme.colors.success,
+  moneyRule: {
+    borderBottomWidth: theme.spacing.xs / 4,
+    borderBottomColor: theme.colors.line,
+    borderStyle: 'dashed',
+    marginTop: theme.spacing.xs,
+  },
+  moneyNetLine: {
+    color: theme.colors.primaryStrong,
     fontSize: theme.typeScale.bodyLarge.size,
     lineHeight: theme.typeScale.bodyLarge.lineHeight,
     fontWeight: theme.typeScale.title.weight,
-    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
-  linkCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    borderColor: theme.colors.line,
+  linkBox: {
+    backgroundColor: theme.colors.surfaceSunken,
+    borderRadius: theme.radius.md,
     borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.line,
     padding: theme.spacing.lg,
     gap: theme.spacing.xs,
     alignItems: 'center',
@@ -413,65 +359,30 @@ const styles = StyleSheet.create({
   },
   linkHint: {
     color: theme.colors.inkMuted,
-    fontSize: theme.typeScale.label.size,
-    lineHeight: theme.typeScale.label.lineHeight,
+    fontSize: theme.typeScale.caption.size,
+    lineHeight: theme.typeScale.caption.lineHeight,
     textAlign: 'center',
   },
-  primaryAction: {
-    minHeight: 44,
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.lg,
-  },
-  primaryActionText: {
-    color: theme.colors.surfaceRaised,
-    fontSize: theme.typeScale.bodyLarge.size,
-    fontWeight: theme.typeScale.heading.weight,
-  },
-  secondaryCard: {
-    minHeight: 44,
-    borderRadius: theme.radius.lg,
-    borderColor: theme.colors.line,
-    borderWidth: StyleSheet.hairlineWidth,
-    backgroundColor: theme.colors.surfaceRaised,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.lg,
-  },
-  secondaryCardText: { color: theme.colors.ink, fontSize: theme.typeScale.bodyLarge.size },
-  backAction: {
-    minHeight: 44,
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-    paddingHorizontal: theme.spacing.md,
-  },
-  backActionText: { color: theme.colors.ink, fontSize: theme.typeScale.bodyLarge.size },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.xl,
-    paddingBottom: theme.spacing.md,
-    minHeight: 44,
-    gap: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    minHeight: theme.touch.minTargetPx,
   },
-  footerHint: {
-    color: theme.colors.inkMuted,
-    fontSize: theme.typeScale.label.size,
-    lineHeight: theme.typeScale.label.lineHeight,
-  },
-  resetAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: theme.spacing.md },
-  resetActionText: { color: theme.colors.inkMuted, fontSize: theme.typeScale.label.size },
+  footerHint: { color: theme.colors.inkFaint, fontSize: theme.typeScale.caption.size },
+  resetAction: { minHeight: theme.touch.minTargetPx, justifyContent: 'center', paddingHorizontal: theme.spacing.md },
+  resetActionText: { color: theme.colors.inkMuted, fontSize: theme.typeScale.caption.size, fontWeight: theme.typeScale.label.weight },
   previewBanner: {
-    backgroundColor: theme.colors.ink,
-    paddingVertical: theme.spacing.md,
+    backgroundColor: theme.colors.surfaceSunken,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.line,
+    paddingVertical: theme.spacing.xs,
     alignItems: 'center',
   },
   previewBannerText: {
-    color: theme.colors.surface,
-    fontSize: theme.typeScale.label.size,
-    lineHeight: theme.typeScale.label.lineHeight,
+    color: theme.colors.inkMuted,
+    fontSize: theme.typeScale.caption.size,
+    lineHeight: theme.typeScale.caption.lineHeight,
   },
 });
