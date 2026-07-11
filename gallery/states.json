@@ -29,6 +29,7 @@
   ],
   "gaps": [
     { "name": "File hors ligne (offline queue)", "reason": "État non construit dans la PWA acheteur à ce jour — aucun écran à capturer ; nommé ici plutôt que passé sous silence." },
-    { "name": "Suivi du colis (tracking)", "reason": "Écran non construit dans la PWA acheteur à ce jour — le suivi vit côté console Séra ; nommé ici plutôt que passé sous silence." }
+    { "name": "Suivi du colis (tracking)", "reason": "Écran non construit dans la PWA acheteur à ce jour — le suivi vit côté console Séra ; nommé ici plutôt que passé sous silence." },
+    { "name": "Parcours revendeuse (app RN, WO-4.1) — accueil · opportunités · sélection · vitrine · lien signé · gains", "reason": "Ces écrans existent dans l'app revendeuse (React Native, aperçu Expo Go) — cette galerie Playwright ne capture que la PWA acheteur ; le canal visuel du parcours revendeuse est WALKTHROUGH.md + l'aperçu Expo Go. Nommés ici plutôt que passés sous silence." }
   ]
 }

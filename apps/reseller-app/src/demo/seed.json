@@ -1,0 +1,241 @@
+{
+  "baseline": {
+    "input": {
+      "sellerBasePrice": 10000,
+      "sellerFundedCommission": 1000,
+      "resellerMarkup": 1500,
+      "deliveryFee": 1000,
+      "paymentMode": "FULL_PREPAY"
+    },
+    "money": {
+      "sellerBasePrice": 10000,
+      "sellerFundedCommission": 1000,
+      "resellerMarkup": 1500,
+      "deliveryFee": 1000,
+      "paymentMode": "FULL_PREPAY",
+      "productSubtotal": 11500,
+      "buyerTotal": 12500,
+      "sellerPlatformFee": 500,
+      "sellerNet": 8500,
+      "resellerGrossEarnings": 2500,
+      "resellerPlatformFee": 500,
+      "resellerNet": 2000,
+      "platformProductFeeRevenue": 1000,
+      "amountPaidAtCheckout": 12500,
+      "amountDueAtDelivery": 0,
+      "roundingLawVersion": "v1"
+    }
+  },
+  "opportunities": [
+    {
+      "id": "o1",
+      "name": "Pagne wax (démo)",
+      "landmark": "Marché Rood-Woko",
+      "input": {
+        "sellerBasePrice": 8000,
+        "sellerFundedCommission": 800,
+        "resellerMarkup": 1200,
+        "deliveryFee": 1000,
+        "paymentMode": "FULL_PREPAY"
+      },
+      "money": {
+        "sellerBasePrice": 8000,
+        "sellerFundedCommission": 800,
+        "resellerMarkup": 1200,
+        "deliveryFee": 1000,
+        "paymentMode": "FULL_PREPAY",
+        "productSubtotal": 9200,
+        "buyerTotal": 10200,
+        "sellerPlatformFee": 400,
+        "sellerNet": 6800,
+        "resellerGrossEarnings": 2000,
+        "resellerPlatformFee": 400,
+        "resellerNet": 1600,
+        "platformProductFeeRevenue": 800,
+        "amountPaidAtCheckout": 10200,
+        "amountDueAtDelivery": 0,
+        "roundingLawVersion": "v1"
+      }
+    },
+    {
+      "id": "o2",
+      "name": "Savon de karité (démo)",
+      "landmark": "Quartier Gounghin",
+      "input": {
+        "sellerBasePrice": 1500,
+        "sellerFundedCommission": 150,
+        "resellerMarkup": 350,
+        "deliveryFee": 1000,
+        "paymentMode": "FULL_PREPAY"
+      },
+      "money": {
+        "sellerBasePrice": 1500,
+        "sellerFundedCommission": 150,
+        "resellerMarkup": 350,
+        "deliveryFee": 1000,
+        "paymentMode": "FULL_PREPAY",
+        "productSubtotal": 1850,
+        "buyerTotal": 2850,
+        "sellerPlatformFee": 75,
+        "sellerNet": 1275,
+        "resellerGrossEarnings": 500,
+        "resellerPlatformFee": 100,
+        "resellerNet": 400,
+        "platformProductFeeRevenue": 175,
+        "amountPaidAtCheckout": 2850,
+        "amountDueAtDelivery": 0,
+        "roundingLawVersion": "v1"
+      }
+    },
+    {
+      "id": "o3",
+      "name": "Sac tissé main (démo)",
+      "landmark": "Village artisanal",
+      "input": {
+        "sellerBasePrice": 6500,
+        "sellerFundedCommission": 650,
+        "resellerMarkup": 1000,
+        "deliveryFee": 1000,
+        "paymentMode": "FULL_PREPAY"
+      },
+      "money": {
+        "sellerBasePrice": 6500,
+        "sellerFundedCommission": 650,
+        "resellerMarkup": 1000,
+        "deliveryFee": 1000,
+        "paymentMode": "FULL_PREPAY",
+        "productSubtotal": 7500,
+        "buyerTotal": 8500,
+        "sellerPlatformFee": 325,
+        "sellerNet": 5525,
+        "resellerGrossEarnings": 1650,
+        "resellerPlatformFee": 330,
+        "resellerNet": 1320,
+        "platformProductFeeRevenue": 655,
+        "amountPaidAtCheckout": 8500,
+        "amountDueAtDelivery": 0,
+        "roundingLawVersion": "v1"
+      }
+    },
+    {
+      "id": "o4",
+      "name": "Bijoux en bronze (démo)",
+      "landmark": "Quartier Dapoya",
+      "input": {
+        "sellerBasePrice": 9000,
+        "sellerFundedCommission": 900,
+        "resellerMarkup": 1500,
+        "deliveryFee": 1000,
+        "paymentMode": "FULL_PREPAY"
+      },
+      "money": {
+        "sellerBasePrice": 9000,
+        "sellerFundedCommission": 900,
+        "resellerMarkup": 1500,
+        "deliveryFee": 1000,
+        "paymentMode": "FULL_PREPAY",
+        "productSubtotal": 10500,
+        "buyerTotal": 11500,
+        "sellerPlatformFee": 450,
+        "sellerNet": 7650,
+        "resellerGrossEarnings": 2400,
+        "resellerPlatformFee": 480,
+        "resellerNet": 1920,
+        "platformProductFeeRevenue": 930,
+        "amountPaidAtCheckout": 11500,
+        "amountDueAtDelivery": 0,
+        "roundingLawVersion": "v1"
+      }
+    },
+    {
+      "id": "o5",
+      "name": "Chemise Faso Dan Fani (démo)",
+      "landmark": "Avenue Kwame-Nkrumah",
+      "input": {
+        "sellerBasePrice": 12000,
+        "sellerFundedCommission": 1200,
+        "resellerMarkup": 1800,
+        "deliveryFee": 1000,
+        "paymentMode": "FULL_PREPAY"
+      },
+      "money": {
+        "sellerBasePrice": 12000,
+        "sellerFundedCommission": 1200,
+        "resellerMarkup": 1800,
+        "deliveryFee": 1000,
+        "paymentMode": "FULL_PREPAY",
+        "productSubtotal": 13800,
+        "buyerTotal": 14800,
+        "sellerPlatformFee": 600,
+        "sellerNet": 10200,
+        "resellerGrossEarnings": 3000,
+        "resellerPlatformFee": 600,
+        "resellerNet": 2400,
+        "platformProductFeeRevenue": 1200,
+        "amountPaidAtCheckout": 14800,
+        "amountDueAtDelivery": 0,
+        "roundingLawVersion": "v1"
+      }
+    },
+    {
+      "id": "o6",
+      "name": "Bissap prêt à servir (démo)",
+      "landmark": "Marché de Paglayiri",
+      "input": {
+        "sellerBasePrice": 1000,
+        "sellerFundedCommission": 100,
+        "resellerMarkup": 250,
+        "deliveryFee": 1000,
+        "paymentMode": "FULL_PREPAY"
+      },
+      "money": {
+        "sellerBasePrice": 1000,
+        "sellerFundedCommission": 100,
+        "resellerMarkup": 250,
+        "deliveryFee": 1000,
+        "paymentMode": "FULL_PREPAY",
+        "productSubtotal": 1250,
+        "buyerTotal": 2250,
+        "sellerPlatformFee": 50,
+        "sellerNet": 850,
+        "resellerGrossEarnings": 350,
+        "resellerPlatformFee": 70,
+        "resellerNet": 280,
+        "platformProductFeeRevenue": 120,
+        "amountPaidAtCheckout": 2250,
+        "amountDueAtDelivery": 0,
+        "roundingLawVersion": "v1"
+      }
+    },
+    {
+      "id": "o7",
+      "name": "Sandales en cuir (démo)",
+      "landmark": "Gare de l’Est",
+      "input": {
+        "sellerBasePrice": 7500,
+        "sellerFundedCommission": 750,
+        "resellerMarkup": 1250,
+        "deliveryFee": 1000,
+        "paymentMode": "FULL_PREPAY"
+      },
+      "money": {
+        "sellerBasePrice": 7500,
+        "sellerFundedCommission": 750,
+        "resellerMarkup": 1250,
+        "deliveryFee": 1000,
+        "paymentMode": "FULL_PREPAY",
+        "productSubtotal": 8750,
+        "buyerTotal": 9750,
+        "sellerPlatformFee": 375,
+        "sellerNet": 6375,
+        "resellerGrossEarnings": 2000,
+        "resellerPlatformFee": 400,
+        "resellerNet": 1600,
+        "platformProductFeeRevenue": 775,
+        "amountPaidAtCheckout": 9750,
+        "amountDueAtDelivery": 0,
+        "roundingLawVersion": "v1"
+      }
+    }
+  ]
+}
