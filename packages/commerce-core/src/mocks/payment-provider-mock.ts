@@ -37,6 +37,11 @@ export interface ChargeRequest {
   amount: number;
   correlationId: string;
   requestedAtIso: string;
+  /**
+   * WO-2.5: which §5.5 payment leg this charge funds. Defaults to 'checkout'
+   * (every pre-Option-B caller); 'door' emits payment.door_leg_confirmed.v1.
+   */
+  legType?: 'checkout' | 'door';
 }
 
 export type ChargeResponse =
@@ -48,6 +53,7 @@ interface AttemptRecord {
   request: ChargeRequest;
   collectRef: string;
   status: 'held';
+  legType: 'checkout' | 'door';
 }
 
 export interface PlannedDelivery {
@@ -88,6 +94,7 @@ export class MockPaymentProvider {
       request,
       collectRef: `collect-${request.paymentAttemptId}`,
       status: 'held',
+      legType: request.legType ?? 'checkout',
     };
     this.attempts.set(request.paymentAttemptId, record);
     return { outcome: 'accepted', paymentAttemptId: request.paymentAttemptId, collectRef: record.collectRef };
@@ -132,9 +139,14 @@ export class MockPaymentProvider {
 
   private buildWebhookEvent(attempt: AttemptRecord, copy: number): PlatformEvent {
     // Same envelope command_id on every copy: a real provider redelivers the
-    // SAME webhook — consumers must dedupe on it.
+    // SAME webhook — consumers must dedupe on it. The event NAME follows the
+    // §5.5 leg (WO-2.5): checkout vs door confirmations are distinct canon
+    // events with the same provider payload shape.
     return PlatformEventSchema.parse({
-      name: 'payment.checkout_leg_confirmed.v1',
+      name:
+        attempt.legType === 'door'
+          ? 'payment.door_leg_confirmed.v1'
+          : 'payment.checkout_leg_confirmed.v1',
       envelope: {
         command_id: `whk-${attempt.collectRef}`,
         correlation_id: attempt.request.correlationId,

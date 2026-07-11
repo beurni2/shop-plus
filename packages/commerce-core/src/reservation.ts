@@ -30,7 +30,14 @@ export type ReservationState =
       reserveCommandId: string;
       confirmCommandId: string;
     }
-  | { status: 'released'; quoteId: string; priorReservationId: string };
+  | {
+      status: 'released';
+      quoteId: string;
+      priorReservationId: string;
+      /** set when released by an explicit ReleaseCommand (not TTL sweep). */
+      releaseCommandId?: string;
+      releaseReason?: 'payment_failed' | 'cancelled';
+    };
 
 export interface ReserveCommand {
   kind: 'reserve';
@@ -55,7 +62,23 @@ export interface ExpireCommand {
   nowIso: string;
 }
 
-export type ReservationCommand = ReserveCommand | ConfirmCommand | ExpireCommand;
+/**
+ * WO-2.3 (E2): immediate release on payment failure or pre-payment
+ * cancellation — "the release is the rule" (Contract E2 scenario #1:
+ * reservation-held-after-payment-fail). Unlike expire, release does not
+ * wait out the TTL; it carries the structured reason and is idempotent on
+ * command_id. Only a HELD reservation releases; a confirmed one refuses
+ * (un-confirming is the E3 refund saga's job).
+ */
+export interface ReleaseCommand {
+  kind: 'release';
+  command_id: string;
+  quoteId: string;
+  nowIso: string;
+  reason: 'payment_failed' | 'cancelled';
+}
+
+export type ReservationCommand = ReserveCommand | ConfirmCommand | ExpireCommand | ReleaseCommand;
 
 export type ReservationDecision =
   | { ok: true; state: ReservationState; reservationId: string; idempotentReplay: boolean }
@@ -124,6 +147,32 @@ export function decideReservation(state: ReservationState, cmd: ReservationComma
         return { ok: true, state: next, reservationId: next.reservationId, idempotentReplay: false };
       }
       return { ok: false, state, reason: 'no_reservation' };
+    }
+
+    case 'release': {
+      if (state.status === 'reserved') {
+        const next: ReservationState = {
+          status: 'released',
+          quoteId: state.quoteId,
+          priorReservationId: state.reservationId,
+          releaseCommandId: cmd.command_id,
+          releaseReason: cmd.reason,
+        };
+        return { ok: true, state: next, reservationId: state.reservationId, idempotentReplay: false };
+      }
+      if (state.status === 'released') {
+        if (state.releaseCommandId === cmd.command_id) {
+          return { ok: true, state, reservationId: state.priorReservationId, idempotentReplay: true };
+        }
+        // Already released by expiry or another release — nothing to undo,
+        // nothing double-applied.
+        return { ok: true, state, reservationId: state.priorReservationId, idempotentReplay: true };
+      }
+      return {
+        ok: false,
+        state,
+        reason: state.status === 'none' ? 'no_reservation' : 'already_confirmed',
+      };
     }
 
     case 'expire': {

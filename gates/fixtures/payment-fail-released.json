@@ -1,0 +1,19 @@
+{
+  "journey": {
+    "state": "payment_failed",
+    "chain": {
+      "quote_id": "quote-e2-0001",
+      "reservation_id": "res-e2-0001",
+      "payment_attempt_id": "att-e2-0001",
+      "order_id": "order-e2-0001"
+    }
+  },
+  "reservation": {
+    "status": "released",
+    "quoteId": "quote-e2-0001",
+    "priorReservationId": "res-e2-0001",
+    "releaseCommandId": "c-release",
+    "releaseReason": "payment_failed"
+  },
+  "events": []
+}
