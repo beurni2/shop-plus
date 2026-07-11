@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shop+ — parcours acheteur (PWA) — galerie d'aperçu</title>
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; background: #FAF7F2; color: #221F1A; padding: 16px; }
+  h1 { font-size: 22px; } h2 { font-size: 17px; margin: 28px 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .card { margin: 0; background: #fff; border: 1px solid #E4DDD3; border-radius: 12px; overflow: hidden; }
+  .card img { width: 100%; height: auto; display: block; }
+  .card figcaption { padding: 10px 12px; font-size: 14px; }
+  .card.gap { padding: 24px 12px; background: #FFF6E8; }
+  .note, .gaps { background: #fff; border: 1px solid #E4DDD3; border-radius: 12px; padding: 12px 16px; font-size: 14px; }
+</style>
+<h1>Shop+ — parcours acheteur (PWA) — galerie d'aperçu</h1>
+<p class="note">Chaque image est un état RÉELLEMENT construit, capturé automatiquement (bac à sable — aucune donnée réelle).</p>
+<section><h2>Accueil</h2><div class="grid"><figure class="card"><img src="img/accueil.png" alt="Découverte — l'état vide honnête (aucune boutique encore)" loading="lazy"><figcaption>Découverte — l'état vide honnête (aucune boutique encore)</figcaption></figure></div></section>
+<section><h2>Paiement — les deux options (§6.1)</h2><div class="grid"><figure class="card"><img src="img/paiement-deux-options.png" alt="Les deux options côte à côte : tout payer maintenant, ou l'essentiel à la porte" loading="lazy"><figcaption>Les deux options côte à côte : tout payer maintenant, ou l'essentiel à la porte</figcaption></figure>
+<figure class="card"><img src="img/paiement-option-b-indisponible.png" alt="Option à la porte indisponible — l'état est expliqué, jamais un mur d'erreur" loading="lazy"><figcaption>Option à la porte indisponible — l'état est expliqué, jamais un mur d'erreur</figcaption></figure></div></section>
+<section><h2>Ma commande — les états honnêtes</h2><div class="grid"><figure class="card"><img src="img/commande-paiement-echoue.png" alt="Paiement échoué — réessayer et abandonner ont le MÊME poids (chemin du problème, M4)" loading="lazy"><figcaption>Paiement échoué — réessayer et abandonner ont le MÊME poids (chemin du problème, M4)</figcaption></figure>
+<figure class="card"><img src="img/commande-annulee.png" alt="Commande annulée — l'état est dit calmement, cause et suite en mots simples" loading="lazy"><figcaption>Commande annulée — l'état est dit calmement, cause et suite en mots simples</figcaption></figure>
+<figure class="card"><img src="img/commande-confirmee.png" alt="Commande confirmée — signaler un souci est aussi visible que confirmer la réception" loading="lazy"><figcaption>Commande confirmée — signaler un souci est aussi visible que confirmer la réception</figcaption></figure>
+<figure class="card"><img src="img/commande-annulation-refusee.png" alt="Annulation refusée après paiement — le chemin du problème garde toute sa place" loading="lazy"><figcaption>Annulation refusée après paiement — le chemin du problème garde toute sa place</figcaption></figure>
+<figure class="card"><img src="img/commande-porte-en-attente.png" alt="Paiement à la porte EN ATTENTE — le montant dû à la livraison, en clair" loading="lazy"><figcaption>Paiement à la porte EN ATTENTE — le montant dû à la livraison, en clair</figcaption></figure>
+<figure class="card"><img src="img/commande-porte-payee.png" alt="Paiement à la porte CONFIRMÉ par le réseau" loading="lazy"><figcaption>Paiement à la porte CONFIRMÉ par le réseau</figcaption></figure></div></section>
+<section><h2>États nommés sans écran (les manques, jamais silencieux)</h2><ul class="gaps"><li><strong>File hors ligne (offline queue)</strong> — État non construit dans la PWA acheteur à ce jour — aucun écran à capturer ; nommé ici plutôt que passé sous silence.</li>
+<li><strong>Suivi du colis (tracking)</strong> — Écran non construit dans la PWA acheteur à ce jour — le suivi vit côté console Séra ; nommé ici plutôt que passé sous silence.</li></ul></section>
+</html>

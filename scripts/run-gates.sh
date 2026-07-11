@@ -106,6 +106,12 @@ capture no-supplier-contact-positive pass node scripts/gates/no-supplier-contact
 log "gate: no-supplier-contact — NEGATIVE FIXTURE (supplier identity/contact/commission leak, must fail)"
 capture no-supplier-contact-negative fail node scripts/gates/no-supplier-contact.mjs gates/fixtures/negative/customer-surfaces/leaking-product-view.json
 
+log "gate: no-expo-token-leak — repo source + workflows + lockfile (must pass)"
+capture no-expo-token-leak-positive pass node scripts/gates/no-expo-token-leak.mjs
+
+log "gate: no-expo-token-leak — NEGATIVE FIXTURE (committed token literal, must fail)"
+capture no-expo-token-leak-negative fail node scripts/gates/no-expo-token-leak.mjs gates/fixtures/negative/no-expo-token-leak
+
 log "gate: single-level — repo source (must pass)"
 capture single-level-positive pass node scripts/gates/single-level.mjs
 

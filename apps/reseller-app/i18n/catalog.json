@@ -22,5 +22,11 @@
     "fr": "Pagne tissé — exemple",
     "register": "selling",
     "screenClass": "selling_surface"
+  },
+  {
+    "key": "preview.banner",
+    "fr": "Aperçu — bac à sable",
+    "register": "neutral",
+    "screenClass": "label"
   }
 ]

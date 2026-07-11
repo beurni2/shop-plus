@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { shopPlusTheme as theme } from '@platform/ui-tokens';
 import { formatFcfa, type OpportunityCardModel } from './src/earnings';
+import { IS_PREVIEW } from './src/preview';
 import exampleCard from './src/opportunity-example.json';
 import { t } from './src/i18n';
 
@@ -21,6 +22,11 @@ export default function App() {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style="dark" backgroundColor={theme.colors.surface} />
+      {IS_PREVIEW && (
+        <View style={styles.previewBanner}>
+          <Text style={styles.previewBannerText}>{t('preview.banner')}</Text>
+        </View>
+      )}
       <View style={styles.content}>
         <Text style={styles.brand}>{t('app.title')}</Text>
         <View style={styles.card}>
@@ -85,5 +91,15 @@ const styles = StyleSheet.create({
     color: theme.colors.inkMuted,
     fontSize: theme.typeScale.body.size,
     lineHeight: theme.typeScale.body.lineHeight,
+  },
+  previewBanner: {
+    backgroundColor: theme.colors.ink,
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center',
+  },
+  previewBannerText: {
+    color: theme.colors.surface,
+    fontSize: theme.typeScale.label.size,
+    lineHeight: theme.typeScale.label.lineHeight,
   },
 });
