@@ -28,5 +28,191 @@
     "fr": "Aperçu — bac à sable",
     "register": "neutral",
     "screenClass": "label"
+  },
+  {
+    "key": "nav.retour",
+    "fr": "Retour",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "nav.recommencer",
+    "fr": "Recommencer la démo",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "demo.donnees",
+    "fr": "Données d'essai — rien ici n'est réel.",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "accueil.tagline",
+    "fr": "Choisissez de beaux produits, partagez votre lien, gagnez votre part.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "accueil.card_opportunites",
+    "fr": "Voir les opportunités",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "accueil.card_gains",
+    "fr": "Mes gains",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "opportunites.title",
+    "fr": "Les opportunités",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "opportunites.repere",
+    "fr": "Repère",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "opportunites.action",
+    "fr": "Créer ma sélection",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "selection.title",
+    "fr": "Ma sélection",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "selection.hint",
+    "fr": "Touchez un produit pour l'ajouter à votre vitrine.",
+    "register": "neutral",
+    "screenClass": "general"
+  },
+  {
+    "key": "selection.choisi",
+    "fr": "Choisi",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "selection.ajouter",
+    "fr": "Ajouter",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "selection.compte",
+    "fr": "Produits choisis : {count}",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "selection.action",
+    "fr": "Voir ma vitrine",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "vitrine.title",
+    "fr": "Aperçu de ma vitrine",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "vitrine.note",
+    "fr": "Vos clientes verront ces prix.",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "vitrine.vide",
+    "fr": "Votre vitrine attend ses premiers produits. Revenez en choisir.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "vitrine.action",
+    "fr": "Créer mon lien de vente",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "lien.title",
+    "fr": "Votre lien est prêt",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "lien.hint",
+    "fr": "Lien d'essai — il ne s'ouvre pas.",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "lien.explication",
+    "fr": "Ce lien porte votre nom. Chaque vente passée par ce lien vous est comptée.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "lien.action",
+    "fr": "Voir mes gains",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "gains.title",
+    "fr": "Mes gains (essai)",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "gains.total_label",
+    "fr": "Votre gain net (essai)",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "gains.detail_titre",
+    "fr": "Le détail, en francs",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "gains.brut",
+    "fr": "Gain brut (commission + marge) : {amount}",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "gains.part",
+    "fr": "Part Shop+ (20 %) : − {amount}",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "gains.net",
+    "fr": "Votre net : {amount}",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "gains.baseline_titre",
+    "fr": "L'exemple : produit vendu {amount}",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "gains.suite",
+    "fr": "Séra livre. L'argent suit les règles. Votre part vous revient.",
+    "register": "money",
+    "screenClass": "general"
   }
 ]
