@@ -20,7 +20,7 @@ haut à gauche revient toujours en arrière.
    *Test 5 secondes : voilà ce que je peux vendre, et ce que chaque produit
    me rapporte vraiment.*
 3. **Ma sélection.** La même liste, mais on touche pour choisir : le produit
-   choisi prend un contour vert et affiche « Choisi » ; en bas, le compte
+   choisi prend un contour orange et affiche « Choisi » ; en bas, le compte
    (« Produits choisis : 2 »). Action : « Voir ma vitrine ».
    *Test 5 secondes : je touche ce que je veux vendre, je vois ce que j'ai pris.*
 4. **Aperçu de ma vitrine.** Ce que verront vos clientes : les produits
