@@ -1,5 +1,6 @@
 import { t, tf } from './i18n';
 import { FCFA } from './format';
+import { icon } from './icons';
 import { renderProductPage, type ProductViewModel } from './product-view';
 import { renderLocationForm, type LocationViewModel } from './location-view';
 import { renderDeliveryQuote, DEMO_SERA_QUOTE } from './delivery-view';
@@ -190,7 +191,7 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
       : `<p class="offline-banner" data-role="offline">${t('hors_ligne.bandeau')}</p>`;
     const backButton =
       state.stack.length > 1
-        ? `<button class="link-quiet back-step" data-action="retour">${t('retour')}</button>`
+        ? `<button class="link-quiet back-step" data-action="retour">${icon('chevron', 'back-icon')}<span>${t('retour')}</span></button>`
         : '';
     container.innerHTML = `${offlineBanner}${backButton}<div class="journey-screen">${screenHtml()}</div>`;
   }

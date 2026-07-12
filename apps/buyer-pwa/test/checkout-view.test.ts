@@ -39,6 +39,18 @@ describe('§6.1 two-option checkout', () => {
     expect(AVAILABLE).toContain(`Vous payez ${F(1_000)} F maintenant et ${F(11_500)} F à la livraison — d'accord ?`);
   });
 
+  it('the reconcile line (§2.2) restates the order sum to the franc: total = produit + livraison', () => {
+    // Failure-mode #7 guard on a money element: it is not enough that the
+    // three figures appear somewhere — the reconcile line must render them in
+    // the RECONCILING relation (total on the left, product + delivery on the
+    // right). A false equation (wrong legs, or a total that no longer equals
+    // product + delivery) must fail HERE, not merely look wrong on screen.
+    expect(11_500 + 1_000).toBe(12_500); // the fixture's own arithmetic, explicit
+    const line = AVAILABLE.split('data-role="reconcile"')[1] ?? '';
+    expect(line, 'the reconcile line renders when the split is available').not.toBe('');
+    expect(line).toContain(`${F(12_500)} = ${F(11_500)} + ${F(1_000)}`);
+  });
+
   it('the non-refundable delivery-fee warning is present (§6.1)', () => {
     expect(AVAILABLE).toContain('Frais de livraison non remboursables si vous annulez ou êtes absent(e).');
   });

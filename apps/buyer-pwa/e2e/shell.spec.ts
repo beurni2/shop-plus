@@ -18,11 +18,13 @@ test('the PWA shell boots on the shop-plus theme with catalog strings', async ({
 
   const brand = page.locator('h1');
   await expect(brand).toHaveText('Shop+');
-  await expect(brand).toHaveCSS('color', hexToRgb(theme.colors.primary));
+  // GRAND TEINT: the header wordmark is quiet ink (accent is reserved for the
+  // price band + the 4 px theme strip); the page surface is warm paper.
+  await expect(brand).toHaveCSS('color', hexToRgb(theme.colours.ink));
 
   await expect(page.locator('body')).toHaveCSS(
     'background-color',
-    hexToRgb(theme.colors.surface),
+    hexToRgb(theme.colours.paper),
   );
 
   await expect(page.locator('h2')).toHaveText('Découvrez les boutiques de votre quartier.');

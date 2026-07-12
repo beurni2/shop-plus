@@ -30,7 +30,9 @@ describe('buyer-pwa catalog', () => {
     const manifest = JSON.parse(
       readFileSync(join(appDir, 'public/manifest.webmanifest'), 'utf8'),
     );
-    expect(manifest.background_color).toBe(shopPlusTheme.colors.surface);
-    expect(manifest.theme_color).toBe(shopPlusTheme.colors.primary);
+    // v0.8.0 (GRAND TEINT): the theme palette is `.colours` (British); the
+    // page background is `paper`, the theme colour is the app `primary`.
+    expect(manifest.background_color).toBe(shopPlusTheme.colours.paper);
+    expect(manifest.theme_color).toBe(shopPlusTheme.colours.primary);
   });
 });

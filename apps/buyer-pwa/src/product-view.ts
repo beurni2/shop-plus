@@ -2,16 +2,19 @@ import { t, tf } from './i18n';
 import { FCFA, esc } from './format';
 
 /**
- * WO-4.4 §6.2 — ARRIVAL: the signed link lands HERE, on a real product page.
- * SP-I03 (quoted): "Customer-facing pages MUST show the reseller as the
- * commercial relationship and MUST NOT expose supplier identity/contact or
- * commission." The view model therefore carries the reseller's name and HER
- * price (productSubtotal = B + M) — and NOTHING about the supplier or the
- * commission exists in the type or the markup (the negative test feeds a
- * commission-poisoned fixture and asserts it never surfaces).
- * One primary action (« Acheter »). Trust lines: « Livré par Séra » ·
- * « Paiement protégé ». The price is a hero figure (money.amountScale.hero —
- * « L'argent en majesté »).
+ * WO-4.4 §6.2 / WO-5.3 (Grand Teint) — ARRIVAL: the signed link lands HERE,
+ * on a real product page. SP-I03 (quoted): "Customer-facing pages MUST show
+ * the reseller as the commercial relationship and MUST NOT expose supplier
+ * identity/contact or commission." The view model therefore carries the
+ * reseller's name and HER price (productSubtotal = B + M) — and NOTHING about
+ * the supplier or the commission exists in the type or the markup.
+ *
+ * Grand Teint signatures on C1: the premium photo frame (corner ticks +
+ * « Photo réelle » caption), the PRICE BAND (« L'argent en majesté » — the
+ * amount is the biggest ink on the page, `money.amountScale.page`, tabular),
+ * the verified badge, and the trust chips « Livré par Séra » / « Paiement
+ * protégé ». One primary action (« Acheter »). The price element keeps its
+ * `.fcfa-hero` class and byte-exact « 11 500 F » figure (money never shifts).
  */
 
 export interface ProductViewModel {
@@ -23,19 +26,39 @@ export interface ProductViewModel {
   inStock: boolean;
 }
 
-/** The demo Studio asset — a stand-in for the Boutik+ Studio derivative
- * (real photography arrives with real listings; the frame treats it with
- * respect either way). Colors come from the token custom properties. */
-function demoStudioAsset(productName: string): string {
+/** The demo Studio asset — a stand-in for the Boutik+ Studio derivative (real
+ * photography arrives with real listings; the frame treats it with respect
+ * either way). The four corner ticks frame it as documentary evidence
+ * (GRAND-TEINT §5.4). Colours come from the token custom properties. */
+function photoFrame(productName: string): string {
   return [
+    '<figure class="product-photo-frame">',
     '<div class="product-photo" role="img" aria-label="' + esc(productName) + '">',
     '<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">',
-    '<rect width="100" height="100" fill="var(--surface-sunken)"/>',
-    '<circle cx="50" cy="44" r="22" fill="var(--primary)" opacity="0.18"/>',
-    '<circle cx="50" cy="44" r="14" fill="var(--primary)" opacity="0.3"/>',
-    '<path d="M0 78 Q 25 68 50 78 T 100 78 V 100 H 0 Z" fill="var(--primary)" opacity="0.12"/>',
+    '<rect width="100" height="100" fill="var(--c-sand)"/>',
+    '<circle cx="50" cy="44" r="22" fill="var(--c-primary)" opacity="0.16"/>',
+    '<circle cx="50" cy="44" r="14" fill="var(--c-primary)" opacity="0.28"/>',
+    '<path d="M0 78 Q 25 68 50 78 T 100 78 V 100 H 0 Z" fill="var(--c-primary)" opacity="0.12"/>',
     '</svg>',
     `<span class="product-photo-initial">${esc(productName.charAt(0))}</span>`,
+    '<span class="tick tick-tl" aria-hidden="true"></span>',
+    '<span class="tick tick-tr" aria-hidden="true"></span>',
+    '<span class="tick tick-bl" aria-hidden="true"></span>',
+    '<span class="tick tick-br" aria-hidden="true"></span>',
+    '</div>',
+    `<figcaption class="photo-caption">${t('produit.photo_reelle')}</figcaption>`,
+    '</figure>',
+  ].join('');
+}
+
+/** The price band — the signature money moment (GRAND-TEINT §2.2): full-width
+ * accent block, tiny caps label, big tabular amount, honesty note. */
+function priceBand(priceFcfa: number): string {
+  return [
+    '<div class="price-band" data-role="price-band">',
+    `<span class="price-band-label">${t('produit.prix')}</span>`,
+    `<p class="fcfa-hero">${FCFA.format(priceFcfa)} F</p>`,
+    `<span class="price-band-note">${t('produit.livraison_note')}</span>`,
     '</div>',
   ].join('');
 }
@@ -43,10 +66,10 @@ function demoStudioAsset(productName: string): string {
 export function renderProductPage(model: ProductViewModel): string {
   return [
     '<section class="product-page" data-screen="produit">',
-    demoStudioAsset(model.productName),
+    photoFrame(model.productName),
     `<p class="reseller-line"><span class="reseller-name">${esc(model.resellerName)}</span> <span class="verified-badge">${t('produit.vendeuse_verifiee')}</span></p>`,
     `<h2 class="product-name">${esc(model.productName)}</h2>`,
-    `<p class="fcfa-hero">${FCFA.format(model.priceFcfa)} F</p>`,
+    priceBand(model.priceFcfa),
     '<div class="trust-row">',
     `<span class="trust-chip">${t('produit.livre_par_sera')}</span>`,
     `<span class="trust-chip">${t('produit.paiement_protege')}</span>`,
@@ -54,6 +77,35 @@ export function renderProductPage(model: ProductViewModel): string {
     '</div>',
     `<button class="link-quiet" data-action="protections">${t('protections.ouvrir')}</button>`,
     `<button class="primary-action" data-action="acheter">${tf('produit.acheter', { amount: FCFA.format(model.priceFcfa) })}</button>`,
+    '</section>',
+  ].join('');
+}
+
+/**
+ * The C1 skeleton (GRAND-TEINT §2.1 « La vitesse comme luxe »): it clones the
+ * EXACT boxes of the loaded page — same photo frame, same price band, same
+ * name/action rows — so cumulative layout shift is 0 by construction. Sand
+ * pulse fills the boxes; no text arrives early, no spinner ever. Reachable
+ * only via the demo surface (?demo-skeleton=produit); the walk never renders
+ * it (the sandbox has no async load to fake).
+ */
+export function renderProductSkeleton(): string {
+  return [
+    '<section class="product-page product-page-skeleton" data-screen="produit-squelette" aria-busy="true">',
+    '<figure class="product-photo-frame">',
+    '<div class="product-photo skeleton-fill">',
+    '<span class="tick tick-tl" aria-hidden="true"></span>',
+    '<span class="tick tick-tr" aria-hidden="true"></span>',
+    '<span class="tick tick-bl" aria-hidden="true"></span>',
+    '<span class="tick tick-br" aria-hidden="true"></span>',
+    '</div>',
+    '<figcaption class="photo-caption skeleton-line skeleton-line-wide"></figcaption>',
+    '</figure>',
+    '<p class="reseller-line"><span class="skeleton-line skeleton-line-mid"></span></p>',
+    '<h2 class="product-name"><span class="skeleton-line skeleton-line-wide"></span></h2>',
+    '<div class="price-band price-band-skeleton" data-role="price-band"><span class="skeleton-line skeleton-line-band"></span></div>',
+    '<div class="trust-row"><span class="trust-chip skeleton-fill"></span><span class="trust-chip skeleton-fill"></span></div>',
+    '<div class="primary-action skeleton-fill"></div>',
     '</section>',
   ].join('');
 }
