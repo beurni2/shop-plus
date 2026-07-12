@@ -23,6 +23,6 @@ onlyBuiltDependencies:
 # (canon v0.5.0; founder ruling: tags are unreliable, the release ref is
 # the commit).
 overrides:
-  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#539dbc8ac8372d0d98606428258f79ad0f1ceaaa&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#539dbc8ac8372d0d98606428258f79ad0f1ceaaa&path:packages/contracts"
-  "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#539dbc8ac8372d0d98606428258f79ad0f1ceaaa&path:packages/ui-tokens"
+  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#2472e7ae61a2ded70f4b4e8caad3b8fcb2d5df55&path:packages/kernel-types"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#2472e7ae61a2ded70f4b4e8caad3b8fcb2d5df55&path:packages/contracts"
+  "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#2472e7ae61a2ded70f4b4e8caad3b8fcb2d5df55&path:packages/ui-tokens"

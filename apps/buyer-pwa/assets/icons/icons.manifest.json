@@ -1,0 +1,141 @@
+{
+  "$meta": {
+    "source": "design_handoff_grand_teint/icons",
+    "system": "Grand Teint v1.0.0",
+    "law": "one shared source of truth for all four repos; every icon uses currentColor; icon + word, never icon alone",
+    "count": 26,
+    "totalRawBytes": 7356
+  },
+  "icons": {
+    "alerte": {
+      "file": "alerte.svg",
+      "bytes": 308,
+      "sha256": "bbcaa49ecbd7f56411e1d8140de34fae02c489fd70035f02d6f4b7651e5550b3"
+    },
+    "argent": {
+      "file": "argent.svg",
+      "bytes": 269,
+      "sha256": "f67345071e6f7ebaf088baef178ec532849fb189c65ee6e3f358e2c25035bd14"
+    },
+    "cadenas": {
+      "file": "cadenas.svg",
+      "bytes": 357,
+      "sha256": "d7903c9788371784a4457cc2217fbd30e79fd2776120cb78a517ba05df9c0041"
+    },
+    "camera": {
+      "file": "camera.svg",
+      "bytes": 254,
+      "sha256": "bf407c0d334ed44ee54383389a327a6edbfe39405a94f0f0c4bfca2efebbc2e8"
+    },
+    "chevron": {
+      "file": "chevron.svg",
+      "bytes": 198,
+      "sha256": "b99b6f485cd4a9e4f0f0395ca763d954beaa3624dc947c48dc6bcce733d69117"
+    },
+    "cle": {
+      "file": "cle.svg",
+      "bytes": 289,
+      "sha256": "abfc15dd852dd3d7d46c6ebf3ea25aaae1ffd551f362feeb6f12058cc389bb47"
+    },
+    "coche": {
+      "file": "coche.svg",
+      "bytes": 206,
+      "sha256": "34a05750f8045b37fd44cbbf62b3a6baf9c740d52cb810375aa8e9dc7e95eaee"
+    },
+    "colis": {
+      "file": "colis.svg",
+      "bytes": 297,
+      "sha256": "17ff2ff78c4de7dee6a2537e6c6c29ff0e169bd805a3de7ac7f204b3110e2724"
+    },
+    "ecouter": {
+      "file": "ecouter.svg",
+      "bytes": 283,
+      "sha256": "da223afb7cef80a5a0c936a97861a7a7d5d87eab03e03f533b3c46624ba19b0d"
+    },
+    "enregistrer": {
+      "file": "enregistrer.svg",
+      "bytes": 282,
+      "sha256": "256c54f236bd201b9267fbad903e1bd4cb254376bfde9fad13a47d0ec160c943"
+    },
+    "filtre": {
+      "file": "filtre.svg",
+      "bytes": 215,
+      "sha256": "c09ae277e5c1c3ed33139e07b24594a8578dfabbb5ba40ad3bfe14b90e4a1b64"
+    },
+    "gains": {
+      "file": "gains.svg",
+      "bytes": 236,
+      "sha256": "5983735ea18e2b80b0f5bb932e76c22df1b795c9633d51115bccc93787201cd7"
+    },
+    "horloge": {
+      "file": "horloge.svg",
+      "bytes": 236,
+      "sha256": "4d0f3a145613796c266876a7a5f3a14890b4db645d91b5cc84b57b67544b3f71"
+    },
+    "horsligne": {
+      "file": "horsligne.svg",
+      "bytes": 356,
+      "sha256": "75f9b97a4d9da20d3d335792416b382e1f758c5aeec26807be5b0f3c8d233684"
+    },
+    "moto": {
+      "file": "moto.svg",
+      "bytes": 384,
+      "sha256": "9563b9d2d90f592786b1b3013963d98624d43a22a76f82d87fe86616c8d10b04"
+    },
+    "oeil": {
+      "file": "oeil.svg",
+      "bytes": 281,
+      "sha256": "ce3f0d7a8b204d3833ae395ae6430e3ff37c89d10368fa139b9de2f45c6944ce"
+    },
+    "partager": {
+      "file": "partager.svg",
+      "bytes": 361,
+      "sha256": "ce320612fa0db425b17d019814be1be31557944458a768a64ed6bda35edaa8d4"
+    },
+    "recherche": {
+      "file": "recherche.svg",
+      "bytes": 239,
+      "sha256": "dc147c22f3ba49aed3cdaa6800b211c25fe1ace14c4ac37a0978309e571a8586"
+    },
+    "refus": {
+      "file": "refus.svg",
+      "bytes": 232,
+      "sha256": "525553fc2a6d03b3d1e2fad7d6aa073aca185107f97b3b9fe3b6eb8593ad1560"
+    },
+    "repere": {
+      "file": "repere.svg",
+      "bytes": 233,
+      "sha256": "0ba038715b1f2b98094c985d603ea5a1ca1d6132164d6ff9ac4673007334fdb1"
+    },
+    "reprendre": {
+      "file": "reprendre.svg",
+      "bytes": 236,
+      "sha256": "430646f1da43cf074d47f0e3b7612c53a9e1c6e4767ff511e28f56b8efed49b9"
+    },
+    "scelle": {
+      "file": "scelle.svg",
+      "bytes": 266,
+      "sha256": "766be40a5e2beb13f293a85d44098d4316628df45fa78eec44c4ba7e3a8e2e22"
+    },
+    "sos": {
+      "file": "sos.svg",
+      "bytes": 365,
+      "sha256": "0db80bc239a4d135030a83800558472c2c3e23888484ae09acf969236ccc3267"
+    },
+    "telephone": {
+      "file": "telephone.svg",
+      "bytes": 303,
+      "sha256": "3f0741f02317c6e06c075e17ebe49a02fc42bab86962c2e45452d8339e4d067c"
+    },
+    "voix": {
+      "file": "voix.svg",
+      "bytes": 302,
+      "sha256": "5948f2bf6ff7a043a8b28105cf36a57e8e4b7678f99c03ac8873e4104ac10098"
+    },
+    "zone": {
+      "file": "zone.svg",
+      "bytes": 368,
+      "sha256": "e052a5cfa216f5a276dd6b16244056cc1a92eebfdbb45f45866ae0951eefe24a"
+    }
+  }
+}
