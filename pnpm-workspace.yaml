@@ -25,4 +25,15 @@ onlyBuiltDependencies:
 overrides:
   "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#2472e7ae61a2ded70f4b4e8caad3b8fcb2d5df55&path:packages/kernel-types"
   "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#2472e7ae61a2ded70f4b4e8caad3b8fcb2d5df55&path:packages/contracts"
-  "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#2472e7ae61a2ded70f4b4e8caad3b8fcb2d5df55&path:packages/ui-tokens"
+  # @platform/ui-tokens is SKEWED PER APP (WO-5.3, founder ruling — a NAMED,
+  # time-boxed debt). v0.6.0→v0.8.0 was a full token-system replacement (Grand
+  # Teint, WO-5.0), NOT a rename: reseller-app's whole token vocabulary
+  # (surface/inkMuted/line/displayFcfa/theme.spacing…) has no mechanical v0.8.0
+  # mapping. So the DEFAULT ui-tokens stays v0.6.0 (539dbc8a) — reseller-app +
+  # commerce-core + the @platform/certification transitive keep the API they
+  # consume, untouched — and ONLY buyer-pwa takes v0.8.0 (Grand Teint) via the
+  # scoped override below (most-specific wins). Tokens are plain DATA; two
+  # instances are harmless (proven at install). The skew DIES at reseller-app's
+  # Grand Teint slice (its S1–S8 screens).
+  "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#539dbc8ac8372d0d98606428258f79ad0f1ceaaa&path:packages/ui-tokens"
+  "@shop-plus/buyer-pwa>@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#2472e7ae61a2ded70f4b4e8caad3b8fcb2d5df55&path:packages/ui-tokens"
