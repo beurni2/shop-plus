@@ -20,14 +20,26 @@ describe('the 26 inline PWA icons carry the design-reference geometry', () => {
     expect(svgNames).toHaveLength(26);
   });
 
-  it('every icon renders currentColor SVG at the requested size, no hardcoded color', () => {
+  it('every icon renders WELL-FORMED currentColor SVG at the requested size, no hardcoded color', () => {
     for (const name of GRAND_TEINT_ICON_NAMES) {
       const svg = grandTeintIcon[name](20);
       expect(svg, `${name}`).toContain('stroke="currentColor"');
       expect(svg, `${name}`).toContain('width="20" height="20"');
       expect(svg, `${name}`).toContain('viewBox="0 0 24 24"');
       expect(svg, `${name}: no hex color`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+      // WELL-FORMED for the DOM: plain <path>/<circle>/<rect>, NEVER a namespace
+      // prefix (<ns0:path xmlns:ns0=…> parses to nothing as inline SVG).
+      expect(svg, `${name}: namespace-prefixed element would not render`).not.toMatch(/<ns\d+:|xmlns:/);
+      expect(svg, `${name}: has a real drawing element`).toMatch(/<(path|circle|rect)\b/);
     }
+  });
+
+  it('the whole module is free of namespace-prefixed elements (the ns0: defect class)', () => {
+    const mod = readFileSync(join(appDir, 'src/grand-teint-icons.ts'), 'utf8');
+    expect(mod).not.toMatch(/ns\d+:|xmlns:/); // no <ns0:path xmlns:ns0=…> anywhere
+    // every element that appears is a real SVG drawing tag
+    const tags = [...mod.matchAll(/<([a-z][\w:]*)/g)].map((m) => m[1]);
+    for (const tag of tags) expect(['svg', 'path', 'circle', 'rect']).toContain(tag);
   });
 
   it('each inline icon carries its source SVG geometry verbatim (byte-identity)', () => {
