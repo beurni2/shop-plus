@@ -1,0 +1,86 @@
+name: pwa-preview
+
+# WO-4.2E — the buyer PWA preview channel: the founder cannot open a
+# website that is deployed nowhere. On every main push: build the PWA
+# (vite base './' — relative, project-pages-safe), prove the payload
+# budget on THAT build, and deploy to GitHub Pages via stock actions.
+# FOUNDER ONE-CLICK (only if the first run errors on Pages-not-enabled):
+# shop-plus → Settings → Pages → Source: "GitHub Actions".
+# The deployed preview is a SANDBOX: the app carries an unremovable
+# ribbon (« Aperçu — données d'essai. Rien ici n'est réel. ») and the
+# root lands on the walkable journey. No production claim, ever.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pwa-preview
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Authorize read access to platform-contracts (CI-only)
+        run: git config --global url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "https://github.com/beurni2/platform-contracts"
+      # Guard against pnpm re-mangling lockfile git-dep URLs to SSH forms:
+      # cover scp and ssh:// too. MUST use --add — url.<base>.insteadOf is a
+      # single-valued key (see ci.yml for the sera root cause).
+      - name: Authorize read access to platform-contracts (CI-only, SSH forms)
+        run: |
+          git config --global --add url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "git@github.com:beurni2/platform-contracts"
+          git config --global --add url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "ssh://git@github.com/beurni2/platform-contracts"
+      - run: pnpm install --frozen-lockfile
+      - name: Payload budget gate on THE deploy build (< 300 KB compressed, PERF-BUDGETS)
+        run: node scripts/gates/pwa-payload-budget.mjs
+      - name: Root lands on the walkable journey (deploy artifact only — local behavior untouched)
+        # The redirect target string is sourced from the buyer-pwa catalog
+        # (apercu.redirect) — no user-facing French is authored in this
+        # workflow; the JS-rendered app (which the redirect reaches in <1 s)
+        # carries all real copy under copy-lint. The <noscript>/no-refresh
+        # fallback link reuses that one catalog string.
+        run: |
+          cd apps/buyer-pwa
+          LINK="$(node -e "const c=require('./i18n/catalog.json');process.stdout.write((c.find(e=>e.key==='apercu.redirect')||{}).fr||'')")"
+          cd dist
+          cp index.html app.html
+          cat > index.html <<HTML
+          <!doctype html>
+          <html lang="fr">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <meta http-equiv="refresh" content="0; url=./app.html?demo-journey=produit" />
+              <title>Shop+</title>
+            </head>
+            <body>
+              <a href="./app.html?demo-journey=produit">${LINK}</a>
+            </body>
+          </html>
+          HTML
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/buyer-pwa/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

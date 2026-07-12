@@ -250,12 +250,27 @@ style.textContent = `
     font-size: var(--type-label); font-weight: ${theme.typeScale.label.weight};
     border-radius: var(--radius-md); padding: var(--space-sm) var(--space-md);
   }
+  .sandbox-ribbon {
+    margin: 0; background: var(--primary-soft); color: var(--primary-strong);
+    font-size: var(--type-label); font-weight: ${theme.typeScale.label.weight};
+    text-align: center; padding: var(--space-sm) var(--space-md);
+    border-bottom: 1px solid var(--line);
+  }
   .tracking p { margin: 0; }
 `;
 document.head.appendChild(style);
 
 const app = document.querySelector('#app');
 if (app) {
+  // WO-4.2E — the SANDBOX RIBBON: a deployed preview must NEVER be
+  // mistakable for a real store. Unconditional — no profile, no URL param,
+  // no code path renders this surface without it.
+  const ribbon = document.createElement('p');
+  ribbon.className = 'sandbox-ribbon';
+  ribbon.setAttribute('data-role', 'sandbox-ribbon');
+  ribbon.textContent = t('apercu.ruban');
+  app.append(ribbon);
+
   const params = new URLSearchParams(window.location.search);
   const journeyScreen = params.get('demo-journey');
 

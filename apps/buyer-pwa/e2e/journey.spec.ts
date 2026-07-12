@@ -99,6 +99,9 @@ test('offline queueing is honest: the banner appears, the note stays QUEUED, com
   context,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 }); // the gallery viewport
+  // Deterministic capture: the screen-in animation must not race the
+  // screenshot (this file re-encoded differently run-to-run — tooling law).
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/?demo-journey=localisation');
   await page.locator('[data-action="voix-enregistrer"]').click();
   await expect(page.locator('[data-voice="recording"]')).toBeVisible();
@@ -141,6 +144,28 @@ test('§6.3 — the drop code enters LAST: hidden while the door payment is pend
   await expect(code).toBeVisible();
   await expect(code.locator('.code-figure')).toHaveText('4732');
   await expect(code).toContainText('Ce code est votre preuve.');
+});
+
+test('WO-4.2E — the sandbox ribbon rides EVERY screen and no URL param removes it', async ({ page }) => {
+  const RIBBON = "Aperçu — données d'essai. Rien ici n'est réel.";
+  for (const url of [
+    '/',
+    '/?demo-journey=produit',
+    '/?demo-journey=paiement',
+    '/?demo-journey=suivi&etat=code',
+    '/?demo-order=payment_failed',
+    // hostile params: nothing switches it off
+    '/?demo-journey=produit&apercu=off&ribbon=0&sandbox=false',
+  ]) {
+    await page.goto(url);
+    const ribbon = page.locator('[data-role="sandbox-ribbon"]');
+    await expect(ribbon, url).toBeVisible();
+    await expect(ribbon, url).toHaveText(RIBBON);
+  }
+  // and it survives in-journey navigation (no re-render drops it)
+  await page.goto('/?demo-journey=produit');
+  await page.locator('[data-action="acheter"]').click();
+  await expect(page.locator('[data-role="sandbox-ribbon"]')).toBeVisible();
 });
 
 test('§6.3 — « Vos protections » opens from the product page and closes back to it', async ({ page }) => {
