@@ -13,9 +13,12 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: 'http://127.0.0.1:4173',
-    ...(process.env.PW_EXECUTABLE
-      ? { launchOptions: { executablePath: process.env.PW_EXECUTABLE } }
-      : {}),
+    launchOptions: {
+      ...(process.env.PW_EXECUTABLE ? { executablePath: process.env.PW_EXECUTABLE } : {}),
+      // WO-4.4: the voice-note e2e records from Chromium's fake media stream
+      // (a REAL MediaRecorder take, no mic prompt) — harmless elsewhere.
+      args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+    },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {

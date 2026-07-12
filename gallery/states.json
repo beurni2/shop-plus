@@ -64,16 +64,97 @@
           "caption": "Paiement à la porte CONFIRMÉ par le réseau"
         }
       ]
+    },
+    {
+      "title": "Le parcours acheteur (§6.2 — WO-4.4)",
+      "states": [
+        {
+          "id": "parcours-produit",
+          "url": "/?demo-journey=produit",
+          "caption": "L'arrivée par lien signé : la revendeuse, SON prix en héros, Livré par Séra, Paiement protégé — une seule action"
+        },
+        {
+          "id": "parcours-localisation",
+          "url": "/?demo-journey=localisation",
+          "caption": "Où vous trouver : quartier + repère + note vocale — aucune adresse exigée, numéro privé (relais masqué)"
+        },
+        {
+          "id": "parcours-localisation-voix-en-file",
+          "url": "/?demo-journey=localisation&voix=en_file",
+          "caption": "La note vocale EN FILE — en attente, jamais « envoyée » tant que le réseau n'a pas repris"
+        },
+        {
+          "id": "parcours-livraison",
+          "url": "/?demo-journey=livraison",
+          "caption": "La livraison par Séra : son devis est la seule autorité de prix, la ligne D à part et honnête"
+        },
+        {
+          "id": "parcours-paiement",
+          "url": "/?demo-journey=paiement",
+          "caption": "Les deux options absorbées dans le parcours : cadenas (A) et moto (B), note audio par option (fondateur — bientôt)"
+        },
+        {
+          "id": "parcours-confirmation",
+          "url": "/?demo-journey=confirmation",
+          "caption": "Commande confirmée : les deux montants rejoués, l'attente du réseau dite honnêtement"
+        },
+        {
+          "id": "parcours-protections",
+          "url": "/?demo-journey=protections",
+          "caption": "« Vos protections » (§6.3) : vérifier d'abord, refus digne, argent protégé, le code comme preuve"
+        }
+      ]
+    },
+    {
+      "title": "Le suivi du colis (§6.2/§6.3 — WO-4.4)",
+      "states": [
+        {
+          "id": "suivi-confirmee",
+          "url": "/?demo-journey=suivi&etat=confirmee",
+          "caption": "Le suivi par étapes nommées — jamais un point GPS vif"
+        },
+        {
+          "id": "suivi-scellee",
+          "url": "/?demo-journey=suivi&etat=scellee",
+          "caption": "Vérifié et scellé par Séra — la preuve avance d'un cran"
+        },
+        {
+          "id": "suivi-en-route",
+          "url": "/?demo-journey=suivi&etat=en_route",
+          "caption": "En route vers vous — l'étape courante en évidence, le chemin du problème toujours là"
+        },
+        {
+          "id": "suivi-porte",
+          "url": "/?demo-journey=suivi&etat=porte",
+          "caption": "À la porte (option A) : inspectez d'abord — accepter et signaler ont le MÊME poids"
+        },
+        {
+          "id": "suivi-porte-b",
+          "url": "/?demo-journey=suivi&etat=porte-b",
+          "caption": "À la porte (option B) : le montant dû avant de recevoir, en clair"
+        },
+        {
+          "id": "suivi-porte-b-attente",
+          "url": "/?demo-journey=suivi&etat=porte-b-attente",
+          "caption": "Paiement à la porte EN ATTENTE de l'opérateur — le code reste caché (§6.3 : le code entre en DERNIER)"
+        },
+        {
+          "id": "suivi-code",
+          "url": "/?demo-journey=suivi&etat=code",
+          "caption": "La remise : le code en majesté, « c'est votre preuve » — donné colis en main seulement"
+        },
+        {
+          "id": "suivi-livree",
+          "url": "/?demo-journey=suivi&etat=livree",
+          "caption": "Livré — merci, et le chemin du problème garde sa place"
+        }
+      ]
     }
   ],
   "gaps": [
     {
       "name": "File hors ligne (offline queue)",
-      "reason": "État non construit dans la PWA acheteur à ce jour — aucun écran à capturer ; nommé ici plutôt que passé sous silence."
-    },
-    {
-      "name": "Suivi du colis (tracking)",
-      "reason": "Écran non construit dans la PWA acheteur à ce jour — le suivi vit côté console Séra ; nommé ici plutôt que passé sous silence."
+      "reason": "Les états EN FILE sont désormais construits et capturés (parcours-localisation-voix-en-file, parcours-confirmation) ; le bandeau hors ligne vit sous setOffline Playwright (e2e/journey.spec.ts), qui capture gallery/img/parcours-hors-ligne.png — il n'est pas adressable par URL pour la boucle de galerie ; nommé ici plutôt que passé sous silence."
     },
     {
       "name": "Parcours revendeuse (app RN, WO-4.1 · restylé WO-4.2R « le visage ») — les 6 écrans sur le kit ui-tokens v2 (chrome, gains en compte-montant, chips d'état, transitions)",
