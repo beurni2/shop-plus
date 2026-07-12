@@ -1,4 +1,21 @@
-# Aperçu Shop+ dans Expo Go (bac à sable)
+# Aperçu Shop+ (bac à sable)
+
+## Le parcours acheteur, dans le navigateur (WO-4.2E)
+
+L'aperçu du parcours acheteur vit à l'adresse
+**https://beurni2.github.io/shop-plus/** (publié à chaque mise à jour de
+`main` par le workflow `pwa-preview`). C'est un **bac à sable** : les
+produits, les prix et la commande sont des données d'essai — aucun paiement
+n'est possible, aucun article n'existe, rien n'est réel, et chaque écran
+porte le bandeau « Aperçu — données d'essai ». La page d'accueil ouvre
+directement le parcours (produit → où vous trouver → livraison → paiement →
+suivi) pour l'essayer du pouce, comme une cliente. Ce n'est **pas** la
+boutique Shop+ : pas de vrais vendeurs, pas de vrais comptes, pas d'argent.
+*Premier déploiement : si le premier run échoue sur « Pages not enabled »,
+un seul clic l'arme — shop-plus → Settings → Pages → Source : « GitHub
+Actions ».*
+
+# L'application revendeur dans Expo Go
 
 Cette page explique comment ouvrir l'application revendeur **Shop+** sur votre
 téléphone, en mode **aperçu**. Un aperçu est un **bac à sable** : rien n'y est réel —
@@ -25,8 +42,8 @@ aucun paiement, aucune commande, aucune donnée de production. Le bandeau
 
 ## Version du SDK
 
-Cette application est sur **Expo SDK 57** (la version stable courante au registre npm,
-juillet 2026 — mise à niveau WO-4.0b). **L'Expo Go du Play Store est la voie normale** :
+Cette application est sur **Expo SDK 54** (re-ciblage WO-4.0d : la version
+que l'Expo Go des stores exécute réellement). **L'Expo Go du Play Store est la voie normale** :
 installez-le, scannez le QR, l'aperçu s'ouvre directement.
 
 ## Aperçu sur iPhone (Expo Go iOS)

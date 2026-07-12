@@ -610,5 +610,17 @@
     "fr": "J'ai compris",
     "register": "neutral",
     "screenClass": "label"
+  },
+  {
+    "key": "apercu.ruban",
+    "fr": "Aperçu — données d'essai. Rien ici n'est réel.",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "apercu.redirect",
+    "fr": "Ouvrir l'aperçu Shop+",
+    "register": "selling",
+    "screenClass": "label"
   }
 ]

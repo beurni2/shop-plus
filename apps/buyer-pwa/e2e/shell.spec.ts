@@ -32,7 +32,9 @@ test('the PWA shell boots on the shop-plus theme with catalog strings', async ({
 test('the page declares itself an installable-ready PWA (manifest present)', async ({ page }) => {
   await page.goto('/');
   const manifestHref = await page.locator('link[rel="manifest"]').getAttribute('href');
-  expect(manifestHref).toBe('/manifest.webmanifest');
+  // WO-4.2E: base './' — the manifest link is RELATIVE so the same build
+  // serves local preview and GitHub Pages project hosting.
+  expect(manifestHref).toBe('./manifest.webmanifest');
   const manifest = await page.request.get('/manifest.webmanifest');
   expect(manifest.ok()).toBeTruthy();
   expect(await manifest.json()).toMatchObject({ name: 'Shop+', display: 'standalone' });
