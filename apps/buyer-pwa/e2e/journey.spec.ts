@@ -32,7 +32,11 @@ test('the whole journey walks: product → location (voice note) → delivery �
   await page.locator('[data-action="acheter"]').click();
   const location = page.locator('[data-screen="localisation"]');
   await expect(location).toBeVisible();
-  expect(await location.locator('input[name="adresse"], input[name="address"]').count()).toBe(0);
+  expect(
+    await location
+      .locator('[name="adresse"], [name="address"], [name="rue"], [name="voie"], textarea, select')
+      .count(),
+  ).toBe(0);
   await expect(location).toContainText('Votre numéro reste privé');
   await location.locator('[data-zone="Dassasgho"]').click();
   await page.locator('input[name="repere"]').fill('Face à la pharmacie du marché');

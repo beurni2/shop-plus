@@ -1,5 +1,5 @@
 import { t, tf } from './i18n';
-import { FCFA } from './format';
+import { FCFA, esc } from './format';
 
 /**
  * WO-4.4 §6.2 — ARRIVAL: the signed link lands HERE, on a real product page.
@@ -28,14 +28,14 @@ export interface ProductViewModel {
  * respect either way). Colors come from the token custom properties. */
 function demoStudioAsset(productName: string): string {
   return [
-    '<div class="product-photo" role="img" aria-label="' + productName + '">',
+    '<div class="product-photo" role="img" aria-label="' + esc(productName) + '">',
     '<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">',
     '<rect width="100" height="100" fill="var(--surface-sunken)"/>',
     '<circle cx="50" cy="44" r="22" fill="var(--primary)" opacity="0.18"/>',
     '<circle cx="50" cy="44" r="14" fill="var(--primary)" opacity="0.3"/>',
     '<path d="M0 78 Q 25 68 50 78 T 100 78 V 100 H 0 Z" fill="var(--primary)" opacity="0.12"/>',
     '</svg>',
-    `<span class="product-photo-initial">${productName.charAt(0)}</span>`,
+    `<span class="product-photo-initial">${esc(productName.charAt(0))}</span>`,
     '</div>',
   ].join('');
 }
@@ -44,8 +44,8 @@ export function renderProductPage(model: ProductViewModel): string {
   return [
     '<section class="product-page" data-screen="produit">',
     demoStudioAsset(model.productName),
-    `<p class="reseller-line"><span class="reseller-name">${model.resellerName}</span> <span class="verified-badge">${t('produit.vendeuse_verifiee')}</span></p>`,
-    `<h2 class="product-name">${model.productName}</h2>`,
+    `<p class="reseller-line"><span class="reseller-name">${esc(model.resellerName)}</span> <span class="verified-badge">${t('produit.vendeuse_verifiee')}</span></p>`,
+    `<h2 class="product-name">${esc(model.productName)}</h2>`,
     `<p class="fcfa-hero">${FCFA.format(model.priceFcfa)} F</p>`,
     '<div class="trust-row">',
     `<span class="trust-chip">${t('produit.livre_par_sera')}</span>`,

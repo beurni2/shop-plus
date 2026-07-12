@@ -415,7 +415,7 @@
   },
   {
     "key": "confirmation.titre",
-    "fr": "Commande confirmée",
+    "fr": "Commande enregistrée",
     "register": "money",
     "screenClass": "status"
   },

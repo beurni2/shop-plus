@@ -29,10 +29,22 @@ describe('voice note — record → playback → re-record', () => {
     for (const type of ['RECORD_STARTED', 'RECORD_STOPPED', 'RE_RECORD', 'KEEP'] as const) {
       expect(voiceNoteReduce(queued, { type })).toEqual(queued);
     }
-    // The machine has NO 'sent'/'done' state at all — the type space proves it.
-    const kinds: VoiceNoteState['kind'][] = ['idle', 'recording', 'recorded', 'queued', 'unavailable'];
-    expect(kinds).not.toContain('sent');
-    expect(kinds).not.toContain('done');
+  });
+
+  it('the type space has NO done-class state — enforced at COMPILE time, not by a hand-kept list (verifier NB③)', () => {
+    // If anyone ever adds a 'sent'/'done'/'envoye'/'delivered' kind to
+    // VoiceNoteState, ForbiddenKinds stops being never and typecheck FAILS.
+    type ForbiddenKinds = Extract<VoiceNoteState['kind'], 'sent' | 'done' | 'envoye' | 'delivered'>;
+    const noDoneState: ForbiddenKinds extends never ? true : never = true;
+    // And the kind union is EXACTLY the five honest states — adding a sixth
+    // (or removing one) breaks both directions of this assignment.
+    type Expected = 'idle' | 'recording' | 'recorded' | 'queued' | 'unavailable';
+    const exact: VoiceNoteState['kind'] extends Expected
+      ? Expected extends VoiceNoteState['kind']
+        ? true
+        : never
+      : never = true;
+    expect(noDoneState && exact).toBe(true);
   });
 
   it('illegal transitions leave the state untouched (a stray event never corrupts the walk)', () => {

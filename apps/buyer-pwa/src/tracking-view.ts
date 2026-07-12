@@ -1,5 +1,5 @@
 import { t } from './i18n';
-import { FCFA } from './format';
+import { FCFA, esc } from './format';
 import { ORDER_ACTION_SURFACE } from './order-view';
 
 /**
@@ -79,7 +79,7 @@ function dropCodeBlock(code: string): string {
   return [
     '<div class="code-box" data-role="drop-code">',
     `<p class="field-label">${t('suivi.code.donnez')}</p>`,
-    `<p class="code-figure">${code}</p>`,
+    `<p class="code-figure">${esc(code)}</p>`,
     `<p class="quiet-line">${t('suivi.code.preuve')}</p>`,
     '</div>',
   ].join('');

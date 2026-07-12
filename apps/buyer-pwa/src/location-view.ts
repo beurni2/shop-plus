@@ -1,4 +1,5 @@
 import { t } from './i18n';
+import { esc } from './format';
 import type { VoiceNoteState } from './voice-note';
 
 /**
@@ -77,11 +78,11 @@ export function renderLocationForm(model: LocationViewModel): string {
     `<p class="field-label">${t('lieu.quartier')}</p>`,
     `<div class="chips">${zones}</div>`,
     `<label class="field"><span class="field-label">${t('lieu.repere')}</span>`,
-    `<input name="repere" value="${model.landmark}" placeholder="${t('lieu.repere_exemple')}"></label>`,
+    `<input name="repere" value="${esc(model.landmark)}" placeholder="${t('lieu.repere_exemple')}"></label>`,
     `<label class="field"><span class="field-label">${t('lieu.indications')}</span>`,
-    `<input name="indications" value="${model.directions}" placeholder="${t('lieu.indications_exemple')}"></label>`,
+    `<input name="indications" value="${esc(model.directions)}" placeholder="${t('lieu.indications_exemple')}"></label>`,
     `<label class="field"><span class="field-label">${t('lieu.telephone')}</span>`,
-    `<input name="telephone" inputmode="tel" value="${model.phone}"></label>`,
+    `<input name="telephone" inputmode="tel" value="${esc(model.phone)}"></label>`,
     `<p class="quiet-line">${t('lieu.relais')}</p>`,
     voiceBlock(model.voice),
     `<button class="primary-action" data-action="lieu-continuer">${t('lieu.continuer')}</button>`,

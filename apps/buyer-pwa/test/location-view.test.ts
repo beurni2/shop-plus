@@ -24,17 +24,33 @@ const render = (voice: LocationViewModel['voice'] = { kind: 'idle' }) =>
 describe('§6.2 location capture — landmark-first, map-free', () => {
   it('NO street-address field exists on the form — negative proven on inputs AND source', () => {
     const html = render();
-    // Every input is named; none is an address/street field.
-    const names = [...html.matchAll(/<input[^>]*name="([^"]+)"/g)].map((m) => m[1]);
+    // EVERY named element (input/textarea/select/whatever — verifier NB②:
+    // the extraction binds any element carrying name=) is on the exact list.
+    const names = [...html.matchAll(/name="([^"]+)"/g)].map((m) => m[1]);
     expect(names).toEqual(['repere', 'indications', 'telephone']);
     for (const name of names) {
       expect(name).not.toMatch(/adresse|address|rue|street|voie|avenue/i);
     }
+    // No free-text element type beyond the three inputs exists at all.
+    expect(html).not.toMatch(/<textarea|<select/);
     // The source declares no such field either.
     const source = readFileSync(join(import.meta.dirname, '../src/location-view.ts'), 'utf8');
-    expect(source).not.toMatch(/name="(adresse|address|rue|street)/i);
+    expect(source).not.toMatch(/name="(adresse|address|rue|street|voie|avenue)/i);
     // The copy never ASKS for an address (the one mention SAYS none is required).
     expect(html).toContain("pas d'adresse exigée");
+  });
+
+  it('model-derived values are HTML-escaped — an attribute-breakout payload never reaches the DOM raw (verifier NB①)', () => {
+    const html = renderLocationForm({
+      ...BASE,
+      landmark: '"><img src=x onerror=alert(1)>',
+      directions: "'/><script>bad()</script>",
+      phone: '<b>70</b>',
+    });
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('<script');
+    expect(html).not.toContain('<b>70</b>');
+    expect(html).toContain('&quot;&gt;&lt;img');
   });
 
   it('the zone picker is map-free chips over named Ouagadougou quartiers', () => {

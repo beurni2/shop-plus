@@ -37,6 +37,17 @@ describe('§6.2 arrival — the product page', () => {
     expect(out).not.toContain('70 00 00 00');
   });
 
+  it('model strings are HTML-escaped — markup in a product/reseller name never executes (verifier NB①)', () => {
+    const html = renderProductPage({
+      ...MODEL,
+      productName: '<img src=x onerror=alert(1)>Pagne',
+      resellerName: '"><script>bad()</script>',
+    });
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('<script');
+    expect(html).toContain('&lt;img src=x');
+  });
+
   it('the reseller IS the commercial relationship — her name, her badge', () => {
     expect(html).toContain('Chez Awa — Dassasgho');
     expect(html).toContain('Vendeuse de confiance');
