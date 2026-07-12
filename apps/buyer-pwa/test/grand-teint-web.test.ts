@@ -52,7 +52,7 @@ describe('the 26 inline PWA icons carry the design-reference geometry', () => {
   });
 });
 
-describe('the variable typeface + the cold-start @font-face (substrate, unconsumed)', () => {
+describe('the variable typeface + the cold-start @font-face (substrate, CONSUMED by WO-5.3)', () => {
   it('the Latin variable woff2 is present and small (compressed, wght 400-900)', () => {
     const woff2 = join(appDir, 'public/fonts/archivo-latin-var.woff2');
     const bytes = statSync(woff2).size;
@@ -71,9 +71,23 @@ describe('the variable typeface + the cold-start @font-face (substrate, unconsum
     expect(css).toMatch(/archivo-latin-var\.woff2/);
   });
 
-  it('the substrate is UNCONSUMED: no product screen sets --font-grand-teint yet (no token work)', () => {
-    // main.ts (the product) must not yet import fonts.css or use the family.
+  it('the substrate is CONSUMED (WO-5.3): main.ts references Archivo and its @font-face resolves to the REAL woff2 path', () => {
+    // WO-5.1 proved the substrate UNCONSUMED; WO-5.3 consumes it — that is the
+    // whole point of this slice, so the assertion is RETARGETED, not deleted.
+    // The post-consumption invariant: the product DOES reference Archivo, and
+    // its @font-face src points at WO-5.1's real file
+    // (public/fonts/archivo-latin-var.woff2, asserted present above; served
+    // document-relative ./fonts/…) — NEVER the old absent /assets/ path, whose
+    // return would ship system-font forever under font-display:optional. The
+    // RUNTIME load proof (woff2 200 + document.fonts.check) lives in
+    // e2e/font-load.spec.ts.
     const main = readFileSync(join(appDir, 'src/main.ts'), 'utf8');
-    expect(main).not.toMatch(/fonts\.css|font-grand-teint|Archivo/);
+    expect(main, 'Archivo is now referenced (the font is consumed)').toMatch(/font-family:\s*'Archivo'/);
+    expect(main, "the @font-face resolves to WO-5.1's real woff2").toContain(
+      "url('./fonts/archivo-latin-var.woff2')",
+    );
+    expect(main, 'the old absent /assets/ path must never return (silent-fail regression)').not.toContain(
+      '/assets/archivo-latin.woff2',
+    );
   });
 });

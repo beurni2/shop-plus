@@ -10,7 +10,7 @@
  * Playwright harness that follows serves TODAY's bytes, never a stale dist.
  */
 import { execSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
@@ -28,6 +28,14 @@ const files = [
   ...readdirSync(join(dist, 'assets'))
     .filter((f) => f.endsWith('.js'))
     .map((f) => `assets/${f}`),
+  // WO-5.3: the Archivo woff2 is CONSUMED now (main.ts @font-face,
+  // font-display:optional) — the first load fetches it, so it counts toward the
+  // 300 KB total (never the JS budget). public/ copies verbatim into dist/.
+  ...(existsSync(join(dist, 'fonts'))
+    ? readdirSync(join(dist, 'fonts'))
+        .filter((f) => f.endsWith('.woff2'))
+        .map((f) => `fonts/${f}`)
+    : []),
 ];
 
 let total = 0;
@@ -35,10 +43,14 @@ let js = 0;
 console.log('initial payload (everything the first load fetches), compressed:');
 for (const file of files) {
   const raw = readFileSync(join(dist, file));
-  const gz = gzipSync(raw, { level: 9 }).length;
-  total += gz;
-  if (file.endsWith('.js')) js += gz;
-  console.log(`  ${file}: ${raw.length} B raw → ${gz} B gzip`);
+  // Text (html/js/manifest) is gzip-served; a woff2 is already brotli-compressed
+  // internally and served verbatim — its transfer cost IS its raw size, so it is
+  // NOT re-gzipped (that would misreport the real first-load bytes).
+  const isFont = file.endsWith('.woff2');
+  const size = isFont ? raw.length : gzipSync(raw, { level: 9 }).length;
+  total += size;
+  if (file.endsWith('.js')) js += size;
+  console.log(`  ${file}: ${raw.length} B raw → ${size} B ${isFont ? 'transfer (woff2, not re-gzipped)' : 'gzip'}`);
 }
 console.log(`TOTAL: ${total} B compressed (budget: < ${HARD_TOTAL_BYTES} B)`);
 console.log(`JS: ${js} B compressed (budget: ≤ ${JS_BUDGET_BYTES} B)`);

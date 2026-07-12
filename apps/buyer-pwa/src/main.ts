@@ -29,10 +29,13 @@ import { createJourney, JOURNEY_SCREENS, type JourneyScreen } from './journey';
  * hairline, and exactly one cubic-bezier approximates motion.springSoft, whose
  * duration IS the token var).
  *
- * Font: Archivo variable is wired font-display:optional so first paint never
- * waits — system-ui renders immediately and the real face activates with zero
- * code change the day the founder drops assets/archivo-latin.woff2 (a PENDING
- * founder asset, flagged not fabricated — parallel to the pending audio notes).
+ * Font: Archivo variable, font-display:optional so first paint never waits —
+ * system-ui renders immediately and the real face swaps in only inside the
+ * optional window (CLS=0 by construction: optional never swaps mid-page). The
+ * woff2 is WO-5.1's substrate at public/fonts/archivo-latin-var.woff2 (served
+ * document-relative as ./fonts/…, correct under base:'./' at / and /shop-plus/);
+ * the font-load e2e proves it responds 200 and the Archivo face actually loads
+ * (document.fonts resolves) — a wrong path fails LOUD there, never silently.
  */
 
 const root = document.documentElement;
@@ -124,7 +127,7 @@ style.textContent = `
   @font-face {
     font-family: 'Archivo';
     font-display: optional;
-    src: url('/assets/archivo-latin.woff2') format('woff2');
+    src: url('./fonts/archivo-latin-var.woff2') format('woff2');
     font-weight: 400 900;
     font-stretch: 75% 125%;
   }
