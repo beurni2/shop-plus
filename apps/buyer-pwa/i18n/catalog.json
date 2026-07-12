@@ -162,6 +162,12 @@
     "screenClass": "checkout"
   },
   {
+    "key": "checkout.reconcile",
+    "fr": "{total} = {produit} + {livraison} — chaque franc a sa place.",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
     "key": "checkout.option_b.choose",
     "fr": "Payer à la livraison",
     "register": "money",
@@ -218,6 +224,24 @@
   {
     "key": "produit.acheter",
     "fr": "Acheter — {amount} F",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "produit.prix",
+    "fr": "Prix",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "produit.photo_reelle",
+    "fr": "Photo réelle — ce que vous recevrez.",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "produit.livraison_note",
+    "fr": "Livraison Séra en plus — affichée à part, jamais cachée.",
     "register": "money",
     "screenClass": "label"
   },
@@ -468,8 +492,14 @@
     "screenClass": "status"
   },
   {
+    "key": "suivi.maintenant",
+    "fr": "Maintenant",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
     "key": "suivi.etat.confirmee",
-    "fr": "Commande confirmée",
+    "fr": "Commande enregistrée",
     "register": "neutral",
     "screenClass": "label"
   },
@@ -530,6 +560,12 @@
   {
     "key": "suivi.porte.colis_scelle",
     "fr": "Le livreur garde le colis scellé près de lui.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "suivi.code.attente",
+    "fr": "Votre code apparaîtra ici dès que le paiement sera confirmé par l'opérateur. Jamais avant.",
     "register": "money",
     "screenClass": "status"
   },

@@ -4,16 +4,17 @@ import { lockIcon, scooterIcon } from './icons';
 import { renderAudioNote } from './audio-note';
 
 /**
- * TWO-OPTION CHECKOUT (WO-2.5; Build Spec §6.1). Both options shown; A is
- * labeled « recommandé »; before choosing, the buyer sees the two bold
- * amount lines per option — what's paid NOW and what's due AT THE DOOR —
- * with the total stated once. The replay line states both figures again
- * before payment. No « séquestre » anywhere (copy-lint enforced). When the
- * §6.1 gate refuses Option B, the refusal is a designed, dignified state —
- * one honest line, never an error wall.
- * WO-4.4 absorption — the carried §6.1 items land here: the lock (A) and
- * scooter (B) icons, paired with the option titles, and the per-option
- * audio note player (founder asset pending — honest placeholder).
+ * TWO-OPTION CHECKOUT (WO-2.5; Build Spec §6.1) — restyled Grand Teint
+ * (WO-5.3). Both options shown; A is labeled « recommandé »; before choosing,
+ * the buyer sees the two bold amount lines per option — what's paid NOW and
+ * what's due AT THE DOOR — with the total stated once and the RECONCILE LINE
+ * restating the sum (« L'argent en majesté »: 12 500 = 11 500 + 1 000 —
+ * chaque franc a sa place). The replay line states both figures again before
+ * payment. No « séquestre » anywhere (copy-lint enforced). When the §6.1 gate
+ * refuses Option B, the refusal is a designed, dignified state — one honest
+ * line, never an error wall. The lock (A) and scooter (B) canon icons ride
+ * the option titles; the per-option audio note is an honest placeholder
+ * (founder recording pending).
  */
 
 export interface CheckoutViewModel {
@@ -31,6 +32,18 @@ function amountLines(payNow: number, dueAtDoor: number): string {
     `<p class="fcfa-line"><span>${t('checkout.pay_now_label')}</span> <strong class="fcfa-figure-inline">${FCFA.format(payNow)} F</strong></p>`,
     `<p class="fcfa-line"><span>${t('checkout.pay_at_door_label')}</span> <strong class="fcfa-figure-inline">${FCFA.format(dueAtDoor)} F</strong></p>`,
   ].join('');
+}
+
+/** The reconcile line (GRAND-TEINT §2.2) — a component, not a nicety: the
+ * order total restated as product + delivery, to the franc. Rendered when the
+ * split is available (Option B carries product = due-at-door, delivery =
+ * pay-now); the same sum underlies Option A. */
+function reconcileLine(total: number, product: number, delivery: number): string {
+  return `<p class="reconcile-line" data-role="reconcile">${tf('checkout.reconcile', {
+    total: FCFA.format(total),
+    produit: FCFA.format(product),
+    livraison: FCFA.format(delivery),
+  })}</p>`;
 }
 
 export function renderCheckoutOptions(model: CheckoutViewModel): string {
@@ -67,10 +80,17 @@ export function renderCheckoutOptions(model: CheckoutViewModel): string {
         `</article>`,
       ].join('');
 
+  // The reconcile line restates the order sum on C5 (product + delivery = total).
+  // Derivable from Option B's split; the same total underlies Option A.
+  const reconcile = model.optionB.available
+    ? reconcileLine(model.buyerTotalFcfa, model.optionB.dueAtDoorFcfa, model.optionB.payNowFcfa)
+    : '';
+
   return [
     `<section class="checkout-view">`,
     `<h2>${t('checkout.heading')}</h2>`,
     `<p class="fcfa-figure">${FCFA.format(model.buyerTotalFcfa)} F CFA</p>`,
+    reconcile,
     optionA,
     optionB,
     `</section>`,

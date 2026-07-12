@@ -1,5 +1,5 @@
 import { t, tf } from './i18n';
-import { FCFA } from './format';
+import { FCFA, esc } from './format';
 
 /**
  * WO-4.4 §6.2 — DELIVERY: Séra's quote is the ONLY price authority for D
@@ -32,8 +32,10 @@ export function renderDeliveryQuote(model: DeliveryViewModel): string {
   const rows = model.options
     .map((option) =>
       [
-        `<button class="quote-row${option.id === model.selectedId ? ' quote-row-on' : ''}" data-delivery="${option.id}">`,
-        `<span>${t(option.labelKey)}</span>`,
+        // r② (WO-5.3): esc() the interpolated attribute — option.id is a
+        // constant today, but nothing model-derived reaches an attribute raw.
+        `<button class="quote-row${option.id === model.selectedId ? ' quote-row-on' : ''}" data-delivery="${esc(option.id)}">`,
+        `<span class="quote-label">${t(option.labelKey)}</span>`,
         `<strong class="fcfa-figure-inline">${FCFA.format(option.feeFcfa)} F</strong>`,
         '</button>',
       ].join(''),

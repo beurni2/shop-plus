@@ -74,6 +74,11 @@
           "caption": "L'arrivée par lien signé : la revendeuse, SON prix en héros, Livré par Séra, Paiement protégé — une seule action"
         },
         {
+          "id": "parcours-produit-squelette",
+          "url": "/?demo-skeleton=produit",
+          "caption": "Le squelette C1 (« la vitesse comme luxe ») : les boîtes exactes du produit en attente — même cadre, même bande prix, décalage de mise en page nul"
+        },
+        {
           "id": "parcours-localisation",
           "url": "/?demo-journey=localisation",
           "caption": "Où vous trouver : quartier + repère + note vocale — aucune adresse exigée, numéro privé (relais masqué)"

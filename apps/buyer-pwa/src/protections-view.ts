@@ -28,6 +28,7 @@ export function renderProtections(): string {
     '<section class="protections-sheet" data-screen="protections" role="dialog" aria-label="' +
       t('protections.titre') +
       '">',
+    '<span class="sheet-handle" aria-hidden="true"></span>',
     `<h2>${t('protections.titre')}</h2>`,
     `<ul class="protections-list">${rows}</ul>`,
     `<button class="primary-action" data-action="protections-fermer">${t('protections.fermer')}</button>`,
