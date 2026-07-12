@@ -190,5 +190,425 @@
     "fr": "Produit payé. Le livreur vous remet votre commande.",
     "register": "money",
     "screenClass": "status"
+  },
+  {
+    "key": "produit.vendeuse_verifiee",
+    "fr": "Vendeuse de confiance",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "produit.livre_par_sera",
+    "fr": "Livré par Séra",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "produit.paiement_protege",
+    "fr": "Paiement protégé",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "produit.stock",
+    "fr": "En stock",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "produit.acheter",
+    "fr": "Acheter — {amount} F",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "protections.ouvrir",
+    "fr": "Vos protections",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "etape.lieu",
+    "fr": "Étape 1 sur 3 — où vous trouver",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "lieu.titre",
+    "fr": "Où vous trouver",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "lieu.quartier",
+    "fr": "Quartier (Ouagadougou)",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "lieu.repere",
+    "fr": "Repère (pas d'adresse exigée)",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "lieu.repere_exemple",
+    "fr": "Ex. face à la pharmacie du marché",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "lieu.indications",
+    "fr": "Indications (facultatif)",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "lieu.indications_exemple",
+    "fr": "Ex. appelez en arrivant au carrefour",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "lieu.telephone",
+    "fr": "Votre téléphone",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "lieu.relais",
+    "fr": "Le livreur passe par un relais. Votre numéro reste privé.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "lieu.continuer",
+    "fr": "Continuer",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "voix.titre",
+    "fr": "Note vocale (facultatif)",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "voix.explique",
+    "fr": "Dites votre repère à voix haute — c'est souvent plus simple.",
+    "register": "selling",
+    "screenClass": "general"
+  },
+  {
+    "key": "voix.enregistrer",
+    "fr": "Enregistrer une note",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "voix.en_cours",
+    "fr": "Enregistrement en cours…",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "voix.arreter",
+    "fr": "Arrêter",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "voix.enregistree",
+    "fr": "Note vocale enregistrée",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "voix.ecouter",
+    "fr": "Écouter",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "voix.reprendre",
+    "fr": "Recommencer",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "voix.en_file",
+    "fr": "Note vocale en file — envoyée dès que le réseau revient.",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "voix.micro_refuse",
+    "fr": "Micro refusé — continuez sans note vocale.",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "voix.indisponible",
+    "fr": "L'enregistrement n'est pas possible ici — continuez sans note.",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "etape.livraison",
+    "fr": "Étape 2 sur 3 — la livraison",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "livraison.titre",
+    "fr": "La livraison, par Séra",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "livraison.autorite",
+    "fr": "Le prix de la course vient de Séra. Personne d'autre ne le fixe.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "livraison.standard",
+    "fr": "Standard — aujourd'hui, 16 h à 18 h",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "livraison.express",
+    "fr": "Express — en moins de 90 minutes",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "livraison.a_part",
+    "fr": "La livraison se paie à part — jamais cachée dans le prix du produit.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "livraison.choisir",
+    "fr": "Continuer — livraison {amount} F",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "etape.paiement",
+    "fr": "Étape 3 sur 3 — le paiement",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "audio.bientot",
+    "fr": "La note vocale arrive bientôt.",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "audio.ecouter",
+    "fr": "Écouter l'explication",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "confirmation.titre",
+    "fr": "Commande enregistrée",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "confirmation.suite",
+    "fr": "Votre article se prépare. Séra le vérifie et le scelle avant la route.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "confirmation.en_attente",
+    "fr": "En attente du réseau — rien n'est perdu.",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "confirmation.hors_ligne",
+    "fr": "Hors ligne — votre commande est gardée sur ce téléphone.",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "confirmation.suivre",
+    "fr": "Suivre ma commande",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "hors_ligne.bandeau",
+    "fr": "Hors ligne — rien n'est perdu.",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "retour",
+    "fr": "Retour",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "suivi.titre",
+    "fr": "Votre commande",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "suivi.honnete",
+    "fr": "Nous vous prévenons à chaque étape.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "suivi.etat.confirmee",
+    "fr": "Commande confirmée",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "suivi.etat.preparee",
+    "fr": "Article préparé",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "suivi.etat.scellee",
+    "fr": "Vérifié et scellé par Séra",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "suivi.etat.en_route",
+    "fr": "En route vers vous",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "suivi.etat.porte",
+    "fr": "À votre porte",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "suivi.etat.livree",
+    "fr": "Livré",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "suivi.porte.inspectez",
+    "fr": "Le livreur est là — vérifiez d'abord, tranquillement.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "suivi.porte.verifiez",
+    "fr": "Vérifiez : l'article, la couleur, la taille sur l'étiquette, l'état.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "suivi.porte.du_label",
+    "fr": "À payer avant de recevoir",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "suivi.porte.paiement_attente",
+    "fr": "Paiement envoyé. L'opérateur le confirme.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "suivi.porte.colis_scelle",
+    "fr": "Le livreur garde le colis scellé près de lui.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "suivi.code.donnez",
+    "fr": "Donnez ce code au livreur, colis en main",
+    "register": "money",
+    "screenClass": "instruction"
+  },
+  {
+    "key": "suivi.code.preuve",
+    "fr": "Ce code est votre preuve. Donnez-le seulement quand le colis est dans vos mains.",
+    "register": "money",
+    "screenClass": "instruction"
+  },
+  {
+    "key": "suivi.livree_merci",
+    "fr": "Livré. Merci !",
+    "register": "selling",
+    "screenClass": "status"
+  },
+  {
+    "key": "suivi.un_souci",
+    "fr": "Un souci ? On vous aide",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "protections.titre",
+    "fr": "Vos protections",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "protections.verifier",
+    "fr": "À la porte, vérifiez d'abord : l'article, la couleur, la taille, l'état.",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "protections.refus",
+    "fr": "Mauvais article ou article abîmé ? Vous refusez, vous êtes remboursé.",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "protections.paiement",
+    "fr": "Votre argent est protégé chez notre partenaire de paiement, jusqu'à la livraison confirmée.",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "protections.frais",
+    "fr": "Si vous annulez ou êtes absent, les frais de livraison ne sont pas remboursés.",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "protections.code",
+    "fr": "Le code de livraison est votre preuve. Donnez-le quand le colis est dans vos mains.",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "protections.especes",
+    "fr": "Jamais d'argent liquide au livreur. Jamais sur un compte personnel.",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "protections.numero",
+    "fr": "Votre numéro reste privé — le livreur passe par un relais.",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "protections.fermer",
+    "fr": "J'ai compris",
+    "register": "neutral",
+    "screenClass": "label"
   }
 ]

@@ -18,3 +18,9 @@ export function t(key: string): string {
   }
   return entry.fr;
 }
+
+/** Catalog string with `{...}` placeholders resolved — strings stay in the
+ * catalog, values arrive at render time. */
+export function tf(key: string, params: Record<string, string>): string {
+  return t(key).replace(/\{(\w+)\}/g, (_, name: string) => params[name] ?? `{${name}}`);
+}
