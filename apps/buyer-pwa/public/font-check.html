@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WO-5.1 — cold-start / CLS measurement harness (NOT product UI)</title>
+  <style>
+    /* Mirrors src/fonts.css — inlined so this harness is self-contained under
+       public/ (vite copies it verbatim; the product bundle is untouched). */
+    @font-face {
+      font-family: 'Archivo';
+      src: url('./fonts/archivo-latin-var.woff2') format('woff2');
+      font-weight: 400 900; font-style: normal; font-display: optional;
+    }
+    @font-face {
+      font-family: 'Archivo Fallback';
+      src: local('Segoe UI'), local('Roboto'), local('Helvetica Neue'), local('Arial'), local('sans-serif');
+      ascent-override: 87.80%; descent-override: 21.00%; line-gap-override: 0.00%;
+    }
+    body { margin: 0; padding: 24px; background: #FAF7F2; color: #26221C; }
+    /* The representative money moment + a poster title — the highest-stakes text. */
+    .price { font-family: 'Archivo', 'Archivo Fallback', system-ui, sans-serif;
+      font-weight: 800; font-size: 40px; line-height: 46px; font-variant-numeric: tabular-nums; margin: 0; }
+    .title { font-family: 'Archivo', 'Archivo Fallback', system-ui, sans-serif;
+      font-weight: 900; font-size: 24px; line-height: 30px; margin: 12px 0 0; }
+    .fallback-only { font-family: 'Archivo Fallback', system-ui, sans-serif;
+      font-weight: 800; font-size: 40px; line-height: 46px; font-variant-numeric: tabular-nums; margin: 12px 0 0; }
+  </style>
+</head>
+<body>
+  <p class="price" id="price">12&#8239;500 F</p>
+  <h1 class="title" id="title">Livré par Séra — paiement protégé</h1>
+  <p class="fallback-only" id="fallbackOnly">12&#8239;500 F</p>
+  <script>
+    // Measurement only. Records: first-contentful-paint, cumulative layout
+    // shift, and whether Archivo ever became active. Playwright reads window.__fontProbe.
+    window.__fontProbe = { fcp: null, cls: 0, shifts: 0, archivoActive: false, priceBox0: null };
+    // capture the price box at first paint (fallback) for a before/after compare
+    requestAnimationFrame(() => {
+      const r = document.getElementById('price').getBoundingClientRect();
+      window.__fontProbe.priceBox0 = { w: r.width, h: r.height, top: r.top };
+    });
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        if (e.name === 'first-contentful-paint') window.__fontProbe.fcp = e.startTime;
+      }
+    }).observe({ type: 'paint', buffered: true });
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        if (!e.hadRecentInput) { window.__fontProbe.cls += e.value; window.__fontProbe.shifts++; }
+      }
+    }).observe({ type: 'layout-shift', buffered: true });
+    if (document.fonts) {
+      document.fonts.ready.then(() => {
+        window.__fontProbe.archivoActive = document.fonts.check("40px 'Archivo'");
+        const r = document.getElementById('price').getBoundingClientRect();
+        window.__fontProbe.priceBox1 = { w: r.width, h: r.height, top: r.top };
+        window.__fontProbe.done = true;
+      });
+    }
+  </script>
+</body>
+</html>

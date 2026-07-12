@@ -1,0 +1,34 @@
+/* WO-5.1 — the Grand Teint TYPEFACE substrate for the web (Archivo, Latin,
+   variable). This is the @font-face declaration the buyer surface will consume
+   at its next type slice; it changes NO product screen today (no element sets
+   --font-grand-teint yet). It exists so the cold-start behaviour is proven now.
+
+   THE COLD-START LAW (the CTO's flagged risk): font-display: optional. The
+   browser gives Archivo a ~100 ms window at load; if it is not ready, the page
+   stays in the fallback for its whole life — there is NEVER a mid-page swap, so
+   cumulative layout shift is 0 by construction, and first paint never waits. */
+@font-face {
+  font-family: 'Archivo';
+  src: url('./fonts/archivo-latin-var.woff2') format('woff2');
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: optional;
+}
+
+/* The metrics-matched fallback: a system face pinned to Archivo's OWN vertical
+   metrics (unitsPerEm 1000 · typo ascent 0.878 · descent 0.210 · line-gap 0),
+   so even in the counterfactual where a swap happened, the text box is the same
+   height and nothing reflows. Archivo is metrics-friendly (budget.md). */
+@font-face {
+  font-family: 'Archivo Fallback';
+  src: local('Segoe UI'), local('Roboto'), local('Helvetica Neue'), local('Arial'), local('sans-serif');
+  ascent-override: 87.80%;
+  descent-override: 21.00%;
+  line-gap-override: 0.00%;
+}
+
+:root {
+  /* The family the product will adopt next slice — Archivo, then the
+     metrics-matched fallback, then the platform default. */
+  --font-grand-teint: 'Archivo', 'Archivo Fallback', system-ui, sans-serif;
+}
