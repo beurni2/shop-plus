@@ -1,0 +1,6 @@
+{
+  "surface": "ventes-row",
+  "moneyFieldsInRenderOrder": [
+    "resellerNet"
+  ]
+}

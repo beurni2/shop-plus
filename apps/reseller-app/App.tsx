@@ -9,6 +9,13 @@ import { t } from './src/i18n';
 import { JOURNEY, START, type Screen } from './src/journey';
 import { DEMO_SHARE_IDENTITY, composeShareCard } from './src/share/hub';
 import {
+  ventesListModel,
+  demoDetail,
+  type SaleRow,
+  type SaleDetail,
+  type TimelineStep,
+} from './src/sales/ventes';
+import {
   DEMO_SHARE_LINK,
   baselineGains,
   baselineProductPriceFcfa,
@@ -34,6 +41,7 @@ import {
   StatusChip,
   TabBar,
   WaxBand,
+  type ChipTone,
 } from './src/ui/kit';
 
 /**
@@ -76,6 +84,39 @@ function GainsBreakdown({ line, style }: { line: GainsLine; style?: object }) {
   );
 }
 
+/** S7 status → chip tone. LIVRÉE is a server FACT (ink « ok »), never a green
+ * lie before the operator; a PROBLÈME reads « bad »; the rest are calm. */
+const chipTone = (row: SaleRow): ChipTone =>
+  row.status === 'livree' ? 'ok'
+  : row.status === 'probleme' ? 'bad'
+  : row.status === 'en_route' || row.status === 'a_la_porte' ? 'info'
+  : 'muted';
+
+/* S7 detail — the coarse custody timeline (« OÙ EN EST LA COMMANDE »): a dot
+ * column (done: ink · now: accent ring + MAINTENANT · later: hairline) + label
+ * + note. Never a map, never a GPS point — steps only (SE custody law). */
+function TimelineRow({ step, last }: { step: TimelineStep; last: boolean }) {
+  const done = step.phase === 'done';
+  const now = step.phase === 'now';
+  return (
+    <View style={styles.timelineStep}>
+      <View style={styles.timelineDotCol}>
+        <View style={[styles.timelineDot, done && styles.timelineDotDone, now && styles.timelineDotNow]} />
+        {!last && <View style={[styles.timelineConnector, done && styles.timelineConnectorDone]} />}
+      </View>
+      <View style={styles.timelineBody}>
+        <View style={styles.timelineHead}>
+          <Text style={[styles.timelineLabel, now && styles.timelineLabelNow, step.phase === 'later' && styles.timelineLabelLater]}>
+            {t(step.labelKey)}
+          </Text>
+          {now && <StatusChip tone="info" label={t('vente.maintenant')} />}
+        </View>
+        {step.noteKey !== undefined && <Text style={styles.noteLine}>{t(step.noteKey)}</Text>}
+      </View>
+    </View>
+  );
+}
+
 /** The bottom hubs (WO-4.2R): Accueil · Opportunités · Gains. */
 const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'gains'];
 
@@ -86,6 +127,8 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
   vitrine: 'vitrine.title',
   lien: 'lien.title',
   gains: 'gains.title',
+  ventes: 'ventes.titre',
+  vente_detail: 'vente.titre',
 };
 
 export default function App() {
@@ -118,6 +161,13 @@ export default function App() {
   // (SP-I19). It carries the live-truth signed link by construction — no
   // commission field exists on the type (SP-I03).
   const shareCard = composeShareCard(DEMO_SHARE_IDENTITY);
+  // S7 — the sales list (net-first, problems-first) + the demo detail (Mariam).
+  const ventesRows = ventesListModel();
+  const saleDetail = demoDetail();
+  const headerTitle =
+    screen === 'vente_detail'
+      ? t('vente.titre').replace('{name}', saleDetail.clientFirstName)
+      : t(SCREEN_TITLE_KEY[screen]);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -133,7 +183,7 @@ export default function App() {
       )}
 
       <AppHeader
-        title={t(SCREEN_TITLE_KEY[screen])}
+        title={headerTitle}
         subtitle={screen === 'accueil' ? t('accueil.tagline') : undefined}
         backLabel={`← ${t('nav.retour')}`}
         onBack={stack.length > 1 ? back : undefined}
@@ -155,6 +205,7 @@ export default function App() {
             </View>
             <PrimaryButton label={t('accueil.card_opportunites')} onPress={() => go('opportunites')} />
             <SecondaryButton label={t('accueil.card_gains')} onPress={() => go('gains')} />
+            <SecondaryButton label={t('ventes.titre')} onPress={() => go('ventes')} />
           </View>
         )}
 
@@ -259,6 +310,11 @@ export default function App() {
                 <StatusChip tone="ok" label={t('share.livre_sera')} />
               </View>
               <Text style={styles.ogSigned}>{t('share.og_signe')}</Text>
+              {/* WO-7.2a — the price-validity hint (« pied de carte »): which
+                  day's price this card shows; the link stays the truth (SP-I19). */}
+              <Text style={styles.ogValidite}>
+                {t('share.validite').replace('{date}', shareCard.priceValidityDate)}
+              </Text>
             </Card>
 
             {/* The signed PRODUCT link — the one she sends; the live price/stock
@@ -311,6 +367,74 @@ export default function App() {
             </Card>
             <Text style={styles.noteLine}>{t('gains.suite')}</Text>
             <SecondaryButton label={t('opportunites.title')} onPress={() => go('opportunites')} />
+          </View>
+        )}
+
+        {screen === 'ventes' && (
+          ventesRows.length === 0 ? (
+            <View style={styles.stackGap}>
+              <EmptyState
+                glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={theme.colours.soft} />}
+                title={t('ventes.vide_titre')}
+                hint={t('ventes.vide_hint')}
+              />
+              <PrimaryButton label={t('ventes.vide_action')} onPress={() => go('vitrine')} />
+            </View>
+          ) : (
+            <View style={styles.listWrap}>
+              <FlatList
+                data={ventesRows}
+                keyExtractor={(r) => r.id}
+                initialNumToRender={6}
+                windowSize={5}
+                contentContainerStyle={styles.listContent}
+                renderItem={({ item }) => (
+                  <View style={styles.venteRowGroup}>
+                    <ListRow
+                      glyph={item.clientFirstName.slice(0, 1)}
+                      title={item.clientFirstName}
+                      meta={item.productName}
+                      net={`${t('ventes.net_ligne').replace('{amount}', formatFcfa(item.netFcfa))}`}
+                      chip={<StatusChip tone={chipTone(item)} label={t(item.statusKey)} />}
+                      onPress={() => go('vente_detail')}
+                    />
+                    {item.status === 'probleme' && (
+                      <Card style={styles.problemeEncart}>
+                        <Text style={styles.message}>{t('ventes.probleme_encart')}</Text>
+                        <Text style={styles.noteLine}>{t('ventes.probleme_rien')}</Text>
+                        <SecondaryButton label={t('ventes.probleme_action')} onPress={() => go('vente_detail')} />
+                      </Card>
+                    )}
+                  </View>
+                )}
+              />
+              <Text style={styles.noteLine}>{t('ventes.relais')}</Text>
+            </View>
+          )
+        )}
+
+        {screen === 'vente_detail' && (
+          <View style={styles.stackGap}>
+            {/* NET FIRST, always — the net before SON prix; the commission
+                exists nowhere; only her client's first name (relais). */}
+            <Card style={styles.netCard}>
+              <Overline>{t('vente.net_label')}</Overline>
+              <Text style={styles.netFigure}>{formatFcfa(saleDetail.netFcfa)}</Text>
+              <Text style={styles.noteLine}>{t('vente.net_regle')}</Text>
+            </Card>
+            <Card>
+              <Text style={styles.cardTitle}>
+                {t('vente.son_prix').replace('{amount}', formatFcfa(saleDetail.sonPrixFcfa))}
+              </Text>
+            </Card>
+            <Card>
+              <Overline>{t('vente.timeline_titre')}</Overline>
+              <View style={styles.timeline}>
+                {saleDetail.timeline.map((step, i) => (
+                  <TimelineRow key={String(i)} step={step} last={i === saleDetail.timeline.length - 1} />
+                ))}
+              </View>
+            </Card>
           </View>
         )}
       </View>
@@ -371,6 +495,57 @@ const styles = StyleSheet.create({
     lineHeight: lh(type.scale.caption),
     paddingTop: spacing.xs,
   },
+  ogValidite: {
+    color: theme.colours.muted,
+    fontSize: type.scale.caption.size,
+    lineHeight: lh(type.scale.caption),
+    paddingTop: spacing.xs,
+    fontVariant: ['tabular-nums'],
+  },
+  // S7 — ventes list + detail.
+  venteRowGroup: { gap: spacing.xs },
+  problemeEncart: { gap: spacing.sm },
+  netCard: {
+    borderWidth: spacing.xs / 2,
+    borderColor: theme.colours.ink,
+  },
+  netFigure: {
+    color: theme.colours.primaryStrong,
+    fontSize: money.amountScale.hero.size,
+    lineHeight: money.amountScale.hero.size * money.amountScale.hero.lh,
+    fontWeight: money.amountScale.hero.wght,
+    fontVariant: ['tabular-nums'],
+  },
+  timeline: { gap: spacing.md, paddingTop: spacing.sm },
+  timelineStep: { flexDirection: 'row', gap: spacing.md },
+  timelineDotCol: { alignItems: 'center', width: spacing.md },
+  timelineDot: {
+    width: spacing.sm,
+    height: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colours.hairlineStrong,
+    backgroundColor: theme.colours.paper,
+  },
+  timelineDotDone: { backgroundColor: theme.colours.ink, borderColor: theme.colours.ink },
+  timelineDotNow: { backgroundColor: theme.colours.primaryStrong, borderColor: theme.colours.primaryStrong },
+  timelineConnector: {
+    flex: 1,
+    width: StyleSheet.hairlineWidth,
+    minHeight: spacing.md,
+    backgroundColor: theme.colours.hairlineStrong,
+  },
+  timelineConnectorDone: { backgroundColor: theme.colours.ink },
+  timelineBody: { flex: 1, gap: spacing.xs, paddingBottom: spacing.sm },
+  timelineHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  timelineLabel: {
+    color: theme.colours.ink,
+    fontSize: type.scale.body.size,
+    lineHeight: lh(type.scale.body),
+    fontWeight: type.scale.bodyStrong.wght,
+  },
+  timelineLabelNow: { color: theme.colours.ink },
+  timelineLabelLater: { color: theme.colours.soft },
   message: {
     color: theme.colours.ink,
     fontSize: type.scale.body.size,

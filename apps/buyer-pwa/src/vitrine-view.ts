@@ -85,6 +85,9 @@ export function renderVitrine(model: VitrineViewModel): string {
     '<div class="vitrine-products">',
     model.products.map(productCard).join(''),
     '</div>',
+    // WO-7.2a — the ruled S3 entry point: every vitrine footer links to the
+    // store directory (« root + vitrine footer »). Reuses the handoff string.
+    `<a class="vitrine-boutiques link-quiet" data-role="vitrine-boutiques" href="/boutiques">${t('boutiques.aucun_action')}</a>`,
     '</section>',
   ].join('');
 }

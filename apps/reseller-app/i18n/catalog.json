@@ -286,5 +286,215 @@
     "fr": "Voir ma vitrine comme une cliente",
     "register": "selling",
     "screenClass": "label"
+  },
+  {
+    "key": "share.validite",
+    "fr": "Prix du {date} — le lien dit le prix du jour.",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "ventes.titre",
+    "fr": "MES VENTES — LES PROBLÈMES D'ABORD",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "ventes.titre_hier",
+    "fr": "MES VENTES — HIER SOIR",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "ventes.vide_titre",
+    "fr": "Aucune vente en cours.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "ventes.vide_hint",
+    "fr": "Partagez votre vitrine — c'est elle qui remplit cette page.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "ventes.vide_action",
+    "fr": "PARTAGER MA VITRINE",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "ventes.etat_payee",
+    "fr": "PAYÉE",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "ventes.etat_preparation",
+    "fr": "EN PRÉPARATION",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "ventes.etat_en_route",
+    "fr": "EN ROUTE",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "ventes.etat_porte",
+    "fr": "À LA PORTE",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "ventes.etat_livree",
+    "fr": "LIVRÉE",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "ventes.etat_probleme",
+    "fr": "PROBLÈME",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "ventes.net_ligne",
+    "fr": "+ {amount} net",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "ventes.probleme_encart",
+    "fr": "Signalé à l'inspection — le bureau des exceptions s'en occupe. La commande reste protégée ; votre net attend, il n'est pas perdu.",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "ventes.probleme_action",
+    "fr": "VOIR LE DÉTAIL",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "ventes.probleme_rien",
+    "fr": "Rien à faire de votre côté.",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "ventes.relais",
+    "fr": "Vous ne voyez jamais son numéro — le relais s'en charge.",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "ventes.hors_ligne",
+    "fr": "Hors ligne : vos ventes affichées sont celles d'hier soir.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "ventes.hors_ligne_pied",
+    "fr": "Les états repartent tout seuls avec le réseau — rien n'est perdu.",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "ventes.erreur_titre",
+    "fr": "Vos ventes n'ont pas pu se charger.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "ventes.erreur_hint",
+    "fr": "Rien n'est perdu — réessayez.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "ventes.reessayer",
+    "fr": "RÉESSAYER",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "vente.titre",
+    "fr": "VENTE — {name}",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "vente.net_label",
+    "fr": "VOTRE GAIN NET",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "vente.net_regle",
+    "fr": "Réglé après livraison validée.",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "vente.son_prix",
+    "fr": "SON PRIX : {amount}",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "vente.timeline_titre",
+    "fr": "OÙ EN EST LA COMMANDE",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "vente.etape_payee",
+    "fr": "Payée",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "vente.etape_payee_note",
+    "fr": "Confirmée par l'opérateur.",
+    "register": "neutral",
+    "screenClass": "general"
+  },
+  {
+    "key": "vente.etape_scellee",
+    "fr": "Vérifiée et scellée par Séra",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "vente.etape_scellee_note",
+    "fr": "Le colis est contrôlé avant de partir.",
+    "register": "neutral",
+    "screenClass": "general"
+  },
+  {
+    "key": "vente.etape_en_route",
+    "fr": "En route",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "vente.etape_en_route_note",
+    "fr": "Vers son repère, avec Séra.",
+    "register": "neutral",
+    "screenClass": "general"
+  },
+  {
+    "key": "vente.etape_livree",
+    "fr": "Livrée — après son inspection",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "vente.maintenant",
+    "fr": "MAINTENANT",
+    "register": "neutral",
+    "screenClass": "label"
   }
 ]

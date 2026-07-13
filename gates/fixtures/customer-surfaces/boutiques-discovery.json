@@ -1,0 +1,9 @@
+{
+  "stores": [
+    { "storefrontId": "sf_aicha", "resellerId": "res_aicha", "storeName": "CHEZ AÏCHA", "zone": "Rood Woko", "productCount": 6 },
+    { "storefrontId": "sf_mariam", "resellerId": "res_mariam", "storeName": "CHEZ MARIAM", "zone": "Gounghin", "productCount": 4 },
+    { "storefrontId": "sf_kadi", "resellerId": "res_kadi", "storeName": "BOUTIQUE KADI", "zone": "Dassasgho", "productCount": 9 },
+    { "storefrontId": "sf_fanta", "resellerId": "res_fanta", "storeName": "CHEZ FANTA", "zone": "Tanghin", "productCount": 3 },
+    { "storefrontId": "sf_awa", "resellerId": "res_awa", "storeName": "CHEZ AWA T.", "zone": "Rood Woko", "productCount": 5 }
+  ]
+}

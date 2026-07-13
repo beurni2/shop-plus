@@ -11,16 +11,21 @@ export type Screen =
   | 'selection'
   | 'vitrine'
   | 'lien'
-  | 'gains';
+  | 'gains'
+  | 'ventes'
+  | 'vente_detail';
 
 export const START: Screen = 'accueil';
 
 /** Forward edges only — « Retour » pops the stack and is always available. */
 export const JOURNEY: Record<Screen, readonly Screen[]> = {
-  accueil: ['opportunites', 'gains'],
+  accueil: ['opportunites', 'gains', 'ventes'],
   opportunites: ['selection'],
   selection: ['vitrine'],
   vitrine: ['lien'],
   lien: ['gains'],
   gains: ['opportunites'],
+  // WO-7.2a — S7: « Mes ventes » (the sales list) → a sale's detail.
+  ventes: ['vente_detail'],
+  vente_detail: [],
 };

@@ -61,6 +61,12 @@ capture money-reconciliation-missing-mode-negative fail node scripts/gates/money
 log "gate: net-first-display — real opportunity-card surface (must pass)"
 capture net-first-display-positive pass node scripts/gates/net-first-display.mjs gates/fixtures/surfaces/opportunity-card.json
 
+log "gate: net-first-display — S7 ventes row surface (WO-7.2a, pinned to the presenter; must pass)"
+capture net-first-display-ventes-row pass node scripts/gates/net-first-display.mjs gates/fixtures/surfaces/ventes-row.json
+
+log "gate: net-first-display — S7 ventes detail surface (WO-7.2a, net before son prix; must pass)"
+capture net-first-display-ventes-detail pass node scripts/gates/net-first-display.mjs gates/fixtures/surfaces/ventes-detail.json
+
 log "gate: net-first-display — NEGATIVE FIXTURE (gross-first earnings surface, must fail)"
 capture net-first-display-negative fail node scripts/gates/net-first-display.mjs gates/fixtures/negative/surfaces/gross-first-card.json
 
@@ -91,8 +97,14 @@ capture settlement-copies-negative fail node scripts/gates/settlement-copies-nev
 log "gate: discovery-returns-stores — real discovery response (must pass)"
 capture discovery-returns-stores-positive pass node scripts/gates/discovery-returns-stores.mjs gates/fixtures/discovery/stores-response.json
 
+log "gate: discovery-returns-stores — S3 découverte directory (WO-7.2a, pinned to the directory; must pass)"
+capture discovery-returns-stores-s3 pass node scripts/gates/discovery-returns-stores.mjs gates/fixtures/customer-surfaces/boutiques-discovery.json
+
 log "gate: discovery-returns-stores — NEGATIVE FIXTURE (flat product pool, must fail)"
 capture discovery-returns-stores-negative fail node scripts/gates/discovery-returns-stores.mjs gates/fixtures/negative/discovery/flat-product-pool.json
+
+log "gate: discovery-returns-stores — S3 NEGATIVE (a directory that leaked a product feed, must fail)"
+capture discovery-returns-stores-s3-negative fail node scripts/gates/discovery-returns-stores.mjs gates/fixtures/negative/discovery/boutiques-as-product-feed.json
 
 log "gate: attribution-tamper-fails-closed — valid signed token (must pass)"
 capture attribution-tamper-positive pass node scripts/gates/attribution-tamper.mjs gates/fixtures/attribution/valid-token.json
@@ -108,6 +120,9 @@ capture no-supplier-contact-vitrine pass node scripts/gates/no-supplier-contact.
 
 log "gate: no-supplier-contact — S5 share card surface (WO-7.1, pinned to composeShareCard; must pass)"
 capture no-supplier-contact-share-card pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/share-card.json
+
+log "gate: no-supplier-contact — S3 découverte directory (WO-7.2a, pinned to the directory; must pass)"
+capture no-supplier-contact-boutiques pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/boutiques-discovery.json
 
 log "gate: no-supplier-contact — NEGATIVE FIXTURE (supplier identity/contact/commission leak, must fail)"
 capture no-supplier-contact-negative fail node scripts/gates/no-supplier-contact.mjs gates/fixtures/negative/customer-surfaces/leaking-product-view.json

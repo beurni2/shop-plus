@@ -12,23 +12,27 @@ function hexToRgb(hex: string): string {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
-test('the PWA shell boots on the shop-plus theme with catalog strings', async ({ page }) => {
+test('the PWA shell boots on the shop-plus theme, S3 directory as root', async ({ page }) => {
+  // WO-7.2a — root IS the S3 store directory now (« root » entry, founder-ruled).
   await page.goto('/');
   await expect(page).toHaveTitle('Shop+');
 
-  const brand = page.locator('h1');
-  await expect(brand).toHaveText('Shop+');
-  // GRAND TEINT: the header wordmark is quiet ink (accent is reserved for the
-  // price band + the 4 px theme strip); the page surface is warm paper.
-  await expect(brand).toHaveCSS('color', hexToRgb(theme.colours.ink));
+  // The S3 title « LES BOUTIQUES » owns the screen (the mockup carries no
+  // separate brand bar). GRAND TEINT: quiet ink title on warm paper.
+  const title = page.locator('h1.bq-title');
+  await expect(title).toHaveText('LES BOUTIQUES');
+  await expect(title).toHaveCSS('color', hexToRgb(theme.colours.ink));
+  await expect(page.locator('body')).toHaveCSS('background-color', hexToRgb(theme.colours.paper));
 
-  await expect(page.locator('body')).toHaveCSS(
-    'background-color',
-    hexToRgb(theme.colours.paper),
+  // SP-I11: the deterministic order is stated ON-SCREEN, never a hidden score.
+  await expect(page.locator('[data-role="ordering-sentence"]')).toContainText(
+    'Classées par dernière mise à jour',
   );
-
-  await expect(page.locator('h2')).toHaveText('Découvrez les boutiques de votre quartier.');
-  await expect(page.locator('.empty-state')).toHaveText('Les premières boutiques arrivent bientôt.');
+  // SP-I05: stores, not products — the first store card links to a vitrine.
+  const firstStore = page.locator('[data-role="boutique"]').first();
+  await expect(firstStore).toBeVisible();
+  await expect(firstStore).toContainText('CHEZ AÏCHA');
+  await expect(firstStore).toHaveAttribute('href', '/v/aicha-4821');
 });
 
 test('the page declares itself an installable-ready PWA (manifest present)', async ({ page }) => {
