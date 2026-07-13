@@ -11,6 +11,7 @@ import {
 import { WORKED_BASELINE_INPUT } from '@shop-plus/commerce-core';
 import {
   DEMO_SHARE_LINK,
+  DEMO_KIT_LINK,
   baselineGains,
   baselineProductPriceFcfa,
   createDemoWorld,
@@ -114,6 +115,9 @@ describe('demo world money law', () => {
     expect(DEMO_SHARE_LINK).toContain('shop-plus.demo/');
     expect(DEMO_SHARE_LINK).toContain('essai');
     expect(DEMO_SHARE_LINK).not.toMatch(/^https?:/); // never a live URL
+    // WO-7.2b — the media-kit link-out is the same visibly-fictional sandbox form.
+    expect(DEMO_KIT_LINK).toContain('shop-plus.demo/');
+    expect(DEMO_KIT_LINK).not.toMatch(/^https?:/);
   });
 
   it('the store never exposes a gross-without-net view (SP-I04/SP-I12 net-first)', () => {
@@ -136,7 +140,7 @@ describe('demo world money law', () => {
   });
 
   it('the journey/demo modules bundle Metro-safe (no runtime import of node-only barrels)', () => {
-    for (const file of ['src/journey.ts', 'src/demo/store.ts', 'src/share/hub.ts', 'src/sales/ventes.ts', 'App.tsx']) {
+    for (const file of ['src/journey.ts', 'src/demo/store.ts', 'src/share/hub.ts', 'src/sales/ventes.ts', 'src/qr/encoder.ts', 'src/qr/identity.ts', 'src/qr/QrCode.tsx', 'App.tsx']) {
       const source = readFileSync(join(appDir, file), 'utf8');
       const runtimeImports = [...source.matchAll(/^import (?!type )[^;]*from '([^']+)';/gm)].map(
         (m) => m[1],

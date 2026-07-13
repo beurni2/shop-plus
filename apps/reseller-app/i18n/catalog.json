@@ -502,5 +502,41 @@
     "fr": "Mes ventes",
     "register": "neutral",
     "screenClass": "label"
+  },
+  {
+    "key": "share.qr_titre",
+    "fr": "FAITES SCANNER — EN PERSONNE",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "share.qr_blurb",
+    "fr": "Votre cliente scanne — elle arrive sur votre vitrine. La vente vous revient.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "share.qr_legende",
+    "fr": "SCANNEZ — OU TAPEZ LE CODE",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "share.qr_repli",
+    "fr": "Pas de scan ? Le code suffit — {code}.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "share.kit",
+    "fr": "Créer une image à publier",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "share.kit_hint",
+    "fr": "Story, carré, affiche — votre carte prête à publier.",
+    "register": "selling",
+    "screenClass": "selling_surface"
   }
 ]

@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "types": [],
+    // WO-7.2b — the vendored QR encoder is SHARED, never forked: `@qr/*`
+    // resolves the SAME source files reseller-app vendored (encoder.ts +
+    // identity.ts, both dependency-free). One source of truth for the maths
+    // that outlives the link (a poster is the longest-lived artifact).
+    "paths": { "@qr/*": ["../reseller-app/src/qr/*"] }
+  },
+  "include": ["src", "test", "vite.config.ts"]
+}

@@ -1,0 +1,128 @@
+[
+  {
+    "key": "kit.titre",
+    "fr": "Votre carte à publier",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "kit.sous_titre",
+    "fr": "Votre carte, votre prix, votre code — prête à publier.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "kit.format_titre",
+    "fr": "Format",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "kit.modele_titre",
+    "fr": "Modèle",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "kit.format_story",
+    "fr": "Story",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "kit.format_carre",
+    "fr": "Carré",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "kit.format_affiche",
+    "fr": "Affiche",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "kit.modele_clair",
+    "fr": "Clair",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "kit.modele_nuit",
+    "fr": "Nuit",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "kit.apercu",
+    "fr": "Aperçu de votre carte",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "kit.cta",
+    "fr": "Créer l'image",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "kit.etat_rendu",
+    "fr": "Rendue sur votre téléphone — rien n'est envoyé.",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "kit.etat_prete",
+    "fr": "Carte prête — enregistrée sur ce téléphone.",
+    "register": "selling",
+    "screenClass": "status"
+  },
+  {
+    "key": "kit.etat_hors_ligne",
+    "fr": "Votre carte est prête. Le partage part dès que le réseau revient.",
+    "register": "selling",
+    "screenClass": "status"
+  },
+  {
+    "key": "card.prix_label",
+    "fr": "PRIX",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "card.livre_protege",
+    "fr": "LIVRÉ PAR SÉRA · PAIEMENT PROTÉGÉ",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "card.code",
+    "fr": "CODE : {code}",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "card.bio",
+    "fr": "lien dans ma bio",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "card.validite",
+    "fr": "Prix du {date} — le lien dit le prix du jour.",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "card.qr_legende",
+    "fr": "SCANNEZ — OU TAPEZ LE CODE",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "card.qr_repli",
+    "fr": "Pas de scan ? Le code suffit — {code}.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  }
+]
