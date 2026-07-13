@@ -8,6 +8,8 @@ import { IS_PREVIEW } from './src/preview';
 import { t } from './src/i18n';
 import { JOURNEY, START, type Screen } from './src/journey';
 import { DEMO_SHARE_IDENTITY, composeShareCard } from './src/share/hub';
+import { QrCode } from './src/qr/QrCode';
+import { DEMO_QR_URL } from './src/qr/identity';
 import {
   ventesListModel,
   demoDetail,
@@ -341,6 +343,26 @@ export default function App() {
               <Text style={styles.message}>{t('share.bio')}</Text>
             </Card>
 
+            {/* WO-7.2b — the on-screen QR (ruling #10: react-native-svg draws
+                the vendored encoder's matrix). The SAME vitrine slug, made
+                scannable in person: her cliente points a phone and lands on
+                `/v/{slug}`. The code prints beside it, so no-scan still works —
+                the QR is the shortcut, never the only door. */}
+            <Card>
+              <Overline>{t('share.qr_titre')}</Overline>
+              <Text style={styles.message}>{t('share.qr_blurb')}</Text>
+              <View style={styles.qrFrame}>
+                <QrCode url={DEMO_QR_URL} />
+              </View>
+              <View style={styles.qrCaption}>
+                <Text style={styles.qrLegende}>{t('share.qr_legende')}</Text>
+                <Text style={styles.codeStrong}>{DEMO_SHARE_IDENTITY.shortCode}</Text>
+                <Text style={styles.qrRepli}>
+                  {t('share.qr_repli').replace('{code}', DEMO_SHARE_IDENTITY.shortCode)}
+                </Text>
+              </View>
+            </Card>
+
             <PrimaryButton label={t('lien.action')} onPress={() => go('gains')} />
           </ScrollView>
         )}
@@ -601,6 +623,37 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   linkHint: {
+    color: theme.colours.muted,
+    fontSize: type.scale.caption.size,
+    lineHeight: lh(type.scale.caption),
+    textAlign: 'center',
+  },
+  // WO-7.2b — the on-screen QR. Frame hugs the derived side (alignSelf), sits
+  // on sand so the QR's own paper quiet zone reads as a scannable card.
+  qrFrame: {
+    alignSelf: 'center',
+    backgroundColor: theme.colours.sand,
+    borderRadius: radius.box,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colours.hairlineStrong,
+    padding: spacing.lg,
+  },
+  qrCaption: { alignItems: 'center', gap: spacing.xs },
+  qrLegende: {
+    color: theme.colours.muted,
+    fontSize: type.scale.caption.size,
+    lineHeight: lh(type.scale.caption),
+    textAlign: 'center',
+  },
+  codeStrong: {
+    color: theme.colours.ink,
+    fontSize: type.scale.title.size,
+    lineHeight: lh(type.scale.title),
+    fontWeight: type.scale.title.wght,
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+  },
+  qrRepli: {
     color: theme.colours.muted,
     fontSize: type.scale.caption.size,
     lineHeight: lh(type.scale.caption),
