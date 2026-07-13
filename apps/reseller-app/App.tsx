@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import { shopPlusTheme as theme, type, spacing, radius, touch, money } from '@platform/ui-tokens';
+import { shopPlusTheme as theme, shopColour, type, spacing, radius, touch, money, dimension } from '@platform/ui-tokens';
+import { IconAccueil, IconProduits, IconGains, IconVitrine } from './src/ui/icons';
 import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
 import { t } from './src/i18n';
@@ -48,6 +49,11 @@ import {
 
 /** lineHeight helper — v0.8.0 `lh` is a unitless multiplier; RN needs px. */
 const lh = (s: { readonly size: number; readonly lh: number }): number => s.size * s.lh;
+
+/** Bottom-nav glyph colour: active = accent, inactive = muted (matches the label).
+ * (Return is the token's own type — shop accents resolve through the merged
+ * palette index, which the icon `color` prop accepts as-is.) */
+const navColor = (active: boolean): string => (active ? shopColour.primaryStrong : theme.colours.muted);
 
 /* The money lines (prototype `.ml`/`.mlTot`): gross and the honest 20 % fee
  * as calm muted lines, a dashed rule, then the net — the strongest line,
@@ -209,7 +215,10 @@ export default function App() {
           <View style={styles.listWrap}>
             <Text style={styles.noteLine}>{t('vitrine.note')}</Text>
             {selection.length === 0 ? (
-              <EmptyState glyph="🛍️" title={t('vitrine.vide')} />
+              <EmptyState
+                glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={theme.colours.soft} />}
+                title={t('vitrine.vide')}
+              />
             ) : (
               <FlatList
                 data={selection}
@@ -280,9 +289,9 @@ export default function App() {
       {HUBS.includes(screen) && (
         <TabBar
           items={[
-            { key: 'accueil', icon: '🏠', label: t('nav.tab_accueil'), active: screen === 'accueil', onPress: () => toHub('accueil') },
-            { key: 'opportunites', icon: '🛍️', label: t('nav.tab_opportunites'), active: screen === 'opportunites', onPress: () => toHub('opportunites') },
-            { key: 'gains', icon: '💰', label: t('nav.tab_gains'), active: screen === 'gains', onPress: () => toHub('gains') },
+            { key: 'accueil', icon: <IconAccueil size={dimension.iconSizePx.tab} color={navColor(screen === 'accueil')} />, label: t('nav.tab_accueil'), active: screen === 'accueil', onPress: () => toHub('accueil') },
+            { key: 'opportunites', icon: <IconProduits size={dimension.iconSizePx.tab} color={navColor(screen === 'opportunites')} />, label: t('nav.tab_opportunites'), active: screen === 'opportunites', onPress: () => toHub('opportunites') },
+            { key: 'gains', icon: <IconGains size={dimension.iconSizePx.tab} color={navColor(screen === 'gains')} />, label: t('nav.tab_gains'), active: screen === 'gains', onPress: () => toHub('gains') },
           ]}
         />
       )}

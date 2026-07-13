@@ -106,7 +106,9 @@ export function AppHeader({
  * they never add journey edges; App.tsx owns the semantics. */
 export interface TabItem {
   key: string;
-  icon: string;
+  /** A canon SVG glyph node (icons.tsx), sized to dimension.iconSizePx.tab —
+   * NEVER an emoji (Grand Teint §8 refuses rasters/emoji in chrome). */
+  icon: React.ReactNode;
   label: string;
   active: boolean;
   onPress: () => void;
@@ -122,7 +124,7 @@ export function TabBar({ items }: { items: readonly TabItem[] }) {
           accessibilityRole="tab"
           accessibilityState={{ selected: item.active }}
         >
-          <Text style={styles.tabIcon}>{item.icon}</Text>
+          <View style={styles.tabIcon}>{item.icon}</View>
           <Text style={[styles.tabLabel, item.active && styles.tabLabelActive]}>{item.label}</Text>
         </Pressable>
       ))}
@@ -344,10 +346,10 @@ export function Skeleton({ style }: { style?: StyleProp<ViewStyle> }) {
 
 /* Honest empty state — designed, never apologetic (Grand Teint §6: empty
  * states state the next action, never sadness). */
-export function EmptyState({ glyph, title, hint }: { glyph: string; title: string; hint?: string }) {
+export function EmptyState({ glyph, title, hint }: { glyph: React.ReactNode; title: string; hint?: string }) {
   return (
     <Card style={styles.emptyState}>
-      <Text style={styles.emptyGlyph}>{glyph}</Text>
+      <View style={styles.emptyGlyph}>{glyph}</View>
       <Text style={styles.emptyTitle}>{title}</Text>
       {hint !== undefined && <Text style={styles.emptyHint}>{hint}</Text>}
     </Card>
@@ -431,7 +433,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tabActive: { backgroundColor: theme.colours.primarySoft },
-  tabIcon: { fontSize: type.scale.title.size, lineHeight: lh(type.scale.title) },
+  tabIcon: { alignItems: 'center', justifyContent: 'center' },
   tabLabel: { color: theme.colours.muted, fontSize: type.scale.caption.size, fontWeight: type.scale.label.wght },
   tabLabelActive: { color: theme.colours.primaryStrong },
   card: {
@@ -531,7 +533,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: type.scale.caption.size, fontWeight: type.scale.label.wght },
   skeleton: { backgroundColor: skeletonToken.bg, borderRadius: radius.box, minHeight: spacing.xl },
   emptyState: { alignItems: 'center', paddingVertical: spacing.xxl },
-  emptyGlyph: { fontSize: money.amountScale.hero.size, lineHeight: lh({ size: money.amountScale.hero.size, lh: money.amountScale.hero.lh }) },
+  emptyGlyph: { alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
   emptyTitle: { color: theme.colours.ink, fontSize: type.scale.title.size, fontWeight: type.scale.title.wght, textAlign: 'center' },
   emptyHint: { color: theme.colours.muted, fontSize: type.scale.body.size, lineHeight: lh(type.scale.body), textAlign: 'center' },
   transitionFill: { flex: 1 },

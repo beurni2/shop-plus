@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { grandTeintIcon, GRAND_TEINT_ICON_NAMES } from '../src/grand-teint-icons';
 
 /**
- * WO-5.1 — the Grand Teint web substrate (buyer-pwa): the 26 inline icons,
+ * WO-5.1 — the Grand Teint web substrate (buyer-pwa): the 29 inline icons,
  * the variable Archivo woff2, and the cold-start @font-face declaration.
  * NO product screen changes; no token consumed. Source-discipline proofs.
  */
@@ -14,10 +14,10 @@ const repoRoot = join(appDir, '../..');
 const svgDir = join(repoRoot, 'design-reference/grand-teint/icons');
 const svgNames = readdirSync(svgDir).filter((f) => f.endsWith('.svg')).map((f) => f.slice(0, -4)).sort();
 
-describe('the 26 inline PWA icons carry the design-reference geometry', () => {
-  it('exactly 26 entries, matching the canonical glyph names', () => {
+describe('the 29 inline PWA icons carry the design-reference geometry', () => {
+  it('exactly 29 entries, matching the canonical glyph names', () => {
     expect(GRAND_TEINT_ICON_NAMES.slice().sort()).toEqual(svgNames);
-    expect(svgNames).toHaveLength(26);
+    expect(svgNames).toHaveLength(29);
   });
 
   it('every icon renders WELL-FORMED currentColor SVG at the requested size, no hardcoded color', () => {

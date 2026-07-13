@@ -23,24 +23,16 @@ onlyBuiltDependencies:
 # (canon v0.5.0; founder ruling: tags are unreliable, the release ref is
 # the commit).
 overrides:
-  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#2472e7ae61a2ded70f4b4e8caad3b8fcb2d5df55&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#2472e7ae61a2ded70f4b4e8caad3b8fcb2d5df55&path:packages/contracts"
-  # @platform/ui-tokens is UNIFIED at v0.8.0 (2472e7ae, Grand Teint) — WO-7.0
-  # killed the WO-5.3 per-app skew. reseller-app migrated its whole visual
-  # layer off the retired v0.6.0 vocabulary (theme.colors/typeScale/elevation/
-  # radius.lg) onto the Grand Teint API (theme.colours, top-level type/spacing/
-  # radius/touch, interaction), so the scoped `@shop-plus/buyer-pwa>…` exception
-  # is GONE: buyer-pwa + reseller-app + the @platform/certification transitive
-  # all resolve the SAME v0.8.0 instance from this one default. (canon v0.9.2 is
-  # in flight — its full re-pin is a follow-up; this slice pins only what the
-  # skew-kill needs, at v0.8.0.)
-  "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#2472e7ae61a2ded70f4b4e8caad3b8fcb2d5df55&path:packages/ui-tokens"
-  # @platform/certification (pinned 539dbc8a) is a THIRD-PARTY package that
-  # declares "@platform/ui-tokens": "0.6.0" and compiles a certification-REPORT
-  # generator (dist/chain/report-html.js) against the v0.6.0 API (neutralColors,
-  # removed at Grand Teint). It is internal tooling — NOT a rendered app surface,
-  # so this is not the app skew (both app surfaces are v0.8.0). We honour its
-  # declared dep by pinning ITS transitive ui-tokens to v0.6.0; the fix belongs
-  # in platform-contracts (out of this lane) and this override retires when
-  # certification is rebuilt on Grand Teint.
-  "@platform/certification>@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#539dbc8ac8372d0d98606428258f79ad0f1ceaaa&path:packages/ui-tokens"
+  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#04af4b5266d53866a2b6d5800e270d3fffac2b35&path:packages/kernel-types"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#04af4b5266d53866a2b6d5800e270d3fffac2b35&path:packages/contracts"
+  # @platform/ui-tokens is UNIFIED at canon v0.9.4 (04af4b5, Grand Teint) — WO-7.0
+  # killed the WO-5.3 per-app skew and re-pinned the whole workspace to the current
+  # release in one bump. reseller-app runs its visual layer on the Grand Teint API
+  # (theme.colours, top-level type/spacing/radius/touch/interaction, the nav glyphs
+  # + dimension.iconSizePx.tab). ONE default instance for buyer-pwa + reseller-app
+  # + the @platform/certification transitive — no scoped exception. The former
+  # `@platform/certification>@platform/ui-tokens` v0.6.0 override is DELETED: the
+  # neutralColors→sharedColour rename landed at v0.8.0, so the report-html bug
+  # existed only in the ancient v0.6.0 snapshot; certification at v0.9.4 resolves
+  # sharedColour and needs no override (CTO ruling, WO-7.0 re-pin).
+  "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#04af4b5266d53866a2b6d5800e270d3fffac2b35&path:packages/ui-tokens"

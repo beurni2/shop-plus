@@ -108,9 +108,11 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(app).toMatch(/JOURNEY\[stack\[stack\.length - 1\] \?\? START\]\.includes\(next\)/);
     // the tab bar never renders off-hub (single source: HUBS gate)
     expect(app).toMatch(/\{HUBS\.includes\(screen\) && \(\s*<TabBar/);
-    // tabs reset waypoints, they NEVER walk edges: no go() inside the TabBar block
+    // tabs reset waypoints, they NEVER walk edges: no go() inside the TabBar block.
+    // The items now carry canon SVG glyph nodes (each a self-closing <Icon… />),
+    // so bound the block at the items array's own close `]}` — not the first `/>`.
     const tabStart = app.indexOf('<TabBar');
-    const tabBlock = app.slice(tabStart, app.indexOf('/>', tabStart));
+    const tabBlock = app.slice(tabStart, app.indexOf(']}', tabStart));
     expect(tabBlock.length).toBeGreaterThan(0);
     expect(tabBlock).not.toContain('go(');
     expect(tabBlock).toContain('toHub(');
@@ -141,9 +143,21 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(app).toMatch(/selected=\{isSelected\(world, item\.id\)\}/);
   });
 
-  it('honest states stay designed: the vitrine empty state is the kit EmptyState on the catalog string', () => {
+  it('honest states stay designed: the vitrine empty state is the kit EmptyState on the catalog string, with a CANON glyph (never an emoji)', () => {
     const app = read('App.tsx');
-    expect(app).toMatch(/<EmptyState glyph="[^"]+" title=\{t\('vitrine\.vide'\)\}/);
+    // the empty-state glyph is a Grand Teint SVG icon sized on the token, not an emoji raster
+    expect(app).toMatch(/<EmptyState\s+glyph=\{<IconVitrine size=\{dimension\.iconSizePx\.emptyState\}/);
+    expect(app).toMatch(/title=\{t\('vitrine\.vide'\)\}/);
+  });
+
+  it('the bottom nav wires the CANON glyphs at the canon tab size — no emoji in chrome', () => {
+    const app = read('App.tsx');
+    // each hub tab renders its canon SVG glyph at dimension.iconSizePx.tab (20)
+    expect(app).toMatch(/<IconAccueil size=\{dimension\.iconSizePx\.tab\}/);
+    expect(app).toMatch(/<IconProduits size=\{dimension\.iconSizePx\.tab\}/);
+    expect(app).toMatch(/<IconGains size=\{dimension\.iconSizePx\.tab\}/);
+    // the retired emoji are gone from the tab bar
+    expect(app).not.toMatch(/icon: '[^a-zA-Z]/);
   });
 
   it('the kit imports stay inside the RN + tokens world (banned-import law extended to the kit)', () => {

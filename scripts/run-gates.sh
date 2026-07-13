@@ -136,6 +136,16 @@ capture no-drop-code-exposure-positive pass node scripts/gates/no-drop-code-expo
 log "gate: no-drop-code-exposure — NEGATIVE FIXTURE (buyerDropCode on a reseller surface, must fail)"
 capture no-drop-code-exposure-negative fail node scripts/gates/no-drop-code-exposure.mjs gates/fixtures/negative/drop-code
 
+log "gate: no-emoji-in-chrome — app surfaces carry only canon SVG glyphs, never emoji (Grand Teint §8, must pass)"
+capture no-emoji-in-chrome-positive pass node scripts/gates/no-emoji-in-chrome.mjs
+log "gate: no-emoji-in-chrome — NEGATIVE FIXTURE (emoji tab bar, must fail)"
+capture no-emoji-in-chrome-negative fail node scripts/gates/no-emoji-in-chrome.mjs gates/fixtures/negative/no-emoji-in-chrome
+
+log "gate: lockfile-url-form — committed pnpm-lock.yaml pins deps by portable https-form URL (cold-install law, must pass)"
+capture lockfile-url-form-positive pass node scripts/gates/lockfile-url-form.mjs
+log "gate: lockfile-url-form — NEGATIVE FIXTURE (SSH-form git@ URL, must fail)"
+capture lockfile-url-form-negative fail node scripts/gates/lockfile-url-form.mjs gates/fixtures/negative/lockfile-url-form
+
 log "gate: French Voice copy-lint — reseller-app catalog (must pass)"
 capture copy-lint-reseller-positive pass pnpm exec copy-lint apps/reseller-app/i18n/catalog.json
 
@@ -176,13 +186,13 @@ log "gate: door-signal-requires-provider — NEGATIVE (locally-asserted door pay
 capture door-signal-negative fail node scripts/gates/door-signal-requires-provider.mjs gates/fixtures/negative/door-signal.local-assert.json
 
 log "gate: contracts drift-check — honest /docs copy vs pinned canon manifest (must pass)"
-capture drift-check-positive pass pnpm exec drift-check docs --pinned-version 0.8.0
+capture drift-check-positive pass pnpm exec drift-check docs --pinned-version 0.9.4
 
 log "gate: contracts drift-check — TAMPERED doc (must fail)"
 DRIFT_TMP="$(mktemp -d)"
 cp -r docs "$DRIFT_TMP/docs"
 printf '\nrogue edit — this consumer copy drifted from canon\n' >> "$DRIFT_TMP/docs/Shop-Plus-Build-Spec.md"
-capture drift-check-negative fail pnpm exec drift-check "$DRIFT_TMP/docs" --pinned-version 0.8.0
+capture drift-check-negative fail pnpm exec drift-check "$DRIFT_TMP/docs" --pinned-version 0.9.4
 rm -rf "$DRIFT_TMP"
 
 log "gate: PWA payload budget — fresh build, initial payload < 300 KB compressed (PERF-BUDGETS, WO-4.4 hard gate)"
