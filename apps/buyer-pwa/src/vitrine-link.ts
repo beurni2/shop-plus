@@ -69,8 +69,10 @@ export function resolveVitrineSlug(slug: string): VitrineIdentity | undefined {
  * Record an IDENTITY-scope arrival (A8, last-touch) when the buyer lands on the
  * vitrine. Client-only demo: arrivals live in sessionStorage so the checkout
  * seam (resolveCheckoutAttribution) can read them; the checkout itself is never
- * modified. The scope is `identity`; offerId is FORBIDDEN on this scope
- * (AttributionArrivalSchema.strict), so it is never set.
+ * modified. The scope is `identity` — a vitrine touch names no specific offer,
+ * so the arrival carries no offerId (canon `AttributionRefSchema` forbids offerId
+ * on the `identity` variant; the flat `AttributionArrivalSchema` leaves it
+ * optional, so we simply never set it here).
  */
 const ARRIVALS_KEY = 'shop-plus.arrivals.v1';
 
