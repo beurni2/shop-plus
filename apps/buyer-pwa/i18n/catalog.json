@@ -658,5 +658,35 @@
     "fr": "Ouvrir l'aperçu Shop+",
     "register": "selling",
     "screenClass": "label"
+  },
+  {
+    "key": "vitrine.chez",
+    "fr": "Chez {name}",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "vitrine.verifiee",
+    "fr": "Vendeuse vérifiée · {zone}",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "vitrine.protege",
+    "fr": "Le paiement est protégé. Votre numéro reste privé.",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "vitrine.prix",
+    "fr": "Votre prix : {amount} F",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "vitrine.epuise",
+    "fr": "Épuisé",
+    "register": "neutral",
+    "screenClass": "label"
   }
 ]

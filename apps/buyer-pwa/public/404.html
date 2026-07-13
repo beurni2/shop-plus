@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <!-- WO-7.1 — SPA fallback so the canon /v/{slug} vitrine link resolves on
+         GitHub Pages (static host). Pattern: rafgraph/spa-github-pages
+         (https://github.com/rafgraph/spa-github-pages) — the 404 encodes the
+         requested path into a query the base index.html restores via
+         history.replaceState. pathSegmentsToKeep=1 keeps the project base
+         (/shop-plus/). HEAD mirrors index.html so a WhatsApp preview of a /v/
+         link (the crawler receives THIS page) does not degrade. -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>Shop+</title>
+    <script>
+      // Single Page Apps for GitHub Pages — MIT, rafgraph/spa-github-pages.
+      var pathSegmentsToKeep = 1;
+      var l = window.location;
+      l.replace(
+        l.protocol +
+          '//' +
+          l.hostname +
+          (l.port ? ':' + l.port : '') +
+          l.pathname
+            .split('/')
+            .slice(0, 1 + pathSegmentsToKeep)
+            .join('/') +
+          '/?/' +
+          l.pathname
+            .slice(1)
+            .split('/')
+            .slice(pathSegmentsToKeep)
+            .join('/')
+            .replace(/&/g, '~and~') +
+          (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+          l.hash,
+      );
+    </script>
+  </head>
+  <body></body>
+</html>
