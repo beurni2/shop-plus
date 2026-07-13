@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import { shopPlusTheme as theme } from '@platform/ui-tokens';
+import { shopPlusTheme as theme, type, spacing, radius, touch, money } from '@platform/ui-tokens';
 import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
 import { t } from './src/i18n';
@@ -35,14 +35,19 @@ import {
 } from './src/ui/kit';
 
 /**
- * WO-4.2R — LE VISAGE over WO-4.1's walkable world. Same screens, same
+ * WO-7.0 — GRAND TEINT over WO-4.1's walkable world. Same screens, same
  * edges, same back law, same money from the same frozen seed — the visual
- * layer is the kit (src/ui/kit.tsx, ui-tokens v2), the navigation SEMANTICS
- * are untouched. Tabs are waypoint RESETS under the ratified
- * two-level-ladder law (they jump only to states already reachable from
- * START along declared edges — accueil→opportunites, accueil→gains);
- * go() and its edge guard are byte-identical to WO-4.1.
+ * layer is the kit (src/ui/kit.tsx, now ui-tokens v0.8.0 Grand Teint), the
+ * navigation SEMANTICS are untouched. This file's own styles move off the
+ * retired v0.6.0 token vocabulary onto the Grand Teint API in the same skew
+ * kill. Tabs are waypoint RESETS under the ratified two-level-ladder law
+ * (they jump only to states already reachable from START along declared
+ * edges — accueil→opportunites, accueil→gains); go() and its edge guard are
+ * byte-identical to WO-4.1.
  */
+
+/** lineHeight helper — v0.8.0 `lh` is a unitless multiplier; RN needs px. */
+const lh = (s: { readonly size: number; readonly lh: number }): number => s.size * s.lh;
 
 /* The money lines (prototype `.ml`/`.mlTot`): gross and the honest 20 % fee
  * as calm muted lines, a dashed rule, then the net — the strongest line,
@@ -108,7 +113,7 @@ export default function App() {
       {/* SDK 54: backgroundColor restored per the WO-4.0d-prep founder
           ruling ③ — pre-edge-to-edge Android draws a default bar; the
           surface token is the correct fill. */}
-      <StatusBar style="dark" backgroundColor={theme.colors.surface} />
+      <StatusBar style="dark" backgroundColor={theme.colours.paper} />
       <WaxBand />
       {IS_PREVIEW && (
         <View style={styles.previewBanner}>
@@ -286,103 +291,103 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: theme.colors.surface },
+  screen: { flex: 1, backgroundColor: theme.colours.paper },
   content: {
     flex: 1,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.sm,
-    gap: theme.spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    gap: spacing.md,
   },
-  stackGap: { gap: theme.spacing.md, paddingTop: theme.spacing.sm },
-  statGrid: { flexDirection: 'row', gap: theme.spacing.md },
+  stackGap: { gap: spacing.md, paddingTop: spacing.sm },
+  statGrid: { flexDirection: 'row', gap: spacing.md },
   statCard: { flex: 1 },
   statValue: {
-    color: theme.colors.ink,
-    fontSize: theme.typeScale.displayFcfa.size,
-    lineHeight: theme.typeScale.displayFcfa.lineHeight,
-    fontWeight: theme.typeScale.displayFcfa.weight,
+    color: theme.colours.ink,
+    fontSize: type.scale.display.size,
+    lineHeight: lh(type.scale.display),
+    fontWeight: type.scale.display.wght,
     fontVariant: ['tabular-nums'],
   },
-  listWrap: { flex: 1, gap: theme.spacing.md },
-  listContent: { gap: theme.spacing.sm, paddingBottom: theme.spacing.sm },
+  listWrap: { flex: 1, gap: spacing.md },
+  listContent: { gap: spacing.sm, paddingBottom: spacing.sm },
   message: {
-    color: theme.colors.ink,
-    fontSize: theme.typeScale.bodyLarge.size,
-    lineHeight: theme.typeScale.bodyLarge.lineHeight,
+    color: theme.colours.ink,
+    fontSize: type.scale.body.size,
+    lineHeight: lh(type.scale.body),
   },
   noteLine: {
-    color: theme.colors.inkMuted,
-    fontSize: theme.typeScale.body.size,
-    lineHeight: theme.typeScale.body.lineHeight,
+    color: theme.colours.muted,
+    fontSize: type.scale.body.size,
+    lineHeight: lh(type.scale.body),
   },
   cardTitle: {
-    color: theme.colors.ink,
-    fontSize: theme.typeScale.body.size,
-    lineHeight: theme.typeScale.body.lineHeight,
-    fontWeight: theme.typeScale.heading.weight,
+    color: theme.colours.ink,
+    fontSize: type.scale.body.size,
+    lineHeight: lh(type.scale.body),
+    fontWeight: type.scale.title.wght,
   },
-  moneyBlock: { gap: theme.spacing.xs },
+  moneyBlock: { gap: spacing.xs },
   moneyLine: {
-    color: theme.colors.inkMuted,
-    fontSize: theme.typeScale.body.size,
-    lineHeight: theme.typeScale.body.lineHeight,
+    color: theme.colours.muted,
+    fontSize: type.scale.body.size,
+    lineHeight: lh(type.scale.body),
     fontVariant: ['tabular-nums'],
   },
   moneyRule: {
-    borderBottomWidth: theme.spacing.xs / 4,
-    borderBottomColor: theme.colors.line,
+    borderBottomWidth: spacing.xs / 4,
+    borderBottomColor: theme.colours.hairlineStrong,
     borderStyle: 'dashed',
-    marginTop: theme.spacing.xs,
+    marginTop: spacing.xs,
   },
   moneyNetLine: {
-    color: theme.colors.primaryStrong,
-    fontSize: theme.typeScale.bodyLarge.size,
-    lineHeight: theme.typeScale.bodyLarge.lineHeight,
-    fontWeight: theme.typeScale.title.weight,
+    color: theme.colours.primaryStrong,
+    fontSize: money.amountScale.section.size,
+    lineHeight: money.amountScale.section.size * money.amountScale.section.lh,
+    fontWeight: money.amountScale.section.wght,
     fontVariant: ['tabular-nums'],
   },
   linkBox: {
-    backgroundColor: theme.colors.surfaceSunken,
-    borderRadius: theme.radius.md,
+    backgroundColor: theme.colours.sand,
+    borderRadius: radius.box,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.line,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.xs,
+    borderColor: theme.colours.hairlineStrong,
+    padding: spacing.lg,
+    gap: spacing.xs,
     alignItems: 'center',
   },
   linkText: {
-    color: theme.colors.ink,
-    fontSize: theme.typeScale.bodyLarge.size,
-    lineHeight: theme.typeScale.bodyLarge.lineHeight,
-    fontWeight: theme.typeScale.heading.weight,
+    color: theme.colours.ink,
+    fontSize: type.scale.body.size,
+    lineHeight: lh(type.scale.body),
+    fontWeight: type.scale.bodyStrong.wght,
     textAlign: 'center',
   },
   linkHint: {
-    color: theme.colors.inkMuted,
-    fontSize: theme.typeScale.caption.size,
-    lineHeight: theme.typeScale.caption.lineHeight,
+    color: theme.colours.muted,
+    fontSize: type.scale.caption.size,
+    lineHeight: lh(type.scale.caption),
     textAlign: 'center',
   },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    minHeight: theme.touch.minTargetPx,
+    paddingHorizontal: spacing.lg,
+    minHeight: touch.minTargetPx,
   },
-  footerHint: { color: theme.colors.inkFaint, fontSize: theme.typeScale.caption.size },
-  resetAction: { minHeight: theme.touch.minTargetPx, justifyContent: 'center', paddingHorizontal: theme.spacing.md },
-  resetActionText: { color: theme.colors.inkMuted, fontSize: theme.typeScale.caption.size, fontWeight: theme.typeScale.label.weight },
+  footerHint: { color: theme.colours.soft, fontSize: type.scale.caption.size },
+  resetAction: { minHeight: touch.minTargetPx, justifyContent: 'center', paddingHorizontal: spacing.md },
+  resetActionText: { color: theme.colours.muted, fontSize: type.scale.caption.size, fontWeight: type.scale.label.wght },
   previewBanner: {
-    backgroundColor: theme.colors.surfaceSunken,
+    backgroundColor: theme.colours.sand,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.line,
-    paddingVertical: theme.spacing.xs,
+    borderBottomColor: theme.colours.hairline,
+    paddingVertical: spacing.xs,
     alignItems: 'center',
   },
   previewBannerText: {
-    color: theme.colors.inkMuted,
-    fontSize: theme.typeScale.caption.size,
-    lineHeight: theme.typeScale.caption.lineHeight,
+    color: theme.colours.muted,
+    fontSize: type.scale.caption.size,
+    lineHeight: lh(type.scale.caption),
   },
 });

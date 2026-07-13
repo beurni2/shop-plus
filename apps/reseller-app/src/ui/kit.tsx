@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
+  Easing,
   Pressable,
   StyleSheet,
   Text,
@@ -9,36 +10,55 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { shopPlusTheme as theme, money, motion } from '@platform/ui-tokens';
+import {
+  shopPlusTheme as theme,
+  type,
+  spacing,
+  radius,
+  touch,
+  band,
+  money,
+  motion,
+  interaction,
+  skeleton as skeletonToken,
+} from '@platform/ui-tokens';
 
 /**
- * WO-4.2R — LE VISAGE. The per-app component kit, built ONCE on ui-tokens
- * v2 (pin 539dbc8a) against the founder's prototype patterns
- * (design-reference/faso-commerce-prototype.jsx — feel/flow reference; the
- * TOKENS own every color, size and duration; the scan test proves zero
- * hardcoded style values). RN primitives only — zero new dependencies.
- * Navigation semantics live in App.tsx and are untouched by this layer.
- * No celebration component ships in this kit: shop's named moment (the
- * first sale) has no honest trigger in the demo world — staging it would
- * fake a state, so it is deliberately absent until a real trigger exists.
+ * WO-7.0 — the reseller kit on GRAND TEINT (ui-tokens v0.8.0, pin 2472e7ae).
+ * This is the SKEW EXECUTIONER: the whole visual layer moves off the retired
+ * v0.6.0 token vocabulary (`theme.colors`/`typeScale`/`elevation`/`radius.lg`)
+ * onto the Grand Teint API (`theme.colours`, top-level `type`/`spacing`/
+ * `radius`/`touch`, `interaction`). Grand Teint is ink-on-paper: radius 0
+ * boxes, hairline borders, NO shadows (§8 refuses "elevation theatre"), one
+ * accent per app, huge tabular francs. Values are all tokens — the ui-scan
+ * proves zero hardcode. RN primitives only; the substrate deps
+ * (react-native-svg, expo-haptics) are unchanged.
+ *
+ * The component external API (props) is byte-identical to WO-4.2R — App.tsx's
+ * navigation semantics and screen structure are untouched; only the token
+ * layer under each component changed. No celebration ships here (see the
+ * kit-celebration pin) — shop's first-sale moment still has no honest trigger
+ * in the demo world, so staging it would fake a state.
  */
 
-/* The woven band — the ecosystem signature (prototype `.band`): a slim
- * tri-color strip on the theme's own palette, at the very top of the app. */
-const BAND_SEQUENCE = [
-  theme.colors.primary,
-  theme.colors.surfaceSunken,
-  theme.colors.warning,
-  theme.colors.surfaceSunken,
-] as const;
+/** lineHeight helper: v0.8.0 `lh` is a UNITLESS multiplier (v0.6.0 shipped an
+ * absolute px). RN needs absolute px, so every text style multiplies the two —
+ * an expression, never a literal (the zero-hardcode scan stays green). */
+const lh = (s: { readonly size: number; readonly lh: number }): number => s.size * s.lh;
+
+/** The soft-spring easing as an RN curve, DERIVED from the token — v0.8.0
+ * `motion.springSoft` is a CSS cubic-bezier string (web-proven), so RN parses
+ * its four control points rather than inventing physics. Derive-never-invent. */
+const SPRING_SOFT_POINTS = motion.springSoft
+  .match(/cubic-bezier\(([^)]+)\)/)![1]!
+  .split(',')
+  .map((n) => Number(n.trim())) as [number, number, number, number];
+const springSoftEasing = Easing.bezier(...SPRING_SOFT_POINTS);
+
+/* The theme strip (Grand Teint §5 move 5): a 4 px app-colour band — "the only
+ * permanent brand mark". Replaces WO-4.2R's woven wax band; same slot. */
 export function WaxBand() {
-  return (
-    <View style={styles.band} accessibilityElementsHidden>
-      {Array.from({ length: 24 }, (_, i) => (
-        <View key={i} style={[styles.bandSegment, { backgroundColor: BAND_SEQUENCE[i % BAND_SEQUENCE.length] }]} />
-      ))}
-    </View>
-  );
+  return <View style={styles.themeStrip} accessibilityElementsHidden />;
 }
 
 /* Header (prototype `Top`): back chip · title + one-line context · right slot. */
@@ -110,12 +130,13 @@ export function TabBar({ items }: { items: readonly TabItem[] }) {
   );
 }
 
-/* Card (prototype `.card`): raised surface, hairline, disciplined radius. */
+/* Card (Grand Teint §5 move 1: the hairline box): paper surface, hairline
+ * border, radius 0, NO shadow. */
 export function Card({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
-/* Section overline (prototype `.cap`). */
+/* Section overline (Grand Teint §5 move 6: caps + letterspacing wayfinding). */
 export function Overline({ children }: { children: React.ReactNode }) {
   return <Text style={styles.overline}>{children}</Text>;
 }
@@ -123,8 +144,8 @@ export function Overline({ children }: { children: React.ReactNode }) {
 /* List row (prototype tile rows): leading glyph box · title/meta/net/detail
  * · chip · chevron. `net` always renders BEFORE `detail` — the source order
  * IS the net-first law (SP-I04/SP-I12) when the detail line carries the
- * customer price. `selected` draws the border in theme primary — the
- * sélection screen's chosen state. */
+ * customer price. `selected` draws the accent edge — the sélection screen's
+ * chosen state (Grand Teint §5 move 3: selection is structural, not tinted). */
 export function ListRow({
   glyph,
   title,
@@ -212,8 +233,8 @@ export function GhostButton({ label, onPress }: { label: string; onPress: () => 
   );
 }
 
-/* « L'argent en majesté » (DESIGN-LANGUAGE §2): the FCFA amount as the
- * hero of its screen — money.amountScale.hero, tabular numerals. */
+/* « L'argent en majesté » (Grand Teint §2): the FCFA amount as the hero of
+ * its screen — money.amountScale.hero (52 dp), tabular numerals. */
 export function AmountHero({ label, amount }: { label?: string | undefined; amount: string }) {
   return (
     <View style={styles.amountHeroBlock}>
@@ -223,9 +244,9 @@ export function AmountHero({ label, amount }: { label?: string | undefined; amou
   );
 }
 
-/* « Le compte-montant » (DESIGN-LANGUAGE §2): the gains hero counts up from
- * zero to the net on the motion law's count-up ceiling — the TOKEN
- * (money.countUpMaxMs, a ref into motion), never a literal — and lands
+/* « Le compte-montant » (Grand Teint §2): the gains hero counts up from zero
+ * to the net on the money law's count-up clock — the TOKEN
+ * (money.countUpMs, ≤ 600 ms, a ref into motion), never a literal — and lands
  * instantly under reduced motion. `template` is the catalog's money string
  * (the « F » belongs to the catalog, never to this code); frame numbers use
  * the same fr-FR grouping as the repo's formatFcfa, so the landed hero is
@@ -251,7 +272,8 @@ export function CountUpAmount({
     const listener = progress.addListener(({ value }) => setShown(Math.round(value)));
     const anim = Animated.timing(progress, {
       toValue: amount,
-      duration: money.countUpMaxMs,
+      duration: money.countUpMs,
+      easing: springSoftEasing,
       useNativeDriver: false,
     });
     anim.start();
@@ -264,14 +286,15 @@ export function CountUpAmount({
 }
 
 /* Status chip (prototype pills): a dot + label on a calm wash — state is
- * always visible, never a sentence. */
+ * always visible, never a sentence. Grand Teint has no chrome « info » colour
+ * (one accent per app), so that tone reads on `muted`. */
 export type ChipTone = 'ok' | 'warn' | 'bad' | 'info' | 'muted';
 const CHIP_COLOR: Record<ChipTone, string> = {
-  ok: theme.colors.success,
-  warn: theme.colors.warning,
-  bad: theme.colors.danger,
-  info: theme.colors.info,
-  muted: theme.colors.inkMuted,
+  ok: theme.colours.success,
+  warn: theme.colours.warning,
+  bad: theme.colours.danger,
+  info: theme.colours.muted,
+  muted: theme.colours.muted,
 };
 export function StatusChip({ tone, label }: { tone: ChipTone; label: string }) {
   return (
@@ -299,8 +322,9 @@ export function useReducedMotion(): boolean {
   return reduced;
 }
 
-/* Skeleton (doctrine §1: « jamais un spinner nu ») — a calm pulse; static
- * under reduced motion. */
+/* Skeleton (Grand Teint §2 « la vitesse comme luxe » — never a bare spinner):
+ * a calm pulse to the token floor over the token duration; static under
+ * reduced motion; exact-dimension placeholders keep layout shift at zero. */
 export function Skeleton({ style }: { style?: StyleProp<ViewStyle> }) {
   const reduced = useReducedMotion();
   const pulse = useRef(new Animated.Value(1)).current;
@@ -308,8 +332,8 @@ export function Skeleton({ style }: { style?: StyleProp<ViewStyle> }) {
     if (reduced) return;
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.4, duration: motion.standard.durationMs, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: motion.standard.durationMs, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: interaction.skeletonPulseFloor, duration: skeletonToken.pulseMs, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: skeletonToken.pulseMs, useNativeDriver: true }),
       ]),
     );
     loop.start();
@@ -318,7 +342,8 @@ export function Skeleton({ style }: { style?: StyleProp<ViewStyle> }) {
   return <Animated.View style={[styles.skeleton, { opacity: pulse }, style]} />;
 }
 
-/* Honest empty state — designed, never apologetic. */
+/* Honest empty state — designed, never apologetic (Grand Teint §6: empty
+ * states state the next action, never sadness). */
 export function EmptyState({ glyph, title, hint }: { glyph: string; title: string; hint?: string }) {
   return (
     <Card style={styles.emptyState}>
@@ -329,10 +354,10 @@ export function EmptyState({ glyph, title, hint }: { glyph: string; title: strin
   );
 }
 
-/* « La loi du mouvement » (DESIGN-LANGUAGE) — the screen change eases in
- * on the ONE soft spring; it explains, never decorates, and NEVER blocks
- * input (content is interactive from the first frame; static under
- * reduced motion). */
+/* The screen change eases in on the ONE soft spring, DERIVED from the token
+ * curve (Grand Teint motion: transform+opacity only, layout animation
+ * forbidden). It explains, never decorates, NEVER blocks input (content is
+ * interactive from the first frame; static under reduced motion). */
 export function ScreenTransition({ screenKey, children }: { screenKey: string; children: React.ReactNode }) {
   const reduced = useReducedMotion();
   const progress = useRef(new Animated.Value(1)).current;
@@ -342,15 +367,14 @@ export function ScreenTransition({ screenKey, children }: { screenKey: string; c
       return;
     }
     progress.setValue(0);
-    Animated.spring(progress, {
+    Animated.timing(progress, {
       toValue: 1,
-      damping: motion.springSoft.damping,
-      stiffness: motion.springSoft.stiffness,
-      mass: motion.springSoft.mass,
+      duration: motion.standardMs,
+      easing: springSoftEasing,
       useNativeDriver: true,
     }).start();
   }, [screenKey, reduced, progress]);
-  const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [theme.spacing.md, 0] });
+  const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [spacing.md, 0] });
   return (
     <Animated.View style={[styles.transitionFill, { opacity: progress, transform: [{ translateY }] }]}>
       {children}
@@ -359,158 +383,156 @@ export function ScreenTransition({ screenKey, children }: { screenKey: string; c
 }
 
 const styles = StyleSheet.create({
-  band: { flexDirection: 'row', height: theme.spacing.sm },
-  bandSegment: { flex: 1 },
+  themeStrip: { height: band.themeStripPx, backgroundColor: theme.colours.themeStrip },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    minHeight: theme.touch.minTargetPx,
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    minHeight: touch.minTargetPx,
   },
   backChip: {
-    minHeight: theme.touch.minTargetPx,
-    minWidth: theme.touch.minTargetPx,
-    borderRadius: theme.radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.line,
-    backgroundColor: theme.colors.surfaceRaised,
+    minHeight: touch.minTargetPx,
+    minWidth: touch.minTargetPx,
+    borderRadius: radius.button,
+    borderWidth: interaction.hairline.medium,
+    borderColor: theme.colours.hairlineStrong,
+    backgroundColor: theme.colours.paper,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: spacing.md,
   },
-  backChipText: { color: theme.colors.ink, fontSize: theme.typeScale.body.size, fontWeight: theme.typeScale.label.weight },
+  backChipText: { color: theme.colours.ink, fontSize: type.scale.body.size, fontWeight: type.scale.label.wght },
   headerTitleBlock: { flex: 1 },
   headerTitle: {
-    color: theme.colors.ink,
-    fontSize: theme.typeScale.heading.size,
-    lineHeight: theme.typeScale.heading.lineHeight,
-    fontWeight: theme.typeScale.title.weight,
+    color: theme.colours.ink,
+    fontSize: type.scale.title.size,
+    lineHeight: lh(type.scale.title),
+    fontWeight: type.scale.title.wght,
   },
-  headerSub: { color: theme.colors.inkMuted, fontSize: theme.typeScale.caption.size, lineHeight: theme.typeScale.caption.lineHeight },
+  headerSub: { color: theme.colours.muted, fontSize: type.scale.caption.size, lineHeight: lh(type.scale.caption) },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: theme.colors.surfaceRaised,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.colors.line,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    gap: theme.spacing.xs,
+    backgroundColor: theme.colours.paper,
+    borderTopWidth: interaction.hairline.thin,
+    borderTopColor: theme.colours.hairline,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    gap: spacing.xs,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    minHeight: theme.touch.minTargetPx,
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.chip,
+    minHeight: touch.minTargetPx,
     justifyContent: 'center',
   },
-  tabActive: { backgroundColor: theme.colors.primarySoft },
-  tabIcon: { fontSize: theme.typeScale.heading.size, lineHeight: theme.typeScale.heading.lineHeight },
-  tabLabel: { color: theme.colors.inkMuted, fontSize: theme.typeScale.caption.size, fontWeight: theme.typeScale.label.weight },
-  tabLabelActive: { color: theme.colors.primaryStrong },
+  tabActive: { backgroundColor: theme.colours.primarySoft },
+  tabIcon: { fontSize: type.scale.title.size, lineHeight: lh(type.scale.title) },
+  tabLabel: { color: theme.colours.muted, fontSize: type.scale.caption.size, fontWeight: type.scale.label.wght },
+  tabLabelActive: { color: theme.colours.primaryStrong },
   card: {
-    backgroundColor: theme.colors.surfaceRaised,
-    borderRadius: theme.radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.line,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.md,
-    shadowColor: theme.colors.ink,
-    shadowOpacity: theme.elevation.raised.shadowOpacity,
-    shadowRadius: theme.elevation.raised.shadowRadius,
-    shadowOffset: { width: 0, height: theme.elevation.raised.shadowOffsetY },
-    elevation: theme.elevation.raised.shadowOffsetY,
+    backgroundColor: theme.colours.paper,
+    borderRadius: radius.card,
+    borderWidth: interaction.hairline.medium,
+    borderColor: theme.colours.hairlineStrong,
+    padding: spacing.lg,
+    gap: spacing.md,
   },
   overline: {
-    color: theme.colors.inkMuted,
-    fontSize: theme.typeScale.caption.size,
-    lineHeight: theme.typeScale.caption.lineHeight,
-    fontWeight: theme.typeScale.label.weight,
+    color: theme.colours.muted,
+    fontSize: type.scale.label.size,
+    lineHeight: lh(type.scale.label),
+    fontWeight: type.scale.label.wght,
     textTransform: 'uppercase',
-    letterSpacing: theme.spacing.xs / 4,
+    letterSpacing: type.scale.label.ls,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.md,
-    backgroundColor: theme.colors.surfaceRaised,
-    borderRadius: theme.radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.line,
-    padding: theme.spacing.md,
-    minHeight: theme.touch.minTargetPx,
+    gap: spacing.md,
+    backgroundColor: theme.colours.paper,
+    borderRadius: radius.box,
+    borderWidth: interaction.hairline.thin,
+    borderColor: theme.colours.hairline,
+    padding: spacing.md,
+    minHeight: touch.minTargetPx,
   },
-  rowSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
+  rowSelected: {
+    borderColor: theme.colours.primary,
+    borderLeftWidth: interaction.accentEdgePx,
+    backgroundColor: theme.colours.surfaceMuted,
+  },
   rowGlyphBox: {
-    width: theme.touch.minTargetPx,
-    height: theme.touch.minTargetPx,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.primarySoft,
+    width: touch.minTargetPx,
+    height: touch.minTargetPx,
+    borderRadius: radius.box,
+    backgroundColor: theme.colours.sand,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowGlyph: { fontSize: theme.typeScale.heading.size, color: theme.colors.primaryStrong, fontWeight: theme.typeScale.title.weight },
-  rowBody: { flex: 1, gap: theme.spacing.xs },
-  rowTitle: { color: theme.colors.ink, fontSize: theme.typeScale.body.size, lineHeight: theme.typeScale.body.lineHeight, fontWeight: theme.typeScale.heading.weight },
-  rowMeta: { color: theme.colors.inkMuted, fontSize: theme.typeScale.caption.size, lineHeight: theme.typeScale.caption.lineHeight },
+  rowGlyph: { fontSize: type.scale.title.size, color: theme.colours.primaryStrong, fontWeight: type.scale.title.wght },
+  rowBody: { flex: 1, gap: spacing.xs },
+  rowTitle: { color: theme.colours.ink, fontSize: type.scale.body.size, lineHeight: lh(type.scale.body), fontWeight: type.scale.bodyStrong.wght },
+  rowMeta: { color: theme.colours.muted, fontSize: type.scale.caption.size, lineHeight: lh(type.scale.caption) },
   rowNet: {
-    color: theme.colors.primaryStrong,
-    fontSize: theme.typeScale.body.size,
-    lineHeight: theme.typeScale.body.lineHeight,
-    fontWeight: theme.typeScale.title.weight,
+    color: theme.colours.primaryStrong,
+    fontSize: money.amountScale.section.size,
+    lineHeight: lh({ size: money.amountScale.section.size, lh: money.amountScale.section.lh }),
+    fontWeight: money.amountScale.section.wght,
     fontVariant: ['tabular-nums'],
   },
   rowDetail: {
-    color: theme.colors.inkMuted,
-    fontSize: theme.typeScale.caption.size,
-    lineHeight: theme.typeScale.caption.lineHeight,
+    color: theme.colours.muted,
+    fontSize: type.scale.caption.size,
+    lineHeight: lh(type.scale.caption),
     fontVariant: ['tabular-nums'],
   },
   rowChipLine: { flexDirection: 'row' },
-  rowChevron: { color: theme.colors.inkFaint, fontSize: theme.typeScale.title.size },
-  pressed: { opacity: theme.elevation.overlay.shadowOpacity * 5, transform: [{ scale: 0.98 }] },
+  rowChevron: { color: theme.colours.soft, fontSize: type.scale.title.size },
+  pressed: { opacity: interaction.pressedOpacity, transform: [{ scale: interaction.pressScale }] },
   buttonBase: {
-    minHeight: theme.touch.minTargetPx + theme.spacing.sm,
-    borderRadius: theme.radius.lg,
+    minHeight: touch.minTargetPx + spacing.sm,
+    borderRadius: radius.button,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: theme.spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
-  buttonPrimary: { backgroundColor: theme.colors.primary },
-  buttonPrimaryText: { color: theme.colors.onPrimary, fontSize: theme.typeScale.bodyLarge.size, fontWeight: theme.typeScale.heading.weight },
-  buttonSecondary: { backgroundColor: theme.colors.primarySoft },
-  buttonSecondaryText: { color: theme.colors.primaryStrong, fontSize: theme.typeScale.bodyLarge.size, fontWeight: theme.typeScale.heading.weight },
-  buttonGhost: { borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.line, backgroundColor: theme.colors.surfaceRaised },
-  buttonGhostText: { color: theme.colors.ink, fontSize: theme.typeScale.bodyLarge.size, fontWeight: theme.typeScale.label.weight },
-  buttonDisabled: { opacity: theme.elevation.overlay.shadowOpacity * 3 },
-  amountHeroBlock: { alignItems: 'center', gap: theme.spacing.xs },
-  amountHeroLabel: { color: theme.colors.inkMuted, fontSize: theme.typeScale.body.size, lineHeight: theme.typeScale.body.lineHeight },
+  buttonPrimary: { backgroundColor: theme.colours.primary },
+  buttonPrimaryText: { color: theme.colours.onPrimary, fontSize: type.scale.body.size, fontWeight: type.scale.bodyStrong.wght },
+  buttonSecondary: { backgroundColor: theme.colours.primarySoft },
+  buttonSecondaryText: { color: theme.colours.primaryStrong, fontSize: type.scale.body.size, fontWeight: type.scale.bodyStrong.wght },
+  buttonGhost: { borderWidth: interaction.hairline.medium, borderColor: theme.colours.hairlineStrong, backgroundColor: theme.colours.paper },
+  buttonGhostText: { color: theme.colours.ink, fontSize: type.scale.body.size, fontWeight: type.scale.label.wght },
+  buttonDisabled: { opacity: interaction.disabledOpacity },
+  amountHeroBlock: { alignItems: 'center', gap: spacing.xs },
+  amountHeroLabel: { color: theme.colours.muted, fontSize: type.scale.body.size, lineHeight: lh(type.scale.body) },
   amountHero: {
-    color: theme.colors.primaryStrong,
+    color: theme.colours.primaryStrong,
     fontSize: money.amountScale.hero.size,
-    lineHeight: money.amountScale.hero.lineHeight,
-    fontWeight: money.amountScale.hero.weight,
+    lineHeight: lh({ size: money.amountScale.hero.size, lh: money.amountScale.hero.lh }),
+    fontWeight: money.amountScale.hero.wght,
     fontVariant: ['tabular-nums'],
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.xs,
-    backgroundColor: theme.colors.surfaceSunken,
-    borderRadius: theme.radius.pill,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
+    gap: spacing.xs,
+    backgroundColor: theme.colours.sand,
+    borderRadius: radius.chip,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
     alignSelf: 'flex-start',
   },
-  chipDot: { width: theme.spacing.sm, height: theme.spacing.sm, borderRadius: theme.radius.pill },
-  chipText: { fontSize: theme.typeScale.caption.size, fontWeight: theme.typeScale.label.weight },
-  skeleton: { backgroundColor: theme.colors.surfaceSunken, borderRadius: theme.radius.md, minHeight: theme.spacing.xl },
-  emptyState: { alignItems: 'center', paddingVertical: theme.spacing.xxl },
-  emptyGlyph: { fontSize: money.amountScale.hero.size, lineHeight: money.amountScale.hero.lineHeight },
-  emptyTitle: { color: theme.colors.ink, fontSize: theme.typeScale.bodyLarge.size, fontWeight: theme.typeScale.heading.weight, textAlign: 'center' },
-  emptyHint: { color: theme.colors.inkMuted, fontSize: theme.typeScale.body.size, lineHeight: theme.typeScale.body.lineHeight, textAlign: 'center' },
+  chipDot: { width: spacing.sm, height: spacing.sm, borderRadius: radius.pill },
+  chipText: { fontSize: type.scale.caption.size, fontWeight: type.scale.label.wght },
+  skeleton: { backgroundColor: skeletonToken.bg, borderRadius: radius.box, minHeight: spacing.xl },
+  emptyState: { alignItems: 'center', paddingVertical: spacing.xxl },
+  emptyGlyph: { fontSize: money.amountScale.hero.size, lineHeight: lh({ size: money.amountScale.hero.size, lh: money.amountScale.hero.lh }) },
+  emptyTitle: { color: theme.colours.ink, fontSize: type.scale.title.size, fontWeight: type.scale.title.wght, textAlign: 'center' },
+  emptyHint: { color: theme.colours.muted, fontSize: type.scale.body.size, lineHeight: lh(type.scale.body), textAlign: 'center' },
   transitionFill: { flex: 1 },
 });

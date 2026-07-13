@@ -75,9 +75,9 @@ describe('reseller-app catalog discipline (same law as every app)', () => {
     expect(codeOnly).not.toMatch(/['"«][^'"»]*[àâçéèêëîïôùûüÀÂÇÉÈÊËÎÏÔÙÛÜ]/);
   });
 
-  it('app.json static backgroundColor stays equal to the ui-tokens surface (drift guard)', async () => {
+  it('app.json static backgroundColor stays equal to the ui-tokens paper (drift guard)', async () => {
     const { shopPlusTheme } = await import('@platform/ui-tokens');
     const appConfig = JSON.parse(readFileSync(join(appDir, 'app.json'), 'utf8'));
-    expect(appConfig.expo.backgroundColor).toBe(shopPlusTheme.colors.surface);
+    expect(appConfig.expo.backgroundColor).toBe(shopPlusTheme.colours.paper);
   });
 });
