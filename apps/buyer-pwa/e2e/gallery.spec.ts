@@ -17,7 +17,10 @@ const manifest = JSON.parse(readFileSync(join(repoRoot, 'gallery/states.json'), 
 
 test.use({ viewport: manifest.viewport });
 
-const imgDir = join(repoRoot, 'gallery/img');
+// WO-7.2b hygiene — write the run's screenshots to a gitignored path so a gate
+// run never dirties the committed evidence pack in gallery/img (test-results/ is
+// already gitignored). Refreshing the committed pack stays a deliberate copy.
+const imgDir = join(repoRoot, 'test-results/gallery');
 mkdirSync(imgDir, { recursive: true });
 
 for (const group of manifest.groups) {
