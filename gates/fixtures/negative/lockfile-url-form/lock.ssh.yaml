@@ -1,0 +1,7 @@
+# NEGATIVE FIXTURE for lockfile-url-form. An SSH-form git@ URL that the gate
+# MUST catch (exit 1). If this stops failing, the gate has gone blind.
+importers:
+  .:
+    dependencies:
+      '@platform/ui-tokens':
+        version: git+https://git@github.com:beurni2/platform-contracts.git#04af4b5266d53866a2b6d5800e270d3fffac2b35&path:packages/ui-tokens

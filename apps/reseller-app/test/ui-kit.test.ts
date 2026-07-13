@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { money, motion, shopPlusTheme } from '@platform/ui-tokens';
+import { money, motion, shopPlusTheme, type } from '@platform/ui-tokens';
 
 /**
  * WO-4.2R — the visual layer obeys the tokens. The scan test IS the DoD's
@@ -43,7 +43,7 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
   it('the gains hero consumes money.amountScale.hero with tabular numerals, fed from the catalog', () => {
     const kit = read('src/ui/kit.tsx');
     expect(kit).toMatch(/money\.amountScale\.hero\.size/);
-    expect(kit).toMatch(/money\.amountScale\.hero\.weight/);
+    expect(kit).toMatch(/money\.amountScale\.hero\.wght/);
     expect(kit).toMatch(/fontVariant: \['tabular-nums'\]/);
     // the App leads the gains screen with the count-up hero: label + template
     // both from the catalog — copy never inline.
@@ -55,37 +55,43 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     // francs render tabular in the App too (money lines + stats)
     expect(app).toMatch(/fontVariant: \['tabular-nums'\]/);
     // the hero size is a real hero (doctrine: the amount is the screen's hero)
-    expect(money.amountScale.hero.size).toBeGreaterThan(shopPlusTheme.typeScale.displayFcfa.size);
+    expect(money.amountScale.hero.size).toBeGreaterThan(type.scale.display.size);
   });
 
-  it('count-up law: token-timed (money.countUpMaxMs, never a literal), instant under reduced motion', () => {
+  it('count-up law: token-timed (money.countUpMs, never a literal), instant under reduced motion', () => {
     const kit = read('src/ui/kit.tsx');
     const block = kit.slice(kit.indexOf('export function CountUpAmount'), kit.indexOf('/* Status chip'));
     expect(block.length).toBeGreaterThan(0);
-    expect(block).toMatch(/duration: money\.countUpMaxMs/); // the TOKEN times the animation
+    expect(block).toMatch(/duration: money\.countUpMs/); // the TOKEN times the animation
     expect(block).not.toMatch(/duration:\s*\d/); // never a literal clock
     expect(block).toMatch(/if \(reduced\) \{\s*setShown\(amount\);/); // instant landing
     expect(kit).toMatch(/AccessibilityInfo\.isReduceMotionEnabled/);
     expect(kit).toMatch(/reduceMotionChanged/);
     // token-level law: « compte-montant ≤ 600 ms », one clock, a ref into motion
-    expect(money.countUpMaxMs).toBeLessThanOrEqual(600);
-    expect(money.countUpMaxMs).toBe(motion.countUpMaxMs);
+    expect(money.countUpMs).toBeLessThanOrEqual(600);
+    expect(money.countUpMs).toBe(motion.countUpMs);
   });
 
-  it('the screen change eases in on the ONE soft spring — token params, static under reduced motion', () => {
+  it('the screen change eases in on the ONE soft spring — TOKEN-DERIVED curve, static under reduced motion', () => {
     const kit = read('src/ui/kit.tsx');
     expect(kit).toMatch(/export function ScreenTransition/);
+    // the easing curve is derived from the token, never invented (RN parses the
+    // v0.8.0 cubic-bezier string into Easing.bezier — derive-never-invent)
+    expect(kit).toMatch(/motion\.springSoft/);
+    expect(kit).toMatch(/Easing\.bezier/);
     const transition = kit.slice(kit.indexOf('export function ScreenTransition'), kit.indexOf('const styles'));
-    expect(transition).toMatch(/motion\.springSoft\.damping/);
+    expect(transition).toMatch(/springSoftEasing/); // the token-derived curve
+    expect(transition).toMatch(/duration: motion\.standardMs/); // the token times it
     expect(transition).toMatch(/useNativeDriver: true/);
     expect(transition).toMatch(/if \(reduced\) \{/);
     const app = read('App.tsx');
     expect(app).toMatch(/<ScreenTransition screenKey=\{screen\}>/);
   });
 
-  it('the skeleton pulses on motion tokens and is static under reduced motion — no bare spinner anywhere', () => {
+  it('the skeleton pulses on the token clock and is static under reduced motion — no bare spinner anywhere', () => {
     const kit = read('src/ui/kit.tsx');
-    expect(kit).toMatch(/motion\.standard\.durationMs/);
+    expect(kit).toMatch(/skeletonToken\.pulseMs/); // the Grand Teint skeleton clock
+    expect(kit).toMatch(/interaction\.skeletonPulseFloor/); // pulse floor from the token
     expect(kit).toMatch(/if \(reduced\) return;/);
     for (const f of FILES) expect(read(f)).not.toMatch(/ActivityIndicator/);
   });
@@ -102,9 +108,11 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(app).toMatch(/JOURNEY\[stack\[stack\.length - 1\] \?\? START\]\.includes\(next\)/);
     // the tab bar never renders off-hub (single source: HUBS gate)
     expect(app).toMatch(/\{HUBS\.includes\(screen\) && \(\s*<TabBar/);
-    // tabs reset waypoints, they NEVER walk edges: no go() inside the TabBar block
+    // tabs reset waypoints, they NEVER walk edges: no go() inside the TabBar block.
+    // The items now carry canon SVG glyph nodes (each a self-closing <Icon… />),
+    // so bound the block at the items array's own close `]}` — not the first `/>`.
     const tabStart = app.indexOf('<TabBar');
-    const tabBlock = app.slice(tabStart, app.indexOf('/>', tabStart));
+    const tabBlock = app.slice(tabStart, app.indexOf(']}', tabStart));
     expect(tabBlock.length).toBeGreaterThan(0);
     expect(tabBlock).not.toContain('go(');
     expect(tabBlock).toContain('toHub(');
@@ -130,14 +138,26 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     const kit = read('src/ui/kit.tsx');
     expect(kit).toMatch(/selected\?: boolean \| undefined/);
     expect(kit).toMatch(/selected === true && styles\.rowSelected/);
-    expect(kit).toMatch(/rowSelected: \{ borderColor: theme\.colors\.primary/);
+    expect(kit).toMatch(/rowSelected: \{\s*borderColor: theme\.colours\.primary/);
     const app = read('App.tsx');
     expect(app).toMatch(/selected=\{isSelected\(world, item\.id\)\}/);
   });
 
-  it('honest states stay designed: the vitrine empty state is the kit EmptyState on the catalog string', () => {
+  it('honest states stay designed: the vitrine empty state is the kit EmptyState on the catalog string, with a CANON glyph (never an emoji)', () => {
     const app = read('App.tsx');
-    expect(app).toMatch(/<EmptyState glyph="[^"]+" title=\{t\('vitrine\.vide'\)\}/);
+    // the empty-state glyph is a Grand Teint SVG icon sized on the token, not an emoji raster
+    expect(app).toMatch(/<EmptyState\s+glyph=\{<IconVitrine size=\{dimension\.iconSizePx\.emptyState\}/);
+    expect(app).toMatch(/title=\{t\('vitrine\.vide'\)\}/);
+  });
+
+  it('the bottom nav wires the CANON glyphs at the canon tab size — no emoji in chrome', () => {
+    const app = read('App.tsx');
+    // each hub tab renders its canon SVG glyph at dimension.iconSizePx.tab (20)
+    expect(app).toMatch(/<IconAccueil size=\{dimension\.iconSizePx\.tab\}/);
+    expect(app).toMatch(/<IconProduits size=\{dimension\.iconSizePx\.tab\}/);
+    expect(app).toMatch(/<IconGains size=\{dimension\.iconSizePx\.tab\}/);
+    // the retired emoji are gone from the tab bar
+    expect(app).not.toMatch(/icon: '[^a-zA-Z]/);
   });
 
   it('the kit imports stay inside the RN + tokens world (banned-import law extended to the kit)', () => {

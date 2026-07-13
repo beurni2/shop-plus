@@ -23,17 +23,16 @@ onlyBuiltDependencies:
 # (canon v0.5.0; founder ruling: tags are unreliable, the release ref is
 # the commit).
 overrides:
-  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#2472e7ae61a2ded70f4b4e8caad3b8fcb2d5df55&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#2472e7ae61a2ded70f4b4e8caad3b8fcb2d5df55&path:packages/contracts"
-  # @platform/ui-tokens is SKEWED PER APP (WO-5.3, founder ruling — a NAMED,
-  # time-boxed debt). v0.6.0→v0.8.0 was a full token-system replacement (Grand
-  # Teint, WO-5.0), NOT a rename: reseller-app's whole token vocabulary
-  # (surface/inkMuted/line/displayFcfa/theme.spacing…) has no mechanical v0.8.0
-  # mapping. So the DEFAULT ui-tokens stays v0.6.0 (539dbc8a) — reseller-app +
-  # commerce-core + the @platform/certification transitive keep the API they
-  # consume, untouched — and ONLY buyer-pwa takes v0.8.0 (Grand Teint) via the
-  # scoped override below (most-specific wins). Tokens are plain DATA; two
-  # instances are harmless (proven at install). The skew DIES at reseller-app's
-  # Grand Teint slice (its S1–S8 screens).
-  "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#539dbc8ac8372d0d98606428258f79ad0f1ceaaa&path:packages/ui-tokens"
-  "@shop-plus/buyer-pwa>@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#2472e7ae61a2ded70f4b4e8caad3b8fcb2d5df55&path:packages/ui-tokens"
+  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#04af4b5266d53866a2b6d5800e270d3fffac2b35&path:packages/kernel-types"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#04af4b5266d53866a2b6d5800e270d3fffac2b35&path:packages/contracts"
+  # @platform/ui-tokens is UNIFIED at canon v0.9.4 (04af4b5, Grand Teint) — WO-7.0
+  # killed the WO-5.3 per-app skew and re-pinned the whole workspace to the current
+  # release in one bump. reseller-app runs its visual layer on the Grand Teint API
+  # (theme.colours, top-level type/spacing/radius/touch/interaction, the nav glyphs
+  # + dimension.iconSizePx.tab). ONE default instance for buyer-pwa + reseller-app
+  # + the @platform/certification transitive — no scoped exception. The former
+  # `@platform/certification>@platform/ui-tokens` v0.6.0 override is DELETED: the
+  # neutralColors→sharedColour rename landed at v0.8.0, so the report-html bug
+  # existed only in the ancient v0.6.0 snapshot; certification at v0.9.4 resolves
+  # sharedColour and needs no override (CTO ruling, WO-7.0 re-pin).
+  "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#04af4b5266d53866a2b6d5800e270d3fffac2b35&path:packages/ui-tokens"
