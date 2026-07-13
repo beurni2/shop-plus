@@ -35,22 +35,34 @@ root.style.setProperty('--sp-xl', px(spacing.xl));
 root.style.setProperty('--r-button', px(radius.button));
 root.style.setProperty('--touch', px(touch.minTargetPx));
 root.style.setProperty('--dur', ms(motion.quickMs));
+// Type scale → CSS vars (zero hardcode: every size/weight/letter-spacing is a token).
+root.style.setProperty('--t-title', px(typo.scale.titleLG.size));
+root.style.setProperty('--w-title', String(typo.scale.titleLG.wght));
+root.style.setProperty('--t-sub', px(typo.scale.body.size));
+root.style.setProperty('--t-label', px(typo.scale.label.size));
+root.style.setProperty('--w-label', String(typo.scale.label.wght));
+root.style.setProperty('--ls-label', px(typo.scale.label.ls));
+root.style.setProperty('--t-seg', px(typo.scale.row.size));
+root.style.setProperty('--w-seg', String(typo.scale.bodyStrong.wght));
+root.style.setProperty('--t-cta', px(typo.scale.body.size));
+root.style.setProperty('--w-cta', String(typo.scale.titleLG.wght));
+root.style.setProperty('--t-status', px(typo.scale.caption.size));
 
 const style = document.createElement('style');
 style.textContent = `
   * { box-sizing: border-box; }
   body { margin: 0; font-family: var(--font); background: var(--c-desk); color: var(--c-ink); }
   .wrap { max-width: 460px; margin: 0 auto; padding: var(--sp-lg); display: flex; flex-direction: column; gap: var(--sp-lg); }
-  .titre { font-weight: 800; font-size: 22px; margin: 0; }
-  .sous { color: var(--c-muted); margin: 0; font-size: 15px; line-height: 1.4; }
-  .seg-label { font-weight: 800; text-transform: uppercase; letter-spacing: 2px; font-size: 11px; color: var(--c-muted); margin-bottom: var(--sp-sm); }
+  .titre { font-weight: var(--w-title); font-size: var(--t-title); margin: 0; }
+  .sous { color: var(--c-muted); margin: 0; font-size: var(--t-sub); line-height: 1.4; }
+  .seg-label { font-weight: var(--w-label); text-transform: uppercase; letter-spacing: var(--ls-label); font-size: var(--t-label); color: var(--c-muted); margin-bottom: var(--sp-sm); }
   .seg { display: flex; gap: var(--sp-sm); }
-  .seg button { flex: 1; min-height: var(--touch); border: 1px solid var(--c-hairlineStrong); border-radius: var(--r-button); background: var(--c-paper); color: var(--c-ink); font-family: var(--font); font-weight: 700; font-size: 14px; cursor: pointer; transition: background var(--dur), color var(--dur); }
+  .seg button { flex: 1; min-height: var(--touch); border: 1px solid var(--c-hairlineStrong); border-radius: var(--r-button); background: var(--c-paper); color: var(--c-ink); font-family: var(--font); font-weight: var(--w-seg); font-size: var(--t-seg); cursor: pointer; transition: background var(--dur), color var(--dur); }
   .seg button[aria-pressed="true"] { background: var(--c-accent); color: var(--c-onPrimary); border-color: var(--c-accent); }
   .stage { display: flex; justify-content: center; padding: var(--sp-lg) 0; }
   .stage canvas { max-width: 100%; height: auto; box-shadow: 0 1px 0 var(--c-hairlineStrong); }
-  .cta { min-height: var(--touch); border: none; border-radius: var(--r-button); background: var(--c-accent); color: var(--c-onPrimary); font-family: var(--font); font-weight: 800; font-size: 16px; cursor: pointer; }
-  .status { min-height: 20px; color: var(--c-muted); font-size: 13px; text-align: center; }
+  .cta { min-height: var(--touch); border: none; border-radius: var(--r-button); background: var(--c-accent); color: var(--c-onPrimary); font-family: var(--font); font-weight: var(--w-cta); font-size: var(--t-cta); cursor: pointer; }
+  .status { min-height: var(--sp-xl); color: var(--c-muted); font-size: var(--t-status); text-align: center; }
   @media (prefers-reduced-motion: reduce) { .seg button { transition: none; } }
 `;
 document.head.appendChild(style);

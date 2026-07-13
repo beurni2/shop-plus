@@ -27,6 +27,15 @@ describe('reseller-kit catalog', () => {
     expect(codeOnly).not.toMatch(/['"«][^'"»]*[àâçéèêëîïôùûüÀÂÇÉÈÊËÎÏÔÙÛÜ]/);
   });
 
+  it('the shell chrome carries no hardcoded type dimension (tokens only — zero hardcode)', () => {
+    const source = readFileSync(join(appDir, 'src/main.ts'), 'utf8');
+    // font-size / letter-spacing in the style sheet must be a token var, never a
+    // literal px (the 1px hairline border/box-shadow is the only allowed literal).
+    expect(source).not.toMatch(/font-size:\s*\d/);
+    expect(source).not.toMatch(/letter-spacing:\s*\d/);
+    expect(source).not.toMatch(/font-weight:\s*\d/);
+  });
+
   it('the card copy the composeur paints is 100% catalog-sourced (no inline French in composeur/paint)', () => {
     for (const f of ['src/composeur.ts', 'src/paint.ts', 'src/demo.ts']) {
       const src = readFileSync(join(appDir, f), 'utf8')
