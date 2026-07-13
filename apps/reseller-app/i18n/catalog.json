@@ -496,5 +496,11 @@
     "fr": "MAINTENANT",
     "register": "neutral",
     "screenClass": "label"
+  },
+  {
+    "key": "ventes.nav",
+    "fr": "Mes ventes",
+    "register": "neutral",
+    "screenClass": "label"
   }
 ]

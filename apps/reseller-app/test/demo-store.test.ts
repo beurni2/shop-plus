@@ -136,7 +136,7 @@ describe('demo world money law', () => {
   });
 
   it('the journey/demo modules bundle Metro-safe (no runtime import of node-only barrels)', () => {
-    for (const file of ['src/journey.ts', 'src/demo/store.ts', 'src/share/hub.ts', 'App.tsx']) {
+    for (const file of ['src/journey.ts', 'src/demo/store.ts', 'src/share/hub.ts', 'src/sales/ventes.ts', 'App.tsx']) {
       const source = readFileSync(join(appDir, file), 'utf8');
       const runtimeImports = [...source.matchAll(/^import (?!type )[^;]*from '([^']+)';/gm)].map(
         (m) => m[1],

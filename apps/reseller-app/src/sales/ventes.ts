@@ -45,7 +45,8 @@ export const STATUS_KEY: Record<SaleStatus, string> = {
   livree: 'ventes.etat_livree',
 };
 
-/** LIVRÉE is a server FACT — the only chip that reads as ink-filled (« ok »). */
+/** LIVRÉE is a server FACT — the only status that reads in ink (the « ink »
+ * tone), never money-green and never a lie before the operator confirms it. */
 export function statusIsServerFact(status: SaleStatus): boolean {
   return status === 'livree';
 }

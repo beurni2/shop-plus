@@ -84,12 +84,14 @@ function GainsBreakdown({ line, style }: { line: GainsLine; style?: object }) {
   );
 }
 
-/** S7 status → chip tone. LIVRÉE is a server FACT (ink « ok »), never a green
- * lie before the operator; a PROBLÈME reads « bad »; the rest are calm. */
+/** S7 status → chip tone, matching the mockup palette: a PROBLÈME reads « bad »
+ * (danger), À LA PORTE — the nearest to the door — reads « warn » (amber), and
+ * LIVRÉE is a server fact in « ink » (never money-green, never a lie before the
+ * operator); the in-transit/paid middle states stay calm (muted). */
 const chipTone = (row: SaleRow): ChipTone =>
-  row.status === 'livree' ? 'ok'
-  : row.status === 'probleme' ? 'bad'
-  : row.status === 'en_route' || row.status === 'a_la_porte' ? 'info'
+  row.status === 'probleme' ? 'bad'
+  : row.status === 'a_la_porte' ? 'warn'
+  : row.status === 'livree' ? 'ink'
   : 'muted';
 
 /* S7 detail — the coarse custody timeline (« OÙ EN EST LA COMMANDE »): a dot
@@ -205,7 +207,7 @@ export default function App() {
             </View>
             <PrimaryButton label={t('accueil.card_opportunites')} onPress={() => go('opportunites')} />
             <SecondaryButton label={t('accueil.card_gains')} onPress={() => go('gains')} />
-            <SecondaryButton label={t('ventes.titre')} onPress={() => go('ventes')} />
+            <SecondaryButton label={t('ventes.nav')} onPress={() => go('ventes')} />
           </View>
         )}
 
