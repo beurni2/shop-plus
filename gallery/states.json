@@ -6,12 +6,37 @@
   },
   "groups": [
     {
-      "title": "Accueil",
+      "title": "S3 · Découverte — les boutiques (WO-7.2a)",
       "states": [
         {
-          "id": "accueil",
+          "id": "decouverte-defaut",
           "url": "/",
-          "caption": "Découverte — l'état vide honnête (aucune boutique encore)"
+          "caption": "Le répertoire des boutiques — des vendeuses vérifiées, l'ordre (dernière mise à jour) dit à l'écran"
+        },
+        {
+          "id": "decouverte-squelette",
+          "url": "/?demo-boutiques=skeleton",
+          "caption": "Chargement — le squelette clone les rangées fixes, zéro saut de mise en page"
+        },
+        {
+          "id": "decouverte-saisie",
+          "url": "/?demo-boutiques=results",
+          "caption": "Saisie « rood » — un filtre déterministe, le terme trouvé engraissé, jamais un score"
+        },
+        {
+          "id": "decouverte-aucun",
+          "url": "/?demo-boutiques=empty",
+          "caption": "Aucun résultat, digne — l'état dit le geste suivant, une sortie en un tap, jamais un mur"
+        },
+        {
+          "id": "decouverte-hors-ligne",
+          "url": "/?demo-boutiques=offline",
+          "caption": "Hors ligne — la liste d'hier soir, le compte se date, la recherche se désactive honnêtement"
+        },
+        {
+          "id": "decouverte-erreur",
+          "url": "/?demo-boutiques=error",
+          "caption": "Erreur réseau, désignée — distincte du hors-ligne, un ton calme et un seul geste"
         }
       ]
     },

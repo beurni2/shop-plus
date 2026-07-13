@@ -10,9 +10,11 @@ import { WORKED_BASELINE_INPUT } from '@shop-plus/commerce-core';
 import { DEMO_SHARE_LINK } from '../src/demo/store.js';
 import {
   DEMO_SHARE_IDENTITY,
+  DEMO_RENDER_DATE,
   ShareCardAuthorityError,
   assertCardAuthoritative,
   composeShareCard,
+  frenchDate,
   type ShareCard,
 } from '../src/share/hub.js';
 
@@ -57,6 +59,8 @@ describe('SP-I03 — the card carries HER economics only; supplier and commissio
     expect(card.identityLinkSuffix).toBe('/v/aicha-4821');
     expect(card.shortCode).toBe('AICHA-4821');
     expect(card.seraDelivery).toBe(true);
+    // WO-7.2a — the price-validity date (« 13 juillet »), the render day.
+    expect(card.priceValidityDate).toBe('13 juillet');
   });
 
   it('no supplier identity, no commission, no split — structurally and in the bytes', () => {
@@ -91,5 +95,25 @@ describe('SP-I19 — the card binds nothing; its authority is the signed live-tr
   it('a price-only card (no signed link) is REFUSED — a printed number is never the authority', () => {
     const priceOnly: ShareCard = { ...composeShareCard(DEMO_SHARE_IDENTITY), signedProductLink: '' };
     expect(() => assertCardAuthoritative(priceOnly)).toThrow(ShareCardAuthorityError);
+  });
+});
+
+describe('WO-7.2a — the card carries the price-validity hint WITH its render date (SP-I19)', () => {
+  it('frenchDate is deterministic (no Intl/locale) — the render day is « {day} {mois} »', () => {
+    expect(frenchDate(DEMO_RENDER_DATE)).toBe('13 juillet');
+    expect(frenchDate('2026-01-01T00:00:00.000Z')).toBe('1 janvier');
+    expect(frenchDate('2026-12-25T00:00:00.000Z')).toBe('25 décembre');
+  });
+
+  it('the validity hint renders WITH the render date (« Prix du 13 juillet — … »)', () => {
+    // The card carries the date; the copy.md canon string states which day.
+    const card = composeShareCard(DEMO_SHARE_IDENTITY);
+    const hint = 'Prix du {date} — le lien dit le prix du jour.'.replace('{date}', card.priceValidityDate);
+    expect(hint).toBe('Prix du 13 juillet — le lien dit le prix du jour.');
+  });
+
+  it('a card with no validity date is REFUSED — the print must say which day it shows', () => {
+    const noDate: ShareCard = { ...composeShareCard(DEMO_SHARE_IDENTITY), priceValidityDate: '' };
+    expect(() => assertCardAuthoritative(noDate)).toThrow(ShareCardAuthorityError);
   });
 });

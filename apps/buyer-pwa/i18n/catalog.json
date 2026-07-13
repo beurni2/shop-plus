@@ -688,5 +688,137 @@
     "fr": "Épuisé",
     "register": "neutral",
     "screenClass": "label"
+  },
+  {
+    "key": "boutiques.titre",
+    "fr": "LES BOUTIQUES",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "boutiques.sous_titre",
+    "fr": "Des vendeuses vérifiées, livrées par Séra. Le paiement est protégé.",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "boutiques.recherche_placeholder",
+    "fr": "Cherchez une vendeuse ou un quartier",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "boutiques.ordre",
+    "fr": "Classées par dernière mise à jour — la plus récente d'abord.",
+    "register": "neutral",
+    "screenClass": "general"
+  },
+  {
+    "key": "boutiques.ordre_court",
+    "fr": "La plus récente d'abord.",
+    "register": "neutral",
+    "screenClass": "general"
+  },
+  {
+    "key": "boutiques.zone_toutes",
+    "fr": "TOUTES",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "boutiques.compte",
+    "fr": "{n} boutiques",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "boutiques.compte_saisie",
+    "fr": "{n} boutiques — pour « {q} »",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "boutiques.compte_hier",
+    "fr": "{n} boutiques — hier soir",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "boutiques.carte_verifiee",
+    "fr": "Vérifiée",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "boutiques.carte_meta",
+    "fr": "{zone} · {n} produits · mise à jour {quand}",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "boutiques.quand_hier",
+    "fr": "hier",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "boutiques.quand_jours",
+    "fr": "il y a {n} jours",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "boutiques.quand_semaine",
+    "fr": "la semaine dernière",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "boutiques.aucun",
+    "fr": "Rien pour « {q} » — essayez le nom de la vendeuse, ou un quartier.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "boutiques.aucun_action",
+    "fr": "VOIR TOUTES LES BOUTIQUES",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "boutiques.hors_ligne",
+    "fr": "Hors ligne : la liste affichée est celle d'hier soir.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "boutiques.recherche_offline",
+    "fr": "La recherche reviendra avec le réseau",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "boutiques.erreur_titre",
+    "fr": "La liste n'a pas pu se charger.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "boutiques.erreur_hint",
+    "fr": "Rien n'est perdu — réessayez.",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "boutiques.reessayer",
+    "fr": "RÉESSAYER",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "boutiques.pied",
+    "fr": "Son prix est le prix — livré par Séra, paiement protégé.",
+    "register": "money",
+    "screenClass": "general"
   }
 ]

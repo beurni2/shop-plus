@@ -18,6 +18,7 @@ import { renderCheckoutOptions } from './checkout-view';
 import { renderProductSkeleton } from './product-view';
 import { renderVitrine } from './vitrine-view';
 import { vitrineSlugFromPath, resolveVitrineSlug, recordVitrineArrival } from './vitrine-link';
+import { renderBoutiques, type BoutiqueState } from './boutiques-view';
 import { createJourney, JOURNEY_SCREENS, type JourneyScreen } from './journey';
 
 /**
@@ -455,6 +456,44 @@ style.textContent = `
   .vitrine-price { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--c-ink); white-space: nowrap; }
   .vitrine-product-epuise { color: var(--c-muted); }
   .vitrine-epuise-chip { font-size: var(--t-labelXS); letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-muted); }
+  .vitrine-boutiques { margin-top: var(--sp-sm); }
+
+  /* WO-7.2a — S3 DÉCOUVERTE (the store directory). Stores, never products:
+     no photo, no price in the list — the price lives in the vitrine. Fixed
+     76 px rows (no layout jump), hairline grammar, ink-on-paper. */
+  .boutiques { display: grid; gap: var(--sp-md); }
+  .bq-header { display: grid; gap: var(--sp-xs); }
+  .bq-title { margin: 0; color: var(--c-ink); font-size: var(--t-labelLG); font-weight: ${type.scale.labelLG.wght}; letter-spacing: var(--ls-labelLG); text-transform: uppercase; }
+  .bq-subtitle { margin: 0; font-size: var(--t-caption); color: var(--c-body); line-height: ${type.scale.caption.lh}; }
+  .bq-search { display: grid; gap: var(--sp-xs); }
+  .bq-search[data-disabled="true"] { opacity: var(--disabled-opacity); }
+  .bq-search-input { min-height: var(--touch); border: var(--hair-mid) solid var(--c-hairlineStrong); background: var(--c-paper); color: var(--c-ink); font-size: var(--t-body); padding: var(--sp-sm) var(--sp-md); }
+  .bq-search-note { margin: 0; font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght}; letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-muted); }
+  .bq-zones { }
+  .bq-zone { min-height: auto; padding: var(--sp-xs) var(--sp-md); font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght}; letter-spacing: var(--ls-labelXS); text-transform: uppercase; }
+  .bq-count { margin: 0; font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght}; letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-ink); }
+  .bq-order { margin: 0; font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
+  .bq-list { display: grid; gap: 0; border: var(--hair-mid) solid var(--c-hairlineStrong); }
+  .bq-card { display: flex; align-items: center; gap: var(--sp-md); min-height: calc(var(--touch) + var(--sp-lg) + var(--sp-lg)); padding: 0 var(--sp-md); border-top: var(--hair-mid) solid var(--c-hairline); text-decoration: none; color: var(--c-ink); }
+  .bq-card:first-child { border-top: 0; }
+  .bq-card:active { background: var(--c-sand); }
+  .bq-avatar { position: relative; width: var(--touch); height: var(--touch); flex: none; display: grid; place-items: center; background: var(--c-sand); border: var(--hair-mid) solid var(--c-hairlineStrong); }
+  .bq-avatar-initial { font-size: var(--t-row); font-weight: ${money.amountScale.hero.wght}; color: var(--c-primaryStrong); }
+  .bq-card-body { flex: 1; min-width: 0; display: grid; gap: var(--sp-xs); }
+  .bq-card-head { display: flex; align-items: center; gap: var(--sp-xs); }
+  .bq-store-name { font-size: var(--t-caption); font-weight: ${type.scale.bodyStrong.wght}; letter-spacing: var(--ls-label); text-transform: uppercase; color: var(--c-ink); }
+  .bq-verified-mark { color: var(--c-ink); flex: none; }
+  .bq-verified-label { font-size: var(--t-labelXS); color: var(--c-muted); }
+  .bq-card-meta { font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
+  .bq-chevron { color: var(--c-primaryStrong); flex: none; }
+  .bq-card-skeleton { pointer-events: none; }
+  .bq-card-skeleton .bq-avatar { border: 0; }
+  .bq-empty { display: grid; gap: var(--sp-md); justify-items: start; padding: var(--sp-lg) 0; }
+  .bq-empty-title { margin: 0; font-size: var(--t-body); color: var(--c-ink); line-height: ${type.scale.body.lh}; }
+  .bq-error { display: grid; gap: var(--sp-md); justify-items: start; }
+  .bq-error-title { margin: 0; font-size: var(--t-body); font-weight: ${type.scale.bodyStrong.wght}; color: var(--c-ink); }
+  .bq-error-hint { margin: 0; font-size: var(--t-caption); color: var(--c-body); }
+  .bq-foot { margin: 0; font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
 `;
 document.head.appendChild(style);
 
@@ -515,19 +554,6 @@ if (app) {
     main.append(section);
     app.append(main);
   } else {
-    const header = document.createElement('header');
-    const brand = document.createElement('h1');
-    brand.textContent = t('app.title');
-    header.appendChild(brand);
-
-    const main = document.createElement('main');
-    const heading = document.createElement('h2');
-    heading.textContent = t('discover.heading');
-    const empty = document.createElement('p');
-    empty.className = 'empty-state';
-    empty.textContent = t('discover.empty_state');
-    main.append(heading, empty);
-
     // E2 order-view demo surface (no backend at E2): the Playwright harness
     // drives ?demo-order=<state> to exercise the honest failure states.
     const demoState = params.get('demo-order');
@@ -535,32 +561,59 @@ if (app) {
       'payment_failed', 'cancelled', 'confirmed', 'paid_cancel_refused',
       'door_pending', 'door_paid',
     ];
-    if (demoState && (DEMO_STATES as readonly string[]).includes(demoState)) {
-      const section = document.createElement('div');
-      section.innerHTML = renderOrderView({
-        state: demoState as OrderViewModel['state'],
-        buyerTotalFcfa: 12_500,
-        amountDueAtDeliveryFcfa: 11_500, // §5.4 baseline under Option B
-      });
-      main.append(section);
-    }
-
-    // WO-2.5: two-option checkout demo (§6.1) — amounts are the §5.4 baseline
-    // split written by the pinned waterfall (A: 12,500/0 · B: 1,000/11,500).
     const demoCheckout = params.get('demo-checkout');
-    if (demoCheckout === 'available' || demoCheckout === 'unavailable') {
-      const section = document.createElement('div');
-      section.innerHTML = renderCheckoutOptions({
-        buyerTotalFcfa: 12_500,
-        optionA: { payNowFcfa: 12_500, dueAtDoorFcfa: 0 },
-        optionB:
-          demoCheckout === 'available'
-            ? { available: true, payNowFcfa: 1_000, dueAtDoorFcfa: 11_500 }
-            : { available: false },
-      });
-      main.append(section);
-    }
+    const isE2Harness =
+      (demoState && (DEMO_STATES as readonly string[]).includes(demoState)) ||
+      demoCheckout === 'available' ||
+      demoCheckout === 'unavailable';
 
-    app.append(header, main);
+    if (isE2Harness) {
+      const header = document.createElement('header');
+      const brand = document.createElement('h1');
+      brand.textContent = t('app.title');
+      header.appendChild(brand);
+      const main = document.createElement('main');
+      if (demoState && (DEMO_STATES as readonly string[]).includes(demoState)) {
+        const section = document.createElement('div');
+        section.innerHTML = renderOrderView({
+          state: demoState as OrderViewModel['state'],
+          buyerTotalFcfa: 12_500,
+          amountDueAtDeliveryFcfa: 11_500, // §5.4 baseline under Option B
+        });
+        main.append(section);
+      }
+      // WO-2.5: two-option checkout demo (§6.1) — amounts are the §5.4 baseline
+      // split written by the pinned waterfall (A: 12,500/0 · B: 1,000/11,500).
+      if (demoCheckout === 'available' || demoCheckout === 'unavailable') {
+        const section = document.createElement('div');
+        section.innerHTML = renderCheckoutOptions({
+          buyerTotalFcfa: 12_500,
+          optionA: { payNowFcfa: 12_500, dueAtDoorFcfa: 0 },
+          optionB:
+            demoCheckout === 'available'
+              ? { available: true, payNowFcfa: 1_000, dueAtDoorFcfa: 11_500 }
+              : { available: false },
+        });
+        main.append(section);
+      }
+      app.append(header, main);
+    } else {
+      // WO-7.2a — S3 DÉCOUVERTE is the root (« root » entry, founder-ruled) and
+      // the /boutiques path. The store directory owns the screen (its own
+      // « LES BOUTIQUES » title — no separate brand bar, per the mockup). The
+      // ?demo-boutiques=<state> harness drives the six states for the gallery.
+      const BQ_STATES: readonly BoutiqueState[] = [
+        'default', 'skeleton', 'results', 'empty', 'offline', 'error',
+      ];
+      const demoBoutiques = params.get('demo-boutiques');
+      const state: BoutiqueState =
+        demoBoutiques && (BQ_STATES as readonly string[]).includes(demoBoutiques)
+          ? (demoBoutiques as BoutiqueState)
+          : 'default';
+      const query = params.get('q') ?? (state === 'results' || state === 'empty' ? (state === 'empty' ? 'bazin' : 'rood') : '');
+      const main = document.createElement('main');
+      main.innerHTML = renderBoutiques({ state, query });
+      app.append(main);
+    }
   }
 }

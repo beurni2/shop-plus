@@ -290,13 +290,16 @@ export function CountUpAmount({
 /* Status chip (prototype pills): a dot + label on a calm wash — state is
  * always visible, never a sentence. Grand Teint has no chrome « info » colour
  * (one accent per app), so that tone reads on `muted`. */
-export type ChipTone = 'ok' | 'warn' | 'bad' | 'info' | 'muted';
+export type ChipTone = 'ok' | 'warn' | 'bad' | 'info' | 'muted' | 'ink';
 const CHIP_COLOR: Record<ChipTone, string> = {
   ok: theme.colours.success,
   warn: theme.colours.warning,
   bad: theme.colours.danger,
   info: theme.colours.muted,
   muted: theme.colours.muted,
+  // A SETTLED server fact reads in ink — the strongest, calmest colour; never
+  // money-green, never a lie (WO-7.2a S7: « LIVRÉE = chip encre, fait serveur »).
+  ink: theme.colours.ink,
 };
 export function StatusChip({ tone, label }: { tone: ChipTone; label: string }) {
   return (

@@ -1,0 +1,9 @@
+{
+  "stores": [
+    { "storefrontId": "sf_aicha", "resellerId": "res_aicha", "storeName": "CHEZ AÏCHA", "zone": "Rood Woko", "productCount": 6 }
+  ],
+  "products": [
+    { "productName": "Bazin riche brodé", "priceFcfa": 11500, "resellerId": "res_aicha" },
+    { "productName": "Sac en cuir tanné", "priceFcfa": 9000, "resellerId": "res_mariam" }
+  ]
+}

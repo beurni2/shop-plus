@@ -19,14 +19,15 @@ import { DEMO_SHARE_LINK } from '../demo/store';
  * PINNED to `computeWaterfall(WORKED_BASELINE_INPUT).productSubtotal` (§5.4) in
  * that test — the literal below is proven, never hand-authored truth.
  *
- * The QR and the visible price-validity-hint COPY are DERIVE-OR-STOP → WO-7.2
- * (no Grand Teint QR component; no canon validity-hint string in copy.md S5 —
- * both belong to the build-gated PackLab Media Kit composeur, components.md:177
- * « next commission; reserved names »). SP-I19's STRUCTURAL core — « the image
- * may circulate but binds nothing; the signed page remains the live truth » —
- * ships THIS slice as `assertCardAuthoritative` (the card always carries the
- * live-truth signed link). The hub ships composed of what exists — no
- * placeholder, no apology state, and the layout does not foreclose the QR.
+ * WO-7.2a — THE VALIDITY HINT LANDS (the WO-7.1 deferral closes). Grand Teint
+ * v1.0.0's handoff copy.md now carries the canon string « Prix du {date} — le
+ * lien dit le prix du jour. » (money), so the card footer states WHICH day's
+ * price it shows and points at the live link as the truth (zero fabricated
+ * urgency). `assertCardAuthoritative` now requires BOTH the signed link AND the
+ * validity date — a card that hides either could let a stale print pass for
+ * truth (SP-I19). The QR and the composeur stay WO-7.2b (their specs are
+ * design-ahead against canon ruling #4); the hub layout still does not foreclose
+ * the QR.
  */
 
 export interface ResellerShareIdentity {
@@ -65,9 +66,32 @@ export interface ShareCard {
   readonly shortCode: string;
   /** « Livré par Séra » always rides the card; never a fake « vérifié ». */
   readonly seraDelivery: true;
+  /**
+   * WO-7.2a — the price-validity date (« 13 juillet »), the day the card was
+   * rendered. SP-I19: the printed price is a snapshot; the hint says WHICH day's
+   * price this is, and the live link stays the truth. Zero fabricated urgency —
+   * it points at the truth (the link), it never presses.
+   */
+  readonly priceValidityDate: string;
 }
 
-export function composeShareCard(identity: ResellerShareIdentity): ShareCard {
+/** French « {day} {mois} » — deterministic, no Intl/locale dependency (Metro-safe). */
+const FR_MONTHS = [
+  'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+  'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+] as const;
+export function frenchDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getUTCDate()} ${FR_MONTHS[d.getUTCMonth()]}`;
+}
+
+/** The demo render date (« 13 juillet ») — the frozen demo clock, not a live now(). */
+export const DEMO_RENDER_DATE = '2026-07-13T00:00:00.000Z';
+
+export function composeShareCard(
+  identity: ResellerShareIdentity,
+  renderDateIso: string = DEMO_RENDER_DATE,
+): ShareCard {
   return {
     resellerName: identity.resellerName,
     productName: identity.productName,
@@ -76,6 +100,7 @@ export function composeShareCard(identity: ResellerShareIdentity): ShareCard {
     identityLinkSuffix: identity.identityLinkSuffix,
     shortCode: identity.shortCode,
     seraDelivery: true,
+    priceValidityDate: frenchDate(renderDateIso),
   };
 }
 
@@ -93,6 +118,11 @@ export function assertCardAuthoritative(card: ShareCard): void {
   if (!card.signedProductLink || card.signedProductLink.trim() === '') {
     throw new ShareCardAuthorityError(
       'share card has no signed live-truth link — a printed price must never be the authority (SP-I19)',
+    );
+  }
+  if (!card.priceValidityDate || card.priceValidityDate.trim() === '') {
+    throw new ShareCardAuthorityError(
+      'share card has no price-validity date — the print must say which day it shows, the link stays the truth (SP-I19)',
     );
   }
 }

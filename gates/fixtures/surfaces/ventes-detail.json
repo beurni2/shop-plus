@@ -1,0 +1,7 @@
+{
+  "surface": "ventes-detail",
+  "moneyFieldsInRenderOrder": [
+    "resellerNet",
+    "customerPrice"
+  ]
+}
