@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#04af4b5266d53866a2b6d5800e270d3fffac2b35&path:packages/ui-tokens",
+    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/ui-tokens",
     "expo": "~54.0.35",
     "expo-haptics": "~15.0.8",
     "expo-status-bar": "~3.0.9",
@@ -26,8 +26,8 @@
     "@types/react": "~19.1.0",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4",
-    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#04af4b5266d53866a2b6d5800e270d3fffac2b35&path:packages/contracts",
+    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/contracts",
     "@shop-plus/commerce-core": "workspace:*",
-    "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#04af4b5266d53866a2b6d5800e270d3fffac2b35&path:packages/i18n"
+    "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/i18n"
   }
 }
