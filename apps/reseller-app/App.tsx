@@ -1,12 +1,13 @@
 import { useCallback, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { shopPlusTheme as theme, shopColour, type, spacing, radius, touch, money, dimension } from '@platform/ui-tokens';
 import { IconAccueil, IconProduits, IconGains, IconVitrine } from './src/ui/icons';
 import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
 import { t } from './src/i18n';
 import { JOURNEY, START, type Screen } from './src/journey';
+import { DEMO_SHARE_IDENTITY, composeShareCard } from './src/share/hub';
 import {
   DEMO_SHARE_LINK,
   baselineGains,
@@ -113,6 +114,10 @@ export default function App() {
   const selection = selectedOpportunities(world);
   const totals = gainsTotal(world.opportunities);
   const baseline = baselineGains();
+  // The share card is DETERMINISTIC from her price-free assets + price snapshot
+  // (SP-I19). It carries the live-truth signed link by construction — no
+  // commission field exists on the type (SP-I03).
+  const shareCard = composeShareCard(DEMO_SHARE_IDENTITY);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -240,14 +245,46 @@ export default function App() {
         )}
 
         {screen === 'lien' && (
-          <Card>
-            <View style={styles.linkBox}>
-              <Text style={styles.linkText}>{DEMO_SHARE_LINK}</Text>
-              <Text style={styles.linkHint}>{t('lien.hint')}</Text>
-            </View>
-            <Text style={styles.message}>{t('lien.explication')}</Text>
+          <ScrollView contentContainerStyle={styles.hubScroll} showsVerticalScrollIndicator={false}>
+            {/* The card PREVIEW — « ce que verra votre cliente » (SP-I19): her
+                product, HER price, « Livré par Séra », signed. No commission,
+                never the supplier (SP-I03) — composeShareCard's type forbids it. */}
+            <Card>
+              <Overline>{t('share.og_titre')}</Overline>
+              <Text style={styles.cardTitle}>{shareCard.productName}</Text>
+              <Text style={styles.ogPrice}>
+                {t('share.prix').replace('{amount}', formatFcfa(shareCard.priceFcfa))}
+              </Text>
+              <View style={styles.ogBadgeRow}>
+                <StatusChip tone="ok" label={t('share.livre_sera')} />
+              </View>
+              <Text style={styles.ogSigned}>{t('share.og_signe')}</Text>
+            </Card>
+
+            {/* The signed PRODUCT link — the one she sends; the live price/stock
+                truth. Fictional sandbox link, honestly marked « lien d'essai ». */}
+            <Card>
+              <View style={styles.linkBox}>
+                <Text style={styles.linkText}>{DEMO_SHARE_LINK}</Text>
+                <Text style={styles.linkHint}>{t('lien.hint')}</Text>
+              </View>
+              <Text style={styles.message}>{t('lien.explication')}</Text>
+            </Card>
+
+            {/* The IDENTITY link — her permanent vitrine (`/v/{slug}`), for the
+                bio; the same public code printed on every card. */}
+            <Card>
+              <Overline>{t('share.code').replace('{code}', DEMO_SHARE_IDENTITY.shortCode)}</Overline>
+              <Text style={styles.noteLine}>{t('share.code_hint')}</Text>
+              <View style={styles.linkBox}>
+                <Text style={styles.linkText}>{shareCard.identityLinkSuffix}</Text>
+                <Text style={styles.linkHint}>{t('share.voir_vitrine')}</Text>
+              </View>
+              <Text style={styles.message}>{t('share.bio')}</Text>
+            </Card>
+
             <PrimaryButton label={t('lien.action')} onPress={() => go('gains')} />
-          </Card>
+          </ScrollView>
         )}
 
         {screen === 'gains' && (
@@ -319,6 +356,21 @@ const styles = StyleSheet.create({
   },
   listWrap: { flex: 1, gap: spacing.md },
   listContent: { gap: spacing.sm, paddingBottom: spacing.sm },
+  hubScroll: { gap: spacing.md, paddingBottom: spacing.lg },
+  ogPrice: {
+    color: theme.colours.primaryStrong,
+    fontSize: money.amountScale.section.size,
+    lineHeight: money.amountScale.section.size * money.amountScale.section.lh,
+    fontWeight: money.amountScale.section.wght,
+    fontVariant: ['tabular-nums'],
+  },
+  ogBadgeRow: { flexDirection: 'row', paddingTop: spacing.xs },
+  ogSigned: {
+    color: theme.colours.muted,
+    fontSize: type.scale.caption.size,
+    lineHeight: lh(type.scale.caption),
+    paddingTop: spacing.xs,
+  },
   message: {
     color: theme.colours.ink,
     fontSize: type.scale.body.size,

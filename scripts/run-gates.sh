@@ -103,6 +103,12 @@ capture attribution-tamper-negative fail node scripts/gates/attribution-tamper.m
 log "gate: no-supplier-contact — real customer-surface projection (must pass)"
 capture no-supplier-contact-positive pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/product-view.json
 
+log "gate: no-supplier-contact — S5 vitrine surface (WO-7.1, pinned to the view model; must pass)"
+capture no-supplier-contact-vitrine pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/vitrine-view.json
+
+log "gate: no-supplier-contact — S5 share card surface (WO-7.1, pinned to composeShareCard; must pass)"
+capture no-supplier-contact-share-card pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/share-card.json
+
 log "gate: no-supplier-contact — NEGATIVE FIXTURE (supplier identity/contact/commission leak, must fail)"
 capture no-supplier-contact-negative fail node scripts/gates/no-supplier-contact.mjs gates/fixtures/negative/customer-surfaces/leaking-product-view.json
 

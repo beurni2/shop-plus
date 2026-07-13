@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { FCFA } from '../src/format';
 import { renderVitrine, type VitrineViewModel } from '../src/vitrine-view';
@@ -78,6 +80,19 @@ describe('SP-I03 — her prices only; no supplier identity, no commission, no sp
     // @ts-expect-error — no supplier field exists on the product model
     const leak: VitrineViewModel['products'][number] = { productName: 'x', priceFcfa: 1, inStock: true, supplierId: 'sup' };
     expect(leak.priceFcfa).toBe(1);
+  });
+
+  it('the checked-in no-supplier-contact gate fixture matches the vitrine view (pinning)', () => {
+    // The standing SP-I03 gate (no-supplier-contact.mjs) scans THIS surface; the
+    // fixture is pinned to the real view model so the gate never drifts from render.
+    const view = resolveVitrineSlug('aicha-4821')!.view;
+    const fixture = JSON.parse(
+      readFileSync(
+        join(import.meta.dirname, '../../../gates/fixtures/customer-surfaces/vitrine-view.json'),
+        'utf8',
+      ),
+    );
+    expect(view).toEqual(fixture);
   });
 });
 
