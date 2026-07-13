@@ -1,0 +1,24 @@
+{
+  "name": "@shop-plus/reseller-kit",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Shop+ reseller media kit (WO-7.2b) — the deterministic composeur: her card, her price, her code, prête à publier. Vanilla TS + Vite + canvas, zero runtime deps, shares the reseller-app vendored QR encoder.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4174 --strictPort",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/i18n",
+    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/ui-tokens"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
+  }
+}

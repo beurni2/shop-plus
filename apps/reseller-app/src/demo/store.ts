@@ -84,6 +84,13 @@ for (const o of SEED.opportunities) assertSeedMoneyHonest(o.id, o.input, o.money
  */
 export const DEMO_SHARE_LINK = 'shop-plus.demo/s/awa-essai';
 
+/**
+ * WO-7.2b — the media-kit link-out (Q5: a LINK, never a webview embed). Same
+ * visibly-fictional sandbox form as the share link — the kit is a sibling web
+ * surface (the composeur); here it is only pointed to, honestly « d'essai ».
+ */
+export const DEMO_KIT_LINK = 'shop-plus.demo/kit';
+
 export interface DemoWorld {
   readonly opportunities: readonly DemoOpportunity[];
   /** The reseller's picked opportunities (« ma sélection »), by id. */

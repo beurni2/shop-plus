@@ -526,5 +526,17 @@
     "fr": "Pas de scan ? Le code suffit — {code}.",
     "register": "selling",
     "screenClass": "selling_surface"
+  },
+  {
+    "key": "share.kit",
+    "fr": "Créer une image à publier",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "share.kit_hint",
+    "fr": "Story, carré, affiche — votre carte prête à publier.",
+    "register": "selling",
+    "screenClass": "selling_surface"
   }
 ]

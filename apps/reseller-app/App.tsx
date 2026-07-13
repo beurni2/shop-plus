@@ -19,6 +19,7 @@ import {
 } from './src/sales/ventes';
 import {
   DEMO_SHARE_LINK,
+  DEMO_KIT_LINK,
   baselineGains,
   baselineProductPriceFcfa,
   createDemoWorld,
@@ -360,6 +361,18 @@ export default function App() {
                 <Text style={styles.qrRepli}>
                   {t('share.qr_repli').replace('{code}', DEMO_SHARE_IDENTITY.shortCode)}
                 </Text>
+              </View>
+            </Card>
+
+            {/* WO-7.2b — the link-out to the media kit (Q5: a LINK, never a
+                webview embed). The composeur is a sibling web surface; the
+                reseller opens it to turn this card into a publishable image.
+                Sandbox link, honestly « d'essai » like every demo link. */}
+            <Card>
+              <Overline>{t('share.kit')}</Overline>
+              <View style={styles.linkBox}>
+                <Text style={styles.linkText}>{DEMO_KIT_LINK}</Text>
+                <Text style={styles.linkHint}>{t('share.kit_hint')}</Text>
               </View>
             </Card>
 

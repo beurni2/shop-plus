@@ -116,6 +116,25 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@22.20.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
 
+  apps/reseller-kit:
+    dependencies:
+      '@platform/i18n':
+        specifier: git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/i18n
+        version: git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/i18n
+      '@platform/ui-tokens':
+        specifier: git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/ui-tokens
+        version: git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/ui-tokens
+    devDependencies:
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vite:
+        specifier: ^6.3.5
+        version: 6.4.3(@types/node@22.20.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
+
   packages/commerce-core:
     dependencies:
       '@platform/contracts':

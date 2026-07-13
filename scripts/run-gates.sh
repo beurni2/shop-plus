@@ -173,6 +173,9 @@ capture copy-lint-reseller-positive pass pnpm exec copy-lint apps/reseller-app/i
 log "gate: French Voice copy-lint — buyer-pwa catalog (must pass)"
 capture copy-lint-pwa-positive pass pnpm exec copy-lint apps/buyer-pwa/i18n/catalog.json
 
+log "gate: French Voice copy-lint — reseller-kit catalog (WO-7.2b composeur, must pass)"
+capture copy-lint-kit-positive pass pnpm exec copy-lint apps/reseller-kit/i18n/catalog.json
+
 log "gate: French Voice copy-lint — NEGATIVE FIXTURE (veuillez/séquestre + marketing-in-money + Mooré-in-instruction, must fail)"
 capture copy-lint-negative fail pnpm exec copy-lint gates/fixtures/negative/catalog.negative.json
 
