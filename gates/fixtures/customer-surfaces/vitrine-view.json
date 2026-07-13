@@ -1,0 +1,9 @@
+{
+  "resellerName": "Aïcha",
+  "zone": "Rood Woko, Ouagadougou",
+  "products": [
+    { "productName": "Bazin riche brodé", "priceFcfa": 11500, "inStock": true },
+    { "productName": "Sac en cuir tanné", "priceFcfa": 9000, "inStock": true },
+    { "productName": "Foulard wax", "priceFcfa": 3500, "inStock": false }
+  ]
+}

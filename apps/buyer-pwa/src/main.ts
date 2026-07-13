@@ -16,6 +16,8 @@ import { t } from './i18n';
 import { renderOrderView, type OrderViewModel } from './order-view';
 import { renderCheckoutOptions } from './checkout-view';
 import { renderProductSkeleton } from './product-view';
+import { renderVitrine } from './vitrine-view';
+import { vitrineSlugFromPath, resolveVitrineSlug, recordVitrineArrival } from './vitrine-link';
 import { createJourney, JOURNEY_SCREENS, type JourneyScreen } from './journey';
 
 /**
@@ -437,6 +439,22 @@ style.textContent = `
   .sheet-handle { justify-self: center; width: var(--touch); height: var(--tick-stroke); background: var(--c-hairlineStrong); border-radius: var(--r-pill); }
   .protections-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-md); font-size: var(--t-body); line-height: ${type.scale.body.lh}; }
   .protection-row { margin: 0; padding-left: var(--sp-lg); border-left: var(--sel-border) solid var(--c-ink); }
+
+  /* WO-7.1 — THE VITRINE (S5). Ink-on-paper: the store name a poster header,
+     the trust chrome before products, hairline product rows, HER price big. */
+  .vitrine { display: grid; gap: var(--sp-lg); }
+  .vitrine-head { display: grid; gap: var(--sp-xs); }
+  .vitrine-store-name { margin: 0; font-size: var(--t-display); line-height: ${type.scale.display.lh}; font-weight: 900; text-transform: uppercase; color: var(--c-ink); }
+  .vitrine-verified { margin: 0; }
+  .vitrine-trust { display: grid; gap: var(--sp-sm); padding-bottom: var(--sp-sm); border-bottom: var(--hair-strong) solid var(--c-hairline); }
+  .vitrine-privacy { margin: 0; font-size: var(--t-caption); line-height: ${type.scale.caption.lh}; color: var(--c-body); }
+  .vitrine-products { display: grid; gap: 0; border: var(--hair-mid) solid var(--c-hairlineStrong); }
+  .vitrine-product { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); padding: var(--sp-md) var(--sp-lg); min-height: var(--touch); border-top: var(--hair-mid) solid var(--c-hairline); text-decoration: none; color: var(--c-ink); }
+  .vitrine-product:first-child { border-top: 0; }
+  .vitrine-product-name { font-size: var(--t-body); }
+  .vitrine-price { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--c-ink); white-space: nowrap; }
+  .vitrine-product-epuise { color: var(--c-muted); }
+  .vitrine-epuise-chip { font-size: var(--t-labelXS); letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-muted); }
 `;
 document.head.appendChild(style);
 
@@ -455,8 +473,32 @@ if (app) {
   const journeyScreen = params.get('demo-journey');
   const skeletonScreen = params.get('demo-skeleton');
 
-  // WO-4.4 — the walkable journey owns the whole viewport (5-second test).
-  if (journeyScreen && (JOURNEY_SCREENS as readonly string[]).includes(journeyScreen)) {
+  // WO-7.1 — THE VITRINE (S5). Reached by the canon /v/{slug} path (restored by
+  // the 404.html SPA-fallback before boot); ?demo-vitrine is a LOCAL/GATE harness
+  // only, never the shared link. On land, record an IDENTITY-scope arrival (A8,
+  // last-touch) — best-effort, it never blocks the render.
+  const vitrineSlug = vitrineSlugFromPath(window.location.pathname) ?? params.get('demo-vitrine') ?? undefined;
+  const vitrineIdentity = vitrineSlug ? resolveVitrineSlug(vitrineSlug) : undefined;
+
+  if (vitrineIdentity) {
+    try {
+      recordVitrineArrival(
+        vitrineIdentity,
+        new Date().toISOString(),
+        `vitrine-${vitrineIdentity.slug}-${Date.now()}`,
+        window.sessionStorage,
+      );
+    } catch {
+      /* storage unavailable — the arrival is best-effort and never blocks the vitrine */
+    }
+    const main = document.createElement('main');
+    const section = document.createElement('div');
+    section.className = 'journey-screen';
+    section.innerHTML = renderVitrine(vitrineIdentity.view);
+    main.append(section);
+    app.append(main);
+  } else if (journeyScreen && (JOURNEY_SCREENS as readonly string[]).includes(journeyScreen)) {
+    // WO-4.4 — the walkable journey owns the whole viewport (5-second test).
     const main = document.createElement('main');
     createJourney(main, {
       screen: journeyScreen as JourneyScreen,

@@ -238,5 +238,53 @@
     "fr": "{amount} F",
     "register": "money",
     "screenClass": "general"
+  },
+  {
+    "key": "share.og_titre",
+    "fr": "Ce que verra votre cliente",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "share.og_signe",
+    "fr": "Votre lien est signé — la vente vous revient, toujours.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "share.prix",
+    "fr": "Votre prix : {amount}",
+    "register": "money",
+    "screenClass": "checkout"
+  },
+  {
+    "key": "share.livre_sera",
+    "fr": "Livré par Séra",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "share.bio",
+    "fr": "Collez le lien dans votre bio Instagram ou TikTok. Vos clientes vous retrouvent toujours — la vente vous revient.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "share.code",
+    "fr": "Code : {code}",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "share.code_hint",
+    "fr": "écrit sur chaque carte",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "share.voir_vitrine",
+    "fr": "Voir ma vitrine comme une cliente",
+    "register": "selling",
+    "screenClass": "label"
   }
 ]
