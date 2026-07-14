@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { t, tf } from '../src/i18n.js';
 
@@ -31,5 +33,13 @@ describe('reseller-app tf() — loud-fail interpolation', () => {
 
   it('THROWS when a provided param matches no placeholder (extra/mistyped param)', () => {
     expect(() => tf('share.validite', { date: '13 juillet', montant: 'x' })).toThrow(/matches no placeholder/);
+  });
+
+  it('no manual t(...).replace() interpolation survives in App.tsx — tf is the only path (multiline-aware, so a line-wrapped call cannot slip)', () => {
+    const app = readFileSync(join(import.meta.dirname, '..', 'App.tsx'), 'utf8');
+    // `\s*` spans newlines, so `t('k')\n  .replace(` is caught too — the exact
+    // shape that gave a false green when the 12th site was line-wrapped.
+    const offenders = [...app.matchAll(/\bt\('([^']+)'\)\s*\.replace\(/g)].map((m) => m[1]);
+    expect(offenders, `manual replace still on: ${offenders.join(', ')}`).toEqual([]);
   });
 });

@@ -395,10 +395,7 @@ export default function App() {
             </Card>
             <Card>
               <Text style={styles.cardTitle}>
-                {t('gains.baseline_titre').replace(
-                  '{amount}',
-                  formatFcfa(baselineProductPriceFcfa()),
-                )}
+                {tf('gains.baseline_titre', { amount: formatFcfa(baselineProductPriceFcfa()) })}
               </Text>
               <GainsBreakdown line={baseline} />
             </Card>
