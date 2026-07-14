@@ -449,6 +449,9 @@ style.textContent = `
   .vitrine-verified { margin: 0; }
   .vitrine-trust { display: grid; gap: var(--sp-sm); padding-bottom: var(--sp-sm); border-bottom: var(--hair-strong) solid var(--c-hairline); }
   .vitrine-privacy { margin: 0; font-size: var(--t-caption); line-height: ${type.scale.caption.lh}; color: var(--c-body); }
+  .vitrine-reputation-line { margin: 0; font-size: var(--t-caption); line-height: ${type.scale.caption.lh}; color: var(--c-primaryStrong); }
+  .vitrine-reputation { font-weight: ${type.scale.bodyStrong.wght}; }
+  .reputation-demo { font-size: var(--t-labelXS); color: var(--c-muted); letter-spacing: var(--ls-label); text-transform: uppercase; }
   .vitrine-products { display: grid; gap: 0; border: var(--hair-mid) solid var(--c-hairlineStrong); }
   .vitrine-product { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); padding: var(--sp-md) var(--sp-lg); min-height: var(--touch); border-top: var(--hair-mid) solid var(--c-hairline); text-decoration: none; color: var(--c-ink); }
   .vitrine-product:first-child { border-top: 0; }
@@ -485,6 +488,7 @@ style.textContent = `
   .bq-verified-mark { color: var(--c-ink); flex: none; }
   .bq-verified-label { font-size: var(--t-labelXS); color: var(--c-muted); }
   .bq-card-meta { font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
+  .bq-reputation { font-size: var(--t-caption); color: var(--c-primaryStrong); font-weight: ${type.scale.bodyStrong.wght}; }
   .bq-chevron { color: var(--c-primaryStrong); flex: none; }
   .bq-card-skeleton { pointer-events: none; }
   .bq-card-skeleton .bq-avatar { border: 0; }
@@ -533,7 +537,7 @@ if (app) {
     const main = document.createElement('main');
     const section = document.createElement('div');
     section.className = 'journey-screen';
-    section.innerHTML = renderVitrine(vitrineIdentity.view);
+    section.innerHTML = renderVitrine(vitrineIdentity.view, vitrineIdentity.reputation);
     main.append(section);
     app.append(main);
   } else if (journeyScreen && (JOURNEY_SCREENS as readonly string[]).includes(journeyScreen)) {

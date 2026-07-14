@@ -820,5 +820,17 @@
     "fr": "Son prix est le prix — livré par Séra, paiement protégé.",
     "register": "money",
     "screenClass": "general"
+  },
+  {
+    "key": "reputation.ventes_livrees",
+    "fr": "{n} ventes livrées",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "reputation.demo",
+    "fr": "démo",
+    "register": "neutral",
+    "screenClass": "label"
   }
 ]
