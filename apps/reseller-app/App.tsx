@@ -14,6 +14,7 @@ import { DEMO_SHARE_IDENTITY, composeShareCard } from './src/share/hub';
 import { QrCode } from './src/qr/QrCode';
 import { DEMO_QR_URL } from './src/qr/identity';
 import { FONTS_TO_LOAD } from './src/ui/fonts-load';
+import { HeroLedger, SelectionSwap, CornerTicks, DuotoneTile, QuoteRule } from './src/ui/signature';
 import {
   ventesListModel,
   demoDetail,
@@ -259,22 +260,25 @@ export default function App() {
               initialNumToRender={6}
               windowSize={5}
               contentContainerStyle={styles.listContent}
-              renderItem={({ item }) => (
-                <ListRow
-                  glyph={item.name.slice(0, 1)}
-                  title={item.name}
-                  net={`${t('opportunity.net_label')} : ${formatFcfa(opportunityCard(item).netFcfa)}`}
-                  chip={
-                    isSelected(world, item.id) ? (
-                      <StatusChip tone="ok" label={t('selection.choisi')} />
-                    ) : (
-                      <StatusChip tone="muted" label={t('selection.ajouter')} />
-                    )
-                  }
-                  selected={isSelected(world, item.id)}
-                  onPress={() => setWorld(toggleSelection(world, item.id))}
-                />
-              )}
+              renderItem={({ item }) => {
+                const chosen = isSelected(world, item.id);
+                return (
+                  // the corner ticks frame the chosen row — an accent overlay that
+                  // shifts no layout (signature module); the swap is the affordance.
+                  <View style={styles.selectFrame}>
+                    <ListRow
+                      glyph={item.name.slice(0, 1)}
+                      title={item.name}
+                      meta={chosen ? t('selection.choisi') : t('selection.ajouter')}
+                      net={`${t('opportunity.net_label')} : ${formatFcfa(opportunityCard(item).netFcfa)}`}
+                      chip={<SelectionSwap selected={chosen} />}
+                      selected={chosen}
+                      onPress={() => setWorld(toggleSelection(world, item.id))}
+                    />
+                    <CornerTicks show={chosen} />
+                  </View>
+                );
+              }}
             />
             <Text style={styles.noteLine}>
               {tf('selection.compte', { count: String(world.selectedIds.length) })}
@@ -295,15 +299,18 @@ export default function App() {
               <FlatList
                 data={selection}
                 keyExtractor={(o) => o.id}
+                numColumns={2}
+                columnWrapperStyle={styles.gridRow}
                 initialNumToRender={6}
                 windowSize={5}
                 contentContainerStyle={styles.listContent}
                 renderItem={({ item }) => (
-                  <ListRow
-                    glyph={item.name.slice(0, 1)}
-                    title={item.name}
-                    net={formatFcfa(opportunityCard(item).customerPriceFcfa)}
-                  />
+                  // the duotone tile (signature module): a two-tone crown carrying
+                  // the glyph over the client price — « prix client » only, never net.
+                  <DuotoneTile glyph={item.name.slice(0, 1)} style={styles.gridTile}>
+                    <Text style={styles.tileName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.tilePrice}>{formatFcfa(opportunityCard(item).customerPriceFcfa)}</Text>
+                  </DuotoneTile>
                 )}
               />
             )}
@@ -403,6 +410,9 @@ export default function App() {
             <Card>
               <Overline>{t('gains.detail_titre')}</Overline>
               <GainsBreakdown line={totals} />
+              {/* the quote rule (signature module): the reconcile whisper under the
+                  breakdown — restates the net, right-aligned, over a hairline. */}
+              <QuoteRule line={tf('gains.net', { amount: formatFcfa(totals.netFcfa) })} />
             </Card>
             <Card>
               <Text style={styles.cardTitle}>
@@ -463,9 +473,13 @@ export default function App() {
             {/* NET FIRST, always — the net before SON prix; the commission
                 exists nowhere; only her client's first name (relais). */}
             <Card style={styles.netCard}>
-              <Overline>{t('vente.net_label')}</Overline>
-              <Text style={styles.netFigure}>{formatFcfa(saleDetail.netFcfa)}</Text>
-              <Text style={styles.noteLine}>{t('vente.net_regle')}</Text>
+              {/* the hero ledger (signature module): the locked net as the hero,
+                  its « réglé » reassurance as the ledger whisper below. */}
+              <HeroLedger
+                label={t('vente.net_label')}
+                amount={formatFcfa(saleDetail.netFcfa)}
+                ledger={t('vente.net_regle')}
+              />
             </Card>
             <Card>
               <Text style={styles.cardTitle}>
@@ -526,6 +540,19 @@ const styles = StyleSheet.create({
   listWrap: { flex: 1, gap: spacing.md },
   listContent: { gap: spacing.sm, paddingBottom: spacing.sm },
   hubScroll: { gap: spacing.md, paddingBottom: spacing.lg },
+  // selection frame — the corner-tick overlay sits over the row (no layout shift)
+  selectFrame: { position: 'relative' },
+  // « Ma vitrine » two-up duotone grid
+  gridRow: { gap: spacing.md },
+  gridTile: { flex: 1 },
+  tileName: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
+  tilePrice: {
+    color: shopColour.deep,
+    fontFamily: DISPLAY_FAMILY,
+    fontSize: t2.scale.cardMoney.size,
+    fontWeight: w(t2.scale.cardMoney.wght),
+    fontVariant: ['tabular-nums'],
+  },
   ogPrice: {
     color: shopColour.deep,
     fontFamily: DISPLAY_FAMILY,
@@ -553,13 +580,6 @@ const styles = StyleSheet.create({
   netCard: {
     borderWidth: spacing.xs / 2,
     borderColor: shopColour.primary,
-  },
-  netFigure: {
-    color: shopColour.deep,
-    fontFamily: DISPLAY_FAMILY,
-    fontSize: rmax(t2.scale.heroMoney.size),
-    fontWeight: w(t2.scale.heroMoney.wght),
-    fontVariant: ['tabular-nums'],
   },
   timeline: { gap: spacing.md, paddingTop: spacing.sm },
   timelineStep: { flexDirection: 'row', gap: spacing.md },

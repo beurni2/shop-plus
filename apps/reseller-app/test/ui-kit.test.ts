@@ -152,7 +152,12 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(kit).toMatch(/rowSelected: \{\s*borderColor: shopColour\.primary/);
     expect(shopColour.primary).toMatch(/^#/);
     const app = read('App.tsx');
-    expect(app).toMatch(/selected=\{isSelected\(world, item\.id\)\}/);
+    // the chosen state flows from isSelected into the kit's selected prop, and the
+    // signature swap + corner ticks compose it (WO-FP-SHOP wiring).
+    expect(app).toMatch(/const chosen = isSelected\(world, item\.id\)/);
+    expect(app).toMatch(/selected=\{chosen\}/);
+    expect(app).toMatch(/<SelectionSwap selected=\{chosen\}/);
+    expect(app).toMatch(/<CornerTicks show=\{chosen\}/);
   });
 
   it('honest states stay designed: the vitrine empty state is the kit EmptyState on the catalog string, with a CANON glyph (never an emoji)', () => {
