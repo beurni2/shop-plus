@@ -32,3 +32,51 @@
      metrics-matched fallback, then the platform default. */
   --font-grand-teint: 'Archivo', 'Archivo Fallback', system-ui, sans-serif;
 }
+
+/* WO-FP · STEP 0 — the FASO PREMIUM face set the buyer surface adopts at its
+   view slices: « Bricolage Grotesque » (display 700/800) + « Instrument Sans »
+   (text 400/700) — exactly the four faces fasoPremium type.families declares
+   (ui-tokens v1.0.0). Subset to the French + franc charset (« 11 500 F », the
+   narrow-space thousands separator U+202F included). Four woff2, 82.1 KB total —
+   see public/fonts/FASO-PREMIUM-BUDGET.md; the money-render guard proves every
+   face draws the franc figure.
+
+   font-display: optional keeps the cold-start law: first paint never waits, and
+   with `optional` there is NEVER a mid-page swap — CLS stays 0 whether or not a
+   face resolves inside its ~100 ms window, so a plain system fallback is safe. */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('./fonts/Bricolage-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: optional;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('./fonts/Bricolage-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: optional;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  src: url('./fonts/Instrument-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: optional;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  src: url('./fonts/Instrument-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: optional;
+}
+
+:root {
+  /* The two Faso Premium families the view slices adopt — display for titles and
+     the franc in majesty, text for body and rows. Fallback is the platform face;
+     `optional` guarantees no reflow if a face is not ready in time. */
+  --font-fp-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-fp-text: 'Instrument Sans', system-ui, sans-serif;
+}
