@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { FlatList, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { shopPlusTheme as theme, shopColour, type, spacing, radius, touch, money, dimension } from '@platform/ui-tokens/legacy';
+import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
+import { spacing, touch, dimension } from '@platform/ui-tokens/legacy';
+import { DISPLAY_FAMILY, TEXT_FAMILY } from './src/ui/faso-fonts';
 import { IconAccueil, IconProduits, IconGains, IconVitrine } from './src/ui/icons';
 import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
@@ -48,24 +50,26 @@ import {
 } from './src/ui/kit';
 
 /**
- * WO-7.0 — GRAND TEINT over WO-4.1's walkable world. Same screens, same
- * edges, same back law, same money from the same frozen seed — the visual
- * layer is the kit (src/ui/kit.tsx, now ui-tokens v0.8.0 Grand Teint), the
- * navigation SEMANTICS are untouched. This file's own styles move off the
- * retired v0.6.0 token vocabulary onto the Grand Teint API in the same skew
- * kill. Tabs are waypoint RESETS under the ratified two-level-ladder law
- * (they jump only to states already reachable from START along declared
- * edges — accueil→opportunites, accueil→gains); go() and its edge guard are
+ * WO-FP-SHOP — FASO PREMIUM over WO-4.1's walkable world. Same screens, same
+ * edges, same back law, same money from the same frozen seed — the visual layer
+ * moves off Grand Teint onto the v2 API (colour → sharedColour + shopColour,
+ * type → the Bricolage/Instrument scale, radius → the rounded v2 geometry,
+ * motion via the kit's seven fp* curves); the /legacy geometry groups (spacing,
+ * touch, dimension) stay verbatim per the v2 scope. The navigation SEMANTICS are
+ * untouched — tabs are waypoint RESETS (they jump only to states already
+ * reachable from START along declared edges); go() and its edge guard are
  * byte-identical to WO-4.1.
  */
 
-/** lineHeight helper — v0.8.0 `lh` is a unitless multiplier; RN needs px. */
-const lh = (s: { readonly size: number; readonly lh: number }): number => s.size * s.lh;
+/** Resolve a scale value canon may state as a range to its max (RN has no clamp
+ * — the fuller legible value; the one documented rule). */
+const rmax = (v: number | { readonly min: number; readonly max: number }): number =>
+  typeof v === 'number' ? v : v.max;
+/** RN fontWeight wants a string; the token carries the number. */
+const w = (n: number): '400' | '700' | '800' => String(n) as '400' | '700' | '800';
 
-/** Bottom-nav glyph colour: active = accent, inactive = muted (matches the label).
- * (Return is the token's own type — shop accents resolve through the merged
- * palette index, which the icon `color` prop accepts as-is.) */
-const navColor = (active: boolean): string => (active ? shopColour.primaryStrong : theme.colours.muted);
+/** Bottom-nav glyph colour: active = accent deep, inactive = muted (matches label). */
+const navColor = (active: boolean): string => (active ? shopColour.deep : sharedColour.sub);
 
 /* The money lines (prototype `.ml`/`.mlTot`): gross and the honest 20 % fee
  * as calm muted lines, a dashed rule, then the net — the strongest line,
@@ -179,7 +183,7 @@ export default function App() {
       {/* SDK 54: backgroundColor restored per the WO-4.0d-prep founder
           ruling ③ — pre-edge-to-edge Android draws a default bar; the
           surface token is the correct fill. */}
-      <StatusBar style="dark" backgroundColor={theme.colours.paper} />
+      <StatusBar style="dark" backgroundColor={sharedColour.paper} />
       <WaxBand />
       {IS_PREVIEW && (
         <View style={styles.previewBanner}>
@@ -277,7 +281,7 @@ export default function App() {
             <Text style={styles.noteLine}>{t('vitrine.note')}</Text>
             {selection.length === 0 ? (
               <EmptyState
-                glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={theme.colours.soft} />}
+                glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />}
                 title={t('vitrine.vide')}
               />
             ) : (
@@ -408,7 +412,7 @@ export default function App() {
           ventesRows.length === 0 ? (
             <View style={styles.stackGap}>
               <EmptyState
-                glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={theme.colours.soft} />}
+                glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />}
                 title={t('ventes.vide_titre')}
                 hint={t('ventes.vide_hint')}
               />
@@ -495,7 +499,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: theme.colours.paper },
+  screen: { flex: 1, backgroundColor: sharedColour.paper },
   content: {
     flex: 1,
     paddingHorizontal: spacing.lg,
@@ -506,33 +510,33 @@ const styles = StyleSheet.create({
   statGrid: { flexDirection: 'row', gap: spacing.md },
   statCard: { flex: 1 },
   statValue: {
-    color: theme.colours.ink,
-    fontSize: type.scale.display.size,
-    lineHeight: lh(type.scale.display),
-    fontWeight: type.scale.display.wght,
+    color: sharedColour.ink,
+    fontFamily: DISPLAY_FAMILY,
+    fontSize: t2.scale.screen.size,
+    fontWeight: w(t2.scale.screen.wght),
     fontVariant: ['tabular-nums'],
   },
   listWrap: { flex: 1, gap: spacing.md },
   listContent: { gap: spacing.sm, paddingBottom: spacing.sm },
   hubScroll: { gap: spacing.md, paddingBottom: spacing.lg },
   ogPrice: {
-    color: theme.colours.primaryStrong,
-    fontSize: money.amountScale.section.size,
-    lineHeight: money.amountScale.section.size * money.amountScale.section.lh,
-    fontWeight: money.amountScale.section.wght,
+    color: shopColour.deep,
+    fontFamily: DISPLAY_FAMILY,
+    fontSize: t2.scale.cardMoney.size,
+    fontWeight: w(t2.scale.cardMoney.wght),
     fontVariant: ['tabular-nums'],
   },
   ogBadgeRow: { flexDirection: 'row', paddingTop: spacing.xs },
   ogSigned: {
-    color: theme.colours.muted,
-    fontSize: type.scale.caption.size,
-    lineHeight: lh(type.scale.caption),
+    color: sharedColour.sub,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.body.size),
     paddingTop: spacing.xs,
   },
   ogValidite: {
-    color: theme.colours.muted,
-    fontSize: type.scale.caption.size,
-    lineHeight: lh(type.scale.caption),
+    color: sharedColour.sub,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.body.size),
     paddingTop: spacing.xs,
     fontVariant: ['tabular-nums'],
   },
@@ -541,13 +545,13 @@ const styles = StyleSheet.create({
   problemeEncart: { gap: spacing.sm },
   netCard: {
     borderWidth: spacing.xs / 2,
-    borderColor: theme.colours.ink,
+    borderColor: shopColour.primary,
   },
   netFigure: {
-    color: theme.colours.primaryStrong,
-    fontSize: money.amountScale.hero.size,
-    lineHeight: money.amountScale.hero.size * money.amountScale.hero.lh,
-    fontWeight: money.amountScale.hero.wght,
+    color: shopColour.deep,
+    fontFamily: DISPLAY_FAMILY,
+    fontSize: rmax(t2.scale.heroMoney.size),
+    fontWeight: w(t2.scale.heroMoney.wght),
     fontVariant: ['tabular-nums'],
   },
   timeline: { gap: spacing.md, paddingTop: spacing.sm },
@@ -558,115 +562,115 @@ const styles = StyleSheet.create({
     height: spacing.sm,
     borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colours.hairlineStrong,
-    backgroundColor: theme.colours.paper,
+    borderColor: sharedColour.hairlineStrong,
+    backgroundColor: sharedColour.card,
   },
-  timelineDotDone: { backgroundColor: theme.colours.ink, borderColor: theme.colours.ink },
-  timelineDotNow: { backgroundColor: theme.colours.primaryStrong, borderColor: theme.colours.primaryStrong },
+  timelineDotDone: { backgroundColor: sharedColour.ink, borderColor: sharedColour.ink },
+  timelineDotNow: { backgroundColor: shopColour.primary, borderColor: shopColour.primary },
   timelineConnector: {
     flex: 1,
     width: StyleSheet.hairlineWidth,
     minHeight: spacing.md,
-    backgroundColor: theme.colours.hairlineStrong,
+    backgroundColor: sharedColour.hairlineStrong,
   },
-  timelineConnectorDone: { backgroundColor: theme.colours.ink },
+  timelineConnectorDone: { backgroundColor: sharedColour.ink },
   timelineBody: { flex: 1, gap: spacing.xs, paddingBottom: spacing.sm },
   timelineHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   timelineLabel: {
-    color: theme.colours.ink,
-    fontSize: type.scale.body.size,
-    lineHeight: lh(type.scale.body),
-    fontWeight: type.scale.bodyStrong.wght,
+    color: sharedColour.ink,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.row.size),
+    fontWeight: w(t2.scale.row.wght),
   },
-  timelineLabelNow: { color: theme.colours.ink },
-  timelineLabelLater: { color: theme.colours.soft },
+  timelineLabelNow: { color: sharedColour.ink },
+  timelineLabelLater: { color: sharedColour.sub },
   message: {
-    color: theme.colours.ink,
-    fontSize: type.scale.body.size,
-    lineHeight: lh(type.scale.body),
+    color: sharedColour.ink,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.body.size),
   },
   noteLine: {
-    color: theme.colours.muted,
-    fontSize: type.scale.body.size,
-    lineHeight: lh(type.scale.body),
+    color: sharedColour.sub,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.body.size),
   },
   cardTitle: {
-    color: theme.colours.ink,
-    fontSize: type.scale.body.size,
-    lineHeight: lh(type.scale.body),
-    fontWeight: type.scale.title.wght,
+    color: sharedColour.ink,
+    fontFamily: DISPLAY_FAMILY,
+    fontSize: rmax(t2.scale.view.size),
+    fontWeight: w(t2.scale.view.wght),
   },
   moneyBlock: { gap: spacing.xs },
   moneyLine: {
-    color: theme.colours.muted,
-    fontSize: type.scale.body.size,
-    lineHeight: lh(type.scale.body),
+    color: sharedColour.sub,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.body.size),
     fontVariant: ['tabular-nums'],
   },
   moneyRule: {
     borderBottomWidth: spacing.xs / 4,
-    borderBottomColor: theme.colours.hairlineStrong,
+    borderBottomColor: sharedColour.hairlineStrong,
     borderStyle: 'dashed',
     marginTop: spacing.xs,
   },
   moneyNetLine: {
-    color: theme.colours.primaryStrong,
-    fontSize: money.amountScale.section.size,
-    lineHeight: money.amountScale.section.size * money.amountScale.section.lh,
-    fontWeight: money.amountScale.section.wght,
+    color: shopColour.deep,
+    fontFamily: DISPLAY_FAMILY,
+    fontSize: t2.scale.cardMoney.size,
+    fontWeight: w(t2.scale.cardMoney.wght),
     fontVariant: ['tabular-nums'],
   },
   linkBox: {
-    backgroundColor: theme.colours.sand,
-    borderRadius: radius.box,
+    backgroundColor: sharedColour.dim,
+    borderRadius: radius.tile,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colours.hairlineStrong,
+    borderColor: sharedColour.hairlineStrong,
     padding: spacing.lg,
     gap: spacing.xs,
     alignItems: 'center',
   },
   linkText: {
-    color: theme.colours.ink,
-    fontSize: type.scale.body.size,
-    lineHeight: lh(type.scale.body),
-    fontWeight: type.scale.bodyStrong.wght,
+    color: sharedColour.ink,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.row.size),
+    fontWeight: w(t2.scale.row.wght),
     textAlign: 'center',
   },
   linkHint: {
-    color: theme.colours.muted,
-    fontSize: type.scale.caption.size,
-    lineHeight: lh(type.scale.caption),
+    color: sharedColour.sub,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.body.size),
     textAlign: 'center',
   },
   // WO-7.2b — the on-screen QR. Frame hugs the derived side (alignSelf), sits
-  // on sand so the QR's own paper quiet zone reads as a scannable card.
+  // on the tinted surface so the QR's own paper quiet zone reads as a scannable card.
   qrFrame: {
     alignSelf: 'center',
-    backgroundColor: theme.colours.sand,
-    borderRadius: radius.box,
+    backgroundColor: sharedColour.dim,
+    borderRadius: radius.tile,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colours.hairlineStrong,
+    borderColor: sharedColour.hairlineStrong,
     padding: spacing.lg,
   },
   qrCaption: { alignItems: 'center', gap: spacing.xs },
   qrLegende: {
-    color: theme.colours.muted,
-    fontSize: type.scale.caption.size,
-    lineHeight: lh(type.scale.caption),
+    color: sharedColour.sub,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.body.size),
     textAlign: 'center',
   },
   codeStrong: {
-    color: theme.colours.ink,
-    fontSize: type.scale.title.size,
-    lineHeight: lh(type.scale.title),
-    fontWeight: type.scale.title.wght,
+    color: sharedColour.ink,
+    fontFamily: DISPLAY_FAMILY,
+    fontSize: rmax(t2.scale.view.size),
+    fontWeight: w(t2.scale.view.wght),
     fontVariant: ['tabular-nums'],
     textAlign: 'center',
   },
   qrRepli: {
-    color: theme.colours.muted,
-    fontSize: type.scale.caption.size,
-    lineHeight: lh(type.scale.caption),
+    color: sharedColour.sub,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.body.size),
     textAlign: 'center',
   },
   footer: {
@@ -676,19 +680,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     minHeight: touch.minTargetPx,
   },
-  footerHint: { color: theme.colours.soft, fontSize: type.scale.caption.size },
+  footerHint: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size },
   resetAction: { minHeight: touch.minTargetPx, justifyContent: 'center', paddingHorizontal: spacing.md },
-  resetActionText: { color: theme.colours.muted, fontSize: type.scale.caption.size, fontWeight: type.scale.label.wght },
+  resetActionText: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
   previewBanner: {
-    backgroundColor: theme.colours.sand,
+    backgroundColor: sharedColour.dim,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colours.hairline,
+    borderBottomColor: sharedColour.hairline,
     paddingVertical: spacing.xs,
     alignItems: 'center',
   },
   previewBannerText: {
-    color: theme.colours.muted,
-    fontSize: type.scale.caption.size,
-    lineHeight: lh(type.scale.caption),
+    color: sharedColour.sub,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.body.size),
   },
 });

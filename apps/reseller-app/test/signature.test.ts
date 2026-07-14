@@ -70,10 +70,14 @@ describe('WO-FP-SHOP signature module (reseller-app)', () => {
     expect(t2.scale.heroMoney.size).toHaveProperty('max');
   });
 
-  it('selection is STRUCTURAL — the swap changes shape (+ ⇄ ✓), the ticks are an accent frame', () => {
+  it('selection is STRUCTURAL — the swap changes shape (plus to canon check), the ticks are an accent frame', () => {
     // the swap is a real shape change, not a tint: off = bordered disc, on = filled accent
     expect(src).toMatch(/swapOff:.*borderWidth: interaction\.hairline\.strong/s);
     expect(src).toMatch(/swapOn: \{ backgroundColor: shopColour\.primary \}/);
+    // the selected check is the CANON SVG glyph (no emoji/text symbol in chrome, §8)
+    expect(src).toMatch(/import \{ IconCoche \} from '\.\/icons'/);
+    expect(src).toMatch(/<IconCoche size=\{dimension\.iconSizePx\.badge\}/);
+    expect(src, 'the swap uses a text checkmark instead of the canon glyph').not.toMatch(/[\u{2600}-\u{27BF}]/u);
     // the corner ticks come from the interaction token, four corners
     expect(src).toMatch(/interaction\.cornerTick\.sizePx/);
     expect(interaction.cornerTick.strokePx).toBeGreaterThan(0);

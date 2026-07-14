@@ -1,7 +1,8 @@
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
-import { spacing, interaction, band, money } from '@platform/ui-tokens/legacy';
+import { spacing, interaction, band, money, dimension } from '@platform/ui-tokens/legacy';
 import { DISPLAY_FAMILY, TEXT_FAMILY } from './faso-fonts';
+import { IconCoche } from './icons';
 
 /**
  * WO-FP-SHOP · THE SIGNATURE MODULE — the six ownable Faso Premium elements the
@@ -114,7 +115,12 @@ export function SelectionSwap({ selected }: { selected: boolean }) {
       accessibilityRole="checkbox"
       accessibilityState={{ checked: selected }}
     >
-      <Text style={selected ? styles.swapCheck : styles.swapPlus}>{selected ? '✓' : '+'}</Text>
+      {selected ? (
+        // the check is the CANON SVG glyph on a size token — never an emoji (§8)
+        <IconCoche size={dimension.iconSizePx.badge} color={shopColour.onPrimary} />
+      ) : (
+        <Text style={styles.swapPlus}>+</Text>
+      )}
     </View>
   );
 }
@@ -218,7 +224,6 @@ const styles = StyleSheet.create({
   swapOff: { borderWidth: interaction.hairline.strong, borderColor: sharedColour.hairlineStrong, backgroundColor: sharedColour.card },
   swapOn: { backgroundColor: shopColour.primary },
   swapPlus: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontWeight: String(t2.scale.row.wght) as '700' },
-  swapCheck: { color: shopColour.onPrimary, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontWeight: String(t2.scale.row.wght) as '700' },
 
   // 5 · corner ticks
   ticksLayer: { ...StyleSheet.absoluteFillObject },
