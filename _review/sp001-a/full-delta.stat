@@ -1,0 +1,15 @@
+ apps/buyer-pwa/package.json                        |   4 +-
+ apps/reseller-app/package.json                     |   6 +-
+ apps/reseller-kit/package.json                     |   4 +-
+ package.json                                       |   8 +-
+ packages/commerce-core/package.json                |   6 +-
+ pnpm-lock.yaml                                     | 120 +++++++-------
+ pnpm-workspace.yaml                                |  10 +-
+ scripts/run-gates.sh                               |   4 +-
+ services/attribution-service/package.json          |   2 +-
+ services/discovery-service/package.json            |   2 +-
+ services/storefront-service/package.json           |   2 +-
+ services/storefront-service/src/index.ts           |   1 +
+ .../storefront-service/src/storefront-aggregate.ts | 175 +++++++++++++++++++++
+ .../test/storefront-aggregate.test.ts              | 123 +++++++++++++++
+ 14 files changed, 383 insertions(+), 84 deletions(-)
