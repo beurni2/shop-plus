@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { projectStores, type StoreProjectionEvent } from '@shop-plus/store-projection';
 
 /**
  * Discovery response CONTRACT (SP-I05): discovery returns reseller STORES —
@@ -46,4 +47,22 @@ export function buildStoreDiscoveryResponse(stores: StorePreview[]): StoreDiscov
       a.storefrontId.localeCompare(b.storefrontId),
   );
   return StoreDiscoveryResponseSchema.parse({ stores: ordered });
+}
+
+/**
+ * SP#001-B — the discovery envelope, fed by THE ONE PRODUCER
+ * (`@shop-plus/store-projection`) over the real storefront + listing event
+ * stream. Only DISCOVERABLE storefronts project (SP-I05: stores, never a product
+ * pool); the envelope keeps its deterministic zone→name→id order (SP-I11).
+ * Matching-item previews (search) are SP5.1 — deferred; the top level is a pure
+ * store collection here.
+ */
+export function projectStoreDiscovery(events: readonly StoreProjectionEvent[]): StoreDiscoveryResponse {
+  const previews: StorePreview[] = projectStores(events).map((s) => ({
+    storefrontId: s.storefrontId,
+    resellerId: s.resellerId,
+    storeName: s.storeName,
+    zone: s.zone,
+  }));
+  return buildStoreDiscoveryResponse(previews);
 }
