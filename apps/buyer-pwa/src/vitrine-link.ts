@@ -1,5 +1,7 @@
 import { shortCodeToSlug, type AttributionArrival } from '@platform/contracts';
+import { resolvePublishedStore } from '@shop-plus/store-projection';
 import type { VitrineViewModel } from './vitrine-view';
+import { DEMO_STORES, demoStoreEvents } from './demo-stores';
 
 /**
  * WO-7.1 — the ONE LINK-FORMAT LAW, in code. The identity link the system
@@ -33,10 +35,10 @@ export function vitrineSlugFromPath(pathname: string): string | undefined {
 }
 
 /**
- * The DEMO identity registry (demo/store.ts is frozen, so the reseller vitrine
- * identity lives here). The short code is ASCII per ResellerShortCodeSchema
- * (`AICHA-4821`); the DISPLAY name carries the diacritic (« Aïcha »). Prices
- * are HER prices (productSubtotal = B + M) — no supplier, no commission (SP-I03).
+ * A reseller vitrine identity. The short code is ASCII per
+ * ResellerShortCodeSchema (`AICHA-4821`); the DISPLAY name carries the diacritic
+ * (« Aïcha »). Prices are HER prices (productSubtotal = B + M) — no supplier, no
+ * commission (SP-I03, enforced structurally by the view model).
  */
 export interface VitrineIdentity {
   readonly resellerId: string;
@@ -45,24 +47,26 @@ export interface VitrineIdentity {
   readonly view: VitrineViewModel;
 }
 
-const DEMO_VITRINE: VitrineIdentity = {
-  resellerId: 'res_aicha',
-  shortCode: 'AICHA-4821',
-  slug: 'aicha-4821',
-  view: {
-    resellerName: 'Aïcha',
-    zone: 'Rood Woko, Ouagadougou',
-    products: [
-      { productName: 'Bazin riche brodé', priceFcfa: 11_500, inStock: true },
-      { productName: 'Sac en cuir tanné', priceFcfa: 9_000, inStock: true },
-      { productName: 'Foulard wax', priceFcfa: 3_500, inStock: false },
-    ],
-  },
-};
-
-/** Resolve a slug → its vitrine identity (server-side in production; demo map here). */
+/**
+ * SP#001-B — vitrine resolution goes REAL. The 1-of-5 hack (only `aicha-4821`
+ * resolved) is gone: a slug resolves iff THE PRODUCER
+ * (`@shop-plus/store-projection`) reports that storefront PUBLISHED — any
+ * published store resolves, an unknown OR unpublished slug resolves to
+ * `undefined` (honest not-found). The vitrine's product rows come from the same
+ * demo catalog that seeds the event log; in production the storefront-service
+ * serves this, unchanged callers.
+ */
 export function resolveVitrineSlug(slug: string): VitrineIdentity | undefined {
-  return slug === DEMO_VITRINE.slug ? DEMO_VITRINE : undefined;
+  const published = resolvePublishedStore(demoStoreEvents(), slug);
+  if (!published) return undefined; // unknown or not discoverable → not-found
+  const store = DEMO_STORES.find((s) => s.slug === slug);
+  if (!store) return undefined;
+  return {
+    resellerId: store.resellerId,
+    shortCode: store.shortCode,
+    slug: store.slug,
+    view: { resellerName: store.resellerName, zone: store.vitrineZone, products: store.products },
+  };
 }
 
 /**

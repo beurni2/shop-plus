@@ -17,7 +17,7 @@ import { renderBoutiques } from '../src/boutiques-view';
  */
 
 describe('SP-I11 — the order is deterministic (last update, most recent first) and stated on-screen', () => {
-  it('orders by updatedRank desc, stable — never a score', () => {
+  it('orders by real last-update time desc, stable — never a score', () => {
     const ids = orderedBoutiques().map((s) => s.storefrontId);
     expect(ids).toEqual(['sf_aicha', 'sf_mariam', 'sf_kadi', 'sf_fanta', 'sf_awa']);
     // pure: same input, same output, no clock, no randomness

@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   StoreDiscoveryResponseSchema,
   buildStoreDiscoveryResponse,
+  projectStoreDiscovery,
   type StorePreview,
 } from '../src/discovery.js';
+import type { StoreProjectionEvent } from '@shop-plus/store-projection';
 
 // CI gate: discovery-returns-stores (SP-I05) + deterministic order (SP-I11).
 
@@ -54,5 +56,35 @@ describe('discovery-returns-stores', () => {
       ),
     );
     expect(buildStoreDiscoveryResponse(stores)).toEqual(fixture);
+  });
+});
+
+describe('projectStoreDiscovery — fed by THE ONE PRODUCER (SP#001-B, live events)', () => {
+  const T = (h: number) => `2026-07-14T${String(h).padStart(2, '0')}:00:00.000Z`;
+  const events: StoreProjectionEvent[] = [
+    { type: 'storefront.created', storefrontId: 'sf_a', resellerId: 'res_a', storeName: 'Aïcha Mode', zone: 'Dassasgho', slug: 'aicha-4821', at: T(8) },
+    { type: 'storefront.published', storefrontId: 'sf_a', discoverable: true, at: T(9) },
+    { type: 'listing.published', storefrontId: 'sf_a', listingId: 'l_a1', hubVerified: true, at: T(10) },
+    { type: 'storefront.created', storefrontId: 'sf_b', resellerId: 'res_b', storeName: 'Boutique Mariam', zone: 'Dassasgho', slug: 'mariam-2170', at: T(8) },
+    { type: 'storefront.published', storefrontId: 'sf_b', discoverable: true, at: T(9) },
+    { type: 'storefront.created', storefrontId: 'sf_hidden', resellerId: 'res_h', storeName: 'Pas Publiée', zone: 'Gounghin', slug: 'cachee-0000', at: T(8) },
+    // sf_hidden is created but NEVER published — must not appear in discovery.
+  ];
+
+  it('only DISCOVERABLE storefronts project, and the top level is a store collection (SP-I05, live)', () => {
+    const r = projectStoreDiscovery(events);
+    expect(Object.keys(r)).toEqual(['stores']);
+    expect(r.stores.map((s) => s.storefrontId).sort()).toEqual(['sf_a', 'sf_b']); // sf_hidden absent
+    for (const s of r.stores) {
+      expect(s.storefrontId).toBeTruthy();
+      expect(s.resellerId).toBeTruthy();
+      expect(s).not.toHaveProperty('productName'); // never a product row
+    }
+  });
+
+  it('keeps the deterministic zone→name→id envelope order over the producer output', () => {
+    const r = projectStoreDiscovery(events);
+    // both in Dassasgho → ordered by store name: "Aïcha Mode" before "Boutique Mariam"
+    expect(r.stores.map((s) => s.storeName)).toEqual(['Aïcha Mode', 'Boutique Mariam']);
   });
 });

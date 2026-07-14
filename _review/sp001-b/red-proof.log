@@ -1,0 +1,119 @@
+
+ RUN  v4.1.10 /tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/sp001b-redproof
+
+ ❯ store-projection.redproof.test.ts (7 tests | 5 failed) 19ms
+     × ONLY-DISCOVERABLE-STOREFRONTS-PROJECT: a created-but-unpublished store never appears; unpublishing removes it 9ms
+     × ORDERING-FOLLOWS-REAL-EVENTS: order is lastUpdated desc — a later listing event lifts its store above one published later 2ms
+     × productCount and lastUpdated come from live listings — an auto-hidden listing drops from the count and still advances lastUpdated 1ms
+     × VERIFIED-RENDERS-ONLY-WHERE-TRUE (SP-I19): verified iff a live listing is hub-verified; a hidden verified listing does not keep the badge lit 1ms
+     × resolves ANY published storefront by its canon slug — TWO different published stores, not a 1-of-5 hack 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  store-projection.redproof.test.ts > projectStores — the live directory projection > ONLY-DISCOVERABLE-STOREFRONTS-PROJECT: a created-but-unpublished store never appears; unpublishing removes it
+AssertionError: expected [ 'sf_a', 'sf_b', 'sf_c' ] to deeply equal [ 'sf_a' ]
+
+- Expected
++ Received
+
+  [
+    "sf_a",
++   "sf_b",
++   "sf_c",
+  ]
+
+ ❯ store-projection.redproof.test.ts:44:47
+     42|     ];
+     43|     const stores = projectStores(events);
+     44|     expect(stores.map((s) => s.storefrontId)).toEqual(['sf_a']); // ON…
+       |                                               ^
+     45|     expect(stores.every((s) => s.discoverable)).toBe(true);
+     46|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  store-projection.redproof.test.ts > projectStores — the live directory projection > ORDERING-FOLLOWS-REAL-EVENTS: order is lastUpdated desc — a later listing event lifts its store above one published later
+AssertionError: expected [ 'sf_a', 'sf_b' ] to deeply equal [ 'sf_b', 'sf_a' ]
+
+- Expected
++ Received
+
+  [
+-   "sf_b",
+    "sf_a",
++   "sf_b",
+  ]
+
+ ❯ store-projection.redproof.test.ts:55:60
+     53|       published('sf_b', true, T(10)), // B last touched at 10:00 → B a…
+     54|     ];
+     55|     expect(projectStores(base).map((s) => s.storefrontId)).toEqual(['s…
+       |                                                            ^
+     56|
+     57|     // Now a REAL listing event on A at 11:00 lifts A above B — order …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  store-projection.redproof.test.ts > projectStores — the live directory projection > productCount and lastUpdated come from live listings — an auto-hidden listing drops from the count and still advances lastUpdated
+AssertionError: expected 2 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ store-projection.redproof.test.ts:73:33
+     71|     ];
+     72|     const store = projectStores(events)[0];
+     73|     expect(store?.productCount).toBe(1); // l2 live, l1 hidden
+       |                                 ^
+     74|     expect(store?.lastUpdated).toBe(T(12)); // the hide is a real upda…
+     75|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  store-projection.redproof.test.ts > projectStores — the live directory projection > VERIFIED-RENDERS-ONLY-WHERE-TRUE (SP-I19): verified iff a live listing is hub-verified; a hidden verified listing does not keep the badge lit
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ store-projection.redproof.test.ts:83:37
+     81|       listed('sf_a', 'l1', false, T(10)), // stock NOT hub-verified
+     82|     ]);
+     83|     expect(unverified[0]?.verified).toBe(false); // no badge where it …
+       |                                     ^
+     84|
+     85|     const verified = projectStores([
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  store-projection.redproof.test.ts > resolvePublishedStore — vitrine resolution goes real > resolves ANY published storefront by its canon slug — TWO different published stores, not a 1-of-5 hack
+AssertionError: expected undefined to be 'sf_c' // Object.is equality
+
+- Expected:
+"sf_c"
+
++ Received:
+undefined
+
+ ❯ store-projection.redproof.test.ts:137:32
+    135|     // the second published store MUST resolve too — this is what kill…
+    136|     const kadi = resolvePublishedStore(events, 'kadi-5530');
+    137|     expect(kadi?.storefrontId).toBe('sf_c');
+       |                                ^
+    138|     expect(kadi?.storeName).toBe('BOUTIQUE KADI');
+    139|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 2 passed (7)
+   Start at  03:23:10
+   Duration  243ms (transform 41ms, setup 0ms, import 57ms, tests 19ms, environment 0ms)
+

@@ -1,0 +1,1164 @@
+diff --git a/apps/buyer-pwa/package.json b/apps/buyer-pwa/package.json
+index 2f4aea8..36562b9 100644
+--- a/apps/buyer-pwa/package.json
++++ b/apps/buyer-pwa/package.json
+@@ -15,7 +15,8 @@
+   },
+   "dependencies": {
+     "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/i18n",
+-    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/ui-tokens"
++    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/ui-tokens",
++    "@shop-plus/store-projection": "workspace:*"
+   },
+   "devDependencies": {
+     "@playwright/test": "^1.57.0",
+diff --git a/apps/buyer-pwa/src/boutiques-data.ts b/apps/buyer-pwa/src/boutiques-data.ts
+index 10b4621..41200b9 100644
+--- a/apps/buyer-pwa/src/boutiques-data.ts
++++ b/apps/buyer-pwa/src/boutiques-data.ts
+@@ -1,19 +1,21 @@
++import { projectStores } from '@shop-plus/store-projection';
++import { DEMO_NOW, demoStoreEvents } from './demo-stores';
++
+ /**
+- * WO-7.2a — S3 DÉCOUVERTE data (buyer PWA). SP-I05 (quoted): "Discovery MUST
+- * return reseller STORES, not a cross-reseller product pool." SP-I11: the order
+- * is DETERMINISTIC — here « dernière mise à jour, la plus récente d'abord » —
+- * and its sentence is rendered on-screen (never a hidden score). The directory
+- * carries NO price and NO product photo (« le prix vit dans la vitrine ») and
+- * NO supplier/commission — a store lists its name, zone, product count, and
+- * when it was last updated; tapping it opens her vitrine (canon /v/{slug}).
++ * WO-7.2a → SP#001-B — S3 DÉCOUVERTE data (buyer PWA). SP-I05 (quoted):
++ * "Discovery MUST return reseller STORES, not a cross-reseller product pool."
++ * SP-I11: the order is DETERMINISTIC — « dernière mise à jour, la plus récente
++ * d'abord » — and its sentence is rendered on-screen (never a hidden score). The
++ * directory carries NO price and NO product photo (« le prix vit dans la
++ * vitrine ») and NO supplier/commission.
+  *
+- * PWA-local demo registry (same pattern as the vitrine's demo map): the buyer
+- * app has no backend. The separate `discovery-service` contract orders
+- * zone→name→id for its own envelope; THIS view orders by last-update per the
+- * S3 mockup — both are deterministic (SP-I11), a view concern, not a contract
+- * change. The store cards link to canon `/v/{slug}`; only Aïcha's slug resolves
+- * to a full vitrine in this slice (the other four are directory entries whose
+- * vitrines are follow-up demo data — journaled).
++ * SP#001-B: the hard-coded `updatedRank` is GONE. This directory is now the
++ * output of THE ONE PRODUCER (`@shop-plus/store-projection`) folded over the
++ * demo event log (`demo-stores`) — the SAME producer that feeds the
++ * `discovery-service`. `productCount`, the order, the « quand » label, and the
++ * hub-verified badge all fall out of real events; nothing is baked. The relative
++ * « quand » label is derived from `lastUpdated` against the fixed demo clock
++ * (deterministic, SP-I11).
+  */
+ 
+ export interface BoutiqueQuand {
+@@ -30,55 +32,66 @@ export interface BoutiqueEntry {
+   readonly storeName: string;
+   readonly zone: string;
+   readonly productCount: number;
+-  /** Deterministic sort key — higher is more recent (« la plus récente d'abord »). */
+-  readonly updatedRank: number;
+   readonly quand: BoutiqueQuand;
+-  /** Hub-verified badge appears ONLY where true (SP-I19). */
++  /** Hub-verified badge appears ONLY where true (SP-I19) — derived, never baked. */
+   readonly verified: boolean;
+   /** The canon identity slug — the card links to `/v/{slug}`. */
+   readonly slug: string;
+ }
+ 
+-/** The demo directory — the five stores the S3 mockup specifies, deep-frozen. */
+-const RAW_STORES: readonly BoutiqueEntry[] = [
+-  { storefrontId: 'sf_aicha', resellerId: 'res_aicha', storeName: 'CHEZ AÏCHA', zone: 'Rood Woko', productCount: 6, updatedRank: 5, quand: { kind: 'hier' }, verified: true, slug: 'aicha-4821' },
+-  { storefrontId: 'sf_mariam', resellerId: 'res_mariam', storeName: 'CHEZ MARIAM', zone: 'Gounghin', productCount: 4, updatedRank: 4, quand: { kind: 'jours', n: 2 }, verified: true, slug: 'mariam-2170' },
+-  { storefrontId: 'sf_kadi', resellerId: 'res_kadi', storeName: 'BOUTIQUE KADI', zone: 'Dassasgho', productCount: 9, updatedRank: 3, quand: { kind: 'jours', n: 3 }, verified: true, slug: 'kadi-5530' },
+-  { storefrontId: 'sf_fanta', resellerId: 'res_fanta', storeName: 'CHEZ FANTA', zone: 'Tanghin', productCount: 3, updatedRank: 2, quand: { kind: 'semaine' }, verified: true, slug: 'fanta-8090' },
+-  { storefrontId: 'sf_awa', resellerId: 'res_awa', storeName: 'CHEZ AWA T.', zone: 'Rood Woko', productCount: 5, updatedRank: 1, quand: { kind: 'semaine' }, verified: true, slug: 'awa-3360' },
+-];
+-const STORES: readonly BoutiqueEntry[] = RAW_STORES.map((s) => Object.freeze(s));
++/** « Quand » from the real last-update time, against the fixed demo clock. */
++function quandFromLastUpdated(lastUpdated: string): BoutiqueQuand {
++  const diffDays = Math.floor((Date.parse(DEMO_NOW) - Date.parse(lastUpdated)) / 86_400_000);
++  if (diffDays < 2) return { kind: 'hier' };
++  if (diffDays < 7) return { kind: 'jours', n: diffDays };
++  return { kind: 'semaine' };
++}
++
++/**
++ * The directory, PROJECTED (never hand-authored). Only discoverable storefronts
++ * appear, ordered by real last-update time (SP-I11) — the producer's order is
++ * the directory's order. Computed once from the fixed demo log: pure, no clock.
++ */
++const STORES: readonly BoutiqueEntry[] = projectStores(demoStoreEvents()).map((s) => ({
++  storefrontId: s.storefrontId,
++  resellerId: s.resellerId,
++  storeName: s.storeName,
++  zone: s.zone,
++  productCount: s.productCount,
++  quand: quandFromLastUpdated(s.lastUpdated),
++  verified: s.verified,
++  slug: s.slug,
++}));
+ 
+ /** The zone filter chips, in mockup order (« TOUTES » is the no-filter chip). */
+ export const BOUTIQUE_ZONES: readonly string[] = Object.freeze([
+   'Rood Woko', 'Gounghin', 'Dassasgho', 'Tanghin',
+ ]);
+ 
+-/** Deterministic order: last update, most recent first (SP-I11) — NEVER a score. */
+-export function orderedBoutiques(stores: readonly BoutiqueEntry[] = STORES): readonly BoutiqueEntry[] {
+-  return [...stores].sort((a, b) => b.updatedRank - a.updatedRank);
++/** The deterministic order (SP-I11), already applied by the producer (last update desc). */
++export function orderedBoutiques(): readonly BoutiqueEntry[] {
++  return STORES;
+ }
+ 
+ /**
+  * The search filter (SP-I11): a DETERMINISTIC substring match over name + zone,
+  * never a relevance score. Order stays last-update-desc. Empty query → all.
+  */
+-export function filterBoutiques(query: string, stores: readonly BoutiqueEntry[] = STORES): readonly BoutiqueEntry[] {
++export function filterBoutiques(query: string): readonly BoutiqueEntry[] {
+   const q = query.trim().toLowerCase();
+-  const base = orderedBoutiques(stores);
+-  if (q === '') return base;
+-  return base.filter((s) => s.storeName.toLowerCase().includes(q) || s.zone.toLowerCase().includes(q));
++  if (q === '') return STORES;
++  return STORES.filter((s) => s.storeName.toLowerCase().includes(q) || s.zone.toLowerCase().includes(q));
+ }
+ 
+ /** All demo stores, ordered — the default directory. */
+ export function allBoutiques(): readonly BoutiqueEntry[] {
+-  return orderedBoutiques();
++  return STORES;
+ }
+ 
+ /**
+  * The SP-I05 discovery shape — a STORE collection (never a product pool). This
+- * is the exact projection the `discovery-returns-stores` gate scans; a test
+- * pins the checked-in fixture to it so the gate can never drift from the data.
++ * is the exact projection the `discovery-returns-stores` gate scans; a test pins
++ * the checked-in fixture to it so the gate can never drift from the data.
+  */
+ export interface DiscoveryStore {
+   readonly storefrontId: string;
+@@ -92,7 +105,7 @@ export interface DiscoveryResponse {
+ }
+ export function toDiscoveryResponse(): DiscoveryResponse {
+   return {
+-    stores: orderedBoutiques().map((s) => ({
++    stores: STORES.map((s) => ({
+       storefrontId: s.storefrontId,
+       resellerId: s.resellerId,
+       storeName: s.storeName,
+diff --git a/apps/buyer-pwa/src/demo-stores.ts b/apps/buyer-pwa/src/demo-stores.ts
+new file mode 100644
+index 0000000..2aea463
+--- /dev/null
++++ b/apps/buyer-pwa/src/demo-stores.ts
+@@ -0,0 +1,131 @@
++import type { StoreProjectionEvent } from '@shop-plus/store-projection';
++import type { VitrineProduct } from './vitrine-view';
++
++/**
++ * SP#001-B — THE ONE DEMO DATASET (buyer PWA has no backend). This is the
++ * certified-mock event SOURCE: the same five S3 stores, expressed as the REAL
++ * storefront + listing events the aggregates emit (created → published →
++ * listings). It feeds BOTH customer surfaces through the ONE producer
++ * (`@shop-plus/store-projection`): the S3 directory (`boutiques-data`) and the
++ * vitrine resolution (`vitrine-link`). Nothing here is hard-coded ordering or a
++ * baked `updatedRank` — the directory's order, product count, last-update label,
++ * and hub-verified badge all fall out of these events.
++ *
++ * The shapes are real; only the SOURCE is demo (Execution Contract §3 —
++ * mock-certified). The real event stream (storefront-service aggregates, live
++ * Boutik supply) replaces this map without touching the producer or the views.
++ */
++
++export interface DemoStore {
++  readonly storefrontId: string;
++  readonly resellerId: string;
++  /** Directory display name (« CHEZ AÏCHA »). */
++  readonly storeName: string;
++  /** Vitrine header name (« Aïcha ») — the commercial relationship (SP-I03). */
++  readonly resellerName: string;
++  /** ASCII short code per canon `ResellerShortCodeSchema` (`AICHA-4821`). */
++  readonly shortCode: string;
++  /** Directory zone (« Rood Woko »). */
++  readonly zone: string;
++  /** Vitrine header zone, a landmark (« Rood Woko, Ouagadougou »). */
++  readonly vitrineZone: string;
++  readonly slug: string;
++  /** Number of live listed products — the directory count. */
++  readonly productCount: number;
++  /** Hub-verified stock (SP-I19) — drives the badge, only where true. */
++  readonly verified: boolean;
++  /** Days before the demo reference clock the store was last touched. */
++  readonly daysAgo: number;
++  /** The vitrine's product rows — HER prices (productSubtotal), no supplier/commission. */
++  readonly products: readonly VitrineProduct[];
++}
++
++/** The demo reference clock — fixed, so the relative-time labels stay deterministic (SP-I11). */
++export const DEMO_NOW = '2026-07-14T12:00:00.000Z';
++
++/**
++ * The five S3 stores. Directory `productCount` and the vitrine `products` are
++ * independent by design (the vitrine shows a curated sample, not the whole
++ * shelf) — as in WO-7.2a. Aïcha's vitrine is the canon pinned demo; the other
++ * four carry small honest sample shelves so every card opens a real vitrine.
++ */
++export const DEMO_STORES: readonly DemoStore[] = [
++  {
++    storefrontId: 'sf_aicha', resellerId: 'res_aicha', storeName: 'CHEZ AÏCHA', resellerName: 'Aïcha',
++    shortCode: 'AICHA-4821', zone: 'Rood Woko', vitrineZone: 'Rood Woko, Ouagadougou', slug: 'aicha-4821',
++    productCount: 6, verified: true, daysAgo: 1,
++    products: [
++      { productName: 'Bazin riche brodé', priceFcfa: 11_500, inStock: true },
++      { productName: 'Sac en cuir tanné', priceFcfa: 9_000, inStock: true },
++      { productName: 'Foulard wax', priceFcfa: 3_500, inStock: false },
++    ],
++  },
++  {
++    storefrontId: 'sf_mariam', resellerId: 'res_mariam', storeName: 'CHEZ MARIAM', resellerName: 'Mariam',
++    shortCode: 'MARIAM-2170', zone: 'Gounghin', vitrineZone: 'Gounghin, Ouagadougou', slug: 'mariam-2170',
++    productCount: 4, verified: true, daysAgo: 2,
++    products: [
++      { productName: 'Pagne Faso Dan Fani', priceFcfa: 8_500, inStock: true },
++      { productName: 'Ensemble bébé wax', priceFcfa: 6_000, inStock: true },
++      { productName: 'Sandales en cuir', priceFcfa: 4_500, inStock: false },
++    ],
++  },
++  {
++    storefrontId: 'sf_kadi', resellerId: 'res_kadi', storeName: 'BOUTIQUE KADI', resellerName: 'Kadi',
++    shortCode: 'KADI-5530', zone: 'Dassasgho', vitrineZone: 'Dassasgho, Ouagadougou', slug: 'kadi-5530',
++    productCount: 9, verified: true, daysAgo: 3,
++    products: [
++      { productName: 'Chaussures femme', priceFcfa: 12_000, inStock: true },
++      { productName: 'Sac à main', priceFcfa: 7_500, inStock: true },
++      { productName: 'Foulard en soie', priceFcfa: 5_000, inStock: true },
++    ],
++  },
++  {
++    storefrontId: 'sf_fanta', resellerId: 'res_fanta', storeName: 'CHEZ FANTA', resellerName: 'Fanta',
++    shortCode: 'FANTA-8090', zone: 'Tanghin', vitrineZone: 'Tanghin, Ouagadougou', slug: 'fanta-8090',
++    productCount: 3, verified: true, daysAgo: 8,
++    products: [
++      { productName: 'Robe en pagne', priceFcfa: 9_500, inStock: true },
++      { productName: 'Voile brodé', priceFcfa: 6_500, inStock: true },
++      { productName: 'Bracelets dorés', priceFcfa: 3_000, inStock: false },
++    ],
++  },
++  {
++    storefrontId: 'sf_awa', resellerId: 'res_awa', storeName: 'CHEZ AWA T.', resellerName: 'Awa',
++    shortCode: 'AWA-3360', zone: 'Rood Woko', vitrineZone: 'Rood Woko, Ouagadougou', slug: 'awa-3360',
++    productCount: 5, verified: true, daysAgo: 9,
++    products: [
++      { productName: 'Bazin Getzner', priceFcfa: 15_000, inStock: true },
++      { productName: 'Chaussures enfant', priceFcfa: 4_000, inStock: true },
++      { productName: 'Parfum en flacon', priceFcfa: 5_500, inStock: true },
++    ],
++  },
++];
++
++/** The demo store, keyed by slug — for vitrine resolution. */
++export function demoStoreBySlug(slug: string): DemoStore | undefined {
++  return DEMO_STORES.find((s) => s.slug === slug);
++}
++
++function timestampFor(daysAgo: number): string {
++  return new Date(Date.parse(DEMO_NOW) - daysAgo * 86_400_000).toISOString();
++}
++
++/**
++ * The demo event log — every store created (unpublished), then published
++ * (discoverable), then its listings published (all hub-verified per the store's
++ * signal). One timestamp per store keeps `lastUpdated` clean; the producer
++ * derives count, order, last-update, and badge from these events alone.
++ */
++export function demoStoreEvents(): readonly StoreProjectionEvent[] {
++  const events: StoreProjectionEvent[] = [];
++  for (const s of DEMO_STORES) {
++    const at = timestampFor(s.daysAgo);
++    events.push({ type: 'storefront.created', storefrontId: s.storefrontId, resellerId: s.resellerId, storeName: s.storeName, zone: s.zone, slug: s.slug, at });
++    events.push({ type: 'storefront.published', storefrontId: s.storefrontId, discoverable: true, at });
++    for (let i = 0; i < s.productCount; i += 1) {
++      events.push({ type: 'listing.published', storefrontId: s.storefrontId, listingId: `${s.storefrontId}-l${i}`, hubVerified: s.verified, at });
++    }
++  }
++  return events;
++}
+diff --git a/apps/buyer-pwa/src/vitrine-link.ts b/apps/buyer-pwa/src/vitrine-link.ts
+index 5bad449..7acb571 100644
+--- a/apps/buyer-pwa/src/vitrine-link.ts
++++ b/apps/buyer-pwa/src/vitrine-link.ts
+@@ -1,5 +1,7 @@
+ import { shortCodeToSlug, type AttributionArrival } from '@platform/contracts';
++import { resolvePublishedStore } from '@shop-plus/store-projection';
+ import type { VitrineViewModel } from './vitrine-view';
++import { DEMO_STORES, demoStoreEvents } from './demo-stores';
+ 
+ /**
+  * WO-7.1 — the ONE LINK-FORMAT LAW, in code. The identity link the system
+@@ -33,10 +35,10 @@ export function vitrineSlugFromPath(pathname: string): string | undefined {
+ }
+ 
+ /**
+- * The DEMO identity registry (demo/store.ts is frozen, so the reseller vitrine
+- * identity lives here). The short code is ASCII per ResellerShortCodeSchema
+- * (`AICHA-4821`); the DISPLAY name carries the diacritic (« Aïcha »). Prices
+- * are HER prices (productSubtotal = B + M) — no supplier, no commission (SP-I03).
++ * A reseller vitrine identity. The short code is ASCII per
++ * ResellerShortCodeSchema (`AICHA-4821`); the DISPLAY name carries the diacritic
++ * (« Aïcha »). Prices are HER prices (productSubtotal = B + M) — no supplier, no
++ * commission (SP-I03, enforced structurally by the view model).
+  */
+ export interface VitrineIdentity {
+   readonly resellerId: string;
+@@ -45,24 +47,26 @@ export interface VitrineIdentity {
+   readonly view: VitrineViewModel;
+ }
+ 
+-const DEMO_VITRINE: VitrineIdentity = {
+-  resellerId: 'res_aicha',
+-  shortCode: 'AICHA-4821',
+-  slug: 'aicha-4821',
+-  view: {
+-    resellerName: 'Aïcha',
+-    zone: 'Rood Woko, Ouagadougou',
+-    products: [
+-      { productName: 'Bazin riche brodé', priceFcfa: 11_500, inStock: true },
+-      { productName: 'Sac en cuir tanné', priceFcfa: 9_000, inStock: true },
+-      { productName: 'Foulard wax', priceFcfa: 3_500, inStock: false },
+-    ],
+-  },
+-};
+-
+-/** Resolve a slug → its vitrine identity (server-side in production; demo map here). */
++/**
++ * SP#001-B — vitrine resolution goes REAL. The 1-of-5 hack (only `aicha-4821`
++ * resolved) is gone: a slug resolves iff THE PRODUCER
++ * (`@shop-plus/store-projection`) reports that storefront PUBLISHED — any
++ * published store resolves, an unknown OR unpublished slug resolves to
++ * `undefined` (honest not-found). The vitrine's product rows come from the same
++ * demo catalog that seeds the event log; in production the storefront-service
++ * serves this, unchanged callers.
++ */
+ export function resolveVitrineSlug(slug: string): VitrineIdentity | undefined {
+-  return slug === DEMO_VITRINE.slug ? DEMO_VITRINE : undefined;
++  const published = resolvePublishedStore(demoStoreEvents(), slug);
++  if (!published) return undefined; // unknown or not discoverable → not-found
++  const store = DEMO_STORES.find((s) => s.slug === slug);
++  if (!store) return undefined;
++  return {
++    resellerId: store.resellerId,
++    shortCode: store.shortCode,
++    slug: store.slug,
++    view: { resellerName: store.resellerName, zone: store.vitrineZone, products: store.products },
++  };
+ }
+ 
+ /**
+diff --git a/apps/buyer-pwa/test/boutiques.test.ts b/apps/buyer-pwa/test/boutiques.test.ts
+index d91d4b2..cfc9a57 100644
+--- a/apps/buyer-pwa/test/boutiques.test.ts
++++ b/apps/buyer-pwa/test/boutiques.test.ts
+@@ -17,7 +17,7 @@ import { renderBoutiques } from '../src/boutiques-view';
+  */
+ 
+ describe('SP-I11 — the order is deterministic (last update, most recent first) and stated on-screen', () => {
+-  it('orders by updatedRank desc, stable — never a score', () => {
++  it('orders by real last-update time desc, stable — never a score', () => {
+     const ids = orderedBoutiques().map((s) => s.storefrontId);
+     expect(ids).toEqual(['sf_aicha', 'sf_mariam', 'sf_kadi', 'sf_fanta', 'sf_awa']);
+     // pure: same input, same output, no clock, no randomness
+diff --git a/packages/store-projection/package.json b/packages/store-projection/package.json
+new file mode 100644
+index 0000000..6bdffb9
+--- /dev/null
++++ b/packages/store-projection/package.json
+@@ -0,0 +1,23 @@
++{
++  "name": "@shop-plus/store-projection",
++  "version": "0.0.1",
++  "private": true,
++  "description": "SP#001-B — THE ONE store-directory producer: a pure fold from the storefront + listing event stream to the store projection, consumed by both the buyer PWA directory and the discovery-service. Dependency-free; canon shapes never redefined.",
++  "license": "UNLICENSED",
++  "type": "module",
++  "exports": {
++    ".": {
++      "types": "./src/index.ts",
++      "import": "./src/index.ts"
++    }
++  },
++  "scripts": {
++    "build": "tsc -p tsconfig.json",
++    "typecheck": "tsc -p tsconfig.json --noEmit",
++    "test": "vitest run"
++  },
++  "devDependencies": {
++    "typescript": "^5.9.2",
++    "vitest": "^3.2.4"
++  }
++}
+diff --git a/packages/store-projection/src/index.ts b/packages/store-projection/src/index.ts
+new file mode 100644
+index 0000000..b1df9bb
+--- /dev/null
++++ b/packages/store-projection/src/index.ts
+@@ -0,0 +1,5 @@
++// @shop-plus/store-projection — THE ONE store-directory producer (SP#001-B).
++// A pure fold from the storefront + listing event stream to the store
++// projection, consumed by BOTH the buyer PWA directory and the
++// discovery-service. Dependency-free; canon shapes are never redefined here.
++export * from './store-projection.js';
+diff --git a/packages/store-projection/src/store-projection.ts b/packages/store-projection/src/store-projection.ts
+new file mode 100644
+index 0000000..679567f
+--- /dev/null
++++ b/packages/store-projection/src/store-projection.ts
+@@ -0,0 +1,198 @@
++/**
++ * STORE-PROJECTION (SP#001-B) — THE ONE PRODUCER.
++ *
++ * A single pure fold from the storefront + listing EVENT stream to the store
++ * directory projection. It is the ONE producer that feeds BOTH customer
++ * surfaces: the buyer PWA directory (S3 Découverte) and the `discovery-service`
++ * envelope. Killing the two hard-coded datasets is the point — a store's
++ * `productCount`, `lastUpdated`, and hub-verified badge now follow REAL events,
++ * never a baked `updatedRank`.
++ *
++ * SP-I05 (quoted): "Discovery MUST return reseller STORES, not a cross-reseller
++ * product pool." The output is a STORE collection; a product never rises to the
++ * top level. SP-I11 (quoted): deterministic — the order is `lastUpdated` desc
++ * (« la plus récente d'abord ») with a `storefrontId` tiebreak; never a learned
++ * score. SP-I19 (quoted): the hub-verified badge renders ONLY where true — a
++ * store is `verified` iff it has at least one LIVE listing whose stock is
++ * hub-verified; a store with no verified live stock carries no badge.
++ *
++ * The events are the Shop+ projection's VIEW of the canon event stream
++ * (`storefront.created/published.v1`, `listing.published/auto_hidden.v1`). Each
++ * source (the real service, or the buyer PWA's certified demo log) maps its
++ * events into this union at its own boundary; canon defines no per-event payload
++ * shape, so `hubVerified` rides the listing event as app-boundary data (the
++ * Boutik+ hub signal; the real hub wire is deferred — the demo-supply seam
++ * supplies it, honestly, per store).
++ *
++ * Pure and dependency-free (no `@platform/contracts` runtime import) so it is
++ * safe inside the buyer PWA's payload budget.
++ */
++
++export type StoreProjectionEvent =
++  | {
++      readonly type: 'storefront.created';
++      readonly storefrontId: string;
++      readonly resellerId: string;
++      readonly storeName: string;
++      readonly zone: string;
++      readonly slug: string;
++      readonly at: string;
++    }
++  | {
++      readonly type: 'storefront.published';
++      readonly storefrontId: string;
++      readonly discoverable: boolean;
++      readonly at: string;
++    }
++  | {
++      readonly type: 'listing.published';
++      readonly storefrontId: string;
++      readonly listingId: string;
++      /** The Boutik+ hub-verified-stock signal (SP-I19). Real wire deferred. */
++      readonly hubVerified: boolean;
++      readonly at: string;
++    }
++  | {
++      readonly type: 'listing.auto_hidden';
++      readonly storefrontId: string;
++      readonly listingId: string;
++      readonly at: string;
++    };
++
++/** One projected store — the directory's row, derived, never hard-coded. */
++export interface StoreProjection {
++  readonly storefrontId: string;
++  readonly resellerId: string;
++  readonly storeName: string;
++  readonly zone: string;
++  /** The canon identity slug — the card links to `/v/{slug}`. */
++  readonly slug: string;
++  readonly discoverable: boolean;
++  /** Count of LIVE listings (published, not auto-hidden). */
++  readonly productCount: number;
++  /** Max event time across the storefront + its listings — the ordering truth. */
++  readonly lastUpdated: string;
++  /** ≥1 live listing with hub-verified stock (SP-I19) — else no badge. */
++  readonly verified: boolean;
++}
++
++interface ListingState {
++  live: boolean;
++  hubVerified: boolean;
++}
++
++interface StoreAcc {
++  storefrontId: string;
++  resellerId: string;
++  storeName: string;
++  zone: string;
++  slug: string;
++  discoverable: boolean;
++  lastUpdated: string;
++  readonly listings: Map<string, ListingState>;
++}
++
++/** ISO-8601 UTC timestamps in one format sort lexicographically; keep the later. */
++function later(a: string, b: string): string {
++  return b > a ? b : a;
++}
++
++/**
++ * Fold the event stream into per-store accumulators. Single pass, deterministic:
++ * the same events in the same order always yield the same accumulators. A
++ * listing event for an unknown storefront is skipped (a listing can never
++ * project a store the directory has never heard of).
++ */
++function foldStores(events: readonly StoreProjectionEvent[]): Map<string, StoreAcc> {
++  const byId = new Map<string, StoreAcc>();
++  for (const ev of events) {
++    if (ev.type === 'storefront.created') {
++      const existing = byId.get(ev.storefrontId);
++      if (existing) {
++        // Idempotent replay: identity is fixed by the first create; only time advances.
++        existing.lastUpdated = later(existing.lastUpdated, ev.at);
++        continue;
++      }
++      byId.set(ev.storefrontId, {
++        storefrontId: ev.storefrontId,
++        resellerId: ev.resellerId,
++        storeName: ev.storeName,
++        zone: ev.zone,
++        slug: ev.slug,
++        discoverable: false,
++        lastUpdated: ev.at,
++        listings: new Map<string, ListingState>(),
++      });
++      continue;
++    }
++    const store = byId.get(ev.storefrontId);
++    if (!store) continue; // event for an unknown storefront — skip
++    if (ev.type === 'storefront.published') {
++      store.discoverable = ev.discoverable;
++      store.lastUpdated = later(store.lastUpdated, ev.at);
++    } else if (ev.type === 'listing.published') {
++      store.listings.set(ev.listingId, { live: true, hubVerified: ev.hubVerified });
++      store.lastUpdated = later(store.lastUpdated, ev.at);
++    } else {
++      // listing.auto_hidden — hiding is a store update; the listing goes non-live.
++      const listing = store.listings.get(ev.listingId);
++      if (listing) listing.live = false;
++      store.lastUpdated = later(store.lastUpdated, ev.at);
++    }
++  }
++  return byId;
++}
++
++function toProjection(store: StoreAcc): StoreProjection {
++  let productCount = 0;
++  let verified = false;
++  for (const listing of store.listings.values()) {
++    if (!listing.live) continue;
++    productCount += 1;
++    if (listing.hubVerified) verified = true;
++  }
++  return {
++    storefrontId: store.storefrontId,
++    resellerId: store.resellerId,
++    storeName: store.storeName,
++    zone: store.zone,
++    slug: store.slug,
++    discoverable: store.discoverable,
++    productCount,
++    lastUpdated: store.lastUpdated,
++    verified,
++  };
++}
++
++/**
++ * THE PRODUCER: the event stream → one `StoreProjection` per DISCOVERABLE
++ * storefront, ordered `lastUpdated` desc then `storefrontId` asc (deterministic,
++ * SP-I11). A storefront created but never published — or unpublished again —
++ * does not appear (only-discoverable-storefronts-project).
++ */
++export function projectStores(events: readonly StoreProjectionEvent[]): readonly StoreProjection[] {
++  const discoverable: StoreProjection[] = [];
++  for (const store of foldStores(events).values()) {
++    if (store.discoverable) discoverable.push(toProjection(store));
++  }
++  discoverable.sort(
++    (a, b) => (a.lastUpdated < b.lastUpdated ? 1 : a.lastUpdated > b.lastUpdated ? -1 : a.storefrontId.localeCompare(b.storefrontId)),
++  );
++  return discoverable;
++}
++
++/**
++ * Resolve a vitrine slug to its PUBLISHED store, or `undefined` (honest
++ * not-found). An unknown slug and a known-but-unpublished slug both resolve to
++ * `undefined` — the directory never opens a vitrine for a store that is not
++ * discoverable.
++ */
++export function resolvePublishedStore(
++  events: readonly StoreProjectionEvent[],
++  slug: string,
++): StoreProjection | undefined {
++  for (const store of foldStores(events).values()) {
++    if (store.discoverable && store.slug === slug) return toProjection(store);
++  }
++  return undefined;
++}
+diff --git a/packages/store-projection/test/store-projection.test.ts b/packages/store-projection/test/store-projection.test.ts
+new file mode 100644
+index 0000000..1370e8e
+--- /dev/null
++++ b/packages/store-projection/test/store-projection.test.ts
+@@ -0,0 +1,145 @@
++import { describe, expect, it } from 'vitest';
++import {
++  projectStores,
++  resolvePublishedStore,
++  type StoreProjectionEvent,
++} from '../src/store-projection.js';
++
++/**
++ * SP#001-B — THE ONE PRODUCER obeys the discovery invariants on LIVE data.
++ * The five RED-first fixtures: only-discoverable-storefronts-project ·
++ * ordering-follows-real-events · unknown-slug-honest-not-found ·
++ * verified-renders-only-where-true · stores-never-products (SP-I05 on live data).
++ */
++
++// A small realistic event log for SELLER #001 and two neighbours, built the way
++// the real aggregate emits: created (unpublished) → published → listings.
++const T = (h: number) => `2026-07-14T${String(h).padStart(2, '0')}:00:00.000Z`;
++
++function created(id: string, resellerId: string, name: string, zone: string, slug: string, at: string): StoreProjectionEvent {
++  return { type: 'storefront.created', storefrontId: id, resellerId, storeName: name, zone, slug, at };
++}
++function published(id: string, discoverable: boolean, at: string): StoreProjectionEvent {
++  return { type: 'storefront.published', storefrontId: id, discoverable, at };
++}
++function listed(id: string, listingId: string, hubVerified: boolean, at: string): StoreProjectionEvent {
++  return { type: 'listing.published', storefrontId: id, listingId, hubVerified, at };
++}
++function hidden(id: string, listingId: string, at: string): StoreProjectionEvent {
++  return { type: 'listing.auto_hidden', storefrontId: id, listingId, at };
++}
++
++describe('projectStores — the live directory projection', () => {
++  it('ONLY-DISCOVERABLE-STOREFRONTS-PROJECT: a created-but-unpublished store never appears; unpublishing removes it', () => {
++    const events: StoreProjectionEvent[] = [
++      created('sf_a', 'res_a', 'CHEZ AÏCHA', 'Rood Woko', 'aicha-4821', T(8)),
++      published('sf_a', true, T(9)),
++      created('sf_b', 'res_b', 'CHEZ MARIAM', 'Gounghin', 'mariam-2170', T(8)),
++      // sf_b is created but NEVER published — it must not project.
++      created('sf_c', 'res_c', 'CHEZ FANTA', 'Tanghin', 'fanta-8090', T(8)),
++      published('sf_c', true, T(9)),
++      published('sf_c', false, T(10)), // unpublished again → removed
++    ];
++    const stores = projectStores(events);
++    expect(stores.map((s) => s.storefrontId)).toEqual(['sf_a']); // ONLY the published, still-discoverable one
++    expect(stores.every((s) => s.discoverable)).toBe(true);
++  });
++
++  it('ORDERING-FOLLOWS-REAL-EVENTS: order is lastUpdated desc — a later listing event lifts its store above one published later', () => {
++    const base: StoreProjectionEvent[] = [
++      created('sf_a', 'res_a', 'A', 'Zone', 'a-1', T(8)),
++      published('sf_a', true, T(9)), // A last touched at 09:00
++      created('sf_b', 'res_b', 'B', 'Zone', 'b-1', T(8)),
++      published('sf_b', true, T(10)), // B last touched at 10:00 → B above A
++    ];
++    expect(projectStores(base).map((s) => s.storefrontId)).toEqual(['sf_b', 'sf_a']);
++
++    // Now a REAL listing event on A at 11:00 lifts A above B — order followed the event, not a baked rank.
++    const withListing: StoreProjectionEvent[] = [...base, listed('sf_a', 'l_a1', false, T(11))];
++    const ordered = projectStores(withListing);
++    expect(ordered.map((s) => s.storefrontId)).toEqual(['sf_a', 'sf_b']);
++    expect(ordered[0]?.lastUpdated).toBe(T(11)); // A's lastUpdated moved to the real listing time
++  });
++
++  it('productCount and lastUpdated come from live listings — an auto-hidden listing drops from the count and still advances lastUpdated', () => {
++    const events: StoreProjectionEvent[] = [
++      created('sf_a', 'res_a', 'A', 'Zone', 'a-1', T(8)),
++      published('sf_a', true, T(9)),
++      listed('sf_a', 'l1', false, T(10)),
++      listed('sf_a', 'l2', false, T(11)),
++      hidden('sf_a', 'l1', T(12)), // out of stock → auto-hidden (SP1.3)
++    ];
++    const store = projectStores(events)[0];
++    expect(store?.productCount).toBe(1); // l2 live, l1 hidden
++    expect(store?.lastUpdated).toBe(T(12)); // the hide is a real update
++  });
++
++  it('VERIFIED-RENDERS-ONLY-WHERE-TRUE (SP-I19): verified iff a live listing is hub-verified; a hidden verified listing does not keep the badge lit', () => {
++    const unverified = projectStores([
++      created('sf_a', 'res_a', 'A', 'Zone', 'a-1', T(8)),
++      published('sf_a', true, T(9)),
++      listed('sf_a', 'l1', false, T(10)), // stock NOT hub-verified
++    ]);
++    expect(unverified[0]?.verified).toBe(false); // no badge where it is not true
++
++    const verified = projectStores([
++      created('sf_b', 'res_b', 'B', 'Zone', 'b-1', T(8)),
++      published('sf_b', true, T(9)),
++      listed('sf_b', 'l1', true, T(10)), // hub-verified stock
++    ]);
++    expect(verified[0]?.verified).toBe(true);
++
++    // The one verified listing is auto-hidden → the badge goes dark (only-where-true).
++    const wentDark = projectStores([
++      created('sf_c', 'res_c', 'C', 'Zone', 'c-1', T(8)),
++      published('sf_c', true, T(9)),
++      listed('sf_c', 'l1', true, T(10)),
++      hidden('sf_c', 'l1', T(11)),
++    ]);
++    expect(wentDark[0]?.verified).toBe(false);
++  });
++
++  it('STORES-NEVER-PRODUCTS (SP-I05) on live data: the top level is a store collection; a listing never rises to a top-level row', () => {
++    const events: StoreProjectionEvent[] = [
++      created('sf_a', 'res_a', 'A', 'Zone', 'a-1', T(8)),
++      published('sf_a', true, T(9)),
++      listed('sf_a', 'l1', false, T(10)),
++      listed('sf_a', 'l2', false, T(11)),
++    ];
++    const stores = projectStores(events);
++    expect(stores).toHaveLength(1); // ONE store, not two products
++    expect(stores[0]?.storefrontId).toBe('sf_a');
++    // every top-level row is a STORE identity, never a listing id
++    for (const s of stores) {
++      expect(s).toHaveProperty('storeName');
++      expect(s).not.toHaveProperty('listingId');
++      expect(s).not.toHaveProperty('productName');
++    }
++  });
++});
++
++describe('resolvePublishedStore — vitrine resolution goes real', () => {
++  const events: StoreProjectionEvent[] = [
++    created('sf_a', 'res_a', 'CHEZ AÏCHA', 'Rood Woko', 'aicha-4821', T(8)),
++    published('sf_a', true, T(9)),
++    created('sf_b', 'res_b', 'CHEZ MARIAM', 'Gounghin', 'mariam-2170', T(8)),
++    // sf_b never published — its slug must NOT resolve.
++    created('sf_c', 'res_c', 'BOUTIQUE KADI', 'Dassasgho', 'kadi-5530', T(8)),
++    published('sf_c', true, T(9)), // a SECOND published store — a 1-of-5 hack would miss this
++  ];
++
++  it('resolves ANY published storefront by its canon slug — TWO different published stores, not a 1-of-5 hack', () => {
++    const aicha = resolvePublishedStore(events, 'aicha-4821');
++    expect(aicha?.storefrontId).toBe('sf_a');
++    expect(aicha?.storeName).toBe('CHEZ AÏCHA');
++    // the second published store MUST resolve too — this is what kills the 1-of-5 hack
++    const kadi = resolvePublishedStore(events, 'kadi-5530');
++    expect(kadi?.storefrontId).toBe('sf_c');
++    expect(kadi?.storeName).toBe('BOUTIQUE KADI');
++  });
++
++  it('UNKNOWN-SLUG-HONEST-NOT-FOUND: an unknown slug AND a known-but-unpublished slug both resolve to undefined', () => {
++    expect(resolvePublishedStore(events, 'inconnu-0000')).toBeUndefined(); // never existed
++    expect(resolvePublishedStore(events, 'mariam-2170')).toBeUndefined(); // exists but unpublished
++  });
++});
+diff --git a/packages/store-projection/tsconfig.json b/packages/store-projection/tsconfig.json
+new file mode 100644
+index 0000000..5285d28
+--- /dev/null
++++ b/packages/store-projection/tsconfig.json
+@@ -0,0 +1,8 @@
++{
++  "extends": "../../tsconfig.base.json",
++  "compilerOptions": {
++    "rootDir": "src",
++    "outDir": "dist"
++  },
++  "include": ["src"]
++}
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 770c5d3..6695c84 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -50,6 +50,9 @@ importers:
+       '@platform/ui-tokens':
+         specifier: git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/ui-tokens
+         version: git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/ui-tokens
++      '@shop-plus/store-projection':
++        specifier: workspace:*
++        version: link:../../packages/store-projection
+     devDependencies:
+       '@playwright/test':
+         specifier: ^1.57.0
+@@ -184,6 +187,15 @@ importers:
+         specifier: ^3.2.4
+         version: 3.2.7(@types/node@22.20.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
+ 
++  packages/store-projection:
++    devDependencies:
++      typescript:
++        specifier: ^5.9.2
++        version: 5.9.3
++      vitest:
++        specifier: ^3.2.4
++        version: 3.2.7(@types/node@22.20.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
++
+   services/attribution-service:
+     dependencies:
+       '@platform/contracts':
+@@ -217,6 +229,9 @@ importers:
+       '@shop-plus/observability':
+         specifier: workspace:*
+         version: link:../../packages/observability
++      '@shop-plus/store-projection':
++        specifier: workspace:*
++        version: link:../../packages/store-projection
+       zod:
+         specifier: ^4.1.5
+         version: 4.4.3
+diff --git a/services/discovery-service/package.json b/services/discovery-service/package.json
+index 1f57590..9d66d50 100644
+--- a/services/discovery-service/package.json
++++ b/services/discovery-service/package.json
+@@ -20,6 +20,7 @@
+   },
+   "dependencies": {
+     "@shop-plus/observability": "workspace:*",
++    "@shop-plus/store-projection": "workspace:*",
+     "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/contracts",
+     "zod": "^4.1.5"
+   },
+diff --git a/services/discovery-service/src/discovery.ts b/services/discovery-service/src/discovery.ts
+index 7273b10..9e522d8 100644
+--- a/services/discovery-service/src/discovery.ts
++++ b/services/discovery-service/src/discovery.ts
+@@ -1,4 +1,5 @@
+ import { z } from 'zod';
++import { projectStores, type StoreProjectionEvent } from '@shop-plus/store-projection';
+ 
+ /**
+  * Discovery response CONTRACT (SP-I05): discovery returns reseller STORES —
+@@ -47,3 +48,21 @@ export function buildStoreDiscoveryResponse(stores: StorePreview[]): StoreDiscov
+   );
+   return StoreDiscoveryResponseSchema.parse({ stores: ordered });
+ }
++
++/**
++ * SP#001-B — the discovery envelope, fed by THE ONE PRODUCER
++ * (`@shop-plus/store-projection`) over the real storefront + listing event
++ * stream. Only DISCOVERABLE storefronts project (SP-I05: stores, never a product
++ * pool); the envelope keeps its deterministic zone→name→id order (SP-I11).
++ * Matching-item previews (search) are SP5.1 — deferred; the top level is a pure
++ * store collection here.
++ */
++export function projectStoreDiscovery(events: readonly StoreProjectionEvent[]): StoreDiscoveryResponse {
++  const previews: StorePreview[] = projectStores(events).map((s) => ({
++    storefrontId: s.storefrontId,
++    resellerId: s.resellerId,
++    storeName: s.storeName,
++    zone: s.zone,
++  }));
++  return buildStoreDiscoveryResponse(previews);
++}
+diff --git a/services/discovery-service/test/discovery.test.ts b/services/discovery-service/test/discovery.test.ts
+index 24a7c98..a82d4ac 100644
+--- a/services/discovery-service/test/discovery.test.ts
++++ b/services/discovery-service/test/discovery.test.ts
+@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
+ import {
+   StoreDiscoveryResponseSchema,
+   buildStoreDiscoveryResponse,
++  projectStoreDiscovery,
+   type StorePreview,
+ } from '../src/discovery.js';
++import type { StoreProjectionEvent } from '@shop-plus/store-projection';
+ 
+ // CI gate: discovery-returns-stores (SP-I05) + deterministic order (SP-I11).
+ 
+@@ -56,3 +58,33 @@ describe('discovery-returns-stores', () => {
+     expect(buildStoreDiscoveryResponse(stores)).toEqual(fixture);
+   });
+ });
++
++describe('projectStoreDiscovery — fed by THE ONE PRODUCER (SP#001-B, live events)', () => {
++  const T = (h: number) => `2026-07-14T${String(h).padStart(2, '0')}:00:00.000Z`;
++  const events: StoreProjectionEvent[] = [
++    { type: 'storefront.created', storefrontId: 'sf_a', resellerId: 'res_a', storeName: 'Aïcha Mode', zone: 'Dassasgho', slug: 'aicha-4821', at: T(8) },
++    { type: 'storefront.published', storefrontId: 'sf_a', discoverable: true, at: T(9) },
++    { type: 'listing.published', storefrontId: 'sf_a', listingId: 'l_a1', hubVerified: true, at: T(10) },
++    { type: 'storefront.created', storefrontId: 'sf_b', resellerId: 'res_b', storeName: 'Boutique Mariam', zone: 'Dassasgho', slug: 'mariam-2170', at: T(8) },
++    { type: 'storefront.published', storefrontId: 'sf_b', discoverable: true, at: T(9) },
++    { type: 'storefront.created', storefrontId: 'sf_hidden', resellerId: 'res_h', storeName: 'Pas Publiée', zone: 'Gounghin', slug: 'cachee-0000', at: T(8) },
++    // sf_hidden is created but NEVER published — must not appear in discovery.
++  ];
++
++  it('only DISCOVERABLE storefronts project, and the top level is a store collection (SP-I05, live)', () => {
++    const r = projectStoreDiscovery(events);
++    expect(Object.keys(r)).toEqual(['stores']);
++    expect(r.stores.map((s) => s.storefrontId).sort()).toEqual(['sf_a', 'sf_b']); // sf_hidden absent
++    for (const s of r.stores) {
++      expect(s.storefrontId).toBeTruthy();
++      expect(s.resellerId).toBeTruthy();
++      expect(s).not.toHaveProperty('productName'); // never a product row
++    }
++  });
++
++  it('keeps the deterministic zone→name→id envelope order over the producer output', () => {
++    const r = projectStoreDiscovery(events);
++    // both in Dassasgho → ordered by store name: "Aïcha Mode" before "Boutique Mariam"
++    expect(r.stores.map((s) => s.storeName)).toEqual(['Aïcha Mode', 'Boutique Mariam']);
++  });
++});
+diff --git a/services/storefront-service/src/index.ts b/services/storefront-service/src/index.ts
+index 97434d2..81ee71f 100644
+--- a/services/storefront-service/src/index.ts
++++ b/services/storefront-service/src/index.ts
+@@ -13,6 +13,7 @@ export type StorefrontServiceShapes = { storefront: Storefront; resellerListing:
+ 
+ export * from './customer-projection.js';
+ export * from './storefront-aggregate.js';
++export * from './listing-aggregate.js';
+ 
+ export const handleRequest = makeHealthFetch(SERVICE_NAME);
+ 
+diff --git a/services/storefront-service/src/listing-aggregate.ts b/services/storefront-service/src/listing-aggregate.ts
+new file mode 100644
+index 0000000..b1c0abc
+--- /dev/null
++++ b/services/storefront-service/src/listing-aggregate.ts
+@@ -0,0 +1,151 @@
++import {
++  PlatformEventSchema,
++  ResellerListingSchema,
++  type PlatformEvent,
++  type ResellerListing,
++} from '@platform/contracts';
++
++/**
++ * LISTING AGGREGATE (SP#001-B · Building Plan SP1.3 "Listing + markup +
++ * storefront"). A storefront lists an offer at HER price and can auto-hide it
++ * when the stock goes out (SP1.3: "auto-hide on out-of-stock/blocked/expired").
++ * This is the MINIMAL seam that feeds THE PRODUCER (`@shop-plus/store-projection`):
++ * a listing's published/auto-hidden lifecycle drives the store's productCount,
++ * lastUpdated, and hub-verified badge. Full SP1.3 (markup-cap enforcement, the
++ * net-preview UI, version-on-price-change) is NOT this slice.
++ *
++ * The record is canon `ResellerListingSchema` (v0.9.9) consumed VERBATIM — the
++ * aggregate only decides transitions. Canon has NO per-event payload shape
++ * (envelope + name only), so payloads are built at THIS boundary via
++ * `PlatformEventSchema`, exactly as the storefront aggregate does. Canon event
++ * names `listing.published.v1` and `listing.auto_hidden.v1` are consumed; no
++ * event name is invented.
++ *
++ * HER price (`customerPriceFcfa` = productSubtotal = B + M) and the Boutik+
++ * hub-verified-stock signal (`hubVerified`, SP-I19) are SUPPLIED to the command
++ * and ride the event payload. HER price is NEVER recomputed here — it comes from
++ * the immutable Quote / waterfall (commerce-core); the money path stays frozen.
++ * The real Boutik hub wire is deferred (the demo-supply seam supplies it).
++ */
++
++/** The app-boundary listing status (canon `status` is a free string). */
++export const LISTING_PUBLISHED = 'published';
++export const LISTING_AUTO_HIDDEN = 'auto_hidden';
++
++export interface PublishListingCommand {
++  readonly commandId: string;
++  readonly listingId: string;
++  readonly storefrontId: string;
++  readonly resellerId: string;
++  readonly productVersionId: string;
++  readonly offerVersion: string;
++  /** HER markup M (canon `markup`, FcfaSchema). */
++  readonly markup: number;
++  /** HER price = productSubtotal (B + M) — SUPPLIED from the waterfall, never recomputed. */
++  readonly customerPriceFcfa: number;
++  /** Boutik+ hub-verified-stock signal (SP-I19); real wire deferred. */
++  readonly hubVerified: boolean;
++  readonly correlationId: string;
++  readonly at: string;
++}
++
++export type PublishDecision =
++  | { readonly status: 'published'; readonly listing: ResellerListing; readonly event: PlatformEvent }
++  | { readonly status: 'idempotent'; readonly listing: ResellerListing };
++
++export type HideDecision =
++  | { readonly status: 'hidden'; readonly listing: ResellerListing; readonly event: PlatformEvent }
++  | { readonly status: 'unchanged'; readonly listing: ResellerListing }
++  | { readonly status: 'absent' };
++
++function publishedEvent(cmd: PublishListingCommand): PlatformEvent {
++  return PlatformEventSchema.parse({
++    name: 'listing.published.v1',
++    envelope: {
++      command_id: `listing-publish-${cmd.listingId}`,
++      correlation_id: cmd.correlationId,
++      aggregateVersion: 1,
++      actor: 'storefront-service:listing-aggregate',
++      serverTime: cmd.at,
++      version: '1',
++    },
++    payload: {
++      listing_id: cmd.listingId,
++      storefront_id: cmd.storefrontId,
++      reseller_id: cmd.resellerId,
++      hub_verified: cmd.hubVerified,
++      customer_price_fcfa: cmd.customerPriceFcfa,
++    },
++  });
++}
++
++function autoHiddenEvent(listing: ResellerListing, storefrontId: string, correlationId: string, at: string): PlatformEvent {
++  return PlatformEventSchema.parse({
++    name: 'listing.auto_hidden.v1',
++    envelope: {
++      command_id: `listing-hide-${listing.id}`,
++      correlation_id: correlationId,
++      aggregateVersion: listing.version,
++      actor: 'storefront-service:listing-aggregate',
++      serverTime: at,
++      version: '1',
++    },
++    payload: {
++      listing_id: listing.id,
++      storefront_id: storefrontId,
++    },
++  });
++}
++
++interface Entry {
++  listing: ResellerListing;
++  storefrontId: string;
++  publishCommandId: string;
++}
++
++/**
++ * One writer per listing by construction: one `Entry` per listingId, all
++ * transitions through this registry. `publish` is idempotent on the command_id;
++ * `autoHide` flips the canon `status` to auto-hidden and fires the event once.
++ */
++export class ListingRegistry {
++  private readonly byId = new Map<string, Entry>();
++
++  publish(cmd: PublishListingCommand): PublishDecision {
++    const existing = this.byId.get(cmd.listingId);
++    if (existing && existing.publishCommandId === cmd.commandId) {
++      return { status: 'idempotent', listing: existing.listing };
++    }
++    const listing: ResellerListing = ResellerListingSchema.parse({
++      id: cmd.listingId,
++      resellerId: cmd.resellerId,
++      productVersionId: cmd.productVersionId,
++      offerVersion: cmd.offerVersion,
++      markup: cmd.markup,
++      version: 1,
++      variants: [],
++      status: LISTING_PUBLISHED,
++    });
++    this.byId.set(cmd.listingId, { listing, storefrontId: cmd.storefrontId, publishCommandId: cmd.commandId });
++    return { status: 'published', listing, event: publishedEvent(cmd) };
++  }
++
++  autoHide(args: { listingId: string; correlationId: string; at: string }): HideDecision {
++    const entry = this.byId.get(args.listingId);
++    if (!entry) return { status: 'absent' };
++    if (entry.listing.status === LISTING_AUTO_HIDDEN) {
++      return { status: 'unchanged', listing: entry.listing };
++    }
++    const listing: ResellerListing = { ...entry.listing, status: LISTING_AUTO_HIDDEN };
++    entry.listing = listing;
++    return {
++      status: 'hidden',
++      listing,
++      event: autoHiddenEvent(listing, entry.storefrontId, args.correlationId, args.at),
++    };
++  }
++
++  get(listingId: string): ResellerListing | undefined {
++    return this.byId.get(listingId)?.listing;
++  }
++}
+diff --git a/services/storefront-service/test/listing-aggregate.test.ts b/services/storefront-service/test/listing-aggregate.test.ts
+new file mode 100644
+index 0000000..c34892e
+--- /dev/null
++++ b/services/storefront-service/test/listing-aggregate.test.ts
+@@ -0,0 +1,74 @@
++import { describe, expect, it } from 'vitest';
++import { ResellerListingSchema } from '@platform/contracts';
++import {
++  LISTING_AUTO_HIDDEN,
++  LISTING_PUBLISHED,
++  ListingRegistry,
++  type PublishListingCommand,
++} from '../src/listing-aggregate.js';
++
++/**
++ * SP#001-B — the listing seam obeys its command law. A storefront lists an offer
++ * at HER price (canon `ResellerListing`, real events), auto-hides on
++ * out-of-stock, and the money value is CARRIED, never recomputed here.
++ */
++
++const T0 = '2026-07-14T08:00:00.000Z';
++const T1 = '2026-07-14T09:00:00.000Z';
++
++const OFFER: PublishListingCommand = {
++  commandId: 'cmd-listing-001',
++  listingId: 'lst-seller-0001',
++  storefrontId: 'sf-seller-0001',
++  resellerId: 'rs-seller-0001',
++  productVersionId: 'pv-bazin-0001',
++  offerVersion: 'ov-1',
++  markup: 2_000, // HER markup M
++  customerPriceFcfa: 11_500, // HER price = productSubtotal (B + M), supplied
++  hubVerified: true,
++  correlationId: 'corr-001',
++  at: T0,
++};
++
++describe('listing aggregate — a storefront lists an offer at HER price', () => {
++  it('publish builds a canon ResellerListing (status published) and emits listing.published.v1 carrying HER price + the hub signal', () => {
++    const reg = new ListingRegistry();
++    const out = reg.publish(OFFER);
++    expect(out.status).toBe('published');
++    if (out.status !== 'published') return;
++    expect(() => ResellerListingSchema.parse(out.listing)).not.toThrow(); // canon shape, verbatim
++    expect(out.listing.status).toBe(LISTING_PUBLISHED);
++    expect(out.listing.markup).toBe(2_000);
++    expect(out.event.name).toBe('listing.published.v1');
++    expect(out.event.payload['storefront_id']).toBe('sf-seller-0001');
++    expect(out.event.payload['hub_verified']).toBe(true);
++    expect(out.event.payload['customer_price_fcfa']).toBe(11_500); // HER price rides the event, carried not recomputed
++  });
++
++  it('PUBLISH-IDEMPOTENT-ON-COMMAND_ID: the same publish command returns the same listing, no re-publish', () => {
++    const reg = new ListingRegistry();
++    reg.publish(OFFER);
++    const replay = reg.publish(OFFER);
++    expect(replay.status).toBe('idempotent');
++    if (replay.status === 'idempotent') expect(replay.listing.id).toBe('lst-seller-0001');
++  });
++
++  it('AUTO-HIDE emits listing.auto_hidden.v1 once; the canon status flips; a repeat hide is a no-op', () => {
++    const reg = new ListingRegistry();
++    reg.publish(OFFER);
++    const hide = reg.autoHide({ listingId: 'lst-seller-0001', correlationId: 'corr-001', at: T1 });
++    expect(hide.status).toBe('hidden');
++    if (hide.status === 'hidden') {
++      expect(hide.listing.status).toBe(LISTING_AUTO_HIDDEN);
++      expect(hide.event.name).toBe('listing.auto_hidden.v1');
++      expect(hide.event.payload['listing_id']).toBe('lst-seller-0001');
++    }
++    // already hidden → no second event
++    expect(reg.autoHide({ listingId: 'lst-seller-0001', correlationId: 'corr-001', at: T1 }).status).toBe('unchanged');
++  });
++
++  it('auto-hiding an absent listing is surfaced (never a phantom write)', () => {
++    const reg = new ListingRegistry();
++    expect(reg.autoHide({ listingId: 'lst-nope', correlationId: 'c', at: T1 }).status).toBe('absent');
++  });
++});

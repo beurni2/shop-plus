@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/i18n",
-    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/ui-tokens"
+    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/ui-tokens",
+    "@shop-plus/store-projection": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",

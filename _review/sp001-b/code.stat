@@ -1,0 +1,18 @@
+ apps/buyer-pwa/package.json                        |   3 +-
+ apps/buyer-pwa/src/boutiques-data.ts               |  87 +++++----
+ apps/buyer-pwa/src/demo-stores.ts                  | 131 ++++++++++++++
+ apps/buyer-pwa/src/vitrine-link.ts                 |  46 ++---
+ apps/buyer-pwa/test/boutiques.test.ts              |   2 +-
+ packages/store-projection/package.json             |  23 +++
+ packages/store-projection/src/index.ts             |   5 +
+ packages/store-projection/src/store-projection.ts  | 198 +++++++++++++++++++++
+ .../store-projection/test/store-projection.test.ts | 145 +++++++++++++++
+ packages/store-projection/tsconfig.json            |   8 +
+ pnpm-lock.yaml                                     |  15 ++
+ services/discovery-service/package.json            |   1 +
+ services/discovery-service/src/discovery.ts        |  19 ++
+ services/discovery-service/test/discovery.test.ts  |  32 ++++
+ services/storefront-service/src/index.ts           |   1 +
+ .../storefront-service/src/listing-aggregate.ts    | 151 ++++++++++++++++
+ .../test/listing-aggregate.test.ts                 |  74 ++++++++
+ 17 files changed, 881 insertions(+), 60 deletions(-)
