@@ -538,5 +538,17 @@
     "fr": "Story, carré, affiche — votre carte prête à publier.",
     "register": "selling",
     "screenClass": "selling_surface"
+  },
+  {
+    "key": "opportunite.perimee",
+    "fr": "Offre à confirmer — données périmées",
+    "register": "money",
+    "screenClass": "status"
+  },
+  {
+    "key": "opportunite.perimee_hint",
+    "fr": "Le stock doit être revérifié avant de publier.",
+    "register": "money",
+    "screenClass": "status"
   }
 ]
