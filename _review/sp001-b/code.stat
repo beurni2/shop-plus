@@ -2,6 +2,7 @@
  apps/buyer-pwa/src/boutiques-data.ts               |  87 +++++----
  apps/buyer-pwa/src/demo-stores.ts                  | 131 ++++++++++++++
  apps/buyer-pwa/src/vitrine-link.ts                 |  46 ++---
+ apps/buyer-pwa/test/boutiques.test.ts              |   2 +-
  packages/store-projection/package.json             |  23 +++
  packages/store-projection/src/index.ts             |   5 +
  packages/store-projection/src/store-projection.ts  | 198 +++++++++++++++++++++
@@ -14,4 +15,4 @@
  services/storefront-service/src/index.ts           |   1 +
  .../storefront-service/src/listing-aggregate.ts    | 151 ++++++++++++++++
  .../test/listing-aggregate.test.ts                 |  74 ++++++++
- 16 files changed, 880 insertions(+), 59 deletions(-)
+ 17 files changed, 881 insertions(+), 60 deletions(-)
