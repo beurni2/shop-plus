@@ -35,6 +35,11 @@ export const DISPLAY_FAMILY = 'Bricolage Grotesque';
 /** The text family the canon locks (fasoPremium type.families.text.name). */
 export const TEXT_FAMILY = 'Instrument Sans';
 
+/** The bold text face, loaded under its OWN family key. On low-end Android a
+ * custom family carries a single weight, so 700 text must name a distinct
+ * loaded face — never a synthesised faux-bold (STEP 0's distinct name-tables). */
+export const TEXT_FAMILY_BOLD = 'Instrument Sans Bold';
+
 /** The fallback that paints before the faces resolve. On RN this is the
  * platform system face; the swap is designed to cause no reflow (cold-start law). */
 export const FONT_FALLBACK = 'System';

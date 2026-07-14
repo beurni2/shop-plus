@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, interaction, band, money, dimension } from '@platform/ui-tokens/legacy';
-import { DISPLAY_FAMILY, TEXT_FAMILY } from './faso-fonts';
+import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './faso-fonts';
 import { IconCoche } from './icons';
 
 /**
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
   },
   swapOff: { borderWidth: interaction.hairline.strong, borderColor: sharedColour.hairlineStrong, backgroundColor: sharedColour.card },
   swapOn: { backgroundColor: shopColour.primary },
-  swapPlus: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontWeight: String(t2.scale.row.wght) as '700' },
+  swapPlus: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size), fontWeight: String(t2.scale.row.wght) as '700' },
 
   // 5 · corner ticks
   ticksLayer: { ...StyleSheet.absoluteFillObject },

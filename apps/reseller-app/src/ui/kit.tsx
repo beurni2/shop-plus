@@ -17,7 +17,7 @@ import {
   money,
   skeleton as skeletonToken,
 } from '@platform/ui-tokens/legacy';
-import { DISPLAY_FAMILY, TEXT_FAMILY } from './faso-fonts';
+import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './faso-fonts';
 import { fp } from './motion';
 import { WovenBand } from './signature';
 
@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
   },
-  backChipText: { color: sharedColour.ink, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
+  backChipText: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
   headerTitleBlock: { flex: 1 },
   headerTitle: {
     color: sharedColour.ink,
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
   },
   tabActive: { backgroundColor: shopColour.soft },
   tabIcon: { alignItems: 'center', justifyContent: 'center' },
-  tabLabel: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
+  tabLabel: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
   tabLabelActive: { color: shopColour.deep },
   card: {
     backgroundColor: sharedColour.card,
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
   },
   overline: {
     color: sharedColour.sub,
-    fontFamily: TEXT_FAMILY,
+    fontFamily: TEXT_FAMILY_BOLD,
     fontSize: rmax(t2.scale.caps.size),
     fontWeight: w(t2.scale.caps.wght),
     textTransform: 'uppercase',
@@ -471,7 +471,7 @@ const styles = StyleSheet.create({
   },
   rowGlyph: { fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.view.size), color: shopColour.deep, fontWeight: w(t2.scale.view.wght) },
   rowBody: { flex: 1, gap: spacing.xs },
-  rowTitle: { color: sharedColour.ink, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
+  rowTitle: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
   rowMeta: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   rowNet: {
     color: shopColour.deep,
@@ -497,11 +497,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   buttonPrimary: { backgroundColor: shopColour.primary },
-  buttonPrimaryText: { color: shopColour.onPrimary, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
+  buttonPrimaryText: { color: shopColour.onPrimary, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
   buttonSecondary: { backgroundColor: shopColour.soft },
-  buttonSecondaryText: { color: shopColour.deep, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
+  buttonSecondaryText: { color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
   buttonGhost: { borderWidth: interaction.hairline.medium, borderColor: sharedColour.hairlineStrong, backgroundColor: sharedColour.card },
-  buttonGhostText: { color: sharedColour.ink, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
+  buttonGhostText: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
   buttonDisabled: { opacity: interaction.disabledOpacity },
   amountHeroBlock: { alignItems: 'center', gap: spacing.xs },
   amountHeroLabel: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   chipDot: { width: spacing.sm, height: spacing.sm, borderRadius: radius.pill },
-  chipText: { fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
+  chipText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
   skeleton: { backgroundColor: skeletonToken.bg, borderRadius: radius.tile, minHeight: spacing.xl },
   emptyState: { alignItems: 'center', paddingVertical: spacing.xxl },
   emptyGlyph: { alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },

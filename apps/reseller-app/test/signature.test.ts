@@ -48,10 +48,11 @@ describe('WO-FP-SHOP signature module (reseller-app)', () => {
   });
 
   it('typefaces are the canon token families (faso-fonts), never a literal family string', () => {
-    expect(src).toMatch(/import \{ DISPLAY_FAMILY, TEXT_FAMILY \} from '\.\/faso-fonts'/);
-    // display for the money hero + tile glyph; text for labels/rules
+    expect(src).toMatch(/import \{ DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD \} from '\.\/faso-fonts'/);
+    // display for the money hero + tile glyph; text (regular + bold) for labels/rules
     expect(src).toMatch(/fontFamily: DISPLAY_FAMILY/);
-    expect(src).toMatch(/fontFamily: TEXT_FAMILY/);
+    expect(src).toMatch(/fontFamily: TEXT_FAMILY\b/);
+    expect(src).toMatch(/fontFamily: TEXT_FAMILY_BOLD/);
     expect(src, 'a literal font-family string leaked').not.toMatch(/fontFamily:\s*'[^']+'/);
   });
 

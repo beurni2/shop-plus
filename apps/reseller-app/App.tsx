@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react';
+import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { FlatList, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, touch, dimension } from '@platform/ui-tokens/legacy';
-import { DISPLAY_FAMILY, TEXT_FAMILY } from './src/ui/faso-fonts';
+import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './src/ui/faso-fonts';
 import { IconAccueil, IconProduits, IconGains, IconVitrine } from './src/ui/icons';
 import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
@@ -12,6 +13,7 @@ import { JOURNEY, START, type Screen } from './src/journey';
 import { DEMO_SHARE_IDENTITY, composeShareCard } from './src/share/hub';
 import { QrCode } from './src/qr/QrCode';
 import { DEMO_QR_URL } from './src/qr/identity';
+import { FONTS_TO_LOAD } from './src/ui/fonts-load';
 import {
   ventesListModel,
   demoDetail,
@@ -141,6 +143,11 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
 };
 
 export default function App() {
+  // COLD-START LAW: load the Faso Premium faces asynchronously and DO NOT gate
+  // first paint on them — the metrics-close system fallback renders immediately,
+  // and the faces swap in when ready (expo-font re-renders on load). First paint
+  // never waits; a face that never resolves simply stays in the fallback.
+  useFonts(FONTS_TO_LOAD);
   const [world, setWorld] = useState<DemoWorld>(() => createDemoWorld());
   const [stack, setStack] = useState<Screen[]>([START]);
   const screen = stack[stack.length - 1] ?? START;
@@ -578,7 +585,7 @@ const styles = StyleSheet.create({
   timelineHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   timelineLabel: {
     color: sharedColour.ink,
-    fontFamily: TEXT_FAMILY,
+    fontFamily: TEXT_FAMILY_BOLD,
     fontSize: rmax(t2.scale.row.size),
     fontWeight: w(t2.scale.row.wght),
   },
@@ -631,7 +638,7 @@ const styles = StyleSheet.create({
   },
   linkText: {
     color: sharedColour.ink,
-    fontFamily: TEXT_FAMILY,
+    fontFamily: TEXT_FAMILY_BOLD,
     fontSize: rmax(t2.scale.row.size),
     fontWeight: w(t2.scale.row.wght),
     textAlign: 'center',
@@ -682,7 +689,7 @@ const styles = StyleSheet.create({
   },
   footerHint: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size },
   resetAction: { minHeight: touch.minTargetPx, justifyContent: 'center', paddingHorizontal: spacing.md },
-  resetActionText: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
+  resetActionText: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
   previewBanner: {
     backgroundColor: sharedColour.dim,
     borderBottomWidth: StyleSheet.hairlineWidth,

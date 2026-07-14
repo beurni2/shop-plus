@@ -92,16 +92,19 @@ describe('the typeface substrate (Archivo, Latin) — data only, loads nothing',
   });
 });
 
-describe('the two approved dependencies (founder rulings 2026-07-12) — nothing else', () => {
-  it('react-native-svg + expo-haptics at the SDK-54 bundled versions, and no other new dep', () => {
+describe('the approved dependencies (founder rulings) — nothing else', () => {
+  it('react-native-svg + expo-haptics + expo-font at the SDK-54 bundled versions, and no other new dep', () => {
     const pkg = JSON.parse(read('package.json')) as { dependencies: Record<string, string> };
     expect(pkg.dependencies['react-native-svg']).toBe('15.12.1');
     expect(pkg.dependencies['expo-haptics']).toBe('~15.0.8');
-    // the only deps beyond the pre-WO set are exactly these two
+    // expo-font — founder ruling 2026-07-14 (WO-FP-SHOP: load the Faso Premium faces
+    // so the expo-preview evidence shows the real Bricolage/Instrument, cold-start law).
+    expect(pkg.dependencies['expo-font']).toBe('~14.0.12');
+    // the only deps beyond the pre-WO set are exactly these three
     const before = new Set([
       '@platform/ui-tokens', 'expo', 'expo-status-bar', 'expo-updates', 'react', 'react-native',
     ]);
     const added = Object.keys(pkg.dependencies).filter((d) => !before.has(d));
-    expect(added.sort()).toEqual(['expo-haptics', 'react-native-svg']);
+    expect(added.sort()).toEqual(['expo-font', 'expo-haptics', 'react-native-svg']);
   });
 });
