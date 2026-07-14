@@ -6,7 +6,7 @@ import {
   radius,
   touch,
   motion,
-} from '@platform/ui-tokens';
+} from '@platform/ui-tokens/legacy';
 import { t, tf } from './i18n';
 import { FCFA } from './format';
 import { DEMO_KIT } from './demo';

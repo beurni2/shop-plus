@@ -21,7 +21,7 @@ import {
   motion,
   interaction,
   skeleton as skeletonToken,
-} from '@platform/ui-tokens';
+} from '@platform/ui-tokens/legacy';
 
 /**
  * WO-7.0 — the reseller kit on GRAND TEINT (ui-tokens v0.8.0, pin 2472e7ae).

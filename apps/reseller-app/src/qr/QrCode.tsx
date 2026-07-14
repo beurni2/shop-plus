@@ -1,5 +1,5 @@
 import { Svg, Rect, Path } from 'react-native-svg';
-import { shopPlusTheme as theme, shopColour, dimension } from '@platform/ui-tokens';
+import { shopPlusTheme as theme, shopColour, dimension } from '@platform/ui-tokens/legacy';
 import { encodeQr } from './encoder';
 import { DEMO_QR_URL } from './identity';
 

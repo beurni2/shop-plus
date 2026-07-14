@@ -26,7 +26,7 @@ describe('buyer-pwa catalog', () => {
   });
 
   it('manifest colors stay equal to the ui-tokens theme (drift guard)', async () => {
-    const { shopPlusTheme } = await import('@platform/ui-tokens');
+    const { shopPlusTheme } = await import('@platform/ui-tokens/legacy');
     const manifest = JSON.parse(
       readFileSync(join(appDir, 'public/manifest.webmanifest'), 'utf8'),
     );

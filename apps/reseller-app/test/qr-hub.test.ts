@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { dimension } from '@platform/ui-tokens';
+import { dimension } from '@platform/ui-tokens/legacy';
 import { encodeQr } from '../src/qr/encoder.js';
 import { DEMO_QR_URL, isCanonIdentityUrl } from '../src/qr/identity.js';
 

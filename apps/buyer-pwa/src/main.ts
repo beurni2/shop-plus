@@ -11,7 +11,7 @@ import {
   ribbon as ribbonTokens,
   skeleton,
   landmark,
-} from '@platform/ui-tokens';
+} from '@platform/ui-tokens/legacy';
 import { t } from './i18n';
 import { renderOrderView, type OrderViewModel } from './order-view';
 import { renderCheckoutOptions } from './checkout-view';

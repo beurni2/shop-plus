@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { money, motion, shopPlusTheme, type } from '@platform/ui-tokens';
+import { money, motion, shopPlusTheme, type } from '@platform/ui-tokens/legacy';
 
 /**
  * WO-4.2R — the visual layer obeys the tokens. The scan test IS the DoD's

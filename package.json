@@ -17,10 +17,10 @@
     "baseline-check": "node scripts/baseline-check.mjs"
   },
   "dependencies": {
-    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/contracts",
-    "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/kernel-types",
-    "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/i18n",
-    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/ui-tokens",
+    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#f23407ce51e074f7afead5c8e475a692056498e8&path:packages/contracts",
+    "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#f23407ce51e074f7afead5c8e475a692056498e8&path:packages/kernel-types",
+    "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#f23407ce51e074f7afead5c8e475a692056498e8&path:packages/i18n",
+    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#f23407ce51e074f7afead5c8e475a692056498e8&path:packages/ui-tokens",
     "@shop-plus/commerce-core": "workspace:*"
   },
   "devDependencies": {

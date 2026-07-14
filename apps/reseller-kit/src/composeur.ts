@@ -1,4 +1,4 @@
-import { shopPlusTheme as theme, shopColour, dimension } from '@platform/ui-tokens';
+import { shopPlusTheme as theme, shopColour, dimension } from '@platform/ui-tokens/legacy';
 import { encodeQr } from '@qr/encoder';
 
 /**

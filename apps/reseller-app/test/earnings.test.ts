@@ -76,7 +76,7 @@ describe('reseller-app catalog discipline (same law as every app)', () => {
   });
 
   it('app.json static backgroundColor stays equal to the ui-tokens paper (drift guard)', async () => {
-    const { shopPlusTheme } = await import('@platform/ui-tokens');
+    const { shopPlusTheme } = await import('@platform/ui-tokens/legacy');
     const appConfig = JSON.parse(readFileSync(join(appDir, 'app.json'), 'utf8'));
     expect(appConfig.expo.backgroundColor).toBe(shopPlusTheme.colours.paper);
   });

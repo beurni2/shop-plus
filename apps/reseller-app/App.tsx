@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { FlatList, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { shopPlusTheme as theme, shopColour, type, spacing, radius, touch, money, dimension } from '@platform/ui-tokens';
+import { shopPlusTheme as theme, shopColour, type, spacing, radius, touch, money, dimension } from '@platform/ui-tokens/legacy';
 import { IconAccueil, IconProduits, IconGains, IconVitrine } from './src/ui/icons';
 import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';

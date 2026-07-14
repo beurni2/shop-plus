@@ -1,4 +1,4 @@
-import { type as typo } from '@platform/ui-tokens';
+import { type as typo } from '@platform/ui-tokens/legacy';
 import type { Card, Op } from './composeur';
 
 /**

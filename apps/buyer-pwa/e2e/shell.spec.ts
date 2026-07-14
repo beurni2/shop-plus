@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { shopPlusTheme as theme } from '@platform/ui-tokens';
+import { shopPlusTheme as theme } from '@platform/ui-tokens/legacy';
 
 // DoD: "reseller shell + PWA shell boot with ui-tokens theme shop-plus".
 // This drives the real built PWA in a real Chromium.
