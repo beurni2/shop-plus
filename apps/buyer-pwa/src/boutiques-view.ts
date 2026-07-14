@@ -1,5 +1,6 @@
 import { t, tf } from './i18n';
 import { esc } from './format';
+import { reputationText } from './vitrine-view';
 import {
   allBoutiques,
   filterBoutiques,
@@ -54,6 +55,20 @@ function chevron(): string {
   );
 }
 
+/**
+ * S8 réputation — « N ventes livrées », the exact delivered-sales count. Shown
+ * from the first delivered sale (floor = 1); a store with 0 renders nothing.
+ * Every directory count is demo (« données d'essai » ribbon), so it carries the
+ * « démo » marker — a fabricated count is never a real trust claim.
+ */
+function reputationChip(count: number): string {
+  if (count < 1) return '';
+  return (
+    `<span class="bq-reputation" data-role="reputation">${reputationText(count)}` +
+    ` <span class="reputation-demo" data-role="reputation-demo">${t('reputation.demo')}</span></span>`
+  );
+}
+
 function storeCard(s: BoutiqueEntry, query: string): string {
   const initial = esc(s.storeName.replace(/^(CHEZ|BOUTIQUE)\s+/i, '').charAt(0));
   const meta = tf('boutiques.carte_meta', {
@@ -72,6 +87,7 @@ function storeCard(s: BoutiqueEntry, query: string): string {
     '<span class="bq-card-body">',
     `<span class="bq-card-head"><span class="bq-store-name">${highlight(s.storeName, query)}</span>${verified}</span>`,
     `<span class="bq-card-meta">${meta}</span>`,
+    reputationChip(s.deliveredSales),
     '</span>',
     chevron(),
     '</a>',

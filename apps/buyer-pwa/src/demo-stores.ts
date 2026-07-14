@@ -1,4 +1,4 @@
-import type { StoreProjectionEvent } from '@shop-plus/store-projection';
+import type { DeliveredSaleEvent, StoreProjectionEvent } from '@shop-plus/store-projection';
 import type { VitrineProduct } from './vitrine-view';
 
 /**
@@ -36,6 +36,14 @@ export interface DemoStore {
   readonly verified: boolean;
   /** Days before the demo reference clock the store was last touched. */
   readonly daysAgo: number;
+  /**
+   * DEMO count of delivered-and-validated sales (S8 réputation). These are DEMO
+   * numbers under the « données d'essai » ribbon — the render marks them « démo »
+   * so a fabricated count is never mistaken for a real trust claim. The founder's
+   * real store starts at zero until a delivery validates; a store with 0 renders
+   * no réputation line (floor = 1).
+   */
+  readonly deliveredSales: number;
   /** The vitrine's product rows — HER prices (productSubtotal), no supplier/commission. */
   readonly products: readonly VitrineProduct[];
 }
@@ -53,7 +61,7 @@ export const DEMO_STORES: readonly DemoStore[] = [
   {
     storefrontId: 'sf_aicha', resellerId: 'res_aicha', storeName: 'CHEZ AÏCHA', resellerName: 'Aïcha',
     shortCode: 'AICHA-4821', zone: 'Rood Woko', vitrineZone: 'Rood Woko, Ouagadougou', slug: 'aicha-4821',
-    productCount: 6, verified: true, daysAgo: 1,
+    productCount: 6, verified: true, daysAgo: 1, deliveredSales: 47,
     products: [
       { productName: 'Bazin riche brodé', priceFcfa: 11_500, inStock: true },
       { productName: 'Sac en cuir tanné', priceFcfa: 9_000, inStock: true },
@@ -63,7 +71,7 @@ export const DEMO_STORES: readonly DemoStore[] = [
   {
     storefrontId: 'sf_mariam', resellerId: 'res_mariam', storeName: 'CHEZ MARIAM', resellerName: 'Mariam',
     shortCode: 'MARIAM-2170', zone: 'Gounghin', vitrineZone: 'Gounghin, Ouagadougou', slug: 'mariam-2170',
-    productCount: 4, verified: true, daysAgo: 2,
+    productCount: 4, verified: true, daysAgo: 2, deliveredSales: 23,
     products: [
       { productName: 'Pagne Faso Dan Fani', priceFcfa: 8_500, inStock: true },
       { productName: 'Ensemble bébé wax', priceFcfa: 6_000, inStock: true },
@@ -73,7 +81,7 @@ export const DEMO_STORES: readonly DemoStore[] = [
   {
     storefrontId: 'sf_kadi', resellerId: 'res_kadi', storeName: 'BOUTIQUE KADI', resellerName: 'Kadi',
     shortCode: 'KADI-5530', zone: 'Dassasgho', vitrineZone: 'Dassasgho, Ouagadougou', slug: 'kadi-5530',
-    productCount: 9, verified: true, daysAgo: 3,
+    productCount: 9, verified: true, daysAgo: 3, deliveredSales: 61,
     products: [
       { productName: 'Chaussures femme', priceFcfa: 12_000, inStock: true },
       { productName: 'Sac à main', priceFcfa: 7_500, inStock: true },
@@ -83,7 +91,7 @@ export const DEMO_STORES: readonly DemoStore[] = [
   {
     storefrontId: 'sf_fanta', resellerId: 'res_fanta', storeName: 'CHEZ FANTA', resellerName: 'Fanta',
     shortCode: 'FANTA-8090', zone: 'Tanghin', vitrineZone: 'Tanghin, Ouagadougou', slug: 'fanta-8090',
-    productCount: 3, verified: true, daysAgo: 8,
+    productCount: 3, verified: true, daysAgo: 8, deliveredSales: 8,
     products: [
       { productName: 'Robe en pagne', priceFcfa: 9_500, inStock: true },
       { productName: 'Voile brodé', priceFcfa: 6_500, inStock: true },
@@ -93,7 +101,7 @@ export const DEMO_STORES: readonly DemoStore[] = [
   {
     storefrontId: 'sf_awa', resellerId: 'res_awa', storeName: 'CHEZ AWA T.', resellerName: 'Awa',
     shortCode: 'AWA-3360', zone: 'Rood Woko', vitrineZone: 'Rood Woko, Ouagadougou', slug: 'awa-3360',
-    productCount: 5, verified: true, daysAgo: 9,
+    productCount: 5, verified: true, daysAgo: 9, deliveredSales: 15,
     products: [
       { productName: 'Bazin Getzner', priceFcfa: 15_000, inStock: true },
       { productName: 'Chaussures enfant', priceFcfa: 4_000, inStock: true },
@@ -125,6 +133,23 @@ export function demoStoreEvents(): readonly StoreProjectionEvent[] {
     events.push({ type: 'storefront.published', storefrontId: s.storefrontId, discoverable: true, at });
     for (let i = 0; i < s.productCount; i += 1) {
       events.push({ type: 'listing.published', storefrontId: s.storefrontId, listingId: `${s.storefrontId}-l${i}`, hubVerified: s.verified, at });
+    }
+  }
+  return events;
+}
+
+/**
+ * The demo delivered-sale events (S8 réputation) — `deliveredSales` validated
+ * orders per store, each a distinct `orderId`, attributed to the store's
+ * reseller. The réputation fold counts these (fold-derived, never a hard-coded
+ * render number); the render marks the result « démo » since these are test
+ * data. Generated from the per-store count so the source stays compact.
+ */
+export function demoDeliveredSaleEvents(): readonly DeliveredSaleEvent[] {
+  const events: DeliveredSaleEvent[] = [];
+  for (const s of DEMO_STORES) {
+    for (let i = 0; i < s.deliveredSales; i += 1) {
+      events.push({ type: 'delivery.validated', resellerId: s.resellerId, orderId: `${s.storefrontId}-ord-${i}` });
     }
   }
   return events;

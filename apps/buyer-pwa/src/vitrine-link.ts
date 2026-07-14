@@ -1,7 +1,7 @@
 import { shortCodeToSlug, type AttributionArrival } from '@platform/contracts';
-import { resolvePublishedStore } from '@shop-plus/store-projection';
-import type { VitrineViewModel } from './vitrine-view';
-import { DEMO_STORES, demoStoreEvents } from './demo-stores';
+import { countDeliveredSales, resolvePublishedStore } from '@shop-plus/store-projection';
+import type { VitrineReputation, VitrineViewModel } from './vitrine-view';
+import { DEMO_STORES, demoDeliveredSaleEvents, demoStoreEvents } from './demo-stores';
 
 /**
  * WO-7.1 — the ONE LINK-FORMAT LAW, in code. The identity link the system
@@ -45,6 +45,8 @@ export interface VitrineIdentity {
   readonly shortCode: string;
   readonly slug: string;
   readonly view: VitrineViewModel;
+  /** S8 réputation — « N ventes livrées » on the trust chrome; count 0 hides it. */
+  readonly reputation: VitrineReputation;
 }
 
 /**
@@ -66,6 +68,8 @@ export function resolveVitrineSlug(slug: string): VitrineIdentity | undefined {
     shortCode: store.shortCode,
     slug: store.slug,
     view: { resellerName: store.resellerName, zone: store.vitrineZone, products: store.products },
+    // S8 réputation — folded from the delivery-validated events, marked « démo » (test data).
+    reputation: { count: countDeliveredSales(demoDeliveredSaleEvents(), store.resellerId), demo: true },
   };
 }
 

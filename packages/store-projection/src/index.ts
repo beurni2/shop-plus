@@ -3,3 +3,4 @@
 // projection, consumed by BOTH the buyer PWA directory and the
 // discovery-service. Dependency-free; canon shapes are never redefined here.
 export * from './store-projection.js';
+export * from './reputation.js';

@@ -1,0 +1,38 @@
+
+ RUN  v3.2.7 /home/user/shop-plus/apps/buyer-pwa
+
+ ❯ test/reputation-render.test.ts (5 tests | 1 failed) 15ms
+   ✓ réputation render — the exact count, verbatim, never a rank > COUNT-EXACT-VERBATIM (render): the trust chrome + card show exactly the fold count — never one more 2ms
+   × réputation render — the exact count, verbatim, never a rank > HIDDEN-BELOW-FLOOR: count 0 renders NO réputation line (floor = 1) — the honest empty state 9ms
+     → expected '<section class="vitrine" data-screen=…' not to contain 'ventes livrées'
+   ✓ réputation render — the exact count, verbatim, never a rank > BADGE-ONLY-WHERE-TRUE (SP-I19 adjacency): the rendered count IS the fold count — never a fabricated number 1ms
+   ✓ réputation render — the exact count, verbatim, never a rank > NEVER-A-RANK (render): no reputation ordinal/leaderboard word, and the directory is NOT re-sorted by réputation 1ms
+   ✓ réputation render — the exact count, verbatim, never a rank > a DEMO count carries the « démo » marker; a real count would not 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/reputation-render.test.ts > réputation render — the exact count, verbatim, never a rank > HIDDEN-BELOW-FLOOR: count 0 renders NO réputation line (floor = 1) — the honest empty state
+AssertionError: expected '<section class="vitrine" data-screen=…' not to contain 'ventes livrées'
+
+Expected: [32m"ventes livrées"[39m
+Received: [31m"<section class="vitrine" data-screen="vitrine"><header class="vitrine-head"><h2 class="vitrine-store-name">Chez Aïcha</h2><p class="vitrine-verified"><span class="verified-badge">Vendeuse vérifiée · Rood Woko, Ouagadougou</span></p></header><div class="vitrine-trust" data-role="vitrine-trust"><div class="trust-row"><span class="trust-chip">Livré par Séra</span><span class="trust-chip">Paiement protégé</span></div><p class="vitrine-reputation-line"><span class="vitrine-reputation" data-role="reputation">0 ventes livrées</span> <span class="reputation-demo" data-role="reputation-demo">démo</span></p><p class="vitrine-privacy">Le paiement est protégé. Votre numéro reste privé.</p></div><div class="vitrine-products"><a class="vitrine-product" data-role="vitrine-product" data-action="acheter" href="?demo-journey=produit"><span class="vitrine-product-name">Bazin</span><span class="vitrine-price fcfa-line">Votre prix : 11 500 F</span></a></div><a class="vitrine-boutiques link-quiet" data-role="vitrine-boutiques" href="/boutiques">VOIR TOUTES LES BOUTIQUES</a></section>"[39m
+
+ ❯ test/reputation-render.test.ts:36:25
+     34|   it('HIDDEN-BELOW-FLOOR: count 0 renders NO réputation line (floor = …
+     35|     const vitrine = renderVitrine(model, { count: 0, demo: true });
+     36|     expect(vitrine).not.toContain('ventes livrées');
+       |                         ^
+     37|     expect(vitrine).not.toMatch(/data-role="reputation"/);
+     38|     // and with no reputation passed at all, nothing appears
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  05:23:59
+   Duration  509ms (transform 104ms, setup 0ms, collect 200ms, tests 15ms, environment 0ms, prepare 59ms)
+
+undefined
+/home/user/shop-plus/apps/buyer-pwa:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run test/reputation-render.test.ts

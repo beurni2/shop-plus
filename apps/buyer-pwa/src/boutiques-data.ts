@@ -1,5 +1,5 @@
-import { projectStores } from '@shop-plus/store-projection';
-import { DEMO_NOW, demoStoreEvents } from './demo-stores';
+import { countDeliveredSales, projectStores } from '@shop-plus/store-projection';
+import { DEMO_NOW, demoDeliveredSaleEvents, demoStoreEvents } from './demo-stores';
 
 /**
  * WO-7.2a → SP#001-B — S3 DÉCOUVERTE data (buyer PWA). SP-I05 (quoted):
@@ -35,6 +35,12 @@ export interface BoutiqueEntry {
   readonly quand: BoutiqueQuand;
   /** Hub-verified badge appears ONLY where true (SP-I19) — derived, never baked. */
   readonly verified: boolean;
+  /**
+   * Réputation (S8): the exact count of delivered-and-validated sales, folded
+   * from delivery-validated events (never a baked number). 0 → the réputation
+   * line is hidden (floor = 1). Demo counts here are « démo »-marked in the view.
+   */
+  readonly deliveredSales: number;
   /** The canon identity slug — the card links to `/v/{slug}`. */
   readonly slug: string;
 }
@@ -52,6 +58,7 @@ function quandFromLastUpdated(lastUpdated: string): BoutiqueQuand {
  * appear, ordered by real last-update time (SP-I11) — the producer's order is
  * the directory's order. Computed once from the fixed demo log: pure, no clock.
  */
+const DELIVERED_SALES = demoDeliveredSaleEvents();
 const STORES: readonly BoutiqueEntry[] = projectStores(demoStoreEvents()).map((s) => ({
   storefrontId: s.storefrontId,
   resellerId: s.resellerId,
@@ -60,6 +67,8 @@ const STORES: readonly BoutiqueEntry[] = projectStores(demoStoreEvents()).map((s
   productCount: s.productCount,
   quand: quandFromLastUpdated(s.lastUpdated),
   verified: s.verified,
+  // réputation folded from the delivery-validated events (S8), never hard-coded here.
+  deliveredSales: countDeliveredSales(DELIVERED_SALES, s.resellerId),
   slug: s.slug,
 }));
 

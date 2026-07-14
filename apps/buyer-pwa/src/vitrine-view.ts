@@ -37,15 +37,49 @@ export interface VitrineViewModel {
   products: readonly VitrineProduct[];
 }
 
-function trustChrome(): string {
+/**
+ * S8 réputation on the trust chrome — « N ventes livrées », the exact count of
+ * delivered sales (never a rank, never a score). Kept OUT of the pinned
+ * VitrineViewModel (the SP-I03 no-supplier fixture) so it stays a render-time
+ * trust signal, not commercial-identity data.
+ */
+export interface VitrineReputation {
+  /** The exact delivered-sales count; below the floor (0) the line is hidden. */
+  readonly count: number;
+  /** A demo (test-data) count → rendered with a « démo » marker, never a real claim. */
+  readonly demo: boolean;
+}
+
+/**
+ * The réputation count text, in correct French (Voice Standard §10.5): the
+ * singular « 1 vente livrée » at exactly one delivered sale — the FIRST trust
+ * state a reseller ever shows — and « N ventes livrées » at two or more. Both
+ * strings live in the catalog; the render branches on the count.
+ */
+export function reputationText(count: number): string {
+  return count === 1 ? t('reputation.ventes_livrees_une') : tf('reputation.ventes_livrees', { n: String(count) });
+}
+
+/** « N ventes livrées » — shown from the first delivered sale (floor = 1); else nothing. */
+function reputationLine(rep: VitrineReputation | undefined): string {
+  if (rep === undefined || rep.count < 1) return '';
+  const count = `<span class="vitrine-reputation" data-role="reputation">${reputationText(rep.count)}</span>`;
+  const demo = rep.demo ? ` <span class="reputation-demo" data-role="reputation-demo">${t('reputation.demo')}</span>` : '';
+  return `<p class="vitrine-reputation-line">${count}${demo}</p>`;
+}
+
+function trustChrome(reputation: VitrineReputation | undefined): string {
   // Part 6.1 — shown before anything is asked. « Livré par Séra » / « Paiement
   // protégé » reuse the product-page trust strings; the privacy line is S5.
+  // S8 — « N ventes livrées » rides the trust chrome (a delivered-sales count,
+  // never a rank), from the first delivered sale.
   return [
     '<div class="vitrine-trust" data-role="vitrine-trust">',
     '<div class="trust-row">',
     `<span class="trust-chip">${t('produit.livre_par_sera')}</span>`,
     `<span class="trust-chip">${t('produit.paiement_protege')}</span>`,
     '</div>',
+    reputationLine(reputation),
     `<p class="vitrine-privacy">${t('vitrine.protege')}</p>`,
     '</div>',
   ].join('');
@@ -74,14 +108,14 @@ function productCard(p: VitrineProduct): string {
   ].join('');
 }
 
-export function renderVitrine(model: VitrineViewModel): string {
+export function renderVitrine(model: VitrineViewModel, reputation?: VitrineReputation): string {
   return [
     '<section class="vitrine" data-screen="vitrine">',
     '<header class="vitrine-head">',
     `<h2 class="vitrine-store-name">${tf('vitrine.chez', { name: esc(model.resellerName) })}</h2>`,
     `<p class="vitrine-verified"><span class="verified-badge">${tf('vitrine.verifiee', { zone: esc(model.zone) })}</span></p>`,
     '</header>',
-    trustChrome(),
+    trustChrome(reputation),
     '<div class="vitrine-products">',
     model.products.map(productCard).join(''),
     '</div>',
