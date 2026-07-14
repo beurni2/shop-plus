@@ -50,10 +50,20 @@ export interface VitrineReputation {
   readonly demo: boolean;
 }
 
+/**
+ * The réputation count text, in correct French (Voice Standard §10.5): the
+ * singular « 1 vente livrée » at exactly one delivered sale — the FIRST trust
+ * state a reseller ever shows — and « N ventes livrées » at two or more. Both
+ * strings live in the catalog; the render branches on the count.
+ */
+export function reputationText(count: number): string {
+  return count === 1 ? t('reputation.ventes_livrees_une') : tf('reputation.ventes_livrees', { n: String(count) });
+}
+
 /** « N ventes livrées » — shown from the first delivered sale (floor = 1); else nothing. */
 function reputationLine(rep: VitrineReputation | undefined): string {
   if (rep === undefined || rep.count < 1) return '';
-  const count = `<span class="vitrine-reputation" data-role="reputation">${tf('reputation.ventes_livrees', { n: String(rep.count) })}</span>`;
+  const count = `<span class="vitrine-reputation" data-role="reputation">${reputationText(rep.count)}</span>`;
   const demo = rep.demo ? ` <span class="reputation-demo" data-role="reputation-demo">${t('reputation.demo')}</span>` : '';
   return `<p class="vitrine-reputation-line">${count}${demo}</p>`;
 }

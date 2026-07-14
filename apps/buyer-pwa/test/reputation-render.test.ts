@@ -67,6 +67,18 @@ describe('réputation render — the exact count, verbatim, never a rank', () =>
     expect(order).not.toEqual(byReputationDesc); // the directory is not a leaderboard
   });
 
+  it('SINGULAR-AT-1 (French Voice §10.5): count 1 renders « 1 vente livrée », count ≥ 2 the plural « N ventes livrées »', () => {
+    const one = renderVitrine(model, { count: 1, demo: true });
+    expect(one).toContain('1 vente livrée'); // correct singular — the FIRST trust state
+    expect(one).not.toContain('1 ventes livrées'); // never the grammatically-wrong plural at 1
+
+    const two = renderVitrine(model, { count: 2, demo: true });
+    expect(two).toContain('2 ventes livrées'); // plural from two on
+    expect(two).not.toContain('2 vente livrée');
+
+    expect(renderVitrine(model, { count: 47, demo: true })).toContain('47 ventes livrées');
+  });
+
   it('a DEMO count carries the « démo » marker; a real count would not', () => {
     expect(renderVitrine(model, { count: 5, demo: true })).toMatch(/data-role="reputation-demo"/);
     expect(renderVitrine(model, { count: 5, demo: true })).toContain('démo');

@@ -1,5 +1,6 @@
 import { t, tf } from './i18n';
 import { esc } from './format';
+import { reputationText } from './vitrine-view';
 import {
   allBoutiques,
   filterBoutiques,
@@ -63,7 +64,7 @@ function chevron(): string {
 function reputationChip(count: number): string {
   if (count < 1) return '';
   return (
-    `<span class="bq-reputation" data-role="reputation">${tf('reputation.ventes_livrees', { n: String(count) })}` +
+    `<span class="bq-reputation" data-role="reputation">${reputationText(count)}` +
     ` <span class="reputation-demo" data-role="reputation-demo">${t('reputation.demo')}</span></span>`
   );
 }

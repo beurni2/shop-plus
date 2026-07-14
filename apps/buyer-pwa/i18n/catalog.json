@@ -828,6 +828,12 @@
     "screenClass": "label"
   },
   {
+    "key": "reputation.ventes_livrees_une",
+    "fr": "1 vente livrée",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
     "key": "reputation.demo",
     "fr": "démo",
     "register": "neutral",
