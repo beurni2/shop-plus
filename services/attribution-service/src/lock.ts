@@ -1,4 +1,7 @@
 import { PlatformEventSchema, type AttributionToken, type PlatformEvent } from '@platform/contracts';
+import { decideLock, type AttributionLock, type LockClaim } from './lock-core.js';
+
+export type { AttributionLock } from './lock-core.js';
 
 /**
  * ATTRIBUTION LOCK — FIRST LOCK WINS (SP-I01: "Every confirmed order MUST
@@ -12,14 +15,13 @@ import { PlatformEventSchema, type AttributionToken, type PlatformEvent } from '
  *
  * Callers verify the token FIRST (verifyAttributionToken) — this book never
  * sees an unverified token.
+ *
+ * LOCK-DURABILITY: the DECISION is the pure `decideLock` (lock-core.ts); the
+ * canon events are built by the SHARED builders below. The in-memory book here
+ * keeps the byte-identical semantics for callers and unit tests; the durable
+ * `AttributionLockDO` (worker/) decides through the SAME core and builds the
+ * SAME events, so a lock survives a restart with no semantic drift.
  */
-
-export interface AttributionLock {
-  checkoutRef: string;
-  resellerId: string;
-  tokenId: string;
-  lockedAt: string;
-}
 
 export type LockOutcome =
   | { ok: true; lock: AttributionLock; event: PlatformEvent; duplicate: boolean }
@@ -31,6 +33,64 @@ export type LockOutcome =
       buyerMessageRef: 'attribution.collision';
     };
 
+/** The canon `attribution.locked.v1` event for a lock — one aggregate, version 1. */
+export function attributionLockedEvent(
+  lock: AttributionLock,
+  args: { correlationId: string; at: string },
+): PlatformEvent {
+  return PlatformEventSchema.parse({
+    name: 'attribution.locked.v1',
+    envelope: {
+      command_id: `attr-lock-${lock.checkoutRef}`,
+      correlation_id: args.correlationId,
+      aggregateVersion: 1,
+      actor: 'attribution-service:lock',
+      serverTime: args.at,
+      version: '1',
+    },
+    payload: {
+      checkout_ref: lock.checkoutRef,
+      reseller_id: lock.resellerId,
+      token_id: lock.tokenId,
+    },
+  });
+}
+
+/**
+ * The canon `reconciliation.alert.v1` for a contested checkout. `seq` is the
+ * aggregate version + the alert command_id's tie-break suffix; the in-memory
+ * book supplies its per-book counter, the durable DO supplies the per-checkout
+ * persisted version — same event shape, same payload, on both paths.
+ */
+export function attributionCollisionAlert(args: {
+  existing: AttributionLock;
+  rejectedResellerId: string;
+  rejectedTokenId: string;
+  correlationId: string;
+  at: string;
+  seq: number;
+}): PlatformEvent {
+  return PlatformEventSchema.parse({
+    name: 'reconciliation.alert.v1',
+    envelope: {
+      command_id: `attr-collision-${args.existing.checkoutRef}-${args.seq}`,
+      correlation_id: args.correlationId,
+      aggregateVersion: args.seq,
+      actor: 'attribution-service:lock',
+      serverTime: args.at,
+      version: '1',
+    },
+    payload: {
+      alert: 'attribution_collision_on_locked_checkout',
+      checkout_ref: args.existing.checkoutRef,
+      locked_reseller_id: args.existing.resellerId,
+      locked_token_id: args.existing.tokenId,
+      rejected_token_id: args.rejectedTokenId,
+      rejected_reseller_id: args.rejectedResellerId,
+    },
+  });
+}
+
 export class AttributionLockBook {
   private readonly byCheckout = new Map<string, AttributionLock>();
   private alertCounter = 0;
@@ -41,70 +101,42 @@ export class AttributionLockBook {
     token: AttributionToken;
     at: string;
   }): LockOutcome {
-    const existing = this.byCheckout.get(args.checkoutRef);
-    if (existing) {
-      if (existing.tokenId === args.token.id && existing.resellerId === args.token.resellerId) {
-        // The same qualified token re-presented — idempotent, still locked.
-        return { ok: true, lock: existing, event: this.lockedEvent(existing, args), duplicate: true };
-      }
-      this.alertCounter += 1;
-      const collisionAlert = PlatformEventSchema.parse({
-        name: 'reconciliation.alert.v1',
-        envelope: {
-          command_id: `attr-collision-${args.checkoutRef}-${this.alertCounter}`,
-          correlation_id: args.correlationId,
-          aggregateVersion: this.alertCounter,
-          actor: 'attribution-service:lock',
-          serverTime: args.at,
-          version: '1',
-        },
-        payload: {
-          alert: 'attribution_collision_on_locked_checkout',
-          checkout_ref: args.checkoutRef,
-          locked_reseller_id: existing.resellerId,
-          locked_token_id: existing.tokenId,
-          rejected_token_id: args.token.id,
-          rejected_reseller_id: args.token.resellerId,
-        },
-      });
-      return {
-        ok: false,
-        reason: 'attribution_already_locked',
-        lock: existing,
-        collisionAlert,
-        buyerMessageRef: 'attribution.collision',
-      };
-    }
-    const lock: AttributionLock = {
+    const claim: LockClaim = {
       checkoutRef: args.checkoutRef,
       resellerId: args.token.resellerId,
       tokenId: args.token.id,
-      lockedAt: args.at,
+      at: args.at,
     };
-    this.byCheckout.set(args.checkoutRef, lock);
-    return { ok: true, lock, event: this.lockedEvent(lock, args), duplicate: false };
+    const decision = decideLock(this.byCheckout.get(args.checkoutRef) ?? null, claim);
+    if (decision.status === 'collision') {
+      this.alertCounter += 1;
+      return {
+        ok: false,
+        reason: 'attribution_already_locked',
+        lock: decision.existing,
+        collisionAlert: attributionCollisionAlert({
+          existing: decision.existing,
+          rejectedResellerId: decision.rejectedResellerId,
+          rejectedTokenId: decision.rejectedTokenId,
+          correlationId: args.correlationId,
+          at: args.at,
+          seq: this.alertCounter,
+        }),
+        buyerMessageRef: 'attribution.collision',
+      };
+    }
+    if (decision.status === 'created') {
+      this.byCheckout.set(args.checkoutRef, decision.lock);
+    }
+    return {
+      ok: true,
+      lock: decision.lock,
+      event: attributionLockedEvent(decision.lock, args),
+      duplicate: decision.status === 'idempotent',
+    };
   }
 
   lockFor(checkoutRef: string): AttributionLock | undefined {
     return this.byCheckout.get(checkoutRef);
-  }
-
-  private lockedEvent(lock: AttributionLock, args: { correlationId: string; at: string }): PlatformEvent {
-    return PlatformEventSchema.parse({
-      name: 'attribution.locked.v1',
-      envelope: {
-        command_id: `attr-lock-${lock.checkoutRef}`,
-        correlation_id: args.correlationId,
-        aggregateVersion: 1,
-        actor: 'attribution-service:lock',
-        serverTime: args.at,
-        version: '1',
-      },
-      payload: {
-        checkout_ref: lock.checkoutRef,
-        reseller_id: lock.resellerId,
-        token_id: lock.tokenId,
-      },
-    });
   }
 }
