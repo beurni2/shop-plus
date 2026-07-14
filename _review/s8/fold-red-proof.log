@@ -1,0 +1,53 @@
+
+ RUN  v4.1.10 /tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/s8-redproof
+
+ ❯ reputation.redproof.test.ts (3 tests | 2 failed) 11ms
+     × COUNT-EXACT-VERBATIM: exactly the number of distinct validated orders for the reseller — not one more, not one less 8ms
+     × is idempotent — a re-emitted validation of the SAME order counts once (dedup by orderId) 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  reputation.redproof.test.ts > countDeliveredSales — réputation is the exact count of delivered sales > COUNT-EXACT-VERBATIM: exactly the number of distinct validated orders for the reseller — not one more, not one less
+AssertionError: expected 4 to be 3 // Object.is equality
+
+- Expected
++ Received
+
+- 3
++ 4
+
+ ❯ reputation.redproof.test.ts:23:54
+     21|       validated('res_mariam', 'ord_9'), // a different reseller — neve…
+     22|     ];
+     23|     expect(countDeliveredSales(events, 'res_aicha')).toBe(3); // a +1 …
+       |                                                      ^
+     24|     expect(countDeliveredSales(events, 'res_mariam')).toBe(1);
+     25|     expect(countDeliveredSales(events, 'res_nobody')).toBe(0); // no d…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  reputation.redproof.test.ts > countDeliveredSales — réputation is the exact count of delivered sales > is idempotent — a re-emitted validation of the SAME order counts once (dedup by orderId)
+AssertionError: expected 4 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 4
+
+ ❯ reputation.redproof.test.ts:34:54
+     32|       validated('res_aicha', 'ord_2'),
+     33|     ];
+     34|     expect(countDeliveredSales(events, 'res_aicha')).toBe(2); // two d…
+       |                                                      ^
+     35|   });
+     36|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed (3)
+   Start at  05:23:58
+   Duration  208ms (transform 30ms, setup 0ms, import 43ms, tests 11ms, environment 0ms)
+

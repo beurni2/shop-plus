@@ -1,0 +1,39 @@
+=== HOME (fresh) ===
+/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/s8-cold/home
+=== baseline auth line (credential-only, NO normalization) ===
+file:/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/s8-cold/home/.gitconfig	url.http://local_proxy@127.0.0.1:41729/git/.insteadof=https://github.com/
+file:/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/s8-cold/home/.gitconfig	url.http://local_proxy@127.0.0.1:41729/git/.insteadof=git@github.com:
+file:/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/s8-cold/home/.gitconfig	url.http://local_proxy@127.0.0.1:41729/git/.insteadof=ssh://git@github.com/
+command line:	url.https://github.com/.insteadof=git@github.com:
+command line:	url.https://github.com/.insteadof=ssh://git@github.com/
+=== git clone the committed bytes (e7/wo-s8-reputation) ===
+Cloning into '/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/s8-cold/shop-plus'...
+cold HEAD: bc45abe
+=== cloned lockfile portability (must be 0 ssh-form, 0 proxy-leak) ===
+ssh-form git@: 0
+proxy-leak:    0
+=== isolated store + cache (fresh, empty) ===
+store entries: 0 | cache entries: 0
+=== pnpm install --frozen-lockfile (cold-installable proof) ===
+│   Ignored build scripts: esbuild@0.25.12, sharp@0.34.5.                      │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 29.3s using pnpm v10.33.0
+FROZEN INSTALL rc=0
+=== content pins (cold) ===
+ui-tokens: 0.9.9
+=== THE ONE PRODUCER + consumers resolve cold (source-exported package) ===
+@shop-plus/store-projection:test:       Tests  10 passed (10)
+@shop-plus/discovery-service:test:       Tests  8 passed (8)
+@shop-plus/storefront-service:test:       Tests  16 passed (16)
+@shop-plus/buyer-pwa:test:       Tests  99 passed (99)
+ Tasks:    13 successful, 13 total
+PRODUCER+CONSUMERS rc=0
+=== run-gates.sh (Playwright at preinstalled chromium) ===
+  43 passed (24.3s)
+(exit code: 0)
+
+ALL GATES GREEN (positives passed; every negative fixture failed as required)
+RUN-GATES rc=0

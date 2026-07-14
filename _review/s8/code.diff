@@ -1,0 +1,520 @@
+diff --git a/apps/buyer-pwa/i18n/catalog.json b/apps/buyer-pwa/i18n/catalog.json
+index 2609e56..cf241ab 100644
+--- a/apps/buyer-pwa/i18n/catalog.json
++++ b/apps/buyer-pwa/i18n/catalog.json
+@@ -820,5 +820,17 @@
+     "fr": "Son prix est le prix — livré par Séra, paiement protégé.",
+     "register": "money",
+     "screenClass": "general"
++  },
++  {
++    "key": "reputation.ventes_livrees",
++    "fr": "{n} ventes livrées",
++    "register": "selling",
++    "screenClass": "label"
++  },
++  {
++    "key": "reputation.demo",
++    "fr": "démo",
++    "register": "neutral",
++    "screenClass": "label"
+   }
+-]
++]
+\ No newline at end of file
+diff --git a/apps/buyer-pwa/src/boutiques-data.ts b/apps/buyer-pwa/src/boutiques-data.ts
+index 41200b9..10c660d 100644
+--- a/apps/buyer-pwa/src/boutiques-data.ts
++++ b/apps/buyer-pwa/src/boutiques-data.ts
+@@ -1,5 +1,5 @@
+-import { projectStores } from '@shop-plus/store-projection';
+-import { DEMO_NOW, demoStoreEvents } from './demo-stores';
++import { countDeliveredSales, projectStores } from '@shop-plus/store-projection';
++import { DEMO_NOW, demoDeliveredSaleEvents, demoStoreEvents } from './demo-stores';
+ 
+ /**
+  * WO-7.2a → SP#001-B — S3 DÉCOUVERTE data (buyer PWA). SP-I05 (quoted):
+@@ -35,6 +35,12 @@ export interface BoutiqueEntry {
+   readonly quand: BoutiqueQuand;
+   /** Hub-verified badge appears ONLY where true (SP-I19) — derived, never baked. */
+   readonly verified: boolean;
++  /**
++   * Réputation (S8): the exact count of delivered-and-validated sales, folded
++   * from delivery-validated events (never a baked number). 0 → the réputation
++   * line is hidden (floor = 1). Demo counts here are « démo »-marked in the view.
++   */
++  readonly deliveredSales: number;
+   /** The canon identity slug — the card links to `/v/{slug}`. */
+   readonly slug: string;
+ }
+@@ -52,6 +58,7 @@ function quandFromLastUpdated(lastUpdated: string): BoutiqueQuand {
+  * appear, ordered by real last-update time (SP-I11) — the producer's order is
+  * the directory's order. Computed once from the fixed demo log: pure, no clock.
+  */
++const DELIVERED_SALES = demoDeliveredSaleEvents();
+ const STORES: readonly BoutiqueEntry[] = projectStores(demoStoreEvents()).map((s) => ({
+   storefrontId: s.storefrontId,
+   resellerId: s.resellerId,
+@@ -60,6 +67,8 @@ const STORES: readonly BoutiqueEntry[] = projectStores(demoStoreEvents()).map((s
+   productCount: s.productCount,
+   quand: quandFromLastUpdated(s.lastUpdated),
+   verified: s.verified,
++  // réputation folded from the delivery-validated events (S8), never hard-coded here.
++  deliveredSales: countDeliveredSales(DELIVERED_SALES, s.resellerId),
+   slug: s.slug,
+ }));
+ 
+diff --git a/apps/buyer-pwa/src/boutiques-view.ts b/apps/buyer-pwa/src/boutiques-view.ts
+index 59c002d..bbc3c4b 100644
+--- a/apps/buyer-pwa/src/boutiques-view.ts
++++ b/apps/buyer-pwa/src/boutiques-view.ts
+@@ -54,6 +54,20 @@ function chevron(): string {
+   );
+ }
+ 
++/**
++ * S8 réputation — « N ventes livrées », the exact delivered-sales count. Shown
++ * from the first delivered sale (floor = 1); a store with 0 renders nothing.
++ * Every directory count is demo (« données d'essai » ribbon), so it carries the
++ * « démo » marker — a fabricated count is never a real trust claim.
++ */
++function reputationChip(count: number): string {
++  if (count < 1) return '';
++  return (
++    `<span class="bq-reputation" data-role="reputation">${tf('reputation.ventes_livrees', { n: String(count) })}` +
++    ` <span class="reputation-demo" data-role="reputation-demo">${t('reputation.demo')}</span></span>`
++  );
++}
++
+ function storeCard(s: BoutiqueEntry, query: string): string {
+   const initial = esc(s.storeName.replace(/^(CHEZ|BOUTIQUE)\s+/i, '').charAt(0));
+   const meta = tf('boutiques.carte_meta', {
+@@ -72,6 +86,7 @@ function storeCard(s: BoutiqueEntry, query: string): string {
+     '<span class="bq-card-body">',
+     `<span class="bq-card-head"><span class="bq-store-name">${highlight(s.storeName, query)}</span>${verified}</span>`,
+     `<span class="bq-card-meta">${meta}</span>`,
++    reputationChip(s.deliveredSales),
+     '</span>',
+     chevron(),
+     '</a>',
+diff --git a/apps/buyer-pwa/src/demo-stores.ts b/apps/buyer-pwa/src/demo-stores.ts
+index 2aea463..2b8d0c7 100644
+--- a/apps/buyer-pwa/src/demo-stores.ts
++++ b/apps/buyer-pwa/src/demo-stores.ts
+@@ -1,4 +1,4 @@
+-import type { StoreProjectionEvent } from '@shop-plus/store-projection';
++import type { DeliveredSaleEvent, StoreProjectionEvent } from '@shop-plus/store-projection';
+ import type { VitrineProduct } from './vitrine-view';
+ 
+ /**
+@@ -36,6 +36,14 @@ export interface DemoStore {
+   readonly verified: boolean;
+   /** Days before the demo reference clock the store was last touched. */
+   readonly daysAgo: number;
++  /**
++   * DEMO count of delivered-and-validated sales (S8 réputation). These are DEMO
++   * numbers under the « données d'essai » ribbon — the render marks them « démo »
++   * so a fabricated count is never mistaken for a real trust claim. The founder's
++   * real store starts at zero until a delivery validates; a store with 0 renders
++   * no réputation line (floor = 1).
++   */
++  readonly deliveredSales: number;
+   /** The vitrine's product rows — HER prices (productSubtotal), no supplier/commission. */
+   readonly products: readonly VitrineProduct[];
+ }
+@@ -53,7 +61,7 @@ export const DEMO_STORES: readonly DemoStore[] = [
+   {
+     storefrontId: 'sf_aicha', resellerId: 'res_aicha', storeName: 'CHEZ AÏCHA', resellerName: 'Aïcha',
+     shortCode: 'AICHA-4821', zone: 'Rood Woko', vitrineZone: 'Rood Woko, Ouagadougou', slug: 'aicha-4821',
+-    productCount: 6, verified: true, daysAgo: 1,
++    productCount: 6, verified: true, daysAgo: 1, deliveredSales: 47,
+     products: [
+       { productName: 'Bazin riche brodé', priceFcfa: 11_500, inStock: true },
+       { productName: 'Sac en cuir tanné', priceFcfa: 9_000, inStock: true },
+@@ -63,7 +71,7 @@ export const DEMO_STORES: readonly DemoStore[] = [
+   {
+     storefrontId: 'sf_mariam', resellerId: 'res_mariam', storeName: 'CHEZ MARIAM', resellerName: 'Mariam',
+     shortCode: 'MARIAM-2170', zone: 'Gounghin', vitrineZone: 'Gounghin, Ouagadougou', slug: 'mariam-2170',
+-    productCount: 4, verified: true, daysAgo: 2,
++    productCount: 4, verified: true, daysAgo: 2, deliveredSales: 23,
+     products: [
+       { productName: 'Pagne Faso Dan Fani', priceFcfa: 8_500, inStock: true },
+       { productName: 'Ensemble bébé wax', priceFcfa: 6_000, inStock: true },
+@@ -73,7 +81,7 @@ export const DEMO_STORES: readonly DemoStore[] = [
+   {
+     storefrontId: 'sf_kadi', resellerId: 'res_kadi', storeName: 'BOUTIQUE KADI', resellerName: 'Kadi',
+     shortCode: 'KADI-5530', zone: 'Dassasgho', vitrineZone: 'Dassasgho, Ouagadougou', slug: 'kadi-5530',
+-    productCount: 9, verified: true, daysAgo: 3,
++    productCount: 9, verified: true, daysAgo: 3, deliveredSales: 61,
+     products: [
+       { productName: 'Chaussures femme', priceFcfa: 12_000, inStock: true },
+       { productName: 'Sac à main', priceFcfa: 7_500, inStock: true },
+@@ -83,7 +91,7 @@ export const DEMO_STORES: readonly DemoStore[] = [
+   {
+     storefrontId: 'sf_fanta', resellerId: 'res_fanta', storeName: 'CHEZ FANTA', resellerName: 'Fanta',
+     shortCode: 'FANTA-8090', zone: 'Tanghin', vitrineZone: 'Tanghin, Ouagadougou', slug: 'fanta-8090',
+-    productCount: 3, verified: true, daysAgo: 8,
++    productCount: 3, verified: true, daysAgo: 8, deliveredSales: 8,
+     products: [
+       { productName: 'Robe en pagne', priceFcfa: 9_500, inStock: true },
+       { productName: 'Voile brodé', priceFcfa: 6_500, inStock: true },
+@@ -93,7 +101,7 @@ export const DEMO_STORES: readonly DemoStore[] = [
+   {
+     storefrontId: 'sf_awa', resellerId: 'res_awa', storeName: 'CHEZ AWA T.', resellerName: 'Awa',
+     shortCode: 'AWA-3360', zone: 'Rood Woko', vitrineZone: 'Rood Woko, Ouagadougou', slug: 'awa-3360',
+-    productCount: 5, verified: true, daysAgo: 9,
++    productCount: 5, verified: true, daysAgo: 9, deliveredSales: 15,
+     products: [
+       { productName: 'Bazin Getzner', priceFcfa: 15_000, inStock: true },
+       { productName: 'Chaussures enfant', priceFcfa: 4_000, inStock: true },
+@@ -129,3 +137,20 @@ export function demoStoreEvents(): readonly StoreProjectionEvent[] {
+   }
+   return events;
+ }
++
++/**
++ * The demo delivered-sale events (S8 réputation) — `deliveredSales` validated
++ * orders per store, each a distinct `orderId`, attributed to the store's
++ * reseller. The réputation fold counts these (fold-derived, never a hard-coded
++ * render number); the render marks the result « démo » since these are test
++ * data. Generated from the per-store count so the source stays compact.
++ */
++export function demoDeliveredSaleEvents(): readonly DeliveredSaleEvent[] {
++  const events: DeliveredSaleEvent[] = [];
++  for (const s of DEMO_STORES) {
++    for (let i = 0; i < s.deliveredSales; i += 1) {
++      events.push({ type: 'delivery.validated', resellerId: s.resellerId, orderId: `${s.storefrontId}-ord-${i}` });
++    }
++  }
++  return events;
++}
+diff --git a/apps/buyer-pwa/src/main.ts b/apps/buyer-pwa/src/main.ts
+index 97789b6..a2d1ab9 100644
+--- a/apps/buyer-pwa/src/main.ts
++++ b/apps/buyer-pwa/src/main.ts
+@@ -449,6 +449,9 @@ style.textContent = `
+   .vitrine-verified { margin: 0; }
+   .vitrine-trust { display: grid; gap: var(--sp-sm); padding-bottom: var(--sp-sm); border-bottom: var(--hair-strong) solid var(--c-hairline); }
+   .vitrine-privacy { margin: 0; font-size: var(--t-caption); line-height: ${type.scale.caption.lh}; color: var(--c-body); }
++  .vitrine-reputation-line { margin: 0; font-size: var(--t-caption); line-height: ${type.scale.caption.lh}; color: var(--c-primaryStrong); }
++  .vitrine-reputation { font-weight: ${type.scale.bodyStrong.wght}; }
++  .reputation-demo { font-size: var(--t-labelXS); color: var(--c-muted); letter-spacing: var(--ls-label); text-transform: uppercase; }
+   .vitrine-products { display: grid; gap: 0; border: var(--hair-mid) solid var(--c-hairlineStrong); }
+   .vitrine-product { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); padding: var(--sp-md) var(--sp-lg); min-height: var(--touch); border-top: var(--hair-mid) solid var(--c-hairline); text-decoration: none; color: var(--c-ink); }
+   .vitrine-product:first-child { border-top: 0; }
+@@ -485,6 +488,7 @@ style.textContent = `
+   .bq-verified-mark { color: var(--c-ink); flex: none; }
+   .bq-verified-label { font-size: var(--t-labelXS); color: var(--c-muted); }
+   .bq-card-meta { font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
++  .bq-reputation { font-size: var(--t-caption); color: var(--c-primaryStrong); font-weight: ${type.scale.bodyStrong.wght}; }
+   .bq-chevron { color: var(--c-primaryStrong); flex: none; }
+   .bq-card-skeleton { pointer-events: none; }
+   .bq-card-skeleton .bq-avatar { border: 0; }
+@@ -533,7 +537,7 @@ if (app) {
+     const main = document.createElement('main');
+     const section = document.createElement('div');
+     section.className = 'journey-screen';
+-    section.innerHTML = renderVitrine(vitrineIdentity.view);
++    section.innerHTML = renderVitrine(vitrineIdentity.view, vitrineIdentity.reputation);
+     main.append(section);
+     app.append(main);
+   } else if (journeyScreen && (JOURNEY_SCREENS as readonly string[]).includes(journeyScreen)) {
+diff --git a/apps/buyer-pwa/src/vitrine-link.ts b/apps/buyer-pwa/src/vitrine-link.ts
+index 7acb571..18e4141 100644
+--- a/apps/buyer-pwa/src/vitrine-link.ts
++++ b/apps/buyer-pwa/src/vitrine-link.ts
+@@ -1,7 +1,7 @@
+ import { shortCodeToSlug, type AttributionArrival } from '@platform/contracts';
+-import { resolvePublishedStore } from '@shop-plus/store-projection';
+-import type { VitrineViewModel } from './vitrine-view';
+-import { DEMO_STORES, demoStoreEvents } from './demo-stores';
++import { countDeliveredSales, resolvePublishedStore } from '@shop-plus/store-projection';
++import type { VitrineReputation, VitrineViewModel } from './vitrine-view';
++import { DEMO_STORES, demoDeliveredSaleEvents, demoStoreEvents } from './demo-stores';
+ 
+ /**
+  * WO-7.1 — the ONE LINK-FORMAT LAW, in code. The identity link the system
+@@ -45,6 +45,8 @@ export interface VitrineIdentity {
+   readonly shortCode: string;
+   readonly slug: string;
+   readonly view: VitrineViewModel;
++  /** S8 réputation — « N ventes livrées » on the trust chrome; count 0 hides it. */
++  readonly reputation: VitrineReputation;
+ }
+ 
+ /**
+@@ -66,6 +68,8 @@ export function resolveVitrineSlug(slug: string): VitrineIdentity | undefined {
+     shortCode: store.shortCode,
+     slug: store.slug,
+     view: { resellerName: store.resellerName, zone: store.vitrineZone, products: store.products },
++    // S8 réputation — folded from the delivery-validated events, marked « démo » (test data).
++    reputation: { count: countDeliveredSales(demoDeliveredSaleEvents(), store.resellerId), demo: true },
+   };
+ }
+ 
+diff --git a/apps/buyer-pwa/src/vitrine-view.ts b/apps/buyer-pwa/src/vitrine-view.ts
+index c35371f..f760abf 100644
+--- a/apps/buyer-pwa/src/vitrine-view.ts
++++ b/apps/buyer-pwa/src/vitrine-view.ts
+@@ -37,15 +37,39 @@ export interface VitrineViewModel {
+   products: readonly VitrineProduct[];
+ }
+ 
+-function trustChrome(): string {
++/**
++ * S8 réputation on the trust chrome — « N ventes livrées », the exact count of
++ * delivered sales (never a rank, never a score). Kept OUT of the pinned
++ * VitrineViewModel (the SP-I03 no-supplier fixture) so it stays a render-time
++ * trust signal, not commercial-identity data.
++ */
++export interface VitrineReputation {
++  /** The exact delivered-sales count; below the floor (0) the line is hidden. */
++  readonly count: number;
++  /** A demo (test-data) count → rendered with a « démo » marker, never a real claim. */
++  readonly demo: boolean;
++}
++
++/** « N ventes livrées » — shown from the first delivered sale (floor = 1); else nothing. */
++function reputationLine(rep: VitrineReputation | undefined): string {
++  if (rep === undefined || rep.count < 1) return '';
++  const count = `<span class="vitrine-reputation" data-role="reputation">${tf('reputation.ventes_livrees', { n: String(rep.count) })}</span>`;
++  const demo = rep.demo ? ` <span class="reputation-demo" data-role="reputation-demo">${t('reputation.demo')}</span>` : '';
++  return `<p class="vitrine-reputation-line">${count}${demo}</p>`;
++}
++
++function trustChrome(reputation: VitrineReputation | undefined): string {
+   // Part 6.1 — shown before anything is asked. « Livré par Séra » / « Paiement
+   // protégé » reuse the product-page trust strings; the privacy line is S5.
++  // S8 — « N ventes livrées » rides the trust chrome (a delivered-sales count,
++  // never a rank), from the first delivered sale.
+   return [
+     '<div class="vitrine-trust" data-role="vitrine-trust">',
+     '<div class="trust-row">',
+     `<span class="trust-chip">${t('produit.livre_par_sera')}</span>`,
+     `<span class="trust-chip">${t('produit.paiement_protege')}</span>`,
+     '</div>',
++    reputationLine(reputation),
+     `<p class="vitrine-privacy">${t('vitrine.protege')}</p>`,
+     '</div>',
+   ].join('');
+@@ -74,14 +98,14 @@ function productCard(p: VitrineProduct): string {
+   ].join('');
+ }
+ 
+-export function renderVitrine(model: VitrineViewModel): string {
++export function renderVitrine(model: VitrineViewModel, reputation?: VitrineReputation): string {
+   return [
+     '<section class="vitrine" data-screen="vitrine">',
+     '<header class="vitrine-head">',
+     `<h2 class="vitrine-store-name">${tf('vitrine.chez', { name: esc(model.resellerName) })}</h2>`,
+     `<p class="vitrine-verified"><span class="verified-badge">${tf('vitrine.verifiee', { zone: esc(model.zone) })}</span></p>`,
+     '</header>',
+-    trustChrome(),
++    trustChrome(reputation),
+     '<div class="vitrine-products">',
+     model.products.map(productCard).join(''),
+     '</div>',
+diff --git a/apps/buyer-pwa/test/reputation-render.test.ts b/apps/buyer-pwa/test/reputation-render.test.ts
+new file mode 100644
+index 0000000..ae8d7ec
+--- /dev/null
++++ b/apps/buyer-pwa/test/reputation-render.test.ts
+@@ -0,0 +1,75 @@
++import { describe, expect, it } from 'vitest';
++import { countDeliveredSales } from '@shop-plus/store-projection';
++import { renderVitrine, type VitrineViewModel } from '../src/vitrine-view';
++import { resolveVitrineSlug } from '../src/vitrine-link';
++import { renderBoutiques } from '../src/boutiques-view';
++import { allBoutiques } from '../src/boutiques-data';
++import { demoDeliveredSaleEvents } from '../src/demo-stores';
++
++/**
++ * S8 — « N ventes livrées » on the vitrine trust chrome + the directory card.
++ * The two render gates the count law owes the screen: hidden-below-floor and
++ * badge-only-where-true (SP-I19 adjacency); plus count-exact and never-a-rank at
++ * the render.
++ */
++
++const model: VitrineViewModel = {
++  resellerName: 'Aïcha',
++  zone: 'Rood Woko, Ouagadougou',
++  products: [{ productName: 'Bazin', priceFcfa: 11_500, inStock: true }],
++};
++
++describe('réputation render — the exact count, verbatim, never a rank', () => {
++  it('COUNT-EXACT-VERBATIM (render): the trust chrome + card show exactly the fold count — never one more', () => {
++    const trueCount = countDeliveredSales(demoDeliveredSaleEvents(), 'res_aicha');
++    const vitrine = renderVitrine(model, { count: trueCount, demo: true });
++    expect(vitrine).toContain(`${trueCount} ventes livrées`);
++    expect(vitrine).not.toContain(`${trueCount + 1} ventes livrées`); // a +1 render mutation fails here
++
++    const directory = renderBoutiques({ state: 'default' });
++    const aicha = allBoutiques().find((s) => s.slug === 'aicha-4821');
++    expect(directory).toContain(`${aicha?.deliveredSales} ventes livrées`);
++  });
++
++  it('HIDDEN-BELOW-FLOOR: count 0 renders NO réputation line (floor = 1) — the honest empty state', () => {
++    const vitrine = renderVitrine(model, { count: 0, demo: true });
++    expect(vitrine).not.toContain('ventes livrées');
++    expect(vitrine).not.toMatch(/data-role="reputation"/);
++    // and with no reputation passed at all, nothing appears
++    expect(renderVitrine(model)).not.toContain('ventes livrées');
++  });
++
++  it('BADGE-ONLY-WHERE-TRUE (SP-I19 adjacency): the rendered count IS the fold count — never a fabricated number', () => {
++    const events = demoDeliveredSaleEvents();
++    // every directory card's count equals the fold over its reseller — nothing hard-coded in the view
++    for (const s of allBoutiques()) {
++      expect(s.deliveredSales).toBe(countDeliveredSales(events, s.resellerId));
++    }
++    // the vitrine identity's count is fold-derived too
++    const id = resolveVitrineSlug('aicha-4821');
++    expect(id?.reputation.count).toBe(countDeliveredSales(events, 'res_aicha'));
++  });
++
++  it('NEVER-A-RANK (render): no reputation ordinal/leaderboard word, and the directory is NOT re-sorted by réputation', () => {
++    const directory = renderBoutiques({ state: 'default' });
++    expect(directory).toMatch(/ventes livrées/); // the count is present
++    // …but never a rank / leaderboard / comparison word. (« Classées par dernière
++    // mise à jour » is the SP-I11 TIME-ordering sentence — sorted-by-time, not a
++    // reputation rank — so « classé » is deliberately NOT banned here.)
++    expect(directory).not.toMatch(/\b(1er|1ère|meilleure?|top ?\d|numéro ?\d|rang|palmarès|classement)\b/i);
++    expect(directory).not.toMatch(/n°\s*\d|\bsur \d+ (ventes|vendeuses|boutiques)/i);
++
++    // Kadi has the MOST delivered sales (61) but is NOT first — the order is
++    // last-update, NEVER the count. Structural proof that réputation is not a rank.
++    const order = allBoutiques().map((s) => s.slug);
++    expect(order).toEqual(['aicha-4821', 'mariam-2170', 'kadi-5530', 'fanta-8090', 'awa-3360']);
++    const byReputationDesc = [...allBoutiques()].sort((a, b) => b.deliveredSales - a.deliveredSales).map((s) => s.slug);
++    expect(order).not.toEqual(byReputationDesc); // the directory is not a leaderboard
++  });
++
++  it('a DEMO count carries the « démo » marker; a real count would not', () => {
++    expect(renderVitrine(model, { count: 5, demo: true })).toMatch(/data-role="reputation-demo"/);
++    expect(renderVitrine(model, { count: 5, demo: true })).toContain('démo');
++    expect(renderVitrine(model, { count: 5, demo: false })).not.toMatch(/data-role="reputation-demo"/);
++  });
++});
+diff --git a/packages/store-projection/src/index.ts b/packages/store-projection/src/index.ts
+index b1df9bb..cecc23d 100644
+--- a/packages/store-projection/src/index.ts
++++ b/packages/store-projection/src/index.ts
+@@ -3,3 +3,4 @@
+ // projection, consumed by BOTH the buyer PWA directory and the
+ // discovery-service. Dependency-free; canon shapes are never redefined here.
+ export * from './store-projection.js';
++export * from './reputation.js';
+diff --git a/packages/store-projection/src/reputation.ts b/packages/store-projection/src/reputation.ts
+new file mode 100644
+index 0000000..bfc2527
+--- /dev/null
++++ b/packages/store-projection/src/reputation.ts
+@@ -0,0 +1,48 @@
++/**
++ * RÉPUTATION (S8) — THE COUNT LAW, as a pure fold.
++ *
++ * Founder ruling (canon Shop-Plus-Build-Spec §SP8 + docs/derivations/
++ * REPUTATION-LAW.md, WO-5.15): « La réputation d'une revendeuse EST le nombre de
++ * ventes livrées — an exact count, never a rank, never a score, never a
++ * comparison. » Source: `delivery.validated.v1` delivered-sale events attributed
++ * to her storefront via the LOCKED `Order.resellerId` (SP-I01).
++ *
++ * The canon five-hop linkage (all existing canonical fields, no shape invented):
++ *   `delivery.validated.v1` → `ValidationDecision.taskId` → `DeliveryTask.orderId`
++ *   → `Order.resellerId` (LOCKED, SP-I01) → `Storefront.resellerId`.
++ * The join is resolved at the service boundary (canon envelopes carry no typed
++ * per-event payload); this fold consumes the resolved fact — a validated
++ * delivered sale, attributed to one reseller, on one order.
++ *
++ * So, for a reseller R:
++ *   réputation(R) = |{ validated order : Order.resellerId = R }|
++ *
++ * Deterministic and un-rankable BY CONSTRUCTION: the fold answers for ONE
++ * reseller and returns ONE integer. There is no window, no decay, no score, and
++ * no API that compares or orders resellers — a rank is not representable here
++ * (Ten Laws §5). Idempotent: a re-emitted validation of the same order counts
++ * once (dedup by `orderId`).
++ */
++
++export interface DeliveredSaleEvent {
++  readonly type: 'delivery.validated';
++  /** The reseller the order is LOCKED to (SP-I01), resolved via the five-hop linkage. */
++  readonly resellerId: string;
++  /** The validated order — the dedup key; a re-validation of the same order counts once. */
++  readonly orderId: string;
++}
++
++/**
++ * réputation(resellerId) — the exact count of distinct delivered-and-validated
++ * orders for ONE reseller. A bare integer: never a rank, never a comparison.
++ */
++export function countDeliveredSales(
++  events: readonly DeliveredSaleEvent[],
++  resellerId: string,
++): number {
++  const validatedOrders = new Set<string>();
++  for (const ev of events) {
++    if (ev.resellerId === resellerId) validatedOrders.add(ev.orderId);
++  }
++  return validatedOrders.size;
++}
+diff --git a/packages/store-projection/test/reputation.test.ts b/packages/store-projection/test/reputation.test.ts
+new file mode 100644
+index 0000000..cdceaa1
+--- /dev/null
++++ b/packages/store-projection/test/reputation.test.ts
+@@ -0,0 +1,54 @@
++import { describe, expect, it } from 'vitest';
++import * as reputationModule from '../src/reputation.js';
++import { countDeliveredSales, type DeliveredSaleEvent } from '../src/reputation.js';
++
++/**
++ * S8 — the réputation count law. Two RED-first fold gates:
++ * count-exact-verbatim (a +1 mutation must fail) · never-a-rank (a comparison is
++ * not representable — the structural-absence pattern).
++ */
++
++function validated(resellerId: string, orderId: string): DeliveredSaleEvent {
++  return { type: 'delivery.validated', resellerId, orderId };
++}
++
++describe('countDeliveredSales — réputation is the exact count of delivered sales', () => {
++  it('COUNT-EXACT-VERBATIM: exactly the number of distinct validated orders for the reseller — not one more, not one less', () => {
++    const events: DeliveredSaleEvent[] = [
++      validated('res_aicha', 'ord_1'),
++      validated('res_aicha', 'ord_2'),
++      validated('res_aicha', 'ord_3'),
++      validated('res_mariam', 'ord_9'), // a different reseller — never counted for Aïcha
++    ];
++    expect(countDeliveredSales(events, 'res_aicha')).toBe(3); // a +1 mutation of the fold fails here
++    expect(countDeliveredSales(events, 'res_mariam')).toBe(1);
++    expect(countDeliveredSales(events, 'res_nobody')).toBe(0); // no delivered sale → zero, honest
++  });
++
++  it('is idempotent — a re-emitted validation of the SAME order counts once (dedup by orderId)', () => {
++    const events: DeliveredSaleEvent[] = [
++      validated('res_aicha', 'ord_1'),
++      validated('res_aicha', 'ord_1'), // replay of the same validated order
++      validated('res_aicha', 'ord_2'),
++    ];
++    expect(countDeliveredSales(events, 'res_aicha')).toBe(2); // two distinct orders, not three
++  });
++
++  it('NEVER-A-RANK: the module answers per-reseller with a bare integer — no comparison/ordering API is representable', () => {
++    const events: DeliveredSaleEvent[] = [
++      validated('res_top', 'o1'),
++      validated('res_top', 'o2'),
++      validated('res_top', 'o3'),
++      validated('res_low', 'o4'),
++    ];
++    // Each reseller gets THEIR OWN count — never a position, never a "who is ahead".
++    expect(typeof countDeliveredSales(events, 'res_top')).toBe('number');
++    // Structural absence: the package exports NO function that ranks/sorts/compares
++    // resellers by their count (no leaderboard, no top-N, no percentile).
++    const exported = Object.keys(reputationModule);
++    const rankish = exported.filter((k) => /rank|top|leaderboard|compare|sort|best|percentile|position|order/i.test(k));
++    expect(rankish).toEqual([]);
++    // The only reputation export is the per-reseller count.
++    expect(exported).toContain('countDeliveredSales');
++  });
++});
