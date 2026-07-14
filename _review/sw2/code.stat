@@ -1,0 +1,14 @@
+ apps/reseller-app/i18n/catalog.json                |  14 ++-
+ gates/fixtures/supply/live-customer-surface.json   |   4 +
+ packages/supply-consumer/package.json              |  27 +++++
+ packages/supply-consumer/src/consumer.ts           | 100 ++++++++++++++++
+ packages/supply-consumer/src/index.ts              |   9 ++
+ packages/supply-consumer/src/mock.ts               |  47 ++++++++
+ packages/supply-consumer/src/opportunity.ts        |  68 +++++++++++
+ packages/supply-consumer/src/read-model.ts         |  37 ++++++
+ packages/supply-consumer/test/consumer.test.ts     | 126 +++++++++++++++++++++
+ .../test/no-supplier-live-path.test.ts             |  47 ++++++++
+ packages/supply-consumer/tsconfig.json             |   8 ++
+ pnpm-lock.yaml                                     |  16 +++
+ scripts/run-gates.sh                               |   3 +
+ 13 files changed, 505 insertions(+), 1 deletion(-)

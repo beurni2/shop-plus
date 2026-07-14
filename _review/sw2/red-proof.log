@@ -1,0 +1,47 @@
+
+ RUN  v4.1.10 /tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/sw2-redproof
+
+ ❯ minimal.redproof.test.ts (2 tests | 2 failed) 12ms
+     × STALE-BLOCKS-AGREEMENT catches it: a 16-min-old projection wrongly passes as fresh 9ms
+     × LEAK-KEY-SWEPT catches it: a planted supplierPhone must be identity_material_refused 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  minimal.redproof.test.ts > RED: the naive consumer (no freshness, no sweep) must FAIL these gates > STALE-BLOCKS-AGREEMENT catches it: a 16-min-old projection wrongly passes as fresh
+AssertionError: expected 'fresh' to be 'stale' // Object.is equality
+
+Expected: "stale"
+Received: "fresh"
+
+ ❯ minimal.redproof.test.ts:10:22
+      8|     src.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: …
+      9|     const v = consumeSupplyProjection(src, 'pv_1', NOW);
+     10|     expect(v.status).toBe('stale');            // the real invariant
+       |                      ^
+     11|     expect(canBackAgreement(v)).toBe(false);
+     12|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  minimal.redproof.test.ts > RED: the naive consumer (no freshness, no sweep) must FAIL these gates > LEAK-KEY-SWEPT catches it: a planted supplierPhone must be identity_material_refused
+AssertionError: expected 'payload_not_contract_shaped' to be 'identity_material_refused' // Object.is equality
+
+Expected: "identity_material_refused"
+Received: "payload_not_contract_shaped"
+
+ ❯ minimal.redproof.test.ts:18:22
+     16|     const v = consumeSupplyProjection(src, 'pv_1', NOW);
+     17|     expect(v.status).toBe('rejected');
+     18|     expect(v.reason).toBe('identity_material_refused'); // the real in…
+       |                      ^
+     19|   });
+     20| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  07:40:12
+   Duration  319ms (transform 61ms, setup 0ms, import 149ms, tests 12ms, environment 0ms)
+
