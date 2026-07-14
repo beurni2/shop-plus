@@ -78,7 +78,7 @@ describe('the hub wiring — the QR card sends the canon vitrine, with a no-scan
   it('the QR card carries its title, the scan/type legend, and the no-scan fallback', () => {
     expect(appSource).toMatch(/t\('share\.qr_titre'\)/);
     expect(appSource).toMatch(/t\('share\.qr_legende'\)/);
-    expect(appSource).toMatch(/t\('share\.qr_repli'\)\.replace\('\{code\}'/);
+    expect(appSource).toMatch(/tf\('share\.qr_repli', \{ code:/);
   });
 
   it('the payload the QR carries IS a canon identity URL (real origin, canon slug)', () => {

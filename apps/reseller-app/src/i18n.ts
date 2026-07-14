@@ -19,3 +19,29 @@ export function t(key: string): string {
   }
   return entry.fr;
 }
+
+/**
+ * Catalog string with `{...}` placeholders resolved — strings stay in the
+ * catalog, values arrive at render time. LOUD-FAIL by design (stricter than the
+ * buyer PWA's silent variant): a placeholder with no value, or a param that
+ * matches no placeholder (a mistype), THROWS — a broken interpolation is a
+ * money-screen trust failure, never a silent « {amount} » left on screen.
+ */
+export function tf(key: string, params: Record<string, string>): string {
+  const template = t(key);
+  const used = new Set<string>();
+  const out = template.replace(/\{(\w+)\}/g, (_, name: string) => {
+    const value = params[name];
+    if (value === undefined) {
+      throw new Error(`i18n ${key}: no value for placeholder {${name}}`);
+    }
+    used.add(name);
+    return value;
+  });
+  for (const provided of Object.keys(params)) {
+    if (!used.has(provided)) {
+      throw new Error(`i18n ${key}: param "${provided}" matches no placeholder (mistyped?)`);
+    }
+  }
+  return out;
+}
