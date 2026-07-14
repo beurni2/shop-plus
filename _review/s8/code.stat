@@ -1,12 +1,12 @@
- apps/buyer-pwa/i18n/catalog.json                  | 14 ++++-
+ apps/buyer-pwa/i18n/catalog.json                  | 20 +++++-
  apps/buyer-pwa/src/boutiques-data.ts              | 13 +++-
- apps/buyer-pwa/src/boutiques-view.ts              | 15 +++++
- apps/buyer-pwa/src/demo-stores.ts                 | 37 +++++++++--
+ apps/buyer-pwa/src/boutiques-view.ts              | 16 +++++
+ apps/buyer-pwa/src/demo-stores.ts                 | 37 ++++++++--
  apps/buyer-pwa/src/main.ts                        |  6 +-
  apps/buyer-pwa/src/vitrine-link.ts                | 10 ++-
- apps/buyer-pwa/src/vitrine-view.ts                | 30 ++++++++-
- apps/buyer-pwa/test/reputation-render.test.ts     | 75 +++++++++++++++++++++++
+ apps/buyer-pwa/src/vitrine-view.ts                | 40 ++++++++++-
+ apps/buyer-pwa/test/reputation-render.test.ts     | 87 +++++++++++++++++++++++
  packages/store-projection/src/index.ts            |  1 +
- packages/store-projection/src/reputation.ts       | 48 +++++++++++++++
- packages/store-projection/test/reputation.test.ts | 54 ++++++++++++++++
- 11 files changed, 287 insertions(+), 16 deletions(-)
+ packages/store-projection/src/reputation.ts       | 48 +++++++++++++
+ packages/store-projection/test/reputation.test.ts | 54 ++++++++++++++
+ 11 files changed, 316 insertions(+), 16 deletions(-)

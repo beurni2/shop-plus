@@ -1,8 +1,8 @@
 diff --git a/apps/buyer-pwa/i18n/catalog.json b/apps/buyer-pwa/i18n/catalog.json
-index 2609e56..cf241ab 100644
+index 2609e56..e179b34 100644
 --- a/apps/buyer-pwa/i18n/catalog.json
 +++ b/apps/buyer-pwa/i18n/catalog.json
-@@ -820,5 +820,17 @@
+@@ -820,5 +820,23 @@
      "fr": "Son prix est le prix — livré par Séra, paiement protégé.",
      "register": "money",
      "screenClass": "general"
@@ -10,6 +10,12 @@ index 2609e56..cf241ab 100644
 +  {
 +    "key": "reputation.ventes_livrees",
 +    "fr": "{n} ventes livrées",
++    "register": "selling",
++    "screenClass": "label"
++  },
++  {
++    "key": "reputation.ventes_livrees_une",
++    "fr": "1 vente livrée",
 +    "register": "selling",
 +    "screenClass": "label"
 +  },
@@ -65,10 +71,17 @@ index 41200b9..10c660d 100644
  }));
  
 diff --git a/apps/buyer-pwa/src/boutiques-view.ts b/apps/buyer-pwa/src/boutiques-view.ts
-index 59c002d..bbc3c4b 100644
+index 59c002d..04a5a66 100644
 --- a/apps/buyer-pwa/src/boutiques-view.ts
 +++ b/apps/buyer-pwa/src/boutiques-view.ts
-@@ -54,6 +54,20 @@ function chevron(): string {
+@@ -1,5 +1,6 @@
+ import { t, tf } from './i18n';
+ import { esc } from './format';
++import { reputationText } from './vitrine-view';
+ import {
+   allBoutiques,
+   filterBoutiques,
+@@ -54,6 +55,20 @@ function chevron(): string {
    );
  }
  
@@ -81,7 +94,7 @@ index 59c002d..bbc3c4b 100644
 +function reputationChip(count: number): string {
 +  if (count < 1) return '';
 +  return (
-+    `<span class="bq-reputation" data-role="reputation">${tf('reputation.ventes_livrees', { n: String(count) })}` +
++    `<span class="bq-reputation" data-role="reputation">${reputationText(count)}` +
 +    ` <span class="reputation-demo" data-role="reputation-demo">${t('reputation.demo')}</span></span>`
 +  );
 +}
@@ -89,7 +102,7 @@ index 59c002d..bbc3c4b 100644
  function storeCard(s: BoutiqueEntry, query: string): string {
    const initial = esc(s.storeName.replace(/^(CHEZ|BOUTIQUE)\s+/i, '').charAt(0));
    const meta = tf('boutiques.carte_meta', {
-@@ -72,6 +86,7 @@ function storeCard(s: BoutiqueEntry, query: string): string {
+@@ -72,6 +87,7 @@ function storeCard(s: BoutiqueEntry, query: string): string {
      '<span class="bq-card-body">',
      `<span class="bq-card-head"><span class="bq-store-name">${highlight(s.storeName, query)}</span>${verified}</span>`,
      `<span class="bq-card-meta">${meta}</span>`,
@@ -253,10 +266,10 @@ index 7acb571..18e4141 100644
  }
  
 diff --git a/apps/buyer-pwa/src/vitrine-view.ts b/apps/buyer-pwa/src/vitrine-view.ts
-index c35371f..f760abf 100644
+index c35371f..4aa1a65 100644
 --- a/apps/buyer-pwa/src/vitrine-view.ts
 +++ b/apps/buyer-pwa/src/vitrine-view.ts
-@@ -37,15 +37,39 @@ export interface VitrineViewModel {
+@@ -37,15 +37,49 @@ export interface VitrineViewModel {
    products: readonly VitrineProduct[];
  }
  
@@ -274,10 +287,20 @@ index c35371f..f760abf 100644
 +  readonly demo: boolean;
 +}
 +
++/**
++ * The réputation count text, in correct French (Voice Standard §10.5): the
++ * singular « 1 vente livrée » at exactly one delivered sale — the FIRST trust
++ * state a reseller ever shows — and « N ventes livrées » at two or more. Both
++ * strings live in the catalog; the render branches on the count.
++ */
++export function reputationText(count: number): string {
++  return count === 1 ? t('reputation.ventes_livrees_une') : tf('reputation.ventes_livrees', { n: String(count) });
++}
++
 +/** « N ventes livrées » — shown from the first delivered sale (floor = 1); else nothing. */
 +function reputationLine(rep: VitrineReputation | undefined): string {
 +  if (rep === undefined || rep.count < 1) return '';
-+  const count = `<span class="vitrine-reputation" data-role="reputation">${tf('reputation.ventes_livrees', { n: String(rep.count) })}</span>`;
++  const count = `<span class="vitrine-reputation" data-role="reputation">${reputationText(rep.count)}</span>`;
 +  const demo = rep.demo ? ` <span class="reputation-demo" data-role="reputation-demo">${t('reputation.demo')}</span>` : '';
 +  return `<p class="vitrine-reputation-line">${count}${demo}</p>`;
 +}
@@ -297,7 +320,7 @@ index c35371f..f760abf 100644
      `<p class="vitrine-privacy">${t('vitrine.protege')}</p>`,
      '</div>',
    ].join('');
-@@ -74,14 +98,14 @@ function productCard(p: VitrineProduct): string {
+@@ -74,14 +108,14 @@ function productCard(p: VitrineProduct): string {
    ].join('');
  }
  
@@ -316,10 +339,10 @@ index c35371f..f760abf 100644
      '</div>',
 diff --git a/apps/buyer-pwa/test/reputation-render.test.ts b/apps/buyer-pwa/test/reputation-render.test.ts
 new file mode 100644
-index 0000000..ae8d7ec
+index 0000000..0743243
 --- /dev/null
 +++ b/apps/buyer-pwa/test/reputation-render.test.ts
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,87 @@
 +import { describe, expect, it } from 'vitest';
 +import { countDeliveredSales } from '@shop-plus/store-projection';
 +import { renderVitrine, type VitrineViewModel } from '../src/vitrine-view';
@@ -387,6 +410,18 @@ index 0000000..ae8d7ec
 +    expect(order).toEqual(['aicha-4821', 'mariam-2170', 'kadi-5530', 'fanta-8090', 'awa-3360']);
 +    const byReputationDesc = [...allBoutiques()].sort((a, b) => b.deliveredSales - a.deliveredSales).map((s) => s.slug);
 +    expect(order).not.toEqual(byReputationDesc); // the directory is not a leaderboard
++  });
++
++  it('SINGULAR-AT-1 (French Voice §10.5): count 1 renders « 1 vente livrée », count ≥ 2 the plural « N ventes livrées »', () => {
++    const one = renderVitrine(model, { count: 1, demo: true });
++    expect(one).toContain('1 vente livrée'); // correct singular — the FIRST trust state
++    expect(one).not.toContain('1 ventes livrées'); // never the grammatically-wrong plural at 1
++
++    const two = renderVitrine(model, { count: 2, demo: true });
++    expect(two).toContain('2 ventes livrées'); // plural from two on
++    expect(two).not.toContain('2 vente livrée');
++
++    expect(renderVitrine(model, { count: 47, demo: true })).toContain('47 ventes livrées');
 +  });
 +
 +  it('a DEMO count carries the « démo » marker; a real count would not', () => {

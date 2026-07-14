@@ -27,6 +27,10 @@ Gated on canon **WO-5.15**. Verified merged: `006e2f5 merge(canon): the réputat
 
 **OUT of scope:** no re-pin (docs-only law) · the real delivery-validated event wire (E2/E3 · Séra validation) — the demo-supply seam feeds it here.
 
+### Pre-merge string (founder-ruled finding G — code head `bbeb4af`)
+
+The founder ruled the verifier's finding G under French Voice Standard §10.5: **correct French is the law's baseline, and N=1 is the FIRST trust state a reseller ever shows.** Added the singular catalog variant `reputation.ventes_livrees_une` = « 1 vente livrée » (register `selling`); the render branches on the count via `reputationText(count)` — « 1 vente livrée » at 1, « {n} ventes livrées » at ≥2. **Voice-standard conformance of the canon template « N ventes livrées », not a new mechanic; founder-overridable.** `reputation-render.test.ts` gains a **singular-at-1** assertion (« 1 vente livrée » present, « 1 ventes livrées » absent). Finding H (the render's inline +1 line is not the load-bearing count-exact guard) is accepted — the gate is sound (the fold's `toBe(3)` + badge-only-where-true carry it).
+
 ## 3. THE FOUR RED-FIRST GATES (with red proofs)
 
 | Gate | Where | Red proof |
