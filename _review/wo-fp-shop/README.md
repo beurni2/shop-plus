@@ -36,6 +36,10 @@ Four canon-declared faces only — Bricolage Grotesque 700/800 + Instrument Sans
 - **Cold** (`cold-proof.log`, from committed bytes `376f145`, fresh HOME credential-only + isolated store): `git@`-form **0**, proxy-leak **0**, expo-font@14.0.12 pinned + **frozen install rc=0** + resolves cold, ui-tokens **1.0.0**, reseller typecheck clean + **110/110** cold (settled run), `run-gates.sh` **ALL GREEN rc=0**. *(The very first cold invocation of typecheck/test failed on a fresh-install warm-up race — turbo/vitest caches + workspace linking; the identical cold clone is fully green on the settled run, proving the bytes, not a byte defect.)*
 - **Frozen anchors:** journey.ts byte-unchanged (the 8 screens); contracts pin byte-frozen at v1.0.0 `f23407c`; no money/custody logic touched.
 
-## Fresh-context verifier
+## Fresh-context verifier — VERDICT: PASS
 
-See `VERIFIER-VERDICT-verbatim.md` (copied verbatim).
+Copied verbatim in `VERIFIER-VERDICT-verbatim.md`. All ten laws hold; the verifier ran typecheck (clean), 110/110, `no-emoji-in-chrome` (exit 0), confirmed journey.ts byte-unchanged and the contracts pin unchanged (only expo-font added, 0 ssh-form). **Two non-blocking findings, neither a law violation:**
+1. the reconcile-whisper (`heroLedgerRule` / `quoteRuleLine`) hints `fontWeight: 600` (the `/legacy` `money.reconcileLine` token) on Instrument, but only 400/700 load, so on-device it renders ~400 — cosmetic, and the money group is a `/legacy`-deferred slice this wave (not a law-7 breach; no 600 face is shipped).
+2. the woven-band `Array.from({ length: 24 })` repeat count is the one raw non-zero constant — array construction, not a style dimension, justified + clipped. Benign.
+
+Neither blocks merge. Both are carried to the founder (see JOURNAL.md).
