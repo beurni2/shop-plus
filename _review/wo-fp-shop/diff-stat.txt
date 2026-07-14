@@ -1,0 +1,22 @@
+ apps/reseller-app/App.tsx                          | 283 ++++----
+ apps/reseller-app/assets/fonts/Bricolage-Bold.ttf  | Bin 0 -> 51948 bytes
+ .../assets/fonts/Bricolage-ExtraBold.ttf           | Bin 0 -> 51932 bytes
+ .../assets/fonts/FASO-PREMIUM-BUILD.md             |  52 ++
+ apps/reseller-app/assets/fonts/Instrument-Bold.ttf | Bin 0 -> 45444 bytes
+ .../assets/fonts/Instrument-Regular.ttf            | Bin 0 -> 45308 bytes
+ .../assets/fonts/OFL-BricolageGrotesque.txt        |  93 +++
+ .../assets/fonts/OFL-InstrumentSans.txt            |  93 +++
+ .../assets/fonts/faso-premium.coverage.json        | 750 +++++++++++++++++++++
+ apps/reseller-app/package.json                     |   1 +
+ apps/reseller-app/src/assets.d.ts                  |   7 +
+ apps/reseller-app/src/ui/faso-fonts.ts             |  60 ++
+ apps/reseller-app/src/ui/fonts-load.ts             |  19 +
+ apps/reseller-app/src/ui/kit.tsx                   | 256 ++++---
+ apps/reseller-app/src/ui/motion.ts                 |  55 ++
+ apps/reseller-app/src/ui/signature.tsx             | 253 +++++++
+ apps/reseller-app/test/faso-fonts.test.ts          | 130 ++++
+ apps/reseller-app/test/grand-teint.test.ts         |  11 +-
+ apps/reseller-app/test/signature.test.ts           |  88 +++
+ apps/reseller-app/test/states-law.test.ts          |  66 ++
+ apps/reseller-app/test/ui-kit.test.ts              |  65 +-
+ 21 files changed, 1995 insertions(+), 287 deletions(-)

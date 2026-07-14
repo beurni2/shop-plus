@@ -1,0 +1,43 @@
+=== HOME (fresh) ===
+/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/fp-shop-cold/home
+=== baseline auth line (credential-only, NO git@→https normalization) ===
+file:/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/fp-shop-cold/home/.gitconfig	url.http://local_proxy@127.0.0.1:41729/git/.insteadof=https://github.com/
+file:/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/fp-shop-cold/home/.gitconfig	url.http://local_proxy@127.0.0.1:41729/git/.insteadof=git@github.com:
+file:/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/fp-shop-cold/home/.gitconfig	url.http://local_proxy@127.0.0.1:41729/git/.insteadof=ssh://git@github.com/
+command line:	url.https://github.com/.insteadof=git@github.com:
+command line:	url.https://github.com/.insteadof=ssh://git@github.com/
+=== git clone the committed bytes (e7/wo-fp-shop) ===
+Cloning into '/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/fp-shop-cold/shop-plus'...
+cold HEAD: 376f145
+=== cloned lockfile portability (must be 0 ssh-form, 0 proxy-leak) ===
+ssh-form git@: 0
+proxy-leak:    0
+=== expo-font is pinned in the cloned lockfile ===
+4
+=== isolated store + cache (fresh, empty) ===
+store entries: 0 | cache entries: 0
+=== pnpm install --frozen-lockfile (cold-installable proof, incl. expo-font) ===
+│   Ignored build scripts: esbuild@0.25.12, sharp@0.34.5.                      │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 24.9s using pnpm v10.33.0
+FROZEN INSTALL rc=0
+=== content pins (cold) ===
+ui-tokens: 1.0.0
+expo-font: resolves
+=== the reseller surface typechecks + tests COLD (the reskin's bytes) ===
+/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/fp-shop-cold/shop-plus/apps/reseller-app:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @shop-plus/reseller-app@0.0.1 typecheck: `tsc -p tsconfig.json --noEmit`
+Exit status 2
+TYPECHECK rc=2
+ Test Files  3 failed | 11 passed (14)
+      Tests  83 passed (83)
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @shop-plus/reseller-app@0.0.1 test: `vitest run`
+RESELLER TEST rc=1
+=== run-gates.sh (Playwright at preinstalled chromium) ===
+(exit code: 0)
+
+ALL GATES GREEN (positives passed; every negative fixture failed as required)
+RUN-GATES rc=0
