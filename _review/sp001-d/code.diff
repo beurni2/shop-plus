@@ -1,0 +1,508 @@
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 6695c84..ba79a7e 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -208,6 +208,12 @@ importers:
+       '@cloudflare/workers-types':
+         specifier: ^4.20250705.0
+         version: 4.20260702.1
++      '@shop-plus/commerce-core':
++        specifier: workspace:*
++        version: link:../../packages/commerce-core
++      '@shop-plus/storefront-service':
++        specifier: workspace:*
++        version: link:../storefront-service
+       esbuild:
+         specifier: ^0.25.5
+         version: 0.25.12
+diff --git a/services/attribution-service/package.json b/services/attribution-service/package.json
+index e00f501..dd4cd2d 100644
+--- a/services/attribution-service/package.json
++++ b/services/attribution-service/package.json
+@@ -24,6 +24,8 @@
+     "vitest": "^3.2.4",
+     "@cloudflare/workers-types": "^4.20250705.0",
+     "esbuild": "^0.25.5",
+-    "miniflare": "^4.20250705.0"
++    "miniflare": "^4.20250705.0",
++    "@shop-plus/commerce-core": "workspace:*",
++    "@shop-plus/storefront-service": "workspace:*"
+   }
+ }
+diff --git a/services/attribution-service/src/durable-lock-client.ts b/services/attribution-service/src/durable-lock-client.ts
+new file mode 100644
+index 0000000..8d9d612
+--- /dev/null
++++ b/services/attribution-service/src/durable-lock-client.ts
+@@ -0,0 +1,72 @@
++import type { AttributionToken } from '@platform/contracts';
++import { attributionCollisionAlert, attributionLockedEvent, type LockOutcome } from './lock.js';
++import type { AttributionLock } from './lock-core.js';
++
++/**
++ * DURABLE LOCK CLIENT (SP#001-D · named condition ②). The checkout seam that
++ * locks attribution THROUGH the durable authority — the `AttributionLockDO`
++ * (LOCK-DURABILITY / slice C) — instead of the in-memory `AttributionLockBook`.
++ * The DO owns the DECISION (`decideLock`) and the PERSISTENCE (first-lock-wins
++ * that survives a restart); this client only carries the claim over the wire and
++ * translates the DO's response into the SAME `LockOutcome` the in-memory book
++ * returns, built with the SAME shared canon-event builders — so callers see one
++ * lock contract on either path, and the events are byte-identical.
++ *
++ * `doFetch` is injected: the e2e passes Miniflare's dispatch (the DO on real
++ * workerd), production passes the deployed DO's HTTP fetch. The client never
++ * decides the lock itself and never falls back to the platform.
++ */
++
++export interface DurableLockResponse {
++  readonly status: number;
++  json(): Promise<unknown>;
++}
++
++/** POST the claim to the DO addressed by checkoutRef; return its HTTP response. */
++export type DurableLockFetch = (checkoutRef: string, body: string) => Promise<DurableLockResponse>;
++
++export async function lockThroughDurableAuthority(
++  doFetch: DurableLockFetch,
++  args: { checkoutRef: string; correlationId: string; token: AttributionToken; at: string },
++): Promise<LockOutcome> {
++  const body = JSON.stringify({
++    checkoutRef: args.checkoutRef,
++    resellerId: args.token.resellerId,
++    tokenId: args.token.id,
++    at: args.at,
++  });
++  const res = await doFetch(args.checkoutRef, body);
++  const payload = (await res.json()) as Record<string, unknown>;
++
++  if (res.status === 200 && (payload['status'] === 'created' || payload['status'] === 'idempotent')) {
++    const lock = payload['lock'] as AttributionLock;
++    return {
++      ok: true,
++      lock,
++      event: attributionLockedEvent(lock, args),
++      duplicate: payload['status'] === 'idempotent',
++    };
++  }
++
++  if (res.status === 409 && payload['status'] === 'collision') {
++    const existing = payload['existing'] as AttributionLock;
++    return {
++      ok: false,
++      reason: 'attribution_already_locked',
++      lock: existing,
++      collisionAlert: attributionCollisionAlert({
++        existing,
++        rejectedResellerId: String(payload['rejectedResellerId']),
++        rejectedTokenId: String(payload['rejectedTokenId']),
++        correlationId: args.correlationId,
++        at: args.at,
++        seq: Number(payload['seq']),
++      }),
++      buyerMessageRef: 'attribution.collision',
++    };
++  }
++
++  // The DO is the only lock authority; an unexpected response never fabricates a
++  // lock and never falls back to the platform — it fails closed, loudly.
++  throw new Error(`durable lock authority returned an unexpected response (status ${res.status})`);
++}
+diff --git a/services/attribution-service/src/index.ts b/services/attribution-service/src/index.ts
+index 67976ee..0ca36c7 100644
+--- a/services/attribution-service/src/index.ts
++++ b/services/attribution-service/src/index.ts
+@@ -14,6 +14,7 @@ export type AttributionServiceShapes = { attributionToken: AttributionToken };
+ export * from './attribution.js';
+ export * from './lock.js';
+ export * from './resolution.js';
++export * from './durable-lock-client.js';
+ 
+ export const handleRequest = makeHealthFetch(SERVICE_NAME);
+ 
+diff --git a/services/attribution-service/test/durable-lock-client.test.ts b/services/attribution-service/test/durable-lock-client.test.ts
+new file mode 100644
+index 0000000..d0b2de9
+--- /dev/null
++++ b/services/attribution-service/test/durable-lock-client.test.ts
+@@ -0,0 +1,120 @@
++import { describe, expect, it } from 'vitest';
++import { signAttributionToken, verifyAttributionToken } from '../src/attribution.js';
++import { AttributionLockBook } from '../src/lock.js';
++import { decideLock, type AttributionLock } from '../src/lock-core.js';
++import { lockThroughDurableAuthority, type DurableLockFetch } from '../src/durable-lock-client.js';
++
++/**
++ * SP#001-D — the durable-lock client maps the DO's HTTP response to the SAME
++ * `LockOutcome` the in-memory `AttributionLockBook` returns, built with the SAME
++ * shared canon-event builders. Named condition ②: the checkout locks THROUGH the
++ * durable authority. Here a FAKE doFetch stands in for the DO (decideLock +
++ * per-checkout storage + persisted collision seq) so the mapping is unit-proven;
++ * the e2e drives the REAL DO on workerd.
++ */
++
++const KEY = 'sp001d-secret';
++const T = '2026-07-14T12:00:00.000Z';
++
++function qualifiedToken(id: string, resellerId: string) {
++  const token = signAttributionToken(
++    { id, resellerId, scope: { kind: 'listing', refId: 'lst-seller-0001' }, issued: T, expiry: '2026-08-01T00:00:00.000Z', version: 'v1' },
++    KEY,
++  );
++  const verdict = verifyAttributionToken(token, KEY, new Date(T));
++  if (!verdict.ok) throw new Error('setup: token must verify');
++  return token;
++}
++
++/** A fake DO: decideLock + per-checkout lock + persisted collision seq (mirrors attribution-lock-do.ts). */
++function fakeDurableAuthority(): DurableLockFetch {
++  const locks = new Map<string, AttributionLock>();
++  const seqs = new Map<string, number>();
++  return async (checkoutRef, body) => {
++    const claim = JSON.parse(body) as { checkoutRef: string; resellerId: string; tokenId: string; at: string };
++    const decision = decideLock(locks.get(checkoutRef) ?? null, claim);
++    if (decision.status === 'created') {
++      locks.set(checkoutRef, decision.lock);
++      return { status: 200, json: async () => ({ ok: true, status: 'created', lock: decision.lock }) };
++    }
++    if (decision.status === 'idempotent') {
++      return { status: 200, json: async () => ({ ok: true, status: 'idempotent', lock: decision.lock }) };
++    }
++    const seq = (seqs.get(checkoutRef) ?? 0) + 1;
++    seqs.set(checkoutRef, seq);
++    return {
++      status: 409,
++      json: async () => ({
++        ok: false,
++        status: 'collision',
++        existing: decision.existing,
++        rejectedResellerId: decision.rejectedResellerId,
++        rejectedTokenId: decision.rejectedTokenId,
++        seq,
++      }),
++    };
++  };
++}
++
++describe('lockThroughDurableAuthority — the checkout seam locks THROUGH the durable authority', () => {
++  it('first lock wins: a created lock carries the claim reseller and the canon attribution.locked.v1', async () => {
++    const doFetch = fakeDurableAuthority();
++    const token = qualifiedToken('tok-1', 'rs-seller-0001');
++    const out = await lockThroughDurableAuthority(doFetch, { checkoutRef: 'chk-1', correlationId: 'corr-1', token, at: T });
++    expect(out.ok).toBe(true);
++    if (!out.ok) return;
++    expect(out.lock.resellerId).toBe('rs-seller-0001');
++    expect(out.duplicate).toBe(false);
++    expect(out.event.name).toBe('attribution.locked.v1');
++    expect(out.event.payload['reseller_id']).toBe('rs-seller-0001');
++    expect(out.event.payload['checkout_ref']).toBe('chk-1');
++  });
++
++  it('the SAME token re-presented is idempotent (no re-lock, no alert)', async () => {
++    const doFetch = fakeDurableAuthority();
++    const token = qualifiedToken('tok-1', 'rs-seller-0001');
++    await lockThroughDurableAuthority(doFetch, { checkoutRef: 'chk-1', correlationId: 'corr-1', token, at: T });
++    const replay = await lockThroughDurableAuthority(doFetch, { checkoutRef: 'chk-1', correlationId: 'corr-1', token, at: T });
++    expect(replay.ok).toBe(true);
++    if (replay.ok) expect(replay.duplicate).toBe(true);
++  });
++
++  it('a DIFFERENT valid token on a locked checkout collides: the lock never moves, a collision alert fires, buyer sees the honest message', async () => {
++    const doFetch = fakeDurableAuthority();
++    const first = qualifiedToken('tok-1', 'rs-seller-0001');
++    const second = qualifiedToken('tok-2', 'rs-rival-0002');
++    await lockThroughDurableAuthority(doFetch, { checkoutRef: 'chk-1', correlationId: 'corr-1', token: first, at: T });
++    const collision = await lockThroughDurableAuthority(doFetch, { checkoutRef: 'chk-1', correlationId: 'corr-1', token: second, at: T });
++    expect(collision.ok).toBe(false);
++    if (collision.ok) return;
++    expect(collision.reason).toBe('attribution_already_locked');
++    expect(collision.lock.resellerId).toBe('rs-seller-0001'); // the ORIGINAL, never re-attributed
++    expect(collision.collisionAlert.name).toBe('reconciliation.alert.v1');
++    expect(collision.collisionAlert.payload['locked_reseller_id']).toBe('rs-seller-0001');
++    expect(collision.collisionAlert.payload['rejected_reseller_id']).toBe('rs-rival-0002');
++    expect(collision.buyerMessageRef).toBe('attribution.collision');
++  });
++
++  it('BYTE-EQUIVALENT to the in-memory book on the created path (same lock, same locked event)', async () => {
++    const doFetch = fakeDurableAuthority();
++    const token = qualifiedToken('tok-1', 'rs-seller-0001');
++    const durable = await lockThroughDurableAuthority(doFetch, { checkoutRef: 'chk-1', correlationId: 'corr-1', token, at: T });
++
++    const book = new AttributionLockBook();
++    const inMemory = book.lock({ checkoutRef: 'chk-1', correlationId: 'corr-1', token, at: T });
++
++    expect(durable.ok && inMemory.ok).toBe(true);
++    if (!durable.ok || !inMemory.ok) return;
++    // same lock, same canon event bytes — the seam is drop-in for the book.
++    expect(JSON.stringify(durable.lock)).toBe(JSON.stringify(inMemory.lock));
++    expect(JSON.stringify(durable.event)).toBe(JSON.stringify(inMemory.event));
++  });
++
++  it('an unexpected authority response fails CLOSED (throws), never fabricates a lock', async () => {
++    const badFetch: DurableLockFetch = async () => ({ status: 500, json: async () => ({ ok: false }) });
++    const token = qualifiedToken('tok-1', 'rs-seller-0001');
++    await expect(
++      lockThroughDurableAuthority(badFetch, { checkoutRef: 'chk-1', correlationId: 'corr-1', token, at: T }),
++    ).rejects.toThrow(/unexpected response/);
++  });
++});
+diff --git a/services/attribution-service/test/premiere-commande-reelle.e2e.test.ts b/services/attribution-service/test/premiere-commande-reelle.e2e.test.ts
+new file mode 100644
+index 0000000..54ef725
+--- /dev/null
++++ b/services/attribution-service/test/premiere-commande-reelle.e2e.test.ts
+@@ -0,0 +1,255 @@
++import { mkdtempSync, rmSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { Miniflare } from 'miniflare';
++import { afterAll, beforeAll, describe, expect, it } from 'vitest';
++import {
++  ImmutableQuoteStore,
++  MockPaymentProvider,
++  MockSeraEligibilityEmitter,
++  OrderSpine,
++  WORKED_BASELINE_INPUT,
++  decideReservation,
++  issueQuote,
++  type Quote,
++} from '@shop-plus/commerce-core';
++import { ListingRegistry, StorefrontRegistry } from '@shop-plus/storefront-service';
++import { signAttributionToken, verifyAttributionToken } from '../src/attribution.js';
++import { resolveCheckoutAttribution } from '../src/resolution.js';
++import { lockThroughDurableAuthority, type DurableLockFetch } from '../src/durable-lock-client.js';
++
++/**
++ * SP#001-D — LA PREMIÈRE COMMANDE RÉELLE. One real order end-to-end through REAL
++ * data: Seller #001's storefront + published listing (the real aggregates from
++ * SP#001-A/B) → a qualified token → attribution LOCKED THROUGH THE DURABLE DO
++ * (workerd via Miniflare — named condition ②, the WIRED path, never the in-memory
++ * book) → immutable Quote from the real listing → order spine → provider payment
++ * HELD (« en attente », no franc pretends to move) → confirm → Séra eligibility
++ * → settlement obligations copied from the Quote to the LOCKED reseller.
++ *
++ * Money and custody stay frozen: this test WIRES the existing checkout/Quote/
++ * order/ledger primitives with real inputs and re-points the lock to the durable
++ * authority — it modifies none of them. Real Séra dispatch is deferred (the
++ * eligibility mock is the certified seam).
++ */
++
++const SCRIPT = 'dist-worker/attribution-lock-worker.mjs';
++const persist = mkdtempSync(join(tmpdir(), 'premiere-commande-'));
++const KEY = 'sp001d-secret';
++const T = '2026-07-14T12:00:00.000Z';
++
++const mf = new Miniflare({
++  modules: true,
++  scriptPath: SCRIPT,
++  durableObjects: { ATTRIBUTION_LOCK: 'AttributionLockDO' },
++  durableObjectsPersist: persist,
++});
++afterAll(async () => {
++  await mf.dispose();
++  rmSync(persist, { recursive: true, force: true });
++});
++
++/** The checkout seam's lock transport → the durable DO on workerd (named condition ②). */
++const doFetch: DurableLockFetch = async (checkoutRef, body) => {
++  const res = await mf.dispatchFetch(`http://attr/locks/${encodeURIComponent(checkoutRef)}`, { method: 'POST', body });
++  return { status: res.status, json: () => res.json() };
++};
++
++// --- Seller #001, created through the REAL aggregates (never seeded) ---
++const SELLER_ID = 'rs-seller-0001';
++const SHORT_CODE = 'SELLER-0001';
++const LISTING_ID = 'lst-seller-0001';
++const HER_PRICE = WORKED_BASELINE_INPUT.sellerBasePrice + WORKED_BASELINE_INPUT.resellerMarkup; // productSubtotal = B + M
++
++const storefronts = new StorefrontRegistry();
++const listings = new ListingRegistry();
++/** Server-side short-code registry, derived from the REAL published storefront. */
++function resolveShortCode(code: string): string | undefined {
++  return code === SHORT_CODE ? SELLER_ID : undefined;
++}
++function qualifiedToken(id: string, resellerId: string) {
++  const token = signAttributionToken(
++    { id, resellerId, scope: { kind: 'listing', refId: LISTING_ID }, issued: T, expiry: '2026-08-01T00:00:00.000Z', version: 'v1' },
++    KEY,
++  );
++  if (!verifyAttributionToken(token, KEY, new Date(T)).ok) throw new Error('setup: token must verify');
++  return token;
++}
++
++interface Commande {
++  lockedResellerId: string;
++  quote: Quote;
++  quoteImmutable: ImmutableQuoteStore;
++  spine: OrderSpine;
++}
++let commande: Commande;
++
++beforeAll(async () => {
++  // 1. REAL storefront + listing (SP#001-A/B aggregates) — Seller #001 lists at HER price.
++  const created = storefronts.create({ commandId: 'cmd-sf-create', id: 'sf-seller-0001', resellerId: SELLER_ID, shortCode: SHORT_CODE, name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général', correlationId: 'corr-d', at: T });
++  if (created.status !== 'created') throw new Error('setup: storefront must create');
++  storefronts.publish({ id: 'sf-seller-0001', correlationId: 'corr-d', at: T });
++  const listed = listings.publish({ commandId: 'cmd-listing', listingId: LISTING_ID, storefrontId: 'sf-seller-0001', resellerId: SELLER_ID, productVersionId: 'pv-bazin-0001', offerVersion: 'ov-1', markup: WORKED_BASELINE_INPUT.resellerMarkup, customerPriceFcfa: HER_PRICE, hubVerified: true, correlationId: 'corr-d', at: T });
++  if (listed.status !== 'published') throw new Error('setup: listing must publish');
++
++  // 2. Buyer arrives on the vitrine (identity arrival) and carries a qualified token.
++  const token = qualifiedToken('tok-seller001', SELLER_ID);
++
++  // 3. ATTRIBUTION LOCKED THROUGH THE DURABLE DO (workerd) — the wired path.
++  const lockOutcome = await lockThroughDurableAuthority(doFetch, { checkoutRef: 'chk-seller-0001', correlationId: 'corr-d', token, at: T });
++  if (!lockOutcome.ok) throw new Error('setup: first lock must win');
++  const lockedResellerId = lockOutcome.lock.resellerId;
++
++  // 4. The checkout resolves attribution with the DURABLE lock as préséance #1.
++  const resolved = resolveCheckoutAttribution({
++    lockedResellerId,
++    arrivals: [{ resellerId: SELLER_ID, scope: 'identity', arrivedAt: T, correlationId: 'corr-d' }],
++    nowIso: T,
++    correlationId: 'corr-d',
++    resolveShortCode,
++  });
++  if (!resolved.resolution.attributed) throw new Error('setup: the locked reseller must attribute');
++
++  // 5. IMMUTABLE QUOTE from the real listing — M is the listing's markup, verbatim.
++  const flags = { version: 'e1-sandbox', flags: {}, kills: [], killedCategories: [] };
++  const issued = issueQuote(
++    { flags, now: () => new Date(T), newId: () => 'quote-seller001' },
++    {
++      listingRef: LISTING_ID,
++      offerRef: 'ov-1',
++      attributionResellerId: lockedResellerId,
++      paymentMode: 'FULL_PREPAY',
++      sellerBasePrice: WORKED_BASELINE_INPUT.sellerBasePrice,
++      sellerFundedCommission: WORKED_BASELINE_INPUT.sellerFundedCommission,
++      resellerMarkup: listed.listing.markup, // from the REAL listing
++      deliveryFee: WORKED_BASELINE_INPUT.deliveryFee,
++    },
++  );
++  if (!issued.ok) throw new Error(`setup: quote refused (${issued.reason})`);
++  const quote = issued.quote;
++  const quoteImmutable = new ImmutableQuoteStore();
++  const put = quoteImmutable.put(quote, issued.canonicalBytes);
++  if (!put.ok) throw new Error('setup: immutable quote put must succeed');
++
++  // 6. ORDER SPINE → reserve → pay (HELD) → confirm → eligibility → obligations.
++  const spine = new OrderSpine({ quote, supplierRef: 'supplier-seller001', correlationId: 'corr-d', issueCommandId: 'cmd-issue', actor: 'attribution-service:e2e', serverTime: T });
++  const reserve = decideReservation({ status: 'none' }, { kind: 'reserve', command_id: 'cmd-reserve', quoteId: quote.id, holderRef: 'buyer-d', nowIso: T, newReservationId: 'res-d-0001' });
++  if (!reserve.ok) throw new Error('setup: reserve refused');
++  spine.advance({ command_id: 'cmd-reserved', actor: 'attribution-service:e2e', serverTime: T, to: 'reserved', chainAdditions: { reservation_id: reserve.reservationId } });
++  spine.advance({ command_id: 'cmd-payinit', actor: 'attribution-service:e2e', serverTime: T, to: 'payment_pending', chainAdditions: { payment_attempt_id: 'pay-d-0001', order_id: 'order-d-0001' } });
++
++  const provider = new MockPaymentProvider({});
++  const charge = provider.initiateCharge({ orderId: 'order-d-0001', paymentAttemptId: 'pay-d-0001', amount: quote.amountPaidAtCheckout, correlationId: 'corr-d', requestedAtIso: T });
++  if (charge.outcome !== 'accepted') throw new Error('setup: charge must be accepted');
++  const paid = spine.onProviderPaymentEvent(provider.webhookDeliveryPlan()[0]!.event);
++  if (!paid.applied) throw new Error('setup: held webhook must apply');
++  const confirmed = spine.confirmOrder({ command_id: 'cmd-confirm', actor: 'attribution-service:e2e', serverTime: T });
++  if (!confirmed.applied) throw new Error('setup: confirm must apply on funded leg');
++
++  const sera = new MockSeraEligibilityEmitter({});
++  sera.recordDelivered('order-d-0001');
++  sera.requestValidation({ orderId: 'order-d-0001', correlationId: 'corr-d', deliveredAtIso: T });
++  const settled = spine.onEligibilityEvent(sera.eligibilityDeliveryPlan()[0]!.event);
++  if (!settled.applied) throw new Error('setup: eligibility must record obligations');
++
++  commande = { lockedResellerId, quote, quoteImmutable, spine };
++
++  // --- narrated run (the première-commande story on real data) ---
++  const obligations = spine.ledger.obligationsFor('order-d-0001');
++  const escrow = spine.ledger.escrowFor('order-d-0001')!;
++  // eslint-disable-next-line no-console
++  console.log(
++    [
++      '=== LA PREMIÈRE COMMANDE RÉELLE (Seller #001, real data) ===',
++      `storefront            = sf-seller-0001 (published)`,
++      `listing               = ${LISTING_ID} @ HER price ${HER_PRICE} FCFA (markup ${listed.listing.markup})`,
++      `attribution LOCKED    = ${lockedResellerId} — THROUGH the durable DO (workerd)`,
++      `quote_id (immutable)  = ${quote.id}  attributionResellerId=${quote.attributionResellerId}`,
++      `reconciliation        : productSubtotal ${quote.productSubtotal} = sellerNet ${quote.sellerNet} + resellerNet ${quote.resellerNet} + platformFee ${quote.platformProductFeeRevenue}`,
++      `money boundary        : checkout leg ${escrow.paymentLegs[0]!.amount} FCFA « ${escrow.paymentLegs[0]!.status} » (stage ${escrow.status}) — en attente, aucun franc capturé`,
++      `obligations           : supplier ${obligations[0]!.amount} (==sellerNet) · reseller[${commande.lockedResellerId}] ${obligations[1]!.amount} (==resellerNet), state ${obligations[1]!.state}`,
++      `order state           = ${spine.journey.state}`,
++    ].join('\n'),
++  );
++});
++
++describe('SP#001-D — la première commande réelle, end-to-end on real data', () => {
++  it('the order reaches CONFIRMED through the real spine', () => {
++    expect(commande.spine.journey.state).toBe('confirmed');
++  });
++
++  it('QUOTE-IMMUTABLE-ON-REAL-LISTING: the quote reconciles to the franc and cannot be overwritten', () => {
++    const q = commande.quote;
++    // reconciliation identities (Ten Laws #1) hold on the real-listing quote
++    expect(q.productSubtotal).toBe(q.sellerNet + q.resellerNet + q.platformProductFeeRevenue);
++    expect(q.buyerTotal).toBe(q.productSubtotal + q.deliveryFee);
++    expect(q.amountPaidAtCheckout + q.amountDueAtDelivery).toBe(q.buyerTotal);
++    // immutable: a second put on the same id is refused, never repaired
++    const second = commande.quoteImmutable.put(q, JSON.stringify(q));
++    expect(second.ok).toBe(false);
++    if (!second.ok) expect(second.reason).toBe('quote_id_exists');
++  });
++
++  it('OBLIGATION-EQUALS-LOCKED-QUOTE: obligations copy the Quote and name the DURABLE-LOCKED reseller', () => {
++    const obligations = commande.spine.ledger.obligationsFor('order-d-0001');
++    expect(obligations).toHaveLength(2);
++    const reseller = obligations.find((o) => o.party.startsWith('reseller:'));
++    const supplier = obligations.find((o) => o.party.startsWith('supplier:'));
++    // the reseller obligation names EXACTLY the reseller locked through the DO
++    expect(reseller?.party).toBe(`reseller:${commande.lockedResellerId}`);
++    expect(reseller?.party).toBe(`reseller:${commande.quote.attributionResellerId}`);
++    expect(reseller?.amount).toBe(commande.quote.resellerNet); // copied, never recomputed
++    expect(supplier?.amount).toBe(commande.quote.sellerNet);
++    expect(reseller?.state).toBe('Eligible');
++  });
++
++  it('MONEY-BOUNDARY-HONEST: the checkout leg is HELD (« en attente »), no franc is captured or paid out', () => {
++    const escrow = commande.spine.ledger.escrowFor('order-d-0001')!;
++    expect(escrow.paymentLegs).toHaveLength(1);
++    expect(escrow.paymentLegs[0]!.legType).toBe('checkout');
++    expect(escrow.paymentLegs[0]!.status).toBe('held'); // held, NOT captured — nothing moved
++    expect(escrow.paymentLegs[0]!.amount).toBe(commande.quote.amountPaidAtCheckout);
++    expect(escrow.status).toBe('hold'); // aggregator stage: hold, not split/payout
++    expect(escrow.payoutRefs).toEqual([]); // no payout — no franc left the buyer's hold
++  });
++});
++
++describe('SP#001-D — the full préséance suite, on the REAL Seller #001 storefront', () => {
++  it('LOCKED wins: the durable lock beats a DIFFERENT explicit code (préséance #1)', () => {
++    const out = resolveCheckoutAttribution({
++      lockedResellerId: commande.lockedResellerId, // came from the durable DO
++      typedShortCode: 'RIVAL-9999', // a different code the buyer typed
++      arrivals: [],
++      nowIso: T,
++      correlationId: 'corr-d',
++      resolveShortCode: (c) => (c === 'RIVAL-9999' ? 'rs-rival-9999' : resolveShortCode(c)),
++    });
++    expect(out.resolution.attributed).toBe(true);
++    if (out.resolution.attributed) expect(out.resolution.resellerId).toBe(commande.lockedResellerId);
++  });
++
++  it('EXPLICIT resolves on the real short code when there is no lock (préséance #2)', () => {
++    const out = resolveCheckoutAttribution({ typedShortCode: SHORT_CODE, arrivals: [], nowIso: T, correlationId: 'corr-d', resolveShortCode });
++    expect(out.resolution.attributed).toBe(true);
++    if (out.resolution.attributed) expect(out.resolution.resellerId).toBe(SELLER_ID);
++  });
++
++  it('ARRIVAL resolves when there is no lock and no explicit code (préséance #3)', () => {
++    const out = resolveCheckoutAttribution({
++      arrivals: [{ resellerId: SELLER_ID, scope: 'identity', arrivedAt: T, correlationId: 'corr-d' }],
++      nowIso: T,
++      correlationId: 'corr-d',
++      resolveShortCode,
++    });
++    expect(out.resolution.attributed).toBe(true);
++    if (out.resolution.attributed) expect(out.resolution.resellerId).toBe(SELLER_ID);
++  });
++
++  it('a PRESENTED-BUT-UNRESOLVED reference attributes NOBODY (never the platform) and raises the alert', () => {
++    const out = resolveCheckoutAttribution({ typedShortCode: 'GHOST-0000', arrivals: [], nowIso: T, correlationId: 'corr-d', resolveShortCode });
++    expect(out.resolution.attributed).toBe(false);
++    expect(out.alert?.name).toBe('reconciliation.alert.v1');
++    // the outcome is NOBODY — no platform fallback anywhere
++    expect(JSON.stringify(out.resolution)).not.toMatch(/platform|shop-plus/i);
++  });
++});

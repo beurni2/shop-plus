@@ -1,0 +1,853 @@
+
+=== typecheck (all workspace packages, incl. both app shells) ===
+
+> shop-plus@0.0.1 typecheck /home/user/shop-plus
+> turbo run typecheck
+
+• turbo 2.10.5
+
+   • Packages in scope: @shop-plus/attribution-service, @shop-plus/buyer-pwa, @shop-plus/commerce-core, @shop-plus/discovery-service, @shop-plus/flags-client, @shop-plus/observability, @shop-plus/reseller-app, @shop-plus/reseller-kit, @shop-plus/store-projection, @shop-plus/storefront-service
+   • Running typecheck in 10 packages
+   • Remote caching disabled
+
+@shop-plus/observability:typecheck: cache hit, replaying logs 0d6a769ffb8d582d
+@shop-plus/observability:typecheck: 
+@shop-plus/observability:typecheck: > @shop-plus/observability@0.0.1 typecheck /home/user/shop-plus/packages/observability
+@shop-plus/observability:typecheck: > tsc -p tsconfig.json --noEmit
+@shop-plus/observability:typecheck: 
+@shop-plus/observability:build: cache hit, replaying logs b284773548b4f8fe
+@shop-plus/observability:build: 
+@shop-plus/observability:build: > @shop-plus/observability@0.0.1 build /home/user/shop-plus/packages/observability
+@shop-plus/observability:build: > tsc -p tsconfig.json
+@shop-plus/observability:build: 
+@shop-plus/flags-client:typecheck: cache hit, replaying logs ba41b3d20018b228
+@shop-plus/flags-client:typecheck: 
+@shop-plus/flags-client:typecheck: > @shop-plus/flags-client@0.0.1 typecheck /home/user/shop-plus/packages/flags-client
+@shop-plus/flags-client:typecheck: > tsc -p tsconfig.json --noEmit
+@shop-plus/flags-client:typecheck: 
+@shop-plus/store-projection:typecheck: cache hit, replaying logs 228acfbf1375b191
+@shop-plus/store-projection:typecheck: 
+@shop-plus/store-projection:typecheck: > @shop-plus/store-projection@0.0.1 typecheck /home/user/shop-plus/packages/store-projection
+@shop-plus/store-projection:typecheck: > tsc -p tsconfig.json --noEmit
+@shop-plus/store-projection:typecheck: 
+@shop-plus/store-projection:build: cache hit, replaying logs cb0a47716d4c8d53
+@shop-plus/store-projection:build: 
+@shop-plus/store-projection:build: > @shop-plus/store-projection@0.0.1 build /home/user/shop-plus/packages/store-projection
+@shop-plus/store-projection:build: > tsc -p tsconfig.json
+@shop-plus/store-projection:build: 
+@shop-plus/reseller-kit:typecheck: cache hit, replaying logs 8d0cc7467476cc15
+@shop-plus/reseller-kit:typecheck: 
+@shop-plus/reseller-kit:typecheck: > @shop-plus/reseller-kit@0.0.1 typecheck /home/user/shop-plus/apps/reseller-kit
+@shop-plus/reseller-kit:typecheck: > tsc -p tsconfig.json --noEmit
+@shop-plus/reseller-kit:typecheck: 
+@shop-plus/flags-client:build: cache hit, replaying logs 852ca7a59f0a7738
+@shop-plus/flags-client:build: 
+@shop-plus/flags-client:build: > @shop-plus/flags-client@0.0.1 build /home/user/shop-plus/packages/flags-client
+@shop-plus/flags-client:build: > tsc -p tsconfig.json
+@shop-plus/flags-client:build: 
+@shop-plus/storefront-service:typecheck: cache hit, replaying logs 4a06f31ffbf4f5fd
+@shop-plus/storefront-service:typecheck: 
+@shop-plus/storefront-service:typecheck: > @shop-plus/storefront-service@0.0.1 typecheck /home/user/shop-plus/services/storefront-service
+@shop-plus/storefront-service:typecheck: > tsc -p tsconfig.json --noEmit
+@shop-plus/storefront-service:typecheck: 
+@shop-plus/storefront-service:build: cache hit, replaying logs 168e7dc270380ae3
+@shop-plus/storefront-service:build: 
+@shop-plus/storefront-service:build: > @shop-plus/storefront-service@0.0.1 build /home/user/shop-plus/services/storefront-service
+@shop-plus/storefront-service:build: > tsc -p tsconfig.json
+@shop-plus/storefront-service:build: 
+@shop-plus/discovery-service:typecheck: cache hit, replaying logs dbd22bd53a5edc2b
+@shop-plus/discovery-service:typecheck: 
+@shop-plus/discovery-service:typecheck: > @shop-plus/discovery-service@0.0.1 typecheck /home/user/shop-plus/services/discovery-service
+@shop-plus/discovery-service:typecheck: > tsc -p tsconfig.json --noEmit
+@shop-plus/discovery-service:typecheck: 
+@shop-plus/buyer-pwa:typecheck: cache miss, executing 191300dc8cac9289
+@shop-plus/commerce-core:build: cache hit, replaying logs 6c785f9a4c459312
+@shop-plus/commerce-core:build: 
+@shop-plus/commerce-core:build: > @shop-plus/commerce-core@0.0.1 build /home/user/shop-plus/packages/commerce-core
+@shop-plus/commerce-core:build: > tsc -p tsconfig.json
+@shop-plus/commerce-core:build: 
+@shop-plus/commerce-core:typecheck: cache hit, replaying logs ffd4c56c2da5ed89
+@shop-plus/commerce-core:typecheck: 
+@shop-plus/commerce-core:typecheck: > @shop-plus/commerce-core@0.0.1 typecheck /home/user/shop-plus/packages/commerce-core
+@shop-plus/commerce-core:typecheck: > tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json
+@shop-plus/commerce-core:typecheck: 
+@shop-plus/reseller-app:typecheck: cache hit, replaying logs 4124a9d00054b719
+@shop-plus/reseller-app:typecheck: 
+@shop-plus/reseller-app:typecheck: > @shop-plus/reseller-app@0.0.1 typecheck /home/user/shop-plus/apps/reseller-app
+@shop-plus/reseller-app:typecheck: > tsc -p tsconfig.json --noEmit
+@shop-plus/reseller-app:typecheck: 
+@shop-plus/attribution-service:typecheck: cache miss, executing 8a42a3d038863ffa
+@shop-plus/buyer-pwa:typecheck: 
+@shop-plus/buyer-pwa:typecheck: > @shop-plus/buyer-pwa@0.0.1 typecheck /home/user/shop-plus/apps/buyer-pwa
+@shop-plus/buyer-pwa:typecheck: > tsc -p tsconfig.json --noEmit
+@shop-plus/buyer-pwa:typecheck: 
+@shop-plus/attribution-service:typecheck: 
+@shop-plus/attribution-service:typecheck: > @shop-plus/attribution-service@0.0.1 typecheck /home/user/shop-plus/services/attribution-service
+@shop-plus/attribution-service:typecheck: > tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json
+@shop-plus/attribution-service:typecheck: 
+
+ Tasks:    15 successful, 15 total
+Cached:    13 cached, 15 total
+  Time:    2.923s 
+(exit code: 0)
+
+=== tests (money gate, net-first surface, discovery contract, attribution fails-closed, no-supplier-contact projection, correlation hello-world, flags, health, catalogs) ===
+
+> shop-plus@0.0.1 test /home/user/shop-plus
+> turbo run test
+
+• turbo 2.10.5
+
+   • Packages in scope: @shop-plus/attribution-service, @shop-plus/buyer-pwa, @shop-plus/commerce-core, @shop-plus/discovery-service, @shop-plus/flags-client, @shop-plus/observability, @shop-plus/reseller-app, @shop-plus/reseller-kit, @shop-plus/store-projection, @shop-plus/storefront-service
+   • Running test in 10 packages
+   • Remote caching disabled
+
+@shop-plus/flags-client:build: cache hit, replaying logs 852ca7a59f0a7738
+@shop-plus/flags-client:build: 
+@shop-plus/flags-client:build: > @shop-plus/flags-client@0.0.1 build /home/user/shop-plus/packages/flags-client
+@shop-plus/flags-client:build: > tsc -p tsconfig.json
+@shop-plus/flags-client:build: 
+@shop-plus/store-projection:build: cache hit, replaying logs cb0a47716d4c8d53
+@shop-plus/store-projection:build: 
+@shop-plus/store-projection:build: > @shop-plus/store-projection@0.0.1 build /home/user/shop-plus/packages/store-projection
+@shop-plus/store-projection:build: > tsc -p tsconfig.json
+@shop-plus/store-projection:build: 
+@shop-plus/observability:build: cache hit, replaying logs b284773548b4f8fe
+@shop-plus/observability:build: 
+@shop-plus/observability:build: > @shop-plus/observability@0.0.1 build /home/user/shop-plus/packages/observability
+@shop-plus/observability:build: > tsc -p tsconfig.json
+@shop-plus/observability:build: 
+@shop-plus/commerce-core:build: cache hit, replaying logs 6c785f9a4c459312
+@shop-plus/commerce-core:build: 
+@shop-plus/commerce-core:build: > @shop-plus/commerce-core@0.0.1 build /home/user/shop-plus/packages/commerce-core
+@shop-plus/commerce-core:build: > tsc -p tsconfig.json
+@shop-plus/commerce-core:build: 
+@shop-plus/reseller-kit:build: cache hit, replaying logs e6c1c74690e8d462
+@shop-plus/reseller-kit:build: 
+@shop-plus/reseller-kit:build: > @shop-plus/reseller-kit@0.0.1 build /home/user/shop-plus/apps/reseller-kit
+@shop-plus/reseller-kit:build: > vite build
+@shop-plus/reseller-kit:build: 
+@shop-plus/reseller-kit:build: vite v6.4.3 building for production...
+@shop-plus/reseller-kit:build: transforming...
+@shop-plus/store-projection:test: cache hit, replaying logs 12e5d38688faa665
+@shop-plus/store-projection:test: 
+@shop-plus/store-projection:test: > @shop-plus/store-projection@0.0.1 test /home/user/shop-plus/packages/store-projection
+@shop-plus/store-projection:test: > vitest run
+@shop-plus/store-projection:test: 
+@shop-plus/store-projection:test: 
+@shop-plus/reseller-kit:build: ✓ 14 modules transformed.
+@shop-plus/store-projection:test:  RUN  v3.2.7 /home/user/shop-plus/packages/store-projection
+@shop-plus/reseller-kit:build: rendering chunks...
+@shop-plus/store-projection:test: 
+@shop-plus/store-projection:test:  ✓ test/store-projection.test.ts (7 tests) 8ms
+@shop-plus/store-projection:test: 
+@shop-plus/store-projection:test:  Test Files  1 passed (1)
+@shop-plus/store-projection:test:       Tests  7 passed (7)
+@shop-plus/store-projection:test:    Start at  03:34:10
+@shop-plus/store-projection:test:    Duration  1.26s (transform 239ms, setup 0ms, collect 221ms, tests 8ms, environment 0ms, prepare 160ms)
+@shop-plus/store-projection:test: 
+@shop-plus/reseller-kit:build: computing gzip size...
+@shop-plus/reseller-kit:build: dist/index.html                 0.33 kB │ gzip: 0.24 kB
+@shop-plus/reseller-kit:build: dist/assets/index-DwUhshab.js  17.88 kB │ gzip: 6.99 kB
+@shop-plus/reseller-kit:build: ✓ built in 1.12s
+@shop-plus/observability:test: cache hit, replaying logs b1db192cf92367e2
+@shop-plus/observability:test: 
+@shop-plus/observability:test: > @shop-plus/observability@0.0.1 test /home/user/shop-plus/packages/observability
+@shop-plus/observability:test: > vitest run
+@shop-plus/observability:test: 
+@shop-plus/observability:test: 
+@shop-plus/observability:test:  RUN  v3.2.7 /home/user/shop-plus/packages/observability
+@shop-plus/observability:test: 
+@shop-plus/observability:test:  ✓ test/correlation.test.ts (3 tests) 25ms
+@shop-plus/observability:test: 
+@shop-plus/observability:test:  Test Files  1 passed (1)
+@shop-plus/observability:test:       Tests  3 passed (3)
+@shop-plus/observability:test:    Start at  02:49:39
+@shop-plus/observability:test:    Duration  1.60s (transform 252ms, setup 0ms, collect 215ms, tests 25ms, environment 0ms, prepare 344ms)
+@shop-plus/observability:test: 
+@shop-plus/commerce-core:test: cache hit, replaying logs c17f86da4c9ff82c
+@shop-plus/commerce-core:test: 
+@shop-plus/commerce-core:test: > @shop-plus/commerce-core@0.0.1 pretest /home/user/shop-plus/packages/commerce-core
+@shop-plus/commerce-core:test: > pnpm bundle:worker
+@shop-plus/commerce-core:test: 
+@shop-plus/commerce-core:test: 
+@shop-plus/commerce-core:test: > @shop-plus/commerce-core@0.0.1 bundle:worker /home/user/shop-plus/packages/commerce-core
+@shop-plus/commerce-core:test: > esbuild worker/reservation-do.ts --bundle --format=esm --outfile=dist-worker/reservation-worker.mjs --platform=neutral --conditions=import
+@shop-plus/commerce-core:test: 
+@shop-plus/commerce-core:test: 
+@shop-plus/commerce-core:test:   dist-worker/reservation-worker.mjs  5.6kb
+@shop-plus/commerce-core:test: 
+@shop-plus/commerce-core:test: ⚡ Done in 20ms
+@shop-plus/commerce-core:test: 
+@shop-plus/commerce-core:test: > @shop-plus/commerce-core@0.0.1 test /home/user/shop-plus/packages/commerce-core
+@shop-plus/commerce-core:test: > vitest run
+@shop-plus/commerce-core:test: 
+@shop-plus/commerce-core:test: 
+@shop-plus/commerce-core:test:  RUN  v3.2.7 /home/user/shop-plus/packages/commerce-core
+@shop-plus/commerce-core:test: 
+@shop-plus/commerce-core:test:  ✓ test/e2-failure-paths.test.ts (16 tests) 75ms
+@shop-plus/commerce-core:test:  ✓ test/spine-misbehavior.test.ts (19 tests) 110ms
+@shop-plus/commerce-core:test:  ✓ test/payment-mock-certification.test.ts (2 tests) 70ms
+@shop-plus/commerce-core:test:  ✓ test/e2-door-paths.test.ts (17 tests) 169ms
+@shop-plus/commerce-core:test:  ✓ test/reservation-do.e2e.test.ts (7 tests) 1335ms
+@shop-plus/commerce-core:test:    ✓ QuoteReservationDO on workerd — atomicity is the runtime, not a shim > TWO CONCURRENT CONFIRMS → exactly one wins  727ms
+@shop-plus/commerce-core:test:  ✓ test/reservation-core.test.ts (5 tests) 12ms
+@shop-plus/commerce-core:test:  ✓ test/order-machine.test.ts (6 tests) 25ms
+@shop-plus/commerce-core:test:  ✓ test/quote-issuance.test.ts (8 tests) 50ms
+@shop-plus/commerce-core:test:  ✓ test/money-gate.test.ts (6 tests) 13ms
+@shop-plus/commerce-core:test: 
+@shop-plus/commerce-core:test:  Test Files  9 passed (9)
+@shop-plus/commerce-core:test:       Tests  86 passed (86)
+@shop-plus/storefront-service:build: cache hit, replaying logs 168e7dc270380ae3
+@shop-plus/commerce-core:test:    Start at  02:49:40
+@shop-plus/commerce-core:test:    Duration  6.99s (transform 839ms, setup 0ms, collect 6.49s, tests 1.86s, environment 10ms, prepare 2.59s)
+@shop-plus/commerce-core:test: 
+@shop-plus/storefront-service:build: 
+@shop-plus/storefront-service:build: > @shop-plus/storefront-service@0.0.1 build /home/user/shop-plus/services/storefront-service
+@shop-plus/storefront-service:build: > tsc -p tsconfig.json
+@shop-plus/storefront-service:build: 
+@shop-plus/discovery-service:build: cache hit, replaying logs 34d0eb9d37b82024
+@shop-plus/discovery-service:build: 
+@shop-plus/discovery-service:build: > @shop-plus/discovery-service@0.0.1 build /home/user/shop-plus/services/discovery-service
+@shop-plus/discovery-service:build: > tsc -p tsconfig.json
+@shop-plus/discovery-service:build: 
+@shop-plus/buyer-pwa:build: cache hit, replaying logs 57a7d297ceb0d69f
+@shop-plus/buyer-pwa:build: 
+@shop-plus/buyer-pwa:build: > @shop-plus/buyer-pwa@0.0.1 build /home/user/shop-plus/apps/buyer-pwa
+@shop-plus/buyer-pwa:build: > vite build
+@shop-plus/buyer-pwa:build: 
+@shop-plus/buyer-pwa:build: vite v6.4.3 building for production...
+@shop-plus/buyer-pwa:build: transforming...
+@shop-plus/buyer-pwa:build: ✓ 128 modules transformed.
+@shop-plus/buyer-pwa:build: rendering chunks...
+@shop-plus/buyer-pwa:build: computing gzip size...
+@shop-plus/buyer-pwa:build: dist/index.html                  1.10 kB │ gzip:  0.62 kB
+@shop-plus/buyer-pwa:build: dist/assets/index-BB0kzCM-.js  168.14 kB │ gzip: 44.16 kB
+@shop-plus/buyer-pwa:build: ✓ built in 971ms
+@shop-plus/reseller-kit:test: cache hit, replaying logs 985f505678f5eb74
+@shop-plus/reseller-kit:test: 
+@shop-plus/reseller-kit:test: > @shop-plus/reseller-kit@0.0.1 test /home/user/shop-plus/apps/reseller-kit
+@shop-plus/reseller-kit:test: > vitest run
+@shop-plus/reseller-kit:test: 
+@shop-plus/reseller-kit:test: 
+@shop-plus/reseller-kit:test:  RUN  v3.2.7 /home/user/shop-plus/apps/reseller-kit
+@shop-plus/reseller-kit:test: 
+@shop-plus/reseller-kit:test:  ✓ test/catalog.test.ts (4 tests) 5ms
+@shop-plus/reseller-kit:test:  ✓ test/composeur.test.ts (10 tests) 109ms
+@shop-plus/reseller-kit:test: 
+@shop-plus/reseller-kit:test:  Test Files  2 passed (2)
+@shop-plus/reseller-kit:test:       Tests  14 passed (14)
+@shop-plus/reseller-kit:test:    Start at  02:49:43
+@shop-plus/reseller-kit:test:    Duration  1.55s (transform 355ms, setup 0ms, collect 855ms, tests 113ms, environment 0ms, prepare 499ms)
+@shop-plus/reseller-kit:test: 
+@shop-plus/reseller-app:test: cache hit, replaying logs 372e535d3ca10e7d
+@shop-plus/reseller-app:test: 
+@shop-plus/reseller-app:test: > @shop-plus/reseller-app@0.0.1 test /home/user/shop-plus/apps/reseller-app
+@shop-plus/reseller-app:test: > vitest run
+@shop-plus/reseller-app:test: 
+@shop-plus/reseller-app:test: 
+@shop-plus/reseller-app:test:  RUN  v3.2.7 /home/user/shop-plus/apps/reseller-app
+@shop-plus/reseller-app:test: 
+@shop-plus/reseller-app:test:  ✓ test/grand-teint.test.ts (8 tests) 71ms
+@shop-plus/reseller-app:test:  ✓ test/ventes.test.ts (12 tests) 72ms
+@shop-plus/reseller-app:test:  ✓ test/qr-encoder.test.ts (8 tests) 138ms
+@shop-plus/reseller-app:test:  ✓ test/ui-kit.test.ts (13 tests) 25ms
+@shop-plus/reseller-app:test:  ✓ test/qr-hub.test.ts (9 tests) 95ms
+@shop-plus/reseller-app:test:  ✓ test/earnings.test.ts (8 tests) 107ms
+@shop-plus/reseller-app:test:  ✓ test/demo-store.test.ts (8 tests) 38ms
+@shop-plus/reseller-app:test:  ✓ test/share-hub.test.ts (11 tests) 29ms
+@shop-plus/reseller-app:test:  ✓ test/i18n.test.ts (5 tests) 22ms
+@shop-plus/reseller-app:test:  ✓ test/journey-spine.test.ts (5 tests) 20ms
+@shop-plus/reseller-app:test:  ✓ test/preview-banner.test.ts (2 tests) 16ms
+@shop-plus/reseller-app:test: 
+@shop-plus/reseller-app:test:  Test Files  11 passed (11)
+@shop-plus/reseller-app:test:       Tests  89 passed (89)
+@shop-plus/reseller-app:test:    Start at  02:49:39
+@shop-plus/reseller-app:test:    Duration  6.21s (transform 1.10s, setup 0ms, collect 4.18s, tests 633ms, environment 2ms, prepare 3.43s)
+@shop-plus/reseller-app:test: 
+@shop-plus/attribution-service:build: cache hit, replaying logs 47d37c559a8a7733
+@shop-plus/attribution-service:build: 
+@shop-plus/attribution-service:build: > @shop-plus/attribution-service@0.0.1 build /home/user/shop-plus/services/attribution-service
+@shop-plus/attribution-service:build: > tsc -p tsconfig.json
+@shop-plus/attribution-service:build: 
+@shop-plus/storefront-service:test: cache hit, replaying logs 0343921efb126a2f
+@shop-plus/storefront-service:test: 
+@shop-plus/storefront-service:test: > @shop-plus/storefront-service@0.0.1 test /home/user/shop-plus/services/storefront-service
+@shop-plus/storefront-service:test: > vitest run
+@shop-plus/storefront-service:test: 
+@shop-plus/storefront-service:test: 
+@shop-plus/storefront-service:test:  RUN  v3.2.7 /home/user/shop-plus/services/storefront-service
+@shop-plus/storefront-service:test: 
+@shop-plus/storefront-service:test:  ✓ test/listing-aggregate.test.ts (4 tests) 8ms
+@shop-plus/storefront-service:test:  ✓ test/customer-projection.test.ts (3 tests) 21ms
+@shop-plus/storefront-service:test: stdout | test/health.test.ts > storefront-service > serves /health and names itself
+@shop-plus/storefront-service:test: {"ts":"2026-07-14T03:34:15.781Z","level":"info","correlation_id":"69e68c4f-c9c1-4fb3-8577-0e9f5e86ae0f","service":"storefront-service","msg":"health check","path":"/health"}
+@shop-plus/storefront-service:test: 
+@shop-plus/storefront-service:test: stdout | test/health.test.ts > storefront-service > unknown routes are 404 — no features at this slice
+@shop-plus/storefront-service:test: {"ts":"2026-07-14T03:34:15.788Z","level":"warn","correlation_id":"ac89c9a6-34bd-41e8-90e9-3f90ff144556","service":"storefront-service","msg":"route not found","path":"/anything"}
+@shop-plus/storefront-service:test: 
+@shop-plus/storefront-service:test:  ✓ test/health.test.ts (2 tests) 12ms
+@shop-plus/storefront-service:test:  ✓ test/storefront-aggregate.test.ts (7 tests) 18ms
+@shop-plus/storefront-service:test: 
+@shop-plus/storefront-service:test:  Test Files  4 passed (4)
+@shop-plus/storefront-service:test:       Tests  16 passed (16)
+@shop-plus/storefront-service:test:    Start at  03:34:14
+@shop-plus/storefront-service:test:    Duration  1.87s (transform 303ms, setup 0ms, collect 1.45s, tests 59ms, environment 5ms, prepare 603ms)
+@shop-plus/storefront-service:test: 
+@shop-plus/discovery-service:test: cache hit, replaying logs e8b11fff85c2bcb6
+@shop-plus/discovery-service:test: 
+@shop-plus/discovery-service:test: > @shop-plus/discovery-service@0.0.1 test /home/user/shop-plus/services/discovery-service
+@shop-plus/discovery-service:test: > vitest run
+@shop-plus/discovery-service:test: 
+@shop-plus/discovery-service:test: 
+@shop-plus/discovery-service:test:  RUN  v3.2.7 /home/user/shop-plus/services/discovery-service
+@shop-plus/discovery-service:test: 
+@shop-plus/discovery-service:test: stdout | test/health.test.ts > discovery-service > serves /health and names itself
+@shop-plus/discovery-service:test: {"ts":"2026-07-14T03:34:16.340Z","level":"info","correlation_id":"a0fa37e1-9665-498c-a7ab-de20202f1cbf","service":"discovery-service","msg":"health check","path":"/health"}
+@shop-plus/discovery-service:test: 
+@shop-plus/discovery-service:test: stdout | test/health.test.ts > discovery-service > unknown routes are 404 — no features at this slice
+@shop-plus/discovery-service:test: {"ts":"2026-07-14T03:34:16.346Z","level":"warn","correlation_id":"50874324-0f78-4358-aa36-d375a1bdeb6f","service":"discovery-service","msg":"route not found","path":"/anything"}
+@shop-plus/discovery-service:test: 
+@shop-plus/discovery-service:test:  ✓ test/health.test.ts (2 tests) 9ms
+@shop-plus/discovery-service:test:  ✓ test/discovery.test.ts (6 tests) 43ms
+@shop-plus/discovery-service:test: 
+@shop-plus/discovery-service:test:  Test Files  2 passed (2)
+@shop-plus/discovery-service:test:       Tests  8 passed (8)
+@shop-plus/discovery-service:test:    Start at  03:34:15
+@shop-plus/discovery-service:test:    Duration  1.04s (transform 238ms, setup 0ms, collect 464ms, tests 52ms, environment 0ms, prepare 475ms)
+@shop-plus/discovery-service:test: 
+@shop-plus/buyer-pwa:test: cache hit, replaying logs 2fa4489200924f53
+@shop-plus/buyer-pwa:test: 
+@shop-plus/buyer-pwa:test: > @shop-plus/buyer-pwa@0.0.1 test /home/user/shop-plus/apps/buyer-pwa
+@shop-plus/buyer-pwa:test: > vitest run
+@shop-plus/buyer-pwa:test: 
+@shop-plus/buyer-pwa:test: 
+@shop-plus/buyer-pwa:test:  RUN  v3.2.7 /home/user/shop-plus/apps/buyer-pwa
+@shop-plus/buyer-pwa:test: 
+@shop-plus/buyer-pwa:test:  ✓ test/grand-teint-web.test.ts (7 tests) 25ms
+@shop-plus/buyer-pwa:test:  ✓ test/catalog.test.ts (3 tests) 19ms
+@shop-plus/buyer-pwa:test:  ✓ test/ui-scan.test.ts (6 tests) 20ms
+@shop-plus/buyer-pwa:test:  ✓ test/boutiques.test.ts (13 tests) 12ms
+@shop-plus/buyer-pwa:test:  ✓ test/location-view.test.ts (9 tests) 10ms
+@shop-plus/buyer-pwa:test:  ✓ test/tracking-view.test.ts (8 tests) 13ms
+@shop-plus/buyer-pwa:test:  ✓ test/protections-view.test.ts (7 tests) 10ms
+@shop-plus/buyer-pwa:test:  ✓ test/checkout-view.test.ts (9 tests) 7ms
+@shop-plus/buyer-pwa:test:  ✓ test/vitrine.test.ts (10 tests) 11ms
+@shop-plus/buyer-pwa:test:  ✓ test/order-view.test.ts (5 tests) 6ms
+@shop-plus/buyer-pwa:test:  ✓ test/voice-note.test.ts (6 tests) 14ms
+@shop-plus/buyer-pwa:test:  ✓ test/sandbox-ribbon.test.ts (4 tests) 4ms
+@shop-plus/buyer-pwa:test:  ✓ test/product-view.test.ts (7 tests) 9ms
+@shop-plus/buyer-pwa:test: 
+@shop-plus/buyer-pwa:test:  Test Files  13 passed (13)
+@shop-plus/buyer-pwa:test:       Tests  94 passed (94)
+@shop-plus/buyer-pwa:test:    Start at  03:55:48
+@shop-plus/buyer-pwa:test:    Duration  2.57s (transform 565ms, setup 0ms, collect 1.54s, tests 161ms, environment 6ms, prepare 1.61s)
+@shop-plus/buyer-pwa:test: 
+@shop-plus/attribution-service:test: cache hit, replaying logs 1cdbe5d86e678de5
+@shop-plus/attribution-service:test: 
+@shop-plus/attribution-service:test: > @shop-plus/attribution-service@0.0.1 pretest /home/user/shop-plus/services/attribution-service
+@shop-plus/attribution-service:test: > pnpm bundle:worker
+@shop-plus/attribution-service:test: 
+@shop-plus/attribution-service:test: 
+@shop-plus/attribution-service:test: > @shop-plus/attribution-service@0.0.1 bundle:worker /home/user/shop-plus/services/attribution-service
+@shop-plus/attribution-service:test: > esbuild worker/attribution-lock-do.ts --bundle --format=esm --outfile=dist-worker/attribution-lock-worker.mjs --platform=neutral --conditions=import
+@shop-plus/attribution-service:test: 
+@shop-plus/attribution-service:test: 
+@shop-plus/attribution-service:test:   dist-worker/attribution-lock-worker.mjs  3.2kb
+@shop-plus/attribution-service:test: 
+@shop-plus/attribution-service:test: ⚡ Done in 7ms
+@shop-plus/attribution-service:test: 
+@shop-plus/attribution-service:test: > @shop-plus/attribution-service@0.0.1 test /home/user/shop-plus/services/attribution-service
+@shop-plus/attribution-service:test: > vitest run
+@shop-plus/attribution-service:test: 
+@shop-plus/attribution-service:test: 
+@shop-plus/attribution-service:test:  RUN  v3.2.7 /home/user/shop-plus/services/attribution-service
+@shop-plus/attribution-service:test: 
+@shop-plus/attribution-service:test:  ✓ test/resolution.test.ts (9 tests) 37ms
+@shop-plus/attribution-service:test:  ✓ test/attribution.test.ts (8 tests) 50ms
+@shop-plus/attribution-service:test: stdout | test/premiere-commande-reelle.e2e.test.ts
+@shop-plus/attribution-service:test: === LA PREMIÈRE COMMANDE RÉELLE (Seller #001, real data) ===
+@shop-plus/attribution-service:test: storefront            = sf-seller-0001 (published)
+@shop-plus/attribution-service:test: listing               = lst-seller-0001 @ HER price 11500 FCFA (markup 1500)
+@shop-plus/attribution-service:test: attribution LOCKED    = rs-seller-0001 — THROUGH the durable DO (workerd)
+@shop-plus/attribution-service:test: quote_id (immutable)  = quote-seller001  attributionResellerId=rs-seller-0001
+@shop-plus/attribution-service:test: reconciliation        : productSubtotal 11500 = sellerNet 8500 + resellerNet 2000 + platformFee 1000
+@shop-plus/attribution-service:test: money boundary        : checkout leg 12500 FCFA « held » (stage hold) — en attente, aucun franc capturé
+@shop-plus/attribution-service:test: obligations           : supplier 8500 (==sellerNet) · reseller[rs-seller-0001] 2000 (==resellerNet), state Eligible
+@shop-plus/attribution-service:test: order state           = confirmed
+@shop-plus/attribution-service:test: 
+@shop-plus/attribution-service:test:  ✓ test/premiere-commande-reelle.e2e.test.ts (8 tests) 263ms
+@shop-plus/attribution-service:test:  ✓ test/durable-lock-client.test.ts (5 tests) 11ms
+@shop-plus/attribution-service:test:  ✓ test/attribution-lock-do.e2e.test.ts (7 tests) 1049ms
+@shop-plus/attribution-service:test:    ✓ AttributionLockDO — first-lock-wins, durable across a restart > LOCK SURVIVES RESTART: a lock written before a crash is read back after it  322ms
+@shop-plus/attribution-service:test: stdout | test/health.test.ts > attribution-service > serves /health and names itself
+@shop-plus/attribution-service:test: {"ts":"2026-07-14T03:55:51.681Z","level":"info","correlation_id":"28948704-b10b-4e26-8d12-3b20992a26d2","service":"attribution-service","msg":"health check","path":"/health"}
+@shop-plus/attribution-service:test: 
+@shop-plus/attribution-service:test: stdout | test/health.test.ts > attribution-service > unknown routes are 404 — no features at this slice
+@shop-plus/attribution-service:test: {"ts":"2026-07-14T03:55:51.687Z","level":"warn","correlation_id":"1e29f35b-ac6e-4a13-bac7-6276df0efa4a","service":"attribution-service","msg":"route not found","path":"/anything"}
+@shop-plus/attribution-service:test: 
+@shop-plus/attribution-service:test:  ✓ test/health.test.ts (2 tests) 10ms
+@shop-plus/attribution-service:test:  ✓ test/lock.test.ts (4 tests) 8ms
+@shop-plus/attribution-service:test: 
+@shop-plus/attribution-service:test:  Test Files  7 passed (7)
+@shop-plus/attribution-service:test:       Tests  43 passed (43)
+@shop-plus/attribution-service:test:    Start at  03:55:49
+@shop-plus/attribution-service:test:    Duration  2.69s (transform 430ms, setup 0ms, collect 3.29s, tests 1.43s, environment 3ms, prepare 778ms)
+@shop-plus/attribution-service:test: 
+@shop-plus/flags-client:test: cache hit, replaying logs adc431e05ec47d70
+@shop-plus/flags-client:test: 
+@shop-plus/flags-client:test: > @shop-plus/flags-client@0.0.1 test /home/user/shop-plus/packages/flags-client
+@shop-plus/flags-client:test: > vitest run
+@shop-plus/flags-client:test: 
+@shop-plus/flags-client:test: 
+@shop-plus/flags-client:test:  RUN  v3.2.7 /home/user/shop-plus/packages/flags-client
+@shop-plus/flags-client:test: 
+@shop-plus/flags-client:test:  ✓ test/flags.test.ts (3 tests) 15ms
+@shop-plus/flags-client:test: 
+@shop-plus/flags-client:test:  Test Files  1 passed (1)
+@shop-plus/flags-client:test:       Tests  3 passed (3)
+@shop-plus/flags-client:test:    Start at  02:49:39
+@shop-plus/flags-client:test:    Duration  1.44s (transform 252ms, setup 0ms, collect 208ms, tests 15ms, environment 0ms, prepare 532ms)
+@shop-plus/flags-client:test: 
+
+ Tasks:    19 successful, 19 total
+Cached:    19 cached, 19 total
+  Time:    18ms >>> FULL TURBO
+(exit code: 0)
+
+=== consumption baseline — pinned computeWaterfall reproduces the §5.4 worked baseline ===
+productSubtotal           11500
+buyerTotal                12500
+sellerNet                 8500
+resellerNet               2000
+platformProductFeeRevenue 1000
+assertQuoteReconciles: no throw
+§5.4 worked baseline OK (10,000 / 1,000 / 1,500 / 1,000)
+(exit code: 0)
+
+=== gate: money-reconciliation — §5.4 baseline fixture quote (must pass) ===
+money-reconciliation OK — gates/fixtures/quote.baseline.json reconciles to the franc (§5.4) and honors the §5.5 per-mode split
+(exit code: 0)
+
+=== gate: money-reconciliation — NEGATIVE FIXTURE (independent-multiplication sellerNet, must fail) ===
+money-reconciliation FAILED on gates/fixtures/negative/quote.independent-multiplication.json:
+Quote does not reconcile to the franc:
+  - productSubtotal (10779) != sellerNet + resellerNet + platformProductFeeRevenue (9167 + 889 + 722 = 10778)
+(exit code: 1)
+
+=== gate: money-reconciliation — Option-B quote from the pinned waterfall (§5.5 split, must pass) ===
+money-reconciliation OK — gates/fixtures/quote.option-b.json reconciles to the franc (§5.4) and honors the §5.5 per-mode split
+(exit code: 0)
+
+=== gate: money-reconciliation — NEGATIVE FIXTURE (Option-B split shift: reconciles to the pinned checker but paid != D, must fail) ===
+money-reconciliation FAILED on gates/fixtures/negative/quote.option-b.split-shift.json — §5.5 per-mode split violated:
+  Option B: amountPaidAtCheckout (2000) != deliveryFee D (1000)
+  Option B: amountDueAtDelivery (10500) != productSubtotal (11500)
+(exit code: 1)
+
+=== gate: money-reconciliation — NEGATIVE FIXTURE (paymentMode omitted: the split check may not be skipped, must fail) ===
+money-reconciliation FAILED on gates/fixtures/negative/quote.missing-mode.json: quote names no paymentMode — the §5.5 split cannot be verified
+(exit code: 1)
+
+=== gate: net-first-display — real opportunity-card surface (must pass) ===
+net-first-display OK — opportunity-card renders resellerNet first (resellerNet → customerPrice)
+(exit code: 0)
+
+=== gate: net-first-display — S7 ventes row surface (WO-7.2a, pinned to the presenter; must pass) ===
+net-first-display OK — ventes-row renders resellerNet first (resellerNet)
+(exit code: 0)
+
+=== gate: net-first-display — S7 ventes detail surface (WO-7.2a, net before son prix; must pass) ===
+net-first-display OK — ventes-detail renders resellerNet first (resellerNet → customerPrice)
+(exit code: 0)
+
+=== gate: net-first-display — NEGATIVE FIXTURE (gross-first earnings surface, must fail) ===
+net-first-display FAILED on opportunity-card (SP-I04/SP-I12):
+  - resellerNet must render FIRST; found at position 2 of [resellerGrossEarnings, resellerNet, customerPrice]
+  - gross earnings ("resellerGrossEarnings") render before resellerNet — gross-first UI is prohibited
+(exit code: 1)
+
+=== E1 happy path — full spine run through the SERVICE path, chain + reconciliation (must pass) ===
+=== E1 HAPPY PATH — correlation chain ===
+quote_id                 = quote-e1-0001
+reservation_id           = res-e1-0001
+payment_attempt_id       = pay-e1-0001
+order_id                 = order-e1-0001
+settlement_obligation_id = order-e1-0001:supplier:supplier-e1 (amount 8500 FCFA, state Eligible)
+settlement_obligation_id = order-e1-0001:reseller:reseller-e1 (amount 2000 FCFA, state Eligible)
+correlation_id (constant)= corr-e1-0001
+
+=== events (name @ aggregateVersion) ===
+1. checkout.quote_created.v1 (command cmd-issue-1)
+2. order.status_projection_updated.v1 (command cmd-reserved-1)
+3. order.status_projection_updated.v1 (command cmd-payinit-1)
+4. order.status_projection_updated.v1 (command whk-collect-pay-e1-0001)
+5. order.confirmed.v1 (command cmd-confirm-1)
+
+=== reconciliation at issue (pinned waterfall) ===
+productSubtotal 11500 = sellerNet 8500 + resellerNet 2000 + platformFee 1000
+buyerTotal 12500 = productSubtotal 11500 + deliveryFee 1000
+amountPaidAtCheckout 12500 + amountDueAtDelivery 0 = buyerTotal 12500
+escrow leg: checkout 12500 FCFA (held)
+obligations copy check: supplier 8500 == quote.sellerNet 8500; reseller 2000 == quote.resellerNet 2000
+(exit code: 0)
+
+=== gate: no-confirmed-order-without-funded-legs — happy journey (must pass) ===
+OK: confirmed order order-e1-0001 has a funded checkout leg of 12500 FCFA
+(exit code: 0)
+
+=== gate: no-confirmed-order-without-funded-legs — NEGATIVE FIXTURE (confirmed order, short+refunded leg, must fail) ===
+VIOLATION: confirmed order without a funded checkout leg covering amountPaidAtCheckout=12500 (legs: checkout:12499:refunded)
+(exit code: 1)
+
+=== gate: no-confirmed-order-without-funded-legs — Option-B journey confirms on its D-funded leg (per mode, must pass) ===
+OK: confirmed order order-b-0001 has a funded checkout leg of 1000 FCFA
+(exit code: 0)
+
+=== gate: no-confirmed-order-without-funded-legs — NEGATIVE FIXTURE (full-prepay funding LIE on a PAY_AT_DOOR order, must fail) ===
+VIOLATION: confirmed order without a funded checkout leg covering amountPaidAtCheckout=1000 (legs: checkout:12500:held)
+(exit code: 1)
+
+=== gate: no-confirmed-order-without-funded-legs — NEGATIVE FIXTURE (coherent lie: split-shifted PAY_AT_DOOR quote + matching oversized leg, must fail) ===
+VIOLATION: the journey quote violates the §5.5 per-mode split:
+  Option B: amountPaidAtCheckout (12500) != deliveryFee D (1000)
+  Option B: amountDueAtDelivery (0) != productSubtotal (11500)
+(exit code: 1)
+
+=== gate: settlement-copies-never-recomputes — happy journey + ledger source scan (must pass) ===
+OK: obligations copied to the franc (supplier 8500 = sellerNet; reseller 2000 = resellerNet); ledger source clean of waterfall/fee machinery
+(exit code: 0)
+
+=== gate: settlement-copies-never-recomputes — NEGATIVE FIXTURE (recomputed-with-different-rounding amounts, must fail) ===
+VIOLATION: supplier obligation 8501 != quote.sellerNet 8500 — amount was recomputed, not copied
+VIOLATION: reseller obligation 1999 != quote.resellerNet 2000 — amount was recomputed, not copied
+(exit code: 1)
+
+=== gate: discovery-returns-stores — real discovery response (must pass) ===
+discovery-returns-stores OK — 3 store(s), no product pool (SP-I05)
+(exit code: 0)
+
+=== gate: discovery-returns-stores — S3 découverte directory (WO-7.2a, pinned to the directory; must pass) ===
+discovery-returns-stores OK — 5 store(s), no product pool (SP-I05)
+(exit code: 0)
+
+=== gate: discovery-returns-stores — NEGATIVE FIXTURE (flat product pool, must fail) ===
+discovery-returns-stores FAILED (SP-I05 — discovery returns STORES):
+  - top-level "products" — a flat cross-reseller pool, not a store collection
+  - no top-level "stores" array
+(exit code: 1)
+
+=== gate: discovery-returns-stores — S3 NEGATIVE (a directory that leaked a product feed, must fail) ===
+discovery-returns-stores FAILED (SP-I05 — discovery returns STORES):
+  - top-level "products" — a flat cross-reseller pool, not a store collection
+(exit code: 1)
+
+=== gate: attribution-tamper-fails-closed — valid signed token (must pass) ===
+attribution-tamper OK — token verifies; attribution locked to res_123 (SP-I09)
+(exit code: 0)
+
+=== gate: attribution-tamper-fails-closed — NEGATIVE FIXTURE (tampered payload, must REJECT CLOSED) ===
+attribution-tamper REJECTED CLOSED — bad_signature; no reseller, no supplier/platform fallback (SP-I09)
+(exit code: 1)
+
+=== gate: no-supplier-contact — real customer-surface projection (must pass) ===
+no-supplier-contact OK — gates/fixtures/customer-surfaces/product-view.json carries no supplier identity/contact/commission (SP-I03)
+(exit code: 0)
+
+=== gate: no-supplier-contact — S5 vitrine surface (WO-7.1, pinned to the view model; must pass) ===
+no-supplier-contact OK — gates/fixtures/customer-surfaces/vitrine-view.json carries no supplier identity/contact/commission (SP-I03)
+(exit code: 0)
+
+=== gate: no-supplier-contact — S5 share card surface (WO-7.1, pinned to composeShareCard; must pass) ===
+no-supplier-contact OK — gates/fixtures/customer-surfaces/share-card.json carries no supplier identity/contact/commission (SP-I03)
+(exit code: 0)
+
+=== gate: no-supplier-contact — S3 découverte directory (WO-7.2a, pinned to the directory; must pass) ===
+no-supplier-contact OK — gates/fixtures/customer-surfaces/boutiques-discovery.json carries no supplier identity/contact/commission (SP-I03)
+(exit code: 0)
+
+=== gate: no-supplier-contact — NEGATIVE FIXTURE (supplier identity/contact/commission leak, must fail) ===
+no-supplier-contact FAILED (SP-I03) — 5 banned key(s) on a customer surface:
+  - $.supplierName — supplier identity/contact
+  - $.supplierPhone — supplier identity/contact
+  - $.sellerFundedCommission — commission
+  - $.supplierPickupZone — supplier identity/contact
+  - $.supplierPickupZone — pickup location
+(exit code: 1)
+
+=== gate: no-expo-token-leak — repo source + workflows + lockfile (must pass) ===
+no-expo-token-leak OK — no banned pattern in .github/workflows/ci.yml, .github/workflows/expo-preview.yml, .github/workflows/pwa-preview.yml, AGENTS.md, CLAUDE.md, JOURNAL.md, PREVIEW.md, SDK-REPORT-v3-CANDIDATES.md, WORK-ORDERS/WO-SP0.1.md, _review/WO-7.1-VERIFIER-VERDICT-verbatim.md, _review/WO-7.2a-VERIFIER-VERDICT-verbatim.md, _review/WO-7.2b-VERIFIER-VERDICT-verbatim.md, _review/WO-LOCK-DURABILITY-VERIFIER-VERDICT-verbatim.md, _review/WO-RESELLER-I18N-VERIFIER-VERDICT-verbatim.md, _review/sp001-a/README.md, _review/sp001-a/VERIFIER-VERDICT-verbatim.md, _review/sp001-a/cold-proof.sh, _review/sp001-b/README.md, _review/sp001-b/VERIFIER-VERDICT-verbatim.md, _review/sp001-b/cold-proof.sh, adr/ADR-001-commerce-core-scope.md, adr/ADR-002-commerce-core-hosting.md, apps/buyer-pwa/assets/icons/icons.manifest.json, apps/buyer-pwa/e2e/font-cold-start.spec.ts, apps/buyer-pwa/e2e/font-load.spec.ts, apps/buyer-pwa/e2e/gallery.spec.ts, apps/buyer-pwa/e2e/grand-teint-icons.spec.ts, apps/buyer-pwa/e2e/journey.spec.ts, apps/buyer-pwa/e2e/shell.spec.ts, apps/buyer-pwa/i18n/catalog.json, apps/buyer-pwa/package.json, apps/buyer-pwa/playwright.config.ts, apps/buyer-pwa/src/audio-note.ts, apps/buyer-pwa/src/boutiques-data.ts, apps/buyer-pwa/src/boutiques-view.ts, apps/buyer-pwa/src/checkout-view.ts, apps/buyer-pwa/src/delivery-view.ts, apps/buyer-pwa/src/demo-stores.ts, apps/buyer-pwa/src/format.ts, apps/buyer-pwa/src/grand-teint-icons.ts, apps/buyer-pwa/src/i18n.ts, apps/buyer-pwa/src/icons.ts, apps/buyer-pwa/src/journey.ts, apps/buyer-pwa/src/location-view.ts, apps/buyer-pwa/src/main.ts, apps/buyer-pwa/src/order-view.ts, apps/buyer-pwa/src/product-view.ts, apps/buyer-pwa/src/protections-view.ts, apps/buyer-pwa/src/tracking-view.ts, apps/buyer-pwa/src/vitrine-link.ts, apps/buyer-pwa/src/vitrine-view.ts, apps/buyer-pwa/src/voice-note.ts, apps/buyer-pwa/test/boutiques.test.ts, apps/buyer-pwa/test/catalog.test.ts, apps/buyer-pwa/test/checkout-view.test.ts, apps/buyer-pwa/test/grand-teint-web.test.ts, apps/buyer-pwa/test/location-view.test.ts, apps/buyer-pwa/test/order-view.test.ts, apps/buyer-pwa/test/product-view.test.ts, apps/buyer-pwa/test/protections-view.test.ts, apps/buyer-pwa/test/sandbox-ribbon.test.ts, apps/buyer-pwa/test/tracking-view.test.ts, apps/buyer-pwa/test/ui-scan.test.ts, apps/buyer-pwa/test/vitrine.test.ts, apps/buyer-pwa/test/voice-note.test.ts, apps/buyer-pwa/tsconfig.json, apps/buyer-pwa/vite.config.ts, apps/reseller-app/App.tsx, apps/reseller-app/WALKTHROUGH.md, apps/reseller-app/app.json, apps/reseller-app/assets/fonts/BUILD.md, apps/reseller-app/assets/fonts/COLD-START.md, apps/reseller-app/babel.config.js, apps/reseller-app/i18n/catalog.json, apps/reseller-app/index.ts, apps/reseller-app/package.json, apps/reseller-app/run-preview.bat, apps/reseller-app/run-preview.sh, apps/reseller-app/src/demo/seed.json, apps/reseller-app/src/demo/store.ts, apps/reseller-app/src/earnings.ts, apps/reseller-app/src/i18n.ts, apps/reseller-app/src/journey.ts, apps/reseller-app/src/opportunity-example.json, apps/reseller-app/src/preview.ts, apps/reseller-app/src/qr/QrCode.tsx, apps/reseller-app/src/qr/encoder.ts, apps/reseller-app/src/qr/identity.ts, apps/reseller-app/src/sales/ventes.ts, apps/reseller-app/src/share/hub.ts, apps/reseller-app/src/ui/fonts.ts, apps/reseller-app/src/ui/icons.tsx, apps/reseller-app/src/ui/kit.tsx, apps/reseller-app/test/demo-store.test.ts, apps/reseller-app/test/earnings.test.ts, apps/reseller-app/test/grand-teint.test.ts, apps/reseller-app/test/i18n.test.ts, apps/reseller-app/test/journey-spine.test.ts, apps/reseller-app/test/preview-banner.test.ts, apps/reseller-app/test/qr-encoder.test.ts, apps/reseller-app/test/qr-hub.test.ts, apps/reseller-app/test/share-hub.test.ts, apps/reseller-app/test/ui-kit.test.ts, apps/reseller-app/test/ventes.test.ts, apps/reseller-app/tsconfig.json, apps/reseller-kit/i18n/catalog.json, apps/reseller-kit/package.json, apps/reseller-kit/src/composeur.ts, apps/reseller-kit/src/demo.ts, apps/reseller-kit/src/format.ts, apps/reseller-kit/src/i18n.ts, apps/reseller-kit/src/main.ts, apps/reseller-kit/src/paint.ts, apps/reseller-kit/test/catalog.test.ts, apps/reseller-kit/test/composeur.test.ts, apps/reseller-kit/tsconfig.json, apps/reseller-kit/vite.config.ts, design-reference/grand-teint/README.md, design-reference/grand-teint/docs/budget.md, design-reference/grand-teint/docs/components.md, design-reference/grand-teint/docs/copy.md, design-reference/grand-teint/docs/design-system.md, design-reference/grand-teint/docs/flows.md, design-reference/grand-teint/docs/motion.md, design-reference/grand-teint/docs/proposals.md, design-reference/grand-teint/docs/tokens.json, design-reference/grand-teint/icons/README.md, design-reference/grand-teint/share-cards/README.md, design-reference/grand-teint/support.js, docs/Boutik-Plus-Build-Spec.md, docs/Boutik-Plus-Building-Plan.md, docs/DESIGN-LANGUAGE.md, docs/ECOSYSTEM-MASTER-REFERENCE.md, docs/Ecosystem-Engineering-Execution-Contract.md, docs/GRAND-TEINT.md, docs/PERF-BUDGETS.md, docs/Sera-Build-Spec.md, docs/Sera-Building-Plan.md, docs/Shop-Plus-Build-Spec.md, docs/Shop-Plus-Building-Plan.md, gallery/states.json, package.json, packages/commerce-core/dist-worker/reservation-worker.mjs, packages/commerce-core/package.json, packages/commerce-core/src/dlq.ts, packages/commerce-core/src/fixtures.ts, packages/commerce-core/src/index.ts, packages/commerce-core/src/ledger.ts, packages/commerce-core/src/mocks/payment-provider-mock.ts, packages/commerce-core/src/mocks/sera-eligibility-mock.ts, packages/commerce-core/src/order-machine.ts, packages/commerce-core/src/order-spine.ts, packages/commerce-core/src/pay-at-door-policy.ts, packages/commerce-core/src/problem-path.ts, packages/commerce-core/src/quote-issuance.ts, packages/commerce-core/src/reservation.ts, packages/commerce-core/test/e2-door-paths.test.ts, packages/commerce-core/test/e2-failure-paths.test.ts, packages/commerce-core/test/money-gate.test.ts, packages/commerce-core/test/order-machine.test.ts, packages/commerce-core/test/payment-mock-certification.test.ts, packages/commerce-core/test/quote-issuance.test.ts, packages/commerce-core/test/reservation-core.test.ts, packages/commerce-core/test/reservation-do.e2e.test.ts, packages/commerce-core/test/spine-misbehavior.test.ts, packages/commerce-core/tsconfig.json, packages/commerce-core/worker/reservation-do.ts, packages/commerce-core/worker/tsconfig.json, packages/flags-client/package.json, packages/flags-client/src/index.ts, packages/flags-client/test/flags.test.ts, packages/flags-client/tsconfig.json, packages/observability/package.json, packages/observability/src/health.ts, packages/observability/src/index.ts, packages/observability/src/logger.ts, packages/observability/test/correlation.test.ts, packages/observability/tsconfig.json, packages/store-projection/package.json, packages/store-projection/src/index.ts, packages/store-projection/src/store-projection.ts, packages/store-projection/test/store-projection.test.ts, packages/store-projection/tsconfig.json, pnpm-lock.yaml, pnpm-workspace.yaml, scripts/baseline-check.mjs, scripts/build-gallery.mjs, scripts/e1-happy-path.mjs, scripts/e2-door-path.mjs, scripts/e2-failure-path.mjs, scripts/gates/attribution-lock-first-wins.mjs, scripts/gates/attribution-tamper.mjs, scripts/gates/discovery-returns-stores.mjs, scripts/gates/door-signal-requires-provider.mjs, scripts/gates/lockfile-url-form.mjs, scripts/gates/money-reconciliation.mjs, scripts/gates/net-first-display.mjs, scripts/gates/no-confirmed-order-without-funded-legs.mjs, scripts/gates/no-drop-code-exposure.mjs, scripts/gates/no-emoji-in-chrome.mjs, scripts/gates/no-expo-token-leak.mjs, scripts/gates/no-ml-libs.mjs, scripts/gates/no-supplier-contact.mjs, scripts/gates/no-wallet-no-funds.mjs, scripts/gates/problem-path-never-releases.mjs, scripts/gates/pwa-payload-budget.mjs, scripts/gates/reservation-release-on-failure.mjs, scripts/gates/scan.mjs, scripts/gates/settlement-copies-never-recomputes.mjs, scripts/gates/single-level.mjs, scripts/run-gates.sh, services/attribution-service/dist-worker/attribution-lock-worker.mjs, services/attribution-service/package.json, services/attribution-service/src/attribution.ts, services/attribution-service/src/index.ts, services/attribution-service/src/lock-core.ts, services/attribution-service/src/lock.ts, services/attribution-service/src/resolution.ts, services/attribution-service/test/attribution-lock-do.e2e.test.ts, services/attribution-service/test/attribution.test.ts, services/attribution-service/test/health.test.ts, services/attribution-service/test/lock.test.ts, services/attribution-service/test/resolution.test.ts, services/attribution-service/tsconfig.json, services/attribution-service/worker/attribution-lock-do.ts, services/attribution-service/worker/tsconfig.json, services/discovery-service/package.json, services/discovery-service/src/discovery.ts, services/discovery-service/src/index.ts, services/discovery-service/test/discovery.test.ts, services/discovery-service/test/health.test.ts, services/discovery-service/tsconfig.json, services/storefront-service/package.json, services/storefront-service/src/customer-projection.ts, services/storefront-service/src/index.ts, services/storefront-service/src/listing-aggregate.ts, services/storefront-service/src/storefront-aggregate.ts, services/storefront-service/test/customer-projection.test.ts, services/storefront-service/test/health.test.ts, services/storefront-service/test/listing-aggregate.test.ts, services/storefront-service/test/storefront-aggregate.test.ts, services/storefront-service/tsconfig.json, tsconfig.base.json, turbo.json (WO-4.0 credentials never committed)
+(exit code: 0)
+
+=== gate: no-expo-token-leak — NEGATIVE FIXTURE (committed token literal, must fail) ===
+no-expo-token-leak FAILED (WO-4.0 credentials never committed) — 8 hit(s):
+  gates/fixtures/negative/no-expo-token-leak/leak-config.json:1 [EXPO_TOKEN literal assignment] { "EXPO_TOKEN": "jsonLeak0987654321" }
+  gates/fixtures/negative/no-expo-token-leak/leaked-token.yml:3 [EXPO_TOKEN literal assignment] EXPO_TOKEN: "abcdef1234567890abcdef"
+  gates/fixtures/negative/no-expo-token-leak/leaked-token.yml:4 [expo token shape] other: expo_pat_AbCdEf123456_planted
+  gates/fixtures/negative/no-expo-token-leak/leaked-token.yml:6 [EXPO_TOKEN literal assignment] "EXPO_TOKEN": plantedYamlQuoted123
+  gates/fixtures/negative/no-expo-token-leak/leaky-run.sh:3 [EXPO_TOKEN literal assignment] EXPO_TOKEN=shellScriptLeak12345 npx eas update
+  gates/fixtures/negative/no-expo-token-leak/planted.env:1 [EXPO_TOKEN literal assignment] EXPO_TOKEN=dotenvLeak0192837465
+  gates/fixtures/negative/no-expo-token-leak/planted.env.local:2 [EXPO_TOKEN literal assignment] EXPO_TOKEN=dotenvLocalLeak123456
+  gates/fixtures/negative/no-expo-token-leak/secrets.env.production:2 [EXPO_TOKEN literal assignment] "EXPO_TOKEN": "dotenvProdLeak654321"
+(exit code: 1)
+
+=== gate: single-level — repo source (must pass) ===
+single-level OK — no banned pattern in apps, services, packages (B+I-10 single-level only — no recruitment/downline mechanics)
+(exit code: 0)
+
+=== gate: single-level — NEGATIVE FIXTURE (downline/recruit, must fail) ===
+single-level FAILED (B+I-10 single-level only — no recruitment/downline mechanics) — 6 hit(s):
+  gates/fixtures/negative/single-level/downline.ts:1 [downline] // NEGATIVE FIXTURE: recruitment/downline mechanics — the single-level gate
+  gates/fixtures/negative/single-level/downline.ts:1 [recruit] // NEGATIVE FIXTURE: recruitment/downline mechanics — the single-level gate
+  gates/fixtures/negative/single-level/downline.ts:5 [downline] downline: string[]; // banned: B+I-10 single-level only
+  gates/fixtures/negative/single-level/downline.ts:6 [upline] uplineId?: string;
+  gates/fixtures/negative/single-level/downline.ts:8 [recruit] export function recruitReseller(network: ResellerNetwork, newId: string): void {
+  gates/fixtures/negative/single-level/downline.ts:9 [downline] network.downline.push(newId);
+(exit code: 1)
+
+=== gate: no-wallet-no-funds — repo source (must pass) ===
+no-wallet-no-funds OK — no banned pattern in apps, services, packages (Ten Laws #2 — no app holds funds; no wallet/balance module)
+(exit code: 0)
+
+=== gate: no-wallet-no-funds — NEGATIVE FIXTURE (wallet/balance module, must fail) ===
+no-wallet-no-funds FAILED (Ten Laws #2 — no app holds funds; no wallet/balance module) — 8 hit(s):
+  gates/fixtures/negative/no-wallet-no-funds/wallet.ts:1 [wallet] // NEGATIVE FIXTURE: a wallet/balance module — the no-wallet-no-funds gate
+  gates/fixtures/negative/no-wallet-no-funds/wallet.ts:1 [balance] // NEGATIVE FIXTURE: a wallet/balance module — the no-wallet-no-funds gate
+  gates/fixtures/negative/no-wallet-no-funds/wallet.ts:3 [wallet] export interface SupplierWallet {
+  gates/fixtures/negative/no-wallet-no-funds/wallet.ts:5 [balance] balance: number; // banned: no app computes an independent balance
+  gates/fixtures/negative/no-wallet-no-funds/wallet.ts:7 [wallet] export function holdFunds(wallet: SupplierWallet, amount: number): void {
+  gates/fixtures/negative/no-wallet-no-funds/wallet.ts:7 [holdFunds/captureFunds/releaseFunds] export function holdFunds(wallet: SupplierWallet, amount: number): void {
+  gates/fixtures/negative/no-wallet-no-funds/wallet.ts:8 [wallet] wallet.balance -= amount;
+  gates/fixtures/negative/no-wallet-no-funds/wallet.ts:8 [balance] wallet.balance -= amount;
+(exit code: 1)
+
+=== gate: no-ml-libs — repo deps + imports (must pass) ===
+no-ml-libs OK — no ML/generative/inference dependency or import in apps, services, packages (SP-I11 deterministic only — no learned ranking, no generative)
+(exit code: 0)
+
+=== gate: no-ml-libs — NEGATIVE FIXTURE (tensorflow dep + onnx import, must fail) ===
+no-ml-libs FAILED (SP-I11 deterministic only — no learned ranking, no generative) — 3 problem(s):
+  gates/fixtures/negative/no-ml-libs/package.json: banned ML/inference dependency "@tensorflow/tfjs" (matches "tensorflow")
+  gates/fixtures/negative/no-ml-libs/package.json: banned ML/inference dependency "@tensorflow/tfjs" (matches "@tensorflow")
+  gates/fixtures/negative/no-ml-libs/infer.ts:3 [import:onnx] import { InferenceSession } from 'onnxruntime-node';
+(exit code: 1)
+
+=== gate: no-drop-code-exposure — services + reseller app + packages (must pass) ===
+no-drop-code-exposure OK — no banned pattern in services, apps/reseller-app, packages (buyerDropCode is private to the buyer — never on seller/reseller surfaces)
+(exit code: 0)
+
+=== gate: no-drop-code-exposure — NEGATIVE FIXTURE (buyerDropCode on a reseller surface, must fail) ===
+no-drop-code-exposure FAILED (buyerDropCode is private to the buyer — never on seller/reseller surfaces) — 3 hit(s):
+  gates/fixtures/negative/drop-code/reseller-sale-view.ts:1 [buyerDropCode] // NEGATIVE FIXTURE: buyerDropCode on a reseller surface — the
+  gates/fixtures/negative/drop-code/reseller-sale-view.ts:2 [dropCode] // no-drop-code-exposure gate MUST fail on this file. Never import this.
+  gates/fixtures/negative/drop-code/reseller-sale-view.ts:5 [buyerDropCode] buyerDropCode: string; // banned: private to the buyer, never on seller/reseller surfaces
+(exit code: 1)
+
+=== gate: no-emoji-in-chrome — app surfaces carry only canon SVG glyphs, never emoji (Grand Teint §8, must pass) ===
+no-emoji-in-chrome OK — no banned pattern in apps (Grand Teint §8 — no emoji/rasters in chrome; glyphs are canon SVG icons on a size token)
+(exit code: 0)
+
+=== gate: no-emoji-in-chrome — NEGATIVE FIXTURE (emoji tab bar, must fail) ===
+no-emoji-in-chrome FAILED (Grand Teint §8 — no emoji/rasters in chrome; glyphs are canon SVG icons on a size token) — 3 hit(s):
+  gates/fixtures/negative/no-emoji-in-chrome/emoji-tab.tsx:6 [emoji] { key: 'accueil', icon: '🏠', label: 'Accueil' },
+  gates/fixtures/negative/no-emoji-in-chrome/emoji-tab.tsx:7 [emoji] { key: 'opportunites', icon: '🛍️', label: 'Opportunités' },
+  gates/fixtures/negative/no-emoji-in-chrome/emoji-tab.tsx:8 [emoji] { key: 'gains', icon: '💰', label: 'Gains' },
+(exit code: 1)
+
+=== gate: lockfile-url-form — committed pnpm-lock.yaml pins deps by portable https-form URL (cold-install law, must pass) ===
+lockfile-url-form OK — no banned pattern in pnpm-lock.yaml (cold-install law — pnpm-lock.yaml pins git deps by portable https-form URL, never SSH-form git@github.com:)
+(exit code: 0)
+
+=== gate: lockfile-url-form — NEGATIVE FIXTURE (SSH-form git@ URL, must fail) ===
+lockfile-url-form FAILED (cold-install law — pnpm-lock.yaml pins git deps by portable https-form URL, never SSH-form git@github.com:) — 1 hit(s):
+  gates/fixtures/negative/lockfile-url-form/lock.ssh.yaml:7 [ssh-form-url] version: git+https://git@github.com:beurni2/platform-contracts.git#04af4b5266d53866a2b6d5800e270d3fffac2b35&path:packages/ui-tokens
+(exit code: 1)
+
+=== gate: French Voice copy-lint — reseller-app catalog (must pass) ===
+copy-lint OK: 90 entries, 0 violations
+(exit code: 0)
+
+=== gate: French Voice copy-lint — buyer-pwa catalog (must pass) ===
+copy-lint OK: 137 entries, 0 violations
+(exit code: 0)
+
+=== gate: French Voice copy-lint — reseller-kit catalog (WO-7.2b composeur, must pass) ===
+copy-lint OK: 21 entries, 0 violations
+(exit code: 0)
+
+=== gate: French Voice copy-lint — NEGATIVE FIXTURE (veuillez/séquestre + marketing-in-money + Mooré-in-instruction, must fail) ===
+copy-lint FAILED: 4 violation(s) across 3 entries
+  [banned_register_token] negative.administrative_register: banned-register token « séquestre » in fr: "Veuillez patienter pendant la vérification du séquestre susmentionné, conformément à la procédure ci-après."
+  [reading_level] negative.administrative_register: average 2.62 syllables/word exceeds the checkout budget of 2.6: "Veuillez patienter pendant la vérification du séquestre susmentionné, conformément à la procédure ci-après"
+  [register_mismatch] negative.marketing_in_money_moment: marketing/urgency token « profitez » in a register:money string (fr): "Profitez vite de cette offre limitée : payez maintenant !"
+  [local_language_in_money_or_instruction] negative.local_language_in_instruction: Mooré/Dioula token « barka » in a neutral/instruction string: "Barka ! Entrez le code de retrait pour continuer."
+(exit code: 1)
+
+=== gate: E2 failure path — the real service path end-to-end (must pass) ===
+=== E2 FAILURE PATH — service-path evidence ===
+saga.stuck.v1 fired: pending_since=2026-07-10T12:00:00.000Z ttl=stuck-ttl.v1
+payment_failed reason: charge_rejected · final state: cancelled
+reservation: released immediately (reason=payment_failed) · re-alert on clean world: none (correct)
+retry audit: prior attempts ["att-e2-0001"] · final attempt att-e2-0002
+problem report: problem-order-e2-0001-1 reason=unusable_location event=incident.opened.v1
+dlq: parked dlq-1 sha256=5e7918681907… bytes preserved exactly: true
+(exit code: 0)
+
+=== gate: reservation-release-on-failure — real released world (must pass) ===
+OK: payment failed and the reservation released cleanly (release is the rule; releaseReason=payment_failed)
+(exit code: 0)
+
+=== gate: reservation-release-on-failure — NEGATIVE (held after payment fail, no alert, must fail) ===
+VIOLATION (Contract §6): a reservation stays held after payment failure and NO reconciliation alert fired
+  reservation: {"status":"reserved","quoteId":"quote-e2-0001","reservationId":"res-e2-0001","holderRef":"buyer-e2","reserveCommandId":"cmd-reserve-e2","expiresAt":"2026-07-10T12:02:00.000Z"}
+(exit code: 1)
+
+=== gate: attribution-lock-first-wins — collision refused, lock never moves (must pass) ===
+OK: first lock wins — locked to rs-first (token att-first); 1 later valid token(s) refused, lock never moved
+(exit code: 0)
+
+=== gate: attribution-lock-first-wins — NEGATIVE (re-attribution claim, must fail) ===
+VIOLATION (SP-I01): fixture claims the lock ended on rs-second, but FIRST LOCK WINS — the real book holds rs-first (collisions refused: 1)
+(exit code: 1)
+
+=== gate: problem-path-never-releases — real source scan (must pass) ===
+problem-path-never-releases OK — no ledger/escrow/reservation/refund machinery in packages/commerce-core/src/problem-path.ts
+(exit code: 0)
+
+=== gate: problem-path-never-releases — NEGATIVE (planted money machinery, must fail) ===
+problem-path-never-releases FAILED — 5 money-machinery hit(s):
+  gates/fixtures/negative/problem-path-releases/bad-problem-path.ts:3 [/\bledger\b/i] import { LedgerRecords } from '../../../packages/commerce-core/src/ledger.js';
+  gates/fixtures/negative/problem-path-releases/bad-problem-path.ts:4 [/refund/i] export function reportAndRefund(ledger: LedgerRecords, orderId: string): void {
+  gates/fixtures/negative/problem-path-releases/bad-problem-path.ts:4 [/\bledger\b/i] export function reportAndRefund(ledger: LedgerRecords, orderId: string): void {
+  gates/fixtures/negative/problem-path-releases/bad-problem-path.ts:6 [/obligationsFor\s*\(/] const obligations = ledger.obligationsFor(orderId);
+  gates/fixtures/negative/problem-path-releases/bad-problem-path.ts:6 [/\bledger\b/i] const obligations = ledger.obligationsFor(orderId);
+(exit code: 1)
+
+=== gate: E2 door path — Option-B through the real service path end-to-end (must pass) ===
+=== E2 OPTION-B DOOR PATH — service-path evidence ===
+eligibility negative: refused closed — reason=pay_at_door_not_eligible refusal=seller_tier_below_minimum policy=option-b-policy.v0-conservative+e2-sandbox-zone
+shipped-default check: empty zone allowlist refuses (zone_not_network_reliable) — Option-B narrow by default
+option-b quote: paid-now=1000 (D) · due-at-door=11500 (productSubtotal) · buyerTotal=12500
+per-mode funded legs: confirmed on checkout leg of 1000 F (doorLeg=due)
+mismatched confirmation: refused (door_leg_not_expected) + reconciliation.alert.v1 payload.alert=door_confirmation_without_door_pending_order
+no-signal-without-confirmation: local assertion refused (not_a_platform_event) — doorLeg still 'due', signal: none
+door leg confirmed: doorLeg=paid · escrow legs=[checkout:1000:held, door:11500:held] · txn stage=hold
+door-paid signal: order.status_projection_updated.v1 chain={quote:quote-b-0001, res:res-b-0001, order:order-b-0001} door_leg=paid amount_confirmed=11500
+(exit code: 0)
+
+=== gate: door-signal-requires-provider — real provider confirmation reaches the signal (must pass) ===
+OK: claims match the real code — doorPaid=true, signal=order.status_projection_updated.v1; the signal exists only downstream of a provider door confirmation
+(exit code: 0)
+
+=== gate: door-signal-requires-provider — NEGATIVE (locally-asserted door payment claims the signal, must fail) ===
+VIOLATION (SE-I11 shop-side): the fixture claims a door-paid signal, but the REAL spine emitted none — no provider confirmation in the timeline reached it (doorLeg=due)
+(exit code: 1)
+
+=== gate: contracts drift-check — honest /docs copy vs pinned canon manifest (must pass) ===
+drift-check OK: 11 canonical docs match manifest (packageVersion 0.9.9)
+(exit code: 0)
+
+=== gate: contracts drift-check — TAMPERED doc (must fail) ===
+drift-check FAILED — consumer /docs diverges from canon:
+  - doc drifted from canon: Shop-Plus-Build-Spec.md (expected sha256 b82e629672607a508f39b726b09e82a120dc97f27c834d7e76f15e3b877b25c5, got edde56ee0e16faeb5b4a5eaca35b283168074079d8d89bb392833a5a6978cd1a)
+(exit code: 1)
+
+=== gate: PWA payload budget — fresh build, initial payload < 300 KB compressed (PERF-BUDGETS, WO-4.4 hard gate) ===
+
+> @shop-plus/buyer-pwa@0.0.1 build /home/user/shop-plus/apps/buyer-pwa
+> vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 128 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                  1.10 kB │ gzip:  0.62 kB
+dist/assets/index-BB0kzCM-.js  168.14 kB │ gzip: 44.16 kB
+✓ built in 737ms
+
+[buyer-pwa] initial payload (everything the first load fetches), compressed:
+  index.html: 1099 B raw → 619 B gzip
+  manifest.webmanifest: 187 B raw → 148 B gzip
+  assets/index-BB0kzCM-.js: 168135 B raw → 44059 B gzip
+  fonts/archivo-latin-var.woff2: 30352 B raw → 30352 B transfer (woff2, not re-gzipped)
+[buyer-pwa] TOTAL: 75178 B compressed (budget: < 307200 B)
+[buyer-pwa] JS: 44059 B compressed
+
+> @shop-plus/reseller-kit@0.0.1 build /home/user/shop-plus/apps/reseller-kit
+> vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 14 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                 0.33 kB │ gzip: 0.24 kB
+dist/assets/index-DwUhshab.js  17.88 kB │ gzip: 6.99 kB
+✓ built in 201ms
+
+[reseller-kit] initial payload (everything the first load fetches), compressed:
+  index.html: 330 B raw → 243 B gzip
+  assets/index-DwUhshab.js: 17879 B raw → 6989 B gzip
+[reseller-kit] TOTAL: 7232 B compressed (budget: < 307200 B)
+[reseller-kit] JS: 6989 B compressed
+
+PWA payload budget OK (every surface under the 300 KB per-surface total)
+(exit code: 0)
+
+=== buyer PWA — Playwright harness (shell boots on the shop-plus theme; §6.2 journey end-to-end incl. offline) ===
+
+> @shop-plus/buyer-pwa@0.0.1 test:e2e /home/user/shop-plus/apps/buyer-pwa
+> playwright test
+
+
+Running 43 tests using 2 workers
+
+  ✓   1 [chromium] › e2e/font-load.spec.ts:17:1 › the Archivo @font-face resolves: woff2 responds 200 AND document.fonts.check passes (font-display:optional never ships system-font on a broken path) (341ms)
+  ✓   3 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: decouverte-defaut (774ms)
+  ✓   2 [chromium] › e2e/font-cold-start.spec.ts:20:1 › font-display:optional never blocks first paint, and CLS = 0 across the swap (Go-class throttling) (1.1s)
+  ✓   5 [chromium] › e2e/font-cold-start.spec.ts:58:1 › the app renders WITHOUT the font (fallback always paints — a blank-screen font path is impossible) (210ms)
+  ✓   6 [chromium] › e2e/grand-teint-icons.spec.ts:14:1 › every inline icon PAINTS when injected via innerHTML (non-zero getBBox, real SVG geometry) (240ms)
+  ✓   4 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: decouverte-squelette (764ms)
+  ✓   8 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: decouverte-saisie (722ms)
+  ✓   9 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: decouverte-aucun (721ms)
+  ✓  10 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: decouverte-hors-ligne (741ms)
+  ✓  11 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: decouverte-erreur (714ms)
+  ✓   7 [chromium] › e2e/journey.spec.ts:15:1 › the whole journey walks: product → location (voice note) → delivery → checkout → confirmation → tracking (3.7s)
+  ✓  12 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: paiement-deux-options (765ms)
+  ✓  13 [chromium] › e2e/journey.spec.ts:97:1 › offline queueing is honest: the banner appears, the note stays QUEUED, coming back online never fakes done (823ms)
+  ✓  14 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: paiement-option-b-indisponible (745ms)
+  ✓  15 [chromium] › e2e/journey.spec.ts:134:1 › §6.3 — the drop code enters LAST: hidden while the door payment is pending, framed as proof at handoff (315ms)
+  ✓  16 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: commande-paiement-echoue (778ms)
+  ✓  17 [chromium] › e2e/journey.spec.ts:149:1 › WO-4.2E — the sandbox ribbon rides EVERY screen and no URL param removes it (837ms)
+  ✓  18 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: commande-annulee (702ms)
+  ✓  19 [chromium] › e2e/journey.spec.ts:171:1 › §6.3 — « Vos protections » opens from the product page and closes back to it (828ms)
+  ✓  21 [chromium] › e2e/shell.spec.ts:15:1 › the PWA shell boots on the shop-plus theme, S3 directory as root (201ms)
+  ✓  20 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: commande-confirmee (697ms)
+  ✓  22 [chromium] › e2e/shell.spec.ts:38:1 › the page declares itself an installable-ready PWA (manifest present) (223ms)
+  ✓  24 [chromium] › e2e/shell.spec.ts:49:1 › E2 payment-failed view: retry and abandon carry IDENTICAL weight classes (M4 equal prominence) (260ms)
+  ✓  25 [chromium] › e2e/shell.spec.ts:64:1 › E2 confirmed view: report-a-problem is as prominent as confirm-receipt (206ms)
+  ✓  23 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: commande-annulation-refusee (751ms)
+  ✓  26 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: commande-porte-en-attente (689ms)
+  ✓  27 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: commande-porte-payee (689ms)
+  ✓  28 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: parcours-produit (711ms)
+  ✓  29 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: parcours-produit-squelette (685ms)
+  ✓  30 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: parcours-localisation (713ms)
+  ✓  31 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: parcours-localisation-voix-en-file (705ms)
+  ✓  32 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: parcours-livraison (688ms)
+  ✓  33 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: parcours-paiement (717ms)
+  ✓  34 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: parcours-confirmation (697ms)
+  ✓  35 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: parcours-protections (701ms)
+  ✓  36 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: suivi-confirmee (706ms)
+  ✓  37 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: suivi-scellee (711ms)
+  ✓  38 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: suivi-en-route (705ms)
+  ✓  39 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: suivi-porte (692ms)
+  ✓  40 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: suivi-porte-b (690ms)
+  ✓  41 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: suivi-porte-b-attente (694ms)
+  ✓  42 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: suivi-code (704ms)
+  ✓  43 [chromium] › e2e/gallery.spec.ts:28:5 › gallery: suivi-livree (689ms)
+
+  43 passed (24.2s)
+(exit code: 0)
+
+ALL GATES GREEN (positives passed; every negative fixture failed as required)

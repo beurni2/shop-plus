@@ -1,0 +1,7 @@
+ pnpm-lock.yaml                                     |   6 +
+ services/attribution-service/package.json          |   4 +-
+ .../attribution-service/src/durable-lock-client.ts |  72 ++++++
+ services/attribution-service/src/index.ts          |   1 +
+ .../test/durable-lock-client.test.ts               | 120 ++++++++++
+ .../test/premiere-commande-reelle.e2e.test.ts      | 255 +++++++++++++++++++++
+ 6 files changed, 457 insertions(+), 1 deletion(-)

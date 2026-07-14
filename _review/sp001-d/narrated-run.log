@@ -1,0 +1,11 @@
+=== LA PREMIÈRE COMMANDE RÉELLE (Seller #001, real data) ===
+storefront            = sf-seller-0001 (published)
+listing               = lst-seller-0001 @ HER price 11500 FCFA (markup 1500)
+attribution LOCKED    = rs-seller-0001 — THROUGH the durable DO (workerd)
+quote_id (immutable)  = quote-seller001  attributionResellerId=rs-seller-0001
+reconciliation        : productSubtotal 11500 = sellerNet 8500 + resellerNet 2000 + platformFee 1000
+money boundary        : checkout leg 12500 FCFA « held » (stage hold) — en attente, aucun franc capturé
+obligations           : supplier 8500 (==sellerNet) · reseller[rs-seller-0001] 2000 (==resellerNet), state Eligible
+order state           = confirmed
+
+ ✓ test/premiere-commande-reelle.e2e.test.ts (8 tests) 176ms
