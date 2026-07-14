@@ -1,0 +1,27 @@
+{
+  "name": "@shop-plus/supply-consumer",
+  "version": "0.0.1",
+  "private": true,
+  "description": "SW-2 — the Shop+ consumer of Boutik+ supply read-models (transport B: HTTP pull; staleness blocks agreement). Value = canon SupplyProjectionSchema; envelope + freshness + identity-sweep are the SW-1 meeting point. Node tooling only.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/contracts",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

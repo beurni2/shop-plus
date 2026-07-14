@@ -1,0 +1,571 @@
+diff --git a/apps/reseller-app/i18n/catalog.json b/apps/reseller-app/i18n/catalog.json
+index 2bea3b4..299f2f8 100644
+--- a/apps/reseller-app/i18n/catalog.json
++++ b/apps/reseller-app/i18n/catalog.json
+@@ -538,5 +538,17 @@
+     "fr": "Story, carré, affiche — votre carte prête à publier.",
+     "register": "selling",
+     "screenClass": "selling_surface"
++  },
++  {
++    "key": "opportunite.perimee",
++    "fr": "Offre à confirmer — données périmées",
++    "register": "money",
++    "screenClass": "status"
++  },
++  {
++    "key": "opportunite.perimee_hint",
++    "fr": "Le stock doit être revérifié avant de publier.",
++    "register": "money",
++    "screenClass": "status"
+   }
+-]
++]
+\ No newline at end of file
+diff --git a/gates/fixtures/supply/live-customer-surface.json b/gates/fixtures/supply/live-customer-surface.json
+new file mode 100644
+index 0000000..7554c17
+--- /dev/null
++++ b/gates/fixtures/supply/live-customer-surface.json
+@@ -0,0 +1,4 @@
++{
++  "productName": "Pagne wax (démo)",
++  "customerPriceFcfa": 9200
++}
+diff --git a/packages/supply-consumer/package.json b/packages/supply-consumer/package.json
+new file mode 100644
+index 0000000..e79aa43
+--- /dev/null
++++ b/packages/supply-consumer/package.json
+@@ -0,0 +1,27 @@
++{
++  "name": "@shop-plus/supply-consumer",
++  "version": "0.0.1",
++  "private": true,
++  "description": "SW-2 — the Shop+ consumer of Boutik+ supply read-models (transport B: HTTP pull; staleness blocks agreement). Value = canon SupplyProjectionSchema; envelope + freshness + identity-sweep are the SW-1 meeting point. Node tooling only.",
++  "license": "UNLICENSED",
++  "type": "module",
++  "exports": {
++    ".": {
++      "types": "./src/index.ts",
++      "import": "./src/index.ts"
++    }
++  },
++  "scripts": {
++    "build": "tsc -p tsconfig.json",
++    "typecheck": "tsc -p tsconfig.json --noEmit",
++    "test": "vitest run"
++  },
++  "dependencies": {
++    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/contracts",
++    "zod": "^4.1.5"
++  },
++  "devDependencies": {
++    "typescript": "^5.9.2",
++    "vitest": "^3.2.4"
++  }
++}
+diff --git a/packages/supply-consumer/src/consumer.ts b/packages/supply-consumer/src/consumer.ts
+new file mode 100644
+index 0000000..004a157
+--- /dev/null
++++ b/packages/supply-consumer/src/consumer.ts
+@@ -0,0 +1,100 @@
++import {
++  IDENTITY_LEAK,
++  SUPPLY_PROJECTION_MAX_AGE_MS,
++  SupplyReadModelSchema,
++  type SupplyProjection,
++  type SupplyReadModel,
++} from './read-model.js';
++
++/**
++ * THE CONSUMER (SW-2). Pull a supply read-model through the PORT → parse the
++ * envelope + the strict canon value → sweep identity-leak keys (reject closed) →
++ * decide freshness against the founder threshold → a verdict the agreement /
++ * listing flow reads. Mirrors SW-1's `consumeProjection` law: reject
++ * non-contract payloads, sweep leak keys, keep the newest version. Never a silent
++ * pass, never a fabricated freshness.
++ */
++
++/** The pull port: the mock backs tests/demo; SW-1's real HTTP endpoint plugs in here at integration. */
++export interface SupplyProjectionPort {
++  /** Returns the raw read-model bytes for a product version (unparsed) or undefined if unknown. */
++  readProjection(productVersionId: string): unknown;
++}
++
++export type SupplyVerdict =
++  | { readonly status: 'fresh'; readonly projection: SupplyProjection; readonly asOf: string; readonly version: number }
++  | { readonly status: 'stale'; readonly asOf: string; readonly ageMs: number }
++  | { readonly status: 'absent' }
++  | { readonly status: 'rejected'; readonly reason: 'not_a_read_model' | 'payload_not_contract_shaped' | 'identity_material_refused' };
++
++/** Sweep the raw value's keys for supplier identity/contact/pickup material (SP-I03). */
++function hasIdentityLeak(raw: unknown): boolean {
++  if (raw === null || typeof raw !== 'object') return false;
++  const value = (raw as { value?: unknown }).value;
++  if (value === null || typeof value !== 'object') return false;
++  return Object.keys(value as object).some((k) => IDENTITY_LEAK.test(k));
++}
++
++/**
++ * Consume one pulled read-model into a verdict. The strict envelope+value schema
++ * rejects any non-contract payload (a planted `supplierPhone` fails `.strict()`);
++ * the explicit identity sweep is the second, named line of defence.
++ */
++export function consumeSupplyProjection(
++  port: SupplyProjectionPort,
++  productVersionId: string,
++  nowIso: string,
++): SupplyVerdict {
++  const raw = port.readProjection(productVersionId);
++  if (raw === undefined || raw === null) return { status: 'absent' };
++
++  // Identity sweep FIRST — an identity leak is refused closed, never merely dropped.
++  if (hasIdentityLeak(raw)) return { status: 'rejected', reason: 'identity_material_refused' };
++
++  const parsed = SupplyReadModelSchema.safeParse(raw);
++  if (!parsed.success) {
++    // distinguish "not a read-model envelope" from "value not the contract shape"
++    const hasEnvelope =
++      typeof raw === 'object' && raw !== null && 'version' in raw && 'asOf' in raw && 'value' in raw;
++    return { status: 'rejected', reason: hasEnvelope ? 'payload_not_contract_shaped' : 'not_a_read_model' };
++  }
++  const model: SupplyReadModel = parsed.data;
++
++  const ageMs = Date.parse(nowIso) - Date.parse(model.asOf);
++  if (ageMs > SUPPLY_PROJECTION_MAX_AGE_MS) {
++    return { status: 'stale', asOf: model.asOf, ageMs };
++  }
++  return { status: 'fresh', projection: model.value, asOf: model.asOf, version: model.version };
++}
++
++/**
++ * STALE → BLOCK AGREEMENT (SP2 `Shop-Plus-Build-Spec:174`; SP1.1). ONLY a fresh
++ * projection may back a commission agreement or a listing publish. Stale, absent,
++ * and rejected verdicts block — the caller shows the honest « données périmées »
++ * state, never a silent pass.
++ */
++export function canBackAgreement(verdict: SupplyVerdict): boolean {
++  return verdict.status === 'fresh';
++}
++
++/**
++ * A versioned local cache carrying `asOf` — keeps the NEWEST version per product
++ * (a re-pull of an older/equal version never overwrites a newer one). Mirrors the
++ * SW-1 dedup law; on the event path the same rule dedups on `command_id` (events
++ * are not built here — transport B is pull, no bus).
++ */
++export class SupplyProjectionCache {
++  private readonly byProduct = new Map<string, SupplyReadModel>();
++
++  /** Upsert a validated read-model; returns true if it advanced the cached version. */
++  put(model: SupplyReadModel): boolean {
++    const existing = this.byProduct.get(model.value.productVersionId);
++    if (existing !== undefined && existing.version >= model.version) return false;
++    this.byProduct.set(model.value.productVersionId, model);
++    return true;
++  }
++
++  get(productVersionId: string): SupplyReadModel | undefined {
++    return this.byProduct.get(productVersionId);
++  }
++}
+diff --git a/packages/supply-consumer/src/index.ts b/packages/supply-consumer/src/index.ts
+new file mode 100644
+index 0000000..0d1ea21
+--- /dev/null
++++ b/packages/supply-consumer/src/index.ts
+@@ -0,0 +1,9 @@
++// @shop-plus/supply-consumer (SW-2) — the Shop+ consumer of Boutik+ supply
++// read-models, transport B (HTTP pull; staleness blocks agreement). The value is
++// the canon SupplyProjectionSchema, consumed verbatim; the envelope + freshness +
++// identity-sweep are the SW-1↔SW-2 meeting point. Node/test tooling — never the
++// RN app runtime graph (it parses through @platform/contracts).
++export * from './read-model.js';
++export * from './consumer.js';
++export * from './mock.js';
++export * from './opportunity.js';
+diff --git a/packages/supply-consumer/src/mock.ts b/packages/supply-consumer/src/mock.ts
+new file mode 100644
+index 0000000..d17e904
+--- /dev/null
++++ b/packages/supply-consumer/src/mock.ts
+@@ -0,0 +1,47 @@
++import type { SupplyProjectionPort } from './consumer.js';
++
++/**
++ * THE CERTIFIED MOCK (Execution Contract §3) — the `readProjection` source that
++ * backs SW-2's tests and demo. It returns raw read-model bytes in the SW-1↔SW-2
++ * envelope shape `{ version, asOf, value }`, and it MISBEHAVES on demand: a stale
++ * `asOf`, and a planted supplier-identity leak key — so the consumer's staleness
++ * block and its identity sweep are exercised against real bad input, never hidden.
++ * SW-1's real HTTP endpoint plugs into the same `SupplyProjectionPort` at
++ * integration (a named final check, not this slice's gate).
++ */
++export interface MockSupplyConfig {
++  readonly productVersionId: string;
++  readonly offerVersion: string;
++  /** B — supplier base price. */
++  readonly basePrice: number;
++  /** C — seller-funded reseller commission. */
++  readonly resellerCommission: number;
++  readonly available: number;
++  /** The freshness clock — the consumer blocks when `now − asOf` exceeds the threshold. */
++  readonly asOf: string;
++  readonly version: number;
++  /** Plant a supplier-identity leak key on the value (proves the sweep refuses it closed). */
++  readonly plantLeakKey?: string;
++}
++
++export class MockSupplyProjectionSource implements SupplyProjectionPort {
++  private readonly byId = new Map<string, MockSupplyConfig>();
++
++  set(cfg: MockSupplyConfig): void {
++    this.byId.set(cfg.productVersionId, cfg);
++  }
++
++  readProjection(productVersionId: string): unknown {
++    const cfg = this.byId.get(productVersionId);
++    if (cfg === undefined) return undefined;
++    const value: Record<string, unknown> = {
++      productVersionId: cfg.productVersionId,
++      offerVersion: cfg.offerVersion,
++      basePrice: cfg.basePrice,
++      resellerCommission: cfg.resellerCommission,
++      available: cfg.available,
++    };
++    if (cfg.plantLeakKey !== undefined) value[cfg.plantLeakKey] = '+226 70 00 00 00'; // a planted supplier phone
++    return { version: cfg.version, asOf: cfg.asOf, value };
++  }
++}
+diff --git a/packages/supply-consumer/src/opportunity.ts b/packages/supply-consumer/src/opportunity.ts
+new file mode 100644
+index 0000000..c3330c4
+--- /dev/null
++++ b/packages/supply-consumer/src/opportunity.ts
+@@ -0,0 +1,68 @@
++import {
++  computeWaterfall,
++  type PaymentMode,
++  type SupplyProjection,
++  type WaterfallInput,
++  type WaterfallResult,
++} from '@platform/contracts';
++
++/**
++ * THE SEED-DEATH RECONCILIATION (SW-2 item 3). A live supply projection carries
++ * B (`basePrice`) and C (`resellerCommission`); the reseller supplies M (markup)
++ * and Séra supplies D (delivery fee). Fed through the PINNED `computeWaterfall`,
++ * the same B, C produce the same opportunity-card lines the retired seed did — so
++ * `seed.json` retires WITHOUT money drift. The waterfall is CONSUMED here, never
++ * touched (Quote/checkout stay byte-frozen).
++ */
++export interface OpportunityMarkupInputs {
++  /** M — the reseller's markup. */
++  readonly resellerMarkup: number;
++  /** D — Séra's delivery fee quote. */
++  readonly deliveryFee: number;
++  readonly paymentMode: PaymentMode;
++}
++
++/** Project a fresh supply projection + the reseller/Séra inputs into the waterfall input. */
++export function supplyToWaterfallInput(
++  projection: SupplyProjection,
++  markup: OpportunityMarkupInputs,
++): WaterfallInput {
++  return {
++    sellerBasePrice: projection.basePrice,
++    sellerFundedCommission: projection.resellerCommission,
++    resellerMarkup: markup.resellerMarkup,
++    deliveryFee: markup.deliveryFee,
++    paymentMode: markup.paymentMode,
++  };
++}
++
++/** The reconciling opportunity money from a live projection — through the pinned waterfall. */
++export function opportunityMoneyFromSupply(
++  projection: SupplyProjection,
++  markup: OpportunityMarkupInputs,
++): WaterfallResult {
++  return computeWaterfall(supplyToWaterfallInput(projection, markup));
++}
++
++/**
++ * The CUSTOMER-facing view derived from the live path (SW-2 item 4, SP-I03). The
++ * buyer sees ONLY the product name and the customer price (productSubtotal =
++ * B + M) — never supplier identity, never commission, never seller economics,
++ * never base-price decomposition. Built so the banned key families structurally
++ * cannot ride along; the no-supplier-contact gate scans a fixture produced by
++ * THIS function as the second line of defence.
++ */
++export interface CustomerSurfaceView {
++  readonly productName: string;
++  readonly customerPriceFcfa: number;
++}
++export function customerSurfaceFromSupply(
++  projection: SupplyProjection,
++  markup: OpportunityMarkupInputs,
++  productName: string,
++): CustomerSurfaceView {
++  return {
++    productName,
++    customerPriceFcfa: opportunityMoneyFromSupply(projection, markup).productSubtotal,
++  };
++}
+diff --git a/packages/supply-consumer/src/read-model.ts b/packages/supply-consumer/src/read-model.ts
+new file mode 100644
+index 0000000..bf9b4db
+--- /dev/null
++++ b/packages/supply-consumer/src/read-model.ts
+@@ -0,0 +1,37 @@
++import { IsoTimestampSchema, SupplyProjectionSchema, type SupplyProjection } from '@platform/contracts';
++import { z } from 'zod';
++
++/**
++ * SUPPLY-CONSUMER (SW-2) — the Shop+ side of the supply read-model, transport B
++ * (HTTP read-model PULL; staleness blocks agreement). The shared meeting point
++ * with SW-1 (boutik-plus offer-service): the read-model envelope
++ * `{ version, asOf, value }`, where `value` is the canon strict five-field
++ * `SupplyProjectionSchema` (consumed VERBATIM — never redefined). Canon carries
++ * the value shape; the envelope is the SW-1↔SW-2 agreed contract (canon has no
++ * read-model wrapper), mirroring SW-1's `ProjectionRead`.
++ *
++ * The freshness threshold is a FOUNDER DECISION (canon/specs were silent — SP2
++ * `Shop-Plus-Build-Spec:174` and SP1.1 `Building-Plan:43` state "stale → block
++ * agreement" with no number). Founder ruling (2026-07-15): **15 minutes**, aligned
++ * with the quote TTL. Journaled; do not change without a founder ruling.
++ */
++export const SUPPLY_PROJECTION_MAX_AGE_MS = 15 * 60 * 1000; // founder ruling 2026-07-15 (= QUOTE_TTL_MS)
++
++/**
++ * The identity-leak sweep, mirrored VERBATIM from SW-1's consumer law
++ * (`shop-projection-consumer-mock.ts:23`): a projection bearing supplier
++ * identity/contact or pickup material is refused closed (SP-I03).
++ */
++export const IDENTITY_LEAK = /supplier[_-]?(id|name|phone|contact)|phone|whatsapp|pickup|adresse|address/i;
++
++/** The SW-1↔SW-2 read-model envelope: version + asOf + the canon value. */
++export const SupplyReadModelSchema = z
++  .object({
++    version: z.number().int().min(1),
++    asOf: IsoTimestampSchema,
++    value: SupplyProjectionSchema,
++  })
++  .strict();
++export type SupplyReadModel = z.infer<typeof SupplyReadModelSchema>;
++
++export type { SupplyProjection };
+diff --git a/packages/supply-consumer/test/consumer.test.ts b/packages/supply-consumer/test/consumer.test.ts
+new file mode 100644
+index 0000000..278a455
+--- /dev/null
++++ b/packages/supply-consumer/test/consumer.test.ts
+@@ -0,0 +1,126 @@
++import { readFileSync } from 'node:fs';
++import { join } from 'node:path';
++import { describe, expect, it } from 'vitest';
++import { computeWaterfall, type WaterfallInput, type WaterfallResult } from '@platform/contracts';
++import {
++  MockSupplyProjectionSource,
++  SUPPLY_PROJECTION_MAX_AGE_MS,
++  SupplyProjectionCache,
++  SupplyReadModelSchema,
++  canBackAgreement,
++  consumeSupplyProjection,
++  opportunityMoneyFromSupply,
++} from '../src/index.js';
++
++/**
++ * SW-2 — the four RED-first fixtures: stale-blocks-agreement ·
++ * live-equals-seed-reconciliation · leak-key-swept · fresh-pull-unblocks. The
++ * freshness threshold is the founder's 15 minutes.
++ */
++
++const NOW = '2026-07-14T12:00:00.000Z';
++const minutesAgo = (m: number, extraMs = 0): string => new Date(Date.parse(NOW) - m * 60_000 - extraMs).toISOString();
++
++function freshSource(): MockSupplyProjectionSource {
++  const src = new MockSupplyProjectionSource();
++  src.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, asOf: minutesAgo(5), version: 2 });
++  return src;
++}
++
++describe('consumeSupplyProjection — pull, parse, sweep, freshness', () => {
++  it('FRESH-PULL-UNBLOCKS: a projection within 15 min is fresh and CAN back an agreement', () => {
++    const verdict = consumeSupplyProjection(freshSource(), 'pv_1', NOW);
++    expect(verdict.status).toBe('fresh');
++    if (verdict.status === 'fresh') {
++      expect(verdict.projection.basePrice).toBe(8_000);
++      expect(verdict.projection.resellerCommission).toBe(800);
++    }
++    expect(canBackAgreement(verdict)).toBe(true);
++  });
++
++  it('the freshness boundary is exact: age == 15 min is fresh; one ms past is stale', () => {
++    const atBoundary = new MockSupplyProjectionSource();
++    atBoundary.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, asOf: minutesAgo(15), version: 1 });
++    expect(consumeSupplyProjection(atBoundary, 'pv_1', NOW).status).toBe('fresh'); // == threshold, not over
++
++    const justPast = new MockSupplyProjectionSource();
++    justPast.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, asOf: minutesAgo(15, 1), version: 1 });
++    expect(consumeSupplyProjection(justPast, 'pv_1', NOW).status).toBe('stale');
++    expect(SUPPLY_PROJECTION_MAX_AGE_MS).toBe(15 * 60 * 1000); // founder ruling, pinned
++  });
++
++  it('STALE-BLOCKS-AGREEMENT: a projection older than 15 min is stale and CANNOT back an agreement', () => {
++    const stale = new MockSupplyProjectionSource();
++    stale.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, asOf: minutesAgo(16), version: 1 });
++    const verdict = consumeSupplyProjection(stale, 'pv_1', NOW);
++    expect(verdict.status).toBe('stale');
++    expect(canBackAgreement(verdict)).toBe(false); // the block — never a silent pass
++  });
++
++  it('LEAK-KEY-SWEPT: a projection carrying a planted supplierPhone is REFUSED closed at the consumer (SP-I03)', () => {
++    const leaky = new MockSupplyProjectionSource();
++    leaky.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, asOf: minutesAgo(1), version: 2, plantLeakKey: 'supplierPhone' });
++    const verdict = consumeSupplyProjection(leaky, 'pv_1', NOW);
++    expect(verdict.status).toBe('rejected');
++    if (verdict.status === 'rejected') expect(verdict.reason).toBe('identity_material_refused');
++    expect(canBackAgreement(verdict)).toBe(false);
++    // the strict envelope ALSO rejects the extra key — the sweep is the named second line
++    expect(SupplyReadModelSchema.safeParse({ version: 2, asOf: minutesAgo(1), value: { productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, supplierPhone: 'x' } }).success).toBe(false);
++  });
++
++  it('a non-contract payload and an absent product are both refused / absent (never a silent pass)', () => {
++    const src = new MockSupplyProjectionSource();
++    expect(consumeSupplyProjection(src, 'pv_unknown', NOW).status).toBe('absent');
++    const bad: { readProjection: () => unknown } = { readProjection: () => ({ nope: true }) };
++    expect(consumeSupplyProjection(bad, 'pv_1', NOW).status).toBe('rejected');
++  });
++});
++
++describe('SupplyProjectionCache — versioned, keeps the newest', () => {
++  it('a re-pull of an older/equal version never overwrites a newer one', () => {
++    const cache = new SupplyProjectionCache();
++    const v2 = SupplyReadModelSchema.parse({ version: 2, asOf: minutesAgo(1), value: { productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4 } });
++    const v1 = SupplyReadModelSchema.parse({ version: 1, asOf: minutesAgo(30), value: { productVersionId: 'pv_1', offerVersion: '1', basePrice: 9_999, resellerCommission: 999, available: 9 } });
++    expect(cache.put(v2)).toBe(true);
++    expect(cache.put(v1)).toBe(false); // older version does not advance
++    expect(cache.get('pv_1')?.version).toBe(2);
++    expect(cache.get('pv_1')?.value.basePrice).toBe(8_000);
++  });
++});
++
++describe('LIVE-EQUALS-SEED-RECONCILIATION — the seed retires without money drift', () => {
++  interface SeedOpp { readonly id: string; readonly input: WaterfallInput; readonly money: WaterfallResult }
++  const seed = JSON.parse(
++    readFileSync(join(import.meta.dirname, '../../../apps/reseller-app/src/demo/seed.json'), 'utf8'),
++  ) as { opportunities: readonly SeedOpp[] };
++
++  it('every seed opportunity is reproduced BYTE-FOR-BYTE from a live projection carrying the same B, C', () => {
++    expect(seed.opportunities.length).toBeGreaterThan(0);
++    for (const opp of seed.opportunities) {
++      // a live read-model carrying the seed's B (basePrice) and C (resellerCommission)
++      const src = new MockSupplyProjectionSource();
++      src.set({
++        productVersionId: `pv_${opp.id}`,
++        offerVersion: '1',
++        basePrice: opp.input.sellerBasePrice,
++        resellerCommission: opp.input.sellerFundedCommission,
++        available: 4,
++        asOf: minutesAgo(1),
++        version: 1,
++      });
++      const verdict = consumeSupplyProjection(src, `pv_${opp.id}`, NOW);
++      expect(verdict.status).toBe('fresh');
++      if (verdict.status !== 'fresh') continue;
++      // the reseller's M and Séra's D are the same as the seed's — same waterfall lines
++      const money = opportunityMoneyFromSupply(verdict.projection, {
++        resellerMarkup: opp.input.resellerMarkup,
++        deliveryFee: opp.input.deliveryFee,
++        paymentMode: opp.input.paymentMode,
++      });
++      // byte-for-byte identical to the seed's money (which the demo-store test proves is waterfall-derived)
++      expect(money).toEqual(opp.money);
++      // and identical to a direct recompute of the seed input (the reconciliation anchor)
++      expect(money).toEqual(computeWaterfall(opp.input));
++    }
++  });
++});
+diff --git a/packages/supply-consumer/test/no-supplier-live-path.test.ts b/packages/supply-consumer/test/no-supplier-live-path.test.ts
+new file mode 100644
+index 0000000..4df6d55
+--- /dev/null
++++ b/packages/supply-consumer/test/no-supplier-live-path.test.ts
+@@ -0,0 +1,47 @@
++import { readFileSync } from 'node:fs';
++import { join } from 'node:path';
++import { describe, expect, it } from 'vitest';
++import {
++  MockSupplyProjectionSource,
++  consumeSupplyProjection,
++  customerSurfaceFromSupply,
++} from '../src/index.js';
++
++/**
++ * SW-2 item 4 — supplier identity NEVER reaches a customer surface on the LIVE
++ * path. The customer-surface fixture the no-supplier-contact CI gate scans is
++ * PRODUCED by the consumer path here (a fresh projection → the buyer view), so
++ * the gate is re-anchored on live data, not a hand-authored surface.
++ */
++
++// The same banned key families the no-supplier-contact gate enforces (SP-I03).
++const BANNED = [/supplier/i, /commission/i, /seller(net|baseprice|platformfee)/i, /baseprice/i, /pickup/i];
++
++const NOW = '2026-07-14T12:00:00.000Z';
++
++function liveCustomerSurface() {
++  const src = new MockSupplyProjectionSource();
++  src.set({ productVersionId: 'pv_o1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, asOf: '2026-07-14T11:59:00.000Z', version: 1 });
++  const verdict = consumeSupplyProjection(src, 'pv_o1', NOW);
++  if (verdict.status !== 'fresh') throw new Error('fixture projection must be fresh');
++  return customerSurfaceFromSupply(verdict.projection, { resellerMarkup: 1_200, deliveryFee: 1_000, paymentMode: 'FULL_PREPAY' }, 'Pagne wax (démo)');
++}
++
++describe('no-supplier-contact on the LIVE path', () => {
++  it('the customer surface from a live projection carries NO banned key family (recursive scan)', () => {
++    const surface = liveCustomerSurface();
++    for (const [k, v] of Object.entries(surface)) {
++      for (const banned of BANNED) expect(banned.test(k), `key ${k}`).toBe(false);
++      expect(typeof v === 'number' || typeof v === 'string').toBe(true);
++    }
++    // the buyer sees only the product name and HER price — never B, C, or seller economics
++    expect(Object.keys(surface).sort()).toEqual(['customerPriceFcfa', 'productName']);
++  });
++
++  it('the checked-in gate fixture IS the live consumer output (pinning — the gate scans real data)', () => {
++    const fixture = JSON.parse(
++      readFileSync(join(import.meta.dirname, '../../../gates/fixtures/supply/live-customer-surface.json'), 'utf8'),
++    );
++    expect(liveCustomerSurface()).toEqual(fixture);
++  });
++});
+diff --git a/packages/supply-consumer/tsconfig.json b/packages/supply-consumer/tsconfig.json
+new file mode 100644
+index 0000000..5285d28
+--- /dev/null
++++ b/packages/supply-consumer/tsconfig.json
+@@ -0,0 +1,8 @@
++{
++  "extends": "../../tsconfig.base.json",
++  "compilerOptions": {
++    "rootDir": "src",
++    "outDir": "dist"
++  },
++  "include": ["src"]
++}
+diff --git a/scripts/run-gates.sh b/scripts/run-gates.sh
+index 9df4666..274cbb2 100755
+--- a/scripts/run-gates.sh
++++ b/scripts/run-gates.sh
+@@ -124,6 +124,9 @@ capture no-supplier-contact-share-card pass node scripts/gates/no-supplier-conta
+ log "gate: no-supplier-contact — S3 découverte directory (WO-7.2a, pinned to the directory; must pass)"
+ capture no-supplier-contact-boutiques pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/boutiques-discovery.json
+ 
++log "gate: no-supplier-contact — SW-2 LIVE supply path (customer surface derived from a supply projection through the consumer; must pass)"
++capture no-supplier-contact-supply-live pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/supply/live-customer-surface.json
++
+ log "gate: no-supplier-contact — NEGATIVE FIXTURE (supplier identity/contact/commission leak, must fail)"
+ capture no-supplier-contact-negative fail node scripts/gates/no-supplier-contact.mjs gates/fixtures/negative/customer-surfaces/leaking-product-view.json
+ 
