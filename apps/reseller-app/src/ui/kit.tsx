@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
-  Easing,
   Pressable,
   StyleSheet,
   Text,
@@ -10,55 +9,51 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import {
-  shopPlusTheme as theme,
-  type,
   spacing,
-  radius,
   touch,
-  band,
-  money,
-  motion,
   interaction,
+  money,
   skeleton as skeletonToken,
 } from '@platform/ui-tokens/legacy';
+import { DISPLAY_FAMILY, TEXT_FAMILY } from './faso-fonts';
+import { fp } from './motion';
+import { WovenBand } from './signature';
 
 /**
- * WO-7.0 — the reseller kit on GRAND TEINT (ui-tokens v0.8.0, pin 2472e7ae).
- * This is the SKEW EXECUTIONER: the whole visual layer moves off the retired
- * v0.6.0 token vocabulary (`theme.colors`/`typeScale`/`elevation`/`radius.lg`)
- * onto the Grand Teint API (`theme.colours`, top-level `type`/`spacing`/
- * `radius`/`touch`, `interaction`). Grand Teint is ink-on-paper: radius 0
- * boxes, hairline borders, NO shadows (§8 refuses "elevation theatre"), one
- * accent per app, huge tabular francs. Values are all tokens — the ui-scan
- * proves zero hardcode. RN primitives only; the substrate deps
- * (react-native-svg, expo-haptics) are unchanged.
+ * WO-FP-SHOP — the reseller kit on FASO PREMIUM (ui-tokens v1.0.0). The visual
+ * layer moves off Grand Teint onto the v2 API: colour → sharedColour + shopColour
+ * (the Shop+ magenta accent), type → the Bricolage/Instrument scale (families from
+ * faso-fonts), radius → the rounded v2 geometry, motion → the seven fp* curves
+ * (src/ui/motion.ts). The groups v2 defers to their own reskin slices — spacing,
+ * touch, interaction, money, skeleton — resolve to /legacy VERBATIM. Warm paper,
+ * rounded cards, one accent per app, tabular francs. Values are all tokens (the
+ * ui-scan proves zero hardcode).
  *
- * The component external API (props) is byte-identical to WO-4.2R — App.tsx's
- * navigation semantics and screen structure are untouched; only the token
- * layer under each component changed. No celebration ships here (see the
- * kit-celebration pin) — shop's first-sale moment still has no honest trigger
- * in the demo world, so staging it would fake a state.
+ * RANGES → max (RN has no clamp; the fuller legible value — the 5-second test);
+ * `rmax` is the one place that choice lives. v2 type carries no line-height, so
+ * v2-typed text uses RN natural leading (derive-never-invent — a later type
+ * slice may add lh). Typefaces paint in the system fallback until the App loads
+ * the faces (cold-start law) — no reflow.
+ *
+ * The component external API (props) is byte-identical to WO-7.0 — App.tsx's
+ * navigation semantics and screen structure are untouched; only the token layer
+ * under each component changed. No celebration ships here (shop's first-sale
+ * moment still has no honest trigger in the demo world).
  */
 
-/** lineHeight helper: v0.8.0 `lh` is a UNITLESS multiplier (v0.6.0 shipped an
- * absolute px). RN needs absolute px, so every text style multiplies the two —
- * an expression, never a literal (the zero-hardcode scan stays green). */
-const lh = (s: { readonly size: number; readonly lh: number }): number => s.size * s.lh;
+/** Resolve a scale/radius value canon may state as a range to its max. */
+const rmax = (v: number | { readonly min: number; readonly max: number }): number =>
+  typeof v === 'number' ? v : v.max;
 
-/** The soft-spring easing as an RN curve, DERIVED from the token — v0.8.0
- * `motion.springSoft` is a CSS cubic-bezier string (web-proven), so RN parses
- * its four control points rather than inventing physics. Derive-never-invent. */
-const SPRING_SOFT_POINTS = motion.springSoft
-  .match(/cubic-bezier\(([^)]+)\)/)![1]!
-  .split(',')
-  .map((n) => Number(n.trim())) as [number, number, number, number];
-const springSoftEasing = Easing.bezier(...SPRING_SOFT_POINTS);
+/** RN fontWeight wants a weight string; the token carries the number. */
+const w = (n: number): '400' | '700' | '800' => String(n) as '400' | '700' | '800';
 
-/* The theme strip (Grand Teint §5 move 5): a 4 px app-colour band — "the only
- * permanent brand mark". Replaces WO-4.2R's woven wax band; same slot. */
+/* The brand mark: the woven band (signature module) — replaces Grand Teint's
+ * flat theme strip. Same slot; App.tsx still calls <WaxBand />. */
 export function WaxBand() {
-  return <View style={styles.themeStrip} accessibilityElementsHidden />;
+  return <WovenBand />;
 }
 
 /* Header (prototype `Top`): back chip · title + one-line context · right slot. */
@@ -107,7 +102,7 @@ export function AppHeader({
 export interface TabItem {
   key: string;
   /** A canon SVG glyph node (icons.tsx), sized to dimension.iconSizePx.tab —
-   * NEVER an emoji (Grand Teint §8 refuses rasters/emoji in chrome). */
+   * NEVER an emoji. */
   icon: React.ReactNode;
   label: string;
   active: boolean;
@@ -132,13 +127,13 @@ export function TabBar({ items }: { items: readonly TabItem[] }) {
   );
 }
 
-/* Card (Grand Teint §5 move 1: the hairline box): paper surface, hairline
- * border, radius 0, NO shadow. */
+/* Card (the rounded Faso Premium surface): card fill, hairline border, radius
+ * 20. Warm and premium; the flat ink-on-paper box is retired. */
 export function Card({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
-/* Section overline (Grand Teint §5 move 6: caps + letterspacing wayfinding). */
+/* Section overline (caps + letterspacing wayfinding — the Instrument caps). */
 export function Overline({ children }: { children: React.ReactNode }) {
   return <Text style={styles.overline}>{children}</Text>;
 }
@@ -147,7 +142,7 @@ export function Overline({ children }: { children: React.ReactNode }) {
  * · chip · chevron. `net` always renders BEFORE `detail` — the source order
  * IS the net-first law (SP-I04/SP-I12) when the detail line carries the
  * customer price. `selected` draws the accent edge — the sélection screen's
- * chosen state (Grand Teint §5 move 3: selection is structural, not tinted). */
+ * chosen state (selection is structural, not tinted). */
 export function ListRow({
   glyph,
   title,
@@ -203,8 +198,7 @@ export function ListRow({
 }
 
 /* Button hierarchy (prototype `.btn .pri/.sec/.ghost`): one primary per
- * screen; press feedback within the touch budget (D17 < 100 ms — a style
- * swap on press, no animation to wait for). */
+ * screen; press feedback within the touch budget (a style swap on press). */
 function buttonStyle(base: StyleProp<ViewStyle>) {
   return ({ pressed }: { pressed: boolean }) => [base, pressed && styles.pressed];
 }
@@ -235,8 +229,8 @@ export function GhostButton({ label, onPress }: { label: string; onPress: () => 
   );
 }
 
-/* « L'argent en majesté » (Grand Teint §2): the FCFA amount as the hero of
- * its screen — money.amountScale.hero (52 dp), tabular numerals. */
+/* « L'argent en majesté »: the FCFA amount as the hero of its screen —
+ * heroMoney (Bricolage 800), tabular numerals. */
 export function AmountHero({ label, amount }: { label?: string | undefined; amount: string }) {
   return (
     <View style={styles.amountHeroBlock}>
@@ -246,13 +240,11 @@ export function AmountHero({ label, amount }: { label?: string | undefined; amou
   );
 }
 
-/* « Le compte-montant » (Grand Teint §2): the gains hero counts up from zero
- * to the net on the money law's count-up clock — the TOKEN
- * (money.countUpMs, ≤ 600 ms, a ref into motion), never a literal — and lands
- * instantly under reduced motion. `template` is the catalog's money string
- * (the « F » belongs to the catalog, never to this code); frame numbers use
- * the same fr-FR grouping as the repo's formatFcfa, so the landed hero is
- * byte-identical to every other franc on screen. */
+/* « Le compte-montant »: the gains hero counts up from zero to the net on the
+ * money law's count-up clock — the TOKEN (money.countUpMs, ≤ 600 ms), never a
+ * literal — eased on the fp curve, landing instantly under reduced motion.
+ * `template` is the catalog's money string (the « F » belongs to the catalog);
+ * frame numbers use the same fr-FR grouping as the repo's formatFcfa. */
 export function CountUpAmount({
   label,
   amount,
@@ -275,7 +267,7 @@ export function CountUpAmount({
     const anim = Animated.timing(progress, {
       toValue: amount,
       duration: money.countUpMs,
-      easing: springSoftEasing,
+      easing: fp.fpUp.easing,
       useNativeDriver: false,
     });
     anim.start();
@@ -288,18 +280,17 @@ export function CountUpAmount({
 }
 
 /* Status chip (prototype pills): a dot + label on a calm wash — state is
- * always visible, never a sentence. Grand Teint has no chrome « info » colour
- * (one accent per app), so that tone reads on `muted`. */
+ * always visible, never a sentence. */
 export type ChipTone = 'ok' | 'warn' | 'bad' | 'info' | 'muted' | 'ink';
 const CHIP_COLOR: Record<ChipTone, string> = {
-  ok: theme.colours.success,
-  warn: theme.colours.warning,
-  bad: theme.colours.danger,
-  info: theme.colours.muted,
-  muted: theme.colours.muted,
+  ok: sharedColour.okFg,
+  warn: sharedColour.warnFg,
+  bad: sharedColour.dangerFg,
+  info: sharedColour.mutedFg,
+  muted: sharedColour.mutedFg,
   // A SETTLED server fact reads in ink — the strongest, calmest colour; never
-  // money-green, never a lie (WO-7.2a S7: « LIVRÉE = chip encre, fait serveur »).
-  ink: theme.colours.ink,
+  // money-green, never a lie (« LIVRÉE = chip encre, fait serveur »).
+  ink: sharedColour.ink,
 };
 export function StatusChip({ tone, label }: { tone: ChipTone; label: string }) {
   return (
@@ -327,9 +318,9 @@ export function useReducedMotion(): boolean {
   return reduced;
 }
 
-/* Skeleton (Grand Teint §2 « la vitesse comme luxe » — never a bare spinner):
- * a calm pulse to the token floor over the token duration; static under
- * reduced motion; exact-dimension placeholders keep layout shift at zero. */
+/* Skeleton (« la vitesse comme luxe » — never a bare spinner): a calm pulse to
+ * the token floor over the skeleton clock, on the fp shimmer curve; static
+ * under reduced motion; exact-dimension placeholders keep layout shift at zero. */
 export function Skeleton({ style }: { style?: StyleProp<ViewStyle> }) {
   const reduced = useReducedMotion();
   const pulse = useRef(new Animated.Value(1)).current;
@@ -337,8 +328,8 @@ export function Skeleton({ style }: { style?: StyleProp<ViewStyle> }) {
     if (reduced) return;
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: interaction.skeletonPulseFloor, duration: skeletonToken.pulseMs, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: skeletonToken.pulseMs, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: interaction.skeletonPulseFloor, duration: skeletonToken.pulseMs, easing: fp.fpShimmer.easing, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: skeletonToken.pulseMs, easing: fp.fpShimmer.easing, useNativeDriver: true }),
       ]),
     );
     loop.start();
@@ -347,8 +338,8 @@ export function Skeleton({ style }: { style?: StyleProp<ViewStyle> }) {
   return <Animated.View style={[styles.skeleton, { opacity: pulse }, style]} />;
 }
 
-/* Honest empty state — designed, never apologetic (Grand Teint §6: empty
- * states state the next action, never sadness). */
+/* Honest empty state — designed, never apologetic (empty states state the next
+ * action, never sadness). */
 export function EmptyState({ glyph, title, hint }: { glyph: React.ReactNode; title: string; hint?: string }) {
   return (
     <Card style={styles.emptyState}>
@@ -359,10 +350,10 @@ export function EmptyState({ glyph, title, hint }: { glyph: React.ReactNode; tit
   );
 }
 
-/* The screen change eases in on the ONE soft spring, DERIVED from the token
- * curve (Grand Teint motion: transform+opacity only, layout animation
- * forbidden). It explains, never decorates, NEVER blocks input (content is
- * interactive from the first frame; static under reduced motion). */
+/* The screen change eases in on the fp UP curve, DERIVED from the v2 motion
+ * token (transform+opacity only, layout animation forbidden). It explains,
+ * never decorates, NEVER blocks input (content is interactive from the first
+ * frame; static under reduced motion). */
 export function ScreenTransition({ screenKey, children }: { screenKey: string; children: React.ReactNode }) {
   const reduced = useReducedMotion();
   const progress = useRef(new Animated.Value(1)).current;
@@ -374,8 +365,8 @@ export function ScreenTransition({ screenKey, children }: { screenKey: string; c
     progress.setValue(0);
     Animated.timing(progress, {
       toValue: 1,
-      duration: motion.standardMs,
-      easing: springSoftEasing,
+      duration: fp.fpUp.durationMs,
+      easing: fp.fpUp.easing,
       useNativeDriver: true,
     }).start();
   }, [screenKey, reduced, progress]);
@@ -388,7 +379,6 @@ export function ScreenTransition({ screenKey, children }: { screenKey: string; c
 }
 
 const styles = StyleSheet.create({
-  themeStrip: { height: band.themeStripPx, backgroundColor: theme.colours.themeStrip },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -402,26 +392,26 @@ const styles = StyleSheet.create({
     minWidth: touch.minTargetPx,
     borderRadius: radius.button,
     borderWidth: interaction.hairline.medium,
-    borderColor: theme.colours.hairlineStrong,
-    backgroundColor: theme.colours.paper,
+    borderColor: sharedColour.hairlineStrong,
+    backgroundColor: sharedColour.card,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
   },
-  backChipText: { color: theme.colours.ink, fontSize: type.scale.body.size, fontWeight: type.scale.label.wght },
+  backChipText: { color: sharedColour.ink, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
   headerTitleBlock: { flex: 1 },
   headerTitle: {
-    color: theme.colours.ink,
-    fontSize: type.scale.title.size,
-    lineHeight: lh(type.scale.title),
-    fontWeight: type.scale.title.wght,
+    color: sharedColour.ink,
+    fontFamily: DISPLAY_FAMILY,
+    fontSize: rmax(t2.scale.view.size),
+    fontWeight: w(t2.scale.view.wght),
   },
-  headerSub: { color: theme.colours.muted, fontSize: type.scale.caption.size, lineHeight: lh(type.scale.caption) },
+  headerSub: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: theme.colours.paper,
+    backgroundColor: sharedColour.paper,
     borderTopWidth: interaction.hairline.thin,
-    borderTopColor: theme.colours.hairline,
+    borderTopColor: sharedColour.hairline,
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
     gap: spacing.xs,
@@ -431,73 +421,73 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     paddingVertical: spacing.sm,
-    borderRadius: radius.chip,
+    borderRadius: radius.pill,
     minHeight: touch.minTargetPx,
     justifyContent: 'center',
   },
-  tabActive: { backgroundColor: theme.colours.primarySoft },
+  tabActive: { backgroundColor: shopColour.soft },
   tabIcon: { alignItems: 'center', justifyContent: 'center' },
-  tabLabel: { color: theme.colours.muted, fontSize: type.scale.caption.size, fontWeight: type.scale.label.wght },
-  tabLabelActive: { color: theme.colours.primaryStrong },
+  tabLabel: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
+  tabLabelActive: { color: shopColour.deep },
   card: {
-    backgroundColor: theme.colours.paper,
+    backgroundColor: sharedColour.card,
     borderRadius: radius.card,
-    borderWidth: interaction.hairline.medium,
-    borderColor: theme.colours.hairlineStrong,
+    borderWidth: interaction.hairline.thin,
+    borderColor: sharedColour.hairline,
     padding: spacing.lg,
     gap: spacing.md,
   },
   overline: {
-    color: theme.colours.muted,
-    fontSize: type.scale.label.size,
-    lineHeight: lh(type.scale.label),
-    fontWeight: type.scale.label.wght,
+    color: sharedColour.sub,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.caps.size),
+    fontWeight: w(t2.scale.caps.wght),
     textTransform: 'uppercase',
-    letterSpacing: type.scale.label.ls,
+    letterSpacing: Number.parseFloat(t2.scale.caps.letterSpacing) * rmax(t2.scale.caps.size),
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: theme.colours.paper,
-    borderRadius: radius.box,
+    backgroundColor: sharedColour.card,
+    borderRadius: radius.tile,
     borderWidth: interaction.hairline.thin,
-    borderColor: theme.colours.hairline,
+    borderColor: sharedColour.hairline,
     padding: spacing.md,
     minHeight: touch.minTargetPx,
   },
   rowSelected: {
-    borderColor: theme.colours.primary,
+    borderColor: shopColour.primary,
     borderLeftWidth: interaction.accentEdgePx,
-    backgroundColor: theme.colours.surfaceMuted,
+    backgroundColor: shopColour.soft,
   },
   rowGlyphBox: {
     width: touch.minTargetPx,
     height: touch.minTargetPx,
-    borderRadius: radius.box,
-    backgroundColor: theme.colours.sand,
+    borderRadius: radius.tile,
+    backgroundColor: sharedColour.dim,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowGlyph: { fontSize: type.scale.title.size, color: theme.colours.primaryStrong, fontWeight: type.scale.title.wght },
+  rowGlyph: { fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.view.size), color: shopColour.deep, fontWeight: w(t2.scale.view.wght) },
   rowBody: { flex: 1, gap: spacing.xs },
-  rowTitle: { color: theme.colours.ink, fontSize: type.scale.body.size, lineHeight: lh(type.scale.body), fontWeight: type.scale.bodyStrong.wght },
-  rowMeta: { color: theme.colours.muted, fontSize: type.scale.caption.size, lineHeight: lh(type.scale.caption) },
+  rowTitle: { color: sharedColour.ink, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
+  rowMeta: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   rowNet: {
-    color: theme.colours.primaryStrong,
-    fontSize: money.amountScale.section.size,
-    lineHeight: lh({ size: money.amountScale.section.size, lh: money.amountScale.section.lh }),
-    fontWeight: money.amountScale.section.wght,
+    color: shopColour.deep,
+    fontFamily: DISPLAY_FAMILY,
+    fontSize: t2.scale.cardMoney.size,
+    fontWeight: w(t2.scale.cardMoney.wght),
     fontVariant: ['tabular-nums'],
   },
   rowDetail: {
-    color: theme.colours.muted,
-    fontSize: type.scale.caption.size,
-    lineHeight: lh(type.scale.caption),
+    color: sharedColour.sub,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.body.size),
     fontVariant: ['tabular-nums'],
   },
   rowChipLine: { flexDirection: 'row' },
-  rowChevron: { color: theme.colours.soft, fontSize: type.scale.title.size },
+  rowChevron: { color: sharedColour.sub, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.view.size) },
   pressed: { opacity: interaction.pressedOpacity, transform: [{ scale: interaction.pressScale }] },
   buttonBase: {
     minHeight: touch.minTargetPx + spacing.sm,
@@ -506,38 +496,38 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
   },
-  buttonPrimary: { backgroundColor: theme.colours.primary },
-  buttonPrimaryText: { color: theme.colours.onPrimary, fontSize: type.scale.body.size, fontWeight: type.scale.bodyStrong.wght },
-  buttonSecondary: { backgroundColor: theme.colours.primarySoft },
-  buttonSecondaryText: { color: theme.colours.primaryStrong, fontSize: type.scale.body.size, fontWeight: type.scale.bodyStrong.wght },
-  buttonGhost: { borderWidth: interaction.hairline.medium, borderColor: theme.colours.hairlineStrong, backgroundColor: theme.colours.paper },
-  buttonGhostText: { color: theme.colours.ink, fontSize: type.scale.body.size, fontWeight: type.scale.label.wght },
+  buttonPrimary: { backgroundColor: shopColour.primary },
+  buttonPrimaryText: { color: shopColour.onPrimary, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
+  buttonSecondary: { backgroundColor: shopColour.soft },
+  buttonSecondaryText: { color: shopColour.deep, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
+  buttonGhost: { borderWidth: interaction.hairline.medium, borderColor: sharedColour.hairlineStrong, backgroundColor: sharedColour.card },
+  buttonGhostText: { color: sharedColour.ink, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
   buttonDisabled: { opacity: interaction.disabledOpacity },
   amountHeroBlock: { alignItems: 'center', gap: spacing.xs },
-  amountHeroLabel: { color: theme.colours.muted, fontSize: type.scale.body.size, lineHeight: lh(type.scale.body) },
+  amountHeroLabel: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   amountHero: {
-    color: theme.colours.primaryStrong,
-    fontSize: money.amountScale.hero.size,
-    lineHeight: lh({ size: money.amountScale.hero.size, lh: money.amountScale.hero.lh }),
-    fontWeight: money.amountScale.hero.wght,
+    color: shopColour.deep,
+    fontFamily: DISPLAY_FAMILY,
+    fontSize: rmax(t2.scale.heroMoney.size),
+    fontWeight: w(t2.scale.heroMoney.wght),
     fontVariant: ['tabular-nums'],
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    backgroundColor: theme.colours.sand,
-    borderRadius: radius.chip,
+    backgroundColor: sharedColour.dim,
+    borderRadius: radius.pill,
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
     alignSelf: 'flex-start',
   },
   chipDot: { width: spacing.sm, height: spacing.sm, borderRadius: radius.pill },
-  chipText: { fontSize: type.scale.caption.size, fontWeight: type.scale.label.wght },
-  skeleton: { backgroundColor: skeletonToken.bg, borderRadius: radius.box, minHeight: spacing.xl },
+  chipText: { fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
+  skeleton: { backgroundColor: skeletonToken.bg, borderRadius: radius.tile, minHeight: spacing.xl },
   emptyState: { alignItems: 'center', paddingVertical: spacing.xxl },
   emptyGlyph: { alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
-  emptyTitle: { color: theme.colours.ink, fontSize: type.scale.title.size, fontWeight: type.scale.title.wght, textAlign: 'center' },
-  emptyHint: { color: theme.colours.muted, fontSize: type.scale.body.size, lineHeight: lh(type.scale.body), textAlign: 'center' },
+  emptyTitle: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.view.size), fontWeight: w(t2.scale.view.wght), textAlign: 'center' },
+  emptyHint: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), textAlign: 'center' },
   transitionFill: { flex: 1 },
 });

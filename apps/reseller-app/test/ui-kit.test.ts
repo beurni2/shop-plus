@@ -1,16 +1,19 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { money, motion, shopPlusTheme, type } from '@platform/ui-tokens/legacy';
+import { money, motion as legacyMotion } from '@platform/ui-tokens/legacy';
+import { type as t2, shopColour } from '@platform/ui-tokens';
 
 /**
- * WO-4.2R — the visual layer obeys the tokens. The scan test IS the DoD's
- * "zero hardcoded colors/sizes — a scan proves it": every color is a theme
- * token, every size/spacing/radius/type value is a token expression; the
- * gains hero counts up on the motion law's token ceiling; reduced motion is
- * honored; tabular numerals wherever francs render. Navigation pins stay in
- * journey-spine.test.ts (byte-untouched); this file adds only the chrome
- * pins the kit introduced.
+ * WO-4.2R / WO-FP-SHOP — the visual layer obeys the tokens. The scan test IS the
+ * DoD's "zero hardcoded colors/sizes — a scan proves it": every color is a token,
+ * every size/spacing/radius/type value is a token expression; the gains hero is
+ * the screen's largest figure, tabular, catalog-fed; reduced motion is honored;
+ * tabular numerals wherever francs render. WO-FP-SHOP repoints the reskinned
+ * groups (colour → sharedColour+shopColour, type → the Faso Premium scale, motion
+ * → the seven fp* curves) to v2 WITHOUT loosening one invariant; money.countUpMs
+ * and the /legacy geometry groups stay as they were. Navigation pins stay in
+ * journey-spine.test.ts (byte-untouched).
  */
 
 const appDir = join(import.meta.dirname, '..');
@@ -40,10 +43,12 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     }
   });
 
-  it('the gains hero consumes money.amountScale.hero with tabular numerals, fed from the catalog', () => {
+  it('the gains hero consumes the Faso Premium heroMoney with tabular numerals, fed from the catalog', () => {
     const kit = read('src/ui/kit.tsx');
-    expect(kit).toMatch(/money\.amountScale\.hero\.size/);
-    expect(kit).toMatch(/money\.amountScale\.hero\.wght/);
+    // v2: the money hero is the display face at the heroMoney size + weight
+    expect(kit).toMatch(/fontSize: rmax\(t2\.scale\.heroMoney\.size\)/);
+    expect(kit).toMatch(/fontWeight: w\(t2\.scale\.heroMoney\.wght\)/);
+    expect(kit).toMatch(/fontFamily: DISPLAY_FAMILY/);
     expect(kit).toMatch(/fontVariant: \['tabular-nums'\]/);
     // the App leads the gains screen with the count-up hero: label + template
     // both from the catalog — copy never inline.
@@ -54,8 +59,11 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(app).toMatch(/amount=\{totals\.netFcfa\}/);
     // francs render tabular in the App too (money lines + stats)
     expect(app).toMatch(/fontVariant: \['tabular-nums'\]/);
-    // the hero size is a real hero (doctrine: the amount is the screen's hero)
-    expect(money.amountScale.hero.size).toBeGreaterThan(type.scale.display.size);
+    // the hero size is a real hero (doctrine: the amount is the screen's hero) —
+    // heroMoney (max 38) tops every other type-scale size on the surface.
+    const heroMax = t2.scale.heroMoney.size.max;
+    const scaleMaxes = [t2.scale.screen.size, t2.scale.view.size.max, t2.scale.cardMoney.size, t2.scale.row.size];
+    expect(heroMax).toBeGreaterThan(Math.max(...scaleMaxes));
   });
 
   it('count-up law: token-timed (money.countUpMs, never a literal), instant under reduced motion', () => {
@@ -68,20 +76,23 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(kit).toMatch(/AccessibilityInfo\.isReduceMotionEnabled/);
     expect(kit).toMatch(/reduceMotionChanged/);
     // token-level law: « compte-montant ≤ 600 ms », one clock, a ref into motion
+    // (the count-up stays on the /legacy money clock this wave — money group deferred)
     expect(money.countUpMs).toBeLessThanOrEqual(600);
-    expect(money.countUpMs).toBe(motion.countUpMs);
+    expect(money.countUpMs).toBe(legacyMotion.countUpMs);
   });
 
-  it('the screen change eases in on the ONE soft spring — TOKEN-DERIVED curve, static under reduced motion', () => {
+  it('the screen change eases in on the fp UP curve — TOKEN-DERIVED, static under reduced motion', () => {
     const kit = read('src/ui/kit.tsx');
+    const motion = read('src/ui/motion.ts');
     expect(kit).toMatch(/export function ScreenTransition/);
-    // the easing curve is derived from the token, never invented (RN parses the
-    // v0.8.0 cubic-bezier string into Easing.bezier — derive-never-invent)
-    expect(kit).toMatch(/motion\.springSoft/);
-    expect(kit).toMatch(/Easing\.bezier/);
+    // the seven fp* motions come from the v2 token; the curve is PARSED from the
+    // token's own timingFunction into Easing.bezier — never invented.
+    expect(motion).toMatch(/from '@platform\/ui-tokens'/);
+    expect(motion).toMatch(/Easing\.bezier/);
+    expect(motion).toMatch(/fpIn:.*fpUp:.*fpPop:.*fpPulse:.*fpBar:.*fpShimmer:.*fpShake:/s);
     const transition = kit.slice(kit.indexOf('export function ScreenTransition'), kit.indexOf('const styles'));
-    expect(transition).toMatch(/springSoftEasing/); // the token-derived curve
-    expect(transition).toMatch(/duration: motion\.standardMs/); // the token times it
+    expect(transition).toMatch(/fp\.fpUp\.easing/); // the token-derived curve
+    expect(transition).toMatch(/duration: fp\.fpUp\.durationMs/); // the token times it
     expect(transition).toMatch(/useNativeDriver: true/);
     expect(transition).toMatch(/if \(reduced\) \{/);
     const app = read('App.tsx');
@@ -134,11 +145,12 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(row.indexOf('styles.rowDetail')).toBeGreaterThan(row.indexOf('styles.rowNet'));
   });
 
-  it('the sélection chosen state draws the theme-primary border via the kit selected prop', () => {
+  it('the sélection chosen state draws the accent border via the kit selected prop', () => {
     const kit = read('src/ui/kit.tsx');
     expect(kit).toMatch(/selected\?: boolean \| undefined/);
     expect(kit).toMatch(/selected === true && styles\.rowSelected/);
-    expect(kit).toMatch(/rowSelected: \{\s*borderColor: theme\.colours\.primary/);
+    expect(kit).toMatch(/rowSelected: \{\s*borderColor: shopColour\.primary/);
+    expect(shopColour.primary).toMatch(/^#/);
     const app = read('App.tsx');
     expect(app).toMatch(/selected=\{isSelected\(world, item\.id\)\}/);
   });
