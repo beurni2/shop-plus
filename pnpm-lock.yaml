@@ -208,6 +208,12 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20250705.0
         version: 4.20260702.1
+      '@shop-plus/commerce-core':
+        specifier: workspace:*
+        version: link:../../packages/commerce-core
+      '@shop-plus/storefront-service':
+        specifier: workspace:*
+        version: link:../storefront-service
       esbuild:
         specifier: ^0.25.5
         version: 0.25.12

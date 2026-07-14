@@ -14,6 +14,7 @@ export type AttributionServiceShapes = { attributionToken: AttributionToken };
 export * from './attribution.js';
 export * from './lock.js';
 export * from './resolution.js';
+export * from './durable-lock-client.js';
 
 export const handleRequest = makeHealthFetch(SERVICE_NAME);
 
