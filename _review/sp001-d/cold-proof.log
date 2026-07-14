@@ -1,0 +1,31 @@
+=== baseline auth line (credential-only, NO normalization) ===
+file:/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/sp001d-cold/home/.gitconfig	url.http://local_proxy@127.0.0.1:41729/git/.insteadof=https://github.com/
+file:/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/sp001d-cold/home/.gitconfig	url.http://local_proxy@127.0.0.1:41729/git/.insteadof=git@github.com:
+file:/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/sp001d-cold/home/.gitconfig	url.http://local_proxy@127.0.0.1:41729/git/.insteadof=ssh://git@github.com/
+command line:	url.https://github.com/.insteadof=git@github.com:
+command line:	url.https://github.com/.insteadof=ssh://git@github.com/
+=== git clone the committed bytes (e7/wo-sp001-d) ===
+Cloning into '/tmp/claude-0/-home-user/fba98a01-7e3b-5d92-8d43-79f3d7531584/scratchpad/sp001d-cold/shop-plus'...
+cold HEAD: ff85268
+=== lockfile portability ===
+ssh-form git@: 0
+proxy-leak:    0
+store entries: 0
+=== pnpm install --frozen-lockfile ===
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 24.2s using pnpm v10.33.0
+FROZEN INSTALL rc=0
+ui-tokens: 0.9.9
+=== la première commande réelle e2e resolves + runs COLD (cross-pkg + workerd DO) ===
+@shop-plus/attribution-service:test: === LA PREMIÈRE COMMANDE RÉELLE (Seller #001, real data) ===
+@shop-plus/attribution-service:test: money boundary        : checkout leg 12500 FCFA « held » (stage hold) — en attente, aucun franc capturé
+@shop-plus/attribution-service:test:       Tests  43 passed (43)
+ Tasks:    7 successful, 7 total
+ATTR-E2E rc=0
+=== run-gates.sh ===
+(exit code: 0)
+
+ALL GATES GREEN (positives passed; every negative fixture failed as required)
+RUN-GATES rc=0

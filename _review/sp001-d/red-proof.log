@@ -1,0 +1,6 @@
+SP#001-D RED PROOF (throwaway test, run then removed) — the D fixtures catch broken wiring:
+  ✓ obligation-equals-locked-quote FAILS when the quote reseller diverges from the durable lock
+      (a quote issued for rs-rival-9999 → obligation party 'reseller:rs-rival-9999' !== 'reseller:rs-seller-0001';
+       the e2e's toBe(`reseller:${lockedResellerId}`) assertion throws on this wiring)
+  ✓ money-boundary-honest FAILS on a captured leg (captured !== held — the « en attente » assertion throws)
+  Tests: 2 passed (both divergences confirmed). The positive e2e proves the WIRED path; this proves the fixtures are not vacuous.
