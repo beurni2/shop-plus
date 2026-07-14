@@ -12,6 +12,7 @@ export const SERVICE_NAME = 'storefront-service';
 export type StorefrontServiceShapes = { storefront: Storefront; resellerListing: ResellerListing };
 
 export * from './customer-projection.js';
+export * from './storefront-aggregate.js';
 
 export const handleRequest = makeHealthFetch(SERVICE_NAME);
 
