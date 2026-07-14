@@ -5,7 +5,7 @@ import { shopPlusTheme as theme, shopColour, type, spacing, radius, touch, money
 import { IconAccueil, IconProduits, IconGains, IconVitrine } from './src/ui/icons';
 import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
-import { t } from './src/i18n';
+import { t, tf } from './src/i18n';
 import { JOURNEY, START, type Screen } from './src/journey';
 import { DEMO_SHARE_IDENTITY, composeShareCard } from './src/share/hub';
 import { QrCode } from './src/qr/QrCode';
@@ -74,14 +74,14 @@ function GainsBreakdown({ line, style }: { line: GainsLine; style?: object }) {
   return (
     <View style={[styles.moneyBlock, style]}>
       <Text style={styles.moneyLine}>
-        {t('gains.brut').replace('{amount}', formatFcfa(line.grossFcfa))}
+        {tf('gains.brut', { amount: formatFcfa(line.grossFcfa) })}
       </Text>
       <Text style={styles.moneyLine}>
-        {t('gains.part').replace('{amount}', formatFcfa(line.feeFcfa))}
+        {tf('gains.part', { amount: formatFcfa(line.feeFcfa) })}
       </Text>
       <View style={styles.moneyRule} />
       <Text style={styles.moneyNetLine}>
-        {t('gains.net').replace('{amount}', formatFcfa(line.netFcfa))}
+        {tf('gains.net', { amount: formatFcfa(line.netFcfa) })}
       </Text>
     </View>
   );
@@ -171,7 +171,7 @@ export default function App() {
   const saleDetail = demoDetail();
   const headerTitle =
     screen === 'vente_detail'
-      ? t('vente.titre').replace('{name}', saleDetail.clientFirstName)
+      ? tf('vente.titre', { name: saleDetail.clientFirstName })
       : t(SCREEN_TITLE_KEY[screen]);
 
   return (
@@ -266,7 +266,7 @@ export default function App() {
               )}
             />
             <Text style={styles.noteLine}>
-              {t('selection.compte').replace('{count}', String(world.selectedIds.length))}
+              {tf('selection.compte', { count: String(world.selectedIds.length) })}
             </Text>
             <PrimaryButton label={t('selection.action')} onPress={() => go('vitrine')} />
           </View>
@@ -309,7 +309,7 @@ export default function App() {
               <Overline>{t('share.og_titre')}</Overline>
               <Text style={styles.cardTitle}>{shareCard.productName}</Text>
               <Text style={styles.ogPrice}>
-                {t('share.prix').replace('{amount}', formatFcfa(shareCard.priceFcfa))}
+                {tf('share.prix', { amount: formatFcfa(shareCard.priceFcfa) })}
               </Text>
               <View style={styles.ogBadgeRow}>
                 <StatusChip tone="ok" label={t('share.livre_sera')} />
@@ -318,7 +318,7 @@ export default function App() {
               {/* WO-7.2a — the price-validity hint (« pied de carte »): which
                   day's price this card shows; the link stays the truth (SP-I19). */}
               <Text style={styles.ogValidite}>
-                {t('share.validite').replace('{date}', shareCard.priceValidityDate)}
+                {tf('share.validite', { date: shareCard.priceValidityDate })}
               </Text>
             </Card>
 
@@ -335,7 +335,7 @@ export default function App() {
             {/* The IDENTITY link — her permanent vitrine (`/v/{slug}`), for the
                 bio; the same public code printed on every card. */}
             <Card>
-              <Overline>{t('share.code').replace('{code}', DEMO_SHARE_IDENTITY.shortCode)}</Overline>
+              <Overline>{tf('share.code', { code: DEMO_SHARE_IDENTITY.shortCode })}</Overline>
               <Text style={styles.noteLine}>{t('share.code_hint')}</Text>
               <View style={styles.linkBox}>
                 <Text style={styles.linkText}>{shareCard.identityLinkSuffix}</Text>
@@ -359,7 +359,7 @@ export default function App() {
                 <Text style={styles.qrLegende}>{t('share.qr_legende')}</Text>
                 <Text style={styles.codeStrong}>{DEMO_SHARE_IDENTITY.shortCode}</Text>
                 <Text style={styles.qrRepli}>
-                  {t('share.qr_repli').replace('{code}', DEMO_SHARE_IDENTITY.shortCode)}
+                  {tf('share.qr_repli', { code: DEMO_SHARE_IDENTITY.shortCode })}
                 </Text>
               </View>
             </Card>
@@ -395,10 +395,7 @@ export default function App() {
             </Card>
             <Card>
               <Text style={styles.cardTitle}>
-                {t('gains.baseline_titre').replace(
-                  '{amount}',
-                  formatFcfa(baselineProductPriceFcfa()),
-                )}
+                {tf('gains.baseline_titre', { amount: formatFcfa(baselineProductPriceFcfa()) })}
               </Text>
               <GainsBreakdown line={baseline} />
             </Card>
@@ -431,7 +428,7 @@ export default function App() {
                       glyph={item.clientFirstName.slice(0, 1)}
                       title={item.clientFirstName}
                       meta={item.productName}
-                      net={`${t('ventes.net_ligne').replace('{amount}', formatFcfa(item.netFcfa))}`}
+                      net={tf('ventes.net_ligne', { amount: formatFcfa(item.netFcfa) })}
                       chip={<StatusChip tone={chipTone(item)} label={t(item.statusKey)} />}
                       onPress={() => go('vente_detail')}
                     />
@@ -461,7 +458,7 @@ export default function App() {
             </Card>
             <Card>
               <Text style={styles.cardTitle}>
-                {t('vente.son_prix').replace('{amount}', formatFcfa(saleDetail.sonPrixFcfa))}
+                {tf('vente.son_prix', { amount: formatFcfa(saleDetail.sonPrixFcfa) })}
               </Text>
             </Card>
             <Card>
