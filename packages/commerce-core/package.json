@@ -21,12 +21,12 @@
     "pretest": "pnpm bundle:worker"
   },
   "dependencies": {
-    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/contracts",
-    "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/kernel-types",
+    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/contracts",
+    "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/kernel-types",
     "@shop-plus/flags-client": "workspace:*"
   },
   "devDependencies": {
-    "@platform/certification": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/certification",
+    "@platform/certification": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/certification",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4",
     "@cloudflare/workers-types": "^4.20250705.0",

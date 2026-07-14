@@ -23,9 +23,9 @@ onlyBuiltDependencies:
 # (canon v0.5.0; founder ruling: tags are unreliable, the release ref is
 # the commit).
 overrides:
-  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/contracts"
-  # @platform/ui-tokens is UNIFIED at canon v0.9.7 (508e94b, Grand Teint + dimension.qr) — WO-7.0/WO-7.2b
+  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/kernel-types"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/contracts"
+  # @platform/ui-tokens is UNIFIED at canon v0.9.9 (1c98ad1, + Storefront aggregate fields WO-5.13) — WO-7.0/WO-7.2b/SP#001-A
   # killed the WO-5.3 per-app skew and re-pinned the whole workspace to the current
   # release in one bump. reseller-app runs its visual layer on the Grand Teint API
   # (theme.colours, top-level type/spacing/radius/touch/interaction, the nav glyphs
@@ -33,6 +33,6 @@ overrides:
   # + the @platform/certification transitive — no scoped exception. The former
   # `@platform/certification>@platform/ui-tokens` v0.6.0 override is DELETED: the
   # neutralColors→sharedColour rename landed at v0.8.0, so the report-html bug
-  # existed only in the ancient v0.6.0 snapshot; certification at v0.9.7 resolves
+  # existed only in the ancient v0.6.0 snapshot; certification at v0.9.9 resolves
   # sharedColour and needs no override (CTO ruling, WO-7.0 re-pin).
-  "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/ui-tokens"
+  "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/ui-tokens"

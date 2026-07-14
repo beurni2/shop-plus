@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@shop-plus/observability": "workspace:*",
-    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/contracts",
+    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/contracts",
     "zod": "^4.1.5"
   },
   "devDependencies": {

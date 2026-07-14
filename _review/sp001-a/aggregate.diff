@@ -1,0 +1,335 @@
+diff --git a/services/storefront-service/package.json b/services/storefront-service/package.json
+index 3a94050..0f5c708 100644
+--- a/services/storefront-service/package.json
++++ b/services/storefront-service/package.json
+@@ -15,7 +15,7 @@
+   },
+   "dependencies": {
+     "@shop-plus/observability": "workspace:*",
+-    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/contracts"
++    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/contracts"
+   },
+   "devDependencies": {
+     "typescript": "^5.9.2",
+diff --git a/services/storefront-service/src/index.ts b/services/storefront-service/src/index.ts
+index 6be9f4d..97434d2 100644
+--- a/services/storefront-service/src/index.ts
++++ b/services/storefront-service/src/index.ts
+@@ -12,6 +12,7 @@ export const SERVICE_NAME = 'storefront-service';
+ export type StorefrontServiceShapes = { storefront: Storefront; resellerListing: ResellerListing };
+ 
+ export * from './customer-projection.js';
++export * from './storefront-aggregate.js';
+ 
+ export const handleRequest = makeHealthFetch(SERVICE_NAME);
+ 
+diff --git a/services/storefront-service/src/storefront-aggregate.ts b/services/storefront-service/src/storefront-aggregate.ts
+new file mode 100644
+index 0000000..02c51a8
+--- /dev/null
++++ b/services/storefront-service/src/storefront-aggregate.ts
+@@ -0,0 +1,175 @@
++import {
++  PlatformEventSchema,
++  ResellerShortCodeSchema,
++  StorefrontSchema,
++  shortCodeToSlug,
++  type PlatformEvent,
++  type Storefront,
++} from '@platform/contracts';
++
++/**
++ * STOREFRONT AGGREGATE (SP#001-A · §5.2 "Shop+ owns Storefront & Attribution").
++ * The Seller #001 aggregate: create (idempotent on command_id) · publish /
++ * unpublish · canon events with real envelopes · single writer per storefront ·
++ * `updatedAt` moves ONLY on a real change (it is the directory's ordering truth,
++ * SP#001-B). The shape is canon `StorefrontSchema` (v0.9.9, WO-5.13) consumed
++ * VERBATIM — never redefined; the aggregate only decides transitions.
++ *
++ * Mirrors the ratified single-authority pattern (the attribution lock / the
++ * reservation DO): a pure decision + an in-memory single-writer registry keyed
++ * by storefront id. The DURABLE host (a StorefrontDO on workerd) is the same
++ * separable substrate the lock got in its own slice — named, not built here.
++ *
++ * Canon has NO per-event payload shape (envelope + names only — see canon
++ * docs/derivations/STOREFRONT-FIELDS.md §4); payloads are built at THIS service
++ * boundary via `PlatformEventSchema`, exactly as the attribution lock does.
++ * Canon has `storefront.created.v1` + `storefront.published.v1` but NO
++ * `unpublished` name — so the discoverability toggle (both directions) is the
++ * `storefront.published.v1` event carrying `discoverable: boolean`; it fires
++ * ONCE per real change. (Surfaced: consuming the existing canon name, never
++ * inventing an event schema — §7.)
++ */
++
++export interface CreateStorefrontCommand {
++  readonly commandId: string;
++  readonly id: string;
++  readonly resellerId: string;
++  /** Validated to `ResellerShortCodeSchema`; the canon `slug` is DERIVED from it. */
++  readonly shortCode: string;
++  readonly name: string;
++  readonly zone: string;
++  readonly category: string;
++  readonly correlationId: string;
++  readonly at: string;
++}
++
++export type CreateDecision =
++  | { readonly status: 'created'; readonly storefront: Storefront; readonly event: PlatformEvent }
++  | { readonly status: 'idempotent'; readonly storefront: Storefront }
++  | { readonly status: 'collision'; readonly existing: Storefront };
++
++export type ToggleDecision =
++  | { readonly status: 'changed'; readonly storefront: Storefront; readonly event: PlatformEvent }
++  | { readonly status: 'unchanged'; readonly storefront: Storefront }
++  | { readonly status: 'absent' };
++
++export class StorefrontShortCodeError extends Error {
++  override readonly name = 'StorefrontShortCodeError';
++}
++
++/** The bare canon slug (`seller-0001`) DERIVED from a valid short code, shape enforced. */
++function slugFromShortCode(shortCode: string): string {
++  const parsed = ResellerShortCodeSchema.safeParse(shortCode);
++  if (!parsed.success) {
++    throw new StorefrontShortCodeError(`invalid reseller short code: ${JSON.stringify(shortCode)}`);
++  }
++  // shortCodeToSlug → `/v/seller-0001`; the storefront `slug` is the bare tail.
++  return shortCodeToSlug(parsed.data).replace(/^\/v\//, '');
++}
++
++function createdEvent(sf: Storefront, correlationId: string): PlatformEvent {
++  return PlatformEventSchema.parse({
++    name: 'storefront.created.v1',
++    envelope: {
++      command_id: `sf-create-${sf.id}`,
++      correlation_id: correlationId,
++      aggregateVersion: 1,
++      actor: 'storefront-service:aggregate',
++      serverTime: sf.createdAt,
++      version: '1',
++    },
++    payload: {
++      storefront_id: sf.id,
++      reseller_id: sf.resellerId,
++      slug: sf.slug,
++      name: sf.name,
++      zone: sf.zone,
++      category: sf.category,
++    },
++  });
++}
++
++function publishedEvent(sf: Storefront, correlationId: string, at: string, seq: number): PlatformEvent {
++  return PlatformEventSchema.parse({
++    name: 'storefront.published.v1',
++    envelope: {
++      command_id: `sf-publish-${sf.id}-${seq}`,
++      correlation_id: correlationId,
++      aggregateVersion: seq,
++      actor: 'storefront-service:aggregate',
++      serverTime: at,
++      version: '1',
++    },
++    payload: {
++      storefront_id: sf.id,
++      discoverable: sf.discoverable,
++    },
++  });
++}
++
++interface Entry {
++  storefront: Storefront;
++  createCommandId: string;
++  /** Aggregate version — bumps on each real discoverability change (published event seq). */
++  version: number;
++}
++
++/**
++ * One writer per storefront by construction: exactly one `Entry` per id, all
++ * transitions go through this registry, `updatedAt` advances only on a real
++ * change. Ready to host inside a per-storefront Durable Object (idFromName(id)).
++ */
++export class StorefrontRegistry {
++  private readonly byId = new Map<string, Entry>();
++
++  create(cmd: CreateStorefrontCommand): CreateDecision {
++    const existing = this.byId.get(cmd.id);
++    if (existing) {
++      // Idempotent on the create command_id; a different command_id can never
++      // re-create an existing storefront (collision, surfaced).
++      if (existing.createCommandId === cmd.commandId) {
++        return { status: 'idempotent', storefront: existing.storefront };
++      }
++      return { status: 'collision', existing: existing.storefront };
++    }
++    const slug = slugFromShortCode(cmd.shortCode); // shape-enforced or throws
++    const storefront: Storefront = StorefrontSchema.parse({
++      id: cmd.id,
++      resellerId: cmd.resellerId,
++      slug,
++      discoverable: false, // created unpublished; a real publish makes it discoverable
++      curatedItems: [],
++      name: cmd.name,
++      zone: cmd.zone,
++      category: cmd.category,
++      createdAt: cmd.at,
++      updatedAt: cmd.at,
++    });
++    this.byId.set(cmd.id, { storefront, createCommandId: cmd.commandId, version: 1 });
++    return { status: 'created', storefront, event: createdEvent(storefront, cmd.correlationId) };
++  }
++
++  private setDiscoverable(id: string, discoverable: boolean, correlationId: string, at: string): ToggleDecision {
++    const entry = this.byId.get(id);
++    if (!entry) return { status: 'absent' };
++    if (entry.storefront.discoverable === discoverable) {
++      return { status: 'unchanged', storefront: entry.storefront }; // no event, updatedAt untouched
++    }
++    entry.version += 1;
++    const storefront: Storefront = { ...entry.storefront, discoverable, updatedAt: at };
++    entry.storefront = storefront;
++    return { status: 'changed', storefront, event: publishedEvent(storefront, correlationId, at, entry.version) };
++  }
++
++  publish(args: { id: string; correlationId: string; at: string }): ToggleDecision {
++    return this.setDiscoverable(args.id, true, args.correlationId, args.at);
++  }
++
++  unpublish(args: { id: string; correlationId: string; at: string }): ToggleDecision {
++    return this.setDiscoverable(args.id, false, args.correlationId, args.at);
++  }
++
++  get(id: string): Storefront | undefined {
++    return this.byId.get(id)?.storefront;
++  }
++}
+diff --git a/services/storefront-service/test/storefront-aggregate.test.ts b/services/storefront-service/test/storefront-aggregate.test.ts
+new file mode 100644
+index 0000000..49d2935
+--- /dev/null
++++ b/services/storefront-service/test/storefront-aggregate.test.ts
+@@ -0,0 +1,123 @@
++import { describe, expect, it } from 'vitest';
++import { StorefrontSchema } from '@platform/contracts';
++import {
++  StorefrontRegistry,
++  StorefrontShortCodeError,
++  type CreateStorefrontCommand,
++} from '../src/storefront-aggregate.js';
++
++/**
++ * SP#001-A — the storefront aggregate obeys its command law. The four RED-first
++ * fixtures: create-idempotent-on-command_id · collision-refused-surfaced ·
++ * publish-toggle-emits-once · shortcode-shape-enforced. Plus SELLER #001 created
++ * through the REAL command path (never seeded), and `updatedAt` moving ONLY on a
++ * real change (the directory ordering truth).
++ */
++
++const T0 = '2026-07-14T08:00:00.000Z';
++const T1 = '2026-07-14T09:00:00.000Z';
++const T2 = '2026-07-14T10:00:00.000Z';
++
++// SELLER #001 — the founder's store, created THROUGH the command (not seeded).
++// name/zone/category are the command's onboarding INPUT (founder-supplied in
++// production); the fixture proves the real create path, not baked canon values.
++const SELLER_001: CreateStorefrontCommand = {
++  commandId: 'cmd-seller001-create',
++  id: 'sf-seller-0001',
++  resellerId: 'rs-seller-0001',
++  shortCode: 'SELLER-0001',
++  name: 'Boutique du fondateur',
++  zone: 'Ouagadougou',
++  category: 'Général',
++  correlationId: 'corr-001',
++  at: T0,
++};
++
++describe('storefront aggregate — SELLER #001 through the real command path', () => {
++  it('create builds a canon Storefront (slug DERIVED from the short code, discoverable=false) and emits storefront.created.v1', () => {
++    const reg = new StorefrontRegistry();
++    const out = reg.create(SELLER_001);
++    expect(out.status).toBe('created');
++    if (out.status !== 'created') return;
++    // the stored shape IS the canon shape, verbatim
++    expect(() => StorefrontSchema.parse(out.storefront)).not.toThrow();
++    expect(out.storefront.slug).toBe('seller-0001'); // derived from SELLER-0001
++    expect(out.storefront.discoverable).toBe(false); // created unpublished
++    expect(out.storefront.createdAt).toBe(T0);
++    expect(out.storefront.updatedAt).toBe(T0);
++    expect(out.event.name).toBe('storefront.created.v1');
++    expect(out.event.payload['slug']).toBe('seller-0001');
++    expect(out.event.payload['reseller_id']).toBe('rs-seller-0001');
++  });
++
++  it('CREATE-IDEMPOTENT-ON-COMMAND_ID: the same create command returns the same identity, no re-create', () => {
++    const reg = new StorefrontRegistry();
++    reg.create(SELLER_001);
++    const replay = reg.create(SELLER_001);
++    expect(replay.status).toBe('idempotent');
++    if (replay.status === 'idempotent') expect(replay.storefront.id).toBe('sf-seller-0001');
++    // still exactly one storefront, unchanged
++    expect(reg.get('sf-seller-0001')?.updatedAt).toBe(T0);
++  });
++
++  it('COLLISION-REFUSED-SURFACED: a DIFFERENT command_id on an existing storefront is refused, the existing returned', () => {
++    const reg = new StorefrontRegistry();
++    reg.create(SELLER_001);
++    const collision = reg.create({ ...SELLER_001, commandId: 'cmd-different', name: 'Autre nom' });
++    expect(collision.status).toBe('collision');
++    if (collision.status === 'collision') {
++      expect(collision.existing.name).toBe('Boutique du fondateur'); // NEVER overwritten
++      expect(collision.existing.id).toBe('sf-seller-0001');
++    }
++    expect(reg.get('sf-seller-0001')?.name).toBe('Boutique du fondateur');
++  });
++
++  it('SHORTCODE-SHAPE-ENFORCED: an invalid short code is refused at create (never a malformed slug)', () => {
++    const reg = new StorefrontRegistry();
++    expect(() => reg.create({ ...SELLER_001, id: 'sf-bad', shortCode: 'seller-1' })).toThrow(StorefrontShortCodeError);
++    expect(() => reg.create({ ...SELLER_001, id: 'sf-bad2', shortCode: 'X' })).toThrow(StorefrontShortCodeError);
++    expect(reg.get('sf-bad')).toBeUndefined();
++  });
++});
++
++describe('publish / unpublish — the discoverable toggle, updatedAt on real change only', () => {
++  it('PUBLISH-TOGGLE-EMITS-ONCE: publish fires storefront.published.v1 once; a repeat publish is a no-op (no event, updatedAt frozen)', () => {
++    const reg = new StorefrontRegistry();
++    reg.create(SELLER_001);
++
++    const pub = reg.publish({ id: 'sf-seller-0001', correlationId: 'corr-001', at: T1 });
++    expect(pub.status).toBe('changed');
++    if (pub.status === 'changed') {
++      expect(pub.storefront.discoverable).toBe(true);
++      expect(pub.storefront.updatedAt).toBe(T1); // real change → updatedAt moves
++      expect(pub.event.name).toBe('storefront.published.v1');
++      expect(pub.event.payload['discoverable']).toBe(true);
++    }
++
++    const again = reg.publish({ id: 'sf-seller-0001', correlationId: 'corr-001', at: T2 });
++    expect(again.status).toBe('unchanged'); // already discoverable → NO second event
++    expect(reg.get('sf-seller-0001')?.updatedAt).toBe(T1); // updatedAt did NOT move on the no-op
++  });
++
++  it('unpublish is the same toggle in reverse — one event on the real change, discoverable=false', () => {
++    const reg = new StorefrontRegistry();
++    reg.create(SELLER_001);
++    reg.publish({ id: 'sf-seller-0001', correlationId: 'corr-001', at: T1 });
++    const unpub = reg.unpublish({ id: 'sf-seller-0001', correlationId: 'corr-001', at: T2 });
++    expect(unpub.status).toBe('changed');
++    if (unpub.status === 'changed') {
++      expect(unpub.storefront.discoverable).toBe(false);
++      expect(unpub.storefront.updatedAt).toBe(T2);
++      expect(unpub.event.name).toBe('storefront.published.v1');
++      expect(unpub.event.payload['discoverable']).toBe(false);
++    }
++    // a repeat unpublish is a no-op
++    expect(reg.unpublish({ id: 'sf-seller-0001', correlationId: 'corr-001', at: '2026-07-14T11:00:00.000Z' }).status).toBe('unchanged');
++    expect(reg.get('sf-seller-0001')?.updatedAt).toBe(T2);
++  });
++
++  it('publish/unpublish on an absent storefront is surfaced (never a phantom write)', () => {
++    const reg = new StorefrontRegistry();
++    expect(reg.publish({ id: 'sf-nope', correlationId: 'c', at: T1 }).status).toBe('absent');
++  });
++});
