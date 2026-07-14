@@ -14,8 +14,8 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/i18n",
-    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#508e94b1a6c1da8d29976759db74b7d0e5a24d2e&path:packages/ui-tokens"
+    "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/i18n",
+    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#1c98ad15243f518991c4513c20afaedeb0ad493a&path:packages/ui-tokens"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
