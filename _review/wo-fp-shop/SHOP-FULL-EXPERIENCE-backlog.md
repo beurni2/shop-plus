@@ -36,6 +36,8 @@ Founder ruling (Option A, 2026-07-15): "the 8 existing screens to frame anatomy;
 | **Net-is-private line** on the share card | L216 | `ShareCard` carries **no net field** by SP-I03 leak-proof construction; surfacing the reseller's net needs a share-model change. Data-model + feature work. |
 | **Toggle privée/publique** + **Aperçu public** on Vitrine | L247–250 | New public/private state + control, and an « Aperçu public » eye targeting Ecrans 06 (Vitrine publique, unbuilt). Feature work. |
 | **« net {netF} »** on vitrine tiles | L261 | The app's `vitrine` is a client-preview (no net by SP-I03-aligned design); net-on-tiles is the *Ma vitrine* private-view behaviour. Feature work (private-vitrine mode). |
+| **« Simuler l'étape suivante » (démo)** on Détail vente | L348 | A demo step-simulator (interactive). Feature work. |
+| **« Contacter la cliente » + « Assistance »** on Détail vente | L351–352 | New call/assistance actions. Feature work. |
 
 ---
 
@@ -43,11 +45,12 @@ Founder ruling (Option A, 2026-07-15): "the 8 existing screens to frame anatomy;
 
 | Element | Frame | Bar |
 |---|---|---|
-| « Gain brut » gross line | Fiche L174 | **Law #1** — reseller sees net; gross-first UI prohibited. `earnings.ts` renders `[resellerNet, customerPrice]` only. |
-| « Frais Ma Boutique » | Fiche L175 | **Law #10** — retired name; canon « Part Shop+ ». |
+| « Gain brut » gross line | Fiche L174 · Détail vente L325 | **Law #1** — reseller sees net; gross-first UI prohibited. `earnings.ts` renders `[resellerNet, customerPrice]` only. |
+| « Frais Ma Boutique » | Fiche L175 · Détail vente L326 | **Law #10** — retired name; canon « Part Shop+ ». |
+| « Contribution campagne Cercle » | Détail vente L327 | **Law #8** — SP9 Cercle-gated. |
 | Diaspora block | Fiche L152–157 | **Law #8 / §7** — out of scope until the founder reopens Diaspora. |
 | PackLab block | Fiche L158–163 | **Law #8** — B+9 gated. |
 
 ---
 
-*Maintained per-view as the reskin proceeds. Views covered: 2 (Opportunités), 3 (Fiche→selection), 4 (Partager→lien), 5 (Vitrine), 6 (Ventes). Extended through view 8.*
+*Maintained per-view as the reskin proceeds. Views covered: 2 (Opportunités), 3 (Fiche→selection), 4 (Partager→lien), 5 (Vitrine), 6 (Ventes), 7 (Détail vente). Extended through view 8.*

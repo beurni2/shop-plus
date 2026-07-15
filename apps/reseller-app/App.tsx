@@ -614,8 +614,23 @@ export default function App() {
 
         {screen === 'vente_detail' && (
           <View style={styles.stackGap}>
+            {/* Product card (frame L316–322) — the duotone art-tile, what was
+                sold and to whom (her client's first name; no zone in the model,
+                no seller ever). A static info card, not a control. */}
+            <View style={styles.oppRow}>
+              <View style={styles.artTile}>
+                <View style={styles.artTileStripe} />
+                <Text style={styles.artTileGlyph}>{saleDetail.productName.slice(0, 1)}</Text>
+              </View>
+              <View style={styles.homeSaleBody}>
+                <Text style={styles.homeSaleTitle} numberOfLines={1}>{saleDetail.productName}</Text>
+                <Text style={styles.homeSaleSub} numberOfLines={1}>{saleDetail.clientFirstName}</Text>
+              </View>
+            </View>
             {/* NET FIRST, always — the net before SON prix; the commission
-                exists nowhere; only her client's first name (relais). */}
+                exists nowhere; only her client's first name (relais). The frame's
+                gross « Gain brut » + « Frais Ma Boutique » breakdown is barred
+                (Law #1 / #10) — the HeroLedger net hero is the compliant card. */}
             <Card style={styles.netCard}>
               {/* the hero ledger (signature module): the locked net as the hero,
                   its « réglé » reassurance as the ledger whisper below. */}

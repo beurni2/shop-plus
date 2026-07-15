@@ -134,6 +134,9 @@ const STATUS_STEP: Record<SaleStatus, number> = {
 /** The detail — NET FIRST (net before son prix), then the coarse custody timeline. */
 export interface SaleDetail {
   readonly clientFirstName: string;
+  /** The product sold — real sale data (never a seller identity), for the
+   * detail's product card (WO-FP-SHOP view 7, frame L319). */
+  readonly productName: string;
   readonly netFcfa: number;
   readonly sonPrixFcfa: number;
   readonly status: SaleStatus;
@@ -150,6 +153,7 @@ export function ventesDetailModel(sale: Sale): SaleDetail {
   }));
   return {
     clientFirstName: sale.clientFirstName,
+    productName: sale.productName,
     netFcfa: sale.netFcfa,
     sonPrixFcfa: sale.sonPrixFcfa,
     status: sale.status,
