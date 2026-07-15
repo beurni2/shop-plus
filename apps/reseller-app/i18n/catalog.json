@@ -72,6 +72,12 @@
     "screenClass": "label"
   },
   {
+    "key": "opportunites.sous_titre",
+    "fr": "Produits de vendeurs vérifiés — votre gain net est affiché.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
     "key": "opportunites.repere",
     "fr": "Repère",
     "register": "neutral",

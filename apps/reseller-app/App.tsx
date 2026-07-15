@@ -135,7 +135,10 @@ const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'gains'];
 
 const SCREEN_TITLE_KEY: Record<Screen, string> = {
   accueil: 'app.title',
-  opportunites: 'opportunites.title',
+  // Hub screens present like the planche: brand in the header, the big
+  // screen title (Bricolage 800/28) lives IN-CONTENT so the display type
+  // lands. `opportunites.title` moves to the in-content heading (frame L113).
+  opportunites: 'app.title',
   selection: 'selection.title',
   vitrine: 'vitrine.title',
   lien: 'lien.title',
@@ -291,28 +294,48 @@ export default function App() {
         )}
 
         {screen === 'opportunites' && (
-          <View style={styles.listWrap}>
-            <FlatList
-              data={world.opportunities}
-              keyExtractor={(o) => o.id}
-              initialNumToRender={6}
-              windowSize={5}
-              contentContainerStyle={styles.listContent}
-              renderItem={({ item }) => {
-                const card = opportunityCard(item);
-                return (
-                  <ListRow
-                    glyph={item.name.slice(0, 1)}
-                    title={item.name}
-                    meta={`${t('opportunites.repere')} : ${item.landmark}`}
-                    net={`${t('opportunity.net_label')} : ${formatFcfa(card.netFcfa)}`}
-                    detail={`${t('opportunity.customer_price_label')} : ${formatFcfa(card.customerPriceFcfa)}`}
-                  />
-                );
-              }}
-            />
-            <PrimaryButton label={t('opportunites.action')} onPress={() => go('selection')} />
-          </View>
+          <FlatList
+            style={styles.listWrap}
+            data={world.opportunities}
+            keyExtractor={(o) => o.id}
+            initialNumToRender={6}
+            windowSize={5}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.oppListContent}
+            ListHeaderComponent={
+              // Frame L113–114 — the big screen title (Bricolage 800/28) lands
+              // in-content; the net-first selling subtitle sits under it.
+              <View style={styles.oppHead}>
+                <Text style={styles.screenTitle}>{t('opportunites.title')}</Text>
+                <Text style={styles.oppSub}>{t('opportunites.sous_titre')}</Text>
+              </View>
+            }
+            renderItem={({ item }) => {
+              const card = opportunityCard(item);
+              return (
+                // Frame L126–134 — a tappable product row → « ma sélection »
+                // (journey edge opportunites→selection). The 60px duotone
+                // art-tile is the ecosystem's product treatment (replaces the
+                // letter-chip); the money block is NET-FIRST (SP-I04/I12).
+                <Pressable
+                  style={({ pressed }) => [styles.oppRow, pressed && styles.pressed]}
+                  onPress={() => go('selection')}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.oppArtTile}>
+                    <View style={styles.artTileStripe} />
+                    <Text style={styles.artTileGlyph}>{item.name.slice(0, 1)}</Text>
+                  </View>
+                  <View style={styles.homeSaleBody}>
+                    <Text style={styles.homeSaleTitle} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.homeSaleSub} numberOfLines={1}>{`${t('opportunites.repere')} : ${item.landmark}`}</Text>
+                    <Text style={styles.oppNet}>{`${t('opportunity.net_label')} : ${formatFcfa(card.netFcfa)}`}</Text>
+                    <Text style={styles.oppPrice}>{`${t('opportunity.customer_price_label')} : ${formatFcfa(card.customerPriceFcfa)}`}</Text>
+                  </View>
+                </Pressable>
+              );
+            }}
+          />
         )}
 
         {screen === 'selection' && (
@@ -701,6 +724,37 @@ const styles = StyleSheet.create({
   homeSaleBody: { flex: 1, minWidth: 0, gap: spacing.xs },
   homeSaleTitle: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
   homeSaleSub: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  // ── OPPORTUNITÉS frame (planche L110–138) ──
+  // Shared in-content screen heading (Bricolage 800/28) — the display type lands.
+  screenTitle: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.screen.size, fontWeight: w(t2.scale.screen.wght) },
+  oppHead: { gap: spacing.xs, paddingBottom: spacing.md },
+  oppSub: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  oppListContent: { gap: spacing.sm, paddingBottom: spacing.xxl },
+  oppRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: sharedColour.card,
+    borderRadius: radius.tile,
+    borderWidth: interaction.hairline.thin,
+    borderColor: sharedColour.hairline,
+    padding: spacing.md,
+  },
+  // The 60px product art-tile (frame's 60·r15) — the larger sibling of the
+  // accueil 48px tile; same duotone language (soft field + gold keyline).
+  oppArtTile: {
+    width: touch.minTargetPx + spacing.md,
+    height: touch.minTargetPx + spacing.md,
+    borderRadius: rmax(radius.art),
+    backgroundColor: shopColour.soft,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  // Net-forward money line (SP-I04/I12 net-first) — deep, bold, tabular.
+  oppNet: { color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght), fontVariant: ['tabular-nums'] },
+  oppPrice: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
   astuceCard: { backgroundColor: shopColour.soft, borderRadius: radius.tile, padding: spacing.lg },
   astuceText: { color: shopColour.deep, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   ogPrice: {
