@@ -30,6 +30,10 @@ Founder ruling (Option A, 2026-07-15): "the 8 existing screens to frame anatomy;
 | **Category filters** (chips) on Opportunités | L119–123 | The demo world has no category taxonomy; honest filters need real category data (a data-model addition). Feature work. |
 | **Margin slider** (« Votre marge » + `range`) on Fiche | L166–169 | Live markup→waterfall recompute. The RN bundle **cannot** run `computeWaterfall` (Metro bars the `@platform/contracts` barrel; the seed is pre-computed). Requires a money-architecture decision — **§7**, founder-gated. |
 | Single-product **Fiche detail** composition (170px hero, full waterfall card, single share CTA) | L142–189 | `selection` is a multi-select list; a per-product detail screen is a new screen/flow. Feature work. |
+| **Format selector** (story/carré/affiche) on Partager | L200–204 | New interactive format-switch; the app renders one canonical share card. Feature work. |
+| **« Partager sur WhatsApp »** deep-link | L219 | New share action (WhatsApp intent). Feature work. |
+| **« Voir comme cliente »** + **« Aperçu du lien » (OG)** | L220 · L235 | New view-as-client navigation + a separate OG-preview screen. Feature work. |
+| **Net-is-private line** on the share card | L216 | `ShareCard` carries **no net field** by SP-I03 leak-proof construction; surfacing the reseller's net needs a share-model change. Data-model + feature work. |
 
 ---
 
@@ -44,4 +48,4 @@ Founder ruling (Option A, 2026-07-15): "the 8 existing screens to frame anatomy;
 
 ---
 
-*Maintained per-view as the reskin proceeds. Views covered: 2 (Opportunités), 3 (Fiche→selection). Extended through view 8.*
+*Maintained per-view as the reskin proceeds. Views covered: 2 (Opportunités), 3 (Fiche→selection), 4 (Partager→lien). Extended through view 8.*

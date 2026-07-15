@@ -426,19 +426,32 @@ export default function App() {
                 never the supplier (SP-I03) — composeShareCard's type forbids it. */}
             <Card>
               <Overline>{t('share.og_titre')}</Overline>
+              {/* the duotone art-tile hero — the banner the client sees first
+                  (frame L206): soft field + gold keyline + product initial. */}
+              <View style={styles.shareHero}>
+                <View style={styles.artTileStripe} />
+                <Text style={styles.shareHeroGlyph}>{shareCard.productName.slice(0, 1)}</Text>
+              </View>
+              {/* her name + vérifié (frame L208) — the ownable badge language */}
+              <View style={styles.shareShopRow}>
+                <Text style={styles.shareShopName} numberOfLines={1}>{shareCard.resellerName}</Text>
+                <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
+              </View>
               <Text style={styles.cardTitle}>{shareCard.productName}</Text>
-              <Text style={styles.ogPrice}>
+              {/* HER price — the big confident figure the client sees (frame L210,
+                  Bricolage 800 deep tnum). Never the net, never a commission (SP-I03). */}
+              <Text style={styles.shareHeroPrice}>
                 {tf('share.prix', { amount: formatFcfa(shareCard.priceFcfa) })}
               </Text>
-              <View style={styles.ogBadgeRow}>
-                <StatusChip tone="ok" label={t('share.livre_sera')} />
-              </View>
-              <Text style={styles.ogSigned}>{t('share.og_signe')}</Text>
               {/* WO-7.2a — the price-validity hint (« pied de carte »): which
                   day's price this card shows; the link stays the truth (SP-I19). */}
               <Text style={styles.ogValidite}>
                 {tf('share.validite', { date: shareCard.priceValidityDate })}
               </Text>
+              <View style={styles.ogBadgeRow}>
+                <StatusChip tone="ok" label={t('share.livre_sera')} />
+              </View>
+              <Text style={styles.ogSigned}>{t('share.og_signe')}</Text>
             </Card>
 
             {/* The signed PRODUCT link — the one she sends; the live price/stock
@@ -773,13 +786,19 @@ const styles = StyleSheet.create({
   rowChosen: { borderColor: shopColour.primary, borderWidth: interaction.hairline.strong },
   astuceCard: { backgroundColor: shopColour.soft, borderRadius: radius.tile, padding: spacing.lg },
   astuceText: { color: shopColour.deep, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
-  ogPrice: {
-    color: shopColour.deep,
-    fontFamily: DISPLAY_FAMILY,
-    fontSize: t2.scale.cardMoney.size,
-    fontWeight: w(t2.scale.cardMoney.wght),
-    fontVariant: ['tabular-nums'],
+  // ── PARTAGER frame (planche L193–236) — the hero share-card ──
+  shareHero: {
+    height: touch.minTargetPx * 2 + spacing.xxl,
+    borderRadius: rmax(radius.art),
+    backgroundColor: shopColour.soft,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  shareHeroGlyph: { color: shopColour.deep, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.heroMoney.size), fontWeight: w(t2.scale.heroMoney.wght) },
+  shareShopRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  shareShopName: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.caps.size), fontWeight: w(t2.scale.caps.wght), textTransform: 'uppercase' },
+  shareHeroPrice: { color: shopColour.deep, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.heroMoney.size), fontWeight: w(t2.scale.heroMoney.wght), fontVariant: ['tabular-nums'] },
   ogBadgeRow: { flexDirection: 'row', paddingTop: spacing.xs },
   ogSigned: {
     color: sharedColour.sub,
