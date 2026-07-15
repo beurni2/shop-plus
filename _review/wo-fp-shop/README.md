@@ -1,8 +1,27 @@
 # WO-FP-SHOP — Faso Premium reskin of the reseller app · REVIEW PACKET
 
-**Branch:** `e7/wo-fp-shop` · **head:** `376f145` · **base:** `ce75029` (STEP 1 re-pin) · **DO NOT MERGE** (founder review gate).
+**Branch:** `e7/wo-fp-shop` · **head:** `5384a37` · **base:** `ce75029` (STEP 1 re-pin) · **DO NOT MERGE** (founder review gate).
 
 The reseller surface (Shop+, Aïcha) migrated from Grand Teint to **Faso Premium v2**: the fonts, the design tokens, a signature module, the seven motions, and the state families — the existing 8 screens only, no gated work.
+
+---
+
+## THE 8-VIEW FRAME REBUILD (Option A) — all 8 rebuilt to their planche frames
+
+After the on-device recolor rejection, every view was **rebuilt to its frame** in « Shop Plus - Redesign.dc.html » (Option A: the 8 existing screens to frame anatomy; unbuilt frames + search/filters + margin slider = logged backlog). Each carries a **grep-evidence-per-row anatomy derivation** (`anatomy/*.md`, every quoted element cited to a SHOP planche line + BOUTIK cross-check) and an **Ecrans cross-check** (« Shop Plus - Ecrans.dc.html » frames 01–08/16).
+
+| # | View (frame) | Derivation |
+|---|---|---|
+| 1 | ACCUEIL (L54–110) | `anatomy/accueil.md` |
+| 2 | OPPORTUNITÉS (L110–138) | `anatomy/opportunites.md` |
+| 3 | FICHE → `selection` (L140–191) | `anatomy/selection.md` |
+| 4 | PARTAGER → `lien` (L193–236) | `anatomy/lien.md` |
+| 5 | VITRINE (L239–267) | `anatomy/vitrine.md` |
+| 6 | VENTES (L270–305) | `anatomy/ventes.md` |
+| 7 | DÉTAIL VENTE → `vente_detail` (L308–355) | `anatomy/vente_detail.md` |
+| 8 | GAINS (L641–677) | `anatomy/gains.md` |
+
+The program's shared **duotone art-tile** DNA (soft field + gold keyline + product initial, §8 — never emoji) replaces the rejected letter-chips across every product surface. Money stays **net-first** throughout; the frames' gross « Gain brut » / « Frais Ma Boutique » lines are barred (Law #1/#10), and everything beyond the 8 screens is catalogued in **`SHOP-FULL-EXPERIENCE-backlog.md`**. Fonts render **Bricolage** on the built bytes (render-name guard green, faces bundled in the EAS export).
 
 ---
 
