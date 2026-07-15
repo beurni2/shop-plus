@@ -8,8 +8,9 @@
 export type Screen =
   | 'accueil'
   | 'opportunites'
-  | 'selection'
+  | 'fiche'
   | 'vitrine'
+  | 'pubvitrine'
   | 'lien'
   | 'gains'
   | 'ventes'
@@ -20,9 +21,12 @@ export const START: Screen = 'accueil';
 /** Forward edges only — « Retour » pops the stack and is always available. */
 export const JOURNEY: Record<Screen, readonly Screen[]> = {
   accueil: ['opportunites', 'gains', 'ventes'],
-  opportunites: ['selection'],
-  selection: ['vitrine'],
-  vitrine: ['lien'],
+  // WO-VITRINE-FLOW — Opportunités → Fiche (single product, add to vitrine) →
+  // Ma vitrine → Partager. « Vitrine publique » is the aperçu-cliente target.
+  opportunites: ['fiche'],
+  fiche: ['vitrine'],
+  vitrine: ['lien', 'pubvitrine'],
+  pubvitrine: [],
   lien: ['gains'],
   gains: ['opportunites'],
   // WO-7.2a — S7: « Mes ventes » (the sales list) → a sale's detail.

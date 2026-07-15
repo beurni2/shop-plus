@@ -42,12 +42,14 @@ describe('WO-FP-SHOP states-law — every existing rendered state survives the r
   });
 
   it('SELECTION — chosen ⇄ unchosen (the signature swap + accent frame, driven by isSelected)', () => {
+    // WO-VITRINE-FLOW: the ≤3 select-to-feature re-homes to PARTAGER — same
+    // machinery (isSelected + the signature swap + corner ticks), new home.
     expect(app).toMatch(/const chosen = isSelected\(world, item\.id\)/);
     expect(app).toMatch(/<SelectionSwap selected=\{chosen\}/);
     expect(app).toMatch(/<CornerTicks show=\{chosen\}/);
-    // the empty selection surface is honest too — the vitrine shows an EmptyState
-    // when nothing is chosen (selection.length === 0), never a blank screen.
-    expect(app).toMatch(/selection\.length === 0 \? \(/);
+    // the empty vitrine surface is honest too — an EmptyState when the seam's
+    // live listings are empty (vitrineOpps.length === 0), never a blank screen.
+    expect(app).toMatch(/vitrineOpps\.length === 0 \? \(/);
   });
 
   it('TIMELINE — done · now · later custody phases all render (S7 detail)', () => {

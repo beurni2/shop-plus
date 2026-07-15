@@ -127,7 +127,7 @@
   },
   {
     "key": "vitrine.title",
-    "fr": "Aperçu de ma vitrine",
+    "fr": "Ma vitrine",
     "register": "neutral",
     "screenClass": "label"
   },
@@ -145,13 +145,13 @@
   },
   {
     "key": "vitrine.action",
-    "fr": "Créer mon lien de vente",
+    "fr": "Partager ma vitrine",
     "register": "neutral",
     "screenClass": "label"
   },
   {
     "key": "lien.title",
-    "fr": "Votre lien est prêt",
+    "fr": "Partager",
     "register": "selling",
     "screenClass": "label"
   },
@@ -632,6 +632,228 @@
   {
     "key": "accueil.zone",
     "fr": "Gounghin",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "fiche.title",
+    "fr": "Opportunité",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "fiche.tier",
+    "fr": "Vendeur vérifié",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "fiche.identity_note",
+    "fr": "Vous vendez sous votre vitrine. Le nom du vendeur n'est jamais montré à la cliente.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "fiche.marge_titre",
+    "fr": "Votre marge",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "fiche.plafond",
+    "fr": "Plafond : 20 % du prix de base ({amount}). Il protège la confiance des clientes.",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "fiche.ligne_commission",
+    "fr": "Commission du vendeur",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "fiche.ligne_brut",
+    "fr": "Gain brut",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "fiche.ligne_part",
+    "fr": "Part Shop+ (20 %)",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "fiche.prix_client",
+    "fr": "Prix affiché à la cliente",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "fiche.livraison_note",
+    "fr": "Livraison dès 1 000 F, payée par la cliente.",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "fiche.plus",
+    "fr": "+ {amount}",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "fiche.moins",
+    "fr": "− {amount}",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "fiche.chip_inspection",
+    "fr": "Inspection à la porte",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "fiche.chip_refus",
+    "fr": "Refus justifié, cliente protégée",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "fiche.cta",
+    "fr": "Ajouter à ma vitrine",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "fiche.ajoutee_toast",
+    "fr": "Produit ajouté à votre vitrine",
+    "register": "selling",
+    "screenClass": "status"
+  },
+  {
+    "key": "vitrine.sous_titre",
+    "fr": "Les clientes voient votre vitrine, vos prix, votre nom. Jamais les vendeurs.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "vitrine.toggle_publique",
+    "fr": "Publique",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "vitrine.toggle_privee",
+    "fr": "Privée",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "vitrine.apercu_public",
+    "fr": "Aperçu public",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "vitrine.toast_publique",
+    "fr": "Votre boutique apparaît dans Découvrir",
+    "register": "selling",
+    "screenClass": "status"
+  },
+  {
+    "key": "vitrine.toast_privee",
+    "fr": "Vitrine privée — accessible par lien seulement",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "vitrine.tile_net",
+    "fr": "net {amount}",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "partager.choisir_titre",
+    "fr": "Mettez en avant jusqu'à 3 produits",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "partager.cap_note",
+    "fr": "3 produits maximum sur une carte",
+    "register": "neutral",
+    "screenClass": "status"
+  },
+  {
+    "key": "partager.compte",
+    "fr": "Choisis : {count} sur 3",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "partager.net_carte",
+    "fr": "Votre gain net sur cette carte : {amount}. Jamais visible par la cliente.",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "partager.copier",
+    "fr": "Copier le lien signé",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "partager.whatsapp",
+    "fr": "Partager sur WhatsApp",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "partager.facebook",
+    "fr": "Partager sur Facebook",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "partager.tiktok",
+    "fr": "Partager sur TikTok",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "partager.message",
+    "fr": "Ma vitrine Shop+ : {url}",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "pubvitrine.title",
+    "fr": "Aperçu — vue cliente",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "pubvitrine.lecture",
+    "fr": "Lecture seule",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "pubvitrine.zone",
+    "fr": "Gounghin, Ouagadougou — livraison Séra vérifiée et scellée",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "pubvitrine.ink_banner",
+    "fr": "Ce que la cliente ne voit jamais : les vendeurs, vos marges, vos gains. Vous êtes le visage de confiance.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "demo.build",
+    "fr": "Version {id}",
     "register": "neutral",
     "screenClass": "label"
   }

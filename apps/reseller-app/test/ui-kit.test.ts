@@ -131,13 +131,21 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
 
   it('net-first on the reseller rows (SP-I04/SP-I12): the net line renders before the customer price', () => {
     const app = read('App.tsx');
-    const opportunites = app.slice(app.indexOf("screen === 'opportunites'"), app.indexOf("screen === 'selection'"));
+    // Opportunités row: net before the customer price (WO-VITRINE-FLOW re-slices
+    // the block bound on the NEXT screen, « fiche », now that « selection » is gone).
+    const opportunites = app.slice(app.indexOf("screen === 'opportunites'"), app.indexOf("screen === 'fiche'"));
     const netAt = opportunites.indexOf("t('opportunity.net_label')");
     const priceAt = opportunites.indexOf("t('opportunity.customer_price_label')");
     expect(netAt).toBeGreaterThanOrEqual(0);
     expect(priceAt).toBeGreaterThan(netAt);
-    const selection = app.slice(app.indexOf("screen === 'selection'"), app.indexOf("screen === 'vitrine'"));
-    expect(selection).toContain("t('opportunity.net_label')");
+    // FICHE marge card: the reseller's net renders BEFORE the client price
+    // (« Votre gain net » is the strong figure; « Prix affiché à la cliente »
+    // follows) — the same net-first law on the single-product fiche.
+    const fiche = app.slice(app.indexOf("screen === 'fiche'"), app.indexOf("screen === 'vitrine'"));
+    const ficheNetAt = fiche.indexOf("t('opportunity.net_label')");
+    const ficheClientAt = fiche.indexOf("t('fiche.prix_client')");
+    expect(ficheNetAt).toBeGreaterThanOrEqual(0);
+    expect(ficheClientAt).toBeGreaterThan(ficheNetAt);
     // the kit's row renders net before detail in source order
     const kit = read('src/ui/kit.tsx');
     const row = kit.slice(kit.indexOf('export function ListRow'), kit.indexOf('/* Button hierarchy'));
