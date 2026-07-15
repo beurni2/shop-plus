@@ -346,22 +346,36 @@ export default function App() {
               keyExtractor={(o) => o.id}
               initialNumToRender={6}
               windowSize={5}
+              showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.listContent}
               renderItem={({ item }) => {
                 const chosen = isSelected(world, item.id);
+                const card = opportunityCard(item);
                 return (
-                  // the corner ticks frame the chosen row — an accent overlay that
-                  // shifts no layout (signature module); the swap is the affordance.
+                  // The Fiche frame's product DNA on a multi-select row: the
+                  // duotone art-tile + Bricolage name + NET-FIRST money (Fiche
+                  // L149/L150/L176). The corner ticks frame the chosen row
+                  // (accent overlay, no layout shift); the swap is the affordance.
+                  // Fiche's single-product hero, MARGIN SLIDER, and gross
+                  // waterfall are Option-A backlog (see anatomy derivation).
                   <View style={styles.selectFrame}>
-                    <ListRow
-                      glyph={item.name.slice(0, 1)}
-                      title={item.name}
-                      meta={chosen ? t('selection.choisi') : t('selection.ajouter')}
-                      net={`${t('opportunity.net_label')} : ${formatFcfa(opportunityCard(item).netFcfa)}`}
-                      chip={<SelectionSwap selected={chosen} />}
-                      selected={chosen}
+                    <Pressable
+                      style={({ pressed }) => [styles.oppRow, chosen && styles.rowChosen, pressed && styles.pressed]}
                       onPress={() => setWorld(toggleSelection(world, item.id))}
-                    />
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: chosen }}
+                    >
+                      <View style={styles.oppArtTile}>
+                        <View style={styles.artTileStripe} />
+                        <Text style={styles.artTileGlyph}>{item.name.slice(0, 1)}</Text>
+                      </View>
+                      <View style={styles.homeSaleBody}>
+                        <Text style={styles.homeSaleTitle} numberOfLines={1}>{item.name}</Text>
+                        <Text style={styles.homeSaleSub} numberOfLines={1}>{chosen ? t('selection.choisi') : t('selection.ajouter')}</Text>
+                        <Text style={styles.oppNet}>{`${t('opportunity.net_label')} : ${formatFcfa(card.netFcfa)}`}</Text>
+                      </View>
+                      <SelectionSwap selected={chosen} />
+                    </Pressable>
                     <CornerTicks show={chosen} />
                   </View>
                 );
@@ -755,6 +769,8 @@ const styles = StyleSheet.create({
   // Net-forward money line (SP-I04/I12 net-first) — deep, bold, tabular.
   oppNet: { color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght), fontVariant: ['tabular-nums'] },
   oppPrice: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
+  // « Ma sélection » chosen-row accent (mirrors the kit rowSelected border).
+  rowChosen: { borderColor: shopColour.primary, borderWidth: interaction.hairline.strong },
   astuceCard: { backgroundColor: shopColour.soft, borderRadius: radius.tile, padding: spacing.lg },
   astuceText: { color: shopColour.deep, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   ogPrice: {
