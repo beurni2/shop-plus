@@ -33,7 +33,8 @@ const manifest = JSON.parse(
   faces: { file: string; family: string; weight: number; bytes: number; sha256: string; codepoints: number[] }[];
 };
 
-// The four canon-declared faces this surface ships, from the DATA module.
+// The six shared faces this surface ships, from the DATA module (display 700/800
+// + text 400/500/600/700 — the founder's range ruling, WO-FP-PWA STEP 0).
 const declared = [
   ...Object.entries(DISPLAY_WEIGHTS).map(([w, f]) => ({ family: DISPLAY_FAMILY, weight: Number(w), file: f })),
   ...Object.entries(TEXT_WEIGHTS).map(([w, f]) => ({ family: TEXT_FAMILY, weight: Number(w), file: f })),
@@ -60,20 +61,24 @@ for (const ch of catalogText) {
 }
 
 describe('Faso Premium fonts — money-render / cmap guard (RN surface)', () => {
-  it('ships exactly the four canon-declared faces (display 700/800 · text 400/700)', () => {
+  it('ships the six shared faces (display 700/800 · text 400/500/600/700 — the range ruling)', () => {
     expect(manifest.flavor).toBe('ttf');
-    expect(manifest.faces).toHaveLength(4);
+    expect(manifest.faces).toHaveLength(6);
     const key = (x: { family: string; weight: number }) => `${x.family} ${x.weight}`;
     expect(new Set(manifest.faces.map(key))).toEqual(
       new Set([
         `${DISPLAY_FAMILY} 700`,
         `${DISPLAY_FAMILY} 800`,
         `${TEXT_FAMILY} 400`,
+        `${TEXT_FAMILY} 500`,
+        `${TEXT_FAMILY} 600`,
         `${TEXT_FAMILY} 700`,
       ]),
     );
-    // No stray weights (e.g. Instrument 500/600 that the canon token does not declare).
-    expect(manifest.faces.some((f) => f.family === TEXT_FAMILY && (f.weight === 500 || f.weight === 600))).toBe(false);
+    // Instrument 500 + 600 ARE present (founder ruling 2026-07-14: [400,700] is a
+    // range endpoint, not an exhaustive list; 600 backs the reconcile whisper).
+    expect(manifest.faces.some((f) => f.family === TEXT_FAMILY && f.weight === 500)).toBe(true);
+    expect(manifest.faces.some((f) => f.family === TEXT_FAMILY && f.weight === 600)).toBe(true);
   });
 
   it('the DATA module and the manifest describe the same four asset files', () => {

@@ -35,9 +35,11 @@ export const DISPLAY_FAMILY = 'Bricolage Grotesque';
 /** The text family the canon locks (fasoPremium type.families.text.name). */
 export const TEXT_FAMILY = 'Instrument Sans';
 
-/** The bold text face, loaded under its OWN family key. On low-end Android a
- * custom family carries a single weight, so 700 text must name a distinct
- * loaded face — never a synthesised faux-bold (STEP 0's distinct name-tables). */
+/** The mid + bold text faces, each loaded under its OWN family key. On low-end
+ * Android a custom family carries a single weight, so 500/600/700 text must name
+ * a distinct loaded face — never a synthesised faux-weight (distinct name-tables). */
+export const TEXT_FAMILY_MEDIUM = 'Instrument Sans Medium';
+export const TEXT_FAMILY_SEMIBOLD = 'Instrument Sans SemiBold';
 export const TEXT_FAMILY_BOLD = 'Instrument Sans Bold';
 
 /** The fallback that paints before the faces resolve. On RN this is the
@@ -50,9 +52,15 @@ export const DISPLAY_WEIGHTS = {
   800: 'Bricolage-ExtraBold.ttf',
 } as const;
 
-/** Text weights → bundled asset files (canon: [400, 700]). */
+/** Text weights → bundled asset files. FOUNDER RULING (2026-07-14): the canon
+ * `text.weights: [400, 700]` is an ENDPOINT ARRAY OF A RANGE (400→700), so 500 +
+ * 600 ship in the shared font layer (WO-FP-PWA STEP 0) — 600 backs the reconcile
+ * whisper. (A canon $note question is journaled: the encoding should say range vs
+ * list.) */
 export const TEXT_WEIGHTS = {
   400: 'Instrument-Regular.ttf',
+  500: 'Instrument-Medium.ttf',
+  600: 'Instrument-SemiBold.ttf',
   700: 'Instrument-Bold.ttf',
 } as const;
 

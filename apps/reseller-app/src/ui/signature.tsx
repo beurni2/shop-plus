@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, interaction, band, money, dimension } from '@platform/ui-tokens/legacy';
-import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './faso-fonts';
+import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_SEMIBOLD, TEXT_FAMILY_BOLD } from './faso-fonts';
 import { IconCoche } from './icons';
 
 /**
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   },
   heroLedgerRule: {
     color: sharedColour.sub,
-    fontFamily: TEXT_FAMILY,
+    fontFamily: TEXT_FAMILY_SEMIBOLD,
     fontSize: money.reconcileLine.size,
     fontWeight: String(money.reconcileLine.wght) as '600',
     letterSpacing: money.reconcileLine.ls,
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   quoteHairline: { height: interaction.hairline.medium, backgroundColor: sharedColour.hairlineStrong },
   quoteRuleLine: {
     color: sharedColour.sub,
-    fontFamily: TEXT_FAMILY,
+    fontFamily: TEXT_FAMILY_SEMIBOLD,
     fontSize: money.reconcileLine.size,
     fontWeight: String(money.reconcileLine.wght) as '600',
     letterSpacing: money.reconcileLine.ls,

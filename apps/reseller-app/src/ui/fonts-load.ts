@@ -1,4 +1,4 @@
-import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './faso-fonts';
+import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_SEMIBOLD, TEXT_FAMILY_BOLD } from './faso-fonts';
 
 /**
  * WO-FP-SHOP — the expo-font load map for the reseller surface. ISOLATED here
@@ -15,5 +15,9 @@ import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './faso-fonts';
 export const FONTS_TO_LOAD = {
   [DISPLAY_FAMILY]: require('../../assets/fonts/Bricolage-ExtraBold.ttf') as number,
   [TEXT_FAMILY]: require('../../assets/fonts/Instrument-Regular.ttf') as number,
+  // 600 backs the reconcile whisper (WO-FP-PWA STEP 0 forward-fix); 500 ships in
+  // the shared assets for the PWA but the reseller doesn't render it, so it is
+  // not loaded here (a face you don't draw is RAM you don't spend on a 1 GB phone).
+  [TEXT_FAMILY_SEMIBOLD]: require('../../assets/fonts/Instrument-SemiBold.ttf') as number,
   [TEXT_FAMILY_BOLD]: require('../../assets/fonts/Instrument-Bold.ttf') as number,
 } as const;

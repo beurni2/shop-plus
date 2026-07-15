@@ -6,11 +6,18 @@ weights the canon `fasoPremium type.families` declares (ui-tokens v1.0.0). The
 RN surface embeds the **.ttf**; the buyer PWA embeds the **.woff2** — same faces,
 two flavours. Licenses ship alongside as `OFL-*.txt`.
 
-## The four faces — and only four
+## The six shared faces
 
 `type.families` declares: display **Bricolage Grotesque** [700, 800], text
-**Instrument Sans** [400, 700]. Those four ship. Instrument 500/600 are **not**
-in the canon token, so they are **not** built (derive-never-invent).
+**Instrument Sans** [400, 700]. **Founder ruling (2026-07-14):** the text
+`[400, 700]` is an ENDPOINT ARRAY OF A RANGE (400→700), so **Instrument 500 + 600
+ship** (WO-FP-PWA STEP 0) — 600 backs the reconcile whisper. Display stays
+[700, 800] (Bricolage; the scale uses 800, 700 declared). A canon `$note` encoding
+question is journaled (the token should say range vs exhaustive list).
+
+The reseller app LOADS Bricolage 800 + Instrument 400/600/700 (600 for the whisper);
+Instrument 500 ships in the shared assets for the PWA but the reseller doesn't render
+it, so it is embedded-not-loaded here.
 
 ## Sources
 - **Bricolage Grotesque** variable — © 2022 The Bricolage Grotesque Project Authors, OFL 1.1
@@ -44,6 +51,8 @@ money-render guard deriving its charset from the real catalog.)
 - **Bricolage-Bold.ttf** (700) — 51948 B · sha256 `88c35a0a95f42bb54d50dc9a20cfd1769dfa39739319bdeb1efd237dd987ed60`
 - **Bricolage-ExtraBold.ttf** (800) — 51932 B · sha256 `3211763e0a903ff8f7af0e2429d71e0d6da5c1616c2bbb15f7aaf04b5605f776`
 - **Instrument-Regular.ttf** (400) — 45308 B · sha256 `5d93105b90928a7a978a3fb04397632d888f5130dffab1600c993c74635d9438`
+- **Instrument-Medium.ttf** (500) — 45420 B · sha256 `f50da88f7b00921eeda8cbebc1f7a0342a192802f9e83a2269281848a423855e`
+- **Instrument-SemiBold.ttf** (600) — 45436 B · sha256 `354c9212d3e7854c77e3322ae47f0fbb806cf8a796989d9c72d9b416223a6a72`
 - **Instrument-Bold.ttf** (700) — 45444 B · sha256 `b61b535075683ef91b34a2824b7d69a8f006409e4c297dbcc7f39df97b4c43e9`
 
 The buyer PWA woff2 shas + payload budget are in
