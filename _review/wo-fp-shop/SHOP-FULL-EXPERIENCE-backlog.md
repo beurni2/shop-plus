@@ -38,6 +38,9 @@ Founder ruling (Option A, 2026-07-15): "the 8 existing screens to frame anatomy;
 | **« net {netF} »** on vitrine tiles | L261 | The app's `vitrine` is a client-preview (no net by SP-I03-aligned design); net-on-tiles is the *Ma vitrine* private-view behaviour. Feature work (private-vitrine mode). |
 | **« Simuler l'étape suivante » (démo)** on Détail vente | L348 | A demo step-simulator (interactive). Feature work. |
 | **« Contacter la cliente » + « Assistance »** on Détail vente | L351–352 | New call/assistance actions. Feature work. |
+| **« Payé cette semaine »** split on Gains | L651 | No paid-this-week data (the app's total is pending/expected net). Data + feature work. |
+| **Bonus card** « Bonus 5 premières ventes » + progress on Gains | L655–662 | A launch-bonus feature (data + progress bar) the app doesn't have. Feature work. |
+| **Per-sale `gainRows`** breakdown on Gains | L665–675 | The app shows the aggregate breakdown; per-order rows are a granularity change. Feature work. |
 
 ---
 
@@ -53,4 +56,4 @@ Founder ruling (Option A, 2026-07-15): "the 8 existing screens to frame anatomy;
 
 ---
 
-*Maintained per-view as the reskin proceeds. Views covered: 2 (Opportunités), 3 (Fiche→selection), 4 (Partager→lien), 5 (Vitrine), 6 (Ventes), 7 (Détail vente). Extended through view 8.*
+*Maintained per-view as the reskin proceeds. Views covered: 2 (Opportunités), 3 (Fiche→selection), 4 (Partager→lien), 5 (Vitrine), 6 (Ventes), 7 (Détail vente), 8 (Gains) — ALL 8 REBUILT.*

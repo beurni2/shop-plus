@@ -180,6 +180,12 @@
     "screenClass": "label"
   },
   {
+    "key": "gains.sous_titre",
+    "fr": "Toujours en net — versé sur votre Mobile Money.",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
     "key": "gains.total_label",
     "fr": "Votre gain net (essai)",
     "register": "money",

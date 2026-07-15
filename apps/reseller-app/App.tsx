@@ -145,7 +145,8 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
   selection: 'selection.title',
   vitrine: 'vitrine.title',
   lien: 'lien.title',
-  gains: 'gains.title',
+  // Hub — brand in the header; the big « Gains » title lands in-content (frame L644).
+  gains: 'app.title',
   ventes: 'ventes.titre',
   vente_detail: 'vente.titre',
 };
@@ -532,12 +533,20 @@ export default function App() {
         )}
 
         {screen === 'gains' && (
-          <View style={styles.stackGap}>
-            <Card>
+          <ScrollView contentContainerStyle={styles.hubScroll} showsVerticalScrollIndicator={false}>
+            {/* Title (Bricolage 800/28, in-content) + net/Mobile-Money subtitle
+                (frame L644–645); the header chrome shows the brand (hub). */}
+            <Text style={styles.screenTitle}>{t('gains.title')}</Text>
+            <Text style={styles.oppSub}>{t('gains.sous_titre')}</Text>
+            {/* Accent pending hero (frame L646) — the net « en majesté » on magenta.
+                CountUpAmount stays the count-up hero (money-law clock); onAccent
+                themes it light on the accent card. */}
+            <Card style={styles.gainsHeroCard}>
               <CountUpAmount
                 label={t('gains.total_label')}
                 amount={totals.netFcfa}
                 template={t('money.amount_f')}
+                onAccent
               />
             </Card>
             <Card>
@@ -555,7 +564,7 @@ export default function App() {
             </Card>
             <Text style={styles.noteLine}>{t('gains.suite')}</Text>
             <SecondaryButton label={t('opportunites.title')} onPress={() => go('opportunites')} />
-          </View>
+          </ScrollView>
         )}
 
         {screen === 'ventes' && (
@@ -848,6 +857,8 @@ const styles = StyleSheet.create({
   shareHeroPrice: { color: shopColour.deep, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.heroMoney.size), fontWeight: w(t2.scale.heroMoney.wght), fontVariant: ['tabular-nums'] },
   // ── VITRINE frame (planche L239–267) — in-content header (title + name + vérifié) ──
   vitrineHead: { gap: spacing.xs },
+  // ── GAINS frame (planche L641–677) — the accent pending hero (magenta card) ──
+  gainsHeroCard: { backgroundColor: shopColour.primary, borderColor: shopColour.primary },
   ogBadgeRow: { flexDirection: 'row', paddingTop: spacing.xs },
   ogSigned: {
     color: sharedColour.sub,

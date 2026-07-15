@@ -233,11 +233,21 @@ export function GhostButton({ label, onPress }: { label: string; onPress: () => 
 
 /* « L'argent en majesté »: the FCFA amount as the hero of its screen —
  * heroMoney (Bricolage 800), tabular numerals. */
-export function AmountHero({ label, amount }: { label?: string | undefined; amount: string }) {
+export function AmountHero({
+  label,
+  amount,
+  onAccent,
+}: {
+  label?: string | undefined;
+  amount: string;
+  onAccent?: boolean | undefined;
+}) {
   return (
     <View style={styles.amountHeroBlock}>
-      {label !== undefined && <Text style={styles.amountHeroLabel}>{label}</Text>}
-      <Text style={styles.amountHero}>{amount}</Text>
+      {label !== undefined && (
+        <Text style={onAccent === true ? styles.amountHeroLabelAccent : styles.amountHeroLabel}>{label}</Text>
+      )}
+      <Text style={onAccent === true ? styles.amountHeroAccent : styles.amountHero}>{amount}</Text>
     </View>
   );
 }
@@ -251,10 +261,12 @@ export function CountUpAmount({
   label,
   amount,
   template,
+  onAccent,
 }: {
   label?: string | undefined;
   amount: number;
   template: string;
+  onAccent?: boolean | undefined;
 }) {
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(0);
@@ -278,7 +290,7 @@ export function CountUpAmount({
       anim.stop();
     };
   }, [amount, reduced, progress]);
-  return <AmountHero label={label} amount={template.replace('{amount}', shown.toLocaleString('fr-FR'))} />;
+  return <AmountHero label={label} amount={template.replace('{amount}', shown.toLocaleString('fr-FR'))} onAccent={onAccent} />;
 }
 
 /* Status chip (prototype pills): a dot + label on a calm wash — state is
@@ -509,6 +521,15 @@ const styles = StyleSheet.create({
   amountHeroLabel: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   amountHero: {
     color: shopColour.deep,
+    fontFamily: DISPLAY_FAMILY,
+    fontSize: rmax(t2.scale.heroMoney.size),
+    fontWeight: w(t2.scale.heroMoney.wght),
+    fontVariant: ['tabular-nums'],
+  },
+  // On-accent variant (the gains pending hero, frame L648–649 — light on magenta).
+  amountHeroLabelAccent: { color: shopColour.onPrimary, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  amountHeroAccent: {
+    color: shopColour.onPrimary,
     fontFamily: DISPLAY_FAMILY,
     fontSize: rmax(t2.scale.heroMoney.size),
     fontWeight: w(t2.scale.heroMoney.wght),
