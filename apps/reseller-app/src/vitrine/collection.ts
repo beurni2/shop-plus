@@ -68,6 +68,30 @@ export function capShareSelection(listingIds: readonly string[]): readonly strin
 }
 
 /**
+ * The demo fold — the RN stand-in for `projectStores`. A listing is live iff its
+ * last event is `published` (not `auto_hidden`); discoverable is the latest
+ * `storefront.published` value. Pure, so the class adapter and the App's
+ * React-state adapter share one fold (no drift). VITRINE-REAL-BACKING swaps this
+ * for the real `projectStores`.
+ */
+export function foldVitrine(events: readonly VitrineEvent[]): {
+  readonly live: readonly string[];
+  readonly discoverable: boolean;
+} {
+  const membership = new Map<string, boolean>();
+  let discoverable = false;
+  for (const e of events) {
+    if (e.type === 'listing.published') membership.set(e.listingId, true);
+    else if (e.type === 'listing.auto_hidden') membership.set(e.listingId, false);
+    else discoverable = e.discoverable;
+  }
+  return {
+    live: [...membership.entries()].filter(([, isLive]) => isLive).map(([id]) => id),
+    discoverable,
+  };
+}
+
+/**
  * The DEMO adapter — an in-memory `VitrineEvent` log + a minimal fold. The fold is
  * the RN stand-in for `projectStores` (VITRINE-REAL-BACKING swaps in the real one);
  * it applies the same two rules the real fold does: a listing is live iff its last
@@ -96,28 +120,16 @@ export class DemoVitrineCollection implements VitrineCollectionPort {
     this.log.push({ type: 'storefront.published', discoverable, at: this.now() });
   }
 
-  /** The demo fold — live membership from the event log (stand-in for projectStores). */
-  private live(): string[] {
-    const state = new Map<string, boolean>();
-    for (const e of this.log) {
-      if (e.type === 'listing.published') state.set(e.listingId, true);
-      else if (e.type === 'listing.auto_hidden') state.set(e.listingId, false);
-    }
-    return [...state.entries()].filter(([, isLive]) => isLive).map(([id]) => id);
-  }
-
   listings(): readonly VitrineListing[] {
-    return this.live().map((listingId) => ({ listingId }));
+    return foldVitrine(this.log).live.map((listingId) => ({ listingId }));
   }
 
   has(listingId: string): boolean {
-    return this.live().includes(listingId);
+    return foldVitrine(this.log).live.includes(listingId);
   }
 
   isDiscoverable(): boolean {
-    let discoverable = false;
-    for (const e of this.log) if (e.type === 'storefront.published') discoverable = e.discoverable;
-    return discoverable;
+    return foldVitrine(this.log).discoverable;
   }
 
   shareSlug(): string {
