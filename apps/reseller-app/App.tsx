@@ -223,7 +223,7 @@ export default function App() {
       <ScreenTransition screenKey={screen}>
       <View style={styles.content}>
         {screen === 'accueil' && (
-          <ScrollView contentContainerStyle={styles.homeScroll} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
             {/* Header — monogram · « Ma vitrine » + name + canon verified glyph + zone · « Comment ça marche » */}
             <View style={styles.homeHeader}>
               <View style={styles.monogram}>
@@ -305,13 +305,13 @@ export default function App() {
 
         {screen === 'opportunites' && (
           <FlatList
-            style={styles.listWrap}
+            style={styles.screenScroll}
             data={world.opportunities}
             keyExtractor={(o) => o.id}
             initialNumToRender={6}
             windowSize={5}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.oppListContent}
+            contentContainerStyle={styles.scrollList}
             ListHeaderComponent={
               // Frame L113–114 — the big screen title (Bricolage 800/28) lands
               // in-content; the net-first selling subtitle sits under it.
@@ -349,15 +349,15 @@ export default function App() {
         )}
 
         {screen === 'selection' && (
-          <View style={styles.listWrap}>
-            <Text style={styles.noteLine}>{t('selection.hint')}</Text>
-            <FlatList
+          <FlatList
+              style={styles.screenScroll}
               data={world.opportunities}
               keyExtractor={(o) => o.id}
               initialNumToRender={6}
               windowSize={5}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.listContent}
+              contentContainerStyle={styles.scrollList}
+              ListHeaderComponent={<Text style={styles.noteLine}>{t('selection.hint')}</Text>}
               renderItem={({ item }) => {
                 const chosen = isSelected(world, item.id);
                 const card = opportunityCard(item);
@@ -390,57 +390,74 @@ export default function App() {
                   </View>
                 );
               }}
-            />
-            <Text style={styles.noteLine}>
-              {tf('selection.compte', { count: String(world.selectedIds.length) })}
-            </Text>
-            <PrimaryButton label={t('selection.action')} onPress={() => go('vitrine')} />
-          </View>
+              ListFooterComponent={
+                <View style={styles.listFooter}>
+                  <Text style={styles.noteLine}>
+                    {tf('selection.compte', { count: String(world.selectedIds.length) })}
+                  </Text>
+                  <PrimaryButton label={t('selection.action')} onPress={() => go('vitrine')} />
+                </View>
+              }
+          />
         )}
 
+        {/* Header (« Aperçu de ma vitrine » 28/800 + name + vérifié, frame L244–245)
+            + note + button all live IN the scroll — the screen is the scroll surface. */}
         {screen === 'vitrine' && (
-          <View style={styles.listWrap}>
-            {/* Header — « Aperçu de ma vitrine » (Bricolage 800/28, in-content) +
-                name + vérifié (frame L244–245). The header chrome carries only
-                the back chip (headerTitle '' for vitrine). */}
-            <View style={styles.vitrineHead}>
-              <Text style={styles.screenTitle}>{t('vitrine.title')}</Text>
-              <View style={styles.homeSubRow}>
-                <Text style={styles.homeSubName} numberOfLines={1}>{DEMO_SHARE_IDENTITY.resellerName}</Text>
-                <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
+          selection.length === 0 ? (
+            <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
+              <View style={styles.vitrineHead}>
+                <Text style={styles.screenTitle}>{t('vitrine.title')}</Text>
+                <View style={styles.homeSubRow}>
+                  <Text style={styles.homeSubName} numberOfLines={1}>{DEMO_SHARE_IDENTITY.resellerName}</Text>
+                  <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
+                </View>
               </View>
-            </View>
-            <Text style={styles.noteLine}>{t('vitrine.note')}</Text>
-            {selection.length === 0 ? (
+              <Text style={styles.noteLine}>{t('vitrine.note')}</Text>
               <EmptyState
                 glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />}
                 title={t('vitrine.vide')}
               />
-            ) : (
-              <FlatList
-                data={selection}
-                keyExtractor={(o) => o.id}
-                numColumns={2}
-                columnWrapperStyle={styles.gridRow}
-                initialNumToRender={6}
-                windowSize={5}
-                contentContainerStyle={styles.listContent}
-                renderItem={({ item }) => (
-                  // the duotone tile (signature module): a two-tone crown carrying
-                  // the glyph over the client price — « prix client » only, never net.
-                  <DuotoneTile glyph={item.name.slice(0, 1)} style={styles.gridTile}>
-                    <Text style={styles.tileName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={styles.tilePrice}>{formatFcfa(opportunityCard(item).customerPriceFcfa)}</Text>
-                  </DuotoneTile>
-                )}
-              />
-            )}
-            <PrimaryButton label={t('vitrine.action')} onPress={() => go('lien')} />
-          </View>
+              <PrimaryButton label={t('vitrine.action')} onPress={() => go('lien')} />
+            </ScrollView>
+          ) : (
+            <FlatList
+              style={styles.screenScroll}
+              data={selection}
+              keyExtractor={(o) => o.id}
+              numColumns={2}
+              columnWrapperStyle={styles.gridRow}
+              initialNumToRender={6}
+              windowSize={5}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollList}
+              ListHeaderComponent={
+                <View style={styles.scrollHead}>
+                  <View style={styles.vitrineHead}>
+                    <Text style={styles.screenTitle}>{t('vitrine.title')}</Text>
+                    <View style={styles.homeSubRow}>
+                      <Text style={styles.homeSubName} numberOfLines={1}>{DEMO_SHARE_IDENTITY.resellerName}</Text>
+                      <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
+                    </View>
+                  </View>
+                  <Text style={styles.noteLine}>{t('vitrine.note')}</Text>
+                </View>
+              }
+              renderItem={({ item }) => (
+                // the duotone tile (signature module): a two-tone crown carrying
+                // the glyph over the client price — « prix client » only, never net.
+                <DuotoneTile glyph={item.name.slice(0, 1)} style={styles.gridTile}>
+                  <Text style={styles.tileName} numberOfLines={1}>{item.name}</Text>
+                  <Text style={styles.tilePrice}>{formatFcfa(opportunityCard(item).customerPriceFcfa)}</Text>
+                </DuotoneTile>
+              )}
+              ListFooterComponent={<PrimaryButton label={t('vitrine.action')} onPress={() => go('lien')} />}
+            />
+          )
         )}
 
         {screen === 'lien' && (
-          <ScrollView contentContainerStyle={styles.hubScroll} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
             {/* The card PREVIEW — « ce que verra votre cliente » (SP-I19): her
                 product, HER price, « Livré par Séra », signed. No commission,
                 never the supplier (SP-I03) — composeShareCard's type forbids it. */}
@@ -533,7 +550,7 @@ export default function App() {
         )}
 
         {screen === 'gains' && (
-          <ScrollView contentContainerStyle={styles.hubScroll} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
             {/* Title (Bricolage 800/28, in-content) + net/Mobile-Money subtitle
                 (frame L644–645); the header chrome shows the brand (hub). */}
             <Text style={styles.screenTitle}>{t('gains.title')}</Text>
@@ -569,22 +586,23 @@ export default function App() {
 
         {screen === 'ventes' && (
           ventesRows.length === 0 ? (
-            <View style={styles.stackGap}>
+            <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
               <EmptyState
                 glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />}
                 title={t('ventes.vide_titre')}
                 hint={t('ventes.vide_hint')}
               />
               <PrimaryButton label={t('ventes.vide_action')} onPress={() => go('vitrine')} />
-            </View>
+            </ScrollView>
           ) : (
-            <View style={styles.listWrap}>
-              <FlatList
+            <FlatList
+                style={styles.screenScroll}
                 data={ventesRows}
                 keyExtractor={(r) => r.id}
                 initialNumToRender={6}
                 windowSize={5}
-                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollList}
                 renderItem={({ item }) => (
                   // Frame L294–303 — the sale row on the duotone art-tile; problem
                   // rows carry the danger border (frame L281, « les problèmes
@@ -615,14 +633,13 @@ export default function App() {
                     )}
                   </View>
                 )}
+                ListFooterComponent={<Text style={styles.noteLine}>{t('ventes.relais')}</Text>}
               />
-              <Text style={styles.noteLine}>{t('ventes.relais')}</Text>
-            </View>
           )
         )}
 
         {screen === 'vente_detail' && (
-          <View style={styles.stackGap}>
+          <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
             {/* Product card (frame L316–322) — the duotone art-tile, what was
                 sold and to whom (her client's first name; no zone in the model,
                 no seller ever). A static info card, not a control. */}
@@ -662,7 +679,7 @@ export default function App() {
                 ))}
               </View>
             </Card>
-          </View>
+          </ScrollView>
         )}
       </View>
       </ScreenTransition>
@@ -689,13 +706,17 @@ export default function App() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: sharedColour.paper },
-  content: {
-    flex: 1,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    gap: spacing.md,
-  },
-  stackGap: { gap: spacing.md, paddingTop: spacing.sm },
+  content: { flex: 1 },
+  // FULL-BLEED SCROLL (founder ruling — the « small window » defect): the screen
+  // IS the scroll surface (flex:1, edge-to-edge under the chrome); the padding
+  // lives in the scroll CONTENT and footers scroll with it. No nested scroll
+  // container, no fixed sub-region.
+  screenScroll: { flex: 1 },
+  scrollBody: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.md },
+  scrollList: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.sm },
+  // In-scroll header/footer wrappers (list screens) — spacing lives with the content.
+  scrollHead: { gap: spacing.md, paddingBottom: spacing.sm },
+  listFooter: { gap: spacing.md, paddingTop: spacing.sm },
   statGrid: { flexDirection: 'row', gap: spacing.md },
   statCard: { flex: 1 },
   statValue: {
@@ -705,9 +726,6 @@ const styles = StyleSheet.create({
     fontWeight: w(t2.scale.screen.wght),
     fontVariant: ['tabular-nums'],
   },
-  listWrap: { flex: 1, gap: spacing.md },
-  listContent: { gap: spacing.sm, paddingBottom: spacing.sm },
-  hubScroll: { gap: spacing.md, paddingBottom: spacing.lg },
   // selection frame — the corner-tick overlay sits over the row (no layout shift)
   selectFrame: { position: 'relative' },
   // « Ma vitrine » two-up duotone grid
@@ -723,7 +741,6 @@ const styles = StyleSheet.create({
   },
   // ── ACCUEIL frame (planche L54–110) — sizes snap to the v2 type scale (token fidelity). ──
   pressed: { opacity: interaction.pressedOpacity, transform: [{ scale: interaction.pressScale }] },
-  homeScroll: { gap: spacing.md, paddingBottom: spacing.xxl },
   homeHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   monogram: {
     width: spacing.xl + spacing.lg,
@@ -810,7 +827,6 @@ const styles = StyleSheet.create({
   screenTitle: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.screen.size, fontWeight: w(t2.scale.screen.wght) },
   oppHead: { gap: spacing.xs, paddingBottom: spacing.md },
   oppSub: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
-  oppListContent: { gap: spacing.sm, paddingBottom: spacing.xxl },
   oppRow: {
     flexDirection: 'row',
     alignItems: 'center',
