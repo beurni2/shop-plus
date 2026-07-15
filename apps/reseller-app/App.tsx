@@ -42,7 +42,6 @@ import {
   Card,
   CountUpAmount,
   EmptyState,
-  ListRow,
   Overline,
   PrimaryButton,
   ScreenTransition,
@@ -578,15 +577,26 @@ export default function App() {
                 windowSize={5}
                 contentContainerStyle={styles.listContent}
                 renderItem={({ item }) => (
+                  // Frame L294–303 — the sale row on the duotone art-tile; problem
+                  // rows carry the danger border (frame L281, « les problèmes
+                  // d'abord »). Net stays on the row (net-first, ventes-row gate).
                   <View style={styles.venteRowGroup}>
-                    <ListRow
-                      glyph={item.clientFirstName.slice(0, 1)}
-                      title={item.clientFirstName}
-                      meta={item.productName}
-                      net={tf('ventes.net_ligne', { amount: formatFcfa(item.netFcfa) })}
-                      chip={<StatusChip tone={chipTone(item)} label={t(item.statusKey)} />}
+                    <Pressable
+                      style={({ pressed }) => [styles.oppRow, item.status === 'probleme' && styles.rowProbleme, pressed && styles.pressed]}
                       onPress={() => go('vente_detail')}
-                    />
+                      accessibilityRole="button"
+                    >
+                      <View style={styles.artTile}>
+                        <View style={styles.artTileStripe} />
+                        <Text style={styles.artTileGlyph}>{item.clientFirstName.slice(0, 1)}</Text>
+                      </View>
+                      <View style={styles.homeSaleBody}>
+                        <Text style={styles.homeSaleTitle} numberOfLines={1}>{item.clientFirstName}</Text>
+                        <Text style={styles.homeSaleSub} numberOfLines={1}>{item.productName}</Text>
+                        <Text style={styles.oppNet}>{tf('ventes.net_ligne', { amount: formatFcfa(item.netFcfa) })}</Text>
+                      </View>
+                      <StatusChip tone={chipTone(item)} label={t(item.statusKey)} />
+                    </Pressable>
                     {item.status === 'probleme' && (
                       <Card style={styles.problemeEncart}>
                         <Text style={styles.message}>{t('ventes.probleme_encart')}</Text>
@@ -804,6 +814,8 @@ const styles = StyleSheet.create({
   oppPrice: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
   // « Ma sélection » chosen-row accent (mirrors the kit rowSelected border).
   rowChosen: { borderColor: shopColour.primary, borderWidth: interaction.hairline.strong },
+  // « Les problèmes d'abord » (frame L281) — the danger border on a problem row.
+  rowProbleme: { borderColor: sharedColour.dangerBorder, borderWidth: interaction.hairline.strong },
   astuceCard: { backgroundColor: shopColour.soft, borderRadius: radius.tile, padding: spacing.lg },
   astuceText: { color: shopColour.deep, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   // ── PARTAGER frame (planche L193–236) — the hero share-card ──

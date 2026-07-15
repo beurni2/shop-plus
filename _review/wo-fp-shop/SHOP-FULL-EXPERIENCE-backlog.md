@@ -50,4 +50,4 @@ Founder ruling (Option A, 2026-07-15): "the 8 existing screens to frame anatomy;
 
 ---
 
-*Maintained per-view as the reskin proceeds. Views covered: 2 (Opportunités), 3 (Fiche→selection), 4 (Partager→lien), 5 (Vitrine). Extended through view 8.*
+*Maintained per-view as the reskin proceeds. Views covered: 2 (Opportunités), 3 (Fiche→selection), 4 (Partager→lien), 5 (Vitrine), 6 (Ventes). Extended through view 8.*
