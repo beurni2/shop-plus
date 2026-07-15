@@ -3,9 +3,9 @@ import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { FlatList, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
-import { spacing, touch, dimension } from '@platform/ui-tokens/legacy';
+import { spacing, touch, interaction, dimension } from '@platform/ui-tokens/legacy';
 import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './src/ui/faso-fonts';
-import { IconAccueil, IconProduits, IconGains, IconVitrine } from './src/ui/icons';
+import { IconAccueil, IconProduits, IconGains, IconVitrine, IconCoche } from './src/ui/icons';
 import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
 import { t, tf } from './src/i18n';
@@ -29,6 +29,7 @@ import {
   baselineProductPriceFcfa,
   createDemoWorld,
   gainsTotal,
+  MONTHLY_NET_DEMO,
   isSelected,
   opportunityCard,
   selectedOpportunities,
@@ -209,21 +210,84 @@ export default function App() {
       <ScreenTransition screenKey={screen}>
       <View style={styles.content}>
         {screen === 'accueil' && (
-          <View style={styles.stackGap}>
-            <View style={styles.statGrid}>
-              <Card style={styles.statCard}>
-                <Overline>{t('opportunites.title')}</Overline>
-                <Text style={styles.statValue}>{world.opportunities.length}</Text>
+          <ScrollView contentContainerStyle={styles.homeScroll} showsVerticalScrollIndicator={false}>
+            {/* Header — monogram · « Ma vitrine » + name + canon verified glyph + zone · « Comment ça marche » */}
+            <View style={styles.homeHeader}>
+              <View style={styles.monogram}>
+                <Text style={styles.monogramText}>{DEMO_SHARE_IDENTITY.resellerName.slice(0, 1)}</Text>
+              </View>
+              <View style={styles.homeHeaderBody}>
+                <Text style={styles.homeTitle} numberOfLines={1}>{t('accueil.home_titre')}</Text>
+                <View style={styles.homeSubRow}>
+                  <Text style={styles.homeSubName} numberOfLines={1}>{DEMO_SHARE_IDENTITY.resellerName}</Text>
+                  <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
+                  <Text style={styles.homeSubZone}>{` · ${t('accueil.zone')}`}</Text>
+                </View>
+              </View>
+              <Pressable style={({ pressed }) => [styles.commentPill, pressed && styles.pressed]} accessibilityRole="button">
+                <Text style={styles.commentPillText}>{t('accueil.comment')}</Text>
+              </Pressable>
+            </View>
+
+            {/* Greeting hero (Bricolage 800/28) + tagline */}
+            <Text style={styles.greeting}>{tf('accueil.bonjour', { name: DEMO_SHARE_IDENTITY.resellerName })}</Text>
+            <Text style={styles.homeTagline}>{t('accueil.tagline')}</Text>
+
+            {/* Two ledger cards — caps label · Bricolage 800/24 tnum · sub-line (net-first: the money is the figure) */}
+            <View style={styles.homeStatGrid}>
+              <Card style={styles.ledgerCard}>
+                <Overline>{t('accueil.gains_mois_label')}</Overline>
+                <Text style={styles.ledgerMoneyDeep}>{formatFcfa(MONTHLY_NET_DEMO)}</Text>
+                <Text style={styles.ledgerCardSub}>{t('accueil.gains_mois_sub')}</Text>
               </Card>
-              <Card style={styles.statCard}>
-                <Overline>{t('selection.title')}</Overline>
-                <Text style={styles.statValue}>{world.selectedIds.length}</Text>
+              <Card style={styles.ledgerCard}>
+                <Overline>{t('accueil.attente_label')}</Overline>
+                <Text style={styles.ledgerMoney}>{formatFcfa(totals.netFcfa)}</Text>
+                <Text style={styles.ledgerCardSub}>{t('accueil.attente_sub')}</Text>
               </Card>
             </View>
-            <PrimaryButton label={t('accueil.card_opportunites')} onPress={() => go('opportunites')} />
-            <SecondaryButton label={t('accueil.card_gains')} onPress={() => go('gains')} />
-            <SecondaryButton label={t('ventes.nav')} onPress={() => go('ventes')} />
-          </View>
+
+            {/* Primary CTA — accent, Bricolage 700/16 + canon IconProduits (frame's decorative
+                sparkle is not a canon glyph — the 29-icon set is geometry-locked; divergence listed). */}
+            <Pressable style={({ pressed }) => [styles.sparkleCta, pressed && styles.pressed]} onPress={() => go('opportunites')} accessibilityRole="button">
+              <IconProduits size={dimension.iconSizePx.tab} color={shopColour.onPrimary} />
+              <Text style={styles.sparkleCtaText}>{t('accueil.cta_trouver')}</Text>
+            </Pressable>
+
+            {/* Section head — « Ventes en cours » caps + « Tout voir » pill */}
+            <View style={styles.homeSectionHead}>
+              <Overline>{t('accueil.ventes_en_cours')}</Overline>
+              <Pressable style={({ pressed }) => [styles.toutVoirPill, pressed && styles.pressed]} onPress={() => go('ventes')} accessibilityRole="button">
+                <Text style={styles.toutVoirText}>{t('accueil.tout_voir')}</Text>
+              </Pressable>
+            </View>
+
+            {/* Active-sales rows — the duotone art-tile treatment (replaces the letter-chip) */}
+            {ventesRows.length === 0 ? (
+              <EmptyState glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />} title={t('ventes.vide_titre')} hint={t('ventes.vide_hint')} />
+            ) : (
+              <View style={styles.homeSalesList}>
+                {ventesRows.slice(0, 2).map((row) => (
+                  <Pressable key={row.id} style={({ pressed }) => [styles.homeSaleRow, pressed && styles.pressed]} onPress={() => go('ventes')} accessibilityRole="button">
+                    <View style={styles.artTile}>
+                      <View style={styles.artTileStripe} />
+                      <Text style={styles.artTileGlyph}>{row.productName.slice(0, 1)}</Text>
+                    </View>
+                    <View style={styles.homeSaleBody}>
+                      <Text style={styles.homeSaleTitle} numberOfLines={1}>{row.clientFirstName}</Text>
+                      <Text style={styles.homeSaleSub} numberOfLines={1}>{row.productName}</Text>
+                    </View>
+                    <StatusChip tone={chipTone(row)} label={t(row.statusKey)} />
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            {/* Astuce — the rose tip card (net before you share) */}
+            <View style={styles.astuceCard}>
+              <Text style={styles.astuceText}>{t('accueil.astuce')}</Text>
+            </View>
+          </ScrollView>
         )}
 
         {screen === 'opportunites' && (
@@ -553,6 +617,92 @@ const styles = StyleSheet.create({
     fontWeight: w(t2.scale.cardMoney.wght),
     fontVariant: ['tabular-nums'],
   },
+  // ── ACCUEIL frame (planche L54–110) — sizes snap to the v2 type scale (token fidelity). ──
+  pressed: { opacity: interaction.pressedOpacity, transform: [{ scale: interaction.pressScale }] },
+  homeScroll: { gap: spacing.md, paddingBottom: spacing.xxl },
+  homeHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  monogram: {
+    width: spacing.xl + spacing.lg,
+    height: spacing.xl + spacing.lg,
+    borderRadius: rmax(radius.art),
+    backgroundColor: shopColour.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  monogramText: { color: shopColour.onPrimary, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.view.wght) },
+  homeHeaderBody: { flex: 1, minWidth: 0 },
+  homeTitle: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.view.size), fontWeight: w(t2.scale.view.wght) },
+  homeSubRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  homeSubName: { flexShrink: 1, color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  homeSubZone: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  commentPill: {
+    minHeight: spacing.xxl + spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: interaction.hairline.thin,
+    borderColor: sharedColour.hairlineStrong,
+    backgroundColor: sharedColour.card,
+    paddingHorizontal: spacing.md,
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  commentPillText: { color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
+  greeting: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.screen.size, fontWeight: w(t2.scale.screen.wght) },
+  homeTagline: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  homeStatGrid: { flexDirection: 'row', gap: spacing.md },
+  ledgerCard: { flex: 1 },
+  ledgerMoneyDeep: { color: shopColour.deep, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.cardMoney.size, fontWeight: w(t2.scale.cardMoney.wght), fontVariant: ['tabular-nums'] },
+  ledgerMoney: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.cardMoney.size, fontWeight: w(t2.scale.cardMoney.wght), fontVariant: ['tabular-nums'] },
+  ledgerCardSub: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size },
+  sparkleCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    minHeight: touch.minTargetPx + spacing.sm,
+    borderRadius: radius.button,
+    backgroundColor: shopColour.primary,
+  },
+  sparkleCtaText: { color: shopColour.onPrimary, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
+  homeSectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm },
+  toutVoirPill: {
+    minHeight: spacing.xl + spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: interaction.hairline.thin,
+    borderColor: sharedColour.hairlineStrong,
+    backgroundColor: sharedColour.card,
+    paddingHorizontal: spacing.md,
+    justifyContent: 'center',
+  },
+  toutVoirText: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
+  homeSalesList: { gap: spacing.sm },
+  homeSaleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: sharedColour.card,
+    borderRadius: radius.tile,
+    borderWidth: interaction.hairline.thin,
+    borderColor: sharedColour.hairline,
+    padding: spacing.md,
+  },
+  artTile: {
+    width: touch.minTargetPx,
+    height: touch.minTargetPx,
+    borderRadius: rmax(radius.art),
+    backgroundColor: shopColour.soft,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  artTileStripe: { position: 'absolute', bottom: 0, left: 0, right: 0, height: interaction.hairline.strong, backgroundColor: shopColour.gold },
+  artTileGlyph: { color: shopColour.deep, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.view.size), fontWeight: w(t2.scale.view.wght) },
+  homeSaleBody: { flex: 1, minWidth: 0, gap: spacing.xs },
+  homeSaleTitle: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
+  homeSaleSub: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  astuceCard: { backgroundColor: shopColour.soft, borderRadius: radius.tile, padding: spacing.lg },
+  astuceText: { color: shopColour.deep, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   ogPrice: {
     color: shopColour.deep,
     fontFamily: DISPLAY_FAMILY,

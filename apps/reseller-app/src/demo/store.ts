@@ -89,6 +89,10 @@ export const DEMO_SHARE_LINK = 'shop-plus.demo/s/awa-essai';
  * visibly-fictional sandbox form as the share link — the kit is a sibling web
  * surface (the composeur); here it is only pointed to, honestly « d'essai ».
  */
+/** ACCUEIL frame — « Gains nets — juin », a demo monthly constant (HANDOFF §2: 34 500).
+ * Marked demo; the real figure is a settled-payout sum in production. */
+export const MONTHLY_NET_DEMO = 34500;
+
 export const DEMO_KIT_LINK = 'shop-plus.demo/kit';
 
 export interface DemoWorld {

@@ -550,5 +550,77 @@
     "fr": "Le stock doit être revérifié avant de publier.",
     "register": "money",
     "screenClass": "status"
+  },
+  {
+    "key": "accueil.home_titre",
+    "fr": "Ma vitrine",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "accueil.comment",
+    "fr": "Comment ça marche",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "accueil.bonjour",
+    "fr": "Bonjour, {name}",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "accueil.gains_mois_label",
+    "fr": "Gains nets — juin",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "accueil.gains_mois_sub",
+    "fr": "Versés sur Mobile Money",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "accueil.attente_label",
+    "fr": "En attente (net)",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "accueil.attente_sub",
+    "fr": "Verrouillé à la commande",
+    "register": "money",
+    "screenClass": "general"
+  },
+  {
+    "key": "accueil.cta_trouver",
+    "fr": "Trouver des produits à vendre",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "accueil.ventes_en_cours",
+    "fr": "Ventes en cours",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "accueil.tout_voir",
+    "fr": "Tout voir",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "accueil.astuce",
+    "fr": "Astuce : le prix client = prix de base + votre marge. Vous voyez toujours votre gain net avant de partager.",
+    "register": "selling",
+    "screenClass": "selling_surface"
+  },
+  {
+    "key": "accueil.zone",
+    "fr": "Gounghin",
+    "register": "neutral",
+    "screenClass": "label"
   }
 ]
