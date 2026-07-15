@@ -638,3 +638,8 @@ Format per entry:
 - **SERA'S R10 PROOF WITHDRAWN as the reference. « Shop Plus - Redesign.dc.html » (the planche) is the ONLY bar.**
 - **ANATOMY DERIVATION (per view, in the packet):** the frame's elements grepped VERBATIM from the planche → mapped to the implementation → LAWFUL divergences only (RN platform constraint or a standing law: states/honesty/money), each LISTED. The CTO verifies the derivation against the planche BYTES before the founder's device pass — frame fidelity is MECHANICALLY reviewed first, then aesthetically ruled.
 - **METHOD, locked:** for each of the 8 views — (1) grep its frame from the planche → the anatomy (elements verbatim); (2) rebuild the view to compose exactly those elements in the frame's hierarchy; (3) list lawful divergences; (4) the derivation ships in the packet. No view is "done" until its derivation checks against the planche bytes.
+
+## 2026-07-14 · CTO SEQUENCING LOCK — WO-FP-PWA held until WO-FP-SHOP passes BOTH gates
+- **LOCK (founder):** WO-FP-PWA does NOT start — no work, no branch advanced — until WO-FP-SHOP passes BOTH review gates: (1) the CTO's planche-anatomy verification (mechanical, against the planche bytes), then (2) the founder's device tap. The word to start PWA comes only after both.
+- **CURRENT FOCUS:** WO-FP-SHOP frame rebuild ONLY (finding #1 fixed; the 8-view frame rebuild to « Shop Plus - Redesign.dc.html » ahead, each view with its planche anatomy derivation).
+- **wo-fp-pwa branch (pre-lock remnant):** held DORMANT — not advanced. It carries the 500/600 range STEP 0 + the whisper fix on the OLD (pre-name-fix) fonts, so it is STALE vs the rebuild; it will be RE-DERIVED from the passed WO-FP-SHOP head when the word arrives, never merged forward as-is. Work captured here.
