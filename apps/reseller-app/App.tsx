@@ -133,6 +133,10 @@ function TimelineRow({ step, last }: { step: TimelineStep; last: boolean }) {
 /** The bottom hubs (WO-4.2R): Accueil · Opportunités · Gains. */
 const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'gains'];
 
+/** Screens whose frame renders a big 28/800 title IN-CONTENT (planche) — the
+ * chrome header title is suppressed for these so it isn't a duplicate. */
+const IN_CONTENT_TITLE: readonly Screen[] = ['vitrine'];
+
 const SCREEN_TITLE_KEY: Record<Screen, string> = {
   accueil: 'app.title',
   // Hub screens present like the planche: brand in the header, the big
@@ -188,7 +192,13 @@ export default function App() {
   const headerTitle =
     screen === 'vente_detail'
       ? tf('vente.titre', { name: saleDetail.clientFirstName })
-      : t(SCREEN_TITLE_KEY[screen]);
+      : // Screens that render their OWN big in-content title (frame's 28/800)
+        // suppress the chrome title so it isn't a duplicate — the header keeps
+        // only the back chip. (Set membership, not a `screen === …` literal, so
+        // the net-first block-slice bounds in ui-kit.test stay intact.)
+        IN_CONTENT_TITLE.includes(screen)
+        ? ''
+        : t(SCREEN_TITLE_KEY[screen]);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -390,6 +400,16 @@ export default function App() {
 
         {screen === 'vitrine' && (
           <View style={styles.listWrap}>
+            {/* Header — « Aperçu de ma vitrine » (Bricolage 800/28, in-content) +
+                name + vérifié (frame L244–245). The header chrome carries only
+                the back chip (headerTitle '' for vitrine). */}
+            <View style={styles.vitrineHead}>
+              <Text style={styles.screenTitle}>{t('vitrine.title')}</Text>
+              <View style={styles.homeSubRow}>
+                <Text style={styles.homeSubName} numberOfLines={1}>{DEMO_SHARE_IDENTITY.resellerName}</Text>
+                <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
+              </View>
+            </View>
             <Text style={styles.noteLine}>{t('vitrine.note')}</Text>
             {selection.length === 0 ? (
               <EmptyState
@@ -799,6 +819,8 @@ const styles = StyleSheet.create({
   shareShopRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   shareShopName: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.caps.size), fontWeight: w(t2.scale.caps.wght), textTransform: 'uppercase' },
   shareHeroPrice: { color: shopColour.deep, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.heroMoney.size), fontWeight: w(t2.scale.heroMoney.wght), fontVariant: ['tabular-nums'] },
+  // ── VITRINE frame (planche L239–267) — in-content header (title + name + vérifié) ──
+  vitrineHead: { gap: spacing.xs },
   ogBadgeRow: { flexDirection: 'row', paddingTop: spacing.xs },
   ogSigned: {
     color: sharedColour.sub,

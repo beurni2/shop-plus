@@ -82,9 +82,11 @@ export function AppHeader({
         </Pressable>
       )}
       <View style={styles.headerTitleBlock}>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {title}
-        </Text>
+        {title !== '' && (
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {title}
+          </Text>
+        )}
         {subtitle !== undefined && (
           <Text style={styles.headerSub} numberOfLines={1}>
             {subtitle}

@@ -34,6 +34,8 @@ Founder ruling (Option A, 2026-07-15): "the 8 existing screens to frame anatomy;
 | **« Partager sur WhatsApp »** deep-link | L219 | New share action (WhatsApp intent). Feature work. |
 | **« Voir comme cliente »** + **« Aperçu du lien » (OG)** | L220 · L235 | New view-as-client navigation + a separate OG-preview screen. Feature work. |
 | **Net-is-private line** on the share card | L216 | `ShareCard` carries **no net field** by SP-I03 leak-proof construction; surfacing the reseller's net needs a share-model change. Data-model + feature work. |
+| **Toggle privée/publique** + **Aperçu public** on Vitrine | L247–250 | New public/private state + control, and an « Aperçu public » eye targeting Ecrans 06 (Vitrine publique, unbuilt). Feature work. |
+| **« net {netF} »** on vitrine tiles | L261 | The app's `vitrine` is a client-preview (no net by SP-I03-aligned design); net-on-tiles is the *Ma vitrine* private-view behaviour. Feature work (private-vitrine mode). |
 
 ---
 
@@ -48,4 +50,4 @@ Founder ruling (Option A, 2026-07-15): "the 8 existing screens to frame anatomy;
 
 ---
 
-*Maintained per-view as the reskin proceeds. Views covered: 2 (Opportunités), 3 (Fiche→selection), 4 (Partager→lien). Extended through view 8.*
+*Maintained per-view as the reskin proceeds. Views covered: 2 (Opportunités), 3 (Fiche→selection), 4 (Partager→lien), 5 (Vitrine). Extended through view 8.*
