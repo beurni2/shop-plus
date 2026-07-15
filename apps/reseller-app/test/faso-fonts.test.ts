@@ -6,6 +6,7 @@ import { formatFcfa } from '../src/earnings';
 import {
   DISPLAY_FAMILY,
   TEXT_FAMILY,
+  TEXT_FAMILY_BOLD,
   DISPLAY_WEIGHTS,
   TEXT_WEIGHTS,
 } from '../src/ui/faso-fonts';
@@ -30,7 +31,7 @@ const manifest = JSON.parse(
   readFileSync(join(fontsDir, 'faso-premium.coverage.json'), 'utf8'),
 ) as {
   flavor: string;
-  faces: { file: string; family: string; weight: number; bytes: number; sha256: string; codepoints: number[] }[];
+  faces: { file: string; family: string; weight: number; internalName: string; bytes: number; sha256: string; codepoints: number[] }[];
 };
 
 // The four canon-declared faces this surface ships, from the DATA module.
@@ -58,6 +59,33 @@ for (const ch of catalogText) {
   const c = ch.codePointAt(0)!;
   if (c > 0x7f) catalogCodepoints.add(c);
 }
+
+// The reseller LOADS these three faces; the useFonts KEY (which fontFamily uses)
+// MUST equal the font's internal name-table family, or RN silently paints system
+// font — the device-review finding #1. This guard makes that regression LOUD.
+const loaded: { file: string; key: string }[] = [
+  { file: 'Bricolage-ExtraBold.ttf', key: DISPLAY_FAMILY },
+  { file: 'Instrument-Regular.ttf', key: TEXT_FAMILY },
+  { file: 'Instrument-Bold.ttf', key: TEXT_FAMILY_BOLD },
+];
+const fontsLoadSrc = readFileSync(join(import.meta.dirname, '../src/ui/fonts-load.ts'), 'utf8');
+
+describe('Faso Premium fonts — RENDER-NAME guard (finding #1: no silent system fallback)', () => {
+  it('every LOADED face internal name === its useFonts key (fontFamily resolves on device)', () => {
+    for (const { file, key } of loaded) {
+      const face = manifest.faces.find((f) => f.file === file)!;
+      expect(face, `${file} missing from manifest`).toBeTruthy();
+      expect(face.internalName, `${file}: internal '${face.internalName}' ≠ key '${key}' → RN falls back to system font`).toBe(key);
+    }
+  });
+
+  it('fonts-load.ts actually loads those files under those keys (the guard matches reality)', () => {
+    // DISPLAY key ← ExtraBold, TEXT key ← Regular, BOLD key ← Bold
+    expect(fontsLoadSrc).toMatch(/\[DISPLAY_FAMILY\]: require\('\.\.\/\.\.\/assets\/fonts\/Bricolage-ExtraBold\.ttf'\)/);
+    expect(fontsLoadSrc).toMatch(/\[TEXT_FAMILY\]: require\('\.\.\/\.\.\/assets\/fonts\/Instrument-Regular\.ttf'\)/);
+    expect(fontsLoadSrc).toMatch(/\[TEXT_FAMILY_BOLD\]: require\('\.\.\/\.\.\/assets\/fonts\/Instrument-Bold\.ttf'\)/);
+  });
+});
 
 describe('Faso Premium fonts — money-render / cmap guard (RN surface)', () => {
   it('ships exactly the four canon-declared faces (display 700/800 · text 400/700)', () => {

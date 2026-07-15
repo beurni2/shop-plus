@@ -12,7 +12,7 @@ styled**, so the budget is a fact and not a hope.
 | Bricolage Grotesque (display) | 800 | 22 364 B |
 | Instrument Sans (text) | 400 | 19 244 B |
 | Instrument Sans (text) | 700 | 19 652 B |
-| **Faso Premium total** | | **84 228 B = 82.3 KB** |
+| **Faso Premium total** | | **84 168 B = 82.2 KB** |
 
 Only these four ship. Instrument 500/600 are **not** in the canon token, so they are
 not built (derive-never-invent).
@@ -25,11 +25,11 @@ by `faso-premium.coverage.json` + the money-render guard test.
 
 ## Budget math against the 300 KB gate
 
-- **Faso Premium alone:** 82.3 KB — **217.7 KB under** the 300 KB gate.
-- **Transition peak (Archivo still present):** 84 228 + 30 352 (archivo-latin-var.woff2)
+- **Faso Premium alone:** 82.2 KB — **217.7 KB under** the 300 KB gate.
+- **Transition peak (Archivo still present):** 84 168 + 30 352 (archivo-latin-var.woff2)
   = 114 580 B = **111.9 KB — 188.1 KB under** the gate. Both sets coexist only while the
   view slices migrate; Archivo is retired in WO-FP-PWA.
-- **After Archivo retires:** 82.3 KB.
+- **After Archivo retires:** 82.2 KB.
 
 Every state is comfortably inside the gate.
 

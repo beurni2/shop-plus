@@ -41,10 +41,10 @@ minus U+2212. It is in the subset charset; every face draws it. (Caught by the
 money-render guard deriving its charset from the real catalog.)
 
 ## Faces + sha256 (the .ttf this surface embeds)
-- **Bricolage-Bold.ttf** (700) — 51948 B · sha256 `88c35a0a95f42bb54d50dc9a20cfd1769dfa39739319bdeb1efd237dd987ed60`
-- **Bricolage-ExtraBold.ttf** (800) — 51932 B · sha256 `3211763e0a903ff8f7af0e2429d71e0d6da5c1616c2bbb15f7aaf04b5605f776`
-- **Instrument-Regular.ttf** (400) — 45308 B · sha256 `5d93105b90928a7a978a3fb04397632d888f5130dffab1600c993c74635d9438`
-- **Instrument-Bold.ttf** (700) — 45444 B · sha256 `b61b535075683ef91b34a2824b7d69a8f006409e4c297dbcc7f39df97b4c43e9`
+- **Bricolage-Bold.ttf** (700) — 51948 B · sha256 `939cd4f767c1b47f5785544bb24a4d6a1e122ce3a9fc97c2d065b90b5e20162e`
+- **Bricolage-ExtraBold.ttf** (800) — 51976 B · sha256 `db8460a567696d67ff9d22169b12c197a49fad7e84f288ec1761c3eb3f10bdf3`
+- **Instrument-Regular.ttf** (400) — 45308 B · sha256 `0496954a20d46d39690fe88898275104f1518c6415816ccd082083b5d4a1bf67`
+- **Instrument-Bold.ttf** (700) — 45416 B · sha256 `558e2bcdc28a58e0cdd65a75eb72cbd86a3a2c363c8000524f00ed12a3199dd8`
 
 The buyer PWA woff2 shas + payload budget are in
 `apps/buyer-pwa/public/fonts/FASO-PREMIUM-BUDGET.md`. Coverage per face is

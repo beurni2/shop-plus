@@ -74,8 +74,8 @@ describe('Faso Premium fonts — money-render / cmap guard (PWA surface)', () =>
   it('the total woff2 payload is under the 300 KB gate', () => {
     const total = manifest.faces.reduce((s, f) => s + f.bytes, 0);
     expect(total).toBeLessThan(300 * 1024);
-    // Sanity: it is the measured 82.3 KB, not an accidental empty set.
-    expect(total).toBe(84_228);
+    // Sanity: it is the measured 82.2 KB, not an accidental empty set.
+    expect(total).toBe(84168);
   });
 
   it('the fr-FR formatter emits U+202F, and every face covers it (« 11 500 F » is drawable)', () => {
