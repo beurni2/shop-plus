@@ -41,12 +41,11 @@ describe('WO-FP-SHOP states-law — every existing rendered state survives the r
     expect(app).toMatch(/t\('ventes\.probleme_encart'\)/);
   });
 
-  it('SELECTION — chosen ⇄ unchosen (the signature swap + accent frame, driven by isSelected)', () => {
-    // WO-VITRINE-FLOW: the ≤3 select-to-feature re-homes to PARTAGER — same
-    // machinery (isSelected + the signature swap + corner ticks), new home.
-    expect(app).toMatch(/const chosen = isSelected\(world, item\.id\)/);
-    expect(app).toMatch(/<SelectionSwap selected=\{chosen\}/);
-    expect(app).toMatch(/<CornerTicks show=\{chosen\}/);
+  it('MARKUP — the per-product marge slider is a designed interactive state (Ma Vitrine)', () => {
+    // WO-VITRINE-FLOW (founder redirect): the ≤3 multi-select is dropped; the
+    // designed interactive state is now the per-product markup slider on Ma Vitrine.
+    expect(app).toMatch(/<MarginSlider/);
+    expect(app).toMatch(/onChange=\{\(m\) => setMarkups/);
     // the empty vitrine surface is honest too — an EmptyState when the seam's
     // live listings are empty (vitrineOpps.length === 0), never a blank screen.
     expect(app).toMatch(/vitrineOpps\.length === 0 \? \(/);

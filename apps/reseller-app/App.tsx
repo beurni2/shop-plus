@@ -15,13 +15,10 @@ import { DEMO_SHARE_IDENTITY, composeShareCard } from './src/share/hub';
 import { QrCode } from './src/qr/QrCode';
 import { DEMO_QR_URL, QR_ORIGIN, QR_BASE } from './src/qr/identity';
 import { FONTS_TO_LOAD } from './src/ui/fonts-load';
-import {
-  foldVitrine,
-  capShareSelection,
-  VITRINE_SHARE_CAP,
-  type VitrineEvent,
-} from './src/vitrine/collection';
-import { HeroLedger, SelectionSwap, CornerTicks, DuotoneTile, QuoteRule } from './src/ui/signature';
+import { foldVitrine, type VitrineEvent } from './src/vitrine/collection';
+import { marginBreakdown, markupCap, defaultMarkup } from './src/vitrine/margin';
+import { MarginSlider } from './src/ui/margin-slider';
+import { HeroLedger, DuotoneTile, QuoteRule } from './src/ui/signature';
 import {
   ventesListModel,
   demoDetail,
@@ -36,10 +33,6 @@ import {
   createDemoWorld,
   gainsTotal,
   MONTHLY_NET_DEMO,
-  isSelected,
-  opportunityCard,
-  selectedOpportunities,
-  toggleSelection,
   type DemoOpportunity,
   type DemoWorld,
   type GainsLine,
@@ -137,8 +130,10 @@ function TimelineRow({ step, last }: { step: TimelineStep; last: boolean }) {
   );
 }
 
-/** The bottom hubs (WO-4.2R): Accueil · Opportunités · Gains. */
-const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'gains'];
+/** The dock hubs — WO-VITRINE-FLOW promotes Ma Vitrine to a tab: Accueil ·
+ * Opportunités · Ma Vitrine · Gains (the planche dock is 5 incl. Cercle; Cercle
+ * stays OUT — gated, SP9). Tabs are waypoint resets, never journey edges. */
+const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'vitrine', 'gains'];
 
 /** Screens whose frame renders a big 28/800 title IN-CONTENT (planche) — the
  * chrome header title is suppressed for these so it isn't a duplicate. */
@@ -174,10 +169,13 @@ export default function App() {
   // VitrineEvent log in state + the shared `foldVitrine`. The flow calls the
   // port's interface methods (never demo-state mutation); VITRINE-REAL-BACKING
   // swaps the log for the live storefront source. Ancillary UI state: which
-  // product the Fiche shows, and the toggle/add toast (the ≤3 share selection
-  // rides the existing `world.selectedIds` machinery — the re-homed selection).
+  // product the Fiche shows, which product Partager targets, the per-product
+  // markups the reseller sets on Ma Vitrine, the share-card format, and the toast.
   const [vitrineLog, setVitrineLog] = useState<VitrineEvent[]>([]);
   const [ficheId, setFicheId] = useState<string | null>(null);
+  const [shareId, setShareId] = useState<string | null>(null);
+  const [markups, setMarkups] = useState<Record<string, number>>({});
+  const [shareFmt, setShareFmt] = useState<'card' | 'story' | 'affiche'>('card');
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
     if (toast === null) return;
@@ -217,18 +215,21 @@ export default function App() {
     setStack(hub === START ? [START] : [START, hub]);
   }, []);
 
-  // WO-VITRINE-FLOW — the vitrine + share derived state, all from the seam's
-  // fold and the frozen seed. `vitrineOpps` are the products she added (the seam's
-  // live listings); `ficheOpp` is the tapped opportunity; `shareOpps` is her ≤3
-  // featured picks (the re-homed selection machinery, capped by capShareSelection).
+  // WO-VITRINE-FLOW — the vitrine + share derived state, all from the seam's fold,
+  // the frozen seed inputs (B, C), and the reseller's own markup. `vitrineOpps` are
+  // the products she added (the seam's live listings); `ficheOpp`/`shareOpp` are the
+  // tapped / to-share products. `viewOf` is the reseller-margin view at her markup
+  // (markups[pid]) or the capped default — the ONE money computation the reseller
+  // surfaces share (opp row · fiche · vitrine tile · partager), all reconciling.
   const vitrineLive = vitrineCol.listings();
   const vitrineOpps = world.opportunities.filter((o) => vitrineLive.includes(o.id));
   const ficheOpp = world.opportunities.find((o) => o.id === ficheId);
-  const chosen = selectedOpportunities(world);
-  const shareIds = capShareSelection(chosen.map((o) => o.id));
-  const shareOpps = chosen.filter((o) => shareIds.includes(o.id));
-  const featuredOpp = shareOpps[0];
-  const shareNet = gainsTotal(shareOpps).netFcfa;
+  const shareOpp = world.opportunities.find((o) => o.id === shareId);
+  const viewOf = (opp: DemoOpportunity) => {
+    const cap = markupCap(opp.input.sellerBasePrice);
+    const m = markups[opp.id] ?? defaultMarkup(cap);
+    return marginBreakdown(opp.input.sellerBasePrice, opp.input.sellerFundedCommission, m);
+  };
   // Her REAL vitrine link — the canon origin + base + the seam's `/v/{slug}`.
   const shareUrl = `${QR_ORIGIN}${QR_BASE}${vitrineCol.shareSlug()}`;
   // The share channels — production-shaped over RN Share/Linking. The message is
@@ -403,97 +404,58 @@ export default function App() {
                 <Text style={styles.oppSub}>{t('opportunites.sous_titre')}</Text>
               </View>
             }
-            renderItem={({ item }) => {
-              const card = opportunityCard(item);
-              return (
-                // Frame L126–134 — a tappable product row → its FICHE
-                // (journey edge opportunites→fiche). The 60px duotone art-tile
-                // is the ecosystem's product treatment; net-first (SP-I04/I12).
-                <Pressable
-                  style={({ pressed }) => [styles.oppRow, pressed && styles.pressed]}
-                  onPress={() => { setFicheId(item.id); go('fiche'); }}
-                  accessibilityRole="button"
-                >
-                  <View style={styles.oppArtTile}>
-                    <View style={styles.artTileStripe} />
-                    <Text style={styles.artTileGlyph}>{item.name.slice(0, 1)}</Text>
-                  </View>
-                  <View style={styles.homeSaleBody}>
-                    <Text style={styles.homeSaleTitle} numberOfLines={1}>{item.name}</Text>
-                    <Text style={styles.homeSaleSub} numberOfLines={1}>{`${t('opportunites.repere')} : ${item.landmark}`}</Text>
-                    <Text style={styles.oppNet}>{`${t('opportunity.net_label')} : ${formatFcfa(card.netFcfa)}`}</Text>
-                    <Text style={styles.oppPrice}>{`${t('opportunity.customer_price_label')} : ${formatFcfa(card.customerPriceFcfa)}`}</Text>
-                  </View>
-                </Pressable>
-              );
-            }}
+            renderItem={({ item }) => (
+              // §4 L70 — a tappable product row → its FICHE (journey edge
+              // opportunites→fiche). Net-only « Gagnez ≈ {net} net » at the default
+              // markup (min(1500, cap)) — the estimate; she sets her exact markup on
+              // Ma Vitrine. Net-first: net shown, gross never (SP-I04/I12).
+              <Pressable
+                style={({ pressed }) => [styles.oppRow, pressed && styles.pressed]}
+                onPress={() => { setFicheId(item.id); go('fiche'); }}
+                accessibilityRole="button"
+              >
+                <View style={styles.oppArtTile}>
+                  <View style={styles.artTileStripe} />
+                  <Text style={styles.artTileGlyph}>{item.name.slice(0, 1)}</Text>
+                </View>
+                <View style={styles.homeSaleBody}>
+                  <Text style={styles.homeSaleTitle} numberOfLines={1}>{item.name}</Text>
+                  <Text style={styles.homeSaleSub} numberOfLines={1}>{`${t('opportunites.repere')} : ${item.landmark}`}</Text>
+                  <Text style={styles.oppNet}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOf(item).net) })}</Text>
+                </View>
+              </Pressable>
+            )}
           />
         )}
 
-        {/* FICHE (frame 03 / HANDOFF §4 « Fiche opportunité », planche L140–191):
-            art héro 170 · titre 24 · identity note · the STATIC marge card (slider
-            DEFERRED) · protections chips · sticky CTA « Ajouter à ma vitrine »
-            (ADD ONLY — the planche's combined « & partager » splits: adding is here,
-            partager is the vitrine's own action). Diaspora/PackLab blocks are gated
-            (Law #8) and omitted. The marge card is net-first (SP-I04/I12): commission
-            + marge → brut → −20 % are calm lines, « Votre gain net » is the strong
-            figure. Every franc rides the frozen seed through formatFcfa. */}
+        {/* FICHE (frame 03 / HANDOFF §4 L72, RE-SCOPED add-only per founder redirect):
+            art héro 170 · titre 24 · identity note · protections chips · sticky CTA
+            « Ajouter à ma vitrine ». The marge CARD + slider + waterfall lines are
+            REMOVED — the markup now lives on Ma Vitrine (per product). Money here is
+            ONE display-only line « Gagnez ≈ {net} net » at the default markup, same
+            as the Opportunités row (net-first; gross never shown). Diaspora/PackLab
+            special cards are gated (Law #8) — omitted pending an explicit override. */}
         {screen === 'fiche' && ficheOpp !== undefined &&
           ((opp: DemoOpportunity) => {
-            const fm = opp.money;
-            const card = opportunityCard(opp);
-            const cap = Math.round(fm.sellerBasePrice * 0.2);
             const already = vitrineCol.has(opp.id);
             return (
               <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
-                {/* the vérifié badge language (frame L147 tier pill) */}
+                {/* the vérifié badge language (§4 L72 tier pill) */}
                 <View style={styles.ficheTierRow}>
                   <StatusChip tone="ok" label={t('fiche.tier')} />
                 </View>
-                {/* art héro 170 (frame L149) — the duotone product banner */}
+                {/* art héro 170 — the duotone product banner */}
                 <View style={styles.ficheHero}>
                   <View style={styles.artTileStripe} />
                   <Text style={styles.ficheHeroGlyph}>{opp.name.slice(0, 1)}</Text>
                 </View>
-                {/* titre 24 + identity note (frame L150–151) — the vendor stays hidden */}
+                {/* titre 24 + identity note — the vendor stays hidden */}
                 <Text style={styles.ficheTitle}>{opp.name}</Text>
                 <Text style={styles.ficheIdentity}>{t('fiche.identity_note')}</Text>
-                <Card style={styles.margeCard}>
-                  <View style={styles.margeHeadRow}>
-                    <Overline>{t('fiche.marge_titre')}</Overline>
-                    <Text style={styles.margeAmount}>{formatFcfa(fm.resellerMarkup)}</Text>
-                  </View>
-                  <Text style={styles.noteLine}>{tf('fiche.plafond', { amount: formatFcfa(cap) })}</Text>
-                  <View style={styles.margeDivider} />
-                  <View style={styles.margeLine}>
-                    <Text style={styles.margeLineLabel}>{t('fiche.ligne_commission')}</Text>
-                    <Text style={styles.margeLineVal}>{tf('fiche.plus', { amount: formatFcfa(fm.sellerFundedCommission) })}</Text>
-                  </View>
-                  <View style={styles.margeLine}>
-                    <Text style={styles.margeLineLabel}>{t('fiche.marge_titre')}</Text>
-                    <Text style={styles.margeLineVal}>{tf('fiche.plus', { amount: formatFcfa(fm.resellerMarkup) })}</Text>
-                  </View>
-                  <View style={styles.margeLine}>
-                    <Text style={styles.margeLineMuted}>{t('fiche.ligne_brut')}</Text>
-                    <Text style={styles.margeLineMutedVal}>{formatFcfa(fm.resellerGrossEarnings)}</Text>
-                  </View>
-                  <View style={styles.margeLine}>
-                    <Text style={styles.margeLineMuted}>{t('fiche.ligne_part')}</Text>
-                    <Text style={styles.margeLineMutedVal}>{tf('fiche.moins', { amount: formatFcfa(fm.resellerPlatformFee) })}</Text>
-                  </View>
-                  {/* the net — the strong line (net-first), Bricolage 800 deep 22 */}
-                  <View style={styles.margeNetRow}>
-                    <Text style={styles.margeNetLabel}>{t('opportunity.net_label')}</Text>
-                    <Text style={styles.margeNetVal}>{formatFcfa(card.netFcfa)}</Text>
-                  </View>
-                  <View style={styles.margeDivider} />
-                  <View style={styles.margeLine}>
-                    <Text style={styles.margeClientLabel}>{t('fiche.prix_client')}</Text>
-                    <Text style={styles.margeClientVal}>{formatFcfa(card.customerPriceFcfa)}</Text>
-                  </View>
-                  <Text style={styles.noteLine}>{t('fiche.livraison_note')}</Text>
-                </Card>
-                {/* protections chips (frame L182–183) — the trust affordances */}
+                {/* the ONE money line — « Gagnez ≈ {net} net » at the default markup;
+                    she sets her exact markup on Ma Vitrine. No interactive control here. */}
+                <Text style={styles.ficheGagnez}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOf(opp).net) })}</Text>
+                {/* protections chips — the trust affordances */}
                 <View style={styles.ficheChips}>
                   <StatusChip tone="muted" label={t('fiche.chip_inspection')} />
                   <StatusChip tone="muted" label={t('fiche.chip_refus')} />
@@ -539,8 +501,6 @@ export default function App() {
               style={styles.screenScroll}
               data={vitrineOpps}
               keyExtractor={(o) => o.id}
-              numColumns={2}
-              columnWrapperStyle={styles.gridRow}
               initialNumToRender={6}
               windowSize={5}
               showsVerticalScrollIndicator={false}
@@ -580,93 +540,90 @@ export default function App() {
                   <Text style={styles.noteLine}>{t('vitrine.sous_titre')}</Text>
                 </View>
               }
-              renderItem={({ item }) => (
-                // the duotone tile (signature module): the client price (deep) over
-                // her net (small) — the reseller sees net even on her own vitrine;
-                // the vendor is never shown (the cliente-facing figure is the price).
-                <DuotoneTile glyph={item.name.slice(0, 1)} style={styles.gridTile}>
-                  <Text style={styles.tileName} numberOfLines={1}>{item.name}</Text>
-                  <View style={styles.tilePriceRow}>
-                    <Text style={styles.tilePrice}>{formatFcfa(opportunityCard(item).customerPriceFcfa)}</Text>
-                    <Text style={styles.tileNet}>{tf('vitrine.tile_net', { amount: formatFcfa(opportunityCard(item).netFcfa) })}</Text>
-                  </View>
-                </DuotoneTile>
-              )}
-              ListFooterComponent={<PrimaryButton label={t('vitrine.action')} onPress={() => go('lien')} />}
+              renderItem={({ item }) => {
+                // Per-product card (founder recomposition of the planche read-only
+                // grid): art 110 · client price (deep) ↔ net (small, live) · the
+                // marge SLIDER (0→cap, pas 100 → live net/client via marginBreakdown,
+                // reseller-margin only) · a per-product « Partager ». Net-first: the
+                // reseller sees her net beside the client price; gross is never shown.
+                const v = viewOf(item);
+                const markup = markups[item.id] ?? defaultMarkup(v.cap);
+                return (
+                  <Card style={styles.vitrineCard}>
+                    <View style={styles.vitrineCardArt}>
+                      <View style={styles.artTileStripe} />
+                      <Text style={styles.vitrineCardGlyph}>{item.name.slice(0, 1)}</Text>
+                    </View>
+                    <Text style={styles.tileName} numberOfLines={1}>{item.name}</Text>
+                    <View style={styles.tilePriceRow}>
+                      <Text style={styles.tilePrice}>{formatFcfa(v.client)}</Text>
+                      <Text style={styles.tileNet}>{tf('vitrine.tile_net', { amount: formatFcfa(v.net) })}</Text>
+                    </View>
+                    <View style={styles.margeHeadRow}>
+                      <Overline>{t('fiche.marge_titre')}</Overline>
+                      <Text style={styles.margeAmount}>{formatFcfa(markup)}</Text>
+                    </View>
+                    <MarginSlider
+                      value={markup}
+                      cap={v.cap}
+                      onChange={(m) => setMarkups((prev) => ({ ...prev, [item.id]: m }))}
+                    />
+                    <Text style={styles.noteLine}>{tf('fiche.plafond', { amount: formatFcfa(v.cap) })}</Text>
+                    <SecondaryButton
+                      label={t('vitrine.partager')}
+                      onPress={() => { setShareId(item.id); go('lien'); }}
+                    />
+                  </Card>
+                );
+              }}
             />
           )
         )}
 
-        {/* PARTAGER (frame L193–236): the ≤3 select-to-feature (SelectionSwap +
-            CornerTicks re-home here, `capShareSelection` caps at 3), the client
-            preview card (« ce que verra votre cliente »), the reseller-only net
-            line, the share channels over RN Share/Linking (the real signed slug),
-            the signed product link, and the QR to her `/v/{slug}`. Net-first: the
-            card shows HER price; her net is a separate, reseller-only whisper. */}
+        {/* PARTAGER (frame L193–236 / §4 L74, PER-PRODUCT per founder redirect):
+            the 3 format segments (Carte/Story/Affiche → art 150/250/190), the client
+            preview card at HER markup, the reseller-only net line, the share channels
+            over RN Share/Linking (the real signed slug), the signed product link, and
+            the QR to her `/v/{slug}`. The ≤3 multi-select is DROPPED (she shares one
+            product at a time). Net-first: the card shows HER price; her net is a
+            separate, reseller-only whisper — never on the cliente's card. */}
         {screen === 'lien' && (
           <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
-            {/* the ≤3 multi-select — pick which vitrine products the card features */}
-            <View style={styles.partagerHead}>
-              <Text style={styles.cardTitle}>{t('partager.choisir_titre')}</Text>
-              <Text style={styles.noteLine}>{t('partager.cap_note')}</Text>
-            </View>
-            {vitrineOpps.map((item) => {
-              const chosen = isSelected(world, item.id);
-              const card = opportunityCard(item);
-              return (
-                <View key={item.id} style={styles.selectFrame}>
+            {/* the 3 card formats — the segmented control (§4 L74) */}
+            <View style={styles.fmtSegments}>
+              {(['card', 'story', 'affiche'] as const).map((f) => {
+                const on = shareFmt === f;
+                const key = f === 'card' ? 'partager.fmt_carte' : f === 'story' ? 'partager.fmt_story' : 'partager.fmt_affiche';
+                return (
                   <Pressable
-                    style={({ pressed }) => [styles.oppRow, chosen && styles.rowChosen, pressed && styles.pressed]}
-                    onPress={() => {
-                      if (!chosen && world.selectedIds.length >= VITRINE_SHARE_CAP) {
-                        setToast(t('partager.cap_note'));
-                        return;
-                      }
-                      setWorld(toggleSelection(world, item.id));
-                    }}
+                    key={f}
+                    style={[styles.fmtSeg, on && styles.fmtSegOn]}
+                    onPress={() => setShareFmt(f)}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: chosen }}
+                    accessibilityState={{ selected: on }}
                   >
-                    <View style={styles.oppArtTile}>
-                      <View style={styles.artTileStripe} />
-                      <Text style={styles.artTileGlyph}>{item.name.slice(0, 1)}</Text>
-                    </View>
-                    <View style={styles.homeSaleBody}>
-                      <Text style={styles.homeSaleTitle} numberOfLines={1}>{item.name}</Text>
-                      <Text style={styles.oppNet}>{`${t('opportunity.net_label')} : ${formatFcfa(card.netFcfa)}`}</Text>
-                    </View>
-                    <SelectionSwap selected={chosen} />
+                    <Text style={[styles.fmtSegText, on && styles.fmtSegTextOn]}>{t(key)}</Text>
                   </Pressable>
-                  <CornerTicks show={chosen} />
-                </View>
-              );
-            })}
-            <Text style={styles.noteLine}>{tf('partager.compte', { count: String(shareIds.length) })}</Text>
+                );
+              })}
+            </View>
 
-            {/* the client PREVIEW — her featured product (or the demo card until she
-                picks). HER price, « Livré par Séra », signed. Never the net, never a
-                commission, never the supplier (SP-I03) — the client-facing card. */}
+            {/* the client PREVIEW — the product she is sharing, at HER markup. HER
+                price, « Livré par Séra », signed. Never the net, never a commission,
+                never the supplier (SP-I03) — the client-facing card. */}
             <Card>
               <Overline>{t('share.og_titre')}</Overline>
-              <View style={styles.shareHero}>
+              <View style={[styles.shareHero, shareFmt === 'story' && styles.shareHeroStory, shareFmt === 'affiche' && styles.shareHeroAffiche]}>
                 <View style={styles.artTileStripe} />
-                <Text style={styles.shareHeroGlyph}>
-                  {(featuredOpp !== undefined ? featuredOpp.name : shareCard.productName).slice(0, 1)}
-                </Text>
+                <Text style={styles.shareHeroGlyph}>{(shareOpp?.name ?? shareCard.productName).slice(0, 1)}</Text>
               </View>
               <View style={styles.shareShopRow}>
-                <Text style={styles.shareShopName} numberOfLines={1}>{shareCard.resellerName}</Text>
+                <Text style={styles.shareShopName} numberOfLines={1}>{DEMO_SHARE_IDENTITY.resellerName}</Text>
                 <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
               </View>
-              <Text style={styles.cardTitle}>
-                {featuredOpp !== undefined ? featuredOpp.name : shareCard.productName}
-              </Text>
+              <Text style={styles.cardTitle}>{shareOpp?.name ?? shareCard.productName}</Text>
               <Text style={styles.shareHeroPrice}>
-                {tf('share.prix', {
-                  amount: formatFcfa(
-                    featuredOpp !== undefined ? opportunityCard(featuredOpp).customerPriceFcfa : shareCard.priceFcfa,
-                  ),
-                })}
+                {tf('share.prix', { amount: formatFcfa(shareOpp !== undefined ? viewOf(shareOpp).client : shareCard.priceFcfa) })}
               </Text>
               <Text style={styles.ogValidite}>
                 {tf('share.validite', { date: shareCard.priceValidityDate })}
@@ -678,8 +635,8 @@ export default function App() {
             </Card>
 
             {/* reseller-only: her net on this card — « jamais visible par la cliente » */}
-            {shareOpps.length > 0 && (
-              <Text style={styles.netCarte}>{tf('partager.net_carte', { amount: formatFcfa(shareNet) })}</Text>
+            {shareOpp !== undefined && (
+              <Text style={styles.netCarte}>{tf('partager.net_carte', { amount: formatFcfa(viewOf(shareOpp).net) })}</Text>
             )}
 
             {/* the share channels (frame L217–221) — RN Share/Linking, the real slug */}
@@ -888,10 +845,10 @@ export default function App() {
               </View>
             }
             renderItem={({ item }) => (
-              // the cliente's tile — client price ONLY, neutral crown (her view)
+              // the cliente's tile — client price ONLY (at her markup), neutral crown
               <DuotoneTile glyph={item.name.slice(0, 1)} crownTone="neutral" style={styles.gridTile}>
                 <Text style={styles.tileName} numberOfLines={2}>{item.name}</Text>
-                <Text style={styles.tilePrice}>{formatFcfa(opportunityCard(item).customerPriceFcfa)}</Text>
+                <Text style={styles.tilePrice}>{formatFcfa(viewOf(item).client)}</Text>
               </DuotoneTile>
             )}
             ListEmptyComponent={
@@ -935,6 +892,7 @@ export default function App() {
           items={[
             { key: 'accueil', icon: <IconAccueil size={dimension.iconSizePx.tab} color={navColor(screen === 'accueil')} />, label: t('nav.tab_accueil'), active: screen === 'accueil', onPress: () => toHub('accueil') },
             { key: 'opportunites', icon: <IconProduits size={dimension.iconSizePx.tab} color={navColor(screen === 'opportunites')} />, label: t('nav.tab_opportunites'), active: screen === 'opportunites', onPress: () => toHub('opportunites') },
+            { key: 'vitrine', icon: <IconVitrine size={dimension.iconSizePx.tab} color={navColor(screen === 'vitrine')} />, label: t('nav.tab_vitrine'), active: screen === 'vitrine', onPress: () => toHub('vitrine') },
             { key: 'gains', icon: <IconGains size={dimension.iconSizePx.tab} color={navColor(screen === 'gains')} />, label: t('nav.tab_gains'), active: screen === 'gains', onPress: () => toHub('gains') },
           ]}
         />
@@ -1098,14 +1056,17 @@ const styles = StyleSheet.create({
   astuceCard: { backgroundColor: shopColour.soft, borderRadius: radius.tile, padding: spacing.lg },
   astuceText: { color: shopColour.deep, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   // ── PARTAGER frame (planche L193–236) — the hero share-card ──
+  // PARTAGER art heights per format (planche §4 L74): card 150 · story 250 · affiche 190.
   shareHero: {
-    height: touch.minTargetPx * 2 + spacing.xxl,
+    height: touch.minTargetPx * 3 + spacing.xs,
     borderRadius: rmax(radius.art),
     backgroundColor: shopColour.soft,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  shareHeroStory: { height: touch.minTargetPx * 5 + spacing.sm },
+  shareHeroAffiche: { height: touch.minTargetPx * 4 },
   shareHeroGlyph: { color: shopColour.deep, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.heroMoney.size), fontWeight: w(t2.scale.heroMoney.wght) },
   shareShopRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   shareShopName: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.caps.size), fontWeight: w(t2.scale.caps.wght), textTransform: 'uppercase' },
@@ -1378,4 +1339,29 @@ const styles = StyleSheet.create({
   toastText: { color: sharedColour.paper, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size), fontWeight: w(t2.scale.row.wght), textAlign: 'center' },
   footerInfo: { flexShrink: 1 },
   footerBuild: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size, fontVariant: ['tabular-nums'] },
+  // ── FICHE money line (« Gagnez ≈ {net} net », §4 L70/L72) — net-forward, deep ──
+  ficheGagnez: {
+    color: shopColour.deep,
+    fontFamily: DISPLAY_FAMILY,
+    fontSize: t2.scale.cardMoney.size,
+    fontWeight: w(t2.scale.cardMoney.wght),
+    fontVariant: ['tabular-nums'],
+  },
+  // ── MA VITRINE per-product card (art 110 + live net + slider + share) ──
+  vitrineCard: { gap: spacing.sm },
+  vitrineCardArt: {
+    height: touch.minTargetPx * 2 + spacing.md,
+    borderRadius: rmax(radius.art),
+    backgroundColor: shopColour.soft,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vitrineCardGlyph: { color: shopColour.deep, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.heroMoney.size), fontWeight: w(t2.scale.heroMoney.wght) },
+  // ── PARTAGER format segments (planche piste r14 p4; active = white card) ──
+  fmtSegments: { flexDirection: 'row', gap: spacing.xs, backgroundColor: sharedColour.dim, borderRadius: radius.tile, padding: spacing.xs },
+  fmtSeg: { flex: 1, minHeight: touch.minTargetPx, borderRadius: radius.tile, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xs },
+  fmtSegOn: { backgroundColor: sharedColour.card },
+  fmtSegText: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
+  fmtSegTextOn: { color: sharedColour.ink },
 });

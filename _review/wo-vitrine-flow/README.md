@@ -60,3 +60,25 @@ The flow lands as ONE change because it is entangled: removing the `selection` m
 3. **⚑ VITRINE-REAL-BACKING** (carried from Inc 1): the demo fold/log swaps for the live `projectStores`/`resolvePublishedStore`; the `VitrineCollectionPort` interface does not change. Note: `resolvePublishedStore` is **discoverable-only**, while the privée toast promises « accessible par lien » — a private-slug resolver + a fold-conformance test land at integration.
 
 `DO NOT MERGE` — founder review gate (Gate 1 my Ecrans cross-check → Gate 2 your grep-verify → Gate 3 device pass).
+
+---
+
+## FOUNDER REDIRECT (2026-07-16) — markup moves to Ma Vitrine · Ma Vitrine becomes a tab
+
+The founder redesigned the flow. Delivered on the same seam + snapshot/frozen rules; DO NOT MERGE.
+
+- **NAV:** Ma Vitrine promoted to a **dock tab** — the dock is now **Accueil · Opportunités · Ma Vitrine · Gains** (planche dock is 5 incl. Cercle; **Cercle stays OUT**, gated SP9). `HUBS` + the TabBar carry the 4th tab; `journey.ts` unchanged (vitrine already a node); the order/custody state machine + money/attribution are byte-frozen (the reseller demo touches none of them).
+- **Inc2 FICHE — re-scoped add-only:** the marge **card + slider + waterfall lines are REMOVED**. Money on the Fiche is ONE display-only line **« Gagnez environ {net} net »** at the default markup (same as the Opportunités row). Kept: art héro 170, titre 24, identity note, protections chips, sticky **« Ajouter à ma vitrine »** (add-only). Diaspora/PackLab special cards **omitted — gated (Law #8), pending an explicit override** (⚑ below).
+- **Inc3 MA VITRINE — per-product controls:** each product is a card with the **marge SLIDER** (`MarginSlider`, planche `.fpr` rebuilt in RN — piste 8 px, pouce 26 px accent, 0→cap, pas 100) writing `markups[pid]` and recomputing net/client **live**, plus a per-product **« Partager »**. Tile shows client price (deep) ↔ net (small). Header keeps the œil (→ aperçu-cliente) + the Privée/Publique toggle.
+- **Inc4 PARTAGER — per-product:** reached per product; 3 format segments (Carte/Story/Affiche → art 150/250/190), preview card at her markup, reseller-only net line, Copier/WhatsApp/Facebook/TikTok (RN Share/Linking), QR `/v/aicha-4821`, signed link. **The ≤3 multi-select is DROPPED** (per redirect); `capShareSelection` stays in the seam, unused. `SelectionSwap`/`CornerTicks` are consequently un-homed (still exported in the signature module — reserved).
+- **pubvitrine** unchanged — client price ONLY (now at her markup), never net/marge/vendeur.
+
+### Money (reseller-margin arithmetic — NOT the custody waterfall)
+`src/vitrine/margin.ts` implements the planche `rc(p, m)` verbatim (…:889) + HANDOFF §3: `gross = C+M · fee = round(gross×0.20) · net = gross−fee · client = B+M · cap = round(B×0.20/100)×100`. It imports no `computeWaterfall` and writes no order/settlement/attribution value. **`test/margin.test.ts` proves:** at each seed's authored markup the in-app math equals the pinned seed money to the franc (all 7); it reconciles (`net+fee = gross`) at every markup on the slider range. This also RESOLVES the earlier o2/o6 seed-cap flag: the slider max = cap, and the default = min(1500, cap), so a markup can never exceed 20 % of base.
+
+**Evidence:** `tsc` clean · reseller **128/128** · copy-lint **149 entries / 0 violations** · margin reconciliation green.
+
+### ⚑ FLAGS (none resolved unilaterally)
+1. **Diaspora/PackLab special cards (§7 / Law #8):** you listed them in the FICHE KEEP set, but Diaspora is out-of-scope-until-reopened and PackLab is behind B+9; the demo seed also has no diaspora/pack products, so the cards would never render (honest-states). **Held omitted — confirm an explicit override to build gated UI and I'll log it.**
+2. **markup-connu reading:** the default markup is `min(1500, cap)` per your formula. Untouched in-cap products therefore start at the seed markup's net where it fits, and o2/o6 clamp to cap. The literal `?? 1500` fallback is unreachable (every seed opp has an authored markup).
+3. **VITRINE-SHARE-CLIPBOARD** (carried): « Copier » routes through the OS share sheet (no `Clipboard` dep; `expo-clipboard` is native, needs a rebuild not an OTA).

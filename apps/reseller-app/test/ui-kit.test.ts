@@ -107,12 +107,13 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     for (const f of FILES) expect(read(f)).not.toMatch(/ActivityIndicator/);
   });
 
-  it('navigation chrome: header everywhere, hubs = Accueil·Opportunités·Gains, tabs are waypoint RESETS (never edges, never go())', () => {
+  it('navigation chrome: header everywhere, hubs = Accueil·Opportunités·Ma Vitrine·Gains, tabs are waypoint RESETS (never edges, never go())', () => {
     const app = read('App.tsx');
     expect(app).toMatch(/<AppHeader/);
-    expect(app).toMatch(/HUBS: readonly Screen\[\] = \['accueil', 'opportunites', 'gains'\]/);
+    // WO-VITRINE-FLOW promotes Ma Vitrine to a dock tab (4 tabs; Cercle stays out).
+    expect(app).toMatch(/HUBS: readonly Screen\[\] = \['accueil', 'opportunites', 'vitrine', 'gains'\]/);
     expect(app).toMatch(/setStack\(hub === START \? \[START\] : \[START, hub\]\)/);
-    for (const key of ['nav.tab_accueil', 'nav.tab_opportunites', 'nav.tab_gains']) {
+    for (const key of ['nav.tab_accueil', 'nav.tab_opportunites', 'nav.tab_vitrine', 'nav.tab_gains']) {
       expect(app).toContain(`t('${key}')`);
     }
     // go() is byte-identical to WO-4.1 (the spine test pins it too)
@@ -129,43 +130,43 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(tabBlock).toContain('toHub(');
   });
 
-  it('net-first on the reseller rows (SP-I04/SP-I12): the net line renders before the customer price', () => {
+  it('net-first (SP-I04/SP-I12): the reseller PRODUCT surfaces show NET, never gross', () => {
     const app = read('App.tsx');
-    // Opportunités row: net before the customer price (WO-VITRINE-FLOW re-slices
-    // the block bound on the NEXT screen, « fiche », now that « selection » is gone).
-    const opportunites = app.slice(app.indexOf("screen === 'opportunites'"), app.indexOf("screen === 'fiche'"));
-    const netAt = opportunites.indexOf("t('opportunity.net_label')");
-    const priceAt = opportunites.indexOf("t('opportunity.customer_price_label')");
-    expect(netAt).toBeGreaterThanOrEqual(0);
-    expect(priceAt).toBeGreaterThan(netAt);
-    // FICHE marge card: the reseller's net renders BEFORE the client price
-    // (« Votre gain net » is the strong figure; « Prix affiché à la cliente »
-    // follows) — the same net-first law on the single-product fiche.
+    // The three product slices (opp row · fiche · vitrine tile). Each shows the
+    // reseller's NET and never a gross figure — gross-first is prohibited. (The
+    // gains breakdown legitimately shows gross BESIDE net, net strongest — its
+    // net-first is pinned in demo-store.test, not here.)
+    const opp = app.slice(app.indexOf("screen === 'opportunites'"), app.indexOf("screen === 'fiche'"));
     const fiche = app.slice(app.indexOf("screen === 'fiche'"), app.indexOf("screen === 'vitrine'"));
-    const ficheNetAt = fiche.indexOf("t('opportunity.net_label')");
-    const ficheClientAt = fiche.indexOf("t('fiche.prix_client')");
-    expect(ficheNetAt).toBeGreaterThanOrEqual(0);
-    expect(ficheClientAt).toBeGreaterThan(ficheNetAt);
-    // the kit's row renders net before detail in source order
+    const vitrine = app.slice(app.indexOf("screen === 'vitrine'"), app.indexOf("screen === 'lien'"));
+    expect(opp, 'opp row net line').toContain("'opportunity.gagnez'");
+    expect(fiche, 'fiche net line').toContain("'opportunity.gagnez'");
+    expect(vitrine, 'vitrine tile net').toContain("'vitrine.tile_net'");
+    expect(vitrine).toContain('formatFcfa(v.net)');
+    // gross is computed in the margin module but NEVER rendered on these surfaces.
+    for (const [name, slice] of [['opp', opp], ['fiche', fiche], ['vitrine', vitrine]] as const) {
+      expect(slice, `${name} must not render gross`).not.toMatch(/\.gross\b|grossFcfa|resellerGrossEarnings/);
+    }
+    // the kit's row still renders net before detail in source order (unchanged)
     const kit = read('src/ui/kit.tsx');
     const row = kit.slice(kit.indexOf('export function ListRow'), kit.indexOf('/* Button hierarchy'));
     expect(row.indexOf('styles.rowNet')).toBeGreaterThanOrEqual(0);
     expect(row.indexOf('styles.rowDetail')).toBeGreaterThan(row.indexOf('styles.rowNet'));
   });
 
-  it('the sélection chosen state draws the accent border via the kit selected prop', () => {
-    const kit = read('src/ui/kit.tsx');
-    expect(kit).toMatch(/selected\?: boolean \| undefined/);
-    expect(kit).toMatch(/selected === true && styles\.rowSelected/);
-    expect(kit).toMatch(/rowSelected: \{\s*borderColor: shopColour\.primary/);
-    expect(shopColour.primary).toMatch(/^#/);
+  it('per-product markup: Ma Vitrine composes the MarginSlider that writes markups[pid] live', () => {
     const app = read('App.tsx');
-    // the chosen state flows from isSelected into the kit's selected prop, and the
-    // signature swap + corner ticks compose it (WO-FP-SHOP wiring).
-    expect(app).toMatch(/const chosen = isSelected\(world, item\.id\)/);
-    expect(app).toMatch(/selected=\{chosen\}/);
-    expect(app).toMatch(/<SelectionSwap selected=\{chosen\}/);
-    expect(app).toMatch(/<CornerTicks show=\{chosen\}/);
+    // WO-VITRINE-FLOW (founder redirect): the reseller sets her markup per product
+    // on Ma Vitrine; the slider writes markups[pid] and the net/client recompute live.
+    expect(app).toMatch(/<MarginSlider/);
+    expect(app).toMatch(/value=\{markup\}/);
+    expect(app).toMatch(/cap=\{v\.cap\}/);
+    expect(app).toMatch(/onChange=\{\(m\) => setMarkups\(\(prev\) => \(\{ \.\.\.prev, \[item\.id\]: m \}\)\)\}/);
+    // the slider value is her markup or the capped default (min(1500, cap))
+    expect(app).toMatch(/markups\[item\.id\] \?\? defaultMarkup\(v\.cap\)/);
+    // the slider routes the value through the PURE snapMarkup (step + clamp)
+    const slider = read('src/ui/margin-slider.tsx');
+    expect(slider).toMatch(/snapMarkup\(raw, capRef\.current\)/);
   });
 
   it('honest states stay designed: the vitrine empty state is the kit EmptyState on the catalog string, with a CANON glyph (never an emoji)', () => {

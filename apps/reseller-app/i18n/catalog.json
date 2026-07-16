@@ -856,5 +856,41 @@
     "fr": "Version {id}",
     "register": "neutral",
     "screenClass": "label"
+  },
+  {
+    "key": "nav.tab_vitrine",
+    "fr": "Ma vitrine",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "opportunity.gagnez",
+    "fr": "Gagnez environ {amount} net",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
+    "key": "vitrine.partager",
+    "fr": "Partager",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "partager.fmt_carte",
+    "fr": "Carte WhatsApp",
+    "register": "selling",
+    "screenClass": "label"
+  },
+  {
+    "key": "partager.fmt_story",
+    "fr": "Story",
+    "register": "neutral",
+    "screenClass": "label"
+  },
+  {
+    "key": "partager.fmt_affiche",
+    "fr": "Affiche",
+    "register": "neutral",
+    "screenClass": "label"
   }
 ]
