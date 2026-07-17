@@ -22,11 +22,12 @@ const seed = JSON.parse(readFileSync(join(appDir, 'src/demo/seed.json'), 'utf8')
 };
 
 describe('reseller-margin arithmetic (margin.ts)', () => {
-  it('markupCap is the planche 20 %-of-base ceiling, round(B×0.2/100)×100', () => {
-    expect(markupCap(8000)).toBe(1600);
-    expect(markupCap(1500)).toBe(300);
-    expect(markupCap(1000)).toBe(200);
-    expect(markupCap(12000)).toBe(2400);
+  it('markupCap is the loosened 100 %-of-base ceiling, round(B×1/100)×100 (founder 2026-07-16)', () => {
+    // SP3's « markup within cap » rule holds; the pilot value is loosened 20 %→100 %.
+    expect(markupCap(8000)).toBe(8000);
+    expect(markupCap(1500)).toBe(1500);
+    expect(markupCap(1000)).toBe(1000);
+    expect(markupCap(12000)).toBe(12000);
   });
 
   it('at each seed authored markup, the in-app math EQUALS the pinned seed money (net/fee/client)', () => {
@@ -55,9 +56,9 @@ describe('reseller-margin arithmetic (margin.ts)', () => {
 
   it('defaultMarkup clamps the 1500 default to the cap (min(1500, cap))', () => {
     expect(DEFAULT_MARKUP).toBe(1500);
-    expect(defaultMarkup(1600)).toBe(1500); // cap above default → default
-    expect(defaultMarkup(300)).toBe(300); // cap below default → cap binds (o2)
-    expect(defaultMarkup(200)).toBe(200); // o6
+    expect(defaultMarkup(8000)).toBe(1500); // cap above default → the default
+    expect(defaultMarkup(1500)).toBe(1500); // cap equals default
+    expect(defaultMarkup(1000)).toBe(1000); // cap below default → the cap binds
   });
 
   it('snapMarkup snaps to the step (100) and clamps to [0, cap]', () => {

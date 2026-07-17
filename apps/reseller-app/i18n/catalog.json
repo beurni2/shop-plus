@@ -661,9 +661,9 @@
   },
   {
     "key": "fiche.plafond",
-    "fr": "Plafond : 20 % du prix de base ({amount}). Il protège la confiance des clientes.",
+    "fr": "Marge libre, jusqu'à {amount}.",
     "register": "money",
-    "screenClass": "general"
+    "screenClass": "label"
   },
   {
     "key": "fiche.ligne_commission",

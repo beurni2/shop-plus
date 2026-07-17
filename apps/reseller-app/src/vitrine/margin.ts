@@ -5,18 +5,23 @@
  * NOT the custody waterfall: it imports no `computeWaterfall`, writes no order /
  * settlement / attribution value, and touches nothing frozen.
  *
- * The rules are the planche's `rc(p, m)` verbatim (Shop Plus - Redesign.dc.html:889)
- * and HANDOFF §3: `gross = C + M` · `fee = round(gross × 0.20)` · `net = gross − fee`
- * · `prix client = B + M` · `plafond M = round(B × 0.20 / 100) × 100`. The reseller
- * fee is the canon 20 %·(C+M) (Law #1); the identities reconcile at EVERY markup
- * (net + fee = gross), and at each seed's authored markup the result equals the
- * pinned seed money to the franc (the money-integrity cross-check in the test).
+ * The rules are the planche's `rc(p, m)` (Shop Plus - Redesign.dc.html:889) and
+ * HANDOFF §3: `gross = C + M` · `fee = round(gross × 0.20)` · `net = gross − fee`
+ * · `prix client = B + M`. The reseller fee is the canon 20 %·(C+M) (Law #1); the
+ * identities reconcile at EVERY markup (net + fee = gross), and at each seed's
+ * authored markup the result equals the pinned seed money to the franc.
+ *
+ * MARKUP CEILING (founder decision 2026-07-16, JOURNAL): SP3's rule « markup within
+ * cap » stays; only its VALUE is loosened — from the planche/launch 20 %-of-base to
+ * **100 % of base** (`MARKUP_CAP_RATE`). SP3 states the cap is « category-tunable,
+ * pilot », so this is a pilot tuning of the value, not a removal of the rule. Note:
+ * this cap rate is DISTINCT from the 20 % reseller FEE, which is canon and untouched.
  */
 
 export interface MarginBreakdown {
   /** M — the reseller's markup. */
   readonly markup: number;
-  /** The 20 %-of-base markup ceiling — `round(B × 0.20 / 100) × 100`. */
+  /** The markup ceiling — `round(B × MARKUP_CAP_RATE / 100) × 100` (loosened to 100 % of B). */
   readonly cap: number;
   /** C + M. */
   readonly gross: number;
@@ -31,9 +36,14 @@ export interface MarginBreakdown {
 /** The default markup before the reseller sets one (HANDOFF §3: `?? 1500`). */
 export const DEFAULT_MARKUP = 1500;
 
-/** The 20 %-of-base markup ceiling (planche rc: `round(B × 0.2 / 100) × 100`). */
+/** The markup ceiling as a fraction of base B. SP3's « markup within cap » rule
+ * holds; the VALUE is the pilot-tunable knob — loosened from 20 % to 100 % of B
+ * (founder 2026-07-16), so the cliente never pays more than double base. */
+export const MARKUP_CAP_RATE = 1;
+
+/** The markup ceiling for a base price — `round(B × MARKUP_CAP_RATE / 100) × 100`. */
 export function markupCap(basePrice: number): number {
-  return Math.round((basePrice * 0.2) / 100) * 100;
+  return Math.round((basePrice * MARKUP_CAP_RATE) / 100) * 100;
 }
 
 /** The starting markup for a product: the default, clamped to its cap
