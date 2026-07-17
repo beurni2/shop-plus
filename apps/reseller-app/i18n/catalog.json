@@ -774,6 +774,12 @@
     "screenClass": "label"
   },
   {
+    "key": "vitrine.prix_cliente",
+    "fr": "Prix cliente : {amount}",
+    "register": "money",
+    "screenClass": "label"
+  },
+  {
     "key": "partager.choisir_titre",
     "fr": "Mettez en avant jusqu'à 3 produits",
     "register": "selling",

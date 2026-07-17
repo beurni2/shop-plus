@@ -141,7 +141,10 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     const vitrine = app.slice(app.indexOf("screen === 'vitrine'"), app.indexOf("screen === 'lien'"));
     expect(opp, 'opp row net line').toContain("'opportunity.gagnez'");
     expect(fiche, 'fiche net line').toContain("'opportunity.gagnez'");
-    expect(vitrine, 'vitrine tile net').toContain("'vitrine.tile_net'");
+    // MA VITRINE leads with the net hero (« Votre gain net » + formatFcfa(v.net));
+    // the cliente price is the secondary line beneath it.
+    expect(vitrine, 'vitrine net hero label').toContain("'opportunity.net_label'");
+    expect(vitrine, 'vitrine net hero figure').toContain('styles.vitrineNetHero');
     expect(vitrine).toContain('formatFcfa(v.net)');
     // gross is computed in the margin module but NEVER rendered on these surfaces.
     for (const [name, slice] of [['opp', opp], ['fiche', fiche], ['vitrine', vitrine]] as const) {

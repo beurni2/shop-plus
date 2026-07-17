@@ -555,10 +555,12 @@ export default function App() {
                       <Text style={styles.vitrineCardGlyph}>{item.name.slice(0, 1)}</Text>
                     </View>
                     <Text style={styles.tileName} numberOfLines={1}>{item.name}</Text>
-                    <View style={styles.tilePriceRow}>
-                      <Text style={styles.tilePrice}>{formatFcfa(v.client)}</Text>
-                      <Text style={styles.tileNet}>{tf('vitrine.tile_net', { amount: formatFcfa(v.net) })}</Text>
-                    </View>
+                    {/* NET-FIRST hero — her gain is the biggest, deepest figure on
+                        HER vitrine (SP-I04/I12); the cliente price is the secondary
+                        context line beneath it. */}
+                    <Overline>{t('opportunity.net_label')}</Overline>
+                    <Text style={styles.vitrineNetHero}>{formatFcfa(v.net)}</Text>
+                    <Text style={styles.vitrineClientLine}>{tf('vitrine.prix_cliente', { amount: formatFcfa(v.client) })}</Text>
                     <View style={styles.margeHeadRow}>
                       <Overline>{t('fiche.marge_titre')}</Overline>
                       <Text style={styles.margeAmount}>{formatFcfa(markup)}</Text>
@@ -1358,6 +1360,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   vitrineCardGlyph: { color: shopColour.deep, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.heroMoney.size), fontWeight: w(t2.scale.heroMoney.wght) },
+  // net-first: her gain is the hero figure on her own vitrine (deep, heroMoney).
+  vitrineNetHero: {
+    color: shopColour.deep,
+    fontFamily: DISPLAY_FAMILY,
+    fontSize: rmax(t2.scale.heroMoney.size),
+    fontWeight: w(t2.scale.heroMoney.wght),
+    fontVariant: ['tabular-nums'],
+  },
+  // the cliente price — the secondary context line under the net hero.
+  vitrineClientLine: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
   // ── PARTAGER format segments (planche piste r14 p4; active = white card) ──
   fmtSegments: { flexDirection: 'row', gap: spacing.xs, backgroundColor: sharedColour.dim, borderRadius: radius.tile, padding: spacing.xs },
   fmtSeg: { flex: 1, minHeight: touch.minTargetPx, borderRadius: radius.tile, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xs },
