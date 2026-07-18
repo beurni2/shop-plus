@@ -1322,25 +1322,25 @@ packages:
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
 
   '@platform/certification@git+https://github.com/beurni2/platform-contracts.git#a832df0a8ed9e9fc83083826bc11c2a2e57e615a&path:packages/certification':
-    resolution: {commit: a832df0a8ed9e9fc83083826bc11c2a2e57e615a, path: packages/certification, repo: github.com/beurni2/platform-contracts.git, type: git}
+    resolution: {commit: a832df0a8ed9e9fc83083826bc11c2a2e57e615a, path: packages/certification, repo: https://github.com/beurni2/platform-contracts.git, type: git}
     version: 1.0.1
 
   '@platform/contracts@git+https://github.com/beurni2/platform-contracts.git#a832df0a8ed9e9fc83083826bc11c2a2e57e615a&path:packages/contracts':
-    resolution: {commit: a832df0a8ed9e9fc83083826bc11c2a2e57e615a, path: packages/contracts, repo: github.com/beurni2/platform-contracts.git, type: git}
+    resolution: {commit: a832df0a8ed9e9fc83083826bc11c2a2e57e615a, path: packages/contracts, repo: https://github.com/beurni2/platform-contracts.git, type: git}
     version: 1.0.1
     hasBin: true
 
   '@platform/i18n@git+https://github.com/beurni2/platform-contracts.git#a832df0a8ed9e9fc83083826bc11c2a2e57e615a&path:packages/i18n':
-    resolution: {commit: a832df0a8ed9e9fc83083826bc11c2a2e57e615a, path: packages/i18n, repo: github.com/beurni2/platform-contracts.git, type: git}
+    resolution: {commit: a832df0a8ed9e9fc83083826bc11c2a2e57e615a, path: packages/i18n, repo: https://github.com/beurni2/platform-contracts.git, type: git}
     version: 1.0.1
     hasBin: true
 
   '@platform/kernel-types@git+https://github.com/beurni2/platform-contracts.git#a832df0a8ed9e9fc83083826bc11c2a2e57e615a&path:packages/kernel-types':
-    resolution: {commit: a832df0a8ed9e9fc83083826bc11c2a2e57e615a, path: packages/kernel-types, repo: github.com/beurni2/platform-contracts.git, type: git}
+    resolution: {commit: a832df0a8ed9e9fc83083826bc11c2a2e57e615a, path: packages/kernel-types, repo: https://github.com/beurni2/platform-contracts.git, type: git}
     version: 1.0.1
 
   '@platform/ui-tokens@git+https://github.com/beurni2/platform-contracts.git#a832df0a8ed9e9fc83083826bc11c2a2e57e615a&path:packages/ui-tokens':
-    resolution: {commit: a832df0a8ed9e9fc83083826bc11c2a2e57e615a, path: packages/ui-tokens, repo: github.com/beurni2/platform-contracts.git, type: git}
+    resolution: {commit: a832df0a8ed9e9fc83083826bc11c2a2e57e615a, path: packages/ui-tokens, repo: https://github.com/beurni2/platform-contracts.git, type: git}
     version: 1.0.1
 
   '@playwright/test@1.61.1':
