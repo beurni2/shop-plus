@@ -16,7 +16,7 @@
  * event log + a minimal demo fold. The op names, the discoverable rule, and the
  * real `/v/` slug are production-shaped; only the DATA SOURCE is demo.
  *
- * ⚑ VITRINE-REAL-BACKING (named follow-on — NOT wired now): swap the demo log +
+ * FLAG VITRINE-REAL-BACKING (named follow-on — NOT wired now): swap the demo log +
  * demo fold for the live storefront event source + the real
  * `projectStores`/`resolvePublishedStore`. The `VitrineCollectionPort` interface
  * does not change — the adapter does. This is the "later adapter swap, not a

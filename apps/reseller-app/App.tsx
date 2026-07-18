@@ -236,7 +236,7 @@ export default function App() {
   // catalog copy (never inline), the link is her real signed slug. Deep-links try
   // first (WhatsApp/Facebook), the OS share sheet is the honest fallback (and the
   // « copier » path — a native Clipboard dep would need a full rebuild, not an OTA;
-  // ⚑ VITRINE-SHARE-CLIPBOARD: swap the sheet for a one-tap copy at integration).
+  // FLAG VITRINE-SHARE-CLIPBOARD: swap the sheet for a one-tap copy at integration).
   const shareVia = useCallback(
     async (channel: 'copier' | 'whatsapp' | 'facebook' | 'tiktok') => {
       const message = tf('partager.message', { url: shareUrl });
