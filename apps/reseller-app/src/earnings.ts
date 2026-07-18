@@ -1,4 +1,5 @@
 import type { WaterfallResult } from '@platform/contracts';
+import { money } from '@platform/ui-tokens/legacy';
 
 /**
  * Earnings surfaces are NET-FIRST (SP-I04/SP-I12; §5.4: "The reseller MUST
@@ -36,5 +37,8 @@ export function buildOpportunityCard(money: WaterfallResult): OpportunityCardMod
 }
 
 export function formatFcfa(amount: number): string {
-  return `${amount.toLocaleString('fr-FR')} F`;
+  // WO-FCFA (canon v1.0.1): the suffix is the pinned money token — fr-FR grouping
+  // (U+202F) + `money.currencySuffix` (U+202F + « FCFA »). No hardcoded « F »; the
+  // whole app's money render flips through this one site.
+  return `${amount.toLocaleString('fr-FR')}${money.currencySuffix}`;
 }

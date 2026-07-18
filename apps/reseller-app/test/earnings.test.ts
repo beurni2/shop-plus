@@ -29,8 +29,8 @@ describe('net-first-display — opportunity card', () => {
     expect(JSON.stringify(card)).not.toMatch(/gross/i);
   });
 
-  it('FCFA formatting is large plain francs (no decimals, fr-FR grouping)', () => {
-    expect(formatFcfa(2_000)).toBe('2 000 F');
+  it('FCFA formatting is large plain francs (no decimals, fr-FR grouping, canon FCFA suffix)', () => {
+    expect(formatFcfa(2_000)).toBe('2\u202f000\u202fFCFA'); // canon v1.0.1 suffix (U+202F + « FCFA »)
   });
   it('the checked-in shell snapshot equals the pinned waterfall output (Metro-safe, canon-pinned)', () => {
     const snapshot = JSON.parse(
