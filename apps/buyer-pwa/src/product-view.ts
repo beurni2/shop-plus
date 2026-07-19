@@ -15,7 +15,7 @@ import { renderEnt1, renderEnt2, renderEnt3 } from './vitrine/entries';
  * amount is the biggest ink on the page, `money.amountScale.page`, tabular),
  * the verified badge, and the trust chips « Livré par Séra » / « Paiement
  * protégé ». One primary action (« Acheter »). The price element keeps its
- * `.fcfa-hero` class and byte-exact « 11 500 F » figure (money never shifts).
+ * `.fcfa-hero` class and byte-exact « 11 500 FCFA » figure (money never shifts).
  */
 
 /** Vitrine-entry context (E1/E2 — HANDOFF §2): present when the product page

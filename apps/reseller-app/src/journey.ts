@@ -11,6 +11,7 @@ export type Screen =
   | 'fiche'
   | 'vitrine'
   | 'pubvitrine'
+  | 'personnaliser'
   | 'lien'
   | 'gains'
   | 'ventes'
@@ -25,7 +26,8 @@ export const JOURNEY: Record<Screen, readonly Screen[]> = {
   // Ma vitrine → Partager. « Vitrine publique » is the aperçu-cliente target.
   opportunites: ['fiche'],
   fiche: ['vitrine'],
-  vitrine: ['lien', 'pubvitrine'],
+  vitrine: ['lien', 'pubvitrine', 'personnaliser'],
+  personnaliser: ['pubvitrine'],
   pubvitrine: [],
   lien: ['gains'],
   gains: ['opportunites'],

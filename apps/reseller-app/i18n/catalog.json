@@ -1,902 +1,1454 @@
 [
-  {
-    "key": "app.title",
-    "fr": "Shop+",
-    "register": "neutral",
-    "screenClass": "general"
-  },
-  {
-    "key": "opportunity.net_label",
-    "fr": "Votre gain net",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "opportunity.customer_price_label",
-    "fr": "Prix pour la cliente",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "opportunity.example_product",
-    "fr": "Pagne tissé — exemple",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "preview.banner",
-    "fr": "Aperçu — bac à sable",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "nav.retour",
-    "fr": "Retour",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "nav.recommencer",
-    "fr": "Recommencer la démo",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "demo.donnees",
-    "fr": "Données d'essai — rien ici n'est réel.",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "accueil.tagline",
-    "fr": "Choisissez de beaux produits, partagez votre lien, gagnez votre part.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "accueil.card_opportunites",
-    "fr": "Voir les opportunités",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "accueil.card_gains",
-    "fr": "Mes gains",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "opportunites.title",
-    "fr": "Les opportunités",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "opportunites.sous_titre",
-    "fr": "Produits de vendeurs vérifiés — votre gain net est affiché.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "opportunites.repere",
-    "fr": "Repère",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "opportunites.action",
-    "fr": "Créer ma sélection",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "selection.title",
-    "fr": "Ma sélection",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "selection.hint",
-    "fr": "Touchez un produit pour l'ajouter à votre vitrine.",
-    "register": "neutral",
-    "screenClass": "general"
-  },
-  {
-    "key": "selection.choisi",
-    "fr": "Choisi",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "selection.ajouter",
-    "fr": "Ajouter",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "selection.compte",
-    "fr": "Produits choisis : {count}",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "selection.action",
-    "fr": "Voir ma vitrine",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "vitrine.title",
-    "fr": "Ma vitrine",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "vitrine.note",
-    "fr": "Vos clientes verront ces prix.",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "vitrine.vide",
-    "fr": "Votre vitrine attend ses premiers produits. Revenez en choisir.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "vitrine.action",
-    "fr": "Partager ma vitrine",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "lien.title",
-    "fr": "Partager",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "lien.hint",
-    "fr": "Lien d'essai — il ne s'ouvre pas.",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "lien.explication",
-    "fr": "Ce lien porte votre nom. Chaque vente passée par ce lien vous est comptée.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "lien.action",
-    "fr": "Voir mes gains",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "gains.title",
-    "fr": "Mes gains (essai)",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "gains.sous_titre",
-    "fr": "Toujours en net — versé sur votre Mobile Money.",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "gains.total_label",
-    "fr": "Votre gain net (essai)",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "gains.detail_titre",
-    "fr": "Le détail, en francs",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "gains.brut",
-    "fr": "Gain brut (commission + marge) : {amount}",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "gains.part",
-    "fr": "Part Shop+ (20 %) : − {amount}",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "gains.net",
-    "fr": "Votre net : {amount}",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "gains.baseline_titre",
-    "fr": "L'exemple : produit vendu {amount}",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "gains.suite",
-    "fr": "Séra livre. L'argent suit les règles. Votre part vous revient.",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "nav.tab_accueil",
-    "fr": "Accueil",
-    "register": "neutral",
-    "screenClass": "general"
-  },
-  {
-    "key": "nav.tab_opportunites",
-    "fr": "Opportunités",
-    "register": "neutral",
-    "screenClass": "general"
-  },
-  {
-    "key": "nav.tab_gains",
-    "fr": "Gains",
-    "register": "neutral",
-    "screenClass": "general"
-  },
-  {
-    "key": "money.amount_f",
-    "fr": "{amount} F",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "share.og_titre",
-    "fr": "Ce que verra votre cliente",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "share.og_signe",
-    "fr": "Votre lien est signé — la vente vous revient, toujours.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "share.prix",
-    "fr": "Votre prix : {amount}",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "share.livre_sera",
-    "fr": "Livré par Séra",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "share.bio",
-    "fr": "Collez le lien dans votre bio Instagram ou TikTok. Vos clientes vous retrouvent toujours — la vente vous revient.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "share.code",
-    "fr": "Code : {code}",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "share.code_hint",
-    "fr": "écrit sur chaque carte",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "share.voir_vitrine",
-    "fr": "Voir ma vitrine comme une cliente",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "share.validite",
-    "fr": "Prix du {date} — le lien dit le prix du jour.",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "ventes.titre",
-    "fr": "MES VENTES — LES PROBLÈMES D'ABORD",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "ventes.titre_hier",
-    "fr": "MES VENTES — HIER SOIR",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "ventes.vide_titre",
-    "fr": "Aucune vente en cours.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "ventes.vide_hint",
-    "fr": "Partagez votre vitrine — c'est elle qui remplit cette page.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "ventes.vide_action",
-    "fr": "PARTAGER MA VITRINE",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "ventes.etat_payee",
-    "fr": "PAYÉE",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "ventes.etat_preparation",
-    "fr": "EN PRÉPARATION",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "ventes.etat_en_route",
-    "fr": "EN ROUTE",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "ventes.etat_porte",
-    "fr": "À LA PORTE",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "ventes.etat_livree",
-    "fr": "LIVRÉE",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "ventes.etat_probleme",
-    "fr": "PROBLÈME",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "ventes.net_ligne",
-    "fr": "+ {amount} net",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "ventes.probleme_encart",
-    "fr": "Signalé à l'inspection — le bureau des exceptions s'en occupe. La commande reste protégée ; votre net attend, il n'est pas perdu.",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "ventes.probleme_action",
-    "fr": "VOIR LE DÉTAIL",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "ventes.probleme_rien",
-    "fr": "Rien à faire de votre côté.",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "ventes.relais",
-    "fr": "Vous ne voyez jamais son numéro — le relais s'en charge.",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "ventes.hors_ligne",
-    "fr": "Hors ligne : vos ventes affichées sont celles d'hier soir.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "ventes.hors_ligne_pied",
-    "fr": "Les états repartent tout seuls avec le réseau — rien n'est perdu.",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "ventes.erreur_titre",
-    "fr": "Vos ventes n'ont pas pu se charger.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "ventes.erreur_hint",
-    "fr": "Rien n'est perdu — réessayez.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "ventes.reessayer",
-    "fr": "RÉESSAYER",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "vente.titre",
-    "fr": "VENTE — {name}",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "vente.net_label",
-    "fr": "VOTRE GAIN NET",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "vente.net_regle",
-    "fr": "Réglé après livraison validée.",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "vente.son_prix",
-    "fr": "SON PRIX : {amount}",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "vente.timeline_titre",
-    "fr": "OÙ EN EST LA COMMANDE",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "vente.etape_payee",
-    "fr": "Payée",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "vente.etape_payee_note",
-    "fr": "Confirmée par l'opérateur.",
-    "register": "neutral",
-    "screenClass": "general"
-  },
-  {
-    "key": "vente.etape_scellee",
-    "fr": "Vérifiée et scellée par Séra",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "vente.etape_scellee_note",
-    "fr": "Le colis est contrôlé avant de partir.",
-    "register": "neutral",
-    "screenClass": "general"
-  },
-  {
-    "key": "vente.etape_en_route",
-    "fr": "En route",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "vente.etape_en_route_note",
-    "fr": "Vers son repère, avec Séra.",
-    "register": "neutral",
-    "screenClass": "general"
-  },
-  {
-    "key": "vente.etape_livree",
-    "fr": "Livrée — après son inspection",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "vente.maintenant",
-    "fr": "MAINTENANT",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "ventes.nav",
-    "fr": "Mes ventes",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "share.qr_titre",
-    "fr": "FAITES SCANNER — EN PERSONNE",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "share.qr_blurb",
-    "fr": "Votre cliente scanne — elle arrive sur votre vitrine. La vente vous revient.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "share.qr_legende",
-    "fr": "SCANNEZ — OU TAPEZ LE CODE",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "share.qr_repli",
-    "fr": "Pas de scan ? Le code suffit — {code}.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "share.kit",
-    "fr": "Créer une image à publier",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "share.kit_hint",
-    "fr": "Story, carré, affiche — votre carte prête à publier.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "opportunite.perimee",
-    "fr": "Offre à confirmer — données périmées",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "opportunite.perimee_hint",
-    "fr": "Le stock doit être revérifié avant de publier.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "accueil.home_titre",
-    "fr": "Ma vitrine",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "accueil.comment",
-    "fr": "Comment ça marche",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "accueil.bonjour",
-    "fr": "Bonjour, {name}",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "accueil.gains_mois_label",
-    "fr": "Gains nets — juin",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "accueil.gains_mois_sub",
-    "fr": "Versés sur Mobile Money",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "accueil.attente_label",
-    "fr": "En attente (net)",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "accueil.attente_sub",
-    "fr": "Verrouillé à la commande",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "accueil.cta_trouver",
-    "fr": "Trouver des produits à vendre",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "accueil.ventes_en_cours",
-    "fr": "Ventes en cours",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "accueil.tout_voir",
-    "fr": "Tout voir",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "accueil.astuce",
-    "fr": "Astuce : le prix client = prix de base + votre marge. Vous voyez toujours votre gain net avant de partager.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "accueil.zone",
-    "fr": "Gounghin",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "fiche.title",
-    "fr": "Opportunité",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "fiche.tier",
-    "fr": "Vendeur vérifié",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "fiche.identity_note",
-    "fr": "Vous vendez sous votre vitrine. Le nom du vendeur n'est jamais montré à la cliente.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "fiche.marge_titre",
-    "fr": "Votre marge",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "fiche.plafond",
-    "fr": "Marge libre, jusqu'à {amount}.",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "fiche.ligne_commission",
-    "fr": "Commission du vendeur",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "fiche.ligne_brut",
-    "fr": "Gain brut",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "fiche.ligne_part",
-    "fr": "Part Shop+ (20 %)",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "fiche.prix_client",
-    "fr": "Prix affiché à la cliente",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "fiche.livraison_note",
-    "fr": "Livraison dès 1 000 F, payée par la cliente.",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "fiche.plus",
-    "fr": "+ {amount}",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "fiche.moins",
-    "fr": "− {amount}",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "fiche.chip_inspection",
-    "fr": "Inspection à la porte",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "fiche.chip_refus",
-    "fr": "Refus justifié, cliente protégée",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "fiche.cta",
-    "fr": "Ajouter à ma vitrine",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "fiche.ajoutee_toast",
-    "fr": "Produit ajouté à votre vitrine",
-    "register": "selling",
-    "screenClass": "status"
-  },
-  {
-    "key": "vitrine.sous_titre",
-    "fr": "Les clientes voient votre vitrine, vos prix, votre nom. Jamais les vendeurs.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "vitrine.toggle_publique",
-    "fr": "Publique",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "vitrine.toggle_privee",
-    "fr": "Privée",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "vitrine.apercu_public",
-    "fr": "Aperçu public",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "vitrine.toast_publique",
-    "fr": "Votre boutique apparaît dans Découvrir",
-    "register": "selling",
-    "screenClass": "status"
-  },
-  {
-    "key": "vitrine.toast_privee",
-    "fr": "Vitrine privée — accessible par lien seulement",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "vitrine.tile_net",
-    "fr": "net {amount}",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "vitrine.prix_cliente",
-    "fr": "Prix cliente : {amount}",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "partager.choisir_titre",
-    "fr": "Mettez en avant jusqu'à 3 produits",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "partager.cap_note",
-    "fr": "3 produits maximum sur une carte",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "partager.compte",
-    "fr": "Choisis : {count} sur 3",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "partager.net_carte",
-    "fr": "Votre gain net sur cette carte : {amount}. Jamais visible par la cliente.",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "partager.copier",
-    "fr": "Copier le lien signé",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "partager.whatsapp",
-    "fr": "Partager sur WhatsApp",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "partager.facebook",
-    "fr": "Partager sur Facebook",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "partager.tiktok",
-    "fr": "Partager sur TikTok",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "partager.message",
-    "fr": "Ma vitrine Shop+ : {url}",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "pubvitrine.title",
-    "fr": "Aperçu — vue cliente",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "pubvitrine.lecture",
-    "fr": "Lecture seule",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "pubvitrine.zone",
-    "fr": "Gounghin, Ouagadougou — livraison Séra vérifiée et scellée",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "pubvitrine.ink_banner",
-    "fr": "Ce que la cliente ne voit jamais : les vendeurs, vos marges, vos gains. Vous êtes le visage de confiance.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "demo.build",
-    "fr": "Version {id}",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "nav.tab_vitrine",
-    "fr": "Ma vitrine",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "opportunity.gagnez",
-    "fr": "Gagnez environ {amount} net",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "vitrine.partager",
-    "fr": "Partager",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "partager.fmt_carte",
-    "fr": "Carte WhatsApp",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "partager.fmt_story",
-    "fr": "Story",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "partager.fmt_affiche",
-    "fr": "Affiche",
-    "register": "neutral",
-    "screenClass": "label"
-  }
+ {
+  "key": "app.title",
+  "fr": "Shop+",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "opportunity.net_label",
+  "fr": "Votre gain net",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "opportunity.customer_price_label",
+  "fr": "Prix pour la cliente",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "opportunity.example_product",
+  "fr": "Pagne tissé — exemple",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "preview.banner",
+  "fr": "Aperçu — bac à sable",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "nav.retour",
+  "fr": "Retour",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "nav.recommencer",
+  "fr": "Recommencer la démo",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "demo.donnees",
+  "fr": "Données d'essai — rien ici n'est réel.",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "accueil.tagline",
+  "fr": "Choisissez de beaux produits, partagez votre lien, gagnez votre part.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "accueil.card_opportunites",
+  "fr": "Voir les opportunités",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "accueil.card_gains",
+  "fr": "Mes gains",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "opportunites.title",
+  "fr": "Les opportunités",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "opportunites.sous_titre",
+  "fr": "Produits de vendeurs vérifiés — votre gain net est affiché.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "opportunites.repere",
+  "fr": "Repère",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "opportunites.action",
+  "fr": "Créer ma sélection",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "selection.title",
+  "fr": "Ma sélection",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "selection.hint",
+  "fr": "Touchez un produit pour l'ajouter à votre vitrine.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "selection.choisi",
+  "fr": "Choisi",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "selection.ajouter",
+  "fr": "Ajouter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "selection.compte",
+  "fr": "Produits choisis : {count}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "selection.action",
+  "fr": "Voir ma vitrine",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vitrine.title",
+  "fr": "Ma vitrine",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vitrine.note",
+  "fr": "Vos clientes verront ces prix.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "vitrine.vide",
+  "fr": "Votre vitrine attend ses premiers produits. Revenez en choisir.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vitrine.action",
+  "fr": "Partager ma vitrine",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "lien.title",
+  "fr": "Partager",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "lien.hint",
+  "fr": "Lien d'essai — il ne s'ouvre pas.",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "lien.explication",
+  "fr": "Ce lien porte votre nom. Chaque vente passée par ce lien vous est comptée.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "lien.action",
+  "fr": "Voir mes gains",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.title",
+  "fr": "Mes gains (essai)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.sous_titre",
+  "fr": "Toujours en net — versé sur votre Mobile Money.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "gains.total_label",
+  "fr": "Votre gain net (essai)",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.detail_titre",
+  "fr": "Le détail, en francs",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.brut",
+  "fr": "Gain brut (commission + marge) : {amount}",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.part",
+  "fr": "Part Shop+ (20 %) : − {amount}",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.net",
+  "fr": "Votre net : {amount}",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.baseline_titre",
+  "fr": "L'exemple : produit vendu {amount}",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.suite",
+  "fr": "Séra livre. L'argent suit les règles. Votre part vous revient.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "nav.tab_accueil",
+  "fr": "Accueil",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "nav.tab_opportunites",
+  "fr": "Opportunités",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "nav.tab_gains",
+  "fr": "Gains",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "money.amount_f",
+  "fr": "{amount} F",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "share.og_titre",
+  "fr": "Ce que verra votre cliente",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "share.og_signe",
+  "fr": "Votre lien est signé — la vente vous revient, toujours.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "share.prix",
+  "fr": "Votre prix : {amount}",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "share.livre_sera",
+  "fr": "Livré par Séra",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "share.bio",
+  "fr": "Collez le lien dans votre bio Instagram ou TikTok. Vos clientes vous retrouvent toujours — la vente vous revient.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "share.code",
+  "fr": "Code : {code}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "share.code_hint",
+  "fr": "écrit sur chaque carte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "share.voir_vitrine",
+  "fr": "Voir ma vitrine comme une cliente",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "share.validite",
+  "fr": "Prix du {date} — le lien dit le prix du jour.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ventes.titre",
+  "fr": "MES VENTES — LES PROBLÈMES D'ABORD",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ventes.titre_hier",
+  "fr": "MES VENTES — HIER SOIR",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ventes.vide_titre",
+  "fr": "Aucune vente en cours.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "ventes.vide_hint",
+  "fr": "Partagez votre vitrine — c'est elle qui remplit cette page.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "ventes.vide_action",
+  "fr": "PARTAGER MA VITRINE",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "ventes.etat_payee",
+  "fr": "PAYÉE",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ventes.etat_preparation",
+  "fr": "EN PRÉPARATION",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ventes.etat_en_route",
+  "fr": "EN ROUTE",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ventes.etat_porte",
+  "fr": "À LA PORTE",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ventes.etat_livree",
+  "fr": "LIVRÉE",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ventes.etat_probleme",
+  "fr": "PROBLÈME",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ventes.net_ligne",
+  "fr": "+ {amount} net",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ventes.probleme_encart",
+  "fr": "Signalé à l'inspection — le bureau des exceptions s'en occupe. La commande reste protégée ; votre net attend, il n'est pas perdu.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ventes.probleme_action",
+  "fr": "VOIR LE DÉTAIL",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ventes.probleme_rien",
+  "fr": "Rien à faire de votre côté.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ventes.relais",
+  "fr": "Vous ne voyez jamais son numéro — le relais s'en charge.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ventes.hors_ligne",
+  "fr": "Hors ligne : vos ventes affichées sont celles d'hier soir.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ventes.hors_ligne_pied",
+  "fr": "Les états repartent tout seuls avec le réseau — rien n'est perdu.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ventes.erreur_titre",
+  "fr": "Vos ventes n'ont pas pu se charger.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ventes.erreur_hint",
+  "fr": "Rien n'est perdu — réessayez.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ventes.reessayer",
+  "fr": "RÉESSAYER",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vente.titre",
+  "fr": "VENTE — {name}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vente.net_label",
+  "fr": "VOTRE GAIN NET",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "vente.net_regle",
+  "fr": "Réglé après livraison validée.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "vente.son_prix",
+  "fr": "SON PRIX : {amount}",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "vente.timeline_titre",
+  "fr": "OÙ EN EST LA COMMANDE",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vente.etape_payee",
+  "fr": "Payée",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vente.etape_payee_note",
+  "fr": "Confirmée par l'opérateur.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "vente.etape_scellee",
+  "fr": "Vérifiée et scellée par Séra",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vente.etape_scellee_note",
+  "fr": "Le colis est contrôlé avant de partir.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "vente.etape_en_route",
+  "fr": "En route",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vente.etape_en_route_note",
+  "fr": "Vers son repère, avec Séra.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "vente.etape_livree",
+  "fr": "Livrée — après son inspection",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vente.maintenant",
+  "fr": "MAINTENANT",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ventes.nav",
+  "fr": "Mes ventes",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "share.qr_titre",
+  "fr": "FAITES SCANNER — EN PERSONNE",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "share.qr_blurb",
+  "fr": "Votre cliente scanne — elle arrive sur votre vitrine. La vente vous revient.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "share.qr_legende",
+  "fr": "SCANNEZ — OU TAPEZ LE CODE",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "share.qr_repli",
+  "fr": "Pas de scan ? Le code suffit — {code}.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "share.kit",
+  "fr": "Créer une image à publier",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "share.kit_hint",
+  "fr": "Story, carré, affiche — votre carte prête à publier.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "opportunite.perimee",
+  "fr": "Offre à confirmer — données périmées",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "opportunite.perimee_hint",
+  "fr": "Le stock doit être revérifié avant de publier.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "accueil.home_titre",
+  "fr": "Ma vitrine",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "accueil.comment",
+  "fr": "Comment ça marche",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "accueil.bonjour",
+  "fr": "Bonjour, {name}",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "accueil.gains_mois_label",
+  "fr": "Gains nets — juin",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "accueil.gains_mois_sub",
+  "fr": "Versés sur Mobile Money",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "accueil.attente_label",
+  "fr": "En attente (net)",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "accueil.attente_sub",
+  "fr": "Verrouillé à la commande",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "accueil.cta_trouver",
+  "fr": "Trouver des produits à vendre",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "accueil.ventes_en_cours",
+  "fr": "Ventes en cours",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "accueil.tout_voir",
+  "fr": "Tout voir",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "accueil.astuce",
+  "fr": "Astuce : le prix client = prix de base + votre marge. Vous voyez toujours votre gain net avant de partager.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "accueil.zone",
+  "fr": "Gounghin",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.title",
+  "fr": "Opportunité",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.tier",
+  "fr": "Vendeur vérifié",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.identity_note",
+  "fr": "Vous vendez sous votre vitrine. Le nom du vendeur n'est jamais montré à la cliente.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "fiche.marge_titre",
+  "fr": "Votre marge",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.plafond",
+  "fr": "Marge libre, jusqu'à {amount}.",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.ligne_commission",
+  "fr": "Commission du vendeur",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.ligne_brut",
+  "fr": "Gain brut",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.ligne_part",
+  "fr": "Part Shop+ (20 %)",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.prix_client",
+  "fr": "Prix affiché à la cliente",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.livraison_note",
+  "fr": "Livraison dès 1 000 F, payée par la cliente.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "fiche.plus",
+  "fr": "+ {amount}",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.moins",
+  "fr": "− {amount}",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.chip_inspection",
+  "fr": "Inspection à la porte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.chip_refus",
+  "fr": "Refus justifié, cliente protégée",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.cta",
+  "fr": "Ajouter à ma vitrine",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.ajoutee_toast",
+  "fr": "Produit ajouté à votre vitrine",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "vitrine.sous_titre",
+  "fr": "Les clientes voient votre vitrine, vos prix, votre nom. Jamais les vendeurs.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vitrine.toggle_publique",
+  "fr": "Publique",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vitrine.toggle_privee",
+  "fr": "Privée",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vitrine.apercu_public",
+  "fr": "Aperçu public",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vitrine.toast_publique",
+  "fr": "Votre boutique apparaît dans Découvrir",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "vitrine.toast_privee",
+  "fr": "Vitrine privée — accessible par lien seulement",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vitrine.tile_net",
+  "fr": "net {amount}",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "vitrine.prix_cliente",
+  "fr": "Prix cliente : {amount}",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "partager.choisir_titre",
+  "fr": "Mettez en avant jusqu'à 3 produits",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "partager.cap_note",
+  "fr": "3 produits maximum sur une carte",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "partager.compte",
+  "fr": "Choisis : {count} sur 3",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "partager.net_carte",
+  "fr": "Votre gain net sur cette carte : {amount}. Jamais visible par la cliente.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "partager.copier",
+  "fr": "Copier le lien signé",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "partager.whatsapp",
+  "fr": "Partager sur WhatsApp",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "partager.facebook",
+  "fr": "Partager sur Facebook",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "partager.tiktok",
+  "fr": "Partager sur TikTok",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "partager.message",
+  "fr": "Ma vitrine Shop+ : {url}",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "pubvitrine.title",
+  "fr": "Aperçu — vue cliente",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "pubvitrine.lecture",
+  "fr": "Lecture seule",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "pubvitrine.zone",
+  "fr": "Gounghin, Ouagadougou — livraison Séra vérifiée et scellée",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "pubvitrine.ink_banner",
+  "fr": "Ce que la cliente ne voit jamais : les vendeurs, vos marges, vos gains. Vous êtes le visage de confiance.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "demo.build",
+  "fr": "Version {id}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "nav.tab_vitrine",
+  "fr": "Ma vitrine",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "opportunity.gagnez",
+  "fr": "Gagnez environ {amount} net",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "vitrine.partager",
+  "fr": "Partager",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "partager.fmt_carte",
+  "fr": "Carte WhatsApp",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "partager.fmt_story",
+  "fr": "Story",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "partager.fmt_affiche",
+  "fr": "Affiche",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entree",
+  "fr": "Personnaliser ma boutique",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.retour",
+  "fr": "Retour",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.title",
+  "fr": "Personnaliser",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.etat_publiee",
+  "fr": "Publiée",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.etat_privee",
+  "fr": "Privée",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.apercu_legende",
+  "fr": "Aperçu en direct — c’est ce que voit une cliente.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.row.identite",
+  "fr": "Identité",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.row.identite_sub",
+  "fr": "Nom, phrase d’accueil, présentation",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.row.cover",
+  "fr": "Couverture & portrait",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.row.cover_defaut",
+  "fr": "Habillage tissé par défaut",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.row.cover_pending",
+  "fr": "Couverture en vérification Séra",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.row.cover_live",
+  "fr": "Couverture en ligne",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.row.theme",
+  "fr": "Thème",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.row.theme_defaut",
+  "fr": "{nom} (défaut)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.row.une",
+  "fr": "À la une & ordre",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.row.une_sub",
+  "fr": "{n} épinglé(s) · {total} articles",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.row.sections",
+  "fr": "Sections",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.row.sections_zero",
+  "fr": "Aucune — une seule grille",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.row.sections_n",
+  "fr": "{n} sections",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.voir_cliente",
+  "fr": "Voir comme cliente",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.jamais_titre",
+  "fr": "Jamais modifiable :",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.jamais_corps",
+  "fr": "les prix signés, le badge vérifié, les protections clientes, votre lien {slug}. L’habillage change — jamais le contrat.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.identite.title",
+  "fr": "Identité",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.identite.nom_label",
+  "fr": "NOM DE LA BOUTIQUE",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.identite.nom_requis",
+  "fr": "Votre boutique doit garder un nom.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.identite.tagline_label",
+  "fr": "PHRASE D’ACCUEIL (FACULTATIVE)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.identite.tagline_ph",
+  "fr": "Ex. : Le wax et le cuir, choisis à la main",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.identite.bio_label",
+  "fr": "PRÉSENTATION (FACULTATIVE)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.identite.bio_ph",
+  "fr": "Dites qui vous êtes, ce que vous choisissez, pour qui.",
+  "register": "selling",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "k.identite.note_slug",
+  "fr": "Votre lien {slug} ne change jamais — même si vous renommez la boutique. Vos affiches et QR restent bons.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.enregistrer",
+  "fr": "Enregistrer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.toast_enregistre",
+  "fr": "Enregistré — visible immédiatement",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cover.title",
+  "fr": "Couverture & portrait",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.cover.caps",
+  "fr": "PHOTO DE COUVERTURE",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.cover.ajouter",
+  "fr": "Ajouter une couverture",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.cover.specs",
+  "fr": "JPEG · 3 : 1 · min 1 206 × 402 px · 2 Mo max",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.cover.envoi",
+  "fr": "ENVOI…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cover.pilule_verif",
+  "fr": "EN VÉRIFICATION SÉRA",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cover.pilule_ligne",
+  "fr": "EN LIGNE",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cover.err_titre",
+  "fr": "Image trop lourde — 2 Mo max.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cover.err_corps",
+  "fr": "Reprenez la photo ou compressez-la, puis réessayez.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "k.cover.reessayer",
+  "fr": "Réessayer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.cover.note_defaut",
+  "fr": "Sans couverture, votre boutique porte l’habillage tissé de votre thème — déjà prêt, déjà beau.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cover.note_verif",
+  "fr": "Comme les photos produits, votre couverture passe la vérification Séra. L’ancienne version reste en ligne en attendant.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cover.retirer",
+  "fr": "Retirer la couverture",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.cover.toast_retiree",
+  "fr": "Couverture retirée — le tissé revient",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cover.toast_en_ligne",
+  "fr": "Couverture en ligne — vérifiée par Séra",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cover.demo_envoi",
+  "fr": "Simuler l’envoi",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.cover.demo_lourde",
+  "fr": "Simuler : trop lourde",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.portrait.caps",
+  "fr": "PORTRAIT",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.portrait.monogramme",
+  "fr": "Monogramme",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.portrait.photo",
+  "fr": "Photo",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.portrait.note_monogramme",
+  "fr": "Le monogramme suit votre thème. Toujours net, toujours lisible — rien à téléverser.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.portrait.note_photo",
+  "fr": "Carrée, nette, vous seule ou votre logo. JPEG · 1 : 1 · min 320 × 320 px · 1 Mo max. Vérification Séra avant publication.",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.theme.title",
+  "fr": "Thème",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.theme.caps",
+  "fr": "QUATRE HABILLAGES FASO PREMIUM",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.theme.defaut",
+  "fr": "Défaut",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.theme.note",
+  "fr": "Aucune couleur libre. Chaque habillage est réglé pour rester lisible sur le papier Faso — contrastes vérifiés, prix toujours nets. Le badge vérifié et les protections clientes ne changent jamais d’apparence.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.theme.toast",
+  "fr": "Thème {nom} appliqué — toujours lisible",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.une.title",
+  "fr": "À la une & ordre",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.une.pill",
+  "fr": "{n}/{cap} épinglés",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.une.sous_titre",
+  "fr": "Vos clientes voient cet ordre. Deux articles au plus passent à la une.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.une.pilule",
+  "fr": "À LA UNE",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.une.monter",
+  "fr": "Monter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.une.descendre",
+  "fr": "Descendre",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.une.refus_cap",
+  "fr": "2 articles à la une maximum — retirez-en un d’abord",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.une.refus_epuise",
+  "fr": "Un article épuisé ne peut pas être à la une",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.une.note_epuise",
+  "fr": "Les articles épuisés descendent automatiquement en fin de boutique — remettez du stock et ils remontent seuls.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.sections.title",
+  "fr": "Sections",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.sections.pill",
+  "fr": "{n}/{cap}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.sections.zero_titre",
+  "fr": "Sans sections, une seule grille.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.sections.zero_corps",
+  "fr": "Tous vos articles s’affichent ensemble — c’est très bien aussi. Les sections servent quand la boutique grandit.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.sections.n_articles",
+  "fr": "{n} articles",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.sections.creer",
+  "fr": "+ Créer une section",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.sections.refus_cap",
+  "fr": "4 sections au plus — regroupez plutôt que multiplier.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.sections.nouvelle",
+  "fr": "Nouvelle section",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.sections.note",
+  "fr": "Une section vide n’apparaît pas chez vos clientes. Un article peut vivre dans une seule section à la fois ; les autres restent dans « Tous les articles ».",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.sections.toast_supprimee",
+  "fr": "Section supprimée — les articles restent en boutique",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.section.title",
+  "fr": "La section",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.section.nom_label",
+  "fr": "NOM DE LA SECTION",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.section.articles_caps",
+  "fr": "LES ARTICLES DEDANS",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.section.note_vide",
+  "fr": "Une section vide n’apparaît pas chez vos clientes.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.section.supprimer",
+  "fr": "Supprimer la section",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.apercu.title",
+  "fr": "Aperçu — vue cliente",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.apercu.lecture",
+  "fr": "Lecture seule",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.apercu.lecture_toast",
+  "fr": "Lecture seule — l’aperçu n’ouvre pas les pages produit",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.apercu.verifiee",
+  "fr": "Vendeuse vérifiée · {zone}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.chip_sera",
+  "fr": "Livraison Séra vérifiée & scellée",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.a_la_une",
+  "fr": "À LA UNE",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.groupe_tous",
+  "fr": "TOUS LES ARTICLES",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.epuise",
+  "fr": "ÉPUISÉ",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.bande_apercu",
+  "fr": "Chaque prix vient de la page signée du produit — c’est elle qui fait foi.",
+  "register": "money",
+  "screenClass": "status"
+ }
 ]

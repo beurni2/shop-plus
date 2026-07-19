@@ -19,6 +19,7 @@ import { foldVitrine, type VitrineEvent } from './src/vitrine/collection';
 import { marginBreakdown, markupCap, defaultMarkup } from './src/vitrine/margin';
 import { MarginSlider } from './src/ui/margin-slider';
 import { HeroLedger, DuotoneTile, QuoteRule } from './src/ui/signature';
+import { CustomizeStack } from './src/vitrine/customize/screens';
 import {
   ventesListModel,
   demoDetail,
@@ -137,7 +138,7 @@ const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'vitrine', 'gains'];
 
 /** Screens whose frame renders a big 28/800 title IN-CONTENT (planche) — the
  * chrome header title is suppressed for these so it isn't a duplicate. */
-const IN_CONTENT_TITLE: readonly Screen[] = ['vitrine'];
+const IN_CONTENT_TITLE: readonly Screen[] = ['vitrine', 'personnaliser'];
 
 const SCREEN_TITLE_KEY: Record<Screen, string> = {
   accueil: 'app.title',
@@ -148,6 +149,7 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
   fiche: 'fiche.title',
   vitrine: 'vitrine.title',
   pubvitrine: 'pubvitrine.title',
+  personnaliser: 'k.title',
   lien: 'lien.title',
   // Hub — brand in the header; the big « Gains » title lands in-content (frame L644).
   gains: 'app.title',
@@ -517,6 +519,14 @@ export default function App() {
                     </View>
                     <Pressable
                       style={({ pressed }) => [styles.vitrineIconBtn, pressed && styles.pressed]}
+                      onPress={() => go('personnaliser')}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('k.entree')}
+                    >
+                      <Text style={styles.homeSubName}>Aa</Text>
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [styles.vitrineIconBtn, pressed && styles.pressed]}
                       onPress={() => go('pubvitrine')}
                       accessibilityRole="button"
                       accessibilityLabel={t('vitrine.apercu_public')}
@@ -818,6 +828,9 @@ export default function App() {
         {/* VITRINE PUBLIQUE — APERÇU CLIENTE (frame L714–740): read-only, the
             cliente's exact view. Client price ONLY — never net, never marge, never a
             vendor. The « Lecture seule » pill + the ink banner state the boundary. */}
+        {screen === 'personnaliser' && (
+          <CustomizeStack onClose={back} onToast={setToast} />
+        )}
         {screen === 'pubvitrine' && (
           <FlatList
             style={styles.screenScroll}
