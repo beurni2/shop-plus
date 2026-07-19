@@ -1404,6 +1404,36 @@
   "screenClass": "status"
  },
  {
+  "key": "k.voix.ecouter",
+  "fr": "Écouter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.voix.pause",
+  "fr": "Pause",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.voix.micro_refuse",
+  "fr": "Micro refusé. Autorisez le micro pour enregistrer une note.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.voix.reessayer",
+  "fr": "Réessayer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.voix.interrompu",
+  "fr": "La note s’est arrêtée. Rien n’est gardé — reprenez quand vous voulez.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "k.sections.title",
   "fr": "Sections",
   "register": "neutral",

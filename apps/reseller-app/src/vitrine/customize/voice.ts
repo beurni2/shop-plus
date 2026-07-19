@@ -90,24 +90,37 @@ export function deleteNote(notes: ProductVoiceNotes, pid: string): ProductVoiceN
 
 /* --------------------------------------------------- the capture seam ---- */
 
-/** The recorder seam — one method pair, mirrors the buyer's RecorderAdapter.
- * The real native recorder (expo-audio) implements THIS; the demo one below is
- * wired now. */
+export type MicPermission = 'granted' | 'denied';
+
+/** The capture seam — capture ONLY (no persistence; that stays mocked). The
+ * REAL implementation is `useVoiceCapture()` (voice-capture.ts, expo-audio);
+ * the demo double below is for the Node tests, which cannot load a native
+ * module. A future storage backend is a SEPARATE swap (publish → upload), so
+ * this seam does not change when persistence lands. */
 export interface VoiceRecorderAdapter {
+  /** Ask for the mic (native prompt). Denial is a designed state, never a wall. */
+  requestPermission(): Promise<MicPermission>;
   start(): Promise<void>;
-  /** Resolves with the finished take (url null under the demo-fed seam). */
+  /** Resolves with the finished take — a real local file `url` + elapsed ms. */
   stop(): Promise<{ url: string | null; durationMs: number }>;
+  /** Play a recorded take back (her own voice, local file). */
+  play(url: string): Promise<void>;
+  stopPlayback(): Promise<void>;
 }
 
 /**
- * DEMO-FED recorder — captures NOTHING (url stays null) but measures the real
- * elapsed record time so the displayed duration is honest. Swapping in a native
- * expo-audio recorder replaces this factory alone. `now` is injectable so the
- * duration is deterministically testable Node-side.
+ * DEMO-FED double — for the Node reducer tests ONLY (a native recorder cannot
+ * run under vitest). Grants permission, captures nothing (url null) but measures
+ * real elapsed time so durations are honest, and no-ops playback. The app uses
+ * the real expo-audio adapter; this never ships in a screen. `now` is injectable
+ * so the duration is deterministically testable.
  */
 export function createDemoRecorder(now: () => number = () => Date.now()): VoiceRecorderAdapter {
   let startedAt: number | null = null;
   return {
+    requestPermission() {
+      return Promise.resolve('granted');
+    },
     start() {
       startedAt = now();
       return Promise.resolve();
@@ -116,6 +129,12 @@ export function createDemoRecorder(now: () => number = () => Date.now()): VoiceR
       const elapsed = startedAt === null ? 0 : Math.max(0, now() - startedAt);
       startedAt = null;
       return Promise.resolve({ url: null, durationMs: elapsed });
+    },
+    play() {
+      return Promise.resolve();
+    },
+    stopPlayback() {
+      return Promise.resolve();
     },
   };
 }

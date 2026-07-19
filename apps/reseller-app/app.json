@@ -13,6 +13,14 @@
     "android": {
       "package": "bf.shopplus.reseller"
     },
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Shop+ utilise le micro pour enregistrer vos notes vocales sur vos articles."
+        }
+      ]
+    ],
     "runtimeVersion": {
       "policy": "sdkVersion"
     }

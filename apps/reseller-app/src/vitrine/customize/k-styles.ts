@@ -264,4 +264,7 @@ export const K_RAW_STYLES = {
   vDur: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 12.5, fontWeight: '700', color: '#6F6355' },
   vPendingPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 99, paddingVertical: 5, paddingHorizontal: 11, backgroundColor: '#F6E9C9' },
   vPendingText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 11.5, fontWeight: '700', color: '#7A5104' },
+  vPlayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, borderRadius: 14, paddingHorizontal: 14, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF' },
+  vDeniedBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', borderRadius: 14, backgroundColor: '#F8E1DE', borderWidth: 1, borderColor: '#E7B8B0', paddingVertical: 12, paddingHorizontal: 14, marginBottom: 12 },
+  vDeniedText: { flex: 1, fontFamily: TEXT_FAMILY, fontSize: 12.5, color: '#8C1D18', minWidth: 170 },
 } as const;

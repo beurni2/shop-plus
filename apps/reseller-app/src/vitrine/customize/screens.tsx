@@ -57,10 +57,9 @@ import {
   publishNote,
   cancelRecording,
   deleteNote,
-  createDemoRecorder,
   type ProductVoiceNotes,
-  type VoiceRecorderAdapter,
 } from './voice';
+import { useVoiceCapture } from './voice-capture';
 /** ONE money source — the app's canonical formatter (U+202F+FCFA, re-pin site). */
 export const fmtFcfa = formatFcfa;
 
@@ -141,6 +140,23 @@ function IconMic({ size, color }: { size: number; color: string }) {
   );
 }
 
+function IconPlayK({ size, color }: { size: number; color: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M8 5.5l11 6.5-11 6.5z" fill={color} />
+    </Svg>
+  );
+}
+
+function IconPauseK({ size, color }: { size: number; color: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Rect x={6.5} y={5} width={3.5} height={14} rx={1} fill={color} />
+      <Rect x={14} y={5} width={3.5} height={14} rx={1} fill={color} />
+    </Svg>
+  );
+}
+
 /** Woven band — the §1.2/§1.3 liseré as striped Views (RN adaptation). */
 export function WovenBand({ accent, gold, height }: { accent: string; gold: string; height: number }) {
   const seq: { c: string; w: number }[] = [];
@@ -176,10 +192,12 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
   const [editingSection, setEditingSection] = useState<string | null>(null);
   // Per-product voice notes — a LOCAL structure PARALLEL to the storefront (canon
   // has no shape yet, and its schema is .strict() — a note field on `sf` would
-  // fail conformance). One demo-fed recorder captures nothing (FLAG
-  // STOREFRONT-MEDIA-BACKING); the pure reducer owns every transition.
+  // fail conformance). Capture is REAL on-device (expo-audio); persistence stays
+  // mocked (publish → pending). The pure reducer owns every transition.
   const [notes, setNotes] = useState<ProductVoiceNotes>(DEFAULT_VOICE_NOTES);
-  const recorder = useRef<VoiceRecorderAdapter>(createDemoRecorder());
+  const [micDenied, setMicDenied] = useState(false);
+  const [playingPid, setPlayingPid] = useState<string | null>(null);
+  const recorder = useVoiceCapture();
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
   const voiceCount = Object.values(notes).filter((n) => n.status !== 'none' && n.status !== 'recording').length;
@@ -214,26 +232,52 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
     );
   };
 
-  // Notes vocales — one recorder, one product at a time. Async takes land via a
+  // Notes vocales — REAL capture, one product at a time. Async takes land via a
   // functional setState so a stale closure can never overwrite a later state.
-  const startRec = (pid: string): void => {
-    void recorder.current.start();
-    setNotes((cur) => startRecording(cur, pid));
+  // Permission denial and a mid-record interruption are both designed states.
+  const startRec = async (pid: string): Promise<void> => {
+    const perm = await recorder.requestPermission();
+    if (perm === 'denied') { setMicDenied(true); return; } // designed « micro refusé » state
+    setMicDenied(false);
+    try {
+      await recorder.start();
+      setNotes((cur) => startRecording(cur, pid));
+    } catch {
+      setNotes((cur) => cancelRecording(cur, pid));
+      onToast(t('k.voix.interrompu'));
+    }
   };
-  const stopRec = (pid: string): void => {
-    void recorder.current.stop().then((take) => setNotes((cur) => stopRecording(cur, pid, take)));
+  const stopRec = async (pid: string): Promise<void> => {
+    try {
+      const take = await recorder.stop();
+      if (!take.url) { setNotes((cur) => cancelRecording(cur, pid)); onToast(t('k.voix.interrompu')); return; }
+      setNotes((cur) => stopRecording(cur, pid, take));
+    } catch {
+      // Mid-record interruption (call, focus loss): drop the partial, honestly.
+      setNotes((cur) => cancelRecording(cur, pid));
+      onToast(t('k.voix.interrompu'));
+    }
   };
   const cancelRec = (pid: string): void => {
-    void recorder.current.stop();
+    void recorder.stop().catch(() => undefined);
     setNotes((cur) => cancelRecording(cur, pid));
+  };
+  const playRec = async (pid: string, url: string): Promise<void> => {
+    if (playingPid === pid) { await recorder.stopPlayback(); setPlayingPid(null); return; }
+    await recorder.play(url); // her own take, local file — real playback
+    setPlayingPid(pid);
   };
   const publishRec = (pid: string): void => {
     setNotes((cur) => publishNote(cur, pid));
     onToast(t('k.voix.toast_publiee')); // honesty: « publiée dès que le réseau revient », never « en ligne »
   };
   const deleteRec = (pid: string): void => {
+    if (playingPid === pid) { void recorder.stopPlayback(); setPlayingPid(null); }
     setNotes((cur) => deleteNote(cur, pid));
     onToast(t('k.voix.toast_supprimee'));
+  };
+  const retryPermission = (): void => {
+    void recorder.requestPermission().then((p) => setMicDenied(p === 'denied'));
   };
 
   const back = (): void => {
@@ -333,12 +377,16 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
       {route === 'k8' && (
         <K8
           notes={notes}
+          micDenied={micDenied}
+          playingPid={playingPid}
           onBack={back}
-          onRecord={startRec}
-          onStop={stopRec}
+          onRecord={(pid) => void startRec(pid)}
+          onStop={(pid) => void stopRec(pid)}
           onCancel={cancelRec}
           onPublish={publishRec}
           onDelete={deleteRec}
+          onPlay={(pid, url) => void playRec(pid, url)}
+          onRetryPermission={retryPermission}
         />
       )}
     </View>
@@ -651,30 +699,56 @@ function K5({ sf, onBack, onPin, onMove }: { sf: Storefront; onBack: () => void;
 
 /** K8 — Notes vocales (per-product). Optional per article; record → recorded →
  * publish (lands on « en attente », never « en ligne » — honesty law); re-record
- * and delete from any state. Capture is demo-fed (FLAG STOREFRONT-MEDIA-BACKING);
- * playback/preview of a take needs the native recorder and is deferred. */
+ * and delete from any state. Capture + playback are REAL on-device (expo-audio):
+ * she records her own voice and plays her take back. Permission denial and a
+ * mid-record interruption are designed states. Persistence stays mocked. */
 function K8({
   notes,
+  micDenied,
+  playingPid,
   onBack,
   onRecord,
   onStop,
   onCancel,
   onPublish,
   onDelete,
+  onPlay,
+  onRetryPermission,
 }: {
   notes: ProductVoiceNotes;
+  micDenied: boolean;
+  playingPid: string | null;
   onBack: () => void;
   onRecord: (pid: string) => void;
   onStop: (pid: string) => void;
   onCancel: (pid: string) => void;
   onPublish: (pid: string) => void;
   onDelete: (pid: string) => void;
+  onPlay: (pid: string, url: string) => void;
+  onRetryPermission: () => void;
 }) {
   const anyRecording = Object.values(notes).some((n) => n.status === 'recording');
+  const PlayBtn = ({ pid, url }: { pid: string; url: string }): React.ReactElement => {
+    const playing = playingPid === pid;
+    return (
+      <Pressable style={({ pressed }) => [S.vPlayBtn, pressed && S.pressed]} onPress={() => onPlay(pid, url)} accessibilityRole="button" accessibilityState={{ selected: playing }}>
+        {playing ? <IconPauseK size={15} color="#1C1710" /> : <IconPlayK size={15} color="#1C1710" />}
+        <Text style={S.vGhostText}>{t(playing ? 'k.voix.pause' : 'k.voix.ecouter')}</Text>
+      </Pressable>
+    );
+  };
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
       <KHeader title={t('k.voix.title')} onBack={onBack} />
       <Text style={S.subTitle}>{t('k.voix.sous_titre')}</Text>
+      {micDenied && (
+        <View style={S.vDeniedBanner}>
+          <Text style={S.vDeniedText}>{t('k.voix.micro_refuse')}</Text>
+          <Pressable style={({ pressed }) => [S.vGhost, pressed && S.pressed]} onPress={onRetryPermission} accessibilityRole="button">
+            <Text style={S.vGhostText}>{t('k.voix.reessayer')}</Text>
+          </Pressable>
+        </View>
+      )}
       <View style={S.rowsCard}>
         {K_SEED.map((p, i) => {
           const n = noteOf(notes, p.pid);
@@ -718,6 +792,7 @@ function K8({
 
               {n.status === 'recorded' && (
                 <View style={S.vActions}>
+                  {n.url ? <PlayBtn pid={p.pid} url={n.url} /> : null}
                   <Text style={S.vDur}>{fmtVoiceDuration(n.durationMs)}</Text>
                   <Pressable style={({ pressed }) => [S.vPublishBtn, pressed && S.pressed]} onPress={() => onPublish(p.pid)} accessibilityRole="button">
                     <Text style={S.vPublishText}>{t('k.voix.publier')}</Text>
@@ -733,6 +808,7 @@ function K8({
 
               {kept && (
                 <View style={S.vActions}>
+                  {n.url ? <PlayBtn pid={p.pid} url={n.url} /> : null}
                   <Text style={S.vDur}>{fmtVoiceDuration(n.durationMs)}</Text>
                   <Pressable style={({ pressed }) => [S.vGhost, pressed && S.pressed]} onPress={() => onRecord(p.pid)} accessibilityRole="button">
                     <Text style={S.vGhostText}>{t('k.voix.refaire')}</Text>

@@ -92,14 +92,21 @@ describe('HONESTY — the reducer never emits `ready`', () => {
   });
 });
 
-describe('the demo recorder measures real elapsed time and captures nothing', () => {
-  it('stop() returns the elapsed duration and a null url (demo-fed seam)', async () => {
+describe('the demo double satisfies the full capture seam (Node — no native module)', () => {
+  it('stop() returns the elapsed duration and a null url (demo captures nothing)', async () => {
     let clock = 1_000;
     const rec = createDemoRecorder(() => clock);
     await rec.start();
     clock = 9_500; // 8.5 s later
     const take = await rec.stop();
     expect(take).toEqual({ url: null, durationMs: 8_500 });
+  });
+
+  it('requestPermission resolves granted; play/stopPlayback are no-ops that resolve', async () => {
+    const rec = createDemoRecorder();
+    await expect(rec.requestPermission()).resolves.toBe('granted');
+    await expect(rec.play('file:///take.m4a')).resolves.toBeUndefined();
+    await expect(rec.stopPlayback()).resolves.toBeUndefined();
   });
 });
 
