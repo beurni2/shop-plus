@@ -93,8 +93,8 @@ function renderConfirmation(state: JourneyState): string {
   return [
     '<section class="confirmation" data-screen="confirmation">',
     `<h2>${t('confirmation.titre')}</h2>`,
-    `<p class="fcfa-line"><span>${t('checkout.pay_now_label')}</span> <strong class="fcfa-figure-inline">${FCFA.format(paidNow)} F</strong></p>`,
-    `<p class="fcfa-line"><span>${t('checkout.pay_at_door_label')}</span> <strong class="fcfa-figure-inline">${FCFA.format(dueAtDoor)} F</strong></p>`,
+    `<p class="fcfa-line"><span>${t('checkout.pay_now_label')}</span> <strong class="fcfa-figure-inline">${FCFA.format(paidNow)} FCFA</strong></p>`,
+    `<p class="fcfa-line"><span>${t('checkout.pay_at_door_label')}</span> <strong class="fcfa-figure-inline">${FCFA.format(dueAtDoor)} FCFA</strong></p>`,
     `<p>${t('confirmation.suite')}</p>`,
     // Queued = pending, never done — there is no server in the sandbox.
     `<p class="status-chip status-pending">${t(state.online ? 'confirmation.en_attente' : 'confirmation.hors_ligne')}</p>`,

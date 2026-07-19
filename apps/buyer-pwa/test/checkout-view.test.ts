@@ -17,7 +17,7 @@ const AVAILABLE = renderCheckoutOptions({
   optionB: { available: true, payNowFcfa: 1_000, dueAtDoorFcfa: 11_500 },
 });
 
-// fr-FR grouping uses narrow no-break space (U+202F) between thousands.
+// fr-FR grouping uses narrow no-break space (U+202 FCFA) between thousands.
 const F = (n: number) => new Intl.NumberFormat('fr-FR').format(n);
 
 describe('§6.1 two-option checkout', () => {
@@ -30,13 +30,13 @@ describe('§6.1 two-option checkout', () => {
   it('both amounts are explicit per option: what is paid NOW and what is due AT THE DOOR', () => {
     expect(AVAILABLE).toContain('À payer maintenant :');
     expect(AVAILABLE).toContain('À payer à la livraison :');
-    expect(AVAILABLE).toContain(`${F(12_500)} F`); // A pays everything now
-    expect(AVAILABLE).toContain(`${F(1_000)} F`); // B pays D now
-    expect(AVAILABLE).toContain(`${F(11_500)} F`); // B owes productSubtotal at the door
+    expect(AVAILABLE).toContain(`${F(12_500)} FCFA`); // A pays everything now
+    expect(AVAILABLE).toContain(`${F(1_000)} FCFA`); // B pays D now
+    expect(AVAILABLE).toContain(`${F(11_500)} FCFA`); // B owes productSubtotal at the door
   });
 
   it('the replay line states BOTH figures before payment (§6.1)', () => {
-    expect(AVAILABLE).toContain(`Vous payez ${F(1_000)} F maintenant et ${F(11_500)} F à la livraison — d'accord ?`);
+    expect(AVAILABLE).toContain(`Vous payez ${F(1_000)} FCFA maintenant et ${F(11_500)} FCFA à la livraison — d'accord ?`);
   });
 
   it('the reconcile line (§2.2) restates the order sum to the franc: total = produit + livraison', () => {
@@ -83,7 +83,7 @@ describe('Option-B tracking states (order view)', () => {
     const html = renderOrderView({ state: 'door_pending', buyerTotalFcfa: 12_500, amountDueAtDeliveryFcfa: 11_500 });
     expect(html).toContain('data-state="door_pending"');
     expect(html).toContain('Livraison déjà payée.');
-    expect(html).toContain(`${F(11_500)} F CFA`);
+    expect(html).toContain(`${F(11_500)} FCFA`);
     expect(html).toContain('class="fcfa-figure"');
     expect(html).toContain('Le livreur arrive.');
   });

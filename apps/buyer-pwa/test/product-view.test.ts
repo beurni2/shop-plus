@@ -54,7 +54,7 @@ describe('§6.2 arrival — the product page', () => {
   });
 
   it('HER price (productSubtotal) is the hero figure — money.amountScale.hero class', () => {
-    expect(html).toContain(`<p class="fcfa-hero">${F(11_500)} F</p>`);
+    expect(html).toContain(`<p class="fcfa-hero">${F(11_500)} FCFA</p>`);
   });
 
   it('the two trust lines are present: « Livré par Séra » and « Paiement protégé »', () => {
@@ -64,7 +64,7 @@ describe('§6.2 arrival — the product page', () => {
 
   it('ONE primary action (« Acheter »), with the amount stated', () => {
     expect(html.match(/class="primary-action"/g)).toHaveLength(1);
-    expect(html).toContain(`Acheter — ${F(11_500)} F`);
+    expect(html).toContain(`Acheter — ${F(11_500)} FCFA`);
   });
 
   it('« Vos protections » (§6.3) is reachable from the product page', () => {

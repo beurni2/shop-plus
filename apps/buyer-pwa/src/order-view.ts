@@ -44,7 +44,7 @@ function actionRow(pair: readonly [string, string]): string {
 }
 
 export function renderOrderView(model: OrderViewModel): string {
-  const amount = `<p class="fcfa-figure">${FCFA.format(model.buyerTotalFcfa)} F CFA</p>`;
+  const amount = `<p class="fcfa-figure">${FCFA.format(model.buyerTotalFcfa)} FCFA</p>`;
   switch (model.state) {
     case 'payment_failed':
       return [
@@ -82,7 +82,7 @@ export function renderOrderView(model: OrderViewModel): string {
     // WO-2.5 Option-B tracking: both amounts explicit and honest — what was
     // already paid, and the product figure due at the door (register:money).
     case 'door_pending': {
-      const due = `<p class="fcfa-figure">${FCFA.format(model.amountDueAtDeliveryFcfa ?? 0)} F CFA</p>`;
+      const due = `<p class="fcfa-figure">${FCFA.format(model.amountDueAtDeliveryFcfa ?? 0)} FCFA</p>`;
       return [
         `<section class="order-view" data-state="door_pending">`,
         `<h2>${t('order.view.heading')}</h2>`,

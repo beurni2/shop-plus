@@ -36,7 +36,7 @@ export function renderDeliveryQuote(model: DeliveryViewModel): string {
         // constant today, but nothing model-derived reaches an attribute raw.
         `<button class="quote-row${option.id === model.selectedId ? ' quote-row-on' : ''}" data-delivery="${esc(option.id)}">`,
         `<span class="quote-label">${t(option.labelKey)}</span>`,
-        `<strong class="fcfa-figure-inline">${FCFA.format(option.feeFcfa)} F</strong>`,
+        `<strong class="fcfa-figure-inline">${FCFA.format(option.feeFcfa)} FCFA</strong>`,
         '</button>',
       ].join(''),
     )

@@ -29,8 +29,8 @@ export interface CheckoutViewModel {
 
 function amountLines(payNow: number, dueAtDoor: number): string {
   return [
-    `<p class="fcfa-line"><span>${t('checkout.pay_now_label')}</span> <strong class="fcfa-figure-inline">${FCFA.format(payNow)} F</strong></p>`,
-    `<p class="fcfa-line"><span>${t('checkout.pay_at_door_label')}</span> <strong class="fcfa-figure-inline">${FCFA.format(dueAtDoor)} F</strong></p>`,
+    `<p class="fcfa-line"><span>${t('checkout.pay_now_label')}</span> <strong class="fcfa-figure-inline">${FCFA.format(payNow)} FCFA</strong></p>`,
+    `<p class="fcfa-line"><span>${t('checkout.pay_at_door_label')}</span> <strong class="fcfa-figure-inline">${FCFA.format(dueAtDoor)} FCFA</strong></p>`,
   ].join('');
 }
 
@@ -89,7 +89,7 @@ export function renderCheckoutOptions(model: CheckoutViewModel): string {
   return [
     `<section class="checkout-view">`,
     `<h2>${t('checkout.heading')}</h2>`,
-    `<p class="fcfa-figure">${FCFA.format(model.buyerTotalFcfa)} F CFA</p>`,
+    `<p class="fcfa-figure">${FCFA.format(model.buyerTotalFcfa)} FCFA</p>`,
     reconcile,
     optionA,
     optionB,

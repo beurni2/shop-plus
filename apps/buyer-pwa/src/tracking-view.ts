@@ -87,7 +87,7 @@ function doorBlock(model: TrackingViewModel): string {
     `<h3>${icon('oeil', 'block-icon')}<span>${t('suivi.porte.inspectez')}</span></h3>`,
     `<p>${t('suivi.porte.verifiez')}</p>`,
     due !== undefined
-      ? `<p class="fcfa-line"><span>${t('suivi.porte.du_label')}</span> <strong class="fcfa-figure-inline">${FCFA.format(due)} F</strong></p>`
+      ? `<p class="fcfa-line"><span>${t('suivi.porte.du_label')}</span> <strong class="fcfa-figure-inline">${FCFA.format(due)} FCFA</strong></p>`
       : '',
     // SP-I10: accepting and reporting share ONE weight class, ONE row.
     `<div class="action-row">`,

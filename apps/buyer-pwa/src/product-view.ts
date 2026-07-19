@@ -57,7 +57,7 @@ function priceBand(priceFcfa: number): string {
   return [
     '<div class="price-band" data-role="price-band">',
     `<span class="price-band-label">${t('produit.prix')}</span>`,
-    `<p class="fcfa-hero">${FCFA.format(priceFcfa)} F</p>`,
+    `<p class="fcfa-hero">${FCFA.format(priceFcfa)} FCFA</p>`,
     `<span class="price-band-note">${t('produit.livraison_note')}</span>`,
     '</div>',
   ].join('');

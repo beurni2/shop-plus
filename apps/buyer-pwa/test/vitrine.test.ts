@@ -71,8 +71,8 @@ describe('Part 6.1 — trust chrome renders BEFORE anything is asked', () => {
 describe('SP-I03 — her prices only; no supplier identity, no commission, no split', () => {
   it('the rendered vitrine carries HER prices and no banned economics', () => {
     const html = renderVitrine(model);
-    // her price, formatted with the real fr-FR narrow-space separator (U+202F)
-    expect(html).toContain(`Votre prix : ${FCFA.format(11_500)} F`);
+    // her price, formatted with the real fr-FR narrow-space separator (U+202 FCFA)
+    expect(html).toContain(`Votre prix : ${FCFA.format(11_500)} FCFA`);
     expect(html).not.toMatch(/supplier|fournisseur|commission|marge|markup|gross|sellerBase|resellerNet|res_/i);
   });
 

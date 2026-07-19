@@ -44,7 +44,7 @@ describe('§6.2 tracking — the coarse honest timeline', () => {
 
   it('Option B at the door shows the due amount as display (never computed here)', () => {
     const html = renderTracking({ step: 'porte', amountDueAtDoorFcfa: 11_500 });
-    expect(html).toContain(`${F(11_500)} F`);
+    expect(html).toContain(`${F(11_500)} FCFA`);
     expect(html).toContain('À payer avant de recevoir');
   });
 
