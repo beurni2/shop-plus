@@ -1308,34 +1308,34 @@
   "screenClass": "status"
  },
  {
-  "key": "k.voix.title",
-  "fr": "Notes vocales",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.voix.sous_titre",
-  "fr": "Une petite note pour présenter un article — c’est votre voix qu’on entend. C’est vous qui choisissez, article par article.",
+  "key": "k.voix.carte_ajouter",
+  "fr": "Ajouter une note vocale",
   "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.voix.carte_a_publier",
+  "fr": "Note vocale à publier",
+  "register": "neutral",
   "screenClass": "status"
  },
  {
-  "key": "k.voix.row",
-  "fr": "Notes vocales",
+  "key": "k.voix.carte_en_attente",
+  "fr": "Note vocale en attente",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.voix.note_produit",
+  "fr": "Note vocale",
   "register": "neutral",
   "screenClass": "label"
  },
  {
-  "key": "k.voix.row_sub_zero",
-  "fr": "Facultatif — une note par article",
+  "key": "k.voix.fermer",
+  "fr": "Fermer",
   "register": "neutral",
-  "screenClass": "status"
- },
- {
-  "key": "k.voix.row_sub_n",
-  "fr": "{n} enregistrée(s)",
-  "register": "neutral",
-  "screenClass": "status"
+  "screenClass": "label"
  },
  {
   "key": "k.voix.enregistrer",

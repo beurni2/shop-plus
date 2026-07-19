@@ -267,4 +267,10 @@ export const K_RAW_STYLES = {
   vPlayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, borderRadius: 14, paddingHorizontal: 14, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF' },
   vDeniedBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', borderRadius: 14, backgroundColor: '#F8E1DE', borderWidth: 1, borderColor: '#E7B8B0', paddingVertical: 12, paddingHorizontal: 14, marginBottom: 12 },
   vDeniedText: { flex: 1, fontFamily: TEXT_FAMILY, fontSize: 12.5, color: '#8C1D18', minWidth: 170 },
+  /* The record SHEET (per-product, opened from the Ma Vitrine card mic). */
+  vSheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(28,22,15,0.42)' },
+  vSheetCard: { backgroundColor: '#FBF7EF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 10, paddingHorizontal: 18, paddingBottom: 30, maxHeight: '86%' },
+  vSheetHandle: { alignSelf: 'center', width: 44, height: 5, borderRadius: 99, backgroundColor: '#DDD2BC', marginBottom: 14 },
+  vSheetKicker: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, color: '#6F6355' },
+  vSheetTitle: { fontFamily: DISPLAY_FAMILY, fontSize: 20, fontWeight: '800', color: '#1C1710', letterSpacing: -0.2 },
 } as const;

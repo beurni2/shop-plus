@@ -6,7 +6,7 @@ import * as Updates from 'expo-updates';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, touch, interaction, dimension } from '@platform/ui-tokens/legacy';
 import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './src/ui/faso-fonts';
-import { IconAccueil, IconProduits, IconGains, IconVitrine, IconCoche } from './src/ui/icons';
+import { IconAccueil, IconProduits, IconGains, IconVitrine, IconCoche, IconVoix } from './src/ui/icons';
 import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
 import { t, tf } from './src/i18n';
@@ -20,6 +20,7 @@ import { marginBreakdown, markupCap, defaultMarkup } from './src/vitrine/margin'
 import { MarginSlider } from './src/ui/margin-slider';
 import { HeroLedger, DuotoneTile, QuoteRule } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
+import { useVoiceNotes, VoiceNoteSheet, voiceCardLabel } from './src/vitrine/customize/voice-sheet';
 import {
   ventesListModel,
   demoDetail,
@@ -184,6 +185,11 @@ export default function App() {
     const timer = setTimeout(() => setToast(null), 2600);
     return () => clearTimeout(timer);
   }, [toast]);
+  // Notes vocales — ONE controller (real capture, expo-audio) hosted here, so the
+  // mic on each Ma Vitrine product card opens a record SHEET for THAT product
+  // (founder Option A — recording lives with the product, not behind « Aa »).
+  const voice = useVoiceNotes(setToast);
+  const [voiceSheet, setVoiceSheet] = useState<{ pid: string; name: string } | null>(null);
   const vitrineCol = useMemo(() => {
     const emit = (e: VitrineEvent) => setVitrineLog((l) => [...l, e]);
     const at = () => new Date().toISOString();
@@ -581,6 +587,17 @@ export default function App() {
                       onChange={(m) => setMarkups((prev) => ({ ...prev, [item.id]: m }))}
                     />
                     <Text style={styles.noteLine}>{tf('fiche.plafond', { amount: formatFcfa(v.cap) })}</Text>
+                    {/* Note vocale — the mic lives WITH the product (founder Option A);
+                        tapping opens the record sheet for THIS article. */}
+                    <Pressable
+                      style={({ pressed }) => [styles.vitrineVoiceBtn, pressed && styles.pressed]}
+                      onPress={() => setVoiceSheet({ pid: item.id, name: item.name })}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('k.voix.note_produit')}
+                    >
+                      <IconVoix size={dimension.iconSizePx.badge} color={shopColour.primary} />
+                      <Text style={styles.vitrineVoiceLabel}>{voiceCardLabel(voice.notes[item.id])}</Text>
+                    </Pressable>
                     <SecondaryButton
                       label={t('vitrine.partager')}
                       onPress={() => { setShareId(item.id); go('lien'); }}
@@ -889,6 +906,9 @@ export default function App() {
           <Text style={styles.toastText}>{toast}</Text>
         </View>
       )}
+
+      {/* Note vocale — the per-product record sheet (opened from a card mic). */}
+      <VoiceNoteSheet product={voiceSheet} ctl={voice} onClose={() => setVoiceSheet(null)} />
 
       <View style={styles.footer}>
         <View style={styles.footerInfo}>
@@ -1364,6 +1384,11 @@ const styles = StyleSheet.create({
   },
   // ── MA VITRINE per-product card (art 110 + live net + slider + share) ──
   vitrineCard: { gap: spacing.sm },
+  vitrineVoiceBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    minHeight: touch.minTargetPx, alignSelf: 'flex-start', paddingVertical: spacing.xs,
+  },
+  vitrineVoiceLabel: { color: shopColour.primary, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size) },
   vitrineCardArt: {
     height: touch.minTargetPx * 2 + spacing.md,
     borderRadius: rmax(radius.art),
