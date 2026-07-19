@@ -557,6 +557,7 @@ if (app) {
       trackingEtat: params.get('etat') ?? undefined,
       voix: params.get('voix') ?? undefined,
       depuisVitrine: depuisSlug ? { slug: depuisSlug, pid: params.get('pid') ?? '' } : undefined,
+      stockEpuise: params.get('stock') === 'epuise',
     });
     // The C-ENT entries (E1/E2/E3) navigate to the vitrine under the SAME
     // attribution — the arrival was recorded on vitrine land, and the /v/ path

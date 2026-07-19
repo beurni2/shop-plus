@@ -20,7 +20,9 @@ test('the whole journey walks: product → location (voice note) → delivery �
   const product = page.locator('[data-screen="produit"]');
   await expect(product).toBeVisible();
   await expect(product.locator('.fcfa-hero')).toHaveText(`${F(11_500)} FCFA`);
-  await expect(product.locator('.reseller-name')).toHaveText('Chez Awa — Dassasgho');
+  // C-ENT1 — the reseller line is the tappable vitrine anchor now (her boutique
+  // one tap away on EVERY landing, not only a round trip); it names her store.
+  await expect(product.locator('.ent1[data-action="vitrine"] .ent1-name')).toHaveText('Chez Aïcha Mode');
   await expect(product).toContainText('Livré par Séra');
   await expect(product).toContainText('Paiement protégé');
   // SP-I03 on the rendered page: no commission, no supplier, anywhere.
@@ -177,4 +179,57 @@ test('§6.3 — « Vos protections » opens from the product page and closes bac
   await expect(sheet).toContainText("Jamais d'argent liquide au livreur.");
   await page.locator('[data-action="protections-fermer"]').click();
   await expect(page.locator('[data-screen="produit"]')).toBeVisible();
+});
+
+/**
+ * REACHABILITY GATE (VITRINE-ENTRY-REACH) — the property diff proved the C-ENT
+ * components render CORRECTLY; it never proved they are MOUNTED on a real route.
+ * A component nobody reaches must fail the gate. These drive the ACTUAL routes
+ * and assert (1) the entry is in the DOM and (2) its data-action="vitrine"
+ * targets the reseller's canon /v/{slug} — proven by the request the click
+ * fires (request-level, so it never depends on the /v/ page booting under the
+ * preview's relative base). The bug this pins: a direct landing rendered no
+ * entry because the reseller was never resolved off the round trip.
+ */
+test('E1 reachable — the default product landing mounts C-ENT1 + C-ENT2, resolving to /v/aicha-4821', async ({ page }) => {
+  await page.goto('/?demo-journey=produit');
+  const product = page.locator('[data-screen="produit"]');
+  const ent1 = product.locator('.ent1[data-action="vitrine"]');
+  const ent2 = product.locator('.ent2[data-action="vitrine"]');
+  await expect(ent1).toBeVisible();
+  await expect(ent2).toBeVisible();
+  await expect(ent1).toHaveAttribute('data-slug', 'aicha-4821');
+  await expect(ent2).toHaveAttribute('data-slug', 'aicha-4821');
+  // the entry actually navigates to the canon /v/{slug} (the request proves it)
+  const [request] = await Promise.all([
+    page.waitForRequest(/\/v\/aicha-4821$/),
+    ent2.click(),
+  ]);
+  expect(request.url()).toMatch(/\/v\/aicha-4821$/);
+});
+
+test('E2 reachable — the épuisé product landing mounts C-ENT3, resolving to /v/aicha-4821', async ({ page }) => {
+  await page.goto('/?demo-journey=produit&stock=epuise');
+  const product = page.locator('[data-screen="produit"]');
+  const ent3 = product.locator('.ent3[data-action="vitrine"]');
+  await expect(ent3).toBeVisible();
+  await expect(ent3).toHaveAttribute('data-slug', 'aicha-4821');
+  const [request] = await Promise.all([
+    page.waitForRequest(/\/v\/aicha-4821$/),
+    ent3.click(),
+  ]);
+  expect(request.url()).toMatch(/\/v\/aicha-4821$/);
+});
+
+test('E3 reachable — the confirmation screen mounts C-ENT4, resolving to /v/aicha-4821', async ({ page }) => {
+  await page.goto('/?demo-journey=confirmation');
+  const confirmation = page.locator('[data-screen="confirmation"]');
+  const ent4 = confirmation.locator('.ent4[data-action="vitrine"]');
+  await expect(ent4).toBeVisible();
+  await expect(ent4).toHaveAttribute('data-slug', 'aicha-4821');
+  const [request] = await Promise.all([
+    page.waitForRequest(/\/v\/aicha-4821$/),
+    ent4.click(),
+  ]);
+  expect(request.url()).toMatch(/\/v\/aicha-4821$/);
 });

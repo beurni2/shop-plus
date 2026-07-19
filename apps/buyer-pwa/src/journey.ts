@@ -43,13 +43,26 @@ export const JOURNEY_SCREENS: readonly JourneyScreen[] = [
 
 /** The §5.4 demo baseline the whole surface already uses: productSubtotal
  * (B + M — HER price) 11 500 F; Séra's demo quote carries D. Nothing here
- * computes the waterfall — these are the displayed legs. */
+ * computes the waterfall — these are the displayed legs.
+ *
+ * The signed-link product belongs to Aïcha — the ONE demo storefront the buyer
+ * vitrine actually resolves and themes (demoStorefrontPort / aicha-4821). So a
+ * buyer who lands straight on the product (no vitrine round trip) still has her
+ * boutique one tap away: the reseller resolves to her storefront on EVERY
+ * product page (C-ENT1/C-ENT2), not only on the round trip. `resellerName` is
+ * her storefront name, so the resolved C-ENT1 anchor and the plain fallback
+ * line name the SAME store. */
 export const DEMO_PRODUCT: ProductViewModel = {
   productName: 'Pagne tissé Faso Dan Fani',
-  resellerName: 'Chez Awa — Dassasgho',
+  resellerName: 'Chez Aïcha Mode',
   priceFcfa: 11_500,
   inStock: true,
 };
+
+/** Her storefront slug — the reseller the product page resolves its vitrine
+ * entry from on a DIRECT landing (the fix: reachable, not only via a round
+ * trip). Matches `demoStorefrontPort`'s themed demo storefront. */
+export const DEMO_RESELLER_SLUG = 'aicha-4821';
 
 const DEMO_DROP_CODE = '4732';
 
@@ -61,10 +74,13 @@ interface JourneyState {
   mode: 'A' | 'B' | null;
   tracking: TrackingViewModel;
   online: boolean;
-  /** V7/E3 — vitrine-entry context when arrived from a vitrine tile. */
+  /** E1/E3 — vitrine-entry context: her storefront, resolved on EVERY product
+   * landing (from the product's reseller), not only when arrived from a tile. */
   vitrine?: NonNullable<ProductViewModel['vitrine']> | undefined;
   /** V7 — the tapped product's signed-page facts (name/price/stock swap). */
   vitrineProduct?: { name: string; priceFcfa: number; inStock: boolean } | undefined;
+  /** E2 — a direct landing on the épuisé product page (renders C-ENT3). */
+  stockEpuise: boolean;
 }
 
 export interface JourneyInit {
@@ -73,6 +89,8 @@ export interface JourneyInit {
   voix?: string | undefined;
   /** ?depuis-vitrine={slug}&pid={pid} — the V7 entry (same attribution). */
   depuisVitrine?: { slug: string; pid: string } | undefined;
+  /** ?stock=epuise — land directly on the épuisé product page (E2 · C-ENT3). */
+  stockEpuise?: boolean | undefined;
 }
 
 /** Map the ?etat= demo param onto a tracking view model (the §6.3 order:
@@ -120,6 +138,21 @@ function renderConfirmation(state: JourneyState): string {
   ].join('');
 }
 
+/** Resolve a storefront slug to the buyer-side vitrine ENTRY (C-ENT context) —
+ * shop name, first name, the /v/ slug, and the theme colours. ONE resolution,
+ * used by BOTH the direct product landing (from the product's reseller) and the
+ * vitrine round trip, so the entry is byte-identical whichever way she arrived.
+ * undefined = the reseller has no reachable storefront (the plain reseller line
+ * is the honest fallback — no entry is invented). */
+export function resolveVitrineEntry(slug: string): NonNullable<ProductViewModel['vitrine']> | undefined {
+  const resolved = demoStorefrontPort().resolve(slug);
+  if (!resolved) return undefined;
+  const sf = resolved.storefront;
+  const th = VITRINE_THEMES[sf.theme];
+  const prenom = sf.name.replace(/^Chez\s+/i, '').split(' ')[0] ?? sf.name;
+  return { shopName: sf.name, prenom, slug: sf.slug, accent: th.accent, on: th.on, soft: th.soft, deep: th.deep };
+}
+
 /** V7 — the vitrine context rides the journey when arrived via a vitrine tile:
  * the SIGNED page of THAT product (name/price swapped from the seed), the SAME
  * attribution (already recorded on vitrine land), and the C-ENT4 exit on C6. */
@@ -127,14 +160,11 @@ export function vitrineJourneyContext(
   slug: string,
   pid: string,
 ): { vitrine: NonNullable<ProductViewModel['vitrine']>; product?: { name: string; priceFcfa: number; inStock: boolean } } | undefined {
-  const resolved = demoStorefrontPort().resolve(slug);
-  if (!resolved) return undefined;
-  const sf = resolved.storefront;
-  const th = VITRINE_THEMES[sf.theme];
-  const prenom = sf.name.replace(/^Chez\s+/i, '').split(' ')[0] ?? sf.name;
+  const vitrine = resolveVitrineEntry(slug);
+  if (!vitrine) return undefined;
   const seed = seedProduct(pid);
   return {
-    vitrine: { shopName: sf.name, prenom, slug: sf.slug, accent: th.accent, on: th.on, soft: th.soft, deep: th.deep },
+    vitrine,
     ...(seed ? { product: { name: seed.name, priceFcfa: seed.priceFcfa, inStock: seed.inStock } } : {}),
   };
 }
@@ -153,6 +183,7 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
     mode: null,
     tracking: trackingModelFor(init.trackingEtat),
     online: navigator.onLine,
+    stockEpuise: init.stockEpuise ?? false,
   };
   if (init.depuisVitrine) {
     const ctx = vitrineJourneyContext(init.depuisVitrine.slug, init.depuisVitrine.pid);
@@ -160,6 +191,13 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
       state.vitrine = ctx.vitrine;
       state.vitrineProduct = ctx.product;
     }
+  }
+  // The fix (VITRINE-ENTRY-REACH): a DIRECT landing (signed link, no round
+  // trip) still resolves her boutique from the product's reseller — so C-ENT1/
+  // C-ENT2 (and C-ENT4 on confirmation) render on every product page, not only
+  // after a vitrine tile. Round-trip context, if present, already won above.
+  if (!state.vitrine) {
+    state.vitrine = resolveVitrineEntry(DEMO_RESELLER_SLUG);
   }
   if (init.screen === 'protections') state.stack.push('protections');
 
@@ -198,11 +236,15 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
 
   function screenHtml(): string {
     switch (current()) {
-      case 'produit':
+      case 'produit': {
+        // Base landing product: ?stock=epuise lands on the épuisé page (E2).
+        const base: ProductViewModel = { ...DEMO_PRODUCT, inStock: state.stockEpuise ? false : DEMO_PRODUCT.inStock };
         return renderProductPage(
           state.vitrine
             ? {
-                ...DEMO_PRODUCT,
+                ...base,
+                // Round-trip (vitrine tile) swaps in THAT product's signed facts,
+                // stock included; a direct landing keeps the base (épuisé-aware).
                 ...(state.vitrineProduct
                   ? {
                       productName: state.vitrineProduct.name,
@@ -213,8 +255,9 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
                   : { resellerName: state.vitrine.shopName }),
                 vitrine: state.vitrine,
               }
-            : DEMO_PRODUCT,
+            : base,
         );
+      }
       case 'localisation':
         return renderLocationForm(state.location);
       case 'livraison':
