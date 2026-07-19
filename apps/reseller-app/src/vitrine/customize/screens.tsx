@@ -301,9 +301,9 @@ function K1({ sf, th, onBack, go }: { sf: Storefront; th: (typeof THEMES)[Vitrin
         title={t('k.title')}
         onBack={onBack}
         pill={
-          <View style={[S.etatPill, sf.public ? S.etatPillOk : S.etatPillNeutre]}>
-            <View style={[S.etatDot, { backgroundColor: sf.public ? '#14603A' : '#6F6355' }]} />
-            <Text style={[S.etatPillText, { color: sf.public ? '#14603A' : '#6F6355' }]}>{t(sf.public ? 'k.etat_publiee' : 'k.etat_privee')}</Text>
+          <View style={[S.etatPill, sf.discoverable ? S.etatPillOk : S.etatPillNeutre]}>
+            <View style={[S.etatDot, { backgroundColor: sf.discoverable ? '#14603A' : '#6F6355' }]} />
+            <Text style={[S.etatPillText, { color: sf.discoverable ? '#14603A' : '#6F6355' }]}>{t(sf.discoverable ? 'k.etat_publiee' : 'k.etat_privee')}</Text>
           </View>
         }
       />

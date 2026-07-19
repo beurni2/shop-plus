@@ -35,8 +35,18 @@ export interface StorefrontSection {
   readonly pids: readonly string[]; // un pid vit dans ≤ 1 section
 }
 
-/** §3.1 — the reseller-owned presentation object (RN side). */
+/** §3.1 — the reseller-owned presentation object (RN side).
+ * LOCAL MIRROR of canon v1.1.0 StorefrontSchema (be2199c): the RN bundle bans
+ * runtime @platform imports (Metro-safe law), so the shape is mirrored here and
+ * a Node-side conformance test parses it with the REAL canon schema — drift
+ * fails in vitest, never on a device. Canon bounds name at ≤ 120; THIS app
+ * enforces 3–24 at the edit boundary (§3.1/QA §8.6, NAME_MIN/NAME_MAX). */
 export interface Storefront {
+  readonly id: string;
+  readonly resellerId: string;
+  readonly category: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
   readonly slug: string; // VERROUILLÉ — jamais régénéré, même après renommage
   readonly name: string; // 3–24, requis
   readonly tagline: string; // 0–40
@@ -48,7 +58,8 @@ export interface Storefront {
   readonly curatedItems: readonly string[];
   readonly featuredItems: readonly string[]; // ≤ 2, ordre d'épinglage
   readonly sections: readonly StorefrontSection[]; // ≤ 4
-  readonly public: boolean;
+  /** canon §5.6: privée = absente de Découvrir; le lien résout toujours (loi 4). */
+  readonly discoverable: boolean;
 }
 
 /** §3.1 bounds (mechanically asserted in §8.6/8.8/8.9 tests). */
@@ -65,6 +76,11 @@ export const COVER_UPLOAD_MS = 1_400;
 export const COVER_VERIFY_MS = 2_600;
 
 export const DEFAULT_STOREFRONT: Storefront = {
+  id: 'sf_aicha',
+  resellerId: 'res_aicha',
+  category: 'mode',
+  createdAt: '2026-07-01T08:00:00.000Z',
+  updatedAt: '2026-07-19T08:00:00.000Z',
   slug: 'aicha-4821',
   name: 'Chez Aïcha Mode',
   tagline: '',
@@ -76,7 +92,7 @@ export const DEFAULT_STOREFRONT: Storefront = {
   curatedItems: ['p1', 'p2', 'p4', 'p5', 'p7', 'p8', 'k1', 'p3'],
   featuredItems: [],
   sections: [],
-  public: true,
+  discoverable: true,
 };
 
 /* ---------------------------------------------------- §4.3 pure actions -- */

@@ -29,6 +29,7 @@ import {
 } from '../src/vitrine/customize/storefront';
 import { K_SEED } from '../src/vitrine/customize/storefront';
 import { K_RAW_STYLES as S } from '../src/vitrine/customize/k-styles';
+import { StorefrontSchema } from '@platform/contracts';
 
 const flat = (style: unknown): Record<string, unknown> => style as Record<string, unknown>;
 
@@ -161,6 +162,15 @@ describe('K flows — §8.5–§8.10 as assertions', () => {
       expect(del.next.sections.find((s) => s.id === 's1')).toBeUndefined();
       expect(del.next.curatedItems).toContain('p1'); // articles stay in boutique
     }
+  });
+
+  it('the LOCAL mirror parses with the CANON v1.1.0 StorefrontSchema (RN bundle bans runtime imports; drift fails HERE)', () => {
+    expect(() => StorefrontSchema.parse(DEFAULT_STOREFRONT)).not.toThrow();
+    const saved = saveIdentity(DEFAULT_STOREFRONT, { name: 'Chez Aïcha Mode', tagline: 'Le wax', bio: '' });
+    expect(saved.ok).toBe(true);
+    if (saved.ok) expect(() => StorefrontSchema.parse(saved.next)).not.toThrow();
+    // canon bounds the name at ≤ 120; THIS app's 3–24 lives at the edit boundary
+    expect(saveIdentity(DEFAULT_STOREFRONT, { name: 'Ai', tagline: '', bio: '' }).ok).toBe(false);
   });
 
   it('the K seed is the §3.2 catalog (8 articles, diaspora excluded, p3 the only épuisé)', () => {
