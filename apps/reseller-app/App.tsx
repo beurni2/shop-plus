@@ -18,31 +18,34 @@ import { FONTS_TO_LOAD } from './src/ui/fonts-load';
 import { foldVitrine, type VitrineEvent } from './src/vitrine/collection';
 import { marginBreakdown, markupCap, defaultMarkup } from './src/vitrine/margin';
 import { MarginSlider } from './src/ui/margin-slider';
-import { HeroLedger, DuotoneTile, QuoteRule } from './src/ui/signature';
+import { HeroLedger, DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
 import { useVoiceNotes, VoiceNoteSheet, voiceCardLabel } from './src/vitrine/customize/voice-sheet';
+import {
+  useCercle, CercleHub, CampWizard, CampaignActive, CampaignFunding, CercleReputation,
+  CercleMembres, IconCercleDeux, PendingHero, GainsSaleCard, CercleAccueilCard,
+} from './src/cercle/screens';
+import { produit as cercleProduit, CERCLE_DIVERS, partagerBadge } from './src/cercle/model';
 import {
   ventesListModel,
   demoDetail,
   type SaleRow,
+  enAttenteNet,
+  payeSemaine,
+  gainsCards,
   type SaleDetail,
   type TimelineStep,
 } from './src/sales/ventes';
 import {
   DEMO_SHARE_LINK,
-  baselineGains,
-  baselineProductPriceFcfa,
   createDemoWorld,
-  gainsTotal,
   MONTHLY_NET_DEMO,
   type DemoOpportunity,
   type DemoWorld,
-  type GainsLine,
 } from './src/demo/store';
 import {
   AppHeader,
   Card,
-  CountUpAmount,
   EmptyState,
   GhostButton,
   Overline,
@@ -80,22 +83,6 @@ const navColor = (active: boolean): string => (active ? shopColour.deep : shared
 /* The money lines (prototype `.ml`/`.mlTot`): gross and the honest 20 % fee
  * as calm muted lines, a dashed rule, then the net — the strongest line,
  * never gross-first (SP-I04/SP-I12). */
-function GainsBreakdown({ line, style }: { line: GainsLine; style?: object }) {
-  return (
-    <View style={[styles.moneyBlock, style]}>
-      <Text style={styles.moneyLine}>
-        {tf('gains.brut', { amount: formatFcfa(line.grossFcfa) })}
-      </Text>
-      <Text style={styles.moneyLine}>
-        {tf('gains.part', { amount: formatFcfa(line.feeFcfa) })}
-      </Text>
-      <View style={styles.moneyRule} />
-      <Text style={styles.moneyNetLine}>
-        {tf('gains.net', { amount: formatFcfa(line.netFcfa) })}
-      </Text>
-    </View>
-  );
-}
 
 /** S7 status → chip tone, matching the mockup palette: a PROBLÈME reads « bad »
  * (danger), À LA PORTE — the nearest to the door — reads « warn » (amber), and
@@ -135,11 +122,11 @@ function TimelineRow({ step, last }: { step: TimelineStep; last: boolean }) {
 /** The dock hubs — WO-VITRINE-FLOW promotes Ma Vitrine to a tab: Accueil ·
  * Opportunités · Ma Vitrine · Gains (the planche dock is 5 incl. Cercle; Cercle
  * stays OUT — gated, SP9). Tabs are waypoint resets, never journey edges. */
-const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'vitrine', 'gains'];
+const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'vitrine', 'cercle', 'gains'];
 
 /** Screens whose frame renders a big 28/800 title IN-CONTENT (planche) — the
  * chrome header title is suppressed for these so it isn't a duplicate. */
-const IN_CONTENT_TITLE: readonly Screen[] = ['vitrine', 'personnaliser'];
+const IN_CONTENT_TITLE: readonly Screen[] = ['vitrine', 'personnaliser', 'cercle', 'campnew', 'campaign', 'funding', 'reput', 'membres'];
 
 const SCREEN_TITLE_KEY: Record<Screen, string> = {
   accueil: 'app.title',
@@ -151,6 +138,12 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
   vitrine: 'vitrine.title',
   pubvitrine: 'pubvitrine.title',
   personnaliser: 'k.title',
+  cercle: 'ce.hub_titre',
+  campnew: 'ce.w1_titre',
+  campaign: 'ce.hub_titre',
+  funding: 'ce.f_titre',
+  reput: 'ce.r_titre',
+  membres: 'ce.m_titre',
   lien: 'lien.title',
   // Hub — brand in the header; the big « Gains » title lands in-content (frame L644).
   gains: 'app.title',
@@ -190,6 +183,11 @@ export default function App() {
   // (founder Option A — recording lives with the product, not behind « Aa »).
   const voice = useVoiceNotes(setToast);
   const [voiceSheet, setVoiceSheet] = useState<{ pid: string; name: string } | null>(null);
+  // LE CERCLE — one controller (campaign + draft + the [MOCK-PARTENAIRE] port).
+  const cercle = useCercle(setToast);
+  // D5 — Partager opened from a Cercle surface carries the campaign badge.
+  const [shareCampBadge, setShareCampBadge] = useState(false);
+  const campShare = shareCampBadge && partagerBadge(cercle.camp) ? cercle.camp : null;
   const vitrineCol = useMemo(() => {
     const emit = (e: VitrineEvent) => setVitrineLog((l) => [...l, e]);
     const at = () => new Date().toISOString();
@@ -272,8 +270,6 @@ export default function App() {
   // The demo build stamp — the actual OTA update id (expo-updates), « dev » in
   // the local runtime; honest provenance in the demo footer, never a fake build.
   const buildStamp = Updates.updateId ?? 'dev';
-  const totals = gainsTotal(world.opportunities);
-  const baseline = baselineGains();
   // The share card is DETERMINISTIC from her price-free assets + price snapshot
   // (SP-I19). It carries the live-truth signed link by construction — no
   // commission field exists on the type (SP-I03).
@@ -347,7 +343,7 @@ export default function App() {
               </Card>
               <Card style={styles.ledgerCard}>
                 <Overline>{t('accueil.attente_label')}</Overline>
-                <Text style={styles.ledgerMoney}>{formatFcfa(totals.netFcfa)}</Text>
+                <Text style={styles.ledgerMoney}>{formatFcfa(enAttenteNet())}</Text>
                 <Text style={styles.ledgerCardSub}>{t('accueil.attente_sub')}</Text>
               </Card>
             </View>
@@ -392,6 +388,9 @@ export default function App() {
             <View style={styles.astuceCard}>
               <Text style={styles.astuceText}>{t('accueil.astuce')}</Text>
             </View>
+            {/* D2 — C-CE23 « Mon Cercle » (second, contextual entry — the dock
+                tab stays the canonical one). Living sub-line. */}
+            <CercleAccueilCard camp={cercle.camp} membres={CERCLE_DIVERS.membres} onPress={() => go('cercle')} />
           </ScrollView>
         )}
 
@@ -600,7 +599,7 @@ export default function App() {
                     </Pressable>
                     <SecondaryButton
                       label={t('vitrine.partager')}
-                      onPress={() => { setShareId(item.id); go('lien'); }}
+                      onPress={() => { setShareCampBadge(false); setShareId(item.id); go('lien'); }}
                     />
                   </Card>
                 );
@@ -650,13 +649,21 @@ export default function App() {
                 <Text style={styles.shareShopName} numberOfLines={1}>{DEMO_SHARE_IDENTITY.resellerName}</Text>
                 <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
               </View>
-              <Text style={styles.cardTitle}>{shareOpp?.name ?? shareCard.productName}</Text>
+              <Text style={styles.cardTitle}>{campShare !== null ? cercleProduit(campShare.pid).name : shareOpp?.name ?? shareCard.productName}</Text>
               <Text style={styles.shareHeroPrice}>
-                {tf('share.prix', { amount: formatFcfa(shareOpp !== undefined ? viewOf(shareOpp).client : shareCard.priceFcfa) })}
+                {tf('share.prix', { amount: formatFcfa(campShare !== null ? cercleProduit(campShare.pid).B + cercleProduit(campShare.pid).marge : shareOpp !== undefined ? viewOf(shareOpp).client : shareCard.priceFcfa) })}
               </Text>
               <Text style={styles.ogValidite}>
                 {tf('share.validite', { date: shareCard.priceValidityDate })}
               </Text>
+              {/* D5 — C-CE24c: the campaign line, between validity and the badges. */}
+              {campShare !== null && (
+                <Text style={styles.campagneLigne}>
+                  {campShare.K === 1000
+                    ? tf('ce.d5_ligne_offerte', { zone: campShare.zone })
+                    : tf('ce.d5_ligne', { part: formatFcfa(1000 - campShare.K), zone: campShare.zone })}
+                </Text>
+              )}
               <View style={styles.ogBadgeRow}>
                 <StatusChip tone="ok" label={t('share.livre_sera')} />
               </View>
@@ -665,7 +672,11 @@ export default function App() {
 
             {/* reseller-only: her net on this card — « jamais visible par la cliente » */}
             {shareOpp !== undefined && (
-              <Text style={styles.netCarte}>{tf('partager.net_carte', { amount: formatFcfa(viewOf(shareOpp).net) })}</Text>
+              <Text style={styles.netCarte}>
+                {campShare !== null
+                  ? tf('ce.d5_net_carte', { amount: formatFcfa(cercleProduit(campShare.pid).netNormal - campShare.K) })
+                  : tf('partager.net_carte', { amount: formatFcfa(viewOf(shareOpp).net) })}
+              </Text>
             )}
 
             {/* the share channels (frame L217–221) — RN Share/Linking, the real slug */}
@@ -715,30 +726,18 @@ export default function App() {
                 (frame L644–645); the header chrome shows the brand (hub). */}
             <Text style={styles.screenTitle}>{t('gains.title')}</Text>
             <Text style={styles.oppSub}>{t('gains.sous_titre')}</Text>
-            {/* Accent pending hero (frame L646) — the net « en majesté » on magenta.
-                CountUpAmount stays the count-up hero (money-law clock); onAccent
-                themes it light on the accent card. */}
+            {/* Accent pending hero — the net « en majesté » on magenta (D4a:
+                composed 38+17, §7 count-up in PendingHero, reduced-motion safe). */}
+            {/* D4a — « En attente (net) » (compose 38+17, count-up §7) + Payé semaine. */}
             <Card style={styles.gainsHeroCard}>
-              <CountUpAmount
-                label={t('gains.total_label')}
-                amount={totals.netFcfa}
-                template={t('money.amount_f')}
-                onAccent
-              />
+              <PendingHero label={t('ce.gains_attente_label')} amount={enAttenteNet()} />
+              <Text style={styles.gainsPayeLine}>{tf('ce.gains_paye_semaine', { amount: formatFcfa(payeSemaine()) })}</Text>
             </Card>
-            <Card>
-              <Overline>{t('gains.detail_titre')}</Overline>
-              <GainsBreakdown line={totals} />
-              {/* the quote rule (signature module): the reconcile whisper under the
-                  breakdown — restates the net, right-aligned, over a hairline. */}
-              <QuoteRule line={tf('gains.net', { amount: formatFcfa(totals.netFcfa) })} />
-            </Card>
-            <Card>
-              <Text style={styles.cardTitle}>
-                {tf('gains.baseline_titre', { amount: formatFcfa(baselineProductPriceFcfa()) })}
-              </Text>
-              <GainsBreakdown line={baseline} />
-            </Card>
+            {/* D4b — per-sale detail cards; −Cercle line only on campaign orders. */}
+            <Overline>{t('ce.gains_detail_caps')}</Overline>
+            {gainsCards().map((c) => (
+              <GainsSaleCard key={c.code} card={c} />
+            ))}
             <Text style={styles.noteLine}>{t('gains.suite')}</Text>
             <SecondaryButton label={t('opportunites.title')} onPress={() => go('opportunites')} />
           </ScrollView>
@@ -819,12 +818,31 @@ export default function App() {
                 (Law #1 / #10) — the HeroLedger net hero is the compliant card. */}
             <Card style={styles.netCard}>
               {/* the hero ledger (signature module): the locked net as the hero,
-                  its « réglé » reassurance as the ledger whisper below. */}
+                  its « réglé » reassurance as the ledger whisper below. D3: on a
+                  campaign order the hero IS net − camp (1 400) and the derivation
+                  renders UNDER it — NET-FIRST (SP-I04/I12) outranks the planche's
+                  top-to-bottom ledger order (flagged divergence, journaled). */}
               <HeroLedger
                 label={t('vente.net_label')}
-                amount={formatFcfa(saleDetail.netFcfa)}
+                amount={formatFcfa(saleDetail.netPayeFcfa)}
                 ledger={t('vente.net_regle')}
               />
+              {saleDetail.campFcfa > 0 && (
+                <View style={styles.campLedger}>
+                  <View style={styles.campLedgerRow}>
+                    <Text style={styles.campLedgerLabel}>{t('vente.brut_label')}</Text>
+                    <Text style={styles.campLedgerVal}>{formatFcfa(saleDetail.brutFcfa)}</Text>
+                  </View>
+                  <View style={styles.campLedgerRow}>
+                    <Text style={styles.campLedgerLabel}>{t('vente.frais_label')}</Text>
+                    <Text style={styles.campLedgerVal}>{`−${formatFcfa(saleDetail.fraisFcfa)}`}</Text>
+                  </View>
+                  <View style={styles.campLedgerRow}>
+                    <Text style={styles.campLedgerLabel}>{t('vente.camp_label')}</Text>
+                    <Text style={styles.campLedgerVal}>{`−${formatFcfa(saleDetail.campFcfa)}`}</Text>
+                  </View>
+                </View>
+              )}
             </Card>
             <Card>
               <Text style={styles.cardTitle}>
@@ -896,6 +914,28 @@ export default function App() {
             }
           />
         )}
+        {/* ── LE CERCLE (SP9, scoped override — UI + certified mock) ── */}
+        {screen === 'cercle' && (
+          <CercleHub
+            ctl={cercle}
+            onToast={setToast}
+            go={(s2) => { if (s2 === 'lien') setShareCampBadge(true); go(s2); }}
+          />
+        )}
+        {screen === 'campnew' && (
+          <CampWizard
+            ctl={cercle}
+            onClose={back}
+            onToast={setToast}
+            onLaunched={() => { cercle.resetDraft(); setShareCampBadge(true); go('lien'); }}
+          />
+        )}
+        {screen === 'campaign' && (
+          <CampaignActive ctl={cercle} onBack={back} onPack={() => { setShareCampBadge(true); go('lien'); }} />
+        )}
+        {screen === 'funding' && <CampaignFunding ctl={cercle} onBack={back} onToast={setToast} />}
+        {screen === 'reput' && <CercleReputation onBack={back} />}
+        {screen === 'membres' && <CercleMembres onBack={back} />}
       </View>
       </ScreenTransition>
 
@@ -928,6 +968,7 @@ export default function App() {
             { key: 'accueil', icon: <IconAccueil size={dimension.iconSizePx.tab} color={navColor(screen === 'accueil')} />, label: t('nav.tab_accueil'), active: screen === 'accueil', onPress: () => toHub('accueil') },
             { key: 'opportunites', icon: <IconProduits size={dimension.iconSizePx.tab} color={navColor(screen === 'opportunites')} />, label: t('nav.tab_opportunites'), active: screen === 'opportunites', onPress: () => toHub('opportunites') },
             { key: 'vitrine', icon: <IconVitrine size={dimension.iconSizePx.tab} color={navColor(screen === 'vitrine')} />, label: t('nav.tab_vitrine'), active: screen === 'vitrine', onPress: () => toHub('vitrine') },
+            { key: 'cercle', icon: <IconCercleDeux size={dimension.iconSizePx.tab} color={navColor(screen === 'cercle')} />, label: t('nav.tab_cercle'), active: screen === 'cercle', onPress: () => toHub('cercle') },
             { key: 'gains', icon: <IconGains size={dimension.iconSizePx.tab} color={navColor(screen === 'gains')} />, label: t('nav.tab_gains'), active: screen === 'gains', onPress: () => toHub('gains') },
           ]}
         />
@@ -1384,6 +1425,12 @@ const styles = StyleSheet.create({
   },
   // ── MA VITRINE per-product card (art 110 + live net + slider + share) ──
   vitrineCard: { gap: spacing.sm },
+  campLedger: { marginTop: spacing.md, borderTopWidth: interaction.hairline.thin, borderTopColor: sharedColour.hairlineStrong, paddingTop: spacing.sm },
+  campLedgerRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.xs, gap: spacing.sm },
+  campLedgerLabel: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  campLedgerVal: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
+  gainsPayeLine: { marginTop: spacing.sm, color: shopColour.onPrimary, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
+  campagneLigne: { marginTop: spacing.sm, color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size) },
   vitrineVoiceBtn: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     minHeight: touch.minTargetPx, alignSelf: 'flex-start', paddingVertical: spacing.xs,

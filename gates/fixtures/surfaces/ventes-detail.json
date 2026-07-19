@@ -2,6 +2,7 @@
   "surface": "ventes-detail",
   "moneyFieldsInRenderOrder": [
     "resellerNet",
+    "campContribution",
     "customerPrice"
   ]
 }

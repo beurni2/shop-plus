@@ -865,7 +865,7 @@
  },
  {
   "key": "nav.tab_vitrine",
-  "fr": "Ma vitrine",
+  "fr": "Ma Vitrine",
   "register": "neutral",
   "screenClass": "label"
  },
@@ -1574,6 +1574,846 @@
  {
   "key": "vit.bande_apercu",
   "fr": "Chaque prix vient de la page signée du produit — c’est elle qui fait foi.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "nav.tab_cercle",
+  "fr": "Cercle",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.hub_titre",
+  "fr": "Mon Cercle",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.hub_sous_titre",
+  "fr": "Le Cercle d’Aïcha — vos membres, vos campagnes.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.caps_membres",
+  "fr": "Membres",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.membres_mois",
+  "fr": "+{n} ce mois-ci",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.caps_reputation",
+  "fr": "Ma réputation",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.reput_note_ligne",
+  "fr": "{avis} avis vérifiés · {note}",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.suggestion_caps",
+  "fr": "Suggestion du jour — une seule, jamais envoyée automatiquement",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.suggestion_places",
+  "fr": "{n} place(s) restante(s) sur votre campagne Quartier — partagez la carte à vos membres de {zone}.",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.suggestion_prete",
+  "fr": "6 clientes de Tampouy ont regardé vos sacs ces jours-ci — la recette Quartier est prête.",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.suggestion_pourquoi",
+  "fr": "Pourquoi ? Vos clientes ont regardé ce produit, le quartier suit, le budget est là. C’est vous qui décidez.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.utiliser_recette",
+  "fr": "Utiliser la recette",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.pilule_active",
+  "fr": "Active",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.pilule_pause",
+  "fr": "En pause",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.pilule_epuise",
+  "fr": "Budget épuisé",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.tuile_pied",
+  "fr": "{o}/{max} ventes attribuées à la campagne · {fenetre}",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.tuile_vide_titre",
+  "fr": "Aucune campagne",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.tuile_vide_sous",
+  "fr": "Créez votre première campagne — 2 minutes, jamais à perte.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.resultat_caps",
+  "fr": "Résultat — on dit « attribué », pas « généré »",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.resultat_investi",
+  "fr": "Investi (consommé + réservé)",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.resultat_attribue",
+  "fr": "Gains nets attribués",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.resultat_note_ok",
+  "fr": "Cette campagne a bien marché : chaque franc investi a rapporté plus de deux francs de gain net attribué.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.resultat_note_warn",
+  "fr": "Cette campagne coûte cher pour si peu de livraisons — baissez l’avantage, ou visez vos anciennes clientes.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.creer_campagne",
+  "fr": "Créer une campagne",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.btn_membres",
+  "fr": "Membres",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.btn_financement",
+  "fr": "Financement",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.avis_caps",
+  "fr": "Avis vérifiés",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.tout_voir",
+  "fr": "Tout voir",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.avis_pill_sera",
+  "fr": "Vérifié · Séra",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.avis_pill_achat",
+  "fr": "Achat vérifié",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.avis_citation",
+  "fr": "« {texte} »",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.parrainage_titre",
+  "fr": "Le parrainage simple",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.parrainage_pill",
+  "fr": "Jamais de recrutement",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.parrainage_avant",
+  "fr": "Invitez une amie à ouvrir sa vitrine :",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.parrainage_montant",
+  "fr": "+1 000 FCFA chacune",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.parrainage_apres",
+  "fr": "après sa première vente livrée. Financé par la plateforme — jamais un revenu sur ses ventes, jamais un niveau à recruter.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.copier_parrainage",
+  "fr": "Copier la carte de parrainage",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.toast_parrainage",
+  "fr": "Carte de parrainage copiée — +1 000 FCFA chacune après sa première vente livrée",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.toast_inviter",
+  "fr": "Carte d’invitation copiée — c’est vous qui l’envoyez, sur WhatsApp",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.btn_inviter",
+  "fr": "Inviter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.btn_pack",
+  "fr": "Pack de partage",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.retour",
+  "fr": "Retour",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.wiz_titre",
+  "fr": "Campagne — {recette}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w1_titre",
+  "fr": "Choisissez une recette",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w1_2min",
+  "fr": "2 min",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.w1_ideal",
+  "fr": "Idéal pour :",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w1_tag_nouveaute",
+  "fr": "Lancez une nouveauté avec style",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.w1_best_nouveaute",
+  "fr": "Nouveaux produits · premières ventes · premiers avis · budget libre",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.w1_tag_quartier",
+  "fr": "Regroupez vos clientes dans une même fenêtre de livraison",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.w1_best_quartier",
+  "fr": "Ventes de quartier · livraison groupée le samedi · Budget requis pour l’avantage",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.w1_tag_dernieres",
+  "fr": "Écoulez le stock restant, sans fausse urgence",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.w1_best_dernieres",
+  "fr": "Fins de série · stock réel de Boutik+ · Budget facultatif",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.continuer",
+  "fr": "Continuer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w2_titre",
+  "fr": "Choisissez le produit",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w2_stock",
+  "fr": "Stock {n} · gain net normal",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.w2_epuise_sous",
+  "fr": "Épuisé · gain net normal",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.w2_epuise_pill",
+  "fr": "ÉPUISÉ",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.w2.refus_epuise",
+  "fr": "Un article épuisé ne peut pas porter de campagne — remettez du stock d’abord.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.w3_titre",
+  "fr": "Votre budget",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w3_caps_avantage",
+  "fr": "Avantage par commande (réduction livraison)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w3_note_zero",
+  "fr": "0 FCFA = promotion seule, sans argent engagé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.w3_note_k",
+  "fr": "La cliente paiera la livraison {part} au lieu de 1 000 FCFA.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.w3_caps_max",
+  "fr": "Nombre maximum de commandes récompensées",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w3_caps_zone",
+  "fr": "Quartier de la fenêtre (samedi 10 h – 12 h)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.stepper_moins",
+  "fr": "Moins",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.stepper_plus",
+  "fr": "Plus",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w4_titre",
+  "fr": "Aperçu économique",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w4_gain_normal",
+  "fr": "Gain normal par vente livrée",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w4_contribution",
+  "fr": "Votre contribution campagne",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w4_restera",
+  "fr": "Il vous restera",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w4_par_vente",
+  "fr": "{amount} / vente",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w4_invest_max",
+  "fr": "Investissement maximum",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w4_ventes_max",
+  "fr": "Ventes soutenues au maximum",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w4_cliente_paie",
+  "fr": "La cliente paie la livraison",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.w4_offerte",
+  "fr": "Offerte",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.g1",
+  "fr": "Bloqué : votre contribution ({k}) dépasse votre gain normal ({net}). Une campagne ne peut pas vous faire perdre de l’argent.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.g2",
+  "fr": "Bloqué : la contribution dépasse le tarif Séra (1 000 FCFA). Séra est financée au franc près, jamais plus, jamais moins.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.g3",
+  "fr": "Il vous restera moins de la moitié de votre gain normal sur les ventes récompensées.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.g4",
+  "fr": "Livraison offerte : les clientes devront tout payer maintenant (règle Cercle, appliquée au paiement).",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.g5_avant",
+  "fr": "J’alloue jusqu’à",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.g5_apres",
+  "fr": "de mes gains réglés (bloqués chez le partenaire de paiement — jamais mes gains en attente).",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.w4_note_remplace",
+  "fr": "Remplacera la campagne active (une campagne à la fois dans cette démo). La campagne s’arrête avant tout dépassement.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.w4_lancer",
+  "fr": "Lancer la campagne",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.toast_lancee",
+  "fr": "Campagne lancée — pack de partage prêt",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.toast_pause",
+  "fr": "Campagne en pause — l’avantage disparaît tout de suite des pages",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.toast_reactivee",
+  "fr": "Campagne réactivée",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.toast_retrait",
+  "fr": "Fonds non utilisés — retour à vos gains disponibles (simulation)",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.a1_meta",
+  "fr": "{fenetre} · avantage {k} / commande · cliente paie {part}",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.a1_meta_prepay",
+  "fr": "{fenetre} · avantage {k} / commande · cliente paie 0 FCFA (prépaiement requis)",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.a1_progres_caps",
+  "fr": "Progrès",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.a1_progres_ligne",
+  "fr": "{o}/{max} ventes attribuées · {fenetre} · {places} place(s) libre(s)",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.a1_budget_caps",
+  "fr": "Budget — alloué chez le partenaire",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.f_alloue",
+  "fr": "Alloué",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.a1_depense",
+  "fr": "Dépensé (livraisons validées / refus client)",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.f_restant",
+  "fr": "Restant — récupérable si vous arrêtez",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.a1_note_faute",
+  "fr": "Faute vendeur ou Séra : l’avantage vous est rendu, jamais perdu à cause d’un autre.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.a1_demo_ligne",
+  "fr": "+ 6 commandes antérieures attribuées (démo) — la septième (CMD-2417) est dans Ventes.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.a1_pause",
+  "fr": "Mettre en pause",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.a1_reactiver",
+  "fr": "Réactiver",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.a1_note_loi",
+  "fr": "Les images partagées portent la date de validité ; la page signée reste la seule vérité du prix et de l’avantage.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.f_titre",
+  "fr": "Financement campagne",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.f_sous_titre",
+  "fr": "Bloqué chez le partenaire — jamais un portefeuille",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.f_dispo",
+  "fr": "Gains disponibles (réglés)",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.f_alloue_active",
+  "fr": "Alloué à la campagne active",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.f_reserve",
+  "fr": "Réservé (commandes en cours)",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.f_depense_mois",
+  "fr": "Dépensé ce mois",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.f_reconciliation",
+  "fr": "{total} = {depense} + {reserve} + {restant} — chaque franc a sa place.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.f_note_regles",
+  "fr": "Seuls vos gains réglés financent vos campagnes — jamais les gains en attente, jamais l’argent d’un autre.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.f_note_recharge",
+  "fr": "Recharge Mobile Money : plus tard, quand le partenaire de paiement aura validé la structure (décision légale ouverte).",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.f_retirer",
+  "fr": "Retirer les fonds non utilisés",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.r_titre",
+  "fr": "Ma réputation",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.r_pill_fiable",
+  "fr": "Fiable",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.r_caps",
+  "fr": "Note moyenne — achats vérifiés",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.r_sous_ligne",
+  "fr": "{livraisons} livraisons par Séra · {avis} avis vérifiés · {litiges} litige en tout",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.r_livraisons",
+  "fr": "Livraisons validées",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.r_avis",
+  "fr": "Avis vérifiés",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.r_derniers",
+  "fr": "Derniers avis",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.r_note_loi",
+  "fr": "Votre réputation vient uniquement de livraisons validées par Séra — jamais achetée, jamais gonflée.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.m_titre",
+  "fr": "Membres",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.m_sous_titre",
+  "fr": "{n} au total · consentement explicite",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.m_toutes",
+  "fr": "Toutes",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.m_sous_ligne",
+  "fr": "{zone} · intérêt : {interet}",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.m_premiere",
+  "fr": "Première commande",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.m_note_loi",
+  "fr": "Les groupes servent à réduire les messages inutiles, pas à en envoyer plus. Chaque membre peut arrêter en un tap ; aucun autre vendeur n’y a accès.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "ce.d2_titre",
+  "fr": "Mon Cercle",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.d2_sous_ligne",
+  "fr": "{membres} membres · campagne {recette} {o}/{max}",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.d2_sous_vide",
+  "fr": "{membres} membres · aucune campagne en cours",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.gains_attente_label",
+  "fr": "En attente (net)",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.gains_paye_semaine",
+  "fr": "Payé cette semaine : {amount}",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.gains_detail_caps",
+  "fr": "Détail par vente",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.gains_net_label",
+  "fr": "Net",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.gains_brut_label",
+  "fr": "Gain brut",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.gains_frais_label",
+  "fr": "Frais Shop+ (20 %)",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.gains_cercle_label",
+  "fr": "Contribution Cercle",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "vente.brut_label",
+  "fr": "Gain brut",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "vente.frais_label",
+  "fr": "Frais Shop+ (20 %)",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "vente.camp_label",
+  "fr": "Contribution campagne Cercle",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "ce.d5_ligne",
+  "fr": "Livraison {part} — samedi 10 h – 12 h à {zone} (campagne)",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.d5_ligne_offerte",
+  "fr": "Livraison offerte — samedi 10 h – 12 h à {zone} (campagne)",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "ce.d5_net_carte",
+  "fr": "Votre gain net sur cette carte : {amount} (contribution campagne déduite) — jamais visible par la cliente.",
   "register": "money",
   "screenClass": "status"
  }

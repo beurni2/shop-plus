@@ -53,7 +53,11 @@ export function statusIsServerFact(status: SaleStatus): boolean {
 
 export interface Sale {
   readonly id: string;
-  /** First name only — the client's number never exists on a reseller surface. */
+  /** Order code (CMD-xxxx) — the Cercle-era order identity (HANDOFF §3.1). */
+  readonly code: string;
+  /** First name only — the client's number never exists on a reseller surface.
+   * §3.1 names only o1's buyer (Awa); the others carry their CMD code here
+   * (an honest identifier — buyer names are never invented). */
   readonly clientFirstName: string;
   readonly productName: string;
   readonly status: SaleStatus;
@@ -63,17 +67,36 @@ export interface Sale {
   readonly netFcfa: number;
   /** SON prix — what the client pays (productSubtotal = B+M); detail only. */
   readonly sonPrixFcfa: number;
+  /** Cercle campaign contribution (K), FROZEN at attribution (§3.1: « camp
+   * FIGÉ à l'attribution ») — 0 on non-campaign orders. Render-only. */
+  readonly campFcfa: number;
 }
 
-/** The demo sales — money frozen, PINNED to computeWaterfall in the test. */
+/** The demo sales — the CERCLE-era §3.1 order seed (o1–o5), §0.2 corrections
+ * applied (o1 camp 600). Money frozen, PINNED to computeWaterfall in the test.
+ * Statuses map the §3.1 vocabulary onto the S7 chips: FUNDED→en_preparation ·
+ * TRANSIT→en_route · PAID→payee · READY_FAILED/BUYER_REFUSED→probleme. */
 const RAW_SALES: readonly Sale[] = [
-  { id: 'v1', clientFirstName: 'Fatou S.', productName: 'Sac cuir artisanal', status: 'probleme', input: { sellerBasePrice: 8000, sellerFundedCommission: 750, resellerMarkup: 1000, deliveryFee: 1000, paymentMode: 'FULL_PREPAY' }, netFcfa: 1400, sonPrixFcfa: 9000 },
-  { id: 'v2', clientFirstName: 'Awa K.', productName: 'Foulard wax · lot de 2', status: 'a_la_porte', input: { sellerBasePrice: 6000, sellerFundedCommission: 375, resellerMarkup: 750, deliveryFee: 1000, paymentMode: 'FULL_PREPAY' }, netFcfa: 900, sonPrixFcfa: 6750 },
-  { id: 'v3', clientFirstName: 'Mariam O.', productName: 'Robe brodée bogolan · M', status: 'en_route', input: { sellerBasePrice: 10000, sellerFundedCommission: 1000, resellerMarkup: 1500, deliveryFee: 1000, paymentMode: 'FULL_PREPAY' }, netFcfa: 2000, sonPrixFcfa: 11500 },
-  { id: 'v4', clientFirstName: 'Salimata D.', productName: 'Boubou brodé', status: 'en_preparation', input: { sellerBasePrice: 12000, sellerFundedCommission: 1200, resellerMarkup: 1800, deliveryFee: 1000, paymentMode: 'FULL_PREPAY' }, netFcfa: 2400, sonPrixFcfa: 13800 },
-  { id: 'v5', clientFirstName: 'Rasmata Z.', productName: 'Sandales cuir · 38', status: 'payee', input: { sellerBasePrice: 7000, sellerFundedCommission: 375, resellerMarkup: 1000, deliveryFee: 1000, paymentMode: 'FULL_PREPAY' }, netFcfa: 1100, sonPrixFcfa: 8000 },
-  { id: 'v6', clientFirstName: 'Fanta B.', productName: 'Pagne tissé main', status: 'livree', input: { sellerBasePrice: 9000, sellerFundedCommission: 500, resellerMarkup: 1500, deliveryFee: 1000, paymentMode: 'FULL_PREPAY' }, netFcfa: 1600, sonPrixFcfa: 10500 },
+  { id: 'o1', code: 'CMD-2417', clientFirstName: 'Awa', productName: 'Robe brodée bogolan', status: 'en_preparation', input: { sellerBasePrice: 10000, sellerFundedCommission: 1000, resellerMarkup: 1500, deliveryFee: 1000, paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' }, netFcfa: 2000, sonPrixFcfa: 11500, campFcfa: 600 },
+  { id: 'o7', code: 'CMD-2413', clientFirstName: 'CMD-2413', productName: 'Pagne wax 6 yards', status: 'en_route', input: { sellerBasePrice: 18000, sellerFundedCommission: 1800, resellerMarkup: 2500, deliveryFee: 1000, paymentMode: 'FULL_PREPAY' }, netFcfa: 3440, sonPrixFcfa: 20500, campFcfa: 0 },
+  { id: 'o2', code: 'CMD-2409', clientFirstName: 'CMD-2409', productName: 'Sac cuir artisanal', status: 'payee', input: { sellerBasePrice: 15000, sellerFundedCommission: 1500, resellerMarkup: 2000, deliveryFee: 1000, paymentMode: 'FULL_PREPAY' }, netFcfa: 2800, sonPrixFcfa: 17000, campFcfa: 0 },
+  { id: 'o3', code: 'CMD-2411', clientFirstName: 'CMD-2411', productName: 'Chemise Faso Dan Fani · L', status: 'probleme', input: { sellerBasePrice: 12000, sellerFundedCommission: 1200, resellerMarkup: 1500, deliveryFee: 1000, paymentMode: 'FULL_PREPAY' }, netFcfa: 2160, sonPrixFcfa: 13500, campFcfa: 0 },
+  { id: 'o5', code: 'CMD-2398', clientFirstName: 'CMD-2398', productName: 'Foulard Faso Dan Fani', status: 'probleme', input: { sellerBasePrice: 5500, sellerFundedCommission: 550, resellerMarkup: 1500, deliveryFee: 1000, paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' }, netFcfa: 1640, sonPrixFcfa: 7000, campFcfa: 0 },
 ];
+
+/** Net VERSÉ à la revendeuse = net − camp (§3.2) — the Cercle-layer deduction;
+ * the platform waterfall (frais = round(brut × 0.20)) is untouched. */
+export const netPaye = (s: Sale): number => s.netFcfa - s.campFcfa;
+
+/** D4a — « En attente (net) » = Σ net − camp of ACTIVE orders (en préparation /
+ * en route / à la porte); problems and settled excluded. Seed: 4 840. */
+export const enAttenteNet = (sales: readonly Sale[] = DEMO_SALES): number =>
+  sales.filter((s) => s.status === 'en_preparation' || s.status === 'en_route' || s.status === 'a_la_porte')
+    .reduce((sum, s) => sum + netPaye(s), 0);
+
+/** D4a — « Payé cette semaine » = Σ net − camp of PAYÉE orders. Seed: 2 800. */
+export const payeSemaine = (sales: readonly Sale[] = DEMO_SALES): number =>
+  sales.filter((s) => s.status === 'payee').reduce((sum, s) => sum + netPaye(s), 0);
 const DEMO_SALES: readonly Sale[] = RAW_SALES.map((s) => Object.freeze(s));
 
 export function allSales(): readonly Sale[] {
@@ -88,23 +111,26 @@ export function orderedSales(sales: readonly Sale[] = DEMO_SALES): readonly Sale
 /** A list row — NET-FIRST: the row's money is the net, never a gross. */
 export interface SaleRow {
   readonly id: string;
+  readonly code: string;
   readonly clientFirstName: string;
   readonly productName: string;
   readonly status: SaleStatus;
   readonly statusKey: string;
   readonly serverFact: boolean;
+  /** The row's money — net VERSÉ (net − camp on campaign orders). */
   readonly netFcfa: number;
 }
 
 export function ventesListModel(sales: readonly Sale[] = DEMO_SALES): readonly SaleRow[] {
   return orderedSales(sales).map((s) => ({
     id: s.id,
+    code: s.code,
     clientFirstName: s.clientFirstName,
     productName: s.productName,
     status: s.status,
     statusKey: STATUS_KEY[s.status],
     serverFact: statusIsServerFact(s.status),
-    netFcfa: s.netFcfa,
+    netFcfa: netPaye(s),
   }));
 }
 
@@ -133,6 +159,7 @@ const STATUS_STEP: Record<SaleStatus, number> = {
 
 /** The detail — NET FIRST (net before son prix), then the coarse custody timeline. */
 export interface SaleDetail {
+  readonly code: string;
   readonly clientFirstName: string;
   /** The product sold — real sale data (never a seller identity), for the
    * detail's product card (WO-FP-SHOP view 7, frame L319). */
@@ -141,6 +168,14 @@ export interface SaleDetail {
   readonly sonPrixFcfa: number;
   readonly status: SaleStatus;
   readonly isProblem: boolean;
+  /** D3 — the Cercle contribution (0 = line not rendered) + the derivation
+   * lines. NET-FIRST law holds on the SURFACE: the net hero renders first,
+   * the brut/frais/contribution derivation renders UNDER it (SP-I04/SP-I12
+   * outranks the planche's top-to-bottom ledger order — flagged divergence). */
+  readonly campFcfa: number;
+  readonly netPayeFcfa: number;
+  readonly brutFcfa: number;
+  readonly fraisFcfa: number;
   readonly timeline: readonly TimelineStep[];
 }
 
@@ -152,20 +187,25 @@ export function ventesDetailModel(sale: Sale): SaleDetail {
     phase: i < current ? 'done' : i === current ? 'now' : 'later',
   }));
   return {
+    code: sale.code,
     clientFirstName: sale.clientFirstName,
     productName: sale.productName,
     netFcfa: sale.netFcfa,
     sonPrixFcfa: sale.sonPrixFcfa,
     status: sale.status,
     isProblem: sale.status === 'probleme',
+    campFcfa: sale.campFcfa,
+    netPayeFcfa: netPaye(sale),
+    brutFcfa: sale.netFcfa + Math.round((sale.input.sellerFundedCommission + sale.input.resellerMarkup) * 0.2),
+    fraisFcfa: Math.round((sale.input.sellerFundedCommission + sale.input.resellerMarkup) * 0.2),
     timeline,
   };
 }
 
-/** The demo detail the mockup specifies — Mariam O. (EN ROUTE). */
+/** The demo detail — D3's porteur: o1 CMD-2417 (the campaign order). */
 export function demoDetail(): SaleDetail {
-  const mariam = DEMO_SALES.find((s) => s.id === 'v3')!;
-  return ventesDetailModel(mariam);
+  const o1 = DEMO_SALES.find((s) => s.id === 'o1')!;
+  return ventesDetailModel(o1);
 }
 
 /**
@@ -177,9 +217,32 @@ export interface EarningsSurfaceDescriptor {
   readonly surface: string;
   readonly moneyFieldsInRenderOrder: readonly string[];
 }
+/** D4b — the per-sale Gains card view (server-layer derivation; net first). */
+export interface GainsCardView {
+  readonly code: string;
+  readonly productName: string;
+  readonly netPayeFcfa: number;
+  readonly campFcfa: number;
+  readonly brutFcfa: number;
+  readonly fraisFcfa: number;
+}
+export function gainsCards(sales: readonly Sale[] = DEMO_SALES): readonly GainsCardView[] {
+  return orderedSales(sales).map((s) => {
+    const frais = Math.round((s.input.sellerFundedCommission + s.input.resellerMarkup) * 0.2);
+    return {
+      code: s.code,
+      productName: s.productName,
+      netPayeFcfa: netPaye(s),
+      campFcfa: s.campFcfa,
+      brutFcfa: s.netFcfa + frais,
+      fraisFcfa: frais,
+    };
+  });
+}
+
 export function ventesRowSurface(): EarningsSurfaceDescriptor {
   return { surface: 'ventes-row', moneyFieldsInRenderOrder: ['resellerNet'] };
 }
 export function ventesDetailSurface(): EarningsSurfaceDescriptor {
-  return { surface: 'ventes-detail', moneyFieldsInRenderOrder: ['resellerNet', 'customerPrice'] };
+  return { surface: 'ventes-detail', moneyFieldsInRenderOrder: ['resellerNet', 'campContribution', 'customerPrice'] };
 }

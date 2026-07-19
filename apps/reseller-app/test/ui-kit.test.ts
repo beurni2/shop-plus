@@ -50,13 +50,14 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(kit).toMatch(/fontWeight: w\(t2\.scale\.heroMoney\.wght\)/);
     expect(kit).toMatch(/fontFamily: DISPLAY_FAMILY/);
     expect(kit).toMatch(/fontVariant: \['tabular-nums'\]/);
-    // the App leads the gains screen with the count-up hero: label + template
-    // both from the catalog — copy never inline.
+    // D4 (Cercle) — the gains screen leads with the composed pending hero
+    // (montant 38 + FCFA 17, §7 count-up), label from the catalog, amount from
+    // the sales world (En attente = Σ net − camp). Copy never inline.
     const app = read('App.tsx');
-    expect(app).toMatch(/<CountUpAmount/);
-    expect(app).toMatch(/label=\{t\('gains\.total_label'\)\}/);
-    expect(app).toMatch(/template=\{t\('money\.amount_f'\)\}/);
-    expect(app).toMatch(/amount=\{totals\.netFcfa\}/);
+    expect(app).toMatch(/<PendingHero/);
+    expect(app).toMatch(/label=\{t\('ce\.gains_attente_label'\)\}/);
+    expect(app).toMatch(/amount=\{enAttenteNet\(\)\}/);
+    expect(app).toMatch(/ce\.gains_paye_semaine/);
     // francs render tabular in the App too (money lines + stats)
     expect(app).toMatch(/fontVariant: \['tabular-nums'\]/);
     // the hero size is a real hero (doctrine: the amount is the screen's hero) —
@@ -110,8 +111,9 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
   it('navigation chrome: header everywhere, hubs = Accueil·Opportunités·Ma Vitrine·Gains, tabs are waypoint RESETS (never edges, never go())', () => {
     const app = read('App.tsx');
     expect(app).toMatch(/<AppHeader/);
-    // WO-VITRINE-FLOW promotes Ma Vitrine to a dock tab (4 tabs; Cercle stays out).
-    expect(app).toMatch(/HUBS: readonly Screen\[\] = \['accueil', 'opportunites', 'vitrine', 'gains'\]/);
+    // CERCLE (SP9, founder-override scoped to UI + certified mock, journaled
+    // 2026-07-19): the dock grows to 5 tabs — Cercle between Ma Vitrine and Gains.
+    expect(app).toMatch(/HUBS: readonly Screen\[\] = \['accueil', 'opportunites', 'vitrine', 'cercle', 'gains'\]/);
     expect(app).toMatch(/setStack\(hub === START \? \[START\] : \[START, hub\]\)/);
     for (const key of ['nav.tab_accueil', 'nav.tab_opportunites', 'nav.tab_vitrine', 'nav.tab_gains']) {
       expect(app).toContain(`t('${key}')`);

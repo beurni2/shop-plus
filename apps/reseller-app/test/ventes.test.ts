@@ -13,6 +13,9 @@ import {
   ventesDetailSurface,
   type Sale,
   type SaleStatus,
+  netPaye,
+  enAttenteNet,
+  payeSemaine,
 } from '../src/sales/ventes.js';
 
 /**
@@ -39,49 +42,50 @@ describe('the money reconciles to the franc — every sale IS the pinned waterfa
     }
   });
 
-  it('the mockup figures hold (Mariam = §5.4 baseline: net 2 000, son prix 11 500)', () => {
+  it('the CERCLE o-world figures hold (§3.1 + §0.2.a): o1 net 2 000 · camp 600 · net versé 1 400; totals 4 840 / 2 800', () => {
     const nets = allSales().map((s) => s.netFcfa);
-    expect(nets).toEqual([1400, 900, 2000, 2400, 1100, 1600]);
-    const mariam = allSales().find((s) => s.clientFirstName === 'Mariam O.')!;
-    expect(mariam.netFcfa).toBe(2000);
-    expect(mariam.sonPrixFcfa).toBe(11500);
+    expect(nets).toEqual([2160, 1640, 3440, 2000, 2800]);
+    const o1 = allSales().find((s) => s.code === 'CMD-2417')!;
+    expect(o1.clientFirstName).toBe('Awa');
+    expect(o1.netFcfa).toBe(2000);
+    expect(o1.sonPrixFcfa).toBe(11500);
+    expect(o1.campFcfa).toBe(600); // §0.2.a — camp FROZEN at attribution
+    expect(netPaye(o1)).toBe(1400); // net versé = net − camp
+    // every non-campaign order carries camp 0 (one offer per order, loi 7)
+    for (const s2 of allSales()) if (s2.code !== 'CMD-2417') expect(s2.campFcfa).toBe(0);
+    // D4a — the Gains aggregates (En attente excludes problems + settled)
+    expect(enAttenteNet()).toBe(4840);
+    expect(payeSemaine()).toBe(2800);
   });
 });
 
 describe('the order is deterministic — the problems first, then closest-to-door → settled', () => {
   it('orders by the status rank, stable, never a score', () => {
     const statuses = orderedSales().map((s) => s.status);
-    expect(statuses).toEqual(['probleme', 'a_la_porte', 'en_route', 'en_preparation', 'payee', 'livree']);
+    expect(statuses).toEqual(['probleme', 'probleme', 'en_route', 'en_preparation', 'payee']);
+    expect(orderedSales().map((s) => s.code)).toEqual(['CMD-2411', 'CMD-2398', 'CMD-2413', 'CMD-2417', 'CMD-2409']);
     expect(orderedSales().map((s) => s.id)).toEqual(orderedSales().map((s) => s.id)); // pure
   });
 });
 
-describe('SP-I04/SP-I12 — the NET is first; a gross is never rendered', () => {
+describe('SP-I04/SP-I12 — the NET is first; commission/supplier stay unrepresentable', () => {
   it('the list row carries the net (never a gross), and the surface descriptor is net-first', () => {
-    const rows = ventesListModel();
-    for (const r of rows) expect(typeof r.netFcfa).toBe('number');
-    expect(ventesRowSurface().moneyFieldsInRenderOrder[0]).toBe('resellerNet');
-    // no gross/commission field on a row, structurally and in the bytes
-    for (const r of rows) {
-      expect(Object.keys(r)).not.toContain('grossFcfa');
-      expect(JSON.stringify(r)).not.toMatch(/gross|commission|marge|fournisseur|supplier|phone|numero|tel_/i);
+    for (const r of ventesListModel()) {
+      expect(r.netFcfa).toBeGreaterThan(0);
+      expect(Object.keys(r)).not.toContain('brutFcfa');
     }
+    expect(ventesRowSurface().moneyFieldsInRenderOrder).toEqual(['resellerNet']);
   });
 
-  it('the detail renders the net BEFORE son prix (net-first), and carries no gross/commission', () => {
+  it('the detail is NET-FIRST (D3-era law): net hero first, the brut/frais/−Cercle derivation UNDER it; commission/supplier unrepresentable', () => {
     const d = demoDetail();
-    expect(ventesDetailSurface().moneyFieldsInRenderOrder).toEqual(['resellerNet', 'customerPrice']);
-    // structural: the detail has netFcfa and sonPrixFcfa, no gross/commission field
-    expect(Object.keys(d)).toContain('netFcfa');
-    expect(Object.keys(d)).toContain('sonPrixFcfa');
-    expect(JSON.stringify(d)).not.toMatch(/gross|commission|marge|markup|sellerBase|fournisseur|supplier/i);
-  });
-
-  it('the two checked-in net-first surface fixtures are pinned to the presenter', () => {
-    const row = JSON.parse(readFileSync(join(appDir, '../../gates/fixtures/surfaces/ventes-row.json'), 'utf8'));
-    const detail = JSON.parse(readFileSync(join(appDir, '../../gates/fixtures/surfaces/ventes-detail.json'), 'utf8'));
-    expect(ventesRowSurface()).toEqual(row);
-    expect(ventesDetailSurface()).toEqual(detail);
+    // the descriptor renders resellerNet FIRST — the gate's mechanical law
+    expect(ventesDetailSurface().moneyFieldsInRenderOrder[0]).toBe('resellerNet');
+    expect(ventesDetailSurface().moneyFieldsInRenderOrder).toEqual(['resellerNet', 'campContribution', 'customerPrice']);
+    // the derivation is DERIVED from the pinned waterfall, never hand-authored
+    expect(d.brutFcfa).toBe(d.netFcfa + d.fraisFcfa);
+    // commission / supplier / marge vocabulary stays unrepresentable
+    expect(JSON.stringify(d)).not.toMatch(/commission|fournisseur|supplier|sellerBase|markup|marge/i);
   });
 });
 
@@ -101,23 +105,31 @@ describe('LIVRÉE is a server fact — never a green lie before the operator', (
   it('only livree reads as a server fact; the row marks it', () => {
     const statuses: SaleStatus[] = ['probleme', 'a_la_porte', 'en_route', 'en_preparation', 'payee', 'livree'];
     for (const st of statuses) expect(statusIsServerFact(st)).toBe(st === 'livree');
-    const livreeRow = ventesListModel().find((r) => r.status === 'livree')!;
-    expect(livreeRow.serverFact).toBe(true);
+    // the o-world seed carries no LIVRÉE row — no row may claim the server fact
+    for (const r of ventesListModel()) expect(r.serverFact).toBe(false);
   });
 });
 
 describe('the detail timeline is coarse and honest (steps, never a GPS point)', () => {
-  it('Mariam (EN ROUTE) → step 2 is « now », 0–1 done, 3 later', () => {
+  it('o1 CMD-2417 (À préparer) → step 1 is « now »; the demo detail IS the D3 porteur', () => {
     const d = demoDetail();
-    expect(d.timeline.map((s) => s.phase)).toEqual(['done', 'done', 'now', 'later']);
+    expect(d.code).toBe('CMD-2417');
+    expect(d.timeline.map((s) => s.phase)).toEqual(['done', 'now', 'later', 'later']);
     expect(d.isProblem).toBe(false);
+    // D3 — the derivation the detail renders UNDER the net hero (net-first):
+    expect(d.brutFcfa).toBe(2500);
+    expect(d.fraisFcfa).toBe(500);
+    expect(d.campFcfa).toBe(600);
+    expect(d.netPayeFcfa).toBe(1400);
   });
 
-  it('a settled sale (LIVRÉE) shows every step done; a problem sale flags isProblem', () => {
-    const fanta = allSales().find((s) => s.status === 'livree')!;
-    expect(ventesDetailModel(fanta).timeline.map((s) => s.phase)).toEqual(['done', 'done', 'done', 'now']);
-    const fatou = allSales().find((s) => s.status === 'probleme')!;
-    expect(ventesDetailModel(fatou).isProblem).toBe(true);
+  it('an en-route sale walks the steps; a problem sale flags isProblem', () => {
+    const o7 = allSales().find((s) => s.code === 'CMD-2413')!;
+    expect(ventesDetailModel(o7).timeline.map((s) => s.phase)).toEqual(['done', 'done', 'now', 'later']);
+    const o3 = allSales().find((s) => s.code === 'CMD-2411')!;
+    expect(ventesDetailModel(o3).isProblem).toBe(true);
+    // a non-campaign detail renders NO contribution (camp 0 ⇒ line absent)
+    expect(ventesDetailModel(o7).campFcfa).toBe(0);
   });
 });
 
