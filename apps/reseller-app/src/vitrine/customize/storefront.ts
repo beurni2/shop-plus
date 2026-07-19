@@ -15,7 +15,7 @@
  *
  * Personnalisation is PRESENTATION ONLY (loi 5): nothing here can touch a
  * price, a net, an attribution, or the signed link. System-locked: slug/QR,
- * prix signés, badge ✓, protections, réputation, avis.
+ * prix signés, badge vérifié, protections, réputation, avis.
  */
 
 export type VitrineThemeKey = 'laterite' | 'danfani' | 'indigo' | 'foret';

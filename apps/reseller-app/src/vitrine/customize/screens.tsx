@@ -13,7 +13,7 @@
  *  - cover art states use the soft/sand fills + monogram, no rayures pattern;
  *  - IS-800 pills map to the Bold(700) face — the planche's variable font
  *    clamps at 700 anyway (Instrument ships no 800);
- *  - 📷/★ row glyphs are SVG (no-emoji gate); « Aa ◐ ≡ » stay text (lawful).
+ *  - the camera and star row glyphs are SVG (no-emoji gate); « Aa ◐ ≡ » stay text (lawful).
  *
  * §8.10: K7 is READ-ONLY — a product tap toasts, never navigates.
  */
