@@ -18,6 +18,11 @@ import { renderCheckoutOptions } from './checkout-view';
 import { renderProductSkeleton } from './product-view';
 import { vitrineSlugFromPath } from './vitrine-link';
 import { mountVitrine, type VitrineEtat } from './vitrine/flows';
+import { ENT_STYLES } from './vitrine/entries';
+// The Faso Premium face substrate (six @font-face, WO-FP STEP 0) — injected as
+// raw CSS so './fonts/…' stays document-relative (the Archivo pattern; correct
+// under base './' at / and /shop-plus/).
+import fontsCss from './fonts.css?raw';
 import { renderBoutiques, type BoutiqueState } from './boutiques-view';
 import { createJourney, JOURNEY_SCREENS, type JourneyScreen } from './journey';
 
@@ -124,6 +129,16 @@ root.style.setProperty('--skeleton-pulse', ms(skeleton.pulseMs));
 // Icon display sizes drawn from the spacing scale (no fresh literals).
 root.style.setProperty('--icon', px(spacing.xl));
 root.style.setProperty('--icon-sm', px(spacing.lg));
+
+const fontsStyle = document.createElement('style');
+fontsStyle.setAttribute('data-faso-fonts', '');
+fontsStyle.textContent = fontsCss;
+document.head.appendChild(fontsStyle);
+
+const entStyle = document.createElement('style');
+entStyle.setAttribute('data-vitrine-entries', '');
+entStyle.textContent = ENT_STYLES;
+document.head.appendChild(entStyle);
 
 const style = document.createElement('style');
 style.textContent = `
@@ -536,10 +551,19 @@ if (app) {
   } else if (journeyScreen && (JOURNEY_SCREENS as readonly string[]).includes(journeyScreen)) {
     // WO-4.4 — the walkable journey owns the whole viewport (5-second test).
     const main = document.createElement('main');
+    const depuisSlug = params.get('depuis-vitrine');
     createJourney(main, {
       screen: journeyScreen as JourneyScreen,
       trackingEtat: params.get('etat') ?? undefined,
       voix: params.get('voix') ?? undefined,
+      depuisVitrine: depuisSlug ? { slug: depuisSlug, pid: params.get('pid') ?? '' } : undefined,
+    });
+    // The C-ENT entries (E1/E2/E3) navigate to the vitrine under the SAME
+    // attribution — the arrival was recorded on vitrine land, and the /v/ path
+    // re-records identity-scope (last-touch A8) exactly as the law wants.
+    main.addEventListener('click', (ev) => {
+      const ent = (ev.target as HTMLElement).closest('[data-action="vitrine"]');
+      if (ent) window.location.href = `/v/${ent.getAttribute('data-slug') ?? ''}`;
     });
     app.append(main);
   } else if (skeletonScreen === 'produit') {

@@ -2,6 +2,10 @@ import { t, tf } from './i18n';
 import { FCFA } from './format';
 import { icon } from './icons';
 import { renderProductPage, type ProductViewModel } from './product-view';
+import { renderEnt4 } from './vitrine/entries';
+import { demoStorefrontPort } from './vitrine/profile';
+import { seedProduct } from './vitrine/catalog';
+import { VITRINE_THEMES } from './vitrine/themes';
 import { renderLocationForm, type LocationViewModel } from './location-view';
 import { renderDeliveryQuote, DEMO_SERA_QUOTE } from './delivery-view';
 import { renderCheckoutOptions } from './checkout-view';
@@ -57,12 +61,18 @@ interface JourneyState {
   mode: 'A' | 'B' | null;
   tracking: TrackingViewModel;
   online: boolean;
+  /** V7/E3 — vitrine-entry context when arrived from a vitrine tile. */
+  vitrine?: NonNullable<ProductViewModel['vitrine']> | undefined;
+  /** V7 — the tapped product's signed-page facts (name/price/stock swap). */
+  vitrineProduct?: { name: string; priceFcfa: number; inStock: boolean } | undefined;
 }
 
 export interface JourneyInit {
   screen: JourneyScreen;
   trackingEtat?: string | undefined;
   voix?: string | undefined;
+  /** ?depuis-vitrine={slug}&pid={pid} — the V7 entry (same attribution). */
+  depuisVitrine?: { slug: string; pid: string } | undefined;
 }
 
 /** Map the ?etat= demo param onto a tracking view model (the §6.3 order:
@@ -102,8 +112,31 @@ function renderConfirmation(state: JourneyState): string {
       ? `<p class="status-chip status-pending" data-voice="queued">${t('voix.en_file')}</p>`
       : '',
     `<button class="primary-action" data-action="voir-suivi">${t('confirmation.suivre')}</button>`,
+    // E3 — C-ENT4: after confirmation only (§4.1), the quiet way back to her boutique.
+    ...(state.vitrine
+      ? [renderEnt4({ prenom: state.vitrine.prenom, slug: state.vitrine.slug, accent: state.vitrine.accent })]
+      : []),
     '</section>',
   ].join('');
+}
+
+/** V7 — the vitrine context rides the journey when arrived via a vitrine tile:
+ * the SIGNED page of THAT product (name/price swapped from the seed), the SAME
+ * attribution (already recorded on vitrine land), and the C-ENT4 exit on C6. */
+export function vitrineJourneyContext(
+  slug: string,
+  pid: string,
+): { vitrine: NonNullable<ProductViewModel['vitrine']>; product?: { name: string; priceFcfa: number; inStock: boolean } } | undefined {
+  const resolved = demoStorefrontPort().resolve(slug);
+  if (!resolved) return undefined;
+  const sf = resolved.storefront;
+  const th = VITRINE_THEMES[sf.theme];
+  const prenom = sf.name.replace(/^Chez\s+/i, '').split(' ')[0] ?? sf.name;
+  const seed = seedProduct(pid);
+  return {
+    vitrine: { shopName: sf.name, prenom, slug: sf.slug, accent: th.accent, on: th.on, soft: th.soft, deep: th.deep },
+    ...(seed ? { product: { name: seed.name, priceFcfa: seed.priceFcfa, inStock: seed.inStock } } : {}),
+  };
 }
 
 export function createJourney(container: HTMLElement, init: JourneyInit): void {
@@ -121,6 +154,13 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
     tracking: trackingModelFor(init.trackingEtat),
     online: navigator.onLine,
   };
+  if (init.depuisVitrine) {
+    const ctx = vitrineJourneyContext(init.depuisVitrine.slug, init.depuisVitrine.pid);
+    if (ctx) {
+      state.vitrine = ctx.vitrine;
+      state.vitrineProduct = ctx.product;
+    }
+  }
   if (init.screen === 'protections') state.stack.push('protections');
 
   let adapter: RecorderAdapter | null = null;
@@ -159,7 +199,22 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
   function screenHtml(): string {
     switch (current()) {
       case 'produit':
-        return renderProductPage(DEMO_PRODUCT);
+        return renderProductPage(
+          state.vitrine
+            ? {
+                ...DEMO_PRODUCT,
+                ...(state.vitrineProduct
+                  ? {
+                      productName: state.vitrineProduct.name,
+                      priceFcfa: state.vitrineProduct.priceFcfa,
+                      inStock: state.vitrineProduct.inStock,
+                      resellerName: state.vitrine.shopName,
+                    }
+                  : { resellerName: state.vitrine.shopName }),
+                vitrine: state.vitrine,
+              }
+            : DEMO_PRODUCT,
+        );
       case 'localisation':
         return renderLocationForm(state.location);
       case 'livraison':

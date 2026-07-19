@@ -994,5 +994,47 @@
   "fr": "Livraison Séra, paiement protégé.",
   "register": "money",
   "screenClass": "label"
+ },
+ {
+  "key": "vit.voir_toute",
+  "fr": "Voir toute la boutique",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.voir_boutique",
+  "fr": "Voir la boutique",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.decouvrir_reste",
+  "fr": "Découvrir le reste de la boutique",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.pendant",
+  "fr": "Pendant",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.boutique_ouverte",
+  "fr": "prépare, sa boutique reste ouverte.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.epuise_encart_avant",
+  "fr": "Ce produit est épuisé pour le moment.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.epuise_encart_apres",
+  "fr": "ajoute souvent de nouveaux articles.",
+  "register": "selling",
+  "screenClass": "status"
  }
 ]

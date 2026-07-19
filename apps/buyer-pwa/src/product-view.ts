@@ -1,5 +1,6 @@
 import { t, tf } from './i18n';
 import { FCFA, esc } from './format';
+import { renderEnt1, renderEnt2, renderEnt3 } from './vitrine/entries';
 
 /**
  * WO-4.4 §6.2 / WO-5.3 (Grand Teint) — ARRIVAL: the signed link lands HERE,
@@ -17,7 +18,21 @@ import { FCFA, esc } from './format';
  * `.fcfa-hero` class and byte-exact « 11 500 F » figure (money never shifts).
  */
 
+/** Vitrine-entry context (E1/E2 — HANDOFF §2): present when the product page
+ * belongs to a reseller whose public vitrine is reachable. Presentation-only. */
+export interface ProductVitrineEntry {
+  readonly shopName: string;
+  readonly prenom: string;
+  readonly slug: string;
+  readonly accent: string;
+  readonly on: string;
+  readonly soft: string;
+  readonly deep: string;
+}
+
 export interface ProductViewModel {
+  /** E1 entries render when present; absent keeps the pre-redesign page. */
+  readonly vitrine?: ProductVitrineEntry | undefined;
   productName: string;
   /** The reseller — the ONLY commercial relationship on this page. */
   resellerName: string;
@@ -67,7 +82,11 @@ export function renderProductPage(model: ProductViewModel): string {
   return [
     '<section class="product-page" data-screen="produit">',
     photoFrame(model.productName),
-    `<p class="reseller-line"><span class="reseller-name">${esc(model.resellerName)}</span> <span class="verified-badge">${t('produit.vendeuse_verifiee')}</span></p>`,
+    // E1 ① — C-ENT1: the reseller line becomes the tappable vitrine anchor
+    // (§9.5 keeps BOTH entries); without vitrine context the line stays as-is.
+    model.vitrine
+      ? renderEnt1({ shopName: model.vitrine.shopName, slug: model.vitrine.slug, accent: model.vitrine.accent, on: model.vitrine.on })
+      : `<p class="reseller-line"><span class="reseller-name">${esc(model.resellerName)}</span> <span class="verified-badge">${t('produit.vendeuse_verifiee')}</span></p>`,
     `<h2 class="product-name">${esc(model.productName)}</h2>`,
     priceBand(model.priceFcfa),
     '<div class="trust-row">',
@@ -76,6 +95,14 @@ export function renderProductPage(model: ProductViewModel): string {
     model.inStock ? `<span class="trust-chip">${t('produit.stock')}</span>` : '',
     '</div>',
     `<button class="link-quiet" data-action="protections">${t('protections.ouvrir')}</button>`,
+    // E1 ③ — C-ENT2: the labelled « Voir toute la boutique » affordance.
+    model.vitrine
+      ? renderEnt2({ prenom: model.vitrine.prenom, slug: model.vitrine.slug, accent: model.vitrine.accent })
+      : '',
+    // E2 — the épuisé encart + C-ENT3 (the only active CTA when Commander is off).
+    model.vitrine && !model.inStock
+      ? renderEnt3({ prenom: model.vitrine.prenom, slug: model.vitrine.slug, soft: model.vitrine.soft, deep: model.vitrine.deep })
+      : '',
     `<button class="primary-action" data-action="acheter">${tf('produit.acheter', { amount: FCFA.format(model.priceFcfa) })}</button>`,
     '</section>',
   ].join('');
