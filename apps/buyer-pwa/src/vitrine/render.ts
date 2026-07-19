@@ -15,7 +15,8 @@
 import { t, tf } from '../i18n';
 import { FCFA, esc } from '../format';
 import { VITRINE_SEED, seedProduct, type VitrineSeedProduct } from './catalog';
-import type { Storefront, VitrineTrust } from './profile';
+import type { Storefront, VitrineTrust, ProductVoiceNote, ProductVoiceNotes } from './profile';
+import { renderVoiceChip } from './voice-player';
 import {
   iconBack,
   iconBrokenLink,
@@ -142,8 +143,10 @@ function tileArt(p: VitrineSeedProduct, veiled: boolean): string {
   ].join('');
 }
 
-/** C-VIT4 — tuile produit v2. Épuisé: voile + tampon, muette (aria-disabled). */
-function tile(p: VitrineSeedProduct): string {
+/** C-VIT4 — tuile produit v2. Épuisé: voile + tampon, muette (aria-disabled).
+ * A `ready` voice note adds the compact « La voix » chip (in-stock tiles only —
+ * an épuisé tile is muette and carries no interactive child). */
+function tile(p: VitrineSeedProduct, note?: ProductVoiceNote): string {
   const cls = p.inStock ? 'vt-tile' : 'vt-tile vt-tile-epuise';
   const attrs = p.inStock
     ? `data-action="produit" data-pid="${p.pid}"`
@@ -154,19 +157,21 @@ function tile(p: VitrineSeedProduct): string {
     '<div class="vt-tile-body">',
     `<div class="vt-tile-name"><v>${esc(p.name)}</v></div>`,
     `<div class="vt-tile-price"><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
+    p.inStock ? renderVoiceChip(note) : '',
     '</div>',
     '</button>',
   ].join('');
 }
 
 /** C-VIT5 — tuile à la une (jamais un épuisé: auto-retrait à l'affichage). */
-function featuredTile(p: VitrineSeedProduct): string {
+function featuredTile(p: VitrineSeedProduct, note?: ProductVoiceNote): string {
   return [
     `<button class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${p.pid}">`,
     tileArt(p, false),
     '<div class="vt-featured-body">',
     `<span class="vt-featured-name"><v>${esc(p.name)}</v></span>`,
     `<b class="vt-featured-price"><v>${fmtFcfa(p.priceFcfa)}</v></b>`,
+    renderVoiceChip(note),
     '</div>',
     '</button>',
   ].join('');
@@ -200,8 +205,15 @@ export interface VitrineRenderOpts {
   readonly fromProduct: boolean;
 }
 
-/** V1/V2 — the vitrine, ready state. One renderer; the profile decides. */
-export function renderVitrineReady(sf: Storefront, trust: VitrineTrust, opts: VitrineRenderOpts): string {
+/** V1/V2 — the vitrine, ready state. One renderer; the profile decides.
+ * `notes` (pid → voice note) is render-only: a `ready` note adds the tile chip;
+ * everything else renders no chip (§ honesty — a `pending` note never shows). */
+export function renderVitrineReady(
+  sf: Storefront,
+  trust: VitrineTrust,
+  opts: VitrineRenderOpts,
+  notes: ProductVoiceNotes = {},
+): string {
   const th = VITRINE_THEMES[sf.theme];
   const parts = [
     topBar({ back: opts.fromProduct, accent: th.accent }),
@@ -216,7 +228,7 @@ export function renderVitrineReady(sf: Storefront, trust: VitrineTrust, opts: Vi
     .slice(0, 2);
   if (featured.length > 0) {
     parts.push(groupTitle(t('vit.a_la_une'), undefined));
-    for (const p of featured) parts.push(featuredTile(p));
+    for (const p of featured) parts.push(featuredTile(p, notes[p.pid]));
   }
 
   // Sections (≤ 4, empty invisible), then the residual « TOUS LES ARTICLES ».
@@ -225,14 +237,14 @@ export function renderVitrineReady(sf: Storefront, trust: VitrineTrust, opts: Vi
   for (const s of visibleSections) {
     const prods = orderedProducts(sf, s.pids);
     parts.push(groupTitle(esc(s.name).toUpperCase(), prods.length, 'section'));
-    parts.push(`<div class="vt-grid">${prods.map(tile).join('')}</div>`);
+    parts.push(`<div class="vt-grid">${prods.map((p) => tile(p, notes[p.pid])).join('')}</div>`);
   }
   const residual = orderedProducts(sf).filter((p) => !sectioned.has(p.pid));
   if (visibleSections.length === 0 || residual.length > 0) {
     parts.push(
       groupTitle(t('vit.groupe_tous'), residual.length, visibleSections.length === 0 ? 'var' : 'literal'),
     );
-    parts.push(`<div class="vt-grid">${residual.map(tile).join('')}</div>`);
+    parts.push(`<div class="vt-grid">${residual.map((p) => tile(p, notes[p.pid])).join('')}</div>`);
   }
 
   parts.push(inkBandAndFooter(sf));

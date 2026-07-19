@@ -19,6 +19,7 @@
 // Canon guards the boundary at name ≤ 120; the reseller app enforces 3–24 at
 // ITS edit boundary (§3.1/QA §8.6) — the buyer only renders.
 import type { Storefront } from '@platform/contracts';
+import { DEMO_VOICE_URL, DEMO_VOICE_DURATION_MS } from './voice-asset';
 
 export type { Storefront };
 
@@ -33,10 +34,34 @@ export interface VitrineTrust {
   readonly demo: boolean;
 }
 
+/**
+ * PER-PRODUCT VOICE NOTE — the reseller's optional recorded note about ONE
+ * product (LOCAL shape; canon has none yet — see the canon-needs note below).
+ * The BUYER only ever renders a `ready` note (a real, playable url): a note the
+ * reseller just recorded is `pending` on her side (no server persists it), so
+ * it is NOT buyer-visible — honesty law (queued = pending, never « en ligne »).
+ * `recording`/`recorded` are reseller-only capture states, never seen here.
+ *
+ * CANON WOULD NEED (report, not built): one additive, defaulted field on
+ * StorefrontSchema — `productNotes?: Record<pid, { status; url; durationMs }>`
+ * (status enum below), mirroring how cover/avatar landed additive in v1.1.0.
+ */
+export type ProductVoiceStatus = 'none' | 'recording' | 'recorded' | 'pending' | 'ready';
+export interface ProductVoiceNote {
+  readonly status: ProductVoiceStatus;
+  /** Playable source when `ready`; null until a real take exists. */
+  readonly url: string | null;
+  /** Displayed length (« 0:01 »). 0 until captured. */
+  readonly durationMs: number;
+}
+/** pid → note. Absent pid = no note = the buyer renders NOTHING (no gap). */
+export type ProductVoiceNotes = Readonly<Record<string, ProductVoiceNote>>;
+
 export interface StorefrontProfilePort {
   /** Resolve a slug to its storefront — undefined = honest not-found (V5). A
-   * PRIVATE storefront still resolves (loi 4: no « boutique fermée » exists). */
-  resolve(slug: string): { storefront: Storefront; trust: VitrineTrust } | undefined;
+   * PRIVATE storefront still resolves (loi 4: no « boutique fermée » exists).
+   * `notes` carries the per-product voice notes (only `ready` ones play). */
+  resolve(slug: string): { storefront: Storefront; trust: VitrineTrust; notes: ProductVoiceNotes } | undefined;
 }
 
 /* ------------------------------------------------------------------ DEMO -- */
@@ -81,6 +106,28 @@ const AICHA_CUSTOMISED: Storefront = {
 const AICHA_TRUST: VitrineTrust = { deliveredCount: 16, rating: '4,8', reviewCount: 12, demo: true };
 
 /**
+ * V-demo voice notes — two products carry a `ready` note ([DEMO] placeholder
+ * tone, STOREFRONT-MEDIA-BACKING). p1 is featured, p5 is a regular tile, so the
+ * « La voix » affordance is demonstrable on a featured tile, a grid tile, and
+ * both their product pages. Everything else has no note → the buyer sees
+ * nothing (no placeholder gap). Swapping in the real media backend replaces
+ * these urls; the shape and the player never change.
+ */
+const AICHA_VOICE_NOTES: ProductVoiceNotes = {
+  p1: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
+  p5: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
+};
+
+/** The DIRECT-landing signed product (no vitrine round trip) carries a demo note
+ * too, so the product-page player is demonstrable on the default route. Same
+ * [DEMO] asset; the real backend attaches the real note to the real listing. */
+export const DEMO_LANDING_VOICE: ProductVoiceNote = {
+  status: 'ready',
+  url: DEMO_VOICE_URL,
+  durationMs: DEMO_VOICE_DURATION_MS,
+};
+
+/**
  * The demo adapter. `aicha-4821` resolves to the DEFAULT profile; the audit
  * harness swaps in the customised profile via `demoProfileVariant`. Unknown
  * slugs are honest not-found. (VITRINE-REAL-BACKING / the storefront-service
@@ -90,16 +137,17 @@ export function demoStorefrontPort(variant: 'default' | 'customised' | 'empty' =
   return {
     resolve(slug: string) {
       if (slug !== 'aicha-4821') return undefined;
-      if (variant === 'customised') return { storefront: AICHA_CUSTOMISED, trust: AICHA_TRUST };
+      if (variant === 'customised') return { storefront: AICHA_CUSTOMISED, trust: AICHA_TRUST, notes: AICHA_VOICE_NOTES };
       if (variant === 'empty') {
         // V6 — before the first article: identity present, zero products, no
-        // review chip yet (< 3 avis — a new reseller's honest day 1).
+        // review chip yet (< 3 avis — a new reseller's honest day 1), no notes.
         return {
           storefront: { ...AICHA_DEFAULT, curatedItems: [] },
           trust: { deliveredCount: 0, rating: '', reviewCount: 0, demo: true },
+          notes: {},
         };
       }
-      return { storefront: AICHA_DEFAULT, trust: AICHA_TRUST };
+      return { storefront: AICHA_DEFAULT, trust: AICHA_TRUST, notes: AICHA_VOICE_NOTES };
     },
   };
 }

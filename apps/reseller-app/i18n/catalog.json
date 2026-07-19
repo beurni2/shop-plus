@@ -1308,6 +1308,102 @@
   "screenClass": "status"
  },
  {
+  "key": "k.voix.title",
+  "fr": "Notes vocales",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.voix.sous_titre",
+  "fr": "Une petite note pour présenter un article — c’est votre voix qu’on entend. C’est vous qui choisissez, article par article.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.voix.row",
+  "fr": "Notes vocales",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.voix.row_sub_zero",
+  "fr": "Facultatif — une note par article",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.voix.row_sub_n",
+  "fr": "{n} enregistrée(s)",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.voix.enregistrer",
+  "fr": "Enregistrer une note",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.voix.en_cours",
+  "fr": "Enregistrement…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.voix.arreter",
+  "fr": "Arrêter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.voix.annuler",
+  "fr": "Annuler",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.voix.publier",
+  "fr": "Publier",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.voix.refaire",
+  "fr": "Refaire",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.voix.supprimer",
+  "fr": "Supprimer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.voix.en_attente",
+  "fr": "En attente",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.voix.toast_publiee",
+  "fr": "Note enregistrée — publiée dès que le réseau revient.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.voix.toast_supprimee",
+  "fr": "Note supprimée.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.voix.note",
+  "fr": "Vos clientes l’écoutent sur la fiche de l’article. Rien n’est envoyé tant que le réseau n’est pas revenu.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
   "key": "k.sections.title",
   "fr": "Sections",
   "register": "neutral",

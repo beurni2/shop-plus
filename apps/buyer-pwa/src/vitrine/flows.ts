@@ -26,6 +26,7 @@ import {
 import { applyTheme, DEFAULT_THEME } from './themes';
 import { VITRINE_STYLES } from './styles';
 import { iconCheck } from './icons';
+import { wireVoicePlay } from './voice-player';
 
 export type VitrineEtat = 'loading' | 'ready' | 'empty' | 'offline' | 'invalid';
 
@@ -57,6 +58,10 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
 
   const fromProduct = harness.fromProduct ?? false;
 
+  // « La voix » tile chips play here (tap only, never autoplay). Attached once;
+  // it no-ops on every non-voice click and survives re-renders (delegated).
+  wireVoicePlay(root);
+
   const show = (etat: VitrineEtat): void => {
     const resolved = port.resolve(slug);
     if (etat !== 'invalid' && !resolved) etat = 'invalid';
@@ -80,7 +85,7 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
         root.innerHTML =
           sf!.curatedItems.length === 0
             ? renderVitrineEmpty(sf!, resolved!.trust, { fromProduct })
-            : renderVitrineReady(sf!, resolved!.trust, { fromProduct });
+            : renderVitrineReady(sf!, resolved!.trust, { fromProduct }, resolved!.notes);
         break;
     }
   };

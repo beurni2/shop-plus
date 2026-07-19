@@ -1,6 +1,8 @@
 import { t, tf } from './i18n';
 import { FCFA, esc } from './format';
 import { renderEnt1, renderEnt2, renderEnt3 } from './vitrine/entries';
+import { renderVoicePlayer } from './vitrine/voice-player';
+import type { ProductVoiceNote } from './vitrine/profile';
 
 /**
  * WO-4.4 §6.2 / WO-5.3 (Grand Teint) — ARRIVAL: the signed link lands HERE,
@@ -39,6 +41,8 @@ export interface ProductViewModel {
   /** HER price: productSubtotal (B + M). Never B, never C, never a split. */
   priceFcfa: number;
   inStock: boolean;
+  /** Optional « La voix » note about THIS product; renders only when `ready`. */
+  readonly voice?: ProductVoiceNote | undefined;
 }
 
 /** The demo Studio asset — a stand-in for the Boutik+ Studio derivative (real
@@ -94,6 +98,9 @@ export function renderProductPage(model: ProductViewModel): string {
     `<span class="trust-chip">${t('produit.paiement_protege')}</span>`,
     model.inStock ? `<span class="trust-chip">${t('produit.stock')}</span>` : '',
     '</div>',
+    // « La voix » — the reseller's optional recorded note about this item
+    // (tap to play, never autoplay). Renders only when a `ready` note exists.
+    renderVoicePlayer(model.voice),
     `<button class="link-quiet" data-action="protections">${t('protections.ouvrir')}</button>`,
     // E1 ③ — C-ENT2: the labelled « Voir toute la boutique » affordance.
     model.vitrine

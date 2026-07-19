@@ -412,6 +412,19 @@ style.textContent = `
   }
   .audio-note-label { font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght}; letter-spacing: var(--ls-labelXS); text-transform: uppercase; text-decoration: underline; text-underline-offset: var(--sp-xs); }
   .audio-note-pending { color: var(--c-muted); }
+  /* « La voix » — the per-product voice-note player (house standard §5): the
+     filled play triangle + caps label + visible duration. Tap plays (no autoplay). */
+  .voix-note { margin: 0; }
+  .voix-btn {
+    display: inline-flex; align-items: center; gap: var(--sp-sm);
+    min-height: var(--touch); border: 1px solid var(--c-hairline);
+    background: var(--c-paper); color: var(--c-primaryStrong);
+    padding: var(--sp-sm) var(--sp-md); cursor: pointer;
+  }
+  .voix-btn:active { opacity: var(--pressed-opacity); }
+  .voix-icon { width: var(--icon-sm); height: var(--icon-sm); color: var(--c-primaryStrong); flex: none; }
+  .voix-label { font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght}; letter-spacing: var(--ls-labelXS); text-transform: uppercase; }
+  .voix-duration { font-size: var(--t-labelXS); color: var(--c-muted); font-variant-numeric: tabular-nums; }
   /* C7 — the coarse honest timeline (never a GPS dot). */
   .timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-md); }
   .timeline-step { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--sp-md); font-size: var(--t-body); }

@@ -168,6 +168,22 @@ export const VITRINE_STYLES = `
   }
   .vt-tile-epuise .vt-tile-price { color: #6F6355; }
 
+  /* « La voix » — the tile voice chip (tap-to-play; the play triangle +
+     duration). A role="button" <span> inside the tile <button>: its own tap
+     target, themed to the accent. The delegated handler plays it; the tile's
+     « produit » navigation never fires on a voice tap (closest() wins here). */
+  .vt-tile-voix {
+    display: inline-flex; align-items: center; gap: 5px; margin-top: 8px;
+    min-height: 30px; padding: 3px 10px 3px 6px; border-radius: 999px;
+    background: var(--vt-soft); color: var(--vt-deep); cursor: pointer;
+    font-family: 'Instrument Sans', system-ui, sans-serif;
+    font-size: 11.5px; font-weight: 700; letter-spacing: .2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .vt-tile-voix:active { transform: scale(.97); }
+  .vt-tile-voix-icon { width: 15px; height: 15px; flex: none; }
+  .vt-featured .vt-tile-voix { flex-basis: 100%; margin-top: 2px; }
+
   /* C-VIT5 — tuile à la une (pleine largeur). */
   .vt-featured {
     display: block; text-align: left; width: 100%;
@@ -184,7 +200,7 @@ export const VITRINE_STYLES = `
       rgba(0,0,0,0) 12px, rgba(0,0,0,0) 30px);
   }
   .vt-featured .vt-glyph { font-size: 52px; }
-  .vt-featured-body { padding: 12px 15px 14px; display: flex; align-items: baseline; gap: 10px; }
+  .vt-featured-body { padding: 12px 15px 14px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
   .vt-featured-name { flex: 1; display: block; font-size: 15px; font-weight: 700; line-height: 1.3; }
   .vt-featured-price {
     white-space: nowrap; display: block;

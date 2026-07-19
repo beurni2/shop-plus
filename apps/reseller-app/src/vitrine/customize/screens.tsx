@@ -48,6 +48,19 @@ import {
 import { formatFcfa } from '../../earnings';
 import { K_SEED } from './storefront';
 import { K_RAW_STYLES } from './k-styles';
+import {
+  DEFAULT_VOICE_NOTES,
+  fmtVoiceDuration,
+  noteOf,
+  startRecording,
+  stopRecording,
+  publishNote,
+  cancelRecording,
+  deleteNote,
+  createDemoRecorder,
+  type ProductVoiceNotes,
+  type VoiceRecorderAdapter,
+} from './voice';
 /** ONE money source — the app's canonical formatter (U+202F+FCFA, re-pin site). */
 export const fmtFcfa = formatFcfa;
 
@@ -55,7 +68,7 @@ const SHOP = { accent: '#A31D4E', deep: '#701134', soft: '#F8E4EC' }; // §1.3 c
 const GOLD_K = '#E0A11B'; // §1.3 liseré or (K chrome)
 const GOLD_BUYER = '#C89A3F';
 
-type KRoute = 'k1' | 'k2' | 'k3' | 'k4' | 'k5' | 'k6' | 'k6b' | 'k7';
+type KRoute = 'k1' | 'k2' | 'k3' | 'k4' | 'k5' | 'k6' | 'k6b' | 'k7' | 'k8';
 
 export interface CustomizeProps {
   onClose: () => void;
@@ -118,6 +131,16 @@ function IconDevantureK({ size, color }: { size: number; color: string }) {
   );
 }
 
+function IconMic({ size, color }: { size: number; color: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z" />
+      <Path d="M6 11a6 6 0 0 0 12 0" />
+      <Path d="M12 17v3.5" />
+    </Svg>
+  );
+}
+
 /** Woven band — the §1.2/§1.3 liseré as striped Views (RN adaptation). */
 export function WovenBand({ accent, gold, height }: { accent: string; gold: string; height: number }) {
   const seq: { c: string; w: number }[] = [];
@@ -151,8 +174,15 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
   const [editingSection, setEditingSection] = useState<string | null>(null);
+  // Per-product voice notes — a LOCAL structure PARALLEL to the storefront (canon
+  // has no shape yet, and its schema is .strict() — a note field on `sf` would
+  // fail conformance). One demo-fed recorder captures nothing (FLAG
+  // STOREFRONT-MEDIA-BACKING); the pure reducer owns every transition.
+  const [notes, setNotes] = useState<ProductVoiceNotes>(DEFAULT_VOICE_NOTES);
+  const recorder = useRef<VoiceRecorderAdapter>(createDemoRecorder());
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const voiceCount = Object.values(notes).filter((n) => n.status !== 'none' && n.status !== 'recording').length;
 
   const setSf = (next: Storefront): void => {
     setSfRaw(next);
@@ -184,6 +214,28 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
     );
   };
 
+  // Notes vocales — one recorder, one product at a time. Async takes land via a
+  // functional setState so a stale closure can never overwrite a later state.
+  const startRec = (pid: string): void => {
+    void recorder.current.start();
+    setNotes((cur) => startRecording(cur, pid));
+  };
+  const stopRec = (pid: string): void => {
+    void recorder.current.stop().then((take) => setNotes((cur) => stopRecording(cur, pid, take)));
+  };
+  const cancelRec = (pid: string): void => {
+    void recorder.current.stop();
+    setNotes((cur) => cancelRecording(cur, pid));
+  };
+  const publishRec = (pid: string): void => {
+    setNotes((cur) => publishNote(cur, pid));
+    onToast(t('k.voix.toast_publiee')); // honesty: « publiée dès que le réseau revient », never « en ligne »
+  };
+  const deleteRec = (pid: string): void => {
+    setNotes((cur) => deleteNote(cur, pid));
+    onToast(t('k.voix.toast_supprimee'));
+  };
+
   const back = (): void => {
     if (route === 'k1') onClose();
     else if (route === 'k6b') setRoute('k6');
@@ -192,7 +244,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
 
   return (
     <View style={S.root}>
-      {route === 'k1' && <K1 sf={sf} th={th} onBack={onClose} go={setRoute} />}
+      {route === 'k1' && <K1 sf={sf} th={th} voiceCount={voiceCount} onBack={onClose} go={setRoute} />}
       {route === 'k2' && (
         <K2
           sf={sf}
@@ -278,13 +330,24 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
         />
       )}
       {route === 'k7' && <ApercuCliente sf={sf} onBack={() => setRoute('k1')} onReadOnlyTap={() => onToast(t('k.apercu.lecture_toast'))} />}
+      {route === 'k8' && (
+        <K8
+          notes={notes}
+          onBack={back}
+          onRecord={startRec}
+          onStop={stopRec}
+          onCancel={cancelRec}
+          onPublish={publishRec}
+          onDelete={deleteRec}
+        />
+      )}
     </View>
   );
 }
 
 /* ------------------------------------------------------------------- K1 -- */
 
-function K1({ sf, th, onBack, go }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void }) {
+function K1({ sf, th, voiceCount, onBack, go }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; voiceCount: number; onBack: () => void; go: (r: KRoute) => void }) {
   const initial = sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase();
   const coverSub =
     sf.cover.status === 'live' ? t('k.row.cover_live') : sf.cover.status === 'pending' ? t('k.row.cover_pending') : t('k.row.cover_defaut');
@@ -294,6 +357,7 @@ function K1({ sf, th, onBack, go }: { sf: Storefront; th: (typeof THEMES)[Vitrin
     { key: 'k4', glyph: <Text style={S.rowGlyphText}>◐</Text>, title: t('k.row.theme'), sub: sf.theme === 'laterite' ? tf('k.row.theme_defaut', { nom: th.name }) : th.name },
     { key: 'k5', glyph: <IconStarK size={18} filled={false} />, title: t('k.row.une'), sub: tf('k.row.une_sub', { n: String(sf.featuredItems.length), total: String(K_SEED.length) }) },
     { key: 'k6', glyph: <Text style={S.rowGlyphText}>≡</Text>, title: t('k.row.sections'), sub: sf.sections.length === 0 ? t('k.row.sections_zero') : tf('k.row.sections_n', { n: String(sf.sections.length) }) },
+    { key: 'k8', glyph: <IconMic size={18} color={SHOP.deep} />, title: t('k.voix.row'), sub: voiceCount === 0 ? t('k.voix.row_sub_zero') : tf('k.voix.row_sub_n', { n: String(voiceCount) }) },
   ];
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
@@ -579,6 +643,110 @@ function K5({ sf, onBack, onPin, onMove }: { sf: Storefront; onBack: () => void;
         })}
       </View>
       <View style={S.noteSable}><Text style={S.noteSableText}>{t('k.une.note_epuise')}</Text></View>
+    </ScrollView>
+  );
+}
+
+/* ------------------------------------------------------------------- K8 -- */
+
+/** K8 — Notes vocales (per-product). Optional per article; record → recorded →
+ * publish (lands on « en attente », never « en ligne » — honesty law); re-record
+ * and delete from any state. Capture is demo-fed (FLAG STOREFRONT-MEDIA-BACKING);
+ * playback/preview of a take needs the native recorder and is deferred. */
+function K8({
+  notes,
+  onBack,
+  onRecord,
+  onStop,
+  onCancel,
+  onPublish,
+  onDelete,
+}: {
+  notes: ProductVoiceNotes;
+  onBack: () => void;
+  onRecord: (pid: string) => void;
+  onStop: (pid: string) => void;
+  onCancel: (pid: string) => void;
+  onPublish: (pid: string) => void;
+  onDelete: (pid: string) => void;
+}) {
+  const anyRecording = Object.values(notes).some((n) => n.status === 'recording');
+  return (
+    <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
+      <KHeader title={t('k.voix.title')} onBack={onBack} />
+      <Text style={S.subTitle}>{t('k.voix.sous_titre')}</Text>
+      <View style={S.rowsCard}>
+        {K_SEED.map((p, i) => {
+          const n = noteOf(notes, p.pid);
+          const kept = n.status === 'pending' || n.status === 'ready';
+          return (
+            <View key={p.pid} style={[S.vCard, i > 0 && S.rowDivider]}>
+              <View style={S.vHead}>
+                <View style={S.vArt} />
+                <View style={S.rowBody}>
+                  <Text style={S.vName} numberOfLines={1}>{p.name}</Text>
+                  <Text style={S.vPrice}>{fmtFcfa(p.priceFcfa)}</Text>
+                </View>
+                {kept && <View style={S.vPendingPill}><Text style={S.vPendingText}>{t('k.voix.en_attente')}</Text></View>}
+              </View>
+
+              {n.status === 'none' && (
+                <Pressable
+                  style={({ pressed }) => [S.vRecBtn, anyRecording && S.ctaDisabled, pressed && !anyRecording && S.pressed]}
+                  disabled={anyRecording}
+                  onPress={() => onRecord(p.pid)}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: anyRecording }}
+                >
+                  <IconMic size={17} color="#A31D4E" />
+                  <Text style={S.vRecBtnText}>{t('k.voix.enregistrer')}</Text>
+                </Pressable>
+              )}
+
+              {n.status === 'recording' && (
+                <View style={S.vRecording}>
+                  <View style={S.vRecDot} />
+                  <Text style={S.vRecLabel}>{t('k.voix.en_cours')}</Text>
+                  <Pressable style={({ pressed }) => [S.vGhost, pressed && S.pressed]} onPress={() => onCancel(p.pid)} accessibilityRole="button">
+                    <Text style={S.vGhostText}>{t('k.voix.annuler')}</Text>
+                  </Pressable>
+                  <Pressable style={({ pressed }) => [S.vStopBtn, pressed && S.pressed]} onPress={() => onStop(p.pid)} accessibilityRole="button">
+                    <Text style={S.vStopText}>{t('k.voix.arreter')}</Text>
+                  </Pressable>
+                </View>
+              )}
+
+              {n.status === 'recorded' && (
+                <View style={S.vActions}>
+                  <Text style={S.vDur}>{fmtVoiceDuration(n.durationMs)}</Text>
+                  <Pressable style={({ pressed }) => [S.vPublishBtn, pressed && S.pressed]} onPress={() => onPublish(p.pid)} accessibilityRole="button">
+                    <Text style={S.vPublishText}>{t('k.voix.publier')}</Text>
+                  </Pressable>
+                  <Pressable style={({ pressed }) => [S.vGhost, pressed && S.pressed]} onPress={() => onRecord(p.pid)} accessibilityRole="button">
+                    <Text style={S.vGhostText}>{t('k.voix.refaire')}</Text>
+                  </Pressable>
+                  <Pressable style={({ pressed }) => [S.vGhost, S.vDanger, pressed && S.pressed]} onPress={() => onDelete(p.pid)} accessibilityRole="button">
+                    <Text style={[S.vGhostText, S.vDangerText]}>{t('k.voix.supprimer')}</Text>
+                  </Pressable>
+                </View>
+              )}
+
+              {kept && (
+                <View style={S.vActions}>
+                  <Text style={S.vDur}>{fmtVoiceDuration(n.durationMs)}</Text>
+                  <Pressable style={({ pressed }) => [S.vGhost, pressed && S.pressed]} onPress={() => onRecord(p.pid)} accessibilityRole="button">
+                    <Text style={S.vGhostText}>{t('k.voix.refaire')}</Text>
+                  </Pressable>
+                  <Pressable style={({ pressed }) => [S.vGhost, S.vDanger, pressed && S.pressed]} onPress={() => onDelete(p.pid)} accessibilityRole="button">
+                    <Text style={[S.vGhostText, S.vDangerText]}>{t('k.voix.supprimer')}</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </View>
+      <View style={S.noteSable}><Text style={S.noteSableText}>{t('k.voix.note')}</Text></View>
     </ScrollView>
   );
 }

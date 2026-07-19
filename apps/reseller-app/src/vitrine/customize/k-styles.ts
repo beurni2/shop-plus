@@ -236,4 +236,32 @@ export const K_RAW_STYLES = {
   },
   apercuFeaturedArt: { height: 140 },
   apercuFeaturedBody: { flexDirection: 'row', alignItems: 'baseline', gap: 10, padding: 12, paddingHorizontal: 15 },
+
+  /* Notes vocales (per-product) — a card per article, controls by state.
+     (Cards after the first get S.rowDivider; the card itself carries no border.) */
+  vCard: { paddingVertical: 14, paddingHorizontal: 4, gap: 12 },
+  vHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  vArt: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EFE6D6' },
+  vName: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 14.5, fontWeight: '700', color: '#1C1710' },
+  vPrice: { fontFamily: DISPLAY_FAMILY, fontSize: 13, fontWeight: '800', color: '#701134', marginTop: 2 },
+  vRecBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    height: 46, borderRadius: 14, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF',
+  },
+  vRecBtnText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13.5, fontWeight: '700', color: '#A31D4E' },
+  vRecording: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  vRecDot: { width: 10, height: 10, borderRadius: 99, backgroundColor: '#C4574B' },
+  vRecLabel: { flex: 1, fontFamily: TEXT_FAMILY, fontSize: 13, color: '#6F6355' },
+  vStopBtn: { height: 40, borderRadius: 12, paddingHorizontal: 16, backgroundColor: '#A31D4E', alignItems: 'center', justifyContent: 'center' },
+  vStopText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13, fontWeight: '700', color: '#FFF6EC' },
+  vActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  vPublishBtn: { height: 44, borderRadius: 14, paddingHorizontal: 18, backgroundColor: '#A31D4E', alignItems: 'center', justifyContent: 'center' },
+  vPublishText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13.5, fontWeight: '700', color: '#FFF6EC' },
+  vGhost: { height: 44, borderRadius: 14, paddingHorizontal: 14, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  vGhostText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13, fontWeight: '700', color: '#1C1710' },
+  vDanger: { borderColor: '#D9A49C' },
+  vDangerText: { color: '#8C1D18' },
+  vDur: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 12.5, fontWeight: '700', color: '#6F6355' },
+  vPendingPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 99, paddingVertical: 5, paddingHorizontal: 11, backgroundColor: '#F6E9C9' },
+  vPendingText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 11.5, fontWeight: '700', color: '#7A5104' },
 } as const;

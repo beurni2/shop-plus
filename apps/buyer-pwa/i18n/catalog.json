@@ -438,6 +438,18 @@
   "screenClass": "label"
  },
  {
+  "key": "voix_produit.ecouter",
+  "fr": "La voix",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "voix_produit.aria",
+  "fr": "Écouter la note vocale de la vendeuse",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
   "key": "confirmation.titre",
   "fr": "Commande enregistrée",
   "register": "money",

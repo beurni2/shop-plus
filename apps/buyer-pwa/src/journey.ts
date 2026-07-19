@@ -3,7 +3,8 @@ import { FCFA } from './format';
 import { icon } from './icons';
 import { renderProductPage, type ProductViewModel } from './product-view';
 import { renderEnt4 } from './vitrine/entries';
-import { demoStorefrontPort } from './vitrine/profile';
+import { demoStorefrontPort, DEMO_LANDING_VOICE, type ProductVoiceNote } from './vitrine/profile';
+import { wireVoicePlay } from './vitrine/voice-player';
 import { seedProduct } from './vitrine/catalog';
 import { VITRINE_THEMES } from './vitrine/themes';
 import { renderLocationForm, type LocationViewModel } from './location-view';
@@ -79,6 +80,8 @@ interface JourneyState {
   vitrine?: NonNullable<ProductViewModel['vitrine']> | undefined;
   /** V7 — the tapped product's signed-page facts (name/price/stock swap). */
   vitrineProduct?: { name: string; priceFcfa: number; inStock: boolean } | undefined;
+  /** « La voix » — the current product's voice note (only `ready` ones play). */
+  vitrineVoice?: ProductVoiceNote | undefined;
   /** E2 — a direct landing on the épuisé product page (renders C-ENT3). */
   stockEpuise: boolean;
 }
@@ -159,13 +162,21 @@ export function resolveVitrineEntry(slug: string): NonNullable<ProductViewModel[
 export function vitrineJourneyContext(
   slug: string,
   pid: string,
-): { vitrine: NonNullable<ProductViewModel['vitrine']>; product?: { name: string; priceFcfa: number; inStock: boolean } } | undefined {
+): {
+  vitrine: NonNullable<ProductViewModel['vitrine']>;
+  product?: { name: string; priceFcfa: number; inStock: boolean };
+  voice?: ProductVoiceNote;
+} | undefined {
   const vitrine = resolveVitrineEntry(slug);
   if (!vitrine) return undefined;
   const seed = seedProduct(pid);
+  // The tapped product's « La voix » note (render-only; the player shows it only
+  // when `ready`). undefined pid = no note = no player, no gap.
+  const voice = demoStorefrontPort().resolve(slug)?.notes[pid];
   return {
     vitrine,
     ...(seed ? { product: { name: seed.name, priceFcfa: seed.priceFcfa, inStock: seed.inStock } } : {}),
+    ...(voice ? { voice } : {}),
   };
 }
 
@@ -190,6 +201,7 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
     if (ctx) {
       state.vitrine = ctx.vitrine;
       state.vitrineProduct = ctx.product;
+      state.vitrineVoice = ctx.voice; // the tapped product's note (or none)
     }
   }
   // The fix (VITRINE-ENTRY-REACH): a DIRECT landing (signed link, no round
@@ -198,6 +210,8 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
   // after a vitrine tile. Round-trip context, if present, already won above.
   if (!state.vitrine) {
     state.vitrine = resolveVitrineEntry(DEMO_RESELLER_SLUG);
+    // Her signed product carries its own demo « La voix » note on a direct land.
+    state.vitrineVoice = DEMO_LANDING_VOICE;
   }
   if (init.screen === 'protections') state.stack.push('protections');
 
@@ -254,6 +268,7 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
                     }
                   : { resellerName: state.vitrine.shopName }),
                 vitrine: state.vitrine,
+                ...(state.vitrineVoice ? { voice: state.vitrineVoice } : {}),
               }
             : base,
         );
@@ -355,6 +370,10 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
     if (key === 'checkout.option_a.choose') { state.mode = 'A'; go('confirmation'); return; }
     if (key === 'checkout.option_b.choose') { state.mode = 'B'; go('confirmation'); return; }
   });
+
+  // « La voix » product-note playback (tap only, never autoplay) — delegated,
+  // so it survives the innerHTML re-render on every screen change.
+  wireVoicePlay(container);
 
   // Offline is a designed state (Ten Laws §7): the banner appears, nothing
   // is lost, queued stays queued — coming back online never fakes « done ».

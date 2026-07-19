@@ -233,3 +233,37 @@ test('E3 reachable — the confirmation screen mounts C-ENT4, resolving to /v/ai
   ]);
   expect(request.url()).toMatch(/\/v\/aicha-4821$/);
 });
+
+/**
+ * REACHABILITY GATE (VOICE-NOTE) — the render tests proved the « La voix »
+ * affordance is BUILT; these drive the ACTUAL routes and prove it is MOUNTED and
+ * WIRED: the product page shows the player, the vitrine tiles show chips, and a
+ * tap PLAYS (never autoplays) without navigating away — because the tile chip is
+ * a nested span the tile's own « produit » navigation must not swallow.
+ */
+test('voice reachable — the product page mounts the « La voix » player; a tap plays, never navigates', async ({ page }) => {
+  await page.goto('/?demo-journey=produit');
+  const product = page.locator('[data-screen="produit"]');
+  const player = product.locator('.voix-btn[data-action="voix-produit-play"]');
+  await expect(player).toBeVisible();
+  await expect(player).toHaveText(/La voix/);
+  await expect(player.locator('.voix-duration')).toHaveText(/^\d+:\d{2}$/); // duration is visible
+  await expect(player).toHaveAttribute('data-voix-url', /^data:audio\//);
+  // a tap plays in place — the product screen stays put (no navigation to /v/).
+  await player.click();
+  await expect(product).toBeVisible();
+  expect(page.url()).toContain('demo-journey=produit'); // still the product route
+  expect(page.url()).not.toContain('/v/');              // the tap played; it did not navigate
+});
+
+test('voice reachable — the vitrine tiles mount « La voix » chips; a chip tap does not open the product', async ({ page }) => {
+  await page.goto('/?demo-vitrine=aicha-4821&demo-vitrine-fige');
+  const chips = page.locator('.vt-tile-voix[data-action="voix-produit-play"]');
+  await expect(chips.first()).toBeVisible();
+  expect(await chips.count()).toBeGreaterThanOrEqual(2); // p1 & p5 carry a ready note
+  await expect(chips.first()).toHaveAttribute('data-voix-url', /^data:audio\//);
+  // tapping the chip plays; it must NOT trigger the tile's produit navigation.
+  await chips.first().click();
+  await expect(page.locator('[data-role="vitrine-produit"]').first()).toBeVisible();
+  expect(page.url()).not.toContain('demo-journey=produit');
+});
