@@ -19,7 +19,7 @@ test('the whole journey walks: product → location (voice note) → delivery �
   await page.goto('/?demo-journey=produit');
   const product = page.locator('[data-screen="produit"]');
   await expect(product).toBeVisible();
-  await expect(product.locator('.fcfa-hero')).toHaveText(`${F(11_500)} F`);
+  await expect(product.locator('.fcfa-hero')).toHaveText(`${F(11_500)} FCFA`);
   await expect(product.locator('.reseller-name')).toHaveText('Chez Awa — Dassasgho');
   await expect(product).toContainText('Livré par Séra');
   await expect(product).toContainText('Paiement protégé');
@@ -61,8 +61,8 @@ test('the whole journey walks: product → location (voice note) → delivery �
   const delivery = page.locator('[data-screen="livraison"]');
   await expect(delivery).toBeVisible();
   await expect(delivery).toContainText('Le prix de la course vient de Séra.');
-  await expect(delivery.locator('[data-delivery="standard"]')).toContainText(`${F(1_000)} F`);
-  await expect(delivery.locator('[data-delivery="express"]')).toContainText(`${F(1_500)} F`);
+  await expect(delivery.locator('[data-delivery="standard"]')).toContainText(`${F(1_000)} FCFA`);
+  await expect(delivery.locator('[data-delivery="express"]')).toContainText(`${F(1_500)} FCFA`);
 
   // CHECKOUT — absorbed §6.1 with icons + audio placeholders; SP-I13 lines.
   await page.locator('[data-action="livraison-continuer"]').click();
@@ -74,7 +74,7 @@ test('the whole journey walks: product → location (voice note) → delivery �
   await expect(checkout).toContainText('La note vocale arrive bientôt.');
   await expect(checkout).toContainText('À payer maintenant :');
   await expect(checkout).toContainText('À payer à la livraison :');
-  await expect(checkout).toContainText(`${F(12_500)} F CFA`); // total = X+Y once
+  await expect(checkout).toContainText(`${F(12_500)} FCFA`); // total = X+Y once
 
   // CONFIRMATION — honest pending (queued = pending, never done) + the kept note.
   await page.locator('[data-key="checkout.option_a.choose"]').click();

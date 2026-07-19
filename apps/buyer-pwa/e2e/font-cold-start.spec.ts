@@ -65,7 +65,7 @@ test('the app renders WITHOUT the font (fallback always paints — a blank-scree
   const box = await page.locator('#price').boundingBox();
   // Information is intact and the box is real — the fallback carried the text.
   expect(priceText).toContain('12');
-  expect(priceText).toContain('500 F');
+  expect(priceText).toContain('500 FCFA');
   expect(box?.width ?? 0).toBeGreaterThan(0);
   const probe = await page.evaluate(() => (window as any).__fontProbe);
   expect(probe.cls, 'no shift even when the font never loads').toBe(0);
