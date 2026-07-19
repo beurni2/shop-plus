@@ -124,6 +124,9 @@ capture no-supplier-contact-share-card pass node scripts/gates/no-supplier-conta
 log "gate: no-supplier-contact — S3 découverte directory (WO-7.2a, pinned to the directory; must pass)"
 capture no-supplier-contact-boutiques pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/boutiques-discovery.json
 
+log "gate: no-supplier-contact — VITRINE redesign profile surface (HANDOFF §3.1, pinned to the storefront port; must pass)"
+capture no-supplier-contact-vitrine-profil pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/vitrine-profil.json
+
 log "gate: no-supplier-contact — SW-2 LIVE supply path (customer surface derived from a supply projection through the consumer; must pass)"
 capture no-supplier-contact-supply-live pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/supply/live-customer-surface.json
 

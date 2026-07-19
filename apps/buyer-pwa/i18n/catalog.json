@@ -1,842 +1,998 @@
 [
-  {
-    "key": "app.title",
-    "fr": "Shop+",
-    "register": "neutral",
-    "screenClass": "general"
-  },
-  {
-    "key": "discover.heading",
-    "fr": "Découvrez les boutiques de votre quartier.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "discover.empty_state",
-    "fr": "Les premières boutiques arrivent bientôt.",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "order.view.heading",
-    "fr": "Votre commande",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "order.payment_failed.title",
-    "fr": "Le paiement n'est pas passé.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "order.payment_failed.body",
-    "fr": "Votre argent n'a pas été débité. Vous pouvez réessayer ou arrêter la commande.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "order.action.retry",
-    "fr": "Réessayer le paiement",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "order.action.abandon",
-    "fr": "Arrêter la commande",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "order.cancelled.title",
-    "fr": "Commande arrêtée.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "order.cancelled.body",
-    "fr": "Rien n'a été débité. Vous pouvez recommander quand vous voulez.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "order.paid_cancel_refused.body",
-    "fr": "Cette commande est déjà payée. Signalez un problème et notre équipe s'occupe du remboursement.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "order.action.confirm_receipt",
-    "fr": "J'ai bien reçu",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "order.action.report_problem",
-    "fr": "Signaler un problème",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "order.problem.ack",
-    "fr": "Signalement bien reçu. Une personne de l'équipe vous répond.",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "order.offline.queued",
-    "fr": "C'est noté sur votre téléphone. Envoi dès que le réseau revient.",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "attribution.collision",
-    "fr": "Ce lien vient d'un autre vendeur. Votre commande reste avec le premier vendeur.",
-    "register": "selling",
-    "screenClass": "status"
-  },
-  {
-    "key": "checkout.heading",
-    "fr": "Comment voulez-vous payer ?",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "checkout.pay_now_label",
-    "fr": "À payer maintenant :",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "checkout.pay_at_door_label",
-    "fr": "À payer à la livraison :",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "checkout.option_a.title",
-    "fr": "Tout payer maintenant — recommandé",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "checkout.option_a.body",
-    "fr": "Votre paiement est protégé auprès de notre partenaire de paiement jusqu'à la confirmation de votre livraison. Le vendeur n'est payé qu'après validation.",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "checkout.option_a.choose",
-    "fr": "Payer maintenant",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "checkout.option_b.title",
-    "fr": "Payer le produit à la livraison",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "checkout.option_b.summary",
-    "fr": "Vous payez la livraison maintenant. Le produit, {amount} F, à la réception.",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "checkout.option_b.body",
-    "fr": "Payez seulement les frais de livraison ({amount} F) maintenant. À l'arrivée du livreur, vérifiez votre article, puis payez le montant du produit de manière sécurisée avant de le recevoir.",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "checkout.option_b.fee_warning",
-    "fr": "Frais de livraison non remboursables si vous annulez ou êtes absent(e).",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "checkout.replay",
-    "fr": "Vous payez {now} F maintenant et {door} F à la livraison — d'accord ?",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "checkout.reconcile",
-    "fr": "{total} = {produit} + {livraison} — chaque franc a sa place.",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "checkout.option_b.choose",
-    "fr": "Payer à la livraison",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "checkout.option_b.unavailable",
-    "fr": "Le paiement à la livraison n'est pas disponible pour cette commande. Vous pouvez tout payer maintenant, en toute sécurité.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "order.door_pending.fee_paid",
-    "fr": "Livraison déjà payée. Le produit se paie à la réception.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "order.door_pending.next",
-    "fr": "Le livreur arrive. Vérifiez votre article, puis payez le produit avant de le recevoir.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "order.door_paid.body",
-    "fr": "Produit payé. Le livreur vous remet votre commande.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "produit.vendeuse_verifiee",
-    "fr": "Vendeuse de confiance",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "produit.livre_par_sera",
-    "fr": "Livré par Séra",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "produit.paiement_protege",
-    "fr": "Paiement protégé",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "produit.stock",
-    "fr": "En stock",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "produit.acheter",
-    "fr": "Acheter — {amount} F",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "produit.prix",
-    "fr": "Prix",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "produit.photo_reelle",
-    "fr": "Photo réelle — ce que vous recevrez.",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "produit.livraison_note",
-    "fr": "Livraison Séra en plus — affichée à part, jamais cachée.",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "protections.ouvrir",
-    "fr": "Vos protections",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "etape.lieu",
-    "fr": "Étape 1 sur 3 — où vous trouver",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "lieu.titre",
-    "fr": "Où vous trouver",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "lieu.quartier",
-    "fr": "Quartier (Ouagadougou)",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "lieu.repere",
-    "fr": "Repère (pas d'adresse exigée)",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "lieu.repere_exemple",
-    "fr": "Ex. face à la pharmacie du marché",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "lieu.indications",
-    "fr": "Indications (facultatif)",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "lieu.indications_exemple",
-    "fr": "Ex. appelez en arrivant au carrefour",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "lieu.telephone",
-    "fr": "Votre téléphone",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "lieu.relais",
-    "fr": "Le livreur passe par un relais. Votre numéro reste privé.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "lieu.continuer",
-    "fr": "Continuer",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "voix.titre",
-    "fr": "Note vocale (facultatif)",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "voix.explique",
-    "fr": "Dites votre repère à voix haute — c'est souvent plus simple.",
-    "register": "selling",
-    "screenClass": "general"
-  },
-  {
-    "key": "voix.enregistrer",
-    "fr": "Enregistrer une note",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "voix.en_cours",
-    "fr": "Enregistrement en cours…",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "voix.arreter",
-    "fr": "Arrêter",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "voix.enregistree",
-    "fr": "Note vocale enregistrée",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "voix.ecouter",
-    "fr": "Écouter",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "voix.reprendre",
-    "fr": "Recommencer",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "voix.en_file",
-    "fr": "Note vocale en file — envoyée dès que le réseau revient.",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "voix.micro_refuse",
-    "fr": "Micro refusé — continuez sans note vocale.",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "voix.indisponible",
-    "fr": "L'enregistrement n'est pas possible ici — continuez sans note.",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "etape.livraison",
-    "fr": "Étape 2 sur 3 — la livraison",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "livraison.titre",
-    "fr": "La livraison, par Séra",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "livraison.autorite",
-    "fr": "Le prix de la course vient de Séra. Personne d'autre ne le fixe.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "livraison.standard",
-    "fr": "Standard — aujourd'hui, 16 h à 18 h",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "livraison.express",
-    "fr": "Express — en moins de 90 minutes",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "livraison.a_part",
-    "fr": "La livraison se paie à part — jamais cachée dans le prix du produit.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "livraison.choisir",
-    "fr": "Continuer — livraison {amount} F",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "etape.paiement",
-    "fr": "Étape 3 sur 3 — le paiement",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "audio.bientot",
-    "fr": "La note vocale arrive bientôt.",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "audio.ecouter",
-    "fr": "Écouter l'explication",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "confirmation.titre",
-    "fr": "Commande enregistrée",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "confirmation.suite",
-    "fr": "Votre article se prépare. Séra le vérifie et le scelle avant la route.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "confirmation.en_attente",
-    "fr": "En attente du réseau — rien n'est perdu.",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "confirmation.hors_ligne",
-    "fr": "Hors ligne — votre commande est gardée sur ce téléphone.",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "confirmation.suivre",
-    "fr": "Suivre ma commande",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "hors_ligne.bandeau",
-    "fr": "Hors ligne — rien n'est perdu.",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "retour",
-    "fr": "Retour",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "suivi.titre",
-    "fr": "Votre commande",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "suivi.honnete",
-    "fr": "Nous vous prévenons à chaque étape.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "suivi.maintenant",
-    "fr": "Maintenant",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "suivi.etat.confirmee",
-    "fr": "Commande enregistrée",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "suivi.etat.preparee",
-    "fr": "Article préparé",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "suivi.etat.scellee",
-    "fr": "Vérifié et scellé par Séra",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "suivi.etat.en_route",
-    "fr": "En route vers vous",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "suivi.etat.porte",
-    "fr": "À votre porte",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "suivi.etat.livree",
-    "fr": "Livré",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "suivi.porte.inspectez",
-    "fr": "Le livreur est là — vérifiez d'abord, tranquillement.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "suivi.porte.verifiez",
-    "fr": "Vérifiez : l'article, la couleur, la taille sur l'étiquette, l'état.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "suivi.porte.du_label",
-    "fr": "À payer avant de recevoir",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "suivi.porte.paiement_attente",
-    "fr": "Paiement envoyé. L'opérateur le confirme.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "suivi.porte.colis_scelle",
-    "fr": "Le livreur garde le colis scellé près de lui.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "suivi.code.attente",
-    "fr": "Votre code apparaîtra ici dès que le paiement sera confirmé par l'opérateur. Jamais avant.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "suivi.code.donnez",
-    "fr": "Donnez ce code au livreur, colis en main",
-    "register": "money",
-    "screenClass": "instruction"
-  },
-  {
-    "key": "suivi.code.preuve",
-    "fr": "Ce code est votre preuve. Donnez-le seulement quand le colis est dans vos mains.",
-    "register": "money",
-    "screenClass": "instruction"
-  },
-  {
-    "key": "suivi.livree_merci",
-    "fr": "Livré. Merci !",
-    "register": "selling",
-    "screenClass": "status"
-  },
-  {
-    "key": "suivi.un_souci",
-    "fr": "Un souci ? On vous aide",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "protections.titre",
-    "fr": "Vos protections",
-    "register": "money",
-    "screenClass": "label"
-  },
-  {
-    "key": "protections.verifier",
-    "fr": "À la porte, vérifiez d'abord : l'article, la couleur, la taille, l'état.",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "protections.refus",
-    "fr": "Mauvais article ou article abîmé ? Vous refusez, vous êtes remboursé.",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "protections.paiement",
-    "fr": "Votre argent est protégé chez notre partenaire de paiement, jusqu'à la livraison confirmée.",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "protections.frais",
-    "fr": "Si vous annulez ou êtes absent, les frais de livraison ne sont pas remboursés.",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "protections.code",
-    "fr": "Le code de livraison est votre preuve. Donnez-le quand le colis est dans vos mains.",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "protections.especes",
-    "fr": "Jamais d'argent liquide au livreur. Jamais sur un compte personnel.",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "protections.numero",
-    "fr": "Votre numéro reste privé — le livreur passe par un relais.",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "protections.fermer",
-    "fr": "J'ai compris",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "apercu.ruban",
-    "fr": "Aperçu — données d'essai. Rien ici n'est réel.",
-    "register": "neutral",
-    "screenClass": "status"
-  },
-  {
-    "key": "apercu.redirect",
-    "fr": "Ouvrir l'aperçu Shop+",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "vitrine.chez",
-    "fr": "Chez {name}",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "vitrine.verifiee",
-    "fr": "Vendeuse vérifiée · {zone}",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "vitrine.protege",
-    "fr": "Le paiement est protégé. Votre numéro reste privé.",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "vitrine.prix",
-    "fr": "Votre prix : {amount} F",
-    "register": "money",
-    "screenClass": "checkout"
-  },
-  {
-    "key": "vitrine.epuise",
-    "fr": "Épuisé",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.titre",
-    "fr": "LES BOUTIQUES",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.sous_titre",
-    "fr": "Des vendeuses vérifiées, livrées par Séra. Le paiement est protégé.",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "boutiques.recherche_placeholder",
-    "fr": "Cherchez une vendeuse ou un quartier",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.ordre",
-    "fr": "Classées par dernière mise à jour — la plus récente d'abord.",
-    "register": "neutral",
-    "screenClass": "general"
-  },
-  {
-    "key": "boutiques.ordre_court",
-    "fr": "La plus récente d'abord.",
-    "register": "neutral",
-    "screenClass": "general"
-  },
-  {
-    "key": "boutiques.zone_toutes",
-    "fr": "TOUTES",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.compte",
-    "fr": "{n} boutiques",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.compte_saisie",
-    "fr": "{n} boutiques — pour « {q} »",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.compte_hier",
-    "fr": "{n} boutiques — hier soir",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.carte_verifiee",
-    "fr": "Vérifiée",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.carte_meta",
-    "fr": "{zone} · {n} produits · mise à jour {quand}",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.quand_hier",
-    "fr": "hier",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.quand_jours",
-    "fr": "il y a {n} jours",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.quand_semaine",
-    "fr": "la semaine dernière",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.aucun",
-    "fr": "Rien pour « {q} » — essayez le nom de la vendeuse, ou un quartier.",
-    "register": "selling",
-    "screenClass": "selling_surface"
-  },
-  {
-    "key": "boutiques.aucun_action",
-    "fr": "VOIR TOUTES LES BOUTIQUES",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.hors_ligne",
-    "fr": "Hors ligne : la liste affichée est celle d'hier soir.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "boutiques.recherche_offline",
-    "fr": "La recherche reviendra avec le réseau",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.erreur_titre",
-    "fr": "La liste n'a pas pu se charger.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "boutiques.erreur_hint",
-    "fr": "Rien n'est perdu — réessayez.",
-    "register": "money",
-    "screenClass": "status"
-  },
-  {
-    "key": "boutiques.reessayer",
-    "fr": "RÉESSAYER",
-    "register": "neutral",
-    "screenClass": "label"
-  },
-  {
-    "key": "boutiques.pied",
-    "fr": "Son prix est le prix — livré par Séra, paiement protégé.",
-    "register": "money",
-    "screenClass": "general"
-  },
-  {
-    "key": "reputation.ventes_livrees",
-    "fr": "{n} ventes livrées",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "reputation.ventes_livrees_une",
-    "fr": "1 vente livrée",
-    "register": "selling",
-    "screenClass": "label"
-  },
-  {
-    "key": "reputation.demo",
-    "fr": "démo",
-    "register": "neutral",
-    "screenClass": "label"
-  }
+ {
+  "key": "app.title",
+  "fr": "Shop+",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "discover.heading",
+  "fr": "Découvrez les boutiques de votre quartier.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "discover.empty_state",
+  "fr": "Les premières boutiques arrivent bientôt.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "order.view.heading",
+  "fr": "Votre commande",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "order.payment_failed.title",
+  "fr": "Le paiement n'est pas passé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "order.payment_failed.body",
+  "fr": "Votre argent n'a pas été débité. Vous pouvez réessayer ou arrêter la commande.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "order.action.retry",
+  "fr": "Réessayer le paiement",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "order.action.abandon",
+  "fr": "Arrêter la commande",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "order.cancelled.title",
+  "fr": "Commande arrêtée.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "order.cancelled.body",
+  "fr": "Rien n'a été débité. Vous pouvez recommander quand vous voulez.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "order.paid_cancel_refused.body",
+  "fr": "Cette commande est déjà payée. Signalez un problème et notre équipe s'occupe du remboursement.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "order.action.confirm_receipt",
+  "fr": "J'ai bien reçu",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "order.action.report_problem",
+  "fr": "Signaler un problème",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "order.problem.ack",
+  "fr": "Signalement bien reçu. Une personne de l'équipe vous répond.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "order.offline.queued",
+  "fr": "C'est noté sur votre téléphone. Envoi dès que le réseau revient.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "attribution.collision",
+  "fr": "Ce lien vient d'un autre vendeur. Votre commande reste avec le premier vendeur.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "checkout.heading",
+  "fr": "Comment voulez-vous payer ?",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "checkout.pay_now_label",
+  "fr": "À payer maintenant :",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "checkout.pay_at_door_label",
+  "fr": "À payer à la livraison :",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "checkout.option_a.title",
+  "fr": "Tout payer maintenant — recommandé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "checkout.option_a.body",
+  "fr": "Votre paiement est protégé auprès de notre partenaire de paiement jusqu'à la confirmation de votre livraison. Le vendeur n'est payé qu'après validation.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "checkout.option_a.choose",
+  "fr": "Payer maintenant",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "checkout.option_b.title",
+  "fr": "Payer le produit à la livraison",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "checkout.option_b.summary",
+  "fr": "Vous payez la livraison maintenant. Le produit, {amount} F, à la réception.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "checkout.option_b.body",
+  "fr": "Payez seulement les frais de livraison ({amount} F) maintenant. À l'arrivée du livreur, vérifiez votre article, puis payez le montant du produit de manière sécurisée avant de le recevoir.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "checkout.option_b.fee_warning",
+  "fr": "Frais de livraison non remboursables si vous annulez ou êtes absent(e).",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "checkout.replay",
+  "fr": "Vous payez {now} F maintenant et {door} F à la livraison — d'accord ?",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "checkout.reconcile",
+  "fr": "{total} = {produit} + {livraison} — chaque franc a sa place.",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "checkout.option_b.choose",
+  "fr": "Payer à la livraison",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "checkout.option_b.unavailable",
+  "fr": "Le paiement à la livraison n'est pas disponible pour cette commande. Vous pouvez tout payer maintenant, en toute sécurité.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "order.door_pending.fee_paid",
+  "fr": "Livraison déjà payée. Le produit se paie à la réception.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "order.door_pending.next",
+  "fr": "Le livreur arrive. Vérifiez votre article, puis payez le produit avant de le recevoir.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "order.door_paid.body",
+  "fr": "Produit payé. Le livreur vous remet votre commande.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "produit.vendeuse_verifiee",
+  "fr": "Vendeuse de confiance",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "produit.livre_par_sera",
+  "fr": "Livré par Séra",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "produit.paiement_protege",
+  "fr": "Paiement protégé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "produit.stock",
+  "fr": "En stock",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "produit.acheter",
+  "fr": "Acheter — {amount} F",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "produit.prix",
+  "fr": "Prix",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "produit.photo_reelle",
+  "fr": "Photo réelle — ce que vous recevrez.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "produit.livraison_note",
+  "fr": "Livraison Séra en plus — affichée à part, jamais cachée.",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "protections.ouvrir",
+  "fr": "Vos protections",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "etape.lieu",
+  "fr": "Étape 1 sur 3 — où vous trouver",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "lieu.titre",
+  "fr": "Où vous trouver",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "lieu.quartier",
+  "fr": "Quartier (Ouagadougou)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "lieu.repere",
+  "fr": "Repère (pas d'adresse exigée)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "lieu.repere_exemple",
+  "fr": "Ex. face à la pharmacie du marché",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "lieu.indications",
+  "fr": "Indications (facultatif)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "lieu.indications_exemple",
+  "fr": "Ex. appelez en arrivant au carrefour",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "lieu.telephone",
+  "fr": "Votre téléphone",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "lieu.relais",
+  "fr": "Le livreur passe par un relais. Votre numéro reste privé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "lieu.continuer",
+  "fr": "Continuer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "voix.titre",
+  "fr": "Note vocale (facultatif)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "voix.explique",
+  "fr": "Dites votre repère à voix haute — c'est souvent plus simple.",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "voix.enregistrer",
+  "fr": "Enregistrer une note",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "voix.en_cours",
+  "fr": "Enregistrement en cours…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "voix.arreter",
+  "fr": "Arrêter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "voix.enregistree",
+  "fr": "Note vocale enregistrée",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "voix.ecouter",
+  "fr": "Écouter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "voix.reprendre",
+  "fr": "Recommencer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "voix.en_file",
+  "fr": "Note vocale en file — envoyée dès que le réseau revient.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "voix.micro_refuse",
+  "fr": "Micro refusé — continuez sans note vocale.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "voix.indisponible",
+  "fr": "L'enregistrement n'est pas possible ici — continuez sans note.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "etape.livraison",
+  "fr": "Étape 2 sur 3 — la livraison",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "livraison.titre",
+  "fr": "La livraison, par Séra",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "livraison.autorite",
+  "fr": "Le prix de la course vient de Séra. Personne d'autre ne le fixe.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "livraison.standard",
+  "fr": "Standard — aujourd'hui, 16 h à 18 h",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "livraison.express",
+  "fr": "Express — en moins de 90 minutes",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "livraison.a_part",
+  "fr": "La livraison se paie à part — jamais cachée dans le prix du produit.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "livraison.choisir",
+  "fr": "Continuer — livraison {amount} F",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "etape.paiement",
+  "fr": "Étape 3 sur 3 — le paiement",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "audio.bientot",
+  "fr": "La note vocale arrive bientôt.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "audio.ecouter",
+  "fr": "Écouter l'explication",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "confirmation.titre",
+  "fr": "Commande enregistrée",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "confirmation.suite",
+  "fr": "Votre article se prépare. Séra le vérifie et le scelle avant la route.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "confirmation.en_attente",
+  "fr": "En attente du réseau — rien n'est perdu.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "confirmation.hors_ligne",
+  "fr": "Hors ligne — votre commande est gardée sur ce téléphone.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "confirmation.suivre",
+  "fr": "Suivre ma commande",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "hors_ligne.bandeau",
+  "fr": "Hors ligne — rien n'est perdu.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "retour",
+  "fr": "Retour",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "suivi.titre",
+  "fr": "Votre commande",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "suivi.honnete",
+  "fr": "Nous vous prévenons à chaque étape.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "suivi.maintenant",
+  "fr": "Maintenant",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "suivi.etat.confirmee",
+  "fr": "Commande enregistrée",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "suivi.etat.preparee",
+  "fr": "Article préparé",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "suivi.etat.scellee",
+  "fr": "Vérifié et scellé par Séra",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "suivi.etat.en_route",
+  "fr": "En route vers vous",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "suivi.etat.porte",
+  "fr": "À votre porte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "suivi.etat.livree",
+  "fr": "Livré",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "suivi.porte.inspectez",
+  "fr": "Le livreur est là — vérifiez d'abord, tranquillement.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "suivi.porte.verifiez",
+  "fr": "Vérifiez : l'article, la couleur, la taille sur l'étiquette, l'état.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "suivi.porte.du_label",
+  "fr": "À payer avant de recevoir",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "suivi.porte.paiement_attente",
+  "fr": "Paiement envoyé. L'opérateur le confirme.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "suivi.porte.colis_scelle",
+  "fr": "Le livreur garde le colis scellé près de lui.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "suivi.code.attente",
+  "fr": "Votre code apparaîtra ici dès que le paiement sera confirmé par l'opérateur. Jamais avant.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "suivi.code.donnez",
+  "fr": "Donnez ce code au livreur, colis en main",
+  "register": "money",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "suivi.code.preuve",
+  "fr": "Ce code est votre preuve. Donnez-le seulement quand le colis est dans vos mains.",
+  "register": "money",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "suivi.livree_merci",
+  "fr": "Livré. Merci !",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "suivi.un_souci",
+  "fr": "Un souci ? On vous aide",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "protections.titre",
+  "fr": "Vos protections",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "protections.verifier",
+  "fr": "À la porte, vérifiez d'abord : l'article, la couleur, la taille, l'état.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "protections.refus",
+  "fr": "Mauvais article ou article abîmé ? Vous refusez, vous êtes remboursé.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "protections.paiement",
+  "fr": "Votre argent est protégé chez notre partenaire de paiement, jusqu'à la livraison confirmée.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "protections.frais",
+  "fr": "Si vous annulez ou êtes absent, les frais de livraison ne sont pas remboursés.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "protections.code",
+  "fr": "Le code de livraison est votre preuve. Donnez-le quand le colis est dans vos mains.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "protections.especes",
+  "fr": "Jamais d'argent liquide au livreur. Jamais sur un compte personnel.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "protections.numero",
+  "fr": "Votre numéro reste privé — le livreur passe par un relais.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "protections.fermer",
+  "fr": "J'ai compris",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "apercu.ruban",
+  "fr": "Aperçu — données d'essai. Rien ici n'est réel.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "apercu.redirect",
+  "fr": "Ouvrir l'aperçu Shop+",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vitrine.chez",
+  "fr": "Chez {name}",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vitrine.verifiee",
+  "fr": "Vendeuse vérifiée · {zone}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vitrine.protege",
+  "fr": "Le paiement est protégé. Votre numéro reste privé.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "vitrine.prix",
+  "fr": "Votre prix : {amount} F",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "vitrine.epuise",
+  "fr": "Épuisé",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.titre",
+  "fr": "LES BOUTIQUES",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.sous_titre",
+  "fr": "Des vendeuses vérifiées, livrées par Séra. Le paiement est protégé.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "boutiques.recherche_placeholder",
+  "fr": "Cherchez une vendeuse ou un quartier",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.ordre",
+  "fr": "Classées par dernière mise à jour — la plus récente d'abord.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "boutiques.ordre_court",
+  "fr": "La plus récente d'abord.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "boutiques.zone_toutes",
+  "fr": "TOUTES",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.compte",
+  "fr": "{n} boutiques",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.compte_saisie",
+  "fr": "{n} boutiques — pour « {q} »",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.compte_hier",
+  "fr": "{n} boutiques — hier soir",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.carte_verifiee",
+  "fr": "Vérifiée",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.carte_meta",
+  "fr": "{zone} · {n} produits · mise à jour {quand}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.quand_hier",
+  "fr": "hier",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.quand_jours",
+  "fr": "il y a {n} jours",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.quand_semaine",
+  "fr": "la semaine dernière",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.aucun",
+  "fr": "Rien pour « {q} » — essayez le nom de la vendeuse, ou un quartier.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "boutiques.aucun_action",
+  "fr": "VOIR TOUTES LES BOUTIQUES",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.hors_ligne",
+  "fr": "Hors ligne : la liste affichée est celle d'hier soir.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "boutiques.recherche_offline",
+  "fr": "La recherche reviendra avec le réseau",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.erreur_titre",
+  "fr": "La liste n'a pas pu se charger.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "boutiques.erreur_hint",
+  "fr": "Rien n'est perdu — réessayez.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "boutiques.reessayer",
+  "fr": "RÉESSAYER",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "boutiques.pied",
+  "fr": "Son prix est le prix — livré par Séra, paiement protégé.",
+  "register": "money",
+  "screenClass": "general"
+ },
+ {
+  "key": "reputation.ventes_livrees",
+  "fr": "{n} ventes livrées",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "reputation.ventes_livrees_une",
+  "fr": "1 vente livrée",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "reputation.demo",
+  "fr": "démo",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.retour_aria",
+  "fr": "Retour",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.partager_aria",
+  "fr": "Partager la boutique",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.cover_caps",
+  "fr": "PHOTO DE COUVERTURE",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.verifiee",
+  "fr": "Vendeuse vérifiée ·",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.chip_sera",
+  "fr": "Livraison Séra vérifiée & scellée",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.chip_paiement",
+  "fr": "Paiement protégé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.avis_verifies",
+  "fr": "avis vérifiés",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.ventes_livrees",
+  "fr": "ventes livrées par Séra",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.a_la_une",
+  "fr": "À LA UNE",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.groupe_tous",
+  "fr": "TOUS LES ARTICLES",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.epuise",
+  "fr": "ÉPUISÉ",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.bande",
+  "fr": "Chaque prix vient de la {lien} du produit — c’est elle qui fait foi.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.bande_lien",
+  "fr": "page signée",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.footer_prive",
+  "fr": "Votre numéro reste privé.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "vit.footer_verifiee",
+  "fr": "Boutique Séra vérifiée ·",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.ouverture",
+  "fr": "Ouverture de la boutique…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.horsligne_titre",
+  "fr": "Pas de réseau.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.horsligne_corps",
+  "fr": "La boutique reviendra dès que la connexion le permet. Rien n’est perdu — le lien reste bon.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.reessayer",
+  "fr": "Réessayer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.invalide_titre",
+  "fr": "Ce lien ne mène à aucune boutique.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.invalide_corps",
+  "fr": "Vérifiez le message reçu — chaque lien Séra est signé, et un lien signé s’ouvre toujours.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "vit.decouvrir",
+  "fr": "Découvrir les boutiques Séra",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.vide_titre",
+  "fr": "Les articles arrivent.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.vide_corps",
+  "fr": "prépare sa boutique — gardez le lien et revenez bientôt.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.toast_copie",
+  "fr": "Lien signé copié — attribution verrouillée",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.bande_recap",
+  "fr": "Livraison Séra, paiement protégé.",
+  "register": "money",
+  "screenClass": "label"
+ }
 ]

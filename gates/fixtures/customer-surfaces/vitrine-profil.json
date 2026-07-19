@@ -1,0 +1,86 @@
+{
+ "surface": "vitrine-profil",
+ "storefront": {
+  "slug": "aicha-4821",
+  "name": "Chez Aïcha Mode",
+  "tagline": "",
+  "bio": "",
+  "zone": "Gounghin, Ouagadougou",
+  "theme": "laterite",
+  "cover": {
+   "status": "none"
+  },
+  "avatar": {
+   "mode": "monogram"
+  },
+  "curatedItems": [
+   "p1",
+   "p2",
+   "p4",
+   "p5",
+   "p7",
+   "p8",
+   "k1",
+   "p3"
+  ],
+  "featuredItems": [],
+  "sections": [],
+  "public": true
+ },
+ "trust": {
+  "deliveredCount": 16,
+  "rating": "4,8",
+  "reviewCount": 12,
+  "demo": true
+ },
+ "products": [
+  {
+   "pid": "p1",
+   "name": "Robe brodée bogolan",
+   "priceFcfa": 11500,
+   "inStock": true
+  },
+  {
+   "pid": "p2",
+   "name": "Pagne wax 6 yards",
+   "priceFcfa": 20500,
+   "inStock": true
+  },
+  {
+   "pid": "p4",
+   "name": "Sandales cuir homme",
+   "priceFcfa": 9200,
+   "inStock": true
+  },
+  {
+   "pid": "p5",
+   "name": "Coffret karité pur",
+   "priceFcfa": 6900,
+   "inStock": true
+  },
+  {
+   "pid": "p7",
+   "name": "Foulard Faso Dan Fani",
+   "priceFcfa": 6300,
+   "inStock": true
+  },
+  {
+   "pid": "p8",
+   "name": "Chemise Faso Dan Fani",
+   "priceFcfa": 13800,
+   "inStock": true
+  },
+  {
+   "pid": "k1",
+   "name": "Pack Cuisine Départ",
+   "priceFcfa": 14000,
+   "inStock": true
+  },
+  {
+   "pid": "p3",
+   "name": "Sac cuir artisanal",
+   "priceFcfa": 17000,
+   "inStock": false
+  }
+ ]
+}

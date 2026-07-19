@@ -16,8 +16,8 @@ import { t } from './i18n';
 import { renderOrderView, type OrderViewModel } from './order-view';
 import { renderCheckoutOptions } from './checkout-view';
 import { renderProductSkeleton } from './product-view';
-import { renderVitrine } from './vitrine-view';
-import { vitrineSlugFromPath, resolveVitrineSlug, recordVitrineArrival } from './vitrine-link';
+import { vitrineSlugFromPath } from './vitrine-link';
+import { mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { renderBoutiques, type BoutiqueState } from './boutiques-view';
 import { createJourney, JOURNEY_SCREENS, type JourneyScreen } from './journey';
 
@@ -516,30 +516,23 @@ if (app) {
   const journeyScreen = params.get('demo-journey');
   const skeletonScreen = params.get('demo-skeleton');
 
-  // WO-7.1 — THE VITRINE (S5). Reached by the canon /v/{slug} path (restored by
-  // the 404.html SPA-fallback before boot); ?demo-vitrine is a LOCAL/GATE harness
-  // only, never the shared link. On land, record an IDENTITY-scope arrival (A8,
-  // last-touch) — best-effort, it never blocks the render.
+  // VITRINE (redesign — HANDOFF §5). Reached by the canon /v/{slug} path
+  // (restored by the 404.html SPA-fallback before boot); the ?demo-vitrine*
+  // params are a LOCAL/GATE/audit harness only, never the shared link. The
+  // controller records the IDENTITY-scope arrival (A8, last-touch) itself and
+  // owns the §4.2 state machine (squelette → ready · offline · invalide · vide).
   const vitrineSlug = vitrineSlugFromPath(window.location.pathname) ?? params.get('demo-vitrine') ?? undefined;
-  const vitrineIdentity = vitrineSlug ? resolveVitrineSlug(vitrineSlug) : undefined;
 
-  if (vitrineIdentity) {
-    try {
-      recordVitrineArrival(
-        vitrineIdentity,
-        new Date().toISOString(),
-        `vitrine-${vitrineIdentity.slug}-${Date.now()}`,
-        window.sessionStorage,
-      );
-    } catch {
-      /* storage unavailable — the arrival is best-effort and never blocks the vitrine */
-    }
-    const main = document.createElement('main');
-    const section = document.createElement('div');
-    section.className = 'journey-screen';
-    section.innerHTML = renderVitrine(vitrineIdentity.view, vitrineIdentity.reputation);
-    main.append(section);
-    app.append(main);
+  if (vitrineSlug) {
+    const VIT_ETATS: readonly VitrineEtat[] = ['loading', 'ready', 'empty', 'offline', 'invalid'];
+    const etatParam = params.get('demo-vitrine-etat');
+    const profilParam = params.get('demo-vitrine-profil');
+    mountVitrine(app as HTMLElement, vitrineSlug, {
+      etat: etatParam && (VIT_ETATS as readonly string[]).includes(etatParam) ? (etatParam as VitrineEtat) : undefined,
+      profil: profilParam === 'perso' ? 'customised' : profilParam === 'vide' ? 'empty' : 'default',
+      fromProduct: params.get('demo-vitrine-depuis') === 'produit',
+      fige: params.has('demo-vitrine-fige'),
+    });
   } else if (journeyScreen && (JOURNEY_SCREENS as readonly string[]).includes(journeyScreen)) {
     // WO-4.4 — the walkable journey owns the whole viewport (5-second test).
     const main = document.createElement('main');
