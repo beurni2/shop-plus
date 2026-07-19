@@ -50,15 +50,19 @@ for (const ch of catalogText) {
 }
 
 describe('Faso Premium fonts — money-render / cmap guard (PWA surface)', () => {
-  it('ships exactly the four canon-declared faces as woff2 (display 700/800 · text 400/700)', () => {
+  it('ships the six shared faces as woff2 (display 700/800 · text 400/500/600/700 — the range ruling)', () => {
     expect(manifest.flavor).toBe('woff2');
-    expect(manifest.faces).toHaveLength(4);
+    expect(manifest.faces).toHaveLength(6);
     const key = (x: { family: string; weight: number }) => `${x.family} ${x.weight}`;
     expect(new Set(manifest.faces.map(key))).toEqual(
-      new Set(['Bricolage Grotesque 700', 'Bricolage Grotesque 800', 'Instrument Sans 400', 'Instrument Sans 700']),
+      new Set([
+        'Bricolage Grotesque 700', 'Bricolage Grotesque 800',
+        'Instrument Sans 400', 'Instrument Sans 500', 'Instrument Sans 600', 'Instrument Sans 700',
+      ]),
     );
-    // No stray weights the canon token does not declare.
-    expect(manifest.faces.some((f) => f.family === 'Instrument Sans' && (f.weight === 500 || f.weight === 600))).toBe(false);
+    // Instrument 500 + 600 ARE present (founder ruling: [400,700] is a range endpoint).
+    expect(manifest.faces.some((f) => f.family === 'Instrument Sans' && f.weight === 500)).toBe(true);
+    expect(manifest.faces.some((f) => f.family === 'Instrument Sans' && f.weight === 600)).toBe(true);
   });
 
   it('the manifest sha256 binds to the exact committed .woff2 bytes (no drift)', () => {
@@ -74,8 +78,9 @@ describe('Faso Premium fonts — money-render / cmap guard (PWA surface)', () =>
   it('the total woff2 payload is under the 300 KB gate', () => {
     const total = manifest.faces.reduce((s, f) => s + f.bytes, 0);
     expect(total).toBeLessThan(300 * 1024);
-    // Sanity: it is the measured 82.2 KB, not an accidental empty set.
-    expect(total).toBe(84168);
+    // Sanity: the measured 121.0 KB (six faces — main's re-subset four + IS 500/600),
+    // not an accidental empty set.
+    expect(total).toBe(123_944);
   });
 
   it('the fr-FR formatter emits U+202F, and every face covers it (« 11 500 F » is drawable)', () => {

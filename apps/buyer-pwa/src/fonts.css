@@ -65,6 +65,22 @@
   font-style: normal;
   font-display: optional;
 }
+/* 500 + 600 — the founder's range ruling (WO-FP-PWA STEP 0); on web one family
+   name matches by the font-weight descriptor, so no distinct family is needed. */
+@font-face {
+  font-family: 'Instrument Sans';
+  src: url('./fonts/Instrument-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: optional;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  src: url('./fonts/Instrument-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: optional;
+}
 @font-face {
   font-family: 'Instrument Sans';
   src: url('./fonts/Instrument-Bold.woff2') format('woff2');

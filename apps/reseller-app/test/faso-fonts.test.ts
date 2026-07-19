@@ -34,7 +34,9 @@ const manifest = JSON.parse(
   faces: { file: string; family: string; weight: number; internalName: string; bytes: number; sha256: string; codepoints: number[] }[];
 };
 
-// The four canon-declared faces this surface ships, from the DATA module.
+// The six shared faces this surface ships, from the DATA module (the range
+// ruling: canon text.weights [400, 700] is an ENDPOINT ARRAY OF A RANGE, so
+// Instrument 500/600 join the four canon faces — WO-FP STEP 0).
 const declared = [
   ...Object.entries(DISPLAY_WEIGHTS).map(([w, f]) => ({ family: DISPLAY_FAMILY, weight: Number(w), file: f })),
   ...Object.entries(TEXT_WEIGHTS).map(([w, f]) => ({ family: TEXT_FAMILY, weight: Number(w), file: f })),
@@ -88,23 +90,23 @@ describe('Faso Premium fonts — RENDER-NAME guard (finding #1: no silent system
 });
 
 describe('Faso Premium fonts — money-render / cmap guard (RN surface)', () => {
-  it('ships exactly the four canon-declared faces (display 700/800 · text 400/700)', () => {
+  it('ships exactly the six shared faces (display 700/800 · text 400/500/600/700 — the range ruling)', () => {
     expect(manifest.flavor).toBe('ttf');
-    expect(manifest.faces).toHaveLength(4);
+    expect(manifest.faces).toHaveLength(6);
     const key = (x: { family: string; weight: number }) => `${x.family} ${x.weight}`;
     expect(new Set(manifest.faces.map(key))).toEqual(
       new Set([
         `${DISPLAY_FAMILY} 700`,
         `${DISPLAY_FAMILY} 800`,
         `${TEXT_FAMILY} 400`,
+        `${TEXT_FAMILY} 500`,
+        `${TEXT_FAMILY} 600`,
         `${TEXT_FAMILY} 700`,
       ]),
     );
-    // No stray weights (e.g. Instrument 500/600 that the canon token does not declare).
-    expect(manifest.faces.some((f) => f.family === TEXT_FAMILY && (f.weight === 500 || f.weight === 600))).toBe(false);
   });
 
-  it('the DATA module and the manifest describe the same four asset files', () => {
+  it('the DATA module and the manifest describe the same six asset files', () => {
     expect(new Set(declared.map((d) => d.file))).toEqual(new Set(manifest.faces.map((f) => f.file)));
     for (const d of declared) {
       const face = manifest.faces.find((f) => f.file === d.file)!;
