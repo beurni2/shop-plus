@@ -29,6 +29,7 @@ import {
 } from './voice';
 import { useVoiceCapture } from './voice-capture';
 import { K_RAW_STYLES } from './k-styles';
+import { IS_PREVIEW } from '../../preview';
 
 const S = K_RAW_STYLES as unknown as Record<keyof typeof K_RAW_STYLES, ViewStyle & TextStyle>;
 
@@ -85,6 +86,17 @@ export function useVoiceNotes(onToast: (m: string) => void): VoiceNotesControlle
   const recorder = useVoiceCapture();
 
   return useMemo<VoiceNotesController>(() => {
+    // BUG 1 step 1 — DIAGNOSTIC (temporary, IS_PREVIEW-gated). On the founder's
+    // preview build, surface the ACTUAL failure instead of the calm « interrompu »
+    // toast, so a permission cause (handled above → the « Micro refusé » banner) is
+    // distinguishable from an expo-audio API throw (and which call threw). Production
+    // profiles (IS_PREVIEW=false) keep the clean toast. Removed/narrowed in step 3
+    // once the on-device cause is known. This is diagnostic text, not product copy.
+    const interrupted = (stage: string, err?: unknown): string =>
+      IS_PREVIEW
+        ? `Diag micro (${stage}) : ${err instanceof Error ? err.message : err === undefined ? 'fichier vide (uri null)' : String(err)}`
+        : t('k.voix.interrompu');
+
     const startRec = async (pid: string): Promise<void> => {
       const perm = await recorder.requestPermission();
       if (perm === 'denied') { setMicDenied(true); return; } // designed « micro refusé » state
@@ -92,19 +104,19 @@ export function useVoiceNotes(onToast: (m: string) => void): VoiceNotesControlle
       try {
         await recorder.start();
         setNotes((cur) => startRecording(cur, pid));
-      } catch {
+      } catch (err) {
         setNotes((cur) => cancelRecording(cur, pid));
-        onToast(t('k.voix.interrompu'));
+        onToast(interrupted('démarrage', err));
       }
     };
     const stopRec = async (pid: string): Promise<void> => {
       try {
         const take = await recorder.stop();
-        if (!take.url) { setNotes((cur) => cancelRecording(cur, pid)); onToast(t('k.voix.interrompu')); return; }
+        if (!take.url) { setNotes((cur) => cancelRecording(cur, pid)); onToast(interrupted('fichier')); return; }
         setNotes((cur) => stopRecording(cur, pid, take));
-      } catch {
+      } catch (err) {
         setNotes((cur) => cancelRecording(cur, pid)); // mid-record interruption: drop the partial
-        onToast(t('k.voix.interrompu'));
+        onToast(interrupted('arrêt', err));
       }
     };
     const playRec = async (pid: string, url: string): Promise<void> => {
