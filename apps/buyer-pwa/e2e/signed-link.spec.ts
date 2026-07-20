@@ -100,6 +100,39 @@ test('unknown / expired slug — honest not-found, and it pays nobody (no arriva
   expect(await arrivals(page)).toHaveLength(0);
 });
 
+test('BUG 3 — the shared product opens THAT product, not the default (pid resolves to its signed facts)', async ({ page }) => {
+  // the reseller shares /s/{slug}?pid={productId}; opening it must land on THAT
+  // product. Before the fix the reseller sent no pid, so every share fell back to
+  // the buyer's default product.
+  await page.goto('/?demo-signed=aicha-4821&pid=p2');
+  const product = page.locator('[data-screen="produit"]');
+  await expect(product).toBeVisible();
+  // p2 is « Pagne wax 6 yards » (20 500) — NOT the default landing product
+  await expect(product.locator('.product-name')).toHaveText('Pagne wax 6 yards');
+  await expect(product.locator('.fcfa-hero')).toHaveText('20 500 FCFA');
+  await expect(product.locator('.product-name')).not.toHaveText('Pagne tissé Faso Dan Fani');
+});
+
+test('BUG 2 — « Voir la boutique » navigates to the base-aware /v/{slug} (never the origin root → 404)', async ({ page }) => {
+  // the C-ENT « Voir la boutique » entry must reach her vitrine. It used to
+  // navigate to a hardcoded `/v/{slug}` off the ORIGIN root, which 404s on the
+  // Pages sub-path deploy. The fix builds the URL against the deploy base the
+  // current route carries; the request the click fires proves the target (under
+  // vite preview the base is empty, so the canon root form — the sub-path base
+  // preservation is pinned in test/vitrine.test.ts, which preview cannot vary).
+  await page.goto('/?demo-journey=produit');
+  const ent2 = page.locator('[data-screen="produit"] .ent2[data-action="vitrine"]');
+  await expect(ent2).toBeVisible();
+  await expect(ent2).toHaveAttribute('data-slug', 'aicha-4821');
+  const [request] = await Promise.all([
+    page.waitForRequest(/\/v\/aicha-4821$/),
+    ent2.click(),
+  ]);
+  // the navigation target is the canon /v/{slug} vitrine path (not a bare product
+  // path, not a wrong root) — base-correct by construction (vitrineHref).
+  expect(new URL(request.url()).pathname).toMatch(/\/v\/aicha-4821$/);
+});
+
 test('privée vitrine — not listed in Découvrir, but her signed link still resolves the offer (loi 4)', async ({ page }) => {
   await page.goto('/?demo-signed=aicha-4821&demo-signed-profil=prive');
 

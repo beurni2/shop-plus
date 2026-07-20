@@ -20,6 +20,17 @@ export const QR_BASE = '/shop-plus';
 export const DEMO_QR_URL = 'https://beurni2.github.io/shop-plus/v/aicha-4821';
 
 /**
+ * The signed PRODUCT share URL — the real origin + base + the canon `/s/{slug}`
+ * buyer route + `?pid={productId}` (BUG 3 fix: « the one she sends », opens THAT
+ * offer on the buyer PWA). The slug is the STOREFRONT; the pid names the product.
+ * Reuses the buyer's ONE `/s/{slug}?pid=` route form — no second scheme — and is
+ * base-aware by construction (QR_BASE), so it lands on the Pages sub-path deploy.
+ */
+export function signedProductShareUrl(storeSlug: string, pid: string): string {
+  return `${QR_ORIGIN}${QR_BASE}/s/${storeSlug}?pid=${pid}`;
+}
+
+/**
  * The canon-form law: an identity URL the QR may encode is the real origin + base
  * + a canon `/v/{slug}` path — never the bare `/v/{prenom}` short form, never a
  * query string. This is the gate's discriminator (a planted `/v/aicha` fails).

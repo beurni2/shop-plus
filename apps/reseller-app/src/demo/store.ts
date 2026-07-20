@@ -92,6 +92,26 @@ for (const o of SEED.opportunities) assertSeedMoneyHonest(o.id, o.input, o.money
 export const DEMO_SHARE_LINK = 'shop-plus.demo/s/aicha-4821';
 
 /**
+ * DEMO BRIDGE (VITRINE-REAL-BACKING follow-on): the reseller's demo opportunities
+ * (o1..) and the buyer storefront's vitrine seed (p1..k1) are two demo worlds
+ * seeded independently; production unifies them into ONE catalog. Until then, this
+ * maps each shareable opportunity to the buyer storefront pid it represents, so the
+ * signed product link `/s/{slug}?pid=` opens the SAME product she shared (not the
+ * default offer). Semantic matches: o5 « Chemise Faso Dan Fani » → p8 (exact), o1
+ * « Pagne wax » → p2, o7 « Sandales » → p4, o2 « karité » → p5, o3 « Sac » → p3;
+ * o4/o6 (no storefront twin) map to the nearest article. The mapping is DATA, not a
+ * second link scheme — the `/s/{slug}?pid=` form is the one canon buyer route.
+ */
+export const SHARE_PID_BY_OPP: Readonly<Record<string, string>> = {
+  o1: 'p2', o2: 'p5', o3: 'p3', o4: 'p7', o5: 'p8', o6: 'k1', o7: 'p4',
+};
+
+/** The buyer storefront pid for a shared opportunity (demo bridge, above). */
+export function sharePidFor(oppId: string): string {
+  return SHARE_PID_BY_OPP[oppId] ?? 'p1';
+}
+
+/**
  * WO-7.2b — the media-kit link-out (Q5: a LINK, never a webview embed). Same
  * visibly-fictional sandbox form as the share link — the kit is a sibling web
  * surface (the composeur); here it is only pointed to, honestly « d'essai ».

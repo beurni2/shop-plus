@@ -16,7 +16,7 @@ import { t } from './i18n';
 import { renderOrderView, type OrderViewModel } from './order-view';
 import { renderCheckoutOptions } from './checkout-view';
 import { renderProductSkeleton } from './product-view';
-import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival } from './vitrine-link';
+import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, vitrineHref } from './vitrine-link';
 import { demoStorefrontPort } from './vitrine/profile';
 import { mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { ENT_STYLES } from './vitrine/entries';
@@ -602,10 +602,11 @@ if (app) {
         depuisVitrine: { slug: signedSlug, pid: params.get('pid') ?? '' },
       });
       // C-ENT entries navigate to her full storefront at the canon `/v/{slug}` —
-      // the SAME wiring as the journey branch below (identity re-recorded there).
+      // base-aware (deploy sub-path safe), the SAME wiring as the journey branch
+      // below (identity re-recorded there).
       main.addEventListener('click', (ev) => {
         const ent = (ev.target as HTMLElement).closest('[data-action="vitrine"]');
-        if (ent) window.location.href = `/v/${ent.getAttribute('data-slug') ?? ''}`;
+        if (ent) window.location.href = vitrineHref(window.location.pathname, ent.getAttribute('data-slug') ?? '');
       });
       app.append(main);
     }
@@ -631,11 +632,11 @@ if (app) {
       stockEpuise: params.get('stock') === 'epuise',
     });
     // The C-ENT entries (E1/E2/E3) navigate to the vitrine under the SAME
-    // attribution — the arrival was recorded on vitrine land, and the /v/ path
-    // re-records identity-scope (last-touch A8) exactly as the law wants.
+    // attribution — base-aware (deploy sub-path safe); the arrival was recorded on
+    // vitrine land, and the /v/ path re-records identity-scope (last-touch A8).
     main.addEventListener('click', (ev) => {
       const ent = (ev.target as HTMLElement).closest('[data-action="vitrine"]');
-      if (ent) window.location.href = `/v/${ent.getAttribute('data-slug') ?? ''}`;
+      if (ent) window.location.href = vitrineHref(window.location.pathname, ent.getAttribute('data-slug') ?? '');
     });
     app.append(main);
   } else if (skeletonScreen === 'produit') {

@@ -13,7 +13,7 @@ import { t, tf } from './src/i18n';
 import { JOURNEY, START, type Screen } from './src/journey';
 import { DEMO_SHARE_IDENTITY, composeShareCard } from './src/share/hub';
 import { QrCode } from './src/qr/QrCode';
-import { DEMO_QR_URL, QR_ORIGIN, QR_BASE } from './src/qr/identity';
+import { DEMO_QR_URL, QR_ORIGIN, QR_BASE, signedProductShareUrl } from './src/qr/identity';
 import { FONTS_TO_LOAD } from './src/ui/fonts-load';
 import { foldVitrine, type VitrineEvent } from './src/vitrine/collection';
 import { marginBreakdown, markupCap, defaultMarkup } from './src/vitrine/margin';
@@ -40,6 +40,7 @@ import {
   DEMO_SHARE_LINK,
   createDemoWorld,
   MONTHLY_NET_DEMO,
+  sharePidFor,
   type DemoOpportunity,
   type DemoWorld,
 } from './src/demo/store';
@@ -236,8 +237,17 @@ export default function App() {
     const m = markups[opp.id] ?? defaultMarkup(cap);
     return marginBreakdown(opp.input.sellerBasePrice, opp.input.sellerFundedCommission, m);
   };
-  // Her REAL vitrine link — the canon origin + base + the seam's `/v/{slug}`.
-  const shareUrl = `${QR_ORIGIN}${QR_BASE}${vitrineCol.shareSlug()}`;
+  // Her REAL share link — the canon buyer origin + base. Partager is opened FROM a
+  // product (setShareId → 'lien'), so it sends the signed PRODUCT link
+  // `/s/{storeSlug}?pid={productId}` — « the one she sends », which opens THAT
+  // offer on the buyer PWA (BUG 3: it used to send `/v/` with no pid, so every
+  // share opened the default product). The storefront slug is the seam's
+  // `/v/{slug}` with the `/v/` stripped; the pid is the shared product's buyer pid
+  // (demo bridge). No shared product (defensive) → her vitrine identity link.
+  const storeSlug = vitrineCol.shareSlug().replace(/^\/v\//, '');
+  const shareUrl = shareOpp
+    ? signedProductShareUrl(storeSlug, sharePidFor(shareOpp.id))
+    : `${QR_ORIGIN}${QR_BASE}${vitrineCol.shareSlug()}`;
   // The share channels — production-shaped over RN Share/Linking. The message is
   // catalog copy (never inline), the link is her real signed slug. Deep-links try
   // first (WhatsApp/Facebook), the OS share sheet is the honest fallback (and the

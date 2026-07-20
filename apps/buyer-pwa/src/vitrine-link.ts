@@ -35,6 +35,33 @@ export function vitrineSlugFromPath(pathname: string): string | undefined {
 }
 
 /**
+ * The deploy base path, derived from the CURRENT route. On GitHub Pages the app
+ * is served under a sub-path (`/shop-plus/…`); locally under root (`/…`). The
+ * INBOUND routing already tolerates the base (it reads `window.location.pathname`
+ * and matches the `/v/` · `/s/` suffix regardless of prefix). OUTBOUND navigation
+ * must do the same: a hardcoded `/v/{slug}` resolves off the ORIGIN root and 404s
+ * on the sub-path deploy. This strips the known app-route suffix off the current
+ * pathname to recover the base, so an outbound vitrine link lands under the SAME
+ * base the inbound routing (and the 404.html SPA-fallback) reads — never root.
+ */
+export function deployBaseFromPath(pathname: string): string {
+  return pathname
+    .replace(/\/(?:s|v)\/[a-z0-9-]+\/?$/, '') // a `/s/{slug}` or `/v/{slug}` route
+    .replace(/\/index\.html$/, '')
+    .replace(/\/$/, '');
+}
+
+/**
+ * The base-aware `/v/{slug}` vitrine URL for OUTBOUND navigation (the C-ENT
+ * « Voir la boutique » entries). Built against the deploy base the current route
+ * carries, so it lands via the 404.html SPA-fallback on Pages instead of 404ing
+ * off the origin root. Reuses the ONE `/v/{slug}` link form (no second scheme).
+ */
+export function vitrineHref(pathname: string, slug: string): string {
+  return `${deployBaseFromPath(pathname)}/v/${slug}`;
+}
+
+/**
  * Parse a SIGNED PRODUCT slug from a `/s/{slug}` pathname — the reseller's
  * « the one she sends » link (§6.2.1 Arrival: it opens the offer and carries the
  * signed attribution). Same tolerance for the deployed base path as

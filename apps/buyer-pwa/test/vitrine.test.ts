@@ -7,6 +7,8 @@ import {
   identityLinkSuffix,
   identityLink,
   vitrineSlugFromPath,
+  deployBaseFromPath,
+  vitrineHref,
   recordVitrineArrival,
   readArrivals,
   resolveVitrineSlug,
@@ -51,6 +53,28 @@ describe('the ONE LINK-FORMAT LAW — the emitted identity link is canon /v/{slu
   it('the demo slug resolves to its identity; an unknown slug resolves to nothing', () => {
     expect(resolveVitrineSlug('aicha-4821')?.resellerId).toBe('res_aicha');
     expect(resolveVitrineSlug('inconnue-0000')).toBeUndefined();
+  });
+});
+
+describe('BUG 2 — outbound vitrine navigation is base-aware (deploy sub-path safe, never 404)', () => {
+  it('recovers the deploy base from the current route (sub-path deploy vs local root)', () => {
+    // Pages sub-path deploy — the base must survive whatever route we navigate FROM
+    expect(deployBaseFromPath('/shop-plus/s/aicha-4821')).toBe('/shop-plus');
+    expect(deployBaseFromPath('/shop-plus/v/aicha-4821')).toBe('/shop-plus');
+    expect(deployBaseFromPath('/shop-plus/')).toBe('/shop-plus');
+    expect(deployBaseFromPath('/shop-plus/index.html')).toBe('/shop-plus');
+    // local root — no base
+    expect(deployBaseFromPath('/s/aicha-4821')).toBe('');
+    expect(deployBaseFromPath('/')).toBe('');
+  });
+
+  it('vitrineHref lands under the SAME base the routing reads — never the origin root', () => {
+    // the bug: a hardcoded `/v/{slug}` resolves off the origin root and 404s on Pages
+    expect(vitrineHref('/shop-plus/s/aicha-4821', 'aicha-4821')).toBe('/shop-plus/v/aicha-4821');
+    expect(vitrineHref('/shop-plus/', 'aicha-4821')).toBe('/shop-plus/v/aicha-4821');
+    // local root keeps the canon root form
+    expect(vitrineHref('/', 'aicha-4821')).toBe('/v/aicha-4821');
+    expect(vitrineHref('/s/aicha-4821', 'aicha-4821')).toBe('/v/aicha-4821');
   });
 });
 
