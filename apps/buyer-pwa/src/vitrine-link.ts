@@ -35,6 +35,21 @@ export function vitrineSlugFromPath(pathname: string): string | undefined {
 }
 
 /**
+ * Parse a SIGNED PRODUCT slug from a `/s/{slug}` pathname — the reseller's
+ * « the one she sends » link (§6.2.1 Arrival: it opens the offer and carries the
+ * signed attribution). Same tolerance for the deployed base path as
+ * `vitrineSlugFromPath` (the 404.html SPA-fallback restores the original
+ * `/…/s/{slug}` before the app boots). Returns the slug (`aicha-4821`) or
+ * undefined. The slug is the reseller's storefront slug — the SAME scheme as
+ * `/v/{slug}`, resolved by the SAME port (no second scheme); the offer's product
+ * rides a `?pid=` alongside it.
+ */
+export function signedProductSlugFromPath(pathname: string): string | undefined {
+  const m = /\/s\/([a-z0-9-]+)\/?$/.exec(pathname);
+  return m ? m[1] : undefined;
+}
+
+/**
  * A reseller vitrine identity. The short code is ASCII per
  * ResellerShortCodeSchema (`AICHA-4821`); the DISPLAY name carries the diacritic
  * (« Aïcha »). Prices are HER prices (productSubtotal = B + M) — no supplier, no

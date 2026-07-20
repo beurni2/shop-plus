@@ -133,11 +133,16 @@ export const DEMO_LANDING_VOICE: ProductVoiceNote = {
  * slugs are honest not-found. (VITRINE-REAL-BACKING / the storefront-service
  * feed replaces this adapter; the port does not change.)
  */
-export function demoStorefrontPort(variant: 'default' | 'customised' | 'empty' = 'default'): StorefrontProfilePort {
+export function demoStorefrontPort(variant: 'default' | 'customised' | 'empty' | 'private' = 'default'): StorefrontProfilePort {
   return {
     resolve(slug: string) {
       if (slug !== 'aicha-4821') return undefined;
       if (variant === 'customised') return { storefront: AICHA_CUSTOMISED, trust: AICHA_TRUST, notes: AICHA_VOICE_NOTES };
+      // privée (canon §5.6, loi 4): absent from Découvrir (discoverable:false),
+      // but the SIGNED LINK still resolves — there is no « boutique fermée ». The
+      // product page mounts exactly as for a public store; only the directory
+      // (allBoutiques, projected on `discoverable`) hides her.
+      if (variant === 'private') return { storefront: { ...AICHA_DEFAULT, discoverable: false }, trust: AICHA_TRUST, notes: AICHA_VOICE_NOTES };
       if (variant === 'empty') {
         // V6 — before the first article: identity present, zero products, no
         // review chip yet (< 3 avis — a new reseller's honest day 1), no notes.

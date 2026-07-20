@@ -16,7 +16,8 @@ import { t } from './i18n';
 import { renderOrderView, type OrderViewModel } from './order-view';
 import { renderCheckoutOptions } from './checkout-view';
 import { renderProductSkeleton } from './product-view';
-import { vitrineSlugFromPath } from './vitrine-link';
+import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival } from './vitrine-link';
+import { demoStorefrontPort } from './vitrine/profile';
 import { mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { ENT_STYLES } from './vitrine/entries';
 // The Faso Premium face substrate (six @font-face, WO-FP STEP 0) — injected as
@@ -551,7 +552,64 @@ if (app) {
   // owns the §4.2 state machine (squelette → ready · offline · invalide · vide).
   const vitrineSlug = vitrineSlugFromPath(window.location.pathname) ?? params.get('demo-vitrine') ?? undefined;
 
-  if (vitrineSlug) {
+  // THE SIGNED PRODUCT DEEP-LINK — `/s/{slug}`, « the one she sends » (§6.2.1
+  // Arrival; SP-I09). It opens the OFFER (the signed product page), never the
+  // directory. Resolved through the SAME storefront port as `/v/` — no second
+  // scheme — so a privée vitrine (discoverable:false) still resolves (loi 4).
+  // The `?demo-signed=` param is a LOCAL/GATE harness (like `?demo-vitrine`),
+  // never the shared link; the shared link is the path the 404.html SPA-fallback
+  // restores before boot. `?pid=` names the offered product; `demo-signed-profil`
+  // is an audit-only lever for the privée state.
+  const signedSlug = signedProductSlugFromPath(window.location.pathname) ?? params.get('demo-signed') ?? undefined;
+
+  if (signedSlug) {
+    const profil = params.get('demo-signed-profil') === 'prive' ? 'private' : 'default';
+    const resolved = demoStorefrontPort(profil).resolve(signedSlug);
+    if (!resolved) {
+      // Unknown or expired slug → the HONEST not-found, reusing the `/v/` path's
+      // invalid surface exactly (no bespoke error wall; §5 honest states).
+      mountVitrine(app as HTMLElement, signedSlug);
+    } else {
+      // Arrival attribution, recorded on land EXACTLY as the `/v/` path records
+      // it — the same function, the same IDENTITY scope, the same store. A direct
+      // signed land never touched the vitrine, so this is where the token is
+      // locked to her (SP-I09). Best-effort: storage failure never blocks the
+      // offer (§5 — the money moment must not be gated on telemetry).
+      try {
+        recordVitrineArrival(
+          {
+            resellerId: resolved.storefront.resellerId,
+            shortCode: '',
+            slug: signedSlug,
+            view: { resellerName: resolved.storefront.name, zone: resolved.storefront.zone, products: [] },
+            reputation: { count: resolved.trust.deliveredCount, demo: resolved.trust.demo },
+          },
+          new Date().toISOString(),
+          `signed-${signedSlug}-${Date.now()}`,
+          window.sessionStorage,
+        );
+      } catch {
+        /* storage unavailable — arrival is best-effort */
+      }
+      // The signed product page rides the journey spine (§6.2.2): her storefront
+      // is resolved from the slug, so C-ENT1/C-ENT2 (and C-ENT4 on confirmation)
+      // are present — she can reach the full vitrine from the offer. `?pid=`
+      // swaps in THAT product's signed facts (price/stock); no pid = the default
+      // offer. Out-of-stock resolves too and lands on the épuisé page (C-ENT3).
+      const main = document.createElement('main');
+      createJourney(main, {
+        screen: 'produit',
+        depuisVitrine: { slug: signedSlug, pid: params.get('pid') ?? '' },
+      });
+      // C-ENT entries navigate to her full storefront at the canon `/v/{slug}` —
+      // the SAME wiring as the journey branch below (identity re-recorded there).
+      main.addEventListener('click', (ev) => {
+        const ent = (ev.target as HTMLElement).closest('[data-action="vitrine"]');
+        if (ent) window.location.href = `/v/${ent.getAttribute('data-slug') ?? ''}`;
+      });
+      app.append(main);
+    }
+  } else if (vitrineSlug) {
     const VIT_ETATS: readonly VitrineEtat[] = ['loading', 'ready', 'empty', 'offline', 'invalid'];
     const etatParam = params.get('demo-vitrine-etat');
     const profilParam = params.get('demo-vitrine-profil');
