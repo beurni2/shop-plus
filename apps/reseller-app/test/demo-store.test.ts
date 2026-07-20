@@ -112,8 +112,12 @@ describe('demo world money law', () => {
 
   it('every seed name is obviously fictional (démo-marked) and the share link is visibly a sandbox', () => {
     for (const o of seedFile.opportunities) expect(o.name).toContain('(démo)');
-    expect(DEMO_SHARE_LINK).toContain('shop-plus.demo/');
-    expect(DEMO_SHARE_LINK).toContain('essai');
+    expect(DEMO_SHARE_LINK).toContain('shop-plus.demo/'); // visibly-fictional sandbox domain
+    // Founder ruling 2026-07-20: the demo signed link must LAND, not dead-end —
+    // its slug is HER RESOLVING storefront slug (matches the /v/ identity), so the
+    // buyer /s/{slug} route resolves the offer and a review walk closes the loop.
+    // The « essai » sandbox signal now lives on the .demo DOMAIN, not the slug.
+    expect(DEMO_SHARE_LINK).toContain('/s/aicha-4821');
     expect(DEMO_SHARE_LINK).not.toMatch(/^https?:/); // never a live URL
     // WO-7.2b — the media-kit link-out is the same visibly-fictional sandbox form.
     expect(DEMO_KIT_LINK).toContain('shop-plus.demo/');

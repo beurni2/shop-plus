@@ -29,9 +29,10 @@ haut à gauche revient toujours en arrière.
    n'est choisi : « Votre vitrine attend ses premiers produits. Revenez en
    choisir. » — un état vide digne, pas une erreur. Action : « Créer mon lien
    de vente ». *Test 5 secondes : c'est ma boutique vue par ma cliente.*
-5. **Le moment du lien signé.** En carte : `shop-plus.demo/s/awa-essai` avec,
-   juste dessous, « Lien d'essai — il ne s'ouvre pas. » (impossible de le
-   confondre avec un vrai lien). L'explication : « Ce lien porte votre nom.
+5. **Le moment du lien signé.** En carte : `shop-plus.demo/s/aicha-4821` avec,
+   juste dessous, « Lien d'essai — il ne s'ouvre pas. » (le domaine « .demo »
+   reste impossible à confondre avec un vrai lien ; le slug, lui, résout — la
+   boucle `/s/{slug}` de la PWA acheteuse arrive bien sur l'offre). L'explication : « Ce lien porte votre nom.
    Chaque vente passée par ce lien vous est comptée. » Action : « Voir mes
    gains ». *Test 5 secondes : ce lien est à moi, chaque vente me revient.*
 6. **Mes gains.** En très grand : « Votre gain net (essai) : 9 520 F » — le

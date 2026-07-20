@@ -78,11 +78,18 @@ assertSeedMoneyHonest('baseline', SEED.baseline.input, SEED.baseline.money);
 for (const o of SEED.opportunities) assertSeedMoneyHonest(o.id, o.input, o.money);
 
 /**
- * Visibly fictional sandbox link — « .demo » is not a real domain and the
- * UI says so next to it (« lien d'essai, ne s'ouvre pas »). Never a URL
- * scheme, never a real TLD: it must be impossible to mistake for a live link.
+ * The signed PRODUCT link on her share card — « the one she sends ». Two truths
+ * held together (founder ruling 2026-07-20): the SLUG is HER RESOLVING storefront
+ * slug (`aicha-4821`, the same slug as her `/v/` identity), so the buyer PWA's
+ * `/s/{slug}` route LANDS on the offer — the demo's core loop is walkable end to
+ * end instead of dead-ending at not-found. The DOMAIN stays the visibly-fictional
+ * « .demo » sandbox — never a real TLD, never a URL scheme (the card marks it
+ * « lien d'essai ») — so the printed text is impossible to mistake for a live
+ * store. Behaviour is unchanged either way: the buyer route already resolved
+ * `aicha-4821` and honest-not-found'd `awa-essai`; this points the seed at the
+ * resolving slug so a review walk closes the loop.
  */
-export const DEMO_SHARE_LINK = 'shop-plus.demo/s/awa-essai';
+export const DEMO_SHARE_LINK = 'shop-plus.demo/s/aicha-4821';
 
 /**
  * WO-7.2b — the media-kit link-out (Q5: a LINK, never a webview embed). Same
