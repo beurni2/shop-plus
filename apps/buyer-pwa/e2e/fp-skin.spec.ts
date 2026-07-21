@@ -80,17 +80,76 @@ test('the two-option checkout re-skinned — vitrine cards, amounts to the franc
   expect(weights[0]).toBe(weights[1]);
 });
 
-test('paiement inside the journey rides the skin; localisation (unskinned) keeps Grand Teint', async ({ page }) => {
-  // the journey checkout is a skinned screen under her theme…
+test('paiement inside the journey rides the skin under her theme', async ({ page }) => {
   await page.goto('/?demo-journey=paiement');
   await expect(page.locator('main.fp-screen')).toBeVisible();
   await expect(page.locator('[data-option="full-prepay"]')).toHaveCSS('border-radius', '18px');
+});
 
-  // …and the scope holds: a screen this order does NOT cover stays Grand Teint
-  // (no .fp-screen), so the skin can never leak beyond its slice.
+/* PART 2 — the mid-journey screens join the language (gap 5 closed): every
+ * screen of the walk is `.fp-screen`-scoped under HER habillage, and every
+ * FCFA byte on the way is asserted unchanged. */
+
+test('localisation re-skinned — K field language, no FCFA on this screen', async ({ page }) => {
   await page.goto('/?demo-journey=localisation');
-  await expect(page.locator('[data-screen="localisation"]')).toBeVisible();
-  await expect(page.locator('main.fp-screen')).toHaveCount(0);
+  await expect(page.locator('main.fp-screen [data-screen="localisation"]')).toBeVisible();
+  // K fieldInput bytes on the repère input; focus rides the habillage.
+  const repere = page.locator('.field-repere');
+  await expect(repere).toHaveCSS('border-radius', '14px');
+  await repere.focus();
+  await expect(repere).toHaveCSS('border-color', 'rgb(194, 87, 27)');
+  // landmark-first law untouched: still no street-address field, no FCFA here.
+  await expect(page.locator('input[name="adresse"]')).toHaveCount(0);
+});
+
+test('livraison re-skinned — Séra\'s fees byte-exact, the selected row carries the K selection recipe', async ({ page }) => {
+  await page.goto('/?demo-journey=livraison');
+  await expect(page.locator('main.fp-screen [data-screen="livraison"]')).toBeVisible();
+  // the quote is display-only and byte-exact: both fees + the fee in the CTA.
+  const rows = page.locator('.quote-row .fcfa-figure-inline');
+  await expect(rows.nth(0)).toHaveText('1 000 FCFA');
+  await expect(rows.nth(1)).toHaveText('1 500 FCFA');
+  await expect(page.locator('.primary-action')).toContainText('1 000 FCFA');
+  // selected row = K themeCardSelected recipe (2px θ.accent border).
+  const selected = page.locator('.quote-row-on');
+  await expect(selected).toHaveCSS('border-color', 'rgb(194, 87, 27)');
+  await expect(selected).toHaveCSS('border-top-width', '2px');
+});
+
+test('suivi re-skinned — due-at-door byte-exact, the theme drives the timeline chip live', async ({ page }) => {
+  await page.goto('/?demo-journey=suivi&etat=porte-b');
+  const main = page.locator('main.fp-screen');
+  await expect(main.locator('[data-screen="suivi"]')).toBeVisible();
+  // Option B: the product leg due at the door, unchanged to the franc.
+  await expect(page.locator('.door-block .fcfa-figure-inline')).toHaveText('11 500 FCFA');
+  await expect(page.locator('.door-block')).toHaveCSS('border-radius', '18px');
+  // the MAINTENANT chip rides θ.accent — and repaints on a theme flip (the
+  // drive proven on a mid-journey screen, same law as the product band).
+  const chip = page.locator('.now-chip');
+  await expect(chip).toHaveCSS('background-color', 'rgb(194, 87, 27)');
+  await main.evaluate((el, accent) => el.style.setProperty('--vt-accent', accent), FORET_ACCENT);
+  await expect(chip).toHaveCSS('background-color', FORET_ACCENT);
+  // SP-I10 survives the skin: « Un souci ? » keeps its danger border (the K
+  // error byte), never absorbed into the ghost-button language.
+  await expect(page.locator('.problem-path')).toHaveCSS('border-color', 'rgb(196, 87, 75)');
+});
+
+test('confirmation re-skinned — both money lines byte-exact, honest pending pill', async ({ page }) => {
+  await page.goto('/?demo-journey=confirmation');
+  await expect(page.locator('main.fp-screen [data-screen="confirmation"]')).toBeVisible();
+  const lines = page.locator('.fcfa-line .fcfa-figure-inline');
+  await expect(lines.nth(0)).toHaveText('12 500 FCFA');
+  await expect(lines.nth(1)).toHaveText('0 FCFA');
+  // the honest pending state rides the vitrine pill (never a green lie).
+  await expect(page.locator('.status-chip.status-pending')).toHaveCSS('border-radius', '99px');
+});
+
+test('protections re-skinned — the K sheet bytes carry the bill of rights', async ({ page }) => {
+  await page.goto('/?demo-journey=protections');
+  const sheet = page.locator('main.fp-screen [data-screen="protections"]');
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toHaveCSS('background-color', 'rgb(251, 247, 239)');
+  await expect(sheet).toHaveCSS('border-top-left-radius', '24px');
 });
 
 test('the C1 skeleton surface re-skinned — the vitrine shim, the exact boxes', async ({ page }) => {

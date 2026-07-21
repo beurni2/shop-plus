@@ -1,7 +1,8 @@
 /**
- * RE-SKIN (FP) — the vitrine's design language over the journey's money
- * screens (produit · paiement · the order states · the C1 skeleton surface),
- * WITHOUT touching their layout, markup, or behaviour.
+ * RE-SKIN (FP) — the vitrine's design language over the buyer journey
+ * (produit · localisation · livraison · paiement · confirmation · suivi ·
+ * protections, plus the order states and the C1 skeleton surface), WITHOUT
+ * touching layout, markup, or behaviour.
  *
  * Every byte below is lifted from a treatment the vitrine ALREADY ships —
  * cited rule-by-rule against its source: `vitrine/styles.ts` (.vt-*),
@@ -40,6 +41,7 @@ export const FP_SKIN_STYLES = `
     --c-primarySoft: color-mix(in srgb, var(--vt-on) 75%, transparent); /* .vt-cover-caps: θ.on à 75 % */
     --c-onPrimary: var(--vt-on);
     --c-onInk: #F6F0E4;            /* .vt-band color */
+    --c-danger: #C4574B;           /* K fieldInputError byte (the vitrine error red) */
   }
 
   /* Display type — .vt-namerow / .vt-state h3 bytes (Bricolage 800, -0.48px). */
@@ -162,6 +164,98 @@ export const FP_SKIN_STYLES = `
   /* Offline stays the ink band — .vt-band radius joins it (same ink, same text
      ink #F6F0E4 via the bridge). */
   .fp-screen .offline-banner { border-radius: 18px; }
+
+  /* ------------------------------------------------------------------------
+     MID-JOURNEY (part 2) — localisation · livraison · suivi · confirmation ·
+     protections join the same language. Colours largely arrive via the bridge
+     above; the rules below add only the treatments the bridge cannot express,
+     each cited to its vitrine/K source byte. */
+
+  /* Caps labels (field-label · step-line) — the K fieldLabel byte, identical
+     to .vt-group b (11 · 700 · ls 1.1 · muted via bridge). */
+  .fp-screen .field-label, .fp-screen .step-line {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.1px;
+  }
+
+  /* Inputs — K fieldInput bytes (r 14 · 1.5 #E5DCC9 · white); focus rides the
+     habillage (K fieldInputFocus is θ.accent — θ-parametric here). */
+  .fp-screen .field-input {
+    border-radius: 14px; border: 1.5px solid #E5DCC9; background: #FFFFFF;
+  }
+  .fp-screen .field-input:focus { outline: none; border-color: var(--vt-accent); }
+
+  /* Zone chips — rest is the .vt-chip-line pill (white · 1 #E5DCC9); selected
+     is the K themeCardSelected recipe (2px θ.accent border) over the
+     .vt-chip-full ink (θ.soft on θ.deep). Selection stays structural. */
+  .fp-screen .chip {
+    border-radius: 99px; border: 1px solid #E5DCC9; background: #FFFFFF;
+  }
+  .fp-screen .chip-on {
+    border: 2px solid var(--vt-accent); background: var(--vt-soft); color: var(--vt-deep);
+    transition: background .3s, color .3s, border-color .3s;
+  }
+
+  /* Séra's quote rows — the .vt-tile card (white · #EDE4D3 · soft lift), r 14
+     (the K fieldInput/row radius); overflow clips the structural accent edge
+     inside the rounding. Selected = the K themeCardSelected recipe: 2px
+     θ.accent border + shadow 0 12 15 rgba(θ.accent, .35); the Grand Teint
+     accent edge + corner mark re-tint through the bridge and stay. */
+  .fp-screen .quote-row {
+    border-radius: 14px; border: 1px solid #EDE4D3; background: #FFFFFF;
+    box-shadow: 0 1px 2px rgba(28, 22, 15, 0.04);
+    overflow: hidden;
+  }
+  .fp-screen .quote-row-on {
+    border: 2px solid var(--vt-accent);
+    box-shadow: 0 12px 15px rgba(var(--vt-sh), .35);
+    transition: border-color .3s;
+  }
+
+  /* Tracking — timeline colours re-tint via the bridge (done = ink, now =
+     θ.accent ring, later = hairline); the MAINTENANT chip takes the vitrine
+     pill (r 99, .vt-chip). */
+  .fp-screen .now-chip { border-radius: 99px; transition: background .3s; }
+  .fp-screen .status-chip { border-radius: 99px; padding: 7px 12px; }
+
+  /* The door block — the .vt-tile card bytes (white, r 18, hairline, lift). */
+  .fp-screen .door-block {
+    border-radius: 18px; border: 1px solid #EDE4D3; background: #FFFFFF;
+    box-shadow: 0 1px 2px rgba(28, 22, 15, 0.04);
+  }
+
+  /* The drop-code frame — NO vitrine treatment exists (gap reported): it keeps
+     the part-1 photo-frame precedent — rounded (r 20) with the documentary
+     ticks kept, ticks re-tinted to θ.accent through the bridge. */
+  .fp-screen .code-box { border-radius: 20px; }
+
+  /* The landmark voice block — the .ent3-encart radius (r 16); its surface and
+     hairline arrive via the bridge (#FCF9F2 · #E5DCC9). */
+  .fp-screen .voice-note { border-radius: 16px; }
+
+  /* Secondary actions — the .vt-ghostbtn bytes (the same language the equal
+     actions already ride). The problem path KEEPS its danger border/ink
+     (SP-I10 — this rule outranks .problem-path, so restate it, on the K error
+     byte the bridge carries). */
+  .fp-screen .secondary-action {
+    border-radius: 14px; border: 1px solid #E5DCC9; background: #FFFFFF; color: #1C1710;
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 14.5px; font-weight: 700;
+    letter-spacing: normal; text-transform: none;
+  }
+  .fp-screen .secondary-action:active { background: #FBF6EB; } /* .ent4:active */
+  .fp-screen .secondary-action.problem-path {
+    border-color: var(--c-danger); color: var(--c-danger);
+  }
+
+  /* « Vos protections » — the K vSheet bytes verbatim: card #FBF7EF, top
+     radius 24, the 44×5 r99 #DDD2BC handle. The rows' quote-rule left border
+     re-tints to vitrine ink through the bridge. */
+  .fp-screen .protections-sheet {
+    background: #FBF7EF; border-top: 0; border-radius: 24px 24px 0 0;
+  }
+  .fp-screen .sheet-handle {
+    width: 44px; height: 5px; border-radius: 99px; background: #DDD2BC;
+  }
 
   /* C1 skeleton (§2.1) — the .vt-shim treatment verbatim (the woven shimmer),
      same exact boxes (CLS 0 by construction, unchanged markup). */

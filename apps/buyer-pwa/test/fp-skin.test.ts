@@ -59,10 +59,13 @@ describe('the journey resolves and applies HER habillage', () => {
     expect(entry!.accent).toBe(VITRINE_THEMES[entry!.themeKey].accent);
   });
 
-  it('the wiring stays bound: applyTheme on the container, the scoped class toggle, the sheet injection', () => {
+  it('the wiring stays bound: applyTheme on the container, the whole-journey scope, the sheet injection', () => {
     const journey = read('journey.ts');
     expect(journey).toContain('applyTheme(container,');
-    expect(journey).toContain("classList.toggle('fp-screen'");
+    // Part 2: the WHOLE journey rides the skin — one language, product to
+    // protections (the per-screen toggle is retired).
+    expect(journey).toContain("container.classList.add('fp-screen')");
+    expect(journey).not.toContain("classList.toggle('fp-screen'");
     const main = read('main.ts');
     expect(main).toContain('FP_SKIN_STYLES');
     expect(main).toContain("setAttribute('data-fp-skin'");

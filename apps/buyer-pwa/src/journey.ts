@@ -215,11 +215,13 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
   }
   if (init.screen === 'protections') state.stack.push('protections');
 
-  // RE-SKIN (FP) — the reseller's habillage (§1.2) drives the skinned screens:
+  // RE-SKIN (FP) — the reseller's habillage (§1.2) drives the journey chrome:
   // applyTheme sets the --vt-* properties on the journey container ONCE (they
   // survive innerHTML re-renders); the fp-skin rules consume them, so HER theme
-  // re-tints the product/checkout chrome exactly as it re-tints her vitrine.
+  // re-tints every screen exactly as it re-tints her vitrine. Part 2: the whole
+  // journey rides the skin — one language from product to protections.
   applyTheme(container, state.vitrine?.themeKey ?? DEFAULT_THEME);
+  container.classList.add('fp-screen');
 
   let adapter: RecorderAdapter | null = null;
   let playbackUrl: string | null = null;
@@ -305,9 +307,6 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
   }
 
   function render(): void {
-    // RE-SKIN (FP) scope: produit + paiement carry the vitrine language today;
-    // the other screens keep Grand Teint until their own re-skin slices.
-    container.classList.toggle('fp-screen', current() === 'produit' || current() === 'paiement');
     const offlineBanner = state.online
       ? ''
       : `<p class="offline-banner" data-role="offline">${t('hors_ligne.bandeau')}</p>`;
