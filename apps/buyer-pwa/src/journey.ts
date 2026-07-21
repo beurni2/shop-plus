@@ -6,7 +6,7 @@ import { renderEnt4 } from './vitrine/entries';
 import { demoStorefrontPort, DEMO_LANDING_VOICE, type ProductVoiceNote } from './vitrine/profile';
 import { wireVoicePlay } from './vitrine/voice-player';
 import { seedProduct } from './vitrine/catalog';
-import { VITRINE_THEMES } from './vitrine/themes';
+import { VITRINE_THEMES, applyTheme, DEFAULT_THEME } from './vitrine/themes';
 import { renderLocationForm, type LocationViewModel } from './location-view';
 import { renderDeliveryQuote, DEMO_SERA_QUOTE } from './delivery-view';
 import { renderCheckoutOptions } from './checkout-view';
@@ -153,7 +153,7 @@ export function resolveVitrineEntry(slug: string): NonNullable<ProductViewModel[
   const sf = resolved.storefront;
   const th = VITRINE_THEMES[sf.theme];
   const prenom = sf.name.replace(/^Chez\s+/i, '').split(' ')[0] ?? sf.name;
-  return { shopName: sf.name, prenom, slug: sf.slug, accent: th.accent, on: th.on, soft: th.soft, deep: th.deep };
+  return { shopName: sf.name, prenom, slug: sf.slug, themeKey: sf.theme, accent: th.accent, on: th.on, soft: th.soft, deep: th.deep };
 }
 
 /** V7 — the vitrine context rides the journey when arrived via a vitrine tile:
@@ -214,6 +214,12 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
     state.vitrineVoice = DEMO_LANDING_VOICE;
   }
   if (init.screen === 'protections') state.stack.push('protections');
+
+  // RE-SKIN (FP) — the reseller's habillage (§1.2) drives the skinned screens:
+  // applyTheme sets the --vt-* properties on the journey container ONCE (they
+  // survive innerHTML re-renders); the fp-skin rules consume them, so HER theme
+  // re-tints the product/checkout chrome exactly as it re-tints her vitrine.
+  applyTheme(container, state.vitrine?.themeKey ?? DEFAULT_THEME);
 
   let adapter: RecorderAdapter | null = null;
   let playbackUrl: string | null = null;
@@ -299,6 +305,9 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
   }
 
   function render(): void {
+    // RE-SKIN (FP) scope: produit + paiement carry the vitrine language today;
+    // the other screens keep Grand Teint until their own re-skin slices.
+    container.classList.toggle('fp-screen', current() === 'produit' || current() === 'paiement');
     const offlineBanner = state.online
       ? ''
       : `<p class="offline-banner" data-role="offline">${t('hors_ligne.bandeau')}</p>`;

@@ -20,6 +20,8 @@ import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, v
 import { demoStorefrontPort } from './vitrine/profile';
 import { mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { ENT_STYLES } from './vitrine/entries';
+import { FP_SKIN_STYLES } from './vitrine/fp-skin';
+import { applyTheme, DEFAULT_THEME } from './vitrine/themes';
 // The Faso Premium face substrate (six @font-face, WO-FP STEP 0) — injected as
 // raw CSS so './fonts/…' stays document-relative (the Archivo pattern; correct
 // under base './' at / and /shop-plus/).
@@ -530,6 +532,14 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+// RE-SKIN (FP) — the vitrine-language skin for the journey's money screens.
+// Injected AFTER the Grand Teint sheet; every rule is `.fp-screen`-scoped, so
+// unskinned screens keep their chrome byte-for-byte.
+const fpStyle = document.createElement('style');
+fpStyle.setAttribute('data-fp-skin', '');
+fpStyle.textContent = FP_SKIN_STYLES;
+document.head.appendChild(fpStyle);
+
 const app = document.querySelector('#app');
 if (app) {
   // WO-4.2E — the SANDBOX RIBBON: a deployed preview must NEVER be
@@ -641,7 +651,11 @@ if (app) {
     app.append(main);
   } else if (skeletonScreen === 'produit') {
     // WO-5.3 — the C1 skeleton surface (« La vitesse comme luxe »), exact-box.
+    // Skinned like the page it precedes; pre-resolution the theme is the §1.2
+    // default (the vitrine's own skeleton behaves the same before resolve).
     const main = document.createElement('main');
+    main.classList.add('fp-screen');
+    applyTheme(main, DEFAULT_THEME);
     const section = document.createElement('div');
     section.className = 'journey-screen';
     section.innerHTML = renderProductSkeleton();
@@ -666,7 +680,12 @@ if (app) {
       const brand = document.createElement('h1');
       brand.textContent = t('app.title');
       header.appendChild(brand);
+      // The E2 harness mounts the order/checkout views bare (no journey, no
+      // reseller context) — they share the skinned chrome under the §1.2
+      // default habillage; the header above stays Grand Teint (out of scope).
       const main = document.createElement('main');
+      main.classList.add('fp-screen');
+      applyTheme(main, DEFAULT_THEME);
       if (demoState && (DEMO_STATES as readonly string[]).includes(demoState)) {
         const section = document.createElement('div');
         section.innerHTML = renderOrderView({

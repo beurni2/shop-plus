@@ -3,6 +3,7 @@ import { FCFA, esc } from './format';
 import { renderEnt1, renderEnt2, renderEnt3 } from './vitrine/entries';
 import { renderVoicePlayer } from './vitrine/voice-player';
 import type { ProductVoiceNote } from './vitrine/profile';
+import type { VitrineThemeKey } from './vitrine/themes';
 
 /**
  * WO-4.4 §6.2 / WO-5.3 (Grand Teint) — ARRIVAL: the signed link lands HERE,
@@ -26,6 +27,8 @@ export interface ProductVitrineEntry {
   readonly shopName: string;
   readonly prenom: string;
   readonly slug: string;
+  /** Her §1.2 habillage key — drives the re-skinned chrome via applyTheme. */
+  readonly themeKey: VitrineThemeKey;
   readonly accent: string;
   readonly on: string;
   readonly soft: string;
