@@ -6,7 +6,7 @@ import { renderEnt4 } from './vitrine/entries';
 import { demoStorefrontPort, DEMO_LANDING_VOICE, type ProductVoiceNote } from './vitrine/profile';
 import { wireVoicePlay } from './vitrine/voice-player';
 import { seedProduct } from './vitrine/catalog';
-import { VITRINE_THEMES, applyTheme, DEFAULT_THEME } from './vitrine/themes';
+import { VITRINE_THEMES } from './vitrine/themes';
 import { renderLocationForm, type LocationViewModel } from './location-view';
 import { renderDeliveryQuote, DEMO_SERA_QUOTE } from './delivery-view';
 import { renderCheckoutOptions } from './checkout-view';
@@ -214,14 +214,6 @@ export function createJourney(container: HTMLElement, init: JourneyInit): void {
     state.vitrineVoice = DEMO_LANDING_VOICE;
   }
   if (init.screen === 'protections') state.stack.push('protections');
-
-  // RE-SKIN (FP) — the reseller's habillage (§1.2) drives the journey chrome:
-  // applyTheme sets the --vt-* properties on the journey container ONCE (they
-  // survive innerHTML re-renders); the fp-skin rules consume them, so HER theme
-  // re-tints every screen exactly as it re-tints her vitrine. Part 2: the whole
-  // journey rides the skin — one language from product to protections.
-  applyTheme(container, state.vitrine?.themeKey ?? DEFAULT_THEME);
-  container.classList.add('fp-screen');
 
   let adapter: RecorderAdapter | null = null;
   let playbackUrl: string | null = null;

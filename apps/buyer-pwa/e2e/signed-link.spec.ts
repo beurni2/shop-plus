@@ -2,26 +2,20 @@ import { expect, test } from '@playwright/test';
 
 /**
  * WO-SIGNED-LINK — the signed product deep-link `/s/{slug}`, « the one she
- * sends » (§6.2.1 Arrival; SP-I09). The GAP this closes: the reseller shares a
- * `/s/{slug}` link but `main.ts` handled only `/v/`, `?demo-journey=`, and the
- * directory — so a product share fell through to `/boutiques` and never landed
- * on the offer.
+ * sends » (§6.2.1 Arrival; SP-I09). The signed offer now mounts the pixel-for-
+ * pixel PARCOURS D'ACHAT S1 (produit) in HER habillage. These lock the FROZEN
+ * guarantees the redesign must preserve: (1) the offer's product page MOUNTS
+ * with her signed price; (2) her arrival is RECORDED on land exactly as `/v/`
+ * records it; (3) her full vitrine is REACHABLE from the offer; and the honest
+ * not-found / out-of-stock / private paths.
  *
- * REACHABILITY GATE (the C-ENT lesson): a route nobody can reach must fail the
- * gate. These drive the ACTUAL `/s/` routing branch in `main.ts` and assert
- * (1) the offer's product page MOUNTS, (2) the reseller's arrival is RECORDED on
- * land exactly as `/v/` records it, and (3) her C-ENT vitrine entries are
- * REACHABLE from the offer (the request the click fires proves it).
- *
- * The branch is driven through the `?demo-signed=` harness (pathname stays at
- * root) rather than the literal `/s/{slug}` path: under `vite preview`'s
- * relative base (`base: './'`) a restored deep pathname resolves the module
- * script against `/s/…` and the app never boots — the SAME constraint the E1
- * reachability tests carry (journey.spec.ts). The REAL-pathname parse
- * (`/s/{slug}` → slug) is pinned separately in test/signed-product-link.test.ts;
- * both branches of the `??` feed the identical routing block.
+ * Driven through the `?demo-signed=` harness (pathname stays at root) — under
+ * `vite preview`'s relative base a restored deep pathname never boots the app
+ * (the SAME constraint the other reachability specs carry). The real-pathname
+ * parse is pinned in test/signed-product-link.test.ts; both feed one block.
  */
 
+const NNBSP = String.fromCharCode(0x202f);
 const ARRIVALS_KEY = 'shop-plus.arrivals.v1';
 
 async function arrivals(page: import('@playwright/test').Page) {
@@ -35,14 +29,16 @@ async function arrivals(page: import('@playwright/test').Page) {
   }, ARRIVALS_KEY);
 }
 
-test('the signed link opens the offer — product mounts, arrival is locked to her, her vitrine is one tap away', async ({ page }) => {
+test('the signed link opens the offer — S1 mounts, arrival is locked to her, her vitrine is one tap away', async ({ page }) => {
   await page.goto('/?demo-signed=aicha-4821');
 
-  // (1) the OFFER mounts — the signed product page, her price, her store named.
-  const product = page.locator('[data-screen="produit"]');
-  await expect(product).toBeVisible();
-  await expect(product.locator('.fcfa-hero')).toHaveText('11 500 FCFA');
-  await expect(product.locator('.ent1[data-action="vitrine"] .ent1-name')).toHaveText('Chez Aïcha Mode');
+  // (1) the OFFER mounts — the pixel S1 product page, in the achat namespace.
+  const produit = page.locator('main.ac-root [data-screen="produit"]');
+  await expect(produit).toBeVisible();
+  await expect(page.locator('.ac-shopname')).toHaveText('Chez Aïcha Mode');
+  // her signed price, byte-exact (money render-only).
+  const amount = await page.locator('.ac-pb-hero').first().evaluate((el) => el.textContent);
+  expect(amount).toBe(`11${NNBSP}500`);
   // SP-I03 on the rendered offer: no commission, no supplier, anywhere.
   const body = (await page.locator('body').innerText()).toLowerCase();
   expect(body).not.toContain('commission');
@@ -56,34 +52,28 @@ test('the signed link opens the offer — product mounts, arrival is locked to h
   expect(arr[0]!.scope).toBe('identity');
   expect(arr[0]!.resellerId).toBe('res_aicha');
 
-  // (3) her full storefront is REACHABLE from the offer — C-ENT1 and C-ENT2
-  // carry her canon /v/{slug}, and the click actually navigates there (the
-  // request proves the route, independent of the /v/ page booting under preview).
-  const ent1 = product.locator('.ent1[data-action="vitrine"]');
-  const ent2 = product.locator('.ent2[data-action="vitrine"]');
-  await expect(ent1).toHaveAttribute('data-slug', 'aicha-4821');
-  await expect(ent2).toBeVisible();
+  // (3) her full storefront is REACHABLE — the header « Voir la boutique › »
+  // carries her canon /v/{slug}, and the click actually navigates there.
+  const voir = page.locator('.ac-voir[data-action="vitrine"]');
+  await expect(voir).toHaveAttribute('data-slug', 'aicha-4821');
   const [request] = await Promise.all([
     page.waitForRequest(/\/v\/aicha-4821$/),
-    ent2.click(),
+    voir.click(),
   ]);
-  expect(request.url()).toMatch(/\/v\/aicha-4821$/);
+  expect(new URL(request.url()).pathname).toMatch(/\/v\/aicha-4821$/);
 });
 
-test('out-of-stock — the signed link still resolves and lands on the épuisé offer with C-ENT3', async ({ page }) => {
-  await page.goto('/?demo-signed=aicha-4821&pid=p3');
+test('out-of-stock — the signed link still resolves and lands on the épuisé offer', async ({ page }) => {
+  await page.goto('/?demo-signed=aicha-4821&pid=sac');
 
-  const product = page.locator('[data-screen="produit"]');
-  await expect(product).toBeVisible();
-  // p3 is the out-of-stock seed product — the offer resolves, price shown, but
-  // « En stock » is absent and Commander is not the active CTA.
-  await expect(product.locator('.product-name')).toHaveText('Sac cuir artisanal');
-  await expect(product.locator('.fcfa-hero')).toHaveText('17 000 FCFA');
-  await expect(product.locator('.trust-chip', { hasText: 'En stock' })).toHaveCount(0);
-  // C-ENT3 — the épuisé encart routes to her boutique (the dignified way on).
-  const ent3 = product.locator('.ent3[data-action="vitrine"]');
-  await expect(ent3).toBeVisible();
-  await expect(ent3).toHaveAttribute('data-slug', 'aicha-4821');
+  const produit = page.locator('main.ac-root [data-screen="produit"]');
+  await expect(produit).toBeVisible();
+  // the sac is the out-of-stock seed — the offer resolves, price shown (struck),
+  // « Commander » is disabled, and the épuisé exit routes to her boutique.
+  await expect(page.locator('.ac-prodtitle')).toHaveText('Sac cuir artisanal');
+  await expect(page.locator('.ac-cta-off')).toBeDisabled();
+  await expect(page.locator('.ac-epuise-stamp')).toContainText('ÉPUISÉ');
+  await expect(page.locator('.ac-soft[data-action="vitrine"]')).toHaveAttribute('data-slug', 'aicha-4821');
   // the offer still resolved, so her arrival is still recorded.
   expect(await arrivals(page)).toHaveLength(1);
 });
@@ -91,46 +81,21 @@ test('out-of-stock — the signed link still resolves and lands on the épuisé 
 test('unknown / expired slug — honest not-found, and it pays nobody (no arrival recorded)', async ({ page }) => {
   await page.goto('/?demo-signed=inconnue-0000');
 
-  // the honest not-found is the /v/ invalid surface — never the boutiques
-  // directory, never a bespoke error wall.
+  // the honest not-found is the /v/ invalid surface — never a bespoke error wall.
   await expect(page.locator('[data-etat="invalid"]')).toBeVisible();
   await expect(page.locator('[data-screen="produit"]')).toHaveCount(0);
-  // SP-I09 fails closed: a slug that resolves to nobody records NO arrival — it
-  // must never silently attribute to a reseller.
+  // SP-I09 fails closed: a slug that resolves to nobody records NO arrival.
   expect(await arrivals(page)).toHaveLength(0);
 });
 
-test('BUG 3 — the shared product opens THAT product, not the default (pid resolves to its signed facts)', async ({ page }) => {
-  // the reseller shares /s/{slug}?pid={productId}; opening it must land on THAT
-  // product. Before the fix the reseller sent no pid, so every share fell back to
-  // the buyer's default product.
-  await page.goto('/?demo-signed=aicha-4821&pid=p2');
-  const product = page.locator('[data-screen="produit"]');
-  await expect(product).toBeVisible();
-  // p2 is « Pagne wax 6 yards » (20 500) — NOT the default landing product
-  await expect(product.locator('.product-name')).toHaveText('Pagne wax 6 yards');
-  await expect(product.locator('.fcfa-hero')).toHaveText('20 500 FCFA');
-  await expect(product.locator('.product-name')).not.toHaveText('Pagne tissé Faso Dan Fani');
-});
-
-test('BUG 2 — « Voir la boutique » navigates to the base-aware /v/{slug} (never the origin root → 404)', async ({ page }) => {
-  // the C-ENT « Voir la boutique » entry must reach her vitrine. It used to
-  // navigate to a hardcoded `/v/{slug}` off the ORIGIN root, which 404s on the
-  // Pages sub-path deploy. The fix builds the URL against the deploy base the
-  // current route carries; the request the click fires proves the target (under
-  // vite preview the base is empty, so the canon root form — the sub-path base
-  // preservation is pinned in test/vitrine.test.ts, which preview cannot vary).
-  await page.goto('/?demo-journey=produit');
-  const ent2 = page.locator('[data-screen="produit"] .ent2[data-action="vitrine"]');
-  await expect(ent2).toBeVisible();
-  await expect(ent2).toHaveAttribute('data-slug', 'aicha-4821');
-  const [request] = await Promise.all([
-    page.waitForRequest(/\/v\/aicha-4821$/),
-    ent2.click(),
-  ]);
-  // the navigation target is the canon /v/{slug} vitrine path (not a bare product
-  // path, not a wrong root) — base-correct by construction (vitrineHref).
-  expect(new URL(request.url()).pathname).toMatch(/\/v\/aicha-4821$/);
+test('BUG 3 — the shared product opens THAT product (pid selects the offered article)', async ({ page }) => {
+  await page.goto('/?demo-signed=aicha-4821&pid=foulard');
+  const produit = page.locator('main.ac-root [data-screen="produit"]');
+  await expect(produit).toBeVisible();
+  // the foulard is 6 300 — NOT the default robe (11 500).
+  await expect(page.locator('.ac-prodtitle')).toHaveText('Foulard Faso Dan Fani');
+  const amount = await page.locator('.ac-pb-hero').first().evaluate((el) => el.textContent);
+  expect(amount).toBe(`6${NNBSP}300`);
 });
 
 test('privée vitrine — not listed in Découvrir, but her signed link still resolves the offer (loi 4)', async ({ page }) => {
@@ -138,10 +103,9 @@ test('privée vitrine — not listed in Découvrir, but her signed link still re
 
   // « il n'y a pas de boutique fermée » — the private storefront's link opens
   // the offer exactly like a public one; only the directory would hide her.
-  const product = page.locator('[data-screen="produit"]');
-  await expect(product).toBeVisible();
-  await expect(product.locator('.ent1[data-action="vitrine"]')).toHaveAttribute('data-slug', 'aicha-4821');
-  await expect(product.locator('.ent2[data-action="vitrine"]')).toBeVisible();
+  const produit = page.locator('main.ac-root [data-screen="produit"]');
+  await expect(produit).toBeVisible();
+  await expect(page.locator('.ac-voir[data-action="vitrine"]')).toHaveAttribute('data-slug', 'aicha-4821');
   // resolved → her arrival is recorded, same as the public path.
   const arr = await arrivals(page);
   expect(arr).toHaveLength(1);

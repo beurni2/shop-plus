@@ -20,8 +20,10 @@ import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, v
 import { demoStorefrontPort } from './vitrine/profile';
 import { mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { ENT_STYLES } from './vitrine/entries';
-import { FP_SKIN_STYLES } from './vitrine/fp-skin';
-import { applyTheme, DEFAULT_THEME } from './vitrine/themes';
+import { createAchat, type AchatEcran } from './achat/flow';
+import { achatProduit } from './achat/seed';
+import { ACHAT_STYLES } from './achat/styles';
+import type { VitrineThemeKey } from './vitrine/themes';
 // The Faso Premium face substrate (six @font-face, WO-FP STEP 0) — injected as
 // raw CSS so './fonts/…' stays document-relative (the Archivo pattern; correct
 // under base './' at / and /shop-plus/).
@@ -532,13 +534,20 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// RE-SKIN (FP) — the vitrine-language skin for the journey's money screens.
-// Injected AFTER the Grand Teint sheet; every rule is `.fp-screen`-scoped, so
-// unskinned screens keep their chrome byte-for-byte.
-const fpStyle = document.createElement('style');
-fpStyle.setAttribute('data-fp-skin', '');
-fpStyle.textContent = FP_SKIN_STYLES;
-document.head.appendChild(fpStyle);
+// PARCOURS D'ACHAT — the pixel-for-pixel purchase-flow stylesheet, its own
+// `.ac-*` namespace reading the `--vt-*` theme props applyTheme sets on the
+// container. Injected after the Grand Teint sheet; the two never collide
+// (disjoint class names), so the legacy demo surfaces keep their chrome.
+const achatStyle = document.createElement('style');
+achatStyle.setAttribute('data-achat', '');
+achatStyle.textContent = ACHAT_STYLES;
+document.head.appendChild(achatStyle);
+
+/** Validate a harness `theme` param against the closed §1.2 set (default indigo). */
+const ACHAT_THEMES: readonly VitrineThemeKey[] = ['laterite', 'danfani', 'indigo', 'foret'];
+function achatTheme(raw: string | null): VitrineThemeKey {
+  return raw && (ACHAT_THEMES as readonly string[]).includes(raw) ? (raw as VitrineThemeKey) : 'indigo';
+}
 
 const app = document.querySelector('#app');
 if (app) {
@@ -554,6 +563,10 @@ if (app) {
   const params = new URLSearchParams(window.location.search);
   const journeyScreen = params.get('demo-journey');
   const skeletonScreen = params.get('demo-skeleton');
+  // PARCOURS D'ACHAT harness (like ?demo-journey): drives any S1–S7 screen/state
+  // under any of the four habillages. `?demo-achat=<ecran>&theme=&pid=&etat=&vitesse=&revealed=`.
+  const achatDemo = params.get('demo-achat');
+  const ACHAT_ECRANS: readonly AchatEcran[] = ['produit', 'recap', 'localisation', 'livraison', 'confirmation', 'suivi', 'protections'];
 
   // VITRINE (redesign — HANDOFF §5). Reached by the canon /v/{slug} path
   // (restored by the 404.html SPA-fallback before boot); the ?demo-vitrine*
@@ -601,25 +614,51 @@ if (app) {
       } catch {
         /* storage unavailable — arrival is best-effort */
       }
-      // The signed product page rides the journey spine (§6.2.2): her storefront
-      // is resolved from the slug, so C-ENT1/C-ENT2 (and C-ENT4 on confirmation)
-      // are present — she can reach the full vitrine from the offer. `?pid=`
-      // swaps in THAT product's signed facts (price/stock); no pid = the default
-      // offer. Out-of-stock resolves too and lands on the épuisé page (C-ENT3).
+      // THE SIGNED OFFER — the pixel-for-pixel PARCOURS D'ACHAT S1 (produit),
+      // rendered in HER habillage (§0 loi 3: the shop's theme; Aïcha = laterite).
+      // `?pid=` selects the offered product (robe default · sac épuisé · foulard
+      // sans-voix); épuisé/sans-voix derive from the seed. The « Voir la boutique »
+      // links navigate to her full vitrine at the canon `/v/{slug}` (base-aware),
+      // the FROZEN attribution seam — the arrival was locked to her just above.
       const main = document.createElement('main');
-      createJourney(main, {
-        screen: 'produit',
-        depuisVitrine: { slug: signedSlug, pid: params.get('pid') ?? '' },
-      });
-      // C-ENT entries navigate to her full storefront at the canon `/v/{slug}` —
-      // base-aware (deploy sub-path safe), the SAME wiring as the journey branch
-      // below (identity re-recorded there).
-      main.addEventListener('click', (ev) => {
-        const ent = (ev.target as HTMLElement).closest('[data-action="vitrine"]');
-        if (ent) window.location.href = vitrineHref(window.location.pathname, ent.getAttribute('data-slug') ?? '');
+      const { produit, theme } = achatProduit(resolved.storefront, params.get('pid') ?? '');
+      createAchat(main, {
+        produit,
+        theme,
+        ecran: 'produit',
+        epuise: !produit.inStock,
+        sansVoix: produit.voiceDuree === undefined,
+        onVitrine: (slug) => {
+          window.location.href = vitrineHref(window.location.pathname, slug);
+        },
       });
       app.append(main);
     }
+  } else if (achatDemo && (ACHAT_ECRANS as readonly string[]).includes(achatDemo)) {
+    // The PARCOURS D'ACHAT harness — every screen/state × the four habillages,
+    // reachable and gate-lockable (the shared link boots at root under preview).
+    const pid = params.get('pid') ?? 'robe';
+    const theme = achatTheme(params.get('theme'));
+    // Resolve the demo storefront from the port (no inline shop name in the
+    // shell), then override its theme with the harness param to drive all four.
+    const sf = demoStorefrontPort('default').resolve('aicha-4821')?.storefront;
+    const { produit } = achatProduit({ name: sf?.name ?? '', slug: sf?.slug ?? 'aicha-4821', theme }, pid);
+    const etatRaw = params.get('etat');
+    const main = document.createElement('main');
+    createAchat(main, {
+      produit,
+      theme,
+      ecran: achatDemo as AchatEcran,
+      epuise: !produit.inStock,
+      sansVoix: produit.voiceDuree === undefined,
+      etat: etatRaw === 'loading' || etatRaw === 'error' ? etatRaw : 'ready',
+      vitesse: params.get('vitesse') === 'express' ? 'express' : 'standard',
+      revealed: params.get('revealed') === '1',
+      onVitrine: (slug) => {
+        window.location.href = vitrineHref(window.location.pathname, slug);
+      },
+    });
+    app.append(main);
   } else if (vitrineSlug) {
     const VIT_ETATS: readonly VitrineEtat[] = ['loading', 'ready', 'empty', 'offline', 'invalid'];
     const etatParam = params.get('demo-vitrine-etat');
@@ -651,11 +690,7 @@ if (app) {
     app.append(main);
   } else if (skeletonScreen === 'produit') {
     // WO-5.3 — the C1 skeleton surface (« La vitesse comme luxe »), exact-box.
-    // Skinned like the page it precedes; pre-resolution the theme is the §1.2
-    // default (the vitrine's own skeleton behaves the same before resolve).
     const main = document.createElement('main');
-    main.classList.add('fp-screen');
-    applyTheme(main, DEFAULT_THEME);
     const section = document.createElement('div');
     section.className = 'journey-screen';
     section.innerHTML = renderProductSkeleton();
@@ -680,12 +715,8 @@ if (app) {
       const brand = document.createElement('h1');
       brand.textContent = t('app.title');
       header.appendChild(brand);
-      // The E2 harness mounts the order/checkout views bare (no journey, no
-      // reseller context) — they share the skinned chrome under the §1.2
-      // default habillage; the header above stays Grand Teint (out of scope).
+      // The E2 harness mounts the order/checkout views bare (Grand Teint legacy).
       const main = document.createElement('main');
-      main.classList.add('fp-screen');
-      applyTheme(main, DEFAULT_THEME);
       if (demoState && (DEMO_STATES as readonly string[]).includes(demoState)) {
         const section = document.createElement('div');
         section.innerHTML = renderOrderView({
