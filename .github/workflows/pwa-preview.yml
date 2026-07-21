@@ -46,31 +46,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Payload budget gate on THE deploy build (< 300 KB compressed, PERF-BUDGETS)
         run: node scripts/gates/pwa-payload-budget.mjs
-      - name: Root lands on the walkable journey (deploy artifact only — local behavior untouched)
-        # The redirect target string is sourced from the buyer-pwa catalog
-        # (apercu.redirect) — no user-facing French is authored in this
-        # workflow; the JS-rendered app (which the redirect reaches in <1 s)
-        # carries all real copy under copy-lint. The <noscript>/no-refresh
-        # fallback link reuses that one catalog string.
-        run: |
-          cd apps/buyer-pwa
-          LINK="$(node -e "const c=require('./i18n/catalog.json');process.stdout.write((c.find(e=>e.key==='apercu.redirect')||{}).fr||'')")"
-          cd dist
-          cp index.html app.html
-          cat > index.html <<HTML
-          <!doctype html>
-          <html lang="fr">
-            <head>
-              <meta charset="UTF-8" />
-              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-              <meta http-equiv="refresh" content="0; url=./app.html?demo-journey=produit" />
-              <title>Shop+</title>
-            </head>
-            <body>
-              <a href="./app.html?demo-journey=produit">${LINK}</a>
-            </body>
-          </html>
-          HTML
+      # BUG 2 — the deploy ships dist AS-IS. The old redirect-wrapper (a fresh
+      # index.html that meta-refreshed to app.html) CLOBBERED the SPA restore:
+      # the 404.html sends every /v/ and /s/ deep link to `/shop-plus/?/…`,
+      # which serves index.html — but the wrapper discarded that restore query
+      # and forced its own landing, so no deep link ever restored. Deploying the
+      # real index.html (the app, with the restore script) is what makes the
+      # storefront links boot. The deployed root is the app's real root (S3
+      # DÉCOUVERTE); a demo landing, if wanted, belongs in the app's routing,
+      # never a wrapper that eats the restore.
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/buyer-pwa/dist

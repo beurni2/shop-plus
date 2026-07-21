@@ -12,6 +12,17 @@
       // /v/{slug}) — never a query-string link. No-op on normal loads.
       (function (l) {
         if (l.search[1] === '/') {
+          // BUG 2 fix — PIN the document base to the app root BEFORE rewriting the
+          // URL. The restore replaceState moves location to the deep /v/{slug}
+          // path; with vite's relative base ('./') that would re-root the module
+          // script + assets at `<deep>/assets/*` and 404 them, so the app never
+          // boots on the real Pages deploy (beurni2.github.io/shop-plus/). Here
+          // l.pathname is the project root (e.g. /shop-plus/); a <base> element
+          // pins baseURI to it, so './assets/*' always resolve to the app root
+          // regardless of the restored path. No-op on normal loads (no `?/`).
+          var b = document.createElement('base');
+          b.href = l.pathname;
+          document.head.insertBefore(b, document.head.firstChild);
           var decoded = l.search
             .slice(1)
             .split('&')
