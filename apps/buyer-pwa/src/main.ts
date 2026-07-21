@@ -13,15 +13,13 @@ import {
   landmark,
 } from '@platform/ui-tokens/legacy';
 import { t } from './i18n';
-import { renderOrderView, type OrderViewModel } from './order-view';
-import { renderCheckoutOptions } from './checkout-view';
-import { renderProductSkeleton } from './product-view';
 import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, vitrineHref } from './vitrine-link';
 import { demoStorefrontPort } from './vitrine/profile';
 import { mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { ENT_STYLES } from './vitrine/entries';
 import { createAchat, type AchatEcran } from './achat/flow';
-import { achatProduit } from './achat/seed';
+import { achatProduit, achatProduitReel } from './achat/seed';
+import { seedProduct } from './vitrine/catalog';
 import { ACHAT_STYLES } from './achat/styles';
 import type { VitrineThemeKey } from './vitrine/themes';
 // The Faso Premium face substrate (six @font-face, WO-FP STEP 0) — injected as
@@ -29,7 +27,6 @@ import type { VitrineThemeKey } from './vitrine/themes';
 // under base './' at / and /shop-plus/).
 import fontsCss from './fonts.css?raw';
 import { renderBoutiques, type BoutiqueState } from './boutiques-view';
-import { createJourney, JOURNEY_SCREENS, type JourneyScreen } from './journey';
 
 /**
  * The buyer PWA shell, rebuilt on GRAND TEINT (WO-5.3). SP0.1 discovery shell
@@ -561,9 +558,7 @@ if (app) {
   app.append(ribbon);
 
   const params = new URLSearchParams(window.location.search);
-  const journeyScreen = params.get('demo-journey');
-  const skeletonScreen = params.get('demo-skeleton');
-  // PARCOURS D'ACHAT harness (like ?demo-journey): drives any S1–S7 screen/state
+  // PARCOURS D'ACHAT harness: drives any S1–S7 screen/state
   // under any of the four habillages. `?demo-achat=<ecran>&theme=&pid=&etat=&vitesse=&revealed=`.
   const achatDemo = params.get('demo-achat');
   const ACHAT_ECRANS: readonly AchatEcran[] = ['produit', 'recap', 'localisation', 'livraison', 'confirmation', 'suivi', 'protections'];
@@ -616,23 +611,33 @@ if (app) {
       }
       // THE SIGNED OFFER — the pixel-for-pixel PARCOURS D'ACHAT S1 (produit),
       // rendered in HER habillage (§0 loi 3: the shop's theme; Aïcha = laterite).
-      // `?pid=` selects the offered product (robe default · sac épuisé · foulard
-      // sans-voix); épuisé/sans-voix derive from the seed. The « Voir la boutique »
-      // links navigate to her full vitrine at the canon `/v/{slug}` (base-aware),
-      // the FROZEN attribution seam — the arrival was locked to her just above.
+      // BUG 3 fix: `?pid=` resolves against HER REAL vitrine catalog (seedProduct,
+      // the same resolution the vitrine uses), so a shared product opens as
+      // ITSELF — never the demo robe. No pid → her first curated item. épuisé /
+      // sans-voix derive from the real product + its real voice note. The « Voir
+      // la boutique » links navigate to her full vitrine at the canon `/v/{slug}`
+      // (base-aware), the FROZEN attribution seam — arrival locked to her above.
+      const defaultPid = resolved.storefront.curatedItems[0] ?? 'p1';
+      const pid = params.get('pid') || defaultPid;
+      const product = seedProduct(pid) ?? seedProduct(defaultPid);
       const main = document.createElement('main');
-      const { produit, theme } = achatProduit(resolved.storefront, params.get('pid') ?? '');
-      createAchat(main, {
-        produit,
-        theme,
-        ecran: 'produit',
-        epuise: !produit.inStock,
-        sansVoix: produit.voiceDuree === undefined,
-        onVitrine: (slug) => {
-          window.location.href = vitrineHref(window.location.pathname, slug);
-        },
-      });
-      app.append(main);
+      if (!product) {
+        // The storefront resolved but its catalog is empty — honest not-found.
+        mountVitrine(app as HTMLElement, signedSlug);
+      } else {
+        const { produit, theme } = achatProduitReel(resolved.storefront, product, resolved.notes[product.pid]);
+        createAchat(main, {
+          produit,
+          theme,
+          ecran: 'produit',
+          epuise: !produit.inStock,
+          sansVoix: produit.voiceDuree === undefined,
+          onVitrine: (slug) => {
+            window.location.href = vitrineHref(window.location.pathname, slug);
+          },
+        });
+        app.append(main);
+      }
     }
   } else if (achatDemo && (ACHAT_ECRANS as readonly string[]).includes(achatDemo)) {
     // The PARCOURS D'ACHAT harness — every screen/state × the four habillages,
@@ -669,95 +674,25 @@ if (app) {
       fromProduct: params.get('demo-vitrine-depuis') === 'produit',
       fige: params.has('demo-vitrine-fige'),
     });
-  } else if (journeyScreen && (JOURNEY_SCREENS as readonly string[]).includes(journeyScreen)) {
-    // WO-4.4 — the walkable journey owns the whole viewport (5-second test).
-    const main = document.createElement('main');
-    const depuisSlug = params.get('depuis-vitrine');
-    createJourney(main, {
-      screen: journeyScreen as JourneyScreen,
-      trackingEtat: params.get('etat') ?? undefined,
-      voix: params.get('voix') ?? undefined,
-      depuisVitrine: depuisSlug ? { slug: depuisSlug, pid: params.get('pid') ?? '' } : undefined,
-      stockEpuise: params.get('stock') === 'epuise',
-    });
-    // The C-ENT entries (E1/E2/E3) navigate to the vitrine under the SAME
-    // attribution — base-aware (deploy sub-path safe); the arrival was recorded on
-    // vitrine land, and the /v/ path re-records identity-scope (last-touch A8).
-    main.addEventListener('click', (ev) => {
-      const ent = (ev.target as HTMLElement).closest('[data-action="vitrine"]');
-      if (ent) window.location.href = vitrineHref(window.location.pathname, ent.getAttribute('data-slug') ?? '');
-    });
-    app.append(main);
-  } else if (skeletonScreen === 'produit') {
-    // WO-5.3 — the C1 skeleton surface (« La vitesse comme luxe »), exact-box.
-    const main = document.createElement('main');
-    const section = document.createElement('div');
-    section.className = 'journey-screen';
-    section.innerHTML = renderProductSkeleton();
-    main.append(section);
-    app.append(main);
   } else {
-    // E2 order-view demo surface (no backend at E2): the Playwright harness
-    // drives ?demo-order=<state> to exercise the honest failure states.
-    const demoState = params.get('demo-order');
-    const DEMO_STATES: ReadonlyArray<OrderViewModel['state']> = [
-      'payment_failed', 'cancelled', 'confirmed', 'paid_cancel_refused',
-      'door_pending', 'door_paid',
+    // WO-7.2a — S3 DÉCOUVERTE is the root (« root » entry, founder-ruled) and
+    // the /boutiques path. The store directory owns the screen (its own
+    // « LES BOUTIQUES » title — no separate brand bar, per the mockup). The
+    // ?demo-boutiques=<state> harness drives the six states for the gallery.
+    // (The legacy Grand Teint buyer demo — ?demo-journey / ?demo-skeleton /
+    // ?demo-order / ?demo-checkout — is retired; the pixel PARCOURS D'ACHAT is
+    // the buyer purchase surface now, reached via /s/{slug} and ?demo-achat=.)
+    const BQ_STATES: readonly BoutiqueState[] = [
+      'default', 'skeleton', 'results', 'empty', 'offline', 'error',
     ];
-    const demoCheckout = params.get('demo-checkout');
-    const isE2Harness =
-      (demoState && (DEMO_STATES as readonly string[]).includes(demoState)) ||
-      demoCheckout === 'available' ||
-      demoCheckout === 'unavailable';
-
-    if (isE2Harness) {
-      const header = document.createElement('header');
-      const brand = document.createElement('h1');
-      brand.textContent = t('app.title');
-      header.appendChild(brand);
-      // The E2 harness mounts the order/checkout views bare (Grand Teint legacy).
-      const main = document.createElement('main');
-      if (demoState && (DEMO_STATES as readonly string[]).includes(demoState)) {
-        const section = document.createElement('div');
-        section.innerHTML = renderOrderView({
-          state: demoState as OrderViewModel['state'],
-          buyerTotalFcfa: 12_500,
-          amountDueAtDeliveryFcfa: 11_500, // §5.4 baseline under Option B
-        });
-        main.append(section);
-      }
-      // WO-2.5: two-option checkout demo (§6.1) — amounts are the §5.4 baseline
-      // split written by the pinned waterfall (A: 12,500/0 · B: 1,000/11,500).
-      if (demoCheckout === 'available' || demoCheckout === 'unavailable') {
-        const section = document.createElement('div');
-        section.innerHTML = renderCheckoutOptions({
-          buyerTotalFcfa: 12_500,
-          optionA: { payNowFcfa: 12_500, dueAtDoorFcfa: 0 },
-          optionB:
-            demoCheckout === 'available'
-              ? { available: true, payNowFcfa: 1_000, dueAtDoorFcfa: 11_500 }
-              : { available: false },
-        });
-        main.append(section);
-      }
-      app.append(header, main);
-    } else {
-      // WO-7.2a — S3 DÉCOUVERTE is the root (« root » entry, founder-ruled) and
-      // the /boutiques path. The store directory owns the screen (its own
-      // « LES BOUTIQUES » title — no separate brand bar, per the mockup). The
-      // ?demo-boutiques=<state> harness drives the six states for the gallery.
-      const BQ_STATES: readonly BoutiqueState[] = [
-        'default', 'skeleton', 'results', 'empty', 'offline', 'error',
-      ];
-      const demoBoutiques = params.get('demo-boutiques');
-      const state: BoutiqueState =
-        demoBoutiques && (BQ_STATES as readonly string[]).includes(demoBoutiques)
-          ? (demoBoutiques as BoutiqueState)
-          : 'default';
-      const query = params.get('q') ?? (state === 'results' || state === 'empty' ? (state === 'empty' ? 'bazin' : 'rood') : '');
-      const main = document.createElement('main');
-      main.innerHTML = renderBoutiques({ state, query });
-      app.append(main);
-    }
+    const demoBoutiques = params.get('demo-boutiques');
+    const state: BoutiqueState =
+      demoBoutiques && (BQ_STATES as readonly string[]).includes(demoBoutiques)
+        ? (demoBoutiques as BoutiqueState)
+        : 'default';
+    const query = params.get('q') ?? (state === 'results' || state === 'empty' ? (state === 'empty' ? 'bazin' : 'rood') : '');
+    const main = document.createElement('main');
+    main.innerHTML = renderBoutiques({ state, query });
+    app.append(main);
   }
 }

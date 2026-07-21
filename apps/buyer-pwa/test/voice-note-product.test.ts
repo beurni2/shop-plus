@@ -8,7 +8,6 @@ import {
 import type { ProductVoiceNote } from '../src/vitrine/profile';
 import { demoStorefrontPort } from '../src/vitrine/profile';
 import { renderVitrineReady } from '../src/vitrine/render';
-import { renderProductPage } from '../src/product-view';
 
 /**
  * PER-PRODUCT VOICE NOTE (buyer side). The founder's rules, as assertions:
@@ -102,22 +101,3 @@ describe('integration — the chip appears on a noted tile, never on a note-less
   });
 });
 
-describe('integration — the product page shows the player only with a note', () => {
-  it('renders the player when a ready voice rides the model, nothing without', () => {
-    const withVoice = renderProductPage({
-      productName: 'Robe brodée bogolan', resellerName: 'Chez Aïcha Mode', priceFcfa: 11_500, inStock: true, voice: READY,
-    });
-    expect(withVoice).toContain('voix-produit-play');
-    const without = renderProductPage({
-      productName: 'Robe brodée bogolan', resellerName: 'Chez Aïcha Mode', priceFcfa: 11_500, inStock: true,
-    });
-    expect(without).not.toContain('voix-produit-play');
-  });
-
-  it('SP-I03 stays intact — the voice affordance leaks no supplier / commission / net', () => {
-    const html = renderProductPage({
-      productName: 'Robe brodée bogolan', resellerName: 'Chez Aïcha Mode', priceFcfa: 11_500, inStock: true, voice: READY,
-    });
-    expect(html.toLowerCase()).not.toMatch(/fournisseur|supplier|commission|marge|markup|sellerbase|resellernet/);
-  });
-});

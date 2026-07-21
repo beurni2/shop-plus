@@ -14,7 +14,7 @@
  */
 
 import { t } from '../i18n';
-import { recordVitrineArrival } from '../vitrine-link';
+import { recordVitrineArrival, signedHref } from '../vitrine-link';
 import { demoStorefrontPort, type StorefrontProfilePort } from './profile';
 import {
   renderVitrineEmpty,
@@ -126,9 +126,11 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
     if (!target) return;
     const action = target.getAttribute('data-action');
     if (action === 'produit') {
-      // → the signed page of THAT product, same attribution (journey spine).
+      // → the signed offer of THAT product — the pixel PARCOURS D'ACHAT S1, in
+      // her habillage, pid resolving against her real catalog (base-aware, the
+      // same `/s/{slug}` route the reseller shares). Attribution already locked.
       const pid = target.getAttribute('data-pid') ?? '';
-      window.location.href = `?demo-journey=produit&depuis-vitrine=${encodeURIComponent(slug)}&pid=${encodeURIComponent(pid)}`;
+      window.location.href = signedHref(window.location.pathname, slug, pid);
     } else if (action === 'retour') {
       window.history.back();
     } else if (action === 'reessayer') {

@@ -62,6 +62,17 @@ export function vitrineHref(pathname: string, slug: string): string {
 }
 
 /**
+ * The base-aware `/s/{slug}?pid={pid}` SIGNED-OFFER URL — the vitrine tile-tap
+ * opens THAT product's pixel PARCOURS D'ACHAT S1. Reuses the ONE `/s/{slug}`
+ * route form the reseller shares (no second scheme); the pid resolves against
+ * her real catalog on land (BUG 3 fix). Base-aware so it lands via 404.html.
+ */
+export function signedHref(pathname: string, slug: string, pid: string): string {
+  const base = `${deployBaseFromPath(pathname)}/s/${slug}`;
+  return pid ? `${base}?pid=${encodeURIComponent(pid)}` : base;
+}
+
+/**
  * Parse a SIGNED PRODUCT slug from a `/s/{slug}` pathname — the reseller's
  * « the one she sends » link (§6.2.1 Arrival: it opens the offer and carries the
  * signed attribution). Same tolerance for the deployed base path as

@@ -10,6 +10,8 @@
 
 import type { AchatProduit } from './screens';
 import type { VitrineThemeKey } from '../vitrine/themes';
+import type { VitrineSeedProduct } from '../vitrine/catalog';
+import type { ProductVoiceNote } from '../vitrine/profile';
 
 /** Product-level fields (the storefront supplies name/prenom/slug/theme). */
 type SeedProduit = Omit<AchatProduit, 'shopName' | 'prenom' | 'slug'>;
@@ -51,3 +53,43 @@ export function achatProduit(
 }
 
 export { PRODUITS };
+
+/* ---------------------------------------------------------------- REAL -- */
+
+/** « 0:01 » from a note's durationMs (mm:ss). */
+function dureeLabel(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/**
+ * BUG 3 fix — a REAL signed link (`/s/{slug}?pid={pid}`) resolves the pid
+ * against the RESELLER'S ACTUAL vitrine catalog (`seedProduct`), NOT the
+ * 3-product demo seed. This maps that real product (name · HER price · art ·
+ * stock) plus its real voice note into the achat S1 renderer, so a shared
+ * product opens as ITSELF — the robe only appears when the robe is shared.
+ * The 3-product `achatProduit` above stays for the `?demo-achat=` harness only.
+ */
+export function achatProduitReel(
+  storefront: { name: string; slug: string; theme: VitrineThemeKey; zone: string },
+  product: VitrineSeedProduct,
+  note: ProductVoiceNote | undefined,
+): { produit: AchatProduit; theme: VitrineThemeKey } {
+  const prenom = storefront.name.replace(/^Chez\s+/i, '').split(' ')[0] ?? storefront.name;
+  const voiceDuree = note?.status === 'ready' ? dureeLabel(note.durationMs) : undefined;
+  return {
+    produit: {
+      shopName: storefront.name,
+      prenom,
+      slug: storefront.slug,
+      productName: product.name,
+      zone: storefront.zone,
+      priceFcfa: product.priceFcfa,
+      glyph: product.glyph,
+      photoGrad: `${product.art[0]},${product.art[1]}`,
+      inStock: product.inStock,
+      ...(voiceDuree !== undefined ? { voiceDuree } : {}),
+    },
+    theme: storefront.theme,
+  };
+}

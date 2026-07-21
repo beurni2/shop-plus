@@ -17,7 +17,7 @@ import { expect, test } from '@playwright/test';
 test('the Archivo @font-face resolves: woff2 responds 200 AND document.fonts.check passes (font-display:optional never ships system-font on a broken path)', async ({
   page,
 }) => {
-  await page.goto('/?demo-journey=produit', { waitUntil: 'load' });
+  await page.goto('/', { waitUntil: 'load' });
 
   // (1) the served path the @font-face resolves to (./fonts/… → /fonts/… under
   //     base:'./' at the root document) must actually deliver the font.

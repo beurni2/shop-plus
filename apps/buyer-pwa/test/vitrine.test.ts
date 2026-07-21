@@ -9,6 +9,7 @@ import {
   vitrineSlugFromPath,
   deployBaseFromPath,
   vitrineHref,
+  signedHref,
   recordVitrineArrival,
   readArrivals,
   resolveVitrineSlug,
@@ -75,6 +76,16 @@ describe('BUG 2 — outbound vitrine navigation is base-aware (deploy sub-path s
     // local root keeps the canon root form
     expect(vitrineHref('/', 'aicha-4821')).toBe('/v/aicha-4821');
     expect(vitrineHref('/s/aicha-4821', 'aicha-4821')).toBe('/v/aicha-4821');
+  });
+
+  it('signedHref opens THAT product as the base-aware /s/{slug}?pid= achat offer (the tile-tap target)', () => {
+    // the redesign vitrine tile-tap navigates here (replacing the retired
+    // ?demo-journey route): the real pid rides ?pid= and resolves against her
+    // catalog on land (BUG 3 fix), base-aware so Pages restores it via 404.html.
+    expect(signedHref('/shop-plus/v/aicha-4821', 'aicha-4821', 'p2')).toBe('/shop-plus/s/aicha-4821?pid=p2');
+    expect(signedHref('/', 'aicha-4821', 'p5')).toBe('/s/aicha-4821?pid=p5');
+    // no pid → the bare signed offer (her first curated product on land)
+    expect(signedHref('/shop-plus/', 'aicha-4821', '')).toBe('/shop-plus/s/aicha-4821');
   });
 });
 

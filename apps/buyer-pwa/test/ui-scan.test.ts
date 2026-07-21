@@ -1,7 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { TRACKING_STEPS } from '../src/tracking-view';
 
 /**
  * WO-4.4 — the zero-hardcode scan for the PWA visual layer (the DoD's
@@ -50,7 +49,7 @@ describe('SCAN: the visual layer rides the tokens', () => {
   });
 
   it('SVG presentation uses currentColor or token vars only', () => {
-    for (const f of ['icons.ts', 'audio-note.ts', 'product-view.ts']) {
+    for (const f of ['icons.ts']) {
       const src = read(f);
       const fills = [...src.matchAll(/(?:fill|stroke)="([^"]+)"/g)].map((m) => m[1]);
       for (const value of fills) {
@@ -88,13 +87,6 @@ describe('SCAN: every string the journey uses lives in the catalog', () => {
       expect(htmlText, `${f} carries inline accented French in markup text`).not.toMatch(
         />[^<>`]*[àâçéèêëîïôùûü][^<>`]*</,
       );
-    }
-    // dynamic families: the timeline steps and the voice reason keys
-    for (const step of TRACKING_STEPS) {
-      expect(keys.has(`suivi.etat.${step}`), `catalog missing suivi.etat.${step}`).toBe(true);
-    }
-    for (const reason of ['voix.micro_refuse', 'voix.indisponible']) {
-      expect(keys.has(reason), `catalog missing ${reason}`).toBe(true);
     }
   });
 });
