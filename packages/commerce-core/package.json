@@ -21,8 +21,8 @@
     "pretest": "pnpm bundle:worker"
   },
   "dependencies": {
-    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#be2199c95d27e6ae5f6c7381c12e18a9796d9800&path:packages/contracts",
-    "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#be2199c95d27e6ae5f6c7381c12e18a9796d9800&path:packages/kernel-types",
+    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#d7b27bb895667f751d522680282549f16335e631&path:packages/contracts",
+    "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#d7b27bb895667f751d522680282549f16335e631&path:packages/kernel-types",
     "@shop-plus/flags-client": "workspace:*"
   },
   "devDependencies": {

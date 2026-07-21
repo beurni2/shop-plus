@@ -1,7 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { computeWaterfall, type WaterfallInput, type WaterfallResult } from '@platform/contracts';
+import {
+  computeWaterfall,
+  makeReadModelSchema,
+  consumeReadModel,
+  SupplyProjectionSchema,
+  type WaterfallInput,
+  type WaterfallResult,
+} from '@platform/contracts';
+import { IDENTITY_LEAK } from '../src/read-model.js';
 import {
   MockSupplyProjectionSource,
   SUPPLY_PROJECTION_MAX_AGE_MS,
@@ -73,6 +81,62 @@ describe('consumeSupplyProjection — pull, parse, sweep, freshness', () => {
     expect(consumeSupplyProjection(src, 'pv_unknown', NOW).status).toBe('absent');
     const bad: { readProjection: () => unknown } = { readProjection: () => ({ nope: true }) };
     expect(consumeSupplyProjection(bad, 'pv_1', NOW).status).toBe('rejected');
+  });
+});
+
+describe('DRIFT-GUARD (canon verifier N2 carry-forward) — supply-consumer consumes the CANON read-model kit, enforced by CI', () => {
+  it('read-model.ts builds the canon envelope; consumer.ts consumes the canon kit and re-inlines nothing (source-bound)', () => {
+    const rmSrc = readFileSync(join(import.meta.dirname, '../src/read-model.ts'), 'utf8');
+    const consumerSrc = readFileSync(join(import.meta.dirname, '../src/consumer.ts'), 'utf8');
+    // the envelope is the canon kit's, applied to the canon value — not re-defined
+    expect(rmSrc).toMatch(/export const SupplyReadModelSchema = makeReadModelSchema\(SupplyProjectionSchema\)/);
+    expect(rmSrc).toMatch(/from ['"]@platform\/contracts['"]/);
+    // the consumer routes through the canon consume pipeline
+    expect(consumerSrc).toMatch(/import \{ consumeReadModel \} from ['"]@platform\/contracts['"]/);
+    expect(consumerSrc).toMatch(/\bconsumeReadModel\(raw, \{/);
+    // and it must NOT hand-roll the pipeline it delegated (no re-inlined envelope parse)
+    expect(consumerSrc).not.toMatch(/SupplyReadModelSchema\.safeParse/);
+  });
+
+  it('the local envelope IS the canon envelope — identical accept/reject across the battery', () => {
+    const canon = makeReadModelSchema(SupplyProjectionSchema);
+    const value = { productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4 };
+    const battery: unknown[] = [
+      { version: 2, asOf: minutesAgo(1), value }, // valid
+      { version: 2, asOf: minutesAgo(1), value: { ...value, supplierPhone: 'x' } }, // extra value key → strict reject
+      { version: 0, asOf: minutesAgo(1), value }, // version < 1
+      { version: 2, asOf: minutesAgo(1), value, extra: 1 }, // extra envelope key → strict reject
+      { nope: true },
+      null,
+    ];
+    for (const input of battery) {
+      expect(SupplyReadModelSchema.safeParse(input).success).toBe(canon.safeParse(input).success);
+    }
+  });
+
+  it('consumeSupplyProjection returns exactly the canon kit verdict on the same input (routes through it, no drift)', () => {
+    const sweep = (raw: unknown): boolean => {
+      const v = (raw as { value?: unknown } | null)?.value;
+      return v !== null && typeof v === 'object' && Object.keys(v).some((k) => IDENTITY_LEAK.test(k));
+    };
+    const value = { productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4 };
+    const cases: unknown[] = [
+      { version: 2, asOf: minutesAgo(5), value }, // fresh
+      { version: 1, asOf: minutesAgo(16), value }, // stale
+      { version: 2, asOf: minutesAgo(1), value: { ...value, supplierPhone: 'x' } }, // leak → rejected
+      { version: 2, asOf: minutesAgo(1), value: { nope: true } }, // envelope ok, value not contract → payload_not_contract_shaped
+      { nope: true }, // not_a_read_model
+      undefined, // absent
+    ];
+    for (const raw of cases) {
+      const consumerVerdict = consumeSupplyProjection({ readProjection: () => raw }, 'pv_1', NOW);
+      const kitVerdict = consumeReadModel(raw, { schema: makeReadModelSchema(SupplyProjectionSchema), maxAgeMs: SUPPLY_PROJECTION_MAX_AGE_MS, now: NOW, leakSweep: sweep });
+      // `fresh` maps value→projection; every other verdict is byte-identical to the kit's
+      const expected = kitVerdict.status === 'fresh'
+        ? { status: 'fresh', projection: kitVerdict.value, asOf: kitVerdict.asOf, version: kitVerdict.version }
+        : kitVerdict;
+      expect(consumerVerdict).toEqual(expected);
+    }
   });
 });
 

@@ -1,4 +1,4 @@
-import { IsoTimestampSchema, SupplyProjectionSchema, type SupplyProjection } from '@platform/contracts';
+import { makeReadModelSchema, SupplyProjectionSchema, type SupplyProjection } from '@platform/contracts';
 import { z } from 'zod';
 
 /**
@@ -24,14 +24,16 @@ export const SUPPLY_PROJECTION_MAX_AGE_MS = 15 * 60 * 1000; // founder ruling 20
  */
 export const IDENTITY_LEAK = /supplier[_-]?(id|name|phone|contact)|phone|whatsapp|pickup|adresse|address/i;
 
-/** The SW-1↔SW-2 read-model envelope: version + asOf + the canon value. */
-export const SupplyReadModelSchema = z
-  .object({
-    version: z.number().int().min(1),
-    asOf: IsoTimestampSchema,
-    value: SupplyProjectionSchema,
-  })
-  .strict();
+/**
+ * The SW-1↔SW-2 read-model envelope — now the CANON read-model kit's
+ * `makeReadModelSchema` (contracts v1.2.0), applied to the strict canon value.
+ * The kit was extracted VERBATIM from this exact hand-rolled schema (`{version,
+ * asOf, value}.strict()`, `version` int ≥ 1, `asOf` via `IsoTimestampSchema`), so
+ * the envelope is byte-equivalent — it is no longer redefined here, it is the one
+ * canon envelope. The freshness bound and the identity sweep above stay OUR policy
+ * (passed to the kit as params); the kit ships neither.
+ */
+export const SupplyReadModelSchema = makeReadModelSchema(SupplyProjectionSchema);
 export type SupplyReadModel = z.infer<typeof SupplyReadModelSchema>;
 
 export type { SupplyProjection };

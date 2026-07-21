@@ -216,13 +216,13 @@ log "gate: door-signal-requires-provider — NEGATIVE (locally-asserted door pay
 capture door-signal-negative fail node scripts/gates/door-signal-requires-provider.mjs gates/fixtures/negative/door-signal.local-assert.json
 
 log "gate: contracts drift-check — honest /docs copy vs pinned canon manifest (must pass)"
-capture drift-check-positive pass pnpm exec drift-check docs --pinned-version 1.1.0
+capture drift-check-positive pass pnpm exec drift-check docs --pinned-version 1.2.0
 
 log "gate: contracts drift-check — TAMPERED doc (must fail)"
 DRIFT_TMP="$(mktemp -d)"
 cp -r docs "$DRIFT_TMP/docs"
 printf '\nrogue edit — this consumer copy drifted from canon\n' >> "$DRIFT_TMP/docs/Shop-Plus-Build-Spec.md"
-capture drift-check-negative fail pnpm exec drift-check "$DRIFT_TMP/docs" --pinned-version 1.1.0
+capture drift-check-negative fail pnpm exec drift-check "$DRIFT_TMP/docs" --pinned-version 1.2.0
 rm -rf "$DRIFT_TMP"
 
 log "gate: PWA payload budget — fresh build, initial payload < 300 KB compressed (PERF-BUDGETS, WO-4.4 hard gate)"

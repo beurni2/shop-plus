@@ -23,8 +23,12 @@ onlyBuiltDependencies:
 # (canon v0.5.0; founder ruling: tags are unreliable, the release ref is
 # the commit).
 overrides:
-  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#be2199c95d27e6ae5f6c7381c12e18a9796d9800&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#be2199c95d27e6ae5f6c7381c12e18a9796d9800&path:packages/contracts"
+  # @platform/contracts + @platform/kernel-types re-pinned to canon v1.2.0
+  # (sha d7b27bb) — the read-model kit (makeReadModelSchema + consumeReadModel)
+  # that supply-consumer now consumes. contracts@1.2.0 hard-deps kernel-types@1.2.0,
+  # so the pair moves together; @platform/ui-tokens (no such dep) stays at be2199c9.
+  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#d7b27bb895667f751d522680282549f16335e631&path:packages/kernel-types"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#d7b27bb895667f751d522680282549f16335e631&path:packages/contracts"
   # @platform/ui-tokens is UNIFIED at canon v0.9.9 (1c98ad1, + Storefront aggregate fields WO-5.13) — WO-7.0/WO-7.2b/SP#001-A
   # killed the WO-5.3 per-app skew and re-pinned the whole workspace to the current
   # release in one bump. reseller-app runs its visual layer on the Grand Teint API

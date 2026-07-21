@@ -1,3 +1,4 @@
+import { consumeReadModel } from '@platform/contracts';
 import {
   IDENTITY_LEAK,
   SUPPLY_PROJECTION_MAX_AGE_MS,
@@ -36,9 +37,13 @@ function hasIdentityLeak(raw: unknown): boolean {
 }
 
 /**
- * Consume one pulled read-model into a verdict. The strict envelope+value schema
- * rejects any non-contract payload (a planted `supplierPhone` fails `.strict()`);
- * the explicit identity sweep is the second, named line of defence.
+ * Consume one pulled read-model into a verdict. The pipeline is now the CANON
+ * read-model kit (`consumeReadModel`, contracts v1.2.0), which reproduces the
+ * former hand-rolled steps VERBATIM: absent → identity sweep (refused closed,
+ * BEFORE parse) → strict envelope+value parse (classified `not_a_read_model` vs
+ * `payload_not_contract_shaped` by `hasEnvelope`) → freshness (strictly beyond the
+ * bound is stale, equality stays fresh). The freshness bound and the identity
+ * sweep are OUR policy, passed as params — the kit homogenises neither.
  */
 export function consumeSupplyProjection(
   port: SupplyProjectionPort,
@@ -46,25 +51,17 @@ export function consumeSupplyProjection(
   nowIso: string,
 ): SupplyVerdict {
   const raw = port.readProjection(productVersionId);
-  if (raw === undefined || raw === null) return { status: 'absent' };
-
-  // Identity sweep FIRST — an identity leak is refused closed, never merely dropped.
-  if (hasIdentityLeak(raw)) return { status: 'rejected', reason: 'identity_material_refused' };
-
-  const parsed = SupplyReadModelSchema.safeParse(raw);
-  if (!parsed.success) {
-    // distinguish "not a read-model envelope" from "value not the contract shape"
-    const hasEnvelope =
-      typeof raw === 'object' && raw !== null && 'version' in raw && 'asOf' in raw && 'value' in raw;
-    return { status: 'rejected', reason: hasEnvelope ? 'payload_not_contract_shaped' : 'not_a_read_model' };
-  }
-  const model: SupplyReadModel = parsed.data;
-
-  const ageMs = Date.parse(nowIso) - Date.parse(model.asOf);
-  if (ageMs > SUPPLY_PROJECTION_MAX_AGE_MS) {
-    return { status: 'stale', asOf: model.asOf, ageMs };
-  }
-  return { status: 'fresh', projection: model.value, asOf: model.asOf, version: model.version };
+  const verdict = consumeReadModel(raw, {
+    schema: SupplyReadModelSchema,
+    maxAgeMs: SUPPLY_PROJECTION_MAX_AGE_MS,
+    now: nowIso,
+    leakSweep: hasIdentityLeak,
+  });
+  // Map the kit verdict onto SupplyVerdict — structurally identical, except `fresh`
+  // names the parsed value `projection` (the SW-2 field name callers already read).
+  return verdict.status === 'fresh'
+    ? { status: 'fresh', projection: verdict.value, asOf: verdict.asOf, version: verdict.version }
+    : verdict;
 }
 
 /**
