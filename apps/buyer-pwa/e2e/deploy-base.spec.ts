@@ -59,3 +59,32 @@ test('the signed /shop-plus/s/{slug} deep link BOOTS the cliente C1 (same restor
   expect(new URL(page.url()).pathname).toBe('/shop-plus/s/aicha-4821');
   expect(failed, `assets 404'd during boot: ${failed.join(', ')}`).toEqual([]);
 });
+
+test('SHARE-IDENTITY — tapping a vitrine product opens THAT product on the buyer C1, name and price identical (founder, 2026-07-22)', async ({ page }) => {
+  // The founder's scenario end-to-end on the REAL deploy shape: open her
+  // vitrine, tap a product tile, ride the /s/{slug}?pid= link through the
+  // Pages 404→restore, and land on the C1 of the SAME product — same name,
+  // same signed price bytes. A different product opening here is the exact
+  // bug the strict-pid law forbids.
+  await page.goto(`${PAGES}/shop-plus/v/aicha-4821`, { waitUntil: 'load' });
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible({ timeout: 10_000 });
+
+  // pick the SECOND in-stock tile — deliberately NOT the featured/default
+  // product, so a silent curated-first fallback cannot pass this test.
+  const tile = page.locator('.vt-tile[data-action="produit"]').nth(1);
+  const tileName = (await tile.locator('.vt-tile-name v').innerText()).trim();
+  const tilePrice = (await tile.locator('.vt-tile-price v').innerText()).trim();
+  const tilePid = await tile.getAttribute('data-pid');
+  expect(tileName.length).toBeGreaterThan(0);
+  expect(tilePid).toBeTruthy();
+
+  await tile.click();
+  // the C1 of THAT product mounted, through the real restore path.
+  await expect(page.locator('main.cl-root [data-screen="C1"]')).toBeVisible({ timeout: 10_000 });
+  expect(new URL(page.url()).searchParams.get('pid')).toBe(tilePid);
+  await expect(page.locator('.cl-prodtitle')).toHaveText(tileName);
+  // the signed price is byte-identical to the tile's (both ride the ONE
+  // formatter) — textContent, so span boundaries add no layout newlines.
+  const band = await page.locator('[data-role="price-band"]').evaluate((el) => el.textContent ?? '');
+  expect(band).toContain(tilePrice);
+});
