@@ -113,9 +113,18 @@ const AICHA_TRUST: VitrineTrust = { deliveredCount: 16, rating: '4,8', reviewCou
  * nothing (no placeholder gap). Swapping in the real media backend replaces
  * these urls; the shape and the player never change.
  */
+// FOUNDER ORDER (2026-07-22): EVERY curated product carries a ready [DEMO]
+// note, so « La voix d'Aïcha » is present and playable on every shared C1 —
+// not just p1/p5. Same placeholder asset; the media backend swaps the url.
 const AICHA_VOICE_NOTES: ProductVoiceNotes = {
   p1: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
+  p2: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
+  p3: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
+  p4: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
   p5: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
+  p7: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
+  p8: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
+  k1: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
 };
 
 /** The DIRECT-landing signed product (no vitrine round trip) carries a demo note

@@ -32,6 +32,12 @@ export const CLIENTE_STYLES = `
        width on every phone; on wider screens a phone-shaped column centered
        on the pixel's desk background (the out-of-frame #EDE6D8). */
     width: 100%; max-width: 430px; margin: 0 auto;
+    /* SCALE-UP ×1.15 (founder, 2026-07-22 — « still small »): a UNIFORM zoom
+       of the whole flow — type, spacing, icons, photo, touch targets scale
+       together, layout reflows (unlike transform), text stays crisp. The
+       pixel handoff's px values remain the anatomy; this is the founder's
+       global magnification on top. */
+    zoom: 1.15;
   }
   /* Kill the legacy Grand Teint main{padding:16px} box around the flow — it
      shrank every screen ~32px below design (founder: « everything is looking
@@ -44,7 +50,13 @@ export const CLIENTE_STYLES = `
   /* The desk behind the column on wide screens (pixel out-of-frame bg). */
   body:has(.cl-root) { background: #EDE6D8; }
   .cl-root * { box-sizing: border-box; margin: 0; }
+  /* color:inherit — iOS Safari paints unstyled <button> text in its own
+     BLUE; the C4/C5 card titles and amounts must be the design INK
+     (founder screenshot, 2026-07-22). :where() keeps specificity at 0,0,1
+     so every explicitly-colored button (danger .cl-c7-report, .cl-door-bad)
+     still wins with its single class. */
   .cl-root button { font: inherit; cursor: pointer; }
+  :where(.cl-root) button { color: inherit; }
   .cl-root a { color: var(--vt-accent); text-decoration: none; }
   .cl-root a:hover { color: var(--vt-deep); text-decoration: underline; }
 

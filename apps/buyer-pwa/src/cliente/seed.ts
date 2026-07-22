@@ -20,6 +20,7 @@ import type { ClienteProduit, ClienteQuote } from './screens';
 import type { VitrineThemeKey } from '../vitrine/themes';
 import type { VitrineSeedProduct } from '../vitrine/catalog';
 import type { ProductVoiceNote } from '../vitrine/profile';
+import { DEMO_VOICE_URL } from '../vitrine/voice-asset';
 
 /** Séra's public fee card (§3.2 — the only two legs the buyer can choose). */
 const FRAIS_TODAY = 1000;
@@ -47,6 +48,7 @@ export const ROBE: ClienteProduit = {
   priceFcfa: 11_500,
   glyph: 'tissu',
   voiceDuree: '0:12',
+  voiceUrl: DEMO_VOICE_URL,
   inStock: true,
 };
 
@@ -75,6 +77,7 @@ export function clienteProduitReel(
 ): { produit: ClienteProduit; theme: VitrineThemeKey } {
   const prenom = storefront.name.replace(/^Chez\s+/i, '').split(' ')[0] ?? storefront.name;
   const voiceDuree = note?.status === 'ready' ? dureeLabel(note.durationMs) : undefined;
+  const voiceUrl = note?.status === 'ready' && note.url ? note.url : undefined;
   return {
     produit: {
       shopName: storefront.name,
@@ -86,6 +89,7 @@ export function clienteProduitReel(
       glyph: product.glyph,
       inStock: product.inStock,
       ...(voiceDuree !== undefined ? { voiceDuree } : {}),
+      ...(voiceUrl !== undefined ? { voiceUrl } : {}),
     },
     theme: storefront.theme,
   };

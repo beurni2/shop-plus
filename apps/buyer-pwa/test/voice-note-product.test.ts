@@ -8,6 +8,7 @@ import {
 import type { ProductVoiceNote } from '../src/vitrine/profile';
 import { demoStorefrontPort } from '../src/vitrine/profile';
 import { renderVitrineReady } from '../src/vitrine/render';
+import { seedProduct } from '../src/vitrine/catalog';
 
 /**
  * PER-PRODUCT VOICE NOTE (buyer side). The founder's rules, as assertions:
@@ -74,12 +75,16 @@ describe('renderVoiceChip — the tile affordance is a span (never a nested butt
   });
 });
 
-describe('the demo port carries ready notes for exactly p1 & p5, nothing else', () => {
-  it('p1 and p5 are ready; p2 has no note', () => {
+describe('the demo port carries a ready note for EVERY curated product (founder order 2026-07-22)', () => {
+  it('each pid in the storefront’s curatedItems resolves to a ready, playable note', () => {
     const r = demoStorefrontPort('customised').resolve('aicha-4821')!;
-    expect(r.notes['p1']?.status).toBe('ready');
-    expect(r.notes['p5']?.status).toBe('ready');
-    expect(r.notes['p2']).toBeUndefined();
+    // The founder retired the « exactly p1 & p5 » demo: « la voix d’Aïcha »
+    // rides every product she curated, so a shared link on ANY of them opens
+    // C1 with the player present.
+    for (const pid of r.storefront.curatedItems) {
+      expect(r.notes[pid]?.status, `${pid} must carry a ready note`).toBe('ready');
+      expect(isPlayable(r.notes[pid]), `${pid} note must be playable`).toBe(true);
+    }
   });
 
   it('the empty (day-1) variant carries no notes', () => {
@@ -89,12 +94,18 @@ describe('the demo port carries ready notes for exactly p1 & p5, nothing else', 
 });
 
 describe('integration — the chip appears on a noted tile, never on a note-less one', () => {
-  it('renderVitrineReady shows a voice chip for p1/p5 tiles and none elsewhere', () => {
+  it('renderVitrineReady shows a voice chip on every in-stock noted render, none when notes are absent', () => {
     const r = demoStorefrontPort('customised').resolve('aicha-4821')!;
     const html = renderVitrineReady(r.storefront, r.trust, { fromProduct: false }, r.notes);
-    // p1 & p5 tiles carry the play chip
     const chips = html.match(/data-action="voix-produit-play"/g) ?? [];
-    expect(chips.length).toBeGreaterThanOrEqual(2);
+    // A chip fires for every IN-STOCK render of a noted product: each in-stock
+    // featured tile (pinned « à la une ») PLUS each in-stock curated grid tile.
+    // An épuisé product carries a note but renders no chip (honesty §6), so we
+    // derive the expected count from the catalog's stock, never a magic number.
+    const inStock = (pid: string): boolean => seedProduct(pid)?.inStock === true;
+    const featuredChips = r.storefront.featuredItems.filter(inStock).length;
+    const gridChips = r.storefront.curatedItems.filter(inStock).length;
+    expect(chips.length).toBe(featuredChips + gridChips);
     // …but the same render with NO notes has zero chips (no gap, no phantom)
     const bare = renderVitrineReady(r.storefront, r.trust, { fromProduct: false }, {});
     expect(bare).not.toContain('voix-produit-play');
