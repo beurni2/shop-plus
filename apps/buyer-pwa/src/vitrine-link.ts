@@ -10,7 +10,7 @@ import { DEMO_STORES, demoDeliveredSaleEvents, demoStoreEvents } from './demo-st
  * card link is that suffix under the deployed base (so `/shop-plus/v/aicha-4821`
  * in project-page hosting). The vitrine is reached by that path; a
  * `?demo-vitrine=<slug>` param is a LOCAL/GATE harness only (like
- * `?demo-journey`), never the shared link.
+ * the retired Grand Teint demo params), never the shared link.
  */
 
 /** The canon identity link suffix for a reseller short code: `/v/{slug}`. */

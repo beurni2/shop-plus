@@ -14,7 +14,7 @@ import { DEMO_KIT } from '../src/demo.js';
 const COPY: CardCopy = {
   productName: DEMO_KIT.productName,
   prixTag: 'PRIX',
-  priceLabel: '11 500 F',
+  priceLabel: `11${'\u202f'}500${'\u202f'}FCFA`,
   deliveryBadge: 'LIVRÉ PAR SÉRA · PAIEMENT PROTÉGÉ',
   codeLine: `CODE : ${DEMO_KIT.shortCode}`,
   bioLine: 'lien dans ma bio',
@@ -61,8 +61,8 @@ describe('the money law on the card — SON prix, one figure, never a rebate', (
     for (const f of FORMATS) {
       const ops = composeCard(input(f)).ops;
       const price = role(ops, 'price');
-      expect(price?.text).toBe('11 500 F');
-      expect(texts(ops).filter((x) => x.includes('11 500'))).toHaveLength(1);
+      expect(price?.text).toBe(`11${'\u202f'}500${'\u202f'}FCFA`);
+      expect(texts(ops).filter((x) => x.includes(`11${'\u202f'}500`))).toHaveLength(1);
       for (const s of texts(ops)) {
         expect(s.toLowerCase()).not.toMatch(/à partir de|gross|barré|au lieu de|-\d+%/);
       }

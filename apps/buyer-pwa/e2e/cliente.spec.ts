@@ -51,6 +51,7 @@ test('every C1–C9 screen and state mounts (reachability), with zero economics 
     ['C1&stock=out', 'C1'],
     ['C1&voix=0', 'C1'],
     ['C1&etat=loading', 'squelette'],
+    ['C2', 'C2'],
     ['C3', 'C3'],
     ['C3&micro=refuse', 'C3'],
     ['C4', 'C4'],
@@ -73,6 +74,24 @@ test('every C1–C9 screen and state mounts (reachability), with zero economics 
   }
 });
 
+test('SCREEN-FIT — every screen/state fills a 360px phone with ZERO horizontal overflow (founder, 2026-07-22)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  const cases = ['C1', 'C1&stock=out', 'C2', 'C3', 'C4', 'C5', 'C5&b=indisponible', 'C6', 'C7', 'C8', 'C9', 'C9&revealed=1'];
+  for (const q of cases) {
+    await page.goto(`/?demo-cliente=${q}`);
+    await expect(page.locator('main.cl-root')).toBeVisible();
+    const w = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(w, `${q} overflows a 360px phone (scrollWidth ${w})`).toBeLessThanOrEqual(360);
+    // and the flow owns the full width — no legacy box around it.
+    const rootW = await page.locator('main.cl-root').evaluate((el) => el.getBoundingClientRect().width);
+    expect(rootW, `${q} — the flow does not fill the phone width`).toBe(360);
+  }
+  // the dead status spacer is gone in a browser tab (safe-area handles devices).
+  await page.goto('/?demo-cliente=C1');
+  const statusH = await page.locator('.cl-status').evaluate((el) => el.getBoundingClientRect().height);
+  expect(statusH).toBe(0);
+});
+
 test('the retired S1–S7 achat routes are UN-GENERATABLE (they fall to the directory)', async ({ page }) => {
   for (const q of ['produit', 'recap', 'localisation', 'livraison', 'confirmation', 'suivi', 'protections']) {
     await page.goto(`/?demo-achat=${q}`);
@@ -81,8 +100,9 @@ test('the retired S1–S7 achat routes are UN-GENERATABLE (they fall to the dire
     // the shell falls through to the S3 découverte root — never a dead screen.
     await expect(page.locator('.boutiques')).toBeVisible();
   }
-  // and an unknown C-screen is refused too (closed enum).
-  await page.goto('/?demo-cliente=C2');
+  // and an unknown screen id is refused too (closed enum — C2 is now legal,
+  // an S-era or invented id is not).
+  await page.goto('/?demo-cliente=S1');
   await expect(page.locator('.cl-root')).toHaveCount(0);
 });
 

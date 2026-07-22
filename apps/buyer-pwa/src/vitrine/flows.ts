@@ -31,7 +31,7 @@ import { wireVoicePlay } from './voice-player';
 export type VitrineEtat = 'loading' | 'ready' | 'empty' | 'offline' | 'invalid';
 
 export interface VitrineHarness {
-  /** Gate/audit-only overrides (like ?demo-journey) — never the shared link. */
+  /** Gate/audit-only overrides (harness levers) — never the shared link. */
   readonly etat?: VitrineEtat | undefined;
   readonly profil?: 'default' | 'customised' | 'empty' | undefined;
   readonly fromProduct?: boolean | undefined;

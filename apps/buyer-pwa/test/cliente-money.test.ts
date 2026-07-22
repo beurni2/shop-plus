@@ -44,24 +44,31 @@ describe('fmt — byte-exact NNBSP (U+202F, built from \\u202f)', () => {
   });
 });
 
-describe('source discipline — zero raw U+202F laundered into src/cliente', () => {
-  const dir = join(import.meta.dirname, '..', 'src', 'cliente');
-  for (const f of readdirSync(dir).filter((n) => n.endsWith('.ts'))) {
-    it(`${f} carries no raw U+202F byte`, () => {
-      const src = readFileSync(join(dir, f), 'utf8');
+describe('source discipline — zero raw U+202F laundered into ANY app source (PWA-CLEANUP-1 §3)', () => {
+  // Recursive: every .ts/.css under src/ + the i18n catalog. A raw byte gets
+  // laundered by editors; only the \\u202f escape survives review.
+  const srcRoot = join(import.meta.dirname, '..', 'src');
+  const walk = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(join(dir, e.name)) : /\.(ts|css)$/.test(e.name) ? [join(dir, e.name)] : [],
+    );
+  const files = [...walk(srcRoot), join(import.meta.dirname, '..', 'i18n', 'catalog.json')];
+  for (const f of files) {
+    it(`${f.slice(f.indexOf('src') >= 0 && f.includes('/src/') ? f.indexOf('/src/') + 1 : f.lastIndexOf('/') + 1)} carries no raw U+202F byte`, () => {
+      const src = readFileSync(f, 'utf8');
       const raw = [...src].filter((c) => c.codePointAt(0) === 0x202f).length;
       expect(raw, `${f} has a raw U+202F — use the \\u202f escape / fmt helpers`).toBe(0);
     });
   }
-  it('money.ts builds the NNBSP from the \\u202f escape and never touches Intl', () => {
-    const src = readFileSync(join(dir, 'money.ts'), 'utf8');
+  it('money.ts builds the NNBSP from the \\u202f escape', () => {
+    const src = readFileSync(join(srcRoot, 'cliente', 'money.ts'), 'utf8');
     expect(src).toContain("'\\u202f'");
-    expect(src, 'money.ts must never use Intl.NumberFormat (ICU byte drift)').not.toContain('Intl.NumberFormat(');
   });
-  it('no module in src/cliente uses Intl.NumberFormat', () => {
-    for (const f of readdirSync(dir).filter((n) => n.endsWith('.ts'))) {
-      const src = readFileSync(join(dir, f), 'utf8');
+  it('NO module anywhere in src/ uses ICU number formatting (Intl.NumberFormat OR toLocaleString — verifier finding: the same machinery, the same byte drift)', () => {
+    for (const f of walk(srcRoot)) {
+      const src = readFileSync(f, 'utf8');
       expect(src.includes('Intl.NumberFormat('), `${f} uses Intl.NumberFormat`).toBe(false);
+      expect(src.includes('.toLocaleString('), `${f} uses toLocaleString (ICU by another door)`).toBe(false);
     }
   });
 });

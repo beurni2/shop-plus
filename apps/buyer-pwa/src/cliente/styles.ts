@@ -28,14 +28,32 @@ export const CLIENTE_STYLES = `
     font-family: var(--clt); min-height: 100vh;
     display: flex; flex-direction: column;
     -webkit-font-smoothing: antialiased;
+    /* SCREEN-FIT (founder, 2026-07-22): the flow OWNS the viewport — full
+       width on every phone; on wider screens a phone-shaped column centered
+       on the pixel's desk background (the out-of-frame #EDE6D8). */
+    width: 100%; max-width: 430px; margin: 0 auto;
   }
+  /* Kill the legacy Grand Teint main{padding:16px} box around the flow — it
+     shrank every screen ~32px below design (founder: « everything is looking
+     small »). And the legacy « main > div » display:grid rule turned the
+     stage into a grid whose auto track floors at content min-content — THE
+     360px-overflow root cause: the track grew to 386px and every screen
+     stretched with it. The flow's own §1.4 paddings are the only chrome. */
+  main.cl-root { padding: 0; }
+  main.cl-root > div { display: block; }
+  /* The desk behind the column on wide screens (pixel out-of-frame bg). */
+  body:has(.cl-root) { background: #EDE6D8; }
   .cl-root * { box-sizing: border-box; margin: 0; }
   .cl-root button { font: inherit; cursor: pointer; }
   .cl-root a { color: var(--vt-accent); text-decoration: none; }
   .cl-root a:hover { color: var(--vt-deep); text-decoration: underline; }
 
-  /* Chrome — zone statut 54 + liseré tissé 6 partout (§1.4). */
-  .cl-status { height: 54px; flex: none; }
+  /* Chrome — liseré tissé 6 partout (§1.4). The pixel's « zone 54 » models
+     the PHONE STATUS BAR, which the frame provided in the prototype and the
+     OS provides on a real device — so here it is the safe-area inset (0 in a
+     browser tab, the real notch inset installed/standalone). 54px of dead
+     paper at the top was screen the buyer paid for (founder, 2026-07-22). */
+  .cl-status { height: env(safe-area-inset-top, 0px); flex: none; }
   .cl-lisere {
     height: 6px; flex: none;
     background: repeating-linear-gradient(90deg,
@@ -48,7 +66,10 @@ export const CLIENTE_STYLES = `
     background: #1C1710; color: #F6F0E4; padding: 9px 16px;
     font-size: 12px; font-weight: 600;
   }
-  .cl-stage { flex: 1; position: relative; }
+  /* min-width:0 — a column-flex item's stretched width is floored at its
+     content min-content (Blink); without this the STAGE itself grew past the
+     viewport on 360px phones and every screen stretched with it. */
+  .cl-stage { flex: 1; position: relative; min-width: 0; }
   .cl-screen { padding: 16px 20px 46px; }
   @media (prefers-reduced-motion: no-preference) {
     .cl-screen { animation: clIn .32s cubic-bezier(.2,.8,.2,1); }
@@ -79,7 +100,10 @@ export const CLIENTE_STYLES = `
   }
   .cl-idcol { flex: 1; min-width: 0; }
   .cl-shopname { font-family: var(--cld); font-weight: 800; font-size: 17px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cl-verirow { font-size: 12px; color: #6F6355; display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; }
+  .cl-verirow { font-size: 12px; color: #6F6355; display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; min-width: 0; }
+  .cl-verirow > * { min-width: 0; flex-shrink: 1; }
+  .cl-veri-txt { overflow: hidden; text-overflow: ellipsis; }
+  .cl-voir { flex: none; }
   .cl-veri-check { color: var(--vt-accent); display: inline-flex; flex: none; }
   .cl-dotsep { color: #D8CDBA; }
   .cl-voir { color: var(--vt-accent); font-weight: 700; cursor: pointer; border: none; background: transparent; padding: 0; font-size: 12px; }
@@ -264,7 +288,7 @@ export const CLIENTE_STYLES = `
   /* ══ C5 — récap montants + modes ══ */
   .cl-bill { margin-top: 14px; padding: 4px 17px; border-radius: 20px; border: 1px solid #EDE4D3; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,22,15,.04); }
   .cl-bill-row { display: flex; justify-content: space-between; gap: 10px; padding: 12px 0; border-bottom: 1px solid #F3EDDE; font-size: 13.5px; }
-  .cl-bill-row span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cl-bill-row span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .cl-bill-row b { font-feature-settings: 'tnum'; white-space: nowrap; }
   .cl-bill-liv { color: #6F6355; }
   .cl-bill-liv b { color: #1C1710; }
@@ -419,7 +443,7 @@ export const CLIENTE_STYLES = `
   /* ══ C2 — sheet protections ══ */
   .cl-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(24,18,11,.45); display: flex; align-items: flex-end; }
   @media (prefers-reduced-motion: no-preference) { .cl-scrim { animation: clFade .2s ease; } }
-  .cl-sheet { background: #FCF9F2; width: 100%; border-radius: 30px 30px 0 0; padding: 10px 22px 44px; max-height: 86%; overflow-y: auto; box-shadow: 0 -18px 50px rgba(24,18,11,.25); }
+  .cl-sheet { background: #FCF9F2; width: 100%; max-width: 430px; margin: 0 auto; border-radius: 30px 30px 0 0; padding: 10px 22px 44px; max-height: 86%; overflow-y: auto; box-shadow: 0 -18px 50px rgba(24,18,11,.25); }
   @media (prefers-reduced-motion: no-preference) { .cl-sheet { animation: clUp .34s cubic-bezier(.32,.72,.25,1); } }
   .cl-grabber { width: 40px; height: 5px; border-radius: 99px; background: #DDD2BC; margin: 6px auto 16px; }
   .cl-sheet-title { font-family: var(--cld); font-weight: 800; font-size: 20px; letter-spacing: -.01em; }

@@ -139,13 +139,13 @@
  },
  {
   "key": "checkout.option_b.summary",
-  "fr": "Vous payez la livraison maintenant. Le produit, {amount} FCFA, à la réception.",
+  "fr": "Vous payez la livraison maintenant. Le produit, {amount}\u202fFCFA, à la réception.",
   "register": "money",
   "screenClass": "checkout"
  },
  {
   "key": "checkout.option_b.body",
-  "fr": "Payez seulement les frais de livraison ({amount} FCFA) maintenant. À l'arrivée du livreur, vérifiez votre article, puis payez le montant du produit de manière sécurisée avant de le recevoir.",
+  "fr": "Payez seulement les frais de livraison ({amount}\u202fFCFA) maintenant. À l'arrivée du livreur, vérifiez votre article, puis payez le montant du produit de manière sécurisée avant de le recevoir.",
   "register": "money",
   "screenClass": "checkout"
  },
@@ -157,7 +157,7 @@
  },
  {
   "key": "checkout.replay",
-  "fr": "Vous payez {now} FCFA maintenant et {door} FCFA à la livraison — d'accord ?",
+  "fr": "Vous payez {now}\u202fFCFA maintenant et {door}\u202fFCFA à la livraison — d'accord ?",
   "register": "money",
   "screenClass": "checkout"
  },
@@ -223,7 +223,7 @@
  },
  {
   "key": "produit.acheter",
-  "fr": "Acheter — {amount} FCFA",
+  "fr": "Acheter — {amount}\u202fFCFA",
   "register": "money",
   "screenClass": "label"
  },
@@ -415,7 +415,7 @@
  },
  {
   "key": "livraison.choisir",
-  "fr": "Continuer — livraison {amount} FCFA",
+  "fr": "Continuer — livraison {amount}\u202fFCFA",
   "register": "money",
   "screenClass": "label"
  },
@@ -691,7 +691,7 @@
  },
  {
   "key": "vitrine.prix",
-  "fr": "Votre prix : {amount} FCFA",
+  "fr": "Votre prix : {amount}\u202fFCFA",
   "register": "money",
   "screenClass": "checkout"
  },

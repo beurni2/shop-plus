@@ -1,8 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { FCFA } from '../src/format';
-import { renderVitrine, type VitrineViewModel } from '../src/vitrine-view';
+import type { VitrineViewModel } from '../src/vitrine-view';
 import {
   identityLinkSuffix,
   identityLink,
@@ -89,27 +88,7 @@ describe('BUG 2 — outbound vitrine navigation is base-aware (deploy sub-path s
   });
 });
 
-describe('Part 6.1 — trust chrome renders BEFORE anything is asked', () => {
-  it('the trust block precedes the first product in source order', () => {
-    const html = renderVitrine(model);
-    const trustAt = html.indexOf('data-role="vitrine-trust"');
-    const firstProductAt = html.indexOf('data-role="vitrine-product"');
-    expect(trustAt).toBeGreaterThanOrEqual(0);
-    expect(firstProductAt).toBeGreaterThan(trustAt);
-    // « Livré par Séra » · « Paiement protégé » · the privacy line all present
-    expect(html).toContain('Livré par Séra');
-    expect(html).toContain('Paiement protégé');
-    expect(html).toContain('Votre numéro reste privé');
-  });
-});
-
 describe('SP-I03 — her prices only; no supplier identity, no commission, no split', () => {
-  it('the rendered vitrine carries HER prices and no banned economics', () => {
-    const html = renderVitrine(model);
-    // her price, formatted with the real fr-FR narrow-space separator (U+202 FCFA)
-    expect(html).toContain(`Votre prix : ${FCFA.format(11_500)} FCFA`);
-    expect(html).not.toMatch(/supplier|fournisseur|commission|marge|markup|gross|sellerBase|resellerNet|res_/i);
-  });
 
   it('the model type cannot even carry supplier/commission (structural)', () => {
     // @ts-expect-error — no supplier field exists on the product model
@@ -131,17 +110,6 @@ describe('SP-I03 — her prices only; no supplier identity, no commission, no sp
   });
 });
 
-describe('flows.md S2 — an out-of-stock product is honest (muted, non-tappable), never hidden', () => {
-  it('the épuisé product shows « Épuisé » and is NOT a link', () => {
-    const html = renderVitrine(model);
-    expect(html).toContain('Épuisé');
-    // the in-stock product is a tappable link into the existing journey…
-    expect(html).toMatch(/<a class="vitrine-product"[^>]*href="\?demo-journey=produit"/);
-    // …the épuisé one is a non-link muted card
-    expect(html).toMatch(/vitrine-product-epuise[^>]*aria-disabled="true"/);
-  });
-});
-
 describe('A8 — landing on the vitrine records an IDENTITY-scope arrival (last-touch)', () => {
   it('records scope=identity with no offerId, and readArrivals returns it', () => {
     const map = new Map<string, string>();
@@ -151,5 +119,23 @@ describe('A8 — landing on the vitrine records an IDENTITY-scope arrival (last-
     expect(arrival).toEqual({ resellerId: 'res_aicha', scope: 'identity', arrivedAt: '2026-07-13T00:00:00.000Z', correlationId: 'corr-1' });
     expect(arrival).not.toHaveProperty('offerId'); // identity scope forbids offerId
     expect(readArrivals(store)).toHaveLength(1);
+  });
+});
+
+describe('PWA-CLEANUP-1 §4 — the retired Grand Teint vitrine renderer is GONE and its route is un-generatable', () => {
+  it('no source under src/ can emit the retired ?demo-journey route', () => {
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.ts') || e.name.endsWith('.css') ? [join(dir, e.name)] : [],
+      );
+    for (const f of walk(join(import.meta.dirname, '..', 'src'))) {
+      const src = readFileSync(f, 'utf8');
+      expect(src.includes('demo-journey'), `${f} can still generate the retired ?demo-journey route`).toBe(false);
+    }
+  });
+  it('vitrine-view exports NO renderer any more — only the SP-I03 types + reputationText', async () => {
+    const mod = await import('../src/vitrine-view');
+    expect(Object.keys(mod).sort()).toEqual(['reputationText']);
+    expect('renderVitrine' in mod).toBe(false);
   });
 });

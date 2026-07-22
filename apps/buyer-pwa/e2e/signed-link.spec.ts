@@ -63,6 +63,16 @@ test('the signed link opens the offer — S1 mounts, arrival is locked to her, h
   expect(new URL(request.url()).pathname).toMatch(/\/v\/aicha-4821$/);
 });
 
+test('the signed link renders INDIGO — always, whatever her vitrine habillage (founder ruling 2026-07-22)', async ({ page }) => {
+  // Aïcha's vitrine is laterite; the buyer C1→C9 flow no longer inherits it.
+  await page.goto('/?demo-signed=aicha-4821');
+  await expect(page.locator('.cl-cta')).toHaveCSS('background-color', 'rgb(62, 75, 140)'); // indigo accent
+  const accent = await page
+    .locator('main.cl-root')
+    .evaluate((el) => getComputedStyle(el).getPropertyValue('--vt-accent').trim());
+  expect(accent).toBe('#3E4B8C');
+});
+
 test('out-of-stock — the signed link still resolves and lands on the épuisé offer', async ({ page }) => {
   // p3 (Sac cuir artisanal) is the real out-of-stock catalog product.
   await page.goto('/?demo-signed=aicha-4821&pid=p3');
@@ -103,6 +113,16 @@ test('a bare signed link (no pid) lands on her first real curated product', asyn
   await expect(page.locator('.cl-prodtitle')).toHaveText('Robe brodée bogolan');
   const amount = await page.locator('.cl-pb-hero').first().evaluate((el) => el.textContent);
   expect(amount).toBe(`11${NNBSP}500`);
+});
+
+test('an unresolvable ?pid falls to the honest not-found — never a silent product swap (PWA-CLEANUP-1)', async ({ page }) => {
+  // zz9 is in NOBODY'S catalog. The slug resolves (she exists) but the link
+  // names a product that does not — the honest invalid surface answers, and
+  // no other product is offered in its place.
+  await page.goto('/?demo-signed=aicha-4821&pid=zz9');
+  await expect(page.locator('[data-etat="invalid"]')).toBeVisible();
+  await expect(page.locator('[data-screen="C1"]')).toHaveCount(0);
+  await expect(page.locator('.cl-prodtitle')).toHaveCount(0);
 });
 
 test('unknown / expired slug — honest not-found, and it pays nobody (no arrival recorded)', async ({ page }) => {
