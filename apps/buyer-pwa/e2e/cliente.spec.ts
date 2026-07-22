@@ -254,8 +254,13 @@ test('hors ligne — the ink banner rides every screen; payNow lands on C6 hors-
 
 test('C3 — the five voice states + the gate (zone + repère/voix) drive the CTA', async ({ page }) => {
   await page.goto('/?demo-cliente=C3');
-  // jump() prefill fills zone+repère → CTA on; clear the repère → CTA off.
+  // pixel truth: C3 mounts EMPTY — no zone picked, no repère typed; the CTA
+  // sleeps until canC3 = zone && (repère || voix) turns true.
   const cta = page.locator('[data-action="continuer-c3"]');
+  await expect(cta).toBeDisabled();
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await expect(cta).toBeDisabled();
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
   await expect(cta).toBeEnabled();
   await page.locator('[data-role="repere"]').fill('');
   await expect(cta).toBeDisabled();

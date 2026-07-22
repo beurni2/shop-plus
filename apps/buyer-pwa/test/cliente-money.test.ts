@@ -128,6 +128,10 @@ describe('every rendered amount carries the money bytes; no bare F, no breakable
       expect(html, `${name} has a « FCFA » not preceded by U+202F`).not.toMatch(/(?<!\u202f)FCFA/);
       const text = visibleText(html);
       expect(text, `${name} groups an amount with a space/NBSP`).not.toMatch(/\d[\u0020\u00a0]\d{3}(?!\d)/);
+      // the bare-« F » assertion itself (verifier finding — a claim without a
+      // bite is failure mode 7): a digit followed by any spacing then a lone F
+      // (not FCFA) must never render.
+      expect(text, `${name} renders a bare « F » suffix`).not.toMatch(/\d[\u202f\u0020\u00a0]?F(?![A-Za-z])/);
     });
     it(`${name}: no purchase-side economics term reaches the buyer (§0)`, () => {
       const low = html.toLowerCase();

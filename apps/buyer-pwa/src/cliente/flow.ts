@@ -107,9 +107,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     leg2: (init.revealed ?? false) ? 'confirmed' : 'idle',
     reason: null,
   };
-  // Mounting mid-flow (harness startScreen / the real C1 entry): the same
-  // prefill the pixel `jump()` applies, so every screen lands coherent.
-  prefill(startScreen);
+  // No mount-time prefill — the pixel mounts startScreen on the RAW state and
+  // keeps mid-flow screens coherent with RENDER-TIME fallbacks (zone/repère on
+  // C4, today/B on C5·C6·C8). C4 therefore mounts with NO option selected and
+  // C3 mounts empty, exactly like the prototype.
 
   let t1: ReturnType<typeof setTimeout> | null = null;
   let t2: ReturnType<typeof setTimeout> | null = null;
@@ -136,9 +137,13 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     clearT();
     state.sheet = false;
     state.paying = 'idle';
+    // Pixel order (§3): prefill FIRST, the explicit extra LAST — so a jump's
+    // own resets (« Commander » → C3 vide · C4 → livraison non choisie) always
+    // win over the prefill. Inverting this leaked the demo zone/repère into
+    // the live buyer path (verifier finding, 2026-07-22).
+    prefill(screen);
     Object.assign(state, extra);
     state.screen = screen;
-    prefill(screen);
     render();
   }
 
@@ -166,9 +171,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
           voice: state.voice, recTime: recTime(), canContinue: canC3(),
         });
       case 'C4':
+        // Render-time fallbacks — the pixel's zoneUpper/repereRecap `||` pair,
+        // so a direct C4 mount shows a coherent récap without touching state.
         return renderC4(q, {
-          zone: state.zone ?? '',
-          repereRecap: state.repere + (state.indic ? ` · ${state.indic}` : ''),
+          zone: state.zone || 'Gounghin',
+          repereRecap: (state.repere || 'Face à la pharmacie du marché') + (state.indic ? ` · ${state.indic}` : ''),
           delivery: state.delivery,
         });
       case 'C5':
