@@ -612,8 +612,8 @@ if (app) {
         /* storage unavailable — arrival is best-effort */
       }
       // THE SIGNED OFFER — the pixel-for-pixel PWA CLIENTE C1 (Édition Indigo),
-      // rendered in HER habillage (the shop's theme; Aïcha = laterite; the
-      // themeless fallback is indigo — founder decree 2026-07-21). BUG 3 law:
+      // ALWAYS in indigo (founder ruling 2026-07-22 — the storefront theme no
+      // longer wins on the buyer flow; the vitrine keeps hers). BUG 3 law:
       // `?pid=` resolves against HER REAL vitrine catalog (seedProduct, the
       // same resolution the vitrine uses), so a shared product opens as ITSELF
       // — never the demo robe. No pid → her first curated item; an EXPLICIT
@@ -635,11 +635,15 @@ if (app) {
         // product: a wrong link says so instead of selling something else.
         mountVitrine(app as HTMLElement, signedSlug, { etat: 'invalid' });
       } else {
-        const { produit, theme } = clienteProduitReel(resolved.storefront, product, resolved.notes[product.pid]);
+        const { produit } = clienteProduitReel(resolved.storefront, product, resolved.notes[product.pid]);
+        // FOUNDER RULING (2026-07-22, supersedes the earlier theme seam): the
+        // buyer C1→C9 flow is ALWAYS INDIGO — the resolved storefront's theme
+        // no longer drives it. Her vitrine keeps her habillage; the harness
+        // `theme=` param stays as the §1.2 gate/audit lever only.
         createCliente(main, {
           produit,
           quote: composeQuote(produit.priceFcfa),
-          theme,
+          theme: 'indigo',
           ecran: 'C1',
           epuise: !produit.inStock,
           sansVoix: produit.voiceDuree === undefined,

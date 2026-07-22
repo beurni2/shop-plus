@@ -8,10 +8,11 @@
  *
  * `applyTheme` sets the habillage on the container ONCE (survives innerHTML
  * re-renders); every screen reads it through the stylesheet, so all four §1.2
- * habillages drive the flow the way the vitrine does. The fallback default is
- * INDIGO (founder decree 2026-07-21) — NOT the vitrine's laterite. A resolved
- * storefront's own theme still wins. (The canon `Storefront.theme` default →
- * indigo is a contracts change, flagged to the founder, NOT made here.)
+ * habillages drive the flow the way the vitrine does — as a GATE/AUDIT lever.
+ * FOUNDER RULING (2026-07-22): the buyer flow renders INDIGO ALWAYS on every
+ * real entry; main.ts passes 'indigo' on the signed path and the storefront
+ * theme no longer wins here. (The canon `Storefront.theme` default → indigo
+ * remains a contracts change, flagged, NOT made here.)
  *
  * « Le code de remise fait foi » — C9 reveals ONLY on `leg2:'confirmed'`:
  * mode A at « Tout est bon »; mode B after the operator confirms the rest

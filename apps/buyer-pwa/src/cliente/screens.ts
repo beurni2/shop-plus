@@ -148,7 +148,7 @@ export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: bool
     '<div class="cl-head">',
     `<div class="cl-avatar">${esc(m.prenom.charAt(0).toUpperCase())}</div>`,
     `<div class="cl-idcol"><div class="cl-shopname">${esc(m.shopName)}</div>`,
-    `<div class="cl-verirow">Vendeuse vérifiée <span class="cl-veri-check">${iconCheck(13, 2.6)}</span><span class="cl-dotsep">·</span><button class="cl-voir" data-action="voir-boutique" data-slug="${esc(m.slug)}">Voir la boutique ›</button></div></div>`,
+    `<div class="cl-verirow"><span class="cl-veri-txt">Vendeuse vérifiée</span> <span class="cl-veri-check">${iconCheck(13, 2.6)}</span><span class="cl-dotsep">·</span><button class="cl-voir" data-action="voir-boutique" data-slug="${esc(m.slug)}">Voir la boutique ›</button></div></div>`,
     `<button class="cl-shield" data-action="ouvrir-protections" aria-label="Vos protections">${iconShieldCheck(18, 1.9)}</button>`,
     '</div>',
     '<div class="cl-photo">',

@@ -63,6 +63,16 @@ test('the signed link opens the offer — S1 mounts, arrival is locked to her, h
   expect(new URL(request.url()).pathname).toMatch(/\/v\/aicha-4821$/);
 });
 
+test('the signed link renders INDIGO — always, whatever her vitrine habillage (founder ruling 2026-07-22)', async ({ page }) => {
+  // Aïcha's vitrine is laterite; the buyer C1→C9 flow no longer inherits it.
+  await page.goto('/?demo-signed=aicha-4821');
+  await expect(page.locator('.cl-cta')).toHaveCSS('background-color', 'rgb(62, 75, 140)'); // indigo accent
+  const accent = await page
+    .locator('main.cl-root')
+    .evaluate((el) => getComputedStyle(el).getPropertyValue('--vt-accent').trim());
+  expect(accent).toBe('#3E4B8C');
+});
+
 test('out-of-stock — the signed link still resolves and lands on the épuisé offer', async ({ page }) => {
   // p3 (Sac cuir artisanal) is the real out-of-stock catalog product.
   await page.goto('/?demo-signed=aicha-4821&pid=p3');
