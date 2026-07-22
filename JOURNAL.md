@@ -9,7 +9,7 @@ Format per entry:
 
 ---
 
-## 2026-07-22 · OZ1 — SHARE-IDENTITY lock (founder: « the same product must open ») · in-review (built + e2e green locally; CI dispatch pending; NO merge)
+## 2026-07-22 · OZ1 — SHARE-IDENTITY lock (founder: « the same product must open ») · done — MERGED at 035de5f (guarded merge: CI 29896002932 green at 14e9f7e · frozen diff empty · founder approval on record)
 - **Order (founder):** make sure sharing a product from the vitrine opens THE SAME product on the buyer PWA, never another one.
 - **Grounded — the chain holds by construction (all read, all merged at aa834c3):** every vitrine tile carries its own `data-pid` (`vitrine/render.ts` tile/featuredTile); a tap builds `signedHref` → `/s/{slug}?pid={that pid}` (`vitrine/flows.ts:128`) — the SAME route form the reseller shares (`signedProductShareUrl`, `qr/identity.ts:29`); the buyer side resolves the pid STRICTLY against her real catalog (PWA-CLEANUP-1 §1: `seedProduct(pid)`, no fallback) — the same product opens or the honest not-found; a swap is impossible.
 - **Existing locks:** signed-link.spec BUG 3 (p2 → « Pagne wax 6 yards » 20 500, p5 → « Coffret karité pur » 6 900, never the robe) · unresolvable pid → invalid surface · deploy-base `/shop-plus/s/…?pid=p2` boots the right product on the real Pages restore.
