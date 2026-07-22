@@ -105,6 +105,16 @@ test('a bare signed link (no pid) lands on her first real curated product', asyn
   expect(amount).toBe(`11${NNBSP}500`);
 });
 
+test('an unresolvable ?pid falls to the honest not-found — never a silent product swap (PWA-CLEANUP-1)', async ({ page }) => {
+  // zz9 is in NOBODY'S catalog. The slug resolves (she exists) but the link
+  // names a product that does not — the honest invalid surface answers, and
+  // no other product is offered in its place.
+  await page.goto('/?demo-signed=aicha-4821&pid=zz9');
+  await expect(page.locator('[data-etat="invalid"]')).toBeVisible();
+  await expect(page.locator('[data-screen="C1"]')).toHaveCount(0);
+  await expect(page.locator('.cl-prodtitle')).toHaveCount(0);
+});
+
 test('unknown / expired slug — honest not-found, and it pays nobody (no arrival recorded)', async ({ page }) => {
   await page.goto('/?demo-signed=inconnue-0000');
 

@@ -2,13 +2,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { FCFA } from '../src/format';
+import { fmtFCFA } from '../src/cliente/money';
 
 /**
  * WO-FP · STEP 0 — the MONEY-RENDER / cmap guard for the PWA (buyer) surface,
  * rebuilt on the new Faso Premium woff2 bytes.
  *
- * It consumes the REAL `FCFA` formatter (untouched) — the same one every buyer
+ * It consumes the REAL money formatter (cliente/money, untouched) — the same one every buyer
  * view uses — to produce the franc figures the product renders, decomposes them
  * to codepoints, and asserts every one (most sharply U+202F, the narrow no-break
  * space fr-FR emits between thousands) is covered by every shipped face. A woff2
@@ -27,9 +27,10 @@ const manifest = JSON.parse(
   faces: { file: string; family: string; weight: number; bytes: number; sha256: string; codepoints: number[] }[];
 };
 
-// The buyer view idiom: FCFA.format(n) then a space + ' F' (see product-view,
-// checkout-view). The guard consumes the same shape the screens render.
-const money = (n: number): string => `${FCFA.format(n)} F`;
+// The buyer money idiom is the ONE formatter (cliente/money): U+202F
+// thousands + U+202F before FCFA. The guard consumes the exact shape the
+// screens render, so the subset must cover the NNBSP and the FCFA letters.
+const money = (n: number): string => fmtFCFA(n);
 
 const moneyCodepoints = (): Set<number> => {
   const cps = new Set<number>();

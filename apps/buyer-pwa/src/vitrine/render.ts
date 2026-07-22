@@ -13,7 +13,8 @@
  */
 
 import { t, tf } from '../i18n';
-import { FCFA, esc } from '../format';
+import { esc } from '../format';
+import { fmtFCFA } from '../cliente/money';
 import { VITRINE_SEED, seedProduct, type VitrineSeedProduct } from './catalog';
 import type { Storefront, VitrineTrust, ProductVoiceNote, ProductVoiceNotes } from './profile';
 import { renderVoiceChip } from './voice-player';
@@ -31,9 +32,11 @@ import {
 } from './icons';
 import { VITRINE_THEMES } from './themes';
 
-/** « X FCFA » — fr-FR grouping (U+202F) + U+202F before FCFA. Never « F ». */
+/** « X\u202fFCFA » — the ONE formatter (cliente/money): U+202F thousands +
+ * U+202F before FCFA, built from the escaped constant — never Intl (ICU
+ * drift), never a bare « F », never a raw byte in source (PWA-CLEANUP-1 §2). */
 export function fmtFcfa(n: number): string {
-  return `${FCFA.format(n)} FCFA`;
+  return fmtFCFA(n);
 }
 
 const AVIS_FLOOR = 3; // §9.4 frozen: the review chip appears at ≥ 3 verified reviews

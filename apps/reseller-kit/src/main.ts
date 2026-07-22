@@ -8,7 +8,7 @@ import {
   motion,
 } from '@platform/ui-tokens/legacy';
 import { t, tf } from './i18n';
-import { FCFA } from './format';
+import { fmtFCFA } from './money';
 import { DEMO_KIT } from './demo';
 import { composeCard, OUTPUT, PREVIEW, type CardCopy, type Format, type Model } from './composeur';
 import { paint } from './paint';
@@ -124,7 +124,7 @@ function copy(): CardCopy {
   return {
     productName: DEMO_KIT.productName,
     prixTag: t('card.prix_label'),
-    priceLabel: `${FCFA.format(DEMO_KIT.priceFcfa)} F`,
+    priceLabel: fmtFCFA(DEMO_KIT.priceFcfa),
     deliveryBadge: t('card.livre_protege'),
     codeLine: tf('card.code', { code: DEMO_KIT.shortCode }),
     bioLine: t('card.bio'),

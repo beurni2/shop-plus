@@ -29,10 +29,10 @@ import fontsCss from './fonts.css?raw';
 import { renderBoutiques, type BoutiqueState } from './boutiques-view';
 
 /**
- * The buyer PWA shell, rebuilt on GRAND TEINT (WO-5.3). SP0.1 discovery shell
- * + the E2 demo harness (?demo-order / ?demo-checkout — byte-behaviour
- * preserved) + WO-4.4 walkable §6.2 journey (?demo-journey=<screen>) + the C1
- * skeleton surface (?demo-skeleton=produit). Every colour, dimension, radius
+ * The buyer PWA shell (WO-5.3 chrome). The legacy Grand Teint demo params
+ * (journey/skeleton/order/checkout) are RETIRED and un-generatable — the
+ * vitrine.test source scan locks the retired route out of src/ forever.
+ * Every colour, dimension, radius
  * and duration is a Grand Teint token resolved to a CSS custom property; the
  * style sheet carries NO hardcoded colour and no dimension outside the token
  * vars (the ui-scan test proves it — the only literal dimension is a 1px
@@ -560,10 +560,10 @@ if (app) {
 
   const params = new URLSearchParams(window.location.search);
   // PWA CLIENTE harness: drives any C1–C9 screen/state under any of the four
-  // habillages. `?demo-cliente=<C1..C9>&theme=&stock=out&voix=0&offline=1&b=indisponible&micro=refuse&demo=0&etat=loading&conf=&revealed=1`.
+  // habillages (C2 mounts C1 with the sheet open). `?demo-cliente=<C1..C9>&theme=&stock=out&voix=0&offline=1&b=indisponible&micro=refuse&demo=0&etat=loading&conf=&revealed=1`.
   // (The retired `?demo-achat=` S1–S7 param is read by NOTHING — un-generatable.)
   const clienteDemo = params.get('demo-cliente');
-  const CLIENTE_ECRANS: readonly ClienteEcran[] = ['C1', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9'];
+  const CLIENTE_ECRANS: readonly ClienteEcran[] = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9'];
 
   // VITRINE (redesign — HANDOFF §5). Reached by the canon /v/{slug} path
   // (restored by the 404.html SPA-fallback before boot); the ?demo-vitrine*
@@ -616,19 +616,24 @@ if (app) {
       // themeless fallback is indigo — founder decree 2026-07-21). BUG 3 law:
       // `?pid=` resolves against HER REAL vitrine catalog (seedProduct, the
       // same resolution the vitrine uses), so a shared product opens as ITSELF
-      // — never the demo robe. No pid → her first curated item. épuisé /
-      // sans-voix derive from the real product + its real voice note. The
+      // — never the demo robe. No pid → her first curated item; an EXPLICIT
+      // pid that resolves to nothing falls to the honest not-found (the same
+      // surface as an unresolvable slug) — never a silent product swap
+      // (PWA-CLEANUP-1 §1: a wrong link must say so, not sell something else).
+      // épuisé / sans-voix derive from the real product + its real voice note. The
       // quote is composed ONCE by the mock quote service (composeQuote) —
       // render-only from there. « Voir la boutique › » navigates to her full
       // vitrine at the canon `/v/{slug}` (base-aware), the FROZEN attribution
       // seam — arrival locked to her above.
       const defaultPid = resolved.storefront.curatedItems[0] ?? 'p1';
       const pid = params.get('pid') || defaultPid;
-      const product = seedProduct(pid) ?? seedProduct(defaultPid);
+      const product = seedProduct(pid);
       const main = document.createElement('main');
       if (!product) {
-        // The storefront resolved but its catalog is empty — honest not-found.
-        mountVitrine(app as HTMLElement, signedSlug);
+        // Unresolvable pid — honest not-found, the SAME `/v/` invalid surface
+        // an unresolvable slug lands on. No demo fallback, no neighbouring
+        // product: a wrong link says so instead of selling something else.
+        mountVitrine(app as HTMLElement, signedSlug, { etat: 'invalid' });
       } else {
         const { produit, theme } = clienteProduitReel(resolved.storefront, product, resolved.notes[product.pid]);
         createCliente(main, {
@@ -692,10 +697,9 @@ if (app) {
     // the /boutiques path. The store directory owns the screen (its own
     // « LES BOUTIQUES » title — no separate brand bar, per the mockup). The
     // ?demo-boutiques=<state> harness drives the six states for the gallery.
-    // (The legacy Grand Teint buyer demo — ?demo-journey / ?demo-skeleton /
-    // ?demo-order / ?demo-checkout — is retired, and so is the S1–S7 achat
-    // module with its ?demo-achat= param; the pixel PWA CLIENTE C1→C9 is the
-    // buyer purchase surface now, reached via /s/{slug} and ?demo-cliente=.)
+    // (The legacy Grand Teint buyer demo params are retired, and so is the
+    // S1–S7 achat module with its ?demo-achat= param; the pixel PWA CLIENTE
+    // C1→C9 is the buyer purchase surface now, via /s/{slug} and ?demo-cliente=.)
     const BQ_STATES: readonly BoutiqueState[] = [
       'default', 'skeleton', 'results', 'empty', 'offline', 'error',
     ];

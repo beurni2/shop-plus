@@ -1,7 +1,6 @@
-/** One FCFA formatter for the whole surface — fr-FR grouping (narrow
- * no-break space), tabular rendering handled by the type layer
- * (money.tabularNumerals). */
-export const FCFA = new Intl.NumberFormat('fr-FR');
+/** (The Intl-based `FCFA` export is retired — PWA-CLEANUP-1 §2: ICU's
+ * fr-FR separator is not byte-stable across versions. The ONE formatter is
+ * `cliente/money.fmtFCFA`, manual grouping from the escaped constant.) */
 
 /** HTML-escape for every MODEL-DERIVED string a renderer interpolates
  * (verifier NB①: the render layer writes innerHTML — nothing non-constant

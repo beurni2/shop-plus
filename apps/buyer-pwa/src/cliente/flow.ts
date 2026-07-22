@@ -27,8 +27,12 @@ import {
   type Livraison, type ModePaiement, type VoiceEtat,
 } from './screens';
 
-export type ClienteEcran = 'C1' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9';
-const ECRANS: readonly ClienteEcran[] = ['C1', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9'];
+export type ClienteEcran = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9';
+/** C2 is the protections SHEET, not a linear stop — mounting at C2 opens the
+ * sheet over C1 (PWA-CLEANUP-1 §5: the reachability gate covers every screen,
+ * C2 included). The linear machine walks the pixel's 8-screen list. */
+type EcranLineaire = Exclude<ClienteEcran, 'C2'>;
+const ECRANS: readonly EcranLineaire[] = ['C1', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9'];
 
 export interface ClienteInit {
   readonly produit: ClienteProduit;
@@ -53,7 +57,7 @@ export interface ClienteInit {
 
 interface FlowState {
   loading: boolean;
-  screen: ClienteEcran;
+  screen: EcranLineaire;
   offline: boolean;
   stock: 'ok' | 'out';
   bInel: boolean;
@@ -82,7 +86,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   const m = init.produit;
   const q = init.quote;
   const demo = init.demo ?? true;
-  const startScreen: ClienteEcran = init.ecran ?? 'C1';
+  // C2 mounts as C1 with the protections sheet open (it is an overlay, not a stop).
+  const startScreen: EcranLineaire = init.ecran === 'C2' ? 'C1' : (init.ecran ?? 'C1');
 
   const state: FlowState = {
     loading: (init.etat ?? 'ready') === 'loading',
@@ -90,7 +95,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     offline: init.offline ?? false,
     stock: (init.epuise ?? false) ? 'out' : 'ok',
     bInel: init.bIndisponible ?? false,
-    sheet: false,
+    sheet: init.ecran === 'C2',
     toasts: [],
     zone: null,
     repere: '',
@@ -123,7 +128,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     t1 = t2 = ticker = null;
   }
 
-  function prefill(screen: ClienteEcran): void {
+  function prefill(screen: EcranLineaire): void {
     const idx = ECRANS.indexOf(screen);
     if (idx >= 1) {
       state.zone = state.zone || 'Gounghin';
@@ -133,7 +138,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     if (idx >= 4) state.pay = state.pay || 'B';
   }
 
-  function jump(screen: ClienteEcran, extra?: Partial<FlowState>): void {
+  function jump(screen: EcranLineaire, extra?: Partial<FlowState>): void {
     clearT();
     state.sheet = false;
     state.paying = 'idle';

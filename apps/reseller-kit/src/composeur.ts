@@ -27,7 +27,7 @@ export type Model = 'clair' | 'nuit';
 export interface CardCopy {
   readonly productName: string;
   readonly prixTag: string; // "PRIX"
-  readonly priceLabel: string; // "11 500 F" — SON prix, one confident figure
+  readonly priceLabel: string; // « 11\u202f500\u202fFCFA » — SON prix, one confident figure
   readonly deliveryBadge: string; // "LIVRÉ PAR SÉRA · PAIEMENT PROTÉGÉ"
   readonly codeLine: string; // "CODE : AICHA-4821"
   readonly bioLine: string; // "lien dans ma bio"

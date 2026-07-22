@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { countDeliveredSales } from '@shop-plus/store-projection';
-import { renderVitrine, type VitrineViewModel } from '../src/vitrine-view';
+import { reputationText } from '../src/vitrine-view';
+import { renderVitrineReady } from '../src/vitrine/render';
+import { demoStorefrontPort } from '../src/vitrine/profile';
 import { resolveVitrineSlug } from '../src/vitrine-link';
 import { renderBoutiques } from '../src/boutiques-view';
 import { allBoutiques } from '../src/boutiques-data';
@@ -13,18 +15,18 @@ import { demoDeliveredSaleEvents } from '../src/demo-stores';
  * the render.
  */
 
-const model: VitrineViewModel = {
-  resellerName: 'Aïcha',
-  zone: 'Rood Woko, Ouagadougou',
-  products: [{ productName: 'Bazin', priceFcfa: 11_500, inStock: true }],
-};
+// The LIVE vitrine surface (PWA-CLEANUP-1 §4: the Grand Teint renderVitrine is
+// deleted): réputation renders in src/vitrine/render.ts off the resolved trust.
+const resolved = demoStorefrontPort('default').resolve('aicha-4821')!;
+const vitrineAt = (count: number): string =>
+  renderVitrineReady(resolved.storefront, { ...resolved.trust, deliveredCount: count }, { fromProduct: false });
 
 describe('réputation render — the exact count, verbatim, never a rank', () => {
   it('COUNT-EXACT-VERBATIM (render): the trust chrome + card show exactly the fold count — never one more', () => {
     const trueCount = countDeliveredSales(demoDeliveredSaleEvents(), 'res_aicha');
-    const vitrine = renderVitrine(model, { count: trueCount, demo: true });
-    expect(vitrine).toContain(`${trueCount} ventes livrées`);
-    expect(vitrine).not.toContain(`${trueCount + 1} ventes livrées`); // a +1 render mutation fails here
+    const vitrine = vitrineAt(trueCount);
+    expect(vitrine).toContain(`<v>${trueCount}</v> ventes livrées par Séra`);
+    expect(vitrine).not.toContain(`<v>${trueCount + 1}</v>`); // a +1 render mutation fails here
 
     const directory = renderBoutiques({ state: 'default' });
     const aicha = allBoutiques().find((s) => s.slug === 'aicha-4821');
@@ -32,11 +34,9 @@ describe('réputation render — the exact count, verbatim, never a rank', () =>
   });
 
   it('HIDDEN-BELOW-FLOOR: count 0 renders NO réputation line (floor = 1) — the honest empty state', () => {
-    const vitrine = renderVitrine(model, { count: 0, demo: true });
+    const vitrine = vitrineAt(0);
     expect(vitrine).not.toContain('ventes livrées');
     expect(vitrine).not.toMatch(/data-role="reputation"/);
-    // and with no reputation passed at all, nothing appears
-    expect(renderVitrine(model)).not.toContain('ventes livrées');
   });
 
   it('BADGE-ONLY-WHERE-TRUE (SP-I19 adjacency): the rendered count IS the fold count — never a fabricated number', () => {
@@ -67,21 +67,17 @@ describe('réputation render — the exact count, verbatim, never a rank', () =>
     expect(order).not.toEqual(byReputationDesc); // the directory is not a leaderboard
   });
 
-  it('SINGULAR-AT-1 (French Voice §10.5): count 1 renders « 1 vente livrée », count ≥ 2 the plural « N ventes livrées »', () => {
-    const one = renderVitrine(model, { count: 1, demo: true });
-    expect(one).toContain('1 vente livrée'); // correct singular — the FIRST trust state
-    expect(one).not.toContain('1 ventes livrées'); // never the grammatically-wrong plural at 1
-
-    const two = renderVitrine(model, { count: 2, demo: true });
-    expect(two).toContain('2 ventes livrées'); // plural from two on
-    expect(two).not.toContain('2 vente livrée');
-
-    expect(renderVitrine(model, { count: 47, demo: true })).toContain('47 ventes livrées');
+  it('SINGULAR-AT-1 (French Voice §10.5, bbeb4af): reputationText — « 1 vente livrée » at 1, plural above (the directory card consumes this)', () => {
+    expect(reputationText(1)).toBe('1 vente livrée'); // correct singular — the FIRST trust state
+    expect(reputationText(1)).not.toContain('ventes livrées');
+    expect(reputationText(2)).toBe('2 ventes livrées');
+    expect(reputationText(47)).toBe('47 ventes livrées');
   });
 
-  it('a DEMO count carries the « démo » marker; a real count would not', () => {
-    expect(renderVitrine(model, { count: 5, demo: true })).toMatch(/data-role="reputation-demo"/);
-    expect(renderVitrine(model, { count: 5, demo: true })).toContain('démo');
-    expect(renderVitrine(model, { count: 5, demo: false })).not.toMatch(/data-role="reputation-demo"/);
-  });
+  // FLAGGED CANON GAP (PWA-CLEANUP-1 report, not fixed here): the LIVE vitrine
+  // (src/vitrine/render.ts) renders « {n} ventes livrées par Séra » with NO
+  // singular branch at count 1 and NO « démo » marker on demo trust — the S8
+  // conformance (bbeb4af) was not ported when the vitrine was redesigned.
+  // Founder decision needed: port S8 singular + démo discipline to the live
+  // vitrine as its own slice.
 });

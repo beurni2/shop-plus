@@ -51,6 +51,7 @@ test('every C1–C9 screen and state mounts (reachability), with zero economics 
     ['C1&stock=out', 'C1'],
     ['C1&voix=0', 'C1'],
     ['C1&etat=loading', 'squelette'],
+    ['C2', 'C2'],
     ['C3', 'C3'],
     ['C3&micro=refuse', 'C3'],
     ['C4', 'C4'],
@@ -81,8 +82,9 @@ test('the retired S1–S7 achat routes are UN-GENERATABLE (they fall to the dire
     // the shell falls through to the S3 découverte root — never a dead screen.
     await expect(page.locator('.boutiques')).toBeVisible();
   }
-  // and an unknown C-screen is refused too (closed enum).
-  await page.goto('/?demo-cliente=C2');
+  // and an unknown screen id is refused too (closed enum — C2 is now legal,
+  // an S-era or invented id is not).
+  await page.goto('/?demo-cliente=S1');
   await expect(page.locator('.cl-root')).toHaveCount(0);
 });
 
