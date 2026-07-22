@@ -9,7 +9,7 @@ Format per entry:
 
 ---
 
-## 2026-07-22 · OZ1 — PWA CLIENTE Édition Indigo (C1→C9) supersedes the achat module (e3710f5) · in-review (built + gates green locally; CI dispatch pending; NO merge)
+## 2026-07-22 · OZ1 — PWA CLIENTE Édition Indigo (C1→C9) supersedes the achat module (e3710f5) · done — MERGED at 4b08e3a (guarded merge: CI 29890520676 green at 5761fbe · frozen diff empty across the merge · CTO approval on record)
 - **Order (founder, with standing laws):** take over the buyer-PWA redesign; remove `src/achat/` (S1–S7) and build the C1→C9 linear flow per `docs/PWA Cliente - HANDOFF (Indigo).md` + `PWA Cliente - Redesign.dc.html` (pixel truth), branch from main after the BUG 2 fix lands. Branch base verified: remote `main` = **5a289b5** = the BUG 2 fix.
 - **Grounded first (read-before-write):** the pixel HTML (672 lines, full logic class: state shape, timers 750/1200/2400/2600/1000/2800 ms, gates canC3/C4/C5, `jump()` prefill, `F0/F`) · `src/achat/*` (money.ts = exactly the decreed formatter — MOVED, not rewritten) · `main.ts` mount seams (`/s/{slug}` real path + harness) · `vitrine/themes.ts` (§1.2 table, byte-equal to the handoff) · ci.yml + run-gates.sh + pages-emulator.
 - **CONFLICT FLAGGED (not silently resolved):** the uploaded `tokens.json`/`design-system.md`/`budget.md`/`copy.md` money strings are the RETIRED Grand Teint system (Archivo, radius 0, `currencySuffix "\u202fF"` — a bare « F » violating money law 1 and the handoff's own §0 FCFA decree). Resolution applied: the Indigo handoff + pixel HTML (2026-07-21, named SOURCE OF TRUTH) govern; Grand Teint token VALUES not consumed; zero-hardcode kept via the namespaced-stylesheet pattern (`.cl-*` + `--vt-*`) that passed founder review on the achat module.
