@@ -64,10 +64,11 @@ describe('source discipline — zero raw U+202F laundered into ANY app source (P
     const src = readFileSync(join(srcRoot, 'cliente', 'money.ts'), 'utf8');
     expect(src).toContain("'\\u202f'");
   });
-  it('NO module anywhere in src/ uses Intl.NumberFormat (one formatter, ICU byte drift)', () => {
+  it('NO module anywhere in src/ uses ICU number formatting (Intl.NumberFormat OR toLocaleString — verifier finding: the same machinery, the same byte drift)', () => {
     for (const f of walk(srcRoot)) {
       const src = readFileSync(f, 'utf8');
       expect(src.includes('Intl.NumberFormat('), `${f} uses Intl.NumberFormat`).toBe(false);
+      expect(src.includes('.toLocaleString('), `${f} uses toLocaleString (ICU by another door)`).toBe(false);
     }
   });
 });
