@@ -41,6 +41,8 @@ export interface ClienteProduit {
   /** Canon SVG product-glyph key (the vitrine set) — the no-emoji placeholder. */
   readonly glyph: string;
   readonly voiceDuree?: string;
+  /** Playable note url (ready notes only) — tap plays, never autoplay. */
+  readonly voiceUrl?: string;
   readonly inStock: boolean;
 }
 
@@ -135,7 +137,7 @@ export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: bool
   const voix = !o.sansVoix && m.voiceDuree
     ? [
         '<div class="cl-voix" data-role="voix">',
-        `<button class="cl-voix-play" data-action="voix-lire" aria-label="Écouter la voix d’${esc(m.prenom)}">${iconPlay(16)}</button>`,
+        `<button class="cl-voix-play" data-action="voix-lire"${m.voiceUrl ? ` data-voix-url="${esc(m.voiceUrl)}"` : ''} aria-label="Écouter la voix d’${esc(m.prenom)}">${iconPlay(16)}</button>`,
         '<div class="cl-voix-col"><div class="cl-voix-top">',
         `<span class="cl-voix-title">La voix d’${esc(m.prenom)}</span><span class="cl-voix-dur">${esc(m.voiceDuree)}</span>`,
         '</div><div class="cl-wave">',
@@ -287,7 +289,8 @@ export interface C5State {
   readonly bInel: boolean;
 }
 
-const ECOUTER = `<span class="cl-ecouter" data-action="note-ecouter">${iconPlaySmall(10, 11)}ÉCOUTER LA NOTE</span>`;
+// (« ÉCOUTER LA NOTE » on the C5 payment cards is REMOVED — founder override
+// 2026-07-22 of HANDOFF §2/acceptance 4. Listening lives on the C1 player.)
 
 export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string {
   const feeStr = fmtFCFA(fee(q, s.delivery));
@@ -338,7 +341,6 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
     s.pay === 'A' ? `<span class="cl-opt-mark">${iconCheck(14, 3)}</span>` : '',
     `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconLockDot(17)}</span><span class="cl-opt-title">Tout payer maintenant</span></div>`,
     `<div class="cl-payopt-body"><b>${totalStr}</b> maintenant, en sécurité. Rien à payer à la porte.</div>`,
-    ECOUTER,
     '</button>',
     s.bInel
       ? [
@@ -352,7 +354,6 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
           s.pay === 'B' ? `<span class="cl-opt-mark">${iconCheck(14, 3)}</span>` : '',
           `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconScooter(18)}</span><span class="cl-opt-title">Payer à la livraison</span></div>`,
           `<div class="cl-payopt-body"><b>${feeStr}</b> maintenant — et <b>${produitStr}</b> à la porte, après votre inspection.</div>`,
-          ECOUTER,
           '</button>',
         ].join(''),
     '<div class="cl-quote">Vous inspectez le colis avant de payer le reste.</div>',

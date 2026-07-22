@@ -118,6 +118,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   // C4, today/B on C5·C6·C8). C4 therefore mounts with NO option selected and
   // C3 mounts empty, exactly like the prototype.
 
+  // ONE audio element for « La voix » — created on the FIRST TAP only (never
+  // autoplay, law 5: recorded audio; the [DEMO] tone until the media backend).
+  let voixAudio: HTMLAudioElement | null = null;
+
   let t1: ReturnType<typeof setTimeout> | null = null;
   let t2: ReturnType<typeof setTimeout> | null = null;
   let ticker: ReturnType<typeof setInterval> | null = null;
@@ -262,8 +266,20 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       case 'retour-c7':
         jump('C7', { step: Math.max(state.step, 1) }); return;
       // — C1 —
-      case 'voix-lire':
-        toast(`La voix d’${m.prenom} — ${m.voiceDuree ?? ''} (démo)`); return;
+      case 'voix-lire': {
+        // REAL tap-to-play (founder order 2026-07-22): the reseller's note
+        // plays here. No url (no ready note) → the honest demo toast.
+        const url = el.getAttribute('data-voix-url');
+        if (url) {
+          if (!voixAudio) voixAudio = new Audio();
+          if (voixAudio.src !== url) voixAudio.src = url;
+          voixAudio.currentTime = 0;
+          void voixAudio.play().catch(() => toast(`La voix d’${m.prenom} — ${m.voiceDuree ?? ''} (démo)`));
+        } else {
+          toast(`La voix d’${m.prenom} — ${m.voiceDuree ?? ''} (démo)`);
+        }
+        return;
+      }
       // — C3 —
       case 'zone':
         state.zone = el.getAttribute('data-zone'); render(); return;
@@ -284,8 +300,6 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         return;
       case 'voix-lire-note':
         toast('Lecture de votre note vocale (démo)'); return;
-      case 'note-ecouter':
-        toast('Lecture de la note — Français · Mooré · Dioula (démo)'); return;
       case 'continuer-c3':
         if (canC3()) jump('C4', { delivery: null });
         return;
