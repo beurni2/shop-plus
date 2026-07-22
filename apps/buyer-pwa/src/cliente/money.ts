@@ -1,5 +1,5 @@
 /**
- * PARCOURS D'ACHAT — money & hour formatting (§3, §0 loi 4).
+ * PWA CLIENTE — money & hour formatting (HANDOFF Indigo §0 décret monnaie).
  *
  * THE MONEY DISCIPLINE (non-negotiable): every amount groups its thousands with
  * U+202F (narrow no-break space) and is suffixed with `[NNBSP]FCFA` — never a
