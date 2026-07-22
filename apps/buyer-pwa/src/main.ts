@@ -17,10 +17,10 @@ import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, v
 import { demoStorefrontPort } from './vitrine/profile';
 import { mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { ENT_STYLES } from './vitrine/entries';
-import { createAchat, type AchatEcran } from './achat/flow';
-import { achatProduit, achatProduitReel } from './achat/seed';
+import { createCliente, type ClienteEcran } from './cliente/flow';
+import { clienteProduit, clienteProduitReel, composeQuote } from './cliente/seed';
 import { seedProduct } from './vitrine/catalog';
-import { ACHAT_STYLES } from './achat/styles';
+import { CLIENTE_STYLES } from './cliente/styles';
 import type { VitrineThemeKey } from './vitrine/themes';
 // The Faso Premium face substrate (six @font-face, WO-FP STEP 0) — injected as
 // raw CSS so './fonts/…' stays document-relative (the Archivo pattern; correct
@@ -531,19 +531,20 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// PARCOURS D'ACHAT — the pixel-for-pixel purchase-flow stylesheet, its own
-// `.ac-*` namespace reading the `--vt-*` theme props applyTheme sets on the
-// container. Injected after the Grand Teint sheet; the two never collide
-// (disjoint class names), so the legacy demo surfaces keep their chrome.
-const achatStyle = document.createElement('style');
-achatStyle.setAttribute('data-achat', '');
-achatStyle.textContent = ACHAT_STYLES;
-document.head.appendChild(achatStyle);
+// PWA CLIENTE — the pixel-for-pixel C1→C9 buyer-flow stylesheet (Édition
+// Indigo), its own `.cl-*` namespace reading the `--vt-*` theme props
+// applyTheme sets on the container. Injected after the Grand Teint sheet; the
+// two never collide (disjoint class names), so the legacy demo surfaces keep
+// their chrome. (The S1–S7 achat module is retired — superseded 2026-07-22.)
+const clienteStyle = document.createElement('style');
+clienteStyle.setAttribute('data-cliente', '');
+clienteStyle.textContent = CLIENTE_STYLES;
+document.head.appendChild(clienteStyle);
 
 /** Validate a harness `theme` param against the closed §1.2 set (default indigo). */
-const ACHAT_THEMES: readonly VitrineThemeKey[] = ['laterite', 'danfani', 'indigo', 'foret'];
-function achatTheme(raw: string | null): VitrineThemeKey {
-  return raw && (ACHAT_THEMES as readonly string[]).includes(raw) ? (raw as VitrineThemeKey) : 'indigo';
+const CLIENTE_THEMES: readonly VitrineThemeKey[] = ['laterite', 'danfani', 'indigo', 'foret'];
+function clienteTheme(raw: string | null): VitrineThemeKey {
+  return raw && (CLIENTE_THEMES as readonly string[]).includes(raw) ? (raw as VitrineThemeKey) : 'indigo';
 }
 
 const app = document.querySelector('#app');
@@ -558,10 +559,11 @@ if (app) {
   app.append(ribbon);
 
   const params = new URLSearchParams(window.location.search);
-  // PARCOURS D'ACHAT harness: drives any S1–S7 screen/state
-  // under any of the four habillages. `?demo-achat=<ecran>&theme=&pid=&etat=&vitesse=&revealed=`.
-  const achatDemo = params.get('demo-achat');
-  const ACHAT_ECRANS: readonly AchatEcran[] = ['produit', 'recap', 'localisation', 'livraison', 'confirmation', 'suivi', 'protections'];
+  // PWA CLIENTE harness: drives any C1–C9 screen/state under any of the four
+  // habillages. `?demo-cliente=<C1..C9>&theme=&stock=out&voix=0&offline=1&b=indisponible&micro=refuse&demo=0&etat=loading&conf=&revealed=1`.
+  // (The retired `?demo-achat=` S1–S7 param is read by NOTHING — un-generatable.)
+  const clienteDemo = params.get('demo-cliente');
+  const CLIENTE_ECRANS: readonly ClienteEcran[] = ['C1', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9'];
 
   // VITRINE (redesign — HANDOFF §5). Reached by the canon /v/{slug} path
   // (restored by the 404.html SPA-fallback before boot); the ?demo-vitrine*
@@ -609,14 +611,17 @@ if (app) {
       } catch {
         /* storage unavailable — arrival is best-effort */
       }
-      // THE SIGNED OFFER — the pixel-for-pixel PARCOURS D'ACHAT S1 (produit),
-      // rendered in HER habillage (§0 loi 3: the shop's theme; Aïcha = laterite).
-      // BUG 3 fix: `?pid=` resolves against HER REAL vitrine catalog (seedProduct,
-      // the same resolution the vitrine uses), so a shared product opens as
-      // ITSELF — never the demo robe. No pid → her first curated item. épuisé /
-      // sans-voix derive from the real product + its real voice note. The « Voir
-      // la boutique » links navigate to her full vitrine at the canon `/v/{slug}`
-      // (base-aware), the FROZEN attribution seam — arrival locked to her above.
+      // THE SIGNED OFFER — the pixel-for-pixel PWA CLIENTE C1 (Édition Indigo),
+      // rendered in HER habillage (the shop's theme; Aïcha = laterite; the
+      // themeless fallback is indigo — founder decree 2026-07-21). BUG 3 law:
+      // `?pid=` resolves against HER REAL vitrine catalog (seedProduct, the
+      // same resolution the vitrine uses), so a shared product opens as ITSELF
+      // — never the demo robe. No pid → her first curated item. épuisé /
+      // sans-voix derive from the real product + its real voice note. The
+      // quote is composed ONCE by the mock quote service (composeQuote) —
+      // render-only from there. « Voir la boutique › » navigates to her full
+      // vitrine at the canon `/v/{slug}` (base-aware), the FROZEN attribution
+      // seam — arrival locked to her above.
       const defaultPid = resolved.storefront.curatedItems[0] ?? 'p1';
       const pid = params.get('pid') || defaultPid;
       const product = seedProduct(pid) ?? seedProduct(defaultPid);
@@ -625,11 +630,12 @@ if (app) {
         // The storefront resolved but its catalog is empty — honest not-found.
         mountVitrine(app as HTMLElement, signedSlug);
       } else {
-        const { produit, theme } = achatProduitReel(resolved.storefront, product, resolved.notes[product.pid]);
-        createAchat(main, {
+        const { produit, theme } = clienteProduitReel(resolved.storefront, product, resolved.notes[product.pid]);
+        createCliente(main, {
           produit,
+          quote: composeQuote(produit.priceFcfa),
           theme,
-          ecran: 'produit',
+          ecran: 'C1',
           epuise: !produit.inStock,
           sansVoix: produit.voiceDuree === undefined,
           onVitrine: (slug) => {
@@ -639,25 +645,32 @@ if (app) {
         app.append(main);
       }
     }
-  } else if (achatDemo && (ACHAT_ECRANS as readonly string[]).includes(achatDemo)) {
-    // The PARCOURS D'ACHAT harness — every screen/state × the four habillages,
+  } else if (clienteDemo && (CLIENTE_ECRANS as readonly string[]).includes(clienteDemo)) {
+    // The PWA CLIENTE harness — every C1–C9 screen/state × the four habillages,
     // reachable and gate-lockable (the shared link boots at root under preview).
-    const pid = params.get('pid') ?? 'robe';
-    const theme = achatTheme(params.get('theme'));
+    const theme = clienteTheme(params.get('theme'));
     // Resolve the demo storefront from the port (no inline shop name in the
-    // shell), then override its theme with the harness param to drive all four.
+    // shell); the harness theme param drives all four habillages.
     const sf = demoStorefrontPort('default').resolve('aicha-4821')?.storefront;
-    const { produit } = achatProduit({ name: sf?.name ?? '', slug: sf?.slug ?? 'aicha-4821', theme }, pid);
-    const etatRaw = params.get('etat');
+    const produit = {
+      ...clienteProduit({ name: sf?.name ?? '', slug: sf?.slug ?? 'aicha-4821' }),
+      inStock: params.get('stock') !== 'out',
+    };
+    const confRaw = params.get('conf');
     const main = document.createElement('main');
-    createAchat(main, {
+    createCliente(main, {
       produit,
+      quote: composeQuote(produit.priceFcfa),
       theme,
-      ecran: achatDemo as AchatEcran,
+      ecran: clienteDemo as ClienteEcran,
       epuise: !produit.inStock,
-      sansVoix: produit.voiceDuree === undefined,
-      etat: etatRaw === 'loading' || etatRaw === 'error' ? etatRaw : 'ready',
-      vitesse: params.get('vitesse') === 'express' ? 'express' : 'standard',
+      sansVoix: params.get('voix') === '0',
+      offline: params.get('offline') === '1',
+      bIndisponible: params.get('b') === 'indisponible',
+      microRefuse: params.get('micro') === 'refuse',
+      demo: params.get('demo') !== '0',
+      etat: params.get('etat') === 'loading' ? 'loading' : 'ready',
+      conf: confRaw === 'attente' ? 'pending' : confRaw === 'hors-ligne' ? 'offline' : 'confirmed',
       revealed: params.get('revealed') === '1',
       onVitrine: (slug) => {
         window.location.href = vitrineHref(window.location.pathname, slug);
@@ -680,8 +693,9 @@ if (app) {
     // « LES BOUTIQUES » title — no separate brand bar, per the mockup). The
     // ?demo-boutiques=<state> harness drives the six states for the gallery.
     // (The legacy Grand Teint buyer demo — ?demo-journey / ?demo-skeleton /
-    // ?demo-order / ?demo-checkout — is retired; the pixel PARCOURS D'ACHAT is
-    // the buyer purchase surface now, reached via /s/{slug} and ?demo-achat=.)
+    // ?demo-order / ?demo-checkout — is retired, and so is the S1–S7 achat
+    // module with its ?demo-achat= param; the pixel PWA CLIENTE C1→C9 is the
+    // buyer purchase surface now, reached via /s/{slug} and ?demo-cliente=.)
     const BQ_STATES: readonly BoutiqueState[] = [
       'default', 'skeleton', 'results', 'empty', 'offline', 'error',
     ];

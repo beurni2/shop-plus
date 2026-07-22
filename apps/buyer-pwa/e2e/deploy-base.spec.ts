@@ -45,7 +45,7 @@ test('the /shop-plus/v/{slug} deep link BOOTS the vitrine (404 → restore → a
   expect(failed, `assets 404'd during boot: ${failed.join(', ')}`).toEqual([]);
 });
 
-test('the signed /shop-plus/s/{slug} deep link BOOTS the achat S1 (same restore path)', async ({ page }) => {
+test('the signed /shop-plus/s/{slug} deep link BOOTS the cliente C1 (same restore path)', async ({ page }) => {
   const failed: string[] = [];
   page.on('response', (r) => {
     if (r.status() === 404 && /\.(js|css|woff2)$/.test(new URL(r.url()).pathname)) failed.push(r.url());
@@ -53,9 +53,9 @@ test('the signed /shop-plus/s/{slug} deep link BOOTS the achat S1 (same restore 
 
   await page.goto(`${PAGES}/shop-plus/s/aicha-4821?pid=p2`, { waitUntil: 'load' });
 
-  // the pixel achat S1 mounted for the REAL shared product (p2 = Pagne wax).
-  await expect(page.locator('main.ac-root [data-screen="produit"]')).toBeVisible({ timeout: 10_000 });
-  await expect(page.locator('.ac-prodtitle')).toHaveText('Pagne wax 6 yards');
+  // the pixel cliente C1 mounted for the REAL shared product (p2 = Pagne wax).
+  await expect(page.locator('main.cl-root [data-screen="C1"]')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('.cl-prodtitle')).toHaveText('Pagne wax 6 yards');
   expect(new URL(page.url()).pathname).toBe('/shop-plus/s/aicha-4821');
   expect(failed, `assets 404'd during boot: ${failed.join(', ')}`).toEqual([]);
 });
