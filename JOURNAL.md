@@ -9,6 +9,13 @@ Format per entry:
 
 ---
 
+## 2026-07-22 · OZ1 — SHARE-IDENTITY lock (founder: « the same product must open ») · in-review (built + e2e green locally; CI dispatch pending; NO merge)
+- **Order (founder):** make sure sharing a product from the vitrine opens THE SAME product on the buyer PWA, never another one.
+- **Grounded — the chain holds by construction (all read, all merged at aa834c3):** every vitrine tile carries its own `data-pid` (`vitrine/render.ts` tile/featuredTile); a tap builds `signedHref` → `/s/{slug}?pid={that pid}` (`vitrine/flows.ts:128`) — the SAME route form the reseller shares (`signedProductShareUrl`, `qr/identity.ts:29`); the buyer side resolves the pid STRICTLY against her real catalog (PWA-CLEANUP-1 §1: `seedProduct(pid)`, no fallback) — the same product opens or the honest not-found; a swap is impossible.
+- **Existing locks:** signed-link.spec BUG 3 (p2 → « Pagne wax 6 yards » 20 500, p5 → « Coffret karité pur » 6 900, never the robe) · unresolvable pid → invalid surface · deploy-base `/shop-plus/s/…?pid=p2` boots the right product on the real Pages restore.
+- **NEW lock (the founder's literal scenario):** deploy-base SHARE-IDENTITY e2e — open her vitrine on the Pages emulator, tap the SECOND in-stock tile (deliberately not the featured/default, so a curated-first fallback cannot pass), ride the 404→restore, assert the C1 shows the SAME pid in the URL, the SAME product name, and the SAME price bytes as the tile. GREEN (4/4 deploy-base; full Playwright 32/32; vitest 168/168).
+- Pending / next: push, dispatch ci.yml at head, prove GREEN. **NO merge** without approval.
+
 ## 2026-07-22 · OZ1 — INDIGO-ALWAYS + SCREEN-FIT (founder rulings, direct) · done — MERGED at aa834c3 (guarded merge: CI 29895582459 green at fdd7399 · frozen diff empty · founder approval on record)
 - **FOUNDER RULING 1 (recorded — overrides the earlier theme seam):** the buyer C1→C9 flow renders **INDIGO ALWAYS** on every real entry; the resolved storefront's theme no longer wins there. Built: main.ts `/s/{slug}` passes `theme: 'indigo'`. Her VITRINE keeps her habillage (unchanged — the ruling names the buyer PWA flow). The `?demo-cliente=&theme=` harness param stays as the §1.2 gate/audit lever so the four-habillage drive gate keeps proving the machinery. E2e lock added: the signed link mounts with the indigo accent (#3E4B8C) though Aïcha's vitrine is laterite.
 - **FOUNDER RULING 2 (« everything is looking small inside of each screen ») — DIAGNOSED BY MEASUREMENT, three real defects, all fixed:**
