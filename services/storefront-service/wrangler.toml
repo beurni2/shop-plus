@@ -22,10 +22,13 @@ class_name = "StorefrontDO"
 name = "LISTING"
 class_name = "ListingDO"
 
-# FIRST-DEPLOY MIGRATION — create both DO classes. `new_sqlite_classes` is the
-# SQLite storage backend (the current default for new DO namespaces). The exact
-# directive (new_sqlite_classes vs new_classes) is a deploy-only unknown — if the
-# first deploy rejects it, it is a one-line migration fix, not a code fix.
+# FIRST-DEPLOY MIGRATION — create both DO classes. `new_sqlite_classes` is CORRECT
+# AND MANDATORY, not a coin-flip: Cloudflare stopped issuing key-value-backed DO
+# namespaces (changelog 2026-07-09) to any account without a pre-existing one, and
+# the Workers Free plan only ever supported the SQLite backend — so this NEW account
+# would have `new_classes` rejected outright. SQLite-backed DOs expose the SAME
+# key-value storage API this DO code uses (state.storage.get/put), so no code change
+# follows. The one remaining first-deploy unknown is R2 write permission on the token.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["StorefrontDO", "ListingDO"]
