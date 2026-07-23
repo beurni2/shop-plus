@@ -35,15 +35,15 @@ describe('signed product deep-link — the /s/{slug} slug scheme (same as /v/, b
 });
 
 describe('signed product deep-link — resolution goes through the storefront port (loi 4)', () => {
-  it('the demo slug resolves; an unknown/expired slug is honest not-found (undefined)', () => {
-    expect(demoStorefrontPort().resolve('aicha-4821')).toBeDefined();
-    expect(demoStorefrontPort().resolve('inconnue-0000')).toBeUndefined();
-    expect(demoStorefrontPort().resolve('aicha-expiree-9999')).toBeUndefined();
+  it('the demo slug resolves; an unknown/expired slug is honest not-found (undefined)', async () => {
+    expect(await demoStorefrontPort().resolve('aicha-4821')).toBeDefined();
+    expect(await demoStorefrontPort().resolve('inconnue-0000')).toBeUndefined();
+    expect(await demoStorefrontPort().resolve('aicha-expiree-9999')).toBeUndefined();
   });
 
-  it('a privée vitrine still resolves — its LINK works though the directory would hide her (loi 4)', () => {
-    const publique = demoStorefrontPort('default').resolve('aicha-4821');
-    const privee = demoStorefrontPort('private').resolve('aicha-4821');
+  it('a privée vitrine still resolves — its LINK works though the directory would hide her (loi 4)', async () => {
+    const publique = await demoStorefrontPort('default').resolve('aicha-4821');
+    const privee = await demoStorefrontPort('private').resolve('aicha-4821');
     // both resolve — the signed link opens the offer either way
     expect(publique).toBeDefined();
     expect(privee).toBeDefined();

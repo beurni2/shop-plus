@@ -60,8 +60,13 @@ export type ProductVoiceNotes = Readonly<Record<string, ProductVoiceNote>>;
 export interface StorefrontProfilePort {
   /** Resolve a slug to its storefront — undefined = honest not-found (V5). A
    * PRIVATE storefront still resolves (loi 4: no « boutique fermée » exists).
-   * `notes` carries the per-product voice notes (only `ready` ones play). */
-  resolve(slug: string): { storefront: Storefront; trust: VitrineTrust; notes: ProductVoiceNotes } | undefined;
+   * `notes` carries the per-product voice notes (only `ready` ones play).
+   *
+   * ASYNC (STOREFRONT-READ-PATH-1): a real HTTP adapter fetches the storefront
+   * from storefront-service; the demo adapter resolves synchronously but returns
+   * the same Promise shape so callers await ONE seam. undefined still = the
+   * honest not-found the flow renders (VitrineEtat 'invalid'). */
+  resolve(slug: string): Promise<{ storefront: Storefront; trust: VitrineTrust; notes: ProductVoiceNotes } | undefined>;
 }
 
 /* ------------------------------------------------------------------ DEMO -- */
@@ -144,7 +149,9 @@ export const DEMO_LANDING_VOICE: ProductVoiceNote = {
  */
 export function demoStorefrontPort(variant: 'default' | 'customised' | 'empty' | 'private' = 'default'): StorefrontProfilePort {
   return {
-    resolve(slug: string) {
+    // async only to satisfy the widened port seam — the demo data is in-process,
+    // so this resolves on the next microtask with no network (the offline harness).
+    async resolve(slug: string) {
       if (slug !== 'aicha-4821') return undefined;
       if (variant === 'customised') return { storefront: AICHA_CUSTOMISED, trust: AICHA_TRUST, notes: AICHA_VOICE_NOTES };
       // privée (canon §5.6, loi 4): absent from Découvrir (discoverable:false),
@@ -164,4 +171,60 @@ export function demoStorefrontPort(variant: 'default' | 'customised' | 'empty' |
       return { storefront: AICHA_DEFAULT, trust: AICHA_TRUST, notes: AICHA_VOICE_NOTES };
     },
   };
+}
+
+/* --------------------------------------------------------- REAL (partial) -- */
+
+/** A storefront looks real when the service handed back at least an id + slug. */
+function looksLikeStorefront(v: unknown): v is Storefront {
+  return typeof v === 'object' && v !== null && typeof (v as Storefront).id === 'string' && typeof (v as Storefront).slug === 'string';
+}
+
+/**
+ * The REAL storefront adapter (STOREFRONT-READ-PATH-1) — DELIBERATELY PARTIAL.
+ * It fetches the storefront from storefront-service (`GET {base}/s/{slug}` → the
+ * buyer-safe StorefrontView) and returns it as the real storefront. `trust` and
+ * `notes` stay DEMO-sourced ON PURPOSE — the port doing its job one field at a
+ * time, not a workaround:
+ *   · TRUST has no producer yet (delivered counts + verified reviews are
+ *     unimplemented server-side), so it rides the demo AICHA_TRUST (demo:true —
+ *     the honest « démo » discipline still marks it).
+ *   · NOTES need the canon `productNotes?` field (an additive platform-contracts
+ *     change, §7 — the founder's call), so they ride the demo AICHA_VOICE_NOTES.
+ * Swap each in when its producer lands; the shape and the callers never change.
+ *
+ * A 404 (unknown slug) or a network failure both resolve to `undefined` — the
+ * SAME honest not-found the flow renders as VitrineEtat 'invalid'; never a throw
+ * up the mount path, never a neighbouring store.
+ */
+export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
+  const base = baseUrl.replace(/\/+$/, '');
+  return {
+    async resolve(slug: string) {
+      let res: Response;
+      try {
+        res = await fetch(`${base}/s/${encodeURIComponent(slug)}`, { headers: { Accept: 'application/json' } });
+      } catch {
+        return undefined; // offline / unreachable → honest not-found (never a throw)
+      }
+      if (!res.ok) return undefined; // 404 and any non-2xx → honest not-found
+      const view: unknown = await res.json().catch(() => null);
+      if (!looksLikeStorefront(view)) return undefined;
+      // REAL storefront; trust + notes deliberately demo-sourced (gaps named above).
+      return { storefront: view, trust: { ...AICHA_TRUST }, notes: AICHA_VOICE_NOTES };
+    },
+  };
+}
+
+/**
+ * Choose the storefront port by the environment (the `resolveMediaStore` /
+ * `resolveStorefrontStore` client analogue): the REAL HTTP adapter iff a service
+ * base is configured at build time, the in-process DEMO adapter otherwise. Read
+ * defensively so vitest (no Vite env) and any non-Vite context resolve to demo —
+ * the harness must work with no service reachable.
+ */
+export function resolveStorefrontPort(): StorefrontProfilePort {
+  const env = (import.meta as { env?: { VITE_STOREFRONT_BASE?: string } }).env;
+  const base = env?.VITE_STOREFRONT_BASE;
+  return base ? httpStorefrontPort(base) : demoStorefrontPort();
 }

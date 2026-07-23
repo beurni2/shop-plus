@@ -17,7 +17,7 @@ import { demoDeliveredSaleEvents } from '../src/demo-stores';
 
 // The LIVE vitrine surface (PWA-CLEANUP-1 §4: the Grand Teint renderVitrine is
 // deleted): réputation renders in src/vitrine/render.ts off the resolved trust.
-const resolved = demoStorefrontPort('default').resolve('aicha-4821')!;
+const resolved = (await demoStorefrontPort('default').resolve('aicha-4821'))!;
 const vitrineAt = (count: number): string =>
   renderVitrineReady(resolved.storefront, { ...resolved.trust, deliveredCount: count }, { fromProduct: false });
 

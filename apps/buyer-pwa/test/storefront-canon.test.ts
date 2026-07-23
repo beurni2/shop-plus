@@ -6,17 +6,17 @@ import { demoStorefrontPort } from '../src/vitrine/profile.js';
  * parses with the REAL StorefrontSchema — a shape drift fails here, never on a
  * buyer's phone. Also pins the two §3.1 refusals the vitrine relies on. */
 describe('storefront ⇄ canon v1.1.0 conformance', () => {
-  it('all three demo variants parse with the canon schema', () => {
+  it('all three demo variants parse with the canon schema', async () => {
     for (const variant of ['default', 'customised', 'empty'] as const) {
-      const resolved = demoStorefrontPort(variant).resolve('aicha-4821');
+      const resolved = await demoStorefrontPort(variant).resolve('aicha-4821');
       expect(resolved, variant).toBeTruthy();
       const parsed = StorefrontSchema.parse(resolved!.storefront);
       expect(parsed.slug).toBe('aicha-4821');
     }
   });
 
-  it('canon refuses a pid in two sections and a third featured item (§3.1 laws live in the schema now)', () => {
-    const base = demoStorefrontPort('default').resolve('aicha-4821')!.storefront;
+  it('canon refuses a pid in two sections and a third featured item (§3.1 laws live in the schema now)', async () => {
+    const base = (await demoStorefrontPort('default').resolve('aicha-4821'))!.storefront;
     expect(
       StorefrontSchema.safeParse({
         ...base,
