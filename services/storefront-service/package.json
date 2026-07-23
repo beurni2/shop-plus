@@ -14,7 +14,8 @@
     "test": "vitest run",
     "bundle:worker": "esbuild worker/storefront-do.ts --bundle --format=esm --outfile=dist/worker/storefront-worker.mjs --platform=neutral --conditions=import",
     "bundle:worker:listing": "esbuild worker/listing-do.ts --bundle --format=esm --outfile=dist/worker/listing-worker.mjs --platform=neutral --conditions=import",
-    "pretest": "pnpm bundle:worker && pnpm bundle:worker:listing"
+    "bundle:worker:combined": "esbuild worker/index.ts --bundle --format=esm --outfile=dist/worker/worker.mjs --platform=neutral --conditions=import",
+    "pretest": "pnpm bundle:worker && pnpm bundle:worker:listing && pnpm bundle:worker:combined"
   },
   "dependencies": {
     "@shop-plus/observability": "workspace:*",

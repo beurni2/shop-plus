@@ -86,11 +86,40 @@ async function handleStorefrontRead(slug: string, env?: StorefrontStoreEnv): Pro
   return Response.json(toStorefrontView(storefront), { status: 200 });
 }
 
+/**
+ * THE MEDIA READ ROUTE — GET /media/{key} (STOREFRONT-DEPLOY-1). Serves the bytes
+ * back THROUGH THE SERVICE from the private R2 bucket (`env.BUCKET.get(key)`) —
+ * the bucket is never public. Immutable cache: media keys are content-versioned
+ * (a random uuid), so the Cloudflare edge (a PoP near Ouaga) absorbs the R2/ENAM
+ * origin distance after the first fetch. No R2 binding (CI/local) → honest 404.
+ * NOTE (journaled): a live-only gate belongs here once the media registry is
+ * durable — today the buyer projection already emits live-only URLs.
+ */
+async function handleMediaRead(key: string, env?: MediaEnv): Promise<Response> {
+  const bucket = env?.BUCKET;
+  if (bucket === undefined || typeof bucket.get !== 'function') {
+    return Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 });
+  }
+  const object = await bucket.get(key);
+  if (object === null) {
+    return Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 });
+  }
+  return new Response(object.body, {
+    status: 200,
+    headers: {
+      'Content-Type': object.httpMetadata?.contentType ?? 'application/octet-stream',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    },
+  });
+}
+
 export const handleRequest = (request: Request, env?: StorefrontServiceEnv): Response | Promise<Response> => {
   const url = new URL(request.url);
   if (request.method === 'POST' && url.pathname === '/media/upload') return handleMediaUpload(request, env);
   const slugMatch = /^\/s\/([^/]+)$/.exec(url.pathname);
   if (request.method === 'GET' && slugMatch) return handleStorefrontRead(decodeURIComponent(slugMatch[1]!), env);
+  const mediaReadMatch = /^\/media\/(.+)$/.exec(url.pathname);
+  if (request.method === 'GET' && mediaReadMatch) return handleMediaRead(decodeURI(mediaReadMatch[1]!), env);
   return health(request);
 };
 

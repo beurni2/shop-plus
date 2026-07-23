@@ -141,7 +141,6 @@ export type UploadOutcome =
  */
 export class StorefrontMediaService {
   private readonly byId = new Map<string, MediaRecord>();
-  private seq = 0;
 
   constructor(private readonly store: MediaStore) {}
 
@@ -177,8 +176,11 @@ export class StorefrontMediaService {
       durationMs = d;
     }
 
-    this.seq += 1;
-    const id = input.id ?? `media-${this.seq}`;
+    // UNGUESSABLE id (STOREFRONT-DEPLOY-1, founder ruling): a random UUID, never a
+    // sequential `media-${seq}` that a public URL could enumerate. This reduces
+    // the blast radius; it does NOT replace the live-only read gate (that lands
+    // when the media registry goes durable — journaled as a later slice).
+    const id = input.id ?? crypto.randomUUID();
     const key = mediaKey(input.storefrontId, kind, id, contentType, input.pid);
     const stored = await this.store.put(key, bytes, contentType); // SERVER-SIDE write; the app never touches the bucket
     const record: MediaRecord = {

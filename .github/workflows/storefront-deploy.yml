@@ -1,0 +1,46 @@
+name: storefront-deploy
+
+# STOREFRONT-DEPLOY-1 — deploy the combined storefront Worker (both Durable
+# Objects + the R2 media backing) to Cloudflare.
+#
+# MANUAL ONLY (workflow_dispatch): a deploy is a deliberate act. The FIRST run
+# also applies the DO migration (creating StorefrontDO + ListingDO), and the
+# account token has been exercised ONLY for bucket creation, never an object
+# write — so a first-deploy R2 permission error is plausible and is a TOKEN fix,
+# not a code fix. Gated on the CLOUDFLARE_API_TOKEN repo secret.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: storefront-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Authorize read access to platform-contracts (CI-only)
+        run: git config --global url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "https://github.com/beurni2/platform-contracts"
+      # Guard against pnpm re-mangling lockfile git-dep URLs to SSH forms (see ci.yml).
+      - name: Authorize read access to platform-contracts (CI-only, SSH forms)
+        run: |
+          git config --global --add url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "git@github.com:beurni2/platform-contracts"
+          git config --global --add url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "ssh://git@github.com/beurni2/platform-contracts"
+      - run: pnpm install --frozen-lockfile
+      - name: Bundle the combined Worker (both DOs + service routes + R2 read)
+        run: pnpm --filter @shop-plus/storefront-service bundle:worker:combined
+      - name: Deploy to Cloudflare Workers
+        working-directory: services/storefront-service
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx --yes wrangler@4 deploy
