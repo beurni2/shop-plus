@@ -130,7 +130,7 @@ describe('Faso Premium fonts — money-render / cmap guard (RN surface)', () => 
     const emitted = moneyCodepoints();
     // The formatter really does emit the narrow no-break space — the guard's premise.
     expect(emitted.has(0x202f)).toBe(true);
-    expect(formatFcfa(11500)).toContain(' ');
+    expect(formatFcfa(11500)).toContain('\u202f');
     for (const face of manifest.faces) {
       const cover = new Set(face.codepoints);
       expect(cover.has(0x202f), `${face.file} lacks U+202F`).toBe(true);

@@ -790,10 +790,10 @@ export function CampaignFunding({ ctl, onBack, onToast }: { ctl: CercleControlle
       {/* C-CE19 — the ONE lawful suffix-free equation (§1.3 exception), server-provided */}
       <Text style={S.reconcile}>
         {tf('ce.f_reconciliation', {
-          total: String(alloue).replace(/\B(?=(\d{3})+(?!\d))/g, ' '),
-          depense: String(depense).replace(/\B(?=(\d{3})+(?!\d))/g, ' '),
-          reserve: String(reserve).replace(/\B(?=(\d{3})+(?!\d))/g, ' '),
-          restant: String(restantF).replace(/\B(?=(\d{3})+(?!\d))/g, ' '),
+          total: String(alloue).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f'),
+          depense: String(depense).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f'),
+          reserve: String(reserve).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f'),
+          restant: String(restantF).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f'),
         })}
       </Text>
 

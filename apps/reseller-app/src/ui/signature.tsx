@@ -57,7 +57,8 @@ export function WovenBand() {
    « L'argent en majesté » as a ledger: the net figure as the screen's hero
    (heroMoney, Bricolage 800, tabular), its calm label above, and an optional
    ledger sub-line (the reconciliation whisper) below. `amount` is a preformatted
-   franc string — the « F » belongs to the catalog, never to this code. */
+   franc string from the app's one escaped formatter (`formatFcfa` → « X[NNBSP]FCFA »,
+   U+202F from a single constant) — never a bare « F », never formatted in this code. */
 export function HeroLedger({
   label,
   amount,
