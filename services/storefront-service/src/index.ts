@@ -2,6 +2,8 @@ import { makeHealthFetch } from '@shop-plus/observability';
 import type { ResellerListing, Storefront } from '@platform/contracts';
 import { resolveMediaStore, type MediaEnv } from './media/media-store.js';
 import { StorefrontMediaService, type MediaKind } from './media/service.js';
+import { toStorefrontView } from './customer-projection.js';
+import { resolveStorefrontStore, type StorefrontStoreEnv } from './storefront-store.js';
 
 /**
  * storefront-service: Storefront authoring + customer-surface projections (Shop+
@@ -66,9 +68,29 @@ async function handleMediaUpload(request: Request, env?: MediaEnv): Promise<Resp
   );
 }
 
-export const handleRequest = (request: Request, env?: MediaEnv): Response | Promise<Response> => {
+/** The service env — media backing + the storefront DO binding (both optional;
+ * absent ⇒ the in-memory/mock substrates, so CI never reaches real storage). */
+export type StorefrontServiceEnv = MediaEnv & StorefrontStoreEnv;
+
+/**
+ * THE READ PATH — GET /s/{slug}. Resolves against the storefront store (durable
+ * when the DO binding is present, in-memory otherwise) and emits the buyer-safe
+ * StorefrontView. An unknown slug is the HONEST not-found (404) the PWA already
+ * renders as VitrineEtat 'invalid' — never a 500, never a neighbouring store.
+ */
+async function handleStorefrontRead(slug: string, env?: StorefrontStoreEnv): Promise<Response> {
+  const storefront = await resolveStorefrontStore(env).getBySlug(slug);
+  if (storefront === undefined) {
+    return Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 });
+  }
+  return Response.json(toStorefrontView(storefront), { status: 200 });
+}
+
+export const handleRequest = (request: Request, env?: StorefrontServiceEnv): Response | Promise<Response> => {
   const url = new URL(request.url);
   if (request.method === 'POST' && url.pathname === '/media/upload') return handleMediaUpload(request, env);
+  const slugMatch = /^\/s\/([^/]+)$/.exec(url.pathname);
+  if (request.method === 'GET' && slugMatch) return handleStorefrontRead(decodeURIComponent(slugMatch[1]!), env);
   return health(request);
 };
 

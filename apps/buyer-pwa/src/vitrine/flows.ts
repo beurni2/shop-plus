@@ -15,7 +15,7 @@
 
 import { t } from '../i18n';
 import { recordVitrineArrival, signedHref } from '../vitrine-link';
-import { demoStorefrontPort, type StorefrontProfilePort } from './profile';
+import { demoStorefrontPort, resolveStorefrontPort, type StorefrontProfilePort } from './profile';
 import {
   renderVitrineEmpty,
   renderVitrineInvalid,
@@ -50,7 +50,10 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   style.textContent = VITRINE_STYLES;
   document.head.appendChild(style);
 
-  const port: StorefrontProfilePort = demoStorefrontPort(harness.profil ?? 'default');
+  // The audit harness (a profil override) drives the DEMO adapter; a real entry
+  // uses the env-gated port — the real HTTP adapter iff a service base is
+  // configured at build time, the in-process demo otherwise (offline-safe).
+  const port: StorefrontProfilePort = harness.profil ? demoStorefrontPort(harness.profil) : resolveStorefrontPort();
   const root = document.createElement('div');
   root.className = 'vt-root';
   root.setAttribute('data-screen', 'vitrine');
@@ -62,8 +65,11 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   // it no-ops on every non-voice click and survives re-renders (delegated).
   wireVoicePlay(root);
 
-  const show = (etat: VitrineEtat): void => {
-    const resolved = port.resolve(slug);
+  type Resolved = Awaited<ReturnType<StorefrontProfilePort['resolve']>>;
+
+  // Render from an ALREADY-RESOLVED value — the resolve happens ONCE per load
+  // (never re-resolved per state), the widened async seam feeding this.
+  const render = (etat: VitrineEtat, resolved: Resolved): void => {
     if (etat !== 'invalid' && !resolved) etat = 'invalid';
     const sf = resolved?.storefront;
     applyTheme(root, sf?.theme ?? DEFAULT_THEME);
@@ -91,8 +97,8 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   };
 
   // Arrival attribution — best-effort, never blocks the render (unchanged seam).
-  const resolved = port.resolve(slug);
-  if (resolved) {
+  const recordArrival = (resolved: Resolved): void => {
+    if (!resolved) return;
     try {
       recordVitrineArrival(
         {
@@ -109,17 +115,36 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
     } catch {
       /* storage unavailable — arrival is best-effort */
     }
-  }
+  };
 
-  // §4.2: harness state wins (frozen for the audit); else loading → ready.
-  if (harness.etat) {
-    show(harness.etat);
-  } else if (harness.fige) {
-    show('ready');
-  } else {
-    show('loading');
-    window.setTimeout(() => show('ready'), SKELETON_MS);
-  }
+  // Resolve ONCE per load and drive the state. §4.2: harness state wins (frozen
+  // for the audit); else the existing squelette shows WHILE the resolve is in
+  // flight (no new spinner) and holds ≥ SKELETON_MS, then ready/empty/invalid.
+  const load = (skeletonMs: number, isInitial: boolean): void => {
+    if (harness.etat !== undefined) {
+      void port.resolve(slug).then((resolved) => {
+        if (isInitial) recordArrival(resolved);
+        render(harness.etat!, resolved);
+      });
+      return;
+    }
+    if (harness.fige === true) {
+      void port.resolve(slug).then((resolved) => {
+        if (isInitial) recordArrival(resolved);
+        render('ready', resolved);
+      });
+      return;
+    }
+    render('loading', undefined);
+    const started = Date.now();
+    void port.resolve(slug).then((resolved) => {
+      if (isInitial) recordArrival(resolved);
+      const wait = Math.max(0, skeletonMs - (Date.now() - started));
+      window.setTimeout(() => render('ready', resolved), wait);
+    });
+  };
+
+  load(SKELETON_MS, true);
 
   root.addEventListener('click', (ev) => {
     const target = (ev.target as HTMLElement).closest('[data-action]');
@@ -134,8 +159,7 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
     } else if (action === 'retour') {
       window.history.back();
     } else if (action === 'reessayer') {
-      show('loading');
-      window.setTimeout(() => show('ready'), RETRY_MS);
+      load(RETRY_MS, false);
     } else if (action === 'decouvrir') {
       window.location.href = '/boutiques';
     } else if (action === 'partager') {

@@ -1,4 +1,4 @@
-import type { WaterfallResult } from '@platform/contracts';
+import type { Storefront, WaterfallResult } from '@platform/contracts';
 
 /**
  * Customer-surface projection (SP-I03): "Customer-facing pages MUST show the
@@ -46,5 +46,59 @@ export function toCustomerProductView(input: CustomerProjectionInput): CustomerP
     deliveryFeeFcfa: input.money.deliveryFee,
     buyerTotalFcfa: input.money.buyerTotal,
     assetRefs: [...input.assetRefs],
+  };
+}
+
+/**
+ * STOREFRONT-level customer surface (STOREFRONT-READ-PATH-1) — the whole-store
+ * response for `GET /s/{slug}`. Built as an EXPLICIT buyer-safe allowlist over the
+ * canon Storefront (not a spread): the canon shape carries no supplier identity,
+ * cost, margin, commission or economics field today, and this projection copies
+ * ONLY the named fields — so a future canon field cannot silently ride onto the
+ * customer surface, and the no-supplier-contact CI gate scans the emitted payload
+ * as the second line of defense (SP-I03, same discipline as CustomerProductView).
+ * `resellerId` IS carried: the reseller is the commercial relationship the buyer
+ * sees; the SUPPLIER is never named here. No money field belongs on this shape —
+ * prices ride the per-product surface, never the storefront envelope.
+ */
+export interface StorefrontView {
+  readonly id: string;
+  readonly resellerId: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly zone: string;
+  readonly category: string;
+  readonly tagline: string;
+  readonly bio: string;
+  readonly theme: Storefront['theme'];
+  readonly cover: Storefront['cover'];
+  readonly avatar: Storefront['avatar'];
+  readonly curatedItems: readonly string[];
+  readonly featuredItems: readonly string[];
+  readonly sections: Storefront['sections'];
+  readonly discoverable: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export function toStorefrontView(sf: Storefront): StorefrontView {
+  return {
+    id: sf.id,
+    resellerId: sf.resellerId,
+    slug: sf.slug,
+    name: sf.name,
+    zone: sf.zone,
+    category: sf.category,
+    tagline: sf.tagline,
+    bio: sf.bio,
+    theme: sf.theme,
+    cover: sf.cover,
+    avatar: sf.avatar,
+    curatedItems: [...sf.curatedItems],
+    featuredItems: [...sf.featuredItems],
+    sections: sf.sections,
+    discoverable: sf.discoverable,
+    createdAt: sf.createdAt,
+    updatedAt: sf.updatedAt,
   };
 }

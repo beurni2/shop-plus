@@ -76,8 +76,8 @@ describe('renderVoiceChip — the tile affordance is a span (never a nested butt
 });
 
 describe('the demo port carries a ready note for EVERY curated product (founder order 2026-07-22)', () => {
-  it('each pid in the storefront’s curatedItems resolves to a ready, playable note', () => {
-    const r = demoStorefrontPort('customised').resolve('aicha-4821')!;
+  it('each pid in the storefront’s curatedItems resolves to a ready, playable note', async () => {
+    const r = (await demoStorefrontPort('customised').resolve('aicha-4821'))!;
     // The founder retired the « exactly p1 & p5 » demo: « la voix d’Aïcha »
     // rides every product she curated, so a shared link on ANY of them opens
     // C1 with the player present.
@@ -87,15 +87,15 @@ describe('the demo port carries a ready note for EVERY curated product (founder 
     }
   });
 
-  it('the empty (day-1) variant carries no notes', () => {
-    const r = demoStorefrontPort('empty').resolve('aicha-4821')!;
+  it('the empty (day-1) variant carries no notes', async () => {
+    const r = (await demoStorefrontPort('empty').resolve('aicha-4821'))!;
     expect(Object.keys(r.notes)).toHaveLength(0);
   });
 });
 
 describe('integration — the chip appears on a noted tile, never on a note-less one', () => {
-  it('renderVitrineReady shows a voice chip on every in-stock noted render, none when notes are absent', () => {
-    const r = demoStorefrontPort('customised').resolve('aicha-4821')!;
+  it('renderVitrineReady shows a voice chip on every in-stock noted render, none when notes are absent', async () => {
+    const r = (await demoStorefrontPort('customised').resolve('aicha-4821'))!;
     const html = renderVitrineReady(r.storefront, r.trust, { fromProduct: false }, r.notes);
     const chips = html.match(/data-action="voix-produit-play"/g) ?? [];
     // A chip fires for every IN-STOCK render of a noted product: each in-stock

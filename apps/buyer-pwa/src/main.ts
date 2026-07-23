@@ -14,7 +14,7 @@ import {
 } from '@platform/ui-tokens/legacy';
 import { t } from './i18n';
 import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, vitrineHref } from './vitrine-link';
-import { demoStorefrontPort } from './vitrine/profile';
+import { demoStorefrontPort, resolveStorefrontPort } from './vitrine/profile';
 import { mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { ENT_STYLES } from './vitrine/entries';
 import { createCliente, type ClienteEcran } from './cliente/flow';
@@ -584,7 +584,14 @@ if (app) {
 
   if (signedSlug) {
     const profil = params.get('demo-signed-profil') === 'prive' ? 'private' : 'default';
-    const resolved = demoStorefrontPort(profil).resolve(signedSlug);
+    // A REAL shared link (the path slug) resolves through the env-gated port —
+    // the real HTTP adapter iff a service base is configured, else the demo
+    // (offline). The `?demo-signed=` audit harness keeps the demo port + its
+    // profil lever. Widened to await ONE seam (STOREFRONT-READ-PATH-1).
+    const isRealPath = signedProductSlugFromPath(window.location.pathname) !== undefined;
+    const port = isRealPath ? resolveStorefrontPort() : demoStorefrontPort(profil);
+    void (async () => {
+    const resolved = await port.resolve(signedSlug);
     if (!resolved) {
       // Unknown or expired slug → the HONEST not-found, reusing the `/v/` path's
       // invalid surface exactly (no bespoke error wall; §5 honest states).
@@ -654,13 +661,17 @@ if (app) {
         app.append(main);
       }
     }
+    })();
   } else if (clienteDemo && (CLIENTE_ECRANS as readonly string[]).includes(clienteDemo)) {
     // The PWA CLIENTE harness — every C1–C9 screen/state × the four habillages,
     // reachable and gate-lockable (the shared link boots at root under preview).
     const theme = clienteTheme(params.get('theme'));
     // Resolve the demo storefront from the port (no inline shop name in the
     // shell); the harness theme param drives all four habillages.
-    const sf = demoStorefrontPort('default').resolve('aicha-4821')?.storefront;
+    // Harness — ALWAYS the demo port (must work with no service reachable),
+    // widened to await the one seam (STOREFRONT-READ-PATH-1, item 6).
+    void (async () => {
+    const sf = (await demoStorefrontPort('default').resolve('aicha-4821'))?.storefront;
     const produit = {
       ...clienteProduit({ name: sf?.name ?? '', slug: sf?.slug ?? 'aicha-4821' }),
       inStock: params.get('stock') !== 'out',
@@ -686,6 +697,7 @@ if (app) {
       },
     });
     app.append(main);
+    })();
   } else if (vitrineSlug) {
     const VIT_ETATS: readonly VitrineEtat[] = ['loading', 'ready', 'empty', 'offline', 'invalid'];
     const etatParam = params.get('demo-vitrine-etat');
