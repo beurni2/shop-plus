@@ -1,0 +1,43 @@
+# STOREFRONT-DEPLOY-1 — the COMBINED Worker deploy config (founder ruling:
+# one combined Worker = index.ts's service routes + both Durable Object classes
+# + the R2 binding).
+#
+# UNPROVEN UNTIL A REAL `wrangler deploy` RUNS. Miniflare binds the DOs and R2 by
+# its OWN test config, never this file — so the bindings and especially the
+# [[migrations]] block below are validated only by an actual deploy, not by any
+# green CI. A malformed migration passes every test and fails only on deploy.
+
+name = "storefront-service"
+# The pre-built combined bundle (esbuild, the same artifact the miniflare e2e
+# runs); the deploy workflow runs `bundle:worker:combined` before `wrangler deploy`.
+main = "dist/worker/worker.mjs"
+compatibility_date = "2025-07-05"
+
+# One Durable Object binding per aggregate, addressed by idFromName(id) inside.
+[[durable_objects.bindings]]
+name = "STOREFRONT"
+class_name = "StorefrontDO"
+
+[[durable_objects.bindings]]
+name = "LISTING"
+class_name = "ListingDO"
+
+# FIRST-DEPLOY MIGRATION — create both DO classes. `new_sqlite_classes` is the
+# SQLite storage backend (the current default for new DO namespaces). The exact
+# directive (new_sqlite_classes vs new_classes) is a deploy-only unknown — if the
+# first deploy rejects it, it is a one-line migration fix, not a code fix.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["StorefrontDO", "ListingDO"]
+
+# The PRIVATE R2 bucket (exists: Standard, jurisdiction default, location hint
+# ENAM). Reads go THROUGH the Worker (GET /media/{key}); never a public custom
+# domain — that would let anyone enumerate media keys.
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "beurni-storefront-media"
+
+# The service's own origin, so R2 read URLs are absolute. Empty ⇒ relative
+# `/media/{key}` (same origin). Set to the deployed URL after the first deploy.
+[vars]
+MEDIA_PUBLIC_BASE = ""

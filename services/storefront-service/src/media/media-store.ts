@@ -49,6 +49,41 @@ export class InMemoryMediaStore implements MediaStore {
   }
 }
 
+/**
+ * The R2 binding, as the MINIMAL structural shape this module uses — so `src/`
+ * stays free of `@cloudflare/workers-types` (the `StorefrontFetcher` precedent).
+ * `env.BUCKET` in workerd is a native binding: no credential, no token minting.
+ */
+export interface R2ObjectBodyLike {
+  /** The object bytes as a stream — handed straight to a `Response` on read. */
+  readonly body: ReadableStream | null;
+  readonly httpMetadata?: { readonly contentType?: string };
+}
+export interface R2BucketLike {
+  put(key: string, value: Uint8Array, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
+  get(key: string): Promise<R2ObjectBodyLike | null>;
+}
+
+/**
+ * The REAL store on Cloudflare R2 (STOREFRONT-DEPLOY-1, founder ruling). Writes
+ * the native binding — `env.BUCKET.put(key, bytes, { httpMetadata })` — no
+ * credential, no token, no network client. The returned URL is the SERVICE's own
+ * read route `GET /media/{key}` (the bucket is PRIVATE — never a public custom
+ * domain, which would let anyone enumerate `media-${seq}` keys incl. held covers);
+ * `publicBase` prefixes it with the deployed service origin when set. Exercised
+ * only when `env.BUCKET` is bound; the mock store stands in everywhere else.
+ */
+export class R2MediaStore implements MediaStore {
+  constructor(private readonly bucket: R2BucketLike, private readonly publicBase = '') {}
+
+  async put(key: string, bytes: Uint8Array, contentType: string): Promise<StoredObject> {
+    await this.bucket.put(key, bytes, { httpMetadata: { contentType } });
+    // THROUGH-A-SERVICE for reads too: the URL points at the Worker route, never
+    // at the bucket directly. Relative when no base is configured (same origin).
+    return { url: `${this.publicBase}/media/${encodeURI(key)}` };
+  }
+}
+
 /** Real-adapter config, read from the environment (never committed). */
 export interface GcsConfig {
   readonly bucket: string;
@@ -88,18 +123,30 @@ export class GcsMediaStore implements MediaStore {
 
 /** The environment the store resolves its config from (injected in workerd, else process.env). */
 export interface MediaEnv {
+  /** The R2 binding (native, no credential) — preferred when present. */
+  readonly BUCKET?: R2BucketLike;
+  /** The service's own origin, so R2 read URLs are absolute (`{base}/media/{key}`). */
+  readonly MEDIA_PUBLIC_BASE?: string;
   readonly STOREFRONT_GCS_BUCKET?: string;
   readonly STOREFRONT_GCS_TOKEN?: string;
   readonly STOREFRONT_GCS_PUBLIC_BASE?: string;
 }
 
 /**
- * Pick the store from the environment: real GCS iff BOTH the bucket and token are
- * present, the in-memory fake otherwise. CI and tests set neither, so they can
- * never reach GCS — the mock-gate is enforced by construction, not by discipline.
+ * Pick the store from the environment: R2 iff the native `BUCKET` binding is
+ * present (founder ruling — R2, not GCS), else GCS iff BOTH bucket and token are
+ * present, else the in-memory fake. CI and tests bind none of the three, so they
+ * can never reach real storage — the mock-gate is enforced by construction, not
+ * by discipline. The order is R2 → GCS → in-memory.
  */
 export function resolveMediaStore(env?: MediaEnv): MediaStore {
-  const e: MediaEnv = env ?? (typeof process !== 'undefined' ? (process.env as MediaEnv) : {});
+  // `globalThis.process` (not a bare `process` identifier) so this typechecks
+  // under both the Node src config and the workerd worker config (no @types/node).
+  const proc = (globalThis as { process?: { env?: unknown } }).process;
+  const e: MediaEnv = env ?? ((proc?.env as MediaEnv | undefined) ?? {});
+  if (e.BUCKET && typeof e.BUCKET.put === 'function') {
+    return new R2MediaStore(e.BUCKET, e.MEDIA_PUBLIC_BASE ?? '');
+  }
   if (e.STOREFRONT_GCS_BUCKET && e.STOREFRONT_GCS_TOKEN) {
     return new GcsMediaStore({
       bucket: e.STOREFRONT_GCS_BUCKET,
