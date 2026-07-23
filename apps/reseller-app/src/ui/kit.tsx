@@ -20,6 +20,7 @@ import {
 import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './faso-fonts';
 import { fp } from './motion';
 import { WovenBand } from './signature';
+import { groupFr } from '../money';
 
 /**
  * WO-FP-SHOP — the reseller kit on FASO PREMIUM (ui-tokens v1.0.0). The visual
@@ -255,8 +256,9 @@ export function AmountHero({
 /* « Le compte-montant »: the gains hero counts up from zero to the net on the
  * money law's count-up clock — the TOKEN (money.countUpMs, ≤ 600 ms), never a
  * literal — eased on the fp curve, landing instantly under reduced motion.
- * `template` is the catalog's money string (the « F » belongs to the catalog);
- * frame numbers use the same fr-FR grouping as the repo's formatFcfa. */
+ * `template` is the catalog's money string, which carries the « [NNBSP]FCFA »
+ * suffix — never a bare « F ». The running frame number is grouped by the repo's
+ * one escaped formatter (`groupFr`, U+202F from a single constant) — never ICU. */
 export function CountUpAmount({
   label,
   amount,
@@ -290,7 +292,7 @@ export function CountUpAmount({
       anim.stop();
     };
   }, [amount, reduced, progress]);
-  return <AmountHero label={label} amount={template.replace('{amount}', shown.toLocaleString('fr-FR'))} onAccent={onAccent} />;
+  return <AmountHero label={label} amount={template.replace('{amount}', groupFr(shown))} onAccent={onAccent} />;
 }
 
 /* Status chip (prototype pills): a dot + label on a calm wash — state is

@@ -24,7 +24,7 @@ const appDir = join(import.meta.dirname, '..');
 const read = (p: string): string => readFileSync(join(appDir, p), 'utf8');
 const catalog = JSON.parse(read('i18n/catalog.json')) as Array<{ key: string; fr: string }>;
 const keys = new Set(catalog.map((e) => e.key));
-const NNBSP = ' ';
+const NNBSP = '\u202f';
 
 /* ------------------------------------------------------ §8.7 math seed ---- */
 
