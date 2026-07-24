@@ -279,6 +279,9 @@ importers:
       '@shop-plus/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@shop-plus/supply-consumer':
+        specifier: workspace:*
+        version: link:../../packages/supply-consumer
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20250705.0

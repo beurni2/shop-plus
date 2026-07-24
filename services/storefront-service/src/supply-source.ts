@@ -26,10 +26,45 @@
  * does not exist in the bundle. Tests inject their own mock through the PORT.
  * `test/supply-source.test.ts` fails if a mock ever becomes reachable from here.
  *
- * ABSENT IS THE DEFAULT TODAY, and that is honest: no supply wire exists between
- * the repos yet, so an unconfigured Worker describes no product — and the buyer
- * surface renders its designed empty/partial state rather than inventing one.
+ * ABSENT IS THE DEFAULT TODAY, and that is honest: an unconfigured Worker
+ * describes no product — and the buyer surface renders its designed empty/partial
+ * state rather than inventing one.
+ *
+ * ═══ ONE CONSUMER, NOT TWO (SUPPLY-WIRE-1, founder finding) ═══
+ *
+ * The (a1) cut of this file was a SECOND, hand-rolled client of the same wire and
+ * it disagreed with boutik's producer on every axis that matters: it fetched
+ * `/supply/{pv}` where the producer serves `/supply-projection/{pv}` (every
+ * request would have 404'd); it read `productName`/`assetRefs` straight off the
+ * body where the producer NESTS them in the `{version, asOf, value}` envelope; it
+ * applied NO freshness bound, which is the entire point of SW-2; and it carried an
+ * inline identity regex instead of the certified sweep. A second consumer with
+ * weaker validation is exactly how the two halves drifted.
+ *
+ * So this module no longer parses anything. It performs the ONE thing a Worker
+ * must do itself — the async `fetch` — and hands the RAW bytes to the CERTIFIED
+ * consumer (`@shop-plus/supply-consumer`): canon envelope schema, the founder's
+ * 15-minute freshness bound, and the identity sweep, all in one call. Only a
+ * `fresh` verdict describes a product; `stale`, `absent` and `rejected` all block
+ * → undescribable → OMITTED. A product described from a STALE projection is worse
+ * than a product not described.
+ *
+ * IMPORT DISCIPLINE: the consumer is imported by SUBPATH (`/consumer`), never by
+ * package root — the root re-exports `./mock.js`, and importing it would pull the
+ * certified MOCK into the deployed bundle, breaking the unreachable-by-
+ * construction property this module exists to hold.
  */
+
+import { consumeSupplyProjection } from '@shop-plus/supply-consumer/consumer';
+
+/**
+ * THE PRODUCER'S ROUTE, read from boutik's own source, not from memory
+ * (`services/offer-service/src/supply-endpoint.ts`: `SUPPLY_ROUTE =
+ * /^\/supply-projection\/([^/]+)$/`, GET only — a non-GET is an honest 405).
+ * A path mismatch is invisible to every test either side can run alone, so
+ * `test/supply-source.test.ts` asserts this constant.
+ */
+export const SUPPLY_ROUTE_PREFIX = '/supply-projection/';
 
 /** What supply contributes to a buyer-visible product: its name and its images. */
 export interface ProductDescription {
@@ -73,33 +108,30 @@ export class HttpSupplySource implements SupplySourcePort {
   async describe(productVersionId: string): Promise<ProductDescription | undefined> {
     let res: Response;
     try {
-      res = await fetch(`${this.base}/supply/${encodeURIComponent(productVersionId)}`, {
+      res = await fetch(`${this.base}${SUPPLY_ROUTE_PREFIX}${encodeURIComponent(productVersionId)}`, {
+        method: 'GET', // the producer answers 405 to anything else
         headers: { Accept: 'application/json' },
       });
     } catch {
       return undefined; // unreachable → absent, never fabricated
     }
+    // The producer's honest refusals (404 unknown_product_version · 409
+    // unavailable, the projection refusal ladder) are ABSENCE here, not errors:
+    // the product is simply undescribable, and the join omits it.
     if (!res.ok) return undefined;
-    const body: unknown = await res.json().catch(() => null);
-    return toDescription(body);
-  }
-}
+    const raw: unknown = await res.json().catch(() => null);
+    if (raw === null) return undefined;
 
-/**
- * Accept ONLY a description-shaped payload. A supplier-identity key anywhere on
- * the payload is refused outright (SP-I03): display data may cross this boundary,
- * identity may not. Mirrors the supply-consumer's leak sweep.
- */
-const IDENTITY_LEAK = /supplier[_-]?(id|name|phone|contact)|phone|whatsapp|pickup|adresse|address/i;
-export function toDescription(body: unknown): ProductDescription | undefined {
-  if (body === null || typeof body !== 'object') return undefined;
-  const raw = body as Record<string, unknown>;
-  if (Object.keys(raw).some((k) => IDENTITY_LEAK.test(k))) return undefined;
-  const name = raw['productName'];
-  const refs = raw['assetRefs'];
-  if (typeof name !== 'string' || name.trim() === '') return undefined;
-  if (!Array.isArray(refs) || refs.some((r) => typeof r !== 'string')) return undefined;
-  return { productName: name, assetRefs: [...(refs as string[])] };
+    // THE CERTIFIED CONSUMER DOES THE PARSING — envelope schema, freshness bound,
+    // identity sweep. Its port is deliberately SYNCHRONOUS (it consumes bytes, it
+    // does not fetch), so the already-fetched payload is handed through a trivial
+    // port — the same shape its own tests use. Nothing is re-implemented here.
+    const verdict = consumeSupplyProjection({ readProjection: () => raw }, productVersionId, new Date().toISOString());
+    // fresh ALONE describes. stale · absent · rejected all BLOCK: a product
+    // described from a stale projection is worse than one not described (SW-2).
+    if (verdict.status !== 'fresh') return undefined;
+    return { productName: verdict.projection.productName, assetRefs: [...verdict.projection.assetRefs] };
+  }
 }
 
 /**

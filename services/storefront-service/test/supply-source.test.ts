@@ -1,11 +1,11 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import {
   AbsentSupplySource,
   HttpSupplySource,
+  SUPPLY_ROUTE_PREFIX,
   resolveSupplySource,
-  toDescription,
   type SupplySourcePort,
 } from '../src/supply-source.js';
 import { joinVitrineProduct, type ListingSide } from '../src/customer-projection.js';
@@ -90,15 +90,15 @@ describe('ABSENT renders as OMITTED — a product that cannot be described is no
     expect(joinVitrineProduct(hidden, { productName: 'Sac tressé', assetRefs: [] })).toBeUndefined();
   });
 
-  it('a supply payload carrying SUPPLIER IDENTITY is refused at the boundary (SP-I03)', () => {
-    expect(toDescription({ productName: 'Sac', assetRefs: [], supplierPhone: '+226 70 00 00 00' })).toBeUndefined();
-    expect(toDescription({ productName: 'Sac', assetRefs: [], pickup: 'Rood Woko' })).toBeUndefined();
-    // …and a well-formed one is accepted
-    expect(toDescription({ productName: 'Sac', assetRefs: ['a'] })).toEqual({ productName: 'Sac', assetRefs: ['a'] });
-    // a malformed one is absent, never partially invented
-    expect(toDescription({ productName: '', assetRefs: [] })).toBeUndefined();
-    expect(toDescription({ productName: 'Sac', assetRefs: [1, 2] })).toBeUndefined();
-    expect(toDescription(null)).toBeUndefined();
+  it('the HAND-ROLLED PARSER IS GONE — validation belongs to the certified consumer alone', async () => {
+    const src = readFileSync(join(import.meta.dirname, '../src/supply-source.ts'), 'utf8');
+    // one consumer, not two: no second envelope parse, no second identity regex
+    expect(src).not.toContain('toDescription');
+    expect(src).not.toMatch(/const IDENTITY_LEAK\s*=/);
+    expect(src).toContain("from '@shop-plus/supply-consumer/consumer'");
+    // …and by SUBPATH, never the package root (the root re-exports the mock, which
+    // would pull fabricated supply data into the deployed bundle).
+    expect(src).not.toMatch(/from '@shop-plus\/supply-consumer'/);
   });
 });
 
@@ -121,5 +121,87 @@ describe('LISTING IDS STAY OFF THE BUYER WIRE (founder standing law)', () => {
     const serialised = JSON.stringify(rec);
     expect(serialised).not.toContain(listingId);
     expect(serialised).not.toMatch(/lst[-_]/i);
+  });
+});
+
+/**
+ * SUPPLY-WIRE-1 — the wire matches boutik's PRODUCER, and the bound is not optional.
+ *
+ * A path mismatch is invisible to every test either side can run alone: shop's
+ * tests stub whatever path shop asks for, and boutik's tests serve whatever path
+ * boutik defines. So the producer's route is asserted here as a CONSTANT read out
+ * of boutik's own source, and the envelope + freshness bound are exercised through
+ * the certified consumer rather than re-implemented.
+ */
+describe('SUPPLY-WIRE-1 — the path, the envelope and the freshness bound', () => {
+  const PV = 'pv-founder-001';
+  const NOW = () => new Date().toISOString();
+  const minutesAgo = (m: number): string => new Date(Date.now() - m * 60_000).toISOString();
+  /** The producer's 200 shape (offer-service `serveProjection`): the canon envelope. */
+  const envelope = (asOf: string, over: Record<string, unknown> = {}): unknown => ({
+    version: 1,
+    asOf,
+    value: {
+      productVersionId: PV,
+      offerVersion: '1',
+      basePrice: 10_000,
+      resellerCommission: 1_000,
+      available: 5,
+      productName: 'Pagne tissé Faso (démo)',
+      assetRefs: ['asset/pv-founder-001/cover'],
+      ...over,
+    },
+  });
+
+  let seen: string[] = [];
+  function stubFetch(status: number, body: unknown): void {
+    seen = [];
+    globalThis.fetch = (async (url: string | URL) => {
+      seen.push(String(url));
+      return { ok: status >= 200 && status < 300, status, json: async () => body } as unknown as Response;
+    }) as typeof fetch;
+  }
+  const original = globalThis.fetch;
+  afterAll(() => {
+    globalThis.fetch = original;
+  });
+
+  it('THE PATH MATCHES THE PRODUCER: /supply-projection/{pv}, GET — not the /supply/{pv} that would have 404d', async () => {
+    expect(SUPPLY_ROUTE_PREFIX).toBe('/supply-projection/'); // boutik: SUPPLY_ROUTE = /^\/supply-projection\/([^/]+)$/
+    stubFetch(200, envelope(NOW()));
+    await new HttpSupplySource('https://boutik.example').describe(PV);
+    expect(seen[0]).toBe('https://boutik.example/supply-projection/pv-founder-001');
+    expect(seen[0]).not.toContain('/supply/pv'); // the (a1) defect, pinned closed
+  });
+
+  it('A FRESH ENVELOPE describes: name and refs come out of value, never off the body', async () => {
+    stubFetch(200, envelope(minutesAgo(1)));
+    const got = await new HttpSupplySource('https://boutik.example').describe(PV);
+    expect(got).toEqual({ productName: 'Pagne tissé Faso (démo)', assetRefs: ['asset/pv-founder-001/cover'] });
+  });
+
+  it('STALE BLOCKS: a projection past the 15-minute bound describes NOTHING (SW-2, the whole point)', async () => {
+    stubFetch(200, envelope(minutesAgo(16)));
+    expect(await new HttpSupplySource('https://boutik.example').describe(PV)).toBeUndefined();
+    // …and the boundary itself stays fresh, so the bound is exact rather than fuzzy
+    stubFetch(200, envelope(minutesAgo(14)));
+    expect(await new HttpSupplySource('https://boutik.example').describe(PV)).toBeDefined();
+  });
+
+  it('AN UNWRAPPED BODY IS REFUSED — the (a1) defect: reading productName straight off the response', async () => {
+    stubFetch(200, { productName: 'Pagne tissé Faso (démo)', assetRefs: ['a'] }); // no envelope
+    expect(await new HttpSupplySource('https://boutik.example').describe(PV)).toBeUndefined();
+  });
+
+  it('IDENTITY MATERIAL is refused by the certified sweep, not by a local regex', async () => {
+    stubFetch(200, envelope(minutesAgo(1), { supplierPhone: '+226 70 00 00 00' }));
+    expect(await new HttpSupplySource('https://boutik.example').describe(PV)).toBeUndefined();
+  });
+
+  it("the producer's HONEST REFUSALS are absence, never an error: 404 unknown_product_version, 409 unavailable", async () => {
+    stubFetch(404, { service: 'offer-service', status: 'not_found', reason: 'unknown_product_version' });
+    expect(await new HttpSupplySource('https://boutik.example').describe(PV)).toBeUndefined();
+    stubFetch(409, { service: 'offer-service', status: 'unavailable', reason: 'offer_expired' });
+    expect(await new HttpSupplySource('https://boutik.example').describe(PV)).toBeUndefined();
   });
 });
