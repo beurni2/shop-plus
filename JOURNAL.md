@@ -9,7 +9,7 @@ Format per entry:
 
 ---
 
-## 2026-07-24 · OZ1 — SEAM-ERROR-VISIBILITY-1 (make the seam failure legible) · in-review (built + proven on-branch; NO merge without approval)
+## 2026-07-24 · OZ1 — SEAM-ERROR-VISIBILITY-1 (make the seam failure legible) · done — MERGED at 1651d88 (guarded: on-branch CI 30066464107 GREEN at the exact head 494c3b3 · frozen trees byte-identical 521449…/09a649… · frozen-path diff empty · founder approval « keep working and merge it »). NEXT: founder republishes the preview; one tap names the reason (http_401/http_404/offline) + the resolved base.
 - **Why:** the founder set both EXPO_PUBLIC secrets, redeployed the Worker green, re-ran the Expo preview, and both « Mettre ma boutique en ligne » and the list action returned the GENERIC failure toast. He audited the deployed bundle via the Cloudflare API (keyAuthorized reads env.STOREFRONT_WRITE_SECRET vs the X-Write-Key header; GET /storefronts gated + routed to the index DO; CORS present) — the live code is correct, and Cloudflare never wipes secrets on redeploy. Out of auditable candidates → make the failure legible instead of burning credits on elimination.
 - **Built (tiny — App.tsx + catalog.json ONLY; service/auth/deploy UNTOUCHED per founder):**
   - **Surface the reason the seam already computes:** the three failure sites in App.tsx discarded `res.reason` for `t('k.publier.erreur')`; now `tf('k.publier.erreur', { raison })` shows it — **http_401** = key mismatch, **http_404** = routing/base-URL, **offline** = the device never reached Cloudflare. Three different fixes, previously indistinguishable.
