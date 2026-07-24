@@ -1,4 +1,5 @@
 import {
+  decideAddItem,
   decideCreate,
   decideToggle,
   type CreateDecision,
@@ -75,6 +76,21 @@ export class StorefrontDO {
       }
       const current = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
       const { decision, next } = decideToggle(current, pathname === '/entry/publish', args.correlationId, args.at);
+      if (next) await this.state.storage.put(ENTRY_KEY, next);
+      return Response.json(decision);
+    }
+    // REAL-PRODUCT-RENDER-1 (a2) — MEMBERSHIP: publishing a listing appends its
+    // pid to curatedItems (append-if-absent; an existing pid keeps its position).
+    if (request.method === 'POST' && pathname === '/entry/items/add') {
+      let args: { pid?: string; at?: string };
+      try {
+        args = (await request.json()) as { pid?: string; at?: string };
+      } catch {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      if (typeof args.pid !== 'string' || args.pid === '') return Response.json({ error: 'malformed' }, { status: 400 });
+      const current = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
+      const { decision, next } = decideAddItem(current, args.pid, args.at ?? new Date().toISOString());
       if (next) await this.state.storage.put(ENTRY_KEY, next);
       return Response.json(decision);
     }
@@ -202,6 +218,16 @@ export default {
       const args = (await request.clone().json().catch(() => ({}))) as Partial<ToggleArgs>;
       const res = await sfStub(env, id).fetch(
         new Request(`https://do/entry/${m[2]}`, { method: 'POST', body: JSON.stringify({ ...args, id }) }),
+      );
+      return forward(res);
+    }
+
+    m = /^\/storefronts\/([^/]+)\/items$/.exec(pathname);
+    if (m && request.method === 'POST') {
+      const id = decodeURIComponent(m[1]!);
+      const args = (await request.clone().json().catch(() => ({}))) as { pid?: string; at?: string };
+      const res = await sfStub(env, id).fetch(
+        new Request('https://do/entry/items/add', { method: 'POST', body: JSON.stringify(args) }),
       );
       return forward(res);
     }

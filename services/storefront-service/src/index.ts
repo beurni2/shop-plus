@@ -2,8 +2,9 @@ import { makeHealthFetch } from '@shop-plus/observability';
 import type { ResellerListing, Storefront } from '@platform/contracts';
 import { resolveMediaStore, type MediaEnv } from './media/media-store.js';
 import { StorefrontMediaService, type MediaKind } from './media/service.js';
-import { toStorefrontView } from './customer-projection.js';
+import { joinVitrineProduct, toStorefrontView, type VitrineProductRecord } from './customer-projection.js';
 import { resolveStorefrontStore, type StorefrontStoreEnv } from './storefront-store.js';
+import { resolveSupplySource, type SupplySourceEnv } from './supply-source.js';
 
 /**
  * storefront-service: Storefront authoring + customer-surface projections (Shop+
@@ -70,7 +71,13 @@ async function handleMediaUpload(request: Request, env?: MediaEnv): Promise<Resp
 
 /** The service env — media backing + the storefront DO binding (both optional;
  * absent ⇒ the in-memory/mock substrates, so CI never reaches real storage). */
-export type StorefrontServiceEnv = MediaEnv & StorefrontStoreEnv;
+export type StorefrontServiceEnv = MediaEnv &
+  StorefrontStoreEnv &
+  SupplySourceEnv & {
+    /** REAL-PRODUCT-RENDER-1 (a2) — the listing DO, reached through the shim for
+     * the JOIN. Internal: the public `/listings*` surface stays key-gated. */
+    readonly LISTING_DO?: { fetch(request: Request): Promise<Response> };
+  };
 
 /**
  * THE READ PATH — GET /s/{slug}. Resolves against the storefront store (durable
@@ -78,12 +85,52 @@ export type StorefrontServiceEnv = MediaEnv & StorefrontStoreEnv;
  * StorefrontView. An unknown slug is the HONEST not-found (404) the PWA already
  * renders as VitrineEtat 'invalid' — never a 500, never a neighbouring store.
  */
-async function handleStorefrontRead(slug: string, env?: StorefrontStoreEnv): Promise<Response> {
+async function handleStorefrontRead(slug: string, env?: StorefrontServiceEnv): Promise<Response> {
   const storefront = await resolveStorefrontStore(env).getBySlug(slug);
   if (storefront === undefined) {
     return Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 });
   }
-  return Response.json(toStorefrontView(storefront), { status: 200 });
+  const products = await describeProducts(storefront.id, storefront.curatedItems, env);
+  return Response.json({ ...toStorefrontView(storefront), products }, { status: 200 });
+}
+
+/**
+ * THE JOIN, SERVER-SIDE (REAL-PRODUCT-RENDER-1 (a2)). For each pid in her
+ * `curatedItems` — the canon MEMBERSHIP statement, authoritative for the buyer —
+ * resolve which listing sells it (the pid pointer: the ONE question the lookup is
+ * ever asked), read HER SIGNED price off that listing, describe the product from
+ * SUPPLY, and join. Supplier economics never leave this Worker: the emitted record
+ * carries name, her price, stock and image refs, and nothing else.
+ *
+ * EVERY FAILURE OMITS, NEVER INVENTS: no listing for a pid (an inconsistency), a
+ * hidden listing, or an undescribable product (the DEFAULT today — no supply wire
+ * exists, so `AbsentSupplySource` describes nothing) all drop that record. The
+ * buyer then sees the products the shop CAN describe, and a shop that can describe
+ * none renders the existing designed empty state.
+ */
+async function describeProducts(
+  storefrontId: string,
+  pids: readonly string[],
+  env?: StorefrontServiceEnv,
+): Promise<readonly VitrineProductRecord[]> {
+  const listings = env?.LISTING_DO;
+  if (listings === undefined || pids.length === 0) return [];
+  const supply = resolveSupplySource(env);
+  const out: VitrineProductRecord[] = [];
+  for (const pid of pids) {
+    const res = await listings
+      .fetch(new Request(`https://do/listings/by-pid/${encodeURIComponent(storefrontId)}/${encodeURIComponent(pid)}`))
+      .catch(() => undefined);
+    if (res === undefined || res.status !== 200) continue; // no resolvable listing → omitted
+    const side = (await res.json().catch(() => null)) as
+      | { productVersionId: string; customerPriceFcfa: number; status: string }
+      | null;
+    if (side === null) continue;
+    const described = await supply.describe(side.productVersionId);
+    const record = joinVitrineProduct(side, described);
+    if (record !== undefined) out.push(record); // undescribable → omitted, never invented
+  }
+  return out;
 }
 
 /**
