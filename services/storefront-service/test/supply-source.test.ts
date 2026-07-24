@@ -205,3 +205,79 @@ describe('SUPPLY-WIRE-1 — the path, the envelope and the freshness bound', () 
     expect(await new HttpSupplySource('https://boutik.example').describe(PV)).toBeUndefined();
   });
 });
+
+/**
+ * SUPPLY-WIRE-AUTH-1 — the service-to-service credential (founder ruling).
+ *
+ * SHOP SENDS FIRST, boutik gates second: the wire carries no traffic, so a header
+ * at an ungated producer is harmless while gating before the caller sends would
+ * open a 401 window. Hence env-gated — an absent secret means NO HEADER, never a
+ * broken request.
+ */
+describe('SUPPLY-WIRE-AUTH-1 — the bearer credential, env-gated', () => {
+  const PV = 'pv-founder-001';
+  const SECRET = 'test-supply-read-secret-0001'; // a TEST value, never a live one
+  let sentHeaders: Record<string, string> = {};
+  const original = globalThis.fetch;
+  function stubFetch(): void {
+    sentHeaders = {};
+    globalThis.fetch = (async (_url: string | URL, init?: RequestInit) => {
+      sentHeaders = (init?.headers ?? {}) as Record<string, string>;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          version: 1,
+          asOf: new Date().toISOString(),
+          value: {
+            productVersionId: PV,
+            offerVersion: '1',
+            basePrice: 10_000,
+            resellerCommission: 1_000,
+            available: 5,
+            productName: 'Pagne tissé Faso (démo)',
+            assetRefs: [],
+          },
+        }),
+      } as unknown as Response;
+    }) as typeof fetch;
+  }
+  afterAll(() => {
+    globalThis.fetch = original;
+  });
+
+  it('CONFIGURED ⇒ the request carries Authorization: Bearer', async () => {
+    stubFetch();
+    await new HttpSupplySource('https://boutik.example', SECRET).describe(PV);
+    expect(sentHeaders['Authorization']).toBe(`Bearer ${SECRET}`);
+  });
+
+  it('ABSENT ⇒ NO Authorization header, and the request still WORKS (shop sends first, boutik gates second)', async () => {
+    stubFetch();
+    const got = await new HttpSupplySource('https://boutik.example').describe(PV);
+    expect(sentHeaders['Authorization']).toBeUndefined();
+    expect(got).toBeDefined(); // an absent secret is not a broken request
+    // an empty string is not a configuration either
+    stubFetch();
+    await new HttpSupplySource('https://boutik.example', '').describe(PV);
+    expect(sentHeaders['Authorization']).toBeUndefined();
+  });
+
+  it('the resolver threads the secret from env — and a base with no secret still resolves to the real client', () => {
+    expect(resolveSupplySource({ SUPPLY_BASE: 'https://b.example', SUPPLY_READ_SECRET: SECRET })).toBeInstanceOf(HttpSupplySource);
+    expect(resolveSupplySource({ SUPPLY_BASE: 'https://b.example' })).toBeInstanceOf(HttpSupplySource);
+    // …and a secret WITHOUT a base is still absent: a credential is not a source
+    expect(resolveSupplySource({ SUPPLY_READ_SECRET: SECRET })).toBeInstanceOf(AbsentSupplySource);
+  });
+
+  it('THE CREDENTIAL IS NOT THE APP WRITE KEY — the two are different kinds of thing and are never reused', () => {
+    const src = readFileSync(join(import.meta.dirname, '../src/supply-source.ts'), 'utf8');
+    // the app write key ships INSIDE a bundle (readable by anyone who downloads
+    // it, so it stops scanners not attackers); this one never leaves two Workers.
+    expect(src).not.toContain('STOREFRONT_WRITE_SECRET');
+    expect(src).not.toContain('X-Write-Key');
+    expect(src).toContain('SUPPLY_READ_SECRET');
+    // and no secret VALUE is ever hardcoded here
+    expect(src).not.toMatch(/Bearer\s+[A-Za-z0-9_-]{16,}/);
+  });
+});
