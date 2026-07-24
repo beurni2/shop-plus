@@ -2437,13 +2437,13 @@
  },
  {
   "key": "k.publier.erreur",
-  "fr": "L’envoi n’a pas marché — réessayez",
+  "fr": "L’envoi n’a pas marché — {raison} — réessayez",
   "register": "neutral",
   "screenClass": "status"
  },
  {
   "key": "k.publier.voir",
-  "fr": "Voir mes boutiques en ligne",
+  "fr": "Voir ma boutique en ligne",
   "register": "selling",
   "screenClass": "label"
  },
@@ -2458,5 +2458,11 @@
   "fr": "{n} en ligne : {noms}",
   "register": "neutral",
   "screenClass": "status"
+ },
+ {
+  "key": "demo.seam_base",
+  "fr": "Service : {base}",
+  "register": "neutral",
+  "screenClass": "label"
  }
 ]

@@ -153,6 +153,12 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
   vente_detail: 'vente.titre',
 };
 
+// SEAM-ERROR-VISIBILITY-1 — the storefront base the app RESOLVED at bundle time,
+// surfaced once in the footer so a wrong/empty inline is visible (« (demo) » ⇒ the
+// app is on the demo adapter, i.e. the env var never inlined). `||` catches the
+// empty string too. Never the key — only the base.
+const SEAM_BASE = process.env.EXPO_PUBLIC_STOREFRONT_BASE || '(demo)';
+
 export default function App() {
   // COLD-START LAW: load the Faso Premium faces asynchronously and DO NOT gate
   // first paint on them — the metrics-close system fallback renders immediately,
@@ -249,16 +255,16 @@ export default function App() {
         correlationId: identity.correlationId,
         at,
       });
-      if (!created.ok) return setToast(t('k.publier.erreur'));
+      if (!created.ok) return setToast(tf('k.publier.erreur', { raison: created.reason }));
       const pub = await service.publish(identity.id, identity.correlationId, at);
-      if (!pub.ok) return setToast(t('k.publier.erreur'));
+      if (!pub.ok) return setToast(tf('k.publier.erreur', { raison: pub.reason }));
       setToast(tf('k.publier.en_ligne', { slug: created.value.slug ?? shortCode.toLowerCase() }));
     },
     [service, identity],
   );
   const listOnline = useCallback(async () => {
     const res = await service.list();
-    if (!res.ok) return setToast(t('k.publier.erreur'));
+    if (!res.ok) return setToast(tf('k.publier.erreur', { raison: res.reason }));
     if (res.value.length === 0) return setToast(t('k.publier.aucune'));
     setToast(tf('k.publier.compte', { n: String(res.value.length), noms: res.value.map((r) => r.name).join(', ') }));
   }, [service]);
@@ -1007,6 +1013,8 @@ export default function App() {
           {/* the build stamp — the real OTA update id (« dev » locally): honest
               provenance so a device pass can name the exact bundle it ran. */}
           <Text style={styles.footerBuild}>{tf('demo.build', { id: buildStamp.slice(0, 8) })}</Text>
+          {/* SEAM-ERROR-VISIBILITY-1 — the resolved storefront base (never the key). */}
+          <Text style={styles.footerBuild}>{tf('demo.seam_base', { base: SEAM_BASE })}</Text>
         </View>
         <Pressable style={styles.resetAction} onPress={reset}>
           <Text style={styles.resetActionText}>{t('nav.recommencer')}</Text>
