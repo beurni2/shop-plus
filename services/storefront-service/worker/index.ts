@@ -29,6 +29,8 @@ interface Env extends WriteAuthEnv {
   STOREFRONT_GCS_PUBLIC_BASE?: string;
   /** Supply display source. UNSET ⇒ ABSENT product data, never mock data. */
   SUPPLY_BASE?: string;
+  /** Service-to-service credential for the supply read (wrangler secret, never a var). */
+  SUPPLY_READ_SECRET?: string;
 }
 
 export default {
@@ -93,6 +95,7 @@ export default {
       ...(env.STOREFRONT_GCS_TOKEN !== undefined ? { STOREFRONT_GCS_TOKEN: env.STOREFRONT_GCS_TOKEN } : {}),
       ...(env.STOREFRONT_GCS_PUBLIC_BASE !== undefined ? { STOREFRONT_GCS_PUBLIC_BASE: env.STOREFRONT_GCS_PUBLIC_BASE } : {}),
       ...(env.SUPPLY_BASE !== undefined ? { SUPPLY_BASE: env.SUPPLY_BASE } : {}),
+      ...(env.SUPPLY_READ_SECRET !== undefined ? { SUPPLY_READ_SECRET: env.SUPPLY_READ_SECRET } : {}),
       STOREFRONT_DO: { fetch: (req: Request): Promise<Response> => sfRouter.fetch(req, env) },
       // The JOIN reaches the listing DO through the SAME shim pattern. Internal:
       // the public /listings* surface stays key-gated above (LISTING-READ-GATE-1).

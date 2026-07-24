@@ -81,6 +81,20 @@ export interface SupplySourcePort {
 /** Configured out-of-band; absent in CI and absent today (no supply wire exists). */
 export interface SupplySourceEnv {
   readonly SUPPLY_BASE?: string;
+  /**
+   * SUPPLY-WIRE-AUTH-1 (founder ruling) — the SERVICE-TO-SERVICE credential this
+   * Worker presents to boutik's supply read, as `Authorization: Bearer`.
+   *
+   * IT IS A DIFFERENT KIND OF THING FROM THE APP WRITE KEY, and the two must never
+   * be conflated or reused: the write key SHIPS INSIDE AN APP BUNDLE, readable by
+   * anyone who downloads it, so it stops scanners rather than attackers and is not
+   * a real credential. This secret NEVER LEAVES TWO WORKERS, so it is one. Set by
+   * `wrangler secret put` on both sides — never in `[vars]`, never in a repo,
+   * never quoted in a report. PER-CALLER, not one platform secret: rotating one
+   * caller cannot break the others, and a leak names its source (the eligibility
+   * wire instantiates the same shape with its own).
+   */
+  readonly SUPPLY_READ_SECRET?: string;
 }
 
 /**
@@ -101,8 +115,33 @@ export class AbsentSupplySource implements SupplySourcePort {
  */
 export class HttpSupplySource implements SupplySourcePort {
   private readonly base: string;
-  constructor(base: string) {
+  private readonly readSecret: string | undefined;
+  constructor(base: string, readSecret?: string) {
     this.base = base.replace(/\/+$/, '');
+    this.readSecret = readSecret !== undefined && readSecret !== '' ? readSecret : undefined;
+  }
+
+  /**
+   * SUPPLY-WIRE-AUTH-1 — SHOP SENDS FIRST, boutik gates second (founder
+   * sequencing). The wire carries no traffic yet, so a header at an ungated
+   * producer is harmless, while gating before the caller sends would open a 401
+   * window. So the header is ENV-GATED: an absent secret means NO HEADER, never a
+   * broken request — this Worker keeps working against today's open producer and
+   * starts authenticating the moment the secret is set, with no code change and no
+   * gap between the lanes.
+   *
+   * BONUS THE FOUNDER SURFACED, worth keeping: Cloudflare's cache automatically
+   * BYPASSES any request carrying an `Authorization` header. The supply projection
+   * must never be cached — a cached copy would hand back stale-but-honest truth
+   * while fresh truth existed, and the consumer would correctly refuse to act on
+   * it. Choosing Bearer makes no-cache a PLATFORM PROPERTY rather than a
+   * discipline anyone has to remember.
+   */
+  private headers(): Record<string, string> {
+    return {
+      Accept: 'application/json',
+      ...(this.readSecret !== undefined ? { Authorization: `Bearer ${this.readSecret}` } : {}),
+    };
   }
 
   async describe(productVersionId: string): Promise<ProductDescription | undefined> {
@@ -110,7 +149,7 @@ export class HttpSupplySource implements SupplySourcePort {
     try {
       res = await fetch(`${this.base}${SUPPLY_ROUTE_PREFIX}${encodeURIComponent(productVersionId)}`, {
         method: 'GET', // the producer answers 405 to anything else
-        headers: { Accept: 'application/json' },
+        headers: this.headers(),
       });
     } catch {
       return undefined; // unreachable → absent, never fabricated
@@ -141,5 +180,7 @@ export class HttpSupplySource implements SupplySourcePort {
  */
 export function resolveSupplySource(env?: SupplySourceEnv): SupplySourcePort {
   const base = env?.SUPPLY_BASE;
-  return base !== undefined && base !== '' ? new HttpSupplySource(base) : new AbsentSupplySource();
+  return base !== undefined && base !== ''
+    ? new HttpSupplySource(base, env?.SUPPLY_READ_SECRET)
+    : new AbsentSupplySource();
 }
