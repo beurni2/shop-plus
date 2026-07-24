@@ -239,6 +239,14 @@ capture playwright-e2e pass pnpm --filter @shop-plus/buyer-pwa test:e2e
 log "gate: no-demo-adapter-in-bundle — the fallback that cannot fail is absent from the exported bundle (must pass)"
 capture no-demo-adapter-in-bundle pass node scripts/gates/no-demo-adapter-in-bundle.mjs
 
+# RESELLER-IDENTITY-1 — a SOURCE scan, deliberately, not a second fingerprint on the
+# bundle: Hermes compiles `Math.random()` into a global lookup plus a property access,
+# so a planted defect leaves the artifact byte-indistinguishable from a clean one
+# (measured — see the gate's header). Its negative is the original defect, planted back
+# into App.tsx and confirmed red before this landed.
+log "gate: mint-path-entropy — no identity/command mint draws from Math.random (must pass)"
+capture mint-path-entropy pass node scripts/gates/mint-path-entropy.mjs
+
 if [ $FAILED -ne 0 ]; then
   echo ""
   echo "ONE OR MORE GATES FAILED"

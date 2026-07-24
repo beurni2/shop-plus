@@ -104,11 +104,19 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     // capture (record/stop/playback + mic permission), no backend (persistence
     // stays mocked). SDK-54 bundled version.
     expect(pkg.dependencies['expo-audio']).toBe('~1.1.1');
-    // the only deps beyond the pre-WO set are exactly these four
+    // RESELLER-IDENTITY-1 — expo-crypto (the OS CSPRNG, replacing a Math.random mint)
+    // and expo-file-system (the document directory, so the identity survives restart
+    // and an EAS republish). BOTH are first-party Expo SDK modules, at the versions
+    // `expo/bundledNativeModules.json` pins for SDK 54 — which is what lets them reach
+    // Expo Go over the air with no rebuild. A community module would not have that
+    // guarantee, and that is the whole reason for preferring these two.
+    expect(pkg.dependencies['expo-crypto']).toBe('~15.0.9');
+    expect(pkg.dependencies['expo-file-system']).toBe('~19.0.23');
+    // the only deps beyond the pre-WO set are exactly these six
     const before = new Set([
       '@platform/ui-tokens', 'expo', 'expo-status-bar', 'expo-updates', 'react', 'react-native',
     ]);
     const added = Object.keys(pkg.dependencies).filter((d) => !before.has(d));
-    expect(added.sort()).toEqual(['expo-audio', 'expo-font', 'expo-haptics', 'react-native-svg']);
+    expect(added.sort()).toEqual(['expo-audio', 'expo-crypto', 'expo-file-system', 'expo-font', 'expo-haptics', 'react-native-svg']);
   });
 });

@@ -21,6 +21,9 @@ import { MarginSlider } from './src/ui/margin-slider';
 import { HeroLedger, DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
 import { resolveStorefrontService, deriveShortCode } from './src/vitrine/service';
+import { loadOrMintIdentity } from './src/identity/store';
+import type { ResellerIdentity } from './src/identity/mint';
+import { expoIdentityStore, expoRandomBytes } from './src/identity/expoStore';
 import { useVoiceNotes, VoiceNoteSheet, voiceCardLabel } from './src/vitrine/customize/voice-sheet';
 import {
   useCercle, CercleHub, CampWizard, CampaignActive, CampaignFunding, CercleReputation,
@@ -234,10 +237,22 @@ export default function App() {
   // inlined; otherwise the in-memory demo (zero network). One stable identity per
   // session, so a re-tap is idempotent (same commandId/id), never a second shop.
   const service = useMemo(() => resolveStorefrontService(), []);
-  const identity = useMemo(() => {
-    const digits = String(1000 + Math.floor(Math.random() * 9000));
-    const id = `sf-${digits}`;
-    return { id, resellerId: `rs-${digits}`, digits, commandId: `create-${id}`, correlationId: `corr-${id}` };
+  // RESELLER-IDENTITY-1 — the identity is now DEVICE-STORED and minted ONCE from the
+  // OS CSPRNG, replacing a `Math.random` mint that was stable only per SESSION. That
+  // regenerated `resellerId` on every restart and every preview republish, so the
+  // founder was a DIFFERENT RESELLER each session and his slug moved every time
+  // (aichomod-8291 → chezaichamod-4911). `undefined` = still loading; `null` = the
+  // mint or the persist FAILED, which is an honest state and never a fabricated id.
+  const [identity, setIdentity] = useState<ResellerIdentity | null | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    void loadOrMintIdentity(expoIdentityStore(), expoRandomBytes).then((outcome) => {
+      if (!live) return;
+      setIdentity(outcome.ok ? outcome.identity : null);
+    });
+    return () => {
+      live = false;
+    };
   }, []);
   const publishOnline = useCallback(
     async (sf: { name: string; zone: string; category: string }) => {
@@ -248,12 +263,18 @@ export default function App() {
       // with nothing written. The honest state is stated FIRST and returns; nothing
       // below runs, so « Envoi en cours… » never appears for a send that cannot happen.
       if (service === null) return setToast(t('k.publier.non_relie'));
+      // RESELLER-IDENTITY-1 — never write under a fabricated identity. `undefined` is
+      // still loading (a disk read, so effectively instant); `null` means the CSPRNG
+      // mint or the persist failed. Publishing under an unpersisted id would create a
+      // shop she could never return to — the very defect this slice closes.
+      if (identity === undefined) return setToast(t('k.publier.identite_attente'));
+      if (identity === null) return setToast(t('k.publier.identite_absente'));
       setToast(t('k.publier.envoi'));
       const shortCode = deriveShortCode(sf.name, identity.digits);
       const at = new Date().toISOString();
       const created = await service.create({
         commandId: identity.commandId,
-        id: identity.id,
+        id: identity.storefrontId,
         resellerId: identity.resellerId,
         shortCode,
         name: sf.name,
@@ -263,7 +284,7 @@ export default function App() {
         at,
       });
       if (!created.ok) return setToast(tf('k.publier.erreur', { raison: created.reason }));
-      const pub = await service.publish(identity.id, identity.correlationId, at);
+      const pub = await service.publish(identity.storefrontId, identity.correlationId, at);
       if (!pub.ok) return setToast(tf('k.publier.erreur', { raison: pub.reason }));
       setToast(tf('k.publier.en_ligne', { slug: created.value.slug ?? shortCode.toLowerCase() }));
     },
