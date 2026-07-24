@@ -62,6 +62,11 @@ export interface CustomizeProps {
   onToast: (msg: string) => void;
   storefront?: Storefront;
   onStorefrontChange?: (sf: Storefront) => void;
+  /** RESELLER-STOREFRONT-WRITE-1 — publish this storefront's identity to the LIVE
+   * service (create + publish). Absent (default/tests) ⇒ the button is hidden. */
+  onPublishOnline?: (sf: Storefront) => void;
+  /** Show what the founder has already put online (the admin list). */
+  onListStorefronts?: () => void;
 }
 
 /* -------------------------------------------------------------- helpers -- */
@@ -148,7 +153,7 @@ function KHeader({ title, onBack, pill }: { title: string; onBack: () => void; p
 
 /* ------------------------------------------------------------- the stack -- */
 
-export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange }: CustomizeProps) {
+export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts }: CustomizeProps) {
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
   const [editingSection, setEditingSection] = useState<string | null>(null);
@@ -195,7 +200,16 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
 
   return (
     <View style={S.root}>
-      {route === 'k1' && <K1 sf={sf} th={th} onBack={onClose} go={setRoute} />}
+      {route === 'k1' && (
+        <K1
+          sf={sf}
+          th={th}
+          onBack={onClose}
+          go={setRoute}
+          onPublishOnline={onPublishOnline ? () => onPublishOnline(sf) : undefined}
+          onListStorefronts={onListStorefronts}
+        />
+      )}
       {route === 'k2' && (
         <K2
           sf={sf}
@@ -287,7 +301,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
 
 /* ------------------------------------------------------------------- K1 -- */
 
-function K1({ sf, th, onBack, go }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void }) {
+function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined }) {
   const initial = sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase();
   const coverSub =
     sf.cover.status === 'live' ? t('k.row.cover_live') : sf.cover.status === 'pending' ? t('k.row.cover_pending') : t('k.row.cover_defaut');
@@ -347,6 +361,19 @@ function K1({ sf, th, onBack, go }: { sf: Storefront; th: (typeof THEMES)[Vitrin
         <IconEye size={17} color="#1C1710" />
         <Text style={S.ghostBtnText}>{t('k.voir_cliente')}</Text>
       </Pressable>
+      {/* RESELLER-STOREFRONT-WRITE-1 — the app's real calls to the live service.
+          Shown only when the seam is wired (App passes the handlers); the K-screen
+          tests, which mount nothing here, are unaffected. */}
+      {onPublishOnline && (
+        <Pressable style={({ pressed }) => [S.cta, pressed && S.pressed]} onPress={onPublishOnline} accessibilityRole="button">
+          <Text style={S.ctaText}>{t('k.publier.cta')}</Text>
+        </Pressable>
+      )}
+      {onListStorefronts && (
+        <Pressable style={({ pressed }) => [S.ghostBtn, pressed && S.pressed]} onPress={onListStorefronts} accessibilityRole="button">
+          <Text style={S.ghostBtnText}>{t('k.publier.voir')}</Text>
+        </Pressable>
+      )}
       {/* bande encre — jamais modifiable */}
       <View style={S.inkBand}>
         <Text style={S.inkBandText}>

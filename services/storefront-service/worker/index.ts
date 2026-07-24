@@ -2,7 +2,7 @@ import sfRouter, { StorefrontDO } from './storefront-do.js';
 import lstRouter, { ListingDO } from './listing-do.js';
 import { handleRequest, type StorefrontServiceEnv } from '../src/index.js';
 import type { R2BucketLike } from '../src/media/media-store.js';
-import { rejectUnauthorizedWrite, type WriteAuthEnv } from './auth.js';
+import { rejectUnauthorizedWrite, keyAuthorized, unauthorized, type WriteAuthEnv } from './auth.js';
 
 /**
  * THE COMBINED WORKER (STOREFRONT-DEPLOY-1, founder ruling: one combined Worker).
@@ -37,6 +37,11 @@ export default {
     const denied = await rejectUnauthorizedWrite(request, env);
     if (denied) return denied;
     const { pathname } = new URL(request.url);
+    // The admin list (RESELLER-STOREFRONT-WRITE-1) is a GET, so the write gate above
+    // skips it — gate it EXPLICITLY here with the same key before any dispatch.
+    if (request.method === 'GET' && pathname === '/storefronts' && !(await keyAuthorized(request, env))) {
+      return unauthorized();
+    }
     // DO-management surfaces → the DO routers (idFromName addressing lives there).
     if (pathname === '/storefronts' || pathname.startsWith('/storefronts/')) return sfRouter.fetch(request, env);
     if (pathname === '/listings' || pathname.startsWith('/listings/')) return lstRouter.fetch(request, env);

@@ -2416,5 +2416,47 @@
   "fr": "Votre gain net sur cette carte : {amount} (contribution campagne déduite) — jamais visible par la cliente.",
   "register": "money",
   "screenClass": "status"
+ },
+ {
+  "key": "k.publier.cta",
+  "fr": "Mettre ma boutique en ligne",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.publier.envoi",
+  "fr": "Envoi en cours…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.publier.en_ligne",
+  "fr": "En ligne : {slug}",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.publier.erreur",
+  "fr": "L’envoi n’a pas marché — réessayez",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.publier.voir",
+  "fr": "Voir mes boutiques en ligne",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.publier.aucune",
+  "fr": "Aucune boutique en ligne pour l’instant",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.publier.compte",
+  "fr": "{n} en ligne : {noms}",
+  "register": "neutral",
+  "screenClass": "status"
  }
 ]

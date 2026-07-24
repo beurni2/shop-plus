@@ -16,6 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      # RESELLER-STOREFRONT-WRITE-1 — EXPO_PUBLIC_* are compiled INTO the bundle by
+      # babel at `eas update` time. Set BOTH as repo secrets to arm the app's real
+      # calls to the live storefront service; leave EITHER unset and the app resolves
+      # to its in-memory DEMO adapter (zero network). The write key therefore ships
+      # inside the published EAS-update bundle — inside the shared-secret limitation
+      # the founder accepted (easier to read than a decompiled binary); no reseller
+      # but the founder onboards until real per-reseller identity lands (JOURNAL).
+      EXPO_PUBLIC_STOREFRONT_BASE: ${{ secrets.EXPO_PUBLIC_STOREFRONT_BASE }}
+      EXPO_PUBLIC_STOREFRONT_WRITE_KEY: ${{ secrets.EXPO_PUBLIC_STOREFRONT_WRITE_KEY }}
     steps:
       - name: Check EXPO_TOKEN presence (skip gracefully when absent)
         id: token

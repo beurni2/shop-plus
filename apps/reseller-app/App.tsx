@@ -20,6 +20,7 @@ import { marginBreakdown, markupCap, defaultMarkup } from './src/vitrine/margin'
 import { MarginSlider } from './src/ui/margin-slider';
 import { HeroLedger, DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
+import { resolveStorefrontService, deriveShortCode } from './src/vitrine/service';
 import { useVoiceNotes, VoiceNoteSheet, voiceCardLabel } from './src/vitrine/customize/voice-sheet';
 import {
   useCercle, CercleHub, CampWizard, CampaignActive, CampaignFunding, CercleReputation,
@@ -221,6 +222,46 @@ export default function App() {
   const toHub = useCallback((hub: Screen) => {
     setStack(hub === START ? [START] : [START, hub]);
   }, []);
+
+  // RESELLER-STOREFRONT-WRITE-1 — the app's FIRST real outbound calls. The seam
+  // resolves to the live service iff EXPO_PUBLIC_STOREFRONT_{BASE,WRITE_KEY} are
+  // inlined; otherwise the in-memory demo (zero network). One stable identity per
+  // session, so a re-tap is idempotent (same commandId/id), never a second shop.
+  const service = useMemo(() => resolveStorefrontService(), []);
+  const identity = useMemo(() => {
+    const digits = String(1000 + Math.floor(Math.random() * 9000));
+    const id = `sf-${digits}`;
+    return { id, resellerId: `rs-${digits}`, digits, commandId: `create-${id}`, correlationId: `corr-${id}` };
+  }, []);
+  const publishOnline = useCallback(
+    async (sf: { name: string; zone: string; category: string }) => {
+      setToast(t('k.publier.envoi'));
+      const shortCode = deriveShortCode(sf.name, identity.digits);
+      const at = new Date().toISOString();
+      const created = await service.create({
+        commandId: identity.commandId,
+        id: identity.id,
+        resellerId: identity.resellerId,
+        shortCode,
+        name: sf.name,
+        zone: sf.zone,
+        category: sf.category,
+        correlationId: identity.correlationId,
+        at,
+      });
+      if (!created.ok) return setToast(t('k.publier.erreur'));
+      const pub = await service.publish(identity.id, identity.correlationId, at);
+      if (!pub.ok) return setToast(t('k.publier.erreur'));
+      setToast(tf('k.publier.en_ligne', { slug: created.value.slug ?? shortCode.toLowerCase() }));
+    },
+    [service, identity],
+  );
+  const listOnline = useCallback(async () => {
+    const res = await service.list();
+    if (!res.ok) return setToast(t('k.publier.erreur'));
+    if (res.value.length === 0) return setToast(t('k.publier.aucune'));
+    setToast(tf('k.publier.compte', { n: String(res.value.length), noms: res.value.map((r) => r.name).join(', ') }));
+  }, [service]);
 
   // WO-VITRINE-FLOW — the vitrine + share derived state, all from the seam's fold,
   // the frozen seed inputs (B, C), and the reseller's own markup. `vitrineOpps` are
@@ -874,7 +915,7 @@ export default function App() {
             cliente's exact view. Client price ONLY — never net, never marge, never a
             vendor. The « Lecture seule » pill + the ink banner state the boundary. */}
         {screen === 'personnaliser' && (
-          <CustomizeStack onClose={back} onToast={setToast} />
+          <CustomizeStack onClose={back} onToast={setToast} onPublishOnline={publishOnline} onListStorefronts={listOnline} />
         )}
         {screen === 'pubvitrine' && (
           <FlatList
