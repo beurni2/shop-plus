@@ -2,6 +2,7 @@ import sfRouter, { StorefrontDO } from './storefront-do.js';
 import lstRouter, { ListingDO } from './listing-do.js';
 import { handleRequest, type StorefrontServiceEnv } from '../src/index.js';
 import type { R2BucketLike } from '../src/media/media-store.js';
+import { rejectUnauthorizedWrite, type WriteAuthEnv } from './auth.js';
 
 /**
  * THE COMBINED WORKER (STOREFRONT-DEPLOY-1, founder ruling: one combined Worker).
@@ -18,7 +19,7 @@ import type { R2BucketLike } from '../src/media/media-store.js';
  */
 export { StorefrontDO, ListingDO };
 
-interface Env {
+interface Env extends WriteAuthEnv {
   STOREFRONT: DurableObjectNamespace;
   LISTING: DurableObjectNamespace;
   BUCKET?: R2BucketLike;
@@ -30,6 +31,11 @@ interface Env {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    // SERVICE-WRITE-AUTH-1 — gate EVERY write at the one deployed entry, before
+    // any dispatch or existence lookup (so the 401 is never an existence oracle).
+    // Reads pass straight through; a Worker with no secret configured fails closed.
+    const denied = await rejectUnauthorizedWrite(request, env);
+    if (denied) return denied;
     const { pathname } = new URL(request.url);
     // DO-management surfaces → the DO routers (idFromName addressing lives there).
     if (pathname === '/storefronts' || pathname.startsWith('/storefronts/')) return sfRouter.fetch(request, env);

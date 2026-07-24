@@ -44,3 +44,10 @@ bucket_name = "beurni-storefront-media"
 # `/media/{key}` (same origin). Set to the deployed URL after the first deploy.
 [vars]
 MEDIA_PUBLIC_BASE = ""
+
+# SERVICE-WRITE-AUTH-1 — the shared write secret (STOREFRONT_WRITE_SECRET) is NOT
+# here and must NEVER be added to [vars]: all five repos are PUBLIC and anything in
+# [vars] is committed and published. It is set out-of-band with
+# `wrangler secret put STOREFRONT_WRITE_SECRET` (encrypted, not in the repo). The
+# gate fails CLOSED: until the secret is set, every write returns 401 by design —
+# so set the secret BEFORE (or right after) deploying the gate, or writes look broken.
