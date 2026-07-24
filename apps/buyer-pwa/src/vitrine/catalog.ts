@@ -39,3 +39,44 @@ export const VITRINE_SEED: readonly VitrineSeedProduct[] = [
 export function seedProduct(pid: string): VitrineSeedProduct | undefined {
   return VITRINE_SEED.find((p) => p.pid === pid);
 }
+
+/* ------------------------------------------------- REAL-PRODUCT-RENDER-1 -- */
+
+/**
+ * THE RENDERER'S PRODUCT — what a tile needs, and NOTHING ELSE. ONE shape for
+ * demo and real (founder: one renderer, never two that drift): the seed maps
+ * onto it, and a real listing will map onto the same fields.
+ *
+ * THE MONEY LAW, STRUCTURALLY (the whole point of this shape): `priceFcfa` is
+ * HER price — `productSubtotal = B + M`, frozen when she published and CARRIED
+ * VERBATIM to the tile. This type deliberately has NO `basePrice`, NO
+ * `resellerCommission`, NO `markup`: the renderer therefore CANNOT re-derive a
+ * price even by accident, and supplier economics cannot ride onto a buyer
+ * surface (SP-I03). A price recomputed from the supplier's LIVE basePrice would
+ * silently drift from what she signed and from what a buyer was already shown —
+ * that divergence is exactly what this shape makes unrepresentable.
+ *
+ * `assetRefs` is the canon bare `readonly string[]` (contracts v2.0.0
+ * `SupplyProjection.assetRefs`), carried with zero transformation. FIRST REF IS
+ * THE HERO by the convention boutik enforces at its producer; an EMPTY array is
+ * the honest normal case and renders the woven « SANS PHOTO » state.
+ */
+export interface VitrineProduct {
+  readonly pid: string;
+  readonly name: string;
+  /** HER frozen price (productSubtotal = B + M) — carried, never recomputed. */
+  readonly priceFcfa: number;
+  readonly inStock: boolean;
+  /** Bare display refs; `[0]` is the hero. Empty ⇒ the woven no-image state. */
+  readonly assetRefs: readonly string[];
+}
+
+/**
+ * The DEMO seed mapped onto the renderer shape. The seed carries NO images (no
+ * real ones exist), so `assetRefs` is empty — an honest empty array, never a
+ * fabricated URL. `art`/`glyph` stay behind on the seed: they are demo-only
+ * decoration the renderer no longer reads (BUYER-REAL-HONESTY-1).
+ */
+export function productFromSeed(p: VitrineSeedProduct): VitrineProduct {
+  return { pid: p.pid, name: p.name, priceFcfa: p.priceFcfa, inStock: p.inStock, assetRefs: [] };
+}

@@ -15,7 +15,7 @@
 import { t, tf } from '../i18n';
 import { esc } from '../format';
 import { fmtFCFA } from '../cliente/money';
-import { seedProduct, type VitrineSeedProduct } from './catalog';
+import { productFromSeed, seedProduct, type VitrineProduct, type VitrineSeedProduct } from './catalog';
 import type { Storefront, VitrineTrust, ProductVoiceNote, ProductVoiceNotes } from './profile';
 import { renderVoiceChip } from './voice-player';
 import {
@@ -170,13 +170,28 @@ function groupTitle(
  * `p.art` gradient + `p.glyph` came from VITRINE_SEED demo data that a real
  * product does not have; the demo now shows what a buyer will actually get.
  */
-function tileArt(veiled: boolean): string {
+function tileArt(veiled: boolean, assetRefs: readonly string[] = []): string {
+  // REAL-PRODUCT-RENDER-1 — the HERO ref, when there is one. `assetRefs[0]` is
+  // the hero by the convention boutik enforces AT ITS PRODUCER (the consumer
+  // does not re-rank: no ordering logic, no scoring — loi 5 deterministic).
+  // `loading=lazy` + `decoding=async` because a grid of photos on a 1GB Android
+  // over patchy data must not block the first paint (perf is a design feature).
+  const hero = assetRefs[0];
+  const veil = veiled ? `<div class="vt-veil"><span class="vt-tampon">${t('vit.epuise')}</span></div>` : '';
+  if (hero !== undefined && hero !== '') {
+    return [
+      '<div class="vt-tile-art vt-tile-art-photo" data-role="tile-photo">',
+      `<img class="vt-tile-photo" src="${esc(hero)}" alt="" loading="lazy" decoding="async">`,
+      veil,
+      '</div>',
+    ].join('');
+  }
   return [
     '<div class="vt-tile-art vt-tile-art-sansphoto" data-role="tile-sans-photo">',
     '<div class="vt-weave"></div>',
     '<div class="vt-tick vt-tick-tl"></div><div class="vt-tick vt-tick-tr"></div><div class="vt-tick vt-tick-bl"></div><div class="vt-tick vt-tick-br"></div>',
     `<div class="vt-sansphoto-caps">${t('vit.sans_photo')}</div>`,
-    veiled ? `<div class="vt-veil"><span class="vt-tampon">${t('vit.epuise')}</span></div>` : '',
+    veil,
     '</div>',
   ].join('');
 }
@@ -184,14 +199,14 @@ function tileArt(veiled: boolean): string {
 /** C-VIT4 — tuile produit v2. Épuisé: voile + tampon, muette (aria-disabled).
  * A `ready` voice note adds the compact « La voix » chip (in-stock tiles only —
  * an épuisé tile is muette and carries no interactive child). */
-function tile(p: VitrineSeedProduct, note?: ProductVoiceNote): string {
+function tile(p: VitrineProduct, note?: ProductVoiceNote): string {
   const cls = p.inStock ? 'vt-tile' : 'vt-tile vt-tile-epuise';
   const attrs = p.inStock
     ? `data-action="produit" data-pid="${p.pid}"`
     : 'aria-disabled="true" disabled';
   return [
     `<button class="${cls}" data-role="vitrine-produit" ${attrs}>`,
-    tileArt(!p.inStock),
+    tileArt(!p.inStock, p.assetRefs),
     '<div class="vt-tile-body">',
     `<div class="vt-tile-name"><v>${esc(p.name)}</v></div>`,
     `<div class="vt-tile-price"><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
@@ -202,10 +217,10 @@ function tile(p: VitrineSeedProduct, note?: ProductVoiceNote): string {
 }
 
 /** C-VIT5 — tuile à la une (jamais un épuisé: auto-retrait à l'affichage). */
-function featuredTile(p: VitrineSeedProduct, note?: ProductVoiceNote): string {
+function featuredTile(p: VitrineProduct, note?: ProductVoiceNote): string {
   return [
     `<button class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${p.pid}">`,
-    tileArt(false),
+    tileArt(false, p.assetRefs),
     '<div class="vt-featured-body">',
     `<span class="vt-featured-name"><v>${esc(p.name)}</v></span>`,
     `<b class="vt-featured-price"><v>${fmtFcfa(p.priceFcfa)}</v></b>`,
@@ -238,8 +253,11 @@ function inkBandAndFooter(sf: Storefront): string {
  * have detonated the moment a real store had one product. A storefront now shows
  * HER items and nothing else; a store with none renders the honest empty state.
  */
-function orderedProducts(sf: Storefront, pids?: readonly string[]): VitrineSeedProduct[] {
-  const all = (pids ?? sf.curatedItems).map(seedProduct).filter((p): p is VitrineSeedProduct => !!p);
+function orderedProducts(sf: Storefront, pids?: readonly string[]): VitrineProduct[] {
+  const all = (pids ?? sf.curatedItems)
+    .map(seedProduct)
+    .filter((p): p is VitrineSeedProduct => !!p)
+    .map(productFromSeed);
   return [...all.filter((p) => p.inStock), ...all.filter((p) => !p.inStock)];
 }
 
@@ -270,6 +288,7 @@ export function renderVitrineReady(
   const featured = sf.featuredItems
     .map(seedProduct)
     .filter((p): p is VitrineSeedProduct => !!p && p.inStock)
+    .map(productFromSeed)
     .slice(0, 2);
   if (featured.length > 0) {
     parts.push(groupTitle(t('vit.a_la_une'), undefined));

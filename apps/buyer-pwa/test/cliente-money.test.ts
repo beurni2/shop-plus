@@ -179,7 +179,7 @@ describe('the real signed link maps HER real product — never the demo robe (BU
   it('a real product renders as itself, price render-only', () => {
     const { produit, theme } = clienteProduitReel(
       SF,
-      { pid: 'p2', name: 'Pagne wax 6 yards', priceFcfa: 20_500, inStock: true, art: ['#146152', '#0A3A31'], glyph: 'tissu' },
+      { pid: 'p2', name: 'Pagne wax 6 yards', priceFcfa: 20_500, inStock: true, assetRefs: [] },
       undefined,
     );
     expect(theme).toBe('laterite');
@@ -198,7 +198,7 @@ describe('the real signed link maps HER real product — never the demo robe (BU
   it('a ready voice note carries its real duration into the C1 player', () => {
     const { produit } = clienteProduitReel(
       SF,
-      { pid: 'p1', name: 'Robe brodée bogolan', priceFcfa: 11_500, inStock: true, art: ['#B65C2E', '#7A3014'], glyph: 'robe' },
+      { pid: 'p1', name: 'Robe brodée bogolan', priceFcfa: 11_500, inStock: true, assetRefs: [] },
       { status: 'ready', url: 'blob:demo', durationMs: 12_000 },
     );
     expect(produit.voiceDuree).toBe('0:12');

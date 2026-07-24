@@ -139,6 +139,16 @@ export const VITRINE_STYLES = `
     position: relative; height: 132px;
     display: flex; align-items: center; justify-content: center;
   }
+  /* C-VIT4 — la PHOTO réelle du produit (REAL-PRODUCT-RENDER-1) : la première
+     référence d'image (le héros) remplit la tuile. object-fit cover garde le
+     cadrage sur toutes les proportions ; le fond sable évite le flash blanc
+     pendant le chargement sur réseau lent. */
+  .vt-tile-art-photo { background-color: var(--vt-soft); }
+  .vt-tile-photo {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; display: block;
+  }
+
   /* C-VIT4 — l'état SANS PHOTO (BUYER-REAL-HONESTY-1, décision fondateur).
      Un tissage ornemental, géométrique, DÉRIVÉ DU THÈME (--vt-soft / --vt-accent,
      le même vocabulaire tissé que la couverture) — donc chacun des quatre
