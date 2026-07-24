@@ -37,9 +37,21 @@ export default {
     const denied = await rejectUnauthorizedWrite(request, env);
     if (denied) return denied;
     const { pathname } = new URL(request.url);
-    // The admin list (RESELLER-STOREFRONT-WRITE-1) is a GET, so the write gate above
-    // skips it — gate it EXPLICITLY here with the same key before any dispatch.
-    if (request.method === 'GET' && pathname === '/storefronts' && !(await keyAuthorized(request, env))) {
+    // KEY-GATED READS — safe methods skip the write gate above, so any read that is
+    // NOT buyer-facing is gated EXPLICITLY here, before any dispatch:
+    //
+    //   · GET /storefronts — the admin list (RESELLER-STOREFRONT-WRITE-1).
+    //   · /listings* — the WHOLE listings surface (LISTING-READ-GATE-1). The canon
+    //     `ResellerListing` this returns carries `markup` (M): with her displayed
+    //     price (B + M) in hand, M yields the SUPPLIER'S BASE PRICE B by subtraction.
+    //     That is precisely the economics leak SP-I03 exists to prevent, and it was
+    //     live on the deployed Worker — harmless ONLY because no listing exists yet.
+    //     This is a RESELLER/OPERATOR surface and never a buyer route: the buyer's
+    //     per-product read is a separate, stripped projection (piece (a)), so gating
+    //     the whole surface costs the buyer nothing. Reads AND writes now need the key.
+    const isListings = pathname === '/listings' || pathname.startsWith('/listings/');
+    const isAdminList = request.method === 'GET' && pathname === '/storefronts';
+    if ((isListings || isAdminList) && !(await keyAuthorized(request, env))) {
       return unauthorized();
     }
     // DO-management surfaces → the DO routers (idFromName addressing lives there).
