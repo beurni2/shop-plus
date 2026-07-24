@@ -139,11 +139,38 @@ export const VITRINE_STYLES = `
     position: relative; height: 132px;
     display: flex; align-items: center; justify-content: center;
   }
-  .vt-tile-stripes {
+  /* C-VIT4 — l'état SANS PHOTO (BUYER-REAL-HONESTY-1, décision fondateur).
+     Un tissage ornemental, géométrique, DÉRIVÉ DU THÈME (--vt-soft / --vt-accent,
+     le même vocabulaire tissé que la couverture) — donc chacun des quatre
+     habillages produit le sien, et il fonctionne pour un produit sans aucune
+     donnée d'image. Jamais pris pour le produit : les quatre équerres et la
+     mention « SANS PHOTO » (précédent C1) le désignent comme un ornement. */
+  .vt-tile-art-sansphoto {
+    background-color: var(--vt-soft);
+    flex-direction: column; gap: 0;
+    transition: background-color .3s;
+  }
+  .vt-weave {
     position: absolute; inset: 0; width: 100%; height: 100%;
-    background-image: repeating-linear-gradient(135deg,
-      rgba(255,255,255,0.07) 0px, rgba(255,255,255,0.07) 10px,
-      rgba(0,0,0,0) 10px, rgba(0,0,0,0) 26px);
+    background-image:
+      repeating-linear-gradient(135deg,
+        color-mix(in srgb, var(--vt-accent) 14%, transparent) 0px,
+        color-mix(in srgb, var(--vt-accent) 14%, transparent) 7px,
+        rgba(0,0,0,0) 7px, rgba(0,0,0,0) 17px),
+      repeating-linear-gradient(45deg,
+        color-mix(in srgb, var(--vt-accent) 9%, transparent) 0px,
+        color-mix(in srgb, var(--vt-accent) 9%, transparent) 7px,
+        rgba(0,0,0,0) 7px, rgba(0,0,0,0) 17px);
+  }
+  .vt-tick { position: absolute; width: 11px; height: 11px; }
+  .vt-tick-tl { top: 10px; left: 10px; border-top: 2px solid var(--vt-deep); border-left: 2px solid var(--vt-deep); opacity: .38; }
+  .vt-tick-tr { top: 10px; right: 10px; border-top: 2px solid var(--vt-deep); border-right: 2px solid var(--vt-deep); opacity: .38; }
+  .vt-tick-bl { bottom: 10px; left: 10px; border-bottom: 2px solid var(--vt-deep); border-left: 2px solid var(--vt-deep); opacity: .38; }
+  .vt-tick-br { bottom: 10px; right: 10px; border-bottom: 2px solid var(--vt-deep); border-right: 2px solid var(--vt-deep); opacity: .38; }
+  .vt-sansphoto-caps {
+    position: relative;
+    font-size: 9.5px; font-weight: 700; letter-spacing: .16em;
+    color: var(--vt-deep); opacity: .62;
   }
   .vt-glyph { display: block; font-size: 44px; filter: drop-shadow(0 2px 4px rgba(28,22,15,.25)); }
   .vt-veil {
@@ -194,12 +221,7 @@ export const VITRINE_STYLES = `
   }
   .vt-featured:active { transform: scale(.985); }
   .vt-featured .vt-tile-art { height: 140px; }
-  .vt-featured .vt-tile-stripes {
-    background-image: repeating-linear-gradient(135deg,
-      rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 12px,
-      rgba(0,0,0,0) 12px, rgba(0,0,0,0) 30px);
-  }
-  .vt-featured .vt-glyph { font-size: 52px; }
+  .vt-featured .vt-sansphoto-caps { font-size: 10.5px; }
   .vt-featured-body { padding: 12px 15px 14px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
   .vt-featured-name { flex: 1; display: block; font-size: 15px; font-weight: 700; line-height: 1.3; }
   .vt-featured-price {
