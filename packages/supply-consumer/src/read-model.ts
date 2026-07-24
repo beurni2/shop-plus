@@ -5,8 +5,9 @@ import { z } from 'zod';
  * SUPPLY-CONSUMER (SW-2) — the Shop+ side of the supply read-model, transport B
  * (HTTP read-model PULL; staleness blocks agreement). The shared meeting point
  * with SW-1 (boutik-plus offer-service): the read-model envelope
- * `{ version, asOf, value }`, where `value` is the canon strict five-field
- * `SupplyProjectionSchema` (consumed VERBATIM — never redefined). Canon carries
+ * `{ version, asOf, value }`, where `value` is the canon strict `SupplyProjectionSchema`
+ * — seven fields since canon v2.0.0 (five economics + the two display fields
+ * `productName` + `assetRefs`), consumed VERBATIM, never redefined. Canon carries
  * the value shape; the envelope is the SW-1↔SW-2 agreed contract (canon has no
  * read-model wrapper), mirroring SW-1's `ProjectionRead`.
  *

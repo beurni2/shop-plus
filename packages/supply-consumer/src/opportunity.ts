@@ -46,23 +46,31 @@ export function opportunityMoneyFromSupply(
 
 /**
  * The CUSTOMER-facing view derived from the live path (SW-2 item 4, SP-I03). The
- * buyer sees ONLY the product name and the customer price (productSubtotal =
- * B + M) — never supplier identity, never commission, never seller economics,
- * never base-price decomposition. Built so the banned key families structurally
- * cannot ride along; the no-supplier-contact gate scans a fixture produced by
- * THIS function as the second line of defence.
+ * buyer sees the product name, the product's own images, and the customer price
+ * (productSubtotal = B + M) — never supplier identity, never commission, never
+ * seller economics, never base-price decomposition. Built so the banned key
+ * families structurally cannot ride along; the no-supplier-contact gate scans a
+ * fixture produced by THIS function as the second line of defence.
+ *
+ * SUPPLY-DISPLAY-CONSUMER-1: `productName` and `assetRefs` now travel ON the
+ * supply wire (canon v2.0.0), so both are read from the projection — no more a
+ * hand-passed `productName`, no second display read-model. `assetRefs` is the bare
+ * `readonly string[]` of `CustomerProductView` — passed through with ZERO
+ * transformation. An EMPTY array is the honest normal case (a product with no
+ * image is a product with no image); it is never back-filled with a placeholder.
  */
 export interface CustomerSurfaceView {
   readonly productName: string;
   readonly customerPriceFcfa: number;
+  readonly assetRefs: readonly string[];
 }
 export function customerSurfaceFromSupply(
   projection: SupplyProjection,
   markup: OpportunityMarkupInputs,
-  productName: string,
 ): CustomerSurfaceView {
   return {
-    productName,
+    productName: projection.productName,
     customerPriceFcfa: opportunityMoneyFromSupply(projection, markup).productSubtotal,
+    assetRefs: [...projection.assetRefs],
   };
 }
