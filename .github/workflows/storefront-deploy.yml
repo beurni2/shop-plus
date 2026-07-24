@@ -42,6 +42,16 @@ jobs:
       # dist/index.js — which only exists after a build. Without this step esbuild
       # cannot resolve it and the deploy dies before ever reaching Cloudflare.
       - run: pnpm build
+      # SERVICE-PROVENANCE-1 — stamp the bundle so the deployed artifact can say
+      # WHICH BUILD it is (release) and WHICH WIRE SHAPE it speaks (canon). The
+      # second is the one that matters: a sha alone would not have revealed that
+      # the live Worker still predated the listings gate, or that boutik was still
+      # emitting the five-field projection. Read canon from the INSTALLED package,
+      # never from a hand-typed constant, so it cannot drift from what was bundled.
+      - name: Resolve the provenance stamp
+        run: |
+          echo "SHOP_RELEASE=${{ github.sha }}" >> "$GITHUB_ENV"
+          echo "SHOP_CANON=$(node -p "require('./node_modules/@platform/contracts/package.json').version")" >> "$GITHUB_ENV"
       - name: Bundle the combined Worker (both DOs + service routes + R2 read)
         run: pnpm --filter @shop-plus/storefront-service bundle:worker:combined
       - name: Deploy to Cloudflare Workers

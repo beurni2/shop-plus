@@ -5,7 +5,11 @@ describe(SERVICE_NAME, () => {
   it('serves /health and names itself', async () => {
     const res = await worker.fetch(new Request('https://storefront-service.shop.internal/health'));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ service: SERVICE_NAME, status: 'ok' });
+    // SERVICE-PROVENANCE-1 — the 200 now also answers WHICH BUILD is live
+    // (`release`) and WHICH WIRE SHAPE it speaks (`canon`). Unbundled here, so both
+    // are the honest `dev`; a deployed build carries the sha and the pinned
+    // contracts version. Asserted exactly, so a field appearing or vanishing fails.
+    expect(await res.json()).toEqual({ service: SERVICE_NAME, status: 'ok', release: 'dev', canon: 'dev' });
   });
 
   it('unknown routes are 404', async () => {
