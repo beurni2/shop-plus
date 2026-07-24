@@ -27,6 +27,8 @@ interface Env extends WriteAuthEnv {
   STOREFRONT_GCS_BUCKET?: string;
   STOREFRONT_GCS_TOKEN?: string;
   STOREFRONT_GCS_PUBLIC_BASE?: string;
+  /** Supply display source. UNSET ⇒ ABSENT product data, never mock data. */
+  SUPPLY_BASE?: string;
 }
 
 export default {
@@ -56,6 +58,30 @@ export default {
     }
     // DO-management surfaces → the DO routers (idFromName addressing lives there).
     if (pathname === '/storefronts' || pathname.startsWith('/storefronts/')) return sfRouter.fetch(request, env);
+    // REAL-PRODUCT-RENDER-1 (a2) — MEMBERSHIP is stated HERE, at the composition
+    // root, because it is CROSS-AGGREGATE: publishing a listing appends its pid to
+    // the storefront's canon `curatedItems`. Neither aggregate router depends on
+    // the other's namespace (the standalone listing worker still runs); the
+    // coordination lives where both bindings do. ORDER OF INTENT: curatedItems is
+    // the MEMBERSHIP statement, the pid pointer (written by the listing router) is
+    // the LOOKUP that resolves it.
+    if (request.method === 'POST' && pathname === '/listings') {
+      const cmd = (await request.clone().json().catch(() => null)) as
+        | { storefrontId?: string; productVersionId?: string; at?: string }
+        | null;
+      const res = await lstRouter.fetch(request, env);
+      const decision = (await res.clone().json().catch(() => null)) as { status?: string } | null;
+      if (decision?.status === 'published' && cmd?.storefrontId && cmd?.productVersionId) {
+        await sfRouter.fetch(
+          new Request(`https://do/storefronts/${encodeURIComponent(cmd.storefrontId)}/items`, {
+            method: 'POST',
+            body: JSON.stringify({ pid: cmd.productVersionId, at: cmd.at }),
+          }),
+          env,
+        );
+      }
+      return res;
+    }
     if (pathname === '/listings' || pathname.startsWith('/listings/')) return lstRouter.fetch(request, env);
     // Service surfaces (POST /media/upload · GET /s/{slug} · GET /media/{key} ·
     // health) → handleRequest, with the SHIM: DurableStorefrontStore reaches the
@@ -66,7 +92,11 @@ export default {
       ...(env.STOREFRONT_GCS_BUCKET !== undefined ? { STOREFRONT_GCS_BUCKET: env.STOREFRONT_GCS_BUCKET } : {}),
       ...(env.STOREFRONT_GCS_TOKEN !== undefined ? { STOREFRONT_GCS_TOKEN: env.STOREFRONT_GCS_TOKEN } : {}),
       ...(env.STOREFRONT_GCS_PUBLIC_BASE !== undefined ? { STOREFRONT_GCS_PUBLIC_BASE: env.STOREFRONT_GCS_PUBLIC_BASE } : {}),
+      ...(env.SUPPLY_BASE !== undefined ? { SUPPLY_BASE: env.SUPPLY_BASE } : {}),
       STOREFRONT_DO: { fetch: (req: Request): Promise<Response> => sfRouter.fetch(req, env) },
+      // The JOIN reaches the listing DO through the SAME shim pattern. Internal:
+      // the public /listings* surface stays key-gated above (LISTING-READ-GATE-1).
+      LISTING_DO: { fetch: (req: Request): Promise<Response> => lstRouter.fetch(req, env) },
     };
     return handleRequest(request, serviceEnv);
   },

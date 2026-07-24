@@ -162,3 +162,41 @@ export function decideToggle(
   const next: StorefrontEntry = { storefront, createCommandId: current.createCommandId, version };
   return { decision: { status: 'changed', storefront, event: publishedEvent(storefront, correlationId, at, version) }, next };
 }
+
+/* ------------------------------------------ REAL-PRODUCT-RENDER-1 (a2) -- */
+
+export type AddItemDecision =
+  | { readonly status: 'added'; readonly storefront: Storefront }
+  | { readonly status: 'already_present'; readonly storefront: Storefront }
+  | { readonly status: 'absent' };
+
+/**
+ * MEMBERSHIP — publishing a listing puts its product IN her shop (founder ruling).
+ *
+ * `curatedItems` is the canon, buyer-facing MEMBERSHIP statement — what is in her
+ * shop — and it is authoritative for the buyer. Curation (the « à la une et ordre »
+ * screen) is about ARRANGEMENT over the articles already present, not about
+ * membership: a seller who publishes a product and then finds an empty shop, with a
+ * second screen to hunt for, is a design failure.
+ *
+ * APPEND-IF-ABSENT, POSITION PRESERVED. A pid already present is left exactly where
+ * it is and reports `already_present` — republishing must never silently rearrange a
+ * shop she arranged. Appending is the ONLY mutation here: nothing reorders, nothing
+ * removes, and `updatedAt` moves only on a real change.
+ */
+export function decideAddItem(
+  current: StorefrontEntry | undefined,
+  pid: string,
+  at: string,
+): { decision: AddItemDecision; next?: StorefrontEntry } {
+  if (!current) return { decision: { status: 'absent' } };
+  if (current.storefront.curatedItems.includes(pid)) {
+    return { decision: { status: 'already_present', storefront: current.storefront } };
+  }
+  const storefront: Storefront = {
+    ...current.storefront,
+    curatedItems: [...current.storefront.curatedItems, pid], // appended, never reordered
+    updatedAt: at,
+  };
+  return { decision: { status: 'added', storefront }, next: { ...current, storefront } };
+}

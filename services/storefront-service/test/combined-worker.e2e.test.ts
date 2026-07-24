@@ -404,3 +404,88 @@ describe('RESELLER-STOREFRONT-WRITE-1 — CORS on reads + the admin list', () =>
     expect(after.find((r) => r.id === 'sf-list-0001')?.discoverable).toBe(true);
   });
 });
+
+/**
+ * REAL-PRODUCT-RENDER-1 (a2) — MEMBERSHIP + THE JOIN, on real workerd.
+ *
+ * Publish states membership (the pid lands in her canon `curatedItems`) and writes
+ * the pid→listing lookup; `GET /s/{slug}` then carries per-product records built
+ * server-side. With NO supply source configured — the default, and the truth today
+ * — every product is UNDESCRIBABLE and therefore OMITTED, never invented.
+ */
+describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read path joins', () => {
+  const SF_A2 = {
+    commandId: 'cmd-a2-create',
+    id: 'sf-a2-0001',
+    resellerId: 'rs-a2-0001',
+    shortCode: 'AATWO-0001',
+    name: 'Boutique jointure',
+    zone: 'Ouagadougou',
+    category: 'Général',
+    correlationId: 'corr-a2',
+    at: T0,
+  };
+  const publishCmd = (over: Partial<Record<string, unknown>> = {}): string =>
+    JSON.stringify({
+      commandId: 'cmd-a2-listing-1',
+      listingId: 'lst-a2-0001',
+      storefrontId: 'sf-a2-0001',
+      resellerId: 'rs-a2-0001',
+      productVersionId: 'pv-a2-1',
+      offerVersion: 'ov-a2-1',
+      markup: 1_200,
+      customerPriceFcfa: 9_200,
+      hubVerified: true,
+      correlationId: 'corr-a2-lst',
+      at: T0,
+      ...over,
+    });
+
+  it('PUBLISH APPENDS THE PID to her canon curatedItems (membership), and republish does not append twice', async () => {
+    await mf.dispatchFetch('http://c/storefronts', { method: 'POST', headers: authed, body: JSON.stringify(SF_A2) });
+    const pub = await mf.dispatchFetch('http://c/listings', { method: 'POST', headers: authed, body: publishCmd() });
+    expect(((await pub.json()) as { status: string }).status).toBe('published');
+
+    const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
+    expect(read.status).toBe(200);
+    const view = (await read.json()) as StorefrontView & { products: unknown[] };
+    expect(view.curatedItems).toEqual(['pv-a2-1']); // membership stated by the publish
+
+    // REPUBLISH (new commandId, same pid) — position preserved, never duplicated
+    const re = await mf.dispatchFetch('http://c/listings', {
+      method: 'POST',
+      headers: authed,
+      body: publishCmd({ commandId: 'cmd-a2-listing-1-again' }),
+    });
+    expect(((await re.json()) as { status: string }).status).toBe('published');
+    const read2 = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
+    const view2 = (await read2.json()) as StorefrontView;
+    expect(view2.curatedItems).toEqual(['pv-a2-1']); // appended ONCE, not reordered
+  });
+
+  it('NO SUPPLY SOURCE ⇒ the product is UNDESCRIBABLE ⇒ OMITTED (never mock data, never a nameless tile)', async () => {
+    const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
+    const view = (await read.json()) as StorefrontView & { products: unknown[] };
+    // her membership is stated…
+    expect(view.curatedItems).toEqual(['pv-a2-1']);
+    // …but nothing can describe it, so the buyer payload carries NO product record
+    expect(view.products).toEqual([]);
+    // and absolutely no fabricated name or ref leaked in
+    expect(JSON.stringify(view)).not.toMatch(/Pagne|Produit |démo/i);
+  });
+
+  it('THE BUYER PAYLOAD CARRIES NO LISTING ID and no supplier economics (standing law + SP-I03)', async () => {
+    const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
+    const body = await read.text();
+    expect(body).not.toContain('lst-a2-0001'); // the listing id never reaches the wire
+    expect(body).not.toMatch(/lst[-_]/i);
+    expect(body).not.toMatch(/markup|basePrice|resellerCommission|supplier/i);
+  });
+
+  it('the READ PATH stays open to the buyer while /listings* stays gated (both true at once)', async () => {
+    const buyer = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
+    expect(buyer.status).toBe(200); // no credential
+    const listing = await mf.dispatchFetch('http://c/listings/lst-a2-0001', { method: 'GET' });
+    expect(listing.status).toBe(401); // still gated
+  });
+});
