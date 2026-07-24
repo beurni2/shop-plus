@@ -19,7 +19,7 @@ import { mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { ENT_STYLES } from './vitrine/entries';
 import { createCliente, type ClienteEcran } from './cliente/flow';
 import { clienteProduit, clienteProduitReel, composeQuote } from './cliente/seed';
-import { seedProduct } from './vitrine/catalog';
+import { productFromSeed, seedProduct } from './vitrine/catalog';
 import { CLIENTE_STYLES } from './cliente/styles';
 import type { VitrineThemeKey } from './vitrine/themes';
 // The Faso Premium face substrate (six @font-face, WO-FP STEP 0) — injected as
@@ -634,7 +634,8 @@ if (app) {
       // seam — arrival locked to her above.
       const defaultPid = resolved.storefront.curatedItems[0] ?? 'p1';
       const pid = params.get('pid') || defaultPid;
-      const product = seedProduct(pid);
+      const seed = seedProduct(pid);
+      const product = seed ? productFromSeed(seed) : undefined;
       const main = document.createElement('main');
       if (!product) {
         // Unresolvable pid — honest not-found, the SAME `/v/` invalid surface

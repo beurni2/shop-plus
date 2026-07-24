@@ -136,6 +136,23 @@ export const CLIENTE_STYLES = `
   .cl-round-btn:active { transform: scale(.92); }
 
   /* ══ C1 — photo sable + ticks encre ══ */
+  /* REAL-PRODUCT-RENDER-1 — la PHOTO réelle remplit le cadre ; sans photo, le
+     même tissage ornemental que les tuiles, dérivé de l'habillage. */
+  .cl-photo-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cl-photo-sansphoto { background: var(--vt-soft, #F1E7D3); }
+  .cl-weave {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    background-image:
+      repeating-linear-gradient(135deg,
+        color-mix(in srgb, var(--vt-accent, #C2571B) 14%, transparent) 0px,
+        color-mix(in srgb, var(--vt-accent, #C2571B) 14%, transparent) 9px,
+        rgba(0,0,0,0) 9px, rgba(0,0,0,0) 22px),
+      repeating-linear-gradient(45deg,
+        color-mix(in srgb, var(--vt-accent, #C2571B) 9%, transparent) 0px,
+        color-mix(in srgb, var(--vt-accent, #C2571B) 9%, transparent) 9px,
+        rgba(0,0,0,0) 9px, rgba(0,0,0,0) 22px);
+  }
+  .cl-photo-sansphoto .cl-photo-caps { position: relative; }
   .cl-photo {
     margin-top: 14px; position: relative; height: 238px; border-radius: 22px; overflow: hidden;
     background: #F1E7D3; border: 1px solid #EDE4D3;

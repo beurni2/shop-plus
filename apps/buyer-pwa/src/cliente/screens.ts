@@ -38,8 +38,10 @@ export interface ClienteProduit {
   readonly variant?: string;
   readonly zone: string;
   readonly priceFcfa: number;
-  /** Canon SVG product-glyph key (the vitrine set) — the no-emoji placeholder. */
-  readonly glyph: string;
+  /** Bare display refs (canon `assetRefs`, v2.0.0); `[0]` is the hero. EMPTY is
+   * the honest normal case → the woven « SANS PHOTO » frame, and the « photo
+   * réelle » promise is NOT made (REAL-PRODUCT-RENDER-1). */
+  readonly assetRefs: readonly string[];
   readonly voiceDuree?: string;
   /** Playable note url (ready notes only) — tap plays, never autoplay. */
   readonly voiceUrl?: string;
@@ -126,6 +128,51 @@ export function renderSkeleton(): string {
 
 /* ----------------------------------------------------------------- C1 ---- */
 
+/** The hero image ref, or `undefined` when this product has none. */
+function hero(m: ClienteProduit): string | undefined {
+  const first = m.assetRefs[0];
+  return first !== undefined && first !== '' ? first : undefined;
+}
+
+/**
+ * C1's PHOTO FRAME — the FIFTH STATE (REAL-PRODUCT-RENDER-1, founder-deferred
+ * from BUYER-REAL-HONESTY-1 because C1 carried the SAME seed dependency the
+ * vitrine did: the frame drew a `VITRINE_SEED` glyph, which a real product does
+ * not have).
+ *
+ * WITH a hero ref: the real photograph fills the frame, and « PHOTO RÉELLE DU
+ * PRODUIT » + « Photo réelle — ce que vous recevrez. » are TRUE — the promise is
+ * kept, not made on credit.
+ * WITHOUT one: the same woven, theme-derived ornament the tiles use, labelled
+ * « SANS PHOTO », and the « photo réelle » sentence is NOT rendered. Promising a
+ * real photo over an ornament was the lie this state removes; « sans photo »
+ * describes what is true and promises nothing.
+ */
+function photoFrame(m: ClienteProduit, out: boolean): string {
+  const src = hero(m);
+  const ticks =
+    '<div class="cl-tick cl-tick-tl"></div><div class="cl-tick cl-tick-tr"></div><div class="cl-tick cl-tick-bl"></div><div class="cl-tick cl-tick-br"></div>';
+  const veil = out ? '<div class="cl-photo-veil"><span class="cl-epuise-stamp">ÉPUISÉ</span></div>' : '';
+  if (src !== undefined) {
+    return [
+      '<div class="cl-photo" data-role="photo-reelle">',
+      `<img class="cl-photo-img" src="${esc(src)}" alt="" decoding="async">`,
+      ticks,
+      '<div class="cl-photo-caps">PHOTO RÉELLE DU PRODUIT</div>',
+      veil,
+      '</div>',
+    ].join('');
+  }
+  return [
+    '<div class="cl-photo cl-photo-sansphoto" data-role="photo-sans">',
+    '<div class="cl-weave"></div>',
+    ticks,
+    '<div class="cl-photo-caps">SANS PHOTO</div>',
+    veil,
+    '</div>',
+  ].join('');
+}
+
 export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: boolean }): string {
   const out = o.epuise;
   const pbPill = out
@@ -153,13 +200,8 @@ export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: bool
     `<div class="cl-verirow"><span class="cl-veri-txt">Vendeuse vérifiée</span> <span class="cl-veri-check">${iconCheck(13, 2.6)}</span><span class="cl-dotsep">·</span><button class="cl-voir" data-action="voir-boutique" data-slug="${esc(m.slug)}">Voir la boutique ›</button></div></div>`,
     `<button class="cl-shield" data-action="ouvrir-protections" aria-label="Vos protections">${iconShieldCheck(18, 1.9)}</button>`,
     '</div>',
-    '<div class="cl-photo">',
-    '<div class="cl-tick cl-tick-tl"></div><div class="cl-tick cl-tick-tr"></div><div class="cl-tick cl-tick-bl"></div><div class="cl-tick cl-tick-br"></div>',
-    `<span class="cl-photo-glyph">${productGlyph(m.glyph)}</span>`,
-    '<div class="cl-photo-caps">PHOTO RÉELLE DU PRODUIT</div>',
-    out ? '<div class="cl-photo-veil"><span class="cl-epuise-stamp">ÉPUISÉ</span></div>' : '',
-    '</div>',
-    `<div class="cl-caption-row"><span>Photo réelle — ce que vous recevrez.</span><span class="cl-vendu">Vendu par ${esc(m.prenom)}</span></div>`,
+    photoFrame(m, out),
+    `<div class="cl-caption-row">${hero(m) !== undefined ? '<span>Photo réelle — ce que vous recevrez.</span>' : '<span></span>'}<span class="cl-vendu">Vendu par ${esc(m.prenom)}</span></div>`,
     `<div class="cl-prodtitle">${esc(m.productName)}</div>`,
     `<div class="cl-chiprow">${m.variant ? `<span class="cl-variant">${esc(m.variant)}</span>` : ''}<span class="cl-prod-zone">${esc(m.zone)}</span></div>`,
     voix,

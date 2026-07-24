@@ -18,7 +18,7 @@
 
 import type { ClienteProduit, ClienteQuote } from './screens';
 import type { VitrineThemeKey } from '../vitrine/themes';
-import type { VitrineSeedProduct } from '../vitrine/catalog';
+import type { VitrineProduct } from '../vitrine/catalog';
 import type { ProductVoiceNote } from '../vitrine/profile';
 import { DEMO_VOICE_URL } from '../vitrine/voice-asset';
 
@@ -46,7 +46,10 @@ export const ROBE: ClienteProduit = {
   variant: 'TAILLE M',
   zone: 'Rood Woko · Ouagadougou',
   priceFcfa: 11_500,
-  glyph: 'tissu',
+  // The demo article has no real photograph — an honest empty array, never a
+  // fabricated URL. C1 therefore renders the woven « SANS PHOTO » frame and does
+  // NOT make the « photo réelle » promise (REAL-PRODUCT-RENDER-1).
+  assetRefs: [],
   voiceDuree: '0:12',
   voiceUrl: DEMO_VOICE_URL,
   inStock: true,
@@ -72,7 +75,7 @@ function dureeLabel(ms: number): string {
  */
 export function clienteProduitReel(
   storefront: { name: string; slug: string; theme: VitrineThemeKey; zone: string },
-  product: VitrineSeedProduct,
+  product: VitrineProduct,
   note: ProductVoiceNote | undefined,
 ): { produit: ClienteProduit; theme: VitrineThemeKey } {
   const prenom = storefront.name.replace(/^Chez\s+/i, '').split(' ')[0] ?? storefront.name;
@@ -85,8 +88,8 @@ export function clienteProduitReel(
       slug: storefront.slug,
       productName: product.name,
       zone: storefront.zone,
-      priceFcfa: product.priceFcfa,
-      glyph: product.glyph,
+      priceFcfa: product.priceFcfa, // HER frozen price, carried verbatim
+      assetRefs: product.assetRefs,
       inStock: product.inStock,
       ...(voiceDuree !== undefined ? { voiceDuree } : {}),
       ...(voiceUrl !== undefined ? { voiceUrl } : {}),
