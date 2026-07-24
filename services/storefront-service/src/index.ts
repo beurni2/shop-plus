@@ -113,14 +113,51 @@ async function handleMediaRead(key: string, env?: MediaEnv): Promise<Response> {
   });
 }
 
-export const handleRequest = (request: Request, env?: StorefrontServiceEnv): Response | Promise<Response> => {
+/**
+ * RESELLER-STOREFRONT-WRITE-1 — CORS on the BUYER READ ROUTES ONLY. The buyer PWA
+ * is served cross-origin from GitHub Pages, so its `fetch` of `GET /s/{slug}` needs
+ * an allow-origin header or the browser blocks the 200. EXACT ORIGIN, never a
+ * wildcard (a wildcard would let any site's JS read storefront data). The WRITE
+ * routes carry NO CORS — the reseller app is React Native (not subject to CORS),
+ * and letting browser origins write would widen the surface the auth gate closed.
+ * Known, accepted limitation (JOURNAL): a LOCAL PWA build pointed at the live
+ * Worker fails CORS until a dev origin is added deliberately — not a bug.
+ */
+const CORS_READ_ORIGIN = 'https://beurni2.github.io';
+function withReadCors(res: Response): Response {
+  const headers = new Headers(res.headers);
+  headers.set('Access-Control-Allow-Origin', CORS_READ_ORIGIN);
+  headers.set('Vary', 'Origin');
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+/** Preflight for the read routes — 204 + the CORS headers, and (being an OPTIONS)
+ * it never reaches the write gate, so it answers without a key. */
+function readPreflight(): Response {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': CORS_READ_ORIGIN,
+      'Access-Control-Allow-Methods': 'GET',
+      'Access-Control-Allow-Headers': 'Accept',
+      'Access-Control-Max-Age': '86400',
+      Vary: 'Origin',
+    },
+  });
+}
+
+export const handleRequest = async (request: Request, env?: StorefrontServiceEnv): Promise<Response> => {
   const url = new URL(request.url);
+  // POST /media/upload — a WRITE route: NO CORS (never buyer-facing).
   if (request.method === 'POST' && url.pathname === '/media/upload') return handleMediaUpload(request, env);
   const slugMatch = /^\/s\/([^/]+)$/.exec(url.pathname);
-  if (request.method === 'GET' && slugMatch) return handleStorefrontRead(decodeURIComponent(slugMatch[1]!), env);
   const mediaReadMatch = /^\/media\/(.+)$/.exec(url.pathname);
-  if (request.method === 'GET' && mediaReadMatch) return handleMediaRead(decodeURI(mediaReadMatch[1]!), env);
-  return health(request);
+  const isReadRoute = url.pathname === '/health' || slugMatch !== null || mediaReadMatch !== null;
+  // CORS preflight for the buyer read routes only.
+  if (request.method === 'OPTIONS' && isReadRoute) return readPreflight();
+  if (request.method === 'GET' && slugMatch) return withReadCors(await handleStorefrontRead(decodeURIComponent(slugMatch[1]!), env));
+  if (request.method === 'GET' && mediaReadMatch) return withReadCors(await handleMediaRead(decodeURI(mediaReadMatch[1]!), env));
+  // health (and the honest 404 fallthrough) — the buyer read surface, CORS on.
+  return withReadCors(health(request));
 };
 
 export default { fetch: handleRequest };

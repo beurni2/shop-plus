@@ -59,20 +59,31 @@ async function timingSafeEqual(a: string, b: string): Promise<boolean> {
 }
 
 /**
- * FAIL CLOSED. Resolves to `null` iff the request is authorised to write; else to
- * a 401 — IDENTICAL for every rejection (missing header, wrong key, OR no secret
- * configured on the Worker), computed BEFORE any target lookup so it can never be
- * an existence oracle. A Worker with no secret set refuses every write. Reads
- * short-circuit to `null` (never gated).
+ * The shared key check, FAIL CLOSED. True iff a non-empty secret is configured AND
+ * the request's `X-Write-Key` matches it (constant-time). The compare runs
+ * unconditionally (even with no secret configured) so timing does not reveal
+ * whether a secret exists; the length guard keeps it fail-closed — an unset/empty
+ * secret can never match a non-empty presented key.
+ */
+export async function keyAuthorized(request: Request, env: WriteAuthEnv): Promise<boolean> {
+  const secret = env.STOREFRONT_WRITE_SECRET ?? '';
+  const provided = request.headers.get(WRITE_KEY_HEADER) ?? '';
+  const match = await timingSafeEqual(provided, secret);
+  return secret.length > 0 && match;
+}
+
+/** The one 401 — IDENTICAL for every rejection, so it can never leak. */
+export function unauthorized(): Response {
+  return Response.json({ error: 'unauthorized' }, { status: 401 });
+}
+
+/**
+ * WRITE gate. Resolves to `null` iff authorised; else a 401, computed BEFORE any
+ * target lookup so it can never be an existence oracle. A Worker with no secret
+ * set refuses every write. Reads (safe methods) short-circuit to `null` — the
+ * admin list (a key-gated GET) is gated separately at the composition root.
  */
 export async function rejectUnauthorizedWrite(request: Request, env: WriteAuthEnv): Promise<Response | null> {
   if (!isWrite(request.method)) return null;
-  const secret = env.STOREFRONT_WRITE_SECRET ?? '';
-  const provided = request.headers.get(WRITE_KEY_HEADER) ?? '';
-  // The compare runs unconditionally (even with no secret configured) so timing
-  // does not reveal whether a secret exists; the length guard keeps it fail-closed
-  // — an unset/empty secret can never match a non-empty presented key.
-  const match = await timingSafeEqual(provided, secret);
-  const authorized = secret.length > 0 && match;
-  return authorized ? null : Response.json({ error: 'unauthorized' }, { status: 401 });
+  return (await keyAuthorized(request, env)) ? null : unauthorized();
 }

@@ -288,3 +288,87 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(health.status).toBe(200);
   });
 });
+
+/**
+ * RESELLER-STOREFRONT-WRITE-1 — CORS on the buyer read routes (the browser
+ * boundary the miniflare e2e otherwise never crosses) and the key-gated admin list.
+ */
+const ORIGIN = 'https://beurni2.github.io';
+describe('RESELLER-STOREFRONT-WRITE-1 — CORS on reads + the admin list', () => {
+  it('the READ routes carry the exact-origin CORS header (never a wildcard)', async () => {
+    // sf-seller-0001 exists from the composition test above.
+    const slug = await mf.dispatchFetch('http://c/s/seller-0001', { method: 'GET', headers: { Origin: ORIGIN } });
+    expect(slug.status).toBe(200);
+    expect(slug.headers.get('access-control-allow-origin')).toBe(ORIGIN);
+    expect(slug.headers.get('access-control-allow-origin')).not.toBe('*');
+
+    const health = await mf.dispatchFetch('http://c/health', { method: 'GET', headers: { Origin: ORIGIN } });
+    expect(health.headers.get('access-control-allow-origin')).toBe(ORIGIN);
+
+    const media = await mf.dispatchFetch('http://c/media/nope.png', { method: 'GET', headers: { Origin: ORIGIN } });
+    expect(media.status).toBe(404); // honest not-found still carries CORS so the browser can read it
+    expect(media.headers.get('access-control-allow-origin')).toBe(ORIGIN);
+  });
+
+  it('a preflight OPTIONS on a read route answers 204 + CORS with NO key (never hits the write gate)', async () => {
+    const pre = await mf.dispatchFetch('http://c/s/seller-0001', {
+      method: 'OPTIONS',
+      headers: { Origin: ORIGIN, 'Access-Control-Request-Method': 'GET' },
+    });
+    expect(pre.status).toBe(204);
+    expect(pre.headers.get('access-control-allow-origin')).toBe(ORIGIN);
+    expect(pre.headers.get('access-control-allow-methods')).toContain('GET');
+  });
+
+  it('the WRITE route carries NO CORS header (browser origins must never write)', async () => {
+    const up = await mf.dispatchFetch('http://c/media/upload?kind=cover&storefrontId=sf-seller-0001', {
+      method: 'POST',
+      headers: { ...authed, Origin: ORIGIN },
+      body: tinyPng(),
+    });
+    expect(up.status).toBe(201);
+    expect(up.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
+  it('GET /storefronts is key-gated and lists created storefronts with live discoverable', async () => {
+    // create a fresh storefront, publish it, and assert the list reflects it.
+    const create = await mf.dispatchFetch('http://c/storefronts', {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({
+        commandId: 'cmd-list-create',
+        id: 'sf-list-0001',
+        resellerId: 'rs-seller-0001',
+        shortCode: 'LIST-0001',
+        name: 'Boutique liste',
+        zone: 'Ouagadougou',
+        category: 'Général',
+        correlationId: 'corr-list',
+        at: T0,
+      }),
+    });
+    expect(((await create.json()) as { status: string }).status).toBe('created');
+
+    const noKey = await mf.dispatchFetch('http://c/storefronts', { method: 'GET' });
+    expect(noKey.status).toBe(401); // GET, but the admin list is explicitly gated
+
+    const listed = await mf.dispatchFetch('http://c/storefronts', { method: 'GET', headers: authed });
+    expect(listed.status).toBe(200);
+    const rows = (await listed.json()) as { id: string; slug: string; name: string; discoverable: boolean }[];
+    const mine = rows.find((r) => r.id === 'sf-list-0001');
+    expect(mine).toEqual({ id: 'sf-list-0001', slug: 'list-0001', name: 'Boutique liste', discoverable: false });
+
+    // publish it → the list must reflect the LIVE discoverable, not a stale snapshot.
+    const pub = await mf.dispatchFetch('http://c/storefronts/sf-list-0001/publish', {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({ id: 'sf-list-0001', correlationId: 'corr-list', at: T0 }),
+    });
+    expect(pub.status).toBe(200);
+    const after = (await (await mf.dispatchFetch('http://c/storefronts', { method: 'GET', headers: authed })).json()) as {
+      id: string;
+      discoverable: boolean;
+    }[];
+    expect(after.find((r) => r.id === 'sf-list-0001')?.discoverable).toBe(true);
+  });
+});

@@ -27,6 +27,7 @@ import {
 
 const ENTRY_KEY = 'storefront-entry';
 const POINTER_KEY = 'slug-pointer';
+const INDEX_KEY = 'index-list';
 
 interface ToggleArgs {
   id: string;
@@ -35,6 +36,15 @@ interface ToggleArgs {
 }
 interface SlugPointer {
   storefrontId: string;
+}
+/** RESELLER-STOREFRONT-WRITE-1 — one immutable directory row per created
+ * storefront. id/slug/name are set at create and never change on the service (no
+ * rename route exists); the LIVE `discoverable` is read from the entry at list
+ * time, so the index stays WRITE-ONCE like the slug pointer. */
+interface IndexRow {
+  id: string;
+  slug: string;
+  name: string;
 }
 
 export class StorefrontDO {
@@ -91,6 +101,26 @@ export class StorefrontDO {
       return Response.json(ptr);
     }
 
+    // ── directory-index-instance ops (idFromName('index')) — the admin list ───
+    if (request.method === 'PUT' && pathname === '/index/add') {
+      let row: IndexRow;
+      try {
+        row = (await request.json()) as IndexRow;
+      } catch {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      const list = (await this.state.storage.get<IndexRow[]>(INDEX_KEY)) ?? [];
+      if (!list.some((r) => r.id === row.id)) {
+        list.push({ id: row.id, slug: row.slug, name: row.name });
+        await this.state.storage.put(INDEX_KEY, list);
+      }
+      return Response.json({ ok: true });
+    }
+    if (request.method === 'GET' && pathname === '/index') {
+      const list = (await this.state.storage.get<IndexRow[]>(INDEX_KEY)) ?? [];
+      return Response.json(list);
+    }
+
     return Response.json({ error: 'not_found' }, { status: 404 });
   }
 }
@@ -103,6 +133,13 @@ const sfStub = (env: Env, id: string): DurableObjectStub =>
   env.STOREFRONT.get(env.STOREFRONT.idFromName(id));
 const slugStub = (env: Env, slug: string): DurableObjectStub =>
   env.STOREFRONT.get(env.STOREFRONT.idFromName(`slug:${slug}`));
+// The single directory-index instance (RESELLER-STOREFRONT-WRITE-1). ONE object,
+// written only on create and read only by the founder's admin list — a contention
+// profile utterly unlike the per-page slug pointers, so the single-object choice
+// rejected for slugs is correct here (JOURNAL). A single index has a size ceiling
+// (irrelevant at this scale, not infinite).
+const indexStub = (env: Env): DurableObjectStub =>
+  env.STOREFRONT.get(env.STOREFRONT.idFromName('index'));
 
 const forward = async (res: Response, status = res.status): Promise<Response> =>
   new Response(await res.text(), { status, headers: { 'Content-Type': 'application/json' } });
@@ -133,8 +170,30 @@ export default {
         await slugStub(env, decision.storefront.slug).fetch(
           new Request('https://do/pointer', { method: 'PUT', body: JSON.stringify({ storefrontId: cmd.id }) }),
         );
+        // …and the immutable directory row, so the admin list can enumerate what exists.
+        await indexStub(env).fetch(
+          new Request('https://do/index/add', {
+            method: 'PUT',
+            body: JSON.stringify({ id: cmd.id, slug: decision.storefront.slug, name: decision.storefront.name }),
+          }),
+        );
       }
       return forward(res);
+    }
+
+    // THE ADMIN LIST (RESELLER-STOREFRONT-WRITE-1) — key-gated at the composition
+    // root (a GET, so the write gate skips it). Reads the write-once index, then
+    // the LIVE discoverable off each entry, so the list never shows stale state.
+    if (request.method === 'GET' && pathname === '/storefronts') {
+      const idxRes = await indexStub(env).fetch(new Request('https://do/index'));
+      const rows = (await idxRes.json()) as IndexRow[];
+      const out = [];
+      for (const r of rows) {
+        const eRes = await sfStub(env, r.id).fetch(new Request('https://do/entry'));
+        const discoverable = eRes.status === 200 ? Boolean(((await eRes.json()) as { discoverable?: boolean }).discoverable) : false;
+        out.push({ id: r.id, slug: r.slug, name: r.name, discoverable });
+      }
+      return Response.json(out);
     }
 
     let m = /^\/storefronts\/([^/]+)\/(publish|unpublish)$/.exec(pathname);
