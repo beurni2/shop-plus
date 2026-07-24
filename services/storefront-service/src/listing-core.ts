@@ -47,11 +47,27 @@ export type HideDecision =
   | { readonly status: 'unchanged'; readonly listing: ResellerListing }
   | { readonly status: 'absent' };
 
-/** The serialisable per-listing durable state (one per idFromName(listingId)). */
+/**
+ * The serialisable per-listing durable state (one per idFromName(listingId)).
+ *
+ * THE SIGNED PRICE LIVES HERE, NOT IN CANON (founder ruling, REAL-PRODUCT-RENDER-1
+ * piece (a)). Canon's `ResellerListing` is STRICT and carries `markup` (M) with no
+ * price field — it models a listing as a STANDING MARKUP, so a price derived from
+ * it moves whenever the supplier's base moves. The product promises the opposite:
+ * « Le prix reste signé — il reviendra tel quel si le stock revient ». This
+ * wrapper — which already carries the non-canon `storefrontId` / `publishCommandId`
+ * — persists `customerPriceFcfa`, HER price (productSubtotal = B + M) as signed at
+ * publish. **No canon change**; `ResellerListing` is untouched. The buyer's price is
+ * READ from here and CARRIED verbatim, never recomputed from live supplier
+ * economics. (Open question, journaled: if a second consumer ever needs the buyer
+ * price, a signed-price concept becomes a CANON conversation, not a shop-plus one.)
+ */
 export interface ListingEntry {
   readonly listing: ResellerListing;
   readonly storefrontId: string;
   readonly publishCommandId: string;
+  /** HER price, FROZEN at publish (productSubtotal = B + M) — carried, never recomputed. */
+  readonly customerPriceFcfa: number;
 }
 
 function publishedEvent(cmd: PublishListingCommand): PlatformEvent {
@@ -93,7 +109,16 @@ function autoHiddenEvent(listing: ResellerListing, storefrontId: string, correla
   });
 }
 
-/** PUBLISH — idempotent on the publish command_id; a new command_id (re)publishes. */
+/**
+ * PUBLISH — idempotent on the publish command_id; a new command_id (re)publishes.
+ *
+ * REPUBLISH IS A NEW VERSION, NEVER A MUTATION (founder ruling). A different
+ * price means a new listing VERSION carrying the new signed price: `version`
+ * increments from the current entry rather than resetting to 1. That is what
+ * makes « le prix reste signé » honest rather than a snapshot that quietly rots —
+ * the price a buyer was shown belongs to the version she was shown, and changing
+ * what you charge is an act (a republish), not a drift.
+ */
 export function decidePublish(
   current: ListingEntry | undefined,
   cmd: PublishListingCommand,
@@ -107,11 +132,16 @@ export function decidePublish(
     productVersionId: cmd.productVersionId,
     offerVersion: cmd.offerVersion,
     markup: cmd.markup,
-    version: 1,
+    version: current ? current.listing.version + 1 : 1,
     variants: [],
     status: LISTING_PUBLISHED,
   });
-  const next: ListingEntry = { listing, storefrontId: cmd.storefrontId, publishCommandId: cmd.commandId };
+  const next: ListingEntry = {
+    listing,
+    storefrontId: cmd.storefrontId,
+    publishCommandId: cmd.commandId,
+    customerPriceFcfa: cmd.customerPriceFcfa, // SUPPLIED from the waterfall, frozen here
+  };
   return { decision: { status: 'published', listing, event: publishedEvent(cmd) }, next };
 }
 
