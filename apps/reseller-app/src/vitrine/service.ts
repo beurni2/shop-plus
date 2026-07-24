@@ -6,9 +6,12 @@
  * THE SEAM (founder ruling — a NEW port, not VitrineCollectionPort, which is
  * listings/discoverability and assumes a storefront already exists): the real HTTP
  * adapter sends the shared write key in `X-Write-Key`, base + key from
- * `EXPO_PUBLIC_*`. When either is unset the resolver returns the in-memory DEMO
- * adapter, so tests and local runs make ZERO network calls — the `resolveMediaStore`
- * mock-gate-by-construction, never a discipline.
+ * `EXPO_PUBLIC_*`. When either is unset the resolver returns **`null`** — see
+ * RESELLER-SEAM-HONESTY-1 on `resolveStorefrontService` below. It used to return an
+ * in-memory demo adapter that CANNOT FAIL, which turned an unset env into a SUCCESS
+ * TOAST with nothing written; that adapter now lives in `service.demo.ts`, is
+ * imported by tests only, and `scripts/gates/no-demo-adapter-in-bundle.mjs` proves it
+ * is absent from the exported bundle by grepping the artifact.
  *
  * THE KEY LIMITATION (founder-accepted, journaled): the key ships inside the
  * published EAS-update bundle — easier to read than decompiling a binary. It stops
@@ -162,68 +165,27 @@ export class HttpStorefrontService implements StorefrontServicePort {
   }
 }
 
-/* ---------------------------------------------------------------- DEMO -- */
-
-/**
- * The in-memory DEMO adapter — CI/local/tests, ZERO network. It applies the same
- * rules the service does (create is idempotent on the storefront id; the list
- * returns live discoverable), so a test exercises the whole flow with no Worker.
- */
-export class DemoStorefrontService implements StorefrontServicePort {
-  private readonly stores = new Map<string, { slug: string; name: string; discoverable: boolean }>();
-  readonly uploads: { kind: string; storefrontId: string; size: number }[] = [];
-
-  async create(cmd: CreateStorefrontCommand): Promise<ServiceResult<{ status: string; slug: string | null }>> {
-    const slug = cmd.shortCode.toLowerCase();
-    if (this.stores.has(cmd.id)) return { ok: true, value: { status: 'idempotent', slug } };
-    this.stores.set(cmd.id, { slug, name: cmd.name, discoverable: false });
-    return { ok: true, value: { status: 'created', slug } };
-  }
-
-  async publish(id: string, _correlationId?: string, _at?: string): Promise<ServiceResult<{ status: string }>> {
-    const s = this.stores.get(id);
-    if (!s) return { ok: true, value: { status: 'absent' } };
-    s.discoverable = true;
-    return { ok: true, value: { status: 'changed' } };
-  }
-
-  async unpublish(id: string, _correlationId?: string, _at?: string): Promise<ServiceResult<{ status: string }>> {
-    const s = this.stores.get(id);
-    if (!s) return { ok: true, value: { status: 'absent' } };
-    s.discoverable = false;
-    return { ok: true, value: { status: 'changed' } };
-  }
-
-  async uploadCover(storefrontId: string, bytes: Uint8Array, _contentType?: string): Promise<ServiceResult<UploadOutcome>> {
-    this.uploads.push({ kind: 'cover', storefrontId, size: bytes.length });
-    return { ok: true, value: { status: 'pending', url: `demo://cover/${storefrontId}` } };
-  }
-
-  async uploadAvatar(storefrontId: string, bytes: Uint8Array, _contentType?: string): Promise<ServiceResult<UploadOutcome>> {
-    this.uploads.push({ kind: 'avatar', storefrontId, size: bytes.length });
-    return { ok: true, value: { status: 'pending', url: `demo://avatar/${storefrontId}` } };
-  }
-
-  async list(): Promise<ServiceResult<readonly StorefrontRow[]>> {
-    return {
-      ok: true,
-      value: [...this.stores.entries()].map(([id, s]) => ({ id, slug: s.slug, name: s.name, discoverable: s.discoverable })),
-    };
-  }
-}
-
 /* ------------------------------------------------------------ resolver -- */
 
 /**
- * Pick the adapter from the environment: the REAL HTTP client iff BOTH the base
- * and the write key are inlined at bundle time, else the in-memory demo. Dot
- * access on `process.env.EXPO_PUBLIC_*` (member-expression) so babel-preset-expo
- * inlines them — bracket access would survive to runtime unset. Unset ⇒ demo, so
- * a preview bundle with no secrets configured, and every test, makes no network call.
+ * RESELLER-SEAM-HONESTY-1 — resolve the REAL HTTP client iff BOTH the base and the
+ * write key are inlined at bundle time, else **`null`**. Dot access on
+ * `process.env.EXPO_PUBLIC_*` (member-expression) so babel-preset-expo inlines them
+ * — bracket access would survive to runtime unset.
+ *
+ * WHY `null` AND NOT A DEMO ADAPTER (the defect this replaces): returning
+ * `DemoStorefrontService` meant an unset or mistyped env produced a SUCCESS TOAST
+ * with nothing written anywhere — its `create`/`publish` cannot fail. `null` forces
+ * the caller to have an honest UNCONFIGURED state instead of a false confirmation,
+ * and the demo adapter now lives in `service.demo.ts`, imported by tests only, so it
+ * is ABSENT from the published bundle rather than merely unselected.
+ *
+ * Both variables are set together or not at all: a base without a key would be a
+ * keyless write the service refuses, so that combination resolves to `null` too.
  */
-export function resolveStorefrontService(): StorefrontServicePort {
+export function resolveStorefrontService(): StorefrontServicePort | null {
   const base = process.env.EXPO_PUBLIC_STOREFRONT_BASE;
   const key = process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY;
   if (base && key) return new HttpStorefrontService(base, key);
-  return new DemoStorefrontService();
+  return null;
 }

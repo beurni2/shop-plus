@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  DemoStorefrontService,
   HttpStorefrontService,
   WRITE_KEY_HEADER,
   deriveShortCode,
   resolveStorefrontService,
   type CreateStorefrontCommand,
 } from '../src/vitrine/service';
+// RESELLER-SEAM-HONESTY-1 — the demo adapter now lives in its OWN module, imported
+// here and NOWHERE the app entry can reach. `service.ts` no longer exports it, so
+// this import is also the assertion that it stayed out of the app's module.
+import { DemoStorefrontService } from '../src/vitrine/service.demo';
 
 /**
  * RESELLER-STOREFRONT-WRITE-1 — the write seam. The DEMO adapter is the CI/local
@@ -119,17 +122,46 @@ describe('HttpStorefrontService — the request the app WOULD send', () => {
   });
 });
 
-describe('resolveStorefrontService — mock-gate by construction', () => {
-  it('unset env → the demo adapter (no network)', () => {
-    expect(resolveStorefrontService()).toBeInstanceOf(DemoStorefrontService);
+/**
+ * RESELLER-SEAM-HONESTY-1 — the resolver returns `null` when unset, NEVER a
+ * silently-succeeding demo. These assertions are the invariant, not decoration: while
+ * the resolver returned `DemoStorefrontService`, an unset or mistyped
+ * `EXPO_PUBLIC_STOREFRONT_*` produced a SUCCESS toast and wrote nothing anywhere.
+ */
+describe('resolveStorefrontService — null on unset, never a fallback that cannot fail', () => {
+  it('unset env → null (the caller MUST have an honest unconfigured state)', () => {
+    expect(resolveStorefrontService()).toBeNull();
   });
   it('base + key set → the real HTTP adapter', () => {
     process.env.EXPO_PUBLIC_STOREFRONT_BASE = 'https://sf.example.dev';
     process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY = 'SECRET-KEY';
     expect(resolveStorefrontService()).toBeInstanceOf(HttpStorefrontService);
   });
-  it('base without key → still demo (fail safe, never a keyless write)', () => {
+  it('base without key → null (fail safe, never a keyless write)', () => {
     process.env.EXPO_PUBLIC_STOREFRONT_BASE = 'https://sf.example.dev';
-    expect(resolveStorefrontService()).toBeInstanceOf(DemoStorefrontService);
+    expect(resolveStorefrontService()).toBeNull();
+  });
+  it('key without base → null (the pair is set together or not at all)', () => {
+    process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY = 'SECRET-KEY';
+    expect(resolveStorefrontService()).toBeNull();
+  });
+  it('NEVER returns an adapter whose create cannot fail — the resolved value is null or HTTP, nothing else', () => {
+    const unset = resolveStorefrontService();
+    expect(unset).not.toBeInstanceOf(DemoStorefrontService);
+    expect(unset).toBeNull();
+  });
+});
+
+/**
+ * The demo adapter is still contract-shaped and still used by tests — moving it out
+ * of the app's reachable graph must not have quietly changed its behaviour, or the
+ * substrate every other test stands on would have shifted underneath them.
+ */
+describe('DemoStorefrontService — unchanged behaviour in its new module', () => {
+  it('still cannot fail, which is exactly why it may not be reachable from the app', async () => {
+    const svc = new DemoStorefrontService();
+    expect((await svc.create(CMD)).ok).toBe(true);
+    expect((await svc.publish(CMD.id, 'c', CMD.at)).ok).toBe(true);
+    expect((await svc.publish('never-created', 'c', CMD.at)).ok).toBe(true);
   });
 });

@@ -241,6 +241,13 @@ export default function App() {
   }, []);
   const publishOnline = useCallback(
     async (sf: { name: string; zone: string; category: string }) => {
+      // RESELLER-SEAM-HONESTY-1 — the seam resolves to `null` when the
+      // EXPO_PUBLIC_STOREFRONT_* pair is not inlined. It used to resolve to a demo
+      // adapter whose create/publish CANNOT FAIL, so this function always reached
+      // « En ligne : {slug} » — a success toast for a storefront that exists nowhere,
+      // with nothing written. The honest state is stated FIRST and returns; nothing
+      // below runs, so « Envoi en cours… » never appears for a send that cannot happen.
+      if (service === null) return setToast(t('k.publier.non_relie'));
       setToast(t('k.publier.envoi'));
       const shortCode = deriveShortCode(sf.name, identity.digits);
       const at = new Date().toISOString();
@@ -263,6 +270,9 @@ export default function App() {
     [service, identity],
   );
   const listOnline = useCallback(async () => {
+    // Same honesty on the read side: an unconfigured build cannot list what is online,
+    // and « Aucune boutique en ligne » would be a lie shaped like a fact.
+    if (service === null) return setToast(t('k.publier.non_relie'));
     const res = await service.list();
     if (!res.ok) return setToast(tf('k.publier.erreur', { raison: res.reason }));
     if (res.value.length === 0) return setToast(t('k.publier.aucune'));
@@ -921,7 +931,7 @@ export default function App() {
             cliente's exact view. Client price ONLY — never net, never marge, never a
             vendor. The « Lecture seule » pill + the ink banner state the boundary. */}
         {screen === 'personnaliser' && (
-          <CustomizeStack onClose={back} onToast={setToast} onPublishOnline={publishOnline} onListStorefronts={listOnline} />
+          <CustomizeStack onClose={back} onToast={setToast} onPublishOnline={publishOnline} onListStorefronts={listOnline} serviceUnconfigured={service === null} />
         )}
         {screen === 'pubvitrine' && (
           <FlatList
