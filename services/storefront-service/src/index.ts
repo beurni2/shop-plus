@@ -1,4 +1,4 @@
-import { makeHealthFetch } from '@shop-plus/observability';
+import { makeHealthFetch, provenance } from '@shop-plus/observability';
 import type { ResellerListing, Storefront } from '@platform/contracts';
 import { resolveMediaStore, type MediaEnv } from './media/media-store.js';
 import { StorefrontMediaService, type MediaKind } from './media/service.js';
@@ -25,6 +25,26 @@ export * from './media/media-store.js';
 export * from './media/service.js';
 
 const health = makeHealthFetch(SERVICE_NAME);
+
+/**
+ * SERVICE-PROVENANCE-1 — /health answers WHICH BUILD is live (`release`, the git
+ * sha) and WHICH WIRE SHAPE it speaks (`canon`, the pinned contracts version).
+ * Both are injected at bundle time; an unstamped build answers the honest `dev`.
+ *
+ * WHY IT IS COMPOSED HERE AND NOT IN THE SHARED HANDLER (a real constraint, not a
+ * preference): boutik puts it inside `makeHealthFetch`, but that handler is shared
+ * with `services/attribution-service`, which is FROZEN — byte-identical, zero
+ * diff — and its health test pins the exact body. Changing the shared handler
+ * would force an edit to a frozen file. So the stamp is composed at THIS service's
+ * own edge; the shared handler, and therefore every frozen consumer of it, is
+ * untouched. Only the 200 carries the fields; the 404 is unchanged.
+ */
+async function healthWithProvenance(request: Request): Promise<Response> {
+  const res = health(request);
+  if (res.status !== 200) return res;
+  const body = (await res.json()) as Record<string, unknown>;
+  return Response.json({ ...body, ...provenance() }, { status: 200, headers: res.headers });
+}
 
 /** The media moderation registry persists across requests. In workerd the env
  * rides each fetch; in Node it reads process.env. No GCS creds → the mock store. */
@@ -204,7 +224,7 @@ export const handleRequest = async (request: Request, env?: StorefrontServiceEnv
   if (request.method === 'GET' && slugMatch) return withReadCors(await handleStorefrontRead(decodeURIComponent(slugMatch[1]!), env));
   if (request.method === 'GET' && mediaReadMatch) return withReadCors(await handleMediaRead(decodeURI(mediaReadMatch[1]!), env));
   // health (and the honest 404 fallthrough) — the buyer read surface, CORS on.
-  return withReadCors(health(request));
+  return withReadCors(await healthWithProvenance(request));
 };
 
 export default { fetch: handleRequest };

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
@@ -487,5 +487,53 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     expect(buyer.status).toBe(200); // no credential
     const listing = await mf.dispatchFetch('http://c/listings/lst-a2-0001', { method: 'GET' });
     expect(listing.status).toBe(401); // still gated
+  });
+});
+
+/**
+ * SERVICE-PROVENANCE-1 — the deploy-freshness stamp, proven ON THE BUNDLE.
+ *
+ * The point of the stamp is that the DEPLOYED ARTIFACT can answer which build it
+ * is and which wire shape it speaks. So this asserts it through the real bundled
+ * Worker on workerd — a unit test of `provenance()` would prove the function, not
+ * the artifact, and it is the artifact that was wrong four times this session.
+ */
+describe('SERVICE-PROVENANCE-1 — /health answers which build is live', () => {
+  it('the 200 carries release + canon, from the BUNDLE (unstamped ⇒ the honest "dev")', async () => {
+    const res = await mf.dispatchFetch('http://c/health', { method: 'GET' });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { service: string; status: string; release?: string; canon?: string };
+    expect(body.status).toBe('ok');
+    // Both fields are PRESENT on every build — the CI bundle is unstamped, so both
+    // read `dev`, which is the honest answer for a build the deploy did not stamp.
+    // A deployed build carries the sha and the pinned contracts version instead.
+    expect(body.release).toBeDefined();
+    expect(body.canon).toBeDefined();
+    expect(typeof body.release).toBe('string');
+    expect(typeof body.canon).toBe('string');
+  });
+
+  it('the 404 is UNCHANGED — the stamp rides the health answer only', async () => {
+    const res = await mf.dispatchFetch('http://c/nope-not-a-route', { method: 'GET' });
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body['status']).toBe('not_found');
+    expect(body['release']).toBeUndefined();
+    expect(body['canon']).toBeUndefined();
+  });
+
+  it('the DEFINES are wired into the deployed bundle script, and canon is read from the INSTALLED package', () => {
+    const pkg = JSON.parse(
+      readFileSync(join(import.meta.dirname, '../package.json'), 'utf8'),
+    ) as { scripts: Record<string, string> };
+    const combined = pkg.scripts['bundle:worker:combined']!;
+    expect(combined).toContain('--define:__SHOP_RELEASE__');
+    expect(combined).toContain('--define:__SHOP_CANON__');
+    // the deploy workflow supplies them; canon comes from node_modules, never a constant
+    const wf = readFileSync(join(import.meta.dirname, '../../../.github/workflows/storefront-deploy.yml'), 'utf8');
+    expect(wf).toContain('SHOP_RELEASE=${{ github.sha }}');
+    expect(wf).toContain("require('./node_modules/@platform/contracts/package.json').version");
+    // …and the stamp is resolved BEFORE the bundle step, or it would define nothing
+    expect(wf.indexOf('Resolve the provenance stamp')).toBeLessThan(wf.indexOf('bundle:worker:combined'));
   });
 });
