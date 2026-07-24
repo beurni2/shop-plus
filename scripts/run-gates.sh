@@ -231,6 +231,14 @@ capture pwa-payload-budget pass node scripts/gates/pwa-payload-budget.mjs
 log "buyer PWA — Playwright harness (shell boots on the shop-plus theme; §6.2 journey end-to-end incl. offline)"
 capture playwright-e2e pass pnpm --filter @shop-plus/buyer-pwa test:e2e
 
+# RESELLER-SEAM-HONESTY-1 — measures the REAL exported Metro/Hermes bundle, the way
+# the storefront-service e2e measures the real bundled Worker. Its negative is not a
+# fixture but the DEFECT ITSELF, planted and confirmed red before this gate landed:
+# restoring the demo fallback puts « demo://cover/ » back in the artifact and the gate
+# exits 1. A populated fallback is dangerous because it can be PRESENT, not selected.
+log "gate: no-demo-adapter-in-bundle — the fallback that cannot fail is absent from the exported bundle (must pass)"
+capture no-demo-adapter-in-bundle pass node scripts/gates/no-demo-adapter-in-bundle.mjs
+
 if [ $FAILED -ne 0 ]; then
   echo ""
   echo "ONE OR MORE GATES FAILED"

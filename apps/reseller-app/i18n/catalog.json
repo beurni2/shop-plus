@@ -2442,6 +2442,18 @@
   "screenClass": "status"
  },
  {
+  "key": "k.publier.non_relie",
+  "fr": "Cette version n’est pas encore reliée au service. Votre boutique n’a pas été envoyée.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.publier.non_relie_note",
+  "fr": "Pas encore relié au service",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
   "key": "k.publier.voir",
   "fr": "Voir ma boutique en ligne",
   "register": "selling",

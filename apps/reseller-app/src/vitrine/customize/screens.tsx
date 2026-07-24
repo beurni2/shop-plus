@@ -67,6 +67,12 @@ export interface CustomizeProps {
   onPublishOnline?: (sf: Storefront) => void;
   /** Show what the founder has already put online (the admin list). */
   onListStorefronts?: () => void;
+  /** RESELLER-SEAM-HONESTY-1 — `true` when the write seam resolved to `null` (the
+   * `EXPO_PUBLIC_STOREFRONT_*` pair is not inlined in this build). The CTA STAYS
+   * VISIBLE and an honest note sits under it: a button that vanishes hides the truth
+   * too, just more quietly. NOT an error state — nothing is broken and she did
+   * nothing wrong; this build simply has not been told where to write. */
+  serviceUnconfigured?: boolean;
 }
 
 /* -------------------------------------------------------------- helpers -- */
@@ -153,7 +159,7 @@ function KHeader({ title, onBack, pill }: { title: string; onBack: () => void; p
 
 /* ------------------------------------------------------------- the stack -- */
 
-export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts }: CustomizeProps) {
+export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured }: CustomizeProps) {
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
   const [editingSection, setEditingSection] = useState<string | null>(null);
@@ -208,6 +214,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           go={setRoute}
           onPublishOnline={onPublishOnline ? () => onPublishOnline(sf) : undefined}
           onListStorefronts={onListStorefronts}
+          serviceUnconfigured={serviceUnconfigured ?? false}
         />
       )}
       {route === 'k2' && (
@@ -301,7 +308,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
 
 /* ------------------------------------------------------------------- K1 -- */
 
-function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined }) {
+function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnconfigured }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean }) {
   const initial = sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase();
   const coverSub =
     sf.cover.status === 'live' ? t('k.row.cover_live') : sf.cover.status === 'pending' ? t('k.row.cover_pending') : t('k.row.cover_defaut');
@@ -368,6 +375,14 @@ function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts }: { sf: St
         <Pressable style={({ pressed }) => [S.cta, pressed && S.pressed]} onPress={onPublishOnline} accessibilityRole="button">
           <Text style={S.ctaText}>{t('k.publier.cta')}</Text>
         </Pressable>
+      )}
+      {/* RESELLER-SEAM-HONESTY-1 — the seam resolved to `null`, so this build cannot
+          write. The note is stated BEFORE the tap, not only after it: the old
+          behaviour showed « En ligne » and wrote nothing. Deliberately NOT styled as
+          an error — no red, no icon, quiet secondary type — because nothing is broken
+          and she did nothing wrong. */}
+      {onPublishOnline && serviceUnconfigured && (
+        <Text style={S.unconfiguredNote}>{t('k.publier.non_relie_note')}</Text>
       )}
       {onListStorefronts && (
         <Pressable style={({ pressed }) => [S.ghostBtn, pressed && S.pressed]} onPress={onListStorefronts} accessibilityRole="button">

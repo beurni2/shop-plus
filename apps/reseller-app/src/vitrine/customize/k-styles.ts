@@ -94,6 +94,12 @@ export const K_RAW_STYLES = {
   ctaDisabled: { backgroundColor: '#DDD5C3', shadowOpacity: 0, elevation: 0 },
   ctaText: { fontFamily: DISPLAY_FAMILY, fontSize: 16.5, fontWeight: '700', color: '#FCF4EE' },
   ctaTextDisabled: { color: '#8A7D6B' },
+  /* RESELLER-SEAM-HONESTY-1 — the unconfigured note under the CTA. Deliberately the
+     SAME quiet warm-neutral treatment as `previewLegend`, NOT an error style: no red,
+     no alarm surface. Nothing is broken; this build has simply not been told where to
+     write, and copy that reads like a failure sends her hunting a bug that does not
+     exist. Secondary actions whisper — so does this. */
+  unconfiguredNote: { fontFamily: TEXT_FAMILY, fontSize: 11.5, color: '#6F6355', textAlign: 'center', marginTop: 8 },
 
   /* C-K4 cover slot */
   coverSlot: { height: 120, borderRadius: 20, alignItems: 'center', justifyContent: 'center', gap: 6 },
