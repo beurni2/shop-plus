@@ -870,6 +870,12 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.sans_photo",
+  "fr": "SANS PHOTO",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.verifiee",
   "fr": "Vendeuse vérifiée ·",
   "register": "neutral",
@@ -896,6 +902,12 @@
  {
   "key": "vit.ventes_livrees",
   "fr": "ventes livrées par Séra",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.nouvelle_vendeuse",
+  "fr": "Nouvelle vendeuse",
   "register": "neutral",
   "screenClass": "label"
  },

@@ -15,7 +15,7 @@
 import { t, tf } from '../i18n';
 import { esc } from '../format';
 import { fmtFCFA } from '../cliente/money';
-import { VITRINE_SEED, seedProduct, type VitrineSeedProduct } from './catalog';
+import { seedProduct, type VitrineSeedProduct } from './catalog';
 import type { Storefront, VitrineTrust, ProductVoiceNote, ProductVoiceNotes } from './profile';
 import { renderVoiceChip } from './voice-player';
 import {
@@ -77,7 +77,16 @@ function cover(sf: Storefront): string {
   ].join('');
 }
 
-/** C-VIT3 — the trust chips row (system-locked; never themed beyond §1.2). */
+/**
+ * C-VIT3 — the trust chips row (system-locked; never themed beyond §1.2).
+ *
+ * BUYER-REAL-HONESTY-1 — the NO-HISTORY state (founder ruling). A merchant with
+ * no deliveries, no rating and no reviews has earned no social proof, and the
+ * page says so plainly: « Nouvelle vendeuse ». Not blank space (which reads as a
+ * broken page), and never a borrowed count. The two SYSTEM chips stay in every
+ * case — « Livraison Séra vérifiée & scellée » and « Paiement protégé » are
+ * promises the platform makes, not history the reseller earned.
+ */
 function chips(sf: Storefront, trust: VitrineTrust): string {
   const th = VITRINE_THEMES[sf.theme];
   const avis =
@@ -89,11 +98,17 @@ function chips(sf: Storefront, trust: VitrineTrust): string {
           '</span>',
         ].join('')
       : '';
+  // No earned proof AT ALL (no delivery, no review) → name the state honestly.
+  const nouvelle =
+    trust.deliveredCount === 0 && trust.reviewCount === 0
+      ? `<span class="vt-chip vt-chip-line" data-role="chip-nouvelle">${t('vit.nouvelle_vendeuse')}</span>`
+      : '';
   return [
     '<div class="vt-chips" data-role="vitrine-trust">',
     `<span class="vt-chip vt-chip-full">${iconShieldCheck(13, th.deep, 2)}${t('vit.chip_sera')}</span>`,
     `<span class="vt-chip vt-chip-line">${t('vit.chip_paiement')}</span>`,
     avis,
+    nouvelle,
     '</div>',
   ].join('');
 }
@@ -136,11 +151,31 @@ function groupTitle(
   return `<div class="vt-group">${b}${i}</div>`;
 }
 
-function tileArt(p: VitrineSeedProduct, veiled: boolean): string {
+/**
+ * C-VIT4 art — the NO-IMAGE state (founder ruling, BUYER-REAL-HONESTY-1).
+ *
+ * A woven, geometric, clearly ORNAMENTAL placeholder that fills the tile with
+ * pattern — and is LABELLED « SANS PHOTO » so it can never be mistaken for the
+ * product. The buyer flow promises « Photo réelle — ce que vous recevrez », so an
+ * unlabelled ornament that read as the item itself would make the surface lie.
+ * The label follows the C1 precedent (`cliente/screens.ts`: the caps label +
+ * four corner ticks INSIDE the frame). « Sans photo » describes the state and
+ * promises nothing — « à venir » would be a promise the platform makes on the
+ * seller's behalf, and if she never adds a photo the platform lied.
+ *
+ * THEME-DERIVED, NOT SEED-DERIVED: the weave is drawn in CSS from the
+ * storefront's own habillage tokens (`--vt-soft` / `--vt-accent`, the same woven
+ * vocabulary as the cover stripes), so each of the four habillages produces its
+ * own — and it works for a product carrying NO seed data at all. The retired
+ * `p.art` gradient + `p.glyph` came from VITRINE_SEED demo data that a real
+ * product does not have; the demo now shows what a buyer will actually get.
+ */
+function tileArt(veiled: boolean): string {
   return [
-    `<div class="vt-tile-art" style="background-image:linear-gradient(140deg, ${p.art[0]}, ${p.art[1]})">`,
-    '<div class="vt-tile-stripes"></div>',
-    `<em class="vt-glyph" data-glyph="${p.glyph}">${productGlyph(p.glyph)}</em>`,
+    '<div class="vt-tile-art vt-tile-art-sansphoto" data-role="tile-sans-photo">',
+    '<div class="vt-weave"></div>',
+    '<div class="vt-tick vt-tick-tl"></div><div class="vt-tick vt-tick-tr"></div><div class="vt-tick vt-tick-bl"></div><div class="vt-tick vt-tick-br"></div>',
+    `<div class="vt-sansphoto-caps">${t('vit.sans_photo')}</div>`,
     veiled ? `<div class="vt-veil"><span class="vt-tampon">${t('vit.epuise')}</span></div>` : '',
     '</div>',
   ].join('');
@@ -156,7 +191,7 @@ function tile(p: VitrineSeedProduct, note?: ProductVoiceNote): string {
     : 'aria-disabled="true" disabled';
   return [
     `<button class="${cls}" data-role="vitrine-produit" ${attrs}>`,
-    tileArt(p, !p.inStock),
+    tileArt(!p.inStock),
     '<div class="vt-tile-body">',
     `<div class="vt-tile-name"><v>${esc(p.name)}</v></div>`,
     `<div class="vt-tile-price"><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
@@ -170,7 +205,7 @@ function tile(p: VitrineSeedProduct, note?: ProductVoiceNote): string {
 function featuredTile(p: VitrineSeedProduct, note?: ProductVoiceNote): string {
   return [
     `<button class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${p.pid}">`,
-    tileArt(p, false),
+    tileArt(false),
     '<div class="vt-featured-body">',
     `<span class="vt-featured-name"><v>${esc(p.name)}</v></span>`,
     `<b class="vt-featured-price"><v>${fmtFcfa(p.priceFcfa)}</v></b>`,
@@ -191,13 +226,20 @@ function inkBandAndFooter(sf: Storefront): string {
   ].join('');
 }
 
-/** Grid-order law: curatedItems order, in-stock first inside each group, épuisé last (§6). */
+/**
+ * Grid-order law: curatedItems order, in-stock first inside each group, épuisé
+ * last (§6).
+ *
+ * BUYER-REAL-HONESTY-1 — the DEMO-CATALOGUE FILL IS REMOVED. This function used
+ * to append `VITRINE_SEED.filter(p => !sf.curatedItems.includes(p.pid))` whenever
+ * no explicit pids were passed, so a store whose curated pids are not demo-seed
+ * pids rendered the ENTIRE demo catalogue as if it were hers. It was masked only
+ * because `flows.ts` routes a zero-item store to `renderVitrineEmpty` — it would
+ * have detonated the moment a real store had one product. A storefront now shows
+ * HER items and nothing else; a store with none renders the honest empty state.
+ */
 function orderedProducts(sf: Storefront, pids?: readonly string[]): VitrineSeedProduct[] {
-  const base = (pids ?? sf.curatedItems).map(seedProduct).filter((p): p is VitrineSeedProduct => !!p);
-  const missing = pids
-    ? []
-    : VITRINE_SEED.filter((p) => !sf.curatedItems.includes(p.pid));
-  const all = [...base, ...missing];
+  const all = (pids ?? sf.curatedItems).map(seedProduct).filter((p): p is VitrineSeedProduct => !!p);
   return [...all.filter((p) => p.inStock), ...all.filter((p) => !p.inStock)];
 }
 

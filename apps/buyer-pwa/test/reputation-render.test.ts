@@ -33,10 +33,32 @@ describe('réputation render — the exact count, verbatim, never a rank', () =>
     expect(directory).toContain(`${aicha?.deliveredSales} ventes livrées`);
   });
 
-  it('HIDDEN-BELOW-FLOOR: count 0 renders NO réputation line (floor = 1) — the honest empty state', () => {
+  it('HIDDEN-BELOW-FLOOR: count 0 renders NO réputation line (floor = 1) — and NAMES the state « Nouvelle vendeuse »', () => {
     const vitrine = vitrineAt(0);
     expect(vitrine).not.toContain('ventes livrées');
     expect(vitrine).not.toMatch(/data-role="reputation"/);
+    // BUYER-REAL-HONESTY-1 (founder ruling): the no-history state is EXPLICIT —
+    // not blank space (which reads as a broken page), never a borrowed count.
+    // `vitrineAt` keeps the demo's 12 reviews, so this asserts the delivered-count
+    // half only; the both-zero case is asserted in buyer-real-honesty.test.ts.
+    expect(vitrine).not.toContain('Nouvelle vendeuse'); // reviews ≥ 3 ⇒ she HAS earned proof
+  });
+
+  it('NO-HISTORY: zero deliveries AND zero reviews renders « Nouvelle vendeuse » — the honest no-history state', () => {
+    const vitrine = renderVitrineReady(
+      resolved.storefront,
+      { deliveredCount: 0, rating: '', reviewCount: 0, demo: false },
+      { fromProduct: false },
+    );
+    expect(vitrine).toContain('Nouvelle vendeuse');
+    expect(vitrine).toMatch(/data-role="chip-nouvelle"/);
+    // …and it fabricates NOTHING: no count, no rating, no review chip.
+    expect(vitrine).not.toContain('ventes livrées');
+    expect(vitrine).not.toMatch(/data-role="chip-avis"/);
+    expect(vitrine).not.toContain('4,8');
+    // the two SYSTEM chips are promises, not history — they stay.
+    expect(vitrine).toContain('Livraison Séra vérifiée & scellée');
+    expect(vitrine).toContain('Paiement protégé');
   });
 
   it('BADGE-ONLY-WHERE-TRUE (SP-I19 adjacency): the rendered count IS the fold count — never a fabricated number', () => {

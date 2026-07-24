@@ -111,6 +111,15 @@ const AICHA_CUSTOMISED: Storefront = {
 const AICHA_TRUST: VitrineTrust = { deliveredCount: 16, rating: '4,8', reviewCount: 12, demo: true };
 
 /**
+ * ABSENT trust — what a REAL storefront carries until it earns its own
+ * (BUYER-REAL-HONESTY-1). Zero deliveries, no rating, zero reviews, and
+ * `demo:false` because none of it is demo data: it is the honest absence of
+ * history. The render turns this into the « Nouvelle vendeuse » state — never
+ * blank space, and NEVER another reseller's sixteen deliveries.
+ */
+const ABSENT_TRUST: VitrineTrust = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
+
+/**
  * V-demo voice notes — two products carry a `ready` note ([DEMO] placeholder
  * tone, STOREFRONT-MEDIA-BACKING). p1 is featured, p5 is a regular tile, so the
  * « La voix » affordance is demonstrable on a featured tile, a grid tile, and
@@ -181,17 +190,21 @@ function looksLikeStorefront(v: unknown): v is Storefront {
 }
 
 /**
- * The REAL storefront adapter (STOREFRONT-READ-PATH-1) — DELIBERATELY PARTIAL.
- * It fetches the storefront from storefront-service (`GET {base}/s/{slug}` → the
- * buyer-safe StorefrontView) and returns it as the real storefront. `trust` and
- * `notes` stay DEMO-sourced ON PURPOSE — the port doing its job one field at a
- * time, not a workaround:
- *   · TRUST has no producer yet (delivered counts + verified reviews are
- *     unimplemented server-side), so it rides the demo AICHA_TRUST (demo:true —
- *     the honest « démo » discipline still marks it).
- *   · NOTES need the canon `productNotes?` field (an additive platform-contracts
- *     change, §7 — the founder's call), so they ride the demo AICHA_VOICE_NOTES.
+ * The REAL storefront adapter (STOREFRONT-READ-PATH-1). It fetches the storefront
+ * from storefront-service (`GET {base}/s/{slug}` → the buyer-safe StorefrontView)
+ * and returns it as the real storefront.
+ *
+ * BUYER-REAL-HONESTY-1 — trust and notes are ABSENT, never borrowed. This
+ * adapter previously returned `{...AICHA_TRUST}` and `AICHA_VOICE_NOTES` for
+ * EVERY real storefront, so a real reseller's page displayed sixteen deliveries,
+ * 4,8 stars and twelve reviews she never earned — and played ANOTHER RESELLER'S
+ * recorded voice as if it were hers. Both are removed at the source:
+ *   · TRUST → `ABSENT_TRUST` (no producer exists server-side; absence is the
+ *     truth, and the render states it as « Nouvelle vendeuse »).
+ *   · NOTES → `{}` (they need the canon `productNotes?` field, §7 — the founder's
+ *     call). No note ⇒ the existing, honest sans-voix state; no player, no gap.
  * Swap each in when its producer lands; the shape and the callers never change.
+ * The DEMO port keeps its demo trust and demo notes untouched (offline harness).
  *
  * A 404 (unknown slug) or a network failure both resolve to `undefined` — the
  * SAME honest not-found the flow renders as VitrineEtat 'invalid'; never a throw
@@ -210,8 +223,8 @@ export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
       if (!res.ok) return undefined; // 404 and any non-2xx → honest not-found
       const view: unknown = await res.json().catch(() => null);
       if (!looksLikeStorefront(view)) return undefined;
-      // REAL storefront; trust + notes deliberately demo-sourced (gaps named above).
-      return { storefront: view, trust: { ...AICHA_TRUST }, notes: AICHA_VOICE_NOTES };
+      // REAL storefront → ABSENT trust, NO notes. Never another reseller's proof.
+      return { storefront: view, trust: ABSENT_TRUST, notes: {} };
     },
   };
 }
