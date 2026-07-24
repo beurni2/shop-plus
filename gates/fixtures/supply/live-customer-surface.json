@@ -1,4 +1,7 @@
 {
   "productName": "Pagne wax (démo)",
-  "customerPriceFcfa": 9200
+  "customerPriceFcfa": 9200,
+  "assetRefs": [
+    "asset/pv_o1/cover"
+  ]
 }
