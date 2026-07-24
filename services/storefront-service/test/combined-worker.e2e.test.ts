@@ -218,6 +218,38 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(((await hideOk.json()) as { status: string }).status).toBe('hidden');
   });
 
+  it('LISTING-READ-GATE-1 — GET /listings/:id is KEY-GATED: her markup is never readable without the key', async () => {
+    // THE LEAK THIS CLOSES: the canon ResellerListing carries `markup` (M). With her
+    // displayed price (B + M), M yields the SUPPLIER'S BASE PRICE B by subtraction —
+    // the exact economics leak SP-I03 exists to prevent (it was live on the deployed
+    // Worker, harmless only because no listing existed yet).
+    const noKey = await mf.dispatchFetch('http://c/listings/lst-auth-0001', { method: 'GET' });
+    expect(noKey.status).toBe(401);
+    expect((await noKey.json()) as unknown).toEqual({ error: 'unauthorized' }); // same non-oracle 401
+
+    const withKey = await mf.dispatchFetch('http://c/listings/lst-auth-0001', { method: 'GET', headers: authed });
+    expect(withKey.status).toBe(200);
+    const listing = (await withKey.json()) as { markup?: number };
+    expect(listing.markup).toBe(500); // the operator read still works, unchanged
+  });
+
+  it('LISTING-READ-GATE-1 — an UNKNOWN listing id is the SAME 401 without the key (never an existence oracle)', async () => {
+    const unknown = await mf.dispatchFetch('http://c/listings/lst-does-not-exist', { method: 'GET' });
+    expect(unknown.status).toBe(401);
+    expect((await unknown.json()) as unknown).toEqual({ error: 'unauthorized' });
+    // with the key it is an honest 404 — so the gate, not existence, drives the 401
+    const authedUnknown = await mf.dispatchFetch('http://c/listings/lst-does-not-exist', { method: 'GET', headers: authed });
+    expect(authedUnknown.status).toBe(404);
+  });
+
+  it('LISTING-READ-GATE-1 — the buyer read path is UNAFFECTED: GET /s/{slug} still answers with no credential', async () => {
+    // Gating the whole listings surface must cost the buyer nothing: her storefront
+    // page is a different, stripped projection and carries no credential.
+    const sf = await mf.dispatchFetch('http://c/s/auth-0001', { method: 'GET' });
+    expect([200, 404]).toContain(sf.status); // resolves or honest not-found — never 401
+    expect(sf.status).not.toBe(401);
+  });
+
   it('POST /media/upload is gated: 401 without the key, 201 with it', async () => {
     const noKey = await mf.dispatchFetch('http://c/media/upload?kind=avatar&storefrontId=sf-auth-0001', {
       method: 'POST',
