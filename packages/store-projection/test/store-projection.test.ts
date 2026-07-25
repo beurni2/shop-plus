@@ -23,7 +23,9 @@ function published(id: string, discoverable: boolean, at: string): StoreProjecti
   return { type: 'storefront.published', storefrontId: id, discoverable, at };
 }
 function listed(id: string, listingId: string, hubVerified: boolean, at: string): StoreProjectionEvent {
-  return { type: 'listing.published', storefrontId: id, listingId, hubVerified, at };
+  // HUB-ASSURANCE-1 — the fixture keeps its boolean argument for readability, but the
+  // EVENT now carries provenance: only a real hub signal maps to `'hub'`.
+  return { type: 'listing.published', storefrontId: id, listingId, stockAssurance: { source: hubVerified ? 'hub' : 'declared' }, at };
 }
 function hidden(id: string, listingId: string, at: string): StoreProjectionEvent {
   return { type: 'listing.auto_hidden', storefrontId: id, listingId, at };
@@ -141,5 +143,62 @@ describe('resolvePublishedStore — vitrine resolution goes real', () => {
   it('UNKNOWN-SLUG-HONEST-NOT-FOUND: an unknown slug AND a known-but-unpublished slug both resolve to undefined', () => {
     expect(resolvePublishedStore(events, 'inconnu-0000')).toBeUndefined(); // never existed
     expect(resolvePublishedStore(events, 'mariam-2170')).toBeUndefined(); // exists but unpublished
+  });
+});
+
+/**
+ * HUB-ASSURANCE-1 — DECLARED STOCK MUST NEVER EARN THE BADGE.
+ *
+ * `verified` renders a check mark and « Vérifiée » beside the shop name
+ * (`boutiques-view.ts:80-81`), in the same visual language as the ecosystem's own
+ * trust marks. Before this change the field was a `hubVerified: boolean`, so « the
+ * seller says she has stock » and « the Boutik+ hub confirmed it » set the SAME flag.
+ * These assert the distinction a rename could not have carried.
+ */
+describe('stock assurance — only a hub signal may light the customer-visible badge', () => {
+  const base = (id: string): StoreProjectionEvent[] => [
+    created(id, `res_${id}`, 'Boutique', 'Ouagadougou', `${id}-1`, T(8)),
+    published(id, true, T(9)),
+  ];
+
+  it('DECLARED stock counts as a live product but leaves the badge DARK', () => {
+    const [store] = projectStores([
+      ...base('sf_d'),
+      { type: 'listing.published', storefrontId: 'sf_d', listingId: 'l1', stockAssurance: { source: 'declared' }, at: T(10) },
+    ]);
+    expect(store?.productCount).toBe(1); // it is a real, live, sellable product
+    expect(store?.verified).toBe(false); // but nobody verified it — no trust mark
+  });
+
+  it('a HUB signal lights it', () => {
+    const [store] = projectStores([
+      ...base('sf_h'),
+      { type: 'listing.published', storefrontId: 'sf_h', listingId: 'l1', stockAssurance: { source: 'hub' }, at: T(10) },
+    ]);
+    expect(store?.verified).toBe(true);
+  });
+
+  it('MANY declared listings never add up to a badge — assurance does not accumulate', () => {
+    const [store] = projectStores([
+      ...base('sf_m'),
+      { type: 'listing.published', storefrontId: 'sf_m', listingId: 'l1', stockAssurance: { source: 'declared' }, at: T(10) },
+      { type: 'listing.published', storefrontId: 'sf_m', listingId: 'l2', stockAssurance: { source: 'declared' }, at: T(11) },
+      { type: 'listing.published', storefrontId: 'sf_m', listingId: 'l3', stockAssurance: { source: 'declared' }, at: T(12) },
+    ]);
+    expect(store?.productCount).toBe(3);
+    expect(store?.verified).toBe(false);
+  });
+
+  it('one HUB listing among declared ones lights it, and hiding that one puts it out again', () => {
+    const events: StoreProjectionEvent[] = [
+      ...base('sf_x'),
+      { type: 'listing.published', storefrontId: 'sf_x', listingId: 'l1', stockAssurance: { source: 'declared' }, at: T(10) },
+      { type: 'listing.published', storefrontId: 'sf_x', listingId: 'l2', stockAssurance: { source: 'hub' }, at: T(11) },
+    ];
+    expect(projectStores(events)[0]?.verified).toBe(true);
+    // The hub-backed listing goes out of stock; the declared one remains live.
+    const after = projectStores([...events, { type: 'listing.auto_hidden', storefrontId: 'sf_x', listingId: 'l2', at: T(12) }]);
+    expect(after[0]?.productCount).toBe(1); // the declared listing is still sellable
+    expect(after[0]?.verified).toBe(false); // but the badge goes dark with its evidence
   });
 });
