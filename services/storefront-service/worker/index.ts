@@ -29,7 +29,10 @@ interface Env extends WriteAuthEnv {
   STOREFRONT_GCS_TOKEN?: string;
   STOREFRONT_GCS_PUBLIC_BASE?: string;
   /** Supply display source. UNSET ⇒ ABSENT product data, never mock data. */
-  SUPPLY_BASE?: string;
+  /** BROWSE-SUPPLY-BINDING-1 — the offer-service service binding ([[services]] in
+   * wrangler.toml). Replaces the SUPPLY_BASE secret: readable config over a
+   * write-only value, and no same-zone Worker-to-Worker fetch (1042) to hit. */
+  OFFER?: { fetch(request: Request): Promise<Response> };
   /** Service-to-service credential for the supply read (wrangler secret, never a var). */
   SUPPLY_READ_SECRET?: string;
 }
@@ -110,7 +113,7 @@ export default {
       ...(env.STOREFRONT_GCS_BUCKET !== undefined ? { STOREFRONT_GCS_BUCKET: env.STOREFRONT_GCS_BUCKET } : {}),
       ...(env.STOREFRONT_GCS_TOKEN !== undefined ? { STOREFRONT_GCS_TOKEN: env.STOREFRONT_GCS_TOKEN } : {}),
       ...(env.STOREFRONT_GCS_PUBLIC_BASE !== undefined ? { STOREFRONT_GCS_PUBLIC_BASE: env.STOREFRONT_GCS_PUBLIC_BASE } : {}),
-      ...(env.SUPPLY_BASE !== undefined ? { SUPPLY_BASE: env.SUPPLY_BASE } : {}),
+      ...(env.OFFER !== undefined ? { OFFER: env.OFFER } : {}),
       ...(env.SUPPLY_READ_SECRET !== undefined ? { SUPPLY_READ_SECRET: env.SUPPLY_READ_SECRET } : {}),
       STOREFRONT_DO: { fetch: (req: Request): Promise<Response> => sfRouter.fetch(req, env) },
       // The JOIN reaches the listing DO through the SAME shim pattern. Internal:

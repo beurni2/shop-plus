@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
   AbsentSupplySource,
-  HttpSupplySource,
+  BoundSupplySource,
   SUPPLY_ROUTE_PREFIX,
   resolveSupplySource,
   type SupplySourcePort,
@@ -21,14 +21,17 @@ import { joinVitrineProduct, type ListingSide } from '../src/customer-projection
 const LISTING: ListingSide = { productVersionId: 'pv_real_1', customerPriceFcfa: 14_750, status: 'published' };
 
 describe('THE MOCK IS NOT THE FALLBACK — fabricated supply data is unreachable by construction', () => {
-  it('UNCONFIGURED ⇒ ABSENT, never mock: the resolver describes NOTHING without a supply base', async () => {
+  it('UNCONFIGURED ⇒ ABSENT, never mock: the resolver describes NOTHING without the OFFER binding', async () => {
+    // BROWSE-SUPPLY-BINDING-1 — the resolver now keys on the SERVICE BINDING's
+    // presence, not a SUPPLY_BASE secret. Same two-branch honest-null discipline,
+    // with presence now visible in wrangler.toml rather than hidden in a secret.
     const source = resolveSupplySource(undefined);
     expect(source).toBeInstanceOf(AbsentSupplySource);
     expect(await source.describe('pv_real_1')).toBeUndefined();
-    // an empty string is not a configuration either
-    expect(resolveSupplySource({ SUPPLY_BASE: '' })).toBeInstanceOf(AbsentSupplySource);
-    // …and configured resolves to the REAL client, never anything else
-    expect(resolveSupplySource({ SUPPLY_BASE: 'https://supply.example' })).toBeInstanceOf(HttpSupplySource);
+    // a binding-shaped object without a callable fetch is not a configuration either
+    expect(resolveSupplySource({ OFFER: {} as never })).toBeInstanceOf(AbsentSupplySource);
+    // …and a bound env resolves to the REAL client, never anything else
+    expect(resolveSupplySource({ OFFER: { fetch: async () => new Response(null) } })).toBeInstanceOf(BoundSupplySource);
   });
 
   it('NO MOCK IS IMPORTABLE FROM THE SERVICE SOURCE — the fabrication path does not exist in the bundle', () => {
@@ -59,7 +62,7 @@ describe('THE MOCK IS NOT THE FALLBACK — fabricated supply data is unreachable
   it('the SUPPLY SOURCE module itself names no mock (the resolver has exactly two branches)', () => {
     const src = readFileSync(join(import.meta.dirname, '../src/supply-source.ts'), 'utf8');
     const body = src.slice(src.indexOf('export function resolveSupplySource'));
-    expect(body).toContain('HttpSupplySource');
+    expect(body).toContain('BoundSupplySource');
     expect(body).toContain('AbsentSupplySource');
     expect(/mock/i.test(body)).toBe(false); // no third branch, none reachable
   });
@@ -154,55 +157,65 @@ describe('SUPPLY-WIRE-1 — the path, the envelope and the freshness bound', () 
   });
 
   let seen: string[] = [];
+  // BROWSE-SUPPLY-BINDING-1 — the stub IS the binding: tests hand the source a
+  // fetcher exactly the way wrangler hands the Worker `env.OFFER`. No global fetch
+  // is patched, because the deployed code no longer calls one.
   function stubFetch(status: number, body: unknown): void {
     seen = [];
-    globalThis.fetch = (async (url: string | URL) => {
-      seen.push(String(url));
-      return { ok: status >= 200 && status < 300, status, json: async () => body } as unknown as Response;
-    }) as typeof fetch;
+    fetcher = {
+      fetch: async (req: Request) => {
+        seen.push(req.url);
+        return {
+          ok: status >= 200 && status < 300,
+          status,
+          json: async () => body,
+          text: async () => JSON.stringify(body),
+        } as unknown as Response;
+      },
+    };
   }
-  const original = globalThis.fetch;
-  afterAll(() => {
-    globalThis.fetch = original;
-  });
+  let fetcher: { fetch(request: Request): Promise<Response> };
+  const source = () => new BoundSupplySource(fetcher);
 
   it('THE PATH MATCHES THE PRODUCER: /supply-projection/{pv}, GET — not the /supply/{pv} that would have 404d', async () => {
     expect(SUPPLY_ROUTE_PREFIX).toBe('/supply-projection/'); // boutik: SUPPLY_ROUTE = /^\/supply-projection\/([^/]+)$/
     stubFetch(200, envelope(NOW()));
-    await new HttpSupplySource('https://boutik.example').describe(PV);
-    expect(seen[0]).toBe('https://boutik.example/supply-projection/pv-founder-001');
+    await source().describe(PV);
+    // The binding routes by PATH; the origin is a placeholder, and the path is the
+    // thing the (a1) defect got wrong.
+    expect(new URL(seen[0]!).pathname).toBe('/supply-projection/pv-founder-001');
     expect(seen[0]).not.toContain('/supply/pv'); // the (a1) defect, pinned closed
   });
 
   it('A FRESH ENVELOPE describes: name and refs come out of value, never off the body', async () => {
     stubFetch(200, envelope(minutesAgo(1)));
-    const got = await new HttpSupplySource('https://boutik.example').describe(PV);
+    const got = await source().describe(PV);
     expect(got).toEqual({ productName: 'Pagne tissé Faso (démo)', assetRefs: ['asset/pv-founder-001/cover'] });
   });
 
   it('STALE BLOCKS: a projection past the 15-minute bound describes NOTHING (SW-2, the whole point)', async () => {
     stubFetch(200, envelope(minutesAgo(16)));
-    expect(await new HttpSupplySource('https://boutik.example').describe(PV)).toBeUndefined();
+    expect(await source().describe(PV)).toBeUndefined();
     // …and the boundary itself stays fresh, so the bound is exact rather than fuzzy
     stubFetch(200, envelope(minutesAgo(14)));
-    expect(await new HttpSupplySource('https://boutik.example').describe(PV)).toBeDefined();
+    expect(await source().describe(PV)).toBeDefined();
   });
 
   it('AN UNWRAPPED BODY IS REFUSED — the (a1) defect: reading productName straight off the response', async () => {
     stubFetch(200, { productName: 'Pagne tissé Faso (démo)', assetRefs: ['a'] }); // no envelope
-    expect(await new HttpSupplySource('https://boutik.example').describe(PV)).toBeUndefined();
+    expect(await source().describe(PV)).toBeUndefined();
   });
 
   it('IDENTITY MATERIAL is refused by the certified sweep, not by a local regex', async () => {
     stubFetch(200, envelope(minutesAgo(1), { supplierPhone: '+226 70 00 00 00' }));
-    expect(await new HttpSupplySource('https://boutik.example').describe(PV)).toBeUndefined();
+    expect(await source().describe(PV)).toBeUndefined();
   });
 
   it("the producer's HONEST REFUSALS are absence, never an error: 404 unknown_product_version, 409 unavailable", async () => {
     stubFetch(404, { service: 'offer-service', status: 'not_found', reason: 'unknown_product_version' });
-    expect(await new HttpSupplySource('https://boutik.example').describe(PV)).toBeUndefined();
+    expect(await source().describe(PV)).toBeUndefined();
     stubFetch(409, { service: 'offer-service', status: 'unavailable', reason: 'offer_expired' });
-    expect(await new HttpSupplySource('https://boutik.example').describe(PV)).toBeUndefined();
+    expect(await source().describe(PV)).toBeUndefined();
   });
 });
 
@@ -217,55 +230,58 @@ describe('SUPPLY-WIRE-1 — the path, the envelope and the freshness bound', () 
 describe('SUPPLY-WIRE-AUTH-1 — the bearer credential, env-gated', () => {
   const PV = 'pv-founder-001';
   const SECRET = 'test-supply-read-secret-0001'; // a TEST value, never a live one
-  let sentHeaders: Record<string, string> = {};
-  const original = globalThis.fetch;
+  // BROWSE-SUPPLY-BINDING-1 — the stub IS the binding; headers are read off the
+  // REAL Request the source builds, which is exactly what the bound Worker receives.
+  let sentAuth: string | null = null;
+  let fetcher: { fetch(request: Request): Promise<Response> };
   function stubFetch(): void {
-    sentHeaders = {};
-    globalThis.fetch = (async (_url: string | URL, init?: RequestInit) => {
-      sentHeaders = (init?.headers ?? {}) as Record<string, string>;
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          version: 1,
-          asOf: new Date().toISOString(),
-          value: {
-            productVersionId: PV,
-            offerVersion: '1',
-            basePrice: 10_000,
-            resellerCommission: 1_000,
-            available: 5,
-            productName: 'Pagne tissé Faso (démo)',
-            assetRefs: [],
-          },
-        }),
-      } as unknown as Response;
-    }) as typeof fetch;
+    sentAuth = null;
+    fetcher = {
+      fetch: async (req: Request) => {
+        sentAuth = req.headers.get('Authorization');
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            version: 1,
+            asOf: new Date().toISOString(),
+            value: {
+              productVersionId: PV,
+              offerVersion: '1',
+              basePrice: 10_000,
+              resellerCommission: 1_000,
+              available: 5,
+              productName: 'Pagne tissé Faso (démo)',
+              assetRefs: [],
+            },
+          }),
+          text: async () => '',
+        } as unknown as Response;
+      },
+    };
   }
-  afterAll(() => {
-    globalThis.fetch = original;
-  });
 
-  it('CONFIGURED ⇒ the request carries Authorization: Bearer', async () => {
+  it('CONFIGURED ⇒ the request carries Authorization: Bearer — THROUGH THE BINDING', async () => {
     stubFetch();
-    await new HttpSupplySource('https://boutik.example', SECRET).describe(PV);
-    expect(sentHeaders['Authorization']).toBe(`Bearer ${SECRET}`);
+    await new BoundSupplySource(fetcher, SECRET).describe(PV);
+    expect(sentAuth).toBe(`Bearer ${SECRET}`);
   });
 
   it('ABSENT ⇒ NO Authorization header, and the request still WORKS (shop sends first, boutik gates second)', async () => {
     stubFetch();
-    const got = await new HttpSupplySource('https://boutik.example').describe(PV);
-    expect(sentHeaders['Authorization']).toBeUndefined();
+    const got = await new BoundSupplySource(fetcher).describe(PV);
+    expect(sentAuth).toBeNull();
     expect(got).toBeDefined(); // an absent secret is not a broken request
     // an empty string is not a configuration either
     stubFetch();
-    await new HttpSupplySource('https://boutik.example', '').describe(PV);
-    expect(sentHeaders['Authorization']).toBeUndefined();
+    await new BoundSupplySource(fetcher, '').describe(PV);
+    expect(sentAuth).toBeNull();
   });
 
   it('the resolver threads the secret from env — and a base with no secret still resolves to the real client', () => {
-    expect(resolveSupplySource({ SUPPLY_BASE: 'https://b.example', SUPPLY_READ_SECRET: SECRET })).toBeInstanceOf(HttpSupplySource);
-    expect(resolveSupplySource({ SUPPLY_BASE: 'https://b.example' })).toBeInstanceOf(HttpSupplySource);
+    const bound = { fetch: async () => new Response(null) };
+    expect(resolveSupplySource({ OFFER: bound, SUPPLY_READ_SECRET: SECRET })).toBeInstanceOf(BoundSupplySource);
+    expect(resolveSupplySource({ OFFER: bound })).toBeInstanceOf(BoundSupplySource);
     // …and a secret WITHOUT a base is still absent: a credential is not a source
     expect(resolveSupplySource({ SUPPLY_READ_SECRET: SECRET })).toBeInstanceOf(AbsentSupplySource);
   });

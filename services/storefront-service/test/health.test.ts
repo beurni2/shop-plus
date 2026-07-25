@@ -10,6 +10,11 @@ describe(SERVICE_NAME, () => {
     // are the honest `dev`; a deployed build carries the sha and the pinned
     // contracts version. Asserted exactly, so a field appearing or vanishing fails.
     expect(await res.json()).toEqual({ service: SERVICE_NAME, status: 'ok', release: 'dev', canon: 'dev' });
+    // THE FRESHNESS INSTRUMENT MUST NOT BE CACHEABLE (founder finding on a real
+    // deploy): with no Cache-Control, an edge served a cached 200 carrying an OLD
+    // release — indistinguishable from a stale deploy, the exact state /health
+    // exists to expose. `no-store` makes every answer a fresh answer.
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
   });
 
   it('unknown routes are 404', async () => {

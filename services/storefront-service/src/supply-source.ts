@@ -17,7 +17,7 @@
  * a door we opened ourselves.
  *
  * So the fallback is ABSENT, never mock:
- *   · configured (`SUPPLY_BASE`) → the real HTTP client;
+ *   · configured (the `OFFER` service binding) → the real client;
  *   · NOT configured             → `AbsentSupplySource`, which describes NOTHING.
  *
  * UNREACHABLE BY CONSTRUCTION, NOT BY DISCIPLINE: this module — and the whole
@@ -78,9 +78,33 @@ export interface SupplySourcePort {
   describe(productVersionId: string): Promise<ProductDescription | undefined>;
 }
 
-/** Configured out-of-band; absent in CI and absent today (no supply wire exists). */
+/**
+ * BROWSE-SUPPLY-BINDING-1 — the wire is now a SERVICE BINDING, not a public URL.
+ *
+ * WHY (a real day-long fault, not a preference): `SUPPLY_BASE` was a write-only
+ * Worker secret. When the supply read failed `unreachable · 404` THREE TIMES across
+ * three founder re-sets — including a typed one — nobody could read back what the
+ * secret held, and a wrong value was indistinguishable from Cloudflare's standing
+ * same-zone restriction (error 1042: a Worker cannot `fetch` another Worker on the
+ * same workers.dev zone). Critically, this hop had NEVER succeeded — every green
+ * probe came from a laptop. The binding is the platform's own mechanism for
+ * Worker-to-Worker in one account: no network hop, no public URL, no 1042 class at
+ * all — and the configuration becomes READABLE: the binding name lives in
+ * wrangler.toml, versioned and reviewable, where a secret was inspectable by nobody.
+ * `SUPPLY_BASE` stops existing as a failure point.
+ *
+ * The seam philosophy survives intact: resolve on the BINDING's presence —
+ * `env.OFFER` present ⇒ the real source, absent ⇒ `AbsentSupplySource` — the same
+ * honest-null discipline, with presence now visible in config rather than hidden
+ * in a secret.
+ */
+export interface SupplyFetcher {
+  fetch(request: Request): Promise<Response>;
+}
+
 export interface SupplySourceEnv {
-  readonly SUPPLY_BASE?: string;
+  /** The offer-service SERVICE BINDING (`[[services]]` in wrangler.toml). */
+  readonly OFFER?: SupplyFetcher;
   /**
    * SUPPLY-WIRE-AUTH-1 (founder ruling) — the SERVICE-TO-SERVICE credential this
    * Worker presents to boutik's supply read, as `Authorization: Bearer`.
@@ -113,11 +137,13 @@ export class AbsentSupplySource implements SupplySourcePort {
  * description-shaped all resolve to `undefined` — the SAME honest absence, never
  * a throw up the read path and never a partially-invented product.
  */
-export class HttpSupplySource implements SupplySourcePort {
-  private readonly base: string;
+export class BoundSupplySource implements SupplySourcePort {
   private readonly readSecret: string | undefined;
-  constructor(base: string, readSecret?: string) {
-    this.base = base.replace(/\/+$/, '');
+  // BROWSE-SUPPLY-BINDING-1 — the fetcher IS the service binding (`env.OFFER`).
+  // The request's hostname is a placeholder: a binding routes by PATH to the bound
+  // Worker regardless of origin, so no public URL exists to mistype, and the
+  // same-zone fetch restriction (1042) cannot apply.
+  constructor(private readonly fetcher: SupplyFetcher, readSecret?: string) {
     this.readSecret = readSecret !== undefined && readSecret !== '' ? readSecret : undefined;
   }
 
@@ -147,10 +173,12 @@ export class HttpSupplySource implements SupplySourcePort {
   async describe(productVersionId: string): Promise<ProductDescription | undefined> {
     let res: Response;
     try {
-      res = await fetch(`${this.base}${SUPPLY_ROUTE_PREFIX}${encodeURIComponent(productVersionId)}`, {
-        method: 'GET', // the producer answers 405 to anything else
-        headers: this.headers(),
-      });
+      res = await this.fetcher.fetch(
+        new Request(`https://offer${SUPPLY_ROUTE_PREFIX}${encodeURIComponent(productVersionId)}`, {
+          method: 'GET', // the producer answers 405 to anything else
+          headers: this.headers(),
+        }),
+      );
     } catch {
       return undefined; // unreachable → absent, never fabricated
     }
@@ -179,8 +207,8 @@ export class HttpSupplySource implements SupplySourcePort {
  * reachable from here, by construction.
  */
 export function resolveSupplySource(env?: SupplySourceEnv): SupplySourcePort {
-  const base = env?.SUPPLY_BASE;
-  return base !== undefined && base !== ''
-    ? new HttpSupplySource(base, env?.SUPPLY_READ_SECRET)
+  const fetcher = env?.OFFER;
+  return fetcher !== undefined && typeof fetcher.fetch === 'function'
+    ? new BoundSupplySource(fetcher, env?.SUPPLY_READ_SECRET)
     : new AbsentSupplySource();
 }

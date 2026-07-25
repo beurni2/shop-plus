@@ -44,7 +44,17 @@ async function healthWithProvenance(request: Request): Promise<Response> {
   const res = health(request);
   if (res.status !== 200) return res;
   const body = (await res.json()) as Record<string, unknown>;
-  return Response.json({ ...body, ...provenance() }, { status: 200, headers: res.headers });
+  const headers = new Headers(res.headers);
+  // THE FRESHNESS INSTRUMENT MUST NOT BE CACHEABLE (founder finding, on a real
+  // deploy): this response existed to answer WHICH BUILD IS LIVE, and it carried no
+  // Cache-Control at all — so an edge could serve a cached 200 with an OLD release,
+  // which is indistinguishable from a stale deploy. A check that cannot distinguish
+  // the two states it separates is not a check. `no-store`, composed HERE at this
+  // service's edge and NOT in the shared makeHealthFetch, for the same reason as
+  // the stamp itself: services/attribution-service is frozen and consumes the
+  // shared handler.
+  headers.set('Cache-Control', 'no-store');
+  return Response.json({ ...body, ...provenance() }, { status: 200, headers });
 }
 
 /** The media moderation registry persists across requests. In workerd the env
@@ -234,6 +244,11 @@ async function handleSupplyCollection(env?: StorefrontServiceEnv): Promise<Respo
         status: result.status,
         refusals: result.refusals,
         ...(result.httpStatus !== undefined ? { httpStatus: result.httpStatus } : {}),
+        // A DIAGNOSTIC MUST NAME ITS TARGET, NOT ONLY ITS FAILURE (founder rule,
+        // from the first real fault): the resolved base this Worker actually
+        // called, and — on a non-2xx — who answered it. Behind the same key as the
+        // rest of the diagnostic; a service origin is a hostname, not a credential.
+        ...(result.target !== undefined ? { target: result.target } : {}),
       },
     },
     { status: 200 },
