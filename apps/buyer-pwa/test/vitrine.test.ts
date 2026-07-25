@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { VitrineViewModel } from '../src/vitrine-view';
+import { harnessProfil } from '../src/vitrine/flows';
 import {
   identityLinkSuffix,
   identityLink,
@@ -137,5 +138,47 @@ describe('PWA-CLEANUP-1 §4 — the retired Grand Teint vitrine renderer is GONE
     const mod = await import('../src/vitrine-view');
     expect(Object.keys(mod).sort()).toEqual(['reputationText']);
     expect('renderVitrine' in mod).toBe(false);
+  });
+});
+
+/* ------------------------------------------------- BUYER-LIVE-WIRE-2 -- */
+
+describe('BUYER-LIVE-WIRE-2 — a REAL /v/{slug} entry reaches the env-gated port', () => {
+  it('A REAL PATH TAKES NO DEMO PROFIL — this is the whole defect, by value', () => {
+    // `mountVitrine` picks the demo adapter whenever `harness.profil` is TRUTHY.
+    // The route used to pass `'default'` for an absent param, so a real shared
+    // link was pinned to the demo adapter and VITE_STOREFRONT_BASE could not be
+    // read no matter how correctly it was set. `undefined` is what routes a real
+    // entry to `resolveStorefrontPort()`.
+    expect(harnessProfil(true, null)).toBeUndefined();
+    // …and a real path ignores the lever even when one is present, because a
+    // shared link must never be steerable into demo data by a query string.
+    expect(harnessProfil(true, 'perso')).toBeUndefined();
+    expect(harnessProfil(true, 'vide')).toBeUndefined();
+  });
+
+  it('THE HARNESS KEEPS EVERY LEVER — the audit surface is not collateral damage', () => {
+    expect(harnessProfil(false, null)).toBe('default');
+    expect(harnessProfil(false, 'perso')).toBe('customised');
+    expect(harnessProfil(false, 'vide')).toBe('empty');
+    expect(harnessProfil(false, 'nonsense')).toBe('default');
+  });
+
+  it('THE ROUTE USES IT, and the always-truthy ternary is gone from main.ts', () => {
+    const main = readFileSync(join(__dirname, '..', 'src/main.ts'), 'utf8');
+    expect(main).toMatch(/profil: harnessProfil\(isRealVitrinePath, profilParam\)/);
+    // The exact shape that shipped the bug — a ternary chain whose last branch is
+    // the truthy 'default' — must not come back on this route.
+    expect(main).not.toMatch(/profil: profilParam === 'perso' \? 'customised' : profilParam === 'vide' \? 'empty' : 'default'/);
+    // and the real-path test is derived from the PATH, never from a query param
+    expect(main).toMatch(/const isRealVitrinePath = vitrineSlugFromPath\(window\.location\.pathname\) !== undefined;/);
+  });
+
+  it('BOTH ROUTES NOW AGREE — /s/ and /v/ each send a real path to the env-gated port', () => {
+    const main = readFileSync(join(__dirname, '..', 'src/main.ts'), 'utf8');
+    // /s/ already had it right; the two disagreeing is what made this survive.
+    expect(main).toMatch(/const port = isRealPath \? resolveStorefrontPort\(\) : demoStorefrontPort\(profil\)/);
+    const flows = readFileSync(join(__dirname, '..', 'src/vitrine/flows.ts'), 'utf8');
+    expect(flows).toMatch(/harness\.profil \? demoStorefrontPort\(harness\.profil\) : resolveStorefrontPort\(\)/);
   });
 });

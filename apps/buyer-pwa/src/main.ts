@@ -15,7 +15,7 @@ import {
 import { t } from './i18n';
 import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, vitrineHref } from './vitrine-link';
 import { demoStorefrontPort, resolveStorefrontPort } from './vitrine/profile';
-import { mountVitrine, type VitrineEtat } from './vitrine/flows';
+import { harnessProfil, mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { ENT_STYLES } from './vitrine/entries';
 import { createCliente, type ClienteEcran } from './cliente/flow';
 import { clienteProduit, clienteProduitReel, composeQuote } from './cliente/seed';
@@ -703,9 +703,15 @@ if (app) {
     const VIT_ETATS: readonly VitrineEtat[] = ['loading', 'ready', 'empty', 'offline', 'invalid'];
     const etatParam = params.get('demo-vitrine-etat');
     const profilParam = params.get('demo-vitrine-profil');
+    // BUYER-LIVE-WIRE-2 — a REAL `/v/{slug}` entry takes NO demo profil, so it
+    // reaches the env-gated port. The old inline ternary had no undefined branch
+    // and always produced `'default'`, which pinned this route to the demo adapter
+    // and made `VITE_STOREFRONT_BASE` unreadable no matter how correctly it was set.
+    // Mirrors what the `/s/{slug}` route above already did.
+    const isRealVitrinePath = vitrineSlugFromPath(window.location.pathname) !== undefined;
     mountVitrine(app as HTMLElement, vitrineSlug, {
       etat: etatParam && (VIT_ETATS as readonly string[]).includes(etatParam) ? (etatParam as VitrineEtat) : undefined,
-      profil: profilParam === 'perso' ? 'customised' : profilParam === 'vide' ? 'empty' : 'default',
+      profil: harnessProfil(isRealVitrinePath, profilParam),
       fromProduct: params.get('demo-vitrine-depuis') === 'produit',
       fige: params.has('demo-vitrine-fige'),
     });

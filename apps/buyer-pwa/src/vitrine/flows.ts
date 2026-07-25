@@ -39,6 +39,48 @@ export interface VitrineHarness {
   readonly fige?: boolean | undefined;
 }
 
+/**
+ * BUYER-LIVE-WIRE-2 — WHICH PORT A `/v/{slug}` ENTRY GETS, made a decision that can
+ * be TESTED instead of a ternary buried in the route dispatch.
+ *
+ * ═══ THE DEFECT THIS CLOSES (founder-caught on the live deploy) ═══
+ *
+ * `mountVitrine` picks `harness.profil ? demoStorefrontPort(profil) :
+ * resolveStorefrontPort()`. The `/v/` route in `main.ts` passed
+ * `profil: profilParam === 'perso' ? 'customised' : profilParam === 'vide' ? 'empty'
+ * : 'default'` — a ternary chain with **NO undefined branch**, so an absent
+ * `?demo-vitrine-profil` still produced the truthy `'default'`.
+ *
+ * **`harness.profil` was therefore ALWAYS truthy, and `resolveStorefrontPort()` was
+ * UNREACHABLE from the one route that carries real shared links.** Wiring
+ * `VITE_STOREFRONT_BASE` put the service URL in the bundle correctly and the route
+ * never read it: a real storefront resolved against the DEMO adapter, where only
+ * `aicha-4821` exists, so every real slug rendered the honest not-found.
+ *
+ * The `/s/{slug}` route already had this right (`isRealPath ? resolveStorefrontPort()
+ * : demoStorefrontPort(profil)`), which is why the two routes disagreed.
+ *
+ * ═══ WHY THIS IS A FUNCTION AND NOT A ONE-CHARACTER FIX ═══
+ *
+ * The bug was invisible to every check that existed: the value WAS in the bundle, the
+ * build WAS green, the content hash DID match. None of those could see that nothing
+ * read it. A decision that can be unit-tested is the only kind that fails loudly, so
+ * the rule lives here with a test that drives both branches by value.
+ *
+ * THE RULE: a harness profil applies ONLY to a harness entry (`?demo-vitrine=…`).
+ * A REAL path entry gets `undefined`, which is what routes it to the env-gated port.
+ */
+export function harnessProfil(
+  isRealPath: boolean,
+  profilParam: string | null,
+): 'default' | 'customised' | 'empty' | undefined {
+  // A real shared link NEVER takes a demo profil — not even the default one.
+  if (isRealPath) return undefined;
+  if (profilParam === 'perso') return 'customised';
+  if (profilParam === 'vide') return 'empty';
+  return 'default';
+}
+
 const SKELETON_MS = 750;
 const RETRY_MS = 900;
 const enum Never {}
