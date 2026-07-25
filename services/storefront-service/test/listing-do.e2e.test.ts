@@ -29,7 +29,7 @@ const OFFER = {
   offerVersion: 'ov-1',
   markup: 2_000,
   customerPriceFcfa: 11_500, // HER price = productSubtotal (B + M), SUPPLIED
-  hubVerified: true,
+  stockAssurance: { source: 'hub' },
   correlationId: 'corr-001',
   at: T0,
 };

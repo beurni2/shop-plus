@@ -64,7 +64,7 @@ describe('projectStoreDiscovery — fed by THE ONE PRODUCER (SP#001-B, live even
   const events: StoreProjectionEvent[] = [
     { type: 'storefront.created', storefrontId: 'sf_a', resellerId: 'res_a', storeName: 'Aïcha Mode', zone: 'Dassasgho', slug: 'aicha-4821', at: T(8) },
     { type: 'storefront.published', storefrontId: 'sf_a', discoverable: true, at: T(9) },
-    { type: 'listing.published', storefrontId: 'sf_a', listingId: 'l_a1', hubVerified: true, at: T(10) },
+    { type: 'listing.published', storefrontId: 'sf_a', listingId: 'l_a1', stockAssurance: { source: 'hub' }, at: T(10) },
     { type: 'storefront.created', storefrontId: 'sf_b', resellerId: 'res_b', storeName: 'Boutique Mariam', zone: 'Dassasgho', slug: 'mariam-2170', at: T(8) },
     { type: 'storefront.published', storefrontId: 'sf_b', discoverable: true, at: T(9) },
     { type: 'storefront.created', storefrontId: 'sf_hidden', resellerId: 'res_h', storeName: 'Pas Publiée', zone: 'Gounghin', slug: 'cachee-0000', at: T(8) },

@@ -25,13 +25,13 @@ const OFFER: PublishListingCommand = {
   offerVersion: 'ov-1',
   markup: 2_000, // HER markup M
   customerPriceFcfa: 11_500, // HER price = productSubtotal (B + M), supplied
-  hubVerified: true,
+  stockAssurance: { source: 'hub' },
   correlationId: 'corr-001',
   at: T0,
 };
 
 describe('listing aggregate — a storefront lists an offer at HER price', () => {
-  it('publish builds a canon ResellerListing (status published) and emits listing.published.v1 carrying HER price + the hub signal', () => {
+  it('publish builds a canon ResellerListing (status published) and emits listing.published.v1 carrying HER price + the stock assurance', () => {
     const reg = new ListingRegistry();
     const out = reg.publish(OFFER);
     expect(out.status).toBe('published');
@@ -41,7 +41,8 @@ describe('listing aggregate — a storefront lists an offer at HER price', () =>
     expect(out.listing.markup).toBe(2_000);
     expect(out.event.name).toBe('listing.published.v1');
     expect(out.event.payload['storefront_id']).toBe('sf-seller-0001');
-    expect(out.event.payload['hub_verified']).toBe(true);
+    // HUB-ASSURANCE-1 — provenance, not a verdict (was `hub_verified: true`).
+    expect(out.event.payload['stock_assurance']).toEqual({ source: 'hub' });
     expect(out.event.payload['customer_price_fcfa']).toBe(11_500); // HER price rides the event, carried not recomputed
   });
 
@@ -70,5 +71,42 @@ describe('listing aggregate — a storefront lists an offer at HER price', () =>
   it('auto-hiding an absent listing is surfaced (never a phantom write)', () => {
     const reg = new ListingRegistry();
     expect(reg.autoHide({ listingId: 'lst-nope', correlationId: 'c', at: T1 }).status).toBe('absent');
+  });
+});
+
+/**
+ * HUB-ASSURANCE-1 — the publish command carries PROVENANCE, and omitting it is safe.
+ * The event payload is what `store-projection` folds into the customer-visible badge,
+ * so what rides here decides whether a « Vérifiée » mark appears beside a shop name.
+ */
+describe('stock assurance on listing.published.v1 — fail-closed, never a verdict', () => {
+  it('an OMITTED assurance is declared, never hub — a caller who forgets cannot publish a trust claim', () => {
+    const registry = new ListingRegistry();
+    // Deliberately built WITHOUT stockAssurance — this is the shape the frozen
+    // attribution-service e2e sends, and the shape any future forgetful caller sends.
+    const { stockAssurance: _omitted, ...withoutAssurance } = OFFER;
+    const decision = registry.publish(withoutAssurance);
+    expect(decision.status).toBe('published');
+    if (decision.status !== 'published') return;
+    expect(decision.event.payload.stock_assurance).toEqual({ source: 'declared' });
+  });
+
+  it('a DECLARED assurance travels as declared — the claim is recorded, not discarded', () => {
+    const registry = new ListingRegistry();
+    const decision = registry.publish({ ...OFFER, stockAssurance: { source: 'declared' } });
+    expect(decision.status === 'published' && decision.event.payload.stock_assurance).toEqual({ source: 'declared' });
+  });
+
+  it('a HUB assurance travels as hub — the only value that may ever light the badge', () => {
+    const registry = new ListingRegistry();
+    const decision = registry.publish({ ...OFFER, stockAssurance: { source: 'hub' } });
+    expect(decision.status === 'published' && decision.event.payload.stock_assurance).toEqual({ source: 'hub' });
+  });
+
+  it('no boolean survives on the payload — a rename would have left one behind', () => {
+    const registry = new ListingRegistry();
+    const decision = registry.publish({ ...OFFER, stockAssurance: { source: 'hub' } });
+    if (decision.status !== 'published') throw new Error('setup');
+    expect(Object.keys(decision.event.payload)).not.toContain('hub_verified');
   });
 });

@@ -132,7 +132,18 @@ export function demoStoreEvents(): readonly StoreProjectionEvent[] {
     events.push({ type: 'storefront.created', storefrontId: s.storefrontId, resellerId: s.resellerId, storeName: s.storeName, zone: s.zone, slug: s.slug, at });
     events.push({ type: 'storefront.published', storefrontId: s.storefrontId, discoverable: true, at });
     for (let i = 0; i < s.productCount; i += 1) {
-      events.push({ type: 'listing.published', storefrontId: s.storefrontId, listingId: `${s.storefrontId}-l${i}`, hubVerified: s.verified, at });
+      // HUB-ASSURANCE-1 — the demo seed's `verified` flag is the DEMO's own claim
+      // that these fictional stores have hub-confirmed stock, so it maps to `'hub'`
+      // and the demo directory renders exactly as before. This is a CERTIFIED DEMO
+      // log, not a real event stream; no real listing can reach `'hub'` until the
+      // Boutik+ hub wire exists (see StockAssurance).
+      events.push({
+        type: 'listing.published',
+        storefrontId: s.storefrontId,
+        listingId: `${s.storefrontId}-l${i}`,
+        stockAssurance: { source: s.verified ? 'hub' : 'declared' },
+        at,
+      });
     }
   }
   return events;

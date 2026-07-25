@@ -195,7 +195,7 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
       offerVersion: 'ov-auth-1',
       markup: 500,
       customerPriceFcfa: 2000,
-      hubVerified: true,
+      stockAssurance: { source: 'hub' },
       correlationId: 'corr-auth-lst',
       at: T0,
     });
@@ -435,7 +435,7 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
       offerVersion: 'ov-a2-1',
       markup: 1_200,
       customerPriceFcfa: 9_200,
-      hubVerified: true,
+      stockAssurance: { source: 'hub' },
       correlationId: 'corr-a2-lst',
       at: T0,
       ...over,

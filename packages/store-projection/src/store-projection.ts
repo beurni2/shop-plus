@@ -20,13 +20,24 @@
  * (`storefront.created/published.v1`, `listing.published/auto_hidden.v1`). Each
  * source (the real service, or the buyer PWA's certified demo log) maps its
  * events into this union at its own boundary; canon defines no per-event payload
- * shape, so `hubVerified` rides the listing event as app-boundary data (the
- * Boutik+ hub signal; the real hub wire is deferred — the demo-supply seam
- * supplies it, honestly, per store).
+ * shape, so the stock assurance rides the listing event as app-boundary data. The
+ * real hub wire is deferred, so today every real claim is `'declared'` and NO real
+ * store can earn the badge — which is the honest state, not a missing feature.
  *
  * Pure and dependency-free (no `@platform/contracts` runtime import) so it is
  * safe inside the buyer PWA's payload budget.
  */
+
+/**
+ * HUB-ASSURANCE-1 — the PROVENANCE of a stock claim. Declared stock is recorded
+ * honestly; only a real Boutik+ hub signal earns the customer-visible badge.
+ * Shop-local: `hubVerified` never existed in `@platform/contracts`, and canon's
+ * `PlatformEventSchema` declares its payload as a free-form record, so the event
+ * NAME is canon while its SHAPE is ours — no canon cycle, no three-repo migration.
+ */
+export interface StockAssurance {
+  readonly source: 'declared' | 'hub';
+}
 
 export type StoreProjectionEvent =
   | {
@@ -48,8 +59,17 @@ export type StoreProjectionEvent =
       readonly type: 'listing.published';
       readonly storefrontId: string;
       readonly listingId: string;
-      /** The Boutik+ hub-verified-stock signal (SP-I19). Real wire deferred. */
-      readonly hubVerified: boolean;
+      /**
+       * HUB-ASSURANCE-1 — WHERE THE STOCK CLAIM CAME FROM, not whether someone
+       * asserted it. This replaced a `hubVerified: boolean`, and the reason is the
+       * whole point of the change: a boolean cannot distinguish « the seller told us
+       * she has stock » from « the Boutik+ hub confirmed it », so declared stock set
+       * the SAME flag as a real hub signal — and that flag renders a « Vérifiée »
+       * badge beside the shop name (`boutiques-view.ts:80`), in the same visual
+       * language as the platform's own trust marks. **ONLY `'hub'` MAY EVER SET THE
+       * BADGE.** Renaming the boolean could not have carried that distinction.
+       */
+      readonly stockAssurance: StockAssurance;
       readonly at: string;
     }
   | {
@@ -72,13 +92,17 @@ export interface StoreProjection {
   readonly productCount: number;
   /** Max event time across the storefront + its listings — the ordering truth. */
   readonly lastUpdated: string;
-  /** ≥1 live listing with hub-verified stock (SP-I19) — else no badge. */
+  /** ≥1 live listing whose stock assurance came from the HUB (SP-I19) — else no
+   *  badge. Declared stock never sets this; see StockAssurance. */
   readonly verified: boolean;
 }
 
 interface ListingState {
   live: boolean;
-  hubVerified: boolean;
+  /** HUB-ASSURANCE-1 — the PROVENANCE, carried through the fold unflattened so the
+   *  badge decision below can ask WHERE the claim came from, not merely whether one
+   *  was made. Flattening this back to a boolean here would re-open the hole. */
+  stockAssurance: StockAssurance;
 }
 
 interface StoreAcc {
@@ -131,7 +155,7 @@ function foldStores(events: readonly StoreProjectionEvent[]): Map<string, StoreA
       store.discoverable = ev.discoverable;
       store.lastUpdated = later(store.lastUpdated, ev.at);
     } else if (ev.type === 'listing.published') {
-      store.listings.set(ev.listingId, { live: true, hubVerified: ev.hubVerified });
+      store.listings.set(ev.listingId, { live: true, stockAssurance: ev.stockAssurance });
       store.lastUpdated = later(store.lastUpdated, ev.at);
     } else {
       // listing.auto_hidden — hiding is a store update; the listing goes non-live.
@@ -149,7 +173,9 @@ function toProjection(store: StoreAcc): StoreProjection {
   for (const listing of store.listings.values()) {
     if (!listing.live) continue;
     productCount += 1;
-    if (listing.hubVerified) verified = true;
+    // ONLY a real hub signal earns the badge. Declared stock is recorded and
+    // counted (it is a live product) but NEVER renders « Vérifiée ».
+    if (listing.stockAssurance.source === 'hub') verified = true;
   }
   return {
     storefrontId: store.storefrontId,

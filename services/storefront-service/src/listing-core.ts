@@ -21,6 +21,18 @@ import {
 export const LISTING_PUBLISHED = 'published';
 export const LISTING_AUTO_HIDDEN = 'auto_hidden';
 
+/**
+ * HUB-ASSURANCE-1 — the provenance of a stock claim. Shop-local by verification,
+ * not by assumption: `hubVerified` appears nowhere in `@platform/contracts`, and
+ * canon's `PlatformEventSchema` declares its payload as a free-form record — so the
+ * event NAME is canon while its SHAPE is ours. No canon cycle, no three-repo
+ * migration. Mirrors `@shop-plus/store-projection`'s `StockAssurance`, declared
+ * separately because that package is deliberately dependency-free.
+ */
+export interface StockAssurance {
+  readonly source: 'declared' | 'hub';
+}
+
 export interface PublishListingCommand {
   readonly commandId: string;
   readonly listingId: string;
@@ -32,8 +44,27 @@ export interface PublishListingCommand {
   readonly markup: number;
   /** HER price = productSubtotal (B + M) — SUPPLIED from the waterfall, never recomputed. */
   readonly customerPriceFcfa: number;
-  /** Boutik+ hub-verified-stock signal (SP-I19); real wire deferred. */
-  readonly hubVerified: boolean;
+  /**
+   * HUB-ASSURANCE-1 — WHERE the stock claim came from, replacing a
+   * `hubVerified: boolean`. A boolean could not distinguish « the seller says she
+   * has stock » from « the Boutik+ hub confirmed it », and that same flag renders a
+   * « Vérifiée » badge beside the shop name on the buyer directory
+   * (`store-projection.ts` → `boutiques-view.ts:80`) — so publishing with declared
+   * stock would have put a verification badge on a storefront ON THE SELLER'S OWN
+   * WORD, in the platform's own trust language. Only `'hub'` may ever set it.
+   *
+   * The real hub wire is deferred, so every real publish today is `'declared'`.
+   * That is the honest state: the claim is recorded, the badge stays dark.
+   *
+   * OPTIONAL, AND FAIL-CLOSED — an omitted assurance is `'declared'`, never `'hub'`.
+   * Two reasons, and they agree. (1) A CONSTRAINT: `services/attribution-service` is
+   * in the FROZEN VAULT (byte-identical, zero diff) and its `premiere-commande-reelle`
+   * e2e publishes a listing without this field; a required field would have forced an
+   * edit to a frozen file. (2) THE MERITS, which would have argued the same way
+   * anyway: a caller who forgets this must land on "no badge", never on a verification
+   * claim. Forgetting fails toward silence — the only safe direction for a trust mark.
+   */
+  readonly stockAssurance?: StockAssurance;
   readonly correlationId: string;
   readonly at: string;
 }
@@ -85,7 +116,12 @@ function publishedEvent(cmd: PublishListingCommand): PlatformEvent {
       listing_id: cmd.listingId,
       storefront_id: cmd.storefrontId,
       reseller_id: cmd.resellerId,
-      hub_verified: cmd.hubVerified,
+      // HUB-ASSURANCE-1 — the PROVENANCE travels, not a verdict. The old
+      // `hub_verified: boolean` collapsed « she said so » and « the hub confirmed »
+      // into one flag that lit a customer-visible « Vérifiée » badge.
+      // Fail-closed: an omitted assurance is `declared`, so a caller who forgets can
+      // never accidentally publish a verification claim.
+      stock_assurance: { source: cmd.stockAssurance?.source ?? 'declared' },
       customer_price_fcfa: cmd.customerPriceFcfa, // CARRIED, never recomputed
     },
   });
