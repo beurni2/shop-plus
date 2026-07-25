@@ -82,10 +82,37 @@ describe('readSupplyCollection — the reason is PRESERVED, never collapsed', ()
     // the entire reason this function exists.
   });
 
-  it('a 401 through the binding is UNREACHABLE and carries the status — the secret-mismatch fault, named', async () => {
+  it('a 401 through the binding is ANSWERED — not unreachable: something replied, and httpStatus says what', async () => {
+    // DIAGNOSTIC-STATUS-SPLIT-1 — the conflation this removes is what made the last
+    // diagnosis blame the platform: a service that answered perfectly well was
+    // reported as « unreachable », pointing at a network that was fine.
     const result = await readSupplyCollection(bound({ service: 'offer-service', error: 'unauthorized' }, 401), NOW);
-    expect(result.status).toBe('unreachable');
+    expect(result.status).toBe('answered');
     expect(result.httpStatus).toBe(401);
+  });
+
+  it('THE TWO ARE NOW DISTINGUISHABLE: a thrown fetch and a non-2xx answer never share a status', async () => {
+    const threw = await readSupplyCollection(
+      { OFFER: { fetch: async () => { throw new Error('nothing came back'); } } },
+      NOW,
+    );
+    const answered = await readSupplyCollection(bound({ service: 'offer-service' }, 500), NOW);
+    expect(threw.status).toBe('unreachable'); // nothing came back
+    expect(answered.status).toBe('answered'); // something came back
+    expect(threw.status).not.toBe(answered.status);
+    // …and only the one that answered can carry an httpStatus.
+    expect(threw.httpStatus).toBeUndefined();
+    expect(answered.httpStatus).toBe(500);
+  });
+
+  it('the vocabulary is a PROGRESSION — each status names the furthest point the exchange reached', async () => {
+    // unconfigured → never called · unreachable → nothing back · answered → non-2xx
+    // · malformed → 2xx, wrong shape · ok → 2xx, shaped, consumed.
+    expect((await readSupplyCollection(undefined, NOW)).status).toBe('unconfigured');
+    expect((await readSupplyCollection({ OFFER: { fetch: async () => { throw new Error('x'); } } }, NOW)).status).toBe('unreachable');
+    expect((await readSupplyCollection(bound({}, 404), NOW)).status).toBe('answered');
+    expect((await readSupplyCollection(bound({ notItems: true }), NOW)).status).toBe('malformed');
+    expect((await readSupplyCollection(bound({ asOf: NOW, items: [] }), NOW)).status).toBe('ok');
   });
 
   it('a binding fetch that throws is UNREACHABLE, never a crash up the read path', async () => {
@@ -208,7 +235,7 @@ describe('the diagnostic names its target', () => {
     // anything it does not route. The responder naming itself is what turns
     // « unreachable 404 » into « the OFFER binding reached MEDIA-SERVICE ».
     const result = await readSupplyCollection(bound({ service: 'media-service', status: 'not_found' }, 404), NOW);
-    expect(result.status).toBe('unreachable');
+    expect(result.status).toBe('answered');
     expect(result.httpStatus).toBe(404);
     expect(result.target).toEqual({ base: SUPPLY_TARGET_BINDING, answeredBy: 'media-service' });
   });

@@ -126,3 +126,39 @@ describe('the mint path carries NO Math.random — the defect that started this'
     expect(read('src/identity/expoStore.ts')).toMatch(/getRandomBytes/);
   });
 });
+
+/**
+ * SEAM-PRESENCE-1 — THE OPERATOR LINE STATES PRESENCE, NEVER THE VALUE.
+ *
+ * The write key had exactly the failure the host line was added to catch: the app
+ * sent a key, the Worker refused it 401, and unconfigured / 401 / unreachable /
+ * genuinely-empty all render as one identical card BY DESIGN. The card is right for
+ * the reseller and useless for the operator, so the footer carries what it cannot.
+ * These assert the boundary: PRESENCE, never the value, never a prefix, never a hash.
+ */
+describe('the operator line never leaks the key', () => {
+  const app = readFileSync(join(import.meta.dirname, '..', 'App.tsx'), 'utf8');
+
+  it('the key is reduced to a BOOLEAN at its only read site — nothing downstream can render it', () => {
+    // The one permitted read is the presence test itself.
+    const reads = [...app.matchAll(/process\.env\.EXPO_PUBLIC_STOREFRONT_WRITE_KEY/g)];
+    expect(reads).toHaveLength(1);
+    expect(app).toContain("const SEAM_KEY_PRESENT = (process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY ?? '') !== '';");
+  });
+
+  it('no substring, slice or hash of the key reaches a rendered string', () => {
+    const code = app.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    // A prefix is a value with fewer characters; a hash of a short secret is a value
+    // with extra steps. Neither is permitted, so neither shape may appear near it.
+    expect(code).not.toMatch(/EXPO_PUBLIC_STOREFRONT_WRITE_KEY[^\n]*\.(slice|substring|substr)/);
+    expect(code).not.toMatch(/EXPO_PUBLIC_STOREFRONT_WRITE_KEY[^\n]*(hash|digest|sha)/i);
+    // …and the boolean, not the env read, is what the render site consumes.
+    expect(code).toMatch(/SEAM_KEY_PRESENT \? 'seam\.cle_presente' : 'seam\.cle_absente'/);
+  });
+
+  it('the feed state maps every branch to a catalog key — the fourth fact the empty card hides', () => {
+    for (const key of ['seam.produits_chargement', 'seam.produits_recus', 'seam.produits_non_relie', 'seam.produits_indisponibles']) {
+      expect(app, `${key} must be reachable from feedStateKey`).toContain(key);
+    }
+  });
+});

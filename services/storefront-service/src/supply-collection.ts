@@ -90,11 +90,22 @@ export interface SupplyRefusal {
  *
  * The first live failure was `unreachable · 404 · refusals []`. That named the LAYER
  * in one request — it ruled out the app bundle, both app secrets, the gate, the wire
- * password and the freshness bound. Then it stopped helping: the fault was
- * `SUPPLY_BASE` pointing at the WRONG SERVICE (media-service 404s anything it does
- * not route), and the diagnostic never said which URL it had called — a value nobody
- * can read back out of a Worker secret. A fault report that names the failure
- * without naming what it was talking to is HALF an instrument. Hence `target`:
+ * password and the freshness bound. Then it stopped helping: it never said WHICH URL
+ * it had called, and `SUPPLY_BASE` was a value nobody could read back out of a Worker
+ * secret.
+ *
+ * ⚠ THE CAUSE WAS NEVER ESTABLISHED, and this comment previously asserted otherwise.
+ * TWO CANDIDATES, NEITHER CONFIRMED: (a) `SUPPLY_BASE` holding a wrong value — the
+ * media host, or a base carrying the singular path — both of which reproduce a 404
+ * exactly; (b) Cloudflare error 1042, the standing restriction where a Worker cannot
+ * `fetch` another Worker on the same workers.dev zone, consistent with the fact that
+ * this hop had NEVER once succeeded from a Worker. **The move to a service binding
+ * DELETED THE ONLY EVIDENCE THAT COULD SETTLE IT** — there is no longer a base to
+ * inspect or a public hop to retry. It is closed as fixed, NOT as diagnosed, and
+ * nothing here should be read as naming a culprit.
+ *
+ * A fault report that names the failure without naming what it was talking to is
+ * HALF an instrument. Hence `target`:
  *   · `base` — the RESOLVED ORIGIN actually called. A service origin is a hostname
  *     the founder can read off his own dashboard, NOT a credential; the ROUTE is
  *     deliberately not included, so nothing about path shape rides into a log that
@@ -114,8 +125,37 @@ export interface SupplyTarget {
   readonly answeredBy?: string;
 }
 
+/**
+ * DIAGNOSTIC-STATUS-SPLIT-1 (founder ruling) — THE STATUS NAMES THE OBSERVATION,
+ * `httpStatus` CARRIES THE REST.
+ *
+ * `unreachable` used to cover BOTH a fetch that threw AND an upstream that answered
+ * non-2xx. That conflation is what made the last diagnosis blame the platform and
+ * cost three founder round-trips: a 404 from a service that answered perfectly well
+ * was reported as « unreachable », which points at the network when the network was
+ * fine. `target.answeredBy` made it recoverable from the payload, but the WORD still
+ * misnamed what was observed.
+ *
+ * `refused` was considered and rejected — the founder's argument kills it twice
+ * over: `refusals` is a field on THIS SAME OBJECT, so `status: 'refused'` with
+ * `refusals: []` is a contradiction on one screen; and a 500 or an unrouted 404 is
+ * not a refusal, it is an answer nobody chose to give.
+ *
+ * THE VOCABULARY IS A PROGRESSION — each status names THE FURTHEST POINT THE
+ * EXCHANGE REACHED, which is why `answered` is exactly right rather than merely
+ * better:
+ *   unconfigured → never called (no binding)
+ *   unreachable  → called, NOTHING came back (the fetch threw)
+ *   answered     → something came back, non-2xx
+ *   malformed    → 2xx came back, the body was not collection-shaped
+ *   ok           → 2xx, shaped, consumed
+ * Read in that order the set partitions cleanly and no status overlaps another.
+ *
+ * INTERNAL, not a contract change: nothing outside this module consumes the string
+ * — the reseller app deliberately never reads the diagnostic.
+ */
 export interface SupplyCollectionResult {
-  readonly status: 'ok' | 'unconfigured' | 'unreachable' | 'malformed';
+  readonly status: 'ok' | 'unconfigured' | 'unreachable' | 'answered' | 'malformed';
   /** Fresh, contract-shaped, non-leaking offers. Empty is a legitimate answer. */
   readonly offers: readonly SupplyOffer[];
   /** Items the consumer refused, with the reason each was refused for. */
@@ -190,7 +230,8 @@ export async function readSupplyCollection(
     // the responder names itself.
     const answeredBy = whoAnswered(await res.text().catch(() => ''));
     return {
-      status: 'unreachable',
+      // ANSWERED, not unreachable: something replied. `httpStatus` says what.
+      status: 'answered',
       offers: [],
       refusals: [],
       httpStatus: res.status,
