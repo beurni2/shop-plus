@@ -78,10 +78,16 @@
   "screenClass": "selling_surface"
  },
  {
-  "key": "opportunites.repere",
-  "fr": "Repère",
-  "register": "neutral",
+  "key": "opportunites.source",
+  "fr": "Proposé par Shop+",
+  "register": "selling",
   "screenClass": "label"
+ },
+ {
+  "key": "opportunites.vide",
+  "fr": "Aucun produit à afficher pour l’instant.",
+  "register": "neutral",
+  "screenClass": "status"
  },
  {
   "key": "opportunites.action",

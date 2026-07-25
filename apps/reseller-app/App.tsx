@@ -22,6 +22,7 @@ import { HeroLedger, DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
 import { resolveStorefrontService, deriveShortCode } from './src/vitrine/service';
 import { loadOrMintIdentity } from './src/identity/store';
+import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
 import type { ResellerIdentity } from './src/identity/mint';
 import { expoIdentityStore, expoRandomBytes } from './src/identity/expoStore';
 import { useVoiceNotes, VoiceNoteSheet, voiceCardLabel } from './src/vitrine/customize/voice-sheet';
@@ -247,6 +248,27 @@ export default function App() {
   // cannot fail. A re-tap is idempotent (same commandId/id), never a second shop —
   // and the identity behind it is now device-stored rather than per-session.
   const service = useMemo(() => resolveStorefrontService(), []);
+  // BROWSE-SUPPLY-1 — Opportunités now reads boutik's LIVE offers through this
+  // Worker. The seven « (démo) » products are GONE, not filtered and not a fallback:
+  // an unconfigured or failing wire shows the honest empty state, because a demo
+  // label on a browse surface is something she would learn to ignore rather than
+  // notice. `undefined` = still loading.
+  const offerSource = useMemo(() => resolveOfferSource(), []);
+  const [feed, setFeed] = useState<OfferFeed | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    if (offerSource === null) {
+      setFeed({ status: 'unconfigured' });
+      return;
+    }
+    void offerSource.list().then((f) => {
+      if (live) setFeed(f);
+    });
+    return () => {
+      live = false;
+    };
+  }, [offerSource]);
+  const offers: readonly Offer[] = feed?.status === 'ok' ? feed.offers : [];
   // RESELLER-IDENTITY-1 — the identity is now DEVICE-STORED and minted ONCE from the
   // OS CSPRNG, replacing a `Math.random` mint that was stable only per SESSION. That
   // regenerated `resellerId` on every restart and every preview republish, so the
@@ -320,11 +342,22 @@ export default function App() {
   const vitrineOpps = world.opportunities.filter((o) => vitrineLive.includes(o.id));
   const ficheOpp = world.opportunities.find((o) => o.id === ficheId);
   const shareOpp = world.opportunities.find((o) => o.id === shareId);
-  const viewOf = (opp: DemoOpportunity) => {
-    const cap = markupCap(opp.input.sellerBasePrice);
-    const m = markups[opp.id] ?? defaultMarkup(cap);
-    return marginBreakdown(opp.input.sellerBasePrice, opp.input.sellerFundedCommission, m);
-  };
+  const viewOf = (opp: DemoOpportunity) => marginOf(opp.id, opp.input.sellerBasePrice, opp.input.sellerFundedCommission);
+  /**
+   * BROWSE-SUPPLY-1 — THE ONE money computation, now reachable from a LIVE offer as
+   * well as a seed. Nothing new is calculated here: it is the same `marginBreakdown`
+   * from src/vitrine/margin.ts (gross = C + M · fee = round(gross × 0.20) · net =
+   * gross − fee), fed the projection's `basePrice` (B) and `resellerCommission` (C)
+   * instead of the seed's. The figure stays an ESTIMATE — « Gagnez environ … » — at
+   * the DEFAULT markup min(1500, cap); she sets her exact markup on Ma Vitrine, and
+   * it is never presented as a commitment.
+   */
+  function marginOf(id: string, basePrice: number, commission: number) {
+    const cap = markupCap(basePrice);
+    return marginBreakdown(basePrice, commission, markups[id] ?? defaultMarkup(cap));
+  }
+  const viewOfOffer = (o: Offer) => marginOf(o.productVersionId, o.basePrice, o.resellerCommission);
+  const ficheOffer = offers.find((o) => o.productVersionId === ficheId);
   // Her REAL share link — the canon buyer origin + base. Partager is opened FROM a
   // product (setShareId → 'lien'), so it sends the signed PRODUCT link
   // `/s/{storeSlug}?pid={productId}` — « the one she sends », which opens THAT
@@ -495,8 +528,10 @@ export default function App() {
         {screen === 'opportunites' && (
           <FlatList
             style={styles.screenScroll}
-            data={world.opportunities}
-            keyExtractor={(o) => o.id}
+            // BROWSE-SUPPLY-1 — LIVE offers from boutik, through this Worker. Was
+            // `world.opportunities`, seven frozen « (démo) » seeds.
+            data={offers}
+            keyExtractor={(o) => o.productVersionId}
             initialNumToRender={6}
             windowSize={5}
             showsVerticalScrollIndicator={false}
@@ -509,6 +544,20 @@ export default function App() {
                 <Text style={styles.oppSub}>{t('opportunites.sous_titre')}</Text>
               </View>
             }
+            // THE HONEST EMPTY STATE — shown while loading resolves to nothing, when
+            // nothing is published, and when the wire is unconfigured or unreachable.
+            // Deliberately ONE state for all of them: the reseller gets an honest
+            // screen, never a diagnosis. The WHY is operator-facing and lives on the
+            // service's `diagnostic`, which this app never reads.
+            ListEmptyComponent={
+              feed === undefined ? null : (
+                <EmptyState
+                  glyph={<IconProduits size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />}
+                  title={t('opportunites.vide')}
+                  hint=""
+                />
+              )
+            }
             renderItem={({ item }) => (
               // §4 L70 — a tappable product row → its FICHE (journey edge
               // opportunites→fiche). Net-only « Gagnez ≈ {net} net » at the default
@@ -516,17 +565,31 @@ export default function App() {
               // Ma Vitrine. Net-first: net shown, gross never (SP-I04/I12).
               <Pressable
                 style={({ pressed }) => [styles.oppRow, pressed && styles.pressed]}
-                onPress={() => { setFicheId(item.id); go('fiche'); }}
+                onPress={() => { setFicheId(item.productVersionId); go('fiche'); }}
                 accessibilityRole="button"
               >
                 <View style={styles.oppArtTile}>
                   <View style={styles.artTileStripe} />
-                  <Text style={styles.artTileGlyph}>{item.name.slice(0, 1)}</Text>
+                  <Text style={styles.artTileGlyph}>{item.productName.slice(0, 1)}</Text>
                 </View>
                 <View style={styles.homeSaleBody}>
-                  <Text style={styles.homeSaleTitle} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.homeSaleSub} numberOfLines={1}>{`${t('opportunites.repere')} : ${item.landmark}`}</Text>
-                  <Text style={styles.oppNet}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOf(item).net) })}</Text>
+                  <Text style={styles.homeSaleTitle} numberOfLines={1}>{item.productName}</Text>
+                  {/* THE SOURCE MARK (founder ruling) — a PROVENANCE mark, not a
+                      location. It replaces « Repère : {landmark} », which was seed
+                      data with no field on the wire to carry it: boutik strips zone
+                      deliberately, because location is supplier-identifying.
+                      A place answers WHERE, a source answers WHOSE, so this is a
+                      chip rather than body text — the same pill family as the
+                      vitrine's « livré par Séra », and DELIBERATELY QUIETER than
+                      « Vérifiée »: Shop+ is offering these goods, not vouching for
+                      them. CONSTANT, never data: it is not sourced from the wire,
+                      adds no field, and is not configurable.
+                      HARD GATE: the day a second supplier exists this line is a LIE,
+                      because it would label another supplier's product as Shop+. */}
+                  <View style={styles.oppSourcePill}>
+                    <Text style={styles.oppSourcePillText}>{t('opportunites.source')}</Text>
+                  </View>
+                  <Text style={styles.oppNet}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOfOffer(item).net) })}</Text>
                 </View>
               </Pressable>
             )}
@@ -540,9 +603,18 @@ export default function App() {
             ONE display-only line « Gagnez ≈ {net} net » at the default markup, same
             as the Opportunités row (net-first; gross never shown). Diaspora/PackLab
             special cards are gated (Law #8) — omitted pending an explicit override. */}
-        {screen === 'fiche' && ficheOpp !== undefined &&
-          ((opp: DemoOpportunity) => {
-            const already = vitrineCol.has(opp.id);
+        {/* BROWSE-SUPPLY-1 — the fiche now opens from a LIVE offer, because
+            Opportunités is live and a tap that led nowhere would be a dead end. The
+            layout is unchanged; only its source is. `ficheId` is now a
+            productVersionId (canon), never a seed id.
+            NAMED BOUNDARY, NOT FIXED HERE: « Ajouter à ma vitrine » still writes into
+            `vitrineCol`, whose grid reads the DEMO world — so adding a live offer
+            would not appear on Ma Vitrine. That is the LISTING half (the next slice),
+            and until it lands the CTA is disabled with the honest reason rather than
+            silently succeeding — the fabricated-success shape refused everywhere else. */}
+        {screen === 'fiche' && ficheOffer !== undefined &&
+          ((opp: Offer) => {
+            const already = false;
             return (
               <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
                 {/* the vérifié badge language (§4 L72 tier pill) */}
@@ -552,14 +624,14 @@ export default function App() {
                 {/* art héro 170 — the duotone product banner */}
                 <View style={styles.ficheHero}>
                   <View style={styles.artTileStripe} />
-                  <Text style={styles.ficheHeroGlyph}>{opp.name.slice(0, 1)}</Text>
+                  <Text style={styles.ficheHeroGlyph}>{opp.productName.slice(0, 1)}</Text>
                 </View>
                 {/* titre 24 + identity note — the vendor stays hidden */}
-                <Text style={styles.ficheTitle}>{opp.name}</Text>
+                <Text style={styles.ficheTitle}>{opp.productName}</Text>
                 <Text style={styles.ficheIdentity}>{t('fiche.identity_note')}</Text>
                 {/* the ONE money line — « Gagnez ≈ {net} net » at the default markup;
                     she sets her exact markup on Ma Vitrine. No interactive control here. */}
-                <Text style={styles.ficheGagnez}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOf(opp).net) })}</Text>
+                <Text style={styles.ficheGagnez}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOfOffer(opp).net) })}</Text>
                 {/* protections chips — the trust affordances */}
                 <View style={styles.ficheChips}>
                   <StatusChip tone="muted" label={t('fiche.chip_inspection')} />
@@ -567,16 +639,17 @@ export default function App() {
                 </View>
                 <PrimaryButton
                   label={t('fiche.cta')}
-                  disabled={already}
-                  onPress={() => {
-                    vitrineCol.addToVitrine(opp.id);
-                    setToast(t('fiche.ajoutee_toast'));
-                    go('vitrine');
-                  }}
+                  // DISABLED until the listing half lands: publishing a live offer is
+                  // a real write (PublishListingCommand needs productVersionId,
+                  // offerVersion, her markup and customerPriceFcfa) and it is the next
+                  // slice. Enabled here it would add a pid the vitrine grid cannot
+                  // show — a button that appears to work and does not.
+                  disabled
+                  onPress={() => undefined}
                 />
               </ScrollView>
             );
-          })(ficheOpp)}
+          })(ficheOffer)}
 
         {/* MA VITRINE (frame L239–267): title « Ma vitrine » 28/800 + name + vérifié,
             the œil → aperçu-cliente, the Privée/Publique toggle (the seam's
@@ -1225,6 +1298,14 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   // Net-forward money line (SP-I04/I12 net-first) — deep, bold, tabular.
+  // BROWSE-SUPPLY-1 — THE SOURCE MARK. A provenance chip, not a location line: a
+  // place answers WHERE and a source answers WHOSE, so this reads as a mark rather
+  // than an address. Same pill family as the vitrine's « livré par Séra » (soft
+  // surface, radius 99, small bold caps-weight text) and DELIBERATELY QUIETER than
+  // « Vérifiée » — Shop+ is offering these goods, not vouching for them, and that
+  // distinction is what the hub-assurance slice exists to protect.
+  oppSourcePill: { alignSelf: 'flex-start', borderRadius: radius.pill, backgroundColor: shopColour.soft, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, marginTop: spacing.xs },
+  oppSourcePillText: { color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.pill.size), fontWeight: w(t2.scale.pill.wght) },
   oppNet: { color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght), fontVariant: ['tabular-nums'] },
   oppPrice: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
   // « Ma sélection » chosen-row accent (mirrors the kit rowSelected border).

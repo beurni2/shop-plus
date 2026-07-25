@@ -1,6 +1,7 @@
 import sfRouter, { StorefrontDO } from './storefront-do.js';
 import lstRouter, { ListingDO } from './listing-do.js';
 import { handleRequest, type StorefrontServiceEnv } from '../src/index.js';
+import { SUPPLY_COLLECTION_ROUTE } from '../src/supply-collection.js';
 import type { R2BucketLike } from '../src/media/media-store.js';
 import { rejectUnauthorizedWrite, keyAuthorized, unauthorized, type WriteAuthEnv } from './auth.js';
 
@@ -55,7 +56,22 @@ export default {
     //     the whole surface costs the buyer nothing. Reads AND writes now need the key.
     const isListings = pathname === '/listings' || pathname.startsWith('/listings/');
     const isAdminList = request.method === 'GET' && pathname === '/storefronts';
-    if ((isListings || isAdminList) && !(await keyAuthorized(request, env))) {
+    //   · /supply-projections (BROWSE-SUPPLY-1) — the reseller browse read. It
+    //     returns `basePrice` and `resellerCommission` for EVERY offer, the same
+    //     economics the listings gate protects, so open would be the identical
+    //     fail-open leak. Gated on the key the app ALREADY holds: a second bundled
+    //     secret is no better protected, because both are readable by anyone who
+    //     extracts the bundle. THE BLAST RADIUS OF THAT KEY IS THEREFORE WIDER — it
+    //     now means « can write storefronts » AND « can read all supply economics »
+    //     — and it rides the standing hard gate: no reseller but the founder
+    //     onboards until real per-reseller identity lands, at which point this
+    //     becomes per-reseller auth and the shared key goes away entirely.
+    //     MATCHED EXACTLY, never by prefix: `/supply-projections` does NOT start
+    //     with `/supply-projection/`, which is how a prefix check failed OPEN on
+    //     boutik's side. `isListings` above is the same idiom and the reason this
+    //     one is written with `===`.
+    const isSupplyCollection = pathname === SUPPLY_COLLECTION_ROUTE;
+    if ((isListings || isAdminList || isSupplyCollection) && !(await keyAuthorized(request, env))) {
       return unauthorized();
     }
     // DO-management surfaces → the DO routers (idFromName addressing lives there).

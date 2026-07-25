@@ -72,7 +72,34 @@ export function consumeSupplyProjection(
   productVersionId: string,
   nowIso: string,
 ): SupplyVerdict {
-  const raw = port.readProjection(productVersionId);
+  const verdict = consumeSupplyItem(port.readProjection(productVersionId), nowIso);
+  if (verdict.status !== 'fresh') return verdict;
+  // The producer answered about a different product than the one requested. Refused
+  // CLOSED — never returned as `fresh`, so `canBackAgreement` blocks it and the
+  // storefront join omits the product rather than describing it with another's name.
+  if (verdict.projection.productVersionId !== productVersionId) {
+    return { status: 'rejected', reason: 'product_mismatch' };
+  }
+  return verdict;
+}
+
+/**
+ * BROWSE-COLLECTION entry point (BROWSE-SUPPLY-1) — consume ONE ALREADY-HELD
+ * envelope, with no lookup and NO ID EXPECTATION.
+ *
+ * WHY IT EXISTS SEPARATELY, and it is not a convenience wrapper: the collection
+ * (`GET /supply-projections`) answers `{ asOf, items: [{version, asOf, value}, …] }`,
+ * and for a LIST the product id is genuinely NOT KNOWN IN ADVANCE — identity comes
+ * from the parsed value. Reusing `consumeSupplyProjection` here would mean reading
+ * `item.value.productVersionId` and passing it straight back in as the "expected"
+ * id, which is CIRCULAR: the comparison could never fail, so it would look like a
+ * check while verifying nothing. An honest function that does not claim the check is
+ * better than a dishonest one that does.
+ *
+ * Everything else is byte-identical to the lookup path — same schema, same
+ * 15-minute bound, same identity sweep — because it IS the same call.
+ */
+export function consumeSupplyItem(raw: unknown, nowIso: string): SupplyVerdict {
   const verdict = consumeReadModel(raw, {
     schema: SupplyReadModelSchema,
     maxAgeMs: SUPPLY_PROJECTION_MAX_AGE_MS,
@@ -81,14 +108,10 @@ export function consumeSupplyProjection(
   });
   // Map the kit verdict onto SupplyVerdict — structurally identical, except `fresh`
   // names the parsed value `projection` (the SW-2 field name callers already read).
-  if (verdict.status !== 'fresh') return verdict;
-  // The producer answered about a different product than the one requested. Refused
-  // CLOSED — never returned as `fresh`, so `canBackAgreement` blocks it and the
-  // storefront join omits the product rather than describing it with another's name.
-  if (verdict.value.productVersionId !== productVersionId) {
-    return { status: 'rejected', reason: 'product_mismatch' };
-  }
-  return { status: 'fresh', projection: verdict.value, asOf: verdict.asOf, version: verdict.version };
+  // NO id comparison here, deliberately — see the header.
+  return verdict.status === 'fresh'
+    ? { status: 'fresh', projection: verdict.value, asOf: verdict.asOf, version: verdict.version }
+    : verdict;
 }
 
 /**

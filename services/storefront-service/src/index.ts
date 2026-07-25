@@ -5,6 +5,7 @@ import { StorefrontMediaService, type MediaKind } from './media/service.js';
 import { joinVitrineProduct, toStorefrontView, type VitrineProductRecord } from './customer-projection.js';
 import { resolveStorefrontStore, type StorefrontStoreEnv } from './storefront-store.js';
 import { resolveSupplySource, type SupplySourceEnv } from './supply-source.js';
+import { SUPPLY_COLLECTION_ROUTE, readSupplyCollection } from './supply-collection.js';
 
 /**
  * storefront-service: Storefront authoring + customer-surface projections (Shop+
@@ -212,10 +213,42 @@ function readPreflight(): Response {
   });
 }
 
+/**
+ * BROWSE-SUPPLY-1 — the RESELLER BROWSE READ. `GET /supply-projections` returns the
+ * offers she can list, plus the DIAGNOSTIC an operator needs when the list is empty.
+ *
+ * NO CORS, deliberately: this is a reseller/operator surface reached by the RN app,
+ * not a browser, and it carries `basePrice` + `resellerCommission` — the economics
+ * the listings gate protects. Adding browser origins here would widen exactly what
+ * the key gate (applied in `worker/index.ts`) just closed.
+ *
+ * `offers` is what the app renders. `diagnostic` is operator-facing and the app
+ * ignores it: a reseller sees an honest empty state, never a diagnosis.
+ */
+async function handleSupplyCollection(env?: StorefrontServiceEnv): Promise<Response> {
+  const result = await readSupplyCollection(env, new Date().toISOString());
+  return Response.json(
+    {
+      offers: result.offers,
+      diagnostic: {
+        status: result.status,
+        refusals: result.refusals,
+        ...(result.httpStatus !== undefined ? { httpStatus: result.httpStatus } : {}),
+      },
+    },
+    { status: 200 },
+  );
+}
+
 export const handleRequest = async (request: Request, env?: StorefrontServiceEnv): Promise<Response> => {
   const url = new URL(request.url);
   // POST /media/upload — a WRITE route: NO CORS (never buyer-facing).
   if (request.method === 'POST' && url.pathname === '/media/upload') return handleMediaUpload(request, env);
+  // BROWSE-SUPPLY-1 — EXACT match, never a prefix. `/supply-projections` does not
+  // start with `/supply-projection/`, which is precisely how a prefix-based auth
+  // check failed open on boutik's side; the gate in `worker/index.ts` matches this
+  // same string exactly for the same reason.
+  if (request.method === 'GET' && url.pathname === SUPPLY_COLLECTION_ROUTE) return handleSupplyCollection(env);
   const slugMatch = /^\/s\/([^/]+)$/.exec(url.pathname);
   const mediaReadMatch = /^\/media\/(.+)$/.exec(url.pathname);
   const isReadRoute = url.pathname === '/health' || slugMatch !== null || mediaReadMatch !== null;
