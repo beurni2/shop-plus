@@ -63,7 +63,11 @@ MEDIA_PUBLIC_BASE = ""
 # protect, and the SUPPLY_BASE lesson was that a write-only value nobody can read
 # back costs founder round-trips when it is wrong. This one is readable and
 # versioned right here. Set it to boutik's deployed media-service origin.
-PRODUCT_MEDIA_BASE = ""
+# SET 2026-07-25 (founder order). THE HOST IS PROVEN, NOT DERIVED: the founder
+# fetched one of his own product photographs from it successfully. That distinction
+# is the whole SUPPLY_BASE lesson — a base nobody has read back is a base nobody
+# knows is right.
+PRODUCT_MEDIA_BASE = "https://media-service.ilboudobernard2.workers.dev"
 
 # SERVICE-WRITE-AUTH-1 — the shared write secret (STOREFRONT_WRITE_SECRET) is NOT
 # here and must NEVER be added to [vars]: all five repos are PUBLIC and anything in
