@@ -172,6 +172,31 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
 // whole line is deleted at onboarding rather than softened now.
 const SEAM_HOST = process.env.EXPO_PUBLIC_STOREFRONT_BASE || '';
 
+/**
+ * SEAM-PRESENCE-1 — WHETHER THE WRITE KEY IS PRESENT. **Presence only: never the
+ * value, never a prefix, never a hash** (founder ruling — a prefix is a value, and a
+ * hash of a short secret is a value with extra steps).
+ *
+ * WHY THIS LINE EXISTS, and it is load-bearing rather than decoration: the host is
+ * named here precisely because a wrong or EMPTY inline is otherwise INVISIBLE — and
+ * the write key had exactly that failure and cost the founder an entire evening. The
+ * app sent a key, the Worker refused it with 401, and **unconfigured, 401,
+ * unreachable and genuinely-empty all render as one identical card BY DESIGN**: the
+ * reseller sees an honest empty state and never a diagnosis. That is right for her
+ * and useless for him, so the operator line carries what the card deliberately
+ * cannot. Member-expression access so babel-preset-expo inlines it; `?? ''` catches
+ * the unset case and `!== ''` the empty-string one.
+ */
+const SEAM_KEY_PRESENT = (process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY ?? '') !== '';
+
+/** The operator words for the feed's own state — the fourth fact the empty card hides. */
+function feedStateKey(status: OfferFeed['status'] | undefined): string {
+  if (status === undefined) return 'seam.produits_chargement';
+  if (status === 'ok') return 'seam.produits_recus';
+  if (status === 'unconfigured') return 'seam.produits_non_relie';
+  return 'seam.produits_indisponibles';
+}
+
 export default function App() {
   // COLD-START LAW: load the Faso Premium faces asynchronously and DO NOT gate
   // first paint on them — the metrics-close system fallback renders immediately,
@@ -1130,6 +1155,14 @@ export default function App() {
           {/* SEAM-ERROR-VISIBILITY-1 — the resolved storefront base (never the key). */}
           <Text style={styles.footerBuild}>
             {SEAM_HOST === '' ? t('seam.non_relie') : tf('seam.relie', { host: SEAM_HOST })}
+          </Text>
+          {/* SEAM-PRESENCE-1 — the operator line. Key PRESENCE (never the value) and
+              the feed's own state, because the empty card deliberately shows the same
+              face for unconfigured, 401, unreachable and genuinely-empty. Deleted
+              wholesale at onboarding along with the host line above: operator-facing,
+              not product copy. The separator is punctuation, not a translated word. */}
+          <Text style={styles.footerBuild}>
+            {`${t(SEAM_KEY_PRESENT ? 'seam.cle_presente' : 'seam.cle_absente')} · ${t(feedStateKey(feed?.status))}`}
           </Text>
         </View>
         <Pressable style={styles.resetAction} onPress={reset}>

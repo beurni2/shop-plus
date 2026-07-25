@@ -2500,5 +2500,41 @@
   "fr": "Non relié",
   "register": "neutral",
   "screenClass": "label"
+ },
+ {
+  "key": "seam.cle_presente",
+  "fr": "Clé : présente",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "seam.cle_absente",
+  "fr": "Clé : absente",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "seam.produits_chargement",
+  "fr": "Produits : chargement",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "seam.produits_recus",
+  "fr": "Produits : reçus",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "seam.produits_indisponibles",
+  "fr": "Produits : indisponibles",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "seam.produits_non_relie",
+  "fr": "Produits : non relié",
+  "register": "neutral",
+  "screenClass": "label"
  }
 ]

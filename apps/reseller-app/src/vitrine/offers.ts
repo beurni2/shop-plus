@@ -12,8 +12,12 @@
  *
  * ═══ THROUGH STOREFRONT-SERVICE, NEVER DIRECT TO BOUTIK ═══
  *
- * `SUPPLY_BASE` and `SUPPLY_READ_SECRET` are WORKER secrets and are never readable
- * from a phone. Calling boutik directly would need boutik credentials inside the EAS
+ * The supply hop lives entirely server-side and is never readable from a phone: the
+ * Worker reaches boutik through a SERVICE BINDING (`env.OFFER`, declared in
+ * `wrangler.toml`) and presents `SUPPLY_READ_SECRET`, a Worker secret. `SUPPLY_BASE`
+ * NO LONGER EXISTS — it was removed in BROWSE-SUPPLY-BINDING-1, after a
+ * write-only secret nobody could read back burned three founder round-trips.
+ * Calling boutik directly would need boutik credentials inside the EAS
  * bundle — extending a weakness accepted once for the write key. So this asks the
  * Worker, which holds the service-to-service bearer, and sends the SAME
  * `X-Write-Key` the app already holds (founder ruling: a second bundled secret buys
