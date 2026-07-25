@@ -35,15 +35,50 @@ import { join, resolve } from 'node:path';
  * a secondary signal only: a future minifier could legitimately rename it, and this
  * gate must fail on PRESENCE, never on naming fashion.
  *
+ * ⚠ THE ENCODING CONSTRAINT — WHY A FINGERPRINT MAY NOT CONTAIN A NON-ASCII CHARACTER
+ * (relayed from APPS, then VERIFIED HERE on this repo's own bundle rather than taken
+ * on faith). Hermes stores each string in the NARROW 8-bit encoding when every one of
+ * its characters fits, and in UTF-16 otherwise. A byte-level `includes` therefore sees
+ * the first kind and is BLIND to the second. Measured on `index-db85076a…hbc`:
+ *
+ *   'Mettre ma boutique en ligne'   utf-8 HIT    utf-16le miss   ← pure ASCII
+ *   'Pas encore relié au service'   utf-8 miss   utf-16le HIT    ← « é »
+ *   'Envoi en cours…'               utf-8 miss   utf-16le HIT    ← « … », NO accent
+ *
+ * The third line is the one that matters and it is SHARPER THAN "accents are UTF-16":
+ * a SINGLE non-ASCII character anywhere in the string — an accent, a « guillemet », an
+ * ellipsis — flips the WHOLE string to UTF-16. French copy in this codebase routinely
+ * carries all three, so ALMOST EVERY user-facing French string is invisible to this
+ * scan. Choosing a French UI string as a fingerprint — the instinctive choice, since
+ * that is what identifies a module here — would make this gate PASS VACUOUSLY FOREVER:
+ * green, silent, asserting nothing. Same failure shape as a provenance stamp reading
+ * `dev` while looking healthy. FINGERPRINTS MUST BE ASCII, and the positive control
+ * below is what stops that rule from decaying into a comment nobody reads.
+ *
  * HONEST LIMIT: this proves the ANDROID export. EAS builds the shipped update from
  * the same Metro graph and the same entry, so an absence here is an absence there —
  * but this is one platform's artifact, not the EAS artifact itself.
  */
 
 const APP_DIR = 'apps/reseller-app';
+
+/**
+ * THE POSITIVE CONTROL — a string that is DEFINITELY in the bundle and is pure ASCII.
+ * The gate proves it can SEE before it reports that it cannot FIND. Without this, an
+ * encoding change, a bundler change, or a mangled read would make every absence
+ * assertion vacuously true and the gate would go blind without saying so.
+ *
+ * `X-Write-Key` is the write-gate header (apps/reseller-app/src/vitrine/service.ts) —
+ * ASCII by protocol (HTTP header names cannot be otherwise), and present in any bundle
+ * that contains the real HTTP adapter, which is the very module this gate is about.
+ * It CANNOT be removed without removing the write path itself.
+ */
+const POSITIVE_CONTROL = { name: 'write-key header (proves the scan can see)', needle: 'X-Write-Key' };
+
 const FINGERPRINTS = [
   // Load-bearing: string literals live in the Hermes string table, so minification
-  // cannot remove them while the module is present.
+  // cannot remove them while the module is present. ASCII by construction — see the
+  // encoding constraint above.
   { name: 'demo upload URL (cover)', needle: 'demo://cover/', loadBearing: true },
   { name: 'demo upload URL (avatar)', needle: 'demo://avatar/', loadBearing: true },
   // Secondary: the class identifier. Informational — see the header.
@@ -77,6 +112,22 @@ try {
   for (const file of bundles) {
     const bytes = readFileSync(join(jsDir, file), 'latin1');
     console.log(`  scanning ${file} (${bytes.length} bytes)`);
+
+    // POSITIVE CONTROL FIRST — a gate that cannot demonstrate its own vision is not
+    // evidence. Exits 2, a THIRD status distinct from both pass (0) and violation (1),
+    // because "the scan is blind" is a different fact from "the adapter is present"
+    // and must never be reported as either.
+    if (!bytes.includes(POSITIVE_CONTROL.needle)) {
+      console.error(`  ‼ POSITIVE CONTROL FAILED — « ${POSITIVE_CONTROL.needle} » not found in ${file}.`);
+      console.error('    The scan cannot see a string that must be there, so every "absent" below would be');
+      console.error('    vacuously true. This is NOT a demo-adapter violation — it means the gate went BLIND.');
+      console.error('    Likely causes: the string encoding changed (see the UTF-16 note in this file), the');
+      console.error('    bundler changed its output, or the write path was removed.');
+      rmSync(out, { recursive: true, force: true });
+      process.exit(2);
+    }
+    console.log(`  ✔ [CONTROL] ${POSITIVE_CONTROL.name} — « ${POSITIVE_CONTROL.needle} » found, the scan can see`);
+
     for (const { name, needle, loadBearing } of FINGERPRINTS) {
       const hit = bytes.includes(needle);
       const tag = loadBearing ? 'LOAD-BEARING' : 'secondary';

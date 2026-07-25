@@ -2442,6 +2442,18 @@
   "screenClass": "status"
  },
  {
+  "key": "k.publier.identite_attente",
+  "fr": "Un instant — votre boutique se prépare.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.publier.identite_absente",
+  "fr": "Votre téléphone n’a pas pu enregistrer votre boutique. Rien n’a été envoyé.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "k.publier.non_relie",
   "fr": "Cette version n’est pas encore reliée au service. Votre boutique n’a pas été envoyée.",
   "register": "neutral",
