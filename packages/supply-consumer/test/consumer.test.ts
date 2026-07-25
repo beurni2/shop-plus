@@ -206,3 +206,52 @@ describe('LIVE-EQUALS-SEED-RECONCILIATION — the seed retires without money dri
     }
   });
 });
+
+/**
+ * SUPPLY-ID-MATCH-1 — THE ANSWER MUST BE ABOUT THE PRODUCT THAT WAS ASKED FOR.
+ *
+ * Before this check, `productVersionId` was handed to the port and never compared to
+ * what came back, so a producer answering `/supply-projection/X` with product Y was
+ * accepted as `fresh`. On the buyer surface the PRICE comes from the listing and the
+ * NAME and PHOTOGRAPHS come from supply — so a mis-routed answer showed Y's product at
+ * X's price with nothing reporting a fault. These assert the refusal, not the
+ * happy path.
+ */
+describe('consumeSupplyProjection — a substituted product is REFUSED, never described', () => {
+  /** A source that answers EVERY request with the same wrong product — a mis-routed
+   *  producer, a pointer bug, a cache collision, a path-encoding slip. */
+  function substitutingSource(): MockSupplyProjectionSource {
+    const src = new MockSupplyProjectionSource();
+    src.set({ productVersionId: 'pv_WRONG', offerVersion: '1', basePrice: 5_000, resellerCommission: 500, available: 3, productName: 'Un autre produit', assetRefs: [], asOf: minutesAgo(1), version: 1 });
+    return src;
+  }
+
+  it('asking for pv_1 and receiving pv_WRONG is rejected as product_mismatch', () => {
+    const src = substitutingSource();
+    // The mock is keyed by id, so ask it for the id it actually holds to obtain the
+    // envelope, then present that same envelope as the answer to a DIFFERENT request.
+    const answer = src.readProjection('pv_WRONG');
+    const verdict = consumeSupplyProjection({ readProjection: () => answer }, 'pv_1', NOW);
+    expect(verdict).toEqual({ status: 'rejected', reason: 'product_mismatch' });
+  });
+
+  it('the substituted product can NEVER back an agreement or a listing publish', () => {
+    const answer = substitutingSource().readProjection('pv_WRONG');
+    const verdict = consumeSupplyProjection({ readProjection: () => answer }, 'pv_1', NOW);
+    expect(canBackAgreement(verdict)).toBe(false);
+    // and the wrong product's NAME is not reachable from the verdict at all
+    expect(JSON.stringify(verdict)).not.toContain('Un autre produit');
+  });
+
+  it('a FRESH, well-formed, non-leaking answer is STILL refused when the id differs — freshness is not identity', () => {
+    const answer = substitutingSource().readProjection('pv_WRONG');
+    // Prove the payload is otherwise impeccable: asked for its OWN id, it is fresh.
+    expect(consumeSupplyProjection({ readProjection: () => answer }, 'pv_WRONG', NOW).status).toBe('fresh');
+    // Same bytes, different question — refused.
+    expect(consumeSupplyProjection({ readProjection: () => answer }, 'pv_1', NOW).status).toBe('rejected');
+  });
+
+  it('the matching case is untouched — this check refuses substitutions, not correct answers', () => {
+    expect(consumeSupplyProjection(freshSource(), 'pv_1', NOW).status).toBe('fresh');
+  });
+});

@@ -26,7 +26,16 @@ export type SupplyVerdict =
   | { readonly status: 'fresh'; readonly projection: SupplyProjection; readonly asOf: string; readonly version: number }
   | { readonly status: 'stale'; readonly asOf: string; readonly ageMs: number }
   | { readonly status: 'absent' }
-  | { readonly status: 'rejected'; readonly reason: 'not_a_read_model' | 'payload_not_contract_shaped' | 'identity_material_refused' };
+  | {
+      readonly status: 'rejected';
+      readonly reason:
+        | 'not_a_read_model'
+        | 'payload_not_contract_shaped'
+        | 'identity_material_refused'
+        /** SUPPLY-ID-MATCH-1 — the producer answered with a DIFFERENT product than the
+         *  one asked for. See the substitution note on `consumeSupplyProjection`. */
+        | 'product_mismatch';
+    };
 
 /** Sweep the raw value's keys for supplier identity/contact/pickup material (SP-I03). */
 function hasIdentityLeak(raw: unknown): boolean {
@@ -44,6 +53,19 @@ function hasIdentityLeak(raw: unknown): boolean {
  * `payload_not_contract_shaped` by `hasEnvelope`) → freshness (strictly beyond the
  * bound is stale, equality stays fresh). The freshness bound and the identity
  * sweep are OUR policy, passed as params — the kit homogenises neither.
+ *
+ * SUPPLY-ID-MATCH-1 — THE ANSWER MUST BE ABOUT THE PRODUCT THAT WAS ASKED FOR.
+ * Until this check existed, `productVersionId` was passed to the port and then never
+ * compared to what came back, so a producer answering `/supply-projection/X` with
+ * product Y was accepted as `fresh`. That is a SILENT SUBSTITUTION on a money-adjacent
+ * path: the buyer surface takes the PRICE from the listing (X's price) and the NAME +
+ * PHOTOGRAPHS from supply (Y's) — so a buyer would see Y's product at X's price, with
+ * nothing anywhere reporting a fault. Same family as the pid bug: an identity carried
+ * on one side of a join and never checked against the other.
+ *
+ * The check is deliberately LAST, after freshness: a stale or malformed answer is
+ * already refused, and reporting « wrong product » about an unparsed payload would be
+ * a worse diagnosis than the one the earlier steps give.
  */
 export function consumeSupplyProjection(
   port: SupplyProjectionPort,
@@ -59,9 +81,14 @@ export function consumeSupplyProjection(
   });
   // Map the kit verdict onto SupplyVerdict — structurally identical, except `fresh`
   // names the parsed value `projection` (the SW-2 field name callers already read).
-  return verdict.status === 'fresh'
-    ? { status: 'fresh', projection: verdict.value, asOf: verdict.asOf, version: verdict.version }
-    : verdict;
+  if (verdict.status !== 'fresh') return verdict;
+  // The producer answered about a different product than the one requested. Refused
+  // CLOSED — never returned as `fresh`, so `canBackAgreement` blocks it and the
+  // storefront join omits the product rather than describing it with another's name.
+  if (verdict.value.productVersionId !== productVersionId) {
+    return { status: 'rejected', reason: 'product_mismatch' };
+  }
+  return { status: 'fresh', projection: verdict.value, asOf: verdict.asOf, version: verdict.version };
 }
 
 /**
@@ -79,6 +106,16 @@ export function canBackAgreement(verdict: SupplyVerdict): boolean {
  * (a re-pull of an older/equal version never overwrites a newer one). Mirrors the
  * SW-1 dedup law; on the event path the same rule dedups on `command_id` (events
  * are not built here — transport B is pull, no bus).
+ *
+ * SUPPLY-ID-MATCH-1 — WHY THIS CLASS MAKES THE UPSTREAM CHECK LOAD-BEARING: `put`
+ * keys by `model.value.productVersionId`, the RETURNED id. So a substituted answer
+ * would be cached under the wrong product and handed back on later reads — turning a
+ * per-request fault into a PERSISTENT one. The defence is upstream, in
+ * `consumeSupplyProjection`: a mismatch never reaches `fresh`, so it never reaches
+ * here. NOTE (verified, not assumed): this cache currently has NO PRODUCTION CALLER —
+ * it is referenced only by its own test — so today the exposure was per-request. The
+ * moment it is wired, the upstream check is the only thing standing between a
+ * mis-routed answer and a poisoned cache entry.
  */
 export class SupplyProjectionCache {
   private readonly byProduct = new Map<string, SupplyReadModel>();

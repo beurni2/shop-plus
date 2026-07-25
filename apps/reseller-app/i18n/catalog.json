@@ -2484,8 +2484,14 @@
   "screenClass": "status"
  },
  {
-  "key": "demo.seam_base",
-  "fr": "Service : {base}",
+  "key": "seam.relie",
+  "fr": "Relié : {host}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "seam.non_relie",
+  "fr": "Non relié",
   "register": "neutral",
   "screenClass": "label"
  }
