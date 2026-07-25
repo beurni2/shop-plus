@@ -233,6 +233,25 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(listing.markup).toBe(500); // the operator read still works, unchanged
   });
 
+  it('BROWSE-SUPPLY-1 — GET /supply-projections is KEY-GATED, and the gate is an EXACT match not a prefix', async () => {
+    // WHY THIS ROUTE IS GATED: it returns basePrice and resellerCommission for every
+    // offer — the same economics the listings gate protects. Open would be the exact
+    // fail-open leak APPS caught on boutik's side, where a prefix check written for
+    // `/supply-projection/` did not cover `/supply-projections`.
+    const noKey = await mf.dispatchFetch('http://c/supply-projections', { method: 'GET' });
+    expect(noKey.status).toBe(401);
+    expect((await noKey.json()) as unknown).toEqual({ error: 'unauthorized' }); // the same non-oracle 401
+
+    // With the key it answers 200. SUPPLY_BASE is unset in this harness, so the
+    // honest answer is zero offers with an `unconfigured` diagnostic — NOT an error,
+    // and distinguishable from "configured but nothing published".
+    const withKey = await mf.dispatchFetch('http://c/supply-projections', { method: 'GET', headers: authed });
+    expect(withKey.status).toBe(200);
+    const body = (await withKey.json()) as { offers?: unknown[]; diagnostic?: { status?: string } };
+    expect(body.offers).toEqual([]);
+    expect(body.diagnostic?.status).toBe('unconfigured');
+  });
+
   it('LISTING-READ-GATE-1 — an UNKNOWN listing id is the SAME 401 without the key (never an existence oracle)', async () => {
     const unknown = await mf.dispatchFetch('http://c/listings/lst-does-not-exist', { method: 'GET' });
     expect(unknown.status).toBe(401);
