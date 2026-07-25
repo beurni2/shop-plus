@@ -157,10 +157,19 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
 };
 
 // SEAM-ERROR-VISIBILITY-1 — the storefront base the app RESOLVED at bundle time,
-// surfaced once in the footer so a wrong/empty inline is visible (« (demo) » ⇒ the
-// app is on the demo adapter, i.e. the env var never inlined). `||` catches the
+// surfaced once in the footer so a wrong/empty inline is VISIBLE. `||` catches the
 // empty string too. Never the key — only the base.
-const SEAM_BASE = process.env.EXPO_PUBLIC_STOREFRONT_BASE || '(demo)';
+//
+// RESELLER-SEAM-HONESTY-1 follow-up: this used to read « (demo) » when unset, which is
+// now FALSE — there is no demo adapter any more, only a connected or unconnected app.
+// The vocabulary mirrors the ruled « relié / non relié ».
+//
+// THE HOST IS NAMED DELIBERATELY (founder-approved): this line exists BECAUSE a wrong
+// or empty inline was invisible, and « Relié » alone cannot tell the production Worker
+// apart from a staging URL or a typo that happens to resolve — the exact failure it was
+// added to catch. It is useful to the founder and meaningless to a reseller, so the
+// whole line is deleted at onboarding rather than softened now.
+const SEAM_HOST = process.env.EXPO_PUBLIC_STOREFRONT_BASE || '';
 
 export default function App() {
   // COLD-START LAW: load the Faso Premium faces asynchronously and DO NOT gate
@@ -234,8 +243,9 @@ export default function App() {
 
   // RESELLER-STOREFRONT-WRITE-1 — the app's FIRST real outbound calls. The seam
   // resolves to the live service iff EXPO_PUBLIC_STOREFRONT_{BASE,WRITE_KEY} are
-  // inlined; otherwise the in-memory demo (zero network). One stable identity per
-  // session, so a re-tap is idempotent (same commandId/id), never a second shop.
+  // inlined; otherwise **null** (RESELLER-SEAM-HONESTY-1), never a demo adapter that
+  // cannot fail. A re-tap is idempotent (same commandId/id), never a second shop —
+  // and the identity behind it is now device-stored rather than per-session.
   const service = useMemo(() => resolveStorefrontService(), []);
   // RESELLER-IDENTITY-1 — the identity is now DEVICE-STORED and minted ONCE from the
   // OS CSPRNG, replacing a `Math.random` mint that was stable only per SESSION. That
@@ -1045,7 +1055,9 @@ export default function App() {
               provenance so a device pass can name the exact bundle it ran. */}
           <Text style={styles.footerBuild}>{tf('demo.build', { id: buildStamp.slice(0, 8) })}</Text>
           {/* SEAM-ERROR-VISIBILITY-1 — the resolved storefront base (never the key). */}
-          <Text style={styles.footerBuild}>{tf('demo.seam_base', { base: SEAM_BASE })}</Text>
+          <Text style={styles.footerBuild}>
+            {SEAM_HOST === '' ? t('seam.non_relie') : tf('seam.relie', { host: SEAM_HOST })}
+          </Text>
         </View>
         <Pressable style={styles.resetAction} onPress={reset}>
           <Text style={styles.resetActionText}>{t('nav.recommencer')}</Text>

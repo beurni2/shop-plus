@@ -18,8 +18,15 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       # RESELLER-STOREFRONT-WRITE-1 — EXPO_PUBLIC_* are compiled INTO the bundle by
       # babel at `eas update` time. Set BOTH as repo secrets to arm the app's real
-      # calls to the live storefront service; leave EITHER unset and the app resolves
-      # to its in-memory DEMO adapter (zero network). The write key therefore ships
+      # calls to the live storefront service.
+      #
+      # RESELLER-SEAM-HONESTY-1 — leave EITHER unset and `resolveStorefrontService()`
+      # returns **null**, NOT a demo adapter: the app shows « Pas encore relié au
+      # service » and writes nothing. It used to fall back to an in-memory adapter whose
+      # create/publish could not fail, so an unset or mistyped secret produced a SUCCESS
+      # TOAST with nothing written anywhere. That adapter is now absent from the
+      # published bundle, proven by scripts/gates/no-demo-adapter-in-bundle.mjs against
+      # the real exported artifact. The write key therefore ships
       # inside the published EAS-update bundle — inside the shared-secret limitation
       # the founder accepted (easier to read than a decompiled binary); no reseller
       # but the founder onboards until real per-reseller identity lands (JOURNAL).
