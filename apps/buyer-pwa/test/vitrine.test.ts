@@ -237,3 +237,42 @@ describe('BUYER-LIVE-WIRE-3 — a REAL product renders; the demo seed is not the
     expect(html.indexOf('Charlie')).toBeLessThan(html.indexOf('Alpha')); // épuisé last
   });
 });
+
+/* ------------------------------------------------- BUYER-LIVE-WIRE-4 -- */
+
+describe('BUYER-LIVE-WIRE-4 — tapping a REAL tile opens the buyer flow, not the not-found', () => {
+  const main = readFileSync(join(__dirname, '..', 'src/main.ts'), 'utf8');
+
+  it('THE PRODUCT PAGE PREFERS THE DESCRIBED PRODUCT — the seed-only lookup is gone', () => {
+    // The defect: `const product = seed ? productFromSeed(seed) : undefined` meant a
+    // real productVersionId resolved to nothing and a tapped tile landed on the
+    // honest not-found instead of C1. Described wins; seed is the offline fallback.
+    expect(main).toMatch(/const described = resolved\.products\?\.find\(\(p\) => p\.pid === pid\);/);
+    expect(main).toMatch(/const product = described \?\? \(seed \? productFromSeed\(seed\) : undefined\);/);
+    // the exact shape that shipped the bug must not come back
+    expect(main).not.toMatch(/const product = seed \? productFromSeed\(seed\) : undefined;/);
+  });
+
+  it('AN UNRESOLVABLE PID STILL FALLS TO THE HONEST NOT-FOUND — no silent product swap', () => {
+    // PWA-CLEANUP-1 §1 stays intact: a wrong link says so rather than selling a
+    // neighbouring product. The guard is unchanged, only its input got wider.
+    expect(main).toMatch(/if \(!product\) \{/);
+    expect(main).toMatch(/mountVitrine\(app as HTMLElement, signedSlug, \{ etat: 'invalid' \}\)/);
+  });
+
+  it('BOTH BUYER SURFACES RESOLVE A PID THE SAME WAY — they cannot disagree about what it means', () => {
+    const render = readFileSync(join(__dirname, '..', 'src/vitrine/render.ts'), 'utf8');
+    // the grid: described wins, seed only when none were supplied
+    expect(render).toMatch(/described !== undefined/);
+    // the product page: the same precedence, expressed on one line
+    expect(main).toMatch(/described \?\? \(seed/);
+  });
+
+  it('THE TILE CARRIES THE PID THE PRODUCT PAGE READS — the tap round-trips', () => {
+    const render = readFileSync(join(__dirname, '..', 'src/vitrine/render.ts'), 'utf8');
+    expect(render).toMatch(/data-action="produit" data-pid="\$\{p\.pid\}"/);
+    const flows = readFileSync(join(__dirname, '..', 'src/vitrine/flows.ts'), 'utf8');
+    expect(flows).toMatch(/signedHref\(window\.location\.pathname, slug, pid\)/);
+    expect(main).toMatch(/const pid = params\.get\('pid'\) \|\| defaultPid;/);
+  });
+});

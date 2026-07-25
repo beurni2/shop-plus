@@ -634,8 +634,23 @@ if (app) {
       // seam — arrival locked to her above.
       const defaultPid = resolved.storefront.curatedItems[0] ?? 'p1';
       const pid = params.get('pid') || defaultPid;
+      // BUYER-LIVE-WIRE-4 — THE PRODUCT PAGE READS WHAT THE SERVICE DESCRIBED,
+      // exactly as the vitrine grid now does (BUYER-LIVE-WIRE-3).
+      //
+      // THE DEFECT THIS CLOSES: this line resolved the pid through `seedProduct`
+      // ALONE — the demo seed. A real `productVersionId` is not a seed pid, so
+      // `product` was undefined and tapping a REAL tile landed on the honest
+      // not-found instead of the buyer flow. Same root cause as the empty grid,
+      // one route over: the vitrine and the product page each resolved products
+      // from the demo catalogue while the service was describing them for free.
+      //
+      // DESCRIBED WINS, SEED IS THE OFFLINE FALLBACK — the same precedence
+      // `orderedProducts` uses, so the two surfaces cannot disagree about what a
+      // pid means. An explicit pid that resolves to NEITHER still falls to the
+      // honest not-found: a wrong link says so rather than selling something else.
+      const described = resolved.products?.find((p) => p.pid === pid);
       const seed = seedProduct(pid);
-      const product = seed ? productFromSeed(seed) : undefined;
+      const product = described ?? (seed ? productFromSeed(seed) : undefined);
       const main = document.createElement('main');
       if (!product) {
         // Unresolvable pid — honest not-found, the SAME `/v/` invalid surface
