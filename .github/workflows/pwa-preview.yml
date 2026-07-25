@@ -44,7 +44,33 @@ jobs:
           git config --global --add url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "git@github.com:beurni2/platform-contracts"
           git config --global --add url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "ssh://git@github.com/beurni2/platform-contracts"
       - run: pnpm install --frozen-lockfile
+      # BUYER-LIVE-WIRE-1 (founder order, step 4 of five) — the buyer PWA stops
+      # running on the demo storefront port and reads the LIVE service.
+      #
+      # WHY IT IS HERE AND NOT IN vite.config.ts: this gate script IS the deploy
+      # build (`execSync('pnpm --filter … build')` inside pwa-payload-budget.mjs),
+      # so the value must be in this step's env or it never reaches vite. Setting it
+      # here also keeps CI honest: `pnpm gates` runs the same script with the
+      # variable UNSET, so the CI build keeps resolving the in-process demo port and
+      # no test run can accidentally depend on a live Worker.
+      #
+      # READABLE AND VERSIONED, NEVER A SECRET — the same discipline as
+      # PRODUCT_MEDIA_BASE. It is a public origin with nothing to protect, and the
+      # SUPPLY_BASE lesson was that a value nobody can read back costs round-trips
+      # when it is wrong. It is written here where a reviewer can see it.
+      #
+      # UNLIKE a Worker [vars] binding, this one IS a build-time substitution: vite
+      # inlines `import.meta.env.VITE_*` into the emitted JS, so the deployed bundle
+      # genuinely carries the literal and IS greppable — the same mechanism as the
+      # esbuild --define stamps, and the reason the artifact check works here.
+      #
+      # CORS PRECONDITION, verified: the service allows exactly
+      # `https://beurni2.github.io` (storefront-service/src/index.ts CORS_READ_ORIGIN),
+      # which is this deploy's origin. A LOCAL PWA build pointed at the live Worker
+      # still fails CORS by design — a known, accepted limitation, not a bug.
       - name: Payload budget gate on THE deploy build (< 300 KB compressed, PERF-BUDGETS)
+        env:
+          VITE_STOREFRONT_BASE: https://storefront-service.ilboudobernard2.workers.dev
         run: node scripts/gates/pwa-payload-budget.mjs
       # BUG 2 — the deploy ships dist AS-IS. The old redirect-wrapper (a fresh
       # index.html that meta-refreshed to app.html) CLOBBERED the SPA restore:
