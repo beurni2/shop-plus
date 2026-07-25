@@ -2536,5 +2536,29 @@
   "fr": "Produits : non relié",
   "register": "neutral",
   "screenClass": "label"
+  },
+ {
+  "key": "fiche.cta_non_relie",
+  "fr": "Votre boutique n\u2019est pas encore reli\u00e9e.",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.cta_choisir_marge",
+  "fr": "Choisissez votre marge pour continuer.",
+  "register": "selling",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "fiche.publier.ajoute",
+  "fr": "C\u2019est ajout\u00e9 \u00e0 votre vitrine.",
+  "register": "selling",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "fiche.publier.reessayer",
+  "fr": "Le produit n\u2019a pas r\u00e9pondu. R\u00e9essayez dans un moment.",
+  "register": "neutral",
+  "screenClass": "instruction"
  }
 ]

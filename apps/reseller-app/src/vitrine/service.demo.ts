@@ -22,6 +22,7 @@
 import type {
   CreateStorefrontCommand,
   ServiceResult,
+  PublishListingRequest,
   StorefrontRow,
   StorefrontServicePort,
   UploadOutcome,
@@ -72,5 +73,29 @@ export class DemoStorefrontService implements StorefrontServicePort {
       ok: true,
       value: [...this.stores.entries()].map(([id, s]) => ({ id, slug: s.slug, name: s.name, discoverable: s.discoverable })),
     };
+  }
+
+  /**
+   * PUBLISH-PRICE-1 — the demo publish. **IT CAN FAIL, deliberately.**
+   *
+   * The certified-mock rule (Execution Contract §3): a mock that hides real failure
+   * behaviour is a bug the author owns. The real service REFUSES when it cannot read
+   * the live base, so this one refuses too — for any product version in
+   * `refuseSupplyFor` — and a test that never exercises the refusal is testing a
+   * happier system than the one that ships. `markup` is recorded and NO price is
+   * computed here, because the app has no business computing one.
+   */
+  readonly published: { storefrontId: string; productVersionId: string; markup: number }[] = [];
+  readonly refuseSupplyFor = new Set<string>();
+
+  async publishListing(req: PublishListingRequest): Promise<ServiceResult<{ status: string }>> {
+    if (this.refuseSupplyFor.has(req.productVersionId)) return { ok: false, reason: 'supply_unavailable' };
+    if (!Number.isSafeInteger(req.markup) || req.markup < 0) return { ok: false, reason: 'markup_invalid' };
+    const already = this.published.some(
+      (p) => p.storefrontId === req.storefrontId && p.productVersionId === req.productVersionId && p.markup === req.markup,
+    );
+    if (already) return { ok: true, value: { status: 'idempotent' } };
+    this.published.push({ storefrontId: req.storefrontId, productVersionId: req.productVersionId, markup: req.markup });
+    return { ok: true, value: { status: 'published' } };
   }
 }

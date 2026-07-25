@@ -2,6 +2,8 @@ import sfRouter, { StorefrontDO } from './storefront-do.js';
 import lstRouter, { ListingDO } from './listing-do.js';
 import { handleRequest, type StorefrontServiceEnv } from '../src/index.js';
 import { SUPPLY_COLLECTION_ROUTE } from '../src/supply-collection.js';
+import { signPrice } from '../src/publish-price.js';
+import { resolveSupplySource } from '../src/supply-source.js';
 import type { R2BucketLike } from '../src/media/media-store.js';
 import { rejectUnauthorizedWrite, keyAuthorized, unauthorized, type WriteAuthEnv } from './auth.js';
 
@@ -35,6 +37,9 @@ interface Env extends WriteAuthEnv {
   OFFER?: { fetch(request: Request): Promise<Response> };
   /** Service-to-service credential for the supply read (wrangler secret, never a var). */
   SUPPLY_READ_SECRET?: string;
+  /** PRODUCT-MEDIA-BASE-1 — public origin for boutik's PRODUCT media. A `[vars]`
+   * value, deliberately not a secret, and NOT `MEDIA_PUBLIC_BASE` (different bucket). */
+  PRODUCT_MEDIA_BASE?: string;
 }
 
 export default {
@@ -86,11 +91,41 @@ export default {
     // coordination lives where both bindings do. ORDER OF INTENT: curatedItems is
     // the MEMBERSHIP statement, the pid pointer (written by the listing router) is
     // the LOOKUP that resolves it.
+    // ═══ PUBLISH-PRICE-1 — THE SERVICE SIGNS HER PRICE, THE APP NEVER DOES ═══
+    //
+    // The app sends the MARKUP SHE CHOSE and nothing else about money. Here, at the
+    // boundary where an untrusted caller exists, the live base is read through the
+    // OFFER binding and `customerPriceFcfa = basePrice + markup` is computed. Any
+    // `customerPriceFcfa` or `offerVersion` that ARRIVED on the request is DISCARDED
+    // — the derived values overwrite them, so the app cannot author a signed amount
+    // even by sending one, and a stale `offerVersion` cannot ride in either.
+    //
+    // SUPPLY UNREACHABLE ⇒ REFUSE (founder ruling). 409, never a fallback: signing
+    // against a cached or app-supplied base is how a buyer gets charged a price
+    // nobody authorised. A refusal she can retry is the correct failure.
     if (request.method === 'POST' && pathname === '/listings') {
       const cmd = (await request.clone().json().catch(() => null)) as
-        | { storefrontId?: string; productVersionId?: string; at?: string }
+        | { storefrontId?: string; productVersionId?: string; markup?: unknown; at?: string }
         | null;
-      const res = await lstRouter.fetch(request, env);
+      if (cmd === null || typeof cmd.productVersionId !== 'string' || cmd.productVersionId === '') {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      const signed = signPrice(await resolveSupplySource(env).economics(cmd.productVersionId), cmd.markup);
+      if (signed.status !== 'signed') {
+        // The reason is NAMED, not collapsed: `supply_unavailable` and
+        // `markup_invalid` need different responses from whoever is looking.
+        return Response.json({ error: signed.status }, { status: signed.status === 'markup_invalid' ? 400 : 409 });
+      }
+      const priced = new Request(request.url, {
+        method: 'POST',
+        headers: request.headers,
+        body: JSON.stringify({
+          ...cmd,
+          customerPriceFcfa: signed.customerPriceFcfa, // DERIVED HERE — any inbound value is discarded
+          offerVersion: signed.offerVersion, // from the SAME live projection
+        }),
+      });
+      const res = await lstRouter.fetch(priced, env);
       const decision = (await res.clone().json().catch(() => null)) as { status?: string } | null;
       if (decision?.status === 'published' && cmd?.storefrontId && cmd?.productVersionId) {
         await sfRouter.fetch(
@@ -114,6 +149,7 @@ export default {
       ...(env.STOREFRONT_GCS_TOKEN !== undefined ? { STOREFRONT_GCS_TOKEN: env.STOREFRONT_GCS_TOKEN } : {}),
       ...(env.STOREFRONT_GCS_PUBLIC_BASE !== undefined ? { STOREFRONT_GCS_PUBLIC_BASE: env.STOREFRONT_GCS_PUBLIC_BASE } : {}),
       ...(env.OFFER !== undefined ? { OFFER: env.OFFER } : {}),
+      ...(env.PRODUCT_MEDIA_BASE !== undefined ? { PRODUCT_MEDIA_BASE: env.PRODUCT_MEDIA_BASE } : {}),
       ...(env.SUPPLY_READ_SECRET !== undefined ? { SUPPLY_READ_SECRET: env.SUPPLY_READ_SECRET } : {}),
       STOREFRONT_DO: { fetch: (req: Request): Promise<Response> => sfRouter.fetch(req, env) },
       // The JOIN reaches the listing DO through the SAME shim pattern. Internal:

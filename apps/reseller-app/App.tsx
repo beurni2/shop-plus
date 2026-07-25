@@ -217,6 +217,12 @@ export default function App() {
   const [ficheId, setFicheId] = useState<string | null>(null);
   const [shareId, setShareId] = useState<string | null>(null);
   const [markups, setMarkups] = useState<Record<string, number>>({});
+  // PUBLISH-PRICE-1 — HAS SHE ACTUALLY CHOSEN? Distinct from `markups[pid]` being
+  // present, because the slider's displayed value starts at the capped default: a
+  // reseller who never touched it and one who deliberately landed on 1 500 look
+  // identical in `markups` alone. Publish requires a DECISION, so it requires this.
+  const [markupTouched, setMarkupTouched] = useState<Record<string, boolean>>({});
+  const [publishing, setPublishing] = useState(false);
   const [shareFmt, setShareFmt] = useState<'card' | 'story' | 'affiche'>('card');
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
@@ -363,8 +369,19 @@ export default function App() {
   // tapped / to-share products. `viewOf` is the reseller-margin view at her markup
   // (markups[pid]) or the capped default — the ONE money computation the reseller
   // surfaces share (opp row · fiche · vitrine tile · partager), all reconciling.
+  // PUBLISH-PRICE-1 — ONE KEYSPACE, `productVersionId`, EVERYWHERE.
+  //
+  // THE DEFECT THIS CLOSES (founder finding): `markups` was written by the Ma Vitrine
+  // slider keyed on DEMO SEED IDS (`o.id`) and read by the fiche keyed on
+  // `productVersionId`. The two keyspaces never intersected, so on a LIVE offer the
+  // only reachable markup was `defaultMarkup(cap)` — and enabling publish then would
+  // have signed `B + 1500`, a price she never chose, attributed to her.
+  //
+  // The grid therefore reads the LIVE offer feed filtered by membership, not the demo
+  // world: the product she publishes, the card she adjusts and the price that gets
+  // signed are now the same object under the same key.
   const vitrineLive = vitrineCol.listings();
-  const vitrineOpps = world.opportunities.filter((o) => vitrineLive.includes(o.id));
+  const vitrineOffers = offers.filter((o) => vitrineLive.includes(o.productVersionId));
   const ficheOpp = world.opportunities.find((o) => o.id === ficheId);
   const shareOpp = world.opportunities.find((o) => o.id === shareId);
   const viewOf = (opp: DemoOpportunity) => marginOf(opp.id, opp.input.sellerBasePrice, opp.input.sellerFundedCommission);
@@ -382,6 +399,54 @@ export default function App() {
     return marginBreakdown(basePrice, commission, markups[id] ?? defaultMarkup(cap));
   }
   const viewOfOffer = (o: Offer) => marginOf(o.productVersionId, o.basePrice, o.resellerCommission);
+  /**
+   * PUBLISH-PRICE-1 — « Ajouter à ma vitrine », for real.
+   *
+   * THE APP SENDS THE MARKUP AND NOTHING ELSE ABOUT MONEY. It does not send, and
+   * cannot send, `customerPriceFcfa`: the request shape has no such field. The
+   * service reads the live base through its own binding and signs `B + M` itself.
+   *
+   * SUCCESS IS ONLY CLAIMED ON A CONFIRMED WRITE. Membership is recorded AFTER the
+   * service says `published` — recording it first would put the product on Ma Vitrine
+   * whether or not anything was written, which is the fabricated-success shape this
+   * project refuses everywhere else.
+   */
+  const publishListing = useCallback(
+    async (o: Offer) => {
+      if (service === null) return setToast(t('k.publier.non_relie'));
+      if (identity === undefined) return setToast(t('k.publier.identite_attente'));
+      if (identity === null) return setToast(t('k.publier.identite_absente'));
+      const markup = markups[o.productVersionId];
+      // Defensive: the CTA is gated on the same condition, so this is unreachable
+      // through the UI. It exists because « unreachable today » is how a defaulted
+      // price gets signed tomorrow.
+      if (markup === undefined || markupTouched[o.productVersionId] !== true) {
+        return setToast(t('fiche.cta_choisir_marge'));
+      }
+      setPublishing(true);
+      setToast(t('k.publier.envoi'));
+      const res = await service.publishListing({
+        storefrontId: identity.storefrontId,
+        resellerId: identity.resellerId,
+        productVersionId: o.productVersionId,
+        markup,
+        correlationId: identity.correlationId,
+        at: new Date().toISOString(),
+      });
+      setPublishing(false);
+      if (!res.ok) {
+        // The service's NAMED refusal decides what she is told. « Supply unavailable »
+        // is a retry, not a defect, and saying so is the difference between a calm
+        // money moment and an anxious one.
+        return setToast(res.reason === 'supply_unavailable' ? t('fiche.publier.reessayer') : tf('k.publier.erreur', { raison: res.reason }));
+      }
+      // CONFIRMED. Membership is recorded now, keyed by productVersionId — the one
+      // keyspace the fiche, the grid and the signed price all share.
+      vitrineCol.addToVitrine(o.productVersionId);
+      setToast(t('fiche.publier.ajoute'));
+    },
+    [service, identity, markups, markupTouched, vitrineCol],
+  );
   const ficheOffer = offers.find((o) => o.productVersionId === ficheId);
   // Her REAL share link — the canon buyer origin + base. Partager is opened FROM a
   // product (setShareId → 'lien'), so it sends the signed PRODUCT link
@@ -662,16 +727,43 @@ export default function App() {
                   <StatusChip tone="muted" label={t('fiche.chip_inspection')} />
                   <StatusChip tone="muted" label={t('fiche.chip_refus')} />
                 </View>
+                {/* PUBLISH-PRICE-1 — THE MARKUP IS SET HERE, ON THE SCREEN WHERE SHE
+                    PUBLISHES. Same component, same arithmetic as Ma Vitrine (byte
+                    identical: marginBreakdown, cap, step 100, net-first). It lives
+                    here because a markup she sets somewhere else is a markup that is
+                    not hers at the moment that matters — and because the default was
+                    previously the ONLY reachable value on a live offer. */}
+                <View style={styles.margeHeadRow}>
+                  <Overline>{t('fiche.marge_titre')}</Overline>
+                  <Text style={styles.margeAmount}>{formatFcfa(viewOfOffer(opp).markup)}</Text>
+                </View>
+                <MarginSlider
+                  value={viewOfOffer(opp).markup}
+                  cap={viewOfOffer(opp).cap}
+                  onChange={(m) => {
+                    setMarkups((prev) => ({ ...prev, [opp.productVersionId]: m }));
+                    setMarkupTouched((prev) => ({ ...prev, [opp.productVersionId]: true }));
+                  }}
+                />
+                <Text style={styles.noteLine}>{tf('fiche.plafond', { amount: formatFcfa(viewOfOffer(opp).cap) })}</Text>
                 <PrimaryButton
                   label={t('fiche.cta')}
-                  // DISABLED until the listing half lands: publishing a live offer is
-                  // a real write (PublishListingCommand needs productVersionId,
-                  // offerVersion, her markup and customerPriceFcfa) and it is the next
-                  // slice. Enabled here it would add a pid the vitrine grid cannot
-                  // show — a button that appears to work and does not.
-                  disabled
-                  onPress={() => undefined}
+                  // TWO GATES, BOTH HONEST. (1) No seam ⇒ no write is possible, so the
+                  // button must not pretend. (2) UNTIL SHE HAS MOVED THE SLIDER the
+                  // markup is still `defaultMarkup(cap)` — publishing then would sign a
+                  // price she never chose and attribute it to her. The founder's rule:
+                  // a defaulted-then-signed price is not a decision she made.
+                  disabled={service === null || markupTouched[opp.productVersionId] !== true || publishing}
+                  onPress={() => void publishListing(opp)}
                 />
+                {/* The reason the button is asleep, stated plainly — never a dead
+                    control the user has to guess about. Only ONE reason shows: the
+                    seam is the harder blocker, so it wins. */}
+                {service === null ? (
+                  <Text style={styles.noteLine}>{t('fiche.cta_non_relie')}</Text>
+                ) : markupTouched[opp.productVersionId] !== true ? (
+                  <Text style={styles.noteLine}>{t('fiche.cta_choisir_marge')}</Text>
+                ) : null}
               </ScrollView>
             );
           })(ficheOffer)}
@@ -683,7 +775,7 @@ export default function App() {
             client price (deep) and her net (small) — never a vendor. Empty is a
             designed state: the vitrine waits, with a way back to the opportunities. */}
         {screen === 'vitrine' && (
-          vitrineOpps.length === 0 ? (
+          vitrineOffers.length === 0 ? (
             <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
               <View style={styles.vitrineHead}>
                 <Text style={styles.screenTitle}>{t('vitrine.title')}</Text>
@@ -702,8 +794,8 @@ export default function App() {
           ) : (
             <FlatList
               style={styles.screenScroll}
-              data={vitrineOpps}
-              keyExtractor={(o) => o.id}
+              data={vitrineOffers}
+              keyExtractor={(o) => o.productVersionId}
               initialNumToRender={6}
               windowSize={5}
               showsVerticalScrollIndicator={false}
@@ -757,15 +849,19 @@ export default function App() {
                 // marge SLIDER (0→cap, pas 100 → live net/client via marginBreakdown,
                 // reseller-margin only) · a per-product « Partager ». Net-first: the
                 // reseller sees her net beside the client price; gross is never shown.
-                const v = viewOf(item);
-                const markup = markups[item.id] ?? defaultMarkup(v.cap);
+                // PUBLISH-PRICE-1 — the card now reads the LIVE offer under the SAME
+                // key the fiche and the signed price use. `item.id`/`item.name` were
+                // demo-world fields, and keying the slider on `item.id` is exactly why
+                // the control never reached a live offer.
+                const v = viewOfOffer(item);
+                const markup = v.markup;
                 return (
                   <Card style={styles.vitrineCard}>
                     <View style={styles.vitrineCardArt}>
                       <View style={styles.artTileStripe} />
-                      <Text style={styles.vitrineCardGlyph}>{item.name.slice(0, 1)}</Text>
+                      <Text style={styles.vitrineCardGlyph}>{item.productName.slice(0, 1)}</Text>
                     </View>
-                    <Text style={styles.tileName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.tileName} numberOfLines={1}>{item.productName}</Text>
                     {/* NET-FIRST hero — her gain is the biggest, deepest figure on
                         HER vitrine (SP-I04/I12); the cliente price is the secondary
                         context line beneath it. */}
@@ -779,23 +875,26 @@ export default function App() {
                     <MarginSlider
                       value={markup}
                       cap={v.cap}
-                      onChange={(m) => setMarkups((prev) => ({ ...prev, [item.id]: m }))}
+                      onChange={(m) => {
+                        setMarkups((prev) => ({ ...prev, [item.productVersionId]: m }));
+                        setMarkupTouched((prev) => ({ ...prev, [item.productVersionId]: true }));
+                      }}
                     />
                     <Text style={styles.noteLine}>{tf('fiche.plafond', { amount: formatFcfa(v.cap) })}</Text>
                     {/* Note vocale — the mic lives WITH the product (founder Option A);
                         tapping opens the record sheet for THIS article. */}
                     <Pressable
                       style={({ pressed }) => [styles.vitrineVoiceBtn, pressed && styles.pressed]}
-                      onPress={() => setVoiceSheet({ pid: item.id, name: item.name })}
+                      onPress={() => setVoiceSheet({ pid: item.productVersionId, name: item.productName })}
                       accessibilityRole="button"
                       accessibilityLabel={t('k.voix.note_produit')}
                     >
                       <IconVoix size={dimension.iconSizePx.badge} color={shopColour.primary} />
-                      <Text style={styles.vitrineVoiceLabel}>{voiceCardLabel(voice.notes[item.id])}</Text>
+                      <Text style={styles.vitrineVoiceLabel}>{voiceCardLabel(voice.notes[item.productVersionId])}</Text>
                     </Pressable>
                     <SecondaryButton
                       label={t('vitrine.partager')}
-                      onPress={() => { setShareCampBadge(false); setShareId(item.id); go('lien'); }}
+                      onPress={() => { setShareCampBadge(false); setShareId(item.productVersionId); go('lien'); }}
                     />
                   </Card>
                 );
@@ -1065,8 +1164,8 @@ export default function App() {
         {screen === 'pubvitrine' && (
           <FlatList
             style={styles.screenScroll}
-            data={vitrineOpps}
-            keyExtractor={(o) => o.id}
+            data={vitrineOffers}
+            keyExtractor={(o) => o.productVersionId}
             numColumns={2}
             columnWrapperStyle={styles.gridRow}
             initialNumToRender={6}
@@ -1092,9 +1191,9 @@ export default function App() {
             }
             renderItem={({ item }) => (
               // the cliente's tile — client price ONLY (at her markup), neutral crown
-              <DuotoneTile glyph={item.name.slice(0, 1)} crownTone="neutral" style={styles.gridTile}>
-                <Text style={styles.tileName} numberOfLines={2}>{item.name}</Text>
-                <Text style={styles.tilePrice}>{formatFcfa(viewOf(item).client)}</Text>
+              <DuotoneTile glyph={item.productName.slice(0, 1)} crownTone="neutral" style={styles.gridTile}>
+                <Text style={styles.tileName} numberOfLines={2}>{item.productName}</Text>
+                <Text style={styles.tilePrice}>{formatFcfa(viewOfOffer(item).client)}</Text>
               </DuotoneTile>
             )}
             ListEmptyComponent={

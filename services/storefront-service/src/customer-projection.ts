@@ -92,6 +92,48 @@ export interface ListingSide {
 export interface SupplySide {
   readonly productName: string;
   readonly assetRefs: readonly string[];
+  /** The supplier's live stock count. Stock, never economics — see `inStock` below. */
+  readonly available: number;
+}
+
+/**
+ * PRODUCT-MEDIA-BASE-1 — RELATIVE REFS BECOME ABSOLUTE URLS **SERVER-SIDE**.
+ *
+ * ═══ WHY THE SERVER AND NOT THE CLIENT (founder ruling, and the stronger reason) ═══
+ *
+ * A canon `assetRef` is a RELATIVE path — boutik's media-service writes
+ * `media/{kind}/{captureRef}`. The buyer PWA renders it straight into `src` with no
+ * base joined, so a relative ref would resolve against the PWA'S OWN ORIGIN and
+ * 404 — rendering a BROKEN IMAGE inside an otherwise-correct tile, which is worse
+ * than no image because the designed « SANS PHOTO » state only fires on an EMPTY
+ * array. The founder's ruling: the fix goes server-side, *"and for a stronger
+ * reason than the freeze: the PWA is a static site on GitHub Pages, so a
+ * client-side media base is another build-time variable that fails invisibly —
+ * exactly the class that cost the founder an evening. The server knows where media
+ * lives; the static client should not have to be told."*
+ *
+ * ═══ A NEW, DISTINCTLY NAMED VAR — TWO BUCKETS, TWO BASES ═══
+ *
+ * `MEDIA_PUBLIC_BASE` already exists and means THIS service's own origin for
+ * `beurni-storefront-media` — her cover and avatar. PRODUCT photographs live in
+ * `beurni-boutik-product-media`, behind boutik's media-service. **Conflating the two
+ * 404s every ref**, so the product base is its own variable, in `[vars]`: readable
+ * and versioned in the repo, never a secret. That is the SUPPLY_BASE lesson applied
+ * correctly — the value that burned three founder round-trips was write-only, and
+ * this one is a public origin with nothing to protect.
+ *
+ * ═══ AN EMPTY BASE IS THE HONEST « SANS PHOTO », NEVER A BARE REF ═══
+ *
+ * Unset or empty ⇒ `[]` ⇒ the woven, labelled no-image state the buyer surface
+ * already draws. It must NEVER fall through to the raw relative ref: that is
+ * precisely the broken-image failure this function exists to prevent, and a
+ * misconfiguration must fail toward the designed state rather than toward a
+ * half-rendered tile. Asserted by value in `customer-projection.test.ts`.
+ */
+export function absoluteAssetRefs(base: string | undefined, refs: readonly string[]): string[] {
+  if (base === undefined || base === '') return []; // honest SANS PHOTO — never a bare relative ref
+  const root = base.replace(/\/+$/, '');
+  return refs.filter((r) => r !== '').map((r) => `${root}/${r.replace(/^\/+/, '')}`);
 }
 
 /**
@@ -111,7 +153,12 @@ export function joinVitrineProduct(listing: ListingSide, supply: SupplySide | un
     pid: listing.productVersionId, // NEVER the listing id
     name: supply.productName,
     priceFcfa: listing.customerPriceFcfa, // from the LISTING, never recomputed from supply
-    inStock: true,
+    // PUBLISH-PRICE-1 — DERIVED FROM LIVE STOCK, previously hardcoded `true`.
+    // `buildSupplyProjection` has no `available > 0` guard, so a zero-stock offer is
+    // still a valid projection; combined with a hardcoded `true` that made an
+    // out-of-stock product render as an in-stock buyer tile — a lie on the buyer
+    // wire, and the épuisé veil the renderer already draws was unreachable.
+    inStock: supply.available > 0,
     assetRefs: [...supply.assetRefs],
   };
 }

@@ -45,10 +45,11 @@ describe('WO-FP-SHOP states-law — every existing rendered state survives the r
     // WO-VITRINE-FLOW (founder redirect): the ≤3 multi-select is dropped; the
     // designed interactive state is now the per-product markup slider on Ma Vitrine.
     expect(app).toMatch(/<MarginSlider/);
-    expect(app).toMatch(/onChange=\{\(m\) => setMarkups/);
+    expect(app).toMatch(/setMarkups\(\(prev\) =>/);
     // the empty vitrine surface is honest too — an EmptyState when the seam's
-    // live listings are empty (vitrineOpps.length === 0), never a blank screen.
-    expect(app).toMatch(/vitrineOpps\.length === 0 \? \(/);
+    // live listings are empty, never a blank screen. PUBLISH-PRICE-1: the grid now
+    // reads the LIVE offer feed filtered by membership, so the name changed with it.
+    expect(app).toMatch(/vitrineOffers\.length === 0 \? \(/);
   });
 
   it('TIMELINE — done · now · later custody phases all render (S7 detail)', () => {

@@ -56,13 +56,78 @@ function tinyPng(): Uint8Array {
   return b;
 }
 
+/**
+ * The producer's catalogue behind the OFFER binding. Canon v2.0.0 projection values
+ * (exactly seven fields). Three products, each earning its place:
+ *   · `pv-bazin-0001`  — the browse fixture, in stock, no photographs.
+ *   · `pv-auth-1`      — carries RELATIVE assetRefs, so the media-base join is
+ *                        observable end to end rather than asserted on a stub.
+ *   · `pv-epuise-1`    — `available: 0`, which the producer still emits as a VALID
+ *                        projection (there is no `available > 0` guard in
+ *                        `buildSupplyProjection`). This is the product that proves
+ *                        `inStock` is derived and not hardcoded true.
+ */
+const SUPPLY = [
+  {
+    productVersionId: 'pv-bazin-0001',
+    offerVersion: 'ov-1',
+    basePrice: 10_000,
+    resellerCommission: 750,
+    available: 10,
+    productName: 'Bazin',
+    assetRefs: [] as string[],
+  },
+  {
+    productVersionId: 'pv-auth-1',
+    offerVersion: 'ov-auth-live',
+    basePrice: 1_500,
+    resellerCommission: 200,
+    available: 4,
+    productName: 'Pagne wax',
+    assetRefs: ['media/hero-square/cap-1', 'media/hero-vertical/cap-1'],
+  },
+  {
+    productVersionId: 'pv-epuise-1',
+    offerVersion: 'ov-epuise',
+    basePrice: 3_000,
+    resellerCommission: 300,
+    available: 0, // the producer emits this happily — the buyer surface must not lie about it
+    productName: 'Sac cuir',
+    assetRefs: [] as string[],
+  },
+  {
+    productVersionId: 'pv-a2-1',
+    offerVersion: 'ov-a2-live',
+    basePrice: 8_000,
+    resellerCommission: 600,
+    available: 7,
+    productName: 'Bogolan',
+    assetRefs: ['media/hero-square/cap-a2', 'media/proof/cap-a2'],
+  },
+];
+
+/**
+ * Product versions the producer has STOPPED serving — an offer that LAPSED after it
+ * was published. Mutable on purpose: it is the only way to reach the state the buyer
+ * join must handle honestly (membership stated, product undescribable), now that
+ * publish itself refuses when supply cannot be read. Before PUBLISH-PRICE-1 this
+ * state was reached by publishing a pid the producer never knew — which publish now
+ * correctly rejects, so the scenario had to become the REALISTIC one it always
+ * modelled: the offer was live when she published and is gone now.
+ */
+const LAPSED = new Set<string>();
+
+/** PRODUCT-MEDIA-BASE-1 — boutik's media origin as the deployed [vars] value would
+ *  carry it. Trailing slash on purpose: the join must normalise, not double it. */
+const PRODUCT_MEDIA_BASE = 'https://media-service.example.workers.dev/media/';
+
 const mf = new Miniflare({
   modules: true,
   scriptPath: SCRIPT,
   durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO' },
   r2Buckets: ['BUCKET'],
   durableObjectsPersist: persist,
-  bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
+  bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET, PRODUCT_MEDIA_BASE },
   // BROWSE-SUPPLY-BINDING-1 — a REAL service binding through workerd (miniflare's
   // serviceBindings), emulating boutik's collection producer: fresh asOf computed
   // AT REQUEST TIME so the 15-minute bound passes, one Bazin item, exact-path
@@ -70,28 +135,24 @@ const mf = new Miniflare({
   serviceBindings: {
     OFFER: async (request: Request) => {
       const path = new URL(request.url).pathname;
-      if (path !== '/supply-projections') {
-        return Response.json({ service: 'offer-service', status: 'not_found' }, { status: 404 });
-      }
       const asOf = new Date().toISOString();
-      return Response.json({
-        asOf,
-        items: [
-          {
-            version: 1,
-            asOf,
-            value: {
-              productVersionId: 'pv-bazin-0001',
-              offerVersion: 'ov-1',
-              basePrice: 10_000,
-              resellerCommission: 750,
-              available: 10,
-              productName: 'Bazin',
-              assetRefs: [],
-            },
-          },
-        ],
-      });
+      // The COLLECTION route (browse). One item, matching the original fixture.
+      if (path === '/supply-projections') {
+        return Response.json({ asOf, items: [{ version: 1, asOf, value: SUPPLY[0]! }] });
+      }
+      // PUBLISH-PRICE-1 — the SINGLE route the signing path reads. Producer shape
+      // (`services/offer-service/src/supply-endpoint.ts`): the bare read-model
+      // envelope `{version, asOf, value}`, GET only, 404 for an unknown pid.
+      const single = /^\/supply-projection\/([^/]+)$/.exec(path);
+      if (single) {
+        const pid = decodeURIComponent(single[1]!);
+        const value = LAPSED.has(pid) ? undefined : SUPPLY.find((v) => v.productVersionId === pid);
+        if (value === undefined) {
+          return Response.json({ service: 'offer-service', status: 'unknown_product_version' }, { status: 404 });
+        }
+        return Response.json({ version: 1, asOf, value });
+      }
+      return Response.json({ service: 'offer-service', status: 'not_found' }, { status: 404 });
     },
   },
 });
@@ -528,15 +589,116 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     expect(view2.curatedItems).toEqual(['pv-a2-1']); // appended ONCE, not reordered
   });
 
-  it('NO SUPPLY SOURCE ⇒ the product is UNDESCRIBABLE ⇒ OMITTED (never mock data, never a nameless tile)', async () => {
+  it('PUBLISH-PRICE-1 — THE SERVICE SIGNS THE PRICE; an app-supplied customerPriceFcfa is DISCARDED', async () => {
+    // The command below sends `customerPriceFcfa: 9_200` and `offerVersion: ov-a2-1`.
+    // The LIVE projection says basePrice 8 000, offerVersion `ov-a2-live`, and the
+    // markup she chose is 1 200 — so the signed price must be 9 200 by DERIVATION
+    // (8 000 + 1 200), and the offer version must be the live one, not the sent one.
     const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
-    const view = (await read.json()) as StorefrontView & { products: unknown[] };
-    // her membership is stated…
-    expect(view.curatedItems).toEqual(['pv-a2-1']);
-    // …but nothing can describe it, so the buyer payload carries NO product record
-    expect(view.products).toEqual([]);
-    // and absolutely no fabricated name or ref leaked in
-    expect(JSON.stringify(view)).not.toMatch(/Pagne|Produit |démo/i);
+    const view = (await read.json()) as StorefrontView & { products: { pid: string; priceFcfa: number }[] };
+    expect(view.products.find((p) => p.pid === 'pv-a2-1')!.priceFcfa).toBe(9_200);
+
+    // NOW THE PROOF THAT IT IS DERIVED AND NOT ECHOED: republish the same product at
+    // a DIFFERENT markup while sending a customerPriceFcfa that contradicts it. If
+    // the service echoed the app's number the price would be 999; it must be 8 000 +
+    // 2 500 = 10 500. This is the assertion that would fail if the field were
+    // trusted — the previous behaviour — so it is the one that matters.
+    const re = await mf.dispatchFetch('http://c/listings', {
+      method: 'POST',
+      headers: authed,
+      body: publishCmd({ commandId: 'cmd-a2-resign', markup: 2_500, customerPriceFcfa: 999 }),
+    });
+    expect(((await re.json()) as { status: string }).status).toBe('published');
+    const read2 = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
+    const view2 = (await read2.json()) as StorefrontView & { products: { pid: string; priceFcfa: number }[] };
+    expect(view2.products.find((p) => p.pid === 'pv-a2-1')!.priceFcfa).toBe(10_500);
+  });
+
+  it('PUBLISH REFUSES when supply cannot be read — never signs against an assumed base', async () => {
+    LAPSED.add('pv-a2-1');
+    try {
+      const res = await mf.dispatchFetch('http://c/listings', {
+        method: 'POST',
+        headers: authed,
+        body: publishCmd({ commandId: 'cmd-a2-nosupply', listingId: 'lst-a2-nosupply' }),
+      });
+      // 409, and the reason is NAMED rather than collapsed into a generic failure.
+      expect(res.status).toBe(409);
+      expect(((await res.json()) as { error: string }).error).toBe('supply_unavailable');
+    } finally {
+      LAPSED.clear();
+    }
+    // AND NOTHING WAS WRITTEN: the refusal must not half-publish. The pid never
+    // reaches her curatedItems, so a retry is clean rather than a repair.
+    const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
+    const view = (await read.json()) as StorefrontView;
+    expect(view.curatedItems).not.toContain('pv-nosupply-x');
+  });
+
+  it('PUBLISH REFUSES a markup that is not a usable amount (shape validation at the boundary)', async () => {
+    for (const markup of [-100, 1.5, 'beaucoup', null]) {
+      const res = await mf.dispatchFetch('http://c/listings', {
+        method: 'POST',
+        headers: authed,
+        body: publishCmd({ commandId: `cmd-a2-bad-${String(markup)}`, listingId: 'lst-a2-bad', markup }),
+      });
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as { error: string }).error).toBe('markup_invalid');
+    }
+  });
+
+  it('PRODUCT-MEDIA-BASE-1 — the buyer record carries ABSOLUTE urls built from the base, never the bare relative ref', async () => {
+    const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
+    const view = (await read.json()) as StorefrontView & { products: { pid: string; assetRefs: string[]; inStock: boolean }[] };
+    const product = view.products.find((p) => p.pid === 'pv-a2-1');
+    expect(product).toBeDefined();
+    // The producer's refs are RELATIVE (`media/hero-square/cap-a2`). What reaches the
+    // buyer must be absolute against the PRODUCT media origin — and the base's
+    // trailing slash must be normalised, never doubled.
+    expect(product!.assetRefs).toEqual([
+      'https://media-service.example.workers.dev/media/media/hero-square/cap-a2',
+      'https://media-service.example.workers.dev/media/media/proof/cap-a2',
+    ]);
+    // THE FAILURE THIS FORBIDS: a bare relative ref would resolve against the buyer
+    // PWA's own origin and render a BROKEN IMAGE inside an otherwise-correct tile.
+    for (const ref of product!.assetRefs) expect(ref.startsWith('https://')).toBe(true);
+  });
+
+  it('inStock is DERIVED FROM LIVE STOCK — a zero-stock offer is never an in-stock tile', async () => {
+    await mf.dispatchFetch('http://c/listings', {
+      method: 'POST',
+      headers: authed,
+      body: publishCmd({ commandId: 'cmd-a2-epuise', listingId: 'lst-a2-epuise', productVersionId: 'pv-epuise-1' }),
+    });
+    const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
+    const view = (await read.json()) as StorefrontView & { products: { pid: string; inStock: boolean }[] };
+    const epuise = view.products.find((p) => p.pid === 'pv-epuise-1');
+    expect(epuise).toBeDefined();
+    // `buildSupplyProjection` has NO `available > 0` guard, so the producer served
+    // this happily. Hardcoding `inStock: true` made it a lie on the buyer wire.
+    expect(epuise!.inStock).toBe(false);
+    // …and the in-stock product beside it is still true, so this asserts a DERIVATION
+    // and not a blanket flip to false.
+    expect(view.products.find((p) => p.pid === 'pv-a2-1')!.inStock).toBe(true);
+  });
+
+  it('A LAPSED OFFER ⇒ the product is UNDESCRIBABLE ⇒ OMITTED (never mock data, never a nameless tile)', async () => {
+    // The offer was live at publish (that is why it signed) and the producer has
+    // since stopped serving it — the founder's item E, reached honestly.
+    LAPSED.add('pv-a2-1');
+    LAPSED.add('pv-epuise-1');
+    try {
+      const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
+      const view = (await read.json()) as StorefrontView & { products: unknown[] };
+      // her membership is still stated — curatedItems is canon and does not retract…
+      expect(view.curatedItems).toEqual(['pv-a2-1', 'pv-epuise-1']);
+      // …but nothing can describe it, so the buyer payload carries NO product record
+      expect(view.products).toEqual([]);
+      // and absolutely no fabricated name or ref leaked in
+      expect(JSON.stringify(view)).not.toMatch(/Pagne|Produit |démo/i);
+    } finally {
+      LAPSED.clear();
+    }
   });
 
   it('THE BUYER PAYLOAD CARRIES NO LISTING ID and no supplier economics (standing law + SP-I03)', async () => {

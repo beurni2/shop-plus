@@ -2,7 +2,7 @@ import { makeHealthFetch, provenance } from '@shop-plus/observability';
 import type { ResellerListing, Storefront } from '@platform/contracts';
 import { resolveMediaStore, type MediaEnv } from './media/media-store.js';
 import { StorefrontMediaService, type MediaKind } from './media/service.js';
-import { joinVitrineProduct, toStorefrontView, type VitrineProductRecord } from './customer-projection.js';
+import { absoluteAssetRefs, joinVitrineProduct, toStorefrontView, type VitrineProductRecord } from './customer-projection.js';
 import { resolveStorefrontStore, type StorefrontStoreEnv } from './storefront-store.js';
 import { resolveSupplySource, type SupplySourceEnv } from './supply-source.js';
 import { SUPPLY_COLLECTION_ROUTE, readSupplyCollection } from './supply-collection.js';
@@ -108,6 +108,15 @@ export type StorefrontServiceEnv = MediaEnv &
     /** REAL-PRODUCT-RENDER-1 (a2) — the listing DO, reached through the shim for
      * the JOIN. Internal: the public `/listings*` surface stays key-gated. */
     readonly LISTING_DO?: { fetch(request: Request): Promise<Response> };
+    /**
+     * PRODUCT-MEDIA-BASE-1 — the PUBLIC origin serving boutik's product media
+     * (`beurni-boutik-product-media`, behind media-service). Distinct from
+     * `MEDIA_PUBLIC_BASE`, which is THIS service's own origin for HER cover and
+     * avatar in `beurni-storefront-media`: two buckets, two bases, and conflating
+     * them 404s every ref. Lives in `[vars]` — readable and versioned, never a
+     * secret. Unset ⇒ the honest « SANS PHOTO » state, never a bare relative ref.
+     */
+    readonly PRODUCT_MEDIA_BASE?: string;
   };
 
 /**
@@ -158,7 +167,16 @@ async function describeProducts(
       | null;
     if (side === null) continue;
     const described = await supply.describe(side.productVersionId);
-    const record = joinVitrineProduct(side, described);
+    // PRODUCT-MEDIA-BASE-1 — the refs become ABSOLUTE here, at the one place the
+    // env is in scope, BEFORE the join. A relative ref must never reach the record:
+    // the buyer renders it straight into `src`, so it would resolve against the
+    // PWA's own origin and draw a broken image instead of the designed no-image
+    // state. An unset base yields `[]`, which IS that designed state.
+    const supplied =
+      described === undefined
+        ? undefined
+        : { ...described, assetRefs: absoluteAssetRefs(env?.PRODUCT_MEDIA_BASE, described.assetRefs) };
+    const record = joinVitrineProduct(side, supplied);
     if (record !== undefined) out.push(record); // undescribable → omitted, never invented
   }
   return out;

@@ -45,6 +45,26 @@ bucket_name = "beurni-storefront-media"
 [vars]
 MEDIA_PUBLIC_BASE = ""
 
+# PRODUCT-MEDIA-BASE-1 — the PUBLIC origin serving boutik's PRODUCT photographs.
+#
+# NOT THE SAME THING AS MEDIA_PUBLIC_BASE ABOVE, and the distinct name is the point.
+# MEDIA_PUBLIC_BASE is THIS service's own origin for `beurni-storefront-media` — HER
+# cover and avatar. Product photographs live in a DIFFERENT bucket,
+# `beurni-boutik-product-media`, served by boutik's media-service at GET /media/{key}.
+# Two buckets, two bases: pointing one at the other 404s every single ref.
+#
+# A canon `assetRef` is a RELATIVE path (`media/{kind}/{captureRef}`). This value is
+# what makes it absolute before it reaches a buyer. EMPTY IS SAFE AND IS THE DEFAULT:
+# an unset base yields NO refs at all, so the buyer surface draws its designed
+# « SANS PHOTO » state instead of a bare relative ref that would resolve against the
+# PWA's own origin and render as a broken image.
+#
+# DELIBERATELY A [vars] VALUE, NOT A SECRET — it is a public origin with nothing to
+# protect, and the SUPPLY_BASE lesson was that a write-only value nobody can read
+# back costs founder round-trips when it is wrong. This one is readable and
+# versioned right here. Set it to boutik's deployed media-service origin.
+PRODUCT_MEDIA_BASE = ""
+
 # SERVICE-WRITE-AUTH-1 — the shared write secret (STOREFRONT_WRITE_SECRET) is NOT
 # here and must NEVER be added to [vars]: all five repos are PUBLIC and anything in
 # [vars] is committed and published. It is set out-of-band with
