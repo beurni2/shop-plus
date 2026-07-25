@@ -286,7 +286,8 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
       productVersionId: 'pv-auth-1',
       offerVersion: 'ov-auth-1',
       markup: 500,
-      customerPriceFcfa: 2000,
+      // MONEY-SHAPE-1 — no `customerPriceFcfa`: the boundary now REFUSES a supplied
+      // price rather than discarding it, so sending one is a 400 by design.
       stockAssurance: { source: 'hub' },
       correlationId: 'corr-auth-lst',
       at: T0,
@@ -560,7 +561,6 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
       productVersionId: 'pv-a2-1',
       offerVersion: 'ov-a2-1',
       markup: 1_200,
-      customerPriceFcfa: 9_200,
       stockAssurance: { source: 'hub' },
       correlationId: 'corr-a2-lst',
       at: T0,
@@ -599,14 +599,14 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     expect(view.products.find((p) => p.pid === 'pv-a2-1')!.priceFcfa).toBe(9_200);
 
     // NOW THE PROOF THAT IT IS DERIVED AND NOT ECHOED: republish the same product at
-    // a DIFFERENT markup while sending a customerPriceFcfa that contradicts it. If
-    // the service echoed the app's number the price would be 999; it must be 8 000 +
-    // 2 500 = 10 500. This is the assertion that would fail if the field were
-    // trusted — the previous behaviour — so it is the one that matters.
+    // a DIFFERENT markup and the price must follow the MARKUP, not any stored value —
+    // 8 000 + 2 500 = 10 500. (MONEY-SHAPE-1: sending a contradicting price is no
+    // longer a way to test this, because the boundary now refuses one outright; that
+    // refusal has its own test below.)
     const re = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
       headers: authed,
-      body: publishCmd({ commandId: 'cmd-a2-resign', markup: 2_500, customerPriceFcfa: 999 }),
+      body: publishCmd({ commandId: 'cmd-a2-resign', markup: 2_500 }),
     });
     expect(((await re.json()) as { status: string }).status).toBe('published');
     const read2 = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
@@ -633,6 +633,40 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
     const view = (await read.json()) as StorefrontView;
     expect(view.curatedItems).not.toContain('pv-nosupply-x');
+  });
+
+  it('MONEY-SHAPE-1 — A SUPPLIED customerPriceFcfa IS REFUSED, not silently discarded', async () => {
+    const res = await mf.dispatchFetch('http://c/listings', {
+      method: 'POST',
+      headers: authed,
+      body: publishCmd({ commandId: 'cmd-a2-price', listingId: 'lst-a2-price', customerPriceFcfa: 999 }),
+    });
+    // A caller who sends a money value and is ignored never learns it was ignored.
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toBe('price_not_accepted');
+    // AND NOTHING WAS WRITTEN — the refusal is total, not a partial publish.
+    const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
+    expect(((await read.json()) as StorefrontView).curatedItems).not.toContain('lst-a2-price');
+  });
+
+  it('MONEY-SHAPE-1 — A MARKUP OVER THE CEILING IS REFUSED, with the cap named', async () => {
+    // pv-a2-1 has basePrice 8 000, so the ceiling is 8 000 (100 % of base).
+    const res = await mf.dispatchFetch('http://c/listings', {
+      method: 'POST',
+      headers: authed,
+      body: publishCmd({ commandId: 'cmd-a2-cap', listingId: 'lst-a2-cap', markup: 8_001 }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; cap: number };
+    expect(body.error).toBe('markup_over_cap');
+    expect(body.cap).toBe(8_000);
+    // …and exactly at the cap it signs, so the bound is a ceiling and not a wall.
+    const ok = await mf.dispatchFetch('http://c/listings', {
+      method: 'POST',
+      headers: authed,
+      body: publishCmd({ commandId: 'cmd-a2-atcap', listingId: 'lst-a2-atcap', markup: 8_000 }),
+    });
+    expect(((await ok.json()) as { status: string }).status).toBe('published');
   });
 
   it('PUBLISH REFUSES a markup that is not a usable amount (shape validation at the boundary)', async () => {

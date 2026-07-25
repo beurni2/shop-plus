@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { marginBreakdown, markupCap, defaultMarkup, snapMarkup, DEFAULT_MARKUP } from '../src/vitrine/margin.js';
+import { marginBreakdown, markupCap, defaultMarkup, snapMarkup, DEFAULT_MARKUP, MARKUP_CAP_RATE } from '../src/vitrine/margin.js';
 
 /**
  * WO-VITRINE-FLOW (founder redirect) — the reseller-margin arithmetic is the
@@ -76,5 +76,26 @@ describe('reseller-margin arithmetic (margin.ts)', () => {
     }
     // and it never calls the custody waterfall (the arithmetic is reseller-margin)
     expect(src).not.toMatch(/computeWaterfall\(/);
+  });
+});
+
+describe('MONEY-SHAPE-1 — the app IMPORTS the money rules, it does not declare them', () => {
+  it('margin.ts CONTAINS NO ARITHMETIC — it is a re-export door onto the shared package', () => {
+    const src = readFileSync(join(__dirname, '..', 'src/vitrine/margin.ts'), 'utf8');
+    expect(src).toMatch(/from '@shop-plus\/reseller-money'/);
+    // Not duplicated, not re-declared: a second copy of a pricing rule is a second
+    // rule, and the two would drift on the first tuning.
+    expect(src).not.toMatch(/MARKUP_CAP_RATE\s*=/);
+    expect(src).not.toMatch(/DEFAULT_MARKUP\s*=/);
+    expect(src).not.toMatch(/Math\.round/);
+    expect(src).not.toMatch(/function markupCap/);
+    expect(src).not.toMatch(/function marginBreakdown/);
+  });
+
+  it('THE APP AND THE SERVICE SEE THE SAME CEILING — one constant, two consumers', async () => {
+    const shared = await import('@shop-plus/reseller-money');
+    // the app's door and the package must be the same object, not merely equal
+    expect(markupCap).toBe(shared.markupCap);
+    expect(MARKUP_CAP_RATE).toBe(shared.MARKUP_CAP_RATE);
   });
 });

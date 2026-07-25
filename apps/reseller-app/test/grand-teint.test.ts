@@ -112,11 +112,27 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     // guarantee, and that is the whole reason for preferring these two.
     expect(pkg.dependencies['expo-crypto']).toBe('~15.0.9');
     expect(pkg.dependencies['expo-file-system']).toBe('~19.0.23');
-    // the only deps beyond the pre-WO set are exactly these six
+    // MONEY-SHAPE-1 — @shop-plus/reseller-money is a WORKSPACE package, not a
+    // third-party dependency, and it is the founder-ordered home of the markup
+    // ceiling now that the SERVICE signs the price: « a service that signs must
+    // bound », and the rule may not live only in the app whose authority over money
+    // was removed. It is DEPENDENCY-FREE (its own test asserts an empty
+    // `dependencies` and no import statements), so it adds nothing to the native
+    // surface — and Metro bundling it was PROVEN by `expo export`, with a negative
+    // control showing an unresolvable workspace import fails the build outright.
+    expect(pkg.dependencies['@shop-plus/reseller-money']).toBe('workspace:*');
+    // the only deps beyond the pre-WO set are exactly these seven
     const before = new Set([
       '@platform/ui-tokens', 'expo', 'expo-status-bar', 'expo-updates', 'react', 'react-native',
     ]);
     const added = Object.keys(pkg.dependencies).filter((d) => !before.has(d));
-    expect(added.sort()).toEqual(['expo-audio', 'expo-crypto', 'expo-file-system', 'expo-font', 'expo-haptics', 'react-native-svg']);
+    expect(added.sort()).toEqual([
+      '@shop-plus/reseller-money',
+      'expo-audio', 'expo-crypto', 'expo-file-system', 'expo-font', 'expo-haptics', 'react-native-svg',
+    ]);
+    // …and NO third-party runtime dep sneaks in under cover of the workspace one
+    for (const d of added) {
+      expect(d.startsWith('@shop-plus/') || d.startsWith('expo') || d === 'react-native-svg').toBe(true);
+    }
   });
 });

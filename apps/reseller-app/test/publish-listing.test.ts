@@ -192,3 +192,32 @@ describe('THE DEMO ADAPTER CAN FAIL (certified-mock rule, Execution Contract §3
     expect(demo.published).toHaveLength(1);
   });
 });
+
+describe('MONEY-SHAPE-1 item 4 — the toast that could not fail', () => {
+  const app = readFileSync(join(__dirname, '..', 'App.tsx'), 'utf8');
+
+  it('NO SLUG FROM THE SERVICE IS SAID, NOT COMPUTED', () => {
+    // The defect: `created.value.slug ?? shortCode.toLowerCase()` printed a locally
+    // computed slug the service never stored, on the screen telling her the shop is
+    // live, looking identical either way. It cost the founder an hour.
+    // Asserted on the CALL SITE, not on prose: the docblock above the fix quotes the
+    // old expression deliberately, and a test that cannot tell code from a comment
+    // would force the defect to go undocumented to stay green.
+    expect(app).not.toMatch(/slug: created\.value\.slug \?\?/);
+    expect(app).toMatch(/if \(created\.value\.slug === null \|\| created\.value\.slug === ''\)/);
+    expect(app).toMatch(/k\.publier\.en_ligne_sans_slug/);
+    // and the success line now prints ONLY what the service returned
+    expect(app).toMatch(/tf\('k\.publier\.en_ligne', \{ slug: created\.value\.slug \}\)/);
+  });
+
+  it('THE HONEST STRING EXISTS IN THE CATALOG and never claims an address it lacks', () => {
+    const catalog = JSON.parse(readFileSync(join(__dirname, '..', 'i18n/catalog.json'), 'utf8')) as {
+      key: string; fr: string;
+    }[];
+    const entry = catalog.find((e) => e.key === 'k.publier.en_ligne_sans_slug');
+    expect(entry).toBeDefined();
+    // it states the shop IS live (true) and that the address has not come back (true)
+    expect(entry!.fr).toMatch(/en ligne/i);
+    expect(entry!.fr).not.toMatch(/\{slug\}/);
+  });
+});

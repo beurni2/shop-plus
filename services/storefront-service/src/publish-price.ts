@@ -1,3 +1,4 @@
+import { markupCap } from '@shop-plus/reseller-money';
 import type { ProductEconomics } from './supply-source.js';
 
 /**
@@ -50,21 +51,36 @@ export type SignedPrice =
       readonly customerPriceFcfa: number;
       /** Read from the same live projection — never the app's possibly-stale copy. */
       readonly offerVersion: string;
+      /** MONEY-SHAPE-1 — C from the SAME reading that priced the buyer's side, so
+       *  the listing can freeze both halves of the artifact against one instant. */
+      readonly resellerCommission: number;
     }
   /** Supply could not be read fresh: unconfigured, unreachable, stale, or refused. */
   | { readonly status: 'supply_unavailable' }
   /** The markup is not a usable amount. Shape validation, not policy. */
-  | { readonly status: 'markup_invalid' };
+  | { readonly status: 'markup_invalid' }
+  /**
+   * MONEY-SHAPE-1 — the markup exceeds the CEILING for this base. `cap` rides along
+   * so the refusal can say WHAT the limit was rather than only that one was hit.
+   */
+  | { readonly status: 'markup_over_cap'; readonly cap: number };
 
 /**
  * Sign HER price from the LIVE base and the markup she chose. Pure and total.
  *
- * MARKUP VALIDATION IS SHAPE ONLY — a non-negative safe integer. The markup
- * CEILING (`markupCap`, the pilot-tuned 100 %-of-base rule) is enforced in the
- * reseller app's slider and is NOT re-enforced here. That is a REPORTED GAP, not an
- * oversight: putting the cap here would give a canon-adjacent pricing rule a second
- * home in a second repo, and where that rule should live is the founder's call. It
- * is journaled and reported rather than decided unilaterally.
+ * ═══ MONEY-SHAPE-1 — THE CEILING IS ENFORCED HERE NOW (founder ruling) ═══
+ *
+ * It previously was not, and that was a REPORTED GAP rather than an oversight: the
+ * rule lived in the app, and duplicating it here would have created a second home for
+ * a pricing rule. The founder's ruling resolved the placement instead of the
+ * duplication — **`markupCap` is IMPORTED from `@shop-plus/reseller-money`, the one
+ * module the app imports too.** A SERVICE THAT SIGNS MUST BOUND: the signing moved
+ * here precisely so the app would not author money, and a bound that only the app
+ * enforces is a bound any other caller can walk around.
+ *
+ * ORDER OF CHECKS, and it is deliberate: SHAPE first (is this a usable amount at
+ * all), then SUPPLY (can we read the base), then the CEILING — because the ceiling
+ * is a function OF the base, so it cannot be evaluated before the base is known.
  */
 export function signPrice(economics: ProductEconomics | undefined, markup: unknown): SignedPrice {
   if (typeof markup !== 'number' || !Number.isSafeInteger(markup) || markup < 0) {
@@ -72,9 +88,14 @@ export function signPrice(economics: ProductEconomics | undefined, markup: unkno
   }
   // NO FALLBACK BRANCH. Absent economics is a refusal, full stop.
   if (economics === undefined) return { status: 'supply_unavailable' };
+  // THE CEILING, evaluated against the LIVE base — the same base the price is signed
+  // against, so the bound and the amount can never disagree about which B they meant.
+  const cap = markupCap(economics.basePrice);
+  if (markup > cap) return { status: 'markup_over_cap', cap };
   return {
     status: 'signed',
     customerPriceFcfa: economics.basePrice + markup, // productSubtotal = B + M
     offerVersion: economics.offerVersion,
+    resellerCommission: economics.resellerCommission,
   };
 }
