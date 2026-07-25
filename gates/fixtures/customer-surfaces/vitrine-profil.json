@@ -38,49 +38,69 @@
    "pid": "p1",
    "name": "Robe brodée bogolan",
    "priceFcfa": 11500,
-   "inStock": true
+   "inStock": true,
+   "assetRefs": [
+    "https://media-service.example.workers.dev/media/media/hero-square/cap-p1",
+    "https://media-service.example.workers.dev/media/media/proof/cap-p1"
+   ]
   },
   {
    "pid": "p2",
    "name": "Pagne wax 6 yards",
    "priceFcfa": 20500,
-   "inStock": true
+   "inStock": true,
+   "assetRefs": []
   },
   {
    "pid": "p4",
    "name": "Sandales cuir homme",
    "priceFcfa": 9200,
-   "inStock": true
+   "inStock": false,
+   "assetRefs": [
+    "https://media-service.example.workers.dev/media/media/hero-square/cap-p4",
+    "https://media-service.example.workers.dev/media/media/proof/cap-p4"
+   ]
   },
   {
    "pid": "p5",
    "name": "Coffret karité pur",
    "priceFcfa": 6900,
-   "inStock": true
+   "inStock": true,
+   "assetRefs": []
   },
   {
    "pid": "p7",
    "name": "Foulard Faso Dan Fani",
    "priceFcfa": 6300,
-   "inStock": true
+   "inStock": true,
+   "assetRefs": [
+    "https://media-service.example.workers.dev/media/media/hero-square/cap-p7",
+    "https://media-service.example.workers.dev/media/media/proof/cap-p7"
+   ]
   },
   {
    "pid": "p8",
    "name": "Chemise Faso Dan Fani",
    "priceFcfa": 13800,
-   "inStock": true
+   "inStock": true,
+   "assetRefs": []
   },
   {
    "pid": "k1",
    "name": "Pack Cuisine Départ",
    "priceFcfa": 14000,
-   "inStock": true
+   "inStock": true,
+   "assetRefs": [
+    "https://media-service.example.workers.dev/media/media/hero-square/cap-k1",
+    "https://media-service.example.workers.dev/media/media/proof/cap-k1"
+   ]
   },
   {
    "pid": "p3",
    "name": "Sac cuir artisanal",
    "priceFcfa": 17000,
-   "inStock": false
+   "inStock": false,
+   "assetRefs": []
   }
  ]
 }

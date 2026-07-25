@@ -66,16 +66,47 @@ import { consumeSupplyProjection } from '@shop-plus/supply-consumer/consumer';
  */
 export const SUPPLY_ROUTE_PREFIX = '/supply-projection/';
 
-/** What supply contributes to a buyer-visible product: its name and its images. */
+/** What supply contributes to a buyer-visible product: its name, images and stock. */
 export interface ProductDescription {
   readonly productName: string;
   /** Bare display refs (canon `assetRefs`); `[0]` is the hero. May be empty. */
   readonly assetRefs: readonly string[];
+  /**
+   * PUBLISH-PRICE-1 — the supplier's live stock count, carried so the buyer record
+   * can state stock TRUTHFULLY. `joinVitrineProduct` used to hardcode `inStock:
+   * true`, and `buildSupplyProjection` has no `available > 0` guard, so a
+   * zero-stock offer became an in-stock buyer tile. Stock is not economics: this
+   * field says how many exist, never what they cost.
+   */
+  readonly available: number;
+}
+
+/**
+ * PUBLISH-PRICE-1 — what supply contributes to a PUBLISH DECISION: the base the
+ * price is signed against, and the offer version it belongs to.
+ *
+ * DELIBERATELY A SEPARATE SHAPE FROM `ProductDescription`, not a widening of it.
+ * The description port's guarantee is that it carries NO economics — that is what
+ * makes it safe to feed the buyer projection — and merging `basePrice` into it
+ * would destroy exactly that property. Two shapes, two purposes: one may reach a
+ * buyer record, the other may only reach a signing decision inside this Worker.
+ */
+export interface ProductEconomics {
+  readonly basePrice: number;
+  readonly offerVersion: string;
 }
 
 /** The join's supply side. `undefined` = this product cannot be described. */
 export interface SupplySourcePort {
   describe(productVersionId: string): Promise<ProductDescription | undefined>;
+  /**
+   * PUBLISH-PRICE-1 (founder ruling) — the live base for a signing decision.
+   * `undefined` ⇒ **PUBLISH REFUSES**. Never a cached, assumed or app-supplied
+   * base: *"a refusal she can retry is correct; a price signed against a number
+   * nobody could read is not."* `AbsentSupplySource` returns `undefined` here by
+   * construction, so an unconfigured Worker cannot sign a price at all.
+   */
+  economics(productVersionId: string): Promise<ProductEconomics | undefined>;
 }
 
 /**
@@ -130,6 +161,11 @@ export class AbsentSupplySource implements SupplySourcePort {
   async describe(): Promise<undefined> {
     return undefined;
   }
+
+  /** No source ⇒ no base ⇒ no signature. Publish refuses, by construction. */
+  async economics(): Promise<undefined> {
+    return undefined;
+  }
 }
 
 /**
@@ -170,7 +206,18 @@ export class BoundSupplySource implements SupplySourcePort {
     };
   }
 
-  async describe(productVersionId: string): Promise<ProductDescription | undefined> {
+  /**
+   * ONE FETCH, ONE CONSUME, TWO READERS. `describe` and `economics` ask the same
+   * producer route the same question and differ only in which fields they take off
+   * the answer — so the fetch and the certified-consumer call live here ONCE.
+   * A second copy is how the two halves of this wire drifted the last time
+   * (SUPPLY-WIRE-1); it is not repeated for a second reason.
+   *
+   * `undefined` covers every non-`fresh` outcome identically: unreachable, non-2xx,
+   * unparseable, stale, absent, or identity-rejected. Callers decide what absence
+   * MEANS — the buyer join omits the product; publish refuses to sign.
+   */
+  private async fresh(productVersionId: string): Promise<SupplyProjectionValue | undefined> {
     let res: Response;
     try {
       res = await this.fetcher.fetch(
@@ -197,8 +244,38 @@ export class BoundSupplySource implements SupplySourcePort {
     // fresh ALONE describes. stale · absent · rejected all BLOCK: a product
     // described from a stale projection is worse than one not described (SW-2).
     if (verdict.status !== 'fresh') return undefined;
-    return { productName: verdict.projection.productName, assetRefs: [...verdict.projection.assetRefs] };
+    return verdict.projection;
   }
+
+  async describe(productVersionId: string): Promise<ProductDescription | undefined> {
+    const p = await this.fresh(productVersionId);
+    if (p === undefined) return undefined;
+    return { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available };
+  }
+
+  /**
+   * PUBLISH-PRICE-1 — the live base, read at the moment of signing. It goes through
+   * the SAME freshness bound as everything else on this wire, which is the point:
+   * a price signed against a 20-minute-old base is the drift « le prix reste signé »
+   * exists to prevent, so a stale projection refuses the publish rather than
+   * quietly signing against it.
+   */
+  async economics(productVersionId: string): Promise<ProductEconomics | undefined> {
+    const p = await this.fresh(productVersionId);
+    if (p === undefined) return undefined;
+    return { basePrice: p.basePrice, offerVersion: p.offerVersion };
+  }
+}
+
+/** The fields this module reads off a `fresh` verdict — the certified consumer owns
+ *  the shape; this names only what is consumed, so an unused canon field cannot
+ *  silently become a dependency here. */
+interface SupplyProjectionValue {
+  readonly productName: string;
+  readonly assetRefs: readonly string[];
+  readonly available: number;
+  readonly basePrice: number;
+  readonly offerVersion: string;
 }
 
 /**

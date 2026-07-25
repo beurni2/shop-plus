@@ -187,10 +187,51 @@ describe('SUPPLY-WIRE-1 — the path, the envelope and the freshness bound', () 
     expect(seen[0]).not.toContain('/supply/pv'); // the (a1) defect, pinned closed
   });
 
-  it('A FRESH ENVELOPE describes: name and refs come out of value, never off the body', async () => {
+  it('A FRESH ENVELOPE describes: name, refs and STOCK come out of value, never off the body', async () => {
     stubFetch(200, envelope(minutesAgo(1)));
     const got = await source().describe(PV);
-    expect(got).toEqual({ productName: 'Pagne tissé Faso (démo)', assetRefs: ['asset/pv-founder-001/cover'] });
+    // `available` joined this shape in PUBLISH-PRICE-1 so the buyer record can state
+    // stock truthfully instead of hardcoding `inStock: true`. Deep-equal, so a field
+    // appearing or vanishing still fails — stock is display truth, not economics.
+    expect(got).toEqual({
+      productName: 'Pagne tissé Faso (démo)',
+      assetRefs: ['asset/pv-founder-001/cover'],
+      available: 5,
+    });
+  });
+
+  it('PUBLISH-PRICE-1 — `economics` reads the LIVE base and offer version off the SAME envelope', async () => {
+    stubFetch(200, envelope(minutesAgo(1)));
+    expect(await source().economics(PV)).toEqual({ basePrice: 10_000, offerVersion: '1' });
+  });
+
+  it('PUBLISH-PRICE-1 — `economics` carries NO display data, and `describe` carries NO economics', async () => {
+    stubFetch(200, envelope(minutesAgo(1)));
+    const econ = (await source().economics(PV)) as Record<string, unknown>;
+    const desc = (await source().describe(PV)) as Record<string, unknown>;
+    // The two shapes are deliberately disjoint: only one of them may reach a buyer
+    // record, and merging them would destroy exactly that guarantee (SP-I03).
+    expect(Object.keys(econ).sort()).toEqual(['basePrice', 'offerVersion']);
+    for (const banned of ['basePrice', 'resellerCommission', 'offerVersion']) {
+      expect(Object.keys(desc)).not.toContain(banned);
+    }
+  });
+
+  it('PUBLISH-PRICE-1 — `economics` inherits the SAME refusal ladder, so a stale base can never sign', async () => {
+    // The bound is the point: a price signed against a 20-minute-old base is exactly
+    // the drift « le prix reste signé » exists to prevent. Publish refuses instead.
+    stubFetch(200, envelope(minutesAgo(16)));
+    expect(await source().economics(PV)).toBeUndefined();
+    stubFetch(404, { service: 'offer-service' });
+    expect(await source().economics(PV)).toBeUndefined();
+    stubFetch(200, { productName: 'x', basePrice: 1 }); // unwrapped body
+    expect(await source().economics(PV)).toBeUndefined();
+  });
+
+  it('AN ABSENT SOURCE CANNOT SIGN — the unconfigured Worker refuses publish by construction', async () => {
+    const absent = resolveSupplySource({});
+    expect(await absent.economics(PV)).toBeUndefined();
+    expect(await absent.describe(PV)).toBeUndefined();
   });
 
   it('STALE BLOCKS: a projection past the 15-minute bound describes NOTHING (SW-2, the whole point)', async () => {

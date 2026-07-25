@@ -166,9 +166,17 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(app).toMatch(/<MarginSlider/);
     expect(app).toMatch(/value=\{markup\}/);
     expect(app).toMatch(/cap=\{v\.cap\}/);
-    expect(app).toMatch(/onChange=\{\(m\) => setMarkups\(\(prev\) => \(\{ \.\.\.prev, \[item\.id\]: m \}\)\)\}/);
-    // the slider value is her markup or the capped default (min(1500, cap))
-    expect(app).toMatch(/markups\[item\.id\] \?\? defaultMarkup\(v\.cap\)/);
+    // PUBLISH-PRICE-1 — ONE KEYSPACE: the slider writes `markups[productVersionId]`,
+    // NOT `markups[item.id]`. The demo-seed key was the defect — the Ma Vitrine
+    // control and the fiche that signs the price never shared a key, so on a live
+    // offer only `defaultMarkup(cap)` was ever reachable.
+    expect(app).toMatch(/setMarkups\(\(prev\) => \(\{ \.\.\.prev, \[item\.productVersionId\]: m \}\)\)/);
+    expect(app).not.toMatch(/setMarkups\(\(prev\) => \(\{ \.\.\.prev, \[item\.id\]: m \}\)\)/);
+    // …and it records that she DECIDED, which is what unlocks publish. Presence of a
+    // markup is not a decision: the slider starts at the capped default.
+    expect(app).toMatch(/setMarkupTouched\(\(prev\) => \(\{ \.\.\.prev, \[item\.productVersionId\]: true \}\)\)/);
+    // the slider value comes from the SAME margin view the signed price is quoted from
+    expect(app).toMatch(/const markup = v\.markup;/);
     // the slider routes the value through the PURE snapMarkup (step + clamp)
     const slider = read('src/ui/margin-slider.tsx');
     expect(slider).toMatch(/snapMarkup\(raw, capRef\.current\)/);

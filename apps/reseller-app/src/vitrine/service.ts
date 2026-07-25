@@ -58,6 +58,47 @@ export interface UploadOutcome {
 }
 
 /**
+ * PUBLISH-PRICE-1 — what the app sends to list a product at HER markup.
+ *
+ * ═══ THERE IS NO PRICE FIELD HERE, AND THAT IS THE WHOLE POINT ═══
+ *
+ * The founder's ruling: **the app sends the MARKUP SHE CHOSE and nothing else about
+ * money.** The service reads the live supply projection through its `OFFER` binding,
+ * computes `customerPriceFcfa = basePrice + markup`, and freezes that. Two reasons,
+ * and the second decides it:
+ *   1. The app would otherwise be AUTHORING A SIGNED AMOUNT — the number a buyer is
+ *      later charged — from a `basePrice` it happened to read earlier.
+ *   2. **A service cannot validate a price it did not compute.** Given only
+ *      `{markup, customerPriceFcfa}` there is no check that separates an honest
+ *      client from a wrong one, because the base it would check against is exactly
+ *      what it was not told.
+ *
+ * So `customerPriceFcfa` and `offerVersion` are ABSENT from this shape — not
+ * optional, absent — and a price the app could send is therefore unrepresentable
+ * rather than merely discouraged. `basePrice` and `resellerCommission` are absent
+ * for the same reason: the service already knows them, live.
+ *
+ * IDS ARE DERIVED, NEVER RANDOM (the identity-mint lesson, RESELLER-IDENTITY-1):
+ * `listingId` and `commandId` come from `{storefrontId, productVersionId}`, so a
+ * re-tap resolves to `idempotent` instead of minting a second signed version. An
+ * independently random command id would republish on every tap.
+ */
+export interface PublishListingRequest {
+  readonly storefrontId: string;
+  readonly resellerId: string;
+  readonly productVersionId: string;
+  /** M — the ONLY money value the app is trusted with, because she chose it. */
+  readonly markup: number;
+  readonly correlationId: string;
+  readonly at: string;
+}
+
+/** Derived, never random — see `PublishListingRequest`. Stable per shop+product. */
+export function listingIdFor(storefrontId: string, productVersionId: string): string {
+  return `lst-${storefrontId}-${productVersionId}`;
+}
+
+/**
  * The write-side seam. Every method resolves to a `ServiceResult`: a network
  * failure or a non-2xx is `{ ok: false }` with a reason, NEVER a thrown error up
  * the UI (a queued/failed write is pending, never « en ligne »).
@@ -69,6 +110,15 @@ export interface StorefrontServicePort {
   uploadCover(storefrontId: string, bytes: Uint8Array, contentType: string): Promise<ServiceResult<UploadOutcome>>;
   uploadAvatar(storefrontId: string, bytes: Uint8Array, contentType: string): Promise<ServiceResult<UploadOutcome>>;
   list(): Promise<ServiceResult<readonly StorefrontRow[]>>;
+  /**
+   * PUBLISH-PRICE-1 — list a product at HER markup. The service signs the price.
+   *
+   * The reasons this can fail are DISTINCT and stay distinct all the way to her
+   * screen: `supply_unavailable` means the offer could not be read right now and
+   * she should try again; anything else is a fault. A refusal she can retry is the
+   * correct failure — a price signed against a base nobody could read is not.
+   */
+  publishListing(req: PublishListingRequest): Promise<ServiceResult<{ status: string }>>;
 }
 
 /**
@@ -150,6 +200,42 @@ export class HttpStorefrontService implements StorefrontServicePort {
 
   uploadAvatar(storefrontId: string, bytes: Uint8Array, contentType: string): Promise<ServiceResult<UploadOutcome>> {
     return this.upload('avatar', storefrontId, bytes, contentType);
+  }
+
+  /**
+   * PUBLISH-PRICE-1 — POST /listings carrying the markup and no price at all.
+   *
+   * The service answers 409 `supply_unavailable` when it could not read the live
+   * base, and 400 `markup_invalid` for a markup that is not a usable amount. Both
+   * are surfaced with their NAMED reason rather than collapsed into `http_409`,
+   * because « réessayez » and « c'est un défaut » are different things to tell her.
+   */
+  async publishListing(req: PublishListingRequest): Promise<ServiceResult<{ status: string }>> {
+    const listingId = listingIdFor(req.storefrontId, req.productVersionId);
+    let res: Response;
+    try {
+      res = await fetch(`${this.base}/listings`, {
+        method: 'POST',
+        headers: this.headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          commandId: `publish-${listingId}`, // DERIVED — a re-tap is idempotent, not a second version
+          listingId,
+          storefrontId: req.storefrontId,
+          resellerId: req.resellerId,
+          productVersionId: req.productVersionId,
+          markup: req.markup, // the ONLY money value the app sends
+          correlationId: req.correlationId,
+          at: req.at,
+        }),
+      });
+    } catch {
+      return { ok: false, reason: 'offline' };
+    }
+    const data = (await res.json().catch(() => null)) as { status?: string; error?: string } | null;
+    // The service's own named refusal survives to the caller — collapsing it to the
+    // HTTP code here would throw away the one word that decides what she is told.
+    if (!res.ok) return { ok: false, reason: data?.error ?? `http_${res.status}` };
+    return { ok: true, value: { status: data?.status ?? 'published' } };
   }
 
   async list(): Promise<ServiceResult<readonly StorefrontRow[]>> {
