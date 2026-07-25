@@ -51,3 +51,18 @@ MEDIA_PUBLIC_BASE = ""
 # `wrangler secret put STOREFRONT_WRITE_SECRET` (encrypted, not in the repo). The
 # gate fails CLOSED: until the secret is set, every write returns 401 by design —
 # so set the secret BEFORE (or right after) deploying the gate, or writes look broken.
+
+# BROWSE-SUPPLY-BINDING-1 — the supply hop is a SERVICE BINDING, the platform's own
+# mechanism for Worker-to-Worker in one account: no network hop, no public URL, and
+# no same-zone fetch restriction (error 1042 — a Worker cannot `fetch` another
+# Worker on the same workers.dev zone, which is one candidate for why the public-URL
+# hop failed closed for a full day and had NEVER succeeded).
+#
+# THE CONFIGURATION IS NOW READABLE: this block is versioned and reviewable, where
+# SUPPLY_BASE was a write-only secret that burned three founder round-trips because
+# nobody — including him — could inspect what it held. SUPPLY_BASE no longer exists.
+# SUPPLY_READ_SECRET stays (wrangler secret, never [vars]): boutik's Bearer gate is
+# load-bearing and the Authorization header flows fine through a binding.
+[[services]]
+binding = "OFFER"
+service = "offer-service"

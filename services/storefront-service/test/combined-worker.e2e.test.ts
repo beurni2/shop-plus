@@ -63,6 +63,37 @@ const mf = new Miniflare({
   r2Buckets: ['BUCKET'],
   durableObjectsPersist: persist,
   bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
+  // BROWSE-SUPPLY-BINDING-1 — a REAL service binding through workerd (miniflare's
+  // serviceBindings), emulating boutik's collection producer: fresh asOf computed
+  // AT REQUEST TIME so the 15-minute bound passes, one Bazin item, exact-path
+  // routing (anything else 404s naming itself, like a real Worker would).
+  serviceBindings: {
+    OFFER: async (request: Request) => {
+      const path = new URL(request.url).pathname;
+      if (path !== '/supply-projections') {
+        return Response.json({ service: 'offer-service', status: 'not_found' }, { status: 404 });
+      }
+      const asOf = new Date().toISOString();
+      return Response.json({
+        asOf,
+        items: [
+          {
+            version: 1,
+            asOf,
+            value: {
+              productVersionId: 'pv-bazin-0001',
+              offerVersion: 'ov-1',
+              basePrice: 10_000,
+              resellerCommission: 750,
+              available: 10,
+              productName: 'Bazin',
+              assetRefs: [],
+            },
+          },
+        ],
+      });
+    },
+  },
 });
 
 // A SECOND Worker with NO secret configured — to prove the gate fails CLOSED.
@@ -233,6 +264,12 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(listing.markup).toBe(500); // the operator read still works, unchanged
   });
 
+  it('/health is uncacheable THROUGH THE REAL BUNDLED WORKER — a cached release is indistinguishable from a stale deploy', async () => {
+    const res = await mf.dispatchFetch('http://c/health');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
+  });
+
   it('BROWSE-SUPPLY-1 — GET /supply-projections is KEY-GATED, and the gate is an EXACT match not a prefix', async () => {
     // WHY THIS ROUTE IS GATED: it returns basePrice and resellerCommission for every
     // offer — the same economics the listings gate protects. Open would be the exact
@@ -242,14 +279,23 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(noKey.status).toBe(401);
     expect((await noKey.json()) as unknown).toEqual({ error: 'unauthorized' }); // the same non-oracle 401
 
-    // With the key it answers 200. SUPPLY_BASE is unset in this harness, so the
-    // honest answer is zero offers with an `unconfigured` diagnostic — NOT an error,
-    // and distinguishable from "configured but nothing published".
+    // With the key it answers 200 THROUGH THE REAL SERVICE BINDING: the bound
+    // producer serves one fresh Bazin, and the whole chain — binding fetch, canon
+    // envelope, freshness bound, identity sweep — runs inside workerd, the same
+    // runtime production uses. This is the hop that had NEVER succeeded over a
+    // public URL; here it is exercised the way it will actually run.
     const withKey = await mf.dispatchFetch('http://c/supply-projections', { method: 'GET', headers: authed });
     expect(withKey.status).toBe(200);
-    const body = (await withKey.json()) as { offers?: unknown[]; diagnostic?: { status?: string } };
-    expect(body.offers).toEqual([]);
-    expect(body.diagnostic?.status).toBe('unconfigured');
+    const body = (await withKey.json()) as {
+      offers?: { productName?: string; basePrice?: number }[];
+      diagnostic?: { status?: string; target?: { base?: string } };
+    };
+    expect(body.offers).toHaveLength(1);
+    expect(body.offers?.[0]?.productName).toBe('Bazin');
+    expect(body.offers?.[0]?.basePrice).toBe(10_000);
+    expect(body.diagnostic?.status).toBe('ok');
+    // The diagnostic names its target: the binding name, readable in wrangler.toml.
+    expect(body.diagnostic?.target?.base).toBe('service-binding:OFFER');
   });
 
   it('LISTING-READ-GATE-1 — an UNKNOWN listing id is the SAME 401 without the key (never an existence oracle)', async () => {

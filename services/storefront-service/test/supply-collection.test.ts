@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { SUPPLY_COLLECTION_ROUTE, readSupplyCollection } from '../src/supply-collection.js';
+import {
+  SUPPLY_COLLECTION_ROUTE,
+  SUPPLY_TARGET_BINDING,
+  readSupplyCollection,
+  whoAnswered,
+} from '../src/supply-collection.js';
+import type { SupplySourceEnv } from '../src/supply-source.js';
 
 /**
- * BROWSE-SUPPLY-1 — the reseller browse read and its DIAGNOSTIC.
+ * BROWSE-SUPPLY-1 / BROWSE-SUPPLY-BINDING-1 — the reseller browse read, its
+ * DIAGNOSTIC, and the SERVICE BINDING that replaced the SUPPLY_BASE secret.
  *
  * The property under test is the one the founder ordered built: when a product is
- * missing, something must be able to say WHY. `supply-source.ts` collapses every
- * non-2xx and every non-fresh verdict to `undefined` — correct for the buyer, but it
- * discards the answer, and five distinct faults then look identical on screen.
+ * missing, something must be able to say WHY — and WHAT IT WAS TALKING TO. The
+ * fetcher is now the `OFFER` service binding; tests stub the binding's `fetch`
+ * exactly as they stubbed `fetchImpl` before the binding existed.
  */
 
 const NOW = '2026-07-25T12:00:00.000Z';
@@ -28,9 +35,21 @@ const BAZIN = {
   },
 };
 
-function respond(body: unknown, status = 200): typeof fetch {
-  return (async () =>
-    ({ ok: status >= 200 && status < 300, status, json: async () => body }) as unknown as Response) as unknown as typeof fetch;
+/** An env whose OFFER binding answers with the given body/status — the stub IS the
+ *  bound Worker. Both `json` and `text`: a real Response always has both, and the
+ *  non-2xx path reads `text()` to name who answered. */
+function bound(body: unknown, status = 200): SupplySourceEnv {
+  return {
+    OFFER: {
+      fetch: async () =>
+        ({
+          ok: status >= 200 && status < 300,
+          status,
+          json: async () => body,
+          text: async () => JSON.stringify(body),
+        }) as unknown as Response,
+    },
+  };
 }
 
 describe('the collection route name — exact, never a prefix', () => {
@@ -46,47 +65,50 @@ describe('the collection route name — exact, never a prefix', () => {
 });
 
 describe('readSupplyCollection — the reason is PRESERVED, never collapsed', () => {
-  it('UNCONFIGURED is distinguishable from empty — the fault the empty screen hides', async () => {
-    const result = await readSupplyCollection(undefined, NOW, respond({ items: [] }));
+  it('UNCONFIGURED (no binding) is distinguishable from empty — and is now VISIBLE IN CONFIG', async () => {
+    // No [[services]] block ⇒ no env.OFFER ⇒ unconfigured. The state is readable in
+    // wrangler.toml rather than hidden in a write-only secret.
+    const result = await readSupplyCollection(undefined, NOW);
     expect(result.status).toBe('unconfigured');
     expect(result.offers).toEqual([]);
+    expect(result.target).toBeUndefined(); // nothing was called; there is no target to name
   });
 
-  it('a configured base with ZERO products is `ok`, NOT unconfigured — genuinely nothing published', async () => {
-    const result = await readSupplyCollection({ SUPPLY_BASE: 'https://b.example' }, NOW, respond({ asOf: NOW, items: [] }));
+  it('a bound producer with ZERO products is `ok`, NOT unconfigured — genuinely nothing published', async () => {
+    const result = await readSupplyCollection(bound({ asOf: NOW, items: [] }), NOW);
     expect(result.status).toBe('ok');
     expect(result.offers).toEqual([]);
-    // Same empty screen as the line above, DIFFERENT diagnosis. That distinction is
+    // Same empty screen as the case above, DIFFERENT diagnosis. That distinction is
     // the entire reason this function exists.
   });
 
-  it('a 401 is UNREACHABLE and carries the status — the secret-mismatch fault, named', async () => {
-    const result = await readSupplyCollection({ SUPPLY_BASE: 'https://b.example' }, NOW, respond({}, 401));
+  it('a 401 through the binding is UNREACHABLE and carries the status — the secret-mismatch fault, named', async () => {
+    const result = await readSupplyCollection(bound({ service: 'offer-service', error: 'unauthorized' }, 401), NOW);
     expect(result.status).toBe('unreachable');
     expect(result.httpStatus).toBe(401);
   });
 
-  it('a network throw is UNREACHABLE, never a crash up the read path', async () => {
-    const throwing = (async () => {
-      throw new Error('network down');
-    }) as unknown as typeof fetch;
-    expect((await readSupplyCollection({ SUPPLY_BASE: 'https://b.example' }, NOW, throwing)).status).toBe('unreachable');
+  it('a binding fetch that throws is UNREACHABLE, never a crash up the read path', async () => {
+    const throwing: SupplySourceEnv = {
+      OFFER: {
+        fetch: async () => {
+          throw new Error('binding down');
+        },
+      },
+    };
+    expect((await readSupplyCollection(throwing, NOW)).status).toBe('unreachable');
   });
 
   it('a STALE item is refused with reason `stale` AND names itself, so an operator knows which product', async () => {
     const stale = { ...BAZIN, asOf: minutesAgo(20) }; // past the 15-minute bound
-    const result = await readSupplyCollection({ SUPPLY_BASE: 'https://b.example' }, NOW, respond({ asOf: NOW, items: [stale] }));
+    const result = await readSupplyCollection(bound({ asOf: NOW, items: [stale] }), NOW);
     expect(result.status).toBe('ok');
-    expect(result.offers).toEqual([]); // the buyer/reseller surface still shows nothing
+    expect(result.offers).toEqual([]); // the reseller surface still shows nothing
     expect(result.refusals).toEqual([{ productVersionId: 'pv-bazin-0001', reason: 'stale' }]);
   });
 
   it('a MALFORMED item is refused and does not take the good ones down with it', async () => {
-    const result = await readSupplyCollection(
-      { SUPPLY_BASE: 'https://b.example' },
-      NOW,
-      respond({ asOf: NOW, items: [BAZIN, { nonsense: true }] }),
-    );
+    const result = await readSupplyCollection(bound({ asOf: NOW, items: [BAZIN, { nonsense: true }] }), NOW);
     expect(result.offers).toHaveLength(1);
     expect(result.offers[0]?.productName).toBe('Bazin');
     expect(result.refusals).toHaveLength(1);
@@ -94,7 +116,7 @@ describe('readSupplyCollection — the reason is PRESERVED, never collapsed', ()
   });
 
   it('the REAL product parses to the seven canon fields, unaltered', async () => {
-    const result = await readSupplyCollection({ SUPPLY_BASE: 'https://b.example' }, NOW, respond({ asOf: NOW, items: [BAZIN] }));
+    const result = await readSupplyCollection(bound({ asOf: NOW, items: [BAZIN] }), NOW);
     expect(result.offers).toEqual([
       {
         productVersionId: 'pv-bazin-0001',
@@ -109,7 +131,7 @@ describe('readSupplyCollection — the reason is PRESERVED, never collapsed', ()
   });
 
   it('NO supplier identity or location rides through — zone is stripped at the producer and stays absent', async () => {
-    const result = await readSupplyCollection({ SUPPLY_BASE: 'https://b.example' }, NOW, respond({ asOf: NOW, items: [BAZIN] }));
+    const result = await readSupplyCollection(bound({ asOf: NOW, items: [BAZIN] }), NOW);
     const keys = Object.keys(result.offers[0] ?? {});
     expect(keys).not.toContain('zone');
     expect(keys).not.toContain('supplierId');
@@ -118,19 +140,95 @@ describe('readSupplyCollection — the reason is PRESERVED, never collapsed', ()
     );
   });
 
-  it('the bearer is sent when the secret is set, and OMITTED when it is not', async () => {
-    const seen: RequestInit[] = [];
-    const spy = (async (_url: string, init: RequestInit) => {
-      seen.push(init);
-      return { ok: true, status: 200, json: async () => ({ asOf: NOW, items: [] }) } as unknown as Response;
-    }) as unknown as typeof fetch;
+  it('the bearer is SENT THROUGH THE BINDING when the secret is set, and OMITTED when it is not', async () => {
+    // KEPT over the binding (founder ruling): boutik's Bearer gate is load-bearing
+    // and the Authorization header flows fine through a service binding.
+    const seen: Request[] = [];
+    const spyEnv = (secret?: string): SupplySourceEnv => ({
+      OFFER: {
+        fetch: async (req: Request) => {
+          seen.push(req);
+          return { ok: true, status: 200, json: async () => ({ asOf: NOW, items: [] }), text: async () => '' } as unknown as Response;
+        },
+      },
+      ...(secret !== undefined ? { SUPPLY_READ_SECRET: secret } : {}),
+    });
 
-    await readSupplyCollection({ SUPPLY_BASE: 'https://b.example', SUPPLY_READ_SECRET: 'S' }, NOW, spy);
-    expect((seen[0]?.headers as Record<string, string>).Authorization).toBe('Bearer S');
+    await readSupplyCollection(spyEnv('S'), NOW);
+    expect(seen[0]?.headers.get('Authorization')).toBe('Bearer S');
 
-    await readSupplyCollection({ SUPPLY_BASE: 'https://b.example' }, NOW, spy);
-    // Absent secret ⇒ NO header, never a broken request: the same env-gating the
-    // lookup path uses, so a 401 becomes the honest reportable answer.
-    expect((seen[1]?.headers as Record<string, string>).Authorization).toBeUndefined();
+    await readSupplyCollection(spyEnv(), NOW);
+    // Absent secret ⇒ NO header, never a broken request: a 401 becomes the honest,
+    // reportable answer.
+    expect(seen[1]?.headers.get('Authorization')).toBeNull();
+  });
+
+  it('the binding is asked for THE COLLECTION ROUTE — the path still matters even with no public URL', async () => {
+    const seen: Request[] = [];
+    const env: SupplySourceEnv = {
+      OFFER: {
+        fetch: async (req: Request) => {
+          seen.push(req);
+          return { ok: true, status: 200, json: async () => ({ asOf: NOW, items: [] }), text: async () => '' } as unknown as Response;
+        },
+      },
+    };
+    await readSupplyCollection(env, NOW);
+    expect(new URL(seen[0]!.url).pathname).toBe(SUPPLY_COLLECTION_ROUTE);
+  });
+});
+
+/**
+ * DIAGNOSTIC-TARGET-1 — A DIAGNOSTIC MUST NAME ITS TARGET, NOT ONLY ITS FAILURE.
+ *
+ * The first real fault this instrument met: `unreachable · 404 · refusals []` named
+ * the LAYER in one request, then stopped helping — the base was a write-only secret
+ * pointing at the wrong service, and the diagnostic never said which URL it had
+ * called. With a binding the target is the BINDING NAME, readable in wrangler.toml;
+ * `answeredBy` still matters, because a binding can point at the WRONG SERVICE in
+ * config, and the responder naming itself is what exposes that in one read.
+ */
+describe('the diagnostic names its target', () => {
+  it('the target rides every non-unconfigured outcome — including the healthy one — and is the binding name', async () => {
+    const ok = await readSupplyCollection(bound({ asOf: NOW, items: [] }), NOW);
+    expect(ok.target).toEqual({ base: SUPPLY_TARGET_BINDING });
+
+    const down: SupplySourceEnv = {
+      OFFER: {
+        fetch: async () => {
+          throw new Error('down');
+        },
+      },
+    };
+    expect((await readSupplyCollection(down, NOW)).target).toEqual({ base: SUPPLY_TARGET_BINDING });
+  });
+
+  it('THE REAL FAULT CLASS, replayed through the binding: a wrong bound SERVICE answering 404 names WHO answered — a diagnosis rather than a clue', async () => {
+    // wrangler.toml could bind OFFER to the wrong service; media-service 404s
+    // anything it does not route. The responder naming itself is what turns
+    // « unreachable 404 » into « the OFFER binding reached MEDIA-SERVICE ».
+    const result = await readSupplyCollection(bound({ service: 'media-service', status: 'not_found' }, 404), NOW);
+    expect(result.status).toBe('unreachable');
+    expect(result.httpStatus).toBe(404);
+    expect(result.target).toEqual({ base: SUPPLY_TARGET_BINDING, answeredBy: 'media-service' });
+  });
+
+  it('a non-JSON upstream body is captured TRUNCATED — an arbitrary response never becomes an unbounded operator field', async () => {
+    const hugeHtml: SupplySourceEnv = {
+      OFFER: {
+        fetch: async () =>
+          ({ ok: false, status: 502, json: async () => null, text: async () => '<html>' + 'x'.repeat(10_000) }) as unknown as Response,
+      },
+    };
+    const result = await readSupplyCollection(hugeHtml, NOW);
+    expect(result.target?.answeredBy).toBeDefined();
+    expect(result.target!.answeredBy!.length).toBeLessThanOrEqual(120);
+  });
+
+  it('whoAnswered prefers the self-reported service name and falls back to the bounded raw body', () => {
+    expect(whoAnswered(JSON.stringify({ service: 'offer-service', error: 'x' }))).toBe('offer-service');
+    expect(whoAnswered('plain text error')).toBe('plain text error');
+    expect(whoAnswered('')).toBeUndefined();
+    expect(whoAnswered('y'.repeat(500))!.length).toBe(120);
   });
 });
