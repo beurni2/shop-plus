@@ -253,11 +253,25 @@ function inkBandAndFooter(sf: Storefront): string {
  * have detonated the moment a real store had one product. A storefront now shows
  * HER items and nothing else; a store with none renders the honest empty state.
  */
-function orderedProducts(sf: Storefront, pids?: readonly string[]): VitrineProduct[] {
-  const all = (pids ?? sf.curatedItems)
-    .map(seedProduct)
-    .filter((p): p is VitrineSeedProduct => !!p)
-    .map(productFromSeed);
+function orderedProducts(
+  sf: Storefront,
+  pids?: readonly string[],
+  described?: readonly VitrineProduct[],
+): VitrineProduct[] {
+  const wanted = pids ?? sf.curatedItems;
+  // BUYER-LIVE-WIRE-3 — REAL PRODUCTS WIN. When the service described them, the
+  // grid is built from THOSE records; the demo seed is consulted only when nothing
+  // was described (the offline harness). The seed lookup was previously the ONLY
+  // path, so a real `productVersionId` — which is not a seed pid — resolved to
+  // nothing and the grid rendered ZERO TILES for a shop that genuinely had a
+  // product. Order still follows `curatedItems`, which stays the membership truth.
+  const all =
+    described !== undefined
+      ? wanted.map((pid) => described.find((p) => p.pid === pid)).filter((p): p is VitrineProduct => p !== undefined)
+      : wanted
+          .map(seedProduct)
+          .filter((p): p is VitrineSeedProduct => !!p)
+          .map(productFromSeed);
   return [...all.filter((p) => p.inStock), ...all.filter((p) => !p.inStock)];
 }
 
@@ -276,6 +290,9 @@ export function renderVitrineReady(
   trust: VitrineTrust,
   opts: VitrineRenderOpts,
   notes: ProductVoiceNotes = {},
+  /** BUYER-LIVE-WIRE-3 — the service's described products. Absent ⇒ the demo seed
+   *  path (offline harness). Present ⇒ the ONLY source of tiles. */
+  described?: readonly VitrineProduct[],
 ): string {
   const th = VITRINE_THEMES[sf.theme];
   const parts = [
@@ -285,10 +302,8 @@ export function renderVitrineReady(
   ];
 
   // « À LA UNE » — ≤ 2 pinned, never an out-of-stock article (auto-retrait).
-  const featured = sf.featuredItems
-    .map(seedProduct)
-    .filter((p): p is VitrineSeedProduct => !!p && p.inStock)
-    .map(productFromSeed)
+  const featured = orderedProducts(sf, sf.featuredItems, described)
+    .filter((p) => p.inStock)
     .slice(0, 2);
   if (featured.length > 0) {
     parts.push(groupTitle(t('vit.a_la_une'), undefined));
@@ -299,11 +314,11 @@ export function renderVitrineReady(
   const sectioned = new Set(sf.sections.flatMap((s) => s.pids));
   const visibleSections = sf.sections.filter((s) => s.pids.length > 0);
   for (const s of visibleSections) {
-    const prods = orderedProducts(sf, s.pids);
+    const prods = orderedProducts(sf, s.pids, described);
     parts.push(groupTitle(esc(s.name).toUpperCase(), prods.length, 'section'));
     parts.push(`<div class="vt-grid">${prods.map((p) => tile(p, notes[p.pid])).join('')}</div>`);
   }
-  const residual = orderedProducts(sf).filter((p) => !sectioned.has(p.pid));
+  const residual = orderedProducts(sf, undefined, described).filter((p) => !sectioned.has(p.pid));
   if (visibleSections.length === 0 || residual.length > 0) {
     parts.push(
       groupTitle(t('vit.groupe_tous'), residual.length, visibleSections.length === 0 ? 'var' : 'literal'),

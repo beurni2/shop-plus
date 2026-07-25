@@ -129,12 +129,21 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
       case 'empty':
         root.innerHTML = renderVitrineEmpty(sf!, resolved!.trust, { fromProduct });
         break;
-      case 'ready':
+      case 'ready': {
+        // BUYER-LIVE-WIRE-3 — the empty/ready decision follows WHAT CAN ACTUALLY
+        // BE SHOWN, not membership alone. `curatedItems` is the membership truth,
+        // but a pid the service could not describe yields no tile — so deciding on
+        // membership alone rendered the READY screen with an EMPTY GRID, which
+        // reads as a broken page rather than an honest state. When the service
+        // described products, THAT list decides; otherwise membership does.
+        const described = resolved!.products;
+        const showable = described !== undefined ? described.length : sf!.curatedItems.length;
         root.innerHTML =
-          sf!.curatedItems.length === 0
+          showable === 0
             ? renderVitrineEmpty(sf!, resolved!.trust, { fromProduct })
-            : renderVitrineReady(sf!, resolved!.trust, { fromProduct }, resolved!.notes);
+            : renderVitrineReady(sf!, resolved!.trust, { fromProduct }, resolved!.notes, described);
         break;
+      }
     }
   };
 

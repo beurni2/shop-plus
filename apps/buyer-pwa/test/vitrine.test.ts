@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { VitrineViewModel } from '../src/vitrine-view';
 import { harnessProfil } from '../src/vitrine/flows';
+import { renderVitrineReady } from '../src/vitrine/render';
 import {
   identityLinkSuffix,
   identityLink,
@@ -180,5 +181,59 @@ describe('BUYER-LIVE-WIRE-2 — a REAL /v/{slug} entry reaches the env-gated por
     expect(main).toMatch(/const port = isRealPath \? resolveStorefrontPort\(\) : demoStorefrontPort\(profil\)/);
     const flows = readFileSync(join(__dirname, '..', 'src/vitrine/flows.ts'), 'utf8');
     expect(flows).toMatch(/harness\.profil \? demoStorefrontPort\(harness\.profil\) : resolveStorefrontPort\(\)/);
+  });
+});
+
+/* ------------------------------------------------- BUYER-LIVE-WIRE-3 -- */
+
+describe('BUYER-LIVE-WIRE-3 — a REAL product renders; the demo seed is not the only source', () => {
+  const sfReal = {
+    id: 'sf-1869', resellerId: 'rs-1869', slug: 'chezaichamod-1869',
+    name: 'Chez Aïcha Mod', zone: 'Ouagadougou', category: 'Général',
+    tagline: '', bio: '', theme: 'laterite' as const,
+    cover: { status: 'none' as const }, avatar: { mode: 'monogram' as const },
+    curatedItems: ['pv-real-0001'], featuredItems: [], sections: [],
+    discoverable: false, createdAt: 'T', updatedAt: 'T',
+  };
+  const trust = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
+  const described = [
+    { pid: 'pv-real-0001', name: 'Bogolan brodé', priceFcfa: 9_200, inStock: true, assetRefs: [] as string[] },
+  ];
+
+  it('THE PRODUCT APPEARS — a productVersionId is not a seed pid, and that was the whole failure', () => {
+    // Before this fix the grid mapped curatedItems through the DEMO SEED, so a
+    // real pid resolved to nothing and a shop with a genuine published product
+    // rendered ZERO TILES. The founder saw exactly that: « it opens the boutique
+    // but no product is in there ».
+    const html = renderVitrineReady(sfReal as never, trust, { fromProduct: false }, {}, described);
+    expect(html).toContain('Bogolan brodé');
+    expect(html).toContain('data-pid="pv-real-0001"');
+    // …and the price is HER signed price, rendered verbatim
+    expect(html).toMatch(/9\D?200/);
+  });
+
+  it('WITHOUT DESCRIBED PRODUCTS THE SEED PATH SURVIVES — the offline harness is not collateral damage', () => {
+    const sfDemo = { ...sfReal, curatedItems: ['p1'] };
+    const html = renderVitrineReady(sfDemo as never, trust, { fromProduct: false }, {});
+    expect(html).toContain('Robe brodée bogolan'); // the p1 seed name
+  });
+
+  it('A REAL PID WITH NO DESCRIPTION STILL RENDERS NOTHING — omission stays honest', () => {
+    // The service omits what it cannot describe; the renderer must not invent.
+    const html = renderVitrineReady(sfReal as never, trust, { fromProduct: false }, {}, []);
+    expect(html).not.toContain('Bogolan');
+    expect(html).not.toContain('Robe brodée'); // and NEVER falls back to demo data
+  });
+
+  it('THE GRID FOLLOWS curatedItems ORDER, and épuisé sorts last', () => {
+    const sfTwo = { ...sfReal, curatedItems: ['pv-a', 'pv-b', 'pv-c'] };
+    const three = [
+      { pid: 'pv-a', name: 'Alpha', priceFcfa: 100, inStock: false, assetRefs: [] as string[] },
+      { pid: 'pv-b', name: 'Bravo', priceFcfa: 200, inStock: true, assetRefs: [] as string[] },
+      { pid: 'pv-c', name: 'Charlie', priceFcfa: 300, inStock: true, assetRefs: [] as string[] },
+    ];
+    const html = renderVitrineReady(sfTwo as never, trust, { fromProduct: false }, {}, three);
+    expect(html.indexOf('Bravo')).toBeLessThan(html.indexOf('Charlie'));
+    expect(html.indexOf('Charlie')).toBeLessThan(html.indexOf('Alpha')); // épuisé last
   });
 });

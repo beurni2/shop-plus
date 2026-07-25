@@ -20,6 +20,7 @@
 // ITS edit boundary (§3.1/QA §8.6) — the buyer only renders.
 import type { Storefront } from '@platform/contracts';
 import { DEMO_VOICE_URL, DEMO_VOICE_DURATION_MS } from './voice-asset';
+import type { VitrineProduct } from './catalog';
 
 export type { Storefront };
 
@@ -66,7 +67,27 @@ export interface StorefrontProfilePort {
    * from storefront-service; the demo adapter resolves synchronously but returns
    * the same Promise shape so callers await ONE seam. undefined still = the
    * honest not-found the flow renders (VitrineEtat 'invalid'). */
-  resolve(slug: string): Promise<{ storefront: Storefront; trust: VitrineTrust; notes: ProductVoiceNotes } | undefined>;
+  resolve(slug: string): Promise<
+    | {
+        storefront: Storefront;
+        trust: VitrineTrust;
+        notes: ProductVoiceNotes;
+        /**
+         * BUYER-LIVE-WIRE-3 — the products the SERVICE described, carried through
+         * to the renderer. Absent ⇒ the demo seed path (the offline harness).
+         *
+         * THE DEFECT THIS CLOSES: the service has emitted this array since
+         * REAL-PRODUCT-RENDER-1 and NOTHING READ IT. The renderer mapped
+         * `curatedItems` through the DEMO SEED, so a real `productVersionId` —
+         * which is not a seed pid — resolved to nothing and a shop with a genuine
+         * published product rendered ZERO TILES. The shapes are identical by
+         * design (`VitrineProductRecord` ≡ `VitrineProduct`), so this is carried
+         * with zero transformation, exactly as `catalog.ts` always intended.
+         */
+        products?: readonly VitrineProduct[];
+      }
+    | undefined
+  >;
 }
 
 /* ------------------------------------------------------------------ DEMO -- */
@@ -184,6 +205,19 @@ export function demoStorefrontPort(variant: 'default' | 'customised' | 'empty' |
 
 /* --------------------------------------------------------- REAL (partial) -- */
 
+/** A described product needs the five fields the tile renders — nothing else. */
+function looksLikeProduct(v: unknown): v is VitrineProduct {
+  if (v === null || typeof v !== 'object') return false;
+  const p = v as VitrineProduct;
+  return (
+    typeof p.pid === 'string' &&
+    typeof p.name === 'string' &&
+    typeof p.priceFcfa === 'number' &&
+    typeof p.inStock === 'boolean' &&
+    Array.isArray(p.assetRefs)
+  );
+}
+
 /** A storefront looks real when the service handed back at least an id + slug. */
 function looksLikeStorefront(v: unknown): v is Storefront {
   return typeof v === 'object' && v !== null && typeof (v as Storefront).id === 'string' && typeof (v as Storefront).slug === 'string';
@@ -223,8 +257,14 @@ export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
       if (!res.ok) return undefined; // 404 and any non-2xx → honest not-found
       const view: unknown = await res.json().catch(() => null);
       if (!looksLikeStorefront(view)) return undefined;
+      // BUYER-LIVE-WIRE-3 — the service's `products` ride through. Defensive on
+      // shape because this is a network boundary: a non-array is treated as
+      // ABSENT (the seed path) rather than crashing the mount, and each record is
+      // checked for the five fields the tile actually renders.
+      const raw = (view as { products?: unknown }).products;
+      const products = Array.isArray(raw) ? raw.filter(looksLikeProduct) : undefined;
       // REAL storefront → ABSENT trust, NO notes. Never another reseller's proof.
-      return { storefront: view, trust: ABSENT_TRUST, notes: {} };
+      return { storefront: view, trust: ABSENT_TRUST, notes: {}, ...(products !== undefined ? { products } : {}) };
     },
   };
 }
