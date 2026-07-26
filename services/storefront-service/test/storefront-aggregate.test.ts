@@ -121,3 +121,20 @@ describe('publish / unpublish — the discoverable toggle, updatedAt on real cha
     expect(reg.publish({ id: 'sf-nope', correlationId: 'c', at: T1 }).status).toBe('absent');
   });
 });
+
+describe('STOREFRONT-DELETE-1 — decideDelete, the pure erasure decision', () => {
+  it('an existing entry deletes, carries the SLUG for pointer cleanup, and orders the erase', async () => {
+    const { decideCreate, decideDelete } = await import('../src/storefront-core.js');
+    const { next } = decideCreate(undefined, SELLER_001);
+    const { decision, erase } = decideDelete(next);
+    expect(decision).toEqual({ status: 'deleted', slug: 'seller-0001' });
+    expect(erase).toBe(true);
+  });
+
+  it('an absent entry is surfaced, and NOTHING is erased — never a phantom deletion', async () => {
+    const { decideDelete } = await import('../src/storefront-core.js');
+    const { decision, erase } = decideDelete(undefined);
+    expect(decision).toEqual({ status: 'absent' });
+    expect(erase).toBe(false);
+  });
+});

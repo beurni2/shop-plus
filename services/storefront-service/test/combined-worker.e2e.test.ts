@@ -377,6 +377,46 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(sf.status).not.toBe(401);
   });
 
+  it('STOREFRONT-DELETE-1 — DELETE /storefronts/:id is gated BY METHOD: 401 without the key, real act with it', async () => {
+    // DELETE is not a safe method, so `rejectUnauthorizedWrite` refuses it before
+    // any dispatch — the new route needed NO new gate code, and this pins that the
+    // method actually rides the write gate rather than slipping around it.
+    const noKey = await mf.dispatchFetch('http://c/storefronts/sf-auth-0001', { method: 'DELETE' });
+    expect(noKey.status).toBe(401);
+    expect((await noKey.json()) as unknown).toEqual({ error: 'unauthorized' });
+
+    // with the key, an unknown id is the honest 404 (gate ≠ existence oracle), and
+    // a real shop deletes: entry, slug pointer and directory row all gone.
+    const unknown = await mf.dispatchFetch('http://c/storefronts/sf-jamais-9999', { method: 'DELETE', headers: authed });
+    expect(unknown.status).toBe(404);
+
+    const created = await mf.dispatchFetch('http://c/storefronts', {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({
+        commandId: 'cmd-del-e2e',
+        id: 'sf-del-e2e',
+        resellerId: 'rs-del-e2e',
+        shortCode: 'SELLER-0031',
+        name: 'Boutique à retirer',
+        zone: 'Ouagadougou',
+        category: 'Général',
+        correlationId: 'corr-del',
+        at: '2026-07-26T08:00:00.000Z',
+      }),
+    });
+    expect(((await created.json()) as { status: string }).status).toBe('created');
+    const del = await mf.dispatchFetch('http://c/storefronts/sf-del-e2e', { method: 'DELETE', headers: authed });
+    expect(del.status).toBe(200);
+    expect((await del.json()) as unknown).toEqual({ status: 'deleted', slug: 'seller-0031' });
+    const gone = await mf.dispatchFetch('http://c/s/seller-0031', { method: 'GET' });
+    expect(gone.status).toBe(404); // the buyer read is the honest not-found
+    const list = (await (
+      await mf.dispatchFetch('http://c/storefronts', { method: 'GET', headers: authed })
+    ).json()) as { id: string }[];
+    expect(list.some((r) => r.id === 'sf-del-e2e')).toBe(false); // the admin list forgot it
+  });
+
   it('POST /media/upload is gated: 401 without the key, 201 with it', async () => {
     const noKey = await mf.dispatchFetch('http://c/media/upload?kind=avatar&storefrontId=sf-auth-0001', {
       method: 'POST',

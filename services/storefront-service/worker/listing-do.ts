@@ -65,6 +65,9 @@ export class ListingDO {
       const entry = await this.state.storage.get<ListingEntry>(ENTRY_KEY);
       if (!entry) return Response.json({ error: 'not_found' }, { status: 404 });
       return Response.json({
+        // AUTO-HIDE-WATCH-1 — the id rides along so the watcher can address the
+        // hide without a second lookup (the entry already knows who it is).
+        listingId: entry.listing.id,
         productVersionId: entry.listing.productVersionId,
         customerPriceFcfa: entry.customerPriceFcfa,
         status: entry.listing.status,
