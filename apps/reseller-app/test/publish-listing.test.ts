@@ -221,3 +221,63 @@ describe('MONEY-SHAPE-1 item 4 — the toast that could not fail', () => {
     expect(entry!.fr).not.toMatch(/\{slug\}/);
   });
 });
+
+describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
+  const app = readFileSync(join(__dirname, '..', 'App.tsx'), 'utf8');
+
+  it('ITEM 4 — a CONFIRMED add lands her on Ma Vitrine, after membership, never before', () => {
+    const handler = /const publishListing = useCallback\([\s\S]*?\n  \);/.exec(app)?.[0] ?? '';
+    const addIdx = handler.indexOf('vitrineCol.addToVitrine');
+    const navIdx = handler.indexOf("toHub('vitrine')");
+    expect(addIdx).toBeGreaterThan(-1);
+    expect(navIdx).toBeGreaterThan(addIdx); // navigate AFTER the confirmed write
+    // and never on the refusal path — the nav sits after the !res.ok return
+    expect(handler.indexOf('if (!res.ok)')).toBeLessThan(navIdx);
+  });
+
+  it('ITEM 5 — the share preview reads the LIVE offer: name, client price, net, photo', () => {
+    expect(app).toMatch(/shareOffer\?\.productName \?\? shareOpp\?\.name/);
+    expect(app).toMatch(/shareOffer !== undefined \? viewOfOffer\(shareOffer\)\.client/);
+    expect(app).toMatch(/shareOffer !== undefined \? viewOfOffer\(shareOffer\)\.net/);
+    expect(app).toMatch(/shareOffer\?\.assetRefs\[0\]/);
+  });
+
+  it('ITEM 6 — the live slug is READ BACK, never computed, and threads to the customize stack', () => {
+    // the state is fed by service.list() matched on HER storefrontId…
+    expect(app).toMatch(/res\.value\.find\(\(r\) => r\.id === identity\.storefrontId\)/);
+    // …or by the create response (a read-back too), never by deriveShortCode
+    expect(app).toMatch(/setLiveShop\(\{ slug: created\.value\.slug \}\)/);
+    expect(app).not.toMatch(/setLiveShop\(\{ slug: deriveShortCode/);
+    expect(app).toMatch(/liveSlug=\{liveShop\?\.slug\}/);
+    // « voir » opens HER public page from the read-back slug
+    expect(app).toMatch(/Linking\.openURL\(`\$\{QR_ORIGIN\}\$\{QR_BASE\}\/v\/\$\{slug\}`\)/);
+  });
+
+  it('ITEM 6 — the publish CTA retires once the shop is live (customize screens)', () => {
+    const k = readFileSync(join(__dirname, '..', 'src/vitrine/customize/screens.tsx'), 'utf8');
+    expect(k).toMatch(/onPublishOnline && liveSlug === undefined && \(/);
+    // and voir prefers the real page over the listing toast
+    expect(k).toMatch(/liveSlug !== undefined && onOpenBoutique !== undefined \?/);
+  });
+
+  it('PHOTOS — every reseller surface renders the real photograph with the glyph as fallback', () => {
+    // opp row, fiche hero, vitrine card: Image from assetRefs[0]
+    const photoSites = app.match(/assetRefs\[0\] \? \(\s*<Image source=\{\{ uri: (item|opp)\.assetRefs\[0\] \}\}/g) ?? [];
+    expect(photoSites.length).toBeGreaterThanOrEqual(3);
+    // aperçu cliente goes through the kit tile's photo variant
+    expect(app).toMatch(/photoUri=\{item\.assetRefs\[0\]\}/);
+  });
+
+  it('ITEMS 2+3 — the fiche money card is three NAMED rows with net FIRST and a typable markup', () => {
+    // net stays the first money figure on the screen (SP-I04)
+    const gagnez = app.indexOf("tf('opportunity.gagnez'");
+    const base = app.indexOf("t('fiche.prix_base')");
+    const cliente = app.indexOf("t('fiche.prix_cliente')");
+    expect(gagnez).toBeGreaterThan(-1);
+    expect(gagnez).toBeLessThan(base);
+    expect(base).toBeLessThan(cliente);
+    // the typed field commits through the SAME snap as the slider — one value
+    expect(app).toMatch(/onChange\(snapMarkup\(parsed, cap\)\)/);
+    expect(app).toMatch(/<MarkupControl/);
+  });
+});

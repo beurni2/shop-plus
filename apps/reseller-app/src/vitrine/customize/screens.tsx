@@ -67,6 +67,11 @@ export interface CustomizeProps {
   onPublishOnline?: (sf: Storefront) => void;
   /** Show what the founder has already put online (the admin list). */
   onListStorefronts?: () => void;
+  /** RESELLER-UX-1 item 6 — her shop's REAL slug once it is live (read back from
+   * the service, never computed). Present ⇒ the publish CTA is retired and
+   * « voir » opens the public page; absent ⇒ first-time flow, unchanged. */
+  liveSlug?: string | undefined;
+  onOpenBoutique?: (slug: string) => void;
   /** RESELLER-SEAM-HONESTY-1 — `true` when the write seam resolved to `null` (the
    * `EXPO_PUBLIC_STOREFRONT_*` pair is not inlined in this build). The CTA STAYS
    * VISIBLE and an honest note sits under it: a button that vanishes hides the truth
@@ -159,7 +164,7 @@ function KHeader({ title, onBack, pill }: { title: string; onBack: () => void; p
 
 /* ------------------------------------------------------------- the stack -- */
 
-export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured }: CustomizeProps) {
+export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique }: CustomizeProps) {
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
   const [editingSection, setEditingSection] = useState<string | null>(null);
@@ -215,6 +220,8 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           onPublishOnline={onPublishOnline ? () => onPublishOnline(sf) : undefined}
           onListStorefronts={onListStorefronts}
           serviceUnconfigured={serviceUnconfigured ?? false}
+          liveSlug={liveSlug}
+          onOpenBoutique={onOpenBoutique}
         />
       )}
       {route === 'k2' && (
@@ -308,7 +315,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
 
 /* ------------------------------------------------------------------- K1 -- */
 
-function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnconfigured }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean }) {
+function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean; liveSlug?: string | undefined; onOpenBoutique?: ((slug: string) => void) | undefined }) {
   const initial = sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase();
   const coverSub =
     sf.cover.status === 'live' ? t('k.row.cover_live') : sf.cover.status === 'pending' ? t('k.row.cover_pending') : t('k.row.cover_defaut');
@@ -371,7 +378,12 @@ function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnc
       {/* RESELLER-STOREFRONT-WRITE-1 — the app's real calls to the live service.
           Shown only when the seam is wired (App passes the handlers); the K-screen
           tests, which mount nothing here, are unaffected. */}
-      {onPublishOnline && (
+      {/* RESELLER-UX-1 item 6 (founder walk) — « Mettre ma boutique en ligne » is a
+          FIRST-TIME action: once her shop is live (liveSlug read back from the
+          service), the CTA retires. A create button on an already-created shop is
+          a promise the tap cannot keep — the service would answer `idempotent`
+          and nothing would change, a button that appears to work and does not. */}
+      {onPublishOnline && liveSlug === undefined && (
         <Pressable style={({ pressed }) => [S.cta, pressed && S.pressed]} onPress={onPublishOnline} accessibilityRole="button">
           <Text style={S.ctaText}>{t('k.publier.cta')}</Text>
         </Pressable>
@@ -381,14 +393,21 @@ function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnc
           behaviour showed « En ligne » and wrote nothing. Deliberately NOT styled as
           an error — no red, no icon, quiet secondary type — because nothing is broken
           and she did nothing wrong. */}
-      {onPublishOnline && serviceUnconfigured && (
+      {onPublishOnline && liveSlug === undefined && serviceUnconfigured && (
         <Text style={S.unconfiguredNote}>{t('k.publier.non_relie_note')}</Text>
       )}
-      {onListStorefronts && (
+      {/* « Voir ma boutique en ligne » — with a LIVE slug it OPENS HER PUBLIC PAGE
+          (the founder tapped this and saw nothing: it only ever listed names in a
+          toast). Without one it keeps the honest listing fallback. */}
+      {liveSlug !== undefined && onOpenBoutique !== undefined ? (
+        <Pressable style={({ pressed }) => [S.ghostBtn, pressed && S.pressed]} onPress={() => onOpenBoutique(liveSlug)} accessibilityRole="button">
+          <Text style={S.ghostBtnText}>{t('k.publier.voir')}</Text>
+        </Pressable>
+      ) : onListStorefronts ? (
         <Pressable style={({ pressed }) => [S.ghostBtn, pressed && S.pressed]} onPress={onListStorefronts} accessibilityRole="button">
           <Text style={S.ghostBtnText}>{t('k.publier.voir')}</Text>
         </Pressable>
-      )}
+      ) : null}
       {/* bande encre — jamais modifiable */}
       <View style={S.inkBand}>
         <Text style={S.inkBandText}>

@@ -257,7 +257,18 @@ async function handleSupplyCollection(env?: StorefrontServiceEnv): Promise<Respo
   const result = await readSupplyCollection(env, new Date().toISOString());
   return Response.json(
     {
-      offers: result.offers,
+      // RESELLER-PHOTOS-1 (founder walk: « the product comes without the photos ») —
+      // the refs become ABSOLUTE here, exactly as the buyer join does, through the
+      // SAME absoluteAssetRefs and the SAME PRODUCT_MEDIA_BASE. The projection
+      // carries RELATIVE paths (`media/{kind}/{captureRef}`); a phone rendering one
+      // into an <Image> resolves it against nothing and draws nothing. One base,
+      // one join function, two consumers — the buyer wire and this one cannot
+      // disagree about where a photograph lives. An unset base yields [] and the
+      // app draws its glyph tile: the designed no-photo state, never a broken image.
+      offers: result.offers.map((o) => ({
+        ...o,
+        assetRefs: absoluteAssetRefs(env?.PRODUCT_MEDIA_BASE, o.assetRefs),
+      })),
       diagnostic: {
         status: result.status,
         refusals: result.refusals,

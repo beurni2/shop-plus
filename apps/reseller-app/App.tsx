@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
-import { FlatList, Linking, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Image, Linking, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Updates from 'expo-updates';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, touch, interaction, dimension } from '@platform/ui-tokens/legacy';
@@ -16,7 +16,7 @@ import { QrCode } from './src/qr/QrCode';
 import { DEMO_QR_URL, QR_ORIGIN, QR_BASE, signedProductShareUrl } from './src/qr/identity';
 import { FONTS_TO_LOAD } from './src/ui/fonts-load';
 import { foldVitrine, type VitrineEvent } from './src/vitrine/collection';
-import { marginBreakdown, markupCap, defaultMarkup } from './src/vitrine/margin';
+import { marginBreakdown, markupCap, defaultMarkup, snapMarkup } from './src/vitrine/margin';
 import { MarginSlider } from './src/ui/margin-slider';
 import { HeroLedger, DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
@@ -187,6 +187,43 @@ const SEAM_HOST = process.env.EXPO_PUBLIC_STOREFRONT_BASE || '';
  * cannot. Member-expression access so babel-preset-expo inlines it; `?? ''` catches
  * the unset case and `!== ''` the empty-string one.
  */
+/**
+ * RESELLER-UX-1 item 3 — THE MARKUP IS TYPABLE, NOT ONLY SLIDABLE (founder walk).
+ * One value, two hands on it: the slider for feel, the field for the exact figure
+ * a seller already has in her head. The FIELD IS THE SAME VALUE — it commits
+ * through the SAME `snapMarkup` (step 100, clamped to [0, cap]) on blur/submit, so
+ * neither control can produce a markup the other could not. While she types,
+ * nothing commits: committing per keystroke would snap-fight the digits under her
+ * thumb. A cleared or unparseable field commits nothing and falls back to the last
+ * real value on blur — never NaN, never a silent zero.
+ */
+function MarkupControl({ value, cap, onChange }: { value: number; cap: number; onChange: (m: number) => void }) {
+  const [text, setText] = useState<string | null>(null); // null = not editing; show the value
+  const commit = (raw: string) => {
+    const parsed = Number.parseInt(raw.replace(/[^0-9]/g, ''), 10);
+    setText(null);
+    if (Number.isFinite(parsed)) onChange(snapMarkup(parsed, cap));
+  };
+  return (
+    <View>
+      <View style={styles.margeHeadRow}>
+        <Overline>{t('fiche.marge_titre')}</Overline>
+        <TextInput
+          style={styles.margeInput}
+          value={text ?? String(value)}
+          onChangeText={setText}
+          onBlur={() => commit(text ?? String(value))}
+          onSubmitEditing={() => commit(text ?? String(value))}
+          keyboardType="number-pad"
+          accessibilityLabel={t('fiche.marge_titre')}
+        />
+      </View>
+      <MarginSlider value={value} cap={cap} onChange={(m) => { setText(null); onChange(m); }} />
+      <Text style={styles.noteLine}>{tf('fiche.plafond', { amount: formatFcfa(cap) })}</Text>
+    </View>
+  );
+}
+
 const SEAM_KEY_PRESENT = (process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY ?? '') !== '';
 
 /** The operator words for the feed's own state — the fourth fact the empty card hides. */
@@ -307,6 +344,27 @@ export default function App() {
   // (aichomod-8291 → chezaichamod-4911). `undefined` = still loading; `null` = the
   // mint or the persist FAILED, which is an honest state and never a fabricated id.
   const [identity, setIdentity] = useState<ResellerIdentity | null | undefined>(undefined);
+  /**
+   * RESELLER-UX-1 items 5+6 — HER LIVE SHOP, READ BACK, NEVER COMPUTED. `undefined`
+   * = not yet asked; `null` = asked, none exists. The slug here comes from the
+   * service's own list (or the create response), which is the toast law applied to
+   * navigation and sharing: an address nobody stored must never be printed, opened,
+   * or SHARED. Sharing was the sharpest instance — a live product shared under the
+   * demo slug opened a stranger's demo shop, which is exactly what the founder saw.
+   */
+  const [liveShop, setLiveShop] = useState<{ slug: string } | null | undefined>(undefined);
+  useEffect(() => {
+    if (service === null || identity === null || identity === undefined) return;
+    let live = true;
+    void service.list().then((res) => {
+      if (!live || !res.ok) return;
+      const mine = res.value.find((r) => r.id === identity.storefrontId);
+      setLiveShop(mine !== undefined ? { slug: mine.slug } : null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [service, identity]);
   useEffect(() => {
     let live = true;
     void loadOrMintIdentity(expoIdentityStore(), expoRandomBytes).then((outcome) => {
@@ -358,6 +416,7 @@ export default function App() {
       if (created.value.slug === null || created.value.slug === '') {
         return setToast(t('k.publier.en_ligne_sans_slug'));
       }
+      setLiveShop({ slug: created.value.slug }); // the create response IS a read-back
       setToast(tf('k.publier.en_ligne', { slug: created.value.slug }));
     },
     [service, identity],
@@ -393,6 +452,13 @@ export default function App() {
   const vitrineOffers = offers.filter((o) => vitrineLive.includes(o.productVersionId));
   const ficheOpp = world.opportunities.find((o) => o.id === ficheId);
   const shareOpp = world.opportunities.find((o) => o.id === shareId);
+  // RESELLER-UX-1 item 5 — THE SHARE LOOKUP JOINS THE LIVE KEYSPACE. `shareId` is a
+  // productVersionId since PUBLISH-PRICE-1, but this screen still looked it up in
+  // the DEMO world by seed id — so tapping « Partager » on her real product found
+  // nothing, fell back to the composed demo card, and the founder shared A PRODUCT
+  // THAT WAS NOT THE ONE HE TAPPED. Same family as the markup keyspace defect:
+  // one id, two worlds, and the join silently picking the wrong one.
+  const shareOffer = offers.find((o) => o.productVersionId === shareId);
   const viewOf = (opp: DemoOpportunity) => marginOf(opp.id, opp.input.sellerBasePrice, opp.input.sellerFundedCommission);
   /**
    * BROWSE-SUPPLY-1 — THE ONE money computation, now reachable from a LIVE offer as
@@ -453,8 +519,13 @@ export default function App() {
       // keyspace the fiche, the grid and the signed price all share.
       vitrineCol.addToVitrine(o.productVersionId);
       setToast(t('fiche.publier.ajoute'));
+      // RESELLER-UX-1 item 4 (founder walk: « I am still in that screen ») — the
+      // add lands her ON the vitrine so the product she just added is the first
+      // thing she sees. Cause and effect on one screen; toHub resets the stack so
+      // « Retour » from here does not replay the fiche.
+      toHub('vitrine');
     },
-    [service, identity, markups, markupTouched, vitrineCol],
+    [service, identity, markups, markupTouched, vitrineCol, toHub],
   );
   const ficheOffer = offers.find((o) => o.productVersionId === ficheId);
   // Her REAL share link — the canon buyer origin + base. Partager is opened FROM a
@@ -465,9 +536,16 @@ export default function App() {
   // `/v/{slug}` with the `/v/` stripped; the pid is the shared product's buyer pid
   // (demo bridge). No shared product (defensive) → her vitrine identity link.
   const storeSlug = vitrineCol.shareSlug().replace(/^\/v\//, '');
-  const shareUrl = shareOpp
-    ? signedProductShareUrl(storeSlug, sharePidFor(shareOpp.id))
-    : `${QR_ORIGIN}${QR_BASE}${vitrineCol.shareSlug()}`;
+  // A LIVE product shares HER live shop's signed link — the pid IS the
+  // productVersionId (no demo bridge on the live path; the bridge maps demo seeds
+  // only). No live slug yet ⇒ fall through to the demo forms rather than compose
+  // an address nobody stored.
+  const shareUrl =
+    shareOffer !== undefined && liveShop !== null && liveShop !== undefined
+      ? signedProductShareUrl(liveShop.slug, shareOffer.productVersionId)
+      : shareOpp
+        ? signedProductShareUrl(storeSlug, sharePidFor(shareOpp.id))
+        : `${QR_ORIGIN}${QR_BASE}${vitrineCol.shareSlug()}`;
   // The share channels — production-shaped over RN Share/Linking. The message is
   // catalog copy (never inline), the link is her real signed slug. Deep-links try
   // first (WhatsApp/Facebook), the OS share sheet is the honest fallback (and the
@@ -668,8 +746,17 @@ export default function App() {
                 accessibilityRole="button"
               >
                 <View style={styles.oppArtTile}>
-                  <View style={styles.artTileStripe} />
-                  <Text style={styles.artTileGlyph}>{item.productName.slice(0, 1)}</Text>
+                  {/* RESELLER-PHOTOS-1 — the REAL photograph when the wire carries
+                      one (absolute URL, absolutized server-side with the same base
+                      as the buyer wire). No ref ⇒ the designed glyph tile. */}
+                  {item.assetRefs[0] ? (
+                    <Image source={{ uri: item.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
+                  ) : (
+                    <>
+                      <View style={styles.artTileStripe} />
+                      <Text style={styles.artTileGlyph}>{item.productName.slice(0, 1)}</Text>
+                    </>
+                  )}
                 </View>
                 <View style={styles.homeSaleBody}>
                   <Text style={styles.homeSaleTitle} numberOfLines={1}>{item.productName}</Text>
@@ -720,41 +807,51 @@ export default function App() {
                 <View style={styles.ficheTierRow}>
                   <StatusChip tone="ok" label={t('fiche.tier')} />
                 </View>
-                {/* art héro 170 — the duotone product banner */}
+                {/* art héro 170 — the REAL photograph, else the duotone banner */}
                 <View style={styles.ficheHero}>
-                  <View style={styles.artTileStripe} />
-                  <Text style={styles.ficheHeroGlyph}>{opp.productName.slice(0, 1)}</Text>
+                  {opp.assetRefs[0] ? (
+                    <Image source={{ uri: opp.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
+                  ) : (
+                    <>
+                      <View style={styles.artTileStripe} />
+                      <Text style={styles.ficheHeroGlyph}>{opp.productName.slice(0, 1)}</Text>
+                    </>
+                  )}
                 </View>
                 {/* titre 24 + identity note — the vendor stays hidden */}
                 <Text style={styles.ficheTitle}>{opp.productName}</Text>
                 <Text style={styles.ficheIdentity}>{t('fiche.identity_note')}</Text>
-                {/* the ONE money line — « Gagnez ≈ {net} net » at the default markup;
-                    she sets her exact markup on Ma Vitrine. No interactive control here. */}
+                {/* RESELLER-UX-1 item 2 — THE MONEY, STRUCTURED (founder walk: base
+                    price visible, less confusing). NET FIRST — her gain stays the
+                    loudest figure on the screen (SP-I04/I12; gross never shown) —
+                    then ONE card with the three lines she reasons over, each named:
+                    what it costs (Prix de base), what she adds (the typable control),
+                    what the cliente pays (Prix cliente, live). Cause and effect in
+                    three labelled rows instead of one floating estimate. */}
                 <Text style={styles.ficheGagnez}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOfOffer(opp).net) })}</Text>
+                <Card style={styles.ficheMoneyCard}>
+                  <View style={styles.margeHeadRow}>
+                    <Overline>{t('fiche.prix_base')}</Overline>
+                    <Text style={styles.margeAmount}>{formatFcfa(opp.basePrice)}</Text>
+                  </View>
+                  <MarkupControl
+                    value={viewOfOffer(opp).markup}
+                    cap={viewOfOffer(opp).cap}
+                    onChange={(m) => {
+                      setMarkups((prev) => ({ ...prev, [opp.productVersionId]: m }));
+                      setMarkupTouched((prev) => ({ ...prev, [opp.productVersionId]: true }));
+                    }}
+                  />
+                  <View style={styles.margeHeadRow}>
+                    <Overline>{t('fiche.prix_cliente')}</Overline>
+                    <Text style={styles.margeAmount}>{formatFcfa(viewOfOffer(opp).client)}</Text>
+                  </View>
+                </Card>
                 {/* protections chips — the trust affordances */}
                 <View style={styles.ficheChips}>
                   <StatusChip tone="muted" label={t('fiche.chip_inspection')} />
                   <StatusChip tone="muted" label={t('fiche.chip_refus')} />
                 </View>
-                {/* PUBLISH-PRICE-1 — THE MARKUP IS SET HERE, ON THE SCREEN WHERE SHE
-                    PUBLISHES. Same component, same arithmetic as Ma Vitrine (byte
-                    identical: marginBreakdown, cap, step 100, net-first). It lives
-                    here because a markup she sets somewhere else is a markup that is
-                    not hers at the moment that matters — and because the default was
-                    previously the ONLY reachable value on a live offer. */}
-                <View style={styles.margeHeadRow}>
-                  <Overline>{t('fiche.marge_titre')}</Overline>
-                  <Text style={styles.margeAmount}>{formatFcfa(viewOfOffer(opp).markup)}</Text>
-                </View>
-                <MarginSlider
-                  value={viewOfOffer(opp).markup}
-                  cap={viewOfOffer(opp).cap}
-                  onChange={(m) => {
-                    setMarkups((prev) => ({ ...prev, [opp.productVersionId]: m }));
-                    setMarkupTouched((prev) => ({ ...prev, [opp.productVersionId]: true }));
-                  }}
-                />
-                <Text style={styles.noteLine}>{tf('fiche.plafond', { amount: formatFcfa(viewOfOffer(opp).cap) })}</Text>
                 <PrimaryButton
                   label={t('fiche.cta')}
                   // TWO GATES, BOTH HONEST. (1) No seam ⇒ no write is possible, so the
@@ -867,8 +964,14 @@ export default function App() {
                 return (
                   <Card style={styles.vitrineCard}>
                     <View style={styles.vitrineCardArt}>
-                      <View style={styles.artTileStripe} />
-                      <Text style={styles.vitrineCardGlyph}>{item.productName.slice(0, 1)}</Text>
+                      {item.assetRefs[0] ? (
+                        <Image source={{ uri: item.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
+                      ) : (
+                        <>
+                          <View style={styles.artTileStripe} />
+                          <Text style={styles.vitrineCardGlyph}>{item.productName.slice(0, 1)}</Text>
+                        </>
+                      )}
                     </View>
                     <Text style={styles.tileName} numberOfLines={1}>{item.productName}</Text>
                     {/* NET-FIRST hero — her gain is the biggest, deepest figure on
@@ -947,15 +1050,19 @@ export default function App() {
               <Overline>{t('share.og_titre')}</Overline>
               <View style={[styles.shareHero, shareFmt === 'story' && styles.shareHeroStory, shareFmt === 'affiche' && styles.shareHeroAffiche]}>
                 <View style={styles.artTileStripe} />
-                <Text style={styles.shareHeroGlyph}>{(shareOpp?.name ?? shareCard.productName).slice(0, 1)}</Text>
+                {shareOffer?.assetRefs[0] ? (
+                  <Image source={{ uri: shareOffer.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
+                ) : (
+                  <Text style={styles.shareHeroGlyph}>{(shareOffer?.productName ?? shareOpp?.name ?? shareCard.productName).slice(0, 1)}</Text>
+                )}
               </View>
               <View style={styles.shareShopRow}>
                 <Text style={styles.shareShopName} numberOfLines={1}>{DEMO_SHARE_IDENTITY.resellerName}</Text>
                 <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
               </View>
-              <Text style={styles.cardTitle}>{campShare !== null ? cercleProduit(campShare.pid).name : shareOpp?.name ?? shareCard.productName}</Text>
+              <Text style={styles.cardTitle}>{campShare !== null ? cercleProduit(campShare.pid).name : shareOffer?.productName ?? shareOpp?.name ?? shareCard.productName}</Text>
               <Text style={styles.shareHeroPrice}>
-                {tf('share.prix', { amount: formatFcfa(campShare !== null ? cercleProduit(campShare.pid).B + cercleProduit(campShare.pid).marge : shareOpp !== undefined ? viewOf(shareOpp).client : shareCard.priceFcfa) })}
+                {tf('share.prix', { amount: formatFcfa(campShare !== null ? cercleProduit(campShare.pid).B + cercleProduit(campShare.pid).marge : shareOffer !== undefined ? viewOfOffer(shareOffer).client : shareOpp !== undefined ? viewOf(shareOpp).client : shareCard.priceFcfa) })}
               </Text>
               <Text style={styles.ogValidite}>
                 {tf('share.validite', { date: shareCard.priceValidityDate })}
@@ -975,11 +1082,13 @@ export default function App() {
             </Card>
 
             {/* reseller-only: her net on this card — « jamais visible par la cliente » */}
-            {shareOpp !== undefined && (
+            {(shareOffer !== undefined || shareOpp !== undefined) && (
               <Text style={styles.netCarte}>
                 {campShare !== null
                   ? tf('ce.d5_net_carte', { amount: formatFcfa(cercleProduit(campShare.pid).netNormal - campShare.K) })
-                  : tf('partager.net_carte', { amount: formatFcfa(viewOf(shareOpp).net) })}
+                  : tf('partager.net_carte', {
+                      amount: formatFcfa(shareOffer !== undefined ? viewOfOffer(shareOffer).net : viewOf(shareOpp!).net),
+                    })}
               </Text>
             )}
 
@@ -1168,7 +1277,22 @@ export default function App() {
             cliente's exact view. Client price ONLY — never net, never marge, never a
             vendor. The « Lecture seule » pill + the ink banner state the boundary. */}
         {screen === 'personnaliser' && (
-          <CustomizeStack onClose={back} onToast={setToast} onPublishOnline={publishOnline} onListStorefronts={listOnline} serviceUnconfigured={service === null} />
+          <CustomizeStack
+            onClose={back}
+            onToast={setToast}
+            onPublishOnline={publishOnline}
+            onListStorefronts={listOnline}
+            serviceUnconfigured={service === null}
+            // RESELLER-UX-1 item 6 — her shop's REAL slug, read back from the
+            // service; null/undefined ⇒ not live (or not yet known), so the
+            // publish CTA shows and « voir » keeps the listing fallback.
+            liveSlug={liveShop?.slug}
+            onOpenBoutique={(slug) => {
+              // Opens HER PUBLIC PAGE — the same URL a cliente gets. Read-back
+              // slug only; best-effort open (a browserless device is not an error).
+              void Linking.openURL(`${QR_ORIGIN}${QR_BASE}/v/${slug}`).catch(() => undefined);
+            }}
+          />
         )}
         {screen === 'pubvitrine' && (
           <FlatList
@@ -1200,7 +1324,7 @@ export default function App() {
             }
             renderItem={({ item }) => (
               // the cliente's tile — client price ONLY (at her markup), neutral crown
-              <DuotoneTile glyph={item.productName.slice(0, 1)} crownTone="neutral" style={styles.gridTile}>
+              <DuotoneTile glyph={item.productName.slice(0, 1)} photoUri={item.assetRefs[0]} crownTone="neutral" style={styles.gridTile}>
                 <Text style={styles.tileName} numberOfLines={2}>{item.productName}</Text>
                 <Text style={styles.tilePrice}>{formatFcfa(viewOfOffer(item).client)}</Text>
               </DuotoneTile>
@@ -1320,6 +1444,27 @@ const styles = StyleSheet.create({
   // « Ma vitrine » two-up duotone grid
   gridRow: { gap: spacing.md },
   gridTile: { flex: 1 },
+  // RESELLER-PHOTOS-1 — the photograph fills its art container; every container
+  // already clips (overflow hidden) and carries the token radius.
+  artPhoto: { width: '100%', height: '100%' },
+  // RESELLER-UX-1 item 3 — the typed-markup field. Sized to the touch law, framed
+  // with the same hairline grammar as the cards; tabular figure styling comes from
+  // margeAmount's family via fontFamily below.
+  margeInput: {
+    minHeight: touch.minTargetPx,
+    minWidth: touch.minTargetPx + spacing.xl,
+    borderWidth: interaction.hairline.medium,
+    borderColor: sharedColour.hairlineStrong,
+    borderRadius: rmax(radius.buttonSecondary),
+    paddingHorizontal: spacing.md,
+    textAlign: 'right',
+    color: sharedColour.ink,
+    fontFamily: TEXT_FAMILY_BOLD,
+    fontSize: t2.scale.row.size,
+    backgroundColor: sharedColour.paper,
+  },
+  // RESELLER-UX-1 item 2 — the one money card on the fiche: three named rows.
+  ficheMoneyCard: { gap: spacing.sm },
   tileName: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
   tilePrice: {
     color: shopColour.deep,

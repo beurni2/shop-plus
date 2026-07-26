@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Image, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, interaction, band, money, dimension } from '@platform/ui-tokens/legacy';
 import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './faso-fonts';
@@ -84,11 +84,16 @@ export function HeroLedger({
    `crownTone` picks accent (default) or a neutral field for non-accent tiles. */
 export function DuotoneTile({
   glyph,
+  photoUri,
   children,
   crownTone = 'accent',
   style,
 }: {
   glyph: string;
+  /** RESELLER-PHOTOS-1 — the product's real photograph (absolute URL). Present ⇒
+   * the crown shows the photo; absent ⇒ the duotone glyph, the designed no-photo
+   * state. The glyph stays REQUIRED so no caller can render an unlabelled blank. */
+  photoUri?: string | undefined;
   children: React.ReactNode;
   crownTone?: 'accent' | 'neutral';
   style?: StyleProp<ViewStyle>;
@@ -97,8 +102,14 @@ export function DuotoneTile({
   return (
     <View style={[styles.tile, style]}>
       <View style={[styles.tileCrown, crown]}>
-        <View style={styles.tileKeyline} />
-        <Text style={styles.tileGlyph}>{glyph}</Text>
+        {photoUri !== undefined && photoUri !== '' ? (
+          <Image source={{ uri: photoUri }} style={styles.tilePhoto} resizeMode="cover" />
+        ) : (
+          <>
+            <View style={styles.tileKeyline} />
+            <Text style={styles.tileGlyph}>{glyph}</Text>
+          </>
+        )}
       </View>
       <View style={styles.tileBody}>{children}</View>
     </View>
@@ -212,6 +223,8 @@ const styles = StyleSheet.create({
     fontSize: t2.scale.cardMoney.size,
     fontWeight: String(t2.scale.cardMoney.wght) as '800',
   },
+  // RESELLER-PHOTOS-1 — fills the crown; the crown's own overflow clips it.
+  tilePhoto: { width: '100%', height: '100%' },
   tileBody: { padding: spacing.md, gap: spacing.xs },
 
   // 4 · selection swap + check

@@ -2564,6 +2564,17 @@
   "key": "k.publier.en_ligne_sans_slug",
   "fr": "Votre boutique est en ligne. Son adresse n\u2019est pas encore revenue.",
   "register": "neutral",
-  "screenClass": "instruction"
+  "screenClass": "instruction"  },
+ {
+  "key": "fiche.prix_base",
+  "fr": "Prix de base",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.prix_cliente",
+  "fr": "Prix cliente",
+  "register": "money",
+  "screenClass": "label"
  }
 ]
