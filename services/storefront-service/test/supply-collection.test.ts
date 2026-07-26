@@ -6,6 +6,7 @@ import {
   whoAnswered,
 } from '../src/supply-collection.js';
 import type { SupplySourceEnv } from '../src/supply-source.js';
+import { handleRequest } from '../src/index.js';
 
 /**
  * BROWSE-SUPPLY-1 / BROWSE-SUPPLY-BINDING-1 — the reseller browse read, its
@@ -257,5 +258,57 @@ describe('the diagnostic names its target', () => {
     expect(whoAnswered('plain text error')).toBe('plain text error');
     expect(whoAnswered('')).toBeUndefined();
     expect(whoAnswered('y'.repeat(500))!.length).toBe(120);
+  });
+});
+
+/* ------------------------------------------------------ RESELLER-PHOTOS-1 -- */
+
+describe('RESELLER-PHOTOS-1 — the browse wire carries ABSOLUTE photo urls', () => {
+  const fresh = () => new Date().toISOString();
+  const envWith = (base?: string) => ({
+    OFFER: {
+      fetch: async () =>
+        Response.json({
+          asOf: fresh(),
+          items: [
+            {
+              version: 1,
+              asOf: fresh(),
+              value: {
+                productVersionId: 'pv-photo-1',
+                offerVersion: 'ov-1',
+                basePrice: 10_000,
+                resellerCommission: 750,
+                available: 3,
+                productName: 'Bazin',
+                assetRefs: ['media/hero-square/cap-1', 'media/proof/cap-1'],
+              },
+            },
+          ],
+        }),
+    },
+    ...(base !== undefined ? { PRODUCT_MEDIA_BASE: base } : {}),
+  });
+
+  it('REFS ARE ABSOLUTIZED WITH THE SAME BASE AS THE BUYER WIRE — a phone can render them', async () => {
+    // The founder's walk: boutik publishes WITH photos, Opportunités shows none.
+    // The projection carries RELATIVE paths; an <Image uri> resolves a relative
+    // path against nothing. The handler now joins PRODUCT_MEDIA_BASE exactly as
+    // the buyer join does — one base, one function, two consumers.
+    const res = await handleRequest(
+      new Request('https://svc/supply-projections'),
+      envWith('https://media-service.example.workers.dev') as never,
+    );
+    const body = (await res.json()) as { offers: { assetRefs: string[] }[] };
+    expect(body.offers[0]!.assetRefs).toEqual([
+      'https://media-service.example.workers.dev/media/hero-square/cap-1',
+      'https://media-service.example.workers.dev/media/proof/cap-1',
+    ]);
+  });
+
+  it('AN UNSET BASE YIELDS [] — the app draws its designed glyph tile, never a broken image', async () => {
+    const res = await handleRequest(new Request('https://svc/supply-projections'), envWith() as never);
+    const body = (await res.json()) as { offers: { assetRefs: string[] }[] };
+    expect(body.offers[0]!.assetRefs).toEqual([]);
   });
 });

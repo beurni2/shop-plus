@@ -51,6 +51,11 @@ describe('the Partager screen sends the product link (App wiring)', () => {
     // the storefront slug is derived from the seam's /v/ slug, then the signed
     // PRODUCT url is built with the shared product's pid
     expect(source).toMatch(/signedProductShareUrl\(storeSlug, sharePidFor\(shareOpp\.id\)\)/);
-    expect(source).toMatch(/shareUrl = shareOpp/); // product link when a product is shared
+    // RESELLER-UX-1 item 5 — the LIVE branch comes FIRST: a live product shares
+    // HER live shop's signed link with the productVersionId as pid (no demo
+    // bridge), and only the demo world falls to sharePidFor. The old assertion
+    // pinned the demo lookup as the ONLY branch, which is the exact bug shipped.
+    expect(source).toMatch(/shareOffer !== undefined && liveShop !== null && liveShop !== undefined\n\s+\? signedProductShareUrl\(liveShop\.slug, shareOffer\.productVersionId\)/);
+    expect(source).toMatch(/const shareOffer = offers\.find\(\(o\) => o\.productVersionId === shareId\);/);
   });
 });
