@@ -200,3 +200,26 @@ export function decideAddItem(
   };
   return { decision: { status: 'added', storefront }, next: { ...current, storefront } };
 }
+
+/* --------------------------------------------- STOREFRONT-DELETE-1 ------ */
+
+export type DeleteDecision =
+  | { readonly status: 'deleted'; readonly slug: string }
+  | { readonly status: 'absent' };
+
+/**
+ * DELETE — the operator cleanup act (the route this was built for: the two
+ * orphan live shops created before the DELETE surface existed). Absent →
+ * surfaced, never a phantom success. Deleted carries the SLUG so the caller can
+ * clear the slug pointer — the entry is the only place the slug is known.
+ *
+ * DELIBERATELY EVENT-FREE: canon names no `storefront.deleted.v1`, and canon
+ * event names are not invented here (a §7 stop if one is ever wanted). Listing
+ * cleanup is likewise OUT of this decision: a deleted shop's reads die at the
+ * slug (`getBySlug` → honest 404), so anything a listing points at is already
+ * unreachable — and the orphans this serves have no listings at all.
+ */
+export function decideDelete(current: StorefrontEntry | undefined): { decision: DeleteDecision; erase: boolean } {
+  if (!current) return { decision: { status: 'absent' }, erase: false };
+  return { decision: { status: 'deleted', slug: current.storefront.slug }, erase: true };
+}

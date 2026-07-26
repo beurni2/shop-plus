@@ -70,9 +70,11 @@ describe('THE MOCK IS NOT THE FALLBACK — fabricated supply data is unreachable
   it('a TEST may inject its own source through the PORT — that is the only way a mock ever appears', async () => {
     // Injection is explicit and local to the test; nothing in src/ can do this.
     const injected: SupplySourcePort = {
-      describe: async (pv: string) => ({ productName: `Produit ${pv}`, assetRefs: [] }),
+      describe: async (pv: string) => ({ productName: `Produit ${pv}`, assetRefs: [], available: 1 }),
+      presence: async () => ({ kind: 'unknown' }),
+      economics: async () => undefined,
     };
-    expect(await injected.describe('pv_x')).toEqual({ productName: 'Produit pv_x', assetRefs: [] });
+    expect(await injected.describe('pv_x')).toEqual({ productName: 'Produit pv_x', assetRefs: [], available: 1 });
   });
 });
 
@@ -259,6 +261,93 @@ describe('SUPPLY-WIRE-1 — the path, the envelope and the freshness bound', () 
     expect(await source().describe(PV)).toBeUndefined();
     stubFetch(409, { service: 'offer-service', status: 'unavailable', reason: 'offer_expired' });
     expect(await source().describe(PV)).toBeUndefined();
+  });
+});
+
+/**
+ * AUTO-HIDE-WATCH-1 — `presence()`: the SAME wire read, surfaced as EVIDENCE.
+ *
+ * The founder's law binds the shape: AN ABSENCE IS ONLY EVIDENCE IF THE
+ * INSTRUMENT COULD HAVE SEEN THE PRESENCE. `gone` is reserved for the ONE
+ * outcome where the producer itself answered and denied the offer (404
+ * `unknown_product_version`). Every failure of the instrument — unreachable,
+ * 5xx, unparseable, stale — and every refusal of an EXTANT offer (409
+ * `unavailable`, possibly transient moderation against a ONE-WAY hide) is
+ * `unknown`: renderable as omission, never actionable as a hide.
+ */
+describe('AUTO-HIDE-WATCH-1 — presence verdicts separate evidence from ignorance', () => {
+  const PV = 'pv-founder-001';
+  const minutesAgo = (m: number): string => new Date(Date.now() - m * 60_000).toISOString();
+  const envelope = (asOf: string): unknown => ({
+    version: 1,
+    asOf,
+    value: {
+      productVersionId: PV,
+      offerVersion: '1',
+      basePrice: 10_000,
+      resellerCommission: 1_000,
+      available: 5,
+      productName: 'Pagne tissé Faso (démo)',
+      assetRefs: ['asset/pv-founder-001/cover'],
+    },
+  });
+  const sourceAnswering = (status: number, body: unknown): BoundSupplySource =>
+    new BoundSupplySource({
+      fetch: async () =>
+        ({ ok: status >= 200 && status < 300, status, json: async () => body, text: async () => '' }) as unknown as Response,
+    });
+
+  it('a FRESH projection is PRESENT, and the description rides along (one fetch, not two)', async () => {
+    const seen = await sourceAnswering(200, envelope(minutesAgo(1))).presence(PV);
+    expect(seen).toEqual({
+      kind: 'present',
+      description: { productName: 'Pagne tissé Faso (démo)', assetRefs: ['asset/pv-founder-001/cover'], available: 5 },
+    });
+  });
+
+  it('the producer answering 404 unknown_product_version is GONE — the one positive absence', async () => {
+    const seen = await sourceAnswering(404, { service: 'offer-service', status: 'not_found', reason: 'unknown_product_version' }).presence(PV);
+    expect(seen).toEqual({ kind: 'gone' });
+  });
+
+  it("a 404 WITHOUT the producer's reason is UNKNOWN — route drift must not become a mass hide", async () => {
+    // Boutik's health fallback answers ANY unmatched path 404 with
+    // `{service, status:'not_found'}` and NO reason. If the supply path ever
+    // drifts (it has once — SUPPLY-WIRE-1), every read 404s through that
+    // fallback; ruling those `gone` would one-way hide every listing on the
+    // platform. The body's `reason` is the denial; the code alone is not.
+    expect(await sourceAnswering(404, { service: 'offer-service', status: 'not_found' }).presence(PV)).toEqual({
+      kind: 'unknown',
+    });
+    expect(await sourceAnswering(404, null).presence(PV)).toEqual({ kind: 'unknown' });
+    expect(await sourceAnswering(404, 'not json').presence(PV)).toEqual({ kind: 'unknown' });
+  });
+
+  it('a NETWORK FAILURE is UNKNOWN, never gone — a supply outage must not read as a lapse', async () => {
+    const source = new BoundSupplySource({
+      fetch: async () => {
+        throw new Error('connection refused');
+      },
+    });
+    expect(await source.presence(PV)).toEqual({ kind: 'unknown' });
+  });
+
+  it('5xx · 409 unavailable · STALE · unparseable are all UNKNOWN — refusals and failures are not lapses', async () => {
+    expect(await sourceAnswering(500, {}).presence(PV)).toEqual({ kind: 'unknown' });
+    // 409: an EXTANT offer refusing service — hiding on it would strand a listing
+    // behind a possibly-transient state, because decideAutoHide is one-way.
+    expect(
+      await sourceAnswering(409, { service: 'offer-service', status: 'unavailable', reason: 'product_not_approved' }).presence(PV),
+    ).toEqual({ kind: 'unknown' });
+    expect(await sourceAnswering(200, envelope(minutesAgo(16))).presence(PV)).toEqual({ kind: 'unknown' });
+    expect(await sourceAnswering(200, { not: 'an envelope' }).presence(PV)).toEqual({ kind: 'unknown' });
+  });
+
+  it('AN ABSENT SOURCE never reports GONE — an instrument that cannot see presence has no absences', async () => {
+    // The unconfigured Worker must be incapable of hiding a listing, the same way
+    // it is incapable of signing a price. `unknown`, by construction.
+    expect(await new AbsentSupplySource().presence()).toEqual({ kind: 'unknown' });
+    expect(await resolveSupplySource({}).presence(PV)).toEqual({ kind: 'unknown' });
   });
 });
 

@@ -99,9 +99,39 @@ export interface ProductEconomics {
   readonly resellerCommission: number;
 }
 
+/**
+ * AUTO-HIDE-WATCH-1 — the PRESENCE verdict, the watcher's instrument.
+ *
+ * `describe()` deliberately collapses every non-fresh outcome into `undefined`,
+ * which is right for RENDERING (omit, never invent) and useless as EVIDENCE:
+ * « the wire hiccuped » and « the offer no longer exists » look identical. The
+ * founder's law — AN ABSENCE IS ONLY EVIDENCE IF THE INSTRUMENT COULD HAVE SEEN
+ * THE PRESENCE — demands a reading that separates them, because auto-hiding a
+ * listing on a network blip would hide every shop in Ouaga each time the supply
+ * service restarts.
+ *
+ *   · `present` — a fresh projection described the offer. The description rides
+ *     along so the caller never fetches twice.
+ *   · `gone`    — the PRODUCER ANSWERED and positively denied the offer
+ *     (404 `unknown_product_version`, read from boutik's own source). The
+ *     instrument saw where the presence would be and it was not there. THIS is
+ *     evidence a listing may act on.
+ *   · `unknown` — everything else: unreachable, 5xx, unparseable, STALE, and the
+ *     producer's 409 `unavailable` (an extant offer refusing service — possibly
+ *     transient moderation, and `decideAutoHide` is one-way, so hiding on it
+ *     would strand her listing behind a state that may clear itself). NO
+ *     EVIDENCE — the caller may omit from a render, never hide.
+ */
+export type SupplyPresence =
+  | { readonly kind: 'present'; readonly description: ProductDescription }
+  | { readonly kind: 'gone' }
+  | { readonly kind: 'unknown' };
+
 /** The join's supply side. `undefined` = this product cannot be described. */
 export interface SupplySourcePort {
   describe(productVersionId: string): Promise<ProductDescription | undefined>;
+  /** AUTO-HIDE-WATCH-1 — presence with evidence semantics (see `SupplyPresence`). */
+  presence(productVersionId: string): Promise<SupplyPresence>;
   /**
    * PUBLISH-PRICE-1 (founder ruling) — the live base for a signing decision.
    * `undefined` ⇒ **PUBLISH REFUSES**. Never a cached, assumed or app-supplied
@@ -165,6 +195,13 @@ export class AbsentSupplySource implements SupplySourcePort {
     return undefined;
   }
 
+  /** An absent instrument can never see presence, so its absence is never
+   * evidence: ALWAYS `unknown`, NEVER `gone`. An unconfigured Worker must be
+   * incapable of hiding a listing, the same way it is incapable of signing. */
+  async presence(): Promise<SupplyPresence> {
+    return { kind: 'unknown' };
+  }
+
   /** No source ⇒ no base ⇒ no signature. Publish refuses, by construction. */
   async economics(): Promise<undefined> {
     return undefined;
@@ -220,7 +257,9 @@ export class BoundSupplySource implements SupplySourcePort {
    * unparseable, stale, absent, or identity-rejected. Callers decide what absence
    * MEANS — the buyer join omits the product; publish refuses to sign.
    */
-  private async fresh(productVersionId: string): Promise<SupplyProjectionValue | undefined> {
+  private async fresh(
+    productVersionId: string,
+  ): Promise<{ verdict: 'fresh'; projection: SupplyProjectionValue } | { verdict: 'gone' } | { verdict: 'unknown' }> {
     let res: Response;
     try {
       res = await this.fetcher.fetch(
@@ -230,14 +269,29 @@ export class BoundSupplySource implements SupplySourcePort {
         }),
       );
     } catch {
-      return undefined; // unreachable → absent, never fabricated
+      return { verdict: 'unknown' }; // unreachable → absent, never fabricated
     }
-    // The producer's honest refusals (404 unknown_product_version · 409
-    // unavailable, the projection refusal ladder) are ABSENCE here, not errors:
-    // the product is simply undescribable, and the join omits it.
-    if (!res.ok) return undefined;
+    // The producer's honest refusals are ABSENCE for a RENDER either way, but they
+    // differ as EVIDENCE (AUTO-HIDE-WATCH-1): 404 `unknown_product_version` is the
+    // producer positively denying the offer — `gone`; 409 `unavailable` (the
+    // refusal ladder) is an EXTANT offer refusing service — no evidence, like any
+    // other non-2xx.
+    //
+    // THE STATUS CODE ALONE IS NOT THE DENIAL — the BODY is verified (verifier
+    // finding, accepted): boutik's fallback 404 (`{service, status:'not_found'}`,
+    // health.ts) answers any UNMATCHED path with the same code and NO `reason`,
+    // while the route's real denial carries `reason:'unknown_product_version'`
+    // (supply-endpoint.ts:154). A cross-repo route drift — which this wire has
+    // lived once (SUPPLY-WIRE-1) — would otherwise turn every read into a 404
+    // and every 404 into a ONE-WAY mass hide. Cheap insurance, proportional to
+    // the irreversibility: no `reason`, no evidence.
+    if (res.status === 404) {
+      const body = (await res.json().catch(() => null)) as { reason?: string } | null;
+      return body?.reason === 'unknown_product_version' ? { verdict: 'gone' } : { verdict: 'unknown' };
+    }
+    if (!res.ok) return { verdict: 'unknown' };
     const raw: unknown = await res.json().catch(() => null);
-    if (raw === null) return undefined;
+    if (raw === null) return { verdict: 'unknown' };
 
     // THE CERTIFIED CONSUMER DOES THE PARSING — envelope schema, freshness bound,
     // identity sweep. Its port is deliberately SYNCHRONOUS (it consumes bytes, it
@@ -245,15 +299,29 @@ export class BoundSupplySource implements SupplySourcePort {
     // port — the same shape its own tests use. Nothing is re-implemented here.
     const verdict = consumeSupplyProjection({ readProjection: () => raw }, productVersionId, new Date().toISOString());
     // fresh ALONE describes. stale · absent · rejected all BLOCK: a product
-    // described from a stale projection is worse than one not described (SW-2).
-    if (verdict.status !== 'fresh') return undefined;
-    return verdict.projection;
+    // described from a stale projection is worse than one not described (SW-2) —
+    // and none of them is evidence of a lapse (a 200 answered; the offer exists).
+    if (verdict.status !== 'fresh') return { verdict: 'unknown' };
+    return { verdict: 'fresh', projection: verdict.projection };
   }
 
   async describe(productVersionId: string): Promise<ProductDescription | undefined> {
-    const p = await this.fresh(productVersionId);
-    if (p === undefined) return undefined;
+    const r = await this.fresh(productVersionId);
+    if (r.verdict !== 'fresh') return undefined;
+    const p = r.projection;
     return { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available };
+  }
+
+  /** AUTO-HIDE-WATCH-1 — the same one fetch, surfaced with evidence semantics. */
+  async presence(productVersionId: string): Promise<SupplyPresence> {
+    const r = await this.fresh(productVersionId);
+    if (r.verdict === 'gone') return { kind: 'gone' };
+    if (r.verdict !== 'fresh') return { kind: 'unknown' };
+    const p = r.projection;
+    return {
+      kind: 'present',
+      description: { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available },
+    };
   }
 
   /**
@@ -264,8 +332,9 @@ export class BoundSupplySource implements SupplySourcePort {
    * quietly signing against it.
    */
   async economics(productVersionId: string): Promise<ProductEconomics | undefined> {
-    const p = await this.fresh(productVersionId);
-    if (p === undefined) return undefined;
+    const r = await this.fresh(productVersionId);
+    if (r.verdict !== 'fresh') return undefined;
+    const p = r.projection;
     return { basePrice: p.basePrice, offerVersion: p.offerVersion, resellerCommission: p.resellerCommission };
   }
 }

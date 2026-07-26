@@ -1,9 +1,11 @@
 import {
   decideAddItem,
   decideCreate,
+  decideDelete,
   decideToggle,
   type CreateDecision,
   type CreateStorefrontCommand,
+  type DeleteDecision,
   type StorefrontEntry,
 } from '../src/storefront-core.js';
 
@@ -99,6 +101,15 @@ export class StorefrontDO {
       if (!entry) return Response.json({ error: 'not_found' }, { status: 404 });
       return Response.json(entry.storefront);
     }
+    // STOREFRONT-DELETE-1 — erase this instance's entry. Absent → honest 404
+    // (never a phantom success); deleted returns the slug so the ROUTER can
+    // clear the pointer + index (cross-instance acts live where the stubs do).
+    if (request.method === 'POST' && pathname === '/entry/delete') {
+      const current = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
+      const { decision, erase } = decideDelete(current);
+      if (erase) await this.state.storage.delete(ENTRY_KEY);
+      return Response.json(decision, { status: decision.status === 'absent' ? 404 : 200 });
+    }
 
     // ── slug-pointer-instance ops (idFromName('slug:'+slug)) — Shape C ───────
     if (request.method === 'PUT' && pathname === '/pointer') {
@@ -115,6 +126,12 @@ export class StorefrontDO {
       const ptr = await this.state.storage.get<SlugPointer>(POINTER_KEY);
       if (!ptr) return Response.json({ error: 'not_found' }, { status: 404 });
       return Response.json(ptr);
+    }
+    // STOREFRONT-DELETE-1 — pointer cleanup. Idempotent: clearing an already
+    // clear pointer is `ok` (the orphaned-pointer read is honest either way).
+    if (request.method === 'POST' && pathname === '/pointer/delete') {
+      await this.state.storage.delete(POINTER_KEY);
+      return Response.json({ ok: true });
     }
 
     // ── directory-index-instance ops (idFromName('index')) — the admin list ───
@@ -135,6 +152,22 @@ export class StorefrontDO {
     if (request.method === 'GET' && pathname === '/index') {
       const list = (await this.state.storage.get<IndexRow[]>(INDEX_KEY)) ?? [];
       return Response.json(list);
+    }
+    // STOREFRONT-DELETE-1 — the directory forgets a deleted shop. Idempotent.
+    if (request.method === 'POST' && pathname === '/index/remove') {
+      let row: { id?: string };
+      try {
+        row = (await request.json()) as { id?: string };
+      } catch {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      if (typeof row.id !== 'string') return Response.json({ error: 'malformed' }, { status: 400 });
+      const list = (await this.state.storage.get<IndexRow[]>(INDEX_KEY)) ?? [];
+      await this.state.storage.put(
+        INDEX_KEY,
+        list.filter((r) => r.id !== row.id),
+      );
+      return Response.json({ ok: true });
     }
 
     return Response.json({ error: 'not_found' }, { status: 404 });
@@ -236,6 +269,45 @@ export default {
     if (m && request.method === 'GET') {
       const id = decodeURIComponent(m[1]!);
       const res = await sfStub(env, id).fetch(new Request('https://do/entry'));
+      return forward(res);
+    }
+
+    // ═══ STOREFRONT-DELETE-1 — DELETE /storefronts/:id (operator cleanup) ═══
+    //
+    // Key-gated BY METHOD at the composition root (DELETE is not a safe method,
+    // so `rejectUnauthorizedWrite` refuses it before this router is reached).
+    // ENTRY FIRST, then pointer, then index — the failure-safe order: the moment
+    // the entry is erased, every buyer read is ALREADY the honest 404 (the
+    // orphaned-pointer rule below), so a cleanup lost mid-flight can strand only
+    // ADMIN residue, never a resolvable shop. The reverse order could leave a
+    // shop that resolves for buyers but is absent from the operator's list:
+    // alive and invisible, the disappearance family.
+    //
+    // RE-RUN CONVERGES (verifier finding, fixed): on `absent`, the entry cannot
+    // name its slug — but the DIRECTORY ROW still can. The absent branch consults
+    // the index for the id and finishes any leftover pointer/index cleanup, so
+    // repeating an interrupted DELETE completes it instead of orphaning residue
+    // forever. Fully-cleaned ⇒ no row ⇒ no-op; every step is idempotent.
+    m = /^\/storefronts\/([^/]+)$/.exec(pathname);
+    if (m && request.method === 'DELETE') {
+      const id = decodeURIComponent(m[1]!);
+      const res = await sfStub(env, id).fetch(new Request('https://do/entry/delete', { method: 'POST' }));
+      const decision = (await res.clone().json().catch(() => null)) as DeleteDecision | null;
+      if (decision?.status === 'deleted') {
+        await slugStub(env, decision.slug).fetch(new Request('https://do/pointer/delete', { method: 'POST' }));
+        await indexStub(env).fetch(
+          new Request('https://do/index/remove', { method: 'POST', body: JSON.stringify({ id }) }),
+        );
+      } else if (decision?.status === 'absent') {
+        const rows = (await (await indexStub(env).fetch(new Request('https://do/index'))).json().catch(() => [])) as IndexRow[];
+        const leftover = rows.find((r) => r.id === id);
+        if (leftover !== undefined) {
+          await slugStub(env, leftover.slug).fetch(new Request('https://do/pointer/delete', { method: 'POST' }));
+          await indexStub(env).fetch(
+            new Request('https://do/index/remove', { method: 'POST', body: JSON.stringify({ id }) }),
+          );
+        }
+      }
       return forward(res);
     }
 

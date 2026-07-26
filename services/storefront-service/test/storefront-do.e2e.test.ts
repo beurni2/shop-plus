@@ -145,6 +145,59 @@ describe('StorefrontDO — the durable read path GET /s/{slug}, Shape C slug poi
     expect((read.view as StorefrontView).discoverable).toBe(true); // toggle survived
   });
 
+  it('STOREFRONT-DELETE-1: DELETE erases the shop — entry, slug pointer AND directory row, durably', async () => {
+    const cmd = { ...SELLER_001, commandId: 'c-del', id: 'sf-del', shortCode: 'SELLER-0007' };
+    await create(cmd);
+    expect((await readSlug('seller-0007')).code).toBe(200); // alive before
+
+    const del = await mf.dispatchFetch('http://sf/storefronts/sf-del', { method: 'DELETE' });
+    expect(del.status).toBe(200);
+    expect((await del.json()) as object).toEqual({ status: 'deleted', slug: 'seller-0007' });
+
+    await restart(); // the erasure must be durable, not an in-memory illusion
+
+    expect((await readSlug('seller-0007')).code).toBe(404); // buyer read: honest not-found
+    const byId = await mf.dispatchFetch('http://sf/storefronts/sf-del', { method: 'GET' });
+    expect(byId.status).toBe(404); // operator read: gone too
+    const list = (await (await mf.dispatchFetch('http://sf/storefronts', { method: 'GET' })).json()) as { id: string }[];
+    expect(list.some((r) => r.id === 'sf-del')).toBe(false); // directory forgot it
+  });
+
+  it('STOREFRONT-DELETE-1: an UNKNOWN id answers the honest 404 — never a phantom deletion', async () => {
+    const del = await mf.dispatchFetch('http://sf/storefronts/sf-jamais-cree', { method: 'DELETE' });
+    expect(del.status).toBe(404);
+    expect(((await del.json()) as { status: string }).status).toBe('absent');
+    // and a SECOND delete of an already-deleted shop is the same honest absent —
+    // re-running a possibly interrupted cleanup is safe, not a new act.
+    const again = await mf.dispatchFetch('http://sf/storefronts/sf-del', { method: 'DELETE' });
+    expect(again.status).toBe(404);
+  });
+
+  it('STOREFRONT-DELETE-1: an INTERRUPTED cleanup CONVERGES on re-run — the index row recovers the slug', async () => {
+    // Fabricate the exact mid-flight state a crash between steps leaves behind:
+    // entry erased, slug pointer + directory row still standing. The public
+    // surface cannot half-delete, so the entry is erased DIRECTLY on the DO
+    // instance, bypassing the router's cleanup.
+    const cmd = { ...SELLER_001, commandId: 'c-conv', id: 'sf-conv', shortCode: 'SELLER-0008' };
+    await create(cmd);
+    const ns = await mf.getDurableObjectNamespace('STOREFRONT');
+    const stub = ns.get(ns.idFromName('sf-conv'));
+    await stub.fetch('https://do/entry/delete', { method: 'POST' });
+
+    // The interrupted state is buyer-safe already (orphaned-pointer rule)…
+    expect((await readSlug('seller-0008')).code).toBe(404);
+    // …but the directory still remembers the ghost:
+    const before = (await (await mf.dispatchFetch('http://sf/storefronts', { method: 'GET' })).json()) as { id: string }[];
+    expect(before.some((r) => r.id === 'sf-conv')).toBe(true);
+
+    // Re-running the DELETE answers the honest absent AND finishes the cleanup.
+    const rerun = await mf.dispatchFetch('http://sf/storefronts/sf-conv', { method: 'DELETE' });
+    expect(rerun.status).toBe(404);
+    const after = (await (await mf.dispatchFetch('http://sf/storefronts', { method: 'GET' })).json()) as { id: string }[];
+    expect(after.some((r) => r.id === 'sf-conv')).toBe(false); // ghost row gone
+    expect((await readSlug('seller-0008')).code).toBe(404); // pointer cleared, still honest
+  });
+
   it('MOCK-CERTIFIED: DurableStorefrontStore forwards over fetch to the REAL DO — the adapter is not a lie', async () => {
     // the same StorefrontStore interface the route uses, wired to the workerd DO
     const worker: StorefrontFetcher = {

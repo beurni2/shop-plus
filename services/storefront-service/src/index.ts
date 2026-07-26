@@ -163,10 +163,41 @@ async function describeProducts(
       .catch(() => undefined);
     if (res === undefined || res.status !== 200) continue; // no resolvable listing → omitted
     const side = (await res.json().catch(() => null)) as
-      | { productVersionId: string; customerPriceFcfa: number; status: string }
+      | { listingId?: string; productVersionId: string; customerPriceFcfa: number; status: string }
       | null;
     if (side === null) continue;
-    const described = await supply.describe(side.productVersionId);
+    // ═══ AUTO-HIDE-WATCH-1 — THE WATCHER LIVES WHERE THE EVIDENCE APPEARS ═══
+    //
+    // There is no listings enumeration (per-listing DOs, no index), so a sweeping
+    // cron would need new machinery to iterate what this loop already visits. The
+    // join reads supply for every curated pid on every buyer read — so the read
+    // IS the watch. When the instrument POSITIVELY sees the offer lapsed
+    // (`gone`: the producer answered 404 `unknown_product_version`), the standing
+    // published listing flips to `auto_hidden` through the SAME decideAutoHide
+    // path the key-gated route uses — once, idempotently (already-hidden ⇒
+    // `unchanged`, no second event).
+    //
+    // THE INSTRUMENT LAW BINDS HARD HERE: `unknown` (unreachable · 5xx · stale ·
+    // 409 unavailable · unparseable) NEVER hides — a supply outage must render as
+    // today's honest omission, not as a shop-wide erasure of her listings. And a
+    // shop nobody reads keeps a stale listing standing — which nobody sees, and
+    // the next read fixes. The hide is AWAITED: deterministic, testable, and the
+    // latency lands only on the rare lapsed path whose record is omitted anyway.
+    const seen = await supply.presence(side.productVersionId);
+    if (seen.kind === 'gone' && side.status === 'published' && typeof side.listingId === 'string') {
+      await listings
+        .fetch(
+          new Request(`https://do/listings/${encodeURIComponent(side.listingId)}/hide`, {
+            method: 'POST',
+            body: JSON.stringify({
+              correlationId: `supply-gone:${storefrontId}:${pid}`,
+              at: new Date().toISOString(),
+            }),
+          }),
+        )
+        .catch(() => undefined); // best-effort: the record is omitted either way
+    }
+    const described = seen.kind === 'present' ? seen.description : undefined;
     // PRODUCT-MEDIA-BASE-1 — the refs become ABSOLUTE here, at the one place the
     // env is in scope, BEFORE the join. A relative ref must never reach the record:
     // the buyer renders it straight into `src`, so it would resolve against the
