@@ -786,11 +786,15 @@ export default function App() {
                   {/* Honest stock: a zero-stock offer says so on the card, before
                       she invests a tap (the wire's `available`, stated not styled). */}
                   {item.available === 0 && <StatusChip tone="muted" label={t('opportunites.epuise')} />}
+                  {/* NET FIRST, in RENDER ORDER, not just in weight (SP-I04/I12 and
+                      the net-first gate's encoded law; verifier finding — the first
+                      cut put Prix de base above the net): gagnez leads, then the
+                      base — the same order the fiche reasons in. */}
+                  <Text style={styles.oppNet}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOfOffer(item).net) })}</Text>
                   <View style={styles.margeHeadRow}>
                     <Overline>{t('fiche.prix_base')}</Overline>
                     <Text style={styles.margeAmount}>{formatFcfa(item.basePrice)}</Text>
                   </View>
-                  <Text style={styles.oppNet}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOfOffer(item).net) })}</Text>
                 </View>
               </Pressable>
             )}
@@ -1597,8 +1601,8 @@ const styles = StyleSheet.create({
   screenTitle: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.screen.size, fontWeight: w(t2.scale.screen.wght) },
   oppHead: { gap: spacing.xs, paddingBottom: spacing.md },
   oppSub: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
-  // The compact row + 60px art-tile — STILL the ventes/detail row idiom (those
-  // screens list transactions, not photography).
+  // The compact row — STILL the ventes/detail row idiom (those screens list
+  // transactions, not photography; their small art goes through `artTile`).
   oppRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1608,16 +1612,6 @@ const styles = StyleSheet.create({
     borderWidth: interaction.hairline.thin,
     borderColor: sharedColour.hairline,
     padding: spacing.md,
-  },
-  oppArtTile: {
-    width: touch.minTargetPx + spacing.md,
-    height: touch.minTargetPx + spacing.md,
-    borderRadius: rmax(radius.art),
-    backgroundColor: shopColour.soft,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
   },
   // RESELLER-UX-2 item 1 — the browse CARD (founder walk: « bigger, see the photo
   // clearly »). Replaces the 60px row-tile on OPPORTUNITÉS only: the photograph
@@ -1980,7 +1974,6 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   // the cliente price — the secondary context line under the net hero.
-  vitrineClientLine: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
   // ── PARTAGER format segments (planche piste r14 p4; active = white card) ──
   fmtSegments: { flexDirection: 'row', gap: spacing.xs, backgroundColor: sharedColour.dim, borderRadius: radius.tile, padding: spacing.xs },
   fmtSeg: { flex: 1, minHeight: touch.minTargetPx, borderRadius: radius.tile, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xs },

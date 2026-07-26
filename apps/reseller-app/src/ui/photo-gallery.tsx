@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Dimensions, FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { FlatList, Image, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { sharedColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, interaction, touch } from '@platform/ui-tokens/legacy';
 import { TEXT_FAMILY_BOLD } from './faso-fonts';
@@ -20,8 +20,9 @@ import { t, tf } from '../i18n';
  * glyph tile stays a non-affordance, never an empty viewer.
  *
  * TOKENS ONLY — colour/spacing/type resolve to Faso Premium v2 (+legacy groups),
- * matching the signature-module discipline. Page width is the live window width
- * (`Dimensions.get('window')` at render — a rotation re-render re-reads it).
+ * matching the signature-module discipline. Page width is `useWindowDimensions`,
+ * so a rotation genuinely re-renders with the new width (verifier finding: the
+ * first cut read `Dimensions.get` once and only claimed this).
  */
 
 const rmax = (v: number | { readonly min: number; readonly max: number }): number =>
@@ -41,7 +42,15 @@ export function PhotoGallery({
   onClose: () => void;
 }): React.ReactElement {
   const [page, setPage] = useState(0);
-  const width = Dimensions.get('window').width;
+  // THE COUNTER MUST NEVER DISAGREE WITH THE PHOTO (verifier finding): this
+  // component never unmounts (rendered unconditionally beside the sheets), but
+  // the Modal's FlatList remounts at offset 0 on every open — so `page` resets
+  // WITH each product change, or a reopened gallery would show photo 1 under a
+  // counter still reading the last session's page.
+  useEffect(() => {
+    setPage(0);
+  }, [product]);
+  const { width } = useWindowDimensions();
   const refs = product?.refs ?? [];
   const shown = Math.min(page, Math.max(0, refs.length - 1));
   return (

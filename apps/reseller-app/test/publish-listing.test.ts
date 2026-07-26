@@ -321,6 +321,9 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     expect(body).toContain('numberOfLines={2}');
     expect(body).toContain("t('fiche.prix_base')"); // Prix de base, NAMED on the card
     expect(body).toContain("tf('opportunity.gagnez'"); // net stays the loudest line
+    // NET FIRST IN RENDER ORDER (SP-I04/I12, verifier finding): gagnez renders
+    // BEFORE the base row on the card, matching the fiche and the encoded gate law.
+    expect(body.indexOf("tf('opportunity.gagnez'")).toBeLessThan(body.indexOf("t('fiche.prix_base')"));
     expect(body).toContain("t('opportunites.epuise')"); // zero stock says so pre-tap
     expect(body).toMatch(/item\.available === 0 &&/); // …and only when actually zero
   });
@@ -361,5 +364,15 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     const gal = read('src/ui/photo-gallery.tsx');
     expect(gal).toContain("t('galerie.fermer')");
     expect(gal).toContain("tf('galerie.compteur'");
+  });
+
+  it('the gallery page RESETS per product and the width is LIVE (verifier findings, pinned)', () => {
+    const gal = read('src/ui/photo-gallery.tsx');
+    // the component never unmounts, so a reopened gallery must not inherit the
+    // previous session's page — counter and photo would disagree.
+    expect(gal).toMatch(/useEffect\(\(\) => \{\s*\n\s*setPage\(0\);\s*\n\s*\}, \[product\]\);/);
+    // the page width tracks rotation for real, not by comment
+    expect(gal).toContain('useWindowDimensions()');
+    expect(gal).not.toContain("Dimensions.get('window')");
   });
 });
