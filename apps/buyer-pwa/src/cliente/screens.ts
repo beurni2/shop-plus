@@ -154,11 +154,18 @@ function photoFrame(m: ClienteProduit, out: boolean): string {
     '<div class="cl-tick cl-tick-tl"></div><div class="cl-tick cl-tick-tr"></div><div class="cl-tick cl-tick-bl"></div><div class="cl-tick cl-tick-br"></div>';
   const veil = out ? '<div class="cl-photo-veil"><span class="cl-epuise-stamp">ÉPUISÉ</span></div>' : '';
   if (src !== undefined) {
+    // RESELLER-UX-2 item 4 (founder order — his own C1, his own lift): WITH a
+    // photo the frame is a TAP TARGET onto the full gallery, because the wire
+    // carries EVERY capture (hero + the proof shot) and only [0] rendered here.
+    // The photo count rides the corner when there is more than one, so a second
+    // photo is discoverable rather than secret. Sans photo: no affordance.
+    const count = m.assetRefs.filter((r) => r !== '').length;
     return [
-      '<div class="cl-photo" data-role="photo-reelle">',
+      `<div class="cl-photo" data-role="photo-reelle" data-action="photo-galerie" role="button" tabindex="0" aria-label="Voir les photos">`,
       `<img class="cl-photo-img" src="${esc(src)}" alt="" decoding="async">`,
       ticks,
       '<div class="cl-photo-caps">PHOTO RÉELLE DU PRODUIT</div>',
+      count > 1 ? `<div class="cl-photo-count">${count} photos</div>` : '',
       veil,
       '</div>',
     ].join('');
@@ -614,6 +621,35 @@ export function renderSheet(): string {
     row(iconKey(18), 'Le code de remise fait foi', 'La remise n’existe que quand vous donnez votre code. C’est votre preuve.'),
     '<button class="cl-sheet-cta" data-action="fermer-protections-cta">Compris</button>',
     '</div></div>',
+  ].join('');
+}
+
+/* ------------------------------------------------------------- galerie --- */
+
+/**
+ * RESELLER-UX-2 item 4 — the FULL photo gallery, opened from C1's photo frame.
+ * Every capture on the wire (hero + proof), one at a time over solid ink, with
+ * « Précédente / Suivante » at the ends disabled (no wrap — she always knows
+ * where she is) and the « {n} sur {N} » counter. One close action.
+ */
+export function renderGalerie(m: ClienteProduit, idx: number): string {
+  const refs = m.assetRefs.filter((r) => r !== '');
+  const shown = Math.min(Math.max(idx, 0), Math.max(0, refs.length - 1));
+  const src = refs[shown];
+  if (src === undefined) return '';
+  return [
+    '<div class="cl-galerie" data-role="galerie" role="dialog" aria-label="Photos du produit">',
+    '<div class="cl-galerie-top">',
+    `<span class="cl-galerie-titre">${esc(m.productName)}</span>`,
+    '<button class="cl-galerie-fermer" data-action="galerie-fermer">Fermer</button>',
+    '</div>',
+    `<div class="cl-galerie-scene"><img class="cl-galerie-img" src="${esc(src)}" alt="" decoding="async"></div>`,
+    '<div class="cl-galerie-bas">',
+    `<button class="cl-galerie-nav" data-action="galerie-precedente"${shown === 0 ? ' disabled' : ''}>‹ Précédente</button>`,
+    `<span class="cl-galerie-compteur" data-role="galerie-compteur">${shown + 1} sur ${refs.length}</span>`,
+    `<button class="cl-galerie-nav" data-action="galerie-suivante"${shown === refs.length - 1 ? ' disabled' : ''}>Suivante ›</button>`,
+    '</div>',
+    '</div>',
   ].join('');
 }
 

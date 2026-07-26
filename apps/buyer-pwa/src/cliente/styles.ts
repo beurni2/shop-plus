@@ -489,6 +489,53 @@ export const CLIENTE_STYLES = `
   .cl-toast { background: #1C1710; color: #F6F0E4; font-size: 13px; font-weight: 600; padding: 12px 17px; border-radius: 99px; max-width: 86%; box-shadow: 0 12px 30px rgba(0,0,0,.35); }
   @media (prefers-reduced-motion: no-preference) { .cl-toast { animation: clToast .25s cubic-bezier(.2,.8,.2,1); } }
 
+  /* ══ GALERIE PHOTOS (RESELLER-UX-2 item 4 — founder order on his own C1) ══
+     Full-screen over solid ink (photography on a dark field; no translucency to
+     shimmer on a low-end GPU). Nav targets ≥44px; the counter is tabular. The
+     frame's affordance: cursor + the photo-count pill when more than one. */
+  .cl-photo[data-action="photo-galerie"] { cursor: pointer; }
+  .cl-photo-count {
+    position: absolute; right: 10px; bottom: 10px;
+    background: rgba(28,23,16,.72); color: #F4EFE6;
+    font-family: var(--clt); font-size: 11.5px; font-weight: 700;
+    padding: 4px 10px; border-radius: 999px; letter-spacing: .2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .cl-galerie {
+    position: fixed; inset: 0; z-index: 60; background: #1C1710;
+    display: flex; flex-direction: column;
+  }
+  @media (prefers-reduced-motion: no-preference) { .cl-galerie { animation: clFade .18s ease; } }
+  .cl-galerie-top {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 16px 16px 10px;
+  }
+  .cl-galerie-titre {
+    color: #F4EFE6; font-family: var(--clt); font-size: 14px; font-weight: 700;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cl-galerie-fermer {
+    min-height: 44px; padding: 0 16px; border-radius: 12px;
+    background: none; border: 1.5px solid #F4EFE6; color: #F4EFE6;
+    font-family: var(--clt); font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .cl-galerie-scene { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+  .cl-galerie-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+  .cl-galerie-bas {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 10px 16px 22px;
+  }
+  .cl-galerie-nav {
+    min-height: 44px; padding: 0 14px; border-radius: 12px;
+    background: none; border: 1.5px solid #F4EFE6; color: #F4EFE6;
+    font-family: var(--clt); font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .cl-galerie-nav:disabled { opacity: .35; cursor: default; }
+  .cl-galerie-compteur {
+    color: #F4EFE6; font-family: var(--clt); font-size: 12.5px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
   /* ══ MOTION (§5 — pixel keyframes; reduced-motion coupe tout) ══ */
   @keyframes clIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes clUp { from { opacity: .4; transform: translateY(44px); } to { opacity: 1; transform: translateY(0); } }

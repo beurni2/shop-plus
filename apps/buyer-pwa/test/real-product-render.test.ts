@@ -131,3 +131,61 @@ describe('THE FIFTH STATE — C1 never promises a photo it does not have', () =>
     }
   });
 });
+
+/**
+ * RESELLER-UX-2 item 4 (founder order on his own C1) — the photo gallery.
+ *
+ * The wire carries EVERY capture (hero + the proof shot) and C1 rendered only
+ * [0]; the frame is now the tap target onto the full set. These pin: the
+ * affordance exists exactly when photos exist, every ref is reachable through
+ * the nav, the ends do not wrap, and the flow actually wires the actions.
+ */
+describe('RESELLER-UX-2 — C1 photo gallery', () => {
+  const produit = clienteProduitReel(SF, REAL_WITH_PHOTO, undefined).produit;
+
+  it('WITH photos the frame is the gallery tap target, and the count pill names the second photo', () => {
+    const c1 = renderC1(produit, { epuise: false, sansVoix: true });
+    expect(c1).toContain('data-action="photo-galerie"');
+    expect(c1).toContain('2 photos'); // the proof shot is discoverable, not secret
+  });
+
+  it('WITHOUT a photo there is NO affordance — never an empty viewer', () => {
+    const c1 = renderC1(clienteProduitReel(SF, REAL_NO_PHOTO, undefined).produit, { epuise: false, sansVoix: true });
+    expect(c1).not.toContain('photo-galerie');
+    expect(c1).not.toContain('photos</div>');
+  });
+
+  it('ONE photo: the frame still opens (enlarged view) but no count pill claims more', () => {
+    const one = { ...REAL_WITH_PHOTO, assetRefs: [REAL_WITH_PHOTO.assetRefs[0]!] };
+    const c1 = renderC1(clienteProduitReel(SF, one, undefined).produit, { epuise: false, sansVoix: true });
+    expect(c1).toContain('data-action="photo-galerie"');
+    expect(c1).not.toContain('photos</div>');
+  });
+
+  it('EVERY ref is reachable and the ends are honest (disabled, no wrap)', async () => {
+    const { renderGalerie } = await import('../src/cliente/screens');
+    const first = renderGalerie(produit, 0);
+    expect(first).toContain(REAL_WITH_PHOTO.assetRefs[0]!);
+    expect(first).toContain('1 sur 2');
+    expect(first).toMatch(/data-action="galerie-precedente" disabled/);
+    expect(first).not.toMatch(/data-action="galerie-suivante" disabled/);
+    const second = renderGalerie(produit, 1);
+    expect(second).toContain(REAL_WITH_PHOTO.assetRefs[1]!);
+    expect(second).toContain('2 sur 2');
+    expect(second).toMatch(/data-action="galerie-suivante" disabled/);
+    // an out-of-range index CLAMPS to the last photo — never a blank scene
+    expect(renderGalerie(produit, 9)).toContain('2 sur 2');
+  });
+
+  it('THE FLOW WIRES THE ACTIONS — open at 0, close, bounded prev/next (source-pinned)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const flow = readFileSync(join(import.meta.dirname, '..', 'src/cliente/flow.ts'), 'utf8');
+    expect(flow).toMatch(/case 'photo-galerie':\s*\n\s*state\.galerie = 0; render\(\); return;/);
+    expect(flow).toMatch(/case 'galerie-fermer':\s*\n\s*state\.galerie = null; render\(\); return;/);
+    expect(flow).toContain("case 'galerie-precedente':");
+    expect(flow).toContain("case 'galerie-suivante':");
+    // the overlay renders from state, beside the sheet/toasts overlays
+    expect(flow).toMatch(/state\.galerie !== null \? renderGalerie\(m, state\.galerie\) : ''/);
+  });
+});

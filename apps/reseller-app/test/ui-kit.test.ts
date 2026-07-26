@@ -172,9 +172,11 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     // offer only `defaultMarkup(cap)` was ever reachable.
     expect(app).toMatch(/setMarkups\(\(prev\) => \(\{ \.\.\.prev, \[item\.productVersionId\]: m \}\)\)/);
     expect(app).not.toMatch(/setMarkups\(\(prev\) => \(\{ \.\.\.prev, \[item\.id\]: m \}\)\)/);
-    // …and it records that she DECIDED, which is what unlocks publish. Presence of a
-    // markup is not a decision: the slider starts at the capped default.
-    expect(app).toMatch(/setMarkupTouched\(\(prev\) => \(\{ \.\.\.prev, \[item\.productVersionId\]: true \}\)\)/);
+    // RESELLER-UX-2 (founder walk item 2): the DECIDED bit is retired with the
+    // gate it fed — the default is now 0, so publish-on-arrival signs the
+    // lowest cliente price and no untouched-slider guard is needed. The state
+    // must be gone entirely, not lingering half-wired.
+    expect(app).not.toMatch(/setMarkupTouched/);
     // the slider value comes from the SAME margin view the signed price is quoted from
     expect(app).toMatch(/const markup = v\.markup;/);
     // the slider routes the value through the PURE snapMarkup (step + clamp)

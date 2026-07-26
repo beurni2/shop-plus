@@ -54,11 +54,12 @@ describe('reseller-margin arithmetic (margin.ts)', () => {
     }
   });
 
-  it('defaultMarkup clamps the 1500 default to the cap (min(1500, cap))', () => {
-    expect(DEFAULT_MARKUP).toBe(1500);
-    expect(defaultMarkup(8000)).toBe(1500); // cap above default → the default
-    expect(defaultMarkup(1500)).toBe(1500); // cap equals default
-    expect(defaultMarkup(1000)).toBe(1000); // cap below default → the cap binds
+  it('the default markup is 0 on arrival (founder override 2026-07-26, supersedes HANDOFF §3 1500)', () => {
+    // She starts from the base and ADDS her margin deliberately; an un-acted
+    // default signs the lowest cliente price, never a number chosen for her.
+    expect(DEFAULT_MARKUP).toBe(0);
+    expect(defaultMarkup(8000)).toBe(0);
+    expect(defaultMarkup(0)).toBe(0);
   });
 
   it('snapMarkup snaps to the step (100) and clamps to [0, cap]', () => {

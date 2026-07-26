@@ -271,7 +271,7 @@
  },
  {
   "key": "share.prix",
-  "fr": "Votre prix : {amount}",
+  "fr": "Prix : {amount}",
   "register": "money",
   "screenClass": "checkout"
  },
@@ -2576,5 +2576,29 @@
   "fr": "Prix cliente",
   "register": "money",
   "screenClass": "label"
+ },
+ {
+  "key": "galerie.ouvrir",
+  "fr": "Voir les photos",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "galerie.fermer",
+  "fr": "Fermer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "galerie.compteur",
+  "fr": "{n} sur {total}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "opportunites.epuise",
+  "fr": "Épuisé pour le moment",
+  "register": "neutral",
+  "screenClass": "status"
  }
 ]
