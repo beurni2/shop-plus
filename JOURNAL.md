@@ -9,7 +9,8 @@ Format per entry:
 
 ---
 
-## 2026-07-26 · OZ1 — RESELLER-UX-2: the FOUR-ITEM founder walk · BUILT on the lane branch · DO NOT MERGE (awaiting founder)
+## 2026-07-26 · OZ1 — RESELLER-UX-2: the FOUR-ITEM founder walk · MERGED at `454bdd0`
+- **MERGE RECORD:** `844dc58` merged `--no-ff` into main as **`454bdd0`**, pushed, `origin/main` read back at that sha, ancestry asserted. Tree diff vs the approved sha EMPTY; frozen vault re-diff vs `5a289b5` on the merge commit: empty. Branch CI run 30216120533 green to terminal; verifier round 2 PASS (independent 292/292 re-run). No Worker deploy needed (no service change); expo-preview + pwa-preview carry it to the device/site — runs verified in the post-merge report.
 - **FOUNDER OVERRIDE, RECORDED (§6 duty): `DEFAULT_MARKUP` 1500 → 0.** His order verbatim: « always set the margin mark up to 0 as default on arrival ». Supersedes HANDOFF §3's `?? 1500` AND the 2026-07-25 ruling « the CTA stays disabled until she has moved the slider » — both guarded the same hazard (a defaulted 1 500 signed unchosen), and with a 0 default that hazard is gone by construction: an un-acted publish signs the LOWEST cliente price (client = B) and pays her the commission net (80 %·C). One constant, one door (`@shop-plus/reseller-money`); the service imports only `markupCap`/`netFromStored` — verified untouched by the change.
 - **ITEM 1** — Opportunités: photo-first cards (fiche-hero-height photo, 2-line name, source pill, honest « Épuisé pour le moment » chip at `available === 0`, then NET FIRST: « Gagnez ≈ … net » above the named « Prix de base » row).
 - **ITEM 2** — fiche: CTA alive on arrival (`disabled={service === null || publishing}` — the `markupTouched` state fully retired); publish sends the DISPLAYED markup (`viewOfOffer(o).markup`); the héro with photos opens the full-screen PhotoGallery (all `assetRefs` — hero + proof — paged, « {n} sur {total} », Fermer).
