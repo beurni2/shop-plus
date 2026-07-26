@@ -43,10 +43,13 @@ describe('the arithmetic is BYTE-IDENTICAL to what shipped in the app', () => {
     expect(markupCap(0)).toBe(0);
   });
 
-  it('THE DEFAULT IS min(1500, cap) and the slider snaps to 100, clamped to [0, cap]', () => {
-    expect(DEFAULT_MARKUP).toBe(1500);
-    expect(defaultMarkup(10_000)).toBe(1_500);
-    expect(defaultMarkup(900)).toBe(900); // capped
+  it('THE DEFAULT IS 0 (founder override 2026-07-26) and the slider snaps to 100, clamped to [0, cap]', () => {
+    // Supersedes HANDOFF §3's `?? 1500`: she starts from the base and ADDS her
+    // margin deliberately — an un-acted default must sign the LOWEST cliente
+    // price, never a number pre-chosen for her.
+    expect(DEFAULT_MARKUP).toBe(0);
+    expect(defaultMarkup(10_000)).toBe(0);
+    expect(defaultMarkup(0)).toBe(0); // zero cap, same start
     expect(snapMarkup(1_449, 10_000)).toBe(1_400);
     expect(snapMarkup(-5, 10_000)).toBe(0);
     expect(snapMarkup(99_999, 8_000)).toBe(8_000);

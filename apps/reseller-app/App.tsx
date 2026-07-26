@@ -18,6 +18,7 @@ import { FONTS_TO_LOAD } from './src/ui/fonts-load';
 import { foldVitrine, type VitrineEvent } from './src/vitrine/collection';
 import { marginBreakdown, markupCap, defaultMarkup, snapMarkup } from './src/vitrine/margin';
 import { MarginSlider } from './src/ui/margin-slider';
+import { PhotoGallery } from './src/ui/photo-gallery';
 import { HeroLedger, DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
 import { resolveStorefrontService, deriveShortCode } from './src/vitrine/service';
@@ -254,12 +255,16 @@ export default function App() {
   const [ficheId, setFicheId] = useState<string | null>(null);
   const [shareId, setShareId] = useState<string | null>(null);
   const [markups, setMarkups] = useState<Record<string, number>>({});
-  // PUBLISH-PRICE-1 — HAS SHE ACTUALLY CHOSEN? Distinct from `markups[pid]` being
-  // present, because the slider's displayed value starts at the capped default: a
-  // reseller who never touched it and one who deliberately landed on 1 500 look
-  // identical in `markups` alone. Publish requires a DECISION, so it requires this.
-  const [markupTouched, setMarkupTouched] = useState<Record<string, boolean>>({});
+  // RESELLER-UX-2 (founder walk, item 2) — the untouched-slider CTA gate is GONE
+  // and so is the `markupTouched` state that carried it. The gate guarded against
+  // signing the old defaulted 1 500 she never chose; with DEFAULT_MARKUP now 0
+  // (founder override), the un-acted default signs the LOWEST cliente price and
+  // her net is what the commission alone pays — publishing on arrival is a safe
+  // deliberate act, not a trap, so the button lives the moment the seam is wired.
   const [publishing, setPublishing] = useState(false);
+  // RESELLER-UX-2 (items 2 + 3) — the photo gallery: which product's photos are
+  // open full-screen. null = closed (the voice-sheet idiom).
+  const [gallery, setGallery] = useState<{ name: string; refs: readonly string[] } | null>(null);
   const [shareFmt, setShareFmt] = useState<'card' | 'story' | 'affiche'>('card');
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
@@ -491,13 +496,11 @@ export default function App() {
       if (service === null) return setToast(t('k.publier.non_relie'));
       if (identity === undefined) return setToast(t('k.publier.identite_attente'));
       if (identity === null) return setToast(t('k.publier.identite_absente'));
-      const markup = markups[o.productVersionId];
-      // Defensive: the CTA is gated on the same condition, so this is unreachable
-      // through the UI. It exists because « unreachable today » is how a defaulted
-      // price gets signed tomorrow.
-      if (markup === undefined || markupTouched[o.productVersionId] !== true) {
-        return setToast(t('fiche.cta_choisir_marge'));
-      }
+      // THE MARKUP SENT IS THE MARKUP DISPLAYED — the same `markups[pid] ??
+      // defaultMarkup(cap)` the fiche renders, so what she reads is what signs.
+      // With DEFAULT_MARKUP = 0 (founder override 2026-07-26) an untouched fiche
+      // publishes at marge 0: base-price cliente price, commission-only net.
+      const markup = viewOfOffer(o).markup;
       setPublishing(true);
       setToast(t('k.publier.envoi'));
       const res = await service.publishListing({
@@ -525,7 +528,7 @@ export default function App() {
       // « Retour » from here does not replay the fiche.
       toHub('vitrine');
     },
-    [service, identity, markups, markupTouched, vitrineCol, toHub],
+    [service, identity, markups, vitrineCol, toHub],
   );
   const ficheOffer = offers.find((o) => o.productVersionId === ficheId);
   // Her REAL share link — the canon buyer origin + base. Partager is opened FROM a
@@ -736,16 +739,21 @@ export default function App() {
               )
             }
             renderItem={({ item }) => (
-              // §4 L70 — a tappable product row → its FICHE (journey edge
-              // opportunites→fiche). Net-only « Gagnez ≈ {net} net » at the default
-              // markup (min(1500, cap)) — the estimate; she sets her exact markup on
-              // Ma Vitrine. Net-first: net shown, gross never (SP-I04/I12).
+              // §4 L70 — a tappable product CARD → its FICHE (journey edge
+              // opportunites→fiche). RESELLER-UX-2 item 1 (founder walk: « make it
+              // bigger so I can see clearly the photo and the description »): the
+              // 60px row-tile became a PHOTO-FIRST card — hero-height photograph on
+              // top, then the detail she reasons over, each line NAMED: the name
+              // (2 lines, never truncating meaning), the source mark, Prix de base,
+              // and « Gagnez ≈ {net} net » as the loudest money line. Net-first: net
+              // shown, gross never (SP-I04/I12). The estimate reads at the default
+              // markup (0 — founder override), same figure the fiche opens on.
               <Pressable
-                style={({ pressed }) => [styles.oppRow, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.oppCard, pressed && styles.pressed]}
                 onPress={() => { setFicheId(item.productVersionId); go('fiche'); }}
                 accessibilityRole="button"
               >
-                <View style={styles.oppArtTile}>
+                <View style={styles.oppCardArt}>
                   {/* RESELLER-PHOTOS-1 — the REAL photograph when the wire carries
                       one (absolute URL, absolutized server-side with the same base
                       as the buyer wire). No ref ⇒ the designed glyph tile. */}
@@ -754,12 +762,12 @@ export default function App() {
                   ) : (
                     <>
                       <View style={styles.artTileStripe} />
-                      <Text style={styles.artTileGlyph}>{item.productName.slice(0, 1)}</Text>
+                      <Text style={styles.ficheHeroGlyph}>{item.productName.slice(0, 1)}</Text>
                     </>
                   )}
                 </View>
-                <View style={styles.homeSaleBody}>
-                  <Text style={styles.homeSaleTitle} numberOfLines={1}>{item.productName}</Text>
+                <View style={styles.oppCardBody}>
+                  <Text style={styles.homeSaleTitle} numberOfLines={2}>{item.productName}</Text>
                   {/* THE SOURCE MARK (founder ruling) — a PROVENANCE mark, not a
                       location. It replaces « Repère : {landmark} », which was seed
                       data with no field on the wire to carry it: boutik strips zone
@@ -775,7 +783,18 @@ export default function App() {
                   <View style={styles.oppSourcePill}>
                     <Text style={styles.oppSourcePillText}>{t('opportunites.source')}</Text>
                   </View>
+                  {/* Honest stock: a zero-stock offer says so on the card, before
+                      she invests a tap (the wire's `available`, stated not styled). */}
+                  {item.available === 0 && <StatusChip tone="muted" label={t('opportunites.epuise')} />}
+                  {/* NET FIRST, in RENDER ORDER, not just in weight (SP-I04/I12 and
+                      the net-first gate's encoded law; verifier finding — the first
+                      cut put Prix de base above the net): gagnez leads, then the
+                      base — the same order the fiche reasons in. */}
                   <Text style={styles.oppNet}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOfOffer(item).net) })}</Text>
+                  <View style={styles.margeHeadRow}>
+                    <Overline>{t('fiche.prix_base')}</Overline>
+                    <Text style={styles.margeAmount}>{formatFcfa(item.basePrice)}</Text>
+                  </View>
                 </View>
               </Pressable>
             )}
@@ -807,17 +826,25 @@ export default function App() {
                 <View style={styles.ficheTierRow}>
                   <StatusChip tone="ok" label={t('fiche.tier')} />
                 </View>
-                {/* art héro 170 — the REAL photograph, else the duotone banner */}
-                <View style={styles.ficheHero}>
-                  {opp.assetRefs[0] ? (
+                {/* art héro 170 — the REAL photograph, else the duotone banner.
+                    RESELLER-UX-2 item 2 — WITH photos it is a TAP TARGET: the
+                    full gallery opens (hero + the proof shot both arrive on the
+                    wire; only [0] rendered before). Sans photo, no affordance. */}
+                {opp.assetRefs.length > 0 ? (
+                  <Pressable
+                    style={({ pressed }) => [styles.ficheHero, pressed && styles.pressed]}
+                    onPress={() => setGallery({ name: opp.productName, refs: opp.assetRefs })}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('galerie.ouvrir')}
+                  >
                     <Image source={{ uri: opp.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
-                  ) : (
-                    <>
-                      <View style={styles.artTileStripe} />
-                      <Text style={styles.ficheHeroGlyph}>{opp.productName.slice(0, 1)}</Text>
-                    </>
-                  )}
-                </View>
+                  </Pressable>
+                ) : (
+                  <View style={styles.ficheHero}>
+                    <View style={styles.artTileStripe} />
+                    <Text style={styles.ficheHeroGlyph}>{opp.productName.slice(0, 1)}</Text>
+                  </View>
+                )}
                 {/* titre 24 + identity note — the vendor stays hidden */}
                 <Text style={styles.ficheTitle}>{opp.productName}</Text>
                 <Text style={styles.ficheIdentity}>{t('fiche.identity_note')}</Text>
@@ -837,10 +864,7 @@ export default function App() {
                   <MarkupControl
                     value={viewOfOffer(opp).markup}
                     cap={viewOfOffer(opp).cap}
-                    onChange={(m) => {
-                      setMarkups((prev) => ({ ...prev, [opp.productVersionId]: m }));
-                      setMarkupTouched((prev) => ({ ...prev, [opp.productVersionId]: true }));
-                    }}
+                    onChange={(m) => setMarkups((prev) => ({ ...prev, [opp.productVersionId]: m }))}
                   />
                   <View style={styles.margeHeadRow}>
                     <Overline>{t('fiche.prix_cliente')}</Overline>
@@ -854,21 +878,19 @@ export default function App() {
                 </View>
                 <PrimaryButton
                   label={t('fiche.cta')}
-                  // TWO GATES, BOTH HONEST. (1) No seam ⇒ no write is possible, so the
-                  // button must not pretend. (2) UNTIL SHE HAS MOVED THE SLIDER the
-                  // markup is still `defaultMarkup(cap)` — publishing then would sign a
-                  // price she never chose and attribute it to her. The founder's rule:
-                  // a defaulted-then-signed price is not a decision she made.
-                  disabled={service === null || markupTouched[opp.productVersionId] !== true || publishing}
+                  // ONE HONEST GATE (RESELLER-UX-2, founder walk item 2 — « the
+                  // button was dead on arrival »): no seam ⇒ no write is possible,
+                  // so the button must not pretend. The old second gate (slider
+                  // untouched) is retired WITH its reason: the default it guarded
+                  // against is now 0, so an on-arrival publish signs the lowest
+                  // cliente price and pays her the commission net — a safe act.
+                  disabled={service === null || publishing}
                   onPress={() => void publishListing(opp)}
                 />
                 {/* The reason the button is asleep, stated plainly — never a dead
-                    control the user has to guess about. Only ONE reason shows: the
-                    seam is the harder blocker, so it wins. */}
+                    control the user has to guess about. */}
                 {service === null ? (
                   <Text style={styles.noteLine}>{t('fiche.cta_non_relie')}</Text>
-                ) : markupTouched[opp.productVersionId] !== true ? (
-                  <Text style={styles.noteLine}>{t('fiche.cta_choisir_marge')}</Text>
                 ) : null}
               </ScrollView>
             );
@@ -963,34 +985,49 @@ export default function App() {
                 const markup = v.markup;
                 return (
                   <Card style={styles.vitrineCard}>
-                    <View style={styles.vitrineCardArt}>
-                      {item.assetRefs[0] ? (
+                    {/* RESELLER-UX-2 item 3 — the photograph is BIG (fiche-hero
+                        height, not the old 100px strip) and, with photos, a TAP
+                        TARGET onto the full gallery. Sans photo, no affordance. */}
+                    {item.assetRefs.length > 0 ? (
+                      <Pressable
+                        style={({ pressed }) => [styles.vitrineCardArt, pressed && styles.pressed]}
+                        onPress={() => setGallery({ name: item.productName, refs: item.assetRefs })}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('galerie.ouvrir')}
+                      >
                         <Image source={{ uri: item.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
-                      ) : (
-                        <>
-                          <View style={styles.artTileStripe} />
-                          <Text style={styles.vitrineCardGlyph}>{item.productName.slice(0, 1)}</Text>
-                        </>
-                      )}
-                    </View>
-                    <Text style={styles.tileName} numberOfLines={1}>{item.productName}</Text>
+                      </Pressable>
+                    ) : (
+                      <View style={styles.vitrineCardArt}>
+                        <View style={styles.artTileStripe} />
+                        <Text style={styles.vitrineCardGlyph}>{item.productName.slice(0, 1)}</Text>
+                      </View>
+                    )}
+                    <Text style={styles.tileName} numberOfLines={2}>{item.productName}</Text>
                     {/* NET-FIRST hero — her gain is the biggest, deepest figure on
-                        HER vitrine (SP-I04/I12); the cliente price is the secondary
-                        context line beneath it. */}
+                        HER vitrine (SP-I04/I12). RESELLER-UX-2 item 3 (founder walk:
+                        « the base amount, the gain and everything else »): under it,
+                        the SAME three named money rows the fiche reasons over —
+                        Prix de base · Marge · Prix cliente — so the two screens
+                        speak one vocabulary and neither leaves her guessing. */}
                     <Overline>{t('opportunity.net_label')}</Overline>
                     <Text style={styles.vitrineNetHero}>{formatFcfa(v.net)}</Text>
-                    <Text style={styles.vitrineClientLine}>{tf('vitrine.prix_cliente', { amount: formatFcfa(v.client) })}</Text>
+                    <View style={styles.margeHeadRow}>
+                      <Overline>{t('fiche.prix_base')}</Overline>
+                      <Text style={styles.margeAmount}>{formatFcfa(item.basePrice)}</Text>
+                    </View>
                     <View style={styles.margeHeadRow}>
                       <Overline>{t('fiche.marge_titre')}</Overline>
                       <Text style={styles.margeAmount}>{formatFcfa(markup)}</Text>
                     </View>
+                    <View style={styles.margeHeadRow}>
+                      <Overline>{t('fiche.prix_cliente')}</Overline>
+                      <Text style={styles.margeAmount}>{formatFcfa(v.client)}</Text>
+                    </View>
                     <MarginSlider
                       value={markup}
                       cap={v.cap}
-                      onChange={(m) => {
-                        setMarkups((prev) => ({ ...prev, [item.productVersionId]: m }));
-                        setMarkupTouched((prev) => ({ ...prev, [item.productVersionId]: true }));
-                      }}
+                      onChange={(m) => setMarkups((prev) => ({ ...prev, [item.productVersionId]: m }))}
                     />
                     <Text style={styles.noteLine}>{tf('fiche.plafond', { amount: formatFcfa(v.cap) })}</Text>
                     {/* Note vocale — the mic lives WITH the product (founder Option A);
@@ -1377,6 +1414,9 @@ export default function App() {
 
       {/* Note vocale — the per-product record sheet (opened from a card mic). */}
       <VoiceNoteSheet product={voiceSheet} ctl={voice} onClose={() => setVoiceSheet(null)} />
+      {/* RESELLER-UX-2 — every product photo's full gallery (fiche héro + Ma
+          Vitrine card both open it; refs carry the hero AND the proof shot). */}
+      <PhotoGallery product={gallery} onClose={() => setGallery(null)} />
 
       <View style={styles.footer}>
         <View style={styles.footerInfo}>
@@ -1561,6 +1601,8 @@ const styles = StyleSheet.create({
   screenTitle: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.screen.size, fontWeight: w(t2.scale.screen.wght) },
   oppHead: { gap: spacing.xs, paddingBottom: spacing.md },
   oppSub: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  // The compact row — STILL the ventes/detail row idiom (those screens list
+  // transactions, not photography; their small art goes through `artTile`).
   oppRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1571,18 +1613,25 @@ const styles = StyleSheet.create({
     borderColor: sharedColour.hairline,
     padding: spacing.md,
   },
-  // The 60px product art-tile (frame's 60·r15) — the larger sibling of the
-  // accueil 48px tile; same duotone language (soft field + gold keyline).
-  oppArtTile: {
-    width: touch.minTargetPx + spacing.md,
-    height: touch.minTargetPx + spacing.md,
-    borderRadius: rmax(radius.art),
+  // RESELLER-UX-2 item 1 — the browse CARD (founder walk: « bigger, see the photo
+  // clearly »). Replaces the 60px row-tile on OPPORTUNITÉS only: the photograph
+  // is a full-width, fiche-hero-height field on top (photography treated with
+  // respect, §5), the detail reads underneath in named rows.
+  oppCard: {
+    backgroundColor: sharedColour.card,
+    borderRadius: radius.tile,
+    borderWidth: interaction.hairline.thin,
+    borderColor: sharedColour.hairline,
+    overflow: 'hidden',
+  },
+  oppCardArt: {
+    height: touch.minTargetPx * 3 + spacing.xl,
     backgroundColor: shopColour.soft,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
   },
+  oppCardBody: { padding: spacing.md, gap: spacing.xs },
   // Net-forward money line (SP-I04/I12 net-first) — deep, bold, tabular.
   // BROWSE-SUPPLY-1 — THE SOURCE MARK. A provenance chip, not a location line: a
   // place answers WHERE and a source answers WHOSE, so this reads as a mark rather
@@ -1906,7 +1955,9 @@ const styles = StyleSheet.create({
   },
   vitrineVoiceLabel: { color: shopColour.primary, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size) },
   vitrineCardArt: {
-    height: touch.minTargetPx * 2 + spacing.md,
+    // RESELLER-UX-2 item 3 — fiche-hero height (was ~100px): her own products get
+    // the same photographic presence the fiche gives them.
+    height: touch.minTargetPx * 3 + spacing.xl,
     borderRadius: rmax(radius.art),
     backgroundColor: shopColour.soft,
     overflow: 'hidden',
@@ -1923,7 +1974,6 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   // the cliente price — the secondary context line under the net hero.
-  vitrineClientLine: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
   // ── PARTAGER format segments (planche piste r14 p4; active = white card) ──
   fmtSegments: { flexDirection: 'row', gap: spacing.xs, backgroundColor: sharedColour.dim, borderRadius: radius.tile, padding: spacing.xs },
   fmtSeg: { flex: 1, minHeight: touch.minTargetPx, borderRadius: radius.tile, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xs },

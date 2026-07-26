@@ -22,7 +22,7 @@
 import { applyTheme, type VitrineThemeKey } from '../vitrine/themes';
 import {
   renderC1, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
-  renderOffline, renderSheet, renderSkeleton, renderToasts,
+  renderGalerie, renderOffline, renderSheet, renderSkeleton, renderToasts,
   fmtPayezMaintenant, SUIVI_STEPS,
   type ClienteProduit, type ClienteQuote, type ConfirmEtat, type DoorEtat,
   type Livraison, type ModePaiement, type VoiceEtat,
@@ -78,6 +78,8 @@ interface FlowState {
   door: DoorEtat;
   leg2: 'idle' | 'confirmed';
   reason: string | null;
+  /** RESELLER-UX-2 item 4 — the photo gallery: open at this index, null = closed. */
+  galerie: number | null;
 }
 
 export function createCliente(container: HTMLElement, init: ClienteInit): void {
@@ -112,6 +114,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     door: 'inspecting',
     leg2: (init.revealed ?? false) ? 'confirmed' : 'idle',
     reason: null,
+    galerie: null,
   };
   // No mount-time prefill — the pixel mounts startScreen on the RAW state and
   // keeps mid-flow screens coherent with RENDER-TIME fallbacks (zone/repère on
@@ -214,6 +217,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       state.offline ? renderOffline() : '',
       `<div class="cl-stage">${state.loading ? renderSkeleton() : screenHtml()}</div>`,
       state.sheet ? renderSheet() : '',
+      state.galerie !== null ? renderGalerie(m, state.galerie) : '',
       renderToasts(state.toasts),
     ].join('');
   }
@@ -246,6 +250,17 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         return;
       case 'ouvrir-protections':
         state.sheet = true; render(); return;
+      // — la galerie photos (RESELLER-UX-2 item 4) — only reachable when the
+      // frame rendered the affordance, i.e. at least one photo exists.
+      case 'photo-galerie':
+        state.galerie = 0; render(); return;
+      case 'galerie-fermer':
+        state.galerie = null; render(); return;
+      case 'galerie-precedente':
+        state.galerie = Math.max(0, (state.galerie ?? 0) - 1); render(); return;
+      case 'galerie-suivante':
+        state.galerie = Math.min(Math.max(0, m.assetRefs.filter((r) => r !== '').length - 1), (state.galerie ?? 0) + 1);
+        render(); return;
       case 'fermer-protections':
       case 'fermer-protections-cta':
         state.sheet = false; render(); return;

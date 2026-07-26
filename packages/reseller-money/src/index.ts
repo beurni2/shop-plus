@@ -47,8 +47,17 @@ export interface MarginBreakdown {
   readonly client: number;
 }
 
-/** The default markup before the reseller sets one (HANDOFF §3: `?? 1500`). */
-export const DEFAULT_MARKUP = 1500;
+/** The default markup before the reseller sets one.
+ *
+ * FOUNDER OVERRIDE (2026-07-26, supersedes HANDOFF §3's `?? 1500`): **0 on
+ * arrival.** She starts from the base price and ADDS her margin deliberately —
+ * a defaulted 1 500 pre-chosen for her was the thing the old untouched-slider
+ * CTA gate existed to guard against; with 0 the un-acted default signs the
+ * LOWEST possible cliente price and her net stays what the commission alone
+ * pays (80 % of C), so publishing on arrival is a safe act, not a trap. One
+ * default for every surface — the browse estimate, the fiche and Ma Vitrine
+ * read this same constant, so no two screens can disagree about the start. */
+export const DEFAULT_MARKUP = 0;
 
 /** The markup ceiling as a fraction of base B. SP3's « markup within cap » rule
  * holds; the VALUE is the pilot-tunable knob — loosened from 20 % to 100 % of B

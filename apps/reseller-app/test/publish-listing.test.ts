@@ -34,9 +34,11 @@ describe('ONE KEYSPACE — a markup written on the card is the markup the fiche 
     expect(onFiche.markup).toBe(2_500);
     expect(onFiche.client).toBe(10_500); // B + M, the price the service will sign
     // THE OLD BEHAVIOUR, PINNED AS A NEGATIVE: written under a demo seed id, the
-    // fiche would have fallen through to min(1500, cap) — a price she never chose.
+    // fiche falls through to the DEFAULT — 0 since the founder's 2026-07-26
+    // override (was min(1500, cap)) — and NOT the 2 500 she chose. The invariant
+    // is the fallthrough itself: a wrong key loses her decision.
     const wrongKey: Record<string, number> = { o5: 2_500 };
-    expect(marginOf(wrongKey, OFFER.productVersionId, OFFER.basePrice, OFFER.resellerCommission).markup).toBe(1_500);
+    expect(marginOf(wrongKey, OFFER.productVersionId, OFFER.basePrice, OFFER.resellerCommission).markup).toBe(0);
   });
 
   it('THE MONEY IDENTITIES HOLD AT HER CHOSEN MARKUP — net + fee = gross, client = B + M', () => {
@@ -129,21 +131,26 @@ describe('THE APP NEVER AUTHORS A SIGNED AMOUNT', () => {
   });
 });
 
-describe('PUBLISH CANNOT FIRE ON AN UNTOUCHED DEFAULT', () => {
-  it('THE CTA IS GATED ON BOTH THE SEAM AND A DELIBERATE MARKUP', () => {
+describe('RESELLER-UX-2 — THE CTA LIVES ON ARRIVAL (founder walk item 2, supersedes the untouched-default gate)', () => {
+  // The old gate (« PUBLISH CANNOT FIRE ON AN UNTOUCHED DEFAULT ») guarded the
+  // defaulted 1 500 from being signed unchosen. The founder set the default to 0:
+  // an un-acted publish now signs the LOWEST cliente price and pays the
+  // commission net — safe by construction, so the gate and its `markupTouched`
+  // state are retired, not merely bypassed.
+  it('THE ONLY GATES ARE THE SEAM AND AN IN-FLIGHT PUBLISH — no untouched-slider gate survives', () => {
     const app = read('App.tsx');
-    expect(app).toMatch(
-      /disabled=\{service === null \|\| markupTouched\[opp\.productVersionId\] !== true \|\| publishing\}/,
-    );
-    // …and the reason it is asleep is stated, never left for her to guess
+    expect(app).toMatch(/disabled=\{service === null \|\| publishing\}/);
+    // …and the one honest sleep reason is stated, never left for her to guess
     expect(app).toMatch(/fiche\.cta_non_relie/);
-    expect(app).toMatch(/fiche\.cta_choisir_marge/);
+    // the retired gate is GONE as state, not lingering half-wired
+    expect(app).not.toMatch(/setMarkupTouched/);
+    expect(app).not.toMatch(/markupTouched\[/);
   });
 
-  it('THE HANDLER RE-CHECKS IT — the UI gate is not the only thing standing between a default and a signature', () => {
+  it('THE HANDLER SENDS THE DISPLAYED MARKUP — what she reads is what signs (default 0 included)', () => {
     const app = read('App.tsx');
     const handler = /const publishListing = useCallback\([\s\S]*?\n  \);/.exec(app)?.[0] ?? '';
-    expect(handler).toMatch(/markupTouched\[o\.productVersionId\] !== true/);
+    expect(handler).toMatch(/const markup = viewOfOffer\(o\)\.markup;/);
     // membership is recorded AFTER the confirmed write, never before it
     const okIdx = handler.indexOf('if (!res.ok)');
     const addIdx = handler.indexOf('vitrineCol.addToVitrine');
@@ -261,23 +268,111 @@ describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
   });
 
   it('PHOTOS — every reseller surface renders the real photograph with the glyph as fallback', () => {
-    // opp row, fiche hero, vitrine card: Image from assetRefs[0]
-    const photoSites = app.match(/assetRefs\[0\] \? \(\s*<Image source=\{\{ uri: (item|opp)\.assetRefs\[0\] \}\}/g) ?? [];
+    // opp card, fiche héro, vitrine card, share héro: the Image reads
+    // assetRefs[0]. (RESELLER-UX-2 wrapped two sites in the gallery Pressable,
+    // so the pin counts the Image sources themselves, not the ternary shape.)
+    const photoSites = app.match(/<Image source=\{\{ uri: (item|opp|shareOffer)\.assetRefs\[0\] \}\}/g) ?? [];
     expect(photoSites.length).toBeGreaterThanOrEqual(3);
     // aperçu cliente goes through the kit tile's photo variant
     expect(app).toMatch(/photoUri=\{item\.assetRefs\[0\]\}/);
   });
 
   it('ITEMS 2+3 — the fiche money card is three NAMED rows with net FIRST and a typable markup', () => {
-    // net stays the first money figure on the screen (SP-I04)
-    const gagnez = app.indexOf("tf('opportunity.gagnez'");
-    const base = app.indexOf("t('fiche.prix_base')");
-    const cliente = app.indexOf("t('fiche.prix_cliente')");
+    // net stays the first money figure ON THE FICHE (SP-I04). Scoped to the
+    // fiche block: RESELLER-UX-2 put « Prix de base » on the Opportunités card
+    // too (earlier in the file), so a whole-file indexOf no longer measures the
+    // fiche's own order.
+    const fiche = app.slice(app.indexOf("screen === 'fiche'"), app.indexOf("screen === 'vitrine'"));
+    const gagnez = fiche.indexOf("tf('opportunity.gagnez'");
+    const base = fiche.indexOf("t('fiche.prix_base')");
+    const cliente = fiche.indexOf("t('fiche.prix_cliente')");
     expect(gagnez).toBeGreaterThan(-1);
     expect(gagnez).toBeLessThan(base);
     expect(base).toBeLessThan(cliente);
     // the typed field commits through the SAME snap as the slider — one value
     expect(app).toMatch(/onChange\(snapMarkup\(parsed, cap\)\)/);
     expect(app).toMatch(/<MarkupControl/);
+  });
+});
+
+/**
+ * RESELLER-UX-2 — the FOUR-ITEM founder walk (2026-07-26), pinned.
+ *
+ *   1 · Opportunités: the 60px row became a photo-first CARD — hero-height
+ *       photo, 2-line name, Prix de base named, net loudest, honest épuisé.
+ *   2 · Fiche: the CTA lives on arrival (default 0 signs the lowest price);
+ *       the héro with photos opens the FULL gallery.
+ *   3 · Ma Vitrine: the same three named money rows as the fiche; hero-height
+ *       tappable photo onto the same gallery. Partager says « Prix », not
+ *       « Votre prix » (whose?).
+ *   4 · (buyer half pinned in buyer-pwa/test/real-product-render.test.ts)
+ */
+describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
+  const app = read('App.tsx');
+
+  it('item 1 — Opportunités renders the photo-first CARD with the named money rows', () => {
+    expect(app).toContain('styles.oppCard,');
+    expect(app).toContain('styles.oppCardArt');
+    // the photo field is hero-height, not the 60px tile (style formula pinned)
+    expect(app).toMatch(/oppCardArt: \{\n\s*height: touch\.minTargetPx \* 3 \+ spacing\.xl,/);
+    // the name may take two lines — a French product name must not truncate meaning
+    const oppCardIdx = app.indexOf('styles.oppCard,');
+    const body = app.slice(oppCardIdx, app.indexOf('</Pressable>', oppCardIdx));
+    expect(body).toContain('numberOfLines={2}');
+    expect(body).toContain("t('fiche.prix_base')"); // Prix de base, NAMED on the card
+    expect(body).toContain("tf('opportunity.gagnez'"); // net stays the loudest line
+    // NET FIRST IN RENDER ORDER (SP-I04/I12, verifier finding): gagnez renders
+    // BEFORE the base row on the card, matching the fiche and the encoded gate law.
+    expect(body.indexOf("tf('opportunity.gagnez'")).toBeLessThan(body.indexOf("t('fiche.prix_base')"));
+    expect(body).toContain("t('opportunites.epuise')"); // zero stock says so pre-tap
+    expect(body).toMatch(/item\.available === 0 &&/); // …and only when actually zero
+  });
+
+  it('item 2 — the fiche héro with photos opens the gallery; sans photo, no affordance', () => {
+    expect(app).toMatch(/opp\.assetRefs\.length > 0 \? \(\s*\n\s*<Pressable/);
+    expect(app).toMatch(/setGallery\(\{ name: opp\.productName, refs: opp\.assetRefs \}\)/);
+    expect(app).toContain("accessibilityLabel={t('galerie.ouvrir')}");
+    expect(app).toContain('<PhotoGallery product={gallery} onClose=');
+  });
+
+  it('item 3 — Ma Vitrine card: hero-height tappable photo + the three named money rows', () => {
+    expect(app).toMatch(/setGallery\(\{ name: item\.productName, refs: item\.assetRefs \}\)/);
+    // the card reasons in the fiche's vocabulary: base · marge · prix cliente
+    const cardIdx = app.indexOf('styles.vitrineCard}');
+    const card = app.slice(cardIdx, app.indexOf('MarginSlider', cardIdx));
+    expect(card).toContain("t('fiche.prix_base')");
+    expect(card).toContain("t('fiche.marge_titre')");
+    expect(card).toContain("t('fiche.prix_cliente')");
+    // net-first survives the restructure: her net is still the hero figure
+    expect(card).toContain('styles.vitrineNetHero');
+    // the art is the fiche-hero height now, not the old two-target strip
+    expect(app).toMatch(/vitrineCardArt: \{\n[^}]*height: touch\.minTargetPx \* 3 \+ spacing\.xl,/);
+  });
+
+  it('item 3 — Partager names the amount plainly: « Prix », never « Votre prix » (whose?)', () => {
+    const catalog = read('i18n/catalog.json');
+    const entry = /\{\s*"key": "share\.prix",\s*"fr": "([^"]+)"/.exec(catalog);
+    expect(entry?.[1]).toBe('Prix : {amount}');
+  });
+
+  it('the gallery strings live in the catalog with registers — never inline', () => {
+    const catalog = read('i18n/catalog.json');
+    for (const key of ['galerie.ouvrir', 'galerie.fermer', 'galerie.compteur', 'opportunites.epuise']) {
+      expect(catalog).toContain(`"key": "${key}"`);
+    }
+    // and the component reads them through t/tf, not literals
+    const gal = read('src/ui/photo-gallery.tsx');
+    expect(gal).toContain("t('galerie.fermer')");
+    expect(gal).toContain("tf('galerie.compteur'");
+  });
+
+  it('the gallery page RESETS per product and the width is LIVE (verifier findings, pinned)', () => {
+    const gal = read('src/ui/photo-gallery.tsx');
+    // the component never unmounts, so a reopened gallery must not inherit the
+    // previous session's page — counter and photo would disagree.
+    expect(gal).toMatch(/useEffect\(\(\) => \{\s*\n\s*setPage\(0\);\s*\n\s*\}, \[product\]\);/);
+    // the page width tracks rotation for real, not by comment
+    expect(gal).toContain('useWindowDimensions()');
+    expect(gal).not.toContain("Dimensions.get('window')");
   });
 });
