@@ -276,7 +276,19 @@ export class BoundSupplySource implements SupplySourcePort {
     // producer positively denying the offer — `gone`; 409 `unavailable` (the
     // refusal ladder) is an EXTANT offer refusing service — no evidence, like any
     // other non-2xx.
-    if (res.status === 404) return { verdict: 'gone' };
+    //
+    // THE STATUS CODE ALONE IS NOT THE DENIAL — the BODY is verified (verifier
+    // finding, accepted): boutik's fallback 404 (`{service, status:'not_found'}`,
+    // health.ts) answers any UNMATCHED path with the same code and NO `reason`,
+    // while the route's real denial carries `reason:'unknown_product_version'`
+    // (supply-endpoint.ts:154). A cross-repo route drift — which this wire has
+    // lived once (SUPPLY-WIRE-1) — would otherwise turn every read into a 404
+    // and every 404 into a ONE-WAY mass hide. Cheap insurance, proportional to
+    // the irreversibility: no `reason`, no evidence.
+    if (res.status === 404) {
+      const body = (await res.json().catch(() => null)) as { reason?: string } | null;
+      return body?.reason === 'unknown_product_version' ? { verdict: 'gone' } : { verdict: 'unknown' };
+    }
     if (!res.ok) return { verdict: 'unknown' };
     const raw: unknown = await res.json().catch(() => null);
     if (raw === null) return { verdict: 'unknown' };

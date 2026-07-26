@@ -310,6 +310,19 @@ describe('AUTO-HIDE-WATCH-1 — presence verdicts separate evidence from ignoran
     expect(seen).toEqual({ kind: 'gone' });
   });
 
+  it("a 404 WITHOUT the producer's reason is UNKNOWN — route drift must not become a mass hide", async () => {
+    // Boutik's health fallback answers ANY unmatched path 404 with
+    // `{service, status:'not_found'}` and NO reason. If the supply path ever
+    // drifts (it has once — SUPPLY-WIRE-1), every read 404s through that
+    // fallback; ruling those `gone` would one-way hide every listing on the
+    // platform. The body's `reason` is the denial; the code alone is not.
+    expect(await sourceAnswering(404, { service: 'offer-service', status: 'not_found' }).presence(PV)).toEqual({
+      kind: 'unknown',
+    });
+    expect(await sourceAnswering(404, null).presence(PV)).toEqual({ kind: 'unknown' });
+    expect(await sourceAnswering(404, 'not json').presence(PV)).toEqual({ kind: 'unknown' });
+  });
+
   it('a NETWORK FAILURE is UNKNOWN, never gone — a supply outage must not read as a lapse', async () => {
     const source = new BoundSupplySource({
       fetch: async () => {

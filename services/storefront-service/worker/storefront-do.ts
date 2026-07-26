@@ -276,13 +276,18 @@ export default {
     //
     // Key-gated BY METHOD at the composition root (DELETE is not a safe method,
     // so `rejectUnauthorizedWrite` refuses it before this router is reached).
-    // ENTRY FIRST, then pointer, then index — the failure-safe order: if the
-    // pointer or index cleanup is lost mid-flight, the entry is already gone, so
-    // every read is ALREADY the honest 404 (the orphaned-pointer rule below and
-    // the admin list's per-entry read both tolerate the leftovers, and re-running
-    // the DELETE finishes the cleanup — each step is idempotent). The reverse
-    // order could leave a shop that resolves for buyers but is absent from the
-    // operator's list: alive and invisible, the disappearance family.
+    // ENTRY FIRST, then pointer, then index — the failure-safe order: the moment
+    // the entry is erased, every buyer read is ALREADY the honest 404 (the
+    // orphaned-pointer rule below), so a cleanup lost mid-flight can strand only
+    // ADMIN residue, never a resolvable shop. The reverse order could leave a
+    // shop that resolves for buyers but is absent from the operator's list:
+    // alive and invisible, the disappearance family.
+    //
+    // RE-RUN CONVERGES (verifier finding, fixed): on `absent`, the entry cannot
+    // name its slug — but the DIRECTORY ROW still can. The absent branch consults
+    // the index for the id and finishes any leftover pointer/index cleanup, so
+    // repeating an interrupted DELETE completes it instead of orphaning residue
+    // forever. Fully-cleaned ⇒ no row ⇒ no-op; every step is idempotent.
     m = /^\/storefronts\/([^/]+)$/.exec(pathname);
     if (m && request.method === 'DELETE') {
       const id = decodeURIComponent(m[1]!);
@@ -293,6 +298,15 @@ export default {
         await indexStub(env).fetch(
           new Request('https://do/index/remove', { method: 'POST', body: JSON.stringify({ id }) }),
         );
+      } else if (decision?.status === 'absent') {
+        const rows = (await (await indexStub(env).fetch(new Request('https://do/index'))).json().catch(() => [])) as IndexRow[];
+        const leftover = rows.find((r) => r.id === id);
+        if (leftover !== undefined) {
+          await slugStub(env, leftover.slug).fetch(new Request('https://do/pointer/delete', { method: 'POST' }));
+          await indexStub(env).fetch(
+            new Request('https://do/index/remove', { method: 'POST', body: JSON.stringify({ id }) }),
+          );
+        }
       }
       return forward(res);
     }

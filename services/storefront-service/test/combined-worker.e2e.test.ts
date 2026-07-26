@@ -148,7 +148,15 @@ const mf = new Miniflare({
         const pid = decodeURIComponent(single[1]!);
         const value = LAPSED.has(pid) ? undefined : SUPPLY.find((v) => v.productVersionId === pid);
         if (value === undefined) {
-          return Response.json({ service: 'offer-service', status: 'unknown_product_version' }, { status: 404 });
+          // THE PRODUCER'S EXACT DENIAL BYTES (supply-endpoint.ts:154) — mock
+          // certification: the previous shape here put the marker in `status`
+          // and carried no `reason`, which the real producer never emits; the
+          // watcher's body check (AUTO-HIDE-WATCH-1) would have read that drift
+          // as `unknown` and this suite would have proven nothing about hides.
+          return Response.json(
+            { service: 'offer-service', status: 'not_found', reason: 'unknown_product_version' },
+            { status: 404 },
+          );
         }
         return Response.json({ version: 1, asOf, value });
       }
@@ -756,16 +764,46 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     expect(view.products.find((p) => p.pid === 'pv-a2-1')!.inStock).toBe(true);
   });
 
-  it('A LAPSED OFFER ⇒ the product is UNDESCRIBABLE ⇒ OMITTED (never mock data, never a nameless tile)', async () => {
-    // The offer was live at publish (that is why it signed) and the producer has
-    // since stopped serving it — the founder's item E, reached honestly.
-    LAPSED.add('pv-a2-1');
-    LAPSED.add('pv-epuise-1');
+  it('A LAPSED OFFER ⇒ OMITTED, and the WATCHER durably hides — ONE-WAY, proven through the composition root', async () => {
+    // ═══ AUTO-HIDE-WATCH-1, end-to-end — ON ITS OWN SHOP (verifier finding) ═══
+    //
+    // The first cut ran this scenario on the SHARED sf-a2-0001, and the watcher —
+    // being real now — durably hid that shop's listings mid-suite, silently
+    // emptying the payload the SP-I03 scan below scans (failure mode #7: a
+    // passing test asserting nothing). A ONE-WAY act gets an ISOLATED shop.
+    await mf.dispatchFetch('http://c/storefronts', {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({
+        commandId: 'cmd-lapse-create',
+        id: 'sf-lapse-0001',
+        resellerId: 'rs-lapse-0001',
+        shortCode: 'LAPSE-0001',
+        name: 'Boutique offre échue',
+        zone: 'Ouagadougou',
+        category: 'Général',
+        correlationId: 'corr-lapse',
+        at: T0,
+      }),
+    });
+    const pub = await mf.dispatchFetch('http://c/listings', {
+      method: 'POST',
+      headers: authed,
+      body: publishCmd({
+        commandId: 'cmd-lapse-listing',
+        listingId: 'lst-lapse-0001',
+        storefrontId: 'sf-lapse-0001',
+        resellerId: 'rs-lapse-0001',
+      }),
+    });
+    expect(((await pub.json()) as { status: string }).status).toBe('published'); // live at publish — that is why it signed
+
+    LAPSED.add('pv-a2-1'); // …and the producer has since stopped serving it
     try {
-      const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
+      const read = await mf.dispatchFetch('http://c/s/lapse-0001', { method: 'GET' });
       const view = (await read.json()) as StorefrontView & { products: unknown[] };
       // her membership is still stated — curatedItems is canon and does not retract…
-      expect(view.curatedItems).toEqual(['pv-a2-1', 'pv-epuise-1']);
+      expect(view.curatedItems).toEqual(['pv-a2-1']);
       // …but nothing can describe it, so the buyer payload carries NO product record
       expect(view.products).toEqual([]);
       // and absolutely no fabricated name or ref leaked in
@@ -773,11 +811,26 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     } finally {
       LAPSED.clear();
     }
+    // THE FLIP IS DURABLE AND ONE-WAY: supply serves the offer again, and the
+    // listing STAYS auto_hidden — visibility returns only through a deliberate
+    // republish (a new version), never by drift.
+    const after = await mf.dispatchFetch('http://c/s/lapse-0001', { method: 'GET' });
+    expect(((await after.json()) as { products: unknown[] }).products).toEqual([]);
+    const listing = await mf.dispatchFetch('http://c/listings/lst-lapse-0001', { method: 'GET', headers: authed });
+    expect(((await listing.json()) as { status: string }).status).toBe('auto_hidden');
+    // …and the NEIGHBOURING shop's listings were untouched by this shop's lapse.
+    const neighbour = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
+    expect(((await neighbour.json()) as { products: unknown[] }).products).toHaveLength(2);
   });
 
   it('THE BUYER PAYLOAD CARRIES NO LISTING ID and no supplier economics (standing law + SP-I03)', async () => {
     const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
-    const body = await read.text();
+    const view = (await read.json()) as StorefrontView & { products: unknown[] };
+    // THE SCAN MUST NEVER GO VACUOUS (verifier finding): scanning an EMPTY payload
+    // proves nothing — this pins that the scanned payload actually carries the
+    // shop's two records, so the assertions below assert over real bytes.
+    expect(view.products).toHaveLength(2);
+    const body = JSON.stringify(view);
     expect(body).not.toContain('lst-a2-0001'); // the listing id never reaches the wire
     expect(body).not.toMatch(/lst[-_]/i);
     expect(body).not.toMatch(/markup|basePrice|resellerCommission|supplier/i);
