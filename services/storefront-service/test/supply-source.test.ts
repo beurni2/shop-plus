@@ -202,7 +202,9 @@ describe('SUPPLY-WIRE-1 — the path, the envelope and the freshness bound', () 
 
   it('PUBLISH-PRICE-1 — `economics` reads the LIVE base and offer version off the SAME envelope', async () => {
     stubFetch(200, envelope(minutesAgo(1)));
-    expect(await source().economics(PV)).toEqual({ basePrice: 10_000, offerVersion: '1' });
+    // MONEY-SHAPE-1 — C rides along so the listing can freeze HER side at the same
+    // instant it freezes the buyer's, from ONE reading of the projection.
+    expect(await source().economics(PV)).toEqual({ basePrice: 10_000, offerVersion: '1', resellerCommission: 1_000 });
   });
 
   it('PUBLISH-PRICE-1 — `economics` carries NO display data, and `describe` carries NO economics', async () => {
@@ -211,7 +213,7 @@ describe('SUPPLY-WIRE-1 — the path, the envelope and the freshness bound', () 
     const desc = (await source().describe(PV)) as Record<string, unknown>;
     // The two shapes are deliberately disjoint: only one of them may reach a buyer
     // record, and merging them would destroy exactly that guarantee (SP-I03).
-    expect(Object.keys(econ).sort()).toEqual(['basePrice', 'offerVersion']);
+    expect(Object.keys(econ).sort()).toEqual(['basePrice', 'offerVersion', 'resellerCommission']);
     for (const banned of ['basePrice', 'resellerCommission', 'offerVersion']) {
       expect(Object.keys(desc)).not.toContain(banned);
     }

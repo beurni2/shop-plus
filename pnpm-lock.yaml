@@ -72,6 +72,9 @@ importers:
       '@platform/ui-tokens':
         specifier: git+https://github.com/beurni2/platform-contracts.git#be2199c95d27e6ae5f6c7381c12e18a9796d9800&path:packages/ui-tokens
         version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/be2199c95d27e6ae5f6c7381c12e18a9796d9800#path:packages/ui-tokens
+      '@shop-plus/reseller-money':
+        specifier: workspace:*
+        version: link:../../packages/reseller-money
       expo:
         specifier: ~54.0.35
         version: 54.0.35(@babel/core@7.29.7)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3)
@@ -199,6 +202,15 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@22.20.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
 
+  packages/reseller-money:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.1)(lightningcss@1.32.0)(terser@5.49.0)(yaml@2.9.0)
+
   packages/store-projection:
     devDependencies:
       typescript:
@@ -285,6 +297,9 @@ importers:
       '@shop-plus/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@shop-plus/reseller-money':
+        specifier: workspace:*
+        version: link:../../packages/reseller-money
       '@shop-plus/supply-consumer':
         specifier: workspace:*
         version: link:../../packages/supply-consumer

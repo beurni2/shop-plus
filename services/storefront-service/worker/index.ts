@@ -105,24 +105,46 @@ export default {
     // nobody authorised. A refusal she can retry is the correct failure.
     if (request.method === 'POST' && pathname === '/listings') {
       const cmd = (await request.clone().json().catch(() => null)) as
-        | { storefrontId?: string; productVersionId?: string; markup?: unknown; at?: string }
+        | { storefrontId?: string; productVersionId?: string; markup?: unknown; customerPriceFcfa?: unknown; at?: string }
         | null;
       if (cmd === null || typeof cmd.productVersionId !== 'string' || cmd.productVersionId === '') {
         return Response.json({ error: 'malformed' }, { status: 400 });
       }
+      // ═══ MONEY-SHAPE-1 — A SUPPLIED PRICE IS REFUSED, NOT DISCARDED ═══
+      //
+      // PUBLISH-PRICE-1 silently dropped an inbound `customerPriceFcfa` and answered
+      // 200. That is a caller sending a money value, being ignored, and never
+      // learning it — the same shape as a success message that cannot fail. The
+      // price is DERIVED here; a caller who supplies one has a wrong model of who
+      // owns the amount, and the honest answer is to say so.
+      //
+      // SAFE AT THE BOUNDARY ONLY: `services/attribution-service` (FROZEN VAULT)
+      // publishes through the IN-MEMORY REGISTRY, never over HTTP, so this refusal
+      // cannot reach it — VERIFIED, not assumed (`premiere-commande-reelle.e2e.test
+      // .ts:92` calls `listings.publish({…})` directly on `ListingRegistry`). The
+      // pure core still accepts the field, so the frozen path is untouched.
+      if ('customerPriceFcfa' in cmd) {
+        return Response.json({ error: 'price_not_accepted' }, { status: 400 });
+      }
       const signed = signPrice(await resolveSupplySource(env).economics(cmd.productVersionId), cmd.markup);
       if (signed.status !== 'signed') {
-        // The reason is NAMED, not collapsed: `supply_unavailable` and
-        // `markup_invalid` need different responses from whoever is looking.
-        return Response.json({ error: signed.status }, { status: signed.status === 'markup_invalid' ? 400 : 409 });
+        // The reason is NAMED, not collapsed: each needs a different response from
+        // whoever is looking — retry, fix the amount, or lower it under the cap.
+        return Response.json(
+          { error: signed.status, ...(signed.status === 'markup_over_cap' ? { cap: signed.cap } : {}) },
+          { status: signed.status === 'supply_unavailable' ? 409 : 400 },
+        );
       }
       const priced = new Request(request.url, {
         method: 'POST',
         headers: request.headers,
         body: JSON.stringify({
           ...cmd,
-          customerPriceFcfa: signed.customerPriceFcfa, // DERIVED HERE — any inbound value is discarded
+          customerPriceFcfa: signed.customerPriceFcfa, // DERIVED HERE from the live base
           offerVersion: signed.offerVersion, // from the SAME live projection
+          // MONEY-SHAPE-1 — C frozen from the SAME projection that priced the buyer's
+          // side, so both halves of the artifact are signed against one reading.
+          resellerCommission: signed.resellerCommission,
         }),
       });
       const res = await lstRouter.fetch(priced, env);

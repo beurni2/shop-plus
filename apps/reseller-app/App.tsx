@@ -349,7 +349,16 @@ export default function App() {
       if (!created.ok) return setToast(tf('k.publier.erreur', { raison: created.reason }));
       const pub = await service.publish(identity.storefrontId, identity.correlationId, at);
       if (!pub.ok) return setToast(tf('k.publier.erreur', { raison: pub.reason }));
-      setToast(tf('k.publier.en_ligne', { slug: created.value.slug ?? shortCode.toLowerCase() }));
+      // MONEY-SHAPE-1 item 4 — THE TOAST THAT COULD NOT FAIL. This read
+      // `created.value.slug ?? shortCode.toLowerCase()`, so when the service returned
+      // NO slug the app COMPUTED one locally and printed it — « En ligne : {slug} »
+      // naming a slug the service never stored, looking identical either way, on the
+      // screen that tells her the shop is live. It cost the founder an hour.
+      // No slug from the service is a state, not a gap to paper over: say so.
+      if (created.value.slug === null || created.value.slug === '') {
+        return setToast(t('k.publier.en_ligne_sans_slug'));
+      }
+      setToast(tf('k.publier.en_ligne', { slug: created.value.slug }));
     },
     [service, identity],
   );

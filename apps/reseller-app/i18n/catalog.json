@@ -2559,6 +2559,11 @@
   "key": "fiche.publier.reessayer",
   "fr": "Le produit n\u2019a pas r\u00e9pondu. R\u00e9essayez dans un moment.",
   "register": "neutral",
+  "screenClass": "instruction"  },
+ {
+  "key": "k.publier.en_ligne_sans_slug",
+  "fr": "Votre boutique est en ligne. Son adresse n\u2019est pas encore revenue.",
+  "register": "neutral",
   "screenClass": "instruction"
  }
 ]

@@ -4,6 +4,7 @@ import {
   type PlatformEvent,
   type ResellerListing,
 } from '@platform/contracts';
+import { netFromStored } from '@shop-plus/reseller-money';
 
 /**
  * LISTING DECISION CORE (STOREFRONT-READ-PATH-1). The pure per-listing transition,
@@ -65,6 +66,29 @@ export interface PublishListingCommand {
    * claim. Forgetting fails toward silence — the only safe direction for a trust mark.
    */
   readonly stockAssurance?: StockAssurance;
+  /**
+   * MONEY-SHAPE-1 — C, THE SUPPLIER-FUNDED COMMISSION, FROZEN AT PUBLISH.
+   *
+   * ═══ THE HALF-SIGNED ARTIFACT THIS CLOSES (founder finding) ═══
+   *
+   * The listing froze `markup` and `customerPriceFcfa`, so THE BUYER'S SIDE was
+   * signed. It did not freeze C, so HER side was not: her net was only recomputable
+   * against a LIVE commission the supplier can change at any moment. **Her earnings
+   * drifted on a listing she had already signed while the buyer's price did not.**
+   * The standing law covers the whole of a signed artifact, not the buyer's half.
+   *
+   * STORED AS A VALUE, NOT RESOLVED LATER FROM `offerVersion` (founder ruling):
+   * nothing guarantees an old offer version stays retrievable, so a listing that
+   * remembered only the version could become unpriceable for her.
+   *
+   * OPTIONAL, for the SAME constraint as `stockAssurance` and with the same
+   * fail-direction: `services/attribution-service` is in the FROZEN VAULT and its
+   * `premiere-commande-reelle` e2e publishes without this field, so a required field
+   * would force an edit to a frozen file. An omitted C means her net is UNKNOWN
+   * rather than wrong — `netForListing` returns `undefined`, and a caller that
+   * forgets lands on silence instead of on a fabricated earnings figure.
+   */
+  readonly resellerCommission?: number;
   readonly correlationId: string;
   readonly at: string;
 }
@@ -99,6 +123,31 @@ export interface ListingEntry {
   readonly publishCommandId: string;
   /** HER price, FROZEN at publish (productSubtotal = B + M) — carried, never recomputed. */
   readonly customerPriceFcfa: number;
+  /**
+   * MONEY-SHAPE-1 — C as it stood AT PUBLISH, so HER net is frozen alongside the
+   * buyer's price. Absent only on the frozen-vault path (see the command field).
+   *
+   * `offerVersion` is NOT duplicated here: it is already persisted on the canon
+   * `ResellerListing` this entry wraps (`decidePublish` parses it into the record),
+   * so storing it twice would create two provenance answers that can disagree.
+   */
+  readonly resellerCommission?: number;
+}
+
+/**
+ * MONEY-SHAPE-1 — HER NET FOR A PUBLISHED LISTING, FROM STORED FIELDS ALONE.
+ *
+ * The signature IS the guarantee: this takes the ENTRY and nothing else. It is given
+ * no supply source, no fetcher and no base price, so a live read cannot occur in this
+ * path — that is enforced by the type, not by a convention someone has to keep.
+ *
+ * `undefined` when C was never frozen (the frozen-vault path): her net is UNKNOWN,
+ * and saying so is the only honest answer. Inventing one from a live commission is
+ * precisely the drift this slice removes.
+ */
+export function netForListing(entry: ListingEntry): number | undefined {
+  if (entry.resellerCommission === undefined) return undefined;
+  return netFromStored(entry.resellerCommission, entry.listing.markup);
 }
 
 function publishedEvent(cmd: PublishListingCommand): PlatformEvent {
@@ -177,6 +226,9 @@ export function decidePublish(
     storefrontId: cmd.storefrontId,
     publishCommandId: cmd.commandId,
     customerPriceFcfa: cmd.customerPriceFcfa, // SUPPLIED from the waterfall, frozen here
+    // MONEY-SHAPE-1 — C frozen beside HER price, so both sides of the artifact are
+    // signed at the same instant and neither can drift while the other holds.
+    ...(cmd.resellerCommission !== undefined ? { resellerCommission: cmd.resellerCommission } : {}),
   };
   return { decision: { status: 'published', listing, event: publishedEvent(cmd) }, next };
 }

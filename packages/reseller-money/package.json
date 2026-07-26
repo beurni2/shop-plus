@@ -1,0 +1,23 @@
+{
+  "name": "@shop-plus/reseller-money",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MONEY-SHAPE-1 — the reseller-margin arithmetic and the markup CEILING, in ONE place imported by both the reseller app (which displays the numbers) and storefront-service (which SIGNS them). A service that signs must bound; the rule bounding that money may not live only in the app whose authority over money was removed. Dependency-free, so the RN bundle can carry it.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

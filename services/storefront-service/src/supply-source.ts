@@ -94,6 +94,9 @@ export interface ProductDescription {
 export interface ProductEconomics {
   readonly basePrice: number;
   readonly offerVersion: string;
+  /** MONEY-SHAPE-1 — C, so the listing can FREEZE her side of the money shape at the
+   *  same instant it freezes the buyer's. Read from the same fresh projection. */
+  readonly resellerCommission: number;
 }
 
 /** The join's supply side. `undefined` = this product cannot be described. */
@@ -263,7 +266,7 @@ export class BoundSupplySource implements SupplySourcePort {
   async economics(productVersionId: string): Promise<ProductEconomics | undefined> {
     const p = await this.fresh(productVersionId);
     if (p === undefined) return undefined;
-    return { basePrice: p.basePrice, offerVersion: p.offerVersion };
+    return { basePrice: p.basePrice, offerVersion: p.offerVersion, resellerCommission: p.resellerCommission };
   }
 }
 
@@ -276,6 +279,7 @@ interface SupplyProjectionValue {
   readonly available: number;
   readonly basePrice: number;
   readonly offerVersion: string;
+  readonly resellerCommission: number;
 }
 
 /**

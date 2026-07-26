@@ -1,4 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { netFromStored } from '@shop-plus/reseller-money';
+import { decidePublish, netForListing } from '../src/listing-core.js';
 import { signPrice } from '../src/publish-price.js';
 import { DurableListingStore, ListingStoreError, resolveListingStore } from '../src/listing-store.js';
 import { absoluteAssetRefs } from '../src/customer-projection.js';
@@ -27,12 +31,14 @@ describe('signPrice — the service signs HER price, the app never does', () => 
     // waterfall, not to HER price. If either ever leaked into this function the
     // buyer would be charged a fee that is not hers to pay, so the identity is
     // asserted across a range rather than at one convenient point.
+    // Every pair is UNDER its ceiling on purpose — this test is about the
+    // arithmetic, and the ceiling has its own tests below.
     for (const [base, markup] of [
       [0, 0],
-      [1, 1],
       [10_000, 1_500],
       [7_333, 2_667],
       [999_999, 1],
+      [50, 100],
     ] as const) {
       const out = signPrice({ basePrice: base, offerVersion: 'v' }, markup);
       expect(out.status).toBe('signed');
@@ -179,5 +185,118 @@ describe('DurableListingStore — a transport fault is never a decision', () => 
     const store = resolveListingStore(undefined);
     expect(await store.publish(cmd)).toMatchObject({ status: 'published' });
     expect(store).not.toBeInstanceOf(DurableListingStore);
+  });
+});
+
+/* --------------------------------------------------------- MONEY-SHAPE-1 -- */
+
+describe('MONEY-SHAPE-1 — the ceiling is enforced by the service that signs', () => {
+  const live = { basePrice: 10_000, offerVersion: 'ov', resellerCommission: 750 };
+
+  it('A MARKUP AT THE CAP SIGNS; ONE FRANC OVER IS REFUSED WITH THE CAP NAMED', () => {
+    expect(signPrice(live, 10_000).status).toBe('signed'); // exactly at cap
+    const over = signPrice(live, 10_001);
+    expect(over).toEqual({ status: 'markup_over_cap', cap: 10_000 });
+  });
+
+  it('THE CAP COMES FROM THE SAME LIVE BASE THE PRICE IS SIGNED AGAINST', () => {
+    // If the bound and the amount could read different B's they could disagree.
+    const small = { basePrice: 1_500, offerVersion: 'ov', resellerCommission: 200 };
+    expect(signPrice(small, 1_600)).toEqual({ status: 'markup_over_cap', cap: 1_500 });
+    expect(signPrice(small, 1_500).status).toBe('signed');
+  });
+
+  it('SHAPE IS CHECKED BEFORE SUPPLY, AND SUPPLY BEFORE THE CEILING', () => {
+    // The ceiling is a function OF the base, so it cannot be evaluated first.
+    expect(signPrice(undefined, -1)).toEqual({ status: 'markup_invalid' });
+    expect(signPrice(undefined, 99_999_999)).toEqual({ status: 'supply_unavailable' });
+  });
+
+  it('THE CEILING IS IMPORTED, NOT REDECLARED — one constant, two consumers', async () => {
+    const shared = await import('@shop-plus/reseller-money');
+    const src = readFileSync(join(__dirname, '..', 'src/publish-price.ts'), 'utf8');
+    expect(src).toMatch(/import \{ markupCap \} from '@shop-plus\/reseller-money'/);
+    expect(src).not.toMatch(/MARKUP_CAP_RATE\s*=/); // never re-declared here
+    // and the boundary refuses at exactly the shared function's value
+    expect(signPrice({ ...live, basePrice: 7_777 }, shared.markupCap(7_777) + 1).status).toBe('markup_over_cap');
+  });
+
+  it('THE SIGNED RESULT CARRIES C, so the listing can freeze BOTH halves at once', () => {
+    const out = signPrice(live, 1_900);
+    expect(out).toEqual({
+      status: 'signed',
+      customerPriceFcfa: 11_900, // 10 000 + 1 900 — the founder's own walk, to the franc
+      offerVersion: 'ov',
+      resellerCommission: 750,
+    });
+  });
+});
+
+describe('MONEY-SHAPE-1 — the listing freezes HER side, not only the buyer’s', () => {
+  const cmd = {
+    commandId: 'c1', listingId: 'lst-1', storefrontId: 'sf-1', resellerId: 'rs-1',
+    productVersionId: 'pv-1', offerVersion: 'ov-1', markup: 1_900,
+    customerPriceFcfa: 11_900, resellerCommission: 750,
+    correlationId: 'corr', at: '2026-07-25T00:00:00.000Z',
+  };
+
+  it('C IS PERSISTED, and HER NET reads from the ENTRY alone', () => {
+    const { decision, next } = decidePublish(undefined, cmd);
+    expect(decision.status).toBe('published');
+    expect(next!.resellerCommission).toBe(750);
+    // gross = 750 + 1900 = 2650 · fee = round(2650×0.2) = 530 · net = 2120
+    expect(netForListing(next!)).toBe(2_120);
+  });
+
+  it('RED-PROVE: MOVING C AFTER PUBLISH DOES NOT MOVE THE LISTING’S NET', () => {
+    const { next } = decidePublish(undefined, cmd);
+    const netAtPublish = netForListing(next!);
+    // The supplier changes the commission — the whole hazard, simulated at the
+    // source. A listing that recomputed from live supply would move with it.
+    const supplyMovedTo = 5_000;
+    expect(supplyMovedTo).not.toBe(cmd.resellerCommission);
+    // Nothing re-reads: the entry is the only input, so the number cannot move.
+    expect(netForListing(next!)).toBe(netAtPublish);
+    expect(next!.resellerCommission).toBe(750);
+    // …and the assertion is not vacuous: with the moved C the net WOULD differ.
+    expect(netFromStored(supplyMovedTo, cmd.markup)).not.toBe(netAtPublish);
+  });
+
+  it('THE SIGNATURE FORBIDS A SUPPLY READ — netForListing takes the entry and nothing else', () => {
+    expect(netForListing.length).toBe(1);
+    const src = readFileSync(join(__dirname, '..', 'src/listing-core.ts'), 'utf8');
+    const fn = /export function netForListing[\s\S]*?\n\}/.exec(src)?.[0] ?? '';
+    for (const banned of ['fetch', 'await', 'economics', 'supply', 'basePrice']) {
+      expect(fn).not.toContain(banned);
+    }
+  });
+
+  it('AN OMITTED C YIELDS undefined — her net is UNKNOWN, never fabricated', () => {
+    // The frozen-vault path publishes without C. Silence is the only honest answer;
+    // a number derived from a live commission would be exactly the drift removed.
+    const { next } = decidePublish(undefined, { ...cmd, resellerCommission: undefined });
+    expect(next!.resellerCommission).toBeUndefined();
+    expect(netForListing(next!)).toBeUndefined();
+  });
+
+  it('offerVersion IS NOT DUPLICATED — it already lives on the canon listing', () => {
+    const { next } = decidePublish(undefined, cmd);
+    expect(next!.listing.offerVersion).toBe('ov-1');
+    expect(next as unknown as Record<string, unknown>).not.toHaveProperty('offerVersion');
+  });
+});
+
+describe('MONEY-SHAPE-1 — the ceiling’s LOW-BASE edge, characterised rather than hidden', () => {
+  it('A BASE UNDER 50 FCFA HAS A CEILING OF ZERO — so only a zero markup signs', () => {
+    // `markupCap` rounds to the nearest 100, so bases 1–49 floor to 0. This is
+    // PRE-EXISTING behaviour of the shared function, unchanged by the move — but
+    // enforcing the ceiling server-side makes it REACHABLE for the first time, so it
+    // is pinned here rather than discovered later. Reported to the founder: no real
+    // offer is priced in tens of francs, so this is characterised, not "fixed".
+    const tiny = { basePrice: 1, offerVersion: 'ov', resellerCommission: 0 };
+    expect(signPrice(tiny, 0).status).toBe('signed');
+    expect(signPrice(tiny, 1)).toEqual({ status: 'markup_over_cap', cap: 0 });
+    // 50 is the first base that admits any markup at all
+    expect(signPrice({ ...tiny, basePrice: 50 }, 100).status).toBe('signed');
   });
 });
