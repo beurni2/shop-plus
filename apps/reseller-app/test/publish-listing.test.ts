@@ -366,6 +366,20 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     expect(gal).toContain("tf('galerie.compteur'");
   });
 
+  it('THE WHOLE PRODUCT SHOWS — contain on the judging surfaces, cover only where the cliente card is mirrored', () => {
+    // Founder walk (2026-07-26, screenshots): cover filled the frame by CROPPING
+    // the merchandise on Opportunités and Ma Vitrine. She is judging the product
+    // on those surfaces (and on the fiche héro one tap deeper), so the entire
+    // photo must show — contain, letterboxed over the soft field.
+    const contains = app.match(/assetRefs\[0\] \}\} style=\{styles\.artPhoto\} resizeMode="contain"/g) ?? [];
+    expect(contains.length).toBe(3); // opp card · fiche héro · vitrine card
+    // the SHARE héro stays cover on purpose: it previews the cliente-facing card,
+    // and the preview must not fit photos differently than what she will send.
+    const shareIdx = app.indexOf('styles.shareHero,');
+    const shareBlock = app.slice(shareIdx, shareIdx + 600);
+    expect(shareBlock).toContain('resizeMode="cover"');
+  });
+
   it('the gallery page RESETS per product and the width is LIVE (verifier findings, pinned)', () => {
     const gal = read('src/ui/photo-gallery.tsx');
     // the component never unmounts, so a reopened gallery must not inherit the
