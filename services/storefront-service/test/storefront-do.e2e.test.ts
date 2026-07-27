@@ -198,6 +198,53 @@ describe('StorefrontDO — the durable read path GET /s/{slug}, Shape C slug poi
     expect((await readSlug('seller-0008')).code).toBe(404); // pointer cleared, still honest
   });
 
+  it('PERSONNALISER-REAL-1: a saved presentation is DURABLE and reaches the buyer read path', async () => {
+    const cmd = { ...SELLER_001, commandId: 'c-ident', id: 'sf-ident', shortCode: 'SELLER-0021' };
+    await create(cmd);
+    const save = await mf.dispatchFetch('http://sf/storefronts/sf-ident/identity', {
+      method: 'POST',
+      body: JSON.stringify({
+        patch: { name: 'Chez Bernard', tagline: 'Le bon tissu', bio: 'Ouaga', theme: 'indigo', featuredItems: ['pv-1'] },
+        at: T1,
+      }),
+    });
+    expect(save.status).toBe(200);
+    expect(((await save.json()) as { status: string }).status).toBe('saved');
+
+    await restart(); // the save must survive a process death, not just a re-read
+
+    // THE BUYER READ PATH sees it — the whole point: personnalisation that never
+    // reaches `/s/{slug}` is a screen that lies to her.
+    const read = await readSlug('seller-0021');
+    expect(read.code).toBe(200);
+    const view = read.view as StorefrontView;
+    expect(view.name).toBe('Chez Bernard');
+    expect(view.tagline).toBe('Le bon tissu');
+    expect(view.bio).toBe('Ouaga');
+    expect(view.theme).toBe('indigo');
+    expect(view.featuredItems).toEqual(['pv-1']);
+    expect(view.slug).toBe('seller-0021'); // the slug is NEVER regenerated on a rename
+  });
+
+  it('PERSONNALISER-REAL-1: an absent shop is 404 and a bad patch is a NAMED 422 — never a silent no-op', async () => {
+    const absent = await mf.dispatchFetch('http://sf/storefronts/sf-jamais-ident/identity', {
+      method: 'POST',
+      body: JSON.stringify({ patch: { name: 'Chez Bernard' }, at: T1 }),
+    });
+    expect(absent.status).toBe(404);
+    expect(((await absent.json()) as { status: string }).status).toBe('absent');
+
+    const refused = await mf.dispatchFetch('http://sf/storefronts/sf-ident/identity', {
+      method: 'POST',
+      body: JSON.stringify({ patch: { name: 'ab' }, at: T1 }),
+    });
+    expect(refused.status).toBe(422);
+    expect((await refused.json()) as object).toEqual({ status: 'refused', reason: 'name_too_short' });
+    // …and the refusal wrote NOTHING: her previous name still stands
+    const read = await readSlug('seller-0021');
+    expect((read.view as StorefrontView).name).toBe('Chez Bernard');
+  });
+
   it('MOCK-CERTIFIED: DurableStorefrontStore forwards over fetch to the REAL DO — the adapter is not a lie', async () => {
     // the same StorefrontStore interface the route uses, wired to the workerd DO
     const worker: StorefrontFetcher = {

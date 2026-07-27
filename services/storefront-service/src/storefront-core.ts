@@ -201,6 +201,168 @@ export function decideAddItem(
   return { decision: { status: 'added', storefront }, next: { ...current, storefront } };
 }
 
+/* ------------------------------------------ PERSONNALISER-REAL-1 -------- */
+
+/**
+ * THE PRESENTATION SHE OWNS. Every field here is loi-5 PRESENTATION: a name, a
+ * tagline, a bio, a habillage, what she pins, how she groups. Nothing in this
+ * patch can reach a price, a net, an attribution or the signed link — the money
+ * fields are not in the shape, so they are unrepresentable rather than merely
+ * unsent (the `PublishListingRequest` precedent).
+ *
+ * Every field is OPTIONAL and absent means UNTOUCHED, never cleared: the K
+ * screens save one thing at a time (K2 identity, K4 habillage, K5 à la une, K6
+ * sections), and a patch that silently blanked what it did not mention would
+ * lose her work on every save.
+ */
+export interface IdentityPatch {
+  readonly name?: string;
+  readonly tagline?: string;
+  readonly bio?: string;
+  readonly theme?: string;
+  readonly featuredItems?: readonly string[];
+  readonly sections?: readonly { readonly id: string; readonly name: string; readonly pids: readonly string[] }[];
+  /**
+   * HER ARRANGEMENT — REORDER ONLY, never membership (verifier finding).
+   *
+   * K5's ▲▼ writes `curatedItems`, and leaving it out of the patch made that one
+   * control a SILENT no-op: she reordered, saw it applied, and lost it on leaving
+   * — the exact defect this slice exists to kill, surviving on one path.
+   *
+   * But `curatedItems` is the canon MEMBERSHIP statement: publishing a listing
+   * appends to it, auto-hide never touches it. So this route accepts a
+   * PERMUTATION of the current items and nothing else — same members, new order.
+   * A patch that would add or drop a pid is REFUSED, because membership is earned
+   * by publishing and lost by a deliberate act on its own screen, never by a
+   * reorder that happens to arrive short.
+   */
+  readonly curatedItems?: readonly string[];
+}
+
+export type SaveIdentityDecision =
+  | { readonly status: 'saved'; readonly storefront: Storefront }
+  | { readonly status: 'unchanged'; readonly storefront: Storefront }
+  | { readonly status: 'absent' }
+  | { readonly status: 'refused'; readonly reason: string };
+
+/** §3.1 bounds — enforced HERE, at the authority, not only at the edit boundary.
+ *  A service that stores must bound: an app is one client of many, and the app's
+ *  own limits stop existing the moment a second caller shows up (MONEY-SHAPE-1's
+ *  lesson, applied to presentation). */
+const NAME_MIN = 3;
+const NAME_MAX = 24;
+const TAGLINE_MAX = 40;
+const BIO_MAX = 160;
+const SECTION_NAME_MAX = 20;
+const FEATURED_CAP = 2;
+const SECTIONS_CAP = 4;
+const THEMES: ReadonlySet<string> = new Set(['laterite', 'danfani', 'indigo', 'foret']);
+
+/**
+ * SAVE HER PRESENTATION. Absent → surfaced (never a phantom write). No real
+ * change → `unchanged`, and `updatedAt` does NOT move — the same discipline
+ * `decideToggle` holds, so the directory's ordering truth never drifts on a
+ * no-op save. A real change writes the canon Storefront through
+ * `StorefrontSchema`, so a patch that would produce a non-canon shape is
+ * REFUSED with its reason rather than persisted and discovered later.
+ */
+export function decideSaveIdentity(
+  current: StorefrontEntry | undefined,
+  patch: IdentityPatch,
+  at: string,
+): { decision: SaveIdentityDecision; next?: StorefrontEntry } {
+  if (!current) return { decision: { status: 'absent' } };
+  const sf = current.storefront;
+
+  // TRIM FIRST (verifier finding). Canon's string type is a REGEX that refuses
+  // surrounding whitespace, not a trimming transform — so « Chez Bernard » with a
+  // trailing space (one keystroke away on any phone keyboard) cleared every bound
+  // and then died at the canon parse, surfacing as « réessayez dans un moment »,
+  // advice that could never work. Trimming is what she meant, and it is what
+  // canon requires; the trimmed value is what gets stored.
+  const name = patch.name?.trim();
+  const tagline = patch.tagline?.trim();
+  const bio = patch.bio?.trim();
+  const sections = patch.sections?.map((s) => ({ ...s, name: s.name.trim(), pids: [...s.pids] }));
+
+  // Bounds next, each refusal NAMED: « votre nom est trop court » and « vous
+  // avez déjà 2 articles à la une » need different words on her screen.
+  if (name !== undefined && name.length < NAME_MIN) {
+    return { decision: { status: 'refused', reason: 'name_too_short' } };
+  }
+  if (name !== undefined && name.length > NAME_MAX) {
+    return { decision: { status: 'refused', reason: 'name_too_long' } };
+  }
+  if (tagline !== undefined && tagline.length > TAGLINE_MAX) {
+    return { decision: { status: 'refused', reason: 'tagline_too_long' } };
+  }
+  if (bio !== undefined && bio.length > BIO_MAX) {
+    return { decision: { status: 'refused', reason: 'bio_too_long' } };
+  }
+  // A SECTION NAME IS HERS TOO — bounded and named here rather than collapsing
+  // into the anonymous `not_canon_shape` the canon parse would give it. An empty
+  // one is refused as its own reason: mid-retype she should not be told to retry.
+  if (sections !== undefined && sections.some((s) => s.name.length === 0)) {
+    return { decision: { status: 'refused', reason: 'section_name_empty' } };
+  }
+  if (sections !== undefined && sections.some((s) => s.name.length > SECTION_NAME_MAX)) {
+    return { decision: { status: 'refused', reason: 'section_name_too_long' } };
+  }
+  if (patch.theme !== undefined && !THEMES.has(patch.theme)) {
+    return { decision: { status: 'refused', reason: 'unknown_theme' } };
+  }
+  if (patch.featuredItems !== undefined && patch.featuredItems.length > FEATURED_CAP) {
+    return { decision: { status: 'refused', reason: 'featured_over_cap' } };
+  }
+  if (sections !== undefined && sections.length > SECTIONS_CAP) {
+    return { decision: { status: 'refused', reason: 'sections_over_cap' } };
+  }
+  // REORDER, NEVER MEMBERSHIP: the patch's curatedItems must be a permutation of
+  // what she already has. Adding a pid here would list a product no publish ever
+  // signed; dropping one would retire a product through a reorder. Both are acts
+  // that belong to their own screens, with their own words.
+  if (patch.curatedItems !== undefined) {
+    const asked = [...patch.curatedItems].sort();
+    const held = [...sf.curatedItems].sort();
+    const isPermutation = asked.length === held.length && asked.every((pid, i) => pid === held[i]);
+    if (!isPermutation) return { decision: { status: 'refused', reason: 'curation_not_a_reorder' } };
+  }
+
+  const merged = {
+    ...sf,
+    ...(name !== undefined ? { name } : {}),
+    ...(tagline !== undefined ? { tagline } : {}),
+    ...(bio !== undefined ? { bio } : {}),
+    ...(patch.theme !== undefined ? { theme: patch.theme } : {}),
+    ...(patch.featuredItems !== undefined ? { featuredItems: [...patch.featuredItems] } : {}),
+    ...(sections !== undefined ? { sections } : {}),
+    ...(patch.curatedItems !== undefined ? { curatedItems: [...patch.curatedItems] } : {}),
+  };
+
+  // NOTHING REALLY CHANGED ⇒ no write, no updatedAt move. Compared field by
+  // field (never a stringify of the whole object): a key-order accident must not
+  // read as a change, and a real change must not hide behind one.
+  const same =
+    merged.name === sf.name &&
+    merged.tagline === sf.tagline &&
+    merged.bio === sf.bio &&
+    merged.theme === sf.theme &&
+    JSON.stringify(merged.featuredItems) === JSON.stringify(sf.featuredItems) &&
+    JSON.stringify(merged.curatedItems) === JSON.stringify(sf.curatedItems) &&
+    JSON.stringify(merged.sections) === JSON.stringify(sf.sections);
+  if (same) return { decision: { status: 'unchanged', storefront: sf } };
+
+  let storefront: Storefront;
+  try {
+    storefront = StorefrontSchema.parse({ ...merged, updatedAt: at });
+  } catch {
+    // The canon schema is the last word on shape. A refusal she can retry beats
+    // a stored storefront the buyer read path would later choke on.
+    return { decision: { status: 'refused', reason: 'not_canon_shape' } };
+  }
+  return { decision: { status: 'saved', storefront }, next: { ...current, storefront } };
+}
+
 /* --------------------------------------------- STOREFRONT-DELETE-1 ------ */
 
 export type DeleteDecision =

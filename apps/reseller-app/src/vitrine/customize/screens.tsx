@@ -47,6 +47,9 @@ import {
 
 import { formatFcfa } from '../../earnings';
 import { K_SEED } from './storefront';
+// PERSONNALISER-REAL-1 — the WIRE shape, imported rather than re-declared: two
+// copies of a patch shape are two shapes that drift on the first field added.
+import type { StorefrontIdentityPatch } from '../service';
 import { K_RAW_STYLES } from './k-styles';
 /** ONE money source — the app's canonical formatter (U+202F+FCFA, re-pin site). */
 export const fmtFcfa = formatFcfa;
@@ -60,7 +63,7 @@ type KRoute = 'k1' | 'k2' | 'k3' | 'k4' | 'k5' | 'k6' | 'k6b' | 'k7';
 export interface CustomizeProps {
   onClose: () => void;
   onToast: (msg: string) => void;
-  storefront?: Storefront;
+  storefront?: Storefront | undefined;
   onStorefrontChange?: (sf: Storefront) => void;
   /** RESELLER-STOREFRONT-WRITE-1 — publish this storefront's identity to the LIVE
    * service (create + publish). Absent (default/tests) ⇒ the button is hidden. */
@@ -72,6 +75,15 @@ export interface CustomizeProps {
    * « voir » opens the public page; absent ⇒ first-time flow, unchanged. */
   liveSlug?: string | undefined;
   onOpenBoutique?: (slug: string) => void;
+  /** PERSONNALISER-REAL-1 — persist the presentation. Absent (tests/default) ⇒
+   *  the screens stay local-only, exactly as they were. */
+  onSaveIdentity?: (patch: StorefrontIdentityPatch) => void;
+  /** Does a save actually reach the service today? False before she goes live —
+   *  stated on K1 rather than left for her to discover when it vanishes. */
+  savesPersist?: boolean;
+  /** Her shop exists on the service, even if its settings have not loaded yet.
+   *  Distinguishes « pas encore en ligne » from « pas encore chargé ». */
+  shopIsLive?: boolean;
   /** RESELLER-SEAM-HONESTY-1 — `true` when the write seam resolved to `null` (the
    * `EXPO_PUBLIC_STOREFRONT_*` pair is not inlined in this build). The CTA STAYS
    * VISIBLE and an honest note sits under it: a button that vanishes hides the truth
@@ -164,18 +176,50 @@ function KHeader({ title, onBack, pill }: { title: string; onBack: () => void; p
 
 /* ------------------------------------------------------------- the stack -- */
 
-export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique }: CustomizeProps) {
+export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist, shopIsLive }: CustomizeProps) {
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  // PERSONNALISER-REAL-1 — HER shop arrives asynchronously (the service read
+  // resolves after mount), so adopt it when it lands. Guarded on `updatedAt` so a
+  // re-render cannot stomp an edit she just made with the value we loaded first.
+  const adopted = useRef<string | null>(null);
+  useEffect(() => {
+    if (storefront === undefined || adopted.current === storefront.updatedAt) return;
+    adopted.current = storefront.updatedAt;
+    setSfRaw(storefront);
+  }, [storefront]);
   // NOTE: per-product voice notes moved OUT of « Aa »/K8 to the Ma Vitrine card
   // mic (founder Option A — recording lives with the product). See voice-sheet.tsx.
 
-  const setSf = (next: Storefront): void => {
+  /**
+   * PERSONNALISER-REAL-1 — every edit both RENDERS and PERSISTS.
+   *
+   * The six presentation fields ride on every save rather than only the changed
+   * one: the service compares field by field and answers `unchanged` for a no-op,
+   * so sending all six costs nothing and makes it impossible to forget one at a
+   * call site. Cover cycles through here too and simply never matches a patch
+   * field — it is not part of the presentation patch (its own slice).
+   */
+  const setSf = (next: Storefront, opts?: { readonly withOrder?: boolean }): void => {
     setSfRaw(next);
     onStorefrontChange?.(next);
+    onSaveIdentity?.({
+      name: next.name,
+      tagline: next.tagline,
+      bio: next.bio,
+      theme: next.theme,
+      featuredItems: next.featuredItems,
+      sections: next.sections,
+      // K5 ▲▼ ONLY (verifier finding): carrying the order on EVERY save let a
+      // STALE membership refuse an unrelated edit — publish a product, re-enter,
+      // tap a theme before the re-read lands, and the theme was rejected for a
+      // curation mismatch it had nothing to do with. The order rides only the
+      // save that actually changes it. The service accepts a PERMUTATION only.
+      ...(opts?.withOrder === true ? { curatedItems: next.curatedItems } : {}),
+    });
   };
   const th = THEMES[sf.theme];
 
@@ -222,6 +266,9 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           serviceUnconfigured={serviceUnconfigured ?? false}
           liveSlug={liveSlug}
           onOpenBoutique={onOpenBoutique}
+          saveWired={onSaveIdentity !== undefined}
+          savesPersist={savesPersist ?? false}
+          shopIsLive={shopIsLive ?? false}
         />
       )}
       {route === 'k2' && (
@@ -232,7 +279,20 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
             const r = saveIdentity(sf, patch);
             if (r.ok) {
               setSf(r.next);
-              onToast(t(r.toastKey ?? 'k.toast_enregistre'));
+              // « Enregistré — visible immédiatement » is TRUE only when the save
+              // reaches the service. Before she is live it is a draft, and saying
+              // « visible » would be the fabricated success this project refuses.
+              // THREE STATES, THREE SENTENCES (verifier finding): saved for real ·
+              // her shop exists but its settings have not arrived · not live yet.
+              // Keying only on `savesPersist` told an ALREADY-PUBLISHED seller to
+              // publish, because that flag now means « settings loaded ».
+              onToast(
+                savesPersist !== false
+                  ? t(r.toastKey ?? 'k.toast_enregistre')
+                  : shopIsLive === true
+                    ? t('k.enreg.pas_charge')
+                    : t('k.enreg.brouillon_toast'),
+              );
               setRoute('k1');
             }
           }}
@@ -270,7 +330,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
             if (r.ok) setSf(r.next);
             else onToast(t(r.toastKey));
           }}
-          onMove={(pid, dir) => setSf(moveItem(sf, pid, dir))}
+          onMove={(pid, dir) => setSf(moveItem(sf, pid, dir), { withOrder: true })}
         />
       )}
       {route === 'k6' && (
@@ -296,7 +356,8 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           sf={sf}
           sectionId={editingSection}
           onBack={() => setRoute('k6')}
-          onRename={(name) => setSf(renameSection(sf, editingSection, name))}
+          onRename={(name) => setSfRaw(renameSection(sf, editingSection, name))}
+          onRenameCommit={(name) => setSf(renameSection(sf, editingSection, name))}
           onTogglePid={(pid) => setSf(toggleSectionPid(sf, editingSection, pid))}
           onDelete={() => {
             const r = deleteSection(sf, editingSection);
@@ -315,7 +376,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
 
 /* ------------------------------------------------------------------- K1 -- */
 
-function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean; liveSlug?: string | undefined; onOpenBoutique?: ((slug: string) => void) | undefined }) {
+function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, saveWired, savesPersist, shopIsLive }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean; liveSlug?: string | undefined; onOpenBoutique?: ((slug: string) => void) | undefined; saveWired?: boolean; savesPersist?: boolean; shopIsLive?: boolean }) {
   const initial = sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase();
   const coverSub =
     sf.cover.status === 'live' ? t('k.row.cover_live') : sf.cover.status === 'pending' ? t('k.row.cover_pending') : t('k.row.cover_defaut');
@@ -396,6 +457,13 @@ function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnc
       {onPublishOnline && liveSlug === undefined && serviceUnconfigured && (
         <Text style={S.unconfiguredNote}>{t('k.publier.non_relie_note')}</Text>
       )}
+      {/* PERSONNALISER-REAL-1 — BEFORE she is live, her shop does not exist on the
+          service, so an edit here is a DRAFT: it rides up with « mettre en ligne ».
+          Stated before she types, not discovered when it vanishes. Same quiet
+          secondary type as the note above — nothing is broken. */}
+      {saveWired === true && savesPersist === false && !serviceUnconfigured && (
+        <Text style={S.unconfiguredNote}>{shopIsLive === true ? t('k.enreg.pas_charge') : t('k.enreg.brouillon')}</Text>
+      )}
       {/* « Voir ma boutique en ligne » — with a LIVE slug it OPENS HER PUBLIC PAGE
           (the founder tapped this and saw nothing: it only ever listed names in a
           toast). Without one it keeps the honest listing fallback. */}
@@ -447,7 +515,7 @@ function K2({ sf, onBack, onSave }: { sf: Storefront; onBack: () => void; onSave
   );
 }
 
-function CountedField({ label, value, max, onChange, placeholder, multiline, invalid, invalidNote }: { label: string; value: string; max: number; onChange: (v: string) => void; placeholder?: string; multiline?: boolean; invalid?: boolean; invalidNote?: string }) {
+function CountedField({ label, value, max, onChange, onCommit, placeholder, multiline, invalid, invalidNote }: { label: string; value: string; max: number; onChange: (v: string) => void; onCommit?: (v: string) => void; placeholder?: string; multiline?: boolean; invalid?: boolean; invalidNote?: string }) {
   const [focused, setFocused] = useState(false);
   return (
     <View style={S.field}>
@@ -464,7 +532,12 @@ function CountedField({ label, value, max, onChange, placeholder, multiline, inv
         placeholderTextColor="#8A7D6B"
         multiline={multiline}
         onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onBlur={() => {
+          setFocused(false);
+          // The COMMIT point (verifier finding): typing is local, leaving the
+          // field is the save. Absent `onCommit` ⇒ unchanged behaviour.
+          onCommit?.(value);
+        }}
       />
       {invalid && invalidNote ? <Text style={S.fieldError}>{invalidNote}</Text> : null}
     </View>
@@ -684,13 +757,17 @@ function K6({ sf, onBack, onCreate, onEdit }: { sf: Storefront; onBack: () => vo
   );
 }
 
-function K6b({ sf, sectionId, onBack, onRename, onTogglePid, onDelete }: { sf: Storefront; sectionId: string; onBack: () => void; onRename: (name: string) => void; onTogglePid: (pid: string) => void; onDelete: () => void }) {
+function K6b({ sf, sectionId, onBack, onRename, onRenameCommit, onTogglePid, onDelete }: { sf: Storefront; sectionId: string; onBack: () => void; onRename: (name: string) => void; onRenameCommit: (name: string) => void; onTogglePid: (pid: string) => void; onDelete: () => void }) {
   const section = sf.sections.find((s) => s.id === sectionId);
   if (!section) return null;
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
       <KHeader title={t('k.section.title')} onBack={onBack} />
-      <CountedField label={t('k.section.nom_label')} value={section.name} max={20} onChange={onRename} />
+      {/* TYPING IS LOCAL, COMMITTING IS A SAVE (verifier finding): keying the
+          service call to every character fired one POST + one read-back per
+          keystroke on a patchy connection, and an emptied field toasted a refusal
+          on each one. The value renders live; the save lands when she leaves. */}
+      <CountedField label={t('k.section.nom_label')} value={section.name} max={20} onChange={onRename} onCommit={onRenameCommit} />
       <Text style={S.caps}>{t('k.section.articles_caps')}</Text>
       <View style={S.rowsCard}>
         {K_SEED.map((p, i) => {
