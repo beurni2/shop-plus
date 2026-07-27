@@ -19,12 +19,10 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextStyle, type ViewStyle } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextStyle, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { t, tf } from '../../i18n';
 import {
-  COVER_UPLOAD_MS,
-  COVER_VERIFY_MS,
   DEFAULT_STOREFRONT,
   FEATURED_CAP,
   NAME_MIN,
@@ -50,6 +48,7 @@ import { K_SEED } from './storefront';
 // PERSONNALISER-REAL-1 — the WIRE shape, imported rather than re-declared: two
 // copies of a patch shape are two shapes that drift on the first field added.
 import type { StorefrontIdentityPatch } from '../service';
+import { pickPhoto } from './photo-pick';
 import { K_RAW_STYLES } from './k-styles';
 /** ONE money source — the app's canonical formatter (U+202F+FCFA, re-pin site). */
 export const fmtFcfa = formatFcfa;
@@ -84,6 +83,10 @@ export interface CustomizeProps {
   /** Her shop exists on the service, even if its settings have not loaded yet.
    *  Distinguishes « pas encore en ligne » from « pas encore chargé ». */
   shopIsLive?: boolean;
+  /** PERSONNALISER-MEDIA-1 — send the REAL bytes. The App owns the service call
+   *  (same idiom as onPublishOnline); absent ⇒ the slot stays inert, never a
+   *  tap that pretends. Resolves to the honest outcome so the screen can state it. */
+  onUploadCover?: (bytes: Uint8Array, contentType: string) => Promise<{ ok: boolean; reason?: string }>;
   /** RESELLER-SEAM-HONESTY-1 — `true` when the write seam resolved to `null` (the
    * `EXPO_PUBLIC_STOREFRONT_*` pair is not inlined in this build). The CTA STAYS
    * VISIBLE and an honest note sits under it: a button that vanishes hides the truth
@@ -176,7 +179,7 @@ function KHeader({ title, onBack, pill }: { title: string; onBack: () => void; p
 
 /* ------------------------------------------------------------- the stack -- */
 
-export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist, shopIsLive }: CustomizeProps) {
+export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist, shopIsLive, onUploadCover }: CustomizeProps) {
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
   const [editingSection, setEditingSection] = useState<string | null>(null);
@@ -223,28 +226,34 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
   };
   const th = THEMES[sf.theme];
 
-  /** K3 [DEMO] — §4.4: none→uploading 1 400 ms→pending 2 600 ms→live. */
-  const simulateUpload = (): void => {
-    setSf(coverTo(sf, 'uploading'));
-    timers.current.push(
-      setTimeout(() => {
-        setSfRaw((cur) => {
-          const next = coverTo(cur, 'pending');
-          onStorefrontChange?.(next);
-          return next;
-        });
-        timers.current.push(
-          setTimeout(() => {
-            setSfRaw((cur) => {
-              const next = coverTo(cur, 'live');
-              onStorefrontChange?.(next);
-              return next;
-            });
-            onToast(t('k.cover.toast_en_ligne'));
-          }, COVER_VERIFY_MS),
-        );
-      }, COVER_UPLOAD_MS),
-    );
+  /**
+   * PERSONNALISER-MEDIA-1 — PICK, THEN UPLOAD, THEN SAY WHAT HAPPENED.
+   *
+   * The states are the same five the design specifies; what drives them is now a
+   * real file and a real request instead of two timers. `uploading` lasts exactly
+   * as long as the network takes — a state that is TRUE rather than 1 400 ms of
+   * theatre. Every failure keeps its own name, because « vous avez refusé
+   * l'accès » and « la photo est trop lourde » are different things to tell her.
+   */
+  const pickAndUploadCover = async (): Promise<void> => {
+    if (onUploadCover === undefined) return;
+    const picked = await pickPhoto();
+    if (!picked.ok) {
+      // Her own cancel is NOT an error and says nothing; a refusal explains.
+      if (picked.reason === 'refused') onToast(t('k.cover.acces_refuse'));
+      else if (picked.reason === 'unreadable') onToast(t('k.cover.illisible'));
+      return;
+    }
+    setSfRaw(coverTo(sf, 'uploading'));
+    const res = await onUploadCover(picked.bytes, picked.contentType);
+    if (res.ok) {
+      // The SERVICE owns the URL and writes it onto her shop; the App re-reads
+      // and the real photograph arrives through `storefront`. No local guess.
+      onToast(t('k.cover.toast_en_ligne'));
+      return;
+    }
+    setSfRaw(coverTo(sf, 'error'));
+    onToast(res.reason === 'offline' ? t('k.cover.hors_ligne') : t('k.cover.echec'));
   };
 
   const back = (): void => {
@@ -302,13 +311,12 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
         <K3
           sf={sf}
           onBack={back}
-          onSimulate={simulateUpload}
-          onSimulateError={() => setSf(coverTo(sf, 'error'))}
+          onPickCover={() => void pickAndUploadCover()}
           onRetire={() => {
-            setSf(coverTo(sf, 'none'));
-            onToast(t('k.cover.toast_retiree'));
+            setSfRaw(coverTo(sf, 'none'));
           }}
-          onRetry={() => setSf(coverTo(sf, 'none'))}
+          onRetry={() => setSfRaw(coverTo(sf, 'none'))}
+          uploadWired={onUploadCover !== undefined}
         />
       )}
       {route === 'k4' && (
@@ -546,19 +554,28 @@ function CountedField({ label, value, max, onChange, onCommit, placeholder, mult
 
 /* ------------------------------------------------------------- K3 / K3b -- */
 
-function K3({ sf, onBack, onSimulate, onSimulateError, onRetire, onRetry }: { sf: Storefront; onBack: () => void; onSimulate: () => void; onSimulateError: () => void; onRetire: () => void; onRetry: () => void }) {
+function K3({ sf, onBack, onPickCover, onRetire, onRetry, uploadWired }: { sf: Storefront; onBack: () => void; onPickCover: () => void; onRetire: () => void; onRetry: () => void; uploadWired?: boolean }) {
   const st = sf.cover.status;
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
       <KHeader title={t('k.cover.title')} onBack={onBack} />
       <Text style={S.caps}>{t('k.cover.caps')}</Text>
       {/* C-K4 — le slot 5 états */}
+      {/* PERSONNALISER-MEDIA-1 — THE SLOT IS THE ACTION. It used to be an inert
+          View beside a « [DEMO] simuler » button; tapping it now opens her photos
+          and uploads the real bytes. Sans seam (`uploadWired` false) it stays
+          inert rather than pretending. */}
       {st === 'none' && (
-        <View style={[S.coverSlot, S.coverSlotDashed]}>
+        <Pressable
+          style={({ pressed }) => [S.coverSlot, S.coverSlotDashed, pressed && S.pressed]}
+          onPress={uploadWired === true ? onPickCover : undefined}
+          accessibilityRole="button"
+          accessibilityLabel={t('k.cover.ajouter')}
+        >
           <IconCamera size={26} color={SHOP.accent} />
           <Text style={S.coverAddText}>{t('k.cover.ajouter')}</Text>
           <Text style={S.coverSpecs}>{t('k.cover.specs')}</Text>
-        </View>
+        </Pressable>
       )}
       {st === 'uploading' && (
         <View style={[S.coverSlot, S.coverSlotFilled]}>
@@ -568,6 +585,9 @@ function K3({ sf, onBack, onSimulate, onSimulateError, onRetire, onRetry }: { sf
       )}
       {(st === 'pending' || st === 'live') && (
         <View style={[S.coverSlot, S.coverSlotPhoto]}>
+          {/* HER ACTUAL PHOTOGRAPH — the slot used to draw a coloured field with a
+              pill and no image, so « en ligne » was a claim about nothing. */}
+          {sf.cover.url ? <Image source={{ uri: sf.cover.url }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
           <View style={[S.pill, st === 'pending' ? S.pillWarn : S.pillOk]}>
             <Text style={[S.pillText, { color: st === 'pending' ? '#7A5104' : '#14603A' }]}>{t(st === 'pending' ? 'k.cover.pilule_verif' : 'k.cover.pilule_ligne')}</Text>
           </View>
@@ -587,15 +607,8 @@ function K3({ sf, onBack, onSimulate, onSimulateError, onRetire, onRetry }: { sf
           <Text style={S.ghostSmallText}>{t('k.cover.retirer')}</Text>
         </Pressable>
       )}
-      {/* [DEMO] — the §4.4 simulated cycle, honestly labelled */}
-      {(st === 'none' || st === 'error') && (
-        <View style={S.demoRow}>
-          <Pressable style={({ pressed }) => [S.demoBtn, pressed && S.pressed]} onPress={onSimulate}><Text style={S.demoBtnText}>{t('k.cover.demo_envoi')}</Text></Pressable>
-          {st === 'none' && (
-            <Pressable style={({ pressed }) => [S.demoBtn, pressed && S.pressed]} onPress={onSimulateError}><Text style={S.demoBtnText}>{t('k.cover.demo_lourde')}</Text></Pressable>
-          )}
-        </View>
-      )}
+      {/* The [DEMO] simulate row is GONE (founder: « there are still some mocks in
+          every feature »). The states above are now driven by a real upload. */}
       <Text style={[S.caps, S.capsGap]}>{t('k.portrait.caps')}</Text>
       {/* C-K5 — segments portrait */}
       <PortraitSegments sf={sf} />

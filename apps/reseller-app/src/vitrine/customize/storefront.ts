@@ -53,8 +53,10 @@ export interface Storefront {
   readonly bio: string; // 0–160
   readonly zone: string;
   readonly theme: VitrineThemeKey;
-  readonly cover: { readonly status: CoverStatus };
-  readonly avatar: { readonly mode: 'monogram' | 'photo' };
+  /** PERSONNALISER-MEDIA-1 — `url` mirrors canon `StorefrontCoverSchema`. It is
+   *  written BY THE SERVICE from a completed upload; the app never patches it. */
+  readonly cover: { readonly status: CoverStatus; readonly url?: string };
+  readonly avatar: { readonly mode: 'monogram' | 'photo'; readonly url?: string };
   readonly curatedItems: readonly string[];
   readonly featuredItems: readonly string[]; // ≤ 2, ordre d'épinglage
   readonly sections: readonly StorefrontSection[]; // ≤ 4

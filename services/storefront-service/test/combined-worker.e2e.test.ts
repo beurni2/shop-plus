@@ -482,6 +482,41 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(view.theme).toBe('foret');
   });
 
+  it('PERSONNALISER-MEDIA-1 — an uploaded cover REACHES THE CLIENTE PAGE (the write that was missing)', async () => {
+    // The upload used to end at the response: bytes in the bucket, a URL nobody
+    // stored, and /s/{slug} still bare. The service now writes the URL onto her
+    // storefront itself — the app never gets to author a media address.
+    await mf.dispatchFetch('http://c/storefronts', {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({
+        commandId: 'cmd-cover-e2e',
+        id: 'sf-cover-e2e',
+        resellerId: 'rs-cover-e2e',
+        shortCode: 'SELLER-0051',
+        name: 'Boutique à photo',
+        zone: 'Ouagadougou',
+        category: 'Général',
+        correlationId: 'corr-cover',
+        at: T0,
+      }),
+    });
+    const up = await mf.dispatchFetch('http://c/media/upload?kind=cover&storefrontId=sf-cover-e2e', {
+      method: 'POST',
+      headers: authed,
+      body: tinyPng(),
+    });
+    expect(up.status).toBe(201);
+    const uploaded = (await up.json()) as { status: string; url: string };
+    expect(uploaded.status).toBe('live'); // founder ruling: live on upload
+
+    const view = (await (await mf.dispatchFetch('http://c/s/seller-0051', { method: 'GET' })).json()) as {
+      cover: { status: string; url?: string };
+    };
+    expect(view.cover.status).toBe('live');
+    expect(view.cover.url).toBe(uploaded.url); // the SAME url, carried by the service
+  });
+
   it('POST /media/upload is gated: 401 without the key, 201 with it', async () => {
     const noKey = await mf.dispatchFetch('http://c/media/upload?kind=avatar&storefrontId=sf-auth-0001', {
       method: 'POST',

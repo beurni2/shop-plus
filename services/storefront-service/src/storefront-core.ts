@@ -363,6 +363,41 @@ export function decideSaveIdentity(
   return { decision: { status: 'saved', storefront }, next: { ...current, storefront } };
 }
 
+/* ------------------------------------------ PERSONNALISER-MEDIA-1 ------- */
+
+export type SetMediaDecision =
+  | { readonly status: 'set'; readonly storefront: Storefront }
+  | { readonly status: 'absent' };
+
+/**
+ * HER COVER / HER AVATAR — the URL is written BY THE SERVICE, never by the app.
+ *
+ * The same law the price obeys (PUBLISH-PRICE-1): the app may hand over BYTES,
+ * the thing it genuinely owns, and the service decides what address those bytes
+ * live at. If the app could patch `cover.url`, it could point her shop's cover at
+ * any URL on the internet without uploading anything — so the field is not in
+ * `IdentityPatch` at all, and this decision is reachable ONLY from a completed
+ * upload of validated bytes.
+ *
+ * `cover` carries the canon status; `avatar` flips to `photo` mode. Absent
+ * storefront → surfaced, never a phantom write.
+ */
+export function decideSetMedia(
+  current: StorefrontEntry | undefined,
+  kind: 'cover' | 'avatar',
+  url: string,
+  at: string,
+): { decision: SetMediaDecision; next?: StorefrontEntry } {
+  if (!current) return { decision: { status: 'absent' } };
+  const sf = current.storefront;
+  const merged =
+    kind === 'cover'
+      ? { ...sf, cover: { status: 'live' as const, url }, updatedAt: at }
+      : { ...sf, avatar: { mode: 'photo' as const, url }, updatedAt: at };
+  const storefront = StorefrontSchema.parse(merged);
+  return { decision: { status: 'set', storefront }, next: { ...current, storefront } };
+}
+
 /* --------------------------------------------- STOREFRONT-DELETE-1 ------ */
 
 export type DeleteDecision =

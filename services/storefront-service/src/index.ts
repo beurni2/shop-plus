@@ -74,7 +74,7 @@ const KINDS: readonly MediaKind[] = ['cover', 'avatar', 'voice'];
  * preview her own pending upload). The buyer projection (`buyerMedia`) is what
  * strips non-live media — the buyer only ever receives a live URL.
  */
-async function handleMediaUpload(request: Request, env?: MediaEnv): Promise<Response> {
+async function handleMediaUpload(request: Request, env?: StorefrontServiceEnv): Promise<Response> {
   const url = new URL(request.url);
   const kind = url.searchParams.get('kind');
   const storefrontId = url.searchParams.get('storefrontId');
@@ -94,6 +94,24 @@ async function handleMediaUpload(request: Request, env?: MediaEnv): Promise<Resp
   });
   if (!outcome.ok) return Response.json({ service: SERVICE_NAME, error: outcome.reason }, { status: 400 });
   const r = outcome.record;
+  // ═══ PERSONNALISER-MEDIA-1 — A STORED PHOTO THAT NOBODY POINTS AT IS LOST ═══
+  //
+  // The upload used to end here: bytes in R2, a URL in the response, and NOTHING
+  // written onto her storefront — so `/s/{slug}` never carried a cover and the
+  // photo existed for no one. The service writes the URL itself, at the moment it
+  // knows the bytes are real: the app never gets to author a media address (the
+  // PUBLISH-PRICE-1 law, applied to media), and there is no patch field it could.
+  //
+  // ONLY A LIVE RECORD IS POINTED AT: a kind still held for review must not appear
+  // on her shop, and the buyer projection strips held media anyway.
+  if ((r.kind === 'cover' || r.kind === 'avatar') && r.status === 'live' && env?.STOREFRONT_DO) {
+    await env.STOREFRONT_DO.fetch(
+      new Request(`https://do/storefronts/${encodeURIComponent(storefrontId)}/media`, {
+        method: 'POST',
+        body: JSON.stringify({ kind: r.kind, url: r.url, at: new Date().toISOString() }),
+      }),
+    ).catch(() => undefined); // best-effort: the upload itself already succeeded
+  }
   return Response.json(
     { service: SERVICE_NAME, kind: r.kind, status: r.status, url: r.url, width: r.width, height: r.height, durationMs: r.durationMs },
     { status: 201 },

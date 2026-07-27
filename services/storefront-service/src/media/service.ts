@@ -27,7 +27,25 @@ import type { MediaStore } from './media-store.js';
 export type MediaKind = 'cover' | 'avatar' | 'voice';
 
 /** Whether a kind is held for Séra review before it can go live (cover/avatar), or lives on store (voice). */
-export const REQUIRES_REVIEW: Record<MediaKind, boolean> = { cover: true, avatar: true, voice: false };
+/**
+ * FOUNDER RULING (2026-07-27) — COVER AND AVATAR GO LIVE ON UPLOAD.
+ *
+ * They were held `pending_review` by construction, and NOTHING could release
+ * them: no approve route is deployed and this registry is in memory, so a real
+ * upload went up and never appeared anywhere. A hold nobody can lift is not
+ * moderation, it is a silent drop.
+ *
+ * What protects the buyer instead is the VALIDATION that already runs before a
+ * byte is stored — the real file type read from the magic bytes (not the
+ * caller's content-type), the byte cap, and the dimension box. For the pilot the
+ * only reseller is the founder, so a review queue guards nothing and costs
+ * everything.
+ *
+ * THIS CONSTANT IS THE SWITCH: flip a kind back to `true` the day real resellers
+ * onboard — at which point the approve route and a durable registry are the
+ * work, and they are named here so the flip cannot silently become a drop again.
+ */
+export const REQUIRES_REVIEW: Record<MediaKind, boolean> = { cover: false, avatar: false, voice: false };
 
 /* --------------------------------------------------------------- bounds -- */
 
@@ -124,6 +142,15 @@ export type UploadInput = {
   readonly durationMs?: number;
   readonly at: string;
   readonly id?: string;
+  /**
+   * FORCE THE REVIEW HOLD for this one upload, whatever `REQUIRES_REVIEW` says.
+   *
+   * The founder's 2026-07-27 ruling flipped the DEFAULT to live-on-upload, which
+   * left the approve/reject machinery with no caller — and untested machinery is
+   * machinery that will not work the day it is switched back on. This keeps that
+   * path exercised for real rather than deleted and re-guessed later.
+   */
+  readonly hold?: boolean;
 };
 
 export type UploadOutcome =
@@ -191,7 +218,7 @@ export class StorefrontMediaService {
       url: stored.url,
       contentType,
       // cover/avatar are held for review; voice lives on store.
-      status: REQUIRES_REVIEW[kind] ? 'pending_review' : 'live',
+      status: input.hold === true || REQUIRES_REVIEW[kind] ? 'pending_review' : 'live',
       ...(width !== undefined ? { width } : {}),
       ...(height !== undefined ? { height } : {}),
       ...(durationMs !== undefined ? { durationMs } : {}),

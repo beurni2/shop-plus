@@ -414,6 +414,30 @@ export default function App() {
    * the service until « mettre ma boutique en ligne », and the create carries her
    * name up at that moment. Silently dropping the write would be the same lie.
    */
+  /**
+   * PERSONNALISER-MEDIA-1 — SEND THE BYTES, LET THE SERVICE OWN THE ADDRESS.
+   *
+   * The app hands over the file it genuinely has and nothing else: the service
+   * validates the real type from the magic bytes, stores it, and writes the URL
+   * onto her storefront itself. So the app cannot point her cover at an address
+   * it invented — the same law the price obeys, applied to media.
+   *
+   * The read-back is the proof: her photograph appears because the SERVICE says
+   * it is there, never because the upload call returned.
+   */
+  const uploadCover = useCallback(
+    async (bytes: Uint8Array, contentType: string): Promise<{ ok: boolean; reason?: string }> => {
+      if (service === null || identity === null || identity === undefined) return { ok: false, reason: 'unconfigured' };
+      if (liveStorefront === null || liveStorefront === undefined) return { ok: false, reason: 'not_live' };
+      const res = await service.uploadCover(identity.storefrontId, bytes, contentType);
+      if (!res.ok) return { ok: false, reason: res.reason };
+      const fresh = await service.getById(identity.storefrontId);
+      if (fresh.ok && fresh.value !== undefined) setLiveStorefront(fresh.value);
+      return { ok: true };
+    },
+    [service, identity, liveStorefront],
+  );
+
   const saveIdentity = useCallback(
     async (patch: StorefrontIdentityPatch): Promise<void> => {
       if (service === null || identity === null || identity === undefined) return;
@@ -1463,6 +1487,9 @@ export default function App() {
             // Her shop EXISTS (the admin list saw it) but its settings have not
             // loaded yet — a different sentence from « you are not online yet ».
             shopIsLive={liveShop !== null && liveShop !== undefined}
+            // PERSONNALISER-MEDIA-1 — the real upload. Absent ⇒ the cover slot
+            // stays inert rather than opening a picker that leads nowhere.
+            onUploadCover={uploadCover}
             // RESELLER-UX-1 item 6 — her shop's REAL slug, read back from the
             // service; null/undefined ⇒ not live (or not yet known), so the
             // publish CTA shows and « voir » keeps the listing fallback.

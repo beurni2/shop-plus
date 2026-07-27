@@ -121,14 +121,24 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     // surface — and Metro bundling it was PROVEN by `expo export`, with a negative
     // control showing an unresolvable workspace import fails the build outright.
     expect(pkg.dependencies['@shop-plus/reseller-money']).toBe('workspace:*');
-    // the only deps beyond the pre-WO set are exactly these seven
+    // PERSONNALISER-MEDIA-1 — expo-image-picker, founder ruling 2026-07-27: REAL
+    // cover/avatar photos from her gallery. Before it, the app had NO image
+    // dependency at all, so K3's « add a photo » was a setTimeout with no file —
+    // capture was not broken, it was absent. Same first-party guarantee as
+    // expo-crypto/file-system: the version below is what
+    // `expo/bundledNativeModules.json` pins for SDK 54 (VERIFIED by reading that
+    // manifest, not assumed), which is what lets it reach Expo Go over the air
+    // with no rebuild. The PERMISSION prompt on device is the one thing a
+    // manifest cannot prove — every failure is therefore named and surfaced.
+    expect(pkg.dependencies['expo-image-picker']).toBe('~17.0.11');
+    // the only deps beyond the pre-WO set are exactly these eight
     const before = new Set([
       '@platform/ui-tokens', 'expo', 'expo-status-bar', 'expo-updates', 'react', 'react-native',
     ]);
     const added = Object.keys(pkg.dependencies).filter((d) => !before.has(d));
     expect(added.sort()).toEqual([
       '@shop-plus/reseller-money',
-      'expo-audio', 'expo-crypto', 'expo-file-system', 'expo-font', 'expo-haptics', 'react-native-svg',
+      'expo-audio', 'expo-crypto', 'expo-file-system', 'expo-font', 'expo-haptics', 'expo-image-picker', 'react-native-svg',
     ]);
     // …and NO third-party runtime dep sneaks in under cover of the workspace one
     for (const d of added) {

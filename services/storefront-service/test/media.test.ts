@@ -105,10 +105,15 @@ describe('oversized / wrong-type / bad input rejected (never stored)', () => {
 });
 
 describe('moderation — cover/avatar are held STORED-BUT-NOT-LIVE; the buyer only ever sees live', () => {
-  it('a held cover/avatar is stored but the buyer sees neither until review passes', async () => {
+  it('THE HOLD MACHINERY STILL WORKS — a held record is invisible until review passes (the switch, exercised)', async () => {
+    // FOUNDER RULING 2026-07-27 flipped the DEFAULT to live-on-upload, because a
+    // hold nobody could lift was a silent drop (no approve route is deployed and
+    // this registry is in memory). The machinery it guards is unchanged and is
+    // exercised here through an EXPLICITLY held record, so the day real resellers
+    // onboard and the switch flips back, the behaviour it restores is still proven.
     const s = svc();
-    const cover = await s.upload({ storefrontId: 'sf', kind: 'cover', bytes: pngBytes(1200, 800), at: NOW });
-    const avatar = await s.upload({ storefrontId: 'sf', kind: 'avatar', bytes: pngBytes(600, 600), at: NOW });
+    const cover = await s.upload({ storefrontId: 'sf', kind: 'cover', bytes: pngBytes(1200, 800), at: NOW, hold: true });
+    const avatar = await s.upload({ storefrontId: 'sf', kind: 'avatar', bytes: pngBytes(600, 600), at: NOW, hold: true });
     expect(cover.ok && cover.record.status).toBe('pending_review'); // « pending »
     expect(avatar.ok && avatar.record.status).toBe('pending_review'); // « vérification Séra »
 
@@ -164,5 +169,46 @@ describe('the upload endpoint (through-a-service HTTP path)', () => {
 
     const notFound = await worker.fetch(new Request('https://storefront-service.shop.internal/nope'));
     expect(notFound.status).toBe(404);
+  });
+});
+
+/**
+ * PERSONNALISER-MEDIA-1 — the founder's ruling, and the write that was missing.
+ *
+ * Cover and avatar were held `pending_review` by construction with no approve
+ * route deployed and an in-memory registry: an upload went up and could never
+ * appear. And even a live record was never POINTED AT — the URL rode the
+ * response and nothing wrote it onto her storefront, so `/s/{slug}` stayed bare.
+ */
+describe('PERSONNALISER-MEDIA-1 — live on upload, and the shop points at the photo', () => {
+  it('COVER AND AVATAR GO LIVE ON UPLOAD (founder ruling); the switch is still there for later', async () => {
+    const { REQUIRES_REVIEW } = await import('../src/media/service.js');
+    expect(REQUIRES_REVIEW.cover).toBe(false);
+    expect(REQUIRES_REVIEW.avatar).toBe(false);
+    expect(REQUIRES_REVIEW.voice).toBe(false);
+  });
+
+  it('A LIVE UPLOAD IS VISIBLE TO THE BUYER — the projection no longer strips it', async () => {
+    const s = svc();
+    const out = await s.upload({ storefrontId: 'sf-1', kind: 'cover', bytes: pngBytes(1200, 800), at: NOW });
+    expect(out.ok).toBe(true);
+    if (!out.ok) throw new Error('upload refused');
+    expect(out.record.status).toBe('live');
+    // the buyer projection carries it, where a held record used to become `none`
+    const buyer = s.buyerMedia('sf-1');
+    expect(buyer.cover.status).toBe('live');
+    expect(buyer.cover.url).toBe(out.record.url);
+  });
+
+  it('VALIDATION STILL GUARDS THE BUYER — live-on-upload did not weaken the checks', async () => {
+    const s = svc();
+    // a file whose MAGIC BYTES are not an image is refused, whatever it claims
+    const notAnImage = await s.upload({
+      storefrontId: 'sf-1',
+      kind: 'cover',
+      bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]), // %PDF
+      at: NOW,
+    });
+    expect(notAnImage.ok).toBe(false);
   });
 });

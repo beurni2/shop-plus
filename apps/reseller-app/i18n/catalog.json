@@ -2630,5 +2630,29 @@
   "fr": "Donnez un nom court à votre rayon.",
   "register": "neutral",
   "screenClass": "instruction"
+ },
+ {
+  "key": "k.cover.acces_refuse",
+  "fr": "Shop+ ne voit pas vos photos. Dites oui pour en choisir une.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "k.cover.illisible",
+  "fr": "Cette image n’a pas pu être lue. Essayez-en une autre.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "k.cover.hors_ligne",
+  "fr": "Photo pas envoyée : vérifiez votre connexion.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "k.cover.echec",
+  "fr": "Photo pas envoyée. Essayez une image plus légère.",
+  "register": "neutral",
+  "screenClass": "instruction"
  }
 ]
