@@ -425,6 +425,25 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(list.some((r) => r.id === 'sf-del-e2e')).toBe(false); // the admin list forgot it
   });
 
+  it('STOREFRONT-READ-GATE-1 — GET /storefronts/{id} is KEY-GATED (founder order); /s/{slug} stays open', async () => {
+    // The hole this closes: the admin LIST was gated, the by-id READ was not, so
+    // a guessed id read a shop's curation, name and zone uncredentialled.
+    const noKey = await mf.dispatchFetch('http://c/storefronts/sf-auth-0001', { method: 'GET' });
+    expect(noKey.status).toBe(401);
+    expect((await noKey.json()) as unknown).toEqual({ error: 'unauthorized' });
+    // …and the 401 is NOT an existence oracle: an id that never existed answers
+    // exactly the same without the key, and the honest 404 only WITH it.
+    const ghost = await mf.dispatchFetch('http://c/storefronts/sf-never-existed', { method: 'GET' });
+    expect(ghost.status).toBe(401);
+    expect((await mf.dispatchFetch('http://c/storefronts/sf-never-existed', { method: 'GET', headers: authed })).status).toBe(404);
+    // with the key the real read works, so the app is not broken by the gate
+    const keyed = await mf.dispatchFetch('http://c/storefronts/sf-auth-0001', { method: 'GET', headers: authed });
+    expect(keyed.status).toBe(200);
+    // THE BUYER PAYS NOTHING: her public page is a different, stripped projection
+    const buyer = await mf.dispatchFetch('http://c/s/auth-0001', { method: 'GET' });
+    expect(buyer.status).not.toBe(401);
+  });
+
   it('PERSONNALISER-REAL-1 — POST /storefronts/:id/identity rides the write gate: 401 without the key', async () => {
     // A POST, so `rejectUnauthorizedWrite` refuses it before any dispatch — the
     // new route needed NO new gate code, and this pins that it actually rides it.
