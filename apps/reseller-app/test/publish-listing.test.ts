@@ -382,11 +382,17 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     // Founder reference (2026-07-27): the marketplace look is cover on SQUARE
     // frames — a square barely trims where a wide banner butchered, and the
     // letterboxed contain of the previous round is retired with it. All three
-    // judging surfaces are square; NO contain survives anywhere.
+    // judging surfaces are square; no contain survives IN App.tsx (the
+    // full-screen gallery viewer keeps contain deliberately — full-screen
+    // viewing wants the whole photo, and it lives in photo-gallery.tsx).
     for (const frame of ['oppTileArt', 'ficheHero', 'vitrineCardArt']) {
       expect(app).toMatch(new RegExp(`${frame}: \\{\\n[^}]*aspectRatio: 1,`));
     }
     expect(app).not.toContain('resizeMode="contain"');
+    // …and the ODD-count ghost: a lone last tile must keep its half-width, not
+    // stretch into a screen-wide square (verifier finding).
+    expect(app).toMatch(/offers\.length % 2 === 1 \? \(\[\.\.\.offers, null\]/);
+    expect(app).toContain('styles.oppTileGhost');
   });
 
   it('the gallery page RE-SYNCS per product (to startAt) and the width is LIVE (verifier findings, pinned)', () => {

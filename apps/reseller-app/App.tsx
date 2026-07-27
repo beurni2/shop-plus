@@ -713,8 +713,14 @@ export default function App() {
             style={styles.screenScroll}
             // BROWSE-SUPPLY-1 — LIVE offers from boutik, through this Worker. Was
             // `world.opportunities`, seven frozen « (démo) » seeds.
-            data={offers}
-            keyExtractor={(o) => o.productVersionId}
+            //
+            // THE GHOST SPACER (verifier finding): an ODD offer count would leave
+            // the last flex:1 tile alone in its row, stretching to a screen-wide
+            // square. A trailing null pads the row; it renders an invisible
+            // flex:1 sibling, so the lone tile keeps its EXACT half-width — no
+            // percentage approximation drifting against the row gap.
+            data={offers.length % 2 === 1 ? ([...offers, null] as (Offer | null)[]) : offers}
+            keyExtractor={(o, i) => o?.productVersionId ?? `ghost-${i}`}
             // RESELLER-UX-3 (founder reference, 2026-07-27) — the MARKETPLACE
             // GRID: two columns of photo-first tiles, the browse idiom every
             // sourcing app trained her eye on. The photo is SQUARE — the frame
@@ -749,6 +755,9 @@ export default function App() {
               )
             }
             renderItem={({ item }) => (
+              item === null ? (
+                <View style={styles.oppTileGhost} />
+              ) : (
               // §4 L70 — a tappable product TILE → its FICHE (journey edge
               // opportunites→fiche). RESELLER-UX-3 (founder reference): the
               // marketplace tile — SQUARE photo edge-to-edge on top (cover; a
@@ -799,6 +808,7 @@ export default function App() {
                   {item.available === 0 && <StatusChip tone="muted" label={t('opportunites.epuise')} />}
                 </View>
               </Pressable>
+              )
             )}
           />
         )}
@@ -855,6 +865,7 @@ export default function App() {
                             style={[styles.thumb, i === Math.min(ficheHeroIdx, opp.assetRefs.length - 1) && styles.thumbOn]}
                             onPress={() => setFicheHeroIdx(i)}
                             accessibilityRole="button"
+                            accessibilityState={{ selected: i === Math.min(ficheHeroIdx, opp.assetRefs.length - 1) }}
                             accessibilityLabel={t('galerie.ouvrir')}
                           >
                             <Image source={{ uri: ref }} style={styles.artPhoto} resizeMode="cover" />
@@ -1677,6 +1688,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // The invisible row-mate for an odd offer count: same flex, no surface — the
+  // lone real tile keeps its exact half-width instead of stretching.
+  oppTileGhost: { flex: 1 },
   oppTileName: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size), fontWeight: '700', lineHeight: rmax(t2.scale.body.size) * 1.3 },
   oppTileBase: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
   oppCardBody: { padding: spacing.md, gap: spacing.xs },
