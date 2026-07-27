@@ -31,6 +31,8 @@ const rmax = (v: number | { readonly min: number; readonly max: number }): numbe
 export interface GalleryProduct {
   readonly name: string;
   readonly refs: readonly string[];
+  /** Open ON this photo (a tapped thumbnail); omitted ⇒ the first. */
+  readonly startAt?: number;
 }
 
 export function PhotoGallery({
@@ -44,11 +46,11 @@ export function PhotoGallery({
   const [page, setPage] = useState(0);
   // THE COUNTER MUST NEVER DISAGREE WITH THE PHOTO (verifier finding): this
   // component never unmounts (rendered unconditionally beside the sheets), but
-  // the Modal's FlatList remounts at offset 0 on every open — so `page` resets
-  // WITH each product change, or a reopened gallery would show photo 1 under a
-  // counter still reading the last session's page.
+  // the Modal's FlatList remounts on every open at `initialScrollIndex` — so
+  // `page` re-syncs to the SAME start WITH each product change, or a reopened
+  // gallery would show one photo under the last session's counter.
   useEffect(() => {
-    setPage(0);
+    setPage(product?.startAt ?? 0);
   }, [product]);
   const { width } = useWindowDimensions();
   const refs = product?.refs ?? [];
@@ -75,6 +77,10 @@ export function PhotoGallery({
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
+          // land ON the tapped thumbnail's photo (getItemLayout: every page is
+          // exactly one screen-width, so the index maths is exact, no measure).
+          initialScrollIndex={Math.min(product?.startAt ?? 0, Math.max(0, refs.length - 1))}
+          getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
           onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / Math.max(1, width)))}
           renderItem={({ item }) => (
             <View style={[S.page, { width }]}>

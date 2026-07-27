@@ -310,33 +310,45 @@ describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
 describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
   const app = read('App.tsx');
 
-  it('item 1 — Opportunités renders the photo-first CARD with the named money rows', () => {
-    expect(app).toContain('styles.oppCard,');
-    expect(app).toContain('styles.oppCardArt');
-    // the photo field is hero-height, not the 60px tile (style formula pinned)
-    expect(app).toMatch(/oppCardArt: \{\n\s*height: touch\.minTargetPx \* 3 \+ spacing\.xl,/);
-    // the name may take two lines — a French product name must not truncate meaning
-    const oppCardIdx = app.indexOf('styles.oppCard,');
-    const body = app.slice(oppCardIdx, app.indexOf('</Pressable>', oppCardIdx));
+  it('item 1 (UX-3 form) — Opportunités is the MARKETPLACE GRID: two columns, square cover photos', () => {
+    // the founder's reference: two-column browse, photo edge-to-edge, compact
+    // named detail. The SQUARE frame is the fit law now — cover on a square
+    // barely trims, which is what makes the reference look professional.
+    expect(app).toContain('numColumns={2}');
+    expect(app).toContain('columnWrapperStyle={styles.oppGridRow}');
+    expect(app).toMatch(/oppTileArt: \{\n\s*width: '100%',\n\s*aspectRatio: 1,/);
+    const oppTileIdx = app.indexOf('styles.oppTile,');
+    const body = app.slice(oppTileIdx, app.indexOf('</Pressable>', oppTileIdx));
     expect(body).toContain('numberOfLines={2}');
-    expect(body).toContain("t('fiche.prix_base')"); // Prix de base, NAMED on the card
-    expect(body).toContain("tf('opportunity.gagnez'"); // net stays the loudest line
-    // NET FIRST IN RENDER ORDER (SP-I04/I12, verifier finding): gagnez renders
-    // BEFORE the base row on the card, matching the fiche and the encoded gate law.
+    expect(body).toContain('resizeMode="cover"');
+    expect(body).toContain("t('fiche.prix_base')"); // Prix de base, NAMED on the tile
+    expect(body).toContain("tf('opportunity.gagnez'"); // net holds the price position
+    // NET FIRST IN RENDER ORDER (SP-I04/I12): gagnez renders BEFORE the base row.
     expect(body.indexOf("tf('opportunity.gagnez'")).toBeLessThan(body.indexOf("t('fiche.prix_base')"));
     expect(body).toContain("t('opportunites.epuise')"); // zero stock says so pre-tap
     expect(body).toMatch(/item\.available === 0 &&/); // …and only when actually zero
   });
 
-  it('item 2 — the fiche héro with photos opens the gallery; sans photo, no affordance', () => {
-    expect(app).toMatch(/opp\.assetRefs\.length > 0 \? \(\s*\n\s*<Pressable/);
-    expect(app).toMatch(/setGallery\(\{ name: opp\.productName, refs: opp\.assetRefs \}\)/);
+  it('item 2 (UX-3 form) — the fiche is a PRODUCT PAGE: square héro, thumbnails switch it, tap opens the gallery ON it', () => {
+    expect(app).toMatch(/opp\.assetRefs\.length > 0 \? \(/);
+    expect(app).toMatch(/setGallery\(\{ name: opp\.productName, refs: opp\.assetRefs, startAt: ficheHeroIdx \}\)/);
+    expect(app).toMatch(/ficheHero: \{\n[^}]*aspectRatio: 1,/);
+    // the thumbnail strip exists only when there is more than one capture, and
+    // tapping a thumb switches the héro (the reference behaviour)
+    expect(app).toMatch(/opp\.assetRefs\.length > 1 && \(\s*\n\s*<View style=\{styles\.thumbRow\}>/);
+    expect(app).toMatch(/onPress=\{\(\) => setFicheHeroIdx\(i\)\}/);
+    // …and the héro index resets on every fiche open, so product B never opens
+    // on product A's remembered photo
+    expect(app).toMatch(/setFicheId\(item\.productVersionId\); setFicheHeroIdx\(0\);/);
     expect(app).toContain("accessibilityLabel={t('galerie.ouvrir')}");
     expect(app).toContain('<PhotoGallery product={gallery} onClose=');
   });
 
-  it('item 3 — Ma Vitrine card: hero-height tappable photo + the three named money rows', () => {
+  it('item 3 (UX-3 form) — Ma Vitrine card is a PRODUCT PAGE: square photo, thumbnail strip, named money rows', () => {
     expect(app).toMatch(/setGallery\(\{ name: item\.productName, refs: item\.assetRefs \}\)/);
+    // each thumbnail opens the gallery ON that capture
+    expect(app).toMatch(/setGallery\(\{ name: item\.productName, refs: item\.assetRefs, startAt: i \}\)/);
+    expect(app).toMatch(/item\.assetRefs\.length > 1 && \(\s*\n\s*<View style=\{styles\.thumbRow\}>/);
     // the card reasons in the fiche's vocabulary: base · marge · prix cliente
     const cardIdx = app.indexOf('styles.vitrineCard}');
     const card = app.slice(cardIdx, app.indexOf('MarginSlider', cardIdx));
@@ -345,8 +357,8 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     expect(card).toContain("t('fiche.prix_cliente')");
     // net-first survives the restructure: her net is still the hero figure
     expect(card).toContain('styles.vitrineNetHero');
-    // the art is the fiche-hero height now, not the old two-target strip
-    expect(app).toMatch(/vitrineCardArt: \{\n[^}]*height: touch\.minTargetPx \* 3 \+ spacing\.xl,/);
+    // the art is SQUARE (the founder's reference), not a fixed-height strip
+    expect(app).toMatch(/vitrineCardArt: \{\n[^}]*aspectRatio: 1,/);
   });
 
   it('item 3 — Partager names the amount plainly: « Prix », never « Votre prix » (whose?)', () => {
@@ -366,25 +378,31 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     expect(gal).toContain("tf('galerie.compteur'");
   });
 
-  it('THE WHOLE PRODUCT SHOWS — contain on the judging surfaces, cover only where the cliente card is mirrored', () => {
-    // Founder walk (2026-07-26, screenshots): cover filled the frame by CROPPING
-    // the merchandise on Opportunités and Ma Vitrine. She is judging the product
-    // on those surfaces (and on the fiche héro one tap deeper), so the entire
-    // photo must show — contain, letterboxed over the soft field.
-    const contains = app.match(/assetRefs\[0\] \}\} style=\{styles\.artPhoto\} resizeMode="contain"/g) ?? [];
-    expect(contains.length).toBe(3); // opp card · fiche héro · vitrine card
-    // the SHARE héro stays cover on purpose: it previews the cliente-facing card,
-    // and the preview must not fit photos differently than what she will send.
-    const shareIdx = app.indexOf('styles.shareHero,');
-    const shareBlock = app.slice(shareIdx, shareIdx + 600);
-    expect(shareBlock).toContain('resizeMode="cover"');
+  it('THE FIT LAW (UX-3): SQUARE frames + cover — the frame shape, not the fit, is what protects the product', () => {
+    // Founder reference (2026-07-27): the marketplace look is cover on SQUARE
+    // frames — a square barely trims where a wide banner butchered, and the
+    // letterboxed contain of the previous round is retired with it. All three
+    // judging surfaces are square; no contain survives IN App.tsx (the
+    // full-screen gallery viewer keeps contain deliberately — full-screen
+    // viewing wants the whole photo, and it lives in photo-gallery.tsx).
+    for (const frame of ['oppTileArt', 'ficheHero', 'vitrineCardArt']) {
+      expect(app).toMatch(new RegExp(`${frame}: \\{\\n[^}]*aspectRatio: 1,`));
+    }
+    expect(app).not.toContain('resizeMode="contain"');
+    // …and the ODD-count ghost: a lone last tile must keep its half-width, not
+    // stretch into a screen-wide square (verifier finding).
+    expect(app).toMatch(/offers\.length % 2 === 1 \? \(\[\.\.\.offers, null\]/);
+    expect(app).toContain('styles.oppTileGhost');
   });
 
-  it('the gallery page RESETS per product and the width is LIVE (verifier findings, pinned)', () => {
+  it('the gallery page RE-SYNCS per product (to startAt) and the width is LIVE (verifier findings, pinned)', () => {
     const gal = read('src/ui/photo-gallery.tsx');
     // the component never unmounts, so a reopened gallery must not inherit the
     // previous session's page — counter and photo would disagree.
-    expect(gal).toMatch(/useEffect\(\(\) => \{\s*\n\s*setPage\(0\);\s*\n\s*\}, \[product\]\);/);
+    expect(gal).toMatch(/useEffect\(\(\) => \{\s*\n\s*setPage\(product\?\.startAt \?\? 0\);\s*\n\s*\}, \[product\]\);/);
+    // …and the list itself LANDS on that photo (exact page maths, no measure)
+    expect(gal).toMatch(/initialScrollIndex=\{Math\.min\(product\?\.startAt \?\? 0/);
+    expect(gal).toMatch(/getItemLayout=\{\(_, index\) => \(\{ length: width, offset: width \* index, index \}\)\}/);
     // the page width tracks rotation for real, not by comment
     expect(gal).toContain('useWindowDimensions()');
     expect(gal).not.toContain("Dimensions.get('window')");
