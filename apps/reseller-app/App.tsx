@@ -264,7 +264,10 @@ export default function App() {
   const [publishing, setPublishing] = useState(false);
   // RESELLER-UX-2 (items 2 + 3) — the photo gallery: which product's photos are
   // open full-screen. null = closed (the voice-sheet idiom).
-  const [gallery, setGallery] = useState<{ name: string; refs: readonly string[] } | null>(null);
+  const [gallery, setGallery] = useState<{ name: string; refs: readonly string[]; startAt?: number } | null>(null);
+  // RESELLER-UX-3 — which capture the fiche héro shows (the reference's
+  // thumbnail-switches-hero behaviour). Reset to 0 at every fiche open.
+  const [ficheHeroIdx, setFicheHeroIdx] = useState(0);
   const [shareFmt, setShareFmt] = useState<'card' | 'story' | 'affiche'>('card');
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
@@ -712,6 +715,13 @@ export default function App() {
             // `world.opportunities`, seven frozen « (démo) » seeds.
             data={offers}
             keyExtractor={(o) => o.productVersionId}
+            // RESELLER-UX-3 (founder reference, 2026-07-27) — the MARKETPLACE
+            // GRID: two columns of photo-first tiles, the browse idiom every
+            // sourcing app trained her eye on. The photo is SQUARE — the frame
+            // shape, not the fit, was what made cover crop badly: a wide short
+            // banner butchers a portrait shot, a square barely trims it.
+            numColumns={2}
+            columnWrapperStyle={styles.oppGridRow}
             initialNumToRender={6}
             windowSize={5}
             showsVerticalScrollIndicator={false}
@@ -739,30 +749,27 @@ export default function App() {
               )
             }
             renderItem={({ item }) => (
-              // §4 L70 — a tappable product CARD → its FICHE (journey edge
-              // opportunites→fiche). RESELLER-UX-2 item 1 (founder walk: « make it
-              // bigger so I can see clearly the photo and the description »): the
-              // 60px row-tile became a PHOTO-FIRST card — hero-height photograph on
-              // top, then the detail she reasons over, each line NAMED: the name
-              // (2 lines, never truncating meaning), the source mark, Prix de base,
-              // and « Gagnez ≈ {net} net » as the loudest money line. Net-first: net
-              // shown, gross never (SP-I04/I12). The estimate reads at the default
-              // markup (0 — founder override), same figure the fiche opens on.
+              // §4 L70 — a tappable product TILE → its FICHE (journey edge
+              // opportunites→fiche). RESELLER-UX-3 (founder reference): the
+              // marketplace tile — SQUARE photo edge-to-edge on top (cover; a
+              // square frame barely trims, which is why the reference looks
+              // professional), then the compact detail: 2-line name, « Gagnez ≈
+              // {net} net » as the price position (NET FIRST in render order —
+              // SP-I04/I12; gross never), the base as the quiet metadata line,
+              // the source pill and the honest épuisé chip. The estimate reads
+              // at the default markup (0 — founder override), same figure the
+              // fiche opens on.
               <Pressable
-                style={({ pressed }) => [styles.oppCard, pressed && styles.pressed]}
-                onPress={() => { setFicheId(item.productVersionId); go('fiche'); }}
+                style={({ pressed }) => [styles.oppTile, pressed && styles.pressed]}
+                onPress={() => { setFicheId(item.productVersionId); setFicheHeroIdx(0); go('fiche'); }}
                 accessibilityRole="button"
               >
-                <View style={styles.oppCardArt}>
+                <View style={styles.oppTileArt}>
                   {/* RESELLER-PHOTOS-1 — the REAL photograph when the wire carries
                       one (absolute URL, absolutized server-side with the same base
-                      as the buyer wire). No ref ⇒ the designed glyph tile.
-                      CONTAIN, not cover (founder walk 2026-07-26): she is judging
-                      the PRODUCT, so the frame must show ALL of it — cover filled
-                      the frame by cropping the merchandise. The soft field
-                      letterboxes the rest. */}
+                      as the buyer wire). No ref ⇒ the designed glyph tile. */}
                   {item.assetRefs[0] ? (
-                    <Image source={{ uri: item.assetRefs[0] }} style={styles.artPhoto} resizeMode="contain" />
+                    <Image source={{ uri: item.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
                   ) : (
                     <>
                       <View style={styles.artTileStripe} />
@@ -771,34 +778,25 @@ export default function App() {
                   )}
                 </View>
                 <View style={styles.oppCardBody}>
-                  <Text style={styles.homeSaleTitle} numberOfLines={2}>{item.productName}</Text>
-                  {/* THE SOURCE MARK (founder ruling) — a PROVENANCE mark, not a
-                      location. It replaces « Repère : {landmark} », which was seed
-                      data with no field on the wire to carry it: boutik strips zone
-                      deliberately, because location is supplier-identifying.
-                      A place answers WHERE, a source answers WHOSE, so this is a
-                      chip rather than body text — the same pill family as the
-                      vitrine's « livré par Séra », and DELIBERATELY QUIETER than
-                      « Vérifiée »: Shop+ is offering these goods, not vouching for
-                      them. CONSTANT, never data: it is not sourced from the wire,
-                      adds no field, and is not configurable.
-                      HARD GATE: the day a second supplier exists this line is a LIE,
-                      because it would label another supplier's product as Shop+. */}
-                  <View style={styles.oppSourcePill}>
-                    <Text style={styles.oppSourcePillText}>{t('opportunites.source')}</Text>
-                  </View>
-                  {/* Honest stock: a zero-stock offer says so on the card, before
-                      she invests a tap (the wire's `available`, stated not styled). */}
-                  {item.available === 0 && <StatusChip tone="muted" label={t('opportunites.epuise')} />}
-                  {/* NET FIRST, in RENDER ORDER, not just in weight (SP-I04/I12 and
-                      the net-first gate's encoded law; verifier finding — the first
-                      cut put Prix de base above the net): gagnez leads, then the
-                      base — the same order the fiche reasons in. */}
+                  <Text style={styles.oppTileName} numberOfLines={2}>{item.productName}</Text>
+                  {/* NET FIRST, in RENDER ORDER (SP-I04/I12): gagnez holds the
+                      tile's price position; the base is the metadata whisper. */}
                   <Text style={styles.oppNet}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOfOffer(item).net) })}</Text>
                   <View style={styles.margeHeadRow}>
                     <Overline>{t('fiche.prix_base')}</Overline>
-                    <Text style={styles.margeAmount}>{formatFcfa(item.basePrice)}</Text>
+                    <Text style={styles.oppTileBase}>{formatFcfa(item.basePrice)}</Text>
                   </View>
+                  {/* THE SOURCE MARK (founder ruling) — a PROVENANCE mark, not a
+                      location: boutik strips zone deliberately (supplier-
+                      identifying). Same pill family as « livré par Séra »,
+                      deliberately quieter than « Vérifiée ». CONSTANT, never data.
+                      HARD GATE: a second supplier makes this line a LIE. */}
+                  <View style={styles.oppSourcePill}>
+                    <Text style={styles.oppSourcePillText}>{t('opportunites.source')}</Text>
+                  </View>
+                  {/* Honest stock: a zero-stock offer says so on the tile, before
+                      she invests a tap (the wire's `available`, stated not styled). */}
+                  {item.available === 0 && <StatusChip tone="muted" label={t('opportunites.epuise')} />}
                 </View>
               </Pressable>
             )}
@@ -830,20 +828,41 @@ export default function App() {
                 <View style={styles.ficheTierRow}>
                   <StatusChip tone="ok" label={t('fiche.tier')} />
                 </View>
-                {/* art héro 170 — the REAL photograph, else the duotone banner.
-                    RESELLER-UX-2 item 2 — WITH photos it is a TAP TARGET: the
-                    full gallery opens (hero + the proof shot both arrive on the
-                    wire; only [0] rendered before). Sans photo, no affordance. */}
+                {/* RESELLER-UX-3 — the PRODUCT-PAGE héro (founder reference): a
+                    SQUARE cover photograph (the frame shape that barely trims),
+                    the thumbnail strip under it switching the héro, and a tap on
+                    the héro opening the gallery ON that capture. Sans photo, the
+                    duotone banner and no affordance. */}
                 {opp.assetRefs.length > 0 ? (
-                  <Pressable
-                    style={({ pressed }) => [styles.ficheHero, pressed && styles.pressed]}
-                    onPress={() => setGallery({ name: opp.productName, refs: opp.assetRefs })}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('galerie.ouvrir')}
-                  >
-                    {/* contain — the whole product, same law as the browse card */}
-                    <Image source={{ uri: opp.assetRefs[0] }} style={styles.artPhoto} resizeMode="contain" />
-                  </Pressable>
+                  <>
+                    <Pressable
+                      style={({ pressed }) => [styles.ficheHero, pressed && styles.pressed]}
+                      onPress={() => setGallery({ name: opp.productName, refs: opp.assetRefs, startAt: ficheHeroIdx })}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('galerie.ouvrir')}
+                    >
+                      <Image
+                        source={{ uri: opp.assetRefs[Math.min(ficheHeroIdx, opp.assetRefs.length - 1)] }}
+                        style={styles.artPhoto}
+                        resizeMode="cover"
+                      />
+                    </Pressable>
+                    {opp.assetRefs.length > 1 && (
+                      <View style={styles.thumbRow}>
+                        {opp.assetRefs.map((ref, i) => (
+                          <Pressable
+                            key={`${i}-${ref}`}
+                            style={[styles.thumb, i === Math.min(ficheHeroIdx, opp.assetRefs.length - 1) && styles.thumbOn]}
+                            onPress={() => setFicheHeroIdx(i)}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('galerie.ouvrir')}
+                          >
+                            <Image source={{ uri: ref }} style={styles.artPhoto} resizeMode="cover" />
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+                  </>
                 ) : (
                   <View style={styles.ficheHero}>
                     <View style={styles.artTileStripe} />
@@ -990,19 +1009,37 @@ export default function App() {
                 const markup = v.markup;
                 return (
                   <Card style={styles.vitrineCard}>
-                    {/* RESELLER-UX-2 item 3 — the photograph is BIG (fiche-hero
-                        height, not the old 100px strip) and, with photos, a TAP
-                        TARGET onto the full gallery. Sans photo, no affordance. */}
+                    {/* RESELLER-UX-3 — the PRODUCT-PAGE treatment on HER card
+                        (founder reference): a SQUARE cover photograph, and the
+                        thumbnail strip under it — each capture visible, each a
+                        tap into the gallery ON that photo. Sans photo, the
+                        duotone tile and no affordance. */}
                     {item.assetRefs.length > 0 ? (
-                      <Pressable
-                        style={({ pressed }) => [styles.vitrineCardArt, pressed && styles.pressed]}
-                        onPress={() => setGallery({ name: item.productName, refs: item.assetRefs })}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('galerie.ouvrir')}
-                      >
-                        {/* contain — the whole product, same law as the browse card */}
-                        <Image source={{ uri: item.assetRefs[0] }} style={styles.artPhoto} resizeMode="contain" />
-                      </Pressable>
+                      <>
+                        <Pressable
+                          style={({ pressed }) => [styles.vitrineCardArt, pressed && styles.pressed]}
+                          onPress={() => setGallery({ name: item.productName, refs: item.assetRefs })}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('galerie.ouvrir')}
+                        >
+                          <Image source={{ uri: item.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
+                        </Pressable>
+                        {item.assetRefs.length > 1 && (
+                          <View style={styles.thumbRow}>
+                            {item.assetRefs.map((ref, i) => (
+                              <Pressable
+                                key={`${i}-${ref}`}
+                                style={styles.thumb}
+                                onPress={() => setGallery({ name: item.productName, refs: item.assetRefs, startAt: i })}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('galerie.ouvrir')}
+                              >
+                                <Image source={{ uri: ref }} style={styles.artPhoto} resizeMode="cover" />
+                              </Pressable>
+                            ))}
+                          </View>
+                        )}
+                      </>
                     ) : (
                       <View style={styles.vitrineCardArt}>
                         <View style={styles.artTileStripe} />
@@ -1619,25 +1656,44 @@ const styles = StyleSheet.create({
     borderColor: sharedColour.hairline,
     padding: spacing.md,
   },
-  // RESELLER-UX-2 item 1 — the browse CARD (founder walk: « bigger, see the photo
-  // clearly »). Replaces the 60px row-tile on OPPORTUNITÉS only: the photograph
-  // is a full-width, fiche-hero-height field on top (photography treated with
-  // respect, §5), the detail reads underneath in named rows.
-  oppCard: {
+  // RESELLER-UX-3 — the MARKETPLACE GRID (founder reference, 2026-07-27): two
+  // columns of photo-first tiles, SQUARE cover photos edge-to-edge (the square
+  // frame is what makes cover honest — it barely trims), compact named detail
+  // under. Replaces the single-column card of UX-2.
+  oppGridRow: { gap: spacing.md },
+  oppTile: {
+    flex: 1,
     backgroundColor: sharedColour.card,
     borderRadius: radius.tile,
     borderWidth: interaction.hairline.thin,
     borderColor: sharedColour.hairline,
     overflow: 'hidden',
   },
-  oppCardArt: {
-    height: touch.minTargetPx * 3 + spacing.xl,
+  oppTileArt: {
+    width: '100%',
+    aspectRatio: 1,
     backgroundColor: shopColour.soft,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  oppTileName: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size), fontWeight: '700', lineHeight: rmax(t2.scale.body.size) * 1.3 },
+  oppTileBase: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
   oppCardBody: { padding: spacing.md, gap: spacing.xs },
+  // The thumbnail strip (fiche + Ma Vitrine) — every capture visible, the
+  // reference's « Photos 1/6 » made tangible. Square thumbs, hairline, the
+  // active one keylined in the shop accent on the fiche.
+  thumbRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  thumb: {
+    width: touch.minTargetPx + spacing.sm,
+    height: touch.minTargetPx + spacing.sm,
+    borderRadius: rmax(radius.art),
+    borderWidth: interaction.hairline.thin,
+    borderColor: sharedColour.hairline,
+    overflow: 'hidden',
+    backgroundColor: shopColour.soft,
+  },
+  thumbOn: { borderColor: shopColour.primary, borderWidth: interaction.hairline.strong },
   // Net-forward money line (SP-I04/I12 net-first) — deep, bold, tabular.
   // BROWSE-SUPPLY-1 — THE SOURCE MARK. A provenance chip, not a location line: a
   // place answers WHERE and a source answers WHOSE, so this reads as a mark rather
@@ -1840,7 +1896,10 @@ const styles = StyleSheet.create({
   // ── FICHE frame (planche L140–191) ──
   ficheTierRow: { flexDirection: 'row' },
   ficheHero: {
-    height: touch.minTargetPx * 3 + spacing.xl,
+    // RESELLER-UX-3 — SQUARE product-page héro (was a wide 156px banner: the
+    // frame shape that made cover crop badly and contain letterbox).
+    width: '100%',
+    aspectRatio: 1,
     borderRadius: rmax(radius.art),
     backgroundColor: shopColour.soft,
     overflow: 'hidden',
@@ -1961,9 +2020,9 @@ const styles = StyleSheet.create({
   },
   vitrineVoiceLabel: { color: shopColour.primary, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size) },
   vitrineCardArt: {
-    // RESELLER-UX-2 item 3 — fiche-hero height (was ~100px): her own products get
-    // the same photographic presence the fiche gives them.
-    height: touch.minTargetPx * 3 + spacing.xl,
+    // RESELLER-UX-3 — SQUARE product-page photo on HER card (founder reference).
+    width: '100%',
+    aspectRatio: 1,
     borderRadius: rmax(radius.art),
     backgroundColor: shopColour.soft,
     overflow: 'hidden',
