@@ -223,3 +223,72 @@ describe('PERSONNALISER-REAL-1 — decideSaveIdentity, the presentation she owns
     expect(serialised).not.toContain('999');
   });
 });
+
+/**
+ * PERSONNALISER-REAL-1 — the VERIFIER's findings, pinned closed.
+ *
+ * Each of these is a defect that shipped in the first cut and would have reached
+ * the founder's device: a trailing space that could never be retried away, a
+ * reorder that silently did nothing, and a section name that refused anonymously.
+ */
+describe('PERSONNALISER-REAL-1 — verifier findings', () => {
+  const entry = async () => {
+    const { decideCreate } = await import('../src/storefront-core.js');
+    const created = decideCreate(undefined, SELLER_001).next!;
+    // give her three curated products, as publishing would
+    return { ...created, storefront: { ...created.storefront, curatedItems: ['pv-1', 'pv-2', 'pv-3'] } };
+  };
+  const T3 = '2026-07-27T12:00:00.000Z';
+
+  it('A TRAILING SPACE IS TRIMMED, not refused with advice that can never work', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    // canon's string type is a REGEX that refuses surrounding whitespace, so this
+    // used to clear every bound and then die anonymously as `not_canon_shape`,
+    // surfacing to her as « réessayez dans un moment » — retrying never worked.
+    const { decision } = decideSaveIdentity(await entry(), { name: 'Chez Bernard ', tagline: ' Le bon tissu ' }, T3);
+    if (decision.status !== 'saved') throw new Error(`expected saved, got ${decision.status}`);
+    expect(decision.storefront.name).toBe('Chez Bernard');
+    expect(decision.storefront.tagline).toBe('Le bon tissu');
+    // …and a name that is ONLY whitespace is still the honest « too short »
+    const blank = decideSaveIdentity(await entry(), { name: '   ' }, T3).decision;
+    expect(blank.status === 'refused' && blank.reason).toBe('name_too_short');
+  });
+
+  it('A SECTION NAME REFUSES BY ITS OWN NAME — never the anonymous canon-shape refusal', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const e = await entry();
+    const reason = (name: string) => {
+      const d = decideSaveIdentity(e, { sections: [{ id: 's1', name, pids: [] }] }, T3).decision;
+      return d.status === 'refused' ? d.reason : d.status;
+    };
+    expect(reason('')).toBe('section_name_empty'); // mid-retype: not « retry »
+    expect(reason('   ')).toBe('section_name_empty');
+    expect(reason('x'.repeat(21))).toBe('section_name_too_long');
+    expect(reason('Robes ')).toBe('saved'); // trimmed, then accepted
+  });
+
+  it('K5 ▲▼ REORDERS — the silent no-op is closed', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const { decision } = decideSaveIdentity(await entry(), { curatedItems: ['pv-2', 'pv-1', 'pv-3'] }, T3);
+    if (decision.status !== 'saved') throw new Error(`expected saved, got ${decision.status}`);
+    expect(decision.storefront.curatedItems).toEqual(['pv-2', 'pv-1', 'pv-3']);
+  });
+
+  it('A REORDER CANNOT ADD OR DROP A PRODUCT — membership is not editable here', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const e = await entry();
+    const reason = (curatedItems: string[]) => {
+      const d = decideSaveIdentity(e, { curatedItems }, T3).decision;
+      return d.status === 'refused' ? d.reason : d.status;
+    };
+    // dropping one would retire a product through a reorder…
+    expect(reason(['pv-1', 'pv-2'])).toBe('curation_not_a_reorder');
+    // …and adding one would list a product no publish ever signed.
+    expect(reason(['pv-1', 'pv-2', 'pv-3', 'pv-4'])).toBe('curation_not_a_reorder');
+    expect(reason(['pv-1', 'pv-2', 'pv-9'])).toBe('curation_not_a_reorder');
+    // the same set in a new order is the ONE accepted form
+    expect(reason(['pv-3', 'pv-2', 'pv-1'])).toBe('saved');
+    // …and the stored membership is untouched by a refusal
+    expect(e.storefront.curatedItems).toEqual(['pv-1', 'pv-2', 'pv-3']);
+  });
+});

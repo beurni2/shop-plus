@@ -123,6 +123,10 @@ export interface StorefrontIdentityPatch {
   readonly theme?: string;
   readonly featuredItems?: readonly string[];
   readonly sections?: readonly { readonly id: string; readonly name: string; readonly pids: readonly string[] }[];
+  /** HER ARRANGEMENT — the K5 ▲▼ order. The service accepts a PERMUTATION of what
+   *  she already has and refuses anything that would add or drop a product:
+   *  membership is earned by publishing, never changed by a reorder. */
+  readonly curatedItems?: readonly string[];
 }
 
 export interface StorefrontServicePort {
@@ -195,9 +199,13 @@ export class HttpStorefrontService implements StorefrontServicePort {
     return this.postJson('/storefronts', cmd);
   }
 
-  /** PERSONNALISER-REAL-1 — a keyed READ (the storefront surface is key-gated:
-   *  it carries her curation, and an open read would enumerate shops). A 404 is
-   *  `{ok:true, value:undefined}` — an honest absence, not a failure to retry. */
+  /** PERSONNALISER-REAL-1 — the read. It SENDS the key (this app holds one and a
+   *  keyed read costs nothing), but note honestly: only `GET /storefronts` (the
+   *  list) is key-gated on the Worker today — `GET /storefronts/{id}` is not, so
+   *  a guessed id can read a shop's curation uncredentialled. NO money is on that
+   *  shape (no price, markup or commission), so nothing of loi 1/2 leaks; the gap
+   *  is NAMED for the founder rather than closed inside a UI slice.
+   *  A 404 is `{ok:true, value:undefined}` — an honest absence, not a retry. */
   async getById(id: string): Promise<ServiceResult<Storefront | undefined>> {
     let res: Response;
     try {

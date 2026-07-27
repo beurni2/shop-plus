@@ -255,7 +255,7 @@ describe('PERSONNALISER-REAL-1 — the wiring (source-pinned)', () => {
     expect(app).toMatch(/service\.getById\(identity\.storefrontId\)/);
     expect(app).toMatch(/storefront=\{liveStorefront \?\? undefined\}/);
     expect(app).toMatch(/onSaveIdentity=\{saveIdentity\}/);
-    expect(app).toMatch(/savesPersist=\{liveShop !== null && liveShop !== undefined\}/);
+    expect(app).toMatch(/savesPersist=\{liveStorefront !== null && liveStorefront !== undefined\}/);
     // the DEMO seed is no longer what she edits — the read is the source
     expect(app).not.toMatch(/storefront=\{DEFAULT_STOREFRONT\}/);
   });
@@ -278,8 +278,9 @@ describe('PERSONNALISER-REAL-1 — the wiring (source-pinned)', () => {
     expect(app).toContain("t('k.enreg.echec')");
     expect(app).toMatch(/res\.reason === 'name_too_short'/);
     expect(app).toMatch(/res\.reason === 'featured_over_cap'/);
-    // the save is SKIPPED (never fabricated) when there is no live shop
-    expect(app).toMatch(/if \(liveShop === null \|\| liveShop === undefined\) return;/);
+    // the save is SKIPPED (never fabricated) until HER shop is loaded and adopted
+    // — gated on the SAME read the screens edit (verifier finding).
+    expect(app).toMatch(/if \(liveStorefront === null \|\| liveStorefront === undefined\) return;/);
   });
 
   it('THE SAVE IS READ BACK, never assumed — the service owns updatedAt and the canon shape', () => {
@@ -288,5 +289,61 @@ describe('PERSONNALISER-REAL-1 — the wiring (source-pinned)', () => {
     const readIdx = handler.indexOf('service.getById');
     expect(saveIdx).toBeGreaterThan(-1);
     expect(readIdx).toBeGreaterThan(saveIdx); // read AFTER the write, not instead of it
+  });
+});
+
+/**
+ * PERSONNALISER-REAL-1 — the VERIFIER's blocking findings, pinned closed.
+ *
+ * The first cut gated the save on `liveShop` (the ADMIN LIST read) while the
+ * screens were filled by `liveStorefront` (the BY-ID read). One can fail while
+ * the other succeeds, and in that window the stack still held the demo seed — so
+ * a single tap would have persisted « Chez Aïcha Mode » over her real shop,
+ * buyer-visible, driving a RETIRED name (law 10) into live data.
+ */
+describe('PERSONNALISER-REAL-1 — the demo seed can never be saved over her shop', () => {
+  const app = readFileSync(join(__dirname, '..', 'App.tsx'), 'utf8');
+  const screens = readFileSync(join(__dirname, '..', 'src/vitrine/customize/screens.tsx'), 'utf8');
+
+  it('THE SAVE IS GATED ON THE SAME READ THE SCREENS EDIT — never on a different one', () => {
+    const handler = /const saveIdentity = useCallback\([\s\S]*?\n  \);/.exec(app)?.[0] ?? '';
+    expect(handler).toMatch(/if \(liveStorefront === null \|\| liveStorefront === undefined\) return;/);
+    // the OLD gate — a different read — must not survive anywhere in the handler
+    expect(handler).not.toMatch(/liveShop === null \|\| liveShop === undefined/);
+    // …and the callback re-runs when that read changes, or the gate reads stale
+    expect(handler).toMatch(/\[service, identity, liveStorefront\]/);
+  });
+
+  it('« ce sera gardé » TRACKS THE SAME READ, so the note cannot promise what the gate refuses', () => {
+    expect(app).toMatch(/savesPersist=\{liveStorefront !== null && liveStorefront !== undefined\}/);
+  });
+
+  it('A FAILED READ SELF-HEALS — opening Personnaliser re-asks, never a dead session', () => {
+    // the read used to leave `undefined` forever on a fault; with the save gated
+    // on it, her edits would never persist again for the whole session.
+    expect(app).toMatch(/\[service, identity, screen === 'personnaliser'\]/);
+  });
+
+  it('NOT-LIVE AND NOT-LOADED ARE DIFFERENT SENTENCES', () => {
+    expect(screens).toContain("t('k.enreg.pas_charge')");
+    expect(screens).toContain("t('k.enreg.brouillon')");
+    expect(screens).toMatch(/shopIsLive === true \? t\('k\.enreg\.pas_charge'\) : t\('k\.enreg\.brouillon'\)/);
+  });
+
+  it('K2 NEVER CLAIMS « visible immédiatement » FOR A DRAFT', () => {
+    expect(screens).toMatch(/savesPersist === false \? t\('k\.enreg\.brouillon_toast'\)/);
+  });
+
+  it('K5 ▲▼ PERSISTS — curatedItems rides the patch (the surviving silent no-op)', () => {
+    const setSf = /const setSf = \(next: Storefront\): void => \{[\s\S]*?\n  \};/.exec(screens)?.[0] ?? '';
+    expect(setSf).toContain('curatedItems: next.curatedItems');
+  });
+
+  it('A SECTION RENAME SAVES ON LEAVING THE FIELD, not on every keystroke', () => {
+    // one POST + one read-back per character on a patchy connection is a loi-7
+    // failure, and an emptied field toasted a refusal on each one.
+    expect(screens).toMatch(/onRename=\{\(name\) => setSfRaw\(renameSection/);
+    expect(screens).toMatch(/onRenameCommit=\{\(name\) => setSf\(renameSection/);
+    expect(screens).toMatch(/onCommit\?\.\(value\)/);
   });
 });

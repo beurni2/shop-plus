@@ -390,13 +390,17 @@ export default function App() {
     if (service === null || identity === null || identity === undefined) return;
     let live = true;
     void service.getById(identity.storefrontId).then((res) => {
-      if (!live || !res.ok) return;
+      if (!live || !res.ok) return; // a fault leaves it UNASKED, never a fabricated shop
       setLiveStorefront(res.value ?? null);
     });
     return () => {
       live = false;
     };
-  }, [service, identity]);
+    // RE-READ ON ENTERING PERSONNALISER (verifier finding): a read that failed at
+    // launch used to leave this `undefined` forever, and with the save gated on it
+    // her edits would never persist for the rest of the session with no way back.
+    // Opening the screen is the natural, deliberate retry.
+  }, [service, identity, screen === 'personnaliser']);
 
   /**
    * PERSONNALISER-REAL-1 — THE SAVE. Optimistic on her screen, then persisted;
@@ -413,7 +417,20 @@ export default function App() {
   const saveIdentity = useCallback(
     async (patch: StorefrontIdentityPatch): Promise<void> => {
       if (service === null || identity === null || identity === undefined) return;
-      if (liveShop === null || liveShop === undefined) return; // not live: local only, stated on K1
+      // ═══ NEVER SAVE FROM AN UNADOPTED DRAFT (verifier finding, blocking) ═══
+      //
+      // The gate used to be `liveShop` — a DIFFERENT read (the admin list) from
+      // the one that fills these screens (`getById`). One can succeed while the
+      // other fails or is merely slow, and in that window the stack still holds
+      // `DEFAULT_STOREFRONT`: one tap on a theme would have PERSISTED the demo
+      // seed — « Chez Aïcha Mode », empty tagline, empty sections — over her real
+      // shop, buyer-visible, with no undo, driving a RETIRED NAME (law 10) into
+      // live data. Strictly worse than the defect this slice fixes.
+      //
+      // So the gate is now the SAME read the screens edit: a save is possible
+      // only once her real storefront has been loaded AND adopted. `undefined`
+      // (not asked / read failed) and `null` (no shop yet) both refuse.
+      if (liveStorefront === null || liveStorefront === undefined) return;
       const res = await service.saveIdentity(identity.storefrontId, patch, new Date().toISOString());
       if (res.ok) {
         // READ BACK, never assumed: the service owns `updatedAt` and the canon
@@ -429,10 +446,12 @@ export default function App() {
             ? t('k.une.refus_cap')
             : res.reason === 'sections_over_cap'
               ? t('k.sections.refus_cap')
-              : t('k.enreg.echec'),
+              : res.reason === 'section_name_empty' || res.reason === 'section_name_too_long'
+                ? t('k.enreg.section_nom')
+                : t('k.enreg.echec'),
       );
     },
-    [service, identity, liveShop],
+    [service, identity, liveStorefront],
   );
   useEffect(() => {
     let live = true;
@@ -1440,7 +1459,10 @@ export default function App() {
             // screens on their local draft, which the K1 note states plainly.
             storefront={liveStorefront ?? undefined}
             onSaveIdentity={saveIdentity}
-            savesPersist={liveShop !== null && liveShop !== undefined}
+            savesPersist={liveStorefront !== null && liveStorefront !== undefined}
+            // Her shop EXISTS (the admin list saw it) but its settings have not
+            // loaded yet — a different sentence from « you are not online yet ».
+            shopIsLive={liveShop !== null && liveShop !== undefined}
             // RESELLER-UX-1 item 6 — her shop's REAL slug, read back from the
             // service; null/undefined ⇒ not live (or not yet known), so the
             // publish CTA shows and « voir » keeps the listing fallback.

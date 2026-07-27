@@ -222,6 +222,21 @@ export interface IdentityPatch {
   readonly theme?: string;
   readonly featuredItems?: readonly string[];
   readonly sections?: readonly { readonly id: string; readonly name: string; readonly pids: readonly string[] }[];
+  /**
+   * HER ARRANGEMENT — REORDER ONLY, never membership (verifier finding).
+   *
+   * K5's ▲▼ writes `curatedItems`, and leaving it out of the patch made that one
+   * control a SILENT no-op: she reordered, saw it applied, and lost it on leaving
+   * — the exact defect this slice exists to kill, surviving on one path.
+   *
+   * But `curatedItems` is the canon MEMBERSHIP statement: publishing a listing
+   * appends to it, auto-hide never touches it. So this route accepts a
+   * PERMUTATION of the current items and nothing else — same members, new order.
+   * A patch that would add or drop a pid is REFUSED, because membership is earned
+   * by publishing and lost by a deliberate act on its own screen, never by a
+   * reorder that happens to arrive short.
+   */
+  readonly curatedItems?: readonly string[];
 }
 
 export type SaveIdentityDecision =
@@ -238,6 +253,7 @@ const NAME_MIN = 3;
 const NAME_MAX = 24;
 const TAGLINE_MAX = 40;
 const BIO_MAX = 160;
+const SECTION_NAME_MAX = 20;
 const FEATURED_CAP = 2;
 const SECTIONS_CAP = 4;
 const THEMES: ReadonlySet<string> = new Set(['laterite', 'danfani', 'indigo', 'foret']);
@@ -258,19 +274,39 @@ export function decideSaveIdentity(
   if (!current) return { decision: { status: 'absent' } };
   const sf = current.storefront;
 
-  // Bounds first, each refusal NAMED: « votre nom est trop court » and « vous
+  // TRIM FIRST (verifier finding). Canon's string type is a REGEX that refuses
+  // surrounding whitespace, not a trimming transform — so « Chez Bernard » with a
+  // trailing space (one keystroke away on any phone keyboard) cleared every bound
+  // and then died at the canon parse, surfacing as « réessayez dans un moment »,
+  // advice that could never work. Trimming is what she meant, and it is what
+  // canon requires; the trimmed value is what gets stored.
+  const name = patch.name?.trim();
+  const tagline = patch.tagline?.trim();
+  const bio = patch.bio?.trim();
+  const sections = patch.sections?.map((s) => ({ ...s, name: s.name.trim(), pids: [...s.pids] }));
+
+  // Bounds next, each refusal NAMED: « votre nom est trop court » and « vous
   // avez déjà 2 articles à la une » need different words on her screen.
-  if (patch.name !== undefined && patch.name.trim().length < NAME_MIN) {
+  if (name !== undefined && name.length < NAME_MIN) {
     return { decision: { status: 'refused', reason: 'name_too_short' } };
   }
-  if (patch.name !== undefined && patch.name.length > NAME_MAX) {
+  if (name !== undefined && name.length > NAME_MAX) {
     return { decision: { status: 'refused', reason: 'name_too_long' } };
   }
-  if (patch.tagline !== undefined && patch.tagline.length > TAGLINE_MAX) {
+  if (tagline !== undefined && tagline.length > TAGLINE_MAX) {
     return { decision: { status: 'refused', reason: 'tagline_too_long' } };
   }
-  if (patch.bio !== undefined && patch.bio.length > BIO_MAX) {
+  if (bio !== undefined && bio.length > BIO_MAX) {
     return { decision: { status: 'refused', reason: 'bio_too_long' } };
+  }
+  // A SECTION NAME IS HERS TOO — bounded and named here rather than collapsing
+  // into the anonymous `not_canon_shape` the canon parse would give it. An empty
+  // one is refused as its own reason: mid-retype she should not be told to retry.
+  if (sections !== undefined && sections.some((s) => s.name.length === 0)) {
+    return { decision: { status: 'refused', reason: 'section_name_empty' } };
+  }
+  if (sections !== undefined && sections.some((s) => s.name.length > SECTION_NAME_MAX)) {
+    return { decision: { status: 'refused', reason: 'section_name_too_long' } };
   }
   if (patch.theme !== undefined && !THEMES.has(patch.theme)) {
     return { decision: { status: 'refused', reason: 'unknown_theme' } };
@@ -278,18 +314,29 @@ export function decideSaveIdentity(
   if (patch.featuredItems !== undefined && patch.featuredItems.length > FEATURED_CAP) {
     return { decision: { status: 'refused', reason: 'featured_over_cap' } };
   }
-  if (patch.sections !== undefined && patch.sections.length > SECTIONS_CAP) {
+  if (sections !== undefined && sections.length > SECTIONS_CAP) {
     return { decision: { status: 'refused', reason: 'sections_over_cap' } };
+  }
+  // REORDER, NEVER MEMBERSHIP: the patch's curatedItems must be a permutation of
+  // what she already has. Adding a pid here would list a product no publish ever
+  // signed; dropping one would retire a product through a reorder. Both are acts
+  // that belong to their own screens, with their own words.
+  if (patch.curatedItems !== undefined) {
+    const asked = [...patch.curatedItems].sort();
+    const held = [...sf.curatedItems].sort();
+    const isPermutation = asked.length === held.length && asked.every((pid, i) => pid === held[i]);
+    if (!isPermutation) return { decision: { status: 'refused', reason: 'curation_not_a_reorder' } };
   }
 
   const merged = {
     ...sf,
-    ...(patch.name !== undefined ? { name: patch.name } : {}),
-    ...(patch.tagline !== undefined ? { tagline: patch.tagline } : {}),
-    ...(patch.bio !== undefined ? { bio: patch.bio } : {}),
+    ...(name !== undefined ? { name } : {}),
+    ...(tagline !== undefined ? { tagline } : {}),
+    ...(bio !== undefined ? { bio } : {}),
     ...(patch.theme !== undefined ? { theme: patch.theme } : {}),
     ...(patch.featuredItems !== undefined ? { featuredItems: [...patch.featuredItems] } : {}),
-    ...(patch.sections !== undefined ? { sections: patch.sections.map((s) => ({ ...s, pids: [...s.pids] })) } : {}),
+    ...(sections !== undefined ? { sections } : {}),
+    ...(patch.curatedItems !== undefined ? { curatedItems: [...patch.curatedItems] } : {}),
   };
 
   // NOTHING REALLY CHANGED ⇒ no write, no updatedAt move. Compared field by
@@ -301,6 +348,7 @@ export function decideSaveIdentity(
     merged.bio === sf.bio &&
     merged.theme === sf.theme &&
     JSON.stringify(merged.featuredItems) === JSON.stringify(sf.featuredItems) &&
+    JSON.stringify(merged.curatedItems) === JSON.stringify(sf.curatedItems) &&
     JSON.stringify(merged.sections) === JSON.stringify(sf.sections);
   if (same) return { decision: { status: 'unchanged', storefront: sf } };
 

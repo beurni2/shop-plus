@@ -77,6 +77,7 @@ export class DemoStorefrontService implements StorefrontServicePort {
       ...(patch.theme !== undefined ? { theme: patch.theme as Storefront['theme'] } : {}),
       ...(patch.featuredItems !== undefined ? { featuredItems: [...patch.featuredItems] } : {}),
       ...(patch.sections !== undefined ? { sections: patch.sections.map((s) => ({ ...s, pids: [...s.pids] })) } : {}),
+      ...(patch.curatedItems !== undefined ? { curatedItems: [...patch.curatedItems] } : {}),
       updatedAt: at,
     });
     return { ok: true, value: { status: 'saved' } };

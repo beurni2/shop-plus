@@ -2612,5 +2612,23 @@
   "fr": "Vos changements seront gardés quand votre boutique sera en ligne.",
   "register": "neutral",
   "screenClass": "instruction"
+ },
+ {
+  "key": "k.enreg.pas_charge",
+  "fr": "Vos réglages ne sont pas encore arrivés. Revenez dans un moment.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "k.enreg.brouillon_toast",
+  "fr": "Gardé ici. En ligne quand vous publierez votre boutique.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.enreg.section_nom",
+  "fr": "Donnez un nom court à votre rayon.",
+  "register": "neutral",
+  "screenClass": "instruction"
  }
 ]
