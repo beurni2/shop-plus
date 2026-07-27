@@ -756,9 +756,13 @@ export default function App() {
                 <View style={styles.oppCardArt}>
                   {/* RESELLER-PHOTOS-1 — the REAL photograph when the wire carries
                       one (absolute URL, absolutized server-side with the same base
-                      as the buyer wire). No ref ⇒ the designed glyph tile. */}
+                      as the buyer wire). No ref ⇒ the designed glyph tile.
+                      CONTAIN, not cover (founder walk 2026-07-26): she is judging
+                      the PRODUCT, so the frame must show ALL of it — cover filled
+                      the frame by cropping the merchandise. The soft field
+                      letterboxes the rest. */}
                   {item.assetRefs[0] ? (
-                    <Image source={{ uri: item.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
+                    <Image source={{ uri: item.assetRefs[0] }} style={styles.artPhoto} resizeMode="contain" />
                   ) : (
                     <>
                       <View style={styles.artTileStripe} />
@@ -837,7 +841,8 @@ export default function App() {
                     accessibilityRole="button"
                     accessibilityLabel={t('galerie.ouvrir')}
                   >
-                    <Image source={{ uri: opp.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
+                    {/* contain — the whole product, same law as the browse card */}
+                    <Image source={{ uri: opp.assetRefs[0] }} style={styles.artPhoto} resizeMode="contain" />
                   </Pressable>
                 ) : (
                   <View style={styles.ficheHero}>
@@ -995,7 +1000,8 @@ export default function App() {
                         accessibilityRole="button"
                         accessibilityLabel={t('galerie.ouvrir')}
                       >
-                        <Image source={{ uri: item.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
+                        {/* contain — the whole product, same law as the browse card */}
+                        <Image source={{ uri: item.assetRefs[0] }} style={styles.artPhoto} resizeMode="contain" />
                       </Pressable>
                     ) : (
                       <View style={styles.vitrineCardArt}>
