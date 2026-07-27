@@ -47,6 +47,9 @@ import {
 
 import { formatFcfa } from '../../earnings';
 import { K_SEED } from './storefront';
+// PERSONNALISER-REAL-1 — the WIRE shape, imported rather than re-declared: two
+// copies of a patch shape are two shapes that drift on the first field added.
+import type { StorefrontIdentityPatch } from '../service';
 import { K_RAW_STYLES } from './k-styles';
 /** ONE money source — the app's canonical formatter (U+202F+FCFA, re-pin site). */
 export const fmtFcfa = formatFcfa;
@@ -60,7 +63,7 @@ type KRoute = 'k1' | 'k2' | 'k3' | 'k4' | 'k5' | 'k6' | 'k6b' | 'k7';
 export interface CustomizeProps {
   onClose: () => void;
   onToast: (msg: string) => void;
-  storefront?: Storefront;
+  storefront?: Storefront | undefined;
   onStorefrontChange?: (sf: Storefront) => void;
   /** RESELLER-STOREFRONT-WRITE-1 — publish this storefront's identity to the LIVE
    * service (create + publish). Absent (default/tests) ⇒ the button is hidden. */
@@ -72,6 +75,12 @@ export interface CustomizeProps {
    * « voir » opens the public page; absent ⇒ first-time flow, unchanged. */
   liveSlug?: string | undefined;
   onOpenBoutique?: (slug: string) => void;
+  /** PERSONNALISER-REAL-1 — persist the presentation. Absent (tests/default) ⇒
+   *  the screens stay local-only, exactly as they were. */
+  onSaveIdentity?: (patch: StorefrontIdentityPatch) => void;
+  /** Does a save actually reach the service today? False before she goes live —
+   *  stated on K1 rather than left for her to discover when it vanishes. */
+  savesPersist?: boolean;
   /** RESELLER-SEAM-HONESTY-1 — `true` when the write seam resolved to `null` (the
    * `EXPO_PUBLIC_STOREFRONT_*` pair is not inlined in this build). The CTA STAYS
    * VISIBLE and an honest note sits under it: a button that vanishes hides the truth
@@ -164,18 +173,44 @@ function KHeader({ title, onBack, pill }: { title: string; onBack: () => void; p
 
 /* ------------------------------------------------------------- the stack -- */
 
-export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique }: CustomizeProps) {
+export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist }: CustomizeProps) {
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  // PERSONNALISER-REAL-1 — HER shop arrives asynchronously (the service read
+  // resolves after mount), so adopt it when it lands. Guarded on `updatedAt` so a
+  // re-render cannot stomp an edit she just made with the value we loaded first.
+  const adopted = useRef<string | null>(null);
+  useEffect(() => {
+    if (storefront === undefined || adopted.current === storefront.updatedAt) return;
+    adopted.current = storefront.updatedAt;
+    setSfRaw(storefront);
+  }, [storefront]);
   // NOTE: per-product voice notes moved OUT of « Aa »/K8 to the Ma Vitrine card
   // mic (founder Option A — recording lives with the product). See voice-sheet.tsx.
 
+  /**
+   * PERSONNALISER-REAL-1 — every edit both RENDERS and PERSISTS.
+   *
+   * The six presentation fields ride on every save rather than only the changed
+   * one: the service compares field by field and answers `unchanged` for a no-op,
+   * so sending all six costs nothing and makes it impossible to forget one at a
+   * call site. Cover cycles through here too and simply never matches a patch
+   * field — it is not part of the presentation patch (its own slice).
+   */
   const setSf = (next: Storefront): void => {
     setSfRaw(next);
     onStorefrontChange?.(next);
+    onSaveIdentity?.({
+      name: next.name,
+      tagline: next.tagline,
+      bio: next.bio,
+      theme: next.theme,
+      featuredItems: next.featuredItems,
+      sections: next.sections,
+    });
   };
   const th = THEMES[sf.theme];
 
@@ -222,6 +257,8 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           serviceUnconfigured={serviceUnconfigured ?? false}
           liveSlug={liveSlug}
           onOpenBoutique={onOpenBoutique}
+          saveWired={onSaveIdentity !== undefined}
+          savesPersist={savesPersist ?? false}
         />
       )}
       {route === 'k2' && (
@@ -315,7 +352,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
 
 /* ------------------------------------------------------------------- K1 -- */
 
-function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean; liveSlug?: string | undefined; onOpenBoutique?: ((slug: string) => void) | undefined }) {
+function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, saveWired, savesPersist }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean; liveSlug?: string | undefined; onOpenBoutique?: ((slug: string) => void) | undefined; saveWired?: boolean; savesPersist?: boolean }) {
   const initial = sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase();
   const coverSub =
     sf.cover.status === 'live' ? t('k.row.cover_live') : sf.cover.status === 'pending' ? t('k.row.cover_pending') : t('k.row.cover_defaut');
@@ -395,6 +432,13 @@ function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnc
           and she did nothing wrong. */}
       {onPublishOnline && liveSlug === undefined && serviceUnconfigured && (
         <Text style={S.unconfiguredNote}>{t('k.publier.non_relie_note')}</Text>
+      )}
+      {/* PERSONNALISER-REAL-1 — BEFORE she is live, her shop does not exist on the
+          service, so an edit here is a DRAFT: it rides up with « mettre en ligne ».
+          Stated before she types, not discovered when it vanishes. Same quiet
+          secondary type as the note above — nothing is broken. */}
+      {saveWired === true && savesPersist === false && !serviceUnconfigured && (
+        <Text style={S.unconfiguredNote}>{t('k.enreg.brouillon')}</Text>
       )}
       {/* « Voir ma boutique en ligne » — with a LIVE slug it OPENS HER PUBLIC PAGE
           (the founder tapped this and saw nothing: it only ever listed names in a

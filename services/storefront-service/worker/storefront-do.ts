@@ -2,10 +2,12 @@ import {
   decideAddItem,
   decideCreate,
   decideDelete,
+  decideSaveIdentity,
   decideToggle,
   type CreateDecision,
   type CreateStorefrontCommand,
   type DeleteDecision,
+  type IdentityPatch,
   type StorefrontEntry,
 } from '../src/storefront-core.js';
 
@@ -95,6 +97,25 @@ export class StorefrontDO {
       const { decision, next } = decideAddItem(current, args.pid, args.at ?? new Date().toISOString());
       if (next) await this.state.storage.put(ENTRY_KEY, next);
       return Response.json(decision);
+    }
+    // PERSONNALISER-REAL-1 — save the presentation she owns. Absent → 404 (never
+    // a phantom save); a bounds/canon refusal → 422 with its NAMED reason, so her
+    // screen can say the true thing instead of « une erreur ».
+    if (request.method === 'POST' && pathname === '/entry/identity') {
+      let body: { patch?: IdentityPatch; at?: string };
+      try {
+        body = (await request.json()) as { patch?: IdentityPatch; at?: string };
+      } catch {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      if (body.patch === undefined || typeof body.patch !== 'object') {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      const current = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
+      const { decision, next } = decideSaveIdentity(current, body.patch, body.at ?? new Date().toISOString());
+      if (next) await this.state.storage.put(ENTRY_KEY, next);
+      const status = decision.status === 'absent' ? 404 : decision.status === 'refused' ? 422 : 200;
+      return Response.json(decision, { status });
     }
     if (request.method === 'GET' && pathname === '/entry') {
       const entry = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
@@ -251,6 +272,19 @@ export default {
       const args = (await request.clone().json().catch(() => ({}))) as Partial<ToggleArgs>;
       const res = await sfStub(env, id).fetch(
         new Request(`https://do/entry/${m[2]}`, { method: 'POST', body: JSON.stringify({ ...args, id }) }),
+      );
+      return forward(res);
+    }
+
+    // PERSONNALISER-REAL-1 — POST /storefronts/:id/identity. A write, so the
+    // composition root's key gate refuses it uncredentialled before this router
+    // is reached (no new gate code, same as DELETE).
+    m = /^\/storefronts\/([^/]+)\/identity$/.exec(pathname);
+    if (m && request.method === 'POST') {
+      const id = decodeURIComponent(m[1]!);
+      const body = await request.clone().text();
+      const res = await sfStub(env, id).fetch(
+        new Request('https://do/entry/identity', { method: 'POST', body }),
       );
       return forward(res);
     }

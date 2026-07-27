@@ -138,3 +138,88 @@ describe('STOREFRONT-DELETE-1 — decideDelete, the pure erasure decision', () =
     expect(erase).toBe(false);
   });
 });
+
+describe('PERSONNALISER-REAL-1 — decideSaveIdentity, the presentation she owns', () => {
+  const entry = async () => {
+    const { decideCreate } = await import('../src/storefront-core.js');
+    return decideCreate(undefined, SELLER_001).next!;
+  };
+  const T3 = '2026-07-27T12:00:00.000Z';
+
+  it('SAVES the presentation and moves updatedAt — the buyer read path sees it', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const { decision, next } = decideSaveIdentity(await entry(), { name: 'Chez Bernard', tagline: 'Le bon tissu', bio: 'Ouaga' }, T3);
+    expect(decision.status).toBe('saved');
+    if (decision.status !== 'saved') throw new Error('unreachable');
+    expect(decision.storefront.name).toBe('Chez Bernard');
+    expect(decision.storefront.tagline).toBe('Le bon tissu');
+    expect(decision.storefront.bio).toBe('Ouaga');
+    expect(decision.storefront.updatedAt).toBe(T3);
+    expect(next?.storefront.name).toBe('Chez Bernard'); // and it is what gets PERSISTED
+    // the LOCKED fields are untouched — slug is never regenerated on a rename
+    expect(decision.storefront.slug).toBe('seller-0001');
+    expect(decision.storefront.id).toBe('sf-seller-0001');
+  });
+
+  it('ABSENT FIELDS ARE UNTOUCHED, never cleared — one screen saves one thing', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const withBio = decideSaveIdentity(await entry(), { tagline: 'Le bon tissu', bio: 'Ouaga' }, T3).next!;
+    // K4 saves ONLY the theme; her tagline and bio must survive it
+    const { decision } = decideSaveIdentity(withBio, { theme: 'indigo' }, T3);
+    if (decision.status !== 'saved') throw new Error('expected saved');
+    expect(decision.storefront.theme).toBe('indigo');
+    expect(decision.storefront.tagline).toBe('Le bon tissu');
+    expect(decision.storefront.bio).toBe('Ouaga');
+  });
+
+  it('A NO-OP SAVE IS `unchanged` AND DOES NOT MOVE updatedAt (the directory ordering truth)', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const e = await entry();
+    const { decision, next } = decideSaveIdentity(e, { name: e.storefront.name, theme: e.storefront.theme }, T3);
+    expect(decision.status).toBe('unchanged');
+    expect(next).toBeUndefined(); // nothing to write
+    expect(e.storefront.updatedAt).not.toBe(T3);
+  });
+
+  it('EVERY BOUND IS ENFORCED AT THE SERVICE, each refusal NAMED', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const e = await entry();
+    const reason = (patch: Parameters<typeof decideSaveIdentity>[1]) => {
+      const d = decideSaveIdentity(e, patch, T3).decision;
+      return d.status === 'refused' ? d.reason : d.status;
+    };
+    // the app enforces these at the edit boundary; the SERVICE is the authority,
+    // because an app is one client of many and its limits stop at its own bundle
+    expect(reason({ name: 'ab' })).toBe('name_too_short');
+    expect(reason({ name: 'x'.repeat(25) })).toBe('name_too_long');
+    expect(reason({ tagline: 'x'.repeat(41) })).toBe('tagline_too_long');
+    expect(reason({ bio: 'x'.repeat(161) })).toBe('bio_too_long');
+    expect(reason({ theme: 'neon' })).toBe('unknown_theme');
+    expect(reason({ featuredItems: ['a', 'b', 'c'] })).toBe('featured_over_cap');
+    expect(reason({ sections: [1, 2, 3, 4, 5].map((n) => ({ id: `s${n}`, name: `S${n}`, pids: [] })) })).toBe('sections_over_cap');
+    // …and the boundary values PASS, so the bound is a ceiling and not a wall
+    expect(reason({ name: 'abc' })).toBe('saved');
+    expect(reason({ featuredItems: ['a', 'b'] })).toBe('saved');
+  });
+
+  it('AN ABSENT STOREFRONT IS SURFACED — never a phantom save', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const { decision, next } = decideSaveIdentity(undefined, { name: 'Chez Bernard' }, T3);
+    expect(decision).toEqual({ status: 'absent' });
+    expect(next).toBeUndefined();
+  });
+
+  it('MONEY IS UNREPRESENTABLE IN THE PATCH — presentation only (loi 5)', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const e = await entry();
+    // a caller that smuggles money-shaped keys changes NOTHING: the merge reads
+    // only the six presentation fields, so the extra keys cannot reach the store.
+    const smuggled = { name: 'Chez Bernard', customerPriceFcfa: 999, markup: 500, resellerCommission: 42 } as never;
+    const { decision } = decideSaveIdentity(e, smuggled, T3);
+    if (decision.status !== 'saved') throw new Error('expected saved');
+    const serialised = JSON.stringify(decision.storefront);
+    expect(serialised).not.toContain('customerPriceFcfa');
+    expect(serialised).not.toContain('markup');
+    expect(serialised).not.toContain('999');
+  });
+});

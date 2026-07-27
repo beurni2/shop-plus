@@ -21,7 +21,8 @@ import { MarginSlider } from './src/ui/margin-slider';
 import { PhotoGallery } from './src/ui/photo-gallery';
 import { HeroLedger, DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
-import { resolveStorefrontService, deriveShortCode } from './src/vitrine/service';
+import { resolveStorefrontService, deriveShortCode, type StorefrontIdentityPatch } from './src/vitrine/service';
+import type { Storefront } from './src/vitrine/customize/storefront';
 import { loadOrMintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
 import type { ResellerIdentity } from './src/identity/mint';
@@ -373,6 +374,66 @@ export default function App() {
       live = false;
     };
   }, [service, identity]);
+
+  /**
+   * PERSONNALISER-REAL-1 — HER STOREFRONT AS THE SERVICE HOLDS IT.
+   *
+   * Personnalisation used to open on `DEFAULT_STOREFRONT` — a hardcoded demo shop
+   * (« Chez Aïcha Mode », slug `aicha-4821`) — so the values she read on arrival
+   * were never hers, and every edit lived in React state until she left the screen.
+   * This is the read half: `undefined` = not asked yet, `null` = asked and no shop
+   * exists (she has not gone live), a value = the real one. Nothing is fabricated
+   * on a failed read — a fault leaves it `undefined` rather than inventing a shop.
+   */
+  const [liveStorefront, setLiveStorefront] = useState<Storefront | null | undefined>(undefined);
+  useEffect(() => {
+    if (service === null || identity === null || identity === undefined) return;
+    let live = true;
+    void service.getById(identity.storefrontId).then((res) => {
+      if (!live || !res.ok) return;
+      setLiveStorefront(res.value ?? null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [service, identity]);
+
+  /**
+   * PERSONNALISER-REAL-1 — THE SAVE. Optimistic on her screen, then persisted;
+   * a refusal is SAID rather than swallowed, because a change she watched happen
+   * and that did not survive is the fabricated-success shape this project refuses
+   * everywhere else. The service's NAMED reasons map to the strings that already
+   * exist for the same rules on the client side; anything else gets the honest
+   * « pas enregistré » rather than a fake success.
+   *
+   * NOT LIVE YET ⇒ NO SAVE, and the screen says so: her shop does not exist on
+   * the service until « mettre ma boutique en ligne », and the create carries her
+   * name up at that moment. Silently dropping the write would be the same lie.
+   */
+  const saveIdentity = useCallback(
+    async (patch: StorefrontIdentityPatch): Promise<void> => {
+      if (service === null || identity === null || identity === undefined) return;
+      if (liveShop === null || liveShop === undefined) return; // not live: local only, stated on K1
+      const res = await service.saveIdentity(identity.storefrontId, patch, new Date().toISOString());
+      if (res.ok) {
+        // READ BACK, never assumed: the service owns `updatedAt` and the canon
+        // shape, so the next screen reads what was actually stored.
+        const fresh = await service.getById(identity.storefrontId);
+        if (fresh.ok && fresh.value !== undefined) setLiveStorefront(fresh.value);
+        return;
+      }
+      setToast(
+        res.reason === 'name_too_short' || res.reason === 'name_too_long'
+          ? t('k.identite.nom_requis')
+          : res.reason === 'featured_over_cap'
+            ? t('k.une.refus_cap')
+            : res.reason === 'sections_over_cap'
+              ? t('k.sections.refus_cap')
+              : t('k.enreg.echec'),
+      );
+    },
+    [service, identity, liveShop],
+  );
   useEffect(() => {
     let live = true;
     void loadOrMintIdentity(expoIdentityStore(), expoRandomBytes).then((outcome) => {
@@ -1374,6 +1435,12 @@ export default function App() {
             onPublishOnline={publishOnline}
             onListStorefronts={listOnline}
             serviceUnconfigured={service === null}
+            // PERSONNALISER-REAL-1 — HER shop, read back from the service, and the
+            // save that persists every edit. A null read (not live yet) leaves the
+            // screens on their local draft, which the K1 note states plainly.
+            storefront={liveStorefront ?? undefined}
+            onSaveIdentity={saveIdentity}
+            savesPersist={liveShop !== null && liveShop !== undefined}
             // RESELLER-UX-1 item 6 — her shop's REAL slug, read back from the
             // service; null/undefined ⇒ not live (or not yet known), so the
             // publish CTA shows and « voir » keeps the listing fallback.

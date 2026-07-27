@@ -24,6 +24,11 @@
  * server-side). The header name mirrors services/storefront-service/worker/auth.ts.
  */
 
+// PERSONNALISER-REAL-1 — the storefront shape is the one the customize screens
+// already mirror from canon (§3.1). TYPE-ONLY, so nothing new enters the RN
+// bundle: one shape for the seam and the screens, never two that drift.
+import type { Storefront } from './customize/storefront';
+
 /** Must equal WRITE_KEY_HEADER in services/storefront-service/worker/auth.ts. */
 export const WRITE_KEY_HEADER = 'X-Write-Key';
 
@@ -103,8 +108,31 @@ export function listingIdFor(storefrontId: string, productVersionId: string): st
  * failure or a non-2xx is `{ ok: false }` with a reason, NEVER a thrown error up
  * the UI (a queued/failed write is pending, never « en ligne »).
  */
+/**
+ * PERSONNALISER-REAL-1 — the presentation patch, the WIRE shape.
+ *
+ * Every field optional, absent = untouched: the K screens save one thing at a
+ * time, and a patch that blanked what it did not mention would lose her work on
+ * every save. No money field exists in this shape — presentation only (loi 5),
+ * unrepresentable rather than merely unsent.
+ */
+export interface StorefrontIdentityPatch {
+  readonly name?: string;
+  readonly tagline?: string;
+  readonly bio?: string;
+  readonly theme?: string;
+  readonly featuredItems?: readonly string[];
+  readonly sections?: readonly { readonly id: string; readonly name: string; readonly pids: readonly string[] }[];
+}
+
 export interface StorefrontServicePort {
   create(cmd: CreateStorefrontCommand): Promise<ServiceResult<{ status: string; slug: string | null }>>;
+  /** PERSONNALISER-REAL-1 — HER shop as the service holds it. `undefined` value =
+   *  the honest not-found (no shop under that id yet), never a fabricated seed. */
+  getById(id: string): Promise<ServiceResult<Storefront | undefined>>;
+  /** PERSONNALISER-REAL-1 — persist the presentation. The named refusal reasons
+   *  (`name_too_short`, `featured_over_cap`, …) survive to her screen. */
+  saveIdentity(id: string, patch: StorefrontIdentityPatch, at: string): Promise<ServiceResult<{ status: string }>>;
   publish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string }>>;
   unpublish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string }>>;
   uploadCover(storefrontId: string, bytes: Uint8Array, contentType: string): Promise<ServiceResult<UploadOutcome>>;
@@ -165,6 +193,47 @@ export class HttpStorefrontService implements StorefrontServicePort {
 
   create(cmd: CreateStorefrontCommand): Promise<ServiceResult<{ status: string; slug: string | null }>> {
     return this.postJson('/storefronts', cmd);
+  }
+
+  /** PERSONNALISER-REAL-1 — a keyed READ (the storefront surface is key-gated:
+   *  it carries her curation, and an open read would enumerate shops). A 404 is
+   *  `{ok:true, value:undefined}` — an honest absence, not a failure to retry. */
+  async getById(id: string): Promise<ServiceResult<Storefront | undefined>> {
+    let res: Response;
+    try {
+      res = await fetch(`${this.base}/storefronts/${encodeURIComponent(id)}`, { headers: this.headers() });
+    } catch {
+      return { ok: false, reason: 'offline' };
+    }
+    if (res.status === 404) return { ok: true, value: undefined };
+    if (!res.ok) return { ok: false, reason: `http_${res.status}` };
+    const data = (await res.json().catch(() => null)) as Storefront | null;
+    // A body that will not parse is a FAULT, never an empty shop: rendering
+    // « pas encore de boutique » over a broken read is the disappearance family.
+    if (data === null || typeof data.slug !== 'string') return { ok: false, reason: 'unreadable' };
+    return { ok: true, value: data };
+  }
+
+  /**
+   * PERSONNALISER-REAL-1 — save the presentation. The service's NAMED refusals
+   * (422 `{status:'refused', reason}`) survive as that reason, because « votre nom
+   * est trop court » and « c'est un défaut » are different things to tell her.
+   */
+  async saveIdentity(id: string, patch: StorefrontIdentityPatch, at: string): Promise<ServiceResult<{ status: string }>> {
+    let res: Response;
+    try {
+      res = await fetch(`${this.base}/storefronts/${encodeURIComponent(id)}/identity`, {
+        method: 'POST',
+        headers: this.headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ patch, at }),
+      });
+    } catch {
+      return { ok: false, reason: 'offline' };
+    }
+    const data = (await res.json().catch(() => null)) as { status?: string; reason?: string } | null;
+    if (res.status === 422 && data?.reason) return { ok: false, reason: data.reason };
+    if (!res.ok) return { ok: false, reason: `http_${res.status}` };
+    return { ok: true, value: { status: data?.status ?? 'saved' } };
   }
 
   publish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string }>> {

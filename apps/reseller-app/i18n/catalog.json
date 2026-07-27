@@ -2600,5 +2600,17 @@
   "fr": "Épuisé pour le moment",
   "register": "neutral",
   "screenClass": "status"
+ },
+ {
+  "key": "k.enreg.echec",
+  "fr": "Pas enregistré. Réessayez dans un moment.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "k.enreg.brouillon",
+  "fr": "Vos changements seront gardés quand votre boutique sera en ligne.",
+  "register": "neutral",
+  "screenClass": "instruction"
  }
 ]

@@ -425,6 +425,44 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(list.some((r) => r.id === 'sf-del-e2e')).toBe(false); // the admin list forgot it
   });
 
+  it('PERSONNALISER-REAL-1 — POST /storefronts/:id/identity rides the write gate: 401 without the key', async () => {
+    // A POST, so `rejectUnauthorizedWrite` refuses it before any dispatch — the
+    // new route needed NO new gate code, and this pins that it actually rides it.
+    const noKey = await mf.dispatchFetch('http://c/storefronts/sf-auth-0001/identity', {
+      method: 'POST',
+      body: JSON.stringify({ patch: { name: 'Chez Bernard' } }),
+    });
+    expect(noKey.status).toBe(401);
+    expect((await noKey.json()) as unknown).toEqual({ error: 'unauthorized' });
+
+    // with the key it is a real act, and the buyer read reflects it
+    const created = await mf.dispatchFetch('http://c/storefronts', {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({
+        commandId: 'cmd-ident-e2e',
+        id: 'sf-ident-e2e',
+        resellerId: 'rs-ident-e2e',
+        shortCode: 'SELLER-0041',
+        name: 'Boutique à renommer',
+        zone: 'Ouagadougou',
+        category: 'Général',
+        correlationId: 'corr-ident',
+        at: T0,
+      }),
+    });
+    expect(((await created.json()) as { status: string }).status).toBe('created');
+    const saved = await mf.dispatchFetch('http://c/storefronts/sf-ident-e2e/identity', {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({ patch: { name: 'Chez Bernard', theme: 'foret' }, at: T0 }),
+    });
+    expect(saved.status).toBe(200);
+    const view = (await (await mf.dispatchFetch('http://c/s/seller-0041', { method: 'GET' })).json()) as StorefrontView;
+    expect(view.name).toBe('Chez Bernard'); // the cliente sees her real name
+    expect(view.theme).toBe('foret');
+  });
+
   it('POST /media/upload is gated: 401 without the key, 201 with it', async () => {
     const noKey = await mf.dispatchFetch('http://c/media/upload?kind=avatar&storefrontId=sf-auth-0001', {
       method: 'POST',

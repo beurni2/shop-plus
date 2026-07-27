@@ -201,6 +201,120 @@ export function decideAddItem(
   return { decision: { status: 'added', storefront }, next: { ...current, storefront } };
 }
 
+/* ------------------------------------------ PERSONNALISER-REAL-1 -------- */
+
+/**
+ * THE PRESENTATION SHE OWNS. Every field here is loi-5 PRESENTATION: a name, a
+ * tagline, a bio, a habillage, what she pins, how she groups. Nothing in this
+ * patch can reach a price, a net, an attribution or the signed link — the money
+ * fields are not in the shape, so they are unrepresentable rather than merely
+ * unsent (the `PublishListingRequest` precedent).
+ *
+ * Every field is OPTIONAL and absent means UNTOUCHED, never cleared: the K
+ * screens save one thing at a time (K2 identity, K4 habillage, K5 à la une, K6
+ * sections), and a patch that silently blanked what it did not mention would
+ * lose her work on every save.
+ */
+export interface IdentityPatch {
+  readonly name?: string;
+  readonly tagline?: string;
+  readonly bio?: string;
+  readonly theme?: string;
+  readonly featuredItems?: readonly string[];
+  readonly sections?: readonly { readonly id: string; readonly name: string; readonly pids: readonly string[] }[];
+}
+
+export type SaveIdentityDecision =
+  | { readonly status: 'saved'; readonly storefront: Storefront }
+  | { readonly status: 'unchanged'; readonly storefront: Storefront }
+  | { readonly status: 'absent' }
+  | { readonly status: 'refused'; readonly reason: string };
+
+/** §3.1 bounds — enforced HERE, at the authority, not only at the edit boundary.
+ *  A service that stores must bound: an app is one client of many, and the app's
+ *  own limits stop existing the moment a second caller shows up (MONEY-SHAPE-1's
+ *  lesson, applied to presentation). */
+const NAME_MIN = 3;
+const NAME_MAX = 24;
+const TAGLINE_MAX = 40;
+const BIO_MAX = 160;
+const FEATURED_CAP = 2;
+const SECTIONS_CAP = 4;
+const THEMES: ReadonlySet<string> = new Set(['laterite', 'danfani', 'indigo', 'foret']);
+
+/**
+ * SAVE HER PRESENTATION. Absent → surfaced (never a phantom write). No real
+ * change → `unchanged`, and `updatedAt` does NOT move — the same discipline
+ * `decideToggle` holds, so the directory's ordering truth never drifts on a
+ * no-op save. A real change writes the canon Storefront through
+ * `StorefrontSchema`, so a patch that would produce a non-canon shape is
+ * REFUSED with its reason rather than persisted and discovered later.
+ */
+export function decideSaveIdentity(
+  current: StorefrontEntry | undefined,
+  patch: IdentityPatch,
+  at: string,
+): { decision: SaveIdentityDecision; next?: StorefrontEntry } {
+  if (!current) return { decision: { status: 'absent' } };
+  const sf = current.storefront;
+
+  // Bounds first, each refusal NAMED: « votre nom est trop court » and « vous
+  // avez déjà 2 articles à la une » need different words on her screen.
+  if (patch.name !== undefined && patch.name.trim().length < NAME_MIN) {
+    return { decision: { status: 'refused', reason: 'name_too_short' } };
+  }
+  if (patch.name !== undefined && patch.name.length > NAME_MAX) {
+    return { decision: { status: 'refused', reason: 'name_too_long' } };
+  }
+  if (patch.tagline !== undefined && patch.tagline.length > TAGLINE_MAX) {
+    return { decision: { status: 'refused', reason: 'tagline_too_long' } };
+  }
+  if (patch.bio !== undefined && patch.bio.length > BIO_MAX) {
+    return { decision: { status: 'refused', reason: 'bio_too_long' } };
+  }
+  if (patch.theme !== undefined && !THEMES.has(patch.theme)) {
+    return { decision: { status: 'refused', reason: 'unknown_theme' } };
+  }
+  if (patch.featuredItems !== undefined && patch.featuredItems.length > FEATURED_CAP) {
+    return { decision: { status: 'refused', reason: 'featured_over_cap' } };
+  }
+  if (patch.sections !== undefined && patch.sections.length > SECTIONS_CAP) {
+    return { decision: { status: 'refused', reason: 'sections_over_cap' } };
+  }
+
+  const merged = {
+    ...sf,
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...(patch.tagline !== undefined ? { tagline: patch.tagline } : {}),
+    ...(patch.bio !== undefined ? { bio: patch.bio } : {}),
+    ...(patch.theme !== undefined ? { theme: patch.theme } : {}),
+    ...(patch.featuredItems !== undefined ? { featuredItems: [...patch.featuredItems] } : {}),
+    ...(patch.sections !== undefined ? { sections: patch.sections.map((s) => ({ ...s, pids: [...s.pids] })) } : {}),
+  };
+
+  // NOTHING REALLY CHANGED ⇒ no write, no updatedAt move. Compared field by
+  // field (never a stringify of the whole object): a key-order accident must not
+  // read as a change, and a real change must not hide behind one.
+  const same =
+    merged.name === sf.name &&
+    merged.tagline === sf.tagline &&
+    merged.bio === sf.bio &&
+    merged.theme === sf.theme &&
+    JSON.stringify(merged.featuredItems) === JSON.stringify(sf.featuredItems) &&
+    JSON.stringify(merged.sections) === JSON.stringify(sf.sections);
+  if (same) return { decision: { status: 'unchanged', storefront: sf } };
+
+  let storefront: Storefront;
+  try {
+    storefront = StorefrontSchema.parse({ ...merged, updatedAt: at });
+  } catch {
+    // The canon schema is the last word on shape. A refusal she can retry beats
+    // a stored storefront the buyer read path would later choke on.
+    return { decision: { status: 'refused', reason: 'not_canon_shape' } };
+  }
+  return { decision: { status: 'saved', storefront }, next: { ...current, storefront } };
+}
+
 /* --------------------------------------------- STOREFRONT-DELETE-1 ------ */
 
 export type DeleteDecision =
