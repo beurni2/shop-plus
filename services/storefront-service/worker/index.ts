@@ -63,7 +63,22 @@ export default {
     //     per-product read is a separate, stripped projection (piece (a)), so gating
     //     the whole surface costs the buyer nothing. Reads AND writes now need the key.
     const isListings = pathname === '/listings' || pathname.startsWith('/listings/');
-    const isAdminList = request.method === 'GET' && pathname === '/storefronts';
+    //   · EVERY storefront READ (STOREFRONT-READ-GATE-1, founder order 2026-07-27).
+    //     `GET /storefronts` (the admin list) was gated; `GET /storefronts/{id}` was
+    //     NOT — it fell through to the DO router, so anyone who guessed an id could
+    //     read a shop's `curatedItems`, name, zone and discoverable flag without a
+    //     credential. No money is on that shape (no price, markup or commission, so
+    //     no loi 1/2 leak), but her CURATION is hers, and a private shop being
+    //     readable by id is the same fail-open family as the listings leak.
+    //     THE BUYER PAYS NOTHING FOR THIS: her public page is `GET /s/{slug}`, a
+    //     separate stripped projection that stays open — verified, not assumed
+    //     (the buyer PWA contains no `/storefronts` caller at all).
+    //     PREFIX HERE IS DELIBERATE, unlike the `===` idioms above: `/storefronts/`
+    //     has exactly one GET sub-route (`/{id}`), every other sub-path is a POST
+    //     already caught by the write gate, and the media route lives under
+    //     `/media/...`, a different prefix entirely.
+    const isStorefrontRead =
+      request.method === 'GET' && (pathname === '/storefronts' || pathname.startsWith('/storefronts/'));
     //   · /supply-projections (BROWSE-SUPPLY-1) — the reseller browse read. It
     //     returns `basePrice` and `resellerCommission` for EVERY offer, the same
     //     economics the listings gate protects, so open would be the identical
@@ -79,7 +94,7 @@ export default {
     //     boutik's side. `isListings` above is the same idiom and the reason this
     //     one is written with `===`.
     const isSupplyCollection = pathname === SUPPLY_COLLECTION_ROUTE;
-    if ((isListings || isAdminList || isSupplyCollection) && !(await keyAuthorized(request, env))) {
+    if ((isListings || isStorefrontRead || isSupplyCollection) && !(await keyAuthorized(request, env))) {
       return unauthorized();
     }
     // DO-management surfaces → the DO routers (idFromName addressing lives there).
