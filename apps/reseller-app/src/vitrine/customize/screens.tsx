@@ -203,7 +203,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
    * call site. Cover cycles through here too and simply never matches a patch
    * field — it is not part of the presentation patch (its own slice).
    */
-  const setSf = (next: Storefront): void => {
+  const setSf = (next: Storefront, opts?: { readonly withOrder?: boolean }): void => {
     setSfRaw(next);
     onStorefrontChange?.(next);
     onSaveIdentity?.({
@@ -213,10 +213,12 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
       theme: next.theme,
       featuredItems: next.featuredItems,
       sections: next.sections,
-      // K5 ▲▼ writes curatedItems — WITHOUT this the reorder was a silent no-op:
-      // she reordered, saw it applied, and lost it on leaving (the founder's exact
-      // defect, surviving on one path). The service accepts a PERMUTATION only.
-      curatedItems: next.curatedItems,
+      // K5 ▲▼ ONLY (verifier finding): carrying the order on EVERY save let a
+      // STALE membership refuse an unrelated edit — publish a product, re-enter,
+      // tap a theme before the re-read lands, and the theme was rejected for a
+      // curation mismatch it had nothing to do with. The order rides only the
+      // save that actually changes it. The service accepts a PERMUTATION only.
+      ...(opts?.withOrder === true ? { curatedItems: next.curatedItems } : {}),
     });
   };
   const th = THEMES[sf.theme];
@@ -280,7 +282,17 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
               // « Enregistré — visible immédiatement » is TRUE only when the save
               // reaches the service. Before she is live it is a draft, and saying
               // « visible » would be the fabricated success this project refuses.
-              onToast(savesPersist === false ? t('k.enreg.brouillon_toast') : t(r.toastKey ?? 'k.toast_enregistre'));
+              // THREE STATES, THREE SENTENCES (verifier finding): saved for real ·
+              // her shop exists but its settings have not arrived · not live yet.
+              // Keying only on `savesPersist` told an ALREADY-PUBLISHED seller to
+              // publish, because that flag now means « settings loaded ».
+              onToast(
+                savesPersist !== false
+                  ? t(r.toastKey ?? 'k.toast_enregistre')
+                  : shopIsLive === true
+                    ? t('k.enreg.pas_charge')
+                    : t('k.enreg.brouillon_toast'),
+              );
               setRoute('k1');
             }
           }}
@@ -318,7 +330,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
             if (r.ok) setSf(r.next);
             else onToast(t(r.toastKey));
           }}
-          onMove={(pid, dir) => setSf(moveItem(sf, pid, dir))}
+          onMove={(pid, dir) => setSf(moveItem(sf, pid, dir), { withOrder: true })}
         />
       )}
       {route === 'k6' && (

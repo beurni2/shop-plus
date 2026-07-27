@@ -261,7 +261,7 @@ describe('PERSONNALISER-REAL-1 — the wiring (source-pinned)', () => {
   });
 
   it('EVERY EDIT PERSISTS — setSf saves all six presentation fields, never a subset', () => {
-    const setSf = /const setSf = \(next: Storefront\): void => \{[\s\S]*?\n  \};/.exec(screens)?.[0] ?? '';
+    const setSf = /const setSf = \(next: Storefront, opts\?[\s\S]*?\n  \};/.exec(screens)?.[0] ?? '';
     expect(setSf).toContain('onSaveIdentity?.(');
     for (const field of ['name', 'tagline', 'bio', 'theme', 'featuredItems', 'sections']) {
       expect(setSf, `setSf must save ${field}`).toContain(`${field}: next.${field}`);
@@ -331,12 +331,21 @@ describe('PERSONNALISER-REAL-1 — the demo seed can never be saved over her sho
   });
 
   it('K2 NEVER CLAIMS « visible immédiatement » FOR A DRAFT', () => {
-    expect(screens).toMatch(/savesPersist === false \? t\('k\.enreg\.brouillon_toast'\)/);
+    expect(screens).toContain("t('k.enreg.brouillon_toast')");
+    expect(screens).not.toMatch(/savesPersist === false \? t\('k\.toast_enregistre'\)/);
   });
 
-  it('K5 ▲▼ PERSISTS — curatedItems rides the patch (the surviving silent no-op)', () => {
-    const setSf = /const setSf = \(next: Storefront\): void => \{[\s\S]*?\n  \};/.exec(screens)?.[0] ?? '';
-    expect(setSf).toContain('curatedItems: next.curatedItems');
+  it('K5 ▲▼ PERSISTS — the order rides ONLY the save that changes it', () => {
+    // it must reach the wire (the silent no-op)…
+    expect(screens).toMatch(/onMove=\{\(pid, dir\) => setSf\(moveItem\(sf, pid, dir\), \{ withOrder: true \}\)\}/);
+    expect(screens).toMatch(/opts\?\.withOrder === true \? \{ curatedItems: next\.curatedItems \}/);
+    // …but NOT on every save: a stale membership would refuse an unrelated edit
+    const setSf = /const setSf = \(next: Storefront, opts\?[\s\S]*?\n  \};/.exec(screens)?.[0] ?? '';
+    expect(setSf).not.toMatch(/^\s+curatedItems: next\.curatedItems,$/m);
+  });
+
+  it('K2 NEVER TELLS AN ALREADY-PUBLISHED SELLER TO PUBLISH — three states, three sentences', () => {
+    expect(screens).toMatch(/savesPersist !== false\s*\n\s*\? t\(r\.toastKey \?\? 'k\.toast_enregistre'\)\s*\n\s*: shopIsLive === true\s*\n\s*\? t\('k\.enreg\.pas_charge'\)\s*\n\s*: t\('k\.enreg\.brouillon_toast'\)/);
   });
 
   it('A SECTION RENAME SAVES ON LEAVING THE FIELD, not on every keystroke', () => {
