@@ -356,3 +356,52 @@ describe('PERSONNALISER-REAL-1 — the demo seed can never be saved over her sho
     expect(screens).toMatch(/onCommit\?\.\(value\)/);
   });
 });
+
+/**
+ * PERSONNALISER-PARITY-1 — K5/K6b/K7 run on HER REAL LISTINGS.
+ *
+ * They mapped curatedItems through K_SEED (the eight demo products), so her real
+ * pids resolved to NOTHING: K5 listed nothing to pin, and she could not feature
+ * a real product — which is why her live page had no « Produit à la une ».
+ */
+describe('PERSONNALISER-PARITY-1 — the catalog seam, executed', () => {
+  it('A REAL CATALOG RESOLVES REAL PIDS; the demo seed no longer swallows them — EXECUTED', async () => {
+    const { fromCatalog } = await import('../src/vitrine/customize/catalog');
+    const catalog = [
+      { pid: 'pv-real-1', name: 'Bazin riche', priceFcfa: 11_500, inStock: true, assetRefs: ['https://m/x.jpg'] },
+    ];
+    // a REAL pid resolves against HER catalog — the exact lookup that returned
+    // undefined for every real product when K_SEED was the only source
+    expect(fromCatalog(catalog, 'pv-real-1')?.name).toBe('Bazin riche');
+    expect(fromCatalog(catalog, 'pv-real-1')?.assetRefs[0]).toBe('https://m/x.jpg');
+    // a real catalog NEVER falls back to the seed: an unknown pid is honestly absent
+    expect(fromCatalog(catalog, 'p1')).toBeUndefined();
+    // no catalog (tests, demo) → the seed still serves, shaped like the seam
+    const seed = fromCatalog(undefined, 'p1');
+    expect(seed?.name).toBeTruthy();
+    expect(seed?.assetRefs).toEqual([]);
+  });
+
+  it('WIRING: K5, K6b and K7 consume the catalog, and K_SEED is only the fallback', () => {
+    const screens = readFileSync(new URL('../src/vitrine/customize/screens.tsx', import.meta.url), 'utf8');
+    // every arrangement surface resolves pids through the seam…
+    expect(screens.match(/fromCatalog\(catalog, pid\)/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
+    // …and no arrangement surface maps curatedItems/featuredItems through K_SEED any more
+    expect(screens).not.toMatch(/curatedItems\.map\(\(pid\) => K_SEED\.find/);
+    expect(screens).not.toMatch(/featuredItems\.map\(\(pid\) => K_SEED\.find/);
+    // the App passes her real join, priced by the SAME derivation Ma vitrine uses
+    const app = readFileSync(new URL('../App.tsx', import.meta.url), 'utf8');
+    expect(app).toContain('catalog={vitrineOffers.map((o) => ({');
+    expect(app).toContain('priceFcfa: viewOfOffer(o).client,');
+  });
+
+  it('« VOIR COMME CLIENTE » OPENS THE REAL PAGE WHEN THE SHOP IS LIVE', () => {
+    // The K7 replica and the real page were two different things claiming the
+    // same view (founder walk). For a live shop the cliente view IS the real
+    // page — identical by construction, it can never drift again.
+    const screens = readFileSync(new URL('../src/vitrine/customize/screens.tsx', import.meta.url), 'utf8');
+    expect(screens).toContain(
+      "onPress={() => (liveSlug !== undefined && onOpenBoutique !== undefined ? onOpenBoutique(liveSlug) : go('k7'))}",
+    );
+  });
+});

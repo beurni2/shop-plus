@@ -31,6 +31,14 @@ export const iconCheck = (size: number, color: string, width: number): string =>
 export const iconHeart = (size: number, color: string, width: number): string =>
   SVG(size, '<path d="M12 19.8S4.6 15 4.6 9.9a3.9 3.9 0 0 1 7-2.4l.4.5.4-.5a3.9 3.9 0 0 1 7 2.4C19.4 15 12 19.8 12 19.8z"></path>', stroke(color, width));
 
+/** Shopping bag — the « commander » affordance glyph (NORTH-STAR round 3). */
+export const iconBag = (size: number, color: string, width: number): string =>
+  SVG(size, '<path d="M6 9.5h12l-1 10H7l-1-10z"></path><path d="M9 9.5V8a3 3 0 0 1 6 0v1.5"></path>', stroke(color, width));
+
+/** Price tag — the trust-row prix glyph (NORTH-STAR round 3). */
+export const iconTag = (size: number, color: string, width: number): string =>
+  SVG(size, '<path d="M12.6 3.5H20v7.4l-8.2 8.2a2 2 0 0 1-2.8 0l-4.6-4.6a2 2 0 0 1 0-2.8z"></path><circle cx="15.8" cy="7.8" r="1.4"></circle>', stroke(color, width));
+
 /** Forward chevron (C-ENT1/C-ENT2 affordance). */
 export const iconChevron = (size: number, color: string, width: number): string =>
   SVG(size, '<path d="M9.5 6l6 6-6 6"></path>', stroke(color, width));

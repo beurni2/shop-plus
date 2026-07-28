@@ -491,13 +491,16 @@ describe('NORTH-STAR-1 — the mockup layout renders; the invented numbers do no
     expect(hearts).toHaveLength(1);
     const tiles = html.match(/data-role="vitrine-produit" data-action="produit" data-pid="pv-1"/g) ?? [];
     expect(tiles).toHaveLength(0); // pv-1 lives in the featured card only
-    // …and an ÉPUISÉ featured article still reaches the grid (it left the hero)
+    // …and an ÉPUISÉ pinned article leaves the hero: the AUTO-LEAD promotes the
+    // next in-stock product (badge-less — the badge is HER claim only), while the
+    // épuisé one still reaches the grid, voilé.
     const soldOut = [
       { pid: 'pv-1', name: 'Bazin riche', priceFcfa: 9_400, inStock: false, assetRefs: [] as string[] },
       { pid: 'pv-2', name: 'Sac duffel', priceFcfa: 5_000, inStock: true, assetRefs: [] as string[] },
     ];
     const html2 = renderVitrineReady(sfNS as never, zeroTrust, { fromProduct: false }, {}, soldOut);
-    expect(html2).not.toContain('vitrine-a-la-une');
+    expect(html2).toContain('data-role="vitrine-a-la-une" data-action="produit" data-pid="pv-2"');
+    expect(html2).not.toContain('vt-featured-badge'); // auto-lead never wears her badge
     expect(html2).toMatch(/data-role="vitrine-produit" aria-disabled="true"/);
   });
 
@@ -511,12 +514,24 @@ describe('NORTH-STAR-1 — the mockup layout renders; the invented numbers do no
     toggleFavorite('pv-2'); // leave the store clean for other tests
   });
 
-  it('RESIDUAL TITLE IS CONTEXT-HONEST: « AUTRES » under a featured, « TOUS » alone', () => {
-    expect(page()).toContain('AUTRES ARTICLES');
+  it('RESIDUAL TITLE IS CONTEXT-HONEST, and the auto-lead never wears her badge', () => {
+    // pinned featured → « Autres articles », badge présent (her true claim)
+    expect(page()).toContain('Autres articles');
+    expect(page()).toContain('vt-featured-badge');
+    // nothing pinned → the auto-lead takes the une position WITHOUT the badge,
+    // and the rest are still honestly « autres » than it
     const noFeatured = renderVitrineReady(
       { ...sfNS, featuredItems: [] } as never, zeroTrust, { fromProduct: false }, {}, products,
     );
-    expect(noFeatured).toContain('TOUS LES ARTICLES');
-    expect(noFeatured).not.toContain('AUTRES ARTICLES');
+    expect(noFeatured).toContain('data-role="vitrine-a-la-une"');
+    expect(noFeatured).not.toContain('vt-featured-badge');
+    expect(noFeatured).toContain('Autres articles');
+    // EVERYTHING épuisé → no lead is possible, and the honest title is « Tous »
+    const allOut = products.map((p) => ({ ...p, inStock: false }));
+    const dead = renderVitrineReady(
+      { ...sfNS, featuredItems: [] } as never, zeroTrust, { fromProduct: false }, {}, allOut,
+    );
+    expect(dead).not.toContain('vitrine-a-la-une');
+    expect(dead).toContain('Tous les articles');
   });
 });

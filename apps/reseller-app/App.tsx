@@ -1517,6 +1517,16 @@ export default function App() {
             // stays inert rather than opening a picker that leads nowhere.
             onUploadCover={uploadCover}
             onUploadAvatar={uploadAvatar}
+            // PERSONNALISER-PARITY-1 — her REAL listings for K5/K6b/K7, from the
+            // same live-offer join Ma vitrine renders, cliente price by the same
+            // derivation. K_SEED is now only the demo/test fallback.
+            catalog={vitrineOffers.map((o) => ({
+              pid: o.productVersionId,
+              name: o.productName,
+              priceFcfa: viewOfOffer(o).client,
+              inStock: o.available > 0,
+              assetRefs: o.assetRefs,
+            }))}
             // RESELLER-UX-1 item 6 — her shop's REAL slug, read back from the
             // service; null/undefined ⇒ not live (or not yet known), so the
             // publish CTA shows and « voir » keeps the listing fallback.

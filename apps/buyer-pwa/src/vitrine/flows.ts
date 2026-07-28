@@ -219,6 +219,11 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
       const pid = target.getAttribute('data-pid') ?? '';
       applyFavoriteState(root, pid, toggleFavorite(pid));
       toast(root, t(isFavorite(pid) ? 'vit.favori_garde' : 'vit.favori_retire'));
+    } else if (action === 'ancre') {
+      // NORTH-STAR round 3 — « Voir tout » is a SCROLL, not a page (the boutique
+      // IS this page); a link to nowhere would be the dead button the canon bans.
+      const cible = target.getAttribute('data-cible') ?? '';
+      document.getElementById(cible)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else if (action === 'retour') {
       window.history.back();
     } else if (action === 'reessayer') {
