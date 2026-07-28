@@ -121,13 +121,20 @@ const LAPSED = new Set<string>();
  *  carry it. Trailing slash on purpose: the join must normalise, not double it. */
 const PRODUCT_MEDIA_BASE = 'https://media-service.example.workers.dev/media/';
 
+/** MEDIA-2 — THIS SERVICE'S OWN origin, as the deployed [vars] value carries it.
+ *  It shipped EMPTY, so every minted media url was the relative `/media/{key}` —
+ *  unloadable by React Native's <Image> and 404 in a browser — and the e2e missed
+ *  it because it compared the stored url to the returned url, both equally
+ *  relative. The binding is set here so the harness exercises the real shape. */
+const MEDIA_PUBLIC_BASE = 'https://storefront-service.example.workers.dev';
+
 const mf = new Miniflare({
   modules: true,
   scriptPath: SCRIPT,
   durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO' },
   r2Buckets: ['BUCKET'],
   durableObjectsPersist: persist,
-  bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET, PRODUCT_MEDIA_BASE },
+  bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET, PRODUCT_MEDIA_BASE, MEDIA_PUBLIC_BASE },
   // BROWSE-SUPPLY-BINDING-1 — a REAL service binding through workerd (miniflare's
   // serviceBindings), emulating boutik's collection producer: fresh asOf computed
   // AT REQUEST TIME so the 15-minute bound passes, one Bazin item, exact-path
@@ -210,10 +217,16 @@ describe('combined Worker — the shim + the R2 media path, on real workerd', ()
     expect(rec.kind).toBe('cover');
     // the read URL is the SERVICE route, never the bucket; the key is an unguessable
     // uuid, never a sequential media-${seq} (founder ruling).
-    expect(rec.url).toMatch(/^\/media\/storefronts\/sf-seller-0001\/cover\/[0-9a-f-]{36}\.png$/);
+    //
+    // MEDIA-2: this used to pin the RELATIVE `/media/…` shape — i.e. it pinned the
+    // bug. An absolute origin is what a phone and a browser can actually fetch, so
+    // the origin is asserted too, and the path shape is asserted after stripping it.
+    expect(rec.url.startsWith(`${MEDIA_PUBLIC_BASE}/`)).toBe(true);
+    const recPath = rec.url.slice(MEDIA_PUBLIC_BASE.length);
+    expect(recPath).toMatch(/^\/media\/storefronts\/sf-seller-0001\/cover\/[0-9a-f-]{36}\.png$/);
     expect(rec.url).not.toMatch(/media-\d+/);
 
-    const read = await mf.dispatchFetch(`http://c${rec.url}`, { method: 'GET' });
+    const read = await mf.dispatchFetch(`http://c${recPath}`, { method: 'GET' });
     expect(read.status).toBe(200);
     expect(read.headers.get('content-type')).toBe('image/png');
     expect(read.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
@@ -515,6 +528,31 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     };
     expect(view.cover.status).toBe('live');
     expect(view.cover.url).toBe(uploaded.url); // the SAME url, carried by the service
+    // …and it is an address a client can actually FETCH. Comparing the stored url
+    // to the returned url proves they agree, not that either one works: both were
+    // `/media/…` and the cliente's browser resolved that against her own origin.
+    expect(view.cover.url).toMatch(/^https:\/\//);
+    expect(view.cover.url.startsWith(`${MEDIA_PUBLIC_BASE}/media/`)).toBe(true);
+  });
+
+  /**
+   * MEDIA-2 — STORED-BUT-UNPOINTED IS A FAILED UPLOAD, and must be reported as one.
+   *
+   * The pointer write was `.catch(() => undefined)` with the response DISCARDED.
+   * `.catch` traps a thrown rejection, not a 404 Response — so uploading against a
+   * storefront that does not exist answered `201 live` while the DO had answered
+   * 404. In the app that became a success toast over a slot spinning « ENVOI… »
+   * forever, and a shop with no cover.
+   */
+  it('AN UPLOAD THAT NEVER REACHES A STOREFRONT FAILS LOUDLY — never a 201 over a 404', async () => {
+    const up = await mf.dispatchFetch('http://c/media/upload?kind=cover&storefrontId=sf-does-not-exist-0001', {
+      method: 'POST',
+      headers: authed,
+      body: tinyPng(),
+    });
+    expect(up.status).toBe(502);
+    const body = (await up.json()) as { error?: string };
+    expect(body.error).toBe('storefront_absent');
   });
 
   it('POST /media/upload is gated: 401 without the key, 201 with it', async () => {

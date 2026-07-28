@@ -59,6 +59,14 @@ export const VITRINE_STYLES = `
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
   }
   .vt-cover-live .vt-glyph { font-size: 44px; }
+  /* MEDIA-2 — her real photograph. Same 134px band as the woven habillage so the
+     identity block below keeps its -30px overlap either way. object-fit cover crops
+     to the band rather than letterboxing: a shop cover is a strip, not a portrait. */
+  .vt-cover-photo { height: 134px; background: var(--vt-soft); }
+  .vt-cover-img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
   .vt-cover-stripes {
     position: absolute; inset: 0; width: 100%; height: 100%;
     background-image: repeating-linear-gradient(135deg,

@@ -104,13 +104,26 @@ async function handleMediaUpload(request: Request, env?: StorefrontServiceEnv): 
   //
   // ONLY A LIVE RECORD IS POINTED AT: a kind still held for review must not appear
   // on her shop, and the buyer projection strips held media anyway.
+  //
+  // ═══ MEDIA-2 — THE POINTER WRITE IS THE DELIVERABLE, NOT A COURTESY ═══
+  //
+  // This was `.catch(() => undefined)` with the response discarded, which traps a
+  // thrown rejection and NOT a 404 or 5xx Response — so an upload against an id
+  // that does not exist answered `201 live` while the DO had answered 404. The app
+  // then toasted success over a slot that spun « ENVOI… » forever and a shop with
+  // no cover. Stored-but-unpointed is a FAILED upload from her side; it is now
+  // reported as one, with the DO's own reason.
   if ((r.kind === 'cover' || r.kind === 'avatar') && r.status === 'live' && env?.STOREFRONT_DO) {
-    await env.STOREFRONT_DO.fetch(
+    const pointed = await env.STOREFRONT_DO.fetch(
       new Request(`https://do/storefronts/${encodeURIComponent(storefrontId)}/media`, {
         method: 'POST',
         body: JSON.stringify({ kind: r.kind, url: r.url, at: new Date().toISOString() }),
       }),
-    ).catch(() => undefined); // best-effort: the upload itself already succeeded
+    ).catch(() => null);
+    if (pointed === null || !pointed.ok) {
+      const reason = pointed === null ? 'storefront_unreachable' : pointed.status === 404 ? 'storefront_absent' : 'not_pointed';
+      return Response.json({ service: SERVICE_NAME, error: reason }, { status: 502 });
+    }
   }
   return Response.json(
     { service: SERVICE_NAME, kind: r.kind, status: r.status, url: r.url, width: r.width, height: r.height, durationMs: r.durationMs },

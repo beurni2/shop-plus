@@ -131,14 +131,25 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     // with no rebuild. The PERMISSION prompt on device is the one thing a
     // manifest cannot prove — every failure is therefore named and surfaced.
     expect(pkg.dependencies['expo-image-picker']).toBe('~17.0.11');
-    // the only deps beyond the pre-WO set are exactly these eight
+    // MEDIA-2 — expo-image-manipulator, and it is what makes the picker USABLE.
+    // The picker has NO max-dimension option (read its real `.d.ts`: `quality` is a
+    // JPEG compression factor, nothing more), and the service refuses anything over
+    // 2048 px — so every photograph from a phone camera (3264 x 2448 and up) was
+    // refused, permanently, with advice about file weight that could never fix a
+    // DIMENSION problem. The downscale happens on the device, before the bytes
+    // leave: it is also the only version that respects a patchy-data budget.
+    // ~14.0.8 is what `expo/bundledNativeModules.json` pins for SDK 54 (VERIFIED by
+    // reading that manifest), so it reaches Expo Go over the air with no rebuild.
+    expect(pkg.dependencies['expo-image-manipulator']).toBe('~14.0.8');
+    // the only deps beyond the pre-WO set are exactly these nine
     const before = new Set([
       '@platform/ui-tokens', 'expo', 'expo-status-bar', 'expo-updates', 'react', 'react-native',
     ]);
     const added = Object.keys(pkg.dependencies).filter((d) => !before.has(d));
     expect(added.sort()).toEqual([
       '@shop-plus/reseller-money',
-      'expo-audio', 'expo-crypto', 'expo-file-system', 'expo-font', 'expo-haptics', 'expo-image-picker', 'react-native-svg',
+      'expo-audio', 'expo-crypto', 'expo-file-system', 'expo-font', 'expo-haptics',
+      'expo-image-manipulator', 'expo-image-picker', 'react-native-svg',
     ]);
     // …and NO third-party runtime dep sneaks in under cover of the workspace one
     for (const d of added) {

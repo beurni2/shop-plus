@@ -367,7 +367,8 @@ export function decideSaveIdentity(
 
 export type SetMediaDecision =
   | { readonly status: 'set'; readonly storefront: Storefront }
-  | { readonly status: 'absent' };
+  | { readonly status: 'absent' }
+  | { readonly status: 'refused'; readonly reason: 'url_not_absolute' };
 
 /**
  * HER COVER / HER AVATAR — the URL is written BY THE SERVICE, never by the app.
@@ -381,6 +382,15 @@ export type SetMediaDecision =
  *
  * `cover` carries the canon status; `avatar` flips to `photo` mode. Absent
  * storefront → surfaced, never a phantom write.
+ *
+ * ═══ MEDIA-2 — A RELATIVE URL IS REFUSED HERE, NOT MERELY AVOIDED IN CONFIG ═══
+ *
+ * `MEDIA_PUBLIC_BASE` shipped empty, so the stored URL was `/media/{key}`: React
+ * Native's <Image> cannot resolve a relative URI, and a browser resolved it
+ * against the PWA's own origin and 404'd. Setting the var fixes today; refusing
+ * the shape here means an empty var can never silently re-break it — the record
+ * simply cannot hold an address a client is unable to fetch. The canon schema
+ * does not enforce this (`url` is `z.string().min(1)`), so it is enforced here.
  */
 export function decideSetMedia(
   current: StorefrontEntry | undefined,
@@ -389,6 +399,9 @@ export function decideSetMedia(
   at: string,
 ): { decision: SetMediaDecision; next?: StorefrontEntry } {
   if (!current) return { decision: { status: 'absent' } };
+  if (!/^https?:\/\//.test(url)) {
+    return { decision: { status: 'refused', reason: 'url_not_absolute' } };
+  }
   const sf = current.storefront;
   const merged =
     kind === 'cover'

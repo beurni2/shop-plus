@@ -58,6 +58,21 @@ function topBar(opts: { back: boolean; accent: string }): string {
 /** C-VIT1 — la couverture (default: habillage tissé + filigrane; live: photo). */
 function cover(sf: Storefront): string {
   const initial = esc(sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase());
+  // ═══ MEDIA-2 — HER PHOTOGRAPH, NOT A CAPTION CLAIMING ONE ═══
+  //
+  // `status:'live'` used to be demo-fed, so drawing a woven placeholder captioned
+  // « PHOTO DE COUVERTURE » was honest — there was no photo to draw. The moment
+  // PERSONNALISER-MEDIA-1 made `live` REAL, that same placeholder became a label
+  // asserting a photograph the cliente cannot see. A real url is now rendered.
+  if (sf.cover.status === 'live' && sf.cover.url) {
+    return [
+      '<div class="vt-cover vt-cover-photo" data-role="vitrine-cover" data-etat="live">',
+      `<img class="vt-cover-img" src="${esc(sf.cover.url)}" alt="${t('vit.cover_alt')}" loading="lazy" decoding="async">`,
+      '</div>',
+    ].join('');
+  }
+  // Live WITHOUT a url is the honest woven habillage, never the photo caption:
+  // there is nothing to show, so nothing is claimed.
   if (sf.cover.status === 'live') {
     return [
       '<div class="vt-cover vt-cover-live" data-role="vitrine-cover" data-etat="live">',

@@ -870,6 +870,12 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.cover_alt",
+  "fr": "La photo de la boutique",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.sans_photo",
   "fr": "SANS PHOTO",
   "register": "neutral",

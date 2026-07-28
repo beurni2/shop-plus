@@ -134,7 +134,8 @@ export class StorefrontDO {
       const current = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
       const { decision, next } = decideSetMedia(current, body.kind, body.url, body.at ?? new Date().toISOString());
       if (next) await this.state.storage.put(ENTRY_KEY, next);
-      return Response.json(decision, { status: decision.status === 'absent' ? 404 : 200 });
+      const mediaStatus = decision.status === 'absent' ? 404 : decision.status === 'refused' ? 422 : 200;
+      return Response.json(decision, { status: mediaStatus });
     }
     if (request.method === 'GET' && pathname === '/entry') {
       const entry = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);

@@ -87,6 +87,11 @@ export interface CustomizeProps {
    *  (same idiom as onPublishOnline); absent ⇒ the slot stays inert, never a
    *  tap that pretends. Resolves to the honest outcome so the screen can state it. */
   onUploadCover?: (bytes: Uint8Array, contentType: string) => Promise<{ ok: boolean; reason?: string }>;
+  /** MEDIA-2 — the same seam for her PORTRAIT. The service half (uploadAvatar,
+   *  decideSetMedia kind:'avatar') shipped in MEDIA-1 with NO caller: the « Photo »
+   *  segment rendered a camera-icon slot that was a plain View — she tapped it and
+   *  nothing happened, which is exactly the « still some mocks » the founder named. */
+  onUploadAvatar?: (bytes: Uint8Array, contentType: string) => Promise<{ ok: boolean; reason?: string }>;
   /** RESELLER-SEAM-HONESTY-1 — `true` when the write seam resolved to `null` (the
    * `EXPO_PUBLIC_STOREFRONT_*` pair is not inlined in this build). The CTA STAYS
    * VISIBLE and an honest note sits under it: a button that vanishes hides the truth
@@ -179,7 +184,7 @@ function KHeader({ title, onBack, pill }: { title: string; onBack: () => void; p
 
 /* ------------------------------------------------------------- the stack -- */
 
-export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist, shopIsLive, onUploadCover }: CustomizeProps) {
+export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist, shopIsLive, onUploadCover, onUploadAvatar }: CustomizeProps) {
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
   const [editingSection, setEditingSection] = useState<string | null>(null);
@@ -235,6 +240,32 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
    * theatre. Every failure keeps its own name, because « vous avez refusé
    * l'accès » and « la photo est trop lourde » are different things to tell her.
    */
+  /** Every upload failure the service can actually produce, each with the sentence
+   *  that matches it. « Essayez une image plus légère » used to answer all of them,
+   *  including the ones weight cannot fix. */
+  const uploadFailureMessage = (reason?: string): string =>
+    reason === 'offline'
+      ? t('k.cover.hors_ligne')
+      : reason === 'not_confirmed'
+        ? t('k.cover.non_confirmee')
+        : reason === 'unconfigured' || reason === 'not_live'
+          ? t('k.cover.pas_encore')
+          : t('k.cover.echec');
+
+  /** MEDIA-2 — her PORTRAIT, through the seam that shipped with no caller. */
+  const pickAndUploadAvatar = async (): Promise<void> => {
+    if (onUploadAvatar === undefined) return;
+    const picked = await pickPhoto();
+    if (!picked.ok) {
+      if (picked.reason === 'refused') onToast(t('k.cover.acces_refuse'));
+      else if (picked.reason === 'unreadable') onToast(t('k.cover.illisible'));
+      else if (picked.reason === 'too_small') onToast(t('k.cover.trop_petite'));
+      return;
+    }
+    const res = await onUploadAvatar(picked.bytes, picked.contentType);
+    onToast(res.ok ? t('k.portrait.toast_en_ligne') : uploadFailureMessage(res.reason));
+  };
+
   const pickAndUploadCover = async (): Promise<void> => {
     if (onUploadCover === undefined) return;
     const picked = await pickPhoto();
@@ -242,6 +273,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
       // Her own cancel is NOT an error and says nothing; a refusal explains.
       if (picked.reason === 'refused') onToast(t('k.cover.acces_refuse'));
       else if (picked.reason === 'unreadable') onToast(t('k.cover.illisible'));
+      else if (picked.reason === 'too_small') onToast(t('k.cover.trop_petite'));
       return;
     }
     setSfRaw(coverTo(sf, 'uploading'));
@@ -249,11 +281,15 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
     if (res.ok) {
       // The SERVICE owns the URL and writes it onto her shop; the App re-reads
       // and the real photograph arrives through `storefront`. No local guess.
+      //
+      // MEDIA-2: the toast used to read « vérifiée par Séra » — a badge this
+      // ecosystem cannot spend falsely, and nothing verifies it since the founder
+      // flipped covers to live-on-upload. It says what is true and no more.
       onToast(t('k.cover.toast_en_ligne'));
       return;
     }
     setSfRaw(coverTo(sf, 'error'));
-    onToast(res.reason === 'offline' ? t('k.cover.hors_ligne') : t('k.cover.echec'));
+    onToast(uploadFailureMessage(res.reason));
   };
 
   const back = (): void => {
@@ -312,11 +348,9 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           sf={sf}
           onBack={back}
           onPickCover={() => void pickAndUploadCover()}
-          onRetire={() => {
-            setSfRaw(coverTo(sf, 'none'));
-          }}
           onRetry={() => setSfRaw(coverTo(sf, 'none'))}
           uploadWired={onUploadCover !== undefined}
+          onPickAvatar={onUploadAvatar !== undefined ? () => void pickAndUploadAvatar() : undefined}
         />
       )}
       {route === 'k4' && (
@@ -554,7 +588,7 @@ function CountedField({ label, value, max, onChange, onCommit, placeholder, mult
 
 /* ------------------------------------------------------------- K3 / K3b -- */
 
-function K3({ sf, onBack, onPickCover, onRetire, onRetry, uploadWired }: { sf: Storefront; onBack: () => void; onPickCover: () => void; onRetire: () => void; onRetry: () => void; uploadWired?: boolean }) {
+function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar }: { sf: Storefront; onBack: () => void; onPickCover: () => void; onRetry: () => void; uploadWired?: boolean; onPickAvatar?: (() => void) | undefined }) {
   const st = sf.cover.status;
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
@@ -602,21 +636,26 @@ function K3({ sf, onBack, onPickCover, onRetire, onRetry, uploadWired }: { sf: S
       )}
       {st === 'none' && <View style={S.noteSable}><Text style={S.noteSableText}>{t('k.cover.note_defaut')}</Text></View>}
       {st === 'pending' && <View style={S.noteWarn}><Text style={S.noteWarnText}>{t('k.cover.note_verif')}</Text></View>}
-      {st === 'live' && (
-        <Pressable style={({ pressed }) => [S.ghostSmall, pressed && S.pressed]} onPress={onRetire}>
-          <Text style={S.ghostSmallText}>{t('k.cover.retirer')}</Text>
+      {/* MEDIA-2 — « Retirer la couverture » REMOVED NOTHING. It flipped local
+          state only: no remove route exists, so her cliente kept seeing the old
+          cover and it reappeared on the next read. A silent fabricated removal on
+          real data. Replacing the photo is the thing that genuinely works today —
+          the upload overwrites — so that is what the button now offers. */}
+      {st === 'live' && uploadWired === true && (
+        <Pressable style={({ pressed }) => [S.ghostSmall, pressed && S.pressed]} onPress={onPickCover}>
+          <Text style={S.ghostSmallText}>{t('k.cover.changer')}</Text>
         </Pressable>
       )}
       {/* The [DEMO] simulate row is GONE (founder: « there are still some mocks in
           every feature »). The states above are now driven by a real upload. */}
       <Text style={[S.caps, S.capsGap]}>{t('k.portrait.caps')}</Text>
       {/* C-K5 — segments portrait */}
-      <PortraitSegments sf={sf} />
+      <PortraitSegments sf={sf} onPickAvatar={onPickAvatar} />
     </ScrollView>
   );
 }
 
-function PortraitSegments({ sf }: { sf: Storefront }) {
+function PortraitSegments({ sf, onPickAvatar }: { sf: Storefront; onPickAvatar?: (() => void) | undefined }) {
   const [mode, setMode] = useState<'monogram' | 'photo'>(sf.avatar.mode);
   const th = THEMES[sf.theme];
   const initial = sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase();
@@ -638,9 +677,22 @@ function PortraitSegments({ sf }: { sf: Storefront }) {
         </View>
       ) : (
         <View style={S.portraitRow}>
-          <View style={S.portraitSlotDashed}>
-            <IconCamera size={20} color="#8A7D6B" />
-          </View>
+          {/* MEDIA-2 — THIS SLOT WAS A DEAD VIEW. The service could already store an
+              avatar; the app had no caller, so she tapped a camera icon and nothing
+              happened. It is a Pressable now, and it shows the portrait she chose.
+              Without the seam it stays visibly inert rather than pretending. */}
+          <Pressable
+            style={({ pressed }) => [S.portraitSlotDashed, pressed && onPickAvatar !== undefined && S.pressed]}
+            onPress={onPickAvatar}
+            accessibilityRole="button"
+            accessibilityLabel={t('k.portrait.photo')}
+          >
+            {sf.avatar.url ? (
+              <Image source={{ uri: sf.avatar.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : (
+              <IconCamera size={20} color="#8A7D6B" />
+            )}
+          </Pressable>
           <Text style={S.portraitNote}>{t('k.portrait.note_photo')}</Text>
         </View>
       )}

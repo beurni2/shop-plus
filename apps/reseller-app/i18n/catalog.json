@@ -1117,7 +1117,7 @@
  },
  {
   "key": "k.cover.specs",
-  "fr": "JPEG · 3 : 1 · min 1 206 × 402 px · 2 Mo max",
+  "fr": "JPEG ou PNG · réduite pour vous",
   "register": "neutral",
   "screenClass": "label"
  },
@@ -1170,34 +1170,34 @@
   "screenClass": "status"
  },
  {
-  "key": "k.cover.retirer",
-  "fr": "Retirer la couverture",
+  "key": "k.cover.changer",
+  "fr": "Changer la photo",
   "register": "neutral",
   "screenClass": "label"
- },
- {
-  "key": "k.cover.toast_retiree",
-  "fr": "Couverture retirée — le tissé revient",
-  "register": "neutral",
-  "screenClass": "status"
  },
  {
   "key": "k.cover.toast_en_ligne",
-  "fr": "Couverture en ligne — vérifiée par Séra",
+  "fr": "Votre couverture est en ligne",
   "register": "neutral",
   "screenClass": "status"
  },
  {
-  "key": "k.cover.demo_envoi",
-  "fr": "Simuler l’envoi",
+  "key": "k.cover.trop_petite",
+  "fr": "Cette photo est trop petite. Choisissez-en une plus nette.",
   "register": "neutral",
-  "screenClass": "label"
+  "screenClass": "status"
  },
  {
-  "key": "k.cover.demo_lourde",
-  "fr": "Simuler : trop lourde",
+  "key": "k.cover.non_confirmee",
+  "fr": "Photo envoyée, pas encore visible. Ouvrez à nouveau pour voir.",
   "register": "neutral",
-  "screenClass": "label"
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cover.pas_encore",
+  "fr": "Publiez votre boutique, puis ajoutez la photo.",
+  "register": "neutral",
+  "screenClass": "status"
  },
  {
   "key": "k.portrait.caps",
@@ -1225,9 +1225,15 @@
  },
  {
   "key": "k.portrait.note_photo",
-  "fr": "Carrée, nette, vous seule ou votre logo. JPEG · 1 : 1 · min 320 × 320 px · 1 Mo max. Vérification Séra avant publication.",
+  "fr": "Carrée et nette : vous, ou votre logo. Touchez le carré pour la choisir.",
   "register": "neutral",
   "screenClass": "label"
+ },
+ {
+  "key": "k.portrait.toast_en_ligne",
+  "fr": "Votre portrait est en ligne",
+  "register": "neutral",
+  "screenClass": "status"
  },
  {
   "key": "k.theme.title",

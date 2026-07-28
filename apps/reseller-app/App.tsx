@@ -433,7 +433,30 @@ export default function App() {
       if (!res.ok) return { ok: false, reason: res.reason };
       const fresh = await service.getById(identity.storefrontId);
       if (fresh.ok && fresh.value !== undefined) setLiveStorefront(fresh.value);
-      return { ok: true };
+      // ═══ MEDIA-2 — SUCCESS IS WHAT THE READ-BACK SHOWS, NOT WHAT 201 SAID ═══
+      //
+      // A 201 with no confirming read left the slot spinning « ENVOI… » forever
+      // under a success toast. « Queued = pending, never done »: if the re-read
+      // did not come back carrying a cover url, we have not SEEN her photograph
+      // arrive, so we do not claim it did.
+      const confirmed = fresh.ok && fresh.value !== undefined && Boolean(fresh.value.cover.url);
+      return confirmed ? { ok: true } : { ok: false, reason: 'not_confirmed' };
+    },
+    [service, identity, liveStorefront],
+  );
+
+  /** MEDIA-2 — her PORTRAIT, same law as the cover: bytes up, URL owned by the
+   *  service, success only once the read-back shows it. */
+  const uploadAvatar = useCallback(
+    async (bytes: Uint8Array, contentType: string): Promise<{ ok: boolean; reason?: string }> => {
+      if (service === null || identity === null || identity === undefined) return { ok: false, reason: 'unconfigured' };
+      if (liveStorefront === null || liveStorefront === undefined) return { ok: false, reason: 'not_live' };
+      const res = await service.uploadAvatar(identity.storefrontId, bytes, contentType);
+      if (!res.ok) return { ok: false, reason: res.reason };
+      const fresh = await service.getById(identity.storefrontId);
+      if (fresh.ok && fresh.value !== undefined) setLiveStorefront(fresh.value);
+      const confirmed = fresh.ok && fresh.value !== undefined && Boolean(fresh.value.avatar.url);
+      return confirmed ? { ok: true } : { ok: false, reason: 'not_confirmed' };
     },
     [service, identity, liveStorefront],
   );
@@ -1490,6 +1513,7 @@ export default function App() {
             // PERSONNALISER-MEDIA-1 — the real upload. Absent ⇒ the cover slot
             // stays inert rather than opening a picker that leads nowhere.
             onUploadCover={uploadCover}
+            onUploadAvatar={uploadAvatar}
             // RESELLER-UX-1 item 6 — her shop's REAL slug, read back from the
             // service; null/undefined ⇒ not live (or not yet known), so the
             // publish CTA shows and « voir » keeps the listing fallback.
