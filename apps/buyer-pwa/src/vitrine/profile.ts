@@ -21,8 +21,10 @@
 import type { Storefront } from '@platform/contracts';
 import { DEMO_VOICE_URL, DEMO_VOICE_DURATION_MS } from './voice-asset';
 import type { VitrineProduct } from './catalog';
-// ENTETES-B — the app's own closed key list (this surface consumes the WIRE, not
-// the canon package at runtime; the list is pinned to canon in entetes' tests).
+// ENTETES-B — the app's own closed key list (this surface consumes the WIRE,
+// not the canon package at runtime). Pinned to the EXECUTED canon import
+// (STOREFRONT_HEADER_STYLES) by entetes.test.ts — a seventh canon style fails
+// a buyer test instead of silently coercing to classique.
 import { ENTETE_KEYS, type EnteteKey } from './entetes';
 
 export type { Storefront };

@@ -619,3 +619,40 @@ describe('ENTETES-B — the port boundary: old wire, new wire, garbage wire', ()
     expect(customised).not.toBe('classique');
   });
 });
+
+/* ------------------------------------ 10 · ENTETES-B: verifier fix round -- */
+
+/**
+ * Verifier findings 1–2 closed here, both by EXECUTION:
+ *   1. the app's key list is pinned to the EXECUTED canon import — a seventh
+ *      canon style now fails a buyer test instead of coercing to classique;
+ *   2. the absent/present `?entete=` distinction (main.ts's wiring) is the
+ *      pure `enteteOverride`, pinned across its whole behaviour space — a
+ *      regression to ENTETES-A's unconditional resolve fails loudly here.
+ */
+describe('ENTETES-B — canon conformance + the override wiring, pinned by execution', () => {
+  it('ENTETE_KEYS is exactly the canon STOREFRONT_HEADER_STYLES, in canon order (executed import)', async () => {
+    const { STOREFRONT_HEADER_STYLES } = await import('@platform/contracts');
+    expect([...ENTETE_KEYS]).toEqual([...STOREFRONT_HEADER_STYLES]);
+  });
+
+  it('enteteOverride: ABSENT param is undefined — no override, her field drives', async () => {
+    const { enteteOverride } = await import('../src/vitrine/entetes');
+    expect(enteteOverride('')).toBeUndefined();
+    expect(enteteOverride('?demo-cliente=C1&theme=indigo')).toBeUndefined();
+  });
+
+  it('enteteOverride: PRESENT param keeps the exact ENTETES-A coercion — and wins over the field', async () => {
+    const { enteteOverride } = await import('../src/vitrine/entetes');
+    const { enteteForRender } = await import('../src/vitrine/flows');
+    expect(enteteOverride('?entete=royale')).toBe('royale');
+    // garbage and the empty value are a PRESENT param: a classique OVERRIDE
+    expect(enteteOverride('?entete=garbage')).toBe('classique');
+    expect(enteteOverride('?entete=')).toBe('classique');
+    expect(enteteOverride('?entete=ROYALE')).toBe('classique');
+    // composed with the field: present-but-garbage FORCES classique over royale…
+    expect(enteteForRender(enteteOverride('?entete=garbage'), 'royale')).toBe('classique');
+    // …while the absent param lets her chosen field through
+    expect(enteteForRender(enteteOverride(''), 'royale')).toBe('royale');
+  });
+});

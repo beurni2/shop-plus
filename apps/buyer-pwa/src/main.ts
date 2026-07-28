@@ -16,7 +16,7 @@ import { t } from './i18n';
 import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, vitrineHref } from './vitrine-link';
 import { demoStorefrontPort, resolveStorefrontPort } from './vitrine/profile';
 import { harnessProfil, mountVitrine, type VitrineEtat } from './vitrine/flows';
-import { resolveEntete } from './vitrine/entetes';
+import { enteteOverride } from './vitrine/entetes';
 import { ENT_STYLES } from './vitrine/entries';
 import { createCliente, type ClienteEcran } from './cliente/flow';
 import { clienteProduit, clienteProduitReel, composeQuote } from './cliente/seed';
@@ -560,12 +560,11 @@ if (app) {
   app.append(ribbon);
 
   const params = new URLSearchParams(window.location.search);
-  // ENTETES-A/B — the founder's header preview, an OVERRIDE threaded through the
-  // mount. A PRESENT `?entete=` keeps its exact ENTETES-A behaviour (`royale`
-  // shows that header on any shop; garbage coerces to classique). An ABSENT
-  // param is `undefined` — no override — so the storefront's own `headerStyle`
-  // (which arrives WITH the storefront, inside flows) drives the render.
-  const entete = params.has('entete') ? resolveEntete(window.location.search) : undefined;
+  // ENTETES-A/B — the founder's header preview, an OVERRIDE threaded through
+  // the mount: absent ⇒ undefined (her headerStyle drives, inside flows);
+  // present ⇒ the exact ENTETES-A coercion, winning over the field. The
+  // absent/present distinction is the pure `enteteOverride`, pinned by test.
+  const entete = enteteOverride(window.location.search);
   // PWA CLIENTE harness: drives any C1–C9 screen/state under any of the four
   // habillages (C2 mounts C1 with the sheet open). `?demo-cliente=<C1..C9>&theme=&stock=out&voix=0&offline=1&b=indisponible&micro=refuse&demo=0&etat=loading&conf=&revealed=1`.
   // (The retired `?demo-achat=` S1–S7 param is read by NOTHING — un-generatable.)

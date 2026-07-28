@@ -5,7 +5,7 @@ import { demoStorefrontPort } from '../src/vitrine/profile.js';
 /** CANON CONFORMANCE (v2.1.0 / e5db9ed): every storefront this surface serves
  * parses with the REAL StorefrontSchema — a shape drift fails here, never on a
  * buyer's phone. Also pins the two §3.1 refusals the vitrine relies on. */
-describe('storefront ⇄ canon v1.1.0 conformance', () => {
+describe('storefront ⇄ canon v2.1.0 conformance', () => {
   it('all three demo variants parse with the canon schema', async () => {
     for (const variant of ['default', 'customised', 'empty'] as const) {
       const resolved = await demoStorefrontPort(variant).resolve('aicha-4821');

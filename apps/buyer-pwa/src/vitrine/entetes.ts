@@ -64,6 +64,18 @@ export function resolveEntete(search: string): EnteteKey {
   return (ENTETE_KEYS as readonly string[]).includes(raw ?? '') ? (raw as EnteteKey) : 'classique';
 }
 
+/**
+ * ENTETES-B — the `?entete=` OVERRIDE as its own pure decision (verifier
+ * finding: this distinction lived un-pinned in main.ts, where a regression to
+ * the unconditional ENTETES-A resolve would silently force classique over
+ * every shop's chosen field). ABSENT param ⇒ `undefined` — no override, her
+ * `headerStyle` drives. PRESENT param ⇒ its exact ENTETES-A coercion (unknown
+ * ⇒ classique), and that override WINS over the field, garbage included.
+ */
+export function enteteOverride(search: string): EnteteKey | undefined {
+  return new URLSearchParams(search).has('entete') ? resolveEntete(search) : undefined;
+}
+
 export interface EnteteOpts {
   /** V6 (vide) — tagline, bio and the proof line are suppressed, as classique does. */
   readonly compact?: boolean;
