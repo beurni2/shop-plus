@@ -16,6 +16,7 @@ import { t } from './i18n';
 import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, vitrineHref } from './vitrine-link';
 import { demoStorefrontPort, resolveStorefrontPort } from './vitrine/profile';
 import { harnessProfil, mountVitrine, type VitrineEtat } from './vitrine/flows';
+import { resolveEntete } from './vitrine/entetes';
 import { ENT_STYLES } from './vitrine/entries';
 import { createCliente, type ClienteEcran } from './cliente/flow';
 import { clienteProduit, clienteProduitReel, composeQuote } from './cliente/seed';
@@ -559,6 +560,11 @@ if (app) {
   app.append(ribbon);
 
   const params = new URLSearchParams(window.location.search);
+  // ENTETES-A — the founder's header preview, resolved ONCE from the query and
+  // threaded through the mount. `?entete=royale` on any shop shows that header;
+  // anything unknown or absent is classique. Nothing is persisted: this is a
+  // preview lever, not a storefront field and not a picker.
+  const entete = resolveEntete(window.location.search);
   // PWA CLIENTE harness: drives any C1–C9 screen/state under any of the four
   // habillages (C2 mounts C1 with the sheet open). `?demo-cliente=<C1..C9>&theme=&stock=out&voix=0&offline=1&b=indisponible&micro=refuse&demo=0&etat=loading&conf=&revealed=1`.
   // (The retired `?demo-achat=` S1–S7 param is read by NOTHING — un-generatable.)
@@ -729,6 +735,7 @@ if (app) {
       profil: harnessProfil(isRealVitrinePath, profilParam),
       fromProduct: params.get('demo-vitrine-depuis') === 'produit',
       fige: params.has('demo-vitrine-fige'),
+      entete,
     });
   } else {
     // WO-7.2a — S3 DÉCOUVERTE is the root (« root » entry, founder-ruled) and

@@ -26,6 +26,7 @@ import {
 } from './render';
 import { applyTheme, DEFAULT_THEME } from './themes';
 import { VITRINE_STYLES } from './styles';
+import { ENTETES_STYLES, type EnteteKey } from './entetes';
 import { iconCheck } from './icons';
 import { wireVoicePlay } from './voice-player';
 
@@ -38,6 +39,8 @@ export interface VitrineHarness {
   readonly fromProduct?: boolean | undefined;
   /** Freeze timers for the audit (no 750 ms transition). */
   readonly fige?: boolean | undefined;
+  /** ENTETES-A — the founder's `?entete=` header preview. Absent ⇒ classique. */
+  readonly entete?: EnteteKey | undefined;
 }
 
 /**
@@ -93,6 +96,22 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   style.textContent = VITRINE_STYLES;
   document.head.appendChild(style);
 
+  // ENTETES-A — the five headers' sheet, its own element so the vitrine sheet
+  // stays byte-unchanged. Every rule is scoped under a per-style root class
+  // (.vt-ry/.vt-he/.vt-ch/.vt-cr/.vt-dy), so nothing leaks into the page or
+  // between styles even though all five are always present.
+  //
+  // Verifier (perf, HANDOFF §6): classique — every EXISTING shop — must not pay
+  // the 33.7 KB parse for CSS it never matches; the sheet mounts only when one
+  // of the five is actually selected.
+  const entete: EnteteKey = harness.entete ?? 'classique';
+  if (entete !== 'classique') {
+    const enteteStyle = document.createElement('style');
+    enteteStyle.setAttribute('data-entetes', '');
+    enteteStyle.textContent = ENTETES_STYLES;
+    document.head.appendChild(enteteStyle);
+  }
+
   // The audit harness (a profil override) drives the DEMO adapter; a real entry
   // uses the env-gated port — the real HTTP adapter iff a service base is
   // configured at build time, the in-process demo otherwise (offline-safe).
@@ -128,7 +147,7 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
         root.innerHTML = renderVitrineInvalid();
         break;
       case 'empty':
-        root.innerHTML = renderVitrineEmpty(sf!, resolved!.trust, { fromProduct });
+        root.innerHTML = renderVitrineEmpty(sf!, resolved!.trust, { fromProduct }, entete);
         break;
       case 'ready': {
         // BUYER-LIVE-WIRE-3 — the empty/ready decision follows WHAT CAN ACTUALLY
@@ -141,8 +160,8 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
         const showable = described !== undefined ? described.length : sf!.curatedItems.length;
         root.innerHTML =
           showable === 0
-            ? renderVitrineEmpty(sf!, resolved!.trust, { fromProduct })
-            : renderVitrineReady(sf!, resolved!.trust, { fromProduct }, resolved!.notes, described);
+            ? renderVitrineEmpty(sf!, resolved!.trust, { fromProduct }, entete)
+            : renderVitrineReady(sf!, resolved!.trust, { fromProduct }, resolved!.notes, described, entete);
         break;
       }
     }
