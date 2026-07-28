@@ -1,9 +1,20 @@
+// node env has no localStorage; the favorites pins need a Storage-shaped fake.
+const __m = new Map<string, string>();
+(globalThis as { localStorage?: Storage }).localStorage = {
+  getItem: (k: string) => __m.get(k) ?? null,
+  setItem: (k: string, v: string) => void __m.set(k, v),
+  removeItem: (k: string) => void __m.delete(k),
+  clear: () => __m.clear(),
+  key: (i: number) => [...__m.keys()][i] ?? null,
+  get length() { return __m.size; },
+} as Storage;
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { VitrineViewModel } from '../src/vitrine-view';
 import { harnessProfil } from '../src/vitrine/flows';
 import { renderVitrineReady } from '../src/vitrine/render';
+import { toggleFavorite, resetFavoritesCache } from '../src/vitrine/favorites';
 import {
   identityLinkSuffix,
   identityLink,
@@ -314,6 +325,10 @@ describe('MEDIA-2 — the cover photograph is RENDERED, not captioned', () => {
     const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
     expect(html).not.toContain('vt-cover-img');
     expect(html).not.toContain('src=""');
+    // …and it IS the live habillage, not a fall-through to the none branch — a
+    // verifier proved this test stayed green when the branch was deleted.
+    expect(html).toContain('vt-cover-live');
+    expect(html).toContain('vt-cover-stripes-photo');
   });
 
   it('NO COVER IS STILL THE DESIGNED EMPTY STATE, never a broken image', () => {
@@ -465,6 +480,35 @@ describe('NORTH-STAR-1 — the mockup layout renders; the invented numbers do no
     expect(html).toContain('data-action="favori"');
     expect(html).toContain('aria-pressed="false"');
     expect(html).toContain(`data-action="favori" data-pid="pv-1"`);
+  });
+
+  it('ONE PRODUCT, ONE HEART — a featured article is not duplicated into « AUTRES »', () => {
+    // Verifier blocker: pv-1 rendered as the featured card AND a grid tile — two
+    // hearts that desynced on tap, and an « AUTRES ARTICLES » list containing the
+    // very article it claims to be "other" than.
+    const html = page();
+    const hearts = html.match(/data-action="favori" data-pid="pv-1"/g) ?? [];
+    expect(hearts).toHaveLength(1);
+    const tiles = html.match(/data-role="vitrine-produit" data-action="produit" data-pid="pv-1"/g) ?? [];
+    expect(tiles).toHaveLength(0); // pv-1 lives in the featured card only
+    // …and an ÉPUISÉ featured article still reaches the grid (it left the hero)
+    const soldOut = [
+      { pid: 'pv-1', name: 'Bazin riche', priceFcfa: 9_400, inStock: false, assetRefs: [] as string[] },
+      { pid: 'pv-2', name: 'Sac duffel', priceFcfa: 5_000, inStock: true, assetRefs: [] as string[] },
+    ];
+    const html2 = renderVitrineReady(sfNS as never, zeroTrust, { fromProduct: false }, {}, soldOut);
+    expect(html2).not.toContain('vitrine-a-la-une');
+    expect(html2).toMatch(/data-role="vitrine-produit" aria-disabled="true"/);
+  });
+
+  it('A SAVED ARTICLE RENDERS ITS HEART ON — re-render reads the store (was unpinned)', () => {
+    resetFavoritesCache();
+    localStorage.clear();
+    toggleFavorite('pv-2');
+    const html = page();
+    expect(html).toContain('data-action="favori" data-pid="pv-2" aria-pressed="true"');
+    expect(html).toMatch(/vt-fav vt-fav-on[^>]*data-pid="pv-2"/);
+    toggleFavorite('pv-2'); // leave the store clean for other tests
   });
 
   it('RESIDUAL TITLE IS CONTEXT-HONEST: « AUTRES » under a featured, « TOUS » alone', () => {

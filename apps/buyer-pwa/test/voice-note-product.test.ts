@@ -98,14 +98,23 @@ describe('integration — the chip appears on a noted tile, never on a note-less
     const r = (await demoStorefrontPort('customised').resolve('aicha-4821'))!;
     const html = renderVitrineReady(r.storefront, r.trust, { fromProduct: false }, r.notes);
     const chips = html.match(/data-action="voix-produit-play"/g) ?? [];
-    // A chip fires for every IN-STOCK render of a noted product: each in-stock
-    // featured tile (pinned « à la une ») PLUS each in-stock curated grid tile.
-    // An épuisé product carries a note but renders no chip (honesty §6), so we
-    // derive the expected count from the catalog's stock, never a magic number.
+    // A chip fires for every IN-STOCK render of a noted product. NORTH-STAR-1
+    // DEDUPLICATED the page: a featured article renders ONCE (the à la une card)
+    // and no longer repeats in the grid — two renders of one product were two
+    // hearts that desynced (verifier blocker). So the expected count is featured
+    // renders + grid renders EXCLUDING the featured ones. An épuisé product
+    // carries a note but renders no chip (honesty §6); derived from the
+    // catalog's stock, never a magic number.
     const inStock = (pid: string): boolean => seedProduct(pid)?.inStock === true;
-    const featuredChips = r.storefront.featuredItems.filter(inStock).length;
-    const gridChips = r.storefront.curatedItems.filter(inStock).length;
-    expect(chips.length).toBe(featuredChips + gridChips);
+    const featuredShown = r.storefront.featuredItems.filter(inStock);
+    // sections render HER explicit curation verbatim (a featured pid she also
+    // sectioned still renders there); only the RESIDUAL grid excludes featured.
+    const sectioned = new Set(r.storefront.sections.flatMap((sec) => sec.pids));
+    const sectionChips = r.storefront.sections.flatMap((sec) => sec.pids).filter(inStock).length;
+    const residualChips = r.storefront.curatedItems.filter(
+      (pid) => inStock(pid) && !sectioned.has(pid) && !featuredShown.includes(pid),
+    ).length;
+    expect(chips.length).toBe(featuredShown.length + sectionChips + residualChips);
     // …but the same render with NO notes has zero chips (no gap, no phantom)
     const bare = renderVitrineReady(r.storefront, r.trust, { fromProduct: false }, {});
     expect(bare).not.toContain('voix-produit-play');

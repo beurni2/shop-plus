@@ -155,11 +155,12 @@ export const VITRINE_STYLES = `
     margin-top: 8px; padding: 9px 12px;
     background: #FFFFFF; border: 1px solid #E5DCC9; border-radius: 99px;
   }
-  /* NORTH-STAR-1 — the REAL heart (top-right of the art; ≥44px hit area). */
+  /* NORTH-STAR-1 — the REAL heart. 44px: the touch law (§5) is a floor, and the
+     verifier caught this at 34px under a comment claiming compliance. */
   .vt-artwrap { position: relative; }
   .vt-fav {
     position: absolute; top: 6px; right: 6px; z-index: 1;
-    width: 34px; height: 34px; border-radius: 99px;
+    width: 44px; height: 44px; border-radius: 99px;
     display: inline-flex; align-items: center; justify-content: center;
     background: #FFFFFF; box-shadow: 0 1px 3px rgba(28,22,15,.14);
     color: #1C1710; cursor: pointer;
@@ -168,7 +169,7 @@ export const VITRINE_STYLES = `
   .vt-fav svg { display: block; }
   .vt-fav-on { color: var(--vt-accent); }
   .vt-fav-on svg path { fill: currentColor; stroke: currentColor; }
-  .vt-featured-artwrap .vt-fav { top: 12px; right: 12px; width: 38px; height: 38px; }
+  .vt-featured-artwrap .vt-fav { top: 10px; right: 10px; }
 
   /* C-VIT6 — titre de groupe + grille. */
   .vt-group { display: flex; align-items: baseline; gap: 8px; margin-top: 22px; }

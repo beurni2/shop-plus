@@ -53,3 +53,37 @@ describe('favoris — a working device-local wishlist', () => {
     }
   });
 });
+
+/**
+ * The SYNC helper — executed against a stub root (verifier blocker: only the
+ * tapped heart flipped, so a product present twice showed opposite hearts and a
+ * tap on the stale one reversed the store).
+ */
+describe('applyFavoriteState — every heart with the pid flips, not only the tapped one', () => {
+  it('FLIPS ALL MATCHES AND ONLY MATCHES', async () => {
+    const { applyFavoriteState } = await import('../src/vitrine/flows');
+    const mkEl = () => {
+      const classes = new Set<string>();
+      const attrs = new Map<string, string>();
+      return {
+        classList: { toggle: (c: string, on: boolean) => void (on ? classes.add(c) : classes.delete(c)), has: (c: string) => classes.has(c) },
+        setAttribute: (k: string, v: string) => void attrs.set(k, v),
+        getAttribute: (k: string) => attrs.get(k) ?? null,
+      };
+    };
+    const a = mkEl(); const b = mkEl(); const other = mkEl();
+    const root = {
+      querySelectorAll: (sel: string) =>
+        sel.includes('data-pid="pv-1"') ? ([a, b] as unknown as Element[]) : ([other] as unknown as Element[]),
+    };
+    applyFavoriteState(root as never, 'pv-1', true);
+    expect(a.classList.has('vt-fav-on')).toBe(true);
+    expect(b.classList.has('vt-fav-on')).toBe(true);
+    expect(a.getAttribute('aria-pressed')).toBe('true');
+    expect(b.getAttribute('aria-pressed')).toBe('true');
+    expect(other.classList.has('vt-fav-on')).toBe(false);
+    applyFavoriteState(root as never, 'pv-1', false);
+    expect(a.classList.has('vt-fav-on')).toBe(false);
+    expect(b.getAttribute('aria-pressed')).toBe('false');
+  });
+});

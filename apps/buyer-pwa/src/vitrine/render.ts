@@ -243,7 +243,7 @@ function tileArt(veiled: boolean, assetRefs: readonly string[] = []): string {
  *  precedent: closest() routes its tap to `favori`, never to `produit`). */
 function fav(pid: string): string {
   const on = isFavorite(pid);
-  return `<span class="vt-fav${on ? ' vt-fav-on' : ''}" role="button" data-action="favori" data-pid="${pid}" aria-pressed="${on}" aria-label="${t('vit.favori_aria')}">${iconHeart(15, '#1C1710', 1.9)}</span>`;
+  return `<span class="vt-fav${on ? ' vt-fav-on' : ''}" role="button" tabindex="0" data-action="favori" data-pid="${pid}" aria-pressed="${on}" aria-label="${t('vit.favori_aria')}">${iconHeart(16, '#1C1710', 1.9)}</span>`;
 }
 
 function tile(p: VitrineProduct, note?: ProductVoiceNote): string {
@@ -384,7 +384,15 @@ export function renderVitrineReady(
     parts.push(groupTitle(esc(s.name).toUpperCase(), prods.length, 'section'));
     parts.push(`<div class="vt-grid">${prods.map((p) => tile(p, notes[p.pid])).join('')}</div>`);
   }
-  const residual = orderedProducts(sf, undefined, described).filter((p) => !sectioned.has(p.pid));
+  // NORTH-STAR-1 fix (verifier blocker): a featured article also rendered in the
+  // grid — two tiles, two hearts, desynced on tap; and « AUTRES ARTICLES » that
+  // contains the same article is a title lying about its own list. The exclusion
+  // is the pids the featured section ACTUALLY rendered: an épuisé featured item
+  // never reaches the hero, so it still appears (voilé) in the grid.
+  const featuredShown = new Set(featured.map((p) => p.pid));
+  const residual = orderedProducts(sf, undefined, described).filter(
+    (p) => !sectioned.has(p.pid) && !featuredShown.has(p.pid),
+  );
   if (visibleSections.length === 0 || residual.length > 0) {
     // « AUTRES ARTICLES » only when something CAME BEFORE it (à la une or a
     // section) — with nothing above, « autres » would refer to nothing and the

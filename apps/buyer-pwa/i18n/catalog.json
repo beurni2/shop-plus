@@ -978,12 +978,6 @@
   "screenClass": "label"
  },
  {
-  "key": "vit.livree_sera",
-  "fr": "Livrée par Séra",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
   "key": "vit.groupe_autres",
   "fr": "AUTRES ARTICLES",
   "register": "neutral",
