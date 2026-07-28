@@ -375,7 +375,7 @@ describe('MEDIA-2 — the portrait is RENDERED, not replaced by an initial', () 
     const sf = { ...base, avatar: { mode: 'monogram' as const } };
     const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
     expect(html).not.toContain('vt-avatar-img');
-    expect(html).toContain('<span class="vt-avatar">A</span>');
+    expect(html).toMatch(/<span class="vt-avatar">A<span class="vt-avatar-badge"/);
   });
 
   it('PHOTO MODE WITHOUT A URL FALLS BACK TO THE INITIAL — never an <img> pointing nowhere', () => {
@@ -383,7 +383,7 @@ describe('MEDIA-2 — the portrait is RENDERED, not replaced by an initial', () 
     const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
     expect(html).not.toContain('vt-avatar-img');
     expect(html).not.toContain('src=""');
-    expect(html).toContain('<span class="vt-avatar">A</span>');
+    expect(html).toMatch(/<span class="vt-avatar">A<span class="vt-avatar-badge"/);
   });
 
   it('THE PORTRAIT URL IS ESCAPED', () => {
@@ -491,13 +491,16 @@ describe('NORTH-STAR-1 — the mockup layout renders; the invented numbers do no
     expect(hearts).toHaveLength(1);
     const tiles = html.match(/data-role="vitrine-produit" data-action="produit" data-pid="pv-1"/g) ?? [];
     expect(tiles).toHaveLength(0); // pv-1 lives in the featured card only
-    // …and an ÉPUISÉ featured article still reaches the grid (it left the hero)
+    // …and an ÉPUISÉ pinned article leaves the hero: the AUTO-LEAD promotes the
+    // next in-stock product (badge-less — the badge is HER claim only), while the
+    // épuisé one still reaches the grid, voilé.
     const soldOut = [
       { pid: 'pv-1', name: 'Bazin riche', priceFcfa: 9_400, inStock: false, assetRefs: [] as string[] },
       { pid: 'pv-2', name: 'Sac duffel', priceFcfa: 5_000, inStock: true, assetRefs: [] as string[] },
     ];
     const html2 = renderVitrineReady(sfNS as never, zeroTrust, { fromProduct: false }, {}, soldOut);
-    expect(html2).not.toContain('vitrine-a-la-une');
+    expect(html2).toContain('data-role="vitrine-a-la-une" data-action="produit" data-pid="pv-2"');
+    expect(html2).not.toContain('vt-featured-badge'); // auto-lead never wears her badge
     expect(html2).toMatch(/data-role="vitrine-produit" aria-disabled="true"/);
   });
 
@@ -511,12 +514,61 @@ describe('NORTH-STAR-1 — the mockup layout renders; the invented numbers do no
     toggleFavorite('pv-2'); // leave the store clean for other tests
   });
 
-  it('RESIDUAL TITLE IS CONTEXT-HONEST: « AUTRES » under a featured, « TOUS » alone', () => {
-    expect(page()).toContain('AUTRES ARTICLES');
+  it('RESIDUAL TITLE IS CONTEXT-HONEST, and the auto-lead never wears her badge', () => {
+    // pinned featured → « Autres articles », badge présent (her true claim)
+    expect(page()).toContain('Autres articles');
+    expect(page()).toContain('vt-featured-badge');
+    // nothing pinned → the auto-lead takes the une position WITHOUT the badge,
+    // and the rest are still honestly « autres » than it
     const noFeatured = renderVitrineReady(
       { ...sfNS, featuredItems: [] } as never, zeroTrust, { fromProduct: false }, {}, products,
     );
-    expect(noFeatured).toContain('TOUS LES ARTICLES');
-    expect(noFeatured).not.toContain('AUTRES ARTICLES');
+    expect(noFeatured).toContain('data-role="vitrine-a-la-une"');
+    expect(noFeatured).not.toContain('vt-featured-badge');
+    expect(noFeatured).toContain('Autres articles');
+    // EVERYTHING épuisé → no lead is possible, and the honest title is « Tous »
+    const allOut = products.map((p) => ({ ...p, inStock: false }));
+    const dead = renderVitrineReady(
+      { ...sfNS, featuredItems: [] } as never, zeroTrust, { fromProduct: false }, {}, allOut,
+    );
+    expect(dead).not.toContain('vitrine-a-la-une');
+    expect(dead).toContain('Tous les articles');
+  });
+});
+
+/**
+ * Round 4 (verifier B3) — a ONE-PRODUCT shop: the only article is the auto-lead,
+ * and no « Autres articles · 0 » heading may sit over an empty grid. This is the
+ * most likely shape of a brand-new Shop+ seller.
+ */
+describe('round 4 — the one-product shop tells no lies below the lead', () => {
+  const sfOne = {
+    id: 'sf-one', resellerId: 'rs-one', slug: 'chez-one-1',
+    name: 'Chez Awa', zone: 'Ouagadougou', category: 'Général',
+    tagline: '', bio: '', theme: 'foret' as const,
+    cover: { status: 'none' as const }, avatar: { mode: 'monogram' as const },
+    curatedItems: ['pv-only'], featuredItems: [], sections: [],
+    discoverable: true, createdAt: 'T', updatedAt: 'T',
+  };
+  const trust = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
+  const one = [{ pid: 'pv-only', name: 'Bazin riche', priceFcfa: 9_400, inStock: true, assetRefs: [] as string[] }];
+
+  it('THE LEAD RENDERS; NO EMPTY « AUTRES » HEADING, NO EMPTY GRID, NO DEAD VOIR TOUT', () => {
+    const html = renderVitrineReady(sfOne as never, trust, { fromProduct: false }, {}, one);
+    expect(html).toContain('data-role="vitrine-a-la-une"');
+    expect(html).not.toContain('Autres articles');
+    expect(html).not.toContain('<div class="vt-grid"></div>');
+    // no target below ⇒ no « Voir tout » link and no orphaned anchor
+    expect(html).not.toContain('data-action="ancre"');
+    expect(html).not.toContain('id="vt-anchor-grid"');
+  });
+
+  it('WITH A SECOND PRODUCT THE LINK AND ITS ANCHOR BOTH EXIST — never one without the other', () => {
+    const two = [...one, { pid: 'pv-2', name: 'Sac duffel', priceFcfa: 5_000, inStock: true, assetRefs: [] as string[] }];
+    const sfTwo = { ...sfOne, curatedItems: ['pv-only', 'pv-2'] };
+    const html = renderVitrineReady(sfTwo as never, trust, { fromProduct: false }, {}, two);
+    expect(html).toContain('data-action="ancre" data-cible="vt-anchor-grid"');
+    expect(html).toContain('id="vt-anchor-grid"');
+    expect(html).toContain('Autres articles');
   });
 });

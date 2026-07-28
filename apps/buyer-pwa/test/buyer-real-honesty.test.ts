@@ -97,7 +97,12 @@ describe('item 5 — the DEMO-CATALOGUE FILL is gone: a store renders HER items 
     for (const pid of ['p3', 'p4', 'p5', 'p7', 'p8', 'k1']) {
       expect(html, `uncurated demo product ${pid} was filled in`).not.toContain(`data-pid="${pid}"`);
     }
-    expect(html.match(/data-role="vitrine-produit"/g)).toHaveLength(2);
+    // Round 3's auto-lead promotes her FIRST in-stock item to the featured card,
+    // so her two products render as one à-la-une + one grid tile — still exactly
+    // two product renders, still only hers.
+    const renders = (html.match(/data-role="vitrine-produit"/g) ?? []).length
+      + (html.match(/data-role="vitrine-a-la-une"/g) ?? []).length;
+    expect(renders).toBe(2);
   });
 });
 
@@ -138,8 +143,14 @@ describe('item 4 — the NO-IMAGE state is woven, theme-derived, and LABELLED so
     // the honest product identity stays where it belongs: the tile body
     expect(html).toContain('Robe brodée bogolan'); // a real demo NAME still renders
     expect(html).toMatch(/vt-tile-price/); // and HER price
-    // …but the art frame itself names no product
-    const art = html.slice(html.indexOf('vt-tile-art'), html.indexOf('vt-tile-body'));
+    // …but the art frame itself names no product. Round 3's auto-lead puts a
+    // FEATURED card first (whose body follows its art before any vt-tile-body),
+    // so the slice runs from the first art to the first BODY of either kind.
+    const artStart = html.indexOf('vt-tile-art');
+    const bodyAt = Math.min(
+      ...['vt-tile-body', 'vt-featured-body'].map((c) => html.indexOf(c)).filter((i) => i > artStart),
+    );
+    const art = html.slice(artStart, bodyAt);
     for (const p of VITRINE_SEED) expect(art).not.toContain(p.name);
   });
 });

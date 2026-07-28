@@ -19,7 +19,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextStyle, type ViewStyle } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { t, tf } from '../../i18n';
 import {
@@ -45,6 +45,8 @@ import {
 
 import { formatFcfa } from '../../earnings';
 import { K_SEED } from './storefront';
+
+import { fromCatalog, type KCatalogItem } from './catalog';
 // PERSONNALISER-REAL-1 — the WIRE shape, imported rather than re-declared: two
 // copies of a patch shape are two shapes that drift on the first field added.
 import type { StorefrontIdentityPatch } from '../service';
@@ -99,6 +101,9 @@ export interface CustomizeProps {
    * too, just more quietly. NOT an error state — nothing is broken and she did
    * nothing wrong; this build simply has not been told where to write. */
   serviceUnconfigured?: boolean;
+  /** PERSONNALISER-PARITY-1 — her REAL listings for K5/K6b/K7. Absent (tests,
+   *  demo) ⇒ the K_SEED fallback, exactly as before. */
+  catalog?: readonly KCatalogItem[] | undefined;
 }
 
 /* -------------------------------------------------------------- helpers -- */
@@ -185,7 +190,7 @@ function KHeader({ title, onBack, pill }: { title: string; onBack: () => void; p
 
 /* ------------------------------------------------------------- the stack -- */
 
-export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist, shopIsLive, onUploadCover, onUploadAvatar }: CustomizeProps) {
+export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist, shopIsLive, onUploadCover, onUploadAvatar, catalog }: CustomizeProps) {
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
   const [editingSection, setEditingSection] = useState<string | null>(null);
@@ -200,6 +205,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
   // starts a second pick. The cover has its five states; the portrait gets the one
   // that matters, and the square is inert while it is in flight.
   const [avatarSending, setAvatarSending] = useState(false);
+  const catalogTotal = catalog !== undefined ? catalog.length : K_SEED.length;
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
   // PERSONNALISER-REAL-1 — HER shop arrives asynchronously (the service read
@@ -323,6 +329,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
     <View style={S.root}>
       {route === 'k1' && (
         <K1
+          catalogTotal={catalogTotal}
           sf={sf}
           th={th}
           onBack={onClose}
@@ -409,6 +416,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
             else onToast(t(r.toastKey));
           }}
           onMove={(pid, dir) => setSf(moveItem(sf, pid, dir), { withOrder: true })}
+          catalog={catalog}
         />
       )}
       {route === 'k6' && (
@@ -434,6 +442,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           sf={sf}
           sectionId={editingSection}
           onBack={() => setRoute('k6')}
+          catalog={catalog}
           onRename={(name) => setSfRaw(renameSection(sf, editingSection, name))}
           onRenameCommit={(name) => setSf(renameSection(sf, editingSection, name))}
           onTogglePid={(pid) => setSf(toggleSectionPid(sf, editingSection, pid))}
@@ -447,14 +456,14 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           }}
         />
       )}
-      {route === 'k7' && <ApercuCliente sf={sf} onBack={() => setRoute('k1')} onReadOnlyTap={() => onToast(t('k.apercu.lecture_toast'))} />}
+      {route === 'k7' && <ApercuCliente sf={sf} catalog={catalog} onBack={() => setRoute('k1')} onReadOnlyTap={() => onToast(t('k.apercu.lecture_toast'))} />}
     </View>
   );
 }
 
 /* ------------------------------------------------------------------- K1 -- */
 
-function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, saveWired, savesPersist, shopIsLive }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean; liveSlug?: string | undefined; onOpenBoutique?: ((slug: string) => void) | undefined; saveWired?: boolean; savesPersist?: boolean; shopIsLive?: boolean }) {
+function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, saveWired, savesPersist, shopIsLive, catalogTotal }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean; liveSlug?: string | undefined; onOpenBoutique?: ((slug: string) => void) | undefined; saveWired?: boolean; savesPersist?: boolean; shopIsLive?: boolean; catalogTotal?: number | undefined }) {
   const initial = sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase();
   const coverSub =
     sf.cover.status === 'live' ? t('k.row.cover_live') : sf.cover.status === 'pending' ? t('k.row.cover_pending') : t('k.row.cover_defaut');
@@ -462,7 +471,7 @@ function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnc
     { key: 'k2', glyph: <Text style={S.rowGlyphText}>Aa</Text>, title: t('k.row.identite'), sub: sf.tagline || t('k.row.identite_sub') },
     { key: 'k3', glyph: <IconCamera size={18} color={SHOP.deep} />, title: t('k.row.cover'), sub: coverSub },
     { key: 'k4', glyph: <Text style={S.rowGlyphText}>◐</Text>, title: t('k.row.theme'), sub: sf.theme === 'laterite' ? tf('k.row.theme_defaut', { nom: th.name }) : th.name },
-    { key: 'k5', glyph: <IconStarK size={18} filled={false} />, title: t('k.row.une'), sub: tf('k.row.une_sub', { n: String(sf.featuredItems.length), total: String(K_SEED.length) }) },
+    { key: 'k5', glyph: <IconStarK size={18} filled={false} />, title: t('k.row.une'), sub: tf('k.row.une_sub', { n: String(sf.featuredItems.length), total: String(catalogTotal ?? K_SEED.length) }) },
     { key: 'k6', glyph: <Text style={S.rowGlyphText}>≡</Text>, title: t('k.row.sections'), sub: sf.sections.length === 0 ? t('k.row.sections_zero') : tf('k.row.sections_n', { n: String(sf.sections.length) }) },
   ];
   return (
@@ -510,7 +519,17 @@ function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnc
           </Pressable>
         ))}
       </View>
-      <Pressable style={({ pressed }) => [S.ghostBtn, pressed && S.pressed]} onPress={() => go('k7')} accessibilityRole="button">
+      {/* PERSONNALISER-PARITY-1 (founder walk): « Voir comme cliente » showed the
+          K7 replica while « Voir ma boutique en ligne » opened the real page —
+          two different things claiming the same view. For a LIVE shop the cliente
+          view IS the real page, so that is what opens: identical by construction,
+          and it can never drift again. The K7 replica remains only before the
+          shop exists online, where there is no real page to show. */}
+      <Pressable
+        style={({ pressed }) => [S.ghostBtn, pressed && S.pressed]}
+        onPress={() => (liveSlug !== undefined && onOpenBoutique !== undefined ? onOpenBoutique(liveSlug) : go('k7'))}
+        accessibilityRole="button"
+      >
         <IconEye size={17} color="#1C1710" />
         <Text style={S.ghostBtnText}>{t('k.voir_cliente')}</Text>
       </Pressable>
@@ -785,8 +804,8 @@ function K4({ sf, onBack, onPick }: { sf: Storefront; onBack: () => void; onPick
 
 /* ------------------------------------------------------------------- K5 -- */
 
-function K5({ sf, onBack, onPin, onMove }: { sf: Storefront; onBack: () => void; onPin: (pid: string, inStock: boolean) => void; onMove: (pid: string, dir: -1 | 1) => void }) {
-  const ordered = sf.curatedItems.map((pid) => K_SEED.find((p) => p.pid === pid)!).filter(Boolean);
+function K5({ sf, onBack, onPin, onMove, catalog }: { sf: Storefront; onBack: () => void; onPin: (pid: string, inStock: boolean) => void; onMove: (pid: string, dir: -1 | 1) => void; catalog?: readonly KCatalogItem[] | undefined }) {
+  const ordered = sf.curatedItems.map((pid) => fromCatalog(catalog, pid)).filter((p): p is KCatalogItem => p !== undefined);
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
       <KHeader
@@ -795,13 +814,27 @@ function K5({ sf, onBack, onPin, onMove }: { sf: Storefront; onBack: () => void;
         pill={<View style={[S.etatPill, S.etatPillNeutre]}><Text style={S.etatPillText}>{tf('k.une.pill', { n: String(sf.featuredItems.length), cap: String(FEATURED_CAP) })}</Text></View>}
       />
       <Text style={S.subTitle}>{t('k.une.sous_titre')}</Text>
+      {/* B2 (verifier): a blank card is not a state. Two honest causes, told
+          apart by what the SERVICE says she has: no articles yet vs a catalog
+          that could not load while her shop has articles. The pill above reads
+          featuredItems (service truth), so it must never sit over silence. */}
+      {ordered.length === 0 && (
+        <View style={S.dashedCard}>
+          <Text style={S.dashedTitle}>{t(sf.curatedItems.length === 0 ? 'k.une.zero_titre' : 'k.une.charge_titre')}</Text>
+          <Text style={S.dashedBody}>{t(sf.curatedItems.length === 0 ? 'k.une.zero_corps' : 'k.une.charge_corps')}</Text>
+        </View>
+      )}
       <View style={S.rowsCard}>
         {ordered.map((p, i) => {
           const pinned = sf.featuredItems.includes(p.pid);
           return (
             <View key={p.pid} style={[S.orderRow, i > 0 && S.rowDivider, !p.inStock && S.orderRowEpuise]}>
               <Text style={S.grip}>≡</Text>
-              <View style={S.orderArt} />
+              {p.assetRefs[0] !== undefined ? (
+                <Image source={{ uri: p.assetRefs[0] }} style={S.orderArt as unknown as ImageStyle} resizeMode="cover" />
+              ) : (
+                <View style={S.orderArt} />
+              )}
               <View style={S.rowBody}>
                 <View style={S.orderNameRow}>
                   <Text style={S.orderName} numberOfLines={1}>{p.name}</Text>
@@ -865,7 +898,7 @@ function K6({ sf, onBack, onCreate, onEdit }: { sf: Storefront; onBack: () => vo
   );
 }
 
-function K6b({ sf, sectionId, onBack, onRename, onRenameCommit, onTogglePid, onDelete }: { sf: Storefront; sectionId: string; onBack: () => void; onRename: (name: string) => void; onRenameCommit: (name: string) => void; onTogglePid: (pid: string) => void; onDelete: () => void }) {
+function K6b({ sf, sectionId, onBack, onRename, onRenameCommit, onTogglePid, onDelete, catalog }: { sf: Storefront; sectionId: string; onBack: () => void; onRename: (name: string) => void; onRenameCommit: (name: string) => void; onTogglePid: (pid: string) => void; onDelete: () => void; catalog?: readonly KCatalogItem[] | undefined }) {
   const section = sf.sections.find((s) => s.id === sectionId);
   if (!section) return null;
   return (
@@ -877,12 +910,22 @@ function K6b({ sf, sectionId, onBack, onRename, onRenameCommit, onTogglePid, onD
           on each one. The value renders live; the save lands when she leaves. */}
       <CountedField label={t('k.section.nom_label')} value={section.name} max={20} onChange={onRename} onCommit={onRenameCommit} />
       <Text style={S.caps}>{t('k.section.articles_caps')}</Text>
+      {sf.curatedItems.map((pid) => fromCatalog(catalog, pid)).filter((p) => p !== undefined).length === 0 && (
+        <View style={S.dashedCard}>
+          <Text style={S.dashedTitle}>{t(sf.curatedItems.length === 0 ? 'k.une.zero_titre' : 'k.une.charge_titre')}</Text>
+          <Text style={S.dashedBody}>{t(sf.curatedItems.length === 0 ? 'k.une.zero_corps' : 'k.une.charge_corps')}</Text>
+        </View>
+      )}
       <View style={S.rowsCard}>
-        {K_SEED.map((p, i) => {
+        {sf.curatedItems.map((pid) => fromCatalog(catalog, pid)).filter((p): p is KCatalogItem => p !== undefined).map((p, i) => {
           const checked = section.pids.includes(p.pid);
           return (
             <Pressable key={p.pid} style={({ pressed }) => [S.row, i > 0 && S.rowDivider, pressed && S.pressed]} onPress={() => onTogglePid(p.pid)} accessibilityRole="checkbox" accessibilityState={{ checked }}>
-              <View style={S.orderArt} />
+              {p.assetRefs[0] !== undefined ? (
+                <Image source={{ uri: p.assetRefs[0] }} style={S.orderArt as unknown as ImageStyle} resizeMode="cover" />
+              ) : (
+                <View style={S.orderArt} />
+              )}
               <View style={S.rowBody}><Text style={S.rowTitle} numberOfLines={1}>{p.name}</Text></View>
               <View style={[S.checkbox, checked && S.checkboxOn]}>
                 {checked && <IconCheckK size={14} color="#FFFFFF" />}
@@ -906,18 +949,18 @@ function K6b({ sf, sectionId, onBack, onRename, onRenameCommit, onTogglePid, onD
 
 /** K7 — aperçu vue cliente (READ-ONLY, §8.10). Also mounted as the pubvitrine
  * screen's content (it replaces the old « Vitrine publique (aperçu) »). */
-export function ApercuCliente({ sf, onBack, onReadOnlyTap }: { sf: Storefront; onBack: () => void; onReadOnlyTap: () => void }) {
+export function ApercuCliente({ sf, onBack, onReadOnlyTap, catalog }: { sf: Storefront; onBack: () => void; onReadOnlyTap: () => void; catalog?: readonly KCatalogItem[] | undefined }) {
   const th = THEMES[sf.theme];
   const initial = sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase();
   const sectioned = new Set(sf.sections.flatMap((s) => s.pids));
-  const featured = sf.featuredItems.map((pid) => K_SEED.find((p) => p.pid === pid)!).filter((p) => p && p.inStock);
-  const groups: { title: string; count: number; items: typeof K_SEED }[] = [];
+  const featured = sf.featuredItems.map((pid) => fromCatalog(catalog, pid)).filter((p): p is KCatalogItem => p !== undefined && p.inStock);
+  const groups: { title: string; count: number; items: KCatalogItem[] }[] = [];
   for (const s of sf.sections) {
     if (s.pids.length === 0) continue; // section vide = invisible côté cliente
-    const items = s.pids.map((pid) => K_SEED.find((p) => p.pid === pid)!).filter(Boolean);
+    const items = s.pids.map((pid) => fromCatalog(catalog, pid)).filter((p): p is KCatalogItem => p !== undefined);
     groups.push({ title: s.name.toUpperCase(), count: items.length, items: [...items.filter((p) => p.inStock), ...items.filter((p) => !p.inStock)] });
   }
-  const residual = sf.curatedItems.map((pid) => K_SEED.find((p) => p.pid === pid)!).filter((p) => p && !sectioned.has(p.pid));
+  const residual = sf.curatedItems.map((pid) => fromCatalog(catalog, pid)).filter((p): p is KCatalogItem => p !== undefined && !sectioned.has(p.pid));
   if (groups.length === 0 || residual.length > 0) {
     groups.push({ title: t('vit.groupe_tous'), count: residual.length, items: [...residual.filter((p) => p.inStock), ...residual.filter((p) => !p.inStock)] });
   }

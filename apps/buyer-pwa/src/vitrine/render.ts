@@ -26,8 +26,12 @@ import {
   iconDevanture,
   iconShare,
   iconShieldCheck,
+  iconBag,
   iconHeart,
+  iconLock,
+  iconPin,
   iconStar,
+  iconTag,
   iconWifiOff,
   productGlyph,
 } from './icons';
@@ -128,8 +132,8 @@ function chips(sf: Storefront, trust: VitrineTrust): string {
   return [
     '<div class="vt-trustrow" data-role="vitrine-trust">',
     cell(iconShieldCheck(15, th.deep, 2), t('vit.chip_sera'), t('vit.cell_sera_sub')),
-    cell(iconCheck(15, th.deep, 2.4), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
-    cell(iconStar(15, '#C89A3F'), t('vit.cell_prix'), t('vit.cell_prix_sub')),
+    cell(iconLock(15, th.deep, 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
+    cell(iconTag(15, '#C89A3F', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
     '</div>',
     avis,
   ].join('');
@@ -146,21 +150,24 @@ function chips(sf: Storefront, trust: VitrineTrust): string {
  * « Nouvelle vendeuse » (BUYER-REAL-HONESTY-1, unchanged). Star rows appear only
  * from real reviews at AVIS_FLOOR, in the trust band.
  */
-function hero(sf: Storefront, trust: VitrineTrust, opts: { compact?: boolean } = {}): string {
+function hero(sf: Storefront, trust: VitrineTrust, opts: { compact?: boolean } = {}, floatBar = ''): string {
   const th = VITRINE_THEMES[sf.theme];
   const initial = esc(sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase());
   // MEDIA-2 — her portrait or the monogram; photo-mode-without-url falls back.
+  // Round 4 (founder mockup): the gold-ringed monogram with the little check
+  // bubble riding the circle's edge — the vérifiée mark next to her portrait.
+  const badge = `<span class="vt-avatar-badge">${iconCheck(9, '#F6F0E4', 3)}</span>`;
   const avatar =
     sf.avatar.mode === 'photo' && sf.avatar.url
-      ? `<span class="vt-avatar vt-avatar-photo"><img class="vt-avatar-img" src="${esc(sf.avatar.url)}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async"></span>`
-      : `<span class="vt-avatar">${initial}</span>`;
+      ? `<span class="vt-avatar vt-avatar-photo"><img class="vt-avatar-img" src="${esc(sf.avatar.url)}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async">${badge}</span>`
+      : `<span class="vt-avatar">${initial}${badge}</span>`;
   const panel = [
     '<div class="vt-hero-id" data-role="vitrine-identity">',
     avatar,
-    `<div class="vt-namerow"><v>${esc(sf.name)}</v>${iconCheck(17, '#C89A3F', 2.6)}</div>`,
+    `<div class="vt-namerow"><v>${esc(sf.name)}</v><span class="vt-rosette">${iconCheck(12, '#FFFFFF', 3)}</span></div>`,
   ];
   if (!opts.compact && sf.tagline) panel.push(`<div class="vt-tagline"><v>${esc(sf.tagline)}</v></div>`);
-  panel.push(`<div class="vt-zone">${t('vit.verifiee')} <v>${esc(sf.zone)}</v></div>`);
+  panel.push(`<div class="vt-zone">${iconPin(13, '#C89A3F', 2)}${t('vit.verifiee')} <v>${esc(sf.zone)}</v></div>`);
   if (!opts.compact) {
     if (sf.bio) panel.push(`<div class="vt-bio"><v>${esc(sf.bio)}</v></div>`);
     if (trust.deliveredCount >= 1) {
@@ -169,12 +176,32 @@ function hero(sf: Storefront, trust: VitrineTrust, opts: { compact?: boolean } =
       );
     }
   }
-  // No earned proof AT ALL → the state is named, never left as suspicious blank.
-  if (trust.deliveredCount === 0 && trust.reviewCount === 0) {
-    panel.push(`<span class="vt-chip-nouvelle" data-role="chip-nouvelle">${iconStar(12, th.deep)}${t('vit.nouvelle_vendeuse')}</span>`);
-  }
   panel.push('</div>');
-  return ['<div class="vt-hero" data-role="vitrine-hero">', panel.join(''), cover(sf), '</div>'].join('');
+  // No earned proof AT ALL → the state is named, never left as suspicious blank.
+  // On the PHOTO, as the mockup places it (round 3, founder walk).
+  const nouvelle =
+    trust.deliveredCount === 0 && trust.reviewCount === 0
+      ? `<span class="vt-chip-nouvelle" data-role="chip-nouvelle">${iconStar(12, th.deep)}${t('vit.nouvelle_vendeuse')}</span>`
+      : '';
+  return [
+    '<div class="vt-hero" data-role="vitrine-hero">',
+    floatBar,
+    panel.join(''),
+    `<div class="vt-hero-side">${cover(sf)}${nouvelle}</div>`,
+    '</div>',
+  ].join('');
+}
+
+/** NORTH-STAR round 3 — the mockup's section heading: glyph + sentence-case
+ *  title + an optional « Voir tout › » that SCROLLS (a real anchor, not a dead
+ *  link — there is no separate page to go to; the boutique IS this page). */
+function sectionHead(glyph: string, title: string, linkLabel?: string, anchor?: string, count?: number): string {
+  const link =
+    linkLabel !== undefined && anchor !== undefined
+      ? `<span class="vt-head-link" role="button" data-action="ancre" data-cible="${anchor}">${linkLabel}${iconChevron(12, '#6F6355', 2.2)}</span>`
+      : '';
+  const n = count !== undefined ? `<i class="vt-head-n">· <v>${count}</v></i>` : '';
+  return `<div class="vt-head"><span class="vt-head-glyph">${glyph}</span><b class="vt-head-title">${title}</b>${n}<span class="vt-head-spacer"></span>${link}</div>`;
 }
 
 /** C-VIT6 — titre de groupe « CAPS · N ». The planche authors the count as a
@@ -263,7 +290,7 @@ function tile(p: VitrineProduct, note?: ProductVoiceNote): string {
     `<div class="vt-tile-name"><v>${esc(p.name)}</v></div>`,
     '<div class="vt-tile-pricerow">',
     `<div class="vt-tile-price"><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
-    p.inStock ? `<span class="vt-tile-go" aria-hidden="true">${iconChevron(13, '#FFFFFF', 2.4)}</span>` : '',
+    p.inStock ? `<span class="vt-tile-go" aria-hidden="true">${iconBag(14, '#FFFFFF', 2)}</span>` : '',
     '</div>',
     p.inStock ? `<div class="vt-tile-livree">${t('vit.livraison_2448')}</div>` : '',
     p.inStock ? renderVoiceChip(note) : '',
@@ -281,10 +308,10 @@ function tile(p: VitrineProduct, note?: ProductVoiceNote): string {
  * row would be invented. « Commander » is a labeled CTA inside the one button
  * this card already is; it opens her product page, same action as the card.
  */
-function featuredTile(p: VitrineProduct, note?: ProductVoiceNote): string {
+function featuredTile(p: VitrineProduct, note?: ProductVoiceNote, pinnedByHer = true): string {
   return [
     `<button class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${p.pid}">`,
-    `<div class="vt-featured-artwrap">${tileArt(false, p.assetRefs)}<span class="vt-featured-badge">${t('vit.a_la_une')}</span>${fav(p.pid)}</div>`,
+    `<div class="vt-featured-artwrap">${tileArt(false, p.assetRefs)}${pinnedByHer ? `<span class="vt-featured-badge">${t('vit.a_la_une')}</span>` : ''}${fav(p.pid)}</div>`,
     '<div class="vt-featured-body">',
     `<span class="vt-featured-name"><v>${esc(p.name)}</v></span>`,
     `<b class="vt-featured-price"><v>${fmtFcfa(p.priceFcfa)}</v></b>`,
@@ -362,18 +389,43 @@ export function renderVitrineReady(
 ): string {
   const th = VITRINE_THEMES[sf.theme];
   const parts = [
-    topBar({ back: opts.fromProduct, accent: th.accent }),
-    hero(sf, trust),
+    hero(sf, trust, {}, topBar({ back: opts.fromProduct, accent: th.accent })),
     chips(sf, trust),
   ];
 
-  // « À LA UNE » — ≤ 2 pinned, never an out-of-stock article (auto-retrait).
-  const featured = orderedProducts(sf, sf.featuredItems, described)
+  // « PRODUIT À LA UNE » — ≤ 2 pinned, never an out-of-stock article. When she
+  // pinned NOTHING (K5), the page still leads with her FIRST in-stock article —
+  // deterministic (her own curation order, position 1), so the page has the
+  // mockup's shape from day one. The « À LA UNE » badge stays HER claim only:
+  // the auto-lead renders without it.
+  const pinned = orderedProducts(sf, sf.featuredItems, described)
     .filter((p) => p.inStock)
     .slice(0, 2);
+  const autoLead = pinned.length === 0
+    ? orderedProducts(sf, undefined, described).filter((p) => p.inStock).slice(0, 1)
+    : [];
+  const featured = pinned.length > 0 ? pinned : autoLead;
+  // computed BEFORE the featured header so « Voir tout » renders only when the
+  // anchor it targets will exist (verifier NB3: a link to a missing id is the
+  // dead button its own comment banned).
+  const sectionedEarly = new Set(sf.sections.flatMap((sec) => sec.pids));
+  const featuredShownEarly = new Set(featured.map((p) => p.pid));
+  const anythingBelow =
+    sf.sections.some((sec) => sec.pids.length > 0) ||
+    orderedProducts(sf, undefined, described).some(
+      (p) => !sectionedEarly.has(p.pid) && !featuredShownEarly.has(p.pid),
+    );
   if (featured.length > 0) {
-    parts.push(groupTitle(t('vit.a_la_une'), undefined));
-    for (const p of featured) parts.push(featuredTile(p, notes[p.pid]));
+    parts.push(
+      sectionHead(
+        iconStar(15, '#C89A3F'),
+        t('vit.head_une'),
+        anythingBelow ? t('vit.voir_tout') : undefined,
+        anythingBelow ? 'vt-anchor-grid' : undefined,
+      ),
+    );
+    for (const p of featured) parts.push(featuredTile(p, notes[p.pid], pinned.length > 0));
+    if (anythingBelow) parts.push('<div id="vt-anchor-grid"></div>');
   }
 
   // Sections (≤ 4, empty invisible), then the residual « TOUS LES ARTICLES ».
@@ -393,14 +445,15 @@ export function renderVitrineReady(
   const residual = orderedProducts(sf, undefined, described).filter(
     (p) => !sectioned.has(p.pid) && !featuredShown.has(p.pid),
   );
-  if (visibleSections.length === 0 || residual.length > 0) {
+  // Round 4 (verifier B3): a one-product shop's only article IS the auto-lead, so
+  // the residual is empty — a heading announcing « Autres articles · 0 » over an
+  // empty grid is a heading lying about its own list. Nothing renders instead.
+  if (residual.length > 0) {
     // « AUTRES ARTICLES » only when something CAME BEFORE it (à la une or a
     // section) — with nothing above, « autres » would refer to nothing and the
     // honest title is « TOUS LES ARTICLES ».
-    const residualLabel = featured.length > 0 || visibleSections.length > 0 ? t('vit.groupe_autres') : t('vit.groupe_tous');
-    parts.push(
-      groupTitle(residualLabel, residual.length, visibleSections.length === 0 ? 'var' : 'literal'),
-    );
+    const residualLabel = featured.length > 0 || visibleSections.length > 0 ? t('vit.head_autres') : t('vit.head_tous');
+    parts.push(sectionHead(iconBag(15, '#6F6355', 1.9), residualLabel, undefined, undefined, residual.length));
     parts.push(`<div class="vt-grid">${residual.map((p) => tile(p, notes[p.pid])).join('')}</div>`);
   }
 
@@ -413,8 +466,7 @@ export function renderVitrineEmpty(sf: Storefront, trust: VitrineTrust, opts: Vi
   const first = esc(sf.name.replace(/^Chez\s+/i, '').split(' ')[0] ?? sf.name);
   return wrap(
     [
-      topBar({ back: opts.fromProduct, accent: VITRINE_THEMES[sf.theme].accent }),
-      hero(sf, trust, { compact: true }),
+      hero(sf, trust, { compact: true }, topBar({ back: opts.fromProduct, accent: VITRINE_THEMES[sf.theme].accent })),
       '<div class="vt-empty" data-role="vitrine-vide">',
       iconDevanture(40, '#8A7D6B', 1.7),
       `<div class="vt-empty-titre">${t('vit.vide_titre')}</div>`,
@@ -431,9 +483,10 @@ export function renderVitrineEmpty(sf: Storefront, trust: VitrineTrust, opts: Vi
 export function renderVitrineSkeleton(): string {
   const skTile =
     '<div class="vt-sk-tile"><div class="vt-sk-art vt-shim"></div><div class="vt-sk-body"><div class="vt-sk-line1"></div><div class="vt-sk-line2"></div></div></div>';
+  // NB2 (verifier): the skeleton mirrors the READY layout — the hero is the
+  // first child and the topbar lives inside it, so the load has no 40px jolt.
   return wrap(
     [
-      topBar({ back: false, accent: '#C2571B' }),
       '<div class="vt-sk-cover vt-shim"></div>',
       '<div class="vt-sk-identity">',
       '<div class="vt-sk-avatar"></div>',

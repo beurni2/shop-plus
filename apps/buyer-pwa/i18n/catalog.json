@@ -972,27 +972,39 @@
   "screenClass": "status"
  },
  {
+  "key": "vit.head_une",
+  "fr": "Produit à la une",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.head_autres",
+  "fr": "Autres articles",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.head_tous",
+  "fr": "Tous les articles",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.voir_tout",
+  "fr": "Voir tout",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.commander",
   "fr": "Commander",
   "register": "selling",
   "screenClass": "label"
  },
  {
-  "key": "vit.groupe_autres",
-  "fr": "AUTRES ARTICLES",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
   "key": "vit.a_la_une",
   "fr": "À LA UNE",
   "register": "selling",
-  "screenClass": "label"
- },
- {
-  "key": "vit.groupe_tous",
-  "fr": "TOUS LES ARTICLES",
-  "register": "neutral",
   "screenClass": "label"
  },
  {

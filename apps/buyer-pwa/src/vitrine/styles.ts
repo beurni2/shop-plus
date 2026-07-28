@@ -52,42 +52,74 @@ export const VITRINE_STYLES = `
      Forêt renders the mockup's green; every habillage renders its own DNA —
      tokens only, no hardcoded brand color (design-system law). The photo column
      replaces the 134px strip that beheaded portrait photographs. */
+  /* Round 3 (founder walk): the hero bleeds to the TOP EDGE — negative margins
+     cancel the scroll padding, and the top buttons float OVER the photo as in
+     the mockup. Radius stays on the bottom corners only. */
   .vt-hero {
     position: relative; display: grid; grid-template-columns: 54% 46%;
-    border-radius: 26px; overflow: hidden; margin-top: 12px;
-    min-height: 300px;
+    border-radius: 0 0 26px 26px; overflow: hidden;
+    margin: -76px -20px 0; padding-top: 60px; /* status 54 + liseré 6 + pad 16 (verifier NB1) */
+    min-height: 340px;
     background: var(--vt-deep);
     transition: background .3s;
   }
+  .vt-hero .vt-topbar {
+    position: absolute; top: 54px; left: 12px; right: 12px; z-index: 2; height: 40px;
+  }
+  .vt-hero-side { position: relative; }
+  .vt-hero-side .vt-chip-nouvelle {
+    position: absolute; right: 10px; bottom: 12px; z-index: 1; margin-top: 0;
+  }
+  .vt-hero-side .vt-hero-photo { position: absolute; inset: 0; }
   .vt-hero-id {
     position: relative; z-index: 1;
-    padding: 22px 16px 22px 18px;
+    padding: 30px 26px 22px 20px;
     color: var(--vt-on);
     display: flex; flex-direction: column; align-items: flex-start; gap: 0;
     background: var(--vt-deep);
-    border-radius: 0 26px 26px 0; /* the organic curve INTO the photo */
+    /* Round 4 — the mockup's big convex arc into the photo, not a small corner. */
+    border-radius: 0 46% 46% 0 / 0 50% 50% 0;
   }
+  /* Round 4 — the mockup's avatar: gold RING on the deep green, gold letter,
+     and the vérifiée bubble riding the circle's edge. */
   .vt-avatar {
+    position: relative;
     display: inline-flex; align-items: center; justify-content: center;
-    width: 44px; height: 44px; border-radius: 99px;
-    background: var(--vt-accent); border: 2px solid #C89A3F;
-    color: var(--vt-on);
+    width: 48px; height: 48px; border-radius: 99px;
+    background: transparent; border: 2px solid #C89A3F;
+    color: #C89A3F;
     font-family: 'Bricolage Grotesque', sans-serif;
-    font-size: 18px; font-weight: 800;
-    transition: background .3s;
+    font-size: 19px; font-weight: 800;
+  }
+  .vt-avatar-badge {
+    position: absolute; right: -3px; bottom: -3px;
+    width: 16px; height: 16px; border-radius: 99px;
+    background: var(--vt-accent); border: 2px solid var(--vt-deep);
+    display: inline-flex; align-items: center; justify-content: center;
   }
   /* MEDIA-2 — her portrait fills the disc; the accent stays behind a slow load. */
   .vt-avatar-photo { overflow: hidden; padding: 0; }
   .vt-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
   .vt-namerow {
-    display: flex; align-items: center; gap: 6px;
-    margin-top: 10px;
-    font-family: 'Bricolage Grotesque', sans-serif;
-    font-size: 26px; font-weight: 800; letter-spacing: -0.52px; line-height: 1.08;
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 12px;
+    /* Round 4, founder order (« make the headers the same ») — the mockup sets the
+       shop NAME in a serif. The ONE vitrine departure from the family typeface,
+       system-stack so nothing is downloaded on a patchy connection. */
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 28px; font-weight: 700; letter-spacing: -0.2px; line-height: 1.08;
+  }
+  .vt-rosette {
+    width: 20px; height: 20px; border-radius: 99px; flex: none;
+    background: #1F7A4D;
+    display: inline-flex; align-items: center; justify-content: center;
   }
   .vt-namerow v { display: block; }
   .vt-tagline { margin-top: 5px; font-size: 13.5px; font-weight: 700; color: #C89A3F; }
-  .vt-zone { margin-top: 6px; font-size: 12px; font-weight: 400; color: color-mix(in srgb, var(--vt-on) 78%, transparent); }
+  .vt-zone {
+    margin-top: 8px; display: flex; align-items: center; gap: 5px;
+    font-size: 12px; font-weight: 400; color: color-mix(in srgb, var(--vt-on) 78%, transparent);
+  }
   .vt-bio {
     margin-top: 10px;
     font-size: 12.5px; font-weight: 400; line-height: 1.55;
@@ -146,7 +178,11 @@ export const VITRINE_STYLES = `
     padding: 11px 10px; min-height: 56px;
     box-shadow: 0 1px 2px rgba(28, 22, 15, 0.04);
   }
-  .vt-cell-icon { flex: none; display: inline-flex; }
+  .vt-cell-icon {
+    flex: none; display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 99px;
+    background: #F6F0E4;
+  }
   .vt-cell-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .vt-cell-label { font-size: 10.5px; font-weight: 700; line-height: 1.25; color: #1C1710; }
   .vt-cell-sub { font-size: 9.5px; font-weight: 400; line-height: 1.2; color: #6F6355; }
@@ -170,6 +206,21 @@ export const VITRINE_STYLES = `
   .vt-fav-on { color: var(--vt-accent); }
   .vt-fav-on svg path { fill: currentColor; stroke: currentColor; }
   .vt-featured-artwrap .vt-fav { top: 10px; right: 10px; }
+
+  /* NORTH-STAR round 3 — the mockup's section heading. */
+  .vt-head { display: flex; align-items: center; gap: 8px; margin-top: 24px; }
+  .vt-head-glyph { display: inline-flex; flex: none; }
+  .vt-head-title {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 17px; font-weight: 800; letter-spacing: -0.2px; color: #1C1710;
+  }
+  .vt-head-n { font-size: 12px; font-weight: 700; color: #8A7D6B; font-variant-numeric: tabular-nums; }
+  .vt-head-spacer { flex: 1; }
+  .vt-head-link {
+    display: inline-flex; align-items: center; gap: 2px;
+    min-height: 44px; padding: 0 4px;
+    font-size: 12.5px; font-weight: 700; color: #6F6355; cursor: pointer;
+  }
 
   /* C-VIT6 — titre de groupe + grille. */
   .vt-group { display: flex; align-items: baseline; gap: 8px; margin-top: 22px; }
@@ -339,7 +390,7 @@ export const VITRINE_STYLES = `
     background-image: linear-gradient(100deg, #ECE4D4 30%, #F6F1E7 45%, #ECE4D4 60%);
     background-size: 320px 100%;
   }
-  .vt-sk-cover { height: 300px; border-radius: 26px; margin-top: 12px; }
+  .vt-sk-cover { height: 340px; border-radius: 0 0 26px 26px; margin: -76px -20px 0; }
   .vt-sk-identity { margin-top: 12px; text-align: left; }
   .vt-sk-avatar {
     display: inline-block; width: 44px; height: 44px; border-radius: 99px;

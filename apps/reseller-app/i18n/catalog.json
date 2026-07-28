@@ -1302,6 +1302,30 @@
   "screenClass": "label"
  },
  {
+  "key": "k.une.zero_titre",
+  "fr": "Pas encore d\u2019article",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.une.zero_corps",
+  "fr": "Vendez un premier article. Il arrive ici tout seul.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.une.charge_titre",
+  "fr": "Vos articles ne chargent pas",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.une.charge_corps",
+  "fr": "Votre boutique les garde. Revenez dans un moment.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "k.une.pill",
   "fr": "{n}/{cap} épinglés",
   "register": "neutral",
