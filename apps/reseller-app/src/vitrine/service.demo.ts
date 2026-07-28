@@ -28,7 +28,13 @@ import type {
   StorefrontServicePort,
   UploadOutcome,
 } from './service';
+// ENTETES-B — the CANON closed set, imported (never hand-copied): this module is
+// tests-only and Node-side, so the Metro law does not bind it, and the
+// no-demo-adapter-in-bundle gate proves it stays out of the exported bundle.
+import { STOREFRONT_HEADER_STYLES } from '@platform/contracts';
 import { DEFAULT_STOREFRONT, type Storefront } from './customize/storefront';
+
+const HEADER_STYLES: ReadonlySet<string> = new Set<string>(STOREFRONT_HEADER_STYLES);
 
 /**
  * The in-memory DEMO adapter — tests only, ZERO network. It applies the same rules
@@ -66,6 +72,12 @@ export class DemoStorefrontService implements StorefrontServicePort {
    *  a mock that could only succeed would make every test greener than the system. */
   async saveIdentity(id: string, patch: StorefrontIdentityPatch, at: string): Promise<ServiceResult<{ status: string }>> {
     if (this.refuseIdentityFor.has(id)) return { ok: false, reason: 'name_too_short' };
+    // ENTETES-B — the demo refuses exactly what the service refuses, by the same
+    // NAME, against the CANON set (certified-mock rule: a mock that only succeeds
+    // makes every test greener than the system).
+    if (patch.headerStyle !== undefined && !HEADER_STYLES.has(patch.headerStyle)) {
+      return { ok: false, reason: 'unknown_header_style' };
+    }
     const read = await this.getById(id);
     const current = read.ok ? read.value : undefined;
     if (current === undefined) return { ok: false, reason: 'http_404' };
@@ -78,6 +90,7 @@ export class DemoStorefrontService implements StorefrontServicePort {
       ...(patch.featuredItems !== undefined ? { featuredItems: [...patch.featuredItems] } : {}),
       ...(patch.sections !== undefined ? { sections: patch.sections.map((s) => ({ ...s, pids: [...s.pids] })) } : {}),
       ...(patch.curatedItems !== undefined ? { curatedItems: [...patch.curatedItems] } : {}),
+      ...(patch.headerStyle !== undefined ? { headerStyle: patch.headerStyle } : {}),
       updatedAt: at,
     });
     return { ok: true, value: { status: 'saved' } };

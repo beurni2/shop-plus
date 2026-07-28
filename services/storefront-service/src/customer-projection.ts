@@ -185,6 +185,8 @@ export interface StorefrontView {
   readonly tagline: string;
   readonly bio: string;
   readonly theme: Storefront['theme'];
+  /** ENTETES-B — her chosen boutique header; presentation, never economics. */
+  readonly headerStyle: Storefront['headerStyle'];
   readonly cover: Storefront['cover'];
   readonly avatar: Storefront['avatar'];
   readonly curatedItems: readonly string[];
@@ -206,6 +208,7 @@ export function toStorefrontView(sf: Storefront): StorefrontView {
     tagline: sf.tagline,
     bio: sf.bio,
     theme: sf.theme,
+    headerStyle: sf.headerStyle,
     cover: sf.cover,
     avatar: sf.avatar,
     curatedItems: [...sf.curatedItems],

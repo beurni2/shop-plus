@@ -222,6 +222,58 @@ describe('PERSONNALISER-REAL-1 — decideSaveIdentity, the presentation she owns
     expect(serialised).not.toContain('markup');
     expect(serialised).not.toContain('999');
   });
+
+  it('ENTETES-B: headerStyle SAVES, is PERSISTED, and moves updatedAt — every canon key accepted', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const { decision, next } = decideSaveIdentity(await entry(), { headerStyle: 'royale' }, T3);
+    expect(decision.status).toBe('saved');
+    if (decision.status !== 'saved') throw new Error('unreachable');
+    expect(decision.storefront.headerStyle).toBe('royale');
+    expect(decision.storefront.updatedAt).toBe(T3); // a real change moves the clock
+    expect(next?.storefront.headerStyle).toBe('royale'); // and it is what gets PERSISTED
+    // the whole CANON set is accepted — imported, never a hand-copied list
+    const { STOREFRONT_HEADER_STYLES } = await import('@platform/contracts');
+    for (const key of STOREFRONT_HEADER_STYLES) {
+      const d = decideSaveIdentity(await entry(), { headerStyle: key }, T3).decision;
+      expect(d.status, key).toBe(key === 'classique' ? 'unchanged' : 'saved'); // classique IS the created default
+    }
+  });
+
+  it('ENTETES-B: the SAME headerStyle again is `unchanged` and updatedAt does NOT move', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const withRoyale = decideSaveIdentity(await entry(), { headerStyle: 'royale' }, T3).next!;
+    const T4 = '2026-07-28T12:00:00.000Z';
+    const { decision, next } = decideSaveIdentity(withRoyale, { headerStyle: 'royale' }, T4);
+    expect(decision.status).toBe('unchanged');
+    expect(next).toBeUndefined(); // nothing to write
+    expect(withRoyale.storefront.updatedAt).toBe(T3); // the no-op moved nothing
+  });
+
+  it('ENTETES-B: an unknown header is REFUSED by its own name — never stored, never anonymous', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const e = await entry();
+    const { decision, next } = decideSaveIdentity(e, { headerStyle: 'baroque' }, T3);
+    expect(decision).toEqual({ status: 'refused', reason: 'unknown_header_style' });
+    expect(next).toBeUndefined();
+    expect(e.storefront.headerStyle).toBe('classique'); // the stored value is untouched
+  });
+
+  it('ENTETES-B: a PRE-FIELD entry backfills headerStyle:`classique` through the canon parse — proven, not assumed', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const { StorefrontSchema } = await import('@platform/contracts');
+    // Fabricate the exact stored shape a pre-v2.1.0 write left behind: the canon
+    // Storefront WITHOUT the field (DO storage holds bytes, not schemas).
+    const created = await entry();
+    const { headerStyle: _dropped, ...preFieldSf } = created.storefront as Record<string, unknown> & { headerStyle: string };
+    const preField = { ...created, storefront: preFieldSf as typeof created.storefront };
+    // 1 · read back through the canon schema: the default backfills
+    expect(StorefrontSchema.parse(preFieldSf).headerStyle).toBe('classique');
+    // 2 · a real save on the pre-field entry writes a canon shape carrying the default
+    const { decision } = decideSaveIdentity(preField, { name: 'Chez Bernard' }, T3);
+    if (decision.status !== 'saved') throw new Error(`expected saved, got ${decision.status}`);
+    expect(decision.storefront.headerStyle).toBe('classique');
+    expect(() => StorefrontSchema.parse(decision.storefront)).not.toThrow();
+  });
 });
 
 /**

@@ -1,6 +1,7 @@
 import {
   PlatformEventSchema,
   ResellerShortCodeSchema,
+  STOREFRONT_HEADER_STYLES,
   StorefrontSchema,
   shortCodeToSlug,
   type PlatformEvent,
@@ -237,6 +238,9 @@ export interface IdentityPatch {
    * reorder that happens to arrive short.
    */
   readonly curatedItems?: readonly string[];
+  /** ENTETES-B — her chosen boutique header. Wire-shaped like `theme` (a string
+   *  checked against the CANON closed set below); absent = untouched. */
+  readonly headerStyle?: string;
 }
 
 export type SaveIdentityDecision =
@@ -257,6 +261,9 @@ const SECTION_NAME_MAX = 20;
 const FEATURED_CAP = 2;
 const SECTIONS_CAP = 4;
 const THEMES: ReadonlySet<string> = new Set(['laterite', 'danfani', 'indigo', 'foret']);
+/** ENTETES-B — the CANON closed set, imported, never a hand-copied list: the
+ *  service refuses exactly what canon refuses, by construction. */
+const HEADER_STYLES: ReadonlySet<string> = new Set<string>(STOREFRONT_HEADER_STYLES);
 
 /**
  * SAVE HER PRESENTATION. Absent → surfaced (never a phantom write). No real
@@ -311,6 +318,9 @@ export function decideSaveIdentity(
   if (patch.theme !== undefined && !THEMES.has(patch.theme)) {
     return { decision: { status: 'refused', reason: 'unknown_theme' } };
   }
+  if (patch.headerStyle !== undefined && !HEADER_STYLES.has(patch.headerStyle)) {
+    return { decision: { status: 'refused', reason: 'unknown_header_style' } };
+  }
   if (patch.featuredItems !== undefined && patch.featuredItems.length > FEATURED_CAP) {
     return { decision: { status: 'refused', reason: 'featured_over_cap' } };
   }
@@ -337,6 +347,7 @@ export function decideSaveIdentity(
     ...(patch.featuredItems !== undefined ? { featuredItems: [...patch.featuredItems] } : {}),
     ...(sections !== undefined ? { sections } : {}),
     ...(patch.curatedItems !== undefined ? { curatedItems: [...patch.curatedItems] } : {}),
+    ...(patch.headerStyle !== undefined ? { headerStyle: patch.headerStyle } : {}),
   };
 
   // NOTHING REALLY CHANGED ⇒ no write, no updatedAt move. Compared field by
@@ -347,6 +358,7 @@ export function decideSaveIdentity(
     merged.tagline === sf.tagline &&
     merged.bio === sf.bio &&
     merged.theme === sf.theme &&
+    merged.headerStyle === sf.headerStyle &&
     JSON.stringify(merged.featuredItems) === JSON.stringify(sf.featuredItems) &&
     JSON.stringify(merged.curatedItems) === JSON.stringify(sf.curatedItems) &&
     JSON.stringify(merged.sections) === JSON.stringify(sf.sections);

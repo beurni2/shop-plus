@@ -167,6 +167,10 @@ export const K_RAW_STYLES = {
     position: 'absolute', top: 16, right: 10, width: 26, height: 26, borderRadius: 99,
     backgroundColor: '#A31D4E', alignItems: 'center', justifyContent: 'center',
   },
+  /* ENTETES-B — the header cards reuse themeCard/themeCardSelected/themeCheck
+     wholesale; this is the one net-new entry (the one-line whisper under the
+     name), on EXISTING palette bytes only (#6F6355 = rowSub/caps). */
+  enteteSub: { fontFamily: TEXT_FAMILY, fontSize: 12, lineHeight: 18, color: '#6F6355', paddingTop: 6, paddingHorizontal: 14 },
   noteCard: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EDE4D3', padding: 14, marginTop: 16 },
   noteCardText: { fontFamily: TEXT_FAMILY, fontSize: 12, lineHeight: 18, color: '#4A3F33' },
 

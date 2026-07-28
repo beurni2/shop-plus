@@ -25,18 +25,21 @@ import { t, tf } from '../../i18n';
 import {
   DEFAULT_STOREFRONT,
   FEATURED_CAP,
+  HEADER_STYLES,
   NAME_MIN,
   SECTIONS_CAP,
   THEMES,
   coverTo,
   createSection,
   deleteSection,
+  headerStyleOf,
   moveItem,
   renameSection,
   saveIdentity,
   setTheme,
   toggleSectionPid,
   togglePin,
+  type HeaderStyleKey,
   type Storefront,
   type VitrineThemeKey,
 } from './storefront';
@@ -404,6 +407,17 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
             setSf(setTheme(sf, key));
             onToast(tf('k.theme.toast', { nom: THEMES[key].name }));
           }}
+          onPickEntete={(key) => {
+            // ENTETES-B — ONE SAVE, ONE THING: the header rides ALONE, never the
+            // six-field ride-along, so a stale unrelated field can never refuse
+            // it. Local state updates for the check mark; the App re-reads after
+            // the save and the adopted service truth arrives via `storefront`.
+            const next = { ...sf, headerStyle: key };
+            setSfRaw(next);
+            onStorefrontChange?.(next);
+            onSaveIdentity?.({ headerStyle: key });
+            onToast(tf('k.entete.toast', { nom: t(`k.entete.nom_${key}`) }));
+          }}
         />
       )}
       {route === 'k5' && (
@@ -764,8 +778,12 @@ function PortraitSegments({ sf, onPickAvatar, sending }: { sf: Storefront; onPic
 
 /* ------------------------------------------------------------------- K4 -- */
 
-function K4({ sf, onBack, onPick }: { sf: Storefront; onBack: () => void; onPick: (k: VitrineThemeKey) => void }) {
+function K4({ sf, onBack, onPick, onPickEntete }: { sf: Storefront; onBack: () => void; onPick: (k: VitrineThemeKey) => void; onPickEntete: (k: HeaderStyleKey) => void }) {
   const ORDER: VitrineThemeKey[] = ['laterite', 'danfani', 'indigo', 'foret'];
+  // ENTETES-B — the six canon headers as TEXT cards (name + a one-line whisper
+  // of character). No preview thumbnails this slice: the founder sees the real
+  // render via « voir comme cliente » / `?entete=` on the buyer page.
+  const currentEntete = headerStyleOf(sf);
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
       <KHeader title={t('k.theme.title')} onBack={onBack} />
@@ -788,6 +806,30 @@ function K4({ sf, onBack, onPick }: { sf: Storefront; onBack: () => void; onPick
                   <View style={S.defautPill}><Text style={S.defautPillText}>{t('k.theme.defaut')}</Text></View>
                 )}
               </View>
+              {selected && (
+                <View style={S.themeCheck}>
+                  <IconCheckK size={14} color="#FCF4EE" />
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+      {/* ENTETES-B — « En-tête de boutique »: the SAME card / selected / check
+          pattern as the theme grid above, one tap = one save (headerStyle only). */}
+      <Text style={[S.caps, S.capsGap]}>{t('k.entete.caps')}</Text>
+      <View style={S.themeGrid}>
+        {HEADER_STYLES.map((key) => {
+          const selected = currentEntete === key;
+          return (
+            <Pressable key={key} style={[S.themeCard, selected ? S.themeCardSelected : S.themeCardRest]} onPress={() => onPickEntete(key)} accessibilityRole="button" accessibilityState={{ selected }}>
+              <View style={S.themeNameRow}>
+                <Text style={S.themeName}>{t(`k.entete.nom_${key}`)}</Text>
+                {key === 'classique' && (
+                  <View style={S.defautPill}><Text style={S.defautPillText}>{t('k.theme.defaut')}</Text></View>
+                )}
+              </View>
+              <Text style={S.enteteSub}>{t(`k.entete.sub_${key}`)}</Text>
               {selected && (
                 <View style={S.themeCheck}>
                   <IconCheckK size={14} color="#FCF4EE" />

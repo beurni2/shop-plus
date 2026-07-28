@@ -127,6 +127,9 @@ export interface StorefrontIdentityPatch {
    *  she already has and refuses anything that would add or drop a product:
    *  membership is earned by publishing, never changed by a reorder. */
   readonly curatedItems?: readonly string[];
+  /** ENTETES-B — her chosen boutique header. Wire-shaped like `theme`; the
+   *  service refuses anything outside the canon closed set (`unknown_header_style`). */
+  readonly headerStyle?: string;
 }
 
 export interface StorefrontServicePort {

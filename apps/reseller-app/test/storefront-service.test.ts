@@ -245,6 +245,49 @@ describe('PERSONNALISER-REAL-1 — the identity seam', () => {
     svc.refuseIdentityFor.add(CMD.id);
     expect(await svc.saveIdentity(CMD.id, patch, 'T2')).toEqual({ ok: false, reason: 'name_too_short' });
   });
+
+  it('ENTETES-B THE WIRE: the HTTP adapter posts a headerStyle patch AS-IS — nothing strips or renames it', async () => {
+    let seen: { url?: string | undefined; body?: unknown } = {};
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init: { method: string; headers: Record<string, string>; body: string }) => {
+      seen = { url, body: JSON.parse(init.body) };
+      return { ok: true, status: 200, json: async () => ({ status: 'saved' }) } as unknown as Response;
+    }) as unknown as typeof fetch;
+    try {
+      const svc = new HttpStorefrontService('https://svc.example', 'k-test');
+      expect(await svc.saveIdentity('sf-1', { headerStyle: 'royale' }, 'T0')).toEqual({ ok: true, value: { status: 'saved' } });
+    } finally {
+      globalThis.fetch = original;
+    }
+    expect(seen.url).toBe('https://svc.example/storefronts/sf-1/identity');
+    expect(seen.body).toEqual({ patch: { headerStyle: 'royale' }, at: 'T0' });
+  });
+
+  it("ENTETES-B THE SERVICE'S NAMED REFUSAL SURVIVES — « unknown_header_style » is not « une erreur »", async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      ({ ok: false, status: 422, json: async () => ({ status: 'refused', reason: 'unknown_header_style' }) }) as unknown as Response) as unknown as typeof fetch;
+    try {
+      const svc = new HttpStorefrontService('https://svc.example', 'k');
+      expect(await svc.saveIdentity('sf-1', { headerStyle: 'baroque' }, 'T0')).toEqual({ ok: false, reason: 'unknown_header_style' });
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
+  it('ENTETES-B THE DEMO ADAPTER honors headerStyle with the SAME named refusal as the service', async () => {
+    const svc = new DemoStorefrontService();
+    await svc.create(CMD);
+    // saved → read back, by value, with the other fields untouched
+    expect((await svc.saveIdentity(CMD.id, { headerStyle: 'royale' }, 'T1')).ok).toBe(true);
+    const read = await svc.getById(CMD.id);
+    expect(read.ok && read.value?.headerStyle).toBe('royale');
+    expect(read.ok && read.value?.name).toBe(CMD.name); // absent fields stay untouched
+    // an unknown key refuses by the service's own name, and writes NOTHING
+    expect(await svc.saveIdentity(CMD.id, { headerStyle: 'baroque' }, 'T2')).toEqual({ ok: false, reason: 'unknown_header_style' });
+    const after = await svc.getById(CMD.id);
+    expect(after.ok && after.value?.headerStyle).toBe('royale');
+  });
 });
 
 describe('PERSONNALISER-REAL-1 — the wiring (source-pinned)', () => {

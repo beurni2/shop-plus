@@ -39,8 +39,32 @@ export interface VitrineHarness {
   readonly fromProduct?: boolean | undefined;
   /** Freeze timers for the audit (no 750 ms transition). */
   readonly fige?: boolean | undefined;
-  /** ENTETES-A — the founder's `?entete=` header preview. Absent ⇒ classique. */
+  /** ENTETES-A/B — the founder's `?entete=` preview OVERRIDE. Present ⇒ it wins
+   *  over the storefront's own `headerStyle`; ABSENT (undefined) ⇒ the field
+   *  drives the render (classique when the field is absent too). */
   readonly entete?: EnteteKey | undefined;
+}
+
+/**
+ * ENTETES-B — WHICH HEADER MOUNTS, as a pure decision (the harnessProfil
+ * precedent: a rule buried in the mount is a rule no test can fail loudly).
+ *
+ * The `?entete=` override is the founder's preview lever and WINS when present
+ * — byte-for-byte its ENTETES-A behaviour. With no override, HER CHOSEN
+ * `headerStyle` drives; a storefront not yet resolved (loading/offline/invalid)
+ * renders classique, exactly as the pages before this field did.
+ */
+export function enteteForRender(
+  override: EnteteKey | undefined,
+  headerStyle: EnteteKey | undefined,
+): EnteteKey {
+  return override ?? headerStyle ?? 'classique';
+}
+
+/** ENTETES-A perf guard, kept for BOTH sources: classique — every shop that
+ *  never chose — must not pay the entetes sheet parse for CSS it cannot match. */
+export function needsEnteteSheet(key: EnteteKey): boolean {
+  return key !== 'classique';
 }
 
 /**
@@ -96,21 +120,27 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   style.textContent = VITRINE_STYLES;
   document.head.appendChild(style);
 
-  // ENTETES-A — the five headers' sheet, its own element so the vitrine sheet
+  // ENTETES-A/B — the five headers' sheet, its own element so the vitrine sheet
   // stays byte-unchanged. Every rule is scoped under a per-style root class
   // (.vt-ry/.vt-he/.vt-ch/.vt-cr/.vt-dy), so nothing leaks into the page or
   // between styles even though all five are always present.
   //
   // Verifier (perf, HANDOFF §6): classique — every EXISTING shop — must not pay
   // the 33.7 KB parse for CSS it never matches; the sheet mounts only when one
-  // of the five is actually selected.
-  const entete: EnteteKey = harness.entete ?? 'classique';
-  if (entete !== 'classique') {
+  // of the five is actually selected. ENTETES-B: the selected key can now
+  // arrive WITH the storefront (`headerStyle`), which resolves after mount — so
+  // the sheet mounts lazily at render time, once, whichever source names a
+  // non-classique key first (`?entete=` at the loading render, the field at the
+  // ready render).
+  let enteteSheetMounted = false;
+  const ensureEnteteSheet = (): void => {
+    if (enteteSheetMounted) return;
+    enteteSheetMounted = true;
     const enteteStyle = document.createElement('style');
     enteteStyle.setAttribute('data-entetes', '');
     enteteStyle.textContent = ENTETES_STYLES;
     document.head.appendChild(enteteStyle);
-  }
+  };
 
   // The audit harness (a profil override) drives the DEMO adapter; a real entry
   // uses the env-gated port — the real HTTP adapter iff a service base is
@@ -134,6 +164,11 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   const render = (etat: VitrineEtat, resolved: Resolved): void => {
     if (etat !== 'invalid' && !resolved) etat = 'invalid';
     const sf = resolved?.storefront;
+    // ENTETES-B — the mounted key: `?entete=` (the founder's preview override)
+    // when present, else HER `headerStyle`, now that the storefront is in hand.
+    // The port already normalised the field (absent/unknown wire ⇒ classique).
+    const entete = enteteForRender(harness.entete, sf?.headerStyle);
+    if (needsEnteteSheet(entete)) ensureEnteteSheet();
     applyTheme(root, sf?.theme ?? DEFAULT_THEME);
     root.setAttribute('data-etat', etat);
     switch (etat) {

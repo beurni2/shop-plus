@@ -67,7 +67,8 @@ describe('toStorefrontView — the buyer-safe allowlist projection', () => {
     expect(Object.keys(view).sort()).toEqual(
       [
         'avatar', 'bio', 'category', 'cover', 'createdAt', 'curatedItems', 'discoverable',
-        'featuredItems', 'id', 'name', 'resellerId', 'sections', 'slug', 'tagline', 'theme', 'updatedAt', 'zone',
+        'featuredItems', 'headerStyle', // ENTETES-B — deliberately admitted: presentation, never economics
+        'id', 'name', 'resellerId', 'sections', 'slug', 'tagline', 'theme', 'updatedAt', 'zone',
       ].sort(),
     );
     expect(() => StorefrontSchema.parse(view)).not.toThrow();
