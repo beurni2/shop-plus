@@ -39,10 +39,16 @@ import {
   setTheme,
   toggleSectionPid,
   togglePin,
+  withFocus,
   type HeaderStyleKey,
+  type PhotoFocus,
   type Storefront,
   type VitrineThemeKey,
 } from './storefront';
+// ENTETES-C — the framing sheet (drag-to-frame) + its kind. The sheet's
+// geometry is the PURE math in framing-math.ts, executed by Node tests.
+import { FramingSheet } from './framing';
+import type { FrameKind } from './framing-math';
 
 
 
@@ -208,6 +214,10 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
   // starts a second pick. The cover has its five states; the portrait gets the one
   // that matters, and the square is inert while it is in flight.
   const [avatarSending, setAvatarSending] = useState(false);
+  // ENTETES-C — which kind the framing sheet is open on (null = closed). It
+  // opens automatically after a successful upload, and from « Ajuster le
+  // cadrage » next to each live photo on K3.
+  const [framing, setFraming] = useState<FrameKind | null>(null);
   const catalogTotal = catalog !== undefined ? catalog.length : K_SEED.length;
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
@@ -286,6 +296,10 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
     const res = await onUploadAvatar(picked.bytes, picked.contentType);
     setAvatarSending(false);
     onToast(res.ok ? t('k.portrait.toast_en_ligne') : uploadFailureMessage(res.reason));
+    // ENTETES-C — a fresh photo starts UNFRAMED (the service dropped any old
+    // focus with the new URL); the framing sheet opens right away so placing
+    // it is one gesture, not a hunt.
+    if (res.ok) setFraming('avatar');
   };
 
   const pickAndUploadCover = async (): Promise<void> => {
@@ -314,12 +328,34 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
       // flipped covers to live-on-upload. It says what is true and no more.
       setCoverError(null);
       onToast(t('k.cover.toast_en_ligne'));
+      // ENTETES-C — same as the portrait: the new (unframed) cover goes
+      // straight to the framing sheet, in her header's own silhouette.
+      setFraming('cover');
       return;
     }
     const copy = uploadFailureCopy(res.reason);
     setCoverError({ title: t(copy.title), body: t(copy.body) });
     setSfRaw(coverTo(sf, 'error'));
     onToast(t(copy.body));
+  };
+
+  /**
+   * ENTETES-C — save HER framing. ONE SAVE, ONE THING (the ENTETES-B
+   * headerStyle law): the focus rides ALONE on the wire, never the six-field
+   * ride-along, so a stale unrelated field can never refuse it. `null` is the
+   * CLEAR order (« Réinitialiser » — back to the header's own framing). Local
+   * state mirrors the service's tri-state merge (`withFocus`) for the moment
+   * between save and re-read; the adopted service truth then arrives via
+   * `storefront`, and a refusal lands as a toast through the App's save seam.
+   */
+  const saveFraming = (kind: FrameKind, order: PhotoFocus | null): void => {
+    const next: Storefront =
+      kind === 'cover' ? { ...sf, cover: withFocus(sf.cover, order) } : { ...sf, avatar: withFocus(sf.avatar, order) };
+    setSfRaw(next);
+    onStorefrontChange?.(next);
+    onSaveIdentity?.(kind === 'cover' ? { coverFocus: order } : { avatarFocus: order });
+    onToast(t(order === null ? 'k.cadrage.toast_defaut' : 'k.cadrage.toast'));
+    setFraming(null);
   };
 
   const back = (): void => {
@@ -397,6 +433,13 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           }
           onPickAvatar={onUploadAvatar !== undefined && serviceUnconfigured !== true && shopIsLive === true ? () => void pickAndUploadAvatar() : undefined}
           avatarSending={avatarSending}
+          // ENTETES-C — « Ajuster le cadrage » next to each LIVE photo. Needs a
+          // photo to frame AND the save seam (the framing persists through
+          // onSaveIdentity, exactly like every K save).
+          onAdjustCover={
+            onSaveIdentity !== undefined && sf.cover.status === 'live' && sf.cover.url ? () => setFraming('cover') : undefined
+          }
+          onAdjustAvatar={onSaveIdentity !== undefined && sf.avatar.url ? () => setFraming('avatar') : undefined}
         />
       )}
       {route === 'k4' && (
@@ -471,6 +514,15 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
         />
       )}
       {route === 'k7' && <ApercuCliente sf={sf} catalog={catalog} onBack={() => setRoute('k1')} onReadOnlyTap={() => onToast(t('k.apercu.lecture_toast'))} />}
+      {/* ENTETES-C — ONE framing sheet, two kinds; it reads the LIVE sf, so
+          the photo a just-finished upload wrote arrives through adoption. */}
+      <FramingSheet
+        visible={framing !== null}
+        kind={framing ?? 'cover'}
+        sf={sf}
+        onSave={saveFraming}
+        onClose={() => setFraming(null)}
+      />
     </View>
   );
 }
@@ -657,7 +709,7 @@ function CountedField({ label, value, max, onChange, onCommit, placeholder, mult
 
 /* ------------------------------------------------------------- K3 / K3b -- */
 
-function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar, coverError, avatarSending, disabledNote }: { sf: Storefront; onBack: () => void; onPickCover: () => void; onRetry: () => void; uploadWired?: boolean; onPickAvatar?: (() => void) | undefined; coverError?: { title: string; body: string } | null; avatarSending?: boolean | undefined; disabledNote?: string | undefined }) {
+function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar, coverError, avatarSending, disabledNote, onAdjustCover, onAdjustAvatar }: { sf: Storefront; onBack: () => void; onPickCover: () => void; onRetry: () => void; uploadWired?: boolean; onPickAvatar?: (() => void) | undefined; coverError?: { title: string; body: string } | null; avatarSending?: boolean | undefined; disabledNote?: string | undefined; onAdjustCover?: (() => void) | undefined; onAdjustAvatar?: (() => void) | undefined }) {
   const st = sf.cover.status;
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
@@ -719,16 +771,23 @@ function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar, cover
           <Text style={S.ghostSmallText}>{t('k.cover.changer')}</Text>
         </Pressable>
       )}
+      {/* ENTETES-C — the second act on a LIVE photo: slide it inside her
+          header's own frame. A secondary action, so it whispers (ghost). */}
+      {st === 'live' && onAdjustCover !== undefined && (
+        <Pressable style={({ pressed }) => [S.ghostSmall, pressed && S.pressed]} onPress={onAdjustCover} accessibilityRole="button">
+          <Text style={S.ghostSmallText}>{t('k.cadrage.ajuster')}</Text>
+        </Pressable>
+      )}
       {/* The [DEMO] simulate row is GONE (founder: « there are still some mocks in
           every feature »). The states above are now driven by a real upload. */}
       <Text style={[S.caps, S.capsGap]}>{t('k.portrait.caps')}</Text>
       {/* C-K5 — segments portrait */}
-      <PortraitSegments sf={sf} onPickAvatar={onPickAvatar} sending={avatarSending} />
+      <PortraitSegments sf={sf} onPickAvatar={onPickAvatar} sending={avatarSending} onAdjust={onAdjustAvatar} />
     </ScrollView>
   );
 }
 
-function PortraitSegments({ sf, onPickAvatar, sending }: { sf: Storefront; onPickAvatar?: (() => void) | undefined; sending?: boolean | undefined }) {
+function PortraitSegments({ sf, onPickAvatar, sending, onAdjust }: { sf: Storefront; onPickAvatar?: (() => void) | undefined; sending?: boolean | undefined; onAdjust?: (() => void) | undefined }) {
   const [mode, setMode] = useState<'monogram' | 'photo'>(sf.avatar.mode);
   const th = THEMES[sf.theme];
   const initial = sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase();
@@ -771,6 +830,13 @@ function PortraitSegments({ sf, onPickAvatar, sending }: { sf: Storefront; onPic
           </Pressable>
           <Text style={S.portraitNote}>{t('k.portrait.note_photo')}</Text>
         </View>
+      )}
+      {/* ENTETES-C — her portrait's framing: same secondary act as the cover,
+          shown only when a real photo exists to frame. */}
+      {mode === 'photo' && sf.avatar.url !== undefined && onAdjust !== undefined && (
+        <Pressable style={({ pressed }) => [S.ghostSmall, pressed && S.pressed]} onPress={onAdjust} accessibilityRole="button">
+          <Text style={S.ghostSmallText}>{t('k.cadrage.ajuster')}</Text>
+        </Pressable>
       )}
     </View>
   );

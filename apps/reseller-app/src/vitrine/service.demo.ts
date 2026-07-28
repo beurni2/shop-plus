@@ -31,7 +31,7 @@ import type {
 // ENTETES-B — the CANON closed set, imported (never hand-copied): this module is
 // tests-only and Node-side, so the Metro law does not bind it, and the
 // no-demo-adapter-in-bundle gate proves it stays out of the exported bundle.
-import { STOREFRONT_HEADER_STYLES } from '@platform/contracts';
+import { STOREFRONT_HEADER_STYLES, StorefrontPhotoFocusSchema } from '@platform/contracts';
 import { DEFAULT_STOREFRONT, type Storefront } from './customize/storefront';
 
 const HEADER_STYLES: ReadonlySet<string> = new Set<string>(STOREFRONT_HEADER_STYLES);
@@ -78,9 +78,33 @@ export class DemoStorefrontService implements StorefrontServicePort {
     if (patch.headerStyle !== undefined && !HEADER_STYLES.has(patch.headerStyle)) {
       return { ok: false, reason: 'unknown_header_style' };
     }
+    // ENTETES-C — the SAME two named refusals the service holds, proven against
+    // the CANON schema (never a hand-copied bound): a SET pair must parse as a
+    // canon photo focus, and a set needs the photo it frames. Tri-state exactly
+    // as the wire: absent = untouched · null = clear · pair = set.
+    const focusRefusal = (
+      order: { readonly x: number; readonly y: number } | null | undefined,
+      hasPhoto: boolean,
+    ): string | undefined => {
+      if (order === undefined || order === null) return undefined;
+      if (!StorefrontPhotoFocusSchema.safeParse(order).success) return 'bad_focus';
+      return hasPhoto ? undefined : 'no_photo_to_frame';
+    };
     const read = await this.getById(id);
     const current = read.ok ? read.value : undefined;
     if (current === undefined) return { ok: false, reason: 'http_404' };
+    const hasCoverPhoto = current.cover.status !== 'none' && typeof current.cover.url === 'string' && current.cover.url !== '';
+    const hasAvatarPhoto = current.avatar.mode === 'photo' && typeof current.avatar.url === 'string' && current.avatar.url !== '';
+    const refusal = focusRefusal(patch.coverFocus, hasCoverPhoto) ?? focusRefusal(patch.avatarFocus, hasAvatarPhoto);
+    if (refusal !== undefined) return { ok: false, reason: refusal };
+    const withFocus = <T extends { readonly focus?: { readonly x: number; readonly y: number } }>(
+      part: T,
+      order: { readonly x: number; readonly y: number } | null | undefined,
+    ): T => {
+      if (order === undefined) return part;
+      const { focus: _cleared, ...rest } = part;
+      return order === null ? (rest as T) : ({ ...rest, focus: { x: order.x, y: order.y } } as T);
+    };
     this.identities.set(id, {
       ...current,
       ...(patch.name !== undefined ? { name: patch.name } : {}),
@@ -91,6 +115,8 @@ export class DemoStorefrontService implements StorefrontServicePort {
       ...(patch.sections !== undefined ? { sections: patch.sections.map((s) => ({ ...s, pids: [...s.pids] })) } : {}),
       ...(patch.curatedItems !== undefined ? { curatedItems: [...patch.curatedItems] } : {}),
       ...(patch.headerStyle !== undefined ? { headerStyle: patch.headerStyle } : {}),
+      ...(patch.coverFocus !== undefined ? { cover: withFocus(current.cover, patch.coverFocus) } : {}),
+      ...(patch.avatarFocus !== undefined ? { avatar: withFocus(current.avatar, patch.avatarFocus) } : {}),
       updatedAt: at,
     });
     return { ok: true, value: { status: 'saved' } };
@@ -110,14 +136,34 @@ export class DemoStorefrontService implements StorefrontServicePort {
     return { ok: true, value: { status: 'changed' } };
   }
 
+  /** ENTETES-C — the demo upload WRITES THE URL onto the held shop, exactly as
+   *  the real service does (the service owns the address; the app never patches
+   *  it), and the sub-object is rebuilt WITHOUT any `focus` — a fresh photo
+   *  starts unframed here too, or the mock would hide the very behaviour the
+   *  canon comment makes law (certified-mock rule, Contract §3). */
+  private async setMedia(storefrontId: string, kind: 'cover' | 'avatar', url: string): Promise<void> {
+    const read = await this.getById(storefrontId);
+    if (!read.ok || read.value === undefined) return; // absent shop: nothing to point at
+    this.identities.set(storefrontId, {
+      ...read.value,
+      ...(kind === 'cover'
+        ? { cover: { status: 'live' as const, url } }
+        : { avatar: { mode: 'photo' as const, url } }),
+    });
+  }
+
   async uploadCover(storefrontId: string, bytes: Uint8Array, _contentType?: string): Promise<ServiceResult<UploadOutcome>> {
     this.uploads.push({ kind: 'cover', storefrontId, size: bytes.length });
-    return { ok: true, value: { status: 'pending', url: `demo://cover/${storefrontId}` } };
+    const url = `demo://cover/${storefrontId}`;
+    await this.setMedia(storefrontId, 'cover', url);
+    return { ok: true, value: { status: 'pending', url } };
   }
 
   async uploadAvatar(storefrontId: string, bytes: Uint8Array, _contentType?: string): Promise<ServiceResult<UploadOutcome>> {
     this.uploads.push({ kind: 'avatar', storefrontId, size: bytes.length });
-    return { ok: true, value: { status: 'pending', url: `demo://avatar/${storefrontId}` } };
+    const url = `demo://avatar/${storefrontId}`;
+    await this.setMedia(storefrontId, 'avatar', url);
+    return { ok: true, value: { status: 'pending', url } };
   }
 
   async list(): Promise<ServiceResult<readonly StorefrontRow[]>> {

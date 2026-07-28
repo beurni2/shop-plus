@@ -283,4 +283,16 @@ export const K_RAW_STYLES = {
   vSheetHandle: { alignSelf: 'center', width: 44, height: 5, borderRadius: 99, backgroundColor: '#DDD2BC', marginBottom: 14 },
   vSheetKicker: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, color: '#6F6355' },
   vSheetTitle: { fontFamily: DISPLAY_FAMILY, fontSize: 20, fontWeight: '800', color: '#1C1710', letterSpacing: -0.2 },
+
+  /* ENTETES-C — the FRAMING sheet (drag-to-frame). Shares the vSheet chrome
+     above; these are its own rows, on EXISTING palette bytes only. */
+  frHint: { fontFamily: TEXT_FAMILY, fontSize: 13, lineHeight: 19, color: '#4A3F33', marginTop: 6 },
+  frStage: { alignItems: 'center', justifyContent: 'center', marginTop: 14 },
+  frFrame: { overflow: 'hidden', backgroundColor: '#F1E7D3' },
+  frVerite: { fontFamily: TEXT_FAMILY, fontSize: 11.5, lineHeight: 17, color: '#6F6355', textAlign: 'center', marginTop: 10 },
+  frActions: { marginTop: 14 },
+  frGhostWide: {
+    height: 48, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E5DCC9',
+    alignItems: 'center', justifyContent: 'center', marginTop: 10,
+  },
 } as const;

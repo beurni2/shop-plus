@@ -400,3 +400,133 @@ describe('PERSONNALISER-MEDIA — decideSetMedia, the URL the SERVICE owns', () 
     expect(decideSetMedia(await entry(), 'cover', 'http://h/x.jpg', T4).decision.status).toBe('set');
   });
 });
+
+/**
+ * ENTETES-C — her framing of the photo (canon v2.2.0 `StorefrontPhotoFocusSchema`).
+ *
+ * The wire is TRI-STATE: absent = untouched · null = CLEAR · pair = set. A set
+ * pair must be integers 0–100 on both axes (`bad_focus`), needs a photo to
+ * frame (`no_photo_to_frame`), and a fresh upload starts UNFRAMED — the writer
+ * clears it (the canon doc comment is the law). Every assertion EXECUTES the
+ * decision functions.
+ */
+describe('ENTETES-C — decideSaveIdentity: coverFocus / avatarFocus tri-state', () => {
+  const T3 = '2026-07-28T12:00:00.000Z';
+  const T4 = '2026-07-28T13:00:00.000Z';
+  const COVER_URL = 'https://media.example/storefronts/sf-seller-0001/cover/a.jpg';
+  const AVATAR_URL = 'https://media.example/storefronts/sf-seller-0001/avatar/b.jpg';
+  /** An entry whose cover AND avatar hold real photos (set through the REAL
+   *  media decision, never hand-built state). */
+  const photoEntry = async () => {
+    const { decideCreate, decideSetMedia } = await import('../src/storefront-core.js');
+    const created = decideCreate(undefined, SELLER_001).next!;
+    const withCover = decideSetMedia(created, 'cover', COVER_URL, T3).next!;
+    return decideSetMedia(withCover, 'avatar', AVATAR_URL, T3).next!;
+  };
+
+  it('SET → saved, the pair lands INSIDE cover, updatedAt moves, and it is what gets persisted', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const { decision, next } = decideSaveIdentity(await photoEntry(), { coverFocus: { x: 10, y: 90 } }, T4);
+    expect(decision.status).toBe('saved');
+    if (decision.status !== 'saved') throw new Error('unreachable');
+    expect(decision.storefront.cover).toEqual({ status: 'live', url: COVER_URL, focus: { x: 10, y: 90 } });
+    expect(decision.storefront.updatedAt).toBe(T4); // a real change moves the clock
+    expect(next?.storefront.cover.focus).toEqual({ x: 10, y: 90 }); // persisted, not just decided
+    // …and it round-trips the canon schema (the view carries cover whole — no new field)
+    const { StorefrontSchema } = await import('@platform/contracts');
+    expect(() => StorefrontSchema.parse(decision.storefront)).not.toThrow();
+  });
+
+  it('avatarFocus SETS on the avatar, and the COVER framing is untouched', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const framedCover = decideSaveIdentity(await photoEntry(), { coverFocus: { x: 10, y: 90 } }, T4).next!;
+    const { decision } = decideSaveIdentity(framedCover, { avatarFocus: { x: 40, y: 20 } }, T4);
+    if (decision.status !== 'saved') throw new Error(`expected saved, got ${decision.status}`);
+    expect(decision.storefront.avatar.focus).toEqual({ x: 40, y: 20 });
+    expect(decision.storefront.cover.focus).toEqual({ x: 10, y: 90 }); // the other kind survives
+  });
+
+  it('the SAME pair again is `unchanged` — nothing written, updatedAt frozen', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const framed = decideSaveIdentity(await photoEntry(), { coverFocus: { x: 33, y: 44 } }, T3).next!;
+    const { decision, next } = decideSaveIdentity(framed, { coverFocus: { x: 33, y: 44 } }, T4);
+    expect(decision.status).toBe('unchanged');
+    expect(next).toBeUndefined(); // nothing to write
+    expect(framed.storefront.updatedAt).toBe(T3); // the no-op moved nothing
+  });
+
+  it('null CLEARS: the focus key is ABSENT on the stored canon object — never `focus: null`', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const framed = decideSaveIdentity(await photoEntry(), { coverFocus: { x: 33, y: 44 } }, T3).next!;
+    const { decision, next } = decideSaveIdentity(framed, { coverFocus: null }, T4);
+    if (decision.status !== 'saved') throw new Error(`expected saved, got ${decision.status}`);
+    expect('focus' in next!.storefront.cover).toBe(false); // the KEY is gone, not nulled
+    expect(JSON.stringify(next!.storefront.cover)).not.toContain('focus');
+    expect(next!.storefront.cover.url).toBe(COVER_URL); // the photo itself is untouched
+    // …and clearing an ALREADY-clear framing is `unchanged` (no phantom write)
+    const again = decideSaveIdentity(next!, { coverFocus: null }, T4);
+    expect(again.decision.status).toBe('unchanged');
+  });
+
+  it('a malformed pair is REFUSED `bad_focus` — lone axis, out of range, floats — and writes NOTHING', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const e = await photoEntry();
+    for (const bad of [{ x: 50 }, { x: -1, y: 50 }, { x: 1.5, y: 2 }, { x: 500, y: 50 }, { x: '50', y: '50' }]) {
+      const { decision, next } = decideSaveIdentity(e, { coverFocus: bad as never }, T4);
+      expect(decision, JSON.stringify(bad)).toEqual({ status: 'refused', reason: 'bad_focus' });
+      expect(next).toBeUndefined();
+    }
+    // same reason on the avatar field — one reason, both fields
+    const { decision } = decideSaveIdentity(e, { avatarFocus: { x: 0.5, y: 3 } as never }, T4);
+    expect(decision).toEqual({ status: 'refused', reason: 'bad_focus' });
+    // …and the boundary values PASS (0 and 100 are legal corners)
+    expect(decideSaveIdentity(e, { coverFocus: { x: 0, y: 100 } }, T4).decision.status).toBe('saved');
+  });
+
+  it('an EXTRA wire key cannot reach the store — the merge writes a CLEAN {x, y} pair', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const { decision } = decideSaveIdentity(await photoEntry(), { coverFocus: { x: 5, y: 6, z: 7 } as never }, T4);
+    if (decision.status !== 'saved') throw new Error(`expected saved, got ${decision.status}`);
+    expect(decision.storefront.cover.focus).toEqual({ x: 5, y: 6 });
+    expect(JSON.stringify(decision.storefront)).not.toContain('"z"');
+  });
+
+  it('framing NOTHING is refused `no_photo_to_frame` — a cover with no photo, an avatar in monogram', async () => {
+    const { decideCreate, decideSaveIdentity } = await import('../src/storefront-core.js');
+    const bare = decideCreate(undefined, SELLER_001).next!; // cover none, avatar monogram
+    expect(decideSaveIdentity(bare, { coverFocus: { x: 50, y: 50 } }, T4).decision)
+      .toEqual({ status: 'refused', reason: 'no_photo_to_frame' });
+    expect(decideSaveIdentity(bare, { avatarFocus: { x: 50, y: 50 } }, T4).decision)
+      .toEqual({ status: 'refused', reason: 'no_photo_to_frame' });
+    // CLEAR needs no photo — removing a stale framing is always allowed (no-op here)
+    expect(decideSaveIdentity(bare, { coverFocus: null }, T4).decision.status).toBe('unchanged');
+  });
+
+  it('an UNRELATED save leaves the framing untouched (one screen saves one thing)', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const framed = decideSaveIdentity(await photoEntry(), { coverFocus: { x: 10, y: 90 } }, T3).next!;
+    const { decision } = decideSaveIdentity(framed, { headerStyle: 'royale', tagline: 'Le bon tissu' }, T4);
+    if (decision.status !== 'saved') throw new Error(`expected saved, got ${decision.status}`);
+    expect(decision.storefront.cover.focus).toEqual({ x: 10, y: 90 });
+    expect(decision.storefront.headerStyle).toBe('royale');
+  });
+
+  it('A NEW PHOTO STARTS UNFRAMED: decideSetMedia on that kind DROPS its focus; the other kind keeps its own', async () => {
+    const { decideSaveIdentity, decideSetMedia } = await import('../src/storefront-core.js');
+    const framedBoth = decideSaveIdentity(
+      await photoEntry(),
+      { coverFocus: { x: 10, y: 90 }, avatarFocus: { x: 40, y: 20 } },
+      T3,
+    ).next!;
+    const { decision } = decideSetMedia(framedBoth, 'cover', 'https://media.example/new/cover.jpg', T4);
+    if (decision.status !== 'set') throw new Error(`expected set, got ${decision.status}`);
+    expect('focus' in decision.storefront.cover).toBe(false); // stale framing never crops a new photo
+    expect(decision.storefront.cover.url).toBe('https://media.example/new/cover.jpg');
+    expect(decision.storefront.avatar.focus).toEqual({ x: 40, y: 20 }); // the other kind survives
+    // …and symmetrically for a new PORTRAIT
+    const { decision: av } = decideSetMedia(framedBoth, 'avatar', 'https://media.example/new/avatar.jpg', T4);
+    if (av.status !== 'set') throw new Error(`expected set, got ${av.status}`);
+    expect('focus' in av.storefront.avatar).toBe(false);
+    expect(av.storefront.cover.focus).toEqual({ x: 10, y: 90 });
+  });
+});

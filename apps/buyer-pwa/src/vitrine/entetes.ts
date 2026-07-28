@@ -31,7 +31,7 @@
 
 import { t } from '../i18n';
 import { esc } from '../format';
-import type { Storefront, VitrineTrust } from './profile';
+import { focusPosition, type Storefront, type VitrineTrust } from './profile';
 import { chips, hero } from './render';
 import {
   iconBack,
@@ -97,6 +97,10 @@ interface Vals {
   readonly hasCover: boolean;
   readonly avatarUrl: string;
   readonly hasAvatar: boolean;
+  /** ENTETES-C — her saved framing as a CSS object-position value; undefined =
+   *  the style's own contract framing (exactly as before the field existed). */
+  readonly coverFocus: string | undefined;
+  readonly avatarFocus: string | undefined;
   readonly delivN: number;
   readonly showProof: boolean;
   readonly rating: string;
@@ -131,6 +135,10 @@ function vals(sf: Storefront, trust: VitrineTrust, opts: EnteteOpts): Vals {
     hasCover,
     avatarUrl: hasAvatar ? esc(sf.avatar.url as string) : '',
     hasAvatar,
+    // ENTETES-C — read ONCE, validated (integers 0–100 or nothing): garbage on
+    // a demo/test shape can never reach a style attribute.
+    coverFocus: focusPosition(sf.cover.focus),
+    avatarFocus: focusPosition(sf.avatar.focus),
     delivN: trust.deliveredCount,
     showProof: !compact && trust.deliveredCount >= 1,
     rating: esc(trust.rating),
@@ -150,12 +158,18 @@ const etat = (v: Vals): string => (v.hasCover ? 'live' : 'none');
  * The style's cover <img>. `object-position` rides inline because it is the ONE
  * per-style value the contract fixes per photograph (HANDOFF §5) — the portrait
  * bias that keeps a head from being cropped by the frame.
+ * ENTETES-C — HER saved framing wins when present (`v.coverFocus`); absent, the
+ * style's contract position stands byte-for-byte as before.
  */
 const coverImg = (v: Vals, pos: string): string =>
-  `<img class="vt-cover-img" src="${v.coverUrl}" alt="${t('vit.cover_alt')}" loading="lazy" decoding="async" style="object-position:${pos}">`;
+  `<img class="vt-cover-img" src="${v.coverUrl}" alt="${t('vit.cover_alt')}" loading="lazy" decoding="async" style="object-position:${v.coverFocus ?? pos}">`;
 
+/** ENTETES-C — the avatar has NO per-style inline position (Héritage's 50% 32%
+ *  medallion bias lives in the sheet's CSS); her framing rides as an inline
+ *  style ONLY when present — inline wins over the CSS, and an unframed avatar
+ *  emits the exact bytes it always did. */
 const avatarImg = (v: Vals): string =>
-  `<img class="vt-avatar-img" src="${v.avatarUrl}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async">`;
+  `<img class="vt-avatar-img" src="${v.avatarUrl}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async"${v.avatarFocus !== undefined ? ` style="object-position:${v.avatarFocus}"` : ''}>`;
 
 /** « Vendeuse vérifiée · {zone} » — the catalog string plus her real zone. */
 const zoneLine = (v: Vals, pin: string): string => `${pin}${t('vit.verifiee')} <v>${v.zone}</v>`;

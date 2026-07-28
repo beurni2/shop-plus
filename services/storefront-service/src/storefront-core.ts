@@ -241,6 +241,16 @@ export interface IdentityPatch {
   /** ENTETES-B — her chosen boutique header. Wire-shaped like `theme` (a string
    *  checked against the CANON closed set below); absent = untouched. */
   readonly headerStyle?: string;
+  /**
+   * ENTETES-C — her framing of the cover photograph (canon
+   * `StorefrontPhotoFocusSchema`: integers 0–100, CSS object-position
+   * percentages). TRI-STATE on the wire: absent = untouched · `null` = CLEAR
+   * (back to the style's contract framing) · a pair = set. Presentation only —
+   * loi 5 holds: no money field can ride here.
+   */
+  readonly coverFocus?: { readonly x: number; readonly y: number } | null;
+  /** ENTETES-C — the same tri-state framing for her portrait. */
+  readonly avatarFocus?: { readonly x: number; readonly y: number } | null;
 }
 
 export type SaveIdentityDecision =
@@ -321,6 +331,28 @@ export function decideSaveIdentity(
   if (patch.headerStyle !== undefined && !HEADER_STYLES.has(patch.headerStyle)) {
     return { decision: { status: 'refused', reason: 'unknown_header_style' } };
   }
+  // ENTETES-C — a SET pair must be canon-shaped BEFORE the merge: integers,
+  // 0–100, both axes (one reason for both fields — the screen says the same
+  // true thing either way). `null` is the CLEAR order and is always well-formed.
+  const validFocus = (f: { readonly x: number; readonly y: number } | null | undefined): boolean =>
+    f === undefined ||
+    f === null ||
+    (typeof f === 'object' &&
+      Number.isInteger(f.x) && f.x >= 0 && f.x <= 100 &&
+      Number.isInteger(f.y) && f.y >= 0 && f.y <= 100);
+  if (!validFocus(patch.coverFocus) || !validFocus(patch.avatarFocus)) {
+    return { decision: { status: 'refused', reason: 'bad_focus' } };
+  }
+  // Framing NOTHING is a lie on her screen: a SET requires the photo it frames.
+  // (CLEAR is always allowed — removing a stale framing needs no photo.)
+  const hasCoverPhoto = sf.cover.status !== 'none' && typeof sf.cover.url === 'string' && sf.cover.url !== '';
+  const hasAvatarPhoto = sf.avatar.mode === 'photo' && typeof sf.avatar.url === 'string' && sf.avatar.url !== '';
+  if (patch.coverFocus != null && !hasCoverPhoto) {
+    return { decision: { status: 'refused', reason: 'no_photo_to_frame' } };
+  }
+  if (patch.avatarFocus != null && !hasAvatarPhoto) {
+    return { decision: { status: 'refused', reason: 'no_photo_to_frame' } };
+  }
   if (patch.featuredItems !== undefined && patch.featuredItems.length > FEATURED_CAP) {
     return { decision: { status: 'refused', reason: 'featured_over_cap' } };
   }
@@ -338,6 +370,19 @@ export function decideSaveIdentity(
     if (!isPermutation) return { decision: { status: 'refused', reason: 'curation_not_a_reorder' } };
   }
 
+  // ENTETES-C — the tri-state merge. SET builds a CLEAN pair (only x and y, so
+  // an extra wire key can never reach the store); CLEAR builds the sub-object
+  // WITHOUT the key (never `focus: undefined` — canon is `.strict()` and JSON
+  // round-trips must stay byte-stable); absent leaves the sub-object untouched.
+  const withFocus = <T extends { readonly focus?: { readonly x: number; readonly y: number } | undefined }>(
+    part: T,
+    order: { readonly x: number; readonly y: number } | null | undefined,
+  ): T => {
+    if (order === undefined) return part;
+    const { focus: _cleared, ...rest } = part;
+    return order === null ? (rest as T) : ({ ...rest, focus: { x: order.x, y: order.y } } as T);
+  };
+
   const merged = {
     ...sf,
     ...(name !== undefined ? { name } : {}),
@@ -348,6 +393,8 @@ export function decideSaveIdentity(
     ...(sections !== undefined ? { sections } : {}),
     ...(patch.curatedItems !== undefined ? { curatedItems: [...patch.curatedItems] } : {}),
     ...(patch.headerStyle !== undefined ? { headerStyle: patch.headerStyle } : {}),
+    ...(patch.coverFocus !== undefined ? { cover: withFocus(sf.cover, patch.coverFocus) } : {}),
+    ...(patch.avatarFocus !== undefined ? { avatar: withFocus(sf.avatar, patch.avatarFocus) } : {}),
   };
 
   // NOTHING REALLY CHANGED ⇒ no write, no updatedAt move. Compared field by
@@ -359,6 +406,10 @@ export function decideSaveIdentity(
     merged.bio === sf.bio &&
     merged.theme === sf.theme &&
     merged.headerStyle === sf.headerStyle &&
+    // ENTETES-C — tiny objects, spread-built from the stored sub-object, so the
+    // key order is stable and a stringify compares values, never accidents.
+    JSON.stringify(merged.cover) === JSON.stringify(sf.cover) &&
+    JSON.stringify(merged.avatar) === JSON.stringify(sf.avatar) &&
     JSON.stringify(merged.featuredItems) === JSON.stringify(sf.featuredItems) &&
     JSON.stringify(merged.curatedItems) === JSON.stringify(sf.curatedItems) &&
     JSON.stringify(merged.sections) === JSON.stringify(sf.sections);
@@ -415,6 +466,10 @@ export function decideSetMedia(
     return { decision: { status: 'refused', reason: 'url_not_absolute' } };
   }
   const sf = current.storefront;
+  // ENTETES-C — a NEW photo starts UNFRAMED (the canon comment is the law: a
+  // stale framing must never crop a new photo). The sub-object is rebuilt from
+  // scratch here, so any existing `focus` on THIS kind is dropped by
+  // construction; the OTHER kind's framing is untouched.
   const merged =
     kind === 'cover'
       ? { ...sf, cover: { status: 'live' as const, url }, updatedAt: at }

@@ -656,3 +656,165 @@ describe('ENTETES-B — canon conformance + the override wiring, pinned by execu
     expect(enteteForRender(enteteOverride(''), 'royale')).toBe('royale');
   });
 });
+
+/* -------------------------------------------- 11 · ENTETES-C: her framing -- */
+
+/**
+ * ENTETES-C — `cover.focus` / `avatar.focus` (canon v2.2.0) drive the emitted
+ * `object-position`; ABSENT focus renders the style's contract framing
+ * byte-for-byte, exactly as before the field existed. Everything below
+ * EXECUTES the renderers and the port — never a source grep.
+ */
+describe('ENTETES-C — focus drives object-position; absent = the contract default, byte-for-byte', () => {
+  const FOCUSED = { ...WITH_COVER, cover: { status: 'live' as const, url: PHOTO, focus: { x: 10, y: 90 } } };
+
+  for (const key of FIVE) {
+    it(`${key}: focus {10,90} ⇒ object-position:10% 90% — and the style default is GONE`, () => {
+      const html = head(key, FOCUSED, REAL);
+      expect(html).toContain('object-position:10% 90%');
+      expect(html).not.toContain(`object-position:${OBJECT_POS[key]}`); // her hand replaced the default
+      expect(html).toContain(`src="${PHOTO}"`); // still her photo, same markup family
+    });
+
+    it(`${key}: ABSENT focus ⇒ the contract default byte-for-byte (nothing about the emission changed)`, () => {
+      const html = head(key, WITH_COVER, REAL);
+      expect(html).toContain(`object-position:${OBJECT_POS[key]}`);
+      expect(html).not.toContain('10% 90%');
+      // and the unframed emission is IDENTICAL to a cover that never knew the field
+      const stripped = head(key, { ...WITH_COVER, cover: { status: 'live' as const, url: PHOTO } }, REAL);
+      expect(html).toBe(stripped);
+    });
+
+    it(`${key}: GARBAGE focus on the shape renders the default — never garbage in a style attribute`, () => {
+      for (const bad of [{ x: 10 }, { x: 1.5, y: 2 }, { x: 500, y: 50 }, { x: '10', y: '90' }, 'haut', null]) {
+        const html = head(key, { ...WITH_COVER, cover: { status: 'live' as const, url: PHOTO, focus: bad } }, REAL);
+        expect(html, JSON.stringify(bad)).toContain(`object-position:${OBJECT_POS[key]}`);
+        expect(html).not.toContain('undefined');
+        expect(html).not.toContain('[object');
+      }
+    });
+  }
+
+  it('heritage: her AVATAR framing reaches the medallion <img> inline; unframed, the tag carries NO style at all', () => {
+    const AV_URL = 'https://svc.example/media/av.jpg';
+    const framed = head(
+      'heritage',
+      { ...WITH_COVER, avatar: { mode: 'photo' as const, url: AV_URL, focus: { x: 77, y: 33 } } },
+      REAL,
+    );
+    const framedTag = /<img class="vt-avatar-img"[^>]*>/.exec(framed)?.[0] ?? '';
+    expect(framedTag).toContain('style="object-position:77% 33%"');
+    // unframed: the avatar <img> is BYTE-IDENTICAL to what it always emitted — no style attribute
+    const plain = head('heritage', { ...WITH_COVER, avatar: { mode: 'photo' as const, url: AV_URL } }, REAL);
+    const plainTag = /<img class="vt-avatar-img"[^>]*>/.exec(plain)?.[0] ?? '';
+    expect(plainTag).not.toBe('');
+    expect(plainTag).not.toContain('style=');
+    // (the 50% 32% medallion bias lives in the sheet's CSS, untouched)
+    expect(ENTETES_STYLES).toContain('.vt-he .he-med-photo .vt-avatar-img { object-position: 50% 32%; }');
+  });
+
+  it('every OTHER style carries the avatar framing the same way (one emitter, no per-style drift)', () => {
+    const AV_URL = 'https://svc.example/media/av.jpg';
+    for (const key of FIVE) {
+      const html = head(key, { ...WITH_COVER, avatar: { mode: 'photo' as const, url: AV_URL, focus: { x: 1, y: 99 } } }, REAL);
+      expect(html, key).toContain('object-position:1% 99%');
+    }
+  });
+
+  it('classique: NO focus ⇒ not one object-position byte on the page (the ENTETES-A byte-identity family)', () => {
+    const opts = { fromProduct: false };
+    const plain = renderVitrineReady(WITH_COVER as never, REAL, opts, {}, PRODUCTS, 'classique');
+    expect(plain).toContain(`src="${PHOTO}"`); // the cover really rendered
+    expect(plain).not.toContain('object-position'); // and today's bytes carry no position at all
+    // …byte-identical to a storefront whose cover object never knew the field
+    const stripped = renderVitrineReady(
+      { ...WITH_COVER, cover: { status: 'live' as const, url: PHOTO } } as never,
+      REAL, opts, {}, PRODUCTS, 'classique',
+    );
+    expect(plain).toBe(stripped);
+    // WITH focus, the classique cover <img> gains exactly the inline position
+    const focused = renderVitrineReady(
+      { ...WITH_COVER, cover: { status: 'live' as const, url: PHOTO, focus: { x: 10, y: 90 } } } as never,
+      REAL, opts, {}, PRODUCTS, 'classique',
+    );
+    expect(focused).toContain('style="object-position:10% 90%"');
+  });
+
+  it('classique: the avatar photo takes her framing too, and stays bare without it', () => {
+    const AV_URL = 'https://svc.example/media/av.jpg';
+    const opts = { fromProduct: false };
+    const focused = renderVitrineReady(
+      { ...WITH_COVER, avatar: { mode: 'photo' as const, url: AV_URL, focus: { x: 40, y: 20 } } } as never,
+      REAL, opts, {}, PRODUCTS, 'classique',
+    );
+    expect(focused).toContain('style="object-position:40% 20%"');
+    const plain = renderVitrineReady(
+      { ...WITH_COVER, avatar: { mode: 'photo' as const, url: AV_URL } } as never,
+      REAL, opts, {}, PRODUCTS, 'classique',
+    );
+    expect(plain).not.toContain('object-position');
+  });
+});
+
+describe('ENTETES-C — the port boundary: a canon pair rides, garbage is STRIPPED, demo ports are honest', () => {
+  const stubFetch = async <T>(body: unknown, run: () => Promise<T>): Promise<T> => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      ({ ok: true, status: 200, json: async () => body }) as unknown as Response) as typeof fetch;
+    try {
+      return await run();
+    } finally {
+      globalThis.fetch = original;
+    }
+  };
+  const WIRE = {
+    id: 'sf-f', resellerId: 'rs-f', slug: 'chez-f-1', name: 'Chez Fati',
+    zone: 'Ouagadougou', category: 'Général', tagline: '', bio: '', theme: 'laterite',
+    cover: { status: 'live', url: 'https://svc.example/c.jpg' },
+    avatar: { mode: 'photo', url: 'https://svc.example/a.jpg' },
+    curatedItems: [], featuredItems: [], sections: [], discoverable: true, createdAt: 'T', updatedAt: 'T',
+  };
+
+  it('a valid integer pair 0–100 passes through on BOTH kinds', async () => {
+    const { httpStorefrontPort } = await import('../src/vitrine/profile');
+    const resolved = await stubFetch(
+      { ...WIRE, cover: { ...WIRE.cover, focus: { x: 0, y: 100 } }, avatar: { ...WIRE.avatar, focus: { x: 40, y: 20 } } },
+      () => httpStorefrontPort('https://svc.example').resolve('chez-f-1'),
+    );
+    expect(resolved!.storefront.cover.focus).toEqual({ x: 0, y: 100 });
+    expect(resolved!.storefront.avatar.focus).toEqual({ x: 40, y: 20 });
+  });
+
+  it('a hostile wire — strings, lone axes, out-of-range, extra keys — is STRIPPED, never seen downstream', async () => {
+    const { httpStorefrontPort } = await import('../src/vitrine/profile');
+    for (const bad of [{ x: '50', y: '50' }, { x: 50 }, { x: 500, y: 50 }, { x: 1.5, y: 2 }, { x: 5, y: 6, z: 7 }, 'haut', 42, null]) {
+      const resolved = await stubFetch(
+        { ...WIRE, cover: { ...WIRE.cover, focus: bad } },
+        () => httpStorefrontPort('https://svc.example').resolve('chez-f-1'),
+      );
+      expect(resolved!.storefront.cover.focus, JSON.stringify(bad)).toBeUndefined();
+      expect('focus' in resolved!.storefront.cover, JSON.stringify(bad)).toBe(false); // the KEY is gone, not nulled
+      // the photo itself is untouched by the stripping
+      expect(resolved!.storefront.cover.url).toBe('https://svc.example/c.jpg');
+    }
+  });
+
+  it('an OLD wire (no focus anywhere) resolves exactly as before — no key invented', async () => {
+    const { httpStorefrontPort } = await import('../src/vitrine/profile');
+    const resolved = await stubFetch(WIRE, () => httpStorefrontPort('https://svc.example').resolve('chez-f-1'));
+    expect('focus' in resolved!.storefront.cover).toBe(false);
+    expect('focus' in resolved!.storefront.avatar).toBe(false);
+  });
+
+  it('demo ports: customised carries NON-default framings (the honest exercise); default and empty carry none', async () => {
+    const { demoStorefrontPort } = await import('../src/vitrine/profile');
+    const customised = (await demoStorefrontPort('customised').resolve('aicha-4821'))!.storefront;
+    expect(customised.cover.focus).toEqual({ x: 30, y: 70 });
+    expect(customised.avatar.focus).toEqual({ x: 40, y: 20 });
+    for (const variant of ['default', 'empty'] as const) {
+      const sf = (await demoStorefrontPort(variant).resolve('aicha-4821'))!.storefront;
+      expect(sf.cover.focus, variant).toBeUndefined();
+      expect(sf.avatar.focus, variant).toBeUndefined();
+    }
+  });
+});
