@@ -1594,3 +1594,14 @@ Format per entry:
 - **EVIDENCE:** workspace typecheck 19/19 · `TURBO_FORCE=true pnpm test` 23/23 tasks (reseller-app 319/319, buyer-pwa 214/214, storefront-service 201/201, commerce-core 86/86, attribution 43/43) · `run-gates.sh` ALL GATES GREEN · copy-lint 449/0 and 179/0 · frozen vault 0 lines.
 - **STILL NOT BUILT, not pretended:** cover REMOVAL (no route); a moderation approve route; slice 3. **STILL UNVERIFIED:** `MEDIA_PUBLIC_BASE` matches the deployed origin (sandbox proxy refuses workers.dev) — first thing to check after deploy; and everything device-side.
 - **STATE: BUILT · local green · DO NOT MERGE until the founder approves.**
+
+### 2026-07-28 · MERGED `8cab112` + the MEDIA_PUBLIC_BASE gap is CLOSED
+- **Founder approved; merged `473bb1f` into main as `8cab112`** (`--no-ff`). Guards held: branch head == approved sha; `git diff <merge> <approved sha>` EMPTY; frozen vault 0 lines **on the merge commit**; `origin/main` re-read and all four slice commits asserted as ancestors.
+- **Post-merge deploys, all green on `8cab112`:** storefront-deploy 30323401068 · expo-preview 30323404757 · pwa-preview 30323408659. (A second pwa run, 30323386249, shows `cancelled` — the push-triggered duplicate superseded by the explicit dispatch, not a failure.)
+- **THE OPEN GAP IS NOW CLOSED, and by the right instrument.** `MEDIA_PUBLIC_BASE` was DERIVED from the wrangler `name` + the account subdomain and never read back, because this sandbox's proxy refuses `workers.dev` (re-confirmed today: `curl` exit 56, CONNECT 403). The deploy job runs on GitHub's network and CAN see it — its log is the measurement:
+  - `Deployed storefront-service triggers` → `https://storefront-service.ilboudobernard2.workers.dev`
+  - `env.MEDIA_PUBLIC_BASE ("https://storefront-service.ilboudober...")  Environment Variable`
+  The published origin and the configured media base are the same host. A media URL minted by this Worker is therefore fetchable by her phone and by a browser. Version ID `f3d549a5-c282-460d-acda-fef72975f22f`.
+- **Bindings confirmed live in the same log:** `STOREFRONT`/`LISTING` Durable Objects, `BUCKET` (beurni-storefront-media) R2, `OFFER` service binding, both media bases.
+- **STILL NOT BUILT (unchanged, not pretended):** cover REMOVAL (replacement works; no remove route exists), a moderation approve route, slice 3.
+- **STILL UNVERIFIED:** everything device-side — the permission prompt, real decode/resize timing on a 1 GB phone, RN `<Image>` drawing the cover and portrait, and Expo Go picking up the two new native modules over the air. Those need the founder's device walk; no CI here can see them.
