@@ -188,6 +188,17 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
   const [editingSection, setEditingSection] = useState<string | null>(null);
+  // MEDIA-2 — the error SLOT must say the same true thing the toast says. It
+  // used to be hard-coded « Image trop lourde — 2 Mo max. », which was honest
+  // only for the [DEMO] button that once drove it; rewiring that state to real
+  // failures made it a wrong cause AND a wrong number on the surface she is
+  // still reading ten seconds after the toast has gone.
+  const [coverError, setCoverError] = useState<string | null>(null);
+  // MEDIA-2 — the portrait upload had NO visible state: she tapped the square and
+  // nothing changed for the whole round-trip, so on patchy data she taps again and
+  // starts a second pick. The cover has its five states; the portrait gets the one
+  // that matters, and the square is inert while it is in flight.
+  const [avatarSending, setAvatarSending] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
   // PERSONNALISER-REAL-1 — HER shop arrives asynchronously (the service read
@@ -250,7 +261,11 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
         ? t('k.cover.non_confirmee')
         : reason === 'unconfigured' || reason === 'not_live'
           ? t('k.cover.pas_encore')
-          : t('k.cover.echec');
+          : reason === 'too_large'
+            ? t('k.cover.trop_lourde')
+            : reason === 'bad_dimensions' || reason === 'unsupported_type'
+              ? t('k.cover.mauvaise_taille')
+              : t('k.cover.echec');
 
   /** MEDIA-2 — her PORTRAIT, through the seam that shipped with no caller. */
   const pickAndUploadAvatar = async (): Promise<void> => {
@@ -262,7 +277,9 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
       else if (picked.reason === 'too_small') onToast(t('k.cover.trop_petite'));
       return;
     }
+    setAvatarSending(true);
     const res = await onUploadAvatar(picked.bytes, picked.contentType);
+    setAvatarSending(false);
     onToast(res.ok ? t('k.portrait.toast_en_ligne') : uploadFailureMessage(res.reason));
   };
 
@@ -285,11 +302,14 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
       // MEDIA-2: the toast used to read « vérifiée par Séra » — a badge this
       // ecosystem cannot spend falsely, and nothing verifies it since the founder
       // flipped covers to live-on-upload. It says what is true and no more.
+      setCoverError(null);
       onToast(t('k.cover.toast_en_ligne'));
       return;
     }
+    const message = uploadFailureMessage(res.reason);
+    setCoverError(message);
     setSfRaw(coverTo(sf, 'error'));
-    onToast(uploadFailureMessage(res.reason));
+    onToast(message);
   };
 
   const back = (): void => {
@@ -348,9 +368,14 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           sf={sf}
           onBack={back}
           onPickCover={() => void pickAndUploadCover()}
-          onRetry={() => setSfRaw(coverTo(sf, 'none'))}
+          onRetry={() => {
+            setCoverError(null);
+            setSfRaw(coverTo(sf, 'none'));
+          }}
+          coverError={coverError}
           uploadWired={onUploadCover !== undefined}
           onPickAvatar={onUploadAvatar !== undefined ? () => void pickAndUploadAvatar() : undefined}
+          avatarSending={avatarSending}
         />
       )}
       {route === 'k4' && (
@@ -588,7 +613,7 @@ function CountedField({ label, value, max, onChange, onCommit, placeholder, mult
 
 /* ------------------------------------------------------------- K3 / K3b -- */
 
-function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar }: { sf: Storefront; onBack: () => void; onPickCover: () => void; onRetry: () => void; uploadWired?: boolean; onPickAvatar?: (() => void) | undefined }) {
+function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar, coverError, avatarSending }: { sf: Storefront; onBack: () => void; onPickCover: () => void; onRetry: () => void; uploadWired?: boolean; onPickAvatar?: (() => void) | undefined; coverError?: string | null; avatarSending?: boolean }) {
   const st = sf.cover.status;
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
@@ -630,7 +655,7 @@ function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar }: { s
       {st === 'error' && (
         <View style={[S.coverSlot, S.coverSlotError]}>
           <Text style={S.coverErrTitle}>{t('k.cover.err_titre')}</Text>
-          <Text style={S.coverErrBody}>{t('k.cover.err_corps')}</Text>
+          <Text style={S.coverErrBody}>{coverError ?? t('k.cover.err_corps')}</Text>
           <Pressable style={({ pressed }) => [S.ghostSmall, pressed && S.pressed]} onPress={onRetry}><Text style={S.ghostSmallText}>{t('k.cover.reessayer')}</Text></Pressable>
         </View>
       )}
@@ -650,12 +675,12 @@ function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar }: { s
           every feature »). The states above are now driven by a real upload. */}
       <Text style={[S.caps, S.capsGap]}>{t('k.portrait.caps')}</Text>
       {/* C-K5 — segments portrait */}
-      <PortraitSegments sf={sf} onPickAvatar={onPickAvatar} />
+      <PortraitSegments sf={sf} onPickAvatar={onPickAvatar} sending={avatarSending} />
     </ScrollView>
   );
 }
 
-function PortraitSegments({ sf, onPickAvatar }: { sf: Storefront; onPickAvatar?: (() => void) | undefined }) {
+function PortraitSegments({ sf, onPickAvatar, sending }: { sf: Storefront; onPickAvatar?: (() => void) | undefined; sending?: boolean | undefined }) {
   const [mode, setMode] = useState<'monogram' | 'photo'>(sf.avatar.mode);
   const th = THEMES[sf.theme];
   const initial = sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase();
@@ -683,11 +708,14 @@ function PortraitSegments({ sf, onPickAvatar }: { sf: Storefront; onPickAvatar?:
               Without the seam it stays visibly inert rather than pretending. */}
           <Pressable
             style={({ pressed }) => [S.portraitSlotDashed, pressed && onPickAvatar !== undefined && S.pressed]}
-            onPress={onPickAvatar}
+            onPress={sending === true ? undefined : onPickAvatar}
             accessibilityRole="button"
+            accessibilityState={{ busy: sending === true }}
             accessibilityLabel={t('k.portrait.photo')}
           >
-            {sf.avatar.url ? (
+            {sending === true ? (
+              <Text style={S.coverCapsState}>{t('k.cover.envoi')}</Text>
+            ) : sf.avatar.url ? (
               <Image source={{ uri: sf.avatar.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             ) : (
               <IconCamera size={20} color="#8A7D6B" />

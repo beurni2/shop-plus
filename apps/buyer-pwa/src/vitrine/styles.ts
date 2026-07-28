@@ -101,6 +101,10 @@ export const VITRINE_STYLES = `
     font-size: 24px; font-weight: 800;
     transition: background .3s;
   }
+  /* MEDIA-2 — her portrait fills the disc. overflow:hidden + inherited radius keep
+     the round frame; the accent background stays as the colour behind a slow load. */
+  .vt-avatar-photo { overflow: hidden; padding: 0; }
+  .vt-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
   .vt-namerow {
     display: flex; align-items: center; justify-content: center; gap: 6px;
     margin-top: 8px;

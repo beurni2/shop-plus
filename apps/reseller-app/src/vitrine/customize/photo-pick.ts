@@ -42,7 +42,13 @@ export type PickOutcome =
 
 /** Quality is a DESIGN choice, not a default: a market phone on patchy data
  *  should not push a 6 MB original through the network, and the service's own
- *  byte cap would refuse it anyway. 0.7 keeps a cover honest at a fraction. */
+ *  byte cap would refuse it anyway. 0.7 keeps a cover honest at a fraction.
+ *
+ *  It is applied ONCE, at the save below. Passing it to the PICKER too would cost a
+ *  whole extra full-resolution decode + JPEG re-encode on her phone (the native
+ *  picker routes quality < 1 through a compression exporter) to produce bytes this
+ *  module immediately re-encodes anyway. The picker therefore hands us the file
+ *  untouched and the single re-encode happens here. */
 const QUALITY = 0.7;
 
 /** Mirrors the service's IMAGE_STANDARD_MAX_DIM / IMAGE_MIN_DIM. Duplicated on
@@ -60,7 +66,7 @@ export async function pickPhoto(): Promise<PickOutcome> {
 
   const picked = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
-    quality: QUALITY,
+    quality: 1,
     allowsMultipleSelection: false,
   });
   if (picked.canceled) return { ok: false, reason: 'cancelled' };
@@ -76,24 +82,40 @@ export async function pickPhoto(): Promise<PickOutcome> {
     const { width, height } = original;
 
     // Too small is a REFUSAL SHE CAN ACT ON, and she should hear it before the
-    // upload rather than after: the service refuses under 200 px either way.
+    // upload rather than after: the service refuses under 200 px either way. The
+    // check is on the ORIGINAL and again on the RESULT: a 4000x300 panorama clears
+    // it here and only breaks the floor once the longer edge is brought to 2048.
     if (width > 0 && height > 0 && (width < MIN_DIM || height < MIN_DIM)) {
+      original.release();
       return { ok: false, reason: 'too_small' };
     }
 
     // Constrain the LONGER edge. Resizing width alone on a portrait photo leaves
     // the height over the box and the service still refuses it.
+    //
+    // ONE DECODE, NOT TWO. Re-manipulating `asset.uri` would run a second full
+    // Glide decode and hold both bitmaps: on a 3264x2448 photo that is ~32 MB
+    // twice, on the 1 GB Android this project designs for first. `manipulate`
+    // accepts the already-decoded ImageRef, so the resize reuses that bitmap, and
+    // the original is released the moment it is no longer needed.
     const oversize = width > MAX_DIM || height > MAX_DIM;
     const fitted = oversize
-      ? await ImageManipulator.manipulate(asset.uri)
+      ? await ImageManipulator.manipulate(original)
           .resize(width >= height ? { width: MAX_DIM } : { height: MAX_DIM })
           .renderAsync()
       : original;
+    if (oversize) original.release();
+
+    if (fitted.width < MIN_DIM || fitted.height < MIN_DIM) {
+      fitted.release();
+      return { ok: false, reason: 'too_small' };
+    }
 
     // JPEG always, so the bytes on the wire are a format the service accepts and
     // the content-type we declare is the one we actually produced — not a guess
     // inherited from whatever the gallery happened to hold.
     const saved = await fitted.saveAsync({ compress: QUALITY, format: SaveFormat.JPEG });
+    fitted.release();
     const bytes = await new File(saved.uri).bytes();
     if (bytes.length === 0) return { ok: false, reason: 'unreadable' };
     return { ok: true, bytes, contentType: 'image/jpeg' };

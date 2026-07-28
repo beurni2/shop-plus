@@ -132,9 +132,18 @@ function chips(sf: Storefront, trust: VitrineTrust): string {
 function identity(sf: Storefront, trust: VitrineTrust, opts: { compact?: boolean } = {}): string {
   const th = VITRINE_THEMES[sf.theme];
   const initial = esc(sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase());
+  // MEDIA-2 — HER PORTRAIT, same law as the cover one block up. The avatar upload
+  // stored a url and pointed the record at it, and this renderer drew the monogram
+  // initial unconditionally — so « Votre portrait est en ligne » was true of the
+  // record and false of every screen a cliente ever sees. The monogram remains the
+  // designed state for mode 'monogram' AND for a photo mode with no url.
+  const avatar =
+    sf.avatar.mode === 'photo' && sf.avatar.url
+      ? `<span class="vt-avatar vt-avatar-photo"><img class="vt-avatar-img" src="${esc(sf.avatar.url)}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async"></span>`
+      : `<span class="vt-avatar">${initial}</span>`;
   const parts = [
     '<div class="vt-identity" data-role="vitrine-identity">',
-    `<span class="vt-avatar">${initial}</span>`,
+    avatar,
     `<div class="vt-namerow"><v>${esc(sf.name)}</v>${iconCheck(17, th.accent, 2.6)}</div>`,
   ];
   if (!opts.compact && sf.tagline) parts.push(`<div class="vt-tagline"><v>${esc(sf.tagline)}</v></div>`);

@@ -73,9 +73,10 @@ export const SECTION_NAME_MAX = 20;
 export const FEATURED_CAP = 2;
 export const SECTIONS_CAP = 4;
 
-/** §4.4 timers — the [DEMO] K3 cycle. */
-export const COVER_UPLOAD_MS = 1_400;
-export const COVER_VERIFY_MS = 2_600;
+// §4.4's COVER_UPLOAD_MS / COVER_VERIFY_MS are GONE with the simulation they timed.
+// The K3 cycle is a real pick, a real upload and a real read-back now, so
+// « uploading » lasts exactly as long as the network takes — there is no decreed
+// duration left to pin, and a constant nothing reads is a claim nothing checks.
 
 export const DEFAULT_STOREFRONT: Storefront = {
   id: 'sf_aicha',

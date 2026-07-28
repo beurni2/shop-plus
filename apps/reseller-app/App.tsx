@@ -439,7 +439,10 @@ export default function App() {
       // under a success toast. « Queued = pending, never done »: if the re-read
       // did not come back carrying a cover url, we have not SEEN her photograph
       // arrive, so we do not claim it did.
-      const confirmed = fresh.ok && fresh.value !== undefined && Boolean(fresh.value.cover.url);
+      // Compare against the URL THIS upload minted. `Boolean(cover.url)` would be
+      // true of a cover she uploaded last week, so a failed replacement could have
+      // reported success — the very shape B5 closed on the server side.
+      const confirmed = fresh.ok && fresh.value !== undefined && fresh.value.cover.url === res.value.url;
       return confirmed ? { ok: true } : { ok: false, reason: 'not_confirmed' };
     },
     [service, identity, liveStorefront],
@@ -455,7 +458,7 @@ export default function App() {
       if (!res.ok) return { ok: false, reason: res.reason };
       const fresh = await service.getById(identity.storefrontId);
       if (fresh.ok && fresh.value !== undefined) setLiveStorefront(fresh.value);
-      const confirmed = fresh.ok && fresh.value !== undefined && Boolean(fresh.value.avatar.url);
+      const confirmed = fresh.ok && fresh.value !== undefined && fresh.value.avatar.url === res.value.url;
       return confirmed ? { ok: true } : { ok: false, reason: 'not_confirmed' };
     },
     [service, identity, liveStorefront],

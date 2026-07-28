@@ -121,6 +121,10 @@ async function handleMediaUpload(request: Request, env?: StorefrontServiceEnv): 
       }),
     ).catch(() => null);
     if (pointed === null || !pointed.ok) {
+      // KNOWN AND ACCEPTED RESIDUE: the bytes are already in R2 at this point and
+      // nothing now references them. They are unreachable by any buyer (no route
+      // serves an unpointed key by guess) but they DO accumulate, and there is no
+      // sweeper. Named here rather than left for someone to discover from a bill.
       const reason = pointed === null ? 'storefront_unreachable' : pointed.status === 404 ? 'storefront_absent' : 'not_pointed';
       return Response.json({ service: SERVICE_NAME, error: reason }, { status: 502 });
     }

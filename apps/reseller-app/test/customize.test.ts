@@ -14,8 +14,6 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  COVER_UPLOAD_MS,
-  COVER_VERIFY_MS,
   DEFAULT_STOREFRONT,
   FEATURED_CAP,
   SECTIONS_CAP,
@@ -103,10 +101,6 @@ describe('K property pins — the Phase-0 table bytes in the runtime StyleSheet'
     expect(THEMES.indigo).toMatchObject({ accent: '#3E4B8C', deep: '#232B54', soft: '#E7EAF6', on: '#F2F4FC' });
   });
 
-  it('§4.4 timers are the decreed values: upload 1 400 ms, verification 2 600 ms', () => {
-    expect(COVER_UPLOAD_MS).toBe(1_400);
-    expect(COVER_VERIFY_MS).toBe(2_600);
-  });
 });
 
 describe('K flows — §8.5–§8.10 as assertions', () => {

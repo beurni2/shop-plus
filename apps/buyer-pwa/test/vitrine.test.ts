@@ -330,3 +330,50 @@ describe('MEDIA-2 — the cover photograph is RENDERED, not captioned', () => {
     expect(html).not.toContain('onerror="alert(1)"');
   });
 });
+
+/**
+ * MEDIA-2 round 2 — the AVATAR was B1 one layer down. `decideSetMedia` stored
+ * `avatar:{mode:'photo',url}`, the projection carried it, the port delivered it,
+ * and `identity()` drew the monogram initial unconditionally: « Votre portrait est
+ * en ligne » was true of the record and false of every screen a cliente sees.
+ */
+describe('MEDIA-2 — the portrait is RENDERED, not replaced by an initial', () => {
+  const base = {
+    id: 'sf-av', resellerId: 'rs-av', slug: 'chez-av-1',
+    name: 'Chez Aïcha Mod', zone: 'Ouagadougou', category: 'Général',
+    tagline: '', bio: '', theme: 'laterite' as const,
+    cover: { status: 'none' as const },
+    curatedItems: [], featuredItems: [], sections: [],
+    discoverable: true, createdAt: 'T', updatedAt: 'T',
+  };
+  const trust = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
+  const PORTRAIT = 'https://storefront-service.example.workers.dev/media/storefronts/sf-av/avatar/b.jpg';
+
+  it('A PHOTO AVATAR WITH A URL DRAWS AN <img> CARRYING THAT EXACT ADDRESS', () => {
+    const sf = { ...base, avatar: { mode: 'photo' as const, url: PORTRAIT } };
+    const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
+    expect(html).toContain(`src="${PORTRAIT}"`);
+    expect(html).toContain('class="vt-avatar-img"');
+  });
+
+  it('MONOGRAM MODE KEEPS THE INITIAL — the designed state, not a fallback', () => {
+    const sf = { ...base, avatar: { mode: 'monogram' as const } };
+    const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
+    expect(html).not.toContain('vt-avatar-img');
+    expect(html).toContain('<span class="vt-avatar">A</span>');
+  });
+
+  it('PHOTO MODE WITHOUT A URL FALLS BACK TO THE INITIAL — never an <img> pointing nowhere', () => {
+    const sf = { ...base, avatar: { mode: 'photo' as const } };
+    const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
+    expect(html).not.toContain('vt-avatar-img');
+    expect(html).not.toContain('src=""');
+    expect(html).toContain('<span class="vt-avatar">A</span>');
+  });
+
+  it('THE PORTRAIT URL IS ESCAPED', () => {
+    const sf = { ...base, avatar: { mode: 'photo' as const, url: 'https://h/a.jpg" onerror="alert(1)' } };
+    const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
+    expect(html).not.toContain('onerror="alert(1)"');
+  });
+});

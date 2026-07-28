@@ -266,8 +266,13 @@ export class HttpStorefrontService implements StorefrontServicePort {
     } catch {
       return { ok: false, reason: 'offline' };
     }
-    const data = (await res.json().catch(() => null)) as { status?: string; url?: string } | null;
-    if (!res.ok) return { ok: false, reason: `http_${res.status}` };
+    const data = (await res.json().catch(() => null)) as { status?: string; url?: string; error?: string } | null;
+    // MEDIA-2 — KEEP THE SERVICE'S NAMED REASON, exactly as publishListing does.
+    // Collapsing everything to `http_${status}` threw away `too_large`,
+    // `bad_dimensions`, `storefront_absent` and `not_pointed` at this one line, so
+    // every one of them reached her as the same « essayez une image plus légère » —
+    // advice that fixes exactly one of them.
+    if (!res.ok) return { ok: false, reason: data?.error ?? `http_${res.status}` };
     return { ok: true, value: { status: data?.status ?? 'pending', url: data?.url ?? '' } };
   }
 

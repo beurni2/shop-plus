@@ -1117,7 +1117,7 @@
  },
  {
   "key": "k.cover.specs",
-  "fr": "JPEG ou PNG · réduite pour vous",
+  "fr": "Toute photo · réduite pour vous",
   "register": "neutral",
   "screenClass": "label"
  },
@@ -1141,13 +1141,13 @@
  },
  {
   "key": "k.cover.err_titre",
-  "fr": "Image trop lourde — 2 Mo max.",
+  "fr": "Photo pas envoyée",
   "register": "neutral",
   "screenClass": "status"
  },
  {
   "key": "k.cover.err_corps",
-  "fr": "Reprenez la photo ou compressez-la, puis réessayez.",
+  "fr": "Réessayez dans un moment.",
   "register": "neutral",
   "screenClass": "instruction"
  },
@@ -1178,6 +1178,18 @@
  {
   "key": "k.cover.toast_en_ligne",
   "fr": "Votre couverture est en ligne",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cover.trop_lourde",
+  "fr": "Photo trop lourde. Choisissez-en une autre.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cover.mauvaise_taille",
+  "fr": "Cette photo ne passe pas. Choisissez-en une autre.",
   "register": "neutral",
   "screenClass": "status"
  },
