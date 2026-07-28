@@ -216,7 +216,10 @@ function royale(v: Vals): string {
     cell(iconLockEnt(19, '#E9CF8F', 1.9), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
     cell(iconTagEnt(19, '#E9CF8F', 1.9), t('vit.cell_prix'), t('vit.cell_prix_sub')),
     '</div>',
-    controls(v, 'ry', 'left', '14px', '66px', '#E9CF8F'),
+    // B1 (verifier, browser-measured): at left the pair covered 58% of her
+    // avatar AND the vérifié badge — the one thing this page exists to show.
+    // Right side, same offsets, over the medallion's empty margin.
+    controls(v, 'ry', 'right', '14px', '66px', '#E9CF8F'),
     '</div>',
     '</div>',
   ].join('');
@@ -352,7 +355,13 @@ function cristal(v: Vals): string {
       ? [
           '<div class="cr-proof">',
           v.showProof
-            ? `<span class="glz cr-pave" data-role="reputation"><b><v>${v.delivN}</v></b> <span>${t('vit.ventes_livrees')}</span></span>`
+            ? (() => {
+                // Contract split: <b>{N} ventes</b> / « livrées par Séra », both
+                // nowrap — derived from the one catalog string (first word joins
+                // the bold), so no second string is authored.
+                const [premier = '', ...reste] = t('vit.ventes_livrees').split(' ');
+                return `<span class="glz cr-pave" data-role="reputation"><b class="cr-pave-l1"><v>${v.delivN}</v> ${premier}</b> <span class="cr-pave-l2">${reste.join(' ')}</span></span>`;
+              })()
             : '',
           v.showStars
             ? `<span class="cr-stars" data-role="chip-avis">${iconStarEnt(12, '#1E9E62')}<span><v>${v.rating}</v> · <v>${v.reviewCount}</v> ${t('vit.avis_verifies')}</span></span>`
@@ -571,7 +580,7 @@ export const ENTETES_STYLES = `
   .vt-ry .ry-filet-a { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(212,168,87,.7), rgba(212,168,87,.3)); }
   .vt-ry .ry-filet-d { width: 8px; height: 8px; flex: none; background: var(--ry-or); transform: rotate(45deg); }
   .vt-ry .ry-filet-b { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(212,168,87,.3), rgba(212,168,87,0)); }
-  .vt-ry .ry-bio { position: relative; margin-top: 12px; font-size: 13px; line-height: 1.5; color: var(--ry-ivoire-doux); max-width: 236px; }
+  .vt-ry .ry-bio { text-wrap: pretty;  position: relative; margin-top: 12px; font-size: 13px; line-height: 1.5; color: var(--ry-ivoire-doux); max-width: 236px; }
   .vt-ry .ry-proof { position: relative; margin-top: 13px; display: flex; align-items: center; flex-wrap: wrap; gap: 5px 12px; }
   .vt-ry .ry-proof-line { font-size: 13px; color: var(--ry-ivoire-doux); white-space: nowrap; }
   .vt-ry .ry-proof-line b { font-weight: 700; color: var(--ry-or-clair); font-size: 14.5px; }
@@ -604,7 +613,7 @@ export const ENTETES_STYLES = `
   .vt-ry .ry-cell-l { font-size: 10.5px; font-weight: 600; line-height: 1.28; color: var(--ry-ivoire); }
   .vt-ry .ry-cell-s { font-size: 9px; line-height: 1.25; color: var(--ry-rose); }
   .vt-ry .ry-btn { background: linear-gradient(115deg, var(--ry-pastille-a), var(--ry-pastille-b)); border: 1px solid rgba(212,168,87,.7); }
-  .vt-ry .vt-ent-back { left: 14px; }
+  .vt-ry .vt-ent-back { right: 14px; }
 
   /* ══════════════════════ 2 · HÉRITAGE ══════════════════════ */
   .vt-he {
@@ -767,7 +776,7 @@ export const ENTETES_STYLES = `
   .vt-ch .ch-tag { margin-top: 3px; font-size: 13.5px; font-weight: 700; color: var(--ch-corail); }
   .vt-ch .ch-zone { margin-top: 5px; font-size: 11px; font-weight: 500; line-height: 1.4; color: var(--ch-sourd); }
   .vt-ch .ch-zone svg { vertical-align: -1.5px; margin-right: 3px; }
-  .vt-ch .ch-bio { margin-top: 9px; font-size: 12px; line-height: 1.5; color: var(--ch-texte); }
+  .vt-ch .ch-bio { text-wrap: pretty;  margin-top: 9px; font-size: 12px; line-height: 1.5; color: var(--ch-texte); }
   .vt-ch .ch-proof { margin-top: 10px; font-size: 11.5px; color: var(--ch-texte); line-height: 1.45; }
   .vt-ch .ch-proof b { font-weight: 700; color: var(--ch-encre); }
   .vt-ch .ch-stars { white-space: nowrap; }
@@ -843,8 +852,9 @@ export const ENTETES_STYLES = `
   .vt-cr .cr-tag { margin-top: 3px; font-size: 14px; font-weight: 600; color: var(--cr-laiton); }
   .vt-cr .cr-zone { margin-top: 5px; font-size: 11.5px; font-weight: 500; line-height: 1.4; color: var(--cr-texte); }
   .vt-cr .cr-zone svg { vertical-align: -2px; margin-right: 4px; }
-  .vt-cr .cr-bio { margin-top: 11px; font-size: 12.5px; line-height: 1.55; color: var(--cr-texte-doux); }
+  .vt-cr .cr-bio { text-wrap: pretty;  margin-top: 11px; font-size: 12.5px; line-height: 1.55; color: var(--cr-texte-doux); }
   .vt-cr .cr-proof { margin-top: 11px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .vt-cr .cr-pave-l1, .vt-cr .cr-pave-l2 { white-space: nowrap; display: block; }
   .vt-cr .cr-pave { display: inline-flex; flex-direction: column; padding: 7px 14px; border-radius: 14px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.9); }
   .vt-cr .cr-pave b { font-size: 14px; font-weight: 700; color: var(--cr-vert); line-height: 1.15; }
   .vt-cr .cr-pave span { font-size: 10px; color: var(--cr-sourd); line-height: 1.2; }
@@ -945,7 +955,7 @@ export const ENTETES_STYLES = `
   .vt-dy .dy-tag { margin-top: 2px; font-size: 12px; font-weight: 700; color: var(--dy-rose); }
   .vt-dy .dy-zone { margin-top: 6px; font-size: 10.5px; font-weight: 500; line-height: 1.4; color: rgba(255,240,248,.88); }
   .vt-dy .dy-zone svg { vertical-align: -1.5px; margin-right: 3px; }
-  .vt-dy .dy-bio { margin-top: 7px; font-size: 11.5px; line-height: 1.45; color: rgba(255,240,248,.88); }
+  .vt-dy .dy-bio { text-wrap: pretty;  margin-top: 7px; font-size: 11.5px; line-height: 1.45; color: rgba(255,240,248,.88); }
   .vt-dy .dy-proof { margin-top: 9px; font-size: 11px; color: rgba(255,240,248,.9); line-height: 1.45; }
   .vt-dy .dy-proof b { font-weight: 700; color: #FFFFFF; }
   .vt-dy .dy-stars { white-space: nowrap; }

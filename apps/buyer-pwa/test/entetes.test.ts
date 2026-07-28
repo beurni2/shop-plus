@@ -193,7 +193,14 @@ describe('ENTETES-A — the frozen honesty rules hold, per style, on executed ou
       const html = head(key, WITH_COVER, REAL);
       expect(html).toContain('data-role="reputation"');
       expect(html).toContain('<v>12</v>');
-      expect(html).toContain(t('vit.ventes_livrees'));
+      // Cristal renders the contract's two-line split (« {N} ventes » bold /
+      // « livrées par Séra ») — the phrase is present but not contiguous there.
+      if (key === 'cristal') {
+        expect(html).toContain('ventes</b>');
+        expect(html).toContain('livrées par Séra');
+      } else {
+        expect(html).toContain(t('vit.ventes_livrees'));
+      }
       expect(html).toContain('data-role="chip-avis"');
       expect(html).toContain('<v>4,8</v>');
       expect(html).toContain('<v>17</v>');
@@ -481,5 +488,27 @@ describe('ENTETES-A — every style survives every combination of its own states
       }
     }
     expect(renders).toBe(120);
+  });
+});
+
+/**
+ * M4 (verifier): the suite made ZERO assertions on any palette value — all five
+ * palettes could be recoloured with CI green. These pin the relevé hex-for-hex
+ * on the tokens that carry each style's identity.
+ */
+describe('palettes — the relevé values, pinned against silent recolour', () => {
+  it('EACH STYLE CARRIES ITS CONTRACT TOKENS', () => {
+    const pins: [string, string][] = [
+      ['--ry-fond', '#26082C'], ['--ry-magenta', '#A81E62'], ['--ry-or', '#D4A857'], ['--ry-or-clair', '#E9CF8F'],
+      ['--he-vert', '#0B4638'], ['--he-or', '#C79A45'], ['--he-creme', '#F7F1E5'],
+      ['--ch-page', '#FDEEE7'], ['--ch-corail', '#D95238'],
+    ];
+    for (const [token, hex] of pins) {
+      const re = new RegExp(`${token}\\s*:\\s*${hex}`, 'i');
+      expect(ENTETES_STYLES, `${token} must be ${hex}`).toMatch(re);
+    }
+    // two identities that live as literals, not tokens, in the sheet
+    expect(ENTETES_STYLES).toContain('#EDF2ED'); // Cristal's page
+    expect(ENTETES_STYLES).toMatch(/118deg,\s*#2B1055/); // Dynamique's veil-anchored gradient
   });
 });

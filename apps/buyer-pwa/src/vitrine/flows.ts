@@ -100,11 +100,17 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   // stays byte-unchanged. Every rule is scoped under a per-style root class
   // (.vt-ry/.vt-he/.vt-ch/.vt-cr/.vt-dy), so nothing leaks into the page or
   // between styles even though all five are always present.
-  const enteteStyle = document.createElement('style');
-  enteteStyle.setAttribute('data-entetes', '');
-  enteteStyle.textContent = ENTETES_STYLES;
-  document.head.appendChild(enteteStyle);
+  //
+  // Verifier (perf, HANDOFF §6): classique — every EXISTING shop — must not pay
+  // the 33.7 KB parse for CSS it never matches; the sheet mounts only when one
+  // of the five is actually selected.
   const entete: EnteteKey = harness.entete ?? 'classique';
+  if (entete !== 'classique') {
+    const enteteStyle = document.createElement('style');
+    enteteStyle.setAttribute('data-entetes', '');
+    enteteStyle.textContent = ENTETES_STYLES;
+    document.head.appendChild(enteteStyle);
+  }
 
   // The audit harness (a profil override) drives the DEMO adapter; a real entry
   // uses the env-gated port — the real HTTP adapter iff a service base is
