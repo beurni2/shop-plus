@@ -105,7 +105,7 @@ export const K_RAW_STYLES = {
   coverSlot: { height: 120, borderRadius: 20, alignItems: 'center', justifyContent: 'center', gap: 6 },
   coverSlotDashed: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#DDD2BC', backgroundColor: '#FCF9F2' },
   coverSlotFilled: { backgroundColor: '#FCF9F2', borderWidth: 1.5, borderColor: '#E5DCC9' },
-  coverSlotPhoto: { backgroundColor: '#8A5A3A', alignItems: 'flex-start', justifyContent: 'flex-start', padding: 10 },
+  coverSlotPhoto: { backgroundColor: '#8A5A3A', alignItems: 'flex-start', justifyContent: 'flex-start', padding: 10, overflow: 'hidden' },
   coverSlotError: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#C4574B', backgroundColor: '#F8E1DE', padding: 14 },
   coverAddText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13.5, fontWeight: '700', color: '#A31D4E' },
   coverSpecs: { fontFamily: TEXT_FAMILY, fontSize: 11, color: '#8A7D6B' },

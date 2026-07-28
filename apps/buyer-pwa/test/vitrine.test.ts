@@ -276,3 +276,104 @@ describe('BUYER-LIVE-WIRE-4 — tapping a REAL tile opens the buyer flow, not th
     expect(main).toMatch(/const pid = params\.get\('pid'\) \|\| defaultPid;/);
   });
 });
+
+/* ------------------------------------------------------------ MEDIA-2 -- */
+
+/**
+ * HER PHOTOGRAPH REACHES THE CLIENTE, or the badge language is spent on a lie.
+ *
+ * PERSONNALISER-MEDIA-1 made `cover.status:'live'` REAL (a genuine upload writes
+ * it) but nothing here rendered `cover.url` — `grep -rn "cover\.url" src/` found
+ * NOTHING. So the cliente got a brown gradient captioned « PHOTO DE COUVERTURE »:
+ * a label asserting a photograph she cannot see. While the status was demo-fed
+ * that placeholder was honest; the moment it became real it became a false claim.
+ */
+describe('MEDIA-2 — the cover photograph is RENDERED, not captioned', () => {
+  const base = {
+    id: 'sf-cov', resellerId: 'rs-cov', slug: 'chez-cov-1',
+    name: 'Chez Aïcha Mod', zone: 'Ouagadougou', category: 'Général',
+    tagline: '', bio: '', theme: 'laterite' as const,
+    avatar: { mode: 'monogram' as const },
+    curatedItems: [], featuredItems: [], sections: [],
+    discoverable: true, createdAt: 'T', updatedAt: 'T',
+  };
+  const trust = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
+  const PHOTO = 'https://storefront-service.example.workers.dev/media/storefronts/sf-cov/cover/a.jpg';
+
+  it('A LIVE COVER WITH A URL DRAWS AN <img> CARRYING THAT EXACT ADDRESS', () => {
+    const sf = { ...base, cover: { status: 'live' as const, url: PHOTO } };
+    const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
+    expect(html).toContain(`src="${PHOTO}"`);
+    expect(html).toContain('class="vt-cover-img"');
+    // …and it does NOT caption a photograph, because it IS one
+    expect(html).not.toContain('PHOTO DE COUVERTURE');
+  });
+
+  it('A LIVE COVER WITHOUT A URL KEEPS THE WOVEN HABILLAGE — no <img> pointing nowhere', () => {
+    const sf = { ...base, cover: { status: 'live' as const } };
+    const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
+    expect(html).not.toContain('vt-cover-img');
+    expect(html).not.toContain('src=""');
+  });
+
+  it('NO COVER IS STILL THE DESIGNED EMPTY STATE, never a broken image', () => {
+    const sf = { ...base, cover: { status: 'none' as const } };
+    const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
+    expect(html).not.toContain('vt-cover-img');
+    expect(html).toContain('data-etat="none"');
+  });
+
+  it('THE URL IS ESCAPED — a storefront record is not a licence to inject markup', () => {
+    const nasty = 'https://h/a.jpg" onerror="alert(1)';
+    const sf = { ...base, cover: { status: 'live' as const, url: nasty } };
+    const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
+    expect(html).not.toContain('onerror="alert(1)"');
+  });
+});
+
+/**
+ * MEDIA-2 round 2 — the AVATAR was B1 one layer down. `decideSetMedia` stored
+ * `avatar:{mode:'photo',url}`, the projection carried it, the port delivered it,
+ * and `identity()` drew the monogram initial unconditionally: « Votre portrait est
+ * en ligne » was true of the record and false of every screen a cliente sees.
+ */
+describe('MEDIA-2 — the portrait is RENDERED, not replaced by an initial', () => {
+  const base = {
+    id: 'sf-av', resellerId: 'rs-av', slug: 'chez-av-1',
+    name: 'Chez Aïcha Mod', zone: 'Ouagadougou', category: 'Général',
+    tagline: '', bio: '', theme: 'laterite' as const,
+    cover: { status: 'none' as const },
+    curatedItems: [], featuredItems: [], sections: [],
+    discoverable: true, createdAt: 'T', updatedAt: 'T',
+  };
+  const trust = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
+  const PORTRAIT = 'https://storefront-service.example.workers.dev/media/storefronts/sf-av/avatar/b.jpg';
+
+  it('A PHOTO AVATAR WITH A URL DRAWS AN <img> CARRYING THAT EXACT ADDRESS', () => {
+    const sf = { ...base, avatar: { mode: 'photo' as const, url: PORTRAIT } };
+    const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
+    expect(html).toContain(`src="${PORTRAIT}"`);
+    expect(html).toContain('class="vt-avatar-img"');
+  });
+
+  it('MONOGRAM MODE KEEPS THE INITIAL — the designed state, not a fallback', () => {
+    const sf = { ...base, avatar: { mode: 'monogram' as const } };
+    const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
+    expect(html).not.toContain('vt-avatar-img');
+    expect(html).toContain('<span class="vt-avatar">A</span>');
+  });
+
+  it('PHOTO MODE WITHOUT A URL FALLS BACK TO THE INITIAL — never an <img> pointing nowhere', () => {
+    const sf = { ...base, avatar: { mode: 'photo' as const } };
+    const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
+    expect(html).not.toContain('vt-avatar-img');
+    expect(html).not.toContain('src=""');
+    expect(html).toContain('<span class="vt-avatar">A</span>');
+  });
+
+  it('THE PORTRAIT URL IS ESCAPED', () => {
+    const sf = { ...base, avatar: { mode: 'photo' as const, url: 'https://h/a.jpg" onerror="alert(1)' } };
+    const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
+    expect(html).not.toContain('onerror="alert(1)"');
+  });
+});

@@ -58,6 +58,21 @@ function topBar(opts: { back: boolean; accent: string }): string {
 /** C-VIT1 — la couverture (default: habillage tissé + filigrane; live: photo). */
 function cover(sf: Storefront): string {
   const initial = esc(sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase());
+  // ═══ MEDIA-2 — HER PHOTOGRAPH, NOT A CAPTION CLAIMING ONE ═══
+  //
+  // `status:'live'` used to be demo-fed, so drawing a woven placeholder captioned
+  // « PHOTO DE COUVERTURE » was honest — there was no photo to draw. The moment
+  // PERSONNALISER-MEDIA-1 made `live` REAL, that same placeholder became a label
+  // asserting a photograph the cliente cannot see. A real url is now rendered.
+  if (sf.cover.status === 'live' && sf.cover.url) {
+    return [
+      '<div class="vt-cover vt-cover-photo" data-role="vitrine-cover" data-etat="live">',
+      `<img class="vt-cover-img" src="${esc(sf.cover.url)}" alt="${t('vit.cover_alt')}" loading="lazy" decoding="async">`,
+      '</div>',
+    ].join('');
+  }
+  // Live WITHOUT a url is the honest woven habillage, never the photo caption:
+  // there is nothing to show, so nothing is claimed.
   if (sf.cover.status === 'live') {
     return [
       '<div class="vt-cover vt-cover-live" data-role="vitrine-cover" data-etat="live">',
@@ -117,9 +132,18 @@ function chips(sf: Storefront, trust: VitrineTrust): string {
 function identity(sf: Storefront, trust: VitrineTrust, opts: { compact?: boolean } = {}): string {
   const th = VITRINE_THEMES[sf.theme];
   const initial = esc(sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase());
+  // MEDIA-2 — HER PORTRAIT, same law as the cover one block up. The avatar upload
+  // stored a url and pointed the record at it, and this renderer drew the monogram
+  // initial unconditionally — so « Votre portrait est en ligne » was true of the
+  // record and false of every screen a cliente ever sees. The monogram remains the
+  // designed state for mode 'monogram' AND for a photo mode with no url.
+  const avatar =
+    sf.avatar.mode === 'photo' && sf.avatar.url
+      ? `<span class="vt-avatar vt-avatar-photo"><img class="vt-avatar-img" src="${esc(sf.avatar.url)}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async"></span>`
+      : `<span class="vt-avatar">${initial}</span>`;
   const parts = [
     '<div class="vt-identity" data-role="vitrine-identity">',
-    `<span class="vt-avatar">${initial}</span>`,
+    avatar,
     `<div class="vt-namerow"><v>${esc(sf.name)}</v>${iconCheck(17, th.accent, 2.6)}</div>`,
   ];
   if (!opts.compact && sf.tagline) parts.push(`<div class="vt-tagline"><v>${esc(sf.tagline)}</v></div>`);

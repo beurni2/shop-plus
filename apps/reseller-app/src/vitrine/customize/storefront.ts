@@ -53,8 +53,10 @@ export interface Storefront {
   readonly bio: string; // 0–160
   readonly zone: string;
   readonly theme: VitrineThemeKey;
-  readonly cover: { readonly status: CoverStatus };
-  readonly avatar: { readonly mode: 'monogram' | 'photo' };
+  /** PERSONNALISER-MEDIA-1 — `url` mirrors canon `StorefrontCoverSchema`. It is
+   *  written BY THE SERVICE from a completed upload; the app never patches it. */
+  readonly cover: { readonly status: CoverStatus; readonly url?: string };
+  readonly avatar: { readonly mode: 'monogram' | 'photo'; readonly url?: string };
   readonly curatedItems: readonly string[];
   readonly featuredItems: readonly string[]; // ≤ 2, ordre d'épinglage
   readonly sections: readonly StorefrontSection[]; // ≤ 4
@@ -71,9 +73,10 @@ export const SECTION_NAME_MAX = 20;
 export const FEATURED_CAP = 2;
 export const SECTIONS_CAP = 4;
 
-/** §4.4 timers — the [DEMO] K3 cycle. */
-export const COVER_UPLOAD_MS = 1_400;
-export const COVER_VERIFY_MS = 2_600;
+// §4.4's COVER_UPLOAD_MS / COVER_VERIFY_MS are GONE with the simulation they timed.
+// The K3 cycle is a real pick, a real upload and a real read-back now, so
+// « uploading » lasts exactly as long as the network takes — there is no decreed
+// duration left to pin, and a constant nothing reads is a claim nothing checks.
 
 export const DEFAULT_STOREFRONT: Storefront = {
   id: 'sf_aicha',
@@ -170,9 +173,18 @@ export function deleteSection(sf: Storefront, sectionId: string): ActionResult {
   return { ok: true, next: { ...sf, sections: sf.sections.filter((s) => s.id !== sectionId) }, toastKey: 'k.sections.toast_supprimee' };
 }
 
-/** K3 — the [DEMO] cover cycle steps (§4.4); timing owned by the screen. */
+/**
+ * K3 — move the cover to a LOCAL status without forgetting where the photo is.
+ *
+ * MEDIA-2 round 3: this dropped `url` on every transition. MEDIA-1 had added
+ * `url?` to the cover shape and never updated this constructor, so a live cover
+ * that failed to be REPLACED walked live → uploading → error → none and lost the
+ * address of the photograph her cliente was still looking at. Her app then said
+ * « Ajouter une couverture » over a shop that had one, with no way back inside the
+ * screen: the adoption effect is keyed on `updatedAt`, which never moved.
+ */
 export function coverTo(sf: Storefront, status: CoverStatus): Storefront {
-  return { ...sf, cover: { status } };
+  return { ...sf, cover: { ...sf.cover, status } };
 }
 
 /** §3.2 seed (pure data — testable Node-side) (the vitrine catalog — mirrors the buyer module; VITRINE-REAL-BACKING

@@ -292,3 +292,59 @@ describe('PERSONNALISER-REAL-1 — verifier findings', () => {
     expect(e.storefront.curatedItems).toEqual(['pv-1', 'pv-2', 'pv-3']);
   });
 });
+
+/**
+ * MEDIA-2 — decideSetMedia had NO unit tests at all. A fresh-context verifier
+ * proved it: deleting the ENTIRE avatar branch, and forcing the absent branch to
+ * answer 200, both left 197/197 green. One e2e assertion touched the cover branch
+ * and nothing else. These are the mutations that must now fail.
+ */
+describe('PERSONNALISER-MEDIA — decideSetMedia, the URL the SERVICE owns', () => {
+  const entry = async () => {
+    const { decideCreate } = await import('../src/storefront-core.js');
+    return decideCreate(undefined, SELLER_001).next!;
+  };
+  const T4 = '2026-07-28T09:00:00.000Z';
+  const URL_OK = 'https://storefront-service.example.workers.dev/media/storefronts/sf-1/cover/a.jpg';
+
+  it('A COVER URL LANDS ON THE STOREFRONT, with the status the buyer reads', async () => {
+    const { decideSetMedia } = await import('../src/storefront-core.js');
+    const { decision, next } = decideSetMedia(await entry(), 'cover', URL_OK, T4);
+    if (decision.status !== 'set') throw new Error(`expected set, got ${decision.status}`);
+    expect(decision.storefront.cover).toEqual({ status: 'live', url: URL_OK });
+    expect(decision.storefront.updatedAt).toBe(T4);
+    // the persisted entry carries it too — a decision nobody stores is no decision
+    expect(next!.storefront.cover.url).toBe(URL_OK);
+  });
+
+  it('AN AVATAR URL FLIPS THE MODE TO photo AND CARRIES THE URL (branch was untested)', async () => {
+    const { decideSetMedia } = await import('../src/storefront-core.js');
+    const { decision, next } = decideSetMedia(await entry(), 'avatar', URL_OK, T4);
+    if (decision.status !== 'set') throw new Error(`expected set, got ${decision.status}`);
+    expect(decision.storefront.avatar).toEqual({ mode: 'photo', url: URL_OK });
+    expect(next!.storefront.avatar.url).toBe(URL_OK);
+    // …and setting the avatar must not disturb the cover
+    expect(decision.storefront.cover.status).toBe('none');
+  });
+
+  it('AN ABSENT STOREFRONT IS SURFACED, never a phantom write (branch was untested)', async () => {
+    const { decideSetMedia } = await import('../src/storefront-core.js');
+    const { decision, next } = decideSetMedia(undefined, 'cover', URL_OK, T4);
+    expect(decision.status).toBe('absent');
+    expect(next).toBeUndefined();
+  });
+
+  it('A RELATIVE URL IS REFUSED — RN cannot resolve it and a browser 404s on it', async () => {
+    const { decideSetMedia } = await import('../src/storefront-core.js');
+    // this is EXACTLY what shipped: MEDIA_PUBLIC_BASE was "" so the minted url was
+    // `/media/{key}`. The e2e compared two equally-relative strings and stayed green.
+    for (const bad of ['/media/storefronts/sf-1/cover/a.jpg', 'media/x.jpg', 'ftp://h/x.jpg', '//h/x.jpg']) {
+      const { decision, next } = decideSetMedia(await entry(), 'cover', bad, T4);
+      if (decision.status !== 'refused') throw new Error(`expected refused for ${bad}, got ${decision.status}`);
+      expect(decision.reason).toBe('url_not_absolute');
+      expect(next).toBeUndefined();
+    }
+    // http and https both pass — the check is "a client can fetch this", not a host allowlist
+    expect(decideSetMedia(await entry(), 'cover', 'http://h/x.jpg', T4).decision.status).toBe('set');
+  });
+});

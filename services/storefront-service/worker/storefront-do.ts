@@ -3,6 +3,7 @@ import {
   decideCreate,
   decideDelete,
   decideSaveIdentity,
+  decideSetMedia,
   decideToggle,
   type CreateDecision,
   type CreateStorefrontCommand,
@@ -116,6 +117,25 @@ export class StorefrontDO {
       if (next) await this.state.storage.put(ENTRY_KEY, next);
       const status = decision.status === 'absent' ? 404 : decision.status === 'refused' ? 422 : 200;
       return Response.json(decision, { status });
+    }
+    // PERSONNALISER-MEDIA-1 — the service writes HER media URL onto the shop, the
+    // app never can (it has no such patch field). Reachable only from a completed
+    // upload of validated bytes.
+    if (request.method === 'POST' && pathname === '/entry/media') {
+      let body: { kind?: 'cover' | 'avatar'; url?: string; at?: string };
+      try {
+        body = (await request.json()) as { kind?: 'cover' | 'avatar'; url?: string; at?: string };
+      } catch {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      if ((body.kind !== 'cover' && body.kind !== 'avatar') || typeof body.url !== 'string' || body.url === '') {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      const current = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
+      const { decision, next } = decideSetMedia(current, body.kind, body.url, body.at ?? new Date().toISOString());
+      if (next) await this.state.storage.put(ENTRY_KEY, next);
+      const mediaStatus = decision.status === 'absent' ? 404 : decision.status === 'refused' ? 422 : 200;
+      return Response.json(decision, { status: mediaStatus });
     }
     if (request.method === 'GET' && pathname === '/entry') {
       const entry = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
@@ -286,6 +306,14 @@ export default {
       const res = await sfStub(env, id).fetch(
         new Request('https://do/entry/identity', { method: 'POST', body }),
       );
+      return forward(res);
+    }
+
+    m = /^\/storefronts\/([^/]+)\/media$/.exec(pathname);
+    if (m && request.method === 'POST') {
+      const id = decodeURIComponent(m[1]!);
+      const body = await request.clone().text();
+      const res = await sfStub(env, id).fetch(new Request('https://do/entry/media', { method: 'POST', body }));
       return forward(res);
     }
 

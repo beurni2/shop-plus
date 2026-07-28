@@ -14,12 +14,11 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  COVER_UPLOAD_MS,
-  COVER_VERIFY_MS,
   DEFAULT_STOREFRONT,
   FEATURED_CAP,
   SECTIONS_CAP,
   THEMES,
+  coverTo,
   createSection,
   deleteSection,
   moveItem,
@@ -103,10 +102,6 @@ describe('K property pins — the Phase-0 table bytes in the runtime StyleSheet'
     expect(THEMES.indigo).toMatchObject({ accent: '#3E4B8C', deep: '#232B54', soft: '#E7EAF6', on: '#F2F4FC' });
   });
 
-  it('§4.4 timers are the decreed values: upload 1 400 ms, verification 2 600 ms', () => {
-    expect(COVER_UPLOAD_MS).toBe(1_400);
-    expect(COVER_VERIFY_MS).toBe(2_600);
-  });
 });
 
 describe('K flows — §8.5–§8.10 as assertions', () => {
@@ -178,5 +173,51 @@ describe('K flows — §8.5–§8.10 as assertions', () => {
     expect(K_SEED.some((p) => p.pid.startsWith('d'))).toBe(false);
     expect(K_SEED.filter((p) => !p.inStock).map((p) => p.pid)).toEqual(['p3']);
     expect(K_SEED.find((p) => p.pid === 'p1')!.priceFcfa).toBe(11_500);
+  });
+});
+
+/**
+ * MEDIA-2 round 3 — coverTo MUST NOT FORGET WHERE THE PHOTOGRAPH IS.
+ *
+ * A verifier gutted this function to `return sf` — a complete no-op — and the whole
+ * file stayed green (13/13). Nothing exercised it. Meanwhile the real version
+ * dropped `cover.url` on every transition, because MEDIA-1 added `url?` to the
+ * cover shape and never updated this constructor.
+ */
+describe('MEDIA-2 — coverTo carries the url through every local status change', () => {
+  const live = {
+    ...DEFAULT_STOREFRONT,
+    cover: { status: 'live' as const, url: 'https://svc.example/media/storefronts/sf-1/cover/a.jpg' },
+  };
+
+  it('THE URL SURVIVES live → uploading → error → none', () => {
+    // This is the exact walk of a FAILED REPLACEMENT: she has a live cover, taps
+    // « Changer la photo », the upload fails, she taps « Réessayer ». Dropping the
+    // url made her app say « Ajouter une couverture » over a shop whose cliente
+    // was still looking at the photograph — with no way back inside the screen,
+    // because the adoption effect is keyed on updatedAt, which never moved.
+    let sf = coverTo(live, 'uploading');
+    expect(sf.cover.url).toBe(live.cover.url);
+    sf = coverTo(sf, 'error');
+    expect(sf.cover.url).toBe(live.cover.url);
+    sf = coverTo(sf, 'none');
+    expect(sf.cover.url).toBe(live.cover.url);
+    // …and the status really did change at each step (not a no-op function)
+    expect(coverTo(live, 'uploading').cover.status).toBe('uploading');
+    expect(coverTo(live, 'error').cover.status).toBe('error');
+    expect(coverTo(live, 'none').cover.status).toBe('none');
+  });
+
+  it('A COVER THAT NEVER HAD A URL STILL HAS NONE — nothing is invented', () => {
+    const bare = { ...DEFAULT_STOREFRONT, cover: { status: 'none' as const } };
+    expect(coverTo(bare, 'uploading').cover.url).toBeUndefined();
+  });
+
+  it('NOTHING ELSE ON THE STOREFRONT IS DISTURBED', () => {
+    const sf = coverTo(live, 'error');
+    expect(sf.name).toBe(live.name);
+    expect(sf.theme).toBe(live.theme);
+    expect(sf.curatedItems).toEqual(live.curatedItems);
+    expect(sf.updatedAt).toBe(live.updatedAt);
   });
 });

@@ -41,9 +41,15 @@ binding = "BUCKET"
 bucket_name = "beurni-storefront-media"
 
 # The service's own origin, so R2 read URLs are absolute. Empty ⇒ relative
-# `/media/{key}` (same origin). Set to the deployed URL after the first deploy.
+# `/media/{key}` (same origin) — which is what shipped, and it was WRONG the moment
+# PERSONNALISER-MEDIA-1 started writing this URL onto her storefront: React Native's
+# <Image> cannot resolve a relative URI (her own app drew nothing), and a browser
+# resolved it against the PWA's origin (`https://beurni2.github.io/media/…` → 404).
+# The e2e missed it because it compared two equally-relative strings.
+#
+# NOW SET, per the instruction this line has carried since the first deploy.
 [vars]
-MEDIA_PUBLIC_BASE = ""
+MEDIA_PUBLIC_BASE = "https://storefront-service.ilboudobernard2.workers.dev"
 
 # PRODUCT-MEDIA-BASE-1 — the PUBLIC origin serving boutik's PRODUCT photographs.
 #

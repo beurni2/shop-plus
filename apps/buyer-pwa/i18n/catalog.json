@@ -870,6 +870,18 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.cover_alt",
+  "fr": "La photo de la boutique",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.avatar_alt",
+  "fr": "Le portrait de la vendeuse",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.sans_photo",
   "fr": "SANS PHOTO",
   "register": "neutral",
