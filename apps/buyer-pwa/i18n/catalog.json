@@ -1002,21 +1002,9 @@
   "screenClass": "label"
  },
  {
-  "key": "vit.groupe_autres",
-  "fr": "AUTRES ARTICLES",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
   "key": "vit.a_la_une",
   "fr": "À LA UNE",
   "register": "selling",
-  "screenClass": "label"
- },
- {
-  "key": "vit.groupe_tous",
-  "fr": "TOUS LES ARTICLES",
-  "register": "neutral",
   "screenClass": "label"
  },
  {

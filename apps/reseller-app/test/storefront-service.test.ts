@@ -391,8 +391,14 @@ describe('PERSONNALISER-PARITY-1 — the catalog seam, executed', () => {
     expect(screens).not.toMatch(/featuredItems\.map\(\(pid\) => K_SEED\.find/);
     // the App passes her real join, priced by the SAME derivation Ma vitrine uses
     const app = readFileSync(new URL('../App.tsx', import.meta.url), 'utf8');
-    expect(app).toContain('catalog={vitrineOffers.map((o) => ({');
+    // ROUND 2 (verifier B1): the join reads the SERVICE's curatedItems — the
+    // session-local vitrineLive log emptied on every relaunch, so her real pids
+    // resolved to nothing after any restart. liveStorefront is the persisted
+    // truth; absent ⇒ undefined ⇒ the demo fallback, never a lying empty.
+    expect(app).toContain('liveStorefront.curatedItems.includes(o.productVersionId)');
+    expect(app).not.toContain('catalog={vitrineOffers.map');
     expect(app).toContain('priceFcfa: viewOfOffer(o).client,');
+    expect(app).toMatch(/liveStorefront === null \|\| liveStorefront === undefined\s*\n\s*\? undefined/);
   });
 
   it('« VOIR COMME CLIENTE » OPENS THE REAL PAGE WHEN THE SHOP IS LIVE', () => {

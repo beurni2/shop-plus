@@ -29,6 +29,7 @@ import {
   iconBag,
   iconHeart,
   iconLock,
+  iconPin,
   iconStar,
   iconTag,
   iconWifiOff,
@@ -153,17 +154,20 @@ function hero(sf: Storefront, trust: VitrineTrust, opts: { compact?: boolean } =
   const th = VITRINE_THEMES[sf.theme];
   const initial = esc(sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase());
   // MEDIA-2 — her portrait or the monogram; photo-mode-without-url falls back.
+  // Round 4 (founder mockup): the gold-ringed monogram with the little check
+  // bubble riding the circle's edge — the vérifiée mark next to her portrait.
+  const badge = `<span class="vt-avatar-badge">${iconCheck(9, '#F6F0E4', 3)}</span>`;
   const avatar =
     sf.avatar.mode === 'photo' && sf.avatar.url
-      ? `<span class="vt-avatar vt-avatar-photo"><img class="vt-avatar-img" src="${esc(sf.avatar.url)}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async"></span>`
-      : `<span class="vt-avatar">${initial}</span>`;
+      ? `<span class="vt-avatar vt-avatar-photo"><img class="vt-avatar-img" src="${esc(sf.avatar.url)}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async">${badge}</span>`
+      : `<span class="vt-avatar">${initial}${badge}</span>`;
   const panel = [
     '<div class="vt-hero-id" data-role="vitrine-identity">',
     avatar,
-    `<div class="vt-namerow"><v>${esc(sf.name)}</v>${iconCheck(17, '#C89A3F', 2.6)}</div>`,
+    `<div class="vt-namerow"><v>${esc(sf.name)}</v><span class="vt-rosette">${iconCheck(12, '#FFFFFF', 3)}</span></div>`,
   ];
   if (!opts.compact && sf.tagline) panel.push(`<div class="vt-tagline"><v>${esc(sf.tagline)}</v></div>`);
-  panel.push(`<div class="vt-zone">${t('vit.verifiee')} <v>${esc(sf.zone)}</v></div>`);
+  panel.push(`<div class="vt-zone">${iconPin(13, '#C89A3F', 2)}${t('vit.verifiee')} <v>${esc(sf.zone)}</v></div>`);
   if (!opts.compact) {
     if (sf.bio) panel.push(`<div class="vt-bio"><v>${esc(sf.bio)}</v></div>`);
     if (trust.deliveredCount >= 1) {
@@ -401,9 +405,27 @@ export function renderVitrineReady(
     ? orderedProducts(sf, undefined, described).filter((p) => p.inStock).slice(0, 1)
     : [];
   const featured = pinned.length > 0 ? pinned : autoLead;
+  // computed BEFORE the featured header so « Voir tout » renders only when the
+  // anchor it targets will exist (verifier NB3: a link to a missing id is the
+  // dead button its own comment banned).
+  const sectionedEarly = new Set(sf.sections.flatMap((sec) => sec.pids));
+  const featuredShownEarly = new Set(featured.map((p) => p.pid));
+  const anythingBelow =
+    sf.sections.some((sec) => sec.pids.length > 0) ||
+    orderedProducts(sf, undefined, described).some(
+      (p) => !sectionedEarly.has(p.pid) && !featuredShownEarly.has(p.pid),
+    );
   if (featured.length > 0) {
-    parts.push(sectionHead(iconStar(15, '#C89A3F'), t('vit.head_une'), t('vit.voir_tout'), 'vt-anchor-grid'));
+    parts.push(
+      sectionHead(
+        iconStar(15, '#C89A3F'),
+        t('vit.head_une'),
+        anythingBelow ? t('vit.voir_tout') : undefined,
+        anythingBelow ? 'vt-anchor-grid' : undefined,
+      ),
+    );
     for (const p of featured) parts.push(featuredTile(p, notes[p.pid], pinned.length > 0));
+    if (anythingBelow) parts.push('<div id="vt-anchor-grid"></div>');
   }
 
   // Sections (≤ 4, empty invisible), then the residual « TOUS LES ARTICLES ».
@@ -423,13 +445,15 @@ export function renderVitrineReady(
   const residual = orderedProducts(sf, undefined, described).filter(
     (p) => !sectioned.has(p.pid) && !featuredShown.has(p.pid),
   );
-  if (visibleSections.length === 0 || residual.length > 0) {
+  // Round 4 (verifier B3): a one-product shop's only article IS the auto-lead, so
+  // the residual is empty — a heading announcing « Autres articles · 0 » over an
+  // empty grid is a heading lying about its own list. Nothing renders instead.
+  if (residual.length > 0) {
     // « AUTRES ARTICLES » only when something CAME BEFORE it (à la une or a
     // section) — with nothing above, « autres » would refer to nothing and the
     // honest title is « TOUS LES ARTICLES ».
     const residualLabel = featured.length > 0 || visibleSections.length > 0 ? t('vit.head_autres') : t('vit.head_tous');
     parts.push(sectionHead(iconBag(15, '#6F6355', 1.9), residualLabel, undefined, undefined, residual.length));
-    parts.push('<div id="vt-anchor-grid"></div>');
     parts.push(`<div class="vt-grid">${residual.map((p) => tile(p, notes[p.pid])).join('')}</div>`);
   }
 
@@ -459,9 +483,10 @@ export function renderVitrineEmpty(sf: Storefront, trust: VitrineTrust, opts: Vi
 export function renderVitrineSkeleton(): string {
   const skTile =
     '<div class="vt-sk-tile"><div class="vt-sk-art vt-shim"></div><div class="vt-sk-body"><div class="vt-sk-line1"></div><div class="vt-sk-line2"></div></div></div>';
+  // NB2 (verifier): the skeleton mirrors the READY layout — the hero is the
+  // first child and the topbar lives inside it, so the load has no 40px jolt.
   return wrap(
     [
-      topBar({ back: false, accent: '#C2571B' }),
       '<div class="vt-sk-cover vt-shim"></div>',
       '<div class="vt-sk-identity">',
       '<div class="vt-sk-avatar"></div>',

@@ -31,6 +31,10 @@ export const iconCheck = (size: number, color: string, width: number): string =>
 export const iconHeart = (size: number, color: string, width: number): string =>
   SVG(size, '<path d="M12 19.8S4.6 15 4.6 9.9a3.9 3.9 0 0 1 7-2.4l.4.5.4-.5a3.9 3.9 0 0 1 7 2.4C19.4 15 12 19.8 12 19.8z"></path>', stroke(color, width));
 
+/** Location pin — the zone line glyph (NORTH-STAR round 4, founder mockup). */
+export const iconPin = (size: number, color: string, width: number): string =>
+  SVG(size, '<path d="M12 21s-6.5-5.4-6.5-10.3a6.5 6.5 0 0 1 13 0C18.5 15.6 12 21 12 21z"></path><circle cx="12" cy="10.5" r="2.3"></circle>', stroke(color, width));
+
 /** Shopping bag — the « commander » affordance glyph (NORTH-STAR round 3). */
 export const iconBag = (size: number, color: string, width: number): string =>
   SVG(size, '<path d="M6 9.5h12l-1 10H7l-1-10z"></path><path d="M9 9.5V8a3 3 0 0 1 6 0v1.5"></path>', stroke(color, width));

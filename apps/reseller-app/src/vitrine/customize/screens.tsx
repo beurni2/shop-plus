@@ -814,6 +814,16 @@ function K5({ sf, onBack, onPin, onMove, catalog }: { sf: Storefront; onBack: ()
         pill={<View style={[S.etatPill, S.etatPillNeutre]}><Text style={S.etatPillText}>{tf('k.une.pill', { n: String(sf.featuredItems.length), cap: String(FEATURED_CAP) })}</Text></View>}
       />
       <Text style={S.subTitle}>{t('k.une.sous_titre')}</Text>
+      {/* B2 (verifier): a blank card is not a state. Two honest causes, told
+          apart by what the SERVICE says she has: no articles yet vs a catalog
+          that could not load while her shop has articles. The pill above reads
+          featuredItems (service truth), so it must never sit over silence. */}
+      {ordered.length === 0 && (
+        <View style={S.dashedCard}>
+          <Text style={S.dashedTitle}>{t(sf.curatedItems.length === 0 ? 'k.une.zero_titre' : 'k.une.charge_titre')}</Text>
+          <Text style={S.dashedBody}>{t(sf.curatedItems.length === 0 ? 'k.une.zero_corps' : 'k.une.charge_corps')}</Text>
+        </View>
+      )}
       <View style={S.rowsCard}>
         {ordered.map((p, i) => {
           const pinned = sf.featuredItems.includes(p.pid);
@@ -900,6 +910,12 @@ function K6b({ sf, sectionId, onBack, onRename, onRenameCommit, onTogglePid, onD
           on each one. The value renders live; the save lands when she leaves. */}
       <CountedField label={t('k.section.nom_label')} value={section.name} max={20} onChange={onRename} onCommit={onRenameCommit} />
       <Text style={S.caps}>{t('k.section.articles_caps')}</Text>
+      {sf.curatedItems.map((pid) => fromCatalog(catalog, pid)).filter((p) => p !== undefined).length === 0 && (
+        <View style={S.dashedCard}>
+          <Text style={S.dashedTitle}>{t(sf.curatedItems.length === 0 ? 'k.une.zero_titre' : 'k.une.charge_titre')}</Text>
+          <Text style={S.dashedBody}>{t(sf.curatedItems.length === 0 ? 'k.une.zero_corps' : 'k.une.charge_corps')}</Text>
+        </View>
+      )}
       <View style={S.rowsCard}>
         {sf.curatedItems.map((pid) => fromCatalog(catalog, pid)).filter((p): p is KCatalogItem => p !== undefined).map((p, i) => {
           const checked = section.pids.includes(p.pid);

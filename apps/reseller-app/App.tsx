@@ -1517,16 +1517,27 @@ export default function App() {
             // stays inert rather than opening a picker that leads nowhere.
             onUploadCover={uploadCover}
             onUploadAvatar={uploadAvatar}
-            // PERSONNALISER-PARITY-1 — her REAL listings for K5/K6b/K7, from the
-            // same live-offer join Ma vitrine renders, cliente price by the same
-            // derivation. K_SEED is now only the demo/test fallback.
-            catalog={vitrineOffers.map((o) => ({
-              pid: o.productVersionId,
-              name: o.productName,
-              priceFcfa: viewOfOffer(o).client,
-              inStock: o.available > 0,
-              assetRefs: o.assetRefs,
-            }))}
+            // PERSONNALISER-PARITY-1 round 2 (verifier blocker B1) — the catalog
+            // joins the SERVICE's curatedItems against the live offers. The first
+            // version joined against `vitrineLive` — the SESSION-LOCAL event log,
+            // initialized empty on every launch and never hydrated — so after any
+            // relaunch her real pids resolved to nothing and K5 was blank: the
+            // exact defect the slice claimed to close, surviving it. curatedItems
+            // is the service's persisted truth; offers is the live supply detail.
+            // No liveStorefront yet ⇒ undefined ⇒ the demo/seed fallback.
+            catalog={
+              liveStorefront === null || liveStorefront === undefined
+                ? undefined
+                : offers
+                    .filter((o) => liveStorefront.curatedItems.includes(o.productVersionId))
+                    .map((o) => ({
+                      pid: o.productVersionId,
+                      name: o.productName,
+                      priceFcfa: viewOfOffer(o).client,
+                      inStock: o.available > 0,
+                      assetRefs: o.assetRefs,
+                    }))
+            }
             // RESELLER-UX-1 item 6 — her shop's REAL slug, read back from the
             // service; null/undefined ⇒ not live (or not yet known), so the
             // publish CTA shows and « voir » keeps the listing fallback.
