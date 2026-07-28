@@ -1651,3 +1651,8 @@ Format per entry:
 - **PROCESS FAULT #3, same shape:** the previous commit was made on LOCAL main again — caught before push (origin/main never touched), branch pointer moved, main reset. The pre-commit branch check is now a reflex the journal records so the next session inherits it.
 - **EVIDENCE:** buyer 230/230 · reseller 323/323 · typecheck 19/19 · run-gates ALL GREEN · copy-lint 453/0 + 191/0 · frozen vault 0.
 - **STATE: BUILT · local green · CI dispatched on the new head · DO NOT MERGE until the founder approves.**
+
+### 2026-07-28 · PARITY+NS rounds 3-4 MERGED `56ff477` + both deploys green
+- Founder approved; merged `502e753` into main as `56ff477` (`--no-ff`). Guards held: tree diff vs approved sha EMPTY · frozen vault 0 on the merge commit · origin/main re-read, ancestry asserted.
+- Deploys on `56ff477`: pwa-preview 30338667013 **success** (30338658477 = superseded push-trigger duplicate, cancelled) · expo-preview 30338676097 **success**. The buyer page serves rounds 3-4; the reseller app's OTA update carries the real-listings K5/K6b/K7, the honest empty states, and voir-comme-cliente → the real page.
+- **Awaiting the founder's device walk:** Personnaliser → « À la une & ordre » should list his four real products with photos; pinning one puts it on the page with the badge; the header should match his mockup side-by-side.
