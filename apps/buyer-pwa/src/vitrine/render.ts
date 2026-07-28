@@ -26,11 +26,13 @@ import {
   iconDevanture,
   iconShare,
   iconShieldCheck,
+  iconHeart,
   iconStar,
   iconWifiOff,
   productGlyph,
 } from './icons';
 import { VITRINE_THEMES } from './themes';
+import { isFavorite } from './favorites';
 
 /** « X\u202fFCFA » — the ONE formatter (cliente/money): U+202F thousands +
  * U+202F before FCFA, built from the escaped constant — never Intl (ICU
@@ -55,27 +57,29 @@ function topBar(opts: { back: boolean; accent: string }): string {
   ].join('');
 }
 
-/** C-VIT1 — la couverture (default: habillage tissé + filigrane; live: photo). */
+/**
+ * VITRINE-NORTH-STAR-1 — the hero's PHOTO COLUMN (founder mockup, 2026-07-28).
+ *
+ * The 134px strip cropped her portrait-orientation photograph at the neck — the
+ * exact complaint the founder raised on product photos. In the hero the photo
+ * fills a full-height column beside the identity panel, so the whole image shows.
+ * The three honesty branches are unchanged from MEDIA-2: a real url renders a
+ * real <img>; live-without-url is the woven habillage, never a caption claiming
+ * a photo; none is the tissé + filigrane. Same data-roles and classes, so the
+ * MEDIA-2 tests keep asserting the same truths.
+ */
 function cover(sf: Storefront): string {
   const initial = esc(sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase());
-  // ═══ MEDIA-2 — HER PHOTOGRAPH, NOT A CAPTION CLAIMING ONE ═══
-  //
-  // `status:'live'` used to be demo-fed, so drawing a woven placeholder captioned
-  // « PHOTO DE COUVERTURE » was honest — there was no photo to draw. The moment
-  // PERSONNALISER-MEDIA-1 made `live` REAL, that same placeholder became a label
-  // asserting a photograph the cliente cannot see. A real url is now rendered.
   if (sf.cover.status === 'live' && sf.cover.url) {
     return [
-      '<div class="vt-cover vt-cover-photo" data-role="vitrine-cover" data-etat="live">',
+      '<div class="vt-hero-photo vt-cover-photo" data-role="vitrine-cover" data-etat="live">',
       `<img class="vt-cover-img" src="${esc(sf.cover.url)}" alt="${t('vit.cover_alt')}" loading="lazy" decoding="async">`,
       '</div>',
     ].join('');
   }
-  // Live WITHOUT a url is the honest woven habillage, never the photo caption:
-  // there is nothing to show, so nothing is claimed.
   if (sf.cover.status === 'live') {
     return [
-      '<div class="vt-cover vt-cover-live" data-role="vitrine-cover" data-etat="live">',
+      '<div class="vt-hero-photo vt-cover-live" data-role="vitrine-cover" data-etat="live">',
       '<div class="vt-cover-stripes vt-cover-stripes-photo"></div>',
       `<em class="vt-glyph" data-glyph="photo">${productGlyph('photo')}</em>`,
       `<div class="vt-cover-caps">${t('vit.cover_caps')}</div>`,
@@ -85,7 +89,7 @@ function cover(sf: Storefront): string {
   // §4.2/§6: uploading/pending/error are RESELLER-side states — the buyer keeps
   // seeing the previous truth (none → tissé, former live stays live server-side).
   return [
-    '<div class="vt-cover" data-role="vitrine-cover" data-etat="none">',
+    '<div class="vt-hero-photo" data-role="vitrine-cover" data-etat="none">',
     '<div class="vt-cover-stripes"></div>',
     `<div class="vt-filigrane">${initial}</div>`,
     '</div>',
@@ -104,61 +108,73 @@ function cover(sf: Storefront): string {
  */
 function chips(sf: Storefront, trust: VitrineTrust): string {
   const th = VITRINE_THEMES[sf.theme];
+  // FOUNDER ORDER (2026-07-28, logged in JOURNAL): the mockup's full trust row,
+  // sublines included — « Rapide & sécurisée », « 100% sécurisé », « Les
+  // meilleurs prix garantis / Moins cher, toujours ». I flagged these as
+  // commercial promises the platform does not yet measure; the founder reaffirmed
+  // them. They are HIS claims to make and they render as ordered. Real REVIEWS
+  // still appear only at the floor, as their own row under the cells.
+  const cell = (icon: string, label: string, sub: string): string =>
+    `<div class="vt-cell"><span class="vt-cell-icon">${icon}</span><span class="vt-cell-text"><span class="vt-cell-label">${label}</span><span class="vt-cell-sub">${sub}</span></span></div>`;
   const avis =
     trust.reviewCount >= AVIS_FLOOR
       ? [
-          '<span class="vt-chip vt-chip-line" data-role="chip-avis">',
-          iconStar(12, '#C89A3F'),
-          `<v>${esc(trust.rating)}</v> · <v>${trust.reviewCount}</v> ${t('vit.avis_verifies')}`,
-          '</span>',
+          '<div class="vt-avisrow" data-role="chip-avis">',
+          iconStar(14, '#C89A3F'),
+          `<span class="vt-cell-label"><v>${esc(trust.rating)}</v> · <v>${trust.reviewCount}</v> ${t('vit.avis_verifies')}</span>`,
+          '</div>',
         ].join('')
       : '';
-  // No earned proof AT ALL (no delivery, no review) → name the state honestly.
-  const nouvelle =
-    trust.deliveredCount === 0 && trust.reviewCount === 0
-      ? `<span class="vt-chip vt-chip-line" data-role="chip-nouvelle">${t('vit.nouvelle_vendeuse')}</span>`
-      : '';
   return [
-    '<div class="vt-chips" data-role="vitrine-trust">',
-    `<span class="vt-chip vt-chip-full">${iconShieldCheck(13, th.deep, 2)}${t('vit.chip_sera')}</span>`,
-    `<span class="vt-chip vt-chip-line">${t('vit.chip_paiement')}</span>`,
-    avis,
-    nouvelle,
+    '<div class="vt-trustrow" data-role="vitrine-trust">',
+    cell(iconShieldCheck(15, th.deep, 2), t('vit.chip_sera'), t('vit.cell_sera_sub')),
+    cell(iconCheck(15, th.deep, 2.4), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
+    cell(iconStar(15, '#C89A3F'), t('vit.cell_prix'), t('vit.cell_prix_sub')),
     '</div>',
+    avis,
   ].join('');
 }
 
-/** C-VIT2 — le bloc identité (chevauche la couverture). */
-function identity(sf: Storefront, trust: VitrineTrust, opts: { compact?: boolean } = {}): string {
+/**
+ * VITRINE-NORTH-STAR-1 — the HERO (founder mockup, 2026-07-28): identity panel in
+ * the theme's deep tone beside the full-height cover photo. Forêt renders the
+ * mockup's exact green; the other three habillages render the same layout in
+ * their own DNA — layout from tokens, never a hardcoded color (design-system law).
+ *
+ * HONESTY LINES HELD AGAINST THE MOCKUP: « +1,2k clientes satisfaites » is NOT
+ * built — deliveredCount renders only when ≥ 1 and is real; zero history says
+ * « Nouvelle vendeuse » (BUYER-REAL-HONESTY-1, unchanged). Star rows appear only
+ * from real reviews at AVIS_FLOOR, in the trust band.
+ */
+function hero(sf: Storefront, trust: VitrineTrust, opts: { compact?: boolean } = {}): string {
   const th = VITRINE_THEMES[sf.theme];
   const initial = esc(sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase());
-  // MEDIA-2 — HER PORTRAIT, same law as the cover one block up. The avatar upload
-  // stored a url and pointed the record at it, and this renderer drew the monogram
-  // initial unconditionally — so « Votre portrait est en ligne » was true of the
-  // record and false of every screen a cliente ever sees. The monogram remains the
-  // designed state for mode 'monogram' AND for a photo mode with no url.
+  // MEDIA-2 — her portrait or the monogram; photo-mode-without-url falls back.
   const avatar =
     sf.avatar.mode === 'photo' && sf.avatar.url
       ? `<span class="vt-avatar vt-avatar-photo"><img class="vt-avatar-img" src="${esc(sf.avatar.url)}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async"></span>`
       : `<span class="vt-avatar">${initial}</span>`;
-  const parts = [
-    '<div class="vt-identity" data-role="vitrine-identity">',
+  const panel = [
+    '<div class="vt-hero-id" data-role="vitrine-identity">',
     avatar,
-    `<div class="vt-namerow"><v>${esc(sf.name)}</v>${iconCheck(17, th.accent, 2.6)}</div>`,
+    `<div class="vt-namerow"><v>${esc(sf.name)}</v>${iconCheck(17, '#C89A3F', 2.6)}</div>`,
   ];
-  if (!opts.compact && sf.tagline) parts.push(`<div class="vt-tagline"><v>${esc(sf.tagline)}</v></div>`);
-  parts.push(`<div class="vt-zone">${t('vit.verifiee')} <v>${esc(sf.zone)}</v></div>`);
+  if (!opts.compact && sf.tagline) panel.push(`<div class="vt-tagline"><v>${esc(sf.tagline)}</v></div>`);
+  panel.push(`<div class="vt-zone">${t('vit.verifiee')} <v>${esc(sf.zone)}</v></div>`);
   if (!opts.compact) {
-    parts.push(chips(sf, trust));
+    if (sf.bio) panel.push(`<div class="vt-bio"><v>${esc(sf.bio)}</v></div>`);
     if (trust.deliveredCount >= 1) {
-      parts.push(
+      panel.push(
         `<div class="vt-rep" data-role="reputation"><v>${trust.deliveredCount}</v> ${t('vit.ventes_livrees')}</div>`,
       );
     }
-    if (sf.bio) parts.push(`<div class="vt-bio"><v>${esc(sf.bio)}</v></div>`);
   }
-  parts.push('</div>');
-  return parts.join('');
+  // No earned proof AT ALL → the state is named, never left as suspicious blank.
+  if (trust.deliveredCount === 0 && trust.reviewCount === 0) {
+    panel.push(`<span class="vt-chip-nouvelle" data-role="chip-nouvelle">${iconStar(12, th.deep)}${t('vit.nouvelle_vendeuse')}</span>`);
+  }
+  panel.push('</div>');
+  return ['<div class="vt-hero" data-role="vitrine-hero">', panel.join(''), cover(sf), '</div>'].join('');
 }
 
 /** C-VIT6 — titre de groupe « CAPS · N ». The planche authors the count as a
@@ -223,32 +239,58 @@ function tileArt(veiled: boolean, assetRefs: readonly string[] = []): string {
 /** C-VIT4 — tuile produit v2. Épuisé: voile + tampon, muette (aria-disabled).
  * A `ready` voice note adds the compact « La voix » chip (in-stock tiles only —
  * an épuisé tile is muette and carries no interactive child). */
+/** The wishlist heart — role=button inside the tile button (voice-chip
+ *  precedent: closest() routes its tap to `favori`, never to `produit`). */
+function fav(pid: string): string {
+  const on = isFavorite(pid);
+  return `<span class="vt-fav${on ? ' vt-fav-on' : ''}" role="button" data-action="favori" data-pid="${pid}" aria-pressed="${on}" aria-label="${t('vit.favori_aria')}">${iconHeart(15, '#1C1710', 1.9)}</span>`;
+}
+
 function tile(p: VitrineProduct, note?: ProductVoiceNote): string {
   const cls = p.inStock ? 'vt-tile' : 'vt-tile vt-tile-epuise';
   const attrs = p.inStock
     ? `data-action="produit" data-pid="${p.pid}"`
     : 'aria-disabled="true" disabled';
+  // NORTH-STAR-1 — the go circle is a chevron, not a cart (no cart exists). The
+  // heart is REAL: a working device-local wishlist (favorites.ts), because a
+  // decorative heart would be a dead button. « Livraison 24–48h · Séra
+  // vérifiée » is the FOUNDER'S delivery promise (his order, logged) — flagged
+  // as unmeasured, reaffirmed, rendered as given.
   return [
     `<button class="${cls}" data-role="vitrine-produit" ${attrs}>`,
-    tileArt(!p.inStock, p.assetRefs),
+    `<div class="vt-artwrap">${tileArt(!p.inStock, p.assetRefs)}${p.inStock ? fav(p.pid) : ''}</div>`,
     '<div class="vt-tile-body">',
     `<div class="vt-tile-name"><v>${esc(p.name)}</v></div>`,
+    '<div class="vt-tile-pricerow">',
     `<div class="vt-tile-price"><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
+    p.inStock ? `<span class="vt-tile-go" aria-hidden="true">${iconChevron(13, '#FFFFFF', 2.4)}</span>` : '',
+    '</div>',
+    p.inStock ? `<div class="vt-tile-livree">${t('vit.livraison_2448')}</div>` : '',
     p.inStock ? renderVoiceChip(note) : '',
     '</div>',
     '</button>',
   ].join('');
 }
 
-/** C-VIT5 — tuile à la une (jamais un épuisé: auto-retrait à l'affichage). */
+/**
+ * C-VIT5 — tuile à la une (jamais un épuisé: auto-retrait à l'affichage).
+ *
+ * NORTH-STAR-1 — the mockup's featured card, honest: the badge says « À LA UNE »
+ * (her true curation choice) and never « BEST SELLER » (a sales claim no data
+ * backs). No per-product stars — product reviews do not exist yet, and a star
+ * row would be invented. « Commander » is a labeled CTA inside the one button
+ * this card already is; it opens her product page, same action as the card.
+ */
 function featuredTile(p: VitrineProduct, note?: ProductVoiceNote): string {
   return [
     `<button class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${p.pid}">`,
-    tileArt(false, p.assetRefs),
+    `<div class="vt-featured-artwrap">${tileArt(false, p.assetRefs)}<span class="vt-featured-badge">${t('vit.a_la_une')}</span>${fav(p.pid)}</div>`,
     '<div class="vt-featured-body">',
     `<span class="vt-featured-name"><v>${esc(p.name)}</v></span>`,
     `<b class="vt-featured-price"><v>${fmtFcfa(p.priceFcfa)}</v></b>`,
+    `<span class="vt-featured-livree">${t('vit.livraison_2448')}</span>`,
     renderVoiceChip(note),
+    `<span class="vt-featured-cta">${t('vit.commander')}</span>`,
     '</div>',
     '</button>',
   ].join('');
@@ -321,8 +363,8 @@ export function renderVitrineReady(
   const th = VITRINE_THEMES[sf.theme];
   const parts = [
     topBar({ back: opts.fromProduct, accent: th.accent }),
-    cover(sf),
-    identity(sf, trust),
+    hero(sf, trust),
+    chips(sf, trust),
   ];
 
   // « À LA UNE » — ≤ 2 pinned, never an out-of-stock article (auto-retrait).
@@ -344,8 +386,12 @@ export function renderVitrineReady(
   }
   const residual = orderedProducts(sf, undefined, described).filter((p) => !sectioned.has(p.pid));
   if (visibleSections.length === 0 || residual.length > 0) {
+    // « AUTRES ARTICLES » only when something CAME BEFORE it (à la une or a
+    // section) — with nothing above, « autres » would refer to nothing and the
+    // honest title is « TOUS LES ARTICLES ».
+    const residualLabel = featured.length > 0 || visibleSections.length > 0 ? t('vit.groupe_autres') : t('vit.groupe_tous');
     parts.push(
-      groupTitle(t('vit.groupe_tous'), residual.length, visibleSections.length === 0 ? 'var' : 'literal'),
+      groupTitle(residualLabel, residual.length, visibleSections.length === 0 ? 'var' : 'literal'),
     );
     parts.push(`<div class="vt-grid">${residual.map((p) => tile(p, notes[p.pid])).join('')}</div>`);
   }
@@ -360,8 +406,7 @@ export function renderVitrineEmpty(sf: Storefront, trust: VitrineTrust, opts: Vi
   return wrap(
     [
       topBar({ back: opts.fromProduct, accent: VITRINE_THEMES[sf.theme].accent }),
-      cover(sf),
-      identity(sf, trust, { compact: true }),
+      hero(sf, trust, { compact: true }),
       '<div class="vt-empty" data-role="vitrine-vide">',
       iconDevanture(40, '#8A7D6B', 1.7),
       `<div class="vt-empty-titre">${t('vit.vide_titre')}</div>`,

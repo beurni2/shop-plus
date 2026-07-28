@@ -13,6 +13,7 @@
  * attribution (the existing journey spine is ENTERED, never modified).
  */
 
+import { toggleFavorite } from './favorites';
 import { t } from '../i18n';
 import { recordVitrineArrival, signedHref } from '../vitrine-link';
 import { demoStorefrontPort, resolveStorefrontPort, type StorefrontProfilePort } from './profile';
@@ -207,6 +208,15 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
       // same `/s/{slug}` route the reseller shares). Attribution already locked.
       const pid = target.getAttribute('data-pid') ?? '';
       window.location.href = signedHref(window.location.pathname, slug, pid);
+    } else if (action === 'favori') {
+      // NORTH-STAR-1 — the REAL heart: toggle the device-local wishlist and flip
+      // exactly the heart she tapped. Never falls through to `produit` — closest()
+      // resolved THIS element, so the tile navigation does not fire.
+      const pid = target.getAttribute('data-pid') ?? '';
+      const on = toggleFavorite(pid);
+      target.classList.toggle('vt-fav-on', on);
+      target.setAttribute('aria-pressed', String(on));
+      toast(root, t(on ? 'vit.favori_garde' : 'vit.favori_retire'));
     } else if (action === 'retour') {
       window.history.back();
     } else if (action === 'reessayer') {

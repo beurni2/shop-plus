@@ -661,7 +661,7 @@
  },
  {
   "key": "apercu.ruban",
-  "fr": "Aperçu — données d'essai. Rien ici n'est réel.",
+  "fr": "Aperçu — les paiements sont un essai. Rien n'est débité.",
   "register": "neutral",
   "screenClass": "status"
  },
@@ -920,6 +920,72 @@
  {
   "key": "vit.nouvelle_vendeuse",
   "fr": "Nouvelle vendeuse",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.cell_sera_sub",
+  "fr": "Rapide & sécurisée",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.cell_paiement_sub",
+  "fr": "100% sécurisé",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.cell_prix",
+  "fr": "Les meilleurs prix garantis",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.cell_prix_sub",
+  "fr": "Moins cher, toujours",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.livraison_2448",
+  "fr": "Livraison 24–48h · Séra vérifiée",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.favori_aria",
+  "fr": "Garder cet article",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.favori_garde",
+  "fr": "Gardé sur ce téléphone",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.favori_retire",
+  "fr": "Retiré de vos gardés",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.commander",
+  "fr": "Commander",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.livree_sera",
+  "fr": "Livrée par Séra",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.groupe_autres",
+  "fr": "AUTRES ARTICLES",
   "register": "neutral",
   "screenClass": "label"
  },

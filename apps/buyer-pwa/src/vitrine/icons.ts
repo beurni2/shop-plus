@@ -26,6 +26,11 @@ const stroke = (color: string, width: number, joins = true): string =>
 export const iconCheck = (size: number, color: string, width: number): string =>
   SVG(size, '<path d="M5 12.5l4.5 4.5L19 7.5"></path>', stroke(color, width));
 
+/** Heart — the « garder » wishlist glyph (NORTH-STAR-1, founder order). Stroke
+ *  when off; the .vt-fav-on class flips it filled via CSS `fill: currentColor`. */
+export const iconHeart = (size: number, color: string, width: number): string =>
+  SVG(size, '<path d="M12 19.8S4.6 15 4.6 9.9a3.9 3.9 0 0 1 7-2.4l.4.5.4-.5a3.9 3.9 0 0 1 7 2.4C19.4 15 12 19.8 12 19.8z"></path>', stroke(color, width));
+
 /** Forward chevron (C-ENT1/C-ENT2 affordance). */
 export const iconChevron = (size: number, color: string, width: number): string =>
   SVG(size, '<path d="M9.5 6l6 6-6 6"></path>', stroke(color, width));

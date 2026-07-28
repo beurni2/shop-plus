@@ -47,22 +47,67 @@ export const VITRINE_STYLES = `
   }
   .vt-topbtn:active { transform: scale(.92); }
 
-  /* C-VIT1 — la couverture. */
-  .vt-cover {
-    position: relative; overflow: hidden; border-radius: 22px;
-    height: 116px; background: var(--vt-soft); margin-top: 12px;
+  /* ═══ VITRINE-NORTH-STAR-1 — the HERO (founder mockup, 2026-07-28). ═══
+     Identity panel in the theme's DEEP tone, cover photo full-height beside it.
+     Forêt renders the mockup's green; every habillage renders its own DNA —
+     tokens only, no hardcoded brand color (design-system law). The photo column
+     replaces the 134px strip that beheaded portrait photographs. */
+  .vt-hero {
+    position: relative; display: grid; grid-template-columns: 54% 46%;
+    border-radius: 26px; overflow: hidden; margin-top: 12px;
+    min-height: 300px;
+    background: var(--vt-deep);
     transition: background .3s;
   }
-  .vt-cover-live {
-    height: 134px; background-color: transparent;
-    background-image: linear-gradient(120deg, #8A5A3A, #5A3A22);
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+  .vt-hero-id {
+    position: relative; z-index: 1;
+    padding: 22px 16px 22px 18px;
+    color: var(--vt-on);
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+    background: var(--vt-deep);
+    border-radius: 0 26px 26px 0; /* the organic curve INTO the photo */
   }
+  .vt-avatar {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 99px;
+    background: var(--vt-accent); border: 2px solid #C89A3F;
+    color: var(--vt-on);
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 18px; font-weight: 800;
+    transition: background .3s;
+  }
+  /* MEDIA-2 — her portrait fills the disc; the accent stays behind a slow load. */
+  .vt-avatar-photo { overflow: hidden; padding: 0; }
+  .vt-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
+  .vt-namerow {
+    display: flex; align-items: center; gap: 6px;
+    margin-top: 10px;
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 26px; font-weight: 800; letter-spacing: -0.52px; line-height: 1.08;
+  }
+  .vt-namerow v { display: block; }
+  .vt-tagline { margin-top: 5px; font-size: 13.5px; font-weight: 700; color: #C89A3F; }
+  .vt-zone { margin-top: 6px; font-size: 12px; font-weight: 400; color: color-mix(in srgb, var(--vt-on) 78%, transparent); }
+  .vt-bio {
+    margin-top: 10px;
+    font-size: 12.5px; font-weight: 400; line-height: 1.55;
+    color: color-mix(in srgb, var(--vt-on) 88%, transparent);
+  }
+  .vt-rep { margin-top: 10px; font-size: 12px; font-weight: 600; color: color-mix(in srgb, var(--vt-on) 85%, transparent); }
+  .vt-chip-nouvelle {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 12px; padding: 7px 12px; border-radius: 99px;
+    background: #F6F0E4; color: #1C1710;
+    font-size: 11.5px; font-weight: 700;
+  }
+  .vt-hero-photo {
+    position: relative; overflow: hidden;
+    background: var(--vt-soft); transition: background .3s;
+    min-height: 100%;
+  }
+  .vt-cover-live { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; }
   .vt-cover-live .vt-glyph { font-size: 44px; }
-  /* MEDIA-2 — her real photograph. Same 134px band as the woven habillage so the
-     identity block below keeps its -30px overlap either way. object-fit cover crops
-     to the band rather than letterboxing: a shop cover is a strip, not a portrait. */
-  .vt-cover-photo { height: 134px; background: var(--vt-soft); }
+  .vt-cover-photo { background: var(--vt-soft); }
   .vt-cover-img {
     position: absolute; inset: 0;
     width: 100%; height: 100%; object-fit: cover; display: block;
@@ -80,9 +125,9 @@ export const VITRINE_STYLES = `
       rgba(0,0,0,0) 12px, rgba(0,0,0,0) 30px);
   }
   .vt-filigrane {
-    position: absolute; bottom: -34px; right: 2px;
+    position: absolute; bottom: -30px; right: 2px;
     font-family: 'Bricolage Grotesque', sans-serif;
-    font-size: 110px; font-weight: 800; line-height: 110px;
+    font-size: 100px; font-weight: 800; line-height: 100px;
     color: var(--vt-accent); opacity: .16;
   }
   .vt-cover-caps {
@@ -90,46 +135,40 @@ export const VITRINE_STYLES = `
     color: rgba(255,246,236,.75);
   }
 
-  /* C-VIT2 — le bloc identité (chevauche la couverture). */
-  .vt-identity { margin-top: -30px; text-align: center; }
-  .vt-avatar {
+  /* The TRUST BAND — the two promises the platform genuinely makes, plus real
+     reviews once they exist. The mockup's invented third cell is not built. */
+  .vt-trustrow {
+    display: flex; gap: 8px; margin-top: 12px;
+  }
+  .vt-cell {
+    flex: 1; display: flex; align-items: center; justify-content: flex-start; gap: 8px;
+    background: #FFFFFF; border: 1px solid #E5DCC9; border-radius: 16px;
+    padding: 11px 10px; min-height: 56px;
+    box-shadow: 0 1px 2px rgba(28, 22, 15, 0.04);
+  }
+  .vt-cell-icon { flex: none; display: inline-flex; }
+  .vt-cell-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .vt-cell-label { font-size: 10.5px; font-weight: 700; line-height: 1.25; color: #1C1710; }
+  .vt-cell-sub { font-size: 9.5px; font-weight: 400; line-height: 1.2; color: #6F6355; }
+  .vt-avisrow {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    margin-top: 8px; padding: 9px 12px;
+    background: #FFFFFF; border: 1px solid #E5DCC9; border-radius: 99px;
+  }
+  /* NORTH-STAR-1 — the REAL heart (top-right of the art; ≥44px hit area). */
+  .vt-artwrap { position: relative; }
+  .vt-fav {
+    position: absolute; top: 6px; right: 6px; z-index: 1;
+    width: 34px; height: 34px; border-radius: 99px;
     display: inline-flex; align-items: center; justify-content: center;
-    width: 64px; height: 64px; border-radius: 99px;
-    background: var(--vt-accent); border: 3px solid #F4EFE6;
-    color: var(--vt-on);
-    font-family: 'Bricolage Grotesque', sans-serif;
-    font-size: 24px; font-weight: 800;
-    transition: background .3s;
+    background: #FFFFFF; box-shadow: 0 1px 3px rgba(28,22,15,.14);
+    color: #1C1710; cursor: pointer;
   }
-  /* MEDIA-2 — her portrait fills the disc. overflow:hidden + inherited radius keep
-     the round frame; the accent background stays as the colour behind a slow load. */
-  .vt-avatar-photo { overflow: hidden; padding: 0; }
-  .vt-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
-  .vt-namerow {
-    display: flex; align-items: center; justify-content: center; gap: 6px;
-    margin-top: 8px;
-    font-family: 'Bricolage Grotesque', sans-serif;
-    font-size: 24px; font-weight: 800; letter-spacing: -0.48px;
-  }
-  .vt-namerow v { display: block; }
-  .vt-tagline { margin-top: 4px; font-size: 13.5px; font-weight: 600; color: #4A3F33; }
-  .vt-zone { margin-top: 4px; font-size: 12.5px; font-weight: 400; color: #6F6355; }
-  .vt-chips {
-    display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
-    margin-top: 11px;
-  }
-  .vt-chip {
-    display: flex; align-items: center; white-space: nowrap;
-    padding: 7px 12px; border-radius: 99px;
-    font-size: 11.5px; font-weight: 700;
-  }
-  .vt-chip-full { gap: 6px; background: var(--vt-soft); color: var(--vt-deep); transition: background .3s, color .3s; }
-  .vt-chip-line { gap: 5px; background: #FFFFFF; color: #1C1710; border: 1px solid #E5DCC9; }
-  .vt-rep { margin-top: 9px; font-size: 12px; font-weight: 600; color: #6F6355; }
-  .vt-bio {
-    margin: 12px 20px 0;
-    font-size: 13px; font-weight: 400; line-height: 1.6; color: #4A3F33;
-  }
+  .vt-fav:active { transform: scale(.9); }
+  .vt-fav svg { display: block; }
+  .vt-fav-on { color: var(--vt-accent); }
+  .vt-fav-on svg path { fill: currentColor; stroke: currentColor; }
+  .vt-featured-artwrap .vt-fav { top: 12px; right: 12px; width: 38px; height: 38px; }
 
   /* C-VIT6 — titre de groupe + grille. */
   .vt-group { display: flex; align-items: baseline; gap: 8px; margin-top: 22px; }
@@ -216,6 +255,15 @@ export const VITRINE_STYLES = `
     transition: color .3s;
   }
   .vt-tile-epuise .vt-tile-price { color: #6F6355; }
+  .vt-tile-pricerow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  /* the « go » circle — decoration of this labeled tile button (its ONE action is
+     opening the product page); a cart icon would claim a cart that does not exist. */
+  .vt-tile-go {
+    width: 32px; height: 32px; border-radius: 99px; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--vt-deep); transition: background .3s;
+  }
+  .vt-tile-livree { margin-top: 3px; font-size: 10.5px; font-weight: 600; color: #6F6355; }
 
   /* « La voix » — the tile voice chip (tap-to-play; the play triangle +
      duration). A role="button" <span> inside the tile <button>: its own tap
@@ -242,15 +290,35 @@ export const VITRINE_STYLES = `
     border: 1px solid #EDE4D3;
   }
   .vt-featured:active { transform: scale(.985); }
-  .vt-featured .vt-tile-art { height: 140px; }
+  /* NORTH-STAR-1 — the big featured card: tall photo, « À LA UNE » badge (her
+     true curation, never « BEST SELLER »), price large, Commander CTA. */
+  .vt-featured-artwrap { position: relative; }
+  .vt-featured .vt-tile-art { height: 210px; }
   .vt-featured .vt-sansphoto-caps { font-size: 10.5px; }
-  .vt-featured-body { padding: 12px 15px 14px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
-  .vt-featured-name { flex: 1; display: block; font-size: 15px; font-weight: 700; line-height: 1.3; }
+  .vt-featured-badge {
+    position: absolute; top: 12px; left: 12px;
+    background: #F6F0E4; color: #1C1710;
+    font-size: 10px; font-weight: 800; letter-spacing: 1.1px;
+    padding: 6px 10px; border-radius: 99px;
+    box-shadow: 0 1px 3px rgba(28,22,15,.14);
+  }
+  .vt-featured-body { padding: 14px 16px 16px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 10px; }
+  .vt-featured-name { flex-basis: 100%; display: block; font-size: 17.5px; font-weight: 800; line-height: 1.25; font-family: 'Bricolage Grotesque', sans-serif; }
   .vt-featured-price {
     white-space: nowrap; display: block;
     font-family: 'Bricolage Grotesque', sans-serif;
-    font-size: 16px; font-weight: 800; color: var(--vt-deep);
+    font-size: 19px; font-weight: 800; color: var(--vt-deep);
     font-variant-numeric: tabular-nums;
+  }
+  .vt-featured-livree { display: block; font-size: 11px; font-weight: 600; color: #6F6355; }
+  .vt-featured-cta {
+    flex-basis: 100%; margin-top: 6px;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 48px; border-radius: 14px;
+    background: var(--vt-deep); color: var(--vt-on);
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 14.5px; font-weight: 700;
+    transition: background .3s;
   }
 
   /* C-VIT7 — bande encre + footer. */
@@ -270,14 +338,14 @@ export const VITRINE_STYLES = `
     background-image: linear-gradient(100deg, #ECE4D4 30%, #F6F1E7 45%, #ECE4D4 60%);
     background-size: 320px 100%;
   }
-  .vt-sk-cover { height: 116px; border-radius: 22px; margin-top: 12px; }
-  .vt-sk-identity { margin-top: -30px; text-align: center; }
+  .vt-sk-cover { height: 300px; border-radius: 26px; margin-top: 12px; }
+  .vt-sk-identity { margin-top: 12px; text-align: left; }
   .vt-sk-avatar {
-    display: inline-block; width: 64px; height: 64px; border-radius: 99px;
-    background: #ECE4D4; border: 3px solid #F4EFE6;
+    display: inline-block; width: 44px; height: 44px; border-radius: 99px;
+    background: #ECE4D4; border: 2px solid #F4EFE6;
   }
-  .vt-sk-name { width: 170px; height: 20px; border-radius: 8px; margin: 10px 95px 0; }
-  .vt-sk-zone { width: 120px; height: 12px; border-radius: 6px; margin: 8px 120px 0; background: #ECE4D4; }
+  .vt-sk-name { width: 170px; height: 20px; border-radius: 8px; margin: 10px 0 0; }
+  .vt-sk-zone { width: 120px; height: 12px; border-radius: 6px; margin: 8px 0 0; background: #ECE4D4; }
   .vt-sk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 24px; }
   .vt-sk-tile {
     border: 1px solid #EDE4D3; border-radius: 18px; background: #FFFFFF;
