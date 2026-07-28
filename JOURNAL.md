@@ -1626,3 +1626,8 @@ Format per entry:
 - **Known, out of scope:** the reseller app's K7 read-only preview of this surface still renders the OLD layout — her preview and her buyer's page now diverge visually. Named for a future slice, not silently left.
 - **EVIDENCE:** buyer-pwa **228/228** · four new mutations killed (dupe restored → fail; heart ignores store → fail; live-no-url falls through → fail; sync flips first-only → fail) · typecheck 19/19 · `run-gates.sh` ALL GREEN · frozen vault 0 · copy-lint 189/0.
 - **STATE: BUILT · local green · CI dispatched · DO NOT MERGE until the founder approves.**
+
+### 2026-07-28 · NORTH-STAR-1 MERGED `71d6bd5` + PWA deployed
+- Founder approved; merged `eda7291` into main as `71d6bd5` (`--no-ff`). Guards held: tree diff vs approved sha EMPTY · frozen vault 0 lines on the merge commit · `origin/main` re-read, ancestry asserted.
+- pwa-preview run 30331788968 **success** on `71d6bd5` (30331785445 = the push-trigger duplicate, cancelled as superseded — not a failure). The buyer page now serves the North-Star layout. Worker and Expo untouched by this slice — no redeploy needed.
+- **Awaiting the founder's device walk** (layout, Forêt habillage switch, heart tap + persistence). Known follow-ups, not started: the reseller K7 preview divergence; NB4 (1–2 reviews with 0 deliveries renders no proof line and no nouvelle chip — pre-existing); slice 3 of the Personnaliser plan (à la une / sections over her real listings in the CUSTOMIZE screens).
