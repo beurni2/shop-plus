@@ -1,9 +1,20 @@
+// node env has no localStorage; the favorites pins need a Storage-shaped fake.
+const __m = new Map<string, string>();
+(globalThis as { localStorage?: Storage }).localStorage = {
+  getItem: (k: string) => __m.get(k) ?? null,
+  setItem: (k: string, v: string) => void __m.set(k, v),
+  removeItem: (k: string) => void __m.delete(k),
+  clear: () => __m.clear(),
+  key: (i: number) => [...__m.keys()][i] ?? null,
+  get length() { return __m.size; },
+} as Storage;
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { VitrineViewModel } from '../src/vitrine-view';
 import { harnessProfil } from '../src/vitrine/flows';
 import { renderVitrineReady } from '../src/vitrine/render';
+import { toggleFavorite, resetFavoritesCache } from '../src/vitrine/favorites';
 import {
   identityLinkSuffix,
   identityLink,
@@ -314,6 +325,10 @@ describe('MEDIA-2 — the cover photograph is RENDERED, not captioned', () => {
     const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
     expect(html).not.toContain('vt-cover-img');
     expect(html).not.toContain('src=""');
+    // …and it IS the live habillage, not a fall-through to the none branch — a
+    // verifier proved this test stayed green when the branch was deleted.
+    expect(html).toContain('vt-cover-live');
+    expect(html).toContain('vt-cover-stripes-photo');
   });
 
   it('NO COVER IS STILL THE DESIGNED EMPTY STATE, never a broken image', () => {
@@ -375,5 +390,133 @@ describe('MEDIA-2 — the portrait is RENDERED, not replaced by an initial', () 
     const sf = { ...base, avatar: { mode: 'photo' as const, url: 'https://h/a.jpg" onerror="alert(1)' } };
     const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, []);
     expect(html).not.toContain('onerror="alert(1)"');
+  });
+});
+
+/**
+ * VITRINE-NORTH-STAR-1 — the founder's mockup, with its lies removed.
+ *
+ * The mockup carried « +1,2k clientes satisfaites », « 5 étoiles (128) »,
+ * « BEST SELLER », « Les meilleurs prix garantis », « Livraison 24–48h » — none
+ * backed by any data. Law 5: never fake counts. These pins EXECUTE the renderer
+ * (the vacuous-test lesson: a grep on source text proves nothing).
+ */
+describe('NORTH-STAR-1 — the mockup layout renders; the invented numbers do not', () => {
+  const sfNS = {
+    id: 'sf-ns', resellerId: 'rs-ns', slug: 'chez-ns-1',
+    name: 'Chez Awa', zone: 'Gounghin, Ouagadougou', category: 'Général',
+    tagline: 'Bienvenue', bio: 'Du bon tissu.', theme: 'foret' as const,
+    cover: { status: 'live' as const, url: 'https://svc.example/media/c.jpg' },
+    avatar: { mode: 'monogram' as const },
+    curatedItems: ['pv-1', 'pv-2'], featuredItems: ['pv-1'], sections: [],
+    discoverable: true, createdAt: 'T', updatedAt: 'T',
+  };
+  const zeroTrust = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
+  const products = [
+    { pid: 'pv-1', name: 'Bazin riche', priceFcfa: 9_400, inStock: true, assetRefs: ['https://svc.example/media/p1.jpg'] },
+    { pid: 'pv-2', name: 'Sac duffel', priceFcfa: 5_000, inStock: true, assetRefs: [] as string[] },
+  ];
+  const page = () => renderVitrineReady(sfNS as never, zeroTrust, { fromProduct: false }, {}, products);
+
+  it('THE HERO EXISTS: identity panel + full-height photo, trust band AFTER it', () => {
+    const html = page();
+    expect(html).toContain('data-role="vitrine-hero"');
+    expect(html).toContain('class="vt-hero-photo vt-cover-photo"');
+    // trust stays before products (Part 6.1) and after the hero
+    const hero = html.indexOf('vitrine-hero');
+    const trustAt = html.indexOf('data-role="vitrine-trust"');
+    const firstTile = html.indexOf('data-role="vitrine-a-la-une"');
+    expect(hero).toBeGreaterThan(-1);
+    expect(trustAt).toBeGreaterThan(hero);
+    expect(firstTile).toBeGreaterThan(trustAt);
+  });
+
+  it('ZERO HISTORY SHOWS « Nouvelle vendeuse » AND NO INVENTED COUNT ANYWHERE', () => {
+    const html = page();
+    expect(html).toContain('data-role="chip-nouvelle"');
+    expect(html).not.toMatch(/clientes satisfaites/i);
+    expect(html).not.toMatch(/1[,.]?2\s?k/i);
+    // no star row at zero reviews — stars come only from real reviews at the floor
+    expect(html).not.toContain('data-role="chip-avis"');
+  });
+
+  it('REAL REVIEWS AT THE FLOOR RENDER THE REAL NUMBERS — and only then', () => {
+    const withReviews = renderVitrineReady(
+      sfNS as never,
+      { deliveredCount: 12, rating: '4,8', reviewCount: 5, demo: false },
+      { fromProduct: false }, {}, products,
+    );
+    expect(withReviews).toContain('data-role="chip-avis"');
+    expect(withReviews).toContain('<v>4,8</v>');
+    expect(withReviews).toContain('<v>5</v>');
+    expect(withReviews).toContain('data-role="reputation"');
+    expect(withReviews).toContain('<v>12</v>');
+    expect(withReviews).not.toContain('data-role="chip-nouvelle"');
+  });
+
+  it('THE FEATURED CARD: « À LA UNE » badge, Commander CTA — never « BEST SELLER »', () => {
+    const html = page();
+    expect(html).toContain('class="vt-featured-badge"');
+    expect(html).toMatch(/vt-featured-badge">À LA UNE</);
+    expect(html).toContain('class="vt-featured-cta"');
+    expect(html).toMatch(/vt-featured-cta">Commander</);
+    expect(html).not.toMatch(/best\s?seller/i);
+  });
+
+  it("FOUNDER ORDER (2026-07-28): the mockup's commercial claims render as given", () => {
+    // I flagged « 24–48h », « meilleurs prix garantis » and « 100% sécurisé » as
+    // promises the platform does not yet measure; the founder reaffirmed them.
+    // His claims, his call — logged in JOURNAL. These pins hold his order in
+    // place exactly as ordered.
+    const html = page();
+    expect(html).toContain('Livraison 24–48h · Séra vérifiée');
+    expect(html).toContain('Les meilleurs prix garantis');
+    expect(html).toContain('100% sécurisé');
+    expect(html).toContain('Rapide & sécurisée');
+  });
+
+  it('THE HEART IS A REAL CONTROL, wired to the wishlist action — never decoration', () => {
+    const html = page();
+    expect(html).toContain('data-action="favori"');
+    expect(html).toContain('aria-pressed="false"');
+    expect(html).toContain(`data-action="favori" data-pid="pv-1"`);
+  });
+
+  it('ONE PRODUCT, ONE HEART — a featured article is not duplicated into « AUTRES »', () => {
+    // Verifier blocker: pv-1 rendered as the featured card AND a grid tile — two
+    // hearts that desynced on tap, and an « AUTRES ARTICLES » list containing the
+    // very article it claims to be "other" than.
+    const html = page();
+    const hearts = html.match(/data-action="favori" data-pid="pv-1"/g) ?? [];
+    expect(hearts).toHaveLength(1);
+    const tiles = html.match(/data-role="vitrine-produit" data-action="produit" data-pid="pv-1"/g) ?? [];
+    expect(tiles).toHaveLength(0); // pv-1 lives in the featured card only
+    // …and an ÉPUISÉ featured article still reaches the grid (it left the hero)
+    const soldOut = [
+      { pid: 'pv-1', name: 'Bazin riche', priceFcfa: 9_400, inStock: false, assetRefs: [] as string[] },
+      { pid: 'pv-2', name: 'Sac duffel', priceFcfa: 5_000, inStock: true, assetRefs: [] as string[] },
+    ];
+    const html2 = renderVitrineReady(sfNS as never, zeroTrust, { fromProduct: false }, {}, soldOut);
+    expect(html2).not.toContain('vitrine-a-la-une');
+    expect(html2).toMatch(/data-role="vitrine-produit" aria-disabled="true"/);
+  });
+
+  it('A SAVED ARTICLE RENDERS ITS HEART ON — re-render reads the store (was unpinned)', () => {
+    resetFavoritesCache();
+    localStorage.clear();
+    toggleFavorite('pv-2');
+    const html = page();
+    expect(html).toContain('data-action="favori" data-pid="pv-2" aria-pressed="true"');
+    expect(html).toMatch(/vt-fav vt-fav-on[^>]*data-pid="pv-2"/);
+    toggleFavorite('pv-2'); // leave the store clean for other tests
+  });
+
+  it('RESIDUAL TITLE IS CONTEXT-HONEST: « AUTRES » under a featured, « TOUS » alone', () => {
+    expect(page()).toContain('AUTRES ARTICLES');
+    const noFeatured = renderVitrineReady(
+      { ...sfNS, featuredItems: [] } as never, zeroTrust, { fromProduct: false }, {}, products,
+    );
+    expect(noFeatured).toContain('TOUS LES ARTICLES');
+    expect(noFeatured).not.toContain('AUTRES ARTICLES');
   });
 });

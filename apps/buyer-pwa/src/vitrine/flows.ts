@@ -13,6 +13,7 @@
  * attribution (the existing journey spine is ENTERED, never modified).
  */
 
+import { isFavorite, toggleFavorite } from './favorites';
 import { t } from '../i18n';
 import { recordVitrineArrival, signedHref } from '../vitrine-link';
 import { demoStorefrontPort, resolveStorefrontPort, type StorefrontProfilePort } from './profile';
@@ -207,6 +208,17 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
       // same `/s/{slug}` route the reseller shares). Attribution already locked.
       const pid = target.getAttribute('data-pid') ?? '';
       window.location.href = signedHref(window.location.pathname, slug, pid);
+    } else if (action === 'favori') {
+      // NORTH-STAR-1 — the REAL heart. closest() resolved THIS element, so the
+      // tile's `produit` navigation does not fire; preventDefault for parity with
+      // the voice chip. EVERY heart carrying this pid flips (verifier blocker: a
+      // product can sit in the featured card AND a section — updating only the
+      // tapped node left its twin stale, and a tap on the stale twin silently
+      // REVERSED the store while looking like a fix).
+      ev.preventDefault();
+      const pid = target.getAttribute('data-pid') ?? '';
+      applyFavoriteState(root, pid, toggleFavorite(pid));
+      toast(root, t(isFavorite(pid) ? 'vit.favori_garde' : 'vit.favori_retire'));
     } else if (action === 'retour') {
       window.history.back();
     } else if (action === 'reessayer') {
@@ -225,6 +237,19 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
       }
     }
   });
+}
+
+/** Flip every heart carrying this pid — exported so the sync is testable by
+ *  execution against a stub root, not by grepping source text. */
+export function applyFavoriteState(
+  scope: { querySelectorAll(sel: string): ArrayLike<Element> & Iterable<Element> },
+  pid: string,
+  on: boolean,
+): void {
+  for (const el of scope.querySelectorAll(`[data-action="favori"][data-pid="${pid}"]`)) {
+    el.classList.toggle('vt-fav-on', on);
+    el.setAttribute('aria-pressed', String(on));
+  }
 }
 
 function toast(root: HTMLElement, message: string): void {

@@ -35,7 +35,11 @@ describe('the sandbox ribbon is unconditional', () => {
       register: string;
     }>;
     const entry = catalog.find((e) => e.key === 'apercu.ruban');
-    expect(entry?.fr).toBe("Aperçu — données d'essai. Rien ici n'est réel.");
+    // NORTH-STAR-1 — the shop is REAL now (her photo, her products, her prices),
+    // so « Rien ici n'est réel » had become the page's own lie. The ribbon stays
+    // UNCONDITIONAL (the safety: payments are sandbox until the Real-Money Gate);
+    // only its words now say the true thing.
+    expect(entry?.fr).toBe("Aperçu — les paiements sont un essai. Rien n'est débité.");
     expect(entry?.register).toBe('neutral');
   });
 
