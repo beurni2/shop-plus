@@ -88,7 +88,8 @@ describe('StorefrontDO — the durable read path GET /s/{slug}, Shape C slug poi
     expect(Object.keys(view).sort()).toEqual(
       [
         'avatar', 'bio', 'category', 'cover', 'createdAt', 'curatedItems', 'discoverable',
-        'featuredItems', 'id', 'name', 'resellerId', 'sections', 'slug', 'tagline', 'theme', 'updatedAt', 'zone',
+        'featuredItems', 'headerStyle', // ENTETES-B — deliberately admitted: presentation, never economics
+        'id', 'name', 'resellerId', 'sections', 'slug', 'tagline', 'theme', 'updatedAt', 'zone',
       ].sort(),
     );
   });
@@ -243,6 +244,35 @@ describe('StorefrontDO — the durable read path GET /s/{slug}, Shape C slug poi
     // …and the refusal wrote NOTHING: her previous name still stands
     const read = await readSlug('seller-0021');
     expect((read.view as StorefrontView).name).toBe('Chez Bernard');
+  });
+
+  it('ENTETES-B: headerStyle saved via the identity route is DURABLE and rides the buyer read path', async () => {
+    const cmd = { ...SELLER_001, commandId: 'c-entete', id: 'sf-entete', shortCode: 'SELLER-0022' };
+    await create(cmd);
+    // her page starts on the shipped default — the canon backfill, by value
+    expect(((await readSlug('seller-0022')).view as StorefrontView).headerStyle).toBe('classique');
+
+    const save = await mf.dispatchFetch('http://sf/storefronts/sf-entete/identity', {
+      method: 'POST',
+      body: JSON.stringify({ patch: { headerStyle: 'royale' }, at: T1 }),
+    });
+    expect(save.status).toBe(200);
+    expect(((await save.json()) as { status: string }).status).toBe('saved');
+
+    await restart(); // the header she chose must survive a process death
+
+    const read = await readSlug('seller-0022');
+    expect(read.code).toBe(200);
+    expect((read.view as StorefrontView).headerStyle).toBe('royale');
+
+    // …and an unknown key is the NAMED 422, with the stored value untouched
+    const refused = await mf.dispatchFetch('http://sf/storefronts/sf-entete/identity', {
+      method: 'POST',
+      body: JSON.stringify({ patch: { headerStyle: 'baroque' }, at: T1 }),
+    });
+    expect(refused.status).toBe(422);
+    expect((await refused.json()) as object).toEqual({ status: 'refused', reason: 'unknown_header_style' });
+    expect(((await readSlug('seller-0022')).view as StorefrontView).headerStyle).toBe('royale');
   });
 
   it('MOCK-CERTIFIED: DurableStorefrontStore forwards over fetch to the REAL DO — the adapter is not a lie', async () => {

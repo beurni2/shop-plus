@@ -1296,6 +1296,90 @@
   "screenClass": "status"
  },
  {
+  "key": "k.entete.caps",
+  "fr": "EN-TÊTE DE BOUTIQUE",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.toast",
+  "fr": "En-tête {nom} choisi",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.entete.nom_classique",
+  "fr": "Classique",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_classique",
+  "fr": "Sobre et clair — le style d’origine.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_royale",
+  "fr": "Royale",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_royale",
+  "fr": "Pourpre et or, un air de grande occasion.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_heritage",
+  "fr": "Héritage",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_heritage",
+  "fr": "Vert profond et or, esprit grande maison.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_chaleureux",
+  "fr": "Chaleureux",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_chaleureux",
+  "fr": "Des tons chauds qui accueillent, comme au marché.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_cristal",
+  "fr": "Cristal",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_cristal",
+  "fr": "Clair et léger, tout en douceur.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_dynamique",
+  "fr": "Dynamique",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_dynamique",
+  "fr": "Vif et coloré, plein d’énergie.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.une.title",
   "fr": "À la une & ordre",
   "register": "neutral",

@@ -221,3 +221,30 @@ describe('MEDIA-2 — coverTo carries the url through every local status change'
     expect(sf.updatedAt).toBe(live.updatedAt);
   });
 });
+
+/**
+ * ENTETES-B — the six header keys, mirrored locally for the RN bundle exactly as
+ * the Storefront shape is (Metro law), and pinned to CANON here so a drift fails
+ * in vitest, never on a device. Plus the classique fallback the picker reads.
+ */
+describe('ENTETES-B — the local header-key mirror stays canon, and the fallback is classique', () => {
+  it('the LOCAL list is exactly the canon STOREFRONT_HEADER_STYLES, in canon order', async () => {
+    const { HEADER_STYLES } = await import('../src/vitrine/customize/storefront');
+    const { STOREFRONT_HEADER_STYLES } = await import('@platform/contracts');
+    expect([...HEADER_STYLES]).toEqual([...STOREFRONT_HEADER_STYLES]);
+  });
+
+  it('headerStyleOf: a held key reads back; ABSENT (old service wire) and UNKNOWN both read classique', async () => {
+    const { DEFAULT_STOREFRONT, headerStyleOf } = await import('../src/vitrine/customize/storefront');
+    expect(headerStyleOf({ ...DEFAULT_STOREFRONT, headerStyle: 'royale' })).toBe('royale');
+    // an OLD deployed service omits the field entirely — the picker must not break
+    const { headerStyle: _omitted, ...preField } = DEFAULT_STOREFRONT;
+    expect(headerStyleOf(preField)).toBe('classique');
+    expect(headerStyleOf({ ...DEFAULT_STOREFRONT, headerStyle: 'baroque' })).toBe('classique');
+  });
+
+  it('the DEFAULT storefront carries classique and STILL parses with the canon schema', () => {
+    expect(DEFAULT_STOREFRONT.headerStyle).toBe('classique');
+    expect(StorefrontSchema.parse(DEFAULT_STOREFRONT).headerStyle).toBe('classique');
+  });
+});

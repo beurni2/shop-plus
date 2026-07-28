@@ -29,6 +29,23 @@ export const THEMES: Record<VitrineThemeKey, { name: string; accent: string; dee
 
 export type CoverStatus = 'none' | 'uploading' | 'pending' | 'live' | 'error';
 
+/**
+ * ENTETES-B — the six canon header keys, mirrored LOCALLY (Metro law: the RN
+ * bundle bans runtime @platform imports, same as the Storefront shape below).
+ * A Node-side conformance test pins this list to the canon
+ * `STOREFRONT_HEADER_STYLES` export — drift fails in vitest, never on a device.
+ */
+export const HEADER_STYLES = ['classique', 'royale', 'heritage', 'chaleureux', 'cristal', 'dynamique'] as const;
+export type HeaderStyleKey = (typeof HEADER_STYLES)[number];
+
+/** Her selected header with the `classique` fallback: an OLD service wire omits
+ *  the field, and an unknown value must never select a card — both read as the
+ *  shipped default rather than as a broken screen. */
+export function headerStyleOf(sf: Storefront): HeaderStyleKey {
+  const raw = sf.headerStyle ?? '';
+  return (HEADER_STYLES as readonly string[]).includes(raw) ? (raw as HeaderStyleKey) : 'classique';
+}
+
 export interface StorefrontSection {
   readonly id: string;
   readonly name: string; // 1–20
@@ -62,6 +79,10 @@ export interface Storefront {
   readonly sections: readonly StorefrontSection[]; // ≤ 4
   /** canon §5.6: privée = absente de Découvrir; le lien résout toujours (loi 4). */
   readonly discoverable: boolean;
+  /** ENTETES-B — her chosen header (canon closed set). OPTIONAL on purpose: an
+   *  OLD deployed service omits it on the wire; `headerStyleOf` reads the
+   *  absence (and any unknown value) as `classique`. */
+  readonly headerStyle?: string;
 }
 
 /** §3.1 bounds (mechanically asserted in §8.6/8.8/8.9 tests). */
@@ -96,6 +117,7 @@ export const DEFAULT_STOREFRONT: Storefront = {
   featuredItems: [],
   sections: [],
   discoverable: true,
+  headerStyle: 'classique',
 };
 
 /* ---------------------------------------------------- §4.3 pure actions -- */

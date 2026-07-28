@@ -21,6 +21,11 @@
 import type { Storefront } from '@platform/contracts';
 import { DEMO_VOICE_URL, DEMO_VOICE_DURATION_MS } from './voice-asset';
 import type { VitrineProduct } from './catalog';
+// ENTETES-B — the app's own closed key list (this surface consumes the WIRE,
+// not the canon package at runtime). Pinned to the EXECUTED canon import
+// (STOREFRONT_HEADER_STYLES) by entetes.test.ts — a seventh canon style fails
+// a buyer test instead of silently coercing to classique.
+import { ENTETE_KEYS, type EnteteKey } from './entetes';
 
 export type { Storefront };
 
@@ -112,6 +117,8 @@ const AICHA_DEFAULT: Storefront = {
   sections: [],
   // canon §5.6 field (privée = absent from Découvrir; the LINK still resolves — loi 4)
   discoverable: true,
+  // ENTETES-B — jour 1: the shipped default header, exactly as canon backfills it
+  headerStyle: 'classique',
 };
 
 /** V2 — the customised variant (Indigo · cover · à la une · sections), §5 V2 exact. */
@@ -121,6 +128,9 @@ const AICHA_CUSTOMISED: Storefront = {
   bio: 'Je choisis chaque pièce moi-même chez des vendeurs vérifiés — livrée scellée par Séra, inspectée avant de payer.',
   theme: 'indigo',
   cover: { status: 'live' },
+  // ENTETES-B — a NON-classique key on purpose, so every path a test drives
+  // through the customised variant exercises the field-driven header honestly.
+  headerStyle: 'royale',
   featuredItems: ['p1', 'p5'],
   sections: [
     { id: 's1', name: 'Mode & tissus', pids: ['p2', 'p7', 'p8'] },
@@ -224,6 +234,16 @@ function looksLikeStorefront(v: unknown): v is Storefront {
 }
 
 /**
+ * ENTETES-B — the wire's headerStyle, validated AT THE PORT BOUNDARY. An OLD
+ * deployed service omits the field entirely, and this static page must keep
+ * rendering (classique, the shipped default) rather than break on the absence;
+ * an unknown value falls back the same way — never an unstyled header.
+ */
+function headerStyleFromWire(raw: unknown): EnteteKey {
+  return typeof raw === 'string' && (ENTETE_KEYS as readonly string[]).includes(raw) ? (raw as EnteteKey) : 'classique';
+}
+
+/**
  * The REAL storefront adapter (STOREFRONT-READ-PATH-1). It fetches the storefront
  * from storefront-service (`GET {base}/s/{slug}` → the buyer-safe StorefrontView)
  * and returns it as the real storefront.
@@ -263,8 +283,11 @@ export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
       // checked for the five fields the tile actually renders.
       const raw = (view as { products?: unknown }).products;
       const products = Array.isArray(raw) ? raw.filter(looksLikeProduct) : undefined;
+      // ENTETES-B — the field is normalised HERE, once, so every consumer of the
+      // resolved storefront reads a valid key (old wire without it ⇒ classique).
+      const storefront: Storefront = { ...view, headerStyle: headerStyleFromWire((view as { headerStyle?: unknown }).headerStyle) };
       // REAL storefront → ABSENT trust, NO notes. Never another reseller's proof.
-      return { storefront: view, trust: ABSENT_TRUST, notes: {}, ...(products !== undefined ? { products } : {}) };
+      return { storefront, trust: ABSENT_TRUST, notes: {}, ...(products !== undefined ? { products } : {}) };
     },
   };
 }

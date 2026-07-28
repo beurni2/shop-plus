@@ -512,3 +512,147 @@ describe('palettes — the relevé values, pinned against silent recolour', () =
     expect(ENTETES_STYLES).toMatch(/118deg,\s*#2B1055/); // Dynamique's veil-anchored gradient
   });
 });
+
+/* ----------------------------------------------- 9 · ENTETES-B: the field -- */
+
+/**
+ * ENTETES-B — the storefront FIELD drives the render; `?entete=` stays the
+ * founder's override. Everything below EXECUTES the decision functions, the
+ * port and the renderer — never a source grep.
+ */
+describe('ENTETES-B — enteteForRender: the field drives, the ?entete= override wins', () => {
+  it('field royale + NO param ⇒ royale (her choice reaches her page)', async () => {
+    const { enteteForRender } = await import('../src/vitrine/flows');
+    expect(enteteForRender(undefined, 'royale')).toBe('royale');
+  });
+
+  it('field royale + ?entete=cristal ⇒ cristal — the param wins, byte-for-byte the ENTETES-A lever', async () => {
+    const { enteteForRender } = await import('../src/vitrine/flows');
+    expect(enteteForRender('cristal', 'royale')).toBe('cristal');
+    // …including previewing classique OVER a chosen header
+    expect(enteteForRender('classique', 'royale')).toBe('classique');
+  });
+
+  it('field absent / storefront not yet resolved ⇒ classique, exactly as before the field existed', async () => {
+    const { enteteForRender } = await import('../src/vitrine/flows');
+    expect(enteteForRender(undefined, undefined)).toBe('classique');
+    expect(enteteForRender(undefined, 'classique')).toBe('classique');
+  });
+
+  it('the classique perf guard holds for BOTH sources: only classique skips the sheet', async () => {
+    const { enteteForRender, needsEnteteSheet } = await import('../src/vitrine/flows');
+    // field-driven and override-driven keys feed the SAME guard
+    expect(needsEnteteSheet(enteteForRender(undefined, 'classique'))).toBe(false);
+    expect(needsEnteteSheet(enteteForRender(undefined, undefined))).toBe(false);
+    for (const key of FIVE) {
+      expect(needsEnteteSheet(enteteForRender(undefined, key)), `field ${key}`).toBe(true);
+      expect(needsEnteteSheet(enteteForRender(key, undefined)), `param ${key}`).toBe(true);
+    }
+    // the override can also FORCE classique (no sheet) over a styled shop
+    expect(needsEnteteSheet(enteteForRender('classique', 'royale'))).toBe(false);
+  });
+
+  it('EXECUTED ON THE RENDERER: the field-driven key renders that header on the ready screen', async () => {
+    const { enteteForRender } = await import('../src/vitrine/flows');
+    const opts = { fromProduct: false };
+    const classique = renderVitrineReady(WITH_COVER as never, REAL, opts, {}, PRODUCTS, 'classique');
+    // her chosen royale, no param: the Royale header is what a cliente receives
+    const royale = renderVitrineReady(WITH_COVER as never, REAL, opts, {}, PRODUCTS, enteteForRender(undefined, 'royale'));
+    expect(royale).toContain(ROOT['royale']!);
+    expect(royale).not.toBe(classique);
+    // …and the ?entete=cristal override on the same shop renders Cristal instead
+    const cristal = renderVitrineReady(WITH_COVER as never, REAL, opts, {}, PRODUCTS, enteteForRender('cristal', 'royale'));
+    expect(cristal).toContain(ROOT['cristal']!);
+    expect(cristal).not.toContain(ROOT['royale']!);
+  });
+});
+
+describe('ENTETES-B — the port boundary: old wire, new wire, garbage wire', () => {
+  const stubFetch = async <T>(body: unknown, run: () => Promise<T>): Promise<T> => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      ({ ok: true, status: 200, json: async () => body }) as unknown as Response) as typeof fetch;
+    try {
+      return await run();
+    } finally {
+      globalThis.fetch = original;
+    }
+  };
+  const WIRE_BASE = {
+    id: 'sf-w', resellerId: 'rs-w', slug: 'chez-w-1', name: 'Chez Wendkuni',
+    zone: 'Ouagadougou', category: 'Général', tagline: '', bio: '', theme: 'laterite',
+    cover: { status: 'none' }, avatar: { mode: 'monogram' }, curatedItems: [],
+    featuredItems: [], sections: [], discoverable: true, createdAt: 'T', updatedAt: 'T',
+  };
+
+  it('an OLD deployed service (no headerStyle on the wire) resolves classique — the page must not break', async () => {
+    const { httpStorefrontPort } = await import('../src/vitrine/profile');
+    const resolved = await stubFetch(WIRE_BASE, () => httpStorefrontPort('https://svc.example').resolve('chez-w-1'));
+    expect(resolved).toBeTruthy();
+    expect(resolved!.storefront.headerStyle).toBe('classique');
+  });
+
+  it('a NEW service wire carries her choice through', async () => {
+    const { httpStorefrontPort } = await import('../src/vitrine/profile');
+    const resolved = await stubFetch({ ...WIRE_BASE, headerStyle: 'royale' }, () =>
+      httpStorefrontPort('https://svc.example').resolve('chez-w-1'),
+    );
+    expect(resolved!.storefront.headerStyle).toBe('royale');
+  });
+
+  it('garbage on the wire falls back to classique — never an unstyled header', async () => {
+    const { httpStorefrontPort } = await import('../src/vitrine/profile');
+    for (const bad of ['baroque', '', 42, null, { deep: true }]) {
+      const resolved = await stubFetch({ ...WIRE_BASE, headerStyle: bad }, () =>
+        httpStorefrontPort('https://svc.example').resolve('chez-w-1'),
+      );
+      expect(resolved!.storefront.headerStyle, JSON.stringify(bad)).toBe('classique');
+    }
+  });
+
+  it('demo ports: default and empty stay classique; customised carries a NON-classique key (the honest exercise)', async () => {
+    const { demoStorefrontPort } = await import('../src/vitrine/profile');
+    expect((await demoStorefrontPort('default').resolve('aicha-4821'))!.storefront.headerStyle).toBe('classique');
+    expect((await demoStorefrontPort('empty').resolve('aicha-4821'))!.storefront.headerStyle).toBe('classique');
+    const customised = (await demoStorefrontPort('customised').resolve('aicha-4821'))!.storefront.headerStyle;
+    expect(customised).toBe('royale');
+    expect(customised).not.toBe('classique');
+  });
+});
+
+/* ------------------------------------ 10 · ENTETES-B: verifier fix round -- */
+
+/**
+ * Verifier findings 1–2 closed here, both by EXECUTION:
+ *   1. the app's key list is pinned to the EXECUTED canon import — a seventh
+ *      canon style now fails a buyer test instead of coercing to classique;
+ *   2. the absent/present `?entete=` distinction (main.ts's wiring) is the
+ *      pure `enteteOverride`, pinned across its whole behaviour space — a
+ *      regression to ENTETES-A's unconditional resolve fails loudly here.
+ */
+describe('ENTETES-B — canon conformance + the override wiring, pinned by execution', () => {
+  it('ENTETE_KEYS is exactly the canon STOREFRONT_HEADER_STYLES, in canon order (executed import)', async () => {
+    const { STOREFRONT_HEADER_STYLES } = await import('@platform/contracts');
+    expect([...ENTETE_KEYS]).toEqual([...STOREFRONT_HEADER_STYLES]);
+  });
+
+  it('enteteOverride: ABSENT param is undefined — no override, her field drives', async () => {
+    const { enteteOverride } = await import('../src/vitrine/entetes');
+    expect(enteteOverride('')).toBeUndefined();
+    expect(enteteOverride('?demo-cliente=C1&theme=indigo')).toBeUndefined();
+  });
+
+  it('enteteOverride: PRESENT param keeps the exact ENTETES-A coercion — and wins over the field', async () => {
+    const { enteteOverride } = await import('../src/vitrine/entetes');
+    const { enteteForRender } = await import('../src/vitrine/flows');
+    expect(enteteOverride('?entete=royale')).toBe('royale');
+    // garbage and the empty value are a PRESENT param: a classique OVERRIDE
+    expect(enteteOverride('?entete=garbage')).toBe('classique');
+    expect(enteteOverride('?entete=')).toBe('classique');
+    expect(enteteOverride('?entete=ROYALE')).toBe('classique');
+    // composed with the field: present-but-garbage FORCES classique over royale…
+    expect(enteteForRender(enteteOverride('?entete=garbage'), 'royale')).toBe('classique');
+    // …while the absent param lets her chosen field through
+    expect(enteteForRender(enteteOverride(''), 'royale')).toBe('royale');
+  });
+});
