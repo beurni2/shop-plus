@@ -173,9 +173,18 @@ export function deleteSection(sf: Storefront, sectionId: string): ActionResult {
   return { ok: true, next: { ...sf, sections: sf.sections.filter((s) => s.id !== sectionId) }, toastKey: 'k.sections.toast_supprimee' };
 }
 
-/** K3 — the [DEMO] cover cycle steps (§4.4); timing owned by the screen. */
+/**
+ * K3 — move the cover to a LOCAL status without forgetting where the photo is.
+ *
+ * MEDIA-2 round 3: this dropped `url` on every transition. MEDIA-1 had added
+ * `url?` to the cover shape and never updated this constructor, so a live cover
+ * that failed to be REPLACED walked live → uploading → error → none and lost the
+ * address of the photograph her cliente was still looking at. Her app then said
+ * « Ajouter une couverture » over a shop that had one, with no way back inside the
+ * screen: the adoption effect is keyed on `updatedAt`, which never moved.
+ */
 export function coverTo(sf: Storefront, status: CoverStatus): Storefront {
-  return { ...sf, cover: { status } };
+  return { ...sf, cover: { ...sf.cover, status } };
 }
 
 /** §3.2 seed (pure data — testable Node-side) (the vitrine catalog — mirrors the buyer module; VITRINE-REAL-BACKING

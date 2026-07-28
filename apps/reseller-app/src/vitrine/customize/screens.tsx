@@ -49,6 +49,7 @@ import { K_SEED } from './storefront';
 // copies of a patch shape are two shapes that drift on the first field added.
 import type { StorefrontIdentityPatch } from '../service';
 import { pickPhoto } from './photo-pick';
+import { uploadFailureCopy } from './upload-outcome';
 import { K_RAW_STYLES } from './k-styles';
 /** ONE money source — the app's canonical formatter (U+202F+FCFA, re-pin site). */
 export const fmtFcfa = formatFcfa;
@@ -193,7 +194,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
   // only for the [DEMO] button that once drove it; rewiring that state to real
   // failures made it a wrong cause AND a wrong number on the surface she is
   // still reading ten seconds after the toast has gone.
-  const [coverError, setCoverError] = useState<string | null>(null);
+  const [coverError, setCoverError] = useState<{ title: string; body: string } | null>(null);
   // MEDIA-2 — the portrait upload had NO visible state: she tapped the square and
   // nothing changed for the whole round-trip, so on patchy data she taps again and
   // starts a second pick. The cover has its five states; the portrait gets the one
@@ -251,33 +252,28 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
    * theatre. Every failure keeps its own name, because « vous avez refusé
    * l'accès » and « la photo est trop lourde » are different things to tell her.
    */
-  /** Every upload failure the service can actually produce, each with the sentence
-   *  that matches it. « Essayez une image plus légère » used to answer all of them,
-   *  including the ones weight cannot fix. */
-  const uploadFailureMessage = (reason?: string): string =>
-    reason === 'offline'
-      ? t('k.cover.hors_ligne')
-      : reason === 'not_confirmed'
-        ? t('k.cover.non_confirmee')
-        : reason === 'unconfigured' || reason === 'not_live'
-          ? t('k.cover.pas_encore')
-          : reason === 'too_large'
-            ? t('k.cover.trop_lourde')
-            : reason === 'bad_dimensions' || reason === 'unsupported_type'
-              ? t('k.cover.mauvaise_taille')
-              : t('k.cover.echec');
+  /** The reason → sentence mapping is a PURE module so it can be tested by
+   *  EXECUTING it. It used to live inline here, where the only reachable tests
+   *  were source-text greps — and a verifier proved those stayed green with every
+   *  arm of the map scrambled. */
+  const uploadFailureMessage = (reason?: string): string => t(uploadFailureCopy(reason).body);
 
   /** MEDIA-2 — her PORTRAIT, through the seam that shipped with no caller. */
   const pickAndUploadAvatar = async (): Promise<void> => {
     if (onUploadAvatar === undefined) return;
+    // THE LOCK COVERS THE PICK, NOT ONLY THE UPLOAD. The decode + resize + re-encode
+    // of a 12 MP photo is the SLOWEST leg on a 1 GB phone, and it happens back on
+    // this screen. Locking only the network leg left the square tappable through
+    // exactly the wait that makes her tap again.
+    setAvatarSending(true);
     const picked = await pickPhoto();
     if (!picked.ok) {
+      setAvatarSending(false);
       if (picked.reason === 'refused') onToast(t('k.cover.acces_refuse'));
       else if (picked.reason === 'unreadable') onToast(t('k.cover.illisible'));
       else if (picked.reason === 'too_small') onToast(t('k.cover.trop_petite'));
       return;
     }
-    setAvatarSending(true);
     const res = await onUploadAvatar(picked.bytes, picked.contentType);
     setAvatarSending(false);
     onToast(res.ok ? t('k.portrait.toast_en_ligne') : uploadFailureMessage(res.reason));
@@ -285,15 +281,20 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
 
   const pickAndUploadCover = async (): Promise<void> => {
     if (onUploadCover === undefined) return;
+    // Same law as the portrait: « ENVOI… » covers the decode too, so the slot is
+    // not a live target through the longest part of the wait.
+    setSfRaw(coverTo(sf, 'uploading'));
     const picked = await pickPhoto();
     if (!picked.ok) {
       // Her own cancel is NOT an error and says nothing; a refusal explains.
+      // Returning to the cover she actually has — NOT to 'none', which would erase
+      // a live photograph from the screen because she changed her mind.
+      setSfRaw(sf);
       if (picked.reason === 'refused') onToast(t('k.cover.acces_refuse'));
       else if (picked.reason === 'unreadable') onToast(t('k.cover.illisible'));
       else if (picked.reason === 'too_small') onToast(t('k.cover.trop_petite'));
       return;
     }
-    setSfRaw(coverTo(sf, 'uploading'));
     const res = await onUploadCover(picked.bytes, picked.contentType);
     if (res.ok) {
       // The SERVICE owns the URL and writes it onto her shop; the App re-reads
@@ -306,10 +307,10 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
       onToast(t('k.cover.toast_en_ligne'));
       return;
     }
-    const message = uploadFailureMessage(res.reason);
-    setCoverError(message);
+    const copy = uploadFailureCopy(res.reason);
+    setCoverError({ title: t(copy.title), body: t(copy.body) });
     setSfRaw(coverTo(sf, 'error'));
-    onToast(message);
+    onToast(t(copy.body));
   };
 
   const back = (): void => {
@@ -373,8 +374,18 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
             setSfRaw(coverTo(sf, 'none'));
           }}
           coverError={coverError}
-          uploadWired={onUploadCover !== undefined}
-          onPickAvatar={onUploadAvatar !== undefined ? () => void pickAndUploadAvatar() : undefined}
+          uploadWired={onUploadCover !== undefined && serviceUnconfigured !== true && shopIsLive === true}
+          // A slot that cannot succeed says WHY, rather than sitting there dead. She
+          // used to be allowed to grant photo access and sit through a full decode
+          // before being told to publish her boutique — work that could not help.
+          disabledNote={
+            serviceUnconfigured === true
+              ? t('k.cover.pas_configuree')
+              : shopIsLive === true
+                ? undefined
+                : t('k.cover.pas_encore')
+          }
+          onPickAvatar={onUploadAvatar !== undefined && serviceUnconfigured !== true && shopIsLive === true ? () => void pickAndUploadAvatar() : undefined}
           avatarSending={avatarSending}
         />
       )}
@@ -613,7 +624,7 @@ function CountedField({ label, value, max, onChange, onCommit, placeholder, mult
 
 /* ------------------------------------------------------------- K3 / K3b -- */
 
-function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar, coverError, avatarSending }: { sf: Storefront; onBack: () => void; onPickCover: () => void; onRetry: () => void; uploadWired?: boolean; onPickAvatar?: (() => void) | undefined; coverError?: string | null; avatarSending?: boolean }) {
+function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar, coverError, avatarSending, disabledNote }: { sf: Storefront; onBack: () => void; onPickCover: () => void; onRetry: () => void; uploadWired?: boolean; onPickAvatar?: (() => void) | undefined; coverError?: { title: string; body: string } | null; avatarSending?: boolean | undefined; disabledNote?: string | undefined }) {
   const st = sf.cover.status;
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
@@ -654,12 +665,16 @@ function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar, cover
       )}
       {st === 'error' && (
         <View style={[S.coverSlot, S.coverSlotError]}>
-          <Text style={S.coverErrTitle}>{t('k.cover.err_titre')}</Text>
-          <Text style={S.coverErrBody}>{coverError ?? t('k.cover.err_corps')}</Text>
+          <Text style={S.coverErrTitle}>{coverError?.title ?? t('k.cover.err_titre')}</Text>
+          <Text style={S.coverErrBody}>{coverError?.body ?? t('k.cover.err_corps')}</Text>
           <Pressable style={({ pressed }) => [S.ghostSmall, pressed && S.pressed]} onPress={onRetry}><Text style={S.ghostSmallText}>{t('k.cover.reessayer')}</Text></Pressable>
         </View>
       )}
-      {st === 'none' && <View style={S.noteSable}><Text style={S.noteSableText}>{t('k.cover.note_defaut')}</Text></View>}
+      {st === 'none' && (
+        <View style={S.noteSable}>
+          <Text style={S.noteSableText}>{disabledNote ?? t('k.cover.note_defaut')}</Text>
+        </View>
+      )}
       {st === 'pending' && <View style={S.noteWarn}><Text style={S.noteWarnText}>{t('k.cover.note_verif')}</Text></View>}
       {/* MEDIA-2 — « Retirer la couverture » REMOVED NOTHING. It flipped local
           state only: no remove route exists, so her cliente kept seeing the old

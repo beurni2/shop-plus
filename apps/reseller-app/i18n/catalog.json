@@ -1182,6 +1182,24 @@
   "screenClass": "status"
  },
  {
+  "key": "k.cover.err_titre_envoyee",
+  "fr": "Photo envoyée",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cover.service",
+  "fr": "Photo pas enregistrée. Ce n\u2019est pas votre photo : réessayez plus tard.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cover.pas_configuree",
+  "fr": "Cette version ne peut pas encore envoyer de photo.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "k.cover.trop_lourde",
   "fr": "Photo trop lourde. Choisissez-en une autre.",
   "register": "neutral",
@@ -2669,7 +2687,7 @@
  },
  {
   "key": "k.cover.echec",
-  "fr": "Photo pas envoyée. Essayez une image plus légère.",
+  "fr": "Photo pas envoyée. Réessayez dans un moment.",
   "register": "neutral",
   "screenClass": "instruction"
  }
