@@ -113,6 +113,79 @@ export const iconBrokenLink = (size: number, color: string, width: number): stri
     stroke(color, width),
   );
 
+/* --------------------------------------- ENTETES-A — the contract's paths -- */
+
+/**
+ * The five selectable headers draw their own icon set. These paths are the
+ * design contract's VERBATIM geometry (« En-tetes Boutique - 5 Styles v2.dc »),
+ * not redrawings of the icons above: the contract's shield, padlock (it carries
+ * a keyhole), price tag (mirrored) and check differ from the vitrine planche's,
+ * and the same law that made the planche paths design data makes these design
+ * data too. They are used ONLY by `entetes.ts`; nothing above changes.
+ */
+
+/** Check — the contract's seal/badge stroke (`M20 6L9 17l-5-5`). */
+export const iconCheckEnt = (size: number, color: string, width: number): string =>
+  SVG(size, '<path d="M20 6L9 17l-5-5"></path>', stroke(color, width));
+
+/** Outline location pin (Royale · Chaleureux · Dynamique zone lines). */
+export const iconPinEnt = (size: number, color: string, width: number): string =>
+  SVG(
+    size,
+    '<path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z"></path><circle cx="12" cy="10" r="2.4"></circle>',
+    stroke(color, width),
+  );
+
+/** SOLID location pin with a punched-out centre (Héritage · Cristal zone
+ *  lines): the pin is filled, the inner disc takes the surface colour. */
+export const iconPinSolid = (size: number, fill: string, hole: string): string =>
+  SVG(
+    size,
+    `<path d="M12 21.5s7.5-6.6 7.5-11.5a7.5 7.5 0 10-15 0c0 4.9 7.5 11.5 7.5 11.5z"></path><circle cx="12" cy="10" r="2.6" fill="${hole}"></circle>`,
+    `fill="${fill}"`,
+  );
+
+/** Four-branch sparkle + spark (Héritage frames the shop name with a mirrored
+ *  pair). Filled, no stroke. */
+export const iconSparkle = (size: number, fill: string): string =>
+  SVG(
+    size,
+    '<path d="M12 2.8l1.6 5.8 5.8 1.6-5.8 1.6L12 17.6l-1.6-5.8L4.6 10.2l5.8-1.6zM19.4 16l.7 2.5 2.5.7-2.5.7-.7 2.5-.7-2.5-2.5-.7 2.5-.7z"></path>',
+    `fill="${fill}"`,
+  );
+
+/** Shield-check — the contract's trust-row delivery glyph. */
+export const iconShieldEnt = (size: number, color: string, width: number): string =>
+  SVG(
+    size,
+    '<path d="M12 3l7 3v5.5c0 4.2-2.9 7.6-7 8.5-4.1-.9-7-4.3-7-8.5V6z"></path><path d="M9 12.2l2.2 2.2L15.5 10"></path>',
+    stroke(color, width),
+  );
+
+/** Padlock WITH a keyhole — the contract's « Paiement protégé » glyph. */
+export const iconLockEnt = (size: number, color: string, width: number): string =>
+  SVG(
+    size,
+    '<rect x="4.5" y="10.5" width="15" height="10.5" rx="2.4"></rect><path d="M8.2 10.5V7.8a3.8 3.8 0 017.6 0v2.7"></path><circle cx="12" cy="15.4" r="1.5"></circle>',
+    stroke(color, width),
+  );
+
+/** Price tag (contract orientation) — the « meilleurs prix » glyph. */
+export const iconTagEnt = (size: number, color: string, width: number): string =>
+  SVG(
+    size,
+    '<path d="M20.5 13.2l-7.3 7.3a2 2 0 01-2.8 0l-6.9-6.9a2 2 0 01-.6-1.4V5.5a2 2 0 012-2h6.7a2 2 0 011.4.6l6.9 6.9a2 2 0 010 2.2z"></path><circle cx="8.4" cy="8.4" r="1.5"></circle>',
+    stroke(color, width),
+  );
+
+/** Filled review star, contract geometry (the five headers' proof rows). */
+export const iconStarEnt = (size: number, fill: string): string =>
+  SVG(
+    size,
+    '<path d="M12 2.6l2.9 6.1 6.6.9-4.8 4.7 1.2 6.7L12 17.7 6.1 21l1.2-6.7L2.5 9.6l6.6-.9z"></path>',
+    `fill="${fill}"`,
+  );
+
 /* ------------------------------------------------- product glyphs (44px) -- */
 
 const GLYPH_STROKE = 'rgba(255,255,255,0.9)';

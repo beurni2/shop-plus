@@ -948,6 +948,12 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.cell_prix_court",
+  "fr": "Meilleurs prix garantis",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.livraison_2448",
   "fr": "Livraison 24–48h · Séra vérifiée",
   "register": "selling",

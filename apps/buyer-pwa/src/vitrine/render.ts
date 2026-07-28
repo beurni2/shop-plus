@@ -37,6 +37,7 @@ import {
 } from './icons';
 import { VITRINE_THEMES } from './themes';
 import { isFavorite } from './favorites';
+import { renderEntete, type EnteteKey } from './entetes';
 
 /** « X\u202fFCFA » — the ONE formatter (cliente/money): U+202F thousands +
  * U+202F before FCFA, built from the escaped constant — never Intl (ICU
@@ -110,7 +111,7 @@ function cover(sf: Storefront): string {
  * case — « Livraison Séra vérifiée & scellée » and « Paiement protégé » are
  * promises the platform makes, not history the reseller earned.
  */
-function chips(sf: Storefront, trust: VitrineTrust): string {
+export function chips(sf: Storefront, trust: VitrineTrust): string {
   const th = VITRINE_THEMES[sf.theme];
   // FOUNDER ORDER (2026-07-28, logged in JOURNAL): the mockup's full trust row,
   // sublines included — « Rapide & sécurisée », « 100% sécurisé », « Les
@@ -150,7 +151,7 @@ function chips(sf: Storefront, trust: VitrineTrust): string {
  * « Nouvelle vendeuse » (BUYER-REAL-HONESTY-1, unchanged). Star rows appear only
  * from real reviews at AVIS_FLOOR, in the trust band.
  */
-function hero(sf: Storefront, trust: VitrineTrust, opts: { compact?: boolean } = {}, floatBar = ''): string {
+export function hero(sf: Storefront, trust: VitrineTrust, opts: { compact?: boolean } = {}, floatBar = ''): string {
   const th = VITRINE_THEMES[sf.theme];
   const initial = esc(sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase());
   // MEDIA-2 — her portrait or the monogram; photo-mode-without-url falls back.
@@ -386,11 +387,21 @@ export function renderVitrineReady(
   /** BUYER-LIVE-WIRE-3 — the service's described products. Absent ⇒ the demo seed
    *  path (offline harness). Present ⇒ the ONLY source of tiles. */
   described?: readonly VitrineProduct[],
+  /** ENTETES-A — which of the five selectable headers to draw. `'classique'`
+   *  (the default, and every existing caller) renders the unchanged hero+chips;
+   *  the founder's `?entete=` preview swaps ONLY this header unit. Everything
+   *  below — à la une, sections, grid, bande, footer — is shared and untouched. */
+  entete: EnteteKey = 'classique',
 ): string {
   const th = VITRINE_THEMES[sf.theme];
   const parts = [
-    hero(sf, trust, {}, topBar({ back: opts.fromProduct, accent: th.accent })),
-    chips(sf, trust),
+    renderEntete(
+      entete,
+      sf,
+      trust,
+      { fromProduct: opts.fromProduct },
+      topBar({ back: opts.fromProduct, accent: th.accent }),
+    ),
   ];
 
   // « PRODUIT À LA UNE » — ≤ 2 pinned, never an out-of-stock article. When she
@@ -462,11 +473,24 @@ export function renderVitrineReady(
 }
 
 /** V6 — vide (avant le premier article): identité compacte + carte dashed. */
-export function renderVitrineEmpty(sf: Storefront, trust: VitrineTrust, opts: VitrineRenderOpts): string {
+export function renderVitrineEmpty(
+  sf: Storefront,
+  trust: VitrineTrust,
+  opts: VitrineRenderOpts,
+  /** ENTETES-A — same law as the ready screen: the header unit is the only
+   *  thing the key swaps; the dashed empty card and the bande never change. */
+  entete: EnteteKey = 'classique',
+): string {
   const first = esc(sf.name.replace(/^Chez\s+/i, '').split(' ')[0] ?? sf.name);
   return wrap(
     [
-      hero(sf, trust, { compact: true }, topBar({ back: opts.fromProduct, accent: VITRINE_THEMES[sf.theme].accent })),
+      renderEntete(
+        entete,
+        sf,
+        trust,
+        { compact: true, fromProduct: opts.fromProduct },
+        topBar({ back: opts.fromProduct, accent: VITRINE_THEMES[sf.theme].accent }),
+      ),
       '<div class="vt-empty" data-role="vitrine-vide">',
       iconDevanture(40, '#8A7D6B', 1.7),
       `<div class="vt-empty-titre">${t('vit.vide_titre')}</div>`,
