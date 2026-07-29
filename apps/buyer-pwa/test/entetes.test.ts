@@ -818,3 +818,35 @@ describe('ENTETES-C — the port boundary: a canon pair rides, garbage is STRIPP
     }
   });
 });
+
+/* ------------------------------- 11 · the loading state is not a dead link -- */
+
+/**
+ * FIELD FIX (founder report): tapping « voir ma boutique en ligne » showed
+ * « Ce lien ne mène à aucune boutique » and only THEN the boutique. The mount
+ * asks for `loading` with no storefront yet; the old guard rewrote ANY state
+ * without a storefront to `invalid`, so the designed skeleton never rendered on
+ * a real visit and a terminal error stood in for a network wait.
+ */
+describe('etatForRender — a state that reads no storefront is never the not-found', () => {
+  it('LOADING with nothing resolved STAYS loading — the regression that shipped', async () => {
+    const { etatForRender } = await import('../src/vitrine/flows');
+    expect(etatForRender('loading', false)).toBe('loading');
+  });
+
+  it('only ready/empty — the states that DEREFERENCE the storefront — fall back to invalid', async () => {
+    const { etatForRender } = await import('../src/vitrine/flows');
+    expect(etatForRender('ready', false)).toBe('invalid');
+    expect(etatForRender('empty', false)).toBe('invalid');
+    // …and the storefront-free states pass through untouched
+    expect(etatForRender('offline', false)).toBe('offline');
+    expect(etatForRender('invalid', false)).toBe('invalid');
+  });
+
+  it('with a storefront in hand every state is served as asked', async () => {
+    const { etatForRender } = await import('../src/vitrine/flows');
+    for (const etat of ['loading', 'ready', 'empty', 'offline', 'invalid'] as const) {
+      expect(etatForRender(etat, true), etat).toBe(etat);
+    }
+  });
+});
