@@ -194,7 +194,20 @@ describe('decideIssueQuote — B, C and M are READ off frozen stored fields', ()
   });
 
   it('the LOCKED reseller rides the quote — it never defaults to supplier or platform', () => {
-    expect(issuedQuote({ request: { attributionResellerId: 'rs-locked-9' } }).attributionResellerId).toBe('rs-locked-9');
+    // EVOLVED (CTO, verifier BLOCKER): the payee is now BOUND to the listing, so
+    // this asserts the bound id rides the quote. The original passed an
+    // arbitrary `rs-locked-9` — which is precisely the hole the verifier found:
+    // the caller could name anyone. The claim this test makes is unchanged and
+    // now strictly stronger; the refusal side is pinned below and in the e2e.
+    expect(issuedQuote().attributionResellerId).toBe('rs-0001'); // = entry.listing.resellerId
+  });
+
+  it('a payee the CALLER names, differing from the listing, is refused — never quoted', () => {
+    for (const claimed of ['rs-locked-9', 'platform', 'supplier', 'rs-0001 ']) {
+      const outcome = issue({ request: { attributionResellerId: claimed } });
+      expect(outcome.ok, claimed).toBe(false);
+      if (!outcome.ok) expect(outcome.reason, claimed).toBe('attribution_mismatch');
+    }
   });
 });
 

@@ -153,6 +153,8 @@ export interface CheckoutDeps extends QuoteIssuanceDeps {
  */
 export type CheckoutRefusalReason =
   | 'attribution_missing'
+  | 'attribution_mismatch'
+  | 'quote_not_issuable'
   | 'listing_unknown'
   | 'listing_not_live'
   | 'commission_not_frozen'
@@ -225,6 +227,36 @@ export function decideIssueQuote(deps: CheckoutDeps, input: IssueQuoteInput): Is
   if (entry.listing.productVersionId !== request.pid) {
     return { ok: false, reason: 'listing_unknown' };
   }
+  /**
+   * ═══ THE PAYEE IS BOUND TO THE LISTING, NEVER NAMED BY THE CALLER ═══
+   * (verifier BLOCKER, SP3.2a — the defect this closes was live.)
+   *
+   * `attributionResellerId` arrives on an ANONYMOUS, unauthenticated POST and
+   * lands in the canon Quote field the spec annotates `(LOCKED)` — the field
+   * SP3.3 settles against. Unbound, it accepted anything: a rival reseller's
+   * id, an id that exists nowhere, and the literal strings `platform` and
+   * `supplier` — each one written onto an IMMUTABLE artifact.
+   *
+   * Governing text, both breached by the unbound version:
+   *   · SP-I09b.4 — « Une référence altérée, expirée ou non résolvable
+   *     n'attribue personne et ne bascule JAMAIS vers la plateforme. »
+   *   · CI gate — « every order has a locked reseller_id, none defaults to
+   *     supplier/platform ».
+   *
+   * THE LISTING IS THE AUTHORITY on who sells this product in this shop: she
+   * published it, the service signed her price from her markup, and her net is
+   * frozen beside it. So the quote's payee is `entry.listing.resellerId`, and a
+   * request naming anyone else is REFUSED BY NAME rather than silently
+   * re-pointed — a buyer arriving under a stale or tampered link must hear that
+   * something is wrong, not be quoted against the wrong seller's money.
+   *
+   * (Which reseller earns the ARRIVAL is the attribution lock's separate
+   * question — a collision there is SP3.3's to resolve, and it can never make
+   * a stranger the payee of THIS listing.)
+   */
+  if (request.attributionResellerId !== entry.listing.resellerId) {
+    return { ok: false, reason: 'attribution_mismatch' };
+  }
   if (entry.listing.status !== LISTING_PUBLISHED) {
     return { ok: false, reason: 'listing_not_live' };
   }
@@ -250,6 +282,41 @@ export function decideIssueQuote(deps: CheckoutDeps, input: IssueQuoteInput): Is
   }
 
   // THE ONLY ISSUER. Never a hand-built Quote, never a recomputed field.
+  //
+  // WRAPPED, AND ONLY WRAPPED (verifier finding, SP3.2a): the issuer already
+  // returns a named refusal for every condition it decides, but it can still
+  // THROW on inputs it never expected — `computeWaterfall` raises on a
+  // non-integer amount, `QuoteSchema.parse` on a value the canon string types
+  // reject. On a PUBLIC money route an uncaught throw answers 500, which the
+  // DoD bans (« every failure is a named refusal »). The catch converts a
+  // throw into `quote_not_issuable` and NOTHING ELSE — it never substitutes a
+  // value, never retries, never repairs. A quote that could not be issued does
+  // not exist.
+  try {
+    return issueQuoteFrom(deps, entry, request, {
+      sellerBasePrice,
+      sellerFundedCommission,
+      resellerMarkup,
+      deliveryFee,
+    });
+  } catch {
+    return { ok: false, reason: 'quote_not_issuable' };
+  }
+}
+
+/** The issuance call itself, split out so the wrap above reads as one thought. */
+function issueQuoteFrom(
+  deps: CheckoutDeps,
+  entry: ListingEntry,
+  request: QuoteRequest,
+  money: {
+    readonly sellerBasePrice: number;
+    readonly sellerFundedCommission: number;
+    readonly resellerMarkup: number;
+    readonly deliveryFee: number;
+  },
+): IssueQuoteOutcome {
+  const { sellerBasePrice, sellerFundedCommission, resellerMarkup, deliveryFee } = money;
   return issueQuote(deps, {
     listingRef: entry.listing.id,
     offerRef: entry.listing.offerVersion,

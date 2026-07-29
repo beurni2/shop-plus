@@ -280,9 +280,19 @@ describe('CheckoutDO — one request key, one quote, forever', () => {
       attributionResellerId: b.resellerId,
       requestKey: key,
     });
-    // the key IS the checkout attempt: it can only ever name one quote.
-    expect(second.text).toBe(first.text);
-    expect(second.json['productSubtotal']).toBe(11_500); // a's price, not b's 14 000
+    // EVOLVED (CTO, verifier finding): the key IS the checkout attempt, so it
+    // still can only ever name one quote — but a DIFFERENT intent under it is
+    // now REFUSED BY NAME instead of being handed the first quote. The old
+    // behaviour returned 200 with shop A's price for a request about shop B,
+    // and the buyer view carries no shop or product reference with which to
+    // notice. Serving one shop's amount for another shop's question is the
+    // wrong answer to give quietly on a money route.
+    expect(second.status).toBe(409);
+    expect(second.json['error']).toBe('request_key_reused');
+    expect(second.json['productSubtotal']).toBeUndefined(); // no price crossed over
+    // …and shop A's quote is untouched by the attempt
+    const still = await getQuote(first.json['quoteId'] as string);
+    expect(still.text).toBe(first.text);
   });
 
   it('CONCURRENT twins on one key produce exactly ONE quote', async () => {
@@ -774,5 +784,123 @@ describe('CheckoutDO — the reservation is atomic, short, and durable', () => {
     // …and the quote is still unreserved, so a real reserve still wins
     const ok = await reserve(id, 'cmd-after-bad-shape');
     expect(ok.status).toBe(200);
+  });
+});
+
+/* ═══════════ the verifier round: the payee, the 500s, the key binding ═══════ */
+
+describe('CheckoutDO — the payee is bound to the listing, never named by the caller', () => {
+  it('a request naming ANOTHER reseller, an INVENTED one, or platform/supplier is REFUSED', async () => {
+    const { slug } = await seedShop('0041');
+    const other = await seedShop('0042'); // a real, different reseller
+    for (const claimed of [other.resellerId, 'rs-attacker-does-not-exist', 'platform', 'supplier']) {
+      const res = await postQuote({
+        slug,
+        pid: 'pv-checkout-1',
+        paymentMode: 'FULL_PREPAY',
+        zoneTo: 'Ouagadougou',
+        attributionResellerId: claimed,
+        requestKey: freshKey(),
+      });
+      expect(res.status, claimed).toBe(422);
+      expect(res.json['error'], claimed).toBe('attribution_mismatch');
+      // …and NOTHING was persisted under that attempt
+      expect(res.json['quoteId'], claimed).toBeUndefined();
+    }
+    // the truthful payee still prices normally
+    const ok = await postQuote({
+      slug,
+      pid: 'pv-checkout-1',
+      paymentMode: 'FULL_PREPAY',
+      zoneTo: 'Ouagadougou',
+      attributionResellerId: 'rs-checkout-0041',
+      requestKey: freshKey(),
+    });
+    expect(ok.status).toBe(200);
+  });
+
+  it('a whitespace-padded payee refuses BY NAME — never a 500 from the canon parse', async () => {
+    const { slug } = await seedShop('0043');
+    for (const padded of ['   ', ' rs-checkout-0043', 'rs-checkout-0043 ', '\trs-checkout-0043']) {
+      const res = await postQuote({
+        slug,
+        pid: 'pv-checkout-1',
+        paymentMode: 'FULL_PREPAY',
+        zoneTo: 'Ouagadougou',
+        attributionResellerId: padded,
+        requestKey: freshKey(),
+      });
+      expect(res.status, JSON.stringify(padded)).toBe(422);
+      expect(res.json['error'], JSON.stringify(padded)).toBe('attribution_mismatch');
+    }
+  });
+});
+
+describe('CheckoutDO — a malformed id in the path is a named refusal, not a 500', () => {
+  it('a lone percent escape on the quote routes answers 400, never 500', async () => {
+    const get = await mf.dispatchFetch('http://c/checkout/quote/%FF', { method: 'GET' });
+    expect(get.status).toBe(400);
+    const reserve = await mf.dispatchFetch('http://c/checkout/quote/%FF/reserve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commandId: 'cmd-x', holderRef: 'hold-x' }),
+    });
+    expect(reserve.status).toBe(400);
+  });
+});
+
+describe('CheckoutDO — one request key means ONE INTENT, not merely one quote', () => {
+  it('the SAME key with a different shop, product or mode is REFUSED — never served the first price', async () => {
+    const a = await seedShop('0044', 1_500);
+    const b = await seedShop('0045', 4_000);
+    const key = freshKey();
+    const first = await postQuote({
+      slug: a.slug,
+      pid: 'pv-checkout-1',
+      paymentMode: 'FULL_PREPAY',
+      zoneTo: 'Ouagadougou',
+      attributionResellerId: a.resellerId,
+      requestKey: key,
+    });
+    expect(first.status).toBe(200);
+    const firstTotal = first.json['buyerTotal'];
+
+    // a DIFFERENT shop under the same key — the defect was: 200 with shop A's price
+    const otherShop = await postQuote({
+      slug: b.slug,
+      pid: 'pv-checkout-1',
+      paymentMode: 'FULL_PREPAY',
+      zoneTo: 'Ouagadougou',
+      attributionResellerId: b.resellerId,
+      requestKey: key,
+    });
+    expect(otherShop.status).toBe(409);
+    expect(otherShop.json['error']).toBe('request_key_reused');
+    expect(otherShop.json['buyerTotal']).toBeUndefined();
+
+    // a different MODE under the same key
+    const otherMode = await postQuote({
+      slug: a.slug,
+      pid: 'pv-checkout-1',
+      paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+      zoneTo: 'Ouagadougou',
+      attributionResellerId: a.resellerId,
+      requestKey: key,
+    });
+    expect(otherMode.status).toBe(409);
+
+    // …while the IDENTICAL intent is still idempotent, across a restart
+    await restart();
+    const replay = await postQuote({
+      slug: a.slug,
+      pid: 'pv-checkout-1',
+      paymentMode: 'FULL_PREPAY',
+      zoneTo: 'Ouagadougou',
+      attributionResellerId: a.resellerId,
+      requestKey: key,
+    });
+    expect(replay.status).toBe(200);
+    expect(replay.json['buyerTotal']).toBe(firstTotal);
+    expect(replay.text).toBe(first.text); // byte-identical
   });
 });

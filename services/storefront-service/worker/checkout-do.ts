@@ -195,19 +195,57 @@ export class CheckoutDO {
      * same key is told that same id forever, across restarts.
      */
     if (request.method === 'POST' && pathname === '/key/claim') {
-      let body: { candidateQuoteId?: string };
+      let body: { candidateQuoteId?: string; fingerprint?: string };
       try {
-        body = (await request.json()) as { candidateQuoteId?: string };
+        body = (await request.json()) as { candidateQuoteId?: string; fingerprint?: string };
       } catch {
         return Response.json({ error: 'malformed' }, { status: 400 });
       }
       if (typeof body.candidateQuoteId !== 'string' || body.candidateQuoteId === '') {
         return Response.json({ error: 'malformed' }, { status: 400 });
       }
+      if (typeof body.fingerprint !== 'string' || body.fingerprint === '') {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      const existing = await this.state.storage.get<{ quoteId: string; fingerprint?: string }>(KEY_POINTER_KEY);
+      if (existing !== undefined) {
+        // The pointer REPORTS what it holds; the ROUTER decides what that means,
+        // because only the router knows whether a quote was ever issued under
+        // this id. A pointer left behind by a REFUSED attempt must not lock the
+        // key: the buyer corrects her zone and retries, and that retry has to
+        // work. See `/key/rebind`.
+        return Response.json({
+          quoteId: existing.quoteId,
+          claimed: false,
+          fingerprint: existing.fingerprint ?? '',
+        });
+      }
+      await this.state.storage.put(KEY_POINTER_KEY, {
+        quoteId: body.candidateQuoteId,
+        fingerprint: body.fingerprint,
+      });
+      return Response.json({ quoteId: body.candidateQuoteId, claimed: true, fingerprint: body.fingerprint });
+    }
+
+    /**
+     * REBIND — re-point a key whose previous attempt issued NOTHING. The router
+     * calls this only after reading the quote object and finding no quote there,
+     * so a key can never be re-pointed away from an issued price.
+     */
+    if (request.method === 'POST' && pathname === '/key/rebind') {
+      let body: { fingerprint?: string };
+      try {
+        body = (await request.json()) as { fingerprint?: string };
+      } catch {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      if (typeof body.fingerprint !== 'string' || body.fingerprint === '') {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
       const existing = await this.state.storage.get<{ quoteId: string }>(KEY_POINTER_KEY);
-      if (existing !== undefined) return Response.json({ quoteId: existing.quoteId, claimed: false });
-      await this.state.storage.put(KEY_POINTER_KEY, { quoteId: body.candidateQuoteId });
-      return Response.json({ quoteId: body.candidateQuoteId, claimed: true });
+      if (existing === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
+      await this.state.storage.put(KEY_POINTER_KEY, { quoteId: existing.quoteId, fingerprint: body.fingerprint });
+      return Response.json({ quoteId: existing.quoteId, rebound: true });
     }
 
     return Response.json({ error: 'not_found' }, { status: 404 });
@@ -249,6 +287,22 @@ function statusFor(reason: string): number {
 const refuse = (reason: string): Response => Response.json({ error: reason }, { status: statusFor(reason) });
 const badRequest = (error: string, field?: string): Response =>
   Response.json(field === undefined ? { error } : { error, field }, { status: 400 });
+
+/**
+ * DECODE A PATH SEGMENT WITHOUT A 500 (verifier finding, SP3.2a).
+ *
+ * `decodeURIComponent` THROWS a `URIError` on a lone escape (`%FF`), and an
+ * uncaught throw on a public money route answers 500 — the one shape the DoD
+ * bans (« every failure is a named refusal »). A malformed id is simply not an
+ * id: it decodes to `undefined` and refuses by name.
+ */
+function decodeId(raw: string): string | undefined {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return undefined;
+  }
+}
 
 function bounded(value: unknown, max: number): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= max;
@@ -389,11 +443,22 @@ export default {
       //    mint a second one, and a retry after a refusal reuses the SAME id
       //    (the immutable store then guarantees at most one quote under it).
       const candidateQuoteId = `quote-${crypto.randomUUID()}`;
+      // WHAT THE KEY IS BOUND TO: the request's identity, not its bytes. The
+      // five values that decide an amount — shop, product, mode, destination,
+      // payee. A retry of the SAME intent matches and is idempotent; a
+      // different intent under a reused key is refused by name.
+      const fingerprint = [req.slug, req.pid, req.paymentMode, req.zoneTo, req.attributionResellerId].join('\u0000');
       const claimRes = await keyStub(env, req.requestKey).fetch(
-        new Request('https://do/key/claim', { method: 'POST', body: JSON.stringify({ candidateQuoteId }) }),
+        new Request('https://do/key/claim', {
+          method: 'POST',
+          body: JSON.stringify({ candidateQuoteId, fingerprint }),
+        }),
       );
-      const claim = (await claimRes.json().catch(() => null)) as { quoteId?: string } | null;
+      const claim = (await claimRes.json().catch(() => null)) as
+        | { quoteId?: string; fingerprint?: string }
+        | null;
       if (claim === null || typeof claim.quoteId !== 'string') return refuse('not_found');
+      const storedFingerprint = typeof claim.fingerprint === 'string' ? claim.fingerprint : '';
       const quoteId = claim.quoteId;
 
       // 2. ALREADY ISSUED UNDER THIS KEY? Then that quote is the answer —
@@ -401,7 +466,26 @@ export default {
       //    not silently replaced: a new price needs a new key.
       const existingRes = await quoteStub(env, quoteId).fetch(new Request('https://do/entry'));
       const existing = (await existingRes.json().catch(() => null)) as { ok?: boolean; reason?: string } | null;
-      if (existing?.ok === true) return readAndProject(env, quoteId);
+      if (existing?.ok === true) {
+        // A QUOTE EXISTS UNDER THIS KEY. It answers only the intent it was
+        // issued for: a key replayed with a different shop, product, mode,
+        // destination or payee is REFUSED BY NAME rather than served the first
+        // quote's amount (verifier finding — the buyer view carries no product
+        // reference, so a silent mismatch is undetectable by the client).
+        if (storedFingerprint !== fingerprint) {
+          return Response.json({ error: 'request_key_reused' }, { status: 409 });
+        }
+        return readAndProject(env, quoteId);
+      }
+      // NOTHING WAS ISSUED under this key (a previous attempt refused). The key
+      // is not spent: re-point it at this intent and carry on, so a buyer who
+      // corrects her delivery zone and retries is not locked out by her own
+      // earlier refusal.
+      if (storedFingerprint !== fingerprint) {
+        await keyStub(env, req.requestKey).fetch(
+          new Request('https://do/key/rebind', { method: 'POST', body: JSON.stringify({ fingerprint }) }),
+        );
+      }
       if (existing !== null && existing.ok === false && existing.reason !== 'not_found') {
         return refuse(existing.reason ?? 'not_found');
       }
@@ -435,12 +519,15 @@ export default {
 
     let m = /^\/checkout\/quote\/([^/]+)$/.exec(pathname);
     if (m && request.method === 'GET') {
-      return readAndProject(env, decodeURIComponent(m[1]!));
+      const quoteId = decodeId(m[1]!);
+      if (quoteId === undefined) return badRequest('bad_field', 'quoteId');
+      return readAndProject(env, quoteId);
     }
 
     m = /^\/checkout\/quote\/([^/]+)\/reserve$/.exec(pathname);
     if (m && request.method === 'POST') {
-      const quoteId = decodeURIComponent(m[1]!);
+      const quoteId = decodeId(m[1]!);
+      if (quoteId === undefined) return badRequest('bad_field', 'quoteId');
       const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
       if (body === null || typeof body !== 'object' || Array.isArray(body)) return badRequest('malformed');
       for (const key of Object.keys(body)) {
