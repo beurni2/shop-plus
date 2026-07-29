@@ -518,8 +518,15 @@ export function renderEntete(
  */
 export const ENTETES_STYLES = `
   .vt-ent {
-    position: relative; border-radius: 26px; overflow: hidden;
+    position: relative; border-radius: 0 0 26px 26px; overflow: hidden;
     container-type: inline-size;
+    /* ENTETES-D (founder order) — the five headers FILL THE SCREEN like the
+       classique hero: the same bleed over the page's top structure
+       (status 54 + liseré 6 + pad 16 = 76) and side padding (20), bottom
+       corners keeping the classique 26px. padding-top holds the content
+       below the system status zone; backgrounds paint the padding, so every
+       style's surface reaches the very top edge. */
+    margin: -76px -20px 0; padding-top: 60px;
     font-family: 'Instrument Sans', system-ui, sans-serif;
     box-shadow: 0 26px 60px -26px rgba(28,22,15,.55);
   }
@@ -1011,4 +1018,28 @@ export const ENTETES_STYLES = `
   .vt-dy .dy-btn { background: rgba(43,16,85,.45); border: 1px solid rgba(255,240,248,.32); }
   .vt-dy .vt-ent-btn { top: 10px; }
   .vt-dy .vt-ent-back { right: 10px; }
+
+  /* ═══════════════ ENTETES-D · full-bleed (founder order) ═══════════════
+     The five headers FILL THE SCREEN like the classique hero. The unit
+     bleeds (margin -76/-20, bottom corners 26 — see .vt-ent); each style's
+     TOP surface then rides up under the unit's 60px status padding and pads
+     itself back down, so gradients and patterns paint to the very top edge
+     with zero seam. Héritage's photo strip goes to the top like classique's
+     cover (its own height absorbs the pull so the arch overlap is
+     unchanged); its photo-anchored chips and buttons shift below the
+     status zone. Later-in-sheet rules override the earlier same-specificity
+     declarations by cascade order — the originals above stay contract-
+     verbatim. */
+  .vt-ry .ry-panel { margin-top: -60px; padding-top: 78px; }   /* 18 + 60 */
+  .vt-ch .ch-panel { margin-top: -60px; padding-top: 76px; }   /* 16 + 60 */
+  .vt-cr .cr-panel { margin-top: -60px; padding-top: 74px; }   /* 14 + 60 */
+  .vt-dy .dy-panel { margin-top: -60px; padding-top: 74px; }   /* 14 + 60 */
+  .vt-he .he-photo { margin: -60px 0 0; height: 298px; border-radius: 0; }
+  .vt-he .he-chip-v { top: 70px; left: 14px; }
+  .vt-he .he-chip-n { top: 70px; right: 14px; }
+  .vt-he .vt-ent-btn { top: 112px; }
+  /* Unit-anchored floating controls clear the status zone (+60, measured). */
+  .vt-ry .vt-ent-btn { top: 74px; }
+  .vt-ch .vt-ent-btn { top: 82px; }
+  .vt-dy .vt-ent-btn { top: 70px; }
 `;
