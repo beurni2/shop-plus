@@ -904,3 +904,112 @@ describe('CheckoutDO — one request key means ONE INTENT, not merely one quote'
     expect(replay.text).toBe(first.text); // byte-identical
   });
 });
+
+describe('CheckoutDO — the intent lives with the quote, so a RACE cannot cross two buyers', () => {
+  /**
+   * REGRESSION (verifier BLOCKER, round 3). The intent used to live on the key
+   * POINTER while the quote lived in another object, so the router had to read
+   * one and write the other: two concurrent requests could interleave between
+   * those steps and a buyer was served ANOTHER SHOP'S price — at 200, durably,
+   * surviving a restart. The intent now rides beside the quote's bytes, so the
+   * comparison is a single-object read.
+   */
+  it('two DIFFERENT intents racing on one key: one issues, the other is refused — never given the winner\'s price', async () => {
+    const a = await seedShop('0051', 1_500); // true total 12 500
+    const b = await seedShop('0052', 4_000); // true total 15 000
+    const key = freshKey();
+    const mk = (shop: { slug: string; resellerId: string }) => ({
+      slug: shop.slug,
+      pid: 'pv-checkout-1',
+      paymentMode: 'FULL_PREPAY',
+      zoneTo: 'Ouagadougou',
+      attributionResellerId: shop.resellerId,
+      requestKey: key,
+    });
+
+    // six overlapping requests, both intents interleaved
+    const results = await Promise.all([
+      postQuote(mk(a)), postQuote(mk(b)), postQuote(mk(a)),
+      postQuote(mk(b)), postQuote(mk(a)), postQuote(mk(b)),
+    ]);
+
+    // NOBODY is served a total that is not their own shop's.
+    const aTotals = [results[0], results[2], results[4]].filter((r) => r.status === 200);
+    const bTotals = [results[1], results[3], results[5]].filter((r) => r.status === 200);
+    for (const r of aTotals) expect(r.json['buyerTotal'], 'shop A got a foreign price').toBe(12_500);
+    for (const r of bTotals) expect(r.json['buyerTotal'], 'shop B got a foreign price').toBe(15_000);
+    // exactly one intent may hold the key; the other is refused BY NAME
+    expect(aTotals.length === 0 || bTotals.length === 0).toBe(true);
+    for (const r of results) {
+      if (r.status !== 200) expect([409, 422]).toContain(r.status);
+    }
+
+    // …and the loser stays refused SEQUENTIALLY, and after a real restart —
+    // never quietly served the winner's quote.
+    const loser = aTotals.length === 0 ? a : b;
+    const winnerTotal = aTotals.length === 0 ? 15_000 : 12_500;
+    const after = await postQuote(mk(loser));
+    expect(after.status).toBe(409);
+    expect(after.json['buyerTotal']).toBeUndefined();
+    await restart();
+    const afterRestart = await postQuote(mk(loser));
+    expect(afterRestart.status).toBe(409);
+    expect(afterRestart.json['buyerTotal']).toBeUndefined();
+    expect(afterRestart.json['buyerTotal']).not.toBe(winnerTotal);
+  });
+
+  it('a key whose ONLY attempt refused stays usable for every refusal kind', async () => {
+    const shop = await seedShop('0053');
+    const base = {
+      slug: shop.slug,
+      pid: 'pv-checkout-1',
+      paymentMode: 'FULL_PREPAY',
+      zoneTo: 'Ouagadougou',
+      attributionResellerId: shop.resellerId,
+    };
+    // each refusal kind, then the SAME key used for a corrected request
+    const kinds = [
+      { ...base, zoneTo: 'Bobo-Dioulasso' }, // delivery_not_serviceable
+      { ...base, attributionResellerId: 'rs-not-hers' }, // attribution_mismatch
+      { ...base, pid: 'pv-does-not-exist' }, // listing_unknown
+    ];
+    for (const bad of kinds) {
+      const key = freshKey();
+      const refused = await postQuote({ ...bad, requestKey: key });
+      expect(refused.status, JSON.stringify(bad)).not.toBe(200);
+      const corrected = await postQuote({ ...base, requestKey: key });
+      expect(corrected.status, `retry after ${JSON.stringify(bad)}`).toBe(200);
+      expect(corrected.json['buyerTotal']).toBe(12_500);
+    }
+  });
+});
+
+describe('CheckoutDO — an EMPTY payee is « nobody is locked », not a malformed body', () => {
+  it('attributionResellerId "" refuses with the NAMED attribution_missing (verifier finding)', async () => {
+    const { slug } = await seedShop('0054');
+    const res = await postQuote({
+      slug,
+      pid: 'pv-checkout-1',
+      paymentMode: 'FULL_PREPAY',
+      zoneTo: 'Ouagadougou',
+      attributionResellerId: '',
+      requestKey: freshKey(),
+    });
+    expect(res.status).toBe(422);
+    expect(res.json['error']).toBe('attribution_missing');
+    // …and a non-string is still a shape error, not a commerce refusal
+    const bad = await mf.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug,
+        pid: 'pv-checkout-1',
+        paymentMode: 'FULL_PREPAY',
+        zoneTo: 'Ouagadougou',
+        attributionResellerId: 42,
+        requestKey: freshKey(),
+      }),
+    });
+    expect(bad.status).toBe(400);
+  });
+});

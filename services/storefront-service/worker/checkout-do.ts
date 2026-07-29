@@ -49,6 +49,10 @@ import type { ListingEntry } from '../src/listing-core.js';
  */
 
 const QUOTE_BYTES_KEY = 'quote-canonical-bytes';
+/** The INTENT this quote answers, written beside its bytes (verifier BLOCKER,
+ *  round 3): the one object that owns the quote also owns the question it was
+ *  issued for, so the two can never be judged in separate, interleavable acts. */
+const QUOTE_INTENT_KEY = 'quote-intent-fingerprint';
 const RESERVATION_KEY = 'reservation-state';
 const KEY_POINTER_KEY = 'request-key-pointer';
 
@@ -72,6 +76,8 @@ interface IssueArgs {
   entry?: ListingEntry | null;
   /** `null` when Séra's stand-in could not price the pair at all. */
   delivery?: ReturnType<typeof quoteDeliveryFee> | null;
+  /** The INTENT this quote answers — stored beside the bytes, same act. */
+  fingerprint?: string;
 }
 
 export class CheckoutDO {
@@ -126,20 +132,37 @@ export class CheckoutDO {
       if (!stored.ok) {
         return Response.json({ ok: false, reason: stored.reason }, { status: 409 });
       }
+      // THE QUOTE CARRIES ITS OWN INTENT, WRITTEN IN THE SAME ACT AS ITS BYTES.
+      // (Verifier BLOCKER, round 3.) The intent used to live on the key POINTER
+      // — a different Durable Object — so the router had to read one object and
+      // then write the other, and two concurrent requests could interleave
+      // between those steps: one buyer was served another shop's price, at 200,
+      // durably, surviving a restart. A check in object A can never guard a
+      // write in object B. Here the fingerprint lands beside the bytes inside
+      // the one object that owns them, so « which intent does this quote
+      // answer » is settled by a single-object read that cannot interleave.
       await this.state.storage.put(QUOTE_BYTES_KEY, outcome.canonicalBytes);
+      if (typeof args.fingerprint === 'string' && args.fingerprint !== '') {
+        await this.state.storage.put(QUOTE_INTENT_KEY, args.fingerprint);
+      }
       return Response.json({ ok: true, quote: outcome.quote });
     }
 
-    /** READ. Absent → not_found; past its expiry → `expired`, never revived. */
+    /** READ. Absent → not_found; past its expiry → `expired`, never revived.
+     *  Carries the stored INTENT so the caller can compare in this ONE read. */
     if (request.method === 'GET' && pathname === '/entry') {
       const bytes = await this.state.storage.get<string>(QUOTE_BYTES_KEY);
       const read = readStoredQuote(bytes, new Date());
+      const intent = (await this.state.storage.get<string>(QUOTE_INTENT_KEY)) ?? '';
       if (!read.ok) {
-        return Response.json({ ok: false, reason: read.reason }, { status: read.reason === 'not_found' ? 404 : 422 });
+        return Response.json(
+          { ok: false, reason: read.reason, intent },
+          { status: read.reason === 'not_found' ? 404 : 422 },
+        );
       }
       // The stored BYTES ride along so the caller can prove byte-stability
       // without re-serializing (internal wire only — never the buyer's).
-      return Response.json({ ok: true, quote: read.quote, canonicalBytes: bytes });
+      return Response.json({ ok: true, quote: read.quote, canonicalBytes: bytes, intent });
     }
 
     /**
@@ -195,61 +218,47 @@ export class CheckoutDO {
      * same key is told that same id forever, across restarts.
      */
     if (request.method === 'POST' && pathname === '/key/claim') {
-      let body: { candidateQuoteId?: string; fingerprint?: string };
+      let body: { candidateQuoteId?: string };
       try {
-        body = (await request.json()) as { candidateQuoteId?: string; fingerprint?: string };
+        body = (await request.json()) as { candidateQuoteId?: string };
       } catch {
         return Response.json({ error: 'malformed' }, { status: 400 });
       }
       if (typeof body.candidateQuoteId !== 'string' || body.candidateQuoteId === '') {
         return Response.json({ error: 'malformed' }, { status: 400 });
       }
-      if (typeof body.fingerprint !== 'string' || body.fingerprint === '') {
-        return Response.json({ error: 'malformed' }, { status: 400 });
-      }
-      const existing = await this.state.storage.get<{ quoteId: string; fingerprint?: string }>(KEY_POINTER_KEY);
-      if (existing !== undefined) {
-        // The pointer REPORTS what it holds; the ROUTER decides what that means,
-        // because only the router knows whether a quote was ever issued under
-        // this id. A pointer left behind by a REFUSED attempt must not lock the
-        // key: the buyer corrects her zone and retries, and that retry has to
-        // work. See `/key/rebind`.
-        return Response.json({
-          quoteId: existing.quoteId,
-          claimed: false,
-          fingerprint: existing.fingerprint ?? '',
-        });
-      }
-      await this.state.storage.put(KEY_POINTER_KEY, {
-        quoteId: body.candidateQuoteId,
-        fingerprint: body.fingerprint,
-      });
-      return Response.json({ quoteId: body.candidateQuoteId, claimed: true, fingerprint: body.fingerprint });
-    }
-
-    /**
-     * REBIND — re-point a key whose previous attempt issued NOTHING. The router
-     * calls this only after reading the quote object and finding no quote there,
-     * so a key can never be re-pointed away from an issued price.
-     */
-    if (request.method === 'POST' && pathname === '/key/rebind') {
-      let body: { fingerprint?: string };
-      try {
-        body = (await request.json()) as { fingerprint?: string };
-      } catch {
-        return Response.json({ error: 'malformed' }, { status: 400 });
-      }
-      if (typeof body.fingerprint !== 'string' || body.fingerprint === '') {
-        return Response.json({ error: 'malformed' }, { status: 400 });
-      }
       const existing = await this.state.storage.get<{ quoteId: string }>(KEY_POINTER_KEY);
-      if (existing === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
-      await this.state.storage.put(KEY_POINTER_KEY, { quoteId: existing.quoteId, fingerprint: body.fingerprint });
-      return Response.json({ quoteId: existing.quoteId, rebound: true });
+      if (existing !== undefined) {
+        // The pointer's ONLY job is « which id does this key name » — minted
+        // once, then constant forever. It deliberately holds NO opinion about
+        // intent: that lives beside the quote's bytes, in the object that owns
+        // them, so the comparison is a single-object read. A pointer left by a
+        // REFUSED attempt therefore locks nothing — the buyer corrects her zone
+        // and retries under the same id, and that retry simply issues.
+        return Response.json({ quoteId: existing.quoteId, claimed: false });
+      }
+      await this.state.storage.put(KEY_POINTER_KEY, { quoteId: body.candidateQuoteId });
+      return Response.json({ quoteId: body.candidateQuoteId, claimed: true });
     }
 
     return Response.json({ error: 'not_found' }, { status: 404 });
   }
+}
+
+/**
+ * Serve a stored quote ONLY to the intent it was issued for. The intent is read
+ * from the same object that holds the bytes, so this is one atomic read — no
+ * check-then-act across two Durable Objects (the shape that produced the
+ * round-3 blocker).
+ */
+async function projectIfIntentMatches(env: Env, quoteId: string, fingerprint: string): Promise<Response> {
+  const res = await quoteStub(env, quoteId).fetch(new Request('https://do/entry'));
+  const body = (await res.json().catch(() => null)) as { ok?: boolean; intent?: string } | null;
+  if (body?.ok !== true) return refuse('not_found');
+  if ((body.intent ?? '') !== fingerprint) {
+    return Response.json({ error: 'request_key_reused' }, { status: 409 });
+  }
+  return readAndProject(env, quoteId);
 }
 
 /* ───────────────────────────────── the router ────────────────────────────── */
@@ -353,7 +362,12 @@ function validateQuoteRequest(body: unknown): Validated {
     return { ok: false, response: badRequest('bad_field', 'requestKey') };
   }
   const attribution = raw['attributionResellerId'];
-  if (attribution !== undefined && !bounded(attribution, 128)) {
+  // An EMPTY string means the same thing as an omitted field — « no locked
+  // reseller » — and must reach the NAMED `attribution_missing` downstream
+  // rather than a shape error (verifier finding: the comment above promised
+  // that, but `bounded()` rejected '' first, so only omission ever got there).
+  // A non-string, or one over the bound, is still a malformed body.
+  if (attribution !== undefined && attribution !== '' && !bounded(attribution, 128)) {
     return { ok: false, response: badRequest('bad_field', 'attributionResellerId') };
   }
   let door: PayAtDoorRequestContext | undefined;
@@ -449,43 +463,34 @@ export default {
       // different intent under a reused key is refused by name.
       const fingerprint = [req.slug, req.pid, req.paymentMode, req.zoneTo, req.attributionResellerId].join('\u0000');
       const claimRes = await keyStub(env, req.requestKey).fetch(
-        new Request('https://do/key/claim', {
-          method: 'POST',
-          body: JSON.stringify({ candidateQuoteId, fingerprint }),
-        }),
+        new Request('https://do/key/claim', { method: 'POST', body: JSON.stringify({ candidateQuoteId }) }),
       );
-      const claim = (await claimRes.json().catch(() => null)) as
-        | { quoteId?: string; fingerprint?: string }
-        | null;
+      const claim = (await claimRes.json().catch(() => null)) as { quoteId?: string } | null;
       if (claim === null || typeof claim.quoteId !== 'string') return refuse('not_found');
-      const storedFingerprint = typeof claim.fingerprint === 'string' ? claim.fingerprint : '';
       const quoteId = claim.quoteId;
 
       // 2. ALREADY ISSUED UNDER THIS KEY? Then that quote is the answer —
       //    byte-identical, and never a second one. An expired one is refused,
       //    not silently replaced: a new price needs a new key.
       const existingRes = await quoteStub(env, quoteId).fetch(new Request('https://do/entry'));
-      const existing = (await existingRes.json().catch(() => null)) as { ok?: boolean; reason?: string } | null;
+      const existing = (await existingRes.json().catch(() => null)) as
+        | { ok?: boolean; reason?: string; intent?: string }
+        | null;
       if (existing?.ok === true) {
-        // A QUOTE EXISTS UNDER THIS KEY. It answers only the intent it was
-        // issued for: a key replayed with a different shop, product, mode,
+        // A QUOTE EXISTS UNDER THIS KEY, and the quote itself says which intent
+        // it answers. A key replayed with a different shop, product, mode,
         // destination or payee is REFUSED BY NAME rather than served the first
-        // quote's amount (verifier finding — the buyer view carries no product
-        // reference, so a silent mismatch is undetectable by the client).
-        if (storedFingerprint !== fingerprint) {
+        // quote's amount — the buyer view carries no product reference, so a
+        // silent mismatch is undetectable by the client.
+        if ((existing.intent ?? '') !== fingerprint) {
           return Response.json({ error: 'request_key_reused' }, { status: 409 });
         }
         return readAndProject(env, quoteId);
       }
       // NOTHING WAS ISSUED under this key (a previous attempt refused). The key
-      // is not spent: re-point it at this intent and carry on, so a buyer who
-      // corrects her delivery zone and retries is not locked out by her own
-      // earlier refusal.
-      if (storedFingerprint !== fingerprint) {
-        await keyStub(env, req.requestKey).fetch(
-          new Request('https://do/key/rebind', { method: 'POST', body: JSON.stringify({ fingerprint }) }),
-        );
-      }
+      // is NOT spent and nothing needs re-pointing: the intent is written with
+      // the quote, so a buyer who corrects her delivery zone and retries simply
+      // issues now, under the same id, with her corrected intent.
       if (existing !== null && existing.ok === false && existing.reason !== 'not_found') {
         return refuse(existing.reason ?? 'not_found');
       }
@@ -498,7 +503,13 @@ export default {
       const issueRes = await quoteStub(env, quoteId).fetch(
         new Request('https://do/entry/issue', {
           method: 'POST',
-          body: JSON.stringify({ quoteId, request: req, entry: entry ?? null, delivery: delivery ?? null }),
+          body: JSON.stringify({
+            quoteId,
+            request: req,
+            entry: entry ?? null,
+            delivery: delivery ?? null,
+            fingerprint,
+          }),
         }),
       );
       const issued = (await issueRes.json().catch(() => null)) as
@@ -506,9 +517,12 @@ export default {
         | null;
       if (issued === null) return refuse('not_found');
       if (issued.ok !== true) {
-        // A concurrent twin won the race inside the object: the ONE quote that
-        // exists is the answer. The refusal is the law working, not an error.
-        if (issued.reason === 'quote_id_exists') return readAndProject(env, quoteId);
+        // A concurrent twin won the race INSIDE the object: exactly one quote
+        // exists. It is the answer ONLY if it answers this same intent — the
+        // loser of a race between two DIFFERENT intents must be refused, never
+        // handed the winner's price (verifier BLOCKER, round 3: this branch is
+        // where the wrong shop's total reached a buyer at HTTP 200).
+        if (issued.reason === 'quote_id_exists') return projectIfIntentMatches(env, quoteId, fingerprint);
         return refuse(issued.reason ?? 'not_found');
       }
       // The quote must be the one this object is named for. A divergence would
