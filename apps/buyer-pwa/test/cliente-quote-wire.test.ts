@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  demoQuotePort, forgetRequestKey, httpQuotePort, looksLikeServerQuote, mintCommandId,
-  requestKeyFor, villeDe,
+  commandIdFor, demoQuotePort, forgetRequestKey, httpQuotePort, looksLikeServerQuote,
+  mintCommandId, requestKeyFor, villeDe,
   type QuoteIntent, type QuoteOutcome, type QuotePort, type ServerQuote,
 } from '../src/cliente/quote-port';
 import {
@@ -824,6 +824,39 @@ describe('the reservation command id — minted once per QUOTE, reused by every 
     const got = await fetchClienteQuote(scriptedPort(both).port, base, keys);
     if (got.status !== 'ready') throw new Error('expected ready');
     expect(got.reserve).toHaveLength(0); // arity 0: nothing to pass, nothing to vary
+  });
+
+  /**
+   * THE RELOAD, found in a real browser and not by these unit tests until now
+   * (SP3.2b review): `requestKeyFor` is deliberately stable, so a buyer who
+   * reloads mid-checkout is issued THE SAME quote id — and a freshly minted
+   * command against her still-live hold is the `already_reserved` wall again,
+   * one trigger further out than the back-tap.
+   */
+  it('a RELOAD onto the SAME quote reuses the SAME commandId — her own hold, replayed', async () => {
+    const s = memStorage();
+    const perQuote = (quoteId: string): string => commandIdFor(quoteId, s);
+    const first = await fetchClienteQuote(scriptedPort(both).port, base, keys, perQuote);
+    const afterReload = await fetchClienteQuote(scriptedPort(both).port, base, keys, perQuote);
+    if (first.status !== 'ready' || afterReload.status !== 'ready') throw new Error('expected ready');
+    expect(afterReload.ids.fullQuoteId).toBe(first.ids.fullQuoteId); // same quote
+    expect(afterReload.ids.commandId).toBe(first.ids.commandId); // …same command
+  });
+
+  it('a DIFFERENT quote id gets a different command, even through the same storage', () => {
+    const s = memStorage();
+    expect(commandIdFor('quote-abc', s)).toBe(commandIdFor('quote-abc', s));
+    expect(commandIdFor('quote-def', s)).not.toBe(commandIdFor('quote-abc', s));
+  });
+
+  it('NO storage, or one that THROWS, still yields a valid command — never a crash', () => {
+    expect(commandIdFor('quote-abc')).toMatch(/^cmd-[0-9a-f-]{36}$/);
+    const hostile = {
+      getItem: () => { throw new DOMException('blocked'); },
+      setItem: () => { throw new DOMException('blocked'); },
+    } as unknown as Storage;
+    expect(() => commandIdFor('quote-abc', hostile)).not.toThrow();
+    expect(commandIdFor('quote-abc', hostile)).toMatch(/^cmd-[0-9a-f-]{36}$/);
   });
 });
 

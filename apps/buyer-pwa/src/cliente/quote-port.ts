@@ -19,16 +19,25 @@
  * — an unknown key is a 400 by the service's design, and that is a feature: a
  * caller with a wrong model of who owns what finds out immediately.
  *
- * ═══ THREE ANSWERS, AND ONLY ONE OF THEM IS A PRICE ═══
+ * ═══ FOUR ANSWERS, AND ONLY ONE OF THEM IS A PRICE ═══
  *
- *   · `quote`        — the eight wire fields, every amount shape-checked.
+ *   · `quote`        — the eight wire fields, every amount shape-checked, and
+ *                      the object BUILT FIELD BY FIELD from them (never the
+ *                      parsed body, so no economics key can ride in).
  *   · `refused`      — the SERVER'S OWN NAME, verbatim. This port never
  *                      translates, never groups, never softens a refusal: the
  *                      buyer's screen needs a different true sentence for each
  *                      name, so the name must arrive intact.
- *   · `unreachable`  — offline, a thrown fetch, an unreadable body, or a body
- *                      whose amounts do not shape-check. NEVER a partial quote
- *                      on a screen, and never an invented one.
+ *   · `unreachable`  — NOTHING ANSWERED. A thrown fetch, and only that.
+ *   · `unreadable`   — SOMETHING ANSWERED AND IT WAS NOT USABLE: a body that
+ *                      will not parse, amounts that fail the shape-check, a
+ *                      non-2xx with no refusal name.
+ *
+ * THE LAST TWO ARE KEPT APART ON PURPOSE (CTO finding, SP3.2b review). Both end
+ * in « we cannot show you a price », but only `unreachable` may render « Pas de
+ * connexion » — telling a buyer on full 4G that her network is down because a
+ * proxy returned an HTML 500 is a lie on a money screen. Never a partial quote,
+ * never an invented one, and never a false diagnosis of her phone.
  *
  * TOTAL: nothing here throws. A money surface that can throw is a money surface
  * that can 500 at the buyer, and there is no honest French for that.
