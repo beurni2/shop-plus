@@ -1034,6 +1034,10 @@ export const ENTETES_STYLES = `
   .vt-ch .ch-panel { margin-top: -60px; padding-top: 76px; }   /* 16 + 60 */
   .vt-cr .cr-panel { margin-top: -60px; padding-top: 74px; }   /* 14 + 60 */
   .vt-dy .dy-panel { margin-top: -60px; padding-top: 74px; }   /* 14 + 60 */
+  /* Héritage's real pull is 70 (the 60px padding + the strip's own retired
+     10px top margin). height 298 compensates 60 ON PURPOSE: the VISIBLE photo
+     band below the status zone stays the contract's 238px — the flow below
+     rides 10px higher, verified collision-free (arch overlap unchanged, 64px). */
   .vt-he .he-photo { margin: -60px 0 0; height: 298px; border-radius: 0; }
   .vt-he .he-chip-v { top: 70px; left: 14px; }
   .vt-he .he-chip-n { top: 70px; right: 14px; }
