@@ -1,6 +1,7 @@
 import sfRouter, { StorefrontDO } from './storefront-do.js';
 import lstRouter, { ListingDO } from './listing-do.js';
-import { handleRequest, type StorefrontServiceEnv } from '../src/index.js';
+import checkoutRouter, { CheckoutDO } from './checkout-do.js';
+import { checkoutPreflight, handleRequest, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
 import { SUPPLY_COLLECTION_ROUTE } from '../src/supply-collection.js';
 import { signPrice } from '../src/publish-price.js';
 import { resolveSupplySource } from '../src/supply-source.js';
@@ -20,11 +21,13 @@ import { rejectUnauthorizedWrite, keyAuthorized, unauthorized, type WriteAuthEnv
  *
  * wrangler binds these two classes by their exported names.
  */
-export { StorefrontDO, ListingDO };
+export { StorefrontDO, ListingDO, CheckoutDO };
 
 interface Env extends WriteAuthEnv {
   STOREFRONT: DurableObjectNamespace;
   LISTING: DurableObjectNamespace;
+  /** SP3.2a — one instance per quote id, plus the per-request-key pointers. */
+  CHECKOUT: DurableObjectNamespace;
   BUCKET?: R2BucketLike;
   MEDIA_PUBLIC_BASE?: string;
   STOREFRONT_GCS_BUCKET?: string;
@@ -44,12 +47,67 @@ interface Env extends WriteAuthEnv {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const { pathname } = new URL(request.url);
+
+    // ═══ SP3.2a — THE CHECKOUT SURFACE IS PUBLIC, BY DESIGN AND BY NECESSITY ═══
+    //
+    // A BUYER HOLDS NO KEY AND MUST NEVER NEED ONE. The shared write secret is
+    // inlined in the RESELLER app bundle (SERVICE-WRITE-AUTH-1); shipping it to
+    // every browser that opens a boutique link would publish it outright. So
+    // these three routes are declared here, ABOVE the write gate, and they are
+    // the only writes on this Worker that answer without a credential.
+    //
+    // WHAT THAT DOES **NOT** OPEN, stated precisely because an exemption is a
+    // hole until proven otherwise:
+    //   · THE THREE ROUTES ARE MATCHED EXACTLY — one `===` and two anchored
+    //     regexes that admit a single path segment. `/checkout/anything-else`,
+    //     and every other method on these paths, falls through to the gate below
+    //     and is refused 401 exactly as before. (Prefix matching is how an auth
+    //     check failed open on boutik's side; the `===` idiom is used here for
+    //     the same reason it is used for `/supply-projections`.)
+    //   · NO AMOUNT CAN ARRIVE. `QuoteRequest` has no money field to land in and
+    //     the router refuses unknown keys outright, so the most valuable thing
+    //     an anonymous caller could try to say — a price — is unsayable.
+    //   · NO ECONOMICS CAN LEAVE. Every response is `toBuyerQuoteView` or a
+    //     named refusal; the supplier's base, the commission and both nets stay
+    //     inside the Worker.
+    //   · IT WRITES NOTHING SOMEONE ELSE OWNS. A quote is a new object under a
+    //     server-minted id; no storefront, listing, media object or event is
+    //     touched.
+    // KNOWN AND ACCEPTED RESIDUE (journalled): an open POST lets an anonymous
+    // caller create quote objects at will. They are per-request-key, expire in
+    // 15 minutes, and hold no money — but there is no rate limit in front of
+    // them, and that belongs on the real-money gate's checklist, not on a
+    // pretend one here.
+    const isCheckoutQuote = pathname === '/checkout/quote';
+    const isCheckoutQuoteById = /^\/checkout\/quote\/[^/]+$/.test(pathname);
+    const isCheckoutReserve = /^\/checkout\/quote\/[^/]+\/reserve$/.test(pathname);
+    const isPublicCheckout =
+      (request.method === 'POST' && (isCheckoutQuote || isCheckoutReserve)) ||
+      (request.method === 'GET' && isCheckoutQuoteById) ||
+      (request.method === 'OPTIONS' && (isCheckoutQuote || isCheckoutQuoteById || isCheckoutReserve));
+    if (isPublicCheckout) {
+      if (request.method === 'OPTIONS') return checkoutPreflight();
+      // CORS through the SAME exact-origin helper the buyer read routes use —
+      // the PWA is served cross-origin from GitHub Pages, so without it the
+      // browser blocks the 200 it just received.
+      return withReadCors(
+        await checkoutRouter.fetch(request, {
+          CHECKOUT: env.CHECKOUT,
+          // The same namespace→fetcher shim the service env uses, so the
+          // checkout router depends on neither DO namespace directly and this
+          // composition root stays the one place that holds all three.
+          STOREFRONT_DO: { fetch: (req: Request): Promise<Response> => sfRouter.fetch(req, env) },
+          LISTING_DO: { fetch: (req: Request): Promise<Response> => lstRouter.fetch(req, env) },
+        }),
+      );
+    }
+
     // SERVICE-WRITE-AUTH-1 — gate EVERY write at the one deployed entry, before
     // any dispatch or existence lookup (so the 401 is never an existence oracle).
     // Reads pass straight through; a Worker with no secret configured fails closed.
     const denied = await rejectUnauthorizedWrite(request, env);
     if (denied) return denied;
-    const { pathname } = new URL(request.url);
     // KEY-GATED READS — safe methods skip the write gate above, so any read that is
     // NOT buyer-facing is gated EXPLICITLY here, before any dispatch:
     //

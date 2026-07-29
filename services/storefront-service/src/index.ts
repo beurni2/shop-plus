@@ -285,8 +285,8 @@ async function handleMediaRead(key: string, env?: MediaEnv): Promise<Response> {
  * Known, accepted limitation (JOURNAL): a LOCAL PWA build pointed at the live
  * Worker fails CORS until a dev origin is added deliberately — not a bug.
  */
-const CORS_READ_ORIGIN = 'https://beurni2.github.io';
-function withReadCors(res: Response): Response {
+export const CORS_READ_ORIGIN = 'https://beurni2.github.io';
+export function withReadCors(res: Response): Response {
   const headers = new Headers(res.headers);
   headers.set('Access-Control-Allow-Origin', CORS_READ_ORIGIN);
   headers.set('Vary', 'Origin');
@@ -301,6 +301,32 @@ function readPreflight(): Response {
       'Access-Control-Allow-Origin': CORS_READ_ORIGIN,
       'Access-Control-Allow-Methods': 'GET',
       'Access-Control-Allow-Headers': 'Accept',
+      'Access-Control-Max-Age': '86400',
+      Vary: 'Origin',
+    },
+  });
+}
+
+/**
+ * SP3.2a — preflight for the CHECKOUT routes. Same EXACT origin as the read
+ * preflight, from the same constant: a wildcard would let any site's JavaScript
+ * ask this Worker for a price on a buyer's behalf.
+ *
+ * IT CANNOT BE `readPreflight` VERBATIM, and the difference is forced, not
+ * chosen: issuing a quote is a JSON POST, so the browser will not send it unless
+ * the preflight allows the POST method and the `Content-Type` header. Reusing
+ * the read preflight would answer 204 and then have the browser refuse the
+ * request it just approved. The ORIGIN — the part that is load-bearing for
+ * security — is the shared constant; the method/header list is the part that has
+ * to differ, and it is kept as narrow as the routes actually need.
+ */
+export function checkoutPreflight(): Response {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': CORS_READ_ORIGIN,
+      'Access-Control-Allow-Methods': 'GET, POST',
+      'Access-Control-Allow-Headers': 'Content-Type',
       'Access-Control-Max-Age': '86400',
       Vary: 'Origin',
     },
