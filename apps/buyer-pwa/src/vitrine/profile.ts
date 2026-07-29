@@ -127,7 +127,13 @@ const AICHA_CUSTOMISED: Storefront = {
   tagline: 'Le wax et le cuir, choisis à la main',
   bio: 'Je choisis chaque pièce moi-même chez des vendeurs vérifiés — livrée scellée par Séra, inspectée avant de payer.',
   theme: 'indigo',
-  cover: { status: 'live' },
+  // ENTETES-C — NON-default framings on purpose (the ENTETES-B headerStyle
+  // rule): a test driving the customised variant sees HER values ride the
+  // port, not the defaults agreeing with themselves. The avatar stays
+  // monogram and the cover url-less, exactly as before — the framing is
+  // carried data here, exercised on the render by the tests' own fixtures.
+  cover: { status: 'live', focus: { x: 30, y: 70 } },
+  avatar: { mode: 'monogram', focus: { x: 40, y: 20 } },
   // ENTETES-B — a NON-classique key on purpose, so every path a test drives
   // through the customised variant exercises the field-driven header honestly.
   headerStyle: 'royale',
@@ -244,6 +250,37 @@ function headerStyleFromWire(raw: unknown): EnteteKey {
 }
 
 /**
+ * ENTETES-C — a wire `focus`, validated the same way (the `headerStyleFromWire`
+ * pattern): a canon-shaped pair — integers 0–100, exactly {x, y} — passes
+ * through; anything else (floats, strings, lone axes, extra keys, a hostile
+ * wire) yields `undefined`, so downstream code never sees garbage.
+ */
+export function focusFromWire(raw: unknown): { x: number; y: number } | undefined {
+  if (raw === null || typeof raw !== 'object' || Object.keys(raw).length !== 2) return undefined;
+  const { x, y } = raw as { x?: unknown; y?: unknown };
+  return typeof x === 'number' && Number.isInteger(x) && x >= 0 && x <= 100 &&
+    typeof y === 'number' && Number.isInteger(y) && y >= 0 && y <= 100
+    ? { x, y }
+    : undefined;
+}
+
+/** The CSS `object-position` a stored framing renders as — `undefined` when
+ *  there is none, so the style's own contract framing stays in charge. Shared
+ *  by the classique render and the five headers (ONE reading, no drift). */
+export function focusPosition(raw: unknown): string | undefined {
+  const f = focusFromWire(raw);
+  return f === undefined ? undefined : `${f.x}% ${f.y}%`;
+}
+
+/** ENTETES-C — strip a non-canon `focus` OFF a wire sub-object (cover/avatar)
+ *  so the resolved storefront carries either a valid pair or no key at all. */
+function sanitizeFocus<T extends { readonly focus?: unknown }>(part: T): T {
+  const f = focusFromWire(part.focus);
+  const { focus: _dropped, ...rest } = part;
+  return (f === undefined ? rest : { ...rest, focus: f }) as T;
+}
+
+/**
  * The REAL storefront adapter (STOREFRONT-READ-PATH-1). It fetches the storefront
  * from storefront-service (`GET {base}/s/{slug}` → the buyer-safe StorefrontView)
  * and returns it as the real storefront.
@@ -285,7 +322,16 @@ export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
       const products = Array.isArray(raw) ? raw.filter(looksLikeProduct) : undefined;
       // ENTETES-B — the field is normalised HERE, once, so every consumer of the
       // resolved storefront reads a valid key (old wire without it ⇒ classique).
-      const storefront: Storefront = { ...view, headerStyle: headerStyleFromWire((view as { headerStyle?: unknown }).headerStyle) };
+      // ENTETES-C — the framing gets the same treatment: a non-canon `focus` on
+      // cover/avatar is STRIPPED at this one boundary, never seen downstream.
+      const withHeader = { ...view, headerStyle: headerStyleFromWire((view as { headerStyle?: unknown }).headerStyle) } as Storefront;
+      const rawCover = (withHeader as { cover?: unknown }).cover;
+      const rawAvatar = (withHeader as { avatar?: unknown }).avatar;
+      const storefront: Storefront = {
+        ...withHeader,
+        ...(rawCover !== null && typeof rawCover === 'object' ? { cover: sanitizeFocus(rawCover as Storefront['cover']) } : {}),
+        ...(rawAvatar !== null && typeof rawAvatar === 'object' ? { avatar: sanitizeFocus(rawAvatar as Storefront['avatar']) } : {}),
+      };
       // REAL storefront → ABSENT trust, NO notes. Never another reseller's proof.
       return { storefront, trust: ABSENT_TRUST, notes: {}, ...(products !== undefined ? { products } : {}) };
     },

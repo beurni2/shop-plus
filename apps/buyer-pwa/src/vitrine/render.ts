@@ -16,7 +16,7 @@ import { t, tf } from '../i18n';
 import { esc } from '../format';
 import { fmtFCFA } from '../cliente/money';
 import { productFromSeed, seedProduct, type VitrineProduct, type VitrineSeedProduct } from './catalog';
-import type { Storefront, VitrineTrust, ProductVoiceNote, ProductVoiceNotes } from './profile';
+import { focusPosition, type Storefront, type VitrineTrust, type ProductVoiceNote, type ProductVoiceNotes } from './profile';
 import { renderVoiceChip } from './voice-player';
 import {
   iconBack,
@@ -76,9 +76,12 @@ function topBar(opts: { back: boolean; accent: string }): string {
 function cover(sf: Storefront): string {
   const initial = esc(sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase());
   if (sf.cover.status === 'live' && sf.cover.url) {
+    // ENTETES-C — her framing ONLY when present: an unframed cover emits the
+    // exact bytes it always did (the ENTETES-A byte-identity pins hold).
+    const pos = focusPosition(sf.cover.focus);
     return [
       '<div class="vt-hero-photo vt-cover-photo" data-role="vitrine-cover" data-etat="live">',
-      `<img class="vt-cover-img" src="${esc(sf.cover.url)}" alt="${t('vit.cover_alt')}" loading="lazy" decoding="async">`,
+      `<img class="vt-cover-img" src="${esc(sf.cover.url)}" alt="${t('vit.cover_alt')}" loading="lazy" decoding="async"${pos !== undefined ? ` style="object-position:${pos}"` : ''}>`,
       '</div>',
     ].join('');
   }
@@ -158,9 +161,11 @@ export function hero(sf: Storefront, trust: VitrineTrust, opts: { compact?: bool
   // Round 4 (founder mockup): the gold-ringed monogram with the little check
   // bubble riding the circle's edge — the vérifiée mark next to her portrait.
   const badge = `<span class="vt-avatar-badge">${iconCheck(9, '#F6F0E4', 3)}</span>`;
+  // ENTETES-C — her portrait framing, only when present (same law as the cover).
+  const avatarPos = focusPosition(sf.avatar.focus);
   const avatar =
     sf.avatar.mode === 'photo' && sf.avatar.url
-      ? `<span class="vt-avatar vt-avatar-photo"><img class="vt-avatar-img" src="${esc(sf.avatar.url)}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async">${badge}</span>`
+      ? `<span class="vt-avatar vt-avatar-photo"><img class="vt-avatar-img" src="${esc(sf.avatar.url)}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async"${avatarPos !== undefined ? ` style="object-position:${avatarPos}"` : ''}>${badge}</span>`
       : `<span class="vt-avatar">${initial}${badge}</span>`;
   const panel = [
     '<div class="vt-hero-id" data-role="vitrine-identity">',

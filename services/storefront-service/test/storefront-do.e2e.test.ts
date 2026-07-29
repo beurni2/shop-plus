@@ -293,3 +293,71 @@ describe('StorefrontDO — the durable read path GET /s/{slug}, Shape C slug poi
     expect(await store.getBySlug('nope-9999')).toBeUndefined(); // 404 → undefined, honest
   });
 });
+
+/**
+ * ENTETES-C — her framing rides the DURABLE path: set via the identity route,
+ * carried INSIDE `cover`/`avatar` on the buyer read (NO new StorefrontView
+ * field — proven on the emitted keys), survives a restart, and a NEW media
+ * write for that kind starts UNFRAMED while the other kind keeps its framing.
+ */
+describe('StorefrontDO — ENTETES-C: photo focus is durable and a new photo starts unframed', () => {
+  const media = (id: string, kind: 'cover' | 'avatar', url: string) =>
+    mf.dispatchFetch(`http://sf/storefronts/${id}/media`, {
+      method: 'POST',
+      body: JSON.stringify({ kind, url, at: T1 }),
+    });
+  const identity = (id: string, patch: object) =>
+    mf.dispatchFetch(`http://sf/storefronts/${id}/identity`, {
+      method: 'POST',
+      body: JSON.stringify({ patch, at: T1 }),
+    });
+
+  it('focus set via /identity reaches GET /s/{slug} inside cover/avatar, survives restart, clears on a NEW photo', async () => {
+    const cmd = { ...SELLER_001, commandId: 'c-focus', id: 'sf-focus', shortCode: 'SELLER-0023' };
+    await create(cmd);
+    expect((await media('sf-focus', 'cover', 'https://media.example/sf-focus/cover-1.jpg')).status).toBe(200);
+    expect((await media('sf-focus', 'avatar', 'https://media.example/sf-focus/avatar-1.jpg')).status).toBe(200);
+
+    const save = await identity('sf-focus', { coverFocus: { x: 10, y: 90 }, avatarFocus: { x: 40, y: 20 } });
+    expect(save.status).toBe(200);
+    expect(((await save.json()) as { status: string }).status).toBe('saved');
+
+    // THE BUYER READ PATH carries the framing INSIDE the existing sub-objects…
+    const read = await readSlug('seller-0023');
+    expect(read.code).toBe(200);
+    const view = read.view as StorefrontView;
+    expect(view.cover).toEqual({ status: 'live', url: 'https://media.example/sf-focus/cover-1.jpg', focus: { x: 10, y: 90 } });
+    expect(view.avatar).toEqual({ mode: 'photo', url: 'https://media.example/sf-focus/avatar-1.jpg', focus: { x: 40, y: 20 } });
+    // …and the view grew NO new top-level field for it (the SP-I03 allowlist is unchanged)
+    expect(Object.keys(view).some((k) => /focus/i.test(k))).toBe(false);
+
+    await restart(); // her framing must survive a process death
+
+    const after = (await readSlug('seller-0023')).view as StorefrontView;
+    expect(after.cover.focus).toEqual({ x: 10, y: 90 });
+    expect(after.avatar.focus).toEqual({ x: 40, y: 20 });
+
+    // A NEW cover upload starts UNFRAMED — proven on the READ path — while the
+    // avatar keeps the framing she chose for the portrait she still has.
+    expect((await media('sf-focus', 'cover', 'https://media.example/sf-focus/cover-2.jpg')).status).toBe(200);
+    const fresh = (await readSlug('seller-0023')).view as StorefrontView;
+    expect(fresh.cover.url).toBe('https://media.example/sf-focus/cover-2.jpg');
+    expect(fresh.cover.focus).toBeUndefined(); // stale framing never crops a new photo
+    expect(fresh.avatar.focus).toEqual({ x: 40, y: 20 }); // the other kind survives
+  });
+
+  it('a malformed pair is the NAMED 422 `bad_focus`; framing a photo-less kind is `no_photo_to_frame`', async () => {
+    const cmd = { ...SELLER_001, commandId: 'c-focus-r', id: 'sf-focus-r', shortCode: 'SELLER-0024' };
+    await create(cmd);
+    // no photo at all yet → no_photo_to_frame
+    const noPhoto = await identity('sf-focus-r', { coverFocus: { x: 50, y: 50 } });
+    expect(noPhoto.status).toBe(422);
+    expect((await noPhoto.json()) as object).toEqual({ status: 'refused', reason: 'no_photo_to_frame' });
+    // a real photo, then a malformed pair → bad_focus, and the store is untouched
+    await media('sf-focus-r', 'cover', 'https://media.example/sf-focus-r/cover.jpg');
+    const bad = await identity('sf-focus-r', { coverFocus: { x: 1.5, y: 2 } });
+    expect(bad.status).toBe(422);
+    expect((await bad.json()) as object).toEqual({ status: 'refused', reason: 'bad_focus' });
+    expect(((await readSlug('seller-0024')).view as StorefrontView).cover.focus).toBeUndefined();
+  });
+});

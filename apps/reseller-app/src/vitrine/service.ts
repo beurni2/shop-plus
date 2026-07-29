@@ -130,6 +130,16 @@ export interface StorefrontIdentityPatch {
   /** ENTETES-B — her chosen boutique header. Wire-shaped like `theme`; the
    *  service refuses anything outside the canon closed set (`unknown_header_style`). */
   readonly headerStyle?: string;
+  /**
+   * ENTETES-C — her framing of the cover photograph (canon photo focus:
+   * integers 0–100, CSS object-position percentages). TRI-STATE: absent =
+   * untouched · `null` = CLEAR (back to the header's own framing) · pair = set.
+   * The service refuses a malformed pair (`bad_focus`) and a framing with no
+   * photo under it (`no_photo_to_frame`).
+   */
+  readonly coverFocus?: { readonly x: number; readonly y: number } | null;
+  /** ENTETES-C — the same tri-state framing for her portrait. */
+  readonly avatarFocus?: { readonly x: number; readonly y: number } | null;
 }
 
 export interface StorefrontServicePort {

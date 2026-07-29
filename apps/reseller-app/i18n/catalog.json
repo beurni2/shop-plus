@@ -2798,5 +2798,47 @@
   "fr": "Photo pas envoyée. Réessayez dans un moment.",
   "register": "neutral",
   "screenClass": "instruction"
+ },
+ {
+  "key": "k.cadrage.title",
+  "fr": "Placez votre photo",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.cadrage.hint",
+  "fr": "Glissez la photo pour bien la placer",
+  "register": "selling",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "k.cadrage.verite",
+  "fr": "Cadre simplifié — votre vraie page est dans « Voir comme cliente ».",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "k.cadrage.ajuster",
+  "fr": "Ajuster le cadrage",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.cadrage.reinitialiser",
+  "fr": "Réinitialiser",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.cadrage.toast",
+  "fr": "Cadrage enregistré",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.cadrage.toast_defaut",
+  "fr": "Cadrage d'origine rétabli",
+  "register": "neutral",
+  "screenClass": "status"
  }
 ]

@@ -46,6 +46,39 @@ export function headerStyleOf(sf: Storefront): HeaderStyleKey {
   return (HEADER_STYLES as readonly string[]).includes(raw) ? (raw as HeaderStyleKey) : 'classique';
 }
 
+/** ENTETES-C — a saved framing, mirrored from canon `StorefrontPhotoFocusSchema`
+ *  (integers 0–100 both axes — CSS object-position percentages). */
+export interface PhotoFocus {
+  readonly x: number;
+  readonly y: number;
+}
+
+/**
+ * ENTETES-C — the framing a cover/avatar part carries, with the classique-style
+ * fallback handling: absent or garbage (an old wire, a hostile wire) reads as
+ * `undefined` — the header's own contract framing — never a broken screen.
+ */
+export function focusOf(part: { readonly focus?: unknown }): PhotoFocus | undefined {
+  const f = part.focus;
+  if (f === null || typeof f !== 'object') return undefined;
+  const { x, y } = f as { x?: unknown; y?: unknown };
+  return typeof x === 'number' && Number.isInteger(x) && x >= 0 && x <= 100 &&
+    typeof y === 'number' && Number.isInteger(y) && y >= 0 && y <= 100
+    ? { x, y }
+    : undefined;
+}
+
+/**
+ * ENTETES-C — the LOCAL optimistic mirror of the service's tri-state merge:
+ * `null` clears (the key is REMOVED, never set undefined) · a pair sets a CLEAN
+ * {x, y}. Used by the framing sheet so what she sees between save and re-read
+ * is exactly what the service will hold.
+ */
+export function withFocus<T extends { readonly focus?: PhotoFocus }>(part: T, order: PhotoFocus | null): T {
+  const { focus: _cleared, ...rest } = part;
+  return order === null ? (rest as T) : ({ ...rest, focus: { x: order.x, y: order.y } } as T);
+}
+
 export interface StorefrontSection {
   readonly id: string;
   readonly name: string; // 1–20
@@ -71,9 +104,13 @@ export interface Storefront {
   readonly zone: string;
   readonly theme: VitrineThemeKey;
   /** PERSONNALISER-MEDIA-1 — `url` mirrors canon `StorefrontCoverSchema`. It is
-   *  written BY THE SERVICE from a completed upload; the app never patches it. */
-  readonly cover: { readonly status: CoverStatus; readonly url?: string };
-  readonly avatar: { readonly mode: 'monogram' | 'photo'; readonly url?: string };
+   *  written BY THE SERVICE from a completed upload; the app never patches it.
+   *  ENTETES-C — `focus` mirrors canon `StorefrontPhotoFocusSchema` (integers
+   *  0–100, CSS object-position percentages): HER saved framing of THIS photo.
+   *  Absent = the header's own contract framing; a fresh upload starts unframed
+   *  (the service clears it — a stale framing must never crop a new photo). */
+  readonly cover: { readonly status: CoverStatus; readonly url?: string; readonly focus?: PhotoFocus };
+  readonly avatar: { readonly mode: 'monogram' | 'photo'; readonly url?: string; readonly focus?: PhotoFocus };
   readonly curatedItems: readonly string[];
   readonly featuredItems: readonly string[]; // ≤ 2, ordre d'épinglage
   readonly sections: readonly StorefrontSection[]; // ≤ 4

@@ -454,3 +454,91 @@ describe('PERSONNALISER-PARITY-1 — the catalog seam, executed', () => {
     );
   });
 });
+
+/**
+ * ENTETES-C — the framing rides the SAME wire as every K save, tri-state:
+ * absent = untouched · null = CLEAR · pair = set. The HTTP adapter posts it
+ * AS-IS (JSON keeps null, drops undefined — that IS the tri-state); the demo
+ * adapter mirrors the service's two NAMED refusals against the CANON schema
+ * and applies the same merge, or it would be a mock greener than the system.
+ */
+describe('ENTETES-C — coverFocus / avatarFocus on the wire and in the demo', () => {
+  it('THE WIRE: a SET pair posts as-is; a CLEAR posts `null` (never dropped, never undefined)', async () => {
+    const bodies: unknown[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (_url: string, init: { body: string }) => {
+      bodies.push(JSON.parse(init.body));
+      return { ok: true, status: 200, json: async () => ({ status: 'saved' }) } as unknown as Response;
+    }) as unknown as typeof fetch;
+    try {
+      const svc = new HttpStorefrontService('https://svc.example', 'k-test');
+      await svc.saveIdentity('sf-1', { coverFocus: { x: 10, y: 90 } }, 'T0');
+      await svc.saveIdentity('sf-1', { coverFocus: null, avatarFocus: { x: 40, y: 20 } }, 'T1');
+    } finally {
+      globalThis.fetch = original;
+    }
+    expect(bodies[0]).toEqual({ patch: { coverFocus: { x: 10, y: 90 } }, at: 'T0' });
+    // the CLEAR really is on the wire as null — JSON.stringify keeps it
+    expect(bodies[1]).toEqual({ patch: { coverFocus: null, avatarFocus: { x: 40, y: 20 } }, at: 'T1' });
+    expect(JSON.stringify(bodies[1])).toContain('"coverFocus":null');
+  });
+
+  it("THE SERVICE'S NAMED REFUSALS SURVIVE — `bad_focus` and `no_photo_to_frame` are not « une erreur »", async () => {
+    const original = globalThis.fetch;
+    try {
+      for (const reason of ['bad_focus', 'no_photo_to_frame']) {
+        globalThis.fetch = (async () =>
+          ({ ok: false, status: 422, json: async () => ({ status: 'refused', reason }) }) as unknown as Response) as unknown as typeof fetch;
+        const svc = new HttpStorefrontService('https://svc.example', 'k');
+        expect(await svc.saveIdentity('sf-1', { coverFocus: { x: 1, y: 2 } }, 'T0')).toEqual({ ok: false, reason });
+      }
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
+  it('THE DEMO ADAPTER refuses framing NOTHING by the same name — and a malformed pair by ITS name (canon-checked)', async () => {
+    const svc = new DemoStorefrontService();
+    await svc.create(CMD);
+    // no photo yet (cover none, avatar monogram) → no_photo_to_frame, nothing stored
+    expect(await svc.saveIdentity(CMD.id, { coverFocus: { x: 50, y: 50 } }, 'T1')).toEqual({ ok: false, reason: 'no_photo_to_frame' });
+    expect(await svc.saveIdentity(CMD.id, { avatarFocus: { x: 50, y: 50 } }, 'T1')).toEqual({ ok: false, reason: 'no_photo_to_frame' });
+    // a real photo, then malformed pairs → bad_focus, by the canon schema
+    await svc.uploadCover(CMD.id, new Uint8Array([1]), 'image/jpeg');
+    for (const bad of [{ x: 50 }, { x: -1, y: 50 }, { x: 1.5, y: 2 }, { x: '50', y: '50' }, { x: 5, y: 6, z: 7 }]) {
+      expect(await svc.saveIdentity(CMD.id, { coverFocus: bad as never }, 'T1'), JSON.stringify(bad)).toEqual({
+        ok: false,
+        reason: 'bad_focus',
+      });
+    }
+  });
+
+  it('THE DEMO ADAPTER round-trips set → read back → clear (key gone), and a NEW upload starts UNFRAMED', async () => {
+    const svc = new DemoStorefrontService();
+    await svc.create(CMD);
+    // the upload WRITES THE URL onto the shop, as the real service does
+    await svc.uploadCover(CMD.id, new Uint8Array([1]), 'image/jpeg');
+    const withCover = await svc.getById(CMD.id);
+    expect(withCover.ok && withCover.value?.cover.url).toBe(`demo://cover/${CMD.id}`);
+    // set → read back by value
+    expect((await svc.saveIdentity(CMD.id, { coverFocus: { x: 10, y: 90 } }, 'T1')).ok).toBe(true);
+    const framed = await svc.getById(CMD.id);
+    expect(framed.ok && framed.value?.cover.focus).toEqual({ x: 10, y: 90 });
+    // clear → the KEY is gone, never focus:null; the photo itself untouched
+    expect((await svc.saveIdentity(CMD.id, { coverFocus: null }, 'T2')).ok).toBe(true);
+    const cleared = await svc.getById(CMD.id);
+    expect(cleared.ok && cleared.value !== undefined && 'focus' in cleared.value.cover).toBe(false);
+    expect(cleared.ok && cleared.value?.cover.url).toBe(`demo://cover/${CMD.id}`);
+    // frame again, then a NEW upload — the fresh photo starts unframed
+    await svc.saveIdentity(CMD.id, { coverFocus: { x: 33, y: 44 } }, 'T3');
+    await svc.uploadCover(CMD.id, new Uint8Array([1, 2]), 'image/jpeg');
+    const fresh = await svc.getById(CMD.id);
+    expect(fresh.ok && fresh.value !== undefined && 'focus' in fresh.value.cover).toBe(false);
+    // …and the AVATAR framing is its own: set on avatar survives a COVER upload
+    await svc.uploadAvatar(CMD.id, new Uint8Array([1]), 'image/jpeg');
+    await svc.saveIdentity(CMD.id, { avatarFocus: { x: 40, y: 20 } }, 'T4');
+    await svc.uploadCover(CMD.id, new Uint8Array([1, 2, 3]), 'image/jpeg');
+    const after = await svc.getById(CMD.id);
+    expect(after.ok && after.value?.avatar.focus).toEqual({ x: 40, y: 20 });
+  });
+});
