@@ -68,6 +68,27 @@ export function needsEnteteSheet(key: EnteteKey): boolean {
 }
 
 /**
+ * WHICH STATE ACTUALLY RENDERS — a pure decision (founder field report: « voir
+ * ma boutique en ligne » showed « Ce lien ne mène à aucune boutique » BEFORE
+ * the shop appeared).
+ *
+ * ONLY the states that READ the storefront (`ready`, `empty` — they dereference
+ * it) fall back to the honest not-found when there is none. The old inline
+ * guard was `etat !== 'invalid' && !resolved ⇒ invalid`, which also swallowed
+ * `loading`: every real visit painted the terminal « aucune boutique » card for
+ * the whole network round-trip, then replaced it with the shop. A designed
+ * loading state exists precisely so a slow network never reads as a dead link —
+ * showing a terminal error while still loading is a lie about her boutique.
+ *
+ * `loading` / `offline` / `invalid` render no storefront field, so they pass
+ * through untouched.
+ */
+export function etatForRender(etat: VitrineEtat, hasResolved: boolean): VitrineEtat {
+  if (hasResolved) return etat;
+  return etat === 'ready' || etat === 'empty' ? 'invalid' : etat;
+}
+
+/**
  * BUYER-LIVE-WIRE-2 — WHICH PORT A `/v/{slug}` ENTRY GETS, made a decision that can
  * be TESTED instead of a ternary buried in the route dispatch.
  *
@@ -161,8 +182,8 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
 
   // Render from an ALREADY-RESOLVED value — the resolve happens ONCE per load
   // (never re-resolved per state), the widened async seam feeding this.
-  const render = (etat: VitrineEtat, resolved: Resolved): void => {
-    if (etat !== 'invalid' && !resolved) etat = 'invalid';
+  const render = (etatDemande: VitrineEtat, resolved: Resolved): void => {
+    const etat = etatForRender(etatDemande, resolved !== undefined && resolved !== null);
     const sf = resolved?.storefront;
     // ENTETES-B — the mounted key: `?entete=` (the founder's preview override)
     // when present, else HER `headerStyle`, now that the storefront is in hand.
