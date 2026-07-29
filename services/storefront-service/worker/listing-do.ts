@@ -73,6 +73,27 @@ export class ListingDO {
         status: entry.listing.status,
       });
     }
+    // ═══ SP3.2a — THE WHOLE SIGNED ARTIFACT, FOR THE CHECKOUT DOMAIN ONLY ═══
+    //
+    // `/entry/full` above deliberately carries only what the BUYER JOIN needs
+    // (pid, her price, status) — it feeds `GET /s/{slug}`, so adding economics to
+    // it would put `markup` and `resellerCommission` one careless spread away
+    // from a customer surface. Quoting needs strictly more: M and C, because
+    // `decideIssueQuote` derives B = customerPriceFcfa − M and refuses outright
+    // when C was never frozen. Hence a SEPARATE route, returning the entry as
+    // stored — the authority record itself, not a projection of it.
+    //
+    // NOT A BUYER SURFACE, AND STRUCTURALLY CANNOT BECOME ONE: the whole
+    // `/listings*` surface is key-gated at the composition root
+    // (LISTING-READ-GATE-1) for exactly the reason this route exists — with her
+    // displayed price in hand, M yields the supplier's base B by subtraction.
+    // The checkout router reaches it IN-PROCESS through the same shim the buyer
+    // join uses, and what it hands back to a browser is `toBuyerQuoteView`.
+    if (request.method === 'GET' && pathname === '/entry/economics') {
+      const entry = await this.state.storage.get<ListingEntry>(ENTRY_KEY);
+      if (!entry) return Response.json({ error: 'not_found' }, { status: 404 });
+      return Response.json(entry);
+    }
     // ── pid-pointer role (idFromName('pid:{storefrontId}:{pid}')) ────────────
     // "WHICH LISTING SELLS THIS PID, IN THIS SHOP" — the operational lookup, and
     // the ONLY question the index is ever asked. It is not a second answer to
@@ -164,6 +185,23 @@ export default {
       const entryRes = await stub(env, ptr.listingId).fetch(new Request('https://do/entry/full'));
       // an orphaned pointer reads as the SAME honest not-found — the join then
       // OMITS the pid rather than papering over the inconsistency.
+      if (entryRes.status === 404) return Response.json({ error: 'not_found' }, { status: 404 });
+      return forward(entryRes);
+    }
+
+    // SP3.2a — the CHECKOUT read: pid pointer → the stored entry WITH its frozen
+    // economics (M and C). Same pointer hop as `by-pid` above and the same
+    // orphaned-pointer rule: an unresolvable pid is the honest not-found, which
+    // the checkout core turns into the named `listing_unknown` refusal. Behind
+    // the `/listings*` key gate like everything else on this surface.
+    m = /^\/listings\/by-pid\/([^/]+)\/([^/]+)\/economics$/.exec(pathname);
+    if (m && request.method === 'GET') {
+      const storefrontId = decodeURIComponent(m[1]!);
+      const pid = decodeURIComponent(m[2]!);
+      const ptrRes = await pidStub(env, storefrontId, pid).fetch(new Request('https://do/pid-pointer'));
+      if (ptrRes.status === 404) return Response.json({ error: 'not_found' }, { status: 404 });
+      const ptr = (await ptrRes.json()) as { listingId: string };
+      const entryRes = await stub(env, ptr.listingId).fetch(new Request('https://do/entry/economics'));
       if (entryRes.status === 404) return Response.json({ error: 'not_found' }, { status: 404 });
       return forward(entryRes);
     }

@@ -300,6 +300,9 @@ importers:
       '@platform/contracts':
         specifier: git+https://github.com/beurni2/platform-contracts.git#17b5d7a61607fc83dd23717d8ba9e4ab53b76398&path:packages/contracts
         version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/17b5d7a61607fc83dd23717d8ba9e4ab53b76398#path:packages/contracts
+      '@shop-plus/commerce-core':
+        specifier: workspace:*
+        version: link:../../packages/commerce-core
       '@shop-plus/observability':
         specifier: workspace:*
         version: link:../../packages/observability

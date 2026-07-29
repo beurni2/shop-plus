@@ -19,14 +19,15 @@
     "test": "vitest run",
     "bundle:worker": "esbuild worker/storefront-do.ts --bundle --format=esm --outfile=dist/worker/storefront-worker.mjs --platform=neutral --conditions=import",
     "bundle:worker:listing": "esbuild worker/listing-do.ts --bundle --format=esm --outfile=dist/worker/listing-worker.mjs --platform=neutral --conditions=import",
-    "bundle:worker:combined": "esbuild worker/index.ts --bundle --format=esm --outfile=dist/worker/worker.mjs --platform=neutral --conditions=import --define:__SHOP_RELEASE__=\"\\\"${SHOP_RELEASE:-dev}\\\"\" --define:__SHOP_CANON__=\"\\\"${SHOP_CANON:-dev}\\\"\"",
+    "bundle:worker:combined": "esbuild worker/index.ts --bundle --format=esm --outfile=dist/worker/worker.mjs --platform=neutral --conditions=import --alias:@shop-plus/commerce-core=./worker/commerce-core-worker.ts --define:__SHOP_RELEASE__=\"\\\"${SHOP_RELEASE:-dev}\\\"\" --define:__SHOP_CANON__=\"\\\"${SHOP_CANON:-dev}\\\"\"",
     "pretest": "pnpm bundle:worker && pnpm bundle:worker:listing && pnpm bundle:worker:combined"
   },
   "dependencies": {
     "@shop-plus/observability": "workspace:*",
     "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#17b5d7a61607fc83dd23717d8ba9e4ab53b76398&path:packages/contracts",
     "@shop-plus/supply-consumer": "workspace:*",
-    "@shop-plus/reseller-money": "workspace:*"
+    "@shop-plus/reseller-money": "workspace:*",
+    "@shop-plus/commerce-core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

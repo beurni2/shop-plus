@@ -22,6 +22,12 @@ class_name = "StorefrontDO"
 name = "LISTING"
 class_name = "ListingDO"
 
+# SP3.2a — the checkout authority. One instance per QUOTE ID, plus one per
+# request key (the Shape C idempotency pointer, same class, different name).
+[[durable_objects.bindings]]
+name = "CHECKOUT"
+class_name = "CheckoutDO"
+
 # FIRST-DEPLOY MIGRATION — create both DO classes. `new_sqlite_classes` is CORRECT
 # AND MANDATORY, not a coin-flip: Cloudflare stopped issuing key-value-backed DO
 # namespaces (changelog 2026-07-09) to any account without a pre-existing one, and
@@ -32,6 +38,16 @@ class_name = "ListingDO"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["StorefrontDO", "ListingDO"]
+
+# SP3.2a — CheckoutDO arrives as its OWN tag. A migration list is append-only
+# and each tag is applied once: editing the v1 line instead would have been a
+# no-op on an account that already ran it, so the class would never be created
+# and every checkout route would fail on a missing binding. Same UNPROVEN-UNTIL-
+# DEPLOY caveat as the header: Miniflare binds this class by its own test config,
+# never by this file.
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["CheckoutDO"]
 
 # The PRIVATE R2 bucket (exists: Standard, jurisdiction default, location hint
 # ENAM). Reads go THROUGH the Worker (GET /media/{key}); never a public custom
