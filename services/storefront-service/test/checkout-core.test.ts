@@ -136,6 +136,83 @@ describe('delivery-source — the versioned sandbox tariff, never a guessed fee'
   });
 });
 
+/**
+ * SP3.2b — THE ONE PRICED ROW IS REACHABLE BY THE ZONE STRINGS THAT ACTUALLY
+ * EXIST.
+ *
+ * The defect these lock: the table row is `Ouagadougou → Ouagadougou`, but a
+ * real storefront's `zone` reads « Rood Woko · Ouagadougou » and a real buyer's
+ * destination is her quartier, « Gounghin, Ouagadougou ». Matched as exact
+ * strings, the only priced row in the repo was UNREACHABLE and every real
+ * checkout answered `delivery_not_serviceable`.
+ */
+describe('delivery-source — city normalisation makes the priced row reachable (SP3.2b)', () => {
+  const REAL_SHOP_ZONE = 'Rood Woko · Ouagadougou';
+
+  it('a REAL shop zone → a REAL buyer quartier is serviceable at the §5.4 baseline 1 000', () => {
+    const q = quoteDeliveryFee(REAL_SHOP_ZONE, 'Gounghin, Ouagadougou');
+    expect(q).toBeDefined();
+    expect(q!.serviceable).toBe(true);
+    expect(q!.fee).toBe(1_000);
+    // The quote names the zones it was ASKED about — never the normalised ones.
+    expect(q!.zoneFrom).toBe(REAL_SHOP_ZONE);
+    expect(q!.zoneTo).toBe('Gounghin, Ouagadougou');
+    expect(q!.version).toBe(DELIVERY_TARIFF_VERSION);
+  });
+
+  it('both separators and any casing reduce to the same city', () => {
+    // NB « Somgandé,Ouagadougou » has no space after the comma and « Zogona ·
+    // Ouagadougou » uses the middle dot: both reduce, neither is untrimmed. A
+    // LEADING space would still be refused by the canon schema — see below.
+    for (const zoneTo of ['Gounghin, Ouagadougou', 'Rood Woko · Ouagadougou', 'OUAGADOUGOU', 'ouagadougou', 'Somgandé,Ouagadougou', 'Zogona · Ouagadougou']) {
+      const q = quoteDeliveryFee('Ouagadougou', zoneTo);
+      expect(q?.serviceable, `${zoneTo} should be serviceable`).toBe(true);
+      expect(q?.fee).toBe(1_000);
+    }
+  });
+
+  it('EVERY quartier costs the SAME 1 000 — the stand-in prices a city pair, not a quartier', () => {
+    const fees = ['Gounghin', 'Dassasgho', 'Pissy', 'Tampouy', 'Wemtenga', 'Zogona', 'Cissin', 'Somgandé'].map(
+      (z) => quoteDeliveryFee(REAL_SHOP_ZONE, `${z}, Ouagadougou`)?.fee,
+    );
+    expect(fees).toEqual([1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000]);
+  });
+
+  it('NORMALISING IS NOT WIDENING: another city is still unserviceable, and the LAST segment is the city', () => {
+    for (const [from, to] of [
+      ['Ouagadougou', 'Bobo-Dioulasso'],
+      ['Ouagadougou', 'Sector 15, Bobo-Dioulasso'],
+      ['Bobo-Dioulasso', 'Gounghin, Ouagadougou'],
+      // the trap: a string that CONTAINS « Ouagadougou » but does not END in it
+      ['Ouagadougou', 'Ouagadougou, Ghana'],
+      ['Ouagadougou, Ghana', 'Ouagadougou'],
+    ]) {
+      const q = quoteDeliveryFee(from!, to!);
+      expect(q?.serviceable, `${from} → ${to} must not be serviceable`).toBe(false);
+      expect(q?.version).toBe(DELIVERY_TARIFF_VERSION);
+    }
+  });
+
+  it('the empty / untrimmed answers are UNCHANGED — still `undefined`, still never a throw', () => {
+    for (const [from, to] of [
+      ['', 'Ouagadougou'],
+      ['Ouagadougou', ''],
+      ['  ', 'Ouagadougou'],
+      // normalisation makes this pair MATCH a row, and the canon schema must
+      // still refuse it: the quote carries the caller's untrimmed string.
+      ['Ouagadougou', ' Ouagadougou '],
+      ['Gounghin, Ouagadougou', ''],
+    ]) {
+      expect(() => quoteDeliveryFee(from!, to!)).not.toThrow();
+      expect(quoteDeliveryFee(from!, to!), `${from} → ${to}`).toBeUndefined();
+    }
+  });
+
+  it('the tariff VERSION is untouched by this slice', () => {
+    expect(DELIVERY_TARIFF_VERSION).toBe('sera-sandbox-tariff.v1');
+  });
+});
+
 /* ═══════════════════ B / C / M come from the frozen entry ═════════════════ */
 
 describe('decideIssueQuote — B, C and M are READ off frozen stored fields', () => {

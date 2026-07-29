@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
@@ -1011,5 +1011,113 @@ describe('CheckoutDO — an EMPTY payee is « nobody is locked », not a malform
       }),
     });
     expect(bad.status).toBe(400);
+  });
+});
+
+/**
+ * SP3.2b — THE SHARED WIRE FIXTURE, PINNED IN BOTH HALVES.
+ *
+ * `gates/fixtures/buyer-quote-request.json` is the EXACT body the buyer PWA
+ * POSTs. The buyer half asserts `httpQuotePort` sends those keys and values and
+ * nothing else; THIS half POSTs the same bytes at the real Worker on real
+ * workerd. If the two ever drift — a renamed field, a dropped key, a zone the
+ * client composes differently — one of the two must go red.
+ *
+ * It is also the end-to-end proof of the delivery fix: the shop's zone is a
+ * REAL one (« Rood Woko · Ouagadougou ») and the destination is a REAL quartier
+ * (« Gounghin, Ouagadougou »). Before the city normalisation this exact request
+ * answered `delivery_not_serviceable` 422.
+ */
+describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quote (SP3.2b)', () => {
+  const FIXTURE = JSON.parse(
+    readFileSync(join(import.meta.dirname, '..', '..', '..', 'gates', 'fixtures', 'buyer-quote-request.json'), 'utf8'),
+  ) as Record<string, string>;
+
+  /** The shop the fixture names — HER short code derives the fixture's slug,
+   *  HER resellerId is the fixture's locked payee, HER zone is a real one. */
+  async function seedFixtureShop(): Promise<void> {
+    const created = await mf.dispatchFetch('http://c/storefronts', {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({
+        commandId: 'cmd-create-fixture',
+        id: 'sf-checkout-fixture',
+        resellerId: FIXTURE['attributionResellerId'],
+        shortCode: FIXTURE['slug']!.toUpperCase(),
+        name: 'Chez Aïcha Mode',
+        zone: 'Rood Woko · Ouagadougou',
+        category: 'Général',
+        correlationId: 'corr-fixture',
+        at: T0,
+      }),
+    });
+    if (created.status !== 200) throw new Error(`fixture seed: storefront create ${created.status} ${await created.text()}`);
+    const pub = await mf.dispatchFetch('http://c/listings', {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({
+        commandId: 'cmd-listing-fixture',
+        listingId: 'lst-checkout-fixture',
+        storefrontId: 'sf-checkout-fixture',
+        resellerId: FIXTURE['attributionResellerId'],
+        productVersionId: FIXTURE['pid'],
+        offerVersion: 'ov-checkout-1',
+        markup: 1_500,
+        correlationId: 'corr-fixture',
+        at: T0,
+      }),
+    });
+    const decision = (await pub.json()) as { status?: string };
+    if (decision.status !== 'published') throw new Error(`fixture seed: publish ${JSON.stringify(decision)}`);
+  }
+
+  it('the fixture body is EXACTLY the six allowlisted keys — an extra one would be a 400 by design', () => {
+    expect(Object.keys(FIXTURE)).toEqual([
+      'slug',
+      'pid',
+      'paymentMode',
+      'zoneTo',
+      'attributionResellerId',
+      'requestKey',
+    ]);
+    // NO AMOUNT MAY APPEAR ON THIS WIRE — not even « for display ».
+    for (const banned of ['buyerTotal', 'productSubtotal', 'deliveryFee', 'amountPaidAtCheckout', 'price', 'customerPriceFcfa']) {
+      expect(Object.keys(FIXTURE)).not.toContain(banned);
+    }
+    // …and the destination is a real quartier, not a bare city name.
+    expect(FIXTURE['zoneTo']).toBe('Gounghin, Ouagadougou');
+  });
+
+  it('POSTing the fixture VERBATIM answers 200 with a view that reconciles to the franc', async () => {
+    await seedFixtureShop();
+    const res = await mf.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // THE FIXTURE'S OWN BYTES — not a re-built object.
+      body: readFileSync(join(import.meta.dirname, '..', '..', '..', 'gates', 'fixtures', 'buyer-quote-request.json'), 'utf8'),
+    });
+    const text = await res.text();
+    expect(res.status, text).toBe(200);
+    const q = JSON.parse(text) as Record<string, number | string>;
+    // §5.4 baseline: B 10 000 · C 1 000 · M 1 500 · D 1 000
+    expect(q['productSubtotal']).toBe(11_500);
+    expect(q['deliveryFee']).toBe(1_000);
+    expect(q['buyerTotal']).toBe(12_500);
+    // THE IDENTITY, ON THE WIRE THE BUYER ACTUALLY RECEIVES, TO THE FRANC.
+    expect((q['productSubtotal'] as number) + (q['deliveryFee'] as number)).toBe(q['buyerTotal']);
+    expect((q['amountPaidAtCheckout'] as number) + (q['amountDueAtDelivery'] as number)).toBe(q['buyerTotal']);
+    expect(q['amountPaidAtCheckout']).toBe(12_500);
+    expect(q['amountDueAtDelivery']).toBe(0);
+  });
+
+  it('THE DEFECT THIS SLICE CLOSED: the same request with a NON-Ouaga quartier is still refused by name', async () => {
+    const res = await postQuote({
+      ...(FIXTURE as unknown as QuoteBody),
+      zoneTo: 'Sector 15, Bobo-Dioulasso',
+      requestKey: freshKey(),
+    });
+    expect(res.status).toBe(422);
+    expect(res.json['error']).toBe('delivery_not_serviceable');
+    expect(res.json['buyerTotal']).toBeUndefined(); // no price crossed over
   });
 });

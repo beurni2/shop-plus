@@ -22,11 +22,12 @@
 import { applyTheme, type VitrineThemeKey } from '../vitrine/themes';
 import {
   renderC1, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
-  renderGalerie, renderOffline, renderSheet, renderSkeleton, renderToasts,
+  renderGalerie, renderOffline, renderRefus, renderSheet, renderSkeleton, renderToasts,
   fmtPayezMaintenant, SUIVI_STEPS,
   type ClienteProduit, type ClienteQuote, type ConfirmEtat, type DoorEtat,
   type Livraison, type ModePaiement, type VoiceEtat,
 } from './screens';
+import { prixExpire, type QuoteFetch, type ReserveFetch } from './quote-model';
 
 export type ClienteEcran = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9';
 /** C2 is the protections SHEET, not a linear stop — mounting at C2 opens the
@@ -37,8 +38,26 @@ const ECRANS: readonly EcranLineaire[] = ['C1', 'C3', 'C4', 'C5', 'C6', 'C7', 'C
 
 export interface ClienteInit {
   readonly produit: ClienteProduit;
-  /** The server-frozen quote (seed.ts composes it — the mock quote service). */
-  readonly quote: ClienteQuote;
+  /**
+   * The frozen quote for the HARNESS path (seed.ts composes it — the mock quote
+   * service). OPTIONAL on purpose (SP3.2b): the real signed path passes NONE and
+   * supplies `quoteSource` instead, so a locally composed price is not merely
+   * unused there — it is absent, and therefore unrenderable. That is the
+   * structural half of « no price we invented ever reaches a buyer ».
+   */
+  readonly quote?: ClienteQuote | undefined;
+  /**
+   * ASK THE SERVER FOR THE PRICE (SP3.2b). Present ⇒ the flow asks ONCE, at
+   * `continuer-c3` — the first moment the destination is known — shows the
+   * existing skeleton while it waits, and renders ONLY what comes back.
+   * ABSENT ⇒ today's behaviour, byte for byte, off `init.quote`.
+   *
+   * The argument is the buyer's chosen QUARTIER (`state.zone`); the caller
+   * composes it into the wire `zoneTo` (« {quartier}, {ville} ») because only
+   * the caller knows her shop's city. `renouveler` asks for a NEW request key —
+   * the « Voir le prix à jour » action after an expiry, and nothing else.
+   */
+  readonly quoteSource?: ((quartier: string, renouveler?: boolean) => Promise<QuoteFetch>) | undefined;
   readonly theme?: VitrineThemeKey | undefined;
   readonly ecran?: ClienteEcran | undefined;
   /** §6 props (the pixel prototype's exact set). */
@@ -80,6 +99,18 @@ interface FlowState {
   reason: string | null;
   /** RESELLER-UX-2 item 4 — the photo gallery: open at this index, null = closed. */
   galerie: number | null;
+  /* ── SP3.2b — the server's price, and only the server's ────────────────── */
+  /** The quote the SERVER issued, filled from its bytes. null until it answers. */
+  serverQuote: ClienteQuote | null;
+  /** The refusal NAME currently on screen (server's word, or 'unreachable'). */
+  refus: string | null;
+  /**
+   * The live quote's handles: its expiry instant and its reservation. `reserve`
+   * takes NO argument — the command id was minted once with the quote and is
+   * closed over, so every tap of Payer holds under the SAME command and the
+   * buyer's own retry replays her own hold instead of colliding with it.
+   */
+  live: { quoteId: string; commandId: string; expiry: string; reserve: () => Promise<ReserveFetch> } | null;
 }
 
 export function createCliente(container: HTMLElement, init: ClienteInit): void {
@@ -87,7 +118,6 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   container.classList.add('cl-root');
 
   const m = init.produit;
-  const q = init.quote;
   const demo = init.demo ?? true;
   // C2 mounts as C1 with the protections sheet open (it is an overlay, not a stop).
   const startScreen: EcranLineaire = init.ecran === 'C2' ? 'C1' : (init.ecran ?? 'C1');
@@ -115,7 +145,20 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     leg2: (init.revealed ?? false) ? 'confirmed' : 'idle',
     reason: null,
     galerie: null,
+    serverQuote: null,
+    refus: null,
+    live: null,
   };
+
+  /**
+   * THE ONE QUOTE EVERY SCREEN READS. The server's answer wins the moment it
+   * exists; otherwise the harness's composed quote; otherwise NOTHING — and
+   * « nothing » is a real answer here, not a bug to paper over. On the real path
+   * `init.quote` is absent, so a screen reached without a server quote has no
+   * figures to show and says so (`renderRefus`) rather than showing figures it
+   * made up.
+   */
+  const quoteOrNull = (): ClienteQuote | null => state.serverQuote ?? init.quote ?? null;
   // No mount-time prefill — the pixel mounts startScreen on the RAW state and
   // keeps mid-flow screens coherent with RENDER-TIME fallbacks (zone/repère on
   // C4, today/B on C5·C6·C8). C4 therefore mounts with NO option selected and
@@ -150,6 +193,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     clearT();
     state.sheet = false;
     state.paying = 'idle';
+    // Landing on a screen ends the refusal that was standing in front of it.
+    state.refus = null;
     // Pixel order (§3): prefill FIRST, the explicit extra LAST — so a jump's
     // own resets (« Commander » → C3 vide · C4 → livraison non choisie) always
     // win over the prefill. Inverting this leaked the demo zone/repère into
@@ -175,6 +220,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     !!state.zone && (state.repere.trim().length > 0 || state.voice === 'recorded' || state.voice === 'queued');
 
   function screenHtml(): string {
+    // A NAMED REFUSAL OUTRANKS EVERY SCREEN. It is not an overlay and not a
+    // toast: while it stands, there is no price, so no priced screen may draw.
+    if (state.refus !== null) return renderRefus(state.refus);
+    const q = quoteOrNull();
     switch (state.screen) {
       case 'C1':
         return renderC1(m, { epuise: state.stock === 'out', sansVoix: init.sansVoix ?? false });
@@ -186,28 +235,77 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       case 'C4':
         // Render-time fallbacks — the pixel's zoneUpper/repereRecap `||` pair,
         // so a direct C4 mount shows a coherent récap without touching state.
-        return renderC4(q, {
+        return q === null ? renderRefus('') : renderC4(q, {
           zone: state.zone || 'Gounghin',
           repereRecap: (state.repere || 'Face à la pharmacie du marché') + (state.indic ? ` · ${state.indic}` : ''),
           delivery: state.delivery,
+          ligneUnique: state.serverQuote !== null,
         });
       case 'C5':
-        return renderC5(m, q, {
+        return q === null ? renderRefus('') : renderC5(m, q, {
           delivery: state.delivery ?? 'today', pay: state.pay,
           paying: state.paying, bInel: state.bInel,
         });
       case 'C6':
-        return renderC6(m, {
+        return q === null ? renderRefus('') : renderC6(m, {
           confirmState: state.confirmState,
           payNowStr: fmtPayezMaintenant(q, state.delivery ?? 'today', state.pay ?? 'B'),
         });
       case 'C7':
         return renderC7({ step: state.step, problem: state.problem, demo });
       case 'C8':
-        return renderC8(m, q, { door: state.door, pay: state.pay ?? 'B', reason: state.reason });
+        return q === null ? renderRefus('') : renderC8(m, q, { door: state.door, pay: state.pay ?? 'B', reason: state.reason });
       case 'C9':
         return renderC9({ revealed: state.leg2 === 'confirmed' });
     }
+  }
+
+  /**
+   * WHICH TRUE SENTENCE THIS ANSWER GETS. The server's own name when it refused;
+   * `unreachable` ONLY when nothing answered (that is the screen that says « Pas
+   * de connexion », and it must not be shown to someone on full 4G);
+   * `answer_unreadable` when a reply arrived that we could not read — an unnamed
+   * 500, a proxy's HTML, amounts that fail the money shape-check. The latter is
+   * not in the refusal table, so it renders the GENERIC card (« Nous ne pouvons
+   * pas afficher le prix. »), which is the only thing true about it.
+   */
+  function nomDuRefus(r: { status: 'refused'; reason: string } | { status: 'unreachable' } | { status: 'unreadable' }): string {
+    if (r.status === 'refused') return r.reason;
+    return r.status === 'unreadable' ? 'answer_unreadable' : 'unreachable';
+  }
+
+  /**
+   * ASK THE SERVER FOR THE PRICE — once, at the first moment the destination
+   * exists. The skeleton stands while it waits; the answer decides the screen.
+   * NOTHING here composes, guesses, or falls back to a local price: a refusal
+   * and an unreachable service both land on the honest surface, because a price
+   * we invented is worse than no price.
+   */
+  async function demanderLePrix(renouveler = false): Promise<void> {
+    const ask = init.quoteSource;
+    if (ask === undefined) return;
+    state.refus = null;
+    state.loading = true;
+    render();
+    const fetched = await ask(state.zone ?? '', renouveler);
+    state.loading = false;
+    if (fetched.status !== 'ready') {
+      state.refus = nomDuRefus(fetched);
+      render();
+      return;
+    }
+    state.serverQuote = fetched.quote;
+    state.bInel = fetched.bIndisponible;
+    state.live = {
+      quoteId: fetched.ids.fullQuoteId,
+      commandId: fetched.ids.commandId,
+      expiry: fetched.expiry,
+      reserve: fetched.reserve,
+    };
+    // ONE fee for this zone pair ⇒ nothing to choose ⇒ the C4 CTA is live on
+    // arrival. `delivery` is set only so the selectors have a slot to read; both
+    // slots carry the SAME server figure, so the choice cannot change a franc.
+    jump('C4', { delivery: 'today' });
   }
 
   function render(): void {
@@ -273,11 +371,13 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         }
         return;
       case 'retour-c1':
-        state.screen = 'C1'; render(); return;
+        state.refus = null; state.screen = 'C1'; render(); return;
       case 'retour-c3':
-        state.screen = 'C3'; render(); return;
+        // Also the « Changer de zone » action on the refusal surface: she goes
+        // back to the one thing she can change, and the next Continuer re-asks.
+        state.refus = null; state.screen = 'C3'; render(); return;
       case 'retour-c4':
-        state.screen = 'C4'; render(); return;
+        state.refus = null; state.screen = 'C4'; render(); return;
       case 'retour-c7':
         jump('C7', { step: Math.max(state.step, 1) }); return;
       // — C1 —
@@ -316,8 +416,19 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       case 'voix-lire-note':
         toast('Lecture de votre note vocale (démo)'); return;
       case 'continuer-c3':
-        if (canC3()) jump('C4', { delivery: null });
+        if (!canC3()) return;
+        // SP3.2b — the destination is now known, so this is where the price is
+        // asked for. No quoteSource ⇒ the harness path, unchanged.
+        if (init.quoteSource !== undefined) { void demanderLePrix(); return; }
+        jump('C4', { delivery: null });
         return;
+      // — the refusal surface's own two actions —
+      case 'reessayer-prix':
+        void demanderLePrix(); return;
+      case 'prix-a-jour':
+        // An expired price is dead. A NEW price needs a NEW request key, or the
+        // server hands back the same expired quote forever.
+        void demanderLePrix(true); return;
       // — C4 —
       case 'choix-livraison':
         state.delivery = (el.getAttribute('data-choix') as Livraison) ?? 'today'; render(); return;
@@ -327,8 +438,41 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       // — C5 —
       case 'choix-paiement':
         state.pay = (el.getAttribute('data-mode') as ModePaiement) ?? 'A'; render(); return;
-      case 'payer':
+      case 'payer': {
         if (!state.pay) return;
+        const live = state.live;
+        if (live !== null) {
+          // ─── THE REAL PATH, IN THIS ORDER, AND THE ORDER IS THE POINT ───
+          // 1. EXPIRY FIRST. Paying against a stale price is paying an amount
+          //    nobody currently agrees to; the server would refuse it anyway,
+          //    and finding out AFTER the operator prompt is the cruel way.
+          if (prixExpire(live.expiry, Date.now())) {
+            state.paying = 'idle'; state.refus = 'expired'; render(); return;
+          }
+          // 2. THEN THE HOLD. « ENVOI SÉCURISÉ » stands while it is taken — the
+          //    reservation IS the first step of sending her request, and it is
+          //    the only screen this slice is allowed to show here.
+          //    `reserve()` takes NO argument: the command id was minted with the
+          //    quote, so tapping back and paying again REPLAYS her own hold
+          //    (the vault's `reserveCommandId` match) instead of colliding with
+          //    it and answering `already_reserved` at its own holder.
+          state.paying = 'submitting'; render();
+          void live.reserve().then((r) => {
+            if (r.status !== 'reserved') {
+              state.paying = 'idle';
+              state.refus = nomDuRefus(r);
+              render();
+              return;
+            }
+            // Held. Into the EXISTING provider simulation — the real legs are
+            // SP3.3 and nothing below this line claims otherwise.
+            t1 = setTimeout(() => {
+              state.paying = 'provider'; render();
+              t2 = setTimeout(() => jump('C6', { confirmState: 'confirmed', step: 1 }), 2400);
+            }, 1200);
+          });
+          return;
+        }
         if (state.offline) { jump('C6', { confirmState: 'offline' }); return; }
         state.paying = 'submitting'; render();
         t1 = setTimeout(() => {
@@ -336,6 +480,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
           t2 = setTimeout(() => jump('C6', { confirmState: 'confirmed', step: 1 }), 2400);
         }, 1200);
         return;
+      }
       // — C6 · C7 —
       case 'suivre':
         jump('C7', { step: Math.max(state.step, 1) }); return;

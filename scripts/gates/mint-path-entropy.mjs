@@ -63,6 +63,10 @@ const MINT_PATHS = [
   // The app entry is named explicitly because this is where the defect actually lived,
   // and no filename convention would ever have matched it.
   'apps/reseller-app/App.tsx',
+  // SP3.2b — the BUYER'S two idempotency tokens are minted here: the checkout
+  // `requestKey` (one key ⇒ one quote, forever) and the reservation `commandId`.
+  // Named the moment they existed, per this list's own rule above.
+  'apps/buyer-pwa/src/cliente/quote-port.ts',
 ];
 
 /** A CSPRNG token — at least one must appear across the mint paths, so an empty or

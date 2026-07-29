@@ -43,6 +43,32 @@ import { DeliveryFeeQuoteSchema, type DeliveryFeeQuote } from '@platform/contrac
  * `WORKED_BASELINE_INPUT`). Using the baseline's own number keeps the sandbox
  * quote arithmetically comparable to the canon worked example instead of adding
  * a second, unexplained tariff to the repo.
+ *
+ * ═══ WHAT THIS STAND-IN ACTUALLY PRICES, SAID PLAINLY (SP3.2b) ═══
+ *
+ * ONE THING: a delivery that starts in Ouagadougou and ends in Ouagadougou, at
+ * the §5.4 baseline figure of 1 000 FCFA. Nothing else has a price here.
+ *
+ * A REAL SHOP'S ZONE IS NOT A BARE CITY NAME and a real buyer does not name a
+ * city — she names her quartier. Her shop reads « Rood Woko · Ouagadougou »;
+ * her buyer's destination reads « Gounghin, Ouagadougou ». Matching the table
+ * row by exact string therefore answered `delivery_not_serviceable` to EVERY
+ * real checkout: the one priced row existed and was unreachable. Both zone
+ * strings are now reduced to their CITY COMPONENT before the lookup — split on
+ * `,` and `·`, take the LAST segment, trim, lowercase — and the table's own rows
+ * are reduced the same way, so the comparison is city-to-city on both sides.
+ *
+ * THE CONSEQUENCE, STATED RATHER THAN DISCOVERED: the buyer's quartier does NOT
+ * change the price. Gounghin and Somgandé are the same 1 000 FCFA, because this
+ * stand-in has one row and Séra has not priced a quartier yet. That is the
+ * truth of the sandbox, not a rounding — and the day Séra prices for real, this
+ * module is deleted whole rather than grown a second column.
+ *
+ * NORMALISING IS NOT WIDENING. « Bobo-Dioulasso » still has no price, and
+ * « Ouagadougou, Ghana » still has none either — the LAST segment is the city,
+ * so a string that merely CONTAINS the word Ouagadougou earlier on does not
+ * become serviceable. The default remains UNSERVICEABLE for everything the
+ * table does not name.
  */
 
 /** Every answer names the tariff it came from — a quote is replayable or it is nothing. */
@@ -62,6 +88,25 @@ interface TariffRow {
  * or, sooner, the whole module is deleted the day the live quote arrives.
  */
 const TARIFF: readonly TariffRow[] = [{ zoneFrom: 'Ouagadougou', zoneTo: 'Ouagadougou', fee: 1_000 }];
+
+/**
+ * A zone string → the CITY it ends in, for table lookup ONLY.
+ *
+ * « Rood Woko · Ouagadougou » and « Gounghin, Ouagadougou » and « OUAGADOUGOU »
+ * all reduce to `ouagadougou`; « Ouagadougou, Ghana » reduces to `ghana`. The
+ * LAST segment wins because that is how these strings are written in this repo
+ * and in Ouaga — the fine-grained part comes first, the city last.
+ *
+ * Deterministic and total: a split, a trim, a lowercase. No distance, no
+ * fuzziness, no formula (Ten Laws #5). The value it returns is never stored,
+ * never quoted and never shown — the canon `DeliveryFeeQuote` below still
+ * carries the caller's ORIGINAL strings, so an untrimmed or empty zone is
+ * still refused by the canon schema exactly as before.
+ */
+function cityOf(zone: string): string {
+  const segments = zone.split(/[,·]/u);
+  return (segments[segments.length - 1] ?? '').trim().toLowerCase();
+}
 
 /**
  * The zone pair → `DeliveryFeeQuote`. TOTAL: it never throws.
@@ -90,8 +135,15 @@ const TARIFF: readonly TariffRow[] = [{ zoneFrom: 'Ouagadougou', zoneTo: 'Ouagad
  * may exist outside this module's one consumer.
  */
 export function quoteDeliveryFee(zoneFrom: string, zoneTo: string): DeliveryFeeQuote | undefined {
-  const row = TARIFF.find((r) => r.zoneFrom === zoneFrom && r.zoneTo === zoneTo);
+  // CITY-TO-CITY on both sides — the row is reduced by the same function as the
+  // request, so the table cannot drift from the lookup rule (SP3.2b).
+  const fromCity = cityOf(zoneFrom);
+  const toCity = cityOf(zoneTo);
+  const row = TARIFF.find((r) => cityOf(r.zoneFrom) === fromCity && cityOf(r.zoneTo) === toCity);
   const parsed = DeliveryFeeQuoteSchema.safeParse({
+    // THE CALLER'S OWN STRINGS, never the normalised ones: the quote names the
+    // zones it was asked about, and the canon schema still refuses an empty or
+    // untrimmed zone (which is how « the shop does not exist » stays a refusal).
     zoneFrom,
     zoneTo,
     fee: row === undefined ? 0 : row.fee,

@@ -296,6 +296,18 @@ export interface C4State {
   readonly zone: string;
   readonly repereRecap: string;
   readonly delivery: Livraison | null;
+  /**
+   * TRUE when the SERVER priced this delivery (SP3.2b). Canon prices ONE fee per
+   * zone pair — `DeliveryFeeQuote{zoneFrom, zoneTo, fee, serviceable, version}`
+   * carries no delivery-speed dimension — so there is nothing to choose between:
+   * one line, no cards, no time-window promise, and the CTA live on arrival. A
+   * second « demain, un peu moins chère » card at the same fee would be a tariff
+   * nobody has promised and a delivery window nobody has committed to.
+   *
+   * ABSENT ⇒ the two-card render, byte-for-byte as it was, which is what the
+   * `?demo-cliente=` harness still drives off the composed mock quote.
+   */
+  readonly ligneUnique?: boolean | undefined;
 }
 
 export function renderC4(q: ClienteQuote, s: C4State): string {
@@ -303,7 +315,18 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
     { k: 'today', title: 'Aujourd’hui, avant 19 h', feeF: fmtFCFA(q.feeToday), sub: 'Un livreur Séra vérifie et scelle le colis avant de partir.' },
     { k: 'tomorrow', title: 'Demain, 9 h – 12 h', feeF: fmtFCFA(q.feeTomorrow), sub: 'Course groupée dans votre zone — un peu moins chère.' },
   ];
-  const can = s.delivery !== null;
+  // The one server-priced line: her destination, Séra's fee, the custody
+  // sentence. Not a button — there is no second thing to pick.
+  const ligne = [
+    // A PLAIN card, deliberately NOT `cl-opt-on`: the accent border and the
+    // check mark mean « you chose this », and she chose nothing. It states a
+    // fact. The one primary action on this screen stays the CTA.
+    '<div class="cl-opt" data-role="livraison-unique">',
+    `<div class="cl-opt-row"><span class="cl-opt-title">Livraison par Séra</span><span class="cl-opt-fee">${fmtFCFA(q.feeToday)}</span></div>`,
+    '<div class="cl-opt-sub">Un livreur Séra vérifie et scelle le colis avant de partir.</div>',
+    '</div>',
+  ].join('');
+  const can = s.ligneUnique === true || s.delivery !== null;
   return [
     '<div class="cl-screen" data-screen="C4">',
     stepHead('retour-c3', 'La livraison'),
@@ -313,7 +336,7 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
     '<button class="cl-modifier" data-action="retour-c3">MODIFIER</button>',
     '</div>',
     '<div class="cl-law">Le prix de la course est fixé par Séra. Il est affiché à part — jamais caché dans le prix du produit.</div>',
-    options.map((o) => {
+    s.ligneUnique === true ? ligne : options.map((o) => {
       const on = s.delivery === o.k;
       return [
         `<button class="cl-opt${on ? ' cl-opt-on' : ''}" data-action="choix-livraison" data-choix="${o.k}">`,
@@ -325,6 +348,142 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
     }).join(''),
     '<div class="cl-quote">La course est payée à Séra. Chaque franc a sa place.</div>',
     `<button class="cl-cta cl-cta-step${can ? '' : ' cl-cta-off'}" data-action="continuer-c4"${can ? '' : ' disabled'}>Continuer</button>`,
+    '</div>',
+  ].join('');
+}
+
+/* --------------------------------------------------------------- REFUS ---- */
+
+/**
+ * THE HONEST REFUSAL SURFACE (SP3.2b · French Voice Standard §10.5).
+ *
+ * The service answers a NAME, never a wall: `listing_unknown`, `listing_not_live`,
+ * `delivery_not_serviceable`, `attribution_missing`, `attribution_mismatch`,
+ * `checkout_killed`, `expired`, `already_reserved`, `request_key_reused`,
+ * `quote_not_issuable`, `stored_*`. This is where each name becomes one true
+ * French sentence a buyer can act on.
+ *
+ * THE RULES THIS SURFACE KEEPS, and why each one is here:
+ *   · ONE cause, ONE consequence, ONE action. « Le refus est aussi digne que
+ *     l'achat » — the refusal path gets the same hierarchy as the purchase path,
+ *     not an error wall with an OK button.
+ *   · « Rien n'a été payé. » on every money refusal. That is the sentence that
+ *     makes someone calmer, and it is TRUE at every point this surface is
+ *     reachable: no leg exists until the provider confirms one (SP3.3).
+ *   · NEVER « en attente », NEVER « c'est noté » here. A price we could not get
+ *     is not a queued action; queued = pending, never done (Ten Laws #7), and
+ *     nothing at all is queued on this screen.
+ *   · An UNKNOWN name gets the generic sentence, never the raw name. A server
+ *     word on a buyer's screen is a leak and an insult at the same time.
+ *   · No blame, no « erreur », no code number, no « veuillez ».
+ */
+interface RefusVue {
+  readonly overline: string;
+  readonly titre: string;
+  readonly phrase: string;
+  readonly action: string;
+  readonly libelle: string;
+}
+
+const REFUS_GENERIQUE: RefusVue = {
+  overline: 'LE PRIX',
+  titre: 'Nous ne pouvons pas afficher le prix.',
+  phrase: 'Réessayez dans un instant. Rien n’a été payé.',
+  action: 'reessayer-prix',
+  libelle: 'Réessayer',
+};
+
+const REFUS: Readonly<Record<string, RefusVue>> = {
+  listing_unknown: {
+    overline: 'L’ARTICLE',
+    titre: 'Cet article n’est plus dans cette boutique.',
+    phrase: 'Il a été retiré. Rien n’a été payé.',
+    action: 'voir-boutique',
+    libelle: 'Voir la boutique',
+  },
+  not_found: {
+    overline: 'L’ARTICLE',
+    titre: 'Cet article n’est plus dans cette boutique.',
+    phrase: 'Il a été retiré. Rien n’a été payé.',
+    action: 'voir-boutique',
+    libelle: 'Voir la boutique',
+  },
+  listing_not_live: {
+    overline: 'L’ARTICLE',
+    titre: 'Cet article n’est plus en vente.',
+    phrase: 'La vendeuse l’a retiré. Rien n’a été payé.',
+    action: 'voir-boutique',
+    libelle: 'Voir la boutique',
+  },
+  delivery_not_serviceable: {
+    overline: 'LA LIVRAISON',
+    titre: 'Séra ne livre pas encore ici.',
+    phrase: 'Essayez une autre zone. Rien n’a été payé.',
+    action: 'retour-c3',
+    libelle: 'Changer de zone',
+  },
+  attribution_missing: {
+    overline: 'LE LIEN',
+    titre: 'Ce lien ne permet pas de commander.',
+    phrase: 'Demandez à la vendeuse son lien à jour.',
+    action: 'voir-boutique',
+    libelle: 'Voir la boutique',
+  },
+  attribution_mismatch: {
+    overline: 'LE LIEN',
+    titre: 'Ce lien ne permet pas de commander.',
+    phrase: 'Demandez à la vendeuse son lien à jour.',
+    action: 'voir-boutique',
+    libelle: 'Voir la boutique',
+  },
+  checkout_killed: {
+    overline: 'LES COMMANDES',
+    titre: 'Les commandes sont suspendues un moment.',
+    phrase: 'Revenez dans un moment. Rien n’a été payé.',
+    action: 'reessayer-prix',
+    libelle: 'Réessayer',
+  },
+  expired: {
+    overline: 'LE PRIX',
+    titre: 'Ce prix a expiré.',
+    phrase: 'Un prix ne reste affiché qu’un moment. Rien n’a été payé.',
+    action: 'prix-a-jour',
+    libelle: 'Voir le prix à jour',
+  },
+  already_reserved: {
+    overline: 'LA COMMANDE',
+    titre: 'Cette commande est déjà en cours.',
+    phrase: 'Elle est gardée un court moment. Attendez, puis réessayez.',
+    action: 'reessayer-prix',
+    libelle: 'Réessayer',
+  },
+  unreachable: {
+    overline: 'HORS LIGNE',
+    titre: 'Pas de connexion.',
+    phrase: 'Le prix ne peut pas être affiché sans réseau. Rien n’a été payé.',
+    action: 'reessayer-prix',
+    libelle: 'Réessayer',
+  },
+};
+
+/** The view a refusal name renders as — the generic one for every name this
+ *  table does not know (`amounts_disagree`, `quote_not_issuable`, `stored_*`,
+ *  `request_key_reused`, and anything the service grows next). */
+export function refusVue(reason: string): RefusVue {
+  return REFUS[reason] ?? REFUS_GENERIQUE;
+}
+
+export function renderRefus(reason: string): string {
+  const v = refusVue(reason);
+  return [
+    `<div class="cl-screen" data-screen="REFUS" data-motif="${esc(reason)}">`,
+    stepHead('retour-c3', 'Le prix'),
+    '<div class="cl-sub">',
+    `<div class="cl-sub-overline">${v.overline}</div>`,
+    `<div class="cl-sub-title">${v.titre}</div>`,
+    `<div class="cl-sub-body">${v.phrase}</div>`,
+    '</div>',
+    `<button class="cl-cta cl-cta-step" data-action="${v.action}">${v.libelle}</button>`,
     '</div>',
   ].join('');
 }
