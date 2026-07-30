@@ -167,10 +167,18 @@ interface BlocBalaye {
  * laid side by side and whose « lines » are an artefact of layout rather than a
  * wrapped sentence.
  */
-async function sweepC5(page: Page, label: string): Promise<{ label: string; blocks: BlocBalaye[] }> {
-  const blocks = await page.evaluate(() => {
+async function sweepC5(page: Page, label: string): Promise<EtatBalaye> {
+  const seen = await page.evaluate(() => {
     const screen = document.querySelector('[data-screen="C5"]');
-    if (screen === null) return [];
+    // NO C5 AT ALL. Every field the caller reads exists here too, so a missing
+    // screen fails on the `etat` assertion by name — never on an undefined.
+    if (screen === null) {
+      return {
+        etat: null as string | null,
+        blocks: [] as Array<{ cls: string; text: string; lines: number; lastRatio: number }>,
+        glued: [] as Array<{ cls: string; text: string; lines: number }>,
+      };
+    }
     /** The visual lines of one element: union the client rects per line top. */
     const linesOf = (el: Element): number[] => {
       const range = document.createRange();
@@ -196,7 +204,7 @@ async function sweepC5(page: Page, label: string): Promise<{ label: string; bloc
     });
     // Keep the INNERMOST block for each run of text: a wrapper that merely
     // contains a wrapped paragraph is not itself a sentence.
-    return multi
+    const blocks = multi
       .filter((el) => !multi.some((other) => other !== el && el.contains(other) && (other.textContent ?? '') === (el.textContent ?? '')))
       .map((el) => {
         const w = linesOf(el);
@@ -215,17 +223,83 @@ async function sweepC5(page: Page, label: string): Promise<{ label: string; bloc
         const pad = (Number.parseFloat(cs.paddingLeft) + Number.parseFloat(cs.paddingRight)) * scale;
         return { cls: el.className, text: (el.textContent ?? '').trim(), lines: w.length, lastRatio: w[w.length - 1]! / (rect.width - pad) };
       });
+    // EVERY NO-WRAP UNIT ON THE SCREEN, and how many lines it actually took.
+    //
+    // WHY THIS EXISTS (round 6). Five sentences on C5 are now set with a glued
+    // clause — cl-reconcile-promesse, cl-redite-fin, cl-titre-fin,
+    // cl-envoi-fin, cl-prov-cle — and the 0.35 orphan bar only defends the ones
+    // whose ratio it happens to cross. Deleting cl-prov-cle puts the opérateur
+    // screen back to 0.363: a REGRESSION the bar cannot see, because 0.363
+    // passes. A fix nothing fails for is a fix that leaves on the next edit.
+    // So the glue is pinned as itself: a no-wrap unit takes exactly one line,
+    // and the units that must be present are named below. This also covers the
+    // amounts (cl-bill-row b, cl-opt-fee, …) — a franc figure that wraps is a
+    // defect in its own right.
+    const glued = [...screen.querySelectorAll('*')]
+      .filter((el) => {
+        if (el.closest('svg') !== null) return false;
+        if ((el.textContent ?? '').trim() === '') return false;
+        if (getComputedStyle(el).whiteSpace !== 'nowrap') return false;
+        return [...el.children].every((c) => getComputedStyle(c).display === 'inline');
+      })
+      .map((el) => ({ cls: el.className, text: (el.textContent ?? '').trim(), lines: linesOf(el).length }));
+    // THE SUB-STATE IS READ IN THE SAME DOM SNAPSHOT AS THE BLOCKS. `envoi`
+    // lasts 1 200 ms and `operateur` 2 400 ms before the flow moves on by
+    // itself, so a sweep of either is racing a timer. Reading `data-etat` here
+    // — inside the one evaluate, off the one layout — means a branch that
+    // advanced mid-sweep can only ever produce a WRONG-STATE FAILURE, never a
+    // ratio quietly taken from the next screen.
+    return { etat: screen.getAttribute('data-etat'), blocks, glued };
   });
-  return { label, blocks };
+  return { label, etat: seen.etat, blocks: seen.blocks, glued: seen.glued };
 }
 
-/** The sweep in all three states the buyer can put C5 in: nothing chosen (where
- *  the replay does not exist yet), mode A, mode B. */
-async function sweepEveryState(page: Page, basket: string): Promise<Array<{ label: string; blocks: BlocBalaye[] }>> {
-  const states = [await sweepC5(page, `${basket} · nothing chosen`)];
+/** One swept sub-state: what it is, and how many wrapped blocks it must yield.
+ *  A `plancher` is « the sweep saw this screen », never a target — `choix` is
+ *  the whole bill, `envoi` and `operateur` are short centred columns. */
+interface EtatBalaye {
+  readonly label: string;
+  readonly etat: string | null;
+  readonly blocks: BlocBalaye[];
+  readonly glued: Array<{ cls: string; text: string; lines: number }>;
+}
+
+/** Which payment mode this sweep was taken under — `null` before she chooses. */
+type ModeBalaye = 'A' | 'B' | null;
+
+/**
+ * THE WHOLE SCREEN, IN EVERY STATE A BUYER CAN REACH — which now includes the
+ * two she reaches by PRESSING PAYER.
+ *
+ * `renderC5` has three top-level branches: `choix`, `envoi` (« ENVOI SÉCURISÉ »)
+ * and `operateur` (« Confirmez sur votre téléphone »). The sweep used to click
+ * the mode cards and stop, so two of the three — both on the far side of the one
+ * button this screen exists for, both seen by every buyer on every purchase —
+ * were never measured. Each mode is re-entered from a fresh load because paying
+ * leaves C5 for C6.
+ */
+async function sweepEveryState(
+  page: Page,
+  basket: string,
+  url: string,
+): Promise<Array<EtatBalaye & { attendu: string; plancher: number; mode: ModeBalaye }>> {
+  // `mode` is a FIELD, not a substring of the label. The first version of this
+  // filtered with `label.endsWith('chosen')`, which also matched « nothing
+  // chosen » — a boundary drawn on prose, in the one test whose entire subject
+  // is boundaries drawn carelessly.
+  const states = [{ ...(await sweepC5(page, `${basket} · nothing chosen`)), attendu: 'choix', plancher: 6, mode: null as ModeBalaye }];
   for (const mode of ['A', 'B'] as const) {
+    await page.goto(url);
+    await expect(page.locator('[data-screen="C5"]')).toBeVisible();
     await page.locator(`[data-action="choix-paiement"][data-mode="${mode}"]`).click();
-    states.push(await sweepC5(page, `${basket} · mode ${mode} chosen`));
+    states.push({ ...(await sweepC5(page, `${basket} · mode ${mode} chosen`)), attendu: 'choix', plancher: 6, mode });
+    // …AND THEN SHE PRESSES IT. Everything below this line is a state no
+    // previous version of this sweep has ever entered.
+    await page.locator('[data-action="payer"]').click();
+    await expect(page.locator('[data-etat="envoi"]')).toBeVisible();
+    states.push({ ...(await sweepC5(page, `${basket} · mode ${mode} · envoi`)), attendu: 'envoi', plancher: 1, mode });
+    await expect(page.locator('[data-etat="operateur"]')).toBeVisible({ timeout: 5_000 });
+    states.push({ ...(await sweepC5(page, `${basket} · mode ${mode} · opérateur`)), attendu: 'operateur', plancher: 3, mode });
   }
   return states;
 }
@@ -295,10 +369,30 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
   //     basket was never measured. Both are the same shape of miss: the guard
   //     passes because it never looked, and every previous instance of that
   //     shape had hidden a real defect.
+  //   · BY SUB-STATE (round 6). The sweep clicked the mode cards and never
+  //     pressed Payer, so `envoi` and `operateur` — the two branches on the far
+  //     side of this screen's one primary action, which every buyer sees on
+  //     every purchase — had never been measured at all. « ENVOI SÉCURISÉ »
+  //     was stranding « l'opérateur. » at 0.334, in all four combinations,
+  //     fixed regardless of the amount: the party the money is going to, alone
+  //     on a line, at the moment the payment leaves her hands.
+  //
+  // THE RULE, and it is the actual deliverable here, because it has now held
+  // SIX times without a single exception:
+  //
+  //   EVERY TIME THIS SWEEP HAS BEEN BOUNDED BY ANYTHING OTHER THAN « the whole
+  //   screen, in every state a buyer can reach », THE BOUNDARY HAS HIDDEN A
+  //   DEFECT — by selector, by element, by mount state, by computed display, by
+  //   fixture amount, and now by sub-state.
+  //
+  // The corollary is the one to act on: the next narrowing will look just as
+  // reasonable as these six did. Widen the sweep; never the exemption list.
   const BASKET_DEFAULT = 'basket 12 500';
   const BASKET_LARGE = 'basket 19 753 086';
+  const URL_DEFAULT = '/?demo-cliente=C5&theme=indigo';
+  const URL_LARGE = '/?demo-cliente=C5&theme=indigo&prix=9876543&frais=9876543';
 
-  const petit = await sweepEveryState(page, BASKET_DEFAULT);
+  const petit = await sweepEveryState(page, BASKET_DEFAULT, URL_DEFAULT);
 
   // THE SAME SCREEN, THE SAME STATES, A BASKET WHOSE SENTENCES WRAP. `prix` and
   // `frais` are harness levers into the certified mock quote service
@@ -306,13 +400,18 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
   // asked to price a bigger article and a bigger course. At this basket the two
   // §6.1 paylines wrap, the replay wraps, and mode B's CTA — « Payer 9 876 543
   // FCFA maintenant » — wraps too, which is what puts it in the swept set.
-  await page.goto('/?demo-cliente=C5&theme=indigo&prix=9876543&frais=9876543');
+  await page.goto(URL_LARGE);
   await expect(page.locator('[data-screen="C5"]')).toBeVisible();
-  const grand = await sweepEveryState(page, BASKET_LARGE);
+  const grand = await sweepEveryState(page, BASKET_LARGE, URL_LARGE);
 
-  for (const { label, blocks } of [...petit, ...grand]) {
+  const tous = [...petit, ...grand];
+  for (const { label, etat, blocks, attendu, plancher } of tous) {
+    // THE SWEEP MEASURED THE SCREEN IT MEANT TO. `envoi` and `operateur` are
+    // timed branches; a ratio read off the wrong one would be a number that
+    // proves nothing, so the state travels with the measurement.
+    expect(etat, `${label}: swept « ${etat} » — this is not the branch under test`).toBe(attendu);
     // The sweep really did see the screen — an empty result would pass in silence.
-    expect(blocks.length, `${label}: no multi-line text found on C5`).toBeGreaterThanOrEqual(6);
+    expect(blocks.length, `${label}: no multi-line text found on C5`).toBeGreaterThanOrEqual(plancher);
     for (const b of blocks) {
       expect(
         b.lastRatio,
@@ -323,11 +422,54 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
 
   // …and the REPLAY was actually in the swept set once she had chosen, at BOTH
   // baskets: the sentence this test exists for must not be able to leave
-  // coverage quietly.
-  for (const { label, blocks } of [...petit.slice(1), ...grand.slice(1)]) {
+  // coverage quietly. Selected BY LABEL, not by index — a sweep that grows new
+  // states must not silently re-point this assertion at one of them.
+  for (const { label, blocks } of tous.filter((s) => s.attendu === 'choix' && s.mode !== null)) {
     expect(
       blocks.some((b) => b.text.startsWith('Vous payez')),
       `${label}: the replay line was not swept — coverage shrank without failing`,
+    ).toBe(true);
+  }
+
+  // …AND THE TWO BRANCHES BEHIND THE PAYER BUTTON WERE REALLY ENTERED, each
+  // with the sentence that carries the amount on it. Same discipline as the
+  // replay and the CTA: naming the element that must be in the swept set is
+  // what stops the set from shrinking back to `choix` without a red test.
+  for (const { label, blocks } of tous.filter((s) => s.attendu === 'envoi')) {
+    expect(
+      blocks.some((b) => b.cls.includes('cl-sub-body')),
+      `${label}: « ENVOI SÉCURISÉ » was not swept — the payment-leaving screen left coverage`,
+    ).toBe(true);
+  }
+  for (const { label, blocks } of tous.filter((s) => s.attendu === 'operateur')) {
+    expect(
+      blocks.some((b) => b.cls.includes('cl-prov-body')),
+      `${label}: the opérateur screen was not swept — the code-secret screen left coverage`,
+    ).toBe(true);
+  }
+
+  // EVERY GLUED CLAUSE HOLDS, AND THE TWO NEW ONES EXIST AT ALL.
+  //
+  // The presence checks are what defend cl-prov-cle: its ratio BEFORE the glue
+  // was 0.363, which clears the 0.35 bar, so removing the rule would regress
+  // the screen without failing a single ratio. Naming the unit turns a silent
+  // regression into a red test — the same reason the replay and the CTA are
+  // named rather than trusted to the sweep's size.
+  for (const { label, glued } of tous) {
+    for (const g of glued) {
+      expect(g.lines, `${label}: the no-wrap unit « ${g.text} » (${g.cls}) wrapped onto ${g.lines} lines`).toBe(1);
+    }
+  }
+  for (const { label, glued } of tous.filter((s) => s.attendu === 'envoi')) {
+    expect(
+      glued.some((g) => g.cls.includes('cl-envoi-fin')),
+      `${label}: « à l’opérateur. » is no longer one no-wrap unit — the orphan at 0.334 is back`,
+    ).toBe(true);
+  }
+  for (const { label, glued } of tous.filter((s) => s.attendu === 'operateur')) {
+    expect(
+      glued.some((g) => g.cls.includes('cl-prov-cle')),
+      `${label}: « code secret Orange Money » is no longer one no-wrap unit — back to 0.363`,
     ).toBe(true);
   }
 
@@ -337,7 +479,7 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
   // it could not be measured at all. If that declaration is removed, the button
   // computes to inline-block, `isTextBlock` drops it, and this fails BY NAME
   // rather than by a silently smaller swept set.
-  const ctaState = grand.find((s) => s.label.endsWith('mode B chosen'));
+  const ctaState = grand.find((s) => s.attendu === 'choix' && s.mode === 'B');
   expect(
     ctaState?.blocks.some((b) => b.cls.includes('cl-cta-c5')),
     `${BASKET_LARGE}: the CTA was not swept — it is a text block by display, or it stopped wrapping`,

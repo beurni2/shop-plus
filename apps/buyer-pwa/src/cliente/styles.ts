@@ -413,6 +413,23 @@ export const CLIENTE_STYLES = `
   .cl-sub-title { margin-top: 10px; font-family: var(--cld); font-weight: 800; font-size: 28px; letter-spacing: -.02em; }
   .cl-sub-body { margin-top: 10px; font-size: 14px; line-height: 1.55; color: #4A3F33; max-width: 280px; }
   .cl-sub-body b { font-feature-settings: 'tnum'; color: #1C1710; }
+  /* « ENVOI SÉCURISÉ » — THE PARTY THE MONEY IS GOING TO IS NEVER LEFT ALONE
+     (round 6). « Nous envoyons votre demande de / paiement de {X} FCFA à /
+     l'opérateur. » stranded « l'opérateur. » at 0.334 of the block — below the
+     0.35 orphan bar, in all four combinations (both modes × both baskets), and
+     FIXED regardless of the amount, because the last line was the tail alone.
+     This is the moment the payment leaves her hands; the stranded word is who
+     is receiving it.
+     Same device as cl-reconcile-promesse, cl-redite-fin and cl-titre-fin,
+     for the fourth time: the closing clause is one no-wrap unit, so the break
+     falls BEFORE « à » and the last line reads « à l'opérateur. » → 0.388.
+     WHY THE TAIL STOPS HERE and does not reach back to « de paiement de »:
+     everything further back drags the AMOUNT onto the last line, and a last
+     line carrying francs grows with the basket — measured 0.92 at 19 753 086,
+     but one digit more and it wraps again, putting the same stub back. An
+     amount-free tail is worth less headroom that never moves: 0.388 is the same
+     number at every basket this screen can be given. */
+  .cl-envoi-fin { white-space: nowrap; }
   .cl-bar-track { width: 190px; height: 4px; border-radius: 99px; background: #EFE4D2; margin-top: 28px; overflow: hidden; }
   .cl-bar-fill { width: 100%; height: 100%; border-radius: 99px; background: var(--vt-accent); }
   @media (prefers-reduced-motion: no-preference) { .cl-bar-fill { animation: clBar 1.4s ease-in-out infinite; } }
@@ -422,6 +439,26 @@ export const CLIENTE_STYLES = `
   .cl-prov-title { margin-top: 16px; font-family: var(--cld); font-weight: 800; font-size: 24px; line-height: 1.2; letter-spacing: -.02em; }
   .cl-prov-body { margin-top: 10px; font-size: 14px; line-height: 1.6; color: #4A3F33; max-width: 290px; }
   .cl-prov-body b { font-feature-settings: 'tnum'; color: #1C1710; }
+  /* THE OPERATOR SCREEN, TREATED LIKE THE TITLE RATHER THAN LEFT ON ITS MARGIN
+     (round 6). « Composez votre code secret / Orange Money pour valider /
+     {X} FCFA. » sat at 0.363 — 1.3% above the bar, the same thin margin the
+     option-B title was carrying when the founder reversed « leave it ». It also
+     MOVED with the basket (0.363 · 0.404 · 0.498 · 0.537), so what passed was
+     the fixture, not the setting.
+     WHERE THE NO-WRAP UNIT BELONGS, and why it is a HEAD and not a tail here:
+     the last line is the AMOUNT, and no unit containing an amount may ever be
+     glued on this screen (the cl-payline rule — nowrap on francs pushes the
+     card past a 360px phone, and a horizontal scrollbar on a payment screen is
+     worse than a second line). A tail is therefore unavailable; gluing « pour
+     valider » alone changes nothing, measured, because those words already sit
+     together. What DOES move the break is « code secret Orange Money » — the
+     name of the credential she is being asked to compose, which was itself
+     being split across two lines. Held together it reads « Composez votre /
+     code secret Orange Money / pour valider {X} FCFA. » → 0.581 at the smallest
+     basket and 0.754 at the largest. The unit is 273px and carries no amount,
+     so it cannot grow past the 290px measure. Used by BOTH screens that ask for
+     the code — C5's opérateur and C8's door leg — because it is one sentence. */
+  .cl-prov-cle { white-space: nowrap; }
   .cl-prov-wait { margin-top: 22px; display: flex; align-items: center; gap: 10px; padding: 12px 17px; border-radius: 15px; border: 1.5px solid #E0D6C2; background: #FFFFFF; }
   .cl-prov-dots { display: inline-flex; gap: 4px; }
   .cl-prov-dot { width: 7px; height: 7px; border-radius: 99px; background: #1C1710; }
