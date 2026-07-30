@@ -26,10 +26,26 @@ const SAFE_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS']);
 /** The header the reseller app presents the shared write key in. */
 export const WRITE_KEY_HEADER = 'X-Write-Key';
 
+/**
+ * SP3.3a — the header the PAYMENT PROVIDER presents its own shared secret in.
+ * A DIFFERENT header and a DIFFERENT secret from the write key on purpose: the
+ * write key ships inside the reseller app bundle and is readable by anyone who
+ * downloads it, so reusing it here would mean every phone that has the app can
+ * assert that money arrived.
+ */
+export const PAYMENT_WEBHOOK_KEY_HEADER = 'X-Payment-Webhook-Key';
+
 /** The env the gate reads its configured secret from — a wrangler SECRET, NEVER a
  * `[vars]` entry (all five repos are public; a var there would be published). */
 export interface WriteAuthEnv {
   readonly STOREFRONT_WRITE_SECRET?: string;
+  /**
+   * SP3.3a — the payment webhook's shared secret. A `wrangler secret`, never a
+   * `[vars]` entry and never in the bundle. UNSET ⇒ EVERY webhook is refused,
+   * exactly as an unset write secret refuses every write: a payment route that
+   * fails OPEN is a route that lets anyone declare an order paid.
+   */
+  readonly PAYMENT_WEBHOOK_SECRET?: string;
 }
 
 /** A write is any request whose method is not a safe read method. */
@@ -68,6 +84,25 @@ async function timingSafeEqual(a: string, b: string): Promise<boolean> {
 export async function keyAuthorized(request: Request, env: WriteAuthEnv): Promise<boolean> {
   const secret = env.STOREFRONT_WRITE_SECRET ?? '';
   const provided = request.headers.get(WRITE_KEY_HEADER) ?? '';
+  const match = await timingSafeEqual(provided, secret);
+  return secret.length > 0 && match;
+}
+
+/**
+ * SP3.3a — THE PAYMENT WEBHOOK GATE, FAIL CLOSED. Character-for-character the
+ * same shape as `keyAuthorized` above, on a DIFFERENT secret and a DIFFERENT
+ * header: the compare runs unconditionally so timing never reveals whether a
+ * secret is configured, and the length guard keeps an unset secret from ever
+ * matching a presented key.
+ *
+ * IT IS THE WHOLE AUTHENTICATION OF THE ONLY ROUTE THAT CAN DECLARE MONEY
+ * RECEIVED. It runs at the composition root BEFORE any dispatch, so a rejected
+ * webhook never reaches a Durable Object and the 401 can never become an
+ * existence oracle for order ids.
+ */
+export async function paymentWebhookAuthorized(request: Request, env: WriteAuthEnv): Promise<boolean> {
+  const secret = env.PAYMENT_WEBHOOK_SECRET ?? '';
+  const provided = request.headers.get(PAYMENT_WEBHOOK_KEY_HEADER) ?? '';
   const match = await timingSafeEqual(provided, secret);
   return secret.length > 0 && match;
 }

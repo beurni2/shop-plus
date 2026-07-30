@@ -34,29 +34,125 @@ describe('THE MOCK IS NOT THE FALLBACK — fabricated supply data is unreachable
     expect(resolveSupplySource({ OFFER: { fetch: async () => new Response(null) } })).toBeInstanceOf(BoundSupplySource);
   });
 
-  it('NO MOCK IS IMPORTABLE FROM THE SERVICE SOURCE — the fabrication path does not exist in the bundle', () => {
+  it('NO MOCK IS IMPORTABLE FROM THE SERVICE SOURCE — with ONE named exception, pinned to its file', () => {
     // The load-bearing difference from every other env-gated fallback: in-memory
     // stores are EMPTY, but a supply mock is POPULATED — it emits invented product
     // names and image refs. A deployed Worker that resolved to it would serve
     // fabricated products to a real buyer. So the deployed code imports no mock AT
     // ALL: no env value, flag or misconfiguration can reach one.
+    //
+    // ═══ THE ONE EXCEPTION, AND WHY IT IS NOT THE SAME THING (SP3.3a) ═══
+    //
+    // The vault's CERTIFIED SANDBOX PAYMENT PROVIDER is not a fallback and not a
+    // fabricator: at E1/E2 it IS the payment implementation (a real aggregator is
+    // the Real-Money Gate's open Decision), exactly as `delivery-source.ts` — the
+    // « SANDBOX TARIFF, CONTRACT-CERTIFIED » stand-in for Séra — is the deployed
+    // pricing of D. It invents NO buyer-visible data: it initiates a charge and
+    // reports accepted/timeout, and it cannot invent a payment, because the only
+    // thing that moves an order's money state is a signed webhook validated to
+    // the franc against the immutable Quote by the frozen vault.
+    //
+    // THE GUARD KEEPS ITS TEETH BY BEING PINNED, not loosened: the set of
+    // mock-looking imports in the deployed source must be EXACTLY this one, in
+    // EXACTLY this file. A second one, a moved one, or a supply mock creeping
+    // back fails this test by name.
+    //
+    // ═══ AND IT SCANS BINDINGS, NOT ONLY SPECIFIERS (verifier finding 6) ═══
+    //
+    // Scanning specifiers alone left a hole the code was ALREADY standing in:
+    // `payment-port.ts` imports `MockPaymentProvider` from the
+    // `@shop-plus/commerce-core` BARREL, whose specifier contains no « mock » —
+    // and the verifier walked BOTH vault mocks into deployed source through that
+    // barrel with the suite still green. A mock arriving by name must be caught
+    // by name, so two sets are pinned: the mock-named SPECIFIERS (exactly one,
+    // the worker bundle's alias re-export, which the bundle cannot be built
+    // without) and the mock-named BINDINGS (exactly one, the certified payment
+    // provider, in exactly one file).
+    //
+    // TYPE-ONLY IMPORTS ARE EXCLUDED, deliberately and not for convenience: a
+    // `type` import is erased at compile time, reaches no runtime and can
+    // fabricate nothing. `PaymentMockConfig` is a shape, not a fabricator.
+    const ALLOWED_SPECIFIERS = [
+      'worker/commerce-core-worker.ts::../../../packages/commerce-core/dist/mocks/payment-provider-mock.js',
+    ];
+    const ALLOWED_BINDINGS = ['src/payment-port.ts::MockPaymentProvider'];
     const roots = [join(import.meta.dirname, '../src'), join(import.meta.dirname, '../worker')];
     const walk = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
         e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.ts') ? [join(dir, e.name)] : [],
       );
+    /**
+     * ═══ TWO SHAPES DEFEAT A BY-NAME SCAN, SO BOTH ARE BANNED OUTRIGHT ═══
+     * (Verifier round 2 — both bypasses were live, and the second is the serious
+     * one: it would have let a SUPPLY mock, the exact thing this test exists to
+     * stop, into deployed source with the suite green.)
+     *
+     *  · A NAMESPACE IMPORT (`import * as x from '…'`) binds every export of a
+     *    module under one name, so no binding this scan can read ever mentions a
+     *    mock. Deployed source imports BY NAME; there are none today and the
+     *    allowlist is empty.
+     *  · A DYNAMIC IMPORT (`import('…')`) is invisible to the specifier scan
+     *    (which requires `from`), and its argument may be computed at runtime, so
+     *    there is no version of this scan that could police it. A specifier this
+     *    test cannot read is a specifier it cannot allow. None today either.
+     *
+     * `export * from '<explicit vault module>'` stays legal: that is the worker
+     * bundle's alias file, and each of its specifiers IS scanned individually
+     * below. A star re-export of the BARREL is not legal — it would pull the
+     * mocks in under a specifier with no « mock » in it.
+     */
+    const BARREL = '@shop-plus/commerce-core';
+    const foundSpecifiers: string[] = [];
+    const foundBindings: string[] = [];
+    const namespaceImports: string[] = [];
+    const dynamicImports: string[] = [];
+    const barrelStarReexports: string[] = [];
     for (const dir of roots) {
       for (const file of walk(dir)) {
         const src = readFileSync(file, 'utf8');
-        const imports = [...src.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]!);
-        for (const spec of imports) {
-          expect(
-            /mock/i.test(spec),
-            `${file} imports ${spec} — a mock is reachable from the deployed composition root`,
-          ).toBe(false);
+        const relative = file.slice(file.indexOf('/storefront-service/') + '/storefront-service/'.length);
+        for (const spec of [...src.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]!)) {
+          if (/mock/i.test(spec)) foundSpecifiers.push(`${relative}::${spec}`);
+        }
+        for (const m of src.matchAll(/import\s*\*\s*as\s+([A-Za-z_$][\w$]*)\s*from\s*['"]([^'"]+)['"]/g)) {
+          namespaceImports.push(`${relative}::* as ${m[1]!} from ${m[2]!}`);
+        }
+        // `import(` in any form — a bare call, awaited, or chained. The comment
+        // and string forms are stripped of nothing: if it looks like a dynamic
+        // import it is one, and it is refused.
+        for (const m of src.matchAll(/(?<![.\w$])import\s*\(\s*([^)]*)\)/g)) {
+          dynamicImports.push(`${relative}::import(${m[1]!.trim()})`);
+        }
+        for (const m of src.matchAll(/export\s*\*\s*(?:as\s+[\w$]+\s*)?from\s*['"]([^'"]+)['"]/g)) {
+          if (m[1]! === BARREL) barrelStarReexports.push(`${relative}::export * from ${m[1]!}`);
+        }
+        // Every import/export STATEMENT, with its clause — `import … from`,
+        // `import type … from`, and `export … from` (the barrel re-export shape).
+        for (const stmt of src.matchAll(/(?:import|export)\s+([\s\S]*?)\s*from\s*['"][^'"]+['"]/g)) {
+          const clause = stmt[1]!;
+          if (/^type\s/.test(clause.trim())) continue; // erased at compile time
+          const named = /\{([\s\S]*?)\}/.exec(clause);
+          const bindings = named === null ? [clause] : named[1]!.split(',');
+          for (const raw of bindings) {
+            const binding = raw.trim();
+            if (binding === '' || binding.startsWith('type ')) continue;
+            const name = binding.split(/\s+as\s+/)[0]!.trim().replace(/^\*\s*/, '');
+            if (name !== '' && /mock/i.test(name)) foundBindings.push(`${relative}::${name}`);
+          }
         }
       }
     }
+    expect(foundSpecifiers.sort()).toEqual(ALLOWED_SPECIFIERS);
+    expect(foundBindings.sort()).toEqual(ALLOWED_BINDINGS);
+    // The two shapes no by-name scan can police: none exist, and none may.
+    expect(namespaceImports).toEqual([]);
+    expect(dynamicImports).toEqual([]);
+    expect(barrelStarReexports).toEqual([]);
+    // …and NO supply mock, by the original rule: nothing on the supply path.
+    for (const entry of [...foundSpecifiers, ...foundBindings]) expect(/supply/i.test(entry)).toBe(false);
+    // The eligibility mock is the verifier's own smuggle: it rides the SAME
+    // barrel and would reach deployed source with no « mock » in any specifier.
+    for (const entry of foundBindings) expect(entry.includes('Sera')).toBe(false);
   });
 
   it('the SUPPLY SOURCE module itself names no mock (the resolver has exactly two branches)', () => {

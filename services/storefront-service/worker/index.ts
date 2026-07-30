@@ -1,12 +1,20 @@
 import sfRouter, { StorefrontDO } from './storefront-do.js';
 import lstRouter, { ListingDO } from './listing-do.js';
 import checkoutRouter, { CheckoutDO } from './checkout-do.js';
+import orderRouter, { OrderDO } from './order-do.js';
 import { checkoutPreflight, handleRequest, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
 import { SUPPLY_COLLECTION_ROUTE } from '../src/supply-collection.js';
 import { signPrice } from '../src/publish-price.js';
 import { resolveSupplySource } from '../src/supply-source.js';
+import { orderIdForQuote } from '../src/order-core.js';
 import type { R2BucketLike } from '../src/media/media-store.js';
-import { rejectUnauthorizedWrite, keyAuthorized, unauthorized, type WriteAuthEnv } from './auth.js';
+import {
+  rejectUnauthorizedWrite,
+  keyAuthorized,
+  paymentWebhookAuthorized,
+  unauthorized,
+  type WriteAuthEnv,
+} from './auth.js';
 
 /**
  * THE COMBINED WORKER (STOREFRONT-DEPLOY-1, founder ruling: one combined Worker).
@@ -21,13 +29,19 @@ import { rejectUnauthorizedWrite, keyAuthorized, unauthorized, type WriteAuthEnv
  *
  * wrangler binds these two classes by their exported names.
  */
-export { StorefrontDO, ListingDO, CheckoutDO };
+export { StorefrontDO, ListingDO, CheckoutDO, OrderDO };
 
 interface Env extends WriteAuthEnv {
   STOREFRONT: DurableObjectNamespace;
   LISTING: DurableObjectNamespace;
   /** SP3.2a — one instance per quote id, plus the per-request-key pointers. */
   CHECKOUT: DurableObjectNamespace;
+  /** SP3.3a — one instance per ORDER id, and the order id is a function of the
+   *  quote id, so one quote can never grow a second order. */
+  ORDER: DurableObjectNamespace;
+  /** SP3.3a — the certified sandbox provider's behaviour knobs. UNSET on the
+   *  deploy (the well-behaved provider); read by OrderDO, never by a route. */
+  PAYMENT_SANDBOX_BEHAVIOR?: string;
   BUCKET?: R2BucketLike;
   MEDIA_PUBLIC_BASE?: string;
   STOREFRONT_GCS_BUCKET?: string;
@@ -54,12 +68,13 @@ export default {
     // A BUYER HOLDS NO KEY AND MUST NEVER NEED ONE. The shared write secret is
     // inlined in the RESELLER app bundle (SERVICE-WRITE-AUTH-1); shipping it to
     // every browser that opens a boutique link would publish it outright. So
-    // these three routes are declared here, ABOVE the write gate, and they are
+    // these routes are declared here, ABOVE the write gate, and they are
     // the only writes on this Worker that answer without a credential.
     //
     // WHAT THAT DOES **NOT** OPEN, stated precisely because an exemption is a
     // hole until proven otherwise:
-    //   · THE THREE ROUTES ARE MATCHED EXACTLY — one `===` and two anchored
+    //   · THE FIVE ROUTES ARE MATCHED EXACTLY (SP3.3a added the two order ones)
+    //     — two `===` and three anchored
     //     regexes that admit a single path segment. `/checkout/anything-else`,
     //     and every other method on these paths, falls through to the gate below
     //     and is refused 401 exactly as before. (Prefix matching is how an auth
@@ -68,12 +83,17 @@ export default {
     //   · NO AMOUNT CAN ARRIVE. `QuoteRequest` has no money field to land in and
     //     the router refuses unknown keys outright, so the most valuable thing
     //     an anonymous caller could try to say — a price — is unsayable.
-    //   · NO ECONOMICS CAN LEAVE. Every response is `toBuyerQuoteView` or a
-    //     named refusal; the supplier's base, the commission and both nets stay
-    //     inside the Worker.
+    //   · NO ECONOMICS CAN LEAVE. Every response is `toBuyerQuoteView`,
+    //     `toBuyerOrderView` or a named refusal; the supplier's base, the
+    //     commission, both nets, the payment attempt ids and the provider's
+    //     collect references stay inside the Worker.
     //   · IT WRITES NOTHING SOMEONE ELSE OWNS. A quote is a new object under a
-    //     server-minted id; no storefront, listing, media object or event is
-    //     touched.
+    //     server-minted id; an order is a new object under an id derived from
+    //     that quote's; no storefront, listing, media object or event is touched.
+    //   · IT CANNOT DECLARE MONEY RECEIVED. `POST /checkout/order` initiates a
+    //     charge and nothing more; the only route that can move an order to
+    //     `paid` is the secret-gated webhook below, and even it is validated to
+    //     the franc against the immutable Quote by the frozen vault.
     // KNOWN AND ACCEPTED RESIDUE (journalled): an open POST lets an anonymous
     // caller create quote objects at will. They are per-request-key, expire in
     // 15 minutes, and hold no money — but there is no rate limit in front of
@@ -82,25 +102,87 @@ export default {
     const isCheckoutQuote = pathname === '/checkout/quote';
     const isCheckoutQuoteById = /^\/checkout\/quote\/[^/]+$/.test(pathname);
     const isCheckoutReserve = /^\/checkout\/quote\/[^/]+\/reserve$/.test(pathname);
-    const isPublicCheckout =
+    // SP3.3a — the ORDER surface. Public for the SAME reason and on the SAME
+    // terms: a buyer holds no key, no amount can arrive (the body is a
+    // three-key allowlist with no money field), and no economics can leave (the
+    // OrderDO projects inside itself, so the Quote never crosses to the router).
+    // The WEBHOOK is deliberately NOT here — it is secret-gated below.
+    const isOrderCreate = pathname === '/checkout/order';
+    const isOrderById = /^\/checkout\/order\/[^/]+$/.test(pathname);
+    const isPublicQuote =
       (request.method === 'POST' && (isCheckoutQuote || isCheckoutReserve)) ||
-      (request.method === 'GET' && isCheckoutQuoteById) ||
-      (request.method === 'OPTIONS' && (isCheckoutQuote || isCheckoutQuoteById || isCheckoutReserve));
-    if (isPublicCheckout) {
-      if (request.method === 'OPTIONS') return checkoutPreflight();
+      (request.method === 'GET' && isCheckoutQuoteById);
+    const isPublicOrder =
+      (request.method === 'POST' && isOrderCreate) || (request.method === 'GET' && isOrderById);
+    if (
+      request.method === 'OPTIONS' &&
+      (isCheckoutQuote || isCheckoutQuoteById || isCheckoutReserve || isOrderCreate || isOrderById)
+    ) {
+      return checkoutPreflight();
+    }
+    if (isPublicQuote) {
+      /**
+       * SP3.3a — THE RESERVATION RECEIPT IS MIRRORED HERE, at the composition
+       * root, for the same reason the cross-aggregate `curatedItems` write below
+       * lives here: it spans two aggregates and belongs where both bindings do.
+       *
+       * WHY IT MUST EXIST AT ALL: `CheckoutDO` owns the reservation and exposes
+       * exactly one reservation route — `reserve` — which CREATES a hold when
+       * nobody holds one. So there is no way to ASK who holds a quote without
+       * also taking the hold, and an order path that took a hold in order to
+       * check one would let a caller who never reserved order on the second try.
+       * The hold is therefore COPIED into the order's own object at the moment
+       * the vault decides it, where `decideCreateOrder` reads it in a
+       * single-object read.
+       *
+       * IT CANNOT WIDEN ANYTHING: the copy is written only when the vault
+       * answered 200, it never moves backwards in time (the OrderDO refuses an
+       * earlier `expiresAt`), and a copy that is lost or stale fails CLOSED —
+       * the order refuses `quote_not_reserved` or `reservation_expired`, and the
+       * buyer's next (idempotent) reserve writes it again. The buyer's own
+       * reserve response is untouched by it, byte for byte.
+       */
+      const mirrorSource =
+        isCheckoutReserve && request.method === 'POST' ? request.clone() : undefined;
       // CORS through the SAME exact-origin helper the buyer read routes use —
       // the PWA is served cross-origin from GitHub Pages, so without it the
       // browser blocks the 200 it just received.
-      return withReadCors(
-        await checkoutRouter.fetch(request, {
-          CHECKOUT: env.CHECKOUT,
-          // The same namespace→fetcher shim the service env uses, so the
-          // checkout router depends on neither DO namespace directly and this
-          // composition root stays the one place that holds all three.
-          STOREFRONT_DO: { fetch: (req: Request): Promise<Response> => sfRouter.fetch(req, env) },
-          LISTING_DO: { fetch: (req: Request): Promise<Response> => lstRouter.fetch(req, env) },
-        }),
-      );
+      const answered = await checkoutRouter.fetch(request, {
+        CHECKOUT: env.CHECKOUT,
+        // The same namespace→fetcher shim the service env uses, so the
+        // checkout router depends on neither DO namespace directly and this
+        // composition root stays the one place that holds all three.
+        STOREFRONT_DO: { fetch: (req: Request): Promise<Response> => sfRouter.fetch(req, env) },
+        LISTING_DO: { fetch: (req: Request): Promise<Response> => lstRouter.fetch(req, env) },
+      });
+      if (mirrorSource !== undefined && answered.status === 200) {
+        await mirrorReservationReceipt(env, pathname, mirrorSource, answered.clone());
+      }
+      return withReadCors(answered);
+    }
+    if (isPublicOrder) {
+      return withReadCors(await orderRouter.fetch(request, { ORDER: env.ORDER, CHECKOUT: env.CHECKOUT }));
+    }
+
+    /**
+     * ═══ SP3.3a — THE PAYMENT WEBHOOK: AUTHENTICATED BEFORE IT IS ROUTED ═══
+     *
+     * It is NOT in the public exemption above and never can be: it is the only
+     * route in this repo that can declare money received, and an order it moves
+     * to `confirmed` is an order Séra will take into custody and settlement will
+     * later pay out against.
+     *
+     * THE SECRET IS ITS OWN (`PAYMENT_WEBHOOK_SECRET`, a `wrangler secret`,
+     * never `[vars]`, never in a bundle) and it FAILS CLOSED exactly as
+     * `rejectUnauthorizedWrite` does: with no secret configured, every webhook is
+     * 401. The check runs HERE, before any dispatch, so a rejected webhook never
+     * reaches a Durable Object and the 401 can never become an existence oracle
+     * for order ids. Matched with `===` and POST only — every other method on
+     * this path falls through to the write gate and is refused there.
+     */
+    if (request.method === 'POST' && pathname === '/checkout/webhook/payment') {
+      if (!(await paymentWebhookAuthorized(request, env))) return unauthorized();
+      return orderRouter.fetch(request, { ORDER: env.ORDER, CHECKOUT: env.CHECKOUT });
     }
 
     // SERVICE-WRITE-AUTH-1 — gate EVERY write at the one deployed entry, before
@@ -254,3 +336,54 @@ export default {
     return handleRequest(request, serviceEnv);
   },
 };
+
+/**
+ * SP3.3a — COPY A DECIDED HOLD INTO THE ORDER THAT WILL BE ASKED ABOUT IT.
+ *
+ * Reads only values that already crossed this boundary: the quote id from the
+ * path, the holder from the request the caller sent, the reservation id and the
+ * expiry from the answer `CheckoutDO` just gave. It computes nothing, decides
+ * nothing, and carries NO MONEY — a receipt is four strings.
+ *
+ * TOTAL AND SILENT ON FAILURE, deliberately — and this is load-bearing, not
+ * politeness: it runs AFTER the buyer's reservation has already succeeded, so
+ * anything it could throw (a Worker deployed before the `ORDER` migration ran, a
+ * body that will not re-read) would turn her 200 into a 500 for a hold she
+ * actually has. The cost of a lost copy is that the ORDER refuses
+ * `quote_not_reserved` until the next reserve (which is idempotent and rewrites
+ * it) — a refusal, never a wrong success.
+ */
+async function mirrorReservationReceipt(
+  env: Env,
+  pathname: string,
+  reserveRequest: Request,
+  reserveResponse: Response,
+): Promise<void> {
+  try {
+    const match = /^\/checkout\/quote\/([^/]+)\/reserve$/.exec(pathname);
+    if (match === null) return;
+    const quoteId = decodeURIComponent(match[1]!);
+    const asked = (await reserveRequest.json().catch(() => null)) as { holderRef?: unknown } | null;
+    const answered = (await reserveResponse.json().catch(() => null)) as
+      | { status?: unknown; reservationId?: unknown; expiresAt?: unknown }
+      | null;
+    if (asked === null || answered === null) return;
+    const { holderRef } = asked;
+    const { reservationId, expiresAt } = answered;
+    // A hold that is not `reserved`, or that names no expiry, is not a hold this
+    // order may be created against. Nothing is written.
+    if (answered.status !== 'reserved') return;
+    if (typeof holderRef !== 'string' || typeof reservationId !== 'string' || typeof expiresAt !== 'string') {
+      return;
+    }
+    await env.ORDER.get(env.ORDER.idFromName(orderIdForQuote(quoteId))).fetch(
+      new Request('https://do/entry/reserved', {
+        method: 'POST',
+        body: JSON.stringify({ quoteId, reservationId, holderRef, expiresAt }),
+      }),
+    );
+  } catch {
+    // Swallowed on purpose — see the paragraph above. The order path fails
+    // CLOSED without this copy; the reservation itself is unaffected.
+  }
+}
