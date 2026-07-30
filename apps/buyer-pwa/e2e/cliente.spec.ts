@@ -147,6 +147,89 @@ test('C5 — totals, CTA and the reconciliation line hold the money bytes for BO
   expect(rec800).toBe(`12${NNBSP}300 = 11${NNBSP}500 + 800 — chaque franc a sa place.`);
 });
 
+/** One swept text block: what it says, how it wrapped, and WHICH element it is
+ *  (the class, so an assertion can name the CTA without guessing at its text —
+ *  « Payer le produit à la livraison » is also an option TITLE on this screen). */
+interface BlocBalaye {
+  readonly cls: string;
+  readonly text: string;
+  readonly lines: number;
+  readonly lastRatio: number;
+}
+
+/**
+ * EVERY MULTI-LINE TEXT BLOCK ON C5, AS LAID OUT, RIGHT NOW.
+ *
+ * Structural, never a selector list: a TEXT BLOCK is an element whose own
+ * content flows as text — a block box (a flex ITEM counts; the browser
+ * blockifies it) whose element children are all inline. That excludes the
+ * containers — the bill, a bill ROW, an option row — whose children are boxes
+ * laid side by side and whose « lines » are an artefact of layout rather than a
+ * wrapped sentence.
+ */
+async function sweepC5(page: Page, label: string): Promise<{ label: string; blocks: BlocBalaye[] }> {
+  const blocks = await page.evaluate(() => {
+    const screen = document.querySelector('[data-screen="C5"]');
+    if (screen === null) return [];
+    /** The visual lines of one element: union the client rects per line top. */
+    const linesOf = (el: Element): number[] => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const byTop = new Map<number, { left: number; right: number }>();
+      for (const r of [...range.getClientRects()].filter((x) => x.width > 0)) {
+        const key = Math.round(r.top);
+        const cur = byTop.get(key);
+        byTop.set(key, cur === undefined ? { left: r.left, right: r.right } : { left: Math.min(cur.left, r.left), right: Math.max(cur.right, r.right) });
+      }
+      return [...byTop.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v.right - v.left);
+    };
+    const isTextBlock = (el: Element): boolean => {
+      const d = getComputedStyle(el).display;
+      if (d !== 'block' && d !== 'list-item' && d !== 'flow-root') return false;
+      return [...el.children].every((c) => getComputedStyle(c).display === 'inline');
+    };
+    const multi = [...screen.querySelectorAll('*')].filter((el) => {
+      if (el.closest('svg') !== null) return false;
+      if ((el.textContent ?? '').trim() === '') return false;
+      if (!isTextBlock(el)) return false;
+      return linesOf(el).length > 1;
+    });
+    // Keep the INNERMOST block for each run of text: a wrapper that merely
+    // contains a wrapped paragraph is not itself a sentence.
+    return multi
+      .filter((el) => !multi.some((other) => other !== el && el.contains(other) && (other.textContent ?? '') === (el.textContent ?? '')))
+      .map((el) => {
+        const w = linesOf(el);
+        // THE CONTENT BOX, IN THE SAME COORDINATE SPACE AS THE LINES.
+        // Two traps, both hit while writing this: a padded block's text can
+        // never fill its OUTER width (so the border box would report a full
+        // line as an orphan), and the flow is rendered under `zoom: 1.15` —
+        // client rects come back scaled, `clientWidth` and the computed
+        // paddings do not. Mixing them inflated every ratio by 15% and
+        // silently lowered the bar. Rebuild the content width from the
+        // measured rect, using the element's own scale factor.
+        const rect = el.getBoundingClientRect();
+        const offset = el instanceof HTMLElement ? el.offsetWidth : 0;
+        const scale = offset > 0 ? rect.width / offset : 1;
+        const cs = getComputedStyle(el);
+        const pad = (Number.parseFloat(cs.paddingLeft) + Number.parseFloat(cs.paddingRight)) * scale;
+        return { cls: el.className, text: (el.textContent ?? '').trim(), lines: w.length, lastRatio: w[w.length - 1]! / (rect.width - pad) };
+      });
+  });
+  return { label, blocks };
+}
+
+/** The sweep in all three states the buyer can put C5 in: nothing chosen (where
+ *  the replay does not exist yet), mode A, mode B. */
+async function sweepEveryState(page: Page, basket: string): Promise<Array<{ label: string; blocks: BlocBalaye[] }>> {
+  const states = [await sweepC5(page, `${basket} · nothing chosen`)];
+  for (const mode of ['A', 'B'] as const) {
+    await page.locator(`[data-action="choix-paiement"][data-mode="${mode}"]`).click();
+    states.push(await sweepC5(page, `${basket} · mode ${mode} chosen`));
+  }
+  return states;
+}
+
 /**
  * SP3.3b1 — NO LABEL ON THE MONEY SCREEN MAY BE TRUNCATED, and the honesty
  * line may not wrap into an orphan.
@@ -190,83 +273,44 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
   expect(bill).not.toMatch(/\.\.\./);
 
   // (3) NO SENTENCE ON THIS SCREEN ENDS ON AN ORPHAN — and « this screen »
-  // means EVERY text block, in EVERY state the buyer can put it in, found
-  // structurally rather than by a list of selectors.
+  // means EVERY text block, in EVERY state the buyer can put it in, AT MORE
+  // THAN ONE BASKET, found structurally rather than by a list of selectors.
   //
-  // THE LESSON THIS ENCODES (round 4, founder review). Round 2 fixed the
-  // honesty line and scoped the test to `.cl-reconcile`. Two reviewers then
-  // checked that element and passed the screen — while the REPLAY LINE, one
-  // element below, stranded « d'accord ? » on a third line at 28.6%: the
-  // question the buyer is being asked to agree to, alone.
-  //
-  // AND THE SECOND HALF OF THE SAME LESSON, found while writing this: a sweep
-  // of « every block » still saw nothing, because C5 mounts with NO mode chosen
-  // and the replay only exists AFTER she chooses. Scoping by STATE is the same
-  // blind spot as scoping by selector. So the sweep runs three times.
-  const sweep = async (label: string) =>
-    page.evaluate(() => {
-      const screen = document.querySelector('[data-screen="C5"]');
-      if (screen === null) return [];
-      /** The visual lines of one element: union the client rects per line top. */
-      const linesOf = (el: Element): number[] => {
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        const byTop = new Map<number, { left: number; right: number }>();
-        for (const r of [...range.getClientRects()].filter((x) => x.width > 0)) {
-          const key = Math.round(r.top);
-          const cur = byTop.get(key);
-          byTop.set(key, cur === undefined ? { left: r.left, right: r.right } : { left: Math.min(cur.left, r.left), right: Math.max(cur.right, r.right) });
-        }
-        return [...byTop.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v.right - v.left);
-      };
-      /**
-       * A TEXT BLOCK is an element whose own content flows as text: a block box
-       * (a flex ITEM counts — the browser blockifies it) whose element children
-       * are all INLINE. That excludes the containers — the bill, a bill ROW, an
-       * option row — whose children are boxes laid side by side and whose
-       * « lines » are an artefact of layout, not a wrapped sentence.
-       */
-      const isTextBlock = (el: Element): boolean => {
-        const d = getComputedStyle(el).display;
-        if (d !== 'block' && d !== 'list-item' && d !== 'flow-root') return false;
-        return [...el.children].every((c) => getComputedStyle(c).display === 'inline');
-      };
-      const multi = [...screen.querySelectorAll('*')].filter((el) => {
-        if (el.closest('svg') !== null) return false;
-        if ((el.textContent ?? '').trim() === '') return false;
-        if (!isTextBlock(el)) return false;
-        return linesOf(el).length > 1;
-      });
-      // Keep the INNERMOST block for each run of text: a wrapper that merely
-      // contains a wrapped paragraph is not itself a sentence.
-      return multi
-        .filter((el) => !multi.some((other) => other !== el && el.contains(other) && (other.textContent ?? '') === (el.textContent ?? '')))
-        .map((el) => {
-          const w = linesOf(el);
-          // THE CONTENT BOX, IN THE SAME COORDINATE SPACE AS THE LINES.
-          // Two traps, both hit while writing this: a padded block's text can
-          // never fill its OUTER width (so the border box would report a full
-          // line as an orphan), and the flow is rendered under `zoom: 1.15` —
-          // client rects come back scaled, `clientWidth` and the computed
-          // paddings do not. Mixing them inflated every ratio by 15% and
-          // silently lowered the bar. Rebuild the content width from the
-          // measured rect, using the element's own scale factor.
-          const rect = el.getBoundingClientRect();
-          const offset = el instanceof HTMLElement ? el.offsetWidth : 0;
-          const scale = offset > 0 ? rect.width / offset : 1;
-          const cs = getComputedStyle(el);
-          const pad = (Number.parseFloat(cs.paddingLeft) + Number.parseFloat(cs.paddingRight)) * scale;
-          return { text: (el.textContent ?? '').trim(), lines: w.length, lastRatio: w[w.length - 1]! / (rect.width - pad) };
-        });
-    }).then((blocks) => ({ label, blocks }));
+  // THE LESSON THIS ENCODES, now three deep. Each time, the guard was real and
+  // the SCOPE was the defect:
+  //   · BY SELECTOR (round 2). The honesty line was fixed and the test scoped to
+  //     `.cl-reconcile`. Two reviewers then checked that element and passed the
+  //     screen — while the REPLAY, one element below, stranded « d'accord ? » on
+  //     a third line at 28.6%: the question she is asked to agree to, alone.
+  //   · BY STATE (round 4). A sweep of « every block » still saw nothing,
+  //     because C5 mounts with NO mode chosen and the replay only exists after
+  //     she chooses. Hence three states, and an explicit assertion that the
+  //     replay was IN the swept set.
+  //   · BY COMPUTED DISPLAY and BY CONTENT (round 5, and both are fixed here).
+  //     A button's UA display is inline-block, so `isTextBlock` rejected the
+  //     CTA — the one element that carries an amount AND is the screen's single
+  //     primary action — before a ratio was ever taken. And the sweep ran three
+  //     times against ONE basket, the harness's 12 500, where the paylines and
+  //     the CTA all fit on one line, so a wrap none of them can perform at that
+  //     basket was never measured. Both are the same shape of miss: the guard
+  //     passes because it never looked, and every previous instance of that
+  //     shape had hidden a real defect.
+  const BASKET_DEFAULT = 'basket 12 500';
+  const BASKET_LARGE = 'basket 19 753 086';
 
-  const states = [await sweep('nothing chosen')];
-  for (const mode of ['A', 'B'] as const) {
-    await page.locator(`[data-action="choix-paiement"][data-mode="${mode}"]`).click();
-    states.push(await sweep(`mode ${mode} chosen`));
-  }
+  const petit = await sweepEveryState(page, BASKET_DEFAULT);
 
-  for (const { label, blocks } of states) {
+  // THE SAME SCREEN, THE SAME STATES, A BASKET WHOSE SENTENCES WRAP. `prix` and
+  // `frais` are harness levers into the certified mock quote service
+  // (`harnessFrancs`) — no screen computes anything new; the service is simply
+  // asked to price a bigger article and a bigger course. At this basket the two
+  // §6.1 paylines wrap, the replay wraps, and mode B's CTA — « Payer 9 876 543
+  // FCFA maintenant » — wraps too, which is what puts it in the swept set.
+  await page.goto('/?demo-cliente=C5&theme=indigo&prix=9876543&frais=9876543');
+  await expect(page.locator('[data-screen="C5"]')).toBeVisible();
+  const grand = await sweepEveryState(page, BASKET_LARGE);
+
+  for (const { label, blocks } of [...petit, ...grand]) {
     // The sweep really did see the screen — an empty result would pass in silence.
     expect(blocks.length, `${label}: no multi-line text found on C5`).toBeGreaterThanOrEqual(6);
     for (const b of blocks) {
@@ -277,17 +321,30 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
     }
   }
 
-  // …and the REPLAY was actually in the swept set once she had chosen: the
-  // sentence this test exists for must not be able to leave coverage quietly.
-  for (const { label, blocks } of states.slice(1)) {
+  // …and the REPLAY was actually in the swept set once she had chosen, at BOTH
+  // baskets: the sentence this test exists for must not be able to leave
+  // coverage quietly.
+  for (const { label, blocks } of [...petit.slice(1), ...grand.slice(1)]) {
     expect(
       blocks.some((b) => b.text.startsWith('Vous payez')),
       `${label}: the replay line was not swept — coverage shrank without failing`,
     ).toBe(true);
   }
 
+  // …AND THE CTA WAS IN THE SWEPT SET TOO — the assertion the replay has had
+  // since round 4 and the CTA had not. It is the only text on this screen that
+  // both carries an amount and is the primary action, and until `display: block`
+  // it could not be measured at all. If that declaration is removed, the button
+  // computes to inline-block, `isTextBlock` drops it, and this fails BY NAME
+  // rather than by a silently smaller swept set.
+  const ctaState = grand.find((s) => s.label.endsWith('mode B chosen'));
+  expect(
+    ctaState?.blocks.some((b) => b.cls.includes('cl-cta-c5')),
+    `${BASKET_LARGE}: the CTA was not swept — it is a text block by display, or it stopped wrapping`,
+  ).toBe(true);
+
   // …and the honesty line says what it says, on at most two lines.
-  const rec = states[0]!.blocks.find((b) => b.text.startsWith('12'));
+  const rec = petit[0]!.blocks.find((b) => b.text.startsWith('12'));
   expect(rec?.text).toBe(`12${NNBSP}500 = 11${NNBSP}500 + 1${NNBSP}000 — chaque franc a sa place.`);
   expect(rec?.lines, 'the reconciliation sentence spilled past two lines').toBeLessThanOrEqual(2);
 });

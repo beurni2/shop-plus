@@ -661,6 +661,32 @@ export const PAIEMENT = {
   /** Option B's label — the spec's full name, so the unavailable block and the
    *  card call the same option the same thing. */
   titreB: 'Payer le produit à la livraison',
+  /**
+   * OPTION B'S TAIL, HELD TOGETHER (round 5, founder reversal of « leave it »).
+   *
+   * Round 4 measured this title at 0.362 against the 0.35 orphan bar and left
+   * it, calling the margin a founder decision. The founder reversed that, and
+   * the reasoning belongs here rather than in a commit message:
+   *   · IT IS NOT PASSING BECAUSE IT IS WELL SET. It clears the bar by 1.2% on
+   *     the accident that « livraison » is nine letters long. A margin that thin
+   *     means the next person to trip the guard is someone making a routine copy
+   *     tweak, not the person who caused the defect — and that is how a guard
+   *     dies: not by being deleted, but by being resented.
+   *   · WHAT IT STRANDS IS THE OPTION'S IDENTITY WORD. The title broke as
+   *     « Payer le produit à la / livraison », leaving the one word that says
+   *     WHICH option this is alone on its own line.
+   *   · THE ALTERNATIVE WAS AN EXEMPTION FOR TITLES, and that would have been
+   *     the FOURTH narrowing of this sweep in a row (by selector, by state, by
+   *     computed display). Each of the previous three hid a real defect.
+   *
+   * Same device as `rediteFin` and `cl-reconcile-promesse`, for the third time
+   * on this screen: the tail is one no-wrap unit, so the break falls before it
+   * and reads « Payer le produit / à la livraison ». It carries no amount, so it
+   * cannot grow with the basket and cannot force a horizontal scroll. It is a
+   * SUBSTRING of `titreB` — pinned as one by test, because a `.replace` that
+   * stops matching is a silent no-op.
+   */
+  titreBFin: 'à la livraison',
   corpsB: 'Payez seulement les frais de livraison ({D}\u202fFCFA) maintenant. À l’arrivée du livreur, vérifiez votre article, puis payez le montant du produit de manière sécurisée avant de le recevoir.',
   /** The clause §6.1 sets in bold inside `corpsB`. Held apart so the emphasis
    *  is markup the renderer adds, and the copy stays copy. */
@@ -759,6 +785,19 @@ function fillMontants(copy: string, montants: Readonly<Record<string, number>>):
   for (const [token, value] of Object.entries(montants)) out = out.split(`{${token}}`).join(groupFr(value));
   return out;
 }
+
+/**
+ * OPTION B'S TITLE, with its tail as one no-wrap unit (see `PAIEMENT.titreBFin`).
+ *
+ * BOTH places that name option B read this: the payable card and the « Pas
+ * disponible pour cette commande » head. One string, one rule, both sites — the
+ * same reason `rediteFin` is a substring of both replay fields. The rendered
+ * TEXT is byte-identical to `PAIEMENT.titreB`; only the break point changes.
+ */
+const TITRE_B = PAIEMENT.titreB.replace(
+  PAIEMENT.titreBFin,
+  `<span class="cl-titre-fin">${PAIEMENT.titreBFin}</span>`,
+);
 
 /** §6.1's two bold lines for ONE mode, from that mode's own server split. */
 function lignesSplit(split: ModeSplit): string {
@@ -894,14 +933,14 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
     splitBPayable === undefined
       ? [
           '<div class="cl-payinel" data-role="pay-inel">',
-          `<div class="cl-payinel-head">${iconScooter(18)}<span>${PAIEMENT.titreB}</span></div>`,
+          `<div class="cl-payinel-head">${iconScooter(18)}<span>${TITRE_B}</span></div>`,
           '<div class="cl-payinel-body">Pas disponible pour cette commande. Vous pouvez tout payer maintenant, en sécurité — et toujours inspecter avant d’accepter.</div>',
           '</div>',
         ].join('')
       : [
           `<button class="cl-opt cl-payopt${s.pay === 'B' ? ' cl-opt-on' : ''}" data-action="choix-paiement" data-mode="B">`,
           s.pay === 'B' ? `<span class="cl-opt-mark">${iconCheck(14, 3)}</span>` : '',
-          `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconScooter(18)}</span><span class="cl-opt-title">${PAIEMENT.titreB}</span></div>`,
+          `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconScooter(18)}</span><span class="cl-opt-title">${TITRE_B}</span></div>`,
           lignesSplit(splitBPayable),
           `<div class="cl-payopt-body">${fillMontants(PAIEMENT.corpsB, { D: fee(q, s.delivery) }).replace(
             PAIEMENT.corpsBAccent,

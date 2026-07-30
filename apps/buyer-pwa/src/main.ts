@@ -19,7 +19,7 @@ import { harnessProfil, mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { enteteOverride } from './vitrine/entetes';
 import { ENT_STYLES } from './vitrine/entries';
 import { createCliente, type ClienteEcran } from './cliente/flow';
-import { clienteProduit, clienteProduitReel, composeQuote } from './cliente/seed';
+import { clienteProduit, clienteProduitReel, composeQuote, harnessFrancs } from './cliente/seed';
 import { commandIdFor, forgetRequestKey, requestKeyFor, resolveQuotePort, villeDe } from './cliente/quote-port';
 import { fetchClienteQuote, MODES_WIRE, type QuoteBase, type QuoteFetch } from './cliente/quote-model';
 import { productFromSeed, seedProduct } from './vitrine/catalog';
@@ -580,7 +580,8 @@ if (app) {
   // absent/present distinction is the pure `enteteOverride`, pinned by test.
   const entete = enteteOverride(window.location.search);
   // PWA CLIENTE harness: drives any C1–C9 screen/state under any of the four
-  // habillages (C2 mounts C1 with the sheet open). `?demo-cliente=<C1..C9>&theme=&stock=out&voix=0&offline=1&b=indisponible&micro=refuse&demo=0&etat=loading&conf=&revealed=1`.
+  // habillages (C2 mounts C1 with the sheet open). `?demo-cliente=<C1..C9>&theme=&stock=out&voix=0&offline=1&b=indisponible&micro=refuse&demo=0&etat=loading&conf=&revealed=1&prix=&frais=`.
+  // (`prix`/`frais` = what the mock quote service is asked to price — `harnessFrancs`.)
   // (The retired `?demo-achat=` S1–S7 param is read by NOTHING — un-generatable.)
   const clienteDemo = params.get('demo-cliente');
   const CLIENTE_ECRANS: readonly ClienteEcran[] = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9'];
@@ -751,15 +752,21 @@ if (app) {
     // widened to await the one seam (STOREFRONT-READ-PATH-1, item 6).
     void (async () => {
     const sf = (await demoStorefrontPort('default').resolve('aicha-4821'))?.storefront;
+    // The two harness franc levers (`harnessFrancs`) — absent on every real
+    // entry, so the demo article and Séra's demo tariff stand exactly as they
+    // were. Present, they change what the MOCK SERVICE is asked to price.
+    const prix = harnessFrancs(params.get('prix'));
+    const frais = harnessFrancs(params.get('frais'));
     const produit = {
       ...clienteProduit({ name: sf?.name ?? '', slug: sf?.slug ?? 'aicha-4821' }),
       inStock: params.get('stock') !== 'out',
+      ...(prix !== undefined ? { priceFcfa: prix } : {}),
     };
     const confRaw = params.get('conf');
     const main = document.createElement('main');
     createCliente(main, {
       produit,
-      quote: composeQuote(produit.priceFcfa),
+      quote: composeQuote(produit.priceFcfa, frais),
       theme,
       ecran: clienteDemo as ClienteEcran,
       epuise: !produit.inStock,

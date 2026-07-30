@@ -80,6 +80,7 @@ export const PAIEMENT = {
   titreA: 'Tout payer maintenant — recommandé',
   corpsA: 'Votre paiement est protégé auprès de notre partenaire de paiement jusqu’à la confirmation de votre livraison. Le vendeur n’est payé qu’après validation.',
   titreB: 'Payer le produit à la livraison',
+  titreBFin: 'à la livraison',
   corpsB: 'Payez seulement les frais de livraison ({D}\u202fFCFA) maintenant. À l’arrivée du livreur, vérifiez votre article, puis payez le montant du produit de manière sécurisée avant de le recevoir.',
   corpsBAccent: 'avant de le recevoir',
   avertissementB: 'Frais de livraison non remboursables si vous annulez ou êtes absent(e).',

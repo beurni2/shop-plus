@@ -229,7 +229,18 @@ export const CLIENTE_STYLES = `
   .cl-epuise-card { margin-top: 12px; padding: 13px 15px; border-radius: 16px; background: #F1E7D3; color: #4A3F33; font-size: 12.5px; line-height: 1.55; }
 
   /* ══ CTA ══ */
+  /* THE display: block BELOW IS LOAD-BEARING, not tidying (round 5, verifier).
+     A button's UA display is inline-block, and the C5 orphan sweep enumerates
+     text blocks by COMPUTED DISPLAY — so the CTA, the one element on the money
+     screen that both carries an amount and IS the screen's single primary
+     action, could not enter the swept set at all. At a large basket its label
+     wraps, and it was measured BELOW the bar every other sentence on that screen
+     is held to, with no gate able to see it. That is the third accidental
+     narrowing of this sweep: by selector (round 2), by state (round 4), by
+     computed display (here). The button lays out identically — full width, its
+     own line, contents still centred — and the e2e now asserts it was swept. */
   .cl-cta {
+    display: block;
     margin-top: 14px; width: 100%; height: 56px; border-radius: 16px; border: none;
     background: var(--vt-accent); color: var(--vt-on);
     font-family: var(--cld); font-weight: 700; font-size: 16px;
@@ -379,6 +390,13 @@ export const CLIENTE_STYLES = `
      break falls before it and the last line is always a full one. It carries no
      amount, so it cannot grow past the card and force a horizontal scroll. */
   .cl-redite-fin { white-space: nowrap; }
+  /* …and the same device on option B's NAME (round 5). « Payer le produit à la
+     livraison » cannot fit one line at 360px (needs 267px, has 215px), and it
+     was breaking as « … à la / livraison », stranding the word that says WHICH
+     option this is. Glued, it reads « Payer le produit / à la livraison ». Used
+     by BOTH sites that name option B — the payable card and the « Pas
+     disponible » head — because it is one string. */
+  .cl-titre-fin { white-space: nowrap; }
   .cl-ecouter { margin-top: 9px; display: inline-flex; align-items: center; gap: 6px; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; cursor: pointer; white-space: nowrap; }
   .cl-payinel { margin-top: 10px; padding: 16px; border-radius: 18px; border: 1px solid #EDE4D3; background: #FBF6EB; }
   .cl-payinel-head { display: flex; align-items: center; gap: 10px; opacity: .45; }

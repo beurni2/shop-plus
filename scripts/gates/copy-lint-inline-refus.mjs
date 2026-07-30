@@ -110,6 +110,7 @@ const PAIEMENT_FIELDS = {
   titreA: { screenClass: 'label', fills: [] },
   corpsA: { screenClass: 'checkout', fills: [] },
   titreB: { screenClass: 'label', fills: [] },
+  titreBFin: { screenClass: 'label', fills: [] },
   corpsB: { screenClass: 'checkout', fills: ['{D}'] },
   corpsBAccent: { screenClass: 'label', fills: [] },
   avertissementB: { screenClass: 'checkout', fills: [] },

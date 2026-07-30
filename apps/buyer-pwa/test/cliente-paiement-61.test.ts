@@ -5,7 +5,7 @@ import {
   PAIEMENT, renderC5, splitFor,
   type C5State, type ClienteQuote,
 } from '../src/cliente/screens';
-import { composeQuote, ROBE } from '../src/cliente/seed';
+import { composeQuote, harnessFrancs, ROBE } from '../src/cliente/seed';
 
 /**
  * SP3.3b1 — THE §6.1 TWO-OPTION CHECKOUT SCREEN.
@@ -462,6 +462,35 @@ describe('§6.1’s copy, on the screen, word for word', () => {
     expect(PAIEMENT.rediteA).toBe(`Vous payez {X}${N}FCFA maintenant et {Y}${N}FCFA à la livraison — d’accord ?`);
   });
 
+  /**
+   * EVERY GLUED TAIL IS A SUBSTRING — because a `.replace` THAT STOPS MATCHING
+   * IS A SILENT NO-OP (round 5, fresh verifier).
+   *
+   * `renderC5` holds two clauses together with `.replace(PAIEMENT.rediteFin, …)`
+   * and `.replace(PAIEMENT.titreBFin, …)`. Change the em dash in `rediteFin`
+   * alone to a hyphen and the clause no longer occurs in `redite`: nothing
+   * throws, no assertion moves, the whole unit suite stays green — and the
+   * orphan this project fixed twice is back on the buyer's screen. The DOM sweep
+   * does catch it, so it is covered where it manifests; but it surfaces forty
+   * seconds away in Playwright and names the SYMPTOM. These three lines name the
+   * cause, instantly, in the file that owns the copy.
+   */
+  it('every glued tail is a SUBSTRING of the sentence it glues — the .replace cannot become a no-op', () => {
+    expect(PAIEMENT.redite).toContain(PAIEMENT.rediteFin);
+    expect(PAIEMENT.rediteA).toContain(PAIEMENT.rediteFin);
+    expect(PAIEMENT.titreB).toContain(PAIEMENT.titreBFin);
+    // …and the glue REACHES THE MARKUP, on the replay and on both sites that
+    // name option B (the payable card, and the « Pas disponible » head).
+    const chosenB = renderC5(ROBE, q, { ...C5, pay: 'B' });
+    expect(chosenB).toContain(`<span class="cl-redite-fin">${PAIEMENT.rediteFin}</span>`);
+    expect(chosenB).toContain(`<span class="cl-titre-fin">${PAIEMENT.titreBFin}</span>`);
+    const sansB = renderC5(ROBE, modelFrom(FULL, undefined), { ...C5, bInel: true });
+    expect(sansB).toContain(`<span class="cl-titre-fin">${PAIEMENT.titreBFin}</span>`);
+    // THE GLUE IS MARKUP, NOT COPY: what she reads is byte-identical to §6.1.
+    expect(visible(chosenB)).toContain('Payer le produit à la livraison');
+    expect(visible(sansB)).toContain('Payer le produit à la livraison');
+  });
+
   it('the card and the replay agree about mode A’s door leg — both say 0', () => {
     // The contradiction the ruling removed, asserted as one screen now.
     const a = visible(renderC5(ROBE, q, { ...C5, pay: 'A' }));
@@ -539,5 +568,31 @@ describe('the ?demo-cliente= harness renders the same §6.1 screen, per delivery
         expect(text, `${delivery}/${pay} CTA`).toContain(`Payer ${grouped}${N}FCFA`);
       }
     }
+  });
+
+  /**
+   * THE BASKET LEVER THE ORPHAN SWEEP DRIVES (`?prix=`, round 5).
+   *
+   * It exists so the e2e can sweep a basket whose money sentences WRAP — the
+   * sweep had enumerated every state against one 12 500 basket where they all
+   * fit on one line. Tested here because it feeds a MONEY figure into the
+   * composed quote: junk must be ignored in favour of her real price, never
+   * turned into `NaN` francs on a payment screen.
+   */
+  it('the harness franc levers take whole positive francs and NOTHING else', () => {
+    expect(harnessFrancs('9876543')).toBe(9_876_543);
+    expect(harnessFrancs('1')).toBe(1);
+    for (const junk of [null, '', 'abc', '12.5', '-1', '0', '1e9', ' 12', '12 ', '1234567890', '11500abc', '٣']) {
+      expect(harnessFrancs(junk), `« ${junk} » was accepted as a price`).toBeUndefined();
+    }
+  });
+
+  it('a large basket renders the SERVER-SHAPED bytes for it, with no client arithmetic', () => {
+    // The composed mock prices what it is asked to price; the screen renders it.
+    const q = composeQuote(9_876_543);
+    const text = visible(renderC5(ROBE, q, { ...C5, pay: 'B' }));
+    expect(text).toContain(`À payer maintenant : 1${N}000${N}FCFA`);
+    expect(text).toContain(`À payer à la livraison : 9${N}876${N}543${N}FCFA`);
+    expect(text).toContain(`9${N}877${N}543 = 9${N}876${N}543 + 1${N}000 — chaque franc a sa place.`);
   });
 });
