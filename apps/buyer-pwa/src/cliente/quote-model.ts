@@ -219,6 +219,67 @@ export interface QuoteBase {
 export const MODES_WIRE: readonly PaymentModeWire[] = ['FULL_PREPAY', 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR'];
 
 /**
+ * ═══ HOW LONG THE BILL WAITS FOR AN OPTION NOBODY CAN TAKE YET ═══
+ *
+ * THE GRACE STARTS WHEN THE PRICE IS KNOWN, not when the asks go out. Both
+ * requests are issued in the same instant, so by the time the FULL answer lands
+ * the door ask has already had the full ask's ENTIRE duration to reply — on a
+ * slow link that is seconds of head start. This number is only the TAIL: how
+ * much longer we make her stare at a skeleton after her price already exists.
+ *
+ * WHY 1 500 ms, measured against the real target device and link — a low-end
+ * Android on Ouaga 2G/EDGE, where a round trip commonly costs 600–1 200 ms:
+ *   · it is ABOUT ONE MORE ROUND TRIP, so a door ask that is merely a little
+ *     slower than the full one still lands and mode B is still offered;
+ *   · it is SHORT ENOUGH TO BE INVISIBLE against a full ask that itself took
+ *     seconds — the buyer perceives one wait, not two;
+ *   · it CAPS the pathological case at 1.5 s instead of the service's own
+ *     timeout. The verifier measured 13.7 s to first price with a stalled door
+ *     ask; on 2G that is the difference between a sale and a closed tab.
+ *
+ * WHAT A TIMEOUT MEANS, AND WHAT IT MUST NEVER MEAN. It means « we do not have
+ * a door price », which is the plain truth and yields the existing, approved
+ * « Pas disponible pour cette commande » state — the same state a refusal
+ * yields, and the state EVERY request gets in production today. It NEVER means
+ * « the door quote was fine »: a door quote that arrives IN TIME and
+ * contradicts the full one is still `amounts_disagree` and still refuses. The
+ * deadline may only ever turn a door quote into « unavailable », never turn a
+ * contradiction into « fine ».
+ */
+export const DOOR_GRACE_MS = 1_500;
+
+/** The deadline's own answer — never a quote, so it can only ever mean
+ *  « mode B unavailable ». Kept distinct from a refusal so no refusal NAME is
+ *  invented for something the server never said. */
+const DOOR_TIMED_OUT = { status: 'unreachable' } as const;
+
+/**
+ * Race one door ask against the grace period.
+ *
+ * RESOLVES EXACTLY ONCE, and the loser's value is never read again — that is
+ * how a late answer is DISCARDED rather than applied. It is structural, not a
+ * convention: `Promise.race` hands back one value, this function returns it,
+ * and no reference to the door promise survives. A bill already on screen
+ * cannot be mutated under the buyer's finger by a reply that arrived too late,
+ * because there is nothing left holding that reply.
+ *
+ * The `catch` is not decoration: `port.request` is documented TOTAL, but if it
+ * ever rejected after the race had already settled, an unhandled rejection
+ * would surface on a money screen. Swallowed here, at the boundary.
+ */
+async function doorWithinGrace(ask: Promise<QuoteOutcome>, graceMs: number): Promise<QuoteOutcome> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<QuoteOutcome>((resolve) => {
+    timer = setTimeout(() => resolve(DOOR_TIMED_OUT), graceMs);
+  });
+  try {
+    return await Promise.race([ask.catch((): QuoteOutcome => ({ status: 'unreadable' })), deadline]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+/**
  * ASK, CROSS-CHECK, ANSWER — the whole real-path price, in one place.
  *
  * TWO ASKS, and the FULL one decides everything. If it does not answer with a
@@ -242,6 +303,8 @@ export async function fetchClienteQuote(
    * wherever no storage exists.
    */
   commandIdFor: (quoteId: string) => string | undefined = () => mintCommandId(),
+  /** The door ask's grace period — injected so tests need not wait 1.5 s. */
+  doorGraceMs: number = DOOR_GRACE_MS,
 ): Promise<QuoteFetch> {
   const intentFor = (paymentMode: PaymentModeWire): QuoteIntent => ({ ...base, paymentMode });
   const fullIntent = intentFor('FULL_PREPAY');
@@ -252,15 +315,26 @@ export async function fetchClienteQuote(
   // random and never a frozen screen (verifier BLOCKER 4).
   if (fullKey === undefined || doorKey === undefined) return { status: 'refused', reason: 'no_secure_random' };
 
-  // THE TWO ASKS GO TOGETHER (verifier NOTE 7). Serialized, the door ask — which
-  // the service refuses for EVERY buyer today — sat in front of the price: the
-  // verifier measured 13.8 s to first price with a stalled door ask, when the
-  // price was known after the first round trip. On 2G that doubled
-  // time-to-price for an option nobody can take yet. The FULL ask stays
-  // authoritative for refusals; the door ask only ever decides whether mode B
-  // may be offered.
-  const [full, door] = await Promise.all([port.request(fullIntent, fullKey), port.request(doorIntent, doorKey)]);
+  // ═══ BOTH ASKS GO OUT TOGETHER; ONLY ONE OF THEM CAN HOLD UP THE BILL ═══
+  //
+  // Serialized, the door ask — which the service refuses for EVERY buyer today —
+  // sat in front of the price. Issued together, a slow pair costs one wait
+  // instead of two. But `Promise.all` alone was not enough: it still AWAITS the
+  // door, so one STALLED door ask held the whole bill hostage for 13.7 s
+  // (measured). Ten Laws #7 puts the low-end phone on the slow link first, and
+  // that wait buys her nothing — the option at the end of it is refused today.
+  //
+  // So: the FULL ask has NO deadline and stays fully authoritative — its
+  // refusal, its `unreachable`, its `unreadable` all decide the screen exactly
+  // as before. The DOOR ask races the grace period, and losing that race means
+  // only « we do not have a door price ».
+  const fullAsk = port.request(fullIntent, fullKey);
+  // Attached the instant the promise exists: every early return below abandons
+  // this ask, and an abandoned promise that later rejects is an unhandled
+  // rejection on a money screen.
+  const doorAsk = port.request(doorIntent, doorKey).catch((): QuoteOutcome => ({ status: 'unreadable' }));
 
+  const full = await fullAsk;
   if (full.status === 'refused') return { status: 'refused', reason: full.reason };
   // The two « no price » answers stay DISTINCT all the way to the screen: one
   // says « pas de connexion », the other does not, because only one of them is
@@ -268,6 +342,13 @@ export async function fetchClienteQuote(
   if (full.status === 'unreadable') return { status: 'unreadable' };
   if (full.status !== 'quote') return { status: 'unreachable' };
 
+  // THE PRICE IS KNOWN. From here the door ask gets its grace period and not one
+  // millisecond more; whatever it answers after that is discarded unread.
+  const door = await doorWithinGrace(doorAsk, doorGraceMs);
+
+  // THE CROSS-CHECK IS UNTOUCHED BY THE DEADLINE. A door quote that arrived IN
+  // TIME goes in exactly as before, contradictions and all — `amounts_disagree`
+  // still refuses. Only the ABSENCE of an answer was substituted above.
   const model = clienteQuoteFromServer(full.quote, door);
   // Two prices for one basket is not « mode B unavailable » — it is a reason to
   // stop showing figures, and it reaches the screen under its own name.

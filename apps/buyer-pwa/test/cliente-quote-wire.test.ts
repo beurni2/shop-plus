@@ -7,7 +7,7 @@ import {
   type QuoteIntent, type QuoteOutcome, type QuotePort, type ServerQuote,
 } from '../src/cliente/quote-port';
 import {
-  clienteQuoteFromServer, fetchClienteQuote, prixExpire, MODES_WIRE,
+  clienteQuoteFromServer, fetchClienteQuote, prixExpire, DOOR_GRACE_MS, MODES_WIRE,
 } from '../src/cliente/quote-model';
 import { renderC4, renderC5, renderRefus, refusVue } from '../src/cliente/screens';
 import { ROBE } from '../src/cliente/seed';
@@ -1264,5 +1264,133 @@ describe('NOTE 8 — a request the BROWSER refused to build is not « no connect
       () => httpQuotePort('https://svc.example').reserve('quote/with slash', 'cmd-1', 'rk-1'),
     );
     expect(url).toBe('https://svc.example/checkout/quote/quote%2Fwith%20slash/reserve');
+  });
+});
+
+/* ═════ 14 · NOTE 7 (round 4) — the DOOR ask races a deadline ═════════════ */
+
+/**
+ * The bill must not wait on an answer no buyer can use. The door option is
+ * refused by the service for EVERY request today, yet a stalled door ask held
+ * the whole bill for 13.7 s (verifier measurement). The FULL ask keeps no
+ * deadline and stays authoritative; the DOOR ask gets a grace period, and
+ * losing it means only « we do not have a door price ».
+ */
+describe('the DOOR ask races a deadline — the FULL ask never does', () => {
+  const base = { slug: 'aicha-4821', pid: 'p1', zoneTo: 'Gounghin, Ouagadougou', attributionResellerId: 'rs-1' };
+  const keys = (i: QuoteIntent): string => `key-${i.paymentMode}`;
+  const GRACE = 25; // the injected test grace; production is DOOR_GRACE_MS
+
+  /** A port whose door ask resolves after `doorMs`, optionally with `doorAnswer`. */
+  function slowDoorPort(doorMs: number, doorAnswer: QuoteOutcome, fullMs = 0): QuotePort & { doorSettled: () => boolean } {
+    let settled = false;
+    return {
+      doorSettled: () => settled,
+      async request(intent) {
+        if (intent.paymentMode === 'FULL_PREPAY') {
+          if (fullMs > 0) await new Promise((r) => setTimeout(r, fullMs));
+          return { status: 'quote', quote: FULL };
+        }
+        await new Promise((r) => setTimeout(r, doorMs));
+        settled = true;
+        return doorAnswer;
+      },
+      async reserve() { return { status: 'reserved' }; },
+    };
+  }
+
+  it('the production grace is a named constant, justified in the source', () => {
+    expect(DOOR_GRACE_MS).toBe(1_500);
+  });
+
+  it('A STALLED DOOR ASK NO LONGER HOLDS THE BILL — the price arrives on the deadline', async () => {
+    const port = slowDoorPort(5_000, { status: 'quote', quote: DOOR });
+    const t0 = Date.now();
+    const got = await fetchClienteQuote(port, base, keys, undefined, GRACE);
+    const elapsed = Date.now() - t0;
+    expect(got.status).toBe('ready');
+    if (got.status !== 'ready') return;
+    // the bill is there, and mode B is honestly unavailable
+    expect(got.bIndisponible).toBe(true);
+    expect(got.quote.totalToday).toBe(12_500);
+    expect(got.ids.doorQuoteId).toBeUndefined();
+    // it did NOT wait the 5 s the door ask would have taken
+    expect(elapsed, `waited ${elapsed} ms for a stalled door ask`).toBeLessThan(2_000);
+  });
+
+  it('A DOOR ASK THAT ANSWERS IN TIME IS STILL USED — the deadline is not a blanket off-switch', async () => {
+    const port = slowDoorPort(1, { status: 'quote', quote: DOOR });
+    const got = await fetchClienteQuote(port, base, keys, undefined, GRACE);
+    expect(got.status).toBe('ready');
+    if (got.status !== 'ready') return;
+    expect(got.bIndisponible).toBe(false);
+    expect(got.ids.doorQuoteId).toBe('quote-door');
+  });
+
+  it('THE CROSS-CHECK IS NOT WEAKENED: a CONTRADICTING door quote INSIDE the deadline still refuses', async () => {
+    // arrives in time, and disagrees about the delivery fee
+    const port = slowDoorPort(1, { status: 'quote', quote: { ...DOOR, deliveryFee: 900 } });
+    expect(await fetchClienteQuote(port, base, keys, undefined, GRACE))
+      .toEqual({ status: 'refused', reason: 'amounts_disagree' });
+    // …and one that does not reconcile on its own
+    const port2 = slowDoorPort(1, { status: 'quote', quote: { ...DOOR, buyerTotal: 13_900 } });
+    expect(await fetchClienteQuote(port2, base, keys, undefined, GRACE))
+      .toEqual({ status: 'refused', reason: 'amounts_disagree' });
+    // …and one answering the wrong mode
+    const port3 = slowDoorPort(1, { status: 'quote', quote: { ...DOOR, paymentMode: 'FULL_PREPAY' } });
+    expect(await fetchClienteQuote(port3, base, keys, undefined, GRACE))
+      .toEqual({ status: 'refused', reason: 'mode_mismatch' });
+  });
+
+  it('A LATE DOOR ANSWER CANNOT CHANGE WHAT IS ALREADY ON SCREEN — even a contradicting one', async () => {
+    // The nastiest shape: the door answer is BOTH late AND contradictory. If the
+    // late value were applied, a bill the buyer is already reading would flip to
+    // a refusal under her finger. It must be discarded, unread.
+    const port = slowDoorPort(80, { status: 'quote', quote: { ...DOOR, deliveryFee: 900, buyerTotal: 99_999 } });
+    const got = await fetchClienteQuote(port, base, keys, undefined, GRACE);
+    expect(got.status).toBe('ready');
+    if (got.status !== 'ready') return;
+    const snapshot = { ...got.quote, bIndisponible: got.bIndisponible, doorQuoteId: got.ids.doorQuoteId };
+    expect(port.doorSettled(), 'the door ask had already settled before the deadline').toBe(false);
+    // let the late answer land, then look again: nothing may have moved
+    await new Promise((r) => setTimeout(r, 150));
+    expect(port.doorSettled()).toBe(true);
+    expect({ ...got.quote, bIndisponible: got.bIndisponible, doorQuoteId: got.ids.doorQuoteId }).toEqual(snapshot);
+    expect(got.bIndisponible).toBe(true);
+    expect(got.quote.totalToday).toBe(12_500); // never the late 99 999
+    expect(got.ids.doorQuoteId).toBeUndefined();
+  });
+
+  it('THE FULL ASK HAS NO DEADLINE — a slow FULL ask is still awaited in full', async () => {
+    // the full ask takes far longer than the grace; it must NOT be cut off
+    const port = slowDoorPort(1, { status: 'refused', reason: 'pay_at_door_not_eligible' }, 120);
+    const got = await fetchClienteQuote(port, base, keys, undefined, GRACE);
+    expect(got.status).toBe('ready');
+    if (got.status !== 'ready') return;
+    expect(got.quote.totalToday).toBe(12_500);
+  });
+
+  it('the grace clock starts when the PRICE is known, so a slow pair still offers mode B', async () => {
+    // full takes 60 ms, door 70 ms — the door is only 10 ms behind the price and
+    // well inside a 25 ms grace, so mode B survives a uniformly slow link.
+    const port = slowDoorPort(70, { status: 'quote', quote: DOOR }, 60);
+    const got = await fetchClienteQuote(port, base, keys, undefined, GRACE);
+    expect(got.status).toBe('ready');
+    if (got.status !== 'ready') return;
+    expect(got.bIndisponible, 'a uniformly slow link lost mode B').toBe(false);
+  });
+
+  it('a door ask that REJECTS is swallowed — never an unhandled rejection on a money screen', async () => {
+    const port: QuotePort = {
+      async request(intent) {
+        if (intent.paymentMode === 'FULL_PREPAY') return { status: 'quote', quote: FULL };
+        throw new Error('door transport exploded');
+      },
+      async reserve() { return { status: 'reserved' }; },
+    };
+    const got = await fetchClienteQuote(port, base, keys, undefined, GRACE);
+    expect(got.status).toBe('ready');
+    if (got.status !== 'ready') return;
+    expect(got.bIndisponible).toBe(true);
   });
 });
