@@ -12,6 +12,8 @@
  * product; delete keeps articles; the pin PERSISTS on an épuisé (K5 shows it,
  * the BUYER display auto-retires it).
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_STOREFRONT,
@@ -293,14 +295,26 @@ describe('ENTETES-E — vocabulary and picker are both the eleven now', () => {
     }
   });
 
-  it('the five frame the PORTRAIT per their §5 silhouettes; their cover spec stays classique (no cover drawn)', async () => {
+  it('the five frame HER COVER in their §5 silhouettes — the same frame for either photograph (founder ruling)', async () => {
     const { defaultFocusFor, frameSpecFor } = await import('../src/vitrine/customize/framing-math');
-    // Cover: these styles render none — the sheet keeps the classique frame
-    // and the centre default rather than inventing a frame the buyer never sees.
+    // FOUNDER RULING 2026-07-30 « make it all be like the 6 original headers »:
+    // these styles DRAW the cover now, so the sheet must show her drag inside the
+    // real silhouette the buyer will see — never the classique placeholder they
+    // carried while the cover went unused.
     for (const key of ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const) {
-      expect(frameSpecFor(key, 'cover'), key).toEqual(frameSpecFor('classique', 'cover'));
-      expect(defaultFocusFor(key, 'cover'), key).toEqual({ x: 50, y: 50 });
+      expect(frameSpecFor(key, 'cover'), key).not.toEqual(frameSpecFor('classique', 'cover'));
+      // one frame, both kinds — a second copy would be a second answer
+      expect(frameSpecFor(key, 'cover'), key).toEqual(frameSpecFor(key, 'avatar'));
+      expect(defaultFocusFor(key, 'cover'), key).toEqual(defaultFocusFor(key, 'avatar'));
     }
+    expect(frameSpecFor('masque', 'cover')).toEqual({ aspect: 144 / 206, circle: false, radii: [0, 0, 0, 0] });
+    expect(frameSpecFor('harmattan', 'cover')).toEqual({ aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] });
+    expect(frameSpecFor('seance', 'cover')).toEqual({ aspect: 112 / 190, circle: false, radii: [0, 0, 0, 0] });
+    expect(defaultFocusFor('masque', 'cover')).toEqual({ x: 50, y: 26 });
+    expect(defaultFocusFor('cauris', 'cover')).toEqual({ x: 50, y: 24 });
+    // …and the SIX keep the cover frames they have always had
+    expect(frameSpecFor('royale', 'cover')).toEqual({ aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] });
+    expect(defaultFocusFor('dynamique', 'cover')).toEqual({ x: 58, y: 30 });
     // Avatar: the real §5 silhouettes and the real §5 crop biases.
     expect(frameSpecFor('masque', 'avatar')).toEqual({ aspect: 144 / 206, circle: false, radii: [0, 0, 0, 0] });
     expect(frameSpecFor('harmattan', 'avatar')).toEqual({ aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] });
@@ -315,5 +329,67 @@ describe('ENTETES-E — vocabulary and picker are both the eleven now', () => {
     expect(frameSpecFor('royale', 'avatar')).toEqual({ aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] });
     expect(defaultFocusFor('heritage', 'avatar')).toEqual({ x: 50, y: 32 });
     expect(defaultFocusFor('classique', 'avatar')).toEqual({ x: 50, y: 50 });
+  });
+});
+
+/**
+ * PERSONNALISER-HONESTY-1 (founder-caught 2026-07-30) — THE CHECK MARK MEANS
+ * STORED, NEVER « TAPPED ».
+ *
+ * He tapped « Masque »; the card drew its check mark on the tap, the service
+ * refused the save (`unknown_header_style` — the live Worker still spoke the
+ * six-style canon), and the screen showed a CHOSEN card and « Pas enregistré »
+ * at the same time. Nothing had been stored. Law 7: queued is pending, never
+ * done — and a picker is no exception.
+ *
+ * These are source-pinned because the assertion is about WHICH STATE MAY DRAW
+ * THE CHECK, and the K screens are RN components this Node suite cannot mount.
+ * They are written to fail on the exact regression: an optimistic local write
+ * on the tap, or a success toast that does not wait for the answer.
+ */
+describe('PERSONNALISER-HONESTY-1 — the header picker never claims an unsaved choice', () => {
+  const screens = readFileSync(join(__dirname, '..', 'src/vitrine/customize/screens.tsx'), 'utf8');
+  const handler = /onPickEntete=\{\(key\) => \{[\s\S]*?\n          \}\}/.exec(screens)?.[0] ?? '';
+  // The assertions below are about CODE, not commentary: the comment explains
+  // the defect and names the call it removed, and a guard a comment can break
+  // is a guard that will be silenced by rewording rather than fixed.
+  const code = handler.replace(/\/\/[^\n]*/g, '');
+
+  it('the handler really was found — an empty match would pass every assertion below', () => {
+    expect(handler.length).toBeGreaterThan(200);
+    expect(code).toContain('onSaveIdentity');
+    // …and the comment-stripper left the code intact
+    expect(code).toContain('setEnteteEnCours(key)');
+  });
+
+  it('the tap does NOT write local state — no optimistic setSfRaw, no onStorefrontChange', () => {
+    expect(code).not.toMatch(/setSfRaw/);
+    expect(code).not.toMatch(/onStorefrontChange/);
+    // the stripper is not hiding the evidence: the PROSE does still name it
+    expect(handler).toMatch(/setSfRaw/);
+  });
+
+  it('the success toast fires ONLY on a true answer from the save', () => {
+    expect(code).toMatch(/const ok = await onSaveIdentity\?\.\(\{ headerStyle: key \}\)/);
+    expect(code).toMatch(/if \(ok === true\) onToast/);
+  });
+
+  it('the card says PENDING while the save is in flight, and the check is bound to the STORED value', () => {
+    expect(code).toMatch(/setEnteteEnCours\(key\)/);
+    expect(code).toMatch(/setEnteteEnCours\(undefined\)/);
+    // the grid draws « Enregistrement… » for the in-flight key, else the check
+    // for the SELECTED (adopted) one — never both, never the check on a tap
+    expect(screens).toMatch(/enCours === key \?[\s\S]{0,200}k\.entete\.en_cours/);
+    expect(screens).toMatch(/\) : selected \? \(/);
+  });
+
+  it('the save seam ANSWERS — the callback type resolves a boolean, not void', () => {
+    expect(screens).toMatch(/onSaveIdentity\?: \(patch: StorefrontIdentityPatch\) => Promise<boolean>/);
+  });
+
+  it('the pending string exists in the catalog and is a status, not a promise', async () => {
+    const { t } = await import('../src/i18n');
+    expect(t('k.entete.en_cours').length).toBeGreaterThan(0);
+    expect(t('k.entete.en_cours')).not.toMatch(/enregistré[^e]|choisi/i);
   });
 });

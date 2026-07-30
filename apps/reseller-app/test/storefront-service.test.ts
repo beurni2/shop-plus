@@ -317,13 +317,20 @@ describe('PERSONNALISER-REAL-1 — the wiring (source-pinned)', () => {
     // before going live her shop does not exist on the service: the screen says so
     expect(screens).toMatch(/savesPersist === false/);
     expect(screens).toContain("t('k.enreg.brouillon')");
-    // and a refusal maps to the true sentence, not a generic one
-    expect(app).toContain("t('k.enreg.echec')");
-    expect(app).toMatch(/res\.reason === 'name_too_short'/);
-    expect(app).toMatch(/res\.reason === 'featured_over_cap'/);
+    // and a refusal maps to the true sentence, not a generic one.
+    // PERSONNALISER-HONESTY-1 — the App no longer inlines the ternary chain that
+    // ended in « Réessayez dans un moment » for everything it did not recognise;
+    // it routes EVERY reason through `saveRefusalToastKey`, whose own executed
+    // tests pin the mapping (including that an unknown reason makes no retry
+    // promise). What is pinned here is that the App still SAYS something and
+    // says it from that one decision.
+    expect(app).toContain('setToast(t(saveRefusalToastKey(res.reason)))');
+    expect(app).toMatch(/import \{[^}]*saveRefusalToastKey[^}]*\} from '\.\/src\/vitrine\/service'/);
     // the save is SKIPPED (never fabricated) until HER shop is loaded and adopted
-    // — gated on the SAME read the screens edit (verifier finding).
-    expect(app).toMatch(/if \(liveStorefront === null \|\| liveStorefront === undefined\) return;/);
+    // — gated on the SAME read the screens edit (verifier finding). It now
+    // ANSWERS that refusal (`false`) instead of returning silently, because K4
+    // may not draw a stored state without it.
+    expect(app).toMatch(/if \(liveStorefront === null \|\| liveStorefront === undefined\) return false;/);
   });
 
   it('THE SAVE IS READ BACK, never assumed — the service owns updatedAt and the canon shape', () => {
@@ -350,7 +357,7 @@ describe('PERSONNALISER-REAL-1 — the demo seed can never be saved over her sho
 
   it('THE SAVE IS GATED ON THE SAME READ THE SCREENS EDIT — never on a different one', () => {
     const handler = /const saveIdentity = useCallback\([\s\S]*?\n  \);/.exec(app)?.[0] ?? '';
-    expect(handler).toMatch(/if \(liveStorefront === null \|\| liveStorefront === undefined\) return;/);
+    expect(handler).toMatch(/if \(liveStorefront === null \|\| liveStorefront === undefined\) return false;/);
     // the OLD gate — a different read — must not survive anywhere in the handler
     expect(handler).not.toMatch(/liveShop === null \|\| liveShop === undefined/);
     // …and the callback re-runs when that read changes, or the gate reads stale
@@ -540,5 +547,76 @@ describe('ENTETES-C — coverFocus / avatarFocus on the wire and in the demo', (
     await svc.uploadCover(CMD.id, new Uint8Array([1, 2, 3]), 'image/jpeg');
     const after = await svc.getById(CMD.id);
     expect(after.ok && after.value?.avatar.focus).toEqual({ x: 40, y: 20 });
+  });
+});
+
+/**
+ * PERSONNALISER-HONESTY-1 (founder-caught 2026-07-30, on his own phone) — WHICH
+ * SENTENCE A REFUSED SAVE EARNS.
+ *
+ * He tapped « Masque » in Personnaliser. The service refused it
+ * (`unknown_header_style` — the deployed Worker still spoke the six-style canon
+ * while the app offered eleven) and the screen answered « Pas enregistré.
+ * Réessayez dans un moment. » That refusal was PERMANENT: retrying could never
+ * have worked, and the screen sent her to do exactly that.
+ *
+ * The rule these tests pin is the INVERSION: the retry sentence is earned only by
+ * reasons that are genuinely transient, and an UNRECOGNISED reason is treated as
+ * permanent — the safe default is the one that makes no promise we cannot keep.
+ */
+describe('PERSONNALISER-HONESTY-1 — a refused save says the true thing', () => {
+  it('the header style the service does not know gets its OWN sentence, never « retry »', async () => {
+    const { saveRefusalToastKey } = await import('../src/vitrine/service');
+    const { t } = await import('../src/i18n');
+    expect(saveRefusalToastKey('unknown_header_style')).toBe('k.enreg.entete_indisponible');
+    // …and that sentence does not tell her to try again
+    const phrase = t('k.enreg.entete_indisponible');
+    expect(phrase).not.toMatch(/[Rr]éessay/);
+    expect(phrase.length).toBeGreaterThan(0);
+  });
+
+  it('ONLY genuinely transient reasons earn « Réessayez dans un moment »', async () => {
+    const { saveRefusalToastKey } = await import('../src/vitrine/service');
+    for (const reason of ['offline', 'unreadable', 'http_500', 'http_502', 'http_429', 'http_408']) {
+      expect(saveRefusalToastKey(reason), reason).toBe('k.enreg.echec');
+    }
+    // …and the retry sentence really is the retry sentence (not a stale key)
+    const { t } = await import('../src/i18n');
+    expect(t('k.enreg.echec')).toMatch(/[Rr]éessay/);
+  });
+
+  it('a permanent refusal — including one this app has never heard of — makes NO retry promise', async () => {
+    const { saveRefusalToastKey } = await import('../src/vitrine/service');
+    const { t } = await import('../src/i18n');
+    // 4xx that is not a timeout/rate-limit: the request was understood and refused
+    expect(saveRefusalToastKey('http_400')).toBe('k.enreg.refus');
+    expect(saveRefusalToastKey('http_403')).toBe('k.enreg.refus');
+    // a reason from a NEWER service this build has never seen
+    expect(saveRefusalToastKey('unknown_theme')).toBe('k.enreg.refus');
+    expect(saveRefusalToastKey('some_reason_from_the_future')).toBe('k.enreg.refus');
+    expect(t('k.enreg.refus')).not.toMatch(/[Rr]éessay/);
+  });
+
+  it('the NAMED field refusals keep their own existing sentences (nothing regressed)', async () => {
+    const { saveRefusalToastKey } = await import('../src/vitrine/service');
+    expect(saveRefusalToastKey('name_too_short')).toBe('k.identite.nom_requis');
+    expect(saveRefusalToastKey('name_too_long')).toBe('k.identite.nom_requis');
+    expect(saveRefusalToastKey('featured_over_cap')).toBe('k.une.refus_cap');
+    expect(saveRefusalToastKey('sections_over_cap')).toBe('k.sections.refus_cap');
+    expect(saveRefusalToastKey('section_name_empty')).toBe('k.enreg.section_nom');
+    expect(saveRefusalToastKey('section_name_too_long')).toBe('k.enreg.section_nom');
+  });
+
+  it('every key this decision can return EXISTS in the catalog (t throws otherwise)', async () => {
+    const { saveRefusalToastKey } = await import('../src/vitrine/service');
+    const { t } = await import('../src/i18n');
+    const reasons = [
+      'offline', 'unreadable', 'http_500', 'http_400', 'name_too_short', 'name_too_long',
+      'featured_over_cap', 'sections_over_cap', 'section_name_empty', 'section_name_too_long',
+      'unknown_header_style', 'unknown_theme', 'anything_else',
+    ];
+    for (const r of reasons) {
+      expect(t(saveRefusalToastKey(r)).length, r).toBeGreaterThan(0);
+    }
   });
 });

@@ -21,7 +21,7 @@ import { MarginSlider } from './src/ui/margin-slider';
 import { PhotoGallery } from './src/ui/photo-gallery';
 import { HeroLedger, DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
-import { resolveStorefrontService, deriveShortCode, type StorefrontIdentityPatch } from './src/vitrine/service';
+import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, type StorefrontIdentityPatch } from './src/vitrine/service';
 import type { Storefront } from './src/vitrine/customize/storefront';
 import { loadOrMintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
@@ -464,9 +464,16 @@ export default function App() {
     [service, identity, liveStorefront],
   );
 
+  /**
+   * PERSONNALISER-HONESTY-1 — the save now ANSWERS. It returned `void`, so every
+   * caller had to assume it worked: K4 drew its check mark on the tap, and a
+   * refused header style looked chosen on a screen where nothing had been
+   * stored. The boolean is the read the screens actually need — `true` only
+   * when the service accepted AND the read-back landed.
+   */
   const saveIdentity = useCallback(
-    async (patch: StorefrontIdentityPatch): Promise<void> => {
-      if (service === null || identity === null || identity === undefined) return;
+    async (patch: StorefrontIdentityPatch): Promise<boolean> => {
+      if (service === null || identity === null || identity === undefined) return false;
       // ═══ NEVER SAVE FROM AN UNADOPTED DRAFT (verifier finding, blocking) ═══
       //
       // The gate used to be `liveShop` — a DIFFERENT read (the admin list) from
@@ -480,26 +487,20 @@ export default function App() {
       // So the gate is now the SAME read the screens edit: a save is possible
       // only once her real storefront has been loaded AND adopted. `undefined`
       // (not asked / read failed) and `null` (no shop yet) both refuse.
-      if (liveStorefront === null || liveStorefront === undefined) return;
+      if (liveStorefront === null || liveStorefront === undefined) return false;
       const res = await service.saveIdentity(identity.storefrontId, patch, new Date().toISOString());
       if (res.ok) {
         // READ BACK, never assumed: the service owns `updatedAt` and the canon
         // shape, so the next screen reads what was actually stored.
         const fresh = await service.getById(identity.storefrontId);
         if (fresh.ok && fresh.value !== undefined) setLiveStorefront(fresh.value);
-        return;
+        return true;
       }
-      setToast(
-        res.reason === 'name_too_short' || res.reason === 'name_too_long'
-          ? t('k.identite.nom_requis')
-          : res.reason === 'featured_over_cap'
-            ? t('k.une.refus_cap')
-            : res.reason === 'sections_over_cap'
-              ? t('k.sections.refus_cap')
-              : res.reason === 'section_name_empty' || res.reason === 'section_name_too_long'
-                ? t('k.enreg.section_nom')
-                : t('k.enreg.echec'),
-      );
+      // PERSONNALISER-HONESTY-1 — the reason earns its own sentence, and only a
+      // genuinely transient one earns « Réessayez dans un moment » (see
+      // `saveRefusalToastKey`: an unknown reason is treated as permanent).
+      setToast(t(saveRefusalToastKey(res.reason)));
+      return false;
     },
     [service, identity, liveStorefront],
   );

@@ -324,3 +324,84 @@ describe('ENTETES-E — the six existing styles absorbed NOTHING from this slice
     expect(out).not.toContain('vt-ent-tail');
   });
 });
+
+/* ------------------------------- 7 · her cover, like the six (founder rule) -- */
+
+/**
+ * FOUNDER RULING 2026-07-30 — « make it all be like the 6 original headers ».
+ *
+ * He uploaded a photo de couverture and it appeared on none of the five. The
+ * handoff calls the cover « non requis pour ces variantes » and every mockup
+ * frames a portrait, so this file had wired the five to the avatar alone —
+ * faithful to the spec, and wrong for the person whose shop it is: the six put
+ * her cover in their photo area, so these must too.
+ *
+ * THE ORDER, pinned here because it is the whole ruling: COVER first, portrait
+ * as the fallback, the style's own motif only when she has neither. Nothing
+ * below is a source grep — every assertion executes the renderer.
+ */
+const COVER = 'https://svc.example/media/storefronts/sf-bb/cover/c.jpg';
+const AVEC_COVER = { ...BASE, cover: { status: 'live' as const, url: COVER } };
+
+describe('ENTETES-E — the five draw HER COVER, exactly as the six do', () => {
+  it('ALL ELEVEN draw the cover when she has one — the ruling, across the whole set', async () => {
+    const { ENTETE_KEYS } = await import('../src/vitrine/entetes');
+    expect(ENTETE_KEYS.length).toBe(11);
+    for (const key of ENTETE_KEYS) {
+      const html = renderEntete(key as EnteteKey, AVEC_COVER as never, F1 as never, {});
+      expect(html, `${key} does not draw her cover`).toContain(COVER);
+    }
+  });
+
+  for (const key of FIVE) {
+    it(`${key}: the cover fills the frame and the frame reads live`, () => {
+      const html = head(key, AVEC_COVER, F1);
+      expect(html).toContain(`src="${COVER}"`);
+      expect(html).toContain('data-etat="live"');
+      expect(html).toContain(`alt="${t('vit.cover_alt')}"`);
+      // the style's own motif is NOT drawn when a photograph exists
+      expect(html).not.toContain(MOTIF[key]!);
+    });
+
+    it(`${key}: the cover wins over the portrait — one frame, one photograph`, () => {
+      // BASE already carries an avatar; adding a cover must show the COVER
+      const html = head(key, AVEC_COVER, F1);
+      expect(html).toContain(COVER);
+      expect(html).not.toContain(AVATAR);
+    });
+
+    it(`${key}: HER cover framing rides inline; unframed, the §5 contract position stands`, () => {
+      const framed = { ...AVEC_COVER, cover: { status: 'live' as const, url: COVER, focus: { x: 20, y: 80 } } };
+      expect(head(key, framed, F1)).toContain('object-position:20% 80%');
+      // …and with no saved framing the style's own bias is what is emitted
+      expect(head(key, AVEC_COVER, F1)).toContain(`object-position:${AVATAR_POS[key]}`);
+    });
+
+    it(`${key}: no cover ⇒ the PORTRAIT still fills the frame (the fallback, not a hole)`, () => {
+      const html = head(key, BASE, F1); // avatar only
+      expect(html).toContain(`src="${AVATAR}"`);
+      expect(html).toContain('data-etat="live"');
+      expect(html).not.toContain(MOTIF[key]!);
+    });
+
+    it(`${key}: neither photo ⇒ the style's motif + HER initial, never an empty frame`, () => {
+      const html = head(key, SANS_PHOTO, F1);
+      expect(html).toContain('data-etat="none"');
+      expect(html).not.toContain('<img');
+      expect(html).toContain(MOTIF[key]!);
+    });
+
+    it(`${key}: a live cover with NO url falls back to the portrait, never a broken <img>`, () => {
+      const html = head(key, { ...BASE, cover: { status: 'live' as const } }, F1);
+      expect(html).toContain(`src="${AVATAR}"`);
+      expect(html).not.toContain('src=""');
+    });
+
+    it(`${key}: the cover URL is ESCAPED — a storefront record is not a licence to inject`, () => {
+      const hostile = { ...BASE, cover: { status: 'live' as const, url: 'https://x/c.jpg" onerror="alert(1)' } };
+      const html = head(key, hostile, F1);
+      expect(html).not.toContain('onerror="alert');
+      expect(html).toContain('&quot;');
+    });
+  }
+});
