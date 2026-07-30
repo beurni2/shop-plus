@@ -419,8 +419,43 @@ export const CLIENTE_STYLES = `
      than as something to tap. It is invisible to the C5 orphan sweep either way
      (inline-flex is not a text block, and its svg child computes display block,
      so the glue filter skips it too) — so it is asserted on its own, by name, in
-     the « Écouter la note » e2e rather than left to the sweep. */
-  .cl-root .cl-ecouter { margin-top: 9px; padding: 0; border: none; background: transparent; display: inline-flex; align-items: center; gap: 6px; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; cursor: pointer; white-space: nowrap; }
+     the « Écouter la note » e2e rather than left to the sweep.
+
+     ═══ min-height: 44px — THE HIT AREA, AND WHY IT IS NOT OPTIONAL ═══
+
+     §5 is explicit: « ≥44px touch targets ». Whispering is about WEIGHT, never
+     about REACH, and this control had none: measured in Chromium at 360px it
+     rendered 272.61 × 19.83px, because an unpadded inline-flex at 11.5px/1.5 is
+     one 17.25px line box and nothing more (× the module's 1.15 zoom on
+     ".cl-root"). Nowrap, one line, fits its column and smaller than the CTA were
+     all asserted — not one of them is a hit area, and a control that looks
+     available and cannot be hit is worse than no control at all. This is the ONE
+     thing on the money screen that reaches a mid-literacy buyer in her own
+     language rather than in text; she taps it with a thumb, in the sun, on a hot
+     phone.
+
+     min-height rather than a transform, because a transform paints a bigger
+     control without enlarging the box that receives the tap — the exact lie this
+     rule exists to remove. box-sizing is border-box module-wide (".cl-root *"),
+     so 44px is the real outer box; "align-items: center" keeps the label
+     optically where it already was, with the added reach split above and below.
+
+     44px IS THE CSS BOX, NOT THE RENDERED ONE, and that is deliberate: the 1.15
+     zoom renders it at 50.59px, so the target clears §5 twice over and would
+     still clear it if that zoom were ever removed. The e2e asserts BOTH numbers
+     for exactly that reason.
+
+     "margin-top: 9px" GOES, and is not merely deleted: the 13.4px of centring
+     space above the label now does that margin's job, so keeping both would push
+     the CTA a further 9px down a screen that already scrolls at 360px (Ten Laws
+     #7). Net vertical cost of the hit area is +17.75px of CSS box (+20.4px as
+     rendered), paid once.
+
+     THE GLYPH AND THE LABEL SHARE ONE HIT AREA, not two: both are children of
+     this single "button" element, so the 44px box is one target and the triangle
+     is inside it. The e2e asserts exactly that, in both C5 states that render
+     this control. */
+  .cl-root .cl-ecouter { min-height: 44px; padding: 0; border: none; background: transparent; display: inline-flex; align-items: center; gap: 6px; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; cursor: pointer; white-space: nowrap; }
   .cl-payinel { margin-top: 10px; padding: 16px; border-radius: 18px; border: 1px solid #EDE4D3; background: #FBF6EB; }
   .cl-payinel-head { display: flex; align-items: center; gap: 10px; opacity: .45; }
   .cl-payinel-head span { font-weight: 700; font-size: 14.5px; }

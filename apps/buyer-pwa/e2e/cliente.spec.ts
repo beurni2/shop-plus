@@ -602,6 +602,110 @@ test('C8 at 360px — the door payment keeps « code secret Orange Money » as o
  * NOT §6.1's per-option audio note. That is a recorded explanation of options A
  * and B, it needs the founder's own recordings, and it stays unbuilt.
  */
+
+/** §5's touch floor, in the spec's own words: « ≥44px touch targets ». */
+const CIBLE_MIN_PX = 44;
+
+/**
+ * MEASURE THE LISTEN CONTROL AS A THUMB MEETS IT.
+ *
+ * Extracted so BOTH C5 states that render it are measured by the SAME code —
+ * the two-option screen and the « Pas disponible pour cette commande » screen.
+ * A hit area asserted on one layout and assumed on the other is the kind of
+ * half-check this file exists not to ship: the control sits above the option
+ * block, whose height differs between the two.
+ */
+async function mesurerEcouter(page: Page): Promise<{
+  nowrap: boolean; fontPx: number; ctaFontPx: number; lines: number;
+  width: number; column: number; docScrollWidth: number;
+  hitW: number; hitH: number; boxW: number; boxH: number;
+  glyphDansLaCible: boolean; cibles: number;
+} | null> {
+  return page.evaluate(() => {
+    const el = document.querySelector('.cl-ecouter') as HTMLElement | null;
+    if (el === null) return null;
+    const cs = getComputedStyle(el);
+    // THE LABEL'S OWN TEXT, not the whole control. Selecting the button's
+    // contents spans the play glyph too, and in an `inline-flex` the glyph and
+    // the text sit at different tops — which reads as « two lines » when the
+    // label is perfectly set on one. Measure the text node.
+    const textNode = [...el.childNodes].find((n) => n.nodeType === 3 && (n.textContent ?? '').trim() !== '');
+    const range = document.createRange();
+    if (textNode !== undefined) range.selectNode(textNode);
+    const tops = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+    const cta = getComputedStyle(document.querySelector('.cl-cta-c5')!);
+    // THE HIT AREA IS THE BOX THAT RECEIVES THE TAP, and it is read TWICE
+    // because this module renders under `zoom: 1.15` on `main.cl-root`:
+    //   · the RECT is viewport space — the box her thumb actually meets;
+    //   · offsetWidth/Height is the un-zoomed CSS box.
+    // Both are asserted against the 44px floor, so the target does not depend
+    // on the zoom surviving. Neither is a computed `min-height`: a declaration
+    // that is overridden or collapsed still reads fine and is still unhittable.
+    const r = el.getBoundingClientRect();
+    const glyph = el.querySelector('svg');
+    const g = glyph === null ? null : glyph.getBoundingClientRect();
+    return {
+      nowrap: cs.whiteSpace === 'nowrap',
+      fontPx: Number.parseFloat(cs.fontSize),
+      ctaFontPx: Number.parseFloat(cta.fontSize),
+      lines: tops.size,
+      width: el.offsetWidth,
+      column: (el.parentElement as HTMLElement).clientWidth,
+      docScrollWidth: document.documentElement.scrollWidth,
+      hitW: r.width,
+      hitH: r.height,
+      boxW: el.offsetWidth,
+      boxH: el.offsetHeight,
+      // ONE TARGET OR TWO? The glyph must live INSIDE the button's box, so the
+      // triangle and the label are one thing to aim at — a 44px label beside a
+      // 16px glyph that is its own target would pass a naive height check and
+      // still hand her a miss.
+      glyphDansLaCible:
+        g !== null && g.top >= r.top - 0.5 && g.bottom <= r.bottom + 0.5 && g.left >= r.left - 0.5 && g.right <= r.right + 0.5,
+      cibles: document.querySelectorAll('.cl-ecouter').length,
+    };
+  });
+}
+
+/** Assert §5's touch floor on the listen control, wherever it renders. */
+function attendreLaCible(m: Awaited<ReturnType<typeof mesurerEcouter>>, ou: string): void {
+  expect(m, `${ou}: the listen control is gone`).not.toBeNull();
+  expect(m?.nowrap, `${ou}: the listen label may break mid-phrase`).toBe(true);
+  expect(m?.lines, `${ou}: the listen label wrapped onto more than one line`).toBe(1);
+  expect(m!.width, `${ou}: the nowrap listen label outgrew its column`).toBeLessThanOrEqual(m!.column);
+  expect(m!.docScrollWidth, `${ou}: the listen control pushed C5 past a 360px phone`).toBeLessThanOrEqual(360);
+  // IT WHISPERS: smaller than the primary action, never competing with it (§5).
+  expect(m!.fontPx, `${ou}: the listen link is not smaller than the CTA — it stopped whispering`).toBeLessThan(
+    m!.ctaFontPx,
+  );
+  // …AND IT CAN BE HIT. §5: « ≥44px touch targets ». Whispering is about
+  // weight, never about reach: this shipped at 19.83px on screen — a control
+  // that looks available and cannot reliably be tapped, which is worse than no
+  // control, on the one line of this money screen that speaks to a mid-literacy
+  // buyer in her own language.
+  expect(
+    m!.hitH,
+    `${ou}: the listen control renders ${m!.hitH.toFixed(2)}px tall — under §5's ${CIBLE_MIN_PX}px touch floor, so it looks available and cannot reliably be tapped`,
+  ).toBeGreaterThanOrEqual(CIBLE_MIN_PX);
+  expect(
+    m!.hitW,
+    `${ou}: the listen control renders ${m!.hitW.toFixed(2)}px wide — under §5's ${CIBLE_MIN_PX}px touch floor`,
+  ).toBeGreaterThanOrEqual(CIBLE_MIN_PX);
+  // …and the CSS box clears the floor on its own, so the target survives the
+  // day someone removes the module's 1.15 zoom.
+  expect(
+    m!.boxH,
+    `${ou}: the listen control's CSS box is ${m!.boxH}px tall — it only clears §5's ${CIBLE_MIN_PX}px floor because of the zoom`,
+  ).toBeGreaterThanOrEqual(CIBLE_MIN_PX);
+  expect(
+    m!.boxW,
+    `${ou}: the listen control's CSS box is ${m!.boxW}px wide — under §5's ${CIBLE_MIN_PX}px floor`,
+  ).toBeGreaterThanOrEqual(CIBLE_MIN_PX);
+  expect(m!.glyphDansLaCible, `${ou}: the play glyph is not inside the button's hit area — two targets, not one`).toBe(true);
+  // ONE control, not a second copy stacked under the options.
+  expect(m!.cibles, `${ou}: the listen control is rendered more than once`).toBe(1);
+}
+
 test('C5 — « Écouter la note » plays HER note when one exists, and does not exist when it does not', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 900 });
 
@@ -618,44 +722,14 @@ test('C5 — « Écouter la note » plays HER note when one exists, and does not
   // …and the CTA is still the only thing on this screen that looks like one.
   await expect(page.locator('.cl-cta-c5')).toBeVisible();
 
-  // IT WHISPERS, AND IT FITS. Asserted here by name because the C5 glue sweep
-  // cannot see this control at all: it is `inline-flex` (not a text block) and
-  // its `svg` child computes `display: block` (so the no-wrap set skips it too).
-  // A nowrap label that outgrows the column is exactly how this control first
-  // broke — at the inherited 16px it pushed the page to scrollWidth 377 on a
-  // 360px phone — so the size, the single line and the fit are all pinned.
-  const mesure = await page.evaluate(() => {
-    const el = document.querySelector('.cl-ecouter') as HTMLElement | null;
-    if (el === null) return null;
-    const cs = getComputedStyle(el);
-    // THE LABEL'S OWN TEXT, not the whole control. Selecting the button's
-    // contents spans the play glyph too, and in an `inline-flex` the glyph and
-    // the text sit at different tops — which reads as « two lines » when the
-    // label is perfectly set on one. Measure the text node.
-    const textNode = [...el.childNodes].find((n) => n.nodeType === 3 && (n.textContent ?? '').trim() !== '');
-    const range = document.createRange();
-    if (textNode !== undefined) range.selectNode(textNode);
-    const tops = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
-    const cta = getComputedStyle(document.querySelector('.cl-cta-c5')!);
-    return {
-      nowrap: cs.whiteSpace === 'nowrap',
-      fontPx: Number.parseFloat(cs.fontSize),
-      ctaFontPx: Number.parseFloat(cta.fontSize),
-      lines: tops.size,
-      width: el.offsetWidth,
-      column: (el.parentElement as HTMLElement).clientWidth,
-      docScrollWidth: document.documentElement.scrollWidth,
-    };
-  });
-  expect(mesure).not.toBeNull();
-  expect(mesure?.nowrap, 'the listen label may break mid-phrase').toBe(true);
-  expect(mesure?.lines, 'the listen label wrapped onto more than one line').toBe(1);
-  expect(mesure!.width, 'the nowrap listen label outgrew its column').toBeLessThanOrEqual(mesure!.column);
-  expect(mesure!.docScrollWidth, 'the listen control pushed C5 past a 360px phone').toBeLessThanOrEqual(360);
-  // IT WHISPERS: smaller than the primary action, never competing with it (§5).
-  expect(mesure!.fontPx, 'the listen link is not smaller than the CTA — it stopped whispering').toBeLessThan(
-    mesure!.ctaFontPx,
-  );
+  // IT WHISPERS, IT FITS, AND IT CAN BE HIT. Asserted here by name because the
+  // C5 glue sweep cannot see this control at all: it is `inline-flex` (not a
+  // text block) and its `svg` child computes `display: block` (so the no-wrap
+  // set skips it too). A nowrap label that outgrows the column is exactly how
+  // this control first broke — at the inherited 16px it pushed the page to
+  // scrollWidth 377 on a 360px phone — and a 19.83px-tall link is how it broke
+  // next, so the size, the single line, the fit AND the touch target are pinned.
+  attendreLaCible(await mesurerEcouter(page), 'C5 · les deux options');
 
   // IT ACTUALLY PLAYS, and says nothing while it does.
   //
@@ -668,6 +742,16 @@ test('C5 — « Écouter la note » plays HER note when one exists, and does not
   await page.waitForTimeout(300);
   await expect(page.locator('.cl-toast')).toHaveCount(0);
   await page.screenshot({ path: '.artifacts/sp33b1-r7-c5-ecouter-avec-note-360.png', fullPage: true });
+
+  // ── THE SECOND STATE THAT RENDERS IT: mode B unavailable. The option block
+  //    below changes shape entirely (a card becomes the « Pas disponible pour
+  //    cette commande » notice), so the control's own box is measured again
+  //    rather than assumed. Her voice is hers whichever options exist.
+  await page.goto('/?demo-cliente=C5&theme=indigo&b=indisponible');
+  await expect(page.locator('[data-role="pay-inel"]')).toBeVisible();
+  await expect(page.locator('[data-role="ecouter-note"]')).toBeVisible();
+  attendreLaCible(await mesurerEcouter(page), 'C5 · option B indisponible');
+  await page.screenshot({ path: '.artifacts/sp33b1-r8-c5-ecouter-b-indisponible-360.png', fullPage: true });
 
   // ── WITHOUT A NOTE (`?voix=0` — the harness's « this product has no voice
   //    note », which now removes the note itself): NO control. Not disabled,
