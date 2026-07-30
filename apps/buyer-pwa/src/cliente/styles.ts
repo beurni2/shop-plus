@@ -326,10 +326,35 @@ export const CLIENTE_STYLES = `
   .cl-bill-total b { font-family: var(--cld); font-weight: 800; font-size: 20px; font-feature-settings: 'tnum'; white-space: nowrap; }
   .cl-reconcile { margin-top: 7px; text-align: right; font-size: 11.5px; font-weight: 600; color: #6F6355; font-feature-settings: 'tnum'; }
   .cl-overline-pay { margin-top: 15px; }
-  .cl-payopt { margin-top: 10px; box-shadow: none; }
+  .cl-payopt { margin-top: 10px; box-shadow: none; padding: 16px 13px; }
+  /* §6.1's option NAMES are longer than C4's (« Tout payer maintenant —
+     recommandé »), and the shared 34px check-mark reserve broke the A label
+     over three lines. The mark is 26px wide at right:12px, so 30px clears it
+     with 4px to spare and the label gets two lines instead of three. */
+  .cl-payopt .cl-opt-row { padding-right: 30px; }
+  .cl-payopt .cl-opt-title { font-size: 14px; line-height: 1.3; }
   .cl-payopt-ic { color: #1C1710; display: inline-flex; flex: none; }
   .cl-payopt-body { margin-top: 7px; font-size: 13.5px; line-height: 1.5; color: #6F6355; }
   .cl-payopt-body b { color: #1C1710; font-feature-settings: 'tnum'; }
+  /* §6.1 — LES DEUX LIGNES EN GRAS, one per option, the money before the prose.
+     Ink (not the muted body): they are the answer to « combien maintenant ».
+     12px is MEASURED, not chosen: at 360px the longest of the four lines
+     (« À payer à la livraison : 11 500 FCFA ») needs 293px of the card's 275px
+     at 13px, and a line that wraps on one option but not the next reads as an
+     accident. The pay cards give back 3px of side padding for the same reason.
+     Hierarchy is intact: the Total above stays the headline at 20px.
+     A big amount (a 250 000 FCFA article) may still wrap, and MUST be allowed
+     to: white-space nowrap here would push the card past a 360px phone, and a
+     horizontal scrollbar on the payment screen is worse than a second line. */
+  .cl-payline { margin-top: 7px; font-weight: 700; font-size: 12px; line-height: 1.45; color: #1C1710; font-feature-settings: 'tnum'; }
+  .cl-payline + .cl-payline { margin-top: 2px; }
+  .cl-payline + .cl-payopt-body { margin-top: 9px; }
+  /* §6.1's non-refundable-delivery warning. Sober, never alarmist: it states a
+     consequence, so it earns weight and the sable ground, not the danger set. */
+  .cl-payopt-warn { margin-top: 9px; padding: 9px 11px; border-radius: 12px; background: #FBF6EB; border: 1px solid #EDE4D3; font-size: 12.5px; font-weight: 600; line-height: 1.45; color: #6F6355; }
+  /* §6.1's one-line replay, immediately above the CTA: what she is about to
+     agree to, in her own numbers, before the payment leaves. */
+  .cl-redite { margin-top: 13px; text-align: center; font-size: 13.5px; font-weight: 700; line-height: 1.45; color: #1C1710; font-feature-settings: 'tnum'; }
   .cl-ecouter { margin-top: 9px; display: inline-flex; align-items: center; gap: 6px; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; cursor: pointer; white-space: nowrap; }
   .cl-payinel { margin-top: 10px; padding: 16px; border-radius: 18px; border: 1px solid #EDE4D3; background: #FBF6EB; }
   .cl-payinel-head { display: flex; align-items: center; gap: 10px; opacity: .45; }

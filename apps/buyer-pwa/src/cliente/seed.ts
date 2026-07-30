@@ -16,7 +16,7 @@
  * pid against the RESELLER'S ACTUAL vitrine catalog, never a demo fallback.
  */
 
-import type { ClienteProduit, ClienteQuote } from './screens';
+import type { ClienteProduit, ClienteQuote, LegSplits } from './screens';
 import type { VitrineThemeKey } from '../vitrine/themes';
 import type { VitrineProduct } from '../vitrine/catalog';
 import type { ProductVoiceNote } from '../vitrine/profile';
@@ -26,14 +26,32 @@ import { DEMO_VOICE_URL } from '../vitrine/voice-asset';
 const FRAIS_TODAY = 1000;
 const FRAIS_TOMORROW = 800;
 
-/** The mock quote service — composes once, server-shaped; the UI renders as-is. */
+/**
+ * The mock quote service — composes once, server-shaped; the UI renders as-is.
+ *
+ * IT COMPOSES THE §6.1 SPLITS TOO (SP3.3b1), one pair per leg, because that is
+ * what the real service answers: mode A pays the whole total at checkout and
+ * nothing at the door; mode B pays that leg's delivery fee at checkout and the
+ * product at the door. The arithmetic lives HERE, in the mock playing the
+ * service, exactly as `totalToday` already did — never in a renderer.
+ *
+ * ITS ONE DELIBERATE OPTIMISM, restated: it always offers mode B, while the
+ * live service refuses every pay-at-door request today (`quote-port.ts` names
+ * this gap). A `B` split in the harness is never evidence that mode B works.
+ */
 export function composeQuote(produitFcfa: number): ClienteQuote {
+  const splits = (frais: number, totalLeg: number): LegSplits => ({
+    A: { paidNow: totalLeg, dueAtDelivery: 0 },
+    B: { paidNow: frais, dueAtDelivery: produitFcfa },
+  });
   return {
     produitFcfa,
     feeToday: FRAIS_TODAY,
     feeTomorrow: FRAIS_TOMORROW,
     totalToday: produitFcfa + FRAIS_TODAY,
     totalTomorrow: produitFcfa + FRAIS_TOMORROW,
+    splitsToday: splits(FRAIS_TODAY, produitFcfa + FRAIS_TODAY),
+    splitsTomorrow: splits(FRAIS_TOMORROW, produitFcfa + FRAIS_TOMORROW),
   };
 }
 

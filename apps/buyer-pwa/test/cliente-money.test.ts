@@ -75,7 +75,13 @@ describe('source discipline — zero raw U+202F laundered into ANY app source (P
 
 describe('the quote is server-frozen — §3.2 decree bytes, render-only', () => {
   it('composeQuote(11 500) reproduces the decree to the franc', () => {
-    expect(Q).toEqual({ produitFcfa: 11_500, feeToday: 1_000, feeTomorrow: 800, totalToday: 12_500, totalTomorrow: 12_300 });
+    expect(Q).toEqual({
+      produitFcfa: 11_500, feeToday: 1_000, feeTomorrow: 800, totalToday: 12_500, totalTomorrow: 12_300,
+      // SP3.3b1 — the §6.1 splits the mock service composes for each leg. Still
+      // an EXACT match: a field added to the frozen quote fails right here.
+      splitsToday: { A: { paidNow: 12_500, dueAtDelivery: 0 }, B: { paidNow: 1_000, dueAtDelivery: 11_500 } },
+      splitsTomorrow: { A: { paidNow: 12_300, dueAtDelivery: 0 }, B: { paidNow: 800, dueAtDelivery: 11_500 } },
+    });
   });
   it('payezMaintenant reads the frozen fields per mode (A = total, B = frais)', () => {
     expect(payezMaintenant(Q, 'today', 'A')).toBe(12_500);

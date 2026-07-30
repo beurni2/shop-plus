@@ -49,9 +49,47 @@ export interface ClienteProduit {
 }
 
 /**
+ * WHAT ONE PAYMENT MODE'S SERVER QUOTE SAYS IS PAID **WHEN** — its own two
+ * bytes, `amountPaidAtCheckout` and `amountDueAtDelivery`, carried verbatim
+ * (SP3.3b1 · §6.1 · SP-I13 « Checkout MUST show exactly what is paid now vs due
+ * at delivery »).
+ *
+ * CARRIED, NEVER DERIVED. The screen used to pick mode A's « paid now » as the
+ * total and mode B's as the delivery fee — a client-side rule about what a mode
+ * means. The cross-check in `quote-model.ts` proves those coincide, so nothing
+ * on screen moves; what changes is WHERE the figure comes from. §6.1's two bold
+ * lines are the server's own answer to « combien maintenant, combien à la
+ * porte », so they read the server's own fields.
+ */
+export interface ModeSplit {
+  readonly paidNow: number;
+  readonly dueAtDelivery: number;
+}
+
+/**
+ * The §6.1 split for ONE delivery leg, per payment mode.
+ *
+ * `B` is ABSENT — not zero, not a dash — whenever the server did not price
+ * pay-at-door for this basket. « Never print a figure for a mode the server did
+ * not price »: an absent split is why the « Pas disponible pour cette
+ * commande » block draws instead of a card, and it is unrepresentable as a
+ * misleading 0.
+ */
+export interface LegSplits {
+  readonly A: ModeSplit;
+  readonly B?: ModeSplit | undefined;
+}
+
+/**
  * The SERVER-FROZEN quote (§3.2 · §0 « argent = render-only »). Composed once
  * by the seed layer (the contract-certified mock of the quote service — the
  * TOTAUX precedent), rendered as-is: no screen ever recomputes a total.
+ *
+ * `splitsToday`/`splitsTomorrow` are doubled for exactly the reason
+ * `feeToday`/`feeTomorrow` are (see `quote-model.ts`): the canon prices ONE fee
+ * per zone pair, so the real path fills both slots with the same server answer,
+ * while the `?demo-cliente=` harness still drives two legs and each leg's mock
+ * split must match the leg's mock fee.
  */
 export interface ClienteQuote {
   readonly produitFcfa: number;
@@ -59,6 +97,8 @@ export interface ClienteQuote {
   readonly feeTomorrow: number;
   readonly totalToday: number;
   readonly totalTomorrow: number;
+  readonly splitsToday: LegSplits;
+  readonly splitsTomorrow: LegSplits;
 }
 
 export type Livraison = 'today' | 'tomorrow';
@@ -96,6 +136,22 @@ export function varianteCourte(variant: string): string {
 
 const fee = (q: ClienteQuote, d: Livraison): number => (d === 'tomorrow' ? q.feeTomorrow : q.feeToday);
 const total = (q: ClienteQuote, d: Livraison): number => (d === 'tomorrow' ? q.totalTomorrow : q.totalToday);
+/**
+ * The SERVER'S OWN SPLIT for one mode on one leg — `undefined` for mode B
+ * whenever the server did not price it. The caller must render nothing rather
+ * than substitute a figure: that `undefined` is the whole of « never print a
+ * figure for a mode the server did not price ».
+ *
+ * The overload says the asymmetry out loud in the type: mode A always has a
+ * split (there is no bill without a full-prepay price), mode B may not. A
+ * caller that forgets the second case does not compile.
+ */
+export function splitFor(q: ClienteQuote, d: Livraison, mode: 'A'): ModeSplit;
+export function splitFor(q: ClienteQuote, d: Livraison, mode: ModePaiement): ModeSplit | undefined;
+export function splitFor(q: ClienteQuote, d: Livraison, mode: ModePaiement): ModeSplit | undefined {
+  const legs = d === 'tomorrow' ? q.splitsTomorrow : q.splitsToday;
+  return mode === 'A' ? legs.A : legs.B;
+}
 /** Payé maintenant — lu du devis figé, jamais recalculé ici. */
 export const payezMaintenant = (q: ClienteQuote, d: Livraison, mode: ModePaiement): number =>
   mode === 'A' ? total(q, d) : fee(q, d);
@@ -550,6 +606,60 @@ export const MESSAGES = {
   prixEnCoursDeMiseAJour: 'Nous demandons un nouveau prix…',
 } as const;
 
+/**
+ * ═══ THE §6.1 TWO-OPTION CHECKOUT COPY (SP3.3b1) ═══
+ *
+ * `docs/Shop-Plus-Build-Spec.md` §6.1, VERBATIM. Not paraphrased, not
+ * softened, not re-registered — the spec wrote these sentences and this table
+ * is where they live so the `copy-lint-inline-refus` gate reads them exactly as
+ * it reads the refusal table. They are `register: money`, `screenClass:
+ * checkout` — the reading budget the i18n data says is « seeded to accept the
+ * canonical Shop+ §6.1 checkout copy ».
+ *
+ * TWO DEPARTURES FROM THE MARKDOWN'S BYTES, both typographic, neither a
+ * paraphrase: the module's apostrophe is U+2019 throughout (its header decrees
+ * it), and the narrow no-break space before FCFA is the `\u202f` escape, never
+ * a raw byte (`money.ts`'s décret; the source scan locks it).
+ *
+ * THE PLACEHOLDERS `{X}` `{Y}` `{D}` are the spec's own notation and are filled
+ * with `groupFr(…)` of a SERVER byte at render time — never with anything this
+ * app computed, and never with prose. The gate allows exactly these three and
+ * fails on any other `{…}`: a money sentence assembled at runtime out of
+ * unknown parts cannot be linted as the buyer reads it.
+ *
+ * THE TWO WORDS §6.1 FORBIDS BY NAME — the custody-of-funds pair, French and
+ * English — appear nowhere here and nowhere else in this app. The gate scans
+ * the whole buyer source for them, comments, class names and data attributes
+ * included, which is why this comment names them by description and not by
+ * spelling: a gate that its own subject can talk its way around is not a gate.
+ */
+export const PAIEMENT = {
+  /** §6.1's first bold line — X is the chosen mode's `amountPaidAtCheckout`. */
+  ligneMaintenant: 'À payer maintenant : {X}\u202fFCFA',
+  /** …and the second — Y is that same mode's `amountDueAtDelivery`. */
+  ligneLivraison: 'À payer à la livraison : {Y}\u202fFCFA',
+  /** Option A's label. « recommandé » IS the label, per §6.1. */
+  titreA: 'Tout payer maintenant — recommandé',
+  corpsA: 'Votre paiement est protégé auprès de notre partenaire de paiement jusqu’à la confirmation de votre livraison. Le vendeur n’est payé qu’après validation.',
+  /** Option B's label — the spec's full name, so the unavailable block and the
+   *  card call the same option the same thing. */
+  titreB: 'Payer le produit à la livraison',
+  corpsB: 'Payez seulement les frais de livraison ({D}\u202fFCFA) maintenant. À l’arrivée du livreur, vérifiez votre article, puis payez le montant du produit de manière sécurisée avant de le recevoir.',
+  /** The clause §6.1 sets in bold inside `corpsB`. Held apart so the emphasis
+   *  is markup the renderer adds, and the copy stays copy. */
+  corpsBAccent: 'avant de le recevoir',
+  avertissementB: 'Frais de livraison non remboursables si vous annulez ou êtes absent(e).',
+  /** The one-line replay before payment (§6.1), mode B — both legs are real. */
+  redite: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
+  /**
+   * …and mode A, where the server's Y is 0. « et 0 FCFA à la livraison » is a
+   * true number that reads as a false promise — a figure to be paid at the
+   * door, on the one option whose whole point is that nothing is. The sentence
+   * keeps §6.1's shape and its « — d’accord ? », and says the true thing.
+   */
+  rediteA: 'Vous payez {X}\u202fFCFA maintenant, et rien à la livraison — d’accord ?',
+} as const;
+
 /** The view a refusal name renders as — the generic one for every name this
  *  table does not know (`amounts_disagree`, `quote_not_issuable`, `stored_*`,
  *  `request_key_reused`, and anything the service grows next). */
@@ -583,6 +693,34 @@ export interface C5State {
 
 // (« ÉCOUTER LA NOTE » on the C5 payment cards is REMOVED — founder override
 // 2026-07-22 of HANDOFF §2/acceptance 4. Listening lives on the C1 player.)
+//
+// §6.1's PER-OPTION AUDIO NOTE IS NOT BUILT (SP3.3b1, deliberate): there is no
+// recorded French take for these two options, and a player wired to a generated
+// tone would be a mock impersonating a voice on the money screen. Absent and
+// journalled beats present and untrue. Law 5 stands: voice = recorded audio.
+
+/**
+ * FILL §6.1's placeholders with SERVER BYTES.
+ *
+ * `groupFr` — never a second amount, never a sum: the copy carries the
+ * NNBSP-FCFA suffix itself, and every value handed in here is one field of one
+ * server quote. There is no `+` on this path and there must never be: « total =
+ * X+Y » in §6.1 describes what the server's numbers mean, not an instruction to
+ * add them, and the total the buyer reads is `buyerTotal`.
+ */
+function fillMontants(copy: string, montants: Readonly<Record<string, number>>): string {
+  let out = copy;
+  for (const [token, value] of Object.entries(montants)) out = out.split(`{${token}}`).join(groupFr(value));
+  return out;
+}
+
+/** §6.1's two bold lines for ONE mode, from that mode's own server split. */
+function lignesSplit(split: ModeSplit): string {
+  return [
+    `<div class="cl-payline" data-role="payline-maintenant">${fillMontants(PAIEMENT.ligneMaintenant, { X: split.paidNow })}</div>`,
+    `<div class="cl-payline" data-role="payline-livraison">${fillMontants(PAIEMENT.ligneLivraison, { Y: split.dueAtDelivery })}</div>`,
+  ].join('');
+}
 
 export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string {
   const feeStr = fmtFCFA(fee(q, s.delivery));
@@ -593,6 +731,26 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
   const ctaLabel = !s.pay ? 'Choisissez pour continuer' : s.pay === 'A' ? `Payer ${totalStr}` : `Payer ${feeStr} maintenant`;
   const can = s.pay !== null;
   const ligneProduit = `${esc(m.productName)}${m.variant ? ` · ${esc(varianteCourte(m.variant))}` : ''}`;
+  // ═══ §6.1 — THE SPLITS, AS THE SERVER PRICED EACH MODE ═══
+  const splitA = splitFor(q, s.delivery, 'A');
+  const splitB = splitFor(q, s.delivery, 'B');
+  // TWO INDEPENDENT WAYS TO KNOW MODE B IS OFF, AND EITHER ONE DECIDES.
+  // `bInel` is the flow's flag; an ABSENT split is the server never having
+  // priced the mode. Either alone draws the « Pas disponible » block —
+  // fail-closed, so no figure can stand in for a price nobody quoted. It is
+  // written as the ternary's own condition below so the compiler carries the
+  // narrowing: inside the card branch `splitB` is a split, not a maybe.
+  // THE ONE-LINE REPLAY (§6.1), after she has chosen and before the payment
+  // leaves. Mode A takes the « rien à la livraison » sentence: its Y is a true
+  // 0, and « 0 FCFA à la livraison » reads as a bill at the door on the one
+  // option that has none.
+  const chosen = s.pay === null ? undefined : splitFor(q, s.delivery, s.pay);
+  const redite =
+    s.pay === null || chosen === undefined
+      ? ''
+      : s.pay === 'A'
+        ? fillMontants(PAIEMENT.rediteA, { X: chosen.paidNow })
+        : fillMontants(PAIEMENT.redite, { X: chosen.paidNow, Y: chosen.dueAtDelivery });
 
   if (s.paying === 'submitting') {
     return [
@@ -631,24 +789,31 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
     '<div class="cl-overline cl-overline-pay">Comment payer ?</div>',
     `<button class="cl-opt cl-payopt${s.pay === 'A' ? ' cl-opt-on' : ''}" data-action="choix-paiement" data-mode="A">`,
     s.pay === 'A' ? `<span class="cl-opt-mark">${iconCheck(14, 3)}</span>` : '',
-    `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconLockDot(17)}</span><span class="cl-opt-title">Tout payer maintenant</span></div>`,
-    `<div class="cl-payopt-body"><b>${totalStr}</b> maintenant, en sécurité. Rien à payer à la porte.</div>`,
+    `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconLockDot(17)}</span><span class="cl-opt-title">${PAIEMENT.titreA}</span></div>`,
+    lignesSplit(splitA),
+    `<div class="cl-payopt-body">${PAIEMENT.corpsA}</div>`,
     '</button>',
-    s.bInel
+    s.bInel || splitB === undefined
       ? [
           '<div class="cl-payinel" data-role="pay-inel">',
-          `<div class="cl-payinel-head">${iconScooter(18)}<span>Payer à la livraison</span></div>`,
+          `<div class="cl-payinel-head">${iconScooter(18)}<span>${PAIEMENT.titreB}</span></div>`,
           '<div class="cl-payinel-body">Pas disponible pour cette commande. Vous pouvez tout payer maintenant, en sécurité — et toujours inspecter avant d’accepter.</div>',
           '</div>',
         ].join('')
       : [
           `<button class="cl-opt cl-payopt${s.pay === 'B' ? ' cl-opt-on' : ''}" data-action="choix-paiement" data-mode="B">`,
           s.pay === 'B' ? `<span class="cl-opt-mark">${iconCheck(14, 3)}</span>` : '',
-          `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconScooter(18)}</span><span class="cl-opt-title">Payer à la livraison</span></div>`,
-          `<div class="cl-payopt-body"><b>${feeStr}</b> maintenant — et <b>${produitStr}</b> à la porte, après votre inspection.</div>`,
+          `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconScooter(18)}</span><span class="cl-opt-title">${PAIEMENT.titreB}</span></div>`,
+          lignesSplit(splitB),
+          `<div class="cl-payopt-body">${fillMontants(PAIEMENT.corpsB, { D: fee(q, s.delivery) }).replace(
+            PAIEMENT.corpsBAccent,
+            `<b>${PAIEMENT.corpsBAccent}</b>`,
+          )}</div>`,
+          `<div class="cl-payopt-warn" data-role="frais-non-remboursables">${PAIEMENT.avertissementB}</div>`,
           '</button>',
         ].join(''),
     '<div class="cl-quote">Vous inspectez le colis avant de payer le reste.</div>',
+    redite === '' ? '' : `<div class="cl-redite" data-role="redite">${redite}</div>`,
     `<button class="cl-cta cl-cta-c5${can ? '' : ' cl-cta-off'}" data-action="payer"${can ? '' : ' disabled'}>${ctaLabel}</button>`,
     '<div class="cl-providers">ORANGE MONEY · MOOV MONEY</div>',
     '<div class="cl-footnote cl-footnote-c5">Votre numéro reste privé.</div>',

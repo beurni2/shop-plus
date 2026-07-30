@@ -62,7 +62,7 @@
  * checks is the kind of sentence this project exists not to ship.
  */
 
-import type { ClienteQuote, ModePaiement } from './screens';
+import type { ClienteQuote, LegSplits, ModePaiement } from './screens';
 import { mintCommandId, type PaymentModeWire, type QuoteIntent, type QuoteOutcome, type QuotePort, type ServerQuote } from './quote-port';
 
 export type ClienteQuoteFromServer =
@@ -100,6 +100,19 @@ export function clienteQuoteFromServer(full: ServerQuote, door: QuoteOutcome): C
   if (full.amountDueAtDelivery !== 0) return { ok: false, reason: 'amounts_disagree' };
 
   let bIndisponible = true;
+  /**
+   * THE DOOR QUOTE'S OWN SPLIT, CARRIED (SP3.3b1 · §6.1).
+   *
+   * It used to be validated and then thrown away, and C5 re-derived mode B's
+   * two figures from the FULL quote's `deliveryFee`/`productSubtotal` — a
+   * client-side rule about what pay-at-door means, standing in for the two
+   * fields the server sent. `agrees` below already proves the two are the same
+   * francs, so NOTHING ON SCREEN MOVES; what changes is that the figure the
+   * buyer reads is now the byte the server wrote for the mode she is looking
+   * at. Every cross-check above and below is untouched: a door quote that
+   * contradicts the full one is still `amounts_disagree` and still refuses.
+   */
+  let splitB: LegSplits['B'];
   if (door.status === 'quote') {
     const d = door.quote;
     if (d.paymentMode !== 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') return { ok: false, reason: 'mode_mismatch' };
@@ -124,8 +137,21 @@ export function clienteQuoteFromServer(full: ServerQuote, door: QuoteOutcome): C
     // A DOOR QUOTE THAT CONTRADICTS THE FULL ONE IS NOT « mode B unavailable » —
     // it is two prices for one basket, and neither may be shown.
     if (!agrees) return { ok: false, reason: 'amounts_disagree' };
+    splitB = { paidNow: d.amountPaidAtCheckout, dueAtDelivery: d.amountDueAtDelivery };
     bIndisponible = false;
   }
+
+  /**
+   * ONE SET OF SPLITS, IN BOTH LEG SLOTS — the same doubling, for the same
+   * reason, as `feeToday`/`feeTomorrow`: the canon prices one zone pair, one
+   * fee, so there is one split and both slots carry it. `B` is ABSENT (never a
+   * zero) whenever the door quote was a refusal, a timeout or an unreachable
+   * service — the state C5 renders as « Pas disponible pour cette commande ».
+   */
+  const splits: LegSplits = {
+    A: { paidNow: full.amountPaidAtCheckout, dueAtDelivery: full.amountDueAtDelivery },
+    ...(splitB !== undefined ? { B: splitB } : {}),
+  };
 
   return {
     ok: true,
@@ -135,6 +161,8 @@ export function clienteQuoteFromServer(full: ServerQuote, door: QuoteOutcome): C
       feeTomorrow: full.deliveryFee,
       totalToday: full.buyerTotal,
       totalTomorrow: full.buyerTotal,
+      splitsToday: splits,
+      splitsTomorrow: splits,
     },
     bIndisponible,
   };

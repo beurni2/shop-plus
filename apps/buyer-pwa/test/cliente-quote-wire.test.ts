@@ -342,6 +342,10 @@ describe('clienteQuoteFromServer — CROSS-CHECK, NEVER DERIVE', () => {
       feeTomorrow: 1_000, // the SAME server fee twice — canon prices one pair, one fee
       totalToday: 12_500,
       totalTomorrow: 12_500,
+      // SP3.3b1 — and each MODE'S OWN SPLIT, carried from its own quote:
+      // A from the FULL quote's two fields, B from the DOOR quote's.
+      splitsToday: { A: { paidNow: 12_500, dueAtDelivery: 0 }, B: { paidNow: 1_000, dueAtDelivery: 11_500 } },
+      splitsTomorrow: { A: { paidNow: 12_500, dueAtDelivery: 0 }, B: { paidNow: 1_000, dueAtDelivery: 11_500 } },
     });
     expect(got.bIndisponible).toBe(false);
   });
@@ -476,7 +480,13 @@ describe('THE CLIENT PERFORMS NO MONEY ARITHMETIC — and REFUSES a bill that do
 /* ═══════════════ 6 · C4 — ONE fee per zone pair, one line ═════════════════ */
 
 describe('C4 — the real path shows ONE delivery line, the harness keeps its two cards', () => {
-  const SERVER_Q = { produitFcfa: 11_500, feeToday: 1_000, feeTomorrow: 1_000, totalToday: 12_500, totalTomorrow: 12_500 };
+  // The real path's shape: one zone pair, one fee, so both leg slots carry the
+  // same server answer — splits included (SP3.3b1).
+  const REAL_SPLITS = { A: { paidNow: 12_500, dueAtDelivery: 0 }, B: { paidNow: 1_000, dueAtDelivery: 11_500 } };
+  const SERVER_Q = {
+    produitFcfa: 11_500, feeToday: 1_000, feeTomorrow: 1_000, totalToday: 12_500, totalTomorrow: 12_500,
+    splitsToday: REAL_SPLITS, splitsTomorrow: REAL_SPLITS,
+  };
   const base = { zone: 'Gounghin', repereRecap: 'Face à la pharmacie du marché', delivery: 'today' as const };
 
   it('with a server quote: one « Livraison par Séra » line, no time window, CTA LIVE', () => {
@@ -502,7 +512,11 @@ describe('C4 — the real path shows ONE delivery line, the harness keeps its tw
   });
 
   it('WITHOUT a server quote the two-card render is untouched, and its CTA still gates', () => {
-    const harness = { produitFcfa: 11_500, feeToday: 1_000, feeTomorrow: 800, totalToday: 12_500, totalTomorrow: 12_300 };
+    const harness = {
+      produitFcfa: 11_500, feeToday: 1_000, feeTomorrow: 800, totalToday: 12_500, totalTomorrow: 12_300,
+      splitsToday: { A: { paidNow: 12_500, dueAtDelivery: 0 }, B: { paidNow: 1_000, dueAtDelivery: 11_500 } },
+      splitsTomorrow: { A: { paidNow: 12_300, dueAtDelivery: 0 }, B: { paidNow: 800, dueAtDelivery: 11_500 } },
+    };
     const chosen = renderC4(harness, base);
     expect(chosen).toContain('Aujourd’hui, avant 19 h');
     expect(chosen).toContain('Demain, 9 h – 12 h');

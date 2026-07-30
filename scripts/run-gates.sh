@@ -235,6 +235,23 @@ capture copy-lint-inline-refus-negative-quoted-key fail node scripts/gates/copy-
 log "gate: French Voice copy-lint — NEGATIVE (a QUOTED field key, same family one level down, must fail)"
 capture copy-lint-inline-refus-negative-quoted-field fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/quoted-field.ts
 
+# SP3.3b1 — the §6.1 TWO-OPTION CHECKOUT COPY is now extracted and linted by the
+# same gate, and each negative below bites through a DIFFERENT door: the lint
+# itself, the raw §6.1 word scan (which sees what no string extractor can), the
+# structural floor (a DELETED §6.1 sentence), and the placeholder allowlist (a
+# money sentence assembled at runtime from a part nothing read).
+log "gate: French Voice copy-lint — NEGATIVE (administrative French in the §6.1 PAYMENT copy, must fail)"
+capture copy-lint-inline-refus-negative-paiement fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-administratif.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (§6.1's forbidden word in a CLASS NAME + data attribute, clean copy, must fail)"
+capture copy-lint-inline-refus-negative-escrow fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-escrow-classname.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (a DELETED §6.1 payment sentence: the structural floor must bite, must fail)"
+capture copy-lint-inline-refus-negative-paiement-missing fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-missing-field.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (an unknown runtime placeholder in a §6.1 money sentence, must fail)"
+capture copy-lint-inline-refus-negative-paiement-placeholder fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-placeholder.ts
+
 log "gate: E2 failure path — the real service path end-to-end (must pass)"
 capture e2-failure-path pass node scripts/e2-failure-path.mjs
 
