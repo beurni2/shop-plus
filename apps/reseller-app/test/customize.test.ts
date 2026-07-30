@@ -295,14 +295,26 @@ describe('ENTETES-E — vocabulary and picker are both the eleven now', () => {
     }
   });
 
-  it('the five frame the PORTRAIT per their §5 silhouettes; their cover spec stays classique (no cover drawn)', async () => {
+  it('the five frame HER COVER in their §5 silhouettes — the same frame for either photograph (founder ruling)', async () => {
     const { defaultFocusFor, frameSpecFor } = await import('../src/vitrine/customize/framing-math');
-    // Cover: these styles render none — the sheet keeps the classique frame
-    // and the centre default rather than inventing a frame the buyer never sees.
+    // FOUNDER RULING 2026-07-30 « make it all be like the 6 original headers »:
+    // these styles DRAW the cover now, so the sheet must show her drag inside the
+    // real silhouette the buyer will see — never the classique placeholder they
+    // carried while the cover went unused.
     for (const key of ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const) {
-      expect(frameSpecFor(key, 'cover'), key).toEqual(frameSpecFor('classique', 'cover'));
-      expect(defaultFocusFor(key, 'cover'), key).toEqual({ x: 50, y: 50 });
+      expect(frameSpecFor(key, 'cover'), key).not.toEqual(frameSpecFor('classique', 'cover'));
+      // one frame, both kinds — a second copy would be a second answer
+      expect(frameSpecFor(key, 'cover'), key).toEqual(frameSpecFor(key, 'avatar'));
+      expect(defaultFocusFor(key, 'cover'), key).toEqual(defaultFocusFor(key, 'avatar'));
     }
+    expect(frameSpecFor('masque', 'cover')).toEqual({ aspect: 144 / 206, circle: false, radii: [0, 0, 0, 0] });
+    expect(frameSpecFor('harmattan', 'cover')).toEqual({ aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] });
+    expect(frameSpecFor('seance', 'cover')).toEqual({ aspect: 112 / 190, circle: false, radii: [0, 0, 0, 0] });
+    expect(defaultFocusFor('masque', 'cover')).toEqual({ x: 50, y: 26 });
+    expect(defaultFocusFor('cauris', 'cover')).toEqual({ x: 50, y: 24 });
+    // …and the SIX keep the cover frames they have always had
+    expect(frameSpecFor('royale', 'cover')).toEqual({ aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] });
+    expect(defaultFocusFor('dynamique', 'cover')).toEqual({ x: 58, y: 30 });
     // Avatar: the real §5 silhouettes and the real §5 crop biases.
     expect(frameSpecFor('masque', 'avatar')).toEqual({ aspect: 144 / 206, circle: false, radii: [0, 0, 0, 0] });
     expect(frameSpecFor('harmattan', 'avatar')).toEqual({ aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] });

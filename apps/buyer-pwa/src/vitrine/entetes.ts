@@ -217,10 +217,25 @@ export function nameTail(raw: string): string {
   return `<v>${esc(head)}${joint}</v>${tail}`;
 }
 
-/** The five Beurni Boss frames hold the PORTRAIT (handoff §5: the seller photo
- *  is the avatar; the cover is « non requis pour ces variantes ») — their
- *  honest frame state therefore reads the avatar, not the cover. */
-const etatAvatar = (v: Vals): string => (v.hasAvatar ? 'live' : 'none');
+/**
+ * WHICH PHOTOGRAPH THE FIVE FRAME — founder ruling 2026-07-30: « make it all be
+ * like the 6 original headers ».
+ *
+ * The handoff's data contract calls the cover « non requis pour ces variantes »
+ * and every reference mockup frames a PORTRAIT, so this file first wired the
+ * five to the avatar alone. The founder uploaded a photo de couverture and it
+ * appeared on none of them: the six put her cover in their photo area, these
+ * five ignored it. Faithful to the spec, wrong for the person whose shop it is.
+ *
+ * THE RULE NOW, the same one the six follow: her COVER fills the frame when she
+ * has one — with her own ENTETES-C framing — and the portrait is the fallback,
+ * so a shop that has only an avatar still shows a face rather than a monogram.
+ * Neither ⇒ the style's own motif, never an empty frame.
+ */
+const hasPhoto = (v: Vals): boolean => v.hasCover || v.hasAvatar;
+const etatPhoto = (v: Vals): string => (hasPhoto(v) ? 'live' : 'none');
+/** The frame's <img>: the cover at this style's §5 crop bias, else the portrait. */
+const framePhoto = (v: Vals, pos: string): string => (v.hasCover ? coverImg(v, pos) : avatarImg(v));
 
 /** « {rating} · {N} avis » — the handoff's exact review chip (its « Chaînes
  *  exactes » list), NNBSP-grouped count, star drawn by the caller's style. */
@@ -600,10 +615,10 @@ function masque(v: Vals): string {
     // must never paint over proof (verifier M1: DOM order is paint order here).
     '<span class="ma-frise" aria-hidden="true"></span>',
     // §5 — the orthogonal frame: 2px noir · 5px crème · 2px noir, damier base.
-    `<div class="ma-frame" data-role="vitrine-cover" data-etat="${etatAvatar(v)}">`,
+    `<div class="ma-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
     '<div class="ma-photo">',
-    v.hasAvatar
-      ? avatarImg(v)
+    hasPhoto(v)
+      ? framePhoto(v, '50% 26%')
       : `<div class="ma-frame-motif"><span class="ma-motif-cible" aria-hidden="true"></span><span class="ma-mono">${v.mono}</span></div>`,
     '<span class="ma-damier" aria-hidden="true"></span>',
     '</div>',
@@ -655,9 +670,9 @@ function harmattan(v: Vals): string {
     '<span class="ha-bokeh" aria-hidden="true"></span>',
     '<span class="ha-vignette" aria-hidden="true"></span>',
     // §5 — circular portrait riding the veiled sun.
-    `<div class="ha-frame" data-role="vitrine-cover" data-etat="${etatAvatar(v)}">`,
-    v.hasAvatar
-      ? avatarImg(v)
+    `<div class="ha-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
+    hasPhoto(v)
+      ? framePhoto(v, '50% 24%')
       : `<div class="ha-frame-motif"><span class="ha-mono">${v.mono}</span></div>`,
     '</div>',
     // §4 — the text column.
@@ -710,9 +725,9 @@ function balafon(v: Vals): string {
     '<span class="ba-vignette" aria-hidden="true"></span>',
     // §5 — the drum-ringed portrait, one resting note.
     `<div class="ba-medaille">`,
-    `<div class="ba-frame" data-role="vitrine-cover" data-etat="${etatAvatar(v)}">`,
-    v.hasAvatar
-      ? avatarImg(v)
+    `<div class="ba-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
+    hasPhoto(v)
+      ? framePhoto(v, '50% 24%')
       : `<div class="ba-frame-motif"><span class="ba-mono">${v.mono}</span></div>`,
     '</div>',
     '<svg class="ba-note" aria-hidden="true" viewBox="0 0 18 18" width="18" height="18"><circle cx="6" cy="13" r="4.5" fill="#E8B476"/><path d="M10.5 13 V2 L15 4" fill="none" stroke="#E8B476" stroke-width="2"/></svg>',
@@ -762,12 +777,12 @@ function seance(v: Vals): string {
     '<span class="se-etoiles" aria-hidden="true"></span>',
     '<span class="se-vignette" aria-hidden="true"></span>',
     // §5 — the 35 mm frame: perforation columns, inner screen.
-    `<div class="se-frame" data-role="vitrine-cover" data-etat="${etatAvatar(v)}">`,
+    `<div class="se-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
     '<span class="se-perfo se-perfo-l" aria-hidden="true"></span>',
     '<span class="se-perfo se-perfo-r" aria-hidden="true"></span>',
     '<div class="se-photo">',
-    v.hasAvatar
-      ? avatarImg(v)
+    hasPhoto(v)
+      ? framePhoto(v, '50% 24%')
       : `<div class="se-frame-motif"><span class="se-mono">${v.mono}</span></div>`,
     '</div>',
     '</div>',
@@ -825,9 +840,9 @@ function cauris(v: Vals): string {
     '<span class="ca-sable" aria-hidden="true"></span>',
     '<span class="ca-vignette" aria-hidden="true"></span>',
     // §5 — the cowrie-oval portrait.
-    `<div class="ca-frame" data-role="vitrine-cover" data-etat="${etatAvatar(v)}">`,
-    v.hasAvatar
-      ? avatarImg(v)
+    `<div class="ca-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
+    hasPhoto(v)
+      ? framePhoto(v, '50% 24%')
       : `<div class="ca-frame-motif"><span class="ca-mono">${v.mono}</span></div>`,
     '</div>',
     '<span class="ca-frame-ring" aria-hidden="true"></span>',
