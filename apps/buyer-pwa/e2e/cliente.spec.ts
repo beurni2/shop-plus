@@ -557,6 +557,66 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
 });
 
 /**
+ * THE ARTICLE LINE CANNOT ORPHAN ITS VARIANT — ON ANY FACE, NOT JUST OURS.
+ *
+ * CI caught what this machine could not: on the runner, « Robe brodée bogolan ·
+ * M » broke after the « · » and left « M » ALONE on line two — 8 % of the block.
+ * The sweep above is real, but it measures THIS machine's rendering, and the
+ * defect only appears when the text is NARROWER than Instrument Sans draws it —
+ * which is every phone whose fallback face wins the font-display:optional race.
+ * A guard that can only see one font is a guard with a blind side, and the
+ * blind side is where the buyer lives.
+ *
+ * So this test does not wait for a font to betray us: it SHRINKS the text
+ * itself, sweeping the widths either side of the break, and demands the variant
+ * never stands alone at any of them. It fails on the pre-fix markup (measured:
+ * 0.075 at 12px, 0.136 at 12.5px) and holds after it.
+ */
+test('C5 — the article variant never orphans, at any text width (font-independent)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 900 });
+  await page.goto('/?demo-cliente=C5&theme=indigo');
+  await expect(page.locator('[data-screen="C5"]')).toBeVisible();
+
+  const mesures = await page.evaluate(() => {
+    const el = [...document.querySelectorAll<HTMLElement>('.cl-bill-row span')].find((e) =>
+      (e.textContent ?? '').includes('Robe brodée bogolan'),
+    );
+    if (!el) return null;
+    const out: { px: number; lines: number; last: number; text: string }[] = [];
+    for (const px of [13.5, 13, 12.5, 12, 11.5]) {
+      el.style.fontSize = `${px}px`;
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const rects = [...range.getClientRects()];
+      const w = el.getBoundingClientRect().width;
+      out.push({
+        px,
+        lines: rects.length,
+        last: rects.length ? rects[rects.length - 1]!.width / w : 1,
+        text: el.textContent ?? '',
+      });
+    }
+    el.style.fontSize = '';
+    return out;
+  });
+
+  // the sweep found the real element — an empty result would pass in silence
+  expect(mesures, 'the article line was not found on C5').not.toBeNull();
+  expect(mesures!.length).toBe(5);
+  expect(mesures![0]!.text).toContain('Robe brodée bogolan');
+  // …and it really is the two-part label this test exists for
+  expect(mesures![0]!.text).toMatch(/Robe brodée bogolan[\s ]·[\s ]M/);
+
+  for (const m of mesures!) {
+    if (m.lines < 2) continue; // one line cannot orphan
+    expect(
+      m.last,
+      `at ${m.px}px the variant is orphaned (${Math.round(m.last * 100)}% of the block, ${m.lines} lines)`,
+    ).toBeGreaterThan(0.35);
+  }
+});
+
+/**
  * THE CREDENTIAL GLUE ON C8 IS ITS OWN MARKUP (round 7, fresh verifier).
  *
  * « Composez votre code secret Orange Money pour valider {X} » is rendered

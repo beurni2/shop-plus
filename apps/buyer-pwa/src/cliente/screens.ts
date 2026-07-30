@@ -903,7 +903,16 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
    */
   const reconcileIdentite = `${groupFr(total(q, s.delivery))} = ${groupFr(q.produitFcfa)} + ${groupFr(fee(q, s.delivery))} — `;
   const reconcile = `${reconcileIdentite}<span class="cl-reconcile-promesse">chaque franc a sa place.</span>`;
-  const ligneProduit = `${esc(m.productName)}${m.variant ? ` · ${esc(varianteCourte(m.variant))}` : ''}`;
+  // ANTI-ORPHAN (CI-caught 2026-07-30, latent since §6.1): « Robe brodée
+  // bogolan · M » wraps here, and with a NARROWER face than Instrument Sans —
+  // any phone whose fallback wins the font-display:optional race — the line
+  // broke at the spaces around « · » and left the variant ALONE on line two
+  // (8 % of the block). The separator's two spaces become non-breaking, so the
+  // variant always travels with the word before it. The rendered TEXT is
+  // unchanged; only where the browser may break is. `overflow-wrap: anywhere`
+  // stays the safety valve, so a truly narrow box still breaks rather than
+  // overflows.
+  const ligneProduit = `${esc(m.productName)}${m.variant ? `&nbsp;·&nbsp;${esc(varianteCourte(m.variant))}` : ''}`;
 
   /**
    * HER VOICE, WHEN THERE IS ONE (founder ruling 2026-07-30 — see the header).
