@@ -114,12 +114,17 @@ describe('framing-math — the representative frames (aspect + silhouette, per s
     expect(dy.circle).toBe(false);
   });
 
-  it('the AVATAR frame is a circle in EVERY style — one silhouette, no variance', () => {
-    for (const style of HEADER_STYLES) {
+  it('the AVATAR frame: a circle in the six; the Beurni Boss five carry their own §5 silhouettes (ENTETES-E)', () => {
+    for (const style of ['classique', 'royale', 'heritage', 'chaleureux', 'cristal', 'dynamique', 'harmattan', 'balafon'] as const) {
       const spec = frameSpecFor(style, 'avatar');
       expect(spec.circle, style).toBe(true);
       expect(spec.aspect, style).toBe(1);
     }
+    // the portrait-framing styles: Masque's plank rect, Séance's 35 mm inner
+    // screen, Cauris' cowrie oval — real frames, no invented variance
+    expect(frameSpecFor('masque', 'avatar')).toEqual({ aspect: 144 / 206, circle: false, radii: [0, 0, 0, 0] });
+    expect(frameSpecFor('seance', 'avatar')).toEqual({ aspect: 112 / 190, circle: false, radii: [0, 0, 0, 0] });
+    expect(frameSpecFor('cauris', 'avatar')).toEqual({ aspect: 132 / 202, circle: false, radii: [0.5, 0.5, 0.5, 0.5] });
   });
 });
 
@@ -133,10 +138,14 @@ describe("framing-math — the defaults ARE the styles' contract positions (law 
     expect(defaultFocusFor('classique', 'cover')).toEqual({ x: 50, y: 50 });
   });
 
-  it("avatar defaults: Héritage's medallion 50/32, every other style the centre", () => {
+  it("avatar defaults: Héritage 50/32; the Beurni Boss five their §5 portrait biases; the rest the centre", () => {
     expect(defaultFocusFor('heritage', 'avatar')).toEqual({ x: 50, y: 32 });
-    for (const style of HEADER_STYLES) {
-      if (style !== 'heritage') expect(defaultFocusFor(style, 'avatar'), style).toEqual({ x: 50, y: 50 });
+    expect(defaultFocusFor('masque', 'avatar')).toEqual({ x: 50, y: 26 });
+    for (const style of ['harmattan', 'balafon', 'seance', 'cauris'] as const) {
+      expect(defaultFocusFor(style, 'avatar'), style).toEqual({ x: 50, y: 24 });
+    }
+    for (const style of ['classique', 'royale', 'chaleureux', 'cristal', 'dynamique'] as const) {
+      expect(defaultFocusFor(style, 'avatar'), style).toEqual({ x: 50, y: 50 });
     }
   });
 });

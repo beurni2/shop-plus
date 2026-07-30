@@ -23,16 +23,16 @@ onlyBuiltDependencies:
 # (canon v0.5.0; founder ruling: tags are unreliable, the release ref is
 # the commit).
 overrides:
-  # @platform/contracts re-pinned to canon v2.2.0 (sha 17b5d7a) — ENTETES-C:
-  # StorefrontPhotoFocusSchema (strict {x,y}, integers 0–100) + optional
-  # `focus` on StorefrontCoverSchema/StorefrontAvatarSchema. Additive MINOR
-  # over v2.1.0 (ENTETES-B, sha e5db9ed — headerStyle + the canon
-  # STOREFRONT_HEADER_STYLES closed set). @platform/kernel-types stays at
-  # 642f849: its content is unchanged through v2.2.0 (version-bump-only
-  # commits), and the override routes contracts' transitive kernel-types dep
-  # there regardless.
+  # @platform/contracts re-pinned to canon v2.3.0 (sha 08d2bd2) — ENTETES-E0:
+  # STOREFRONT_HEADER_STYLES grows six → eleven (the founder's Beurni Boss
+  # handoff, « En-têtes Boutique — Série 6 · Burkina Faso cinématique »:
+  # masque · harmattan · balafon · seance · cauris, appended after the six).
+  # Additive MINOR over v2.2.0 (ENTETES-C, sha 17b5d7a — photo focus on
+  # cover + avatar). @platform/kernel-types stays at 642f849: its content is
+  # unchanged through v2.3.0 (version-bump-only commits), and the override
+  # routes contracts' transitive kernel-types dep there regardless.
   "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#642f849b9b3f93c2eb4f6c0de9421a9081443a6e&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#17b5d7a61607fc83dd23717d8ba9e4ab53b76398&path:packages/contracts"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#08d2bd2bab60bd05c6181207dca96abd6b4aa6ce&path:packages/contracts"
   # @platform/ui-tokens is UNIFIED at canon v0.9.9 (1c98ad1, + Storefront aggregate fields WO-5.13) — WO-7.0/WO-7.2b/SP#001-A
   # killed the WO-5.3 per-app skew and re-pinned the whole workspace to the current
   # release in one bump. reseller-app runs its visual layer on the Grand Teint API

@@ -30,13 +30,50 @@ export const THEMES: Record<VitrineThemeKey, { name: string; accent: string; dee
 export type CoverStatus = 'none' | 'uploading' | 'pending' | 'live' | 'error';
 
 /**
- * ENTETES-B — the six canon header keys, mirrored LOCALLY (Metro law: the RN
- * bundle bans runtime @platform imports, same as the Storefront shape below).
- * A Node-side conformance test pins this list to the canon
- * `STOREFRONT_HEADER_STYLES` export — drift fails in vitest, never on a device.
+ * The canon header keys, mirrored LOCALLY (Metro law: the RN bundle bans
+ * runtime @platform imports, same as the Storefront shape below). A Node-side
+ * conformance test pins this list to the canon `STOREFRONT_HEADER_STYLES`
+ * export — drift fails in vitest, never on a device.
+ * ENTETES-E0 (canon v2.3.0, founder-authorized 2026-07-30): the Beurni Boss
+ * five ride after the six. ENTETES-E: their buyer render units + catalog
+ * strings exist, so `PICKABLE_HEADER_STYLES` below now carries all eleven.
  */
-export const HEADER_STYLES = ['classique', 'royale', 'heritage', 'chaleureux', 'cristal', 'dynamique'] as const;
+export const HEADER_STYLES = [
+  'classique',
+  'royale',
+  'heritage',
+  'chaleureux',
+  'cristal',
+  'dynamique',
+  'masque',
+  'harmattan',
+  'balafon',
+  'seance',
+  'cauris',
+] as const;
 export type HeaderStyleKey = (typeof HEADER_STYLES)[number];
+
+/**
+ * ENTETES-E0 — what the picker OFFERS: only styles whose buyer render exists
+ * and whose picker strings live in the catalog. ENTETES-E: the Beurni Boss
+ * five have their buyer render units and their catalog strings now, so the
+ * picker offers all eleven — the list stays separate from HEADER_STYLES
+ * because the law stays: vocabulary may grow ahead of the picker, the picker
+ * never runs ahead of the render.
+ */
+export const PICKABLE_HEADER_STYLES = [
+  'classique',
+  'royale',
+  'heritage',
+  'chaleureux',
+  'cristal',
+  'dynamique',
+  'masque',
+  'harmattan',
+  'balafon',
+  'seance',
+  'cauris',
+] as const;
 
 /** Her selected header with the `classique` fallback: an OLD service wire omits
  *  the field, and an unknown value must never select a card — both read as the

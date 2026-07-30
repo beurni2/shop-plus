@@ -924,6 +924,18 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.bienvenue",
+  "fr": "Bienvenue",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.avis",
+  "fr": "avis",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.cell_sera_sub",
   "fr": "Rapide & sécurisée",
   "register": "selling",
