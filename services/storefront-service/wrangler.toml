@@ -28,6 +28,14 @@ class_name = "ListingDO"
 name = "CHECKOUT"
 class_name = "CheckoutDO"
 
+# SP3.3a — the order authority. One instance per ORDER ID, and the order id is a
+# function of the quote id (`orderIdForQuote`), so one quote can never grow a
+# second order and the reservation receipt can live in the same object that will
+# be asked about it.
+[[durable_objects.bindings]]
+name = "ORDER"
+class_name = "OrderDO"
+
 # FIRST-DEPLOY MIGRATION — create both DO classes. `new_sqlite_classes` is CORRECT
 # AND MANDATORY, not a coin-flip: Cloudflare stopped issuing key-value-backed DO
 # namespaces (changelog 2026-07-09) to any account without a pre-existing one, and
@@ -48,6 +56,14 @@ new_sqlite_classes = ["StorefrontDO", "ListingDO"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["CheckoutDO"]
+
+# SP3.3a — OrderDO arrives as its OWN tag, for the identical reason v2 did: the
+# migration list is append-only and each tag is applied once, so editing v2
+# instead would be a no-op on an account that already ran it and the class would
+# never be created. Same UNPROVEN-UNTIL-DEPLOY caveat as the header.
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["OrderDO"]
 
 # The PRIVATE R2 bucket (exists: Standard, jurisdiction default, location hint
 # ENAM). Reads go THROUGH the Worker (GET /media/{key}); never a public custom
@@ -97,6 +113,19 @@ PRODUCT_MEDIA_BASE = "https://media-service.ilboudobernard2.workers.dev"
 # `wrangler secret put STOREFRONT_WRITE_SECRET` (encrypted, not in the repo). The
 # gate fails CLOSED: until the secret is set, every write returns 401 by design —
 # so set the secret BEFORE (or right after) deploying the gate, or writes look broken.
+
+# SP3.3a — PAYMENT_WEBHOOK_SECRET is likewise ABSENT from this file and must never
+# be added to [vars]. It gates `POST /checkout/webhook/payment`, the only route on
+# this Worker that can declare money received, and it is a SEPARATE secret from the
+# write key on purpose: the write key ships inside the reseller app bundle, so
+# reusing it would mean every phone that has the app can assert that an order is
+# paid. `wrangler secret put PAYMENT_WEBHOOK_SECRET`. UNSET ⇒ every webhook is 401
+# by design — which means an order can be created and charged but can never be
+# confirmed until the secret is set. That is the correct failure direction.
+#
+# PAYMENT_SANDBOX_BEHAVIOR is also absent, and absent is its DEPLOYED value: it
+# configures the certified sandbox mock's misbehaviour for tests. It carries no
+# payment truth (webhooks are the only payment truth) and names no provider.
 
 # BROWSE-SUPPLY-BINDING-1 — the supply hop is a SERVICE BINDING, the platform's own
 # mechanism for Worker-to-Worker in one account: no network hop, no public URL, and

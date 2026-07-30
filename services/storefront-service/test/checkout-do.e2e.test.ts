@@ -45,7 +45,16 @@ function makeMf(): Miniflare {
   return new Miniflare({
     modules: true,
     scriptPath: SCRIPT,
-    durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO' },
+    // SP3.3a — `ORDER` is bound here too, because the deployed Worker binds it
+    // and this suite runs the deployed bundle: a successful reserve now mirrors
+    // its hold into the order's object (worker/index.ts), and a suite missing
+    // the binding would be testing a shape that is not shipped.
+    durableObjects: {
+      STOREFRONT: 'StorefrontDO',
+      LISTING: 'ListingDO',
+      CHECKOUT: 'CheckoutDO',
+      ORDER: 'OrderDO',
+    },
     durableObjectsPersist: persist,
     bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
     serviceBindings: {

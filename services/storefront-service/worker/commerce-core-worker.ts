@@ -1,6 +1,18 @@
 export * from '../../../packages/commerce-core/dist/quote-issuance.js';
 export * from '../../../packages/commerce-core/dist/reservation.js';
 export * from '../../../packages/commerce-core/dist/pay-at-door-policy.js';
+// SP3.3a — the payment half of the vault. `order-spine.js` is the DECISION
+// AUTHORITY for the provider webhook and for « no confirmed order without funded
+// legs »; it pulls `order-machine.js` and `ledger.js` in through its own imports,
+// and both are named here anyway so a future slice reaching for `advanceOrder` or
+// `LedgerRecords` gets the vault's symbol rather than a second definition.
+export * from '../../../packages/commerce-core/dist/order-machine.js';
+export * from '../../../packages/commerce-core/dist/order-spine.js';
+export * from '../../../packages/commerce-core/dist/ledger.js';
+// The CERTIFIED sandbox provider (Execution Contract §3) — the ONE payment
+// implementation this Worker has. It is deterministic and config-driven: no
+// randomness, no clock, no network, and no aggregator named anywhere in it.
+export * from '../../../packages/commerce-core/dist/mocks/payment-provider-mock.js';
 
 /**
  * ═══ THE VAULT, NARROWED FOR THE WORKER BUNDLE — READ-ONLY, NOT REWRITTEN ═══

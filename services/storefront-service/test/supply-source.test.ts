@@ -34,29 +34,51 @@ describe('THE MOCK IS NOT THE FALLBACK — fabricated supply data is unreachable
     expect(resolveSupplySource({ OFFER: { fetch: async () => new Response(null) } })).toBeInstanceOf(BoundSupplySource);
   });
 
-  it('NO MOCK IS IMPORTABLE FROM THE SERVICE SOURCE — the fabrication path does not exist in the bundle', () => {
+  it('NO MOCK IS IMPORTABLE FROM THE SERVICE SOURCE — with ONE named exception, pinned to its file', () => {
     // The load-bearing difference from every other env-gated fallback: in-memory
     // stores are EMPTY, but a supply mock is POPULATED — it emits invented product
     // names and image refs. A deployed Worker that resolved to it would serve
     // fabricated products to a real buyer. So the deployed code imports no mock AT
     // ALL: no env value, flag or misconfiguration can reach one.
+    //
+    // ═══ THE ONE EXCEPTION, AND WHY IT IS NOT THE SAME THING (SP3.3a) ═══
+    //
+    // The vault's CERTIFIED SANDBOX PAYMENT PROVIDER is not a fallback and not a
+    // fabricator: at E1/E2 it IS the payment implementation (a real aggregator is
+    // the Real-Money Gate's open Decision), exactly as `delivery-source.ts` — the
+    // « SANDBOX TARIFF, CONTRACT-CERTIFIED » stand-in for Séra — is the deployed
+    // pricing of D. It invents NO buyer-visible data: it initiates a charge and
+    // reports accepted/timeout, and it cannot invent a payment, because the only
+    // thing that moves an order's money state is a signed webhook validated to
+    // the franc against the immutable Quote by the frozen vault.
+    //
+    // THE GUARD KEEPS ITS TEETH BY BEING PINNED, not loosened: the set of
+    // mock-looking imports in the deployed source must be EXACTLY this one, in
+    // EXACTLY this file. A second one, a moved one, or a supply mock creeping
+    // back fails this test by name.
+    const ALLOWED = [
+      'worker/commerce-core-worker.ts::../../../packages/commerce-core/dist/mocks/payment-provider-mock.js',
+    ];
     const roots = [join(import.meta.dirname, '../src'), join(import.meta.dirname, '../worker')];
     const walk = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
         e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.ts') ? [join(dir, e.name)] : [],
       );
+    const found: string[] = [];
     for (const dir of roots) {
       for (const file of walk(dir)) {
         const src = readFileSync(file, 'utf8');
         const imports = [...src.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]!);
         for (const spec of imports) {
-          expect(
-            /mock/i.test(spec),
-            `${file} imports ${spec} — a mock is reachable from the deployed composition root`,
-          ).toBe(false);
+          if (!/mock/i.test(spec)) continue;
+          const relative = file.slice(file.indexOf('/storefront-service/') + '/storefront-service/'.length);
+          found.push(`${relative}::${spec}`);
         }
       }
     }
+    expect(found.sort()).toEqual(ALLOWED);
+    // …and NO supply mock, by the original rule: nothing on the supply path.
+    for (const entry of found) expect(/supply/i.test(entry)).toBe(false);
   });
 
   it('the SUPPLY SOURCE module itself names no mock (the resolver has exactly two branches)', () => {

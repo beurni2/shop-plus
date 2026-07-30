@@ -88,6 +88,20 @@ capture funded-legs-option-b-negative fail node scripts/gates/no-confirmed-order
 log "gate: no-confirmed-order-without-funded-legs — NEGATIVE FIXTURE (coherent lie: split-shifted PAY_AT_DOOR quote + matching oversized leg, must fail)"
 capture funded-legs-split-lie-negative fail node scripts/gates/no-confirmed-order-without-funded-legs.mjs gates/fixtures/negative/order-journey.option-b.split-lie.json
 
+# SP3.3a — THE SAME LAW, ON THE NEW PATH. The driver runs the REAL order core,
+# the real provider seam and the real vault spine (both modes) and asserts that a
+# confirm with no funded leg is REFUSED; it then proves the two committed
+# journeys below ARE this run's own output, so the gate beneath can never read a
+# fixture that has drifted from the code it claims to describe.
+log "gate: SP3.3a order path — the LIVE new payment path, both modes, unfunded confirm refused (must pass)"
+capture sp33a-order-path pass node scripts/sp33a-order-path.mjs
+
+log "gate: no-confirmed-order-without-funded-legs — the SP3.3a order path's OWN journey (Option B, must pass)"
+capture funded-legs-sp33a-live pass node scripts/gates/no-confirmed-order-without-funded-legs.mjs gates/fixtures/order-journey.sp33a-live.json
+
+log "gate: no-confirmed-order-without-funded-legs — NEGATIVE FIXTURE (the SP3.3a path's own confirmed order with a leg one franc short, must fail)"
+capture funded-legs-sp33a-negative fail node scripts/gates/no-confirmed-order-without-funded-legs.mjs gates/fixtures/negative/order-journey.sp33a-short-leg.json
+
 log "gate: settlement-copies-never-recomputes — happy journey + ledger source scan (must pass)"
 capture settlement-copies-positive pass node scripts/gates/settlement-copies-never-recomputes.mjs gates/fixtures/order-journey.happy.json
 
