@@ -235,6 +235,39 @@ capture copy-lint-inline-refus-negative-quoted-key fail node scripts/gates/copy-
 log "gate: French Voice copy-lint — NEGATIVE (a QUOTED field key, same family one level down, must fail)"
 capture copy-lint-inline-refus-negative-quoted-field fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/quoted-field.ts
 
+# SP3.3b1 — the §6.1 TWO-OPTION CHECKOUT COPY is now extracted and linted by the
+# same gate, and each negative below bites through a DIFFERENT door: the lint
+# itself, the raw §6.1 word scan (which sees what no string extractor can), the
+# structural floor (a DELETED §6.1 sentence), and the placeholder allowlist (a
+# money sentence assembled at runtime from a part nothing read).
+log "gate: French Voice copy-lint — NEGATIVE (administrative French in the §6.1 PAYMENT copy, must fail)"
+capture copy-lint-inline-refus-negative-paiement fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-administratif.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (§6.1's forbidden word in a CLASS NAME + data attribute, clean copy, must fail)"
+capture copy-lint-inline-refus-negative-escrow fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-escrow-classname.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (a DELETED §6.1 payment sentence: the structural floor must bite, must fail)"
+capture copy-lint-inline-refus-negative-paiement-missing fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-missing-field.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (an unknown runtime placeholder in a §6.1 money sentence, must fail)"
+capture copy-lint-inline-refus-negative-paiement-placeholder fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-placeholder.ts
+
+# « Écouter la note de la vendeuse » was removed from this screen once already,
+# by a founder override that has since been revoked (2026-07-30). The label is
+# now a linted §6.1 string, and this fixture is the proof that DELETING IT
+# specifically fails the structural floor — every other string in it is present
+# and lints green, so nothing else can be what fails.
+log "gate: French Voice copy-lint — NEGATIVE (the DELETED « Écouter la note » label, must fail)"
+capture copy-lint-inline-refus-negative-paiement-ecouter fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-ecouter-missing.ts
+
+# The scan used to walk src/**/*.ts ONLY, so the forbidden word planted in the
+# entry HTML shipped while this gate printed « appear nowhere in the buyer
+# source ». It now walks every text file a buyer receives — index.html, public/,
+# i18n/, css — and this fixture's source half lints green, so the ONLY thing
+# that can fail it is the scan reaching outside src/.
+log "gate: French Voice copy-lint — NEGATIVE (§6.1's forbidden word in index.html, outside src/, must fail)"
+capture copy-lint-inline-refus-negative-scan-outside-src fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/scan-outside-src/clean-screens.ts --scan-root gates/fixtures/negative/copy-lint-inline-refus/scan-outside-src
+
 log "gate: E2 failure path — the real service path end-to-end (must pass)"
 capture e2-failure-path pass node scripts/e2-failure-path.mjs
 

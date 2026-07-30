@@ -29,6 +29,9 @@ const Q = composeQuote(ROBE.priceFcfa);
 
 const C3_BASE: C3State = { zone: 'Gounghin', repere: 'Face à la pharmacie du marché', indic: '', voice: 'idle', recTime: '0:00', canContinue: true };
 
+/** Tags out, NOTHING inserted — the concatenated text a buyer reads. */
+const stripTags = (html: string): string => html.replace(/<[^>]+>/g, '');
+
 describe('fmt — byte-exact NNBSP (U+202F, built from \\u202f)', () => {
   it('fmtFCFA groups thousands with U+202F and suffixes [NNBSP]FCFA', () => {
     expect(fmtFCFA(11_500)).toBe(`11${N}500${N}FCFA`);
@@ -75,7 +78,13 @@ describe('source discipline — zero raw U+202F laundered into ANY app source (P
 
 describe('the quote is server-frozen — §3.2 decree bytes, render-only', () => {
   it('composeQuote(11 500) reproduces the decree to the franc', () => {
-    expect(Q).toEqual({ produitFcfa: 11_500, feeToday: 1_000, feeTomorrow: 800, totalToday: 12_500, totalTomorrow: 12_300 });
+    expect(Q).toEqual({
+      produitFcfa: 11_500, feeToday: 1_000, feeTomorrow: 800, totalToday: 12_500, totalTomorrow: 12_300,
+      // SP3.3b1 — the §6.1 splits the mock service composes for each leg. Still
+      // an EXACT match: a field added to the frozen quote fails right here.
+      splitsToday: { A: { paidNow: 12_500, dueAtDelivery: 0 }, B: { paidNow: 1_000, dueAtDelivery: 11_500 } },
+      splitsTomorrow: { A: { paidNow: 12_300, dueAtDelivery: 0 }, B: { paidNow: 800, dueAtDelivery: 11_500 } },
+    });
   });
   it('payezMaintenant reads the frozen fields per mode (A = total, B = frais)', () => {
     expect(payezMaintenant(Q, 'today', 'A')).toBe(12_500);
@@ -84,10 +93,14 @@ describe('the quote is server-frozen — §3.2 decree bytes, render-only', () =>
     expect(payezMaintenant(Q, 'tomorrow', 'B')).toBe(800);
   });
   it('the C5 reconciliation line is byte-exact for BOTH fees (§3.2)', () => {
+    // READ AS THE BUYER READS IT — tags removed, nothing else. The promise
+    // clause is its own no-wrap element since SP3.3b1 (it was being stranded on
+    // a line of its own at 360px), so the markup no longer carries the sentence
+    // as one contiguous run; the TEXT is byte-identical and that is the claim.
     const today = renderC5(ROBE, Q, { delivery: 'today', pay: null, paying: 'idle', bInel: false });
-    expect(today).toContain(`12${N}500 = 11${N}500 + 1${N}000 — chaque franc a sa place.`);
+    expect(stripTags(today)).toContain(`12${N}500 = 11${N}500 + 1${N}000 — chaque franc a sa place.`);
     const tomorrow = renderC5(ROBE, Q, { delivery: 'tomorrow', pay: null, paying: 'idle', bInel: false });
-    expect(tomorrow).toContain(`12${N}300 = 11${N}500 + 800 — chaque franc a sa place.`);
+    expect(stripTags(tomorrow)).toContain(`12${N}300 = 11${N}500 + 800 — chaque franc a sa place.`);
   });
 });
 
@@ -193,7 +206,7 @@ describe('the real signed link maps HER real product — never the demo robe (BU
     // and its quote reconciles to the franc off the frozen composition.
     const q = composeQuote(20_500);
     const c5 = renderC5(produit, q, { delivery: 'today', pay: null, paying: 'idle', bInel: false });
-    expect(c5).toContain(`21${N}500 = 20${N}500 + 1${N}000 — chaque franc a sa place.`);
+    expect(stripTags(c5)).toContain(`21${N}500 = 20${N}500 + 1${N}000 — chaque franc a sa place.`);
   });
   it('a ready voice note carries its real duration into the C1 player', () => {
     const { produit } = clienteProduitReel(

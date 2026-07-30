@@ -229,7 +229,18 @@ export const CLIENTE_STYLES = `
   .cl-epuise-card { margin-top: 12px; padding: 13px 15px; border-radius: 16px; background: #F1E7D3; color: #4A3F33; font-size: 12.5px; line-height: 1.55; }
 
   /* ══ CTA ══ */
+  /* THE display: block BELOW IS LOAD-BEARING, not tidying (round 5, verifier).
+     A button's UA display is inline-block, and the C5 orphan sweep enumerates
+     text blocks by COMPUTED DISPLAY — so the CTA, the one element on the money
+     screen that both carries an amount and IS the screen's single primary
+     action, could not enter the swept set at all. At a large basket its label
+     wraps, and it was measured BELOW the bar every other sentence on that screen
+     is held to, with no gate able to see it. That is the third accidental
+     narrowing of this sweep: by selector (round 2), by state (round 4), by
+     computed display (here). The button lays out identically — full width, its
+     own line, contents still centred — and the e2e now asserts it was swept. */
   .cl-cta {
+    display: block;
     margin-top: 14px; width: 100%; height: 56px; border-radius: 16px; border: none;
     background: var(--vt-accent); color: var(--vt-on);
     font-family: var(--cld); font-weight: 700; font-size: 16px;
@@ -316,21 +327,135 @@ export const CLIENTE_STYLES = `
 
   /* ══ C5 — récap montants + modes ══ */
   .cl-bill { margin-top: 14px; padding: 4px 17px; border-radius: 20px; border: 1px solid #EDE4D3; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,22,15,.04); }
-  .cl-bill-row { display: flex; justify-content: space-between; gap: 10px; padding: 12px 0; border-bottom: 1px solid #F3EDDE; font-size: 13.5px; }
-  .cl-bill-row span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .cl-bill-row b { font-feature-settings: 'tnum'; white-space: nowrap; }
+  .cl-bill-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 12px 0; border-bottom: 1px solid #F3EDDE; font-size: 13.5px; }
+  /* THE LABEL WRAPS; IT NEVER TRUNCATES (SP3.3b1, founder finding).
+     It used to carry white-space nowrap + overflow hidden + text-overflow
+     ellipsis, and at 360px that rendered « Livraison Séra — ja… » — deleting
+     « jamais cachée », which IS that row's promise: the one line telling her the
+     delivery fee is not buried in the product price. The article name lost its
+     end the same way. §5: « French long-text tested (labels don't truncate
+     meaning) » — an ellipsis on a money row is a sentence the buyer never reads.
+     A second line costs 20px; the amount keeps nowrap and stays hard-right. */
+  .cl-bill-row span { min-width: 0; overflow-wrap: anywhere; }
+  .cl-bill-row b { font-feature-settings: 'tnum'; white-space: nowrap; flex: none; }
   .cl-bill-liv { color: #6F6355; }
   .cl-bill-liv b { color: #1C1710; }
   .cl-bill-total { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 13px 0; }
   .cl-bill-total span { font-weight: 700; font-size: 14px; }
   .cl-bill-total b { font-family: var(--cld); font-weight: 800; font-size: 20px; font-feature-settings: 'tnum'; white-space: nowrap; }
-  .cl-reconcile { margin-top: 7px; text-align: right; font-size: 11.5px; font-weight: 600; color: #6F6355; font-feature-settings: 'tnum'; }
+  /* THE HONESTY LINE READS LIKE A SENTENCE, not like a layout accident.
+     Right-aligned it wrapped « … chaque franc a / sa place. », stranding two
+     words against the right edge. It needs 422px on one line and the column is
+     273px, so it MUST wrap; what it must not do is wrap badly. The promise
+     clause is one no-wrap unit (see renderC5), so the break can only fall at
+     the em dash — deterministic on every engine, no modern-CSS dependency.
+     LEFT, because a wrapped sentence with a ragged right edge reads as prose
+     and a ragged left one reads as an accident. */
+  .cl-reconcile { margin-top: 7px; text-align: left; font-size: 11.5px; font-weight: 600; color: #6F6355; font-feature-settings: 'tnum'; }
+  .cl-reconcile-promesse { white-space: nowrap; }
   .cl-overline-pay { margin-top: 15px; }
-  .cl-payopt { margin-top: 10px; box-shadow: none; }
+  .cl-payopt { margin-top: 10px; box-shadow: none; padding: 16px 13px; }
+  /* §6.1's option NAMES are longer than C4's (« Tout payer maintenant —
+     recommandé »), and the shared 34px check-mark reserve broke the A label
+     over three lines. The mark is 26px wide at right:12px, so 30px clears it
+     with 4px to spare and the label gets two lines instead of three. */
+  .cl-payopt .cl-opt-row { padding-right: 30px; }
+  .cl-payopt .cl-opt-title { font-size: 14px; line-height: 1.3; }
   .cl-payopt-ic { color: #1C1710; display: inline-flex; flex: none; }
   .cl-payopt-body { margin-top: 7px; font-size: 13.5px; line-height: 1.5; color: #6F6355; }
   .cl-payopt-body b { color: #1C1710; font-feature-settings: 'tnum'; }
-  .cl-ecouter { margin-top: 9px; display: inline-flex; align-items: center; gap: 6px; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; cursor: pointer; white-space: nowrap; }
+  /* §6.1 — LES DEUX LIGNES EN GRAS, one per option, the money before the prose.
+     Ink (not the muted body): they are the answer to « combien maintenant ».
+     12px is MEASURED, not chosen: at 360px the longest of the four lines
+     (« À payer à la livraison : 11 500 FCFA ») needs 293px of the card's 275px
+     at 13px, and a line that wraps on one option but not the next reads as an
+     accident. The pay cards give back 3px of side padding for the same reason.
+     Hierarchy is intact: the Total above stays the headline at 20px.
+     A big amount (a 250 000 FCFA article) may still wrap, and MUST be allowed
+     to: white-space nowrap here would push the card past a 360px phone, and a
+     horizontal scrollbar on the payment screen is worse than a second line. */
+  .cl-payline { margin-top: 7px; font-weight: 700; font-size: 12px; line-height: 1.45; color: #1C1710; font-feature-settings: 'tnum'; }
+  .cl-payline + .cl-payline { margin-top: 2px; }
+  .cl-payline + .cl-payopt-body { margin-top: 9px; }
+  /* §6.1's non-refundable-delivery warning. Sober, never alarmist: it states a
+     consequence, so it earns weight and the sable ground, not the danger set. */
+  .cl-payopt-warn { margin-top: 9px; padding: 9px 11px; border-radius: 12px; background: #FBF6EB; border: 1px solid #EDE4D3; font-size: 12.5px; font-weight: 600; line-height: 1.45; color: #6F6355; }
+  /* §6.1's one-line replay, immediately above the CTA: what she is about to
+     agree to, in her own numbers, before the payment leaves. */
+  .cl-redite { margin-top: 13px; text-align: center; font-size: 13.5px; font-weight: 700; line-height: 1.45; color: #1C1710; font-feature-settings: 'tnum'; }
+  /* THE QUESTION IS NEVER LEFT ALONE (round 4). « … à la livraison — » /
+     « d'accord ? » stranded the question she is agreeing to on a third line at
+     28.6% of the block — the same defect the honesty line had, on the sentence
+     that asks for her consent. The closing clause is one no-wrap unit, so the
+     break falls before it and the last line is always a full one. It carries no
+     amount, so it cannot grow past the card and force a horizontal scroll. */
+  .cl-redite-fin { white-space: nowrap; }
+  /* …and the same device on option B's NAME (round 5). « Payer le produit à la
+     livraison » cannot fit one line at 360px (needs 267px, has 215px), and it
+     was breaking as « … à la / livraison », stranding the word that says WHICH
+     option this is. Glued, it reads « Payer le produit / à la livraison ». Used
+     by BOTH sites that name option B — the payable card and the « Pas
+     disponible » head — because it is one string. */
+  .cl-titre-fin { white-space: nowrap; }
+  /* « Écouter la note de la vendeuse » — the reseller's own note, back on the
+     payment screen (founder ruling 2026-07-30). It WHISPERS: the CTA is the one
+     primary action on this screen, so this is a small underlined link with the
+     play glyph, never a second button.
+
+     WHY IT IS SELECTED WITH TWO CLASSES AND NOT ONE, which is a measured cascade
+     fact and not a style preference: the ".cl-root button" rule above sets the
+     FONT SHORTHAND to inherit, which resets font-size AND font-weight, and it is
+     specificity (0,1,1). A single-class button rule is (0,1,0) and LOSES to it,
+     so this control rendered at the inherited 16px/400 instead of 11.5px/700 —
+     measured in Chromium — and at 16px the nowrap label overflowed a 360px phone
+     (scrollWidth 377) and failed SCREEN-FIT. Two classes, (0,2,0), beat it.
+
+     FLAGGED, NOT FIXED HERE: ".cl-refaire" and ".cl-modifier" have the identical
+     shape and lose the identical way — both measured at 16px/400 in the same run.
+     That is a pre-existing module-wide defect, fixing it moves C3 and C4 pixels,
+     and it is not this work order's scope.
+
+     NOWRAP because a control LABEL that breaks mid-phrase reads as prose rather
+     than as something to tap. It is invisible to the C5 orphan sweep either way
+     (inline-flex is not a text block, and its svg child computes display block,
+     so the glue filter skips it too) — so it is asserted on its own, by name, in
+     the « Écouter la note » e2e rather than left to the sweep.
+
+     ═══ min-height: 44px — THE HIT AREA, AND WHY IT IS NOT OPTIONAL ═══
+
+     §5 is explicit: « ≥44px touch targets ». Whispering is about WEIGHT, never
+     about REACH, and this control had none: measured in Chromium at 360px it
+     rendered 272.61 × 19.83px, because an unpadded inline-flex at 11.5px/1.5 is
+     one 17.25px line box and nothing more (× the module's 1.15 zoom on
+     ".cl-root"). Nowrap, one line, fits its column and smaller than the CTA were
+     all asserted — not one of them is a hit area, and a control that looks
+     available and cannot be hit is worse than no control at all. This is the ONE
+     thing on the money screen that reaches a mid-literacy buyer in her own
+     language rather than in text; she taps it with a thumb, in the sun, on a hot
+     phone.
+
+     min-height rather than a transform, because a transform paints a bigger
+     control without enlarging the box that receives the tap — the exact lie this
+     rule exists to remove. box-sizing is border-box module-wide (".cl-root *"),
+     so 44px is the real outer box; "align-items: center" keeps the label
+     optically where it already was, with the added reach split above and below.
+
+     44px IS THE CSS BOX, NOT THE RENDERED ONE, and that is deliberate: the 1.15
+     zoom renders it at 50.59px, so the target clears §5 twice over and would
+     still clear it if that zoom were ever removed. The e2e asserts BOTH numbers
+     for exactly that reason.
+
+     "margin-top: 9px" GOES, and is not merely deleted: the 13.4px of centring
+     space above the label now does that margin's job, so keeping both would push
+     the CTA a further 9px down a screen that already scrolls at 360px (Ten Laws
+     #7). Net vertical cost of the hit area is +17.75px of CSS box (+20.4px as
+     rendered), paid once.
+
+     THE GLYPH AND THE LABEL SHARE ONE HIT AREA, not two: both are children of
+     this single "button" element, so the 44px box is one target and the triangle
+     is inside it. The e2e asserts exactly that, in both C5 states that render
+     this control. */
+  .cl-root .cl-ecouter { min-height: 44px; padding: 0; border: none; background: transparent; display: inline-flex; align-items: center; gap: 6px; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; cursor: pointer; white-space: nowrap; }
   .cl-payinel { margin-top: 10px; padding: 16px; border-radius: 18px; border: 1px solid #EDE4D3; background: #FBF6EB; }
   .cl-payinel-head { display: flex; align-items: center; gap: 10px; opacity: .45; }
   .cl-payinel-head span { font-weight: 700; font-size: 14.5px; }
@@ -346,6 +471,23 @@ export const CLIENTE_STYLES = `
   .cl-sub-title { margin-top: 10px; font-family: var(--cld); font-weight: 800; font-size: 28px; letter-spacing: -.02em; }
   .cl-sub-body { margin-top: 10px; font-size: 14px; line-height: 1.55; color: #4A3F33; max-width: 280px; }
   .cl-sub-body b { font-feature-settings: 'tnum'; color: #1C1710; }
+  /* « ENVOI SÉCURISÉ » — THE PARTY THE MONEY IS GOING TO IS NEVER LEFT ALONE
+     (round 6). « Nous envoyons votre demande de / paiement de {X} FCFA à /
+     l'opérateur. » stranded « l'opérateur. » at 0.334 of the block — below the
+     0.35 orphan bar, in all four combinations (both modes × both baskets), and
+     FIXED regardless of the amount, because the last line was the tail alone.
+     This is the moment the payment leaves her hands; the stranded word is who
+     is receiving it.
+     Same device as cl-reconcile-promesse, cl-redite-fin and cl-titre-fin,
+     for the fourth time: the closing clause is one no-wrap unit, so the break
+     falls BEFORE « à » and the last line reads « à l'opérateur. » → 0.388.
+     WHY THE TAIL STOPS HERE and does not reach back to « de paiement de »:
+     everything further back drags the AMOUNT onto the last line, and a last
+     line carrying francs grows with the basket — measured 0.92 at 19 753 086,
+     but one digit more and it wraps again, putting the same stub back. An
+     amount-free tail is worth less headroom that never moves: 0.388 is the same
+     number at every basket this screen can be given. */
+  .cl-envoi-fin { white-space: nowrap; }
   .cl-bar-track { width: 190px; height: 4px; border-radius: 99px; background: #EFE4D2; margin-top: 28px; overflow: hidden; }
   .cl-bar-fill { width: 100%; height: 100%; border-radius: 99px; background: var(--vt-accent); }
   @media (prefers-reduced-motion: no-preference) { .cl-bar-fill { animation: clBar 1.4s ease-in-out infinite; } }
@@ -355,6 +497,26 @@ export const CLIENTE_STYLES = `
   .cl-prov-title { margin-top: 16px; font-family: var(--cld); font-weight: 800; font-size: 24px; line-height: 1.2; letter-spacing: -.02em; }
   .cl-prov-body { margin-top: 10px; font-size: 14px; line-height: 1.6; color: #4A3F33; max-width: 290px; }
   .cl-prov-body b { font-feature-settings: 'tnum'; color: #1C1710; }
+  /* THE OPERATOR SCREEN, TREATED LIKE THE TITLE RATHER THAN LEFT ON ITS MARGIN
+     (round 6). « Composez votre code secret / Orange Money pour valider /
+     {X} FCFA. » sat at 0.363 — 1.3% above the bar, the same thin margin the
+     option-B title was carrying when the founder reversed « leave it ». It also
+     MOVED with the basket (0.363 · 0.404 · 0.498 · 0.537), so what passed was
+     the fixture, not the setting.
+     WHERE THE NO-WRAP UNIT BELONGS, and why it is a HEAD and not a tail here:
+     the last line is the AMOUNT, and no unit containing an amount may ever be
+     glued on this screen (the cl-payline rule — nowrap on francs pushes the
+     card past a 360px phone, and a horizontal scrollbar on a payment screen is
+     worse than a second line). A tail is therefore unavailable; gluing « pour
+     valider » alone changes nothing, measured, because those words already sit
+     together. What DOES move the break is « code secret Orange Money » — the
+     name of the credential she is being asked to compose, which was itself
+     being split across two lines. Held together it reads « Composez votre /
+     code secret Orange Money / pour valider {X} FCFA. » → 0.581 at the smallest
+     basket and 0.754 at the largest. The unit is 273px and carries no amount,
+     so it cannot grow past the 290px measure. Used by BOTH screens that ask for
+     the code — C5's opérateur and C8's door leg — because it is one sentence. */
+  .cl-prov-cle { white-space: nowrap; }
   .cl-prov-wait { margin-top: 22px; display: flex; align-items: center; gap: 10px; padding: 12px 17px; border-radius: 15px; border: 1.5px solid #E0D6C2; background: #FFFFFF; }
   .cl-prov-dots { display: inline-flex; gap: 4px; }
   .cl-prov-dot { width: 7px; height: 7px; border-radius: 99px; background: #1C1710; }

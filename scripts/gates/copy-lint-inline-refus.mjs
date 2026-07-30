@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +43,37 @@ import { fileURLToPath } from 'node:url';
  *      every one of its named fields. DELETING a string fails exactly as loudly
  *      as breaking one, and no constant needs maintaining.
  *
+ * ═══ AND THE HOLE *SP3.3b1* CLOSES — THE §6.1 PAYMENT COPY ═══
+ *
+ * The two-option checkout screen is where the buyer reads « À payer maintenant »
+ * and decides. Those sentences are Build-Spec §6.1's own, they live inline in
+ * the same module, and until this version NO GATE READ THEM. The `PAIEMENT`
+ * table is now extracted and linted exactly as the refusal table is — same
+ * binary, same structural floor (every named field must be present, an unknown
+ * field is a hard failure), same refusal to skip a value it cannot read.
+ *
+ * Two rules this table needs that the refusal table does not:
+ *   · `\uXXXX` IS DECODED. §6.1's money lines carry the narrow no-break space
+ *     before FCFA, and the buyer app forbids a raw U+202F byte in source (the
+ *     source scan locks it), so the escape is the only way to write them. A
+ *     gate that read « \u202fFCFA » literally would not be reading what the
+ *     buyer reads.
+ *   · `{X}` `{Y}` `{D}` ARE THE ONLY PLACEHOLDERS. They are §6.1's own notation
+ *     and are filled with ONE server amount each. Any other `{…}` fails: a
+ *     money sentence assembled at runtime out of unknown parts cannot be
+ *     lint-checked as the buyer will read it, and that is the same law the
+ *     interpolated-template-literal refusal enforces one level up.
+ *
+ * ═══ « séquestre » / « escrow » — §6.1's flat prohibition, scanned raw ═══
+ *
+ * The copy-lint catches both tokens inside strings it extracts. This gate ALSO
+ * scans the source TEXT — comments, class names, data attributes, dead code —
+ * because §6.1 says the words must not appear in customer copy and a class name
+ * that ships in the DOM is not private. On a real run it scans every `.ts`
+ * under the buyer app's `src/`, not just this one file. (The canon ledger record
+ * `EscrowTxn` lives in `packages/commerce-core` — server-side, never a buyer
+ * surface — and is deliberately outside this scan's reach.)
+ *
  * ═══ THE DEBT, NAMED ═══
  *
  * This makes the strings LINTED; it does not make them catalog entries with
@@ -53,7 +84,10 @@ import { fileURLToPath } from 'node:url';
  */
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const SOURCE = process.argv[2] ?? join(root, 'apps/buyer-pwa/src/cliente/screens.ts');
+/** A fixture path was given ⇒ this is a NEGATIVE run over one planted file, and
+ *  the repo-wide scans below stay off it. */
+const FIXTURE = process.argv[2];
+const SOURCE = FIXTURE ?? join(root, 'apps/buyer-pwa/src/cliente/screens.ts');
 const rel = SOURCE.replace(root + '/', '');
 
 /** The copy fields of a refusal view → the screen class each one is. `action`
@@ -61,11 +95,66 @@ const rel = SOURCE.replace(root + '/', '');
 const COPY_FIELDS = { overline: 'label', titre: 'status', phrase: 'status', libelle: 'label' };
 const REQUIRED_FIELDS = [...Object.keys(COPY_FIELDS), 'action'];
 
+/**
+ * The §6.1 two-option checkout copy → the screen class each string is.
+ *
+ * `checkout` is the reading budget the i18n data documents as « seeded to
+ * accept the canonical Shop+ §6.1 checkout copy »; the two option LABELS and
+ * the emphasised clause are `label` (exempt from the sentence budget, still
+ * banned-token and register checked). Every one of these must be present: a
+ * DELETED §6.1 sentence fails exactly as loudly as a violated one.
+ */
+const PAIEMENT_FIELDS = {
+  ligneMaintenant: { screenClass: 'checkout', fills: ['{X}'] },
+  ligneLivraison: { screenClass: 'checkout', fills: ['{Y}'] },
+  titreA: { screenClass: 'label', fills: [] },
+  corpsA: { screenClass: 'checkout', fills: [] },
+  titreB: { screenClass: 'label', fills: [] },
+  titreBFin: { screenClass: 'label', fills: [] },
+  corpsB: { screenClass: 'checkout', fills: ['{D}'] },
+  corpsBAccent: { screenClass: 'label', fills: [] },
+  avertissementB: { screenClass: 'checkout', fills: [] },
+  redite: { screenClass: 'checkout', fills: ['{X}', '{Y}'] },
+  rediteA: { screenClass: 'checkout', fills: ['{X}', '{Y}'] },
+  rediteFin: { screenClass: 'label', fills: [] },
+  /** « Écouter la note de la vendeuse » — the founder's 2026-07-30 reversal put
+   *  a new user-facing control on the money screen, so its label is linted with
+   *  the rest of §6.1's copy and its DELETION fails the structural floor above,
+   *  exactly like a deleted §6.1 sentence. */
+  ecouterNote: { screenClass: 'label', fills: [] },
+};
+
+/**
+ * §6.1's own notation, one server amount each — and the allowlist is PER FIELD,
+ * not per table.
+ *
+ * THE HOLE THIS CLOSES (fresh verifier, round 3): the check asked « is this one
+ * of the three placeholders? » when the question that matters is « can THIS
+ * FIELD fill it? ». The renderer fills the replay with {X, Y} and nothing else,
+ * so `{D}` planted into `redite` passed the gate and the buyer would have read
+ * « … à la livraison (frais {D}) — d'accord ? » with the token still in it. A
+ * placeholder the renderer never substitutes is not a placeholder; it is a
+ * literal brace in a money sentence.
+ */
+
+/** §6.1: « séquestre »/"escrow" MUST NOT appear in customer copy. */
+const BANNED_WORDS = /s[eé]questres?|escrows?/iu;
+
 const src = readFileSync(SOURCE, 'utf8');
 const problems = [];
 
+/**
+ * ONE PASS over the escapes, so `\uXXXX` decodes and `\\u202f` does not.
+ * A chain of `.replace()`s cannot tell those apart; this can, because the
+ * backslash that opens an escape is consumed with it.
+ */
 const unescapeJs = (s) =>
-  s.replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\\\/g, '\\');
+  s.replace(/\\(u[0-9a-fA-F]{4}|[\s\S])/g, (_, esc) => {
+    if (esc[0] === 'u') return String.fromCharCode(Number.parseInt(esc.slice(1), 16));
+    if (esc === 'n') return '\n';
+    if (esc === 't') return '\t';
+    return esc; // \' \" \\ — and anything else is the character itself
+  });
 
 /**
  * Read ONE value as the buyer would read it. Returns its text, or a reason the
@@ -258,11 +347,137 @@ if (msg === null) {
   }
 }
 
-console.log(`  ${views.length} refusal view(s) · ${entries.length} user-facing strings extracted from ${rel}`);
+/* ═════════ SP3.3b1 — the §6.1 two-option checkout copy, linted too ════════ */
+
+let paiementCount = 0;
+const pay = /export const PAIEMENT\s*=\s*\{([\s\S]*?)\n\}/.exec(src);
+if (pay === null) {
+  problems.push(
+    'the PAIEMENT block is missing — the §6.1 two-option checkout copy is what a buyer reads at the ' +
+      'moment she commits her money, and it would ship unlinted. Re-point this gate, never delete it.',
+  );
+} else {
+  const fields = fieldsOf(pay[1], 'PAIEMENT');
+  // STRUCTURAL FLOOR — every §6.1 string, present. A deleted sentence fails here.
+  for (const required of Object.keys(PAIEMENT_FIELDS)) {
+    if (!(required in fields)) problems.push(`PAIEMENT: missing field « ${required} » (§6.1 copy)`);
+  }
+  // …AND NOTHING ELSE unread: an unrecognised field is a string with no lint.
+  for (const present of Object.keys(fields)) {
+    if (present in PAIEMENT_FIELDS) continue;
+    problems.push(
+      `PAIEMENT: unknown field « ${present} » — add it to PAIEMENT_FIELDS with its screen class ` +
+        'so it gets linted; nothing here may go unread',
+    );
+  }
+  for (const [field, { screenClass, fills }] of Object.entries(PAIEMENT_FIELDS)) {
+    if (!(field in fields)) continue;
+    const v = readValue(fields[field]);
+    if (v.kind !== 'text') {
+      problems.push(`PAIEMENT.${field}: ${v.why ?? 'null is not copy'}`);
+      continue;
+    }
+    if (v.text === '') {
+      problems.push(`PAIEMENT.${field}: empty — §6.1 has no empty string`);
+      continue;
+    }
+    // ONLY THE PLACEHOLDERS **THIS FIELD** IS FILLED WITH. A token the renderer
+    // never substitutes here reaches the buyer as a literal brace in a money
+    // sentence, and a table-wide allowlist could not see the difference.
+    for (const brace of v.text.match(/\{[^}]*\}/gu) ?? []) {
+      if (fills.includes(brace)) continue;
+      problems.push(
+        `PAIEMENT.${field}: « ${brace} » is not filled in this field — it takes ` +
+          `${fills.length === 0 ? 'no placeholder at all' : fills.join(' ')}, so the buyer would read the ` +
+          'token itself. A money sentence assembled from parts nothing fills cannot be linted as she reads it',
+      );
+    }
+    entries.push({ key: `cliente.paiement.${field}.${n++}`, fr: v.text, register: 'money', screenClass });
+    paiementCount += 1;
+  }
+}
+
+/* ══ §6.1: « séquestre »/« escrow » appear NOWHERE a buyer can read them ═══ */
+
+/**
+ * EVERY TEXT FILE A BUYER CAN RECEIVE — not every `.ts` under `src/`.
+ *
+ * THE HOLE THIS CLOSES (fresh verifier, round 2): the scan walked
+ * `apps/buyer-pwa/src/**\/*.ts` and nothing else, so the forbidden word planted
+ * in `index.html` shipped while this gate printed « appear nowhere in the buyer
+ * source ». The buyer receives the entry HTML, the offline shell in `public/`,
+ * the web manifest and the i18n catalog exactly as she receives the bundle.
+ *
+ * Binary assets (fonts) are skipped by extension, not by guesswork.
+ */
+const SCAN_EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs', '.cjs', '.html', '.css', '.json', '.webmanifest', '.txt'];
+const walk = (dir) =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const full = join(dir, e.name);
+    if (e.isDirectory()) return e.name === 'node_modules' || e.name === 'dist' || e.name.startsWith('.') ? [] : walk(full);
+    return SCAN_EXTENSIONS.some((ext) => e.name.endsWith(ext)) ? [full] : [];
+  });
+
+/** `--scan-root DIR` points the raw scan at a fixture tree, so a plant OUTSIDE
+ *  `src/` — an `index.html`, a manifest — can be proven to fail the gate. */
+const scanRootFlag = process.argv.indexOf('--scan-root');
+const SCAN_ROOT = scanRootFlag > 0 ? process.argv[scanRootFlag + 1] : undefined;
+
+/** What the raw scan covered, in the words the success line will use. */
+let scanDescription;
+let scanned;
+if (SCAN_ROOT !== undefined) {
+  scanned = [...new Set([SOURCE, ...walk(SCAN_ROOT)])];
+  scanDescription = SCAN_ROOT.replace(root + '/', '');
+} else if (FIXTURE !== undefined) {
+  scanned = [SOURCE];
+  scanDescription = rel;
+} else {
+  const app = join(root, 'apps/buyer-pwa');
+  scanned = [
+    join(app, 'index.html'),
+    ...walk(join(app, 'src')),
+    ...walk(join(app, 'public')),
+    ...walk(join(app, 'i18n')),
+  ];
+  scanDescription = 'apps/buyer-pwa — index.html, src/, public/, i18n/ (' + SCAN_EXTENSIONS.join(' ') + ')';
+}
+/**
+ * KEPT APART FROM `problems` ON PURPOSE. An extractor problem means « a string
+ * is going unread » and stops the lint from being meaningful, so it exits
+ * early. A banned word is a finding IN ITS OWN RIGHT and must not suppress the
+ * lint report beneath it — otherwise one forbidden word in a comment would hide
+ * every French Voice violation in the same file, and a negative fixture would
+ * stop proving what it says it proves.
+ */
+const scanHits = [];
+for (const file of scanned) {
+  const text = file === SOURCE ? src : readFileSync(file, 'utf8');
+  for (const [i, line] of text.split('\n').entries()) {
+    const hit = BANNED_WORDS.exec(line);
+    if (hit === null) continue;
+    scanHits.push(
+      `${file.replace(root + '/', '')}:${i + 1}: « ${hit[0]} » — §6.1 forbids it in customer copy, and this ` +
+        'gate reads comments, class names and data attributes too',
+    );
+  }
+}
+
+console.log(
+  `  ${views.length} refusal view(s) · ${paiementCount} §6.1 payment string(s) · ` +
+    `${entries.length} user-facing strings extracted from ${rel} · ${scanned.length} file(s) scanned`,
+);
+
+const reportScan = () => {
+  if (scanHits.length === 0) return;
+  console.error('  ✘ §6.1: the custody-of-funds words must not appear where a buyer can read them:');
+  for (const h of scanHits) console.error(`    · ${h}`);
+};
 
 if (problems.length > 0) {
   console.error('  ✘ the extractor could not account for every string:');
   for (const p of problems) console.error(`    · ${p}`);
+  reportScan();
   console.error('\ncopy-lint-inline-refus: FAILED');
   process.exit(1);
 }
@@ -270,15 +485,45 @@ if (problems.length > 0) {
 const dir = mkdtempSync(join(tmpdir(), 'refus-lint-'));
 const catalog = join(dir, 'cliente-refus.catalog.json');
 writeFileSync(catalog, JSON.stringify(entries, null, 1), 'utf8');
+let lintFailed = false;
 try {
   const out = execFileSync('pnpm', ['exec', 'copy-lint', catalog], { cwd: root, encoding: 'utf8' });
   console.log('  ' + out.trim());
-  console.log('\ncopy-lint-inline-refus: OK — every refusal string a buyer reads passed the French Voice lint.');
 } catch (err) {
   console.error(err.stdout ?? '');
   console.error(err.stderr ?? '');
-  console.error('\ncopy-lint-inline-refus: FAILED');
-  process.exit(1);
+  lintFailed = true;
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
+reportScan();
+if (lintFailed || scanHits.length > 0) {
+  console.error('\ncopy-lint-inline-refus: FAILED');
+  process.exit(1);
+}
+/**
+ * SAY EXACTLY WHAT WAS COVERED, AND EXACTLY WHAT WAS NOT.
+ *
+ * THE CLAIM THIS REPLACES (fresh verifier, round 2): « every refusal string AND
+ * every §6.1 payment string a buyer reads passed the French Voice lint » read as
+ * « the payment screen is linted ». It is not. This gate extracts THREE TABLES;
+ * every other inline string in `screens.ts` — the bill row labels, the C5 quote
+ * line, the operator screens, C6–C9 — is unread, and the verifier proved it by
+ * adding administrative French to C5 and watching this gate exit 0.
+ *
+ * Widening the extractor to all inline copy is a different slice (the real cure
+ * is moving the cliente module onto the i18n catalog). What must not happen in
+ * the meantime is a green tick that overstates its own reach: an unlinted string
+ * is a known gap, an unlinted string under a claim of full coverage is a lie.
+ */
+console.log('\ncopy-lint-inline-refus: OK');
+console.log(
+  `  LINTED (French Voice): the REFUS table (${views.length} views), MESSAGES, and the §6.1 PAIEMENT ` +
+    `table (${paiementCount} strings) — ${entries.length} strings from ${rel}.`,
+);
+console.log(
+  '  NOT LINTED, and named so the gap is visible: every OTHER inline string in that module — the bill ' +
+    'labels, the C5 quote line, the operator screens, C6–C9. This gate reads three tables, not the file. ' +
+    'The cure is the i18n catalog migration, which is its own slice.',
+);
+console.log(`  SCANNED for the two words §6.1 forbids: ${scanned.length} file(s) — ${scanDescription}.`);

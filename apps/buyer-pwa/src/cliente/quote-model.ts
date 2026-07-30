@@ -62,7 +62,7 @@
  * checks is the kind of sentence this project exists not to ship.
  */
 
-import type { ClienteQuote, ModePaiement } from './screens';
+import type { ClienteQuote, LegSplits, ModePaiement } from './screens';
 import { mintCommandId, type PaymentModeWire, type QuoteIntent, type QuoteOutcome, type QuotePort, type ServerQuote } from './quote-port';
 
 export type ClienteQuoteFromServer =
@@ -100,6 +100,33 @@ export function clienteQuoteFromServer(full: ServerQuote, door: QuoteOutcome): C
   if (full.amountDueAtDelivery !== 0) return { ok: false, reason: 'amounts_disagree' };
 
   let bIndisponible = true;
+  /**
+   * THE DOOR QUOTE'S OWN SPLIT, CARRIED (SP3.3b1 · §6.1).
+   *
+   * ═══ WHAT THIS DOES AND DOES NOT CLAIM (corrected after a fresh verifier
+   *     showed the grander claim was unfalsifiable) ═══
+   *
+   * IT CANNOT CHANGE A NUMBER, AND NO TEST CAN SHOW THAT IT DOES. `agrees`
+   * below FORCES `d.amountPaidAtCheckout === full.deliveryFee` and
+   * `d.amountDueAtDelivery === full.productSubtotal`, so a screen that carries
+   * the door quote's two fields and a screen that re-derives them from the full
+   * quote print the SAME francs — always, by construction. Replace this carry
+   * with re-derivation and the suite stays green, because there is no reachable
+   * input on which the two differ. That is not a hole in the tests; it is what
+   * the cross-check guarantees.
+   *
+   * WHAT IT IS FOR, then, is PROVENANCE and one less rule in the client: the
+   * figure under « À payer maintenant » on the mode-B card is the field the
+   * server wrote for MODE B, not this app's opinion that pay-at-door means
+   * « the delivery fee now ». The old code held that opinion, in the renderer,
+   * beside the amounts — and an opinion about what a payment mode means is the
+   * kind of thing that survives a spec change silently. Deleting it costs
+   * nothing and removes a place where a future mode could be quietly mispriced.
+   *
+   * Every cross-check above and below is untouched: a door quote that
+   * contradicts the full one is still `amounts_disagree` and still refuses.
+   */
+  let splitB: LegSplits['B'];
   if (door.status === 'quote') {
     const d = door.quote;
     if (d.paymentMode !== 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') return { ok: false, reason: 'mode_mismatch' };
@@ -124,8 +151,21 @@ export function clienteQuoteFromServer(full: ServerQuote, door: QuoteOutcome): C
     // A DOOR QUOTE THAT CONTRADICTS THE FULL ONE IS NOT « mode B unavailable » —
     // it is two prices for one basket, and neither may be shown.
     if (!agrees) return { ok: false, reason: 'amounts_disagree' };
+    splitB = { paidNow: d.amountPaidAtCheckout, dueAtDelivery: d.amountDueAtDelivery };
     bIndisponible = false;
   }
+
+  /**
+   * ONE SET OF SPLITS, IN BOTH LEG SLOTS — the same doubling, for the same
+   * reason, as `feeToday`/`feeTomorrow`: the canon prices one zone pair, one
+   * fee, so there is one split and both slots carry it. `B` is ABSENT (never a
+   * zero) whenever the door quote was a refusal, a timeout or an unreachable
+   * service — the state C5 renders as « Pas disponible pour cette commande ».
+   */
+  const splits: LegSplits = {
+    A: { paidNow: full.amountPaidAtCheckout, dueAtDelivery: full.amountDueAtDelivery },
+    ...(splitB !== undefined ? { B: splitB } : {}),
+  };
 
   return {
     ok: true,
@@ -135,6 +175,8 @@ export function clienteQuoteFromServer(full: ServerQuote, door: QuoteOutcome): C
       feeTomorrow: full.deliveryFee,
       totalToday: full.buyerTotal,
       totalTomorrow: full.buyerTotal,
+      splitsToday: splits,
+      splitsTomorrow: splits,
     },
     bIndisponible,
   };

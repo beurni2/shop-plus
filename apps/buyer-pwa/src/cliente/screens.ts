@@ -49,9 +49,49 @@ export interface ClienteProduit {
 }
 
 /**
+ * WHAT ONE PAYMENT MODE'S SERVER QUOTE SAYS IS PAID **WHEN** — its own two
+ * bytes, `amountPaidAtCheckout` and `amountDueAtDelivery`, carried verbatim
+ * (SP3.3b1 · §6.1 · SP-I13 « Checkout MUST show exactly what is paid now vs due
+ * at delivery »).
+ *
+ * CARRIED, NEVER DERIVED — and the claim is deliberately small. The screen used
+ * to pick mode A's « paid now » as the total and mode B's as the delivery fee: a
+ * client-side rule about what a payment mode MEANS. The cross-check in
+ * `quote-model.ts` forces the two to be the same francs, so carrying them can
+ * never make a different number appear and no test can show that it does. What
+ * it changes is WHERE the figure comes from — the server's own field for the
+ * mode she is looking at — and it deletes a rule this app had no business
+ * holding. That is the whole of it.
+ */
+export interface ModeSplit {
+  readonly paidNow: number;
+  readonly dueAtDelivery: number;
+}
+
+/**
+ * The §6.1 split for ONE delivery leg, per payment mode.
+ *
+ * `B` is ABSENT — not zero, not a dash — whenever the server did not price
+ * pay-at-door for this basket. « Never print a figure for a mode the server did
+ * not price »: an absent split is why the « Pas disponible pour cette
+ * commande » block draws instead of a card, and it is unrepresentable as a
+ * misleading 0.
+ */
+export interface LegSplits {
+  readonly A: ModeSplit;
+  readonly B?: ModeSplit | undefined;
+}
+
+/**
  * The SERVER-FROZEN quote (§3.2 · §0 « argent = render-only »). Composed once
  * by the seed layer (the contract-certified mock of the quote service — the
  * TOTAUX precedent), rendered as-is: no screen ever recomputes a total.
+ *
+ * `splitsToday`/`splitsTomorrow` are doubled for exactly the reason
+ * `feeToday`/`feeTomorrow` are (see `quote-model.ts`): the canon prices ONE fee
+ * per zone pair, so the real path fills both slots with the same server answer,
+ * while the `?demo-cliente=` harness still drives two legs and each leg's mock
+ * split must match the leg's mock fee.
  */
 export interface ClienteQuote {
   readonly produitFcfa: number;
@@ -59,6 +99,8 @@ export interface ClienteQuote {
   readonly feeTomorrow: number;
   readonly totalToday: number;
   readonly totalTomorrow: number;
+  readonly splitsToday: LegSplits;
+  readonly splitsTomorrow: LegSplits;
 }
 
 export type Livraison = 'today' | 'tomorrow';
@@ -96,7 +138,38 @@ export function varianteCourte(variant: string): string {
 
 const fee = (q: ClienteQuote, d: Livraison): number => (d === 'tomorrow' ? q.feeTomorrow : q.feeToday);
 const total = (q: ClienteQuote, d: Livraison): number => (d === 'tomorrow' ? q.totalTomorrow : q.totalToday);
-/** Payé maintenant — lu du devis figé, jamais recalculé ici. */
+/**
+ * The SERVER'S OWN SPLIT for one mode on one leg — `undefined` for mode B
+ * whenever the server did not price it. The caller must render nothing rather
+ * than substitute a figure: that `undefined` is the whole of « never print a
+ * figure for a mode the server did not price ».
+ *
+ * The overload says the asymmetry out loud in the type: mode A always has a
+ * split (there is no bill without a full-prepay price), mode B may not. A
+ * caller that forgets the second case does not compile.
+ */
+export function splitFor(q: ClienteQuote, d: Livraison, mode: 'A'): ModeSplit;
+export function splitFor(q: ClienteQuote, d: Livraison, mode: ModePaiement): ModeSplit | undefined;
+export function splitFor(q: ClienteQuote, d: Livraison, mode: ModePaiement): ModeSplit | undefined {
+  const legs = d === 'tomorrow' ? q.splitsTomorrow : q.splitsToday;
+  return mode === 'A' ? legs.A : legs.B;
+}
+/**
+ * Payé maintenant — lu du devis figé, jamais recalculé ici.
+ *
+ * THE CLIENT'S OWN RULE ABOUT WHAT A MODE MEANS — « A pays the total, B pays
+ * the fee » — and the LAST place in this module that still applies it. C5 no
+ * longer calls it: since SP3.3b1 its CTA, its operator screens and its two §6.1
+ * lines all read the SERVER'S carried split (`splitFor`), so no two figures on
+ * the payment screen can come from two different rules.
+ *
+ * ITS ONE REMAINING CALLER IS C6 (`flow.ts` → `fmtPayezMaintenant`), which
+ * states the CONFIRMED amount. Re-pointing that at the split means deciding
+ * what C6 says when no split exists, and C6's sent/confirmed/failed states are
+ * SP3.3b2's slice, not this one. Named here rather than left to be discovered:
+ * under the cross-check the two agree to the franc, so nothing is wrong today —
+ * what is outstanding is that the rule still exists at all.
+ */
 export const payezMaintenant = (q: ClienteQuote, d: Livraison, mode: ModePaiement): number =>
   mode === 'A' ? total(q, d) : fee(q, d);
 
@@ -548,6 +621,144 @@ export const MESSAGES = {
   prixRafraichiDifferent: 'Le prix a été mis à jour. Nouveau total :',
   /** While the new price is on its way. */
   prixEnCoursDeMiseAJour: 'Nous demandons un nouveau prix…',
+  /**
+   * THE PAYMENT SCREEN'S « Écouter la note » WOULD NOT PLAY (founder ruling
+   * 2026-07-30). The note EXISTS — C5 renders no control otherwise — and this
+   * browser refused to start it: an autoplay policy, a codec it cannot decode,
+   * a media element the OS took away.
+   *
+   * IT SAYS ONLY WHAT IS TRUE, and in particular it is NOT C1's « (démo) »
+   * toast. That fallback claims she heard a demonstration; here she heard
+   * nothing, and a sentence about a demo on the screen where she commits her
+   * money is the mock-impersonating-a-feature this project keeps out (Ten Laws
+   * #5 · Execution Contract §3). No blame, no code, nothing about her network —
+   * the note is on this page, so the network is not the story.
+   */
+  noteInjouable: 'La note ne se lance pas sur ce téléphone.',
+} as const;
+
+/**
+ * ═══ THE §6.1 TWO-OPTION CHECKOUT COPY (SP3.3b1) ═══
+ *
+ * `docs/Shop-Plus-Build-Spec.md` §6.1, VERBATIM. Not paraphrased, not
+ * softened, not re-registered — the spec wrote these sentences and this table
+ * is where they live so the `copy-lint-inline-refus` gate reads them exactly as
+ * it reads the refusal table. They are `register: money`, `screenClass:
+ * checkout` — the reading budget the i18n data says is « seeded to accept the
+ * canonical Shop+ §6.1 checkout copy ».
+ *
+ * TWO DEPARTURES FROM THE MARKDOWN'S BYTES, both typographic, neither a
+ * paraphrase: the module's apostrophe is U+2019 throughout (its header decrees
+ * it), and the narrow no-break space before FCFA is the `\u202f` escape, never
+ * a raw byte (`money.ts`'s décret; the source scan locks it).
+ *
+ * THE PLACEHOLDERS `{X}` `{Y}` `{D}` are the spec's own notation and are filled
+ * with `groupFr(…)` of a SERVER byte at render time — never with anything this
+ * app computed, and never with prose. The gate allows exactly these three and
+ * fails on any other `{…}`: a money sentence assembled at runtime out of
+ * unknown parts cannot be linted as the buyer reads it.
+ *
+ * THE TWO WORDS §6.1 FORBIDS BY NAME — the custody-of-funds pair, French and
+ * English — appear nowhere here and nowhere else in this app. The gate scans
+ * the whole buyer source for them, comments, class names and data attributes
+ * included, which is why this comment names them by description and not by
+ * spelling: a gate that its own subject can talk its way around is not a gate.
+ */
+export const PAIEMENT = {
+  /** §6.1's first bold line — X is the chosen mode's `amountPaidAtCheckout`. */
+  ligneMaintenant: 'À payer maintenant : {X}\u202fFCFA',
+  /** …and the second — Y is that same mode's `amountDueAtDelivery`. */
+  ligneLivraison: 'À payer à la livraison : {Y}\u202fFCFA',
+  /** Option A's label. « recommandé » IS the label, per §6.1. */
+  titreA: 'Tout payer maintenant — recommandé',
+  corpsA: 'Votre paiement est protégé auprès de notre partenaire de paiement jusqu’à la confirmation de votre livraison. Le vendeur n’est payé qu’après validation.',
+  /** Option B's label — the spec's full name, so the unavailable block and the
+   *  card call the same option the same thing. */
+  titreB: 'Payer le produit à la livraison',
+  /**
+   * OPTION B'S TAIL, HELD TOGETHER (round 5, founder reversal of « leave it »).
+   *
+   * Round 4 measured this title at 0.362 against the 0.35 orphan bar and left
+   * it, calling the margin a founder decision. The founder reversed that, and
+   * the reasoning belongs here rather than in a commit message:
+   *   · IT IS NOT PASSING BECAUSE IT IS WELL SET. It clears the bar by 1.2% on
+   *     the accident that « livraison » is nine letters long. A margin that thin
+   *     means the next person to trip the guard is someone making a routine copy
+   *     tweak, not the person who caused the defect — and that is how a guard
+   *     dies: not by being deleted, but by being resented.
+   *   · WHAT IT STRANDS IS THE OPTION'S IDENTITY WORD. The title broke as
+   *     « Payer le produit à la / livraison », leaving the one word that says
+   *     WHICH option this is alone on its own line.
+   *   · THE ALTERNATIVE WAS AN EXEMPTION FOR TITLES, and that would have been
+   *     the FOURTH narrowing of this sweep in a row (by selector, by state, by
+   *     computed display). Each of the previous three hid a real defect.
+   *
+   * Same device as `rediteFin` and `cl-reconcile-promesse`, for the third time
+   * on this screen: the tail is one no-wrap unit, so the break falls before it
+   * and reads « Payer le produit / à la livraison ». It carries no amount, so it
+   * cannot grow with the basket and cannot force a horizontal scroll. It is a
+   * SUBSTRING of `titreB` — pinned as one by test, because a `.replace` that
+   * stops matching is a silent no-op.
+   */
+  titreBFin: 'à la livraison',
+  corpsB: 'Payez seulement les frais de livraison ({D}\u202fFCFA) maintenant. À l’arrivée du livreur, vérifiez votre article, puis payez le montant du produit de manière sécurisée avant de le recevoir.',
+  /** The clause §6.1 sets in bold inside `corpsB`. Held apart so the emphasis
+   *  is markup the renderer adds, and the copy stays copy. */
+  corpsBAccent: 'avant de le recevoir',
+  avertissementB: 'Frais de livraison non remboursables si vous annulez ou êtes absent(e).',
+  /** The one-line replay before payment (§6.1), mode B — both legs are real. */
+  redite: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
+  /**
+   * …and mode A's, which is THE SAME NORMATIVE SENTENCE.
+   *
+   * FOUNDER RULING (2026-07-30). This field used to read « … maintenant, et
+   * rien à la livraison — d'accord ? ». It now uses §6.1's form in BOTH modes,
+   * so « Tout payer maintenant » replays as « … et 0 FCFA à la livraison —
+   * d'accord ? ». Recorded here as DECIDED, not assumed, with the reasoning:
+   *   · §6.1 is NORMATIVE and gives ONE sentence, not two. Writing a second one
+   *     is interpreting a money sentence, and that is not ours to do.
+   *   · The mode A CARD already renders « À payer à la livraison : 0 FCFA », so
+   *     the screen was taking both positions at once — a zero on the card and
+   *     « rien » in the replay, a few lines apart.
+   *   · A VISIBLE ZERO is what makes the two options comparable at a glance,
+   *     and that comparison is the entire reason §6.1 puts both lines in front
+   *     of her BEFORE she chooses.
+   *
+   * It stays its own field, byte-identical to `redite`, so both sentences a
+   * buyer can read are extracted and linted BY NAME and a deletion still fails
+   * the gate's structural floor. The test pinning the two equal is what stops
+   * one from being edited without the other.
+   */
+  rediteA: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
+  /**
+   * THE CLOSING CLAUSE, HELD TOGETHER (round 4, founder review).
+   *
+   * At 360px the replay wrapped « … à la livraison — » / « d'accord ? », leaving
+   * the QUESTION SHE IS BEING ASKED alone on a third line at 28.6% of the block
+   * — under the 0.35 orphan threshold this screen already enforces on the
+   * honesty line, and §6.1 calls this « a one-line replay », not a three-line
+   * one. Same cure as `cl-reconcile-promesse`: the tail is one no-wrap unit, so
+   * the break falls BEFORE it and the sentence can only ever end on a full
+   * line. It is a SUBSTRING of both replay fields, so one rule covers both
+   * modes, and it never grows with the amount — the francs are all upstream of
+   * it, which is why gluing here cannot overflow a 360px card.
+   */
+  rediteFin: 'à la livraison — d’accord ?',
+  /**
+   * « ÉCOUTER LA NOTE » — THE RESELLER'S OWN RECORDED NOTE, ON THE PAYMENT
+   * SCREEN (FOUNDER RULING 2026-07-30; the reversal it carries is recorded at
+   * the C5 header).
+   *
+   * IT NAMES WHOSE VOICE IT IS, and that is the whole reason for this wording
+   * rather than a bare « Écouter la note ». §6.1 also asks for a PER-OPTION
+   * audio note — a recorded explanation of options A and B — which does not
+   * exist and is not built. A label that did not say whose voice this is would
+   * sit two elements above « Comment payer ? » and read as that missing
+   * explanation, which would be a promise this screen cannot keep. « de la
+   * vendeuse » is the word this app already uses for her everywhere else
+   * (« Vendeuse vérifiée », « Préparée par la vendeuse »).
+   */
+  ecouterNote: 'Écouter la note de la vendeuse',
 } as const;
 
 /** The view a refusal name renders as — the generic one for every name this
@@ -581,18 +792,205 @@ export interface C5State {
   readonly bInel: boolean;
 }
 
-// (« ÉCOUTER LA NOTE » on the C5 payment cards is REMOVED — founder override
-// 2026-07-22 of HANDOFF §2/acceptance 4. Listening lives on the C1 player.)
+/**
+ * ═══ « ÉCOUTER LA NOTE » ON THIS SCREEN — THE FOUR RULINGS ═══
+ *
+ * READ THIS BEFORE CHANGING ANYTHING HERE: the RESELLER'S OWN recorded note and
+ * §6.1's PER-OPTION EXPLANATION are two different things, and taking one ruling
+ * about one of them as a ruling about the other is what produced the churn
+ * below.
+ *
+ * All four states are recorded because a reader who sees only the last one
+ * cannot tell a settled decision from an unexamined default. His words:
+ *
+ *   · 2026-07-22 — REMOVED by founder override of HANDOFF §2/acceptance 4.
+ *     Listening lives on the C1 player.
+ *   · 2026-07-30 — REINSTATED: « I did not mean to remove the Écouter la note,
+ *     reimplement it correctly so if a reseller adds a note the buyer will be
+ *     able to listen it. »
+ *   · 2026-07-30 — REMOVED AGAIN: « for ecouter notes on price leave removed do
+ *     not change it. »
+ *   · 2026-07-30 — RESTORED, and THIS IS THE OPERATIVE ONE. The founder
+ *     clarified that the third ruling was aimed at §6.1's PER-OPTION
+ *     EXPLANATION, not at the reseller's note: « i meant the per option
+ *     explanation should stay unbuilt. »
+ *
+ * WHAT IT IS: the RESELLER'S OWN recorded note, played through the C1 player —
+ * one audio element, one play call (`flow.ts` `jouerLaNote`). Never a second
+ * audio implementation.
+ *
+ * WHEN IT APPEARS: exactly when `voiceUrl` exists, and never otherwise. No
+ * note ⇒ NO control — not disabled, not greyed, not a toast. A control that
+ * plays nothing is a promise this screen cannot keep, and this is the screen
+ * where she decides to part with money. On the REAL path that is the common
+ * case today: `profile.ts`'s real adapter returns no notes at all
+ * (BUYER-REAL-HONESTY-1), and `clienteProduitReel` fills `voiceUrl` only from a
+ * note that is `ready` AND has a url — so the honest outcome is no control.
+ *
+ * AND C1'S DEMO FALLBACK MUST NOT REACH HERE. C1 answers a missing url with a
+ * « (démo) » toast; on this screen there is no missing-url branch to answer,
+ * because there is no button without a url. The play FAILURE is handled by
+ * `MESSAGES.noteInjouable`, which claims nothing about what she would have
+ * heard (Ten Laws #5, Execution Contract §3).
+ *
+ * WHAT THIS IS *NOT*: §6.1's PER-OPTION AUDIO NOTE — a recorded explanation of
+ * payment options A and B. That is platform copy read aloud, it needs the
+ * founder's own two recordings, and it STAYS UNBUILT AND FLAGGED. A player
+ * wired to a generated tone would be a mock impersonating a voice on the money
+ * screen; absent and journalled beats present and untrue. The label says whose
+ * voice this is precisely so the two can never be confused.
+ *
+ * THE HARNESS GAP, NAMED: under `?demo-cliente=` the seed's `voiceUrl` is
+ * `DEMO_VOICE_URL`, a synthetic TONE flagged STOREFRONT-MEDIA-BACKING — the
+ * same asset C1's player has always used there. The demo therefore plays a tone
+ * where production will play a voice, and that is never evidence that recorded
+ * voice works.
+ */
+
+/**
+ * FILL §6.1's placeholders with SERVER BYTES.
+ *
+ * `groupFr` — never a second amount, never a sum: the copy carries the
+ * NNBSP-FCFA suffix itself, and every value handed in here is one field of one
+ * server quote. There is no `+` on this path and there must never be: « total =
+ * X+Y » in §6.1 describes what the server's numbers mean, not an instruction to
+ * add them, and the total the buyer reads is `buyerTotal`.
+ */
+function fillMontants(copy: string, montants: Readonly<Record<string, number>>): string {
+  let out = copy;
+  for (const [token, value] of Object.entries(montants)) out = out.split(`{${token}}`).join(groupFr(value));
+  return out;
+}
+
+/**
+ * OPTION B'S TITLE, with its tail as one no-wrap unit (see `PAIEMENT.titreBFin`).
+ *
+ * BOTH places that name option B read this: the payable card and the « Pas
+ * disponible pour cette commande » head. One string, one rule, both sites — the
+ * same reason `rediteFin` is a substring of both replay fields. The rendered
+ * TEXT is byte-identical to `PAIEMENT.titreB`; only the break point changes.
+ */
+const TITRE_B = PAIEMENT.titreB.replace(
+  PAIEMENT.titreBFin,
+  `<span class="cl-titre-fin">${PAIEMENT.titreBFin}</span>`,
+);
+
+/** §6.1's two bold lines for ONE mode, from that mode's own server split. */
+function lignesSplit(split: ModeSplit): string {
+  return [
+    `<div class="cl-payline" data-role="payline-maintenant">${fillMontants(PAIEMENT.ligneMaintenant, { X: split.paidNow })}</div>`,
+    `<div class="cl-payline" data-role="payline-livraison">${fillMontants(PAIEMENT.ligneLivraison, { Y: split.dueAtDelivery })}</div>`,
+  ].join('');
+}
 
 export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string {
   const feeStr = fmtFCFA(fee(q, s.delivery));
   const totalStr = fmtFCFA(total(q, s.delivery));
   const produitStr = fmtFCFA(q.produitFcfa);
-  const reconcile = `${groupFr(total(q, s.delivery))} = ${groupFr(q.produitFcfa)} + ${groupFr(fee(q, s.delivery))} — chaque franc a sa place.`;
-  const payNowStr = s.pay ? fmtFCFA(payezMaintenant(q, s.delivery, s.pay)) : '';
-  const ctaLabel = !s.pay ? 'Choisissez pour continuer' : s.pay === 'A' ? `Payer ${totalStr}` : `Payer ${feeStr} maintenant`;
-  const can = s.pay !== null;
+  /**
+   * THE HONESTY LINE, IN TWO UNBREAKABLE HALVES (SP3.3b1, founder finding).
+   *
+   * At 360px the sentence needs 422px and the column is 273px, so it MUST wrap.
+   * Wrapping it as one run left « sa place. » stranded alone on the second
+   * line — the screen's own promise, rendered as a layout accident. The promise
+   * clause is therefore its own element and its own no-wrap unit: the break can
+   * only ever fall AT the em dash, so the identity reads on one line and the
+   * promise on the next, on every engine, with no modern-CSS dependency (Ten
+   * Laws #7 — the oldest WebView gets the same result as Chromium).
+   *
+   * The rendered TEXT is byte-identical to before: the tests below and the e2e
+   * read it through `textContent`, which is what the buyer reads.
+   */
+  const reconcileIdentite = `${groupFr(total(q, s.delivery))} = ${groupFr(q.produitFcfa)} + ${groupFr(fee(q, s.delivery))} — `;
+  const reconcile = `${reconcileIdentite}<span class="cl-reconcile-promesse">chaque franc a sa place.</span>`;
   const ligneProduit = `${esc(m.productName)}${m.variant ? ` · ${esc(varianteCourte(m.variant))}` : ''}`;
+
+  /**
+   * HER VOICE, WHEN THERE IS ONE (founder ruling 2026-07-30 — see the header).
+   *
+   * THE CONDITION IS THE FEATURE: a url, or nothing at all. There is no empty
+   * state, no disabled twin and no explanatory line, because every one of those
+   * would be this screen mentioning a note that does not exist.
+   *
+   * WHERE IT SITS, AND WHY (5-second test). Below the bill and its honesty
+   * line — which is where the ARTICLE is named and priced — and ABOVE the
+   * « Comment payer ? » heading, outside the payment-options section entirely.
+   * Read top to bottom the screen says: what you are buying · her words about
+   * it · how to pay. Put inside or beside an option card it would read as the
+   * per-option explanation §6.1 asks for and this app does not have.
+   *
+   * IT WHISPERS. One primary action per screen (§5): the CTA is the only thing
+   * on this screen that looks like a button. This is a small underlined link
+   * with the play glyph, icon paired with text.
+   *
+   * ITS OWN ACTION NAME, not C1's. `voix-lire` carries C1's « (démo) » toast
+   * fallback; naming this handler separately is what keeps that fallback off
+   * the money screen structurally rather than by care.
+   */
+  const ecouterNote =
+    m.voiceUrl === undefined || m.voiceUrl === ''
+      ? ''
+      : `<button class="cl-ecouter" data-role="ecouter-note" data-action="voix-lire-paiement" data-voix-url="${esc(m.voiceUrl)}">${iconPlaySmall(13, 14)}${PAIEMENT.ecouterNote}</button>`;
+
+  /* ═══ §6.1 — ONE AVAILABILITY DECISION, AND EVERY PART OF THE SCREEN OBEYS IT ═══
+   *
+   * THE DEFECT THIS CLOSES (fresh verifier, round 2). The CARD consulted two
+   * signals — `s.bInel` and an absent split — but the REPLAY consulted only the
+   * split and the CTA consulted neither. With `bInel: true` and a door split
+   * still in hand, ONE screen rendered « Pas disponible pour cette commande »
+   * beside « Vous payez … et … à la livraison — d'accord ? » under an ENABLED
+   * Payer button. Not reachable through `flow.ts` today, which resets the mode;
+   * but the comment here claimed render-level fail-closure, and a claim the code
+   * does not keep is the species of lie this project exists not to ship.
+   *
+   * So availability is decided ONCE, and every consumer reads the SAME value:
+   * `splitBPayable` is the door split ONLY when both signals agree. From it the
+   * card, the replay, the CTA and the operator screens all follow. Fail-closed
+   * is now structural — there is no second expression to drift.
+   */
+  const splitA = splitFor(q, s.delivery, 'A');
+  /** The door split, or `undefined` when EITHER signal says mode B is off:
+   *  the flow's flag, or a server that never priced the mode. */
+  const splitBPayable = s.bInel ? undefined : splitFor(q, s.delivery, 'B');
+  /**
+   * THE SPLIT THE BUYER'S CHOSEN MODE IS PRICED BY — the one source for every
+   * figure that follows her choice. `undefined` means « nothing is payable
+   * here », which is a state with no amount, not a state with a fallback
+   * amount: no mode chosen, or a chosen mode that is not payable on this
+   * screen. The CTA is then disabled and carries no figure at all.
+   */
+  const chosen: ModeSplit | undefined = s.pay === 'A' ? splitA : s.pay === 'B' ? splitBPayable : undefined;
+  /**
+   * EVERY FRANC BELOW IS THE SERVER'S BYTE FOR THE MODE SHE CHOSE.
+   *
+   * This used to read `payezMaintenant`, i.e. « mode A pays the total, mode B
+   * pays the fee » — the client re-encoding what a payment mode MEANS, which is
+   * exactly what carrying the split removed from the two bold lines. The CTA
+   * and the operator screens now read the same carried field the lines do, so
+   * no two figures on this screen can come from two different rules.
+   */
+  const payNowStr = chosen === undefined ? '' : fmtFCFA(chosen.paidNow);
+  const ctaLabel =
+    chosen === undefined
+      ? 'Choisissez pour continuer'
+      : s.pay === 'A'
+        ? `Payer ${payNowStr}`
+        : `Payer ${payNowStr} maintenant`;
+  const can = chosen !== undefined;
+  // THE ONE-LINE REPLAY (§6.1), after she has chosen and before the payment
+  // leaves. ONE SENTENCE, BOTH MODES, BOTH LEGS FILLED (founder ruling
+  // 2026-07-30 — see `PAIEMENT.rediteA`): mode A's Y is the server's own 0, and
+  // it is SHOWN, because the card above already shows it and because a visible
+  // zero is what makes the two options comparable. Both fields are filled from
+  // the SAME chosen split, so the replay can never quote a leg the card does
+  // not.
+  const redite =
+    chosen === undefined
+      ? ''
+      : fillMontants(s.pay === 'A' ? PAIEMENT.rediteA : PAIEMENT.redite, {
+          X: chosen.paidNow,
+          Y: chosen.dueAtDelivery,
+        }).replace(PAIEMENT.rediteFin, `<span class="cl-redite-fin">${PAIEMENT.rediteFin}</span>`);
 
   if (s.paying === 'submitting') {
     return [
@@ -601,7 +999,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
       '<div class="cl-sub">',
       '<div class="cl-sub-overline">ENVOI SÉCURISÉ</div>',
       '<div class="cl-sub-title">Un instant.</div>',
-      `<div class="cl-sub-body">Nous envoyons votre demande de paiement de <b>${payNowStr}</b> à l’opérateur.</div>`,
+      `<div class="cl-sub-body">Nous envoyons votre demande de paiement de <b>${payNowStr}</b> <span class="cl-envoi-fin">à l’opérateur.</span></div>`,
       '<div class="cl-bar-track"><div class="cl-bar-fill"></div></div>',
       '</div></div>',
     ].join('');
@@ -613,7 +1011,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
       '<div class="cl-prov">',
       `<div class="cl-prov-phone">${iconPhone(30)}</div>`,
       '<div class="cl-prov-title">Confirmez sur votre téléphone</div>',
-      `<div class="cl-prov-body">Composez votre code secret <b>Orange Money</b> pour valider <b>${payNowStr}</b>.</div>`,
+      `<div class="cl-prov-body">Composez votre <span class="cl-prov-cle">code secret <b>Orange Money</b></span> pour valider <b>${payNowStr}</b>.</div>`,
       '<div class="cl-prov-wait"><span class="cl-prov-dots"><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span></span><span>En attente de la confirmation de l’opérateur…</span></div>',
       '<div class="cl-prov-law">Rien n’est confirmé tant que l’opérateur n’a pas répondu. Nous ne dirons jamais le contraire.</div>',
       '</div></div>',
@@ -628,27 +1026,35 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
     `<div class="cl-bill-total"><span>Total</span><b>${totalStr}</b></div>`,
     '</div>',
     `<div class="cl-reconcile" data-role="reconcile">${reconcile}</div>`,
+    ecouterNote,
     '<div class="cl-overline cl-overline-pay">Comment payer ?</div>',
     `<button class="cl-opt cl-payopt${s.pay === 'A' ? ' cl-opt-on' : ''}" data-action="choix-paiement" data-mode="A">`,
     s.pay === 'A' ? `<span class="cl-opt-mark">${iconCheck(14, 3)}</span>` : '',
-    `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconLockDot(17)}</span><span class="cl-opt-title">Tout payer maintenant</span></div>`,
-    `<div class="cl-payopt-body"><b>${totalStr}</b> maintenant, en sécurité. Rien à payer à la porte.</div>`,
+    `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconLockDot(17)}</span><span class="cl-opt-title">${PAIEMENT.titreA}</span></div>`,
+    lignesSplit(splitA),
+    `<div class="cl-payopt-body">${PAIEMENT.corpsA}</div>`,
     '</button>',
-    s.bInel
+    splitBPayable === undefined
       ? [
           '<div class="cl-payinel" data-role="pay-inel">',
-          `<div class="cl-payinel-head">${iconScooter(18)}<span>Payer à la livraison</span></div>`,
+          `<div class="cl-payinel-head">${iconScooter(18)}<span>${TITRE_B}</span></div>`,
           '<div class="cl-payinel-body">Pas disponible pour cette commande. Vous pouvez tout payer maintenant, en sécurité — et toujours inspecter avant d’accepter.</div>',
           '</div>',
         ].join('')
       : [
           `<button class="cl-opt cl-payopt${s.pay === 'B' ? ' cl-opt-on' : ''}" data-action="choix-paiement" data-mode="B">`,
           s.pay === 'B' ? `<span class="cl-opt-mark">${iconCheck(14, 3)}</span>` : '',
-          `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconScooter(18)}</span><span class="cl-opt-title">Payer à la livraison</span></div>`,
-          `<div class="cl-payopt-body"><b>${feeStr}</b> maintenant — et <b>${produitStr}</b> à la porte, après votre inspection.</div>`,
+          `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconScooter(18)}</span><span class="cl-opt-title">${TITRE_B}</span></div>`,
+          lignesSplit(splitBPayable),
+          `<div class="cl-payopt-body">${fillMontants(PAIEMENT.corpsB, { D: fee(q, s.delivery) }).replace(
+            PAIEMENT.corpsBAccent,
+            `<b>${PAIEMENT.corpsBAccent}</b>`,
+          )}</div>`,
+          `<div class="cl-payopt-warn" data-role="frais-non-remboursables">${PAIEMENT.avertissementB}</div>`,
           '</button>',
         ].join(''),
     '<div class="cl-quote">Vous inspectez le colis avant de payer le reste.</div>',
+    redite === '' ? '' : `<div class="cl-redite" data-role="redite">${redite}</div>`,
     `<button class="cl-cta cl-cta-c5${can ? '' : ' cl-cta-off'}" data-action="payer"${can ? '' : ' disabled'}>${ctaLabel}</button>`,
     '<div class="cl-providers">ORANGE MONEY · MOOV MONEY</div>',
     '<div class="cl-footnote cl-footnote-c5">Votre numéro reste privé.</div>',
@@ -766,7 +1172,7 @@ export function renderC8(m: ClienteProduit, q: ClienteQuote, s: C8State): string
       '<div class="cl-door-pay" data-etat="paiement-porte">',
       `<div class="cl-prov-phone">${iconPhone(30)}</div>`,
       '<div class="cl-prov-title">Payez le reste, en sécurité</div>',
-      `<div class="cl-prov-body">Composez votre code secret <b>Orange Money</b> pour valider <b>${produitStr}</b>.</div>`,
+      `<div class="cl-prov-body">Composez votre <span class="cl-prov-cle">code secret <b>Orange Money</b></span> pour valider <b>${produitStr}</b>.</div>`,
       '<div class="cl-prov-wait"><span class="cl-prov-dots"><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span></span><span>En attente de la confirmation de l’opérateur…</span></div>',
       '<div class="cl-prov-law">Le livreur ne peut pas dire « payé » à votre place. Seul l’opérateur confirme.</div>',
       '</div>',
