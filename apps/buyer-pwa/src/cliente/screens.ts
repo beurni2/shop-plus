@@ -793,16 +793,27 @@ export interface C5State {
 }
 
 /**
- * ═══ « ÉCOUTER LA NOTE » IS BACK ON THIS SCREEN ═══
+ * ═══ « ÉCOUTER LA NOTE » ON THIS SCREEN — THE FOUR RULINGS ═══
  *
- * FOUNDER RULING 2026-07-30, and it SUPERSEDES THE OVERRIDE OF 2026-07-22.
- * This site used to carry that older override, which read: « ÉCOUTER LA NOTE »
- * on the C5 payment cards is REMOVED — founder override 2026-07-22 of HANDOFF
- * §2/acceptance 4; listening lives on the C1 player. The founder has REVOKED
- * it in his own words: « I did not mean to remove the Écouter la note,
- * reimplement it correctly so if a reseller adds a note the buyer will be able
- * to listen it. » The old text is quoted here rather than deleted, so the
- * reversal leaves a trace instead of looking like a screen that never changed.
+ * READ THIS BEFORE CHANGING ANYTHING HERE: the RESELLER'S OWN recorded note and
+ * §6.1's PER-OPTION EXPLANATION are two different things, and taking one ruling
+ * about one of them as a ruling about the other is what produced the churn
+ * below.
+ *
+ * All four states are recorded because a reader who sees only the last one
+ * cannot tell a settled decision from an unexamined default. His words:
+ *
+ *   · 2026-07-22 — REMOVED by founder override of HANDOFF §2/acceptance 4.
+ *     Listening lives on the C1 player.
+ *   · 2026-07-30 — REINSTATED: « I did not mean to remove the Écouter la note,
+ *     reimplement it correctly so if a reseller adds a note the buyer will be
+ *     able to listen it. »
+ *   · 2026-07-30 — REMOVED AGAIN: « for ecouter notes on price leave removed do
+ *     not change it. »
+ *   · 2026-07-30 — RESTORED, and THIS IS THE OPERATIVE ONE. The founder
+ *     clarified that the third ruling was aimed at §6.1's PER-OPTION
+ *     EXPLANATION, not at the reseller's note: « i meant the per option
+ *     explanation should stay unbuilt. »
  *
  * WHAT IT IS: the RESELLER'S OWN recorded note, played through the C1 player —
  * one audio element, one play call (`flow.ts` `jouerLaNote`). Never a second

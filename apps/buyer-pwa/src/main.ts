@@ -758,16 +758,19 @@ if (app) {
     const prix = harnessFrancs(params.get('prix'));
     const frais = harnessFrancs(params.get('frais'));
     /**
-     * `?voix=0` NOW REMOVES THE NOTE ITSELF, not just C1's player (2026-07-30).
+     * `?voix=0` REMOVES THE NOTE ITSELF, not just C1's player.
      *
-     * Until the founder's ruling this lever set `sansVoix`, which hid the C1
-     * voice block while the seeded `voiceUrl` stayed on the product. C5 now
-     * renders « Écouter la note » off that same `voiceUrl`, so the old lever
-     * would have left the harness's « this product has no voice note » state
-     * offering the note anyway — on the payment screen. Dropping the two note
-     * fields is also what the REAL path produces (`clienteProduitReel` fills
-     * both only from a `ready` note with a url), so the harness models it
-     * rather than approximating it.
+     * Until the 2026-07-30 ruling that put « Écouter la note » back on C5 (see
+     * that screen's own four-ruling record in `screens.ts`), this lever set
+     * `sansVoix` alone, which hid the C1 voice block while the seeded
+     * `voiceUrl` stayed on the product. C5 renders its control off that same
+     * `voiceUrl`, so the old lever would have left the harness's « this product
+     * has no voice note » state offering the note anyway — on the payment
+     * screen. Dropping the two note fields is also what the REAL path produces
+     * (`clienteProduitReel` fills both only from a `ready` note with a url), so
+     * the harness models that absence rather than approximating it.
+     *
+     * `sansVoix` is STILL PASSED below: it is C1's own prop, and the two agree.
      */
     const avecNote = params.get('voix') !== '0';
     const { voiceDuree, voiceUrl, ...base } = clienteProduit({ name: sf?.name ?? '', slug: sf?.slug ?? 'aicha-4821' });
