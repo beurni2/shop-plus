@@ -372,6 +372,13 @@ export const CLIENTE_STYLES = `
   /* §6.1's one-line replay, immediately above the CTA: what she is about to
      agree to, in her own numbers, before the payment leaves. */
   .cl-redite { margin-top: 13px; text-align: center; font-size: 13.5px; font-weight: 700; line-height: 1.45; color: #1C1710; font-feature-settings: 'tnum'; }
+  /* THE QUESTION IS NEVER LEFT ALONE (round 4). « … à la livraison — » /
+     « d'accord ? » stranded the question she is agreeing to on a third line at
+     28.6% of the block — the same defect the honesty line had, on the sentence
+     that asks for her consent. The closing clause is one no-wrap unit, so the
+     break falls before it and the last line is always a full one. It carries no
+     amount, so it cannot grow past the card and force a horizontal scroll. */
+  .cl-redite-fin { white-space: nowrap; }
   .cl-ecouter { margin-top: 9px; display: inline-flex; align-items: center; gap: 6px; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; cursor: pointer; white-space: nowrap; }
   .cl-payinel { margin-top: 10px; padding: 16px; border-radius: 18px; border: 1px solid #EDE4D3; background: #FBF6EB; }
   .cl-payinel-head { display: flex; align-items: center; gap: 10px; opacity: .45; }

@@ -690,6 +690,20 @@ export const PAIEMENT = {
    * one from being edited without the other.
    */
   rediteA: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
+  /**
+   * THE CLOSING CLAUSE, HELD TOGETHER (round 4, founder review).
+   *
+   * At 360px the replay wrapped « … à la livraison — » / « d'accord ? », leaving
+   * the QUESTION SHE IS BEING ASKED alone on a third line at 28.6% of the block
+   * — under the 0.35 orphan threshold this screen already enforces on the
+   * honesty line, and §6.1 calls this « a one-line replay », not a three-line
+   * one. Same cure as `cl-reconcile-promesse`: the tail is one no-wrap unit, so
+   * the break falls BEFORE it and the sentence can only ever end on a full
+   * line. It is a SUBSTRING of both replay fields, so one rule covers both
+   * modes, and it never grows with the amount — the francs are all upstream of
+   * it, which is why gluing here cannot overflow a 360px card.
+   */
+  rediteFin: 'à la livraison — d’accord ?',
 } as const;
 
 /** The view a refusal name renders as — the generic one for every name this
@@ -834,7 +848,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
       : fillMontants(s.pay === 'A' ? PAIEMENT.rediteA : PAIEMENT.redite, {
           X: chosen.paidNow,
           Y: chosen.dueAtDelivery,
-        });
+        }).replace(PAIEMENT.rediteFin, `<span class="cl-redite-fin">${PAIEMENT.rediteFin}</span>`);
 
   if (s.paying === 'submitting') {
     return [

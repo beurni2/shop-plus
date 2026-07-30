@@ -164,7 +164,7 @@ test('C5 — totals, CTA and the reconciliation line hold the money bytes for BO
  * Asserted in the LIVE DOM because only the DOM can see it: the HTML string
  * carries the full label either way — it is the rendering that truncated.
  */
-test('C5 at 360px — every bill label renders in full, and the honesty line does not orphan', async ({ page }) => {
+test('C5 at 360px — every bill label renders in full, and NO sentence orphans, in every state', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 900 });
   await page.goto('/?demo-cliente=C5&theme=indigo');
   await expect(page.locator('[data-screen="C5"]')).toBeVisible();
@@ -189,33 +189,107 @@ test('C5 at 360px — every bill label renders in full, and the honesty line doe
   expect(bill).not.toContain('…');
   expect(bill).not.toMatch(/\.\.\./);
 
-  // (3) THE HONESTY LINE: at most two lines, and the last one is a real line —
-  // not two words stranded. An orphan measures well under a third of the block.
-  const rec = await page.evaluate(() => {
-    const el = document.querySelector('.cl-reconcile');
-    if (el === null) return null;
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    // One VISUAL line = one distinct top. The range spans a text node and an
-    // element, so a single line yields several (overlapping) rects; union them
-    // per line rather than counting or summing them.
-    const byTop = new Map<number, { left: number; right: number }>();
-    for (const r of [...range.getClientRects()].filter((x) => x.width > 0)) {
-      const key = Math.round(r.top);
-      const cur = byTop.get(key);
-      byTop.set(key, cur === undefined ? { left: r.left, right: r.right } : { left: Math.min(cur.left, r.left), right: Math.max(cur.right, r.right) });
+  // (3) NO SENTENCE ON THIS SCREEN ENDS ON AN ORPHAN — and « this screen »
+  // means EVERY text block, in EVERY state the buyer can put it in, found
+  // structurally rather than by a list of selectors.
+  //
+  // THE LESSON THIS ENCODES (round 4, founder review). Round 2 fixed the
+  // honesty line and scoped the test to `.cl-reconcile`. Two reviewers then
+  // checked that element and passed the screen — while the REPLAY LINE, one
+  // element below, stranded « d'accord ? » on a third line at 28.6%: the
+  // question the buyer is being asked to agree to, alone.
+  //
+  // AND THE SECOND HALF OF THE SAME LESSON, found while writing this: a sweep
+  // of « every block » still saw nothing, because C5 mounts with NO mode chosen
+  // and the replay only exists AFTER she chooses. Scoping by STATE is the same
+  // blind spot as scoping by selector. So the sweep runs three times.
+  const sweep = async (label: string) =>
+    page.evaluate(() => {
+      const screen = document.querySelector('[data-screen="C5"]');
+      if (screen === null) return [];
+      /** The visual lines of one element: union the client rects per line top. */
+      const linesOf = (el: Element): number[] => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const byTop = new Map<number, { left: number; right: number }>();
+        for (const r of [...range.getClientRects()].filter((x) => x.width > 0)) {
+          const key = Math.round(r.top);
+          const cur = byTop.get(key);
+          byTop.set(key, cur === undefined ? { left: r.left, right: r.right } : { left: Math.min(cur.left, r.left), right: Math.max(cur.right, r.right) });
+        }
+        return [...byTop.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v.right - v.left);
+      };
+      /**
+       * A TEXT BLOCK is an element whose own content flows as text: a block box
+       * (a flex ITEM counts — the browser blockifies it) whose element children
+       * are all INLINE. That excludes the containers — the bill, a bill ROW, an
+       * option row — whose children are boxes laid side by side and whose
+       * « lines » are an artefact of layout, not a wrapped sentence.
+       */
+      const isTextBlock = (el: Element): boolean => {
+        const d = getComputedStyle(el).display;
+        if (d !== 'block' && d !== 'list-item' && d !== 'flow-root') return false;
+        return [...el.children].every((c) => getComputedStyle(c).display === 'inline');
+      };
+      const multi = [...screen.querySelectorAll('*')].filter((el) => {
+        if (el.closest('svg') !== null) return false;
+        if ((el.textContent ?? '').trim() === '') return false;
+        if (!isTextBlock(el)) return false;
+        return linesOf(el).length > 1;
+      });
+      // Keep the INNERMOST block for each run of text: a wrapper that merely
+      // contains a wrapped paragraph is not itself a sentence.
+      return multi
+        .filter((el) => !multi.some((other) => other !== el && el.contains(other) && (other.textContent ?? '') === (el.textContent ?? '')))
+        .map((el) => {
+          const w = linesOf(el);
+          // THE CONTENT BOX, IN THE SAME COORDINATE SPACE AS THE LINES.
+          // Two traps, both hit while writing this: a padded block's text can
+          // never fill its OUTER width (so the border box would report a full
+          // line as an orphan), and the flow is rendered under `zoom: 1.15` —
+          // client rects come back scaled, `clientWidth` and the computed
+          // paddings do not. Mixing them inflated every ratio by 15% and
+          // silently lowered the bar. Rebuild the content width from the
+          // measured rect, using the element's own scale factor.
+          const rect = el.getBoundingClientRect();
+          const offset = el instanceof HTMLElement ? el.offsetWidth : 0;
+          const scale = offset > 0 ? rect.width / offset : 1;
+          const cs = getComputedStyle(el);
+          const pad = (Number.parseFloat(cs.paddingLeft) + Number.parseFloat(cs.paddingRight)) * scale;
+          return { text: (el.textContent ?? '').trim(), lines: w.length, lastRatio: w[w.length - 1]! / (rect.width - pad) };
+        });
+    }).then((blocks) => ({ label, blocks }));
+
+  const states = [await sweep('nothing chosen')];
+  for (const mode of ['A', 'B'] as const) {
+    await page.locator(`[data-action="choix-paiement"][data-mode="${mode}"]`).click();
+    states.push(await sweep(`mode ${mode} chosen`));
+  }
+
+  for (const { label, blocks } of states) {
+    // The sweep really did see the screen — an empty result would pass in silence.
+    expect(blocks.length, `${label}: no multi-line text found on C5`).toBeGreaterThanOrEqual(6);
+    for (const b of blocks) {
+      expect(
+        b.lastRatio,
+        `${label}: « ${b.text} » ends on an orphan line (${Math.round(b.lastRatio * 100)}% of the block, ${b.lines} lines)`,
+      ).toBeGreaterThan(0.35);
     }
-    const widths = [...byTop.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v.right - v.left);
-    const box = el.getBoundingClientRect().width;
-    return { lines: widths.length, lastRatio: widths.length === 0 ? 0 : widths[widths.length - 1]! / box, text: el.textContent ?? '' };
-  });
-  expect(rec).not.toBeNull();
-  expect(rec!.text).toBe(`12${NNBSP}500 = 11${NNBSP}500 + 1${NNBSP}000 — chaque franc a sa place.`);
-  expect(rec!.lines, 'the reconciliation sentence spilled past two lines').toBeLessThanOrEqual(2);
-  expect(
-    rec!.lastRatio,
-    `the reconciliation sentence ends on an orphan line (${Math.round(rec!.lastRatio * 100)}% of the width)`,
-  ).toBeGreaterThan(0.35);
+  }
+
+  // …and the REPLAY was actually in the swept set once she had chosen: the
+  // sentence this test exists for must not be able to leave coverage quietly.
+  for (const { label, blocks } of states.slice(1)) {
+    expect(
+      blocks.some((b) => b.text.startsWith('Vous payez')),
+      `${label}: the replay line was not swept — coverage shrank without failing`,
+    ).toBe(true);
+  }
+
+  // …and the honesty line says what it says, on at most two lines.
+  const rec = states[0]!.blocks.find((b) => b.text.startsWith('12'));
+  expect(rec?.text).toBe(`12${NNBSP}500 = 11${NNBSP}500 + 1${NNBSP}000 — chaque franc a sa place.`);
+  expect(rec?.lines, 'the reconciliation sentence spilled past two lines').toBeLessThanOrEqual(2);
 });
 
 test('the four habillages drive the chrome, indigo is the themeless default, proven live', async ({ page }) => {

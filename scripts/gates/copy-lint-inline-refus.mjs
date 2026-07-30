@@ -105,21 +105,31 @@ const REQUIRED_FIELDS = [...Object.keys(COPY_FIELDS), 'action'];
  * DELETED §6.1 sentence fails exactly as loudly as a violated one.
  */
 const PAIEMENT_FIELDS = {
-  ligneMaintenant: 'checkout',
-  ligneLivraison: 'checkout',
-  titreA: 'label',
-  corpsA: 'checkout',
-  titreB: 'label',
-  corpsB: 'checkout',
-  corpsBAccent: 'label',
-  avertissementB: 'checkout',
-  redite: 'checkout',
-  rediteA: 'checkout',
+  ligneMaintenant: { screenClass: 'checkout', fills: ['{X}'] },
+  ligneLivraison: { screenClass: 'checkout', fills: ['{Y}'] },
+  titreA: { screenClass: 'label', fills: [] },
+  corpsA: { screenClass: 'checkout', fills: [] },
+  titreB: { screenClass: 'label', fills: [] },
+  corpsB: { screenClass: 'checkout', fills: ['{D}'] },
+  corpsBAccent: { screenClass: 'label', fills: [] },
+  avertissementB: { screenClass: 'checkout', fills: [] },
+  redite: { screenClass: 'checkout', fills: ['{X}', '{Y}'] },
+  rediteA: { screenClass: 'checkout', fills: ['{X}', '{Y}'] },
+  rediteFin: { screenClass: 'label', fills: [] },
 };
 
-/** §6.1's own notation, one server amount each. Nothing else may be assembled
- *  into a money sentence at runtime — see the header. */
-const PLACEHOLDERS = new Set(['{X}', '{Y}', '{D}']);
+/**
+ * §6.1's own notation, one server amount each — and the allowlist is PER FIELD,
+ * not per table.
+ *
+ * THE HOLE THIS CLOSES (fresh verifier, round 3): the check asked « is this one
+ * of the three placeholders? » when the question that matters is « can THIS
+ * FIELD fill it? ». The renderer fills the replay with {X, Y} and nothing else,
+ * so `{D}` planted into `redite` passed the gate and the buyer would have read
+ * « … à la livraison (frais {D}) — d'accord ? » with the token still in it. A
+ * placeholder the renderer never substitutes is not a placeholder; it is a
+ * literal brace in a money sentence.
+ */
 
 /** §6.1: « séquestre »/"escrow" MUST NOT appear in customer copy. */
 const BANNED_WORDS = /s[eé]questres?|escrows?/iu;
@@ -354,7 +364,7 @@ if (pay === null) {
         'so it gets linted; nothing here may go unread',
     );
   }
-  for (const [field, screenClass] of Object.entries(PAIEMENT_FIELDS)) {
+  for (const [field, { screenClass, fills }] of Object.entries(PAIEMENT_FIELDS)) {
     if (!(field in fields)) continue;
     const v = readValue(fields[field]);
     if (v.kind !== 'text') {
@@ -365,13 +375,15 @@ if (pay === null) {
       problems.push(`PAIEMENT.${field}: empty — §6.1 has no empty string`);
       continue;
     }
-    // ONLY §6.1'S OWN AMOUNT PLACEHOLDERS. Anything else means part of the
-    // sentence is assembled at runtime out of something this gate never read.
+    // ONLY THE PLACEHOLDERS **THIS FIELD** IS FILLED WITH. A token the renderer
+    // never substitutes here reaches the buyer as a literal brace in a money
+    // sentence, and a table-wide allowlist could not see the difference.
     for (const brace of v.text.match(/\{[^}]*\}/gu) ?? []) {
-      if (PLACEHOLDERS.has(brace)) continue;
+      if (fills.includes(brace)) continue;
       problems.push(
-        `PAIEMENT.${field}: « ${brace} » is not a §6.1 amount placeholder (${[...PLACEHOLDERS].join(' ')}) — ` +
-          'a money sentence assembled from unknown parts cannot be linted as the buyer reads it',
+        `PAIEMENT.${field}: « ${brace} » is not filled in this field — it takes ` +
+          `${fills.length === 0 ? 'no placeholder at all' : fills.join(' ')}, so the buyer would read the ` +
+          'token itself. A money sentence assembled from parts nothing fills cannot be linted as she reads it',
       );
     }
     entries.push({ key: `cliente.paiement.${field}.${n++}`, fr: v.text, register: 'money', screenClass });

@@ -114,9 +114,19 @@ describe('§6.1 — the two bold lines carry the SERVER’S OWN split, never a c
     expect(text).not.toContain(`À payer à la livraison : 11${N}500${N}FCFA`);
   });
 
-  it('the replay line quotes the CHOSEN mode’s server bytes, both modes', () => {
+  /**
+   * BOTH MODES, WHOLE SENTENCE (round 4, founder review). Mode A used to assert
+   * the PREFIX only — « Vous payez 9 999 FCFA maintenant » — while its mode-B
+   * twin asserted the whole line. That left mode A's Y leg unprotected: writing
+   * `Y: s.pay === 'A' ? 0 : chosen.dueAtDelivery` passed the entire suite,
+   * because the only full-sentence mode-A assertion runs where Y is genuinely
+   * 0. No live consequence (the model refuses a FULL_PREPAY quote whose
+   * `amountDueAtDelivery` is not 0), and it was still the one asymmetric
+   * assertion in an exact-byte file.
+   */
+  it('the replay line quotes the CHOSEN mode’s server bytes, both modes, whole sentence', () => {
     const a = visible(renderC5(ROBE, CONTRARIAN, { ...C5, pay: 'A' }));
-    expect(a).toContain(`Vous payez 9${N}999${N}FCFA maintenant`);
+    expect(a).toContain(`Vous payez 9${N}999${N}FCFA maintenant et 777${N}FCFA à la livraison — d’accord ?`);
     const b = visible(renderC5(ROBE, CONTRARIAN, { ...C5, pay: 'B' }));
     expect(b).toContain(`Vous payez 2${N}222${N}FCFA maintenant et 8${N}888${N}FCFA à la livraison — d’accord ?`);
   });

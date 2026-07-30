@@ -47,4 +47,5 @@ export const PAIEMENT = {
   corpsBAccent: 'avant de le recevoir',
   redite: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
   rediteA: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
+  rediteFin: 'à la livraison — d’accord ?',
 } as const;
