@@ -1,13 +1,15 @@
-import { PlatformEventSchema } from '@platform/contracts';
+import { PlatformEventSchema, type Quote } from '@platform/contracts';
 import {
   acceptChargeForLeg,
   applyOrderInput,
+  chargeFaultInput,
   checkoutLegOf,
   decideCreateOrder,
   orderIdForQuote,
   parseStoredQuote,
   rebuildOrderSpine,
   toBuyerOrderView,
+  type ChargeFault,
   type OrderInput,
   type OrderOrigin,
   type ReservationReceipt,
@@ -496,16 +498,23 @@ export class OrderDO {
      * WHAT THIS PROVES, EXACTLY, so nobody reads more into it: the value is in
      * this object's storage — the same write workerd's output gate flushes
      * before any response leaves — at the moment the provider is called. It does
-     * not (and cannot) prove a disk fsync. A missing key is a NAMED refusal, not
-     * a charge under an uncommitted key: refusing costs a buyer a retry, while
-     * the alternative costs her a second collection nobody can dedupe.
+     * not (and cannot) prove a disk fsync. A missing key ENDS THE ATTEMPT by
+     * name — it does not charge under an uncommitted key: ending the attempt
+     * costs the buyer one ordinary retry (the order moves to `payment_failed`,
+     * which is the state her retry needs), while the alternative costs her a
+     * second collection nobody can dedupe.
+     *
+     * NOTHING WAS CHARGED on this path — the refusal is BEFORE the provider call
+     * — so `payment_pending` would have been simply false, quite apart from
+     * being inescapable. See `chargeFaultInput` for why the recorded canon
+     * reason is imprecise and why a fourth value is a founder decision.
      */
     const durableLegKeys = (await this.state.storage.get<Record<string, string>>(LEG_KEYS_KEY)) ?? {};
     const durableKey = Object.prototype.hasOwnProperty.call(durableLegKeys, leg.legType)
       ? durableLegKeys[leg.legType]
       : undefined;
     if (durableKey === undefined || durableKey !== providerKey) {
-      return Response.json({ ok: false, reason: 'leg_key_not_durable' }, { status: 422 });
+      return this.endAttemptOnFault(quote, stored, log, attemptId, 'leg_key_not_durable');
     }
 
     const charge = await this.charge({
@@ -521,14 +530,25 @@ export class OrderDO {
     });
 
     /**
-     * THE PORT WAS ASKED FOR THE LEG'S AMOUNT, OR NOTHING IS RECORDED. The echo
-     * and the leg are COMPARED (`acceptChargeForLeg`), and a disagreement is a
-     * refusal that writes nothing further: the attempt stays `pending`, which is
-     * the honest state when a charge has gone out and its amount is in doubt.
+     * THE PORT WAS ASKED FOR THE LEG'S AMOUNT, OR NO AMOUNT IS RECORDED. The
+     * echo and the leg are COMPARED (`acceptChargeForLeg`), and a disagreement
+     * is a refusal: neither figure is written down, because trusting the echo
+     * records a charge the mode never authorised and trusting the leg records a
+     * number the provider never saw.
+     *
+     * THE ATTEMPT ENDS — it does not hang. This fires AFTER the charge has gone
+     * out, so if the provider collected the amount it echoed, no webhook could
+     * ever match this order's leg: leaving it `payment_pending` meant her money
+     * sat there with no order, no refund trigger and no reconciliation case,
+     * and no command she could send would move it. Ending the attempt gives her
+     * the ordinary retry — under the SAME leg key, so the retry cannot
+     * double-collect and a webhook for the original charge still confirms — and
+     * lets the E2 reservation-release rule, which keys on payment failure, fire
+     * at all. See `chargeFaultInput` for the ⏳ imprecision of the canon reason.
      */
     const accepted = acceptChargeForLeg(leg, charge.chargedAmount);
     if (!accepted.ok) {
-      return Response.json({ ok: false, reason: accepted.reason }, { status: 422 });
+      return this.endAttemptOnFault(quote, stored, log, attemptId, accepted.reason);
     }
 
     const record = attempts[attempts.length - 1] as AttemptRecord;
@@ -564,6 +584,40 @@ export class OrderDO {
     const answer = { ok: true, view };
     await this.state.storage.put(RESULTS_KEY, { ...results, [commandId]: answer });
     return Response.json(answer);
+  }
+
+  /**
+   * END THE ATTEMPT ON A DEFENCE-IN-DEPTH FAULT — the ONE exit both faults need.
+   *
+   * The order is already persisted at `payment_pending` with a pending attempt
+   * by the time either fault can be raised, and `payment_pending` is a state
+   * only a webhook or a failure can leave. So the attempt is ENDED through the
+   * vault's own `failPayment` edge, which is what the buyer's retry, and the E2
+   * reservation-release rule, both key on. The refusal is still returned BY NAME
+   * — the buyer is told what went wrong, not merely that something did.
+   *
+   * If the vault refuses the transition (a state where failing is not legal),
+   * nothing is persisted and the refusal still goes back: a fault handler may
+   * not invent a journey the machine would not accept.
+   */
+  private async endAttemptOnFault(
+    quote: Quote,
+    stored: StoredOrigin,
+    log: readonly OrderInput[],
+    attemptId: string,
+    fault: ChargeFault,
+  ): Promise<Response> {
+    const ended = chargeFaultInput({
+      fault,
+      attemptId,
+      actor: ORDER_ACTOR,
+      serverTime: new Date().toISOString(),
+    });
+    const next = [...log, ended];
+    if (rebuildOrderSpine(quote, stored, next).journey.state === 'payment_failed') {
+      await this.state.storage.put(LOG_KEY, next);
+    }
+    return Response.json({ ok: false, reason: fault }, { status: 422 });
   }
 
   /** The provider seam, wired to the ONE implementation this slice has. */

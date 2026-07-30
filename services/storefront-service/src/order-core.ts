@@ -209,6 +209,67 @@ export function acceptChargeForLeg(leg: RequiredLeg, echoedAmount: number): Char
   return { ok: true, amount: echoedAmount };
 }
 
+/** The two defence-in-depth faults that end a charge attempt without a webhook. */
+export type ChargeFault = 'leg_key_not_durable' | 'provider_amount_divergence';
+
+/**
+ * ═══ A REFUSAL THAT LEAVES NO EXIT IS NOT A REFUSAL, IT IS A TRAP ═══
+ * (Verifier note, round 3 — and it was this file's own round-3 code that made it.)
+ *
+ * Both faults above are raised AFTER the order has been persisted at
+ * `payment_pending` with a pending attempt. Returning at that point stranded the
+ * order forever: the retry branch requires `payment_failed`, so no command id —
+ * the same one, a new one, any number of new ones — could move it, and the E2
+ * reservation-release rule never fired either, because it keys on a payment
+ * FAILURE and this never became one. `provider_amount_divergence` is the worse
+ * of the two in money terms: it fires after the charge, so if the provider
+ * collected the amount it echoed, no webhook could ever match and the buyer's
+ * money sat there with no order, no refund trigger and no reconciliation case.
+ *
+ * So both faults END THE ATTEMPT the way every other charge failure does. That
+ * is safe only because of the leg key: a retry reuses it, so re-charging cannot
+ * double-collect, and if the original charge did collect, the webhook under that
+ * same key still confirms the order.
+ *
+ * ⏳ THE VALUE IS IMPRECISE, AND THAT IS A CONTRACTS DECISION, NOT MINE.
+ * `PaymentFailureReason` offers exactly three values — `charge_rejected`,
+ * `charge_timeout`, `webhook_never_arrived` — and NONE describes what actually
+ * happened here: no provider rejected anything, nothing timed out, and no
+ * webhook was ever expected. What happened is that this service refused to
+ * proceed on its own defence. `charge_rejected` is used as the DOCUMENTED
+ * SAFEST DEFAULT because it is the only value that means « this attempt ended
+ * and no money is claimed for it », which is the true and conservative reading.
+ * A fourth value (`local_fault`, or similar) is a change to the FROZEN VAULT and
+ * to `contracts/`, which is a founder stop — flagged, not taken.
+ */
+export function chargeFaultInput(args: {
+  readonly fault: ChargeFault;
+  /**
+   * THE ATTEMPT ID, NEVER THE COMMAND ID — and this is load-bearing, not a
+   * naming preference. The spine dedupes on `command_id`, and a buyer may send
+   * one command id many times: the first fault ends attempt A, then the SAME
+   * command id retries into attempt B, and a fault input derived from that
+   * command id is DEDUPED — a silent no-op that leaves the order at
+   * `payment_pending` with no exit, which is the very defect this function
+   * exists to close, walking back in through a different door. (Found by
+   * re-running the verifier's probe against this fix, not by reasoning.)
+   * The attempt id is minted per attempt and cannot repeat.
+   */
+  readonly attemptId: string;
+  readonly actor: string;
+  readonly serverTime: string;
+}): OrderInput {
+  return {
+    kind: 'fail',
+    // The fault is named IN the command id, so the audit says which defence
+    // ended the attempt even though the canon reason cannot.
+    command_id: `ord-fault-${args.fault}-${args.attemptId}`,
+    actor: args.actor,
+    serverTime: args.serverTime,
+    reason: 'charge_rejected',
+  };
+}
+
 /* ────────────────────────────── the decision ─────────────────────────────── */
 
 export type OrderRefusalReason =

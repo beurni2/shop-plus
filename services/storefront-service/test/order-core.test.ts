@@ -4,11 +4,13 @@ import {
   PAY_AT_DOOR_POLICY_DEFAULTS,
   WORKED_BASELINE_INPUT,
   issueQuote,
+  reservationReconciliationAlert,
 } from '@shop-plus/commerce-core';
 import { describe, expect, it } from 'vitest';
 import {
   acceptChargeForLeg,
   applyOrderInput,
+  chargeFaultInput,
   checkoutLegOf,
   decideCreateOrder,
   orderIdForQuote,
@@ -494,6 +496,163 @@ describe('acceptChargeForLeg — a divergence between the echo and the leg is a 
     expect(acceptChargeForLeg(door, 1_000)).toEqual({ ok: true, amount: 1_000 });
     // 12 500 is the buyer's TOTAL — a plausible-looking wrong number, refused.
     expect(acceptChargeForLeg(door, 12_500)).toEqual({ ok: false, reason: 'provider_amount_divergence' });
+  });
+});
+
+/* ══════ a defence that refuses must still leave the buyer a way out ═══════ */
+
+describe('chargeFaultInput — both defence faults END the attempt, they do not strand it', () => {
+  const orderId = 'ord-quote-fault';
+  const origin: OrderOrigin = {
+    orderId,
+    quoteId: 'quote-fault',
+    correlationId: `corr-${orderId}`,
+    issueCommandId: 'ord-issue-c1',
+    actor: 'storefront-service:checkout',
+    createdAt: T,
+    supplierRef: '',
+  };
+  const toPaymentPending: OrderInput[] = [
+    {
+      kind: 'advance',
+      to: 'reserved',
+      command_id: 'ord-reserved-c1',
+      actor: origin.actor,
+      serverTime: T,
+      chainAdditions: { reservation_id: 'res-fault-1' },
+    },
+    {
+      kind: 'advance',
+      to: 'payment_pending',
+      command_id: 'ord-payinit-c1',
+      actor: origin.actor,
+      serverTime: T,
+      chainAdditions: { order_id: orderId, payment_attempt_id: 'att-1' },
+    },
+  ];
+
+  /** The hold the buyer still has while her order sits in whatever state. */
+  const heldReservation = {
+    status: 'reserved',
+    quoteId: 'quote-fault',
+    reservationId: 'res-fault-1',
+    holderRef: 'holder-1',
+    reserveCommandId: 'cmd-reserve-1',
+    expiresAt: '2026-07-30T08:02:00.000Z',
+  } as const;
+
+  it('A STRANDED ORDER HAS NO EXIT — the shape both faults used to leave behind', () => {
+    // This is the defect, stated as a property rather than as history: an order
+    // left at payment_pending cannot be retried, because the vault's retry edge
+    // starts at payment_failed. Nothing the buyer sends can move it.
+    const { quote } = fullPrepayQuote();
+    const stranded = rebuildOrderSpine(quote, origin, toPaymentPending);
+    expect(stranded.journey.state).toBe('payment_pending');
+    expect(
+      applyOrderInput(stranded, {
+        kind: 'retry',
+        command_id: 'ord-retry-c2',
+        actor: origin.actor,
+        serverTime: T,
+        newPaymentAttemptId: 'att-2',
+      }),
+    ).toEqual({ applied: false, reason: 'out_of_order' });
+    // …and the E2 safety net cannot fire either: it keys on payment FAILURE.
+    expect(reservationReconciliationAlert(stranded, heldReservation, { serverTime: T })).toBeNull();
+  });
+
+  for (const fault of ['leg_key_not_durable', 'provider_amount_divergence'] as const) {
+    it(`${fault}: the attempt ENDS at payment_failed, and the buyer's retry is legal again`, () => {
+      const { quote } = fullPrepayQuote();
+      const ended = chargeFaultInput({ fault, attemptId: 'att-1', actor: origin.actor, serverTime: T });
+      // The canon reason is the documented safest default; the FAULT is named in
+      // the command id, because no canon value describes what happened. ⏳ A
+      // fourth `PaymentFailureReason` is a vault + contracts change (founder).
+      expect(ended.kind).toBe('fail');
+      if (ended.kind !== 'fail') return;
+      expect(ended.reason).toBe('charge_rejected');
+      expect(ended.command_id).toContain(fault);
+      expect(ended.command_id).toContain('att-1');
+
+      const log = [...toPaymentPending, ended];
+      const spine = rebuildOrderSpine(quote, origin, log);
+      // THE STATE THE BUYER'S EXIT NEEDS — not payment_pending.
+      expect(spine.journey.state).toBe('payment_failed');
+      expect(spine.journey.state).not.toBe('payment_pending');
+
+      // THE EXIT ITSELF: a retry is legal, and it demands a NEW audit attempt id
+      // exactly as every other retry does.
+      expect(
+        applyOrderInput(spine, {
+          kind: 'retry',
+          command_id: 'ord-retry-c2',
+          actor: origin.actor,
+          serverTime: T,
+          newPaymentAttemptId: 'att-2',
+        }),
+      ).toEqual({ applied: true, duplicate: false });
+      expect(spine.journey.state).toBe('payment_pending');
+      expect(spine.journey.priorPaymentAttemptIds).toEqual(['att-1']);
+
+      // THE RESERVATION-RELEASE PATH IS REACHED: the E2 rule keys on payment
+      // failure, so a hold still standing after this fault now yields the
+      // reconciliation alert it could never yield while the order was stranded.
+      const failed = rebuildOrderSpine(quote, origin, log);
+      const alert = reservationReconciliationAlert(failed, heldReservation, { serverTime: T });
+      expect(alert).not.toBeNull();
+      expect(alert!.name).toBe('reconciliation.alert.v1');
+      expect((alert!.payload as Record<string, unknown>)['alert']).toBe(
+        'reservation_held_after_payment_failure',
+      );
+    });
+  }
+
+  /**
+   * ═══ THE FAULT ID IS THE ATTEMPT'S, AND HERE IS WHY THAT MATTERS ═══
+   *
+   * The spine dedupes on `command_id`. A buyer may send ONE command id twice:
+   * the first fault ends attempt A, the same command id then retries into
+   * attempt B, and a fault input keyed on the COMMAND id is silently absorbed as
+   * a duplicate — leaving the order at `payment_pending` with no exit, which is
+   * the exact defect this whole section exists to close, walking back in through
+   * a different door. Found by re-running the probe against the fix, and pinned
+   * here so it cannot return.
+   */
+  it('A SECOND ATTEMPT ENDS TOO — the fault id follows the attempt, not the command id', () => {
+    const { quote } = fullPrepayQuote();
+    const first = chargeFaultInput({
+      fault: 'provider_amount_divergence',
+      attemptId: 'att-1',
+      actor: origin.actor,
+      serverTime: T,
+    });
+    let log: OrderInput[] = [...toPaymentPending, first];
+    let spine = rebuildOrderSpine(quote, origin, log);
+    expect(spine.journey.state).toBe('payment_failed');
+
+    // THE SAME buyer command id, a NEW attempt — the shape that used to dedupe.
+    const retry: OrderInput = {
+      kind: 'retry',
+      command_id: 'ord-retry-cmd-order-1',
+      actor: origin.actor,
+      serverTime: T,
+      newPaymentAttemptId: 'att-2',
+    };
+    log = [...log, retry];
+    spine = rebuildOrderSpine(quote, origin, log);
+    expect(spine.journey.state).toBe('payment_pending');
+
+    const second = chargeFaultInput({
+      fault: 'provider_amount_divergence',
+      attemptId: 'att-2',
+      actor: origin.actor,
+      serverTime: T,
+    });
+    expect(second.command_id).not.toBe(first.command_id);
+    expect(applyOrderInput(spine, second)).toEqual({ applied: true, duplicate: false });
+    // THE SECOND ATTEMPT ENDS TOO — the order is retryable again, not stranded.
+    expect(spine.journey.state).toBe('payment_failed');
+    expect(rebuildOrderSpine(quote, origin, [...log, second]).journey.state).toBe('payment_failed');
   });
 });
 
