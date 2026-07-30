@@ -231,7 +231,10 @@ test('ITEM 3 · the automatic refresh SAYS SO and keeps her payment mode', async
   await page.locator('[data-action="payer"]').click();
 
   // she is told a new price was asked for — not moved in silence
-  await expect(page.locator('.cl-toast')).toContainText(/nouveau prix|prix a été mis à jour/i, { timeout: 10_000 });
+  // the CONTAINER, not `.cl-toast`: two toasts can be on screen at once (the
+  // « we are asking » one and the result), and a strict locator then matches
+  // both and throws — a flake, not a finding.
+  await expect(page.locator('.cl-toasts')).toContainText(/nouveau prix|prix a été mis à jour/i, { timeout: 10_000 });
   // …and she is back on the payment screen with her mode intact
   await expect(page.locator('[data-screen="C5"]')).toBeVisible();
   const ctaAfter = await page.locator('[data-action="payer"]').innerText();
