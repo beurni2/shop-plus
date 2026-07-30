@@ -863,33 +863,32 @@ describe('etatForRender — a state that reads no storefront is never the not-fo
   });
 });
 
-/* ------------------------- 12 · ENTETES-E0: the wire ahead of the renderer -- */
+/* ------------------------- 12 · ENTETES-E0/E: the dispatch and the wire ---- */
 
 /**
- * ENTETES-E0 (founder-authorized 2026-07-30) — canon gains the five Beurni
- * Boss keys (masque · harmattan · balafon · seance · cauris) before their
- * render units exist (they land in E1/E2). Until each unit is built, a key the
- * dispatch switch has no case for must render the classique header EXPLICITLY
- * — never fall through to `undefined`, never crash her shop. Proven the file's
- * way: executed on the renderer's OUTPUT, byte-for-byte against the real
- * classique bytes.
+ * ENTETES-E — the Beurni Boss five have their render units now (their own
+ * suite lives in entetes-beurni.test.ts). What survives from the E0 law here:
+ * every canon key dispatches to its OWN unit, never to classique's bytes, and
+ * a hypothetical future key with no unit still falls back explicitly instead
+ * of handing `undefined` to the page.
  */
-describe('ENTETES-E0 — a key with no render unit falls back to classique, explicitly', () => {
-  const UNBUILT = ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const;
+describe('ENTETES-E — the five Beurni Boss keys render their own units, not classique', () => {
+  const BUILT = ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const;
+  const ROOTS: Record<(typeof BUILT)[number], string> = {
+    masque: 'vt-ma', harmattan: 'vt-ha', balafon: 'vt-ba', seance: 'vt-se', cauris: 'vt-ca',
+  };
 
-  for (const key of UNBUILT) {
-    it(`${key}: renders EXACTLY the classique bytes (ready data, from a product)`, () => {
-      const out = head(key as unknown as EnteteKey, WITH_COVER, REAL, true);
-      const classique = head('classique', WITH_COVER, REAL, true);
-      expect(out).toBe(classique);
-      // …and that really is the classique hero, not two empty strings agreeing.
-      expect(out).toContain('class="vt-hero"');
+  for (const key of BUILT) {
+    it(`${key}: renders its own root class, never the classique hero`, () => {
+      const out = head(key as EnteteKey, WITH_COVER, REAL, true);
+      expect(out).toContain(`class="vt-ent ${ROOTS[key]}"`);
+      expect(out).not.toContain('class="vt-hero"');
       expect(out.length).toBeGreaterThan(1000);
     });
   }
 
-  it('the compact (empty-screen) path falls back identically', () => {
-    const out = renderEntete('masque' as unknown as EnteteKey, BASE as never, ZERO as never, { compact: true });
+  it('a FUTURE canon key with no unit still falls back to classique, explicitly', () => {
+    const out = renderEntete('style-de-demain' as unknown as EnteteKey, BASE as never, ZERO as never, { compact: true });
     expect(out).toBe(renderEntete('classique', BASE as never, ZERO as never, { compact: true }));
     expect(out).toContain('class="vt-hero"');
   });
@@ -945,15 +944,15 @@ describe('ENTETES-E0 — the wire accepts the five; the renderer falls back unti
     expect(bad!.storefront.headerStyle).toBe('classique');
   });
 
-  it("the ACCEPTED 'masque' — wire-normalised, not cast — renders the classique bytes end to end", async () => {
+  it("the ACCEPTED 'masque' — wire-normalised, not cast — renders the MASQUE unit end to end", async () => {
     const { httpStorefrontPort } = await import('../src/vitrine/profile');
     const resolved = await stubFetch({ ...WIRE_BASE, headerStyle: 'masque' }, () =>
       httpStorefrontPort('https://svc.example').resolve('chez-w-1'),
     );
     expect(resolved!.storefront.headerStyle).toBe('masque');
     const out = renderEntete(resolved!.storefront.headerStyle, resolved!.storefront, REAL as never, { fromProduct: true });
-    expect(out).toBe(renderEntete('classique', resolved!.storefront, REAL as never, { fromProduct: true }));
-    expect(out).toContain('class="vt-hero"');
+    expect(out).toContain('class="vt-ent vt-ma"');
+    expect(out).not.toContain('class="vt-hero"');
     expect(out.length).toBeGreaterThan(1000);
   });
 });

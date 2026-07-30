@@ -883,9 +883,8 @@ function K4({ sf, onBack, onPick, onPickEntete }: { sf: Storefront; onBack: () =
       </View>
       {/* ENTETES-B — « En-tête de boutique »: the SAME card / selected / check
           pattern as the theme grid above, one tap = one save (headerStyle only).
-          ENTETES-E0 — the grid maps the PICKABLE list, not the full canon
-          vocabulary: the Beurni Boss five stay un-offered until their buyer
-          render units + catalog strings land (E1/E2). */}
+          ENTETES-E0/E — the grid maps the PICKABLE list, not the canon
+          vocabulary; with the Beurni Boss five built, that list is the eleven. */}
       <Text style={[S.caps, S.capsGap]}>{t('k.entete.caps')}</Text>
       <View style={S.themeGrid}>
         {PICKABLE_HEADER_STYLES.map((key) => {

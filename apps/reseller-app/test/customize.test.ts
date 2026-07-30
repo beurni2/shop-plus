@@ -250,13 +250,13 @@ describe('ENTETES-B — the local header-key mirror stays canon, and the fallbac
 });
 
 /**
- * ENTETES-E0 (canon v2.3.0) — the Beurni Boss five join the VOCABULARY, not
- * the picker: a held key reads back (canon conformance), but the K4 grid maps
- * `PICKABLE_HEADER_STYLES` only, because offering a style whose buyer render
- * does not exist yet would be the app lying to her — and because `t()` THROWS
- * on a missing catalog string, so an un-authored picker card is a crash.
+ * ENTETES-E0/E (canon v2.3.0 → the built five) — the Beurni Boss five joined
+ * the vocabulary first (E0), and now carry buyer render units + catalog
+ * strings, so the K4 grid offers all eleven. The law that mattered survives:
+ * the picker maps `PICKABLE_HEADER_STYLES`, and every pickable key MUST have
+ * its strings (`t()` throws on a missing key — an un-authored card is a crash).
  */
-describe('ENTETES-E0 — vocabulary grows to eleven; the picker stays at the built six', () => {
+describe('ENTETES-E — vocabulary and picker are both the eleven now', () => {
   it('each of the five NEW keys reads back through headerStyleOf — vocabulary, not garbage', async () => {
     const { DEFAULT_STOREFRONT, headerStyleOf } = await import('../src/vitrine/customize/storefront');
     for (const key of ['masque', 'harmattan', 'balafon', 'seance', 'cauris']) {
@@ -266,8 +266,8 @@ describe('ENTETES-E0 — vocabulary grows to eleven; the picker stays at the bui
     expect(headerStyleOf({ ...DEFAULT_STOREFRONT, headerStyle: 'bogolan' })).toBe('classique');
   });
 
-  it('PICKABLE_HEADER_STYLES is EXACTLY the built six — the five cannot silently reach the grid', async () => {
-    const { PICKABLE_HEADER_STYLES } = await import('../src/vitrine/customize/storefront');
+  it('PICKABLE_HEADER_STYLES is EXACTLY the canon eleven, in canon order', async () => {
+    const { HEADER_STYLES, PICKABLE_HEADER_STYLES } = await import('../src/vitrine/customize/storefront');
     expect([...PICKABLE_HEADER_STYLES]).toEqual([
       'classique',
       'royale',
@@ -275,7 +275,13 @@ describe('ENTETES-E0 — vocabulary grows to eleven; the picker stays at the bui
       'chaleureux',
       'cristal',
       'dynamique',
+      'masque',
+      'harmattan',
+      'balafon',
+      'seance',
+      'cauris',
     ]);
+    expect([...PICKABLE_HEADER_STYLES]).toEqual([...HEADER_STYLES]);
   });
 
   it('every PICKABLE key has BOTH its picker strings in the catalog (t throws on a missing key)', async () => {
@@ -287,12 +293,27 @@ describe('ENTETES-E0 — vocabulary grows to eleven; the picker stays at the bui
     }
   });
 
-  it('the five unbuilt styles carry the CLASSIQUE frame spec + centre default until E1/E2 (fallback law, pinned)', async () => {
+  it('the five frame the PORTRAIT per their §5 silhouettes; their cover spec stays classique (no cover drawn)', async () => {
     const { defaultFocusFor, frameSpecFor } = await import('../src/vitrine/customize/framing-math');
+    // Cover: these styles render none — the sheet keeps the classique frame
+    // and the centre default rather than inventing a frame the buyer never sees.
     for (const key of ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const) {
       expect(frameSpecFor(key, 'cover'), key).toEqual(frameSpecFor('classique', 'cover'));
       expect(defaultFocusFor(key, 'cover'), key).toEqual({ x: 50, y: 50 });
-      expect(defaultFocusFor(key, 'avatar'), key).toEqual({ x: 50, y: 50 });
     }
+    // Avatar: the real §5 silhouettes and the real §5 crop biases.
+    expect(frameSpecFor('masque', 'avatar')).toEqual({ aspect: 144 / 206, circle: false, radii: [0, 0, 0, 0] });
+    expect(frameSpecFor('harmattan', 'avatar')).toEqual({ aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] });
+    expect(frameSpecFor('balafon', 'avatar')).toEqual({ aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] });
+    expect(frameSpecFor('seance', 'avatar')).toEqual({ aspect: 112 / 190, circle: false, radii: [0, 0, 0, 0] });
+    expect(frameSpecFor('cauris', 'avatar')).toEqual({ aspect: 132 / 202, circle: false, radii: [0.5, 0.5, 0.5, 0.5] });
+    expect(defaultFocusFor('masque', 'avatar')).toEqual({ x: 50, y: 26 });
+    for (const key of ['harmattan', 'balafon', 'seance', 'cauris'] as const) {
+      expect(defaultFocusFor(key, 'avatar'), key).toEqual({ x: 50, y: 24 });
+    }
+    // …and the six keep the circle medallion + their defaults, unchanged.
+    expect(frameSpecFor('royale', 'avatar')).toEqual({ aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] });
+    expect(defaultFocusFor('heritage', 'avatar')).toEqual({ x: 50, y: 32 });
+    expect(defaultFocusFor('classique', 'avatar')).toEqual({ x: 50, y: 50 });
   });
 });

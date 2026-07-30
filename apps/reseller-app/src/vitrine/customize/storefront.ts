@@ -35,9 +35,8 @@ export type CoverStatus = 'none' | 'uploading' | 'pending' | 'live' | 'error';
  * conformance test pins this list to the canon `STOREFRONT_HEADER_STYLES`
  * export — drift fails in vitest, never on a device.
  * ENTETES-E0 (canon v2.3.0, founder-authorized 2026-07-30): the Beurni Boss
- * five ride after the six. They are canon VOCABULARY — a held key reads back
- * — but the K4 picker offers `PICKABLE_HEADER_STYLES` only, until their
- * buyer render units + catalog strings land in E1/E2.
+ * five ride after the six. ENTETES-E: their buyer render units + catalog
+ * strings exist, so `PICKABLE_HEADER_STYLES` below now carries all eleven.
  */
 export const HEADER_STYLES = [
   'classique',
@@ -56,9 +55,11 @@ export type HeaderStyleKey = (typeof HEADER_STYLES)[number];
 
 /**
  * ENTETES-E0 — what the picker OFFERS: only styles whose buyer render exists
- * and whose picker strings live in the catalog. Offering « Masque » while the
- * buyer page still renders classique would be the app lying to her — the five
- * new keys join this list one by one as their E1/E2 units ship.
+ * and whose picker strings live in the catalog. ENTETES-E: the Beurni Boss
+ * five have their buyer render units and their catalog strings now, so the
+ * picker offers all eleven — the list stays separate from HEADER_STYLES
+ * because the law stays: vocabulary may grow ahead of the picker, the picker
+ * never runs ahead of the render.
  */
 export const PICKABLE_HEADER_STYLES = [
   'classique',
@@ -67,6 +68,11 @@ export const PICKABLE_HEADER_STYLES = [
   'chaleureux',
   'cristal',
   'dynamique',
+  'masque',
+  'harmattan',
+  'balafon',
+  'seance',
+  'cauris',
 ] as const;
 
 /** Her selected header with the `classique` fallback: an OLD service wire omits

@@ -1,5 +1,8 @@
 import type { Catalog } from '@platform/i18n';
-import rawCatalog from '../i18n/catalog.json';
+// `with { type: 'json' }` — the standard import attribute: vite/vitest accept
+// it unchanged, and it lets the Playwright harness (Node's native ESM loader)
+// import the renderer chain directly for the ENTETES-E fixture screenshots.
+import rawCatalog from '../i18n/catalog.json' with { type: 'json' };
 
 /**
  * PWA strings live ONLY in the catalog (Contract §10.5) — never inline. The

@@ -1380,6 +1380,66 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_masque",
+  "fr": "Masque",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_masque",
+  "fr": "Noir, crème et rouge — un air de galerie d’art.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_harmattan",
+  "fr": "Harmattan",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_harmattan",
+  "fr": "La lumière dorée du soir, douce et chaude.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_balafon",
+  "fr": "Balafon",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_balafon",
+  "fr": "Une nuit de concert, bois et lumières.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_seance",
+  "fr": "Séance",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_seance",
+  "fr": "Le grand écran, comme au cinéma de Ouaga.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_cauris",
+  "fr": "Cauris",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_cauris",
+  "fr": "L’eau claire et les cauris porte-bonheur.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.une.title",
   "fr": "À la une & ordre",
   "register": "neutral",

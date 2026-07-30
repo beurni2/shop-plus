@@ -96,3 +96,27 @@
   --font-fp-display: 'Bricolage Grotesque', system-ui, sans-serif;
   --font-fp-text: 'Instrument Sans', system-ui, sans-serif;
 }
+
+/* ENTETES-E — the two Beurni Boss display faces (handoff §4): Barlow Condensed
+   800 draws the Masque name, Sora 800 the Balafon and Cauris names. Same
+   charset subset as the Faso Premium six (entetes.coverage.json binds the
+   bytes), same cold-start law: `optional`, no swap, CLS 0. The handoff's other
+   faces are NOT shipped (payload budget, documented in entetes.ts): Séance
+   rides the shipped Archivo variable at 900 (Archivo Black is Archivo's black
+   cut); Cormorant Garamond / Caveat / Fraunces / Inter resolve through their
+   handoff fallback stacks. A shop on classique or the first six styles never
+   fetches these — a face downloads only when a rule using it matches. */
+@font-face {
+  font-family: 'Barlow Condensed';
+  src: url('./fonts/BarlowCondensed-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: optional;
+}
+@font-face {
+  font-family: 'Sora';
+  src: url('./fonts/Sora-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: optional;
+}

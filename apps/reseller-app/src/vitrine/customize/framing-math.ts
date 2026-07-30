@@ -104,11 +104,11 @@ const COVER_FRAMES: Record<HeaderStyleKey, FrameSpec> = {
   chaleureux: { aspect: 150 / 198, circle: false, radii: [76 / 150, 58 / 150, 72 / 150, 62 / 150] },
   cristal: RECT(360 / 196, 18 / 360),
   dynamique: RECT(152 / 320, 0.08),
-  // ENTETES-E0 — the Beurni Boss five carry the CLASSIQUE spec until their
-  // E1/E2 render units define real silhouettes. Unreachable in the sheet
-  // today (the picker never offers them — PICKABLE_HEADER_STYLES), and the
-  // same fallback law as the buyer render: an unbuilt style behaves as
-  // classique, never as an invented frame.
+  // ENTETES-E — the Beurni Boss five render NO cover at all (handoff §5: the
+  // frame holds her PORTRAIT; the cover is « non requis pour ces variantes »).
+  // A saved cover framing is still honest data — it applies the moment she
+  // switches back to a cover-bearing style — so the sheet keeps the classique
+  // silhouette rather than inventing a frame these headers never draw.
   masque: RECT(3 / 4, 0.07),
   harmattan: RECT(3 / 4, 0.07),
   balafon: RECT(3 / 4, 0.07),
@@ -116,10 +116,27 @@ const COVER_FRAMES: Record<HeaderStyleKey, FrameSpec> = {
   cauris: RECT(3 / 4, 0.07),
 };
 
+/**
+ * ENTETES-E — the Beurni Boss five frame the PORTRAIT in their own §5
+ * silhouettes, so the avatar sheet must show hers in THAT shape: Masque's
+ * orthogonal plank frame (144×206, no rounding), Séance's 35 mm inner screen
+ * (112×190 — the visible photo, not the perforated chassis), Cauris' cowrie
+ * oval (132×202 at 50%/42% — represented by the spec's width-fraction radii),
+ * Harmattan's and Balafon's circles. The six keep the circle medallion they
+ * have always had.
+ */
+const AVATAR_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = {
+  masque: { aspect: 144 / 206, circle: false, radii: [0, 0, 0, 0] },
+  harmattan: CIRCLE,
+  balafon: CIRCLE,
+  seance: { aspect: 112 / 190, circle: false, radii: [0, 0, 0, 0] },
+  cauris: { aspect: 132 / 202, circle: false, radii: [0.5, 0.5, 0.5, 0.5] },
+};
+
 export function frameSpecFor(style: HeaderStyleKey, kind: FrameKind): FrameSpec {
-  // Her portrait sits in a circle medallion in EVERY header (and classique's
-  // avatar ring) — one silhouette, no per-style variance.
-  if (kind === 'avatar') return CIRCLE;
+  // Her portrait: a circle medallion in the six (and classique's ring); the
+  // Beurni Boss five frame it per their own §5 (AVATAR_FRAMES above).
+  if (kind === 'avatar') return AVATAR_FRAMES[style] ?? CIRCLE;
   return COVER_FRAMES[style];
 }
 
@@ -137,8 +154,9 @@ const COVER_DEFAULTS: Record<HeaderStyleKey, PhotoFocus> = {
   chaleureux: { x: 50, y: 24 },
   cristal: { x: 50, y: 22 },
   dynamique: { x: 58, y: 30 },
-  // ENTETES-E0 — classique's browser-default centre until each E1/E2 unit
-  // names its contract position (see COVER_FRAMES above; same fallback law).
+  // ENTETES-E — these five draw no cover (COVER_FRAMES above): the sheet
+  // starts at classique's browser-default centre, exactly what an unframed
+  // cover renders at everywhere else.
   masque: { x: 50, y: 50 },
   harmattan: { x: 50, y: 50 },
   balafon: { x: 50, y: 50 },
@@ -146,7 +164,18 @@ const COVER_DEFAULTS: Record<HeaderStyleKey, PhotoFocus> = {
   cauris: { x: 50, y: 50 },
 };
 
+/** ENTETES-E — each Beurni Boss unit biases the PORTRAIT crop per its §5
+ *  (the buyer sheet's own object-position); the sheet must start there. */
+const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
+  heritage: { x: 50, y: 32 },
+  masque: { x: 50, y: 26 },
+  harmattan: { x: 50, y: 24 },
+  balafon: { x: 50, y: 24 },
+  seance: { x: 50, y: 24 },
+  cauris: { x: 50, y: 24 },
+};
+
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {
-  if (kind === 'avatar') return style === 'heritage' ? { x: 50, y: 32 } : { x: 50, y: 50 };
+  if (kind === 'avatar') return AVATAR_DEFAULTS[style] ?? { x: 50, y: 50 };
   return COVER_DEFAULTS[style];
 }

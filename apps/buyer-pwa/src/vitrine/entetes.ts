@@ -31,6 +31,7 @@
 
 import { t } from '../i18n';
 import { esc } from '../format';
+import { groupFr } from '../cliente/money';
 import { focusPosition, type Storefront, type VitrineTrust } from './profile';
 import { chips, hero } from './render';
 import {
@@ -47,8 +48,10 @@ import {
 } from './icons';
 
 // ENTETES-E0 (canon v2.3.0, founder-authorized 2026-07-30) — the Beurni Boss
-// five ride after the six, in canon order. Their render units land in E1/E2;
-// until each exists, renderEntete's explicit default falls back to classique.
+// five ride after the six, in canon order. ENTETES-E: their render units are
+// BUILT (this file, §6–10 below, per design/shopplus-beurni-boss); the
+// explicit classique default in renderEntete now guards only future canon
+// keys whose units have not landed.
 export const ENTETE_KEYS = [
   'classique',
   'royale',
@@ -68,6 +71,15 @@ export type EnteteKey = (typeof ENTETE_KEYS)[number];
 const AVIS_FLOOR = 3;
 /** HANDOFF §4 — the split-column layouts drop to a fixed reduced size here. */
 const LONG_NAME = 14;
+/**
+ * ENTETES-E (Beurni Boss handoff, Part B anti-orphelin) — past this length the
+ * five cinematic columns drop BELOW the handoff's fixed size. The handoff fixes
+ * 38px past 14 chars AND demands two name lines max with a 24-char fixture;
+ * measured in the browser, both cannot hold at once in a 176px column — so the
+ * matrix's two-line law wins (CTO adaptation, journalled) and a second, smaller
+ * fixed tier exists for the extreme tail of the range.
+ */
+const XLONG_NAME = 19;
 
 /**
  * The founder's preview lever: `?entete=royale` on ANY shop shows that header.
@@ -123,6 +135,11 @@ interface Vals {
   readonly showStars: boolean;
   readonly nouvelle: boolean;
   readonly longName: boolean;
+  /** ENTETES-E — the tier past 19 chars where the two-line law forces a second
+   *  reduction (the Beurni Boss columns only; the six never read this). */
+  readonly xlongName: boolean;
+  /** ENTETES-E — the anti-orphan name HTML (tail wrapped nowrap, nbsp joint). */
+  readonly tail: string;
   readonly back: boolean;
 }
 
@@ -161,9 +178,58 @@ function vals(sf: Storefront, trust: VitrineTrust, opts: EnteteOpts): Vals {
     showStars: !compact && trust.reviewCount >= AVIS_FLOOR,
     nouvelle: trust.deliveredCount === 0 && trust.reviewCount === 0,
     longName: sf.name.length > LONG_NAME,
+    xlongName: sf.name.length > XLONG_NAME,
+    tail: nameTail(sf.name),
     back: opts.fromProduct === true,
   };
 }
+
+/**
+ * ENTETES-E — the Beurni Boss anti-orphan name (handoff Part B): the name is
+ * trimmed and multi-spaces collapse to one; the last WORD (space-delimited)
+ * wraps whole in `.vt-ent-tail` (inline-block + nowrap in the sheet) with the
+ * space before it turned `&nbsp;`, and the accent segment (`/[^ \-]+$/` — the
+ * part after the last hyphen) is `.vt-ent-acc` inside it. Keeping the whole
+ * word unbreakable is what the two-line law demands, browser-measured: a
+ * hyphen break in « Élégance-Burkina » is exactly the third-line orphan the
+ * handoff bans, so the hyphen never breaks here and the xlong size tier
+ * (measured per face) makes the word fit its column instead. A single-word
+ * name IS its own tail. Escaped part by part; pure and exported so the rule
+ * is executed by tests, never re-derived.
+ */
+export function nameTail(raw: string): string {
+  const name = raw.trim().replace(/\s+/g, ' ');
+  const sp = name.lastIndexOf(' ');
+  const head = sp === -1 ? '' : name.slice(0, sp);
+  const word = sp === -1 ? name : name.slice(sp + 1);
+  const m = /[^ \-]+$/.exec(word);
+  const seg = m?.[0] ?? word;
+  const prefix = word.slice(0, word.length - seg.length);
+  const tail =
+    `<span class="vt-ent-tail">${prefix === '' ? '' : `<v>${esc(prefix)}</v>`}` +
+    `<span class="vt-ent-acc"><v>${esc(seg)}</v></span></span>`;
+  if (head === '') return tail;
+  // ≤ 14 chars: the handoff's nbsp joint — the accent word can never stand
+  // alone. Past LONG_NAME the joint must stay breakable (welding the last two
+  // words of a 24-char name is the overflow the two-line law forbids); the
+  // tail word itself still wraps only as a whole.
+  const joint = name.length > LONG_NAME ? ' ' : '&nbsp;';
+  return `<v>${esc(head)}${joint}</v>${tail}`;
+}
+
+/** The five Beurni Boss frames hold the PORTRAIT (handoff §5: the seller photo
+ *  is the avatar; the cover is « non requis pour ces variantes ») — their
+ *  honest frame state therefore reads the avatar, not the cover. */
+const etatAvatar = (v: Vals): string => (v.hasAvatar ? 'live' : 'none');
+
+/** « {rating} · {N} avis » — the handoff's exact review chip (its « Chaînes
+ *  exactes » list), NNBSP-grouped count, star drawn by the caller's style. */
+const avisChip = (v: Vals): string =>
+  `<span><v>${v.rating}</v> · <v>${groupFr(v.reviewCount)}</v> ${t('vit.avis')}</span>`;
+
+/** « {N} ventes livrées par Séra » with the count grouped the repo's byte-stable
+ *  way (manual NNBSP grouping — ICU is banned; the handoff's fr-FR intent). */
+const ventesLine = (v: Vals): string => `<b><v>${groupFr(v.delivN)}</v></b> ${t('vit.ventes_livrees')}`;
 
 /** The cover container's honest state: a real photograph, or the style's own
  *  ornamental pattern. Never a caption claiming a photo that is not there. */
@@ -487,16 +553,318 @@ function dynamique(v: Vals): string {
   ].join('');
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   ENTETES-E — the Beurni Boss five (founder handoff 2026-07-30, normative
+   spec: design/shopplus-beurni-boss/reference/00-handoff-normatif.md).
+   CTO adaptations, settled and journalled:
+   · NO APP BAR — the mockups' hamburger/search/cart do not exist in the
+     vitrine (no cart exists in Shop+ at all). The unit = HERO + TRUST STRIP,
+     full-bleed like the six (ENTETES-D), hero and strip keep their handoff
+     heights (hero 246/248 → 236 at 320; strip 74/72 → 72).
+   · The handoff's 52px « bande de raccord » belongs to the page body — the
+     vitrine page below keeps its own themed surface, as under the six.
+   · The frame holds HER PORTRAIT (handoff §5/StorefrontHeaderData: avatar =
+     portrait vendeur; cover « non requis pour ces variantes »), with her
+     ENTETES-C framing riding inline exactly as the six do it.
+   · Tagline/bio have NO slot in these fixed-height cinematic heroes (the
+     handoff's Part A places none); they keep rendering in the six.
+   · FONTS (payload budget, entetes.coverage.json): Barlow Condensed 800 and
+     Sora 800 ship subset; Séance's « Archivo Black » rides the shipped
+     Archivo variable at 900 (its black cut); Cormorant Garamond → Georgia,
+     Caveat → cursive stack, Fraunces → Georgia italic, Inter → Instrument
+     Sans. Each stack keeps the handoff's own fallback order.
+   · The trust strip's third label is « Les meilleurs prix garantis »
+     VERBATIM (founder override 2026-07-30) — vit.cell_prix, unchanged.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* --------------------------------------------- 6 · MASQUE (planches Bwa) -- */
+
+function masque(v: Vals): string {
+  const cell = (icon: string, label: string, sub: string): string =>
+    `<div class="ma-cell"><span class="ma-cell-i">${icon}</span><span class="ma-cell-l">${label}</span><span class="ma-cell-s">${sub}</span></div>`;
+  const long = v.xlongName ? ' vt-ent-xlong' : v.longName ? ' vt-ent-long' : '';
+  // §6 — « vendeuse » rouge: derived from the ONE catalog string, never re-authored.
+  const [nA = '', ...nB] = t('vit.nouvelle_vendeuse').split(' ');
+  return [
+    '<div class="vt-ent vt-ma" data-role="vitrine-hero">',
+    '<div class="ma-hero">',
+    '<div class="ma-scene">',
+    // §2/§3 — cible, chevrons, planche fantôme, bandes d'ombre, vignette (z0).
+    '<span class="ma-cible" aria-hidden="true"></span>',
+    '<svg class="ma-chevrons" aria-hidden="true" viewBox="0 0 44 96" width="44" height="96"><path d="M2 10 L22 2 L42 10 M2 22 L22 14 L42 22 M2 34 L22 26 L42 34 M2 46 L22 38 L42 46 M2 58 L22 50 L42 58 M2 70 L22 62 L42 70 M2 82 L22 74 L42 82 M2 94 L22 86 L42 94" fill="none" stroke="#141414" stroke-width="4"/></svg>',
+    '<span class="ma-planche" aria-hidden="true"></span>',
+    '<span class="ma-bande ma-bande1" aria-hidden="true"></span>',
+    '<span class="ma-bande ma-bande2" aria-hidden="true"></span>',
+    '<span class="ma-vignette" aria-hidden="true"></span>',
+    // §5 — the orthogonal frame: 2px noir · 5px crème · 2px noir, damier base.
+    `<div class="ma-frame" data-role="vitrine-cover" data-etat="${etatAvatar(v)}">`,
+    '<div class="ma-photo">',
+    v.hasAvatar
+      ? avatarImg(v)
+      : `<div class="ma-frame-motif"><span class="ma-motif-cible" aria-hidden="true"></span><span class="ma-mono">${v.mono}</span></div>`,
+    '<span class="ma-damier" aria-hidden="true"></span>',
+    '</div>',
+    '</div>',
+    // §4 — the text column.
+    '<div class="ma-col" data-role="vitrine-identity">',
+    `<div class="ma-name${long}">${v.tail}</div>`,
+    `<div class="ma-bienv">${t('vit.bienvenue')}<svg class="ma-zigzag" aria-hidden="true" viewBox="0 0 74 7" width="74" height="7"><path d="M1 5 L8 2 L15 5 L22 2 L29 5 L36 2 L43 5 L50 2 L57 5 L64 2 L71 5" fill="none" stroke="#C8332A" stroke-width="2"/></svg></div>`,
+    `<div class="ma-verif">${iconPinEnt(13, '#C8332A', 2.2)}${verifieeBare()}</div>`,
+    `<div class="ma-zone"><v>${v.zone}</v></div>`,
+    v.showProof
+      ? `<div class="ma-proofrow"><span class="ma-proof" data-role="reputation">${ventesLine(v)}</span>${v.showStars ? `<span class="ma-stars" data-role="chip-avis">${iconStarEnt(11, '#C8332A')}${avisChip(v)}</span>` : ''}</div>`
+      : '',
+    v.nouvelle
+      ? `<div class="ma-nouv-wrap"><span class="ma-nouv" data-role="chip-nouvelle"><v>${nA}</v> <span class="ma-nouv-acc"><v>${nB.join(' ')}</v></span></span></div>`
+      : '',
+    '</div>',
+    '<span class="ma-frise" aria-hidden="true"></span>',
+    '</div>',
+    '</div>',
+    // §7 — the trust strip, three labels word for word.
+    '<div class="ma-trust" data-role="vitrine-trust">',
+    cell(iconShieldEnt(16, '#141414', 2), t('vit.chip_sera'), t('vit.cell_sera_sub')),
+    cell(iconLockEnt(15, '#141414', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
+    cell(iconTagEnt(15, '#141414', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
+    '</div>',
+    controls(v, 'ma', 'right', '20px', '72px', '#141414'),
+    '</div>',
+  ].join('');
+}
+
+/* --------------------------------- 7 · HARMATTAN (contre-jour de poussière) -- */
+
+function harmattan(v: Vals): string {
+  const cell = (icon: string, label: string, sub: string): string =>
+    `<div class="ha-cell"><span class="ha-cell-i">${icon}</span><span class="ha-cell-l">${label}</span><span class="ha-cell-s">${sub}</span></div>`;
+  const long = v.xlongName ? ' vt-ent-xlong' : v.longName ? ' vt-ent-long' : '';
+  return [
+    '<div class="vt-ent vt-ha" data-role="vitrine-hero">',
+    '<div class="ha-hero">',
+    '<div class="ha-scene">',
+    // §2/§3 — soleil voilé, dunes, sentier de vent, acacias, calaos, bokeh (z0).
+    '<span class="ha-soleil" aria-hidden="true"></span>',
+    '<span class="ha-dune ha-dune1" aria-hidden="true"></span>',
+    '<span class="ha-dune ha-dune2" aria-hidden="true"></span>',
+    '<svg class="ha-vent" aria-hidden="true" viewBox="0 0 170 70" width="170" height="70"><path d="M4 62 C 44 48, 66 24, 96 22 C 120 20, 140 30, 166 16" fill="none" stroke="#FFF7EA" stroke-width="2" stroke-dasharray="5 7"/></svg>',
+    '<svg class="ha-acacia ha-acacia1" aria-hidden="true" viewBox="0 0 82 44" width="82" height="44"><path d="M40 44 L40 20 M40 26 L22 12 M40 24 L58 10 M40 30 L30 18" fill="none" stroke="#4E2C18" stroke-width="2"/><path d="M6 14 Q40 -4 78 12" fill="none" stroke="#4E2C18" stroke-width="3"/></svg>',
+    '<svg class="ha-acacia ha-acacia2" aria-hidden="true" viewBox="0 0 46 30" width="46" height="30"><path d="M22 30 L22 12 M22 16 L12 8 M22 15 L34 6" fill="none" stroke="#4E2C18" stroke-width="1.6"/><path d="M4 10 Q23 -2 43 9" fill="none" stroke="#4E2C18" stroke-width="2"/></svg>',
+    '<svg class="ha-calaos" aria-hidden="true" viewBox="0 0 32 18" width="32" height="18"><path d="M2 8 Q6 4 10 8 Q14 12 18 8 M18 12 Q22 8 26 12 Q28 14 31 12" fill="none" stroke="#4E2C18" stroke-width="1.5"/></svg>',
+    '<span class="ha-bokeh" aria-hidden="true"></span>',
+    '<span class="ha-vignette" aria-hidden="true"></span>',
+    // §5 — circular portrait riding the veiled sun.
+    `<div class="ha-frame" data-role="vitrine-cover" data-etat="${etatAvatar(v)}">`,
+    v.hasAvatar
+      ? avatarImg(v)
+      : `<div class="ha-frame-motif"><span class="ha-mono">${v.mono}</span></div>`,
+    '</div>',
+    // §4 — the text column.
+    '<div class="ha-col" data-role="vitrine-identity">',
+    `<div class="ha-name${long}">${v.tail}</div>`,
+    `<div class="ha-bienv">${t('vit.bienvenue')}<svg class="ha-route" aria-hidden="true" viewBox="0 0 88 2" width="88" height="2"><line x1="0" y1="1" x2="88" y2="1" stroke="#A94F24" stroke-width="2" stroke-dasharray="4 5"/></svg></div>`,
+    `<div class="ha-verif">${iconPinEnt(13, '#A94F24', 2.2)}${verifieeBare()}</div>`,
+    `<div class="ha-zone"><v>${v.zone}</v></div>`,
+    v.showProof
+      ? `<div class="ha-proofrow"><span class="ha-proof" data-role="reputation">${ventesLine(v)}</span>${v.showStars ? `<span class="ha-stars" data-role="chip-avis">${iconStarEnt(11, '#FFE7A8')}${avisChip(v)}</span>` : ''}</div>`
+      : '',
+    v.nouvelle
+      ? `<div class="ha-nouv-wrap"><span class="ha-nouv" data-role="chip-nouvelle"><span class="ha-nouv-rais" aria-hidden="true"></span><span class="ha-nouv-t">${t('vit.nouvelle_vendeuse')}</span></span></div>`
+      : '',
+    '</div>',
+    '</div>',
+    '</div>',
+    // §7 — the trust strip.
+    '<div class="ha-trust" data-role="vitrine-trust">',
+    cell(iconShieldEnt(16, '#4E2C18', 2), t('vit.chip_sera'), t('vit.cell_sera_sub')),
+    cell(iconLockEnt(15, '#4E2C18', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
+    cell(iconTagEnt(15, '#4E2C18', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
+    '</div>',
+    controls(v, 'ha', 'right', '20px', '72px', '#4E2C18'),
+    '</div>',
+  ].join('');
+}
+
+/* ------------------------------------------- 8 · BALAFON (nuit de concert) -- */
+
+function balafon(v: Vals): string {
+  const cell = (icon: string, label: string, sub: string): string =>
+    `<div class="ba-cell"><span class="ba-cell-i">${icon}</span><span class="ba-cell-l">${label}</span><span class="ba-cell-s">${sub}</span></div>`;
+  const long = v.xlongName ? ' vt-ent-xlong' : v.longName ? ' vt-ent-long' : '';
+  return [
+    '<div class="vt-ent vt-ba" data-role="vitrine-hero">',
+    '<div class="ba-hero">',
+    '<div class="ba-scene">',
+    // §2/§3 — projecteurs croisés, touches + résonateurs, portée, bokeh (z0).
+    '<span class="ba-cone ba-cone-l" aria-hidden="true"></span>',
+    '<span class="ba-cone ba-cone-r" aria-hidden="true"></span>',
+    '<svg class="ba-portee" aria-hidden="true" viewBox="0 0 172 54" width="172" height="54"><path d="M2 8 H170 M2 19 H170 M2 30 H170 M2 41 H170 M2 52 H170" fill="none" stroke="#E6D7E8" stroke-width="1" stroke-dasharray="3 6"/><circle cx="52" cy="19" r="7" fill="#B886D9"/><path d="M59 19 V2" stroke="#B886D9" stroke-width="2"/><circle cx="118" cy="34" r="9" fill="#E8B476"/><path d="M127 34 V12" stroke="#E8B476" stroke-width="2"/></svg>',
+    '<span class="ba-reso ba-reso1" aria-hidden="true"></span>',
+    '<span class="ba-reso ba-reso2" aria-hidden="true"></span>',
+    '<span class="ba-reso ba-reso3" aria-hidden="true"></span>',
+    '<span class="ba-touche ba-touche1" aria-hidden="true"></span>',
+    '<span class="ba-touche ba-touche2" aria-hidden="true"></span>',
+    '<span class="ba-touche ba-touche3" aria-hidden="true"></span>',
+    '<span class="ba-bokeh" aria-hidden="true"></span>',
+    '<span class="ba-vignette" aria-hidden="true"></span>',
+    // §5 — the drum-ringed portrait, one resting note.
+    `<div class="ba-medaille">`,
+    `<div class="ba-frame" data-role="vitrine-cover" data-etat="${etatAvatar(v)}">`,
+    v.hasAvatar
+      ? avatarImg(v)
+      : `<div class="ba-frame-motif"><span class="ba-mono">${v.mono}</span></div>`,
+    '</div>',
+    '<svg class="ba-note" aria-hidden="true" viewBox="0 0 18 18" width="18" height="18"><circle cx="6" cy="13" r="4.5" fill="#E8B476"/><path d="M10.5 13 V2 L15 4" fill="none" stroke="#E8B476" stroke-width="2"/></svg>',
+    '</div>',
+    // §4 — the text column.
+    '<div class="ba-col" data-role="vitrine-identity">',
+    `<div class="ba-name${long}">${v.tail}</div>`,
+    `<div class="ba-bienv"><span class="ba-los" aria-hidden="true"></span>${t('vit.bienvenue')}<span class="ba-los" aria-hidden="true"></span></div>`,
+    `<div class="ba-verif">${iconPinEnt(13, '#B886D9', 2.2)}${verifieeBare()}</div>`,
+    `<div class="ba-zone"><v>${v.zone}</v></div>`,
+    v.showProof
+      ? `<div class="ba-proofrow"><span class="ba-proof" data-role="reputation">${ventesLine(v)}</span>${v.showStars ? `<span class="ba-stars" data-role="chip-avis">${iconStarEnt(11, '#E8B476')}${avisChip(v)}</span>` : ''}</div>`
+      : '',
+    v.nouvelle
+      ? `<div class="ba-nouv-wrap"><span class="ba-nouv" data-role="chip-nouvelle"><span class="ba-oeillet" aria-hidden="true"></span><span class="ba-nouv-t">${t('vit.nouvelle_vendeuse')}</span><span class="ba-oeillet" aria-hidden="true"></span></span></div>`
+      : '',
+    '</div>',
+    '</div>',
+    '</div>',
+    // §7 — the trust strip, wood-disc icons.
+    '<div class="ba-trust" data-role="vitrine-trust">',
+    cell(iconShieldEnt(16, '#160D18', 2), t('vit.chip_sera'), t('vit.cell_sera_sub')),
+    cell(iconLockEnt(15, '#160D18', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
+    cell(iconTagEnt(15, '#160D18', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
+    '</div>',
+    controls(v, 'ba', 'right', '20px', '72px', '#FFF4DD'),
+    '</div>',
+  ].join('');
+}
+
+/* ------------------------------------- 9 · SÉANCE (grand écran de Ouaga) -- */
+
+function seance(v: Vals): string {
+  const cell = (icon: string, label: string, sub: string): string =>
+    `<div class="se-cell"><span class="se-cell-i">${icon}</span><span class="se-cell-l">${label}</span><span class="se-cell-s">${sub}</span></div>`;
+  const long = v.xlongName ? ' vt-ent-xlong' : v.longName ? ' vt-ent-long' : '';
+  return [
+    '<div class="vt-ent vt-se" data-role="vitrine-hero">',
+    '<div class="se-hero">',
+    '<div class="se-scene">',
+    // §2/§3 — projecteur, contre-faisceau, poussière, bobine, skyline, étoiles.
+    '<span class="se-proj" aria-hidden="true"></span>',
+    '<span class="se-contre" aria-hidden="true"></span>',
+    '<span class="se-pouss" aria-hidden="true"></span>',
+    '<svg class="se-bobine" aria-hidden="true" viewBox="0 0 74 74" width="74" height="74"><circle cx="37" cy="37" r="35" fill="none" stroke="#B89AE8" stroke-width="1.5"/><circle cx="37" cy="37" r="8" fill="none" stroke="#B89AE8" stroke-width="1.5"/><circle cx="37" cy="16" r="6" fill="none" stroke="#B89AE8" stroke-width="1.5"/><circle cx="55" cy="48" r="6" fill="none" stroke="#B89AE8" stroke-width="1.5"/><circle cx="19" cy="48" r="6" fill="none" stroke="#B89AE8" stroke-width="1.5"/></svg>',
+    '<span class="se-skyline" aria-hidden="true"></span>',
+    '<span class="se-etoiles" aria-hidden="true"></span>',
+    '<span class="se-vignette" aria-hidden="true"></span>',
+    // §5 — the 35 mm frame: perforation columns, inner screen.
+    `<div class="se-frame" data-role="vitrine-cover" data-etat="${etatAvatar(v)}">`,
+    '<span class="se-perfo se-perfo-l" aria-hidden="true"></span>',
+    '<span class="se-perfo se-perfo-r" aria-hidden="true"></span>',
+    '<div class="se-photo">',
+    v.hasAvatar
+      ? avatarImg(v)
+      : `<div class="se-frame-motif"><span class="se-mono">${v.mono}</span></div>`,
+    '</div>',
+    '</div>',
+    // §4 — the text column, marquee row under the name.
+    '<div class="se-col" data-role="vitrine-identity">',
+    `<div class="se-name${long}">${v.tail}</div>`,
+    `<div class="se-bienv">${t('vit.bienvenue')}</div>`,
+    '<span class="se-ampoules" aria-hidden="true"></span>',
+    `<div class="se-verif">${iconPinEnt(13, '#B89AE8', 2.2)}${verifieeBare()}</div>`,
+    `<div class="se-zone"><v>${v.zone}</v></div>`,
+    v.showProof
+      ? `<div class="se-proofrow"><span class="se-proof" data-role="reputation">${ventesLine(v)}</span>${v.showStars ? `<span class="se-stars" data-role="chip-avis">${iconStarEnt(11, '#E8B84B')}${avisChip(v)}</span>` : ''}</div>`
+      : '',
+    v.nouvelle
+      ? `<div class="se-nouv-wrap"><span class="se-nouv" data-role="chip-nouvelle"><svg class="se-nouv-bob" aria-hidden="true" viewBox="0 0 14 14" width="14" height="14"><circle cx="7" cy="7" r="6" fill="none" stroke="#171226" stroke-width="1.5"/><circle cx="7" cy="7" r="1.8" fill="#171226"/></svg><span class="se-nouv-t">${t('vit.nouvelle_vendeuse')}</span></span></div>`
+      : '',
+    '</div>',
+    '</div>',
+    '</div>',
+    // §7 — the trust strip.
+    '<div class="se-trust" data-role="vitrine-trust">',
+    cell(iconShieldEnt(16, '#E8B84B', 2), t('vit.chip_sera'), t('vit.cell_sera_sub')),
+    cell(iconLockEnt(15, '#E8B84B', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
+    cell(iconTagEnt(15, '#E8B84B', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
+    '</div>',
+    controls(v, 'se', 'right', '20px', '72px', '#FFF9EC'),
+    '</div>',
+  ].join('');
+}
+
+/* ------------------------------- 10 · CAURIS (lagune & porte-bonheur) ----- */
+
+function cauris(v: Vals): string {
+  const cell = (icon: string, label: string, sub: string): string =>
+    `<div class="ca-cell"><span class="ca-cell-i">${icon}</span><span class="ca-cell-l">${label}</span><span class="ca-cell-s">${sub}</span></div>`;
+  const long = v.xlongName ? ' vt-ent-xlong' : v.longName ? ' vt-ent-long' : '';
+  const cauri = (cls: string): string =>
+    `<svg class="ca-cauri ${cls}" aria-hidden="true" viewBox="0 0 30 18" width="30" height="18"><ellipse cx="15" cy="9" rx="14" ry="8" fill="#FFF7E8"/><ellipse cx="15" cy="9" rx="14" ry="8" fill="none" stroke="#D8CCB7" stroke-width="1.5"/><line x1="6" y1="9" x2="24" y2="9" stroke="#8A7155" stroke-width="1.5" stroke-dasharray="2 2"/></svg>`;
+  // §6 — the MINIMAL badge is the handoff's two-line cauri: derived split.
+  const [cA = '', ...cB] = t('vit.nouvelle_vendeuse').split(' ');
+  return [
+    '<div class="vt-ent vt-ca" data-role="vitrine-hero">',
+    '<div class="ca-hero">',
+    '<div class="ca-scene">',
+    // §2/§3 — cauris, anneaux de vague, bulles, banc de sable, god-rays (z0).
+    '<span class="ca-ray ca-ray1" aria-hidden="true"></span>',
+    '<span class="ca-ray ca-ray2" aria-hidden="true"></span>',
+    '<span class="ca-ray ca-ray3" aria-hidden="true"></span>',
+    '<span class="ca-vagues" aria-hidden="true"></span>',
+    cauri('ca-cauri1'),
+    cauri('ca-cauri2'),
+    cauri('ca-cauri3'),
+    cauri('ca-cauri4'),
+    '<span class="ca-bulles" aria-hidden="true"></span>',
+    '<span class="ca-sable" aria-hidden="true"></span>',
+    '<span class="ca-vignette" aria-hidden="true"></span>',
+    // §5 — the cowrie-oval portrait.
+    `<div class="ca-frame" data-role="vitrine-cover" data-etat="${etatAvatar(v)}">`,
+    v.hasAvatar
+      ? avatarImg(v)
+      : `<div class="ca-frame-motif"><span class="ca-mono">${v.mono}</span></div>`,
+    '</div>',
+    '<span class="ca-frame-ring" aria-hidden="true"></span>',
+    // §4 — the text column.
+    '<div class="ca-col" data-role="vitrine-identity">',
+    `<div class="ca-name${long}">${v.tail}</div>`,
+    `<div class="ca-bienv">${t('vit.bienvenue')}<span class="ca-pinceau" aria-hidden="true"></span></div>`,
+    `<div class="ca-verif">${iconPinEnt(13, '#D9B87A', 2.2)}${verifieeBare()}</div>`,
+    `<div class="ca-zone"><v>${v.zone}</v></div>`,
+    v.showProof
+      ? `<div class="ca-proofrow"><span class="ca-proof" data-role="reputation">${ventesLine(v)}</span>${v.showStars ? `<span class="ca-stars" data-role="chip-avis">${iconStarEnt(11, '#D9B87A')}${avisChip(v)}</span>` : ''}</div>`
+      : '',
+    v.nouvelle
+      ? `<div class="ca-nouv-wrap"><span class="ca-nouv" data-role="chip-nouvelle"><span class="ca-nouv-fente" aria-hidden="true"></span><span class="ca-nouv-t"><v>${cA}</v><br><v>${cB.join(' ')}</v></span></span></div>`
+      : '',
+    '</div>',
+    '</div>',
+    '</div>',
+    // §7 — the trust strip.
+    '<div class="ca-trust" data-role="vitrine-trust">',
+    cell(iconShieldEnt(16, '#0E3E36', 2), t('vit.chip_sera'), t('vit.cell_sera_sub')),
+    cell(iconLockEnt(15, '#0E3E36', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
+    cell(iconTagEnt(15, '#0E3E36', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
+    '</div>',
+    controls(v, 'ca', 'right', '20px', '72px', '#145248'),
+    '</div>',
+  ].join('');
+}
+
 /* -------------------------------------------------------------- dispatch -- */
 
 /**
  * ONE header unit. `'classique'` delegates to the existing hero + trust chips
  * so its bytes are unchanged (the empty screen renders the hero alone, exactly
- * as it does today); each of the five renders its own self-contained block.
- * ENTETES-E0 (founder-authorized 2026-07-30) — a key the renderer has no unit
- * for yet (the Beurni Boss five: masque · harmattan · balafon · seance ·
- * cauris, render units landing in E1/E2) falls back to classique EXPLICITLY:
- * the switch must never fall through and hand `undefined` to the page.
+ * as it does today); each of the ten renders its own self-contained block.
+ * ENTETES-E — the Beurni Boss five have their real units now (the E0 fallback
+ * for them is retired); the explicit default REMAINS for any future canon key
+ * whose unit has not landed: the switch must never fall through and hand
+ * `undefined` to the page.
  */
 export function renderEntete(
   key: EnteteKey,
@@ -523,10 +891,19 @@ export function renderEntete(
       return cristal(v);
     case 'dynamique':
       return dynamique(v);
+    case 'masque':
+      return masque(v);
+    case 'harmattan':
+      return harmattan(v);
+    case 'balafon':
+      return balafon(v);
+    case 'seance':
+      return seance(v);
+    case 'cauris':
+      return cauris(v);
     default:
-      // ENTETES-E0 — the wire may run ahead of the renderer (a canon key whose
-      // unit is not built yet). Her shop renders the shipped default header
-      // rather than crashing or emitting nothing.
+      // A canon key whose unit is not built yet renders the shipped default
+      // header rather than crashing or emitting nothing (the ENTETES-E0 law).
       return renderEntete('classique', sf, trust, opts, floatBar);
   }
 }
@@ -1070,4 +1447,597 @@ export const ENTETES_STYLES = `
   .vt-ry .vt-ent-btn { top: 74px; }
   .vt-ch .vt-ent-btn { top: 82px; }
   .vt-dy .vt-ent-btn { top: 70px; }
+
+  /* ═══════════════ ENTETES-E · the Beurni Boss five ═══════════════
+     Handoff Part B shared rules. The anti-orphan tail (nowrap, nbsp joint —
+     the deterministic discipline this repo uses instead of soft wrapping
+     heuristics), decorative layers never intercept taps, hero + trust strip
+     full-bleed with NO app bar (CTO adaptation, journalled). Each style is
+     its own scoped block below; z-order everywhere: decor 0 · vignette ·
+     photo · text (DOM order carries it), controls 6. */
+  .vt-ent .vt-ent-tail { display: inline-block; white-space: nowrap; }
+  .vt-ent [aria-hidden="true"] { pointer-events: none; }
+
+  /* ══════════════════════ 6 · MASQUE ══════════════════════ */
+  .vt-ma { background: #141414; }
+  .vt-ma .ma-hero {
+    position: relative; overflow: hidden;
+    margin-top: -60px; padding-top: 60px;
+    background-color: #EFE9DC;
+    background-image:
+      linear-gradient(112deg, transparent 0 25%, rgba(255,255,255,.32) 42%, rgba(255,255,255,.08) 63%, transparent 78%),
+      linear-gradient(90deg, rgba(20,20,20,.08), transparent 32%, transparent 70%, rgba(20,20,20,.11));
+  }
+  .vt-ma .ma-scene { position: relative; height: 246px; }
+  .vt-ma .ma-cible {
+    position: absolute; top: 22px; left: 96px; width: 64px; height: 64px; border-radius: 50%;
+    background: repeating-radial-gradient(circle, transparent 0 6px, #141414 6px 10px);
+    opacity: .12;
+  }
+  .vt-ma .ma-chevrons { position: absolute; right: -8px; top: 84px; }
+  .vt-ma .ma-planche { position: absolute; left: 204px; top: 18px; width: 74px; height: 206px; background: #141414; opacity: .075; border-radius: 37px 37px 8px 8px; }
+  .vt-ma .ma-bande { position: absolute; top: -20px; bottom: -20px; width: 58px; background: rgba(20,20,20,.08); transform: rotate(-11deg); }
+  .vt-ma .ma-bande1 { left: 142px; }
+  .vt-ma .ma-bande2 { left: 244px; }
+  .vt-ma .ma-vignette { position: absolute; inset: 0; box-shadow: inset 0 0 42px rgba(20,20,20,.12); }
+  .vt-ma .ma-frame {
+    position: absolute; right: 12px; top: 20px; width: 144px; height: 206px;
+    border: 2px solid #141414; background: #EFE9DC; padding: 5px;
+    box-shadow: 8px 10px 0 rgba(20,20,20,.10);
+  }
+  .vt-ma .ma-photo { position: relative; width: 100%; height: 100%; border: 2px solid #141414; overflow: hidden; }
+  .vt-ma .ma-photo .vt-avatar-img { position: absolute; inset: 0; object-position: 50% 26%; border-radius: 0; }
+  .vt-ma .ma-damier {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 18px;
+    background: conic-gradient(#141414 90deg, #EFE9DC 90deg 180deg, #141414 180deg 270deg, #EFE9DC 270deg);
+    background-size: 28px 28px;
+  }
+  .vt-ma .ma-frame-motif {
+    position: absolute; inset: 0; background-color: #EFE9DC;
+    background-image: repeating-linear-gradient(0deg, rgba(20,20,20,.06) 0 2px, transparent 2px 14px);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .vt-ma .ma-motif-cible {
+    position: absolute; top: 10px; left: 10px; width: 30px; height: 30px; border-radius: 50%;
+    background: repeating-radial-gradient(circle, transparent 0 4px, #C8332A 4px 6px);
+  }
+  .vt-ma .ma-mono { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; font-size: 64px; color: #141414; }
+  .vt-ma .ma-col { position: relative; width: calc(100% - 168px); min-height: 206px; padding: 6px 0 10px 16px; }
+  .vt-ma .ma-bienv { margin-top: 3px; display: inline-flex; flex-direction: column; gap: 2px; font-family: 'Caveat', 'Segoe Script', cursive; font-weight: 700; font-size: 26px; line-height: 1; color: #141414; }
+  .vt-ma .ma-name {
+    margin-top: 0; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800;
+    line-height: .88; letter-spacing: -.025em; font-size: clamp(38px, 13.8cqw, 52px);
+    color: #141414; overflow-wrap: normal; hyphens: none;
+  }
+  .vt-ma .ma-name .vt-ent-acc { color: #C8332A; }
+  .vt-ma .ma-name.vt-ent-long { font-size: 38px; }
+  .vt-ma .ma-name.vt-ent-xlong { font-size: 21px; }
+  .vt-ma .ma-verif { margin-top: 5px; font-size: 12px; font-weight: 600; line-height: 15px; color: #5A554D; }
+  .vt-ma .ma-verif svg { vertical-align: -2px; margin-right: 4px; }
+  .vt-ma .ma-zone { margin-top: 1px; font-size: 13px; font-weight: 600; line-height: 17px; color: #5A554D; }
+  .vt-ma .ma-proofrow { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  .vt-ma .ma-proof {
+    display: inline-flex; align-items: center; min-height: 34px; min-width: 138px; max-width: 100%;
+    padding: 5px 12px; background: #141414; border: 1px solid #141414; border-radius: 2px;
+    box-shadow: 3px 3px 0 #C8332A; color: #EFE9DC; font-size: 11.5px; line-height: 14px;
+  }
+  .vt-ma .ma-proof b { font-weight: 700; margin-right: 4px; }
+  .vt-ma .ma-stars {
+    display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 3px 10px;
+    background: #EFE9DC; border: 1px solid #141414; border-radius: 2px; white-space: nowrap;
+  }
+  .vt-ma .ma-stars span { font-size: 11.5px; font-weight: 600; color: #141414; }
+  .vt-ma .ma-nouv-wrap { margin-top: 8px; }
+  .vt-ma .ma-nouv {
+    display: inline-flex; align-items: center; gap: 4px; min-height: 32px; min-width: 132px;
+    padding: 6px 14px; background: #141414; border-radius: 0; box-shadow: 3px 3px 0 #C8332A;
+    transform: rotate(-1.5deg); color: #FFFFFF; font-size: 12px; font-weight: 700; line-height: 14px;
+    text-transform: uppercase; letter-spacing: .02em; white-space: nowrap;
+  }
+  .vt-ma .ma-nouv-acc { color: #C8332A; }
+  .vt-ma .ma-frise {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 8px;
+    background: repeating-linear-gradient(90deg, #141414 0 8px, #C8332A 8px 16px);
+  }
+  .vt-ma .ma-trust { position: relative; height: 74px; background: #141414; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; padding: 0 12px; }
+  .vt-ma .ma-cell { height: 100%; padding: 0 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
+  .vt-ma .ma-cell + .ma-cell { border-left: 1px solid rgba(239,233,220,.28); }
+  .vt-ma .ma-cell-i { width: 30px; height: 30px; flex: none; border-radius: 50%; background: #EFE9DC; border: 2px solid #C8332A; display: flex; align-items: center; justify-content: center; }
+  .vt-ma .ma-cell-l { font-size: 10.5px; font-weight: 700; line-height: 1.2; color: #EFE9DC; }
+  .vt-ma .ma-cell-s { font-size: 8.5px; line-height: 1.24; color: rgba(239,233,220,.72); }
+  .vt-ma .ma-btn { background: #EFE9DC; border: 2px solid #C8332A; }
+  .vt-ma .vt-ent-btn { top: 84px; }
+  .vt-ma .vt-ent-back { right: 20px; }
+
+  /* ══════════════════════ 7 · HARMATTAN ══════════════════════ */
+  .vt-ha { background: #4E2C18; }
+  .vt-ha .ha-hero {
+    position: relative; overflow: hidden;
+    margin-top: -60px; padding-top: 60px;
+    background-color: #EEB26F;
+    background-image:
+      radial-gradient(circle at 72% 18%, rgba(255,247,234,.95) 0 8%, rgba(255,231,168,.52) 26%, transparent 56%),
+      linear-gradient(18deg, transparent 22%, rgba(255,247,234,.20) 43%, transparent 67%),
+      radial-gradient(circle, rgba(255,244,215,.35) 1px, transparent 1.6px),
+      linear-gradient(180deg, #F7D6A6 0%, #EEB26F 44%, #DE8A52 100%);
+    background-size: auto, auto, 17px 17px, auto;
+  }
+  .vt-ha .ha-scene { position: relative; height: 246px; }
+  .vt-ha .ha-soleil { position: absolute; right: 42px; top: 22px; width: 112px; height: 112px; border-radius: 50%; background: #FFE7A8; border: 2px solid rgba(255,247,234,.85); }
+  .vt-ha .ha-dune { position: absolute; border-radius: 50%; }
+  .vt-ha .ha-dune1 { left: -28px; bottom: -42px; width: 230px; height: 74px; background: #D98547; }
+  .vt-ha .ha-dune2 { right: -52px; bottom: -54px; width: 260px; height: 90px; background: #C86F3D; }
+  .vt-ha .ha-vent { position: absolute; left: -8px; top: 112px; opacity: .5; }
+  .vt-ha .ha-acacia1 { position: absolute; left: 4px; bottom: 20px; opacity: .32; }
+  .vt-ha .ha-acacia2 { position: absolute; right: 10px; bottom: 34px; opacity: .32; }
+  .vt-ha .ha-calaos { position: absolute; right: 18px; top: 58px; opacity: .8; }
+  .vt-ha .ha-bokeh {
+    position: absolute; inset: 0;
+    background-image:
+      radial-gradient(circle 3px at 58% 6%, rgba(255,247,234,.20) 98%, transparent),
+      radial-gradient(circle 5px at 66% 14%, rgba(255,247,234,.22) 98%, transparent),
+      radial-gradient(circle 9px at 84% 8%, rgba(255,247,234,.18) 98%, transparent),
+      radial-gradient(circle 4px at 92% 26%, rgba(255,247,234,.26) 98%, transparent),
+      radial-gradient(circle 6px at 88% 44%, rgba(255,247,234,.16) 98%, transparent),
+      radial-gradient(circle 3px at 94% 64%, rgba(255,247,234,.20) 98%, transparent),
+      radial-gradient(circle 4px at 78% 86%, rgba(255,247,234,.14) 98%, transparent),
+      radial-gradient(circle 7px at 60% 90%, rgba(255,247,234,.10) 98%, transparent),
+      radial-gradient(circle 5px at 70% 78%, rgba(255,247,234,.12) 98%, transparent),
+      radial-gradient(circle 2px at 50% 4%, rgba(255,247,234,.20) 98%, transparent),
+      radial-gradient(circle 6px at 96% 10%, rgba(255,247,234,.24) 98%, transparent),
+      radial-gradient(circle 5px at 90% 80%, rgba(255,247,234,.12) 98%, transparent),
+      radial-gradient(circle 2px at 64% 30%, rgba(255,247,234,.28) 98%, transparent),
+      radial-gradient(circle 4px at 82% 60%, rgba(255,247,234,.18) 98%, transparent);
+  }
+  .vt-ha .ha-vignette { position: absolute; inset: 0; box-shadow: inset 0 0 52px rgba(92,48,23,.18); }
+  .vt-ha .ha-frame {
+    position: absolute; right: 18px; top: 18px; width: 132px; height: 132px; border-radius: 50%;
+    overflow: hidden; border: 2px solid rgba(255,247,234,.88);
+    box-shadow: 0 0 0 8px rgba(255,231,168,.24), 0 0 28px rgba(255,231,168,.54);
+  }
+  .vt-ha .ha-frame .vt-avatar-img { position: absolute; inset: 0; object-position: 50% 24%; }
+  .vt-ha .ha-frame-motif {
+    position: absolute; inset: 0;
+    background: radial-gradient(120% 120% at 34% 24%, #F3C98F 0%, #D98547 78%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .vt-ha .ha-mono { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700; font-size: 56px; color: #4E2C18; }
+  .vt-ha .ha-col { position: relative; width: calc(100% - 154px); min-height: 210px; padding: 6px 0 10px 16px; }
+  .vt-ha .ha-bienv { margin-top: 3px; display: inline-flex; flex-direction: column; gap: 3px; font-family: 'Fraunces', Georgia, serif; font-style: italic; font-weight: 600; font-size: 24px; line-height: 1; color: #A94F24; }
+  .vt-ha .ha-name {
+    margin-top: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700;
+    line-height: .86; letter-spacing: -.035em; font-size: clamp(36px, 13.2cqw, 50px);
+    color: #4E2C18; overflow-wrap: normal; hyphens: none;
+  }
+  .vt-ha .ha-name .vt-ent-acc { color: #FFF7EA; text-shadow: 0 2px 14px rgba(78,44,24,.28); }
+  .vt-ha .ha-name.vt-ent-long { font-size: 38px; }
+  .vt-ha .ha-name.vt-ent-xlong { font-size: 25px; }
+  .vt-ha .ha-verif { margin-top: 5px; font-size: 12px; font-weight: 600; line-height: 15px; color: #6A432C; }
+  .vt-ha .ha-verif svg { vertical-align: -2px; margin-right: 4px; }
+  .vt-ha .ha-zone { margin-top: 1px; font-size: 13px; font-weight: 600; line-height: 17px; color: #6A432C; }
+  .vt-ha .ha-proofrow { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  .vt-ha .ha-proof {
+    display: inline-flex; align-items: center; min-height: 38px; min-width: 150px; max-width: 100%;
+    padding: 6px 14px; background: rgba(255,247,234,.78); border: 1px solid rgba(78,44,24,.22);
+    border-radius: 19px; box-shadow: 0 8px 18px rgba(78,44,24,.12);
+    color: #4E2C18; font-size: 11.5px; line-height: 14px;
+  }
+  .vt-ha .ha-proof b { font-weight: 700; margin-right: 4px; }
+  .vt-ha .ha-stars {
+    display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 3px 11px;
+    background: rgba(78,44,24,.88); border-radius: 13px; white-space: nowrap;
+  }
+  .vt-ha .ha-stars span { font-size: 11.5px; font-weight: 600; color: #FFF7EA; }
+  .vt-ha .ha-nouv-wrap { margin-top: 4px; }
+  .vt-ha .ha-nouv {
+    position: relative; display: inline-flex; align-items: center; justify-content: center;
+    width: 76px; height: 76px; border-radius: 50%; border: 2px dashed #D96F24;
+    background: rgba(255,231,168,.76); transform: rotate(2deg); text-align: center;
+  }
+  .vt-ha .ha-nouv-rais {
+    position: absolute; inset: -7px; border-radius: 50%;
+    background: repeating-conic-gradient(#D96F24 0deg 5deg, transparent 5deg 30deg);
+    -webkit-mask: radial-gradient(circle, transparent 0 56%, #000 57%);
+    mask: radial-gradient(circle, transparent 0 56%, #000 57%);
+  }
+  .vt-ha .ha-nouv-t { font-size: 11px; font-weight: 700; line-height: 1.25; color: #A94F24; padding: 0 6px; }
+  .vt-ha .ha-trust { position: relative; height: 74px; background: #4E2C18; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; padding: 0 12px; }
+  .vt-ha .ha-cell { height: 100%; padding: 0 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
+  .vt-ha .ha-cell + .ha-cell { border-left: 1px solid rgba(247,214,166,.28); }
+  .vt-ha .ha-cell-i { width: 30px; height: 30px; flex: none; border-radius: 50%; background: #F7D6A6; border: 1px solid rgba(255,231,168,.60); display: flex; align-items: center; justify-content: center; }
+  .vt-ha .ha-cell-l { font-size: 10.5px; font-weight: 700; line-height: 1.2; color: #FFF7EA; }
+  .vt-ha .ha-cell-s { font-size: 8.5px; line-height: 1.24; color: rgba(247,214,166,.72); }
+  .vt-ha .ha-btn { background: rgba(255,247,234,.85); border: 1px solid rgba(78,44,24,.25); }
+  .vt-ha .vt-ent-btn { top: 80px; }
+  .vt-ha .vt-ent-back { right: 20px; }
+
+  /* ══════════════════════ 8 · BALAFON ══════════════════════ */
+  .vt-ba { background: #160D18; }
+  .vt-ba .ba-hero {
+    position: relative; overflow: hidden;
+    margin-top: -60px; padding-top: 60px;
+    background-color: #211223;
+    background-image:
+      radial-gradient(ellipse at 50% 100%, rgba(232,180,118,.28), transparent 62%),
+      linear-gradient(180deg, #2E1B2E 0%, #211223 56%, #160D18 100%);
+  }
+  .vt-ba .ba-scene { position: relative; height: 248px; }
+  .vt-ba .ba-cone { position: absolute; top: -60px; width: 90px; height: 200px; clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%); }
+  .vt-ba .ba-cone-l { left: 22px; transform: rotate(18deg); background: linear-gradient(180deg, rgba(184,134,217,.28), transparent 85%); }
+  .vt-ba .ba-cone-r { right: 8px; transform: rotate(-18deg); background: linear-gradient(180deg, rgba(232,180,118,.30), transparent 85%); }
+  .vt-ba .ba-portee { position: absolute; left: 14px; bottom: 66px; opacity: .8; }
+  .vt-ba .ba-reso { position: absolute; bottom: -30px; width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(232,180,118,.55); }
+  .vt-ba .ba-reso1 { left: 24px; }
+  .vt-ba .ba-reso2 { left: 120px; }
+  .vt-ba .ba-reso3 { left: 216px; }
+  .vt-ba .ba-touche { position: absolute; bottom: 2px; width: 92px; height: 26px; border-radius: 9px; background: linear-gradient(180deg, #E8B476, #C98A3B); box-shadow: inset 0 1px 0 rgba(255,244,221,.55), 0 5px 0 #8F5D2B; }
+  .vt-ba .ba-touche1 { left: 8px; transform: rotate(-1deg); }
+  .vt-ba .ba-touche2 { left: 104px; }
+  .vt-ba .ba-touche3 { left: 200px; transform: rotate(1deg); }
+  .vt-ba .ba-bokeh {
+    position: absolute; inset: 0;
+    background-image:
+      radial-gradient(circle 4px at 8% 6%, rgba(184,134,217,.20) 98%, transparent),
+      radial-gradient(circle 6px at 20% 12%, rgba(232,180,118,.16) 98%, transparent),
+      radial-gradient(circle 3px at 34% 5%, rgba(255,244,221,.22) 98%, transparent),
+      radial-gradient(circle 8px at 48% 10%, rgba(184,134,217,.10) 98%, transparent),
+      radial-gradient(circle 4px at 60% 4%, rgba(232,180,118,.24) 98%, transparent),
+      radial-gradient(circle 5px at 72% 14%, rgba(184,134,217,.14) 98%, transparent),
+      radial-gradient(circle 9px at 88% 8%, rgba(232,180,118,.08) 98%, transparent),
+      radial-gradient(circle 3px at 94% 22%, rgba(255,244,221,.18) 98%, transparent),
+      radial-gradient(circle 5px at 90% 40%, rgba(184,134,217,.12) 98%, transparent),
+      radial-gradient(circle 4px at 96% 58%, rgba(232,180,118,.16) 98%, transparent),
+      radial-gradient(circle 6px at 86% 70%, rgba(184,134,217,.10) 98%, transparent),
+      radial-gradient(circle 3px at 92% 84%, rgba(255,244,221,.14) 98%, transparent);
+  }
+  .vt-ba .ba-vignette { position: absolute; inset: 0; box-shadow: inset 0 0 54px rgba(9,4,10,.24); }
+  .vt-ba .ba-medaille { position: absolute; right: 16px; top: 34px; width: 126px; height: 126px; }
+  .vt-ba .ba-frame {
+    position: absolute; inset: 0; border-radius: 50%; overflow: hidden;
+    border: 4px solid #E8B476;
+    box-shadow: 0 0 0 4px #2E1B2E, 0 0 0 6px #B886D9, 0 0 24px rgba(184,134,217,.22);
+  }
+  .vt-ba .ba-frame .vt-avatar-img { position: absolute; inset: 0; object-position: 50% 24%; }
+  .vt-ba .ba-frame-motif {
+    position: absolute; inset: 0;
+    background: radial-gradient(120% 120% at 32% 24%, #3C2440 0%, #211223 78%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .vt-ba .ba-mono { font-family: 'Sora', 'Instrument Sans', sans-serif; font-weight: 800; font-size: 52px; color: #E8B476; }
+  .vt-ba .ba-note { position: absolute; right: -4px; top: 16px; }
+  .vt-ba .ba-col { position: relative; width: calc(100% - 150px); min-height: 200px; padding: 6px 0 10px 16px; }
+  .vt-ba .ba-bienv { margin-top: 3px; display: inline-flex; align-items: center; gap: 8px; font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-weight: 600; font-size: 25px; line-height: 1; color: #B886D9; }
+  .vt-ba .ba-los { width: 6px; height: 6px; flex: none; background: #B886D9; transform: rotate(45deg); }
+  .vt-ba .ba-name {
+    margin-top: 0; font-family: 'Sora', 'Instrument Sans', sans-serif; font-weight: 800;
+    line-height: .90; letter-spacing: -.045em; font-size: clamp(34px, 12.8cqw, 48px);
+    color: #FFF4DD; overflow-wrap: normal; hyphens: none;
+  }
+  .vt-ba .ba-name .vt-ent-acc { color: #E8B476; }
+  .vt-ba .ba-name.vt-ent-long { font-size: 36px; }
+  .vt-ba .ba-name.vt-ent-xlong { font-size: 22px; }
+  .vt-ba .ba-verif { margin-top: 5px; font-size: 12px; font-weight: 600; line-height: 15px; color: #D3C3D7; }
+  .vt-ba .ba-verif svg { vertical-align: -2px; margin-right: 4px; }
+  .vt-ba .ba-zone { margin-top: 1px; font-size: 13px; font-weight: 600; line-height: 17px; color: #D3C3D7; }
+  .vt-ba .ba-proofrow { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  .vt-ba .ba-proof {
+    display: inline-flex; align-items: center; min-height: 40px; min-width: 152px; max-width: 100%;
+    padding: 6px 14px; background: rgba(22,13,24,.78); border: 1px solid rgba(232,180,118,.55);
+    border-radius: 20px; box-shadow: 0 10px 20px rgba(9,4,10,.22);
+    color: #FFF4DD; font-size: 11.5px; line-height: 14px;
+  }
+  .vt-ba .ba-proof b { font-weight: 700; color: #E8B476; margin-right: 4px; }
+  .vt-ba .ba-stars {
+    display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 3px 11px;
+    background: #56375F; border-radius: 13px; white-space: nowrap;
+  }
+  .vt-ba .ba-stars span { font-size: 11.5px; font-weight: 600; color: #FFF4DD; }
+  .vt-ba .ba-nouv-wrap { margin-top: 8px; }
+  .vt-ba .ba-nouv {
+    display: inline-flex; align-items: center; gap: 8px; min-width: 124px; min-height: 34px;
+    padding: 6px 12px; border-radius: 10px; background: linear-gradient(180deg, #E8B476, #C98A3B);
+    box-shadow: inset 0 1px 0 rgba(255,244,221,.55), 0 4px 0 #8F5D2B;
+    transform: rotate(-3deg); white-space: nowrap;
+  }
+  .vt-ba .ba-oeillet { width: 5px; height: 5px; flex: none; border-radius: 50%; background: #2E1B2E; }
+  .vt-ba .ba-nouv-t { font-size: 12px; font-weight: 700; line-height: 14px; color: #2E1B2E; }
+  .vt-ba .ba-trust { position: relative; height: 72px; background: #160D18; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; padding: 0 12px; }
+  .vt-ba .ba-cell { height: 100%; padding: 0 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
+  .vt-ba .ba-cell + .ba-cell { border-left: 1px solid rgba(184,134,217,.28); }
+  .vt-ba .ba-cell-i { width: 30px; height: 30px; flex: none; border-radius: 50%; background: radial-gradient(circle, #E8B476 0 34%, #C98A3B 35% 70%, #6E431F 71%); display: flex; align-items: center; justify-content: center; }
+  .vt-ba .ba-cell-l { font-size: 10.5px; font-weight: 700; line-height: 1.2; color: #FFF4DD; }
+  .vt-ba .ba-cell-s { font-size: 8.5px; line-height: 1.24; color: rgba(232,215,232,.70); }
+  .vt-ba .ba-btn { background: rgba(22,13,24,.6); border: 1px solid rgba(232,180,118,.55); }
+  .vt-ba .vt-ent-btn { top: 70px; }
+  .vt-ba .vt-ent-back { right: 20px; }
+
+  /* ══════════════════════ 9 · SÉANCE ══════════════════════ */
+  .vt-se { background: #0D0916; }
+  .vt-se .se-hero {
+    position: relative; overflow: hidden;
+    margin-top: -60px; padding-top: 60px;
+    background-color: #100B1D;
+    background-image:
+      radial-gradient(circle, rgba(255,255,255,.05) 1px, transparent 1.4px),
+      linear-gradient(180deg, #171226 0%, #100B1D 65%, #0D0916 100%);
+    background-size: 9px 9px, auto;
+  }
+  .vt-se .se-scene { position: relative; height: 246px; }
+  .vt-se .se-proj {
+    position: absolute; left: -48px; top: 18px; width: 230px; height: 170px;
+    transform: rotate(10deg); clip-path: polygon(0 42%, 100% 0, 100% 100%, 0 58%);
+    background: linear-gradient(90deg, rgba(232,184,75,.52), rgba(232,184,75,.08));
+  }
+  .vt-se .se-contre {
+    position: absolute; right: -20px; top: 4px; width: 160px; height: 120px;
+    transform: rotate(-15deg); clip-path: polygon(100% 40%, 0 0, 0 100%, 100% 60%);
+    background: linear-gradient(270deg, rgba(184,154,232,.18), transparent 85%);
+  }
+  .vt-se .se-pouss {
+    position: absolute; left: -30px; top: 30px; width: 220px; height: 140px; transform: rotate(10deg);
+    background-image:
+      radial-gradient(circle 1.5px at 10% 30%, rgba(255,249,236,.32) 98%, transparent),
+      radial-gradient(circle 1px at 22% 55%, rgba(255,249,236,.22) 98%, transparent),
+      radial-gradient(circle 2px at 30% 40%, rgba(255,249,236,.18) 98%, transparent),
+      radial-gradient(circle 1px at 42% 62%, rgba(255,249,236,.28) 98%, transparent),
+      radial-gradient(circle 1.5px at 55% 45%, rgba(255,249,236,.24) 98%, transparent),
+      radial-gradient(circle 1px at 66% 58%, rgba(255,249,236,.16) 98%, transparent),
+      radial-gradient(circle 2px at 74% 48%, rgba(255,249,236,.20) 98%, transparent),
+      radial-gradient(circle 1px at 84% 52%, rgba(255,249,236,.12) 98%, transparent),
+      radial-gradient(circle 1.5px at 16% 44%, rgba(255,249,236,.26) 98%, transparent),
+      radial-gradient(circle 1px at 36% 50%, rgba(255,249,236,.14) 98%, transparent),
+      radial-gradient(circle 1px at 50% 36%, rgba(255,249,236,.22) 98%, transparent),
+      radial-gradient(circle 1.5px at 62% 40%, rgba(255,249,236,.18) 98%, transparent),
+      radial-gradient(circle 1px at 70% 60%, rgba(255,249,236,.26) 98%, transparent),
+      radial-gradient(circle 1px at 80% 42%, rgba(255,249,236,.16) 98%, transparent),
+      radial-gradient(circle 2px at 90% 55%, rgba(255,249,236,.12) 98%, transparent),
+      radial-gradient(circle 1px at 6% 52%, rgba(255,249,236,.20) 98%, transparent),
+      radial-gradient(circle 1px at 26% 34%, rgba(255,249,236,.24) 98%, transparent),
+      radial-gradient(circle 1.5px at 46% 56%, rgba(255,249,236,.14) 98%, transparent),
+      radial-gradient(circle 1px at 58% 62%, rgba(255,249,236,.18) 98%, transparent),
+      radial-gradient(circle 1px at 88% 38%, rgba(255,249,236,.22) 98%, transparent);
+  }
+  .vt-se .se-bobine { position: absolute; right: -12px; top: 8px; opacity: .12; }
+  .vt-se .se-skyline {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 28px; background: #0A0710;
+    clip-path: polygon(0 100%, 0 55%, 6% 55%, 6% 30%, 11% 30%, 11% 60%, 18% 60%, 18% 20%, 24% 20%, 24% 55%, 32% 55%, 32% 38%, 38% 38%, 38% 70%, 46% 70%, 46% 45%, 53% 45%, 53% 25%, 59% 25%, 59% 60%, 66% 60%, 66% 35%, 73% 35%, 73% 65%, 80% 65%, 80% 42%, 87% 42%, 87% 58%, 93% 58%, 93% 30%, 100% 30%, 100% 100%);
+  }
+  .vt-se .se-etoiles {
+    position: absolute; inset: 0;
+    background-image:
+      radial-gradient(circle 2px at 8% 10%, rgba(255,249,236,.8) 98%, transparent),
+      radial-gradient(circle 1.5px at 46% 6%, rgba(255,249,236,.6) 98%, transparent),
+      radial-gradient(circle 2.5px at 90% 74%, rgba(255,249,236,.5) 98%, transparent);
+  }
+  .vt-se .se-vignette { position: absolute; inset: 0; box-shadow: inset 0 0 60px rgba(0,0,0,.26); }
+  .vt-se .se-frame {
+    position: absolute; right: 12px; top: 18px; width: 142px; height: 206px;
+    background: #110D18; box-shadow: 0 14px 28px rgba(0,0,0,.28);
+  }
+  .vt-se .se-perfo { position: absolute; top: 6px; bottom: 6px; width: 7px; background: repeating-linear-gradient(180deg, #F4F0E8 0 10px, transparent 10px 16px); }
+  .vt-se .se-perfo-l { left: 1.5px; }
+  .vt-se .se-perfo-r { right: 1.5px; }
+  .vt-se .se-photo { position: absolute; inset: 8px 15px; overflow: hidden; border: 1px solid rgba(255,249,236,.20); }
+  .vt-se .se-photo .vt-avatar-img { position: absolute; inset: 0; object-position: 50% 24%; border-radius: 0; }
+  .vt-se .se-frame-motif {
+    position: absolute; inset: 0; background-color: #FFF9EC;
+    background-image: radial-gradient(circle, rgba(23,18,38,.06) 1px, transparent 1.4px);
+    background-size: 9px 9px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .vt-se .se-mono { font-family: 'Archivo', system-ui, sans-serif; font-weight: 900; font-size: 64px; color: #E8B84B; }
+  .vt-se .se-col { position: relative; width: calc(100% - 166px); min-height: 206px; padding: 6px 0 10px 16px; }
+  .vt-se .se-bienv { margin-top: 3px; font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-weight: 600; font-size: 25px; line-height: 1; color: #B89AE8; }
+  .vt-se .se-name {
+    margin-top: 0; font-family: 'Archivo', system-ui, sans-serif; font-weight: 900;
+    line-height: .90; letter-spacing: -.045em; font-size: clamp(34px, 12.4cqw, 46px);
+    color: #FFF9EC; overflow-wrap: normal; hyphens: none;
+  }
+  .vt-se .se-name .vt-ent-acc { color: #E8B84B; text-shadow: 0 0 10px rgba(232,184,75,.32); }
+  .vt-se .se-name.vt-ent-long { font-size: 35px; }
+  .vt-se .se-name.vt-ent-xlong { font-size: 19px; }
+  .vt-se .se-ampoules {
+    display: block; margin-top: 4px; width: 138px; height: 8px;
+    background-image: radial-gradient(circle 4px at 4px 4px, #E8B84B 2.6px, rgba(232,184,75,.35) 3px, transparent 4px);
+    background-size: 18px 8px; background-repeat: repeat-x;
+  }
+  .vt-se .se-verif { margin-top: 5px; font-size: 12px; font-weight: 600; line-height: 15px; color: #C8BCD8; }
+  .vt-se .se-verif svg { vertical-align: -2px; margin-right: 4px; }
+  .vt-se .se-zone { margin-top: 1px; font-size: 13px; font-weight: 600; line-height: 17px; color: #C8BCD8; }
+  .vt-se .se-proofrow { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  .vt-se .se-proof {
+    display: inline-flex; align-items: center; min-height: 38px; min-width: 146px; max-width: 100%;
+    padding: 6px 16px; background: #B89AE8; border: 1px solid rgba(255,255,255,.25);
+    border-radius: 3px; color: #171226; font-size: 11.5px; line-height: 14px;
+    -webkit-mask: radial-gradient(circle 5px at 0 50%, transparent 5px, #000 5.5px), radial-gradient(circle 5px at 100% 50%, transparent 5px, #000 5.5px);
+    -webkit-mask-composite: source-in;
+    mask: radial-gradient(circle 5px at 0 50%, transparent 5px, #000 5.5px), radial-gradient(circle 5px at 100% 50%, transparent 5px, #000 5.5px);
+    mask-composite: intersect;
+  }
+  .vt-se .se-proof b { font-weight: 700; margin-right: 4px; }
+  .vt-se .se-stars {
+    display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 3px 11px;
+    background: #2B2041; border-radius: 3px; white-space: nowrap;
+  }
+  .vt-se .se-stars span { font-size: 11.5px; font-weight: 600; color: #FFF9EC; }
+  .vt-se .se-nouv-wrap { margin-top: 8px; }
+  .vt-se .se-nouv {
+    display: inline-flex; align-items: center; gap: 8px; min-width: 122px; min-height: 42px;
+    padding: 8px 16px; background: #E8B84B; border-radius: 3px; transform: rotate(-4deg);
+    white-space: nowrap;
+    -webkit-mask: radial-gradient(circle 6px at 0 50%, transparent 6px, #000 6.5px), radial-gradient(circle 6px at 100% 50%, transparent 6px, #000 6.5px);
+    -webkit-mask-composite: source-in;
+    mask: radial-gradient(circle 6px at 0 50%, transparent 6px, #000 6.5px), radial-gradient(circle 6px at 100% 50%, transparent 6px, #000 6.5px);
+    mask-composite: intersect;
+  }
+  .vt-se .se-nouv-t { font-size: 12px; font-weight: 700; line-height: 14px; color: #171226; }
+  .vt-se .se-trust { position: relative; height: 74px; background: #0D0916; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; padding: 0 12px; }
+  .vt-se .se-cell { height: 100%; padding: 0 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
+  .vt-se .se-cell + .se-cell { border-left: 1px solid rgba(184,154,232,.30); }
+  .vt-se .se-cell-i { width: 30px; height: 30px; flex: none; border-radius: 50%; background: #2B2041; border: 1px solid rgba(232,184,75,.55); display: flex; align-items: center; justify-content: center; }
+  .vt-se .se-cell-l { font-size: 10.5px; font-weight: 700; line-height: 1.2; color: #FFF9EC; }
+  .vt-se .se-cell-s { font-size: 8.5px; line-height: 1.24; color: rgba(184,154,232,.72); }
+  .vt-se .se-btn { background: #2B2041; border: 1px solid rgba(232,184,75,.55); }
+  .vt-se .vt-ent-btn { top: 84px; }
+  .vt-se .vt-ent-back { right: 20px; }
+
+  /* ══════════════════════ 10 · CAURIS ══════════════════════ */
+  .vt-ca { background: #0E3E36; }
+  .vt-ca .ca-hero {
+    position: relative; overflow: hidden;
+    margin-top: -60px; padding-top: 60px;
+    background-color: #0F493F;
+    background-image:
+      radial-gradient(ellipse at 62% 16%, rgba(200,240,222,.24), transparent 58%),
+      radial-gradient(ellipse 13px 6px at 50% 50%, rgba(255,247,232,.05) 98%, transparent),
+      linear-gradient(180deg, #145248 0%, #0F493F 56%, #0E3E36 100%);
+    background-size: auto, 64px 52px, auto;
+  }
+  .vt-ca .ca-scene { position: relative; height: 248px; }
+  .vt-ca .ca-ray { position: absolute; top: -60px; height: 340px; transform: rotate(17deg); }
+  .vt-ca .ca-ray1 { left: 26%; width: 44px; background: linear-gradient(180deg, rgba(200,240,222,.10), transparent 70%); }
+  .vt-ca .ca-ray2 { left: 42%; width: 58px; background: linear-gradient(180deg, rgba(200,240,222,.16), transparent 70%); }
+  .vt-ca .ca-ray3 { left: 60%; width: 72px; background: linear-gradient(180deg, rgba(200,240,222,.08), transparent 70%); }
+  .vt-ca .ca-vagues {
+    position: absolute; right: -20px; top: 20px; width: 200px; height: 200px; border-radius: 50%;
+    background: repeating-radial-gradient(circle, rgba(200,240,222,.22) 0 1.5px, transparent 1.5px 18px);
+  }
+  .vt-ca .ca-cauri1 { position: absolute; left: 8px; top: -46px; transform: rotate(-18deg); }
+  .vt-ca .ca-cauri2 { position: absolute; right: 10px; top: 84px; transform: rotate(14deg); }
+  .vt-ca .ca-cauri3 { position: absolute; right: 24px; bottom: 62px; transform: rotate(28deg); }
+  .vt-ca .ca-cauri4 { position: absolute; left: 52px; top: -28px; transform: rotate(-8deg); }
+  .vt-ca .ca-bulles {
+    position: absolute; right: 18px; top: 50px; width: 14px; height: 100px;
+    background-image:
+      radial-gradient(circle 3px at 7px 90px, rgba(200,240,222,.4) 98%, transparent),
+      radial-gradient(circle 4px at 5px 66px, rgba(200,240,222,.34) 98%, transparent),
+      radial-gradient(circle 5px at 8px 40px, rgba(200,240,222,.28) 98%, transparent),
+      radial-gradient(circle 6px at 6px 10px, rgba(200,240,222,.22) 98%, transparent);
+  }
+  .vt-ca .ca-sable {
+    position: absolute; left: -28px; bottom: -54px; width: 420px; height: 92px;
+    border-radius: 50%; transform: rotate(-3deg);
+    background: linear-gradient(180deg, #D9B87A, #B99459);
+  }
+  .vt-ca .ca-vignette { position: absolute; inset: 0; box-shadow: inset 0 0 56px rgba(3,33,29,.22); }
+  .vt-ca .ca-frame {
+    position: absolute; right: 14px; top: 22px; width: 132px; height: 202px;
+    border-radius: 50% / 42%; overflow: hidden; border: 5px solid #FFF7E8;
+    box-shadow: 0 0 0 2px #D8CCB7, 0 14px 28px rgba(3,33,29,.22);
+  }
+  .vt-ca .ca-frame .vt-avatar-img { position: absolute; inset: 0; object-position: 50% 24%; border-radius: 0; }
+  .vt-ca .ca-frame-ring { position: absolute; right: 7px; top: 15px; width: 146px; height: 216px; border-radius: 50% / 42%; border: 2px dashed #C8F0DE; }
+  .vt-ca .ca-frame-motif {
+    position: absolute; inset: 0;
+    background: radial-gradient(120% 120% at 34% 22%, #1C6455 0%, #0F493F 78%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .vt-ca .ca-mono { font-family: 'Sora', 'Instrument Sans', sans-serif; font-weight: 800; font-size: 52px; color: #D9B87A; }
+  .vt-ca .ca-col { position: relative; width: calc(100% - 156px); min-height: 204px; padding: 6px 0 10px 16px; }
+  .vt-ca .ca-bienv { margin-top: 3px; display: inline-flex; flex-direction: column; gap: 3px; font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-weight: 600; font-size: 25px; line-height: 1; color: #C8F0DE; }
+  .vt-ca .ca-pinceau { width: 72px; height: 4px; border-radius: 2px; background: #D9B87A; }
+  .vt-ca .ca-name {
+    margin-top: 0; font-family: 'Sora', 'Instrument Sans', sans-serif; font-weight: 800;
+    line-height: .90; letter-spacing: -.04em; font-size: clamp(36px, 13cqw, 49px);
+    color: #FFF7E8; overflow-wrap: normal; hyphens: none;
+  }
+  .vt-ca .ca-name .vt-ent-acc { color: #D9B87A; }
+  .vt-ca .ca-name.vt-ent-long { font-size: 37px; }
+  .vt-ca .ca-name.vt-ent-xlong { font-size: 21px; }
+  .vt-ca .ca-verif { margin-top: 5px; font-size: 12px; font-weight: 600; line-height: 15px; color: #B7DACB; }
+  .vt-ca .ca-verif svg { vertical-align: -2px; margin-right: 4px; }
+  .vt-ca .ca-zone { margin-top: 1px; font-size: 13px; font-weight: 600; line-height: 17px; color: #B7DACB; }
+  .vt-ca .ca-proofrow { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  .vt-ca .ca-proof {
+    display: inline-flex; align-items: center; min-height: 40px; min-width: 152px; max-width: 100%;
+    padding: 6px 14px; background: rgba(14,62,54,.88); border: 1px solid rgba(217,184,122,.70);
+    border-radius: 20px; box-shadow: 0 8px 18px rgba(3,33,29,.20);
+    color: #FFF7E8; font-size: 11.5px; line-height: 14px;
+  }
+  .vt-ca .ca-proof b { font-weight: 700; color: #D9B87A; margin-right: 4px; }
+  .vt-ca .ca-stars {
+    display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 3px 11px;
+    background: #FFF7E8; border-radius: 13px; white-space: nowrap;
+  }
+  .vt-ca .ca-stars span { font-size: 11.5px; font-weight: 600; color: #145248; }
+  .vt-ca .ca-nouv-wrap { margin-top: 8px; }
+  .vt-ca .ca-nouv {
+    position: relative; display: inline-flex; align-items: center; justify-content: center;
+    min-width: 122px; min-height: 56px; padding: 8px 18px; border-radius: 50% / 50%;
+    background: #FFF7E8; box-shadow: inset 0 0 0 2px #D8CCB7, 0 8px 18px rgba(3,33,29,.24);
+    transform: rotate(8deg); text-align: center;
+  }
+  .vt-ca .ca-nouv-fente { position: absolute; top: 7px; left: 26%; right: 26%; border-top: 1.5px dashed #8A7155; }
+  .vt-ca .ca-nouv-t { font-size: 11px; font-weight: 700; line-height: 1.3; color: #145248; }
+  .vt-ca .ca-trust { position: relative; height: 72px; background: #0E3E36; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; padding: 0 12px; }
+  .vt-ca .ca-cell { height: 100%; padding: 0 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
+  .vt-ca .ca-cell + .ca-cell { border-left: 1px solid rgba(200,240,222,.26); }
+  .vt-ca .ca-cell-i { width: 30px; height: 30px; flex: none; border-radius: 50%; background: #D9B87A; box-shadow: 0 0 0 1px rgba(255,247,232,.35); display: flex; align-items: center; justify-content: center; }
+  .vt-ca .ca-cell-l { font-size: 10.5px; font-weight: 700; line-height: 1.2; color: #FFF7E8; }
+  .vt-ca .ca-cell-s { font-size: 8.5px; line-height: 1.24; color: rgba(200,240,222,.72); }
+  .vt-ca .ca-btn { background: rgba(255,249,239,.9); border: 1px solid rgba(20,82,72,.3); }
+  .vt-ca .vt-ent-btn { top: 84px; }
+  .vt-ca .vt-ent-back { right: 20px; }
+
+  /* ═══════ ENTETES-E · 320 px (handoff Part B, @container ≤ 339) ═══════
+     Hero 236, strip 72, paddings 16→12, frames shrink 6–10, 20–35 % of the
+     small decor prunes — never a string, never the proof, never the badge. */
+  @container (max-width: 339px) {
+    .vt-ma .ma-scene, .vt-ha .ha-scene, .vt-ba .ba-scene, .vt-se .se-scene, .vt-ca .ca-scene { height: 236px; }
+    .vt-ma .ma-trust, .vt-ha .ha-trust, .vt-se .se-trust { height: 72px; }
+    .vt-ma .ma-col, .vt-ha .ha-col, .vt-ba .ba-col, .vt-se .se-col, .vt-ca .ca-col { padding-left: 12px; }
+    .vt-ma .ma-cell-i, .vt-ha .ha-cell-i, .vt-ba .ba-cell-i, .vt-se .se-cell-i, .vt-ca .ca-cell-i { width: 26px; height: 26px; }
+    .vt-ma .ma-cell-l, .vt-ha .ha-cell-l, .vt-ba .ba-cell-l, .vt-se .se-cell-l, .vt-ca .ca-cell-l { font-size: 9.7px; line-height: 1.19; }
+    .vt-ma .ma-cell-s, .vt-ha .ha-cell-s, .vt-ba .ba-cell-s, .vt-se .se-cell-s, .vt-ca .ca-cell-s { font-size: 8px; line-height: 1.19; }
+    /* the 236px scene is 10 shorter while the zone often takes two lines:
+       the rhythm tightens uniformly — margins and chip minimums, never text. */
+    .vt-ma .ma-col, .vt-ha .ha-col, .vt-ba .ba-col, .vt-se .se-col, .vt-ca .ca-col { padding-top: 4px; }
+    .vt-ma .ma-bienv { font-size: 22px; }
+    .vt-ha .ha-bienv, .vt-ba .ba-bienv, .vt-se .se-bienv, .vt-ca .ca-bienv { font-size: 21px; }
+    .vt-ma .ma-name, .vt-ha .ha-name, .vt-ba .ba-name, .vt-se .se-name, .vt-ca .ca-name { margin-top: 0; }
+    .vt-ma .ma-verif, .vt-ha .ha-verif, .vt-ba .ba-verif, .vt-se .se-verif, .vt-ca .ca-verif { margin-top: 4px; }
+    .vt-ma .ma-proofrow, .vt-ha .ha-proofrow, .vt-ba .ba-proofrow, .vt-se .se-proofrow, .vt-ca .ca-proofrow { margin-top: 6px; }
+    .vt-ma .ma-nouv-wrap, .vt-ha .ha-nouv-wrap, .vt-ba .ba-nouv-wrap, .vt-se .se-nouv-wrap, .vt-ca .ca-nouv-wrap { margin-top: 4px; }
+    .vt-ma .ma-proof { min-height: 30px; }
+    .vt-ha .ha-proof, .vt-ba .ba-proof, .vt-se .se-proof { min-height: 34px; }
+    .vt-ca .ca-proof { min-height: 36px; }
+    .vt-ma .ma-stars, .vt-ha .ha-stars, .vt-ba .ba-stars, .vt-se .se-stars, .vt-ca .ca-stars { min-height: 24px; }
+    .vt-ha .ha-nouv { width: 70px; height: 70px; }
+    /* MASQUE — frame −8, chevrons/planche prune (§8.6). */
+    .vt-ma .ma-frame { width: 136px; height: 196px; }
+    .vt-ma .ma-col { width: calc(100% - 158px); }
+    .vt-ma .ma-planche, .vt-ma .ma-chevrons, .vt-ma .ma-zigzag { display: none; }
+    .vt-ma .ma-name.vt-ent-long { font-size: 34px; }
+    .vt-ma .ma-name.vt-ent-xlong { font-size: 18px; }
+    /* HARMATTAN — portrait −8, one acacia and one bird only (§8.7). */
+    .vt-ha .ha-frame { width: 124px; height: 124px; }
+    .vt-ha .ha-col { width: calc(100% - 146px); }
+    .vt-ha .ha-acacia2, .vt-ha .ha-calaos { display: none; }
+    .vt-ha .ha-name.vt-ent-long { font-size: 34px; }
+    .vt-ha .ha-name.vt-ent-xlong { font-size: 22px; }
+    /* BALAFON — portrait −8, the staff shortens (§8.7). */
+    .vt-ba .ba-medaille { width: 118px; height: 118px; }
+    .vt-ba .ba-col { width: calc(100% - 142px); }
+    .vt-ba .ba-portee { transform: scale(.75); transform-origin: left bottom; }
+    .vt-ba .ba-touche3 { display: none; }
+    .vt-ba .ba-name.vt-ent-long { font-size: 33px; }
+    .vt-ba .ba-name.vt-ent-xlong { font-size: 18px; }
+    /* SÉANCE — frame −8, reel filigree prunes (§8.7). */
+    .vt-se .se-frame { width: 134px; height: 196px; }
+    .vt-se .se-col { width: calc(100% - 158px); }
+    .vt-se .se-bobine { display: none; }
+    .vt-se .se-zone { font-size: 12px; line-height: 16px; }
+    .vt-se .se-ampoules { margin-top: 2px; }
+    .vt-se .se-ampoules { width: 102px; }
+    .vt-se .se-name.vt-ent-long { font-size: 32px; }
+    .vt-se .se-name.vt-ent-xlong { font-size: 16px; }
+    /* CAURIS — oval −8, two shells and a bubble prune (§8.6). */
+    .vt-ca .ca-frame { width: 124px; height: 190px; }
+    .vt-ca .ca-frame-ring { width: 138px; height: 204px; }
+    .vt-ca .ca-col { width: calc(100% - 148px); }
+    .vt-ca .ca-cauri3, .vt-ca .ca-cauri4 { display: none; }
+    .vt-ca .ca-bulles { height: 66px; background-image: radial-gradient(circle 3px at 7px 56px, rgba(200,240,222,.4) 98%, transparent), radial-gradient(circle 4px at 5px 32px, rgba(200,240,222,.34) 98%, transparent), radial-gradient(circle 5px at 8px 8px, rgba(200,240,222,.28) 98%, transparent); }
+    .vt-ca .ca-name.vt-ent-long { font-size: 33px; }
+    .vt-ca .ca-name.vt-ent-xlong { font-size: 18px; }
+  }
 `;
