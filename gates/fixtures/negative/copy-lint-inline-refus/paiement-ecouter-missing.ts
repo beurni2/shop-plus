@@ -1,8 +1,11 @@
-// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — SP3.3b1.
-// The §6.1 PAYMENT copy carries administrative French (« veuillez », « conformément à »,
-// « préalablement », « ultérieurement ») and blows the checkout reading budget.
-// The refusal table and MESSAGES are CLEAN, so only the new PAIEMENT extraction
-// can catch this — if the gate stops reading that table, this fixture goes green.
+// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — SP3.3b1 round 7.
+// « Écouter la note de la vendeuse » — the control the founder's 2026-07-30
+// ruling put back on the payment screen — has been DELETED from the PAIEMENT
+// table. Every other §6.1 string is present and clean, so nothing lints red:
+// the label simply is not there any more, which is exactly how the previous
+// « ÉCOUTER LA NOTE » left the screen once before. A deleted string must fail
+// as loudly as a violated one, and this fixture is what proves it does for the
+// new one specifically.
 const REFUS_GENERIQUE = {
   overline: 'LE PRIX',
   titre: 'Nous ne pouvons pas afficher le prix.',
@@ -32,6 +35,7 @@ export const MESSAGES = {
   prixRafraichiIdentique: 'Nouveau prix demandé. Le montant n’a pas changé.',
   prixRafraichiDifferent: 'Le prix a été mis à jour. Nouveau total :',
   prixEnCoursDeMiseAJour: 'Nous demandons un nouveau prix…',
+  noteInjouable: 'La note ne se lance pas sur ce téléphone.',
 } as const;
 
 export function refusVue(reason: string) {
@@ -42,7 +46,7 @@ export const PAIEMENT = {
   ligneMaintenant: 'À payer maintenant : {X}\u202fFCFA',
   ligneLivraison: 'À payer à la livraison : {Y}\u202fFCFA',
   titreA: 'Tout payer maintenant — recommandé',
-  corpsA: 'Conformément aux conditions applicables, veuillez noter que le règlement est conservé par notre partenaire préalablement à toute libération ultérieure des fonds au vendeur.',
+  corpsA: 'Votre paiement est protégé auprès de notre partenaire de paiement jusqu’à la confirmation de votre livraison. Le vendeur n’est payé qu’après validation.',
   titreB: 'Payer le produit à la livraison',
   titreBFin: 'à la livraison',
   corpsB: 'Payez seulement les frais de livraison ({D}\u202fFCFA) maintenant. À l’arrivée du livreur, vérifiez votre article, puis payez le montant du produit de manière sécurisée avant de le recevoir.',
@@ -51,5 +55,4 @@ export const PAIEMENT = {
   redite: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
   rediteA: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
   rediteFin: 'à la livraison — d’accord ?',
-  ecouterNote: 'Écouter la note de la vendeuse',
 } as const;

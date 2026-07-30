@@ -758,17 +758,16 @@ if (app) {
     const prix = harnessFrancs(params.get('prix'));
     const frais = harnessFrancs(params.get('frais'));
     /**
-     * `?voix=0` REMOVES THE NOTE ITSELF, not just C1's player (2026-07-30).
+     * `?voix=0` NOW REMOVES THE NOTE ITSELF, not just C1's player (2026-07-30).
      *
-     * This lever used to set `sansVoix` alone, which hid the C1 voice block
-     * while the seeded `voiceUrl` STAYED on the product — a harness state
-     * labelled « this product has no voice note » whose model still carried
-     * one. Dropping the two note fields is what the REAL path produces
-     * (`clienteProduitReel` fills both only from a `ready` note with a url), so
-     * the harness now models that absence rather than approximating it
-     * (Execution Contract §3 — a mock must not look more capable than
-     * production). `sansVoix` is still passed: it is the C1 prop, and the two
-     * agree.
+     * Until the founder's ruling this lever set `sansVoix`, which hid the C1
+     * voice block while the seeded `voiceUrl` stayed on the product. C5 now
+     * renders « Écouter la note » off that same `voiceUrl`, so the old lever
+     * would have left the harness's « this product has no voice note » state
+     * offering the note anyway — on the payment screen. Dropping the two note
+     * fields is also what the REAL path produces (`clienteProduitReel` fills
+     * both only from a `ready` note with a url), so the harness models it
+     * rather than approximating it.
      */
     const avecNote = params.get('voix') !== '0';
     const { voiceDuree, voiceUrl, ...base } = clienteProduit({ name: sf?.name ?? '', slug: sf?.slug ?? 'aicha-4821' });
