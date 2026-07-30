@@ -54,12 +54,14 @@ export interface ClienteProduit {
  * (SP3.3b1 · §6.1 · SP-I13 « Checkout MUST show exactly what is paid now vs due
  * at delivery »).
  *
- * CARRIED, NEVER DERIVED. The screen used to pick mode A's « paid now » as the
- * total and mode B's as the delivery fee — a client-side rule about what a mode
- * means. The cross-check in `quote-model.ts` proves those coincide, so nothing
- * on screen moves; what changes is WHERE the figure comes from. §6.1's two bold
- * lines are the server's own answer to « combien maintenant, combien à la
- * porte », so they read the server's own fields.
+ * CARRIED, NEVER DERIVED — and the claim is deliberately small. The screen used
+ * to pick mode A's « paid now » as the total and mode B's as the delivery fee: a
+ * client-side rule about what a payment mode MEANS. The cross-check in
+ * `quote-model.ts` forces the two to be the same francs, so carrying them can
+ * never make a different number appear and no test can show that it does. What
+ * it changes is WHERE the figure comes from — the server's own field for the
+ * mode she is looking at — and it deletes a rule this app had no business
+ * holding. That is the whole of it.
  */
 export interface ModeSplit {
   readonly paidNow: number;
@@ -152,7 +154,22 @@ export function splitFor(q: ClienteQuote, d: Livraison, mode: ModePaiement): Mod
   const legs = d === 'tomorrow' ? q.splitsTomorrow : q.splitsToday;
   return mode === 'A' ? legs.A : legs.B;
 }
-/** Payé maintenant — lu du devis figé, jamais recalculé ici. */
+/**
+ * Payé maintenant — lu du devis figé, jamais recalculé ici.
+ *
+ * THE CLIENT'S OWN RULE ABOUT WHAT A MODE MEANS — « A pays the total, B pays
+ * the fee » — and the LAST place in this module that still applies it. C5 no
+ * longer calls it: since SP3.3b1 its CTA, its operator screens and its two §6.1
+ * lines all read the SERVER'S carried split (`splitFor`), so no two figures on
+ * the payment screen can come from two different rules.
+ *
+ * ITS ONE REMAINING CALLER IS C6 (`flow.ts` → `fmtPayezMaintenant`), which
+ * states the CONFIRMED amount. Re-pointing that at the split means deciding
+ * what C6 says when no split exists, and C6's sent/confirmed/failed states are
+ * SP3.3b2's slice, not this one. Named here rather than left to be discovered:
+ * under the cross-check the two agree to the franc, so nothing is wrong today —
+ * what is outstanding is that the rule still exists at all.
+ */
 export const payezMaintenant = (q: ClienteQuote, d: Livraison, mode: ModePaiement): number =>
   mode === 'A' ? total(q, d) : fee(q, d);
 
@@ -652,12 +669,27 @@ export const PAIEMENT = {
   /** The one-line replay before payment (§6.1), mode B — both legs are real. */
   redite: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
   /**
-   * …and mode A, where the server's Y is 0. « et 0 FCFA à la livraison » is a
-   * true number that reads as a false promise — a figure to be paid at the
-   * door, on the one option whose whole point is that nothing is. The sentence
-   * keeps §6.1's shape and its « — d’accord ? », and says the true thing.
+   * …and mode A's, which is THE SAME NORMATIVE SENTENCE.
+   *
+   * FOUNDER RULING (2026-07-30). This field used to read « … maintenant, et
+   * rien à la livraison — d'accord ? ». It now uses §6.1's form in BOTH modes,
+   * so « Tout payer maintenant » replays as « … et 0 FCFA à la livraison —
+   * d'accord ? ». Recorded here as DECIDED, not assumed, with the reasoning:
+   *   · §6.1 is NORMATIVE and gives ONE sentence, not two. Writing a second one
+   *     is interpreting a money sentence, and that is not ours to do.
+   *   · The mode A CARD already renders « À payer à la livraison : 0 FCFA », so
+   *     the screen was taking both positions at once — a zero on the card and
+   *     « rien » in the replay, a few lines apart.
+   *   · A VISIBLE ZERO is what makes the two options comparable at a glance,
+   *     and that comparison is the entire reason §6.1 puts both lines in front
+   *     of her BEFORE she chooses.
+   *
+   * It stays its own field, byte-identical to `redite`, so both sentences a
+   * buyer can read are extracted and linted BY NAME and a deletion still fails
+   * the gate's structural floor. The test pinning the two equal is what stops
+   * one from being edited without the other.
    */
-  rediteA: 'Vous payez {X}\u202fFCFA maintenant, et rien à la livraison — d’accord ?',
+  rediteA: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
 } as const;
 
 /** The view a refusal name renders as — the generic one for every name this
@@ -742,30 +774,67 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
    */
   const reconcileIdentite = `${groupFr(total(q, s.delivery))} = ${groupFr(q.produitFcfa)} + ${groupFr(fee(q, s.delivery))} — `;
   const reconcile = `${reconcileIdentite}<span class="cl-reconcile-promesse">chaque franc a sa place.</span>`;
-  const payNowStr = s.pay ? fmtFCFA(payezMaintenant(q, s.delivery, s.pay)) : '';
-  const ctaLabel = !s.pay ? 'Choisissez pour continuer' : s.pay === 'A' ? `Payer ${totalStr}` : `Payer ${feeStr} maintenant`;
-  const can = s.pay !== null;
   const ligneProduit = `${esc(m.productName)}${m.variant ? ` · ${esc(varianteCourte(m.variant))}` : ''}`;
-  // ═══ §6.1 — THE SPLITS, AS THE SERVER PRICED EACH MODE ═══
+
+  /* ═══ §6.1 — ONE AVAILABILITY DECISION, AND EVERY PART OF THE SCREEN OBEYS IT ═══
+   *
+   * THE DEFECT THIS CLOSES (fresh verifier, round 2). The CARD consulted two
+   * signals — `s.bInel` and an absent split — but the REPLAY consulted only the
+   * split and the CTA consulted neither. With `bInel: true` and a door split
+   * still in hand, ONE screen rendered « Pas disponible pour cette commande »
+   * beside « Vous payez … et … à la livraison — d'accord ? » under an ENABLED
+   * Payer button. Not reachable through `flow.ts` today, which resets the mode;
+   * but the comment here claimed render-level fail-closure, and a claim the code
+   * does not keep is the species of lie this project exists not to ship.
+   *
+   * So availability is decided ONCE, and every consumer reads the SAME value:
+   * `splitBPayable` is the door split ONLY when both signals agree. From it the
+   * card, the replay, the CTA and the operator screens all follow. Fail-closed
+   * is now structural — there is no second expression to drift.
+   */
   const splitA = splitFor(q, s.delivery, 'A');
-  const splitB = splitFor(q, s.delivery, 'B');
-  // TWO INDEPENDENT WAYS TO KNOW MODE B IS OFF, AND EITHER ONE DECIDES.
-  // `bInel` is the flow's flag; an ABSENT split is the server never having
-  // priced the mode. Either alone draws the « Pas disponible » block —
-  // fail-closed, so no figure can stand in for a price nobody quoted. It is
-  // written as the ternary's own condition below so the compiler carries the
-  // narrowing: inside the card branch `splitB` is a split, not a maybe.
-  // THE ONE-LINE REPLAY (§6.1), after she has chosen and before the payment
-  // leaves. Mode A takes the « rien à la livraison » sentence: its Y is a true
-  // 0, and « 0 FCFA à la livraison » reads as a bill at the door on the one
-  // option that has none.
-  const chosen = s.pay === null ? undefined : splitFor(q, s.delivery, s.pay);
-  const redite =
-    s.pay === null || chosen === undefined
-      ? ''
+  /** The door split, or `undefined` when EITHER signal says mode B is off:
+   *  the flow's flag, or a server that never priced the mode. */
+  const splitBPayable = s.bInel ? undefined : splitFor(q, s.delivery, 'B');
+  /**
+   * THE SPLIT THE BUYER'S CHOSEN MODE IS PRICED BY — the one source for every
+   * figure that follows her choice. `undefined` means « nothing is payable
+   * here », which is a state with no amount, not a state with a fallback
+   * amount: no mode chosen, or a chosen mode that is not payable on this
+   * screen. The CTA is then disabled and carries no figure at all.
+   */
+  const chosen: ModeSplit | undefined = s.pay === 'A' ? splitA : s.pay === 'B' ? splitBPayable : undefined;
+  /**
+   * EVERY FRANC BELOW IS THE SERVER'S BYTE FOR THE MODE SHE CHOSE.
+   *
+   * This used to read `payezMaintenant`, i.e. « mode A pays the total, mode B
+   * pays the fee » — the client re-encoding what a payment mode MEANS, which is
+   * exactly what carrying the split removed from the two bold lines. The CTA
+   * and the operator screens now read the same carried field the lines do, so
+   * no two figures on this screen can come from two different rules.
+   */
+  const payNowStr = chosen === undefined ? '' : fmtFCFA(chosen.paidNow);
+  const ctaLabel =
+    chosen === undefined
+      ? 'Choisissez pour continuer'
       : s.pay === 'A'
-        ? fillMontants(PAIEMENT.rediteA, { X: chosen.paidNow })
-        : fillMontants(PAIEMENT.redite, { X: chosen.paidNow, Y: chosen.dueAtDelivery });
+        ? `Payer ${payNowStr}`
+        : `Payer ${payNowStr} maintenant`;
+  const can = chosen !== undefined;
+  // THE ONE-LINE REPLAY (§6.1), after she has chosen and before the payment
+  // leaves. ONE SENTENCE, BOTH MODES, BOTH LEGS FILLED (founder ruling
+  // 2026-07-30 — see `PAIEMENT.rediteA`): mode A's Y is the server's own 0, and
+  // it is SHOWN, because the card above already shows it and because a visible
+  // zero is what makes the two options comparable. Both fields are filled from
+  // the SAME chosen split, so the replay can never quote a leg the card does
+  // not.
+  const redite =
+    chosen === undefined
+      ? ''
+      : fillMontants(s.pay === 'A' ? PAIEMENT.rediteA : PAIEMENT.redite, {
+          X: chosen.paidNow,
+          Y: chosen.dueAtDelivery,
+        });
 
   if (s.paying === 'submitting') {
     return [
@@ -808,7 +877,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
     lignesSplit(splitA),
     `<div class="cl-payopt-body">${PAIEMENT.corpsA}</div>`,
     '</button>',
-    s.bInel || splitB === undefined
+    splitBPayable === undefined
       ? [
           '<div class="cl-payinel" data-role="pay-inel">',
           `<div class="cl-payinel-head">${iconScooter(18)}<span>${PAIEMENT.titreB}</span></div>`,
@@ -819,7 +888,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
           `<button class="cl-opt cl-payopt${s.pay === 'B' ? ' cl-opt-on' : ''}" data-action="choix-paiement" data-mode="B">`,
           s.pay === 'B' ? `<span class="cl-opt-mark">${iconCheck(14, 3)}</span>` : '',
           `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconScooter(18)}</span><span class="cl-opt-title">${PAIEMENT.titreB}</span></div>`,
-          lignesSplit(splitB),
+          lignesSplit(splitBPayable),
           `<div class="cl-payopt-body">${fillMontants(PAIEMENT.corpsB, { D: fee(q, s.delivery) }).replace(
             PAIEMENT.corpsBAccent,
             `<b>${PAIEMENT.corpsBAccent}</b>`,

@@ -103,13 +103,27 @@ export function clienteQuoteFromServer(full: ServerQuote, door: QuoteOutcome): C
   /**
    * THE DOOR QUOTE'S OWN SPLIT, CARRIED (SP3.3b1 · §6.1).
    *
-   * It used to be validated and then thrown away, and C5 re-derived mode B's
-   * two figures from the FULL quote's `deliveryFee`/`productSubtotal` — a
-   * client-side rule about what pay-at-door means, standing in for the two
-   * fields the server sent. `agrees` below already proves the two are the same
-   * francs, so NOTHING ON SCREEN MOVES; what changes is that the figure the
-   * buyer reads is now the byte the server wrote for the mode she is looking
-   * at. Every cross-check above and below is untouched: a door quote that
+   * ═══ WHAT THIS DOES AND DOES NOT CLAIM (corrected after a fresh verifier
+   *     showed the grander claim was unfalsifiable) ═══
+   *
+   * IT CANNOT CHANGE A NUMBER, AND NO TEST CAN SHOW THAT IT DOES. `agrees`
+   * below FORCES `d.amountPaidAtCheckout === full.deliveryFee` and
+   * `d.amountDueAtDelivery === full.productSubtotal`, so a screen that carries
+   * the door quote's two fields and a screen that re-derives them from the full
+   * quote print the SAME francs — always, by construction. Replace this carry
+   * with re-derivation and the suite stays green, because there is no reachable
+   * input on which the two differ. That is not a hole in the tests; it is what
+   * the cross-check guarantees.
+   *
+   * WHAT IT IS FOR, then, is PROVENANCE and one less rule in the client: the
+   * figure under « À payer maintenant » on the mode-B card is the field the
+   * server wrote for MODE B, not this app's opinion that pay-at-door means
+   * « the delivery fee now ». The old code held that opinion, in the renderer,
+   * beside the amounts — and an opinion about what a payment mode means is the
+   * kind of thing that survives a spec change silently. Deleting it costs
+   * nothing and removes a place where a future mode could be quietly mispriced.
+   *
+   * Every cross-check above and below is untouched: a door quote that
    * contradicts the full one is still `amounts_disagree` and still refuses.
    */
   let splitB: LegSplits['B'];

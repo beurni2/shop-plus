@@ -1,0 +1,14 @@
+<!doctype html>
+<!-- NEGATIVE FIXTURE (the plant) — SP3.3b1 round 2.
+     The word §6.1 forbids, in the ENTRY HTML: not a .ts, not under src/, and
+     shipped to every buyer who opens the page. The previous scan walked
+     src/**/*.ts only and printed « appear nowhere in the buyer source » over
+     exactly this. Every string in the sibling clean-screens.ts lints green, so
+     if this fixture ever passes, the widened scan has stopped reaching. -->
+<html lang="fr">
+  <head><meta charset="utf-8" /><title>Shop+</title></head>
+  <body>
+    <div id="app"></div>
+    <noscript>Votre paiement est gardé en séquestre jusqu’à la livraison.</noscript>
+  </body>
+</html>

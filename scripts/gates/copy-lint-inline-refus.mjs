@@ -381,15 +381,49 @@ if (pay === null) {
 
 /* ══ §6.1: « séquestre »/« escrow » appear NOWHERE a buyer can read them ═══ */
 
-/** Every `.ts` under a directory, recursively. */
+/**
+ * EVERY TEXT FILE A BUYER CAN RECEIVE — not every `.ts` under `src/`.
+ *
+ * THE HOLE THIS CLOSES (fresh verifier, round 2): the scan walked
+ * `apps/buyer-pwa/src/**\/*.ts` and nothing else, so the forbidden word planted
+ * in `index.html` shipped while this gate printed « appear nowhere in the buyer
+ * source ». The buyer receives the entry HTML, the offline shell in `public/`,
+ * the web manifest and the i18n catalog exactly as she receives the bundle.
+ *
+ * Binary assets (fonts) are skipped by extension, not by guesswork.
+ */
+const SCAN_EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs', '.cjs', '.html', '.css', '.json', '.webmanifest', '.txt'];
 const walk = (dir) =>
-  readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
-    e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.ts') ? [join(dir, e.name)] : [],
-  );
+  readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const full = join(dir, e.name);
+    if (e.isDirectory()) return e.name === 'node_modules' || e.name === 'dist' || e.name.startsWith('.') ? [] : walk(full);
+    return SCAN_EXTENSIONS.some((ext) => e.name.endsWith(ext)) ? [full] : [];
+  });
 
-// The file under test always; on a REAL run, the whole buyer source tree —
-// a class name or a data attribute ships in the DOM, so « private » it is not.
-const scanned = FIXTURE === undefined ? walk(join(root, 'apps/buyer-pwa/src')) : [SOURCE];
+/** `--scan-root DIR` points the raw scan at a fixture tree, so a plant OUTSIDE
+ *  `src/` — an `index.html`, a manifest — can be proven to fail the gate. */
+const scanRootFlag = process.argv.indexOf('--scan-root');
+const SCAN_ROOT = scanRootFlag > 0 ? process.argv[scanRootFlag + 1] : undefined;
+
+/** What the raw scan covered, in the words the success line will use. */
+let scanDescription;
+let scanned;
+if (SCAN_ROOT !== undefined) {
+  scanned = [...new Set([SOURCE, ...walk(SCAN_ROOT)])];
+  scanDescription = SCAN_ROOT.replace(root + '/', '');
+} else if (FIXTURE !== undefined) {
+  scanned = [SOURCE];
+  scanDescription = rel;
+} else {
+  const app = join(root, 'apps/buyer-pwa');
+  scanned = [
+    join(app, 'index.html'),
+    ...walk(join(app, 'src')),
+    ...walk(join(app, 'public')),
+    ...walk(join(app, 'i18n')),
+  ];
+  scanDescription = 'apps/buyer-pwa — index.html, src/, public/, i18n/ (' + SCAN_EXTENSIONS.join(' ') + ')';
+}
 /**
  * KEPT APART FROM `problems` ON PURPOSE. An extractor problem means « a string
  * is going unread » and stops the lint from being meaningful, so it exits
@@ -449,7 +483,29 @@ if (lintFailed || scanHits.length > 0) {
   console.error('\ncopy-lint-inline-refus: FAILED');
   process.exit(1);
 }
+/**
+ * SAY EXACTLY WHAT WAS COVERED, AND EXACTLY WHAT WAS NOT.
+ *
+ * THE CLAIM THIS REPLACES (fresh verifier, round 2): « every refusal string AND
+ * every §6.1 payment string a buyer reads passed the French Voice lint » read as
+ * « the payment screen is linted ». It is not. This gate extracts THREE TABLES;
+ * every other inline string in `screens.ts` — the bill row labels, the C5 quote
+ * line, the operator screens, C6–C9 — is unread, and the verifier proved it by
+ * adding administrative French to C5 and watching this gate exit 0.
+ *
+ * Widening the extractor to all inline copy is a different slice (the real cure
+ * is moving the cliente module onto the i18n catalog). What must not happen in
+ * the meantime is a green tick that overstates its own reach: an unlinted string
+ * is a known gap, an unlinted string under a claim of full coverage is a lie.
+ */
+console.log('\ncopy-lint-inline-refus: OK');
 console.log(
-  '\ncopy-lint-inline-refus: OK — every refusal string AND every §6.1 payment string a buyer reads ' +
-    'passed the French Voice lint, and the two words §6.1 forbids appear nowhere in the buyer source.',
+  `  LINTED (French Voice): the REFUS table (${views.length} views), MESSAGES, and the §6.1 PAIEMENT ` +
+    `table (${paiementCount} strings) — ${entries.length} strings from ${rel}.`,
 );
+console.log(
+  '  NOT LINTED, and named so the gap is visible: every OTHER inline string in that module — the bill ' +
+    'labels, the C5 quote line, the operator screens, C6–C9. This gate reads three tables, not the file. ' +
+    'The cure is the i18n catalog migration, which is its own slice.',
+);
+console.log(`  SCANNED for the two words §6.1 forbids: ${scanned.length} file(s) — ${scanDescription}.`);

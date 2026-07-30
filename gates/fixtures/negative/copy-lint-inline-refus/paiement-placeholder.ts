@@ -47,5 +47,5 @@ export const PAIEMENT = {
   corpsBAccent: 'avant de le recevoir',
   avertissementB: 'Frais de livraison non remboursables si vous annulez ou êtes absent(e).',
   redite: 'Vous payez {X}\u202fFCFA maintenant et {RESTE_A_PAYER} à la livraison — d’accord ?',
-  rediteA: 'Vous payez {X}\u202fFCFA maintenant, et rien à la livraison — d’accord ?',
+  rediteA: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
 } as const;

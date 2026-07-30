@@ -252,6 +252,14 @@ capture copy-lint-inline-refus-negative-paiement-missing fail node scripts/gates
 log "gate: French Voice copy-lint — NEGATIVE (an unknown runtime placeholder in a §6.1 money sentence, must fail)"
 capture copy-lint-inline-refus-negative-paiement-placeholder fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-placeholder.ts
 
+# The scan used to walk src/**/*.ts ONLY, so the forbidden word planted in the
+# entry HTML shipped while this gate printed « appear nowhere in the buyer
+# source ». It now walks every text file a buyer receives — index.html, public/,
+# i18n/, css — and this fixture's source half lints green, so the ONLY thing
+# that can fail it is the scan reaching outside src/.
+log "gate: French Voice copy-lint — NEGATIVE (§6.1's forbidden word in index.html, outside src/, must fail)"
+capture copy-lint-inline-refus-negative-scan-outside-src fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/scan-outside-src/clean-screens.ts --scan-root gates/fixtures/negative/copy-lint-inline-refus/scan-outside-src
+
 log "gate: E2 failure path — the real service path end-to-end (must pass)"
 capture e2-failure-path pass node scripts/e2-failure-path.mjs
 

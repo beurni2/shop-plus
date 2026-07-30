@@ -57,6 +57,13 @@ function modelFrom(full: ServerQuote, door: ServerQuote | undefined): ClienteQuo
 /** Visible text: tags out, SVG out — what Aïcha actually reads. */
 const visible = (html: string): string => html.replace(/<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, '');
 
+/** The CTA's own label. Asked of the button, not of the page: « Payer le
+ *  produit à la livraison » is §6.1's OPTION NAME and appears on the card and
+ *  on the unavailable block, so a page-wide search for « Payer » proves
+ *  nothing about what the button offers to do. */
+const ctaText = (html: string): string =>
+  /<button class="cl-cta cl-cta-c5[^>]*>([\s\S]*?)<\/button>/.exec(html)?.[1] ?? '';
+
 /* ═══ 1 · EVERY FIGURE ON C5 IS A SERVER BYTE — not one is derived here ═══ */
 
 describe('§6.1 — the two bold lines carry the SERVER’S OWN split, never a client-derived one', () => {
@@ -158,7 +165,17 @@ describe('the DOOR quote’s split is CARRIED, not re-derived — and absent whe
     expect(splitFor(q, 'tomorrow', 'B')).toEqual(splitFor(q, 'today', 'B'));
   });
 
-  it('a door quote with DIFFERENT (still self-consistent) francs carries ITS figures', () => {
+  /**
+   * NAMED FOR WHAT IT CAN ACTUALLY SEE (corrected after a fresh verifier).
+   *
+   * It moves the WHOLE basket, so the door quote's fields and a re-derivation
+   * from the full quote produce the same francs — `agrees` forces that, and no
+   * input exists on which they differ. This test therefore proves the screen
+   * follows the SERVER'S numbers rather than any constant of its own; it CANNOT
+   * prove provenance, and the header of `quote-model.ts` now says so in terms
+   * rather than implying a difference nothing can observe.
+   */
+  it('a basket with different francs renders THE SERVER’S, never a figure of this app’s', () => {
     // 12 000 + 900 = 12 900 — coherent, and none of these numbers is hardcoded
     // anywhere in this app.
     const full: ServerQuote = {
@@ -207,6 +224,118 @@ describe('the DOOR quote’s split is CARRIED, not re-derived — and absent whe
     const html = renderC5(ROBE, modelFrom(FULL, undefined), { ...C5, pay: 'B' });
     expect(html).not.toContain('data-role="redite"');
     expect(visible(html)).not.toContain('Vous payez');
+  });
+});
+
+/* ══ 2b · ONE AVAILABILITY DECISION — the card, the replay and the CTA agree ══ */
+
+/**
+ * THE DEFECT THIS LOCKS (fresh verifier, round 2). The card consulted two
+ * signals, the replay consulted one, and the CTA consulted neither. The
+ * combination the old tests never covered — `bInel: true` with a door split
+ * STILL PRESENT — put « Pas disponible pour cette commande » on the same screen
+ * as « Vous payez … à la livraison — d'accord ? », under a live Payer button.
+ *
+ * Every case below asks all three parts of the screen the same question and
+ * requires the same answer. Reachable or not, a screen may not contradict
+ * itself about whether an option can be paid.
+ */
+describe('mode B is off ⇒ NO card, NO replay, NO payable CTA — whichever signal says so', () => {
+  /** The door quote is present and priced; only the flow's flag says no. */
+  const bothPriced = modelFrom(FULL, DOOR);
+  /** The server never priced mode B; the flag says nothing. */
+  const onlyFull = modelFrom(FULL, undefined);
+
+  const cases: Array<[string, ClienteQuote, C5State]> = [
+    ['the FLAG alone, mode B chosen', bothPriced, { ...C5, bInel: true, pay: 'B' }],
+    ['the FLAG alone, nothing chosen', bothPriced, { ...C5, bInel: true }],
+    ['the ABSENT SPLIT alone, mode B chosen', onlyFull, { ...C5, bInel: false, pay: 'B' }],
+    ['BOTH signals, mode B chosen', onlyFull, { ...C5, bInel: true, pay: 'B' }],
+  ];
+
+  for (const [name, q, s] of cases) {
+    it(`${name}: the screen says the same thing three times`, () => {
+      const html = renderC5(ROBE, q, s);
+      const text = visible(html);
+      // 1 · THE CARD — the honest block, never a tappable B option.
+      expect(html, 'a mode-B card was offered').not.toContain('data-mode="B"');
+      expect(html).toContain('data-role="pay-inel"');
+      expect(text).toContain('Pas disponible pour cette commande.');
+      // 2 · THE REPLAY — no sentence promising a door payment.
+      expect(html, 'the replay line promised a mode nobody can pay').not.toContain('data-role="redite"');
+      expect(text).not.toContain('à la livraison — d’accord');
+      // 3 · THE CTA — disabled, and carrying NO figure.
+      expect(html).toContain('cl-cta-off');
+      expect(html).toContain('disabled');
+      expect(ctaText(html), 'the CTA offered to pay an unavailable mode').toBe('Choisissez pour continuer');
+      expect(ctaText(html)).not.toContain('FCFA');
+      // …and mode B's figures are nowhere on the screen at all
+      expect(text).not.toContain('À payer maintenant : 1' + N + '000');
+      expect(text).not.toContain('À payer à la livraison : 11' + N + '500');
+    });
+  }
+
+  it('mode A is untouched by mode B being off — she can still pay the whole thing', () => {
+    const html = renderC5(ROBE, onlyFull, { ...C5, bInel: true, pay: 'A' });
+    const text = visible(html);
+    expect(html).toContain('data-mode="A"');
+    expect(html).not.toContain('cl-cta-off');
+    expect(html).not.toContain('disabled');
+    expect(text).toContain(`Payer 12${N}500${N}FCFA`);
+    expect(html).toContain('data-role="redite"');
+  });
+});
+
+/* ═════ 2c · THE CTA AND THE OPERATOR SCREENS READ THE CARRIED SPLIT ═══════ */
+
+/**
+ * The §6.1 lines were re-pointed at the server's split in round 1; the CTA and
+ * the two `paying` screens were left on `payezMaintenant` — « A pays the total,
+ * B pays the fee » — so on divergent bytes the same screen quoted two different
+ * amounts for one tap. Driven here with a split that disagrees with that rule,
+ * every figure must be the split's.
+ */
+describe('the CTA and the operator screens quote the SAME server byte as the lines', () => {
+  const DIVERGENT: ClienteQuote = {
+    produitFcfa: 11_500,
+    feeToday: 1_000,
+    feeTomorrow: 1_000,
+    totalToday: 12_500,
+    totalTomorrow: 12_500,
+    splitsToday: { A: { paidNow: 9_999, dueAtDelivery: 777 }, B: { paidNow: 2_222, dueAtDelivery: 8_888 } },
+    splitsTomorrow: { A: { paidNow: 9_999, dueAtDelivery: 777 }, B: { paidNow: 2_222, dueAtDelivery: 8_888 } },
+  };
+
+  for (const [mode, paidNow, suffix] of [['A', `9${N}999`, ''], ['B', `2${N}222`, ' maintenant']] as const) {
+    it(`mode ${mode}: the CTA reads the split (${paidNow}), never the total or the fee`, () => {
+      const html = renderC5(ROBE, DIVERGENT, { ...C5, pay: mode });
+      expect(ctaText(html)).toBe(`Payer ${paidNow}${N}FCFA${suffix}`);
+      // the two figures the old rule would have produced, asked of the button
+      expect(ctaText(html), 'the CTA still applied « A pays the total »').not.toContain(`12${N}500`);
+      expect(ctaText(html), 'the CTA still applied « B pays the fee »').not.toContain(`1${N}000`);
+      // and it agrees with the §6.1 line right above it
+      expect(visible(html)).toContain(`À payer maintenant : ${paidNow}${N}FCFA`);
+    });
+
+    it(`mode ${mode}: « ENVOI SÉCURISÉ » and the operator screen quote the same byte`, () => {
+      for (const paying of ['submitting', 'provider'] as const) {
+        const text = visible(renderC5(ROBE, DIVERGENT, { ...C5, pay: mode, paying }));
+        expect(text, `${paying} quoted a figure the CTA never showed`).toContain(`${paidNow}${N}FCFA`);
+        expect(text).not.toContain(`12${N}500${N}FCFA`);
+        expect(text).not.toContain(`1${N}000${N}FCFA`);
+      }
+    });
+  }
+
+  it('with nothing payable the CTA carries no amount at all — not a fallback figure', () => {
+    for (const s of [
+      { ...C5, pay: null },
+      { ...C5, pay: 'B' as const, bInel: true },
+    ]) {
+      const html = renderC5(ROBE, DIVERGENT, s);
+      expect(ctaText(html)).toBe('Choisissez pour continuer');
+      expect(ctaText(html)).not.toContain('FCFA');
+    }
   });
 });
 
@@ -297,10 +426,37 @@ describe('§6.1’s copy, on the screen, word for word', () => {
       .toContain(`Vous payez 1${N}000${N}FCFA maintenant et 11${N}500${N}FCFA à la livraison — d’accord ?`);
   });
 
-  it('mode A’s replay says what is TRUE for mode A — « rien », never « 0 FCFA à la livraison »', () => {
+  /**
+   * CHANGED UNDER A FOUNDER RULING (2026-07-30), and the change is the point.
+   *
+   * This assertion used to require « … maintenant, et rien à la livraison » and
+   * to forbid « et 0 FCFA à la livraison » — while the test at « Option A shows
+   * both §6.1 lines » required the CARD to print « À payer à la livraison :
+   * 0 FCFA ». Two exact-byte assertions, on one screen, locking OPPOSITE
+   * conventions. The founder ruled for §6.1's single normative sentence in both
+   * modes; the two assertions now agree, and both stay exact-byte — nothing was
+   * softened into a loose match to make them meet.
+   */
+  it('mode A’s replay is §6.1’s sentence too — the server’s 0 is shown, not paraphrased', () => {
     const a = visible(renderC5(ROBE, q, { ...C5, pay: 'A' }));
-    expect(a).toContain(`Vous payez 12${N}500${N}FCFA maintenant, et rien à la livraison — d’accord ?`);
-    expect(a).not.toContain(`et 0${N}FCFA à la livraison`);
+    expect(a).toContain(`Vous payez 12${N}500${N}FCFA maintenant et 0${N}FCFA à la livraison — d’accord ?`);
+    // the interpretation this replaces may not creep back
+    expect(a).not.toContain('rien à la livraison');
+  });
+
+  it('ONE normative sentence: the two replay fields are byte-identical', () => {
+    // The founder ruling's structural half. They are separate fields so both
+    // are extracted and linted by name; an edit to one and not the other is
+    // exactly the drift this pins shut.
+    expect(PAIEMENT.rediteA).toBe(PAIEMENT.redite);
+    expect(PAIEMENT.rediteA).toBe(`Vous payez {X}${N}FCFA maintenant et {Y}${N}FCFA à la livraison — d’accord ?`);
+  });
+
+  it('the card and the replay agree about mode A’s door leg — both say 0', () => {
+    // The contradiction the ruling removed, asserted as one screen now.
+    const a = visible(renderC5(ROBE, q, { ...C5, pay: 'A' }));
+    expect(a).toContain(`À payer à la livraison : 0${N}FCFA`);
+    expect(a).toContain(`et 0${N}FCFA à la livraison`);
   });
 
   it('the replay is gone once the payment has left — it is a question, not a caption', () => {
