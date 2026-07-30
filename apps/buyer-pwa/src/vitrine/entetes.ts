@@ -596,6 +596,9 @@ function masque(v: Vals): string {
     '<span class="ma-bande ma-bande1" aria-hidden="true"></span>',
     '<span class="ma-bande ma-bande2" aria-hidden="true"></span>',
     '<span class="ma-vignette" aria-hidden="true"></span>',
+    // §7 footer frieze — BEFORE the column in the DOM: QA 8, the foot shapes
+    // must never paint over proof (verifier M1: DOM order is paint order here).
+    '<span class="ma-frise" aria-hidden="true"></span>',
     // §5 — the orthogonal frame: 2px noir · 5px crème · 2px noir, damier base.
     `<div class="ma-frame" data-role="vitrine-cover" data-etat="${etatAvatar(v)}">`,
     '<div class="ma-photo">',
@@ -618,7 +621,6 @@ function masque(v: Vals): string {
       ? `<div class="ma-nouv-wrap"><span class="ma-nouv" data-role="chip-nouvelle"><v>${nA}</v> <span class="ma-nouv-acc"><v>${nB.join(' ')}</v></span></span></div>`
       : '',
     '</div>',
-    '<span class="ma-frise" aria-hidden="true"></span>',
     '</div>',
     '</div>',
     // §7 — the trust strip, three labels word for word.
@@ -1549,6 +1551,10 @@ export const ENTETES_STYLES = `
   .vt-ma .vt-ent-btn { top: 84px; }
   .vt-ma .vt-ent-back { right: 20px; }
 
+  /* verifier m3 — hierarchy holds on the xlong tier: the greeting steps
+     down with the name (sibling rule; name precedes Bienvenue in the DOM). */
+  .vt-ma .ma-name.vt-ent-xlong + .ma-bienv { font-size: 16px; }
+
   /* ══════════════════════ 7 · HARMATTAN ══════════════════════ */
   .vt-ha { background: #4E2C18; }
   .vt-ha .ha-hero {
@@ -1570,7 +1576,7 @@ export const ENTETES_STYLES = `
   .vt-ha .ha-vent { position: absolute; left: -8px; top: 112px; opacity: .5; }
   .vt-ha .ha-acacia1 { position: absolute; left: 4px; bottom: 20px; opacity: .32; }
   .vt-ha .ha-acacia2 { position: absolute; right: 10px; bottom: 34px; opacity: .32; }
-  .vt-ha .ha-calaos { position: absolute; right: 18px; top: 58px; opacity: .8; }
+  .vt-ha .ha-calaos { position: absolute; right: 40px; top: 160px; opacity: .8; }
   .vt-ha .ha-bokeh {
     position: absolute; inset: 0;
     background-image:
@@ -1651,6 +1657,8 @@ export const ENTETES_STYLES = `
   .vt-ha .vt-ent-btn { top: 80px; }
   .vt-ha .vt-ent-back { right: 20px; }
 
+  .vt-ha .ha-name.vt-ent-xlong + .ha-bienv { font-size: 16px; }
+
   /* ══════════════════════ 8 · BALAFON ══════════════════════ */
   .vt-ba { background: #160D18; }
   .vt-ba .ba-hero {
@@ -1665,7 +1673,7 @@ export const ENTETES_STYLES = `
   .vt-ba .ba-cone { position: absolute; top: -60px; width: 90px; height: 200px; clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%); }
   .vt-ba .ba-cone-l { left: 22px; transform: rotate(18deg); background: linear-gradient(180deg, rgba(184,134,217,.28), transparent 85%); }
   .vt-ba .ba-cone-r { right: 8px; transform: rotate(-18deg); background: linear-gradient(180deg, rgba(232,180,118,.30), transparent 85%); }
-  .vt-ba .ba-portee { position: absolute; left: 14px; bottom: 66px; opacity: .8; }
+  .vt-ba .ba-portee { position: absolute; right: 4px; bottom: 44px; opacity: .8; }
   .vt-ba .ba-reso { position: absolute; bottom: -30px; width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(232,180,118,.55); }
   .vt-ba .ba-reso1 { left: 24px; }
   .vt-ba .ba-reso2 { left: 120px; }
@@ -1750,6 +1758,8 @@ export const ENTETES_STYLES = `
   .vt-ba .ba-btn { background: rgba(22,13,24,.6); border: 1px solid rgba(232,180,118,.55); }
   .vt-ba .vt-ent-btn { top: 70px; }
   .vt-ba .vt-ent-back { right: 20px; }
+
+  .vt-ba .ba-name.vt-ent-xlong + .ba-bienv { font-size: 16px; }
 
   /* ══════════════════════ 9 · SÉANCE ══════════════════════ */
   .vt-se { background: #0D0916; }
@@ -1881,6 +1891,8 @@ export const ENTETES_STYLES = `
   .vt-se .vt-ent-btn { top: 84px; }
   .vt-se .vt-ent-back { right: 20px; }
 
+  .vt-se .se-name.vt-ent-xlong + .se-bienv { font-size: 16px; }
+
   /* ══════════════════════ 10 · CAURIS ══════════════════════ */
   .vt-ca { background: #0E3E36; }
   .vt-ca .ca-hero {
@@ -1903,11 +1915,11 @@ export const ENTETES_STYLES = `
     background: repeating-radial-gradient(circle, rgba(200,240,222,.22) 0 1.5px, transparent 1.5px 18px);
   }
   .vt-ca .ca-cauri1 { position: absolute; left: 8px; top: -46px; transform: rotate(-18deg); }
-  .vt-ca .ca-cauri2 { position: absolute; right: 10px; top: 84px; transform: rotate(14deg); }
-  .vt-ca .ca-cauri3 { position: absolute; right: 24px; bottom: 62px; transform: rotate(28deg); }
+  .vt-ca .ca-cauri2 { position: absolute; right: 60px; top: -44px; transform: rotate(14deg); }
+  .vt-ca .ca-cauri3 { position: absolute; right: 162px; bottom: 10px; transform: rotate(28deg); }
   .vt-ca .ca-cauri4 { position: absolute; left: 52px; top: -28px; transform: rotate(-8deg); }
   .vt-ca .ca-bulles {
-    position: absolute; right: 18px; top: 50px; width: 14px; height: 100px;
+    position: absolute; right: 154px; top: 50px; width: 14px; height: 100px;
     background-image:
       radial-gradient(circle 3px at 7px 90px, rgba(200,240,222,.4) 98%, transparent),
       radial-gradient(circle 4px at 5px 66px, rgba(200,240,222,.34) 98%, transparent),
@@ -1978,6 +1990,8 @@ export const ENTETES_STYLES = `
   .vt-ca .ca-btn { background: rgba(255,249,239,.9); border: 1px solid rgba(20,82,72,.3); }
   .vt-ca .vt-ent-btn { top: 84px; }
   .vt-ca .vt-ent-back { right: 20px; }
+
+  .vt-ca .ca-name.vt-ent-xlong + .ca-bienv { font-size: 16px; }
 
   /* ═══════ ENTETES-E · 320 px (handoff Part B, @container ≤ 339) ═══════
      Hero 236, strip 72, paddings 16→12, frames shrink 6–10, 20–35 % of the
