@@ -81,14 +81,50 @@ describe('THE MOCK IS NOT THE FALLBACK — fabricated supply data is unreachable
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
         e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.ts') ? [join(dir, e.name)] : [],
       );
+    /**
+     * ═══ TWO SHAPES DEFEAT A BY-NAME SCAN, SO BOTH ARE BANNED OUTRIGHT ═══
+     * (Verifier round 2 — both bypasses were live, and the second is the serious
+     * one: it would have let a SUPPLY mock, the exact thing this test exists to
+     * stop, into deployed source with the suite green.)
+     *
+     *  · A NAMESPACE IMPORT (`import * as x from '…'`) binds every export of a
+     *    module under one name, so no binding this scan can read ever mentions a
+     *    mock. Deployed source imports BY NAME; there are none today and the
+     *    allowlist is empty.
+     *  · A DYNAMIC IMPORT (`import('…')`) is invisible to the specifier scan
+     *    (which requires `from`), and its argument may be computed at runtime, so
+     *    there is no version of this scan that could police it. A specifier this
+     *    test cannot read is a specifier it cannot allow. None today either.
+     *
+     * `export * from '<explicit vault module>'` stays legal: that is the worker
+     * bundle's alias file, and each of its specifiers IS scanned individually
+     * below. A star re-export of the BARREL is not legal — it would pull the
+     * mocks in under a specifier with no « mock » in it.
+     */
+    const BARREL = '@shop-plus/commerce-core';
     const foundSpecifiers: string[] = [];
     const foundBindings: string[] = [];
+    const namespaceImports: string[] = [];
+    const dynamicImports: string[] = [];
+    const barrelStarReexports: string[] = [];
     for (const dir of roots) {
       for (const file of walk(dir)) {
         const src = readFileSync(file, 'utf8');
         const relative = file.slice(file.indexOf('/storefront-service/') + '/storefront-service/'.length);
         for (const spec of [...src.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]!)) {
           if (/mock/i.test(spec)) foundSpecifiers.push(`${relative}::${spec}`);
+        }
+        for (const m of src.matchAll(/import\s*\*\s*as\s+([A-Za-z_$][\w$]*)\s*from\s*['"]([^'"]+)['"]/g)) {
+          namespaceImports.push(`${relative}::* as ${m[1]!} from ${m[2]!}`);
+        }
+        // `import(` in any form — a bare call, awaited, or chained. The comment
+        // and string forms are stripped of nothing: if it looks like a dynamic
+        // import it is one, and it is refused.
+        for (const m of src.matchAll(/(?<![.\w$])import\s*\(\s*([^)]*)\)/g)) {
+          dynamicImports.push(`${relative}::import(${m[1]!.trim()})`);
+        }
+        for (const m of src.matchAll(/export\s*\*\s*(?:as\s+[\w$]+\s*)?from\s*['"]([^'"]+)['"]/g)) {
+          if (m[1]! === BARREL) barrelStarReexports.push(`${relative}::export * from ${m[1]!}`);
         }
         // Every import/export STATEMENT, with its clause — `import … from`,
         // `import type … from`, and `export … from` (the barrel re-export shape).
@@ -108,6 +144,10 @@ describe('THE MOCK IS NOT THE FALLBACK — fabricated supply data is unreachable
     }
     expect(foundSpecifiers.sort()).toEqual(ALLOWED_SPECIFIERS);
     expect(foundBindings.sort()).toEqual(ALLOWED_BINDINGS);
+    // The two shapes no by-name scan can police: none exist, and none may.
+    expect(namespaceImports).toEqual([]);
+    expect(dynamicImports).toEqual([]);
+    expect(barrelStarReexports).toEqual([]);
     // …and NO supply mock, by the original rule: nothing on the supply path.
     for (const entry of [...foundSpecifiers, ...foundBindings]) expect(/supply/i.test(entry)).toBe(false);
     // The eligibility mock is the verifier's own smuggle: it rides the SAME

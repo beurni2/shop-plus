@@ -312,6 +312,26 @@ function webhookEvent(orderId: string, amount: number, attemptId: string): unkno
   return provider.webhookDeliveryPlan()[0]!.event;
 }
 
+/**
+ * ═══ PROVIDER TRUTH, READ BACK FROM THE PORT'S OWN RETURN VALUE ═══
+ *
+ * `collectRef` is what `initiateCharge` ANSWERED, and the certified mock builds
+ * it as `collect-{paymentAttemptId}` — so it is the only value in this system
+ * that names the key the provider actually saw. Every webhook this suite
+ * fabricates is derived from it rather than from the record being audited: a
+ * test that synthesises provider truth out of the field it is checking proves
+ * nothing (verifier finding, round 2 — the leg-key fix was undefended for
+ * exactly that reason).
+ */
+async function chargeKeySeenByProvider(m: Miniflare, orderId: string): Promise<string> {
+  const record = await audit(m, orderId);
+  const attempts = record.attempts ?? [];
+  const last = attempts[attempts.length - 1];
+  if (last?.collectRef === undefined) throw new Error(`no accepted charge on ${orderId}`);
+  expect(last.collectRef.startsWith('collect-'), 'the mock names its own collect ref').toBe(true);
+  return last.collectRef.slice('collect-'.length);
+}
+
 /** shop → quote → hold → order, the whole buyer path, on the real Worker. */
 async function orderedQuote(
   m: Miniflare,
@@ -539,6 +559,21 @@ describe('OrderDO — one command, one charge, forever', () => {
     expect(after.attempts![1]!.providerKey).toBe(legKey);
     expect(new Set(after.attempts!.map((a) => a.providerKey)).size).toBe(1);
     expect(after.attempts![1]!.outcome).toBe('accepted');
+
+    /**
+     * ═══ AND THE PORT ITSELF SAYS SO ═══
+     *
+     * `providerKey` above is a value this object WROTE; `collectRef` is a value
+     * the PORT RETURNED, built by the certified mock from the key it was handed.
+     * Asserting only the former let a one-line revert — handing the provider the
+     * audit attempt id instead of the leg key — pass the whole suite while two
+     * keys reached the provider for one 12 500 F leg. This is the assertion that
+     * reads the call rather than the bookkeeping.
+     */
+    expect(after.attempts![1]!.collectRef).toBe(`collect-${legKey}`);
+    expect(after.attempts![1]!.collectRef!.startsWith('collect-pk-')).toBe(true);
+    expect(after.attempts![1]!.collectRef).not.toBe(`collect-${secondAttempt}`);
+    expect(after.attempts![1]!.collectRef).not.toBe(`collect-${firstAttempt}`);
     // the superseded attempt is AUDITED, not erased
     expect(after.priorPaymentAttemptIds).toEqual([firstAttempt]);
     expect(after.chain!['payment_attempt_id']).toBe(secondAttempt);
@@ -546,7 +581,11 @@ describe('OrderDO — one command, one charge, forever', () => {
     // THE CONSEQUENCE THAT MAKES IT MONEY-SAFE: because the key is the leg's,
     // the provider's confirmation for THIS leg is one event with one command id.
     // It pays the order once…
-    const event = webhookEvent(orderId, 12_500, legKey);
+    // DERIVED FROM PROVIDER TRUTH — the key the port's own collect ref names,
+    // never the `legKey` this test is checking.
+    const seenByProvider = await chargeKeySeenByProvider(m, orderId);
+    expect(seenByProvider).toBe(legKey);
+    const event = webhookEvent(orderId, 12_500, seenByProvider);
     const paid = await postWebhook(m, event);
     expect(paid.status, paid.text).toBe(200);
     expect(paid.json['status']).toBe('applied');
@@ -563,7 +602,7 @@ describe('OrderDO — one command, one charge, forever', () => {
     const settled = await audit(m, orderId);
     expect(settled.escrow!.paymentLegs).toHaveLength(1);
     expect(settled.escrow!.paymentLegs[0]!.amount).toBe(12_500);
-    expect(settled.escrow!.paymentLegs[0]!.collectRef).toBe(`collect-${legKey}`);
+    expect(settled.escrow!.paymentLegs[0]!.collectRef).toBe(`collect-${seenByProvider}`);
 
     // AND THE REPLAY OF THE RETRY COMMAND CHARGES NOTHING MORE.
     const replay = await postOrder(m, {
@@ -582,9 +621,23 @@ describe('OrderDO — one command, one charge, forever', () => {
     expect(before.attempts![0]!.providerKey).toMatch(/^pk-/u);
     expect(before.attempts![0]!.attemptId).toMatch(/^att-/u);
     expect(before.attempts![0]!.providerKey).not.toBe(before.attempts![0]!.attemptId);
+    // THE PORT'S OWN ANSWER names the key it was handed — the leg's, not the
+    // attempt's. This is the assertion that reads the call.
+    expect(before.attempts![0]!.collectRef).toBe(`collect-${before.attempts![0]!.providerKey}`);
+    expect(before.attempts![0]!.collectRef).not.toBe(`collect-${before.attempts![0]!.attemptId}`);
+
+    /**
+     * THE DURABILITY CLAIM, THROUGH A REAL PROCESS DEATH: the charge has gone
+     * out and this process dies. The key must come back, and the retry path must
+     * find it — otherwise the next attempt mints a second collection, which is
+     * the same money consequence as the conflation, reached by a crash instead
+     * of an edit. (The key is handed to the provider only after storage answers
+     * with it, so a charge cannot precede its own key.)
+     */
     await restart();
     const after = await audit(mf, orderId);
     expect(after.attempts![0]!.providerKey).toBe(before.attempts![0]!.providerKey);
+    expect(after.attempts![0]!.collectRef).toBe(before.attempts![0]!.collectRef);
   });
 
   /**
@@ -1108,6 +1161,64 @@ describe('OrderDO — a receipt for a given reservationId is IMMUTABLE', () => {
       commandId: 'cmd-order-0031',
     });
     expect(newHolder.status, newHolder.text).toBe(200);
+  });
+
+  /**
+   * ═══ THE IMMUTABILITY BRANCH, ISOLATED FROM THE MONOTONE ONE ═══
+   *
+   * The two guards overlapped: the equal-`expiresAt` replay that the attack used
+   * is ALSO caught by the `>=` compare, so deleting the reservation-id branch
+   * changed nothing observable and the test named for it passed on its
+   * neighbour's work (verifier finding, round 2). This drives the ONE case only
+   * the id branch can answer — the SAME hold presented with a LATER expiry —
+   * straight at the object, because the public path cannot produce it.
+   *
+   * It is not exploitable through the reserve route today. It is tested because
+   * a guard nothing exercises is a guard nobody knows is there, and the next
+   * caller of this route will not be `CheckoutDO`'s mirror alone.
+   */
+  it('THE SAME reservationId with a LATER expiry cannot change the holder either', async () => {
+    const shop = await seedShop(mf, '0032');
+    const quote = await issueQuoteFor(mf, shop);
+    const orderId = `ord-${quote.quoteId}`;
+    const held = await reserve(mf, quote.quoteId, 'cmd-reserve-0032', 'holder-titulaire');
+    expect(held.status).toBe(200);
+    const reservationId = held.json['reservationId'] as string;
+    const expiry = held.json['expiresAt'] as string;
+
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    const stub = ns.get(ns.idFromName(orderId));
+    // THE SAME HOLD, a DIFFERENT holder, and an expiry an hour further out — so
+    // the monotone compare would wave it through. Only « same id ⇒ already
+    // decided » stops it.
+    const res = await stub.fetch('https://do/entry/reserved', {
+      method: 'POST',
+      body: JSON.stringify({
+        quoteId: quote.quoteId,
+        reservationId,
+        holderRef: 'holder-usurpateur',
+        expiresAt: new Date(Date.parse(expiry) + 3_600_000).toISOString(),
+      }),
+    });
+    const decided = (await res.json()) as { stored: boolean; reason?: string };
+    expect(decided.stored).toBe(false);
+    expect(decided.reason).toBe('already_decided');
+    expect((await audit(mf, orderId)).receipt?.holderRef).toBe('holder-titulaire');
+
+    // …and the consequence: the usurper cannot order, the titleholder can.
+    const usurper = await postOrder(mf, {
+      quoteId: quote.quoteId,
+      holderRef: 'holder-usurpateur',
+      commandId: 'cmd-order-0032-usurpateur',
+    });
+    expect(usurper.status).toBe(409);
+    expect(usurper.json['error']).toBe('reservation_held_by_another');
+    const titular = await postOrder(mf, {
+      quoteId: quote.quoteId,
+      holderRef: 'holder-titulaire',
+      commandId: 'cmd-order-0032',
+    });
+    expect(titular.status, titular.text).toBe(200);
   });
 });
 

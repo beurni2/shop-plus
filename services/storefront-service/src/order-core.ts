@@ -182,6 +182,33 @@ export function checkoutLegOf(legs: readonly RequiredLeg[]): RequiredLeg | undef
   return legs.find((leg) => leg.legType === 'checkout');
 }
 
+export type ChargeAcceptance =
+  | { readonly ok: true; readonly amount: number }
+  | { readonly ok: false; readonly reason: 'provider_amount_divergence' };
+
+/**
+ * ═══ THE PORT'S ECHO MUST BE THE LEG'S OWN AMOUNT, OR NOTHING IS RECORDED ═══
+ *
+ * The charge and the durable record used to read the leg independently, so
+ * changing one left the other truthful-looking; then the record was made to
+ * follow the port's echo, and the record's DEPENDENCE on that echo was itself
+ * untested — two edits restored the defect. This closes the family rather than
+ * the instance: the two numbers are COMPARED, and a disagreement is a REFUSAL.
+ *
+ * A provider that answers about an amount nobody asked it for has violated its
+ * contract, and there is no safe way to pick a winner between the two figures:
+ * trusting the echo records a charge the mode never authorised, and trusting the
+ * leg records a number the provider never saw. So neither is recorded. The
+ * attempt stays `pending` — which is the honest state, because the money may
+ * have moved and only a webhook can say — and the buyer is told by name.
+ */
+export function acceptChargeForLeg(leg: RequiredLeg, echoedAmount: number): ChargeAcceptance {
+  if (echoedAmount !== leg.amount) return { ok: false, reason: 'provider_amount_divergence' };
+  // The ECHO is what is returned, never the leg: one source for the recorded
+  // amount, and it is the one the port was demonstrably called with.
+  return { ok: true, amount: echoedAmount };
+}
+
 /* ────────────────────────────── the decision ─────────────────────────────── */
 
 export type OrderRefusalReason =

@@ -7,6 +7,7 @@ import {
 } from '@shop-plus/commerce-core';
 import { describe, expect, it } from 'vitest';
 import {
+  acceptChargeForLeg,
   applyOrderInput,
   checkoutLegOf,
   decideCreateOrder,
@@ -461,6 +462,38 @@ describe('the input journal — the same log replays to the same state, on any p
     expect(fresh.journey.state).toBe('payment_pending');
     expect(fresh.journey.chain.payment_attempt_id).toBe('att-2');
     expect(fresh.journey.priorPaymentAttemptIds).toEqual(['att-1']);
+  });
+});
+
+/* ══════════ the charge and the record cannot disagree, ever ═══════════════ */
+
+describe('acceptChargeForLeg — a divergence between the echo and the leg is a REFUSAL', () => {
+  const leg = { legType: 'checkout', amount: 12_500, due: 'now' } as const;
+
+  it('the echoed amount IS the recorded amount — the record depends on the port, not the leg', () => {
+    const accepted = acceptChargeForLeg(leg, 12_500);
+    expect(accepted).toEqual({ ok: true, amount: 12_500 });
+    // The returned value is the ECHO. That is the ONLY number the caller may
+    // write down, and it is why re-reading the leg at the record site cannot
+    // reintroduce the two-edit defect: the two are proven equal first.
+    if (!accepted.ok) return;
+    expect(accepted.amount).toBe(12_500);
+  });
+
+  it('ONE FRANC of disagreement refuses, in either direction, and so does every other', () => {
+    for (const echoed of [12_499, 12_501, 11_500, 0, 25_000, -12_500]) {
+      expect(acceptChargeForLeg(leg, echoed), `echoed ${echoed}`).toEqual({
+        ok: false,
+        reason: 'provider_amount_divergence',
+      });
+    }
+  });
+
+  it('the Option-B checkout leg is measured against D, not against the buyer total', () => {
+    const door = { legType: 'checkout', amount: 1_000, due: 'now' } as const;
+    expect(acceptChargeForLeg(door, 1_000)).toEqual({ ok: true, amount: 1_000 });
+    // 12 500 is the buyer's TOTAL — a plausible-looking wrong number, refused.
+    expect(acceptChargeForLeg(door, 12_500)).toEqual({ ok: false, reason: 'provider_amount_divergence' });
   });
 });
 

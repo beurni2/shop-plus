@@ -1,5 +1,6 @@
 import { PlatformEventSchema } from '@platform/contracts';
 import {
+  acceptChargeForLeg,
   applyOrderInput,
   checkoutLegOf,
   decideCreateOrder,
@@ -481,10 +482,37 @@ export class OrderDO {
     await this.state.storage.put(ATTEMPTS_KEY, attempts);
     await this.state.storage.put(LEG_KEYS_KEY, { ...legKeys, [leg.legType]: providerKey });
 
+    /**
+     * ═══ THE ORDERING IS STRUCTURAL, NOT A COMMENT (verifier finding, round 2) ═══
+     *
+     * The paragraph above claimed the key is durable before the provider is
+     * called — and moving that `put` to AFTER the charge passed the entire
+     * suite, because no test can observe an ordering without a crash between the
+     * two. So the key handed to the provider is no longer the one in this
+     * variable: it is the one STORAGE ANSWERS WITH. A charge cannot go out under
+     * a key that was not committed first, because the code cannot obtain such a
+     * key to charge with.
+     *
+     * WHAT THIS PROVES, EXACTLY, so nobody reads more into it: the value is in
+     * this object's storage — the same write workerd's output gate flushes
+     * before any response leaves — at the moment the provider is called. It does
+     * not (and cannot) prove a disk fsync. A missing key is a NAMED refusal, not
+     * a charge under an uncommitted key: refusing costs a buyer a retry, while
+     * the alternative costs her a second collection nobody can dedupe.
+     */
+    const durableLegKeys = (await this.state.storage.get<Record<string, string>>(LEG_KEYS_KEY)) ?? {};
+    const durableKey = Object.prototype.hasOwnProperty.call(durableLegKeys, leg.legType)
+      ? durableLegKeys[leg.legType]
+      : undefined;
+    if (durableKey === undefined || durableKey !== providerKey) {
+      return Response.json({ ok: false, reason: 'leg_key_not_durable' }, { status: 422 });
+    }
+
     const charge = await this.charge({
       orderId: stored.orderId,
-      // THE LEG'S KEY, not this attempt's id.
-      providerKey,
+      // THE LEG'S KEY AS STORAGE HOLDS IT — not this attempt's id, and not a
+      // value that exists only in memory.
+      providerKey: durableKey,
       // READ VERBATIM off the immutable Quote, through the mode's own leg.
       amount: leg.amount,
       correlationId: stored.correlationId,
@@ -492,10 +520,20 @@ export class OrderDO {
       attemptsAlreadyInitiated: attempts.length - 1,
     });
 
+    /**
+     * THE PORT WAS ASKED FOR THE LEG'S AMOUNT, OR NOTHING IS RECORDED. The echo
+     * and the leg are COMPARED (`acceptChargeForLeg`), and a disagreement is a
+     * refusal that writes nothing further: the attempt stays `pending`, which is
+     * the honest state when a charge has gone out and its amount is in doubt.
+     */
+    const accepted = acceptChargeForLeg(leg, charge.chargedAmount);
+    if (!accepted.ok) {
+      return Response.json({ ok: false, reason: accepted.reason }, { status: 422 });
+    }
+
     const record = attempts[attempts.length - 1] as AttemptRecord;
-    // THE PORT'S OWN ECHO, never the local variable: the amount recorded is the
-    // amount the provider was actually asked for, so the two cannot diverge.
-    record.amount = charge.chargedAmount;
+    // THE ACCEPTED ECHO — the amount the provider was demonstrably asked for.
+    record.amount = accepted.amount;
     if (charge.accepted) {
       record.outcome = 'accepted';
       record.collectRef = charge.collectRef;
