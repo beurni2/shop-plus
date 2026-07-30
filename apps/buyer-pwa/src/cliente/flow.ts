@@ -23,10 +23,11 @@ import { applyTheme, type VitrineThemeKey } from '../vitrine/themes';
 import {
   renderC1, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
   renderGalerie, renderOffline, renderRefus, renderSheet, renderSkeleton, renderToasts,
-  fmtPayezMaintenant, SUIVI_STEPS,
+  fmtPayezMaintenant, MESSAGES, SUIVI_STEPS,
   type ClienteProduit, type ClienteQuote, type ConfirmEtat, type DoorEtat,
   type Livraison, type ModePaiement, type VoiceEtat,
 } from './screens';
+import { fmtFCFA } from './money';
 import { prixExpire, type QuoteFetch, type ReserveFetch } from './quote-model';
 
 export type ClienteEcran = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9';
@@ -304,11 +305,19 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
    * and an unreachable service both land on the honest surface, because a price
    * we invented is worse than no price.
    */
-  async function demanderLePrix(renouveler = false): Promise<void> {
+  async function demanderLePrix(renouveler = false, auto = false): Promise<void> {
     const ask = init.quoteSource;
     if (ask === undefined) return;
+    // WHAT SHE HAD CHOSEN, so an automatic refresh does not quietly throw it
+    // away (verifier ITEM 3): she tapped « Payer 12 500 FCFA », not « take me
+    // back to the delivery screen and forget which button I pressed ».
+    const modeAvant = state.pay;
+    const totalAvant = state.serverQuote?.totalToday ?? null;
     state.refus = null;
     state.loading = true;
+    // SAY THAT IT IS HAPPENING. The skeleton alone reads as « still loading »;
+    // this names the reason she was moved off the Payer button.
+    if (auto) toast(MESSAGES.prixEnCoursDeMiseAJour);
     render();
     let fetched: QuoteFetch;
     try {
@@ -345,7 +354,36 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     // refuse forever. An unparsable/absent expiry lands here too: « this phone
     // cannot tell » is the same situation.
     state.horlogeDouteuse = prixExpire(fetched.expiry, Date.now());
-    state.prixRafraichi = false;
+    // « THIS PRICE CAME FROM AN AUTOMATIC REFRESH », and nothing else.
+    //
+    // THE DEFECT THIS CLOSES (found while writing the round-5 spec): this line
+    // read `= false` unconditionally, so the flag was cleared by the very
+    // refresh that set it. The « one automatic refresh, then tell her » rule it
+    // exists to enforce could therefore never fire — every Payer tap on a stale
+    // price silently re-asked, forever, and `Ce prix a expiré` was unreachable.
+    // That is exactly why the verifier's mutation of the `!state.prixRafraichi`
+    // guard survived: the guard was already dead. A MANUAL ask (Continuer,
+    // Réessayer, « Voir le prix à jour ») still clears it — she asked, so she
+    // gets a fresh allowance.
+    state.prixRafraichi = auto;
+
+    if (auto) {
+      // TELL HER WHAT CHANGED, calmly, and only if something did.
+      const total = fetched.quote.totalToday;
+      toast(
+        totalAvant !== null && totalAvant !== total
+          ? `${MESSAGES.prixRafraichiDifferent} ${fmtFCFA(total)}`
+          : MESSAGES.prixRafraichiIdentique,
+      );
+      // KEEP HER WHERE SHE WAS, WITH HER MODE — unless the new quote makes that
+      // mode impossible, in which case the existing « Pas disponible » state on
+      // C5 already speaks for itself and she chooses again.
+      const modeEncorePossible = modeAvant === 'A' || (modeAvant === 'B' && !fetched.bIndisponible);
+      if (modeAvant !== null) {
+        jump('C5', { delivery: 'today', pay: modeEncorePossible ? modeAvant : null });
+        return;
+      }
+    }
     // ONE fee for this zone pair ⇒ nothing to choose ⇒ the C4 CTA is live on
     // arrival. `delivery` is set only so the selectors have a slot to read; both
     // slots carry the SAME server figure, so the choice cannot change a franc.
@@ -517,9 +555,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
           //    sentence where a clock-skew guess is not.
           if (prixExpire(live.expiry, Date.now()) && !state.horlogeDouteuse) {
             if (!state.prixRafraichi) {
-              state.prixRafraichi = true;
               state.paying = 'idle';
-              void demanderLePrix(true); // new key, new price, then she taps again
+              // AUTOMATIC: a new key, a new price, a word on screen, and she
+              // lands back on C5 with her mode intact (verifier ITEM 3).
+              void demanderLePrix(true, true);
               return;
             }
             state.paying = 'idle'; state.refus = 'expired'; render(); return;

@@ -1143,7 +1143,14 @@ describe('BLOCKER 4b — the id mints DEGRADE, they never throw', () => {
     const html = renderRefus('no_secure_random');
     expect(html).toContain('Ce téléphone ne peut pas ouvrir la commande.');
     expect(html).toContain('Rien n’a été payé.');
-    expect(html.match(/class="cl-cta /g) ?? []).toHaveLength(1); // an action exists
+    // CHANGED under the round-5 work order (verifier ITEM 4): this card used to
+    // offer « Réessayer », which re-enters the same mint and refuses again
+    // deterministically — a button that provably cannot work. NO primary action
+    // now; the remedy is outside the app and the sentence says so. The back
+    // arrow remains, so she is never trapped.
+    expect(html.match(/class="cl-cta /g) ?? []).toHaveLength(0);
+    expect(html).toContain('data-action="retour-c3"'); // the stepHead back arrow
+    expect(refusVue('no_secure_random').action).toBeNull();
   });
 });
 

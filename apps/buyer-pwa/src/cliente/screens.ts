@@ -381,7 +381,12 @@ interface RefusVue {
   readonly overline: string;
   readonly titre: string;
   readonly phrase: string;
-  readonly action: string;
+  /**
+   * `null` = NO primary action, deliberately. Used only where every in-app
+   * action provably fails, so a button would be a false affordance; the
+   * `stepHead` back arrow still means she is never trapped.
+   */
+  readonly action: string | null;
   readonly libelle: string;
 }
 
@@ -507,16 +512,43 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
     action: 'prix-a-jour',
     libelle: 'Demander un nouveau prix',
   },
-  /** No CSPRNG on this device — `mintUuid` found neither API. There is nothing
-   *  to retry INTO, but the screen still has a way forward and a true sentence. */
+  /**
+   * No CSPRNG on this device — `mintUuid` found neither API.
+   *
+   * NO PRIMARY ACTION, on purpose (verifier ITEM 4). It used to offer
+   * « Réessayer », which re-enters the same mint and refuses again,
+   * deterministically — the verifier watched four identical refusals and zero
+   * HTTP asks, the same false affordance the round-3 finding removed from the
+   * other four names. The remedy is OUTSIDE this app and the sentence already
+   * says so; every in-app button would be a lie about what tapping it does.
+   * « Voir la boutique » was the other option and was rejected: browsing leads
+   * to the same wall at the same mint, so it merely postpones the dead end.
+   * The `stepHead` back arrow remains, so she is not trapped.
+   */
   no_secure_random: {
     overline: 'LE PRIX',
     titre: 'Ce téléphone ne peut pas ouvrir la commande.',
     phrase: 'Essayez depuis un autre navigateur. Rien n’a été payé.',
-    action: 'reessayer-prix',
-    libelle: 'Réessayer',
+    action: null,
+    libelle: '',
   },
 };
+
+/* ═══════════════════ COPY-LINT REGION · messages ═════════════════════════ */
+
+/**
+ * The short spoken messages the flow raises as toasts. They live here, beside
+ * the refusal copy, so the `copy-lint-inline-refus` gate reads them too — a
+ * user-facing money sentence that lives in `flow.ts` would have no gate.
+ */
+export const MESSAGES = {
+  /** The price was re-asked automatically because the old one had run out. */
+  prixRafraichiIdentique: 'Nouveau prix demandé. Le montant n’a pas changé.',
+  /** …and the amount moved. The new total is appended by the caller. */
+  prixRafraichiDifferent: 'Le prix a été mis à jour. Nouveau total :',
+  /** While the new price is on its way. */
+  prixEnCoursDeMiseAJour: 'Nous demandons un nouveau prix…',
+} as const;
 
 /** The view a refusal name renders as — the generic one for every name this
  *  table does not know (`amounts_disagree`, `quote_not_issuable`, `stored_*`,
@@ -535,7 +567,7 @@ export function renderRefus(reason: string): string {
     `<div class="cl-sub-title">${v.titre}</div>`,
     `<div class="cl-sub-body">${v.phrase}</div>`,
     '</div>',
-    `<button class="cl-cta cl-cta-step" data-action="${v.action}">${v.libelle}</button>`,
+    v.action === null ? '' : `<button class="cl-cta cl-cta-step" data-action="${v.action}">${v.libelle}</button>`,
     '</div>',
   ].join('');
 }

@@ -191,6 +191,23 @@ capture copy-lint-inline-refus-positive pass node scripts/gates/copy-lint-inline
 log "gate: French Voice copy-lint — NEGATIVE FIXTURE (an inline REFUS table with veuillez/séquestre/profitez + an over-budget sentence, must fail)"
 capture copy-lint-inline-refus-negative fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/screens.ts
 
+# The extractor, not the lint, was the hole the verifier walked through: the
+# first version read single-quoted strings only, so administrative French in a
+# double-quoted or template-literal refusal passed with « 0 violations ». One
+# negative per quoting style, plus one for a DELETED string, so no style can go
+# unread again and an omission fails as loudly as a violation.
+log "gate: French Voice copy-lint — NEGATIVE (a DOUBLE-QUOTED refusal carrying administrative French, must fail)"
+capture copy-lint-inline-refus-negative-double fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/double-quoted.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (a TEMPLATE-LITERAL refusal carrying administrative French, must fail)"
+capture copy-lint-inline-refus-negative-template fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/template-literal.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (an INTERPOLATED money sentence, refused outright, must fail)"
+capture copy-lint-inline-refus-negative-interp fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/interpolated.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (a DELETED refusal string: the structural floor must bite, must fail)"
+capture copy-lint-inline-refus-negative-missing fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/missing-field.ts
+
 log "gate: E2 failure path — the real service path end-to-end (must pass)"
 capture e2-failure-path pass node scripts/e2-failure-path.mjs
 

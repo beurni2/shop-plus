@@ -1,25 +1,21 @@
-// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — a REFUS table shaped
-// exactly like the real one, carrying the French Voice violations the gate must
-// catch on a buyer's refusal screen:
-//   · « veuillez » — banned administrative register (§10.5 condition a)
-//   · « séquestre » — the canonically forbidden word
-//   · « profitez » — marketing/urgency inside a register:money string (cond. b)
-//   · a sentence far over the 18-word status budget (condition c)
+// NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
+// A DOUBLE-QUOTED refusal carrying administrative French. The first extractor
+// matched single quotes only, so this planted violation passed the gate.
 const REFUS_GENERIQUE = {
   overline: 'LE PRIX',
-  titre: 'Veuillez patienter.',
-  phrase: 'Profitez de nos offres pendant que votre argent reste en séquestre.',
+  titre: "Veuillez patienter.",
+  phrase: 'Réessayez dans un instant. Rien n’a été payé.',
   action: 'reessayer-prix',
   libelle: 'Réessayer',
 };
 
 const REFUS = {
   expired: {
-    overline: 'LE PRIX',
-    titre: 'Nonobstant ce qui précède, le prix susmentionné a expiré.',
-    phrase: 'Conformément à nos conditions générales de vente applicables, il vous appartient de solliciter préalablement une nouvelle cotation tarifaire auprès de nos services compétents.',
+    overline: "LE PRIX",
+    titre: "Ce prix a expiré.",
+    phrase: "Il vous appartient de solliciter préalablement une nouvelle cotation.",
     action: 'prix-a-jour',
-    libelle: 'Voir le prix à jour',
+    libelle: "Voir le prix à jour",
   },
   filler_1: {
     overline: 'LE PRIX 1',
@@ -64,7 +60,6 @@ const REFUS = {
     libelle: 'Réessayer',
   },
 };
-
 
 export const MESSAGES = {
   prixRafraichiIdentique: 'Nouveau prix demandé. Le montant n’a pas changé.',

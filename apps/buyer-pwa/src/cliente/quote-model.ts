@@ -103,8 +103,17 @@ export function clienteQuoteFromServer(full: ServerQuote, door: QuoteOutcome): C
   if (door.status === 'quote') {
     const d = door.quote;
     if (d.paymentMode !== 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') return { ok: false, reason: 'mode_mismatch' };
-    // The door quote reconciles ON ITS OWN too — it is a second quote, not a
-    // view of the first, and it is the one that gets held when B is chosen.
+    // DEFENCE IN DEPTH, AND IT CANNOT FIRE TODAY — said plainly rather than
+    // dressed up (verifier ITEM 5). `agrees` below forces the door quote's
+    // productSubtotal, deliveryFee and buyerTotal to EQUAL the full quote's, and
+    // `reconcile` reads only those three, so `reconcile(full)` — already checked
+    // above — implies `reconcile(d)`. This line is unreachable as written.
+    //
+    // It stays because it is free and it stops being unreachable the moment
+    // `agrees` is ever loosened; what does NOT stay is the old comment claiming
+    // the door quote « reconciles on its own too », which described a check that
+    // could not run. A comment that overstates a guard is the same species of
+    // lie as a screen that overstates a total.
     if (!reconcile(d)) return { ok: false, reason: 'amounts_disagree' };
     const agrees =
       d.productSubtotal === full.productSubtotal &&
