@@ -88,7 +88,9 @@ export interface CustomizeProps {
   onOpenBoutique?: (slug: string) => void;
   /** PERSONNALISER-REAL-1 — persist the presentation. Absent (tests/default) ⇒
    *  the screens stay local-only, exactly as they were. */
-  onSaveIdentity?: (patch: StorefrontIdentityPatch) => void;
+  /** PERSONNALISER-HONESTY-1 — resolves TRUE only when the service accepted and
+   *  the read-back landed. A screen may not draw a stored state without it. */
+  onSaveIdentity?: (patch: StorefrontIdentityPatch) => Promise<boolean>;
   /** Does a save actually reach the service today? False before she goes live —
    *  stated on K1 rather than left for her to discover when it vanishes. */
   savesPersist?: boolean;
@@ -203,6 +205,9 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
   const [editingSection, setEditingSection] = useState<string | null>(null);
+  // PERSONNALISER-HONESTY-1 — which header save is in flight, so K4 can say
+  // « Enregistrement… » on that card instead of drawing a check it has not earned.
+  const [enteteEnCours, setEnteteEnCours] = useState<HeaderStyleKey | undefined>(undefined);
   // MEDIA-2 — the error SLOT must say the same true thing the toast says. It
   // used to be hard-coded « Image trop lourde — 2 Mo max. », which was honest
   // only for the [DEMO] button that once drove it; rewiring that state to real
@@ -450,16 +455,26 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
             setSf(setTheme(sf, key));
             onToast(tf('k.theme.toast', { nom: THEMES[key].name }));
           }}
+          enteteEnCours={enteteEnCours}
           onPickEntete={(key) => {
             // ENTETES-B — ONE SAVE, ONE THING: the header rides ALONE, never the
             // six-field ride-along, so a stale unrelated field can never refuse
-            // it. Local state updates for the check mark; the App re-reads after
-            // the save and the adopted service truth arrives via `storefront`.
-            const next = { ...sf, headerStyle: key };
-            setSfRaw(next);
-            onStorefrontChange?.(next);
-            onSaveIdentity?.({ headerStyle: key });
-            onToast(tf('k.entete.toast', { nom: t(`k.entete.nom_${key}`) }));
+            // it.
+            //
+            // PERSONNALISER-HONESTY-1 — and it no longer writes local state on
+            // the tap. It used to `setSfRaw` immediately, so the card drew its
+            // check mark before the service had agreed: the founder tapped
+            // « Masque » against a service that still spoke the six-style canon,
+            // saw a chosen card AND « Pas enregistré » at once, and nothing was
+            // stored. The truth now arrives one way only — the App's read-back
+            // lands in `storefront` and the adoption effect sets `sf`.
+            setEnteteEnCours(key);
+            void (async () => {
+              const ok = await onSaveIdentity?.({ headerStyle: key });
+              setEnteteEnCours(undefined);
+              if (ok === true) onToast(tf('k.entete.toast', { nom: t(`k.entete.nom_${key}`) }));
+              // a refusal already carries its own true sentence from the App
+            })();
           }}
         />
       )}
@@ -844,12 +859,13 @@ function PortraitSegments({ sf, onPickAvatar, sending, onAdjust }: { sf: Storefr
 
 /* ------------------------------------------------------------------- K4 -- */
 
-function K4({ sf, onBack, onPick, onPickEntete }: { sf: Storefront; onBack: () => void; onPick: (k: VitrineThemeKey) => void; onPickEntete: (k: HeaderStyleKey) => void }) {
+function K4({ sf, onBack, onPick, onPickEntete, enteteEnCours }: { sf: Storefront; onBack: () => void; onPick: (k: VitrineThemeKey) => void; onPickEntete: (k: HeaderStyleKey) => void; enteteEnCours?: HeaderStyleKey | undefined }) {
   const ORDER: VitrineThemeKey[] = ['laterite', 'danfani', 'indigo', 'foret'];
   // ENTETES-B — the six canon headers as TEXT cards (name + a one-line whisper
   // of character). No preview thumbnails this slice: the founder sees the real
   // render via « voir comme cliente » / `?entete=` on the buyer page.
   const currentEntete = headerStyleOf(sf);
+  const enCours = enteteEnCours;
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
       <KHeader title={t('k.theme.title')} onBack={onBack} />
@@ -898,11 +914,19 @@ function K4({ sf, onBack, onPick, onPickEntete }: { sf: Storefront; onBack: () =
                 )}
               </View>
               <Text style={S.enteteSub}>{t(`k.entete.sub_${key}`)}</Text>
-              {selected && (
+              {/* PERSONNALISER-HONESTY-1 — the check mark means STORED, never
+                  « tapped ». `selected` reads the adopted storefront, so it
+                  appears when the service has accepted and the read-back has
+                  landed; while the save is in flight the card says so, and a
+                  refusal simply never becomes a check (law 7: queued is
+                  pending, never done). */}
+              {enCours === key ? (
+                <Text style={S.enteteEnCours}>{t('k.entete.en_cours')}</Text>
+              ) : selected ? (
                 <View style={S.themeCheck}>
                   <IconCheckK size={14} color="#FCF4EE" />
                 </View>
-              )}
+              ) : null}
             </Pressable>
           );
         })}

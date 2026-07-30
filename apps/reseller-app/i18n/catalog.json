@@ -2812,6 +2812,24 @@
   "screenClass": "instruction"
  },
  {
+  "key": "k.enreg.entete_indisponible",
+  "fr": "Cet en-tête n’est pas encore disponible sur votre boutique. Choisissez-en un autre pour l’instant.",
+  "register": "selling",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "k.enreg.refus",
+  "fr": "Pas enregistré. Ce changement n’a pas été accepté.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "k.entete.en_cours",
+  "fr": "Enregistrement…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "k.enreg.brouillon",
   "fr": "Vos changements seront gardés quand votre boutique sera en ligne.",
   "register": "neutral",

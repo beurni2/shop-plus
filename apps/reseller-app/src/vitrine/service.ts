@@ -57,6 +57,52 @@ export interface StorefrontRow {
 /** Honest result — never claims success on a failed call (offline-first law). */
 export type ServiceResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly reason: string };
 
+/**
+ * WHICH SENTENCE A REFUSED SAVE EARNS — a pure decision, because the old one was
+ * a ternary chain ending in « Réessayez dans un moment » for EVERYTHING it did
+ * not recognise.
+ *
+ * ═══ THE DEFECT THIS CLOSES (founder-caught on his own phone, 2026-07-30) ═══
+ *
+ * He tapped « Masque » in Personnaliser and the screen said « Pas enregistré.
+ * Réessayez dans un moment. » The service had refused with `unknown_header_style`
+ * — the deployed Worker still spoke the six-style canon while the app already
+ * offered eleven. That refusal is PERMANENT until the service is redeployed: no
+ * amount of retrying could ever have worked, and the screen sent her to do
+ * exactly that, on the one screen where she is arranging her own shop.
+ *
+ * THE RULE, inverted from what it was: the retry sentence is earned ONLY by
+ * reasons that are genuinely transient. Everything else says it was not saved
+ * and does NOT promise that trying again will help. An unrecognised reason is
+ * treated as PERMANENT, not transient — the safe default is the one that does
+ * not make a promise we cannot keep.
+ */
+const TRANSIENT_REASONS: ReadonlySet<string> = new Set(['offline', 'unreadable']);
+
+export function saveRefusalToastKey(reason: string): string {
+  // …the network, or a service that answered nothing we could read. Trying
+  // again in a moment is TRUE here, and it is the only place it is.
+  if (TRANSIENT_REASONS.has(reason)) return 'k.enreg.echec';
+  // 408/429/5xx — the request never reached a decision. Also honestly retryable.
+  const http = /^http_(\d{3})$/.exec(reason);
+  if (http !== null) {
+    const code = Number(http[1]);
+    return code === 408 || code === 429 || code >= 500 ? 'k.enreg.echec' : 'k.enreg.refus';
+  }
+  // …the named refusals, each with the true thing to tell her.
+  if (reason === 'name_too_short' || reason === 'name_too_long') return 'k.identite.nom_requis';
+  if (reason === 'featured_over_cap') return 'k.une.refus_cap';
+  if (reason === 'sections_over_cap') return 'k.sections.refus_cap';
+  if (reason === 'section_name_empty' || reason === 'section_name_too_long') return 'k.enreg.section_nom';
+  // The style she picked is not in the vocabulary her shop's service speaks —
+  // the app is ahead of the service. Naming it lets her keep going instead of
+  // tapping a card that can never take.
+  if (reason === 'unknown_header_style') return 'k.enreg.entete_indisponible';
+  // Anything else, INCLUDING a reason this app has never heard of: not saved,
+  // and no promise about retrying.
+  return 'k.enreg.refus';
+}
+
 export interface UploadOutcome {
   readonly status: string;
   readonly url: string;

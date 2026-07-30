@@ -171,6 +171,10 @@ export const K_RAW_STYLES = {
      wholesale; this is the one net-new entry (the one-line whisper under the
      name), on EXISTING palette bytes only (#6F6355 = rowSub/caps). */
   enteteSub: { fontFamily: TEXT_FAMILY, fontSize: 12, lineHeight: 18, color: '#6F6355', paddingTop: 6, paddingHorizontal: 14 },
+  // PERSONNALISER-HONESTY-1 — « Enregistrement… » sits where the check mark
+  // would be, so the card says PENDING rather than drawing a stored state it
+  // has not earned. Deliberately quiet: it is a status, not an action.
+  enteteEnCours: { position: 'absolute', top: 12, right: 12, fontFamily: TEXT_FAMILY, fontSize: 11, lineHeight: 14, color: '#6F6355' },
   noteCard: { borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EDE4D3', padding: 14, marginTop: 16 },
   noteCardText: { fontFamily: TEXT_FAMILY, fontSize: 12, lineHeight: 18, color: '#4A3F33' },
 

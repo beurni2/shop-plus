@@ -85,6 +85,38 @@ jobs:
       #     key and reads back its answer instead of exercising the path.
       # It does NOT assert any amount: this route answers no price to an unknown
       # shop, and a smoke test that needed one would be a smoke test that created one.
+      # SERVICE-CANON-DRIFT-1 (founder-caught 2026-07-30) — PROVE THE DEPLOY TOOK
+      # THE CANON IT WAS BUILT WITH.
+      #
+      # The defect: ENTETES-E opened the Personnaliser picker to eleven header
+      # styles and merged green, but `storefront-deploy` is manual, so the LIVE
+      # Worker still validated against the six-style enum. Every tap on the five
+      # new cards was refused `unknown_header_style`. Nothing in CI could see it —
+      # the client and the service were each internally consistent, and only their
+      # DEPLOYED pair was wrong. The founder found it on his phone, in Ouaga.
+      #
+      # `/health` already answers `canon` (the contracts version bundled in) and
+      # `release` (the sha). Asserting BOTH against what this job just built is
+      # what makes a deploy self-verifying: a green `wrangler deploy` that somehow
+      # served an older bundle now fails HERE rather than in her hands. `no-store`
+      # on that route (an earlier founder finding) is what makes the read truthful.
+      - name: Assert the live Worker speaks the canon this job bundled
+        run: |
+          set -euo pipefail
+          BASE=https://storefront-service.ilboudobernard2.workers.dev
+          OUT=$(mktemp)
+          CODE=$(curl -sS -o "$OUT" -w '%{http_code}' "$BASE/health")
+          echo "health: $CODE $(cat "$OUT")"
+          test "$CODE" = "200"
+          LIVE_CANON=$(node -p "JSON.parse(require('fs').readFileSync('$OUT','utf8')).canon")
+          LIVE_RELEASE=$(node -p "JSON.parse(require('fs').readFileSync('$OUT','utf8')).release")
+          echo "live canon=$LIVE_CANON expected=$SHOP_CANON"
+          echo "live release=$LIVE_RELEASE expected=$SHOP_RELEASE"
+          if [ "$LIVE_CANON" != "$SHOP_CANON" ] || [ "$LIVE_RELEASE" != "$SHOP_RELEASE" ]; then
+            echo "DEPLOY DID NOT TAKE — the live Worker is not the bundle this job built."
+            exit 1
+          fi
+          echo "PROVENANCE OK — live Worker is $SHOP_RELEASE speaking canon $SHOP_CANON."
       - name: Smoke — the deployed checkout surface answers by NAME, not by crashing
         run: |
           set -euo pipefail

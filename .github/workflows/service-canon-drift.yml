@@ -1,0 +1,95 @@
+name: service-canon-drift
+
+# SERVICE-CANON-DRIFT-1 (founder-caught 2026-07-30) — DOES THE LIVE SERVICE SPEAK
+# THE CANON THIS REPO SHIPS?
+#
+# ═══ THE DEFECT THIS EXISTS FOR ═══
+#
+# ENTETES-E opened the Personnaliser header picker to eleven styles and merged
+# with every gate green. `storefront-deploy` is deliberately manual, so the LIVE
+# Worker still validated against the six-style canon: every tap on the five new
+# cards was refused `unknown_header_style`, and the screen — which had no way to
+# know why — told her to try again in a moment. She could have tapped forever.
+#
+# NOTHING IN CI COULD SEE IT. The app was internally consistent. The service was
+# internally consistent. Only their DEPLOYED PAIR was wrong, and no test in either
+# half looks at the other half's running instance. The founder found it on his own
+# phone. That is the failure this workflow refuses to repeat.
+#
+# ═══ WHAT RED MEANS HERE ═══
+#
+# Red does NOT mean the code is broken. It means A DEPLOY IS OWED: main ships a
+# contracts version the live Worker does not speak, so some part of the app can
+# ask for something the service will refuse. Dispatch `storefront-deploy` and this
+# goes green. It runs on every push to main (the moment the gap opens) and daily
+# (so a gap opened by a rollback or an expired deploy cannot sit unseen).
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # 07:00 UTC daily — before Ouaga's selling day, so a gap is known early.
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: service-canon-drift
+  cancel-in-progress: true
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      # The contracts package is private; CI reads it with the same grant the
+      # other workflows use.
+      - name: Authorize read access to platform-contracts (CI-only)
+        run: git config --global url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "https://github.com/beurni2/platform-contracts"
+      # Same --add discipline as ci.yml: url.<base>.insteadOf is single-valued,
+      # so a plain set here would silently drop the https rewrite above.
+      - name: Authorize read access to platform-contracts (CI-only, SSH forms)
+        run: |
+          git config --global --add url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "git@github.com:beurni2/platform-contracts"
+          git config --global --add url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "ssh://git@github.com/beurni2/platform-contracts"
+      - run: pnpm install --frozen-lockfile
+      - name: Compare the shipped canon against the live one
+        run: |
+          set -euo pipefail
+          BASE=https://storefront-service.ilboudobernard2.workers.dev
+          # Read the version from the INSTALLED package, never a hand-typed
+          # constant — the same rule the deploy stamp follows, so the two numbers
+          # are derived identically and can be compared honestly.
+          REPO_CANON=$(node -p "require('./node_modules/@platform/contracts/package.json').version")
+          OUT=$(mktemp)
+          CODE=$(curl -sS -o "$OUT" -w '%{http_code}' "$BASE/health")
+          echo "health: $CODE $(cat "$OUT")"
+          if [ "$CODE" != "200" ]; then
+            echo "THE LIVE SERVICE DID NOT ANSWER /health ($CODE) — drift cannot be ruled out."
+            exit 1
+          fi
+          LIVE_CANON=$(node -p "JSON.parse(require('fs').readFileSync('$OUT','utf8')).canon")
+          LIVE_RELEASE=$(node -p "JSON.parse(require('fs').readFileSync('$OUT','utf8')).release")
+          echo "repo canon = $REPO_CANON"
+          echo "live canon = $LIVE_CANON  (release $LIVE_RELEASE)"
+          if [ "$LIVE_CANON" = "dev" ]; then
+            echo "THE LIVE WORKER IS UNSTAMPED — it was not deployed by this pipeline."
+            exit 1
+          fi
+          if [ "$LIVE_CANON" != "$REPO_CANON" ]; then
+            echo ""
+            echo "CANON DRIFT — A DEPLOY IS OWED."
+            echo "  main ships contracts $REPO_CANON; the live Worker speaks $LIVE_CANON."
+            echo "  Anything the app added in $REPO_CANON will be REFUSED by the service"
+            echo "  until storefront-deploy is dispatched. This is exactly the state that"
+            echo "  made « Masque » unsaveable on 2026-07-30."
+            exit 1
+          fi
+          echo "IN SYNC — the live Worker speaks the canon main ships ($REPO_CANON)."
