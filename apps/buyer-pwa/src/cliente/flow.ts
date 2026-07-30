@@ -110,7 +110,14 @@ interface FlowState {
    * closed over, so every tap of Payer holds under the SAME command and the
    * buyer's own retry replays her own hold instead of colliding with it.
    */
-  live: { quoteId: string; commandId: string; expiry: string; reserve: () => Promise<ReserveFetch> } | null;
+  live: { quoteId: string; commandId: string; expiry: string; reserve: (mode: ModePaiement) => Promise<ReserveFetch> } | null;
+  /**
+   * The phone's clock disagreed with a QUOTE THE SERVICE JUST ISSUED, so the
+   * local expiry check is not evidence about the price. See `payer`.
+   */
+  horlogeDouteuse: boolean;
+  /** One automatic refresh per price, so a stale quote cannot loop forever. */
+  prixRafraichi: boolean;
 }
 
 export function createCliente(container: HTMLElement, init: ClienteInit): void {
@@ -148,6 +155,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     serverQuote: null,
     refus: null,
     live: null,
+    horlogeDouteuse: false,
+    prixRafraichi: false,
   };
 
   /**
@@ -172,11 +181,25 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   let t2: ReturnType<typeof setTimeout> | null = null;
   let ticker: ReturnType<typeof setInterval> | null = null;
 
+  /**
+   * THE PAYMENT ATTEMPT'S GENERATION (verifier BLOCKER 3).
+   *
+   * Cancelling has to cancel what is ALREADY IN FLIGHT, not just what is
+   * scheduled. `clearT()` kills the pending timers, but a reservation request
+   * already on the wire resolves later and would happily schedule the provider
+   * simulation onto a buyer who left. Every `clearT()` bumps this counter; a
+   * resolved `reserve` compares the generation it started in and does nothing if
+   * it has moved. « Nous ne dirons jamais le contraire » has to survive her
+   * pressing Retour.
+   */
+  let generation = 0;
+
   function clearT(): void {
     if (t1) clearTimeout(t1);
     if (t2) clearTimeout(t2);
     if (ticker) clearInterval(ticker);
     t1 = t2 = ticker = null;
+    generation += 1;
   }
 
   function prefill(screen: EcranLineaire): void {
@@ -287,7 +310,20 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     state.refus = null;
     state.loading = true;
     render();
-    const fetched = await ask(state.zone ?? '', renouveler);
+    let fetched: QuoteFetch;
+    try {
+      fetched = await ask(state.zone ?? '', renouveler);
+    } catch {
+      // ANY REJECTION, FROM ANY CAUSE, LANDS ON A SCREEN WITH AN ACTION
+      // (verifier BLOCKER 4). Without this the throw escaped, `loading` stayed
+      // true, and the buyer sat on the skeleton forever — no message, no back
+      // button, no request ever sent. A frozen screen on the money path is the
+      // worst answer available; the honest generic card is the least bad.
+      state.loading = false;
+      state.refus = 'answer_unreadable';
+      render();
+      return;
+    }
     state.loading = false;
     if (fetched.status !== 'ready') {
       state.refus = nomDuRefus(fetched);
@@ -302,6 +338,14 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       expiry: fetched.expiry,
       reserve: fetched.reserve,
     };
+    // ═══ IS THIS PHONE'S CLOCK TRUSTWORTHY? (verifier BLOCKER 5) ═══
+    // A quote the service JUST issued is alive by construction. If this device
+    // reads it as already expired, the wrong clock is the phone's — so the local
+    // expiry gate is not evidence about the price and must not be allowed to
+    // refuse forever. An unparsable/absent expiry lands here too: « this phone
+    // cannot tell » is the same situation.
+    state.horlogeDouteuse = prixExpire(fetched.expiry, Date.now());
+    state.prixRafraichi = false;
     // ONE fee for this zone pair ⇒ nothing to choose ⇒ the C4 CTA is live on
     // arrival. `delivery` is set only so the selectors have a slot to read; both
     // slots carry the SAME server figure, so the choice cannot change a franc.
@@ -370,14 +414,23 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
           });
         }
         return;
+      // ── LEAVING A SCREEN CANCELS WHAT THAT SCREEN STARTED ──────────────────
+      // `clearT()` was missing here (verifier BLOCKER 3, pre-existing): backing
+      // out of « ENVOI SÉCURISÉ » left the provider simulation's timers running,
+      // and 2 400 ms later the flow teleported her onto « Paiement de 12 500
+      // FCFA confirmé par l'opérateur. » — directly against that same screen's
+      // « Rien n'est confirmé tant que l'opérateur n'a pas répondu. Nous ne
+      // dirons jamais le contraire. » It also now sits in front of a REAL
+      // server-side hold. `clearT()` bumps the generation, so a reservation
+      // already in flight cannot schedule anything either.
       case 'retour-c1':
-        state.refus = null; state.screen = 'C1'; render(); return;
+        clearT(); state.paying = 'idle'; state.refus = null; state.screen = 'C1'; render(); return;
       case 'retour-c3':
         // Also the « Changer de zone » action on the refusal surface: she goes
         // back to the one thing she can change, and the next Continuer re-asks.
-        state.refus = null; state.screen = 'C3'; render(); return;
+        clearT(); state.paying = 'idle'; state.refus = null; state.screen = 'C3'; render(); return;
       case 'retour-c4':
-        state.refus = null; state.screen = 'C4'; render(); return;
+        clearT(); state.paying = 'idle'; state.refus = null; state.screen = 'C4'; render(); return;
       case 'retour-c7':
         jump('C7', { step: Math.max(state.step, 1) }); return;
       // — C1 —
@@ -442,22 +495,48 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         if (!state.pay) return;
         const live = state.live;
         if (live !== null) {
+          const mode = state.pay;
           // ─── THE REAL PATH, IN THIS ORDER, AND THE ORDER IS THE POINT ───
-          // 1. EXPIRY FIRST. Paying against a stale price is paying an amount
-          //    nobody currently agrees to; the server would refuse it anyway,
-          //    and finding out AFTER the operator prompt is the cruel way.
-          if (prixExpire(live.expiry, Date.now())) {
+          //
+          // 1. THE EXPIRY FAST-PATH — A COURTESY, NOT THE AUTHORITY.
+          //
+          //    THE SERVER OWNS EXPIRY (verifier BLOCKER 5). This gate used to
+          //    treat the PHONE'S clock as the sole authority, and a phone one
+          //    hour fast could then never buy anything: every refresh minted a
+          //    genuinely live quote, every Payer tap died on « Ce prix a
+          //    expiré », and NOT ONE reserve request was ever sent. The screen
+          //    blamed the price for the clock.
+          //
+          //    Fail-closed is right; fail-closed WITH NO ESCAPE is not. So:
+          //    read as expired ⇒ refresh ONCE automatically (a new key, a new
+          //    price). If the freshly issued quote ALSO reads expired, this
+          //    phone cannot tell the time — `horlogeDouteuse` — and we SEND THE
+          //    RESERVE and let the only authority that can actually answer,
+          //    answer. Nothing unsafe can follow: the service refuses an
+          //    expired quote BY NAME, and a named server refusal is a true
+          //    sentence where a clock-skew guess is not.
+          if (prixExpire(live.expiry, Date.now()) && !state.horlogeDouteuse) {
+            if (!state.prixRafraichi) {
+              state.prixRafraichi = true;
+              state.paying = 'idle';
+              void demanderLePrix(true); // new key, new price, then she taps again
+              return;
+            }
             state.paying = 'idle'; state.refus = 'expired'; render(); return;
           }
-          // 2. THEN THE HOLD. « ENVOI SÉCURISÉ » stands while it is taken — the
-          //    reservation IS the first step of sending her request, and it is
-          //    the only screen this slice is allowed to show here.
-          //    `reserve()` takes NO argument: the command id was minted with the
-          //    quote, so tapping back and paying again REPLAYS her own hold
-          //    (the vault's `reserveCommandId` match) instead of colliding with
-          //    it and answering `already_reserved` at its own holder.
+          // 2. THEN THE HOLD, ON THE QUOTE FOR THE MODE SHE CHOSE. « ENVOI
+          //    SÉCURISÉ » stands while it is taken — the reservation IS the
+          //    first step of sending her request, and it is the only screen
+          //    this slice is allowed to show here. `reserve` takes no COMMAND
+          //    id: each mode's command was minted with its quote, so tapping
+          //    back and paying again REPLAYS her own hold (the vault's
+          //    `reserveCommandId` match) instead of colliding with it.
+          const gen = generation;
           state.paying = 'submitting'; render();
-          void live.reserve().then((r) => {
+          void live.reserve(mode).then((r) => {
+            // SHE LEFT WHILE THIS WAS ON THE WIRE — cancel means cancel, so a
+            // late answer schedules nothing and says nothing (BLOCKER 3).
+            if (gen !== generation) return;
             if (r.status !== 'reserved') {
               state.paying = 'idle';
               state.refus = nomDuRefus(r);

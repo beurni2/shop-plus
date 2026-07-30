@@ -165,19 +165,28 @@ export function httpQuotePort(baseUrl: string): QuotePort {
   const base = baseUrl.replace(/\/+$/, '');
   return {
     async request(intent: QuoteIntent, requestKey: string): Promise<QuoteOutcome> {
+      // Built OUTSIDE the fetch `try` (verifier NOTE 8): a body this browser
+      // refused to serialise is not a missing network, and must not be reported
+      // to an online buyer as one.
+      let payload: string;
+      try {
+        payload = JSON.stringify({
+          slug: intent.slug,
+          pid: intent.pid,
+          paymentMode: intent.paymentMode,
+          zoneTo: intent.zoneTo,
+          attributionResellerId: intent.attributionResellerId,
+          requestKey,
+        });
+      } catch {
+        return { status: 'unreadable' };
+      }
       let res: Response;
       try {
         res = await fetch(`${base}/checkout/quote`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            slug: intent.slug,
-            pid: intent.pid,
-            paymentMode: intent.paymentMode,
-            zoneTo: intent.zoneTo,
-            attributionResellerId: intent.attributionResellerId,
-            requestKey,
-          }),
+          body: payload,
         });
       } catch {
         // NOTHING ANSWERED — the one place « Pas de connexion » is true.
@@ -216,12 +225,26 @@ export function httpQuotePort(baseUrl: string): QuotePort {
     },
 
     async reserve(quoteId: string, commandId: string, holderRef: string): Promise<ReserveOutcome> {
+      // THE URL AND THE BODY ARE BUILT OUTSIDE THE FETCH `try` (verifier NOTE 8).
+      // `encodeURIComponent` THROWS a URIError on a lone surrogate, and a hostile
+      // or corrupted `quoteId` carrying one used to land inside the catch below —
+      // rendering « Pas de connexion » to a buyer whose network is perfectly
+      // fine, the exact lie the unreachable/unreadable split exists to remove.
+      // A request the BROWSER refused to construct is not a missing network.
+      let url: string;
+      let payload: string;
+      try {
+        url = `${base}/checkout/quote/${encodeURIComponent(quoteId)}/reserve`;
+        payload = JSON.stringify({ commandId, holderRef });
+      } catch {
+        return { status: 'unreadable' };
+      }
       let res: Response;
       try {
-        res = await fetch(`${base}/checkout/quote/${encodeURIComponent(quoteId)}/reserve`, {
+        res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ commandId, holderRef }),
+          body: payload,
         });
       } catch {
         return { status: 'unreachable' }; // nothing answered
@@ -372,31 +395,76 @@ function intentFingerprint(intent: QuoteIntent): string {
  * fresh uuid. That costs idempotency on retry, never correctness: the server
  * still issues at most one quote per key.
  */
-export function requestKeyFor(intent: QuoteIntent, storage?: Storage): string {
+export function requestKeyFor(intent: QuoteIntent, storage?: Storage): string | undefined {
   const slot = KEY_PREFIX + intentFingerprint(intent);
-  const fresh = (): string => crypto.randomUUID();
-  if (storage === undefined) return fresh();
+  if (storage === undefined) return mintUuid();
   try {
     const existing = storage.getItem(slot);
     if (existing !== null && existing !== '') return existing;
-    const minted = fresh();
-    storage.setItem(slot, minted);
+    const minted = mintUuid();
+    if (minted !== undefined) storage.setItem(slot, minted);
     return minted;
   } catch {
-    return fresh();
+    return mintUuid();
   }
+}
+
+/**
+ * ═══ A UUID, OR HONESTLY NOTHING — NEVER A THROW AND NEVER `Math.random` ═══
+ *
+ * THE DEFECT THIS CLOSES (verifier BLOCKER, SP3.2b round 3): this drew straight
+ * from `crypto.randomUUID()`, which DOES NOT EXIST on a non-secure origin
+ * (plain http, exactly how a shared link opens on a cheap phone behind a captive
+ * portal) nor on older Android WebViews. The call threw, the throw escaped
+ * `demanderLePrix`, and the buyer sat on a skeleton forever: zero HTTP asks, no
+ * message, no back button. A permanent dead end on the money path.
+ *
+ * THE LADDER, in order:
+ *   1. `crypto.randomUUID()` — the OS CSPRNG, formatted for us.
+ *   2. `crypto.getRandomValues()` — the SAME entropy source, one API older;
+ *      we lay out the RFC 4122 v4 bytes ourselves.
+ *   3. NOTHING. `undefined`, and the caller refuses BY NAME.
+ *
+ * `Math.random` IS BANNED HERE and always will be: it carries only its seed's
+ * entropy on a cold-booted Android-Go device, two mints can collide into one
+ * idempotency key, and one collision on this path is one lost hold
+ * (RESELLER-IDENTITY-1; the `mint-path-entropy` gate names this file).
+ * A missing id must degrade into a NAMED REFUSAL WITH AN ACTION, never into a
+ * weaker random and never into a frozen screen.
+ */
+export function mintUuid(): string | undefined {
+  const c: Crypto | undefined = typeof globalThis.crypto === 'object' ? globalThis.crypto : undefined;
+  if (c === undefined) return undefined;
+  if (typeof c.randomUUID === 'function') {
+    try {
+      return c.randomUUID();
+    } catch {
+      /* fall through to getRandomValues */
+    }
+  }
+  if (typeof c.getRandomValues === 'function') {
+    try {
+      const b = c.getRandomValues(new Uint8Array(16));
+      b[6] = (b[6]! & 0x0f) | 0x40; // version 4
+      b[8] = (b[8]! & 0x3f) | 0x80; // variant 10xx
+      const hex = Array.from(b, (n) => n.toString(16).padStart(2, '0')).join('');
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
 }
 
 /**
  * THE RESERVATION'S COMMAND ID — the buyer's second idempotency token, minted
  * client-side so a retried tap holds the SAME reservation instead of racing
- * itself. Drawn from the OS CSPRNG, never `Math.random`: a command id that
- * carries only a seed's entropy can collide on a cold-booted Android-Go phone,
- * and two colliding ids on a money path are one lost hold (RESELLER-IDENTITY-1,
- * the `mint-path-entropy` gate).
+ * itself. `undefined` when this device has no CSPRNG at all; the caller then
+ * refuses by name rather than proceeding without one.
  */
-export function mintCommandId(): string {
-  return `cmd-${crypto.randomUUID()}`;
+export function mintCommandId(): string | undefined {
+  const u = mintUuid();
+  return u === undefined ? undefined : `cmd-${u}`;
 }
 
 /** The storage namespace for a quote's reservation command. */
@@ -417,14 +485,14 @@ const CMD_PREFIX = 'sp-quote-cmd:';
  * Storage unavailable ⇒ a fresh id, same as `requestKeyFor`: that costs the
  * replay, never correctness — the vault still allows exactly one hold.
  */
-export function commandIdFor(quoteId: string, storage?: Storage): string {
+export function commandIdFor(quoteId: string, storage?: Storage): string | undefined {
   if (storage === undefined) return mintCommandId();
   const slot = CMD_PREFIX + quoteId;
   try {
     const existing = storage.getItem(slot);
     if (existing !== null && existing !== '') return existing;
     const minted = mintCommandId();
-    storage.setItem(slot, minted);
+    if (minted !== undefined) storage.setItem(slot, minted);
     return minted;
   } catch {
     return mintCommandId();

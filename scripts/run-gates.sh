@@ -185,6 +185,12 @@ capture copy-lint-kit-positive pass pnpm exec copy-lint apps/reseller-kit/i18n/c
 log "gate: French Voice copy-lint — NEGATIVE FIXTURE (veuillez/séquestre + marketing-in-money + Mooré-in-instruction, must fail)"
 capture copy-lint-negative fail pnpm exec copy-lint gates/fixtures/negative/catalog.negative.json
 
+log "gate: French Voice copy-lint — the PWA CLIENTE refusal strings that live INLINE in screens.ts (SP3.2b, must pass)"
+capture copy-lint-inline-refus-positive pass node scripts/gates/copy-lint-inline-refus.mjs
+
+log "gate: French Voice copy-lint — NEGATIVE FIXTURE (an inline REFUS table with veuillez/séquestre/profitez + an over-budget sentence, must fail)"
+capture copy-lint-inline-refus-negative fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/screens.ts
+
 log "gate: E2 failure path — the real service path end-to-end (must pass)"
 capture e2-failure-path pass node scripts/e2-failure-path.mjs
 

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   commandIdFor, demoQuotePort, forgetRequestKey, httpQuotePort, looksLikeServerQuote,
-  mintCommandId, requestKeyFor, villeDe,
+  mintCommandId, mintUuid, requestKeyFor, villeDe,
   type QuoteIntent, type QuoteOutcome, type QuotePort, type ServerQuote,
 } from '../src/cliente/quote-port';
 import {
@@ -383,38 +383,88 @@ describe('clienteQuoteFromServer — CROSS-CHECK, NEVER DERIVE', () => {
 
 /* ═════ 5 · THE CLIENT NEVER ADDS — it renders the server's own total ══════ */
 
-describe('THE CLIENT PERFORMS NO MONEY ARITHMETIC — proven by a server total that is NOT the sum', () => {
-  /** DELIBERATELY INCOHERENT: 11 500 + 1 000 is 12 500, and this server says
-   *  13 900. A client that computed its own total would render 12 500 here.
-   *  It must render 13 900 — the server's byte — because the client has no
-   *  opinion about what a total is. (The service's OWN reconciliation is the
-   *  money gate's job, and it is asserted against the real Worker in the
-   *  storefront-service e2e, on the same shared fixture.) */
+describe('THE CLIENT PERFORMS NO MONEY ARITHMETIC — and REFUSES a bill that does not reconcile', () => {
+  /**
+   * DELIBERATELY INCOHERENT: 11 500 + 1 000 is 12 500, and this server says
+   * 13 900 — 1 400 FCFA unaccounted for.
+   *
+   * ═══ THIS ASSERTION WAS CHANGED, ON PURPOSE, UNDER AN EXPLICIT CTO
+   *     AUTHORIZATION (SP3.2b round 3) ═══
+   *
+   * It used to assert that C5 RENDERED 13 900 — « the server's byte, because
+   * the client has no opinion about what a total is ». The fresh verifier drove
+   * exactly that input through a real Chromium and photographed the result: a
+   * bill, a CTA, a C6 confirmation, and the line « 13 900 = 11 500 + 1 000 —
+   * chaque franc a sa place. » The old assertion was pinning a DEFECT: the
+   * screen printing an arithmetic identity as fact that nothing checked.
+   *
+   * Correct behaviour for this input is now a REFUSAL. The « never substitutes
+   * its own sum » property is still pinned below — on a RECONCILING quote,
+   * which is the only kind that may ever reach a screen.
+   */
   const MENTEUR: ServerQuote = {
     ...FULL,
     buyerTotal: 13_900,
     amountPaidAtCheckout: 13_900,
   };
 
-  it('C5 renders the SERVER’S total, not the client’s sum', () => {
-    const got = clienteQuoteFromServer(MENTEUR, { status: 'unreachable' });
+  it('a bill that does not reconcile to the franc is REFUSED, never rendered', () => {
+    expect(clienteQuoteFromServer(MENTEUR, { status: 'unreachable' }))
+      .toEqual({ ok: false, reason: 'amounts_disagree' });
+    // …and the buyer gets the honest card, with no figure on it at all
+    const html = renderRefus('amounts_disagree');
+    expect(html).toContain('Nous ne pouvons pas afficher le prix.');
+    expect(html).not.toContain('FCFA');
+    expect(html).not.toContain('chaque franc a sa place');
+  });
+
+  it('EVERY way of breaking the identity is refused, in both directions', () => {
+    for (const [what, q] of [
+      ['a total that is too HIGH', { ...FULL, buyerTotal: 13_900, amountPaidAtCheckout: 13_900 }],
+      ['a total that is too LOW', { ...FULL, buyerTotal: 11_000, amountPaidAtCheckout: 11_000 }],
+      ['a subtotal that does not fit the total', { ...FULL, productSubtotal: 9_000 }],
+      ['a delivery fee that does not fit the total', { ...FULL, deliveryFee: 250 }],
+      ['off by ONE FRANC', { ...FULL, buyerTotal: 12_501, amountPaidAtCheckout: 12_501 }],
+    ] as Array<[string, ServerQuote]>) {
+      expect(clienteQuoteFromServer(q, { status: 'unreachable' }), what)
+        .toEqual({ ok: false, reason: 'amounts_disagree' });
+    }
+  });
+
+  it('the DOOR quote must reconcile on its own too — it is what gets held for mode B', () => {
+    const brokenDoor: ServerQuote = { ...DOOR, buyerTotal: 13_900 };
+    expect(clienteQuoteFromServer(FULL, { status: 'quote', quote: brokenDoor }))
+      .toEqual({ ok: false, reason: 'amounts_disagree' });
+  });
+
+  it('on a RECONCILING quote the client renders the SERVER’S figures and never its own', () => {
+    // 12 000 + 900 = 12 900 — coherent, and NOT the numbers any hardcoded card
+    // in this app has ever carried (the retired mock was 1 000 / 800).
+    const server: ServerQuote = {
+      ...FULL,
+      productSubtotal: 12_000, deliveryFee: 900, buyerTotal: 12_900,
+      amountPaidAtCheckout: 12_900, amountDueAtDelivery: 0,
+    };
+    const got = clienteQuoteFromServer(server, { status: 'unreachable' });
     expect(got.ok).toBe(true);
     if (!got.ok) return;
-    expect(got.quote.totalToday).toBe(13_900);
-
+    expect(got.quote.totalToday).toBe(12_900);
     const c5 = renderC5(ROBE, got.quote, { delivery: 'today', pay: 'A', paying: 'idle', bInel: true });
-    expect(c5).toContain(`13${N}900${N}FCFA`); // the server's total, on screen
-    expect(c5).not.toContain(`12${N}500${N}FCFA`); // the client's sum, nowhere
-    // the bill's three lines are three server bytes
-    expect(c5).toContain(`11${N}500${N}FCFA`);
-    expect(c5).toContain(`1${N}000${N}FCFA`);
-    // and the reconcile sentence RENDERS the same three bytes — it does not
-    // re-derive the left-hand side from the right-hand one.
-    expect(c5).toContain(`13${N}900 = 11${N}500 + 1${N}000 — chaque franc a sa place.`);
+    expect(c5).toContain(`12${N}900${N}FCFA`);
+    expect(c5).toContain(`12${N}000${N}FCFA`);
+    expect(c5).toContain(`900${N}FCFA`);
+    // the retired hardcoded mock figures appear NOWHERE
+    expect(c5).not.toContain(`12${N}500${N}FCFA`);
+    expect(c5).not.toContain(`11${N}500${N}FCFA`);
+    // and the reconcile sentence RENDERS those same three server bytes
+    expect(c5).toContain(`12${N}900 = 12${N}000 + 900 — chaque franc a sa place.`);
   });
 
   it('C4 renders the SERVER’S fee, not a hardcoded card', () => {
-    const got = clienteQuoteFromServer({ ...FULL, deliveryFee: 1_750, buyerTotal: 13_250, amountPaidAtCheckout: 13_250 }, { status: 'unreachable' });
+    const got = clienteQuoteFromServer(
+      { ...FULL, deliveryFee: 1_750, buyerTotal: 13_250, amountPaidAtCheckout: 13_250 },
+      { status: 'unreachable' },
+    );
     expect(got.ok).toBe(true);
     if (!got.ok) return;
     const c4 = renderC4(got.quote, { zone: 'Gounghin', repereRecap: 'Face à la pharmacie', delivery: 'today', ligneUnique: true });
@@ -499,7 +549,9 @@ describe('the refusal surface — one cause, one consequence, one action, for ev
   }
 
   it('EVERY unknown name — including amounts_disagree and the stored_* family — gets the generic sentence, never the raw word', () => {
-    for (const reason of ['amounts_disagree', 'quote_not_issuable', 'stored_quote_unreadable', 'stored_amounts_incoherent', 'request_key_reused', 'commission_not_frozen', '', 'wat']) {
+    // NB `request_key_reused` moved OUT of this list: it now has its own card
+    // with the key-minting action (verifier BLOCKER 6), asserted in §7c.
+    for (const reason of ['amounts_disagree', 'quote_not_issuable', 'stored_quote_unreadable', 'stored_amounts_incoherent', 'commission_not_frozen', '', 'wat']) {
       const html = renderRefus(reason);
       expect(html, reason).toContain('Nous ne pouvons pas afficher le prix.');
       expect(html, reason).toContain('Réessayer');
@@ -728,11 +780,50 @@ describe('fetchClienteQuote — the whole real-path ask', () => {
     expect(got.expiry).toBe(FULL.expiry);
   });
 
-  it('the FULL refusal passes through by NAME, and the door is never even asked', async () => {
-    const { port, asked } = scriptedPort({ FULL_PREPAY: { status: 'refused', reason: 'delivery_not_serviceable' } });
+  /**
+   * CHANGED under the round-3 work order (verifier NOTE 7): this used to assert
+   * `asked` had length 1, i.e. that the door ask never happened after a FULL
+   * refusal. The two asks are now issued TOGETHER — serialized, the door ask
+   * (which the service refuses for every buyer today) sat in front of the price
+   * and the verifier measured 13.8 s to first price with a stalled door ask.
+   * What still matters, and is asserted here, is that the FULL ask remains
+   * AUTHORITATIVE: its refusal is what the buyer is told, whatever the door
+   * ask answered.
+   */
+  it('the FULL refusal is AUTHORITATIVE, and both asks go out together', async () => {
+    const { port, asked } = scriptedPort({
+      FULL_PREPAY: { status: 'refused', reason: 'delivery_not_serviceable' },
+      DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR: { status: 'quote', quote: DOOR },
+    });
     const got = await fetchClienteQuote(port, base, keys);
+    // the door ANSWERED WITH A QUOTE and it changes nothing: the full ask ruled
     expect(got).toEqual({ status: 'refused', reason: 'delivery_not_serviceable' });
-    expect(asked).toHaveLength(1); // no second ask on a dead price
+    expect(asked).toHaveLength(2);
+    expect(asked.map((a) => a.intent.paymentMode).sort()).toEqual(
+      ['DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR', 'FULL_PREPAY'],
+    );
+  });
+
+  it('the two asks are issued IN PARALLEL — a stalled door ask does not delay the price', async () => {
+    let doorResolve: (() => void) | undefined;
+    const stalled = new Promise<void>((r) => { doorResolve = r; });
+    const port: QuotePort = {
+      async request(intent) {
+        if (intent.paymentMode === 'FULL_PREPAY') return { status: 'quote', quote: FULL };
+        await stalled; // the door ask hangs until we let it go
+        return { status: 'refused', reason: 'pay_at_door_not_eligible' };
+      },
+      async reserve() { return { status: 'reserved' }; },
+    };
+    const pending = fetchClienteQuote(port, base, keys);
+    // Serialized, the full ask would not even have been SENT yet. In parallel it
+    // is already answered, and only the door ask is outstanding.
+    await Promise.resolve();
+    doorResolve!();
+    const got = await pending;
+    expect(got.status).toBe('ready');
+    if (got.status !== 'ready') return;
+    expect(got.bIndisponible).toBe(true);
   });
 
   it('an UNREACHABLE full ask is unreachable — NEVER a composed local price', async () => {
@@ -768,7 +859,7 @@ describe('fetchClienteQuote — the whole real-path ask', () => {
     });
     const got = await fetchClienteQuote(port, base, keys);
     if (got.status !== 'ready') throw new Error('expected ready');
-    expect(await got.reserve()).toEqual({ status: 'reserved' });
+    expect(await got.reserve('A')).toEqual({ status: 'reserved' });
     expect(reserved).toEqual([`quote-abc|${got.ids.commandId}|key-FULL_PREPAY`]);
   });
 
@@ -801,9 +892,9 @@ describe('the reservation command id — minted once per QUOTE, reused by every 
     const { port, reserved } = scriptedPort(both);
     const got = await fetchClienteQuote(port, base, keys);
     if (got.status !== 'ready') throw new Error('expected ready');
-    await got.reserve();
-    await got.reserve(); // she tapped back out of « ENVOI SÉCURISÉ » and paid again
-    await got.reserve();
+    await got.reserve('A');
+    await got.reserve('A'); // she tapped back out of « ENVOI SÉCURISÉ » and paid again
+    await got.reserve('A');
     const ids = reserved.map((r) => r.split('|')[1]);
     expect(ids).toHaveLength(3);
     expect(new Set(ids).size, `three taps sent ${new Set(ids).size} different command ids`).toBe(1);
@@ -820,10 +911,22 @@ describe('the reservation command id — minted once per QUOTE, reused by every 
     expect(new Set([first.ids.commandId, second.ids.commandId, third.ids.commandId]).size).toBe(3);
   });
 
-  it('`reserve` takes NO argument — a per-tap mint is unrepresentable, not merely avoided', async () => {
-    const got = await fetchClienteQuote(scriptedPort(both).port, base, keys);
+  /**
+   * CHANGED under the round-3 work order (verifier BLOCKER 2): `reserve` now
+   * takes the CHOSEN MODE, so the hold lands on the quote that mode was priced
+   * under. What it still does not take — and the property this test exists for
+   * — is a COMMAND ID: there is no argument by which a second tap could vary it.
+   */
+  it('`reserve` takes the MODE and NOT a command id — a per-tap mint stays unrepresentable', async () => {
+    const { port, reserved } = scriptedPort(both);
+    const got = await fetchClienteQuote(port, base, keys);
     if (got.status !== 'ready') throw new Error('expected ready');
-    expect(got.reserve).toHaveLength(0); // arity 0: nothing to pass, nothing to vary
+    expect(got.reserve).toHaveLength(1); // exactly one parameter: the mode
+    // and no value a caller passes can change the command that goes on the wire
+    await got.reserve('A');
+    await got.reserve('A');
+    const cmds = [...new Set(reserved.map((r) => r.split('|')[1]))];
+    expect(cmds).toEqual([got.ids.commandId]);
   });
 
   /**
@@ -835,7 +938,7 @@ describe('the reservation command id — minted once per QUOTE, reused by every 
    */
   it('a RELOAD onto the SAME quote reuses the SAME commandId — her own hold, replayed', async () => {
     const s = memStorage();
-    const perQuote = (quoteId: string): string => commandIdFor(quoteId, s);
+    const perQuote = (quoteId: string): string | undefined => commandIdFor(quoteId, s);
     const first = await fetchClienteQuote(scriptedPort(both).port, base, keys, perQuote);
     const afterReload = await fetchClienteQuote(scriptedPort(both).port, base, keys, perQuote);
     if (first.status !== 'ready' || afterReload.status !== 'ready') throw new Error('expected ready');
@@ -901,5 +1004,265 @@ describe('demoQuotePort — the certified harness port (no service reachable)', 
     if (got.status !== 'quote') throw new Error('expected a quote');
     expect(prixExpire(got.quote.expiry, Date.now())).toBe(false);
     expect(prixExpire(got.quote.expiry, Date.now() + 16 * 60 * 1000)).toBe(true);
+  });
+});
+
+/* ════════════ 13 · SP3.2b ROUND 3 — the fresh verifier's eight ═══════════ */
+
+/**
+ * Each block below pins one defect the fresh-context verifier proved in a real
+ * Chromium against a hostile checkout service. Every one EXECUTES the fixed
+ * code; none inspects source.
+ */
+
+describe('BLOCKER 2 — the hold follows the MODE SHE CHOSE, never the other quote', () => {
+  const base = { slug: 'aicha-4821', pid: 'p1', zoneTo: 'Gounghin, Ouagadougou', attributionResellerId: 'rs-1' };
+  const keys = (i: QuoteIntent): string => `key-${i.paymentMode}`;
+  const both = {
+    FULL_PREPAY: { status: 'quote' as const, quote: FULL },
+    DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR: { status: 'quote' as const, quote: DOOR },
+  };
+
+  it('mode B holds the DOOR quote’s id — the verifier watched it hold quote-FULL', async () => {
+    const { port, reserved } = scriptedPort(both);
+    const got = await fetchClienteQuote(port, base, keys);
+    if (got.status !== 'ready') throw new Error('expected ready');
+    expect(got.bIndisponible).toBe(false);
+    await got.reserve('B');
+    expect(reserved).toHaveLength(1);
+    const [quoteId, commandId, holder] = reserved[0]!.split('|');
+    expect(quoteId).toBe('quote-door');       // NOT quote-abc, the FULL quote
+    expect(quoteId).not.toBe(FULL.quoteId);
+    expect(commandId).toBe(got.ids.doorCommandId);
+    expect(holder).toBe('key-DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
+  });
+
+  it('mode A holds the FULL quote’s id, with the FULL command and the FULL key', async () => {
+    const { port, reserved } = scriptedPort(both);
+    const got = await fetchClienteQuote(port, base, keys);
+    if (got.status !== 'ready') throw new Error('expected ready');
+    await got.reserve('A');
+    expect(reserved).toEqual([`quote-abc|${got.ids.commandId}|key-FULL_PREPAY`]);
+  });
+
+  it('the two modes carry DIFFERENT quote ids and DIFFERENT commands', async () => {
+    const got = await fetchClienteQuote(scriptedPort(both).port, base, keys);
+    if (got.status !== 'ready') throw new Error('expected ready');
+    expect(got.ids.doorQuoteId).toBe('quote-door');
+    expect(got.ids.doorQuoteId).not.toBe(got.ids.fullQuoteId);
+    expect(got.ids.doorCommandId).not.toBe(got.ids.commandId);
+  });
+
+  it('B with NO door quote is refused by name — never silently held on the FULL one', async () => {
+    const { port, reserved } = scriptedPort({
+      FULL_PREPAY: { status: 'quote', quote: FULL },
+      DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR: { status: 'refused', reason: 'pay_at_door_not_eligible' },
+    });
+    const got = await fetchClienteQuote(port, base, keys);
+    if (got.status !== 'ready') throw new Error('expected ready');
+    expect(got.bIndisponible).toBe(true);
+    expect(got.ids.doorQuoteId).toBeUndefined();
+    expect(await got.reserve('B')).toEqual({ status: 'refused', reason: 'mode_indisponible' });
+    expect(reserved, 'a hold went out for a mode with no quote').toHaveLength(0);
+  });
+
+  it('A QUOTE ANSWERING THE WRONG MODE IS REFUSED — the verifier rendered one happily', () => {
+    // a FULL ask answered with the DOOR mode
+    expect(clienteQuoteFromServer({ ...FULL, paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' }, { status: 'unreachable' }))
+      .toEqual({ ok: false, reason: 'mode_mismatch' });
+    // a DOOR ask answered with the FULL mode
+    expect(clienteQuoteFromServer(FULL, { status: 'quote', quote: { ...DOOR, paymentMode: 'FULL_PREPAY' } }))
+      .toEqual({ ok: false, reason: 'mode_mismatch' });
+    // …and an invented mode string
+    expect(clienteQuoteFromServer({ ...FULL, paymentMode: 'FREE_MONEY' }, { status: 'unreachable' }))
+      .toEqual({ ok: false, reason: 'mode_mismatch' });
+    // the buyer sees the honest card, with no figure on it
+    expect(renderRefus('mode_mismatch')).toContain('Nous ne pouvons pas afficher le prix.');
+    expect(renderRefus('mode_mismatch')).not.toContain('FCFA');
+  });
+});
+
+describe('BLOCKER 4b — the id mints DEGRADE, they never throw', () => {
+  /** Run `fn` with `globalThis.crypto` replaced, then restore it exactly. */
+  function withCrypto<T>(replacement: unknown, fn: () => T): T {
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    Object.defineProperty(globalThis, 'crypto', { value: replacement, configurable: true, writable: true });
+    try {
+      return fn();
+    } finally {
+      if (original) Object.defineProperty(globalThis, 'crypto', original);
+      else Reflect.deleteProperty(globalThis, 'crypto');
+    }
+  }
+
+  it('with crypto.randomUUID ABSENT it falls back to getRandomValues and still yields a v4 uuid', () => {
+    const real = globalThis.crypto;
+    const got = withCrypto(
+      { getRandomValues: (a: Uint8Array) => real.getRandomValues(a) },
+      () => mintUuid(),
+    );
+    expect(got).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it('the getRandomValues fallback is not a constant — 200 mints, 200 distinct ids', () => {
+    const real = globalThis.crypto;
+    const ids = withCrypto(
+      { getRandomValues: (a: Uint8Array) => real.getRandomValues(a) },
+      () => new Set(Array.from({ length: 200 }, () => mintUuid())),
+    );
+    expect(ids.size).toBe(200);
+  });
+
+  it('with crypto ABSENT ENTIRELY nothing throws — the mints answer `undefined`', () => {
+    withCrypto(undefined, () => {
+      expect(() => mintUuid()).not.toThrow();
+      expect(mintUuid()).toBeUndefined();
+      expect(mintCommandId()).toBeUndefined();
+      expect(requestKeyFor(FIXTURE_INTENT)).toBeUndefined();
+      expect(commandIdFor('quote-abc')).toBeUndefined();
+    });
+  });
+
+  it('with a randomUUID that THROWS it still falls through to getRandomValues', () => {
+    const real = globalThis.crypto;
+    const got = withCrypto(
+      {
+        randomUUID: () => { throw new Error('not allowed on this origin'); },
+        getRandomValues: (a: Uint8Array) => real.getRandomValues(a),
+      },
+      () => mintUuid(),
+    );
+    expect(got).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it('NO CSPRNG ⇒ fetchClienteQuote refuses BY NAME, sends nothing, and the card has an action', async () => {
+    const { port, asked } = scriptedPort({ FULL_PREPAY: { status: 'quote', quote: FULL } });
+    const got = await fetchClienteQuote(port, { slug: 's', pid: 'p', zoneTo: 'z', attributionResellerId: 'r' }, () => undefined);
+    expect(got).toEqual({ status: 'refused', reason: 'no_secure_random' });
+    expect(asked, 'a request went out with no idempotency key').toHaveLength(0);
+    const html = renderRefus('no_secure_random');
+    expect(html).toContain('Ce téléphone ne peut pas ouvrir la commande.');
+    expect(html).toContain('Rien n’a été payé.');
+    expect(html.match(/class="cl-cta /g) ?? []).toHaveLength(1); // an action exists
+  });
+});
+
+describe('BLOCKER 5 — the SERVER owns expiry; the phone’s clock is only a hint', () => {
+  const base = { slug: 'aicha-4821', pid: 'p1', zoneTo: 'Gounghin, Ouagadougou', attributionResellerId: 'rs-1' };
+  const keys = (i: QuoteIntent): string => `key-${i.paymentMode}`;
+
+  /** A quote the service issues as LIVE, that a skewed phone reads as dead. */
+  const liveQuote = (expiry: string): ServerQuote => ({ ...FULL, expiry });
+
+  it('prixExpire still fails CLOSED on garbage — the signal itself is unchanged', () => {
+    const T = Date.parse('2026-07-29T08:15:00.000Z');
+    expect(prixExpire('2026-07-29T08:15:00.000Z', T - 1)).toBe(false);
+    expect(prixExpire('2026-07-29T08:15:00.000Z', T)).toBe(true);
+    for (const bad of ['', 'bientôt', 'not-a-date']) expect(prixExpire(bad, T)).toBe(true);
+  });
+
+  it('A PHONE ONE HOUR FAST still reaches the reserve — the flow’s decision, executed', async () => {
+    // The exact situation the verifier drove: the service issues a quote 15 min
+    // out; this phone thinks it is an hour later, so the quote reads expired the
+    // instant it arrives. That is evidence about the CLOCK, not about the price.
+    const issuedFor = new Date(Date.now() + 15 * 60_000).toISOString();
+    const phoneNow = Date.now() + 60 * 60_000;
+    const horlogeDouteuse = prixExpire(issuedFor, phoneNow); // set at fetch time
+    expect(horlogeDouteuse).toBe(true);
+    // the flow's rule: local-expired AND clock trusted ⇒ refresh; else ⇒ reserve
+    const bloque = prixExpire(issuedFor, phoneNow) && !horlogeDouteuse;
+    expect(bloque, 'a fast clock blocked the reserve forever').toBe(false);
+  });
+
+  it('an UNPARSABLE expiry marks the clock as unable to tell, and reaches the reserve', () => {
+    const horlogeDouteuse = prixExpire('', Date.now());
+    expect(horlogeDouteuse).toBe(true);
+    expect(prixExpire('', Date.now()) && !horlogeDouteuse).toBe(false);
+  });
+
+  it('a CORRECT clock with a genuinely fresh quote does NOT mark the clock doubtful', async () => {
+    const { port } = scriptedPort({
+      FULL_PREPAY: { status: 'quote', quote: liveQuote(new Date(Date.now() + 15 * 60_000).toISOString()) },
+      DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR: { status: 'refused', reason: 'pay_at_door_not_eligible' },
+    });
+    const got = await fetchClienteQuote(port, base, keys);
+    if (got.status !== 'ready') throw new Error('expected ready');
+    expect(prixExpire(got.expiry, Date.now())).toBe(false); // clock trusted
+  });
+
+  it('the SERVER’S OWN `expired` still renders « Voir le prix à jour » with a NEW key', () => {
+    expect(refusVue('expired').action).toBe('prix-a-jour');
+    expect(renderRefus('expired')).toContain('Ce prix a expiré.');
+    expect(renderRefus('expired')).toContain('Voir le prix à jour');
+  });
+});
+
+describe('BLOCKER 6 — a retry that provably cannot work is not offered', () => {
+  const needNewKey = ['request_key_reused', 'bad_field', 'malformed', 'unknown_field'];
+
+  for (const reason of needNewKey) {
+    it(`« ${reason} » offers the KEY-MINTING action, not a doomed « Réessayer »`, () => {
+      const v = refusVue(reason);
+      // `prix-a-jour` is the action the flow routes through forgetRequestKey
+      expect(v.action, `${reason} offers ${v.action}`).toBe('prix-a-jour');
+      expect(v.libelle).toBe('Demander un nouveau prix');
+      const html = renderRefus(reason);
+      expect(html).toContain('Demander un nouveau prix');
+      expect(html).toContain('Rien n’a été payé.');
+      expect(html).not.toContain('Réessayez dans un instant');
+    });
+  }
+
+  it('the action ACTUALLY changes the key on the wire — forgetRequestKey then re-ask', () => {
+    const s = memStorage();
+    const stale = requestKeyFor(FIXTURE_INTENT, s);
+    expect(stale).toBeDefined();
+    // what `prix-a-jour` does for every mode of the intent
+    for (const paymentMode of MODES_WIRE) forgetRequestKey({ ...FIXTURE_INTENT, paymentMode }, s);
+    const fresh = requestKeyFor(FIXTURE_INTENT, s);
+    expect(fresh).toBeDefined();
+    expect(fresh, 'the retry re-sent the SAME key the server already refused').not.toBe(stale);
+  });
+
+  it('everything else KEEPS the plain retry — this did not become a blanket change', () => {
+    for (const reason of ['unreachable', 'answer_unreadable', 'checkout_killed', 'already_reserved', 'amounts_disagree']) {
+      expect(refusVue(reason).action, reason).toBe('reessayer-prix');
+    }
+  });
+
+  it('« checkout_killed » says the same thing as its button', () => {
+    const v = refusVue('checkout_killed');
+    expect(v.libelle).toBe('Réessayer');
+    expect(v.phrase).toContain('Réessayez');
+  });
+
+  it('the attribution refusals now carry « Rien n’a été payé. »', () => {
+    for (const reason of ['attribution_missing', 'attribution_mismatch']) {
+      expect(renderRefus(reason), reason).toContain('Rien n’a été payé.');
+    }
+  });
+});
+
+describe('NOTE 8 — a request the BROWSER refused to build is not « no connection »', () => {
+  it('a quoteId carrying a LONE SURROGATE is `unreadable`, never `unreachable`', async () => {
+    const hostile = 'quote-\uD800-lone';
+    const got = await withFetch(
+      (async () => jsonRes({ status: 'reserved' })) as unknown as typeof fetch,
+      () => httpQuotePort('https://svc.example').reserve(hostile, 'cmd-1', 'rk-1'),
+    );
+    expect(got).toEqual({ status: 'unreadable' });
+    // and the card it renders never blames her network
+    const html = renderRefus('answer_unreadable');
+    expect(html).not.toContain('Pas de connexion');
+    expect(html).not.toContain('réseau');
+  });
+
+  it('a well-formed quoteId still reaches the wire, encoded', async () => {
+    let url = '';
+    await withFetch(
+      (async (u: string) => { url = u; return jsonRes({ status: 'reserved' }); }) as unknown as typeof fetch,
+      () => httpQuotePort('https://svc.example').reserve('quote/with slash', 'cmd-1', 'rk-1'),
+    );
+    expect(url).toBe('https://svc.example/checkout/quote/quote%2Fwith%20slash/reserve');
   });
 });

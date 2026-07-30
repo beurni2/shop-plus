@@ -425,21 +425,24 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
   attribution_missing: {
     overline: 'LE LIEN',
     titre: 'Ce lien ne permet pas de commander.',
-    phrase: 'Demandez à la vendeuse son lien à jour.',
+    phrase: 'Demandez à la vendeuse son lien à jour. Rien n’a été payé.',
     action: 'voir-boutique',
     libelle: 'Voir la boutique',
   },
   attribution_mismatch: {
     overline: 'LE LIEN',
     titre: 'Ce lien ne permet pas de commander.',
-    phrase: 'Demandez à la vendeuse son lien à jour.',
+    phrase: 'Demandez à la vendeuse son lien à jour. Rien n’a été payé.',
     action: 'voir-boutique',
     libelle: 'Voir la boutique',
   },
   checkout_killed: {
     overline: 'LES COMMANDES',
     titre: 'Les commandes sont suspendues un moment.',
-    phrase: 'Revenez dans un moment. Rien n’a été payé.',
+    // The sentence and the button now say the SAME thing (verifier copy note):
+    // « Revenez dans un moment » under a button labelled « Réessayer » told her
+    // to do two different things at once.
+    phrase: 'Réessayez dans un moment. Rien n’a été payé.',
     action: 'reessayer-prix',
     libelle: 'Réessayer',
   },
@@ -461,6 +464,55 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
     overline: 'HORS LIGNE',
     titre: 'Pas de connexion.',
     phrase: 'Le prix ne peut pas être affiché sans réseau. Rien n’a été payé.',
+    action: 'reessayer-prix',
+    libelle: 'Réessayer',
+  },
+  /**
+   * ═══ THE REFUSALS WHOSE ONLY CURE IS A NEW KEY (verifier BLOCKER 6) ═══
+   *
+   * « Réessayez dans un instant » + « Réessayer » re-sends the IDENTICAL body
+   * under the IDENTICAL stored request key. For these four names that is the
+   * one thing guaranteed to fail forever — the verifier watched the same uuid
+   * go out four times against a 409 `request_key_reused`. Telling someone to
+   * retry into a wall we built is worse than saying nothing.
+   *
+   * They get the KEY-MINTING action instead (`prix-a-jour` → `forgetRequestKey`
+   * → a new key on the wire), under a label that says what will happen.
+   */
+  request_key_reused: {
+    overline: 'LE PRIX',
+    titre: 'Ce prix ne peut plus être utilisé.',
+    phrase: 'Nous en demandons un nouveau. Rien n’a été payé.',
+    action: 'prix-a-jour',
+    libelle: 'Demander un nouveau prix',
+  },
+  bad_field: {
+    overline: 'LE PRIX',
+    titre: 'Nous ne pouvons pas afficher le prix.',
+    phrase: 'Demandons-en un nouveau. Rien n’a été payé.',
+    action: 'prix-a-jour',
+    libelle: 'Demander un nouveau prix',
+  },
+  malformed: {
+    overline: 'LE PRIX',
+    titre: 'Nous ne pouvons pas afficher le prix.',
+    phrase: 'Demandons-en un nouveau. Rien n’a été payé.',
+    action: 'prix-a-jour',
+    libelle: 'Demander un nouveau prix',
+  },
+  unknown_field: {
+    overline: 'LE PRIX',
+    titre: 'Nous ne pouvons pas afficher le prix.',
+    phrase: 'Demandons-en un nouveau. Rien n’a été payé.',
+    action: 'prix-a-jour',
+    libelle: 'Demander un nouveau prix',
+  },
+  /** No CSPRNG on this device — `mintUuid` found neither API. There is nothing
+   *  to retry INTO, but the screen still has a way forward and a true sentence. */
+  no_secure_random: {
+    overline: 'LE PRIX',
+    titre: 'Ce téléphone ne peut pas ouvrir la commande.',
+    phrase: 'Essayez depuis un autre navigateur. Rien n’a été payé.',
     action: 'reessayer-prix',
     libelle: 'Réessayer',
   },
