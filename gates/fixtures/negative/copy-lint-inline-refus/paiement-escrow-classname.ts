@@ -50,6 +50,7 @@ export const PAIEMENT = {
   redite: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
   rediteA: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
   rediteFin: 'à la livraison — d’accord ?',
+  ecouterNote: 'Écouter la note de la vendeuse',
 } as const;
 
 export function renderPayOption(): string {

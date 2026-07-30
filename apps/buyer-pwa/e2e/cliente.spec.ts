@@ -231,10 +231,34 @@ async function sweepC5(page: Page, label: string): Promise<EtatBalaye> {
     // whose ratio it happens to cross. Deleting cl-prov-cle puts the opérateur
     // screen back to 0.363: a REGRESSION the bar cannot see, because 0.363
     // passes. A fix nothing fails for is a fix that leaves on the next edit.
-    // So the glue is pinned as itself: a no-wrap unit takes exactly one line,
-    // and the units that must be present are named below. This also covers the
-    // amounts (cl-bill-row b, cl-opt-fee, …) — a franc figure that wraps is a
-    // defect in its own right.
+    // This also covers the amounts (cl-bill-row b, cl-opt-fee, …) — a franc
+    // figure that wraps is a defect in its own right.
+    //
+    // ═══ WHAT THIS SET DEFENDS, AND WHAT IT DOES NOT (round 7, corrected) ═══
+    //
+    // The round-6 version of this comment said the glue was « pinned as itself »
+    // and left it there, which reads as « the glued clauses are now safe ». THEY
+    // ARE NOT, and the distinction is the whole point of the assertions below.
+    //
+    //   IT DEFENDS AGAINST WRAPPING. A unit that still computes `nowrap` and
+    //   takes two lines fails, by name, wherever it is.
+    //
+    //   IT DOES NOT DEFEND AGAINST REMOVAL, AND CANNOT. Delete a glue and the
+    //   element stops computing `nowrap`, drops OUT of this set, and the
+    //   invariant passes VACUOUSLY for it — nothing is left to measure. The
+    //   `.some(...)` presence checks and the `glued.length` floor further down
+    //   are the only things that see a removal at all.
+    //
+    // The measured cost of each removal, which is why both kinds of assertion
+    // are needed (last-line ratio the screen falls back to, and what catches it):
+    //   cl-reconcile-promesse → 0.21   · caught by the 0.35 ratio bar
+    //   cl-redite-fin         → 0.286  · caught by the 0.35 ratio bar
+    //   cl-envoi-fin          → 0.334  · caught by the ratio bar AND by presence
+    //   cl-prov-cle           → 0.363  · presence ONLY — 0.363 clears the bar
+    //   cl-titre-fin          → 0.362  · presence ONLY — added in round 7,
+    //                                    because until then NOTHING caught it:
+    //                                    the e2e stayed green, 14 passed, sweep
+    //                                    included, with the glue neutered.
     const glued = [...screen.querySelectorAll('*')]
       .filter((el) => {
         if (el.closest('svg') !== null) return false;
@@ -448,13 +472,18 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
     ).toBe(true);
   }
 
-  // EVERY GLUED CLAUSE HOLDS, AND THE TWO NEW ONES EXIST AT ALL.
+  // EVERY GLUED CLAUSE HOLDS — AND EVERY ONE OF THEM STILL EXISTS.
   //
-  // The presence checks are what defend cl-prov-cle: its ratio BEFORE the glue
-  // was 0.363, which clears the 0.35 bar, so removing the rule would regress
-  // the screen without failing a single ratio. Naming the unit turns a silent
-  // regression into a red test — the same reason the replay and the CTA are
-  // named rather than trusted to the sweep's size.
+  // TWO DIFFERENT ASSERTIONS, BECAUSE THEY CATCH TWO DIFFERENT FAILURES, and
+  // conflating them is the mistake round 6 made (see the table in `sweepC5`):
+  //   · the LOOP below catches a glue that WRAPPED. It is measured only for
+  //     units that are still there.
+  //   · the PRESENCE checks catch a glue that was REMOVED — which the loop
+  //     cannot, because a removed unit is not in `glued` to be measured, and
+  //     which the 0.35 ratio bar catches only when the un-glued screen happens
+  //     to fall below 0.35. For cl-prov-cle (0.363) and cl-titre-fin (0.362) it
+  //     does not, so presence is the ONLY thing standing between those two
+  //     fixes and a silent regression on the next copy tweak.
   for (const { label, glued } of tous) {
     for (const g of glued) {
       expect(g.lines, `${label}: the no-wrap unit « ${g.text} » (${g.cls}) wrapped onto ${g.lines} lines`).toBe(1);
@@ -471,6 +500,42 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
       glued.some((g) => g.cls.includes('cl-prov-cle')),
       `${label}: « code secret Orange Money » is no longer one no-wrap unit — back to 0.363`,
     ).toBe(true);
+  }
+  // …AND OPTION B'S NAME, on every state that shows the payment cards (round 7).
+  // cl-titre-fin was the one glue on this screen that NOTHING defended: neutered
+  // (nowrap → normal) the whole e2e stayed green, sweep included, while the title
+  // went back to breaking as « Payer le produit à la / livraison » and stranding
+  // the word that says WHICH option it is at 0.362 — above the bar, so invisible
+  // to every ratio. It is rendered on both `choix` sites (the payable card and
+  // the « Pas disponible » head), which is why `choix` is the right scope.
+  for (const { label, glued } of tous.filter((s) => s.attendu === 'choix')) {
+    expect(
+      glued.some((g) => g.cls.includes('cl-titre-fin')),
+      `${label}: « à la livraison » is no longer one no-wrap unit — option B's name orphans again at 0.362`,
+    ).toBe(true);
+  }
+  // A FLOOR ON THE SET ITSELF, so the invariant cannot pass by measuring nothing.
+  //
+  // Every assertion above is a `for … of glued` or a `.some(…)`; an empty or
+  // shrunken `glued` satisfies the loop vacuously and only the named units would
+  // notice. The floor is the count ACTUALLY MEASURED on `choix`: the bill's three
+  // amounts (`.cl-bill-row b` ×2, `.cl-bill-total b`), the honesty promise, and
+  // option B's name. Five, asserted, so deleting an un-named glue is a red test
+  // rather than a quieter suite.
+  //
+  // « Écouter la note » IS NOT IN THIS SET, and is not counted here — its `svg`
+  // child computes `display: block`, so the glue filter above skips it exactly
+  // as the text-block filter does. Saying so is the point of this round: a floor
+  // that quietly counted it would be this comment overstating its own reach
+  // again. That control is asserted on its own, by name, in the « Écouter la
+  // note » test below.
+  const PLANCHER_GLUE_CHOIX = 5;
+  for (const { label, glued } of tous.filter((s) => s.attendu === 'choix')) {
+    expect(
+      glued.length,
+      `${label}: only ${glued.length} no-wrap unit(s) on the payment screen — the glued set shrank ` +
+        `(${glued.map((g) => g.cls).join(' · ')})`,
+    ).toBeGreaterThanOrEqual(PLANCHER_GLUE_CHOIX);
   }
 
   // …AND THE CTA WAS IN THE SWEPT SET TOO — the assertion the replay has had
@@ -489,6 +554,161 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
   const rec = petit[0]!.blocks.find((b) => b.text.startsWith('12'));
   expect(rec?.text).toBe(`12${NNBSP}500 = 11${NNBSP}500 + 1${NNBSP}000 — chaque franc a sa place.`);
   expect(rec?.lines, 'the reconciliation sentence spilled past two lines').toBeLessThanOrEqual(2);
+});
+
+/**
+ * THE CREDENTIAL GLUE ON C8 IS ITS OWN MARKUP (round 7, fresh verifier).
+ *
+ * « Composez votre code secret Orange Money pour valider {X} » is rendered
+ * TWICE — C5's opérateur screen and C8's door-payment screen — each with its
+ * own `<span class="cl-prov-cle">`. Only the C5 copy was ever named by a test.
+ * The two are covered TRANSITIVELY today because they share one CSS rule, so
+ * deleting the RULE fails on C5; but deleting the SPAN from C8's markup alone
+ * fails nothing at all, and C8 is the screen where she pays the second leg
+ * standing in front of the rider. Named here, on the screen that renders it.
+ */
+test('C8 at 360px — the door payment keeps « code secret Orange Money » as one no-wrap unit', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 900 });
+  // C8 mounts with the prefill's mode B, so « Tout est bon » opens the door
+  // payment rather than jumping straight to C9. It self-advances after 2 600 ms.
+  await page.goto('/?demo-cliente=C8&theme=indigo');
+  await page.locator('[data-action="porte-bon"]').click();
+  await expect(page.locator('[data-etat="paiement-porte"]')).toBeVisible();
+
+  const cle = await page.evaluate(() => {
+    const el = document.querySelector('[data-etat="paiement-porte"] .cl-prov-cle');
+    if (el === null) return null;
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const tops = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+    return { text: (el.textContent ?? '').trim(), nowrap: getComputedStyle(el).whiteSpace === 'nowrap', lines: tops.size };
+  });
+  expect(cle, 'C8’s « code secret Orange Money » span is gone — the door-leg glue is unprotected').not.toBeNull();
+  expect(cle?.text).toBe('code secret Orange Money');
+  expect(cle?.nowrap, 'C8’s credential clause no longer computes nowrap').toBe(true);
+  expect(cle?.lines, 'C8’s « code secret Orange Money » wrapped — the credential is split across lines').toBe(1);
+});
+
+/**
+ * « ÉCOUTER LA NOTE » ON THE PAYMENT SCREEN — FOUNDER RULING 2026-07-30, which
+ * reverses the 2026-07-22 override that removed it.
+ *
+ * The rule it enforces is the one the founder stated: the buyer can listen to
+ * THE RESELLER'S OWN note exactly when the reseller has recorded one, and there
+ * is NO control at all when she has not. This is the screen where the buyer
+ * decides to part with money, so a control that plays nothing is not a
+ * degraded feature — it is a promise the screen cannot keep.
+ *
+ * NOT §6.1's per-option audio note. That is a recorded explanation of options A
+ * and B, it needs the founder's own recordings, and it stays unbuilt.
+ */
+test('C5 — « Écouter la note » plays HER note when one exists, and does not exist when it does not', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 900 });
+
+  // ── WITH A NOTE: the control is there, it names whose voice it is, and it
+  //    carries the note's own url.
+  await page.goto('/?demo-cliente=C5&theme=indigo');
+  const ecouter = page.locator('[data-role="ecouter-note"]');
+  await expect(ecouter).toBeVisible();
+  await expect(ecouter).toHaveText('Écouter la note de la vendeuse');
+  expect(await ecouter.getAttribute('data-voix-url')).toBeTruthy();
+  // It is NOT C1's handler — C1's is the one with the « (démo) » fallback.
+  expect(await ecouter.getAttribute('data-action')).toBe('voix-lire-paiement');
+  await expect(page.locator('[data-action="voix-lire"]')).toHaveCount(0);
+  // …and the CTA is still the only thing on this screen that looks like one.
+  await expect(page.locator('.cl-cta-c5')).toBeVisible();
+
+  // IT WHISPERS, AND IT FITS. Asserted here by name because the C5 glue sweep
+  // cannot see this control at all: it is `inline-flex` (not a text block) and
+  // its `svg` child computes `display: block` (so the no-wrap set skips it too).
+  // A nowrap label that outgrows the column is exactly how this control first
+  // broke — at the inherited 16px it pushed the page to scrollWidth 377 on a
+  // 360px phone — so the size, the single line and the fit are all pinned.
+  const mesure = await page.evaluate(() => {
+    const el = document.querySelector('.cl-ecouter') as HTMLElement | null;
+    if (el === null) return null;
+    const cs = getComputedStyle(el);
+    // THE LABEL'S OWN TEXT, not the whole control. Selecting the button's
+    // contents spans the play glyph too, and in an `inline-flex` the glyph and
+    // the text sit at different tops — which reads as « two lines » when the
+    // label is perfectly set on one. Measure the text node.
+    const textNode = [...el.childNodes].find((n) => n.nodeType === 3 && (n.textContent ?? '').trim() !== '');
+    const range = document.createRange();
+    if (textNode !== undefined) range.selectNode(textNode);
+    const tops = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+    const cta = getComputedStyle(document.querySelector('.cl-cta-c5')!);
+    return {
+      nowrap: cs.whiteSpace === 'nowrap',
+      fontPx: Number.parseFloat(cs.fontSize),
+      ctaFontPx: Number.parseFloat(cta.fontSize),
+      lines: tops.size,
+      width: el.offsetWidth,
+      column: (el.parentElement as HTMLElement).clientWidth,
+      docScrollWidth: document.documentElement.scrollWidth,
+    };
+  });
+  expect(mesure).not.toBeNull();
+  expect(mesure?.nowrap, 'the listen label may break mid-phrase').toBe(true);
+  expect(mesure?.lines, 'the listen label wrapped onto more than one line').toBe(1);
+  expect(mesure!.width, 'the nowrap listen label outgrew its column').toBeLessThanOrEqual(mesure!.column);
+  expect(mesure!.docScrollWidth, 'the listen control pushed C5 past a 360px phone').toBeLessThanOrEqual(360);
+  // IT WHISPERS: smaller than the primary action, never competing with it (§5).
+  expect(mesure!.fontPx, 'the listen link is not smaller than the CTA — it stopped whispering').toBeLessThan(
+    mesure!.ctaFontPx,
+  );
+
+  // IT ACTUALLY PLAYS, and says nothing while it does.
+  //
+  // THE ASSERTION IS THE SILENCE, and it is not vacuous: the handler's ONLY
+  // toast is the `play()` refusal path, so « no toast » can only mean the
+  // promise resolved. The companion test below forces that same promise to
+  // reject and watches the toast appear, which is what makes this one mean
+  // something rather than merely pass.
+  await ecouter.click();
+  await page.waitForTimeout(300);
+  await expect(page.locator('.cl-toast')).toHaveCount(0);
+  await page.screenshot({ path: '.artifacts/sp33b1-r7-c5-ecouter-avec-note-360.png', fullPage: true });
+
+  // ── WITHOUT A NOTE (`?voix=0` — the harness's « this product has no voice
+  //    note », which now removes the note itself): NO control. Not disabled,
+  //    not greyed, not a toast — absent.
+  await page.goto('/?demo-cliente=C5&theme=indigo&voix=0');
+  await expect(page.locator('[data-screen="C5"]')).toBeVisible();
+  await expect(page.locator('[data-role="ecouter-note"]')).toHaveCount(0);
+  await expect(page.locator('.cl-ecouter')).toHaveCount(0);
+  // and the page says nothing about a note it does not have
+  expect(await page.locator('main.cl-root').innerText()).not.toContain('Écouter');
+  await page.screenshot({ path: '.artifacts/sp33b1-r7-c5-ecouter-sans-note-360.png', fullPage: true });
+});
+
+/**
+ * AND C1'S « (démo) » FALLBACK CANNOT REACH THE MONEY SCREEN.
+ *
+ * The tempting shortcut this locks out was named in the work order: reuse C1's
+ * `voix-lire` action and inherit its toast. C1 answers BOTH a missing url and a
+ * refused `play()` with « La voix d'Aïcha — 0:12 (démo) ». On C5 the missing-url
+ * case cannot arise (no url ⇒ no button), and the REFUSAL case is driven here
+ * for real: `play()` is stubbed to reject before the page loads, exactly as an
+ * autoplay policy or an undecodable codec would, and the sentence she gets is
+ * asserted to be the true one and never the demo claim.
+ */
+test('C5 — a note that will not play says something TRUE, and never « démo »', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 900 });
+  await page.addInitScript(() => {
+    // Every media element on the page refuses to start, the way a locked-down
+    // WebView does. Nothing else about the page changes.
+    HTMLMediaElement.prototype.play = function play(): Promise<void> {
+      return Promise.reject(new DOMException('NotAllowedError', 'NotAllowedError'));
+    };
+  });
+  await page.goto('/?demo-cliente=C5&theme=indigo');
+  await page.locator('[data-role="ecouter-note"]').click();
+  const toast = page.locator('.cl-toast');
+  await expect(toast).toBeVisible();
+  await expect(toast).toHaveText('La note ne se lance pas sur ce téléphone.');
+  const said = await toast.innerText();
+  expect(said, 'the payment screen claimed a demo').not.toContain('démo');
+  expect(said).not.toContain('(');
 });
 
 test('the four habillages drive the chrome, indigo is the themeless default, proven live', async ({ page }) => {

@@ -621,6 +621,20 @@ export const MESSAGES = {
   prixRafraichiDifferent: 'Le prix a été mis à jour. Nouveau total :',
   /** While the new price is on its way. */
   prixEnCoursDeMiseAJour: 'Nous demandons un nouveau prix…',
+  /**
+   * THE PAYMENT SCREEN'S « Écouter la note » WOULD NOT PLAY (founder ruling
+   * 2026-07-30). The note EXISTS — C5 renders no control otherwise — and this
+   * browser refused to start it: an autoplay policy, a codec it cannot decode,
+   * a media element the OS took away.
+   *
+   * IT SAYS ONLY WHAT IS TRUE, and in particular it is NOT C1's « (démo) »
+   * toast. That fallback claims she heard a demonstration; here she heard
+   * nothing, and a sentence about a demo on the screen where she commits her
+   * money is the mock-impersonating-a-feature this project keeps out (Ten Laws
+   * #5 · Execution Contract §3). No blame, no code, nothing about her network —
+   * the note is on this page, so the network is not the story.
+   */
+  noteInjouable: 'La note ne se lance pas sur ce téléphone.',
 } as const;
 
 /**
@@ -730,6 +744,21 @@ export const PAIEMENT = {
    * it, which is why gluing here cannot overflow a 360px card.
    */
   rediteFin: 'à la livraison — d’accord ?',
+  /**
+   * « ÉCOUTER LA NOTE » — THE RESELLER'S OWN RECORDED NOTE, ON THE PAYMENT
+   * SCREEN (FOUNDER RULING 2026-07-30; the reversal it carries is recorded at
+   * the C5 header).
+   *
+   * IT NAMES WHOSE VOICE IT IS, and that is the whole reason for this wording
+   * rather than a bare « Écouter la note ». §6.1 also asks for a PER-OPTION
+   * audio note — a recorded explanation of options A and B — which does not
+   * exist and is not built. A label that did not say whose voice this is would
+   * sit two elements above « Comment payer ? » and read as that missing
+   * explanation, which would be a promise this screen cannot keep. « de la
+   * vendeuse » is the word this app already uses for her everywhere else
+   * (« Vendeuse vérifiée », « Préparée par la vendeuse »).
+   */
+  ecouterNote: 'Écouter la note de la vendeuse',
 } as const;
 
 /** The view a refusal name renders as — the generic one for every name this
@@ -763,13 +792,49 @@ export interface C5State {
   readonly bInel: boolean;
 }
 
-// (« ÉCOUTER LA NOTE » on the C5 payment cards is REMOVED — founder override
-// 2026-07-22 of HANDOFF §2/acceptance 4. Listening lives on the C1 player.)
-//
-// §6.1's PER-OPTION AUDIO NOTE IS NOT BUILT (SP3.3b1, deliberate): there is no
-// recorded French take for these two options, and a player wired to a generated
-// tone would be a mock impersonating a voice on the money screen. Absent and
-// journalled beats present and untrue. Law 5 stands: voice = recorded audio.
+/**
+ * ═══ « ÉCOUTER LA NOTE » IS BACK ON THIS SCREEN ═══
+ *
+ * FOUNDER RULING 2026-07-30, and it SUPERSEDES THE OVERRIDE OF 2026-07-22.
+ * This site used to carry that older override, which read: « ÉCOUTER LA NOTE »
+ * on the C5 payment cards is REMOVED — founder override 2026-07-22 of HANDOFF
+ * §2/acceptance 4; listening lives on the C1 player. The founder has REVOKED
+ * it in his own words: « I did not mean to remove the Écouter la note,
+ * reimplement it correctly so if a reseller adds a note the buyer will be able
+ * to listen it. » The old text is quoted here rather than deleted, so the
+ * reversal leaves a trace instead of looking like a screen that never changed.
+ *
+ * WHAT IT IS: the RESELLER'S OWN recorded note, played through the C1 player —
+ * one audio element, one play call (`flow.ts` `jouerLaNote`). Never a second
+ * audio implementation.
+ *
+ * WHEN IT APPEARS: exactly when `voiceUrl` exists, and never otherwise. No
+ * note ⇒ NO control — not disabled, not greyed, not a toast. A control that
+ * plays nothing is a promise this screen cannot keep, and this is the screen
+ * where she decides to part with money. On the REAL path that is the common
+ * case today: `profile.ts`'s real adapter returns no notes at all
+ * (BUYER-REAL-HONESTY-1), and `clienteProduitReel` fills `voiceUrl` only from a
+ * note that is `ready` AND has a url — so the honest outcome is no control.
+ *
+ * AND C1'S DEMO FALLBACK MUST NOT REACH HERE. C1 answers a missing url with a
+ * « (démo) » toast; on this screen there is no missing-url branch to answer,
+ * because there is no button without a url. The play FAILURE is handled by
+ * `MESSAGES.noteInjouable`, which claims nothing about what she would have
+ * heard (Ten Laws #5, Execution Contract §3).
+ *
+ * WHAT THIS IS *NOT*: §6.1's PER-OPTION AUDIO NOTE — a recorded explanation of
+ * payment options A and B. That is platform copy read aloud, it needs the
+ * founder's own two recordings, and it STAYS UNBUILT AND FLAGGED. A player
+ * wired to a generated tone would be a mock impersonating a voice on the money
+ * screen; absent and journalled beats present and untrue. The label says whose
+ * voice this is precisely so the two can never be confused.
+ *
+ * THE HARNESS GAP, NAMED: under `?demo-cliente=` the seed's `voiceUrl` is
+ * `DEMO_VOICE_URL`, a synthetic TONE flagged STOREFRONT-MEDIA-BACKING — the
+ * same asset C1's player has always used there. The demo therefore plays a tone
+ * where production will play a voice, and that is never evidence that recorded
+ * voice works.
+ */
 
 /**
  * FILL §6.1's placeholders with SERVER BYTES.
@@ -828,6 +893,33 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
   const reconcileIdentite = `${groupFr(total(q, s.delivery))} = ${groupFr(q.produitFcfa)} + ${groupFr(fee(q, s.delivery))} — `;
   const reconcile = `${reconcileIdentite}<span class="cl-reconcile-promesse">chaque franc a sa place.</span>`;
   const ligneProduit = `${esc(m.productName)}${m.variant ? ` · ${esc(varianteCourte(m.variant))}` : ''}`;
+
+  /**
+   * HER VOICE, WHEN THERE IS ONE (founder ruling 2026-07-30 — see the header).
+   *
+   * THE CONDITION IS THE FEATURE: a url, or nothing at all. There is no empty
+   * state, no disabled twin and no explanatory line, because every one of those
+   * would be this screen mentioning a note that does not exist.
+   *
+   * WHERE IT SITS, AND WHY (5-second test). Below the bill and its honesty
+   * line — which is where the ARTICLE is named and priced — and ABOVE the
+   * « Comment payer ? » heading, outside the payment-options section entirely.
+   * Read top to bottom the screen says: what you are buying · her words about
+   * it · how to pay. Put inside or beside an option card it would read as the
+   * per-option explanation §6.1 asks for and this app does not have.
+   *
+   * IT WHISPERS. One primary action per screen (§5): the CTA is the only thing
+   * on this screen that looks like a button. This is a small underlined link
+   * with the play glyph, icon paired with text.
+   *
+   * ITS OWN ACTION NAME, not C1's. `voix-lire` carries C1's « (démo) » toast
+   * fallback; naming this handler separately is what keeps that fallback off
+   * the money screen structurally rather than by care.
+   */
+  const ecouterNote =
+    m.voiceUrl === undefined || m.voiceUrl === ''
+      ? ''
+      : `<button class="cl-ecouter" data-role="ecouter-note" data-action="voix-lire-paiement" data-voix-url="${esc(m.voiceUrl)}">${iconPlaySmall(13, 14)}${PAIEMENT.ecouterNote}</button>`;
 
   /* ═══ §6.1 — ONE AVAILABILITY DECISION, AND EVERY PART OF THE SCREEN OBEYS IT ═══
    *
@@ -923,6 +1015,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
     `<div class="cl-bill-total"><span>Total</span><b>${totalStr}</b></div>`,
     '</div>',
     `<div class="cl-reconcile" data-role="reconcile">${reconcile}</div>`,
+    ecouterNote,
     '<div class="cl-overline cl-overline-pay">Comment payer ?</div>',
     `<button class="cl-opt cl-payopt${s.pay === 'A' ? ' cl-opt-on' : ''}" data-action="choix-paiement" data-mode="A">`,
     s.pay === 'A' ? `<span class="cl-opt-mark">${iconCheck(14, 3)}</span>` : '',

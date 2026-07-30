@@ -397,7 +397,30 @@ export const CLIENTE_STYLES = `
      by BOTH sites that name option B — the payable card and the « Pas
      disponible » head — because it is one string. */
   .cl-titre-fin { white-space: nowrap; }
-  .cl-ecouter { margin-top: 9px; display: inline-flex; align-items: center; gap: 6px; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; cursor: pointer; white-space: nowrap; }
+  /* « Écouter la note de la vendeuse » — the reseller's own note, back on the
+     payment screen (founder ruling 2026-07-30). It WHISPERS: the CTA is the one
+     primary action on this screen, so this is a small underlined link with the
+     play glyph, never a second button.
+
+     WHY IT IS SELECTED WITH TWO CLASSES AND NOT ONE, which is a measured cascade
+     fact and not a style preference: the ".cl-root button" rule above sets the
+     FONT SHORTHAND to inherit, which resets font-size AND font-weight, and it is
+     specificity (0,1,1). A single-class button rule is (0,1,0) and LOSES to it,
+     so this control rendered at the inherited 16px/400 instead of 11.5px/700 —
+     measured in Chromium — and at 16px the nowrap label overflowed a 360px phone
+     (scrollWidth 377) and failed SCREEN-FIT. Two classes, (0,2,0), beat it.
+
+     FLAGGED, NOT FIXED HERE: ".cl-refaire" and ".cl-modifier" have the identical
+     shape and lose the identical way — both measured at 16px/400 in the same run.
+     That is a pre-existing module-wide defect, fixing it moves C3 and C4 pixels,
+     and it is not this work order's scope.
+
+     NOWRAP because a control LABEL that breaks mid-phrase reads as prose rather
+     than as something to tap. It is invisible to the C5 orphan sweep either way
+     (inline-flex is not a text block, and its svg child computes display block,
+     so the glue filter skips it too) — so it is asserted on its own, by name, in
+     the « Écouter la note » e2e rather than left to the sweep. */
+  .cl-root .cl-ecouter { margin-top: 9px; padding: 0; border: none; background: transparent; display: inline-flex; align-items: center; gap: 6px; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; cursor: pointer; white-space: nowrap; }
   .cl-payinel { margin-top: 10px; padding: 16px; border-radius: 18px; border: 1px solid #EDE4D3; background: #FBF6EB; }
   .cl-payinel-head { display: flex; align-items: center; gap: 10px; opacity: .45; }
   .cl-payinel-head span { font-weight: 700; font-size: 14.5px; }
