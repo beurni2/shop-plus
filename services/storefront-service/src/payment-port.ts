@@ -42,8 +42,19 @@ import { MockPaymentProvider, type PaymentMockConfig } from '@shop-plus/commerce
 export interface ChargeCommand {
   readonly orderId: string;
   /**
-   * THE IDEMPOTENCY KEY. Minted server-side from the OS CSPRNG, stored with the
-   * order before the charge is initiated, and never reused for a second amount.
+   * ═══ THE PROVIDER IDEMPOTENCY KEY — AND IT IS NOT THE AUDIT ATTEMPT ID ═══
+   *
+   * It belongs to the LEG, not to the attempt. It is minted ONCE per
+   * (order, legType), stored durably, and REUSED for every retry of that leg —
+   * which is the certified mock's own stated contract
+   * (`payment-provider-mock.ts`: « the retry path must reuse the SAME
+   * idempotency key and never double-charge »).
+   *
+   * Conflating it with the state machine's attempt id — which
+   * `order-machine.ts` REQUIRES to be new on the `payment_failed →
+   * payment_pending` edge — is a DUPLICATE CHARGE: after an ambiguous timeout,
+   * where the money may already have moved, a second key is a second collection
+   * a provider cannot dedupe. SP-I13 forbids it in those words.
    */
   readonly paymentAttemptId: string;
   /** Read verbatim off the immutable Quote — never computed, never a caller's. */
@@ -54,12 +65,20 @@ export interface ChargeCommand {
   readonly legType: 'checkout';
 }
 
+/**
+ * Every outcome ECHOES THE AMOUNT THE PORT WAS ACTUALLY CALLED WITH, and the
+ * caller records THAT rather than the value it believes it passed. The two used
+ * to be read independently, so changing the charged amount left the durable
+ * record truthful-looking and every test green (found by mutation check). One
+ * value, one source: what was asked for is what is written down.
+ */
 export type ChargeOutcome =
-  | { readonly accepted: true; readonly collectRef: string }
+  | { readonly accepted: true; readonly collectRef: string; readonly chargedAmount: number }
   | {
       readonly accepted: false;
       /** NAMED, never a boolean: the two answers need different local knowledge. */
       readonly reason: 'timeout' | 'idempotency_key_amount_mismatch';
+      readonly chargedAmount: number;
     };
 
 export interface PaymentProviderPort {
@@ -131,11 +150,19 @@ export function sandboxPaymentProvider(
         requestedAtIso: command.requestedAtIso,
         legType: command.legType,
       });
+      // `chargedAmount` is the figure THIS CALL carried, echoed from the command
+      // itself — never re-derived, so it cannot disagree with what was asked.
       if (response.outcome === 'accepted') {
-        return Promise.resolve({ accepted: true, collectRef: response.collectRef });
+        return Promise.resolve({
+          accepted: true,
+          collectRef: response.collectRef,
+          chargedAmount: command.amount,
+        });
       }
-      if (response.outcome === 'timeout') return Promise.resolve({ accepted: false, reason: 'timeout' });
-      return Promise.resolve({ accepted: false, reason: response.reason });
+      if (response.outcome === 'timeout') {
+        return Promise.resolve({ accepted: false, reason: 'timeout', chargedAmount: command.amount });
+      }
+      return Promise.resolve({ accepted: false, reason: response.reason, chargedAmount: command.amount });
     },
   };
 }

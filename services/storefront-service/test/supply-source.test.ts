@@ -56,29 +56,63 @@ describe('THE MOCK IS NOT THE FALLBACK — fabricated supply data is unreachable
     // mock-looking imports in the deployed source must be EXACTLY this one, in
     // EXACTLY this file. A second one, a moved one, or a supply mock creeping
     // back fails this test by name.
-    const ALLOWED = [
+    //
+    // ═══ AND IT SCANS BINDINGS, NOT ONLY SPECIFIERS (verifier finding 6) ═══
+    //
+    // Scanning specifiers alone left a hole the code was ALREADY standing in:
+    // `payment-port.ts` imports `MockPaymentProvider` from the
+    // `@shop-plus/commerce-core` BARREL, whose specifier contains no « mock » —
+    // and the verifier walked BOTH vault mocks into deployed source through that
+    // barrel with the suite still green. A mock arriving by name must be caught
+    // by name, so two sets are pinned: the mock-named SPECIFIERS (exactly one,
+    // the worker bundle's alias re-export, which the bundle cannot be built
+    // without) and the mock-named BINDINGS (exactly one, the certified payment
+    // provider, in exactly one file).
+    //
+    // TYPE-ONLY IMPORTS ARE EXCLUDED, deliberately and not for convenience: a
+    // `type` import is erased at compile time, reaches no runtime and can
+    // fabricate nothing. `PaymentMockConfig` is a shape, not a fabricator.
+    const ALLOWED_SPECIFIERS = [
       'worker/commerce-core-worker.ts::../../../packages/commerce-core/dist/mocks/payment-provider-mock.js',
     ];
+    const ALLOWED_BINDINGS = ['src/payment-port.ts::MockPaymentProvider'];
     const roots = [join(import.meta.dirname, '../src'), join(import.meta.dirname, '../worker')];
     const walk = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
         e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.ts') ? [join(dir, e.name)] : [],
       );
-    const found: string[] = [];
+    const foundSpecifiers: string[] = [];
+    const foundBindings: string[] = [];
     for (const dir of roots) {
       for (const file of walk(dir)) {
         const src = readFileSync(file, 'utf8');
-        const imports = [...src.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]!);
-        for (const spec of imports) {
-          if (!/mock/i.test(spec)) continue;
-          const relative = file.slice(file.indexOf('/storefront-service/') + '/storefront-service/'.length);
-          found.push(`${relative}::${spec}`);
+        const relative = file.slice(file.indexOf('/storefront-service/') + '/storefront-service/'.length);
+        for (const spec of [...src.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]!)) {
+          if (/mock/i.test(spec)) foundSpecifiers.push(`${relative}::${spec}`);
+        }
+        // Every import/export STATEMENT, with its clause — `import … from`,
+        // `import type … from`, and `export … from` (the barrel re-export shape).
+        for (const stmt of src.matchAll(/(?:import|export)\s+([\s\S]*?)\s*from\s*['"][^'"]+['"]/g)) {
+          const clause = stmt[1]!;
+          if (/^type\s/.test(clause.trim())) continue; // erased at compile time
+          const named = /\{([\s\S]*?)\}/.exec(clause);
+          const bindings = named === null ? [clause] : named[1]!.split(',');
+          for (const raw of bindings) {
+            const binding = raw.trim();
+            if (binding === '' || binding.startsWith('type ')) continue;
+            const name = binding.split(/\s+as\s+/)[0]!.trim().replace(/^\*\s*/, '');
+            if (name !== '' && /mock/i.test(name)) foundBindings.push(`${relative}::${name}`);
+          }
         }
       }
     }
-    expect(found.sort()).toEqual(ALLOWED);
+    expect(foundSpecifiers.sort()).toEqual(ALLOWED_SPECIFIERS);
+    expect(foundBindings.sort()).toEqual(ALLOWED_BINDINGS);
     // …and NO supply mock, by the original rule: nothing on the supply path.
-    for (const entry of found) expect(/supply/i.test(entry)).toBe(false);
+    for (const entry of [...foundSpecifiers, ...foundBindings]) expect(/supply/i.test(entry)).toBe(false);
+    // The eligibility mock is the verifier's own smuggle: it rides the SAME
+    // barrel and would reach deployed source with no « mock » in any specifier.
+    for (const entry of foundBindings) expect(entry.includes('Sera')).toBe(false);
   });
 
   it('the SUPPLY SOURCE module itself names no mock (the resolver has exactly two branches)', () => {

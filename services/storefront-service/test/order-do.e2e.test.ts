@@ -29,6 +29,8 @@ import { afterAll, describe, expect, it } from 'vitest';
 const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'order-do-'));
 const persistSlow = mkdtempSync(join(tmpdir(), 'order-do-slow-'));
+const persistNoSecret = mkdtempSync(join(tmpdir(), 'order-do-nosecret-'));
+const persistEmptySecret = mkdtempSync(join(tmpdir(), 'order-do-emptysecret-'));
 const T0 = '2026-07-30T08:00:00.000Z';
 
 const WRITE_SECRET = 'test-write-secret-0001';
@@ -61,7 +63,17 @@ const SUPPLY = [
   },
 ];
 
-function makeMf(persistDir: string, sandboxBehavior?: string): Miniflare {
+/**
+ * `webhookSecret` distinguishes the three deployments that matter to the gate:
+ * a real secret, the EMPTY string (a secret set to nothing), and `null` — the
+ * binding ABSENT entirely, which is what a Worker deployed before
+ * `wrangler secret put` actually looks like.
+ */
+function makeMf(
+  persistDir: string,
+  sandboxBehavior?: string,
+  webhookSecret: string | null = WEBHOOK_SECRET,
+): Miniflare {
   return new Miniflare({
     modules: true,
     scriptPath: SCRIPT,
@@ -74,7 +86,7 @@ function makeMf(persistDir: string, sandboxBehavior?: string): Miniflare {
     durableObjectsPersist: persistDir,
     bindings: {
       STOREFRONT_WRITE_SECRET: WRITE_SECRET,
-      PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
+      ...(webhookSecret !== null ? { PAYMENT_WEBHOOK_SECRET: webhookSecret } : {}),
       ...(sandboxBehavior !== undefined ? { PAYMENT_SANDBOX_BEHAVIOR: sandboxBehavior } : {}),
     },
     serviceBindings: {
@@ -107,18 +119,45 @@ async function restart(): Promise<void> {
 
 /** A SECOND runtime whose certified provider TIMES OUT the first charge of every
  *  order — the only way a charge can fail, and therefore the only way the retry
- *  path (a NEW attempt id) is reachable against the real Worker. */
+ *  path (a NEW audit attempt id on ONE provider key) is reachable for real. */
+const SLOW_BEHAVIOR = JSON.stringify({ timeoutFirstNInitiates: 1 });
 let slow: Miniflare | undefined;
 function slowMf(): Miniflare {
-  slow ??= makeMf(persistSlow, JSON.stringify({ timeoutFirstNInitiates: 1 }));
+  slow ??= makeMf(persistSlow, SLOW_BEHAVIOR);
   return slow;
+}
+/** A real process death for the slow runtime, on the same persist dir. */
+async function slowRestart(): Promise<Miniflare> {
+  await slowMf().dispose();
+  slow = makeMf(persistSlow, SLOW_BEHAVIOR);
+  return slow;
+}
+
+/**
+ * THE TWO DEPLOYMENTS THAT MUST REFUSE EVERY WEBHOOK: the secret UNSET (the
+ * binding absent — a Worker deployed before `wrangler secret put`) and the
+ * secret EMPTY. Their own persist dirs, so nothing they do can be confused with
+ * the main runtime's state.
+ */
+let noSecret: Miniflare | undefined;
+function noSecretMf(): Miniflare {
+  noSecret ??= makeMf(persistNoSecret, undefined, null);
+  return noSecret;
+}
+let emptySecret: Miniflare | undefined;
+function emptySecretMf(): Miniflare {
+  emptySecret ??= makeMf(persistEmptySecret, undefined, '');
+  return emptySecret;
 }
 
 afterAll(async () => {
   await mf.dispose();
   if (slow !== undefined) await slow.dispose();
-  rmSync(persist, { recursive: true, force: true });
-  rmSync(persistSlow, { recursive: true, force: true });
+  if (noSecret !== undefined) await noSecret.dispose();
+  if (emptySecret !== undefined) await emptySecret.dispose();
+  for (const dir of [persist, persistSlow, persistNoSecret, persistEmptySecret]) {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 /* ────────────────────────────── the harness ──────────────────────────────── */
@@ -239,10 +278,18 @@ async function audit(m: Miniflare, orderId: string) {
   const res = await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit');
   return (await res.json()) as {
     ok: boolean;
-    state?: string;
+    exists?: boolean;
+    receipt?: { holderRef?: string; reservationId?: string } | null;
+    state?: string | null;
     chain?: Record<string, string>;
     priorPaymentAttemptIds?: string[];
-    attempts?: { attemptId: string; amount: number; outcome: string; collectRef?: string }[];
+    attempts?: {
+      attemptId: string;
+      providerKey: string;
+      amount: number;
+      outcome: string;
+      collectRef?: string;
+    }[];
     escrow?: { paymentLegs: { legType: string; amount: number; status: string; collectRef: string }[] } | null;
   };
 }
@@ -349,9 +396,11 @@ describe('OrderDO — an order exists only for a quote its caller actually holds
     expect(stranger.status).toBe(409);
     expect(stranger.json['error']).toBe('reservation_held_by_another');
     expect(stranger.text.includes('12500')).toBe(false); // no price crossed over
-    // …and no order was created by the attempt
+    // …and no order was created by the attempt (the HOLD is still there — that
+    // is the point — but nothing was created against it)
     const record = await audit(mf, `ord-${quote.quoteId}`);
-    expect(record.ok).toBe(false);
+    expect(record.exists).toBe(false);
+    expect(record.state).toBeNull();
     // the true holder still orders
     const hers = await postOrder(mf, {
       quoteId: quote.quoteId,
@@ -427,11 +476,24 @@ describe('OrderDO — one command, one charge, forever', () => {
     expect(record.attempts).toHaveLength(1); // the double tap charged nothing
   });
 
-  it('A RETRY AFTER A FAILED CHARGE USES A NEW ATTEMPT ID — and the old one is never charged again', async () => {
+  /**
+   * ═══ THE VERIFIER'S OWN BLOCKER SCENARIO, ROUND 2 ═══
+   *
+   * An `initiateCharge` TIMEOUT is the canonically ambiguous case: the money may
+   * already have moved. The buyer retries. Before this round the retry minted a
+   * fresh PROVIDER IDEMPOTENCY KEY, so one 12 500 F leg carried two keys a
+   * provider cannot dedupe: the buyer debited twice, Shop+ recording one leg, and
+   * the second webhook refused `out_of_order` and lost — no alert, no
+   * reconciliation, no refund path.
+   *
+   * The audit attempt id must still be new (the state machine demands it). The
+   * PROVIDER KEY must not be. Both halves are asserted here.
+   */
+  it('A RETRY AFTER A TIMEOUT REUSES THE LEG\'S PROVIDER KEY — a new AUDIT id, never a second collection', async () => {
     // This runtime's certified provider TIMES OUT the first charge of every
     // order (`timeoutFirstNInitiates: 1`), which is the only way a charge can
     // fail and therefore the only way this path is reachable for real.
-    const m = slowMf();
+    let m = slowMf();
     const shop = await seedShop(m, '0006');
     const quote = await issueQuoteFor(m, shop);
     const held = await reserve(m, quote.quoteId, 'cmd-reserve-0006', 'holder-0006');
@@ -444,16 +506,22 @@ describe('OrderDO — one command, one charge, forever', () => {
       commandId: 'cmd-order-0006',
     });
     expect(first.status, first.text).toBe(200);
-    // THE ORDER EXISTS AND THE MONEY DID NOT MOVE — and `state` says so. The
-    // HTTP code answers the command; only `state` answers the money.
+    // THE ORDER EXISTS AND THE MONEY MAY OR MAY NOT HAVE MOVED — and `state`
+    // says so. The HTTP code answers the command; only `state` answers the money.
     expect(first.json['state']).toBe('payment_failed');
 
     const failed = await audit(m, orderId);
     expect(failed.attempts).toHaveLength(1);
     expect(failed.attempts![0]!.outcome).toBe('timeout');
     const firstAttempt = failed.attempts![0]!.attemptId;
+    const legKey = failed.attempts![0]!.providerKey;
+    expect(legKey).toMatch(/^pk-[0-9a-f-]{36}$/u);
+    expect(legKey).not.toBe(firstAttempt); // two identifiers, never one
 
-    // THE RETRY — a NEW command id, and the vault demands a NEW attempt id.
+    // A PROCESS DEATH BETWEEN THE TIMEOUT AND THE RETRY — the leg's key must
+    // survive it, or the retry mints a second collection after every crash.
+    m = await slowRestart();
+
     const retry = await postOrder(m, {
       quoteId: quote.quoteId,
       holderRef: 'holder-0006',
@@ -465,13 +533,39 @@ describe('OrderDO — one command, one charge, forever', () => {
     const after = await audit(m, orderId);
     expect(after.attempts).toHaveLength(2);
     const secondAttempt = after.attempts![1]!.attemptId;
+    // THE AUDIT ID IS NEW — the vault refuses the retry edge otherwise.
     expect(secondAttempt).not.toBe(firstAttempt);
+    // THE PROVIDER KEY IS THE SAME — ONE LEG, ONE COLLECTION, across a restart.
+    expect(after.attempts![1]!.providerKey).toBe(legKey);
+    expect(new Set(after.attempts!.map((a) => a.providerKey)).size).toBe(1);
     expect(after.attempts![1]!.outcome).toBe('accepted');
     // the superseded attempt is AUDITED, not erased
     expect(after.priorPaymentAttemptIds).toEqual([firstAttempt]);
     expect(after.chain!['payment_attempt_id']).toBe(secondAttempt);
 
-    // AND THE REPLAY OF THE RETRY CHARGES NOTHING MORE.
+    // THE CONSEQUENCE THAT MAKES IT MONEY-SAFE: because the key is the leg's,
+    // the provider's confirmation for THIS leg is one event with one command id.
+    // It pays the order once…
+    const event = webhookEvent(orderId, 12_500, legKey);
+    const paid = await postWebhook(m, event);
+    expect(paid.status, paid.text).toBe(200);
+    expect(paid.json['status']).toBe('applied');
+    expect(paid.json['state']).toBe('confirmed');
+
+    // …and the LATE confirmation of the ambiguous first charge — which carries
+    // the same key, hence the same collect ref and the same command id — is
+    // ABSORBED. Before this fix it arrived under a different key, was refused
+    // `out_of_order`, and was lost while the buyer had been debited for it.
+    const late = await postWebhook(m, event);
+    expect(late.status).toBe(200);
+    expect(late.json['status']).toBe('duplicate');
+    expect(late.json['status']).not.toBe('out_of_order');
+    const settled = await audit(m, orderId);
+    expect(settled.escrow!.paymentLegs).toHaveLength(1);
+    expect(settled.escrow!.paymentLegs[0]!.amount).toBe(12_500);
+    expect(settled.escrow!.paymentLegs[0]!.collectRef).toBe(`collect-${legKey}`);
+
+    // AND THE REPLAY OF THE RETRY COMMAND CHARGES NOTHING MORE.
     const replay = await postOrder(m, {
       quoteId: quote.quoteId,
       holderRef: 'holder-0006',
@@ -479,6 +573,82 @@ describe('OrderDO — one command, one charge, forever', () => {
     });
     expect(replay.text).toBe(retry.text);
     expect((await audit(m, orderId)).attempts).toHaveLength(2);
+  });
+
+  it('THE PROVIDER KEY IS THE LEG\'S FROM THE VERY FIRST CHARGE — distinct from the audit id, and durable', async () => {
+    const { created, orderId } = await orderedQuote(mf, '0019');
+    expect(created.status).toBe(200);
+    const before = await audit(mf, orderId);
+    expect(before.attempts![0]!.providerKey).toMatch(/^pk-/u);
+    expect(before.attempts![0]!.attemptId).toMatch(/^att-/u);
+    expect(before.attempts![0]!.providerKey).not.toBe(before.attempts![0]!.attemptId);
+    await restart();
+    const after = await audit(mf, orderId);
+    expect(after.attempts![0]!.providerKey).toBe(before.attempts![0]!.providerKey);
+  });
+
+  /**
+   * VERIFIER FINDING 4 — authorization must run BEFORE the idempotency cache.
+   * A stranger replaying the owner's command id used to be handed the cached
+   * answer at 200, while the same stranger under a different command id was
+   * correctly refused. Nothing leaked, because that payload is what the public
+   * GET already returns — but the ordering is the defect, and SP3.3b will grow
+   * that answer.
+   */
+  it('A STRANGER REPLAYING THE OWNER\'S commandId IS REFUSED — the hold is proven before the cache is served', async () => {
+    const { created, quote, holderRef } = await orderedQuote(mf, '0020');
+    expect(created.status).toBe(200);
+    const stranger = await postOrder(mf, {
+      quoteId: quote.quoteId,
+      holderRef: 'holder-etranger-0020',
+      commandId: 'cmd-order-0020', // the OWNER's command id, replayed
+    });
+    expect(stranger.status).toBe(409);
+    expect(stranger.json['error']).toBe('reservation_held_by_another');
+    expect(stranger.json['orderId']).toBeUndefined();
+    expect(stranger.json['amountPaidAtCheckout']).toBeUndefined();
+    // …and the owner's own replay is still byte-identical
+    const owner = await postOrder(mf, {
+      quoteId: quote.quoteId,
+      holderRef,
+      commandId: 'cmd-order-0020',
+    });
+    expect(owner.text).toBe(created.text);
+  });
+
+  /**
+   * VERIFIER FINDING 5 — the results lookup walked the prototype chain, so a
+   * command id of `constructor` or `toString` returned a prototype member, an
+   * unparseable body and a permanent failure for that id. `__proto__` is now
+   * refused at the wire by the id alphabet; the other two must work normally.
+   */
+  it('a commandId that names an Object.prototype member behaves like any other', async () => {
+    for (const [n, commandId] of [
+      ['0021', 'constructor'],
+      ['0022', 'toString'],
+      ['0023', 'valueOf'],
+    ] as const) {
+      const shop = await seedShop(mf, n);
+      const quote = await issueQuoteFor(mf, shop);
+      const held = await reserve(mf, quote.quoteId, `cmd-reserve-${n}`, `holder-${n}`);
+      expect(held.status).toBe(200);
+      const created = await postOrder(mf, { quoteId: quote.quoteId, holderRef: `holder-${n}`, commandId });
+      expect(created.status, `${commandId}: ${created.text}`).toBe(200);
+      expect(created.json['state']).toBe('payment_pending');
+      // …and it REPLAYS as itself, not as a prototype member
+      const replay = await postOrder(mf, { quoteId: quote.quoteId, holderRef: `holder-${n}`, commandId });
+      expect(replay.status).toBe(200);
+      expect(replay.text).toBe(created.text);
+    }
+    // `__proto__` (and anything else outside the id alphabet) never reaches the
+    // object at all — a command id is an audit identifier, not free bytes.
+    const bad = await postOrder(mf, {
+      quoteId: 'quote-whatever',
+      holderRef: 'h',
+      commandId: '__proto__',
+    });
+    expect(bad.status).toBe(400);
+    expect(bad.json['field']).toBe('commandId');
   });
 });
 
@@ -731,6 +901,9 @@ describe('OrderDO — the emitted bytes carry no supplier economics and no payme
         'payment_attempt_id',
         'paymentAttemptId',
         'attempt',
+        'providerKey',
+        'pk-',
+        'att-',
         'holderRef',
         'reservationId',
         'quoteId',
@@ -800,5 +973,247 @@ describe('OrderDO — public by design, and it opens nothing else', () => {
   it('a malformed id in the order path is a named refusal, not a 500', async () => {
     const res = await mf.dispatchFetch('http://c/checkout/order/%FF', { method: 'GET' });
     expect(res.status).toBe(400);
+  });
+});
+
+/* ═══════════ the reservation receipt — a hold never changes hands ══════════ */
+
+describe('OrderDO — a receipt for a given reservationId is IMMUTABLE', () => {
+  /**
+   * ═══ THE VERIFIER'S FIVE-STEP BLOCKER, ROUND 2 ═══
+   *
+   * The vault replays an existing hold idempotently when the reserve
+   * `command_id` matches, answering with the ORIGINAL hold's ids — while the
+   * mirror took `holderRef` from the REQUEST. So an attacker who knew the
+   * victim's reserve command id could replay it under his own holderRef, flip
+   * this receipt, and have HIS order created while `CheckoutDO` still held the
+   * VICTIM's reservation. The equal `expiresAt` of a replay walked straight
+   * through a monotone-only guard.
+   */
+  it('an attacker replaying the victim\'s reserve commandId under his own holderRef cannot take the order', async () => {
+    const shop = await seedShop(mf, '0030');
+    const quote = await issueQuoteFor(mf, shop);
+    const orderId = `ord-${quote.quoteId}`;
+
+    // 1. THE VICTIM reserves.
+    const victimHold = await reserve(mf, quote.quoteId, 'cmd-reserve-0030', 'holder-victime');
+    expect(victimHold.status).toBe(200);
+    const reservationId = victimHold.json['reservationId'];
+
+    // 2. THE ATTACKER replays HER command id under HIS holderRef. The vault
+    //    answers 200 — it is an idempotent replay of HER hold, by design.
+    const attackerReplay = await reserve(mf, quote.quoteId, 'cmd-reserve-0030', 'holder-attaquant');
+    expect(attackerReplay.status).toBe(200);
+    expect(attackerReplay.json['reservationId']).toBe(reservationId); // HER hold
+
+    // 3. THE RECEIPT STILL NAMES HER. An idempotent replay is not a new
+    //    decision, so it cannot carry a new holder.
+    const receipt = (await audit(mf, orderId)).receipt;
+    expect(receipt?.holderRef).toBe('holder-victime');
+    expect(receipt?.reservationId).toBe(reservationId);
+
+    // 4. THE ATTACKER'S ORDER IS REFUSED.
+    const attackerOrder = await postOrder(mf, {
+      quoteId: quote.quoteId,
+      holderRef: 'holder-attaquant',
+      commandId: 'cmd-order-0030-attaquant',
+    });
+    expect(attackerOrder.status).toBe(409);
+    expect(attackerOrder.json['error']).toBe('reservation_held_by_another');
+
+    // 5. THE VICTIM'S ORDER IS CREATED — she still holds what she reserved.
+    const victimOrder = await postOrder(mf, {
+      quoteId: quote.quoteId,
+      holderRef: 'holder-victime',
+      commandId: 'cmd-order-0030',
+    });
+    expect(victimOrder.status, victimOrder.text).toBe(200);
+    expect(victimOrder.json['state']).toBe('payment_pending');
+
+    // …and it survives a process death naming the same holder.
+    await restart();
+    const afterCrash = (await audit(mf, orderId)).receipt;
+    expect(afterCrash?.holderRef).toBe('holder-victime');
+  });
+
+  /**
+   * The OTHER half of the same sentence: a genuinely NEW hold — a different
+   * reservation id with a strictly later expiry, which is what a re-reserve
+   * after the 2-minute TTL produces — DOES replace the receipt. Driven straight
+   * at the object, because workerd's real clock cannot be wound forward in a
+   * test and there is deliberately no test-only clock on a money path (the TTL
+   * decision itself is proven by value in `order-core.test.ts`).
+   */
+  it('a genuinely NEW hold replaces the receipt, while a STALE mirror write never does', async () => {
+    const shop = await seedShop(mf, '0031');
+    const quote = await issueQuoteFor(mf, shop);
+    const orderId = `ord-${quote.quoteId}`;
+    const held = await reserve(mf, quote.quoteId, 'cmd-reserve-0031', 'holder-premier');
+    expect(held.status).toBe(200);
+    const firstExpiry = held.json['expiresAt'] as string;
+
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    const stub = ns.get(ns.idFromName(orderId));
+    const mirror = async (body: Record<string, string>) => {
+      const res = await stub.fetch('https://do/entry/reserved', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      return (await res.json()) as { ok: boolean; stored: boolean; reason?: string };
+    };
+
+    // A STALE MIRROR WRITE — a DIFFERENT hold, but one that expires EARLIER. It
+    // is an older write landing out of order and must change nothing. (This is
+    // the monotonicity guard; without it a dead hold could be resurrected.)
+    const stale = await mirror({
+      quoteId: quote.quoteId,
+      reservationId: 'res-ancienne-0031',
+      holderRef: 'holder-ancien',
+      expiresAt: new Date(Date.parse(firstExpiry) - 60_000).toISOString(),
+    });
+    expect(stale.stored).toBe(false);
+    expect(stale.reason).toBe('not_later');
+    expect((await audit(mf, orderId)).receipt?.holderRef).toBe('holder-premier');
+    // an EQUAL expiry under a different id is not later either
+    const equal = await mirror({
+      quoteId: quote.quoteId,
+      reservationId: 'res-egale-0031',
+      holderRef: 'holder-egal',
+      expiresAt: firstExpiry,
+    });
+    expect(equal.stored).toBe(false);
+    expect((await audit(mf, orderId)).receipt?.holderRef).toBe('holder-premier');
+
+    // A GENUINELY NEW HOLD — different id, strictly later expiry — replaces it,
+    // which is what makes a legitimate re-reserve after expiry work.
+    const fresh = await mirror({
+      quoteId: quote.quoteId,
+      reservationId: 'res-nouvelle-0031',
+      holderRef: 'holder-second',
+      expiresAt: new Date(Date.parse(firstExpiry) + 60_000).toISOString(),
+    });
+    expect(fresh.stored).toBe(true);
+    expect((await audit(mf, orderId)).receipt?.holderRef).toBe('holder-second');
+
+    // …and the NEW holder is the one who may order; the old one may not.
+    const oldHolder = await postOrder(mf, {
+      quoteId: quote.quoteId,
+      holderRef: 'holder-premier',
+      commandId: 'cmd-order-0031-ancien',
+    });
+    expect(oldHolder.status).toBe(409);
+    const newHolder = await postOrder(mf, {
+      quoteId: quote.quoteId,
+      holderRef: 'holder-second',
+      commandId: 'cmd-order-0031',
+    });
+    expect(newHolder.status, newHolder.text).toBe(200);
+  });
+});
+
+/* ═════════ the webhook gate FAILS CLOSED on an unset or empty secret ═══════ */
+
+describe('OrderDO — an unconfigured webhook secret refuses EVERY webhook', () => {
+  /**
+   * `auth.ts`'s `secret.length > 0 && match` is the whole guard, and
+   * `timingSafeEqual('', '')` is TRUE — so without the length half, a Worker
+   * deployed before `wrangler secret put` would authenticate every webhook and
+   * anyone could declare any order paid. That order then goes into real custody
+   * and later into settlement. This test is what stands between that line and a
+   * silent regression.
+   */
+  async function orderInRuntime(m: Miniflare, n: string): Promise<string> {
+    const shop = await seedShop(m, n);
+    const quote = await issueQuoteFor(m, shop);
+    const held = await reserve(m, quote.quoteId, `cmd-reserve-${n}`, `holder-${n}`);
+    expect(held.status).toBe(200);
+    const created = await postOrder(m, {
+      quoteId: quote.quoteId,
+      holderRef: `holder-${n}`,
+      commandId: `cmd-order-${n}`,
+    });
+    expect(created.status, created.text).toBe(200);
+    return `ord-${quote.quoteId}`;
+  }
+
+  it('SECRET UNSET (the binding absent): every webhook is 401 and the order never moves', async () => {
+    const m = noSecretMf();
+    const orderId = await orderInRuntime(m, '0040');
+    const event = webhookEvent(orderId, 12_500, 'pk-forge-0040');
+    // no header at all — the shape an attacker who knows nothing would send
+    for (const headers of [
+      { 'Content-Type': 'application/json' },
+      { 'X-Payment-Webhook-Key': '', 'Content-Type': 'application/json' },
+      { 'X-Payment-Webhook-Key': WEBHOOK_SECRET, 'Content-Type': 'application/json' },
+      { 'X-Payment-Webhook-Key': WRITE_SECRET, 'Content-Type': 'application/json' },
+    ]) {
+      const res = await postWebhook(m, event, headers);
+      expect(res.status, JSON.stringify(headers)).toBe(401);
+      expect(res.json['error']).toBe('unauthorized');
+    }
+    // NOTHING MOVED: no escrow, still payment_pending, still unconfirmed.
+    const record = await audit(m, orderId);
+    expect(record.state).toBe('payment_pending');
+    expect(record.escrow).toBeNull();
+    expect((await getOrder(m, orderId)).json['state']).toBe('payment_pending');
+  });
+
+  it('SECRET EMPTY: an empty configured secret matches nothing — 401, and the order never moves', async () => {
+    const m = emptySecretMf();
+    const orderId = await orderInRuntime(m, '0041');
+    const event = webhookEvent(orderId, 12_500, 'pk-forge-0041');
+    for (const headers of [
+      { 'Content-Type': 'application/json' },
+      { 'X-Payment-Webhook-Key': '', 'Content-Type': 'application/json' },
+      { 'X-Payment-Webhook-Key': WEBHOOK_SECRET, 'Content-Type': 'application/json' },
+    ]) {
+      const res = await postWebhook(m, event, headers);
+      expect(res.status, JSON.stringify(headers)).toBe(401);
+    }
+    const record = await audit(m, orderId);
+    expect(record.state).toBe('payment_pending');
+    expect(record.escrow).toBeNull();
+  });
+});
+
+/* ═════════════ the webhook's order_id is an id, not free bytes ═════════════ */
+
+describe('OrderDO — a hostile order_id on the webhook never reaches an object', () => {
+  /**
+   * `order_id` comes off an authenticated but otherwise untrusted payload and is
+   * used as a DURABLE OBJECT NAME. The alphabet pin is what keeps it an id: an
+   * unpinned name lets a caller address arbitrary objects in the ORDER
+   * namespace, and it is the same charset discipline `slug`/`pid` already carry
+   * on the quote route.
+   */
+  it('a path-shaped, spaced, or non-id order_id is 400 bad_field — never a 404 lookup', async () => {
+    const { created, orderId } = await orderedQuote(mf, '0050');
+    expect(created.status).toBe(200);
+    for (const hostile of [
+      '../ord-quote-x',
+      'ord/quote/x',
+      'ord quote x',
+      'ord%2Fquote',
+      '-leading-dash',
+      '_leading-underscore',
+      'ord\tquote',
+      '..',
+      'ord..quote/..',
+      'ord#quote',
+      'ord?quote=1',
+      'ord\nquote',
+      'é-accentué',
+    ]) {
+      const event = webhookEvent(orderId, 12_500, 'pk-hostile') as { payload: Record<string, unknown> };
+      event.payload['order_id'] = hostile;
+      const res = await postWebhook(mf, event);
+      expect(res.status, JSON.stringify(hostile)).toBe(400);
+      expect(res.json['error'], JSON.stringify(hostile)).toBe('bad_field');
+      expect(res.json['field']).toBe('order_id');
+    }
+    // …and the real order is untouched by every one of them
+    const record = await audit(mf, orderId);
+    expect(record.escrow).toBeNull();
+    expect(record.state).toBe('payment_pending');
   });
 });

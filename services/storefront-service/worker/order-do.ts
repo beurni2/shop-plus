@@ -42,9 +42,12 @@ import { readSandboxBehavior, sandboxPaymentProvider, type ChargeOutcome } from 
  *
  * ═══ THE THREE THINGS THIS OBJECT REFUSES TO DO ═══
  *
- *  1. It never charges twice for one attempt id. An attempt is RECORDED durably
- *     BEFORE the provider is called, and a recorded attempt is never re-charged —
- *     including after a restart, when the in-memory provider has forgotten it.
+ *  1. It never collects twice for one LEG. The provider's idempotency key belongs
+ *     to the (order, legType) pair, is minted once, and is stored durably BEFORE
+ *     the provider is called — so a retry after an ambiguous timeout, and a
+ *     retry after a process death, both present the SAME key. The audit attempt
+ *     id, which the state machine requires to be new on the retry edge, is a
+ *     separate value and never reaches the provider.
  *  2. It never confirms an order on anything but a provider event, and even then
  *     only through the vault's `confirmOrder`, which re-reads the recorded
  *     EscrowTxn and refuses `no_funded_checkout_leg` (SP-I13).
@@ -58,6 +61,8 @@ const LOG_KEY = 'order-input-log';
 const ATTEMPTS_KEY = 'payment-attempts';
 const RESULTS_KEY = 'command-results';
 const RECEIPT_KEY = 'reservation-receipt';
+/** One provider idempotency key PER LEG, minted once, never re-minted. */
+const LEG_KEYS_KEY = 'provider-leg-keys';
 
 /** The actor every command from this service carries into the canon envelope. */
 const ORDER_ACTOR = 'storefront-service:checkout';
@@ -76,18 +81,29 @@ interface StoredOrigin extends OrderOrigin {
  * becoming a second charge.
  */
 interface AttemptRecord {
+  /**
+   * THE AUDIT ATTEMPT ID — the state machine's. `order-machine.ts` REQUIRES a
+   * new one on the `payment_failed → payment_pending` edge and preserves the
+   * superseded one in `priorPaymentAttemptIds`. It never reaches the provider.
+   */
   readonly attemptId: string;
+  /**
+   * THE PROVIDER IDEMPOTENCY KEY — the LEG's, not this attempt's. Every attempt
+   * at one leg carries the SAME key, so a retry after an ambiguous timeout is a
+   * retry the provider can dedupe rather than a second collection. Recorded per
+   * attempt so « which attempt » and « which charge » stay separately
+   * answerable, exactly as the audit needs them to be.
+   */
+  readonly providerKey: string;
   readonly requestedAt: string;
   /**
-   * THE AMOUNT THIS ATTEMPT WAS CHARGED FOR, recorded so that « the charge was
-   * for the mode's own leg » is OBSERVABLE rather than asserted. It is copied
-   * from the derived leg — which is itself read verbatim off the immutable
-   * Quote — and never computed here. (A mutation check found this: with the leg
-   * derivation broken to charge `productSubtotal` instead of `buyerTotal`, every
-   * end-to-end test still passed, because nothing on the durable record named
-   * the amount that had actually been asked for.)
+   * THE AMOUNT THIS ATTEMPT WAS CHARGED FOR — ECHOED BACK BY THE PORT, never
+   * re-read from the leg here, so the charge and the record cannot diverge.
+   * (Two mutation checks found this the hard way: first that nothing named the
+   * amount at all, then that naming it independently let the charge be changed
+   * while the record stayed truthful-looking.)
    */
-  readonly amount: number;
+  amount: number;
   outcome: 'pending' | 'accepted' | 'timeout' | 'idempotency_key_amount_mismatch';
   collectRef?: string;
 }
@@ -127,11 +143,24 @@ export class OrderDO {
      * single-object read instead of by a probe that would take the hold to ask
      * about it.
      *
-     * MONOTONE IN TIME: a receipt is never replaced by one that expires EARLIER.
-     * A fresh hold always carries a later `expiresAt` than any hold before it, so
-     * this makes a late-landing older mirror write a no-op rather than a way to
-     * resurrect a dead hold. Nothing here can make an order more reachable than
-     * the reservation itself.
+     * ═══ A RECEIPT FOR A GIVEN `reservationId` IS IMMUTABLE ═══
+     * (Verifier BLOCKER, round 2 — the defect this closes was live.)
+     *
+     * AN IDEMPOTENT REPLAY IS BY DEFINITION NOT A NEW DECISION, SO IT MAY NOT
+     * CARRY A NEW HOLDER. The vault replays an existing hold when the reserve
+     * `command_id` matches (`reservation.ts`) and answers with the ORIGINAL
+     * hold's ids — while the mirror takes `holderRef` from the REQUEST. So an
+     * attacker who replayed the victim's reserve command id under his own
+     * holderRef flipped this receipt, and HIS order was created while
+     * `CheckoutDO` still held the VICTIM's reservation. The equal `expiresAt` of
+     * a replay walked straight through a monotone-only guard.
+     *
+     * The rule is therefore the reservation id, not the clock: the SAME
+     * reservation can never change hands here, whatever a write claims. Only a
+     * DIFFERENT reservation — a genuinely new hold, which always carries a
+     * strictly LATER `expiresAt` — may replace it. The monotone check stays as
+     * the second half of that sentence: it is what stops a late-landing older
+     * mirror write from resurrecting a dead hold.
      */
     if (request.method === 'POST' && pathname === '/entry/reserved') {
       let body: Partial<ReservationReceipt>;
@@ -159,8 +188,19 @@ export class OrderDO {
         expiresAt: body.expiresAt,
       };
       const existing = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
-      if (existing !== undefined && existing.expiresAt > receipt.expiresAt) {
-        return Response.json({ ok: true, stored: false });
+      if (existing !== undefined) {
+        // SAME HOLD ⇒ ALREADY DECIDED. Not an error, not an overwrite: the
+        // reservation this receipt describes has one holder, settled when it was
+        // created, and no later write about the same hold may say otherwise.
+        if (existing.reservationId === receipt.reservationId) {
+          return Response.json({ ok: true, stored: false, reason: 'already_decided' });
+        }
+        // A DIFFERENT hold must be a genuinely LATER one. Strictly later: a
+        // fresh hold's TTL always runs from now, so anything not strictly later
+        // is an older mirror write landing out of order.
+        if (existing.expiresAt >= receipt.expiresAt) {
+          return Response.json({ ok: true, stored: false, reason: 'not_later' });
+        }
       }
       await this.state.storage.put(RECEIPT_KEY, receipt);
       return Response.json({ ok: true, stored: true });
@@ -203,7 +243,21 @@ export class OrderDO {
      */
     if (request.method === 'GET' && pathname === '/entry/audit') {
       const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
-      if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+      if (origin === undefined) {
+        // NO ORDER YET — but this object may already hold a reservation receipt,
+        // and « a hold exists and no order was created against it » is a real
+        // state that must be inspectable. `exists: false` says so plainly rather
+        // than through an absent body.
+        const held = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
+        return Response.json({
+          ok: true,
+          exists: false,
+          state: null,
+          attempts: [],
+          escrow: null,
+          receipt: held ?? null,
+        });
+      }
       const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
       const attempts = (await this.state.storage.get<AttemptRecord[]>(ATTEMPTS_KEY)) ?? [];
       const receipt = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
@@ -214,6 +268,7 @@ export class OrderDO {
       const spine = rebuildOrderSpine(quote, origin, log);
       return Response.json({
         ok: true,
+        exists: true,
         orderId: origin.orderId,
         quoteId: origin.quoteId,
         correlationId: origin.correlationId,
@@ -251,6 +306,16 @@ export class OrderDO {
    * never charges again, while a REFUSAL is simply re-decided (it wrote nothing,
    * so re-deciding it IS idempotent — and a buyer who fixes what was wrong must
    * not be pinned to a stale « no » by the command id she already used).
+   *
+   * ═══ AUTHORIZATION RUNS BEFORE THE CACHE IS SERVED (verifier finding 4) ═══
+   *
+   * The cache lookup used to come first, so a stranger replaying the owner's
+   * command id under a WRONG `holderRef` was handed the cached answer with a
+   * 200, while the same wrong holder under a different command id was correctly
+   * refused 409. Nothing leaks TODAY — the cached payload is the same projection
+   * the public GET already serves — but « who is asking » must be settled before
+   * anything is served, or the day that answer grows (SP3.3b) the leak arrives
+   * with it. Prove the hold first; only then replay.
    */
   private async create(
     quoteId: string,
@@ -258,10 +323,6 @@ export class OrderDO {
     commandId: string,
     wireQuoteBytes: string | undefined,
   ): Promise<Response> {
-    const results = (await this.state.storage.get<Record<string, unknown>>(RESULTS_KEY)) ?? {};
-    const replayed = results[commandId];
-    if (replayed !== undefined) return Response.json(replayed);
-
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     const receipt = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
     // THE ORDER'S OWN FROZEN BYTES WIN once it exists: an order is priced by the
@@ -277,6 +338,16 @@ export class OrderDO {
     if (!decision.ok) {
       return Response.json({ ok: false, reason: decision.reason }, { status: 422 });
     }
+
+    // AUTHORIZED. Now — and only now — a replayed command replays its answer.
+    // OWN PROPERTY ONLY: a bare `results[commandId]` walks the prototype chain,
+    // so `constructor` or `toString` returned a function, serialised to an
+    // unparseable body, and pinned that command id to a permanent failure
+    // (verifier finding 5). Availability, not money — and closed anyway.
+    const results = (await this.state.storage.get<Record<string, unknown>>(RESULTS_KEY)) ?? {};
+    if (Object.prototype.hasOwnProperty.call(results, commandId)) {
+      return Response.json(results[commandId]);
+    }
     const quote = decision.quote;
     const leg = checkoutLegOf(decision.legs);
     if (leg === undefined) {
@@ -286,6 +357,35 @@ export class OrderDO {
 
     const orderId = orderIdForQuote(quoteId);
     const now = new Date().toISOString();
+
+    /**
+     * ═══ ONE PROVIDER KEY PER LEG, MINTED ONCE, FOREVER (verifier BLOCKER) ═══
+     *
+     * The audit attempt id below is minted fresh on every attempt because the
+     * state machine demands it. THE PROVIDER KEY IS NOT THAT ID: it belongs to
+     * the (order, legType) pair, it is read from durable storage here, and it is
+     * minted only when this leg has never been charged. After an `initiateCharge`
+     * TIMEOUT — the canonically ambiguous case, where the money may already have
+     * moved — a retry under a fresh key would be a second collection no provider
+     * could dedupe: the buyer debited twice, one leg recorded, no alert and no
+     * refund path. Reusing the key is the certified mock's own documented
+     * contract, and it is also what makes the late webhook for the first charge
+     * arrive with the SAME `command_id` and be ABSORBED rather than lost.
+     *
+     * ⏳ OPEN DECISION, NOT MINE TO CLOSE: whether a DEFINITELY-REJECTED charge
+     * (as opposed to an ambiguous timeout) may be retried under a FRESH key is
+     * aggregator semantics, and the aggregator — with the BCEAO perimeter, the
+     * two-leg/refund fees and auth/capture — is an open Decision in Build Spec
+     * §12, settled at the Real-Money Gate. No rejection-specific policy is
+     * modelled here: the documented safest default, one stable key per leg,
+     * applies to every retry regardless of why the previous one failed.
+     */
+    const legKeys = (await this.state.storage.get<Record<string, string>>(LEG_KEYS_KEY)) ?? {};
+    const existingKey = Object.prototype.hasOwnProperty.call(legKeys, leg.legType)
+      ? legKeys[leg.legType]
+      : undefined;
+    const providerKey = existingKey ?? mintProviderLegKey();
+
     let stored: StoredOrigin;
     let log: OrderInput[];
     let attempts: AttemptRecord[];
@@ -333,7 +433,7 @@ export class OrderDO {
         // rather than persist a journey nobody can explain.
         return Response.json({ ok: false, reason: 'order_not_startable' }, { status: 422 });
       }
-      attempts = [{ attemptId, requestedAt: now, amount: leg.amount, outcome: 'pending' }];
+      attempts = [{ attemptId, providerKey, requestedAt: now, amount: leg.amount, outcome: 'pending' }];
     } else {
       const existingLog = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
       const existingAttempts = (await this.state.storage.get<AttemptRecord[]>(ATTEMPTS_KEY)) ?? [];
@@ -366,18 +466,25 @@ export class OrderDO {
         // The vault's `retry_requires_new_attempt_id` is the only way here.
         return Response.json({ ok: false, reason: 'retry_refused' }, { status: 409 });
       }
-      attempts = [...existingAttempts, { attemptId, requestedAt: now, amount: leg.amount, outcome: 'pending' }];
+      attempts = [
+        ...existingAttempts,
+        { attemptId, providerKey, requestedAt: now, amount: leg.amount, outcome: 'pending' },
+      ];
     }
 
-    // THE ATTEMPT IS DURABLE BEFORE THE PROVIDER IS CALLED. If this process dies
-    // mid-charge, the attempt id survives and can never be charged again.
+    // THE ATTEMPT AND ITS PROVIDER KEY ARE DURABLE BEFORE THE PROVIDER IS CALLED.
+    // If this process dies mid-charge, both survive: the attempt can never be
+    // charged again, and the retry that follows reuses the SAME key rather than
+    // minting a second collection for one leg.
     await this.state.storage.put(ORIGIN_KEY, stored);
     await this.state.storage.put(LOG_KEY, log);
     await this.state.storage.put(ATTEMPTS_KEY, attempts);
+    await this.state.storage.put(LEG_KEYS_KEY, { ...legKeys, [leg.legType]: providerKey });
 
     const charge = await this.charge({
       orderId: stored.orderId,
-      attemptId,
+      // THE LEG'S KEY, not this attempt's id.
+      providerKey,
       // READ VERBATIM off the immutable Quote, through the mode's own leg.
       amount: leg.amount,
       correlationId: stored.correlationId,
@@ -386,6 +493,9 @@ export class OrderDO {
     });
 
     const record = attempts[attempts.length - 1] as AttemptRecord;
+    // THE PORT'S OWN ECHO, never the local variable: the amount recorded is the
+    // amount the provider was actually asked for, so the two cannot diverge.
+    record.amount = charge.chargedAmount;
     if (charge.accepted) {
       record.outcome = 'accepted';
       record.collectRef = charge.collectRef;
@@ -421,7 +531,7 @@ export class OrderDO {
   /** The provider seam, wired to the ONE implementation this slice has. */
   private charge(args: {
     orderId: string;
-    attemptId: string;
+    providerKey: string;
     amount: number;
     correlationId: string;
     requestedAtIso: string;
@@ -433,7 +543,8 @@ export class OrderDO {
     );
     return provider.initiateCharge({
       orderId: args.orderId,
-      paymentAttemptId: args.attemptId,
+      // The LEG's idempotency key — stable across every retry of this leg.
+      paymentAttemptId: args.providerKey,
       amount: args.amount,
       correlationId: args.correlationId,
       requestedAtIso: args.requestedAtIso,
@@ -461,6 +572,14 @@ export class OrderDO {
    */
   private async onProviderEvent(event: unknown): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+    /**
+     * ⚠ CARRIED, NOT CLOSED (verifier note, round 2 — for the provider decision):
+     * a webhook arriving BEFORE the order exists answers 404, and a provider that
+     * treats 404 as NON-RETRYABLE would silently drop a valid confirmation. The
+     * right answer (retryable 409? park-and-replay? a reconciliation case?) is
+     * aggregator-shaped and belongs with the open aggregator Decision at the
+     * Real-Money Gate, so it is named here rather than guessed at now.
+     */
     if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
     const quote = parseStoredQuote(origin.quoteBytes);
     if (quote === undefined) {
@@ -516,6 +635,17 @@ export class OrderDO {
  */
 function mintPaymentAttemptId(): string {
   return `att-${crypto.randomUUID()}`;
+}
+
+/**
+ * THE LEG'S PROVIDER IDEMPOTENCY KEY, from the same OS CSPRNG and under a
+ * DELIBERATELY DIFFERENT PREFIX. `att-` is an audit id and `pk-` is a payment
+ * key; they are different things with different lifetimes, and after a live
+ * conflation of exactly these two, a reader of any log or record must be able to
+ * tell them apart at a glance.
+ */
+function mintProviderLegKey(): string {
+  return `pk-${crypto.randomUUID()}`;
 }
 
 function statusForWebhook(reason: string): number {
@@ -593,11 +723,31 @@ export default {
       for (const key of Object.keys(body)) {
         if (!ORDER_FIELDS.includes(key)) return badRequest('unknown_field', key);
       }
+      /**
+       * ═══ WHY TWO OF THESE THREE ARE CHARSET-PINNED AND ONE IS NOT ═══
+       * (The asymmetry the verifier asked to have decided and stated.)
+       *
+       *  · `quoteId` is a DURABLE OBJECT NAME and reaches an internal read —
+       *    pinned, as it already was.
+       *  · `commandId` is pinned TOO, from this round on: it is embedded into
+       *    canon `command_id` envelope fields (`ord-reserved-{id}`) that live in
+       *    the audit forever, and it is a key in the durable results map. An
+       *    audit identifier a caller can fill with arbitrary bytes is an audit
+       *    nobody can read back with confidence.
+       *  · `holderRef` is DELIBERATELY length-bounded ONLY. It is never a name,
+       *    never a path, never a key — it is compared byte-for-byte against what
+       *    the RESERVE route accepted, and that route accepts any bounded
+       *    string. Pinning it here would create holds that can be taken and then
+       *    never ordered against: a refusal caused by this file disagreeing with
+       *    its neighbour about what a holder may be called.
+       */
       if (!bounded(body['quoteId'], 191) || !ID_ALPHABET.test(body['quoteId'])) {
         return badRequest('bad_field', 'quoteId');
       }
       if (!bounded(body['holderRef'], 128)) return badRequest('bad_field', 'holderRef');
-      if (!bounded(body['commandId'], 128)) return badRequest('bad_field', 'commandId');
+      if (!bounded(body['commandId'], 128) || !ID_ALPHABET.test(body['commandId'])) {
+        return badRequest('bad_field', 'commandId');
+      }
       const quoteId = body['quoteId'];
 
       // THE QUOTE'S OWN BYTES, read server-side from the object that owns them.

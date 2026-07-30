@@ -492,7 +492,9 @@ describe('the provider seam — one verb, the certified mock, no aggregator', ()
       requestedAtIso: T,
       legType: 'checkout',
     });
-    expect(first).toEqual({ accepted: false, reason: 'timeout' });
+    // The outcome ECHOES the amount the port was called with — the record and
+    // the charge read one value, so they cannot diverge.
+    expect(first).toEqual({ accepted: false, reason: 'timeout', chargedAmount: 12_500 });
     // The SECOND charge on a fresh instance (what a Durable Object rebuild is)
     // must NOT time out again — otherwise « the first initiate times out »
     // silently becomes « every initiate times out » and no retry could ever pass.
