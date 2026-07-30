@@ -316,15 +316,32 @@ export const CLIENTE_STYLES = `
 
   /* ══ C5 — récap montants + modes ══ */
   .cl-bill { margin-top: 14px; padding: 4px 17px; border-radius: 20px; border: 1px solid #EDE4D3; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,22,15,.04); }
-  .cl-bill-row { display: flex; justify-content: space-between; gap: 10px; padding: 12px 0; border-bottom: 1px solid #F3EDDE; font-size: 13.5px; }
-  .cl-bill-row span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .cl-bill-row b { font-feature-settings: 'tnum'; white-space: nowrap; }
+  .cl-bill-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 12px 0; border-bottom: 1px solid #F3EDDE; font-size: 13.5px; }
+  /* THE LABEL WRAPS; IT NEVER TRUNCATES (SP3.3b1, founder finding).
+     It used to carry white-space nowrap + overflow hidden + text-overflow
+     ellipsis, and at 360px that rendered « Livraison Séra — ja… » — deleting
+     « jamais cachée », which IS that row's promise: the one line telling her the
+     delivery fee is not buried in the product price. The article name lost its
+     end the same way. §5: « French long-text tested (labels don't truncate
+     meaning) » — an ellipsis on a money row is a sentence the buyer never reads.
+     A second line costs 20px; the amount keeps nowrap and stays hard-right. */
+  .cl-bill-row span { min-width: 0; overflow-wrap: anywhere; }
+  .cl-bill-row b { font-feature-settings: 'tnum'; white-space: nowrap; flex: none; }
   .cl-bill-liv { color: #6F6355; }
   .cl-bill-liv b { color: #1C1710; }
   .cl-bill-total { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 13px 0; }
   .cl-bill-total span { font-weight: 700; font-size: 14px; }
   .cl-bill-total b { font-family: var(--cld); font-weight: 800; font-size: 20px; font-feature-settings: 'tnum'; white-space: nowrap; }
-  .cl-reconcile { margin-top: 7px; text-align: right; font-size: 11.5px; font-weight: 600; color: #6F6355; font-feature-settings: 'tnum'; }
+  /* THE HONESTY LINE READS LIKE A SENTENCE, not like a layout accident.
+     Right-aligned it wrapped « … chaque franc a / sa place. », stranding two
+     words against the right edge. It needs 422px on one line and the column is
+     273px, so it MUST wrap; what it must not do is wrap badly. The promise
+     clause is one no-wrap unit (see renderC5), so the break can only fall at
+     the em dash — deterministic on every engine, no modern-CSS dependency.
+     LEFT, because a wrapped sentence with a ragged right edge reads as prose
+     and a ragged left one reads as an accident. */
+  .cl-reconcile { margin-top: 7px; text-align: left; font-size: 11.5px; font-weight: 600; color: #6F6355; font-feature-settings: 'tnum'; }
+  .cl-reconcile-promesse { white-space: nowrap; }
   .cl-overline-pay { margin-top: 15px; }
   .cl-payopt { margin-top: 10px; box-shadow: none; padding: 16px 13px; }
   /* §6.1's option NAMES are longer than C4's (« Tout payer maintenant —

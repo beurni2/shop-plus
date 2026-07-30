@@ -147,6 +147,77 @@ test('C5 — totals, CTA and the reconciliation line hold the money bytes for BO
   expect(rec800).toBe(`12${NNBSP}300 = 11${NNBSP}500 + 800 — chaque franc a sa place.`);
 });
 
+/**
+ * SP3.3b1 — NO LABEL ON THE MONEY SCREEN MAY BE TRUNCATED, and the honesty
+ * line may not wrap into an orphan.
+ *
+ * THE DEFECTS THIS LOCKS (founder review, read off a 360px screenshot):
+ *   · « Livraison Séra — ja… » — the bill row's `text-overflow: ellipsis` ate
+ *     « jamais cachée », which IS that row's promise: the delivery fee is shown
+ *     apart, never buried in the product price. A trust claim deleted by CSS is
+ *     a trust claim not made.
+ *   · « Robe brodée bogo… » — the same cut on the article she is paying for.
+ *   · « … chaque franc a / sa place. » — the reconciliation sentence wrapped
+ *     with two words alone against the right edge, so the screen's own honesty
+ *     statement read like a layout accident.
+ *
+ * Asserted in the LIVE DOM because only the DOM can see it: the HTML string
+ * carries the full label either way — it is the rendering that truncated.
+ */
+test('C5 at 360px — every bill label renders in full, and the honesty line does not orphan', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 900 });
+  await page.goto('/?demo-cliente=C5&theme=indigo');
+  await expect(page.locator('[data-screen="C5"]')).toBeVisible();
+
+  // (1)+(2) NOTHING IS CLIPPED: every label's laid-out width fits its box.
+  const labels = await page.evaluate(() =>
+    [...document.querySelectorAll('.cl-bill-row span, .cl-bill-total span, .cl-bill-row b, .cl-bill-total b')].map((el) => ({
+      text: el.textContent ?? '',
+      clipped: el.scrollWidth > el.clientWidth + 1,
+    })),
+  );
+  expect(labels.length).toBeGreaterThanOrEqual(6);
+  for (const l of labels) {
+    expect(l.clipped, `« ${l.text} » is cut off on a 360px phone`).toBe(false);
+  }
+
+  // …and the two sentences that were being eaten are readable, whole.
+  const bill = await page.locator('.cl-bill').innerText();
+  expect(bill).toContain('Livraison Séra — jamais cachée');
+  expect(bill).toContain('Robe brodée bogolan');
+  // no ellipsis anywhere on the bill — neither the character nor three dots
+  expect(bill).not.toContain('…');
+  expect(bill).not.toMatch(/\.\.\./);
+
+  // (3) THE HONESTY LINE: at most two lines, and the last one is a real line —
+  // not two words stranded. An orphan measures well under a third of the block.
+  const rec = await page.evaluate(() => {
+    const el = document.querySelector('.cl-reconcile');
+    if (el === null) return null;
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    // One VISUAL line = one distinct top. The range spans a text node and an
+    // element, so a single line yields several (overlapping) rects; union them
+    // per line rather than counting or summing them.
+    const byTop = new Map<number, { left: number; right: number }>();
+    for (const r of [...range.getClientRects()].filter((x) => x.width > 0)) {
+      const key = Math.round(r.top);
+      const cur = byTop.get(key);
+      byTop.set(key, cur === undefined ? { left: r.left, right: r.right } : { left: Math.min(cur.left, r.left), right: Math.max(cur.right, r.right) });
+    }
+    const widths = [...byTop.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v.right - v.left);
+    const box = el.getBoundingClientRect().width;
+    return { lines: widths.length, lastRatio: widths.length === 0 ? 0 : widths[widths.length - 1]! / box, text: el.textContent ?? '' };
+  });
+  expect(rec).not.toBeNull();
+  expect(rec!.text).toBe(`12${NNBSP}500 = 11${NNBSP}500 + 1${NNBSP}000 — chaque franc a sa place.`);
+  expect(rec!.lines, 'the reconciliation sentence spilled past two lines').toBeLessThanOrEqual(2);
+  expect(
+    rec!.lastRatio,
+    `the reconciliation sentence ends on an orphan line (${Math.round(rec!.lastRatio * 100)}% of the width)`,
+  ).toBeGreaterThan(0.35);
+});
+
 test('the four habillages drive the chrome, indigo is the themeless default, proven live', async ({ page }) => {
   for (const [theme, rgb] of Object.entries(THEMES)) {
     await page.goto(`/?demo-cliente=C1&theme=${theme}`);

@@ -726,7 +726,22 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
   const feeStr = fmtFCFA(fee(q, s.delivery));
   const totalStr = fmtFCFA(total(q, s.delivery));
   const produitStr = fmtFCFA(q.produitFcfa);
-  const reconcile = `${groupFr(total(q, s.delivery))} = ${groupFr(q.produitFcfa)} + ${groupFr(fee(q, s.delivery))} — chaque franc a sa place.`;
+  /**
+   * THE HONESTY LINE, IN TWO UNBREAKABLE HALVES (SP3.3b1, founder finding).
+   *
+   * At 360px the sentence needs 422px and the column is 273px, so it MUST wrap.
+   * Wrapping it as one run left « sa place. » stranded alone on the second
+   * line — the screen's own promise, rendered as a layout accident. The promise
+   * clause is therefore its own element and its own no-wrap unit: the break can
+   * only ever fall AT the em dash, so the identity reads on one line and the
+   * promise on the next, on every engine, with no modern-CSS dependency (Ten
+   * Laws #7 — the oldest WebView gets the same result as Chromium).
+   *
+   * The rendered TEXT is byte-identical to before: the tests below and the e2e
+   * read it through `textContent`, which is what the buyer reads.
+   */
+  const reconcileIdentite = `${groupFr(total(q, s.delivery))} = ${groupFr(q.produitFcfa)} + ${groupFr(fee(q, s.delivery))} — `;
+  const reconcile = `${reconcileIdentite}<span class="cl-reconcile-promesse">chaque franc a sa place.</span>`;
   const payNowStr = s.pay ? fmtFCFA(payezMaintenant(q, s.delivery, s.pay)) : '';
   const ctaLabel = !s.pay ? 'Choisissez pour continuer' : s.pay === 'A' ? `Payer ${totalStr}` : `Payer ${feeStr} maintenant`;
   const can = s.pay !== null;

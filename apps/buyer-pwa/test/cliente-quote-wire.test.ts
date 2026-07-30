@@ -460,8 +460,11 @@ describe('THE CLIENT PERFORMS NO MONEY ARITHMETIC — and REFUSES a bill that do
     // the retired hardcoded mock figures appear NOWHERE
     expect(c5).not.toContain(`12${N}500${N}FCFA`);
     expect(c5).not.toContain(`11${N}500${N}FCFA`);
-    // and the reconcile sentence RENDERS those same three server bytes
-    expect(c5).toContain(`12${N}900 = 12${N}000 + 900 — chaque franc a sa place.`);
+    // and the reconcile sentence RENDERS those same three server bytes. Read
+    // with the tags removed: since SP3.3b1 the promise clause is its own
+    // no-wrap element (it was being stranded on its own line at 360px), so the
+    // sentence is no longer one contiguous run of markup — the TEXT is.
+    expect(c5.replace(/<[^>]+>/g, '')).toContain(`12${N}900 = 12${N}000 + 900 — chaque franc a sa place.`);
   });
 
   it('C4 renders the SERVER’S fee, not a hardcoded card', () => {
