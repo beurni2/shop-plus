@@ -178,28 +178,6 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   // autoplay, law 5: recorded audio; the [DEMO] tone until the media backend).
   let voixAudio: HTMLAudioElement | null = null;
 
-  /**
-   * THE ONE AUDIO PATH IN THIS APP (founder ruling 2026-07-30).
-   *
-   * C1's player and C5's « Écouter la note » both come through here: one
-   * element, one src assignment, one `play()`. The ruling asked for the note to
-   * be listenable from the payment screen and the work order forbade a second
-   * audio implementation, so the shared part was lifted rather than copied.
-   *
-   * WHAT THE CALLER OWNS IS ONLY THE REFUSAL SENTENCE, and that is the entire
-   * difference between the two screens: C1 keeps its « (démo) » toast, and C5
-   * must never say that word — see `MESSAGES.noteInjouable`. The `catch` is not
-   * decoration: `play()` rejects on autoplay policy and on a codec this device
-   * cannot decode, and an unhandled rejection on the payment screen is a
-   * console error where a true sentence belongs.
-   */
-  function jouerLaNote(url: string, siRefus: () => void): void {
-    if (!voixAudio) voixAudio = new Audio();
-    if (voixAudio.src !== url) voixAudio.src = url;
-    voixAudio.currentTime = 0;
-    void voixAudio.play().catch(siRefus);
-  }
-
   let t1: ReturnType<typeof setTimeout> | null = null;
   let t2: ReturnType<typeof setTimeout> | null = null;
   let ticker: ReturnType<typeof setInterval> | null = null;
@@ -497,28 +475,15 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       case 'voix-lire': {
         // REAL tap-to-play (founder order 2026-07-22): the reseller's note
         // plays here. No url (no ready note) → the honest demo toast.
-        //
-        // UNCHANGED BEHAVIOUR, one level of extraction (2026-07-30): the play
-        // itself moved into `jouerLaNote` so C5 can reuse it. This screen keeps
-        // its demo toast on BOTH the missing-url branch and the refusal branch,
-        // exactly as before — the work order that added C5's control put C1's
-        // behaviour explicitly out of scope.
         const url = el.getAttribute('data-voix-url');
-        const demo = (): void => toast(`La voix d’${m.prenom} — ${m.voiceDuree ?? ''} (démo)`);
-        if (url) jouerLaNote(url, demo);
-        else demo();
-        return;
-      }
-      // — C5 — « Écouter la note », the founder's 2026-07-30 reversal.
-      //
-      // THERE IS NO « no url » BRANCH HERE, AND THAT IS THE POINT. `renderC5`
-      // emits this button only when `voiceUrl` exists, so the state C1 answers
-      // with a « (démo) » toast is UNREACHABLE from the payment screen — not
-      // handled differently, absent. A control that plays nothing never exists
-      // on the screen where she is deciding to part with money.
-      case 'voix-lire-paiement': {
-        const url = el.getAttribute('data-voix-url');
-        if (url) jouerLaNote(url, () => toast(MESSAGES.noteInjouable));
+        if (url) {
+          if (!voixAudio) voixAudio = new Audio();
+          if (voixAudio.src !== url) voixAudio.src = url;
+          voixAudio.currentTime = 0;
+          void voixAudio.play().catch(() => toast(`La voix d’${m.prenom} — ${m.voiceDuree ?? ''} (démo)`));
+        } else {
+          toast(`La voix d’${m.prenom} — ${m.voiceDuree ?? ''} (démo)`);
+        }
         return;
       }
       // — C3 —

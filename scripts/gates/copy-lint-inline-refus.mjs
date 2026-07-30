@@ -117,11 +117,6 @@ const PAIEMENT_FIELDS = {
   redite: { screenClass: 'checkout', fills: ['{X}', '{Y}'] },
   rediteA: { screenClass: 'checkout', fills: ['{X}', '{Y}'] },
   rediteFin: { screenClass: 'label', fills: [] },
-  /** « Écouter la note de la vendeuse » — the founder's 2026-07-30 reversal put
-   *  a new user-facing control on the money screen, so its label is linted with
-   *  the rest of §6.1's copy and its DELETION fails the structural floor above,
-   *  exactly like a deleted §6.1 sentence. */
-  ecouterNote: { screenClass: 'label', fills: [] },
 };
 
 /**
