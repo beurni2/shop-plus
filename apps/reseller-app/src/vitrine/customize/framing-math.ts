@@ -104,6 +104,16 @@ const COVER_FRAMES: Record<HeaderStyleKey, FrameSpec> = {
   chaleureux: { aspect: 150 / 198, circle: false, radii: [76 / 150, 58 / 150, 72 / 150, 62 / 150] },
   cristal: RECT(360 / 196, 18 / 360),
   dynamique: RECT(152 / 320, 0.08),
+  // ENTETES-E0 — the Beurni Boss five carry the CLASSIQUE spec until their
+  // E1/E2 render units define real silhouettes. Unreachable in the sheet
+  // today (the picker never offers them — PICKABLE_HEADER_STYLES), and the
+  // same fallback law as the buyer render: an unbuilt style behaves as
+  // classique, never as an invented frame.
+  masque: RECT(3 / 4, 0.07),
+  harmattan: RECT(3 / 4, 0.07),
+  balafon: RECT(3 / 4, 0.07),
+  seance: RECT(3 / 4, 0.07),
+  cauris: RECT(3 / 4, 0.07),
 };
 
 export function frameSpecFor(style: HeaderStyleKey, kind: FrameKind): FrameSpec {
@@ -127,6 +137,13 @@ const COVER_DEFAULTS: Record<HeaderStyleKey, PhotoFocus> = {
   chaleureux: { x: 50, y: 24 },
   cristal: { x: 50, y: 22 },
   dynamique: { x: 58, y: 30 },
+  // ENTETES-E0 — classique's browser-default centre until each E1/E2 unit
+  // names its contract position (see COVER_FRAMES above; same fallback law).
+  masque: { x: 50, y: 50 },
+  harmattan: { x: 50, y: 50 },
+  balafon: { x: 50, y: 50 },
+  seance: { x: 50, y: 50 },
+  cauris: { x: 50, y: 50 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

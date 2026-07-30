@@ -248,3 +248,51 @@ describe('ENTETES-B — the local header-key mirror stays canon, and the fallbac
     expect(StorefrontSchema.parse(DEFAULT_STOREFRONT).headerStyle).toBe('classique');
   });
 });
+
+/**
+ * ENTETES-E0 (canon v2.3.0) — the Beurni Boss five join the VOCABULARY, not
+ * the picker: a held key reads back (canon conformance), but the K4 grid maps
+ * `PICKABLE_HEADER_STYLES` only, because offering a style whose buyer render
+ * does not exist yet would be the app lying to her — and because `t()` THROWS
+ * on a missing catalog string, so an un-authored picker card is a crash.
+ */
+describe('ENTETES-E0 — vocabulary grows to eleven; the picker stays at the built six', () => {
+  it('each of the five NEW keys reads back through headerStyleOf — vocabulary, not garbage', async () => {
+    const { DEFAULT_STOREFRONT, headerStyleOf } = await import('../src/vitrine/customize/storefront');
+    for (const key of ['masque', 'harmattan', 'balafon', 'seance', 'cauris']) {
+      expect(headerStyleOf({ ...DEFAULT_STOREFRONT, headerStyle: key }), key).toBe(key);
+    }
+    // …and true garbage still reads classique — the ENTETES-B law intact
+    expect(headerStyleOf({ ...DEFAULT_STOREFRONT, headerStyle: 'bogolan' })).toBe('classique');
+  });
+
+  it('PICKABLE_HEADER_STYLES is EXACTLY the built six — the five cannot silently reach the grid', async () => {
+    const { PICKABLE_HEADER_STYLES } = await import('../src/vitrine/customize/storefront');
+    expect([...PICKABLE_HEADER_STYLES]).toEqual([
+      'classique',
+      'royale',
+      'heritage',
+      'chaleureux',
+      'cristal',
+      'dynamique',
+    ]);
+  });
+
+  it('every PICKABLE key has BOTH its picker strings in the catalog (t throws on a missing key)', async () => {
+    const { PICKABLE_HEADER_STYLES } = await import('../src/vitrine/customize/storefront');
+    const { t } = await import('../src/i18n');
+    for (const key of PICKABLE_HEADER_STYLES) {
+      expect(t(`k.entete.nom_${key}`).length, key).toBeGreaterThan(0);
+      expect(t(`k.entete.sub_${key}`).length, key).toBeGreaterThan(0);
+    }
+  });
+
+  it('the five unbuilt styles carry the CLASSIQUE frame spec + centre default until E1/E2 (fallback law, pinned)', async () => {
+    const { defaultFocusFor, frameSpecFor } = await import('../src/vitrine/customize/framing-math');
+    for (const key of ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const) {
+      expect(frameSpecFor(key, 'cover'), key).toEqual(frameSpecFor('classique', 'cover'));
+      expect(defaultFocusFor(key, 'cover'), key).toEqual({ x: 50, y: 50 });
+      expect(defaultFocusFor(key, 'avatar'), key).toEqual({ x: 50, y: 50 });
+    }
+  });
+});

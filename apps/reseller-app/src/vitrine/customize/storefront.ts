@@ -30,13 +30,44 @@ export const THEMES: Record<VitrineThemeKey, { name: string; accent: string; dee
 export type CoverStatus = 'none' | 'uploading' | 'pending' | 'live' | 'error';
 
 /**
- * ENTETES-B — the six canon header keys, mirrored LOCALLY (Metro law: the RN
- * bundle bans runtime @platform imports, same as the Storefront shape below).
- * A Node-side conformance test pins this list to the canon
- * `STOREFRONT_HEADER_STYLES` export — drift fails in vitest, never on a device.
+ * The canon header keys, mirrored LOCALLY (Metro law: the RN bundle bans
+ * runtime @platform imports, same as the Storefront shape below). A Node-side
+ * conformance test pins this list to the canon `STOREFRONT_HEADER_STYLES`
+ * export — drift fails in vitest, never on a device.
+ * ENTETES-E0 (canon v2.3.0, founder-authorized 2026-07-30): the Beurni Boss
+ * five ride after the six. They are canon VOCABULARY — a held key reads back
+ * — but the K4 picker offers `PICKABLE_HEADER_STYLES` only, until their
+ * buyer render units + catalog strings land in E1/E2.
  */
-export const HEADER_STYLES = ['classique', 'royale', 'heritage', 'chaleureux', 'cristal', 'dynamique'] as const;
+export const HEADER_STYLES = [
+  'classique',
+  'royale',
+  'heritage',
+  'chaleureux',
+  'cristal',
+  'dynamique',
+  'masque',
+  'harmattan',
+  'balafon',
+  'seance',
+  'cauris',
+] as const;
 export type HeaderStyleKey = (typeof HEADER_STYLES)[number];
+
+/**
+ * ENTETES-E0 — what the picker OFFERS: only styles whose buyer render exists
+ * and whose picker strings live in the catalog. Offering « Masque » while the
+ * buyer page still renders classique would be the app lying to her — the five
+ * new keys join this list one by one as their E1/E2 units ship.
+ */
+export const PICKABLE_HEADER_STYLES = [
+  'classique',
+  'royale',
+  'heritage',
+  'chaleureux',
+  'cristal',
+  'dynamique',
+] as const;
 
 /** Her selected header with the `classique` fallback: an OLD service wire omits
  *  the field, and an unknown value must never select a card — both read as the

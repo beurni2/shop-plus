@@ -312,8 +312,20 @@ describe('ENTETES-A — ?entete= is the founder’s preview lever and nothing mo
     expect(resolveEntete('?entete=<script>')).toBe('classique');
   });
 
-  it('the closed list is exactly the six, classique first', () => {
-    expect([...ENTETE_KEYS]).toEqual(['classique', 'royale', 'heritage', 'chaleureux', 'cristal', 'dynamique']);
+  it('the closed list is exactly the eleven, classique first, the Beurni Boss five after the six', () => {
+    expect([...ENTETE_KEYS]).toEqual([
+      'classique',
+      'royale',
+      'heritage',
+      'chaleureux',
+      'cristal',
+      'dynamique',
+      'masque',
+      'harmattan',
+      'balafon',
+      'seance',
+      'cauris',
+    ]);
   });
 });
 
@@ -848,5 +860,100 @@ describe('etatForRender — a state that reads no storefront is never the not-fo
     for (const etat of ['loading', 'ready', 'empty', 'offline', 'invalid'] as const) {
       expect(etatForRender(etat, true), etat).toBe(etat);
     }
+  });
+});
+
+/* ------------------------- 12 · ENTETES-E0: the wire ahead of the renderer -- */
+
+/**
+ * ENTETES-E0 (founder-authorized 2026-07-30) — canon gains the five Beurni
+ * Boss keys (masque · harmattan · balafon · seance · cauris) before their
+ * render units exist (they land in E1/E2). Until each unit is built, a key the
+ * dispatch switch has no case for must render the classique header EXPLICITLY
+ * — never fall through to `undefined`, never crash her shop. Proven the file's
+ * way: executed on the renderer's OUTPUT, byte-for-byte against the real
+ * classique bytes.
+ */
+describe('ENTETES-E0 — a key with no render unit falls back to classique, explicitly', () => {
+  const UNBUILT = ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const;
+
+  for (const key of UNBUILT) {
+    it(`${key}: renders EXACTLY the classique bytes (ready data, from a product)`, () => {
+      const out = head(key as unknown as EnteteKey, WITH_COVER, REAL, true);
+      const classique = head('classique', WITH_COVER, REAL, true);
+      expect(out).toBe(classique);
+      // …and that really is the classique hero, not two empty strings agreeing.
+      expect(out).toContain('class="vt-hero"');
+      expect(out.length).toBeGreaterThan(1000);
+    });
+  }
+
+  it('the compact (empty-screen) path falls back identically', () => {
+    const out = renderEntete('masque' as unknown as EnteteKey, BASE as never, ZERO as never, { compact: true });
+    expect(out).toBe(renderEntete('classique', BASE as never, ZERO as never, { compact: true }));
+    expect(out).toContain('class="vt-hero"');
+  });
+});
+
+/**
+ * ENTETES-E0 — the pairing that IS this slice: the port boundary now ACCEPTS
+ * the five Beurni Boss keys (headerStyleFromWire normalises 'masque' to
+ * 'masque', not to classique), while the renderer — whose units for them land
+ * in E1/E2 — serves the classique bytes through the explicit default. Old-key
+ * behaviour at the boundary is pinned unchanged alongside.
+ */
+describe('ENTETES-E0 — the wire accepts the five; the renderer falls back until their units land', () => {
+  const stubFetch = async <T>(body: unknown, run: () => Promise<T>): Promise<T> => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      ({ ok: true, status: 200, json: async () => body }) as unknown as Response) as typeof fetch;
+    try {
+      return await run();
+    } finally {
+      globalThis.fetch = original;
+    }
+  };
+  const WIRE_BASE = {
+    id: 'sf-w', resellerId: 'rs-w', slug: 'chez-w-1', name: 'Chez Wendkuni',
+    zone: 'Ouagadougou', category: 'Général', tagline: '', bio: '', theme: 'laterite',
+    cover: { status: 'none' }, avatar: { mode: 'monogram' }, curatedItems: [],
+    featuredItems: [], sections: [], discoverable: true, createdAt: 'T', updatedAt: 'T',
+  };
+
+  it('each of the five NEW keys passes the port boundary AS ITSELF — accepted, never coerced', async () => {
+    const { httpStorefrontPort } = await import('../src/vitrine/profile');
+    for (const key of ['masque', 'harmattan', 'balafon', 'seance', 'cauris']) {
+      const resolved = await stubFetch({ ...WIRE_BASE, headerStyle: key }, () =>
+        httpStorefrontPort('https://svc.example').resolve('chez-w-1'),
+      );
+      expect(resolved!.storefront.headerStyle, key).toBe(key);
+    }
+  });
+
+  it('the six OLD keys pass the boundary exactly as before — behaviour unchanged', async () => {
+    const { httpStorefrontPort } = await import('../src/vitrine/profile');
+    for (const key of ['classique', 'royale', 'heritage', 'chaleureux', 'cristal', 'dynamique']) {
+      const resolved = await stubFetch({ ...WIRE_BASE, headerStyle: key }, () =>
+        httpStorefrontPort('https://svc.example').resolve('chez-w-1'),
+      );
+      expect(resolved!.storefront.headerStyle, key).toBe(key);
+    }
+    // …and garbage still falls back to classique, the ENTETES-B law intact
+    const bad = await stubFetch({ ...WIRE_BASE, headerStyle: 'baroque' }, () =>
+      httpStorefrontPort('https://svc.example').resolve('chez-w-1'),
+    );
+    expect(bad!.storefront.headerStyle).toBe('classique');
+  });
+
+  it("the ACCEPTED 'masque' — wire-normalised, not cast — renders the classique bytes end to end", async () => {
+    const { httpStorefrontPort } = await import('../src/vitrine/profile');
+    const resolved = await stubFetch({ ...WIRE_BASE, headerStyle: 'masque' }, () =>
+      httpStorefrontPort('https://svc.example').resolve('chez-w-1'),
+    );
+    expect(resolved!.storefront.headerStyle).toBe('masque');
+    const out = renderEntete(resolved!.storefront.headerStyle, resolved!.storefront, REAL as never, { fromProduct: true });
+    expect(out).toBe(renderEntete('classique', resolved!.storefront, REAL as never, { fromProduct: true }));
+    expect(out).toContain('class="vt-hero"');
+    expect(out.length).toBeGreaterThan(1000);
   });
 });

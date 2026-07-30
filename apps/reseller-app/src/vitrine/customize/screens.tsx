@@ -25,8 +25,8 @@ import { t, tf } from '../../i18n';
 import {
   DEFAULT_STOREFRONT,
   FEATURED_CAP,
-  HEADER_STYLES,
   NAME_MIN,
+  PICKABLE_HEADER_STYLES,
   SECTIONS_CAP,
   THEMES,
   coverTo,
@@ -882,10 +882,13 @@ function K4({ sf, onBack, onPick, onPickEntete }: { sf: Storefront; onBack: () =
         })}
       </View>
       {/* ENTETES-B — « En-tête de boutique »: the SAME card / selected / check
-          pattern as the theme grid above, one tap = one save (headerStyle only). */}
+          pattern as the theme grid above, one tap = one save (headerStyle only).
+          ENTETES-E0 — the grid maps the PICKABLE list, not the full canon
+          vocabulary: the Beurni Boss five stay un-offered until their buyer
+          render units + catalog strings land (E1/E2). */}
       <Text style={[S.caps, S.capsGap]}>{t('k.entete.caps')}</Text>
       <View style={S.themeGrid}>
-        {HEADER_STYLES.map((key) => {
+        {PICKABLE_HEADER_STYLES.map((key) => {
           const selected = currentEntete === key;
           return (
             <Pressable key={key} style={[S.themeCard, selected ? S.themeCardSelected : S.themeCardRest]} onPress={() => onPickEntete(key)} accessibilityRole="button" accessibilityState={{ selected }}>

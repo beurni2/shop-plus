@@ -46,7 +46,22 @@ import {
   iconTagEnt,
 } from './icons';
 
-export const ENTETE_KEYS = ['classique', 'royale', 'heritage', 'chaleureux', 'cristal', 'dynamique'] as const;
+// ENTETES-E0 (canon v2.3.0, founder-authorized 2026-07-30) — the Beurni Boss
+// five ride after the six, in canon order. Their render units land in E1/E2;
+// until each exists, renderEntete's explicit default falls back to classique.
+export const ENTETE_KEYS = [
+  'classique',
+  'royale',
+  'heritage',
+  'chaleureux',
+  'cristal',
+  'dynamique',
+  'masque',
+  'harmattan',
+  'balafon',
+  'seance',
+  'cauris',
+] as const;
 export type EnteteKey = (typeof ENTETE_KEYS)[number];
 
 /** §9.4 frozen — the review row appears at ≥ 3 verified reviews, never below. */
@@ -478,6 +493,10 @@ function dynamique(v: Vals): string {
  * ONE header unit. `'classique'` delegates to the existing hero + trust chips
  * so its bytes are unchanged (the empty screen renders the hero alone, exactly
  * as it does today); each of the five renders its own self-contained block.
+ * ENTETES-E0 (founder-authorized 2026-07-30) — a key the renderer has no unit
+ * for yet (the Beurni Boss five: masque · harmattan · balafon · seance ·
+ * cauris, render units landing in E1/E2) falls back to classique EXPLICITLY:
+ * the switch must never fall through and hand `undefined` to the page.
  */
 export function renderEntete(
   key: EnteteKey,
@@ -504,6 +523,11 @@ export function renderEntete(
       return cristal(v);
     case 'dynamique':
       return dynamique(v);
+    default:
+      // ENTETES-E0 — the wire may run ahead of the renderer (a canon key whose
+      // unit is not built yet). Her shop renders the shipped default header
+      // rather than crashing or emitting nothing.
+      return renderEntete('classique', sf, trust, opts, floatBar);
   }
 }
 
