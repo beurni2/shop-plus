@@ -1,0 +1,8 @@
+{
+  "slug": "aicha-4821",
+  "pid": "pv-checkout-1",
+  "paymentMode": "FULL_PREPAY",
+  "zoneTo": "Gounghin, Ouagadougou",
+  "attributionResellerId": "rs-checkout-fixture",
+  "requestKey": "rk-fixture-0000-000000000001"
+}

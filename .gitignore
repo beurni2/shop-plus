@@ -5,6 +5,8 @@ _evidence/
 *.tsbuildinfo
 .expo/
 test-results/
+# SP3.2b — local evidence artefacts (screenshots, throwaway real-path builds)
+.artifacts/
 
 # WO-4.0d rider: dotenv files never committed
 .env

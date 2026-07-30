@@ -32,6 +32,30 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
+      // SP3.2b — THE REAL-PATH BUILD (port 4175).
+      //
+      // WHY A SECOND BUILD EXISTS AT ALL: `dist` is built with NO
+      // `VITE_STOREFRONT_BASE`, so `resolveQuotePort` returns the certified
+      // HARNESS port — which never refuses, never expires oddly and always
+      // reserves. Every refusal, expiry, clock-skew and reservation branch of
+      // `createCliente` is therefore invisible to the existing e2e, and the
+      // verifier proved it: five lines that fix three blockers could be deleted
+      // with every gate still green. This build points the base at an origin
+      // `checkout-real.spec.ts` INTERCEPTS, so the spec drives the REAL
+      // `httpQuotePort` through a real `fetch` in a real browser against a
+      // scripted service — the shape the verifier's own attack harness used.
+      //
+      // It builds into `.artifacts/` (gitignored, and excluded from the gate
+      // source scans) so it can never be mistaken for the shipped bundle, and
+      // costs no lockfile change.
+      command:
+        'VITE_STOREFRONT_BASE=http://127.0.0.1:9099/api pnpm exec vite build --outDir .artifacts/dist-real --emptyOutDir' +
+        ' && pnpm exec vite preview --outDir .artifacts/dist-real --port 4175 --strictPort --host 127.0.0.1',
+      url: 'http://127.0.0.1:4175',
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+    {
       // BUG 2 — the GitHub-Pages emulator (project sub-path + 404.html fallback)
       // so deploy-base.spec.ts can drive the REAL `/shop-plus/v/{slug}` deep-link
       // → restore → boot path that vite preview cannot reproduce. Serves the

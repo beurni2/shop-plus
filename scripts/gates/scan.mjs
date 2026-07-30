@@ -13,7 +13,13 @@ import { join, relative } from 'node:path';
 
 export const DEFAULT_ROOTS = ['apps', 'services', 'packages'];
 
-const EXCLUDED_DIRS = new Set(['node_modules', 'dist', '.turbo', '.expo', '.git', 'coverage']);
+// Build outputs and local evidence dirs, never source. `.artifacts` joins the
+// list for the same reason `.turbo` and `.expo` are on it: it is gitignored,
+// nothing shippable can live there, and a MINIFIED VENDOR BUNDLE dropped in one
+// makes every pattern gate fire on a word inside Zod (measured — SP3.2b: a
+// throwaway real-path build under `apps/buyer-pwa/.artifacts/` failed
+// `no-wallet-no-funds` on the string « balance » in bundled library code).
+const EXCLUDED_DIRS = new Set(['node_modules', 'dist', '.turbo', '.expo', '.git', 'coverage', '.artifacts']);
 const SCANNED_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs|json|sql|ya?ml)$/;
 
 export function* walkFiles(root, extensions = SCANNED_EXTENSIONS) {

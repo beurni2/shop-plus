@@ -59,3 +59,42 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: npx --yes wrangler@4 deploy
+      # DEPLOY-SMOKE-1 — PROVE THE DEPLOYED SURFACE ANSWERS, here and nowhere else.
+      #
+      # A green `wrangler deploy` proves the upload was accepted. It does NOT prove
+      # the Worker runs: a missing Durable Object class, a migration that did not
+      # apply, a binding named differently from the code — every one of those
+      # deploys green and then answers 1101 (« Worker threw an exception ») on the
+      # first real request. SP3.2a shipped exactly such a change (the `v2` migration
+      # creating CheckoutDO), and the session that deployed it could not reach
+      # workers.dev to check. This job can: it runs on GitHub's network.
+      #
+      # WHAT IT ASSERTS, and why each choice:
+      #   · A NONEXISTENT SHOP. The request must be REFUSED, so no quote is ever
+      #     issued, nothing is held, and no real storefront or listing is touched.
+      #     Stated exactly rather than flattered: the router claims the request key
+      #     BEFORE it reads the authority, so each run does leave one empty
+      #     key-pointer object behind — a name with an id in it, no money, no
+      #     quote, unreachable without the key itself.
+      #   · A NAMED REFUSAL with the documented status — `listing_unknown` at 404 is
+      #     what an unknown shop AND an unknown product both answer (the surface is
+      #     deliberately not an existence oracle). A 1101/500/404-from-the-router
+      #     would all fail here, which is the whole point: those are the shapes a
+      #     broken binding produces.
+      #   · A UNIQUE requestKey per run, so the smoke never replays another run's
+      #     key and reads back its answer instead of exercising the path.
+      # It does NOT assert any amount: this route answers no price to an unknown
+      # shop, and a smoke test that needed one would be a smoke test that created one.
+      - name: Smoke — the deployed checkout surface answers by NAME, not by crashing
+        run: |
+          set -euo pipefail
+          BASE=https://storefront-service.ilboudobernard2.workers.dev
+          KEY="deploy-smoke-${{ github.run_id }}-${{ github.run_attempt }}"
+          BODY=$(printf '{"slug":"zz-deploy-smoke-no-such-shop","pid":"zz-no-such-product","paymentMode":"FULL_PREPAY","zoneTo":"Gounghin, Ouagadougou","attributionResellerId":"zz-smoke","requestKey":"%s"}' "$KEY")
+          OUT=$(mktemp)
+          CODE=$(curl -sS -o "$OUT" -w '%{http_code}' -X POST "$BASE/checkout/quote" \
+            -H 'Content-Type: application/json' -d "$BODY")
+          echo "HTTP $CODE"; cat "$OUT"; echo
+          test "$CODE" = "404" || { echo "SMOKE FAILED: expected 404, got $CODE"; exit 1; }
+          grep -q '"error":"listing_unknown"' "$OUT" || { echo "SMOKE FAILED: no named refusal in the body"; exit 1; }
+          echo "SMOKE OK — CheckoutDO is live and refuses by name."

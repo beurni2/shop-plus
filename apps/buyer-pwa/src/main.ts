@@ -20,6 +20,8 @@ import { enteteOverride } from './vitrine/entetes';
 import { ENT_STYLES } from './vitrine/entries';
 import { createCliente, type ClienteEcran } from './cliente/flow';
 import { clienteProduit, clienteProduitReel, composeQuote } from './cliente/seed';
+import { commandIdFor, forgetRequestKey, requestKeyFor, resolveQuotePort, villeDe } from './cliente/quote-port';
+import { fetchClienteQuote, MODES_WIRE, type QuoteBase, type QuoteFetch } from './cliente/quote-model';
 import { productFromSeed, seedProduct } from './vitrine/catalog';
 import { CLIENTE_STYLES } from './cliente/styles';
 import type { VitrineThemeKey } from './vitrine/themes';
@@ -548,6 +550,18 @@ function clienteTheme(raw: string | null): VitrineThemeKey {
   return raw && (CLIENTE_THEMES as readonly string[]).includes(raw) ? (raw as VitrineThemeKey) : 'indigo';
 }
 
+/** `sessionStorage`, or nothing. Merely READING the property throws in a
+ *  locked-down webview or with third-party storage blocked, and the checkout
+ *  request key must degrade to a fresh uuid there rather than take the mount
+ *  down (the `recordVitrineArrival` best-effort precedent, one route over). */
+function sessionStorageOrUndefined(): Storage | undefined {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return undefined;
+  }
+}
+
 const app = document.querySelector('#app');
 if (app) {
   // WO-4.2E — the SANDBOX RIBBON: a deployed preview must NEVER be
@@ -665,13 +679,56 @@ if (app) {
         mountVitrine(app as HTMLElement, signedSlug, { etat: 'invalid' });
       } else {
         const { produit } = clienteProduitReel(resolved.storefront, product, resolved.notes[product.pid]);
+        // SP3.2b — THE REAL PATH ASKS THE SERVICE FOR THE PRICE.
+        //
+        // What this replaces: `quote: composeQuote(produit.priceFcfa)`, i.e. the
+        // buyer's total was COMPOSED IN HER BROWSER off the signed product price
+        // plus a hardcoded 1 000/800 delivery card. Every franc on C4/C5/C6/C8
+        // was this app's arithmetic, not Séra's tariff and not the checkout
+        // service's waterfall. No `quote` is passed here any more, so a locally
+        // composed price is not merely unused on this path — it is ABSENT.
+        //
+        // The port is env-gated exactly like the storefront one: the real HTTP
+        // adapter iff VITE_STOREFRONT_BASE is configured, the certified harness
+        // port otherwise (which is why a preview with no service still works).
+        // The harness needs the price of the article actually on screen — hence
+        // `produit.priceFcfa`; the real adapter is told no amount, ever.
+        const quotePort = resolveQuotePort(produit.priceFcfa);
+        const ville = villeDe(resolved.storefront.zone);
+        const quoteBase = (quartier: string): QuoteBase => ({
+          slug: signedSlug,
+          pid,
+          // Her quartier + HER SHOP'S CITY. The delivery source prices a city
+          // pair; the quartier is what the buyer actually names.
+          zoneTo: `${quartier}, ${ville}`,
+          // SP-I09 — the LOCKED reseller, read off the resolved storefront.
+          // Absent ⇒ the service refuses `attribution_missing` by name.
+          attributionResellerId: resolved.storefront.resellerId,
+        });
+        const quoteSource = async (quartier: string, renouveler?: boolean): Promise<QuoteFetch> => {
+          const base = quoteBase(quartier);
+          const storage = sessionStorageOrUndefined();
+          // « Voir le prix à jour » — the old price is dead, so its key must die
+          // with it or the server hands back the same expired quote forever.
+          if (renouveler === true) {
+            for (const paymentMode of MODES_WIRE) forgetRequestKey({ ...base, paymentMode }, storage);
+          }
+          return fetchClienteQuote(
+            quotePort,
+            base,
+            (intent) => requestKeyFor(intent, storage),
+            // Keyed on the QUOTE id, so a reload mid-checkout replays her own
+            // hold instead of colliding with it.
+            (quoteId) => commandIdFor(quoteId, storage),
+          );
+        };
         // FOUNDER RULING (2026-07-22, supersedes the earlier theme seam): the
         // buyer C1→C9 flow is ALWAYS INDIGO — the resolved storefront's theme
         // no longer drives it. Her vitrine keeps her habillage; the harness
         // `theme=` param stays as the §1.2 gate/audit lever only.
         createCliente(main, {
           produit,
-          quote: composeQuote(produit.priceFcfa),
+          quoteSource,
           theme: 'indigo',
           ecran: 'C1',
           epuise: !produit.inStock,
