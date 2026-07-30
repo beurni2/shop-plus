@@ -129,20 +129,27 @@ function objectBody(text, decl) {
   return close < 0 ? null : text.slice(open + 1, close);
 }
 
-/** Every `key: { …object… }` at the top level of `body`, string-aware. */
+/** Every `key: { …object… }` at the top level of `body`, string-aware.
+ *
+ *  THE KEY MAY BE QUOTED. `/([A-Za-z_][\w]*)\s*:\s*\{/` could not see
+ *  `'paiement_bloque': {`, so that view AND EVERY STRING IN IT went unread while
+ *  the gate printed the same counts and passed (verifier, round 6). Refusal
+ *  names are snake_case and rarely need quotes — which is exactly what makes it
+ *  a silent skip, and this file's header forbids skips in terms. */
 function splitViews(body) {
   const views = [];
   let i = 0;
   for (;;) {
-    const m = /([A-Za-z_][\w]*)\s*:\s*\{/.exec(body.slice(i));
+    const m = /(?:([A-Za-z_][\w]*)|'([^']*)'|"([^"]*)")\s*:\s*\{/.exec(body.slice(i));
     if (m === null) return views;
+    const name = m[1] ?? m[2] ?? m[3];
     const open = i + m.index + m[0].length - 1;
     const close = matchBrace(body, open + 1);
     if (close < 0) {
-      views.push({ name: m[1], body: null });
+      views.push({ name, body: null });
       return views;
     }
-    views.push({ name: m[1], body: body.slice(open + 1, close) });
+    views.push({ name, body: body.slice(open + 1, close) });
     i = close + 1;
   }
 }
@@ -166,7 +173,8 @@ const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\
  */
 function fieldsOf(body, where) {
   const out = {};
-  const line = /^\s*([A-Za-z_][\w]*)\s*:\s*(.+?),?\s*$/;
+  // The field name may be quoted too, for the same reason view keys may be.
+  const line = /^\s*(?:([A-Za-z_][\w]*)|'([^']*)'|"([^"]*)")\s*:\s*(.+?),?\s*$/;
   for (const raw of stripComments(body).split('\n')) {
     if (raw.trim() === '') continue;
     const m = line.exec(raw);
@@ -174,7 +182,7 @@ function fieldsOf(body, where) {
       problems.push(`${where}: unparsable line, so its copy is unlinted → ${raw.trim().slice(0, 60)}`);
       continue;
     }
-    out[m[1]] = m[2];
+    out[m[1] ?? m[2] ?? m[3]] = m[4];
   }
   return out;
 }
@@ -197,6 +205,23 @@ for (const view of views) {
   // a missing field, and a missing field fails right here.
   for (const required of REQUIRED_FIELDS) {
     if (!(required in fields)) problems.push(`${view.name}: missing field « ${required} »`);
+  }
+  // …AND NOTHING ELSE. `COPY_FIELDS` is an allowlist, and the lint loop below
+  // iterates only it, so an UNRECOGNISED field used to be dropped without a
+  // word: the verifier added `soustitre: 'Veuillez patienter, nonobstant ce qui
+  // precede.'` to a refusal view and this gate printed the same counts, « 0
+  // violations », and PASSED (round 6). Adding a subtitle or a detail line to a
+  // refusal is an ordinary next edit, and the gate would have gone on claiming
+  // that « every refusal string a buyer reads passed the French Voice lint »
+  // while that sentence shipped unlinted — this gate's own failure mode, one
+  // level up. An unknown field is now as hard a failure as an unreadable value:
+  // either teach `COPY_FIELDS` its screen class, or it does not ship.
+  for (const present of Object.keys(fields)) {
+    if (present === 'action' || present in COPY_FIELDS) continue;
+    problems.push(
+      `${view.name}: unknown field « ${present} » — if it is copy, add it to COPY_FIELDS with its ` +
+        'screen class so it gets linted; nothing here may go unread',
+    );
   }
   for (const [field, screenClass] of Object.entries(COPY_FIELDS)) {
     if (!(field in fields)) continue;

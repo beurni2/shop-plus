@@ -55,6 +55,8 @@ interface Scripted {
   doorDelayMs?: number;
   /** hold the reserve this long */
   reserveDelayMs?: number;
+  /** hold EVERY quote ask this long — lets a refresh be observed mid-flight */
+  quoteDelayMs?: number;
 }
 
 interface Wire {
@@ -83,6 +85,7 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
       return json(200, { status: 'reserved', reservationId: 'res-1' });
     }
     wire.quotes.push(body);
+    if (opts.quoteDelayMs) await new Promise((r) => setTimeout(r, opts.quoteDelayMs));
     const isDoor = body['paymentMode'] === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
     if (isDoor) {
       if (opts.doorDelayMs) await new Promise((r) => setTimeout(r, opts.doorDelayMs));
@@ -230,16 +233,42 @@ test('ITEM 3 · the automatic refresh SAYS SO and keeps her payment mode', async
   await page.waitForTimeout(1_200);
   await page.locator('[data-action="payer"]').click();
 
-  // she is told a new price was asked for — not moved in silence
-  // the CONTAINER, not `.cl-toast`: two toasts can be on screen at once (the
-  // « we are asking » one and the result), and a strict locator then matches
-  // both and throws — a flake, not a finding.
-  await expect(page.locator('.cl-toasts')).toContainText(/nouveau prix|prix a été mis à jour/i, { timeout: 10_000 });
+  // The RESULT toast, named by a phrase ONLY it carries. It used to be matched
+  // by a regex the in-flight toast also satisfied, which left the in-flight
+  // message covered by nothing (verifier, round 6). The two are now asserted by
+  // two tests against two disjoint sentences, so deleting EITHER goes red.
+  // The CONTAINER, not `.cl-toast`: both toasts can be on screen at once and a
+  // strict locator would then match two elements and throw — a flake.
+  await expect(page.locator('.cl-toasts')).toContainText('Le montant n’a pas changé', { timeout: 10_000 });
   // …and she is back on the payment screen with her mode intact
   await expect(page.locator('[data-screen="C5"]')).toBeVisible();
   const ctaAfter = await page.locator('[data-action="payer"]').innerText();
   expect(ctaAfter, 'her chosen mode was discarded by the refresh').toContain('Payer');
   expect(ctaAfter).not.toContain('Choisissez pour continuer');
+});
+
+test('ITEM 3b · flow.ts in-flight toast — she is told WHY she is looking at a skeleton', async ({ page }) => {
+  // A SLOW service, which is the only condition under which this message earns
+  // its keep: on 2G she taps Payer, the price turns out to be stale, and she
+  // would otherwise stare at a skeleton for seconds with no explanation. On a
+  // fast service both toasts land together and the in-flight one is invisible —
+  // which is exactly why it survived mutation until now.
+  await scriptService(page, { ttlMs: 700, quoteDelayMs: 1_500 });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.waitForTimeout(1_200); // the price is now stale
+  await page.locator('[data-action="payer"]').click();
+
+  // WHILE THE REFRESH IS IN FLIGHT: the skeleton is up, and it is explained.
+  await expect(page.locator('[data-screen="squelette"]')).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('.cl-toasts')).toContainText('Nous demandons un nouveau prix', { timeout: 5_000 });
+  // …and the RESULT sentence has not been said yet — these are two distinct
+  // messages at two distinct moments, not one message asserted twice.
+  expect(await page.locator('.cl-toasts').innerText()).not.toContain('Le montant n’a pas changé');
+
+  // then the new price lands and the other sentence is said
+  await expect(page.locator('[data-screen="C5"]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.cl-toasts')).toContainText('Le montant n’a pas changé', { timeout: 10_000 });
 });
 
 test('NOTE 7 · a stalled door ask does not hold the bill', async ({ page }) => {
