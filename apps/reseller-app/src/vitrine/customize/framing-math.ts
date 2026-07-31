@@ -129,16 +129,23 @@ const SERIE3_FRAMES = {
   // Same honest approximation as Safran: the CROP is exact, the cut is not
   // drawn, and the default bias (40 %) is what keeps her face off the cut.
   audace: CIRCLE,
-  // Fleurie — the organic galet, 158×196. Its eight-value radius cannot be
+  // Fleurie — the organic galet, 158×196. Its eight-value border-radius cannot
+  // be expressed as four corner fractions, so the silhouette approximates the
+  // blob with the four dominant ones; the CROP it teaches her is exact.
   fleurie: { aspect: 158 / 196, circle: false, radii: [0.62, 0.38, 0.56, 0.44] },
   // Prisme — the glass frame inside the card: 336 wide at 360, 186 tall, r22.
   prisme: { aspect: 336 / 186, circle: false, radii: [22 / 336, 22 / 336, 22 / 336, 22 / 336] },
+  // Pop — the browser window's SCREEN, 158 tall inside the 3px outline. The
+  // window's chrome bar, its black border and its −1° tilt are frame, not
+  // photo, so none of them enters the silhouette.
+  pop: { aspect: 326 / 158, circle: false, radii: [0, 0, 6 / 326, 6 / 326] },
 } as const satisfies Record<string, FrameSpec>;
 
 const SERIE3_FOCUS = {
   audace: { x: 40, y: 28 },
   fleurie: { x: 44, y: 26 },
   prisme: { x: 50, y: 24 },
+  pop: { x: 50, y: 26 },
 } as const satisfies Record<string, PhotoFocus>;
 
 const SERIE2_FRAMES = {
@@ -285,6 +292,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   audace: { x: 40, y: 28 },
   fleurie: { x: 50, y: 32 },
   prisme: { x: 50, y: 30 },
+  pop: { x: 50, y: 30 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

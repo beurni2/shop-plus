@@ -1476,6 +1476,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_pop",
+  "fr": "Pop",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_pop",
+  "fr": "Bande dessinée : bleu roi, orange, contours nets.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",

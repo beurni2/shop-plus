@@ -254,6 +254,33 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     expect(sheet, 'an unscoped .glz would repaint Cristal').not.toMatch(/^\s*\.glz/m);
   });
 
+  it('POP — full width WITH a tier, and a two-tone badge DERIVED from the catalog', async () => {
+    await loadEntete('pop');
+    expect(loadedEntete('pop'), 'the pop chunk did not register').toBeDefined();
+    const html = renderEntete('pop', SF as never, TRUST as never, {});
+    expect(html).toContain('class="vt-ent vt-po"');
+    expect(html).toContain('Gounghin, Ouagadougou');
+    expect(html).toContain('data-role="reputation"');
+
+    // THE TRAP IN THIS SERIES: « pleine largeur (13, 14) : pas de règle fixe
+    // (Pop : 24 px si > 14) ». Prisme and Pop are BOTH full width; Prisme has
+    // no tier and Pop has one. Same clause, opposite answers.
+    const long = renderEntete('pop', { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});
+    expect(long, 'pop is full width but DOES take a tier at > 14 chars').toContain('vt-ent-long');
+    expect(loadedEntete('pop')!.css).toContain('.po-name.vt-ent-long { font-size: 24px; }');
+
+    // THE BADGE IS TWO COLOURS ON ONE CATALOG STRING. The split is derived at
+    // the last space, never re-authored as two literals — so the two halves
+    // must reassemble into exactly the catalog entry, byte for byte.
+    const zero = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
+    const min = renderEntete('pop', SF as never, zero as never, {});
+    expect(min).toContain('data-role="chip-nouvelle"');
+    const badge = /<span class="po-nouv">([\s\S]*?)<\/span><\/span>/.exec(min)?.[1] ?? '';
+    expect(badge.length, 'the badge markup was not found — this scan would assert over nothing').toBeGreaterThan(10);
+    const visible = badge.replace(/<[^>]*>/g, '');
+    expect(visible, 'the two tones do not reassemble into the catalog string').toBe('Nouvelle vendeuse');
+  });
+
   it('EVERY lazy style keeps its CSS to its OWN root — every resident sheet stays scoped', async () => {
     // the guard that has to grow with the set: as each of the twenty lands, its
     // rules join one shared <style> element, and a single unscoped selector
@@ -261,14 +288,14 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi']) {
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po)[ .]/);
         checked += 1;
       }
     }
