@@ -56,6 +56,20 @@ const LOADERS: Partial<Record<EnteteKey, () => Promise<{ unit: EnteteUnit }>>> =
   chaleureux: () => import('./chaleureux'),
   cristal: () => import('./cristal'),
   dynamique: () => import('./dynamique'),
+  // THE NEXT FIVE KEYS DO NOT MATCH THEIR MODULE NAMES, AND THAT IS SETTLED
+  // (founder ruling, 2026-07-31). The KEY is canon and is what a live storefront
+  // already has stored; the MODULE is the drawing ENTETES-F replaced it with.
+  //
+  // Renaming the keys was on the follow-up list and was dropped, on the
+  // founder's call. It buys nothing anyone sees: the seller already reads
+  // « Prestige » in her picker (a catalog string, not the key) and the buyer
+  // never sees a key at all. It would cost a canon version bump across three
+  // repos plus a migration for every stored value — `storefront-core.ts` refuses
+  // any headerStyle outside the canon set, so a hard rename would strand the
+  // storefronts already carrying these five.
+  //
+  // This comment is the whole price of that decision, and it is cheaper than
+  // the rename. (It lived on the dispatch switch until ENTETES-I deleted it.)
   masque: () => import('./prestige'),
   harmattan: () => import('./terracotta'),
   balafon: () => import('./etendard'),
