@@ -168,21 +168,39 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     expect(loadedEntete('grenat')!.css).toContain('background: var(--gr-bordeaux)');
   });
 
-  it('EVERY lazy style keeps its CSS to its OWN root — four resident sheets never collide', async () => {
+  it('KRAFT — its chunk draws, stamps the zone, and keeps the split-column tier', async () => {
+    await loadEntete('kraft');
+    expect(loadedEntete('kraft'), 'the kraft chunk did not register').toBeDefined();
+    const html = renderEntete('kraft', SF as never, TRUST as never, {});
+    expect(html).toContain('class="vt-ent vt-kr"');
+    // the verification line is STAMPED on this style rather than captioned
+    expect(html).toContain('class="kr-tampon"');
+    expect(html).toContain('Gounghin, Ouagadougou');
+    expect(html).toContain('data-role="reputation"');
+    expect(html).not.toContain('data-role="chip-nouvelle"');
+
+    // split column (the polaroid owns the right 154px), so the tier applies
+    expect(html, 'a 9-char name took the long tier').not.toContain('vt-ent-long');
+    const long = renderEntete('kraft', { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});
+    expect(long, 'a 24-char name did not take the long tier').toContain('vt-ent-long');
+    expect(loadedEntete('kraft')!.css).toContain('.kr-name.vt-ent-long');
+  });
+
+  it('EVERY lazy style keeps its CSS to its OWN root — five resident sheets never collide', async () => {
     // the guard that has to grow with the set: as each of the twenty lands, its
     // rules join one shared <style> element, and a single unscoped selector
     // would repaint a shop that never chose that style.
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr']) {
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr)[ .]/);
         checked += 1;
       }
     }

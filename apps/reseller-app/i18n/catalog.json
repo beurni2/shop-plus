@@ -1428,6 +1428,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_kraft",
+  "fr": "Kraft",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_kraft",
+  "fr": "Papier kraft, photo scotch\u00e9e, tampon rouge.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",

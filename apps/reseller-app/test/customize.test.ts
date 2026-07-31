@@ -289,6 +289,7 @@ describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
       'couture',
       'safran',
       'grenat',
+      'kraft',
     ]);
     // ENTETES-H — the picker is NO LONGER equal to the vocabulary, and asserting
     // equality would now enforce the opposite of this repo's own law:
@@ -303,7 +304,7 @@ describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
     expect(canonIndex).toEqual([...canonIndex].sort((a, b) => a - b));
     expect(canonIndex).not.toContain(-1);
     // and the twenty that have no unit yet are ABSENT from the picker, by name
-    for (const unbuilt of ['dunda', 'graffiti', 'karite', 'pop', 'kraft']) {
+    for (const unbuilt of ['dunda', 'graffiti', 'karite', 'pop', 'audace']) {
       expect(PICKABLE_HEADER_STYLES, unbuilt).not.toContain(unbuilt);
     }
   });

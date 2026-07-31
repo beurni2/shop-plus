@@ -139,6 +139,11 @@ const SERIE2_FRAMES = {
   // exactly (circle:true is « radius = half the box », an ellipse on a
   // non-square box). Her drag previews the real portrait shape.
   grenat: { aspect: 136 / 176, circle: true, radii: [0.5, 0.5, 0.5, 0.5] },
+  // Kraft — the polaroid's photo window: 124 wide inside a 138 print, 132 tall,
+  // square corners. The print's white border and its 2.5° tilt are frame, not
+  // photo, so they are NOT in the silhouette — her drag positions what lands
+  // inside the window.
+  kraft: { aspect: 124 / 132, circle: false, radii: [0, 0, 0, 0] },
   cauris: { aspect: (0.46 * 360) / 340, circle: false, radii: [0, 0, 0, 0] },
 } as const satisfies Record<string, FrameSpec>;
 
@@ -162,6 +167,7 @@ const SERIE2_FOCUS = {
   safran: { x: 58, y: 30 },
   // « cover / 50% 22% » — a cameo crops tight, so the bias sits high.
   grenat: { x: 50, y: 22 },
+  kraft: { x: 50, y: 26 },
 } as const satisfies Record<string, PhotoFocus>;
 
 /** Cover silhouettes, from the contract's own dimensions (ENTETES-A relevé):
@@ -255,6 +261,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   safran: { x: 58, y: 30 },
   // the small overlapping portrait, at the relevé's own bias
   grenat: { x: 50, y: 32 },
+  kraft: { x: 50, y: 32 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {
