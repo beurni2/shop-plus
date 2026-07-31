@@ -172,17 +172,24 @@ function vals(sf: Storefront, trust: VitrineTrust, opts: EnteteOpts): Vals {
 }
 
 /**
- * ENTETES-E — the Beurni Boss anti-orphan name (handoff Part B): the name is
- * trimmed and multi-spaces collapse to one; the last WORD (space-delimited)
- * wraps whole in `.vt-ent-tail` (inline-block + nowrap in the sheet) with the
- * space before it turned `&nbsp;`, and the accent segment (`/[^ \-]+$/` — the
- * part after the last hyphen) is `.vt-ent-acc` inside it. Keeping the whole
- * word unbreakable is what the two-line law demands, browser-measured: a
- * hyphen break in « Élégance-Burkina » is exactly the third-line orphan the
- * handoff bans, so the hyphen never breaks here and the xlong size tier
- * (measured per face) makes the word fit its column instead. A single-word
- * name IS its own tail. Escaped part by part; pure and exported so the rule
- * is executed by tests, never re-derived.
+ * ENTETES-F — the bicolore name. The name is trimmed and multi-spaces collapse
+ * to one; the last WORD (space-delimited) goes in `.vt-ent-tail`, and the
+ * ACCENT SEGMENT inside it (`/[^ \-]+$/` — the part after the last hyphen) is
+ * `.vt-ent-acc`, which is the ONLY part the sheet makes unbreakable. That is
+ * the Série 4 rule verbatim: « Dernier segment (/[^ \-]+$/, nowrap) en accent ».
+ *
+ * IT USED TO BE THE WHOLE TAIL, and that was wrong twice over: « Élégance-
+ * Burkina » could not fit its column and rendered ON the photograph, and the
+ * two-line ceiling it served came from the superseded Beurni matrix — Série 1
+ * §4 states the contract's own expectation, « Attendu à 320 : Mariam /
+ * Ouédraogo- / Kaboré, aucun mot coupé ». Three lines, no CUT word. So the
+ * hyphen breaks, the accent word travels whole, and the `xlong` size tier that
+ * once propped this up is gone.
+ *
+ * The joint before the tail stays `&nbsp;` up to LONG_NAME so a short name's
+ * accent word can never stand alone. A single-word name IS its own tail.
+ * Escaped part by part; pure and exported so the rule is executed by tests,
+ * never re-derived.
  */
 export function nameTail(raw: string): string {
   const name = raw.trim().replace(/\s+/g, ' ');
@@ -231,7 +238,8 @@ const avisChip = (v: Vals): string =>
 
 /** « {N} ventes livrées par Séra » with the count grouped the repo's byte-stable
  *  way (manual NNBSP grouping — ICU is banned; the handoff's fr-FR intent). */
-const ventesLine = (v: Vals): string => `<b><v>${groupFr(v.delivN)}</v></b> ${t('vit.ventes_livrees')}`;
+const ventesLine = (v: Vals): string =>
+  `<b><v>${groupFr(v.delivN)}</v></b> ${t('vit.ventes_livrees').replace(/\s+(\S+)$/, '&nbsp;$1')}`;
 
 /** The cover container's honest state: a real photograph, or the style's own
  *  ornamental pattern. Never a caption claiming a photo that is not there. */
@@ -874,7 +882,7 @@ function tissage(v: Vals): string {
     '<div class="ti-hero">',
     '<div class="ti-scene">',
     // Relevé « Héros fendu » — liseré kente vertical 32 à gauche (casiers 14).
-    '<span class="ti-liseré" aria-hidden="true"></span>',
+    '<span class="ti-lisere" aria-hidden="true"></span>',
     `<div class="ti-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
     hasPhoto(v)
       ? framePhoto(v, '52% 28%')
@@ -1568,12 +1576,15 @@ export const ENTETES_STYLES = `
       repeating-linear-gradient(-45deg, rgba(242,233,216,.14) 0 2px, transparent 2px 11px);
   }
   .vt-pr .pr-mono { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-size: 54px; color: rgba(217,169,65,.55); margin-left: 20px; }
+  /* Chaque colonne DÉGAGE son cadre de 12px (elle le touchait au pixel près :
+     les bords arrondis et déchirés des cartes info disparaissaient, et la
+     tolérance de 2px du garde-fou était tout ce qui restait). */
   /* Le portrait de secours garde le biais haut du contrat (§5 : 18–30 %),
      donc aucune tête n'est coupée quand elle n'a pas de couverture. */
   .vt-pr .pr-frame .vt-avatar-img, .vt-te .te-frame .vt-avatar-img,
   .vt-et .et-frame .vt-avatar-img, .vt-do .do-frame .vt-avatar-img,
   .vt-ti .ti-frame .vt-avatar-img { object-position: 50% 24%; }
-  .vt-pr .pr-col { position: relative; width: calc(100% - 172px); }
+  .vt-pr .pr-col { position: relative; width: calc(100% - 184px); }
   .vt-pr .pr-crest { display: block; }
   .vt-pr .pr-name {
     margin-top: 8px; font-family: Georgia, 'Times New Roman', serif; font-weight: 700;
@@ -1669,7 +1680,7 @@ export const ENTETES_STYLES = `
   .vt-te .te-glyphes1 { left: 118px; top: 4px; width: 54px; height: 27px; opacity: .5; }
   .vt-te .te-glyphes2 { left: 4px; bottom: 62px; width: 44px; height: 27px; opacity: .42; }
   .vt-te .te-couronne { position: absolute; left: 4px; top: 0; }
-  .vt-te .te-col { position: relative; width: calc(100% - 142px); }
+  .vt-te .te-col { position: relative; width: calc(100% - 154px); }
   .vt-te .te-name {
     font-family: Georgia, 'Times New Roman', serif; font-weight: 700;
     font-size: clamp(27px, 9.4cqw, 32px); line-height: 1.06; color: var(--te-ivoire); overflow-wrap: break-word;
@@ -1763,7 +1774,7 @@ export const ENTETES_STYLES = `
       radial-gradient(circle 7px at 30% 82%, rgba(18,18,18,.5) 96%, transparent);
   }
   .vt-et .et-mono { font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif; font-weight: 800; font-style: italic; font-size: 52px; color: rgba(18,18,18,.62); }
-  .vt-et .et-col { position: relative; width: calc(100% - 158px); }
+  .vt-et .et-col { position: relative; width: calc(100% - 170px); }
   .vt-et .et-couronne { display: block; }
   .vt-et .et-nameblock { position: relative; margin-top: 4px; padding: 8px 10px 9px 6px; }
   .vt-et .et-splash { position: absolute; inset: 0; background: var(--et-noir); clip-path: polygon(2% 14%, 22% 2%, 52% 9%, 78% 0, 99% 12%, 96% 62%, 99% 92%, 62% 99%, 28% 94%, 0 100%); transform: rotate(-2deg); }
@@ -1899,7 +1910,7 @@ export const ENTETES_STYLES = `
   .vt-ti {
     --ti-vert: #17351F; --ti-carte: #0F2717; --ti-badge: #12301B;
     --ti-ivoire: #F1E9D6; --ti-blanc: #F7F5F0;
-    --ti-or: #D9A441; --ti-ambre: #C77B2B; --ti-coche: #2E7A44; --ti-sous: #2E5B3A;
+    --ti-or: #D9A441; --ti-ambre: #C77B2B; --ti-coche: #2E7A44; --ti-sous: #2E5B3A; --ti-liser: #142E14;
     background: var(--ti-vert);
   }
   .vt-ti .ti-hero {
@@ -1908,9 +1919,9 @@ export const ENTETES_STYLES = `
     background-image: radial-gradient(54% 40% at 82% 8%, rgba(217,164,65,.09) 0%, transparent 70%);
   }
   .vt-ti .ti-scene { position: relative; min-height: 248px; }
-  .vt-ti .ti-liseré {
+  .vt-ti .ti-lisere {
     position: absolute; left: -14px; top: -74px; bottom: -18px; width: 32px;
-    background-color: var(--ti-vert);
+    background-color: var(--ti-liser);
     background-image:
       repeating-linear-gradient(45deg, rgba(217,164,65,.55) 0 2px, transparent 2px 9px),
       repeating-linear-gradient(-45deg, rgba(241,233,214,.3) 0 2px, transparent 2px 9px),
@@ -1925,7 +1936,7 @@ export const ENTETES_STYLES = `
       repeating-linear-gradient(-45deg, rgba(217,164,65,.2) 0 2px, transparent 2px 11px);
   }
   .vt-ti .ti-mono { font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif; font-weight: 800; font-size: 52px; color: rgba(217,164,65,.55); }
-  .vt-ti .ti-col { position: relative; width: calc(100% - 139px); padding-left: 24px; }
+  .vt-ti .ti-col { position: relative; width: calc(100% - 151px); padding-left: 24px; }
   .vt-ti .ti-couronne { display: block; }
   .vt-ti .ti-name {
     margin-top: 6px; font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif; font-weight: 800;
@@ -1949,7 +1960,7 @@ export const ENTETES_STYLES = `
   .vt-ti .ti-zone { margin-top: 5px; display: flex; align-items: flex-start; gap: 7px; font-size: 11px; font-weight: 600; line-height: 1.4; color: var(--ti-ivoire); }
   .vt-ti .ti-zone svg { flex: none; margin-top: 1px; }
   .vt-ti .ti-proof { margin-top: 9px; display: flex; align-items: center; gap: 8px; }
-  .vt-ti .ti-rond { width: 38px; height: 38px; flex: none; border-radius: 50%; border: 1.4px solid var(--ti-or); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; color: var(--ti-or); }
+  .vt-ti .ti-rond { min-width: 38px; width: auto; padding: 0 8px; height: 38px; flex: none; border-radius: 99px; border-radius: 50%; border: 1.4px solid var(--ti-or); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; color: var(--ti-or); }
   /* Relevé — la ligne de preuve est en italique doré sur ce visuel. */
   .vt-ti .ti-proof-t { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 11px; line-height: 1.35; color: var(--ti-or); }
   .vt-ti .ti-stars { display: flex; align-items: center; gap: 3px; margin-top: 1px; font-style: normal; font-family: 'Instrument Sans', system-ui, sans-serif; font-weight: 600; font-size: 10.5px; }
@@ -1979,18 +1990,22 @@ export const ENTETES_STYLES = `
   .vt-ti .vt-ent-btn { top: 70px; }
 
 
-  /* ENTETES-F — the strip stays a strip. Measured: the catalog's full labels
-     (« Livraison Séra vérifiée & scellée ») wrap to three lines where the
-     contract splits them over two, so the vignette and the leading tighten
-     rather than the type — the labels must never truncate their meaning. */
+  /* ENTETES-F — the strip stays a strip. Measured: the catalog carries the FULL
+     label in one string (« Livraison Séra vérifiée & scellée ») where the
+     contract splits it over two short lines, so at the relevé's own 9.5px it
+     wrapped to three lines and pushed the strip to 86–100px against the
+     contract's ~64. What gives is the VIGNETTE (38 → 32) and the LEADING
+     (1.3 → 1.22) — never the type: every relevé says « titres 700/9.5 +
+     sous-lignes 600 », and 9px labels on a 320px 1GB Android in the sun is
+     failure mode #9, not a rounding decision. */
   .vt-pr .pr-trust, .vt-te .te-trust, .vt-et .et-trust, .vt-ti .ti-trust { padding: 9px 8px; align-items: center; }
   .vt-do .do-trust { padding: 9px 4px; align-items: center; }
   .vt-pr .pr-cell-i, .vt-te .te-cell-i, .vt-et .et-cell-i,
   .vt-do .do-cell-i, .vt-ti .ti-cell-i { width: 32px; height: 32px; }
   .vt-pr .pr-cell-l, .vt-te .te-cell-l, .vt-et .et-cell-l,
-  .vt-do .do-cell-l, .vt-ti .ti-cell-l { font-size: 9px; line-height: 1.22; }
+  .vt-do .do-cell-l, .vt-ti .ti-cell-l { font-size: 9.5px; line-height: 1.22; }
   .vt-pr .pr-cell-s, .vt-te .te-cell-s, .vt-et .et-cell-s,
-  .vt-do .do-cell-s, .vt-ti .ti-cell-s { font-size: 9px; line-height: 1.22; }
+  .vt-do .do-cell-s, .vt-ti .ti-cell-s { font-size: 9.5px; line-height: 1.22; }
   .vt-pr .pr-cell, .vt-te .te-cell, .vt-et .et-cell,
   .vt-do .do-cell, .vt-ti .ti-cell { gap: 7px; padding: 0 4px; }
 
@@ -2015,7 +2030,7 @@ export const ENTETES_STYLES = `
   /* Douceur measured tallest of the five: its column is the narrowest (the
      44px textile band eats it) so the zone wrapped to three lines at 320. The
      band and the gutter give the words their room back. */
-  .vt-do .do-col { width: calc(100% - 168px); padding-left: 32px; }
+  .vt-do .do-col { width: calc(100% - 180px); padding-left: 32px; }
   .vt-do .do-textile { width: 32px; }
   .vt-do .do-frame { width: 168px; height: 240px; }
   .vt-do .do-zone { margin-top: 5px; }
@@ -2035,32 +2050,28 @@ export const ENTETES_STYLES = `
   @container (max-width: 339px) {
     .vt-pr .pr-scene { min-height: 250px; }
     .vt-pr .pr-panneau { width: 162px; }
-    .vt-pr .pr-col { width: calc(100% - 148px); }
+    .vt-pr .pr-col { width: calc(100% - 158px); }
     .vt-pr .pr-name { font-size: clamp(24px, 9.4cqw, 28px); }
-    .vt-pr .pr-name.vt-ent-long { font-size: 21px; }
     .vt-pr .pr-crest { width: 40px; height: 26px; }
     .vt-pr .pr-bienv { font-size: 17px; }
     .vt-te .te-scene { min-height: 238px; padding-top: 30px; }
     .vt-te .te-frame { width: 44%; }
-    .vt-te .te-col { width: calc(100% - 114px); }
+    .vt-te .te-col { width: calc(100% - 126px); }
     .vt-te .te-name { font-size: clamp(24px, 9.4cqw, 28px); }
-    .vt-te .te-name.vt-ent-long { font-size: 21px; }
     .vt-te .te-patch { width: 188px; height: 200px; }
     .vt-te .te-glyphes2 { display: none; }
     .vt-te .te-bienv-t { font-size: 15px; }
     .vt-te .te-nouv { width: 84px; height: 84px; }
     .vt-et .et-scene { min-height: 196px; }
     .vt-et .et-frame { width: 136px; height: 190px; }
-    .vt-et .et-col { width: calc(100% - 136px); }
+    .vt-et .et-col { width: calc(100% - 148px); }
     .vt-et .et-name { font-size: clamp(24px, 9.4cqw, 28px); }
-    .vt-et .et-name.vt-ent-long { font-size: 21px; }
     .vt-et .et-tours, .vt-et .et-serpentin { display: none; }
     .vt-et .et-bienv-t { font-size: 15px; }
     .vt-do .do-scene { min-height: 238px; }
     .vt-do .do-frame { width: 138px; height: 208px; }
-    .vt-do .do-col { width: calc(100% - 138px); padding-left: 22px; }
+    .vt-do .do-col { width: calc(100% - 150px); padding-left: 22px; }
     .vt-do .do-name { font-size: clamp(20px, 8.4cqw, 24px); }
-    .vt-do .do-name.vt-ent-long { font-size: 17px; }
     .vt-do .do-zone, .vt-do .do-verif { font-size: 11px; }
     .vt-do .do-textile { width: 22px; }
     .vt-do .do-fleurs, .vt-do .do-anneau { display: none; }
@@ -2068,18 +2079,20 @@ export const ENTETES_STYLES = `
     .vt-do .do-bienv-t { font-size: 17px; }
     .vt-ti .ti-scene { min-height: 236px; }
     .vt-ti .ti-frame { width: 43%; }
-    .vt-ti .ti-col { width: calc(100% - 112px); padding-left: 20px; }
+    .vt-ti .ti-col { width: calc(100% - 124px); padding-left: 20px; }
     .vt-ti .ti-name { font-size: clamp(24px, 9.4cqw, 28px); }
-    .vt-ti .ti-name.vt-ent-long { font-size: 21px; }
-    .vt-ti .ti-liseré { width: 26px; }
+    .vt-ti .ti-lisere { width: 26px; }
     .vt-ti .ti-couronne { width: 34px; height: 20px; }
     .vt-ti .ti-bienv-t { font-size: 16px; }
     .vt-ti .ti-nouv { width: 78px; height: 78px; }
     /* Les trois libellés de confiance gardent leur sens : on rétrécit la
        vignette et l'interligne, jamais le texte au point de le tronquer. */
     .vt-pr .pr-cell-i, .vt-te .te-cell-i, .vt-et .et-cell-i, .vt-do .do-cell-i, .vt-ti .ti-cell-i { width: 30px; height: 30px; }
-    .vt-pr .pr-cell-l, .vt-te .te-cell-l, .vt-et .et-cell-l, .vt-do .do-cell-l, .vt-ti .ti-cell-l { font-size: 8.8px; line-height: 1.2; }
-    .vt-pr .pr-cell-s, .vt-te .te-cell-s, .vt-et .et-cell-s, .vt-do .do-cell-s, .vt-ti .ti-cell-s { font-size: 8.8px; line-height: 1.2; }
+    /* 320 keeps the relevé's 9.5px too — the vignette and the gutter carry
+       the narrower screen, because this is the width where legibility is
+       already hardest. */
+    .vt-pr .pr-cell-l, .vt-te .te-cell-l, .vt-et .et-cell-l, .vt-do .do-cell-l, .vt-ti .ti-cell-l { font-size: 9.5px; line-height: 1.2; }
+    .vt-pr .pr-cell-s, .vt-te .te-cell-s, .vt-et .et-cell-s, .vt-do .do-cell-s, .vt-ti .ti-cell-s { font-size: 9.5px; line-height: 1.2; }
     .vt-pr .pr-cell, .vt-te .te-cell, .vt-et .et-cell, .vt-do .do-cell, .vt-ti .ti-cell { gap: 6px; padding: 0 3px; }
   }
 `;

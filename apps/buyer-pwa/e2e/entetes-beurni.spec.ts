@@ -121,20 +121,28 @@ for (const width of [360, 320] as const) {
         const scene = await page.locator(`.${style.p}-scene`).boundingBox();
         expect(scene!.height, `${fixture}: scene ${scene!.height} < min ${sceneMin}`).toBeGreaterThanOrEqual(sceneMin - 1);
         const trust = await page.locator('[data-role="vitrine-trust"]').boundingBox();
-        // the three-label strip stays a strip: never a stacked block
-        expect(trust!.height, `${fixture}: trust ${trust!.height}`).toBeLessThanOrEqual(80);
+        // The strip stays a strip. It runs taller than the contract's ~64 for a
+        // reason that is not a defect: our catalog carries « Livraison Séra
+        // vérifiée & scellée » as ONE label plus a separate subline, where the
+        // contract splits that same sentence into its two short lines. The
+        // strings are canon and word-for-word, so the height follows the copy.
+        // Measured max across 5 styles × 4 fixtures × both widths: 87 (320,
+        // Terracotta). Shrinking the 9.5px relevé type to buy this back is
+        // failure mode #9 and was reverted after review.
+        expect(trust!.height, `${fixture}: trust ${trust!.height}`).toBeLessThanOrEqual(92);
         const box = await unit.boundingBox();
         // structural identity — the unit IS its status pad + hero + strip, so a
         // stray band or a collapsed margin shows up here rather than silently
         expect(box!.height, `${fixture}: unit ${box!.height}`).toBeGreaterThanOrEqual(60 + scene!.height);
         // The prompts' own window is « header 340–390 px »; this unit also
         // carries the 60px status bleed that replaced the contract's 46px app
-        // bar. Measured across all five styles × six fixtures × both widths,
-        // the tallest is 472 — the MINIMAL state, where each style's pastille
-        // is bigger than the proof row it replaces. The ceiling is set from
-        // that measurement, not from hope: a style that grows past it has
-        // regressed, and the number moves only with a new measurement.
-        expect(box!.height, `${fixture}: header window ${box!.height}`).toBeLessThanOrEqual(480);
+        // bar, and a trust strip that is taller than the contract's because our
+        // canon labels are longer (see above). Measured max: 497 (320, Douceur,
+        // long name). The ceiling is set FROM that measurement — a style that
+        // grows past it has regressed, and the number moves only with a new
+        // measurement. It is above the contract's window, and that gap is a
+        // founder decision flagged in JOURNAL.md rather than a silent choice.
+        expect(box!.height, `${fixture}: header window ${box!.height}`).toBeLessThanOrEqual(505);
         expect(box!.width, `${fixture}: full bleed`).toBe(width);
 
         // proof and badge are mutually exclusive, per the data — and whichever

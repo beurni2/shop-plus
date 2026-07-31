@@ -131,7 +131,9 @@ describe('framing-math — the representative frames (aspect + silhouette, per s
     });
     // Douceur's galet is the one asymmetric silhouette of the five
     const galet = frameSpecFor('seance', 'avatar');
-    expect(galet.aspect).toBe(196 / 264);
+    // the aspect the BUYER renders, not the relevé's nominal one — these two
+    // sheets exist to agree, so this asserts the shipped shape
+    expect(galet.aspect).toBe(168 / 240);
     expect(new Set(galet.radii).size).toBe(4);
     expect(Math.min(...galet.radii)).toBeGreaterThan(0.3);
   });

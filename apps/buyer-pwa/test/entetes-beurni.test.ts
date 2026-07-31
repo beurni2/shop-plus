@@ -88,7 +88,15 @@ const head = (key: EnteteKey, sf: unknown, trust: unknown, fromProduct = false):
   renderEntete(key, sf as never, trust as never, { fromProduct });
 
 /** Visible copy only — tags stripped (proves what reaches her eyes). */
-const visible = (html: string): string => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+const visible = (html: string): string =>
+  html
+    .replace(/<[^>]*>/g, ' ')
+    // &nbsp; is a SPACE on screen: the anti-widow joints (« par&nbsp;Séra »)
+    // change where a line may break, never what she reads.
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /* ------------------------------------------------- 1 · identity + strings -- */
 
@@ -140,7 +148,7 @@ describe('ENTETES-F — the frozen honesty rules, per style, on executed output'
       const html = head(key, BASE, F1);
       expect(html).toContain('data-role="reputation"');
       expect(html).toContain('<v>128</v>');
-      expect(html).toContain(t('vit.ventes_livrees'));
+      expect(visible(html)).toContain(t('vit.ventes_livrees'));
       expect(html).toContain('data-role="chip-avis"');
       expect(html).toContain(`<v>4,9</v> · <v>28</v> ${t('vit.avis')}`);
       expect(html).not.toContain('data-role="chip-nouvelle"');
@@ -154,7 +162,7 @@ describe('ENTETES-F — the frozen honesty rules, per style, on executed output'
       expect(visible(html)).toContain('vendeuse');
       expect(html).not.toContain('data-role="reputation"');
       expect(html).not.toContain('data-role="chip-avis"');
-      expect(html).not.toContain(t('vit.ventes_livrees'));
+      expect(visible(html)).not.toContain(t('vit.ventes_livrees'));
       // the fake-proof ban: nothing resembling the mockups' « +1,2k clientes »
       expect(html).not.toMatch(/clientes satisfaites/i);
       expect(html).not.toMatch(/1[,.]?2\s?k/i);
@@ -285,13 +293,36 @@ describe('ENTETES-F — nameTail: the deterministic anti-orphan rule, executed',
     expect(ENTETES_STYLES).not.toContain('vt-ent-xlong');
   });
 
-  it('the contract\'s fixed sizes: Douceur 20 px, the other four 24 px', () => {
-    expect(ENTETES_STYLES).toMatch(/\.vt-do \.do-name\.vt-ent-long \{ font-size: 20px; \}/);
-    for (const sel of ['pr', 'te', 'et', 'ti']) {
-      expect(ENTETES_STYLES).toMatch(
-        new RegExp(`\\.vt-${sel} \\.${sel}-name\\.vt-ent-long \\{ font-size: 24px; \\}`),
+  it('the contract\'s fixed sizes: Douceur 20 px, the other four 24 px — AND NOTHING OVERRIDES THEM AT 320', () => {
+    const SIZE: Record<string, string> = { do: '20px', pr: '24px', te: '24px', et: '24px', ti: '24px' };
+    for (const [sel, px] of Object.entries(SIZE)) {
+      expect(ENTETES_STYLES, sel).toMatch(
+        new RegExp(`\\.vt-${sel} \\.${sel}-name\\.vt-ent-long \\{ font-size: ${px}; \\}`),
       );
     }
+    // THE HOLE THIS CLOSES: the first version matched only the BASE rule, so a
+    // later @container override could silently ship a different size and this
+    // test would still pass. Série 4 §QA-2 names the number FOR 320 —
+    // « Nom 24 car. + zone longue à 320 : aucun débordement (tailles fixes
+    // 20/24 px) » — so 320 is exactly where it must be checked. Every
+    // `vt-ent-long` size declared anywhere in the sheet, for these five, must
+    // equal the contract's.
+    for (const [sel, px] of Object.entries(SIZE)) {
+      const all = [...ENTETES_STYLES.matchAll(
+        new RegExp(`\\.vt-${sel} \\.${sel}-name\\.vt-ent-long \\{ font-size: ([^;]+); \\}`, 'g'),
+      )].map((m) => m[1]);
+      expect(all.length, `${sel}: no fixed-size rule found — the scan is asserting over nothing`).toBeGreaterThanOrEqual(1);
+      for (const declared of all) expect(declared, `${sel} overridden away from the contract`).toBe(px);
+    }
+  });
+
+  it('the trust strip keeps the relevé type (9.5px) at BOTH widths', () => {
+    // « titres 700/9.5 + sous-lignes 600 » in all five relevés. Shrinking this
+    // is failure mode #9 (a screen that dies on a 1GB Android in sunlight),
+    // and it is the kind of change a height budget quietly invites.
+    const sizes = [...ENTETES_STYLES.matchAll(/\.(?:pr|te|et|do|ti)-cell-[ls] \{ font-size: ([^;]+);/g)].map((m) => m[1]);
+    expect(sizes.length, 'no trust-cell type rules found — asserting over nothing').toBeGreaterThanOrEqual(2);
+    for (const px of sizes) expect(px, 'trust label type below the relevé').toBe('9.5px');
   });
 });
 
@@ -335,9 +366,26 @@ describe('ENTETES-F — the five sheets keep the house laws', () => {
       // the contract's 46px Shop+ bar: wordmark, hamburger, search, cart badge
       expect(html).not.toContain('Shop<span');
       expect(html).not.toMatch(/Sélection |Voir tout|à partir de/);
-      // the invented catalogue of every Série 4 relevé, franc by franc
-      for (const prix of ['28', '15', '12', '17', '15,5', '3,5', '12,9', '15,9', '4,9', '8,5', '6', '7,5']) {
-        expect(html).not.toContain(`${prix}${'\u202f'}000`);
+      // THE INVENTED CATALOGUE OF EVERY SÉRIE 4 RELEVÉ, VERBATIM. The first
+      // version of this guard built its strings as `${prix}\u202f000`, which
+      // turned « 15 500 » into the impossible « 15,5 000 » — seven of twelve
+      // assertions were checking text that can never exist. The prices are
+      // written out whole now, and the invented ARTICLE NAMES are checked too:
+      // a fake product is fake with or without its price beside it.
+      for (const prix of [
+        '28\u202f000', '15\u202f000', '12\u202f000',   // Prestige
+        '17\u202f000', '15\u202f500', '3\u202f500',    // Terracotta
+        '12\u202f900', '15\u202f900', '4\u202f900',    // Étendard
+        '8\u202f500', '6\u202f000', '7\u202f500',      // Tissage
+      ]) {
+        expect(html, `invented price ${prix}`).not.toContain(prix);
+      }
+      for (const article of [
+        'Faso Dan Fani', 'Sacs & Pochettes', 'Sandales Chic',
+        'Tunique XOX', 'Sac Wobi Chic', 'Collier Afrique Unie',
+        'Hauts tissés', 'Soins & beauté',
+      ]) {
+        expect(html, `invented article « ${article} »`).not.toContain(article);
       }
       expect(html).not.toMatch(/FCFA/);
     }

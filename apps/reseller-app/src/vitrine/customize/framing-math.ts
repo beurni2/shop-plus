@@ -105,14 +105,16 @@ const CIRCLE: FrameSpec = { aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5]
  *     approximation, and the CROP it teaches her is exact.
  *   · Terracotta — the full right column, 47 % of 360 over a 344 hero.
  *   · Étendard   — the fixed 158×212 card, r4.
- *   · Douceur    — the organic galet 196×264 (radius 54/46/42/58).
+ *   · Douceur    — the organic galet, 168×240 as the buyer sheet finally
+ *     renders it: the relevé's 196×264 did not leave the text column room to
+ *     clear the photo, and THIS number is the one her drag must preview.
  *   · Tissage    — the full right column, 46 % of 360 over a 340 hero.
  */
 const BEURNI_FRAMES = {
   masque: { aspect: 186 / 358, circle: false, radii: [0, 0, 0, 0] },
   harmattan: { aspect: (0.47 * 360) / 344, circle: false, radii: [0, 0, 0, 0] },
   balafon: { aspect: 158 / 212, circle: false, radii: [4 / 158, 4 / 158, 4 / 158, 4 / 158] },
-  seance: { aspect: 196 / 264, circle: false, radii: [0.54, 0.46, 0.42, 0.58] },
+  seance: { aspect: 168 / 240, circle: false, radii: [0.54, 0.46, 0.42, 0.58] },
   cauris: { aspect: (0.46 * 360) / 340, circle: false, radii: [0, 0, 0, 0] },
 } as const satisfies Record<string, FrameSpec>;
 
