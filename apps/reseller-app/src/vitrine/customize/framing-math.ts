@@ -163,6 +163,9 @@ const SERIE3_FRAMES = {
   // Dunda — the 158 dye-knot circle. Its dashed ring is decoration around the
   // frame, not part of it, so the silhouette is the disc her photo fills.
   dunda: CIRCLE,
+  // Karité — the CUSHION: 162 square at border-radius 42%, which is a squircle
+  // and deliberately NOT a circle. The leaf resting on its edge is decoration.
+  karite: { aspect: 1, circle: false, radii: [0.42, 0.42, 0.42, 0.42] },
 } as const satisfies Record<string, FrameSpec>;
 
 const SERIE3_FOCUS = {
@@ -177,6 +180,7 @@ const SERIE3_FOCUS = {
   braise: { x: 46, y: 28 },
   graffiti: { x: 50, y: 24 },
   dunda: { x: 50, y: 26 },
+  karite: { x: 50, y: 28 },
 } as const satisfies Record<string, PhotoFocus>;
 
 const SERIE2_FRAMES = {
@@ -331,6 +335,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   braise: { x: 46, y: 28 },
   graffiti: { x: 50, y: 24 },
   dunda: { x: 50, y: 26 },
+  karite: { x: 50, y: 28 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

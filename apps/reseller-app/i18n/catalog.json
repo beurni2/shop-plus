@@ -1572,6 +1572,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_karite",
+  "fr": "Karit\u00e9",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_karite",
+  "fr": "Beurre et miel, une photo en coussin.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",

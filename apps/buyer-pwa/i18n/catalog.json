@@ -918,6 +918,12 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.ka_pur",
+  "fr": "Pur beurre de karit\u00e9",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.ar_devise",
   "fr": "Artisanat \u00b7 Authenticit\u00e9 \u00b7 Confiance",
   "register": "selling",
