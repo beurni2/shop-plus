@@ -49,8 +49,23 @@ for (const width of [360, 320] as const) {
   test(`sceau @ ${width}: never stranded on a line of its own, at the 24-char bound`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
     await loadAllEntetes();
-    const keys = ENTETE_KEYS.filter((k) => isLazyEntete(k));
-    expect(keys.length, 'no lazy styles under test').toBeGreaterThanOrEqual(4);
+    // ENTETES-I — « is lazy » USED to mean « série 2-5 », because série 1 was
+    // compiled in. Every style is a chunk now, so that filter silently pulled
+    // in the original five, which never went through `nameTail` and have no
+    // `.vt-ent-acc` at all. The rule this spec enforces is about the ACCENT
+    // SEGMENT, so the set is the styles that actually render one — detected
+    // from the markup rather than from which tier a key happens to ship in.
+    const SERIE1 = new Set(['royale', 'heritage', 'chaleureux', 'cristal', 'dynamique']);
+    const keys = ENTETE_KEYS.filter(
+      (k) => isLazyEntete(k) && !SERIE1.has(k) && renderEntete(k, SF as never, TRUST as never, {}).includes('vt-ent-acc'),
+    );
+    expect(keys.length, 'no accent-segment styles under test').toBeGreaterThanOrEqual(20);
+    for (const k of SERIE1) {
+      expect(
+        renderEntete(k as never, SF as never, TRUST as never, {}),
+        `${k}: série 1 has no accent segment — if that changed, this spec must cover it`,
+      ).not.toContain('vt-ent-acc');
+    }
 
     let welded = 0;
     for (const key of keys) {

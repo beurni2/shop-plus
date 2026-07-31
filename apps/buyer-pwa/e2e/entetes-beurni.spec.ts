@@ -2,6 +2,7 @@ import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { ENTETES_STYLES, renderEntete } from '../src/vitrine/entetes';
+import { loadAllEntetes, loadedEnteteCss } from '../src/vitrine/entetes/registry';
 
 /**
  * ENTETES-F — the SÉRIE 4 acceptance matrix, executed on the live DOM against
@@ -81,13 +82,17 @@ let fontsCss = readFileSync(join(import.meta.dirname, '../src/fonts.css'), 'utf8
   .replaceAll('font-display: optional', 'font-display: block');
 
 async function mount(page: Page, key: string, fixture: FixtureName): Promise<void> {
+  await loadAllEntetes();
   const { sf, trust } = FIXTURES[fixture];
   const unit = renderEntete(key as never, sf as never, trust as never, {});
   const html = [
     '<!doctype html><html><head><meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     `<style>${fontsCss}</style>`,
-    `<style>${ENTETES_STYLES}</style>`,
+    // ENTETES-I — these five are CHUNKS now, so the sheet a page mounts is the
+    // shell plus what arrived. Mounting the shell alone would screenshot five
+    // unstyled headers and call the run green.
+    `<style>${ENTETES_STYLES}${loadedEnteteCss()}</style>`,
     // the vitrine page geometry the unit bleeds out of: status 54 + liseré 6 +
     // pad 16 = 76 top, side pad 20 (see .vt-ent margin), page surface below.
     '<style>html,body{margin:0;padding:0}body{background:#F4EFE6;font-family:\'Instrument Sans\',system-ui,sans-serif}.page{padding:76px 20px 0}</style>',

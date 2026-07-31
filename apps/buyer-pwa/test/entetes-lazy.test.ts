@@ -8,7 +8,7 @@ const __m = new Map<string, string>();
   get length() { return __m.size; },
 } as Storage;
 import { afterEach, describe, expect, it } from 'vitest';
-import { ENTETE_KEYS, renderEntete, type EnteteKey } from '../src/vitrine/entetes';
+import { ENTETE_KEYS, ENTETES_STYLES, renderEntete, type EnteteKey } from '../src/vitrine/entetes';
 import { loadEntete, loadedEntete, loadedEnteteCss, registerEntete, resetEntetes } from '../src/vitrine/entetes/registry';
 
 /**
@@ -51,9 +51,12 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     // no registration: this is the offline / failed-chunk path, and the
     // ENTETES-E0 law says the page draws the shipped default rather than
     // crashing or emitting nothing.
+    // ENTETES-I — there is no compiled-in tier left to catch this. EVERY style
+    // is a chunk now, so an un-arrived style falls all the way to `classique`,
+    // which is the ENTETES-E0 law stated without a safety net underneath it.
     const out = head('royale');
-    expect(out.length).toBeGreaterThan(1000);
-    expect(out).toContain('class="vt-ent vt-ry"'); // compiled-in tier still serves
+    expect(out, 'an unregistered style must draw the shipped default').toContain('class="vt-hero"');
+    expect(out.length).toBeGreaterThan(500);
     const unknown = head('classique');
     expect(unknown).toContain('class="vt-hero"');
   });
@@ -61,8 +64,10 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
   it('loadEntete is safe for every key, including ones with no chunk', async () => {
     // callers must not have to know which tier a key belongs to
     await expect(loadEntete('classique')).resolves.toBeUndefined();
+    expect(loadedEntete('classique'), 'classique is the shipped default and has no chunk').toBeUndefined();
+    // royale DOES have one now (ENTETES-I) — resolving is still safe either way
     await expect(loadEntete('royale')).resolves.toBeUndefined();
-    expect(loadedEntete('royale')).toBeUndefined();
+    expect(loadedEntete('royale'), 'royale is a chunk since ENTETES-I').toBeDefined();
   });
 
   it('INDIGO — the real chunk loads, registers, and draws her identity on the photo', async () => {
@@ -288,14 +293,16 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne', '.vt-pe', '.vt-ar', '.vt-br', '.vt-gf', '.vt-du', '.vt-ka', '.vt-bz', '.vt-cb', '.vt-pg']) {
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne', '.vt-pe', '.vt-ar', '.vt-br', '.vt-gf', '.vt-du', '.vt-ka', '.vt-bz', '.vt-cb', '.vt-pg',
+      '.vt-ry', '.vt-he', '.vt-ch', '.vt-cr', '.vt-dy',
+      '.vt-pr', '.vt-te', '.vt-et', '.vt-do', '.vt-ti']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br|gf|du|ka|bz|cb|pg)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br|gf|du|ka|bz|cb|pg|ry|he|ch|cr|dy|pr|te|et|do|ti)[ .]/);
         checked += 1;
       }
     }
@@ -366,27 +373,62 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     }
   });
 
-  it('no lazy chunk CLAIMS a compiled-in style root class', async () => {
-    // CHROME nearly did. Its natural prefix is « ch », which série 1's
-    // Chaleureux (.vt-ch) already owns — a lazy sheet using it would repaint
-    // that header the moment a Chrome shop was loaded, and only for buyers who
-    // had visited one. It ships as .vt-ch3 instead; the canon KEY is unchanged.
-    // This checks the whole set, because the next collision will look just as
-    // natural as that one did.
-    const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
-    await loadAllEntetes();
-    // COMMENTS ARE STRIPPED FIRST, and that is not a loophole: this guard is
-    // about what the CASCADE sees. Chrome's own docblock explains the collision
-    // it avoids and necessarily names « .vt-ch » to do so — scanning prose made
-    // the guard fail on the very comment documenting the fix.
-    const sheet = loadedEnteteCss().replace(/\/\*[\s\S]*?\*\//g, '');
-    const COMPILED = ['ry', 'he', 'ch', 'cr', 'dy', 'pr', 'te', 'et', 'do', 'ti'];
-    for (const root of COMPILED) {
-      // whole-token match, so .vt-ch3 must NOT trip the .vt-ch check
-      const claimed = new RegExp('\\.vt-' + root + '(?![\\w-])').test(sheet);
-      expect(claimed, 'a lazy chunk writes .vt-' + root + ', a compiled-in root').toBe(false);
+  it('NO TWO CHUNKS CLAIM THE SAME ROOT — one shop, one header, one owner per class', async () => {
+    // CHROME nearly collided. Its natural prefix is « ch », which Chaleureux
+    // (.vt-ch) already owns; a sheet using it would repaint that header the
+    // moment a Chrome shop was loaded, and only for buyers who had visited one.
+    // It ships as .vt-ch3; the canon KEY is unchanged.
+    //
+    // ENTETES-I RESTATED THIS GUARD, because its old premise is gone. It used
+    // to name the ten COMPILED-IN roots and forbid a chunk from writing one.
+    // All ten are chunks now, so that list would forbid them from writing their
+    // OWN roots. The real invariant never mentioned compilation: every root
+    // belongs to exactly one module, whatever tier it ships in. That is what is
+    // checked here, module by module, and it is strictly stronger than the
+    // fixed list it replaces — it needs no maintenance as styles are added.
+    const { readdirSync, readFileSync } = await import('node:fs');
+    const dir = new URL('../src/vitrine/entetes/', import.meta.url).pathname;
+    const modules = readdirSync(dir).filter((f) => f.endsWith('.ts') && f !== 'registry.ts');
+    expect(modules.length, 'no style modules found — this scan would assert over nothing').toBeGreaterThan(25);
+
+    const SHELL = new Set(
+      [...ENTETES_STYLES.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\.(vt-[\w-]+)/g)].map((m) => m[1]!),
+    );
+    expect(SHELL.size, 'no shell classes found — every root would look shared').toBeGreaterThan(3);
+    expect(SHELL.has('vt-avatar-img')).toBe(true);
+    expect(SHELL.has('vt-ry'), 'a STYLE root leaked into the shell set').toBe(false);
+
+    const owner = new Map<string, string>();
+    for (const file of modules) {
+      // comments stripped: this is about what the CASCADE sees. Chrome's own
+      // docblock names « .vt-ch » to explain the collision it avoids, and
+      // scanning prose made an earlier version fail on the fix's own comment.
+      const src = readFileSync(dir + file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      const marker = 'const css = `';
+      const k = src.indexOf(marker);
+      if (k === -1) continue;
+      const css = src.slice(k + marker.length).split('\n`;')[0]!;
+      for (const m of css.matchAll(/\.(vt-[\w-]+)/g)) {
+        const root = m[1]!;
+        const prev = owner.get(root);
+        // SHARED SHELL CLASSES ARE NOT ROOTS, and the shell itself says which
+        // they are: anything ENTETES_STYLES defines is common ground every
+        // style may target (.vt-ent, .vt-ent-btn, .vt-avatar-img, .vt-cover-img
+        // …). Deriving the set beats listing it — a new shell class joins it
+        // automatically instead of failing this guard on its first use.
+        // …plus the `vt-ent` NAMESPACE, which is the shared vocabulary by
+        // convention: `vt-ent-long` (the long-name tier) and `vt-ent-acc` (the
+        // accent segment) are modifiers every style applies to its OWN element,
+        // and they are set by the shared `vals`/`nameTail`, not by any module.
+        if (SHELL.has(root) || root.startsWith('vt-ent')) continue;
+        expect(prev === undefined || prev === file, `.${root} is written by BOTH ${prev} and ${file}`).toBe(true);
+        owner.set(root, file);
+      }
     }
-    expect(sheet, 'the sheet is empty — this scan would pass vacuously').toContain('.vt-ch3');
+    expect(owner.size, 'no roots were collected — the scan would pass vacuously').toBeGreaterThan(25);
+    // the near-miss itself, pinned by name
+    expect(owner.get('vt-ch3')).toBe('chrome.ts');
+    expect(owner.get('vt-ch')).toBe('chaleureux.ts');
   });
 
   it('THE SÉRIE 5 TIER — 24 px on the split columns, and 20 px on Karité alone', async () => {
@@ -434,6 +476,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     };
 
     let checked = 0;
+    let total = 0;
     for (const raw of [loadedEnteteCss(), ENTETES_STYLES]) {
       // comments first: a docblock sitting above a rule is swallowed into the
       // selector otherwise, and Chrome's — which explains this very fallback —
@@ -444,7 +487,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
       for (let m = RULE.exec(sheet); m !== null; m = RULE.exec(sheet)) {
         rules.push({ sel: m[1]!.trim(), body: m[2]!, at: m.index });
       }
-      expect(rules.length, 'the rule scan found nothing — it would pass vacuously').toBeGreaterThan(50);
+      total += rules.length;
 
       for (const rule of rules) {
         if (!rule.body.includes('-webkit-text-fill-color: transparent')) continue;
@@ -463,6 +506,10 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
         ).toBe(true);
       }
     }
+    // ENTETES-I — the vacuity floor counts BOTH sheets together. The compiled
+    // half is now the shared shell alone (about a dozen rules), so a per-sheet
+    // floor of 50 fails on a sheet that is doing exactly what it should.
+    expect(total, 'the rule scan found almost nothing — it would pass vacuously').toBeGreaterThan(400);
     // Bronze (.txb) · Chrome (.txc, .txv) · Prestige · Étendard · Tissage
     expect(checked, 'no gradient-clipped text found — this scan asserted over nothing').toBe(6);
   });

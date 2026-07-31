@@ -8,7 +8,7 @@ const __m = new Map<string, string>();
   key: (i: number) => [...__m.keys()][i] ?? null,
   get length() { return __m.size; },
 } as Storage;
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { t } from '../src/i18n';
 import { NNBSP } from '../src/cliente/money';
 import {
@@ -17,6 +17,7 @@ import {
   renderEntete,
   type EnteteKey,
 } from '../src/vitrine/entetes';
+import { loadAllEntetes, loadedEnteteCss } from '../src/vitrine/entetes/registry';
 
 /**
  * ENTETES-F — the SÉRIE 4 five (Prestige · Terracotta · Étendard · Douceur ·
@@ -99,6 +100,29 @@ const visible = (html: string): string =>
     .trim();
 
 /* ------------------------------------------------- 1 · identity + strings -- */
+
+
+/**
+ * ENTETES-I — the styles this file exercises are now LAZY CHUNKS. `renderEntete`
+ * is still synchronous by contract; it draws a lazy unit only once that unit has
+ * been registered, exactly as `flows.ts` guarantees by awaiting `loadEntete`
+ * before any header-drawing screen. This hook is that guarantee, in test form.
+ * Nothing in this file resets the registry, so one load serves the whole run.
+ */
+
+/**
+ * ENTETES-I — THE SHEET A PAGE ACTUALLY MOUNTS is the compiled shell PLUS the
+ * chunks that have arrived. These styles used to live wholly in
+ * `ENTETES_STYLES`; their rules now travel with their modules, so a CSS
+ * assertion that reads only the compiled half is asserting over a sheet no
+ * cliente ever receives. `beforeAll` has loaded every chunk by the time any
+ * `it` runs, so this is the same bytes the browser gets.
+ */
+const sheet = (): string => ENTETES_STYLES + loadedEnteteCss();
+
+beforeAll(async () => {
+  await loadAllEntetes();
+});
 
 describe('ENTETES-F — each unit renders her identity and the exact handoff strings', () => {
   for (const key of FIVE) {
@@ -206,7 +230,7 @@ describe('ENTETES-F — her portrait in the style frame, or the monogram pattern
       expect(html).toContain(`alt="${t('vit.avatar_alt')}"`);
       // the crop bias lives in the SHEET (her inline focus must stay the only
       // inline emitter) — pinned here against the style's own rule
-      expect(ENTETES_STYLES).toContain(`object-position: ${AVATAR_POS}`);
+      expect(sheet()).toContain(`object-position: ${AVATAR_POS}`);
       expect(html).not.toContain(MOTIF[key]!);
     });
 
@@ -277,9 +301,9 @@ describe('ENTETES-F — nameTail: the deterministic anti-orphan rule, executed',
     // Série 4: « dernier segment (/[^ -]+$/, nowrap) ». Making the entire tail
     // nowrap is what pushed « Élégance-Burkina » onto the photo; the hyphen
     // must be free to break while the accent word travels whole.
-    const acc = ENTETES_STYLES.slice(ENTETES_STYLES.indexOf('.vt-ent .vt-ent-acc {'));
+    const acc = sheet().slice(sheet().indexOf('.vt-ent .vt-ent-acc {'));
     expect(acc.slice(0, acc.indexOf('}'))).toMatch(/display:\s*inline-block;\s*white-space:\s*nowrap/);
-    const tail = ENTETES_STYLES.slice(ENTETES_STYLES.indexOf('.vt-ent .vt-ent-tail {'));
+    const tail = sheet().slice(sheet().indexOf('.vt-ent .vt-ent-tail {'));
     expect(tail.slice(0, tail.indexOf('}'))).not.toMatch(/nowrap/);
   });
   it('ONE size tier past 14 characters — the contract fixes a single reduced size', () => {
@@ -290,13 +314,13 @@ describe('ENTETES-F — nameTail: the deterministic anti-orphan rule, executed',
       // the superseded ENTETES-E second tier is GONE, not merely unused
       expect(head(key, LONGUE, F1)).not.toContain('vt-ent-xlong');
     }
-    expect(ENTETES_STYLES).not.toContain('vt-ent-xlong');
+    expect(sheet()).not.toContain('vt-ent-xlong');
   });
 
   it('the contract\'s fixed sizes: Douceur 20 px, the other four 24 px — AND NOTHING OVERRIDES THEM AT 320', () => {
     const SIZE: Record<string, string> = { do: '20px', pr: '24px', te: '24px', et: '24px', ti: '24px' };
     for (const [sel, px] of Object.entries(SIZE)) {
-      expect(ENTETES_STYLES, sel).toMatch(
+      expect(sheet(), sel).toMatch(
         new RegExp(`\\.vt-${sel} \\.${sel}-name\\.vt-ent-long \\{ font-size: ${px}; \\}`),
       );
     }
@@ -308,7 +332,7 @@ describe('ENTETES-F — nameTail: the deterministic anti-orphan rule, executed',
     // `vt-ent-long` size declared anywhere in the sheet, for these five, must
     // equal the contract's.
     for (const [sel, px] of Object.entries(SIZE)) {
-      const all = [...ENTETES_STYLES.matchAll(
+      const all = [...sheet().matchAll(
         new RegExp(`\\.vt-${sel} \\.${sel}-name\\.vt-ent-long \\{ font-size: ([^;]+); \\}`, 'g'),
       )].map((m) => m[1]);
       expect(all.length, `${sel}: no fixed-size rule found — the scan is asserting over nothing`).toBeGreaterThanOrEqual(1);
@@ -320,7 +344,7 @@ describe('ENTETES-F — nameTail: the deterministic anti-orphan rule, executed',
     // « titres 700/9.5 + sous-lignes 600 » in all five relevés. Shrinking this
     // is failure mode #9 (a screen that dies on a 1GB Android in sunlight),
     // and it is the kind of change a height budget quietly invites.
-    const sizes = [...ENTETES_STYLES.matchAll(/\.(?:pr|te|et|do|ti)-cell-[ls] \{ font-size: ([^;]+);/g)].map((m) => m[1]);
+    const sizes = [...sheet().matchAll(/\.(?:pr|te|et|do|ti)-cell-[ls] \{ font-size: ([^;]+);/g)].map((m) => m[1]);
     expect(sizes.length, 'no trust-cell type rules found — asserting over nothing').toBeGreaterThanOrEqual(2);
     for (const px of sizes) expect(px, 'trust label type below the relevé').toBe('9.5px');
   });
@@ -329,8 +353,8 @@ describe('ENTETES-F — nameTail: the deterministic anti-orphan rule, executed',
 /* --------------------------------------------------- 5 · sheet discipline -- */
 
 describe('ENTETES-F — the five sheets keep the house laws', () => {
-  const START = ENTETES_STYLES.indexOf('ENTETES-F · the Série 4 five');
-  const SHEET_E = ENTETES_STYLES.slice(START);
+  const START = sheet().indexOf('ENTETES-F · the Série 4 five');
+  const SHEET_E = sheet().slice(START);
 
   it('the section exists and every rule is scoped under a .vt-* root', () => {
     expect(START).toBeGreaterThan(0);
@@ -350,13 +374,13 @@ describe('ENTETES-F — the five sheets keep the house laws', () => {
   });
 
   it('decorative layers cannot intercept taps (the shared aria-hidden rule)', () => {
-    expect(ENTETES_STYLES).toContain('.vt-ent [aria-hidden="true"] { pointer-events: none; }');
+    expect(sheet()).toContain('.vt-ent [aria-hidden="true"] { pointer-events: none; }');
   });
 
   it('each column carries its relevé min-height (266 · 250 · 206 · 250 · 248)', () => {
     const H: Record<string, number> = { pr: 266, te: 250, et: 206, do: 250, ti: 248 };
     for (const [sel, px] of Object.entries(H)) {
-      expect(ENTETES_STYLES, sel).toMatch(new RegExp(`\\.vt-${sel} \\.${sel}-scene \\{[^}]*min-height: ${px}px`));
+      expect(sheet(), sel).toMatch(new RegExp(`\\.vt-${sel} \\.${sel}-scene \\{[^}]*min-height: ${px}px`));
     }
   });
 
@@ -399,14 +423,21 @@ describe('ENTETES-F — the six existing styles absorbed NOTHING from this slice
   const richSf = { ...BASE, cover: { status: 'live' as const, url: 'https://svc.example/c.jpg' } };
 
   for (const key of SIX) {
-    it(`${key}: no tail markup, no xlong tier, no « Bienvenue », counts stay raw bytes`, () => {
+    it(`${key}: no tail markup, no xlong tier, no « Bienvenue » — and the count is now GROUPED`, () => {
       const html = head(key, { ...richSf, name: 'Atelier Élégance-Burkina' }, F4, true);
       expect(html).not.toContain('vt-ent-tail');
       expect(html).not.toContain('vt-ent-xlong');
       expect(html).not.toContain(t('vit.bienvenue'));
-      // the six render the count exactly as before — ungrouped
-      expect(html).toContain('<v>1287</v>');
-      expect(html).not.toContain(`1${NNBSP}287`);
+      // THE COUNT ASSERTION FLIPPED, DELIBERATELY (founder-authorised).
+      // It used to pin « 1287 » — not because ungrouped was right, but as
+      // incidental evidence that série 1 had absorbed nothing from ENTETES-F.
+      // Série 1 was then the ONLY set in the app writing an unformatted count:
+      // every style since, and `ventesLine` itself, groups through `groupFr`.
+      // One number rendered two ways across one screen is a defect, so the
+      // grouping is now shared and this asserts the shared form. The three
+      // assertions above are the guard's real content and are untouched.
+      expect(html).toContain(`1${NNBSP}287`);
+      expect(html).not.toContain('<v>1287</v>');
     });
   }
 

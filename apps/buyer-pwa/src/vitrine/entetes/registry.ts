@@ -51,6 +51,16 @@ export interface EnteteUnit {
  * downloads a byte of it.
  */
 const LOADERS: Partial<Record<EnteteKey, () => Promise<{ unit: EnteteUnit }>>> = {
+  royale: () => import('./royale'),
+  heritage: () => import('./heritage'),
+  chaleureux: () => import('./chaleureux'),
+  cristal: () => import('./cristal'),
+  dynamique: () => import('./dynamique'),
+  masque: () => import('./prestige'),
+  harmattan: () => import('./terracotta'),
+  balafon: () => import('./etendard'),
+  seance: () => import('./douceur'),
+  cauris: () => import('./tissage'),
   indigo: () => import('./indigo'),
   couture: () => import('./couture'),
   safran: () => import('./safran'),

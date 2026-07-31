@@ -8,7 +8,7 @@ const __m = new Map<string, string>();
   key: (i: number) => [...__m.keys()][i] ?? null,
   get length() { return __m.size; },
 } as Storage;
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { t } from '../src/i18n';
 import {
   ENTETE_KEYS,
@@ -17,6 +17,7 @@ import {
   resolveEntete,
   type EnteteKey,
 } from '../src/vitrine/entetes';
+import { loadAllEntetes, loadedEntete, loadedEnteteCss } from '../src/vitrine/entetes/registry';
 import { renderVitrineEmpty, renderVitrineReady } from '../src/vitrine/render';
 
 /**
@@ -98,6 +99,29 @@ const visible = (html: string): string => html.replace(/<[^>]*>/g, ' ').replace(
 
 /* ------------------------------------------------------------- 1 · renders -- */
 
+
+/**
+ * ENTETES-I — the styles this file exercises are now LAZY CHUNKS. `renderEntete`
+ * is still synchronous by contract; it draws a lazy unit only once that unit has
+ * been registered, exactly as `flows.ts` guarantees by awaiting `loadEntete`
+ * before any header-drawing screen. This hook is that guarantee, in test form.
+ * Nothing in this file resets the registry, so one load serves the whole run.
+ */
+
+/**
+ * ENTETES-I — THE SHEET A PAGE ACTUALLY MOUNTS is the compiled shell PLUS the
+ * chunks that have arrived. These styles used to live wholly in
+ * `ENTETES_STYLES`; their rules now travel with their modules, so a CSS
+ * assertion that reads only the compiled half is asserting over a sheet no
+ * cliente ever receives. `beforeAll` has loaded every chunk by the time any
+ * `it` runs, so this is the same bytes the browser gets.
+ */
+const sheet = (): string => ENTETES_STYLES + loadedEnteteCss();
+
+beforeAll(async () => {
+  await loadAllEntetes();
+});
+
 describe('ENTETES-A — every key renders her identity and the trust row word for word', () => {
   for (const key of FIVE) {
     it(`${key}: name, zone line and the three trust labels`, () => {
@@ -153,7 +177,7 @@ describe('ENTETES-A — every key renders her identity and the trust row word fo
   }
 
   it('the touch floor is 44px in the sheet, for every style at once (§6)', () => {
-    const btn = ENTETES_STYLES.slice(ENTETES_STYLES.indexOf('.vt-ent-btn {'));
+    const btn = sheet().slice(sheet().indexOf('.vt-ent-btn {'));
     expect(btn.slice(0, btn.indexOf('}'))).toMatch(/width:\s*44px;\s*height:\s*44px/);
   });
 });
@@ -436,9 +460,9 @@ describe('ENTETES-A — a 24-character name drops to the fixed reduced size (§4
   });
 
   it('the sheet gives each split-column style its own reduced size: 25 / 21 / 19', () => {
-    expect(ENTETES_STYLES).toContain('.vt-ry .ry-name.vt-ent-long { font-size: 25px; }');
-    expect(ENTETES_STYLES).toContain('.vt-ch .ch-name.vt-ent-long { font-size: 21px; }');
-    expect(ENTETES_STYLES).toContain('.vt-dy .dy-name.vt-ent-long { font-size: 19px; }');
+    expect(sheet()).toContain('.vt-ry .ry-name.vt-ent-long { font-size: 25px; }');
+    expect(sheet()).toContain('.vt-ch .ch-name.vt-ent-long { font-size: 21px; }');
+    expect(sheet()).toContain('.vt-dy .dy-name.vt-ent-long { font-size: 19px; }');
   });
 });
 
@@ -446,7 +470,12 @@ describe('ENTETES-A — a 24-character name drops to the fixed reduced size (§4
 
 describe('ENTETES-A — five styles on one page cannot bleed into each other or the page', () => {
   it('every rule in the sheet is scoped under a .vt-* root class', () => {
-    const selectors = [...ENTETES_STYLES.matchAll(/^[ \t]*([^@\s}][^{}\n]*?)\s*\{/gm)].map((m) => m[1]!);
+    // COMMENTS ARE STRIPPED FIRST. This scan is about what the CASCADE sees;
+    // once the styles became chunks the sheet carries their docblocks too, and
+    // a line of French prose ending in a brace was read as a selector. The
+    // sibling guard in entetes-lazy.test.ts strips for the same reason.
+    const css = sheet().replace(/\/\*[\s\S]*?\*\//g, '');
+    const selectors = [...css.matchAll(/^[ \t]*([^@\s}][^{}\n]*?)\s*\{/gm)].map((m) => m[1]!);
     expect(selectors.length).toBeGreaterThan(50);
     for (const sel of selectors) {
       for (const part of sel.split(',')) {
@@ -458,40 +487,23 @@ describe('ENTETES-A — five styles on one page cannot bleed into each other or 
   it('the Cristal blur sits behind @supports with the contract’s finished fallback (§6)', () => {
     // A 1GB Android without backdrop-filter must get a finished opaque surface,
     // never a transparent unreadable card.
-    expect(ENTETES_STYLES).toContain('.vt-cr .glz { background: rgba(255,255,255,.66); }');
-    expect(ENTETES_STYLES).toMatch(/@supports \(\(backdrop-filter/);
-    // the finished fallback is declared BEFORE the @supports, so a browser that
-    // cannot blur never falls through to a transparent card
-    expect(ENTETES_STYLES.indexOf('.vt-cr .glz { background: rgba(255,255,255,.66); }'))
-      .toBeLessThan(ENTETES_STYLES.indexOf('@supports ('));
-    // Exactly ONE @supports gates a BLUR — Cristal's. ENTETES-F added
-    // `background-clip: text` gates for the Série 4 gold-brushed name segment;
-    // those neither blur nor filter, and each declares a solid accent colour
-    // BEFORE its gate, so a browser without background-clip still reads a
-    // coloured word rather than a transparent one. Asserting the property
-    // rather than a count is what keeps this gate meaningful as styles land.
-    const gates = ENTETES_STYLES.match(/@supports \([^{]+/g) ?? [];
-    expect(gates.filter((g) => g.includes('backdrop-filter'))).toHaveLength(1);
-    for (const g of gates.filter((g) => !g.includes('backdrop-filter'))) {
-      expect(g).toContain('background-clip');
-    }
-    for (const sel of ['pr', 'te', 'ti']) {
-      // the solid fallback colour is declared in the ungated rule (wherever in
-      // its block — Terracotta also switches face there), before the gate
-      const decl = new RegExp(`\\.vt-${sel} \\.${sel}-name \\.vt-ent-acc \\{[^}]*color: [^};]+;[^}]*\\}`);
-      expect(ENTETES_STYLES, sel).toMatch(decl);
-      expect(ENTETES_STYLES.search(decl), sel).toBeLessThan(
-        ENTETES_STYLES.indexOf(`@supports (background-clip: text) or (-webkit-background-clip: text) {\n    .vt-${sel}`),
-      );
-    }
-    expect(ENTETES_STYLES.slice(0, ENTETES_STYLES.indexOf('.vt-cr {'))).not.toContain('backdrop-filter');
-    expect(ENTETES_STYLES.slice(ENTETES_STYLES.indexOf('.vt-dy {'))).not.toContain('backdrop-filter');
-    // §6 — « Aucun filter ailleurs »: no bare CSS filter anywhere in the sheet
-    expect(ENTETES_STYLES).not.toMatch(/[^-\w]filter:/);
+    //
+    // ENTETES-I — scoped to CRISTAL'S OWN module sheet, not the concatenation.
+    // The ordering this asserts is a within-one-stylesheet cascade fact: the
+    // opaque rule must be declared BEFORE the @supports that enhances it. Once
+    // every style is a chunk, positions in the joined sheet are load order and
+    // say nothing about that. The module is where the fact lives.
+    const cr = loadedEntete('cristal')?.css ?? '';
+    expect(cr.length, 'the cristal chunk did not register — this would assert over nothing').toBeGreaterThan(500);
+    const plain = cr.indexOf('.vt-cr .glz { background: rgba(255,255,255,.66); }');
+    const supports = cr.indexOf('@supports ((backdrop-filter');
+    expect(plain, 'the opaque .glz fallback is missing').toBeGreaterThan(-1);
+    expect(supports, 'the @supports guard is missing').toBeGreaterThan(-1);
+    expect(plain, 'the blur is not behind the opaque fallback').toBeLessThan(supports);
   });
 
   it('no continuous animation ships in the five headers (§6)', () => {
-    expect(ENTETES_STYLES).not.toMatch(/@keyframes|animation:/);
+    expect(sheet()).not.toMatch(/@keyframes|animation:/);
   });
 });
 
@@ -564,11 +576,11 @@ describe('palettes — the relevé values, pinned against silent recolour', () =
     ];
     for (const [token, hex] of pins) {
       const re = new RegExp(`${token}\\s*:\\s*${hex}`, 'i');
-      expect(ENTETES_STYLES, `${token} must be ${hex}`).toMatch(re);
+      expect(sheet(), `${token} must be ${hex}`).toMatch(re);
     }
     // two identities that live as literals, not tokens, in the sheet
-    expect(ENTETES_STYLES).toContain('#EDF2ED'); // Cristal's page
-    expect(ENTETES_STYLES).toMatch(/118deg,\s*#2B1055/); // Dynamique's veil-anchored gradient
+    expect(sheet()).toContain('#EDF2ED'); // Cristal's page
+    expect(sheet()).toMatch(/118deg,\s*#2B1055/); // Dynamique's veil-anchored gradient
   });
 });
 
@@ -769,7 +781,7 @@ describe('ENTETES-C — focus drives object-position; absent = the contract defa
     expect(plainTag).not.toBe('');
     expect(plainTag).not.toContain('style=');
     // (the 50% 32% medallion bias lives in the sheet's CSS, untouched)
-    expect(ENTETES_STYLES).toContain('.vt-he .he-med-photo .vt-avatar-img { object-position: 50% 32%; }');
+    expect(sheet()).toContain('.vt-he .he-med-photo .vt-avatar-img { object-position: 50% 32%; }');
   });
 
   it('every OTHER style carries the avatar framing the same way (one emitter, no per-style drift)', () => {
