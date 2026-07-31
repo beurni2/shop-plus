@@ -160,6 +160,9 @@ const SERIE3_FRAMES = {
   // Graffiti — the polaroid's photo window, 138x150 inside its white print. The
   // print, its tape and its 2.5 degree tilt are frame, not photo.
   graffiti: { aspect: 138 / 150, circle: false, radii: [0, 0, 0, 0] },
+  // Dunda — the 158 dye-knot circle. Its dashed ring is decoration around the
+  // frame, not part of it, so the silhouette is the disc her photo fills.
+  dunda: CIRCLE,
 } as const satisfies Record<string, FrameSpec>;
 
 const SERIE3_FOCUS = {
@@ -173,6 +176,7 @@ const SERIE3_FOCUS = {
   artisan: { x: 56, y: 22 },
   braise: { x: 46, y: 28 },
   graffiti: { x: 50, y: 24 },
+  dunda: { x: 50, y: 26 },
 } as const satisfies Record<string, PhotoFocus>;
 
 const SERIE2_FRAMES = {
@@ -326,6 +330,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   artisan: { x: 50, y: 30 },
   braise: { x: 46, y: 28 },
   graffiti: { x: 50, y: 24 },
+  dunda: { x: 50, y: 26 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

@@ -1560,6 +1560,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_dunda",
+  "fr": "Dunda",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_dunda",
+  "fr": "Indigo K\u00f4k\u00f4 Dunda, anneaux de teinture.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",

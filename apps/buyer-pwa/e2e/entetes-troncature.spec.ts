@@ -125,6 +125,39 @@ for (const width of [360, 320] as const) {
         });
 
         expect(cut.seen, `${key}/${etat}: no text elements found — the scan would pass vacuously`).toBeGreaterThan(3);
+
+        // THE SENTENCE SHE READS IS STILL A SENTENCE. Braise rendered
+        // « 128ventes livrées par Séra » because its proof chip was a flex
+        // container: `ventesLine` emits « <b>N</b> ventes… » and flex makes the
+        // count and the words two items, stripping the space between them.
+        // `zoneLine` loses its spacing the same way. innerText — not
+        // textContent — is what she actually sees.
+        const lu = await page.evaluate(() => {
+          const el = document.querySelector('[data-role="reputation"]') as HTMLElement | null;
+          const badge = document.querySelector('[data-role="chip-nouvelle"]') as HTMLElement | null;
+          return {
+            proof: (el?.innerText ?? '').replace(/\u00a0|\u202f/g, ' ').replace(/\s+/g, ' ').trim(),
+            badge: (badge?.innerText ?? '').replace(/\u00a0|\u202f/g, ' ').replace(/\s+/g, ' ').trim(),
+          };
+        });
+        if (etat === 'complet') {
+          // the COUNT then a space then the words. Not a literal, because the
+          // count is NNBSP-grouped (« 1 287 ») on every style except série 1's
+          // five, which render it ungrouped — a real inconsistency, but one
+          // that predates this work and is not this spec's subject.
+          expect(lu.proof, `${key}: the proof sentence lost its words`).toMatch(/\d\s*ventes livrées par Séra/);
+          // WHAT THIS DOES NOT CATCH, and I tried two ways. Braise shipped
+          // « 128ventes » — a flex box had stripped the space between the count
+          // and the words. `innerText` cannot show it (it reports a break
+          // between flex items either way), and banning flex on this element
+          // fails Héritage, which is flex AND renders correctly because its
+          // markup separates the pieces itself. So the lost SPACE is not
+          // checkable here; a lost WORD is, and that is what the line above
+          // asserts. Spacing stays a screenshot check — which is how Braise's
+          // was found.
+        } else {
+          expect(lu.badge, `${key}: the « nouvelle » badge lost its spacing`).toMatch(/Nouvelle\s*vendeuse/i);
+        }
         measured += cut.seen;
         for (const b of cut.bad) {
           expect(
