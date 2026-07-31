@@ -1536,6 +1536,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_braise",
+  "fr": "Braise",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_braise",
+  "fr": "Charbon et corail, un soleil derri\u00e8re la photo.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",

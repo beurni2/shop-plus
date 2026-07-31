@@ -153,6 +153,10 @@ const SERIE3_FRAMES = {
   // edge only (130px radius on that side). The two left radii approximate the
   // arch; the right edge is square, as the panel's own edge is.
   artisan: { aspect: 126 / 300, circle: false, radii: [0.52, 0, 0, 0.52] },
+  // Braise — the 172 photo circle laid on the coral disc, offset and biting the
+  // right edge. The disc behind it is decoration, not frame; her drag positions
+  // the circle, and the 46 % bias keeps her face off the cut.
+  braise: CIRCLE,
 } as const satisfies Record<string, FrameSpec>;
 
 const SERIE3_FOCUS = {
@@ -164,6 +168,7 @@ const SERIE3_FOCUS = {
   neon: { x: 50, y: 24 },
   perle: { x: 38, y: 28 },
   artisan: { x: 56, y: 22 },
+  braise: { x: 46, y: 28 },
 } as const satisfies Record<string, PhotoFocus>;
 
 const SERIE2_FRAMES = {
@@ -315,6 +320,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   neon: { x: 50, y: 24 },
   perle: { x: 50, y: 30 },
   artisan: { x: 50, y: 30 },
+  braise: { x: 46, y: 28 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

@@ -116,6 +116,7 @@ export const PICKABLE_HEADER_STYLES = [
   'neon',
   'perle',
   'artisan',
+  'braise',
 ] as const;
 
 /** Her selected header with the `classique` fallback: an OLD service wire omits

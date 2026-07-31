@@ -8,7 +8,7 @@ const __m = new Map<string, string>();
   get length() { return __m.size; },
 } as Storage;
 import { afterEach, describe, expect, it } from 'vitest';
-import { renderEntete, type EnteteKey } from '../src/vitrine/entetes';
+import { ENTETE_KEYS, renderEntete, type EnteteKey } from '../src/vitrine/entetes';
 import { loadEntete, loadedEntete, loadedEnteteCss, registerEntete, resetEntetes } from '../src/vitrine/entetes/registry';
 
 /**
@@ -288,14 +288,14 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne', '.vt-pe', '.vt-ar']) {
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne', '.vt-pe', '.vt-ar', '.vt-br']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br)[ .]/);
         checked += 1;
       }
     }
@@ -328,7 +328,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     await loadAllEntetes();
     const bio = 'Tissus choisis un par un.';
     const SERIE3_AVEC = ['perle', 'artisan'];
-    const SERIE3_SANS = ['audace', 'fleurie', 'prisme', 'pop', 'chrome', 'neon'];
+    const SERIE3_SANS = ['audace', 'fleurie', 'prisme', 'pop', 'chrome', 'neon', 'braise'];
     for (const k of SERIE3_AVEC) {
       const html = renderEntete(k as EnteteKey, { ...SF, bio } as never, TRUST as never, {});
       expect(html, `${k} must draw her présentation — its board shows one`).toContain(bio);
@@ -337,7 +337,33 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
       const html = renderEntete(k as EnteteKey, { ...SF, bio } as never, TRUST as never, {});
       expect(html, `${k} drew a bio; only Perle and Artisan show one`).not.toContain(bio);
     }
-    expect(SERIE3_AVEC.length + SERIE3_SANS.length, 'the série 3 set shrank — this scan is going stale').toBe(8);
+    expect(SERIE3_AVEC.length + SERIE3_SANS.length, 'the série 3 set shrank — this scan is going stale').toBe(9);
+  });
+
+  it('THE HONESTY MARKERS are on EVERY built style — proof XOR badge, never both', async () => {
+    // The single most important invariant these headers carry, asserted as a
+    // SET rather than per style. Braise shipped its proof chip WITHOUT
+    // `data-role="reputation"` and no per-style test caught it, because I had
+    // not written that style's test yet — a marker that is only checked where
+    // someone remembered to check it is not an invariant.
+    const { loadAllEntetes, isLazyEntete } = await import('../src/vitrine/entetes/registry');
+    await loadAllEntetes();
+    const classique = renderEntete('classique', SF as never, TRUST as never, {});
+    const built = (ENTETE_KEYS as readonly EnteteKey[]).filter(
+      (k) => k !== 'classique' && (isLazyEntete(k) || renderEntete(k, SF as never, TRUST as never, {}) !== classique),
+    );
+    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(22);
+
+    const zero = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
+    for (const k of built) {
+      const avec = renderEntete(k, SF as never, TRUST as never, {});
+      expect(avec, `${k}: a proof line with no data-role="reputation"`).toContain('data-role="reputation"');
+      expect(avec, `${k}: showed the « nouvelle » badge alongside real history`).not.toContain('data-role="chip-nouvelle"');
+
+      const sans = renderEntete(k, SF as never, zero as never, {});
+      expect(sans, `${k}: no « nouvelle » badge at zero history`).toContain('data-role="chip-nouvelle"');
+      expect(sans, `${k}: claimed sales it cannot have`).not.toContain('data-role="reputation"');
+    }
   });
 
   it('no lazy chunk CLAIMS a compiled-in style root class', async () => {
