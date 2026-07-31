@@ -288,18 +288,41 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po']) {
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3)[ .]/);
         checked += 1;
       }
     }
     expect(checked, 'no selectors matched — the scan asserted over nothing').toBeGreaterThan(30);
+  });
+
+  it('no lazy chunk CLAIMS a compiled-in style root class', async () => {
+    // CHROME nearly did. Its natural prefix is « ch », which série 1's
+    // Chaleureux (.vt-ch) already owns — a lazy sheet using it would repaint
+    // that header the moment a Chrome shop was loaded, and only for buyers who
+    // had visited one. It ships as .vt-ch3 instead; the canon KEY is unchanged.
+    // This checks the whole set, because the next collision will look just as
+    // natural as that one did.
+    const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
+    await loadAllEntetes();
+    // COMMENTS ARE STRIPPED FIRST, and that is not a loophole: this guard is
+    // about what the CASCADE sees. Chrome's own docblock explains the collision
+    // it avoids and necessarily names « .vt-ch » to do so — scanning prose made
+    // the guard fail on the very comment documenting the fix.
+    const sheet = loadedEnteteCss().replace(/\/\*[\s\S]*?\*\//g, '');
+    const COMPILED = ['ry', 'he', 'ch', 'cr', 'dy', 'pr', 'te', 'et', 'do', 'ti'];
+    for (const root of COMPILED) {
+      // whole-token match, so .vt-ch3 must NOT trip the .vt-ch check
+      const claimed = new RegExp('\\.vt-' + root + '(?![\\w-])').test(sheet);
+      expect(claimed, 'a lazy chunk writes .vt-' + root + ', a compiled-in root').toBe(false);
+    }
+    expect(sheet, 'the sheet is empty — this scan would pass vacuously').toContain('.vt-ch3');
   });
 
   it('no style module hides a BACKTICK inside its css template literal', async () => {

@@ -139,6 +139,8 @@ const SERIE3_FRAMES = {
   // window's chrome bar, its black border and its −1° tilt are frame, not
   // photo, so none of them enters the silhouette.
   pop: { aspect: 326 / 158, circle: false, radii: [0, 0, 6 / 326, 6 / 326] },
+  // Chrome — a 168 disc pushed off the right edge at −38, ringed in chrome. The
+  chrome: CIRCLE,
 } as const satisfies Record<string, FrameSpec>;
 
 const SERIE3_FOCUS = {
@@ -146,6 +148,7 @@ const SERIE3_FOCUS = {
   fleurie: { x: 44, y: 26 },
   prisme: { x: 50, y: 24 },
   pop: { x: 50, y: 26 },
+  chrome: { x: 40, y: 28 },
 } as const satisfies Record<string, PhotoFocus>;
 
 const SERIE2_FRAMES = {
@@ -293,6 +296,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   fleurie: { x: 50, y: 32 },
   prisme: { x: 50, y: 30 },
   pop: { x: 50, y: 30 },
+  chrome: { x: 40, y: 28 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

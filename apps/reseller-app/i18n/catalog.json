@@ -1488,6 +1488,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_chrome",
+  "fr": "Chrome",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_chrome",
+  "fr": "Noir laqu\u00e9, lettres argent et violet.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",

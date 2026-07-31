@@ -918,6 +918,12 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.ch_level_up",
+  "fr": "Niveau sup\u00e9rieur",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.au_partenaire",
   "fr": "Partenaire de confiance",
   "register": "selling",
