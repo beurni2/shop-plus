@@ -147,21 +147,42 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     expect(loadedEntete('safran')!.css).toContain('.sa-name.vt-ent-long');
   });
 
-  it('EVERY lazy style keeps its CSS to its OWN root — three resident sheets never collide', async () => {
+  it('GRENAT — its chunk draws, stays full-width (no long-name tier), and inverts the trust card', async () => {
+    await loadEntete('grenat');
+    expect(loadedEntete('grenat'), 'the grenat chunk did not register').toBeDefined();
+    const html = renderEntete('grenat', SF as never, TRUST as never, {});
+    expect(html).toContain('class="vt-ent vt-gr"');
+    expect(html).toContain('Gounghin, Ouagadougou');
+    expect(html).toContain('data-role="reputation"');
+    expect(html).not.toContain('data-role="chip-nouvelle"');
+
+    // « Pleine largeur (Indigo, Couture, Grenat) : pas de règle fixe » — even a
+    // 24-char name must NOT take a fixed tier here; it wraps instead. Safran
+    // does the opposite, and getting the two confused is the easy mistake.
+    const long = renderEntete('grenat', { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});
+    expect(long, 'grenat is full-width and must not size a long name down').not.toContain('.gr-name.vt-ent-long');
+    expect(loadedEntete('grenat')!.css, 'a fixed tier crept into a full-width style').not.toContain('.gr-name.vt-ent-long');
+
+    // « seule carte sombre sur page claire de la série » — the inversion is the
+    // point of this style's foot, so it is pinned rather than left to drift.
+    expect(loadedEntete('grenat')!.css).toContain('background: var(--gr-bordeaux)');
+  });
+
+  it('EVERY lazy style keeps its CSS to its OWN root — four resident sheets never collide', async () => {
     // the guard that has to grow with the set: as each of the twenty lands, its
     // rules join one shared <style> element, and a single unscoped selector
     // would repaint a shop that never chose that style.
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa']) {
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr)[ .]/);
         checked += 1;
       }
     }

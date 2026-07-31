@@ -295,6 +295,32 @@ export const zoneLine = (v: Vals, pin: string): string => `${pin}${t('vit.verifi
 export const verifieeBare = (): string => t('vit.verifiee').replace(/\s*·\s*$/, '');
 
 /**
+ * WELD A SEAL INTO THE NAME'S ACCENT SEGMENT — the handoff's « anti-orphelin du
+ * sceau »: « le sceau vit dans un span white-space:nowrap avec nameLast … il ne
+ * reste jamais seul sur une ligne ».
+ *
+ * MEASURED, TWICE. `nameTail` already wraps the accent segment in `.vt-ent-acc`
+ * (inline-block, nowrap), but a seal appended AFTER it is a separate atomic
+ * inline, and the line may break between the two. It did: Grenat at 320 put all
+ * of « Atelier Élégance-Burkina » on one line and left its seal alone on the
+ * next, centred. A U+2060 WORD JOINER between them did NOT fix it — re-measured
+ * after the change, the break was still there, because Chromium does not carry
+ * a joiner across two atomic inline boxes. So the seal has to go INSIDE the
+ * unbreakable box, which is what the contract said in the first place.
+ *
+ * Injecting before the tail's two closing tags places the seal inside
+ * `.vt-ent-acc`, so it is part of that atomic box: it cannot wrap away from the
+ * accent word, and when the box does not fit the line breaks BEFORE it — at the
+ * space or the hyphen — which is the ENTETES-F behaviour, not the overflow that
+ * welding the WHOLE tail once caused. A tail of an unexpected shape appends
+ * rather than silently losing the seal.
+ */
+export function weldSeal(tail: string, seal: string): string {
+  const close = '</span></span>';
+  return tail.endsWith(close) ? `${tail.slice(0, -close.length)}${seal}${close}` : `${tail}${seal}`;
+}
+
+/**
  * The two floating controls. §2.5: back only when the buyer arrived from a
  * product, and share then slides one notch. Both are ≥ 44×44 (HANDOFF §6 —
  * the visuals' 40 rounds are carried to 44, the one dimensional deviation).

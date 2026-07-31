@@ -135,6 +135,10 @@ const SERIE2_FRAMES = {
   // the buyer computes), only the left third is then hidden — which is why the
   // relevé's default bias is 58 % and not 50 %, « le sujet fuit le bord coupé ».
   safran: CIRCLE,
+  // Grenat — the cameo: a 136×176 OVAL, which the FrameSpec vocabulary carries
+  // exactly (circle:true is « radius = half the box », an ellipse on a
+  // non-square box). Her drag previews the real portrait shape.
+  grenat: { aspect: 136 / 176, circle: true, radii: [0.5, 0.5, 0.5, 0.5] },
   cauris: { aspect: (0.46 * 360) / 340, circle: false, radii: [0, 0, 0, 0] },
 } as const satisfies Record<string, FrameSpec>;
 
@@ -156,6 +160,8 @@ const SERIE2_FOCUS = {
   // « cover / 58% 30% (le sujet fuit le bord coupé) » — the x-bias is not a
   // taste call, it is what keeps her face off the 58px the header clips.
   safran: { x: 58, y: 30 },
+  // « cover / 50% 22% » — a cameo crops tight, so the bias sits high.
+  grenat: { x: 50, y: 22 },
 } as const satisfies Record<string, PhotoFocus>;
 
 /** Cover silhouettes, from the contract's own dimensions (ENTETES-A relevé):
@@ -247,6 +253,8 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   // Safran frames the SAME disc whichever photo fills it, so the portrait
   // fallback keeps the cut-edge bias too.
   safran: { x: 58, y: 30 },
+  // the small overlapping portrait, at the relevé's own bias
+  grenat: { x: 50, y: 32 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

@@ -8,6 +8,7 @@ import {
   hasPhoto,
   ventesLine,
   zoneLine,
+  weldSeal,
   type Vals,
 } from '../entetes';
 import type { EnteteUnit } from './registry';
@@ -55,7 +56,7 @@ function render(v: Vals): string {
     '</div>',
     '<div class="co-col" data-role="vitrine-identity">',
     surpiqure(),
-    `<div class="co-name">${v.tail}<span class="co-seal" aria-hidden="true">${iconCheckEnt(12, '#161210', 3.4)}</span></div>`,
+    `<div class="co-name">${weldSeal(v.tail, `<span class="co-seal" aria-hidden="true">${iconCheckEnt(12, '#161210', 3.4)}</span>`)}</div>`,
     surpiqure(),
     v.hasTag ? `<div class="co-bienv"><v>${v.tagline}</v></div>` : '',
     `<div class="co-zone">${zoneLine(v, iconPinSolid(13, '#C4AE7E', '#161210'))}</div>`,

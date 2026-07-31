@@ -106,6 +106,7 @@ export const PICKABLE_HEADER_STYLES = [
   'indigo',
   'couture',
   'safran',
+  'grenat',
 ] as const;
 
 /** Her selected header with the `classique` fallback: an OLD service wire omits

@@ -8,6 +8,7 @@ import {
   hasPhoto,
   ventesLine,
   zoneLine,
+  weldSeal,
   type Vals,
 } from '../entetes';
 import type { EnteteUnit } from './registry';
@@ -67,7 +68,7 @@ function render(v: Vals): string {
       : `<span class="sa-av-mono">${v.mono}</span>`,
     `<span class="sa-av-badge" aria-hidden="true">${iconCheckEnt(9, '#FFFFFF', 3.6)}</span>`,
     '</div>',
-    `<div class="sa-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}<span class="sa-seal" aria-hidden="true"><span class="sa-seal-d">${iconCheckEnt(10, '#FFFFFF', 3.4)}</span><span class="sa-seal-f"></span></span></div>`,
+    `<div class="sa-name${v.longName ? ' vt-ent-long' : ''}">${weldSeal(v.tail, `<span class="sa-seal" aria-hidden="true"><span class="sa-seal-d">${iconCheckEnt(10, '#FFFFFF', 3.4)}</span><span class="sa-seal-f"></span></span>`)}</div>`,
     v.hasTag ? `<div class="sa-bienv"><v>${v.tagline}</v></div>` : '',
     `<div class="sa-zone">${zoneLine(v, iconPinEnt(11, '#C96F2C', 2.3))}</div>`,
     v.hasBio ? `<div class="sa-bio"><v>${v.bio}</v></div>` : '',

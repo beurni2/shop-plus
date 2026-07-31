@@ -1416,6 +1416,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_grenat",
+  "fr": "Grenat",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_grenat",
+  "fr": "Un faire-part\u202f: portrait ovale, tout au centre.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",
