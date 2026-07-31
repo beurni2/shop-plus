@@ -34,9 +34,12 @@ export type CoverStatus = 'none' | 'uploading' | 'pending' | 'live' | 'error';
  * runtime @platform imports, same as the Storefront shape below). A Node-side
  * conformance test pins this list to the canon `STOREFRONT_HEADER_STYLES`
  * export — drift fails in vitest, never on a device.
- * ENTETES-E0 (canon v2.3.0, founder-authorized 2026-07-30): the Beurni Boss
- * five ride after the six. ENTETES-E: their buyer render units + catalog
- * strings exist, so `PICKABLE_HEADER_STYLES` below now carries all eleven.
+ * ENTETES-E0 (canon v2.3.0): the Beurni Boss five ride after the six.
+ * ENTETES-H (canon v2.4.0, founder-authorized 2026-07-31): séries 2/3/5 append
+ * twenty more. THE MIRROR GROWS WITH CANON; `PICKABLE_HEADER_STYLES` below does
+ * NOT — none of the twenty has a buyer render unit or catalog strings yet, and
+ * offering a seller a style that silently draws the default header would be a
+ * worse failure than refusing it, because it looks like the app is broken.
  */
 export const HEADER_STYLES = [
   'classique',
@@ -50,16 +53,40 @@ export const HEADER_STYLES = [
   'balafon',
   'seance',
   'cauris',
+  // ENTETES-H — séries 2, 3 and 5 (canon v2.4.0). Vocabulary only.
+  'indigo',
+  'couture',
+  'safran',
+  'grenat',
+  'kraft',
+  'audace',
+  'fleurie',
+  'prisme',
+  'pop',
+  'chrome',
+  'neon',
+  'perle',
+  'artisan',
+  'braise',
+  'graffiti',
+  'dunda',
+  'karite',
+  'bronze',
+  'calebasse',
+  'pagne',
 ] as const;
 export type HeaderStyleKey = (typeof HEADER_STYLES)[number];
 
 /**
  * ENTETES-E0 — what the picker OFFERS: only styles whose buyer render exists
- * and whose picker strings live in the catalog. ENTETES-E: the Beurni Boss
- * five have their buyer render units and their catalog strings now, so the
- * picker offers all eleven — the list stays separate from HEADER_STYLES
- * because the law stays: vocabulary may grow ahead of the picker, the picker
- * never runs ahead of the render.
+ * and whose picker strings live in the catalog. Still ELEVEN at canon v2.4.0:
+ * the twenty keys of séries 2/3/5 are valid vocabulary and nothing more.
+ *
+ * THE LAW, restated because v2.4.0 is the first bump that tests it: vocabulary
+ * may grow ahead of the picker; THE PICKER NEVER RUNS AHEAD OF THE RENDER. A
+ * seller who picks « Dunda » and gets the default header has been told the app
+ * works when it does not — a quieter, worse failure than the service refusing
+ * an unknown key outright.
  */
 export const PICKABLE_HEADER_STYLES = [
   'classique',

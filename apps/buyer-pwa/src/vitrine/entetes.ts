@@ -65,6 +65,30 @@ export const ENTETE_KEYS = [
   'balafon',
   'seance',
   'cauris',
+  // ENTETES-H (canon v2.4.0) — séries 2, 3 and 5. VOCABULARY, not drawings:
+  // every key here must be NAMEABLE because a storefront may already carry it,
+  // and `renderEntete` falls back to `classique` for any key whose unit has not
+  // landed (the ENTETES-E0 law). The picker offers none of them yet.
+  'indigo',
+  'couture',
+  'safran',
+  'grenat',
+  'kraft',
+  'audace',
+  'fleurie',
+  'prisme',
+  'pop',
+  'chrome',
+  'neon',
+  'perle',
+  'artisan',
+  'braise',
+  'graffiti',
+  'dunda',
+  'karite',
+  'bronze',
+  'calebasse',
+  'pagne',
 ] as const;
 export type EnteteKey = (typeof ENTETE_KEYS)[number];
 

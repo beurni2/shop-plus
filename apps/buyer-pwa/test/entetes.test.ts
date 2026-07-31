@@ -312,7 +312,7 @@ describe('ENTETES-A — ?entete= is the founder’s preview lever and nothing mo
     expect(resolveEntete('?entete=<script>')).toBe('classique');
   });
 
-  it('the closed list is exactly the eleven, classique first, the Beurni Boss five after the six', () => {
+  it('the closed list is the canon thirty-one — the built eleven first, in order, then vocabulary', () => {
     expect([...ENTETE_KEYS]).toEqual([
       'classique',
       'royale',
@@ -325,6 +325,35 @@ describe('ENTETES-A — ?entete= is the founder’s preview lever and nothing mo
       'balafon',
       'seance',
       'cauris',
+      // ENTETES-H — vocabulary (canon v2.4.0). NAMEABLE, not drawn: a stored
+      // storefront may carry one, and renderEntete falls back to classique
+      // until its unit lands.
+      'indigo',
+      'couture',
+      'safran',
+      'grenat',
+      'kraft',
+      'audace',
+      'fleurie',
+      'prisme',
+      'pop',
+      'chrome',
+      'neon',
+      'perle',
+      'artisan',
+      'braise',
+      'graffiti',
+      'dunda',
+      'karite',
+      'bronze',
+      'calebasse',
+      'pagne',
+    ]);
+    // the BUILT eleven keep their EXACT positions — this is what guarantees a
+    // stored value can never come back as a different header after a canon bump
+    expect([...ENTETE_KEYS].slice(0, 11)).toEqual([
+      'classique', 'royale', 'heritage', 'chaleureux', 'cristal', 'dynamique',
+      'masque', 'harmattan', 'balafon', 'seance', 'cauris',
     ]);
   });
 });

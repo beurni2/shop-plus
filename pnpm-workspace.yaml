@@ -23,16 +23,22 @@ onlyBuiltDependencies:
 # (canon v0.5.0; founder ruling: tags are unreliable, the release ref is
 # the commit).
 overrides:
-  # @platform/contracts re-pinned to canon v2.3.0 (sha 08d2bd2) — ENTETES-E0:
-  # STOREFRONT_HEADER_STYLES grows six → eleven (the founder's Beurni Boss
-  # handoff, « En-têtes Boutique — Série 6 · Burkina Faso cinématique »:
-  # masque · harmattan · balafon · seance · cauris, appended after the six).
-  # Additive MINOR over v2.2.0 (ENTETES-C, sha 17b5d7a — photo focus on
-  # cover + avatar). @platform/kernel-types stays at 642f849: its content is
-  # unchanged through v2.3.0 (version-bump-only commits), and the override
-  # routes contracts' transitive kernel-types dep there regardless.
+  # @platform/contracts re-pinned to canon v2.4.0 (sha d8e8da8) — ENTETES-H:
+  # STOREFRONT_HEADER_STYLES grows eleven → thirty-one (séries 2, 3 and 5 of
+  # « Design_brief_for_Claude_4.zip », founder-authorized 2026-07-31), appended
+  # after the eleven so every stored value keeps its exact position.
+  # Additive MINOR over v2.3.0 (ENTETES-E0, sha 08d2bd2 — the Beurni Boss five,
+  # whose KEYS now draw the série 4 contract units). @platform/kernel-types
+  # stays at 642f849: its content is unchanged through v2.4.0 (version-bump-only
+  # commits), and the override routes contracts' transitive kernel-types dep
+  # there regardless.
+  #
+  # THIS OVERRIDE IS THE REAL PIN. Editing the per-package dependency strings
+  # alone changes nothing: pnpm routes every resolution through here, so a
+  # repin that misses this line silently keeps the OLD canon while every
+  # package.json claims the new one.
   "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#642f849b9b3f93c2eb4f6c0de9421a9081443a6e&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#08d2bd2bab60bd05c6181207dca96abd6b4aa6ce&path:packages/contracts"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#d8e8da8dc0878c79cc28d39d877717d2008c3479&path:packages/contracts"
   # @platform/ui-tokens is UNIFIED at canon v0.9.9 (1c98ad1, + Storefront aggregate fields WO-5.13) — WO-7.0/WO-7.2b/SP#001-A
   # killed the WO-5.3 per-app skew and re-pinned the whole workspace to the current
   # release in one bump. reseller-app runs its visual layer on the Grand Teint API

@@ -133,7 +133,14 @@ const BEURNI_FOCUS = {
  *  Royale medallion 188×188 · Héritage strip 238 tall full-width · Chaleureux
  *  galet 150×198 (radii 76/58/72/62 of 150) · Cristal frame 196 tall
  *  full-width · Dynamique column 152 wide full-height · classique hero column. */
-const COVER_FRAMES: Record<HeaderStyleKey, FrameSpec> = {
+/**
+ * ENTETES-H — PARTIAL since canon v2.4.0. The vocabulary carries 31 keys but
+ * only the ELEVEN that are built have a silhouette here; a key with no buyer
+ * render unit has no shape to preview either. The accessor falls back to
+ * `classique`, which is exactly what the buyer's `renderEntete` draws for the
+ * same key — the two sheets agree on the fallback as well as on the shapes.
+ */
+const COVER_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = {
   classique: RECT(3 / 4, 0.07),
   royale: CIRCLE,
   heritage: RECT(360 / 238, 24 / 360),
@@ -163,7 +170,7 @@ export function frameSpecFor(style: HeaderStyleKey, kind: FrameKind): FrameSpec 
   // Her portrait: a circle medallion in the six (and classique's ring); the
   // Série 4 five frame it in their own contract silhouette (AVATAR_FRAMES).
   if (kind === 'avatar') return AVATAR_FRAMES[style] ?? CIRCLE;
-  return COVER_FRAMES[style];
+  return COVER_FRAMES[style] ?? COVER_FRAMES.classique!;
 }
 
 /**
@@ -173,7 +180,9 @@ export function frameSpecFor(style: HeaderStyleKey, kind: FrameKind): FrameSpec 
  * default 50% 50%). Avatars: Héritage's medallion carries 50% 32% in the
  * sheet's CSS; every other avatar renders at the default centre.
  */
-const COVER_DEFAULTS: Record<HeaderStyleKey, PhotoFocus> = {
+/** Partial for the same reason as COVER_FRAMES: an unbuilt style has no
+ *  contract crop bias, and falls back to what classique renders. */
+const COVER_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   classique: { x: 50, y: 50 },
   royale: { x: 42, y: 28 },
   heritage: { x: 50, y: 18 },
@@ -205,5 +214,5 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {
   if (kind === 'avatar') return AVATAR_DEFAULTS[style] ?? { x: 50, y: 50 };
-  return COVER_DEFAULTS[style];
+  return COVER_DEFAULTS[style] ?? COVER_DEFAULTS.classique!;
 }

@@ -268,7 +268,7 @@ describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
     expect(headerStyleOf({ ...DEFAULT_STOREFRONT, headerStyle: 'bogolan' })).toBe('classique');
   });
 
-  it('PICKABLE_HEADER_STYLES is EXACTLY the canon eleven, in canon order', async () => {
+  it('PICKABLE_HEADER_STYLES is the ELEVEN that are BUILT — a subset of canon, in canon order', async () => {
     const { HEADER_STYLES, PICKABLE_HEADER_STYLES } = await import('../src/vitrine/customize/storefront');
     expect([...PICKABLE_HEADER_STYLES]).toEqual([
       'classique',
@@ -283,7 +283,22 @@ describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
       'seance',
       'cauris',
     ]);
-    expect([...PICKABLE_HEADER_STYLES]).toEqual([...HEADER_STYLES]);
+    // ENTETES-H — the picker is NO LONGER equal to the vocabulary, and asserting
+    // equality would now enforce the opposite of this repo's own law:
+    // « vocabulary may grow ahead of the picker; the picker never runs ahead of
+    // the render ». Canon carries 31 keys at v2.4.0; only these 11 have a buyer
+    // render unit and catalog strings. What must hold is CONTAINMENT and ORDER.
+    expect(PICKABLE_HEADER_STYLES.length).toBeLessThanOrEqual(HEADER_STYLES.length);
+    for (const k of PICKABLE_HEADER_STYLES) expect(HEADER_STYLES, k).toContain(k);
+    // canon order is preserved inside the pickable subset — the picker must
+    // never reshuffle the vocabulary it draws from
+    const canonIndex = PICKABLE_HEADER_STYLES.map((k) => HEADER_STYLES.indexOf(k));
+    expect(canonIndex).toEqual([...canonIndex].sort((a, b) => a - b));
+    expect(canonIndex).not.toContain(-1);
+    // and the twenty that have no unit yet are ABSENT from the picker, by name
+    for (const unbuilt of ['indigo', 'dunda', 'graffiti', 'karite', 'pop']) {
+      expect(PICKABLE_HEADER_STYLES, unbuilt).not.toContain(unbuilt);
+    }
   });
 
   it('every PICKABLE key has BOTH its picker strings in the catalog (t throws on a missing key)', async () => {
