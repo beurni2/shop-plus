@@ -186,21 +186,42 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     expect(loadedEntete('kraft')!.css).toContain('.kr-name.vt-ent-long');
   });
 
-  it('EVERY lazy style keeps its CSS to its OWN root — five resident sheets never collide', async () => {
+  it('AUDACE — its chunk draws, and the name is BICOLORE through the accent span', async () => {
+    await loadEntete('audace');
+    expect(loadedEntete('audace'), 'the audace chunk did not register').toBeDefined();
+    const html = renderEntete('audace', SF as never, TRUST as never, {});
+    expect(html).toContain('class="vt-ent vt-au"');
+    expect(html).toContain('Gounghin, Ouagadougou');
+    expect(html).toContain('data-role="reputation"');
+
+    // « Nom bicolore : le dernier segment porte la couleur d'accent » — carried
+    // by the SAME span the anti-orphan rule produces, not a second mechanism
+    expect(html).toContain('vt-ent-acc');
+    expect(loadedEntete('audace')!.css).toContain('.au-name .vt-ent-acc { color: var(--au-orange); }');
+
+    // série 3 draws the bio on Perle and Artisan ONLY — not here
+    const withBio = renderEntete('audace', { ...SF, bio: 'Tissus choisis un par un.' } as never, TRUST as never, {});
+    expect(withBio, 'audace drew a bio; only Perle and Artisan show one').not.toContain('Tissus choisis');
+
+    // the fixed decorative line is a CATALOG string, never inline (loi 6)
+    expect(html).toContain('Partenaire de confiance');
+  });
+
+  it('EVERY lazy style keeps its CSS to its OWN root — every resident sheet stays scoped', async () => {
     // the guard that has to grow with the set: as each of the twenty lands, its
     // rules join one shared <style> element, and a single unscoped selector
     // would repaint a shop that never chose that style.
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr']) {
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au)[ .]/);
         checked += 1;
       }
     }

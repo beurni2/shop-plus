@@ -1440,6 +1440,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_audace",
+  "fr": "Audace",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_audace",
+  "fr": "Marine et orange, lignes en diagonale.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",

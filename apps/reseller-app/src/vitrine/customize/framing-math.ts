@@ -123,6 +123,18 @@ const BEURNI_FRAMES = {
  * 360×300 landscape band with square corners, because that is literally what
  * the buyer draws.
  */
+/** ENTETES-H · SÉRIE 3 — ten faithful replicas of the supplied boards. */
+const SERIE3_FRAMES = {
+  // Audace — a 172 disc pushed off the right edge at −42, so only ~130 show.
+  // Same honest approximation as Safran: the CROP is exact, the cut is not
+  // drawn, and the default bias (40 %) is what keeps her face off the cut.
+  audace: CIRCLE,
+} as const satisfies Record<string, FrameSpec>;
+
+const SERIE3_FOCUS = {
+  audace: { x: 40, y: 28 },
+} as const satisfies Record<string, PhotoFocus>;
+
 const SERIE2_FRAMES = {
   indigo: { aspect: 360 / 300, circle: false, radii: [0, 0, 0, 0] },
   // Couture — a letterbox band, and the ONE style of the series with square
@@ -196,6 +208,7 @@ const COVER_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = {
   // the classique placeholder these once carried.
   ...BEURNI_FRAMES,
   ...SERIE2_FRAMES,
+  ...SERIE3_FRAMES,
 };
 
 /**
@@ -235,6 +248,7 @@ const COVER_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   // sheet starts her drag exactly there.
   ...BEURNI_FOCUS,
   ...SERIE2_FOCUS,
+  ...SERIE3_FOCUS,
 };
 
 /**
@@ -262,6 +276,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   // the small overlapping portrait, at the relevé's own bias
   grenat: { x: 50, y: 32 },
   kraft: { x: 50, y: 32 },
+  audace: { x: 40, y: 28 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {
