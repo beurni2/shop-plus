@@ -224,7 +224,10 @@ export const K_RAW_STYLES = {
   /* K7 aperçu */
   apercuCover: { height: 116, borderRadius: 22, overflow: 'hidden', alignItems: 'flex-end', justifyContent: 'flex-end' },
   apercuIdentity: { alignItems: 'center', marginTop: -30 },
-  apercuAvatar: { width: 64, height: 64, borderRadius: 99, borderWidth: 3, borderColor: '#F4EFE6', alignItems: 'center', justifyContent: 'center' },
+  // APERCU-PHOTOS-1 — `overflow: hidden` is load-bearing now that her real
+  // portrait can fill this circle: an absoluteFill Image without it paints a
+  // SQUARE over the round border, which is worse than the monogram it replaced.
+  apercuAvatar: { width: 64, height: 64, borderRadius: 99, borderWidth: 3, borderColor: '#F4EFE6', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   apercuAvatarText: { fontFamily: DISPLAY_FAMILY, fontSize: 24, fontWeight: '800' },
   apercuName: { fontFamily: DISPLAY_FAMILY, fontSize: 24, fontWeight: '800', letterSpacing: -0.48, color: '#1C1710' },
   apercuZone: { fontFamily: TEXT_FAMILY, fontSize: 12.5, color: '#6F6355', marginTop: 4 },
