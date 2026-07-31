@@ -166,6 +166,8 @@ const SERIE3_FRAMES = {
   // Karité — the CUSHION: 162 square at border-radius 42%, which is a squircle
   // and deliberately NOT a circle. The leaf resting on its edge is decoration.
   karite: { aspect: 1, circle: false, radii: [0.42, 0.42, 0.42, 0.42] },
+  // Bronze — l'arche de médaillon 156×206, ronde en tête et carrée au pied.
+  bronze: { aspect: 156 / 206, circle: false, radii: [0.5, 0.5, 12 / 156, 12 / 156] },
 } as const satisfies Record<string, FrameSpec>;
 
 const SERIE3_FOCUS = {
@@ -181,6 +183,7 @@ const SERIE3_FOCUS = {
   graffiti: { x: 50, y: 24 },
   dunda: { x: 50, y: 26 },
   karite: { x: 50, y: 28 },
+  bronze: { x: 50, y: 24 },
 } as const satisfies Record<string, PhotoFocus>;
 
 const SERIE2_FRAMES = {
@@ -336,6 +339,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   graffiti: { x: 50, y: 24 },
   dunda: { x: 50, y: 26 },
   karite: { x: 50, y: 28 },
+  bronze: { x: 50, y: 24 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

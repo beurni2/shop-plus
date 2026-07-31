@@ -1584,6 +1584,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_bronze",
+  "fr": "Bronze",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_bronze",
+  "fr": "Charbon et bronze, un médaillon coulé.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",

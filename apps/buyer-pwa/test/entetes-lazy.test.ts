@@ -288,14 +288,14 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne', '.vt-pe', '.vt-ar', '.vt-br', '.vt-gf', '.vt-du', '.vt-ka']) {
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne', '.vt-pe', '.vt-ar', '.vt-br', '.vt-gf', '.vt-du', '.vt-ka', '.vt-bz']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br|gf|du|ka)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br|gf|du|ka|bz)[ .]/);
         checked += 1;
       }
     }
@@ -352,7 +352,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const built = (ENTETE_KEYS as readonly EnteteKey[]).filter(
       (k) => k !== 'classique' && (isLazyEntete(k) || renderEntete(k, SF as never, TRUST as never, {}) !== classique),
     );
-    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(26);
+    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(27);
 
     const zero = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
     for (const k of built) {
@@ -387,6 +387,84 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
       expect(claimed, 'a lazy chunk writes .vt-' + root + ', a compiled-in root').toBe(false);
     }
     expect(sheet, 'the sheet is empty — this scan would pass vacuously').toContain('.vt-ch3');
+  });
+
+  it('THE SÉRIE 5 TIER — 24 px on the split columns, and 20 px on Karité alone', async () => {
+    // « cinq colonnes fendues : nom > 14 caractères → taille fixe (Karité
+    // 20 px ; les autres 24 px) ». One clause, one exception, and the exception
+    // is the whole reason this is asserted as a SET: a new série 5 unit copying
+    // its neighbour's sheet inherits the wrong number silently, and a 24 px
+    // name in Karité's narrower Georgia column runs into the photo.
+    const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
+    await loadAllEntetes();
+    const TIER: Record<string, [string, number]> = {
+      dunda: ['du', 24], karite: ['ka', 20], bronze: ['bz', 24],
+    };
+    for (const [key, [p, px]] of Object.entries(TIER)) {
+      const long = renderEntete(key as EnteteKey, { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});
+      expect(long, `${key} is a split column and must take the fixed tier`).toContain('vt-ent-long');
+      expect(head(key as EnteteKey), `${key} sized a SHORT name down`).not.toContain('vt-ent-long');
+      expect(loadedEntete(key as EnteteKey)!.css, `${key}: wrong série 5 tier`)
+        .toContain(`.vt-${p} .${p}-name.vt-ent-long { font-size: ${px}px; }`);
+    }
+  });
+
+  it('GRADIENT-CLIPPED TEXT always has a SOLID colour under it — her name never goes invisible', async () => {
+    // Bronze's `.txb`, Chrome's `.txc`/`.txv` and série 4's gold all paint HER
+    // SHOP NAME by clipping a gradient to the glyphs. The declaration that does
+    // it — `-webkit-text-fill-color: transparent` — is also the declaration
+    // that erases the name outright on a browser that cannot clip: transparent
+    // letters on a dark ground, nothing rendered, no error. There is no worse
+    // failure in a header than the shop's name being gone.
+    //
+    // So the law is: the same selector carries a plain `color:` EARLIER in the
+    // sheet, and the gradient sits inside `@supports (background-clip: text)`.
+    // Asserted as a SET over BOTH sheets — six rules obey it today, and the
+    // series still to come will be written the same way from the same relevés.
+    const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
+    await loadAllEntetes();
+    const { ENTETES_STYLES } = await import('../src/vitrine/entetes');
+
+    // innermost rules only: `[^{}]*` cannot cross a brace, so an @supports or
+    // @container wrapper is skipped and each match is one real declaration block
+    const RULE = /([^{}]*)\{([^{}]*)\}/g;
+    const solidColour = (body: string): boolean => {
+      const m = /(?:^|[;{\s])color:\s*([^;]+)/.exec(body);
+      return m !== null && m[1]!.trim() !== 'transparent';
+    };
+
+    let checked = 0;
+    for (const raw of [loadedEnteteCss(), ENTETES_STYLES]) {
+      // comments first: a docblock sitting above a rule is swallowed into the
+      // selector otherwise, and Chrome's — which explains this very fallback —
+      // made the scan report the opposite of the truth.
+      const sheet = raw.replace(/\/\*[\s\S]*?\*\//g, '');
+      const rules: { sel: string; body: string; at: number }[] = [];
+      RULE.lastIndex = 0;
+      for (let m = RULE.exec(sheet); m !== null; m = RULE.exec(sheet)) {
+        rules.push({ sel: m[1]!.trim(), body: m[2]!, at: m.index });
+      }
+      expect(rules.length, 'the rule scan found nothing — it would pass vacuously').toBeGreaterThan(50);
+
+      for (const rule of rules) {
+        if (!rule.body.includes('-webkit-text-fill-color: transparent')) continue;
+        checked += 1;
+        const before = rules.filter((r) => r.at < rule.at && r.sel === rule.sel && solidColour(r.body));
+        expect(
+          before.length,
+          `${rule.sel}: clips a gradient to text with NO solid colour declared first — ` +
+            'her name disappears wherever background-clip is unsupported',
+        ).toBeGreaterThan(0);
+        const guard = sheet.lastIndexOf('@supports (background-clip: text)', rule.at);
+        expect(guard, `${rule.sel}: the gradient is not behind an @supports guard`).toBeGreaterThan(-1);
+        expect(
+          before.some((r) => r.at < guard),
+          `${rule.sel}: its solid colour is declared INSIDE the @supports block, so it is not a fallback`,
+        ).toBe(true);
+      }
+    }
+    // Bronze (.txb) · Chrome (.txc, .txv) · Prestige · Étendard · Tissage
+    expect(checked, 'no gradient-clipped text found — this scan asserted over nothing').toBe(6);
   });
 
   it('no style module hides a BACKTICK inside its css template literal', async () => {
