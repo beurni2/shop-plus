@@ -330,6 +330,24 @@ type ModeBalaye = 'A' | 'B' | null;
  * pins it to the face the cliente actually receives.
  */
 async function policesChargees(page: Page): Promise<void> {
+  // …AND IT HAS TO WAIT FOR THE FACES TO EXIST FIRST. The version without this
+  // step still flaked, and only inside the full suite: `document.fonts` is
+  // populated when the stylesheet is parsed, so on a machine busy enough that
+  // the sheet has not landed yet, the set is EMPTY, `Promise.all([])` resolves
+  // instantly, `fonts.ready` resolves against nothing, and the measurement runs
+  // on the fallback face after all. The real face then arrives and re-lays the
+  // text out — after the assertion.
+  //
+  // Measured: C5's « Vous inspectez le colis avant de payer le reste. » failed
+  // at 14 % inside the suite and passed 4/4 in isolation, which is the exact
+  // signature of that race and not of a real orphan.
+  await page.waitForFunction(
+    () =>
+      [...document.fonts].some((f) => f.family.includes('Instrument Sans')) &&
+      [...document.fonts].some((f) => f.family.includes('Bricolage Grotesque')),
+    undefined,
+    { timeout: 15_000 },
+  );
   await page.evaluate(async () => {
     await Promise.all([...document.fonts].map((f) => f.load().catch(() => undefined)));
     await document.fonts.ready;

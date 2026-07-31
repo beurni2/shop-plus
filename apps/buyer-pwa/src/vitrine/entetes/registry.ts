@@ -58,6 +58,7 @@ const LOADERS: Partial<Record<EnteteKey, () => Promise<{ unit: EnteteUnit }>>> =
   kraft: () => import('./kraft'),
   audace: () => import('./audace'),
   fleurie: () => import('./fleurie'),
+  prisme: () => import('./prisme'),
 };
 
 const LOADED = new Map<EnteteKey, EnteteUnit>();

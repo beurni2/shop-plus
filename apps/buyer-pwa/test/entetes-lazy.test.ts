@@ -227,6 +227,33 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     expect(min, 'the badge string was split in the markup').not.toContain('Nouvelle<br>');
   });
 
+  it('PRISME — its chunk draws, is full-width, and ships an OPAQUE glass fallback', async () => {
+    await loadEntete('prisme');
+    expect(loadedEntete('prisme'), 'the prisme chunk did not register').toBeDefined();
+    const html = renderEntete('prisme', SF as never, TRUST as never, {});
+    expect(html).toContain('class="vt-ent vt-pi"');
+    expect(html).toContain('Gounghin, Ouagadougou');
+    expect(html).toContain('data-role="reputation"');
+
+    // « pleine largeur (13, 14) : pas de règle fixe » — Prisme must NOT size a
+    // long name down, unlike Audace and Fleurie in the same series
+    const long = renderEntete('prisme', { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});
+    expect(long, 'prisme is full-width and must not size a long name down').not.toContain('vt-ent-long');
+
+    const sheet = loadedEntete('prisme')!.css;
+    // THE GLASS FALLBACK IS LOAD-BEARING, not decoration: a phone without
+    // backdrop-filter must get a FINISHED opaque panel, never transparent glass
+    // with her name lost on it. So the opaque rule is declared FIRST and the
+    // blur only inside @supports.
+    const plain = sheet.indexOf('.vt-pi .glz { background: rgba(255,255,255,.66); }');
+    const supports = sheet.indexOf('@supports ((backdrop-filter');
+    expect(plain, 'the opaque .glz fallback is missing').toBeGreaterThan(-1);
+    expect(supports, 'the @supports guard is missing').toBeGreaterThan(-1);
+    expect(plain, 'the blur is not behind the opaque fallback').toBeLessThan(supports);
+    // and it stays inside this chunk — it must never reach Cristal's .glz
+    expect(sheet, 'an unscoped .glz would repaint Cristal').not.toMatch(/^\s*\.glz/m);
+  });
+
   it('EVERY lazy style keeps its CSS to its OWN root — every resident sheet stays scoped', async () => {
     // the guard that has to grow with the set: as each of the twenty lands, its
     // rules join one shared <style> element, and a single unscoped selector
@@ -234,14 +261,14 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl']) {
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi)[ .]/);
         checked += 1;
       }
     }

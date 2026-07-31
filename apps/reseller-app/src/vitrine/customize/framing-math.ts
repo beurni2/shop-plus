@@ -131,11 +131,14 @@ const SERIE3_FRAMES = {
   audace: CIRCLE,
   // Fleurie — the organic galet, 158×196. Its eight-value radius cannot be
   fleurie: { aspect: 158 / 196, circle: false, radii: [0.62, 0.38, 0.56, 0.44] },
+  // Prisme — the glass frame inside the card: 336 wide at 360, 186 tall, r22.
+  prisme: { aspect: 336 / 186, circle: false, radii: [22 / 336, 22 / 336, 22 / 336, 22 / 336] },
 } as const satisfies Record<string, FrameSpec>;
 
 const SERIE3_FOCUS = {
   audace: { x: 40, y: 28 },
   fleurie: { x: 44, y: 26 },
+  prisme: { x: 50, y: 24 },
 } as const satisfies Record<string, PhotoFocus>;
 
 const SERIE2_FRAMES = {
@@ -281,6 +284,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   kraft: { x: 50, y: 32 },
   audace: { x: 40, y: 28 },
   fleurie: { x: 50, y: 32 },
+  prisme: { x: 50, y: 30 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

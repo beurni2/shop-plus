@@ -1464,6 +1464,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_prisme",
+  "fr": "Prisme",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_prisme",
+  "fr": "Verre et cristal, tons menthe et lilas.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",
