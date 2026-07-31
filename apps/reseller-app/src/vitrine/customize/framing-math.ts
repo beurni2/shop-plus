@@ -149,6 +149,10 @@ const SERIE3_FRAMES = {
   // Safran and Audace: the whole disc is drawn, the CROP is exact, and the
   // 38 % bias is what keeps her face clear of the cut.
   perle: CIRCLE,
+  // Artisan — the right column, 126 wide over a ~300 panel, ARCHED on its left
+  // edge only (130px radius on that side). The two left radii approximate the
+  // arch; the right edge is square, as the panel's own edge is.
+  artisan: { aspect: 126 / 300, circle: false, radii: [0.52, 0, 0, 0.52] },
 } as const satisfies Record<string, FrameSpec>;
 
 const SERIE3_FOCUS = {
@@ -159,6 +163,7 @@ const SERIE3_FOCUS = {
   chrome: { x: 40, y: 28 },
   neon: { x: 50, y: 24 },
   perle: { x: 38, y: 28 },
+  artisan: { x: 56, y: 22 },
 } as const satisfies Record<string, PhotoFocus>;
 
 const SERIE2_FRAMES = {
@@ -309,6 +314,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   chrome: { x: 40, y: 28 },
   neon: { x: 50, y: 24 },
   perle: { x: 50, y: 30 },
+  artisan: { x: 50, y: 30 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

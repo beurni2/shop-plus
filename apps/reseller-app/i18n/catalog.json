@@ -1524,6 +1524,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_artisan",
+  "fr": "Artisan",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_artisan",
+  "fr": "Cuir et vert profond, filets dor\u00e9s.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",

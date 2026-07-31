@@ -288,14 +288,14 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne', '.vt-pe']) {
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne', '.vt-pe', '.vt-ar']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar)[ .]/);
         checked += 1;
       }
     }
@@ -317,6 +317,27 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     // …and it still obeys the compact rule the shared vals() applies
     const compact = renderEntete('perle', { ...SF, bio } as never, TRUST as never, { compact: true });
     expect(compact, 'a compact render must drop the bio like every other style').not.toContain(bio);
+  });
+
+  it('THE BIO RULE holds across the whole série 3 set — two draw it, the rest do not', async () => {
+    // « La présentation ne s'affiche que sur Perle et Artisan (seuls visuels
+    // qui la montrent) ». Asserted as a SET rather than style by style: a new
+    // série 3 unit that copies the wrong neighbour fails here, and so does one
+    // that quietly stops drawing a bio it owes.
+    const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
+    await loadAllEntetes();
+    const bio = 'Tissus choisis un par un.';
+    const SERIE3_AVEC = ['perle', 'artisan'];
+    const SERIE3_SANS = ['audace', 'fleurie', 'prisme', 'pop', 'chrome', 'neon'];
+    for (const k of SERIE3_AVEC) {
+      const html = renderEntete(k as EnteteKey, { ...SF, bio } as never, TRUST as never, {});
+      expect(html, `${k} must draw her présentation — its board shows one`).toContain(bio);
+    }
+    for (const k of SERIE3_SANS) {
+      const html = renderEntete(k as EnteteKey, { ...SF, bio } as never, TRUST as never, {});
+      expect(html, `${k} drew a bio; only Perle and Artisan show one`).not.toContain(bio);
+    }
+    expect(SERIE3_AVEC.length + SERIE3_SANS.length, 'the série 3 set shrank — this scan is going stale').toBe(8);
   });
 
   it('no lazy chunk CLAIMS a compiled-in style root class', async () => {

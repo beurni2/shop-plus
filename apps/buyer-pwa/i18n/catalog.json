@@ -918,6 +918,12 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.ar_devise",
+  "fr": "Artisanat \u00b7 Authenticit\u00e9 \u00b7 Confiance",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.ne_street",
   "fr": "L\u2019esprit de la rue",
   "register": "selling",
