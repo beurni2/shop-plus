@@ -128,6 +128,46 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     }
   });
 
+  it('SAFRAN — its chunk draws, applies the split-column long-name rule, and stays honest', async () => {
+    await loadEntete('safran');
+    expect(loadedEntete('safran'), 'the safran chunk did not register').toBeDefined();
+    const html = renderEntete('safran', SF as never, TRUST as never, {});
+    expect(html).toContain('class="vt-ent vt-sa"');
+    expect(html).toContain('Gounghin, Ouagadougou');
+    expect(html).toContain('data-role="reputation"');
+    expect(html).not.toContain('data-role="chip-nouvelle"');
+
+    // « Colonnes fendues (Safran, Kraft) : nom > 14 caractères → 20 px fixe ».
+    // « Chez Awa » is 9 characters, so it must NOT carry the tier…
+    expect(html, 'a 9-char name took the long tier').not.toContain('vt-ent-long');
+    // …and a 24-character name must, or the name runs into the photograph.
+    const long = renderEntete('safran', { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});
+    expect(long, 'a 24-char name did not take the long tier').toContain('vt-ent-long');
+    // the tier is only worth anything if the sheet actually sizes it
+    expect(loadedEntete('safran')!.css).toContain('.sa-name.vt-ent-long');
+  });
+
+  it('EVERY lazy style keeps its CSS to its OWN root — three resident sheets never collide', async () => {
+    // the guard that has to grow with the set: as each of the twenty lands, its
+    // rules join one shared <style> element, and a single unscoped selector
+    // would repaint a shop that never chose that style.
+    const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
+    await loadAllEntetes();
+    const sheet = loadedEnteteCss();
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa']) {
+      expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
+    }
+    let checked = 0;
+    for (const line of sheet.split('\n')) {
+      const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
+      if (m) {
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa)[ .]/);
+        checked += 1;
+      }
+    }
+    expect(checked, 'no selectors matched — the scan asserted over nothing').toBeGreaterThan(30);
+  });
+
   it('no style module hides a BACKTICK inside its css template literal', async () => {
     // Couture cost two rounds to this: a comment reading « `zoneLine` » inside
     // `const css = ` … ` ` terminated the template and the compiler answered

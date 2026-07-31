@@ -1672,6 +1672,13 @@ export const ENTETES_STYLES = `
   .vt-pr .pr-cell-s { display: block; font-size: 9.5px; font-weight: 600; line-height: 1.3; color: var(--pr-txt2); }
   .vt-pr .pr-btn { background: var(--pr-or); }
   .vt-pr .vt-ent-btn { top: 70px; }
+  /* The back button takes the NEAR slot and share slides to FAR — the same
+     pairing every controls() call site declares. It was missing on the five
+     Série 4 units and on Indigo, so an absolutely-positioned button with no
+     left/right fell back to its STATIC position: x=0, flush on the left edge,
+     over the content. Invisible to the suites because no test rendered a
+     header with a provenance — e2e/entetes-retour.spec.ts now does. */
+  .vt-pr .vt-ent-back { right: 20px; }
 
   /* ══════════════════════ 22 · TERRACOTTA ══════════════════════
      Relevé — terre cuite #A65A33 (radials #B96B40/#7E3F20) · patch vert
@@ -1770,6 +1777,7 @@ export const ENTETES_STYLES = `
   .vt-te .te-cell-s--rouille { color: var(--te-rouille); }
   .vt-te .te-btn { background: var(--te-creme); }
   .vt-te .vt-ent-btn { top: 70px; }
+  .vt-te .vt-ent-back { right: 20px; }
 
   /* ══════════════════════ 23 · ÉTENDARD ══════════════════════
      Relevé — jaune d'or #D9A31C→#C89117 (radial #E5B322) · verts #1F7A3D /
@@ -1851,6 +1859,7 @@ export const ENTETES_STYLES = `
   .vt-et .et-cell-s--rouge { color: var(--et-rouge-c); }
   .vt-et .et-btn { background: #FFFFFF; }
   .vt-et .vt-ent-btn { top: 70px; }
+  .vt-et .vt-ent-back { right: 20px; }
 
   /* ══════════════════════ 24 · DOUCEUR ══════════════════════
      Relevé — crème #F7F0E6 · olive #6B7455, sauge #8A9B77 · blush #C98A92 /
@@ -1934,6 +1943,7 @@ export const ENTETES_STYLES = `
   .vt-do .do-cell-s { display: block; font-size: 9.5px; font-weight: 600; line-height: 1.3; color: var(--do-rose); }
   .vt-do .do-btn { background: #FFFFFF; box-shadow: 0 6px 16px -8px rgba(62,52,40,.5); }
   .vt-do .vt-ent-btn { top: 70px; }
+  .vt-do .vt-ent-back { right: 20px; }
 
   /* ══════════════════════ 25 · TISSAGE ══════════════════════
      Relevé — vert profond #17351F (carte #0F2717) · ivoire #F1E9D6 · or
@@ -2021,6 +2031,7 @@ export const ENTETES_STYLES = `
   .vt-ti .ti-cell-s { display: block; font-size: 9.5px; font-weight: 600; line-height: 1.3; color: var(--ti-sous); }
   .vt-ti .ti-btn { background: var(--ti-or); }
   .vt-ti .vt-ent-btn { top: 70px; }
+  .vt-ti .vt-ent-back { right: 20px; }
 
 
   /* ENTETES-F — the strip stays a strip. Measured: the catalog carries the FULL

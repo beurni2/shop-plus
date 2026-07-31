@@ -53,6 +53,7 @@ export interface EnteteUnit {
 const LOADERS: Partial<Record<EnteteKey, () => Promise<{ unit: EnteteUnit }>>> = {
   indigo: () => import('./indigo'),
   couture: () => import('./couture'),
+  safran: () => import('./safran'),
 };
 
 const LOADED = new Map<EnteteKey, EnteteUnit>();

@@ -105,6 +105,7 @@ export const PICKABLE_HEADER_STYLES = [
   // its framing silhouette all landed before this line was added.
   'indigo',
   'couture',
+  'safran',
 ] as const;
 
 /** Her selected header with the `classique` fallback: an OLD service wire omits

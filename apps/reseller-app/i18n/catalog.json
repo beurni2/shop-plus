@@ -1404,6 +1404,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_safran",
+  "fr": "Safran",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_safran",
+  "fr": "Soleil du matin, photo ronde à gauche.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",

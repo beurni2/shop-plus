@@ -128,6 +128,13 @@ const SERIE2_FRAMES = {
   // Couture — a letterbox band, and the ONE style of the series with square
   // corners (« angles droits (r0) »). Her drag previews a mounted print.
   couture: { aspect: 360 / 138, circle: false, radii: [0, 0, 0, 0] },
+  // Safran — a 190×190 disc, of which the header shows only the right 132: it
+  // sits at left −58 and the card's overflow cuts it. The preview draws the
+  // WHOLE disc, the same honest approximation Prestige's clip-path takes: the
+  // CROP it teaches her is exact (190×190 at her focus is byte-for-byte what
+  // the buyer computes), only the left third is then hidden — which is why the
+  // relevé's default bias is 58 % and not 50 %, « le sujet fuit le bord coupé ».
+  safran: CIRCLE,
   cauris: { aspect: (0.46 * 360) / 340, circle: false, radii: [0, 0, 0, 0] },
 } as const satisfies Record<string, FrameSpec>;
 
@@ -146,6 +153,9 @@ const BEURNI_FOCUS = {
 const SERIE2_FOCUS = {
   indigo: { x: 50, y: 30 },
   couture: { x: 50, y: 26 },
+  // « cover / 58% 30% (le sujet fuit le bord coupé) » — the x-bias is not a
+  // taste call, it is what keeps her face off the 58px the header clips.
+  safran: { x: 58, y: 30 },
 } as const satisfies Record<string, PhotoFocus>;
 
 /** Cover silhouettes, from the contract's own dimensions (ENTETES-A relevé):
@@ -234,6 +244,9 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   // Indigo's portrait fallback sits in the same band, at its own high bias.
   indigo: { x: 50, y: 24 },
   couture: { x: 50, y: 26 },
+  // Safran frames the SAME disc whichever photo fills it, so the portrait
+  // fallback keeps the cut-edge bias too.
+  safran: { x: 58, y: 30 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {
