@@ -184,17 +184,24 @@ async function sweepC5(page: Page, label: string): Promise<EtatBalaye> {
       const range = document.createRange();
       range.selectNodeContents(el);
       // SUB-PIXEL TOPS ARE THE SAME LINE. Nested inline boxes on one visual
-      // line report tops that differ by a fraction (430.4 vs 430.6), and
-      // rounding split them into two "lines" — a measurement artefact that
-      // reads as a wrap. Snap to a 4px bucket: far below a line-height, far
-      // above the sub-pixel noise.
-      const byTop = new Map<number, { left: number; right: number }>();
-      for (const r of [...range.getClientRects()].filter((x) => x.width > 0)) {
-        const key = Math.round(r.top / 4) * 4;
-        const cur = byTop.get(key);
-        byTop.set(key, cur === undefined ? { left: r.left, right: r.right } : { left: Math.min(cur.left, r.left), right: Math.max(cur.right, r.right) });
+      // line report tops that differ by a fraction (430.4 vs 430.6). Grouping
+      // by a rounded bucket looks like it fixes this and does not: two values
+      // 0.2px apart that straddle a bucket edge (429.9 → 428, 430.1 → 432)
+      // still split, so the count is stable only until the layout shifts by a
+      // fraction. Cluster by DISTANCE instead — within 2px is the same line,
+      // which is what "same line" actually means and is scale-free.
+      const rects = [...range.getClientRects()].filter((x) => x.width > 0).sort((a, b) => a.top - b.top);
+      const groups: { top: number; left: number; right: number }[] = [];
+      for (const r of rects) {
+        const last = groups[groups.length - 1];
+        if (last !== undefined && r.top - last.top <= 2) {
+          last.left = Math.min(last.left, r.left);
+          last.right = Math.max(last.right, r.right);
+        } else {
+          groups.push({ top: r.top, left: r.left, right: r.right });
+        }
       }
-      return [...byTop.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v.right - v.left);
+      return groups.map((g) => g.right - g.left);
     };
     const isTextBlock = (el: Element): boolean => {
       const d = getComputedStyle(el).display;
@@ -672,14 +679,16 @@ test('C8 at 360px — the door payment keeps « code secret Orange Money » as o
     if (el === null) return null;
     const range = document.createRange();
     range.selectNodeContents(el);
-    // same 4px bucket as `linesOf`: a nowrap clause built from nested inline
-    // spans reports tops 430 / 430 / 431 on ONE line, and a raw round called
-    // that a wrap. The clause here is 211px inside a 314px parent — it does
-    // not wrap; only the counter did.
-    const tops = new Set(
-      [...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top / 4) * 4),
-    );
-    return { text: (el.textContent ?? '').trim(), nowrap: getComputedStyle(el).whiteSpace === 'nowrap', lines: tops.size };
+    // Same distance-clustering as `linesOf`. A nowrap clause built from nested
+    // inline spans reports tops like 430 / 430 / 431 on ONE line; both a raw
+    // round and a bucketed round call that a wrap whenever the values happen
+    // to straddle an edge. This clause is 211px inside a 314px parent — it
+    // does not wrap, and the count must not depend on where the layout lands
+    // relative to an arbitrary grid.
+    const sorted = [...range.getClientRects()].filter((r) => r.width > 0).map((r) => r.top).sort((a, b) => a - b);
+    const tops: number[] = [];
+    for (const t of sorted) if (tops.length === 0 || t - tops[tops.length - 1]! > 2) tops.push(t);
+    return { text: (el.textContent ?? '').trim(), nowrap: getComputedStyle(el).whiteSpace === 'nowrap', lines: tops.length };
   });
   expect(cle, 'C8’s « code secret Orange Money » span is gone — the door-leg glue is unprotected').not.toBeNull();
   expect(cle?.text).toBe('code secret Orange Money');
@@ -730,13 +739,15 @@ async function mesurerEcouter(page: Page): Promise<{
     const textNode = [...el.childNodes].find((n) => n.nodeType === 3 && (n.textContent ?? '').trim() !== '');
     const range = document.createRange();
     if (textNode !== undefined) range.selectNode(textNode);
-    // same 4px bucket as `linesOf`: a nowrap clause built from nested inline
-    // spans reports tops 430 / 430 / 431 on ONE line, and a raw round called
-    // that a wrap. The clause here is 211px inside a 314px parent — it does
-    // not wrap; only the counter did.
-    const tops = new Set(
-      [...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top / 4) * 4),
-    );
+    // Same distance-clustering as `linesOf`. A nowrap clause built from nested
+    // inline spans reports tops like 430 / 430 / 431 on ONE line; both a raw
+    // round and a bucketed round call that a wrap whenever the values happen
+    // to straddle an edge. This clause is 211px inside a 314px parent — it
+    // does not wrap, and the count must not depend on where the layout lands
+    // relative to an arbitrary grid.
+    const sorted = [...range.getClientRects()].filter((r) => r.width > 0).map((r) => r.top).sort((a, b) => a - b);
+    const tops: number[] = [];
+    for (const t of sorted) if (tops.length === 0 || t - tops[tops.length - 1]! > 2) tops.push(t);
     const cta = getComputedStyle(document.querySelector('.cl-cta-c5')!);
     // THE HIT AREA IS THE BOX THAT RECEIVES THE TAP, and it is read TWICE
     // because this module renders under `zoom: 1.15` on `main.cl-root`:
@@ -752,7 +763,7 @@ async function mesurerEcouter(page: Page): Promise<{
       nowrap: cs.whiteSpace === 'nowrap',
       fontPx: Number.parseFloat(cs.fontSize),
       ctaFontPx: Number.parseFloat(cta.fontSize),
-      lines: tops.size,
+      lines: tops.length,
       width: el.offsetWidth,
       column: (el.parentElement as HTMLElement).clientWidth,
       docScrollWidth: document.documentElement.scrollWidth,
