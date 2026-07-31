@@ -393,3 +393,65 @@ describe('PERSONNALISER-HONESTY-1 — the header picker never claims an unsaved 
     expect(t('k.entete.en_cours')).not.toMatch(/enregistré[^e]|choisi/i);
   });
 });
+
+/**
+ * APERCU-PHOTOS-1 (founder-caught 2026-07-30) — THE APERÇU SHOWS HER REAL
+ * PHOTOGRAPHS, OR SAYS IT HAS NONE.
+ *
+ * « Aperçu — vue cliente » drew a flat brown rectangle whenever a cover was
+ * live and the theme monogram whenever it was not. The founder judged « the
+ * photo de couverture is not showing on none of the en-têtes » from this
+ * screen — and the buyer page had been rendering it correctly the whole time.
+ * A preview that cannot show the photograph is worse than no preview: it
+ * reports a defect that does not exist and hides the one that does.
+ *
+ * K3's cover slot carried this exact defect and was fixed once already (« a
+ * coloured field with no image, so « en ligne » was a claim about nothing »);
+ * this screen was left behind. Source-pinned because these are RN components
+ * this Node suite cannot mount, and written to fail on the precise regression:
+ * a coloured View standing in for a photograph.
+ */
+describe('APERCU-PHOTOS-1 — the aperçu draws her real cover and portrait', () => {
+  const screens = readFileSync(join(__dirname, '..', 'src/vitrine/customize/screens.tsx'), 'utf8');
+  const apercu = /export function ApercuCliente\([\s\S]*?\n\}/.exec(screens)?.[0] ?? '';
+  const code = apercu.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/\/\/[^\n]*/g, '');
+
+  it('the component really was found — an empty match would pass everything below', () => {
+    expect(apercu.length).toBeGreaterThan(1000);
+    expect(code).toContain('S.apercuCover');
+    expect(code).toContain('S.apercuAvatar');
+  });
+
+  it('a LIVE cover renders her actual image, gated on a real url', () => {
+    expect(code).toMatch(/sf\.cover\.status === 'live' && sf\.cover\.url \?/);
+    expect(code).toMatch(/<Image source=\{\{ uri: sf\.cover\.url \}\}[^>]*resizeMode="cover"/);
+  });
+
+  it('a portrait renders her actual image, gated on a real url', () => {
+    expect(code).toMatch(/sf\.avatar\.url \?/);
+    expect(code).toMatch(/<Image source=\{\{ uri: sf\.avatar\.url \}\}[^>]*resizeMode="cover"/);
+  });
+
+  it('the OLD hard-coded photo-substitute colour is gone from the RENDERING code', () => {
+    // #8A5A3A was the brown field that stood in for every seller's cover. The
+    // string still appears in the comment that explains the defect, and a guard
+    // a comment can break is a guard that gets silenced by rewording — so this
+    // reads the file with its commentary stripped.
+    const src = screens.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    expect(src).not.toContain('#8A5A3A');
+    // …and the stripper did not simply empty the file
+    expect(src).toContain('S.apercuCover');
+  });
+
+  it('no photo ⇒ the honest monogram, never a bare coloured field', () => {
+    expect(code).toContain('S.previewFiligrane');
+    expect(code).toContain('S.apercuAvatarText');
+  });
+
+  it('the round portrait CLIPS its image — a square photo over a round border is a new defect', () => {
+    expect(flat(S.apercuAvatar).overflow).toBe('hidden');
+    expect(flat(S.apercuAvatar).borderRadius).toBe(99);
+    // …and the cover frame already clipped, which is why it never spilled
+    expect(flat(S.apercuCover).overflow).toBe('hidden');
+  });
+});

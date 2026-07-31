@@ -1107,12 +1107,30 @@ export function ApercuCliente({ sf, onBack, onReadOnlyTap, catalog }: { sf: Stor
         <Text style={S.apercuTitle} numberOfLines={1}>{t('k.apercu.title')}</Text>
         <View style={[S.etatPill, S.etatPillNeutre]}><Text style={S.etatPillText}>{t('k.apercu.lecture')}</Text></View>
       </View>
-      <View style={[S.apercuCover, { backgroundColor: sf.cover.status === 'live' ? '#8A5A3A' : th.soft }]}>
-        {sf.cover.status !== 'live' && <Text style={[S.previewFiligrane, { color: th.accent }]}>{initial}</Text>}
+      {/* APERCU-PHOTOS-1 (founder-caught 2026-07-30) — HER ACTUAL PHOTOGRAPHS.
+          This block drew a flat #8A5A3A rectangle whenever a cover was live and
+          the monogram whenever it was not, so « aperçu » showed her the SAME
+          brown field on every habillage and every en-tête, on a screen whose
+          only job is to tell her what her cliente will see. She reported the
+          cover « not showing on any of the en-têtes » from here — and the buyer
+          page had been drawing it correctly all along. The K3 slot had this
+          exact defect and was fixed (« a coloured field with no image, so « en
+          ligne » was a claim about nothing »); the aperçu was left behind.
+          Same idiom as K3 and the portrait cap: the real URL or nothing. */}
+      <View style={[S.apercuCover, { backgroundColor: sf.cover.status === 'live' ? th.deep : th.soft }]}>
+        {sf.cover.status === 'live' && sf.cover.url ? (
+          <Image source={{ uri: sf.cover.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <Text style={[S.previewFiligrane, { color: th.accent }]}>{initial}</Text>
+        )}
       </View>
       <View style={S.apercuIdentity}>
         <View style={[S.apercuAvatar, { backgroundColor: th.accent }]}>
-          <Text style={[S.apercuAvatarText, { color: th.on }]}>{initial}</Text>
+          {sf.avatar.url ? (
+            <Image source={{ uri: sf.avatar.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          ) : (
+            <Text style={[S.apercuAvatarText, { color: th.on }]}>{initial}</Text>
+          )}
         </View>
         <View style={S.previewNameRow}>
           <Text style={S.apercuName}>{sf.name}</Text>
