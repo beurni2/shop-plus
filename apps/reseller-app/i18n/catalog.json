@@ -1452,6 +1452,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_fleurie",
+  "fr": "Fleurie",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_fleurie",
+  "fr": "Fleurs douces, panneau blanc, photo galet.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",

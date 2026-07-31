@@ -207,6 +207,26 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     expect(html).toContain('Partenaire de confiance');
   });
 
+  it('FLEURIE — its chunk draws, keeps the bio off, and wraps its badge string itself', async () => {
+    await loadEntete('fleurie');
+    expect(loadedEntete('fleurie'), 'the fleurie chunk did not register').toBeDefined();
+    const html = renderEntete('fleurie', SF as never, TRUST as never, {});
+    expect(html).toContain('class="vt-ent vt-fl"');
+    expect(html).toContain('Gounghin, Ouagadougou');
+    expect(html).toContain('data-role="reputation"');
+    const withBio = renderEntete('fleurie', { ...SF, bio: 'Tissus choisis un par un.' } as never, TRUST as never, {});
+    expect(withBio, 'fleurie drew a bio; only Perle and Artisan show one').not.toContain('Tissus choisis');
+
+    // THE BADGE STRING IS NOT CUT BY HAND. The board sets « Nouvelle / vendeuse »
+    // on two lines; the disc's width does that, not a <br> in the markup — a
+    // string broken in markup no longer lives in the catalog (loi 6).
+    const zero = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
+    const min = renderEntete('fleurie', SF as never, zero as never, {});
+    expect(min).toContain('data-role="chip-nouvelle"');
+    expect(min).toContain('Nouvelle vendeuse');
+    expect(min, 'the badge string was split in the markup').not.toContain('Nouvelle<br>');
+  });
+
   it('EVERY lazy style keeps its CSS to its OWN root — every resident sheet stays scoped', async () => {
     // the guard that has to grow with the set: as each of the twenty lands, its
     // rules join one shared <style> element, and a single unscoped selector
@@ -214,14 +234,14 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au']) {
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl)[ .]/);
         checked += 1;
       }
     }

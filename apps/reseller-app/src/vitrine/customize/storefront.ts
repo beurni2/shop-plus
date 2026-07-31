@@ -109,6 +109,7 @@ export const PICKABLE_HEADER_STYLES = [
   'grenat',
   'kraft',
   'audace',
+  'fleurie',
 ] as const;
 
 /** Her selected header with the `classique` fallback: an OLD service wire omits

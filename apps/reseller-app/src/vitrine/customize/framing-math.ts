@@ -129,10 +129,13 @@ const SERIE3_FRAMES = {
   // Same honest approximation as Safran: the CROP is exact, the cut is not
   // drawn, and the default bias (40 %) is what keeps her face off the cut.
   audace: CIRCLE,
+  // Fleurie — the organic galet, 158×196. Its eight-value radius cannot be
+  fleurie: { aspect: 158 / 196, circle: false, radii: [0.62, 0.38, 0.56, 0.44] },
 } as const satisfies Record<string, FrameSpec>;
 
 const SERIE3_FOCUS = {
   audace: { x: 40, y: 28 },
+  fleurie: { x: 44, y: 26 },
 } as const satisfies Record<string, PhotoFocus>;
 
 const SERIE2_FRAMES = {
@@ -277,6 +280,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   grenat: { x: 50, y: 32 },
   kraft: { x: 50, y: 32 },
   audace: { x: 40, y: 28 },
+  fleurie: { x: 50, y: 32 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

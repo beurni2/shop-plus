@@ -36,6 +36,8 @@ const SF = {
   discoverable: true, createdAt: 'T', updatedAt: 'T',
 };
 const TRUST = { deliveredCount: 128, rating: '4,9', reviewCount: 28, demo: false };
+/** zero history ⇒ the « Nouvelle vendeuse » badge, never a proof line. */
+const ZERO = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
 
 /**
  * The keys that actually draw their own unit today: the compiled-in ten plus
@@ -57,9 +59,9 @@ async function builtKeys(): Promise<string[]> {
   return [...compiled, ...lazy];
 }
 
-async function mount(page: Page, key: string): Promise<void> {
+async function mount(page: Page, key: string, trust: unknown = TRUST): Promise<void> {
   // fromProduct: true — the ONLY way the back button is ever drawn
-  const unit = renderEntete(key as never, SF as never, TRUST as never, { fromProduct: true });
+  const unit = renderEntete(key as never, SF as never, trust as never, { fromProduct: true });
   await page.setContent(
     [
       '<!doctype html><html><head><meta charset="utf-8">',
@@ -119,5 +121,38 @@ for (const width of [360, 320] as const) {
       const overlap = Math.min(back.r, share.r) - Math.max(back.x, share.x);
       expect(overlap, `${key}: retour and partager overlap`).toBeLessThanOrEqual(0);
     }
+  });
+
+  test(`chip @ ${width}: the controls never sit on « Nouvelle vendeuse »`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const keys = await builtKeys();
+
+    // WHY THIS EXISTS: série 3's boards carry an app bar instead of floating
+    // controls, so their MINIMAL badges are placed in the top-right corner —
+    // exactly where the CTO adaptation puts partager/retour. Fleurie collided
+    // there for real: at 320 the share button covered the sage disc and
+    // « vendeuse » was unreadable. Nine more série 3 styles are coming and each
+    // places its own badge, so this checks the whole set rather than one style.
+    let chips = 0;
+    for (const key of keys) {
+      await mount(page, key, ZERO); // zero history ⇒ the badge, never the proof
+
+      const hit = await page.evaluate(() => {
+        const chip = document.querySelector('[data-role="chip-nouvelle"]');
+        if (chip === null) return null;
+        const c = chip.getBoundingClientRect();
+        const worst = [...document.querySelectorAll('.vt-ent-btn')].map((b) => {
+          const r = b.getBoundingClientRect();
+          return Math.max(0, Math.min(c.right, r.right) - Math.max(c.left, r.left)) *
+            Math.max(0, Math.min(c.bottom, r.bottom) - Math.max(c.top, r.top));
+        });
+        return { area: Math.max(0, ...worst), chip: Math.round(c.width * c.height) };
+      });
+
+      expect(hit, `${key}: no « Nouvelle vendeuse » badge at zero history`).not.toBeNull();
+      chips += 1;
+      expect(hit!.area, `${key}: a control overlaps the « Nouvelle vendeuse » badge`).toBe(0);
+    }
+    expect(chips, 'no badges found — this test would pass vacuously').toBeGreaterThanOrEqual(11);
   });
 }
