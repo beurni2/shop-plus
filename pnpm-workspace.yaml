@@ -23,7 +23,7 @@ onlyBuiltDependencies:
 # (canon v0.5.0; founder ruling: tags are unreliable, the release ref is
 # the commit).
 overrides:
-  # @platform/contracts re-pinned to canon v2.5.0 (sha 92fe683) — ENTETES-L:
+  # @platform/contracts re-pinned to canon v2.5.0 (sha 92c8ac6) — ENTETES-L:
   # STOREFRONT_HEADER_STYLES grows eleven → thirty-one (séries 2, 3 and 5 of
   # « Design_brief_for_Claude_4.zip », founder-authorized 2026-07-31), appended
   # after the eleven so every stored value keeps its exact position.
@@ -38,7 +38,7 @@ overrides:
   # repin that misses this line silently keeps the OLD canon while every
   # package.json claims the new one.
   "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#642f849b9b3f93c2eb4f6c0de9421a9081443a6e&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#92fe68367729e90c93bf0886d5846b60e87285ac&path:packages/contracts"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#92c8ac6a5d8aff13e1f6f86ec9bc4ecb0a9a628e&path:packages/contracts"
   # @platform/ui-tokens is UNIFIED at canon v0.9.9 (1c98ad1, + Storefront aggregate fields WO-5.13) — WO-7.0/WO-7.2b/SP#001-A
   # killed the WO-5.3 per-app skew and re-pinned the whole workspace to the current
   # release in one bump. reseller-app runs its visual layer on the Grand Teint API

@@ -2019,3 +2019,12 @@ Format per entry:
 **Evidence:** `turbo run test --force` 23/23 · 36 screenshots (six styles × 360/320 × complete/minimal/long) read individually, `scrollWidth` equal to the viewport in all 36 — no horizontal overflow anywhere · 65 Playwright e2e · `run-gates.sh` **ALL GATES GREEN** · both apps typecheck · reseller catalog re-verified to parse clean with **zero raw U+202F** (the ENTETES-J law: never round-trip a file through a serialiser to make a local edit — the 12 entries went in textually).
 
 **⚠️ DEPLOY DEPENDENCY, FOR THE FOUNDER.** `storefront-core.ts` refuses any `headerStyle` outside the canon set with `unknown_header_style`. **The storefront Worker must be deployed with this commit's contracts pin BEFORE a seller picks one of the six**, or her save is refused — the exact failure recorded at ENTETES-E. The service's own pin is bumped in this commit, so deploying it is the whole fix; it just has to actually happen.
+
+**CI CAUGHT WHAT THREE LOCAL GREEN RUNS COULD NOT — and the defect was in the canon repo, not here.** The first push (`ca4d915`) failed `ci`, `pwa-preview` and `service-canon-drift`, all three at `pnpm install --frozen-lockfile`:
+
+```
+ERR_PNPM_PREPARE_PACKAGE  Failed to prepare git-hosted package fetched from
+"…/platform-contracts/tar.gz/92fe683": @platform/contracts@2.5.0 pnpm-install: `pnpm install`
+```
+
+Canon v2.5.0 bumped six package.json versions **without regenerating its own lockfile**. shop-plus fetches contracts as a git-hosted dependency, pnpm runs that package's `pnpm-install` prepare script inside the fetched tarball, and the nested install inherits `CI=true` — where pnpm defaults to `--frozen-lockfile`. Locally a plain install just updates the lock, so canon's own 10/10 + ALL GATES GREEN proved nothing about this. **A version bump in canon is not complete until its lockfile moves with it, and only a CONSUMER's frozen install can prove it.** Fixed in canon `92c8ac6` (lockfile regenerated, `CI=true pnpm install` re-run as the exact failing command), and all four shop-plus pins repinned `92fe683 → 92c8ac6`.
