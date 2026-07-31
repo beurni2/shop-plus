@@ -435,8 +435,26 @@ describe('ENTETES-A — five styles on one page cannot bleed into each other or 
     // cannot blur never falls through to a transparent card
     expect(ENTETES_STYLES.indexOf('.vt-cr .glz { background: rgba(255,255,255,.66); }'))
       .toBeLessThan(ENTETES_STYLES.indexOf('@supports ('));
-    // there is exactly ONE @supports in the sheet, and no blur outside Cristal
-    expect(ENTETES_STYLES.match(/@supports \(/g) ?? []).toHaveLength(1);
+    // Exactly ONE @supports gates a BLUR — Cristal's. ENTETES-F added
+    // `background-clip: text` gates for the Série 4 gold-brushed name segment;
+    // those neither blur nor filter, and each declares a solid accent colour
+    // BEFORE its gate, so a browser without background-clip still reads a
+    // coloured word rather than a transparent one. Asserting the property
+    // rather than a count is what keeps this gate meaningful as styles land.
+    const gates = ENTETES_STYLES.match(/@supports \([^{]+/g) ?? [];
+    expect(gates.filter((g) => g.includes('backdrop-filter'))).toHaveLength(1);
+    for (const g of gates.filter((g) => !g.includes('backdrop-filter'))) {
+      expect(g).toContain('background-clip');
+    }
+    for (const sel of ['pr', 'te', 'ti']) {
+      // the solid fallback colour is declared in the ungated rule (wherever in
+      // its block — Terracotta also switches face there), before the gate
+      const decl = new RegExp(`\\.vt-${sel} \\.${sel}-name \\.vt-ent-acc \\{[^}]*color: [^};]+;[^}]*\\}`);
+      expect(ENTETES_STYLES, sel).toMatch(decl);
+      expect(ENTETES_STYLES.search(decl), sel).toBeLessThan(
+        ENTETES_STYLES.indexOf(`@supports (background-clip: text) or (-webkit-background-clip: text) {\n    .vt-${sel}`),
+      );
+    }
     expect(ENTETES_STYLES.slice(0, ENTETES_STYLES.indexOf('.vt-cr {'))).not.toContain('backdrop-filter');
     expect(ENTETES_STYLES.slice(ENTETES_STYLES.indexOf('.vt-dy {'))).not.toContain('backdrop-filter');
     // §6 — « Aucun filter ailleurs »: no bare CSS filter anywhere in the sheet
@@ -874,8 +892,10 @@ describe('etatForRender — a state that reads no storefront is never the not-fo
  */
 describe('ENTETES-E — the five Beurni Boss keys render their own units, not classique', () => {
   const BUILT = ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const;
+  // ENTETES-F — the keys are unchanged canon; the ROOTS are the Série 4 units
+  // they now draw (Prestige · Terracotta · Étendard · Douceur · Tissage).
   const ROOTS: Record<(typeof BUILT)[number], string> = {
-    masque: 'vt-ma', harmattan: 'vt-ha', balafon: 'vt-ba', seance: 'vt-se', cauris: 'vt-ca',
+    masque: 'vt-pr', harmattan: 'vt-te', balafon: 'vt-et', seance: 'vt-do', cauris: 'vt-ti',
   };
 
   for (const key of BUILT) {
@@ -944,14 +964,14 @@ describe('ENTETES-E0 — the wire accepts the five; the renderer falls back unti
     expect(bad!.storefront.headerStyle).toBe('classique');
   });
 
-  it("the ACCEPTED 'masque' — wire-normalised, not cast — renders the MASQUE unit end to end", async () => {
+  it("the ACCEPTED 'masque' — wire-normalised, not cast — renders the PRESTIGE unit end to end", async () => {
     const { httpStorefrontPort } = await import('../src/vitrine/profile');
     const resolved = await stubFetch({ ...WIRE_BASE, headerStyle: 'masque' }, () =>
       httpStorefrontPort('https://svc.example').resolve('chez-w-1'),
     );
     expect(resolved!.storefront.headerStyle).toBe('masque');
     const out = renderEntete(resolved!.storefront.headerStyle, resolved!.storefront, REAL as never, { fromProduct: true });
-    expect(out).toContain('class="vt-ent vt-ma"');
+    expect(out).toContain('class="vt-ent vt-pr"');
     expect(out).not.toContain('class="vt-hero"');
     expect(out.length).toBeGreaterThan(1000);
   });

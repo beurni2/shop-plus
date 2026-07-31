@@ -94,30 +94,39 @@ const RECT = (aspect: number, r: number): FrameSpec => ({ aspect, circle: false,
 const CIRCLE: FrameSpec = { aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] };
 
 /**
- * ENTETES-E — the Beurni Boss five, from each style's §5 relevé. ONE definition
- * for both kinds: the frame's silhouette does not change with which photograph
- * fills it, and two copies would be two answers that can disagree.
- *   · Masque   — the orthogonal plank frame, 144×206, no rounding.
- *   · Harmattan/Balafon — the discs, 132 and 126.
- *   · Séance   — the 35 mm INNER screen (112×190), not the perforated chassis.
- *   · Cauris   — the cowrie oval, 132×202 at 50 % / 42 %.
+ * ENTETES-F — the SÉRIE 4 five, from each style's own relevé (« Photo » /
+ * « Héros fendu »). The canon keys are unchanged; the silhouettes are the
+ * contract's. ONE definition for both kinds: the frame's shape does not change
+ * with which photograph fills it, and two copies would be two answers that can
+ * disagree. Hero heights are the unit's own: padding-top 74 (14 + the 60 px
+ * status bleed) + the column's min-height + the bottom padding.
+ *   · Prestige   — panneau 186 wide over the full 358 hero. Its diagonal is a
+ *     `clip-path`, which this preview cannot draw; radii 0 is the honest
+ *     approximation, and the CROP it teaches her is exact.
+ *   · Terracotta — the full right column, 47 % of 360 over a 344 hero.
+ *   · Étendard   — the fixed 158×212 card, r4.
+ *   · Douceur    — the organic galet, 168×240 as the buyer sheet finally
+ *     renders it: the relevé's 196×264 did not leave the text column room to
+ *     clear the photo, and THIS number is the one her drag must preview.
+ *   · Tissage    — the full right column, 46 % of 360 over a 340 hero.
  */
 const BEURNI_FRAMES = {
-  masque: { aspect: 144 / 206, circle: false, radii: [0, 0, 0, 0] },
-  harmattan: CIRCLE,
-  balafon: CIRCLE,
-  seance: { aspect: 112 / 190, circle: false, radii: [0, 0, 0, 0] },
-  cauris: { aspect: 132 / 202, circle: false, radii: [0.5, 0.5, 0.5, 0.5] },
+  masque: { aspect: 186 / 358, circle: false, radii: [0, 0, 0, 0] },
+  harmattan: { aspect: (0.47 * 360) / 344, circle: false, radii: [0, 0, 0, 0] },
+  balafon: { aspect: 158 / 212, circle: false, radii: [4 / 158, 4 / 158, 4 / 158, 4 / 158] },
+  seance: { aspect: 168 / 240, circle: false, radii: [0.54, 0.46, 0.42, 0.58] },
+  cauris: { aspect: (0.46 * 360) / 340, circle: false, radii: [0, 0, 0, 0] },
 } as const satisfies Record<string, FrameSpec>;
 
-/** Each style's §5 crop bias — what an UNFRAMED photo renders at in that frame,
- *  and therefore where her drag starts. Identical to the buyer sheet's values. */
+/** Each style's relevé crop bias — what an UNFRAMED photo renders at in that
+ *  frame, and therefore where her drag starts. Identical to the buyer sheet's
+ *  `framePhoto` values, style for style (the contract's « cover · X% Y% »). */
 const BEURNI_FOCUS = {
-  masque: { x: 50, y: 26 },
-  harmattan: { x: 50, y: 24 },
-  balafon: { x: 50, y: 24 },
-  seance: { x: 50, y: 24 },
-  cauris: { x: 50, y: 24 },
+  masque: { x: 62, y: 24 },
+  harmattan: { x: 55, y: 30 },
+  balafon: { x: 55, y: 22 },
+  seance: { x: 60, y: 30 },
+  cauris: { x: 52, y: 28 },
 } as const satisfies Record<string, PhotoFocus>;
 
 /** Cover silhouettes, from the contract's own dimensions (ENTETES-A relevé):
@@ -141,19 +150,18 @@ const COVER_FRAMES: Record<HeaderStyleKey, FrameSpec> = {
 };
 
 /**
- * ENTETES-E — the Beurni Boss five frame the PORTRAIT in their own §5
- * silhouettes, so the avatar sheet must show hers in THAT shape: Masque's
- * orthogonal plank frame (144×206, no rounding), Séance's 35 mm inner screen
- * (112×190 — the visible photo, not the perforated chassis), Cauris' cowrie
- * oval (132×202 at 50%/42% — represented by the spec's width-fraction radii),
- * Harmattan's and Balafon's circles. The six keep the circle medallion they
- * have always had.
+ * ENTETES-F — the Série 4 five frame EITHER photograph in the same silhouette
+ * (the contract has no separate portrait shape), so the avatar sheet shows
+ * hers in the style's own frame. None of the five is a circle: Prestige's
+ * 186-wide panel, Terracotta's and Tissage's full right columns, Étendard's
+ * 158×212 card, Douceur's organic galet. The six keep the circle medallion
+ * they have always had.
  */
 const AVATAR_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = { ...BEURNI_FRAMES };
 
 export function frameSpecFor(style: HeaderStyleKey, kind: FrameKind): FrameSpec {
   // Her portrait: a circle medallion in the six (and classique's ring); the
-  // Beurni Boss five frame it per their own §5 (AVATAR_FRAMES above).
+  // Série 4 five frame it in their own contract silhouette (AVATAR_FRAMES).
   if (kind === 'avatar') return AVATAR_FRAMES[style] ?? CIRCLE;
   return COVER_FRAMES[style];
 }
@@ -172,16 +180,27 @@ const COVER_DEFAULTS: Record<HeaderStyleKey, PhotoFocus> = {
   chaleureux: { x: 50, y: 24 },
   cristal: { x: 50, y: 22 },
   dynamique: { x: 58, y: 30 },
-  // ENTETES-E (founder ruling) — the five draw the cover now, at their own §5
-  // crop bias; the sheet starts her drag exactly there.
+  // ENTETES-F — the five draw the cover at their own relevé crop bias; the
+  // sheet starts her drag exactly there.
   ...BEURNI_FOCUS,
 };
 
-/** ENTETES-E — each Beurni Boss unit biases the PORTRAIT crop per its §5
- *  (the buyer sheet's own object-position); the sheet must start there. */
+/**
+ * ENTETES-F — the PORTRAIT fallback is NOT the cover bias. The buyer sheet
+ * crops every Série 4 portrait at one shared high bias (Série 1 §5: « biais
+ * haut 18–30 %, aucune tête coupée par construction »), while BEURNI_FOCUS
+ * above carries each style's COVER bias. Spreading the cover map here would
+ * have taught her a 62/24 start for a portrait the buyer draws at 50/24 —
+ * the two sheets must agree, so this is its own constant, pinned by test.
+ */
+const SERIE4_PORTRAIT: PhotoFocus = { x: 50, y: 24 };
 const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   heritage: { x: 50, y: 32 },
-  ...BEURNI_FOCUS,
+  masque: SERIE4_PORTRAIT,
+  harmattan: SERIE4_PORTRAIT,
+  balafon: SERIE4_PORTRAIT,
+  seance: SERIE4_PORTRAIT,
+  cauris: SERIE4_PORTRAIT,
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

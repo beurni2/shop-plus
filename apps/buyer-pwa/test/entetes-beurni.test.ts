@@ -19,8 +19,15 @@ import {
 } from '../src/vitrine/entetes';
 
 /**
- * ENTETES-E — the Beurni Boss five (masque · harmattan · balafon · seance ·
- * cauris), against the normative handoff at design/shopplus-beurni-boss.
+ * ENTETES-F — the SÉRIE 4 five (Prestige · Terracotta · Étendard · Douceur ·
+ * Tissage), against the pixel contract « En-tetes Boutique - Serie 4 » and its
+ * per-style relevés. They render under the UNCHANGED canon keys `masque ·
+ * harmattan · balafon · seance · cauris` so no live storefront can hold a
+ * value the service would refuse; only the drawing and the labels changed.
+ *
+ * These assertions replace the ENTETES-E ones because that reading is
+ * SUPERSEDED, not because they were failing: the normative markdown they
+ * pinned is no longer the authority for these five.
  *
  * Every assertion EXECUTES the renderer and reads its OUTPUT (the ENTETES-A
  * law: source greps are vacuous). The fixtures are the acceptance matrix's
@@ -57,28 +64,43 @@ const F4 = { deliveredCount: 1287, rating: '4,75', reviewCount: 307, demo: false
 const FIVE: readonly EnteteKey[] = ['masque', 'harmattan', 'balafon', 'seance', 'cauris'];
 
 const ROOT: Record<string, string> = {
-  masque: 'vt-ma', harmattan: 'vt-ha', balafon: 'vt-ba', seance: 'vt-se', cauris: 'vt-ca',
+  masque: 'vt-pr', harmattan: 'vt-te', balafon: 'vt-et', seance: 'vt-do', cauris: 'vt-ti',
+};
+/** The contract name each key now DRAWS — the rename the picker shows. */
+const NOM: Record<string, string> = {
+  masque: 'Prestige', harmattan: 'Terracotta', balafon: 'Étendard',
+  seance: 'Douceur', cauris: 'Tissage',
 };
 /** The style's own MINIMAL pattern class — what fills the frame sans photo. */
 const MOTIF: Record<string, string> = {
-  masque: 'ma-frame-motif', harmattan: 'ha-frame-motif', balafon: 'ba-frame-motif',
-  seance: 'se-frame-motif', cauris: 'ca-frame-motif',
+  masque: 'pr-motif', harmattan: 'te-motif', balafon: 'et-motif',
+  seance: 'do-motif', cauris: 'ti-motif',
 };
-/** Handoff §5 — the portrait bias each style's SHEET crops the avatar on. */
-const AVATAR_POS: Record<string, string> = {
-  masque: '50% 26%', harmattan: '50% 24%', balafon: '50% 24%',
-  seance: '50% 24%', cauris: '50% 24%',
+/** Relevé §Photo — the COVER crop bias the contract fixes for each style. */
+const COVER_POS: Record<string, string> = {
+  masque: '62% 24%', harmattan: '55% 30%', balafon: '55% 22%',
+  seance: '60% 30%', cauris: '52% 28%',
 };
+/** Série 1 §5 « biais haut 18–30 % » — the portrait fallback's shared bias. */
+const AVATAR_POS = '50% 24%';
 
 const head = (key: EnteteKey, sf: unknown, trust: unknown, fromProduct = false): string =>
   renderEntete(key, sf as never, trust as never, { fromProduct });
 
 /** Visible copy only — tags stripped (proves what reaches her eyes). */
-const visible = (html: string): string => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+const visible = (html: string): string =>
+  html
+    .replace(/<[^>]*>/g, ' ')
+    // &nbsp; is a SPACE on screen: the anti-widow joints (« par&nbsp;Séra »)
+    // change where a line may break, never what she reads.
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /* ------------------------------------------------- 1 · identity + strings -- */
 
-describe('ENTETES-E — each unit renders her identity and the exact handoff strings', () => {
+describe('ENTETES-F — each unit renders her identity and the exact handoff strings', () => {
   for (const key of FIVE) {
     it(`${key}: root, roles, name, zone line, « Bienvenue », the three trust labels verbatim`, () => {
       const html = head(key, BASE, F1);
@@ -120,13 +142,13 @@ describe('ENTETES-E — each unit renders her identity and the exact handoff str
 
 /* ------------------------------------------------------------ 2 · honesty -- */
 
-describe('ENTETES-E — the frozen honesty rules, per style, on executed output', () => {
+describe('ENTETES-F — the frozen honesty rules, per style, on executed output', () => {
   for (const key of FIVE) {
     it(`${key}: F1 (COMPLET + AVIS) — « 128 ventes livrées par Séra » and « 4,9 · 28 avis », no badge`, () => {
       const html = head(key, BASE, F1);
       expect(html).toContain('data-role="reputation"');
       expect(html).toContain('<v>128</v>');
-      expect(html).toContain(t('vit.ventes_livrees'));
+      expect(visible(html)).toContain(t('vit.ventes_livrees'));
       expect(html).toContain('data-role="chip-avis"');
       expect(html).toContain(`<v>4,9</v> · <v>28</v> ${t('vit.avis')}`);
       expect(html).not.toContain('data-role="chip-nouvelle"');
@@ -140,7 +162,7 @@ describe('ENTETES-E — the frozen honesty rules, per style, on executed output'
       expect(visible(html)).toContain('vendeuse');
       expect(html).not.toContain('data-role="reputation"');
       expect(html).not.toContain('data-role="chip-avis"');
-      expect(html).not.toContain(t('vit.ventes_livrees'));
+      expect(visible(html)).not.toContain(t('vit.ventes_livrees'));
       // the fake-proof ban: nothing resembling the mockups' « +1,2k clientes »
       expect(html).not.toMatch(/clientes satisfaites/i);
       expect(html).not.toMatch(/1[,.]?2\s?k/i);
@@ -175,16 +197,16 @@ describe('ENTETES-E — the frozen honesty rules, per style, on executed output'
 
 /* -------------------------------------------- 3 · portrait, or the pattern -- */
 
-describe('ENTETES-E — her portrait in the style frame, or the monogram pattern; never a void', () => {
+describe('ENTETES-F — her portrait in the style frame, or the monogram pattern; never a void', () => {
   for (const key of FIVE) {
-    it(`${key}: a real portrait draws the avatar <img>; the sheet biases it at ${AVATAR_POS[key]}`, () => {
+    it(`${key}: a real portrait draws the avatar <img>; the sheet biases it at ${AVATAR_POS}`, () => {
       const html = head(key, BASE, F1);
       expect(html).toContain('data-etat="live"');
       expect(html).toContain(`src="${AVATAR}"`);
       expect(html).toContain(`alt="${t('vit.avatar_alt')}"`);
       // the crop bias lives in the SHEET (her inline focus must stay the only
       // inline emitter) — pinned here against the style's own rule
-      expect(ENTETES_STYLES).toContain(`object-position: ${AVATAR_POS[key]}`);
+      expect(ENTETES_STYLES).toContain(`object-position: ${AVATAR_POS}`);
       expect(html).not.toContain(MOTIF[key]!);
     });
 
@@ -229,7 +251,7 @@ describe('ENTETES-E — her portrait in the style frame, or the monogram pattern
 
 /* ------------------------------------------------- 4 · the anti-orphan tail -- */
 
-describe('ENTETES-E — nameTail: the deterministic anti-orphan rule, executed', () => {
+describe('ENTETES-F — nameTail: the deterministic anti-orphan rule, executed', () => {
   it('a short two-word name: nbsp joint — the accent word can never stand alone', () => {
     expect(nameTail('Beurni Boss')).toBe(
       '<v>Beurni&nbsp;</v><span class="vt-ent-tail"><span class="vt-ent-acc"><v>Boss</v></span></span>',
@@ -251,30 +273,70 @@ describe('ENTETES-E — nameTail: the deterministic anti-orphan rule, executed',
       '<v>A&nbsp;</v><span class="vt-ent-tail"><span class="vt-ent-acc"><v>&lt;b&gt;</v></span></span>',
     );
   });
-  it('the sheet makes the tail nowrap (inline-block), for all five at once', () => {
-    const rule = ENTETES_STYLES.slice(ENTETES_STYLES.indexOf('.vt-ent .vt-ent-tail {'));
-    expect(rule.slice(0, rule.indexOf('}'))).toMatch(/display:\s*inline-block;\s*white-space:\s*nowrap/);
+  it('the ACCENT SEGMENT is what stays unbreakable — not the whole hyphenated word', () => {
+    // Série 4: « dernier segment (/[^ -]+$/, nowrap) ». Making the entire tail
+    // nowrap is what pushed « Élégance-Burkina » onto the photo; the hyphen
+    // must be free to break while the accent word travels whole.
+    const acc = ENTETES_STYLES.slice(ENTETES_STYLES.indexOf('.vt-ent .vt-ent-acc {'));
+    expect(acc.slice(0, acc.indexOf('}'))).toMatch(/display:\s*inline-block;\s*white-space:\s*nowrap/);
+    const tail = ENTETES_STYLES.slice(ENTETES_STYLES.indexOf('.vt-ent .vt-ent-tail {'));
+    expect(tail.slice(0, tail.indexOf('}'))).not.toMatch(/nowrap/);
   });
-  it('the 14-char and 19-char size tiers ride the render as classes', () => {
+  it('ONE size tier past 14 characters — the contract fixes a single reduced size', () => {
     for (const key of FIVE) {
-      expect(head(key, BASE, F1)).not.toMatch(/vt-ent-long|vt-ent-xlong/); // 11 chars
+      expect(head(key, BASE, F1)).not.toMatch(/vt-ent-long/); // « Beurni Boss » = 11
       expect(head(key, { ...BASE, name: 'Chez Wendkuni Or' }, F1)).toContain('vt-ent-long'); // 16
-      expect(head(key, LONGUE, F1)).toContain('vt-ent-xlong'); // 24
+      expect(head(key, LONGUE, F1)).toContain('vt-ent-long'); // 24 — same tier, no second step
+      // the superseded ENTETES-E second tier is GONE, not merely unused
+      expect(head(key, LONGUE, F1)).not.toContain('vt-ent-xlong');
     }
+    expect(ENTETES_STYLES).not.toContain('vt-ent-xlong');
+  });
+
+  it('the contract\'s fixed sizes: Douceur 20 px, the other four 24 px — AND NOTHING OVERRIDES THEM AT 320', () => {
+    const SIZE: Record<string, string> = { do: '20px', pr: '24px', te: '24px', et: '24px', ti: '24px' };
+    for (const [sel, px] of Object.entries(SIZE)) {
+      expect(ENTETES_STYLES, sel).toMatch(
+        new RegExp(`\\.vt-${sel} \\.${sel}-name\\.vt-ent-long \\{ font-size: ${px}; \\}`),
+      );
+    }
+    // THE HOLE THIS CLOSES: the first version matched only the BASE rule, so a
+    // later @container override could silently ship a different size and this
+    // test would still pass. Série 4 §QA-2 names the number FOR 320 —
+    // « Nom 24 car. + zone longue à 320 : aucun débordement (tailles fixes
+    // 20/24 px) » — so 320 is exactly where it must be checked. Every
+    // `vt-ent-long` size declared anywhere in the sheet, for these five, must
+    // equal the contract's.
+    for (const [sel, px] of Object.entries(SIZE)) {
+      const all = [...ENTETES_STYLES.matchAll(
+        new RegExp(`\\.vt-${sel} \\.${sel}-name\\.vt-ent-long \\{ font-size: ([^;]+); \\}`, 'g'),
+      )].map((m) => m[1]);
+      expect(all.length, `${sel}: no fixed-size rule found — the scan is asserting over nothing`).toBeGreaterThanOrEqual(1);
+      for (const declared of all) expect(declared, `${sel} overridden away from the contract`).toBe(px);
+    }
+  });
+
+  it('the trust strip keeps the relevé type (9.5px) at BOTH widths', () => {
+    // « titres 700/9.5 + sous-lignes 600 » in all five relevés. Shrinking this
+    // is failure mode #9 (a screen that dies on a 1GB Android in sunlight),
+    // and it is the kind of change a height budget quietly invites.
+    const sizes = [...ENTETES_STYLES.matchAll(/\.(?:pr|te|et|do|ti)-cell-[ls] \{ font-size: ([^;]+);/g)].map((m) => m[1]);
+    expect(sizes.length, 'no trust-cell type rules found — asserting over nothing').toBeGreaterThanOrEqual(2);
+    for (const px of sizes) expect(px, 'trust label type below the relevé').toBe('9.5px');
   });
 });
 
 /* --------------------------------------------------- 5 · sheet discipline -- */
 
-describe('ENTETES-E — the five sheets keep the house laws', () => {
-  const START = ENTETES_STYLES.indexOf('ENTETES-E · the Beurni Boss five');
+describe('ENTETES-F — the five sheets keep the house laws', () => {
+  const START = ENTETES_STYLES.indexOf('ENTETES-F · the Série 4 five');
   const SHEET_E = ENTETES_STYLES.slice(START);
 
   it('the section exists and every rule is scoped under a .vt-* root', () => {
     expect(START).toBeGreaterThan(0);
     for (const line of SHEET_E.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
-      if (m) expect(m[1], line).toMatch(/^\.vt-(ent|ma|ha|ba|se|ca)[ .]/);
+      if (m) expect(m[1], line).toMatch(/^\.vt-(ent|pr|te|et|do|ti)[ .]/);
     }
   });
 
@@ -291,18 +353,48 @@ describe('ENTETES-E — the five sheets keep the house laws', () => {
     expect(ENTETES_STYLES).toContain('.vt-ent [aria-hidden="true"] { pointer-events: none; }');
   });
 
-  it('the five heroes and strips carry the handoff heights (246/248 · 74/72)', () => {
-    expect(ENTETES_STYLES).toMatch(/\.vt-ma \.ma-scene \{ position: relative; height: 246px; \}/);
-    expect(ENTETES_STYLES).toMatch(/\.vt-ha \.ha-scene \{ position: relative; height: 246px; \}/);
-    expect(ENTETES_STYLES).toMatch(/\.vt-ba \.ba-scene \{ position: relative; height: 248px; \}/);
-    expect(ENTETES_STYLES).toMatch(/\.vt-se \.se-scene \{ position: relative; height: 246px; \}/);
-    expect(ENTETES_STYLES).toMatch(/\.vt-ca \.ca-scene \{ position: relative; height: 248px; \}/);
+  it('each column carries its relevé min-height (266 · 250 · 206 · 250 · 248)', () => {
+    const H: Record<string, number> = { pr: 266, te: 250, et: 206, do: 250, ti: 248 };
+    for (const [sel, px] of Object.entries(H)) {
+      expect(ENTETES_STYLES, sel).toMatch(new RegExp(`\\.vt-${sel} \\.${sel}-scene \\{[^}]*min-height: ${px}px`));
+    }
+  });
+
+  it('NO app bar and NO invented product amorce reach the output (founder law)', () => {
+    for (const key of FIVE) {
+      const html = head(key, BASE, F1, true);
+      // the contract's 46px Shop+ bar: wordmark, hamburger, search, cart badge
+      expect(html).not.toContain('Shop<span');
+      expect(html).not.toMatch(/Sélection |Voir tout|à partir de/);
+      // THE INVENTED CATALOGUE OF EVERY SÉRIE 4 RELEVÉ, VERBATIM. The first
+      // version of this guard built its strings as `${prix}\u202f000`, which
+      // turned « 15 500 » into the impossible « 15,5 000 » — seven of twelve
+      // assertions were checking text that can never exist. The prices are
+      // written out whole now, and the invented ARTICLE NAMES are checked too:
+      // a fake product is fake with or without its price beside it.
+      for (const prix of [
+        '28\u202f000', '15\u202f000', '12\u202f000',   // Prestige
+        '17\u202f000', '15\u202f500', '3\u202f500',    // Terracotta
+        '12\u202f900', '15\u202f900', '4\u202f900',    // Étendard
+        '8\u202f500', '6\u202f000', '7\u202f500',      // Tissage
+      ]) {
+        expect(html, `invented price ${prix}`).not.toContain(prix);
+      }
+      for (const article of [
+        'Faso Dan Fani', 'Sacs & Pochettes', 'Sandales Chic',
+        'Tunique XOX', 'Sac Wobi Chic', 'Collier Afrique Unie',
+        'Hauts tissés', 'Soins & beauté',
+      ]) {
+        expect(html, `invented article « ${article} »`).not.toContain(article);
+      }
+      expect(html).not.toMatch(/FCFA/);
+    }
   });
 });
 
 /* -------------------------------------- 6 · the six are behaviourally inert -- */
 
-describe('ENTETES-E — the six existing styles absorbed NOTHING from this slice', () => {
+describe('ENTETES-F — the six existing styles absorbed NOTHING from this slice', () => {
   const SIX: readonly EnteteKey[] = ['royale', 'heritage', 'chaleureux', 'cristal', 'dynamique'];
   const richSf = { ...BASE, cover: { status: 'live' as const, url: 'https://svc.example/c.jpg' } };
 
@@ -343,7 +435,7 @@ describe('ENTETES-E — the six existing styles absorbed NOTHING from this slice
 const COVER = 'https://svc.example/media/storefronts/sf-bb/cover/c.jpg';
 const AVEC_COVER = { ...BASE, cover: { status: 'live' as const, url: COVER } };
 
-describe('ENTETES-E — the five draw HER COVER, exactly as the six do', () => {
+describe('ENTETES-F — the five draw HER COVER, exactly as the six do', () => {
   it('ALL ELEVEN draw the cover when she has one — the ruling, across the whole set', async () => {
     const { ENTETE_KEYS } = await import('../src/vitrine/entetes');
     expect(ENTETE_KEYS.length).toBe(11);
@@ -374,7 +466,7 @@ describe('ENTETES-E — the five draw HER COVER, exactly as the six do', () => {
       const framed = { ...AVEC_COVER, cover: { status: 'live' as const, url: COVER, focus: { x: 20, y: 80 } } };
       expect(head(key, framed, F1)).toContain('object-position:20% 80%');
       // …and with no saved framing the style's own bias is what is emitted
-      expect(head(key, AVEC_COVER, F1)).toContain(`object-position:${AVATAR_POS[key]}`);
+      expect(head(key, AVEC_COVER, F1)).toContain(`object-position:${COVER_POS[key]}`);
     });
 
     it(`${key}: no cover ⇒ the PORTRAIT still fills the frame (the fallback, not a hole)`, () => {

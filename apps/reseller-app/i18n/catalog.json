@@ -1381,61 +1381,61 @@
  },
  {
   "key": "k.entete.nom_masque",
-  "fr": "Masque",
+  "fr": "Prestige",
   "register": "neutral",
   "screenClass": "label"
  },
  {
   "key": "k.entete.sub_masque",
-  "fr": "Noir, crème et rouge — un air de galerie d’art.",
+  "fr": "Noir et or, élégant comme une belle étoffe.",
   "register": "selling",
   "screenClass": "label"
  },
  {
   "key": "k.entete.nom_harmattan",
-  "fr": "Harmattan",
+  "fr": "Terracotta",
   "register": "neutral",
   "screenClass": "label"
  },
  {
   "key": "k.entete.sub_harmattan",
-  "fr": "La lumière dorée du soir, douce et chaude.",
+  "fr": "Terre cuite et vert forêt, chaud et artisanal.",
   "register": "selling",
   "screenClass": "label"
  },
  {
   "key": "k.entete.nom_balafon",
-  "fr": "Balafon",
+  "fr": "Étendard",
   "register": "neutral",
   "screenClass": "label"
  },
  {
   "key": "k.entete.sub_balafon",
-  "fr": "Une nuit de concert, bois et lumières.",
+  "fr": "Jaune, vert et rouge — l’énergie de Ouaga.",
   "register": "selling",
   "screenClass": "label"
  },
  {
   "key": "k.entete.nom_seance",
-  "fr": "Séance",
+  "fr": "Douceur",
   "register": "neutral",
   "screenClass": "label"
  },
  {
   "key": "k.entete.sub_seance",
-  "fr": "Le grand écran, comme au cinéma de Ouaga.",
+  "fr": "Crème et rose poudré, doux et raffiné.",
   "register": "selling",
   "screenClass": "label"
  },
  {
   "key": "k.entete.nom_cauris",
-  "fr": "Cauris",
+  "fr": "Tissage",
   "register": "neutral",
   "screenClass": "label"
  },
  {
   "key": "k.entete.sub_cauris",
-  "fr": "L’eau claire et les cauris porte-bonheur.",
+  "fr": "Vert profond et or, net et soigné.",
   "register": "selling",
   "screenClass": "label"
  },
