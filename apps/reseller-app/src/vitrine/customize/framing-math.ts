@@ -141,6 +141,10 @@ const SERIE3_FRAMES = {
   pop: { aspect: 326 / 158, circle: false, radii: [0, 0, 6 / 326, 6 / 326] },
   // Chrome — a 168 disc pushed off the right edge at −38, ringed in chrome. The
   chrome: CIRCLE,
+  // Néon — the taped frame, 150×184 inside its 3px fluo edge. The tape, the
+  // glow and the 2° tilt are frame, not photo, so none of them enters the
+  // silhouette — her drag positions only what lands inside the opening.
+  neon: { aspect: 150 / 184, circle: false, radii: [0, 0, 0, 0] },
 } as const satisfies Record<string, FrameSpec>;
 
 const SERIE3_FOCUS = {
@@ -149,6 +153,7 @@ const SERIE3_FOCUS = {
   prisme: { x: 50, y: 24 },
   pop: { x: 50, y: 26 },
   chrome: { x: 40, y: 28 },
+  neon: { x: 50, y: 24 },
 } as const satisfies Record<string, PhotoFocus>;
 
 const SERIE2_FRAMES = {
@@ -297,6 +302,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   prisme: { x: 50, y: 30 },
   pop: { x: 50, y: 30 },
   chrome: { x: 40, y: 28 },
+  neon: { x: 50, y: 24 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

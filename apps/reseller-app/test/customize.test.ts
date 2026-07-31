@@ -295,6 +295,7 @@ describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
       'prisme',
       'pop',
       'chrome',
+      'neon',
     ]);
     // ENTETES-H — the picker is NO LONGER equal to the vocabulary, and asserting
     // equality would now enforce the opposite of this repo's own law:

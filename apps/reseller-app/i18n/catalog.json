@@ -1500,6 +1500,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_neon",
+  "fr": "N\u00e9on",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_neon",
+  "fr": "Noir et vert fluo, affiches coll\u00e9es.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",
