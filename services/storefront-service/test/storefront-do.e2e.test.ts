@@ -275,6 +275,35 @@ describe('StorefrontDO — the durable read path GET /s/{slug}, Shape C slug poi
     expect(((await readSlug('seller-0022')).view as StorefrontView).headerStyle).toBe('royale');
   });
 
+  it('ENTETES-L: EVERY newly-canon key SAVES through the real DO — the « Masque » failure, pinned', async () => {
+    // THIS IS THE ASSERTION THAT WAS MISSING ON 2026-07-30. « Masque » shipped
+    // in the seller's picker while the deployed Worker still held the previous
+    // canon set, so `unknown_header_style` refused her save — a broken screen,
+    // not a broken feature. The test above proves an UNKNOWN key is refused;
+    // nothing proved a NEWLY-ADDED one is accepted, which is the half that
+    // actually breaks a seller.
+    //
+    // Asserted as a SET over the six, and against the REAL Durable Object over
+    // fetch, because that is the surface the deploy changes. It stays honest
+    // for the next bump: add a key to canon without deploying and this is the
+    // test that says so.
+    const SIX = ['fildor', 'bazin', 'couverture', 'billet', 'enseigne', 'hologramme'] as const;
+    const cmd = { ...SELLER_001, commandId: 'c-entl', id: 'sf-entl', shortCode: 'SELLER-0023' };
+    await create(cmd);
+    for (const key of SIX) {
+      const save = await mf.dispatchFetch('http://sf/storefronts/sf-entl/identity', {
+        method: 'POST',
+        body: JSON.stringify({ patch: { headerStyle: key }, at: T1 }),
+      });
+      expect(save.status, `${key}: refused by the service`).toBe(200);
+      expect(((await save.json()) as { status: string }).status, key).toBe('saved');
+      expect(((await readSlug('seller-0023')).view as StorefrontView).headerStyle, `${key}: not on the buyer read path`).toBe(key);
+    }
+    // and it survives a process death on the last of them, as royale does above
+    await restart();
+    expect(((await readSlug('seller-0023')).view as StorefrontView).headerStyle).toBe('hologramme');
+  });
+
   it('MOCK-CERTIFIED: DurableStorefrontStore forwards over fetch to the REAL DO — the adapter is not a lie', async () => {
     // the same StorefrontStore interface the route uses, wired to the workerd DO
     const worker: StorefrontFetcher = {

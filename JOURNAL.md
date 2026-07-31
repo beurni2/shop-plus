@@ -2038,3 +2038,15 @@ CANON DRIFT — A DEPLOY IS OWED.
 ```
 
 That gate exists because of « Masque » on 2026-07-30. It stays red until `storefront-deploy` is dispatched, and `storefront-deploy` is `workflow_dispatch` only — its own header says « a deploy is a deliberate act ». **So the red gate is the correct state of the world: main ships 2.5.0, the live Worker speaks 2.4.0, and until it doesn't, a seller who picks one of the six gets `unknown_header_style`. Blocked on the founder.**
+
+**✅ DEPLOYED, FOUNDER-AUTHORIZED 2026-07-31.** `storefront-deploy` dispatched against `main` (`75d3568`) — success. The drift gate re-run confirms it from a GitHub runner, which is the only vantage point in this session that can reach the Worker:
+
+```
+health: 200 {"service":"storefront-service","status":"ok","release":"75d3568…","canon":"2.5.0"}
+repo canon = 2.5.0 · live canon = 2.5.0
+IN SYNC — the live Worker speaks the canon main ships (2.5.0).
+```
+
+**All four workflows on `75d3568` are green.** The six headers are live and saveable.
+
+**AND THE ASSERTION THAT SHOULD HAVE EXISTED SINCE « MASQUE » NOW DOES.** `storefront-do.e2e.test.ts` already proved an UNKNOWN headerStyle is refused; **nothing proved a NEWLY-ADDED one is accepted** — which is the half that actually breaks a seller, and is exactly what happened on 2026-07-30. The new case saves all six through the REAL Durable Object over fetch, reads each back on the buyer read path, and survives a restart on the last. A future canon bump that ships without its deploy now fails a test, not a seller.
