@@ -170,6 +170,8 @@ const SERIE3_FRAMES = {
   bronze: { aspect: 156 / 206, circle: false, radii: [0.5, 0.5, 12 / 156, 12 / 156] },
   // Calebasse — le bol, un cercle 160 au triple rebord.
   calebasse: { aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] },
+  // Pagne — le portrait, un cercle 146 dans sa couronne de perles.
+  pagne: { aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] },
 } as const satisfies Record<string, FrameSpec>;
 
 const SERIE3_FOCUS = {
@@ -187,6 +189,7 @@ const SERIE3_FOCUS = {
   karite: { x: 50, y: 28 },
   bronze: { x: 50, y: 24 },
   calebasse: { x: 50, y: 26 },
+  pagne: { x: 50, y: 26 },
 } as const satisfies Record<string, PhotoFocus>;
 
 const SERIE2_FRAMES = {
@@ -344,6 +347,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   karite: { x: 50, y: 28 },
   bronze: { x: 50, y: 24 },
   calebasse: { x: 50, y: 26 },
+  pagne: { x: 50, y: 26 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

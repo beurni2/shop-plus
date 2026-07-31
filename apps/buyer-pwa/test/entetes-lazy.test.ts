@@ -288,14 +288,14 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne', '.vt-pe', '.vt-ar', '.vt-br', '.vt-gf', '.vt-du', '.vt-ka', '.vt-bz', '.vt-cb']) {
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne', '.vt-pe', '.vt-ar', '.vt-br', '.vt-gf', '.vt-du', '.vt-ka', '.vt-bz', '.vt-cb', '.vt-pg']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br|gf|du|ka|bz|cb)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br|gf|du|ka|bz|cb|pg)[ .]/);
         checked += 1;
       }
     }
@@ -352,7 +352,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const built = (ENTETE_KEYS as readonly EnteteKey[]).filter(
       (k) => k !== 'classique' && (isLazyEntete(k) || renderEntete(k, SF as never, TRUST as never, {}) !== classique),
     );
-    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(28);
+    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(29);
 
     const zero = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
     for (const k of built) {
@@ -398,7 +398,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const TIER: Record<string, [string, number]> = {
-      dunda: ['du', 24], karite: ['ka', 20], bronze: ['bz', 24], calebasse: ['cb', 24],
+      dunda: ['du', 24], karite: ['ka', 20], bronze: ['bz', 24], calebasse: ['cb', 24], pagne: ['pg', 24],
     };
     for (const [key, [p, px]] of Object.entries(TIER)) {
       const long = renderEntete(key as EnteteKey, { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});

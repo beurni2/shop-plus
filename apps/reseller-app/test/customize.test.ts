@@ -304,6 +304,7 @@ describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
       'karite',
       'bronze',
       'calebasse',
+      'pagne',
     ]);
     // ENTETES-H — the picker is NO LONGER equal to the vocabulary, and asserting
     // equality would now enforce the opposite of this repo's own law:
@@ -317,10 +318,20 @@ describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
     const canonIndex = PICKABLE_HEADER_STYLES.map((k) => HEADER_STYLES.indexOf(k));
     expect(canonIndex).toEqual([...canonIndex].sort((a, b) => a - b));
     expect(canonIndex).not.toContain(-1);
-    // and the twenty that have no unit yet are ABSENT from the picker, by name
-    for (const unbuilt of ['pagne']) {
-      expect(PICKABLE_HEADER_STYLES, unbuilt).not.toContain(unbuilt);
-    }
+    // ENTETES-H CLOSES HERE. This assertion used to name the styles that had no
+    // buyer render unit and demand they stay OUT of the picker. Pagne was the
+    // last of them, so that list is now empty — and a loop over an empty list
+    // asserts nothing, which is exactly the vacuous-guard failure this repo has
+    // been bitten by before. It is replaced by its own end state: the picker has
+    // caught up to the vocabulary, key for key.
+    //
+    // THE LAW IT ENFORCED IS UNCHANGED and still binds every future key: the
+    // picker never runs ahead of the render. A new canon key lands in
+    // HEADER_STYLES first, this equality FAILS until its unit ships, and that
+    // failure is the guard. That each pickable key really draws its own header
+    // is proven where the render lives — buyer-pwa's entetes-lazy suite asserts
+    // the honesty markers, the CSS scoping and the fallback across the whole set.
+    expect([...PICKABLE_HEADER_STYLES]).toEqual([...HEADER_STYLES]);
   });
 
   it('every PICKABLE key has BOTH its picker strings in the catalog (t throws on a missing key)', async () => {

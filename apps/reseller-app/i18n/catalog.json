@@ -1608,6 +1608,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_pagne",
+  "fr": "Pagne",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_pagne",
+  "fr": "Motifs wax et perles, le pagne des grands jours.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",
