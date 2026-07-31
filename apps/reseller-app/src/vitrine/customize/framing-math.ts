@@ -168,6 +168,8 @@ const SERIE3_FRAMES = {
   karite: { aspect: 1, circle: false, radii: [0.42, 0.42, 0.42, 0.42] },
   // Bronze — l'arche de médaillon 156×206, ronde en tête et carrée au pied.
   bronze: { aspect: 156 / 206, circle: false, radii: [0.5, 0.5, 12 / 156, 12 / 156] },
+  // Calebasse — le bol, un cercle 160 au triple rebord.
+  calebasse: { aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] },
 } as const satisfies Record<string, FrameSpec>;
 
 const SERIE3_FOCUS = {
@@ -184,6 +186,7 @@ const SERIE3_FOCUS = {
   dunda: { x: 50, y: 26 },
   karite: { x: 50, y: 28 },
   bronze: { x: 50, y: 24 },
+  calebasse: { x: 50, y: 26 },
 } as const satisfies Record<string, PhotoFocus>;
 
 const SERIE2_FRAMES = {
@@ -340,6 +343,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   dunda: { x: 50, y: 26 },
   karite: { x: 50, y: 28 },
   bronze: { x: 50, y: 24 },
+  calebasse: { x: 50, y: 26 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

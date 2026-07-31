@@ -121,6 +121,7 @@ export const PICKABLE_HEADER_STYLES = [
   'dunda',
   'karite',
   'bronze',
+  'calebasse',
 ] as const;
 
 /** Her selected header with the `classique` fallback: an OLD service wire omits

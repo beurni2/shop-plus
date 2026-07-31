@@ -1596,6 +1596,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_calebasse",
+  "fr": "Calebasse",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_calebasse",
+  "fr": "Ambre et gravures au feu, le bol du marché.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",
