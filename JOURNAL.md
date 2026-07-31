@@ -2028,3 +2028,13 @@ ERR_PNPM_PREPARE_PACKAGE  Failed to prepare git-hosted package fetched from
 ```
 
 Canon v2.5.0 bumped six package.json versions **without regenerating its own lockfile**. shop-plus fetches contracts as a git-hosted dependency, pnpm runs that package's `pnpm-install` prepare script inside the fetched tarball, and the nested install inherits `CI=true` — where pnpm defaults to `--frozen-lockfile`. Locally a plain install just updates the lock, so canon's own 10/10 + ALL GATES GREEN proved nothing about this. **A version bump in canon is not complete until its lockfile moves with it, and only a CONSUMER's frozen install can prove it.** Fixed in canon `92c8ac6` (lockfile regenerated, `CI=true pnpm install` re-run as the exact failing command), and all four shop-plus pins repinned `92fe683 → 92c8ac6`.
+
+**CI on `f978243`: `ci` ✅ · `pwa-preview` ✅ · `expo-preview` ✅ · `service-canon-drift` ❌ — and the drift failure is the gate WORKING, not a defect.**
+
+```
+repo canon = 2.5.0
+live canon = 2.4.0  (release 2e837dc)
+CANON DRIFT — A DEPLOY IS OWED.
+```
+
+That gate exists because of « Masque » on 2026-07-30. It stays red until `storefront-deploy` is dispatched, and `storefront-deploy` is `workflow_dispatch` only — its own header says « a deploy is a deliberate act ». **So the red gate is the correct state of the world: main ships 2.5.0, the live Worker speaks 2.4.0, and until it doesn't, a seller who picks one of the six gets `unknown_header_style`. Blocked on the founder.**
