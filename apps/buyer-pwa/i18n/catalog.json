@@ -948,6 +948,48 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.dt_kicker",
+  "fr": "Broderie · Ouagadougou",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.bg_kicker",
+  "fr": "La cour fleurie · Ouagadougou",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.fm_kicker",
+  "fr": "L’heure dorée · Ouagadougou",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.hb_kicker",
+  "fr": "Le bissap · Ouagadougou",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.pp_kicker",
+  "fr": "L’envol · Ouagadougou",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.gu_kicker",
+  "fr": "La fête de cour · Ouagadougou",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.gu_legende",
+  "fr": "la boutique",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.ka_pur",
   "fr": "Pur beurre de karit\u00e9",
   "register": "selling",

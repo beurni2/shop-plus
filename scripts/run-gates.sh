@@ -298,14 +298,24 @@ capture door-signal-positive pass node scripts/gates/door-signal-requires-provid
 log "gate: door-signal-requires-provider — NEGATIVE (locally-asserted door payment claims the signal, must fail)"
 capture door-signal-negative fail node scripts/gates/door-signal-requires-provider.mjs gates/fixtures/negative/door-signal.local-assert.json
 
+# THE PINNED VERSION IS READ FROM THE RESOLVED PACKAGE, NOT TYPED. It sat here
+# as a hardcoded 2.4.0 and went on passing through the whole v2.5.0 bump — for
+# the worst possible reason: canon's OWN docs.manifest.json was also stale at
+# 2.4.0, so two wrong numbers agreed. Fixing the manifest in canon (v2.6.0) is
+# what finally made this one fail. Reading the version the workspace actually
+# resolved means the gate compares the shipped pin against the shipped
+# manifest, which is the comparison it was always supposed to make.
+PINNED_CANON="$(node -p "require('@platform/contracts/package.json').version")"
+log "canon pinned in this workspace: $PINNED_CANON"
+
 log "gate: contracts drift-check — honest /docs copy vs pinned canon manifest (must pass)"
-capture drift-check-positive pass pnpm exec drift-check docs --pinned-version 2.4.0
+capture drift-check-positive pass pnpm exec drift-check docs --pinned-version "$PINNED_CANON"
 
 log "gate: contracts drift-check — TAMPERED doc (must fail)"
 DRIFT_TMP="$(mktemp -d)"
 cp -r docs "$DRIFT_TMP/docs"
 printf '\nrogue edit — this consumer copy drifted from canon\n' >> "$DRIFT_TMP/docs/Shop-Plus-Build-Spec.md"
-capture drift-check-negative fail pnpm exec drift-check "$DRIFT_TMP/docs" --pinned-version 2.4.0
+capture drift-check-negative fail pnpm exec drift-check "$DRIFT_TMP/docs" --pinned-version "$PINNED_CANON"
 rm -rf "$DRIFT_TMP"
 
 log "gate: PWA payload budget — fresh build, initial payload < 300 KB compressed (PERF-BUDGETS, WO-4.4 hard gate)"

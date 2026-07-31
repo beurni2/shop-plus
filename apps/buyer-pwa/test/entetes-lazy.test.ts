@@ -225,14 +225,15 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     for (const root of ['.vt-in', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-ch3', '.vt-ar', '.vt-br', '.vt-ka', '.vt-cb', '.vt-pg',
       '.vt-ry', '.vt-he', '.vt-ch', '.vt-dy',
       '.vt-te', '.vt-et', '.vt-do', '.vt-ti',
-      '.vt-fd', '.vt-bz', '.vt-cv', '.vt-bi', '.vt-eg', '.vt-ho']) {
+      '.vt-fd', '.vt-bz', '.vt-cv', '.vt-bi', '.vt-eg', '.vt-ho',
+      '.vt-dt', '.vt-bg', '.vt-fm', '.vt-hb', '.vt-pp', '.vt-gu']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br|gf|ka|cb|pg|ry|he|ch|dy|te|et|do|ti|fd|bz|cv|bi|eg|ho)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br|gf|ka|cb|pg|ry|he|ch|dy|te|et|do|ti|fd|bz|cv|bi|eg|ho|dt|bg|fm|hb|pp|gu)[ .]/);
         checked += 1;
       }
     }
@@ -277,7 +278,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const built = (ENTETE_KEYS as readonly EnteteKey[]).filter(
       (k) => k !== 'classique' && (isLazyEntete(k) || renderEntete(k, SF as never, TRUST as never, {}) !== classique),
     );
-    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(26);
+    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(32);
 
     const zero = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
     for (const k of built) {
@@ -307,7 +308,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { readdirSync, readFileSync } = await import('node:fs');
     const dir = new URL('../src/vitrine/entetes/', import.meta.url).pathname;
     const modules = readdirSync(dir).filter((f) => f.endsWith('.ts') && f !== 'registry.ts');
-    expect(modules.length, 'no style modules found — this scan would assert over nothing').toBeGreaterThan(24);
+    expect(modules.length, 'no style modules found — this scan would assert over nothing').toBeGreaterThan(30);
 
     const SHELL = new Set(
       [...ENTETES_STYLES.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\.(vt-[\w-]+)/g)].map((m) => m[1]!),
@@ -343,7 +344,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
         owner.set(root, file);
       }
     }
-    expect(owner.size, 'no roots were collected — the scan would pass vacuously').toBeGreaterThan(24);
+    expect(owner.size, 'no roots were collected — the scan would pass vacuously').toBeGreaterThan(30);
     // the near-miss itself, pinned by name
     expect(owner.get('vt-ch3')).toBe('chrome.ts');
     expect(owner.get('vt-ch')).toBe('chaleureux.ts');
@@ -388,6 +389,32 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
       expect(head(key as EnteteKey), `${key} sized a SHORT name down`).not.toContain('vt-ent-long');
       expect(loadedEntete(key as EnteteKey)!.css, `${key}: wrong ENTETES-L tier`)
         .toContain(`.vt-${p} .${p}-name.vt-ent-long { font-size: 24px; }`);
+    }
+  });
+
+  it('THE ENTETES-M TIER — série 10/11, and the two clamp families it splits into', async () => {
+    // Unlike the ENTETES-L six (a uniform 24px), this set is NOT uniform: the
+    // relevés give Bougainvillier and Flamboyant the wide clamp
+    // (30→36) and the other four the narrow one (27→32). Both families still
+    // collapse to 24px past 14 characters, and THAT is the invariant — a style
+    // that kept its clamp on a long name runs its name into the photo.
+    const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
+    await loadAllEntetes();
+    const WIDE = new Set(['bougain', 'flamboyant']);
+    const PREFIX: Record<string, string> = {
+      dentelle: 'dt', bougain: 'bg', flamboyant: 'fm',
+      hibiscus: 'hb', papillons: 'pp', guirlande: 'gu',
+    };
+    expect(Object.keys(PREFIX).length, 'the ENTETES-M set shrank — this scan is going stale').toBe(6);
+    for (const [key, p] of Object.entries(PREFIX)) {
+      const long = renderEntete(key as EnteteKey, { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});
+      expect(long, `${key} must take the fixed tier on a long name`).toContain('vt-ent-long');
+      expect(head(key as EnteteKey), `${key} sized a SHORT name down`).not.toContain('vt-ent-long');
+      const css = loadedEntete(key as EnteteKey)!.css;
+      expect(css, `${key}: wrong ENTETES-M tier`).toContain(`.vt-${p} .${p}-name.vt-ent-long { font-size: 24px; }`);
+      // and the clamp family it collapses FROM, so a copied sheet is caught
+      const clamp = WIDE.has(key) ? 'clamp(30px, 10.6cqw, 36px)' : 'clamp(27px, 9.4cqw, 32px)';
+      expect(css, `${key}: wrong clamp family`).toContain(clamp);
     }
   });
 

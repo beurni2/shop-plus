@@ -1584,6 +1584,78 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_dentelle",
+  "fr": "Dentelle",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_dentelle",
+  "fr": "Œillets et feston, le travail à la main.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_bougain",
+  "fr": "Bougainvillier",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_bougain",
+  "fr": "L’arche fleurie d’une cour de Ouaga.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_flamboyant",
+  "fr": "Flamboyant",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_flamboyant",
+  "fr": "La cour à 17\u202fh, lumière dorée et fleurs de feu.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_hibiscus",
+  "fr": "Hibiscus",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_hibiscus",
+  "fr": "Grande fleur de bissap, votre photo au cœur.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_papillons",
+  "fr": "Papillons",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_papillons",
+  "fr": "Ailes légères et vol pointillé, tout en douceur.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_guirlande",
+  "fr": "Guirlande",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_guirlande",
+  "fr": "Ficelle, fleurs et photo pendue : jour de fête.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_harmattan",
   "fr": "Terracotta",
   "register": "neutral",

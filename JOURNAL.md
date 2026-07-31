@@ -2050,3 +2050,31 @@ IN SYNC — the live Worker speaks the canon main ships (2.5.0).
 **All four workflows on `75d3568` are green.** The six headers are live and saveable.
 
 **AND THE ASSERTION THAT SHOULD HAVE EXISTED SINCE « MASQUE » NOW DOES.** `storefront-do.e2e.test.ts` already proved an UNKNOWN headerStyle is refused; **nothing proved a NEWLY-ADDED one is accepted** — which is the half that actually breaks a seller, and is exactly what happened on 2026-07-30. The new case saves all six through the REAL Durable Object over fetch, reads each back on the buyer read path, and survives a restart on the last. A future canon bump that ships without its deploy now fails a test, not a seller.
+
+### 2026-07-31 · ENTETES-M — six more: Dentelle · Bougainvillier · Flamboyant · Hibiscus · Papillons · Guirlande
+
+**FOUNDER ORDER: « now implement these : Flamboyant, Hibiscus, papillons, guirlande, Bougainvillier and dentelle », with the série 10 « féminines » and série 11 « jardins » handoffs.** All six built, pickable, each its own lazy chunk. **Thirty-three styles are now pickable.**
+
+**Canon v2.6.0 — 37 → 43 keys, appended.** Proven additive by a STRUCTURAL snapshot diff, not by eye: zero exports added or removed, four entries changed (the styles array, both enum schemas, packageVersion), and **the first thirty-seven keys hold their exact positions**.
+- **« Bougainvillier » is the key `bougain`** — the brief's own `id=` anchor, which is the rule recorded at ENTETES-H. The seller reads « Bougainvillier » from the catalog; nothing but the enum ever sees the key.
+- **The six-place checklist written an hour earlier was worked in order and it held**: six package.json versions + intra-deps → lockfile → docs manifest ×2 → snapshot LAST. Canon CI went green first time, which is the first bump in three that did.
+
+**AND THE CHECKLIST FOUND A SEVENTH PLACE — IN THIS REPO.** `scripts/run-gates.sh` here passed `--pinned-version 2.4.0`, hardcoded, and **had been passing through the entire v2.5.0 bump for the worst possible reason: canon's own `docs.manifest.json` was also stale at 2.4.0, so two wrong numbers agreed.** Fixing the manifest in canon is what finally made this fail. It now reads `require('@platform/contracts/package.json').version` — the version the workspace actually resolved — so the gate compares the shipped pin against the shipped manifest, which is the comparison it was always supposed to make. **Two stale copies that cancel out are worse than one, because the gate reports green.**
+
+**THREE DEFECTS THE SCREENSHOTS FOUND, all invisible in the code and all in the same family — a thing drawn correctly where nothing could see it.**
+- **Dentelle's scalloped hem was blush-on-blush.** The relevé's own words say what it is for — « le tissu se découpe en demi-cercles sur la rangée framboise » — the cloth is cut ON the raspberry. Inside the hero it painted blush half-circles on a blush ground: correct CSS, zero pixels. Moved into the trust row, where the raspberry is.
+- **Dentelle's collerette was invisible twice over.** White picots sat on the veil's own white tulle dots; the old-rose basting ring sat at r62, UNDER a photo whose inset gives it r63. The wrap now carries a plain voile disc (pink, so white lace reads) and the basting moved out to r66, into the collar itself.
+- **Hibiscus's giant corolla was hidden behind the portrait.** The petals reached the same radius as the 110 circle laid on them, so the whole flower disappeared and only a crimson sliver survived. Redrawn to ~76 from the centre, clearing the circle by ~20px. **A flower the photo hides is not a flower.**
+- **Guirlande's polaroid hung from nothing.** Measured off the shot: the string passed at y≈76 and y≈90 where the two pegs sit at y≈116 — thirty pixels of daylight. The line now falls to them (and peg A reaches up), keeping its left arc under the three threaded flowers.
+
+**Payload: worst case `274969 B`** against the 307200 B ceiling — the six cost ~272 B on first load, since each is its own chunk and the worst case is still first-load + `pagne` (4259 B compressed). The six weigh 3.51–4.00 KB gzipped, all inside the 16 KB per-chunk ceiling.
+
+**A guard shaped by what the set actually is:** unlike the ENTETES-L six (a uniform 24px tier), this set splits into TWO clamp families — Bougainvillier and Flamboyant take the wide `clamp(30px, 10.6cqw, 36px)`, the other four the narrow `clamp(27px, 9.4cqw, 32px)`. Both collapse to 24px past 14 characters. The new test asserts the tier AND the clamp family per style, so a sheet copied from the wrong neighbour is caught.
+
+**Framing silhouettes read off each module, decoration excluded as always.** Four of the six are circles; the two that are not are exactly the two a circle would have lied about — **Bougainvillier's ARCH** (150 wide, top 24 to the hero's foot, `border-radius 110/110/0/0`, so the FrameSpec's corner fractions reproduce a doorway) and **Guirlande's polaroid PRINT** (132×132 inside the 148 frame; the white border, caption, pegs and 2° hang are frame).
+
+**Honesty law holds on all six:** « Nouvelle vendeuse » is an embroidery hoop, a bract crown, a sun medal, a corolla cockade, a flight card and a prize rosette — every one IN THE COLUMN, never on her portrait (ENTETES-K), and proof XOR badge asserted set-wide.
+
+**A PROBE THAT LIED TO ME, TWICE, AND THE RULE THAT FIXES IT.** I checked for raw U+202F by pasting the character into a Python heredoc. In one heredoc it survived and the check was real; in the next it was normalised to an ASCII space, so the check counted every space in the file and « failed » on a clean one. **Never express U+202F as a pasted glyph — use `b'\xe2\x80\xaf'` or the ` ` escape.** Both catalogs re-verified by exact bytes: zero raw, escapes intact, parse clean. (The same class of error put a fabricated SHA in a CI-watch loop earlier today: a check that cannot fail is not a check.)
+
+**Evidence:** `turbo run test --force` 23/23 · 36 screenshots read individually (six styles × 360/320 × complete/minimal/long), `scrollWidth` equal to the viewport in all 36 · `run-gates.sh` **ALL GATES GREEN** · both apps typecheck · canon CI green on v2.6.0.

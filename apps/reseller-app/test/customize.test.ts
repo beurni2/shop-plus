@@ -305,6 +305,14 @@ describe('ENTETES-F/J — the picker is a strict subset of canon vocabulary', ()
       'billet',
       'enseigne',
       'hologramme',
+      // ENTETES-M — séries 10/11, added last as always: modules, chunks,
+      // catalog strings and framing silhouettes all landed before these lines.
+      'dentelle',
+      'bougain',
+      'flamboyant',
+      'hibiscus',
+      'papillons',
+      'guirlande',
     ]);
     // ENTETES-H — the picker is NO LONGER equal to the vocabulary, and asserting
     // equality would now enforce the opposite of this repo's own law:

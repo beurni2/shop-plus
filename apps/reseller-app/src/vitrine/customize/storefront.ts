@@ -81,6 +81,13 @@ export const HEADER_STYLES = [
   'billet',
   'enseigne',
   'hologramme',
+  // ENTETES-M — séries 10 « féminines » + 11 « jardins » (canon v2.6.0)
+  'dentelle',
+  'bougain',
+  'flamboyant',
+  'hibiscus',
+  'papillons',
+  'guirlande',
 ] as const;
 export type HeaderStyleKey = (typeof HEADER_STYLES)[number];
 
@@ -126,6 +133,12 @@ export const PICKABLE_HEADER_STYLES = [
   'billet',
   'enseigne',
   'hologramme',
+  'dentelle',
+  'bougain',
+  'flamboyant',
+  'hibiscus',
+  'papillons',
+  'guirlande',
 ] as const;
 
 /** Her selected header with the `classique` fallback: an OLD service wire omits

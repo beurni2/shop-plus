@@ -476,12 +476,12 @@ describe('ENTETES-F — the five draw HER COVER, exactly as the six do', () => {
     // this ruling is asserted across the BUILT set, which is what « the whole
     // set » meant when it was written.
     //
-    // ENTETES-L took canon to 37. The six it added are BUILT (lazy modules),
+    // ENTETES-L took canon to 37, ENTETES-M to 43. The six it added are BUILT (lazy modules),
     // but they sit at the END of the array and this slice reaches the first
     // eleven, so the set this test walks is unchanged; the six are covered by
     // the cover/proof scans in entetes-lazy.test.ts, which run over every lazy
     // style rather than over a fixed prefix.
-    expect(ENTETE_KEYS.length).toBe(37);
+    expect(ENTETE_KEYS.length).toBe(43);
     const BUILT = ENTETE_KEYS.slice(0, 11);
     for (const key of BUILT) {
       const html = renderEntete(key as EnteteKey, AVEC_COVER as never, F1 as never, {});

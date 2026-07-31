@@ -191,6 +191,47 @@ const SERIE89_FRAMES = {
   hologramme: CIRCLE,
 } as const satisfies Record<string, FrameSpec>;
 
+/**
+ * ENTETES-M — the SÉRIE 10/11 six, read off each module's CSS as the ENTETES-L
+ * six were, and with the same exclusion: decoration is frame, not photograph.
+ *
+ *   · Dentelle   — the 126 circle INSIDE the 144 collerette (inset 9). The
+ *     picots and basting rings are the collerette's, not the photo's.
+ *   · Bougainvillier — THE ARCH, and the only silhouette here that is not a
+ *     simple shape: 150 wide, from top 24 to the hero's foot, `border-radius
+ *     110px 110px 0 0`. The hero is padding 74 + column (34 offset + 224
+ *     min-height + 22 pad) = 354, so the arch is 330 tall. FrameSpec carries
+ *     four corner FRACTIONS of the width, so 110/150 on the two top corners
+ *     reproduces the doorway exactly.
+ *   · Flamboyant — the 120 circle inside the 150 sun ring (inset 11 + a 4px
+ *     outer fillet ⇒ 128 of drawn circle; the PHOTO is the 120).
+ *   · Hibiscus   — the 110 circle that sits ON the corolla. The flower is
+ *     behind it and is not part of the crop.
+ *   · Papillons  — the 126 circle inside the 146 orbit (inset 10).
+ *   · Guirlande  — the polaroid's PRINT: 132 wide inside the 148 frame, 132
+ *     tall, square corners. The white border, the caption, the pegs and the
+ *     2° hang are frame — none of them enters what her drag positions.
+ */
+const SERIE1011_FRAMES = {
+  dentelle: CIRCLE,
+  bougain: { aspect: 150 / 330, circle: false, radii: [110 / 150, 110 / 150, 0, 0] },
+  flamboyant: CIRCLE,
+  hibiscus: CIRCLE,
+  papillons: CIRCLE,
+  guirlande: { aspect: 132 / 132, circle: false, radii: [0, 0, 0, 0] },
+} as const satisfies Record<string, FrameSpec>;
+
+/** Each module's own `framePhoto` bias, style for style — and each module's
+ *  `.vt-avatar-img` rule carries the SAME value, so one map serves both kinds. */
+const SERIE1011_FOCUS = {
+  dentelle: { x: 50, y: 26 },
+  bougain: { x: 50, y: 22 },
+  flamboyant: { x: 50, y: 26 },
+  hibiscus: { x: 50, y: 26 },
+  papillons: { x: 50, y: 26 },
+  guirlande: { x: 50, y: 30 },
+} as const satisfies Record<string, PhotoFocus>;
+
 /** Each of the six draws its cover at its module's own `framePhoto` bias — the
  *  second argument of the `framePhoto(v, '…')` call, style for style. */
 const SERIE89_FOCUS = {
@@ -283,6 +324,7 @@ const COVER_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = {
   ...SERIE2_FRAMES,
   ...SERIE3_FRAMES,
   ...SERIE89_FRAMES,
+  ...SERIE1011_FRAMES,
 };
 
 /**
@@ -307,6 +349,10 @@ const AVATAR_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = {
   ...BEURNI_FRAMES,
   ...SERIE2_FRAMES,
   ...SERIE89_FRAMES,
+  // ENTETES-M — same one-slot reasoning. Four of these six ARE circles, so
+  // only Bougainvillier's arch and Guirlande's print actually change anything
+  // here — and those two are exactly the ones a circle preview would lie about.
+  ...SERIE1011_FRAMES,
 };
 
 export function frameSpecFor(style: HeaderStyleKey, kind: FrameKind): FrameSpec {
@@ -337,6 +383,7 @@ const COVER_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   ...SERIE2_FOCUS,
   ...SERIE3_FOCUS,
   ...SERIE89_FOCUS,
+  ...SERIE1011_FOCUS,
 };
 
 /**
@@ -374,6 +421,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   // the SAME object-position as its `framePhoto` call, so the portrait fallback
   // is the cover bias here, not the SÉRIE 4 shared 50/24.
   ...SERIE89_FOCUS,
+  ...SERIE1011_FOCUS,
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

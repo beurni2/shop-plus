@@ -332,7 +332,7 @@ describe('ENTETES-A — ?entete= is the founder’s preview lever and nothing mo
     expect(resolveEntete('?entete=<script>')).toBe('classique');
   });
 
-  it('the closed list is the canon thirty-seven — the six first, in order, then the rest', () => {
+  it('the closed list is the canon forty-three — the six first, in order, then the rest', () => {
     expect([...ENTETE_KEYS]).toEqual([
       'classique',
       'royale',
@@ -375,6 +375,13 @@ describe('ENTETES-A — ?entete= is the founder’s preview lever and nothing mo
       'billet',
       'enseigne',
       'hologramme',
+      // ENTETES-M (canon v2.6.0) — série 10 « féminines » + série 11 « jardins ».
+      'dentelle',
+      'bougain',
+      'flamboyant',
+      'hibiscus',
+      'papillons',
+      'guirlande',
     ]);
     // the BUILT eleven keep their EXACT positions — this is what guarantees a
     // stored value can never come back as a different header after a canon bump

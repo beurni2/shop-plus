@@ -101,6 +101,15 @@ export const ENTETE_KEYS = [
   'billet',
   'enseigne',
   'hologramme',
+  // ENTETES-M (canon v2.6.0) — série 10 « féminines » and série 11 « jardins ».
+  // Each arrives WITH its drawing, like the ENTETES-L six. « Bougainvillier »
+  // is `bougain`: the brief's own id= anchor, per the ENTETES-H rule.
+  'dentelle',
+  'bougain',
+  'flamboyant',
+  'hibiscus',
+  'papillons',
+  'guirlande',
 ] as const;
 export type EnteteKey = (typeof ENTETE_KEYS)[number];
 
