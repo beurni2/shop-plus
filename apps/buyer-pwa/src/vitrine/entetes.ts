@@ -288,7 +288,7 @@ const avatarImg = (v: Vals): string =>
   `<img class="vt-avatar-img" src="${v.avatarUrl}" alt="${t('vit.avatar_alt')}" loading="lazy" decoding="async"${v.avatarFocus !== undefined ? ` style="object-position:${v.avatarFocus}"` : ''}>`;
 
 /** « Vendeuse vérifiée · {zone} » — the catalog string plus her real zone. */
-const zoneLine = (v: Vals, pin: string): string => `${pin}${t('vit.verifiee')} <v>${v.zone}</v>`;
+export const zoneLine = (v: Vals, pin: string): string => `${pin}${t('vit.verifiee')} <v>${v.zone}</v>`;
 
 /** The catalog's zone label without its trailing separator — Héritage's photo
  *  chip carries the bare « Vendeuse vérifiée ». Derived, never re-authored. */

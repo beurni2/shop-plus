@@ -1392,6 +1392,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_couture",
+  "fr": "Couture",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_couture",
+  "fr": "Noir et crème, fin comme un magazine.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",

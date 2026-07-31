@@ -125,6 +125,9 @@ const BEURNI_FRAMES = {
  */
 const SERIE2_FRAMES = {
   indigo: { aspect: 360 / 300, circle: false, radii: [0, 0, 0, 0] },
+  // Couture — a letterbox band, and the ONE style of the series with square
+  // corners (« angles droits (r0) »). Her drag previews a mounted print.
+  couture: { aspect: 360 / 138, circle: false, radii: [0, 0, 0, 0] },
   cauris: { aspect: (0.46 * 360) / 340, circle: false, radii: [0, 0, 0, 0] },
 } as const satisfies Record<string, FrameSpec>;
 
@@ -142,6 +145,7 @@ const BEURNI_FOCUS = {
 /** Indigo's relevé: « cover, object-position:50% 30% ». */
 const SERIE2_FOCUS = {
   indigo: { x: 50, y: 30 },
+  couture: { x: 50, y: 26 },
 } as const satisfies Record<string, PhotoFocus>;
 
 /** Cover silhouettes, from the contract's own dimensions (ENTETES-A relevé):
@@ -229,6 +233,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   cauris: SERIE4_PORTRAIT,
   // Indigo's portrait fallback sits in the same band, at its own high bias.
   indigo: { x: 50, y: 24 },
+  couture: { x: 50, y: 26 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

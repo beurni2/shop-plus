@@ -108,6 +108,46 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     expect(visible).toContain('Nouvelle');
   });
 
+  it('COUTURE — its chunk loads and draws, and it is a SEPARATE chunk from indigo', async () => {
+    await loadEntete('couture');
+    expect(loadedEntete('couture'), 'the couture chunk did not register').toBeDefined();
+    const html = renderEntete('couture', SF as never, TRUST as never, {});
+    expect(html).toContain('class="vt-ent vt-co"');
+    expect(html).toContain('Gounghin, Ouagadougou');
+    expect(html).toContain('data-role="reputation"');
+    // both styles can be resident at once WITHOUT their CSS colliding: each
+    // sheet is scoped to its own root, which is what lets the page mount
+    // whichever arrived
+    await loadEntete('indigo');
+    const sheet = loadedEnteteCss();
+    expect(sheet).toContain('.vt-co');
+    expect(sheet).toContain('.vt-in');
+    for (const line of sheet.split('\n')) {
+      const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
+      if (m) expect(m[1], line).toMatch(/^\.vt-(co|in)[ .]/);
+    }
+  });
+
+  it('no style module hides a BACKTICK inside its css template literal', async () => {
+    // Couture cost two rounds to this: a comment reading « `zoneLine` » inside
+    // `const css = ` … ` ` terminated the template and the compiler answered
+    // TS1005 « ',' expected » pointing at CSS, which reads like a CSS bug. The
+    // typecheck does catch it — this makes it fail BY NAME, because eighteen
+    // more style modules are coming and each will be written the same way.
+    const { readdirSync, readFileSync } = await import('node:fs');
+    const dir = new URL('../src/vitrine/entetes/', import.meta.url).pathname;
+    const modules = readdirSync(dir).filter((f) => f.endsWith('.ts') && f !== 'registry.ts');
+    expect(modules.length, 'no style modules found — this scan would assert over nothing').toBeGreaterThan(0);
+    for (const file of modules) {
+      const src = readFileSync(dir + file, 'utf8');
+      const marker = 'const css = `';
+      const i = src.indexOf(marker);
+      if (i === -1) continue;
+      const body = src.slice(i + marker.length).split('\n`;')[0]!;
+      expect(body.includes('`'), `${file}: a backtick inside the css template ends the string early`).toBe(false);
+    }
+  });
+
   it('only ARRIVED styles put CSS on the page — a chunk that never came adds no bytes', () => {
     expect(loadedEnteteCss()).toBe('');
     registerEntete('cristal', { render: () => '<i></i>', css: '.vt-xx { color: #111; }' });
