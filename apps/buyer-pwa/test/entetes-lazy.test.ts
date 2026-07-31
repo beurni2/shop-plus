@@ -288,18 +288,35 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne']) {
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne', '.vt-pe']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe)[ .]/);
         checked += 1;
       }
     }
     expect(checked, 'no selectors matched — the scan asserted over nothing').toBeGreaterThan(30);
+  });
+
+  it('PERLE — one of the TWO série 3 styles that draw her présentation', async () => {
+    await loadEntete('perle');
+    expect(loadedEntete('perle'), 'the perle chunk did not register').toBeDefined();
+    const html = renderEntete('perle', SF as never, TRUST as never, {});
+    expect(html).toContain('class="vt-ent vt-pe"');
+    expect(html).toContain('data-role="reputation"');
+
+    // « La présentation ne s'affiche que sur Perle et Artisan » — every other
+    // série 3 style asserts the bio is ABSENT; this one asserts it is DRAWN.
+    const bio = 'Tissus choisis un par un.';
+    const withBio = renderEntete('perle', { ...SF, bio } as never, TRUST as never, {});
+    expect(withBio, 'perle must draw her présentation — the board shows one').toContain(bio);
+    // …and it still obeys the compact rule the shared vals() applies
+    const compact = renderEntete('perle', { ...SF, bio } as never, TRUST as never, { compact: true });
+    expect(compact, 'a compact render must drop the bio like every other style').not.toContain(bio);
   });
 
   it('no lazy chunk CLAIMS a compiled-in style root class', async () => {

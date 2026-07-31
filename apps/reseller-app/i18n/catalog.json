@@ -1512,6 +1512,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_perle",
+  "fr": "Perle",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_perle",
+  "fr": "Nacre et \u00e9meraude, une photo en m\u00e9daillon.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",

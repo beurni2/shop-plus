@@ -145,6 +145,10 @@ const SERIE3_FRAMES = {
   // glow and the 2° tilt are frame, not photo, so none of them enters the
   // silhouette — her drag positions only what lands inside the opening.
   neon: { aspect: 150 / 184, circle: false, radii: [0, 0, 0, 0] },
+  // Perle — a 186 disc pushed off the right edge at −44. Same approximation as
+  // Safran and Audace: the whole disc is drawn, the CROP is exact, and the
+  // 38 % bias is what keeps her face clear of the cut.
+  perle: CIRCLE,
 } as const satisfies Record<string, FrameSpec>;
 
 const SERIE3_FOCUS = {
@@ -154,6 +158,7 @@ const SERIE3_FOCUS = {
   pop: { x: 50, y: 26 },
   chrome: { x: 40, y: 28 },
   neon: { x: 50, y: 24 },
+  perle: { x: 38, y: 28 },
 } as const satisfies Record<string, PhotoFocus>;
 
 const SERIE2_FRAMES = {
@@ -303,6 +308,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   pop: { x: 50, y: 30 },
   chrome: { x: 40, y: 28 },
   neon: { x: 50, y: 24 },
+  perle: { x: 50, y: 30 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

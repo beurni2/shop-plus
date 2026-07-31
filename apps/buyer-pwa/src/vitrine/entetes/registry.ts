@@ -62,6 +62,7 @@ const LOADERS: Partial<Record<EnteteKey, () => Promise<{ unit: EnteteUnit }>>> =
   pop: () => import('./pop'),
   chrome: () => import('./chrome'),
   neon: () => import('./neon'),
+  perle: () => import('./perle'),
 };
 
 const LOADED = new Map<EnteteKey, EnteteUnit>();
