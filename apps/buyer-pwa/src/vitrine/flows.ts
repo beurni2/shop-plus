@@ -27,6 +27,7 @@ import {
 import { applyTheme, DEFAULT_THEME } from './themes';
 import { VITRINE_STYLES } from './styles';
 import { ENTETES_STYLES, type EnteteKey } from './entetes';
+import { loadEntete, loadedEnteteCss } from './entetes/registry';
 import { iconCheck } from './icons';
 import { wireVoicePlay } from './voice-player';
 
@@ -153,14 +154,21 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   // the sheet mounts lazily at render time, once, whichever source names a
   // non-classique key first (`?entete=` at the loading render, the field at the
   // ready render).
-  let enteteSheetMounted = false;
+  //
+  // ENTETES-G: a lazily-loaded style carries its OWN css in its chunk, so the
+  // sheet is re-written (not appended to) whenever a new unit has arrived. One
+  // <style data-entetes> element, always — appending a second would leave the
+  // page's cascade depending on fetch order.
+  let enteteSheetText = '';
   const ensureEnteteSheet = (): void => {
-    if (enteteSheetMounted) return;
-    enteteSheetMounted = true;
-    const enteteStyle = document.createElement('style');
+    const text = ENTETES_STYLES + loadedEnteteCss();
+    if (text === enteteSheetText) return;
+    enteteSheetText = text;
+    const existing = document.head.querySelector('style[data-entetes]');
+    const enteteStyle = existing ?? document.createElement('style');
     enteteStyle.setAttribute('data-entetes', '');
-    enteteStyle.textContent = ENTETES_STYLES;
-    document.head.appendChild(enteteStyle);
+    enteteStyle.textContent = text;
+    if (existing === null) document.head.appendChild(enteteStyle);
   };
 
   // The audit harness (a profil override) drives the DEMO adapter; a real entry
@@ -247,16 +255,27 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   // Resolve ONCE per load and drive the state. §4.2: harness state wins (frozen
   // for the audit); else the existing squelette shows WHILE the resolve is in
   // flight (no new spinner) and holds ≥ SKELETON_MS, then ready/empty/invalid.
+  // ENTETES-G — resolve the storefront AND her header style before any screen
+  // that draws a header. Both `empty` and `ready` come after this; `loading`
+  // draws a skeleton with no header at all, so there is no flash and no swap.
+  // A style that fails to fetch leaves the key unregistered and `classique`
+  // draws — her products still reach the buyer (the ENTETES-E0 law).
+  const resolveWithStyle = async (): Promise<Resolved> => {
+    const resolved = await port.resolve(slug);
+    await loadEntete(enteteForRender(harness.entete, resolved?.storefront?.headerStyle));
+    return resolved;
+  };
+
   const load = (skeletonMs: number, isInitial: boolean): void => {
     if (harness.etat !== undefined) {
-      void port.resolve(slug).then((resolved) => {
+      void resolveWithStyle().then((resolved) => {
         if (isInitial) recordArrival(resolved);
         render(harness.etat!, resolved);
       });
       return;
     }
     if (harness.fige === true) {
-      void port.resolve(slug).then((resolved) => {
+      void resolveWithStyle().then((resolved) => {
         if (isInitial) recordArrival(resolved);
         render('ready', resolved);
       });
@@ -264,7 +283,7 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
     }
     render('loading', undefined);
     const started = Date.now();
-    void port.resolve(slug).then((resolved) => {
+    void resolveWithStyle().then((resolved) => {
       if (isInitial) recordArrival(resolved);
       const wait = Math.max(0, skeletonMs - (Date.now() - started));
       window.setTimeout(() => render('ready', resolved), wait);

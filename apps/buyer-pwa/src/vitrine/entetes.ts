@@ -34,6 +34,7 @@ import { esc } from '../format';
 import { groupFr } from '../cliente/money';
 import { focusPosition, type Storefront, type VitrineTrust } from './profile';
 import { chips, hero } from './render';
+import { loadedEntete } from './entetes/registry';
 import {
   iconBack,
   iconCheckEnt,
@@ -103,7 +104,7 @@ export interface EnteteOpts {
 
 /* ------------------------------------------------------------------ data -- */
 
-interface Vals {
+export interface Vals {
   readonly name: string;
   readonly mono: string;
   readonly zone: string;
@@ -138,7 +139,7 @@ interface Vals {
  * have a cover and no bio, or a bio and no history, and each fragment appears
  * on ITS OWN condition.
  */
-function vals(sf: Storefront, trust: VitrineTrust, opts: EnteteOpts): Vals {
+export function vals(sf: Storefront, trust: VitrineTrust, opts: EnteteOpts): Vals {
   const compact = opts.compact === true;
   const bare = sf.name.replace(/^Chez\s+/i, '');
   const hasCover = sf.cover.status === 'live' && typeof sf.cover.url === 'string' && sf.cover.url !== '';
@@ -226,19 +227,19 @@ export function nameTail(raw: string): string {
  * so a shop that has only an avatar still shows a face rather than a monogram.
  * Neither ⇒ the style's own motif, never an empty frame.
  */
-const hasPhoto = (v: Vals): boolean => v.hasCover || v.hasAvatar;
-const etatPhoto = (v: Vals): string => (hasPhoto(v) ? 'live' : 'none');
+export const hasPhoto = (v: Vals): boolean => v.hasCover || v.hasAvatar;
+export const etatPhoto = (v: Vals): string => (hasPhoto(v) ? 'live' : 'none');
 /** The frame's <img>: the cover at this style's §5 crop bias, else the portrait. */
-const framePhoto = (v: Vals, pos: string): string => (v.hasCover ? coverImg(v, pos) : avatarImg(v));
+export const framePhoto = (v: Vals, pos: string): string => (v.hasCover ? coverImg(v, pos) : avatarImg(v));
 
 /** « {rating} · {N} avis » — the handoff's exact review chip (its « Chaînes
  *  exactes » list), NNBSP-grouped count, star drawn by the caller's style. */
-const avisChip = (v: Vals): string =>
+export const avisChip = (v: Vals): string =>
   `<span><v>${v.rating}</v> · <v>${groupFr(v.reviewCount)}</v> ${t('vit.avis')}</span>`;
 
 /** « {N} ventes livrées par Séra » with the count grouped the repo's byte-stable
  *  way (manual NNBSP grouping — ICU is banned; the handoff's fr-FR intent). */
-const ventesLine = (v: Vals): string =>
+export const ventesLine = (v: Vals): string =>
   `<b><v>${groupFr(v.delivN)}</v></b> ${t('vit.ventes_livrees').replace(/\s+(\S+)$/, '&nbsp;$1')}`;
 
 /** The cover container's honest state: a real photograph, or the style's own
@@ -267,14 +268,14 @@ const zoneLine = (v: Vals, pin: string): string => `${pin}${t('vit.verifiee')} <
 
 /** The catalog's zone label without its trailing separator — Héritage's photo
  *  chip carries the bare « Vendeuse vérifiée ». Derived, never re-authored. */
-const verifieeBare = (): string => t('vit.verifiee').replace(/\s*·\s*$/, '');
+export const verifieeBare = (): string => t('vit.verifiee').replace(/\s*·\s*$/, '');
 
 /**
  * The two floating controls. §2.5: back only when the buyer arrived from a
  * product, and share then slides one notch. Both are ≥ 44×44 (HANDOFF §6 —
  * the visuals' 40 rounds are carried to 44, the one dimensional deviation).
  */
-function controls(v: Vals, style: string, prop: string, near: string, far: string, ink: string): string {
+export function controls(v: Vals, style: string, prop: string, near: string, far: string, ink: string): string {
   const back = v.back
     ? `<button class="vt-ent-btn vt-ent-back ${style}-btn" data-action="retour" aria-label="${t('vit.retour_aria')}">${iconBack(19, ink, 2.2)}</button>`
     : '';
@@ -946,6 +947,14 @@ export function renderEntete(
   opts: EnteteOpts = {},
   floatBar = '',
 ): string {
+  // ENTETES-G — a lazily-loaded style wins if its chunk has arrived. It cannot
+  // be fetched from here: this function is synchronous by contract, and starting
+  // async work it cannot await would render the wrong header and then swap it
+  // under the buyer. `flows.ts` awaits `loadEntete` before any header-drawing
+  // screen, so by the time we are here the unit is present — or the fetch
+  // failed, and the ENTETES-E0 default below is the honest answer.
+  const lazy = loadedEntete(key);
+  if (lazy !== undefined) return lazy.render(vals(sf, trust, opts));
   if (key === 'classique') {
     const compact = opts.compact === true;
     return compact
