@@ -74,6 +74,13 @@ export const HEADER_STYLES = [
   'bronze',
   'calebasse',
   'pagne',
+  // ENTETES-L — séries 8 « luxe » + 9 « éditions » (canon v2.5.0)
+  'fildor',
+  'bazin',
+  'couverture',
+  'billet',
+  'enseigne',
+  'hologramme',
 ] as const;
 export type HeaderStyleKey = (typeof HEADER_STYLES)[number];
 
@@ -113,6 +120,12 @@ export const PICKABLE_HEADER_STYLES = [
   'karite',
   'calebasse',
   'pagne',
+  'fildor',
+  'bazin',
+  'couverture',
+  'billet',
+  'enseigne',
+  'hologramme',
 ] as const;
 
 /** Her selected header with the `classique` fallback: an OLD service wire omits

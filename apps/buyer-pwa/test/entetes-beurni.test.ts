@@ -471,11 +471,17 @@ const AVEC_COVER = { ...BASE, cover: { status: 'live' as const, url: COVER } };
 describe('ENTETES-F — the five draw HER COVER, exactly as the six do', () => {
   it('ALL ELEVEN draw the cover when she has one — the ruling, across the whole set', async () => {
     const { ENTETE_KEYS } = await import('../src/vitrine/entetes');
-    // ENTETES-H — canon carries 31 keys; only the first ELEVEN have a render
-    // unit. The other twenty are vocabulary and fall back to classique, so
+    // ENTETES-H — canon carried 31 keys; only the first ELEVEN had a render
+    // unit. The other twenty were vocabulary and fell back to classique, so
     // this ruling is asserted across the BUILT set, which is what « the whole
     // set » meant when it was written.
-    expect(ENTETE_KEYS.length).toBe(31);
+    //
+    // ENTETES-L took canon to 37. The six it added are BUILT (lazy modules),
+    // but they sit at the END of the array and this slice reaches the first
+    // eleven, so the set this test walks is unchanged; the six are covered by
+    // the cover/proof scans in entetes-lazy.test.ts, which run over every lazy
+    // style rather than over a fixed prefix.
+    expect(ENTETE_KEYS.length).toBe(37);
     const BUILT = ENTETE_KEYS.slice(0, 11);
     for (const key of BUILT) {
       const html = renderEntete(key as EnteteKey, AVEC_COVER as never, F1 as never, {});

@@ -296,6 +296,15 @@ describe('ENTETES-F/J — the picker is a strict subset of canon vocabulary', ()
       'karite',
       'calebasse',
       'pagne',
+      // ENTETES-L — séries 8/9. Same order of operations as Indigo above: the
+      // six modules, their chunks, their catalog strings and their framing
+      // silhouettes all landed before these six lines were added.
+      'fildor',
+      'bazin',
+      'couverture',
+      'billet',
+      'enseigne',
+      'hologramme',
     ]);
     // ENTETES-H — the picker is NO LONGER equal to the vocabulary, and asserting
     // equality would now enforce the opposite of this repo's own law:

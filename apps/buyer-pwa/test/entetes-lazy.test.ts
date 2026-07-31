@@ -224,14 +224,15 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const sheet = loadedEnteteCss();
     for (const root of ['.vt-in', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-ch3', '.vt-ar', '.vt-br', '.vt-ka', '.vt-cb', '.vt-pg',
       '.vt-ry', '.vt-he', '.vt-ch', '.vt-dy',
-      '.vt-te', '.vt-et', '.vt-do', '.vt-ti']) {
+      '.vt-te', '.vt-et', '.vt-do', '.vt-ti',
+      '.vt-fd', '.vt-bz', '.vt-cv', '.vt-bi', '.vt-eg', '.vt-ho']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br|gf|ka|cb|pg|ry|he|ch|dy|te|et|do|ti)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br|gf|ka|cb|pg|ry|he|ch|dy|te|et|do|ti|fd|bz|cv|bi|eg|ho)[ .]/);
         checked += 1;
       }
     }
@@ -276,7 +277,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const built = (ENTETE_KEYS as readonly EnteteKey[]).filter(
       (k) => k !== 'classique' && (isLazyEntete(k) || renderEntete(k, SF as never, TRUST as never, {}) !== classique),
     );
-    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(20);
+    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(26);
 
     const zero = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
     for (const k of built) {
@@ -306,7 +307,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { readdirSync, readFileSync } = await import('node:fs');
     const dir = new URL('../src/vitrine/entetes/', import.meta.url).pathname;
     const modules = readdirSync(dir).filter((f) => f.endsWith('.ts') && f !== 'registry.ts');
-    expect(modules.length, 'no style modules found — this scan would assert over nothing').toBeGreaterThan(18);
+    expect(modules.length, 'no style modules found — this scan would assert over nothing').toBeGreaterThan(24);
 
     const SHELL = new Set(
       [...ENTETES_STYLES.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\.(vt-[\w-]+)/g)].map((m) => m[1]!),
@@ -342,7 +343,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
         owner.set(root, file);
       }
     }
-    expect(owner.size, 'no roots were collected — the scan would pass vacuously').toBeGreaterThan(18);
+    expect(owner.size, 'no roots were collected — the scan would pass vacuously').toBeGreaterThan(24);
     // the near-miss itself, pinned by name
     expect(owner.get('vt-ch3')).toBe('chrome.ts');
     expect(owner.get('vt-ch')).toBe('chaleureux.ts');
@@ -365,6 +366,28 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
       expect(head(key as EnteteKey), `${key} sized a SHORT name down`).not.toContain('vt-ent-long');
       expect(loadedEntete(key as EnteteKey)!.css, `${key}: wrong série 5 tier`)
         .toContain(`.vt-${p} .${p}-name.vt-ent-long { font-size: ${px}px; }`);
+    }
+  });
+
+  it('THE ENTETES-L TIER — all six of série 8/9 take 24 px past 14 characters', async () => {
+    // Each of the six relevés carries the same clause (« nom > 14 caractères →
+    // 24 px fixe »), and the six were written one after another from a shared
+    // shape — which is exactly the condition under which one of them silently
+    // keeps a neighbour's number. Asserted as a SET for that reason, and kept
+    // out of the SÉRIE 5 test above because these are not that series and its
+    // 20 px Karité exception does not apply here.
+    const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
+    await loadAllEntetes();
+    const PREFIX: Record<string, string> = {
+      fildor: 'fd', bazin: 'bz', couverture: 'cv', billet: 'bi', enseigne: 'eg', hologramme: 'ho',
+    };
+    expect(Object.keys(PREFIX).length, 'the ENTETES-L set shrank — this scan is going stale').toBe(6);
+    for (const [key, p] of Object.entries(PREFIX)) {
+      const long = renderEntete(key as EnteteKey, { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});
+      expect(long, `${key} must take the fixed tier on a long name`).toContain('vt-ent-long');
+      expect(head(key as EnteteKey), `${key} sized a SHORT name down`).not.toContain('vt-ent-long');
+      expect(loadedEntete(key as EnteteKey)!.css, `${key}: wrong ENTETES-L tier`)
+        .toContain(`.vt-${p} .${p}-name.vt-ent-long { font-size: 24px; }`);
     }
   });
 

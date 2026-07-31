@@ -918,6 +918,36 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.cv_manchette",
+  "fr": "L'\u00c9dition",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.cv_kicker",
+  "fr": "Collection \u00b7 Ouagadougou",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.cv_edition",
+  "fr": "Premi\u00e8re \u00e9dition",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.bi_specimen",
+  "fr": "Sp\u00e9cimen",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.ho_kicker",
+  "fr": "\u00c9dition collector",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.ka_pur",
   "fr": "Pur beurre de karit\u00e9",
   "register": "selling",

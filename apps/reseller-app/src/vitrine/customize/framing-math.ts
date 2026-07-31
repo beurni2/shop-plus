@@ -159,6 +159,49 @@ const SERIE3_FRAMES = {
   pagne: { aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] },
 } as const satisfies Record<string, FrameSpec>;
 
+/**
+ * ENTETES-L — the SÉRIE 8/9 six, each read off its own module's CSS rather than
+ * off the relevé, because the module is what the buyer actually draws.
+ *
+ * THE DECORATION IS NEVER IN THE SILHOUETTE. Fil d'Or's écru facing (9px),
+ * Bazin's silver mount (8px), Billet's intaglio hatch, Hologramme's 10px ring
+ * and Couverture's red flat offset are all drawn OUTSIDE the photo box — they
+ * are frame, not photograph — so none of them enters the shape her drag
+ * positions. This is the same rule Kraft's white print and Fleurie's blob
+ * already follow; it is the reason the sheet's crop matches the buyer's byte
+ * for byte.
+ *
+ *   · Fil d'or    — the sewn label, 146×184 at r4 (a hair of rounding, kept
+ *     honest rather than squared).
+ *   · Bazin       — the cameo OVAL, 144×178. `circle:true` on a non-square box
+ *     is « radius = half the box », which is exactly the ellipse drawn.
+ *   · Couverture  — full-height, flush right: 150 wide from top 84 to the hero's
+ *     foot. The hero is padding 76 + col 252 + 18 = 346, so the panel is 262
+ *     tall. Square corners, as a printed plate is.
+ *   · Billet      — the engraved oval, 142×176.
+ *   · Enseigne    — the tube ring, a 146 circle.
+ *   · Hologramme  — the crown, a 144 circle.
+ */
+const SERIE89_FRAMES = {
+  fildor: { aspect: 146 / 184, circle: false, radii: [4 / 146, 4 / 146, 4 / 146, 4 / 146] },
+  bazin: { aspect: 144 / 178, circle: true, radii: [0.5, 0.5, 0.5, 0.5] },
+  couverture: { aspect: 150 / 262, circle: false, radii: [0, 0, 0, 0] },
+  billet: { aspect: 142 / 176, circle: true, radii: [0.5, 0.5, 0.5, 0.5] },
+  enseigne: CIRCLE,
+  hologramme: CIRCLE,
+} as const satisfies Record<string, FrameSpec>;
+
+/** Each of the six draws its cover at its module's own `framePhoto` bias — the
+ *  second argument of the `framePhoto(v, '…')` call, style for style. */
+const SERIE89_FOCUS = {
+  fildor: { x: 50, y: 24 },
+  bazin: { x: 50, y: 25 },
+  couverture: { x: 50, y: 22 },
+  billet: { x: 50, y: 25 },
+  enseigne: { x: 50, y: 26 },
+  hologramme: { x: 50, y: 26 },
+} as const satisfies Record<string, PhotoFocus>;
+
 const SERIE3_FOCUS = {
   audace: { x: 40, y: 28 },
   fleurie: { x: 44, y: 26 },
@@ -239,6 +282,7 @@ const COVER_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = {
   ...BEURNI_FRAMES,
   ...SERIE2_FRAMES,
   ...SERIE3_FRAMES,
+  ...SERIE89_FRAMES,
 };
 
 /**
@@ -249,7 +293,21 @@ const COVER_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = {
  * 158×212 card, Douceur's organic galet. The six keep the circle medallion
  * they have always had.
  */
-const AVATAR_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = { ...BEURNI_FRAMES, ...SERIE2_FRAMES };
+/**
+ * ENTETES-L — the six join AVATAR_FRAMES, and that is not the SÉRIE 3 habit.
+ * These styles draw ONE photo slot: `framePhoto` puts her cover in it, or her
+ * portrait when she has no cover, in the SAME box. So the box is the shape for
+ * both kinds, and leaving them out would have previewed her portrait as a
+ * circle while the buyer draws it in Fil d'Or's 146×184 label, Couverture's
+ * 150×262 panel, or the two ovals — the sheet lying about the crop it teaches.
+ * (Série 3's omission is harmless only because every one of its unlisted
+ * frames happens to already be a circle.)
+ */
+const AVATAR_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = {
+  ...BEURNI_FRAMES,
+  ...SERIE2_FRAMES,
+  ...SERIE89_FRAMES,
+};
 
 export function frameSpecFor(style: HeaderStyleKey, kind: FrameKind): FrameSpec {
   // Her portrait: a circle medallion in the six (and classique's ring); the
@@ -278,6 +336,7 @@ const COVER_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   ...BEURNI_FOCUS,
   ...SERIE2_FOCUS,
   ...SERIE3_FOCUS,
+  ...SERIE89_FOCUS,
 };
 
 /**
@@ -311,6 +370,10 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   karite: { x: 50, y: 28 },
   calebasse: { x: 50, y: 26 },
   pagne: { x: 50, y: 26 },
+  // ENTETES-L — one slot, one bias: each module's `.vt-avatar-img` rule carries
+  // the SAME object-position as its `framePhoto` call, so the portrait fallback
+  // is the cover bias here, not the SÉRIE 4 shared 50/24.
+  ...SERIE89_FOCUS,
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

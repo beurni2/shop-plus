@@ -89,6 +89,18 @@ export const ENTETE_KEYS = [
   'bronze',
   'calebasse',
   'pagne',
+  // ENTETES-L (canon v2.5.0) — séries 8 « luxe » and 9 « éditions ». Unlike the
+  // twenty above, these six arrive WITH their drawings: each has a lazy module
+  // in `entetes/` from the same commit. They are listed here for the same
+  // reason all the others are — this array is the buyer's mirror of the canon
+  // enum, and a key missing from it would be refused before its chunk could
+  // ever be asked for.
+  'fildor',
+  'bazin',
+  'couverture',
+  'billet',
+  'enseigne',
+  'hologramme',
 ] as const;
 export type EnteteKey = (typeof ENTETE_KEYS)[number];
 

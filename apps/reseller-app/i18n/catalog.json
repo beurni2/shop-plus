@@ -1512,6 +1512,78 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_fildor",
+  "fr": "Fil d’or",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_fildor",
+  "fr": "Dan fani tissé et fil d’or, comme la couture.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_bazin",
+  "fr": "Bazin",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_bazin",
+  "fr": "Bazin brillant et camée, pour les grands jours.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_couverture",
+  "fr": "Couverture",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_couverture",
+  "fr": "Encre et rouge, comme un magazine de mode.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_billet",
+  "fr": "Billet",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_billet",
+  "fr": "Traits gravés et portrait, comme un billet.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_enseigne",
+  "fr": "Enseigne",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_enseigne",
+  "fr": "Néon rose et ambre, la boutique le soir.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.nom_hologramme",
+  "fr": "Hologramme",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_hologramme",
+  "fr": "Reflets changeants, une carte de collection.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_harmattan",
   "fr": "Terracotta",
   "register": "neutral",
