@@ -157,6 +157,9 @@ const SERIE3_FRAMES = {
   // right edge. The disc behind it is decoration, not frame; her drag positions
   // the circle, and the 46 % bias keeps her face off the cut.
   braise: CIRCLE,
+  // Graffiti — the polaroid's photo window, 138x150 inside its white print. The
+  // print, its tape and its 2.5 degree tilt are frame, not photo.
+  graffiti: { aspect: 138 / 150, circle: false, radii: [0, 0, 0, 0] },
 } as const satisfies Record<string, FrameSpec>;
 
 const SERIE3_FOCUS = {
@@ -169,6 +172,7 @@ const SERIE3_FOCUS = {
   perle: { x: 38, y: 28 },
   artisan: { x: 56, y: 22 },
   braise: { x: 46, y: 28 },
+  graffiti: { x: 50, y: 24 },
 } as const satisfies Record<string, PhotoFocus>;
 
 const SERIE2_FRAMES = {
@@ -321,6 +325,7 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   perle: { x: 50, y: 30 },
   artisan: { x: 50, y: 30 },
   braise: { x: 46, y: 28 },
+  graffiti: { x: 50, y: 24 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

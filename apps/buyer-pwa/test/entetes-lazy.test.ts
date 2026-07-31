@@ -288,14 +288,14 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne', '.vt-pe', '.vt-ar', '.vt-br']) {
+    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne', '.vt-pe', '.vt-ar', '.vt-br', '.vt-gf']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br|gf)[ .]/);
         checked += 1;
       }
     }
@@ -328,7 +328,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     await loadAllEntetes();
     const bio = 'Tissus choisis un par un.';
     const SERIE3_AVEC = ['perle', 'artisan'];
-    const SERIE3_SANS = ['audace', 'fleurie', 'prisme', 'pop', 'chrome', 'neon', 'braise'];
+    const SERIE3_SANS = ['audace', 'fleurie', 'prisme', 'pop', 'chrome', 'neon', 'braise', 'graffiti'];
     for (const k of SERIE3_AVEC) {
       const html = renderEntete(k as EnteteKey, { ...SF, bio } as never, TRUST as never, {});
       expect(html, `${k} must draw her présentation — its board shows one`).toContain(bio);
@@ -337,7 +337,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
       const html = renderEntete(k as EnteteKey, { ...SF, bio } as never, TRUST as never, {});
       expect(html, `${k} drew a bio; only Perle and Artisan show one`).not.toContain(bio);
     }
-    expect(SERIE3_AVEC.length + SERIE3_SANS.length, 'the série 3 set shrank — this scan is going stale').toBe(9);
+    expect(SERIE3_AVEC.length + SERIE3_SANS.length, 'the série 3 set shrank — this scan is going stale').toBe(10);
   });
 
   it('THE HONESTY MARKERS are on EVERY built style — proof XOR badge, never both', async () => {
@@ -352,7 +352,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const built = (ENTETE_KEYS as readonly EnteteKey[]).filter(
       (k) => k !== 'classique' && (isLazyEntete(k) || renderEntete(k, SF as never, TRUST as never, {}) !== classique),
     );
-    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(22);
+    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(24);
 
     const zero = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
     for (const k of built) {

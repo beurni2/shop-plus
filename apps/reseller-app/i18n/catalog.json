@@ -1548,6 +1548,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_graffiti",
+  "fr": "Graffiti",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_graffiti",
+  "fr": "Mur noir et jaune taxi, photo scotch\u00e9e.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",
