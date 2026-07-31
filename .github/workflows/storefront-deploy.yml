@@ -105,18 +105,40 @@ jobs:
           set -euo pipefail
           BASE=https://storefront-service.ilboudobernard2.workers.dev
           OUT=$(mktemp)
-          CODE=$(curl -sS -o "$OUT" -w '%{http_code}' "$BASE/health")
-          echo "health: $CODE $(cat "$OUT")"
-          test "$CODE" = "200"
-          LIVE_CANON=$(node -p "JSON.parse(require('fs').readFileSync('$OUT','utf8')).canon")
-          LIVE_RELEASE=$(node -p "JSON.parse(require('fs').readFileSync('$OUT','utf8')).release")
-          echo "live canon=$LIVE_CANON expected=$SHOP_CANON"
-          echo "live release=$LIVE_RELEASE expected=$SHOP_RELEASE"
-          if [ "$LIVE_CANON" != "$SHOP_CANON" ] || [ "$LIVE_RELEASE" != "$SHOP_RELEASE" ]; then
-            echo "DEPLOY DID NOT TAKE — the live Worker is not the bundle this job built."
-            exit 1
-          fi
-          echo "PROVENANCE OK — live Worker is $SHOP_RELEASE speaking canon $SHOP_CANON."
+          # A WORKERS DEPLOY PROPAGATES; IT DOES NOT SWITCH.
+          # `wrangler deploy` returning 0 means the upload was ACCEPTED, not that
+          # every edge already serves it. Asserting instantly reads whichever
+          # bundle that edge still holds: on 2026-07-31 this step failed ONE
+          # SECOND after a deploy that HAD landed (live 2.3.0/8c29912), and a
+          # read-only probe 93 s later showed the new bundle (2.4.0/65f6c80).
+          #
+          # A checker that fails on a correct deploy is worse than no checker: it
+          # trains everyone to dismiss a red deploy, and the next red one is the
+          # real one. So poll for up to 3 minutes; fail only if the live Worker
+          # never becomes the bundle this job built.
+          DEADLINE=$(( $(date +%s) + 180 ))
+          LIVE_CANON='?'; LIVE_RELEASE='?'
+          while :; do
+            CODE=$(curl -sS -o "$OUT" -w '%{http_code}' "$BASE/health" || echo 000)
+            if [ "$CODE" = "200" ]; then
+              LIVE_CANON=$(node -p "JSON.parse(require('fs').readFileSync('$OUT','utf8')).canon" 2>/dev/null || echo '?')
+              LIVE_RELEASE=$(node -p "JSON.parse(require('fs').readFileSync('$OUT','utf8')).release" 2>/dev/null || echo '?')
+              echo "health 200 — live canon=$LIVE_CANON release=$LIVE_RELEASE (want $SHOP_CANON / $SHOP_RELEASE)"
+              if [ "$LIVE_CANON" = "$SHOP_CANON" ] && [ "$LIVE_RELEASE" = "$SHOP_RELEASE" ]; then
+                echo "PROVENANCE OK — live Worker is $SHOP_RELEASE speaking canon $SHOP_CANON."
+                break
+              fi
+            else
+              echo "health $CODE — not answering yet"
+            fi
+            if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+              echo "DEPLOY DID NOT TAKE — after 180s the live Worker is still not this job's bundle."
+              echo "  live canon=$LIVE_CANON release=$LIVE_RELEASE"
+              echo "  want canon=$SHOP_CANON release=$SHOP_RELEASE"
+              exit 1
+            fi
+            sleep 10
+          done
       - name: Smoke — the deployed checkout surface answers by NAME, not by crashing
         run: |
           set -euo pipefail
