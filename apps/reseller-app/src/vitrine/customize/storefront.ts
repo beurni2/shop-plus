@@ -100,6 +100,10 @@ export const PICKABLE_HEADER_STYLES = [
   'balafon',
   'seance',
   'cauris',
+  // ENTETES-H — Indigo is the first of the twenty to become PICKABLE, and it
+  // became pickable LAST: its render unit, its chunk, its catalog strings and
+  // its framing silhouette all landed before this line was added.
+  'indigo',
 ] as const;
 
 /** Her selected header with the `classique` fallback: an OLD service wire omits

@@ -115,6 +115,16 @@ const BEURNI_FRAMES = {
   harmattan: { aspect: (0.47 * 360) / 344, circle: false, radii: [0, 0, 0, 0] },
   balafon: { aspect: 158 / 212, circle: false, radii: [4 / 158, 4 / 158, 4 / 158, 4 / 158] },
   seance: { aspect: 168 / 240, circle: false, radii: [0.54, 0.46, 0.42, 0.58] },
+} as const satisfies Record<string, FrameSpec>;
+
+/**
+ * ENTETES-H · Indigo — the FIRST style whose photo is the header itself: a
+ * 300px full-width band, not a framed inset. Her drag therefore previews a
+ * 360×300 landscape band with square corners, because that is literally what
+ * the buyer draws.
+ */
+const SERIE2_FRAMES = {
+  indigo: { aspect: 360 / 300, circle: false, radii: [0, 0, 0, 0] },
   cauris: { aspect: (0.46 * 360) / 340, circle: false, radii: [0, 0, 0, 0] },
 } as const satisfies Record<string, FrameSpec>;
 
@@ -127,6 +137,11 @@ const BEURNI_FOCUS = {
   balafon: { x: 55, y: 22 },
   seance: { x: 60, y: 30 },
   cauris: { x: 52, y: 28 },
+} as const satisfies Record<string, PhotoFocus>;
+
+/** Indigo's relevé: « cover, object-position:50% 30% ». */
+const SERIE2_FOCUS = {
+  indigo: { x: 50, y: 30 },
 } as const satisfies Record<string, PhotoFocus>;
 
 /** Cover silhouettes, from the contract's own dimensions (ENTETES-A relevé):
@@ -154,6 +169,7 @@ const COVER_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = {
   // Balafon's discs, Séance's 35 mm inner screen, Cauris' cowrie oval — and not
   // the classique placeholder these once carried.
   ...BEURNI_FRAMES,
+  ...SERIE2_FRAMES,
 };
 
 /**
@@ -164,7 +180,7 @@ const COVER_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = {
  * 158×212 card, Douceur's organic galet. The six keep the circle medallion
  * they have always had.
  */
-const AVATAR_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = { ...BEURNI_FRAMES };
+const AVATAR_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = { ...BEURNI_FRAMES, ...SERIE2_FRAMES };
 
 export function frameSpecFor(style: HeaderStyleKey, kind: FrameKind): FrameSpec {
   // Her portrait: a circle medallion in the six (and classique's ring); the
@@ -192,6 +208,7 @@ const COVER_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   // ENTETES-F — the five draw the cover at their own relevé crop bias; the
   // sheet starts her drag exactly there.
   ...BEURNI_FOCUS,
+  ...SERIE2_FOCUS,
 };
 
 /**
@@ -210,6 +227,8 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   balafon: SERIE4_PORTRAIT,
   seance: SERIE4_PORTRAIT,
   cauris: SERIE4_PORTRAIT,
+  // Indigo's portrait fallback sits in the same band, at its own high bias.
+  indigo: { x: 50, y: 24 },
 };
 
 export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFocus {

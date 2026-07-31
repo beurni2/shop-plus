@@ -46,9 +46,13 @@ export interface EnteteUnit {
  * bundle, which is the whole failure this file exists to prevent — and the
  * chunk-count test would catch it.
  *
- * Empty until the Série 2/3/5 units land; the shape is what ENTETES-G delivers.
+ * ENTETES-H — the first of the twenty. Each entry is a literal path so the
+ * bundler emits `indigo` as its own chunk; a shop that has not chosen it never
+ * downloads a byte of it.
  */
-const LOADERS: Partial<Record<EnteteKey, () => Promise<{ unit: EnteteUnit }>>> = {};
+const LOADERS: Partial<Record<EnteteKey, () => Promise<{ unit: EnteteUnit }>>> = {
+  indigo: () => import('./indigo'),
+};
 
 const LOADED = new Map<EnteteKey, EnteteUnit>();
 

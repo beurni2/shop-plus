@@ -1380,6 +1380,18 @@
   "screenClass": "label"
  },
  {
+  "key": "k.entete.nom_indigo",
+  "fr": "Indigo",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.sub_indigo",
+  "fr": "Nuit bleue et cyan — votre photo en grand.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "k.entete.nom_masque",
   "fr": "Prestige",
   "register": "neutral",

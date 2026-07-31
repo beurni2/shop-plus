@@ -65,6 +65,49 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     expect(loadedEntete('royale')).toBeUndefined();
   });
 
+  it('INDIGO — the real chunk loads, registers, and draws her identity on the photo', async () => {
+    // the first of the twenty, exercised END TO END through the real dynamic
+    // import rather than a stub: if the chunk fails to resolve or the unit is
+    // shaped wrong, this fails here rather than on a seller's phone.
+    expect(loadedEntete('indigo')).toBeUndefined();
+    await loadEntete('indigo');
+    expect(loadedEntete('indigo'), 'the indigo chunk did not register').toBeDefined();
+
+    const html = renderEntete('indigo', SF as never, TRUST as never, {});
+    expect(html).toContain('class="vt-ent vt-in"');
+    expect(html).toContain('data-role="vitrine-hero"');
+    expect(html).toContain('data-role="vitrine-identity"');
+    expect(html).toContain('data-role="vitrine-trust"');
+    // HER data, through vals — not a fixture of the module's own
+    expect(html).toContain('Gounghin, Ouagadougou');
+    expect(html).toContain('Chez');
+    // the honesty rules hold in a lazily-loaded unit exactly as in a compiled
+    // one: 12 deliveries ⇒ proof, never the « nouvelle » badge
+    expect(html).toContain('data-role="reputation"');
+    expect(html).not.toContain('data-role="chip-nouvelle"');
+    // …and its CSS travels WITH it, so the rules reach the page only now
+    expect(loadedEnteteCss()).toContain('.vt-in');
+    expect(loadedEnteteCss()).toContain('#0D133A');
+  });
+
+  it('INDIGO at zero history — the badge replaces the proof, and no number reaches her screen', async () => {
+    await loadEntete('indigo');
+    const zero = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
+    const html = renderEntete('indigo', SF as never, zero as never, {});
+    expect(html).toContain('data-role="chip-nouvelle"');
+    expect(html).not.toContain('data-role="reputation"');
+    expect(html).not.toContain('data-role="chip-avis"');
+    // THE BAN IS ON CLAIMS ABOUT HER, NOT ON DIGITS. « 100% sécurisé » is a
+    // fixed trust label and says nothing about this seller; scoping the scan to
+    // the identity block is what makes the assertion mean « no count of hers
+    // reached the screen » instead of accidentally banning the copy.
+    const ident = /data-role="vitrine-identity"[\s\S]*?(?=<div class="in-trust")/.exec(html)?.[0] ?? '';
+    expect(ident.length, 'identity block not found — the scan would assert over nothing').toBeGreaterThan(100);
+    const visible = ident.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
+    expect(visible, 'a count leaked into the MINIMAL state').not.toMatch(/\d/);
+    expect(visible).toContain('Nouvelle');
+  });
+
   it('only ARRIVED styles put CSS on the page — a chunk that never came adds no bytes', () => {
     expect(loadedEnteteCss()).toBe('');
     registerEntete('cristal', { render: () => '<i></i>', css: '.vt-xx { color: #111; }' });
