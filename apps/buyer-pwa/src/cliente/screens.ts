@@ -1031,7 +1031,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
     stepHead('retour-c4', 'Le paiement'),
     '<div class="cl-bill">',
     `<div class="cl-bill-row"><span>${ligneProduit}</span><b>${produitStr}</b></div>`,
-    `<div class="cl-bill-row cl-bill-liv"><span>Livraison Séra — jamais cachée</span><b>${feeStr}</b></div>`,
+    `<div class="cl-bill-row cl-bill-liv"><span>Livraison Séra — jamais\u00a0cachée</span><b>${feeStr}</b></div>`,
     `<div class="cl-bill-total"><span>Total</span><b>${totalStr}</b></div>`,
     '</div>',
     `<div class="cl-reconcile" data-role="reconcile">${reconcile}</div>`,

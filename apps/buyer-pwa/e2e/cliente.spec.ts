@@ -399,7 +399,11 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
   }
 
   // …and the two sentences that were being eaten are readable, whole.
-  const bill = await page.locator('.cl-bill').innerText();
+  // NO-BREAK SPACES READ AS SPACES. « jamais\u00a0cachée » is welded so the
+  // promise can never lose its last word to a line of its own (the orphan the
+  // sweep below now catches on the shipped face); the sentence she reads is
+  // unchanged, so the readability assertion normalises the byte.
+  const bill = (await page.locator('.cl-bill').innerText()).replace(/\u00a0/g, ' ');
   expect(bill).toContain('Livraison Séra — jamais cachée');
   expect(bill).toContain('Robe brodée bogolan');
   // no ellipsis anywhere on the bill — neither the character nor three dots
