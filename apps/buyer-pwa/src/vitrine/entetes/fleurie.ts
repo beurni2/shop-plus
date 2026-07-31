@@ -91,6 +91,10 @@ function render(v: Vals): string {
             : ''
         }</div>`
       : '',
+    // PROOF AND BADGE SHARE ONE SLOT, inside the card. See the sheet.
+    v.nouvelle
+      ? `<div class="fl-nouv-wrap"><span class="fl-nouv" data-role="chip-nouvelle"><span class="fl-nouv-t"><v>${t('vit.nouvelle_vendeuse')}</v></span>${iconCoeur(11, 10, '#F7CDD2')}</span></div>`
+      : '',
     '</div>',
     // the organic galet, ribboned in white, biting the right edge
     `<div class="fl-galet" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
@@ -98,9 +102,6 @@ function render(v: Vals): string {
       ? framePhoto(v, '44% 26%')
       : `<div class="fl-motif"><span class="fl-mono">${v.mono}</span></div>`,
     '</div>',
-    v.nouvelle
-      ? `<div class="fl-nouv" data-role="chip-nouvelle"><span class="fl-nouv-t"><v>${t('vit.nouvelle_vendeuse')}</v></span>${iconCoeur(11, 10, '#F7CDD2')}</div>`
-      : '',
     // « 3 cartes séparées » — the one style whose trust row is three cards
     '<div class="fl-trust" data-role="vitrine-trust">',
     cell(iconShieldEnt(16, '#FDF4F0', 2), 'sauge', t('vit.chip_sera'), t('vit.cell_sera_sub')),
@@ -221,21 +222,23 @@ const css = `
     background-size: 12px 12px;
   }
   .vt-fl .fl-mono { margin-right: 24px; font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-size: 60px; line-height: 1; color: rgba(90,97,66,.45); }
-  /* MINIMAL — the scalloped sage disc. The relevé puts it at top 14 (⇒ 74 with
-     the status pad), but that is exactly where OUR partager/retour sit: the
-     board has no floating controls, so the two never competed there. Measured
-     at 320, the button covered the disc and « vendeuse » was unreadable. It
-     drops to 124, one control-row below — still on the galet's upper shoulder,
-     which is where the board's own composition puts it (the disc overlaps the
-     galet there too). The catalog string wraps to two lines on the disc's own
-     width; it is never cut by hand in the markup. */
+  /* MINIMAL — IN THE CARD, IN THE PROOF'S OWN SLOT (founder, on a live shop).
+     It was a scalloped sage disc floating over the galet at top 124, which is
+     where the relevé's board puts it. The board's galet holds a flat-lit
+     product shot; a real seller's galet holds HER PORTRAIT, and the disc landed
+     squarely on her face. « Nouvelle vendeuse » cannot be deleted — at zero
+     history it is the only honest thing the header can say about her, and the
+     honesty guard requires it — so it MOVED rather than went.
+     It now sits where the proof pill sits, shaped like the proof pill: the two
+     states of one slot, which is what proof-XOR-badge means everywhere else in
+     this app. The catalog string is never cut by hand in the markup. */
+  .vt-fl .fl-nouv-wrap { margin-top: 10px; }
   .vt-fl .fl-nouv {
-    position: absolute; top: 124px; right: 10px; width: 78px; height: 78px; border-radius: 50%;
-    background: var(--fl-sauge); border: 2px dashed rgba(255,255,255,.55);
-    box-shadow: 0 10px 22px -10px rgba(90,97,66,.6); transform: rotate(4deg);
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 5px 14px;
+    border-radius: 99px; background: var(--fl-sauge);
+    box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.55), 0 10px 22px -14px rgba(90,97,66,.6);
   }
-  .vt-fl .fl-nouv-t { font-family: Georgia, 'Times New Roman', serif; font-size: 11px; line-height: 1.15; color: var(--fl-creme); text-align: center; }
+  .vt-fl .fl-nouv-t { font-family: Georgia, 'Times New Roman', serif; font-size: 12px; line-height: 1.2; color: var(--fl-creme); }
   /* « 3 cartes séparées blanches r16 (gap 8) » */
   .vt-fl .fl-trust { position: relative; margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
   .vt-fl .fl-cell {

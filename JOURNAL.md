@@ -1980,3 +1980,15 @@ Format per entry:
 **Payload: essentially unmoved — first load `270355 → 270181 B`, worst case `274613 → 274440 B`.** Only ~174 B, and that is the correct result, not a disappointment: since ENTETES-I every style is a lazy chunk, so a removed style was never in anyone's first load. What came out was ten registry lines. **The saving from deleting a lazy style is a saving nobody was paying.**
 
 **Evidence:** `turbo run test --force` 23/23 · 65 Playwright e2e at 360 and 320 · `run-gates.sh` ALL GATES GREEN · both apps typecheck.
+
+### 2026-07-31 · ENTETES-K — Fleurie's « Nouvelle vendeuse » comes off the seller's face
+
+**FOUNDER, from a LIVE shop (beurni2.github.io, « DEBBY FASHION »): « on the entete fleurie remove the nouvelle vendeuse from the photo frame ».** It was a scalloped sage disc absolutely positioned at `top: 124px; right: 10px`, over the galet. In the screenshot it sat squarely on the seller's face.
+
+**WHY IT MOVED RATHER THAN WENT.** « Nouvelle vendeuse » cannot be deleted: at zero history it is the ONLY honest thing the header can say about her, and the set-level honesty guard requires `data-role="chip-nouvelle"` on every built style at zero. So the badge relocated into the card, into the PROOF PILL'S OWN SLOT, shaped like the proof pill — sage where proof is rose, same 32px min-height, same radius, same margin. Proof and badge are now literally the two states of one position, which is what proof-XOR-badge means everywhere else in this app.
+
+**THE DEFECT WAS IN THE RELEVÉ'S OWN ASSUMPTION, not in the implementation of it.** The board puts the disc on the galet's shoulder, and the code followed it — the docblock even recorded a 320px fix moving it from 74 to 124 to clear the share button. What the board could not tell us: its galet holds a flat-lit product shot, while a real seller's galet holds HER PORTRAIT. Placement that reads as decoration over a handbag reads as a sticker over a woman's face. **A pixel contract is authored against its own sample content; only a live shop tests it against a real one.**
+
+**Verified:** six screenshots at 360 and 320 (complete · minimal · long) read after the change — the galet is completely clear in every one, and the proof pill occupies the same slot in the complete state. 671 buyer tests · 65 e2e at both widths · `run-gates.sh` ALL GATES GREEN.
+
+**One process note, recorded because I nearly reported it wrong.** A gates run said ONE OR MORE GATES FAILED. I had invoked Playwright and `run-gates.sh` in the SAME shell command; the e2e harness binds preview servers on 4173/4175/4176 and the gates build their own. Run alone, gates passed twice consecutively. The earlier loop already carried the rule « never run the e2e and the gates concurrently » and I broke it. The failure is not evidence of a defect, and I did not report it as green until I had two clean runs.
