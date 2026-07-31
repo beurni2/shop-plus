@@ -1928,7 +1928,7 @@ Format per entry:
 **THE TRIPWIRE RETIRED DELIBERATELY.** `customize.test.ts` named the styles with no buyer render and demanded they stay OUT of the picker. Pagne was the last of them, so the list would now be empty — and a loop over an empty list asserts nothing, which is precisely the vacuous-guard failure this repo has been bitten by. It is replaced by its end state: `PICKABLE_HEADER_STYLES` equals `HEADER_STYLES`, key for key. **The law is unchanged and still binds every future key** — a new canon key lands in the vocabulary first, the equality FAILS until its unit ships, and that failure is the guard.
 
 **FLAGGED FOR THE FOUNDER — open, non-blocking:**
-- ⏳ **Three English decorative strings were translated to French**, because the French Voice Standard (Execution Contract §10.5) outranks the design brief in the authority stack: « LEVEL UP » → « Niveau supérieur », « Street vibes » → « L'esprit de la rue » (×2). Each is reversible in one edit if the founder wants the brief's English kept as a deliberate style choice.
+- ✅ **FOUNDER RULING 2026-07-31 — KEEP THE TRANSLATIONS.** The three English decorative strings stay French: « LEVEL UP » → « Niveau supérieur », « Street vibes » → « L'esprit de la rue » (×2). The safest default I applied under §10.5 is now the founder's settled decision. **This ⏳ is CLOSED** — no code change, the shipped strings already carry it. Any future style whose board shows decorative English is translated the same way without asking again.
 - **Série 1's five render the delivery count ungrouped** (« 1287 ») while all thirty others group it (« 1 287 »). Out of scope for this run; NOT fixed.
 
 **OWED, CARRIED FORWARD:**
