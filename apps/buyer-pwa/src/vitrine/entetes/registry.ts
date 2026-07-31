@@ -54,45 +54,37 @@ const LOADERS: Partial<Record<EnteteKey, () => Promise<{ unit: EnteteUnit }>>> =
   royale: () => import('./royale'),
   heritage: () => import('./heritage'),
   chaleureux: () => import('./chaleureux'),
-  cristal: () => import('./cristal'),
   dynamique: () => import('./dynamique'),
-  // THE NEXT FIVE KEYS DO NOT MATCH THEIR MODULE NAMES, AND THAT IS SETTLED
+  // THE NEXT FOUR KEYS DO NOT MATCH THEIR MODULE NAMES, AND THAT IS SETTLED
   // (founder ruling, 2026-07-31). The KEY is canon and is what a live storefront
   // already has stored; the MODULE is the drawing ENTETES-F replaced it with.
+  // It was five until ENTETES-J retired « masque » (Prestige) with the other
+  // nine the founder cut on looks.
   //
   // Renaming the keys was on the follow-up list and was dropped, on the
-  // founder's call. It buys nothing anyone sees: the seller already reads
-  // « Prestige » in her picker (a catalog string, not the key) and the buyer
-  // never sees a key at all. It would cost a canon version bump across three
-  // repos plus a migration for every stored value — `storefront-core.ts` refuses
-  // any headerStyle outside the canon set, so a hard rename would strand the
-  // storefronts already carrying these five.
+  // founder's call. It buys nothing anyone sees: the seller reads the style's
+  // name in her picker (a catalog string, not the key) and the buyer never sees
+  // a key at all. It would cost a canon version bump across three repos plus a
+  // migration for every stored value — `storefront-core.ts` refuses any
+  // headerStyle outside the canon set, so a hard rename would strand the
+  // storefronts already carrying these.
   //
   // This comment is the whole price of that decision, and it is cheaper than
   // the rename. (It lived on the dispatch switch until ENTETES-I deleted it.)
-  masque: () => import('./prestige'),
   harmattan: () => import('./terracotta'),
   balafon: () => import('./etendard'),
   seance: () => import('./douceur'),
   cauris: () => import('./tissage'),
   indigo: () => import('./indigo'),
-  couture: () => import('./couture'),
   safran: () => import('./safran'),
   grenat: () => import('./grenat'),
   kraft: () => import('./kraft'),
   audace: () => import('./audace'),
   fleurie: () => import('./fleurie'),
-  prisme: () => import('./prisme'),
-  pop: () => import('./pop'),
   chrome: () => import('./chrome'),
-  neon: () => import('./neon'),
-  perle: () => import('./perle'),
   artisan: () => import('./artisan'),
   braise: () => import('./braise'),
-  graffiti: () => import('./graffiti'),
-  dunda: () => import('./dunda'),
   karite: () => import('./karite'),
-  bronze: () => import('./bronze'),
   calebasse: () => import('./calebasse'),
   pagne: () => import('./pagne'),
 };
@@ -106,7 +98,9 @@ export const registerEntete = (key: EnteteKey, unit: EnteteUnit): void => void L
 /** Drop every registration — test hygiene, so one case cannot leak into the next. */
 export const resetEntetes = (): void => LOADED.clear();
 
-/** Is this key served by a lazy module (rather than the compiled-in ten)? */
+/** Is this key served by a lazy module? Since ENTETES-I every drawn style is,
+ *  so this is false only for `classique` and for the RETIRED keys — the ones
+ *  ENTETES-J removed, which stay valid vocabulary and draw the default. */
 export const isLazyEntete = (key: EnteteKey): boolean => LOADERS[key] !== undefined;
 
 /** The unit, iff it has already been fetched. Never triggers a fetch itself:
@@ -114,9 +108,9 @@ export const isLazyEntete = (key: EnteteKey): boolean => LOADERS[key] !== undefi
 export const loadedEntete = (key: EnteteKey): EnteteUnit | undefined => LOADED.get(key);
 
 /**
- * Fetch and register the style, once. Safe to call for any key: a compiled-in
- * style (or `classique`) has no loader and resolves immediately, so callers do
- * not branch on which tier a key belongs to.
+ * Fetch and register the style, once. Safe to call for any key: `classique` and
+ * the retired keys have no loader and resolve immediately, so callers never
+ * branch on whether a key still has a drawing.
  *
  * A FAILED FETCH IS NOT A CRASH. Patchy data is this market's normal condition,
  * and a header that throws would take the whole shop page with it. On failure

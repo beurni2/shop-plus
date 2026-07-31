@@ -111,7 +111,6 @@ const CIRCLE: FrameSpec = { aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5]
  *   · Tissage    — the full right column, 46 % of 360 over a 340 hero.
  */
 const BEURNI_FRAMES = {
-  masque: { aspect: 186 / 358, circle: false, radii: [0, 0, 0, 0] },
   harmattan: { aspect: (0.47 * 360) / 344, circle: false, radii: [0, 0, 0, 0] },
   balafon: { aspect: 158 / 212, circle: false, radii: [4 / 158, 4 / 158, 4 / 158, 4 / 158] },
   seance: { aspect: 168 / 240, circle: false, radii: [0.54, 0.46, 0.42, 0.58] },
@@ -133,22 +132,14 @@ const SERIE3_FRAMES = {
   // be expressed as four corner fractions, so the silhouette approximates the
   // blob with the four dominant ones; the CROP it teaches her is exact.
   fleurie: { aspect: 158 / 196, circle: false, radii: [0.62, 0.38, 0.56, 0.44] },
-  // Prisme — the glass frame inside the card: 336 wide at 360, 186 tall, r22.
-  prisme: { aspect: 336 / 186, circle: false, radii: [22 / 336, 22 / 336, 22 / 336, 22 / 336] },
   // Pop — the browser window's SCREEN, 158 tall inside the 3px outline. The
   // window's chrome bar, its black border and its −1° tilt are frame, not
-  // photo, so none of them enters the silhouette.
-  pop: { aspect: 326 / 158, circle: false, radii: [0, 0, 6 / 326, 6 / 326] },
   // Chrome — a 168 disc pushed off the right edge at −38, ringed in chrome. The
   chrome: CIRCLE,
   // Néon — the taped frame, 150×184 inside its 3px fluo edge. The tape, the
   // glow and the 2° tilt are frame, not photo, so none of them enters the
-  // silhouette — her drag positions only what lands inside the opening.
-  neon: { aspect: 150 / 184, circle: false, radii: [0, 0, 0, 0] },
   // Perle — a 186 disc pushed off the right edge at −44. Same approximation as
   // Safran and Audace: the whole disc is drawn, the CROP is exact, and the
-  // 38 % bias is what keeps her face clear of the cut.
-  perle: CIRCLE,
   // Artisan — the right column, 126 wide over a ~300 panel, ARCHED on its left
   // edge only (130px radius on that side). The two left radii approximate the
   // arch; the right edge is square, as the panel's own edge is.
@@ -158,16 +149,10 @@ const SERIE3_FRAMES = {
   // the circle, and the 46 % bias keeps her face off the cut.
   braise: CIRCLE,
   // Graffiti — the polaroid's photo window, 138x150 inside its white print. The
-  // print, its tape and its 2.5 degree tilt are frame, not photo.
-  graffiti: { aspect: 138 / 150, circle: false, radii: [0, 0, 0, 0] },
   // Dunda — the 158 dye-knot circle. Its dashed ring is decoration around the
-  // frame, not part of it, so the silhouette is the disc her photo fills.
-  dunda: CIRCLE,
   // Karité — the CUSHION: 162 square at border-radius 42%, which is a squircle
   // and deliberately NOT a circle. The leaf resting on its edge is decoration.
   karite: { aspect: 1, circle: false, radii: [0.42, 0.42, 0.42, 0.42] },
-  // Bronze — l'arche de médaillon 156×206, ronde en tête et carrée au pied.
-  bronze: { aspect: 156 / 206, circle: false, radii: [0.5, 0.5, 12 / 156, 12 / 156] },
   // Calebasse — le bol, un cercle 160 au triple rebord.
   calebasse: { aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] },
   // Pagne — le portrait, un cercle 146 dans sa couronne de perles.
@@ -177,17 +162,10 @@ const SERIE3_FRAMES = {
 const SERIE3_FOCUS = {
   audace: { x: 40, y: 28 },
   fleurie: { x: 44, y: 26 },
-  prisme: { x: 50, y: 24 },
-  pop: { x: 50, y: 26 },
   chrome: { x: 40, y: 28 },
-  neon: { x: 50, y: 24 },
-  perle: { x: 38, y: 28 },
   artisan: { x: 56, y: 22 },
   braise: { x: 46, y: 28 },
-  graffiti: { x: 50, y: 24 },
-  dunda: { x: 50, y: 26 },
   karite: { x: 50, y: 28 },
-  bronze: { x: 50, y: 24 },
   calebasse: { x: 50, y: 26 },
   pagne: { x: 50, y: 26 },
 } as const satisfies Record<string, PhotoFocus>;
@@ -195,8 +173,6 @@ const SERIE3_FOCUS = {
 const SERIE2_FRAMES = {
   indigo: { aspect: 360 / 300, circle: false, radii: [0, 0, 0, 0] },
   // Couture — a letterbox band, and the ONE style of the series with square
-  // corners (« angles droits (r0) »). Her drag previews a mounted print.
-  couture: { aspect: 360 / 138, circle: false, radii: [0, 0, 0, 0] },
   // Safran — a 190×190 disc, of which the header shows only the right 132: it
   // sits at left −58 and the card's overflow cuts it. The preview draws the
   // WHOLE disc, the same honest approximation Prestige's clip-path takes: the
@@ -220,7 +196,6 @@ const SERIE2_FRAMES = {
  *  frame, and therefore where her drag starts. Identical to the buyer sheet's
  *  `framePhoto` values, style for style (the contract's « cover · X% Y% »). */
 const BEURNI_FOCUS = {
-  masque: { x: 62, y: 24 },
   harmattan: { x: 55, y: 30 },
   balafon: { x: 55, y: 22 },
   seance: { x: 60, y: 30 },
@@ -230,7 +205,6 @@ const BEURNI_FOCUS = {
 /** Indigo's relevé: « cover, object-position:50% 30% ». */
 const SERIE2_FOCUS = {
   indigo: { x: 50, y: 30 },
-  couture: { x: 50, y: 26 },
   // « cover / 58% 30% (le sujet fuit le bord coupé) » — the x-bias is not a
   // taste call, it is what keeps her face off the 58px the header clips.
   safran: { x: 58, y: 30 },
@@ -255,7 +229,6 @@ const COVER_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = {
   royale: CIRCLE,
   heritage: RECT(360 / 238, 24 / 360),
   chaleureux: { aspect: 150 / 198, circle: false, radii: [76 / 150, 58 / 150, 72 / 150, 62 / 150] },
-  cristal: RECT(360 / 196, 18 / 360),
   dynamique: RECT(152 / 320, 0.08),
   // ENTETES-E — founder ruling 2026-07-30 (« make it all be like the 6 original
   // headers »): the Beurni Boss five draw HER COVER in their §5 frame, exactly
@@ -299,7 +272,6 @@ const COVER_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   royale: { x: 42, y: 28 },
   heritage: { x: 50, y: 18 },
   chaleureux: { x: 50, y: 24 },
-  cristal: { x: 50, y: 22 },
   dynamique: { x: 58, y: 30 },
   // ENTETES-F — the five draw the cover at their own relevé crop bias; the
   // sheet starts her drag exactly there.
@@ -319,14 +291,12 @@ const COVER_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
 const SERIE4_PORTRAIT: PhotoFocus = { x: 50, y: 24 };
 const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   heritage: { x: 50, y: 32 },
-  masque: SERIE4_PORTRAIT,
   harmattan: SERIE4_PORTRAIT,
   balafon: SERIE4_PORTRAIT,
   seance: SERIE4_PORTRAIT,
   cauris: SERIE4_PORTRAIT,
   // Indigo's portrait fallback sits in the same band, at its own high bias.
   indigo: { x: 50, y: 24 },
-  couture: { x: 50, y: 26 },
   // Safran frames the SAME disc whichever photo fills it, so the portrait
   // fallback keeps the cut-edge bias too.
   safran: { x: 58, y: 30 },
@@ -335,17 +305,10 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   kraft: { x: 50, y: 32 },
   audace: { x: 40, y: 28 },
   fleurie: { x: 50, y: 32 },
-  prisme: { x: 50, y: 30 },
-  pop: { x: 50, y: 30 },
   chrome: { x: 40, y: 28 },
-  neon: { x: 50, y: 24 },
-  perle: { x: 50, y: 30 },
   artisan: { x: 50, y: 30 },
   braise: { x: 46, y: 28 },
-  graffiti: { x: 50, y: 24 },
-  dunda: { x: 50, y: 26 },
   karite: { x: 50, y: 28 },
-  bronze: { x: 50, y: 24 },
   calebasse: { x: 50, y: 26 },
   pagne: { x: 50, y: 26 },
 };

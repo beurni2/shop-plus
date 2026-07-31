@@ -55,11 +55,12 @@ for (const width of [360, 320] as const) {
     // `.vt-ent-acc` at all. The rule this spec enforces is about the ACCENT
     // SEGMENT, so the set is the styles that actually render one — detected
     // from the markup rather than from which tier a key happens to ship in.
-    const SERIE1 = new Set(['royale', 'heritage', 'chaleureux', 'cristal', 'dynamique']);
+    const SERIE1 = new Set(['royale', 'heritage', 'chaleureux', 'dynamique']);
     const keys = ENTETE_KEYS.filter(
       (k) => isLazyEntete(k) && !SERIE1.has(k) && renderEntete(k, SF as never, TRUST as never, {}).includes('vt-ent-acc'),
     );
-    expect(keys.length, 'no accent-segment styles under test').toBeGreaterThanOrEqual(20);
+    // ENTETES-J — the founder cut ten styles; the floor tracks the survivors.
+    expect(keys.length, 'no accent-segment styles under test').toBeGreaterThanOrEqual(12);
     for (const k of SERIE1) {
       expect(
         renderEntete(k as never, SF as never, TRUST as never, {}),

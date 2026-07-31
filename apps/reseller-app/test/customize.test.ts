@@ -258,9 +258,10 @@ describe('ENTETES-B — the local header-key mirror stays canon, and the fallbac
  * the picker maps `PICKABLE_HEADER_STYLES`, and every pickable key MUST have
  * its strings (`t()` throws on a missing key — an un-authored card is a crash).
  */
-describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
+describe('ENTETES-F/J — the picker is a strict subset of canon vocabulary', () => {
   it('each of the five NEW keys reads back through headerStyleOf — vocabulary, not garbage', async () => {
     const { DEFAULT_STOREFRONT, headerStyleOf } = await import('../src/vitrine/customize/storefront');
+    // masque stays VOCABULARY after ENTETES-J even though it lost its drawing
     for (const key of ['masque', 'harmattan', 'balafon', 'seance', 'cauris']) {
       expect(headerStyleOf({ ...DEFAULT_STOREFRONT, headerStyle: key }), key).toBe(key);
     }
@@ -275,9 +276,7 @@ describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
       'royale',
       'heritage',
       'chaleureux',
-      'cristal',
       'dynamique',
-      'masque',
       'harmattan',
       'balafon',
       'seance',
@@ -286,23 +285,15 @@ describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
       // therefore the first to be offered. It was added here LAST, after its
       // chunk, its catalog strings and its framing silhouette existed.
       'indigo',
-      'couture',
       'safran',
       'grenat',
       'kraft',
       'audace',
       'fleurie',
-      'prisme',
-      'pop',
       'chrome',
-      'neon',
-      'perle',
       'artisan',
       'braise',
-      'graffiti',
-      'dunda',
       'karite',
-      'bronze',
       'calebasse',
       'pagne',
     ]);
@@ -318,20 +309,20 @@ describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
     const canonIndex = PICKABLE_HEADER_STYLES.map((k) => HEADER_STYLES.indexOf(k));
     expect(canonIndex).toEqual([...canonIndex].sort((a, b) => a - b));
     expect(canonIndex).not.toContain(-1);
-    // ENTETES-H CLOSES HERE. This assertion used to name the styles that had no
-    // buyer render unit and demand they stay OUT of the picker. Pagne was the
-    // last of them, so that list is now empty — and a loop over an empty list
-    // asserts nothing, which is exactly the vacuous-guard failure this repo has
-    // been bitten by before. It is replaced by its own end state: the picker has
-    // caught up to the vocabulary, key for key.
-    //
-    // THE LAW IT ENFORCED IS UNCHANGED and still binds every future key: the
-    // picker never runs ahead of the render. A new canon key lands in
-    // HEADER_STYLES first, this equality FAILS until its unit ships, and that
-    // failure is the guard. That each pickable key really draws its own header
-    // is proven where the render lives — buyer-pwa's entetes-lazy suite asserts
-    // the honesty markers, the CSS scoping and the fallback across the whole set.
-    expect([...PICKABLE_HEADER_STYLES]).toEqual([...HEADER_STYLES]);
+    // ENTETES-J — the picker and the vocabulary DIVERGE, and that is the law,
+    // not a gap to close. ENTETES-H briefly made them equal because every canon
+    // key had a drawing; the founder then cut ten styles on looks. Their keys
+    // stay canon VOCABULARY — a live storefront may hold one and
+    // `storefront-core` must not refuse it — while the picker no longer offers
+    // them. Containment and order, never equality: a key with no drawing must
+    // never be offerable, and a new key is vocabulary before it is pickable.
+    expect(PICKABLE_HEADER_STYLES.length).toBeLessThan(HEADER_STYLES.length);
+    // and the ten that were cut are ABSENT from the picker, by name
+    for (const cut of ['bronze', 'dunda', 'graffiti', 'perle', 'neon',
+                       'pop', 'prisme', 'couture', 'masque', 'cristal']) {
+      expect(PICKABLE_HEADER_STYLES, cut).not.toContain(cut);
+      expect(HEADER_STYLES, `${cut} must stay canon vocabulary`).toContain(cut);
+    }
   });
 
   it('every PICKABLE key has BOTH its picker strings in the catalog (t throws on a missing key)', async () => {
@@ -343,13 +334,14 @@ describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
     }
   });
 
-  it('the five frame HER COVER in their Série 4 silhouettes — one shape, two crop biases', async () => {
+  it('the four frame HER COVER in their Série 4 silhouettes — one shape, two crop biases', async () => {
     const { defaultFocusFor, frameSpecFor } = await import('../src/vitrine/customize/framing-math');
     // FOUNDER RULING 2026-07-30 « make it all be like the 6 original headers »:
     // these styles DRAW the cover now, so the sheet must show her drag inside the
     // real silhouette the buyer will see — never the classique placeholder they
     // carried while the cover went unused.
-    for (const key of ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const) {
+    // ENTETES-J — « masque » was cut; the other four still draw the cover.
+    for (const key of ['harmattan', 'balafon', 'seance', 'cauris'] as const) {
       expect(frameSpecFor(key, 'cover'), key).not.toEqual(frameSpecFor('classique', 'cover'));
       // ONE SHAPE, both kinds — a second copy would be a second answer. The
       // FOCUS is deliberately not shared: the cover rides the style's own
@@ -358,11 +350,9 @@ describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
       expect(defaultFocusFor(key, 'avatar'), key).toEqual({ x: 50, y: 24 });
     }
     // ENTETES-F — the Série 4 silhouettes and « cover · X% Y% » crop biases
-    expect(frameSpecFor('masque', 'cover')).toEqual({ aspect: 186 / 358, circle: false, radii: [0, 0, 0, 0] });
     expect(frameSpecFor('balafon', 'cover')).toEqual({
       aspect: 158 / 212, circle: false, radii: [4 / 158, 4 / 158, 4 / 158, 4 / 158],
     });
-    expect(defaultFocusFor('masque', 'cover')).toEqual({ x: 62, y: 24 });
     expect(defaultFocusFor('harmattan', 'cover')).toEqual({ x: 55, y: 30 });
     expect(defaultFocusFor('balafon', 'cover')).toEqual({ x: 55, y: 22 });
     expect(defaultFocusFor('seance', 'cover')).toEqual({ x: 60, y: 30 });
@@ -372,7 +362,7 @@ describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
     expect(defaultFocusFor('dynamique', 'cover')).toEqual({ x: 58, y: 30 });
     // Avatar: the SAME contract silhouette (the frame does not change with
     // which photograph fills it), and the shared high portrait bias.
-    for (const key of ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const) {
+    for (const key of ['harmattan', 'balafon', 'seance', 'cauris'] as const) {
       expect(frameSpecFor(key, 'avatar'), key).toEqual(frameSpecFor(key, 'cover'));
       expect(frameSpecFor(key, 'avatar').circle, key).toBe(false);
       expect(defaultFocusFor(key, 'avatar'), key).toEqual({ x: 50, y: 24 });

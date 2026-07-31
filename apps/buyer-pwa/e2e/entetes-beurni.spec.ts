@@ -62,7 +62,9 @@ type FixtureName = keyof typeof FIXTURES;
 /** Canon key → the Série 4 unit it now draws, with each relevé's column
  *  min-height at both widths (the @container step at ≤ 339). */
 const STYLES = [
-  { key: 'masque', nom: 'Prestige', root: 'vt-pr', p: 'pr', min360: 266, min320: 250 },
+  // ENTETES-J — « masque » (Prestige) was cut by the founder on looks. Its key
+  // stays canon vocabulary and draws `classique`, so there is no Prestige unit
+  // left to screenshot or measure. Four of the série 4 five remain.
   { key: 'harmattan', nom: 'Terracotta', root: 'vt-te', p: 'te', min360: 250, min320: 238 },
   { key: 'balafon', nom: 'Étendard', root: 'vt-et', p: 'et', min360: 206, min320: 196 },
   { key: 'seance', nom: 'Douceur', root: 'vt-do', p: 'do', min360: 250, min320: 238 },
@@ -273,7 +275,7 @@ for (const width of [360, 320] as const) {
   }
 }
 
-test('app path: each of the five keys mounts its own unit through ?entete=', async ({ page }) => {
+test('app path: each of the four keys mounts its own unit through ?entete=', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   for (const style of STYLES) {
     await page.goto(`/?demo-vitrine=aicha-4821&entete=${style.key}`);

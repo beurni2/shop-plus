@@ -113,25 +113,6 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     expect(visible).toContain('Nouvelle');
   });
 
-  it('COUTURE — its chunk loads and draws, and it is a SEPARATE chunk from indigo', async () => {
-    await loadEntete('couture');
-    expect(loadedEntete('couture'), 'the couture chunk did not register').toBeDefined();
-    const html = renderEntete('couture', SF as never, TRUST as never, {});
-    expect(html).toContain('class="vt-ent vt-co"');
-    expect(html).toContain('Gounghin, Ouagadougou');
-    expect(html).toContain('data-role="reputation"');
-    // both styles can be resident at once WITHOUT their CSS colliding: each
-    // sheet is scoped to its own root, which is what lets the page mount
-    // whichever arrived
-    await loadEntete('indigo');
-    const sheet = loadedEnteteCss();
-    expect(sheet).toContain('.vt-co');
-    expect(sheet).toContain('.vt-in');
-    for (const line of sheet.split('\n')) {
-      const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
-      if (m) expect(m[1], line).toMatch(/^\.vt-(co|in)[ .]/);
-    }
-  });
 
   it('SAFRAN — its chunk draws, applies the split-column long-name rule, and stays honest', async () => {
     await loadEntete('safran');
@@ -232,59 +213,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     expect(min, 'the badge string was split in the markup').not.toContain('Nouvelle<br>');
   });
 
-  it('PRISME — its chunk draws, is full-width, and ships an OPAQUE glass fallback', async () => {
-    await loadEntete('prisme');
-    expect(loadedEntete('prisme'), 'the prisme chunk did not register').toBeDefined();
-    const html = renderEntete('prisme', SF as never, TRUST as never, {});
-    expect(html).toContain('class="vt-ent vt-pi"');
-    expect(html).toContain('Gounghin, Ouagadougou');
-    expect(html).toContain('data-role="reputation"');
 
-    // « pleine largeur (13, 14) : pas de règle fixe » — Prisme must NOT size a
-    // long name down, unlike Audace and Fleurie in the same series
-    const long = renderEntete('prisme', { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});
-    expect(long, 'prisme is full-width and must not size a long name down').not.toContain('vt-ent-long');
-
-    const sheet = loadedEntete('prisme')!.css;
-    // THE GLASS FALLBACK IS LOAD-BEARING, not decoration: a phone without
-    // backdrop-filter must get a FINISHED opaque panel, never transparent glass
-    // with her name lost on it. So the opaque rule is declared FIRST and the
-    // blur only inside @supports.
-    const plain = sheet.indexOf('.vt-pi .glz { background: rgba(255,255,255,.66); }');
-    const supports = sheet.indexOf('@supports ((backdrop-filter');
-    expect(plain, 'the opaque .glz fallback is missing').toBeGreaterThan(-1);
-    expect(supports, 'the @supports guard is missing').toBeGreaterThan(-1);
-    expect(plain, 'the blur is not behind the opaque fallback').toBeLessThan(supports);
-    // and it stays inside this chunk — it must never reach Cristal's .glz
-    expect(sheet, 'an unscoped .glz would repaint Cristal').not.toMatch(/^\s*\.glz/m);
-  });
-
-  it('POP — full width WITH a tier, and a two-tone badge DERIVED from the catalog', async () => {
-    await loadEntete('pop');
-    expect(loadedEntete('pop'), 'the pop chunk did not register').toBeDefined();
-    const html = renderEntete('pop', SF as never, TRUST as never, {});
-    expect(html).toContain('class="vt-ent vt-po"');
-    expect(html).toContain('Gounghin, Ouagadougou');
-    expect(html).toContain('data-role="reputation"');
-
-    // THE TRAP IN THIS SERIES: « pleine largeur (13, 14) : pas de règle fixe
-    // (Pop : 24 px si > 14) ». Prisme and Pop are BOTH full width; Prisme has
-    // no tier and Pop has one. Same clause, opposite answers.
-    const long = renderEntete('pop', { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});
-    expect(long, 'pop is full width but DOES take a tier at > 14 chars').toContain('vt-ent-long');
-    expect(loadedEntete('pop')!.css).toContain('.po-name.vt-ent-long { font-size: 24px; }');
-
-    // THE BADGE IS TWO COLOURS ON ONE CATALOG STRING. The split is derived at
-    // the last space, never re-authored as two literals — so the two halves
-    // must reassemble into exactly the catalog entry, byte for byte.
-    const zero = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
-    const min = renderEntete('pop', SF as never, zero as never, {});
-    expect(min).toContain('data-role="chip-nouvelle"');
-    const badge = /<span class="po-nouv">([\s\S]*?)<\/span><\/span>/.exec(min)?.[1] ?? '';
-    expect(badge.length, 'the badge markup was not found — this scan would assert over nothing').toBeGreaterThan(10);
-    const visible = badge.replace(/<[^>]*>/g, '');
-    expect(visible, 'the two tones do not reassemble into the catalog string').toBe('Nouvelle vendeuse');
-  });
 
   it('EVERY lazy style keeps its CSS to its OWN root — every resident sheet stays scoped', async () => {
     // the guard that has to grow with the set: as each of the twenty lands, its
@@ -293,38 +222,22 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-co', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-pi', '.vt-po', '.vt-ch3', '.vt-ne', '.vt-pe', '.vt-ar', '.vt-br', '.vt-gf', '.vt-du', '.vt-ka', '.vt-bz', '.vt-cb', '.vt-pg',
-      '.vt-ry', '.vt-he', '.vt-ch', '.vt-cr', '.vt-dy',
-      '.vt-pr', '.vt-te', '.vt-et', '.vt-do', '.vt-ti']) {
+    for (const root of ['.vt-in', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-ch3', '.vt-ar', '.vt-br', '.vt-ka', '.vt-cb', '.vt-pg',
+      '.vt-ry', '.vt-he', '.vt-ch', '.vt-dy',
+      '.vt-te', '.vt-et', '.vt-do', '.vt-ti']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
     let checked = 0;
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br|gf|du|ka|bz|cb|pg|ry|he|ch|cr|dy|pr|te|et|do|ti)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br|gf|ka|cb|pg|ry|he|ch|dy|te|et|do|ti)[ .]/);
         checked += 1;
       }
     }
     expect(checked, 'no selectors matched — the scan asserted over nothing').toBeGreaterThan(30);
   });
 
-  it('PERLE — one of the TWO série 3 styles that draw her présentation', async () => {
-    await loadEntete('perle');
-    expect(loadedEntete('perle'), 'the perle chunk did not register').toBeDefined();
-    const html = renderEntete('perle', SF as never, TRUST as never, {});
-    expect(html).toContain('class="vt-ent vt-pe"');
-    expect(html).toContain('data-role="reputation"');
-
-    // « La présentation ne s'affiche que sur Perle et Artisan » — every other
-    // série 3 style asserts the bio is ABSENT; this one asserts it is DRAWN.
-    const bio = 'Tissus choisis un par un.';
-    const withBio = renderEntete('perle', { ...SF, bio } as never, TRUST as never, {});
-    expect(withBio, 'perle must draw her présentation — the board shows one').toContain(bio);
-    // …and it still obeys the compact rule the shared vals() applies
-    const compact = renderEntete('perle', { ...SF, bio } as never, TRUST as never, { compact: true });
-    expect(compact, 'a compact render must drop the bio like every other style').not.toContain(bio);
-  });
 
   it('THE BIO RULE holds across the whole série 3 set — two draw it, the rest do not', async () => {
     // « La présentation ne s'affiche que sur Perle et Artisan (seuls visuels
@@ -334,8 +247,12 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const bio = 'Tissus choisis un par un.';
-    const SERIE3_AVEC = ['perle', 'artisan'];
-    const SERIE3_SANS = ['audace', 'fleurie', 'prisme', 'pop', 'chrome', 'neon', 'braise', 'graffiti'];
+    // ENTETES-J — Perle was one of the TWO that drew it and is gone, along with
+    // Prisme, Pop, Néon and Graffiti. Artisan is now the ONLY style in the app
+    // that shows her présentation, which makes this guard MORE load-bearing,
+    // not less: nothing else is left to compare it against.
+    const SERIE3_AVEC = ['artisan'];
+    const SERIE3_SANS = ['audace', 'fleurie', 'chrome', 'braise'];
     for (const k of SERIE3_AVEC) {
       const html = renderEntete(k as EnteteKey, { ...SF, bio } as never, TRUST as never, {});
       expect(html, `${k} must draw her présentation — its board shows one`).toContain(bio);
@@ -344,7 +261,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
       const html = renderEntete(k as EnteteKey, { ...SF, bio } as never, TRUST as never, {});
       expect(html, `${k} drew a bio; only Perle and Artisan show one`).not.toContain(bio);
     }
-    expect(SERIE3_AVEC.length + SERIE3_SANS.length, 'the série 3 set shrank — this scan is going stale').toBe(10);
+    expect(SERIE3_AVEC.length + SERIE3_SANS.length, 'the série 3 set shrank — this scan is going stale').toBe(5);
   });
 
   it('THE HONESTY MARKERS are on EVERY built style — proof XOR badge, never both', async () => {
@@ -359,7 +276,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const built = (ENTETE_KEYS as readonly EnteteKey[]).filter(
       (k) => k !== 'classique' && (isLazyEntete(k) || renderEntete(k, SF as never, TRUST as never, {}) !== classique),
     );
-    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(29);
+    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(20);
 
     const zero = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
     for (const k of built) {
@@ -389,7 +306,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { readdirSync, readFileSync } = await import('node:fs');
     const dir = new URL('../src/vitrine/entetes/', import.meta.url).pathname;
     const modules = readdirSync(dir).filter((f) => f.endsWith('.ts') && f !== 'registry.ts');
-    expect(modules.length, 'no style modules found — this scan would assert over nothing').toBeGreaterThan(25);
+    expect(modules.length, 'no style modules found — this scan would assert over nothing').toBeGreaterThan(18);
 
     const SHELL = new Set(
       [...ENTETES_STYLES.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\.(vt-[\w-]+)/g)].map((m) => m[1]!),
@@ -425,7 +342,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
         owner.set(root, file);
       }
     }
-    expect(owner.size, 'no roots were collected — the scan would pass vacuously').toBeGreaterThan(25);
+    expect(owner.size, 'no roots were collected — the scan would pass vacuously').toBeGreaterThan(18);
     // the near-miss itself, pinned by name
     expect(owner.get('vt-ch3')).toBe('chrome.ts');
     expect(owner.get('vt-ch')).toBe('chaleureux.ts');
@@ -440,7 +357,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const TIER: Record<string, [string, number]> = {
-      dunda: ['du', 24], karite: ['ka', 20], bronze: ['bz', 24], calebasse: ['cb', 24], pagne: ['pg', 24],
+      karite: ['ka', 20], calebasse: ['cb', 24], pagne: ['pg', 24],
     };
     for (const [key, [p, px]] of Object.entries(TIER)) {
       const long = renderEntete(key as EnteteKey, { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});
@@ -510,8 +427,9 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     // half is now the shared shell alone (about a dozen rules), so a per-sheet
     // floor of 50 fails on a sheet that is doing exactly what it should.
     expect(total, 'the rule scan found almost nothing — it would pass vacuously').toBeGreaterThan(400);
-    // Bronze (.txb) · Chrome (.txc, .txv) · Prestige · Étendard · Tissage
-    expect(checked, 'no gradient-clipped text found — this scan asserted over nothing').toBe(6);
+    // ENTETES-J — Bronze (.txb) and Prestige went with the founder's cut.
+    // Chrome (.txc, .txv) · Étendard · Tissage remain.
+    expect(checked, 'no gradient-clipped text found — this scan asserted over nothing').toBe(4);
   });
 
   it('no style module hides a BACKTICK inside its css template literal', async () => {

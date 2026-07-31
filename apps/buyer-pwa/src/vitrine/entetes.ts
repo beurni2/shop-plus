@@ -489,9 +489,9 @@ export function renderEntete(
 /**
  * The five palettes as the contract's own custom properties, each scoped under
  * its root class so nothing leaks into the page or between styles. CSS only:
- * no continuous animation, transitions limited to button press (§6), and the
- * one `backdrop-filter` in the whole sheet sits behind `@supports` with the
- * contract's finished opaque fallback.
+ * no continuous animation, transitions limited to button press (§6). The one
+ * `backdrop-filter` this sheet ever carried belonged to Cristal and left with
+ * it at ENTETES-J; there is none anywhere in the app now, and a test asserts so.
  */
 export const ENTETES_STYLES = `
   .vt-ent {

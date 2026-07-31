@@ -56,7 +56,10 @@ const PRODUCTS = [
 ];
 
 /** The five — « classique » is the untouched default and is pinned separately. */
-const FIVE: readonly EnteteKey[] = ['royale', 'heritage', 'chaleureux', 'cristal', 'dynamique'];
+/** ENTETES-J — « cristal » was cut by the founder on looks, with nine others.
+ *  Its key stays canon vocabulary and draws `classique`; there is no Cristal
+ *  unit left to assert against. Four of the original five remain. */
+const FIVE: readonly EnteteKey[] = ['royale', 'heritage', 'chaleureux', 'dynamique'];
 
 /** The style's own MINIMAL pattern class (HANDOFF §3) — what fills the photo
  *  region when she has no cover. One per style; never a shared placeholder. */
@@ -64,7 +67,6 @@ const MOTIF: Record<string, string> = {
   royale: 'ry-med-motif',
   heritage: 'he-photo-motif',
   chaleureux: 'ch-galet-motif',
-  cristal: 'cr-frame-motif',
   dynamique: 'dy-photo-motif',
 };
 
@@ -73,7 +75,6 @@ const OBJECT_POS: Record<string, string> = {
   royale: '42% 28%',
   heritage: '50% 18%',
   chaleureux: '50% 24%',
-  cristal: '50% 22%',
   dynamique: '58% 30%',
 };
 
@@ -82,7 +83,6 @@ const ROOT: Record<string, string> = {
   royale: 'vt-ry',
   heritage: 'vt-he',
   chaleureux: 'vt-ch',
-  cristal: 'vt-cr',
   dynamique: 'vt-dy',
 };
 
@@ -217,14 +217,10 @@ describe('ENTETES-A — the frozen honesty rules hold, per style, on executed ou
       const html = head(key, WITH_COVER, REAL);
       expect(html).toContain('data-role="reputation"');
       expect(html).toContain('<v>12</v>');
-      // Cristal renders the contract's two-line split (« {N} ventes » bold /
-      // « livrées par Séra ») — the phrase is present but not contiguous there.
-      if (key === 'cristal') {
-        expect(html).toContain('ventes</b>');
-        expect(html).toContain('livrées par Séra');
-      } else {
-        expect(html).toContain(t('vit.ventes_livrees'));
-      }
+      // ENTETES-J — the `cristal` branch here handled the one style whose proof
+      // line split the catalog phrase across two lines. It went with the cut, so
+      // every surviving style states the phrase contiguously.
+      expect(html).toContain(t('vit.ventes_livrees'));
       expect(html).toContain('data-role="chip-avis"');
       expect(html).toContain('<v>4,8</v>');
       expect(html).toContain('<v>17</v>');
@@ -453,8 +449,9 @@ describe('ENTETES-A — a 24-character name drops to the fixed reduced size (§4
     });
   }
 
-  it('Héritage and Cristal keep their clamp — they are the wide columns (§4)', () => {
-    for (const key of ['heritage', 'cristal'] as const) {
+  it('Héritage keeps its clamp — it is the wide column (§4)', () => {
+    // Cristal was the other one, and ENTETES-J cut it.
+    for (const key of ['heritage'] as const) {
       expect(head(key, { ...BASE, name: LONG }, REAL)).not.toContain('vt-ent-long');
     }
   });
@@ -484,22 +481,17 @@ describe('ENTETES-A — five styles on one page cannot bleed into each other or 
     }
   });
 
-  it('the Cristal blur sits behind @supports with the contract’s finished fallback (§6)', () => {
-    // A 1GB Android without backdrop-filter must get a finished opaque surface,
-    // never a transparent unreadable card.
+  it('NO backdrop-filter ships at all — the one that did went with Cristal', () => {
+    // This used to assert that Cristal's blur sat behind @supports with a
+    // finished opaque fallback, because a 1GB Android without backdrop-filter
+    // must never get a transparent unreadable card. ENTETES-J cut Cristal and
+    // took the only `backdrop-filter` in the app with it.
     //
-    // ENTETES-I — scoped to CRISTAL'S OWN module sheet, not the concatenation.
-    // The ordering this asserts is a within-one-stylesheet cascade fact: the
-    // opaque rule must be declared BEFORE the @supports that enhances it. Once
-    // every style is a chunk, positions in the joined sheet are load order and
-    // say nothing about that. The module is where the fact lives.
-    const cr = loadedEntete('cristal')?.css ?? '';
-    expect(cr.length, 'the cristal chunk did not register — this would assert over nothing').toBeGreaterThan(500);
-    const plain = cr.indexOf('.vt-cr .glz { background: rgba(255,255,255,.66); }');
-    const supports = cr.indexOf('@supports ((backdrop-filter');
-    expect(plain, 'the opaque .glz fallback is missing').toBeGreaterThan(-1);
-    expect(supports, 'the @supports guard is missing').toBeGreaterThan(-1);
-    expect(plain, 'the blur is not behind the opaque fallback').toBeLessThan(supports);
+    // The assertion is INVERTED rather than deleted: the hazard was never
+    // Cristal specifically, it was the property. If one returns without its
+    // fallback, this fails and whoever adds it has to make the same promise.
+    expect(sheet(), 'a backdrop-filter is back — it needs an opaque @supports fallback')
+      .not.toContain('backdrop-filter');
   });
 
   it('no continuous animation ships in the five headers (§6)', () => {
@@ -529,7 +521,7 @@ describe('ENTETES-A — the vide screen carries the chosen header too', () => {
 });
 
 describe('ENTETES-A — every style survives every combination of its own states', () => {
-  it('120 renders: every tag closes, no undefined/NaN leaks into the page', () => {
+  it('96 renders: every tag closes, no undefined/NaN leaks into the page', () => {
     let renders = 0;
     for (const key of FIVE) {
       for (const trust of [REAL, ZERO, BELOW_FLOOR]) {
@@ -558,7 +550,7 @@ describe('ENTETES-A — every style survives every combination of its own states
         }
       }
     }
-    expect(renders).toBe(120);
+    expect(renders).toBe(96);   // 4 styles × 3 trust × 2 cover × 2 retour × 2 compact
   });
 });
 
@@ -579,7 +571,7 @@ describe('palettes — the relevé values, pinned against silent recolour', () =
       expect(sheet(), `${token} must be ${hex}`).toMatch(re);
     }
     // two identities that live as literals, not tokens, in the sheet
-    expect(sheet()).toContain('#EDF2ED'); // Cristal's page
+    // ENTETES-J — Cristal's page literal (#EDF2ED) went with the cut.
     expect(sheet()).toMatch(/118deg,\s*#2B1055/); // Dynamique's veil-anchored gradient
   });
 });
@@ -597,9 +589,9 @@ describe('ENTETES-B — enteteForRender: the field drives, the ?entete= override
     expect(enteteForRender(undefined, 'royale')).toBe('royale');
   });
 
-  it('field royale + ?entete=cristal ⇒ cristal — the param wins, byte-for-byte the ENTETES-A lever', async () => {
+  it('field royale + ?entete=safran ⇒ safran — the param wins, byte-for-byte the ENTETES-A lever', async () => {
     const { enteteForRender } = await import('../src/vitrine/flows');
-    expect(enteteForRender('cristal', 'royale')).toBe('cristal');
+    expect(enteteForRender('safran', 'royale')).toBe('safran');
     // …including previewing classique OVER a chosen header
     expect(enteteForRender('classique', 'royale')).toBe('classique');
   });
@@ -631,10 +623,12 @@ describe('ENTETES-B — enteteForRender: the field drives, the ?entete= override
     const royale = renderVitrineReady(WITH_COVER as never, REAL, opts, {}, PRODUCTS, enteteForRender(undefined, 'royale'));
     expect(royale).toContain(ROOT['royale']!);
     expect(royale).not.toBe(classique);
-    // …and the ?entete=cristal override on the same shop renders Cristal instead
-    const cristal = renderVitrineReady(WITH_COVER as never, REAL, opts, {}, PRODUCTS, enteteForRender('cristal', 'royale'));
-    expect(cristal).toContain(ROOT['cristal']!);
-    expect(cristal).not.toContain(ROOT['royale']!);
+    // …and the ?entete= override on the same shop renders THAT header instead.
+    // ENTETES-J — this used `cristal`, which the founder cut; `heritage` is a
+    // surviving style and exercises the same lever.
+    const other = renderVitrineReady(WITH_COVER as never, REAL, opts, {}, PRODUCTS, enteteForRender('heritage', 'royale'));
+    expect(other).toContain(ROOT['heritage']!);
+    expect(other).not.toContain(ROOT['royale']!);
   });
 });
 
@@ -932,11 +926,12 @@ describe('etatForRender — a state that reads no storefront is never the not-fo
  * of handing `undefined` to the page.
  */
 describe('ENTETES-E — the five Beurni Boss keys render their own units, not classique', () => {
-  const BUILT = ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const;
+  // ENTETES-J — « masque » was cut; the other four still draw their own unit.
+  const BUILT = ['harmattan', 'balafon', 'seance', 'cauris'] as const;
   // ENTETES-F — the keys are unchanged canon; the ROOTS are the Série 4 units
-  // they now draw (Prestige · Terracotta · Étendard · Douceur · Tissage).
-  const ROOTS: Record<(typeof BUILT)[number], string> = {
-    masque: 'vt-pr', harmattan: 'vt-te', balafon: 'vt-et', seance: 'vt-do', cauris: 'vt-ti',
+  // they now draw. ENTETES-J cut « masque » (Prestige), so four remain.
+  const ROOTS: Record<string, string> = {
+    harmattan: 'vt-te', balafon: 'vt-et', seance: 'vt-do', cauris: 'vt-ti',
   };
 
   for (const key of BUILT) {
@@ -1005,15 +1000,21 @@ describe('ENTETES-E0 — the wire accepts the five; the renderer falls back unti
     expect(bad!.storefront.headerStyle).toBe('classique');
   });
 
-  it("the ACCEPTED 'masque' — wire-normalised, not cast — renders the PRESTIGE unit end to end", async () => {
+  it("the ACCEPTED 'masque' — wire-normalised, not cast — now draws CLASSIQUE, never a blank", async () => {
+    // ENTETES-J INVERTED THIS, and the inversion is the point. `masque` used to
+    // render the Prestige unit; the founder cut that style on looks. The key
+    // stays canon VOCABULARY so the wire still accepts it and a storefront
+    // already carrying it is never refused — and the renderer falls to the
+    // shipped default rather than emitting nothing. That is the ENTETES-E0 law
+    // doing exactly the job it exists for, on a real stored value.
     const { httpStorefrontPort } = await import('../src/vitrine/profile');
     const resolved = await stubFetch({ ...WIRE_BASE, headerStyle: 'masque' }, () =>
       httpStorefrontPort('https://svc.example').resolve('chez-w-1'),
     );
-    expect(resolved!.storefront.headerStyle).toBe('masque');
+    expect(resolved!.storefront.headerStyle, 'the wire must still ACCEPT a retired key').toBe('masque');
     const out = renderEntete(resolved!.storefront.headerStyle, resolved!.storefront, REAL as never, { fromProduct: true });
-    expect(out).toContain('class="vt-ent vt-pr"');
-    expect(out).not.toContain('class="vt-hero"');
-    expect(out.length).toBeGreaterThan(1000);
+    expect(out, 'a retired key must draw the shipped default').toContain('class="vt-hero"');
+    expect(out).not.toContain('class="vt-ent vt-pr"');
+    expect(out.length).toBeGreaterThan(500);
   });
 });

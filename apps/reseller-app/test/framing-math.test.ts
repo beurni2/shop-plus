@@ -114,18 +114,20 @@ describe('framing-math — the representative frames (aspect + silhouette, per s
     expect(dy.circle).toBe(false);
   });
 
-  it('the AVATAR frame: a circle in the six; the Série 4 five carry their contract silhouettes (ENTETES-F)', () => {
-    for (const style of ['classique', 'royale', 'heritage', 'chaleureux', 'cristal', 'dynamique'] as const) {
+  it('the AVATAR frame: a circle in the survivors; the Série 4 four carry their contract silhouettes (ENTETES-F/J)', () => {
+    // ENTETES-J — « cristal » and « masque » were cut with eight others. They stay
+    // canon vocabulary and draw `classique`, so a silhouette for them would
+    // describe a frame nothing renders.
+    for (const style of ['classique', 'royale', 'heritage', 'chaleureux', 'dynamique'] as const) {
       const spec = frameSpecFor(style, 'avatar');
       expect(spec.circle, style).toBe(true);
       expect(spec.aspect, style).toBe(1);
     }
     // NOT ONE of the Série 4 five is a circle — the contract has no round
     // portrait on these visuals, so a circle here would be an invented shape
-    for (const style of ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const) {
+    for (const style of ['harmattan', 'balafon', 'seance', 'cauris'] as const) {
       expect(frameSpecFor(style, 'avatar').circle, style).toBe(false);
     }
-    expect(frameSpecFor('masque', 'avatar')).toEqual({ aspect: 186 / 358, circle: false, radii: [0, 0, 0, 0] });
     expect(frameSpecFor('balafon', 'avatar')).toEqual({
       aspect: 158 / 212, circle: false, radii: [4 / 158, 4 / 158, 4 / 158, 4 / 158],
     });
@@ -144,21 +146,20 @@ describe("framing-math — the defaults ARE the styles' contract positions (law 
     expect(defaultFocusFor('royale', 'cover')).toEqual({ x: 42, y: 28 });
     expect(defaultFocusFor('heritage', 'cover')).toEqual({ x: 50, y: 18 });
     expect(defaultFocusFor('chaleureux', 'cover')).toEqual({ x: 50, y: 24 });
-    expect(defaultFocusFor('cristal', 'cover')).toEqual({ x: 50, y: 22 });
     expect(defaultFocusFor('dynamique', 'cover')).toEqual({ x: 58, y: 30 });
     expect(defaultFocusFor('classique', 'cover')).toEqual({ x: 50, y: 50 });
   });
 
-  it("avatar defaults: Héritage 50/32; the Série 4 five the shared high portrait bias; the rest the centre", () => {
+  it("avatar defaults: Héritage 50/32; the Série 4 four the shared high portrait bias; the rest the centre", () => {
     expect(defaultFocusFor('heritage', 'avatar')).toEqual({ x: 50, y: 32 });
     // The PORTRAIT bias is one shared value (Série 1 §5 « biais haut 18–30 % »),
     // NOT each style's cover bias — the buyer sheet crops the portrait
-    // fallback at 50/24 for all five, and the two sheets have to agree.
-    for (const style of ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const) {
+    // fallback at 50/24 for all of them, and the two sheets have to agree.
+    for (const style of ['harmattan', 'balafon', 'seance', 'cauris'] as const) {
       expect(defaultFocusFor(style, 'avatar'), style).toEqual({ x: 50, y: 24 });
       expect(defaultFocusFor(style, 'avatar'), style).not.toEqual(defaultFocusFor(style, 'cover'));
     }
-    for (const style of ['classique', 'royale', 'chaleureux', 'cristal', 'dynamique'] as const) {
+    for (const style of ['classique', 'royale', 'chaleureux', 'dynamique'] as const) {
       expect(defaultFocusFor(style, 'avatar'), style).toEqual({ x: 50, y: 50 });
     }
   });

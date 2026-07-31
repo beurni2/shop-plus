@@ -62,25 +62,25 @@ const F3 = { deliveredCount: 1, rating: '5', reviewCount: 2, demo: false };
 /** F4 trust — the big numbers that must group with NNBSP. */
 const F4 = { deliveredCount: 1287, rating: '4,75', reviewCount: 307, demo: false };
 
-const FIVE: readonly EnteteKey[] = ['masque', 'harmattan', 'balafon', 'seance', 'cauris'];
+/** ENTETES-J — « masque » (Prestige) was cut by the founder on looks, with nine
+ *  others. The key stays canon vocabulary and draws `classique`; there is no
+ *  Prestige unit left to assert against, so this set is the surviving four. */
+const FIVE: readonly EnteteKey[] = ['harmattan', 'balafon', 'seance', 'cauris'];
 
 const ROOT: Record<string, string> = {
-  masque: 'vt-pr', harmattan: 'vt-te', balafon: 'vt-et', seance: 'vt-do', cauris: 'vt-ti',
+  harmattan: 'vt-te', balafon: 'vt-et', seance: 'vt-do', cauris: 'vt-ti',
 };
 /** The contract name each key now DRAWS — the rename the picker shows. */
 const NOM: Record<string, string> = {
-  masque: 'Prestige', harmattan: 'Terracotta', balafon: 'Étendard',
-  seance: 'Douceur', cauris: 'Tissage',
+  harmattan: 'Terracotta', balafon: 'Étendard', seance: 'Douceur', cauris: 'Tissage',
 };
 /** The style's own MINIMAL pattern class — what fills the frame sans photo. */
 const MOTIF: Record<string, string> = {
-  masque: 'pr-motif', harmattan: 'te-motif', balafon: 'et-motif',
-  seance: 'do-motif', cauris: 'ti-motif',
+  harmattan: 'te-motif', balafon: 'et-motif', seance: 'do-motif', cauris: 'ti-motif',
 };
 /** Relevé §Photo — the COVER crop bias the contract fixes for each style. */
 const COVER_POS: Record<string, string> = {
-  masque: '62% 24%', harmattan: '55% 30%', balafon: '55% 22%',
-  seance: '60% 30%', cauris: '52% 28%',
+  harmattan: '55% 30%', balafon: '55% 22%', seance: '60% 30%', cauris: '52% 28%',
 };
 /** Série 1 §5 « biais haut 18–30 % » — the portrait fallback's shared bias. */
 const AVATAR_POS = '50% 24%';
@@ -317,8 +317,8 @@ describe('ENTETES-F — nameTail: the deterministic anti-orphan rule, executed',
     expect(sheet()).not.toContain('vt-ent-xlong');
   });
 
-  it('the contract\'s fixed sizes: Douceur 20 px, the other four 24 px — AND NOTHING OVERRIDES THEM AT 320', () => {
-    const SIZE: Record<string, string> = { do: '20px', pr: '24px', te: '24px', et: '24px', ti: '24px' };
+  it('the contract\'s fixed sizes: Douceur 20 px, the other three 24 px — AND NOTHING OVERRIDES THEM AT 320', () => {
+    const SIZE: Record<string, string> = { do: '20px', te: '24px', et: '24px', ti: '24px' };
     for (const [sel, px] of Object.entries(SIZE)) {
       expect(sheet(), sel).toMatch(
         new RegExp(`\\.vt-${sel} \\.${sel}-name\\.vt-ent-long \\{ font-size: ${px}; \\}`),
@@ -377,8 +377,8 @@ describe('ENTETES-F — the five sheets keep the house laws', () => {
     expect(sheet()).toContain('.vt-ent [aria-hidden="true"] { pointer-events: none; }');
   });
 
-  it('each column carries its relevé min-height (266 · 250 · 206 · 250 · 248)', () => {
-    const H: Record<string, number> = { pr: 266, te: 250, et: 206, do: 250, ti: 248 };
+  it('each column carries its relevé min-height (250 · 206 · 250 · 248)', () => {
+    const H: Record<string, number> = { te: 250, et: 206, do: 250, ti: 248 };
     for (const [sel, px] of Object.entries(H)) {
       expect(sheet(), sel).toMatch(new RegExp(`\\.vt-${sel} \\.${sel}-scene \\{[^}]*min-height: ${px}px`));
     }
@@ -419,7 +419,9 @@ describe('ENTETES-F — the five sheets keep the house laws', () => {
 /* -------------------------------------- 6 · the six are behaviourally inert -- */
 
 describe('ENTETES-F — the six existing styles absorbed NOTHING from this slice', () => {
-  const SIX: readonly EnteteKey[] = ['royale', 'heritage', 'chaleureux', 'cristal', 'dynamique'];
+  /** ENTETES-J — « cristal » was cut with the other nine; four of the original
+   *  five remain. */
+  const SIX: readonly EnteteKey[] = ['royale', 'heritage', 'chaleureux', 'dynamique'];
   const richSf = { ...BASE, cover: { status: 'live' as const, url: 'https://svc.example/c.jpg' } };
 
   for (const key of SIX) {

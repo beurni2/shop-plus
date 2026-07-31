@@ -1356,18 +1356,6 @@
   "screenClass": "label"
  },
  {
-  "key": "k.entete.nom_cristal",
-  "fr": "Cristal",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.sub_cristal",
-  "fr": "Clair et léger, tout en douceur.",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
   "key": "k.entete.nom_dynamique",
   "fr": "Dynamique",
   "register": "neutral",
@@ -1388,18 +1376,6 @@
  {
   "key": "k.entete.sub_indigo",
   "fr": "Nuit bleue et cyan — votre photo en grand.",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.nom_couture",
-  "fr": "Couture",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.sub_couture",
-  "fr": "Noir et crème, fin comme un magazine.",
   "register": "selling",
   "screenClass": "label"
  },
@@ -1464,30 +1440,6 @@
   "screenClass": "label"
  },
  {
-  "key": "k.entete.nom_prisme",
-  "fr": "Prisme",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.sub_prisme",
-  "fr": "Verre et cristal, tons menthe et lilas.",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.nom_pop",
-  "fr": "Pop",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.sub_pop",
-  "fr": "Bande dessinée : bleu roi, orange, contours nets.",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
   "key": "k.entete.nom_chrome",
   "fr": "Chrome",
   "register": "neutral",
@@ -1496,30 +1448,6 @@
  {
   "key": "k.entete.sub_chrome",
   "fr": "Noir laqu\u00e9, lettres argent et violet.",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.nom_neon",
-  "fr": "N\u00e9on",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.sub_neon",
-  "fr": "Noir et vert fluo, affiches coll\u00e9es.",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.nom_perle",
-  "fr": "Perle",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.sub_perle",
-  "fr": "Nacre et \u00e9meraude, une photo en m\u00e9daillon.",
   "register": "selling",
   "screenClass": "label"
  },
@@ -1548,30 +1476,6 @@
   "screenClass": "label"
  },
  {
-  "key": "k.entete.nom_graffiti",
-  "fr": "Graffiti",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.sub_graffiti",
-  "fr": "Mur noir et jaune taxi, photo scotch\u00e9e.",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.nom_dunda",
-  "fr": "Dunda",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.sub_dunda",
-  "fr": "Indigo K\u00f4k\u00f4 Dunda, anneaux de teinture.",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
   "key": "k.entete.nom_karite",
   "fr": "Karit\u00e9",
   "register": "neutral",
@@ -1580,18 +1484,6 @@
  {
   "key": "k.entete.sub_karite",
   "fr": "Beurre et miel, une photo en coussin.",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.nom_bronze",
-  "fr": "Bronze",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.sub_bronze",
-  "fr": "Charbon et bronze, un médaillon coulé.",
   "register": "selling",
   "screenClass": "label"
  },
@@ -1616,18 +1508,6 @@
  {
   "key": "k.entete.sub_pagne",
   "fr": "Motifs wax et perles, le pagne des grands jours.",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.nom_masque",
-  "fr": "Prestige",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.sub_masque",
-  "fr": "Noir et or, élégant comme une belle étoffe.",
   "register": "selling",
   "screenClass": "label"
  },
