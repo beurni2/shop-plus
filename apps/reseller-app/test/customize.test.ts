@@ -258,7 +258,7 @@ describe('ENTETES-B — the local header-key mirror stays canon, and the fallbac
  * the picker maps `PICKABLE_HEADER_STYLES`, and every pickable key MUST have
  * its strings (`t()` throws on a missing key — an un-authored card is a crash).
  */
-describe('ENTETES-E — vocabulary and picker are both the eleven now', () => {
+describe('ENTETES-F — vocabulary and picker are both the eleven now', () => {
   it('each of the five NEW keys reads back through headerStyleOf — vocabulary, not garbage', async () => {
     const { DEFAULT_STOREFRONT, headerStyleOf } = await import('../src/vitrine/customize/storefront');
     for (const key of ['masque', 'harmattan', 'balafon', 'seance', 'cauris']) {
@@ -295,7 +295,7 @@ describe('ENTETES-E — vocabulary and picker are both the eleven now', () => {
     }
   });
 
-  it('the five frame HER COVER in their §5 silhouettes — the same frame for either photograph (founder ruling)', async () => {
+  it('the five frame HER COVER in their Série 4 silhouettes — one shape, two crop biases', async () => {
     const { defaultFocusFor, frameSpecFor } = await import('../src/vitrine/customize/framing-math');
     // FOUNDER RULING 2026-07-30 « make it all be like the 6 original headers »:
     // these styles DRAW the cover now, so the sheet must show her drag inside the
@@ -303,26 +303,30 @@ describe('ENTETES-E — vocabulary and picker are both the eleven now', () => {
     // carried while the cover went unused.
     for (const key of ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const) {
       expect(frameSpecFor(key, 'cover'), key).not.toEqual(frameSpecFor('classique', 'cover'));
-      // one frame, both kinds — a second copy would be a second answer
+      // ONE SHAPE, both kinds — a second copy would be a second answer. The
+      // FOCUS is deliberately not shared: the cover rides the style's own
+      // relevé bias, the portrait fallback the shared high bias.
       expect(frameSpecFor(key, 'cover'), key).toEqual(frameSpecFor(key, 'avatar'));
-      expect(defaultFocusFor(key, 'cover'), key).toEqual(defaultFocusFor(key, 'avatar'));
+      expect(defaultFocusFor(key, 'avatar'), key).toEqual({ x: 50, y: 24 });
     }
-    expect(frameSpecFor('masque', 'cover')).toEqual({ aspect: 144 / 206, circle: false, radii: [0, 0, 0, 0] });
-    expect(frameSpecFor('harmattan', 'cover')).toEqual({ aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] });
-    expect(frameSpecFor('seance', 'cover')).toEqual({ aspect: 112 / 190, circle: false, radii: [0, 0, 0, 0] });
-    expect(defaultFocusFor('masque', 'cover')).toEqual({ x: 50, y: 26 });
-    expect(defaultFocusFor('cauris', 'cover')).toEqual({ x: 50, y: 24 });
+    // ENTETES-F — the Série 4 silhouettes and « cover · X% Y% » crop biases
+    expect(frameSpecFor('masque', 'cover')).toEqual({ aspect: 186 / 358, circle: false, radii: [0, 0, 0, 0] });
+    expect(frameSpecFor('balafon', 'cover')).toEqual({
+      aspect: 158 / 212, circle: false, radii: [4 / 158, 4 / 158, 4 / 158, 4 / 158],
+    });
+    expect(defaultFocusFor('masque', 'cover')).toEqual({ x: 62, y: 24 });
+    expect(defaultFocusFor('harmattan', 'cover')).toEqual({ x: 55, y: 30 });
+    expect(defaultFocusFor('balafon', 'cover')).toEqual({ x: 55, y: 22 });
+    expect(defaultFocusFor('seance', 'cover')).toEqual({ x: 60, y: 30 });
+    expect(defaultFocusFor('cauris', 'cover')).toEqual({ x: 52, y: 28 });
     // …and the SIX keep the cover frames they have always had
     expect(frameSpecFor('royale', 'cover')).toEqual({ aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] });
     expect(defaultFocusFor('dynamique', 'cover')).toEqual({ x: 58, y: 30 });
-    // Avatar: the real §5 silhouettes and the real §5 crop biases.
-    expect(frameSpecFor('masque', 'avatar')).toEqual({ aspect: 144 / 206, circle: false, radii: [0, 0, 0, 0] });
-    expect(frameSpecFor('harmattan', 'avatar')).toEqual({ aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] });
-    expect(frameSpecFor('balafon', 'avatar')).toEqual({ aspect: 1, circle: true, radii: [0.5, 0.5, 0.5, 0.5] });
-    expect(frameSpecFor('seance', 'avatar')).toEqual({ aspect: 112 / 190, circle: false, radii: [0, 0, 0, 0] });
-    expect(frameSpecFor('cauris', 'avatar')).toEqual({ aspect: 132 / 202, circle: false, radii: [0.5, 0.5, 0.5, 0.5] });
-    expect(defaultFocusFor('masque', 'avatar')).toEqual({ x: 50, y: 26 });
-    for (const key of ['harmattan', 'balafon', 'seance', 'cauris'] as const) {
+    // Avatar: the SAME contract silhouette (the frame does not change with
+    // which photograph fills it), and the shared high portrait bias.
+    for (const key of ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const) {
+      expect(frameSpecFor(key, 'avatar'), key).toEqual(frameSpecFor(key, 'cover'));
+      expect(frameSpecFor(key, 'avatar').circle, key).toBe(false);
       expect(defaultFocusFor(key, 'avatar'), key).toEqual({ x: 50, y: 24 });
     }
     // …and the six keep the circle medallion + their defaults, unchanged.

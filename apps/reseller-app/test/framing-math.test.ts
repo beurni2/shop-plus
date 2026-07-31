@@ -114,17 +114,26 @@ describe('framing-math — the representative frames (aspect + silhouette, per s
     expect(dy.circle).toBe(false);
   });
 
-  it('the AVATAR frame: a circle in the six; the Beurni Boss five carry their own §5 silhouettes (ENTETES-E)', () => {
-    for (const style of ['classique', 'royale', 'heritage', 'chaleureux', 'cristal', 'dynamique', 'harmattan', 'balafon'] as const) {
+  it('the AVATAR frame: a circle in the six; the Série 4 five carry their contract silhouettes (ENTETES-F)', () => {
+    for (const style of ['classique', 'royale', 'heritage', 'chaleureux', 'cristal', 'dynamique'] as const) {
       const spec = frameSpecFor(style, 'avatar');
       expect(spec.circle, style).toBe(true);
       expect(spec.aspect, style).toBe(1);
     }
-    // the portrait-framing styles: Masque's plank rect, Séance's 35 mm inner
-    // screen, Cauris' cowrie oval — real frames, no invented variance
-    expect(frameSpecFor('masque', 'avatar')).toEqual({ aspect: 144 / 206, circle: false, radii: [0, 0, 0, 0] });
-    expect(frameSpecFor('seance', 'avatar')).toEqual({ aspect: 112 / 190, circle: false, radii: [0, 0, 0, 0] });
-    expect(frameSpecFor('cauris', 'avatar')).toEqual({ aspect: 132 / 202, circle: false, radii: [0.5, 0.5, 0.5, 0.5] });
+    // NOT ONE of the Série 4 five is a circle — the contract has no round
+    // portrait on these visuals, so a circle here would be an invented shape
+    for (const style of ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const) {
+      expect(frameSpecFor(style, 'avatar').circle, style).toBe(false);
+    }
+    expect(frameSpecFor('masque', 'avatar')).toEqual({ aspect: 186 / 358, circle: false, radii: [0, 0, 0, 0] });
+    expect(frameSpecFor('balafon', 'avatar')).toEqual({
+      aspect: 158 / 212, circle: false, radii: [4 / 158, 4 / 158, 4 / 158, 4 / 158],
+    });
+    // Douceur's galet is the one asymmetric silhouette of the five
+    const galet = frameSpecFor('seance', 'avatar');
+    expect(galet.aspect).toBe(196 / 264);
+    expect(new Set(galet.radii).size).toBe(4);
+    expect(Math.min(...galet.radii)).toBeGreaterThan(0.3);
   });
 });
 
@@ -138,11 +147,14 @@ describe("framing-math — the defaults ARE the styles' contract positions (law 
     expect(defaultFocusFor('classique', 'cover')).toEqual({ x: 50, y: 50 });
   });
 
-  it("avatar defaults: Héritage 50/32; the Beurni Boss five their §5 portrait biases; the rest the centre", () => {
+  it("avatar defaults: Héritage 50/32; the Série 4 five the shared high portrait bias; the rest the centre", () => {
     expect(defaultFocusFor('heritage', 'avatar')).toEqual({ x: 50, y: 32 });
-    expect(defaultFocusFor('masque', 'avatar')).toEqual({ x: 50, y: 26 });
-    for (const style of ['harmattan', 'balafon', 'seance', 'cauris'] as const) {
+    // The PORTRAIT bias is one shared value (Série 1 §5 « biais haut 18–30 % »),
+    // NOT each style's cover bias — the buyer sheet crops the portrait
+    // fallback at 50/24 for all five, and the two sheets have to agree.
+    for (const style of ['masque', 'harmattan', 'balafon', 'seance', 'cauris'] as const) {
       expect(defaultFocusFor(style, 'avatar'), style).toEqual({ x: 50, y: 24 });
+      expect(defaultFocusFor(style, 'avatar'), style).not.toEqual(defaultFocusFor(style, 'cover'));
     }
     for (const style of ['classique', 'royale', 'chaleureux', 'cristal', 'dynamique'] as const) {
       expect(defaultFocusFor(style, 'avatar'), style).toEqual({ x: 50, y: 50 });

@@ -183,9 +183,14 @@ async function sweepC5(page: Page, label: string): Promise<EtatBalaye> {
     const linesOf = (el: Element): number[] => {
       const range = document.createRange();
       range.selectNodeContents(el);
+      // SUB-PIXEL TOPS ARE THE SAME LINE. Nested inline boxes on one visual
+      // line report tops that differ by a fraction (430.4 vs 430.6), and
+      // rounding split them into two "lines" — a measurement artefact that
+      // reads as a wrap. Snap to a 4px bucket: far below a line-height, far
+      // above the sub-pixel noise.
       const byTop = new Map<number, { left: number; right: number }>();
       for (const r of [...range.getClientRects()].filter((x) => x.width > 0)) {
-        const key = Math.round(r.top);
+        const key = Math.round(r.top / 4) * 4;
         const cur = byTop.get(key);
         byTop.set(key, cur === undefined ? { left: r.left, right: r.right } : { left: Math.min(cur.left, r.left), right: Math.max(cur.right, r.right) });
       }
@@ -302,6 +307,28 @@ type ModeBalaye = 'A' | 'B' | null;
  * were never measured. Each mode is re-entered from a fresh load because paying
  * leaves C5 for C6.
  */
+/**
+ * A TEXT-WIDTH MEASUREMENT MUST NAME ITS FACE.
+ *
+ * `font-display: optional` gives the browser a ~100 ms block period: if the
+ * woff2 has not arrived by then, the FALLBACK face wins permanently for that
+ * page. Every wrap/orphan assertion below is a width measurement, so without
+ * waiting they measure whichever face won a race — and under parallel load
+ * that flips. This is precisely how the C5 orphan guard passed here and failed
+ * in CI once before: same code, busier machine, narrower fallback face.
+ *
+ * `FontFace.load()` forces the load regardless of `font-display`, so once it
+ * resolves the SHIPPED face is what lays the text out. Deterministic by
+ * construction rather than by luck — and it does not weaken the guard: it
+ * pins it to the face the cliente actually receives.
+ */
+async function policesChargees(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await Promise.all([...document.fonts].map((f) => f.load().catch(() => undefined)));
+    await document.fonts.ready;
+  });
+}
+
 async function sweepEveryState(
   page: Page,
   basket: string,
@@ -314,6 +341,7 @@ async function sweepEveryState(
   const states = [{ ...(await sweepC5(page, `${basket} · nothing chosen`)), attendu: 'choix', plancher: 6, mode: null as ModeBalaye }];
   for (const mode of ['A', 'B'] as const) {
     await page.goto(url);
+    await policesChargees(page);
     await expect(page.locator('[data-screen="C5"]')).toBeVisible();
     await page.locator(`[data-action="choix-paiement"][data-mode="${mode}"]`).click();
     states.push({ ...(await sweepC5(page, `${basket} · mode ${mode} chosen`)), attendu: 'choix', plancher: 6, mode });
@@ -348,6 +376,7 @@ async function sweepEveryState(
 test('C5 at 360px — every bill label renders in full, and NO sentence orphans, in every state', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 900 });
   await page.goto('/?demo-cliente=C5&theme=indigo');
+  await policesChargees(page);
   await expect(page.locator('[data-screen="C5"]')).toBeVisible();
 
   // (1)+(2) NOTHING IS CLIPPED: every label's laid-out width fits its box.
@@ -425,6 +454,7 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
   // §6.1 paylines wrap, the replay wraps, and mode B's CTA — « Payer 9 876 543
   // FCFA maintenant » — wraps too, which is what puts it in the swept set.
   await page.goto(URL_LARGE);
+  await policesChargees(page);
   await expect(page.locator('[data-screen="C5"]')).toBeVisible();
   const grand = await sweepEveryState(page, BASKET_LARGE, URL_LARGE);
 
@@ -575,6 +605,7 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
 test('C5 — the article variant never orphans, at any text width (font-independent)', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 900 });
   await page.goto('/?demo-cliente=C5&theme=indigo');
+  await policesChargees(page);
   await expect(page.locator('[data-screen="C5"]')).toBeVisible();
 
   const mesures = await page.evaluate(() => {
@@ -632,6 +663,7 @@ test('C8 at 360px — the door payment keeps « code secret Orange Money » as o
   // C8 mounts with the prefill's mode B, so « Tout est bon » opens the door
   // payment rather than jumping straight to C9. It self-advances after 2 600 ms.
   await page.goto('/?demo-cliente=C8&theme=indigo');
+  await policesChargees(page);
   await page.locator('[data-action="porte-bon"]').click();
   await expect(page.locator('[data-etat="paiement-porte"]')).toBeVisible();
 
@@ -640,7 +672,13 @@ test('C8 at 360px — the door payment keeps « code secret Orange Money » as o
     if (el === null) return null;
     const range = document.createRange();
     range.selectNodeContents(el);
-    const tops = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+    // same 4px bucket as `linesOf`: a nowrap clause built from nested inline
+    // spans reports tops 430 / 430 / 431 on ONE line, and a raw round called
+    // that a wrap. The clause here is 211px inside a 314px parent — it does
+    // not wrap; only the counter did.
+    const tops = new Set(
+      [...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top / 4) * 4),
+    );
     return { text: (el.textContent ?? '').trim(), nowrap: getComputedStyle(el).whiteSpace === 'nowrap', lines: tops.size };
   });
   expect(cle, 'C8’s « code secret Orange Money » span is gone — the door-leg glue is unprotected').not.toBeNull();
@@ -692,7 +730,13 @@ async function mesurerEcouter(page: Page): Promise<{
     const textNode = [...el.childNodes].find((n) => n.nodeType === 3 && (n.textContent ?? '').trim() !== '');
     const range = document.createRange();
     if (textNode !== undefined) range.selectNode(textNode);
-    const tops = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+    // same 4px bucket as `linesOf`: a nowrap clause built from nested inline
+    // spans reports tops 430 / 430 / 431 on ONE line, and a raw round called
+    // that a wrap. The clause here is 211px inside a 314px parent — it does
+    // not wrap; only the counter did.
+    const tops = new Set(
+      [...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top / 4) * 4),
+    );
     const cta = getComputedStyle(document.querySelector('.cl-cta-c5')!);
     // THE HIT AREA IS THE BOX THAT RECEIVES THE TAP, and it is read TWICE
     // because this module renders under `zoom: 1.15` on `main.cl-root`:

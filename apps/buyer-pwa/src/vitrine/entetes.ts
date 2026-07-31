@@ -71,15 +71,6 @@ export type EnteteKey = (typeof ENTETE_KEYS)[number];
 const AVIS_FLOOR = 3;
 /** HANDOFF §4 — the split-column layouts drop to a fixed reduced size here. */
 const LONG_NAME = 14;
-/**
- * ENTETES-E (Beurni Boss handoff, Part B anti-orphelin) — past this length the
- * five cinematic columns drop BELOW the handoff's fixed size. The handoff fixes
- * 38px past 14 chars AND demands two name lines max with a 24-char fixture;
- * measured in the browser, both cannot hold at once in a 176px column — so the
- * matrix's two-line law wins (CTO adaptation, journalled) and a second, smaller
- * fixed tier exists for the extreme tail of the range.
- */
-const XLONG_NAME = 19;
 
 /**
  * The founder's preview lever: `?entete=royale` on ANY shop shows that header.
@@ -135,9 +126,6 @@ interface Vals {
   readonly showStars: boolean;
   readonly nouvelle: boolean;
   readonly longName: boolean;
-  /** ENTETES-E — the tier past 19 chars where the two-line law forces a second
-   *  reduction (the Beurni Boss columns only; the six never read this). */
-  readonly xlongName: boolean;
   /** ENTETES-E — the anti-orphan name HTML (tail wrapped nowrap, nbsp joint). */
   readonly tail: string;
   readonly back: boolean;
@@ -178,7 +166,6 @@ function vals(sf: Storefront, trust: VitrineTrust, opts: EnteteOpts): Vals {
     showStars: !compact && trust.reviewCount >= AVIS_FLOOR,
     nouvelle: trust.deliveredCount === 0 && trust.reviewCount === 0,
     longName: sf.name.length > LONG_NAME,
-    xlongName: sf.name.length > XLONG_NAME,
     tail: nameTail(sf.name),
     back: opts.fromProduct === true,
   };
@@ -592,282 +579,343 @@ function dynamique(v: Vals): string {
      VERBATIM (founder override 2026-07-30) — vit.cell_prix, unchanged.
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* --------------------------------------------- 6 · MASQUE (planches Bwa) -- */
+/* ═══════════════════════════════════════════════════════════════════════
+   SÉRIE 4 — styles 21–25 (ENTETES-F)
 
-function masque(v: Vals): string {
+   SOURCE OF TRUTH: « En-tetes Boutique - Serie 4 (standalone).html » — the
+   pixel contract, one relevé per style — with « Entetes Serie 4 - HANDOFF.md »
+   for the transverse rules. These five translate the SAME five Beurni Boss
+   planches that ENTETES-E built from a normative markdown; the contract is the
+   authority now and supersedes that reading everywhere they differ.
+
+   THE FIVE KEYS ARE UNCHANGED ON PURPOSE. `masque · harmattan · balafon ·
+   seance · cauris` stay the canon identifiers so no live storefront can land
+   on a value the service would refuse (the `unknown_header_style` refusal the
+   founder hit on his own phone). Only what is DRAWN and what the picker CALLS
+   them changes here. Renaming the keys to `prestige · terracotta · etendard ·
+   douceur · tissage` needs a contracts bump plus a service deploy and is owed
+   follow-up, journalled.
+
+   TWO CONTRACT ELEMENTS ARE DELIBERATELY NOT BUILT — both founder-standing law:
+
+   1. NO Shop+ APP BAR. Séries 3/4/5 each open with a 46px bar (hamburger ·
+      wordmark · search · bag badge). The founder ruled « no app bar » during
+      ENTETES-E and a designer document does not overturn a founder ruling; a
+      hamburger that opens nothing is a dead control and fails the 5-second
+      test. The unit still starts at the hero, as the other ten do.
+   2. NO PRODUCT SECTION. The contract's « amorce de la sélection produits »
+      carries invented articles at invented prices (« 28 000 / 15 000 / 12 000
+      FCFA », « données catalogue du visuel »). Fabricated merchandise in a real
+      seller's shop is a fake count — the same law that deleted « +1,2k clientes
+      satisfaites ». The contract contradicts itself here: its own rule says
+      « aucun autre contenu inventé ». Her REAL listings already render directly
+      below this header, so cutting it costs nothing and the block is a clean
+      separable sibling in the contract markup.
+
+   WHAT THE FRAME HOLDS — founder ruling « make it all be like the 6 original
+   headers »: her cover at the style's crop bias, portrait as the fallback,
+   the style's own motif only when she has neither. `framePhoto` is that rule.
+
+   SÉRIE 4's ONE STRUCTURAL DEPARTURE from Série 1: the verification seal is a
+   DEDICATED « Vendeuse vérifiée » LINE, never a glyph welded to the name
+   (HANDOFF §Casse & bicolore). The name's last segment carries the accent
+   colour instead — which is exactly what `nameTail` already emits.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ------------------------------------------------ 21 · PRESTIGE (masque) -- */
+
+function prestige(v: Vals): string {
   const cell = (icon: string, label: string, sub: string): string =>
-    `<div class="ma-cell"><span class="ma-cell-i">${icon}</span><span class="ma-cell-l">${label}</span><span class="ma-cell-s">${sub}</span></div>`;
-  const long = v.xlongName ? ' vt-ent-xlong' : v.longName ? ' vt-ent-long' : '';
-  // §6 — « vendeuse » rouge: derived from the ONE catalog string, never re-authored.
+    `<div class="pr-cell"><span class="pr-cell-i">${icon}</span><span class="pr-cell-t"><span class="pr-cell-l">${label}</span><span class="pr-cell-s">${sub}</span></span></div>`;
   const [nA = '', ...nB] = t('vit.nouvelle_vendeuse').split(' ');
   return [
-    '<div class="vt-ent vt-ma" data-role="vitrine-hero">',
-    '<div class="ma-hero">',
-    '<div class="ma-scene">',
-    // §2/§3 — cible, chevrons, planche fantôme, bandes d'ombre, vignette (z0).
-    '<span class="ma-cible" aria-hidden="true"></span>',
-    '<svg class="ma-chevrons" aria-hidden="true" viewBox="0 0 44 96" width="44" height="96"><path d="M2 10 L22 2 L42 10 M2 22 L22 14 L42 22 M2 34 L22 26 L42 34 M2 46 L22 38 L42 46 M2 58 L22 50 L42 58 M2 70 L22 62 L42 70 M2 82 L22 74 L42 82 M2 94 L22 86 L42 94" fill="none" stroke="#141414" stroke-width="4"/></svg>',
-    '<span class="ma-planche" aria-hidden="true"></span>',
-    '<span class="ma-bande ma-bande1" aria-hidden="true"></span>',
-    '<span class="ma-bande ma-bande2" aria-hidden="true"></span>',
-    '<span class="ma-vignette" aria-hidden="true"></span>',
-    // §7 footer frieze — BEFORE the column in the DOM: QA 8, the foot shapes
-    // must never paint over proof (verifier M1: DOM order is paint order here).
-    '<span class="ma-frise" aria-hidden="true"></span>',
-    // §5 — the orthogonal frame: 2px noir · 5px crème · 2px noir, damier base.
-    `<div class="ma-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
-    '<div class="ma-photo">',
+    '<div class="vt-ent vt-pr" data-role="vitrine-hero">',
+    '<div class="pr-hero">',
+    '<div class="pr-scene">',
+    // Relevé « Photo » — panneau 186 à droite, clip-path diagonal, la couche or
+    // dessous fait le liseré 3px : deux calques, jamais une bordure.
+    '<div class="pr-panneau">',
+    '<span class="pr-or" aria-hidden="true"></span>',
+    `<div class="pr-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
     hasPhoto(v)
-      ? framePhoto(v, '50% 26%')
-      : `<div class="ma-frame-motif"><span class="ma-motif-cible" aria-hidden="true"></span><span class="ma-mono">${v.mono}</span></div>`,
-    '<span class="ma-damier" aria-hidden="true"></span>',
+      ? framePhoto(v, '62% 24%')
+      : `<div class="pr-motif"><span class="pr-mono">${v.mono}</span></div>`,
     '</div>',
     '</div>',
-    // §4 — the text column.
-    '<div class="ma-col" data-role="vitrine-identity">',
-    `<div class="ma-name${long}">${v.tail}</div>`,
-    `<div class="ma-bienv">${t('vit.bienvenue')}<svg class="ma-zigzag" aria-hidden="true" viewBox="0 0 74 7" width="74" height="7"><path d="M1 5 L8 2 L15 5 L22 2 L29 5 L36 2 L43 5 L50 2 L57 5 L64 2 L71 5" fill="none" stroke="#C8332A" stroke-width="2"/></svg></div>`,
-    `<div class="ma-verif">${iconPinEnt(13, '#C8332A', 2.2)}${verifieeBare()}</div>`,
-    `<div class="ma-zone"><v>${v.zone}</v></div>`,
+    '<div class="pr-col" data-role="vitrine-identity">',
+    // Relevé « Type » — crest « B » or filaire 46×30 en tête.
+    '<svg class="pr-crest" aria-hidden="true" viewBox="0 0 46 30" width="46" height="30"><path d="M23 4c-3 0-5 2-5 5 0 4 5 8 5 8s5-4 5-8c0-3-2-5-5-5z" fill="none" stroke="#D9A441" stroke-width="1.6"/><path d="M6 15c4-1 6-4 6-8M40 15c-4-1-6-4-6-8M6 15c4 1 6 4 6 8M40 15c-4 1-6 4-6 8" fill="none" stroke="#D9A441" stroke-width="1.2"/></svg>',
+    `<div class="pr-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
+    '<span class="pr-dots" aria-hidden="true"><i></i><i></i></span>',
+    `<div class="pr-bienv">${t('vit.bienvenue')}<svg class="pr-eclats" aria-hidden="true" viewBox="0 0 16 14" width="16" height="14"><path d="M2 12L8 2M7 13l6-9M12 12l3-4" stroke="#D9A441" stroke-width="2" stroke-linecap="round" fill="none"/></svg></div>`,
+    // §Casse — le sceau est une LIGNE dédiée sur ces visuels, jamais soudé au nom.
+    `<div class="pr-verif">${iconCheckEnt(15, '#D9A441', 2)}<span>${verifieeBare()}</span></div>`,
+    `<div class="pr-zone">${iconPinSolid(14, '#D9A441', '#141210')}<span><v>${v.zone}</v></span></div>`,
     v.showProof
-      ? `<div class="ma-proofrow"><span class="ma-proof" data-role="reputation">${ventesLine(v)}</span>${v.showStars ? `<span class="ma-stars" data-role="chip-avis">${iconStarEnt(11, '#C8332A')}${avisChip(v)}</span>` : ''}</div>`
+      ? [
+          '<div class="pr-proof">',
+          `<span class="pr-pastille" data-role="reputation-count"><v>${groupFr(v.delivN)}</v></span>`,
+          '<span class="pr-proof-t">',
+          `<span data-role="reputation">${ventesLine(v)}</span>`,
+          v.showStars
+            ? `<span class="pr-stars" data-role="chip-avis">${iconStarEnt(10, '#D9A441')}${avisChip(v)}</span>`
+            : '',
+          '</span>',
+          '</div>',
+        ].join('')
       : '',
     v.nouvelle
-      ? `<div class="ma-nouv-wrap"><span class="ma-nouv" data-role="chip-nouvelle"><v>${nA}</v> <span class="ma-nouv-acc"><v>${nB.join(' ')}</v></span></span></div>`
+      ? `<div class="pr-nouv-wrap"><span class="pr-nouv" data-role="chip-nouvelle"><svg class="pr-nouv-s" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="#17130E"><path d="M12 2l1.8 3.6 4 .6-2.9 2.8.7 4-3.6-1.9L8.4 13l.7-4L6.2 6.2l4-.6z"/><circle cx="12" cy="18.5" r="1.4"/></svg><span class="pr-nouv-t"><v>${nA}</v><br><v>${nB.join(' ')}</v></span></span></div>`
       : '',
     '</div>',
     '</div>',
     '</div>',
-    // §7 — the trust strip, three labels word for word.
-    '<div class="ma-trust" data-role="vitrine-trust">',
-    cell(iconShieldEnt(16, '#141414', 2), t('vit.chip_sera'), t('vit.cell_sera_sub')),
-    cell(iconLockEnt(15, '#141414', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
-    cell(iconTagEnt(15, '#141414', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
+    // Relevé « Bandes » — bande tissée h14 (noir + croisillons or) sous le héros.
+    '<div class="pr-bande" aria-hidden="true"></div>',
+    '<div class="pr-trust" data-role="vitrine-trust">',
+    cell(iconShieldEnt(17, '#D9A441', 1.9), t('vit.chip_sera'), t('vit.cell_sera_sub')),
+    cell(iconLockEnt(15, '#D9A441', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
+    cell(iconTagEnt(15, '#D9A441', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
     '</div>',
-    controls(v, 'ma', 'right', '20px', '72px', '#141414'),
+    controls(v, 'pr', 'right', '20px', '72px', '#17130E'),
     '</div>',
   ].join('');
 }
 
-/* --------------------------------- 7 · HARMATTAN (contre-jour de poussière) -- */
+/* -------------------------------------------- 22 · TERRACOTTA (harmattan) -- */
 
-function harmattan(v: Vals): string {
-  const cell = (icon: string, label: string, sub: string): string =>
-    `<div class="ha-cell"><span class="ha-cell-i">${icon}</span><span class="ha-cell-l">${label}</span><span class="ha-cell-s">${sub}</span></div>`;
-  const long = v.xlongName ? ' vt-ent-xlong' : v.longName ? ' vt-ent-long' : '';
+function terracotta(v: Vals): string {
+  const cell = (icon: string, label: string, sub: string, mod: string): string =>
+    `<div class="te-cell"><span class="te-cell-i te-cell-i--${mod}">${icon}</span><span class="te-cell-t"><span class="te-cell-l">${label}</span><span class="te-cell-s te-cell-s--${mod}">${sub}</span></span></div>`;
+  const [nA = '', ...nB] = t('vit.nouvelle_vendeuse').split(' ');
   return [
-    '<div class="vt-ent vt-ha" data-role="vitrine-hero">',
-    '<div class="ha-hero">',
-    '<div class="ha-scene">',
-    // §2/§3 — soleil voilé, dunes, sentier de vent, acacias, calaos, bokeh (z0).
-    '<span class="ha-soleil" aria-hidden="true"></span>',
-    '<span class="ha-dune ha-dune1" aria-hidden="true"></span>',
-    '<span class="ha-dune ha-dune2" aria-hidden="true"></span>',
-    '<svg class="ha-vent" aria-hidden="true" viewBox="0 0 170 70" width="170" height="70"><path d="M4 62 C 44 48, 66 24, 96 22 C 120 20, 140 30, 166 16" fill="none" stroke="#FFF7EA" stroke-width="2" stroke-dasharray="5 7"/></svg>',
-    '<svg class="ha-acacia ha-acacia1" aria-hidden="true" viewBox="0 0 82 44" width="82" height="44"><path d="M40 44 L40 20 M40 26 L22 12 M40 24 L58 10 M40 30 L30 18" fill="none" stroke="#4E2C18" stroke-width="2"/><path d="M6 14 Q40 -4 78 12" fill="none" stroke="#4E2C18" stroke-width="3"/></svg>',
-    '<svg class="ha-acacia ha-acacia2" aria-hidden="true" viewBox="0 0 46 30" width="46" height="30"><path d="M22 30 L22 12 M22 16 L12 8 M22 15 L34 6" fill="none" stroke="#4E2C18" stroke-width="1.6"/><path d="M4 10 Q23 -2 43 9" fill="none" stroke="#4E2C18" stroke-width="2"/></svg>',
-    '<svg class="ha-calaos" aria-hidden="true" viewBox="0 0 32 18" width="32" height="18"><path d="M2 8 Q6 4 10 8 Q14 12 18 8 M18 12 Q22 8 26 12 Q28 14 31 12" fill="none" stroke="#4E2C18" stroke-width="1.5"/></svg>',
-    '<span class="ha-bokeh" aria-hidden="true"></span>',
-    '<span class="ha-vignette" aria-hidden="true"></span>',
-    // §5 — circular portrait riding the veiled sun.
-    `<div class="ha-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
+    '<div class="vt-ent vt-te" data-role="vitrine-hero">',
+    '<div class="te-hero">',
+    '<div class="te-scene">',
+    // Relevé « Décor » — patch vert 216×222 rotate(−1°) DERRIÈRE le titre, deux
+    // blocs de glyphes crème, couronne doodle or : décor pur, jamais tappable.
+    '<span class="te-patch" aria-hidden="true"></span>',
+    '<span class="te-glyphes te-glyphes1" aria-hidden="true"></span>',
+    '<span class="te-glyphes te-glyphes2" aria-hidden="true"></span>',
+    '<svg class="te-couronne" aria-hidden="true" viewBox="0 0 34 22" width="34" height="22"><path d="M4 18l2-9 5 5 6-11 6 11 5-5 2 9z" fill="none" stroke="#D9A441" stroke-width="2" stroke-linejoin="round"/></svg>',
+    `<div class="te-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
     hasPhoto(v)
-      ? framePhoto(v, '50% 24%')
-      : `<div class="ha-frame-motif"><span class="ha-mono">${v.mono}</span></div>`,
+      ? framePhoto(v, '55% 30%')
+      : `<div class="te-motif"><span class="te-mono">${v.mono}</span></div>`,
     '</div>',
-    // §4 — the text column.
-    '<div class="ha-col" data-role="vitrine-identity">',
-    `<div class="ha-name${long}">${v.tail}</div>`,
-    `<div class="ha-bienv">${t('vit.bienvenue')}<svg class="ha-route" aria-hidden="true" viewBox="0 0 88 2" width="88" height="2"><line x1="0" y1="1" x2="88" y2="1" stroke="#A94F24" stroke-width="2" stroke-dasharray="4 5"/></svg></div>`,
-    `<div class="ha-verif">${iconPinEnt(13, '#A94F24', 2.2)}${verifieeBare()}</div>`,
-    `<div class="ha-zone"><v>${v.zone}</v></div>`,
+    '<div class="te-col" data-role="vitrine-identity">',
+    `<div class="te-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
+    '<span class="te-brosse" aria-hidden="true"></span>',
+    `<div class="te-bienv-wrap"><span class="te-bienv"><span class="te-couture" aria-hidden="true"></span><span class="te-accroc" aria-hidden="true"></span><span class="te-bienv-t">${t('vit.bienvenue')}</span></span></div>`,
+    `<div class="te-verif">${iconShieldEnt(15, '#D9A441', 2)}<span>${verifieeBare()}</span>${iconSparkle(12, '#D9A441')}</div>`,
+    `<div class="te-zone">${iconPinSolid(14, '#F5EFE4', '#A65A33')}<span><v>${v.zone}</v></span></div>`,
     v.showProof
-      ? `<div class="ha-proofrow"><span class="ha-proof" data-role="reputation">${ventesLine(v)}</span>${v.showStars ? `<span class="ha-stars" data-role="chip-avis">${iconStarEnt(11, '#FFE7A8')}${avisChip(v)}</span>` : ''}</div>`
+      ? [
+          '<div class="te-proof">',
+          `<span class="te-chip" data-role="reputation-count"><v>${groupFr(v.delivN)}</v></span>`,
+          '<span class="te-proof-t">',
+          `<span data-role="reputation">${ventesLine(v)}</span>`,
+          v.showStars
+            ? `<span class="te-stars" data-role="chip-avis">${iconStarEnt(10, '#FBD98A')}${avisChip(v)}</span>`
+            : '',
+          '</span>',
+          '</div>',
+        ].join('')
       : '',
     v.nouvelle
-      ? `<div class="ha-nouv-wrap"><span class="ha-nouv" data-role="chip-nouvelle"><span class="ha-nouv-rais" aria-hidden="true"></span><span class="ha-nouv-t">${t('vit.nouvelle_vendeuse')}</span></span></div>`
+      ? `<div class="te-nouv-wrap"><span class="te-nouv" data-role="chip-nouvelle"><span class="te-nouv-r" aria-hidden="true"></span><svg class="te-nouv-c" aria-hidden="true" viewBox="0 0 34 22" width="16" height="11"><path d="M4 18l2-9 5 5 6-11 6 11 5-5 2 9z" fill="none" stroke="#F2E9D8" stroke-width="2.4" stroke-linejoin="round"/></svg><span class="te-nouv-t"><v>${nA}</v><br><v>${nB.join(' ')}</v></span><span class="te-nouv-b" aria-hidden="true"></span></span></div>`
       : '',
     '</div>',
     '</div>',
     '</div>',
-    // §7 — the trust strip.
-    '<div class="ha-trust" data-role="vitrine-trust">',
-    cell(iconShieldEnt(16, '#4E2C18', 2), t('vit.chip_sera'), t('vit.cell_sera_sub')),
-    cell(iconLockEnt(15, '#4E2C18', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
-    cell(iconTagEnt(15, '#4E2C18', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
+    // Relevé « Déchirure » — bande déchirée h14, clip-path dentelé crème.
+    '<div class="te-dechirure" aria-hidden="true"></div>',
+    '<div class="te-trust" data-role="vitrine-trust">',
+    cell(iconShieldEnt(17, '#F2E9D8', 1.8), t('vit.chip_sera'), t('vit.cell_sera_sub'), 'vert'),
+    cell(iconLockEnt(15, '#F5EFE4', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub'), 'rouille'),
+    cell(iconTagEnt(15, '#F2E9D8', 2), t('vit.cell_prix'), t('vit.cell_prix_sub'), 'vert'),
     '</div>',
-    controls(v, 'ha', 'right', '20px', '72px', '#4E2C18'),
+    controls(v, 'te', 'right', '20px', '72px', '#7E3F20'),
     '</div>',
   ].join('');
 }
 
-/* ------------------------------------------- 8 · BALAFON (nuit de concert) -- */
+/* ---------------------------------------------- 23 · ÉTENDARD (balafon) -- */
 
-function balafon(v: Vals): string {
-  const cell = (icon: string, label: string, sub: string): string =>
-    `<div class="ba-cell"><span class="ba-cell-i">${icon}</span><span class="ba-cell-l">${label}</span><span class="ba-cell-s">${sub}</span></div>`;
-  const long = v.xlongName ? ' vt-ent-xlong' : v.longName ? ' vt-ent-long' : '';
+function etendard(v: Vals): string {
+  const cell = (icon: string, label: string, sub: string, mod: string): string =>
+    `<div class="et-cell"><span class="et-cell-i et-cell-i--${mod}">${icon}</span><span class="et-cell-t"><span class="et-cell-l">${label}</span><span class="et-cell-s et-cell-s--${mod}">${sub}</span></span></div>`;
   return [
-    '<div class="vt-ent vt-ba" data-role="vitrine-hero">',
-    '<div class="ba-hero">',
-    '<div class="ba-scene">',
-    // §2/§3 — projecteurs croisés, touches + résonateurs, portée, bokeh (z0).
-    '<span class="ba-cone ba-cone-l" aria-hidden="true"></span>',
-    '<span class="ba-cone ba-cone-r" aria-hidden="true"></span>',
-    '<svg class="ba-portee" aria-hidden="true" viewBox="0 0 172 54" width="172" height="54"><path d="M2 8 H170 M2 19 H170 M2 30 H170 M2 41 H170 M2 52 H170" fill="none" stroke="#E6D7E8" stroke-width="1" stroke-dasharray="3 6"/><circle cx="52" cy="19" r="7" fill="#B886D9"/><path d="M59 19 V2" stroke="#B886D9" stroke-width="2"/><circle cx="118" cy="34" r="9" fill="#E8B476"/><path d="M127 34 V12" stroke="#E8B476" stroke-width="2"/></svg>',
-    '<span class="ba-reso ba-reso1" aria-hidden="true"></span>',
-    '<span class="ba-reso ba-reso2" aria-hidden="true"></span>',
-    '<span class="ba-reso ba-reso3" aria-hidden="true"></span>',
-    '<span class="ba-touche ba-touche1" aria-hidden="true"></span>',
-    '<span class="ba-touche ba-touche2" aria-hidden="true"></span>',
-    '<span class="ba-touche ba-touche3" aria-hidden="true"></span>',
-    '<span class="ba-bokeh" aria-hidden="true"></span>',
-    '<span class="ba-vignette" aria-hidden="true"></span>',
-    // §5 — the drum-ringed portrait, one resting note.
-    `<div class="ba-medaille">`,
-    `<div class="ba-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
+    '<div class="vt-ent vt-et" data-role="vitrine-hero">',
+    '<div class="et-hero">',
+    '<div class="et-scene">',
+    // Relevé « Décor » — blobs verts, barre rouge, damier, tours abstraites,
+    // serpentin. Écart du contrat lui-même : le livreur Séra et le paysage
+    // photographique sont OMIS (ce sont des éléments photo, pas du CSS).
+    '<span class="et-blob et-blob1" aria-hidden="true"></span>',
+    '<span class="et-blob et-blob2" aria-hidden="true"></span>',
+    '<span class="et-barre" aria-hidden="true"></span>',
+    '<span class="et-damier" aria-hidden="true"></span>',
+    '<svg class="et-tours" aria-hidden="true" viewBox="0 0 96 54" width="96" height="54"><path d="M4 54V26h11v28M19 54V14h9v40M32 54V32h12v22M48 54V20h8v34M60 54V38h10v16M74 54V28h9v26" fill="#121212" opacity=".36"/></svg>',
+    '<svg class="et-serpentin" aria-hidden="true" viewBox="0 0 70 20" width="70" height="20"><path d="M2 12c8-12 16 8 24-2s16 10 24 0" fill="none" stroke="#C1272D" stroke-width="2.6" stroke-linecap="round"/></svg>',
+    `<div class="et-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
     hasPhoto(v)
-      ? framePhoto(v, '50% 24%')
-      : `<div class="ba-frame-motif"><span class="ba-mono">${v.mono}</span></div>`,
+      ? framePhoto(v, '55% 22%')
+      : `<div class="et-motif"><span class="et-mono">${v.mono}</span></div>`,
     '</div>',
-    '<svg class="ba-note" aria-hidden="true" viewBox="0 0 18 18" width="18" height="18"><circle cx="6" cy="13" r="4.5" fill="#E8B476"/><path d="M10.5 13 V2 L15 4" fill="none" stroke="#E8B476" stroke-width="2"/></svg>',
+    '<div class="et-col" data-role="vitrine-identity">',
+    '<svg class="et-couronne" aria-hidden="true" viewBox="0 0 38 26" width="38" height="26"><path d="M5 21l2-11 6 6 5-13 5 13 6-6 2 11z" fill="none" stroke="#121212" stroke-width="2.4" stroke-linejoin="round"/></svg>',
+    // Relevé « Type » — le nom repose sur une éclaboussure noire (clip-path).
+    '<div class="et-nameblock">',
+    '<span class="et-splash" aria-hidden="true"></span>',
+    `<div class="et-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
     '</div>',
-    // §4 — the text column.
-    '<div class="ba-col" data-role="vitrine-identity">',
-    `<div class="ba-name${long}">${v.tail}</div>`,
-    `<div class="ba-bienv"><span class="ba-los" aria-hidden="true"></span>${t('vit.bienvenue')}<span class="ba-los" aria-hidden="true"></span></div>`,
-    `<div class="ba-verif">${iconPinEnt(13, '#B886D9', 2.2)}${verifieeBare()}</div>`,
-    `<div class="ba-zone"><v>${v.zone}</v></div>`,
+    `<div class="et-bienv-wrap"><span class="et-bienv"><span class="et-bienv-t">${t('vit.bienvenue')}</span></span></div>`,
+    // Relevé « Carte info » — carte noire déchirée : coche, épingle, filet, preuve.
+    '<div class="et-carte">',
+    `<div class="et-verif">${iconCheckEnt(17, '#2E9C52', 2.2)}<span>${verifieeBare()}</span></div>`,
+    `<div class="et-zone">${iconPinSolid(14, '#D9A31C', '#121212')}<span><v>${v.zone}</v></span></div>`,
     v.showProof
-      ? `<div class="ba-proofrow"><span class="ba-proof" data-role="reputation">${ventesLine(v)}</span>${v.showStars ? `<span class="ba-stars" data-role="chip-avis">${iconStarEnt(11, '#E8B476')}${avisChip(v)}</span>` : ''}</div>`
+      ? [
+          '<span class="et-filet" aria-hidden="true"></span>',
+          '<div class="et-proof">',
+          `<span class="et-pilule" data-role="reputation-count"><v>${groupFr(v.delivN)}</v></span>`,
+          '<span class="et-proof-t">',
+          `<span data-role="reputation">${ventesLine(v)}</span>`,
+          v.showStars
+            ? `<span class="et-stars" data-role="chip-avis">${iconStarEnt(10, '#D9A31C')}${avisChip(v)}</span>`
+            : '',
+          '</span>',
+          '</div>',
+        ].join('')
       : '',
+    '</div>',
     v.nouvelle
-      ? `<div class="ba-nouv-wrap"><span class="ba-nouv" data-role="chip-nouvelle"><span class="ba-oeillet" aria-hidden="true"></span><span class="ba-nouv-t">${t('vit.nouvelle_vendeuse')}</span><span class="ba-oeillet" aria-hidden="true"></span></span></div>`
+      ? `<div class="et-nouv-wrap"><span class="et-nouv" data-role="chip-nouvelle"><span class="et-nouv-r" aria-hidden="true"></span><span class="et-nouv-t"><v>${t('vit.nouvelle_vendeuse')}</v></span></span></div>`
       : '',
     '</div>',
     '</div>',
     '</div>',
-    // §7 — the trust strip, wood-disc icons.
-    '<div class="ba-trust" data-role="vitrine-trust">',
-    cell(iconShieldEnt(16, '#160D18', 2), t('vit.chip_sera'), t('vit.cell_sera_sub')),
-    cell(iconLockEnt(15, '#160D18', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
-    cell(iconTagEnt(15, '#160D18', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
+    '<div class="et-trust" data-role="vitrine-trust">',
+    cell(iconShieldEnt(16, '#FFFFFF', 1.9), t('vit.chip_sera'), t('vit.cell_sera_sub'), 'vert'),
+    cell(iconLockEnt(15, '#121212', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub'), 'jaune'),
+    cell(iconTagEnt(15, '#FFFFFF', 2), t('vit.cell_prix'), t('vit.cell_prix_sub'), 'rouge'),
     '</div>',
-    controls(v, 'ba', 'right', '20px', '72px', '#FFF4DD'),
+    controls(v, 'et', 'right', '20px', '72px', '#121212'),
     '</div>',
   ].join('');
 }
 
-/* ------------------------------------- 9 · SÉANCE (grand écran de Ouaga) -- */
+/* ------------------------------------------------ 24 · DOUCEUR (seance) -- */
 
-function seance(v: Vals): string {
-  const cell = (icon: string, label: string, sub: string): string =>
-    `<div class="se-cell"><span class="se-cell-i">${icon}</span><span class="se-cell-l">${label}</span><span class="se-cell-s">${sub}</span></div>`;
-  const long = v.xlongName ? ' vt-ent-xlong' : v.longName ? ' vt-ent-long' : '';
+function douceur(v: Vals): string {
+  const cell = (icon: string, label: string, sub: string, mod: string): string =>
+    `<div class="do-cell"><span class="do-cell-i do-cell-i--${mod}">${icon}</span><span class="do-cell-t"><span class="do-cell-l">${label}</span><span class="do-cell-s">${sub}</span></span></div>`;
+  const [nA = '', ...nB] = t('vit.nouvelle_vendeuse').split(' ');
   return [
-    '<div class="vt-ent vt-se" data-role="vitrine-hero">',
-    '<div class="se-hero">',
-    '<div class="se-scene">',
-    // §2/§3 — projecteur, contre-faisceau, poussière, bobine, skyline, étoiles.
-    '<span class="se-proj" aria-hidden="true"></span>',
-    '<span class="se-contre" aria-hidden="true"></span>',
-    '<span class="se-pouss" aria-hidden="true"></span>',
-    '<svg class="se-bobine" aria-hidden="true" viewBox="0 0 74 74" width="74" height="74"><circle cx="37" cy="37" r="35" fill="none" stroke="#B89AE8" stroke-width="1.5"/><circle cx="37" cy="37" r="8" fill="none" stroke="#B89AE8" stroke-width="1.5"/><circle cx="37" cy="16" r="6" fill="none" stroke="#B89AE8" stroke-width="1.5"/><circle cx="55" cy="48" r="6" fill="none" stroke="#B89AE8" stroke-width="1.5"/><circle cx="19" cy="48" r="6" fill="none" stroke="#B89AE8" stroke-width="1.5"/></svg>',
-    '<span class="se-skyline" aria-hidden="true"></span>',
-    '<span class="se-etoiles" aria-hidden="true"></span>',
-    '<span class="se-vignette" aria-hidden="true"></span>',
-    // §5 — the 35 mm frame: perforation columns, inner screen.
-    `<div class="se-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
-    '<span class="se-perfo se-perfo-l" aria-hidden="true"></span>',
-    '<span class="se-perfo se-perfo-r" aria-hidden="true"></span>',
-    '<div class="se-photo">',
+    '<div class="vt-ent vt-do" data-role="vitrine-hero">',
+    '<div class="do-hero">',
+    '<div class="do-scene">',
+    // Relevé « Décor » — bande textile gauche 44 à bord déchiré, blob sauge
+    // derrière la photo, anneau filaire, fleurs en trait or.
+    '<span class="do-textile" aria-hidden="true"></span>',
+    '<span class="do-blob" aria-hidden="true"></span>',
+    '<span class="do-anneau" aria-hidden="true"></span>',
+    '<svg class="do-fleurs" aria-hidden="true" viewBox="0 0 40 46" width="40" height="46"><path d="M20 44V18M20 18c-6 0-9-5-6-9 4-2 8 2 6 9zM20 18c6 0 9-5 6-9-4-2-8 2-6 9zM20 30c-5-1-8-5-6-8 3-2 7 2 6 8z" fill="none" stroke="#C9A45C" stroke-width="1.4" stroke-linecap="round"/></svg>',
+    `<div class="do-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
     hasPhoto(v)
-      ? framePhoto(v, '50% 24%')
-      : `<div class="se-frame-motif"><span class="se-mono">${v.mono}</span></div>`,
+      ? framePhoto(v, '60% 30%')
+      : `<div class="do-motif"><span class="do-mono">${v.mono}</span></div>`,
     '</div>',
-    '</div>',
-    // §4 — the text column, marquee row under the name.
-    '<div class="se-col" data-role="vitrine-identity">',
-    `<div class="se-name${long}">${v.tail}</div>`,
-    `<div class="se-bienv">${t('vit.bienvenue')}</div>`,
-    '<span class="se-ampoules" aria-hidden="true"></span>',
-    `<div class="se-verif">${iconPinEnt(13, '#B89AE8', 2.2)}${verifieeBare()}</div>`,
-    `<div class="se-zone"><v>${v.zone}</v></div>`,
+    '<div class="do-col" data-role="vitrine-identity">',
+    // Relevé « Type » — monogramme double cercle or 56 à « {initiale}{initiale} ».
+    `<span class="do-sceau-mono" aria-hidden="true"><span class="do-sceau-i">${v.mono}${v.mono}</span></span>`,
+    `<div class="do-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
+    `<div class="do-bienv"><span class="do-bienv-t">${t('vit.bienvenue')}</span><span class="do-souligne" aria-hidden="true"></span></div>`,
+    `<div class="do-verif"><span class="do-verif-r">${iconCheckEnt(11, '#FFFFFF', 3)}</span><span>${verifieeBare()}</span></div>`,
+    `<div class="do-zone">${iconPinSolid(14, '#C9A45C', '#F7F0E6')}<span><v>${v.zone}</v></span></div>`,
     v.showProof
-      ? `<div class="se-proofrow"><span class="se-proof" data-role="reputation">${ventesLine(v)}</span>${v.showStars ? `<span class="se-stars" data-role="chip-avis">${iconStarEnt(11, '#E8B84B')}${avisChip(v)}</span>` : ''}</div>`
+      ? [
+          '<div class="do-proof">',
+          `<span class="do-chip" data-role="reputation-count"><v>${groupFr(v.delivN)}</v></span>`,
+          '<span class="do-proof-t">',
+          `<span data-role="reputation">${ventesLine(v)}</span>`,
+          v.showStars
+            ? `<span class="do-stars" data-role="chip-avis">${iconStarEnt(10, '#C9A45C')}${avisChip(v)}</span>`
+            : '',
+          '</span>',
+          '</div>',
+        ].join('')
       : '',
     v.nouvelle
-      ? `<div class="se-nouv-wrap"><span class="se-nouv" data-role="chip-nouvelle"><svg class="se-nouv-bob" aria-hidden="true" viewBox="0 0 14 14" width="14" height="14"><circle cx="7" cy="7" r="6" fill="none" stroke="#171226" stroke-width="1.5"/><circle cx="7" cy="7" r="1.8" fill="#171226"/></svg><span class="se-nouv-t">${t('vit.nouvelle_vendeuse')}</span></span></div>`
+      ? `<div class="do-nouv-wrap"><span class="do-nouv" data-role="chip-nouvelle"><span class="do-feston" aria-hidden="true"></span><span class="do-nouv-t"><span class="do-nouv-a"><v>${nA}</v></span><span class="do-nouv-b"><v>${nB.join(' ')}</v></span></span></span></div>`
       : '',
     '</div>',
     '</div>',
     '</div>',
-    // §7 — the trust strip.
-    '<div class="se-trust" data-role="vitrine-trust">',
-    cell(iconShieldEnt(16, '#E8B84B', 2), t('vit.chip_sera'), t('vit.cell_sera_sub')),
-    cell(iconLockEnt(15, '#E8B84B', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
-    cell(iconTagEnt(15, '#E8B84B', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
+    '<div class="do-trust" data-role="vitrine-trust">',
+    cell(iconShieldEnt(17, '#FFFFFF', 1.8), t('vit.chip_sera'), t('vit.cell_sera_sub'), 'sauge'),
+    cell(iconLockEnt(15, '#FFFFFF', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub'), 'blush'),
+    cell(iconTagEnt(15, '#FFFFFF', 2), t('vit.cell_prix'), t('vit.cell_prix_sub'), 'or'),
     '</div>',
-    controls(v, 'se', 'right', '20px', '72px', '#FFF9EC'),
+    controls(v, 'do', 'right', '20px', '72px', '#6B7455'),
     '</div>',
   ].join('');
 }
 
-/* ------------------------------- 10 · CAURIS (lagune & porte-bonheur) ----- */
+/* ------------------------------------------------ 25 · TISSAGE (cauris) -- */
 
-function cauris(v: Vals): string {
+function tissage(v: Vals): string {
   const cell = (icon: string, label: string, sub: string): string =>
-    `<div class="ca-cell"><span class="ca-cell-i">${icon}</span><span class="ca-cell-l">${label}</span><span class="ca-cell-s">${sub}</span></div>`;
-  const long = v.xlongName ? ' vt-ent-xlong' : v.longName ? ' vt-ent-long' : '';
-  const cauri = (cls: string): string =>
-    `<svg class="ca-cauri ${cls}" aria-hidden="true" viewBox="0 0 30 18" width="30" height="18"><ellipse cx="15" cy="9" rx="14" ry="8" fill="#FFF7E8"/><ellipse cx="15" cy="9" rx="14" ry="8" fill="none" stroke="#D8CCB7" stroke-width="1.5"/><line x1="6" y1="9" x2="24" y2="9" stroke="#8A7155" stroke-width="1.5" stroke-dasharray="2 2"/></svg>`;
-  // §6 — the MINIMAL badge is the handoff's two-line cauri: derived split.
-  const [cA = '', ...cB] = t('vit.nouvelle_vendeuse').split(' ');
+    `<div class="ti-cell"><span class="ti-cell-i">${icon}<span class="ti-cell-c" aria-hidden="true">${iconCheckEnt(9, '#17351F', 3.4)}</span></span><span class="ti-cell-t"><span class="ti-cell-l">${label}</span><span class="ti-cell-s">${sub}</span></span></div>`;
+  const [nA = '', ...nB] = t('vit.nouvelle_vendeuse').split(' ');
   return [
-    '<div class="vt-ent vt-ca" data-role="vitrine-hero">',
-    '<div class="ca-hero">',
-    '<div class="ca-scene">',
-    // §2/§3 — cauris, anneaux de vague, bulles, banc de sable, god-rays (z0).
-    '<span class="ca-ray ca-ray1" aria-hidden="true"></span>',
-    '<span class="ca-ray ca-ray2" aria-hidden="true"></span>',
-    '<span class="ca-ray ca-ray3" aria-hidden="true"></span>',
-    '<span class="ca-vagues" aria-hidden="true"></span>',
-    cauri('ca-cauri1'),
-    cauri('ca-cauri2'),
-    cauri('ca-cauri3'),
-    cauri('ca-cauri4'),
-    '<span class="ca-bulles" aria-hidden="true"></span>',
-    '<span class="ca-sable" aria-hidden="true"></span>',
-    '<span class="ca-vignette" aria-hidden="true"></span>',
-    // §5 — the cowrie-oval portrait.
-    `<div class="ca-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
+    '<div class="vt-ent vt-ti" data-role="vitrine-hero">',
+    '<div class="ti-hero">',
+    '<div class="ti-scene">',
+    // Relevé « Héros fendu » — liseré kente vertical 32 à gauche (casiers 14).
+    '<span class="ti-liseré" aria-hidden="true"></span>',
+    `<div class="ti-frame" data-role="vitrine-cover" data-etat="${etatPhoto(v)}">`,
     hasPhoto(v)
-      ? framePhoto(v, '50% 24%')
-      : `<div class="ca-frame-motif"><span class="ca-mono">${v.mono}</span></div>`,
+      ? framePhoto(v, '52% 28%')
+      : `<div class="ti-motif"><span class="ti-mono">${v.mono}</span></div>`,
     '</div>',
-    '<span class="ca-frame-ring" aria-hidden="true"></span>',
-    // §4 — the text column.
-    '<div class="ca-col" data-role="vitrine-identity">',
-    `<div class="ca-name${long}">${v.tail}</div>`,
-    `<div class="ca-bienv">${t('vit.bienvenue')}<span class="ca-pinceau" aria-hidden="true"></span></div>`,
-    `<div class="ca-verif">${iconPinEnt(13, '#D9B87A', 2.2)}${verifieeBare()}</div>`,
-    `<div class="ca-zone"><v>${v.zone}</v></div>`,
+    '<div class="ti-col" data-role="vitrine-identity">',
+    '<svg class="ti-couronne" aria-hidden="true" viewBox="0 0 40 24" width="40" height="24"><path d="M5 20l2-10 6 5 7-12 7 12 6-5 2 10z" fill="none" stroke="#D9A441" stroke-width="2" stroke-linejoin="round"/><circle cx="20" cy="4" r="1.8" fill="#D9A441"/></svg>',
+    `<div class="ti-name${v.longName ? ' vt-ent-long' : ''}">${v.tail}</div>`,
+    `<div class="ti-bienv"><span class="ti-bienv-t">${t('vit.bienvenue')}</span><span class="ti-brosse" aria-hidden="true"></span></div>`,
+    // Relevé « Carte info » — carte #0F2717 r16 à filet or : vérifié, zone, preuve.
+    '<div class="ti-carte">',
+    `<div class="ti-verif">${iconShieldEnt(15, '#D9A441', 2)}<span>${verifieeBare()}</span><span class="ti-coche" aria-hidden="true">${iconCheckEnt(11, '#F1E9D6', 3.2)}</span></div>`,
+    `<div class="ti-zone">${iconPinEnt(13, '#D9A441', 2.2)}<span><v>${v.zone}</v></span></div>`,
     v.showProof
-      ? `<div class="ca-proofrow"><span class="ca-proof" data-role="reputation">${ventesLine(v)}</span>${v.showStars ? `<span class="ca-stars" data-role="chip-avis">${iconStarEnt(11, '#D9B87A')}${avisChip(v)}</span>` : ''}</div>`
+      ? [
+          '<div class="ti-proof">',
+          `<span class="ti-rond" data-role="reputation-count"><v>${groupFr(v.delivN)}</v></span>`,
+          '<span class="ti-proof-t">',
+          `<span data-role="reputation">${ventesLine(v)}</span>`,
+          v.showStars
+            ? `<span class="ti-stars" data-role="chip-avis">${iconStarEnt(10, '#D9A441')}${avisChip(v)}</span>`
+            : '',
+          '</span>',
+          '</div>',
+        ].join('')
       : '',
+    '</div>',
     v.nouvelle
-      ? `<div class="ca-nouv-wrap"><span class="ca-nouv" data-role="chip-nouvelle"><span class="ca-nouv-fente" aria-hidden="true"></span><span class="ca-nouv-t"><v>${cA}</v><br><v>${cB.join(' ')}</v></span></span></div>`
+      ? `<div class="ti-nouv-wrap"><span class="ti-nouv" data-role="chip-nouvelle"><span class="ti-nouv-r" aria-hidden="true"></span><span class="ti-nouv-t"><span class="ti-nouv-a"><v>${nA}</v></span><span class="ti-nouv-b"><v>${nB.join(' ')}</v></span></span></span></div>`
       : '',
     '</div>',
     '</div>',
     '</div>',
-    // §7 — the trust strip.
-    '<div class="ca-trust" data-role="vitrine-trust">',
-    cell(iconShieldEnt(16, '#0E3E36', 2), t('vit.chip_sera'), t('vit.cell_sera_sub')),
-    cell(iconLockEnt(15, '#0E3E36', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
-    cell(iconTagEnt(15, '#0E3E36', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
+    // Relevé — reprise horizontale du tissage h12 sous le héros.
+    '<div class="ti-bande" aria-hidden="true"></div>',
+    '<div class="ti-trust" data-role="vitrine-trust">',
+    cell(iconShieldEnt(17, '#D9A441', 1.8), t('vit.chip_sera'), t('vit.cell_sera_sub')),
+    cell(iconLockEnt(15, '#D9A441', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
+    cell(iconTagEnt(15, '#D9A441', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
     '</div>',
-    controls(v, 'ca', 'right', '20px', '72px', '#145248'),
+    controls(v, 'ti', 'right', '20px', '72px', '#17351F'),
     '</div>',
   ].join('');
 }
@@ -908,16 +956,20 @@ export function renderEntete(
       return cristal(v);
     case 'dynamique':
       return dynamique(v);
+    // ENTETES-F — the Série 4 contract units. The KEYS are the canon ones the
+    // service already accepts and a live storefront may already carry; the
+    // DRAWING is the pixel contract's. Renaming the keys to `prestige` … needs
+    // a contracts bump + a service deploy, and is owed follow-up.
     case 'masque':
-      return masque(v);
+      return prestige(v);
     case 'harmattan':
-      return harmattan(v);
+      return terracotta(v);
     case 'balafon':
-      return balafon(v);
+      return etendard(v);
     case 'seance':
-      return seance(v);
+      return douceur(v);
     case 'cauris':
-      return cauris(v);
+      return tissage(v);
     default:
       // A canon key whose unit is not built yet renders the shipped default
       // header rather than crashing or emitting nothing (the ENTETES-E0 law).
@@ -1465,608 +1517,569 @@ export const ENTETES_STYLES = `
   .vt-ch .vt-ent-btn { top: 82px; }
   .vt-dy .vt-ent-btn { top: 70px; }
 
-  /* ═══════════════ ENTETES-E · the Beurni Boss five ═══════════════
-     Handoff Part B shared rules. The anti-orphan tail (nowrap, nbsp joint —
-     the deterministic discipline this repo uses instead of soft wrapping
-     heuristics), decorative layers never intercept taps, hero + trust strip
-     full-bleed with NO app bar (CTO adaptation, journalled). Each style is
-     its own scoped block below; z-order everywhere: decor 0 · vignette ·
+  /* ═══════════════ ENTETES-F · the Série 4 five ═══════════════
+     Contract « En-tetes Boutique - Serie 4 » shared rules. The anti-orphan
+     tail (nowrap, nbsp joint — the deterministic discipline this repo uses
+     instead of soft wrapping heuristics) now also carries the contract's
+     BICOLORE: the last segment takes each style's accent. Decorative layers
+     never intercept taps; hero + trust strip full-bleed with NO app bar and
+     NO product amorce (both founder-standing law — see the unit comments).
+     Each style is its own scoped block below; z-order everywhere: decor 0 ·
      photo · text (DOM order carries it), controls 6. */
-  .vt-ent .vt-ent-tail { display: inline-block; white-space: nowrap; }
+  /* ENTETES-F — the contract's bicolore rule is « dernier segment
+     (/[^ \-]+$/, nowrap) » : the ACCENT SEGMENT is what may never break, not
+     the whole hyphenated word. The ENTETES-E sheet made the entire tail
+     unbreakable, so « Élégance-Burkina » could not fit its column and
+     overflowed ONTO the photograph (caught by the collision guard, not by the
+     DOM). The hyphen breaks now; « Burkina » still travels whole and keeps its
+     accent colour. */
+  .vt-ent .vt-ent-tail { display: inline; }
+  .vt-ent .vt-ent-acc { display: inline-block; white-space: nowrap; }
   .vt-ent [aria-hidden="true"] { pointer-events: none; }
 
-  /* ══════════════════════ 6 · MASQUE ══════════════════════ */
-  .vt-ma { background: #141414; }
-  .vt-ma .ma-hero {
-    position: relative; overflow: hidden;
-    margin-top: -60px; padding-top: 60px;
-    background-color: #EFE9DC;
+  /* ══════════════════════ 21 · PRESTIGE ══════════════════════
+     Relevé — noir #141210 (cercles #17130E) · ivoire #F2E9D8 / crème #F4EDE0
+     · or #D9A441 (.txg #EFCB78/#D9A441/#B37F24/#E7C069) · textes #E9E0CE /
+     #8C7B68 · séparateurs #DBD0BC. Photo : panneau 186 à droite, clip-path
+     polygon(15% 0,100% 0,100% 100%,0 92%), liseré or 3px = couche or dessous. */
+  .vt-pr {
+    --pr-noir: #141210; --pr-encre: #17130E;
+    --pr-ivoire: #F2E9D8; --pr-creme: #F4EDE0;
+    --pr-or: #D9A441; --pr-or-fonce: #B37F24; --pr-or-clair: #EFCB78; --pr-or-2: #E7C069;
+    --pr-txt: #E9E0CE; --pr-txt2: #8C7B68; --pr-sep: #DBD0BC;
+    background: var(--pr-noir);
+  }
+  .vt-pr .pr-hero {
+    position: relative; overflow: hidden; margin-top: -60px; padding: 74px 14px 18px;
+    background-color: var(--pr-noir);
     background-image:
-      linear-gradient(112deg, transparent 0 25%, rgba(255,255,255,.32) 42%, rgba(255,255,255,.08) 63%, transparent 78%),
-      linear-gradient(90deg, rgba(20,20,20,.08), transparent 32%, transparent 70%, rgba(20,20,20,.11));
+      radial-gradient(40% 30% at 20% 20%, rgba(255,255,255,.045) 0%, transparent 70%),
+      radial-gradient(36% 26% at 30% 80%, rgba(217,169,65,.07) 0%, transparent 70%);
   }
-  .vt-ma .ma-scene { position: relative; height: 246px; }
-  .vt-ma .ma-cible {
-    position: absolute; top: 22px; left: 96px; width: 64px; height: 64px; border-radius: 50%;
-    background: repeating-radial-gradient(circle, transparent 0 6px, #141414 6px 10px);
-    opacity: .12;
+  .vt-pr .pr-scene { position: relative; min-height: 266px; }
+  .vt-pr .pr-panneau { position: absolute; top: -74px; right: -14px; bottom: -18px; width: 186px; }
+  .vt-pr .pr-or { position: absolute; inset: 0; background: var(--pr-or); clip-path: polygon(15% 0, 100% 0, 100% 100%, 0 92%); }
+  .vt-pr .pr-frame { position: absolute; inset: 3px 3px 7px 3px; clip-path: polygon(15% 0, 100% 0, 100% 100%, 0 92%); overflow: hidden; }
+  .vt-pr .pr-motif {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background-color: var(--pr-encre);
+    background-image:
+      repeating-linear-gradient(45deg, rgba(217,169,65,.3) 0 2px, transparent 2px 11px),
+      repeating-linear-gradient(-45deg, rgba(242,233,216,.14) 0 2px, transparent 2px 11px);
   }
-  .vt-ma .ma-chevrons { position: absolute; right: -8px; top: 84px; }
-  .vt-ma .ma-planche { position: absolute; left: 204px; top: 18px; width: 74px; height: 206px; background: #141414; opacity: .075; border-radius: 37px 37px 8px 8px; }
-  .vt-ma .ma-bande { position: absolute; top: -20px; bottom: -20px; width: 58px; background: rgba(20,20,20,.08); transform: rotate(-11deg); }
-  .vt-ma .ma-bande1 { left: 142px; }
-  .vt-ma .ma-bande2 { left: 244px; }
-  .vt-ma .ma-vignette { position: absolute; inset: 0; box-shadow: inset 0 0 42px rgba(20,20,20,.12); }
-  .vt-ma .ma-frame {
-    position: absolute; right: 12px; top: 20px; width: 144px; height: 206px;
-    border: 2px solid #141414; background: #EFE9DC; padding: 5px;
-    box-shadow: 8px 10px 0 rgba(20,20,20,.10);
+  .vt-pr .pr-mono { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-size: 54px; color: rgba(217,169,65,.55); margin-left: 20px; }
+  /* Le portrait de secours garde le biais haut du contrat (§5 : 18–30 %),
+     donc aucune tête n'est coupée quand elle n'a pas de couverture. */
+  .vt-pr .pr-frame .vt-avatar-img, .vt-te .te-frame .vt-avatar-img,
+  .vt-et .et-frame .vt-avatar-img, .vt-do .do-frame .vt-avatar-img,
+  .vt-ti .ti-frame .vt-avatar-img { object-position: 50% 24%; }
+  .vt-pr .pr-col { position: relative; width: calc(100% - 172px); }
+  .vt-pr .pr-crest { display: block; }
+  .vt-pr .pr-name {
+    margin-top: 8px; font-family: Georgia, 'Times New Roman', serif; font-weight: 700;
+    font-size: clamp(27px, 9.4cqw, 32px); line-height: 1.06; letter-spacing: .005em;
+    color: var(--pr-ivoire); overflow-wrap: break-word;
   }
-  .vt-ma .ma-photo { position: relative; width: 100%; height: 100%; border: 2px solid #141414; overflow: hidden; }
-  .vt-ma .ma-photo .vt-avatar-img { position: absolute; inset: 0; object-position: 50% 26%; border-radius: 0; }
-  .vt-ma .ma-damier {
-    position: absolute; left: 0; right: 0; bottom: 0; height: 18px;
-    background: conic-gradient(#141414 90deg, #EFE9DC 90deg 180deg, #141414 180deg 270deg, #EFE9DC 270deg);
-    background-size: 28px 28px;
+  /* Relevé §Casse — > 14 caractères : 24 px FIXE (une seule marche sur ces cinq). */
+  .vt-pr .pr-name.vt-ent-long { font-size: 24px; }
+  /* Le dernier segment en or brossé : dégradé de texte, fallback plein or. */
+  .vt-pr .pr-name .vt-ent-acc { color: var(--pr-or); }
+  @supports (background-clip: text) or (-webkit-background-clip: text) {
+    .vt-pr .pr-name .vt-ent-acc {
+      background-image: linear-gradient(96deg, var(--pr-or-clair) 0%, var(--pr-or) 38%, var(--pr-or-fonce) 68%, var(--pr-or-2) 100%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+    }
   }
-  .vt-ma .ma-frame-motif {
-    position: absolute; inset: 0; background-color: #EFE9DC;
-    background-image: repeating-linear-gradient(0deg, rgba(20,20,20,.06) 0 2px, transparent 2px 14px);
+  .vt-pr .pr-dots { display: flex; gap: 4px; margin-top: 6px; }
+  .vt-pr .pr-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--pr-or); }
+  .vt-pr .pr-bienv { margin-top: 9px; display: flex; align-items: center; gap: 8px; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; font-size: 19px; line-height: 1.2; color: var(--pr-ivoire); }
+  .vt-pr .pr-eclats { flex: none; }
+  .vt-pr .pr-verif { margin-top: 10px; display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: #FFFFFF; }
+  .vt-pr .pr-zone { margin-top: 6px; display: flex; align-items: flex-start; gap: 7px; font-size: 11.5px; font-weight: 600; line-height: 1.4; color: var(--pr-txt); }
+  .vt-pr .pr-zone svg { flex: none; margin-top: 1px; }
+  .vt-pr .pr-proof { margin-top: 12px; display: flex; align-items: center; gap: 9px; }
+  .vt-pr .pr-pastille {
+    width: 44px; height: 44px; flex: none; border-radius: 50%; background: var(--pr-or);
+    box-shadow: 0 0 0 1.5px var(--pr-noir), 0 0 0 3px rgba(217,169,65,.5);
     display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 15px; color: var(--pr-encre);
   }
-  .vt-ma .ma-motif-cible {
-    position: absolute; top: 10px; left: 10px; width: 30px; height: 30px; border-radius: 50%;
-    background: repeating-radial-gradient(circle, transparent 0 4px, #C8332A 4px 6px);
+  .vt-pr .pr-proof-t { font-size: 11px; line-height: 1.35; color: var(--pr-txt); }
+  .vt-pr .pr-proof-t b { color: #FFFFFF; font-weight: 700; }
+  .vt-pr .pr-stars { display: flex; align-items: center; gap: 3px; margin-top: 2px; color: var(--pr-or); font-weight: 600; font-size: 10.5px; }
+  .vt-pr .pr-nouv-wrap { margin-top: 14px; }
+  .vt-pr .pr-nouv {
+    position: relative; display: inline-flex; align-items: center; gap: 9px;
+    padding: 10px 14px; background: var(--pr-or); border-radius: 4px; transform: rotate(-3deg);
+    box-shadow: 0 10px 22px -10px rgba(217,169,65,.7), inset 0 0 0 1.5px rgba(23,19,14,.25);
   }
-  .vt-ma .ma-mono { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; font-size: 64px; color: #141414; }
-  .vt-ma .ma-col { position: relative; width: calc(100% - 168px); min-height: 206px; padding: 6px 0 10px 16px; }
-  .vt-ma .ma-bienv { margin-top: 3px; display: inline-flex; flex-direction: column; gap: 2px; font-family: 'Caveat', 'Segoe Script', cursive; font-weight: 700; font-size: 26px; line-height: 1; color: #141414; }
-  .vt-ma .ma-name {
-    margin-top: 0; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800;
-    line-height: .88; letter-spacing: -.025em; font-size: clamp(38px, 13.8cqw, 52px);
-    color: #141414; overflow-wrap: normal; hyphens: none;
-  }
-  .vt-ma .ma-name .vt-ent-acc { color: #C8332A; }
-  .vt-ma .ma-name.vt-ent-long { font-size: 38px; }
-  .vt-ma .ma-name.vt-ent-xlong { font-size: 21px; }
-  .vt-ma .ma-verif { margin-top: 5px; font-size: 12px; font-weight: 600; line-height: 15px; color: #5A554D; }
-  .vt-ma .ma-verif svg { vertical-align: -2px; margin-right: 4px; }
-  .vt-ma .ma-zone { margin-top: 1px; font-size: 13px; font-weight: 600; line-height: 17px; color: #5A554D; }
-  .vt-ma .ma-proofrow { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
-  .vt-ma .ma-proof {
-    display: inline-flex; align-items: center; min-height: 34px; min-width: 138px; max-width: 100%;
-    padding: 5px 12px; background: #141414; border: 1px solid #141414; border-radius: 2px;
-    box-shadow: 3px 3px 0 #C8332A; color: #EFE9DC; font-size: 11.5px; line-height: 14px;
-  }
-  .vt-ma .ma-proof b { font-weight: 700; margin-right: 4px; }
-  .vt-ma .ma-stars {
-    display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 3px 10px;
-    background: #EFE9DC; border: 1px solid #141414; border-radius: 2px; white-space: nowrap;
-  }
-  .vt-ma .ma-stars span { font-size: 11.5px; font-weight: 600; color: #141414; }
-  .vt-ma .ma-nouv-wrap { margin-top: 8px; }
-  .vt-ma .ma-nouv {
-    display: inline-flex; align-items: center; gap: 4px; min-height: 32px; min-width: 132px;
-    padding: 6px 14px; background: #141414; border-radius: 0; box-shadow: 3px 3px 0 #C8332A;
-    transform: rotate(-1.5deg); color: #FFFFFF; font-size: 12px; font-weight: 700; line-height: 14px;
-    text-transform: uppercase; letter-spacing: .02em; white-space: nowrap;
-  }
-  .vt-ma .ma-nouv-acc { color: #C8332A; }
-  .vt-ma .ma-frise {
-    position: absolute; left: 0; right: 0; bottom: 0; height: 8px;
-    background: repeating-linear-gradient(90deg, #141414 0 8px, #C8332A 8px 16px);
-  }
-  .vt-ma .ma-trust { position: relative; height: 74px; background: #141414; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; padding: 0 12px; }
-  .vt-ma .ma-cell { height: 100%; padding: 0 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
-  .vt-ma .ma-cell + .ma-cell { border-left: 1px solid rgba(239,233,220,.28); }
-  .vt-ma .ma-cell-i { width: 30px; height: 30px; flex: none; border-radius: 50%; background: #EFE9DC; border: 2px solid #C8332A; display: flex; align-items: center; justify-content: center; }
-  .vt-ma .ma-cell-l { font-size: 10.5px; font-weight: 700; line-height: 1.2; color: #EFE9DC; }
-  .vt-ma .ma-cell-s { font-size: 8.5px; line-height: 1.24; color: rgba(239,233,220,.72); }
-  .vt-ma .ma-btn { background: #EFE9DC; border: 2px solid #C8332A; }
-  .vt-ma .vt-ent-btn { top: 84px; }
-  .vt-ma .vt-ent-back { right: 20px; }
-
-  /* verifier m3 — hierarchy holds on the xlong tier: the greeting steps
-     down with the name (sibling rule; name precedes Bienvenue in the DOM). */
-  .vt-ma .ma-name.vt-ent-xlong + .ma-bienv { font-size: 16px; }
-
-  /* ══════════════════════ 7 · HARMATTAN ══════════════════════ */
-  .vt-ha { background: #4E2C18; }
-  .vt-ha .ha-hero {
-    position: relative; overflow: hidden;
-    margin-top: -60px; padding-top: 60px;
-    background-color: #EEB26F;
+  .vt-pr .pr-nouv-t { font-weight: 700; font-size: 13px; line-height: 1.2; color: var(--pr-encre); }
+  .vt-pr .pr-bande {
+    height: 14px; background-color: var(--pr-encre);
     background-image:
-      radial-gradient(circle at 72% 18%, rgba(255,247,234,.95) 0 8%, rgba(255,231,168,.52) 26%, transparent 56%),
-      linear-gradient(18deg, transparent 22%, rgba(255,247,234,.20) 43%, transparent 67%),
-      radial-gradient(circle, rgba(255,244,215,.35) 1px, transparent 1.6px),
-      linear-gradient(180deg, #F7D6A6 0%, #EEB26F 44%, #DE8A52 100%);
-    background-size: auto, auto, 17px 17px, auto;
+      repeating-linear-gradient(45deg, rgba(217,169,65,.7) 0 2px, transparent 2px 11px),
+      repeating-linear-gradient(-45deg, rgba(217,169,65,.7) 0 2px, transparent 2px 11px);
   }
-  .vt-ha .ha-scene { position: relative; height: 246px; }
-  .vt-ha .ha-soleil { position: absolute; right: 42px; top: 22px; width: 112px; height: 112px; border-radius: 50%; background: #FFE7A8; border: 2px solid rgba(255,247,234,.85); }
-  .vt-ha .ha-dune { position: absolute; border-radius: 50%; }
-  .vt-ha .ha-dune1 { left: -28px; bottom: -42px; width: 230px; height: 74px; background: #D98547; }
-  .vt-ha .ha-dune2 { right: -52px; bottom: -54px; width: 260px; height: 90px; background: #C86F3D; }
-  .vt-ha .ha-vent { position: absolute; left: -8px; top: 112px; opacity: .5; }
-  .vt-ha .ha-acacia1 { position: absolute; left: 4px; bottom: 20px; opacity: .32; }
-  .vt-ha .ha-acacia2 { position: absolute; right: 10px; bottom: 34px; opacity: .32; }
-  .vt-ha .ha-calaos { position: absolute; right: 40px; top: 160px; opacity: .8; }
-  .vt-ha .ha-bokeh {
-    position: absolute; inset: 0;
+  .vt-pr .pr-trust { background: var(--pr-creme); padding: 13px 10px; display: grid; grid-template-columns: 1.12fr 1fr 1.06fr; }
+  .vt-pr .pr-cell { padding: 0 5px; display: flex; align-items: center; gap: 8px; }
+  .vt-pr .pr-cell + .pr-cell { border-left: 1px solid var(--pr-sep); }
+  .vt-pr .pr-cell-i { width: 38px; height: 38px; flex: none; border-radius: 50%; background: var(--pr-encre); display: flex; align-items: center; justify-content: center; }
+  .vt-pr .pr-cell-l { display: block; font-size: 9.5px; font-weight: 700; line-height: 1.3; color: var(--pr-encre); }
+  .vt-pr .pr-cell-s { display: block; font-size: 9.5px; font-weight: 600; line-height: 1.3; color: var(--pr-txt2); }
+  .vt-pr .pr-btn { background: var(--pr-or); }
+  .vt-pr .vt-ent-btn { top: 70px; }
+
+  /* ══════════════════════ 22 · TERRACOTTA ══════════════════════
+     Relevé — terre cuite #A65A33 (radials #B96B40/#7E3F20) · patch vert
+     #46573A→#35472B, chips #3E4E33 · cuir #B97F46→#96602F · or #D9A441,
+     étoile #FBD98A · crème #F5EFE4 / #EFE6D4 · rouille #A24E22. Photo pleine
+     colonne droite 47 %. Écusson cuir cousu = « Bienvenue ». */
+  .vt-te {
+    --te-terre: #A65A33; --te-terre-c: #B96B40; --te-terre-f: #7E3F20;
+    --te-vert-a: #46573A; --te-vert-b: #35472B; --te-chip: #3E4E33;
+    --te-cuir-a: #B97F46; --te-cuir-b: #96602F;
+    --te-or: #D9A441; --te-etoile: #FBD98A;
+    --te-creme: #F5EFE4; --te-creme2: #EFE6D4; --te-ivoire: #F2E9D8;
+    --te-rouille: #A24E22; --te-txt: #FFF6E8;
+    background: var(--te-terre);
+  }
+  .vt-te .te-hero {
+    position: relative; overflow: hidden; margin-top: -60px; padding: 74px 14px 20px;
+    background-color: var(--te-terre);
     background-image:
-      radial-gradient(circle 3px at 58% 6%, rgba(255,247,234,.20) 98%, transparent),
-      radial-gradient(circle 5px at 66% 14%, rgba(255,247,234,.22) 98%, transparent),
-      radial-gradient(circle 9px at 84% 8%, rgba(255,247,234,.18) 98%, transparent),
-      radial-gradient(circle 4px at 92% 26%, rgba(255,247,234,.26) 98%, transparent),
-      radial-gradient(circle 6px at 88% 44%, rgba(255,247,234,.16) 98%, transparent),
-      radial-gradient(circle 3px at 94% 64%, rgba(255,247,234,.20) 98%, transparent),
-      radial-gradient(circle 4px at 78% 86%, rgba(255,247,234,.14) 98%, transparent),
-      radial-gradient(circle 7px at 60% 90%, rgba(255,247,234,.10) 98%, transparent),
-      radial-gradient(circle 5px at 70% 78%, rgba(255,247,234,.12) 98%, transparent),
-      radial-gradient(circle 2px at 50% 4%, rgba(255,247,234,.20) 98%, transparent),
-      radial-gradient(circle 6px at 96% 10%, rgba(255,247,234,.24) 98%, transparent),
-      radial-gradient(circle 5px at 90% 80%, rgba(255,247,234,.12) 98%, transparent),
-      radial-gradient(circle 2px at 64% 30%, rgba(255,247,234,.28) 98%, transparent),
-      radial-gradient(circle 4px at 82% 60%, rgba(255,247,234,.18) 98%, transparent);
+      radial-gradient(60% 46% at 88% 10%, var(--te-terre-c) 0%, rgba(185,107,64,0) 70%),
+      radial-gradient(50% 40% at 6% 96%, var(--te-terre-f) 0%, rgba(126,63,32,0) 70%);
   }
-  .vt-ha .ha-vignette { position: absolute; inset: 0; box-shadow: inset 0 0 52px rgba(92,48,23,.18); }
-  .vt-ha .ha-frame {
-    position: absolute; right: 18px; top: 18px; width: 132px; height: 132px; border-radius: 50%;
-    overflow: hidden; border: 2px solid rgba(255,247,234,.88);
-    box-shadow: 0 0 0 8px rgba(255,231,168,.24), 0 0 28px rgba(255,231,168,.54);
+  .vt-te .te-scene { position: relative; min-height: 250px; padding-top: 34px; }
+  .vt-te .te-frame { position: absolute; top: -74px; right: -14px; bottom: -20px; width: 47%; overflow: hidden; }
+  .vt-te .te-motif {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background-color: #7A4526;
+    background-image:
+      repeating-linear-gradient(90deg, rgba(240,231,210,.16) 0 3px, transparent 3px 12px),
+      repeating-linear-gradient(0deg, rgba(30,20,12,.22) 0 2px, transparent 2px 14px);
   }
-  .vt-ha .ha-frame .vt-avatar-img { position: absolute; inset: 0; object-position: 50% 24%; }
-  .vt-ha .ha-frame-motif {
-    position: absolute; inset: 0;
-    background: radial-gradient(120% 120% at 34% 24%, #F3C98F 0%, #D98547 78%);
-    display: flex; align-items: center; justify-content: center;
+  .vt-te .te-mono { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-size: 52px; color: rgba(245,239,228,.6); }
+  .vt-te .te-patch { position: absolute; left: -26px; top: 18px; width: 216px; height: 222px; background: radial-gradient(120% 100% at 30% 20%, var(--te-vert-a) 0%, var(--te-vert-b) 70%); opacity: .94; border-radius: 6px; transform: rotate(-1deg); }
+  .vt-te .te-glyphes {
+    position: absolute;
+    background-image: radial-gradient(circle 1.6px at 4px 4px, rgba(240,231,210,.5) 96%, transparent);
+    background-size: 10px 9px;
   }
-  .vt-ha .ha-mono { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700; font-size: 56px; color: #4E2C18; }
-  .vt-ha .ha-col { position: relative; width: calc(100% - 154px); min-height: 210px; padding: 6px 0 10px 16px; }
-  .vt-ha .ha-bienv { margin-top: 3px; display: inline-flex; flex-direction: column; gap: 3px; font-family: 'Fraunces', Georgia, serif; font-style: italic; font-weight: 600; font-size: 24px; line-height: 1; color: #A94F24; }
-  .vt-ha .ha-name {
-    margin-top: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700;
-    line-height: .86; letter-spacing: -.035em; font-size: clamp(36px, 13.2cqw, 50px);
-    color: #4E2C18; overflow-wrap: normal; hyphens: none;
+  .vt-te .te-glyphes1 { left: 118px; top: 4px; width: 54px; height: 27px; opacity: .5; }
+  .vt-te .te-glyphes2 { left: 4px; bottom: 62px; width: 44px; height: 27px; opacity: .42; }
+  .vt-te .te-couronne { position: absolute; left: 4px; top: 0; }
+  .vt-te .te-col { position: relative; width: calc(100% - 142px); }
+  .vt-te .te-name {
+    font-family: Georgia, 'Times New Roman', serif; font-weight: 700;
+    font-size: clamp(27px, 9.4cqw, 32px); line-height: 1.06; color: var(--te-ivoire); overflow-wrap: break-word;
   }
-  .vt-ha .ha-name .vt-ent-acc { color: #FFF7EA; text-shadow: 0 2px 14px rgba(78,44,24,.28); }
-  .vt-ha .ha-name.vt-ent-long { font-size: 38px; }
-  .vt-ha .ha-name.vt-ent-xlong { font-size: 25px; }
-  .vt-ha .ha-verif { margin-top: 5px; font-size: 12px; font-weight: 600; line-height: 15px; color: #6A432C; }
-  .vt-ha .ha-verif svg { vertical-align: -2px; margin-right: 4px; }
-  .vt-ha .ha-zone { margin-top: 1px; font-size: 13px; font-weight: 600; line-height: 17px; color: #6A432C; }
-  .vt-ha .ha-proofrow { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
-  .vt-ha .ha-proof {
-    display: inline-flex; align-items: center; min-height: 38px; min-width: 150px; max-width: 100%;
-    padding: 6px 14px; background: rgba(255,247,234,.78); border: 1px solid rgba(78,44,24,.22);
-    border-radius: 19px; box-shadow: 0 8px 18px rgba(78,44,24,.12);
-    color: #4E2C18; font-size: 11.5px; line-height: 14px;
+  .vt-te .te-name.vt-ent-long { font-size: 24px; }
+  /* Relevé §Type — le dernier segment passe en Bricolage 800 ITALIQUE or. */
+  .vt-te .te-name .vt-ent-acc { font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif; font-weight: 800; font-style: italic; color: var(--te-or); }
+  @supports (background-clip: text) or (-webkit-background-clip: text) {
+    .vt-te .te-name .vt-ent-acc {
+      background-image: linear-gradient(96deg, #EFCB78 0%, var(--te-or) 38%, #B37F24 68%, #E7C069 100%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+    }
   }
-  .vt-ha .ha-proof b { font-weight: 700; margin-right: 4px; }
-  .vt-ha .ha-stars {
-    display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 3px 11px;
-    background: rgba(78,44,24,.88); border-radius: 13px; white-space: nowrap;
+  .vt-te .te-brosse { display: block; margin-top: 5px; width: 64px; height: 5px; border-radius: 3px; background: #5E7048; transform: rotate(-2deg); }
+  .vt-te .te-bienv-wrap { margin-top: 12px; }
+  .vt-te .te-bienv {
+    position: relative; display: inline-flex; padding: 9px 16px 10px; border-radius: 10px;
+    background: linear-gradient(140deg, var(--te-cuir-a), var(--te-cuir-b));
+    box-shadow: 0 8px 18px -8px rgba(60,35,15,.7); transform: rotate(-1.5deg);
   }
-  .vt-ha .ha-stars span { font-size: 11.5px; font-weight: 600; color: #FFF7EA; }
-  .vt-ha .ha-nouv-wrap { margin-top: 4px; }
-  .vt-ha .ha-nouv {
+  .vt-te .te-couture { position: absolute; inset: 3px; border-radius: 7px; border: 1.5px dashed rgba(58,36,16,.5); }
+  .vt-te .te-accroc { position: absolute; left: -5px; top: 50%; transform: translateY(-50%); width: 8px; height: 22px; background: var(--te-cuir-b); clip-path: polygon(100% 0, 0 20%, 100% 40%, 0 60%, 100% 80%, 0 100%); }
+  .vt-te .te-bienv-t { position: relative; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; font-size: 17px; line-height: 1.2; color: #4A2A10; }
+  .vt-te .te-verif { margin-top: 12px; display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--te-txt); }
+  .vt-te .te-zone { margin-top: 6px; display: flex; align-items: flex-start; gap: 7px; font-size: 11.5px; font-weight: 600; line-height: 1.4; color: var(--te-txt); }
+  .vt-te .te-zone svg { flex: none; margin-top: 1px; }
+  .vt-te .te-proof { margin-top: 12px; display: flex; align-items: center; gap: 8px; }
+  .vt-te .te-chip { flex: none; display: inline-flex; align-items: center; padding: 8px 12px; border-radius: 10px; background: var(--te-chip); font-weight: 800; font-size: 15px; color: var(--te-ivoire); }
+  .vt-te .te-proof-t { font-size: 10.5px; line-height: 1.35; font-weight: 600; color: var(--te-txt); }
+  .vt-te .te-stars { display: flex; align-items: center; gap: 3px; margin-top: 1px; color: var(--te-etoile); }
+  .vt-te .te-nouv-wrap { margin-top: 14px; }
+  .vt-te .te-nouv {
+    position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    width: 96px; height: 96px; border-radius: 50%; background: var(--te-chip);
+    box-shadow: 0 12px 26px -12px rgba(20,30,12,.8);
+  }
+  .vt-te .te-nouv-r { position: absolute; inset: 5px; border-radius: 50%; border: 1.5px dashed rgba(242,233,216,.55); }
+  .vt-te .te-nouv-t { font-size: 12px; font-weight: 700; line-height: 1.15; text-align: center; color: var(--te-txt); }
+  .vt-te .te-nouv-b { width: 26px; height: 2px; background: var(--te-or); }
+  .vt-te .te-dechirure { height: 14px; background: var(--te-creme2); clip-path: polygon(0 68%, 3% 22%, 8% 74%, 13% 26%, 18% 80%, 23% 20%, 28% 66%, 33% 14%, 38% 74%, 43% 30%, 48% 84%, 53% 22%, 58% 64%, 63% 12%, 68% 72%, 73% 28%, 78% 80%, 83% 24%, 88% 66%, 93% 14%, 100% 58%, 100% 100%, 0 100%); }
+  .vt-te .te-trust {
+    background-color: var(--te-creme2);
+    background-image: radial-gradient(circle at 6% 40%, rgba(160,120,80,.14) 1.4px, transparent 1.6px);
+    background-size: 11px 11px; padding: 12px 10px; display: grid; grid-template-columns: 1.14fr 1fr 1.04fr; margin-top: -1px;
+  }
+  .vt-te .te-cell { padding: 0 5px; display: flex; align-items: center; gap: 8px; }
+  .vt-te .te-cell + .te-cell { border-left: 1.5px solid var(--te-terre); }
+  .vt-te .te-cell-i { width: 38px; height: 38px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .vt-te .te-cell-i--vert { background: var(--te-chip); }
+  .vt-te .te-cell-i--rouille { background: var(--te-rouille); }
+  .vt-te .te-cell-l { display: block; font-size: 9.5px; font-weight: 700; line-height: 1.3; color: #2E2A20; }
+  .vt-te .te-cell-s { display: block; font-size: 9.5px; font-weight: 600; line-height: 1.3; }
+  .vt-te .te-cell-s--vert { color: #7C6A50; }
+  .vt-te .te-cell-s--rouille { color: var(--te-rouille); }
+  .vt-te .te-btn { background: var(--te-creme); }
+  .vt-te .vt-ent-btn { top: 70px; }
+
+  /* ══════════════════════ 23 · ÉTENDARD ══════════════════════
+     Relevé — jaune d'or #D9A31C→#C89117 (radial #E5B322) · verts #1F7A3D /
+     #2E9C52 · rouge #C1272D · noir #121212. Nom Bricolage 800 italique sur
+     éclaboussure noire ; carte info noire déchirée ; rangée noire.
+     ÉCART DU CONTRAT LUI-MÊME : livreur Séra et paysage photo omis. */
+  .vt-et {
+    --et-jaune: #D9A31C; --et-jaune-b: #C89117; --et-jaune-c: #E5B322;
+    --et-vert: #1F7A3D; --et-vert-c: #2E9C52;
+    --et-rouge: #C1272D; --et-rouge-c: #E85055;
+    --et-noir: #121212;
+    background: var(--et-jaune);
+  }
+  .vt-et .et-hero {
+    position: relative; overflow: hidden; margin-top: -60px; padding: 74px 14px 18px;
+    background-color: var(--et-jaune);
+    background-image: radial-gradient(58% 44% at 74% 8%, var(--et-jaune-c) 0%, rgba(229,179,34,0) 70%), linear-gradient(168deg, var(--et-jaune) 0%, var(--et-jaune-b) 100%);
+  }
+  .vt-et .et-scene { position: relative; min-height: 206px; }
+  .vt-et .et-blob { position: absolute; background: var(--et-vert); opacity: .9; }
+  .vt-et .et-blob1 { left: -34px; top: -40px; width: 132px; height: 118px; border-radius: 62% 38% 46% 54% / 54% 46% 58% 42%; }
+  .vt-et .et-blob2 { left: 22px; bottom: -46px; width: 104px; height: 92px; border-radius: 44% 56% 62% 38% / 48% 58% 42% 52%; opacity: .82; }
+  .vt-et .et-barre { position: absolute; left: -18px; top: 96px; width: 148px; height: 10px; background: var(--et-rouge); transform: rotate(-14deg); }
+  .vt-et .et-damier { position: absolute; left: 0; top: -60px; width: 96px; height: 64px; background-image: repeating-conic-gradient(var(--et-noir) 0% 25%, var(--et-rouge) 0% 50%); background-size: 16px 16px; opacity: .5; }
+  .vt-et .et-tours { position: absolute; left: 2px; bottom: -18px; }
+  .vt-et .et-serpentin { position: absolute; right: 84px; bottom: 2px; }
+  .vt-et .et-frame { position: absolute; top: 44px; right: -6px; width: 158px; height: 212px; border-radius: 4px; overflow: hidden; box-shadow: 0 14px 30px -14px rgba(18,18,18,.7); }
+  .vt-et .et-motif {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background-color: var(--et-jaune-b);
+    background-image:
+      radial-gradient(circle 14px at 22% 30%, rgba(18,18,18,.55) 96%, transparent),
+      radial-gradient(circle 9px at 68% 18%, rgba(18,18,18,.4) 96%, transparent),
+      radial-gradient(circle 18px at 74% 72%, rgba(18,18,18,.45) 96%, transparent),
+      radial-gradient(circle 7px at 30% 82%, rgba(18,18,18,.5) 96%, transparent);
+  }
+  .vt-et .et-mono { font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif; font-weight: 800; font-style: italic; font-size: 52px; color: rgba(18,18,18,.62); }
+  .vt-et .et-col { position: relative; width: calc(100% - 158px); }
+  .vt-et .et-couronne { display: block; }
+  .vt-et .et-nameblock { position: relative; margin-top: 4px; padding: 8px 10px 9px 6px; }
+  .vt-et .et-splash { position: absolute; inset: 0; background: var(--et-noir); clip-path: polygon(2% 14%, 22% 2%, 52% 9%, 78% 0, 99% 12%, 96% 62%, 99% 92%, 62% 99%, 28% 94%, 0 100%); transform: rotate(-2deg); }
+  .vt-et .et-name {
+    position: relative; font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif;
+    font-weight: 800; font-style: italic; font-size: clamp(27px, 9.4cqw, 32px);
+    line-height: 1.04; color: #FFFFFF; overflow-wrap: break-word;
+  }
+  .vt-et .et-name.vt-ent-long { font-size: 24px; }
+  .vt-et .et-name .vt-ent-acc { color: var(--et-jaune); }
+  .vt-et .et-bienv-wrap { margin-top: 9px; }
+  .vt-et .et-bienv { display: inline-flex; padding: 5px 14px 6px; background: var(--et-rouge); transform: rotate(-3deg) skew(-4deg); box-shadow: 0 8px 16px -8px rgba(120,20,24,.7); }
+  .vt-et .et-bienv-t { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; font-size: 17px; line-height: 1.2; color: #FFFFFF; }
+  .vt-et .et-carte { position: relative; margin: 11px -6px 0 -8px; padding: 11px 12px 12px; background: var(--et-noir); clip-path: polygon(0 6%, 100% 0, 98% 96%, 2% 100%); }
+  .vt-et .et-verif { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: #FFFFFF; }
+  .vt-et .et-zone { margin-top: 5px; display: flex; align-items: flex-start; gap: 7px; font-size: 11px; font-weight: 600; line-height: 1.4; color: #F2EFE8; }
+  .vt-et .et-zone svg { flex: none; margin-top: 1px; }
+  .vt-et .et-filet { display: block; margin: 8px 0; height: 1px; background: rgba(255,255,255,.22); }
+  .vt-et .et-proof { display: flex; align-items: center; gap: 8px; }
+  .vt-et .et-pilule { flex: none; display: inline-flex; align-items: center; padding: 5px 11px; border-radius: 99px; background: var(--et-jaune); font-weight: 800; font-size: 13px; color: var(--et-noir); }
+  .vt-et .et-proof-t { font-size: 10px; line-height: 1.35; font-weight: 600; color: #FFFFFF; }
+  .vt-et .et-stars { display: flex; align-items: center; gap: 3px; margin-top: 1px; color: var(--et-jaune); }
+  .vt-et .et-nouv-wrap { margin-top: 12px; }
+  .vt-et .et-nouv {
     position: relative; display: inline-flex; align-items: center; justify-content: center;
-    width: 76px; height: 76px; border-radius: 50%; border: 2px dashed #D96F24;
-    background: rgba(255,231,168,.76); transform: rotate(2deg); text-align: center;
+    width: 84px; height: 84px; border-radius: 50%; background: var(--et-vert); transform: rotate(4deg);
+    box-shadow: 0 12px 26px -12px rgba(16,60,30,.85);
   }
-  .vt-ha .ha-nouv-rais {
-    position: absolute; inset: -7px; border-radius: 50%;
-    background: repeating-conic-gradient(#D96F24 0deg 5deg, transparent 5deg 30deg);
-    -webkit-mask: radial-gradient(circle, transparent 0 56%, #000 57%);
-    mask: radial-gradient(circle, transparent 0 56%, #000 57%);
-  }
-  .vt-ha .ha-nouv-t { font-size: 11px; font-weight: 700; line-height: 1.25; color: #A94F24; padding: 0 6px; }
-  .vt-ha .ha-trust { position: relative; height: 74px; background: #4E2C18; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; padding: 0 12px; }
-  .vt-ha .ha-cell { height: 100%; padding: 0 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
-  .vt-ha .ha-cell + .ha-cell { border-left: 1px solid rgba(247,214,166,.28); }
-  .vt-ha .ha-cell-i { width: 30px; height: 30px; flex: none; border-radius: 50%; background: #F7D6A6; border: 1px solid rgba(255,231,168,.60); display: flex; align-items: center; justify-content: center; }
-  .vt-ha .ha-cell-l { font-size: 10.5px; font-weight: 700; line-height: 1.2; color: #FFF7EA; }
-  .vt-ha .ha-cell-s { font-size: 8.5px; line-height: 1.24; color: rgba(247,214,166,.72); }
-  .vt-ha .ha-btn { background: rgba(255,247,234,.85); border: 1px solid rgba(78,44,24,.25); }
-  .vt-ha .vt-ent-btn { top: 80px; }
-  .vt-ha .vt-ent-back { right: 20px; }
+  .vt-et .et-nouv-r { position: absolute; inset: 6px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.8); }
+  .vt-et .et-nouv-t { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; font-size: 13px; line-height: 1.15; text-align: center; color: #FFFFFF; padding: 0 10px; }
+  .vt-et .et-trust { background: var(--et-noir); padding: 12px 10px; display: grid; grid-template-columns: 1.14fr 1fr 1.06fr; }
+  .vt-et .et-cell { padding: 0 5px; display: flex; align-items: center; gap: 8px; }
+  .vt-et .et-cell-i { width: 36px; height: 36px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .vt-et .et-cell-i--vert { background: var(--et-vert); box-shadow: inset 0 0 0 1.5px rgba(18,18,18,.3), 0 0 0 2px rgba(46,156,82,.35); }
+  .vt-et .et-cell-i--jaune { background: var(--et-jaune); box-shadow: inset 0 0 0 1.5px rgba(18,18,18,.3), 0 0 0 2px rgba(217,163,28,.35); }
+  .vt-et .et-cell-i--rouge { background: var(--et-rouge); box-shadow: inset 0 0 0 1.5px rgba(18,18,18,.3), 0 0 0 2px rgba(232,80,85,.35); }
+  .vt-et .et-cell-l { display: block; font-size: 9.5px; font-weight: 700; font-style: italic; line-height: 1.3; color: #FFFFFF; }
+  .vt-et .et-cell-s { display: block; font-size: 9.5px; font-weight: 600; line-height: 1.3; }
+  .vt-et .et-cell-s--vert { color: var(--et-vert-c); }
+  .vt-et .et-cell-s--jaune { color: var(--et-jaune); }
+  .vt-et .et-cell-s--rouge { color: var(--et-rouge-c); }
+  .vt-et .et-btn { background: #FFFFFF; }
+  .vt-et .vt-ent-btn { top: 70px; }
 
-  .vt-ha .ha-name.vt-ent-xlong + .ha-bienv { font-size: 16px; }
-
-  /* ══════════════════════ 8 · BALAFON ══════════════════════ */
-  .vt-ba { background: #160D18; }
-  .vt-ba .ba-hero {
-    position: relative; overflow: hidden;
-    margin-top: -60px; padding-top: 60px;
-    background-color: #211223;
+  /* ══════════════════════ 24 · DOUCEUR ══════════════════════
+     Relevé — crème #F7F0E6 · olive #6B7455, sauge #8A9B77 · blush #C98A92 /
+     #C97B84, textes rosés #B06A73 · or #C9A45C · brun #3E3428. Galet photo
+     organique 196×264 ; sceau festonné or 12 lobes en MINIMAL. Ce visuel n'a
+     AUCUN sceau soudé au nom — le dernier segment blush le remplace. */
+  .vt-do {
+    --do-creme: #F7F0E6; --do-creme2: #F9F2E9;
+    --do-olive: #6B7455; --do-sauge: #8A9B77; --do-sauge2: #7C8B67;
+    --do-blush: #C98A92; --do-blush2: #C97B84; --do-rose: #B06A73;
+    --do-or: #C9A45C; --do-or2: #B98A3A; --do-brun: #3E3428;
+    background: var(--do-creme);
+  }
+  .vt-do .do-hero {
+    position: relative; overflow: hidden; margin-top: -60px; padding: 74px 14px 18px;
+    background-color: var(--do-creme);
+    background-image: radial-gradient(60% 44% at 84% 12%, var(--do-creme2) 0%, rgba(249,242,233,0) 72%);
+  }
+  .vt-do .do-scene { position: relative; min-height: 250px; }
+  .vt-do .do-textile {
+    position: absolute; left: -14px; top: -74px; bottom: -18px; width: 44px;
     background-image:
-      radial-gradient(ellipse at 50% 100%, rgba(232,180,118,.28), transparent 62%),
-      linear-gradient(180deg, #2E1B2E 0%, #211223 56%, #160D18 100%);
+      linear-gradient(180deg, var(--do-blush) 0 18%, var(--do-sauge) 18% 34%, var(--do-creme2) 34% 46%, var(--do-blush2) 46% 62%, var(--do-sauge2) 62% 78%, var(--do-creme2) 78% 100%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.32) 0 2px, transparent 2px 7px);
+    clip-path: polygon(0 0, 100% 0, 88% 6%, 100% 13%, 86% 20%, 100% 27%, 88% 34%, 100% 41%, 86% 48%, 100% 55%, 88% 62%, 100% 69%, 86% 76%, 100% 83%, 88% 90%, 100% 96%, 92% 100%, 0 100%);
   }
-  .vt-ba .ba-scene { position: relative; height: 248px; }
-  .vt-ba .ba-cone { position: absolute; top: -60px; width: 90px; height: 200px; clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%); }
-  .vt-ba .ba-cone-l { left: 22px; transform: rotate(18deg); background: linear-gradient(180deg, rgba(184,134,217,.28), transparent 85%); }
-  .vt-ba .ba-cone-r { right: 8px; transform: rotate(-18deg); background: linear-gradient(180deg, rgba(232,180,118,.30), transparent 85%); }
-  .vt-ba .ba-portee { position: absolute; right: 4px; bottom: 44px; opacity: .8; }
-  .vt-ba .ba-reso { position: absolute; bottom: -30px; width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(232,180,118,.55); }
-  .vt-ba .ba-reso1 { left: 24px; }
-  .vt-ba .ba-reso2 { left: 120px; }
-  .vt-ba .ba-reso3 { left: 216px; }
-  .vt-ba .ba-touche { position: absolute; bottom: 2px; width: 92px; height: 26px; border-radius: 9px; background: linear-gradient(180deg, #E8B476, #C98A3B); box-shadow: inset 0 1px 0 rgba(255,244,221,.55), 0 5px 0 #8F5D2B; }
-  .vt-ba .ba-touche1 { left: 8px; transform: rotate(-1deg); }
-  .vt-ba .ba-touche2 { left: 104px; }
-  .vt-ba .ba-touche3 { left: 200px; transform: rotate(1deg); }
-  .vt-ba .ba-bokeh {
-    position: absolute; inset: 0;
+  .vt-do .do-blob { position: absolute; right: -6px; top: 6px; width: 210px; height: 246px; background: var(--do-sauge); opacity: .34; border-radius: 58% 42% 46% 54% / 46% 52% 48% 54%; }
+  .vt-do .do-anneau { position: absolute; right: 132px; top: 128px; width: 76px; height: 76px; border-radius: 50%; border: 1.4px solid var(--do-or); opacity: .55; }
+  .vt-do .do-fleurs { position: absolute; right: 148px; top: 16px; opacity: .8; }
+  .vt-do .do-frame { position: absolute; right: 0; top: 0; width: 196px; height: 264px; overflow: hidden; border-radius: 54% 46% 42% 58% / 40% 44% 56% 60%; }
+  .vt-do .do-motif {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background-color: var(--do-creme2);
     background-image:
-      radial-gradient(circle 4px at 8% 6%, rgba(184,134,217,.20) 98%, transparent),
-      radial-gradient(circle 6px at 20% 12%, rgba(232,180,118,.16) 98%, transparent),
-      radial-gradient(circle 3px at 34% 5%, rgba(255,244,221,.22) 98%, transparent),
-      radial-gradient(circle 8px at 48% 10%, rgba(184,134,217,.10) 98%, transparent),
-      radial-gradient(circle 4px at 60% 4%, rgba(232,180,118,.24) 98%, transparent),
-      radial-gradient(circle 5px at 72% 14%, rgba(184,134,217,.14) 98%, transparent),
-      radial-gradient(circle 9px at 88% 8%, rgba(232,180,118,.08) 98%, transparent),
-      radial-gradient(circle 3px at 94% 22%, rgba(255,244,221,.18) 98%, transparent),
-      radial-gradient(circle 5px at 90% 40%, rgba(184,134,217,.12) 98%, transparent),
-      radial-gradient(circle 4px at 96% 58%, rgba(232,180,118,.16) 98%, transparent),
-      radial-gradient(circle 6px at 86% 70%, rgba(184,134,217,.10) 98%, transparent),
-      radial-gradient(circle 3px at 92% 84%, rgba(255,244,221,.14) 98%, transparent);
+      radial-gradient(circle 4px at 12px 16px, rgba(201,138,146,.42) 96%, transparent),
+      radial-gradient(circle 4px at 40px 44px, rgba(138,155,119,.4) 96%, transparent);
+    background-size: 56px 60px;
   }
-  .vt-ba .ba-vignette { position: absolute; inset: 0; box-shadow: inset 0 0 54px rgba(9,4,10,.24); }
-  .vt-ba .ba-medaille { position: absolute; right: 16px; top: 34px; width: 126px; height: 126px; }
-  .vt-ba .ba-frame {
-    position: absolute; inset: 0; border-radius: 50%; overflow: hidden;
-    border: 4px solid #E8B476;
-    box-shadow: 0 0 0 4px #2E1B2E, 0 0 0 6px #B886D9, 0 0 24px rgba(184,134,217,.22);
+  .vt-do .do-mono { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-size: 52px; color: rgba(107,116,85,.5); }
+  .vt-do .do-col { position: relative; width: calc(100% - 158px); padding-left: 44px; }
+  .vt-do .do-sceau-mono { display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 50%; border: 1.4px solid var(--do-or); box-shadow: inset 0 0 0 4px var(--do-creme), inset 0 0 0 5.4px rgba(201,164,92,.6); }
+  .vt-do .do-sceau-i { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-size: 19px; letter-spacing: .04em; color: var(--do-or2); }
+  .vt-do .do-name {
+    margin-top: 10px; font-family: Georgia, 'Times New Roman', serif; font-weight: 700;
+    font-size: clamp(24px, 8.4cqw, 29px); line-height: 1.08; color: var(--do-olive); overflow-wrap: break-word;
   }
-  .vt-ba .ba-frame .vt-avatar-img { position: absolute; inset: 0; object-position: 50% 24%; }
-  .vt-ba .ba-frame-motif {
-    position: absolute; inset: 0;
-    background: radial-gradient(120% 120% at 32% 24%, #3C2440 0%, #211223 78%);
-    display: flex; align-items: center; justify-content: center;
-  }
-  .vt-ba .ba-mono { font-family: 'Sora', 'Instrument Sans', sans-serif; font-weight: 800; font-size: 52px; color: #E8B476; }
-  .vt-ba .ba-note { position: absolute; right: -4px; top: 16px; }
-  .vt-ba .ba-col { position: relative; width: calc(100% - 150px); min-height: 200px; padding: 6px 0 10px 16px; }
-  .vt-ba .ba-bienv { margin-top: 3px; display: inline-flex; align-items: center; gap: 8px; font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-weight: 600; font-size: 25px; line-height: 1; color: #B886D9; }
-  .vt-ba .ba-los { width: 6px; height: 6px; flex: none; background: #B886D9; transform: rotate(45deg); }
-  .vt-ba .ba-name {
-    margin-top: 0; font-family: 'Sora', 'Instrument Sans', sans-serif; font-weight: 800;
-    line-height: .90; letter-spacing: -.045em; font-size: clamp(34px, 12.8cqw, 48px);
-    color: #FFF4DD; overflow-wrap: normal; hyphens: none;
-  }
-  .vt-ba .ba-name .vt-ent-acc { color: #E8B476; }
-  .vt-ba .ba-name.vt-ent-long { font-size: 36px; }
-  .vt-ba .ba-name.vt-ent-xlong { font-size: 22px; }
-  .vt-ba .ba-verif { margin-top: 5px; font-size: 12px; font-weight: 600; line-height: 15px; color: #D3C3D7; }
-  .vt-ba .ba-verif svg { vertical-align: -2px; margin-right: 4px; }
-  .vt-ba .ba-zone { margin-top: 1px; font-size: 13px; font-weight: 600; line-height: 17px; color: #D3C3D7; }
-  .vt-ba .ba-proofrow { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
-  .vt-ba .ba-proof {
-    display: inline-flex; align-items: center; min-height: 40px; min-width: 152px; max-width: 100%;
-    padding: 6px 14px; background: rgba(22,13,24,.78); border: 1px solid rgba(232,180,118,.55);
-    border-radius: 20px; box-shadow: 0 10px 20px rgba(9,4,10,.22);
-    color: #FFF4DD; font-size: 11.5px; line-height: 14px;
-  }
-  .vt-ba .ba-proof b { font-weight: 700; color: #E8B476; margin-right: 4px; }
-  .vt-ba .ba-stars {
-    display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 3px 11px;
-    background: #56375F; border-radius: 13px; white-space: nowrap;
-  }
-  .vt-ba .ba-stars span { font-size: 11.5px; font-weight: 600; color: #FFF4DD; }
-  .vt-ba .ba-nouv-wrap { margin-top: 8px; }
-  .vt-ba .ba-nouv {
-    display: inline-flex; align-items: center; gap: 8px; min-width: 124px; min-height: 34px;
-    padding: 6px 12px; border-radius: 10px; background: linear-gradient(180deg, #E8B476, #C98A3B);
-    box-shadow: inset 0 1px 0 rgba(255,244,221,.55), 0 4px 0 #8F5D2B;
-    transform: rotate(-3deg); white-space: nowrap;
-  }
-  .vt-ba .ba-oeillet { width: 5px; height: 5px; flex: none; border-radius: 50%; background: #2E1B2E; }
-  .vt-ba .ba-nouv-t { font-size: 12px; font-weight: 700; line-height: 14px; color: #2E1B2E; }
-  .vt-ba .ba-trust { position: relative; height: 72px; background: #160D18; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; padding: 0 12px; }
-  .vt-ba .ba-cell { height: 100%; padding: 0 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
-  .vt-ba .ba-cell + .ba-cell { border-left: 1px solid rgba(184,134,217,.28); }
-  .vt-ba .ba-cell-i { width: 30px; height: 30px; flex: none; border-radius: 50%; background: radial-gradient(circle, #E8B476 0 34%, #C98A3B 35% 70%, #6E431F 71%); display: flex; align-items: center; justify-content: center; }
-  .vt-ba .ba-cell-l { font-size: 10.5px; font-weight: 700; line-height: 1.2; color: #FFF4DD; }
-  .vt-ba .ba-cell-s { font-size: 8.5px; line-height: 1.24; color: rgba(232,215,232,.70); }
-  .vt-ba .ba-btn { background: rgba(22,13,24,.6); border: 1px solid rgba(232,180,118,.55); }
-  .vt-ba .vt-ent-btn { top: 70px; }
-  .vt-ba .vt-ent-back { right: 20px; }
-
-  .vt-ba .ba-name.vt-ent-xlong + .ba-bienv { font-size: 16px; }
-
-  /* ══════════════════════ 9 · SÉANCE ══════════════════════ */
-  .vt-se { background: #0D0916; }
-  .vt-se .se-hero {
-    position: relative; overflow: hidden;
-    margin-top: -60px; padding-top: 60px;
-    background-color: #100B1D;
-    background-image:
-      radial-gradient(circle, rgba(255,255,255,.05) 1px, transparent 1.4px),
-      linear-gradient(180deg, #171226 0%, #100B1D 65%, #0D0916 100%);
-    background-size: 9px 9px, auto;
-  }
-  .vt-se .se-scene { position: relative; height: 246px; }
-  .vt-se .se-proj {
-    position: absolute; left: -48px; top: 18px; width: 230px; height: 170px;
-    transform: rotate(10deg); clip-path: polygon(0 42%, 100% 0, 100% 100%, 0 58%);
-    background: linear-gradient(90deg, rgba(232,184,75,.52), rgba(232,184,75,.08));
-  }
-  .vt-se .se-contre {
-    position: absolute; right: -20px; top: 4px; width: 160px; height: 120px;
-    transform: rotate(-15deg); clip-path: polygon(100% 40%, 0 0, 0 100%, 100% 60%);
-    background: linear-gradient(270deg, rgba(184,154,232,.18), transparent 85%);
-  }
-  .vt-se .se-pouss {
-    position: absolute; left: -30px; top: 30px; width: 220px; height: 140px; transform: rotate(10deg);
-    background-image:
-      radial-gradient(circle 1.5px at 10% 30%, rgba(255,249,236,.32) 98%, transparent),
-      radial-gradient(circle 1px at 22% 55%, rgba(255,249,236,.22) 98%, transparent),
-      radial-gradient(circle 2px at 30% 40%, rgba(255,249,236,.18) 98%, transparent),
-      radial-gradient(circle 1px at 42% 62%, rgba(255,249,236,.28) 98%, transparent),
-      radial-gradient(circle 1.5px at 55% 45%, rgba(255,249,236,.24) 98%, transparent),
-      radial-gradient(circle 1px at 66% 58%, rgba(255,249,236,.16) 98%, transparent),
-      radial-gradient(circle 2px at 74% 48%, rgba(255,249,236,.20) 98%, transparent),
-      radial-gradient(circle 1px at 84% 52%, rgba(255,249,236,.12) 98%, transparent),
-      radial-gradient(circle 1.5px at 16% 44%, rgba(255,249,236,.26) 98%, transparent),
-      radial-gradient(circle 1px at 36% 50%, rgba(255,249,236,.14) 98%, transparent),
-      radial-gradient(circle 1px at 50% 36%, rgba(255,249,236,.22) 98%, transparent),
-      radial-gradient(circle 1.5px at 62% 40%, rgba(255,249,236,.18) 98%, transparent),
-      radial-gradient(circle 1px at 70% 60%, rgba(255,249,236,.26) 98%, transparent),
-      radial-gradient(circle 1px at 80% 42%, rgba(255,249,236,.16) 98%, transparent),
-      radial-gradient(circle 2px at 90% 55%, rgba(255,249,236,.12) 98%, transparent),
-      radial-gradient(circle 1px at 6% 52%, rgba(255,249,236,.20) 98%, transparent),
-      radial-gradient(circle 1px at 26% 34%, rgba(255,249,236,.24) 98%, transparent),
-      radial-gradient(circle 1.5px at 46% 56%, rgba(255,249,236,.14) 98%, transparent),
-      radial-gradient(circle 1px at 58% 62%, rgba(255,249,236,.18) 98%, transparent),
-      radial-gradient(circle 1px at 88% 38%, rgba(255,249,236,.22) 98%, transparent);
-  }
-  .vt-se .se-bobine { position: absolute; right: -12px; top: 8px; opacity: .12; }
-  .vt-se .se-skyline {
-    position: absolute; left: 0; right: 0; bottom: 0; height: 28px; background: #0A0710;
-    clip-path: polygon(0 100%, 0 55%, 6% 55%, 6% 30%, 11% 30%, 11% 60%, 18% 60%, 18% 20%, 24% 20%, 24% 55%, 32% 55%, 32% 38%, 38% 38%, 38% 70%, 46% 70%, 46% 45%, 53% 45%, 53% 25%, 59% 25%, 59% 60%, 66% 60%, 66% 35%, 73% 35%, 73% 65%, 80% 65%, 80% 42%, 87% 42%, 87% 58%, 93% 58%, 93% 30%, 100% 30%, 100% 100%);
-  }
-  .vt-se .se-etoiles {
-    position: absolute; inset: 0;
-    background-image:
-      radial-gradient(circle 2px at 8% 10%, rgba(255,249,236,.8) 98%, transparent),
-      radial-gradient(circle 1.5px at 46% 6%, rgba(255,249,236,.6) 98%, transparent),
-      radial-gradient(circle 2.5px at 90% 74%, rgba(255,249,236,.5) 98%, transparent);
-  }
-  .vt-se .se-vignette { position: absolute; inset: 0; box-shadow: inset 0 0 60px rgba(0,0,0,.26); }
-  .vt-se .se-frame {
-    position: absolute; right: 12px; top: 18px; width: 142px; height: 206px;
-    background: #110D18; box-shadow: 0 14px 28px rgba(0,0,0,.28);
-  }
-  .vt-se .se-perfo { position: absolute; top: 6px; bottom: 6px; width: 7px; background: repeating-linear-gradient(180deg, #F4F0E8 0 10px, transparent 10px 16px); }
-  .vt-se .se-perfo-l { left: 1.5px; }
-  .vt-se .se-perfo-r { right: 1.5px; }
-  .vt-se .se-photo { position: absolute; inset: 8px 15px; overflow: hidden; border: 1px solid rgba(255,249,236,.20); }
-  .vt-se .se-photo .vt-avatar-img { position: absolute; inset: 0; object-position: 50% 24%; border-radius: 0; }
-  .vt-se .se-frame-motif {
-    position: absolute; inset: 0; background-color: #FFF9EC;
-    background-image: radial-gradient(circle, rgba(23,18,38,.06) 1px, transparent 1.4px);
-    background-size: 9px 9px;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .vt-se .se-mono { font-family: 'Archivo', system-ui, sans-serif; font-weight: 900; font-size: 64px; color: #E8B84B; }
-  .vt-se .se-col { position: relative; width: calc(100% - 166px); min-height: 206px; padding: 6px 0 10px 16px; }
-  .vt-se .se-bienv { margin-top: 3px; font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-weight: 600; font-size: 25px; line-height: 1; color: #B89AE8; }
-  .vt-se .se-name {
-    margin-top: 0; font-family: 'Archivo', system-ui, sans-serif; font-weight: 900;
-    line-height: .90; letter-spacing: -.045em; font-size: clamp(34px, 12.4cqw, 46px);
-    color: #FFF9EC; overflow-wrap: normal; hyphens: none;
-  }
-  .vt-se .se-name .vt-ent-acc { color: #E8B84B; text-shadow: 0 0 10px rgba(232,184,75,.32); }
-  .vt-se .se-name.vt-ent-long { font-size: 35px; }
-  .vt-se .se-name.vt-ent-xlong { font-size: 19px; }
-  .vt-se .se-ampoules {
-    display: block; margin-top: 4px; width: 138px; height: 8px;
-    background-image: radial-gradient(circle 4px at 4px 4px, #E8B84B 2.6px, rgba(232,184,75,.35) 3px, transparent 4px);
-    background-size: 18px 8px; background-repeat: repeat-x;
-  }
-  .vt-se .se-verif { margin-top: 5px; font-size: 12px; font-weight: 600; line-height: 15px; color: #C8BCD8; }
-  .vt-se .se-verif svg { vertical-align: -2px; margin-right: 4px; }
-  .vt-se .se-zone { margin-top: 1px; font-size: 13px; font-weight: 600; line-height: 17px; color: #C8BCD8; }
-  .vt-se .se-proofrow { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
-  .vt-se .se-proof {
-    display: inline-flex; align-items: center; min-height: 38px; min-width: 146px; max-width: 100%;
-    padding: 6px 16px; background: #B89AE8; border: 1px solid rgba(255,255,255,.25);
-    border-radius: 3px; color: #171226; font-size: 11.5px; line-height: 14px;
-    -webkit-mask: radial-gradient(circle 5px at 0 50%, transparent 5px, #000 5.5px), radial-gradient(circle 5px at 100% 50%, transparent 5px, #000 5.5px);
-    -webkit-mask-composite: source-in;
-    mask: radial-gradient(circle 5px at 0 50%, transparent 5px, #000 5.5px), radial-gradient(circle 5px at 100% 50%, transparent 5px, #000 5.5px);
-    mask-composite: intersect;
-  }
-  .vt-se .se-proof b { font-weight: 700; margin-right: 4px; }
-  .vt-se .se-stars {
-    display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 3px 11px;
-    background: #2B2041; border-radius: 3px; white-space: nowrap;
-  }
-  .vt-se .se-stars span { font-size: 11.5px; font-weight: 600; color: #FFF9EC; }
-  .vt-se .se-nouv-wrap { margin-top: 8px; }
-  .vt-se .se-nouv {
-    display: inline-flex; align-items: center; gap: 8px; min-width: 122px; min-height: 42px;
-    padding: 8px 16px; background: #E8B84B; border-radius: 3px; transform: rotate(-4deg);
-    white-space: nowrap;
-    -webkit-mask: radial-gradient(circle 6px at 0 50%, transparent 6px, #000 6.5px), radial-gradient(circle 6px at 100% 50%, transparent 6px, #000 6.5px);
-    -webkit-mask-composite: source-in;
-    mask: radial-gradient(circle 6px at 0 50%, transparent 6px, #000 6.5px), radial-gradient(circle 6px at 100% 50%, transparent 6px, #000 6.5px);
-    mask-composite: intersect;
-  }
-  .vt-se .se-nouv-t { font-size: 12px; font-weight: 700; line-height: 14px; color: #171226; }
-  .vt-se .se-trust { position: relative; height: 74px; background: #0D0916; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; padding: 0 12px; }
-  .vt-se .se-cell { height: 100%; padding: 0 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
-  .vt-se .se-cell + .se-cell { border-left: 1px solid rgba(184,154,232,.30); }
-  .vt-se .se-cell-i { width: 30px; height: 30px; flex: none; border-radius: 50%; background: #2B2041; border: 1px solid rgba(232,184,75,.55); display: flex; align-items: center; justify-content: center; }
-  .vt-se .se-cell-l { font-size: 10.5px; font-weight: 700; line-height: 1.2; color: #FFF9EC; }
-  .vt-se .se-cell-s { font-size: 8.5px; line-height: 1.24; color: rgba(184,154,232,.72); }
-  .vt-se .se-btn { background: #2B2041; border: 1px solid rgba(232,184,75,.55); }
-  .vt-se .vt-ent-btn { top: 84px; }
-  .vt-se .vt-ent-back { right: 20px; }
-
-  .vt-se .se-name.vt-ent-xlong + .se-bienv { font-size: 16px; }
-
-  /* ══════════════════════ 10 · CAURIS ══════════════════════ */
-  .vt-ca { background: #0E3E36; }
-  .vt-ca .ca-hero {
-    position: relative; overflow: hidden;
-    margin-top: -60px; padding-top: 60px;
-    background-color: #0F493F;
-    background-image:
-      radial-gradient(ellipse at 62% 16%, rgba(200,240,222,.24), transparent 58%),
-      radial-gradient(ellipse 13px 6px at 50% 50%, rgba(255,247,232,.05) 98%, transparent),
-      linear-gradient(180deg, #145248 0%, #0F493F 56%, #0E3E36 100%);
-    background-size: auto, 64px 52px, auto;
-  }
-  .vt-ca .ca-scene { position: relative; height: 248px; }
-  .vt-ca .ca-ray { position: absolute; top: -60px; height: 340px; transform: rotate(17deg); }
-  .vt-ca .ca-ray1 { left: 26%; width: 44px; background: linear-gradient(180deg, rgba(200,240,222,.10), transparent 70%); }
-  .vt-ca .ca-ray2 { left: 42%; width: 58px; background: linear-gradient(180deg, rgba(200,240,222,.16), transparent 70%); }
-  .vt-ca .ca-ray3 { left: 60%; width: 72px; background: linear-gradient(180deg, rgba(200,240,222,.08), transparent 70%); }
-  .vt-ca .ca-vagues {
-    position: absolute; right: -20px; top: 20px; width: 200px; height: 200px; border-radius: 50%;
-    background: repeating-radial-gradient(circle, rgba(200,240,222,.22) 0 1.5px, transparent 1.5px 18px);
-  }
-  .vt-ca .ca-cauri1 { position: absolute; left: 8px; top: -46px; transform: rotate(-18deg); }
-  .vt-ca .ca-cauri2 { position: absolute; right: 60px; top: -44px; transform: rotate(14deg); }
-  .vt-ca .ca-cauri3 { position: absolute; right: 162px; bottom: 10px; transform: rotate(28deg); }
-  .vt-ca .ca-cauri4 { position: absolute; left: 52px; top: -28px; transform: rotate(-8deg); }
-  .vt-ca .ca-bulles {
-    position: absolute; right: 154px; top: 50px; width: 14px; height: 100px;
-    background-image:
-      radial-gradient(circle 3px at 7px 90px, rgba(200,240,222,.4) 98%, transparent),
-      radial-gradient(circle 4px at 5px 66px, rgba(200,240,222,.34) 98%, transparent),
-      radial-gradient(circle 5px at 8px 40px, rgba(200,240,222,.28) 98%, transparent),
-      radial-gradient(circle 6px at 6px 10px, rgba(200,240,222,.22) 98%, transparent);
-  }
-  .vt-ca .ca-sable {
-    position: absolute; left: -28px; bottom: -54px; width: 420px; height: 92px;
-    border-radius: 50%; transform: rotate(-3deg);
-    background: linear-gradient(180deg, #D9B87A, #B99459);
-  }
-  .vt-ca .ca-vignette { position: absolute; inset: 0; box-shadow: inset 0 0 56px rgba(3,33,29,.22); }
-  .vt-ca .ca-frame {
-    position: absolute; right: 14px; top: 22px; width: 132px; height: 202px;
-    border-radius: 50% / 42%; overflow: hidden; border: 5px solid #FFF7E8;
-    box-shadow: 0 0 0 2px #D8CCB7, 0 14px 28px rgba(3,33,29,.22);
-  }
-  .vt-ca .ca-frame .vt-avatar-img { position: absolute; inset: 0; object-position: 50% 24%; border-radius: 0; }
-  .vt-ca .ca-frame-ring { position: absolute; right: 7px; top: 15px; width: 146px; height: 216px; border-radius: 50% / 42%; border: 2px dashed #C8F0DE; }
-  .vt-ca .ca-frame-motif {
-    position: absolute; inset: 0;
-    background: radial-gradient(120% 120% at 34% 22%, #1C6455 0%, #0F493F 78%);
-    display: flex; align-items: center; justify-content: center;
-  }
-  .vt-ca .ca-mono { font-family: 'Sora', 'Instrument Sans', sans-serif; font-weight: 800; font-size: 52px; color: #D9B87A; }
-  .vt-ca .ca-col { position: relative; width: calc(100% - 156px); min-height: 204px; padding: 6px 0 10px 16px; }
-  .vt-ca .ca-bienv { margin-top: 3px; display: inline-flex; flex-direction: column; gap: 3px; font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-weight: 600; font-size: 25px; line-height: 1; color: #C8F0DE; }
-  .vt-ca .ca-pinceau { width: 72px; height: 4px; border-radius: 2px; background: #D9B87A; }
-  .vt-ca .ca-name {
-    margin-top: 0; font-family: 'Sora', 'Instrument Sans', sans-serif; font-weight: 800;
-    line-height: .90; letter-spacing: -.04em; font-size: clamp(36px, 13cqw, 49px);
-    color: #FFF7E8; overflow-wrap: normal; hyphens: none;
-  }
-  .vt-ca .ca-name .vt-ent-acc { color: #D9B87A; }
-  .vt-ca .ca-name.vt-ent-long { font-size: 37px; }
-  .vt-ca .ca-name.vt-ent-xlong { font-size: 21px; }
-  .vt-ca .ca-verif { margin-top: 5px; font-size: 12px; font-weight: 600; line-height: 15px; color: #B7DACB; }
-  .vt-ca .ca-verif svg { vertical-align: -2px; margin-right: 4px; }
-  .vt-ca .ca-zone { margin-top: 1px; font-size: 13px; font-weight: 600; line-height: 17px; color: #B7DACB; }
-  .vt-ca .ca-proofrow { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
-  .vt-ca .ca-proof {
-    display: inline-flex; align-items: center; min-height: 40px; min-width: 152px; max-width: 100%;
-    padding: 6px 14px; background: rgba(14,62,54,.88); border: 1px solid rgba(217,184,122,.70);
-    border-radius: 20px; box-shadow: 0 8px 18px rgba(3,33,29,.20);
-    color: #FFF7E8; font-size: 11.5px; line-height: 14px;
-  }
-  .vt-ca .ca-proof b { font-weight: 700; color: #D9B87A; margin-right: 4px; }
-  .vt-ca .ca-stars {
-    display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 3px 11px;
-    background: #FFF7E8; border-radius: 13px; white-space: nowrap;
-  }
-  .vt-ca .ca-stars span { font-size: 11.5px; font-weight: 600; color: #145248; }
-  .vt-ca .ca-nouv-wrap { margin-top: 8px; }
-  .vt-ca .ca-nouv {
+  /* Relevé §Casse — Douceur est la seule des cinq à 20 px fixe past 14 car. */
+  .vt-do .do-name.vt-ent-long { font-size: 20px; }
+  .vt-do .do-name .vt-ent-acc { color: var(--do-blush2); }
+  .vt-do .do-bienv { position: relative; margin-top: 8px; display: inline-block; transform: rotate(-3deg); }
+  .vt-do .do-bienv-t { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; font-size: 19px; line-height: 1.2; color: var(--do-or2); }
+  .vt-do .do-souligne { display: block; margin-top: 2px; height: 1.2px; background: var(--do-or); opacity: .8; }
+  .vt-do .do-verif { margin-top: 11px; display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--do-brun); }
+  .vt-do .do-verif-r { width: 17px; height: 17px; flex: none; border-radius: 50%; background: var(--do-sauge); display: flex; align-items: center; justify-content: center; }
+  .vt-do .do-zone { margin-top: 6px; display: flex; align-items: flex-start; gap: 7px; font-size: 11.5px; font-weight: 600; line-height: 1.4; color: var(--do-brun); }
+  .vt-do .do-zone svg { flex: none; margin-top: 1px; }
+  .vt-do .do-proof { margin-top: 12px; display: flex; align-items: center; gap: 8px; }
+  .vt-do .do-chip { flex: none; display: inline-flex; align-items: center; padding: 7px 12px; border-radius: 12px; background: var(--do-blush2); font-weight: 800; font-size: 14px; color: #FFFFFF; }
+  .vt-do .do-proof-t { font-size: 10.5px; line-height: 1.35; font-weight: 600; color: var(--do-rose); }
+  .vt-do .do-stars { display: flex; align-items: center; gap: 3px; margin-top: 1px; color: var(--do-or2); }
+  .vt-do .do-nouv-wrap { margin-top: 13px; }
+  .vt-do .do-nouv {
     position: relative; display: inline-flex; align-items: center; justify-content: center;
-    min-width: 122px; min-height: 56px; padding: 8px 18px; border-radius: 50% / 50%;
-    background: #FFF7E8; box-shadow: inset 0 0 0 2px #D8CCB7, 0 8px 18px rgba(3,33,29,.24);
-    transform: rotate(8deg); text-align: center;
+    width: 100px; height: 100px;
   }
-  .vt-ca .ca-nouv-fente { position: absolute; top: 7px; left: 26%; right: 26%; border-top: 1.5px dashed #8A7155; }
-  .vt-ca .ca-nouv-t { font-size: 11px; font-weight: 700; line-height: 1.3; color: #145248; }
-  .vt-ca .ca-trust { position: relative; height: 72px; background: #0E3E36; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; padding: 0 12px; }
-  .vt-ca .ca-cell { height: 100%; padding: 0 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
-  .vt-ca .ca-cell + .ca-cell { border-left: 1px solid rgba(200,240,222,.26); }
-  .vt-ca .ca-cell-i { width: 30px; height: 30px; flex: none; border-radius: 50%; background: #D9B87A; box-shadow: 0 0 0 1px rgba(255,247,232,.35); display: flex; align-items: center; justify-content: center; }
-  .vt-ca .ca-cell-l { font-size: 10.5px; font-weight: 700; line-height: 1.2; color: #FFF7E8; }
-  .vt-ca .ca-cell-s { font-size: 8.5px; line-height: 1.24; color: rgba(200,240,222,.72); }
-  .vt-ca .ca-btn { background: rgba(255,249,239,.9); border: 1px solid rgba(20,82,72,.3); }
-  .vt-ca .vt-ent-btn { top: 84px; }
-  .vt-ca .vt-ent-back { right: 20px; }
+  /* Le sceau festonné 12 lobes : un dégradé or masqué par une couronne conique. */
+  .vt-do .do-feston {
+    position: absolute; inset: 0; background: linear-gradient(150deg, #D8B060, var(--do-or2));
+    clip-path: polygon(50% 0%, 62% 6%, 75% 4%, 82% 15%, 94% 20%, 95% 33%, 100% 45%, 94% 57%, 96% 70%, 85% 78%, 80% 90%, 67% 92%, 56% 99%, 44% 94%, 32% 97%, 23% 87%, 11% 83%, 7% 70%, 0 58%, 5% 46%, 2% 33%, 13% 24%, 17% 12%, 30% 9%, 39% 2%);
+  }
+  .vt-do .do-nouv-t { position: relative; text-align: center; line-height: 1.15; }
+  .vt-do .do-nouv-a { display: block; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; font-size: 16px; color: #FFFFFF; }
+  .vt-do .do-nouv-b { display: block; margin-top: 1px; font-size: 8.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #FFFFFF; }
+  .vt-do .do-trust { margin: 0 10px 12px; padding: 12px 6px; background: #FFFFFF; border-radius: 20px; box-shadow: 0 12px 26px -16px rgba(62,52,40,.5); display: grid; grid-template-columns: 1.12fr 1fr 1.04fr; }
+  .vt-do .do-cell { padding: 0 5px; display: flex; align-items: center; gap: 8px; }
+  .vt-do .do-cell-i { width: 38px; height: 38px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .vt-do .do-cell-i--sauge { background: var(--do-sauge); }
+  .vt-do .do-cell-i--blush { background: var(--do-blush2); }
+  .vt-do .do-cell-i--or { background: var(--do-or); }
+  .vt-do .do-cell-l { display: block; font-size: 9.5px; font-weight: 700; line-height: 1.3; color: var(--do-brun); }
+  .vt-do .do-cell-s { display: block; font-size: 9.5px; font-weight: 600; line-height: 1.3; color: var(--do-rose); }
+  .vt-do .do-btn { background: #FFFFFF; box-shadow: 0 6px 16px -8px rgba(62,52,40,.5); }
+  .vt-do .vt-ent-btn { top: 70px; }
 
-  .vt-ca .ca-name.vt-ent-xlong + .ca-bienv { font-size: 16px; }
+  /* ══════════════════════ 25 · TISSAGE ══════════════════════
+     Relevé — vert profond #17351F (carte #0F2717) · ivoire #F1E9D6 · or
+     #D9A441 (.txg) · ambre #C77B2B · coche #2E7A44 · sous-lignes #2E5B3A.
+     Héros fendu : liseré kente vertical 32 à gauche (casiers 14) + reprise
+     horizontale h12 sous le héros ; photo pleine colonne droite 46 %. */
+  .vt-ti {
+    --ti-vert: #17351F; --ti-carte: #0F2717; --ti-badge: #12301B;
+    --ti-ivoire: #F1E9D6; --ti-blanc: #F7F5F0;
+    --ti-or: #D9A441; --ti-ambre: #C77B2B; --ti-coche: #2E7A44; --ti-sous: #2E5B3A;
+    background: var(--ti-vert);
+  }
+  .vt-ti .ti-hero {
+    position: relative; overflow: hidden; margin-top: -60px; padding: 74px 14px 18px;
+    background-color: var(--ti-vert);
+    background-image: radial-gradient(54% 40% at 82% 8%, rgba(217,164,65,.09) 0%, transparent 70%);
+  }
+  .vt-ti .ti-scene { position: relative; min-height: 248px; }
+  .vt-ti .ti-liseré {
+    position: absolute; left: -14px; top: -74px; bottom: -18px; width: 32px;
+    background-color: var(--ti-vert);
+    background-image:
+      repeating-linear-gradient(45deg, rgba(217,164,65,.55) 0 2px, transparent 2px 9px),
+      repeating-linear-gradient(-45deg, rgba(241,233,214,.3) 0 2px, transparent 2px 9px),
+      repeating-linear-gradient(180deg, rgba(241,233,214,.16) 0 1px, transparent 1px 14px);
+  }
+  .vt-ti .ti-frame { position: absolute; top: -74px; right: -14px; bottom: -18px; width: 46%; overflow: hidden; }
+  .vt-ti .ti-motif {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background-color: var(--ti-badge);
+    background-image:
+      repeating-linear-gradient(45deg, rgba(217,164,65,.34) 0 2px, transparent 2px 11px),
+      repeating-linear-gradient(-45deg, rgba(217,164,65,.2) 0 2px, transparent 2px 11px);
+  }
+  .vt-ti .ti-mono { font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif; font-weight: 800; font-size: 52px; color: rgba(217,164,65,.55); }
+  .vt-ti .ti-col { position: relative; width: calc(100% - 139px); padding-left: 24px; }
+  .vt-ti .ti-couronne { display: block; }
+  .vt-ti .ti-name {
+    margin-top: 6px; font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif; font-weight: 800;
+    font-size: clamp(27px, 9.4cqw, 32px); line-height: 1.05; letter-spacing: -.012em;
+    color: var(--ti-ivoire); overflow-wrap: break-word;
+  }
+  .vt-ti .ti-name.vt-ent-long { font-size: 24px; }
+  .vt-ti .ti-name .vt-ent-acc { color: var(--ti-or); }
+  @supports (background-clip: text) or (-webkit-background-clip: text) {
+    .vt-ti .ti-name .vt-ent-acc {
+      background-image: linear-gradient(96deg, #EFCB78 0%, var(--ti-or) 38%, #B37F24 68%, #E7C069 100%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+    }
+  }
+  .vt-ti .ti-bienv { margin-top: 7px; display: flex; align-items: center; gap: 8px; }
+  .vt-ti .ti-bienv-t { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; font-size: 18px; line-height: 1.2; color: #FFFFFF; }
+  .vt-ti .ti-brosse { width: 30px; height: 4px; border-radius: 3px; background: var(--ti-or); transform: rotate(-2deg); }
+  .vt-ti .ti-carte { margin-top: 11px; padding: 11px 12px 12px; background: var(--ti-carte); border-radius: 16px; box-shadow: inset 0 0 0 1px rgba(217,164,65,.28); }
+  .vt-ti .ti-verif { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: #FFFFFF; }
+  .vt-ti .ti-coche { width: 15px; height: 15px; flex: none; border-radius: 50%; background: var(--ti-coche); display: flex; align-items: center; justify-content: center; }
+  .vt-ti .ti-zone { margin-top: 5px; display: flex; align-items: flex-start; gap: 7px; font-size: 11px; font-weight: 600; line-height: 1.4; color: var(--ti-ivoire); }
+  .vt-ti .ti-zone svg { flex: none; margin-top: 1px; }
+  .vt-ti .ti-proof { margin-top: 9px; display: flex; align-items: center; gap: 8px; }
+  .vt-ti .ti-rond { width: 38px; height: 38px; flex: none; border-radius: 50%; border: 1.4px solid var(--ti-or); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; color: var(--ti-or); }
+  /* Relevé — la ligne de preuve est en italique doré sur ce visuel. */
+  .vt-ti .ti-proof-t { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 11px; line-height: 1.35; color: var(--ti-or); }
+  .vt-ti .ti-stars { display: flex; align-items: center; gap: 3px; margin-top: 1px; font-style: normal; font-family: 'Instrument Sans', system-ui, sans-serif; font-weight: 600; font-size: 10.5px; }
+  .vt-ti .ti-nouv-wrap { margin-top: 12px; }
+  .vt-ti .ti-nouv {
+    position: relative; display: inline-flex; align-items: center; justify-content: center;
+    width: 88px; height: 88px; border-radius: 50%; background: var(--ti-badge);
+    box-shadow: 0 12px 26px -12px rgba(10,30,16,.85);
+  }
+  .vt-ti .ti-nouv-r { position: absolute; inset: 5px; border-radius: 50%; border: 1.5px dashed rgba(217,164,65,.7); }
+  .vt-ti .ti-nouv-t { position: relative; text-align: center; line-height: 1.15; }
+  .vt-ti .ti-nouv-a { display: block; font-weight: 800; font-size: 13px; color: #FFFFFF; }
+  .vt-ti .ti-nouv-b { display: block; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; font-size: 13px; color: var(--ti-or); }
+  .vt-ti .ti-bande {
+    height: 12px; background-color: var(--ti-vert);
+    background-image:
+      repeating-linear-gradient(45deg, rgba(217,164,65,.55) 0 2px, transparent 2px 9px),
+      repeating-linear-gradient(-45deg, rgba(241,233,214,.3) 0 2px, transparent 2px 9px);
+  }
+  .vt-ti .ti-trust { background: var(--ti-blanc); padding: 12px 10px; display: grid; grid-template-columns: 1.12fr 1fr 1.06fr; }
+  .vt-ti .ti-cell { padding: 0 5px; display: flex; align-items: center; gap: 8px; }
+  .vt-ti .ti-cell-i { position: relative; width: 38px; height: 38px; flex: none; border-radius: 50%; background: var(--ti-vert); display: flex; align-items: center; justify-content: center; }
+  .vt-ti .ti-cell-c { position: absolute; right: -3px; bottom: -3px; width: 15px; height: 15px; border-radius: 50%; background: var(--ti-or); border: 2px solid var(--ti-blanc); display: flex; align-items: center; justify-content: center; }
+  .vt-ti .ti-cell-l { display: block; font-size: 9.5px; font-weight: 700; line-height: 1.3; color: #14251A; }
+  .vt-ti .ti-cell-s { display: block; font-size: 9.5px; font-weight: 600; line-height: 1.3; color: var(--ti-sous); }
+  .vt-ti .ti-btn { background: var(--ti-or); }
+  .vt-ti .vt-ent-btn { top: 70px; }
 
-  /* ═══════ ENTETES-E · 320 px (handoff Part B, @container ≤ 339) ═══════
-     Hero 236, strip 72, paddings 16→12, frames shrink 6–10, 20–35 % of the
-     small decor prunes — never a string, never the proof, never the badge. */
+
+  /* ENTETES-F — the strip stays a strip. Measured: the catalog's full labels
+     (« Livraison Séra vérifiée & scellée ») wrap to three lines where the
+     contract splits them over two, so the vignette and the leading tighten
+     rather than the type — the labels must never truncate their meaning. */
+  .vt-pr .pr-trust, .vt-te .te-trust, .vt-et .et-trust, .vt-ti .ti-trust { padding: 9px 8px; align-items: center; }
+  .vt-do .do-trust { padding: 9px 4px; align-items: center; }
+  .vt-pr .pr-cell-i, .vt-te .te-cell-i, .vt-et .et-cell-i,
+  .vt-do .do-cell-i, .vt-ti .ti-cell-i { width: 32px; height: 32px; }
+  .vt-pr .pr-cell-l, .vt-te .te-cell-l, .vt-et .et-cell-l,
+  .vt-do .do-cell-l, .vt-ti .ti-cell-l { font-size: 9px; line-height: 1.22; }
+  .vt-pr .pr-cell-s, .vt-te .te-cell-s, .vt-et .et-cell-s,
+  .vt-do .do-cell-s, .vt-ti .ti-cell-s { font-size: 9px; line-height: 1.22; }
+  .vt-pr .pr-cell, .vt-te .te-cell, .vt-et .et-cell,
+  .vt-do .do-cell, .vt-ti .ti-cell { gap: 7px; padding: 0 4px; }
+
+  /* 2 — THE MINIMAL BADGE. Each style's pastille is the contract's own shape,
+     but stacked AFTER the greeting, the verified line and the zone it pushed
+     the column 60–90px past its relevé min-height. The badge keeps its
+     identity at a size the column can hold. */
+  .vt-te .te-nouv { width: 78px; height: 78px; }
+  .vt-et .et-nouv { width: 72px; height: 72px; }
+  .vt-do .do-nouv { width: 66px; height: 66px; }
+  .vt-ti .ti-nouv { width: 74px; height: 74px; }
+  .vt-te .te-nouv-wrap, .vt-et .et-nouv-wrap,
+  .vt-do .do-nouv-wrap, .vt-ti .ti-nouv-wrap { margin-top: 9px; }
+  .vt-pr .pr-nouv-wrap { margin-top: 10px; }
+  .vt-do .do-nouv-a { font-size: 12px; }
+  .vt-do .do-nouv-b { font-size: 8px; }
+  .vt-et .et-nouv-t { font-size: 12px; padding: 0 8px; }
+
+  /* 3 — COLUMN RHYTHM. The greeting is a line the contract's MINIMAL does not
+     carry (« ni accueil ») but this build keeps always — a new seller needs the
+     warm word most. The margins absorb it instead of the height. */
+  /* Douceur measured tallest of the five: its column is the narrowest (the
+     44px textile band eats it) so the zone wrapped to three lines at 320. The
+     band and the gutter give the words their room back. */
+  .vt-do .do-col { width: calc(100% - 168px); padding-left: 32px; }
+  .vt-do .do-textile { width: 32px; }
+  .vt-do .do-frame { width: 168px; height: 240px; }
+  .vt-do .do-zone { margin-top: 5px; }
+  .vt-do .do-proof { margin-top: 9px; }
+  .vt-do .do-sceau-mono { width: 40px; height: 40px; }
+  .vt-do .do-sceau-i { font-size: 14px; }
+  .vt-do .do-name { margin-top: 5px; }
+  .vt-et .et-carte { margin-top: 9px; padding: 9px 12px 10px; }
+  .vt-ti .ti-carte { margin-top: 9px; padding: 9px 12px 10px; }
+  .vt-do .do-verif, .vt-ti .ti-zone { margin-top: 8px; }
+  .vt-et .et-nameblock { margin-top: 2px; }
+
+  /* ═══════ ENTETES-F · 320 px (contrat série 4 « validé à 320 ») ═══════
+     Les colonnes fendues se resserrent : cadres −18 à −24, colonnes
+     recalculées, décor secondaire élagué. Jamais une chaîne, jamais la
+     preuve, jamais la pastille — seulement de la géométrie. */
   @container (max-width: 339px) {
-    .vt-ma .ma-scene, .vt-ha .ha-scene, .vt-ba .ba-scene, .vt-se .se-scene, .vt-ca .ca-scene { height: 236px; }
-    .vt-ma .ma-trust, .vt-ha .ha-trust, .vt-se .se-trust { height: 72px; }
-    .vt-ma .ma-col, .vt-ha .ha-col, .vt-ba .ba-col, .vt-se .se-col, .vt-ca .ca-col { padding-left: 12px; }
-    .vt-ma .ma-cell-i, .vt-ha .ha-cell-i, .vt-ba .ba-cell-i, .vt-se .se-cell-i, .vt-ca .ca-cell-i { width: 26px; height: 26px; }
-    .vt-ma .ma-cell-l, .vt-ha .ha-cell-l, .vt-ba .ba-cell-l, .vt-se .se-cell-l, .vt-ca .ca-cell-l { font-size: 9.7px; line-height: 1.19; }
-    .vt-ma .ma-cell-s, .vt-ha .ha-cell-s, .vt-ba .ba-cell-s, .vt-se .se-cell-s, .vt-ca .ca-cell-s { font-size: 8px; line-height: 1.19; }
-    /* the 236px scene is 10 shorter while the zone often takes two lines:
-       the rhythm tightens uniformly — margins and chip minimums, never text. */
-    .vt-ma .ma-col, .vt-ha .ha-col, .vt-ba .ba-col, .vt-se .se-col, .vt-ca .ca-col { padding-top: 4px; }
-    .vt-ma .ma-bienv { font-size: 22px; }
-    .vt-ha .ha-bienv, .vt-ba .ba-bienv, .vt-se .se-bienv, .vt-ca .ca-bienv { font-size: 21px; }
-    .vt-ma .ma-name, .vt-ha .ha-name, .vt-ba .ba-name, .vt-se .se-name, .vt-ca .ca-name { margin-top: 0; }
-    .vt-ma .ma-verif, .vt-ha .ha-verif, .vt-ba .ba-verif, .vt-se .se-verif, .vt-ca .ca-verif { margin-top: 4px; }
-    .vt-ma .ma-proofrow, .vt-ha .ha-proofrow, .vt-ba .ba-proofrow, .vt-se .se-proofrow, .vt-ca .ca-proofrow { margin-top: 6px; }
-    .vt-ma .ma-nouv-wrap, .vt-ha .ha-nouv-wrap, .vt-ba .ba-nouv-wrap, .vt-se .se-nouv-wrap, .vt-ca .ca-nouv-wrap { margin-top: 4px; }
-    .vt-ma .ma-proof { min-height: 30px; }
-    .vt-ha .ha-proof, .vt-ba .ba-proof, .vt-se .se-proof { min-height: 34px; }
-    .vt-ca .ca-proof { min-height: 36px; }
-    .vt-ma .ma-stars, .vt-ha .ha-stars, .vt-ba .ba-stars, .vt-se .se-stars, .vt-ca .ca-stars { min-height: 24px; }
-    .vt-ha .ha-nouv { width: 70px; height: 70px; }
-    /* MASQUE — frame −8, chevrons/planche prune (§8.6). */
-    .vt-ma .ma-frame { width: 136px; height: 196px; }
-    .vt-ma .ma-col { width: calc(100% - 158px); }
-    .vt-ma .ma-planche, .vt-ma .ma-chevrons, .vt-ma .ma-zigzag { display: none; }
-    .vt-ma .ma-name.vt-ent-long { font-size: 34px; }
-    .vt-ma .ma-name.vt-ent-xlong { font-size: 18px; }
-    /* HARMATTAN — portrait −8, one acacia and one bird only (§8.7). */
-    .vt-ha .ha-frame { width: 124px; height: 124px; }
-    .vt-ha .ha-col { width: calc(100% - 146px); }
-    .vt-ha .ha-acacia2, .vt-ha .ha-calaos { display: none; }
-    .vt-ha .ha-name.vt-ent-long { font-size: 34px; }
-    .vt-ha .ha-name.vt-ent-xlong { font-size: 22px; }
-    /* BALAFON — portrait −8, the staff shortens (§8.7). */
-    .vt-ba .ba-medaille { width: 118px; height: 118px; }
-    .vt-ba .ba-col { width: calc(100% - 142px); }
-    .vt-ba .ba-portee { transform: scale(.75); transform-origin: left bottom; }
-    .vt-ba .ba-touche3 { display: none; }
-    .vt-ba .ba-name.vt-ent-long { font-size: 33px; }
-    .vt-ba .ba-name.vt-ent-xlong { font-size: 18px; }
-    /* SÉANCE — frame −8, reel filigree prunes (§8.7). */
-    .vt-se .se-frame { width: 134px; height: 196px; }
-    .vt-se .se-col { width: calc(100% - 158px); }
-    .vt-se .se-bobine { display: none; }
-    .vt-se .se-zone { font-size: 12px; line-height: 16px; }
-    .vt-se .se-ampoules { margin-top: 2px; }
-    .vt-se .se-ampoules { width: 102px; }
-    .vt-se .se-name.vt-ent-long { font-size: 32px; }
-    .vt-se .se-name.vt-ent-xlong { font-size: 16px; }
-    /* CAURIS — oval −8, two shells and a bubble prune (§8.6). */
-    .vt-ca .ca-frame { width: 124px; height: 190px; }
-    .vt-ca .ca-frame-ring { width: 138px; height: 204px; }
-    .vt-ca .ca-col { width: calc(100% - 148px); }
-    .vt-ca .ca-cauri3, .vt-ca .ca-cauri4 { display: none; }
-    .vt-ca .ca-bulles { height: 66px; background-image: radial-gradient(circle 3px at 7px 56px, rgba(200,240,222,.4) 98%, transparent), radial-gradient(circle 4px at 5px 32px, rgba(200,240,222,.34) 98%, transparent), radial-gradient(circle 5px at 8px 8px, rgba(200,240,222,.28) 98%, transparent); }
-    .vt-ca .ca-name.vt-ent-long { font-size: 33px; }
-    .vt-ca .ca-name.vt-ent-xlong { font-size: 18px; }
+    .vt-pr .pr-scene { min-height: 250px; }
+    .vt-pr .pr-panneau { width: 162px; }
+    .vt-pr .pr-col { width: calc(100% - 148px); }
+    .vt-pr .pr-name { font-size: clamp(24px, 9.4cqw, 28px); }
+    .vt-pr .pr-name.vt-ent-long { font-size: 21px; }
+    .vt-pr .pr-crest { width: 40px; height: 26px; }
+    .vt-pr .pr-bienv { font-size: 17px; }
+    .vt-te .te-scene { min-height: 238px; padding-top: 30px; }
+    .vt-te .te-frame { width: 44%; }
+    .vt-te .te-col { width: calc(100% - 114px); }
+    .vt-te .te-name { font-size: clamp(24px, 9.4cqw, 28px); }
+    .vt-te .te-name.vt-ent-long { font-size: 21px; }
+    .vt-te .te-patch { width: 188px; height: 200px; }
+    .vt-te .te-glyphes2 { display: none; }
+    .vt-te .te-bienv-t { font-size: 15px; }
+    .vt-te .te-nouv { width: 84px; height: 84px; }
+    .vt-et .et-scene { min-height: 196px; }
+    .vt-et .et-frame { width: 136px; height: 190px; }
+    .vt-et .et-col { width: calc(100% - 136px); }
+    .vt-et .et-name { font-size: clamp(24px, 9.4cqw, 28px); }
+    .vt-et .et-name.vt-ent-long { font-size: 21px; }
+    .vt-et .et-tours, .vt-et .et-serpentin { display: none; }
+    .vt-et .et-bienv-t { font-size: 15px; }
+    .vt-do .do-scene { min-height: 238px; }
+    .vt-do .do-frame { width: 138px; height: 208px; }
+    .vt-do .do-col { width: calc(100% - 138px); padding-left: 22px; }
+    .vt-do .do-name { font-size: clamp(20px, 8.4cqw, 24px); }
+    .vt-do .do-name.vt-ent-long { font-size: 17px; }
+    .vt-do .do-zone, .vt-do .do-verif { font-size: 11px; }
+    .vt-do .do-textile { width: 22px; }
+    .vt-do .do-fleurs, .vt-do .do-anneau { display: none; }
+    .vt-do .do-sceau-mono { width: 48px; height: 48px; }
+    .vt-do .do-bienv-t { font-size: 17px; }
+    .vt-ti .ti-scene { min-height: 236px; }
+    .vt-ti .ti-frame { width: 43%; }
+    .vt-ti .ti-col { width: calc(100% - 112px); padding-left: 20px; }
+    .vt-ti .ti-name { font-size: clamp(24px, 9.4cqw, 28px); }
+    .vt-ti .ti-name.vt-ent-long { font-size: 21px; }
+    .vt-ti .ti-liseré { width: 26px; }
+    .vt-ti .ti-couronne { width: 34px; height: 20px; }
+    .vt-ti .ti-bienv-t { font-size: 16px; }
+    .vt-ti .ti-nouv { width: 78px; height: 78px; }
+    /* Les trois libellés de confiance gardent leur sens : on rétrécit la
+       vignette et l'interligne, jamais le texte au point de le tronquer. */
+    .vt-pr .pr-cell-i, .vt-te .te-cell-i, .vt-et .et-cell-i, .vt-do .do-cell-i, .vt-ti .ti-cell-i { width: 30px; height: 30px; }
+    .vt-pr .pr-cell-l, .vt-te .te-cell-l, .vt-et .et-cell-l, .vt-do .do-cell-l, .vt-ti .ti-cell-l { font-size: 8.8px; line-height: 1.2; }
+    .vt-pr .pr-cell-s, .vt-te .te-cell-s, .vt-et .et-cell-s, .vt-do .do-cell-s, .vt-ti .ti-cell-s { font-size: 8.8px; line-height: 1.2; }
+    .vt-pr .pr-cell, .vt-te .te-cell, .vt-et .et-cell, .vt-do .do-cell, .vt-ti .ti-cell { gap: 6px; padding: 0 3px; }
   }
 `;
