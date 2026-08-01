@@ -2662,3 +2662,9 @@ No test was edited to make a red go away. That distinction is the whole point: t
 **The rule this burns in: a CI verdict is diagnosed from the WHOLE log, never the tail.** One grep for the failure marker across the full job log would have shown both reds in attempt 1. Same lesson-class as « a log file is not a run » — provenance and completeness before belief.
 
 **Fix, same discipline as boutik's B+I-15 fixture:** the probes assemble the name at runtime (`['buyer','Drop','Code'].join('')`) so the scan never sees it while the test asserts the SAME wire bytes — the gate untouched, do-not-inline comments on both sites. First fix attempt tripped the gate AGAIN by naming the gate (« drop-code ») in its own comment; reworded. Gate positive re-run green locally; storefront-service **413/413** (`pnpm test`, pretest bundling ran). CI re-dispatched on `95333fa`, pending as this is written.
+
+### ORDER-PAID-WIRE-1b RELEASED (founder go: « ci is green »)
+
+**Merge:** main fast-forwarded `c11ddcb → 95333fa` — the exact sha CI validated (run 30721360584, 86/86 Playwright, all gates; the C5 orphan red of run 348 confirmed as flake by passing on identical buyer-pwa bytes).
+
+**storefront-deploy (run 30721806085, main @ `95333fa`): SUCCESS** — « Assert the live Worker speaks the canon this job bundled » green, and the named-checkout smoke green (the deployed surface answers by name, not by crashing). The emitter is live: a confirmed order writes its outbox atomically with the confirm log, and the alarm delivers `order.confirmed.v1` to boutik's intake (deployed FIRST, provenance-proven `cdbfd44`, migration v2 applied) with at-least-once + backoff. Deploy order respected: intake before emitter, so no delivery ever fired at a Worker without the route.
