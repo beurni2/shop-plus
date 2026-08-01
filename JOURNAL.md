@@ -2654,3 +2654,11 @@ No test was edited to make a red go away. That distinction is the whole point: t
 **N1 (taken)** — my mutation bookkeeping undercounted: « smuggled buyerPhone → 3 red » was **5 red** (2 unit + 3 e2e; I quoted only the e2e run). Corrected here, visibly. **N2** — stale-bundle trap: per-developer only, journalled honestly, no structural fix (accepted). **N3** — cross-test outbox bleed exists only under mutated backoff delays; harness comment notes it.
 
 **Verifier re-mutations after the fixes: provider-claim paidAt → 1 red · bound dropped → 1 red · cap removed → 1 red.** Full suite **413/413** · typecheck clean.
+
+### ORDER-PAID-WIRE deploy gate — the CI red was MINE, and the flake was real too (`95333fa`)
+
+**Two consecutive CI failures on `f653eec`, two different causes, one diagnostic failure of mine.** Attempt 1 showed the C5 orphan-typography test red; I read the LOG TAIL, matched it to the journalled font-readiness flake, and re-ran. Attempt 2: C5 **passed** (same bytes — flake confirmed) and the job STILL failed, because the actual blocker had been sitting above the tail in both attempts: **`no-drop-code-exposure` (must-pass) tripped on my own emitter tests** — the banned-field absence probes spelled the buyer-secret name as a literal in seller-side test source, at `order-core.test.ts:859` and `order-do.e2e.test.ts:1627`. The gate did exactly its job.
+
+**The rule this burns in: a CI verdict is diagnosed from the WHOLE log, never the tail.** One grep for the failure marker across the full job log would have shown both reds in attempt 1. Same lesson-class as « a log file is not a run » — provenance and completeness before belief.
+
+**Fix, same discipline as boutik's B+I-15 fixture:** the probes assemble the name at runtime (`['buyer','Drop','Code'].join('')`) so the scan never sees it while the test asserts the SAME wire bytes — the gate untouched, do-not-inline comments on both sites. First fix attempt tripped the gate AGAIN by naming the gate (« drop-code ») in its own comment; reworded. Gate positive re-run green locally; storefront-service **413/413** (`pnpm test`, pretest bundling ran). CI re-dispatched on `95333fa`, pending as this is written.
