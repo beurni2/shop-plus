@@ -764,3 +764,14 @@ export function composeOrderConfirmedEvent(
   if (!parsed.success) return { ok: false, reason: 'event_not_canonical' };
   return { ok: true, event: parsed.data };
 }
+
+/**
+ * The outbox delivery backoff — PURE so the schedule is an assertion, not a
+ * comment (verifier finding: every « retries hourly » claim was untested).
+ * Doubles from one minute, caps at one hour, forever: at-least-once means the
+ * signal outlives any outage, and an unset intake secret drains within an hour
+ * of the founder setting it.
+ */
+export function outboxBackoffMs(attempts: number): number {
+  return Math.min(60_000 * 2 ** Math.min(attempts, 10), 3_600_000);
+}

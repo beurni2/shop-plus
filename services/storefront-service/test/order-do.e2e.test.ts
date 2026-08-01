@@ -51,6 +51,10 @@ const SUPPLY = [
     productName: 'Bazin riche',
     assetRefs: [] as string[],
     category: 'fashion_bags_fabrics',
+    // SELLER-TIER-WIRE-1 / ORDER-PAID-WIRE-1b: verified, so a DOOR order is
+    // constructible in this harness at all — the verifier proved Option-B
+    // emission was untestable without it.
+    sellerTier: 'verified',
   },
   {
     // THE ALL-DISTINCT FIXTURE: B 22 000 · C 1 500 · M 3 000 · D 1 000 ⇒ every
@@ -273,6 +277,28 @@ async function issueQuoteFor(m: Miniflare, shop: { slug: string; resellerId: str
   const text = await res.text();
   if (res.status !== 200) throw new Error(`setup: quote ${res.status} ${text}`);
   return safeJson(text) as { quoteId: string; buyerTotal: number; amountPaidAtCheckout: number };
+}
+
+/** The §6.1-eligible DOOR quote — tier and category come from SUPPLY above. */
+async function issueDoorQuoteFor(m: Miniflare, shop: { slug: string; resellerId: string; pid: string }) {
+  const res = await m.dispatchFetch('http://c/checkout/quote', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      slug: shop.slug,
+      pid: shop.pid,
+      paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+      zoneTo: 'Ouagadougou',
+      attributionResellerId: shop.resellerId,
+      requestKey: freshKey(),
+      payAtDoorContext: {
+        eligibility: { buyerRef: 'b1', state: 'allowed', buyerRefusalCount: 0, buyerRiskState: 'normal', requiredDeposit: 0 },
+      },
+    }),
+  });
+  const text = await res.text();
+  if (res.status !== 200) throw new Error(`setup: door quote ${res.status} ${text}`);
+  return safeJson(text) as { quoteId: string; amountPaidAtCheckout: number; amountDueAtDelivery: number };
 }
 
 async function reserve(m: Miniflare, quoteId: string, commandId: string, holderRef: string) {
@@ -1680,5 +1706,75 @@ describe('ORDER-PAID-WIRE-1b — order.confirmed.v1 is emitted on confirm, canon
     const ob = await outboxOf(mf, orderId);
     expect(ob.outbox?.status).toBe('unsendable');
     expect(ob.outbox?.reason).toBe('missing_fulfillment_fields');
+  });
+});
+
+/* ═══ ORDER-PAID-WIRE-1b, verifier round — the three cases it proved missing ═══ */
+
+describe('ORDER-PAID-WIRE-1b verifier round — Option B, the honest clock, the bounded envelope', () => {
+  it("OPTION B EMITS EXACTLY ONCE, ON THE CHECKOUT LEG, WITH ITS OWN MODE — and the door leg's webhook emits NOTHING", async () => {
+    fulfillmentPosts.length = 0;
+    fulfillmentRespond = 'ok';
+    // A REAL door order over HTTP: quote (D now, product at the door), reserve, order.
+    const shop = await seedShop(mf, '0070');
+    const quote = await issueDoorQuoteFor(mf, shop);
+    expect(quote.amountPaidAtCheckout).toBe(1_000); // D
+    expect(quote.amountDueAtDelivery).toBe(11_500); // B + M
+    const holderRef = 'holder-0070';
+    const held = await reserve(mf, quote.quoteId, 'cmd-reserve-0070', holderRef);
+    expect(held.status).toBe(200);
+    const created = await postOrder(mf, { quoteId: quote.quoteId, holderRef, commandId: 'cmd-order-0070' });
+    expect(created.status, created.text).toBe(200);
+    const orderId = `ord-${quote.quoteId}`;
+
+    // The CHECKOUT leg (D = 1 000) confirms → the ONE emission, door-mode.
+    const applied = await postWebhook(mf, webhookEvent(orderId, 1_000, 'att-0070'));
+    expect(applied.json['state'], applied.text).toBe('confirmed');
+    await waitForFulfillmentPosts(1);
+    expect(fulfillmentPosts).toHaveLength(1);
+    const parsed = OrderConfirmedEventSchema.safeParse(fulfillmentPosts[0]!.body);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.payload.paymentMode).toBe('DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
+    expect(parsed.data.payload.sellerBasePrice).toBe(10_000); // B — never D, never the door amount
+
+    // The DOOR leg (11 500) confirms → state moves, and STILL exactly one post.
+    const door = await postDoorWebhook(mf, doorWebhookEvent(orderId, 11_500, 'att-door-0070'));
+    expect(door.status, door.text).toBe(200);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(fulfillmentPosts).toHaveLength(1);
+  });
+
+  it("`paidAt` IS THIS WORKER'S OWN CLOCK — the provider's claimed serverTime does not reach the wire (canon pin)", async () => {
+    fulfillmentPosts.length = 0;
+    fulfillmentRespond = 'ok';
+    const { orderId } = await orderedQuote(mf, '0071');
+    const before = Date.now();
+    const event = webhookEvent(orderId, 12_500, 'att-0071') as { envelope: { serverTime: string } };
+    // The certified mock's claimed time is T0-era — days before "now". If the
+    // emitter trusted it, paidAt would be that claim; the canon pin says the
+    // CONFIRMED transition's own instant instead.
+    const claimed = event.envelope.serverTime;
+    await postWebhook(mf, event);
+    await waitForFulfillmentPosts(1);
+    const parsed = OrderConfirmedEventSchema.safeParse(fulfillmentPosts[0]!.body);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.payload.paidAt).not.toBe(claimed);
+    const paidAtMs = Date.parse(parsed.data.payload.paidAt);
+    expect(paidAtMs).toBeGreaterThanOrEqual(before - 1_000);
+    expect(paidAtMs).toBeLessThanOrEqual(Date.now() + 1_000);
+  });
+
+  it('A SIGNED WEBHOOK WITH A MEGABYTE command_id IS REFUSED BY NAME — nothing applied, nothing stored', async () => {
+    const { orderId } = await orderedQuote(mf, '0072');
+    const event = webhookEvent(orderId, 12_500, 'att-0072') as { envelope: { command_id: string } };
+    event.envelope.command_id = 'x'.repeat(1_048_576);
+    const res = await postWebhook(mf, event);
+    expect(res.status).toBe(422);
+    expect(res.json['error']).toBe('envelope_field_too_long'); // the route maps `reason` → `error`
+    // The order is untouched: a NORMAL webhook still confirms it afterwards.
+    const ok = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0072'));
+    expect(ok.json['state']).toBe('confirmed');
   });
 });

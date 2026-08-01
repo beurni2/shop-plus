@@ -13,6 +13,7 @@ import {
   chargeFaultInput,
   checkoutLegOf,
   composeOrderConfirmedEvent,
+  outboxBackoffMs,
   decideCreateOrder,
   decideDoorCharge,
   orderIdForQuote,
@@ -877,5 +878,17 @@ describe('composeOrderConfirmedEvent — canon-parsed before anything is stored 
       7,
     );
     expect(c).toEqual({ ok: false, reason: 'event_not_canonical' });
+  });
+});
+
+describe('outboxBackoffMs — the retry schedule, by value', () => {
+  it('doubles from one minute and CAPS at one hour, forever', () => {
+    expect(outboxBackoffMs(1)).toBe(120_000);
+    expect(outboxBackoffMs(2)).toBe(240_000);
+    expect(outboxBackoffMs(5)).toBe(1_920_000);
+    expect(outboxBackoffMs(6)).toBe(3_600_000); // the cap arrives
+    expect(outboxBackoffMs(10)).toBe(3_600_000);
+    expect(outboxBackoffMs(50)).toBe(3_600_000); // …and HOLDS: « retries hourly » is this line
+    expect(outboxBackoffMs(1_000)).toBe(3_600_000); // no overflow past the exponent clamp
   });
 });

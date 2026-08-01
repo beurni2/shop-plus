@@ -9,6 +9,7 @@ import {
   orderIdForQuote,
   parseStoredQuote,
   composeOrderConfirmedEvent,
+  outboxBackoffMs,
   rebuildOrderSpine,
   toBuyerOrderView,
   type ChargeFault,
@@ -68,8 +69,12 @@ const ORIGIN_KEY = 'order-origin';
  * append, so « the order is confirmed » and « boutik will be told » become true
  * together or not at all. Delivery is the ALARM's job, never the webhook
  * response's: the provider's call answers fast, and a boutik outage costs
- * nothing but delay. AT-LEAST-ONCE by construction (alarm persists across
- * process death); the intake absorbs redeliveries first-wins on `orderId`.
+ * nothing but delay. AT-LEAST-ONCE rests on TWO legs, named precisely
+ * (verifier correction — an earlier comment argued the wrong window): the
+ * alarm is a coalesced storage write beside the batch put, and the
+ * duplicate-webhook path re-arms any pending outbox found without an alarm —
+ * so neither a crash between the two writes nor a scheduling throw can strand
+ * the signal. The intake absorbs redeliveries first-wins on `orderId`.
  */
 const OUTBOX_KEY = 'order-confirmed-outbox';
 const LOG_KEY = 'order-input-log';
@@ -826,8 +831,7 @@ export class OrderDO {
     }
     const attempts = outbox.attempts + 1;
     await this.state.storage.put(OUTBOX_KEY, { ...outbox, attempts });
-    const delayMs = Math.min(60_000 * 2 ** Math.min(attempts, 10), 3_600_000);
-    await this.state.storage.setAlarm(Date.now() + delayMs);
+    await this.state.storage.setAlarm(Date.now() + outboxBackoffMs(attempts));
   }
 
   private async onProviderEvent(event: unknown): Promise<Response> {
@@ -848,12 +852,32 @@ export class OrderDO {
     const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
     const spine = rebuildOrderSpine(quote, origin, log);
 
+    // A SIGNED event's envelope fields are still UNBOUNDED strings (canon's
+    // envelope schema is `.min(1)` only), and `command_id` is about to be
+    // embedded in a durable log entry, the outbox, and the cross-app wire
+    // (verifier MINOR). A multi-megabyte value is not a payment truth anyone
+    // emits honestly — refuse it BY NAME before anything is applied or stored.
+    // 1024 is generous beyond any real aggregator's id.
+    {
+      const probe = PlatformEventSchema.safeParse(event);
+      if (probe.success && probe.data.envelope.command_id.length > 1024) {
+        return Response.json({ ok: false, reason: 'envelope_field_too_long' }, { status: 422 });
+      }
+    }
     const outcome = applyOrderInput(spine, { kind: 'provider', event });
     if (!outcome.applied) {
       return Response.json({ ok: false, reason: outcome.reason }, { status: statusForWebhook(outcome.reason) });
     }
     if (outcome.duplicate) {
-      // ABSORBED. Nothing appended, nothing charged, nothing moved.
+      // ABSORBED. Nothing appended, nothing charged, nothing moved — but if a
+      // PENDING outbox has lost its alarm (the narrow crash window between the
+      // batch put and `setAlarm`, or an alarm-scheduling throw), this redelivery
+      // is the recovery hook that re-arms it (verifier MINOR: belt-and-braces
+      // so at-least-once never rests on write-coalescing subtleties alone).
+      const stranded = await this.state.storage.get<{ status?: string }>(OUTBOX_KEY);
+      if (stranded?.status === 'pending' && (await this.state.storage.getAlarm()) === null) {
+        await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      }
       return Response.json({ ok: true, status: 'duplicate', state: spine.journey.state });
     }
 
@@ -865,7 +889,15 @@ export class OrderDO {
       // never produce a second confirmation command.
       command_id: `ord-confirm-${parsed.envelope.command_id}`,
       actor: ORDER_ACTOR,
-      serverTime: parsed.envelope.serverTime,
+      // THIS WORKER'S OWN CLOCK, not the provider's claim (verifier MAJOR,
+      // ORDER-PAID-WIRE-1b). The canon pin says `paidAt` is « the CONFIRMED
+      // transition's server time » — and the first cut stamped the WEBHOOK's
+      // `serverTime` here instead, a value the secret-holder writes freely and
+      // canon's timestamp type barely checks. The provider's claimed time still
+      // exists, untouched, inside the provider event in the log; what starts
+      // boutik's first-wins preparation clock is the one instant this object
+      // observed the confirmation itself.
+      serverTime: new Date().toISOString(),
     };
     const confirmed = applyOrderInput(spine, confirm);
     if (confirmed.applied) next = [...next, confirm];
@@ -880,7 +912,10 @@ export class OrderDO {
         ? { status: 'pending' as const, event: composition.event, attempts: 0 }
         : { status: 'unsendable' as const, reason: composition.reason, attempts: 0 };
       await this.state.storage.put({ [LOG_KEY]: next, [OUTBOX_KEY]: outbox });
-      if (composition.ok) await this.state.storage.setAlarm(Date.now());
+      // A scheduling throw must never 500 a confirmation that is already
+      // durably stored (verifier MINOR); the duplicate-webhook re-arm above is
+      // the recovery for an outbox left pending without an alarm.
+      if (composition.ok) await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
     } else {
       await this.state.storage.put(LOG_KEY, next);
     }
