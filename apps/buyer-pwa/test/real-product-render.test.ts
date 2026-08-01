@@ -189,3 +189,62 @@ describe('RESELLER-UX-2 — C1 photo gallery', () => {
     expect(flow).toMatch(/state\.galerie !== null \? renderGalerie\(m, state\.galerie\) : ''/);
   });
 });
+
+/* ---------------------------------------------- CATEGORY-WIRE-1 (canon v3.0.0) -- */
+
+/**
+ * The supplier's category reaching the screen where the buyer decides at the door.
+ *
+ * The chain under test is the LAST two hops of it — `VitrineProduct` (what the
+ * service's `/s/{slug}` hands the client) → `clienteProduitReel` → the §6.2 row
+ * `inspectionPour` picks. The earlier hops (boutik's producer → the supply
+ * projection → `joinVitrineProduct`) are asserted in their own repos/suites; what
+ * could only break HERE is the value being dropped, defaulted, or mapped.
+ */
+describe('CATEGORY-WIRE-1 — the supplier category reaches C8, verbatim or not at all', () => {
+  const STOREFRONT = { name: 'Chez Aïcha', slug: 'aicha-4821', theme: 'indigo' as const, zone: 'Rood Woko, Ouagadougou' };
+  const base: VitrineProduct = { pid: 'pv_1', name: 'Sandales en cuir', priceFcfa: 12_000, inStock: true, assetRefs: [] };
+
+  it('a wire category is CARRIED, not defaulted — two categories give two different rows', async () => {
+    const { inspectionPour, INSPECTION_PRUDENTE } = await import('../src/cliente/screens');
+    const shoes = clienteProduitReel(STOREFRONT, { ...base, category: 'shoes' }, undefined).produit;
+    const sealed = clienteProduitReel(STOREFRONT, { ...base, category: 'sealed_beauty_cosmetics' }, undefined).produit;
+
+    expect(shoes.category).toBe('shoes'); // verbatim, no mapping
+    expect(sealed.category).toBe('sealed_beauty_cosmetics');
+
+    // …and the row the buyer READS differs, which is the point of carrying it.
+    const shoesRow = inspectionPour(shoes.category);
+    const sealedRow = inspectionPour(sealed.category);
+    expect(shoesRow).not.toEqual(sealedRow);
+    expect(shoesRow).not.toEqual(INSPECTION_PRUDENTE);
+    expect(sealedRow).not.toEqual(INSPECTION_PRUDENTE);
+  });
+
+  it('NO CATEGORY ON THE WIRE ⇒ the key is ABSENT and the row is the conservative one', async () => {
+    const { inspectionPour, INSPECTION_PRUDENTE } = await import('../src/cliente/screens');
+    const produit = clienteProduitReel(STOREFRONT, base, undefined).produit;
+    // Absent, not `undefined`-valued: an older deployed Worker sends no category,
+    // and a key that exists with no value is the kind of thing a future
+    // `'category' in produit` check would read as « we have one ».
+    expect('category' in produit).toBe(false);
+    expect(inspectionPour(produit.category)).toEqual(INSPECTION_PRUDENTE);
+  });
+
+  it('AN UNRECOGNISED CATEGORY FAILS CLOSED — the pilot seed says `textile`, which §6.2 does not know', async () => {
+    const { inspectionPour, INSPECTION_PRUDENTE } = await import('../src/cliente/screens');
+    // Not a hypothetical: boutik's founder-#001 ProductVersion declares
+    // `category: 'textile'`, and canon deliberately holds no category floor, so
+    // an unknown value must land on the row that claims NOTHING rather than on a
+    // guess. Fail-closed is the whole reason no mapping table exists anywhere.
+    const produit = clienteProduitReel(STOREFRONT, { ...base, category: 'textile' }, undefined).produit;
+    expect(produit.category).toBe('textile'); // carried honestly, not swallowed
+    expect(inspectionPour(produit.category)).toEqual(INSPECTION_PRUDENTE);
+  });
+
+  it('the DEMO SEED carries no category — a demo product never promises at-door rights', () => {
+    for (const p of VITRINE_SEED.map(productFromSeed)) {
+      expect(p.category).toBeUndefined();
+    }
+  });
+});

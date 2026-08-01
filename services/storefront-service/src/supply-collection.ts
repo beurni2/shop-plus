@@ -61,7 +61,7 @@ export const SUPPLY_TARGET_BINDING = 'service-binding:OFFER';
 export const SUPPLY_COLLECTION_ROUTE = '/supply-projections';
 
 /** One offer as the reseller browse surface needs it — the canon projection's
- *  seven fields, unaltered. No zone: boutik strips location as supplier-identifying. */
+ *  eight fields, unaltered. No zone: boutik strips location as supplier-identifying. */
 export interface SupplyOffer {
   readonly productVersionId: string;
   readonly offerVersion: string;
@@ -70,6 +70,9 @@ export interface SupplyOffer {
   readonly available: number;
   readonly productName: string;
   readonly assetRefs: readonly string[];
+  /** CATEGORY-WIRE-1 (canon v3.0.0) — WHAT is sold, never WHO sells it, so it
+   *  belongs here beside `productName` while `zone` stays stripped. */
+  readonly category: string;
 }
 
 /** Why one item did not become an offer. Operator-facing — never shown to a reseller. */
@@ -258,6 +261,7 @@ export async function readSupplyCollection(
         available: p.available,
         productName: p.productName,
         assetRefs: [...p.assetRefs],
+        category: p.category,
       });
       continue;
     }

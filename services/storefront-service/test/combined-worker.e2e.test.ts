@@ -76,6 +76,7 @@ const SUPPLY = [
     available: 10,
     productName: 'Bazin',
     assetRefs: [] as string[],
+    category: 'fashion_bags_fabrics',
   },
   {
     productVersionId: 'pv-auth-1',
@@ -85,6 +86,7 @@ const SUPPLY = [
     available: 4,
     productName: 'Pagne wax',
     assetRefs: ['media/hero-square/cap-1', 'media/hero-vertical/cap-1'],
+    category: 'fashion_bags_fabrics',
   },
   {
     productVersionId: 'pv-epuise-1',
@@ -94,6 +96,7 @@ const SUPPLY = [
     available: 0, // the producer emits this happily — the buyer surface must not lie about it
     productName: 'Sac cuir',
     assetRefs: [] as string[],
+    category: 'fashion_bags_fabrics',
   },
   {
     productVersionId: 'pv-a2-1',
@@ -103,6 +106,7 @@ const SUPPLY = [
     available: 7,
     productName: 'Bogolan',
     assetRefs: ['media/hero-square/cap-a2', 'media/proof/cap-a2'],
+    category: 'fashion_bags_fabrics',
   },
 ];
 

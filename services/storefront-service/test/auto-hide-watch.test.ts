@@ -52,6 +52,7 @@ const freshEnvelope = (pv: string): unknown => ({
     available: 3,
     productName: 'Bazin riche brodé',
     assetRefs: [],
+    category: 'fashion_bags_fabrics',
   },
 });
 

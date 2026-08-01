@@ -152,6 +152,12 @@ export function clienteProduitReel(
       priceFcfa: product.priceFcfa, // HER frozen price, carried verbatim
       assetRefs: product.assetRefs,
       inStock: product.inStock,
+      // CATEGORY-WIRE-1 — the supplier's category reaches C8's §6.2 inspection
+      // row here. SPREAD-CONDITIONALLY so an absent one stays ABSENT rather than
+      // becoming an explicit `undefined`: `inspectionPour` treats both the same
+      // today, but a key that exists with no value is the kind of thing a future
+      // `'category' in produit` check reads as « we have one ».
+      ...(product.category !== undefined ? { category: product.category } : {}),
       ...(voiceDuree !== undefined ? { voiceDuree } : {}),
       ...(voiceUrl !== undefined ? { voiceUrl } : {}),
     },

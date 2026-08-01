@@ -66,11 +66,26 @@ import { consumeSupplyProjection } from '@shop-plus/supply-consumer/consumer';
  */
 export const SUPPLY_ROUTE_PREFIX = '/supply-projection/';
 
-/** What supply contributes to a buyer-visible product: its name, images and stock. */
+/** What supply contributes to a buyer-visible product: its name, images, stock
+ *  and category. */
 export interface ProductDescription {
   readonly productName: string;
   /** Bare display refs (canon `assetRefs`); `[0]` is the hero. May be empty. */
   readonly assetRefs: readonly string[];
+  /**
+   * CATEGORY-WIRE-1 (canon v3.0.0) — the SUPPLIER'S category, verbatim.
+   *
+   * REQUIRED here, not optional, and that is deliberate: canon makes it required
+   * on `SupplyProjection`, so a `fresh` verdict always has one. Typing it
+   * optional would invite a `?? undefined` somewhere downstream and re-open the
+   * silent-degradation hole the canon field was made required to close.
+   *
+   * IT IS DISPLAY DATA, NOT ECONOMICS, so it may ride to the buyer — the same
+   * test `productName` and `assetRefs` pass. What it must NEVER become is a
+   * value this service INVENTS: it is read from the projection or the product is
+   * not described at all.
+   */
+  readonly category: string;
   /**
    * PUBLISH-PRICE-1 — the supplier's live stock count, carried so the buyer record
    * can state stock TRUTHFULLY. `joinVitrineProduct` used to hardcode `inStock:
@@ -309,7 +324,7 @@ export class BoundSupplySource implements SupplySourcePort {
     const r = await this.fresh(productVersionId);
     if (r.verdict !== 'fresh') return undefined;
     const p = r.projection;
-    return { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available };
+    return { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available, category: p.category };
   }
 
   /** AUTO-HIDE-WATCH-1 — the same one fetch, surfaced with evidence semantics. */
@@ -320,7 +335,7 @@ export class BoundSupplySource implements SupplySourcePort {
     const p = r.projection;
     return {
       kind: 'present',
-      description: { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available },
+      description: { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available, category: p.category },
     };
   }
 
@@ -346,6 +361,8 @@ interface SupplyProjectionValue {
   readonly productName: string;
   readonly assetRefs: readonly string[];
   readonly available: number;
+  /** CATEGORY-WIRE-1 — canon v3.0.0, required on the projection. */
+  readonly category: string;
   readonly basePrice: number;
   readonly offerVersion: string;
   readonly resellerCommission: number;

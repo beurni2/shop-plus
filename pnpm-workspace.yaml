@@ -23,22 +23,29 @@ onlyBuiltDependencies:
 # (canon v0.5.0; founder ruling: tags are unreliable, the release ref is
 # the commit).
 overrides:
-  # @platform/contracts re-pinned to canon v2.6.0 (sha 7767b56) — ENTETES-M:
-  # STOREFRONT_HEADER_STYLES grows eleven → thirty-one (séries 2, 3 and 5 of
-  # « Design_brief_for_Claude_4.zip », founder-authorized 2026-07-31), appended
-  # after the eleven so every stored value keeps its exact position.
-  # Additive MINOR over v2.3.0 (ENTETES-E0, sha 08d2bd2 — the Beurni Boss five,
-  # whose KEYS now draw the série 4 contract units). @platform/kernel-types
-  # stays at 642f849: its content is unchanged through v2.4.0 (version-bump-only
-  # commits), and the override routes contracts' transitive kernel-types dep
-  # there regardless.
+  # @platform/contracts re-pinned to canon v3.0.0 (sha 767e6d0) — CATEGORY-WIRE-1,
+  # founder-authorized 2026-08-01: `SupplyProjection` gains `category`, REQUIRED,
+  # so this service can pick the §6.2 at-door inspection row and stop reading a
+  # category off the buyer's own checkout request (§6.1). MAJOR, because the
+  # producer's wire shape changes — the same class as v2.0.0's
+  # productName/assetRefs. @platform/kernel-types moves WITH it this time
+  # (contracts@3.0.0 declares kernel-types@3.0.0); its content is unchanged, so
+  # the move only stops the override from asserting a version that is not there.
   #
   # THIS OVERRIDE IS THE REAL PIN. Editing the per-package dependency strings
   # alone changes nothing: pnpm routes every resolution through here, so a
   # repin that misses this line silently keeps the OLD canon while every
   # package.json claims the new one.
-  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#642f849b9b3f93c2eb4f6c0de9421a9081443a6e&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#7767b5666b881ebbaedf2b9a0a74da8474e2b931&path:packages/contracts"
+  #
+  # THAT IS NOT HYPOTHETICAL — boutik-plus hit it in this very slice. Its
+  # package.jsons were repinned, `pnpm install` succeeded, and `typecheck`
+  # passed 13/13, while the stale override held @platform/contracts a MAJOR
+  # behind: the wire TYPE came from @platform/certification (which had moved)
+  # and the RUNTIME schema from @platform/contracts (which had not). Types said
+  # eight fields, the validator refused the eighth, 21 tests failed. After
+  # touching any pin, verify the INSTALLED package, not the manifest.
+  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#767e6d0b5aacd66acf6e893346814192402dd0c8&path:packages/kernel-types"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#767e6d0b5aacd66acf6e893346814192402dd0c8&path:packages/contracts"
   # @platform/ui-tokens is UNIFIED at canon v0.9.9 (1c98ad1, + Storefront aggregate fields WO-5.13) — WO-7.0/WO-7.2b/SP#001-A
   # killed the WO-5.3 per-app skew and re-pinned the whole workspace to the current
   # release in one bump. reseller-app runs its visual layer on the Grand Teint API

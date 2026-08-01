@@ -38,6 +38,7 @@ const SUPPLY = [
     available: 9,
     productName: 'Bazin riche',
     assetRefs: [] as string[],
+    category: 'fashion_bags_fabrics',
   },
 ];
 

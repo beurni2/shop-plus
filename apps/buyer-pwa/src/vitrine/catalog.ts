@@ -69,6 +69,26 @@ export interface VitrineProduct {
   readonly inStock: boolean;
   /** Bare display refs; `[0]` is the hero. Empty ⇒ the woven no-image state. */
   readonly assetRefs: readonly string[];
+  /**
+   * CATEGORY-WIRE-1 — the supplier's category (canon v3.0.0
+   * `SupplyProjection.category`), carried with zero transformation like
+   * `assetRefs`. It decides which §6.2 at-door inspection row the buyer is shown
+   * on C8.
+   *
+   * ═══ OPTIONAL HERE, THOUGH THE SERVER'S RECORD REQUIRES IT ═══
+   *
+   * Two sources legitimately have none: an OLDER deployed storefront-service
+   * (the field ships before every Worker is redeployed) and the DEMO seed, which
+   * has no supplier and therefore no supplier's category. Both must keep
+   * rendering the product — a buyer losing a tile because a field is young would
+   * be a worse failure than the one this field fixes.
+   *
+   * ABSENT MAY ONLY WITHHOLD, NEVER REVEAL: `inspectionPour(undefined)` returns
+   * the conservative row, which claims nothing category-specific, and §6.1
+   * refuses Option B on an unknown category. Both directions fail closed, so
+   * there is no way for a missing category to promise the buyer anything.
+   */
+  readonly category?: string;
 }
 
 /**
@@ -78,5 +98,9 @@ export interface VitrineProduct {
  * decoration the renderer no longer reads (BUYER-REAL-HONESTY-1).
  */
 export function productFromSeed(p: VitrineSeedProduct): VitrineProduct {
+  // NO `category`, deliberately. The seed has no supplier, so it has no
+  // supplier's category, and inventing a plausible one here would put a §6.2
+  // inspection promise on a demo product — the buyer would read real at-door
+  // rights off invented data. Omitted ⇒ the conservative row.
   return { pid: p.pid, name: p.name, priceFcfa: p.priceFcfa, inStock: p.inStock, assetRefs: [] };
 }

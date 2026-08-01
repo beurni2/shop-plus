@@ -24,7 +24,7 @@ function liveCustomerSurface() {
   // productName + assetRefs now travel ON the wire (canon v2.0.0); the surface reads
   // them from the parsed projection — no hand-passed name. A single opaque,
   // productVersionId-keyed ref proves the images path carries no supplier identity.
-  src.set({ productVersionId: 'pv_o1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: ['asset/pv_o1/cover'], asOf: '2026-07-14T11:59:00.000Z', version: 1 });
+  src.set({ productVersionId: 'pv_o1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: ['asset/pv_o1/cover'], category: 'fashion_bags_fabrics', asOf: '2026-07-14T11:59:00.000Z', version: 1 });
   const verdict = consumeSupplyProjection(src, 'pv_o1', NOW);
   if (verdict.status !== 'fresh') throw new Error('fixture projection must be fresh');
   return customerSurfaceFromSupply(verdict.projection, { resellerMarkup: 1_200, deliveryFee: 1_000, paymentMode: 'FULL_PREPAY' });

@@ -48,6 +48,7 @@ const SUPPLY = [
     available: 9,
     productName: 'Bazin riche',
     assetRefs: [] as string[],
+    category: 'fashion_bags_fabrics',
   },
   {
     // THE ALL-DISTINCT FIXTURE: B 22 000 · C 1 500 · M 3 000 · D 1 000 ⇒ every
@@ -60,6 +61,7 @@ const SUPPLY = [
     available: 9,
     productName: 'Ensemble brodé',
     assetRefs: [] as string[],
+    category: 'fashion_bags_fabrics',
   },
 ];
 

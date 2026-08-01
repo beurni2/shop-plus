@@ -221,7 +221,17 @@ export function demoStorefrontPort(variant: 'default' | 'customised' | 'empty' |
 
 /* --------------------------------------------------------- REAL (partial) -- */
 
-/** A described product needs the five fields the tile renders — nothing else. */
+/**
+ * A described product needs the five fields the tile renders — nothing else.
+ *
+ * CATEGORY-WIRE-1 does NOT add a sixth requirement, on purpose. `category`
+ * arrives from canon v3.0.0, so an older deployed Worker omits it; requiring it
+ * would make every product on that Worker fail this check and VANISH from her
+ * page. A young field must never be able to empty a shop. What is checked is
+ * that a PRESENT category is a string — a number or an object would flow into
+ * `inspectionPour` and lose its lookup silently, so it is rejected here and the
+ * product falls back to the conservative row instead.
+ */
 function looksLikeProduct(v: unknown): v is VitrineProduct {
   if (v === null || typeof v !== 'object') return false;
   const p = v as VitrineProduct;
@@ -230,7 +240,8 @@ function looksLikeProduct(v: unknown): v is VitrineProduct {
     typeof p.name === 'string' &&
     typeof p.priceFcfa === 'number' &&
     typeof p.inStock === 'boolean' &&
-    Array.isArray(p.assetRefs)
+    Array.isArray(p.assetRefs) &&
+    (p.category === undefined || typeof p.category === 'string')
   );
 }
 

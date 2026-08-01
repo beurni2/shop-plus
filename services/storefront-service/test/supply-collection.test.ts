@@ -33,6 +33,7 @@ const BAZIN = {
     available: 10,
     productName: 'Bazin',
     assetRefs: [],
+    category: 'fashion_bags_fabrics',
   },
 };
 
@@ -143,7 +144,7 @@ describe('readSupplyCollection — the reason is PRESERVED, never collapsed', ()
     expect(result.refusals[0]?.reason).toBe('not_a_read_model');
   });
 
-  it('the REAL product parses to the seven canon fields, unaltered', async () => {
+  it('the REAL product parses to the eight canon fields, unaltered', async () => {
     const result = await readSupplyCollection(bound({ asOf: NOW, items: [BAZIN] }), NOW);
     expect(result.offers).toEqual([
       {
@@ -154,6 +155,7 @@ describe('readSupplyCollection — the reason is PRESERVED, never collapsed', ()
         available: 10,
         productName: 'Bazin',
         assetRefs: [],
+        category: 'fashion_bags_fabrics',
       },
     ]);
   });
@@ -164,7 +166,11 @@ describe('readSupplyCollection — the reason is PRESERVED, never collapsed', ()
     expect(keys).not.toContain('zone');
     expect(keys).not.toContain('supplierId');
     expect(keys.sort()).toEqual(
-      ['assetRefs', 'available', 'basePrice', 'offerVersion', 'productName', 'productVersionId', 'resellerCommission'].sort(),
+      // CATEGORY-WIRE-1 — `category` joins the allowlist at canon v3.0.0. It is
+      // the product's own category, not the supplier's: it names WHAT is being
+      // sold, never WHO sells it, so it belongs on the buyer-safe side of this
+      // assertion beside `productName`. `zone` and `supplierId` stay out.
+      ['assetRefs', 'available', 'basePrice', 'category', 'offerVersion', 'productName', 'productVersionId', 'resellerCommission'].sort(),
     );
   });
 
@@ -282,6 +288,7 @@ describe('RESELLER-PHOTOS-1 — the browse wire carries ABSOLUTE photo urls', ()
                 available: 3,
                 productName: 'Bazin',
                 assetRefs: ['media/hero-square/cap-1', 'media/proof/cap-1'],
+                category: 'fashion_bags_fabrics',
               },
             },
           ],

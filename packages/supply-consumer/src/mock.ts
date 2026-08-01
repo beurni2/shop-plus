@@ -13,6 +13,11 @@ import type { SupplyProjectionPort } from './consumer.js';
  * economics PLUS `productName` + `assetRefs`, both REQUIRED. The mock now emits
  * all seven; a five-field emission would fail the strict `.strict()` parse, which
  * is the point of the required-field bump.
+ *
+ * CATEGORY-WIRE-1: canon v3.0.0 makes it EIGHT, adding `category` — also
+ * REQUIRED. This mock emits it because it stands in for boutik's producer, and a
+ * mock that emitted the old shape would let this consumer's tests pass against a
+ * wire that no longer exists. The strict parse is what keeps the two honest.
  */
 export interface MockSupplyConfig {
   readonly productVersionId: string;
@@ -27,6 +32,9 @@ export interface MockSupplyConfig {
   /** Bare display image refs. EMPTY is the honest normal case (the producer has no
    * image source yet, so `[]` is a true statement) — never a fabricated placeholder. */
   readonly assetRefs: readonly string[];
+  /** The product's own category (CATEGORY-WIRE-1) — required on the wire since
+   *  canon v3.0.0. A free string: canon holds no category floor. */
+  readonly category: string;
   /** The freshness clock — the consumer blocks when `now − asOf` exceeds the threshold. */
   readonly asOf: string;
   readonly version: number;
@@ -52,6 +60,7 @@ export class MockSupplyProjectionSource implements SupplyProjectionPort {
       available: cfg.available,
       productName: cfg.productName,
       assetRefs: [...cfg.assetRefs],
+      category: cfg.category,
     };
     if (cfg.plantLeakKey !== undefined) value[cfg.plantLeakKey] = '+226 70 00 00 00'; // a planted supplier phone
     return { version: cfg.version, asOf: cfg.asOf, value };

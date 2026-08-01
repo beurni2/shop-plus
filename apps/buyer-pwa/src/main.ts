@@ -785,10 +785,14 @@ if (app) {
     const produit = {
       ...base,
       /**
-       * §6.2 — the harness lever for the inspection row. NOTHING carries a
-       * product category to the buyer yet (the service's `CustomerProductView`
-       * has it and has no route), so this is how the three rows are walked on a
-       * device until that wiring exists. An unknown value falls to the
+       * §6.2 — the harness lever for the inspection row, on the HARNESS product.
+       *
+       * CATEGORY-WIRE-1 wired the REAL path (canon v3.0.0 → boutik's producer →
+       * the supply projection → `/s/{slug}` → `clienteProduitReel`), so a real
+       * signed link now carries the supplier's own category and needs no lever.
+       * This one stays for the harness product, which has no supplier and so no
+       * category to carry — it is how the three §6.2 rows are still walked on a
+       * device without a live offer-service. An unknown value falls to the
        * conservative row exactly as an absent one does.
        */
       ...(params.get('cat') !== null ? { category: params.get('cat') as string } : {}),

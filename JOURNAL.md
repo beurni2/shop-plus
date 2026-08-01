@@ -2394,3 +2394,35 @@ A comment that says a risk is handled is worse than no comment. Neither edit clo
 **④ THE ASK, AND MY RECOMMENDATION.** Add `category: TrimmedNonEmptyString` to `SupplyProjectionSchema` — additive, `.strict()`-safe, byte-matching `ProductVersionSchema.category`, zero transformation, same pattern as `productName`/`assetRefs`, canon minor bump. That single field feeds **both** consumers: §6.2's inspection row on the buyer's door screen (the task as issued) and §6.1's `category` from server truth instead of the wire. **`sellerTier` should leave the wire in the same slice** — it needs no canon change, only the resolved listing's supplier.
 
 **The cost the founder has to weigh, stated plainly:** hardening the wire with no producer in place would make Option B refuse again everywhere, undoing the practical effect of his 2026-08-01 ruling. Carrying the field first, then hardening, keeps Option B open AND makes the gate real. That ordering is the recommendation. **⏳ Not mine to close — §7: « Any change to `contracts/` shapes … these are canon, versioned, and identical across three specs. »**
+
+---
+
+## 2026-08-01 — CATEGORY-WIRE-1 (consumer half): the supplier's category reaches the screen where she decides
+
+**FOUNDER-APPROVED** (« Cannon field Approved build it »). The wire is now END-TO-END: `ProductVersion.category` (canon) → `buildSupplyProjection` (boutik) → `SupplyProjection.category` (canon v3.0.0, REQUIRED) → `BoundSupplySource.describe` → `joinVitrineProduct` → `VitrineProductRecord` → `GET /s/{slug}` → the buyer's `looksLikeProduct` → `clienteProduitReel` → `ClienteProduit.category` → `inspectionPour` → **the §6.2 at-door inspection row on C8.**
+
+**REQUIRED ON THE SERVER, OPTIONAL ON THE CLIENT — the one design decision worth stating.** `ProductDescription`, `SupplySide`, `SupplyOffer` and `VitrineProductRecord` all type it REQUIRED: canon guarantees it, and typing it optional server-side would invite a `?? undefined` that quietly re-opens the hole the required canon field closed. The BUYER types it optional, because two sources legitimately have none — an **older deployed Worker** (this field ships before every Worker is redeployed) and the **demo seed** (no supplier ⇒ no supplier's category). `looksLikeProduct` therefore does NOT require it: a young field must never be able to empty a shop. It only rejects a category that is present and not a string.
+
+**ABSENT MAY ONLY WITHHOLD, NEVER REVEAL** — the same law as `buyerDropCode`. `inspectionPour(undefined)` → `INSPECTION_PRUDENTE`, which claims nothing; §6.1 refuses Option B on an unknown category. Both directions fail closed, so no missing category can promise a buyer anything. `clienteProduitReel` spreads the key CONDITIONALLY so an absent category stays absent rather than becoming an explicit `undefined` — a key that exists with no value is what a future `'category' in produit` reads as « we have one ».
+
+**NO MAPPING TABLE EXISTS ANYWHERE, and that is load-bearing.** The supplier's value travels verbatim from boutik to the buyer's screen. Shop+ ALLOWLISTS what §6.2 names and falls back on the rest. The pilot seed proves it: founder-#001 is `category: 'textile'`, which §6.2 does not know, so a real end-to-end product will carry a real category AND still show the cautious row with no Option B. Correct, and pinned by a test that says so by name.
+
+**FOUR TESTS THAT COULD ONLY FAIL IF THE VALUE STOPPED FLOWING** (a test that merely tolerates a new field asserts nothing):
+- server: an **arbitrary** category (`'un-truc-que-personne-ne-connait'`, hardcoded nowhere) survives `joinVitrineProduct` unchanged — a default or a normaliser could not pass it;
+- server: two records differing ONLY in category differ ONLY there (the category rides alone — price, stock, identity unmoved);
+- server: a listing object *pretending* to carry a category loses to supply — the reseller sets a markup, not what a product IS;
+- buyer: two categories give two DIFFERENT §6.2 rows, both distinct from the conservative one; absent ⇒ key absent + conservative row; `'textile'` ⇒ carried honestly AND conservative row; every demo-seed product has no category.
+
+**MUTATION-PROVEN, both halves.** Defaulting `category: supply.category` → a constant: **3 server tests RED**. Dropping the conditional spread in `clienteProduitReel`: **2 buyer tests RED**. Restored and re-verified green.
+
+**THE OVERRIDE TRAP, AVOIDED HERE BECAUSE BOUTIK HIT IT FIRST.** `pnpm-workspace.yaml`'s `overrides:` is the real pin; its comment already said so in capitals. I repinned it, then **verified the INSTALLED package** (`3.0.0`, schema keys include `category`) before writing a line — the check boutik's half taught. The workspace comment now carries that incident.
+
+**Pinned assertions moved deliberately, never loosened:** the SUPPLY-WIRE-1 envelopes ×4 · the AUTO-HIDE presence description · `readSupplyCollection`'s « seven → eight canon fields » · the buyer-record key allowlist (`['assetRefs','category','inStock','name','pid','priceFcfa']`) · the reseller-browse key allowlist, with a note that `category` names WHAT is sold and `zone` still names WHO, so one belongs and one stays stripped · the certified supply-consumer mock.
+
+**Evidence:** `pnpm -w typecheck` 19/19 · `pnpm -w test` **23/23 tasks, 0 failures** (buyer-pwa **738** ↑4, storefront-service **379** ↑3, supply-consumer 17, commerce-core 89, reseller-app 375) · `run-gates.sh` **ALL GATES GREEN** (exit 0) · **Playwright 86/86 on a rebuilt bundle**.
+
+**⚠ TOOLING NOTE (environment, not code):** Playwright resolved 1.61.1 wants Chromium build 1228; this container ships 1194. `playwright.config.ts` already anticipated exactly this — `PW_EXECUTABLE` overrides the binary — so the run used `PW_EXECUTABLE=/opt/pw-browsers/chromium`. Nothing environment-specific was committed. The pin was 1.61.1 at HEAD too; the repin did not move it.
+
+**⚠ STILL FOUNDER-GATED — DEPLOY ORDER, and it matters more than usual.** A live offer-service still emits the SEVEN-field projection. This service parses that wire with the STRICT canon schema, so a shop-plus deploy BEFORE boutik's would make every projection un-parseable → every product `undescribable` → **omitted from every buyer page**. The order is: canon (done) → boutik producer (done) → **deploy offer-service** → **deploy storefront-service** → buyer PWA. Two deploys, each needing its own go-ahead per the standing rule. NOT deployed in this slice.
+
+**NEXT, and NOT done here:** §6.1 still reads `sellerTier`, `category` and the buyer's eligibility record off the checkout request body. The category half is now fixable — the service can read it from the listing it already resolves. `sellerTier` has no server-side source that I have verified; I will report rather than invent one.
