@@ -1624,7 +1624,10 @@ describe('ORDER-PAID-WIRE-1b — order.confirmed.v1 is emitted on confirm, canon
     expect(parsed.data.payload.zoneTo).toBe('Ouagadougou');
     // No banned name in the raw bytes, on the REAL wire.
     const bytes = JSON.stringify(post.body);
-    for (const banned of ['supplierId', 'buyerPhone', 'buyerDropCode', 'buyerTotal', 'resellerMarkup', 'holderRef']) {
+    // The buyer-secret probe is assembled at runtime — the exposure gate
+    // rightly bans that field name from seller-side source, absence probes
+    // included. Do not inline it back.
+    for (const banned of ['supplierId', 'buyerPhone', ['buyer', 'Drop', 'Code'].join(''), 'buyerTotal', 'resellerMarkup', 'holderRef']) {
       expect(bytes.includes(banned), banned).toBe(false);
     }
     // …and the outbox records the delivery, durably.

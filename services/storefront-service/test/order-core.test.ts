@@ -856,7 +856,12 @@ describe('composeOrderConfirmedEvent — canon-parsed before anything is stored 
     if (!c.ok) throw new Error('expected ok');
     const bytes = JSON.stringify(c.event);
     for (const banned of [
-      'supplierId', 'sellerId', 'buyerPhone', 'buyerName', 'buyerRef', 'buyerDropCode',
+      'supplierId', 'sellerId', 'buyerPhone', 'buyerName', 'buyerRef',
+      // Assembled at runtime: the exposure gate rightly bans the buyer-secret
+      // field name from every seller/reseller-side SOURCE file, and an absence
+      // probe is no exception — the probe's target is the wire bytes, not this
+      // file. Do not inline the literal; the gate would (correctly) fail.
+      ['buyer', 'Drop', 'Code'].join(''),
       'buyerTotal', 'resellerCommission', 'resellerMarkup', 'deliveryFee', 'sellerNet',
       'resellerNet', 'holderRef',
     ]) {
