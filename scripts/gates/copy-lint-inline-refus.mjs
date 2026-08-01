@@ -125,6 +125,31 @@ const PAIEMENT_FIELDS = {
 };
 
 /**
+ * ═══ SP3.3c — C6'S POST-PAYMENT COPY ═══
+ *
+ * The sentences a buyer reads AFTER she has tapped Payer, while the order sits
+ * on the service and the operator has not answered — and the sentence she reads
+ * when the payment did not go through. Both states were built by SP3.3c to
+ * replace a `setTimeout` that announced a confirmation nobody had given, so
+ * they are the newest money copy in the app and the least protected by habit.
+ *
+ * NO FIELD HERE TAKES A PLACEHOLDER, and that is a rule rather than an
+ * accident: there is no payment in either state, so there is no amount to name.
+ * A `{X}` appearing in any of these is a figure being introduced into a
+ * sentence about money that did not move — the gate refuses it by giving every
+ * field an EMPTY `fills`.
+ */
+const CONFIRMATION_FIELDS = {
+  attenteTitre: { screenClass: 'label', fills: [] },
+  attenteCorps: { screenClass: 'checkout', fills: [] },
+  attenteChip: { screenClass: 'label', fills: [] },
+  attenteAction: { screenClass: 'label', fills: [] },
+  echecTitre: { screenClass: 'label', fills: [] },
+  echecCorps: { screenClass: 'checkout', fills: [] },
+  echecAction: { screenClass: 'label', fills: [] },
+};
+
+/**
  * §6.1's own notation, one server amount each — and the allowlist is PER FIELD,
  * not per table.
  *
@@ -397,6 +422,50 @@ if (pay === null) {
   }
 }
 
+/* ════════ SP3.3c — C6's post-payment copy, on the same terms ═════════════ */
+
+let confirmationCount = 0;
+const conf = /export const CONFIRMATION\s*=\s*\{([\s\S]*?)\n\}/.exec(src);
+if (conf === null) {
+  problems.push(
+    'the CONFIRMATION block is missing — C6 tells a buyer whether her payment went through, and those ' +
+      'sentences would ship unlinted. Re-point this gate, never delete it.',
+  );
+} else {
+  const fields = fieldsOf(conf[1], 'CONFIRMATION');
+  for (const required of Object.keys(CONFIRMATION_FIELDS)) {
+    if (!(required in fields)) problems.push(`CONFIRMATION: missing field « ${required} » (C6 post-payment copy)`);
+  }
+  for (const present of Object.keys(fields)) {
+    if (present in CONFIRMATION_FIELDS) continue;
+    problems.push(
+      `CONFIRMATION: unknown field « ${present} » — add it to CONFIRMATION_FIELDS with its screen ` +
+        'class so it gets linted; nothing here may go unread',
+    );
+  }
+  for (const [field, { screenClass, fills }] of Object.entries(CONFIRMATION_FIELDS)) {
+    if (!(field in fields)) continue;
+    const v = readValue(fields[field]);
+    if (v.kind !== 'text') {
+      problems.push(`CONFIRMATION.${field}: ${v.why ?? 'null is not copy'}`);
+      continue;
+    }
+    if (v.text === '') {
+      problems.push(`CONFIRMATION.${field}: empty — a state with no sentence is a state with no honesty`);
+      continue;
+    }
+    for (const brace of v.text.match(/\{[^}]*\}/gu) ?? []) {
+      if (fills.includes(brace)) continue;
+      problems.push(
+        `CONFIRMATION.${field}: « ${brace} » is filled by nothing — no field here takes a placeholder, ` +
+          'because neither state has a payment and therefore has no amount to name',
+      );
+    }
+    entries.push({ key: `cliente.confirmation.${field}.${n++}`, fr: v.text, register: 'money', screenClass });
+    confirmationCount += 1;
+  }
+}
+
 /* ══ §6.1: « séquestre »/« escrow » appear NOWHERE a buyer can read them ═══ */
 
 /**
@@ -465,6 +534,7 @@ for (const file of scanned) {
 
 console.log(
   `  ${views.length} refusal view(s) · ${paiementCount} §6.1 payment string(s) · ` +
+    `${confirmationCount} C6 post-payment string(s) · ` +
     `${entries.length} user-facing strings extracted from ${rel} · ${scanned.length} file(s) scanned`,
 );
 
@@ -518,12 +588,14 @@ if (lintFailed || scanHits.length > 0) {
  */
 console.log('\ncopy-lint-inline-refus: OK');
 console.log(
-  `  LINTED (French Voice): the REFUS table (${views.length} views), MESSAGES, and the §6.1 PAIEMENT ` +
-    `table (${paiementCount} strings) — ${entries.length} strings from ${rel}.`,
+  `  LINTED (French Voice): the REFUS table (${views.length} views), MESSAGES, the §6.1 PAIEMENT ` +
+    `table (${paiementCount} strings) and the C6 CONFIRMATION table (${confirmationCount} strings) ` +
+    `— ${entries.length} strings from ${rel}.`,
 );
 console.log(
   '  NOT LINTED, and named so the gap is visible: every OTHER inline string in that module — the bill ' +
-    'labels, the C5 quote line, the operator screens, C6–C9. This gate reads three tables, not the file. ' +
+    'labels, the C5 quote line, the operator screens, and C6–C9 outside CONFIRMATION. This gate reads ' +
+    'four tables, not the file. ' +
     'The cure is the i18n catalog migration, which is its own slice.',
 );
 console.log(`  SCANNED for the two words §6.1 forbids: ${scanned.length} file(s) — ${scanDescription}.`);

@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { clienteQuoteFromServer } from '../src/cliente/quote-model';
 import type { ServerQuote } from '../src/cliente/quote-port';
 import {
-  MESSAGES, PAIEMENT, renderC5, renderC6, splitFor,
+  CONFIRMATION, MESSAGES, PAIEMENT, renderC5, renderC6, splitFor,
   type C5State, type ClienteProduit, type ClienteQuote,
 } from '../src/cliente/screens';
+import { etatDeC6, SUIVI_PAIEMENT_MS } from '../src/cliente/flow';
 import { composeQuote, harnessFrancs, ROBE } from '../src/cliente/seed';
 
 /**
@@ -403,6 +404,125 @@ describe('SP3.3b2 — the confirmation quotes the server\'s split, or no figure 
         expect(visible(renderC6(ROBE, { confirmState, paid }))).not.toContain('FCFA');
       }
     }
+  });
+});
+
+/* ═══ 2bis · SP3.3c — C6 STOPS BEING A CLOCK AND STARTS BEING THE ORDER ═══ */
+
+describe('SP3.3c — etatDeC6: only the server can say « confirmé »', () => {
+  /**
+   * THE CANON ORDER STATUSES, verbatim from `@platform/contracts` `ORDER_STATUSES`.
+   * Listed here so this test fails LOUDLY the day the canon grows a state: a new
+   * status this app has never heard of must land on the waiting screen, and an
+   * allowlist nobody re-reads is how a new state quietly becomes a confirmation.
+   */
+  const CANON: readonly string[] = [
+    'quote_issued', 'reserved', 'payment_pending', 'paid', 'confirmed', 'payment_failed', 'cancelled', 'refunded',
+  ];
+
+  it('« confirmed » is the ONLY status that prints a confirmation', () => {
+    const confirming = CANON.filter((s) => etatDeC6(s) === 'confirmed');
+    expect(confirming).toEqual(['confirmed']);
+  });
+
+  it('« paid » does NOT confirm — an order observed at `paid` is one confirmation REFUSED', () => {
+    // The webhook path advances to `paid` and confirms in the same request, so a
+    // `paid` an HTTP read can actually SEE is an order whose `confirmOrder`
+    // answered `no_funded_checkout_leg`. Reading it as « confirmé » would print
+    // the confirmation for exactly the orders the vault refused to fund.
+    expect(etatDeC6('paid')).toBe('attente');
+  });
+
+  it('`payment_failed` is the ONLY failure — there is no generic failed terminal', () => {
+    expect(CANON.filter((s) => etatDeC6(s) === 'echec')).toEqual(['payment_failed']);
+  });
+
+  it('an UNKNOWN status fails closed onto the waiting screen, never onto a confirmation', () => {
+    for (const unknown of ['', 'settled', 'complete', 'PAID', 'confirmed_at_door', 'ok', 'succeeded']) {
+      expect(etatDeC6(unknown), `« ${unknown} » was allowed to mean something`).toBe('attente');
+    }
+  });
+});
+
+describe('SP3.3c — the two new C6 states say what is true and no more', () => {
+  const Q: ClienteQuote = {
+    produitFcfa: 11_500,
+    feeToday: 1_000, feeTomorrow: 1_000,
+    totalToday: 12_500, totalTomorrow: 12_500,
+    splitsToday: { A: { paidNow: 12_500, dueAtDelivery: 0 }, B: { paidNow: 1_000, dueAtDelivery: 11_500 } },
+    splitsTomorrow: { A: { paidNow: 12_500, dueAtDelivery: 0 }, B: { paidNow: 1_000, dueAtDelivery: 11_500 } },
+  };
+
+  it('NEITHER new state ever carries an amount — no payment, therefore no figure', () => {
+    // The split is HANDED to the renderer in every combination, exactly as the
+    // confirmed state gets it. Only `confirmed` may spend it.
+    for (const confirmState of ['attente', 'echec'] as const) {
+      for (const paid of [splitFor(Q, 'today', 'A'), splitFor(Q, 'today', 'B'), undefined]) {
+        const text = visible(renderC6(ROBE, { confirmState, paid }));
+        expect(text, `${confirmState} printed FCFA`).not.toContain('FCFA');
+        expect(text, `${confirmState} printed a bare figure`).not.toMatch(/\d/);
+      }
+    }
+  });
+
+  it('« attente » never says the sentence that belongs to a queued request', () => {
+    const text = visible(renderC6(ROBE, { confirmState: 'attente', paid: undefined }));
+    expect(text).toContain(CONFIRMATION.attenteTitre);
+    expect(text).toContain(CONFIRMATION.attenteCorps);
+    // THE LIE THIS STATE EXISTS TO REMOVE: her request LANDED — the service holds
+    // her order — so nothing here may blame her network or her phone.
+    expect(text, 'the waiting screen blamed her network').not.toContain('réseau');
+    expect(text, 'the waiting screen said the order sat on her phone').not.toContain('téléphone');
+    // …and it must not claim a confirmation either.
+    expect(text).not.toContain('confirmé par l’opérateur');
+  });
+
+  it('« pending » still DOES say it — the queued state kept its own true sentence', () => {
+    const text = visible(renderC6(ROBE, { confirmState: 'pending', paid: undefined }));
+    expect(text).toContain('réseau');
+    expect(text).toContain('téléphone');
+  });
+
+  it('« echec » offers the retry and NOT the tracking CTA — one primary action', () => {
+    const html = renderC6(ROBE, { confirmState: 'echec', paid: undefined });
+    expect(html).toContain('data-action="reessayer-paiement"');
+    expect(visible(html)).toContain(CONFIRMATION.echecAction);
+    expect(html, 'a failed payment offered a delivery timeline').not.toContain('data-action="suivre"');
+  });
+
+  it('« echec » does NOT promise that nothing was debited', () => {
+    // `payment_failed` is reached by the ordinary provider refusal AND by the
+    // amount-divergence fault, where the provider may already have collected.
+    // « Rien n’a été confirmé » is true on both; « rien n’a été prélevé » is not.
+    const text = visible(renderC6(ROBE, { confirmState: 'echec', paid: undefined }));
+    expect(text).toContain('Rien n’a été confirmé.');
+    expect(text).not.toContain('prélev');
+    expect(text).not.toContain('débit');
+    expect(text).not.toContain('remboursé');
+  });
+
+  it('« Vérifier à nouveau » appears ONLY once the automatic checks have stopped', () => {
+    const running = renderC6(ROBE, { confirmState: 'attente', paid: undefined, relance: false });
+    expect(running, 'a manual check was offered while one was already running').not.toContain('data-action="verifier-paiement"');
+    const stopped = renderC6(ROBE, { confirmState: 'attente', paid: undefined, relance: true });
+    expect(stopped).toContain('data-action="verifier-paiement"');
+    expect(visible(stopped)).toContain(CONFIRMATION.attenteAction);
+    // …and it is never offered on a state where there is nothing left to learn.
+    for (const confirmState of ['confirmed', 'echec'] as const) {
+      expect(renderC6(ROBE, { confirmState, paid: undefined, relance: true })).not.toContain('data-action="verifier-paiement"');
+    }
+  });
+
+  it('the schedule stops — it is bounded, and it is not a deadline on the payment', () => {
+    expect(SUIVI_PAIEMENT_MS.length).toBeGreaterThan(0);
+    expect(SUIVI_PAIEMENT_MS.length).toBeLessThanOrEqual(8);
+    // strictly increasing: quick while an answer may still be seconds away,
+    // slower once it plainly is not — her data and her battery are the budget.
+    for (let i = 1; i < SUIVI_PAIEMENT_MS.length; i += 1) {
+      expect(SUIVI_PAIEMENT_MS[i]!).toBeGreaterThan(SUIVI_PAIEMENT_MS[i - 1]!);
+    }
+    const total = SUIVI_PAIEMENT_MS.reduce((a, b) => a + b, 0);
+    expect(total, 'the client polls for over a minute on a metered connection').toBeLessThanOrEqual(60_000);
   });
 });
 

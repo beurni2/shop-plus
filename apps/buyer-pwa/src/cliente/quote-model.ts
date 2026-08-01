@@ -63,7 +63,7 @@
  */
 
 import type { ClienteQuote, LegSplits, ModePaiement } from './screens';
-import { mintCommandId, type PaymentModeWire, type QuoteIntent, type QuoteOutcome, type QuotePort, type ServerQuote } from './quote-port';
+import { mintCommandId, type OrderOutcome, type PaymentModeWire, type QuoteIntent, type QuoteOutcome, type QuotePort, type ServerQuote } from './quote-port';
 
 export type ClienteQuoteFromServer =
   | { readonly ok: true; readonly quote: ClienteQuote; readonly bIndisponible: boolean }
@@ -212,6 +212,19 @@ export type ReserveFetch =
   | { readonly status: 'unreadable' };
 
 /**
+ * WHAT THE FLOW LEARNS ABOUT THE ORDER (SP3.3c) — the port's `OrderOutcome`,
+ * passed through unchanged.
+ *
+ * IT IS NOT NARROWED HERE, and that is the point of the type existing at all:
+ * the server's `state` reaches the flow as the server's own word, and the
+ * decision about which states may show a confirmation is made in ONE place.
+ * `clienteQuoteFromServer` cross-checks the QUOTE because two quotes can
+ * contradict each other about one basket; there is nothing to cross-check
+ * here — one order, one state, and no arithmetic this app could redo.
+ */
+export type OrderFetch = OrderOutcome;
+
+/**
  * The ONE answer `ClienteInit.quoteSource` gives the flow.
  *
  * `expiry` and `reserve` ride on the READY variant rather than on `ClienteInit`
@@ -253,6 +266,24 @@ export type QuoteFetch =
        * of colliding with it (the round-2 blocker, still closed).
        */
       readonly reserve: (mode: ModePaiement) => Promise<ReserveFetch>;
+      /**
+       * CREATE THE ORDER for the mode she chose — the call that lets a charge
+       * be initiated (SP3.3c). Bound to the same per-mode quote id the hold was
+       * taken on, for the same reason: an order created against the FULL quote
+       * after a « Payer à la livraison » CTA promising 1 000 FCFA would charge
+       * her 12 500.
+       *
+       * `essai` IS THE ATTEMPT NUMBER, and it exists so the command id can be
+       * stable within one attempt and fresh across a deliberate retry — see
+       * `orderCommandIdFor`. The flow passes 0 for the first order and
+       * increments only when the buyer taps retry on a FAILED payment.
+       */
+      readonly commander: (mode: ModePaiement, essai: number) => Promise<OrderFetch>;
+      /**
+       * READ THE ORDER BACK. The only source of « confirmé par l'opérateur »
+       * anywhere in this app.
+       */
+      readonly etatCommande: (orderId: string) => Promise<OrderFetch>;
     }
   | { readonly status: 'refused'; readonly reason: string }
   | { readonly status: 'unreachable' }
@@ -356,6 +387,13 @@ export async function fetchClienteQuote(
   commandIdFor: (quoteId: string) => string | undefined = () => mintCommandId(),
   /** The door ask's grace period — injected so tests need not wait 1.5 s. */
   doorGraceMs: number = DOOR_GRACE_MS,
+  /**
+   * The ORDER command id for one (quote, attempt) pair — injected for the same
+   * reason `commandIdFor` is: the caller owns the storage that makes it survive
+   * a reload. Defaults to a fresh mint, correct in tests and wherever no
+   * storage exists.
+   */
+  orderCommandIdFor: (quoteId: string, essai: number) => string | undefined = () => mintCommandId(),
 ): Promise<QuoteFetch> {
   const intentFor = (paymentMode: PaymentModeWire): QuoteIntent => ({ ...base, paymentMode });
   const fullIntent = intentFor('FULL_PREPAY');
@@ -464,5 +502,34 @@ export async function fetchClienteQuote(
       }
       return port.reserve(quoteId, commandId, fullKey);
     },
+
+    /**
+     * THE ORDER, ON THE MODE'S OWN QUOTE — the reserve's twin, and deliberately
+     * shaped like it rather than merged with it. Two calls, because the service
+     * has two routes and they mean different things: `reserve` takes a hold,
+     * `order` lets a charge be initiated against it. Collapsing them would put
+     * a charge behind a name that says « hold ».
+     *
+     * THE HOLDER REF IS THE SAME VALUE THE HOLD WAS TAKEN UNDER, byte for byte.
+     * `decideCreateOrder` compares the caller's claim against the receipt the
+     * reserve wrote, and a different value here is `reservation_held_by_another`
+     * — a refusal caused by this file disagreeing with itself two functions up.
+     */
+    commander: (mode: ModePaiement, essai: number): Promise<OrderFetch> => {
+      const cible = mode === 'B' ? doorHold : { quoteId, commandId };
+      const holder = mode === 'B' ? doorKey : fullKey;
+      // Unreachable through the UI for the same reason `reserve`'s branch is:
+      // with no door quote there is no mode-B button. Named, never held or
+      // ordered on the wrong quote.
+      if (cible === undefined) return Promise.resolve({ status: 'refused', reason: 'mode_indisponible' });
+      const cmd = orderCommandIdFor(cible.quoteId, essai);
+      // NO CSPRNG ⇒ a NAMED refusal, never a weaker random. Same ladder as the
+      // request key and the reservation command: an idempotency key a collision
+      // can reach is an idempotency key in front of a charge.
+      if (cmd === undefined) return Promise.resolve({ status: 'refused', reason: 'no_secure_random' });
+      return port.order(cible.quoteId, cmd, holder);
+    },
+
+    etatCommande: (orderId: string): Promise<OrderFetch> => port.orderState(orderId),
   };
 }

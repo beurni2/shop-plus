@@ -57,3 +57,17 @@ export function renderPayOption(): string {
   // The word a buyer would read off the element itself.
   return '<div class="cl-payopt cl-escrow-card" data-role="escrow-notice"></div>';
 }
+
+
+// A CLEAN C6 CONFIRMATION block (SP3.3c) — verbatim from the real screens.ts,
+// for the reason the PAIEMENT block above is here: this fixture must keep
+// failing for ITS OWN planted defect, not for a table it never had.
+export const CONFIRMATION = {
+  attenteTitre: 'Nous attendons l’opérateur.',
+  attenteCorps: 'Votre commande est bien enregistrée. Nous dirons « payé » seulement quand l’opérateur l’aura confirmé.',
+  attenteChip: 'EN ATTENTE DE L’OPÉRATEUR',
+  attenteAction: 'Vérifier à nouveau',
+  echecTitre: 'Le paiement n’a pas abouti.',
+  echecCorps: 'Rien n’a été confirmé. Votre commande vous attend — vous pouvez réessayer.',
+  echecAction: 'Réessayer le paiement',
+} as const;

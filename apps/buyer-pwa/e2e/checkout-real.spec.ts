@@ -57,18 +57,39 @@ interface Scripted {
   reserveDelayMs?: number;
   /** hold EVERY quote ask this long — lets a refresh be observed mid-flight */
   quoteDelayMs?: number;
+  /* ── SP3.3c — the ORDER ─────────────────────────────────────────────── */
+  /** what `POST /checkout/order` answers with. Default: the service's own
+   *  truth — an order exists and a charge was initiated, nobody has paid. */
+  orderCreateState?: string;
+  /** the states `GET /checkout/order/{id}` returns, one per read; the LAST one
+   *  repeats forever. Default: it never moves, which is production today. */
+  orderStates?: string[];
+  /** refuse `POST /checkout/order` by name, the way the service would. */
+  orderRefusal?: string;
+  /** hold `POST /checkout/order` this long — makes the « order in flight »
+   *  window observable, which is when she can still press Retour. */
+  orderDelayMs?: number;
 }
 
 interface Wire {
   quotes: Array<Record<string, unknown>>;
   reserves: Array<{ url: string; body: Record<string, unknown> }>;
+  /** SP3.3c — every `POST /checkout/order`, in order. */
+  orders: Array<{ url: string; body: Record<string, unknown> }>;
+  /** …and every `GET /checkout/order/{id}`. */
+  orderReads: string[];
+  /** The route names in the order the browser actually asked for them, so
+   *  « the hold is taken BEFORE the order » is provable and not assumed. */
+  sequence: string[];
 }
 
 /** Install the scripted checkout service and return the wire log. */
 async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
-  const wire: Wire = { quotes: [], reserves: [] };
+  const wire: Wire = { quotes: [], reserves: [], orders: [], orderReads: [], sequence: [] };
   const ttl = opts.ttlMs ?? 15 * 60_000;
   let issued = 0;
+  /** How many times each order has been read back, so `orderStates` walks. */
+  const reads = new Map<string, number>();
   await page.route('**/checkout/**', async (route: Route) => {
     const req = route.request();
     const json = (status: number, body: unknown): Promise<void> =>
@@ -81,10 +102,39 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
     }
     if (/\/reserve$/.test(req.url())) {
       wire.reserves.push({ url: req.url(), body });
+      wire.sequence.push('reserve');
       if (opts.reserveDelayMs) await new Promise((r) => setTimeout(r, opts.reserveDelayMs));
       return json(200, { status: 'reserved', reservationId: 'res-1' });
     }
+    /* ── SP3.3c — the ORDER routes, before the quote fall-through ───────── */
+    if (/\/checkout\/order$/.test(req.url()) && req.method() === 'POST') {
+      wire.orders.push({ url: req.url(), body });
+      wire.sequence.push('order');
+      if (opts.orderDelayMs) await new Promise((r) => setTimeout(r, opts.orderDelayMs));
+      if (opts.orderRefusal !== undefined) return json(422, { error: opts.orderRefusal });
+      const orderId = `ord-${String(body['quoteId'])}`;
+      reads.set(orderId, 0);
+      return json(200, {
+        orderId,
+        // THE SERVICE'S OWN TRUTH: a created order is not a paid one.
+        state: opts.orderCreateState ?? 'payment_pending',
+        amountPaidAtCheckout: 12_500,
+        amountDueAtDelivery: 0,
+      });
+    }
+    const byId = /\/checkout\/order\/([^/]+)$/.exec(req.url());
+    if (byId && req.method() === 'GET') {
+      const orderId = decodeURIComponent(byId[1]!);
+      wire.orderReads.push(orderId);
+      wire.sequence.push('order-read');
+      const seen = reads.get(orderId) ?? 0;
+      reads.set(orderId, seen + 1);
+      const script = opts.orderStates ?? ['payment_pending'];
+      const state = script[Math.min(seen, script.length - 1)]!;
+      return json(200, { orderId, state, amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0 });
+    }
     wire.quotes.push(body);
+    wire.sequence.push('quote');
     if (opts.quoteDelayMs) await new Promise((r) => setTimeout(r, opts.quoteDelayMs));
     const isDoor = body['paymentMode'] === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
     if (isDoor) {
@@ -128,22 +178,35 @@ const screenOf = (page: Page): Promise<string | null> =>
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 
-test('BLOCKER 3 · flow.ts retour-c4 clearT() — backing out of « ENVOI SÉCURISÉ » never lands on « confirmé »', async ({ page }) => {
-  await scriptService(page);
+test('BLOCKER 3 · flow.ts retour-c4 clearT() — backing out of the in-flight payment never lands on « confirmé »', async ({ page }) => {
+  /**
+   * UPDATED BY SP3.3c, AND THE SUBJECT MOVED WITH THE CODE.
+   *
+   * This used to wait on « ENVOI SÉCURISÉ » and then on 1 200 + 2 400 ms of
+   * timers. Those timers are gone: the flow now RESERVES, then ORDERS, then
+   * reads the order back. The window in which she can still press Retour is the
+   * window in which one of those requests is on the wire — so the order is held
+   * open here to make that window real, and the screen showing is `operateur`.
+   *
+   * WHAT MUST STILL HOLD, unchanged: cancel means cancel. `clearT()` bumps the
+   * generation, so the order's LATE answer writes nothing, schedules no read,
+   * and cannot teleport her onto a confirmation she walked away from.
+   */
+  const wire = await scriptService(page, { orderDelayMs: 1_500 });
   await askForPrice(page);
   await toPayer(page, 'A');
   await page.locator('[data-action="payer"]').click();
-  // the reserve answers at once, so the provider simulation's timers are armed
-  await page.locator('[data-etat="envoi"]').waitFor();
-  await page.locator('[data-etat="envoi"] [data-action="retour-c4"]').click();
+  await page.locator('[data-etat="operateur"]').waitFor();
+  await page.locator('[data-etat="operateur"] [data-action="retour-c4"]').click();
   await expect(page.locator('[data-screen="C4"]')).toBeVisible();
 
-  // long past 1 200 ms + 2 400 ms: the timers must have been cleared
-  await page.waitForTimeout(4_500);
+  // long past the order's own 1 500 ms and the first scheduled read at 1 500 ms
+  await page.waitForTimeout(5_000);
   expect(await screenOf(page)).toBe('C4');
   const text = await stage(page);
   expect(text, 'she cancelled and was told the operator confirmed').not.toContain('confirmé');
   expect(text).not.toContain('Commande enregistrée');
+  expect(wire.orderReads.length, 'a cancelled checkout kept polling the server').toBe(0);
 });
 
 test('BLOCKER 3b · flow.ts generation guard — a reservation answering AFTER she leaves schedules nothing', async ({ page }) => {
@@ -332,4 +395,159 @@ test('a NAMED server refusal reaches the buyer as its own true sentence', async 
   await page.locator('[data-screen="REFUS"]').waitFor({ timeout: 15_000 });
   expect(await page.locator('[data-screen="REFUS"]').getAttribute('data-motif')).toBe('delivery_not_serviceable');
   expect(await stage(page)).toContain('Séra ne livre pas encore ici.');
+});
+
+/* ══════════════════════════════════════════════════════════════════════════ *
+ *  SP3.3c — THE CONFIRMATION COMES FROM THE ORDER, NEVER FROM A CLOCK
+ *
+ *  These run against the REAL bundle and the REAL `httpQuotePort`. Each one
+ *  names the line it protects: reinstate the 2 400 ms `setTimeout` that used to
+ *  live in `flow.ts`'s `payer` handler and the FIRST test below must go red.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+test('SP3.3c · the server says `payment_pending` FOREVER — and the screen never says « confirmé »', async ({ page }) => {
+  // PRODUCTION TRUTH, exactly: nothing posts the payment webhook, so a real
+  // order stays `payment_pending`. This is the state a real buyer reaches today.
+  const wire = await scriptService(page, { orderStates: ['payment_pending'] });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+  // …and it is STILL true well past the old timer's 1 200 + 2 400 ms.
+  await page.waitForTimeout(5_000);
+
+  const text = (await stage(page)).replace(/\s+/g, ' ');
+  expect(text, 'the screen confirmed a payment no operator confirmed').not.toContain('confirmé par l’opérateur');
+  expect(text).not.toContain('Commande enregistrée.');
+  expect(text).toContain('Nous attendons l’opérateur.');
+  // NO AMOUNT: there is no payment, so there is no figure.
+  expect(text, 'the waiting screen printed an amount').not.toContain('FCFA');
+  // …and the order was actually created, on the wire, after the hold.
+  expect(wire.orders.length).toBe(1);
+  expect(wire.sequence.indexOf('reserve')).toBeLessThan(wire.sequence.indexOf('order'));
+  expect(wire.orderReads.length, 'the client never asked the server anything').toBeGreaterThan(0);
+});
+
+test('SP3.3c · the ORDER body is the three-key allowlist — no amount crosses this wire', async ({ page }) => {
+  const wire = await scriptService(page, { orderStates: ['payment_pending'] });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+
+  const body = wire.orders[0]!.body;
+  expect(Object.keys(body).sort()).toEqual(['commandId', 'holderRef', 'quoteId']);
+  for (const v of Object.values(body)) expect(typeof v).toBe('string');
+  expect(JSON.stringify(body)).not.toMatch(/12500|11500|1000/);
+});
+
+test('SP3.3c · the operator answers — and ONLY then does the screen confirm', async ({ page }) => {
+  await scriptService(page, { orderStates: ['payment_pending', 'payment_pending', 'confirmed'] });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+
+  // it waits first…
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+  // …and confirms only after the server's own state moves (read 3, ~1.5+2.5+4 s).
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 20_000 });
+  const text = (await stage(page)).replace(/\s+/g, ' ');
+  expect(text).toContain('Commande enregistrée.');
+  expect(text).toContain('confirmé par l’opérateur.');
+});
+
+test('SP3.3c · `paid` WITHOUT `confirmed` is NOT a confirmation — it is a confirmation refused', async ({ page }) => {
+  // The vault reaches `paid` and confirms in the same request, so a `paid` an
+  // HTTP read can see is an order whose `confirmOrder` answered
+  // `no_funded_checkout_leg`. It must never print the confirmation.
+  await scriptService(page, { orderStates: ['paid'] });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+  await page.waitForTimeout(4_000);
+  const text = (await stage(page)).replace(/\s+/g, ' ');
+  expect(text, '« paid » was read as « confirmé »').not.toContain('confirmé par l’opérateur');
+  expect(text).toContain('Nous attendons l’opérateur.');
+});
+
+test('SP3.3c · `payment_failed` gets its own dignified screen, with the retry and no false comfort', async ({ page }) => {
+  await scriptService(page, { orderStates: ['payment_failed'] });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+
+  await page.locator('[data-etat="echec"]').waitFor({ timeout: 10_000 });
+  const text = (await stage(page)).replace(/\s+/g, ' ');
+  expect(text).toContain('Le paiement n’a pas abouti.');
+  expect(text).toContain('Rien n’a été confirmé.');
+  // It must NOT promise that nothing was debited — the amount-divergence fault
+  // reaches this state with the money possibly already collected.
+  expect(text).not.toContain('prélev');
+  expect(text).not.toContain('rembours');
+  expect(text, 'a failed payment printed an amount').not.toContain('FCFA');
+  await expect(page.locator('[data-action="reessayer-paiement"]')).toBeVisible();
+  await expect(page.locator('[data-action="suivre"]')).toHaveCount(0);
+});
+
+test('SP3.3c · the retry sends a NEW command id — or nothing would actually be retried', async ({ page }) => {
+  const wire = await scriptService(page, { orderStates: ['payment_failed'] });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="echec"]').waitFor({ timeout: 10_000 });
+
+  await page.locator('[data-action="reessayer-paiement"]').click();
+  await expect.poll(() => wire.orders.length, { timeout: 10_000 }).toBe(2);
+
+  const [first, second] = wire.orders;
+  expect(second!.body['quoteId'], 'the retry ordered a different quote').toBe(first!.body['quoteId']);
+  expect(second!.body['commandId'], 'the retry replayed the first command — nothing was retried')
+    .not.toBe(first!.body['commandId']);
+});
+
+test('SP3.3c · the automatic checks STOP, and only then is a manual one offered', async ({ page }) => {
+  // THE SCHEDULE IS 35 SECONDS OF REAL WAITING and it is not shortened for the
+  // test: the thing being proved is that the loop TERMINATES on the numbers
+  // that ship, and a test that ran against a shrunken schedule would prove it
+  // about a schedule no buyer has. 35 s of CI is the price of that.
+  test.setTimeout(120_000);
+  const wire = await scriptService(page, { orderStates: ['payment_pending'] });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+
+  // while the schedule runs, no button — asking again would duplicate a request
+  // already on its way.
+  await expect(page.locator('[data-action="verifier-paiement"]')).toHaveCount(0);
+
+  // …the whole schedule is 1.5+2.5+4+6+9+12 = 35 s. Wait it out.
+  await page.locator('[data-action="verifier-paiement"]').waitFor({ timeout: 60_000 });
+  const stopped = wire.orderReads.length;
+
+  // AND IT STAYS STOPPED: no further read happens on its own.
+  await page.waitForTimeout(6_000);
+  expect(wire.orderReads.length, 'the client kept polling after its schedule ended').toBe(stopped);
+
+  // one tap, exactly one more read, and the sentence does not change.
+  await page.locator('[data-action="verifier-paiement"]').click();
+  await expect.poll(() => wire.orderReads.length, { timeout: 10_000 }).toBe(stopped + 1);
+  expect((await stage(page)).replace(/\s+/g, ' ')).toContain('Nous attendons l’opérateur.');
+});
+
+test('SP3.3c · a REFUSED order lands on the honest refusal surface, never on a confirmation', async ({ page }) => {
+  await scriptService(page, { orderRefusal: 'reservation_expired' });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+
+  await page.waitForTimeout(3_000);
+  const text = (await stage(page)).replace(/\s+/g, ' ');
+  expect(text).not.toContain('confirmé par l’opérateur');
+  expect(text).not.toContain('Commande enregistrée.');
+  // the refusal surface — a true sentence and an action, never a blank screen
+  expect(await page.locator('[data-action="reessayer-prix"], [data-action="prix-a-jour"], [data-action="retour-c3"]').count())
+    .toBeGreaterThan(0);
 });

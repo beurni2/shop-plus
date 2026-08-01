@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  commandIdFor, demoQuotePort, forgetRequestKey, httpQuotePort, looksLikeServerQuote,
-  mintCommandId, mintUuid, requestKeyFor, villeDe,
-  type QuoteIntent, type QuoteOutcome, type QuotePort, type ServerQuote,
+  commandIdFor, demoQuotePort, forgetRequestKey, httpQuotePort, looksLikeServerOrder, looksLikeServerQuote,
+  mintCommandId, mintUuid, orderCommandIdFor, requestKeyFor, villeDe, DEMO_ATTENTES,
+  type OrderOutcome, type QuoteIntent, type QuoteOutcome, type QuotePort, type ServerQuote,
 } from '../src/cliente/quote-port';
 import {
   clienteQuoteFromServer, fetchClienteQuote, prixExpire, DOOR_GRACE_MS, MODES_WIRE,
@@ -755,15 +755,37 @@ describe('villeDe — her quartier + HER SHOP’S city is what reaches the wire'
 
 /* ═════════ 11 · fetchClienteQuote — two asks, and NO fallback ever ════════ */
 
+/**
+ * SP3.3c — the ORDER half of `QuotePort`, for the stubs in this section that
+ * are about the QUOTE path and never reach it. It REFUSES BY NAME rather than
+ * returning a plausible order: a stub that quietly answers « order created » to
+ * a test that never meant to order is how a call nobody intended becomes
+ * invisible. If one of these tests ever does reach it, the refusal says so.
+ */
+const PAS_DE_COMMANDE = {
+  async order(): Promise<OrderOutcome> {
+    return { status: 'refused', reason: 'stub_sans_commande' };
+  },
+  async orderState(): Promise<OrderOutcome> {
+    return { status: 'refused', reason: 'stub_sans_commande' };
+  },
+};
+
 /** A port whose two answers are scripted. It records what it was asked. */
 function scriptedPort(answers: Record<string, QuoteOutcome>): {
-  port: QuotePort; asked: Array<{ intent: QuoteIntent; key: string }>; reserved: string[];
+  port: QuotePort;
+  asked: Array<{ intent: QuoteIntent; key: string }>;
+  reserved: string[];
+  /** SP3.3c — `{quoteId}|{commandId}|{holderRef}` per ORDER, in order. */
+  ordered: string[];
 } {
   const asked: Array<{ intent: QuoteIntent; key: string }> = [];
   const reserved: string[] = [];
+  const ordered: string[] = [];
   return {
     asked,
     reserved,
+    ordered,
     port: {
       async request(intent, key) {
         asked.push({ intent, key });
@@ -772,6 +794,21 @@ function scriptedPort(answers: Record<string, QuoteOutcome>): {
       async reserve(quoteId, commandId, holderRef) {
         reserved.push(`${quoteId}|${commandId}|${holderRef}`);
         return { status: 'reserved' };
+      },
+      async order(quoteId, commandId, holderRef) {
+        ordered.push(`${quoteId}|${commandId}|${holderRef}`);
+        // WHAT THE SERVICE ACTUALLY RETURNS: an order exists and a charge was
+        // initiated. Never `confirmed` — no webhook has arrived.
+        return {
+          status: 'order',
+          order: { orderId: `ord-${quoteId}`, state: 'payment_pending', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0 },
+        };
+      },
+      async orderState(orderId) {
+        return {
+          status: 'order',
+          order: { orderId, state: 'payment_pending', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0 },
+        };
       },
     },
   };
@@ -831,6 +868,7 @@ describe('fetchClienteQuote — the whole real-path ask', () => {
         return { status: 'refused', reason: 'pay_at_door_not_eligible' };
       },
       async reserve() { return { status: 'reserved' }; },
+      ...PAS_DE_COMMANDE,
     };
     const pending = fetchClienteQuote(port, base, keys);
     // Serialized, the full ask would not even have been SENT yet. In parallel it
@@ -1320,6 +1358,7 @@ describe('the DOOR ask races a deadline — the FULL ask never does', () => {
         return doorAnswer;
       },
       async reserve() { return { status: 'reserved' }; },
+      ...PAS_DE_COMMANDE,
     };
   }
 
@@ -1411,10 +1450,254 @@ describe('the DOOR ask races a deadline — the FULL ask never does', () => {
         throw new Error('door transport exploded');
       },
       async reserve() { return { status: 'reserved' }; },
+      ...PAS_DE_COMMANDE,
     };
     const got = await fetchClienteQuote(port, base, keys, undefined, GRACE);
     expect(got.status).toBe('ready');
     if (got.status !== 'ready') return;
     expect(got.bIndisponible).toBe(true);
+  });
+});
+
+/* ════════════ 13 · SP3.3c — THE ORDER: THE WIRE, THE KEYS, THE STATE ══════ */
+
+describe('httpQuotePort.order — the body is the service’s three-key allowlist and NO amount', () => {
+  it('POSTs exactly {quoteId, holderRef, commandId} to /checkout/order', async () => {
+    let seen: { url: string; init: RequestInit } | undefined;
+    await withFetch(
+      (async (url: string, init: RequestInit) => {
+        seen = { url, init };
+        return jsonRes({ orderId: 'ord-q1', state: 'payment_pending', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0 });
+      }) as unknown as typeof fetch,
+      () => httpQuotePort('https://svc.example/').order('q1', 'cmd-1', 'holder-1'),
+    );
+    expect(seen?.url).toBe('https://svc.example/checkout/order');
+    expect(seen?.init.method).toBe('POST');
+    const body = JSON.parse(String(seen?.init.body)) as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(['commandId', 'holderRef', 'quoteId']);
+    expect(body).toEqual({ quoteId: 'q1', holderRef: 'holder-1', commandId: 'cmd-1' });
+  });
+
+  it('NO AMOUNT can ride on this wire — not from the caller, not from anywhere', () => {
+    // The body is built as one object literal from three named arguments, so
+    // there is no parameter an amount could arrive through. Stated as a test
+    // because the day someone adds a fourth argument, this must be re-read.
+    expect(httpQuotePort('https://svc.example').order.length).toBe(3);
+  });
+
+  it('GETs /checkout/order/{id}, encoded — a hostile id cannot escape the path', async () => {
+    let seen: string | undefined;
+    await withFetch(
+      (async (url: string) => {
+        seen = url;
+        return jsonRes({ orderId: 'x', state: 'confirmed', amountPaidAtCheckout: 0, amountDueAtDelivery: 0 });
+      }) as unknown as typeof fetch,
+      () => httpQuotePort('https://svc.example').orderState('ord-../../admin'),
+    );
+    expect(seen).toBe('https://svc.example/checkout/order/ord-..%2F..%2Fadmin');
+  });
+
+  it('a refusal keeps the SERVER’S name; an unnamed non-2xx is unreadable, never « offline »', async () => {
+    const named = await withFetch(
+      (async () => jsonRes({ error: 'reservation_expired' }, 422)) as unknown as typeof fetch,
+      () => httpQuotePort('https://s').order('q1', 'c1', 'h1'),
+    );
+    expect(named).toEqual({ status: 'refused', reason: 'reservation_expired' });
+    const durable = await withFetch(
+      (async () => jsonRes({ reason: 'quote_not_reserved' }, 422)) as unknown as typeof fetch,
+      () => httpQuotePort('https://s').order('q1', 'c1', 'h1'),
+    );
+    expect(durable).toEqual({ status: 'refused', reason: 'quote_not_reserved' });
+    const anonymous = await withFetch(
+      (async () => jsonRes('<html>502</html>', 502)) as unknown as typeof fetch,
+      () => httpQuotePort('https://s').order('q1', 'c1', 'h1'),
+    );
+    expect(anonymous, 'a proxy’s HTML 502 became « pas de connexion »').toEqual({ status: 'unreadable' });
+  });
+
+  it('a THROWN fetch is the only « unreachable » — nothing answered', async () => {
+    const got = await withFetch(
+      (async () => { throw new TypeError('network'); }) as unknown as typeof fetch,
+      () => httpQuotePort('https://s').orderState('ord-1'),
+    );
+    expect(got).toEqual({ status: 'unreachable' });
+  });
+
+  it('a 200 whose shape is wrong is UNREADABLE — never a half-read order', async () => {
+    const partial = [
+      { state: 'confirmed', amountPaidAtCheckout: 1, amountDueAtDelivery: 0 },          // no orderId
+      { orderId: 'o', amountPaidAtCheckout: 1, amountDueAtDelivery: 0 },                 // no state
+      { orderId: 'o', state: 'confirmed', amountDueAtDelivery: 0 },                      // no paid
+      { orderId: 'o', state: 'confirmed', amountPaidAtCheckout: 1 },                     // no due
+      { orderId: 'o', state: '', amountPaidAtCheckout: 1, amountDueAtDelivery: 0 },      // empty state
+      { orderId: 'o', state: 'confirmed', amountPaidAtCheckout: 12.5, amountDueAtDelivery: 0 }, // a fraction of a franc
+    ];
+    for (const body of partial) {
+      const got = await withFetch(
+        (async () => jsonRes(body)) as unknown as typeof fetch,
+        () => httpQuotePort('https://s').orderState('ord-1'),
+      );
+      expect(got, `this shape became an order: ${JSON.stringify(body)}`).toEqual({ status: 'unreadable' });
+    }
+  });
+
+  it('the order is BUILT FIELD BY FIELD — an economics key the server grew never lands in memory', async () => {
+    const got = await withFetch(
+      (async () => jsonRes({
+        orderId: 'ord-1', state: 'confirmed', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0,
+        sellerBasePrice: 10_000, resellerNet: 2_000, sellerFundedCommission: 1_000,
+      })) as unknown as typeof fetch,
+      () => httpQuotePort('https://s').orderState('ord-1'),
+    );
+    expect(got.status).toBe('order');
+    if (got.status !== 'order') return;
+    expect(Object.keys(got.order).sort()).toEqual(
+      ['amountDueAtDelivery', 'amountPaidAtCheckout', 'orderId', 'state'],
+    );
+  });
+});
+
+describe('looksLikeServerOrder — the boundary, and what it deliberately does NOT judge', () => {
+  const OK = { orderId: 'ord-1', state: 'payment_pending', amountPaidAtCheckout: 1_000, amountDueAtDelivery: 11_500 };
+
+  it('accepts the four fields and rejects every partial', () => {
+    expect(looksLikeServerOrder(OK)).toBe(true);
+    expect(looksLikeServerOrder(null)).toBe(false);
+    expect(looksLikeServerOrder('ord-1')).toBe(false);
+    expect(looksLikeServerOrder({ ...OK, amountPaidAtCheckout: -1 })).toBe(false);
+    expect(looksLikeServerOrder({ ...OK, amountDueAtDelivery: '11500' })).toBe(false);
+    expect(looksLikeServerOrder({ ...OK, orderId: '' })).toBe(false);
+  });
+
+  it('does NOT validate the state string — the server’s word travels intact', () => {
+    // Which states may confirm is `etatDeC6`'s single decision. A second opinion
+    // here is a second place to drift, and rejecting an unknown state as
+    // « unreadable » would hide an order that genuinely exists.
+    expect(looksLikeServerOrder({ ...OK, state: 'a_state_from_the_future' })).toBe(true);
+  });
+});
+
+describe('orderCommandIdFor — stable within an attempt, fresh across a retry', () => {
+  it('the SAME (quote, attempt) replays the SAME command, across reloads', () => {
+    const s = memStorage();
+    const a = orderCommandIdFor('q1', 0, s);
+    const b = orderCommandIdFor('q1', 0, s);
+    expect(a).toBeDefined();
+    expect(b).toBe(a);
+  });
+
+  it('a NEW attempt mints a NEW command — or the retry replays the first answer', () => {
+    const s = memStorage();
+    expect(orderCommandIdFor('q1', 1, s)).not.toBe(orderCommandIdFor('q1', 0, s));
+  });
+
+  it('a different quote is a different command, and never the reservation’s', () => {
+    const s = memStorage();
+    expect(orderCommandIdFor('q2', 0, s)).not.toBe(orderCommandIdFor('q1', 0, s));
+    expect(orderCommandIdFor('q1', 0, s)).not.toBe(commandIdFor('q1', s));
+  });
+});
+
+describe('fetchClienteQuote — commander() orders on the mode’s OWN quote', () => {
+  const base = { slug: 'aicha-4821', pid: 'p1', zoneTo: 'Gounghin, Ouagadougou', attributionResellerId: 'rs-1' };
+  const keys = (i: QuoteIntent): string => `key-${i.paymentMode}`;
+  const FULL_Q: ServerQuote = {
+    quoteId: 'q-full', paymentMode: 'FULL_PREPAY', productSubtotal: 11_500, deliveryFee: 1_000,
+    buyerTotal: 12_500, amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, expiry: '2099-01-01T00:00:00.000Z',
+  };
+  const DOOR_Q: ServerQuote = {
+    ...FULL_Q, quoteId: 'q-door', paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+    amountPaidAtCheckout: 1_000, amountDueAtDelivery: 11_500,
+  };
+
+  it('mode A orders the FULL quote under the FULL holder; mode B orders the DOOR quote', async () => {
+    const { port, ordered } = scriptedPort({
+      FULL_PREPAY: { status: 'quote', quote: FULL_Q },
+      DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR: { status: 'quote', quote: DOOR_Q },
+    });
+    const got = await fetchClienteQuote(port, base, keys, undefined, 25, (q, e) => `oc-${q}-${e}`);
+    expect(got.status).toBe('ready');
+    if (got.status !== 'ready') return;
+    await got.commander('A', 0);
+    await got.commander('B', 0);
+    expect(ordered).toEqual([
+      'q-full|oc-q-full-0|key-FULL_PREPAY',
+      'q-door|oc-q-door-0|key-DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+    ]);
+  });
+
+  it('the attempt number reaches the mint — a retry cannot reuse the first command', async () => {
+    const { port, ordered } = scriptedPort({ FULL_PREPAY: { status: 'quote', quote: FULL_Q } });
+    const got = await fetchClienteQuote(port, base, keys, undefined, 25, (q, e) => `oc-${q}-${e}`);
+    if (got.status !== 'ready') return expect.fail('no quote');
+    await got.commander('A', 0);
+    await got.commander('A', 1);
+    expect(ordered.map((o) => o.split('|')[1])).toEqual(['oc-q-full-0', 'oc-q-full-1']);
+  });
+
+  it('mode B with NO door quote is a NAMED refusal — never an order on the full quote', async () => {
+    const { port, ordered } = scriptedPort({
+      FULL_PREPAY: { status: 'quote', quote: FULL_Q },
+      DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR: { status: 'refused', reason: 'pay_at_door_not_eligible' },
+    });
+    const got = await fetchClienteQuote(port, base, keys, undefined, 25);
+    if (got.status !== 'ready') return expect.fail('no quote');
+    expect(got.bIndisponible).toBe(true);
+    expect(await got.commander('B', 0)).toEqual({ status: 'refused', reason: 'mode_indisponible' });
+    expect(ordered, 'a mode-B order landed on the FULL quote').toEqual([]);
+  });
+
+  it('no CSPRNG ⇒ a named refusal, never an order under a guessable key', async () => {
+    const { port, ordered } = scriptedPort({ FULL_PREPAY: { status: 'quote', quote: FULL_Q } });
+    const got = await fetchClienteQuote(port, base, keys, undefined, 25, () => undefined);
+    if (got.status !== 'ready') return expect.fail('no quote');
+    expect(await got.commander('A', 0)).toEqual({ status: 'refused', reason: 'no_secure_random' });
+    expect(ordered).toEqual([]);
+  });
+});
+
+describe('demoQuotePort — the harness plays the service, including the part that waits', () => {
+  it('order() answers `payment_pending` — a created order is NEVER a paid one', async () => {
+    const port = demoQuotePort(11_500);
+    const q = await port.request(
+      { slug: 's', pid: 'p', zoneTo: 'z', attributionResellerId: 'r', paymentMode: 'FULL_PREPAY' },
+      'k',
+    );
+    if (q.status !== 'quote') return expect.fail('no quote');
+    const o = await port.order(q.quote.quoteId, 'cmd', 'holder');
+    expect(o.status).toBe('order');
+    if (o.status !== 'order') return;
+    expect(o.order.state, 'the harness confirmed a payment nobody made').toBe('payment_pending');
+  });
+
+  it('it takes DEMO_ATTENTES reads before it confirms — the waiting state is not skipped', async () => {
+    const port = demoQuotePort(11_500);
+    const q = await port.request(
+      { slug: 's', pid: 'p', zoneTo: 'z', attributionResellerId: 'r', paymentMode: 'FULL_PREPAY' },
+      'k',
+    );
+    if (q.status !== 'quote') return expect.fail('no quote');
+    const o = await port.order(q.quote.quoteId, 'cmd', 'holder');
+    if (o.status !== 'order') return expect.fail('no order');
+    const states: string[] = [];
+    for (let i = 0; i < DEMO_ATTENTES + 1; i += 1) {
+      const r = await port.orderState(o.order.orderId);
+      states.push(r.status === 'order' ? r.order.state : r.status);
+    }
+    expect(states.slice(0, DEMO_ATTENTES)).toEqual(Array(DEMO_ATTENTES).fill('payment_pending'));
+    expect(states[DEMO_ATTENTES]).toBe('confirmed');
+  });
+
+  it('a mode-B demo order reports the DOOR split, not the full one', async () => {
+    const port = demoQuotePort(11_500);
+    const q = await port.request(
+      { slug: 's', pid: 'p', zoneTo: 'z', attributionResellerId: 'r', paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' },
+      'k',
+    );
+    if (q.status !== 'quote') return expect.fail('no quote');
+    const o = await port.order(q.quote.quoteId, 'cmd', 'holder');
+    if (o.status !== 'order') return expect.fail('no order');
+    expect(o.order.amountPaidAtCheckout).toBe(q.quote.amountPaidAtCheckout);
+    expect(o.order.amountDueAtDelivery).toBe(q.quote.amountDueAtDelivery);
   });
 });

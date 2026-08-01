@@ -260,6 +260,18 @@ capture copy-lint-inline-refus-negative-paiement-placeholder fail node scripts/g
 log "gate: French Voice copy-lint — NEGATIVE (the DELETED « Écouter la note » label, must fail)"
 capture copy-lint-inline-refus-negative-paiement-ecouter fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-ecouter-missing.ts
 
+# SP3.3c — C6's POST-PAYMENT copy. These are the sentences a buyer reads while
+# her money is in the air and when it did not go through, and they are the
+# newest money strings in the app: before this slice the screen said « confirmé
+# par l'opérateur » on a 2 400 ms timer and there was nothing else to lint.
+# Both fixtures are CLEAN everywhere except the CONFIRMATION table, so if the
+# gate ever stops reading that table they both go green in silence.
+log "gate: French Voice copy-lint — NEGATIVE (administrative French in C6's post-payment copy, must fail)"
+capture copy-lint-inline-refus-negative-confirmation fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/confirmation-administratif.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (C6's waiting sentence DELETED: the structural floor must bite, must fail)"
+capture copy-lint-inline-refus-negative-confirmation-missing fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/confirmation-missing-field.ts
+
 # The scan used to walk src/**/*.ts ONLY, so the forbidden word planted in the
 # entry HTML shipped while this gate printed « appear nowhere in the buyer
 # source ». It now walks every text file a buyer receives — index.html, public/,

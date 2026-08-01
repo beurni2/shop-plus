@@ -101,9 +101,69 @@ export type ReserveOutcome =
   /** Something answered and it was not usable. Same distinction as above. */
   | { readonly status: 'unreadable' };
 
+/* ────────────────────────────── the order (SP3.3c) ───────────────────────── */
+
+/**
+ * The buyer-facing projection of a canon Order — `BuyerOrderView`, the FOUR
+ * fields `toBuyerOrderView` builds by hand on the service side. No economics
+ * field exists on it, for the same reason none exists on `ServerQuote`.
+ *
+ * `state` IS THE ONLY THING THAT SAYS WHETHER MONEY MOVED. The HTTP code says
+ * whether the command was accepted; a 200 on `POST /checkout/order` means an
+ * order exists and a charge was initiated — it does NOT mean anyone paid. That
+ * distinction is the whole reason this port exists (Ten Laws #2: provider
+ * webhooks are the only payment truth).
+ */
+export interface ServerOrder {
+  readonly orderId: string;
+  readonly state: string;
+  readonly amountPaidAtCheckout: number;
+  readonly amountDueAtDelivery: number;
+}
+
+/**
+ * FOUR ANSWERS, THE SAME FOUR AS THE QUOTE, AND FOR THE SAME REASONS. The
+ * unreachable/unreadable split is not duplicated here out of symmetry: it is
+ * duplicated because the confirmation screen has the same lie available to it
+ * as the price screen did. « En attente du réseau » told a buyer on full 4G
+ * that her phone was the problem when the service had answered and we could
+ * not read the answer.
+ */
+export type OrderOutcome =
+  | { readonly status: 'order'; readonly order: ServerOrder }
+  /** The server's own refusal name, verbatim — `quote_not_reserved`,
+   *  `reservation_expired`, `reservation_held_by_another`, `quote_expired`… */
+  | { readonly status: 'refused'; readonly reason: string }
+  | { readonly status: 'unreachable' }
+  | { readonly status: 'unreadable' };
+
 export interface QuotePort {
   request(intent: QuoteIntent, requestKey: string): Promise<QuoteOutcome>;
   reserve(quoteId: string, commandId: string, holderRef: string): Promise<ReserveOutcome>;
+  /**
+   * CREATE THE ORDER FOR A HELD QUOTE — the first call this app makes that can
+   * cause a charge to be initiated.
+   *
+   * IT SENDS NO AMOUNT AND COULD NOT: the service's body allowlist is exactly
+   * `{quoteId, holderRef, commandId}` (`order-do.ts` `ORDER_FIELDS`), and the
+   * figure that decides what is charged is read server-side off the quote's own
+   * frozen bytes. Same law as `request`: a price the buyer names is
+   * unrepresentable on this wire, not merely rejected.
+   *
+   * `commandId` IS THE IDEMPOTENCY KEY FOR THIS ATTEMPT. Sending the same one
+   * twice replays the first answer; sending a different one at an order that
+   * already exists and has not failed returns that order AS IT STANDS, never a
+   * second order and never a second charge (`order-do.ts` create, the « an
+   * impatient double-tap is harmless » branch).
+   */
+  order(quoteId: string, commandId: string, holderRef: string): Promise<OrderOutcome>;
+  /**
+   * READ THE ORDER BACK. The ONLY thing in this app that may ever move the
+   * confirmation screen to « confirmé par l'opérateur »: the state it returns
+   * was written by a signed provider webhook and validated to the franc by the
+   * vault, and nothing on this client can produce it.
+   */
+  orderState(orderId: string): Promise<OrderOutcome>;
 }
 
 /* ───────────────────────────── the shape check ───────────────────────────── */
@@ -137,6 +197,33 @@ export function looksLikeServerQuote(v: unknown): v is ServerQuote {
     isAmount(q['buyerTotal']) &&
     isAmount(q['amountPaidAtCheckout']) &&
     isAmount(q['amountDueAtDelivery'])
+  );
+}
+
+/**
+ * THE ORDER BOUNDARY — the same discipline as `looksLikeServerQuote`, applied
+ * to the four fields `toBuyerOrderView` writes.
+ *
+ * `state` MUST BE A NON-EMPTY STRING and is otherwise NOT validated here. That
+ * is deliberate: this port carries the server's word verbatim, exactly as it
+ * carries a refusal name verbatim, and the decision about which states may show
+ * a confirmation belongs to ONE place (`flow.ts`'s allowlist) rather than to
+ * two that can drift. A state this client does not recognise must land on the
+ * waiting screen, not be rejected as unreadable — the order exists either way.
+ *
+ * BOTH AMOUNTS ARE REQUIRED even though today's screens read neither: an order
+ * view missing one of them is a projection that changed shape under us, and a
+ * money surface that shrugs at that is how a screen ends up showing three of
+ * four figures.
+ */
+export function looksLikeServerOrder(v: unknown): v is ServerOrder {
+  if (v === null || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  return (
+    nonEmpty(o['orderId']) &&
+    nonEmpty(o['state']) &&
+    isAmount(o['amountPaidAtCheckout']) &&
+    isAmount(o['amountDueAtDelivery'])
   );
 }
 
@@ -266,6 +353,81 @@ export function httpQuotePort(baseUrl: string): QuotePort {
       const expiresAt = ok?.['expiresAt'];
       return nonEmpty(expiresAt) ? { status: 'reserved', expiresAt } : { status: 'reserved' };
     },
+
+    async order(quoteId: string, commandId: string, holderRef: string): Promise<OrderOutcome> {
+      // THE BODY IS THE SERVICE'S ALLOWLIST, BUILT AS ONE LITERAL — never a
+      // spread of anything. `order-do.ts` refuses an unknown key with 400
+      // `unknown_field`, and that refusal is a feature: it is how a caller that
+      // grew an amount field finds out immediately instead of quietly.
+      let payload: string;
+      try {
+        payload = JSON.stringify({ quoteId, holderRef, commandId });
+      } catch {
+        return { status: 'unreadable' };
+      }
+      let res: Response;
+      try {
+        res = await fetch(`${base}/checkout/order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+        });
+      } catch {
+        return { status: 'unreachable' }; // nothing answered
+      }
+      return readOrder(res);
+    },
+
+    async orderState(orderId: string): Promise<OrderOutcome> {
+      // Built OUTSIDE the fetch `try`, for the reason `reserve` documents:
+      // `encodeURIComponent` throws on a lone surrogate, and a request the
+      // BROWSER refused to construct is not a missing network.
+      let url: string;
+      try {
+        url = `${base}/checkout/order/${encodeURIComponent(orderId)}`;
+      } catch {
+        return { status: 'unreadable' };
+      }
+      let res: Response;
+      try {
+        res = await fetch(url, { method: 'GET' });
+      } catch {
+        return { status: 'unreachable' };
+      }
+      return readOrder(res);
+    },
+  };
+}
+
+/**
+ * ONE READER FOR BOTH ORDER ROUTES — they answer the SAME projection, so they
+ * get the same reading, and a divergence between « what create returns » and
+ * « what the poll returns » is unrepresentable rather than merely unlikely.
+ *
+ * Nothing here throws: a money surface that can throw is a money surface that
+ * can 500 at the buyer, and there is no honest French for that.
+ */
+async function readOrder(res: Response): Promise<OrderOutcome> {
+  const body: unknown = await res.json().catch(() => undefined);
+  if (!res.ok) {
+    const name = refusalName(body);
+    // A refusal WITHOUT a name is not a refusal we can speak. The reply still
+    // ARRIVED, so it is `unreadable`, not « no connection ».
+    return name === undefined ? { status: 'unreadable' } : { status: 'refused', reason: name };
+  }
+  if (!looksLikeServerOrder(body)) return { status: 'unreadable' };
+  // BUILT FIELD BY FIELD, never the checked body itself — `toBuyerOrderView`'s
+  // mirror on this side, for the reason the quote's own build documents: an
+  // allowlist that must be edited to grow is the only shape where forgetting
+  // fails toward silence.
+  return {
+    status: 'order',
+    order: {
+      orderId: body.orderId,
+      state: body.state,
+      amountPaidAtCheckout: body.amountPaidAtCheckout,
+      amountDueAtDelivery: body.amountDueAtDelivery,
+    },
   };
 }
 
@@ -298,18 +460,43 @@ export function httpQuotePort(baseUrl: string): QuotePort {
  *   · REFUSALS AT ALL. It has no unknown listing, no unserviceable zone, no
  *     killed checkout, no reused key. Every refusal surface in this app is
  *     reachable only against the real service (or a stub in tests).
+ *   · A PROVIDER THAT NEVER ANSWERS (SP3.3c, and this is the big one). Its
+ *     `orderState` reports `payment_pending` for `DEMO_ATTENTES` reads and then
+ *     `confirmed`, which is the SHAPE of a webhook arriving — but on the
+ *     deployed service NOTHING POSTS THE PAYMENT WEBHOOK, so a real order stays
+ *     `payment_pending` indefinitely. This harness therefore reaches a happy
+ *     ending that production cannot reach today. It is the second deliberate
+ *     optimism in this file and it must never be read as evidence that the
+ *     payment loop closes.
+ *   · `payment_failed`. It has no failing charge, so C6's refusal state is
+ *     reachable only against the real service or a scripted stub.
  */
+/**
+ * HOW MANY READS THE HARNESS'S « OPERATOR » TAKES before it answers. Two, so
+ * the pending state is genuinely on screen and genuinely observable — a demo
+ * that confirms on the first read would hide the very state SP3.3c built, and
+ * a mock that skips a state is a mock that makes the integration look healthier
+ * than it is (Execution Contract §3).
+ */
+export const DEMO_ATTENTES = 2;
+
 export function demoQuotePort(produitFcfa: number = ROBE.priceFcfa): QuotePort {
   /** The vault's `QUOTE_TTL_MS` (15 min), restated because the buyer app does
    *  not depend on `commerce-core` — it consumes the service, not the vault. */
   const TTL_MS = 15 * 60 * 1000;
   let seq = 0;
+  /** Which mode each demo quote was issued under, so the demo ORDER reports the
+   *  split of the quote it was actually created from. */
+  const doorMode = new Map<string, boolean>();
+  /** How many times each demo order has been read back — see `orderState`. */
+  const lus = new Map<string, number>();
   return {
     async request(intent: QuoteIntent): Promise<QuoteOutcome> {
       // The composed mock's frozen bytes — read, never re-added here.
       const c = composeQuote(produitFcfa);
       const door = intent.paymentMode === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
       seq += 1;
+      doorMode.set(`quote-demo-${seq}`, door);
       return {
         status: 'quote',
         quote: {
@@ -326,6 +513,51 @@ export function demoQuotePort(produitFcfa: number = ROBE.priceFcfa): QuotePort {
     },
     async reserve(): Promise<ReserveOutcome> {
       return { status: 'reserved' };
+    },
+
+    /**
+     * THE ORDER, PLAYED THE WAY THE SERVICE PLAYS IT: a 200 means an order
+     * exists and a charge was initiated — `payment_pending`, never `confirmed`.
+     * The harness gets this right because getting it wrong here is exactly the
+     * defect SP3.3c removes from the flow: a client that reads « the order was
+     * created » as « the operator paid ».
+     */
+    async order(quoteId: string): Promise<OrderOutcome> {
+      const c = composeQuote(produitFcfa);
+      const door = doorMode.get(quoteId) === true;
+      lus.set(quoteId, 0);
+      return {
+        status: 'order',
+        order: {
+          orderId: `ord-demo-${quoteId}`,
+          state: 'payment_pending',
+          amountPaidAtCheckout: door ? c.feeToday : c.totalToday,
+          amountDueAtDelivery: door ? c.produitFcfa : 0,
+        },
+      };
+    },
+
+    /**
+     * …and then the webhook « arrives ». See the certification note above: this
+     * is a SHAPE, not a capability. The count is per order so a demo walked
+     * twice waits twice, instead of the second walk confirming instantly and
+     * hiding the pending state from whoever is watching.
+     */
+    async orderState(orderId: string): Promise<OrderOutcome> {
+      const quoteId = orderId.replace(/^ord-demo-/, '');
+      const c = composeQuote(produitFcfa);
+      const door = doorMode.get(quoteId) === true;
+      const seen = (lus.get(quoteId) ?? 0) + 1;
+      lus.set(quoteId, seen);
+      return {
+        status: 'order',
+        order: {
+          orderId,
+          state: seen > DEMO_ATTENTES ? 'confirmed' : 'payment_pending',
+          amountPaidAtCheckout: door ? c.feeToday : c.totalToday,
+          amountDueAtDelivery: door ? c.produitFcfa : 0,
+        },
+      };
     },
   };
 }
@@ -497,6 +729,33 @@ export function commandIdFor(quoteId: string, storage?: Storage): string | undef
   } catch {
     return mintCommandId();
   }
+}
+
+/**
+ * THE ORDER'S COMMAND ID — the buyer's THIRD idempotency token, and the one
+ * that stands in front of a charge (SP3.3c).
+ *
+ * ═══ WHY IT IS KEYED ON (QUOTE, ATTEMPT) AND NOT ON THE QUOTE ALONE ═══
+ *
+ * Stable per attempt: a double-tap, a reload mid-wait, a « Payer » pressed
+ * again because nothing seemed to happen — all send the SAME command id, and
+ * `order-do.ts` replays its stored answer instead of walking the create path a
+ * second time. That is the client half of « no duplicate charge on retry »
+ * (SP-I13); the server holds the other half and holds it durably.
+ *
+ * FRESH PER DELIBERATE RETRY: after `payment_failed`, the order needs a NEW
+ * command to move back to `payment_pending` (the vault requires a new payment
+ * attempt id on that edge). Reusing the old command id there would replay the
+ * FIRST answer — the retry button would look like it worked and nothing would
+ * have been retried. So the attempt number is part of the slot, and the failed
+ * screen's action increments it.
+ *
+ * The PROVIDER key is untouched by any of this: it belongs to the leg, is
+ * minted once server-side and is reused across every retry, which is what stops
+ * a retry from becoming a second collection.
+ */
+export function orderCommandIdFor(quoteId: string, essai: number, storage?: Storage): string | undefined {
+  return commandIdFor(`${quoteId}#order#${essai}`, storage);
 }
 
 /**

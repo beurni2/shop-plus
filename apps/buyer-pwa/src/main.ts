@@ -20,7 +20,7 @@ import { enteteOverride } from './vitrine/entetes';
 import { ENT_STYLES } from './vitrine/entries';
 import { createCliente, type ClienteEcran } from './cliente/flow';
 import { clienteProduit, clienteProduitReel, composeQuote, harnessFrancs } from './cliente/seed';
-import { commandIdFor, forgetRequestKey, requestKeyFor, resolveQuotePort, villeDe } from './cliente/quote-port';
+import { commandIdFor, forgetRequestKey, orderCommandIdFor, requestKeyFor, resolveQuotePort, villeDe } from './cliente/quote-port';
 import { fetchClienteQuote, MODES_WIRE, type QuoteBase, type QuoteFetch } from './cliente/quote-model';
 import { productFromSeed, seedProduct } from './vitrine/catalog';
 import { CLIENTE_STYLES } from './cliente/styles';
@@ -721,6 +721,14 @@ if (app) {
             // Keyed on the QUOTE id, so a reload mid-checkout replays her own
             // hold instead of colliding with it.
             (quoteId) => commandIdFor(quoteId, storage),
+            // The door ask's grace period — the module's own default.
+            undefined,
+            // SP3.3c — the ORDER command id, keyed on (quote, attempt) and
+            // backed by the same session storage: a reload while she waits on
+            // the operator replays her own order instead of creating a second
+            // command against it, and a deliberate retry after a failed payment
+            // gets a genuinely new one.
+            (quoteId, essai) => orderCommandIdFor(quoteId, essai, storage),
           );
         };
         // FOUNDER RULING (2026-07-22, supersedes the earlier theme seam): the

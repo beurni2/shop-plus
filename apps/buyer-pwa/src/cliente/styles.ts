@@ -540,6 +540,14 @@ export const CLIENTE_STYLES = `
   .cl-conf-body-max { line-height: 1.6; max-width: 300px; }
   .cl-conf-body b { font-feature-settings: 'tnum'; color: #1C1710; }
   .cl-conf-chip { margin-top: 16px; padding: 10px 16px; border-radius: 12px; background: #F6E9C8; color: #5F4403; font-size: 12px; font-weight: 700; letter-spacing: .06em; }
+  /* SP3.3c — « Vérifier à nouveau », offered only once the automatic checks
+     have stopped. A SECONDARY action: it whispers (§5, one primary action per
+     screen — the primary here is « Suivre ma commande » below). 44px tall. */
+  .cl-conf-relance { margin-top: 14px; min-height: 44px; padding: 12px 20px; border-radius: 14px; border: 1.5px solid #E0D6C2; background: #FFFFFF; color: #4A3F33; font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+  /* …and the failed payment's ring. The danger tokens this app already uses on
+     the problem banner, at ring weight — a border, never a filled alarm. */
+  .cl-conf-ring-echec { border-color: #7E1A15; color: #7E1A15; }
+  .cl-cta-echec { margin-top: 22px; }
   .cl-steps { margin-top: 22px; padding: 4px 17px; border-radius: 20px; border: 1px solid #EDE4D3; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,22,15,.04); }
   .cl-step-row { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid #F3EDDE; }
   .cl-step-row:last-child { border-bottom: none; }

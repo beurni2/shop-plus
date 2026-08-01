@@ -107,7 +107,27 @@ export type Livraison = 'today' | 'tomorrow';
 export type ModePaiement = 'A' | 'B';
 export type VoiceEtat = 'idle' | 'recording' | 'recorded' | 'queued' | 'refused';
 export type DoorEtat = 'inspecting' | 'accepted' | 'report';
-export type ConfirmEtat = 'confirmed' | 'pending' | 'offline';
+/**
+ * WHAT C6 IS ALLOWED TO SAY — and after SP3.3c, all five come from somewhere
+ * real rather than from a clock.
+ *
+ *  · `confirmed`  — the ORDER's own state said `confirmed`, which only a signed
+ *                   provider webhook validated to the franc can produce. This is
+ *                   the ONLY value that may print « confirmé par l'opérateur ».
+ *  · `attente`    — the order EXISTS on the service and the operator has not
+ *                   answered yet. NOT « en attente du réseau »: her request
+ *                   landed, so her network is not the story, and saying it was
+ *                   would be the same lie the unreachable/unreadable split
+ *                   exists to remove one screen earlier.
+ *  · `echec`      — the order's state said `payment_failed`. Nothing was
+ *                   collected; the retry is hers to make.
+ *  · `pending`    — the request is QUEUED ON THIS PHONE and has not left it.
+ *                   The offline-first state (Ten Laws #7: queued = pending,
+ *                   never done). Kept distinct from `attente` because the two
+ *                   need opposite sentences about whose problem this is.
+ *  · `offline`    — she was offline when she tapped Payer.
+ */
+export type ConfirmEtat = 'confirmed' | 'attente' | 'echec' | 'pending' | 'offline';
 
 /** Les 8 zones (§4 C3 — l'ensemble exact du pixel source). */
 export const ZONES: readonly string[] = ['Gounghin', 'Dassasgho', 'Pissy', 'Tampouy', 'Wemtenga', 'Zogona', 'Cissin', 'Somgandé'];
@@ -756,6 +776,53 @@ export const PAIEMENT = {
   ecouterNote: 'Écouter la note de la vendeuse',
 } as const;
 
+/**
+ * ═══ C6'S POST-PAYMENT COPY (SP3.3c) — THE TWO STATES THAT USED NOT TO EXIST ═══
+ *
+ * Until this slice, C6 had one ending: 2 400 ms after she tapped Payer, a
+ * `setTimeout` rendered « Paiement de 12 500 FCFA confirmé par l'opérateur. »
+ * No operator had answered. No webhook had arrived. On the deployed preview —
+ * which is built WITH a service base — that sentence sat in front of a REAL
+ * reservation held on a REAL quote, and it was false every time.
+ *
+ * The confirmation now comes from the order's own state, and the states the
+ * server can actually be in needed sentences. These are those sentences.
+ *
+ * ═══ WHY « attente » IS NOT « pending » ═══
+ *
+ * `pending` already exists and says « En attente du réseau. Votre commande est
+ * gardée sur ce téléphone. » That is TRUE when the request never left. It is a
+ * LIE when the service answered, holds her order, and is itself waiting on the
+ * operator — she is told her phone is the problem while standing on full 4G.
+ * It is the identical distinction the quote port draws between `unreachable`
+ * and `unreadable`, one screen later and with more at stake.
+ *
+ * ═══ WHAT `echec` MAY NOT PROMISE ═══
+ *
+ * It does NOT say « rien ne vous a été prélevé ». `payment_failed` is reached
+ * by the ordinary provider refusal AND by the `provider_amount_divergence`
+ * fault, and `order-do.ts` says plainly of the latter that the provider may
+ * have collected the amount it echoed. « Rien n'a été confirmé » is true on
+ * every path here; « rien n'a été prélevé » is not, and the difference is a
+ * buyer being told her money is safe when nobody knows that yet.
+ *
+ * Linted by `copy-lint-inline-refus.mjs` exactly as `REFUS` and `PAIEMENT` are,
+ * on the same structural floor: a DELETED sentence fails as loudly as a
+ * violated one.
+ */
+export const CONFIRMATION = {
+  /** The order exists on the service; the operator has not answered. */
+  attenteTitre: 'Nous attendons l’opérateur.',
+  attenteCorps: 'Votre commande est bien enregistrée. Nous dirons « payé » seulement quand l’opérateur l’aura confirmé.',
+  attenteChip: 'EN ATTENTE DE L’OPÉRATEUR',
+  /** …and her way to ask again once the automatic checks have stopped. */
+  attenteAction: 'Vérifier à nouveau',
+  /** The order's state came back `payment_failed`. No blame, no code, no wall. */
+  echecTitre: 'Le paiement n’a pas abouti.',
+  echecCorps: 'Rien n’a été confirmé. Votre commande vous attend — vous pouvez réessayer.',
+  echecAction: 'Réessayer le paiement',
+} as const;
+
 /** The view a refusal name renders as — the generic one for every name this
  *  table does not know (`amounts_disagree`, `quote_not_issuable`, `stored_*`,
  *  `request_key_reused`, and anything the service grows next). */
@@ -1083,7 +1150,20 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
  * l'opérateur » is true without a figure, while any figure we supplied would be
  * one the operator never confirmed.
  */
-export function renderC6(m: ClienteProduit, o: { confirmState: ConfirmEtat; paid: ModeSplit | undefined }): string {
+export function renderC6(
+  m: ClienteProduit,
+  o: {
+    confirmState: ConfirmEtat;
+    paid: ModeSplit | undefined;
+    /**
+     * SP3.3c — the automatic checks have STOPPED, so she gets a way to ask
+     * again. Absent while they are still running: a « Vérifier à nouveau »
+     * button beside a check that is already running invites her to spend data
+     * on an answer already on its way.
+     */
+    relance?: boolean | undefined;
+  },
+): string {
   let body: string;
   if (o.confirmState === 'confirmed') {
     // ONE BYTE, ONE SENTENCE. The amount clause exists only when the server
@@ -1099,6 +1179,30 @@ export function renderC6(m: ClienteProduit, o: { confirmState: ConfirmEtat; paid
       `<div class="cl-step-row"><span class="cl-step-num">1</span><span class="cl-step-txt">${esc(m.prenom)} prépare votre commande</span></div>`,
       '<div class="cl-step-row"><span class="cl-step-num">2</span><span class="cl-step-txt">Séra vérifie et scelle le colis</span></div>',
       '<div class="cl-step-row"><span class="cl-step-num">3</span><span class="cl-step-txt">Nous vous prévenons à chaque étape</span></div>',
+      '</div>',
+    ].join('');
+  } else if (o.confirmState === 'attente') {
+    // THE ORDER EXISTS AND NOBODY HAS PAID YET. No amount is printed here on
+    // purpose: an amount belongs to a payment, and there is no payment. What
+    // she gets instead is the one thing that is true and the one action she has.
+    body = [
+      '<div class="cl-conf" data-etat="attente-operateur">',
+      `<div class="cl-conf-ring">${iconClock(34)}</div>`,
+      `<div class="cl-conf-title cl-conf-title-pending">${CONFIRMATION.attenteTitre}</div>`,
+      `<div class="cl-conf-body cl-conf-body-max">${CONFIRMATION.attenteCorps}</div>`,
+      `<div class="cl-conf-chip">${CONFIRMATION.attenteChip}</div>`,
+      o.relance === true
+        ? `<button class="cl-conf-relance" data-action="verifier-paiement">${CONFIRMATION.attenteAction}</button>`
+        : '',
+      '</div>',
+    ].join('');
+  } else if (o.confirmState === 'echec') {
+    body = [
+      '<div class="cl-conf" data-etat="echec">',
+      `<div class="cl-conf-ring cl-conf-ring-echec">${iconClock(34)}</div>`,
+      `<div class="cl-conf-title cl-conf-title-pending">${CONFIRMATION.echecTitre}</div>`,
+      `<div class="cl-conf-body cl-conf-body-max">${CONFIRMATION.echecCorps}</div>`,
+      `<button class="cl-cta cl-cta-echec" data-action="reessayer-paiement">${CONFIRMATION.echecAction}</button>`,
       '</div>',
     ].join('');
   } else if (o.confirmState === 'pending') {
@@ -1122,7 +1226,12 @@ export function renderC6(m: ClienteProduit, o: { confirmState: ConfirmEtat; paid
   return [
     '<div class="cl-screen" data-screen="C6">',
     body,
-    '<button class="cl-cta cl-cta-c6" data-action="suivre">Suivre ma commande</button>',
+    // ONE PRIMARY ACTION PER SCREEN. On `echec` the primary action is « Réessayer
+    // le paiement », rendered inside the body above — « Suivre ma commande »
+    // beside it would offer her a timeline for a payment that did not happen.
+    o.confirmState === 'echec'
+      ? ''
+      : '<button class="cl-cta cl-cta-c6" data-action="suivre">Suivre ma commande</button>',
     '<div class="cl-footnote">Votre numéro reste privé.</div>',
     '</div>',
   ].join('');

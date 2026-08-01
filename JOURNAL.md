@@ -2122,3 +2122,50 @@ The fresh-context verifier re-introduced `?? 'B'` into `flow.ts`'s C6 render, re
 - **C6 does not consult `bInel`; C5 does.** `screens.ts:958` gates mode B's split on it, `flow.ts:303` calls `splitFor` ungated. The verifier traced every path and found it **unreachable today**. But the two screens now decide « is this mode payable » by two different expressions — the shape SP3.3b1's own comment warned about.
 
 Both are named here rather than left to be discovered, and neither is a franc a buyer can see today.
+
+---
+
+### 2026-08-01 · SP3.3c — the buyer's confirmation stops being a clock and becomes the order
+
+**OPENED at the founder's request** (« open SP3.3c and start working on it »), and it is the slice SP3.3b2 named as the prerequisite for its own blocked half: « It needs SP3.3a's server side wired through to the client first. »
+
+**WHAT WAS TRUE BEFORE THIS SLICE, AND IT WAS LIVE.** `flow.ts`'s `payer` handler, after a successful reservation, ran:
+
+```
+t1 = setTimeout(() => { state.paying = 'provider'; render();
+  t2 = setTimeout(() => jump('C6', { confirmState: 'confirmed', step: 1 }), 2400); }, 1200);
+```
+
+2 400 ms after she tapped Payer, the screen said « Paiement de 12 500 FCFA confirmé par l'opérateur. » **No order had been created. No charge had been initiated. No webhook had arrived.** And this was not a demo path: `.github/workflows/pwa-preview.yml:73` sets `VITE_STOREFRONT_BASE`, so on the deployed preview that sentence stood in front of a REAL hold on a REAL quote at the real Worker. Ten Laws #2 — « provider webhooks are the only payment truth » — was being contradicted by a `setTimeout`.
+
+**WHAT THE CLIENT NOW DOES.** `QuotePort` grew two methods against routes SP3.3a already shipped: `order()` → `POST /checkout/order` (body = the service's own three-key allowlist `{quoteId, holderRef, commandId}`, no amount field exists to send) and `orderState()` → `GET /checkout/order/{id}`. `quote-model.ts` exposes them as `commander(mode, essai)` and `etatCommande(orderId)`, bound to the same per-mode quote and holderRef the HOLD was taken on. `flow.ts` reserves, then orders, then reads the order back on a bounded schedule. **C6 renders the order's own state and nothing else.**
+
+**THE ALLOWLIST IS ONE FUNCTION AND IT FAILS CLOSED** (`etatDeC6`):
+- `confirmed` → the confirmation. It is the only state the vault reaches through `confirmOrder`, which re-reads the order's funding record and refuses `no_funded_checkout_leg` — so it cannot exist without a funded leg (SP-I13).
+- **`paid` → NOT a confirmation.** This is the trap and it is worth the sentence: the webhook path advances to `paid` and confirms in the same request, so a `paid` an HTTP read can actually SEE is an order whose confirmation was REFUSED. Reading it as « confirmé » would print the confirmation for exactly the orders the vault declined to fund.
+- `payment_failed` → the failure. The only one; no generic « failed » terminal is invented (Ten Laws #3).
+- Everything else, **including a state this client has never heard of**, → the waiting screen.
+
+**TWO NEW C6 STATES, AND THE SECOND ONE CLOSES SP3.3b2's BLOCKED HALF.**
+- `attente` — « Nous attendons l'opérateur. » **Deliberately NOT the existing `pending` state**, which says « En attente du réseau. Votre commande est gardée sur ce téléphone. » That is true when the request never left and a LIE when the service answered and holds her order — the identical distinction the quote port draws between `unreachable` and `unreadable`, one screen later and with more at stake. Pinned by test: `attente` may contain neither « réseau » nor « téléphone »; `pending` must still contain both.
+- `echec` — « Le paiement n'a pas abouti. Rien n'a été confirmé. » **It does NOT say « rien n'a été prélevé », and that is a decision, not an omission:** `payment_failed` is reached by the ordinary provider refusal AND by the `provider_amount_divergence` fault, where `order-do.ts` says plainly the provider may have collected the amount it echoed. « Rien n'a été confirmé » is true on every path there; « rien n'a été prélevé » is not. Test asserts the words « prélev », « débit » and « rembours » appear nowhere on it.
+
+Neither state prints an amount, in any combination of split handed to the renderer: there is no payment, so there is no figure.
+
+**⏳ SPEC-SILENT, SAFEST DEFAULT APPLIED, FOUNDER-TUNABLE — the poll cadence.** Neither §6.1 nor §6.3 names one. `SUIVI_PAIEMENT_MS = [1500, 2500, 4000, 6000, 9000, 12000]` — seven reads over ~35 s, then it **STOPS** and grows a « Vérifier à nouveau » button. Reasoning under Ten Laws #7: quick at first because a webhook can land in a second; slowing because after ten seconds it plainly is not arriving quickly and every read is her data and her battery; stopping because a client that polls forever drains a 1 GB Android in a pocket for an answer that may take an hour. **Running out of reads means « we stopped asking », never « it failed »** — the sentence on screen does not change.
+
+**IDEMPOTENCY, THE CLIENT HALF.** `orderCommandIdFor(quoteId, essai, storage)` — stable within an attempt (a double-tap or a reload replays the server's stored answer), fresh across a deliberate retry (the vault requires a new payment attempt id on the `payment_failed → payment_pending` edge, so reusing the command would replay the first answer and the retry button would be theatre). The PROVIDER key is untouched by any of this: it belongs to the leg, is minted once server-side, and is reused across every retry — which is what stops a retry from collecting twice.
+
+**THE NEW COPY IS LINTED, NOT MERELY WRITTEN.** `CONFIRMATION` in `screens.ts` is a named table and `copy-lint-inline-refus.mjs` now extracts it on the same terms as `REFUS` and `PAIEMENT`: structural floor (a deleted sentence fails as loudly as a violated one), unknown-field hard failure, and **every field's placeholder allowlist is EMPTY** — neither state has a payment, so neither has an amount to name. Two new negative fixtures, both clean everywhere except the `CONFIRMATION` table, so if the gate ever stops reading it they both go green in silence. The other thirteen fixtures got a clean `CONFIRMATION` block appended for the same reason SP3.3b1 gave them a clean `PAIEMENT` one.
+
+**EVIDENCE (all run this session):** buyer-pwa typecheck clean · 719/719 unit (was 689, +30) · **74/74 Playwright on a rebuilt bundle**, of which 19/19 are the real-path suite driving the REAL `httpQuotePort` against a scripted service · `run-gates.sh` **ALL GATES GREEN** (positives passed; every negative fixture failed as required) · payload worst case **276 313 B** against the 307 200 B ceiling.
+
+**MUTATION-PROVEN, TWICE, AGAINST REBUILT BUNDLES:**
+1. **The old timer reinstated** in place of `passerLaCommande` → **8 of 8 SP3.3c e2e went RED**, including the sharpest one: with the timer back, an order the server REFUSED still rendered « confirmé par l'opérateur ».
+2. **`etatDeC6('paid') → 'confirmed'`** → the named e2e went RED and 2 unit tests with it.
+
+**ONE BEHAVIOUR CHANGE WORTH NAMING, found by an existing test going red.** « ENVOI SÉCURISÉ » used to stand for a fixed 1 200 ms. It now stands for exactly as long as the reserve is genuinely on the wire, and the `operateur` screen for as long as the order is — so on a fast link the first is over in milliseconds. Both still carry the `retour-c4` back button, so the BLOCKER-3 guarantee (cancel means cancel) is unchanged; its e2e was re-pointed at the window that now exists and additionally asserts a cancelled checkout performs **zero** order reads.
+
+**ONE FINDING LEFT UNFIXED, DELIBERATELY — outside this slice, flagged for the founder.** C5's `operateur` screen instructs her: « Confirmez sur votre téléphone · Composez votre code secret Orange Money ». **Nothing sends a USSD push.** That copy is inherited from the pixel prototype and it tells a buyer to perform an action no provider has asked her for. It is not a franc she can see, and whether a real aggregator pushes a PIN prompt is inside the open aggregator Decision (Build Spec §12) — so it is named here rather than rewritten on a guess.
+
+**Also carried forward, unchanged from SP3.3b2:** `prefill` still invents mode B at `flow.ts` (`if (idx >= 4) state.pay = state.pay || 'B'`), reaching `renderC8` and `porte-bon`; and C6 vs C5 still judge « is this mode payable » by two different expressions (unreachable today).

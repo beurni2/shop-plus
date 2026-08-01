@@ -1,6 +1,8 @@
-// NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
-// An INTERPOLATED template literal in a money sentence. The gate refuses it
-// outright: a sentence assembled at runtime cannot be linted as read.
+// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — SP3.3c.
+// C6's WAITING SENTENCE HAS BEEN DELETED. Everything else is clean. The
+// structural floor must bite: a state that lost its sentence is a state that
+// says nothing true while a buyer waits on her money, and a DELETED string has
+// to fail exactly as loudly as a violated one.
 const REFUS_GENERIQUE = {
   overline: 'LE PRIX',
   titre: 'Nous ne pouvons pas afficher le prix.',
@@ -13,44 +15,9 @@ const REFUS = {
   expired: {
     overline: 'LE PRIX',
     titre: 'Ce prix a expiré.',
-    phrase: `Le prix ${'' + 'a changé'} — réessayez.`,
+    phrase: 'Un prix ne reste affiché qu’un moment. Rien n’a été payé.',
     action: 'prix-a-jour',
     libelle: 'Voir le prix à jour',
-  },
-  filler_1: {
-    overline: 'LE PRIX 1',
-    titre: 'Nous ne pouvons pas afficher le prix 1.',
-    phrase: 'Réessayez dans un instant. Rien n’a été payé.',
-    action: 'reessayer-prix',
-    libelle: 'Réessayer 1',
-  },
-  filler_2: {
-    overline: 'LE PRIX 2',
-    titre: 'Nous ne pouvons pas afficher le prix 2.',
-    phrase: 'Réessayez dans un instant. Rien n’a été payé.',
-    action: 'reessayer-prix',
-    libelle: 'Réessayer 2',
-  },
-  filler_3: {
-    overline: 'LE PRIX 3',
-    titre: 'Nous ne pouvons pas afficher le prix 3.',
-    phrase: 'Réessayez dans un instant. Rien n’a été payé.',
-    action: 'reessayer-prix',
-    libelle: 'Réessayer 3',
-  },
-  filler_4: {
-    overline: 'LE PRIX 4',
-    titre: 'Nous ne pouvons pas afficher le prix 4.',
-    phrase: 'Réessayez dans un instant. Rien n’a été payé.',
-    action: 'reessayer-prix',
-    libelle: 'Réessayer 4',
-  },
-  filler_5: {
-    overline: 'LE PRIX 5',
-    titre: 'Nous ne pouvons pas afficher le prix 5.',
-    phrase: 'Réessayez dans un instant. Rien n’a été payé.',
-    action: 'reessayer-prix',
-    libelle: 'Réessayer 5',
   },
   unreachable: {
     overline: 'HORS LIGNE',
@@ -71,10 +38,6 @@ export function refusVue(reason: string) {
   return REFUS[reason] ?? REFUS_GENERIQUE;
 }
 
-// A CLEAN §6.1 PAIEMENT block (SP3.3b1) — verbatim from the real screens.ts.
-// It is here so this fixture keeps failing for ITS OWN planted defect and not
-// merely for a missing table: a negative that fails for the wrong reason proves
-// nothing about the check it is named after.
 export const PAIEMENT = {
   ligneMaintenant: 'À payer maintenant : {X}\u202fFCFA',
   ligneLivraison: 'À payer à la livraison : {Y}\u202fFCFA',
@@ -88,6 +51,7 @@ export const PAIEMENT = {
   redite: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
   rediteA: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
   rediteFin: 'à la livraison — d’accord ?',
+  ecouterNote: 'Écouter la note de la vendeuse',
 } as const;
 
 
@@ -96,7 +60,6 @@ export const PAIEMENT = {
 // failing for ITS OWN planted defect, not for a table it never had.
 export const CONFIRMATION = {
   attenteTitre: 'Nous attendons l’opérateur.',
-  attenteCorps: 'Votre commande est bien enregistrée. Nous dirons « payé » seulement quand l’opérateur l’aura confirmé.',
   attenteChip: 'EN ATTENTE DE L’OPÉRATEUR',
   attenteAction: 'Vérifier à nouveau',
   echecTitre: 'Le paiement n’a pas abouti.',

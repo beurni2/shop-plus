@@ -28,7 +28,7 @@ import {
   type Livraison, type ModePaiement, type VoiceEtat,
 } from './screens';
 import { fmtFCFA } from './money';
-import { prixExpire, type QuoteFetch, type ReserveFetch } from './quote-model';
+import { prixExpire, type OrderFetch, type QuoteFetch, type ReserveFetch } from './quote-model';
 
 export type ClienteEcran = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9';
 /** C2 is the protections SHEET, not a linear stop — mounting at C2 opens the
@@ -111,7 +111,16 @@ interface FlowState {
    * closed over, so every tap of Payer holds under the SAME command and the
    * buyer's own retry replays her own hold instead of colliding with it.
    */
-  live: { quoteId: string; commandId: string; expiry: string; reserve: (mode: ModePaiement) => Promise<ReserveFetch> } | null;
+  live: {
+    quoteId: string;
+    commandId: string;
+    expiry: string;
+    reserve: (mode: ModePaiement) => Promise<ReserveFetch>;
+    /** SP3.3c — create the order for the chosen mode, and read it back. Bound
+     *  to the same per-mode quote the hold was taken on. */
+    commander: (mode: ModePaiement, essai: number) => Promise<OrderFetch>;
+    etatCommande: (orderId: string) => Promise<OrderFetch>;
+  } | null;
   /**
    * The phone's clock disagreed with a QUOTE THE SERVICE JUST ISSUED, so the
    * local expiry check is not evidence about the price. See `payer`.
@@ -119,6 +128,64 @@ interface FlowState {
   horlogeDouteuse: boolean;
   /** One automatic refresh per price, so a stale quote cannot loop forever. */
   prixRafraichi: boolean;
+  /* ── SP3.3c — the order, and the operator's answer ─────────────────────── */
+  /** The order this checkout created, once the service has created one. */
+  orderId: string | null;
+  /** Which ORDER attempt this is — 0, then +1 per deliberate retry after a
+   *  failed payment. It is part of the order command id's storage slot, so a
+   *  double-tap replays and a retry does not. */
+  essai: number;
+  /** The automatic checks have stopped ⇒ C6 offers « Vérifier à nouveau ». */
+  relance: boolean;
+}
+
+/**
+ * ═══ HOW OFTEN THE CLIENT ASKS THE SERVER WHETHER THE OPERATOR ANSWERED ═══
+ *
+ * NEITHER §6.1 NOR §6.3 NAMES A CADENCE — this is a documented safest default
+ * under Ten Laws #7 (« offline-first, low-end Android first »), founder-tunable,
+ * and it is one constant so tuning it is one edit.
+ *
+ * BACKOFF, AND THEN A STOP. Six reads over about 35 seconds: quick at first,
+ * because a sandbox webhook can land in a second and a buyer staring at a
+ * waiting screen deserves the answer as soon as it exists; slowing down,
+ * because after ten seconds it is no longer arriving quickly and every extra
+ * read is her data and her battery. THEN IT STOPS — and this is the part that
+ * matters most on this market's phones: a client that polls forever is a client
+ * that drains a 1 GB Android in a pocket for an answer that may take an hour.
+ * When it stops, the screen does NOT change its meaning; it grows a « Vérifier
+ * à nouveau » button, so asking again is her choice and costs one request.
+ *
+ * NOTHING HERE IS A DEADLINE ON THE PAYMENT. Running out of reads means « we
+ * stopped asking », never « it failed » — the order is exactly as alive as it
+ * was, and the screen keeps saying the same true sentence.
+ */
+export const SUIVI_PAIEMENT_MS: readonly number[] = [1_500, 2_500, 4_000, 6_000, 9_000, 12_000];
+
+/**
+ * THE SERVER'S ORDER STATE → WHAT C6 IS ALLOWED TO SAY. An ALLOWLIST, in one
+ * place, and everything it does not name falls to « we are waiting ».
+ *
+ *  · `confirmed` ALONE prints the confirmation. It is the state the vault
+ *    reaches only through `confirmOrder`, which re-reads the order's own funding
+ *    record and refuses `no_funded_checkout_leg` — so it cannot exist without a
+ *    funded leg (SP-I13, and the gate of that name).
+ *  · `paid` DOES NOT. It looks like the happier word and it is the trap: the
+ *    webhook path advances to `paid` and confirms in the same breath, so an
+ *    order OBSERVED at `paid` is one where confirmation was REFUSED. Reading it
+ *    as « confirmé » would print the confirmation for exactly the orders whose
+ *    funding the vault rejected.
+ *  · `payment_failed` is the only failure. There is no generic « failed »
+ *    terminal in this system (Ten Laws #3) and this function invents none.
+ *  · `quote_issued` · `reserved` · `payment_pending` · `cancelled` · `refunded`
+ *    — and any state this client has never heard of — all mean « not confirmed,
+ *    not failed », which is the waiting screen. FAIL CLOSED: an unknown state
+ *    must never be able to print a confirmation.
+ */
+export function etatDeC6(state: string): ConfirmEtat {
+  if (state === 'confirmed') return 'confirmed';
+  if (state === 'payment_failed') return 'echec';
+  return 'attente';
 }
 
 export function createCliente(container: HTMLElement, init: ClienteInit): void {
@@ -158,6 +225,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     live: null,
     horlogeDouteuse: false,
     prixRafraichi: false,
+    orderId: null,
+    essai: 0,
+    relance: false,
   };
 
   /**
@@ -202,6 +272,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
 
   let t1: ReturnType<typeof setTimeout> | null = null;
   let t2: ReturnType<typeof setTimeout> | null = null;
+  /** SP3.3c — the next scheduled read of the order. Cleared by `clearT()` with
+   *  the rest, so leaving the screen stops asking. */
+  let tSuivi: ReturnType<typeof setTimeout> | null = null;
   let ticker: ReturnType<typeof setInterval> | null = null;
 
   /**
@@ -220,8 +293,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   function clearT(): void {
     if (t1) clearTimeout(t1);
     if (t2) clearTimeout(t2);
+    if (tSuivi) clearTimeout(tSuivi);
     if (ticker) clearInterval(ticker);
-    t1 = t2 = ticker = null;
+    t1 = t2 = tSuivi = null;
+    ticker = null;
     generation += 1;
   }
 
@@ -301,6 +376,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         return q === null ? renderRefus('') : renderC6(m, {
           confirmState: state.confirmState,
           paid: state.pay === null ? undefined : splitFor(q, state.delivery ?? 'today', state.pay),
+          relance: state.relance,
         });
       case 'C7':
         return renderC7({ step: state.step, problem: state.problem, demo });
@@ -373,7 +449,15 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       commandId: fetched.ids.commandId,
       expiry: fetched.expiry,
       reserve: fetched.reserve,
+      commander: fetched.commander,
+      etatCommande: fetched.etatCommande,
     };
+    // A NEW PRICE IS A NEW CHECKOUT. The old order id belonged to the old
+    // quote; carrying it forward would let « Vérifier à nouveau » poll an order
+    // that no longer describes what she is about to pay.
+    state.orderId = null;
+    state.essai = 0;
+    state.relance = false;
     // ═══ IS THIS PHONE'S CLOCK TRUSTWORTHY? (verifier BLOCKER 5) ═══
     // A quote the service JUST issued is alive by construction. If this device
     // reads it as already expired, the wrong clock is the phone's — so the local
@@ -415,6 +499,90 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     // arrival. `delivery` is set only so the selectors have a slot to read; both
     // slots carry the SAME server figure, so the choice cannot change a franc.
     jump('C4', { delivery: 'today' });
+  }
+
+  /**
+   * ═══ SP3.3c — ASK THE SERVER WHETHER THE OPERATOR ANSWERED ═══
+   *
+   * ONE READ, then it schedules the next one from `SUIVI_PAIEMENT_MS` — or
+   * stops and hands the buyer the button. Reads the order's OWN state and
+   * nothing else; there is no clock in this function and no branch in which it
+   * can decide, by itself, that a payment happened.
+   *
+   * A FAILED READ IS NOT A FAILED PAYMENT, and the code says so structurally:
+   * `refused`, `unreachable` and `unreadable` all leave `confirmState`
+   * UNTOUCHED and simply schedule the next read. Her order is exactly as alive
+   * as it was a second ago — we merely did not learn anything. Turning a lost
+   * poll into a visible failure would be this app inventing a payment outcome,
+   * which is the whole class of bug this slice exists to remove.
+   *
+   * `gen` IS THE ATTEMPT'S GENERATION (the BLOCKER-3 device, reused): she may
+   * tap « Suivre ma commande » or « Réessayer » while a read is on the wire, and
+   * a read that resolves into a screen it no longer belongs to must write
+   * nothing at all.
+   */
+  function suivreLePaiement(orderId: string, gen: number, etape: number): void {
+    const live = state.live;
+    if (live === null) return;
+    void live.etatCommande(orderId).then((r) => {
+      if (gen !== generation) return;
+      if (r.status === 'order') {
+        const etat = etatDeC6(r.order.state);
+        state.confirmState = etat;
+        // SETTLED, EITHER WAY ⇒ STOP ASKING. `confirmed` and `echec` are the two
+        // states the server will not move off on its own, so a further read
+        // could only ever return the same answer at her expense.
+        if (etat !== 'attente') {
+          state.relance = false;
+          render();
+          return;
+        }
+      }
+      const attente = SUIVI_PAIEMENT_MS[etape];
+      if (attente === undefined) {
+        // OUT OF SCHEDULED READS — not out of hope. The sentence on screen does
+        // not change; she gains a way to ask again, one request at a time.
+        state.relance = true;
+        render();
+        return;
+      }
+      render();
+      tSuivi = setTimeout(() => suivreLePaiement(orderId, gen, etape + 1), attente);
+    });
+  }
+
+  /**
+   * CREATE THE ORDER, THEN WATCH IT. The « ENVOI SÉCURISÉ » screen stands while
+   * the order request is on the wire; C6 mounts on the state the SERVICE
+   * returned, which today is `payment_pending` and therefore « Nous attendons
+   * l'opérateur. » — never a confirmation, because a created order is not a
+   * paid one.
+   */
+  function passerLaCommande(mode: ModePaiement, gen: number): void {
+    const live = state.live;
+    if (live === null) return;
+    state.paying = 'provider';
+    render();
+    void live.commander(mode, state.essai).then((r) => {
+      if (gen !== generation) return;
+      if (r.status !== 'order') {
+        // The service refused to create the order (an expired hold, a hold
+        // someone else has, a dead quote) — or we could not read its answer.
+        // Its own name reaches the honest refusal surface, exactly as a refused
+        // reserve does. NOTHING was charged: the charge happens inside the
+        // order path we did not get through.
+        state.paying = 'idle';
+        state.refus = nomDuRefus(r);
+        render();
+        return;
+      }
+      state.orderId = r.order.orderId;
+      const etat = etatDeC6(r.order.state);
+      jump('C6', { confirmState: etat, step: 1, orderId: r.order.orderId, relance: false });
+      // `jump` cleared the timers and bumped the generation — so the watch must
+      // start from the NEW one, or its first read would discard itself.
+      if (etat === 'attente') suivreLePaiement(r.order.orderId, generation, 0);
+    });
   }
 
   function render(): void {
@@ -622,12 +790,26 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
               render();
               return;
             }
-            // Held. Into the EXISTING provider simulation — the real legs are
-            // SP3.3 and nothing below this line claims otherwise.
-            t1 = setTimeout(() => {
-              state.paying = 'provider'; render();
-              t2 = setTimeout(() => jump('C6', { confirmState: 'confirmed', step: 1 }), 2400);
-            }, 1200);
+            /**
+             * ═══ SP3.3c — THE 2 400 ms `setTimeout` THAT USED TO LIVE HERE IS
+             *     GONE, AND IT WAS THE WORST LINE IN THIS APP ═══
+             *
+             * It read: `t2 = setTimeout(() => jump('C6', { confirmState:
+             * 'confirmed' }), 2400)`. Two and a half seconds after she tapped
+             * Payer, the screen said « Paiement de 12 500 FCFA confirmé par
+             * l'opérateur. » No order had been created. No charge had been
+             * initiated. No webhook had arrived. And this was NOT a demo path:
+             * `pwa-preview.yml` builds with `VITE_STOREFRONT_BASE`, so the
+             * sentence stood in front of a REAL hold on a REAL quote at the real
+             * Worker. Ten Laws #2 — « provider webhooks are the only payment
+             * truth » — was being contradicted by a clock.
+             *
+             * The order is now CREATED, and C6 mounts on the state the service
+             * returns. The only thing that can produce « confirmé » is the
+             * order's own `confirmed`, and only a signed webhook validated to
+             * the franc can produce that.
+             */
+            passerLaCommande(mode, gen);
           });
           return;
         }
@@ -637,6 +819,35 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
           state.paying = 'provider'; render();
           t2 = setTimeout(() => jump('C6', { confirmState: 'confirmed', step: 1 }), 2400);
         }, 1200);
+        return;
+      }
+      // — C6 (SP3.3c) —
+      //
+      // « VÉRIFIER À NOUVEAU » — ONE read, on her word, after the automatic
+      // ones stopped. It does not restart the schedule: she asked once, she
+      // gets one answer, and the button stays if the answer is still « we are
+      // waiting ». That is the shape that respects a metered connection.
+      case 'verifier-paiement': {
+        const id = state.orderId;
+        if (id === null) return;
+        state.relance = false;
+        render();
+        suivreLePaiement(id, generation, SUIVI_PAIEMENT_MS.length);
+        return;
+      }
+      // « RÉESSAYER LE PAIEMENT » — a NEW attempt, and therefore a new order
+      // command id (`state.essai` is part of its storage slot). Reusing the old
+      // one would replay the first answer: the button would look like it worked
+      // and nothing would have been retried. The PROVIDER key is untouched by
+      // this — it belongs to the leg, is minted once server-side and is reused
+      // across every retry, which is what stops a retry from collecting twice.
+      case 'reessayer-paiement': {
+        const mode = state.pay;
+        if (mode === null || state.live === null) return;
+        clearT();
+        state.essai += 1;
+        state.relance = false;
+        passerLaCommande(mode, generation);
         return;
       }
       // — C6 · C7 —
