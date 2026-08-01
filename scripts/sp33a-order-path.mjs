@@ -309,7 +309,7 @@ async function runMode(mode, quoteId) {
   );
 
   const escrow = spine.ledger.escrowFor(orderId);
-  const view = toBuyerOrderView({ orderId, state: spine.journey.state, quote });
+  const view = toBuyerOrderView({ orderId, state: spine.journey.state, quote, doorLeg: spine.doorLegState });
   console.log(
     `  buyer view: ${JSON.stringify(view)}  (keys: ${Object.keys(view).sort().join(',')})`,
   );
@@ -318,9 +318,78 @@ async function runMode(mode, quoteId) {
       ` · escrow leg ${escrow.paymentLegs[0].legType} ${escrow.paymentLegs[0].amount} (${escrow.paymentLegs[0].status})`,
   );
   check(
-    `${mode}: the buyer view carries FOUR fields and no economics`,
-    Object.keys(view).sort().join(',') === 'amountDueAtDelivery,amountPaidAtCheckout,orderId,state',
+    `${mode}: the buyer view carries FIVE fields and no economics`,
+    Object.keys(view).sort().join(',') === 'amountDueAtDelivery,amountPaidAtCheckout,doorLeg,orderId,state',
   );
+  // SP4.2a — the door leg reads what the MODE owes, before anything is paid at
+  // the door: nothing for FULL_PREPAY, `due` for Option B.
+  check(
+    `${mode}: the door leg starts at ${mode === 'FULL_PREPAY' ? 'none' : 'due'}`,
+    view.doorLeg === (mode === 'FULL_PREPAY' ? 'none' : 'due'),
+  );
+
+  /* ═══ SP4.2a — THE DOOR LEG, THROUGH THE SAME CODE THE DO REPLAYS ═══
+   *
+   * §6.3: « the buyer enters the drop code last, AFTER any door payment is
+   * provider-confirmed. » §5.5: the product leg is « paid by MoMo at the door
+   * BEFORE custody transfer; not COD ». This runs `applyOrderInput` with the
+   * new `door_provider` kind — the exact call `worker/order-do.ts` makes — so
+   * the gate reads the real path's answer and not a fixture.
+   */
+  const doorProvider = new MockPaymentProvider({});
+  doorProvider.initiateCharge({
+    orderId,
+    paymentAttemptId: `att-door-${orderId}`,
+    amount: quote.amountDueAtDelivery,
+    correlationId: spine.journey.correlationId,
+    requestedAtIso: T,
+    legType: 'door',
+  });
+  const doorEvent = doorProvider
+    .webhookDeliveryPlan()
+    .find((d) => d.event.name === 'payment.door_leg_confirmed.v1')?.event;
+  check(`${mode}: the certified mock emits a door webhook to drive this with`, doorEvent !== undefined);
+
+  // A DOOR CONFIRMATION ONE FRANC OFF THE QUOTE IS REFUSED, and records nothing.
+  const doorShortProvider = new MockPaymentProvider({});
+  doorShortProvider.initiateCharge({
+    orderId,
+    paymentAttemptId: `att-door-short-${orderId}`,
+    amount: Math.max(0, quote.amountDueAtDelivery - 1),
+    correlationId: spine.journey.correlationId,
+    requestedAtIso: T,
+    legType: 'door',
+  });
+  const doorShortEvent = doorShortProvider
+    .webhookDeliveryPlan()
+    .find((d) => d.event.name === 'payment.door_leg_confirmed.v1')?.event;
+  const doorShortOutcome = applyOrderInput(spine, { kind: 'door_provider', event: doorShortEvent });
+  check(`${mode}: a door amount off by one franc is REFUSED`, doorShortOutcome.applied === false);
+  check(`${mode}: …and the door leg did not move`, spine.doorLegState === view.doorLeg);
+
+  const doorOutcome = applyOrderInput(spine, { kind: 'door_provider', event: doorEvent });
+  if (mode === 'FULL_PREPAY') {
+    // NOTHING IS OWED AT THE DOOR, so provider truth asserting otherwise must
+    // not stick — this is the whole defence for every mode-A order today.
+    check('FULL_PREPAY: a door confirmation is REFUSED — nothing is due there', doorOutcome.applied === false);
+    check('FULL_PREPAY: …and the door leg is still none', spine.doorLegState === 'none');
+  } else {
+    check('Option B: the door leg is PAID only after the provider says so', doorOutcome.applied === true);
+    check('Option B: …and the state moved due → paid', spine.doorLegState === 'paid');
+    // A REDELIVERY IS ABSORBED — one payment, one leg, whatever the provider retries.
+    const replay = applyOrderInput(spine, { kind: 'door_provider', event: doorEvent });
+    check('Option B: a redelivered door webhook is ABSORBED', replay.applied === true && replay.duplicate === true);
+    const legs = spine.ledger.escrowFor(orderId).paymentLegs;
+    const doorLegs = legs.filter((l) => l.legType === 'door');
+    check('Option B: exactly ONE door leg is recorded, never two', doorLegs.length === 1);
+    check(
+      `Option B: the recorded door leg is the Quote's amountDueAtDelivery (${quote.amountDueAtDelivery})`,
+      doorLegs[0]?.amount === quote.amountDueAtDelivery,
+    );
+    console.log(
+      `  door leg: ${spine.doorLegState} · recorded ${doorLegs[0]?.amount} = amountDueAtDelivery ${quote.amountDueAtDelivery}`,
+    );
+  }
 
   return {
     quote,

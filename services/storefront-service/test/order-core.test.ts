@@ -287,12 +287,29 @@ describe('decideCreateOrder — the hold must be the caller\'s own', () => {
 
 /* ══════════════════════ the buyer wire (the boundary) ═════════════════════ */
 
-describe('toBuyerOrderView — four fields, and not one franc of economics', () => {
+describe('toBuyerOrderView — five fields, and not one franc of economics', () => {
   it('the keys ARE the allowlist and no banned name or value appears in the bytes', () => {
     const { quote } = distinctQuote();
-    const view = toBuyerOrderView({ orderId: 'ord-quote-distinct', state: 'payment_pending', quote });
+    const view = toBuyerOrderView({
+      orderId: 'ord-quote-distinct',
+      state: 'payment_pending',
+      quote,
+      doorLeg: 'due',
+    });
+    /**
+     * FOUR BECAME FIVE, DELIBERATELY, AND THIS TEST IS WHERE THAT IS DECIDED.
+     *
+     * `doorLeg` was added by SP4.2a because §6.3 turns on it: « the buyer enters
+     * the drop code last, AFTER any door payment is provider-confirmed. » The
+     * allowlist had to be EDITED to let it in, which is the whole point of
+     * writing the view field by field — a projection that grew a field by
+     * accident would have failed right here.
+     *
+     * IT IS A STATE, NEVER AN AMOUNT, so the economics scan below is unchanged
+     * and still passes over it.
+     */
     expect(Object.keys(view).sort()).toEqual(
-      ['amountDueAtDelivery', 'amountPaidAtCheckout', 'orderId', 'state'].sort(),
+      ['amountDueAtDelivery', 'amountPaidAtCheckout', 'doorLeg', 'orderId', 'state'].sort(),
     );
     const bytes = JSON.stringify(view);
     for (const banned of [

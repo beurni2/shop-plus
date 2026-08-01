@@ -2215,3 +2215,33 @@ The verifier aborted every `GET /checkout/order/{id}` and measured it: **8 reads
 2. **The poll cadence stays as shipped** — `SUIVI_PAIEMENT_MS = [1500, 2500, 4000, 6000, 9000, 12000]`, seven reads over ~35 s, then stop and offer « Vérifier à nouveau ». It was flagged as a documented safest default on a spec-silent question (Ten Laws #7); it is now a **decision**, not a default.
 
 Still owed and only the founder can do it: the device walk — the 33 pickable headers, plus the two new payment states, reachable at `?conf=operateur` and `?conf=echec`.
+
+---
+
+### 2026-08-01 · SP4.2a — the door leg, server-side and durable (the SP3.3a twin)
+
+**OPENED at the founder's request** (« open SP4.2 and start working on it »). SP4.2 is one row in the plan and three distinct pieces of work; this is the first, and it is the prerequisite for the other two for the same reason SP3.3a was: **the buyer's screens can only be honest if the server has an answer.**
+
+**WHAT THE GROUNDING FOUND, before a line was written:**
+
+1. **The vault half was already DONE and frozen.** `order-spine.ts:349` `onProviderDoorPaymentEvent` validates a `payment.door_leg_confirmed.v1` webhook — correlation, idempotency, `doorLeg === 'due'`, the amount **franc-exact against the immutable Quote's `amountDueAtDelivery`**, a funded status — records the escrow with `legType: 'door'`, sets `doorLeg = 'paid'` and emits the door signal. Certified and tested in `packages/commerce-core/test/e2-door-paths.test.ts`.
+2. **The service half did not exist at all.** `applyOrderInput`'s `'provider'` case called only `onProviderPaymentEvent` (the CHECKOUT leg). There was no door input kind, no door route on the Worker, and no door state on the buyer projection. **`onProviderDoorPaymentEvent` had ZERO callers outside the vault's own tests** — the deployed OrderDO could never move `doorLeg` off `'due'`.
+3. **The client half is a 2 600 ms `setTimeout` and a hardcoded constant.** C8's « accepted » state waits 2.6 s and jumps to C9, and `CODE_REMISE = '734 921'` is a literal in `screens.ts`. That is the same species of lie SP3.3c just removed from C6, one screen later, with custody on it. **SP4.2b/c.**
+4. **Mode B is unreachable in production** — `PAY_AT_DOOR_POLICY_DEFAULTS` ships an empty `networkReliableZones` allowlist (⏳ open Decision, founder-tunable), so the service refuses every pay-at-door quote.
+
+**BUILT — three pieces, and each one is a routing decision made structurally:**
+- **`OrderInput` gained `door_provider`, a SEPARATE kind from `provider`.** Two legs, two canon event names, two vault methods, two amounts. Folding them into one kind would mean this service reading a payload to decide which leg a payment funds — and « the payload tells us which leg it is » is exactly how a checkout confirmation ends up marking the door leg paid. It replays out of the durable log like every other input.
+- **`POST /checkout/webhook/door`**, on the DO's own `/entry/door-webhook`, **behind the SAME secret as the payment webhook and in the same condition** — one `if`, two paths, so a future edit that widens the public exemption has to walk past it. What a forged event here would achieve is written at the route: a rider walking away with a package nobody paid for, and a buyer holding a code she was told proves payment.
+- **`BuyerOrderView` grew a fifth field, `doorLeg`.** The shape's own comment said « FOUR FIELDS, WHICH IS SP-I13 EXACTLY », so the reason is recorded beside it: SP-I13 is about what is paid now versus due at delivery, and the two amounts still say that; this says whether the due one **has been paid**, which is the question §6.3 turns on. It is a STATE, never an amount. **Three pinned allowlists had to be edited by hand to let it through — `order-core.test.ts`, the HTTP e2e, and the SP3.3a evidence driver — which is precisely what building the view field by field is for.**
+
+**PROVED, and the honest limits stated:**
+- **On the real Worker (miniflare, 5 new tests):** the door route is secret-gated and its 401 is not an existence oracle (a real order id and a fake one answer identically) · a door confirmation against an order that owes nothing at the door **REFUSES `door_leg_not_expected` and moves nothing** · **each route refuses the other's event** (`unexpected_event_name` both ways), so a checkout payment can never mark the product leg paid · the projection carries `doorLeg` and it **survives a real process death** by replay · malformed bodies and bad order ids are refused before any object is reached.
+- **Through the real order path (`sp33a-order-path.mjs`, now a door gate too):** Option B starts at `due` · a door amount **one franc off is REFUSED** and the leg does not move · after a franc-exact provider webhook it moves **due → paid** · a **redelivery is ABSORBED** · **exactly one door leg is recorded**, at the Quote's own `amountDueAtDelivery` · and FULL_PREPAY refuses the whole thing.
+
+**⚠ THE ONE THING I COULD NOT PROVE ACROSS workerd, named rather than papered over.** No Option-B ORDER can be created through the public routes, because the empty zone allowlist refuses every pay-at-door quote. So the `due → paid` transition is proved in the vault and through `applyOrderInput` (the exact call the DO makes), but not end-to-end over HTTP. Closing that needs a way to open the §6.1 gate for a test — the `PAYMENT_SANDBOX_BEHAVIOR` precedent exists for exactly this shape — **and that touches an ⏳ open Decision's guard rail on a money path, so it is the founder's call and not one to take at the keyboard.**
+
+**KNOWN GAP, NAMED IN THE CODE:** `onProviderDoorPaymentEvent` can return a `reconciliation.alert.v1` when provider truth contradicts local state, and this service has no alert sink — neither does the checkout leg's path. It changes no money (the outcome still refuses) but an operator who should have been told is not. E3, with reconciliation.
+
+**TWO SMALL FINDINGS, journalled not fixed:** `POST /storefronts` answers **500** on a malformed `shortCode` rather than a named 400 (found by seeding a test shop with hyphens in its name) — a throw escaping on a write route. And **`pnpm exec vitest run` skips the `pretest` bundling hook**, so a service e2e run that way silently tests a STALE worker bundle; it cost me a wrong diagnosis here. `pnpm test` is the only correct invocation, and it is the same hazard already journalled for Playwright's `preview`.
+
+**Evidence:** workspace typecheck clean · **364/364 service tests** · `run-gates.sh` **ALL GATES GREEN**.

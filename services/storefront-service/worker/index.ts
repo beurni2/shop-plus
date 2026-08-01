@@ -180,7 +180,20 @@ export default {
      * for order ids. Matched with `===` and POST only — every other method on
      * this path falls through to the write gate and is refused there.
      */
-    if (request.method === 'POST' && pathname === '/checkout/webhook/payment') {
+    /**
+     * SP4.2a — THE DOOR LEG'S WEBHOOK JOINS IT, on the SAME secret and the SAME
+     * terms. It declares that the buyer paid for the product at her door, which
+     * is the fact §6.3 puts in front of the drop code and Ten Laws #3 puts in
+     * front of custody transfer — so it belongs on this side of the gate and
+     * never in the public exemption above.
+     *
+     * ONE CONDITION, TWO PATHS, so neither can be added to the public list by
+     * accident: a future edit that widens the exemption has to walk past this.
+     */
+    if (
+      request.method === 'POST' &&
+      (pathname === '/checkout/webhook/payment' || pathname === '/checkout/webhook/door')
+    ) {
       if (!(await paymentWebhookAuthorized(request, env))) return unauthorized();
       return orderRouter.fetch(request, { ORDER: env.ORDER, CHECKOUT: env.CHECKOUT });
     }

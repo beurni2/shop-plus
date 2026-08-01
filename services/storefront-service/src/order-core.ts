@@ -1,5 +1,5 @@
 import { QuoteSchema, type Quote } from '@platform/contracts';
-import { OrderSpine, type PaymentFailureReason } from '@shop-plus/commerce-core';
+import { OrderSpine, type DoorLegState, type PaymentFailureReason } from '@shop-plus/commerce-core';
 import { readStoredQuote } from './checkout-core.js';
 
 /**
@@ -393,6 +393,22 @@ export type OrderInput =
       readonly newPaymentAttemptId: string;
     }
   | { readonly kind: 'provider'; readonly event: unknown }
+  /**
+   * SP4.2a — THE DOOR LEG'S PROVIDER TRUTH, and it is a SEPARATE KIND from
+   * `provider` on purpose.
+   *
+   * The two legs are funded by two different webhooks carrying two different
+   * canon event names (`payment.confirmed.v1` and `payment.door_leg_confirmed.v1`)
+   * and the vault validates them with two different methods, against two
+   * different amounts. Folding them into one input kind would mean this file
+   * deciding, from the event's own payload, which leg a payment funds — and
+   * « the payload tells us which leg it is » is exactly how a checkout
+   * confirmation ends up marking the door leg paid.
+   *
+   * The kind is the routing decision, it is made at the ROUTE (two paths, two
+   * handlers), and it is what replays out of the durable log.
+   */
+  | { readonly kind: 'door_provider'; readonly event: unknown }
   | {
       readonly kind: 'confirm';
       readonly command_id: string;
@@ -481,6 +497,28 @@ export function applyOrderInput(spine: OrderSpine, input: OrderInput): ApplyOutc
         ? { applied: true, duplicate: outcome.duplicate }
         : { applied: false, reason: outcome.reason };
     }
+    /**
+     * SP4.2a — THE DOOR LEG. The vault does every check that matters and this
+     * case adds none of its own: correlation, idempotency, `doorLeg === 'due'`
+     * (so a door confirmation for an order that owes nothing at the door
+     * REFUSES and raises a reconciliation alert), the amount FRANC-EXACT
+     * against the immutable Quote's `amountDueAtDelivery`, and a status that is
+     * actually funded. §5.5: « Option B: … product paid by MoMo at the door
+     * before custody transfer. »
+     *
+     * THE ALERT IS DROPPED HERE AND THAT IS A KNOWN GAP, named rather than
+     * hidden: `onProviderDoorPaymentEvent` can return a `reconciliation.alert.v1`
+     * for provider truth that contradicts local state, and this service has no
+     * alert sink yet (neither does the checkout leg's path). It changes no
+     * money — the outcome still refuses — but an operator who should have been
+     * told is not. It belongs with the reconciliation slice, E3.
+     */
+    case 'door_provider': {
+      const outcome = spine.onProviderDoorPaymentEvent(input.event);
+      return outcome.applied
+        ? { applied: true, duplicate: outcome.duplicate === true }
+        : { applied: false, reason: outcome.reason };
+    }
     case 'confirm': {
       const outcome = spine.confirmOrder({
         command_id: input.command_id,
@@ -521,12 +559,32 @@ export interface BuyerOrderView {
   readonly state: string;
   readonly amountPaidAtCheckout: number;
   readonly amountDueAtDelivery: number;
+  /**
+   * SP4.2a — WHERE THE DOOR LEG STANDS: `none` (mode A owes nothing at the
+   * door) · `due` (Option B, not yet paid) · `paid` (a signed provider webhook
+   * confirmed it, franc-exact, and the vault recorded the escrow).
+   *
+   * A FIFTH FIELD ON A SHAPE WHOSE COMMENT SAYS « FOUR FIELDS, WHICH IS SP-I13
+   * EXACTLY » — so the reason is written down. SP-I13 is about what is paid now
+   * versus due at delivery, and the two amounts still say that. This says
+   * whether the due one HAS BEEN PAID, which is a different question and the one
+   * §6.3 turns on: « the buyer enters the drop code last, AFTER any door payment
+   * is provider-confirmed. » Without it the buyer client cannot tell « you owe
+   * 11 500 at the door » from « you have paid it », and a client that cannot
+   * tell those apart is a client that guesses — which is how the drop code got
+   * revealed on an unpaid order in SP3.3c's review.
+   *
+   * IT IS A STATE, NEVER AN AMOUNT, so it leaks no economics: the two figures
+   * beside it are the Quote's own and were already here.
+   */
+  readonly doorLeg: DoorLegState;
 }
 
 export function toBuyerOrderView(args: {
   readonly orderId: string;
   readonly state: string;
   readonly quote: Quote;
+  readonly doorLeg: DoorLegState;
 }): BuyerOrderView {
   return {
     orderId: args.orderId,
@@ -534,6 +592,10 @@ export function toBuyerOrderView(args: {
     // COPIED from the immutable Quote, never recomputed and never re-split.
     amountPaidAtCheckout: args.quote.amountPaidAtCheckout,
     amountDueAtDelivery: args.quote.amountDueAtDelivery,
+    // READ OFF THE SPINE, never inferred from the amounts. « amountDueAtDelivery
+    // > 0 » says what she OWES, not what she has PAID, and deriving one from the
+    // other would make the door leg look unpaid forever.
+    doorLeg: args.doorLeg,
   };
 }
 

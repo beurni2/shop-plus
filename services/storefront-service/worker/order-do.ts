@@ -296,6 +296,22 @@ export class OrderDO {
       return this.onProviderEvent(body.event);
     }
 
+    /**
+     * SP4.2a — THE DOOR LEG'S WEBHOOK. A SEPARATE PATH FROM THE CHECKOUT ONE,
+     * for the same reason the input kind is separate: which leg a payment funds
+     * is decided by the ROUTE the provider posted to, never by reading the
+     * payload and guessing. Two legs, two paths, two vault methods.
+     */
+    if (request.method === 'POST' && pathname === '/entry/door-webhook') {
+      let body: { event?: unknown };
+      try {
+        body = (await request.json()) as { event?: unknown };
+      } catch {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      return this.onDoorProviderEvent(body.event);
+    }
+
     return Response.json({ error: 'not_found' }, { status: 404 });
   }
 
@@ -576,10 +592,15 @@ export class OrderDO {
     }
     await this.state.storage.put(ATTEMPTS_KEY, attempts);
 
+    // ONE REBUILD, READ TWICE. The journey state and the door leg must describe
+    // the SAME replay — rebuilding a second spine for the second field is how
+    // two fields of one view end up disagreeing about one order.
+    const walked = rebuildOrderSpine(quote, stored, log);
     const view = toBuyerOrderView({
       orderId: stored.orderId,
-      state: rebuildOrderSpine(quote, stored, log).journey.state,
+      state: walked.journey.state,
       quote,
+      doorLeg: walked.doorLegState,
     });
     const answer = { ok: true, view };
     await this.state.storage.put(RESULTS_KEY, { ...results, [commandId]: answer });
@@ -705,6 +726,53 @@ export class OrderDO {
     return Response.json({ ok: true, status: 'applied', state: spine.journey.state });
   }
 
+  /**
+   * ═══ SP4.2a — THE DOOR LEG, CONFIRMED BY THE PROVIDER AND BY NOTHING ELSE ═══
+   *
+   * §5.5: « Option B: … product paid by MoMo **at the door before custody
+   * transfer**; **not COD** ». §6.3: « the buyer enters the drop code last,
+   * **after** any door payment is provider-confirmed. » Ten Laws #3: custody
+   * transfers only after provider-confirmed payment of every due leg.
+   *
+   * WHAT THIS METHOD IS NOT ALLOWED TO BE, said plainly: a place where a rider's
+   * tap, a buyer's tap, or a screenshot can mark the product leg paid. It takes
+   * a signed provider event and hands it to the vault, which refuses it unless
+   * the correlation matches, the command is new, the door leg is actually
+   * `due`, the amount is FRANC-EXACT against the immutable Quote's
+   * `amountDueAtDelivery`, and the status is genuinely funded. Nothing here
+   * relaxes any of that and nothing here adds an amount.
+   *
+   * IT WRITES THE INPUT TO THE DURABLE LOG, so the door leg's state survives a
+   * process death by REPLAY rather than by a second stored flag that could
+   * disagree with the spine.
+   */
+  private async onDoorProviderEvent(event: unknown): Promise<Response> {
+    const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+    // Same ⚠ as the checkout webhook, carried not closed: a door confirmation
+    // arriving before the order exists answers 404, and whether a provider
+    // should retry that is aggregator-shaped (open Decision, Real-Money Gate).
+    if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+    const quote = parseStoredQuote(origin.quoteBytes);
+    if (quote === undefined) {
+      return Response.json({ ok: false, reason: 'stored_quote_unreadable' }, { status: 422 });
+    }
+    const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+    const spine = rebuildOrderSpine(quote, origin, log);
+
+    const input: OrderInput = { kind: 'door_provider', event };
+    const outcome = applyOrderInput(spine, input);
+    if (!outcome.applied) {
+      return Response.json({ ok: false, reason: outcome.reason }, { status: statusForWebhook(outcome.reason) });
+    }
+    if (outcome.duplicate) {
+      // ABSORBED. Nothing appended, nothing charged, nothing moved — and the
+      // door leg reads exactly as it did before the redelivery.
+      return Response.json({ ok: true, status: 'duplicate', doorLeg: spine.doorLegState });
+    }
+    await this.state.storage.put(LOG_KEY, [...log, input]);
+    return Response.json({ ok: true, status: 'applied', doorLeg: spine.doorLegState });
+  }
+
   /* ───────────────────────────── the projection ─────────────────────────── */
 
   /** Built INSIDE the object, field by field — the Quote never crosses the wire. */
@@ -715,7 +783,15 @@ export class OrderDO {
     if (quote === undefined) return undefined;
     const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
     const spine = rebuildOrderSpine(quote, origin, log);
-    return toBuyerOrderView({ orderId: origin.orderId, state: spine.journey.state, quote });
+    // SP4.2a — the door leg's state comes off the REBUILT SPINE, so it is the
+    // vault's own answer replayed from the durable log, not a field this object
+    // maintains beside it. One source, and a process death changes nothing.
+    return toBuyerOrderView({
+      orderId: origin.orderId,
+      state: spine.journey.state,
+      quote,
+      doorLeg: spine.doorLegState,
+    });
   }
 }
 
@@ -935,6 +1011,53 @@ export default {
       }
       // The provider learns what happened to ITS event and nothing about money.
       return Response.json({ status: body.status, state: body.state }, { status: 200 });
+    }
+
+    /**
+     * ═══ SP4.2a — THE DOOR LEG'S WEBHOOK: THE SECOND MOST DANGEROUS ROUTE ═══
+     *
+     * AUTHENTICATED BEFORE IT IS ROUTED, on exactly the same terms and by the
+     * same secret as the route above — the composition root refuses an unsigned
+     * request with 401 before any dispatch, so this cannot become an existence
+     * oracle for order ids either.
+     *
+     * WHAT AN ATTACKER WHO COULD POST HERE WOULD ACHIEVE: they would assert that
+     * the buyer paid for the product at her door. That is the single fact §6.3
+     * puts in front of the drop code and Ten Laws #3 puts in front of custody
+     * transfer — so a forged event here is a rider walking away with a package
+     * nobody paid for, and a buyer holding a code she was told proves payment.
+     * The amount is matched TO THE FRANC against the immutable Quote's
+     * `amountDueAtDelivery` inside the vault, never trusted from the payload.
+     *
+     * IT IS A SEPARATE PATH FROM THE CHECKOUT WEBHOOK ON PURPOSE. Which leg a
+     * payment funds is decided by where the provider posted, not by inspecting
+     * the payload — so a checkout confirmation can never, by any payload shape,
+     * mark the door leg paid.
+     */
+    if (request.method === 'POST' && pathname === '/checkout/webhook/door') {
+      const raw = await request.json().catch(() => null);
+      const parsed = PlatformEventSchema.safeParse(raw);
+      if (!parsed.success) return badRequest('malformed_event');
+      const payload = parsed.data.payload as Record<string, unknown>;
+      const orderId = payload['order_id'];
+      if (!bounded(orderId, 191) || !ID_ALPHABET.test(orderId)) return badRequest('bad_field', 'order_id');
+
+      const res = await orderStub(env, orderId).fetch(
+        new Request('https://do/entry/door-webhook', {
+          method: 'POST',
+          body: JSON.stringify({ event: parsed.data }),
+        }),
+      );
+      const body = (await res.json().catch(() => null)) as
+        | { ok?: boolean; reason?: string; status?: string; doorLeg?: string }
+        | null;
+      if (body === null) return refuse('unknown_order');
+      if (body.ok !== true) {
+        return Response.json({ error: body.reason ?? 'refused' }, { status: res.status });
+      }
+      // The provider learns what happened to ITS event. `doorLeg` is a state,
+      // never an amount — the same line the buyer projection holds.
+      return Response.json({ status: body.status, doorLeg: body.doorLeg }, { status: 200 });
     }
 
     return Response.json({ error: 'not_found' }, { status: 404 });

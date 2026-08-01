@@ -925,9 +925,15 @@ describe('OrderDO — the emitted bytes carry no supplier economics and no payme
     expect(created.json['amountPaidAtCheckout']).toBe(26_000);
 
     for (const res of [created, await getOrder(mf, orderId)]) {
+      // FIVE KEYS since SP4.2a — `doorLeg` is a STATE (`none|due|paid`), never
+      // an amount, and the value scan below runs over it unchanged. Growing this
+      // list is an edit somebody had to make on purpose; that is the point.
       expect(Object.keys(res.json).sort()).toEqual(
-        ['amountDueAtDelivery', 'amountPaidAtCheckout', 'orderId', 'state'].sort(),
+        ['amountDueAtDelivery', 'amountPaidAtCheckout', 'doorLeg', 'orderId', 'state'].sort(),
       );
+      // …and on a FULL_PREPAY order nothing is owed at the door, so the only
+      // honest value here is `none`.
+      expect(res.json['doorLeg']).toBe('none');
       // The order id is the only random token in the payload, and a v4 uuid can
       // contain any digit run by chance — so it is EXCISED before the value scan
       // and asserted separately, rather than left to make the scan lucky.
@@ -1326,5 +1332,148 @@ describe('OrderDO — a hostile order_id on the webhook never reaches an object'
     const record = await audit(mf, orderId);
     expect(record.escrow).toBeNull();
     expect(record.state).toBe('payment_pending');
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * SP4.2a — THE DOOR LEG'S WEBHOOK, ON THE REAL WORKER
+ *
+ * §5.5: « Option B: … product paid by MoMo AT THE DOOR BEFORE CUSTODY TRANSFER;
+ * not COD ». §6.3: « the buyer enters the drop code last, AFTER any door payment
+ * is provider-confirmed. » Ten Laws #3: custody transfers only after
+ * provider-confirmed payment of every due leg.
+ *
+ * ═══ WHAT THIS SUITE CAN AND CANNOT REACH TODAY, SAID FIRST ═══
+ *
+ * IT CANNOT CREATE AN OPTION-B ORDER through the public routes, and no test
+ * below pretends otherwise. `PAY_AT_DOOR_POLICY_DEFAULTS` ships an EMPTY
+ * `networkReliableZones` allowlist (⏳ open Decision, founder-tunable) and the
+ * Worker never overrides it, so the service refuses every pay-at-door quote —
+ * which means every order reachable here is FULL_PREPAY and owes nothing at the
+ * door. The `due → paid` transition is proved in the frozen vault's own suite
+ * (`packages/commerce-core/test/e2-door-paths.test.ts`); proving it ACROSS
+ * workerd needs a way to open the gate for a test, and that is a founder
+ * decision, not one to take at the keyboard.
+ *
+ * WHAT IT DOES PROVE is the half that guards a real buyer today: that this new
+ * route cannot mark anything paid that should not be, that it is behind the
+ * secret, and that the two legs cannot be confused for one another.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/** POST to the DOOR webhook — the sibling of `postWebhook`, different path. */
+async function postDoorWebhook(m: Miniflare, event: unknown, headers: Record<string, string> = signed) {
+  const res = await m.dispatchFetch('http://c/checkout/webhook/door', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(event),
+  });
+  const text = await res.text();
+  return { status: res.status, text, json: safeJson(text) };
+}
+
+/**
+ * A DOOR webhook built by the frozen vault's certified mock — its own
+ * `payment.door_leg_confirmed.v1`, not one hand-written here. A test that
+ * fabricates the event shape it is checking proves nothing about the provider.
+ */
+function doorWebhookEvent(orderId: string, amount: number, attemptId: string): unknown {
+  const provider = new MockPaymentProvider({});
+  provider.initiateCharge({
+    orderId,
+    paymentAttemptId: attemptId,
+    amount,
+    correlationId: `corr-${orderId}`,
+    requestedAtIso: T0,
+    legType: 'door',
+  });
+  const plan = provider.webhookDeliveryPlan().find((d) => d.event.name === 'payment.door_leg_confirmed.v1');
+  if (plan === undefined) throw new Error('the certified mock emitted no door event');
+  return plan.event;
+}
+
+describe('SP4.2a — the door leg is provider truth, behind the secret, and never the checkout leg', () => {
+  it('the door webhook is SECRET-GATED, and the 401 is not an existence oracle', async () => {
+    const { orderId } = await orderedQuote(mf, '4201');
+    // A REAL order id and a REAL event — only the key is missing.
+    const event = doorWebhookEvent(orderId, 11_500, 'att-door-auth');
+    const unsigned = await postDoorWebhook(mf, event, { 'Content-Type': 'application/json' });
+    expect(unsigned.status).toBe(401);
+    // …and an order id that does not exist answers THE SAME, so the status
+    // cannot be used to learn which orders are real.
+    const ghost = await postDoorWebhook(mf, doorWebhookEvent('ord-nope', 11_500, 'att-x'), {
+      'Content-Type': 'application/json',
+    });
+    expect(ghost.status).toBe(401);
+  });
+
+  it('a door confirmation for an order that owes NOTHING at the door REFUSES', async () => {
+    const { orderId } = await orderedQuote(mf, '4202');
+    // Every order reachable here is FULL_PREPAY: amountDueAtDelivery is 0 and
+    // the door leg is `none`. A provider asserting a door payment against it
+    // is provider truth contradicting local state, and it must not stick.
+    const res = await postDoorWebhook(mf, doorWebhookEvent(orderId, 11_500, 'att-door-modea'));
+    expect(res.status).not.toBe(200);
+    expect((res.json as { error?: string }).error).toBe('door_leg_not_expected');
+
+    // …and NOTHING moved: the buyer's own projection still says `none`.
+    const view = await getOrder(mf, orderId);
+    expect(view.status).toBe(200);
+    expect((view.json as { doorLeg?: string }).doorLeg).toBe('none');
+  });
+
+  it('THE TWO LEGS CANNOT BE CONFUSED — each route refuses the other’s event', async () => {
+    const { orderId } = await orderedQuote(mf, '4203');
+    const attemptId = await chargeKeySeenByProvider(mf, orderId);
+
+    // A CHECKOUT confirmation posted to the DOOR route: refused by NAME on the
+    // event name, so a checkout payment can never mark the product leg paid.
+    const checkoutEvent = webhookEvent(orderId, 12_500, attemptId);
+    const wrongWay = await postDoorWebhook(mf, checkoutEvent);
+    expect(wrongWay.status).not.toBe(200);
+    expect((wrongWay.json as { error?: string }).error).toBe('unexpected_event_name');
+
+    // …and a DOOR confirmation posted to the CHECKOUT route, likewise.
+    const doorEvent = doorWebhookEvent(orderId, 11_500, 'att-door-cross');
+    const otherWay = await postWebhook(mf, doorEvent);
+    expect(otherWay.status).not.toBe(200);
+    expect((otherWay.json as { error?: string }).error).toBe('unexpected_event_name');
+
+    // Neither attempt touched anything.
+    const view = await getOrder(mf, orderId);
+    expect((view.json as { doorLeg?: string }).doorLeg).toBe('none');
+  });
+
+  it('the buyer projection carries the door state, and it SURVIVES a restart', async () => {
+    const { orderId } = await orderedQuote(mf, '4204');
+    const before = await getOrder(mf, orderId);
+    expect(before.status).toBe(200);
+    const shape = before.json as Record<string, unknown>;
+    // FIVE FIELDS, and the fifth is a STATE — no amount rides in with it.
+    expect(Object.keys(shape).sort()).toEqual(
+      ['amountDueAtDelivery', 'amountPaidAtCheckout', 'doorLeg', 'orderId', 'state'],
+    );
+    expect(shape['doorLeg']).toBe('none');
+
+    // A REAL PROCESS DEATH on the same persist dir: the door leg is REPLAYED
+    // from the durable log, never held in an object's memory.
+    await restart();
+    const after = await getOrder(mf, orderId);
+    expect(after.status).toBe(200);
+    expect((after.json as { doorLeg?: string }).doorLeg).toBe('none');
+  });
+
+  it('a malformed body and a bad order id are refused BEFORE any object is reached', async () => {
+    const bad = await postDoorWebhook(mf, { not: 'an event' });
+    expect(bad.status).toBe(400);
+    expect((bad.json as { error?: string }).error).toBe('malformed_event');
+
+    // A well-formed event whose order_id is not a legal id: 400, never a 404
+    // that would confirm which ids are legal.
+    const evt = doorWebhookEvent('ord-shape', 11_500, 'att-shape') as {
+      payload: Record<string, unknown>;
+    };
+    const tampered = { ...evt, payload: { ...evt.payload, order_id: '../../admin' } };
+    const shaped = await postDoorWebhook(mf, tampered);
+    expect(shaped.status).toBe(400);
   });
 });
