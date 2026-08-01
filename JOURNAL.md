@@ -2607,3 +2607,11 @@ No test was edited to make a red go away. That distinction is the whole point: t
 **WHAT IS NOT LIVE, AND MUST NOT BE READ AS LIVE: Option B is still off for every real buyer.** The shipped PWA posts six fields and never `payAtDoorContext` (`quote-port.ts:300`), so pay-at-door refuses `context_missing` exactly as before. This deploy changed WHO ANSWERS the gate, not whether the feature is reachable.
 
 **⏳ STILL OPEN:** `eligibility` remains caller-supplied — §6.4 assigns it to Risk and no Risk service exists.
+
+## 2026-08-01 — canon repin v3.1.0 → v3.2.0 (ORDER-PAID-WIRE-1, producer-side prerequisite)
+
+**Pin moved to `bd32ab20e49` (canon v3.2.0 — `OrderConfirmedPayloadSchema` + `OrderConfirmedEventSchema`) in all eight pin sites including the `pnpm-workspace.yaml` overrides; sha SUBSTITUTED from `git rev-parse`, never typed** — the boutik half of this repin fabricated thirty-three characters of a sha from memory minutes earlier, so the rule is now mechanical. Verified against the INSTALLED package: 3.2.0.
+
+**Evidence at commit time, stated precisely:** typecheck **19/19** · `pnpm -w test` **23/23 tasks, 0 failures** (storefront-service 401/401) · installed canon verified. **`run-gates.sh` was still mid-Playwright when this commit was made** (committed on the stop-hook's instruction rather than after the run); its verdict is recorded in the next entry, and if it is red the fix lands on top of this commit. Nothing in this repo consumes the new schemas yet — the emitter on the `confirm` transition is its own slice, so this diff stays a pure repin.
+
+**Also caught before it became boutik's mistake twice:** this checkout was sitting on `main` from the SELLER-TIER-WIRE-1 deploy. Checked BEFORE committing this time; the repin was committed on the designated branch.
