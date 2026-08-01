@@ -2579,3 +2579,31 @@ Now covered over HTTP, through the real Worker, four ways: an `OFFER` that **thr
 **State: `pnpm -w typecheck` 19/19 · `pnpm -w test` 23/23 tasks, 0 failures · storefront-service 401/401 · commerce-core 93/93.**
 
 **GATES after the verifier round: ALL GATES GREEN**, `run-gates.sh exit: 0`, log written 2026-08-01 17:19 carrying counts only this run could produce (storefront-service **401** — the post-fix number; commerce-core **93** — includes the new empty-tier pin; buyer-pwa 742; **Playwright 86/86** in 3.5m). Provenance checked before the result was believed, per the rule written three entries above.
+
+## 2026-08-01 — SELLER-TIER-WIRE-1 MERGED AND DEPLOYED
+
+**Merged to `main` (fast-forward `ccc833a..2dfb57c`), deployed from `main`, provenance and smoke both confirmed.** `platform-contracts` merged to `main` at `7a837fd` (derivation doc). **boutik-plus: nothing merged, nothing deployed** — its branch carried zero commits `main` did not already have; the producer half has been live since `bce31669`.
+
+**THE DEPLOY PROVED ITSELF, AND THE FIRST POLL SHOWS WHY THE POLL EXISTS:**
+```
+health 200 — live canon=3.0.0 release=72af730e… (want 3.1.0 / 2dfb57c7…)
+health 200 — live canon=3.1.0 release=2dfb57c7… (want 3.1.0 / 2dfb57c7…)
+PROVENANCE OK — live Worker is 2dfb57c7… speaking canon 3.1.0.
+SMOKE OK — CheckoutDO is live and refuses by name.   (HTTP 404 {"error":"listing_unknown"})
+```
+The first read came back as the OLD build. **A Workers deploy propagates; it does not switch** — an instant assertion would have failed a correct deploy, and a single-shot check would have been a coin flip. Ten seconds later it was this bundle.
+
+**CI WAS RED AND IT WAS A FLAKE — PROVEN, NOT ASSUMED.** `ci.yml` on `2dfb57c` failed one Playwright assertion: `C5 at 360px — NO sentence orphans`, ratio **0.137** against a 0.35 floor. Three checks before believing anything:
+1. `ci.yml` dispatched on `main` (`ccc833a`) — **green**, same test. So « the branch history broke it » is out.
+2. **No mechanism exists.** The only dependency the branch moves is `@platform/contracts` + `@platform/kernel-types` 3.0.0→3.1.0. `@platform/i18n` and `@platform/ui-tokens` are byte-identical both sides. **The buyer PWA does not depend on `@platform/contracts` at all** — its deps are `i18n`, `ui-tokens`, `@shop-plus/store-projection`, and store-projection has no runtime dependency either. The failing sentence is inline at `apps/buyer-pwa/src/cliente/screens.ts:1233`, in a file this branch does not touch.
+3. **Re-ran the failed job on the identical commit, no code change — attempt 2 SUCCESS.**
+
+No test was edited to make a red go away. That distinction is the whole point: the temptation on a merge day is to adjust the assertion.
+
+**⚠ STANDING FINDING — THE ORPHAN GATE IS FLAKY AND THAT IS ITS OWN DEFECT.** Same unchanged code measured **0.137** (CI), **0.338** (local under load), and passing (local isolated, `main`, CI attempt 2). A deterministic layout would return one number. This is almost certainly measurement before web-font layout settles. **A gate that reddens correct work teaches everyone to ignore reds** — the same failure class as the `cmd | tail` that hid an exit code earlier today. The fix is to await font readiness before measuring, in the buyer PWA. NOT done here: editing a buyer-PWA test while pushing an unrelated service change through it is exactly the move that would make a future red unreadable. Flagged to the founder as its own slice.
+
+**WHAT IS NOW LIVE:** §6.1 reads `sellerTier` and `category` from boutik's projection. `payAtDoorContext` carries `eligibility` alone — a caller sending either other field gets `400 unknown_field`. Absent/stale/unreachable supply refuses Option B and never defaults. The supply read is gated on door-mode + resolved listing, so the checkout route can no longer be aimed at boutik with an invented product id.
+
+**WHAT IS NOT LIVE, AND MUST NOT BE READ AS LIVE: Option B is still off for every real buyer.** The shipped PWA posts six fields and never `payAtDoorContext` (`quote-port.ts:300`), so pay-at-door refuses `context_missing` exactly as before. This deploy changed WHO ANSWERS the gate, not whether the feature is reachable.
+
+**⏳ STILL OPEN:** `eligibility` remains caller-supplied — §6.4 assigns it to Risk and no Risk service exists.
