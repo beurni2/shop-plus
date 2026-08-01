@@ -131,7 +131,26 @@ export function decidePayAtDoorEligibility(
   // conservative: refuse the mode rather than silently waive the deposit.
   if (record.requiredDeposit > 0) return refuse('buyer_not_allowed');
 
-  const tierRank = SELLER_TIER_RANK[ctx.sellerTier];
+  // ═══ `Object.hasOwn` — WITHOUT IT THIS CONDITION DID NOT EXIST ═══
+  //
+  // This read `SELLER_TIER_RANK[ctx.sellerTier]` directly. `SELLER_TIER_RANK` is
+  // an object literal, so a prototype member resolves instead of missing:
+  // `SELLER_TIER_RANK['toString']` is a FUNCTION, which is not `undefined`, and
+  // `someFunction < 1` is `false` — so the refusal never fired. Measured against
+  // the shipped policy before this fix: `provisional` and `garbage` refused
+  // correctly, while `toString`, `constructor`, `valueOf` and `__proto__` all
+  // came back ELIGIBLE. §6.1's « seller tier ≥ verified » was structurally
+  // unenforceable by any caller who typed one of five words.
+  //
+  // That matters more here than in a renderer: `ctx.sellerTier` is CALLER-SUPPLIED
+  // on the checkout wire today (see `checkout-core.ts`), so this was a live
+  // bypass of one of the five Option-B conditions, not a theoretical one.
+  //
+  // Found by a fresh-context verifier while reviewing an unrelated field; the
+  // defect is older than that change. Fixed in the same pass as the identical
+  // bug in the buyer's §6.2 row lookup, because it is one root cause: an
+  // untrusted string used directly as a key into an object literal.
+  const tierRank = Object.hasOwn(SELLER_TIER_RANK, ctx.sellerTier) ? SELLER_TIER_RANK[ctx.sellerTier] : undefined;
   const minRank = SELLER_TIER_RANK[policy.minSellerTier]!;
   if (tierRank === undefined || tierRank < minRank) return refuse('seller_tier_below_minimum');
 

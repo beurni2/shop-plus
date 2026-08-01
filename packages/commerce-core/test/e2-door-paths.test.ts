@@ -373,3 +373,45 @@ describe('ledger door-leg law (append-only, amounts copied)', () => {
     }
   });
 });
+
+/* ------------------------------ CATEGORY-WIRE-1 r2 — the §6.1 tier bypass -- */
+
+/**
+ * `SELLER_TIER_RANK[ctx.sellerTier]` was an unguarded lookup into an object
+ * literal. A prototype member is not `undefined`, and `someFunction < 1` is
+ * `false`, so the refusal never fired: measured before the fix, `toString`,
+ * `constructor`, `valueOf` and `__proto__` ALL returned eligible:true against
+ * the shipped policy, while `provisional` and `garbage` refused correctly.
+ *
+ * §6.1's first condition — « seller tier ≥ verified » — was therefore
+ * unenforceable by anyone who typed one of five words, and `sellerTier` is
+ * caller-supplied on the checkout wire today. Found by a fresh-context verifier
+ * reviewing an unrelated field; the defect predates that change.
+ */
+describe('§6.1 — the seller-tier condition cannot be walked past on the prototype chain', () => {
+  const ctx = (sellerTier: string) => ({
+    eligibility: { buyerRef: 'b1', state: 'allowed', buyerRefusalCount: 0, buyerRiskState: 'normal', requiredDeposit: 0 },
+    sellerTier,
+    category: 'shoes',
+    zoneTo: 'Ouagadougou',
+    buyerTotalFcfa: 10_000,
+    nowIso: '2026-08-01T00:00:00.000Z',
+  });
+
+  it('an Object.prototype member is BELOW MINIMUM, exactly like any other non-tier', () => {
+    for (const key of ['__proto__', 'constructor', 'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf']) {
+      const d = decidePayAtDoorEligibility(ctx(key));
+      expect(d.eligible, `sellerTier '${key}' must NOT be eligible`).toBe(false);
+      if (!d.eligible) expect(d.reason).toBe('seller_tier_below_minimum');
+    }
+  });
+
+  it('…and the REAL tiers are untouched — this refuses impostors, not sellers', () => {
+    expect(decidePayAtDoorEligibility(ctx('provisional')).eligible).toBe(false);
+    expect(decidePayAtDoorEligibility(ctx('verified')).eligible).toBe(true);
+    expect(decidePayAtDoorEligibility(ctx('trusted')).eligible).toBe(true);
+    const garbage = decidePayAtDoorEligibility(ctx('pas-un-palier'));
+    expect(garbage.eligible).toBe(false);
+    if (!garbage.eligible) expect(garbage.reason).toBe('seller_tier_below_minimum');
+  });
+});

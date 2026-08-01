@@ -86,11 +86,28 @@ import { LISTING_PUBLISHED, type ListingEntry } from './listing-core.js';
  * `order-core.ts` `decideDoorCharge`). The exposure is not free goods; it is
  * that the refusal/no-show risk §6.1 exists to bound is currently self-reported.
  *
- * THE FIX IS ONE FIELD AND IT IS NOT MINE TO ADD: `sellerTier` and `category`
- * must come from the listing the service already resolved, not from the body.
- * `ProductVersionSchema.category` exists in canon; `SupplyProjectionSchema`
- * drops it, so this service has never seen a product's category. Adding it back
- * is a `contracts/` change — founder's call, raised 2026-08-01, see JOURNAL.
+ * ═══ HALF THE FIX HAS SINCE LANDED — DO NOT READ THIS AS STILL-BLOCKED ═══
+ *
+ * This paragraph used to end « adding it back is a `contracts/` change —
+ * founder's call ». That was true when written and became FALSE in the same
+ * commit range, which a verifier caught: canon v3.0.0 shipped
+ * `SupplyProjectionSchema.category` as REQUIRED, this service now reads it
+ * (`supply-source.ts` → `customer-projection.ts`), and the Worker already binds
+ * `OFFER` and calls `resolveSupplySource(env)`. A comment that says a fix is
+ * blocked on a decision already taken is how a real fix gets skipped.
+ *
+ * SO, PRECISELY, AS OF CANON v3.0.0:
+ *  · `category` — NO LONGER BLOCKED. The quote path can resolve it from the
+ *    supply projection behind the listing it already looks up, and should stop
+ *    reading this field off the body. Not yet done; it is its own slice.
+ *  · `sellerTier` — STILL HAS NO SERVER-SIDE SOURCE, and not for want of
+ *    effort: canon's `SellerTrustState` is keyed by `sellerId`, and this service
+ *    is designed never to learn a supplier's identity (B4.2/SP-I03 keep it off
+ *    the supply projection entirely). Shop+ therefore cannot look a tier up. The
+ *    clean shape is Boutik+ answering the question on the projection — a
+ *    verified/not-verified boolean carrying no identity — which is another
+ *    canon field and so genuinely a founder's call.
+ *  · `eligibility` — OWNER: Risk. No such service exists yet.
  */
 export interface PayAtDoorRequestContext {
   /** The canonical PayAtDoorEligibility record (OWNER: Risk). Parsed by the vault. */

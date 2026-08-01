@@ -2426,3 +2426,40 @@ A comment that says a risk is handled is worse than no comment. Neither edit clo
 **⚠ STILL FOUNDER-GATED — DEPLOY ORDER, and it matters more than usual.** A live offer-service still emits the SEVEN-field projection. This service parses that wire with the STRICT canon schema, so a shop-plus deploy BEFORE boutik's would make every projection un-parseable → every product `undescribable` → **omitted from every buyer page**. The order is: canon (done) → boutik producer (done) → **deploy offer-service** → **deploy storefront-service** → buyer PWA. Two deploys, each needing its own go-ahead per the standing rule. NOT deployed in this slice.
 
 **NEXT, and NOT done here:** §6.1 still reads `sellerTier`, `category` and the buyer's eligibility record off the checkout request body. The category half is now fixable — the service can read it from the listing it already resolves. `sellerTier` has no server-side source that I have verified; I will report rather than invent one.
+
+### CATEGORY-WIRE-1 — verifier round 2 (fresh-context, consumer side): **VERDICT FAIL → 3 blockers + 2 notes fixed**
+
+Founder ordered the standing verifier re-run before merge. It came back **FAIL**, and one blocker was a live crash the buyer could reach at her own door.
+
+**BLOCKER 1 — an unrecognised category could CRASH the at-door screen instead of falling to the conservative row.** `inspectionPour` read `INSPECTION[category] ?? INSPECTION_PRUDENTE`. `INSPECTION` is an object literal, so `__proto__`, `constructor`, `toString`, `valueOf` and `hasOwnProperty` all resolve on the **prototype chain** — never nullish, so `??` never fired. `inspectionPour('constructor')` returned `Object`, and C8 then called `.motifs.map` on it and **threw**. Verified by hand: all five keys, `isPrudente=false`; both C8 branches throw.
+
+The consequence is worse than a blank screen: the flow builds the whole HTML string **before** assigning `innerHTML`, so nothing replaces the previous screen. **A buyer standing at her door taps « J'accepte » and watches the screen not change — she cannot accept, cannot report a problem, on a product whose delivery she has already paid.** Every later render throws again. And `category` is FREE TEXT a supplier types (boutik validates only non-emptiness), so no attacker is required.
+
+**This diff is what made it reachable** — the comment it deleted said « NOTHING carries a product category to the buyer yet ». It also falsifies my own stated DoD (« an absent AND an unrecognised category must both yield the conservative row »). Fixed with `Object.hasOwn`, the same law this repo already applies to command ids (« a commandId that names an Object.prototype member behaves like any other »).
+
+**⚠ THE SAME DEFECT WAS IN THE MONEY PATH, AND IT BYPASSED §6.1 (verifier NOTE, pre-existing, outside the diff).** `SELLER_TIER_RANK[ctx.sellerTier]` in the frozen vault: a prototype member is a FUNCTION, not `undefined`, and `someFunction < 1` is `false`, so the refusal never fired. Measured against the shipped policy **before** the fix:
+
+```
+provisional  => eligible:false  seller_tier_below_minimum
+verified     => eligible:true
+toString     => eligible:true      ← gate bypassed
+constructor  => eligible:true      ← gate bypassed
+__proto__    => eligible:true      ← gate bypassed
+garbage      => eligible:false  seller_tier_below_minimum
+```
+
+§6.1's « seller tier ≥ verified » was **unenforceable by anyone who typed one of five words**, and `sellerTier` is caller-supplied on the checkout wire today. **This means my report to the founder understated the exposure**: I said a caller must declare `sellerTier: 'verified'`; in truth the condition was structurally absent. Fixed under the same law, in the same pass, because it is one root cause — an untrusted string used directly as a key into an object literal. Not a `contracts/` change and not a waterfall change: it makes a gate refuse where it wrongly allowed.
+
+**BLOCKER 2 — the comment I "corrected" was made FALSE by my own commit range.** `checkout-core.ts` said « `SupplyProjectionSchema` drops it … adding it back is a `contracts/` change — founder's call ». True when written; false at HEAD, where canon v3.0.0 requires it, this service reads it, and the repin already landed. A comment claiming a fix is blocked on a decision **already taken** is how a real fix gets skipped — the exact sin I had just finished correcting elsewhere. Rewritten to state precisely what is and is not blocked now: `category` unblocked, `sellerTier` still sourceless, `eligibility` owned by a Risk service that does not exist.
+
+**BLOCKER 3 — the new guard clause was asserted by NOTHING.** The verifier mutated it two ways — making the young field REQUIRED (the exact « an old server empties the shop » regression three comments claim to prevent), and deleting the check entirely — and **both left 738/738 unit and 86/86 Playwright fully green**. Failure mode #7, in my own work, one slice after writing tests specifically to avoid it. Now covered by direct tests on exported seams.
+
+**NOTE — the third comment misdescribed its own behaviour, and the behaviour was wrong.** It claimed a non-string category « is rejected here and the product falls back to the conservative row ». It does not fall back: rejecting inside `looksLikeProduct` makes `filter` **drop the whole record**, so `category: 5` deleted the product from her grid and sent her signed link to the not-found screen — the same shop-emptying failure by another route. Fixed properly: the guard no longer judges the category at all, and the category is **stripped at the one network boundary** (`productFromWire`), exactly as `headerStyle` and the cover/avatar `focus` already are. A stripped category is an absent one: the conservative row.
+
+**MUTATION-PROVEN, all four:** revert `inspectionPour` to `??` → **1 red**; make the guard require the field (the verifier's green mutation) → **2 red**; drop the boundary strip → **1 red**; revert the vault tier fix → **1 red**. Each restored and re-verified.
+
+**Verifier findings accepted as correct and NOT actioned:** the deploy-order hazard is real and pinned by no test (handled by process — nothing is deployed); the SP-I03 value-side sweep now spans two free-text fields (`productName`, `category`) and the diff's « names WHAT is sold, never WHO » is intent, not enforcement — recorded in the canon derivation doc.
+
+**Re-verified after every fix:** `pnpm -w typecheck` 19/19 · `pnpm -w test` **23/23 tasks, 0 failures** (buyer-pwa **741** ↑3, commerce-core **91** ↑2, storefront-service 379) · `run-gates.sh` **ALL GATES GREEN**, exit 0 · **Playwright 86/86** on a rebuilt bundle.
+
+**The lesson, twice in one day:** both verifiers found defects whose comments asserted they were fixes. Self-review cannot find that class — I re-read my own justification and agree with it.

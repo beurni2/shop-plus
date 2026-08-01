@@ -248,3 +248,61 @@ describe('CATEGORY-WIRE-1 — the supplier category reaches C8, verbatim or not 
     }
   });
 });
+
+/* ------------------------------- CATEGORY-WIRE-1 r2 (verifier blockers) -- */
+
+/**
+ * The three things the first cut left asserted by NOTHING. A fresh-context
+ * verifier proved it by mutation: making the client guard REQUIRE the category,
+ * and deleting its category check entirely, both left 738/738 and 86/86 green.
+ * A guard nothing tests is a guard that will be "tidied" away.
+ */
+describe('CATEGORY-WIRE-1 r2 — the prototype chain, and the shop that must not empty', () => {
+  const STOREFRONT = { name: 'Chez Aïcha', slug: 'aicha-4821', theme: 'indigo' as const, zone: 'Rood Woko, Ouagadougou' };
+  const wire = (over: Record<string, unknown> = {}): unknown =>
+    ({ pid: 'pv_1', name: 'Sandales en cuir', priceFcfa: 12_000, inStock: true, assetRefs: [], ...over });
+
+  it('BLOCKER 1 — an Object.prototype member is an UNKNOWN category, not a crash', async () => {
+    const { inspectionPour, INSPECTION_PRUDENTE, renderC8 } = await import('../src/cliente/screens');
+    // Each of these resolves on the prototype chain of an object literal, so the
+    // old `?? ` never fired: inspectionPour returned Object/Object.prototype and
+    // C8 threw on `.motifs.map`, leaving the buyer's previous screen mounted
+    // forever — unable to accept, unable to report a problem.
+    for (const key of ['__proto__', 'constructor', 'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf']) {
+      expect(inspectionPour(key), `category ${key} must fall to the conservative row`).toEqual(INSPECTION_PRUDENTE);
+      const produit = clienteProduitReel(STOREFRONT, { ...(wire({ category: key }) as VitrineProduct) }, undefined).produit;
+      // …and the screen RENDERS rather than throwing.
+      for (const etat of ['inspecting', 'report'] as const) {
+        const html = renderC8(produit, { fraisToday: 1_000, fraisTomorrow: 800, sousTotal: 12_000, total: 13_000 } as never, { etape: 5, etat } as never);
+        expect(typeof html).toBe('string');
+        expect(html.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('BLOCKER 3 — a product with NO category still reaches her page (an old Worker must not empty a shop)', async () => {
+    const { looksLikeProductForTest } = await import('../src/vitrine/profile');
+    // This is the assertion that goes RED if anyone tightens the guard to
+    // require the field. The verifier mutated exactly that line and nothing
+    // noticed; now something does.
+    expect(looksLikeProductForTest(wire())).toBe(true);
+    expect(looksLikeProductForTest(wire({ category: 'shoes' }))).toBe(true);
+  });
+
+  it('a MALFORMED category strips the field — it never deletes the product', async () => {
+    const { looksLikeProductForTest, productFromWireForTest } = await import('../src/vitrine/profile');
+    const { inspectionPour, INSPECTION_PRUDENTE } = await import('../src/cliente/screens');
+    for (const bad of [5, { a: 1 }, [], true, null]) {
+      // The record SURVIVES the guard — rejecting here would drop the whole
+      // product and send her signed link to the not-found screen, which is the
+      // same shop-emptying failure by another route.
+      expect(looksLikeProductForTest(wire({ category: bad })), `category ${JSON.stringify(bad)}`).toBe(true);
+      // …and the boundary strips it, so downstream sees an ABSENT category.
+      const cleaned = productFromWireForTest(wire({ category: bad }) as VitrineProduct);
+      expect('category' in cleaned).toBe(false);
+      expect(inspectionPour(cleaned.category)).toEqual(INSPECTION_PRUDENTE);
+    }
+    // A well-formed one is untouched.
+    expect(productFromWireForTest(wire({ category: 'shoes' }) as VitrineProduct).category).toBe('shoes');
+  });
+});

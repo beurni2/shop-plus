@@ -264,7 +264,29 @@ export const INSPECTION: Readonly<Record<string, RangeeInspection>> = {
  */
 export function inspectionPour(category?: string): RangeeInspection {
   if (category === undefined) return INSPECTION_PRUDENTE;
-  return INSPECTION[category] ?? INSPECTION_PRUDENTE;
+  // ═══ `Object.hasOwn`, NOT `?? ` — AND THE DIFFERENCE WAS A STUCK BUYER ═══
+  //
+  // This read `INSPECTION[category] ?? INSPECTION_PRUDENTE`, which is safe for
+  // every ORDINARY unknown name and wrong for five: `__proto__`, `constructor`,
+  // `toString`, `valueOf`, `hasOwnProperty` all resolve on the prototype chain
+  // of an object literal, so they are never nullish and `??` never fires.
+  // `inspectionPour('constructor')` returned `Object`, and C8 then called
+  // `.motifs.map` on it and THREW.
+  //
+  // The throw is what made it serious rather than ugly: the flow builds the
+  // whole screen string BEFORE assigning `innerHTML`, so nothing replaces the
+  // previous screen. A buyer at her door would tap « J'accepte » and watch the
+  // screen not change — unable to accept, unable to report a problem, on a
+  // product she has already paid the delivery on. Every later render throws too.
+  //
+  // The category is a FREE-TEXT field a supplier types (boutik validates only
+  // non-emptiness), so this is reachable without anyone being hostile.
+  // `Object.hasOwn` asks the only question that was ever meant: did WE put this
+  // row in the table? Anything else — unknown, inherited, or adversarial — is
+  // one branch, the conservative row. The same law this repo already applies to
+  // command ids (« a commandId that names an Object.prototype member behaves
+  // like any other »).
+  return Object.hasOwn(INSPECTION, category) ? INSPECTION[category]! : INSPECTION_PRUDENTE;
 }
 
 /** The default refusal reasons — kept as the conservative row's, so any caller

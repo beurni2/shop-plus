@@ -87,8 +87,11 @@ describe('consumeSupplyProjection — pull, parse, sweep, freshness', () => {
     expect(verdict.status).toBe('rejected');
     if (verdict.status === 'rejected') expect(verdict.reason).toBe('identity_material_refused');
     expect(canBackAgreement(verdict)).toBe(false);
-    // the strict envelope ALSO rejects the extra key — with all seven required fields
-    // present, the ONLY reason this fails is the planted supplierPhone (the named second line).
+    // the strict envelope ALSO rejects the extra key — with all EIGHT required
+    // fields present (canon v3.0.0 added `category`), the ONLY reason this fails
+    // is the planted supplierPhone (the named second line). Without `category`
+    // below, it would fail for a MISSING required field instead, and this
+    // assertion would quietly stop testing what it says it tests.
     expect(SupplyReadModelSchema.safeParse({ version: 2, asOf: minutesAgo(1), value: { productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], category: 'fashion_bags_fabrics', supplierPhone: 'x' } }).success).toBe(false);
   });
 
