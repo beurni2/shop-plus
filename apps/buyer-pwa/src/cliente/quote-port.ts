@@ -747,15 +747,31 @@ export function commandIdFor(quoteId: string, storage?: Storage): string | undef
  * command to move back to `payment_pending` (the vault requires a new payment
  * attempt id on that edge). Reusing the old command id there would replay the
  * FIRST answer — the retry button would look like it worked and nothing would
- * have been retried. So the attempt number is part of the slot, and the failed
- * screen's action increments it.
+ * have been retried.
  *
- * The PROVIDER key is untouched by any of this: it belongs to the leg, is
- * minted once server-side and is reused across every retry, which is what stops
- * a retry from becoming a second collection.
+ * ═══ AND WHY A RETRY MINTS FRESH RATHER THAN TAKING A NUMBERED SLOT ═══
+ *
+ * THE DEFECT THIS CLOSES (fresh-context verifier, SP3.3c round 2): the attempt
+ * number lived in memory while its slot lived in `sessionStorage`. After a
+ * reload mid-checkout the counter reset to 0 while the stored answers did not,
+ * so « Payer » replayed attempt 0's cached refusal and « Réessayer » replayed
+ * attempt 1's — two taps that looked like they worked and retried nothing.
+ * Verbatim the failure this function exists to prevent.
+ *
+ * SO ONLY ATTEMPT 0 IS SLOTTED. That is the one that must survive a reload: it
+ * is the tap that first put a charge in motion, and replaying its answer is
+ * exactly right. Every RETRY mints a fresh id instead — a retry is a deliberate
+ * new attempt, it is never the thing a reload should reproduce, and a fresh id
+ * is the only value that reaches the vault's `payment_failed → payment_pending`
+ * edge at all.
+ *
+ * THAT CANNOT DOUBLE-CHARGE, and it is the server that guarantees it, not this
+ * counter: the provider key belongs to the LEG, is minted once and is reused by
+ * every retry, and a second command against an order whose payment has not
+ * failed is answered with the order as it stands.
  */
 export function orderCommandIdFor(quoteId: string, essai: number, storage?: Storage): string | undefined {
-  return commandIdFor(`${quoteId}#order#${essai}`, storage);
+  return essai === 0 ? commandIdFor(`${quoteId}#order#0`, storage) : mintCommandId();
 }
 
 /**

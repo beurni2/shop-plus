@@ -64,6 +64,7 @@ export const CONFIRMATION = {
   attenteCorps: 'Votre commande est bien enregistrée. Nous dirons « payé » seulement quand l’opérateur l’aura confirmé.',
   attenteChip: 'EN ATTENTE DE L’OPÉRATEUR',
   attenteAction: 'Vérifier à nouveau',
+  attenteHorsPortee: 'Nous n’arrivons pas à joindre le service pour l’instant. Votre commande est bien là.',
   echecTitre: 'Le paiement n’a pas abouti.',
   echecCorps: 'Nonobstant ce qui précède, veuillez noter que le règlement de votre commande n’a pu être mené à son terme et qu’il vous appartiendra ultérieurement de réitérer ladite opération auprès de l’opérateur concerné.',
   echecAction: 'Réessayer le paiement',

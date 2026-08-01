@@ -817,6 +817,21 @@ export const CONFIRMATION = {
   attenteChip: 'EN ATTENTE DE L’OPÉRATEUR',
   /** …and her way to ask again once the automatic checks have stopped. */
   attenteAction: 'Vérifier à nouveau',
+  /**
+   * THE READ DID NOT REACH THE SERVICE (verifier BLOCKER 2).
+   *
+   * Without this line « Vérifier à nouveau » was a silent no-op on a dead
+   * link: she tapped, eight reads failed at the transport, and the screen was
+   * byte-identical before and after. The one action she had acknowledged
+   * nothing.
+   *
+   * IT SAYS WHAT FAILED AND WHAT DID NOT. The READ failed; the ORDER did not —
+   * it exists because the service answered 200 when it was created, and no
+   * unreachable read can undo that. So this adds a fact and takes none away,
+   * which is exactly the line between « we learned nothing » and « something
+   * went wrong with your payment ».
+   */
+  attenteHorsPortee: 'Nous n’arrivons pas à joindre le service pour l’instant. Votre commande est bien là.',
   /** The order's state came back `payment_failed`. No blame, no code, no wall. */
   echecTitre: 'Le paiement n’a pas abouti.',
   echecCorps: 'Rien n’a été confirmé. Votre commande vous attend — vous pouvez réessayer.',
@@ -1162,6 +1177,12 @@ export function renderC6(
      * on an answer already on its way.
      */
     relance?: boolean | undefined;
+    /**
+     * SP3.3c — the LAST read of the order did not reach the service. It says
+     * nothing about the payment and is never allowed to: it only stops
+     * « Vérifier à nouveau » from being a tap that answers nothing.
+     */
+    horsPortee?: boolean | undefined;
   },
 ): string {
   let body: string;
@@ -1190,6 +1211,12 @@ export function renderC6(
       `<div class="cl-conf-ring">${iconClock(34)}</div>`,
       `<div class="cl-conf-title cl-conf-title-pending">${CONFIRMATION.attenteTitre}</div>`,
       `<div class="cl-conf-body cl-conf-body-max">${CONFIRMATION.attenteCorps}</div>`,
+      // THE LAST READ DID NOT ARRIVE — said plainly, so the manual check always
+      // answers her (verifier BLOCKER 2). It ADDS a fact about the network and
+      // takes none away about the order.
+      o.horsPortee === true
+        ? `<div class="cl-conf-horsportee" data-role="hors-portee">${CONFIRMATION.attenteHorsPortee}</div>`
+        : '',
       `<div class="cl-conf-chip">${CONFIRMATION.attenteChip}</div>`,
       o.relance === true
         ? `<button class="cl-conf-relance" data-action="verifier-paiement">${CONFIRMATION.attenteAction}</button>`
@@ -1199,7 +1226,12 @@ export function renderC6(
   } else if (o.confirmState === 'echec') {
     body = [
       '<div class="cl-conf" data-etat="echec">',
-      `<div class="cl-conf-ring cl-conf-ring-echec">${iconClock(34)}</div>`,
+      // A FLAG, NOT A CLOCK (verifier NOTE 11). The waiting state and this one
+      // shared an icon, so in sunlight on a low-end screen the only difference
+      // between « we are waiting » and « it did not go through » was a border
+      // colour — and a clock beside « Le paiement n'a pas abouti » contradicts
+      // the sentence it sits next to. The 5-second test decides this.
+      `<div class="cl-conf-ring cl-conf-ring-echec">${iconFlag(32)}</div>`,
       `<div class="cl-conf-title cl-conf-title-pending">${CONFIRMATION.echecTitre}</div>`,
       `<div class="cl-conf-body cl-conf-body-max">${CONFIRMATION.echecCorps}</div>`,
       `<button class="cl-cta cl-cta-echec" data-action="reessayer-paiement">${CONFIRMATION.echecAction}</button>`,
@@ -1226,12 +1258,30 @@ export function renderC6(
   return [
     '<div class="cl-screen" data-screen="C6">',
     body,
-    // ONE PRIMARY ACTION PER SCREEN. On `echec` the primary action is « Réessayer
-    // le paiement », rendered inside the body above — « Suivre ma commande »
-    // beside it would offer her a timeline for a payment that did not happen.
-    o.confirmState === 'echec'
-      ? ''
-      : '<button class="cl-cta cl-cta-c6" data-action="suivre">Suivre ma commande</button>',
+    /**
+     * ═══ « SUIVRE MA COMMANDE » EXISTS ONLY ONCE THE PAYMENT IS CONFIRMED ═══
+     *
+     * THE DEFECT THIS CLOSES (fresh-context verifier, BLOCKER 1 — reproduced in
+     * a real browser against the real bundle, and created by SP3.3c itself).
+     * With the order honestly held at `payment_pending`, this CTA was still the
+     * screen's primary action. Six taps later — C7's simulated steps, « Je suis
+     * à la porte », « Tout est bon » — C9 revealed the drop code, under its own
+     * caption « Votre code apparaîtra ici dès que le paiement sera confirmé par
+     * l'opérateur. Jamais avant. » The app broke that promise on screen, and
+     * with it Ten Laws #3 and §6.3 (« the buyer enters the drop code last,
+     * after any door payment is provider-confirmed »).
+     *
+     * BEFORE THIS SLICE THE WALK WAS AT LEAST SELF-CONSISTENT, because C6 always
+     * claimed `confirmed`. Making C6 honest is what exposed the contradiction,
+     * so closing it belongs here and not to a later slice.
+     *
+     * ON `attente` THERE IS NO PRIMARY ACTION, and that is the honest answer:
+     * she is waiting. « Vérifier à nouveau » appears in the body once the
+     * automatic checks stop, and that is the only thing there is to offer.
+     */
+    o.confirmState === 'confirmed'
+      ? '<button class="cl-cta cl-cta-c6" data-action="suivre">Suivre ma commande</button>'
+      : '',
     '<div class="cl-footnote">Votre numéro reste privé.</div>',
     '</div>',
   ].join('');

@@ -543,6 +543,9 @@ export const CLIENTE_STYLES = `
   /* SP3.3c — « Vérifier à nouveau », offered only once the automatic checks
      have stopped. A SECONDARY action: it whispers (§5, one primary action per
      screen — the primary here is « Suivre ma commande » below). 44px tall. */
+  /* SP3.3c — the read did not reach the service. A NOTE, not an alarm: the
+     order is fine, we simply could not ask about it. */
+  .cl-conf-horsportee { margin-top: 12px; padding: 11px 14px; border-radius: 14px; border: 1px solid #E0D6C2; background: #FFFFFF; font-size: 13px; line-height: 1.5; color: #6F6355; max-width: 300px; }
   .cl-conf-relance { margin-top: 14px; min-height: 44px; padding: 12px 20px; border-radius: 14px; border: 1.5px solid #E0D6C2; background: #FFFFFF; color: #4A3F33; font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
   /* …and the failed payment's ring. The danger tokens this app already uses on
      the problem banner, at ring weight — a border, never a filled alarm. */

@@ -357,6 +357,25 @@ test('BLOCKER 2 · the hold follows the chosen mode — B reserves the DOOR quot
   expect(wire.reserves[0]!.url).not.toContain('quote-full');
 });
 
+test('SP3.3c · mode B ORDERS the door quote — the 1 000 vs 12 500 binding, in a real browser', async ({ page }) => {
+  // The unit test proves `commander('B')` picks the door hold. This proves the
+  // BROWSER does, on the real bundle: the pre-existing BLOCKER-2 test asserted
+  // only the RESERVE url, so the highest-stakes binding in the slice had no
+  // end-to-end assertion on the ORDER at all (verifier ITEM 8). An order on the
+  // full quote after a « Payer à la livraison » CTA charges 12 500, not 1 000.
+  const wire = await scriptService(page, { doorAvailable: true, orderStates: ['payment_pending'] });
+  await askForPrice(page);
+  await toPayer(page, 'B');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+
+  expect(wire.reserves[0]!.url).toContain('quote-door-1');
+  expect(wire.orders.length).toBe(1);
+  expect(wire.orders[0]!.body['quoteId'], 'mode B ordered the FULL quote').toBe('quote-door-1');
+  // …and under the DOOR hold's own holder ref, or the service refuses it.
+  expect(wire.orders[0]!.body['holderRef']).toBe(wire.reserves[0]!.body['holderRef']);
+});
+
 test('BLOCKER 1 · a bill that does not reconcile is refused, and no figure reaches the screen', async ({ page }) => {
   await page.route('**/checkout/**', async (route: Route) => {
     const req = route.request();
@@ -439,7 +458,13 @@ test('SP3.3c · the ORDER body is the three-key allowlist — no amount crosses 
   const body = wire.orders[0]!.body;
   expect(Object.keys(body).sort()).toEqual(['commandId', 'holderRef', 'quoteId']);
   for (const v of Object.values(body)) expect(typeof v).toBe('string');
-  expect(JSON.stringify(body)).not.toMatch(/12500|11500|1000/);
+  // AS THE AMOUNTS WOULD ACTUALLY BE WRITTEN (verifier NOTE 13). The old form
+  // was `/12500|11500|1000/` against a body carrying two raw uuids, where the
+  // digits « 1000 » land inside 32 hex characters roughly once in a thousand
+  // runs — a flake that would have been read as a real leak.
+  for (const [k, v] of Object.entries(body)) {
+    expect(String(v), `${k} carries an amount`).not.toMatch(/\b(?:12500|11500|1000)\b/);
+  }
 });
 
 test('SP3.3c · the operator answers — and ONLY then does the screen confirm', async ({ page }) => {
@@ -500,11 +525,30 @@ test('SP3.3c · the retry sends a NEW command id — or nothing would actually b
 
   await page.locator('[data-action="reessayer-paiement"]').click();
   await expect.poll(() => wire.orders.length, { timeout: 10_000 }).toBe(2);
+  // …and the retry button is gone the moment she taps it. A control that stays
+  // under her thumb while nothing on screen changes is a control she taps again.
+  await expect(page.locator('[data-action="reessayer-paiement"]')).toHaveCount(0);
 
   const [first, second] = wire.orders;
   expect(second!.body['quoteId'], 'the retry ordered a different quote').toBe(first!.body['quoteId']);
   expect(second!.body['commandId'], 'the retry replayed the first command — nothing was retried')
     .not.toBe(first!.body['commandId']);
+});
+
+test('SP3.3c · the retry tap is ANSWERED IMMEDIATELY — no dead tap on a money screen', async ({ page }) => {
+  // The order is held open, so this measures what she sees WHILE the retry is
+  // in flight — which on a Ouaga 2G link is seconds, not milliseconds.
+  await scriptService(page, { orderStates: ['payment_failed'], orderDelayMs: 2_500 });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="echec"]').waitFor({ timeout: 15_000 });
+
+  await page.locator('[data-action="reessayer-paiement"]').click();
+  // The failed screen is gone AT ONCE and she is on the in-flight screen —
+  // before the second order has answered, which is the whole point.
+  await expect(page.locator('[data-etat="operateur"]')).toBeVisible({ timeout: 1_000 });
+  await expect(page.locator('[data-etat="echec"]')).toHaveCount(0);
 });
 
 test('SP3.3c · the automatic checks STOP, and only then is a manual one offered', async ({ page }) => {
@@ -550,4 +594,83 @@ test('SP3.3c · a REFUSED order lands on the honest refusal surface, never on a 
   // the refusal surface — a true sentence and an action, never a blank screen
   expect(await page.locator('[data-action="reessayer-prix"], [data-action="prix-a-jour"], [data-action="retour-c3"]').count())
     .toBeGreaterThan(0);
+});
+
+/* ══════════════════════════════════════════════════════════════════════════ *
+ *  SP3.3c ROUND 2 — the two BLOCKERS a fresh-context verifier reproduced in a
+ *  real browser against the real bundle. Each test below is the guard.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+test('BLOCKER 1 · an UNCONFIRMED payment has no road to the drop code — §6.3, Ten Laws #3', async ({ page }) => {
+  /**
+   * WHAT THE VERIFIER WALKED, on the committed build: C6 « Nous attendons
+   * l'opérateur » → « Suivre ma commande » → C7 → simuler ×4 → « Je suis à la
+   * porte » → « Tout est bon » → C9 printed « Le code de remise · 734 921 »,
+   * under its own caption « Votre code apparaîtra ici dès que le paiement sera
+   * confirmé par l'opérateur. Jamais avant. »
+   *
+   * The order is pinned at `payment_pending` for the whole test — production
+   * truth today — so at no point in it is any payment confirmed.
+   */
+  await scriptService(page, { orderStates: ['payment_pending'] });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+
+  // 1 · the road is not offered.
+  await expect(page.locator('[data-action="suivre"]')).toHaveCount(0);
+
+  // 2 · and it is not walkable even if something emits the action anyway.
+  await page.evaluate(() => {
+    document.querySelector('main.cl-root')?.dispatchEvent(
+      new MouseEvent('click', { bubbles: true }),
+    );
+    const b = document.createElement('button');
+    b.setAttribute('data-action', 'suivre');
+    document.querySelector('main.cl-root')?.appendChild(b);
+    b.click();
+  });
+  await page.waitForTimeout(500);
+  expect(await screenOf(page), 'an unconfirmed payment reached the tracking screen').toBe('C6');
+
+  // 3 · and the drop code is nowhere on this page, in any form.
+  const text = (await stage(page)).replace(/\s+/g, ' ');
+  expect(text).not.toContain('code de remise');
+  expect(text).not.toMatch(/\d{3}\s?\d{3}/);
+});
+
+test('BLOCKER 2 · « Vérifier à nouveau » always ANSWERS — a dead link is said, not swallowed', async ({ page }) => {
+  // The full 35 s schedule has to run out against the dead link before the
+  // manual check exists at all — see the sibling test for why it is not
+  // shortened: the guarantee is about the numbers that ship.
+  test.setTimeout(150_000);
+  const wire = await scriptService(page, { orderStates: ['payment_pending'] });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+
+  // the order exists; NOW the link dies for every subsequent read.
+  await page.route('**/checkout/order/**', (route) => route.abort('failed'));
+
+  // the schedule runs itself out against a dead link…
+  await page.locator('[data-action="verifier-paiement"]').waitFor({ timeout: 90_000 });
+  // …and the screen SAYS the reads are not landing, instead of repeating
+  // « votre commande est bien enregistrée » with nothing else changed.
+  await expect(page.locator('[data-role="hors-portee"]')).toBeVisible();
+  const text = (await stage(page)).replace(/\s+/g, ' ');
+  expect(text).toContain('Nous n’arrivons pas à joindre le service');
+  // IT STILL SAYS NOTHING ABOUT THE PAYMENT. A read that did not arrive is not
+  // a payment that failed, and the screen must not have drifted into one.
+  expect(text).toContain('Nous attendons l’opérateur.');
+  expect(text).not.toContain('n’a pas abouti');
+  expect(text).not.toContain('confirmé par l’opérateur');
+
+  // …and when the link comes back, the note goes away on the next answer.
+  await page.unroute('**/checkout/order/**');
+  const before = wire.orderReads.length;
+  await page.locator('[data-action="verifier-paiement"]').click();
+  await expect.poll(() => wire.orderReads.length, { timeout: 10_000 }).toBe(before + 1);
+  await expect(page.locator('[data-role="hors-portee"]')).toHaveCount(0);
 });

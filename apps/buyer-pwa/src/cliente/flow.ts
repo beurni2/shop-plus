@@ -137,6 +137,9 @@ interface FlowState {
   essai: number;
   /** The automatic checks have stopped ⇒ C6 offers « Vérifier à nouveau ». */
   relance: boolean;
+  /** The LAST read of the order did not reach the service. Says nothing
+   *  about the payment — only that we could not ask (verifier BLOCKER 2). */
+  horsPortee: boolean;
 }
 
 /**
@@ -228,6 +231,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     orderId: null,
     essai: 0,
     relance: false,
+    horsPortee: false,
   };
 
   /**
@@ -377,6 +381,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
           confirmState: state.confirmState,
           paid: state.pay === null ? undefined : splitFor(q, state.delivery ?? 'today', state.pay),
           relance: state.relance,
+          horsPortee: state.horsPortee,
         });
       case 'C7':
         return renderC7({ step: state.step, problem: state.problem, demo });
@@ -458,6 +463,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     state.orderId = null;
     state.essai = 0;
     state.relance = false;
+    state.horsPortee = false;
     // ═══ IS THIS PHONE'S CLOCK TRUSTWORTHY? (verifier BLOCKER 5) ═══
     // A quote the service JUST issued is alive by construction. If this device
     // reads it as already expired, the wrong clock is the phone's — so the local
@@ -526,6 +532,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     if (live === null) return;
     void live.etatCommande(orderId).then((r) => {
       if (gen !== generation) return;
+      // DID THE READ ARRIVE? That is ALL this records. It never becomes a
+      // payment outcome — `confirmState` is untouched on every failure branch,
+      // exactly as before. It exists so « Vérifier à nouveau » always answers
+      // her instead of being a tap that changes nothing (verifier BLOCKER 2).
+      state.horsPortee = r.status !== 'order';
       if (r.status === 'order') {
         const etat = etatDeC6(r.order.state);
         state.confirmState = etat;
@@ -578,7 +589,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       }
       state.orderId = r.order.orderId;
       const etat = etatDeC6(r.order.state);
-      jump('C6', { confirmState: etat, step: 1, orderId: r.order.orderId, relance: false });
+      jump('C6', { confirmState: etat, step: 1, orderId: r.order.orderId, relance: false, horsPortee: false });
       // `jump` cleared the timers and bumped the generation — so the watch must
       // start from the NEW one, or its first read would discard itself.
       if (etat === 'attente') suivreLePaiement(r.order.orderId, generation, 0);
@@ -847,11 +858,41 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         clearT();
         state.essai += 1;
         state.relance = false;
+        /**
+         * SHOW HER THE TAP LANDED, BEFORE ANYTHING IS ON THE WIRE.
+         *
+         * THE DEFECT THIS CLOSES, found re-reading this handler: without this
+         * line the screen does not change at all until `commander` RESOLVES —
+         * C6 keeps rendering « Le paiement n'a pas abouti. » with the retry
+         * button still sitting under her thumb. On a Ouaga 2G link that is
+         * several seconds of a dead tap on a money screen, and a dead tap on a
+         * money screen gets tapped again.
+         *
+         * It goes back to C5's operator screen, which is where the FIRST
+         * attempt already waits while its order request is in flight — so the
+         * retry walks the same visual path as the attempt it is repeating,
+         * rather than inventing a second waiting surface. `passerLaCommande`
+         * renders it immediately and jumps to C6 on the answer.
+         *
+         * A SECOND TAP CANNOT DOUBLE-CHARGE, and that was checked rather than
+         * assumed: the button is gone the instant this renders, and even a
+         * racing tap only reaches `order-do.ts`'s « an order exists and its
+         * payment has not failed » branch, which returns the order as it
+         * stands — never a second order, never a second charge.
+         */
+        state.screen = 'C5';
         passerLaCommande(mode, generation);
         return;
       }
       // — C6 · C7 —
       case 'suivre':
+        // BELT AND BRACES ON THE SAME LAW `renderC6` now enforces by omission
+        // (verifier BLOCKER 1). The button is not rendered unless the payment is
+        // confirmed; this makes the rule hold even if some future screen, or a
+        // stray harness mount, emits the action anyway. A tracking timeline for
+        // an unconfirmed payment is the first step of the walk that ended in a
+        // revealed drop code.
+        if (state.live !== null && state.confirmState !== 'confirmed') return;
         jump('C7', { step: Math.max(state.step, 1) }); return;
       case 'simuler':
         state.step += 1; render(); return;
@@ -861,6 +902,22 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         state.problem = true; render(); return;
       // — C8 —
       case 'porte-bon':
+        /**
+         * ═══ THE DROP CODE NEVER REVEALS ON AN UNCONFIRMED PAYMENT ═══
+         *
+         * `leg2: 'confirmed'` is the single flag `renderC9` reveals on, so this
+         * is the one line that decides whether « Le code de remise » appears.
+         * §6.3: « the buyer enters the drop code last, after any door payment is
+         * provider-confirmed. » Ten Laws #3: custody transfers only after
+         * provider-confirmed payment of every due leg.
+         *
+         * ON THE REAL PATH (`state.live !== null`) THE ONLY EVIDENCE OF PAYMENT
+         * IS THE ORDER'S OWN STATE, so that is what is read. The harness path
+         * keeps its documented reachability levers (`?revealed=`,
+         * `?demo-cliente=C9`) — it has no order to consult and it is labelled a
+         * demo everywhere it is offered.
+         */
+        if (state.live !== null && state.confirmState !== 'confirmed') return;
         if (state.pay === 'A') { jump('C9', { leg2: 'confirmed', step: 6 }); return; }
         state.door = 'accepted'; render();
         t1 = setTimeout(() => jump('C9', { leg2: 'confirmed', step: 6, door: 'inspecting' }), 2600);

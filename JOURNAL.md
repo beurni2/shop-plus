@@ -2169,3 +2169,42 @@ Neither state prints an amount, in any combination of split handed to the render
 **ONE FINDING LEFT UNFIXED, DELIBERATELY — outside this slice, flagged for the founder.** C5's `operateur` screen instructs her: « Confirmez sur votre téléphone · Composez votre code secret Orange Money ». **Nothing sends a USSD push.** That copy is inherited from the pixel prototype and it tells a buyer to perform an action no provider has asked her for. It is not a franc she can see, and whether a real aggregator pushes a PIN prompt is inside the open aggregator Decision (Build Spec §12) — so it is named here rather than rewritten on a guess.
 
 **Also carried forward, unchanged from SP3.3b2:** `prefill` still invents mode B at `flow.ts` (`if (idx >= 4) state.pay = state.pay || 'B'`), reaching `renderC8` and `porte-bon`; and C6 vs C5 still judge « is this mode payable » by two different expressions (unreachable today).
+
+---
+
+### 2026-08-01 · SP3.3c round 2 — the verifier said FAIL, and it was right twice
+
+The fresh-context verifier on `f67dfa8` returned **FAIL** with two blockers, both reproduced in a real browser against the real bundle, and both created or left standing by SP3.3c itself. Neither was caught by 719 unit tests, 74 e2e and a full green gate run — which is the point of running a verifier that carries none of the builder's assumptions.
+
+**BLOCKER 1 — « Nous attendons l'opérateur » was six taps from a revealed drop code.**
+With the order honestly pinned at `payment_pending`, C6's PRIMARY action was still « Suivre ma commande ». The verifier walked it: C7 → `simuler` ×4 → « Je suis à la porte » → « Tout est bon » → **C9 printed « Le code de remise · 734 921 »**, under its own caption « Votre code apparaîtra ici dès que le paiement sera confirmé par l'opérateur. Jamais avant. » That is §6.3 (« the buyer enters the drop code last, after any door payment is provider-confirmed ») and Ten Laws #3, broken by the screen's own printed promise.
+
+**IT IS MY DEFECT EVEN THOUGH THE C7–C9 SCAFFOLDING PRE-DATES ME.** Before this slice C6 always claimed `confirmed`, so the walk was at least self-consistent. Making C6 honest is what exposed the contradiction; closing it therefore belongs to this slice and not to a later one.
+
+**CLOSED, TWO WAYS:** `renderC6` emits « Suivre ma commande » only on `confirmed` (on `attente` there is NO primary action, which is the honest answer — she is waiting); and both `suivre` and `porte-bon` refuse on the real path unless `confirmState === 'confirmed'`, so `leg2: 'confirmed'` — the single flag `renderC9` reveals on — is unreachable without provider confirmation whatever emits the action. The harness keeps its documented `?revealed=` levers; it has no order to consult and is labelled a demo.
+
+**BLOCKER 2 — « Vérifier à nouveau » was a silent no-op on a dead link.**
+The verifier aborted every `GET /checkout/order/{id}` and measured it: **8 reads attempted, screen text byte-identical before and after the tap.** The one action she had acknowledged nothing. My own comment celebrated discarding the outcome (« a failed read is not a failed payment ») — true, and the consequence was the inverse of the lie the `attente` state exists to remove: instead of blaming her network when it was fine, it now hid her network being gone.
+
+**CLOSED:** `state.horsPortee` records only whether the READ arrived — never a payment outcome, and `confirmState` is still untouched on every failure branch. When set, C6 adds one line: « Nous n'arrivons pas à joindre le service pour l'instant. Votre commande est bien là. » It adds a fact about the network and takes none away about the order, which was created by a 200 and is not undone by an unreachable read.
+
+**BOTH MUTATION-PROVEN against rebuilt bundles:** restoring the CTA + dropping the `suivre` guard turns the drop-code test RED; deleting the one `state.horsPortee = …` line turns the dead-link test RED.
+
+**FIVE MORE OF THE VERIFIER'S ITEMS, FIXED IN THE SAME ROUND:**
+- **The retry could fire N times with N distinct command ids** (it had no in-flight guard — 3 taps measured as 4 order POSTs). The retry now leaves the failed screen at once for C5's operator screen, so the button is gone on the first tap. Its own e2e, mutation-proven.
+- **`essai` was in memory while its command-id slot was in `sessionStorage`.** After a reload the counter reset and both « Payer » and « Réessayer » replayed cached answers — verbatim the failure `orderCommandIdFor` exists to prevent. **Only attempt 0 is slotted now; every retry mints fresh.** A retry is a deliberate new attempt and is never what a reload should reproduce.
+- **The poll-schedule test was vacuous downward** — mutating `SUIVI_PAIEMENT_MS` to `[1,2,3,4,5,6]` (21 ms, seven requests in a blink) kept all 79 unit tests green. A floor is now asserted.
+- **`ORDER_STATUSES` is IMPORTED, not re-typed.** The old local literal made the test's own claim (« fails loudly the day the canon grows a state ») false.
+- **The mode-B ORDER binding had no browser assertion** — only the RESERVE url was checked end-to-end. The 1 000-vs-12 500 binding now has one.
+- Plus: `?conf=operateur` / `?conf=echec` harness levers so the two new states can be walked on a device at all; a flag icon instead of a clock on the failed state (a clock beside « n'a pas abouti » contradicts the sentence); and a regex flake that would have read two raw uuids as a leaked amount.
+
+**THE NEW COPY WAS CAUGHT BY MY OWN GATE, twice, which is the gate working:** `attenteHorsPortee` first failed as an unregistered field, then failed the checkout reading budget at 2.75 syllables/word (« Votre commande reste enregistrée »). It ships as « Votre commande est bien là. »
+
+**Round-2 evidence:** typecheck clean · 719/719 unit · **78/78 Playwright on a rebuilt bundle** · `run-gates.sh` ALL GATES GREEN · every negative fixture still failing with exit 1.
+
+**LEFT UNFIXED AND NAMED (verifier ITEMs/NOTEs, all outside this slice or unreachable today):**
+- `cancelled` / `refunded` fall to the waiting sentence, which is a specific claim that is false for both. Unreachable — no storefront route reaches either state — but fail-closed should mean *say less*, not *say something wrong*. Its own small slice.
+- **A new C6 string can still escape the copy gate by being written inline in `renderC6` rather than in the `CONFIRMATION` table** (proved: an administrative-French `<div>` inside the `attente` block passes the gate). The gate's own output names this gap; the cure is the i18n catalog migration.
+- The harness `live === null` branch still confirms on a 2 400 ms clock (reachable only via `?demo-cliente=`), and `state.confirmState` still initialises to `'confirmed'`.
+- `state.orderId` is never rendered; C7 shows a hardcoded `CMD-2417`. A buyer stuck at `payment_pending` has no reference to quote to anyone.
+- C5's operator screen still instructs « Composez votre code secret Orange Money » with nothing sending a USSD push (carried from round 1; inside the open aggregator Decision §12).

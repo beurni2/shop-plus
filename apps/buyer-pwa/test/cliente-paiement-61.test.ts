@@ -6,6 +6,7 @@ import {
   type C5State, type ClienteProduit, type ClienteQuote,
 } from '../src/cliente/screens';
 import { etatDeC6, SUIVI_PAIEMENT_MS } from '../src/cliente/flow';
+import { ORDER_STATUSES } from '@platform/contracts';
 import { composeQuote, harnessFrancs, ROBE } from '../src/cliente/seed';
 
 /**
@@ -411,14 +412,15 @@ describe('SP3.3b2 — the confirmation quotes the server\'s split, or no figure 
 
 describe('SP3.3c — etatDeC6: only the server can say « confirmé »', () => {
   /**
-   * THE CANON ORDER STATUSES, verbatim from `@platform/contracts` `ORDER_STATUSES`.
-   * Listed here so this test fails LOUDLY the day the canon grows a state: a new
-   * status this app has never heard of must land on the waiting screen, and an
-   * allowlist nobody re-reads is how a new state quietly becomes a confirmation.
+   * THE CANON ORDER STATUSES — IMPORTED, not re-typed (verifier NOTE 9).
+   *
+   * The first version of this test declared them as a local literal while its
+   * own comment claimed it « fails LOUDLY the day the canon grows a state ». It
+   * could not: a canon that grew a ninth status would have left this list at
+   * eight and the suite green. Reading `ORDER_STATUSES` from the pinned package
+   * is what makes the claim true.
    */
-  const CANON: readonly string[] = [
-    'quote_issued', 'reserved', 'payment_pending', 'paid', 'confirmed', 'payment_failed', 'cancelled', 'refunded',
-  ];
+  const CANON: readonly string[] = ORDER_STATUSES;
 
   it('« confirmed » is the ONLY status that prints a confirmation', () => {
     const confirming = CANON.filter((s) => etatDeC6(s) === 'confirmed');
@@ -523,6 +525,14 @@ describe('SP3.3c — the two new C6 states say what is true and no more', () => 
     }
     const total = SUIVI_PAIEMENT_MS.reduce((a, b) => a + b, 0);
     expect(total, 'the client polls for over a minute on a metered connection').toBeLessThanOrEqual(60_000);
+    /**
+     * AND THE FLOOR (verifier ITEM 6). Every assertion above survived mutating
+     * the schedule to [1,2,3,4,5,6] — 21 milliseconds, seven requests fired at
+     * a Ouaga 2G link inside a single blink. « Bounded » was pinned; « not a
+     * burst » was not, and the burst is the half that costs her data.
+     */
+    expect(SUIVI_PAIEMENT_MS[0], 'the first read fires before the request could land').toBeGreaterThanOrEqual(1_000);
+    expect(total, 'the whole schedule is over before a slow webhook could arrive').toBeGreaterThanOrEqual(20_000);
   });
 });
 

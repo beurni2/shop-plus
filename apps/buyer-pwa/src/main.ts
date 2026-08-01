@@ -803,7 +803,23 @@ if (app) {
       microRefuse: params.get('micro') === 'refuse',
       demo: params.get('demo') !== '0',
       etat: params.get('etat') === 'loading' ? 'loading' : 'ready',
-      conf: confRaw === 'attente' ? 'pending' : confRaw === 'hors-ligne' ? 'offline' : 'confirmed',
+      /**
+       * SP3.3c — the two NEW states got harness levers (verifier NOTE 10).
+       * Without them neither « Nous attendons l'opérateur » nor « Le paiement
+       * n'a pas abouti » was reachable from `?demo-cliente=`, so neither could
+       * be photographed or walked on a device — and the founder's device walk
+       * is the one review this project cannot do for itself.
+       *
+       * `?conf=attente` KEPT ITS OLD MEANING (the queued-on-the-phone state) so
+       * no existing link or screenshot changes: the new states are `operateur`
+       * and `echec`, named after what they are.
+       */
+      conf:
+        confRaw === 'attente' ? 'pending'
+        : confRaw === 'operateur' ? 'attente'
+        : confRaw === 'echec' ? 'echec'
+        : confRaw === 'hors-ligne' ? 'offline'
+        : 'confirmed',
       revealed: params.get('revealed') === '1',
       onVitrine: (slug) => {
         window.location.href = vitrineHref(window.location.pathname, slug);

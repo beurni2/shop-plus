@@ -144,6 +144,11 @@ const CONFIRMATION_FIELDS = {
   attenteCorps: { screenClass: 'checkout', fills: [] },
   attenteChip: { screenClass: 'label', fills: [] },
   attenteAction: { screenClass: 'label', fills: [] },
+  /** « Nous n'arrivons pas à joindre le service » — added in round 2 after a
+   *  verifier proved the manual check was a silent no-op on a dead link.
+   *  A sentence about the NETWORK on the payment screen: it gets the same
+   *  budget and the same banned-register check as the rest. */
+  attenteHorsPortee: { screenClass: 'checkout', fills: [] },
   echecTitre: { screenClass: 'label', fills: [] },
   echecCorps: { screenClass: 'checkout', fills: [] },
   echecAction: { screenClass: 'label', fills: [] },
