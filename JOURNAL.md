@@ -2311,3 +2311,27 @@ SP3.3c's drop-code guard asked one question: « is the order `confirmed`? ». On
 **Evidence:** workspace typecheck clean · **376/376 service · 725/725 buyer · 89/89 vault** · **80/80 Playwright on a rebuilt bundle** · `run-gates.sh` ALL GATES GREEN. **Mutation-proven:** making `revelationPermise` ignore the door leg turns the §6.3 browser test RED.
 
 **STILL OPEN, and now the next real step:** the buyer has no SCREEN to pay at the door — C8's « accepted » state is still a 2 600 ms timer, and the drop code is still the hardcoded `CODE_REMISE`. The server route exists (SP4.2a-bis); nothing calls it. That is the rest of SP4.2b.
+
+---
+
+### 2026-08-01 · SP4.2b (part 2) — the door payment screen: she pays the product, THEN the code
+
+**FOUNDER ORDER: « build the door payment screen now ».** The last missing half of Option B: the server could collect at the door (SP4.2a-bis) and nothing called it, so C8's « accepted » state was still a **2 600 ms `setTimeout` straight to a hardcoded drop code**. The same clock-instead-of-a-server defect SP3.3c removed from C6 — one screen later, with custody on it.
+
+**THE WALK, END TO END, AS IT NOW WORKS:** she inspects → « Tout est bon » → **the product charge is requested** → « Payez le reste » stands while the operator is asked → the ORDER is polled until its own `doorLeg` says `paid` → and only then does C9 exist. §5.5 (« product paid by MoMo at the door **before custody transfer**; **not COD** ») and §6.3 (« the drop code **last, after** any door payment is provider-confirmed »).
+
+**BUILT:**
+- **`QuotePort.doorCharge()`** → `POST /checkout/order/{id}/door-charge`, the two-key allowlist, no amount on the wire. Documented at the interface: *it does not pay and it cannot* — a 200 hands back an order whose door leg is still `due`.
+- **`payerALaPorte(orderId, essai)`** in the model, bound to the **DOOR** quote's holder, because an Option-B order was created under it. No door hold ⇒ `mode_indisponible`, never a charge on the wrong quote.
+- **`payerALaPorte` / `suivreLaPorte` in the flow** — request, then the SAME bounded backoff the checkout leg uses (Ten Laws #7: her data and her battery, at her door). **A failed read is not a failed payment**; running out of reads leaves her owed, unconfirmed and told so, never on a code.
+- **`DoorEtat` gained `echec`** — a real screen with a retry that mints a NEW command id. Its copy does NOT say « rien n'a été prélevé », for the same reason C6's does not: the amount-divergence fault reaches this state with the provider possibly having collected.
+- **C8's owed figure now comes from the SERVER'S SPLIT** (`duAlaPorte`), not from `produitFcfa` re-read as if the two were the same thing. Equal by §5.5 today; the screen must follow the split if that ever changes. `undefined` ⇒ **no figure at all**, the third screen to obey SP3.3b1's rule.
+- **A `PORTE` copy table, linted** by `copy-lint-inline-refus.mjs` on the same terms as REFUS/PAIEMENT/CONFIRMATION — structural floor, unknown-field hard failure, no placeholders.
+
+**TWO MODELLING ERRORS THE TESTS CAUGHT, both mine:**
+1. My first browser test drove **mode A with a scripted door debt** — a state that cannot exist, since mode A never owes at a door. It failed for a reason that had nothing to do with the code. Rewritten to walk the REAL Option-B path (`doorAvailable: true`, mode B, a door quote, a door hold, an order on the door quote) — **which is only testable at all because the founder opened the zones this morning.**
+2. The C8 money test pinned `produitFcfa`; it now pins the server's split, plus a new case proving the band VANISHES rather than guesses when there is none.
+
+**Evidence:** workspace typecheck clean · **726/726 buyer unit** · **82/82 Playwright on a rebuilt bundle** · `run-gates.sh` ALL GATES GREEN · payload **277 144 B** of 307 200 B. **Mutation-proven:** deleting the « collect before revealing » branch — i.e. restoring the old straight-to-reveal behaviour — turns the door-payment browser test RED.
+
+**WHAT REMAINS OF SP4.2, honestly:** the drop code itself is still the hardcoded `CODE_REMISE = '734 921'` in `screens.ts`. Nothing mints one, nothing delivers one, and no route carries it — `buyerDropCode` is canon (`SECRET_KINDS`) but has no implementation anywhere. **The reveal is now correctly GATED on a real payment; what it reveals is still a constant.** That is the next piece, and it is the last one before SP4.2's DoD reads true.

@@ -427,6 +427,57 @@ if (pay === null) {
   }
 }
 
+/* ═══════ SP4.2b — the DOOR's copy, on the same terms ═════════════════════ */
+
+const PORTE_FIELDS = {
+  resteAPayer: { screenClass: 'label', fills: [] },
+  echecTitre: { screenClass: 'label', fills: [] },
+  echecCorps: { screenClass: 'checkout', fills: [] },
+  echecAction: { screenClass: 'label', fills: [] },
+};
+
+let porteCount = 0;
+const porte = /export const PORTE\s*=\s*\{([\s\S]*?)\n\}/.exec(src);
+if (porte === null) {
+  problems.push(
+    'the PORTE block is missing — it is what a buyer reads while paying for her product at ' +
+      'her own door, and it would ship unlinted. Re-point this gate, never delete it.',
+  );
+} else {
+  const fields = fieldsOf(porte[1], 'PORTE');
+  for (const required of Object.keys(PORTE_FIELDS)) {
+    if (!(required in fields)) problems.push(`PORTE: missing field « ${required} » (door copy)`);
+  }
+  for (const present of Object.keys(fields)) {
+    if (present in PORTE_FIELDS) continue;
+    problems.push(
+      `PORTE: unknown field « ${present} » — add it to PORTE_FIELDS with its screen class ` +
+        'so it gets linted; nothing here may go unread',
+    );
+  }
+  for (const [field, { screenClass, fills }] of Object.entries(PORTE_FIELDS)) {
+    if (!(field in fields)) continue;
+    const v = readValue(fields[field]);
+    if (v.kind !== 'text') {
+      problems.push(`PORTE.${field}: ${v.why ?? 'null is not copy'}`);
+      continue;
+    }
+    if (v.text === '') {
+      problems.push(`PORTE.${field}: empty — a door screen with no sentence is a door with no honesty`);
+      continue;
+    }
+    for (const brace of v.text.match(/\{[^}]*\}/gu) ?? []) {
+      if (fills.includes(brace)) continue;
+      problems.push(
+        `PORTE.${field}: « ${brace} » is filled by nothing — the one amount on this screen is ` +
+          'rendered by the caller from a server byte, never interpolated into a sentence',
+      );
+    }
+    entries.push({ key: `cliente.porte.${field}.${n++}`, fr: v.text, register: 'money', screenClass });
+    porteCount += 1;
+  }
+}
+
 /* ════════ SP3.3c — C6's post-payment copy, on the same terms ═════════════ */
 
 let confirmationCount = 0;
@@ -539,7 +590,7 @@ for (const file of scanned) {
 
 console.log(
   `  ${views.length} refusal view(s) · ${paiementCount} §6.1 payment string(s) · ` +
-    `${confirmationCount} C6 post-payment string(s) · ` +
+    `${confirmationCount} C6 post-payment string(s) · ${porteCount} door string(s) · ` +
     `${entries.length} user-facing strings extracted from ${rel} · ${scanned.length} file(s) scanned`,
 );
 
@@ -594,7 +645,8 @@ if (lintFailed || scanHits.length > 0) {
 console.log('\ncopy-lint-inline-refus: OK');
 console.log(
   `  LINTED (French Voice): the REFUS table (${views.length} views), MESSAGES, the §6.1 PAIEMENT ` +
-    `table (${paiementCount} strings) and the C6 CONFIRMATION table (${confirmationCount} strings) ` +
+    `table (${paiementCount} strings), the C6 CONFIRMATION table (${confirmationCount} strings) ` +
+    `and the PORTE table (${porteCount} strings) ` +
     `— ${entries.length} strings from ${rel}.`,
 );
 console.log(

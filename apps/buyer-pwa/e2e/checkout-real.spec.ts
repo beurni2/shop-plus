@@ -71,6 +71,8 @@ interface Scripted {
   orderDelayMs?: number;
   /** SP4.2b — the door leg per read, the LAST repeating. `none` = mode A. */
   doorLegs?: string[];
+  /** refuse `POST …/door-charge` by name, the way the service would. */
+  doorChargeRefusal?: string;
 }
 
 interface Wire {
@@ -80,6 +82,8 @@ interface Wire {
   orders: Array<{ url: string; body: Record<string, unknown> }>;
   /** …and every `GET /checkout/order/{id}`. */
   orderReads: string[];
+  /** SP4.2b — every `POST …/door-charge`. */
+  doorCharges: Array<{ url: string; body: Record<string, unknown> }>;
   /** The route names in the order the browser actually asked for them, so
    *  « the hold is taken BEFORE the order » is provable and not assumed. */
   sequence: string[];
@@ -87,7 +91,7 @@ interface Wire {
 
 /** Install the scripted checkout service and return the wire log. */
 async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
-  const wire: Wire = { quotes: [], reserves: [], orders: [], orderReads: [], sequence: [] };
+  const wire: Wire = { quotes: [], reserves: [], orders: [], orderReads: [], doorCharges: [], sequence: [] };
   const ttl = opts.ttlMs ?? 15 * 60_000;
   let issued = 0;
   /** How many times each order has been read back, so `orderStates` walks. */
@@ -123,6 +127,21 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
         amountPaidAtCheckout: 12_500,
         amountDueAtDelivery: 0,
         doorLeg: opts.doorLegs?.[0] ?? 'none',
+      });
+    }
+    /* ── SP4.2b — she asks for the product leg to be collected ──────────── */
+    if (/\/door-charge$/.test(req.url()) && req.method() === 'POST') {
+      wire.doorCharges.push({ url: req.url(), body });
+      wire.sequence.push('door-charge');
+      if (opts.doorChargeRefusal !== undefined) return json(422, { error: opts.doorChargeRefusal });
+      // A CHARGE INITIATED IS NOT A PAYMENT — the service answers with the door
+      // leg still `due`, and only the webhook moves it.
+      return json(200, {
+        orderId: /\/order\/([^/]+)\/door-charge$/.exec(req.url())![1],
+        state: 'confirmed',
+        amountPaidAtCheckout: 1_000,
+        amountDueAtDelivery: 11_500,
+        doorLeg: 'due',
       });
     }
     const byId = /\/checkout\/order\/([^/]+)$/.exec(req.url());
@@ -732,4 +751,74 @@ test('SP4.2b · …and once the provider confirms the door payment, the code is 
   await page.locator('[data-action="porte-bon"]').click();
   await page.locator('[data-screen="C9"]').waitFor({ timeout: 15_000 });
   expect((await stage(page)).replace(/\s+/g, ' ')).toContain('code de remise');
+});
+
+test('SP4.2b · the door payment: she pays the product, THEN the code — no timer anywhere', async ({ page }) => {
+  /**
+   * THE 2 600 ms `setTimeout` THIS REPLACES showed « Payez le reste » and then
+   * revealed her drop code two and a half seconds later — no charge sent, no
+   * operator asked, no confirmation received.
+   *
+   * Reads 1–2 still owe; from read 3 the (scripted) webhook has landed. So the
+   * code can only appear because the SERVER said the door leg is paid.
+   */
+  const wire = await scriptService(page, {
+    doorAvailable: true, // the founder opened the zones — mode B is real now
+    orderStates: ['confirmed'],
+    doorLegs: ['due', 'due', 'paid'],
+  });
+  await askForPrice(page);
+  await toPayer(page, 'B');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+  for (let i = 0; i < 4; i += 1) await page.locator('[data-action="simuler"]').click();
+  await page.locator('[data-action="porte"]').click();
+  await page.locator('[data-screen="C8"]').waitFor();
+
+  // « Tout est bon » now ASKS FOR THE MONEY instead of revealing anything.
+  await page.locator('[data-action="porte-bon"]').click();
+  await page.locator('[data-etat="paiement-porte"]').waitFor({ timeout: 10_000 });
+  await expect.poll(() => wire.doorCharges.length, { timeout: 10_000 }).toBe(1);
+
+  // NO AMOUNT ON THAT WIRE — the service's two-key allowlist.
+  expect(Object.keys(wire.doorCharges[0]!.body).sort()).toEqual(['commandId', 'holderRef']);
+
+  // …and the code appears ONLY once the server reports the leg paid.
+  const waiting = (await stage(page)).replace(/\s+/g, ' ');
+  expect(waiting, 'the code appeared while the charge was still in flight').not.toContain('code de remise');
+  await page.locator('[data-screen="C9"]').waitFor({ timeout: 30_000 });
+  expect((await stage(page)).replace(/\s+/g, ' ')).toContain('code de remise');
+});
+
+test('SP4.2b · a REFUSED door charge gets an honest screen and a retry — never a code', async ({ page }) => {
+  const wire = await scriptService(page, {
+    doorAvailable: true,
+    orderStates: ['confirmed'],
+    doorLegs: ['due'],
+    doorChargeRefusal: 'door_leg_not_due',
+  });
+  await askForPrice(page);
+  await toPayer(page, 'B');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+  for (let i = 0; i < 4; i += 1) await page.locator('[data-action="simuler"]').click();
+  await page.locator('[data-action="porte"]').click();
+  await page.locator('[data-action="porte-bon"]').click();
+
+  await page.locator('[data-etat="porte-echec"]').waitFor({ timeout: 10_000 });
+  const text = (await stage(page)).replace(/\s+/g, ' ');
+  expect(text).toContain('Le paiement n’a pas abouti.');
+  expect(text).toContain('Rien n’a été confirmé.');
+  // it must NOT promise nothing was debited — the divergence fault reaches here
+  expect(text).not.toContain('prélev');
+  expect(text, 'a refused door charge showed the code').not.toContain('code de remise');
+
+  // …and the retry sends a NEW command id, or nothing would be retried.
+  await page.locator('[data-action="reessayer-porte"]').click();
+  await expect.poll(() => wire.doorCharges.length, { timeout: 10_000 }).toBe(2);
+  expect(wire.doorCharges[1]!.body['commandId']).not.toBe(wire.doorCharges[0]!.body['commandId']);
 });

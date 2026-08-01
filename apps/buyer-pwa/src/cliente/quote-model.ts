@@ -284,6 +284,16 @@ export type QuoteFetch =
        * anywhere in this app.
        */
       readonly etatCommande: (orderId: string) => Promise<OrderFetch>;
+      /**
+       * SP4.2b — PAY THE PRODUCT AT THE DOOR. `essai` is the attempt number,
+       * exactly as `commander` uses it: stable within an attempt so a
+       * double-tap replays, fresh across a deliberate retry.
+       *
+       * THE HOLDER REF IS THE DOOR QUOTE'S, because an Option-B order was
+       * created under it — the service compares it byte for byte against the
+       * receipt and answers `reservation_held_by_another` otherwise.
+       */
+      readonly payerALaPorte: (orderId: string, essai: number) => Promise<OrderFetch>;
     }
   | { readonly status: 'refused'; readonly reason: string }
   | { readonly status: 'unreachable' }
@@ -531,5 +541,16 @@ export async function fetchClienteQuote(
     },
 
     etatCommande: (orderId: string): Promise<OrderFetch> => port.orderState(orderId),
+
+    payerALaPorte: (orderId: string, essai: number): Promise<OrderFetch> => {
+      // ONLY MODE B EVER OWES AT A DOOR, so the holder is the DOOR quote's.
+      // With no door hold there is no Option-B order and nothing to pay.
+      if (doorHold === undefined) {
+        return Promise.resolve({ status: 'refused', reason: 'mode_indisponible' });
+      }
+      const cmd = orderCommandIdFor(`${doorHold.quoteId}#porte`, essai);
+      if (cmd === undefined) return Promise.resolve({ status: 'refused', reason: 'no_secure_random' });
+      return port.doorCharge(orderId, cmd, doorKey);
+    },
   };
 }

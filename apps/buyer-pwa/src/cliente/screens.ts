@@ -106,7 +106,12 @@ export interface ClienteQuote {
 export type Livraison = 'today' | 'tomorrow';
 export type ModePaiement = 'A' | 'B';
 export type VoiceEtat = 'idle' | 'recording' | 'recorded' | 'queued' | 'refused';
-export type DoorEtat = 'inspecting' | 'accepted' | 'report';
+/**
+ * SP4.2b — the door's states. `accepted` is « she said it's good and the
+ * product charge is on its way to the operator »; `echec` is « the operator did
+ * not take it ». Neither ever means paid — only the ORDER's `doorLeg` does.
+ */
+export type DoorEtat = 'inspecting' | 'accepted' | 'echec' | 'report';
 /**
  * WHAT C6 IS ALLOWED TO SAY — and after SP3.3c, all five come from somewhere
  * real rather than from a clock.
@@ -1148,6 +1153,32 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
   ].join('');
 }
 
+/**
+ * ═══ SP4.2b — THE DOOR'S COPY: SHE PAYS THE PRODUCT, THEN GETS HER CODE ═══
+ *
+ * §5.5: « product paid by MoMo **at the door before custody transfer**; **not
+ * COD** ». §6.3: « the buyer enters the drop code **last, after** any door
+ * payment is provider-confirmed ».
+ *
+ * `echecCorps` DOES NOT SAY « rien n'a été prélevé », for the same reason C6's
+ * failure does not: the amount-divergence fault reaches this state with the
+ * provider possibly having collected. « Rien n'a été confirmé » is true on
+ * every path here; the stronger sentence is not.
+ *
+ * Linted by `copy-lint-inline-refus.mjs` on the same terms as REFUS, PAIEMENT
+ * and CONFIRMATION — structural floor, unknown-field hard failure, and NO
+ * placeholders: the one amount on this screen is rendered by the caller from a
+ * server byte, never interpolated into a sentence.
+ */
+export const PORTE = {
+  /** The row above the two door buttons — what is still owed, with the figure
+   *  appended by the renderer from the server's own split. */
+  resteAPayer: 'Reste à payer, après inspection',
+  echecTitre: 'Le paiement n’a pas abouti.',
+  echecCorps: 'Rien n’a été confirmé. Votre commande est toujours là — vous pouvez réessayer.',
+  echecAction: 'Réessayer le paiement',
+} as const;
+
 /* ----------------------------------------------------------------- C6 ---- */
 
 /**
@@ -1343,10 +1374,19 @@ export interface C8State {
   readonly door: DoorEtat;
   readonly pay: ModePaiement;
   readonly reason: string | null;
+  /**
+   * SP4.2b — what she still owes at the door, as the SERVER split it for her
+   * mode. `undefined` ⇒ no split to speak for, and the screen shows no figure
+   * rather than a guessed one (SP3.3b1's rule, third screen to obey it).
+   */
+  readonly duAlaPorte?: number | undefined;
 }
 
 export function renderC8(m: ClienteProduit, q: ClienteQuote, s: C8State): string {
-  const produitStr = fmtFCFA(q.produitFcfa);
+  // THE SERVER'S OWN BYTE for what is owed at the door, never `produitFcfa`
+  // re-read as if the two were the same thing. They are equal by §5.5 today;
+  // the day a mode splits differently, this screen must follow the split.
+  const produitStr = s.duAlaPorte === undefined ? '' : fmtFCFA(s.duAlaPorte);
   let body: string;
   if (s.door === 'accepted') {
     body = [
@@ -1356,6 +1396,18 @@ export function renderC8(m: ClienteProduit, q: ClienteQuote, s: C8State): string
       `<div class="cl-prov-body">Composez votre <span class="cl-prov-cle">code secret <b>Orange Money</b></span> pour valider <b>${produitStr}</b>.</div>`,
       '<div class="cl-prov-wait"><span class="cl-prov-dots"><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span></span><span>En attente de la confirmation de l’opérateur…</span></div>',
       '<div class="cl-prov-law">Le livreur ne peut pas dire « payé » à votre place. Seul l’opérateur confirme.</div>',
+      '</div>',
+    ].join('');
+  } else if (s.door === 'echec') {
+    // THE OPERATOR DID NOT TAKE IT. No blame, no code, and — as on C6's own
+    // failure — NO claim that nothing was debited: the amount-divergence fault
+    // reaches this state with the money possibly already collected.
+    body = [
+      '<div class="cl-door-echec" data-etat="porte-echec">',
+      `<div class="cl-conf-ring cl-conf-ring-echec">${iconFlag(32)}</div>`,
+      `<div class="cl-conf-title cl-conf-title-pending">${PORTE.echecTitre}</div>`,
+      `<div class="cl-conf-body cl-conf-body-max">${PORTE.echecCorps}</div>`,
+      `<button class="cl-cta cl-cta-echec" data-action="reessayer-porte">${PORTE.echecAction}</button>`,
       '</div>',
     ].join('');
   } else if (s.door === 'report') {
@@ -1387,7 +1439,9 @@ export function renderC8(m: ClienteProduit, q: ClienteQuote, s: C8State): string
       '<div class="cl-checklist">',
       checklist.map((c) => `<div class="cl-check-row">${iconCheckSquare(17)}<span>${c}</span></div>`).join(''),
       '</div>',
-      s.pay !== 'A' ? `<div class="cl-owing" data-role="owing"><span>Reste à payer, après inspection</span><b>${produitStr}</b></div>` : '',
+      s.pay !== 'A' && s.duAlaPorte !== undefined
+        ? `<div class="cl-owing" data-role="owing"><span>${PORTE.resteAPayer}</span><b>${produitStr}</b></div>`
+        : '',
       '<div class="cl-door-paths">',
       '<button class="cl-door-good" data-action="porte-bon">Tout est bon</button>',
       '<button class="cl-door-bad" data-action="porte-probleme">Un problème</button>',

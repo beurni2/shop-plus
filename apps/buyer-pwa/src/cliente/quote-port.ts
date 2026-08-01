@@ -185,6 +185,19 @@ export interface QuotePort {
    * vault, and nothing on this client can produce it.
    */
   orderState(orderId: string): Promise<OrderOutcome>;
+  /**
+   * SP4.2b — ASK FOR THE PRODUCT LEG TO BE COLLECTED, at her door, after she
+   * has inspected. §5.5: « product paid by MoMo at the door BEFORE custody
+   * transfer; not COD ».
+   *
+   * IT DOES NOT PAY, AND IT CANNOT. A 200 means a charge was initiated; the
+   * order it hands back still says the door leg is `due`, and only a signed
+   * provider webhook can move it to `paid`. Ten Laws #2, one screen later.
+   *
+   * No amount crosses this wire either — the service's body allowlist is
+   * `{holderRef, commandId}` and the figure is read off the immutable Quote.
+   */
+  doorCharge(orderId: string, commandId: string, holderRef: string): Promise<OrderOutcome>;
 }
 
 /* ───────────────────────────── the shape check ───────────────────────────── */
@@ -405,6 +418,28 @@ export function httpQuotePort(baseUrl: string): QuotePort {
       return readOrder(res);
     },
 
+    async doorCharge(orderId: string, commandId: string, holderRef: string): Promise<OrderOutcome> {
+      let url: string;
+      let payload: string;
+      try {
+        url = `${base}/checkout/order/${encodeURIComponent(orderId)}/door-charge`;
+        payload = JSON.stringify({ holderRef, commandId });
+      } catch {
+        return { status: 'unreadable' };
+      }
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+        });
+      } catch {
+        return { status: 'unreachable' };
+      }
+      return readOrder(res);
+    },
+
     async orderState(orderId: string): Promise<OrderOutcome> {
       // Built OUTSIDE the fetch `try`, for the reason `reserve` documents:
       // `encodeURIComponent` throws on a lone surrogate, and a request the
@@ -518,6 +553,8 @@ export function demoQuotePort(produitFcfa: number = ROBE.priceFcfa): QuotePort {
   const doorMode = new Map<string, boolean>();
   /** How many times each demo order has been read back — see `orderState`. */
   const lus = new Map<string, number>();
+  /** Demo orders whose door leg the harness has « collected ». */
+  const portePayee = new Set<string>();
   return {
     async request(intent: QuoteIntent): Promise<QuoteOutcome> {
       // The composed mock's frozen bytes — read, never re-added here.
@@ -572,6 +609,28 @@ export function demoQuotePort(produitFcfa: number = ROBE.priceFcfa): QuotePort {
      * twice waits twice, instead of the second walk confirming instantly and
      * hiding the pending state from whoever is watching.
      */
+    /**
+     * THE HARNESS ASKS TO PAY AT THE DOOR — and, unlike the real service, its
+     * own next read then reports `paid`, because no webhook exists here to do
+     * it. Named in the certification list above: the third deliberate optimism.
+     */
+    async doorCharge(orderId: string): Promise<OrderOutcome> {
+      const quoteId = orderId.replace(/^ord-demo-/, '');
+      const c = composeQuote(produitFcfa);
+      portePayee.add(quoteId);
+      return {
+        status: 'order',
+        order: {
+          orderId,
+          state: 'confirmed',
+          amountPaidAtCheckout: c.feeToday,
+          amountDueAtDelivery: c.produitFcfa,
+          // STILL `due` on the way back — the charge was initiated, not paid.
+          doorLeg: 'due',
+        },
+      };
+    },
+
     async orderState(orderId: string): Promise<OrderOutcome> {
       const quoteId = orderId.replace(/^ord-demo-/, '');
       const c = composeQuote(produitFcfa);
@@ -585,10 +644,10 @@ export function demoQuotePort(produitFcfa: number = ROBE.priceFcfa): QuotePort {
           state: seen > DEMO_ATTENTES ? 'confirmed' : 'payment_pending',
           amountPaidAtCheckout: door ? c.feeToday : c.totalToday,
           amountDueAtDelivery: door ? c.produitFcfa : 0,
-          // THE HARNESS OWES AT THE DOOR TOO, on a mode-B order. It never
-          // reaches `paid` — nothing here pays the product leg — so the demo
-          // shows the drop code WITHHELD, which is production's own behaviour.
-          doorLeg: door ? 'due' : 'none',
+          // The door leg is owed until the harness's own `doorCharge` has been
+          // called AND read back once — the shape a real webhook makes, minus
+          // the wait. Never `paid` before she has asked to pay.
+          doorLeg: !door ? 'none' : portePayee.has(quoteId) ? 'paid' : 'due',
         },
       };
     },

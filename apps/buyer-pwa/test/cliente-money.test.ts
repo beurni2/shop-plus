@@ -170,11 +170,22 @@ describe('every rendered amount carries the money bytes; no bare F, no breakable
     expect(c1).toContain(`>11${N}500</span>`);
     expect(c1).toContain(`>${N}FCFA</span>`);
   });
-  it('C8 mode B owes exactly the frozen product amount at the door', () => {
-    const c8 = renderC8(ROBE, Q, { door: 'inspecting', pay: 'B', reason: null });
+  it('C8 mode B owes exactly the SERVER\u2019S due-at-door byte', () => {
+    // SP4.2b — the figure now comes from the server's split for her mode, not
+    // from `produitFcfa` re-read as if the two were the same thing. They are
+    // equal by §5.5 today; the screen must follow the SPLIT if that changes.
+    const c8 = renderC8(ROBE, Q, { door: 'inspecting', pay: 'B', reason: null, duAlaPorte: 11_500 });
     expect(c8).toContain(`11${N}500${N}FCFA`);
     // mode A owes nothing — the band must not render.
-    expect(renderC8(ROBE, Q, { door: 'inspecting', pay: 'A', reason: null })).not.toContain('Reste à payer');
+    expect(renderC8(ROBE, Q, { door: 'inspecting', pay: 'A', reason: null, duAlaPorte: 0 })).not.toContain('Reste à payer');
+  });
+
+  it('NO SPLIT ⇒ NO FIGURE — the door band vanishes rather than guess', () => {
+    // The same rule C5 and C6 obey: `undefined` is a state with no amount,
+    // never a state with a fallback one.
+    const c8 = renderC8(ROBE, Q, { door: 'inspecting', pay: 'B', reason: null, duAlaPorte: undefined });
+    expect(c8).not.toContain('Reste à payer');
+    expect(c8).not.toContain('FCFA');
   });
 });
 

@@ -120,6 +120,8 @@ interface FlowState {
      *  to the same per-mode quote the hold was taken on. */
     commander: (mode: ModePaiement, essai: number) => Promise<OrderFetch>;
     etatCommande: (orderId: string) => Promise<OrderFetch>;
+    /** SP4.2b — ask for the product leg to be collected at her door. */
+    payerALaPorte: (orderId: string, essai: number) => Promise<OrderFetch>;
   } | null;
   /**
    * The phone's clock disagreed with a QUOTE THE SERVICE JUST ISSUED, so the
@@ -145,6 +147,8 @@ interface FlowState {
    * `null` until an order exists. See `revelationPermise`.
    */
   doorLeg: string | null;
+  /** Which DOOR-charge attempt this is — +1 per deliberate retry. */
+  essaiPorte: number;
 }
 
 /**
@@ -275,6 +279,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     relance: false,
     horsPortee: false,
     doorLeg: null,
+    essaiPorte: 0,
   };
 
   /**
@@ -429,7 +434,17 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       case 'C7':
         return renderC7({ step: state.step, problem: state.problem, demo });
       case 'C8':
-        return q === null ? renderRefus('') : renderC8(m, q, { door: state.door, pay: state.pay ?? 'B', reason: state.reason });
+        return q === null ? renderRefus('') : renderC8(m, q, {
+          door: state.door,
+          pay: state.pay ?? 'B',
+          reason: state.reason,
+          // THE SERVER'S SPLIT for her chosen mode, or NO figure at all. Same
+          // rule as C6's amount clause: `undefined` is a state with no amount,
+          // never a state with a fallback one.
+          duAlaPorte: state.pay === null
+            ? undefined
+            : splitFor(q, state.delivery ?? 'today', state.pay)?.dueAtDelivery,
+        });
       case 'C9':
         return renderC9({ revealed: state.leg2 === 'confirmed' });
     }
@@ -499,6 +514,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       reserve: fetched.reserve,
       commander: fetched.commander,
       etatCommande: fetched.etatCommande,
+      payerALaPorte: fetched.payerALaPorte,
     };
     // A NEW PRICE IS A NEW CHECKOUT. The old order id belonged to the old
     // quote; carrying it forward would let « Vérifier à nouveau » poll an order
@@ -508,6 +524,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     state.relance = false;
     state.horsPortee = false;
     state.doorLeg = null;
+    state.essaiPorte = 0;
     // ═══ IS THIS PHONE'S CLOCK TRUSTWORTHY? (verifier BLOCKER 5) ═══
     // A quote the service JUST issued is alive by construction. If this device
     // reads it as already expired, the wrong clock is the phone's — so the local
@@ -604,6 +621,80 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       }
       render();
       tSuivi = setTimeout(() => suivreLePaiement(orderId, gen, etape + 1), attente);
+    });
+  }
+
+  /**
+   * ═══ SP4.2b — SHE PAYS FOR THE PRODUCT AT HER DOOR, AND THEN WAITS ═══
+   *
+   * §5.5: « product paid by MoMo AT THE DOOR BEFORE CUSTODY TRANSFER; not COD ».
+   * §6.3: the drop code comes AFTER that payment is provider-confirmed.
+   *
+   * THE 2 600 ms `setTimeout` THAT USED TO STAND HERE IS GONE. It showed her
+   * « Payez le reste » and then, two and a half seconds later, revealed her drop
+   * code — with no charge sent, no operator asked and no confirmation received.
+   * The same clock-instead-of-a-server defect SP3.3c removed from C6, one screen
+   * later and with custody on it.
+   *
+   * WHAT HAPPENS NOW: the charge is requested, `door = 'accepted'` stands while
+   * the operator is asked (that screen already says the right thing — « Le
+   * livreur ne peut pas dire "payé" à votre place. Seul l'opérateur confirme. »),
+   * and the ORDER is polled until its own `doorLeg` says `paid`. Only then does
+   * `revelationPermise` let C9 exist.
+   */
+  function payerALaPorte(gen: number): void {
+    const live = state.live;
+    const id = state.orderId;
+    if (live === null || id === null) return;
+    state.door = 'accepted';
+    render();
+    void live.payerALaPorte(id, state.essaiPorte).then((r) => {
+      if (gen !== generation) return;
+      if (r.status !== 'order') {
+        // The service refused to start the collection, or we could not read the
+        // answer. NOTHING was paid — the charge lives past this point.
+        state.door = 'echec';
+        render();
+        return;
+      }
+      // A 200 IS NOT A PAYMENT. The order comes back with the door leg still
+      // `due` by the service's own design; the webhook is what moves it.
+      state.doorLeg = r.order.doorLeg ?? null;
+      suivreLaPorte(id, gen, 0);
+    });
+  }
+
+  /**
+   * WATCH THE DOOR LEG, on the same bounded schedule the checkout leg uses and
+   * for the same reasons (Ten Laws #7 — her data, her battery, at her door).
+   *
+   * A FAILED READ IS NOT A FAILED PAYMENT: the loop keeps its state and simply
+   * asks again. Running out of reads leaves her on the waiting screen with the
+   * money owed and nothing claimed — never on a drop code.
+   */
+  function suivreLaPorte(orderId: string, gen: number, etape: number): void {
+    const live = state.live;
+    if (live === null) return;
+    void live.etatCommande(orderId).then((r) => {
+      if (gen !== generation) return;
+      if (r.status === 'order') {
+        state.doorLeg = r.order.doorLeg ?? null;
+        if (state.doorLeg === 'paid') {
+          // PROVIDER-CONFIRMED. Only now, and §6.3 is satisfied.
+          jump('C9', { leg2: 'confirmed', step: 6, door: 'inspecting' });
+          return;
+        }
+      }
+      const attente = SUIVI_PAIEMENT_MS[etape];
+      if (attente === undefined) {
+        // Out of scheduled reads. She stays where she is — owed, unconfirmed,
+        // and told so — with the retry under her thumb.
+        state.door = 'echec';
+        render();
+        return;
+      }
+      render();
+      tSuivi = setTimeout(() => suivreLaPorte(orderId, gen, etape + 1), attente);
     });
   }
 
@@ -969,10 +1060,29 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
          * `?demo-cliente=C9`) — it has no order to consult and it is labelled a
          * demo everywhere it is offered.
          */
+        // ═══ SP4.2b — « TOUT EST BON » NOW BRANCHES ON WHAT SHE STILL OWES ═══
+        //
+        // The order must exist and be confirmed before anything at the door
+        // happens at all. Then: money owed ⇒ COLLECT IT; nothing owed ⇒ the
+        // reveal, still behind `revelationPermise`.
+        if (state.live !== null && state.confirmState !== 'confirmed') return;
+        if (state.live !== null && state.doorLeg === 'due') {
+          payerALaPorte(generation);
+          return;
+        }
         if (!revelationPermise(state.live !== null, state.confirmState, state.doorLeg)) return;
         if (state.pay === 'A') { jump('C9', { leg2: 'confirmed', step: 6 }); return; }
         state.door = 'accepted'; render();
         t1 = setTimeout(() => jump('C9', { leg2: 'confirmed', step: 6, door: 'inspecting' }), 2600);
+        return;
+      // SP4.2b — a NEW attempt, and therefore a new command id, exactly as C6's
+      // retry works. The provider key belongs to the LEG and is reused, so a
+      // retry cannot collect twice.
+      case 'reessayer-porte':
+        if (state.live === null || state.orderId === null) return;
+        clearT();
+        state.essaiPorte += 1;
+        payerALaPorte(generation);
         return;
       case 'porte-probleme':
         state.door = 'report'; state.reason = null; render(); return;

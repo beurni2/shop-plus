@@ -551,6 +551,9 @@ export const CLIENTE_STYLES = `
      the problem banner, at ring weight — a border, never a filled alarm. */
   .cl-conf-ring-echec { border-color: #7E1A15; color: #7E1A15; }
   .cl-cta-echec { margin-top: 22px; }
+  /* SP4.2b — the door's own failure, same family as C6's: a ring, never a
+     filled alarm, and the retry as the one primary action. */
+  .cl-door-echec { padding: 34px 0 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
   .cl-steps { margin-top: 22px; padding: 4px 17px; border-radius: 20px; border: 1px solid #EDE4D3; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,22,15,.04); }
   .cl-step-row { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid #F3EDDE; }
   .cl-step-row:last-child { border-bottom: none; }

@@ -769,6 +769,9 @@ const PAS_DE_COMMANDE = {
   async orderState(): Promise<OrderOutcome> {
     return { status: 'refused', reason: 'stub_sans_commande' };
   },
+  async doorCharge(): Promise<OrderOutcome> {
+    return { status: 'refused', reason: 'stub_sans_commande' };
+  },
 };
 
 /** A port whose two answers are scripted. It records what it was asked. */
@@ -808,6 +811,14 @@ function scriptedPort(answers: Record<string, QuoteOutcome>): {
         return {
           status: 'order',
           order: { orderId, state: 'payment_pending', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0 },
+        };
+      },
+      async doorCharge(orderId, commandId, holderRef) {
+        ordered.push(`door|${orderId}|${commandId}|${holderRef}`);
+        // A CHARGE INITIATED IS NOT A PAYMENT — still `due` on the way back.
+        return {
+          status: 'order',
+          order: { orderId, state: 'confirmed', amountPaidAtCheckout: 1_000, amountDueAtDelivery: 11_500, doorLeg: 'due' },
         };
       },
     },
