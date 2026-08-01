@@ -2483,3 +2483,24 @@ All three blockers confirmed closed by the verifier's own probes — 24 `renderC
 **It also corrected one attribution of mine:** I wrote « B4.2/SP-I03 keep supplier identity off the supply projection ». B4.2 does that; **SP-I03 governs what customer pages show**, not what the projection carries. They support the conclusion jointly; only the attribution was loose.
 
 **Final state:** `pnpm -w typecheck` 19/19 · `pnpm -w test` **23/23 tasks, 0 failures** (buyer-pwa **742**, commerce-core **92**, storefront-service **382**) · `run-gates.sh` **ALL GATES GREEN**, exit 0 · **Playwright 86/86** on a rebuilt bundle.
+
+## 2026-08-01 — §7 STOP: wiring §6.1's seller tier honestly would turn Option B OFF everywhere
+
+**Item 3 (« make §6.1 read the seller tier from server truth ») is BLOCKED on an open ⏳ Decision. Nothing was built. Grounding found the reason before a line was written, and it is bigger than the gap it was meant to close.**
+
+**THE FINDING: boutik-plus can only ever produce `provisional`.** Every `SellerTrustState` in that repo is created at tier `'provisional'` (`supplier-service/src/onboarding.ts:48`) or carried forward as `prev?.tier ?? 'provisional'` (`fulfillment-service/src/protection.ts:338`). A repo-wide sweep of non-test tier assignments returns **two sites, both `provisional`**. There is **no promotion path to `verified` anywhere.** The onboarding module says so itself: « New sellers are PROVISIONAL … **D10 is open — the provisional flag is the only tier logic at E1** ».
+
+**So the honest wire kills the feature.** §6.1 requires « seller tier ≥ verified ». If the projection carries the tier the system can actually produce, every product returns `seller_tier_below_minimum` and **Option B is refused everywhere, permanently**, until a seller can become verified.
+
+**AND THE INVERSE, WHICH IS THE REAL HEADLINE: the lie is load-bearing.** Option B works in production TODAY only because the checkout request asserts `sellerTier: 'verified'` from the client. I have been describing this as an unenforced gate. It is worse than unenforced — **removing the client's claim does not tighten the gate, it disables the feature**, because the server has no true value that would pass. That reframes the exposure recorded in `checkout-core.ts`: the wire is not merely trusted, it is currently the only thing making pay-at-door possible.
+
+**THE GOVERNING TEXT, quoted:**
+- `Shop-Plus-Build-Spec.md:150` — « **Option-B gate (evaluated at quote):** seller tier ≥ verified · … »
+- `Boutik-Plus-Build-Spec.md:219` — « ⏳ **Verification tiers evidence + progression thresholds (pilot parameters)** » — **open**, and it is precisely the decision that would define how a supplier becomes `verified`.
+- CLAUDE.md §7 — « Anything touching an **open Decision (⏳)** beyond its documented safest default. »
+
+Inventing progression criteria, or defaulting a supplier to `verified` so the demo keeps working, would be failure mode #3 (« Inventing numbers for open Decisions ») on a risk gate. **Not mine. Stopped and flagged.**
+
+**Options put to the founder, with my recommendation:** ① close ⏳ D10 (evidence + thresholds) and build the promotion path — correct, largest; ② **RECOMMENDED INTERIM — a narrow, explicitly-audited manual verification action** so the founder can attest that a named pilot supplier is verified, recording a human decision rather than inventing a threshold; the wire then carries server truth immediately and §6.1 becomes real for the pilot; ③ ship the wire and accept Option B goes dark until ①; ④ leave the tier caller-supplied — knowingly keeping a live risk gate answered by the party it constrains.
+
+**⚠ Until one is chosen, production keeps its current behaviour and the exposure stands as documented.** The `category` half of §6.1 IS now fixable from server truth and is unaffected by this — it can proceed as its own slice whenever the founder wants it.
