@@ -2504,3 +2504,43 @@ Inventing progression criteria, or defaulting a supplier to `verified` so the de
 **Options put to the founder, with my recommendation:** ① close ⏳ D10 (evidence + thresholds) and build the promotion path — correct, largest; ② **RECOMMENDED INTERIM — a narrow, explicitly-audited manual verification action** so the founder can attest that a named pilot supplier is verified, recording a human decision rather than inventing a threshold; the wire then carries server truth immediately and §6.1 becomes real for the pilot; ③ ship the wire and accept Option B goes dark until ①; ④ leave the tier caller-supplied — knowingly keeping a live risk gate answered by the party it constrains.
 
 **⚠ Until one is chosen, production keeps its current behaviour and the exposure stands as documented.** The `category` half of §6.1 IS now fixable from server truth and is unaffected by this — it can proceed as its own slice whenever the founder wants it.
+
+## 2026-08-01 — SELLER-TIER-WIRE-1 (Shop+ half): §6.1 stops asking the buyer to answer its own gate
+
+**One sentence: the two facts §6.1 measures a seller by — `sellerTier` and `category` — now come from the supply projection this Worker reads for itself, and both are REFUSED if a caller sends them.**
+
+The §7 stop above ended « the `category` half IS now fixable from server truth ». The founder then chose **option ②** — a narrow, explicitly-audited manual attestation — and set `VERIFIED_SUPPLIERS` on the offer Worker, so the producer now emits a tier it did not invent. That unblocked both halves at once, and this entry is the consumer.
+
+**THE SHAPE OF THE CHANGE**
+
+- `checkout-core.ts` — `PayAtDoorRequestContext` is `{ eligibility: unknown }` and nothing else. `IssueQuoteInput` gained `supply?: ProductDescription`, a SERVER-read value handed in exactly as `entry` and `delivery` already are. The vault call reads `sellerTier: supply.sellerTier ?? ''` and `category: supply.category`.
+- **Absence OMITS the whole `payAtDoor` block rather than filling it.** `supply === undefined` — unconfigured binding, unreachable producer, STALE projection, pre-v3.0.0 producer — means the vault gets no context and answers the named `context_missing`. There is no partial context that could accidentally satisfy a condition.
+- `worker/checkout-do.ts` — `DOOR_FIELDS` is `['eligibility']`. A caller sending `sellerTier` or `category` now gets `400 unknown_field · payAtDoorContext.sellerTier`, on the same allowlist law `policy` has always been held to. **Refused, not dropped:** a caller who is silently ignored never learns the server stopped believing them.
+- The router resolves supply **only for an Option-B request**, and that condition is load-bearing twice. Safety: a supply hiccup must never refuse an ordinary FULL_PREPAY checkout, which does not consult the value at all. Cost: this is a cross-Worker fetch on a money path, and charging it to every buyer to serve the minority who choose the door is a latency tax on the majority, on the networks Law #7 designs for.
+- `worker/index.ts` — `SUPPLY: resolveSupplySource(env)`, the SAME resolver the read routes use. One supply seam in this Worker, not two: `OFFER` bound ⇒ the real client, absent ⇒ `AbsentSupplySource`. The certified mock is reachable from neither, by construction.
+- `supply-source.ts` — `ProductDescription` and the internal `SupplyProjectionValue` carry `sellerTier?`. The description's is deliberately NOT widened to `| undefined`: the field is either ABSENT or a real tier, which is what makes `?? ''` a fail-closed read rather than a silent default.
+
+**AN OLDER PRODUCER IS A REFUSED PRODUCER.** A projection below canon v3.1.0 carries no `sellerTier`; `''` is not a member of the tier table, so the vault answers `seller_tier_below_minimum`. Asserted directly, not assumed.
+
+**A QUOTE ALREADY ISSUED STAYS ISSUED, deliberately.** The stored intent fingerprint is `[slug, pid, paymentMode, zoneTo, attributionResellerId]` — no tier. If an attestation is withdrawn after a quote exists, a replay of that request key returns the original quote until its 15-minute expiry. Same freeze that keeps the PRICE signed, and it changes no custody law: the door leg transfers nothing until it is provider-confirmed (Ten Laws #3). Recorded so it is not rediscovered as a surprise.
+
+**MUTATION-PROVEN, six ways — each applied, run, and restored:**
+
+| mutation | result |
+|---|---|
+| hardcode `sellerTier: 'verified'` (ignore server truth) | **3 red** |
+| drop the `supply !== undefined` guard, default both fields | **1 red** (`context_missing`) |
+| hardcode `category: 'shoes'` | **1 red** |
+| `DOOR_FIELDS` accepts `sellerTier`/`category` again | **1 red** |
+| router never reads supply (`if (false && …)`) | **2 red** |
+| composition root passes no `SUPPLY` | **2 red** |
+
+The last two matter most: they prove the WIRING is live end-to-end, not merely that the pure core would behave if someone called it.
+
+**VERIFIED THIS SESSION:** `pnpm --filter @shop-plus/storefront-service typecheck` clean · `pnpm -w typecheck` **19/19** · `pnpm -w test` **23/23 tasks, 0 failures**, storefront-service **388/388**.
+
+**⚠ THE GATE RUN IS NOT YET ESTABLISHED, AND I ALMOST CLAIMED IT WAS.** The first `run-gates.sh` failed on ONE Playwright assertion — the C5 orphan check measured 0.338 against a 0.35 floor — while a verifier subagent was saturating the CPU with miniflare/workerd; that test passes in isolation on the same tree. I then launched a "wait for a quiet machine, then re-run" job whose `pgrep -f "vitest|workerd"` **matched its own command line**, so it spun forever, never started the gates, and left me reading a `gates2.log` **dated 2026-07-31** — a previous session's file. I quoted its « ALL GATES GREEN » before noticing the test counts were impossible (358 storefront-service, 666 buyer-pwa, against 388 and 742 today). Caught by the numbers, not by the process. **The lesson is not "check the mtime" — it is that a log file is not a run.** A result must be tied to a process I watched exit. The clean re-run is in flight as this is committed; if it is red, the fix lands on top of this commit.
+
+**A REAL DEFECT FOUND WHILE SEEDING, NOT FIXED HERE (out of scope, recorded):** `POST /storefronts` answers **HTTP 500**, not 400, for a `shortCode` that fails `ResellerShortCodeSchema` (`^[A-Z]{2,12}-[0-9]{4}$`) — `slugFromShortCode` throws `StorefrontShortCodeError` and nothing catches it. Key-gated internal write route, not the buyer money path, so the DoD's « every failure is a named refusal » is not breached where it was written — but 400 is the honest answer and this should become one.
+
+**STILL OPEN, and NOT closed by this slice:** `eligibility` remains caller-supplied. §6.4 assigns `PayAtDoorEligibility` to Risk and no Risk service exists. The vault parses it strictly against the canonical record, which bounds the SHAPE but not the CLAIM. Two of the three self-declared §6.1 inputs are gone; one remains, and it is the buyer's own risk record.

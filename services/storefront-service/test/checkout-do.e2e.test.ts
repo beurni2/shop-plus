@@ -28,7 +28,19 @@ const T0 = '2026-07-29T08:00:00.000Z';
 const WRITE_SECRET = 'test-write-secret-0001';
 const authed = { 'X-Write-Key': WRITE_SECRET };
 
-/** The producer behind the OFFER binding — publish signs HER price from it. */
+/**
+ * The producer behind the OFFER binding — publish signs HER price from it, and
+ * since SELLER-TIER-WIRE-1 the §6.1 gate reads its `sellerTier` and `category`
+ * from it too.
+ *
+ * TWO PRODUCTS, DIFFERING ONLY IN TIER, and that is the whole point: a door
+ * request carries no tier field any more, so the ONLY way to drive the
+ * « seller tier ≥ verified » condition either way is to change which product is
+ * being bought. `pv-checkout-1` is the founder-attested supplier's
+ * (`sellerTier: 'verified'`); `pv-checkout-prov` is not attested, which is
+ * exactly what an offer-service with no `VERIFIED_SUPPLIERS` emits for
+ * everyone.
+ */
 const SUPPLY = [
   {
     productVersionId: 'pv-checkout-1',
@@ -39,6 +51,18 @@ const SUPPLY = [
     productName: 'Bazin riche',
     assetRefs: [] as string[],
     category: 'fashion_bags_fabrics',
+    sellerTier: 'verified',
+  },
+  {
+    productVersionId: 'pv-checkout-prov',
+    offerVersion: 'ov-checkout-1',
+    basePrice: 10_000,
+    resellerCommission: 1_000,
+    available: 9,
+    productName: 'Bazin riche',
+    assetRefs: [] as string[],
+    category: 'fashion_bags_fabrics',
+    sellerTier: 'provisional',
   },
 ];
 
@@ -92,8 +116,15 @@ afterAll(async () => {
 
 /** A shop + one published listing. Publish sends the MARKUP only — the service
  *  signs `customerPriceFcfa` and freezes C from the live offer (PUBLISH-PRICE-1
- *  / MONEY-SHAPE-1), which is exactly what the quote path then reads. */
-async function seedShop(n: string, markup = 1_500): Promise<{ slug: string; resellerId: string }> {
+ *  / MONEY-SHAPE-1), which is exactly what the quote path then reads.
+ *
+ *  `pid` selects WHICH supplier's product the shop sells, which since
+ *  SELLER-TIER-WIRE-1 is also what selects the §6.1 seller tier. */
+async function seedShop(
+  n: string,
+  markup = 1_500,
+  pid = 'pv-checkout-1',
+): Promise<{ slug: string; resellerId: string; pid: string }> {
   const shortCode = `CHECK-${n}`;
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
@@ -119,7 +150,7 @@ async function seedShop(n: string, markup = 1_500): Promise<{ slug: string; rese
       listingId: `lst-checkout-${n}`,
       storefrontId: `sf-checkout-${n}`,
       resellerId: `rs-checkout-${n}`,
-      productVersionId: 'pv-checkout-1',
+      productVersionId: pid,
       offerVersion: 'ov-checkout-1',
       markup,
       correlationId: `corr-${n}`,
@@ -128,7 +159,7 @@ async function seedShop(n: string, markup = 1_500): Promise<{ slug: string; rese
   });
   const decision = (await pub.json()) as { status?: string };
   if (decision.status !== 'published') throw new Error(`seed: listing publish ${JSON.stringify(decision)}`);
-  return { slug: shortCode.toLowerCase(), resellerId: `rs-checkout-${n}` };
+  return { slug: shortCode.toLowerCase(), resellerId: `rs-checkout-${n}`, pid };
 }
 
 interface QuoteBody {
@@ -167,6 +198,16 @@ function safeJson(text: string): Record<string, unknown> {
 
 let keySeq = 0;
 const freshKey = (): string => `rk-${String(keySeq++).padStart(4, '0')}-${'x'.repeat(12)}`;
+
+/** The canonical `PayAtDoorEligibility` record, allowed. Since
+ *  SELLER-TIER-WIRE-1 it is the ONLY thing `payAtDoorContext` may carry. */
+const ELIGIBLE = {
+  buyerRef: 'b1',
+  state: 'allowed',
+  buyerRefusalCount: 0,
+  buyerRiskState: 'normal',
+  requiredDeposit: 0,
+} as const;
 
 /* ═════════════════════════ issue · read · durability ══════════════════════ */
 
@@ -459,8 +500,11 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
   });
 
   it('an unknown payment mode is 422, and an INELIGIBLE door request refuses without leaking why', async () => {
-    const { slug, resellerId } = await seedShop('0012');
-    const base = { slug, pid: 'pv-checkout-1', zoneTo: 'Ouagadougou', attributionResellerId: resellerId };
+    // SELLER-TIER-WIRE-1 — the shop sells the UNATTESTED supplier's product, so
+    // the projection this Worker reads carries `sellerTier: 'provisional'`. The
+    // buyer's body cannot say otherwise: the field left the wire.
+    const { slug, resellerId, pid } = await seedShop('0012', 1_500, 'pv-checkout-prov');
+    const base = { slug, pid, zoneTo: 'Ouagadougou', attributionResellerId: resellerId };
     const bogus = await postQuote({ ...base, paymentMode: 'CASH_ON_TRUST', requestKey: freshKey() });
     expect(bogus.status).toBe(422);
     expect(bogus.json['error']).toBe('payment_mode_unknown');
@@ -471,17 +515,62 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
       ...base,
       paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
       requestKey: freshKey(),
-      payAtDoorContext: {
-        eligibility: { buyerRef: 'b1', state: 'allowed', buyerRefusalCount: 0, buyerRiskState: 'normal', requiredDeposit: 0 },
-        sellerTier: 'provisional',
-        category: 'shoes',
-      },
+      payAtDoorContext: { eligibility: ELIGIBLE },
     });
     expect(door.status).toBe(422);
     expect(door.json['error']).toBe('pay_at_door_not_eligible');
     // the §6.1 OPS DETAIL never reaches the buyer
     expect(door.text.includes('policyVersion')).toBe(false);
     expect(door.text.includes('seller_tier_below_minimum')).toBe(false);
+  });
+
+  /**
+   * ═══ SELLER-TIER-WIRE-1 — THE GATE STOPPED BEING SELF-DECLARED ═══
+   *
+   * Both facts §6.1 measures a seller by used to arrive in the buyer's own JSON.
+   * They are now REFUSED on the allowlist, the same way `policy` always has
+   * been — not dropped, because a caller who is silently ignored never learns
+   * the server stopped believing them.
+   */
+  it('a caller can no longer ANSWER its own §6.1 gate — `sellerTier` and `category` are refused on the wire', async () => {
+    const { slug, resellerId, pid } = await seedShop('0023');
+    for (const field of ['sellerTier', 'category']) {
+      const res = await postQuote({
+        slug,
+        pid,
+        paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+        zoneTo: 'Ouagadougou',
+        attributionResellerId: resellerId,
+        requestKey: freshKey(),
+        payAtDoorContext: { eligibility: ELIGIBLE, [field]: 'verified' },
+      });
+      expect(res.status, field).toBe(400);
+      expect(res.json['error']).toBe('unknown_field');
+      expect(res.json['field']).toBe(`payAtDoorContext.${field}`);
+    }
+  });
+
+  it('THE SAME BUYER REQUEST, TWO SUPPLIERS, TWO VERDICTS — the tier now comes from the projection', async () => {
+    // The proof that the decision MOVED rather than being spelled differently:
+    // byte-identical door context, two shops, and the only difference is which
+    // supplier's product each one sells.
+    const attested = await seedShop('0024');
+    const unattested = await seedShop('0025', 1_500, 'pv-checkout-prov');
+    const ask = (s: { slug: string; resellerId: string; pid: string }) =>
+      postQuote({
+        slug: s.slug,
+        pid: s.pid,
+        paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+        zoneTo: 'Ouagadougou',
+        attributionResellerId: s.resellerId,
+        requestKey: freshKey(),
+        payAtDoorContext: { eligibility: ELIGIBLE },
+      });
+    const yes = await ask(attested);
+    const no = await ask(unattested);
+    expect(yes.status, yes.text).toBe(200);
+    expect(no.status, no.text).toBe(422);
+    expect(no.json['error']).toBe('pay_at_door_not_eligible');
   });
 
   /**
@@ -494,19 +583,17 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
    * Worker, over HTTP, on the SHIPPED policy.
    */
   it('SP4.2 — an Option-B quote is now ISSUABLE over HTTP, split D-now / product-at-door', async () => {
-    const { slug, resellerId } = await seedShop('0112');
+    const { slug, resellerId, pid } = await seedShop('0112');
     const door = await postQuote({
       slug,
-      pid: 'pv-checkout-1',
+      pid,
       zoneTo: 'Ouagadougou',
       attributionResellerId: resellerId,
       paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
       requestKey: freshKey(),
-      payAtDoorContext: {
-        eligibility: { buyerRef: 'b1', state: 'allowed', buyerRefusalCount: 0, buyerRiskState: 'normal', requiredDeposit: 0 },
-        sellerTier: 'verified',
-        category: 'shoes',
-      },
+      // SELLER-TIER-WIRE-1 — `eligibility` alone. The tier and the category the
+      // gate measures are read from the supply projection, server-side.
+      payAtDoorContext: { eligibility: ELIGIBLE },
     });
     expect(door.status, door.text).toBe(200);
     // §5.5 Option B, to the franc: she pays the DELIVERY FEE now and the
@@ -554,9 +641,7 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
       attributionResellerId: resellerId,
       requestKey: freshKey(),
       payAtDoorContext: {
-        eligibility: { buyerRef: 'b1', state: 'allowed', buyerRefusalCount: 0, buyerRiskState: 'clear', requiredDeposit: 0 },
-        sellerTier: 'trusted',
-        category: 'shoes',
+        eligibility: ELIGIBLE,
         policy: { version: 'mine', priceCapFcfa: 9_999_999, minSellerTier: 'verified', inspectableCategories: ['shoes'], networkReliableZones: ['Ouagadougou'] },
       },
     });

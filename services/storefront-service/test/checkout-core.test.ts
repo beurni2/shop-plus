@@ -13,6 +13,7 @@ import {
 } from '../src/checkout-core.js';
 import { DELIVERY_TARIFF_VERSION, quoteDeliveryFee } from '../src/delivery-source.js';
 import type { ListingEntry } from '../src/listing-core.js';
+import type { ProductDescription } from '../src/supply-source.js';
 
 /**
  * SP3.2a — the checkout decision core, EXECUTED. Every assertion below runs the
@@ -76,11 +77,49 @@ function requestFixture(over: Partial<QuoteRequest> = {}): QuoteRequest {
 
 const SERVICEABLE = quoteDeliveryFee('Ouagadougou', 'Ouagadougou');
 
-function issue(over: { request?: Partial<QuoteRequest>; entry?: ListingEntry | undefined; delivery?: DeliveryFeeQuote | undefined; deps?: Partial<CheckoutDeps> } = {}): IssueQuoteOutcome {
+/**
+ * The canonical `PayAtDoorEligibility` record, in its ALLOWED state. It is the
+ * LAST caller-supplied §6.1 input and it stays one on purpose: §6.4 assigns it
+ * to Risk, and no Risk service exists to read it from (JOURNALLED, still open).
+ */
+const ELIGIBLE = {
+  buyerRef: 'buyer-1',
+  state: 'allowed',
+  buyerRefusalCount: 0,
+  buyerRiskState: 'normal',
+  requiredDeposit: 0,
+} as const;
+
+/**
+ * SELLER-TIER-WIRE-1 — the SUPPLY PROJECTION behind the listing, the way the
+ * Worker resolves it server-side. §6.1's « seller tier ≥ verified » and
+ * « category inspectable » are read from HERE and no longer from the request,
+ * so a test that wants to fail one of those conditions changes THIS fixture —
+ * which is exactly the point: a caller has no field left to change.
+ */
+function supplyFixture(over: Partial<ProductDescription> = {}): ProductDescription {
+  return {
+    productName: 'Bazin riche',
+    assetRefs: [],
+    available: 3,
+    category: 'shoes',
+    sellerTier: 'trusted',
+    ...over,
+  };
+}
+
+function issue(over: {
+  request?: Partial<QuoteRequest>;
+  entry?: ListingEntry | undefined;
+  delivery?: DeliveryFeeQuote | undefined;
+  supply?: ProductDescription | undefined;
+  deps?: Partial<CheckoutDeps>;
+} = {}): IssueQuoteOutcome {
   return decideIssueQuote(deps(over.deps), {
     request: requestFixture(over.request),
     entry: 'entry' in over ? over.entry : entryFixture(),
     delivery: 'delivery' in over ? over.delivery : SERVICEABLE,
+    supply: 'supply' in over ? over.supply : supplyFixture(),
   });
 }
 
@@ -364,17 +403,7 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     const eligible = issue({
       request: {
         paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
-        payAtDoorContext: {
-          eligibility: {
-            buyerRef: 'buyer-1',
-            state: 'allowed',
-            buyerRefusalCount: 0,
-            buyerRiskState: 'normal',
-            requiredDeposit: 0,
-          },
-          sellerTier: 'trusted',
-          category: 'shoes',
-        },
+        payAtDoorContext: { eligibility: ELIGIBLE },
       },
     });
     expect(eligible.ok, `the founder ruling is not live: ${refusalOf(eligible) ?? ''}`).toBe(true);
@@ -383,30 +412,80 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
   it('…and the OTHER FOUR §6.1 conditions still refuse under the shipped policy', () => {
     // Opening the zones changed ONE of five conditions. A door request that
     // fails any of the rest is still refused, and still by name.
-    const ctx = {
-      eligibility: {
-        buyerRef: 'buyer-1',
-        state: 'allowed',
-        buyerRefusalCount: 0,
-        buyerRiskState: 'normal',
-        requiredDeposit: 0,
-      },
-      sellerTier: 'trusted',
-      category: 'shoes',
-    };
-    for (const over of [
-      { sellerTier: 'provisional' },
-      { category: 'electronics' },
-      { eligibility: { ...ctx.eligibility, state: 'suspended' } },
-    ]) {
+    //
+    // SELLER-TIER-WIRE-1 — note WHERE each condition is now failed from: the
+    // tier and the category are failed on the SUPPLY fixture (server truth),
+    // and only `eligibility` is still failed from the request, because Risk
+    // still has no service to read it from.
+    const cases: { supply?: Partial<ProductDescription>; eligibility?: unknown }[] = [
+      { supply: { sellerTier: 'provisional' } },
+      { supply: { category: 'electronics' } },
+      { eligibility: { ...ELIGIBLE, state: 'suspended' } },
+    ];
+    for (const c of cases) {
       const outcome = issue({
         request: {
           paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
-          payAtDoorContext: { ...ctx, ...over },
+          payAtDoorContext: { eligibility: c.eligibility ?? ELIGIBLE },
         },
+        ...(c.supply !== undefined ? { supply: supplyFixture(c.supply) } : {}),
       });
-      expect(refusalOf(outcome), JSON.stringify(over)).toBe('pay_at_door_not_eligible');
+      expect(refusalOf(outcome), JSON.stringify(c)).toBe('pay_at_door_not_eligible');
     }
+  });
+
+  /* ═══ THE SLICE'S OWN PROPERTY: a caller cannot answer its own gate ═══ */
+
+  it('SERVER TRUTH DECIDES THE TIER — a « verified » claim on the wire is unrepresentable, and the SUPPLY value is what refuses', () => {
+    // The whole point of SELLER-TIER-WIRE-1: the request shape has NO tier
+    // field, so the only tier in play is the supply projection's. Same request
+    // bytes, two supplies, two different verdicts — which proves the decision
+    // moved to the server rather than merely being spelled differently.
+    const request = {
+      paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+      payAtDoorContext: { eligibility: ELIGIBLE },
+    } as const;
+    expect(issue({ request, supply: supplyFixture({ sellerTier: 'verified' }) }).ok).toBe(true);
+    expect(refusalOf(issue({ request, supply: supplyFixture({ sellerTier: 'provisional' }) }))).toBe(
+      'pay_at_door_not_eligible',
+    );
+    // And the type says it too: `payAtDoorContext` carries `eligibility` alone.
+    expect(Object.keys(request.payAtDoorContext)).toEqual(['eligibility']);
+  });
+
+  it('NO SUPPLY ⇒ NO OPTION B, and the ops detail says `context_missing` — an unreadable projection never becomes a default', () => {
+    // Unconfigured binding, unreachable producer, STALE projection: all arrive
+    // here as `undefined`, and none of them may be repaired into a tier or a
+    // category. The block is OMITTED, so the vault answers the same refusal a
+    // door request with no context at all gets.
+    const outcome = issue({
+      request: {
+        paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+        payAtDoorContext: { eligibility: ELIGIBLE },
+      },
+      supply: undefined,
+    });
+    if (outcome.ok || outcome.reason !== 'pay_at_door_not_eligible') throw new Error('expected the door refusal');
+    expect(outcome.refusal).toBe('context_missing');
+  });
+
+  it('A PRODUCER OLDER THAN CANON v3.1.0 SENDS NO TIER, and an unprovable condition is a REFUSED condition', () => {
+    const outcome = issue({
+      request: {
+        paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+        payAtDoorContext: { eligibility: ELIGIBLE },
+      },
+      // exactly what canon v3.0.0 supply looks like: category, no sellerTier
+      supply: { productName: 'Bazin riche', assetRefs: [], available: 3, category: 'shoes' },
+    });
+    if (outcome.ok || outcome.reason !== 'pay_at_door_not_eligible') throw new Error('expected the door refusal');
+    expect(outcome.refusal).toBe('seller_tier_below_minimum');
+  });
+
+  it('SUPPLY IS IRRELEVANT TO FULL_PREPAY — an absent projection never breaks ordinary checkout', () => {
+    // The safety property behind reading supply only for Option-B requests: a
+    // supply outage must cost the door mode, never the mode every buyer uses.
+    expect(issue({ supply: undefined }).ok).toBe(true);
   });
 
   it('THE OPS DETAIL RIDES THE REFUSAL, so the service can diagnose without telling the buyer', () => {
@@ -444,19 +523,13 @@ describe('decideIssueQuote — the §5.5 pay-at-door split, when a policy allows
     inspectableCategories: ['shoes'],
     networkReliableZones: ['Ouagadougou'],
   };
+  // SELLER-TIER-WIRE-1 — the request carries `eligibility` and NOTHING ELSE.
+  // The tier and the category this policy measures come from `supplyFixture()`
+  // (`sellerTier: 'trusted'` ≥ `minSellerTier: 'verified'`, `category: 'shoes'`
+  // in `inspectableCategories`), which is the server's own read.
   const doorRequest = {
     paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
-    payAtDoorContext: {
-      eligibility: {
-        buyerRef: 'buyer-1',
-        state: 'allowed',
-        buyerRefusalCount: 0,
-        buyerRiskState: 'clear',
-        requiredDeposit: 0,
-      },
-      sellerTier: 'verified',
-      category: 'shoes',
-    },
+    payAtDoorContext: { eligibility: ELIGIBLE },
   } as const;
 
   it('D is paid at checkout, the product at the door, and the two legs SUM to buyerTotal', () => {

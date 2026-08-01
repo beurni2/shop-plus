@@ -10,6 +10,7 @@ import {
 } from '../src/checkout-core.js';
 import { quoteDeliveryFee } from '../src/delivery-source.js';
 import type { ListingEntry } from '../src/listing-core.js';
+import type { ProductDescription } from '../src/supply-source.js';
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -76,6 +77,17 @@ interface IssueArgs {
   entry?: ListingEntry | null;
   /** `null` when Séra's stand-in could not price the pair at all. */
   delivery?: ReturnType<typeof quoteDeliveryFee> | null;
+  /**
+   * SELLER-TIER-WIRE-1 — the supply projection behind this listing, read
+   * SERVER-SIDE by the router. `null` is the JSON spelling of « supply could not
+   * be described », and it is NOT an error: §6.1 simply cannot prove its
+   * conditions, so Option B refuses and FULL_PREPAY is untouched.
+   *
+   * IT IS AN INTERNAL-WIRE FIELD, not a buyer-wire one. It reaches this object
+   * from the router's own read, never from `args.request` — the whole point of
+   * the slice is that the buyer stopped being asked these two facts.
+   */
+  supply?: ProductDescription | null;
   /** The INTENT this quote answers — stored beside the bytes, same act. */
   fingerprint?: string;
 }
@@ -119,6 +131,7 @@ export class CheckoutDO {
           request: args.request,
           entry: args.entry ?? undefined,
           delivery: args.delivery ?? undefined,
+          supply: args.supply ?? undefined,
         },
       );
       if (!outcome.ok) {
@@ -269,6 +282,17 @@ interface Env {
   STOREFRONT_DO: { fetch(request: Request): Promise<Response> };
   /** The listing DO router, same shim. Internal: `/listings*` stays key-gated. */
   LISTING_DO: { fetch(request: Request): Promise<Response> };
+  /**
+   * SELLER-TIER-WIRE-1 — the supply read, narrowed to the ONE method this router
+   * needs. The composition root hands in `resolveSupplySource(env)`, which is
+   * `AbsentSupplySource` when no `OFFER` binding exists — so the mock stays
+   * unreachable from here by construction, exactly as it is from `src/index.ts`.
+   *
+   * OPTIONAL, and absence is fail-closed, not a fault: no supply source ⇒ no
+   * description ⇒ §6.1 cannot prove « seller tier ≥ verified » or « category
+   * inspectable » ⇒ Option B refuses. FULL_PREPAY never touches this field.
+   */
+  SUPPLY?: { describe(productVersionId: string): Promise<ProductDescription | undefined> };
 }
 
 const quoteStub = (env: Env, quoteId: string): DurableObjectStub =>
@@ -278,7 +302,17 @@ const keyStub = (env: Env, requestKey: string): DurableObjectStub =>
 
 /** The wire vocabulary a caller may send. Anything else is REFUSED, not ignored. */
 const REQUEST_FIELDS = ['slug', 'pid', 'paymentMode', 'zoneTo', 'attributionResellerId', 'requestKey', 'payAtDoorContext'];
-const DOOR_FIELDS = ['eligibility', 'sellerTier', 'category'];
+/**
+ * SELLER-TIER-WIRE-1 — `sellerTier` AND `category` LEFT THIS LIST.
+ *
+ * They are no longer dropped-if-sent; they are REFUSED if sent
+ * (`unknown_field · payAtDoorContext.sellerTier`), on the same allowlist law
+ * `policy` has always been held to: a caller who could answer a §6.1 condition
+ * could measure themselves against it, and the only way a caller finds out that
+ * the server stopped asking is to be told. Both facts now come from the supply
+ * projection this Worker reads for itself.
+ */
+const DOOR_FIELDS = ['eligibility'];
 const RESERVE_FIELDS = ['commandId', 'holderRef'];
 
 /**
@@ -383,10 +417,11 @@ function validateQuoteRequest(body: unknown): Validated {
     for (const key of Object.keys(d)) {
       if (!DOOR_FIELDS.includes(key)) return { ok: false, response: badRequest('unknown_field', `payAtDoorContext.${key}`) };
     }
-    if (!bounded(d['sellerTier'], 64) || !bounded(d['category'], 64)) {
-      return { ok: false, response: badRequest('bad_field', 'payAtDoorContext') };
-    }
-    door = { eligibility: d['eligibility'], sellerTier: d['sellerTier'], category: d['category'] };
+    // `eligibility` is NOT shape-checked here on purpose: the vault parses it
+    // against the canonical `PayAtDoorEligibility` record and refuses anything
+    // else by name. A second, weaker copy of that check in the router is how two
+    // halves of a validation drift apart.
+    door = { eligibility: d['eligibility'] };
   }
   return {
     ok: true,
@@ -499,6 +534,26 @@ export default {
       const { entry, zoneFrom } = await readAuthority(env, req.slug, req.pid);
       const delivery = quoteDeliveryFee(zoneFrom, req.zoneTo);
 
+      // ═══ SELLER-TIER-WIRE-1 — THE §6.1 FACTS, READ BY THE SERVER ═══
+      //
+      // ONLY FOR AN OPTION-B REQUEST, and that condition is load-bearing twice
+      // over. Safety: a supply hiccup — unreachable producer, stale projection,
+      // unconfigured binding — must never be able to refuse an ORDINARY
+      // FULL_PREPAY checkout, which does not consult this value at all. Cost:
+      // this is a cross-Worker fetch on a money path, and paying for it on every
+      // buyer's checkout to serve the minority that chooses the door would be a
+      // latency tax on the majority, on the low-end networks §7 designs for.
+      //
+      // `describe()` already answers `undefined` for every unhappy path rather
+      // than throwing; the `catch` is the boundary's own insurance, because an
+      // uncaught throw on this route answers 500 and the DoD bans that.
+      // `undefined` here is not repaired and not substituted — it travels as
+      // `null` and the vault refuses `context_missing`.
+      let supply: ProductDescription | undefined;
+      if (req.payAtDoorContext !== undefined && env.SUPPLY !== undefined) {
+        supply = await env.SUPPLY.describe(req.pid).catch(() => undefined);
+      }
+
       // 4. ISSUE INSIDE THE OBJECT, so the immutable put is serialized with it.
       const issueRes = await quoteStub(env, quoteId).fetch(
         new Request('https://do/entry/issue', {
@@ -508,6 +563,7 @@ export default {
             request: req,
             entry: entry ?? null,
             delivery: delivery ?? null,
+            supply: supply ?? null,
             fingerprint,
           }),
         }),

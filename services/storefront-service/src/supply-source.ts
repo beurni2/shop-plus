@@ -56,6 +56,7 @@
  */
 
 import { consumeSupplyProjection } from '@shop-plus/supply-consumer/consumer';
+import type { SellerTrustTier } from '@platform/contracts';
 
 /**
  * THE PRODUCER'S ROUTE, read from boutik's own source, not from memory
@@ -86,6 +87,19 @@ export interface ProductDescription {
    * not described at all.
    */
   readonly category: string;
+  /**
+   * SELLER-TIER-WIRE-1 (canon v3.1.0) — §6.1's « seller tier ≥ verified », as
+   * the PRODUCER states it. OPTIONAL because an offer-service older than v3.1.0
+   * sends nothing, and because absence must degrade rather than break: no tier
+   * ⇒ §6.1 cannot prove the condition ⇒ Option B refused. Never defaulted here.
+   *
+   * It is a property of the offer, not an identity — one of three values shared
+   * by every supplier in that band — so it carries nothing B4.2 keeps off this
+   * wire. It is also the ONLY way Shop+ can answer the condition at all: canon
+   * keys `SellerTrustState` by `sellerId`, which this service is designed never
+   * to learn.
+   */
+  readonly sellerTier?: SellerTrustTier;
   /**
    * PUBLISH-PRICE-1 — the supplier's live stock count, carried so the buyer record
    * can state stock TRUTHFULLY. `joinVitrineProduct` used to hardcode `inStock:
@@ -324,7 +338,7 @@ export class BoundSupplySource implements SupplySourcePort {
     const r = await this.fresh(productVersionId);
     if (r.verdict !== 'fresh') return undefined;
     const p = r.projection;
-    return { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available, category: p.category };
+    return { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available, category: p.category, ...(p.sellerTier !== undefined ? { sellerTier: p.sellerTier } : {}) };
   }
 
   /** AUTO-HIDE-WATCH-1 — the same one fetch, surfaced with evidence semantics. */
@@ -335,7 +349,7 @@ export class BoundSupplySource implements SupplySourcePort {
     const p = r.projection;
     return {
       kind: 'present',
-      description: { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available, category: p.category },
+      description: { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available, category: p.category, ...(p.sellerTier !== undefined ? { sellerTier: p.sellerTier } : {}) },
     };
   }
 
@@ -363,6 +377,17 @@ interface SupplyProjectionValue {
   readonly available: number;
   /** CATEGORY-WIRE-1 — canon v3.0.0, required on the projection. */
   readonly category: string;
+  /**
+   * SELLER-TIER-WIRE-1 — canon v3.1.0, OPTIONAL on the projection.
+   *
+   * `| undefined` EXPLICITLY, because this names what the CERTIFIED CONSUMER
+   * hands back and the canon schema's `.optional()` yields a present-but-
+   * `undefined` property. `ProductDescription.sellerTier` is deliberately NOT
+   * widened the same way: there the field is either ABSENT or a real tier, which
+   * is what makes `supply.sellerTier ?? ''` in `checkout-core.ts` a fail-closed
+   * read rather than a silent default.
+   */
+  readonly sellerTier?: SellerTrustTier | undefined;
   readonly basePrice: number;
   readonly offerVersion: string;
   readonly resellerCommission: number;

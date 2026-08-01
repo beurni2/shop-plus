@@ -11,6 +11,10 @@ import {
   type ReserveCommand,
 } from '@shop-plus/commerce-core';
 import { LISTING_PUBLISHED, type ListingEntry } from './listing-core.js';
+// SELLER-TIER-WIRE-1 — the §6.1 gate's two facts (`sellerTier`, `category`) are
+// read off the SUPPLY DESCRIPTION the service resolves server-side, never off the
+// buyer's request body. This type import is the seam that makes that structural.
+import type { ProductDescription } from './supply-source.js';
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -110,10 +114,24 @@ import { LISTING_PUBLISHED, type ListingEntry } from './listing-core.js';
  *  · `eligibility` — OWNER: Risk. No such service exists yet.
  */
 export interface PayAtDoorRequestContext {
-  /** The canonical PayAtDoorEligibility record (OWNER: Risk). Parsed by the vault. */
+  /**
+   * The canonical PayAtDoorEligibility record (OWNER: Risk). Parsed by the vault.
+   *
+   * ═══ THE LAST SELF-DECLARED §6.1 INPUT, AND WHY IT IS STILL HERE ═══
+   *
+   * `sellerTier` and `category` LEFT THIS SHAPE (SELLER-TIER-WIRE-1): both are
+   * now read from the supply projection the service resolves for itself, so a
+   * caller can no longer answer the conditions it is being measured against.
+   * A field that does not exist cannot be trusted by mistake.
+   *
+   * `eligibility` remains because there is nowhere yet to read it FROM — §6.4
+   * assigns `PayAtDoorEligibility` to Risk, and no Risk service exists. It is
+   * still caller-supplied and still a live exposure; it is NOT closed by this
+   * change and must not be read as closed. The vault parses it strictly and
+   * refuses anything that is not the canonical record, which bounds the SHAPE
+   * but not the CLAIM.
+   */
   readonly eligibility: unknown;
-  readonly sellerTier: string;
-  readonly category: string;
 }
 
 /**
@@ -159,6 +177,18 @@ export interface QuoteRequest {
 export interface IssueQuoteInput {
   readonly request: QuoteRequest;
   readonly entry: ListingEntry | undefined;
+  /**
+   * SELLER-TIER-WIRE-1 — the supply projection behind this listing, resolved
+   * SERVER-SIDE by the caller exactly as `entry` and `delivery` are. It is the
+   * source of §6.1's « seller tier ≥ verified » and « category inspectable ».
+   *
+   * `undefined` is a first-class answer and means « supply could not be
+   * described »: unconfigured binding, unreachable producer, STALE projection,
+   * or a producer older than canon v3.0.0. In every one of those states §6.1
+   * cannot prove its conditions, so Option B refuses — FULL_PREPAY is
+   * untouched, because a supply hiccup must never break ordinary checkout.
+   */
+  readonly supply?: ProductDescription | undefined;
   /**
    * `undefined` is a first-class answer here and means « Séra could not price
    * this »: no zone pair, no shop to start from, no reachable service. It lands
@@ -339,7 +369,7 @@ export function decideIssueQuote(deps: CheckoutDeps, input: IssueQuoteInput): Is
       sellerFundedCommission,
       resellerMarkup,
       deliveryFee,
-    });
+    }, input.supply);
   } catch {
     return { ok: false, reason: 'quote_not_issuable' };
   }
@@ -356,6 +386,7 @@ function issueQuoteFrom(
     readonly resellerMarkup: number;
     readonly deliveryFee: number;
   },
+  supply: ProductDescription | undefined,
 ): IssueQuoteOutcome {
   const { sellerBasePrice, sellerFundedCommission, resellerMarkup, deliveryFee } = money;
   return issueQuote(deps, {
@@ -367,12 +398,25 @@ function issueQuoteFrom(
     sellerFundedCommission,
     resellerMarkup,
     deliveryFee,
-    ...(request.payAtDoorContext !== undefined
+    // ═══ §6.1's FACTS COME FROM THE SERVER NOW, NOT FROM THE BUYER ═══
+    //
+    // `sellerTier` and `category` are read off the SUPPLY PROJECTION this
+    // service resolved for the listing — the same wire that carries the price
+    // basis — never off the request. `supply === undefined` means supply could
+    // not be described, and rather than substitute anything the whole
+    // `payAtDoor` block is OMITTED, which the vault answers with the named
+    // `context_missing` refusal. Omission is the fail-closed shape: there is no
+    // partial context that could accidentally satisfy a condition.
+    //
+    // A supply projection older than canon v3.1.0 carries no `sellerTier`; the
+    // vault then refuses `seller_tier_below_minimum`, because an unprovable
+    // condition is a refused condition.
+    ...(request.payAtDoorContext !== undefined && supply !== undefined
       ? {
           payAtDoor: {
             eligibility: request.payAtDoorContext.eligibility,
-            sellerTier: request.payAtDoorContext.sellerTier,
-            category: request.payAtDoorContext.category,
+            sellerTier: supply.sellerTier ?? '',
+            category: supply.category,
             // The zone the DELIVERY was priced for — one zone, never two.
             zoneTo: request.zoneTo,
             ...(deps.payAtDoorPolicy !== undefined ? { policy: deps.payAtDoorPolicy } : {}),

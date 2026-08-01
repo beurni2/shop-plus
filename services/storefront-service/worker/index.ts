@@ -166,6 +166,14 @@ export default {
         // composition root stays the one place that holds all three.
         STOREFRONT_DO: { fetch: (req: Request): Promise<Response> => sfRouter.fetch(req, env) },
         LISTING_DO: { fetch: (req: Request): Promise<Response> => lstRouter.fetch(req, env) },
+        // SELLER-TIER-WIRE-1 — the §6.1 gate's two facts (`sellerTier`,
+        // `category`) are read from the supply projection, SERVER-SIDE, and no
+        // longer accepted from the buyer's body. The SAME resolver the read
+        // routes use (`src/index.ts`), so there is one supply seam in this
+        // Worker and not two: `OFFER` bound ⇒ the real client, absent ⇒
+        // `AbsentSupplySource`, and the certified mock is reachable from
+        // neither.
+        SUPPLY: resolveSupplySource(env),
       });
       if (mirrorSource !== undefined && answered.status === 200) {
         await mirrorReservationReceipt(env, pathname, mirrorSource, answered.clone());
