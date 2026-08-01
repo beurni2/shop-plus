@@ -406,6 +406,27 @@ describe('§6.1 — the seller-tier condition cannot be walked past on the proto
     }
   });
 
+  it('the POLICY side is guarded too — an unreadable minimum REFUSES, it does not wave everyone through', () => {
+    // The first cut of this fix stopped one line short and left
+    // `SELLER_TIER_RANK[policy.minSellerTier]!`. That half failed OPEN, which is
+    // the worse direction: an unrecognised minimum is `undefined`,
+    // `anyRank < undefined` is `false`, and the refusal is skipped — a
+    // PROVISIONAL seller came back eligible. Not wire-reachable while the policy
+    // is a TypeScript literal; reachable the day a ⏳ founder-tuned policy is
+    // loaded from config. An unreadable rule must never be an absent rule.
+    for (const minSellerTier of ['toString', '__proto__', 'constructor', 'valueOf', 'pas-un-palier']) {
+      const d = decidePayAtDoorEligibility(ctx('provisional'), {
+        ...PAY_AT_DOOR_POLICY_DEFAULTS,
+        minSellerTier: minSellerTier as 'verified',
+      });
+      expect(d.eligible, `minSellerTier '${minSellerTier}' must not admit a provisional seller`).toBe(false);
+      if (!d.eligible) expect(d.reason).toBe('seller_tier_below_minimum');
+    }
+    // …and a REAL minimum still discriminates exactly as before.
+    expect(decidePayAtDoorEligibility(ctx('verified'), { ...PAY_AT_DOOR_POLICY_DEFAULTS, minSellerTier: 'verified' }).eligible).toBe(true);
+    expect(decidePayAtDoorEligibility(ctx('verified'), { ...PAY_AT_DOOR_POLICY_DEFAULTS, minSellerTier: 'trusted' }).eligible).toBe(false);
+  });
+
   it('…and the REAL tiers are untouched — this refuses impostors, not sellers', () => {
     expect(decidePayAtDoorEligibility(ctx('provisional')).eligible).toBe(false);
     expect(decidePayAtDoorEligibility(ctx('verified')).eligible).toBe(true);

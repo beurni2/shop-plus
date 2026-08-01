@@ -572,3 +572,67 @@ describe('CATEGORY-WIRE-1 — supply owns the category; the join carries it verb
     expect(rec.category).toBe('sealed_beauty_cosmetics');
   });
 });
+
+/* ------------------------------- CATEGORY-WIRE-1 r2 — the deploy-order lock -- */
+
+/**
+ * THE WORST OPERATIONAL OUTCOME OF THIS SLICE, TURNED INTO A RED TEST.
+ *
+ * A pre-v3 offer-service emits the SEVEN-field projection. The strict canon
+ * parse refuses it, `describe()` returns `undefined`, and `joinVitrineProduct`
+ * omits the record — so deploying THIS service before boutik's producer makes
+ * **every product vanish from every buyer page**, silently, with no error a
+ * shopper or a reseller could interpret. Until now that hazard was defended
+ * only by prose in JOURNAL.md and a canon derivation doc.
+ *
+ * The test is here for a second reason the verifier named, which is the better
+ * one: it LOCKS THE BEHAVIOUR. The tempting "fix" when someone meets this in
+ * production is to make the parse tolerant of the old shape — and that repair
+ * is the genuinely dangerous one, because a projection missing `category`
+ * silently disables Option B and shows the cautious §6.2 row on products that
+ * qualify for neither. Refusing outright is correct; this test makes anyone
+ * loosening it do so deliberately.
+ */
+describe('CATEGORY-WIRE-1 — a PRE-v3 producer is undescribable, and that is the designed answer', () => {
+  const PV = 'pv-founder-001';
+  const sevenFieldValue = {
+    productVersionId: PV,
+    offerVersion: '1',
+    basePrice: 10_000,
+    resellerCommission: 1_000,
+    available: 5,
+    productName: 'Pagne tissé Faso (démo)',
+    assetRefs: ['asset/pv-founder-001/cover'],
+    // NO `category` — this is exactly what a canon-v2 offer-service serves.
+  };
+  const source = (value: unknown): BoundSupplySource =>
+    new BoundSupplySource({
+      fetch: async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => ({ version: 1, asOf: new Date().toISOString(), value }),
+          text: async () => '',
+        }) as unknown as Response,
+    });
+
+  it('the OLD seven-field wire describes NOTHING — it is refused, never partially accepted', async () => {
+    expect(await source(sevenFieldValue).describe(PV)).toBeUndefined();
+    // …and it is not mistaken for a missing offer: the producer ANSWERED, so the
+    // watcher must read `unknown` (no evidence) rather than `gone` (evidence a
+    // listing may act on). A bad deploy must never auto-hide a reseller's shop.
+    expect((await source(sevenFieldValue).presence(PV)).kind).toBe('unknown');
+  });
+
+  it('…and the SAME wire with `category` describes normally — the refusal is about the field, not the fixture', async () => {
+    const description = await source({ ...sevenFieldValue, category: 'fashion_bags_fabrics' }).describe(PV);
+    expect(description).toBeDefined();
+    expect(description?.category).toBe('fashion_bags_fabrics');
+  });
+
+  it('the omission reaches the buyer surface as an OMITTED product, never an invented one', () => {
+    const listing: ListingSide = { productVersionId: PV, customerPriceFcfa: 14_750, status: 'published' };
+    // `describe()` returned undefined above; this is what the join does with it.
+    expect(joinVitrineProduct(listing, undefined)).toBeUndefined();
+  });
+});

@@ -151,6 +151,24 @@ export function decidePayAtDoorEligibility(
   // bug in the buyer's §6.2 row lookup, because it is one root cause: an
   // untrusted string used directly as a key into an object literal.
   const tierRank = Object.hasOwn(SELLER_TIER_RANK, ctx.sellerTier) ? SELLER_TIER_RANK[ctx.sellerTier] : undefined;
+  // ═══ THE SAME GUARD ON THE POLICY SIDE — AND THIS HALF FAILED **OPEN** ═══
+  //
+  // The first cut of this fix stopped one line short (verifier, round 2) and
+  // left `SELLER_TIER_RANK[policy.minSellerTier]!` — the identical unguarded
+  // lookup, behind a non-null assertion that made it look deliberate. The
+  // direction of the failure is the opposite one and therefore worse: an
+  // unrecognised MINIMUM yields `undefined`, `anyRank < undefined` is `false`,
+  // and the refusal is skipped. Measured: with `minSellerTier: 'toString'`, a
+  // **provisional** seller came back ELIGIBLE.
+  //
+  // Not reachable from the wire today — `minSellerTier` is typed
+  // `'verified' | 'trusted'` and only arrives via `CheckoutDeps.payAtDoorPolicy`,
+  // which the Worker never sets. But every value in this file is marked
+  // ⏳ FOUNDER-TUNABLE, and the day a tuned policy is loaded from config or JSON
+  // instead of a TypeScript literal, the type stops guarding anything and this
+  // opens. A policy this module cannot interpret must refuse the mode, never
+  // grant it: an unreadable rule is not an absent rule.
+  if (!Object.hasOwn(SELLER_TIER_RANK, policy.minSellerTier)) return refuse('seller_tier_below_minimum');
   const minRank = SELLER_TIER_RANK[policy.minSellerTier]!;
   if (tierRank === undefined || tierRank < minRank) return refuse('seller_tier_below_minimum');
 

@@ -268,16 +268,33 @@ describe('CATEGORY-WIRE-1 r2 — the prototype chain, and the shop that must not
     // old `?? ` never fired: inspectionPour returned Object/Object.prototype and
     // C8 threw on `.motifs.map`, leaving the buyer's previous screen mounted
     // forever — unable to accept, unable to report a problem.
+    const seen = new Set<string>();
     for (const key of ['__proto__', 'constructor', 'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf']) {
       expect(inspectionPour(key), `category ${key} must fall to the conservative row`).toEqual(INSPECTION_PRUDENTE);
       const produit = clienteProduitReel(STOREFRONT, { ...(wire({ category: key }) as VitrineProduct) }, undefined).produit;
-      // …and the screen RENDERS rather than throwing.
-      for (const etat of ['inspecting', 'report'] as const) {
-        const html = renderC8(produit, { fraisToday: 1_000, fraisTomorrow: 800, sousTotal: 12_000, total: 13_000 } as never, { etape: 5, etat } as never);
-        expect(typeof html).toBe('string');
+      // …and the screen RENDERS rather than throwing, on EVERY branch.
+      //
+      // The first cut of this loop varied a key called `etat` — which is not
+      // C8State's discriminator (`door` is), so both iterations landed in the
+      // same branch and the §6.2 REFUSAL path — `inspectionPour(...).motifs.map`,
+      // the buyer's « something is wrong » road — was never entered. A verifier
+      // measured it: `data-etat="signalement"` was false on both. The test still
+      // bit, because the inspection branch threw too; it bit for less than it
+      // claimed, which is the same failure it exists to catch.
+      for (const door of ['inspecting', 'accepted', 'echec', 'report'] as const) {
+        const html = renderC8(
+          produit,
+          { fraisToday: 1_000, fraisTomorrow: 800, sousTotal: 12_000, total: 13_000 } as never,
+          { door, pay: 'B', reason: null, duAlaPorte: 12_000 } as never,
+        );
+        expect(typeof html, `category ${key} on door=${door}`).toBe('string');
         expect(html.length).toBeGreaterThan(0);
+        seen.add(door);
       }
     }
+    // The loop actually varied the branch — pinned, because the first cut
+    // silently did not and still passed.
+    expect([...seen].sort()).toEqual(['accepted', 'echec', 'inspecting', 'report']);
   });
 
   it('BLOCKER 3 — a product with NO category still reaches her page (an old Worker must not empty a shop)', async () => {
@@ -304,5 +321,41 @@ describe('CATEGORY-WIRE-1 r2 — the prototype chain, and the shop that must not
     }
     // A well-formed one is untouched.
     expect(productFromWireForTest(wire({ category: 'shoes' }) as VitrineProduct).category).toBe('shoes');
+  });
+});
+
+/**
+ * R3 — the sanitiser must be WIRED, not merely present. A verifier unhooked
+ * `.map(productFromWire)` from `httpStorefrontPort` while keeping the function
+ * itself, and the whole suite stayed green: every test drove the seam directly.
+ * That is the same shape of gap that produced the blocker it fixes, so the port
+ * itself is now asserted, through a stubbed `fetch`.
+ */
+describe('CATEGORY-WIRE-1 r2 — httpStorefrontPort applies the sanitiser it owns', () => {
+  it('a non-string category arrives STRIPPED, and the product still arrives', async () => {
+    const { httpStorefrontPort } = await import('../src/vitrine/profile');
+    const body = {
+      id: 'sf_1', slug: 'aicha-4821', resellerId: 'r_1', name: 'Chez Aïcha', zone: 'Rood Woko',
+      products: [
+        { pid: 'pv_ok', name: 'Sandales', priceFcfa: 12_000, inStock: true, assetRefs: [], category: 'shoes' },
+        { pid: 'pv_bad', name: 'Sac', priceFcfa: 9_000, inStock: true, assetRefs: [], category: 42 },
+        { pid: 'pv_none', name: 'Pagne', priceFcfa: 8_000, inStock: true, assetRefs: [] },
+      ],
+    };
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      ({ ok: true, status: 200, json: async () => body }) as unknown as Response) as typeof fetch;
+    try {
+      const resolved = await httpStorefrontPort('https://svc.example').resolve('aicha-4821');
+      const products = resolved?.products ?? [];
+      // NOTHING was dropped — three in, three out. A bad field never costs a product.
+      expect(products.map((p) => p.pid)).toEqual(['pv_ok', 'pv_bad', 'pv_none']);
+      // …and the malformed one arrives with NO category key at all.
+      expect(products[0]?.category).toBe('shoes');
+      expect('category' in (products[1] as object)).toBe(false);
+      expect('category' in (products[2] as object)).toBe(false);
+    } finally {
+      globalThis.fetch = original;
+    }
   });
 });
