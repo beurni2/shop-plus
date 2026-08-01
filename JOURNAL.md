@@ -2208,3 +2208,10 @@ The verifier aborted every `GET /checkout/order/{id}` and measured it: **8 reads
 - The harness `live === null` branch still confirms on a 2 400 ms clock (reachable only via `?demo-cliente=`), and `state.confirmState` still initialises to `'confirmed'`.
 - `state.orderId` is never rendered; C7 shows a hardcoded `CMD-2417`. A buyer stuck at `payment_pending` has no reference to quote to anyone.
 - C5's operator screen still instructs « Composez votre code secret Orange Money » with nothing sending a USSD push (carried from round 1; inside the open aggregator Decision §12).
+
+**FOUNDER RULING (2026-08-01) — « Leave it the way you already built it. »** Both SP3.3c questions closed by the founder, in his own words, and recorded here so neither is reopened by a future session:
+
+1. **The deployed preview stays honest.** No sandbox webhook driver, no walk-all-the-way-through demo mode. A real order on the live link sits at « Nous attendons l'opérateur. » for as long as no provider confirms it, because that is what is true. The offer of a labelled demo path was made and declined.
+2. **The poll cadence stays as shipped** — `SUIVI_PAIEMENT_MS = [1500, 2500, 4000, 6000, 9000, 12000]`, seven reads over ~35 s, then stop and offer « Vérifier à nouveau ». It was flagged as a documented safest default on a spec-silent question (Ten Laws #7); it is now a **decision**, not a default.
+
+Still owed and only the founder can do it: the device walk — the 33 pickable headers, plus the two new payment states, reachable at `?conf=operateur` and `?conf=echec`.
