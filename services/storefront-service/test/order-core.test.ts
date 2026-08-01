@@ -12,6 +12,7 @@ import {
   applyOrderInput,
   chargeFaultInput,
   checkoutLegOf,
+  composeOrderConfirmedEvent,
   decideCreateOrder,
   decideDoorCharge,
   orderIdForQuote,
@@ -812,5 +813,69 @@ describe('decideDoorCharge — §5.5’s boundary, one condition at a time', () 
 
   it('unreadable stored bytes refuse rather than repair — no amount is guessed', () => {
     expect(ask({ quote: undefined })).toEqual({ ok: false, reason: 'stored_quote_unreadable' });
+  });
+});
+
+/* ═══════ ORDER-PAID-WIRE-1b — composeOrderConfirmedEvent, the producer's parse ═══════ */
+
+describe('composeOrderConfirmedEvent — canon-parsed before anything is stored or sent', () => {
+  const { quote } = fullPrepayQuote('quote-opw-1');
+  const CONFIRM = { command_id: 'ord-confirm-evt-1', serverTime: '2026-08-01T20:30:00.000Z' };
+  const origin = (over: Partial<OrderOrigin> = {}): OrderOrigin => ({
+    orderId: 'ord-quote-opw-1',
+    quoteId: 'quote-opw-1',
+    correlationId: 'corr-ord-quote-opw-1',
+    issueCommandId: 'ord-issue-x',
+    actor: 'storefront-service:order',
+    createdAt: T,
+    supplierRef: '',
+    fulfillment: { productVersionId: 'pv-bazin-0001', zoneTo: 'Gounghin, Ouagadougou', offerVersion: 'ov-1' },
+    ...over,
+  });
+
+  it('composes the approved seven-field payload, every value from a server record', () => {
+    const c = composeOrderConfirmedEvent(origin(), quote, CONFIRM, 7);
+    if (!c.ok) throw new Error(`expected ok, got ${c.reason}`);
+    expect(c.event.name).toBe('order.confirmed.v1');
+    expect(c.event.payload).toEqual({
+      orderId: 'ord-quote-opw-1',
+      productVersionId: 'pv-bazin-0001',
+      offerVersion: 'ov-1',
+      paymentMode: 'FULL_PREPAY',
+      paidAt: CONFIRM.serverTime, // the CONFIRMED transition's instant — the canon pin
+      zoneTo: 'Gounghin, Ouagadougou',
+      sellerBasePrice: 10_000, // B verbatim, §5.4 baseline
+    });
+    expect(c.event.envelope.correlation_id).toBe('corr-ord-quote-opw-1');
+    expect(c.event.envelope.command_id).toBe('ord-confirm-evt-1');
+  });
+
+  it('NO BANNED NAME IN THE SERIALIZED BYTES — the founder privacy rules, on the producer output', () => {
+    const c = composeOrderConfirmedEvent(origin(), quote, CONFIRM, 7);
+    if (!c.ok) throw new Error('expected ok');
+    const bytes = JSON.stringify(c.event);
+    for (const banned of [
+      'supplierId', 'sellerId', 'buyerPhone', 'buyerName', 'buyerRef', 'buyerDropCode',
+      'buyerTotal', 'resellerCommission', 'resellerMarkup', 'deliveryFee', 'sellerNet',
+      'resellerNet', 'holderRef',
+    ]) {
+      expect(bytes.includes(banned), `${banned} must not appear on the wire`).toBe(false);
+    }
+  });
+
+  it('an order born WITHOUT the fulfillment facts is UNSENDABLE — an honest state, never a guess', () => {
+    const { fulfillment: _dropped, ...bare } = origin();
+    const c = composeOrderConfirmedEvent(bare as OrderOrigin, quote, CONFIRM, 7);
+    expect(c).toEqual({ ok: false, reason: 'missing_fulfillment_fields' });
+  });
+
+  it('a value canon refuses is UNSENDABLE, not repaired — the strict parse is the gate', () => {
+    const c = composeOrderConfirmedEvent(
+      origin({ fulfillment: { productVersionId: '  untrimmed ', zoneTo: 'Ouaga', offerVersion: 'ov-1' } }),
+      quote,
+      CONFIRM,
+      7,
+    );
+    expect(c).toEqual({ ok: false, reason: 'event_not_canonical' });
   });
 });

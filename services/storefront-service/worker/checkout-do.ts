@@ -50,6 +50,16 @@ import type { ProductDescription } from '../src/supply-source.js';
  */
 
 const QUOTE_BYTES_KEY = 'quote-canonical-bytes';
+/**
+ * ORDER-PAID-WIRE-1b — the three facts `order.confirmed.v1` needs that the
+ * canon Quote artifact does not carry: `productVersionId`, `zoneTo` (from the
+ * VALIDATED request this object is issuing for) and `offerVersion` (from the
+ * RESOLVED listing). Written in the SAME atomic batch as the bytes, so a quote
+ * either carries its fulfillment facts or does not exist — there is no
+ * interleaving in which the order later reads bytes without them. Internal
+ * wire only; `toBuyerQuoteView` never sees this record.
+ */
+const QUOTE_FULFILLMENT_KEY = 'quote-fulfillment-facts';
 /** The INTENT this quote answers, written beside its bytes (verifier BLOCKER,
  *  round 3): the one object that owns the quote also owns the question it was
  *  issued for, so the two can never be judged in separate, interleavable acts. */
@@ -154,15 +164,30 @@ export class CheckoutDO {
       // write in object B. Here the fingerprint lands beside the bytes inside
       // the one object that owns them, so « which intent does this quote
       // answer » is settled by a single-object read that cannot interleave.
-      await this.state.storage.put(QUOTE_BYTES_KEY, outcome.canonicalBytes);
+      //
+      // ORDER-PAID-WIRE-1b — the FULFILLMENT FACTS land in the same batch, for
+      // the same reason: `pid` and `zoneTo` come off the request THIS object
+      // just issued for, `offerVersion` off the listing it priced against, and
+      // the order that later reads the bytes must find these or nothing.
+      const batch: Record<string, unknown> = { [QUOTE_BYTES_KEY]: outcome.canonicalBytes };
       if (typeof args.fingerprint === 'string' && args.fingerprint !== '') {
-        await this.state.storage.put(QUOTE_INTENT_KEY, args.fingerprint);
+        batch[QUOTE_INTENT_KEY] = args.fingerprint;
       }
+      if (args.entry != null) {
+        batch[QUOTE_FULFILLMENT_KEY] = {
+          productVersionId: args.request.pid,
+          zoneTo: args.request.zoneTo,
+          offerVersion: args.entry.listing.offerVersion,
+        };
+      }
+      await this.state.storage.put(batch);
       return Response.json({ ok: true, quote: outcome.quote });
     }
 
     /** READ. Absent → not_found; past its expiry → `expired`, never revived.
-     *  Carries the stored INTENT so the caller can compare in this ONE read. */
+     *  Carries the stored INTENT so the caller can compare in this ONE read,
+     *  and (ORDER-PAID-WIRE-1b) the FULFILLMENT FACTS so the order can carry
+     *  them from birth. Internal wire only — never the buyer's. */
     if (request.method === 'GET' && pathname === '/entry') {
       const bytes = await this.state.storage.get<string>(QUOTE_BYTES_KEY);
       const read = readStoredQuote(bytes, new Date());
@@ -173,9 +198,16 @@ export class CheckoutDO {
           { status: read.reason === 'not_found' ? 404 : 422 },
         );
       }
+      const fulfillment = await this.state.storage.get<Record<string, string>>(QUOTE_FULFILLMENT_KEY);
       // The stored BYTES ride along so the caller can prove byte-stability
       // without re-serializing (internal wire only — never the buyer's).
-      return Response.json({ ok: true, quote: read.quote, canonicalBytes: bytes, intent });
+      return Response.json({
+        ok: true,
+        quote: read.quote,
+        canonicalBytes: bytes,
+        intent,
+        ...(fulfillment !== undefined ? { fulfillment } : {}),
+      });
     }
 
     /**

@@ -8,6 +8,7 @@ import {
   decideDoorCharge,
   orderIdForQuote,
   parseStoredQuote,
+  composeOrderConfirmedEvent,
   rebuildOrderSpine,
   toBuyerOrderView,
   type ChargeFault,
@@ -61,6 +62,16 @@ import { readSandboxBehavior, sandboxPaymentProvider, type ChargeOutcome } from 
  */
 
 const ORIGIN_KEY = 'order-origin';
+/**
+ * ORDER-PAID-WIRE-1b — THE OUTBOX: the preparation signal, durably beside the
+ * order it announces. Written in the SAME atomic batch as the confirm's log
+ * append, so « the order is confirmed » and « boutik will be told » become true
+ * together or not at all. Delivery is the ALARM's job, never the webhook
+ * response's: the provider's call answers fast, and a boutik outage costs
+ * nothing but delay. AT-LEAST-ONCE by construction (alarm persists across
+ * process death); the intake absorbs redeliveries first-wins on `orderId`.
+ */
+const OUTBOX_KEY = 'order-confirmed-outbox';
 const LOG_KEY = 'order-input-log';
 const ATTEMPTS_KEY = 'payment-attempts';
 const RESULTS_KEY = 'command-results';
@@ -131,6 +142,9 @@ interface CreateArgs {
   commandId?: string;
   quoteBytes?: string;
   orderId?: string;
+  /** ORDER-PAID-WIRE-1b — the quote's fulfillment facts, from the internal
+   *  checkout read on the same hop as the bytes. `null` = an old quote. */
+  fulfillment?: { productVersionId?: string; zoneTo?: string; offerVersion?: string } | null;
 }
 
 export interface OrderDOEnv {
@@ -142,6 +156,18 @@ export interface OrderDOEnv {
    * (webhooks are the only payment truth).
    */
   readonly PAYMENT_SANDBOX_BEHAVIOR?: string;
+  /**
+   * ORDER-PAID-WIRE-1b — the wire to Boutik+. `OFFER` is the SAME service
+   * binding the supply read uses (one bound Worker, two routes on it); the
+   * Durable Object receives the full Worker env, so no composition-root shim is
+   * needed. `FULFILLMENT_WRITE_SECRET` is this Worker's copy of the shared
+   * intake credential (`wrangler secret put`, never `[vars]`), presented as
+   * `Authorization: Bearer`. ABSENT EITHER ⇒ deliveries stay `pending` and the
+   * alarm retries hourly — the money path never notices, and the backlog
+   * drains the moment configuration arrives.
+   */
+  readonly OFFER?: { fetch(request: Request): Promise<Response> };
+  readonly FULFILLMENT_WRITE_SECRET?: string;
 }
 
 export class OrderDO {
@@ -240,7 +266,16 @@ export class OrderDO {
       ) {
         return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       }
-      return this.create(args.quoteId, args.holderRef, args.commandId, args.quoteBytes);
+      return this.create(args.quoteId, args.holderRef, args.commandId, args.quoteBytes, args.fulfillment ?? undefined);
+    }
+
+    /** ORDER-PAID-WIRE-1b — the OUTBOX READ. Internal wire only (the composition
+     *  root never routes it publicly): evidence for tests, state for the future
+     *  operator console. Absent = the order never confirmed. */
+    if (request.method === 'GET' && pathname === '/entry/outbox') {
+      const outbox = await this.state.storage.get(OUTBOX_KEY);
+      if (outbox === undefined) return Response.json({ ok: false, reason: 'no_outbox' }, { status: 404 });
+      return Response.json({ ok: true, outbox });
     }
 
     /** THE BUYER READ. Already projected — the Quote does not leave this object. */
@@ -376,6 +411,7 @@ export class OrderDO {
     holderRef: string,
     commandId: string,
     wireQuoteBytes: string | undefined,
+    wireFulfillment?: { productVersionId?: string; zoneTo?: string; offerVersion?: string },
   ): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     const receipt = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
@@ -461,6 +497,24 @@ export class OrderDO {
         // NOT KNOWN, deliberately empty — see `OrderOrigin.supplierRef`.
         supplierRef: '',
         quoteBytes: bytes as string,
+        // ORDER-PAID-WIRE-1b — stored ONLY when all three facts arrived intact
+        // from the internal wire. A partial record is worse than none: the
+        // outbox's `unsendable_missing_fields` is an honest state, a payload
+        // with a guessed zone is not.
+        ...(typeof wireFulfillment?.productVersionId === 'string' &&
+        wireFulfillment.productVersionId !== '' &&
+        typeof wireFulfillment.zoneTo === 'string' &&
+        wireFulfillment.zoneTo !== '' &&
+        typeof wireFulfillment.offerVersion === 'string' &&
+        wireFulfillment.offerVersion !== ''
+          ? {
+              fulfillment: {
+                productVersionId: wireFulfillment.productVersionId,
+                zoneTo: wireFulfillment.zoneTo,
+                offerVersion: wireFulfillment.offerVersion,
+              },
+            }
+          : {}),
       };
       attemptId = mintPaymentAttemptId();
       log = [
@@ -721,6 +775,61 @@ export class OrderDO {
    * `no_funded_checkout_leg`. A provider event that funds nothing confirms
    * nothing.
    */
+  /**
+   * ═══ ORDER-PAID-WIRE-1b — THE DELIVERY LOOP, OWNED ENTIRELY BY THE ALARM ═══
+   *
+   * One code path for first attempt and every retry, so there is no inline
+   * half that behaves differently from the recovery half. Backoff doubles from
+   * one minute and caps at one hour, FOREVER: at-least-once means the signal
+   * outlives any boutik outage, an unset secret (401s retry too — the backlog
+   * drains the moment the founder sets it), and any process death (the alarm is
+   * durable). What counts as delivered is the intake's 2xx and NOTHING ELSE.
+   *
+   * THE `.catch` HERE IS LOAD-BEARING, unlike the checkout supply read's: a
+   * service binding fetch CAN reject (boutik down), and an uncaught rejection
+   * in an alarm handler would burn the alarm without rescheduling it.
+   */
+  async alarm(): Promise<void> {
+    const outbox = await this.state.storage.get<{
+      status: 'pending' | 'delivered' | 'unsendable';
+      event?: unknown;
+      attempts: number;
+      deliveredAt?: string;
+    }>(OUTBOX_KEY);
+    if (outbox === undefined || outbox.status !== 'pending' || outbox.event === undefined) return;
+
+    let delivered = false;
+    if (this.env.OFFER !== undefined) {
+      const res = await this.env.OFFER.fetch(
+        new Request('https://offer/fulfillment/order-confirmed', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(this.env.FULFILLMENT_WRITE_SECRET !== undefined && this.env.FULFILLMENT_WRITE_SECRET !== ''
+              ? { Authorization: `Bearer ${this.env.FULFILLMENT_WRITE_SECRET}` }
+              : {}),
+          },
+          body: JSON.stringify(outbox.event),
+        }),
+      ).catch(() => undefined);
+      delivered = res !== undefined && res.ok;
+    }
+
+    if (delivered) {
+      await this.state.storage.put(OUTBOX_KEY, {
+        ...outbox,
+        status: 'delivered',
+        attempts: outbox.attempts + 1,
+        deliveredAt: new Date().toISOString(),
+      });
+      return;
+    }
+    const attempts = outbox.attempts + 1;
+    await this.state.storage.put(OUTBOX_KEY, { ...outbox, attempts });
+    const delayMs = Math.min(60_000 * 2 ** Math.min(attempts, 10), 3_600_000);
+    await this.state.storage.setAlarm(Date.now() + delayMs);
+  }
+
   private async onProviderEvent(event: unknown): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     /**
@@ -760,7 +869,21 @@ export class OrderDO {
     };
     const confirmed = applyOrderInput(spine, confirm);
     if (confirmed.applied) next = [...next, confirm];
-    await this.state.storage.put(LOG_KEY, next);
+    if (confirmed.applied && (await this.state.storage.get(OUTBOX_KEY)) === undefined) {
+      // COMPOSE THROUGH CANON before anything is stored: the event below IS
+      // `OrderConfirmedEventSchema.parse`'s output, so a banned field cannot be
+      // in it (the canon verifier named the producer-skips-the-schema gap; this
+      // producer cannot skip it). `unsendable` outcomes are STORED, visibly —
+      // an operator can see them; nothing retries what can never send.
+      const composition = composeOrderConfirmedEvent(origin, quote, confirm, next.length);
+      const outbox = composition.ok
+        ? { status: 'pending' as const, event: composition.event, attempts: 0 }
+        : { status: 'unsendable' as const, reason: composition.reason, attempts: 0 };
+      await this.state.storage.put({ [LOG_KEY]: next, [OUTBOX_KEY]: outbox });
+      if (composition.ok) await this.state.storage.setAlarm(Date.now());
+    } else {
+      await this.state.storage.put(LOG_KEY, next);
+    }
     return Response.json({ ok: true, status: 'applied', state: spine.journey.state });
   }
 
@@ -1102,7 +1225,7 @@ export default {
         new Request('https://do/entry'),
       );
       const quoteBody = (await quoteRes.json().catch(() => null)) as
-        | { ok?: boolean; reason?: string; canonicalBytes?: string }
+        | { ok?: boolean; reason?: string; canonicalBytes?: string; fulfillment?: unknown }
         | null;
       if (quoteBody === null) return refuse('quote_unknown');
       if (quoteBody.ok !== true || typeof quoteBody.canonicalBytes !== 'string') {
@@ -1117,6 +1240,11 @@ export default {
             holderRef: body['holderRef'],
             commandId: body['commandId'],
             quoteBytes: quoteBody.canonicalBytes,
+            // ORDER-PAID-WIRE-1b — the fulfillment facts ride the SAME internal
+            // hop as the bytes, from the same server-side read. The public body
+            // above has no such field: a caller cannot name a product or a zone
+            // here any more than an amount.
+            fulfillment: quoteBody.fulfillment ?? null,
           }),
         }),
       );

@@ -1,3 +1,4 @@
+import { OrderConfirmedEventSchema } from '@platform/contracts';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -35,6 +36,7 @@ const T0 = '2026-07-30T08:00:00.000Z';
 
 const WRITE_SECRET = 'test-write-secret-0001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-0001';
+const FULFILL_SECRET = 'test-fulfillment-write-secret-0001';
 const authed = { 'X-Write-Key': WRITE_SECRET };
 const signed = { 'X-Payment-Webhook-Key': WEBHOOK_SECRET, 'Content-Type': 'application/json' };
 
@@ -88,12 +90,25 @@ function makeMf(
     durableObjectsPersist: persistDir,
     bindings: {
       STOREFRONT_WRITE_SECRET: WRITE_SECRET,
+      FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
       ...(webhookSecret !== null ? { PAYMENT_WEBHOOK_SECRET: webhookSecret } : {}),
       ...(sandboxBehavior !== undefined ? { PAYMENT_SANDBOX_BEHAVIOR: sandboxBehavior } : {}),
     },
     serviceBindings: {
       OFFER: async (request: Request) => {
         const path = new URL(request.url).pathname;
+        // ORDER-PAID-WIRE-1b — the intake's stand-in: capture every emitted
+        // event with its Authorization header, answer per the knob so a test
+        // can be boutik-down without a second runtime.
+        if (request.method === 'POST' && path === '/fulfillment/order-confirmed') {
+          fulfillmentPosts.push({
+            auth: request.headers.get('Authorization'),
+            body: await request.json().catch(() => null),
+          });
+          return fulfillmentRespond === 'ok'
+            ? Response.json({ ok: true, status: 'registered' })
+            : new Response('boutik exploded', { status: 500 });
+        }
         const asOf = new Date().toISOString();
         const single = /^\/supply-projection\/([^/]+)$/.exec(path);
         if (single) {
@@ -163,6 +178,28 @@ afterAll(async () => {
 });
 
 /* ────────────────────────────── the harness ──────────────────────────────── */
+
+/** ORDER-PAID-WIRE-1b — every fulfillment POST any runtime emitted, in order. */
+const fulfillmentPosts: { auth: string | null; body: unknown }[] = [];
+let fulfillmentRespond: 'ok' | 'fail' = 'ok';
+
+/** Poll until the emitter's alarm has delivered `n` posts (it fires ~immediately). */
+async function waitForFulfillmentPosts(n: number, timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (fulfillmentPosts.length < n && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+/** The outbox, read through the DO stub — internal wire, never routed publicly. */
+async function outboxOf(m: Miniflare, orderId: string) {
+  const ns = await m.getDurableObjectNamespace('ORDER');
+  const res = await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/outbox');
+  return (await res.json()) as {
+    ok: boolean;
+    outbox?: { status: string; attempts: number; deliveredAt?: string; event?: unknown; reason?: string };
+  };
+}
 
 function safeJson(text: string): Record<string, unknown> {
   try {
@@ -1531,5 +1568,117 @@ describe('SP4.2a — the door leg is provider truth, behind the secret, and neve
     const tampered = { ...evt, payload: { ...evt.payload, order_id: '../../admin' } };
     const shaped = await postDoorWebhook(mf, tampered);
     expect(shaped.status).toBe(400);
+  });
+});
+
+/* ═════ ORDER-PAID-WIRE-1b — the preparation signal leaves this Worker ═════ */
+
+describe('ORDER-PAID-WIRE-1b — order.confirmed.v1 is emitted on confirm, canon-shaped, at-least-once', () => {
+  it('THE HAPPY WIRE: webhook confirms → the alarm delivers ONE canon event carrying the seven approved fields', async () => {
+    fulfillmentPosts.length = 0;
+    fulfillmentRespond = 'ok';
+    const { created, orderId } = await orderedQuote(mf, '0060');
+    expect(created.status).toBe(200);
+    const applied = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0060'));
+    expect(applied.json['state']).toBe('confirmed');
+
+    await waitForFulfillmentPosts(1);
+    expect(fulfillmentPosts).toHaveLength(1);
+    const post = fulfillmentPosts[0]!;
+    // The credential travels: this Worker presented ITS copy of the shared secret.
+    expect(post.auth).toBe(`Bearer ${FULFILL_SECRET}`);
+    // THE BYTES PARSE THROUGH CANON — the same schema the intake will parse.
+    const parsed = OrderConfirmedEventSchema.safeParse(post.body);
+    expect(parsed.success, JSON.stringify(post.body)).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.payload.orderId).toBe(orderId);
+    expect(parsed.data.payload.productVersionId).toBe('pv-order-1');
+    expect(parsed.data.payload.paymentMode).toBe('FULL_PREPAY');
+    expect(parsed.data.payload.sellerBasePrice).toBe(10_000); // B verbatim — never the 12 500 the buyer paid
+    expect(parsed.data.payload.zoneTo).toBe('Ouagadougou');
+    // No banned name in the raw bytes, on the REAL wire.
+    const bytes = JSON.stringify(post.body);
+    for (const banned of ['supplierId', 'buyerPhone', 'buyerDropCode', 'buyerTotal', 'resellerMarkup', 'holderRef']) {
+      expect(bytes.includes(banned), banned).toBe(false);
+    }
+    // …and the outbox records the delivery, durably.
+    const ob = await outboxOf(mf, orderId);
+    expect(ob.outbox?.status).toBe('delivered');
+
+    // A PROCESS DEATH does not resurrect the delivery: still exactly one post.
+    await restart();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(fulfillmentPosts).toHaveLength(1);
+    expect((await outboxOf(mf, orderId)).outbox?.status).toBe('delivered');
+  });
+
+  it('A DUPLICATE WEBHOOK EMITS NOTHING NEW — the outbox is first-wins beside the log it rode in with', async () => {
+    fulfillmentPosts.length = 0;
+    fulfillmentRespond = 'ok';
+    const { orderId } = await orderedQuote(mf, '0061');
+    const event = webhookEvent(orderId, 12_500, 'att-0061');
+    await postWebhook(mf, event);
+    await waitForFulfillmentPosts(1);
+    await postWebhook(mf, event);
+    await postWebhook(mf, event);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(fulfillmentPosts).toHaveLength(1);
+  });
+
+  it('BOUTIK DOWN: the confirmation is UNTOUCHED, the outbox stays pending with the retry booked', async () => {
+    fulfillmentPosts.length = 0;
+    fulfillmentRespond = 'fail';
+    const { orderId } = await orderedQuote(mf, '0062');
+    const applied = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0062'));
+    // THE MONEY PATH NEVER NOTICES: confirmed, 200, exactly as when boutik is up.
+    expect(applied.status).toBe(200);
+    expect(applied.json['state']).toBe('confirmed');
+
+    await waitForFulfillmentPosts(1); // the attempt WAS made…
+    await new Promise((r) => setTimeout(r, 200));
+    const ob = await outboxOf(mf, orderId);
+    // …and refused, so the outbox holds: pending, attempts counted, alarm booked
+    // (the backoff instant itself is minutes away — the STATE is the proof).
+    expect(ob.outbox?.status).toBe('pending');
+    expect(ob.outbox?.attempts).toBeGreaterThanOrEqual(1);
+    fulfillmentRespond = 'ok';
+  });
+
+  it('AN ORDER BORN BEFORE THE SLICE (no fulfillment facts) confirms fine and records UNSENDABLE — never a guessed payload', async () => {
+    fulfillmentPosts.length = 0;
+    fulfillmentRespond = 'ok';
+    // Build the order the way the ROUTER builds one from an OLD quote: seed and
+    // reserve normally (so the receipt exists), then drive the DO's own create
+    // with the quote bytes and NO fulfillment record — byte-for-byte what the
+    // internal hop carries when the checkout entry predates this slice.
+    const shop = await seedShop(mf, '0063');
+    const quote = await issueQuoteFor(mf, shop);
+    const holderRef = 'holder-0063';
+    const held = await reserve(mf, quote.quoteId, 'cmd-reserve-0063', holderRef);
+    expect(held.status).toBe(200);
+    const cns = await mf.getDurableObjectNamespace('CHECKOUT');
+    const entry = (await (
+      await cns.get(cns.idFromName(quote.quoteId)).fetch('https://do/entry')
+    ).json()) as { canonicalBytes?: string };
+    const orderId = `ord-${quote.quoteId}`;
+    const ons = await mf.getDurableObjectNamespace('ORDER');
+    const created = await ons.get(ons.idFromName(orderId)).fetch('https://do/entry/create', {
+      method: 'POST',
+      body: JSON.stringify({
+        quoteId: quote.quoteId,
+        holderRef,
+        commandId: 'cmd-order-0063',
+        quoteBytes: entry.canonicalBytes,
+        fulfillment: null,
+      }),
+    });
+    expect(created.status).toBe(200);
+    const applied = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0063'));
+    expect(applied.json['state']).toBe('confirmed');
+    await new Promise((r) => setTimeout(r, 300));
+    expect(fulfillmentPosts).toHaveLength(0);
+    const ob = await outboxOf(mf, orderId);
+    expect(ob.outbox?.status).toBe('unsendable');
+    expect(ob.outbox?.reason).toBe('missing_fulfillment_fields');
   });
 });

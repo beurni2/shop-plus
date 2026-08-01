@@ -127,6 +127,16 @@ PRODUCT_MEDIA_BASE = "https://media-service.ilboudobernard2.workers.dev"
 # configures the certified sandbox mock's misbehaviour for tests. It carries no
 # payment truth (webhooks are the only payment truth) and names no provider.
 
+# ORDER-PAID-WIRE-1b — FULFILLMENT_WRITE_SECRET is this Worker's copy of the
+# shared credential the boutik fulfillment intake gates on, presented as
+# `Authorization: Bearer` when the OrderDO's alarm delivers `order.confirmed.v1`
+# through the OFFER binding. Set with `wrangler secret put
+# FULFILLMENT_WRITE_SECRET` HERE, and the SAME value on offer-service (its
+# gate). Never [vars]: the repos are public. UNSET ⇒ deliveries are attempted
+# without the header, boutik answers 401, and the outbox retries hourly — the
+# money path never notices, and the backlog drains the moment both sides hold
+# the value.
+
 # BROWSE-SUPPLY-BINDING-1 — the supply hop is a SERVICE BINDING, the platform's own
 # mechanism for Worker-to-Worker in one account: no network hop, no public URL, and
 # no same-zone fetch restriction (error 1042 — a Worker cannot `fetch` another

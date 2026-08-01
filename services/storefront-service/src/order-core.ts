@@ -1,4 +1,4 @@
-import { QuoteSchema, type Quote } from '@platform/contracts';
+import { OrderConfirmedEventSchema, QuoteSchema, type OrderConfirmedEvent, type Quote } from '@platform/contracts';
 import { OrderSpine, type DoorLegState, type PaymentFailureReason } from '@shop-plus/commerce-core';
 import { readStoredQuote } from './checkout-core.js';
 
@@ -507,6 +507,24 @@ export interface OrderOrigin {
    * slice, and it must carry the supplier with it rather than find a guess here.
    */
   readonly supplierRef: string;
+  /**
+   * ORDER-PAID-WIRE-1b — the three facts `order.confirmed.v1` needs that the
+   * canon Quote does not carry. SERVER-READ at quote-issue time (the checkout
+   * router knew `pid` and `zoneTo` from the validated request, and
+   * `offerVersion` from the resolved listing) and stored beside the quote's
+   * bytes in the SAME atomic write — never accepted from the order-creation
+   * caller, whose route is public.
+   *
+   * OPTIONAL, because orders created before this slice have no record. An
+   * order without it still confirms and still pays — the money path is
+   * untouched — but its outbox entry is `unsendable_missing_fields`, an honest
+   * state the operator can see, never a guessed payload.
+   */
+  readonly fulfillment?: {
+    readonly productVersionId: string;
+    readonly zoneTo: string;
+    readonly offerVersion: string;
+  };
 }
 
 export function rebuildOrderSpine(
@@ -684,4 +702,65 @@ export function parseStoredQuote(bytes: string | undefined): Quote | undefined {
   } catch {
     return undefined;
   }
+}
+
+/* ─────────────── ORDER-PAID-WIRE-1b — the preparation signal ─────────────── */
+
+/**
+ * The outcome of composing `order.confirmed.v1`. `unsendable` is a terminal,
+ * OPERATOR-VISIBLE state, never a retry loop: a payload that cannot be built
+ * today cannot be built tomorrow either (the missing facts are immutable
+ * origin data), and a payload canon refuses is a BUG to fix, not a delivery to
+ * reattempt.
+ */
+export type OrderConfirmedComposition =
+  | { readonly ok: true; readonly event: OrderConfirmedEvent }
+  | { readonly ok: false; readonly reason: 'missing_fulfillment_fields' | 'event_not_canonical' };
+
+/**
+ * Compose the canonical `order.confirmed.v1` — PURE, and validated through
+ * `OrderConfirmedEventSchema.parse` BEFORE anything is stored or sent. That
+ * parse is the founder's privacy rules enforced at the producer: the schema is
+ * `.strict()`, so a `buyerPhone`, a supplier id, a drop code or anyone else's
+ * money is UNREPRESENTABLE in what leaves this function — the canon verifier
+ * named the gap where a producer skips the schema, and this producer cannot,
+ * because the event object it returns IS the parse result.
+ *
+ * Every value is read from server-owned records: `origin` (written at order
+ * creation from quote-issue-time facts), the frozen `quote` bytes, and the
+ * confirm command the provider-verified transition minted. Nothing here came
+ * from a caller.
+ */
+export function composeOrderConfirmedEvent(
+  origin: OrderOrigin,
+  quote: Quote,
+  confirm: { readonly command_id: string; readonly serverTime: string },
+  aggregateVersion: number,
+): OrderConfirmedComposition {
+  if (origin.fulfillment === undefined) return { ok: false, reason: 'missing_fulfillment_fields' };
+  const candidate = {
+    name: 'order.confirmed.v1',
+    envelope: {
+      command_id: confirm.command_id,
+      correlation_id: origin.correlationId,
+      aggregateVersion,
+      actor: origin.actor,
+      serverTime: confirm.serverTime,
+      version: 'v1',
+    },
+    payload: {
+      orderId: origin.orderId,
+      productVersionId: origin.fulfillment.productVersionId,
+      offerVersion: origin.fulfillment.offerVersion,
+      paymentMode: quote.paymentMode,
+      // The CONFIRMED transition's server time — one named instant (canon pin).
+      paidAt: confirm.serverTime,
+      zoneTo: origin.fulfillment.zoneTo,
+      // B, verbatim off the frozen quote. Never recomputed.
+      sellerBasePrice: quote.sellerBasePrice,
+    },
+  };
+  const parsed = OrderConfirmedEventSchema.safeParse(candidate);
+  if (!parsed.success) return { ok: false, reason: 'event_not_canonical' };
+  return { ok: true, event: parsed.data };
 }

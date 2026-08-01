@@ -2617,3 +2617,24 @@ No test was edited to make a red go away. That distinction is the whole point: t
 **Also caught before it became boutik's mistake twice:** this checkout was sitting on `main` from the SELLER-TIER-WIRE-1 deploy. Checked BEFORE committing this time; the repin was committed on the designated branch.
 
 **Gate verdict for the repin commit above (`3d6b59d`): `run-gates.sh` exit 0, ALL GATES GREEN** — log written 20:01 UTC carrying this run's counts (storefront-service 401, Playwright 86/86 in 3.5m). The commit's entry promised the verdict here; it has landed, and it is green. (One near-miss recorded: the first attempt to write this entry appended to a stray `/home/user/JOURNAL.md` because the shell's working directory had drifted — caught by the failed `git add`, stray file deleted, entry rewritten here.)
+
+## 2026-08-01 — ORDER-PAID-WIRE-1b: the preparation signal leaves this Worker
+
+**Shop+ now emits `order.confirmed.v1` — composed through `OrderConfirmedEventSchema.parse`, delivered at-least-once by a Durable Object alarm, and structurally unable to block or fail a confirmation.**
+
+**The shape of it:**
+- **The quote learns its fulfillment facts at issue** (`checkout-do.ts`): `productVersionId` and `zoneTo` off the VALIDATED request this object is issuing for, `offerVersion` off the RESOLVED listing — written in the SAME atomic batch as the canonical bytes. The canon Quote artifact carries none of the three; storing them beside the bytes is what lets the order carry them from birth without trusting any caller. The public order-create body has no such field — a caller can no more name a product here than an amount.
+- **The order stores them at creation** (`OrderOrigin.fulfillment`, optional) — only when all three arrived intact; a partial record is worse than none.
+- **The confirm transition writes the OUTBOX in the same atomic batch as its log append** (`order-do.ts onProviderEvent`): « the order is confirmed » and « boutik will be told » become true together or not at all. Composition runs BEFORE storage through the canon wire artifact — the producer cannot skip the schema, because the event it stores IS the parse result (the exact gap the canon verifier named, closed at the producer).
+- **Delivery is the ALARM's job entirely** — one code path for first attempt and every retry, backoff 1min→1h cap, forever. Delivered = the intake's 2xx and nothing else. Boutik down, binding absent, secret unset: the money path never notices, the outbox holds `pending` with attempts counted, and the backlog drains when the world heals.
+- **`unsendable` is terminal and visible, never retried**: an order born before this slice (no facts) or a composition canon refuses records itself for the operator instead of guessing a payload.
+
+**Evidence:** typecheck clean · order-core 40/40 (4 new compose tests incl. banned-names byte-scan) · order-do e2e 43/43 (4 new: happy wire with canon parse + Bearer credential + restart survival · duplicate webhook emits nothing new · boutik-down leaves confirmation untouched with retry booked · pre-slice order records `unsendable_missing_fields`) · full service suite **409/409**.
+
+**Mutation-proven, four ways, each restored:** producer smuggles `buyerPhone` → **3 red** (the strict parse turns it unsendable and the happy wire dies — the canon verifier's gap, now bites) · alarm never set → **3 red** · failures marked delivered → **1 red** · issue stops storing the facts → **3 red**.
+
+**⚠ A stale-bundle near-miss, caught by the failure pattern:** the first e2e run failed all four new tests at once. `pnpm exec vitest run` skips the `pretest` bundling hook, so the suite was driving the PREVIOUS worker bundle — code without an outbox. All-new-red/all-old-green is the signature; one `bundle:worker:combined` later, 43/43. The full `pnpm test` path always rebundles, so CI is not exposed.
+
+**One honestly-dead defence, stated not claimed:** the outbox's first-wins check (`get(OUTBOX_KEY) === undefined`) guards a second applied confirm, which the order machine already makes impossible — a mutation there would stay green. Same posture as the checkout supply-read catch: written down, not counted as covered. The `.catch` on the alarm's fetch is NOT dead — a binding fetch can reject, and an uncaught rejection would burn the alarm without rescheduling.
+
+**Deploy note (nothing deployed by this commit):** the wire goes live only when BOTH sides hold `FULFILLMENT_WRITE_SECRET` (`wrangler secret put`, both Workers) and boutik's intake exists (1c). Until then every delivery 401s and retries hourly, by design.
