@@ -5,6 +5,7 @@ import {
   chargeFaultInput,
   checkoutLegOf,
   decideCreateOrder,
+  decideDoorCharge,
   orderIdForQuote,
   parseStoredQuote,
   rebuildOrderSpine,
@@ -66,6 +67,19 @@ const RESULTS_KEY = 'command-results';
 const RECEIPT_KEY = 'reservation-receipt';
 /** One provider idempotency key PER LEG, minted once, never re-minted. */
 const LEG_KEYS_KEY = 'provider-leg-keys';
+/**
+ * SP4.2a-bis — the DOOR leg's own attempt log and command results, kept apart
+ * from the checkout leg's.
+ *
+ * THEY ARE SEPARATE BECAUSE THE TWO LEGS ARE. The checkout attempts drive the
+ * state machine (`payment_pending`, the retry edge, `priorPaymentAttemptIds`)
+ * and their COUNT is what the certified mock's timeout budget is computed
+ * from; a door attempt in that list would silently change how the mock behaves
+ * for the checkout leg. Two lists means « which attempt, which leg » is never
+ * a question anyone has to answer by inspection.
+ */
+const DOOR_ATTEMPTS_KEY = 'door-payment-attempts';
+const DOOR_RESULTS_KEY = 'door-command-results';
 
 /** The actor every command from this service carries into the canon envelope. */
 const ORDER_ACTOR = 'storefront-service:checkout';
@@ -302,6 +316,27 @@ export class OrderDO {
      * is decided by the ROUTE the provider posted to, never by reading the
      * payload and guessing. Two legs, two paths, two vault methods.
      */
+    /**
+     * SP4.2a-bis — SHE ASKS US TO COLLECT THE PRODUCT LEG, at her door, after
+     * she has opened the package. The route above CONFIRMS a door payment; this
+     * one STARTS it, and until it existed the Option-B loop had no closing half.
+     */
+    if (request.method === 'POST' && pathname === '/entry/door-charge') {
+      let args: { holderRef?: string; commandId?: string };
+      try {
+        args = (await request.json()) as { holderRef?: string; commandId?: string };
+      } catch {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      if (
+        typeof args.holderRef !== 'string' || args.holderRef === '' ||
+        typeof args.commandId !== 'string' || args.commandId === ''
+      ) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      return this.startDoorCharge(args.holderRef, args.commandId);
+    }
+
     if (request.method === 'POST' && pathname === '/entry/door-webhook') {
       let body: { event?: unknown };
       try {
@@ -543,6 +578,7 @@ export class OrderDO {
       correlationId: stored.correlationId,
       requestedAtIso: now,
       attemptsAlreadyInitiated: attempts.length - 1,
+      legType: 'checkout',
     });
 
     /**
@@ -649,6 +685,8 @@ export class OrderDO {
     correlationId: string;
     requestedAtIso: string;
     attemptsAlreadyInitiated: number;
+    /** WHICH LEG. Required, never defaulted — see `ChargeCommand.legType`. */
+    legType: 'checkout' | 'door';
   }): Promise<ChargeOutcome> {
     const provider = sandboxPaymentProvider(
       readSandboxBehavior(this.env.PAYMENT_SANDBOX_BEHAVIOR),
@@ -661,7 +699,7 @@ export class OrderDO {
       amount: args.amount,
       correlationId: args.correlationId,
       requestedAtIso: args.requestedAtIso,
-      legType: 'checkout',
+      legType: args.legType,
     });
   }
 
@@ -724,6 +762,135 @@ export class OrderDO {
     if (confirmed.applied) next = [...next, confirm];
     await this.state.storage.put(LOG_KEY, next);
     return Response.json({ ok: true, status: 'applied', state: spine.journey.state });
+  }
+
+  /**
+   * ═══ SP4.2a-bis — ASK THE PROVIDER TO COLLECT THE PRODUCT LEG ═══
+   *
+   * §5.5: « Option B: … product paid by MoMo **at the door before custody
+   * transfer**; **not COD** ». This is the call that makes « paid by MoMo »
+   * possible; before it, nothing in this repo could ask for that money.
+   *
+   * ═══ WHAT IT DOES NOT DO, AND THE CODE SAYS SO STRUCTURALLY ═══
+   *
+   * IT MOVES NO STATE. Not one line below appends to the input log, and there is
+   * no branch in which the door leg becomes `paid`. An accepted charge means a
+   * charge was INITIATED — Ten Laws #2 — and the only thing that can mark the
+   * leg paid is a signed `payment.door_leg_confirmed.v1` on the route above.
+   * The buyer view it returns still says `due`, deliberately.
+   *
+   * IT NEVER ENDS THE ATTEMPT THROUGH `endAttemptOnFault` either, and that is
+   * not an oversight: that helper drives the order to `payment_failed`, which on
+   * this path would UN-CONFIRM an order whose checkout leg is genuinely funded —
+   * turning a failed door collection into a repudiation of money the provider
+   * already confirmed. A door charge that faults is a named refusal and nothing
+   * more; her retry is an ordinary second call under the SAME leg key.
+   *
+   * ═══ ONE PROVIDER KEY PER LEG, DURABLE BEFORE THE CALL ═══
+   *
+   * The identical discipline `create()` documents at length, applied to the door
+   * leg's own key: minted once for (order, door), committed to storage FIRST,
+   * and the key actually handed to the provider is THE ONE STORAGE ANSWERS WITH
+   * — so a charge cannot go out under a key that was not committed, because the
+   * code cannot obtain such a key to charge with. After an ambiguous timeout at
+   * a doorstep, where the money may already have moved, a second key would be a
+   * second collection no provider could dedupe.
+   */
+  private async startDoorCharge(holderRef: string, commandId: string): Promise<Response> {
+    const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+    if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+    const quote = parseStoredQuote(origin.quoteBytes);
+    const receipt = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
+    const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+    const spine = quote === undefined ? undefined : rebuildOrderSpine(quote, origin, log);
+
+    const decision = decideDoorCharge({
+      quote,
+      holderRef,
+      ...(receipt !== undefined ? { receipt } : { receipt: undefined }),
+      orderState: spine?.journey.state ?? '',
+      doorLegState: spine?.doorLegState ?? 'none',
+    });
+    if (!decision.ok) {
+      return Response.json({ ok: false, reason: decision.reason }, { status: 422 });
+    }
+
+    // AUTHORIZED. Only now may a replayed command replay its answer — the same
+    // ordering `create()` uses, and for the same reason: a refusal must be
+    // re-decided every time, never served from a cache.
+    const results = (await this.state.storage.get<Record<string, unknown>>(DOOR_RESULTS_KEY)) ?? {};
+    if (Object.prototype.hasOwnProperty.call(results, commandId)) {
+      return Response.json(results[commandId]);
+    }
+
+    const legKeys = (await this.state.storage.get<Record<string, string>>(LEG_KEYS_KEY)) ?? {};
+    const existingKey = Object.prototype.hasOwnProperty.call(legKeys, 'door') ? legKeys['door'] : undefined;
+    const providerKey = existingKey ?? mintProviderLegKey();
+    const now = new Date().toISOString();
+    const attempts = (await this.state.storage.get<AttemptRecord[]>(DOOR_ATTEMPTS_KEY)) ?? [];
+    const attemptId = mintPaymentAttemptId();
+    const record: AttemptRecord = {
+      attemptId,
+      providerKey,
+      requestedAt: now,
+      amount: decision.leg.amount,
+      outcome: 'pending',
+    };
+    // DURABLE BEFORE THE PROVIDER IS CALLED, both of them.
+    await this.state.storage.put(LEG_KEYS_KEY, { ...legKeys, door: providerKey });
+    await this.state.storage.put(DOOR_ATTEMPTS_KEY, [...attempts, record]);
+
+    // THE KEY AS STORAGE HOLDS IT — not the one in the variable above.
+    const durableLegKeys = (await this.state.storage.get<Record<string, string>>(LEG_KEYS_KEY)) ?? {};
+    const durableKey = Object.prototype.hasOwnProperty.call(durableLegKeys, 'door')
+      ? durableLegKeys['door']
+      : undefined;
+    if (durableKey === undefined || durableKey !== providerKey) {
+      return Response.json({ ok: false, reason: 'leg_key_not_durable' }, { status: 422 });
+    }
+
+    const charge = await this.charge({
+      orderId: origin.orderId,
+      providerKey: durableKey,
+      // READ VERBATIM off the immutable Quote, through the DOOR leg.
+      amount: decision.leg.amount,
+      correlationId: origin.correlationId,
+      requestedAtIso: now,
+      attemptsAlreadyInitiated: attempts.length,
+      legType: 'door',
+    });
+
+    // THE ECHO AND THE LEG ARE COMPARED. A divergence records neither figure:
+    // trusting the echo records a charge the mode never authorised, trusting the
+    // leg records a number the provider never saw.
+    const accepted = acceptChargeForLeg(decision.leg, charge.chargedAmount);
+    if (!accepted.ok) {
+      return Response.json({ ok: false, reason: accepted.reason }, { status: 422 });
+    }
+    // THE ACCEPTED ECHO — the amount the provider was demonstrably asked for.
+    const settled: AttemptRecord = charge.accepted
+      ? { ...record, amount: accepted.amount, outcome: 'accepted', collectRef: charge.collectRef }
+      : { ...record, amount: accepted.amount, outcome: charge.reason };
+    await this.state.storage.put(DOOR_ATTEMPTS_KEY, [...attempts, settled]);
+
+    if (!charge.accepted) {
+      // The provider did not take it. NOTHING moved — and in particular the
+      // order is still `confirmed` and the door leg still `due`, which is
+      // exactly the state her retry needs.
+      return Response.json({ ok: false, reason: charge.reason }, { status: 422 });
+    }
+
+    // ACCEPTED IS NOT PAID. The view below still says `due`, and it will say
+    // `due` until a signed webhook says otherwise.
+    const view = toBuyerOrderView({
+      orderId: origin.orderId,
+      state: spine!.journey.state,
+      quote: quote!,
+      doorLeg: spine!.doorLegState,
+    });
+    const answer = { ok: true, view };
+    await this.state.storage.put(DOOR_RESULTS_KEY, { ...results, [commandId]: answer });
+    return Response.json(answer);
   }
 
   /**
@@ -839,6 +1006,8 @@ const orderStub = (env: Env, orderId: string): DurableObjectStub =>
 
 /** The wire vocabulary a caller may send. Anything else is REFUSED, not ignored. */
 const ORDER_FIELDS = ['quoteId', 'holderRef', 'commandId'];
+/** SP4.2a-bis — the door charge's own two-key allowlist. NO amount field. */
+const DOOR_CHARGE_FIELDS = ['holderRef', 'commandId'];
 
 /** The id alphabet every server-minted id in this repo already uses. */
 const ID_ALPHABET = /^[A-Za-z0-9][A-Za-z0-9_-]{0,191}$/;
@@ -870,10 +1039,18 @@ const badRequest = (error: string, field?: string): Response =>
 
 /**
  * Router — the order surface:
- *   POST /checkout/order              create from a RESERVED quote (public)
- *   GET  /checkout/order/:id          the buyer view of an order (public)
- *   POST /checkout/webhook/payment    the provider's confirmation (SECRET-GATED
- *                                     at the composition root, before dispatch)
+ *   POST /checkout/order                    create from a RESERVED quote (public)
+ *   GET  /checkout/order/:id                the buyer view of an order (public)
+ *   POST /checkout/order/:id/door-charge    SP4.2a-bis — the buyer asks for the
+ *                                           product leg to be collected at her
+ *                                           door (public; it CANNOT declare that
+ *                                           money arrived)
+ *   POST /checkout/webhook/payment          the provider's confirmation of the
+ *                                           CHECKOUT leg (SECRET-GATED at the
+ *                                           composition root, before dispatch)
+ *   POST /checkout/webhook/door             SP4.2a — …and of the DOOR leg. The
+ *                                           only thing that can mark it paid.
+ *                                           (SECRET-GATED, same secret)
  */
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -950,6 +1127,58 @@ export default {
       if (decided.ok !== true || decided.view === undefined) return refuse(decided.reason ?? 'not_found');
       // THE BOUNDARY. Only the object's own projection ever reaches a buyer.
       return Response.json(decided.view, { status: 200 });
+    }
+
+    /**
+     * ═══ SP4.2a-bis — THE BUYER ASKS US TO COLLECT THE PRODUCT LEG ═══
+     *
+     * PUBLIC, on the SAME terms as `POST /checkout/order`: she holds no key, no
+     * amount can arrive (the body is a two-key allowlist with no money field),
+     * and no economics can leave (the projection is built inside the object).
+     * Her claim to the order is the SAME `holderRef` that took the hold and
+     * created the order, compared byte-for-byte — a stranger who guessed the
+     * order id cannot make her pay, and cannot make himself pay for her.
+     *
+     * IT IS NOT ON THE WEBHOOK'S SECRET, and that is correct rather than lax:
+     * this route cannot declare that money arrived. It asks a provider to
+     * collect; the provider answers on the secret-gated webhook. The dangerous
+     * capability and the buyer-facing one are on opposite sides of the gate.
+     */
+    const doorCharge = /^\/checkout\/order\/([^/]+)\/door-charge$/.exec(pathname);
+    if (doorCharge && request.method === 'POST') {
+      const orderId = decodeId(doorCharge[1]!);
+      if (orderId === undefined || !ID_ALPHABET.test(orderId)) return badRequest('bad_field', 'orderId');
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      if (body === null || typeof body !== 'object' || Array.isArray(body)) return badRequest('malformed');
+      // THE ALLOWLIST IS THE SHAPE — most dangerously, a caller sending an
+      // AMOUNT. There is no amount field here for one to land in.
+      for (const key of Object.keys(body)) {
+        if (!DOOR_CHARGE_FIELDS.includes(key)) return badRequest('unknown_field', key);
+      }
+      if (!bounded(body['holderRef'], 128)) return badRequest('bad_field', 'holderRef');
+      if (!bounded(body['commandId'], 128) || !ID_ALPHABET.test(body['commandId'])) {
+        return badRequest('bad_field', 'commandId');
+      }
+      const res = await orderStub(env, orderId).fetch(
+        new Request('https://do/entry/door-charge', {
+          method: 'POST',
+          body: JSON.stringify({ holderRef: body['holderRef'], commandId: body['commandId'] }),
+        }),
+      );
+      const answered = (await res.json().catch(() => null)) as
+        | { ok?: boolean; reason?: string; view?: unknown }
+        | null;
+      if (answered === null) return refuse('unknown_order');
+      // THROUGH `refuse`, so the ONE status map decides — `reservation_held_by_another`
+      // is a 409 here exactly as it is on order creation. Passing the object's own
+      // status through would have made the same refusal two different codes on two
+      // routes, which is how a client ends up with two ways to read one answer.
+      if (answered.ok !== true || answered.view === undefined) {
+        return refuse(answered.reason ?? 'refused');
+      }
+      // THE BOUNDARY. Only the object's own projection ever reaches a buyer —
+      // and it still says the door leg is `due`, because it is.
+      return Response.json(answered.view, { status: 200 });
     }
 
     const byId = /^\/checkout\/order\/([^/]+)$/.exec(pathname);

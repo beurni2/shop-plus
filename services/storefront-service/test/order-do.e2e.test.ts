@@ -1462,6 +1462,54 @@ describe('SP4.2a — the door leg is provider truth, behind the secret, and neve
     expect((after.json as { doorLeg?: string }).doorLeg).toBe('none');
   });
 
+  /* ── SP4.2a-bis — asking for the product leg to be collected ─────────── */
+
+  it('the door-charge route is PUBLIC (no write key) and still refuses what it must', async () => {
+    const { orderId } = await orderedQuote(mf, '4205');
+    // NO KEY AT ALL — she holds none. It must not 401: this route cannot declare
+    // that money arrived, so it belongs on the public side of the gate.
+    const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}/door-charge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ holderRef: 'holder-4205', commandId: 'cmd-door-4205' }),
+    });
+    expect(res.status, 'a buyer-facing route answered 401').not.toBe(401);
+    // …and a FULL_PREPAY order owes nothing at a door, so it refuses BY NAME.
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as { error?: string }).error).toBe('door_leg_not_expected');
+
+    // NOTHING MOVED — not the door leg, not the order.
+    const view = await getOrder(mf, orderId);
+    expect((view.json as { doorLeg?: string }).doorLeg).toBe('none');
+  });
+
+  it('a caller who did not take the hold cannot ask for her money', async () => {
+    const { orderId } = await orderedQuote(mf, '4206');
+    const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}/door-charge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ holderRef: 'not-her', commandId: 'cmd-door-4206' }),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error?: string }).error).toBe('reservation_held_by_another');
+  });
+
+  it('NO AMOUNT CAN RIDE THIS WIRE — the two-key allowlist refuses one by name', async () => {
+    const { orderId } = await orderedQuote(mf, '4207');
+    for (const body of [
+      { holderRef: 'holder-4207', commandId: 'cmd-a', amount: 11_500 },
+      { holderRef: 'holder-4207', commandId: 'cmd-b', amountDueAtDelivery: 11_500 },
+    ]) {
+      const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}/door-charge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      expect(res.status, JSON.stringify(body)).toBe(400);
+      expect(((await res.json()) as { error?: string }).error).toBe('unknown_field');
+    }
+  });
+
   it('a malformed body and a bad order id are refused BEFORE any object is reached', async () => {
     const bad = await postDoorWebhook(mf, { not: 'an event' });
     expect(bad.status).toBe(400);

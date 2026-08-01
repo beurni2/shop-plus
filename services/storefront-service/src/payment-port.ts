@@ -61,8 +61,21 @@ export interface ChargeCommand {
   readonly amount: number;
   readonly correlationId: string;
   readonly requestedAtIso: string;
-  /** Which §5.6 leg this charge funds. This slice only ever funds `checkout`. */
-  readonly legType: 'checkout';
+  /**
+   * Which §5.6 leg this charge funds.
+   *
+   * SP4.2a-bis WIDENED THIS FROM `'checkout'` ALONE, and the old comment said
+   * « this slice only ever funds `checkout` » — which was true, and was also the
+   * reason the Option-B loop had no way to close: the product leg is « paid by
+   * MoMo AT THE DOOR before custody transfer » (§5.5), and nothing could ask a
+   * provider to collect it.
+   *
+   * THE TYPE IS THE ROUTING, not a hint: a caller must NAME the leg it is
+   * funding, the amount beside it is read off that leg's own entry in
+   * `requiredLegsFor`, and the provider key handed in belongs to that leg. There
+   * is no branch anywhere that infers a leg from an amount.
+   */
+  readonly legType: 'checkout' | 'door';
 }
 
 /**

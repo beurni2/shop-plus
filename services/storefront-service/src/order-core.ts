@@ -182,6 +182,79 @@ export function checkoutLegOf(legs: readonly RequiredLeg[]): RequiredLeg | undef
   return legs.find((leg) => leg.legType === 'checkout');
 }
 
+/** …and its twin. Option B derives one; FULL_PREPAY derives none. */
+export function doorLegOf(legs: readonly RequiredLeg[]): RequiredLeg | undefined {
+  return legs.find((leg) => leg.legType === 'door');
+}
+
+/* ─────────────────────── the door charge (SP4.2a-bis) ────────────────────── */
+
+export type DoorChargeRefusalReason =
+  | 'stored_quote_unreadable'
+  | 'quote_not_reserved'
+  | 'reservation_held_by_another'
+  | 'door_leg_not_expected'
+  | 'order_not_confirmed'
+  | 'door_leg_not_due';
+
+export type DoorChargeDecision =
+  | { readonly ok: true; readonly leg: RequiredLeg }
+  | { readonly ok: false; readonly reason: DoorChargeRefusalReason };
+
+/**
+ * ═══ MAY THIS CALLER ASK US TO COLLECT THE PRODUCT LEG, RIGHT NOW? ═══
+ *
+ * §5.5's boundary, in order: « … rider verify → custody seal → custody →
+ * transit → **buyer inspection** → [B: **pay product leg** → provider-confirmed
+ * → HandoffAuthorization] → custody→customer (**drop code last**) ». So the
+ * collection is the BUYER's action, after inspection, and every condition below
+ * is one of the words in that sentence.
+ *
+ * PURE, TOTAL, NO CLOCK — the twin of `decideCreateOrder`, and it authorises
+ * exactly one thing: asking a provider to collect. **It does not, and cannot,
+ * make anything paid.** Only `payment.door_leg_confirmed.v1` does that, and only
+ * through the frozen vault.
+ *
+ * THE FIVE REFUSALS, each by its own name because each needs a different true
+ * sentence on her screen:
+ *   · `quote_not_reserved` / `reservation_held_by_another` — the caller's claim
+ *     to this order, compared byte-for-byte against the receipt, exactly as
+ *     order creation compares it. The reservation may have EXPIRED by now and
+ *     that is fine: it is a hold on a price before an order exists, and this
+ *     order already exists. What is being checked here is IDENTITY, not liveness.
+ *   · `door_leg_not_expected` — the quote is FULL_PREPAY, so nothing is owed at
+ *     a door. A caller asking us to collect it is describing a different order.
+ *   · `order_not_confirmed` — the checkout leg is not funded, so this order has
+ *     not begun. Collecting the product leg before it would be taking the larger
+ *     amount first, on an order the provider never confirmed.
+ *   · `door_leg_not_due` — it is already paid (or was never due). Asking twice
+ *     is refused HERE as well as by the leg's stable provider key, because two
+ *     defences that fail closed independently is what a second collection costs.
+ */
+export function decideDoorCharge(input: {
+  readonly quote: Quote | undefined;
+  readonly holderRef: string;
+  readonly receipt: ReservationReceipt | undefined;
+  readonly orderState: string;
+  readonly doorLegState: 'none' | 'due' | 'paid';
+}): DoorChargeDecision {
+  if (input.quote === undefined) return { ok: false, reason: 'stored_quote_unreadable' };
+  if (input.receipt === undefined) return { ok: false, reason: 'quote_not_reserved' };
+  if (input.receipt.holderRef !== input.holderRef) {
+    return { ok: false, reason: 'reservation_held_by_another' };
+  }
+  const derived = requiredLegsFor(input.quote);
+  if (!derived.ok) return { ok: false, reason: 'door_leg_not_expected' };
+  const leg = doorLegOf(derived.legs);
+  if (leg === undefined) return { ok: false, reason: 'door_leg_not_expected' };
+  // ORDER OF THE LAST TWO MATTERS. `confirmed` first, so an unconfirmed order is
+  // never told « already paid » — the two states need different sentences and
+  // the more fundamental one has to win.
+  if (input.orderState !== 'confirmed') return { ok: false, reason: 'order_not_confirmed' };
+  if (input.doorLegState !== 'due') return { ok: false, reason: 'door_leg_not_due' };
+  return { ok: true, leg };
+}
+
 export type ChargeAcceptance =
   | { readonly ok: true; readonly amount: number }
   | { readonly ok: false; readonly reason: 'provider_amount_divergence' };

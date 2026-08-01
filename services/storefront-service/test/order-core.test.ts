@@ -13,6 +13,7 @@ import {
   chargeFaultInput,
   checkoutLegOf,
   decideCreateOrder,
+  decideDoorCharge,
   orderIdForQuote,
   rebuildOrderSpine,
   requiredLegsFor,
@@ -740,5 +741,76 @@ describe('the provider seam — one verb, the certified mock, no aggregator', ()
     });
     const event = provider.webhookDeliveryPlan()[0]!.event;
     expect((event.payload as Record<string, unknown>)['provider']).toBe('sandbox-provider');
+  });
+});
+
+/* ══════════ SP4.2a-bis — MAY WE COLLECT THE PRODUCT LEG, RIGHT NOW? ═══════ */
+
+describe('decideDoorCharge — §5.5’s boundary, one condition at a time', () => {
+  const HOLDER = 'holder-1';
+  /** The state an Option-B order is in when the buyer is standing at her door:
+   *  checkout leg funded (`confirmed`), product leg still owed (`due`). */
+  const AT_THE_DOOR = { orderState: 'confirmed', doorLegState: 'due' } as const;
+
+  function ask(over: Partial<Parameters<typeof decideDoorCharge>[0]> = {}) {
+    const { quote } = doorQuote('quote-door-charge');
+    return decideDoorCharge({
+      quote,
+      holderRef: HOLDER,
+      receipt: receiptFor('quote-door-charge', HOLDER),
+      ...AT_THE_DOOR,
+      ...over,
+    });
+  }
+
+  it('AUTHORIZES the collection, and the leg it returns is the QUOTE’S OWN amountDueAtDelivery', () => {
+    const { quote } = doorQuote('quote-door-charge');
+    const decision = ask();
+    expect(decision.ok).toBe(true);
+    if (!decision.ok) return;
+    // §5.5 Option B: amountDueAtDelivery == productSubtotal, to the franc, and
+    // read off the immutable Quote rather than computed here.
+    expect(decision.leg.legType).toBe('door');
+    expect(decision.leg.amount).toBe(quote.amountDueAtDelivery);
+    expect(decision.leg.due).toBe('at_delivery');
+  });
+
+  it('a FULL_PREPAY order owes nothing at a door — refused, not charged for zero', () => {
+    const { quote } = distinctQuote();
+    const decision = ask({ quote });
+    expect(decision).toEqual({ ok: false, reason: 'door_leg_not_expected' });
+  });
+
+  it('a caller who did not take the hold cannot make her pay — and cannot pay for her', () => {
+    expect(ask({ receipt: receiptFor('quote-door-charge', 'someone-else') })).toEqual({
+      ok: false,
+      reason: 'reservation_held_by_another',
+    });
+    expect(ask({ receipt: undefined })).toEqual({ ok: false, reason: 'quote_not_reserved' });
+  });
+
+  it('an order whose CHECKOUT leg is not funded cannot be asked for the product leg', () => {
+    // Taking the larger amount first, on an order no provider has confirmed.
+    for (const orderState of ['quote_issued', 'reserved', 'payment_pending', 'payment_failed', 'paid', 'cancelled']) {
+      expect(ask({ orderState }), orderState).toEqual({ ok: false, reason: 'order_not_confirmed' });
+    }
+  });
+
+  it('a door leg already PAID is refused — the second defence against a second collection', () => {
+    expect(ask({ doorLegState: 'paid' })).toEqual({ ok: false, reason: 'door_leg_not_due' });
+    expect(ask({ doorLegState: 'none' })).toEqual({ ok: false, reason: 'door_leg_not_due' });
+  });
+
+  it('AN UNCONFIRMED ORDER IS NEVER TOLD « already paid » — the two need different sentences', () => {
+    // Order matters: a caller on an unconfirmed order whose door leg reads
+    // `none` must hear the fundamental refusal, not the one about paying twice.
+    expect(ask({ orderState: 'payment_pending', doorLegState: 'none' })).toEqual({
+      ok: false,
+      reason: 'order_not_confirmed',
+    });
+  });
+
+  it('unreadable stored bytes refuse rather than repair — no amount is guessed', () => {
+    expect(ask({ quote: undefined })).toEqual({ ok: false, reason: 'stored_quote_unreadable' });
   });
 });

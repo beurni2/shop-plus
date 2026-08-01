@@ -2245,3 +2245,33 @@ Still owed and only the founder can do it: the device walk — the 33 pickable h
 **TWO SMALL FINDINGS, journalled not fixed:** `POST /storefronts` answers **500** on a malformed `shortCode` rather than a named 400 (found by seeding a test shop with hyphens in its name) — a throw escaping on a write route. And **`pnpm exec vitest run` skips the `pretest` bundling hook**, so a service e2e run that way silently tests a STALE worker bundle; it cost me a wrong diagnosis here. `pnpm test` is the only correct invocation, and it is the same hazard already journalled for Playwright's `preview`.
 
 **Evidence:** workspace typecheck clean · **364/364 service tests** · `run-gates.sh` **ALL GATES GREEN**.
+
+---
+
+### 2026-08-01 · SP4.2a-bis — the door charge is INITIATED, not only confirmed (founder-authorized)
+
+**THE FOUNDER ASKED « what about the pay at the door? » and the honest answer had two halves.** The first was already journalled: nobody can choose Option B, because `networkReliableZones` ships empty. The second was worse and I checked it rather than assumed it: **even with a zone open, nothing would have collected the money.** `checkoutLegOf` finds only the checkout leg, `create()` charges only that, and `ChargeCommand.legType` was typed `'checkout'` — literally the only leg the seam could name. SP4.2a had built the half that CONFIRMS a door payment; nothing STARTED one. He authorized closing it.
+
+**BUILT — `POST /checkout/order/{id}/door-charge`.**
+
+**WHO MAY CALL IT.** The buyer, at her door, after inspection — §5.5's boundary in order: « … transit → **buyer inspection** → [B: **pay product leg** → provider-confirmed → HandoffAuthorization] → custody→customer (**drop code last**) ». Her claim is the SAME `holderRef` that took the hold and created the order, compared byte for byte. PUBLIC, on the same terms as order creation: she holds no key, the body is a **two-key allowlist with no money field**, and the projection is built inside the object.
+
+**IT IS DELIBERATELY *NOT* ON THE WEBHOOK'S SECRET, and that is the design rather than an omission:** this route cannot declare that money arrived. It asks a provider to collect; the provider answers on the secret-gated webhook. The dangerous capability and the buyer-facing one sit on opposite sides of the gate.
+
+**`decideDoorCharge` — pure, total, six named refusals**, each because each needs a different true sentence on her screen: `stored_quote_unreadable` · `quote_not_reserved` · `reservation_held_by_another` · `door_leg_not_expected` (a FULL_PREPAY order owes nothing at a door) · `order_not_confirmed` (the checkout leg is not funded — collecting the LARGER amount first, on an order no provider confirmed) · `door_leg_not_due`. **The last two are ordered deliberately and it is tested:** an unconfirmed order must never be told « already paid ».
+
+**WHAT IT DOES NOT DO, structurally.** Not one line appends to the input log and there is no branch where the door leg becomes `paid`. An accepted charge means a charge was INITIATED (Ten Laws #2). **The buyer view it returns still says `due`**, and will until a signed webhook says otherwise.
+
+**AND IT NEVER CALLS `endAttemptOnFault`** — that helper drives the order to `payment_failed`, which here would UN-CONFIRM an order whose checkout leg is genuinely funded, turning a failed door collection into a repudiation of money the provider already confirmed. A door fault is a named refusal and nothing more.
+
+**ONE PROVIDER KEY PER LEG, DURABLE BEFORE THE CALL** — `create()`'s discipline applied to the door key, including the structural half: the key handed to the provider is **the one storage answers with**, so a charge cannot go out under an uncommitted key because the code cannot obtain one. After an ambiguous timeout at a doorstep, a second key would be a second collection no provider could dedupe.
+
+**SEPARATE DURABLE LISTS for the door leg's attempts and command results.** The checkout attempts drive the state machine and their COUNT is what the certified mock's timeout budget is computed from; a door attempt in that list would silently change how the mock behaves for the checkout leg.
+
+**`ChargeCommand.legType` widened to `'checkout' | 'door'`, and `charge()` now REQUIRES its caller to name the leg** — never defaulted. The type is the routing; no branch anywhere infers a leg from an amount.
+
+**Evidence:** workspace typecheck clean · **374/374 service tests** (7 new unit tests on `decideDoorCharge`, where the AUTHORIZED path IS reachable, plus 3 route tests) · `run-gates.sh` ALL GATES GREEN.
+
+**ONE ROUTE-LEVEL DEFECT FOUND AND FIXED BY ITS OWN TEST:** the door-charge route first passed the Durable Object's status through verbatim, so `reservation_held_by_another` answered **422 here and 409 on order creation** — one refusal, two codes, two routes. It now goes through `refuse()` so the single status map decides.
+
+**SAME LIMIT AS SP4.2a, restated rather than quietly inherited:** the AUTHORIZED path cannot be driven over HTTP, because no Option-B order can be created through the public routes while the zone allowlist is empty. It is proved at the decision layer (pure, all seven cases) and the route's guards are proved on the real Worker. **The end-to-end HTTP walk still waits on the founder naming a pilot zone.**

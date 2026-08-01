@@ -109,14 +109,26 @@ export default {
     // The WEBHOOK is deliberately NOT here — it is secret-gated below.
     const isOrderCreate = pathname === '/checkout/order';
     const isOrderById = /^\/checkout\/order\/[^/]+$/.test(pathname);
+    /**
+     * SP4.2a-bis — the buyer asking for the product leg to be collected at her
+     * door. PUBLIC on the SAME terms as order creation: no key exists for her to
+     * hold, no amount can arrive (a two-key allowlist with no money field), no
+     * economics can leave, and her claim is the `holderRef` that took the hold.
+     *
+     * IT CANNOT DECLARE THAT MONEY ARRIVED — that is the webhook, on the other
+     * side of the secret. This route only asks a provider to collect.
+     */
+    const isOrderDoorCharge = /^\/checkout\/order\/[^/]+\/door-charge$/.test(pathname);
     const isPublicQuote =
       (request.method === 'POST' && (isCheckoutQuote || isCheckoutReserve)) ||
       (request.method === 'GET' && isCheckoutQuoteById);
     const isPublicOrder =
-      (request.method === 'POST' && isOrderCreate) || (request.method === 'GET' && isOrderById);
+      (request.method === 'POST' && (isOrderCreate || isOrderDoorCharge)) ||
+      (request.method === 'GET' && isOrderById);
     if (
       request.method === 'OPTIONS' &&
-      (isCheckoutQuote || isCheckoutQuoteById || isCheckoutReserve || isOrderCreate || isOrderById)
+      (isCheckoutQuote || isCheckoutQuoteById || isCheckoutReserve || isOrderCreate || isOrderById ||
+        isOrderDoorCharge)
     ) {
       return checkoutPreflight();
     }
