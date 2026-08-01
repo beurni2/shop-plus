@@ -76,6 +76,17 @@ export interface VitrineProductRecord {
   readonly priceFcfa: number;
   readonly inStock: boolean;
   readonly assetRefs: readonly string[];
+  /**
+   * CATEGORY-WIRE-1 — the supplier's category, carried verbatim from the supply
+   * projection (canon v3.0.0). The buyer's at-door screen picks its §6.2
+   * inspection row from this, and §6.1 decides Option-B eligibility from it.
+   *
+   * REQUIRED on this wire because the server always has one. The BUYER treats it
+   * as optional, deliberately: an older deployed Worker omits the field, and the
+   * client must fall back to the cautious inspection row rather than drop the
+   * product off her page. Absent may only ever WITHHOLD, never reveal.
+   */
+  readonly category: string;
 }
 
 /** What the join needs from the LISTING side (never from supply). */
@@ -94,6 +105,8 @@ export interface SupplySide {
   readonly assetRefs: readonly string[];
   /** The supplier's live stock count. Stock, never economics — see `inStock` below. */
   readonly available: number;
+  /** CATEGORY-WIRE-1 — display data, from the projection, never invented here. */
+  readonly category: string;
 }
 
 /**
@@ -160,6 +173,9 @@ export function joinVitrineProduct(listing: ListingSide, supply: SupplySide | un
     // wire, and the épuisé veil the renderer already draws was unreachable.
     inStock: supply.available > 0,
     assetRefs: [...supply.assetRefs],
+    // From SUPPLY, like the name and the images — never from the listing, and
+    // never a default. The reseller sets a markup, not what a product IS.
+    category: supply.category,
   };
 }
 

@@ -221,7 +221,26 @@ export function demoStorefrontPort(variant: 'default' | 'customised' | 'empty' |
 
 /* --------------------------------------------------------- REAL (partial) -- */
 
-/** A described product needs the five fields the tile renders — nothing else. */
+/**
+ * A described product needs the five fields the tile renders — nothing else.
+ *
+ * CATEGORY-WIRE-1 adds NO sixth requirement, on purpose. `category` arrives
+ * from canon v3.0.0, so an older deployed Worker omits it; requiring it would
+ * make every product on that Worker fail this check and VANISH from her page.
+ * A young field must never be able to empty a shop.
+ *
+ * A MALFORMED CATEGORY IS NOT THE PRODUCT'S FAULT EITHER (verifier finding).
+ * This function briefly rejected a non-string category — and rejecting HERE
+ * means `filter` DROPS THE WHOLE RECORD, so `category: 5` deleted the product
+ * from her grid and sent her signed link to the not-found screen. That is the
+ * same shop-emptying failure the paragraph above refuses, reached by a bad
+ * value instead of an absent one, and the comment that used to sit here
+ * claimed the opposite ("falls back to the conservative row"). It does not
+ * fall back; it disappears. So the category is NOT validated here at all — it
+ * is STRIPPED at the boundary below, exactly as `headerStyle` and the
+ * cover/avatar `focus` already are, and a stripped category is an absent one:
+ * the conservative row.
+ */
 function looksLikeProduct(v: unknown): v is VitrineProduct {
   if (v === null || typeof v !== 'object') return false;
   const p = v as VitrineProduct;
@@ -234,10 +253,29 @@ function looksLikeProduct(v: unknown): v is VitrineProduct {
   );
 }
 
+/**
+ * CATEGORY-WIRE-1 — the category normalised at the ONE network boundary, on the
+ * `headerStyleFromWire` precedent. A non-string (or absent) category becomes an
+ * ABSENT key rather than a dropped product: `inspectionPour` then returns the
+ * conservative §6.2 row and §6.1 refuses Option B, which is the fail-closed
+ * behaviour the whole field was specified to have. Downstream never sees a
+ * `category` that is not a string, so no consumer needs to re-check it.
+ */
+function productFromWire(p: VitrineProduct): VitrineProduct {
+  const { category, ...rest } = p;
+  return typeof category === 'string' ? { ...rest, category } : rest;
+}
+
 /** A storefront looks real when the service handed back at least an id + slug. */
 function looksLikeStorefront(v: unknown): v is Storefront {
   return typeof v === 'object' && v !== null && typeof (v as Storefront).id === 'string' && typeof (v as Storefront).slug === 'string';
 }
+
+/* Test seams — CATEGORY-WIRE-1 r2. Both are boundary logic a verifier proved
+ * was unasserted; exported so a test can drive them directly rather than
+ * through a full mount, which is what let two mutations stay green. */
+export const looksLikeProductForTest = looksLikeProduct;
+export const productFromWireForTest = productFromWire;
 
 /**
  * ENTETES-B — the wire's headerStyle, validated AT THE PORT BOUNDARY. An OLD
@@ -319,7 +357,7 @@ export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
       // ABSENT (the seed path) rather than crashing the mount, and each record is
       // checked for the five fields the tile actually renders.
       const raw = (view as { products?: unknown }).products;
-      const products = Array.isArray(raw) ? raw.filter(looksLikeProduct) : undefined;
+      const products = Array.isArray(raw) ? raw.filter(looksLikeProduct).map(productFromWire) : undefined;
       // ENTETES-B — the field is normalised HERE, once, so every consumer of the
       // resolved storefront reads a valid key (old wire without it ⇒ classique).
       // ENTETES-C — the framing gets the same treatment: a non-canon `focus` on

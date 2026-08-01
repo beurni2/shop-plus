@@ -2366,3 +2366,120 @@ SP3.3c's drop-code guard asked one question: « is the order `confirmed`? ». On
 **WHAT SP4.2 STILL NEEDS, and neither piece is shop-plus's alone:**
 1. **The product category on the buyer's wire** — a route for `CustomerProductView`, a field on `ClienteProduit`, per-product categories in the seed, and a taxonomy decision. Until then the conservative row is what a real buyer sees.
 2. **The drop code** — still the hardcoded `CODE_REMISE`. `buyerDropCode` is canon (`SECRET_KINDS`) with ZERO implementation sites anywhere, and Séra's plan owns it (**SE5.3**: « custody→customer (drop code last) only after validation »).
+
+---
+
+## 2026-08-01 — CATEGORY-WIRE-1: the producer exists in canon, and the wire that drops it also left a risk gate self-declared (BLOCKED ON FOUNDER, §7)
+
+**Task issued:** « wire the product category through to the buyer ». **Nothing was built. Grounding found a `contracts/` change on the path and a live consequence of the 2026-08-01 zone ruling, both §7 triggers. Reported, waiting.**
+
+**① THE PRODUCER WAS THERE ALL ALONG — my previous entry was incomplete.** The SP4.2 matrix entry said « nothing carries a product category to the buyer » and pointed at the service's unrouted `CustomerProductView`. That understated it in the direction that matters: **`ProductVersionSchema.category` is canon** (`packages/contracts/src/shapes/commerce.ts:42`, `category: TrimmedNonEmptyString`). Boutik+ products have carried a category the whole time. The field is dropped one hop later, at **`SupplyProjectionSchema`** (`commerce.ts:432–442`, `.strict()`), which is the only thing Shop+ ever receives. Verified: `ResellerListingSchema` (108–119, `.strict()`), service `ListingEntry` (`listing-core.ts:120–135`), `VitrineProductRecord` — none carry one. The reference mock (`packages/certification/.../adapters.ts:77–85`) builds the projection without it.
+
+**The precedent for carrying it is written into that same object, twice.** `productName` is annotated « matches `ProductVersionSchema.name` » and `assetRefs` « matches `CustomerProductView.assetRefs` — zero transformation ». Both exist solely because a buyer surface needs them. `category` is the third field of that class and the only one left behind — and the service's own `CustomerProductView.category` (`customer-projection.ts:15`) is the consumer that has been sitting there with no source.
+
+**No taxonomy decision is required to carry it.** Canon types every category as a free `TrimmedNonEmptyString` and states the reason verbatim at `commerce.ts:287–289`: « a zone enum / gazetteer and the category-floor taxonomy are FOUNDER DECISIONS and do NOT enter this shape ». Carrying a value changes no taxonomy. The §6.1 check is an **allowlist** (`inspectableCategories`), so an unrecognised category refuses — fail-closed — and §6.2's `inspectionPour` already falls to `INSPECTION_PRUDENTE`. **The ⏳ category-floor Decision stays open and untouched either way.**
+
+**② THE PART THAT IS NOT A FEATURE REQUEST.** The same missing field is why the §6.1 gate reads three risk facts off the wire. `PayAtDoorRequestContext` (`checkout-core.ts`) carries `eligibility`, `sellerTier`, `category` — all caller-supplied. That shape's own comment stated the mitigation and its expiry date, verbatim: « Today that is inert — `PAY_AT_DOOR_POLICY_DEFAULTS` ships an EMPTY `networkReliableZones` allowlist … **The day the founder names one reliable zone, that mitigation is gone and these three values must come from a server authority (Risk / Séra), never from the wire.** »
+
+The founder opened every zone on 2026-08-01. **The mitigation is gone.** Three of §6.1's five conditions are now decided by the party they exist to constrain; the other two are server-computed (price cap) and now `'all'` (zone). This is not a hypothesis — the committed, passing e2e `checkout-do.e2e.test.ts` (« SP4.2 — an Option-B quote is now ISSUABLE over HTTP ») **is** that request: `sellerTier: 'verified'`, `category: 'shoes'`, both pure caller assertions against a seeded shop that has neither. It answers **200**. Re-run this session: **376/376 service tests pass.**
+
+**What still holds, so this is not overstated.** Law #3 is untouched: nothing is handed over on a self-declared profile. Custody transfers only after the door leg is provider-confirmed (`revelationPermise`; `decideDoorCharge`). The exposure is **not free goods** — it is that the refusal/no-show risk §6.1 exists to bound is currently self-reported, on a public unauthenticated route. The buyer PWA itself is unaffected: it sends no `payAtDoorContext`, so it still refuses with `context_missing` (`quote-issuance.ts:103`). The door is shut by client omission, not by server design.
+
+**③ WHAT I CHANGED WITHOUT ASKING — two false comments on the money path, no behaviour.** Both asserted the dead mitigation as live fact:
+- `checkout-core.ts` told the next reader the caller-supplied risk context is « inert ». Corrected to state what is true now, what still holds (Law #3), and that the fix is one field and not mine to add.
+- `order-do.e2e.test.ts` opened « IT CANNOT CREATE AN OPTION-B ORDER through the public routes » and called proving `due → paid` across workerd « a founder decision, not one to take at the keyboard ». The founder took it; the proof is now **buildable and not yet built**. Corrected to name that as an honest gap rather than a limitation.
+
+A comment that says a risk is handled is worse than no comment. Neither edit closes the finding — only the founder's call does.
+
+**④ THE ASK, AND MY RECOMMENDATION.** Add `category: TrimmedNonEmptyString` to `SupplyProjectionSchema` — additive, `.strict()`-safe, byte-matching `ProductVersionSchema.category`, zero transformation, same pattern as `productName`/`assetRefs`, canon minor bump. That single field feeds **both** consumers: §6.2's inspection row on the buyer's door screen (the task as issued) and §6.1's `category` from server truth instead of the wire. **`sellerTier` should leave the wire in the same slice** — it needs no canon change, only the resolved listing's supplier.
+
+**The cost the founder has to weigh, stated plainly:** hardening the wire with no producer in place would make Option B refuse again everywhere, undoing the practical effect of his 2026-08-01 ruling. Carrying the field first, then hardening, keeps Option B open AND makes the gate real. That ordering is the recommendation. **⏳ Not mine to close — §7: « Any change to `contracts/` shapes … these are canon, versioned, and identical across three specs. »**
+
+---
+
+## 2026-08-01 — CATEGORY-WIRE-1 (consumer half): the supplier's category reaches the screen where she decides
+
+**FOUNDER-APPROVED** (« Cannon field Approved build it »). The wire is now END-TO-END: `ProductVersion.category` (canon) → `buildSupplyProjection` (boutik) → `SupplyProjection.category` (canon v3.0.0, REQUIRED) → `BoundSupplySource.describe` → `joinVitrineProduct` → `VitrineProductRecord` → `GET /s/{slug}` → the buyer's `looksLikeProduct` → `clienteProduitReel` → `ClienteProduit.category` → `inspectionPour` → **the §6.2 at-door inspection row on C8.**
+
+**REQUIRED ON THE SERVER, OPTIONAL ON THE CLIENT — the one design decision worth stating.** `ProductDescription`, `SupplySide`, `SupplyOffer` and `VitrineProductRecord` all type it REQUIRED: canon guarantees it, and typing it optional server-side would invite a `?? undefined` that quietly re-opens the hole the required canon field closed. The BUYER types it optional, because two sources legitimately have none — an **older deployed Worker** (this field ships before every Worker is redeployed) and the **demo seed** (no supplier ⇒ no supplier's category). `looksLikeProduct` therefore does NOT require it: a young field must never be able to empty a shop. It only rejects a category that is present and not a string.
+
+**ABSENT MAY ONLY WITHHOLD, NEVER REVEAL** — the same law as `buyerDropCode`. `inspectionPour(undefined)` → `INSPECTION_PRUDENTE`, which claims nothing; §6.1 refuses Option B on an unknown category. Both directions fail closed, so no missing category can promise a buyer anything. `clienteProduitReel` spreads the key CONDITIONALLY so an absent category stays absent rather than becoming an explicit `undefined` — a key that exists with no value is what a future `'category' in produit` reads as « we have one ».
+
+**NO MAPPING TABLE EXISTS ANYWHERE, and that is load-bearing.** The supplier's value travels verbatim from boutik to the buyer's screen. Shop+ ALLOWLISTS what §6.2 names and falls back on the rest. The pilot seed proves it: founder-#001 is `category: 'textile'`, which §6.2 does not know, so a real end-to-end product will carry a real category AND still show the cautious row with no Option B. Correct, and pinned by a test that says so by name.
+
+**FOUR TESTS THAT COULD ONLY FAIL IF THE VALUE STOPPED FLOWING** (a test that merely tolerates a new field asserts nothing):
+- server: an **arbitrary** category (`'un-truc-que-personne-ne-connait'`, hardcoded nowhere) survives `joinVitrineProduct` unchanged — a default or a normaliser could not pass it;
+- server: two records differing ONLY in category differ ONLY there (the category rides alone — price, stock, identity unmoved);
+- server: a listing object *pretending* to carry a category loses to supply — the reseller sets a markup, not what a product IS;
+- buyer: two categories give two DIFFERENT §6.2 rows, both distinct from the conservative one; absent ⇒ key absent + conservative row; `'textile'` ⇒ carried honestly AND conservative row; every demo-seed product has no category.
+
+**MUTATION-PROVEN, both halves.** Defaulting `category: supply.category` → a constant: **3 server tests RED**. Dropping the conditional spread in `clienteProduitReel`: **2 buyer tests RED**. Restored and re-verified green.
+
+**THE OVERRIDE TRAP, AVOIDED HERE BECAUSE BOUTIK HIT IT FIRST.** `pnpm-workspace.yaml`'s `overrides:` is the real pin; its comment already said so in capitals. I repinned it, then **verified the INSTALLED package** (`3.0.0`, schema keys include `category`) before writing a line — the check boutik's half taught. The workspace comment now carries that incident.
+
+**Pinned assertions moved deliberately, never loosened:** the SUPPLY-WIRE-1 envelopes ×4 · the AUTO-HIDE presence description · `readSupplyCollection`'s « seven → eight canon fields » · the buyer-record key allowlist (`['assetRefs','category','inStock','name','pid','priceFcfa']`) · the reseller-browse key allowlist, with a note that `category` names WHAT is sold and `zone` still names WHO, so one belongs and one stays stripped · the certified supply-consumer mock.
+
+**Evidence:** `pnpm -w typecheck` 19/19 · `pnpm -w test` **23/23 tasks, 0 failures** (buyer-pwa **738** ↑4, storefront-service **379** ↑3, supply-consumer 17, commerce-core 89, reseller-app 375) · `run-gates.sh` **ALL GATES GREEN** (exit 0) · **Playwright 86/86 on a rebuilt bundle**.
+
+**⚠ TOOLING NOTE (environment, not code):** Playwright resolved 1.61.1 wants Chromium build 1228; this container ships 1194. `playwright.config.ts` already anticipated exactly this — `PW_EXECUTABLE` overrides the binary — so the run used `PW_EXECUTABLE=/opt/pw-browsers/chromium`. Nothing environment-specific was committed. The pin was 1.61.1 at HEAD too; the repin did not move it.
+
+**⚠ STILL FOUNDER-GATED — DEPLOY ORDER, and it matters more than usual.** A live offer-service still emits the SEVEN-field projection. This service parses that wire with the STRICT canon schema, so a shop-plus deploy BEFORE boutik's would make every projection un-parseable → every product `undescribable` → **omitted from every buyer page**. The order is: canon (done) → boutik producer (done) → **deploy offer-service** → **deploy storefront-service** → buyer PWA. Two deploys, each needing its own go-ahead per the standing rule. NOT deployed in this slice.
+
+**NEXT, and NOT done here:** §6.1 still reads `sellerTier`, `category` and the buyer's eligibility record off the checkout request body. The category half is now fixable — the service can read it from the listing it already resolves. `sellerTier` has no server-side source that I have verified; I will report rather than invent one.
+
+### CATEGORY-WIRE-1 — verifier round 2 (fresh-context, consumer side): **VERDICT FAIL → 3 blockers + 2 notes fixed**
+
+Founder ordered the standing verifier re-run before merge. It came back **FAIL**, and one blocker was a live crash the buyer could reach at her own door.
+
+**BLOCKER 1 — an unrecognised category could CRASH the at-door screen instead of falling to the conservative row.** `inspectionPour` read `INSPECTION[category] ?? INSPECTION_PRUDENTE`. `INSPECTION` is an object literal, so `__proto__`, `constructor`, `toString`, `valueOf` and `hasOwnProperty` all resolve on the **prototype chain** — never nullish, so `??` never fired. `inspectionPour('constructor')` returned `Object`, and C8 then called `.motifs.map` on it and **threw**. Verified by hand: all five keys, `isPrudente=false`; both C8 branches throw.
+
+The consequence is worse than a blank screen: the flow builds the whole HTML string **before** assigning `innerHTML`, so nothing replaces the previous screen. **A buyer standing at her door taps « J'accepte » and watches the screen not change — she cannot accept, cannot report a problem, on a product whose delivery she has already paid.** Every later render throws again. And `category` is FREE TEXT a supplier types (boutik validates only non-emptiness), so no attacker is required.
+
+**This diff is what made it reachable** — the comment it deleted said « NOTHING carries a product category to the buyer yet ». It also falsifies my own stated DoD (« an absent AND an unrecognised category must both yield the conservative row »). Fixed with `Object.hasOwn`, the same law this repo already applies to command ids (« a commandId that names an Object.prototype member behaves like any other »).
+
+**⚠ THE SAME DEFECT WAS IN THE MONEY PATH, AND IT BYPASSED §6.1 (verifier NOTE, pre-existing, outside the diff).** `SELLER_TIER_RANK[ctx.sellerTier]` in the frozen vault: a prototype member is a FUNCTION, not `undefined`, and `someFunction < 1` is `false`, so the refusal never fired. Measured against the shipped policy **before** the fix:
+
+```
+provisional  => eligible:false  seller_tier_below_minimum
+verified     => eligible:true
+toString     => eligible:true      ← gate bypassed
+constructor  => eligible:true      ← gate bypassed
+__proto__    => eligible:true      ← gate bypassed
+garbage      => eligible:false  seller_tier_below_minimum
+```
+
+§6.1's « seller tier ≥ verified » was **unenforceable by anyone who typed one of five words**, and `sellerTier` is caller-supplied on the checkout wire today. **This means my report to the founder understated the exposure**: I said a caller must declare `sellerTier: 'verified'`; in truth the condition was structurally absent. Fixed under the same law, in the same pass, because it is one root cause — an untrusted string used directly as a key into an object literal. Not a `contracts/` change and not a waterfall change: it makes a gate refuse where it wrongly allowed.
+
+**BLOCKER 2 — the comment I "corrected" was made FALSE by my own commit range.** `checkout-core.ts` said « `SupplyProjectionSchema` drops it … adding it back is a `contracts/` change — founder's call ». True when written; false at HEAD, where canon v3.0.0 requires it, this service reads it, and the repin already landed. A comment claiming a fix is blocked on a decision **already taken** is how a real fix gets skipped — the exact sin I had just finished correcting elsewhere. Rewritten to state precisely what is and is not blocked now: `category` unblocked, `sellerTier` still sourceless, `eligibility` owned by a Risk service that does not exist.
+
+**BLOCKER 3 — the new guard clause was asserted by NOTHING.** The verifier mutated it two ways — making the young field REQUIRED (the exact « an old server empties the shop » regression three comments claim to prevent), and deleting the check entirely — and **both left 738/738 unit and 86/86 Playwright fully green**. Failure mode #7, in my own work, one slice after writing tests specifically to avoid it. Now covered by direct tests on exported seams.
+
+**NOTE — the third comment misdescribed its own behaviour, and the behaviour was wrong.** It claimed a non-string category « is rejected here and the product falls back to the conservative row ». It does not fall back: rejecting inside `looksLikeProduct` makes `filter` **drop the whole record**, so `category: 5` deleted the product from her grid and sent her signed link to the not-found screen — the same shop-emptying failure by another route. Fixed properly: the guard no longer judges the category at all, and the category is **stripped at the one network boundary** (`productFromWire`), exactly as `headerStyle` and the cover/avatar `focus` already are. A stripped category is an absent one: the conservative row.
+
+**MUTATION-PROVEN, all four:** revert `inspectionPour` to `??` → **1 red**; make the guard require the field (the verifier's green mutation) → **2 red**; drop the boundary strip → **1 red**; revert the vault tier fix → **1 red**. Each restored and re-verified.
+
+**Verifier findings accepted as correct and NOT actioned:** the deploy-order hazard is real and pinned by no test (handled by process — nothing is deployed); the SP-I03 value-side sweep now spans two free-text fields (`productName`, `category`) and the diff's « names WHAT is sold, never WHO » is intent, not enforcement — recorded in the canon derivation doc.
+
+**Re-verified after every fix:** `pnpm -w typecheck` 19/19 · `pnpm -w test` **23/23 tasks, 0 failures** (buyer-pwa **741** ↑3, commerce-core **91** ↑2, storefront-service 379) · `run-gates.sh` **ALL GATES GREEN**, exit 0 · **Playwright 86/86** on a rebuilt bundle.
+
+**The lesson, twice in one day:** both verifiers found defects whose comments asserted they were fixes. Self-review cannot find that class — I re-read my own justification and agree with it.
+
+### CATEGORY-WIRE-1 — verifier round 3 (consumer side): **VERDICT PASS**, three notes actioned
+
+All three blockers confirmed closed by the verifier's own probes — 24 `renderC8` renders across six prototype keys × four `door` states, zero throws; the tier table refusing in both directions; and its two previously-green mutations now red. It left three notes and I took all three.
+
+**R2 — MY FIX STOPPED ONE LINE SHORT, AND THE LEFTOVER FAILED *OPEN*.** I guarded `SELLER_TIER_RANK[ctx.sellerTier]` and left `SELLER_TIER_RANK[policy.minSellerTier]!` on the next line — the identical unguarded lookup, behind a non-null assertion that made it look intentional. The direction is the opposite and worse: an unreadable MINIMUM is `undefined`, `anyRank < undefined` is `false`, so the refusal is skipped. Measured before the fix: **`minSellerTier: 'toString'` made a PROVISIONAL seller eligible.** Not wire-reachable while the policy is a TypeScript literal, but every value in that file is ⏳ FOUNDER-TUNABLE and the day one is loaded from config the type guards nothing. Fixed; **and my first attempt at the fix had no test** — the mutation stayed green until I added one. An unreadable rule must never be an absent rule.
+
+**R1 — my own new test claimed branch coverage it did not have.** The loop varied a key called `etat`; `C8State`'s discriminator is `door`. Both iterations landed in the same branch, so the §6.2 **refusal** path — the buyer's « something is wrong » road — was never rendered. The verifier measured it (`data-etat="signalement"` false on both). The test still bit, for less than it claimed. Now loops all four `door` states and **asserts the set it actually visited**, so it cannot silently collapse again. This is failure mode #7 appearing inside the test written to prevent failure mode #7.
+
+**R3 — the sanitiser was present but its WIRING was untested.** Unhooking `.map(productFromWire)` from `httpStorefrontPort` left the whole suite green: every test drove the seam directly. Now asserted through the port with a stubbed `fetch` — three products in, three out, the malformed one arriving with no `category` key. The verifier's mutation now reddens it.
+
+**N5 — TAKEN, and it deserved code.** The deploy-order hazard was defended only by prose. It is now a test: a **pre-v3 seven-field projection** describes NOTHING, reads `unknown` rather than `gone` (so a bad deploy can never auto-hide a reseller's shop), and the omission reaches the buyer surface as an omitted product. The verifier's stronger argument was the second one: it **locks the behaviour**, because the tempting production "fix" is to make the parse tolerant — and that repair is the dangerous one, since a projection missing `category` silently disables Option B and shows the cautious row on products that qualify for neither. Mutation-proven: making the parse tolerant reddens it.
+
+**N4 — NOT taken, and the verifier withdrew its own weight.** `category` has no HTML, storage or DOM sink; its only consumer is a lookup key. `productName`, which IS rendered, carries the identical exposure and is settled pre-existing design. A value-side sweep would be new policy over a field nobody sees. Recorded in the canon derivation doc; revisit if `category` ever becomes visible.
+
+**On the vault edit, which I asked to have attacked:** the verifier tried three ways and upheld it — not a §7 trigger (no `contracts/` shape, no event schema, no waterfall); no ⏳ value moved (policy object byte-identical); and « frozen vault » in this repo means the single frozen authority for AMOUNTS, with no procedural freeze on the package. Decisive point: §6.1 is normative and the old code did not implement its sentence for five inputs — restoring a documented refusal is enforcing canon, not amending it, and it moves strictly toward fail-closed. No caller could rely on the bypass: none of `provisional|verified|trusted` is an `Object.prototype` member.
+
+**It also corrected one attribution of mine:** I wrote « B4.2/SP-I03 keep supplier identity off the supply projection ». B4.2 does that; **SP-I03 governs what customer pages show**, not what the projection carries. They support the conclusion jointly; only the attribution was loose.
+
+**Final state:** `pnpm -w typecheck` 19/19 · `pnpm -w test` **23/23 tasks, 0 failures** (buyer-pwa **742**, commerce-core **92**, storefront-service **382**) · `run-gates.sh` **ALL GATES GREEN**, exit 0 · **Playwright 86/86** on a rebuilt bundle.

@@ -166,11 +166,11 @@ describe('THE MOCK IS NOT THE FALLBACK — fabricated supply data is unreachable
   it('a TEST may inject its own source through the PORT — that is the only way a mock ever appears', async () => {
     // Injection is explicit and local to the test; nothing in src/ can do this.
     const injected: SupplySourcePort = {
-      describe: async (pv: string) => ({ productName: `Produit ${pv}`, assetRefs: [], available: 1 }),
+      describe: async (pv: string) => ({ productName: `Produit ${pv}`, assetRefs: [], available: 1, category: 'fashion_bags_fabrics' }),
       presence: async () => ({ kind: 'unknown' }),
       economics: async () => undefined,
     };
-    expect(await injected.describe('pv_x')).toEqual({ productName: 'Produit pv_x', assetRefs: [], available: 1 });
+    expect(await injected.describe('pv_x')).toEqual({ productName: 'Produit pv_x', assetRefs: [], available: 1, category: 'fashion_bags_fabrics' });
   });
 });
 
@@ -180,7 +180,7 @@ describe('ABSENT renders as OMITTED — a product that cannot be described is no
   });
 
   it('a described product joins: HER price from the LISTING, name and images from SUPPLY', () => {
-    const rec = joinVitrineProduct(LISTING, { productName: 'Sac tressé de Bobo', assetRefs: ['ref/hero'] })!;
+    const rec = joinVitrineProduct(LISTING, { productName: 'Sac tressé de Bobo', assetRefs: ['ref/hero'], category: 'fashion_bags_fabrics' })!;
     expect(rec.priceFcfa).toBe(14_750); // the LISTING's signed price, carried verbatim
     expect(rec.name).toBe('Sac tressé de Bobo'); // supply's display data
     expect(rec.assetRefs).toEqual(['ref/hero']);
@@ -188,7 +188,7 @@ describe('ABSENT renders as OMITTED — a product that cannot be described is no
 
   it('a HIDDEN listing is not buyer-visible even when it CAN be described', () => {
     const hidden: ListingSide = { ...LISTING, status: 'auto_hidden' };
-    expect(joinVitrineProduct(hidden, { productName: 'Sac tressé', assetRefs: [] })).toBeUndefined();
+    expect(joinVitrineProduct(hidden, { productName: 'Sac tressé', assetRefs: [], category: 'fashion_bags_fabrics' })).toBeUndefined();
   });
 
   it('the HAND-ROLLED PARSER IS GONE — validation belongs to the certified consumer alone', async () => {
@@ -205,10 +205,10 @@ describe('ABSENT renders as OMITTED — a product that cannot be described is no
 
 describe('LISTING IDS STAY OFF THE BUYER WIRE (founder standing law)', () => {
   it('the joined record carries the PRODUCT VERSION as pid — never the listing id', () => {
-    const rec = joinVitrineProduct(LISTING, { productName: 'Sac', assetRefs: [] })!;
+    const rec = joinVitrineProduct(LISTING, { productName: 'Sac', assetRefs: [], category: 'fashion_bags_fabrics' })!;
     expect(rec.pid).toBe('pv_real_1'); // productVersionId
     // the shape has no listing-id-shaped field at all
-    expect(Object.keys(rec).sort()).toEqual(['assetRefs', 'inStock', 'name', 'pid', 'priceFcfa']);
+    expect(Object.keys(rec).sort()).toEqual(['assetRefs', 'category', 'inStock', 'name', 'pid', 'priceFcfa']);
     expect(Object.keys(rec).some((k) => /listing/i.test(k))).toBe(false);
   });
 
@@ -218,7 +218,7 @@ describe('LISTING IDS STAY OFF THE BUYER WIRE (founder standing law)', () => {
     // listingId onto the wire, this fails — which is the point: the gate on
     // /listings* protects against holders, and an enumerable id defeats it.
     const listingId = 'lst-secret-0001';
-    const rec = joinVitrineProduct(LISTING, { productName: 'Sac', assetRefs: [`ref/${LISTING.productVersionId}`] })!;
+    const rec = joinVitrineProduct(LISTING, { productName: 'Sac', assetRefs: [`ref/${LISTING.productVersionId}`], category: 'fashion_bags_fabrics' })!;
     const serialised = JSON.stringify(rec);
     expect(serialised).not.toContain(listingId);
     expect(serialised).not.toMatch(/lst[-_]/i);
@@ -250,6 +250,7 @@ describe('SUPPLY-WIRE-1 — the path, the envelope and the freshness bound', () 
       available: 5,
       productName: 'Pagne tissé Faso (démo)',
       assetRefs: ['asset/pv-founder-001/cover'],
+      category: 'fashion_bags_fabrics',
       ...over,
     },
   });
@@ -294,6 +295,7 @@ describe('SUPPLY-WIRE-1 — the path, the envelope and the freshness bound', () 
     expect(got).toEqual({
       productName: 'Pagne tissé Faso (démo)',
       assetRefs: ['asset/pv-founder-001/cover'],
+      category: 'fashion_bags_fabrics',
       available: 5,
     });
   });
@@ -385,6 +387,7 @@ describe('AUTO-HIDE-WATCH-1 — presence verdicts separate evidence from ignoran
       available: 5,
       productName: 'Pagne tissé Faso (démo)',
       assetRefs: ['asset/pv-founder-001/cover'],
+      category: 'fashion_bags_fabrics',
     },
   });
   const sourceAnswering = (status: number, body: unknown): BoundSupplySource =>
@@ -397,7 +400,7 @@ describe('AUTO-HIDE-WATCH-1 — presence verdicts separate evidence from ignoran
     const seen = await sourceAnswering(200, envelope(minutesAgo(1))).presence(PV);
     expect(seen).toEqual({
       kind: 'present',
-      description: { productName: 'Pagne tissé Faso (démo)', assetRefs: ['asset/pv-founder-001/cover'], available: 5 },
+      description: { productName: 'Pagne tissé Faso (démo)', assetRefs: ['asset/pv-founder-001/cover'], available: 5, category: 'fashion_bags_fabrics' },
     });
   });
 
@@ -481,6 +484,7 @@ describe('SUPPLY-WIRE-AUTH-1 — the bearer credential, env-gated', () => {
               available: 5,
               productName: 'Pagne tissé Faso (démo)',
               assetRefs: [],
+              category: 'fashion_bags_fabrics',
             },
           }),
           text: async () => '',
@@ -523,5 +527,112 @@ describe('SUPPLY-WIRE-AUTH-1 — the bearer credential, env-gated', () => {
     expect(src).toContain('SUPPLY_READ_SECRET');
     // and no secret VALUE is ever hardcoded here
     expect(src).not.toMatch(/Bearer\s+[A-Za-z0-9_-]{16,}/);
+  });
+});
+
+/* ---------------------------------------------- CATEGORY-WIRE-1 (canon v3.0.0) -- */
+
+/**
+ * The category the SUPPLIER declared is the category the BUYER's record carries.
+ *
+ * This is the hop where a category could quietly acquire a default, a mapping or
+ * a listing-side override — all three would be wrong, and none of them would be
+ * visible in a test that only checks the field EXISTS. So the assertions use a
+ * value nothing in this repo hardcodes.
+ */
+describe('CATEGORY-WIRE-1 — supply owns the category; the join carries it verbatim', () => {
+  const LISTING_SIDE: ListingSide = { productVersionId: 'pv_cat_1', customerPriceFcfa: 14_750, status: 'published' };
+  const supply = (category: string) => ({ productName: 'Sac tressé', assetRefs: [], available: 3, category });
+
+  it('an ARBITRARY category survives the join unchanged — no mapping, no allowlist, no default', () => {
+    // Deliberately NOT one of §6.2's rows and not a value this repo uses
+    // anywhere: if the join defaulted or normalised, this string could not
+    // survive. Policy (which categories mean what) lives on the READING side.
+    const rec = joinVitrineProduct(LISTING_SIDE, supply('un-truc-que-personne-ne-connait'))!;
+    expect(rec.category).toBe('un-truc-que-personne-ne-connait');
+  });
+
+  it('two products differing ONLY in category produce two different records', () => {
+    const a = joinVitrineProduct(LISTING_SIDE, supply('shoes'))!;
+    const b = joinVitrineProduct(LISTING_SIDE, supply('sealed_beauty_cosmetics'))!;
+    expect(a.category).toBe('shoes');
+    expect(b.category).toBe('sealed_beauty_cosmetics');
+    // …and nothing ELSE moved: the category rides alone, it does not disturb
+    // the price, the stock or the identity fields.
+    expect({ ...a, category: '' }).toEqual({ ...b, category: '' });
+  });
+
+  it('the category comes from SUPPLY, never from the listing — the reseller sets a markup, not what a product IS', () => {
+    // A listing-side object carrying a category must not be able to speak for the
+    // product. `ListingSide` has no such field, so the only way this record gets
+    // one is from the supply argument — asserted by giving the listing a
+    // conflicting value through a cast and showing supply still wins.
+    const listingPretending = { ...LISTING_SIDE, category: 'shoes' } as unknown as ListingSide;
+    const rec = joinVitrineProduct(listingPretending, supply('sealed_beauty_cosmetics'))!;
+    expect(rec.category).toBe('sealed_beauty_cosmetics');
+  });
+});
+
+/* ------------------------------- CATEGORY-WIRE-1 r2 — the deploy-order lock -- */
+
+/**
+ * THE WORST OPERATIONAL OUTCOME OF THIS SLICE, TURNED INTO A RED TEST.
+ *
+ * A pre-v3 offer-service emits the SEVEN-field projection. The strict canon
+ * parse refuses it, `describe()` returns `undefined`, and `joinVitrineProduct`
+ * omits the record — so deploying THIS service before boutik's producer makes
+ * **every product vanish from every buyer page**, silently, with no error a
+ * shopper or a reseller could interpret. Until now that hazard was defended
+ * only by prose in JOURNAL.md and a canon derivation doc.
+ *
+ * The test is here for a second reason the verifier named, which is the better
+ * one: it LOCKS THE BEHAVIOUR. The tempting "fix" when someone meets this in
+ * production is to make the parse tolerant of the old shape — and that repair
+ * is the genuinely dangerous one, because a projection missing `category`
+ * silently disables Option B and shows the cautious §6.2 row on products that
+ * qualify for neither. Refusing outright is correct; this test makes anyone
+ * loosening it do so deliberately.
+ */
+describe('CATEGORY-WIRE-1 — a PRE-v3 producer is undescribable, and that is the designed answer', () => {
+  const PV = 'pv-founder-001';
+  const sevenFieldValue = {
+    productVersionId: PV,
+    offerVersion: '1',
+    basePrice: 10_000,
+    resellerCommission: 1_000,
+    available: 5,
+    productName: 'Pagne tissé Faso (démo)',
+    assetRefs: ['asset/pv-founder-001/cover'],
+    // NO `category` — this is exactly what a canon-v2 offer-service serves.
+  };
+  const source = (value: unknown): BoundSupplySource =>
+    new BoundSupplySource({
+      fetch: async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => ({ version: 1, asOf: new Date().toISOString(), value }),
+          text: async () => '',
+        }) as unknown as Response,
+    });
+
+  it('the OLD seven-field wire describes NOTHING — it is refused, never partially accepted', async () => {
+    expect(await source(sevenFieldValue).describe(PV)).toBeUndefined();
+    // …and it is not mistaken for a missing offer: the producer ANSWERED, so the
+    // watcher must read `unknown` (no evidence) rather than `gone` (evidence a
+    // listing may act on). A bad deploy must never auto-hide a reseller's shop.
+    expect((await source(sevenFieldValue).presence(PV)).kind).toBe('unknown');
+  });
+
+  it('…and the SAME wire with `category` describes normally — the refusal is about the field, not the fixture', async () => {
+    const description = await source({ ...sevenFieldValue, category: 'fashion_bags_fabrics' }).describe(PV);
+    expect(description).toBeDefined();
+    expect(description?.category).toBe('fashion_bags_fabrics');
+  });
+
+  it('the omission reaches the buyer surface as an OMITTED product, never an invented one', () => {
+    const listing: ListingSide = { productVersionId: PV, customerPriceFcfa: 14_750, status: 'published' };
+    // `describe()` returned undefined above; this is what the join does with it.
+    expect(joinVitrineProduct(listing, undefined)).toBeUndefined();
   });
 });

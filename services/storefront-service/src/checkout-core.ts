@@ -61,12 +61,53 @@ import { LISTING_PUBLISHED, type ListingEntry } from './listing-core.js';
  * THIS SHAPE — the versioned policy is server-side (see `CheckoutDeps`), so a
  * caller cannot loosen the gate it is being measured against.
  *
- * ⚠ FLAGGED, AND IT MATTERS: everything on this shape is CALLER-SUPPLIED input
- * to a RISK decision. Today that is inert — `PAY_AT_DOOR_POLICY_DEFAULTS`
- * ships an EMPTY `networkReliableZones` allowlist, so `decidePayAtDoorEligibility`
- * refuses every pay-at-door request whatever this context claims. The day the
- * founder names one reliable zone, that mitigation is gone and these three
- * values must come from a server authority (Risk / Séra), never from the wire.
+ * ⚠ THAT DAY ARRIVED — 2026-08-01, AND THIS COMMENT NO LONGER SAYS « inert ».
+ *
+ * Everything on this shape is CALLER-SUPPLIED input to a RISK decision. Until
+ * the founder's zone ruling, that was harmless for one reason only:
+ * `PAY_AT_DOOR_POLICY_DEFAULTS` shipped an EMPTY `networkReliableZones`
+ * allowlist, so the gate refused every pay-at-door request whatever this
+ * context claimed. This comment then said, verbatim: « The day the founder
+ * names one reliable zone, that mitigation is gone and these three values must
+ * come from a server authority (Risk / Séra), never from the wire. »
+ *
+ * The founder opened every zone (« open to every buyer who want that option »).
+ * The mitigation is gone. THREE OF THE FIVE §6.1 CONDITIONS ARE NOW DECIDED BY
+ * THE PARTY THEY EXIST TO CONSTRAIN: `eligibility` (the buyer's own risk
+ * record), `sellerTier`, and `category` all arrive on the wire. A caller who
+ * declares `state: 'allowed'`, `sellerTier: 'verified'` and an inspectable
+ * `category` passes the gate on any product under the price cap —
+ * `checkout-do.e2e.test.ts` (« an Option-B quote is now ISSUABLE over HTTP »)
+ * is that request, and it answers 200.
+ *
+ * WHAT STILL HOLDS, so the size of this is not overstated: Law #3 is untouched.
+ * The product is never handed over on a self-declared profile — custody
+ * transfers only after the door leg is PROVIDER-confirmed (`revelationPermise`,
+ * `order-core.ts` `decideDoorCharge`). The exposure is not free goods; it is
+ * that the refusal/no-show risk §6.1 exists to bound is currently self-reported.
+ *
+ * ═══ HALF THE FIX HAS SINCE LANDED — DO NOT READ THIS AS STILL-BLOCKED ═══
+ *
+ * This paragraph used to end « adding it back is a `contracts/` change —
+ * founder's call ». That was true when written and became FALSE in the same
+ * commit range, which a verifier caught: canon v3.0.0 shipped
+ * `SupplyProjectionSchema.category` as REQUIRED, this service now reads it
+ * (`supply-source.ts` → `customer-projection.ts`), and the Worker already binds
+ * `OFFER` and calls `resolveSupplySource(env)`. A comment that says a fix is
+ * blocked on a decision already taken is how a real fix gets skipped.
+ *
+ * SO, PRECISELY, AS OF CANON v3.0.0:
+ *  · `category` — NO LONGER BLOCKED. The quote path can resolve it from the
+ *    supply projection behind the listing it already looks up, and should stop
+ *    reading this field off the body. Not yet done; it is its own slice.
+ *  · `sellerTier` — STILL HAS NO SERVER-SIDE SOURCE, and not for want of
+ *    effort: canon's `SellerTrustState` is keyed by `sellerId`, and this service
+ *    is designed never to learn a supplier's identity (B4.2/SP-I03 keep it off
+ *    the supply projection entirely). Shop+ therefore cannot look a tier up. The
+ *    clean shape is Boutik+ answering the question on the projection — a
+ *    verified/not-verified boolean carrying no identity — which is another
+ *    canon field and so genuinely a founder's call.
+ *  · `eligibility` — OWNER: Risk. No such service exists yet.
  */
 export interface PayAtDoorRequestContext {
   /** The canonical PayAtDoorEligibility record (OWNER: Risk). Parsed by the vault. */

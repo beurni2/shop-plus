@@ -48,6 +48,7 @@ const SUPPLY = [
     available: 9,
     productName: 'Bazin riche',
     assetRefs: [] as string[],
+    category: 'fashion_bags_fabrics',
   },
   {
     // THE ALL-DISTINCT FIXTURE: B 22 000 · C 1 500 · M 3 000 · D 1 000 ⇒ every
@@ -60,6 +61,7 @@ const SUPPLY = [
     available: 9,
     productName: 'Ensemble brodé',
     assetRefs: [] as string[],
+    category: 'fashion_bags_fabrics',
   },
 ];
 
@@ -1343,21 +1345,27 @@ describe('OrderDO — a hostile order_id on the webhook never reaches an object'
  * is provider-confirmed. » Ten Laws #3: custody transfers only after
  * provider-confirmed payment of every due leg.
  *
- * ═══ WHAT THIS SUITE CAN AND CANNOT REACH TODAY, SAID FIRST ═══
+ * ═══ WHAT THIS SUITE REACHES — REVISED 2026-08-01, THE CAVEAT IS DEAD ═══
  *
- * IT CANNOT CREATE AN OPTION-B ORDER through the public routes, and no test
- * below pretends otherwise. `PAY_AT_DOOR_POLICY_DEFAULTS` ships an EMPTY
- * `networkReliableZones` allowlist (⏳ open Decision, founder-tunable) and the
- * Worker never overrides it, so the service refuses every pay-at-door quote —
- * which means every order reachable here is FULL_PREPAY and owes nothing at the
- * door. The `due → paid` transition is proved in the frozen vault's own suite
- * (`packages/commerce-core/test/e2-door-paths.test.ts`); proving it ACROSS
- * workerd needs a way to open the gate for a test, and that is a founder
- * decision, not one to take at the keyboard.
+ * This block used to open: « IT CANNOT CREATE AN OPTION-B ORDER through the
+ * public routes », because `PAY_AT_DOOR_POLICY_DEFAULTS` shipped an EMPTY
+ * `networkReliableZones` allowlist and the Worker never overrode it. It then
+ * said proving `due → paid` across workerd « needs a way to open the gate for a
+ * test, and that is a founder decision, not one to take at the keyboard ».
  *
- * WHAT IT DOES PROVE is the half that guards a real buyer today: that this new
+ * The founder took that decision: every zone is open. An Option-B quote is now
+ * issuable over HTTP on the SHIPPED policy — `checkout-do.e2e.test.ts` proves
+ * exactly that. So the sentence above is no longer true, and it is corrected
+ * here rather than left to mislead the next reader into thinking a proof is
+ * unreachable when it is merely unwritten.
+ *
+ * WHAT THIS SUITE STILL PROVES is the half that guards a real buyer: that this
  * route cannot mark anything paid that should not be, that it is behind the
- * secret, and that the two legs cannot be confused for one another.
+ * secret, and that the two legs cannot be confused for one another. The
+ * end-to-end `due → paid` walk across workerd is now BUILDABLE and NOT YET
+ * BUILT — it is the honest gap, named, not a limitation. `due → paid` itself
+ * remains proved in the frozen vault's suite
+ * (`packages/commerce-core/test/e2-door-paths.test.ts`).
  * ════════════════════════════════════════════════════════════════════════════ */
 
 /** POST to the DOOR webhook — the sibling of `postWebhook`, different path. */

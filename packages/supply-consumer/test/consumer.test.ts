@@ -31,7 +31,7 @@ const minutesAgo = (m: number, extraMs = 0): string => new Date(Date.parse(NOW) 
 
 function freshSource(): MockSupplyProjectionSource {
   const src = new MockSupplyProjectionSource();
-  src.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], asOf: minutesAgo(5), version: 2 });
+  src.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], category: 'fashion_bags_fabrics', asOf: minutesAgo(5), version: 2 });
   return src;
 }
 
@@ -52,7 +52,7 @@ describe('consumeSupplyProjection — pull, parse, sweep, freshness', () => {
 
   it('DISPLAY-FIELDS-CARRY: a non-empty assetRefs projection is fresh and passes its refs through the real parse', () => {
     const src = new MockSupplyProjectionSource();
-    src.set({ productVersionId: 'pv_img', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Sac tressé (démo)', assetRefs: ['asset/pv_img/cover', 'asset/pv_img/1'], asOf: minutesAgo(2), version: 1 });
+    src.set({ productVersionId: 'pv_img', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Sac tressé (démo)', assetRefs: ['asset/pv_img/cover', 'asset/pv_img/1'], category: 'fashion_bags_fabrics', asOf: minutesAgo(2), version: 1 });
     const verdict = consumeSupplyProjection(src, 'pv_img', NOW);
     expect(verdict.status).toBe('fresh');
     if (verdict.status === 'fresh') {
@@ -63,18 +63,18 @@ describe('consumeSupplyProjection — pull, parse, sweep, freshness', () => {
 
   it('the freshness boundary is exact: age == 15 min is fresh; one ms past is stale', () => {
     const atBoundary = new MockSupplyProjectionSource();
-    atBoundary.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], asOf: minutesAgo(15), version: 1 });
+    atBoundary.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], category: 'fashion_bags_fabrics', asOf: minutesAgo(15), version: 1 });
     expect(consumeSupplyProjection(atBoundary, 'pv_1', NOW).status).toBe('fresh'); // == threshold, not over
 
     const justPast = new MockSupplyProjectionSource();
-    justPast.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], asOf: minutesAgo(15, 1), version: 1 });
+    justPast.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], category: 'fashion_bags_fabrics', asOf: minutesAgo(15, 1), version: 1 });
     expect(consumeSupplyProjection(justPast, 'pv_1', NOW).status).toBe('stale');
     expect(SUPPLY_PROJECTION_MAX_AGE_MS).toBe(15 * 60 * 1000); // founder ruling, pinned
   });
 
   it('STALE-BLOCKS-AGREEMENT: a projection older than 15 min is stale and CANNOT back an agreement', () => {
     const stale = new MockSupplyProjectionSource();
-    stale.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], asOf: minutesAgo(16), version: 1 });
+    stale.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], category: 'fashion_bags_fabrics', asOf: minutesAgo(16), version: 1 });
     const verdict = consumeSupplyProjection(stale, 'pv_1', NOW);
     expect(verdict.status).toBe('stale');
     expect(canBackAgreement(verdict)).toBe(false); // the block — never a silent pass
@@ -82,14 +82,17 @@ describe('consumeSupplyProjection — pull, parse, sweep, freshness', () => {
 
   it('LEAK-KEY-SWEPT: a projection carrying a planted supplierPhone is REFUSED closed at the consumer (SP-I03)', () => {
     const leaky = new MockSupplyProjectionSource();
-    leaky.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], asOf: minutesAgo(1), version: 2, plantLeakKey: 'supplierPhone' });
+    leaky.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], category: 'fashion_bags_fabrics', asOf: minutesAgo(1), version: 2, plantLeakKey: 'supplierPhone' });
     const verdict = consumeSupplyProjection(leaky, 'pv_1', NOW);
     expect(verdict.status).toBe('rejected');
     if (verdict.status === 'rejected') expect(verdict.reason).toBe('identity_material_refused');
     expect(canBackAgreement(verdict)).toBe(false);
-    // the strict envelope ALSO rejects the extra key — with all seven required fields
-    // present, the ONLY reason this fails is the planted supplierPhone (the named second line).
-    expect(SupplyReadModelSchema.safeParse({ version: 2, asOf: minutesAgo(1), value: { productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], supplierPhone: 'x' } }).success).toBe(false);
+    // the strict envelope ALSO rejects the extra key — with all EIGHT required
+    // fields present (canon v3.0.0 added `category`), the ONLY reason this fails
+    // is the planted supplierPhone (the named second line). Without `category`
+    // below, it would fail for a MISSING required field instead, and this
+    // assertion would quietly stop testing what it says it tests.
+    expect(SupplyReadModelSchema.safeParse({ version: 2, asOf: minutesAgo(1), value: { productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], category: 'fashion_bags_fabrics', supplierPhone: 'x' } }).success).toBe(false);
   });
 
   it('a non-contract payload and an absent product are both refused / absent (never a silent pass)', () => {
@@ -116,7 +119,7 @@ describe('DRIFT-GUARD (canon verifier N2 carry-forward) — supply-consumer cons
 
   it('the local envelope IS the canon envelope — identical accept/reject across the battery', () => {
     const canon = makeReadModelSchema(SupplyProjectionSchema);
-    const value = { productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [] };
+    const value = { productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], category: 'fashion_bags_fabrics' };
     const battery: unknown[] = [
       { version: 2, asOf: minutesAgo(1), value }, // valid
       { version: 2, asOf: minutesAgo(1), value: { ...value, supplierPhone: 'x' } }, // extra value key → strict reject
@@ -135,7 +138,7 @@ describe('DRIFT-GUARD (canon verifier N2 carry-forward) — supply-consumer cons
       const v = (raw as { value?: unknown } | null)?.value;
       return v !== null && typeof v === 'object' && Object.keys(v).some((k) => IDENTITY_LEAK.test(k));
     };
-    const value = { productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [] };
+    const value = { productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], category: 'fashion_bags_fabrics' };
     const cases: unknown[] = [
       { version: 2, asOf: minutesAgo(5), value }, // fresh
       { version: 1, asOf: minutesAgo(16), value }, // stale
@@ -159,8 +162,8 @@ describe('DRIFT-GUARD (canon verifier N2 carry-forward) — supply-consumer cons
 describe('SupplyProjectionCache — versioned, keeps the newest', () => {
   it('a re-pull of an older/equal version never overwrites a newer one', () => {
     const cache = new SupplyProjectionCache();
-    const v2 = SupplyReadModelSchema.parse({ version: 2, asOf: minutesAgo(1), value: { productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [] } });
-    const v1 = SupplyReadModelSchema.parse({ version: 1, asOf: minutesAgo(30), value: { productVersionId: 'pv_1', offerVersion: '1', basePrice: 9_999, resellerCommission: 999, available: 9, productName: 'Pagne wax (démo)', assetRefs: [] } });
+    const v2 = SupplyReadModelSchema.parse({ version: 2, asOf: minutesAgo(1), value: { productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], category: 'fashion_bags_fabrics' } });
+    const v1 = SupplyReadModelSchema.parse({ version: 1, asOf: minutesAgo(30), value: { productVersionId: 'pv_1', offerVersion: '1', basePrice: 9_999, resellerCommission: 999, available: 9, productName: 'Pagne wax (démo)', assetRefs: [], category: 'fashion_bags_fabrics' } });
     expect(cache.put(v2)).toBe(true);
     expect(cache.put(v1)).toBe(false); // older version does not advance
     expect(cache.get('pv_1')?.version).toBe(2);
@@ -187,6 +190,7 @@ describe('LIVE-EQUALS-SEED-RECONCILIATION — the seed retires without money dri
         available: 4,
         productName: `Produit ${opp.id} (démo)`,
         assetRefs: [],
+        category: 'fashion_bags_fabrics',
         asOf: minutesAgo(1),
         version: 1,
       });
@@ -222,7 +226,7 @@ describe('consumeSupplyProjection — a substituted product is REFUSED, never de
    *  producer, a pointer bug, a cache collision, a path-encoding slip. */
   function substitutingSource(): MockSupplyProjectionSource {
     const src = new MockSupplyProjectionSource();
-    src.set({ productVersionId: 'pv_WRONG', offerVersion: '1', basePrice: 5_000, resellerCommission: 500, available: 3, productName: 'Un autre produit', assetRefs: [], asOf: minutesAgo(1), version: 1 });
+    src.set({ productVersionId: 'pv_WRONG', offerVersion: '1', basePrice: 5_000, resellerCommission: 500, available: 3, productName: 'Un autre produit', assetRefs: [], category: 'fashion_bags_fabrics', asOf: minutesAgo(1), version: 1 });
     return src;
   }
 

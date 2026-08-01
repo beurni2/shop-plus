@@ -189,3 +189,173 @@ describe('RESELLER-UX-2 — C1 photo gallery', () => {
     expect(flow).toMatch(/state\.galerie !== null \? renderGalerie\(m, state\.galerie\) : ''/);
   });
 });
+
+/* ---------------------------------------------- CATEGORY-WIRE-1 (canon v3.0.0) -- */
+
+/**
+ * The supplier's category reaching the screen where the buyer decides at the door.
+ *
+ * The chain under test is the LAST two hops of it — `VitrineProduct` (what the
+ * service's `/s/{slug}` hands the client) → `clienteProduitReel` → the §6.2 row
+ * `inspectionPour` picks. The earlier hops (boutik's producer → the supply
+ * projection → `joinVitrineProduct`) are asserted in their own repos/suites; what
+ * could only break HERE is the value being dropped, defaulted, or mapped.
+ */
+describe('CATEGORY-WIRE-1 — the supplier category reaches C8, verbatim or not at all', () => {
+  const STOREFRONT = { name: 'Chez Aïcha', slug: 'aicha-4821', theme: 'indigo' as const, zone: 'Rood Woko, Ouagadougou' };
+  const base: VitrineProduct = { pid: 'pv_1', name: 'Sandales en cuir', priceFcfa: 12_000, inStock: true, assetRefs: [] };
+
+  it('a wire category is CARRIED, not defaulted — two categories give two different rows', async () => {
+    const { inspectionPour, INSPECTION_PRUDENTE } = await import('../src/cliente/screens');
+    const shoes = clienteProduitReel(STOREFRONT, { ...base, category: 'shoes' }, undefined).produit;
+    const sealed = clienteProduitReel(STOREFRONT, { ...base, category: 'sealed_beauty_cosmetics' }, undefined).produit;
+
+    expect(shoes.category).toBe('shoes'); // verbatim, no mapping
+    expect(sealed.category).toBe('sealed_beauty_cosmetics');
+
+    // …and the row the buyer READS differs, which is the point of carrying it.
+    const shoesRow = inspectionPour(shoes.category);
+    const sealedRow = inspectionPour(sealed.category);
+    expect(shoesRow).not.toEqual(sealedRow);
+    expect(shoesRow).not.toEqual(INSPECTION_PRUDENTE);
+    expect(sealedRow).not.toEqual(INSPECTION_PRUDENTE);
+  });
+
+  it('NO CATEGORY ON THE WIRE ⇒ the key is ABSENT and the row is the conservative one', async () => {
+    const { inspectionPour, INSPECTION_PRUDENTE } = await import('../src/cliente/screens');
+    const produit = clienteProduitReel(STOREFRONT, base, undefined).produit;
+    // Absent, not `undefined`-valued: an older deployed Worker sends no category,
+    // and a key that exists with no value is the kind of thing a future
+    // `'category' in produit` check would read as « we have one ».
+    expect('category' in produit).toBe(false);
+    expect(inspectionPour(produit.category)).toEqual(INSPECTION_PRUDENTE);
+  });
+
+  it('AN UNRECOGNISED CATEGORY FAILS CLOSED — the pilot seed says `textile`, which §6.2 does not know', async () => {
+    const { inspectionPour, INSPECTION_PRUDENTE } = await import('../src/cliente/screens');
+    // Not a hypothetical: boutik's founder-#001 ProductVersion declares
+    // `category: 'textile'`, and canon deliberately holds no category floor, so
+    // an unknown value must land on the row that claims NOTHING rather than on a
+    // guess. Fail-closed is the whole reason no mapping table exists anywhere.
+    const produit = clienteProduitReel(STOREFRONT, { ...base, category: 'textile' }, undefined).produit;
+    expect(produit.category).toBe('textile'); // carried honestly, not swallowed
+    expect(inspectionPour(produit.category)).toEqual(INSPECTION_PRUDENTE);
+  });
+
+  it('the DEMO SEED carries no category — a demo product never promises at-door rights', () => {
+    for (const p of VITRINE_SEED.map(productFromSeed)) {
+      expect(p.category).toBeUndefined();
+    }
+  });
+});
+
+/* ------------------------------- CATEGORY-WIRE-1 r2 (verifier blockers) -- */
+
+/**
+ * The three things the first cut left asserted by NOTHING. A fresh-context
+ * verifier proved it by mutation: making the client guard REQUIRE the category,
+ * and deleting its category check entirely, both left 738/738 and 86/86 green.
+ * A guard nothing tests is a guard that will be "tidied" away.
+ */
+describe('CATEGORY-WIRE-1 r2 — the prototype chain, and the shop that must not empty', () => {
+  const STOREFRONT = { name: 'Chez Aïcha', slug: 'aicha-4821', theme: 'indigo' as const, zone: 'Rood Woko, Ouagadougou' };
+  const wire = (over: Record<string, unknown> = {}): unknown =>
+    ({ pid: 'pv_1', name: 'Sandales en cuir', priceFcfa: 12_000, inStock: true, assetRefs: [], ...over });
+
+  it('BLOCKER 1 — an Object.prototype member is an UNKNOWN category, not a crash', async () => {
+    const { inspectionPour, INSPECTION_PRUDENTE, renderC8 } = await import('../src/cliente/screens');
+    // Each of these resolves on the prototype chain of an object literal, so the
+    // old `?? ` never fired: inspectionPour returned Object/Object.prototype and
+    // C8 threw on `.motifs.map`, leaving the buyer's previous screen mounted
+    // forever — unable to accept, unable to report a problem.
+    const seen = new Set<string>();
+    for (const key of ['__proto__', 'constructor', 'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf']) {
+      expect(inspectionPour(key), `category ${key} must fall to the conservative row`).toEqual(INSPECTION_PRUDENTE);
+      const produit = clienteProduitReel(STOREFRONT, { ...(wire({ category: key }) as VitrineProduct) }, undefined).produit;
+      // …and the screen RENDERS rather than throwing, on EVERY branch.
+      //
+      // The first cut of this loop varied a key called `etat` — which is not
+      // C8State's discriminator (`door` is), so both iterations landed in the
+      // same branch and the §6.2 REFUSAL path — `inspectionPour(...).motifs.map`,
+      // the buyer's « something is wrong » road — was never entered. A verifier
+      // measured it: `data-etat="signalement"` was false on both. The test still
+      // bit, because the inspection branch threw too; it bit for less than it
+      // claimed, which is the same failure it exists to catch.
+      for (const door of ['inspecting', 'accepted', 'echec', 'report'] as const) {
+        const html = renderC8(
+          produit,
+          { fraisToday: 1_000, fraisTomorrow: 800, sousTotal: 12_000, total: 13_000 } as never,
+          { door, pay: 'B', reason: null, duAlaPorte: 12_000 } as never,
+        );
+        expect(typeof html, `category ${key} on door=${door}`).toBe('string');
+        expect(html.length).toBeGreaterThan(0);
+        seen.add(door);
+      }
+    }
+    // The loop actually varied the branch — pinned, because the first cut
+    // silently did not and still passed.
+    expect([...seen].sort()).toEqual(['accepted', 'echec', 'inspecting', 'report']);
+  });
+
+  it('BLOCKER 3 — a product with NO category still reaches her page (an old Worker must not empty a shop)', async () => {
+    const { looksLikeProductForTest } = await import('../src/vitrine/profile');
+    // This is the assertion that goes RED if anyone tightens the guard to
+    // require the field. The verifier mutated exactly that line and nothing
+    // noticed; now something does.
+    expect(looksLikeProductForTest(wire())).toBe(true);
+    expect(looksLikeProductForTest(wire({ category: 'shoes' }))).toBe(true);
+  });
+
+  it('a MALFORMED category strips the field — it never deletes the product', async () => {
+    const { looksLikeProductForTest, productFromWireForTest } = await import('../src/vitrine/profile');
+    const { inspectionPour, INSPECTION_PRUDENTE } = await import('../src/cliente/screens');
+    for (const bad of [5, { a: 1 }, [], true, null]) {
+      // The record SURVIVES the guard — rejecting here would drop the whole
+      // product and send her signed link to the not-found screen, which is the
+      // same shop-emptying failure by another route.
+      expect(looksLikeProductForTest(wire({ category: bad })), `category ${JSON.stringify(bad)}`).toBe(true);
+      // …and the boundary strips it, so downstream sees an ABSENT category.
+      const cleaned = productFromWireForTest(wire({ category: bad }) as VitrineProduct);
+      expect('category' in cleaned).toBe(false);
+      expect(inspectionPour(cleaned.category)).toEqual(INSPECTION_PRUDENTE);
+    }
+    // A well-formed one is untouched.
+    expect(productFromWireForTest(wire({ category: 'shoes' }) as VitrineProduct).category).toBe('shoes');
+  });
+});
+
+/**
+ * R3 — the sanitiser must be WIRED, not merely present. A verifier unhooked
+ * `.map(productFromWire)` from `httpStorefrontPort` while keeping the function
+ * itself, and the whole suite stayed green: every test drove the seam directly.
+ * That is the same shape of gap that produced the blocker it fixes, so the port
+ * itself is now asserted, through a stubbed `fetch`.
+ */
+describe('CATEGORY-WIRE-1 r2 — httpStorefrontPort applies the sanitiser it owns', () => {
+  it('a non-string category arrives STRIPPED, and the product still arrives', async () => {
+    const { httpStorefrontPort } = await import('../src/vitrine/profile');
+    const body = {
+      id: 'sf_1', slug: 'aicha-4821', resellerId: 'r_1', name: 'Chez Aïcha', zone: 'Rood Woko',
+      products: [
+        { pid: 'pv_ok', name: 'Sandales', priceFcfa: 12_000, inStock: true, assetRefs: [], category: 'shoes' },
+        { pid: 'pv_bad', name: 'Sac', priceFcfa: 9_000, inStock: true, assetRefs: [], category: 42 },
+        { pid: 'pv_none', name: 'Pagne', priceFcfa: 8_000, inStock: true, assetRefs: [] },
+      ],
+    };
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      ({ ok: true, status: 200, json: async () => body }) as unknown as Response) as typeof fetch;
+    try {
+      const resolved = await httpStorefrontPort('https://svc.example').resolve('aicha-4821');
+      const products = resolved?.products ?? [];
+      // NOTHING was dropped — three in, three out. A bad field never costs a product.
+      expect(products.map((p) => p.pid)).toEqual(['pv_ok', 'pv_bad', 'pv_none']);
+      // …and the malformed one arrives with NO category key at all.
+      expect(products[0]?.category).toBe('shoes');
+      expect('category' in (products[1] as object)).toBe(false);
+      expect('category' in (products[2] as object)).toBe(false);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});
