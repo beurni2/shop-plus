@@ -2335,3 +2335,34 @@ SP3.3c's drop-code guard asked one question: « is the order `confirmed`? ». On
 **Evidence:** workspace typecheck clean · **726/726 buyer unit** · **82/82 Playwright on a rebuilt bundle** · `run-gates.sh` ALL GATES GREEN · payload **277 144 B** of 307 200 B. **Mutation-proven:** deleting the « collect before revealing » branch — i.e. restoring the old straight-to-reveal behaviour — turns the door-payment browser test RED.
 
 **WHAT REMAINS OF SP4.2, honestly:** the drop code itself is still the hardcoded `CODE_REMISE = '734 921'` in `screens.ts`. Nothing mints one, nothing delivers one, and no route carries it — `buyerDropCode` is canon (`SECRET_KINDS`) but has no implementation anywhere. **The reveal is now correctly GATED on a real payment; what it reveals is still a constant.** That is the next piece, and it is the last one before SP4.2's DoD reads true.
+
+---
+
+### 2026-08-01 · SP4.2 — the §6.2 category inspection matrix, on the screen where she decides
+
+**FOUNDER ORDER: « build the category matrix ».** The last SP4.2 line item that is shop-plus's own.
+
+**WHAT WAS THERE:** C8 showed three hardcoded lines — « C'est le bon article · La bonne taille · En bon état » — to every buyer, whatever she had bought, and one generic list of three refusal reasons. §6.2 defines three MVP rows that allow genuinely different checks, admit different valid rejections, and leave different things at her own risk.
+
+**BUILT — the matrix as spec-verbatim data (`INSPECTION`), one row per §6.2 row:**
+- **fashion_bags_fabrics** — « visual: correct item, colour, size **label**, quantity, condition, missing parts ».
+- **shoes** — « box-open, model, size **label**, pair, condition ». She is asked to open the box and check that BOTH shoes are there.
+- **sealed_beauty_cosmetics** — « outer only; mfr seal intact; name, variant, quantity, expiry, damage ». She is told to look **without opening it**.
+
+**THE THIRD COLUMN IS THE ONE THAT PROTECTS HER, AND IT IS NOW ON SCREEN BEFORE SHE CHOOSES.** §6.2's « Buyer-risk (not valid) » names what a refusal will NOT be honoured for — fit dissatisfaction, « wearing = buyer risk », opening the inner seal. Every row carries a `risque` line rendered beside the two doors: « Si vous les portez, elles sont à vous. » · « N'ouvrez pas le scellé avant d'accepter. » Telling her that at the door, before she decides, is the difference between a rule and a trap — and it is what keeps §6.2's « opened-then-refused … without seller fault → **buyer-fault** » out of her way.
+
+**AND THE INVARIANT THAT FALLS OUT OF IT, pinned by test:** no buyer-risk item is EVER offered as a valid refusal reason. A refusal button for something that will be judged buyer-fault is a trap she taps herself into — the package goes back and the fault is hers. The test scans every row's motifs against the risk vocabulary.
+
+**THE REFUSAL SCREEN FOLLOWS THE ROW TOO** — a shoe buyer refuses « Ce n'est pas la bonne pointure » / « Il manque une chaussure », not « Il manque quelque chose ».
+
+**⚠ THE LIMIT, AND IT IS THE WHOLE REASON THE FALLBACK EXISTS: NOTHING CARRIES A PRODUCT CATEGORY TO THE BUYER TODAY.** Grounding found the service HAS a per-product `category` on `CustomerProductView` — and that projection has **no route and no consumer anywhere** (only its own test). The buyer's `ClienteProduit` has no category field at all, and the demo storefront's category is `'mode'`, which is not a §6.2 identifier. So **`INSPECTION_PRUDENTE` is what actually renders for every real product right now.** It claims nothing category-specific and is deliberately usable on its own.
+
+**NO TAXONOMY WAS INVENTED.** The three identifiers are the ones ALREADY committed in `PAY_AT_DOOR_POLICY_DEFAULTS.inspectableCategories`, themselves taken from §6.2's rows. Canon types `category` as a free string and records that **the category-floor taxonomy is an open FOUNDER DECISION**, so nothing here adds a fourth name or a mapping from `'mode'`. **Electronics is absent because §6.2 excludes it from the MVP** — by decision, pinned by test, not by oversight.
+
+**A harness lever `?cat=` was added** so the three rows can be walked on a device before that wiring exists.
+
+**Evidence:** workspace typecheck clean · **734/734 buyer unit** (+8) · **86/86 Playwright on a rebuilt bundle** (+4) · `run-gates.sh` ALL GATES GREEN · payload **277 737 B** of 307 200 B. **Mutation-proven:** collapsing the matrix back to one row turns two of the four browser tests RED.
+
+**WHAT SP4.2 STILL NEEDS, and neither piece is shop-plus's alone:**
+1. **The product category on the buyer's wire** — a route for `CustomerProductView`, a field on `ClienteProduit`, per-product categories in the seed, and a taxonomy decision. Until then the conservative row is what a real buyer sees.
+2. **The drop code** — still the hardcoded `CODE_REMISE`. `buyerDropCode` is canon (`SECRET_KINDS`) with ZERO implementation sites anywhere, and Séra's plan owns it (**SE5.3**: « custody→customer (drop code last) only after validation »).

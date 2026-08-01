@@ -784,6 +784,14 @@ if (app) {
     const { voiceDuree, voiceUrl, ...base } = clienteProduit({ name: sf?.name ?? '', slug: sf?.slug ?? 'aicha-4821' });
     const produit = {
       ...base,
+      /**
+       * §6.2 — the harness lever for the inspection row. NOTHING carries a
+       * product category to the buyer yet (the service's `CustomerProductView`
+       * has it and has no route), so this is how the three rows are walked on a
+       * device until that wiring exists. An unknown value falls to the
+       * conservative row exactly as an absent one does.
+       */
+      ...(params.get('cat') !== null ? { category: params.get('cat') as string } : {}),
       inStock: params.get('stock') !== 'out',
       ...(prix !== undefined ? { priceFcfa: prix } : {}),
       ...(avecNote && voiceDuree !== undefined ? { voiceDuree } : {}),

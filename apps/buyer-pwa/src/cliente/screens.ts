@@ -36,6 +36,16 @@ export interface ClienteProduit {
   readonly productName: string;
   /** e.g. « TAILLE M » — absent on real products without a variant. */
   readonly variant?: string;
+  /**
+   * §6.2's inspection row for this product — one of the three MVP identifiers
+   * (`fashion_bags_fabrics` · `shoes` · `sealed_beauty_cosmetics`).
+   *
+   * OPTIONAL, AND ABSENT ON EVERY PRODUCT TODAY: the service HAS a per-product
+   * `category` (`CustomerProductView`) but that projection has no route and no
+   * consumer, so nothing carries it to the buyer yet. Absent ⇒ the conservative
+   * row (`inspectionPour`), which claims nothing category-specific. Journalled.
+   */
+  readonly category?: string;
   readonly zone: string;
   readonly priceFcfa: number;
   /** Bare display refs (canon `assetRefs`, v2.0.0); `[0]` is the hero. EMPTY is
@@ -151,7 +161,115 @@ export const SUIVI_STEPS: ReadonlyArray<{ t: string; d: string }> = [
 export const SIM_LABELS: readonly string[] = ['', 'Préparée', 'Vérifiée et scellée', 'En route', 'À votre porte'];
 
 /** Les 3 motifs de signalement (§4 C8). */
-export const MOTIFS: readonly string[] = ['Ce n’est pas le bon article', 'Il est abîmé', 'Il manque quelque chose'];
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * §6.2 — THE CATEGORY INSPECTION MATRIX, ON THE SCREEN WHERE SHE DECIDES
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Build-Spec §6.2 gives three MVP rows, and each one allows DIFFERENT checks at
+ * the door, admits DIFFERENT valid rejections, and leaves DIFFERENT things at
+ * her own risk. Until now C8 showed all three the same hardcoded lines — « le
+ * bon article · la bonne taille · en bon état » — whatever she had bought.
+ *
+ * ═══ THE THIRD COLUMN IS THE ONE THAT PROTECTS HER, AND IT IS THE HARDEST ═══
+ *
+ * §6.2's « Buyer-risk (not valid) » names what a refusal will NOT be honoured
+ * for: fit dissatisfaction on clothes, fit on shoes (« wearing = buyer risk »),
+ * opening the inner seal on cosmetics. Telling her that AT THE DOOR, before she
+ * decides, is the difference between a rule and a trap — and it is why every
+ * row carries a `risque` line that the screen shows in the same breath as the
+ * checklist. « Opened-then-refused … without seller fault → buyer-fault » is
+ * the rule this sentence exists to keep out of her way.
+ *
+ * ═══ THE IDENTIFIERS ARE NOT INVENTED ═══
+ *
+ * They are the three already committed in `PAY_AT_DOOR_POLICY_DEFAULTS.
+ * inspectableCategories` — themselves taken from §6.2's own rows. **The wider
+ * category taxonomy is an open FOUNDER DECISION** (`category: z.ZodString` in
+ * canon, « the category-floor taxonomy are FOUNDER DECISIONS »), so nothing
+ * here invents a fourth name or a mapping from one.
+ *
+ * ELECTRONICS IS ABSENT BECAUSE §6.2 EXCLUDES IT FROM THE MVP — not overlooked.
+ * An unknown or excluded category therefore gets `INSPECTION_PRUDENTE`, which
+ * claims nothing category-specific. Fail-closed on a screen means promising
+ * LESS, never guessing.
+ */
+export interface RangeeInspection {
+  /** What she may check at the door, in her own words. */
+  readonly verifier: readonly string[];
+  /** What a refusal WILL be honoured for — §6.2's « valid rejection » column. */
+  readonly motifs: readonly string[];
+  /** What stays at her own risk — §6.2's « Buyer-risk (not valid) » column. */
+  readonly risque: string;
+}
+
+/** The conservative row: no category known, or one §6.2 does not cover. */
+export const INSPECTION_PRUDENTE: RangeeInspection = {
+  verifier: ['C’est le bon article — celui de la photo', 'En bon état', 'Rien ne manque'],
+  motifs: ['Ce n’est pas le bon article', 'Il est abîmé', 'Il manque quelque chose'],
+  risque: 'Vous ne pouvez pas l’essayer à la porte.',
+};
+
+export const INSPECTION: Readonly<Record<string, RangeeInspection>> = {
+  /** §6.2 row 1 — « visual: correct item, colour, size label, quantity,
+   *  condition, missing parts » · rejection « wrong/mismatch/damage/short » ·
+   *  buyer-risk « no try-on; fit dissatisfaction ». */
+  fashion_bags_fabrics: {
+    verifier: [
+      'C’est le bon article — celui de la photo',
+      'La bonne couleur',
+      'La bonne taille sur l’étiquette',
+      'Le bon nombre',
+      'En bon état, rien ne manque',
+    ],
+    motifs: ['Ce n’est pas le bon article', 'Ce n’est pas la bonne couleur', 'Il est abîmé', 'Il en manque'],
+    risque: 'Vous ne pouvez pas l’essayer à la porte. La coupe qui ne vous plaît pas ne compte pas comme un problème.',
+  },
+  /** §6.2 row 2 — « box-open, model, size label, pair, condition » ·
+   *  rejection « wrong size-label/model/damage » · buyer-risk « fit (wearing =
+   *  buyer risk) ». */
+  shoes: {
+    verifier: [
+      'Ouvrez la boîte',
+      'C’est le bon modèle',
+      'La bonne pointure sur l’étiquette',
+      'Les deux pieds sont là',
+      'En bon état',
+    ],
+    motifs: ['Ce n’est pas le bon modèle', 'Ce n’est pas la bonne pointure', 'Il est abîmé', 'Il manque une chaussure'],
+    risque: 'Si vous les portez, elles sont à vous. La pointure qui serre ne compte pas comme un problème.',
+  },
+  /** §6.2 row 3 — « outer only; mfr seal intact; name, variant, quantity,
+   *  expiry, damage » · rejection « broken seal/wrong variant/expired/damage » ·
+   *  buyer-risk « opening the inner seal ». */
+  sealed_beauty_cosmetics: {
+    verifier: [
+      'Regardez l’emballage, sans l’ouvrir',
+      'Le scellé du fabricant est intact',
+      'Le bon nom et la bonne teinte',
+      'Le bon nombre',
+      'La date n’est pas dépassée',
+    ],
+    motifs: ['Le scellé est cassé', 'Ce n’est pas la bonne teinte', 'La date est dépassée', 'Il est abîmé'],
+    risque: 'N’ouvrez pas le scellé avant d’accepter. Un scellé ouvert par vous ne compte pas comme un problème.',
+  },
+};
+
+/**
+ * THE ROW FOR THIS PRODUCT — §6.2's, or the conservative one.
+ *
+ * `undefined` (no category on the wire — which is every product today, see the
+ * JOURNAL) lands on `INSPECTION_PRUDENTE` exactly as an unknown name does. One
+ * branch, so « we do not know » and « we do not cover it » cannot drift apart.
+ */
+export function inspectionPour(category?: string): RangeeInspection {
+  if (category === undefined) return INSPECTION_PRUDENTE;
+  return INSPECTION[category] ?? INSPECTION_PRUDENTE;
+}
+
+/** The default refusal reasons — kept as the conservative row's, so any caller
+ *  that has no category still offers something true. */
+export const MOTIFS: readonly string[] = INSPECTION_PRUDENTE.motifs;
 
 /** Le code de remise du prototype (§4 C9 — espace simple, ce n'est pas un montant). */
 export const CODE_REMISE = '734 921';
@@ -1416,7 +1534,9 @@ export function renderC8(m: ClienteProduit, q: ClienteQuote, s: C8State): string
       '<div class="cl-report-title">Qu’est-ce qui ne va pas ?</div>',
       '<div class="cl-report-sub">Dites-le simplement. Vous ne payez rien de plus.</div>',
       '<div class="cl-reasons">',
-      MOTIFS.map((r) => `<button class="cl-reason${s.reason === r ? ' cl-reason-on' : ''}" data-action="motif" data-motif="${esc(r)}">${r}</button>`).join(''),
+      inspectionPour(m.category).motifs
+        .map((r) => `<button class="cl-reason${s.reason === r ? ' cl-reason-on' : ''}" data-action="motif" data-motif="${esc(r)}">${r}</button>`)
+        .join(''),
       '</div>',
       s.reason
         ? [
@@ -1427,11 +1547,16 @@ export function renderC8(m: ClienteProduit, q: ClienteQuote, s: C8State): string
       '</div>',
     ].join('');
   } else {
-    const checklist = [
-      'C’est le bon article — celui de la photo',
-      ...(m.variant ? [`La bonne taille — ${esc(varianteCourte(m.variant))}`] : []),
-      'En bon état',
-    ];
+    // §6.2's row for THIS product — or the conservative one when we do not know.
+    const rangee = inspectionPour(m.category);
+    // The variant she actually bought, appended to whichever size/pointure line
+    // the row carries, so « la bonne taille » names the size on her order.
+    const variante = m.variant;
+    const checklist = variante === undefined
+      ? rangee.verifier
+      : rangee.verifier.map((c) =>
+          /taille|pointure/i.test(c) ? `${c} — ${esc(varianteCourte(variante))}` : c,
+        );
     body = [
       '<div data-etat="inspection">',
       '<div class="cl-door-title">Ouvrez. Vérifiez.<br>Ensuite seulement, payez.</div>',
@@ -1446,6 +1571,10 @@ export function renderC8(m: ClienteProduit, q: ClienteQuote, s: C8State): string
       '<button class="cl-door-good" data-action="porte-bon">Tout est bon</button>',
       '<button class="cl-door-bad" data-action="porte-probleme">Un problème</button>',
       '</div>',
+      // §6.2's THIRD column, said before she chooses — what a refusal will NOT
+      // be honoured for. « Opened-then-refused … without seller fault →
+      // buyer-fault » is the rule this line exists to keep out of her way.
+      `<div class="cl-door-risque" data-role="risque">${rangee.risque}</div>`,
       '<div class="cl-door-equal">Les deux chemins se valent. Un refus justifié ne compte jamais contre vous.</div>',
       '</div>',
     ].join('');

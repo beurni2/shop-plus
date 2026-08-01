@@ -553,6 +553,9 @@ export const CLIENTE_STYLES = `
   .cl-cta-echec { margin-top: 22px; }
   /* SP4.2b — the door's own failure, same family as C6's: a ring, never a
      filled alarm, and the retry as the one primary action. */
+  /* §6.2's buyer-risk line — a quiet, honest note above the two doors. It is
+     not a warning banner: it protects her by being read, not by shouting. */
+  .cl-door-risque { margin-top: 14px; padding: 11px 14px; border-radius: 14px; background: #F6E9C8; color: #5F4403; font-size: 12.5px; line-height: 1.5; }
   .cl-door-echec { padding: 34px 0 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
   .cl-steps { margin-top: 22px; padding: 4px 17px; border-radius: 20px; border: 1px solid #EDE4D3; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,22,15,.04); }
   .cl-step-row { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid #F3EDDE; }

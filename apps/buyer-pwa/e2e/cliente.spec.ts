@@ -1123,3 +1123,47 @@ test('C2 — the protections sheet opens over C1 and closes on « Compris »', a
   await page.locator('[data-action="fermer-protections-cta"]').click();
   await expect(page.locator('[data-screen="C2"]')).toHaveCount(0);
 });
+
+/* ═══════════ §6.2 — THE CATEGORY MATRIX, ON A REAL DEVICE-SIZED SCREEN ═══ */
+
+test('§6.2 · the shoe buyer is asked about her PAIR and her box, in a real DOM', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/?demo-cliente=C8&cat=shoes');
+  await page.locator('[data-screen="C8"]').waitFor();
+  const text = (await page.locator('main.cl-root').innerText()).replace(/\s+/g, ' ');
+  expect(text).toContain('Ouvrez la boîte');
+  expect(text).toContain('Les deux pieds sont là');
+  // …and §6.2's third column is on screen BEFORE she chooses.
+  expect(text).toContain('Si vous les portez, elles sont à vous.');
+  expect(text, 'a shoe buyer was asked about a colour').not.toContain('La bonne couleur');
+});
+
+test('§6.2 · the cosmetics buyer is told NOT to open it, and the seal is the check', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/?demo-cliente=C8&cat=sealed_beauty_cosmetics');
+  await page.locator('[data-screen="C8"]').waitFor();
+  const text = (await page.locator('main.cl-root').innerText()).replace(/\s+/g, ' ');
+  expect(text).toContain('sans l’ouvrir');
+  expect(text).toContain('Le scellé du fabricant est intact');
+  expect(text).toContain('N’ouvrez pas le scellé avant d’accepter.');
+});
+
+test('§6.2 · an unknown category claims nothing category-specific', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/?demo-cliente=C8&cat=electronics');
+  await page.locator('[data-screen="C8"]').waitFor();
+  const text = (await page.locator('main.cl-root').innerText()).replace(/\s+/g, ' ');
+  expect(text).toContain('C’est le bon article');
+  expect(text).not.toContain('scellé');
+  expect(text).not.toContain('boîte');
+});
+
+test('§6.2 · the refusal reasons follow the row — a shoe buyer refuses a POINTURE', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/?demo-cliente=C8&cat=shoes');
+  await page.locator('[data-action="porte-probleme"]').click();
+  const text = (await page.locator('main.cl-root').innerText()).replace(/\s+/g, ' ');
+  expect(text).toContain('Ce n’est pas la bonne pointure');
+  expect(text).toContain('Il manque une chaussure');
+  expect(text, 'the generic reason leaked into a shoe refusal').not.toContain('Il manque quelque chose');
+});

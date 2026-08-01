@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest';
 import { fmtFCFA, groupFr } from '../src/cliente/money';
 import { composeQuote, ROBE, clienteProduitReel } from '../src/cliente/seed';
 import {
-  renderC1, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
+  INSPECTION,
+  INSPECTION_PRUDENTE,
+  inspectionPour,
+renderC1, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
   renderSheet, renderSkeleton, renderOffline,
   splitFor, CODE_REMISE,
   type C3State,
@@ -231,5 +234,95 @@ describe('the real signed link maps HER real product — never the demo robe (BU
       { status: 'ready', url: 'blob:demo', durationMs: 12_000 },
     );
     expect(produit.voiceDuree).toBe('0:12');
+  });
+});
+
+/* ═══════════ §6.2 — THE CATEGORY INSPECTION MATRIX, ROW BY ROW ═══════════ */
+
+describe('§6.2 — each category allows its OWN checks, and refuses its OWN reasons', () => {
+  const ROWS = ['fashion_bags_fabrics', 'shoes', 'sealed_beauty_cosmetics'] as const;
+
+  it('the three MVP rows are EXACTLY §6.2’s — no fourth, and electronics is absent', () => {
+    // §6.2: « Electronics/complex — EXCLUDED from MVP ». Absent by decision,
+    // not by oversight, and a fourth row would be a taxonomy this repo does not
+    // get to invent (the category floor is an open founder decision).
+    expect(Object.keys(INSPECTION).sort()).toEqual([...ROWS].sort());
+    expect(INSPECTION['electronics']).toBeUndefined();
+  });
+
+  it('an UNKNOWN or ABSENT category falls to the conservative row — never a guess', () => {
+    expect(inspectionPour(undefined)).toBe(INSPECTION_PRUDENTE);
+    for (const unknown of ['', 'mode', 'electronics', 'Shoes', 'FASHION_BAGS_FABRICS']) {
+      expect(inspectionPour(unknown), unknown).toBe(INSPECTION_PRUDENTE);
+    }
+  });
+
+  it('shoes ask for the PAIR and the box; cosmetics ask for the SEAL and the date', () => {
+    // The rows genuinely differ — the defect this closes was all three showing
+    // the same three lines whatever she had bought.
+    const shoes = INSPECTION['shoes']!.verifier.join(' · ');
+    expect(shoes).toContain('boîte');
+    expect(shoes).toContain('pieds');
+    const seal = INSPECTION['sealed_beauty_cosmetics']!.verifier.join(' · ');
+    expect(seal).toContain('scellé');
+    expect(seal).toContain('date');
+    // …and cosmetics must NOT invite her to open it — §6.2 is « outer only ».
+    expect(seal).toContain('sans l’ouvrir');
+  });
+
+  it('EVERY ROW STATES WHAT IS AT HER OWN RISK — §6.2’s third column, before she chooses', () => {
+    for (const row of [...ROWS.map((r) => INSPECTION[r]!), INSPECTION_PRUDENTE]) {
+      expect(row.risque.length).toBeGreaterThan(0);
+    }
+    // The three §6.2 names it: no try-on · wearing = buyer risk · opening the seal.
+    expect(INSPECTION['fashion_bags_fabrics']!.risque).toContain('essayer');
+    expect(INSPECTION['shoes']!.risque).toContain('portez');
+    expect(INSPECTION['sealed_beauty_cosmetics']!.risque).toContain('scellé');
+  });
+
+  it('NO BUYER-RISK ITEM IS EVER OFFERED AS A VALID REFUSAL — the invariant of the third column', () => {
+    // §6.2 separates « valid rejection » from « Buyer-risk (not valid) ». A
+    // refusal button for something that will be judged buyer-fault is a trap:
+    // she taps it, the package goes back, and the fault is hers.
+    const interdits = [/essay/i, /coupe/i, /taille qui/i, /pointure qui/i, /port[eé]/i, /ouvert par vous/i];
+    for (const key of ROWS) {
+      for (const motif of INSPECTION[key]!.motifs) {
+        for (const piege of interdits) {
+          expect(piege.test(motif), `${key} offers « ${motif} » as a valid refusal`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('C8 RENDERS THE ROW — the shoe buyer is asked about her pair, not about a colour', () => {
+    const shoe = renderC8({ ...ROBE, category: 'shoes' }, Q, {
+      door: 'inspecting', pay: 'B', reason: null, duAlaPorte: 11_500,
+    });
+    expect(shoe).toContain('Ouvrez la boîte');
+    expect(shoe).not.toContain('La bonne couleur');
+
+    const cosm = renderC8({ ...ROBE, category: 'sealed_beauty_cosmetics' }, Q, {
+      door: 'inspecting', pay: 'B', reason: null, duAlaPorte: 11_500,
+    });
+    expect(cosm).toContain('scellé du fabricant');
+    expect(cosm).not.toContain('Ouvrez la boîte');
+  });
+
+  it('…and the REFUSAL screen offers that row’s reasons, not the generic three', () => {
+    const shoe = renderC8({ ...ROBE, category: 'shoes' }, Q, {
+      door: 'report', pay: 'B', reason: null, duAlaPorte: 11_500,
+    });
+    expect(shoe).toContain('Ce n’est pas la bonne pointure');
+    expect(shoe).toContain('Il manque une chaussure');
+    expect(shoe).not.toContain('Il manque quelque chose');
+  });
+
+  it('a product with NO category still gets a usable screen — three checks and three reasons', () => {
+    const plain = renderC8(ROBE, Q, { door: 'inspecting', pay: 'B', reason: null, duAlaPorte: 11_500 });
+    expect(plain).toContain('C’est le bon article');
+    expect(plain).toContain('En bon état');
+    // and it claims nothing category-specific
+    expect(plain).not.toContain('scellé');
+    expect(plain).not.toContain('boîte');
   });
 });
