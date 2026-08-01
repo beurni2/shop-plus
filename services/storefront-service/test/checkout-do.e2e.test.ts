@@ -457,20 +457,22 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
     expect(refused.json['error']).toBe('attribution_missing');
   });
 
-  it('an unknown payment mode is 422, and the door mode refuses on the shipped conservative policy', async () => {
+  it('an unknown payment mode is 422, and an INELIGIBLE door request refuses without leaking why', async () => {
     const { slug, resellerId } = await seedShop('0012');
     const base = { slug, pid: 'pv-checkout-1', zoneTo: 'Ouagadougou', attributionResellerId: resellerId };
     const bogus = await postQuote({ ...base, paymentMode: 'CASH_ON_TRUST', requestKey: freshKey() });
     expect(bogus.status).toBe(422);
     expect(bogus.json['error']).toBe('payment_mode_unknown');
 
+    // The ZONE no longer refuses anyone (founder ruling 2026-08-01), so this
+    // drives one of the OTHER four §6.1 conditions — an unverified seller.
     const door = await postQuote({
       ...base,
       paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
       requestKey: freshKey(),
       payAtDoorContext: {
-        eligibility: { buyerRef: 'b1', state: 'allowed', buyerRefusalCount: 0, buyerRiskState: 'clear', requiredDeposit: 0 },
-        sellerTier: 'trusted',
+        eligibility: { buyerRef: 'b1', state: 'allowed', buyerRefusalCount: 0, buyerRiskState: 'normal', requiredDeposit: 0 },
+        sellerTier: 'provisional',
         category: 'shoes',
       },
     });
@@ -478,7 +480,44 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
     expect(door.json['error']).toBe('pay_at_door_not_eligible');
     // the §6.1 OPS DETAIL never reaches the buyer
     expect(door.text.includes('policyVersion')).toBe(false);
-    expect(door.text.includes('zone_not_network_reliable')).toBe(false);
+    expect(door.text.includes('seller_tier_below_minimum')).toBe(false);
+  });
+
+  /**
+   * ═══ THE WALK THAT WAS IMPOSSIBLE UNTIL THE FOUNDER OPENED THE ZONES ═══
+   *
+   * Every SP4.2 entry until now carried the same caveat: « no Option-B order
+   * can be created through the public routes », because the empty zone
+   * allowlist refused every pay-at-door quote. That caveat is now dead, and
+   * this is the test that kills it — an Option-B QUOTE, issued by the REAL
+   * Worker, over HTTP, on the SHIPPED policy.
+   */
+  it('SP4.2 — an Option-B quote is now ISSUABLE over HTTP, split D-now / product-at-door', async () => {
+    const { slug, resellerId } = await seedShop('0112');
+    const door = await postQuote({
+      slug,
+      pid: 'pv-checkout-1',
+      zoneTo: 'Ouagadougou',
+      attributionResellerId: resellerId,
+      paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+      requestKey: freshKey(),
+      payAtDoorContext: {
+        eligibility: { buyerRef: 'b1', state: 'allowed', buyerRefusalCount: 0, buyerRiskState: 'normal', requiredDeposit: 0 },
+        sellerTier: 'verified',
+        category: 'shoes',
+      },
+    });
+    expect(door.status, door.text).toBe(200);
+    // §5.5 Option B, to the franc: she pays the DELIVERY FEE now and the
+    // PRODUCT at the door, and the two still make the whole bill.
+    const paidNow = door.json['amountPaidAtCheckout'] as number;
+    const atDoor = door.json['amountDueAtDelivery'] as number;
+    expect(paidNow).toBe(door.json['deliveryFee']);
+    expect(atDoor).toBe(door.json['productSubtotal']);
+    expect(paidNow + atDoor).toBe(door.json['buyerTotal']);
+    // …and no economics rode out with it.
+    expect(door.text.includes('sellerBasePrice')).toBe(false);
+    expect(door.text.includes('resellerNet')).toBe(false);
   });
 
   it('A PRICE THE BUYER NAMES IS REFUSED OUTRIGHT — unknown fields are never ignored', async () => {

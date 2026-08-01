@@ -355,29 +355,58 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     expect(refusalOf(issue({ request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' } }))).toBe(
       'pay_at_door_not_eligible',
     );
-    // Context supplied, but PAY_AT_DOOR_POLICY_DEFAULTS names NO reliable zone,
-    // so the door mode is closed today whatever a caller claims about itself.
-    expect(PAY_AT_DOOR_POLICY_DEFAULTS.networkReliableZones).toEqual([]);
-    expect(
-      refusalOf(
-        issue({
-          request: {
-            paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
-            payAtDoorContext: {
-              eligibility: {
-                buyerRef: 'buyer-1',
-                state: 'allowed',
-                buyerRefusalCount: 0,
-                buyerRiskState: 'clear',
-                requiredDeposit: 0,
-              },
-              sellerTier: 'trusted',
-              category: 'shoes',
-            },
+    // FOUNDER RULING 2026-08-01 — the zone allowlist is OPEN, so a request that
+    // satisfies the other four §6.1 conditions now ISSUES. This assertion used
+    // to pin the opposite; it is rewritten rather than deleted because « what
+    // does the SHIPPED policy do to a well-formed door request » is the question
+    // that matters most about this gate.
+    expect(PAY_AT_DOOR_POLICY_DEFAULTS.networkReliableZones).toBe('all');
+    const eligible = issue({
+      request: {
+        paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+        payAtDoorContext: {
+          eligibility: {
+            buyerRef: 'buyer-1',
+            state: 'allowed',
+            buyerRefusalCount: 0,
+            buyerRiskState: 'normal',
+            requiredDeposit: 0,
           },
-        }),
-      ),
-    ).toBe('pay_at_door_not_eligible');
+          sellerTier: 'trusted',
+          category: 'shoes',
+        },
+      },
+    });
+    expect(eligible.ok, `the founder ruling is not live: ${refusalOf(eligible) ?? ''}`).toBe(true);
+  });
+
+  it('…and the OTHER FOUR §6.1 conditions still refuse under the shipped policy', () => {
+    // Opening the zones changed ONE of five conditions. A door request that
+    // fails any of the rest is still refused, and still by name.
+    const ctx = {
+      eligibility: {
+        buyerRef: 'buyer-1',
+        state: 'allowed',
+        buyerRefusalCount: 0,
+        buyerRiskState: 'normal',
+        requiredDeposit: 0,
+      },
+      sellerTier: 'trusted',
+      category: 'shoes',
+    };
+    for (const over of [
+      { sellerTier: 'provisional' },
+      { category: 'electronics' },
+      { eligibility: { ...ctx.eligibility, state: 'suspended' } },
+    ]) {
+      const outcome = issue({
+        request: {
+          paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+          payAtDoorContext: { ...ctx, ...over },
+        },
+      });
+      expect(refusalOf(outcome), JSON.stringify(over)).toBe('pay_at_door_not_eligible');
+    }
   });
 
   it('THE OPS DETAIL RIDES THE REFUSAL, so the service can diagnose without telling the buyer', () => {

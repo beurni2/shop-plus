@@ -5,7 +5,7 @@ import {
   CONFIRMATION, MESSAGES, PAIEMENT, renderC5, renderC6, splitFor,
   type C5State, type ClienteProduit, type ClienteQuote,
 } from '../src/cliente/screens';
-import { etatDeC6, SUIVI_PAIEMENT_MS } from '../src/cliente/flow';
+import { etatDeC6, revelationPermise, SUIVI_PAIEMENT_MS } from '../src/cliente/flow';
 import { ORDER_STATUSES } from '@platform/contracts';
 import { composeQuote, harnessFrancs, ROBE } from '../src/cliente/seed';
 
@@ -922,5 +922,46 @@ describe('the reseller’s note is listenable from the payment screen — and on
     // control left the screen once before.
     expect(PAIEMENT.ecouterNote).toBe('Écouter la note de la vendeuse');
     expect(renderC5(ROBE, q, C5)).toContain(PAIEMENT.ecouterNote);
+  });
+});
+
+/* ═══ SP4.2b — §6.3: THE DROP CODE COMES LAST, AFTER THE DOOR PAYMENT ═══ */
+
+describe('revelationPermise — the drop code and the money still owed at the door', () => {
+  it('Option B CONFIRMED but the door leg still DUE may NOT reveal', () => {
+    // `confirmed` on Option B means the DELIVERY FEE is funded — 1 000 of a
+    // 12 500 order. The product's 11 500 is owed. §6.3 and Ten Laws #3.
+    expect(revelationPermise(true, 'confirmed', 'due')).toBe(false);
+  });
+
+  it('…and once the provider confirms the door payment, it MAY', () => {
+    expect(revelationPermise(true, 'confirmed', 'paid')).toBe(true);
+  });
+
+  it('FULL_PREPAY owes nothing at a door, so `none` reveals on confirmation', () => {
+    expect(revelationPermise(true, 'confirmed', 'none')).toBe(true);
+  });
+
+  it('ABSENT MEANS OWED — an unknown door state withholds, never reveals', () => {
+    // An older Worker that does not send the field, or a read that never
+    // landed. The unknown case and the owed case get the SAME answer, so
+    // nothing can be revealed by a field going missing.
+    expect(revelationPermise(true, 'confirmed', null)).toBe(false);
+    for (const unknown of ['', 'DUE', 'Paid', 'settled', 'ok']) {
+      expect(revelationPermise(true, 'confirmed', unknown), unknown).toBe(false);
+    }
+  });
+
+  it('an UNCONFIRMED order never reveals, whatever the door leg says', () => {
+    for (const etat of ['attente', 'echec', 'pending', 'offline'] as const) {
+      for (const door of ['none', 'due', 'paid', null]) {
+        expect(revelationPermise(true, etat, door), `${etat}/${door}`).toBe(false);
+      }
+    }
+  });
+
+  it('the harness path keeps its documented levers', () => {
+    // No order to consult, and it is labelled a demo everywhere it is offered.
+    expect(revelationPermise(false, 'attente', 'due')).toBe(true);
   });
 });

@@ -140,6 +140,11 @@ interface FlowState {
   /** The LAST read of the order did not reach the service. Says nothing
    *  about the payment — only that we could not ask (verifier BLOCKER 2). */
   horsPortee: boolean;
+  /**
+   * SP4.2b — where the DOOR leg stands, as the SERVER last reported it.
+   * `null` until an order exists. See `revelationPermise`.
+   */
+  doorLeg: string | null;
 }
 
 /**
@@ -185,6 +190,43 @@ export const SUIVI_PAIEMENT_MS: readonly number[] = [1_500, 2_500, 4_000, 6_000,
  *    not failed », which is the waiting screen. FAIL CLOSED: an unknown state
  *    must never be able to print a confirmation.
  */
+/**
+ * ═══ MAY THE DROP CODE BE REVEALED AT ALL? — §6.3, IN ONE FUNCTION ═══
+ *
+ * §6.3, verbatim: « the buyer enters the drop code **last, after** any door
+ * payment is provider-confirmed ». Ten Laws #3: custody transfers only after
+ * provider-confirmed payment of **every due leg**.
+ *
+ * ═══ THE DEFECT THIS CLOSES, AND IT WENT LIVE-SHAPED IN ONE COMMIT ═══
+ *
+ * SP3.3c's guard asked only « is the order `confirmed`? ». On FULL_PREPAY that
+ * is the whole bill and the guard was right. **On Option B, `confirmed` means
+ * the DELIVERY FEE is funded — 1 000 FCFA — while the product's 11 500 is still
+ * owed at the door.** So a mode-B buyer could inspect, tap « Tout est bon », and
+ * be shown « Le code de remise » having paid a twelfth of her order.
+ *
+ * IT WAS UNREACHABLE ONLY BECAUSE MODE B WAS UNREACHABLE — the empty zone
+ * allowlist refused every pay-at-door quote. The founder opened that rule on
+ * 2026-08-01, so this stopped being theoretical in the same change, and closing
+ * it is part of that change rather than a later slice.
+ *
+ * ═══ ABSENT MEANS OWED ═══
+ *
+ * `doorLeg === null` — an older Worker that does not send the field, a read that
+ * never landed — WITHHOLDS the code. The unknown case and the owed case get the
+ * same answer, so nothing can be revealed by a field going missing. `'none'` is
+ * the only value that means « nothing was ever owed here », and it is the
+ * server's word, never inferred from an amount.
+ *
+ * THE HARNESS PATH (`reel === false`) keeps its documented levers: it has no
+ * order to consult and is labelled a demo everywhere it is offered.
+ */
+export function revelationPermise(reel: boolean, confirmState: ConfirmEtat, doorLeg: string | null): boolean {
+  if (!reel) return true;
+  if (confirmState !== 'confirmed') return false;
+  return doorLeg === 'none' || doorLeg === 'paid';
+}
+
 export function etatDeC6(state: string): ConfirmEtat {
   if (state === 'confirmed') return 'confirmed';
   if (state === 'payment_failed') return 'echec';
@@ -232,6 +274,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     essai: 0,
     relance: false,
     horsPortee: false,
+    doorLeg: null,
   };
 
   /**
@@ -464,6 +507,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     state.essai = 0;
     state.relance = false;
     state.horsPortee = false;
+    state.doorLeg = null;
     // ═══ IS THIS PHONE'S CLOCK TRUSTWORTHY? (verifier BLOCKER 5) ═══
     // A quote the service JUST issued is alive by construction. If this device
     // reads it as already expired, the wrong clock is the phone's — so the local
@@ -540,6 +584,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       if (r.status === 'order') {
         const etat = etatDeC6(r.order.state);
         state.confirmState = etat;
+        state.doorLeg = r.order.doorLeg ?? null;
         // SETTLED, EITHER WAY ⇒ STOP ASKING. `confirmed` and `echec` are the two
         // states the server will not move off on its own, so a further read
         // could only ever return the same answer at her expense.
@@ -588,6 +633,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         return;
       }
       state.orderId = r.order.orderId;
+      state.doorLeg = r.order.doorLeg ?? null;
       const etat = etatDeC6(r.order.state);
       jump('C6', { confirmState: etat, step: 1, orderId: r.order.orderId, relance: false, horsPortee: false });
       // `jump` cleared the timers and bumped the generation — so the watch must
@@ -892,6 +938,12 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         // stray harness mount, emits the action anyway. A tracking timeline for
         // an unconfirmed payment is the first step of the walk that ended in a
         // revealed drop code.
+        // FOLLOWING a delivery is NOT custody transfer, so this keeps SP3.3c's
+        // rule and does NOT wait on the door leg. §6.3 governs the DROP CODE;
+        // tracking an order whose product money is still owed is the whole
+        // point of Option B — she tracks, the rider arrives, she inspects, she
+        // pays, and only THEN does the code exist. (Caught by its own e2e: the
+        // first version of this guard blocked the tracking screen too.)
         if (state.live !== null && state.confirmState !== 'confirmed') return;
         jump('C7', { step: Math.max(state.step, 1) }); return;
       case 'simuler':
@@ -917,7 +969,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
          * `?demo-cliente=C9`) — it has no order to consult and it is labelled a
          * demo everywhere it is offered.
          */
-        if (state.live !== null && state.confirmState !== 'confirmed') return;
+        if (!revelationPermise(state.live !== null, state.confirmState, state.doorLeg)) return;
         if (state.pay === 'A') { jump('C9', { leg2: 'confirmed', step: 6 }); return; }
         state.door = 'accepted'; render();
         t1 = setTimeout(() => jump('C9', { leg2: 'confirmed', step: 6, door: 'inspecting' }), 2600);

@@ -20,8 +20,9 @@ const T = '2026-07-10T12:00:00.000Z';
 const flags = { version: 'e2-sandbox', flags: {}, kills: [], killedCategories: [] };
 const deps = { flags, now: () => new Date(T), newId: () => 'quote-b-0001' };
 
-// The DEFAULT policy allowlists no zone (conservative); the run policy names
-// one test zone so the positive path executes. ⏳ founder-tunable values.
+// The run policy pins ONE named zone so the allowlist READING stays exercised
+// here even though the shipped default is now `'all'` (founder ruling
+// 2026-08-01). Both readings are checked below. ⏳ founder-tunable values.
 const RUN_POLICY = {
   ...PAY_AT_DOOR_POLICY_DEFAULTS,
   version: `${PAY_AT_DOOR_POLICY_DEFAULTS.version}+e2-sandbox-zone`,
@@ -46,9 +47,21 @@ console.log('=== E2 OPTION-B DOOR PATH — service-path evidence ===');
 const refused = issueQuote(deps, { ...INPUT, payAtDoor: { ...GATE_CONTEXT, sellerTier: 'provisional' } });
 if (refused.ok) { console.error('eligibility gate FAILED to refuse a provisional seller'); process.exit(1); }
 console.log(`eligibility negative: refused closed — reason=${refused.reason} refusal=${refused.refusal} policy=${refused.policyVersion}`);
-const refusedDefault = issueQuote(deps, { ...INPUT, payAtDoor: { ...GATE_CONTEXT, policy: undefined } });
-if (refusedDefault.ok) { console.error('DEFAULT policy allowed a zone — conservative default broken'); process.exit(1); }
-console.log(`shipped-default check: empty zone allowlist refuses (${refusedDefault.refusal}) — Option-B narrow by default`);
+// FOUNDER RULING 2026-08-01 — « open to every buyer who want that option ». The
+// shipped default now ISSUES in any zone; what must still hold is that the OTHER
+// four §6.1 conditions refuse, and that an EMPTY allowlist still fails closed.
+const openedDefault = issueQuote(deps, { ...INPUT, payAtDoor: { ...GATE_CONTEXT, policy: undefined } });
+if (!openedDefault.ok) {
+  console.error(`DEFAULT policy refused an eligible buyer — the founder ruling is not live: ${openedDefault.refusal}`);
+  process.exit(1);
+}
+console.log(`shipped-default check: Option B OFFERED in every zone (policy=${openedDefault.quote.payAtDoorPolicyVersion ?? 'n/a'})`);
+const stillClosed = issueQuote(deps, {
+  ...INPUT,
+  payAtDoor: { ...GATE_CONTEXT, policy: { ...GATE_CONTEXT.policy, networkReliableZones: [] } },
+});
+if (stillClosed.ok) { console.error('an EMPTY allowlist allowed a zone — fail-closed broken'); process.exit(1); }
+console.log(`fail-closed check: an EMPTY allowlist still refuses (${stillClosed.refusal}) — « everywhere » is a sentinel, never an accident`);
 
 // 1b. The eligible request issues a reconciling Option-B quote.
 const issued = issueQuote(deps, INPUT);

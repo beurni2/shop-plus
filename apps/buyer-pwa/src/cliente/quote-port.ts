@@ -119,6 +119,27 @@ export interface ServerOrder {
   readonly state: string;
   readonly amountPaidAtCheckout: number;
   readonly amountDueAtDelivery: number;
+  /**
+   * WHERE THE DOOR LEG STANDS — `none` · `due` · `paid` (SP4.2b).
+   *
+   * ═══ WHY THE CLIENT NEEDS IT, AND WHY IT NEEDED IT URGENTLY ═══
+   *
+   * `state === 'confirmed'` means the CHECKOUT leg is funded. On Option B that
+   * is the DELIVERY FEE — 1 000 FCFA — and the product's 11 500 is still owed.
+   * The drop-code guard built in SP3.3c read only `state`, so on an Option-B
+   * order it would have revealed « Le code de remise » with the product money
+   * unpaid: §6.3 (« the buyer enters the drop code last, AFTER any door payment
+   * is provider-confirmed ») and Ten Laws #3, both broken.
+   *
+   * IT WAS UNREACHABLE ONLY BECAUSE MODE B WAS UNREACHABLE. The founder opened
+   * the zone rule on 2026-08-01, so it stopped being theoretical in the same
+   * change — which is why this field crosses the wire now rather than in a
+   * later slice.
+   *
+   * OPTIONAL ON THE TYPE, and read as « still owed » when absent — see
+   * `looksLikeServerOrder`.
+   */
+  readonly doorLeg?: string | undefined;
 }
 
 /**
@@ -223,7 +244,13 @@ export function looksLikeServerOrder(v: unknown): v is ServerOrder {
     nonEmpty(o['orderId']) &&
     nonEmpty(o['state']) &&
     isAmount(o['amountPaidAtCheckout']) &&
-    isAmount(o['amountDueAtDelivery'])
+    isAmount(o['amountDueAtDelivery']) &&
+    // `doorLeg` is NOT required — an older Worker does not send it — but if it
+    // is present it must be a real string. What makes that safe is the READING:
+    // absent is treated as « still owed » at the one place it decides anything
+    // (`revelationPermise`), so a missing field can only ever WITHHOLD the drop
+    // code, never reveal it.
+    (o['doorLeg'] === undefined || nonEmpty(o['doorLeg']))
   );
 }
 
@@ -427,6 +454,7 @@ async function readOrder(res: Response): Promise<OrderOutcome> {
       state: body.state,
       amountPaidAtCheckout: body.amountPaidAtCheckout,
       amountDueAtDelivery: body.amountDueAtDelivery,
+      doorLeg: body.doorLeg,
     },
   };
 }
@@ -533,6 +561,7 @@ export function demoQuotePort(produitFcfa: number = ROBE.priceFcfa): QuotePort {
           state: 'payment_pending',
           amountPaidAtCheckout: door ? c.feeToday : c.totalToday,
           amountDueAtDelivery: door ? c.produitFcfa : 0,
+          doorLeg: door ? 'due' : 'none',
         },
       };
     },
@@ -556,6 +585,10 @@ export function demoQuotePort(produitFcfa: number = ROBE.priceFcfa): QuotePort {
           state: seen > DEMO_ATTENTES ? 'confirmed' : 'payment_pending',
           amountPaidAtCheckout: door ? c.feeToday : c.totalToday,
           amountDueAtDelivery: door ? c.produitFcfa : 0,
+          // THE HARNESS OWES AT THE DOOR TOO, on a mode-B order. It never
+          // reaches `paid` — nothing here pays the product leg — so the demo
+          // shows the drop code WITHHELD, which is production's own behaviour.
+          doorLeg: door ? 'due' : 'none',
         },
       };
     },

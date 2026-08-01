@@ -125,12 +125,55 @@ describe('SP3.3 — the Option-B eligibility gate (§6.1, evaluated at quote, fa
       .toMatchObject({ eligible: false, reason: 'zone_not_network_reliable' });
   });
 
-  it('the SHIPPED defaults are conservative: the empty zone allowlist refuses everything (Option-B narrow by default)', () => {
+  /**
+   * FOUNDER RULING 2026-08-01 — « remove the list of the eligibility rule of
+   * neighbourhoods, it's open to every buyer who want that option. » This test
+   * used to pin the opposite (the empty allowlist refusing everything) and is
+   * rewritten rather than deleted, because the question it asks — WHAT DO THE
+   * SHIPPED DEFAULTS DO? — is the one that matters most about this policy.
+   */
+  it('the SHIPPED defaults offer Option B in EVERY zone (founder ruling 2026-08-01)', () => {
+    for (const zoneTo of ['ouaga-centre', 'Gounghin', 'Dassasgho', 'a-zone-nobody-has-named-yet']) {
+      const decision = decidePayAtDoorEligibility(
+        { ...GATE_CONTEXT, zoneTo, buyerTotalFcfa: 12_500, nowIso: T },
+        PAY_AT_DOOR_POLICY_DEFAULTS,
+      );
+      expect(decision, zoneTo).toMatchObject({ eligible: true });
+    }
+  });
+
+  it('…and the OTHER FOUR §6.1 conditions still refuse, each by its own name', () => {
+    const base = { ...GATE_CONTEXT, buyerTotalFcfa: 12_500, nowIso: T };
+    const cases = [
+      [{ ...base, sellerTier: 'basic' }, 'seller_tier_below_minimum'],
+      [{ ...base, category: 'electronics' }, 'category_not_inspectable'],
+      [{ ...base, buyerTotalFcfa: 25_001 }, 'over_price_cap'],
+      [{ ...base, eligibility: { ...GATE_CONTEXT.eligibility, state: 'suspended' } }, 'buyer_not_allowed'],
+    ] as const;
+    for (const [ctx, reason] of cases) {
+      expect(decidePayAtDoorEligibility(ctx, PAY_AT_DOOR_POLICY_DEFAULTS), reason)
+        .toMatchObject({ eligible: false, reason });
+    }
+  });
+
+  it('AN EMPTY ARRAY STILL REFUSES EVERYTHING — « everywhere » is a sentinel, never an accident', () => {
+    // The half of the rule that keeps a lost or half-written config fail-closed:
+    // only the literal `'all'` opens it, never the absence of zones.
     const decision = decidePayAtDoorEligibility(
       { ...GATE_CONTEXT, buyerTotalFcfa: 12_500, nowIso: T },
-      PAY_AT_DOOR_POLICY_DEFAULTS,
+      { ...PAY_AT_DOOR_POLICY_DEFAULTS, networkReliableZones: [] },
     );
     expect(decision).toMatchObject({ eligible: false, reason: 'zone_not_network_reliable' });
+  });
+
+  it('a NAMED allowlist still allowlists — narrowing later stays possible', () => {
+    const narrowed = { ...PAY_AT_DOOR_POLICY_DEFAULTS, networkReliableZones: ['ouaga-centre'] };
+    expect(
+      decidePayAtDoorEligibility({ ...GATE_CONTEXT, zoneTo: 'ouaga-centre', buyerTotalFcfa: 12_500, nowIso: T }, narrowed),
+    ).toMatchObject({ eligible: true });
+    expect(
+      decidePayAtDoorEligibility({ ...GATE_CONTEXT, zoneTo: 'Pissy', buyerTotalFcfa: 12_500, nowIso: T }, narrowed),
+    ).toMatchObject({ eligible: false, reason: 'zone_not_network_reliable' });
   });
 });
 

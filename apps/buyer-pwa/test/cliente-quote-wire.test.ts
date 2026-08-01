@@ -1551,8 +1551,12 @@ describe('httpQuotePort.order — the body is the service’s three-key allowlis
     );
     expect(got.status).toBe('order');
     if (got.status !== 'order') return;
+    // FIVE KEYS since SP4.2b — `doorLeg` is a STATE (`none|due|paid`), never an
+    // amount, and it is what §6.3's drop-code rule turns on. The economics scan
+    // is unchanged and still passes over it. This list had to be EDITED to grow,
+    // which is the whole point of building the object field by field.
     expect(Object.keys(got.order).sort()).toEqual(
-      ['amountDueAtDelivery', 'amountPaidAtCheckout', 'orderId', 'state'],
+      ['amountDueAtDelivery', 'amountPaidAtCheckout', 'doorLeg', 'orderId', 'state'],
     );
   });
 });

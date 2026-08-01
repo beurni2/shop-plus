@@ -69,6 +69,8 @@ interface Scripted {
   /** hold `POST /checkout/order` this long — makes the « order in flight »
    *  window observable, which is when she can still press Retour. */
   orderDelayMs?: number;
+  /** SP4.2b — the door leg per read, the LAST repeating. `none` = mode A. */
+  doorLegs?: string[];
 }
 
 interface Wire {
@@ -120,6 +122,7 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
         state: opts.orderCreateState ?? 'payment_pending',
         amountPaidAtCheckout: 12_500,
         amountDueAtDelivery: 0,
+        doorLeg: opts.doorLegs?.[0] ?? 'none',
       });
     }
     const byId = /\/checkout\/order\/([^/]+)$/.exec(req.url());
@@ -131,7 +134,9 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
       reads.set(orderId, seen + 1);
       const script = opts.orderStates ?? ['payment_pending'];
       const state = script[Math.min(seen, script.length - 1)]!;
-      return json(200, { orderId, state, amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0 });
+      const doors = opts.doorLegs ?? ['none'];
+      const doorLeg = doors[Math.min(seen, doors.length - 1)]!;
+      return json(200, { orderId, state, amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, doorLeg });
     }
     wire.quotes.push(body);
     wire.sequence.push('quote');
@@ -673,4 +678,58 @@ test('BLOCKER 2 · « Vérifier à nouveau » always ANSWERS — a dead link is 
   await page.locator('[data-action="verifier-paiement"]').click();
   await expect.poll(() => wire.orderReads.length, { timeout: 10_000 }).toBe(before + 1);
   await expect(page.locator('[data-role="hors-portee"]')).toHaveCount(0);
+});
+
+test('SP4.2b · §6.3 — she can TRACK while she still owes, but the code is withheld', async ({ page }) => {
+  /**
+   * THE DEFECT THIS GUARDS, reachable the day the founder opened the zone rule:
+   * `state: 'confirmed'` on Option B means the DELIVERY FEE is funded — 1 000 of
+   * a 12 500 order — while the product's 11 500 is still owed at the door.
+   * SP3.3c's guard read only `state`, so she could inspect, tap « Tout est bon »
+   * and be shown « Le code de remise » having paid a twelfth of her order.
+   *
+   * The service is scripted to report the door leg as `due` throughout: the
+   * client knows only what the server says about it, which is the point.
+   */
+  await scriptService(page, { orderStates: ['confirmed'], doorLegs: ['due'] });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+
+  // SHE MAY FOLLOW HER ORDER — tracking is not custody transfer.
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+  // C7 only offers « Je suis à la porte » at step 5 — the four demo steps are
+  // how the tracking screen is walked (`renderC7`'s `atDoor`).
+  for (let i = 0; i < 4; i += 1) await page.locator('[data-action="simuler"]').click();
+  await page.locator('[data-action="porte"]').click();
+  await page.locator('[data-screen="C8"]').waitFor();
+
+  // …and « Tout est bon » must NOT hand her the code while the money is owed.
+  await page.locator('[data-action="porte-bon"]').click();
+  await page.waitForTimeout(3_500); // past mode B's 2 600 ms reveal timer too
+  const text = (await stage(page)).replace(/\s+/g, ' ');
+  expect(text, 'a drop code appeared with the door leg still owed').not.toContain('code de remise');
+  expect(text).not.toMatch(/\d{3}\s?\d{3}/);
+  expect(await screenOf(page), 'she was walked past the door screen unpaid').toBe('C8');
+});
+
+test('SP4.2b · …and once the provider confirms the door payment, the code is hers', async ({ page }) => {
+  // Only the server's word about the door leg differs from the test above.
+  await scriptService(page, { orderStates: ['confirmed'], doorLegs: ['paid'] });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+  // C7 only offers « Je suis à la porte » at step 5 — the four demo steps are
+  // how the tracking screen is walked (`renderC7`'s `atDoor`).
+  for (let i = 0; i < 4; i += 1) await page.locator('[data-action="simuler"]').click();
+  await page.locator('[data-action="porte"]').click();
+  await page.locator('[data-screen="C8"]').waitFor();
+  await page.locator('[data-action="porte-bon"]').click();
+  await page.locator('[data-screen="C9"]').waitFor({ timeout: 15_000 });
+  expect((await stage(page)).replace(/\s+/g, ' ')).toContain('code de remise');
 });

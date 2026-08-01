@@ -2275,3 +2275,39 @@ Still owed and only the founder can do it: the device walk — the 33 pickable h
 **ONE ROUTE-LEVEL DEFECT FOUND AND FIXED BY ITS OWN TEST:** the door-charge route first passed the Durable Object's status through verbatim, so `reservation_held_by_another` answered **422 here and 409 on order creation** — one refusal, two codes, two routes. It now goes through `refuse()` so the single status map decides.
 
 **SAME LIMIT AS SP4.2a, restated rather than quietly inherited:** the AUTHORIZED path cannot be driven over HTTP, because no Option-B order can be created through the public routes while the zone allowlist is empty. It is proved at the decision layer (pure, all seven cases) and the route's guards are proved on the real Worker. **The end-to-end HTTP walk still waits on the founder naming a pilot zone.**
+
+---
+
+### 2026-08-01 · SP4.2b (part 1) — Option B is OPEN, and the drop code learned to wait
+
+**FOUNDER RULING, verbatim:** « remove the list of the eligibility rule of neighbourhoods, its open to every buyer who want that option ».
+
+**HOW IT WAS IMPLEMENTED, and the one place I did not do exactly what was said.** §6.1 is NORMATIVE and names five conditions, « network-reliable zone » among them. So the CHECK is not deleted — its answer became « everywhere ». `networkReliableZones` is now `readonly string[] | 'all'` and the shipped default is `'all'`. That keeps the spec's structure, keeps every eligibility decision REPLAYABLE under a named `version` (moved to `option-b-policy.v1-open-zones`, because the version travels with the MEANING), and leaves a future narrowing as a policy change with an audit trail rather than a silent difference between builds. **Flagged here rather than done quietly.**
+
+**`'all'` IS AN EXPLICIT SENTINEL, NOT AN EMPTY LIST.** An empty array still refuses EVERY zone, so a config that loses its zones or arrives half-written fails CLOSED. « Everywhere » has to be typed by someone who meant it. Pinned by test.
+
+**THE OTHER FOUR §6.1 CONDITIONS ARE UNTOUCHED** and still refuse by name: seller tier ≥ verified · category inspectable · buyerTotal ≤ 25 000 · the buyer's own eligibility record `allowed`. Pinned by test at both the vault and the service layer.
+
+---
+
+**⚠ AND OPENING IT WOULD HAVE PUT A LIVE §6.3 VIOLATION IN FRONT OF BUYERS. That is why two changes shipped together.**
+
+SP3.3c's drop-code guard asked one question: « is the order `confirmed`? ». On FULL_PREPAY that is the whole bill and the guard was right. **On Option B, `confirmed` means the DELIVERY FEE is funded — 1 000 FCFA — while the product's 11 500 is still owed at the door.** So a mode-B buyer could inspect, tap « Tout est bon », and be handed « Le code de remise » having paid a twelfth of her order. §6.3 (« the buyer enters the drop code last, **after** any door payment is provider-confirmed ») and Ten Laws #3, both broken — under the screen's own printed promise.
+
+**It was unreachable only because mode B was unreachable.** The ruling made it reachable in the same change, so it closes in the same change.
+
+**CLOSED by `revelationPermise(reel, confirmState, doorLeg)`** — one function, and the client now carries the server's `doorLeg` to feed it (`ServerOrder` grew the field; the port's field-by-field allowlist had to be EDITED to admit it, which is what that allowlist is for).
+
+**ABSENT MEANS OWED.** `doorLeg === null` — an older Worker, a read that never landed — WITHHOLDS the code. The unknown case and the owed case get the same answer, so nothing can be revealed by a field going missing. `'none'` is the only value meaning « nothing was ever owed here », and it is the server's word, never inferred from an amount.
+
+**AN OVER-REACH I MADE AND ITS OWN TEST CAUGHT:** the first version put `revelationPermise` on « Suivre ma commande » too, which blocked the TRACKING screen. Following a delivery is not custody transfer — §6.3 governs the drop code, and tracking an order whose product money is still owed is the whole point of Option B. `suivre` keeps SP3.3c's rule; only the reveal waits on the door leg.
+
+---
+
+**FIVE PINNED TESTS HAD TO BE REWRITTEN BY HAND**, each one having pinned the old meaning — the vault's shipped-defaults test, the quote-issuance policy version, the service's door refusal, the CheckoutDO HTTP refusal, and the `e2-door-path` evidence driver. Each was rewritten to pin the NEW meaning rather than deleted, because « what do the shipped defaults DO » is the question that matters most about this policy. The buyer port's field allowlist made a sixth.
+
+**THE CAVEAT I HAVE CARRIED THROUGH EVERY SP4.2 ENTRY IS NOW DEAD.** « No Option-B order can be created through the public routes » was true while the allowlist was empty. It is not any more, and there is a test that proves it: **an Option-B quote, issued by the REAL Worker over HTTP, on the SHIPPED policy**, splitting D-now / product-at-door and reconciling to the franc, with no economics in the response.
+
+**Evidence:** workspace typecheck clean · **376/376 service · 725/725 buyer · 89/89 vault** · **80/80 Playwright on a rebuilt bundle** · `run-gates.sh` ALL GATES GREEN. **Mutation-proven:** making `revelationPermise` ignore the door leg turns the §6.3 browser test RED.
+
+**STILL OPEN, and now the next real step:** the buyer has no SCREEN to pay at the door — C8's « accepted » state is still a 2 600 ms timer, and the drop code is still the hardcoded `CODE_REMISE`. The server route exists (SP4.2a-bis); nothing calls it. That is the rest of SP4.2b.

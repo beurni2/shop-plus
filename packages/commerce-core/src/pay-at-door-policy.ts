@@ -39,24 +39,47 @@ export interface PayAtDoorPolicy {
    */
   inspectableCategories: readonly string[];
   /**
-   * §6.1 "network-reliable zone". ⏳ FOUNDER-TUNABLE: NO spec values exist —
-   * the conservative default is the EMPTY allowlist (no zone is presumed
-   * reliable until the founder names it).
+   * §6.1 "network-reliable zone". ⏳ FOUNDER-TUNABLE, and the founder RULED on
+   * 2026-08-01: « remove the list of the eligibility rule of neighbourhoods,
+   * it's open to every buyer who want that option ».
+   *
+   * ═══ THE RULE STAYS; ITS ANSWER BECAME « EVERYWHERE » ═══
+   *
+   * §6.1 is NORMATIVE and names five conditions, this among them, so the check
+   * is not deleted — it is given a value that means « every zone ». That keeps
+   * the spec's structure intact and keeps the decision REPLAYABLE: every
+   * eligibility answer still names the `version` it was decided under, so a
+   * future narrowing is a policy change with an audit trail rather than a
+   * silent difference between two builds.
+   *
+   * `'all'` IS AN EXPLICIT SENTINEL AND NOT AN EMPTY LIST, deliberately. An
+   * empty array still refuses EVERY zone — so a config that loses its zones,
+   * or arrives half-written, fails CLOSED. « Everywhere » has to be typed out
+   * by someone who meant it; it can never be reached by accident.
    */
-  networkReliableZones: readonly string[];
+  networkReliableZones: readonly string[] | 'all';
 }
 
 /**
- * Conservative defaults — Option-B narrow by default. Every figure here is
- * either quoted from the spec (cap, tier, §6.2 rows) or the empty set where
- * the spec names no value (zones). ⏳ All founder-tunable.
+ * The shipped policy. Every figure here is quoted from the spec (cap, tier,
+ * §6.2 rows) except the zone rule, which the spec gives no values for and the
+ * founder ruled OPEN on 2026-08-01. ⏳ All founder-tunable.
+ *
+ * THE VERSION STRING IS PART OF THE DECISION — every eligibility answer names
+ * it — so it moves whenever the policy's MEANING moves. It did here.
  */
 export const PAY_AT_DOOR_POLICY_DEFAULTS: PayAtDoorPolicy = {
-  version: 'option-b-policy.v0-conservative',
+  version: 'option-b-policy.v1-open-zones',
   priceCapFcfa: 25_000,
   minSellerTier: 'verified',
   inspectableCategories: ['fashion_bags_fabrics', 'shoes', 'sealed_beauty_cosmetics'],
-  networkReliableZones: [],
+  /**
+   * FOUNDER RULING 2026-08-01 — Option B is offered to every buyer who wants
+   * it, in every zone. The other four §6.1 conditions are UNTOUCHED and still
+   * gate it: seller tier ≥ verified · category inspectable · buyerTotal ≤ the
+   * price cap · the buyer's own eligibility record says `allowed`.
+   */
+  networkReliableZones: 'all',
 };
 
 export interface PayAtDoorContext {
@@ -116,7 +139,11 @@ export function decidePayAtDoorEligibility(
 
   if (ctx.buyerTotalFcfa > policy.priceCapFcfa) return refuse('over_price_cap');
 
-  if (!policy.networkReliableZones.includes(ctx.zoneTo)) return refuse('zone_not_network_reliable');
+  // `'all'` short-circuits; an ARRAY still allowlists, and an empty one still
+  // refuses everything. The two readings share no code path.
+  if (policy.networkReliableZones !== 'all' && !policy.networkReliableZones.includes(ctx.zoneTo)) {
+    return refuse('zone_not_network_reliable');
+  }
 
   return { eligible: true, policyVersion: policy.version };
 }
