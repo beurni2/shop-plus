@@ -155,27 +155,22 @@ export function splitFor(q: ClienteQuote, d: Livraison, mode: ModePaiement): Mod
   return mode === 'A' ? legs.A : legs.B;
 }
 /**
- * Payé maintenant — lu du devis figé, jamais recalculé ici.
+ * SP3.3b2 — `payezMaintenant` IS GONE, and with it the last place in this
+ * module that applied the CLIENT'S OWN RULE about what a payment mode means
+ * (« A pays the total, B pays the fee »).
  *
- * THE CLIENT'S OWN RULE ABOUT WHAT A MODE MEANS — « A pays the total, B pays
- * the fee » — and the LAST place in this module that still applies it. C5 no
- * longer calls it: since SP3.3b1 its CTA, its operator screens and its two §6.1
- * lines all read the SERVER'S carried split (`splitFor`), so no two figures on
- * the payment screen can come from two different rules.
+ * SP3.3b1 re-pointed C5's CTA, its operator screens and its two §6.1 lines at
+ * the SERVER'S carried split (`splitFor`) and left exactly one caller behind:
+ * C6, which states the CONFIRMED amount. C6 now reads the same split, so every
+ * franc the buyer sees between choosing and confirming comes from one byte.
  *
- * ITS ONE REMAINING CALLER IS C6 (`flow.ts` → `fmtPayezMaintenant`), which
- * states the CONFIRMED amount. Re-pointing that at the split means deciding
- * what C6 says when no split exists, and C6's sent/confirmed/failed states are
- * SP3.3b2's slice, not this one. Named here rather than left to be discovered:
- * under the cross-check the two agree to the franc, so nothing is wrong today —
- * what is outstanding is that the rule still exists at all.
+ * WHY THE RULE HAD TO DIE RATHER THAN BE KEPT AS A CROSS-CHECK: `flow.ts`
+ * called it as `fmtPayezMaintenant(q, delivery, state.pay ?? 'B')`. On any C6
+ * mount where she had not chosen — a direct mount is the reachable one — that
+ * `?? 'B'` INVENTED a mode and then stated its fee as a confirmed payment. A
+ * fallback amount on a confirmation screen is not a smaller bug than a wrong
+ * one: it says the operator confirmed a figure she never agreed to.
  */
-export const payezMaintenant = (q: ClienteQuote, d: Livraison, mode: ModePaiement): number =>
-  mode === 'A' ? total(q, d) : fee(q, d);
-
-/** « Payé maintenant » formaté (les octets NNBSP·FCFA). */
-export const fmtPayezMaintenant = (q: ClienteQuote, d: Livraison, mode: ModePaiement): string =>
-  fmtFCFA(payezMaintenant(q, d, mode));
 
 /* ------------------------------------------------------------- chrome ---- */
 
@@ -1073,14 +1068,32 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
 
 /* ----------------------------------------------------------------- C6 ---- */
 
-export function renderC6(m: ClienteProduit, o: { confirmState: ConfirmEtat; payNowStr: string }): string {
+/**
+ * SP3.3b2 — C6 TAKES THE SERVER'S SPLIT, NOT A PRE-FORMATTED FIGURE.
+ *
+ * `paid` is the `ModeSplit` her chosen mode is priced by — the SAME object C5's
+ * CTA and its §6.1 replay read — or `undefined` when there is no split to
+ * speak for: she reached this screen without a chosen, payable mode.
+ *
+ * `undefined` IS A STATE WITH NO AMOUNT, NOT A STATE WITH A FALLBACK AMOUNT.
+ * That rule is not new here; it is SP3.3b1's, written for this exact shape one
+ * screen earlier, where a missing split disables the CTA and it « carries no
+ * figure at all ». C6 now obeys the same rule: the confirmation keeps its
+ * sentence and loses its amount clause, because « Paiement confirmé par
+ * l'opérateur » is true without a figure, while any figure we supplied would be
+ * one the operator never confirmed.
+ */
+export function renderC6(m: ClienteProduit, o: { confirmState: ConfirmEtat; paid: ModeSplit | undefined }): string {
   let body: string;
   if (o.confirmState === 'confirmed') {
+    // ONE BYTE, ONE SENTENCE. The amount clause exists only when the server
+    // carried an amount for the mode she chose.
+    const montant = o.paid === undefined ? '' : ` de <b>${fmtFCFA(o.paid.paidNow)}</b>`;
     body = [
       '<div class="cl-conf" data-etat="confirmee">',
       `<div class="cl-conf-disc">${iconCheck(36, 2.6)}</div>`,
       '<div class="cl-conf-title">Commande enregistrée.</div>',
-      `<div class="cl-conf-body">Paiement de <b>${o.payNowStr}</b> confirmé par l’opérateur.</div>`,
+      `<div class="cl-conf-body">Paiement${montant} confirmé par l’opérateur.</div>`,
       '</div>',
       '<div class="cl-steps">',
       `<div class="cl-step-row"><span class="cl-step-num">1</span><span class="cl-step-txt">${esc(m.prenom)} prépare votre commande</span></div>`,

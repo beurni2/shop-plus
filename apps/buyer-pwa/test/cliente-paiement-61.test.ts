@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { clienteQuoteFromServer } from '../src/cliente/quote-model';
 import type { ServerQuote } from '../src/cliente/quote-port';
 import {
-  MESSAGES, PAIEMENT, renderC5, splitFor,
+  MESSAGES, PAIEMENT, renderC5, renderC6, splitFor,
   type C5State, type ClienteProduit, type ClienteQuote,
 } from '../src/cliente/screens';
 import { composeQuote, harnessFrancs, ROBE } from '../src/cliente/seed';
@@ -345,6 +345,63 @@ describe('the CTA and the operator screens quote the SAME server byte as the lin
       const html = renderC5(ROBE, DIVERGENT, s);
       expect(ctaText(html)).toBe('Choisissez pour continuer');
       expect(ctaText(html)).not.toContain('FCFA');
+    }
+  });
+});
+
+/* ═════ 2d · SP3.3b2 — C6 QUOTES THE SAME BYTE, AND NEVER INVENTS ONE ═════ */
+
+/**
+ * SP3.3b1 re-pointed C5 and left C6 on `payezMaintenant` — the client's own
+ * rule that « A pays the total, B pays the fee ». On the harness quote the two
+ * agreed to the franc, so nothing looked wrong; that agreement is precisely
+ * why a same-quote test could never have caught the divergence. Driven here
+ * with a split that DISAGREES with the old rule, so only the server's byte can
+ * pass.
+ *
+ * And the second half, which is the one that was actually broken in the flow:
+ * `flow.ts` passed `state.pay ?? 'B'`, so a C6 mount with no chosen mode
+ * INVENTED mode B and stated its fee as a confirmed payment. No amount is the
+ * only honest answer there.
+ */
+describe('SP3.3b2 — the confirmation quotes the server\'s split, or no figure at all', () => {
+  const DIVERGENT_Q: ClienteQuote = {
+    produitFcfa: 11_500,
+    feeToday: 1_000, feeTomorrow: 1_000,
+    totalToday: 12_500, totalTomorrow: 12_500,
+    splitsToday: { A: { paidNow: 9_999, dueAtDelivery: 777 }, B: { paidNow: 2_222, dueAtDelivery: 8_888 } },
+    splitsTomorrow: { A: { paidNow: 9_999, dueAtDelivery: 777 }, B: { paidNow: 2_222, dueAtDelivery: 8_888 } },
+  };
+
+  for (const [mode, paidNow] of [['A', `9${N}999`], ['B', `2${N}222`]] as const) {
+    it(`mode ${mode}: the confirmed payment is the split (${paidNow}), never the total or the fee`, () => {
+      const text = visible(renderC6(ROBE, {
+        confirmState: 'confirmed',
+        paid: splitFor(DIVERGENT_Q, 'today', mode),
+      }));
+      expect(text).toContain(`Paiement de ${paidNow}${N}FCFA confirmé par l’opérateur.`);
+      // the two figures the OLD client rule would have produced
+      expect(text, 'C6 still applied « A pays the total »').not.toContain(`12${N}500`);
+      expect(text, 'C6 still applied « B pays the fee »').not.toContain(`1${N}000`);
+    });
+  }
+
+  it('NO SPLIT ⇒ the sentence keeps its meaning and loses its amount — never a fallback figure', () => {
+    const text = visible(renderC6(ROBE, { confirmState: 'confirmed', paid: undefined }));
+    expect(text).toContain('Paiement confirmé par l’opérateur.');
+    // nothing that could be read as an amount the operator confirmed
+    expect(text, 'a figure appeared with no server byte behind it').not.toContain('FCFA');
+    // and the screen is still the confirmation, not a refusal or a blank
+    expect(text).toContain('Commande enregistrée.');
+  });
+
+  it('the pending and offline states never carry an amount, split or not', () => {
+    // Neither state asserts a confirmed payment, so neither may show a figure —
+    // this is what stops a future edit from « helpfully » filling them in.
+    for (const confirmState of ['pending', 'offline'] as const) {
+      for (const paid of [splitFor(DIVERGENT_Q, 'today', 'A'), undefined]) {
+        expect(visible(renderC6(ROBE, { confirmState, paid }))).not.toContain('FCFA');
+      }
     }
   });
 });

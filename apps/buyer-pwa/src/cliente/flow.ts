@@ -23,7 +23,7 @@ import { applyTheme, type VitrineThemeKey } from '../vitrine/themes';
 import {
   renderC1, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
   renderGalerie, renderOffline, renderRefus, renderSheet, renderSkeleton, renderToasts,
-  fmtPayezMaintenant, MESSAGES, SUIVI_STEPS,
+  splitFor, MESSAGES, SUIVI_STEPS,
   type ClienteProduit, type ClienteQuote, type ConfirmEtat, type DoorEtat,
   type Livraison, type ModePaiement, type VoiceEtat,
 } from './screens';
@@ -293,9 +293,14 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
           paying: state.paying, bInel: state.bInel,
         });
       case 'C6':
+        // SP3.3b2 — THE `?? 'B'` IS GONE. It invented a mode on any mount where
+        // she had not chosen one, and then stated that mode's fee as a payment
+        // the operator had confirmed. `state.pay === null` now yields no split,
+        // and C6 renders the sentence without an amount rather than with a
+        // guessed one.
         return q === null ? renderRefus('') : renderC6(m, {
           confirmState: state.confirmState,
-          payNowStr: fmtPayezMaintenant(q, state.delivery ?? 'today', state.pay ?? 'B'),
+          paid: state.pay === null ? undefined : splitFor(q, state.delivery ?? 'today', state.pay),
         });
       case 'C7':
         return renderC7({ step: state.step, problem: state.problem, demo });

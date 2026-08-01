@@ -6,7 +6,7 @@ import { composeQuote, ROBE, clienteProduitReel } from '../src/cliente/seed';
 import {
   renderC1, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
   renderSheet, renderSkeleton, renderOffline,
-  payezMaintenant, CODE_REMISE,
+  splitFor, CODE_REMISE,
   type C3State,
 } from '../src/cliente/screens';
 
@@ -86,11 +86,16 @@ describe('the quote is server-frozen — §3.2 decree bytes, render-only', () =>
       splitsTomorrow: { A: { paidNow: 12_300, dueAtDelivery: 0 }, B: { paidNow: 800, dueAtDelivery: 11_500 } },
     });
   });
-  it('payezMaintenant reads the frozen fields per mode (A = total, B = frais)', () => {
-    expect(payezMaintenant(Q, 'today', 'A')).toBe(12_500);
-    expect(payezMaintenant(Q, 'tomorrow', 'A')).toBe(12_300);
-    expect(payezMaintenant(Q, 'today', 'B')).toBe(1_000);
-    expect(payezMaintenant(Q, 'tomorrow', 'B')).toBe(800);
+  it('SP3.3b2 — the paid-now figure is the SERVER\'s carried split, per mode and per leg', () => {
+    // This replaces the `payezMaintenant` pin. That function encoded the
+    // CLIENT'S rule (« A pays the total, B pays the fee ») and is gone; what
+    // must hold now is that the figure comes from the quote's own split
+    // fields. On THIS quote the two happen to agree to the franc — which is
+    // exactly why the old test could never have caught the rule diverging.
+    expect(splitFor(Q, 'today', 'A').paidNow).toBe(12_500);
+    expect(splitFor(Q, 'tomorrow', 'A').paidNow).toBe(12_300);
+    expect(splitFor(Q, 'today', 'B')?.paidNow).toBe(1_000);
+    expect(splitFor(Q, 'tomorrow', 'B')?.paidNow).toBe(800);
   });
   it('the C5 reconciliation line is byte-exact for BOTH fees (§3.2)', () => {
     // READ AS THE BUYER READS IT — tags removed, nothing else. The promise
@@ -129,9 +134,9 @@ describe('every rendered amount carries the money bytes; no bare F, no breakable
     ['C5-inel', renderC5(ROBE, Q, { delivery: 'today', pay: 'A', paying: 'idle', bInel: true })],
     ['C5-envoi', renderC5(ROBE, Q, { delivery: 'today', pay: 'B', paying: 'submitting', bInel: false })],
     ['C5-opérateur', renderC5(ROBE, Q, { delivery: 'today', pay: 'B', paying: 'provider', bInel: false })],
-    ['C6-confirmée', renderC6(ROBE, { confirmState: 'confirmed', payNowStr: fmtFCFA(1_000) })],
-    ['C6-attente', renderC6(ROBE, { confirmState: 'pending', payNowStr: fmtFCFA(1_000) })],
-    ['C6-hors-ligne', renderC6(ROBE, { confirmState: 'offline', payNowStr: fmtFCFA(1_000) })],
+    ['C6-confirmée', renderC6(ROBE, { confirmState: 'confirmed', paid: splitFor(Q, 'today', 'B') })],
+    ['C6-attente', renderC6(ROBE, { confirmState: 'pending', paid: splitFor(Q, 'today', 'B') })],
+    ['C6-hors-ligne', renderC6(ROBE, { confirmState: 'offline', paid: splitFor(Q, 'today', 'B') })],
     ['C7', renderC7({ step: 2, problem: false, demo: true })],
     ['C7-problème', renderC7({ step: 5, problem: true, demo: true })],
     ['C8-inspection', renderC8(ROBE, Q, { door: 'inspecting', pay: 'B', reason: null })],
