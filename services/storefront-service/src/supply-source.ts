@@ -380,12 +380,22 @@ interface SupplyProjectionValue {
   /**
    * SELLER-TIER-WIRE-1 — canon v3.1.0, OPTIONAL on the projection.
    *
-   * `| undefined` EXPLICITLY, because this names what the CERTIFIED CONSUMER
-   * hands back and the canon schema's `.optional()` yields a present-but-
-   * `undefined` property. `ProductDescription.sellerTier` is deliberately NOT
-   * widened the same way: there the field is either ABSENT or a real tier, which
-   * is what makes `supply.sellerTier ?? ''` in `checkout-core.ts` a fail-closed
-   * read rather than a silent default.
+   * `| undefined` is a TYPE-LEVEL accommodation and nothing more. Zod's
+   * `.optional()` infers `sellerTier?: SellerTrustTier | undefined`, and under
+   * `exactOptionalPropertyTypes` that will not assign to a property declared
+   * `sellerTier?: SellerTrustTier`. The widening exists to make that assignment
+   * legal — it is NOT a statement about the runtime.
+   *
+   * WHAT THE RUNTIME ACTUALLY DOES (measured against installed contracts
+   * v3.1.0, after an earlier version of this comment claimed otherwise):
+   * parsing a projection with no `sellerTier` OMITS the key —
+   * `Object.hasOwn(p, 'sellerTier')` is `false`. Absent and present-undefined
+   * are therefore not both in play, and `??` would treat them alike if they
+   * were, so neither this widening nor its absence has any bearing on
+   * fail-closedness. What makes the read in `checkout-core.ts` fail CLOSED is
+   * the vault: `''` is not a member of `SELLER_TIER_RANK`, its `Object.hasOwn`
+   * guard answers `undefined`, and §6.1 refuses `seller_tier_below_minimum`.
+   * That dependency is pinned by a test in `commerce-core`, not assumed.
    */
   readonly sellerTier?: SellerTrustTier | undefined;
   readonly basePrice: number;

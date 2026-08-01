@@ -636,3 +636,49 @@ describe('CATEGORY-WIRE-1 — a PRE-v3 producer is undescribable, and that is th
     expect(joinVitrineProduct(listing, undefined)).toBeUndefined();
   });
 });
+
+/**
+ * ═══ THE PREMISE THE ROUTER'S `.catch()` RESTS ON, MADE AN ASSERTION ═══
+ *
+ * `worker/checkout-do.ts` wraps its supply read in `.catch(() => undefined)`.
+ * A verifier mutated that catch to fail OPEN — fabricating a `verified`
+ * supplier — and the whole suite stayed green, including the three
+ * broken-producer e2e cases. That is not those tests failing to bite: it is
+ * that the catch is UNREACHABLE through either shipped port, so no behavioural
+ * test can distinguish its bodies.
+ *
+ * The honest response is not to fake coverage of a dead branch. It is to assert
+ * the PREMISE that makes it dead — every shipped port RESOLVES, for every
+ * hostile input — so that if a future port ever starts rejecting, this test is
+ * where that fact surfaces, and the catch stops being decoration.
+ *
+ * The router's comment states plainly that the catch is defence-in-depth and
+ * not mutation-covered. Both halves of that claim are pinned here.
+ */
+describe('THE SUPPLY PORT NEVER REJECTS — the router catch is defence, not the mechanism', () => {
+  const HOSTILE: { label: string; fetch: (req: Request) => Promise<Response> }[] = [
+    { label: 'the binding throws', fetch: () => { throw new Error('unreachable'); } },
+    { label: 'the binding rejects', fetch: () => Promise.reject(new Error('rejected')) },
+    { label: 'a 500 with an unreadable body', fetch: async () => new Response('boom', { status: 500 }) },
+    { label: 'a 200 whose body is not JSON', fetch: async () => new Response('<html>nope</html>', { status: 200 }) },
+    { label: 'a 200 whose body is null', fetch: async () => Response.json(null, { status: 200 }) },
+    { label: 'a 200 whose value is a hostile shape', fetch: async () => Response.json({ version: 1, asOf: 1, value: [] }, { status: 200 }) },
+    { label: 'a 404 with no reason', fetch: async () => Response.json({ status: 'not_found' }, { status: 404 }) },
+  ];
+
+  it.each(HOSTILE)('BoundSupplySource RESOLVES on $label — undefined, never a rejected promise', async ({ fetch }) => {
+    const source = new BoundSupplySource({ fetch });
+    // `.resolves` is the whole assertion: a REJECTION here would mean the
+    // router's catch is load-bearing and its body is a real money decision.
+    await expect(source.describe('pv-x')).resolves.toBeUndefined();
+    await expect(source.economics('pv-x')).resolves.toBeUndefined();
+    await expect(source.presence('pv-x')).resolves.toEqual(expect.objectContaining({ kind: expect.any(String) }));
+  });
+
+  it('AbsentSupplySource resolves too — an unconfigured Worker cannot throw its way to a 500', async () => {
+    const absent = new AbsentSupplySource();
+    await expect(absent.describe()).resolves.toBeUndefined();
+    await expect(absent.economics()).resolves.toBeUndefined();
+    await expect(absent.presence()).resolves.toEqual({ kind: 'unknown' });
+  });
+});

@@ -449,8 +449,11 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     expect(refusalOf(issue({ request, supply: supplyFixture({ sellerTier: 'provisional' }) }))).toBe(
       'pay_at_door_not_eligible',
     );
-    // And the type says it too: `payAtDoorContext` carries `eligibility` alone.
-    expect(Object.keys(request.payAtDoorContext)).toEqual(['eligibility']);
+    // (An assertion on `Object.keys(request.payAtDoorContext)` used to sit here,
+    // claiming to prove the shape shrank. It asserted the TEST'S OWN LITERAL —
+    // no source mutation could redden it. Deleted rather than repaired: the wire
+    // shape is enforced by `tsc` and, on the real bytes, by the allowlist test
+    // in `checkout-do.e2e.test.ts`. Failure mode #7, caught by a verifier.)
   });
 
   it('NO SUPPLY ⇒ NO OPTION B, and the ops detail says `context_missing` — an unreadable projection never becomes a default', () => {
@@ -482,10 +485,21 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     expect(outcome.refusal).toBe('seller_tier_below_minimum');
   });
 
-  it('SUPPLY IS IRRELEVANT TO FULL_PREPAY — an absent projection never breaks ordinary checkout', () => {
+  it('SUPPLY IS IRRELEVANT TO FULL_PREPAY — even when the request CARRIES a door context and supply failed', () => {
     // The safety property behind reading supply only for Option-B requests: a
     // supply outage must cost the door mode, never the mode every buyer uses.
+    //
+    // TWO CASES, and the second is the one that matters (verifier NIT): a bare
+    // FULL_PREPAY omits the block on the FIRST half of the condition regardless
+    // of supply, so it proves almost nothing on its own. The real regression a
+    // future edit would produce is a FULL_PREPAY request that happens to carry a
+    // `payAtDoorContext` while the supply read failed — if that ever refuses,
+    // ordinary checkout has been made hostage to boutik's uptime.
     expect(issue({ supply: undefined }).ok).toBe(true);
+    expect(
+      issue({ request: { payAtDoorContext: { eligibility: ELIGIBLE } }, supply: undefined }).ok,
+      'a FULL_PREPAY quote must issue even with a door context and a failed supply read',
+    ).toBe(true);
   });
 
   it('THE OPS DETAIL RIDES THE REFUSAL, so the service can diagnose without telling the buyer', () => {

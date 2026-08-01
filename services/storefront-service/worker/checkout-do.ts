@@ -313,6 +313,15 @@ const REQUEST_FIELDS = ['slug', 'pid', 'paymentMode', 'zoneTo', 'attributionRese
  * projection this Worker reads for itself.
  */
 const DOOR_FIELDS = ['eligibility'];
+
+/**
+ * The one payment mode whose quote consults §6.1 — and therefore the only mode
+ * that may cause this Worker to read supply. Spelled here rather than inline so
+ * the amplification guard below and the vault agree on one string; the vault
+ * remains the authority on what the mode MEANS (an unknown mode still refuses
+ * `payment_mode_unknown` there, never here).
+ */
+const DOOR_PAYMENT_MODE = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
 const RESERVE_FIELDS = ['commandId', 'holderRef'];
 
 /**
@@ -536,21 +545,61 @@ export default {
 
       // ═══ SELLER-TIER-WIRE-1 — THE §6.1 FACTS, READ BY THE SERVER ═══
       //
-      // ONLY FOR AN OPTION-B REQUEST, and that condition is load-bearing twice
-      // over. Safety: a supply hiccup — unreachable producer, stale projection,
-      // unconfigured binding — must never be able to refuse an ORDINARY
-      // FULL_PREPAY checkout, which does not consult this value at all. Cost:
-      // this is a cross-Worker fetch on a money path, and paying for it on every
-      // buyer's checkout to serve the minority that chooses the door would be a
-      // latency tax on the majority, on the low-end networks §7 designs for.
+      // FOUR CONDITIONS, AND EACH ONE EARNS ITS PLACE. An earlier cut of this
+      // gated on `payAtDoorContext !== undefined` alone, and a verifier showed
+      // what that costs: `payAtDoorContext` is a field ANY caller may add to ANY
+      // request, so an anonymous `POST /checkout/quote` carrying
+      // `{paymentMode:'FULL_PREPAY', payAtDoorContext:{}}` and an INVENTED `pid`
+      // forced this Worker to fetch boutik — with `SUPPLY_READ_SECRET` on the
+      // request — for a product nobody sells, before refusing `listing_unknown`.
+      // An unauthenticated route that makes another service work is an
+      // amplifier, and this one reached across a trust boundary.
       //
-      // `describe()` already answers `undefined` for every unhappy path rather
-      // than throwing; the `catch` is the boundary's own insurance, because an
-      // uncaught throw on this route answers 500 and the DoD bans that.
-      // `undefined` here is not repaired and not substituted — it travels as
-      // `null` and the vault refuses `context_missing`.
+      //  · `paymentMode` IS the door mode — the vault consults these facts for
+      //    no other mode, so no other mode may pay for the fetch. This is also
+      //    what makes the sentence « only for an Option-B request » TRUE rather
+      //    than merely intended.
+      //  · `payAtDoorContext` is present — without it `checkout-core.ts` omits
+      //    the block regardless, so the read would be pure waste.
+      //  · `entry !== undefined` — the listing RESOLVED. An unknown listing
+      //    already refuses `listing_unknown` before supply is consulted, so this
+      //    read can no longer be aimed at an arbitrary productVersionId; the pid
+      //    must be one a real published listing in a real shop actually sells.
+      //  · `env.SUPPLY` is configured.
+      //
+      // The safety property is unchanged and still the reason for the whole
+      // shape: a supply hiccup — unreachable producer, stale projection,
+      // unconfigured binding — must never be able to refuse an ORDINARY
+      // FULL_PREPAY checkout, which does not consult this value at all. The cost
+      // argument stands too: a cross-Worker fetch charged to every buyer to
+      // serve the minority who choose the door is a latency tax on the majority,
+      // on the low-end networks Law #7 designs for.
+      //
+      // ⚠ THE `.catch()` BELOW IS DEAD DEFENCE, AND SAYING SO IS THE POINT.
+      // A verifier mutated it to fail OPEN — fabricating a `verified` supplier
+      // out of a failed read — and the ENTIRE suite stayed green, including the
+      // three broken-producer e2e cases. Not a gap in those tests: BOTH shipped
+      // ports resolve for every hostile input (`BoundSupplySource` catches its
+      // own fetch and both `json()` calls; `AbsentSupplySource` cannot fail), so
+      // nothing can reach this catch and no behavioural test can tell its bodies
+      // apart. It stays because an uncaught rejection on this route answers 500
+      // and the DoD bans that — insurance against a FUTURE port, not the
+      // mechanism protecting today's. The premise that makes it dead is asserted
+      // directly in `test/supply-source.test.ts` (« THE SUPPLY PORT NEVER
+      // REJECTS »), so the day a port starts rejecting, that test says so.
+      // **This branch is deliberately NOT claimed as mutation-covered.**
+      //
+      // The real fail-closed mechanism is the line below and the two after it:
+      // `undefined` is not repaired and not substituted — it travels as `null`
+      // and `checkout-core.ts` omits the whole block, which the vault refuses
+      // `context_missing`. THAT path is covered, three ways, over HTTP.
       let supply: ProductDescription | undefined;
-      if (req.payAtDoorContext !== undefined && env.SUPPLY !== undefined) {
+      if (
+        req.paymentMode === DOOR_PAYMENT_MODE &&
+        req.payAtDoorContext !== undefined &&
+        entry !== undefined &&
+        env.SUPPLY !== undefined
+      ) {
         supply = await env.SUPPLY.describe(req.pid).catch(() => undefined);
       }
 

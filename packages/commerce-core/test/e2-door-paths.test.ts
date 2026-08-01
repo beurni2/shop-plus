@@ -406,6 +406,27 @@ describe('§6.1 — the seller-tier condition cannot be walked past on the proto
     }
   });
 
+  /**
+   * THE EMPTY STRING IS NOT A COSMETIC CASE — IT IS A CROSS-PACKAGE CONTRACT.
+   * (Verifier finding, SELLER-TIER-WIRE-1.)
+   *
+   * `storefront-service`'s checkout path reads `supply.sellerTier ?? ''` and
+   * hands the result here: an offer-service older than canon v3.1.0 publishes no
+   * tier, so `''` is exactly what a pre-v3.1.0 producer looks like on this wire.
+   * That read is fail-CLOSED only because of the `Object.hasOwn` guard above —
+   * before it, `SELLER_TIER_RANK[''] === undefined` and `undefined < 1` is
+   * `false`, so an untiered producer was ELIGIBLE.
+   *
+   * The consumer cannot pin a guard it does not own, so the pin lives here. If
+   * this line ever goes green-to-red, a §6.1 gate in another package silently
+   * opened.
+   */
+  it("THE EMPTY TIER — what a pre-canon-v3.1.0 producer looks like — refuses, and this is the pin storefront-service's `?? ''` depends on", () => {
+    const d = decidePayAtDoorEligibility(ctx(''));
+    expect(d.eligible, 'an absent producer tier must never be eligible').toBe(false);
+    if (!d.eligible) expect(d.reason).toBe('seller_tier_below_minimum');
+  });
+
   it('the POLICY side is guarded too — an unreadable minimum REFUSES, it does not wave everyone through', () => {
     // The first cut of this fix stopped one line short and left
     // `SELLER_TIER_RANK[policy.minSellerTier]!`. That half failed OPEN, which is

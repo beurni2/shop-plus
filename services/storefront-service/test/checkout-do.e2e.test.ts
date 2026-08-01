@@ -1255,3 +1255,235 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
     expect(res.json['buyerTotal']).toBeUndefined(); // no price crossed over
   });
 });
+
+/* ═══════ SELLER-TIER-WIRE-1 — THE FAIL-CLOSED READ, THROUGH THE REAL WORKER ═══════
+ *
+ * A VERIFIER PROVED THIS SUITE COULD NOT SEE THE PROPERTY IT CLAIMED. Replacing
+ * the router's `.catch(() => undefined)` with a fail-OPEN catch that fabricated
+ * `{category:'fashion_bags_fabrics', sellerTier:'verified'}` left **388/388
+ * green**: a supply-read failure inventing a verified supplier passed CI.
+ *
+ * The root cause was structural, not an oversight of one assertion. The suite's
+ * `OFFER` binding always answers, and `seedShop` cannot publish a pid the
+ * producer does not know (publish signs HER price from that same wire), so an
+ * UNDESCRIBABLE product could not be constructed at all. DoD #3 — « absence
+ * refuses, never defaults » — was asserted only where `supply: undefined` is
+ * handed straight into the pure core.
+ *
+ * These cases give the Worker a producer that FAILS, and a Worker with no
+ * producer at all, and drive a real door request at each.
+ */
+describe('CheckoutDO — a supply read that FAILS refuses Option B, and never invents a seller', () => {
+  /** A Worker whose OFFER answers the publish read (so a listing can exist) and
+   *  then breaks for the CHECKOUT read. `mode` picks how it breaks. */
+  function makeBroken(mode: 'throw' | 'five-hundred' | 'stale', dir: string): Miniflare {
+    let publishDone = false;
+    return new Miniflare({
+      modules: true,
+      scriptPath: SCRIPT,
+      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO' },
+      durableObjectsPersist: dir,
+      bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
+      serviceBindings: {
+        OFFER: async (request: Request) => {
+          const single = /^\/supply-projection\/([^/]+)$/.exec(new URL(request.url).pathname);
+          if (!single) return Response.json({ service: 'offer-service', status: 'not_found' }, { status: 404 });
+          const value = SUPPLY.find((v) => v.productVersionId === decodeURIComponent(single[1]!));
+          if (value === undefined) {
+            return Response.json({ service: 'offer-service', status: 'not_found', reason: 'unknown_product_version' }, { status: 404 });
+          }
+          // The FIRST read is the publish signing read — it must succeed or no
+          // listing exists to quote. Every read after it is the checkout read.
+          if (!publishDone) {
+            publishDone = true;
+            return Response.json({ version: 1, asOf: new Date().toISOString(), value });
+          }
+          if (mode === 'throw') throw new Error('boutik is unreachable');
+          if (mode === 'five-hundred') return new Response('upstream exploded', { status: 500 });
+          // STALE: a well-formed, correct projection — just older than the
+          // founder's 15-minute freshness bound. The nastiest case, because
+          // nothing about it looks wrong.
+          const old = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+          return Response.json({ version: 1, asOf: old, value });
+        },
+      },
+    });
+  }
+
+  /** No OFFER binding AT ALL — `resolveSupplySource` yields `AbsentSupplySource`,
+   *  the honest state of an unconfigured Worker. */
+  function makeUnconfigured(dir: string): Miniflare {
+    return new Miniflare({
+      modules: true,
+      scriptPath: SCRIPT,
+      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO' },
+      durableObjectsPersist: dir,
+      bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
+    });
+  }
+
+  async function seedOn(inst: Miniflare, n: string): Promise<{ slug: string; resellerId: string }> {
+    const shortCode = `BROKE-${n}`;
+    const created = await inst.dispatchFetch('http://c/storefronts', {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({
+        commandId: `cmd-create-${n}`, id: `sf-broke-${n}`, resellerId: `rs-broke-${n}`, shortCode,
+        name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
+        correlationId: `corr-${n}`, at: T0,
+      }),
+    });
+    if (created.status !== 200) throw new Error(`seed: storefront create ${created.status}`);
+    const pub = await inst.dispatchFetch('http://c/listings', {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({
+        commandId: `cmd-listing-${n}`, listingId: `lst-broke-${n}`, storefrontId: `sf-broke-${n}`,
+        resellerId: `rs-broke-${n}`, productVersionId: 'pv-checkout-1', offerVersion: 'ov-checkout-1',
+        markup: 1_500, correlationId: `corr-${n}`, at: T0,
+      }),
+    });
+    const decision = (await pub.json()) as { status?: string };
+    if (decision.status !== 'published') throw new Error(`seed: listing publish ${JSON.stringify(decision)}`);
+    return { slug: shortCode.toLowerCase(), resellerId: `rs-broke-${n}` };
+  }
+
+  async function doorQuoteOn(inst: Miniflare, s: { slug: string; resellerId: string }, mode = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') {
+    const res = await inst.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug: s.slug, pid: 'pv-checkout-1', paymentMode: mode, zoneTo: 'Ouagadougou',
+        attributionResellerId: s.resellerId, requestKey: freshKey(),
+        payAtDoorContext: { eligibility: ELIGIBLE },
+      }),
+    });
+    const text = await res.text();
+    return { status: res.status, text, json: safeJson(text) };
+  }
+
+  const dirs: string[] = [];
+  const scratch = (): string => {
+    const d = mkdtempSync(join(tmpdir(), 'checkout-broke-'));
+    dirs.push(d);
+    return d;
+  };
+  afterAll(() => {
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  });
+
+  it.each([
+    ['UNREACHABLE (the fetch throws)', 'throw'],
+    ['A 5xx FROM THE PRODUCER', 'five-hundred'],
+    ['A STALE PROJECTION — correct data, past the freshness bound', 'stale'],
+  ] as const)('%s ⇒ Option B is REFUSED by name, and no quote exists', async (_label, mode) => {
+    const inst = makeBroken(mode, scratch());
+    try {
+      const shop = await seedOn(inst, '0001');
+      const door = await doorQuoteOn(inst, shop);
+      expect(door.status, door.text).toBe(422);
+      expect(door.json['error']).toBe('pay_at_door_not_eligible');
+      // NOTHING was invented on the way to that refusal, and the §6.1 ops detail
+      // still does not reach the buyer.
+      expect(door.text.includes('verified')).toBe(false);
+      expect(door.text.includes('policyVersion')).toBe(false);
+      expect(door.text.includes('amountDueAtDelivery')).toBe(false);
+    } finally {
+      await inst.dispose();
+    }
+  });
+
+  it('AN UNCONFIGURED WORKER (no OFFER binding at all) refuses Option B — AbsentSupplySource describes nothing', async () => {
+    const inst = makeUnconfigured(scratch());
+    try {
+      // No supply source ⇒ publish cannot sign a price either (PUBLISH-PRICE-1),
+      // so the listing itself refuses — which is the same fail-closed answer one
+      // step earlier. Assert what the buyer is actually told: never a quote.
+      const shortCode = 'ABSENT-0001';
+      await inst.dispatchFetch('http://c/storefronts', {
+        method: 'POST', headers: authed,
+        body: JSON.stringify({
+          commandId: 'cmd-create-abs', id: 'sf-abs', resellerId: 'rs-abs', shortCode,
+          name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
+          correlationId: 'corr-abs', at: T0,
+        }),
+      });
+      const door = await doorQuoteOn(inst, { slug: shortCode.toLowerCase(), resellerId: 'rs-abs' });
+      expect([404, 422]).toContain(door.status);
+      expect(door.text.includes('amountDueAtDelivery')).toBe(false);
+      expect(door.text.includes('buyerTotal')).toBe(false);
+    } finally {
+      await inst.dispose();
+    }
+  });
+
+  /**
+   * THE AMPLIFICATION GUARD (verifier MAJOR 3). `payAtDoorContext` is a field
+   * ANY caller may attach to ANY request. Gated on its presence alone, an
+   * anonymous FULL_PREPAY request with an invented pid made this Worker fetch
+   * boutik — carrying `SUPPLY_READ_SECRET` — for a product nobody sells. The
+   * read is now additionally gated on the door payment mode AND on the listing
+   * having RESOLVED, so it cannot be aimed at an arbitrary productVersionId.
+   */
+  it('AN UNAUTHENTICATED REQUEST CANNOT AIM THIS WORKER AT BOUTIK — no supply read for a non-door mode or an unknown listing', async () => {
+    let reads = 0;
+    const dir = scratch();
+    const inst = new Miniflare({
+      modules: true,
+      scriptPath: SCRIPT,
+      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO' },
+      durableObjectsPersist: dir,
+      bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
+      serviceBindings: {
+        OFFER: async (request: Request) => {
+          const single = /^\/supply-projection\/([^/]+)$/.exec(new URL(request.url).pathname);
+          if (!single) return Response.json({ service: 'offer-service', status: 'not_found' }, { status: 404 });
+          reads += 1;
+          const value = SUPPLY.find((v) => v.productVersionId === decodeURIComponent(single[1]!));
+          if (value === undefined) {
+            return Response.json({ service: 'offer-service', status: 'not_found', reason: 'unknown_product_version' }, { status: 404 });
+          }
+          return Response.json({ version: 1, asOf: new Date().toISOString(), value });
+        },
+      },
+    });
+    try {
+      const shop = await seedOn(inst, '0002');
+      const after = reads; // the publish signing read is legitimate; count from here
+
+      // (a) FULL_PREPAY carrying a door context, invented pid — the attack shape.
+      const bogus = await inst.dispatchFetch('http://c/checkout/quote', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: shop.slug, pid: 'pv-attacker-chosen-0001', paymentMode: 'FULL_PREPAY',
+          zoneTo: 'Ouagadougou', attributionResellerId: shop.resellerId, requestKey: freshKey(),
+          payAtDoorContext: { eligibility: ELIGIBLE },
+        }),
+      });
+      expect(bogus.status).toBe(404);
+      expect(reads, 'a FULL_PREPAY request must never reach boutik').toBe(after);
+
+      // (b) The DOOR mode with an invented pid — the listing does not resolve,
+      //     so the read is still not made.
+      const unknownPid = await inst.dispatchFetch('http://c/checkout/quote', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: shop.slug, pid: 'pv-attacker-chosen-0002',
+          paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR', zoneTo: 'Ouagadougou',
+          attributionResellerId: shop.resellerId, requestKey: freshKey(),
+          payAtDoorContext: { eligibility: ELIGIBLE },
+        }),
+      });
+      expect(unknownPid.status).toBe(404);
+      expect(reads, 'an unresolvable listing must never reach boutik').toBe(after);
+
+      // (c) THE CONTROL — the gate is not simply off. A real door request on a
+      //     real listing DOES read supply, exactly once.
+      const real = await doorQuoteOn(inst, shop);
+      expect(real.status, real.text).toBe(200);
+      expect(reads, 'a genuine Option-B request reads supply once').toBe(after + 1);
+    } finally {
+      await inst.dispose();
+    }
+  });
+});
