@@ -2106,3 +2106,19 @@ IN SYNC — the live Worker speaks the canon main ships (2.6.0).
 **HALF TWO — BLOCKED, AND NOT FAKED. There is no payment-failure surface in the buyer flow, and there cannot be one yet.** `QuotePort` exposes `request` and `reserve` ONLY — no payment call, no payment outcome — and the provider step in `flow.ts` is a `setTimeout` that always succeeds. `ConfirmEtat` is `confirmed | pending | offline`; there is no `failed`. Building that screen now would be either unreachable code or a screen driven by a simulated failure, which is failure mode §9.8 pointing the wrong way. **It needs SP3.3a's server side wired through to the client first — that is the prerequisite, and it is named here rather than discovered later.**
 
 **Evidence:** both apps typecheck · `turbo run test --force` 23/23 (the first run reported a `commerce-core` failure that passed 86/86 alone and passed clean on the re-run — called a flake only after seeing it green twice) · the two payment suites 201/201 · two source mutations each caught.
+
+**⚠ THE VERIFIER CAUGHT THE HALF I SHIPPED UNGUARDED — failure mode §9.7, mine, in the same slice where I claimed to have fixed a live defect.**
+
+The fresh-context verifier re-introduced `?? 'B'` into `flow.ts`'s C6 render, rebuilt, and ran everything: **689 unit tests and 18 e2e all passed.** The defect I had just described as « a live defect » had **nothing** asserting it stayed fixed.
+
+**WHY THE UNIT TESTS COULD NEVER HAVE COVERED IT — the distinction that matters.** They call `renderC6` directly, so they assert what the SCREEN does with a split it is handed. The defect lived entirely in what `flow.ts` DECIDES to hand it. Between those two is exactly where the bug was, and no test crossed it. The old `e2e/cliente.spec.ts` mounts `C6` but asserts only: screen visible, no economics term, no space-grouped digits — and « Paiement de 1 000 FCFA » satisfies all three, which is precisely why it lived there undetected in the first place.
+
+**CLOSED:** a real-mount e2e asserting the confirmed block carries no franc figure and no digit when no mode was chosen. **Mutation-proven against a REBUILT bundle** (`paid:Tt(P` compiled in): the guard fails on the defect, passes on the fix. 19/19 cliente e2e green afterwards.
+
+**A LOCAL-ONLY HAZARD THE VERIFIER ALSO NAMED, worth knowing for every future e2e run here:** Playwright's `webServer` runs `pnpm preview` with **no build step**, so a local e2e run serves whatever `dist` happens to be on disk and can pass against code that no longer exists. CI is safe (`ci.yml` builds first). **Every mutation proof in this entry was run against a bundle rebuilt for that mutation, and the compiled expression was grepped out of `dist` to confirm it.**
+
+**TWO FINDINGS LEFT UNFIXED, DELIBERATELY — same species, outside this slice:**
+- **`prefill` still invents mode B one line above the fix.** `flow.ts:235` — `if (idx >= 4) state.pay = state.pay || 'B'`, and `ECRANS.indexOf('C6') === 4`. It no longer reaches C6's amount (every jump to C6 comes from `payer`, which requires a chosen mode), but that invented `'B'` still flows into `renderC8` and the mode-A branch of `porte-bon`. Pre-existing, and the honest scope of this slice was C6.
+- **C6 does not consult `bInel`; C5 does.** `screens.ts:958` gates mode B's split on it, `flow.ts:303` calls `splitFor` ungated. The verifier traced every path and found it **unreachable today**. But the two screens now decide « is this mode payable » by two different expressions — the shape SP3.3b1's own comment warned about.
+
+Both are named here rather than left to be discovered, and neither is a franc a buyer can see today.

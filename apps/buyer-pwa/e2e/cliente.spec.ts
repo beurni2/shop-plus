@@ -74,6 +74,39 @@ test('every C1–C9 screen and state mounts (reachability), with zero economics 
   }
 });
 
+/**
+ * SP3.3b2 — THE CONFIRMATION NEVER STATES AN AMOUNT NO OPERATOR CONFIRMED.
+ *
+ * WRITTEN BECAUSE THE FIX SHIPPED UNGUARDED, and a fresh-context verifier
+ * proved it: re-adding `?? 'B'` to `flow.ts`'s C6 render restored « Paiement de
+ * 1 000 FCFA confirmé par l'opérateur » on a screen where nothing was
+ * confirmed, and 689 unit tests plus 18 e2e all stayed green. A fix with no
+ * assertion behind it is a fix that will be undone by the next person who finds
+ * the `undefined` inconvenient.
+ *
+ * THE UNIT TESTS CANNOT COVER THIS. They call `renderC6` directly, so they
+ * assert what the SCREEN does with a split it is handed — never what `flow.ts`
+ * decides to hand it. The defect lived entirely in that decision. Only a real
+ * mount exercises it, which is why this assertion is here and not there.
+ *
+ * The direct C6 mount is the reachable no-choice state: `createCliente` starts
+ * with `pay: null` and does not prefill, so nothing has been chosen and no
+ * server byte exists. The sentence must therefore carry no figure at all.
+ */
+test('C6 mounted with no chosen mode states NO amount — the operator confirmed nothing', async ({ page }) => {
+  await page.goto('/?demo-cliente=C6');
+  const conf = page.locator('[data-etat="confirmee"]');
+  await expect(conf).toBeVisible();
+  const text = (await conf.innerText()).replace(/\s+/g, ' ');
+
+  // The sentence keeps its meaning…
+  expect(text).toContain('Commande enregistrée.');
+  expect(text).toContain('Paiement confirmé par l’opérateur.');
+  // …and carries NO franc figure, because no split exists to speak for one.
+  expect(text, 'C6 stated an amount with no server byte behind it').not.toContain('FCFA');
+  expect(text, 'a bare number leaked into the confirmation').not.toMatch(/\d/);
+});
+
 test('SCREEN-FIT — every screen/state fills a 360px phone with ZERO horizontal overflow (founder, 2026-07-22)', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   const cases = ['C1', 'C1&stock=out', 'C2', 'C3', 'C4', 'C5', 'C5&b=indisponible', 'C6', 'C7', 'C8', 'C9', 'C9&revealed=1'];
