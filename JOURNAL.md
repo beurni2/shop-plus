@@ -2078,3 +2078,15 @@ IN SYNC — the live Worker speaks the canon main ships (2.5.0).
 **A PROBE THAT LIED TO ME, TWICE, AND THE RULE THAT FIXES IT.** I checked for raw U+202F by pasting the character into a Python heredoc. In one heredoc it survived and the check was real; in the next it was normalised to an ASCII space, so the check counted every space in the file and « failed » on a clean one. **Never express U+202F as a pasted glyph — use `b'\xe2\x80\xaf'` or the ` ` escape.** Both catalogs re-verified by exact bytes: zero raw, escapes intact, parse clean. (The same class of error put a fabricated SHA in a CI-watch loop earlier today: a check that cannot fail is not a check.)
 
 **Evidence:** `turbo run test --force` 23/23 · 36 screenshots read individually (six styles × 360/320 × complete/minimal/long), `scrollWidth` equal to the viewport in all 36 · `run-gates.sh` **ALL GATES GREEN** · both apps typecheck · canon CI green on v2.6.0.
+
+**✅ DEPLOYED, FOUNDER-AUTHORIZED 2026-08-01.** `storefront-deploy` dispatched against `main` (`a15ef85`) — success — and the drift gate re-run confirms it from a GitHub runner, the only vantage point in this session that can reach the Worker:
+
+```
+health: 200 {"service":"storefront-service","status":"ok","release":"a15ef85…","canon":"2.6.0"}
+repo canon = 2.6.0 · live canon = 2.6.0
+IN SYNC — the live Worker speaks the canon main ships (2.6.0).
+```
+
+**All four workflows green on `a15ef85`.** The six are live and saveable; **33 pickable styles** (43 canon keys, ten retired ones still accepted as vocabulary but never offered — verified by parsing both arrays, not by eye).
+
+**The founder was asked again rather than assumed.** He authorised the v2.5.0 deploy; that was for that deploy. `storefront-deploy` is `workflow_dispatch` only and its own header says « a deploy is a deliberate act », so each canon bump gets its own explicit go-ahead. He was offered standing authorisation for future bumps and did NOT take it — the per-bump check-in stands.
