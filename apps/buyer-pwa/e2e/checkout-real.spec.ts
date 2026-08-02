@@ -474,7 +474,7 @@ test('SP3.3c · the server says `payment_pending` FOREVER — and the screen nev
   expect(wire.orderReads.length, 'the client never asked the server anything').toBeGreaterThan(0);
 });
 
-test('SP3.3c · the ORDER body is the three-key allowlist — no amount crosses this wire', async ({ page }) => {
+test('SP3.3c · the ORDER body is the allowlist — no amount crosses this wire (BC-1b: contact is its fourth key)', async ({ page }) => {
   const wire = await scriptService(page, { orderStates: ['payment_pending'] });
   await askForPrice(page);
   await toPayer(page, 'A');
@@ -482,8 +482,18 @@ test('SP3.3c · the ORDER body is the three-key allowlist — no amount crosses 
   await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
 
   const body = wire.orders[0]!.body;
-  expect(Object.keys(body).sort()).toEqual(['commandId', 'holderRef', 'quoteId']);
-  for (const v of Object.values(body)) expect(typeof v).toBe('string');
+  // BC-1b evolved this pin exactly as its port-level twin: the fourth key is
+  // the founder-approved dispatch contact — three bounded strings assembled
+  // from what she typed on C3, still nowhere an amount could ride.
+  expect(Object.keys(body).sort()).toEqual(['commandId', 'contact', 'holderRef', 'quoteId']);
+  const contact = body['contact'] as Record<string, unknown>;
+  expect(Object.keys(contact).sort()).toEqual(['phone', 'quartier', 'repere']);
+  expect(contact['phone']).toBe('70 12 34 56'); // the journey's own C3 input, verbatim
+  expect(contact['quartier']).toBe('Gounghin');
+  for (const v of Object.values(contact)) expect(typeof v).toBe('string');
+  for (const [k, v] of Object.entries(body)) {
+    if (k !== 'contact') expect(typeof v, k).toBe('string');
+  }
   // AS THE AMOUNTS WOULD ACTUALLY BE WRITTEN (verifier NOTE 13). The old form
   // was `/12500|11500|1000/` against a body carrying two raw uuids, where the
   // digits « 1000 » land inside 32 hex characters roughly once in a thousand
