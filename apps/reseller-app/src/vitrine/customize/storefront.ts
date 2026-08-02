@@ -230,6 +230,9 @@ export const NAME_MIN = 3;
 export const NAME_MAX = 24;
 export const TAGLINE_MAX = 40;
 export const BIO_MAX = 160;
+/** VITRINE-QUARTIER-1 — display bound, mirrored from the service. NOT a
+ *  gazetteer: the zone list stays an open founder decision; the string stays free. */
+export const ZONE_MAX = 40;
 export const SECTION_NAME_MAX = 20;
 export const FEATURED_CAP = 2;
 export const SECTIONS_CAP = 4;
@@ -266,13 +269,18 @@ export type ActionResult =
   | { readonly ok: true; readonly next: Storefront; readonly toastKey?: string }
   | { readonly ok: false; readonly toastKey: string };
 
-/** K2 « Enregistrer » — publication immédiate (name ≥ 3 enforced by the form). */
-export function saveIdentity(sf: Storefront, patch: { name: string; tagline: string; bio: string }): ActionResult {
+/** K2 « Enregistrer » — publication immédiate (name ≥ 3 enforced by the form).
+ * VITRINE-QUARTIER-1: the quartier saves with the rest of the identity — and a
+ * blank one is REFUSED like a blank name (canon `zone` is trimmed non-empty;
+ * silently keeping the old value would tell her the clear saved). */
+export function saveIdentity(sf: Storefront, patch: { name: string; tagline: string; bio: string; zone: string }): ActionResult {
   const name = patch.name.slice(0, NAME_MAX);
   if (name.trim().length < NAME_MIN) return { ok: false, toastKey: 'k.identite.nom_requis' };
+  const zone = patch.zone.slice(0, ZONE_MAX).trim();
+  if (zone.length === 0) return { ok: false, toastKey: 'k.identite.zone_requise' };
   return {
     ok: true,
-    next: { ...sf, name, tagline: patch.tagline.slice(0, TAGLINE_MAX), bio: patch.bio.slice(0, BIO_MAX) },
+    next: { ...sf, name, zone, tagline: patch.tagline.slice(0, TAGLINE_MAX), bio: patch.bio.slice(0, BIO_MAX) },
     toastKey: 'k.toast_enregistre',
   };
 }

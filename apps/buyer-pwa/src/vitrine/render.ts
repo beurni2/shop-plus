@@ -37,7 +37,7 @@ import {
 } from './icons';
 import { VITRINE_THEMES } from './themes';
 import { isFavorite } from './favorites';
-import { renderEntete, type EnteteKey } from './entetes';
+import { enteteMontreBio, renderEntete, type EnteteKey } from './entetes';
 
 /** « X\u202fFCFA » — the ONE formatter (cliente/money): U+202F thousands +
  * U+202F before FCFA, built from the escaped constant — never Intl (ICU
@@ -408,6 +408,17 @@ export function renderVitrineReady(
       topBar({ back: opts.fromProduct, accent: th.accent }),
     ),
   ];
+
+  // VITRINE-PRESENTATION-1 (founder defect report 2026-08-02) — the sentence
+  // she typed in K2 must reach her cliente. Eight styled units carry it inside
+  // the header; the cinematic families deliberately do not, and until now the
+  // page rendered it nowhere for them. It appears here, once, directly under
+  // the en-tête — and never twice: `enteteMontreBio` mirrors the dispatch's own
+  // resolution, so a fallback-to-classique draw (unloaded chunk) counts as the
+  // hero, which already shows it.
+  if (sf.bio !== '' && !enteteMontreBio(entete)) {
+    parts.push(`<div class="vt-presentation" data-role="vitrine-presentation"><v>${esc(sf.bio)}</v></div>`);
+  }
 
   // « PRODUIT À LA UNE » — ≤ 2 pinned, never an out-of-stock article. When she
   // pinned NOTHING (K5), the page still leads with her FIRST in-stock article —

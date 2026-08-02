@@ -166,6 +166,10 @@ export interface StorefrontIdentityPatch {
   readonly name?: string;
   readonly tagline?: string;
   readonly bio?: string;
+  /** VITRINE-QUARTIER-1 — her quartier, editable at last (founder defect report
+   *  2026-08-02: it was written once at CREATE and no route could change it).
+   *  The service refuses an empty one (`zone_required`) and > 40 (`zone_too_long`). */
+  readonly zone?: string;
   readonly theme?: string;
   readonly featuredItems?: readonly string[];
   readonly sections?: readonly { readonly id: string; readonly name: string; readonly pids: readonly string[] }[];

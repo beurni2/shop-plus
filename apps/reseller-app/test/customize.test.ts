@@ -110,11 +110,27 @@ describe('K flows — §8.5–§8.10 as assertions', () => {
   const sf = DEFAULT_STOREFRONT;
 
   it('§8.6 K2: a name under 3 chars is refused; a valid save publishes immediately', () => {
-    const bad = saveIdentity(sf, { name: 'Ai', tagline: '', bio: '' });
+    const bad = saveIdentity(sf, { name: 'Ai', tagline: '', bio: '', zone: sf.zone });
     expect(bad.ok).toBe(false);
-    const good = saveIdentity(sf, { name: 'Chez Aïcha Mode', tagline: 'Le wax et le cuir', bio: '' });
+    const good = saveIdentity(sf, { name: 'Chez Aïcha Mode', tagline: 'Le wax et le cuir', bio: '', zone: sf.zone });
     expect(good.ok).toBe(true);
     if (good.ok) expect(good.next.tagline).toBe('Le wax et le cuir');
+  });
+
+  it('VITRINE-QUARTIER-1: the quartier saves with the identity — blank refused by name, trimmed, capped', () => {
+    // He can finally leave « Gounghin, Ouagadougou »: the founder's exact defect.
+    const moved = saveIdentity(sf, { name: sf.name, tagline: '', bio: '', zone: '  Dassasgho, Ouagadougou  ' });
+    expect(moved.ok).toBe(true);
+    if (moved.ok) expect(moved.next.zone).toBe('Dassasgho, Ouagadougou'); // trimmed — canon refuses edge whitespace
+    // A shop must KEEP a quartier — a blank save is refused with its own toast,
+    // never silently kept (that would tell him the clear saved).
+    const blank = saveIdentity(sf, { name: sf.name, tagline: '', bio: '', zone: '   ' });
+    expect(blank.ok).toBe(false);
+    if (!blank.ok) expect(blank.toastKey).toBe('k.identite.zone_requise');
+    // The display bound: 40, like the tagline — sliced at the edit boundary.
+    const long = saveIdentity(sf, { name: sf.name, tagline: '', bio: '', zone: 'Q'.repeat(60) });
+    expect(long.ok).toBe(true);
+    if (long.ok) expect(long.next.zone.length).toBe(40);
   });
 
   it('§8.8 K5: the 3rd pin is refused with the cap toast; an épuisé pin is refused', () => {
@@ -163,11 +179,11 @@ describe('K flows — §8.5–§8.10 as assertions', () => {
 
   it('the LOCAL mirror parses with the CANON v1.1.0 StorefrontSchema (RN bundle bans runtime imports; drift fails HERE)', () => {
     expect(() => StorefrontSchema.parse(DEFAULT_STOREFRONT)).not.toThrow();
-    const saved = saveIdentity(DEFAULT_STOREFRONT, { name: 'Chez Aïcha Mode', tagline: 'Le wax', bio: '' });
+    const saved = saveIdentity(DEFAULT_STOREFRONT, { name: 'Chez Aïcha Mode', tagline: 'Le wax', bio: '', zone: DEFAULT_STOREFRONT.zone });
     expect(saved.ok).toBe(true);
     if (saved.ok) expect(() => StorefrontSchema.parse(saved.next)).not.toThrow();
     // canon bounds the name at ≤ 120; THIS app's 3–24 lives at the edit boundary
-    expect(saveIdentity(DEFAULT_STOREFRONT, { name: 'Ai', tagline: '', bio: '' }).ok).toBe(false);
+    expect(saveIdentity(DEFAULT_STOREFRONT, { name: 'Ai', tagline: '', bio: '', zone: DEFAULT_STOREFRONT.zone }).ok).toBe(false);
   });
 
   it('the K seed is the §3.2 catalog (8 articles, diaspora excluded, p3 the only épuisé)', () => {

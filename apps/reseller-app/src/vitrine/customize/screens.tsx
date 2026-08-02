@@ -28,6 +28,7 @@ import {
   NAME_MIN,
   PICKABLE_HEADER_STYLES,
   SECTIONS_CAP,
+  ZONE_MAX,
   THEMES,
   coverTo,
   createSection,
@@ -254,6 +255,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
       name: next.name,
       tagline: next.tagline,
       bio: next.bio,
+      zone: next.zone, // VITRINE-QUARTIER-1 — her quartier finally has a write path
       theme: next.theme,
       featuredItems: next.featuredItems,
       sections: next.sections,
@@ -666,28 +668,36 @@ function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnc
 
 /* ------------------------------------------------------------- K2 / K2b -- */
 
-function K2({ sf, onBack, onSave }: { sf: Storefront; onBack: () => void; onSave: (p: { name: string; tagline: string; bio: string }) => void }) {
+function K2({ sf, onBack, onSave }: { sf: Storefront; onBack: () => void; onSave: (p: { name: string; tagline: string; bio: string; zone: string }) => void }) {
   const [name, setName] = useState(sf.name);
   const [tagline, setTagline] = useState(sf.tagline);
   const [bio, setBio] = useState(sf.bio);
+  // VITRINE-QUARTIER-1 (founder defect report 2026-08-02): the quartier was
+  // written once at CREATE and no screen could ever change it — every shop
+  // stayed on the seeded « Gounghin, Ouagadougou » for ever. Same required
+  // rule as the name: a shop must keep a quartier, so blank disables save.
+  const [zone, setZone] = useState(sf.zone);
   const nameInvalid = name.trim().length < NAME_MIN; // K2b state
+  const zoneInvalid = zone.trim().length === 0;
+  const invalid = nameInvalid || zoneInvalid;
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
       <KHeader title={t('k.identite.title')} onBack={onBack} />
       <CountedField label={t('k.identite.nom_label')} value={name} max={24} onChange={setName} invalid={nameInvalid} invalidNote={t('k.identite.nom_requis')} />
+      <CountedField label={t('k.identite.zone_label')} value={zone} max={ZONE_MAX} onChange={setZone} placeholder={t('k.identite.zone_ph')} invalid={zoneInvalid} invalidNote={t('k.identite.zone_requise')} />
       <CountedField label={t('k.identite.tagline_label')} value={tagline} max={40} onChange={setTagline} placeholder={t('k.identite.tagline_ph')} />
       <CountedField label={t('k.identite.bio_label')} value={bio} max={160} onChange={setBio} placeholder={t('k.identite.bio_ph')} multiline />
       <View style={S.noteRose}>
         <Text style={S.noteRoseText}>{tf('k.identite.note_slug', { slug: `/v/${sf.slug}` })}</Text>
       </View>
       <Pressable
-        style={({ pressed }) => [S.cta, nameInvalid && S.ctaDisabled, pressed && !nameInvalid && S.pressed]}
-        disabled={nameInvalid}
-        onPress={() => onSave({ name, tagline, bio })}
+        style={({ pressed }) => [S.cta, invalid && S.ctaDisabled, pressed && !invalid && S.pressed]}
+        disabled={invalid}
+        onPress={() => onSave({ name, tagline, bio, zone })}
         accessibilityRole="button"
-        accessibilityState={{ disabled: nameInvalid }}
+        accessibilityState={{ disabled: invalid }}
       >
-        <Text style={[S.ctaText, nameInvalid && S.ctaTextDisabled]}>{t('k.enregistrer')}</Text>
+        <Text style={[S.ctaText, invalid && S.ctaTextDisabled]}>{t('k.enregistrer')}</Text>
       </Pressable>
     </ScrollView>
   );

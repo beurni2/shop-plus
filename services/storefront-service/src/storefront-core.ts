@@ -220,6 +220,12 @@ export interface IdentityPatch {
   readonly name?: string;
   readonly tagline?: string;
   readonly bio?: string;
+  /** VITRINE-QUARTIER-1 (founder defect report 2026-08-02: « nowhere to put his
+   *  zone/quartier, everything defaults to Gounghin »). Her quartier was set at
+   *  CREATE and no route could ever change it. Canon `StorefrontSchema.zone` is
+   *  a trimmed non-empty free string, so an EMPTY zone is refused by name here
+   *  rather than dying anonymously at the canon parse. */
+  readonly zone?: string;
   readonly theme?: string;
   readonly featuredItems?: readonly string[];
   readonly sections?: readonly { readonly id: string; readonly name: string; readonly pids: readonly string[] }[];
@@ -267,6 +273,11 @@ const NAME_MIN = 3;
 const NAME_MAX = 24;
 const TAGLINE_MAX = 40;
 const BIO_MAX = 160;
+/** VITRINE-QUARTIER-1 — a DISPLAY bound like TAGLINE_MAX, deliberately NOT a
+ *  gazetteer: canon keeps `zone` a free display string and the zone list is a
+ *  named FOUNDER DECISION still open (StorefrontSchema's own comment). 40
+ *  holds « Gounghin, Ouagadougou » (21) with room for the long quartiers. */
+const ZONE_MAX = 40;
 const SECTION_NAME_MAX = 20;
 const FEATURED_CAP = 2;
 const SECTIONS_CAP = 4;
@@ -300,6 +311,7 @@ export function decideSaveIdentity(
   const name = patch.name?.trim();
   const tagline = patch.tagline?.trim();
   const bio = patch.bio?.trim();
+  const zone = patch.zone?.trim();
   const sections = patch.sections?.map((s) => ({ ...s, name: s.name.trim(), pids: [...s.pids] }));
 
   // Bounds next, each refusal NAMED: « votre nom est trop court » and « vous
@@ -315,6 +327,14 @@ export function decideSaveIdentity(
   }
   if (bio !== undefined && bio.length > BIO_MAX) {
     return { decision: { status: 'refused', reason: 'bio_too_long' } };
+  }
+  // A shop must keep a quartier (canon: trimmed non-empty) — refused by NAME so
+  // her screen can say so, never the anonymous canon-parse fallback.
+  if (zone !== undefined && zone.length === 0) {
+    return { decision: { status: 'refused', reason: 'zone_required' } };
+  }
+  if (zone !== undefined && zone.length > ZONE_MAX) {
+    return { decision: { status: 'refused', reason: 'zone_too_long' } };
   }
   // A SECTION NAME IS HERS TOO — bounded and named here rather than collapsing
   // into the anonymous `not_canon_shape` the canon parse would give it. An empty
@@ -388,6 +408,7 @@ export function decideSaveIdentity(
     ...(name !== undefined ? { name } : {}),
     ...(tagline !== undefined ? { tagline } : {}),
     ...(bio !== undefined ? { bio } : {}),
+    ...(zone !== undefined ? { zone } : {}),
     ...(patch.theme !== undefined ? { theme: patch.theme } : {}),
     ...(patch.featuredItems !== undefined ? { featuredItems: [...patch.featuredItems] } : {}),
     ...(sections !== undefined ? { sections } : {}),
@@ -404,6 +425,7 @@ export function decideSaveIdentity(
     merged.name === sf.name &&
     merged.tagline === sf.tagline &&
     merged.bio === sf.bio &&
+    merged.zone === sf.zone &&
     merged.theme === sf.theme &&
     merged.headerStyle === sf.headerStyle &&
     // ENTETES-C — tiny objects, spread-built from the stored sub-object, so the

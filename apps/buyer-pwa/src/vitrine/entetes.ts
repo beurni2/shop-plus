@@ -463,6 +463,44 @@ export function controls(v: Vals, style: string, prop: string, near: string, far
 /* -------------------------------------------------------------- dispatch -- */
 
 /**
+ * VITRINE-PRESENTATION-1 (founder defect report 2026-08-02: « the presentation
+ * typed is not showing on the en-tête »). Her PRÉSENTATION (`bio`) saves and
+ * travels the wire, but only EIGHT of the styled units give it a slot — the
+ * cinematic families deliberately place none (« Tagline/bio have NO slot in
+ * these fixed-height cinematic heroes », above) — and the page composed nothing
+ * outside the header. So for most headers the sentence she wrote showed
+ * NOWHERE. The page now renders it as its own block directly under the
+ * en-tête, exactly when the drawn unit does not carry it.
+ *
+ * THE SET IS PINNED MECHANICALLY: a Node-side test scans each unit module for
+ * `v.bio` / `hasBio` usage and compares, so a unit that gains or loses its bio
+ * slot must update this list or fail in vitest — the list cannot rot silently.
+ */
+export const ENTETES_AVEC_BIO: ReadonlySet<EnteteKey> = new Set<EnteteKey>([
+  'artisan',
+  'chaleureux',
+  'dynamique',
+  'grenat',
+  'indigo',
+  'kraft',
+  'royale',
+  'safran',
+]);
+
+/**
+ * Does the header THIS key will actually draw show the présentation itself?
+ * Mirrors `renderEntete`'s own resolution, deliberately: a lazy unit wins only
+ * once its chunk has arrived; everything else — `classique`, a retired key, an
+ * unloaded or failed chunk — draws the hero, which has always shown the bio.
+ * The page must decide from the DRAWN header, never from the stored key alone.
+ */
+export function enteteMontreBio(key: EnteteKey): boolean {
+  const lazy = loadedEntete(key);
+  if (lazy !== undefined) return ENTETES_AVEC_BIO.has(key);
+  return true; // the hero path (classique / fallback) renders the bio in its panel
+}
+
+/**
  * ONE header unit. `'classique'` delegates to the existing hero + trust chips
  * so its bytes are unchanged (the empty screen renders the hero alone, exactly
  * as it does today); each of the ten renders its own self-contained block.

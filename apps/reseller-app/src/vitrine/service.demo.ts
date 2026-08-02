@@ -110,6 +110,7 @@ export class DemoStorefrontService implements StorefrontServicePort {
       ...(patch.name !== undefined ? { name: patch.name } : {}),
       ...(patch.tagline !== undefined ? { tagline: patch.tagline } : {}),
       ...(patch.bio !== undefined ? { bio: patch.bio } : {}),
+      ...(patch.zone !== undefined ? { zone: patch.zone } : {}),
       ...(patch.theme !== undefined ? { theme: patch.theme as Storefront['theme'] } : {}),
       ...(patch.featuredItems !== undefined ? { featuredItems: [...patch.featuredItems] } : {}),
       ...(patch.sections !== undefined ? { sections: patch.sections.map((s) => ({ ...s, pids: [...s.pids] })) } : {}),

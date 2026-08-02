@@ -1134,6 +1134,24 @@
   "screenClass": "status"
  },
  {
+  "key": "k.identite.zone_label",
+  "fr": "QUARTIER",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.identite.zone_ph",
+  "fr": "Ex. : Dassasgho, Ouagadougou",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.identite.zone_requise",
+  "fr": "Votre boutique doit garder un quartier.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "k.identite.tagline_label",
   "fr": "PHRASE D’ACCUEIL (FACULTATIVE)",
   "register": "neutral",

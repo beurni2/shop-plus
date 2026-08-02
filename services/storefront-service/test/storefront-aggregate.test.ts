@@ -161,6 +161,27 @@ describe('PERSONNALISER-REAL-1 — decideSaveIdentity, the presentation she owns
     expect(decision.storefront.id).toBe('sf-seller-0001');
   });
 
+  it('VITRINE-QUARTIER-1: the zone finally has a write path — set, trimmed, canon-parsing', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    // The founder's exact defect: written once at CREATE, no route could change it.
+    const { decision, next } = decideSaveIdentity(await entry(), { zone: '  Dassasgho, Ouagadougou  ' }, T3);
+    if (decision.status !== 'saved') throw new Error(`expected saved, got ${decision.status}`);
+    expect(decision.storefront.zone).toBe('Dassasgho, Ouagadougou'); // trimmed — canon refuses edge whitespace
+    expect(next?.storefront.zone).toBe('Dassasgho, Ouagadougou'); // and persisted
+  });
+
+  it('VITRINE-QUARTIER-1: an EMPTY zone is refused BY NAME; too long refuses; same zone is a no-op', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const e = await entry();
+    const empty = decideSaveIdentity(e, { zone: '   ' }, T3).decision;
+    expect(empty).toEqual({ status: 'refused', reason: 'zone_required' });
+    const long = decideSaveIdentity(e, { zone: 'Q'.repeat(41) }, T3).decision;
+    expect(long).toEqual({ status: 'refused', reason: 'zone_too_long' });
+    const same = decideSaveIdentity(e, { zone: e.storefront.zone }, T3);
+    expect(same.decision.status).toBe('unchanged');
+    expect(same.next).toBeUndefined();
+  });
+
   it('ABSENT FIELDS ARE UNTOUCHED, never cleared — one screen saves one thing', async () => {
     const { decideSaveIdentity } = await import('../src/storefront-core.js');
     const withBio = decideSaveIdentity(await entry(), { tagline: 'Le bon tissu', bio: 'Ouaga' }, T3).next!;

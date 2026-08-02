@@ -373,6 +373,16 @@ export const VITRINE_STYLES = `
     transition: background .3s;
   }
 
+  /* VITRINE-PRESENTATION-1 — her présentation under a header that gives it no
+     slot: a quiet warm card, her words only, no chrome competing with the hero. */
+  .vt-presentation {
+    margin-top: 14px; border-radius: 18px;
+    background: #FFFDF8; border: 1px solid #EAE1CF;
+    color: #3A3126;
+    font-size: 13px; font-weight: 400; line-height: 1.6;
+    padding: 13px 16px;
+  }
+
   /* C-VIT7 — bande encre + footer. */
   .vt-band {
     margin-top: 18px; border-radius: 18px;
