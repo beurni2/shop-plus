@@ -25,9 +25,10 @@
  *  (the law learned the hard way on the founder's console). */
 export const FEED_TIMEOUT_MS = 12_000;
 
-/** The three states Shop+ can actually PROVE about an order. There is no
- *  « en préparation », « en route » or « livrée » here because no wire carries
- *  those facts back to Shop+ yet — see `feed-model.ts`. */
+/** The three PAYMENT states Shop+ proves on its own. Preparation news arrives
+ *  separately, on the return wire built in READINESS-RETURN-1c — see
+ *  `acceptedAt` / `readyAt` below, which is why this list does not name it.
+ *  « en route » and « livrée » remain Séra's and remain absent. */
 export type FeedState = 'payment_pending' | 'confirmed' | 'payment_failed';
 
 /** One row exactly as `/entry/reseller/{id}` builds it, field for field. */
