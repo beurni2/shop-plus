@@ -197,11 +197,51 @@ describe('BC-1a — the contact travels to exactly one reader', () => {
     }
   });
 
-  it('the door matrix: no key, the write key, the webhook secret, and a wrong value all answer ONE 401; the empty-secret world refuses everyone', async () => {
+  it('the door matrix: no key, the write key, the webhook secret, and a wrong value all answer ONE 401', async () => {
     for (const bearer of [null, WRITE_SECRET, WEBHOOK_SECRET, FULFILL_SECRET, 'wrong']) {
       const res = await dispatchRead(bearer);
       expect(res.status, String(bearer)).toBe(401);
       expect(res.text).toBe('{"error":"unauthorized"}');
+    }
+  });
+
+  it('FAIL CLOSED: a Worker deployed before `wrangler secret put CHECKOUT_OPS_SECRET` refuses EVERYONE — including the caller who sends nothing (verifier MAJOR-1)', async () => {
+    // The verifier's finding, verbatim in spirit: the old title claimed this
+    // world and no test built it — and deleting the `secret.length > 0`
+    // guard in rejectUnauthorizedOpsRead left every suite green while an
+    // unconfigured deploy served buyer phone numbers to any caller sending
+    // NO Authorization header (empty presented vs empty secret: HMACs match).
+    // This world has NO CHECKOUT_OPS_SECRET binding at all — what a real
+    // deploy looks like before the founder acts.
+    const bare = mkdtempSync(join(tmpdir(), 'dispatch-nosecret-'));
+    const mfBare = new Miniflare({
+      modules: true,
+      scriptPath: SCRIPT,
+      durableObjects: {
+        STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
+        ORDER: 'OrderDO', DISPATCH: 'DispatchIndexDO',
+      },
+      durableObjectsPersist: bare,
+      bindings: {
+        STOREFRONT_WRITE_SECRET: WRITE_SECRET,
+        PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
+        FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
+        // deliberately NO CHECKOUT_OPS_SECRET
+      },
+    });
+    try {
+      for (const headers of [
+        {},                                       // the dangerous case: nothing at all
+        { Authorization: 'Bearer ' },             // an empty bearer
+        { Authorization: `Bearer ${OPS_SECRET}` } // even the "right" value opens nothing
+      ] as const) {
+        const res = await mfBare.dispatchFetch('http://c/checkout/dispatch', { headers });
+        expect(res.status, JSON.stringify(headers)).toBe(401);
+        expect(await res.text()).toBe('{"error":"unauthorized"}');
+      }
+    } finally {
+      await mfBare.dispose();
+      rmSync(bare, { recursive: true, force: true });
     }
   });
 
