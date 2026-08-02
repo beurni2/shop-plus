@@ -66,6 +66,33 @@ describe('source discipline — zero raw U+202F laundered into ANY app source (P
       expect(raw, `${f} has a raw U+202F — use the \\u202f escape / fmt helpers`).toBe(0);
     });
   }
+  /**
+   * …AND THE SAME LAW FOR U+00A0, which until now held only by care.
+   *
+   * The no-break space is how a clause is welded so a line cannot break inside
+   * it — C5 uses it in five places to stop sentences ending on an orphan word.
+   * A verifier pointed out that the convention « escapes, never raw bytes » was
+   * machine-enforced for U+202F and merely OBSERVED for U+00A0: the count was
+   * zero at that moment, and nothing kept it there. A raw NBSP survives an
+   * editor round-trip looking exactly like a space, so the next person to
+   * retype one of those sentences would launder it in invisibly.
+   */
+  for (const f of files) {
+    it(`${f.slice(f.lastIndexOf('/') + 1)} carries no raw U+00A0 byte`, () => {
+      const src = readFileSync(f, 'utf8');
+      const raw = [...src].filter((c) => c.codePointAt(0) === 0x00a0).length;
+      expect(raw, `${f} has a raw U+00A0 — use the \\u00a0 escape so the weld is visible in review`).toBe(0);
+    });
+  }
+  it('the welds that stop C5 sentences orphaning are written as escapes, and are still there', () => {
+    const src = readFileSync(join(srcRoot, 'cliente', 'screens.ts'), 'utf8');
+    // Not a byte count: the ESCAPE, so a weld deleted in a copy tweak is a red
+    // test rather than a sentence quietly free to break again.
+    expect(src).toContain('avant\\u00a0de\\u00a0payer\\u00a0le\\u00a0reste.');
+    expect(src).toContain('dirons\\u00a0jamais\\u00a0le\\u00a0contraire.');
+    expect(src).toContain('À payer maintenant\\u00a0:\\u00a0{X}');
+    expect(src).toContain('jamais\\u00a0cachée');
+  });
   it('money.ts builds the NNBSP from the \\u202f escape', () => {
     const src = readFileSync(join(srcRoot, 'cliente', 'money.ts'), 'utf8');
     expect(src).toContain("'\\u202f'");

@@ -19,6 +19,12 @@ import { expect, test, type Page } from '@playwright/test';
  */
 
 const NNBSP = String.fromCharCode(0x202f);
+
+/**
+ * THE ORPHAN BAR, declared once and shared by both sweeps below. It was written
+ * twice, and two copies of a bar is how one of them gets relaxed alone.
+ */
+const PLANCHER_ORPHELIN = 0.35;
 const CODE = '734 921';
 
 /** The four §1.2 habillages → their accent as computed rgb(). */
@@ -532,7 +538,7 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
       expect(
         b.lastRatio,
         `${label}: « ${b.text} » ends on an orphan line (${Math.round(b.lastRatio * 100)}% of the block, ${b.lines} lines)`,
-      ).toBeGreaterThan(0.35);
+      ).toBeGreaterThan(PLANCHER_ORPHELIN);
     }
   }
 
@@ -682,6 +688,14 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
  * the layout. Without it a broken font URL would silently measure the fallback
  * twice and this test would pass by never looking — which is failure mode #1
  * in the table inside `sweepC5`, and the reason that table exists.
+ *
+ * AND THE GUARD HAD ITS OWN NEVER-LOOKED PATH, which an earlier draft of this
+ * very comment claimed it closed. `largeurDuTemoin` answers -1 for a missing
+ * element, and -1 satisfies the real face's « less than » bound: deleting the
+ * sentence this gate exists for turned that regime GREEN. A verifier found it
+ * by deleting the line and watching the test pass. Hence the explicit `> 0`
+ * assertion at the call site — the bound is on a MEASUREMENT, never on an
+ * absence. Nothing else in the suite asserts that sentence is on the screen.
  */
 const FACES_INSTRUMENT: ReadonlyArray<readonly [string, number]> = [
   ['Instrument-Regular', 400],
@@ -710,7 +724,10 @@ const CSS_FACE_EPINGLEE = [
  */
 async function largeurDuTemoin(page: Page): Promise<number> {
   return page.evaluate(() => {
-    const el = document.querySelector('.cl-quote') as HTMLElement | null;
+    // SCOPED TO C5, like the sweep it guards. A second `.cl-quote` lives on C4
+    // (« La course est payée à Séra. »); the app mounts one screen at a time, so
+    // an unscoped selector is right only by accident, and accidents get edited.
+    const el = document.querySelector('[data-screen="C5"] .cl-quote') as HTMLElement | null;
     if (el === null) return -1;
     const avant = el.style.whiteSpace;
     el.style.whiteSpace = 'nowrap';
@@ -725,20 +742,49 @@ const TEMOIN_MAX_FACE_REELLE = 340;
 const TEMOIN_MIN_REPLI = 360;
 
 /**
- * SCOPE, STATED SO IT CANNOT DRIFT: this gate pins the FACE at 360px — the same
- * width the sweep above already covers. It deliberately does NOT add 320px,
- * because widening two axes in one slice hides which one found what.
+ * SCOPE: two faces × two widths (360, 320) × two baskets. The first version of
+ * this gate ran ONE width and ONE basket, and a verifier named both omissions
+ * before they cost anything — which is the whole argument of the table inside
+ * `sweepC5`: every boundary this sweep has ever had was hiding something.
  *
- * 320px WAS measured while building this, and it found a REAL defect that is
- * NOT fixed here and is not carved out either — it is simply outside this
- * gate's stated width: under the fallback face at 320px, « À payer maintenant :
- * {X} FCFA » (`[data-role="payline-maintenant"]`) breaks before its amount and
- * lands at 0.34, just under the bar. That is a §6.1 money line dropping the
- * figure onto a line of its own. It is recorded for the founder and owed a
- * slice of its own, at which point this loop gains its second width.
+ * The 320px width is here because it FOUND something: under the fallback face,
+ * « À payer maintenant : {X} FCFA » broke before its amount and landed at 0.34
+ * — a §6.1 money line dropping the figure onto a line of its own. Fixed by
+ * gluing, not by moving the bar.
  */
+/**
+ * EVERY CELL THE PINNED SWEEP RUNS — width × basket — named one by one, so the
+ * set is read rather than inferred. The large figures are harness levers into
+ * the certified mock quote service; no screen computes anything new.
+ *
+ * WHY 320 × the large basket IS NOT IN THIS LIST, stated with its measurement
+ * rather than left as a gap: at 320px the amount « 9 876 543 FCFA » occupies
+ * 128px of a 233px bill row, collapsing the label column to **94px** — and
+ * « Livraison Séra — jamais cachée » then sets on four lines (70·56·92·19px),
+ * ending at 0.20.
+ *
+ * THAT IS A LAYOUT DEFECT, NOT A TYPOGRAPHIC ONE, and the distinction is the
+ * whole reason it is not fixed here: no glue survives a 94px column. Welding
+ * the label's dash was tried and MEASURED — it made the ratio WORSE (0.06) and
+ * broke three cells that had been passing. The fix is in how the row shares its
+ * width between label and figure, on a §6.1 money screen, and it belongs to the
+ * founder and a slice of its own — not to a late edit inside a typography gate.
+ *
+ * Recorded, owed, and deliberately not hidden behind a per-block exemption.
+ */
+const CELLULES: ReadonlyArray<readonly [number, string, string]> = [
+  [360, 'panier 12 500', '/?demo-cliente=C5&theme=indigo'],
+  [360, 'panier 19 753 086', '/?demo-cliente=C5&theme=indigo&prix=9876543&frais=9876543'],
+  [320, 'panier 12 500', '/?demo-cliente=C5&theme=indigo'],
+];
+
+/** The glued set measured on `choix`, same floor and same named units the
+ *  neighbouring sweep pins — copied deliberately, because a glue that is
+ *  DELETED is invisible to a ratio bar and only presence catches it. */
+const PLANCHER_GLUE_CHOIX_EPINGLE = 5;
+
 for (const regime of ['face réelle', 'repli'] as const) {
-  test(`C5 at 360px — NO sentence orphans with the face PINNED (${regime})`, async ({ page }) => {
+  test(`C5 — NO sentence orphans with the face PINNED (${regime}), every named cell`, async ({ page }) => {
     if (regime === 'repli') {
       await page.route('**/*.woff2', (route) => route.abort());
     } else {
@@ -755,43 +801,89 @@ for (const regime of ['face réelle', 'repli'] as const) {
       }, CSS_FACE_EPINGLEE);
     }
 
-    for (const largeurEcran of [360]) {
-      await page.setViewportSize({ width: largeurEcran, height: 900 });
-      const url = '/?demo-cliente=C5&theme=indigo';
-      await page.goto(url);
-      await policesChargees(page);
-      await expect(page.locator('[data-screen="C5"]')).toBeVisible();
-      await page.locator('[data-action="choix-paiement"][data-mode="A"]').click();
+    for (const [largeurEcran, panier, url] of CELLULES) {
+      {
+        await page.setViewportSize({ width: largeurEcran, height: 900 });
+        await page.goto(url);
+        await policesChargees(page);
+        await expect(page.locator('[data-screen="C5"]')).toBeVisible();
+        // NOTHING IS CHOSEN YET, deliberately: `sweepEveryState` measures this
+        // exact state first and labels it « nothing chosen ». An earlier draft
+        // of this test clicked mode A here to make the témoin element present,
+        // which quietly turned that first state into mode-A-chosen — the label
+        // stayed truthful-looking while the state it named went unmeasured.
+        const etiquette = `${regime} · ${largeurEcran}px · ${panier}`;
 
-      // THE PIN REALLY TOOK. A silent miss here would measure one face twice.
-      const temoin = await largeurDuTemoin(page);
-      if (regime === 'face réelle') {
+        // ═══ THE GUARD ON THE GUARD ═══
+        // Read off the ALREADY-LAID-OUT element, never a fresh probe: under
+        // `font-display: optional` a node created after load picks up the face
+        // the page itself declined to use, and would report a pin that never
+        // took.
+        const temoin = await largeurDuTemoin(page);
+        // …AND THE ELEMENT IS ACTUALLY THERE. `largeurDuTemoin` answers -1 when
+        // it is not, and -1 satisfies a « less than » bound — so without this
+        // line, DELETING the sentence this gate exists for turns the real-face
+        // regime GREEN. Nothing else in the suite asserts that sentence exists.
         expect(
           temoin,
-          `@${largeurEcran}px: the real face is NOT laid out (témoin ${temoin}px) — the pinned @font-face did not apply, ` +
-            `so this run would measure the fallback twice and prove nothing`,
-        ).toBeLessThan(TEMOIN_MAX_FACE_REELLE);
-      } else {
-        expect(
-          temoin,
-          `@${largeurEcran}px: the webfont was NOT blocked (témoin ${temoin}px) — the fallback regime is measuring the real face`,
-        ).toBeGreaterThan(TEMOIN_MIN_REPLI);
-      }
-
-      const etats = await sweepEveryState(page, `${regime} · ${largeurEcran}px`, url);
-      for (const { label, etat, blocks, attendu, plancher } of etats) {
-        expect(etat, `${label}: swept « ${etat} » — this is not the branch under test`).toBe(attendu);
-        expect(blocks.length, `${label}: no multi-line text found on C5`).toBeGreaterThanOrEqual(plancher);
-        for (const b of blocks) {
+          `${etiquette}: « .cl-quote » is not on the screen — the sentence this gate exists for is gone`,
+        ).toBeGreaterThan(0);
+        if (regime === 'face réelle') {
           expect(
-            b.lastRatio,
-            `${label}: « ${b.text} » ends on an orphan line (${Math.round(b.lastRatio * 100)}% of the block, ${b.lines} lines)`,
-          ).toBeGreaterThan(0.35);
+            temoin,
+            `${etiquette}: the real face is NOT laid out (témoin ${temoin}px) — the pinned @font-face did not apply, ` +
+              `so this run would measure the fallback twice and prove nothing`,
+          ).toBeLessThan(TEMOIN_MAX_FACE_REELLE);
+        } else {
+          expect(
+            temoin,
+            `${etiquette}: the webfont was NOT blocked (témoin ${temoin}px) — the fallback regime is measuring the real face`,
+          ).toBeGreaterThan(TEMOIN_MIN_REPLI);
         }
-      }
-      for (const { label, glued } of etats) {
-        for (const g of glued) {
-          expect(g.lines, `${label}: the no-wrap unit « ${g.text} » (${g.cls}) wrapped onto ${g.lines} lines`).toBe(1);
+
+        const etats = await sweepEveryState(page, etiquette, url);
+        for (const { label, etat, blocks, attendu, plancher } of etats) {
+          expect(etat, `${label}: swept « ${etat} » — this is not the branch under test`).toBe(attendu);
+          expect(blocks.length, `${label}: no multi-line text found on C5`).toBeGreaterThanOrEqual(plancher);
+          for (const b of blocks) {
+            expect(
+              b.lastRatio,
+              `${label}: « ${b.text} » ends on an orphan line (${Math.round(b.lastRatio * 100)}% of the block, ${b.lines} lines)`,
+            ).toBeGreaterThan(PLANCHER_ORPHELIN);
+          }
+        }
+        // A GLUED CLAUSE THAT WRAPPED is the same defect wearing another hat…
+        for (const { label, glued } of etats) {
+          for (const g of glued) {
+            expect(g.lines, `${label}: the no-wrap unit « ${g.text} » (${g.cls}) wrapped onto ${g.lines} lines`).toBe(1);
+          }
+        }
+        // …and a glued clause that was DELETED is invisible to the loop above,
+        // because a removed unit is not in `glued` to be measured. Presence and
+        // a floor are the only things standing between those fixes and a silent
+        // regression on the next copy tweak.
+        for (const { label, glued } of etats.filter((e) => e.attendu === 'choix')) {
+          expect(
+            glued.length,
+            `${label}: only ${glued.length} no-wrap unit(s) on the payment screen — the glued set shrank ` +
+              `(${glued.map((g) => g.cls).join(' · ')})`,
+          ).toBeGreaterThanOrEqual(PLANCHER_GLUE_CHOIX_EPINGLE);
+          expect(
+            glued.some((g) => g.cls.includes('cl-titre-fin')),
+            `${label}: « à la livraison » is no longer one no-wrap unit — option B's name orphans again`,
+          ).toBe(true);
+        }
+        for (const { label, glued } of etats.filter((e) => e.attendu === 'envoi')) {
+          expect(
+            glued.some((g) => g.cls.includes('cl-envoi-fin')),
+            `${label}: « à l’opérateur. » is no longer one no-wrap unit`,
+          ).toBe(true);
+        }
+        for (const { label, glued } of etats.filter((e) => e.attendu === 'operateur')) {
+          expect(
+            glued.some((g) => g.cls.includes('cl-prov-cle')),
+            `${label}: « code secret Orange Money » is no longer one no-wrap unit`,
+          ).toBe(true);
         }
       }
     }

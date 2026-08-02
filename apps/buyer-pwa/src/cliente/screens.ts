@@ -838,7 +838,7 @@ export const MESSAGES = {
  */
 export const PAIEMENT = {
   /** §6.1's first bold line — X is the chosen mode's `amountPaidAtCheckout`. */
-  ligneMaintenant: 'À payer maintenant : {X}\u202fFCFA',
+  ligneMaintenant: 'À payer maintenant\u00a0:\u00a0{X}\u202fFCFA',
   /** …and the second — Y is that same mode's `amountDueAtDelivery`. */
   ligneLivraison: 'À payer à la livraison : {Y}\u202fFCFA',
   /** Option A's label. « recommandé » IS the label, per §6.1. */

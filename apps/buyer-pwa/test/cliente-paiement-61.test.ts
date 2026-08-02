@@ -18,6 +18,14 @@ import { composeQuote, harnessFrancs, ROBE } from '../src/cliente/seed';
  * option bodies verbatim, the non-refundable-delivery warning, the one-line
  * replay before payment, and « séquestre »/"escrow" MUST NOT appear.
  *
+ * THE SEPARATORS AROUND « : » ARE NO-BREAK SPACES (\u00a0), NOT PLAIN ONES,
+ * and that is deliberate — do not "correct" them back. At 320px on the fallback
+ * face this line broke immediately after the colon and left « 1 000 FCFA »
+ * alone at 0.34 of the block — just under the 0.35 bar: the figure she owes,
+ * stranded on a line of its own. Gluing moved the break to after « À payer ».
+ * U+00A0 before a colon is also the correct French rule. The WORDS and the
+ * FIGURES asserted below are unchanged; only where a line may break moved.
+ *
  * Also governing: SP-I13 « Checkout MUST show exactly what is paid now vs due
  * at delivery » · Ten Laws #1 (money render-only — the client adds nothing).
  *
@@ -99,20 +107,20 @@ describe('§6.1 — the two bold lines carry the SERVER’S OWN split, never a c
   it('mode A’s lines show the server’s paid-now and due-at-delivery, NOT the total and NOT zero', () => {
     const html = renderC5(ROBE, CONTRARIAN, C5);
     const text = visible(html);
-    expect(text).toContain(`À payer maintenant : 9${N}999${N}FCFA`);
+    expect(text).toContain(`À payer maintenant\u00a0:\u00a09${N}999${N}FCFA`);
     expect(text).toContain(`À payer à la livraison : 777${N}FCFA`);
     // the numbers the OLD rule would have produced for mode A are absent from
     // its lines: 12 500 still appears (it is the server's buyerTotal, on the
     // bill) but never as « à payer maintenant ».
-    expect(text).not.toContain(`À payer maintenant : 12${N}500${N}FCFA`);
+    expect(text).not.toContain(`À payer maintenant\u00a0:\u00a012${N}500${N}FCFA`);
     expect(text).not.toContain(`À payer à la livraison : 0${N}FCFA`);
   });
 
   it('mode B’s lines show the DOOR quote’s own two bytes, NOT the fee and NOT the product', () => {
     const text = visible(renderC5(ROBE, CONTRARIAN, C5));
-    expect(text).toContain(`À payer maintenant : 2${N}222${N}FCFA`);
+    expect(text).toContain(`À payer maintenant\u00a0:\u00a02${N}222${N}FCFA`);
     expect(text).toContain(`À payer à la livraison : 8${N}888${N}FCFA`);
-    expect(text).not.toContain(`À payer maintenant : 1${N}000${N}FCFA`);
+    expect(text).not.toContain(`À payer maintenant\u00a0:\u00a01${N}000${N}FCFA`);
     expect(text).not.toContain(`À payer à la livraison : 11${N}500${N}FCFA`);
   });
 
@@ -159,9 +167,9 @@ describe('§6.1 — the two bold lines carry the SERVER’S OWN split, never a c
   it('on the REAL model the same lines render the real server’s bytes', () => {
     const q = modelFrom(FULL, DOOR);
     const text = visible(renderC5(ROBE, q, C5));
-    expect(text).toContain(`À payer maintenant : 12${N}500${N}FCFA`); // mode A
+    expect(text).toContain(`À payer maintenant\u00a0:\u00a012${N}500${N}FCFA`); // mode A
     expect(text).toContain(`À payer à la livraison : 0${N}FCFA`);
-    expect(text).toContain(`À payer maintenant : 1${N}000${N}FCFA`); // mode B
+    expect(text).toContain(`À payer maintenant\u00a0:\u00a01${N}000${N}FCFA`); // mode B
     expect(text).toContain(`À payer à la livraison : 11${N}500${N}FCFA`);
   });
 });
@@ -199,7 +207,7 @@ describe('the DOOR quote’s split is CARRIED, not re-derived — and absent whe
       amountPaidAtCheckout: 900, amountDueAtDelivery: 12_000,
     };
     const text = visible(renderC5(ROBE, modelFrom(full, door), C5));
-    expect(text).toContain(`À payer maintenant : 900${N}FCFA`);
+    expect(text).toContain(`À payer maintenant\u00a0:\u00a0900${N}FCFA`);
     expect(text).toContain(`À payer à la livraison : 12${N}000${N}FCFA`);
     expect(text).not.toContain(`1${N}000${N}FCFA`);
     expect(text).not.toContain(`11${N}500${N}FCFA`);
@@ -217,7 +225,7 @@ describe('the DOOR quote’s split is CARRIED, not re-derived — and absent whe
     expect(html.match(/data-role="payline-maintenant"/g) ?? []).toHaveLength(1);
     expect(html.match(/data-role="payline-livraison"/g) ?? []).toHaveLength(1);
     expect(text).not.toContain('À payer à la livraison : 11');
-    expect(text).not.toContain('À payer maintenant : 1' + N);
+    expect(text).not.toContain('À payer maintenant\u00a0:\u00a01' + N);
     // and no B card to tap
     expect(html).not.toContain('data-mode="B"');
   });
@@ -282,7 +290,7 @@ describe('mode B is off ⇒ NO card, NO replay, NO payable CTA — whichever sig
       expect(ctaText(html), 'the CTA offered to pay an unavailable mode').toBe('Choisissez pour continuer');
       expect(ctaText(html)).not.toContain('FCFA');
       // …and mode B's figures are nowhere on the screen at all
-      expect(text).not.toContain('À payer maintenant : 1' + N + '000');
+      expect(text).not.toContain('À payer maintenant\u00a0:\u00a01' + N + '000');
       expect(text).not.toContain('À payer à la livraison : 11' + N + '500');
     });
   }
@@ -326,7 +334,7 @@ describe('the CTA and the operator screens quote the SAME server byte as the lin
       expect(ctaText(html), 'the CTA still applied « A pays the total »').not.toContain(`12${N}500`);
       expect(ctaText(html), 'the CTA still applied « B pays the fee »').not.toContain(`1${N}000`);
       // and it agrees with the §6.1 line right above it
-      expect(visible(html)).toContain(`À payer maintenant : ${paidNow}${N}FCFA`);
+      expect(visible(html)).toContain(`À payer maintenant\u00a0:\u00a0${paidNow}${N}FCFA`);
     });
 
     it(`mode ${mode}: « ENVOI SÉCURISÉ » and the operator screen quote the same byte`, () => {
@@ -733,12 +741,12 @@ describe('the ?demo-cliente= harness renders the same §6.1 screen, per delivery
   it('the mock service composes a split per leg, and C5 renders the leg she chose', () => {
     const q = composeQuote(ROBE.priceFcfa);
     const today = visible(renderC5(ROBE, q, C5));
-    expect(today).toContain(`À payer maintenant : 12${N}500${N}FCFA`);
-    expect(today).toContain(`À payer maintenant : 1${N}000${N}FCFA`);
+    expect(today).toContain(`À payer maintenant\u00a0:\u00a012${N}500${N}FCFA`);
+    expect(today).toContain(`À payer maintenant\u00a0:\u00a01${N}000${N}FCFA`);
     const tomorrow = visible(renderC5(ROBE, q, { ...C5, delivery: 'tomorrow' }));
     // the 800-franc leg: mode A pays 12 300 now, mode B pays 800 now.
-    expect(tomorrow).toContain(`À payer maintenant : 12${N}300${N}FCFA`);
-    expect(tomorrow).toContain(`À payer maintenant : 800${N}FCFA`);
+    expect(tomorrow).toContain(`À payer maintenant\u00a0:\u00a012${N}300${N}FCFA`);
+    expect(tomorrow).toContain(`À payer maintenant\u00a0:\u00a0800${N}FCFA`);
     expect(tomorrow).toContain(`les frais de livraison (800${N}FCFA) maintenant`);
   });
 
@@ -751,7 +759,7 @@ describe('the ?demo-cliente= harness renders the same §6.1 screen, per delivery
         expect(split, `${delivery}/${pay}`).toBeDefined();
         const now = split!.paidNow;
         const grouped = now >= 1000 ? `${Math.floor(now / 1000)}${N}${String(now % 1000).padStart(3, '0')}` : String(now);
-        expect(text, `${delivery}/${pay} lines`).toContain(`À payer maintenant : ${grouped}${N}FCFA`);
+        expect(text, `${delivery}/${pay} lines`).toContain(`À payer maintenant\u00a0:\u00a0${grouped}${N}FCFA`);
         expect(text, `${delivery}/${pay} CTA`).toContain(`Payer ${grouped}${N}FCFA`);
       }
     }
@@ -778,7 +786,7 @@ describe('the ?demo-cliente= harness renders the same §6.1 screen, per delivery
     // The composed mock prices what it is asked to price; the screen renders it.
     const q = composeQuote(9_876_543);
     const text = visible(renderC5(ROBE, q, { ...C5, pay: 'B' }));
-    expect(text).toContain(`À payer maintenant : 1${N}000${N}FCFA`);
+    expect(text).toContain(`À payer maintenant\u00a0:\u00a01${N}000${N}FCFA`);
     expect(text).toContain(`À payer à la livraison : 9${N}876${N}543${N}FCFA`);
     expect(text).toContain(`9${N}877${N}543 = 9${N}876${N}543 + 1${N}000 — chaque franc a sa place.`);
   });
