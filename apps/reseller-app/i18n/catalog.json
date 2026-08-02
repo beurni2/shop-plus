@@ -324,6 +324,78 @@
   "screenClass": "label"
  },
  {
+  "key": "ventes.reel_porte_titre",
+  "fr": "Vos ventes, en direct",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "ventes.reel_porte_hint",
+  "fr": "Entrez le code que Beurni vous a remis. Il n'ouvre que vos ventes.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "ventes.reel_chargement",
+  "fr": "Lecture de vos ventes…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ventes.reel_refus_titre",
+  "fr": "Ce code n'ouvre pas.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ventes.reel_refus_hint",
+  "fr": "Vérifiez le code, ou demandez-en un nouveau.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "ventes.reel_hors_ligne_titre",
+  "fr": "Vos ventes n'ont pas pu être lues.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ventes.reel_hors_ligne_hint",
+  "fr": "Ce n'est pas la même chose que zéro vente. Réessayez quand le réseau revient.",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "ventes.reel_non_branche_titre",
+  "fr": "Les ventes en direct ne sont pas encore ouvertes.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ventes.reel_non_branche_hint",
+  "fr": "Elles arrivent. Rien n'est perdu en attendant.",
+  "register": "selling",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "ventes.reel_incomplet",
+  "fr": "Cette liste n'est pas complète. Voici ce que nous avons pu lire.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ventes.reel_non_confirmees",
+  "fr": "Des lignes reçues ne sont pas des ventes. Nous vérifions.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "ventes.reel_suite",
+  "fr": "La suite (route, livraison) arrive avec Séra.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "ventes.vide_titre",
   "fr": "Aucune vente en cours.",
   "register": "selling",

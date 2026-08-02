@@ -33,6 +33,8 @@ import {
   CercleMembres, IconCercleDeux, PendingHero, GainsSaleCard, CercleAccueilCard,
 } from './src/cercle/screens';
 import { produit as cercleProduit, CERCLE_DIVERS, partagerBadge } from './src/cercle/model';
+import { useVentesReelles } from './src/sales/use-ventes-reelles';
+import { expoVenteCodeStore } from './src/sales/code-store';
 import {
   ventesListModel,
   demoDetail,
@@ -235,6 +237,10 @@ function feedStateKey(status: OfferFeed['status'] | undefined): string {
   if (status === 'unconfigured') return 'seam.produits_non_relie';
   return 'seam.produits_indisponibles';
 }
+
+/** RF-1c — module scope on purpose: a store recreated each render would
+ *  restart the hook's mount effect on every keystroke. */
+const venteCodeStore = expoVenteCodeStore();
 
 export default function App() {
   // COLD-START LAW: load the Faso Premium faces asynchronously and DO NOT gate
@@ -721,6 +727,14 @@ export default function App() {
   const shareCard = composeShareCard(DEMO_SHARE_IDENTITY);
   // S7 — the sales list (net-first, problems-first) + the demo detail (Mariam).
   const ventesRows = ventesListModel();
+  /**
+   * RF-1c — HER REAL SALES. `ventesRows` above still feeds the ACCUEIL preview
+   * (demo world); this screen no longer reads it. The code lives in the same
+   * document directory the reseller identity uses — durable across app-kill,
+   * reboot and an EAS republish — and never in the bundle.
+   */
+  const [codeSaisi, setCodeSaisi] = useState('');
+  const ventesReelles = useVentesReelles(venteCodeStore);
   const saleDetail = demoDetail();
   const headerTitle =
     screen === 'vente_detail'
@@ -1378,57 +1392,84 @@ export default function App() {
           </ScrollView>
         )}
 
+        {/* RF-1c — « MES VENTES » ON REAL DATA (founder order 2026-08-02).
+            This screen used to render `ventesListModel()` — the DEMO model,
+            whose hardcoded rows carry `en_route`, `livrée` and `problème`,
+            states no part of this platform can prove. She was reading a
+            delivery story nobody had verified. Every state below comes from
+            `ecranDesVentes`, which is pure, exhaustively tested, and cannot
+            express a delivery fact at all. */}
         {screen === 'ventes' && (
-          ventesRows.length === 0 ? (
+          ventesReelles.ecran.kind === 'liste' ? (
+            <FlatList
+              style={styles.screenScroll}
+              data={ventesReelles.ecran.lignes}
+              keyExtractor={(l) => l.orderId}
+              initialNumToRender={6}
+              windowSize={5}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollList}
+              ListHeaderComponent={
+                ventesReelles.ecran.noticeKeys.length === 0 ? null : (
+                  <Card style={styles.problemeEncart}>
+                    {ventesReelles.ecran.noticeKeys.map((k) => (
+                      <Text key={k} style={styles.message}>{t(k)}</Text>
+                    ))}
+                  </Card>
+                )
+              }
+              renderItem={({ item }) => (
+                <View style={styles.venteRowGroup}>
+                  <View style={styles.oppRow}>
+                    <View style={styles.artTile}>
+                      <View style={styles.artTileStripe} />
+                    </View>
+                    <View style={styles.homeSaleBody}>
+                      {/* Net first, always (SP-I04/SP-I12). No buyer name: a
+                          reseller surface has never seen one and does not
+                          start now. */}
+                      <Text style={styles.oppNet}>{tf('ventes.net_ligne', { amount: formatFcfa(item.netFcfa) })}</Text>
+                    </View>
+                    <StatusChip tone="ink" label={t(item.etatKey)} />
+                  </View>
+                </View>
+              )}
+              ListFooterComponent={<Text style={styles.noteLine}>{t('ventes.reel_suite')}</Text>}
+            />
+          ) : (
             <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
               <EmptyState
                 glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />}
-                title={t('ventes.vide_titre')}
-                hint={t('ventes.vide_hint')}
+                title={t(ventesReelles.ecran.titreKey)}
+                {...(ventesReelles.ecran.hintKey === undefined ? {} : { hint: t(ventesReelles.ecran.hintKey) })}
               />
-              <PrimaryButton label={t('ventes.vide_action')} onPress={() => go('vitrine')} />
+              {ventesReelles.ecran.noticeKeys.map((k) => (
+                <Text key={k} style={styles.noteLine}>{t(k)}</Text>
+              ))}
+              {ventesReelles.ecran.demandeCode && (
+                <>
+                  <TextInput
+                    style={styles.margeInput}
+                    value={codeSaisi}
+                    onChangeText={setCodeSaisi}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    placeholder="SP-"
+                    accessibilityLabel={t('ventes.reel_porte_hint')}
+                  />
+                  <PrimaryButton
+                    label={t('ventes.reel_porte_titre')}
+                    onPress={() => { void ventesReelles.ouvrir(codeSaisi); }}
+                  />
+                </>
+              )}
+              {ventesReelles.ecran.kind === 'hors_ligne' && (
+                <SecondaryButton label={t('ventes.reel_chargement')} onPress={() => { void ventesReelles.recharger(); }} />
+              )}
+              {ventesReelles.ecran.kind === 'vide' && (
+                <PrimaryButton label={t('ventes.vide_action')} onPress={() => go('vitrine')} />
+              )}
             </ScrollView>
-          ) : (
-            <FlatList
-                style={styles.screenScroll}
-                data={ventesRows}
-                keyExtractor={(r) => r.id}
-                initialNumToRender={6}
-                windowSize={5}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.scrollList}
-                renderItem={({ item }) => (
-                  // Frame L294–303 — the sale row on the duotone art-tile; problem
-                  // rows carry the danger border (frame L281, « les problèmes
-                  // d'abord »). Net stays on the row (net-first, ventes-row gate).
-                  <View style={styles.venteRowGroup}>
-                    <Pressable
-                      style={({ pressed }) => [styles.oppRow, item.status === 'probleme' && styles.rowProbleme, pressed && styles.pressed]}
-                      onPress={() => go('vente_detail')}
-                      accessibilityRole="button"
-                    >
-                      <View style={styles.artTile}>
-                        <View style={styles.artTileStripe} />
-                        <Text style={styles.artTileGlyph}>{item.clientFirstName.slice(0, 1)}</Text>
-                      </View>
-                      <View style={styles.homeSaleBody}>
-                        <Text style={styles.homeSaleTitle} numberOfLines={1}>{item.clientFirstName}</Text>
-                        <Text style={styles.homeSaleSub} numberOfLines={1}>{item.productName}</Text>
-                        <Text style={styles.oppNet}>{tf('ventes.net_ligne', { amount: formatFcfa(item.netFcfa) })}</Text>
-                      </View>
-                      <StatusChip tone={chipTone(item)} label={t(item.statusKey)} />
-                    </Pressable>
-                    {item.status === 'probleme' && (
-                      <Card style={styles.problemeEncart}>
-                        <Text style={styles.message}>{t('ventes.probleme_encart')}</Text>
-                        <Text style={styles.noteLine}>{t('ventes.probleme_rien')}</Text>
-                        <SecondaryButton label={t('ventes.probleme_action')} onPress={() => go('vente_detail')} />
-                      </Card>
-                    )}
-                  </View>
-                )}
-                ListFooterComponent={<Text style={styles.noteLine}>{t('ventes.relais')}</Text>}
-              />
           )
         )}
 
