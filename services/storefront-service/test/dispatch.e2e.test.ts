@@ -443,6 +443,47 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
     expect(((await ventes(hers.json['code'] as string)).json['ventes'] as unknown[]).length).toBe(1);
   });
 
+  it('THE FIRST LOCK, proven directly on the index: `/mine` hands back HER rows and no one else’s — proven at its own level, because the order’s re-check would otherwise hide a broken index', async () => {
+    const ns = await mf.getDurableObjectNamespace('RESELLER');
+    const feed = ns.get(ns.idFromName('reseller-feed'));
+    const post = async (path: string, body: unknown): Promise<Record<string, unknown>> => {
+      const res = await feed.fetch(`https://do${path}`, { method: 'POST', body: JSON.stringify(body) });
+      return (await res.json()) as Record<string, unknown>;
+    };
+    await post('/register', { resellerId: 'rs-lock-a', orderId: 'ord-lock-a1' });
+    await post('/register', { resellerId: 'rs-lock-a', orderId: 'ord-lock-a2' });
+    await post('/register', { resellerId: 'rs-lock-b', orderId: 'ord-lock-b1' });
+
+    const codeA = (await post('/code/mint', { resellerId: 'rs-lock-a' }))['code'] as string;
+    const listA = await post('/mine', { code: codeA });
+    expect(listA['resellerId']).toBe('rs-lock-a');
+    const idsA = (listA['orders'] as { orderId: string }[]).map((o) => o.orderId).sort();
+    expect(idsA).toEqual(['ord-lock-a1', 'ord-lock-a2']);
+
+    const codeB = (await post('/code/mint', { resellerId: 'rs-lock-b' }))['code'] as string;
+    const idsB = ((await post('/mine', { code: codeB }))['orders'] as { orderId: string }[]).map((o) => o.orderId);
+    expect(idsB).toEqual(['ord-lock-b1']);
+  });
+
+  it('FIRST-WINS on a redelivered confirmation: the same (reseller, order) never doubles her feed and never moves the row’s clock', async () => {
+    const ns = await mf.getDurableObjectNamespace('RESELLER');
+    const feed = ns.get(ns.idFromName('reseller-feed'));
+    const post = async (path: string, body: unknown): Promise<Record<string, unknown>> => {
+      const res = await feed.fetch(`https://do${path}`, { method: 'POST', body: JSON.stringify(body) });
+      return (await res.json()) as Record<string, unknown>;
+    };
+    const first = await post('/register', { resellerId: 'rs-dup-1', orderId: 'ord-dup-1' });
+    expect(first['status']).toBe('registered');
+    const code = (await post('/code/mint', { resellerId: 'rs-dup-1' }))['code'] as string;
+    const at1 = ((await post('/mine', { code }))['orders'] as { at: string }[])[0]!.at;
+
+    const again = await post('/register', { resellerId: 'rs-dup-1', orderId: 'ord-dup-1' });
+    expect(again['status']).toBe('already_registered');
+    const rows = (await post('/mine', { code }))['orders'] as { at: string }[];
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.at).toBe(at1); // the clock did not move
+  });
+
   it('THE SECOND LOCK, proven directly on the order: even asked point-blank for a reseller it does not belong to, the order refuses — the index scoping is not the only thing standing there', async () => {
     const mine = await orderWith('0013', CONTACT);
     expect(mine.created.status).toBe(200);
