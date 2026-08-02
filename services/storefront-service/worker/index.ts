@@ -3,6 +3,7 @@ import lstRouter, { ListingDO } from './listing-do.js';
 import checkoutRouter, { CheckoutDO } from './checkout-do.js';
 import orderRouter, { OrderDO } from './order-do.js';
 import { DispatchIndexDO, DISPATCH_INDEX_NAME } from './dispatch-index-do.js';
+import { ResellerFeedDO, RESELLER_FEED_NAME } from './reseller-feed-do.js';
 import { checkoutPreflight, handleRequest, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
 import { SUPPLY_COLLECTION_ROUTE } from '../src/supply-collection.js';
 import { signPrice } from '../src/publish-price.js';
@@ -31,7 +32,7 @@ import {
  *
  * wrangler binds these two classes by their exported names.
  */
-export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO };
+export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO, ResellerFeedDO };
 
 interface Env extends WriteAuthEnv {
   STOREFRONT: DurableObjectNamespace;
@@ -45,6 +46,10 @@ interface Env extends WriteAuthEnv {
    *  clocks, so the founder's dispatch read can find the per-order objects.
    *  Holds no contact and no money. */
   DISPATCH: DurableObjectNamespace;
+  /** RF-1a — the reseller feed (one singleton): her personal-code door and
+   *  her index of CONFIRMED sales. Holds no franc: every figure is read from
+   *  the order's own object at read time. */
+  RESELLER: DurableObjectNamespace;
   /** SP3.3a — the certified sandbox provider's behaviour knobs. UNSET on the
    *  deploy (the well-behaved provider); read by OrderDO, never by a route. */
   PAYMENT_SANDBOX_BEHAVIOR?: string;
@@ -197,6 +202,81 @@ export default {
         await mirrorDispatchRow(env, createSource);
       }
       return withReadCors(answered);
+    }
+
+    /**
+     * ═══ RF-1a — THE RESELLER'S OWN FEED (founder order, 2026-08-02) ═══
+     *
+     * HER PERSONAL CODE IS THE IDENTITY, presented as Bearer and resolved
+     * INSIDE the object (hash lookup — no secret ever compares against
+     * attacker-controlled bytes). No body carries a resellerId anywhere in
+     * this flow, so no caller can ask for a feed that is not theirs; a
+     * missing or unknown code answers the SAME uniform 401.
+     *
+     * WHY IT CANNOT BE THE SHARED WRITE KEY: that key ships inside every
+     * reseller's app bundle, so it identifies nobody — and this route
+     * answers with francs. Her net plus her displayed price yields the
+     * supplier's base by subtraction; a shared credential here would be the
+     * `/listings*` leak with extra steps.
+     *
+     * The fan-out reads each order's own reseller projection, so a stale
+     * state or a stale franc is unrepresentable: the index holds ids only.
+     */
+    if (pathname === '/reseller/ventes') {
+      if (request.method === 'OPTIONS') return resellerPreflight();
+      if (request.method !== 'GET') return withResellerCors(unauthorized());
+      const auth = request.headers.get('Authorization') ?? '';
+      const code = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length).trim() : '';
+      if (code === '') return withResellerCors(unauthorized());
+      const feed = env.RESELLER.get(env.RESELLER.idFromName(RESELLER_FEED_NAME));
+      const mineRes = await feed.fetch(
+        new Request('https://do/mine', { method: 'POST', body: JSON.stringify({ code }) }),
+      );
+      const mine = (await mineRes.json().catch(() => null)) as
+        | { ok?: boolean; resellerId?: string; orders?: { orderId: string }[] }
+        | null;
+      if (mine?.ok !== true || typeof mine.resellerId !== 'string' || !Array.isArray(mine.orders)) {
+        return withResellerCors(unauthorized());
+      }
+      const ventes: unknown[] = [];
+      for (const row of mine.orders) {
+        try {
+          const res = await env.ORDER.get(env.ORDER.idFromName(row.orderId)).fetch(
+            new Request(`https://do/entry/reseller/${encodeURIComponent(mine.resellerId)}`),
+          );
+          const v = (await res.json().catch(() => null)) as { ok?: boolean; exists?: boolean } | null;
+          if (v?.ok === true && v.exists === true) ventes.push(v);
+        } catch {
+          // one unreadable order must not blank her whole feed — the row is
+          // omitted and the rest of her sales still reach her
+        }
+      }
+      return withResellerCors(Response.json({ ok: true, ventes }));
+    }
+
+    /** RF-1a — the founder MINTS and REVOKES a reseller's feed code. His own
+     *  credential (value C, the same one his dispatch read uses — same
+     *  person, same Worker, same class of act); the body crosses VERBATIM so
+     *  the object's exact-key check refuses a smuggled field rather than
+     *  this layer silently stripping it. */
+    if (request.method === 'POST' && (pathname === '/reseller/code' || pathname === '/reseller/code/revoke')) {
+      const refused = await rejectUnauthorizedOpsRead(request, env);
+      if (refused) return refused;
+      const body = await request.text();
+      const feed = env.RESELLER.get(env.RESELLER.idFromName(RESELLER_FEED_NAME));
+      return feed.fetch(
+        new Request(pathname === '/reseller/code' ? 'https://do/code/mint' : 'https://do/code/revoke', {
+          method: 'POST',
+          body,
+        }),
+      );
+    }
+
+    /** RF-1a — the founder's inventory of feed doors. Same credential. */
+    if (request.method === 'GET' && pathname === '/reseller/codes') {
+      const refused = await rejectUnauthorizedOpsRead(request, env);
+      if (refused) return refused;
+      return env.RESELLER.get(env.RESELLER.idFromName(RESELLER_FEED_NAME)).fetch(new Request('https://do/codes'));
     }
 
     /**
@@ -449,6 +529,33 @@ export default {
  * `quote_not_reserved` until the next reserve (which is idempotent and rewrites
  * it) — a refusal, never a wrong success.
  */
+/**
+ * RF-1a — the reseller app is Expo (native shell today, web preview
+ * tomorrow), so there is no single browser origin to pin the way the
+ * console's exact-origin stamp does. `*` is safe HERE on the same terms the
+ * checkout wire states: this Worker holds no cookie and no ambient
+ * credential, and this route answers ONLY to a personal Bearer code the page
+ * must knowingly attach. THE TRIPWIRE: the day any cookie or session enters
+ * this Worker, `*` stops being safe and this comment is the review flag.
+ */
+function withResellerCors(res: Response): Response {
+  const headers = new Headers(res.headers);
+  headers.set('Access-Control-Allow-Origin', '*');
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
+function resellerPreflight(): Response {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET',
+      'Access-Control-Allow-Headers': 'Accept, Authorization',
+      'Access-Control-Max-Age': '86400',
+    },
+  });
+}
+
 /**
  * BC-1a — the dispatch view is served to the founder's CONSOLE, which lives on
  * its own Pages origin — a different reader from the buyer PWA, so its own

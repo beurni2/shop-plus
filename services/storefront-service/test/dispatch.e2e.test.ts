@@ -53,6 +53,7 @@ const mf = new Miniflare({
     CHECKOUT: 'CheckoutDO',
     ORDER: 'OrderDO',
     DISPATCH: 'DispatchIndexDO',
+    RESELLER: 'ResellerFeedDO',
   },
   durableObjectsPersist: persist,
   bindings: {
@@ -313,5 +314,161 @@ describe('BC-1a — the contact travels to exactly one reader', () => {
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get('Access-Control-Allow-Headers')).toContain('Authorization');
     expect(preflight.headers.get('Access-Control-Allow-Origin')).toBe('https://boutik-plus-web.pages.dev');
+  });
+});
+
+/* ═══════════ RF-1a — THE RESELLER'S FEED: her sales, her net, her door ═══════════ */
+
+describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', () => {
+  async function opsPost(path: string, body: unknown, bearer: string | null = OPS_SECRET) {
+    const res = await mf.dispatchFetch(`http://c${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(bearer !== null ? { Authorization: `Bearer ${bearer}` } : {}) },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    return { status: res.status, text, json: safeJson(text) };
+  }
+
+  async function ventes(code: string | null) {
+    const res = await mf.dispatchFetch('http://c/reseller/ventes', {
+      headers: code !== null ? { Authorization: `Bearer ${code}` } : {},
+    });
+    const text = await res.text();
+    return { status: res.status, text, json: safeJson(text), headers: res.headers };
+  }
+
+  /** Confirm an order through the REAL signed webhook — the only thing that
+   *  can make a sale true, here as everywhere. */
+  async function confirmOrder(orderId: string, amount: number): Promise<void> {
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
+      attempts?: { attemptId: string }[];
+    };
+    const attemptId = audit.attempts?.[audit.attempts.length - 1]?.attemptId;
+    if (attemptId === undefined) throw new Error('no attempt id');
+    const hook = await mf.dispatchFetch('http://c/checkout/webhook/payment', {
+      method: 'POST',
+      headers: signed,
+      body: JSON.stringify(webhookEvent(orderId, amount, attemptId)),
+    });
+    if (hook.status !== 200) throw new Error(`webhook ${hook.status} ${await hook.text()}`);
+  }
+
+  it('the door matrix: no code, a wrong code, the write key, the webhook secret and the FOUNDER’S OWN ops key all answer ONE 401 — a shared credential opens nothing here', async () => {
+    for (const bearer of [null, 'wrong', WRITE_SECRET, WEBHOOK_SECRET, OPS_SECRET]) {
+      const res = await ventes(bearer);
+      expect(res.status, String(bearer)).toBe(401);
+      expect(res.text).toBe('{"error":"unauthorized"}');
+    }
+  });
+
+  it('minting is the FOUNDER’S act — his ops key mints, everyone else is refused, and a smuggled field is malformed', async () => {
+    for (const bearer of [null, WRITE_SECRET, 'wrong']) {
+      const res = await opsPost('/reseller/code', { resellerId: 'rs-disp-0001' }, bearer);
+      expect(res.status, String(bearer)).toBe(401);
+    }
+    const smuggled = await opsPost('/reseller/code', { resellerId: 'rs-x', note: 'smuggled' });
+    expect(smuggled.status).toBe(400);
+    expect(smuggled.json['reason']).toBe('malformed');
+  });
+
+  it('THE WHOLE ROAD: a confirmed sale reaches her feed with her NET — and an unpaid one never does', async () => {
+    // her shop, her order, paid
+    const paid = await orderWith('0011', CONTACT);
+    expect(paid.created.status, paid.created.text).toBe(200);
+    // a SECOND order left unpaid — an unpaid order is not a sale
+    const unpaid = await orderWith('0012', CONTACT);
+    expect(unpaid.created.status).toBe(200);
+
+    const mint = await opsPost('/reseller/code', { resellerId: 'rs-disp-0011' });
+    expect(mint.json['ok']).toBe(true);
+    const code = mint.json['code'] as string;
+    expect(code.startsWith('SP-')).toBe(true);
+
+    // before the webhook: nothing is a sale yet
+    const before = await ventes(code);
+    expect(before.status).toBe(200);
+    expect(before.json['ventes']).toEqual([]);
+
+    await confirmOrder(paid.orderId, paid.created.json['amountPaidAtCheckout'] as number);
+
+    const after = await ventes(code);
+    const rows = after.json['ventes'] as Record<string, unknown>[];
+    expect(rows.length).toBe(1);
+    const row = rows[0]!;
+    expect(row['orderId']).toBe(paid.orderId);
+    expect(row['state']).toBe('confirmed');
+    // HER NET is present and is a franc integer; the ALLOWLIST is the shape
+    expect(typeof row['resellerNet']).toBe('number');
+    expect(Object.keys(row).sort()).toEqual(
+      ['createdAt', 'exists', 'ok', 'orderId', 'productVersionId', 'resellerNet', 'state', 'zoneTo'],
+    );
+    // the unpaid order is absent — a sale is a CONFIRMED sale
+    expect(rows.some((r) => r['orderId'] === unpaid.orderId)).toBe(false);
+  });
+
+  it('THE ECONOMICS BOUNDARY on raw bytes: no base price, no commission, no gross, no buyer contact ever rides her wire', async () => {
+    const mint = await opsPost('/reseller/code', { resellerId: 'rs-disp-0011' });
+    const res = await ventes(mint.json['code'] as string);
+    // NEVER scan an empty feed for leaks — that proves nothing. This is the
+    // reseller whose confirmed sale the previous test put on the wire.
+    expect((res.json['ventes'] as unknown[]).length).toBe(1);
+    // FIELD NAMES are matched in their JSON key form — `"sellerNet"` with its
+    // quotes — because a bare substring scan cannot tell `sellerNet` from the
+    // legitimate `resellerNet` that ends the same way. A leaked field is always
+    // a quoted key, so the anchored form still catches every real one.
+    for (const banned of [
+      'sellerBasePrice', 'sellerFundedCommission', 'sellerNet', 'sellerPlatformFee',
+      'resellerGrossEarnings', 'platformProductFeeRevenue', 'markup', 'buyerTotal',
+      'contact', 'phone', 'quartier', 'repere',
+    ]) {
+      expect(res.text.includes(`"${banned}"`), `her feed leaked: ${banned}`).toBe(false);
+    }
+    // RAW VALUES are matched bare — the buyer's actual number must not appear
+    // anywhere in her bytes, under any key or none.
+    for (const secret of [CONTACT.phone, CONTACT.quartier, CONTACT.repere]) {
+      expect(res.text.includes(secret), `her feed leaked a buyer value`).toBe(false);
+    }
+  });
+
+  it('ANOTHER reseller’s code sees NOTHING of hers — the index scopes it and the order re-checks its own attribution', async () => {
+    const other = await opsPost('/reseller/code', { resellerId: 'rs-someone-else' });
+    const res = await ventes(other.json['code'] as string);
+    expect(res.status).toBe(200);
+    expect(res.json['ventes']).toEqual([]);
+    // and the emptiness is SCOPING, not an empty store: hers is non-empty at
+    // this very instant, read through her own code.
+    const hers = await opsPost('/reseller/code', { resellerId: 'rs-disp-0011' });
+    expect(((await ventes(hers.json['code'] as string)).json['ventes'] as unknown[]).length).toBe(1);
+  });
+
+  it('THE SECOND LOCK, proven directly on the order: even asked point-blank for a reseller it does not belong to, the order refuses — the index scoping is not the only thing standing there', async () => {
+    const mine = await orderWith('0013', CONTACT);
+    expect(mine.created.status).toBe(200);
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    const stub = ns.get(ns.idFromName(mine.orderId));
+
+    const stranger = await stub.fetch('https://do/entry/reseller/rs-someone-else');
+    expect(stranger.status).toBe(404);
+    expect(((await stranger.json()) as { reason?: string }).reason).toBe('not_yours');
+
+    // and the same door opens for the reseller it IS attributed to
+    const owner = await stub.fetch('https://do/entry/reseller/rs-disp-0013');
+    expect(owner.status).toBe(200);
+    expect(((await owner.json()) as { orderId?: string }).orderId).toBe(mine.orderId);
+  });
+
+  it('RE-MINTING replaces: the old code dies at that instant (which is also how the founder cuts a feed off)', async () => {
+    const first = await opsPost('/reseller/code', { resellerId: 'rs-rotate-1' });
+    const firstCode = first.json['code'] as string;
+    expect((await ventes(firstCode)).status).toBe(200);
+    const second = await opsPost('/reseller/code', { resellerId: 'rs-rotate-1' });
+    expect(second.json['code']).not.toBe(firstCode);
+    expect((await ventes(firstCode)).status).toBe(401); // the old door is shut
+    expect((await ventes(second.json['code'] as string)).status).toBe(200);
+    const revoke = await opsPost('/reseller/code/revoke', { resellerId: 'rs-rotate-1' });
+    expect(revoke.json['status']).toBe('revoked');
+    expect((await ventes(second.json['code'] as string)).status).toBe(401);
   });
 });

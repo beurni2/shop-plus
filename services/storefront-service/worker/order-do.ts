@@ -18,6 +18,7 @@ import {
   type ReservationReceipt,
 } from '../src/order-core.js';
 import { readSandboxBehavior, sandboxPaymentProvider, type ChargeOutcome } from '../src/payment-port.js';
+import { RESELLER_FEED_NAME } from './reseller-feed-do.js';
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -225,6 +226,11 @@ export interface OrderDOEnv {
    */
   readonly OFFER?: { fetch(request: Request): Promise<Response> };
   readonly FULFILLMENT_WRITE_SECRET?: string;
+  /** RF-1a — the reseller feed index (one singleton). Bound on the Worker, so
+   *  this object writes her row at the confirm transition without a
+   *  composition-root shim, exactly as `OFFER` needs none. ABSENT ⇒ the
+   *  registration is skipped and the money path is untouched. */
+  readonly RESELLER?: DurableObjectNamespace;
 }
 
 export class OrderDO {
@@ -425,6 +431,52 @@ export class OrderDO {
         state: spine.journey.state,
         createdAt: origin.createdAt,
         contact: contact ?? null,
+        productVersionId: origin.fulfillment?.productVersionId ?? '',
+        zoneTo: origin.fulfillment?.zoneTo ?? '',
+      });
+    }
+
+    /**
+     * RF-1a — THE RESELLER'S PROJECTION. INTERNAL ONLY (the public router
+     * maps no path here); reachable only through her personal-code door at
+     * the composition root, and only for the orders HER index names.
+     *
+     * BUILT FIELD BY FIELD, and the omissions are the point: her NET —
+     * COPIED from the frozen Quote, never recomputed (Ten Laws #1/#2) — and
+     * no other franc. No base price, no commission, no gross earnings (SP-I04
+     * / SP-I12: net first, gross-first prohibited, commission
+     * unrepresentable), no buyer contact (founder-only, BC-1a), no supplier
+     * identity, no quote bytes, no payment attempts, no provider refs.
+     *
+     * THE STATE IS THE ORDER'S OWN, unembellished: `payment_pending`,
+     * `payment_failed` or `confirmed`. This object will not invent a
+     * preparation or a delivery it cannot prove.
+     *
+     * `claimedBy` is checked here as DEFENCE IN DEPTH: her index already
+     * scopes the fan-out, but an order that does not name her as its
+     * attributed reseller answers `not_yours` rather than a projection.
+     */
+    if (request.method === 'GET' && pathname.startsWith('/entry/reseller/')) {
+      const claimedBy = decodeURIComponent(pathname.slice('/entry/reseller/'.length));
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      if (origin === undefined) return Response.json({ ok: true, exists: false });
+      const quote = parseStoredQuote(origin.quoteBytes);
+      if (quote === undefined) {
+        return Response.json({ ok: false, reason: 'stored_quote_unreadable' }, { status: 422 });
+      }
+      if (quote.attributionResellerId !== claimedBy) {
+        return Response.json({ ok: false, reason: 'not_yours' }, { status: 404 });
+      }
+      const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      const spine = rebuildOrderSpine(quote, origin, log);
+      return Response.json({
+        ok: true,
+        exists: true,
+        orderId: origin.orderId,
+        state: spine.journey.state,
+        createdAt: origin.createdAt,
+        // HER NET, copied off the immutable Quote. The one figure on this wire.
+        resellerNet: quote.resellerNet,
         productVersionId: origin.fulfillment?.productVersionId ?? '',
         zoneTo: origin.fulfillment?.zoneTo ?? '',
       });
@@ -1013,10 +1065,42 @@ export class OrderDO {
       // durably stored (verifier MINOR); the duplicate-webhook re-arm above is
       // the recovery for an outbox left pending without an alarm.
       if (composition.ok) await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      /**
+       * RF-1a — HER FEED LEARNS AT THE SAME INSTANT BOUTIK+ DOES. The sale
+       * becomes true here, so it enters her index here — never earlier (an
+       * unpaid order is not a sale) and never from a screen's guess.
+       *
+       * BEST-EFFORT AND SWALLOWED, deliberately, exactly like the dispatch
+       * mirror: a confirmation that is already durably stored must never be
+       * 500'd by an index write, and the buyer's money path must never
+       * depend on a reseller's convenience. A lost row costs her feed one
+       * line until the next confirmation for that order re-registers it;
+       * `/register` is first-wins, so the retry is free.
+       */
+      await this.registerForReseller(quote.attributionResellerId, origin.orderId);
     } else {
       await this.state.storage.put(LOG_KEY, next);
     }
     return Response.json({ ok: true, status: 'applied', state: spine.journey.state });
+  }
+
+  /** RF-1a — put the confirmed sale in its reseller's index. Every failure is
+   *  swallowed: see the call site for why a confirmation may never depend on
+   *  it. An unattributed order (no reseller on the quote) registers nothing. */
+  private async registerForReseller(resellerId: string, orderId: string): Promise<void> {
+    try {
+      const ns = this.env.RESELLER;
+      if (ns === undefined || typeof resellerId !== 'string' || resellerId === '') return;
+      await ns.get(ns.idFromName(RESELLER_FEED_NAME)).fetch(
+        new Request('https://do/register', {
+          method: 'POST',
+          body: JSON.stringify({ resellerId, orderId }),
+        }),
+      );
+    } catch {
+      // the sale is already durably confirmed; her feed self-heals on the
+      // next confirmation for this order (the row write is first-wins)
+    }
   }
 
   /**

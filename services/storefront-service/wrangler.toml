@@ -44,6 +44,13 @@ class_name = "OrderDO"
 name = "DISPATCH"
 class_name = "DispatchIndexDO"
 
+# RF-1a — the reseller feed. ONE singleton: her personal-code door and her
+# index of CONFIRMED sales (ids + clocks; every franc is read from the order
+# at read time, never stored here).
+[[durable_objects.bindings]]
+name = "RESELLER"
+class_name = "ResellerFeedDO"
+
 # FIRST-DEPLOY MIGRATION — create both DO classes. `new_sqlite_classes` is CORRECT
 # AND MANDATORY, not a coin-flip: Cloudflare stopped issuing key-value-backed DO
 # namespaces (changelog 2026-07-09) to any account without a pre-existing one, and
@@ -78,6 +85,12 @@ new_sqlite_classes = ["OrderDO"]
 [[migrations]]
 tag = "v4"
 new_sqlite_classes = ["DispatchIndexDO"]
+
+# RF-1a — ResellerFeedDO on its OWN tag, the append-only law every tag above
+# states. Same UNPROVEN-UNTIL-DEPLOY caveat.
+[[migrations]]
+tag = "v5"
+new_sqlite_classes = ["ResellerFeedDO"]
 
 # The PRIVATE R2 bucket (exists: Standard, jurisdiction default, location hint
 # ENAM). Reads go THROUGH the Worker (GET /media/{key}); never a public custom
