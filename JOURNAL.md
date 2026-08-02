@@ -2776,3 +2776,21 @@ The fresh-context verifier failed the slice. Its central finding: **four of the 
 **Evidence:** storefront-service **448/448** · reseller-app **404/404** · both typechecks clean · **shop gates board exit 0, ALL GATES GREEN**, whole-log zero `GATE FAILED` · pushed `09d8453` · CI dispatched · **cross-repo fresh-context verifier running over all three diffs**. NO merge, NO deploy before its verdict and the founder's go.
 
 **Deploy prerequisites for the whole return leg:** boutik's `STOREFRONT` service binding, and `wrangler secret put PROGRESS_WRITE_SECRET` **on both Workers** with the same value. Unset ⇒ the intake 401s and boutik's outbox retries; nothing is lost while it waits.
+
+## 2026-08-02 — RF-1c (`7e5bbcf`): her screen reads the REAL feed
+
+**Founder order: « I want the reseller screen wired to the real feed ».** This closes the gap the verifier surfaced as material context, and the gap behind my own overstatement to him: the feed existed and nothing rendered it.
+
+**What she was actually looking at.** `App.tsx` rendered `ventesListModel()` — the DEMO model. Its hardcoded rows carry `en_route`, `livrée` and `problème`, states no part of this platform can prove, mapped to real-looking chips. Every honesty law we enforced on the wire was being undone by the one screen she opens.
+
+**Now:** the screen reads `ecranDesVentes()`, a PURE mapping (`sales/feed-screen.ts`) that is exhaustively tested and **cannot express a delivery fact at all** — a byte-scan over every reachable input asserts it. Seven designed states, each named: the door · loading · refused · **hors-ligne, explicitly NOT an empty list** (« we could not read your sales » and « you have no sales » are different sentences and she must be able to tell them apart) · not-yet-connected · honest empty · the list. A partial read and any non-sale row are DISPLAYED in the encart rather than swallowed, and the footer states plainly that route and delivery arrive with Séra.
+
+**Her code.** Typed once, kept in the document directory the reseller identity already uses (durable across app-kill, reboot, EAS republish), **never in the bundle** — a test asserts the seam reads exactly one env var and no key-shaped one. **Persisted only after it actually opens**, so a mistyped code does not greet her with a refusal every launch. NOT secure-store, and the reasoning DIFFERS from the identity store's so it is written out rather than copied: this IS a credential, but the threat is another reseller reading her sales, not someone holding her unlocked phone — and Keystore on low-end Android risks locking her out of her own earnings, while the founder can revoke and re-mint in one action.
+
+**A stale-read token** means only the newest read paints the screen — two reads race whenever she retries on a slow connection, the exact bug that bit the founder's console.
+
+**A PINNED TEST FIRED AND WAS EVOLVED, RULING RECORDED IN ITS PLACE.** `states-law` pinned the « problème » encart. That was a DEMO state: the real wire has no problem state — a `payment_failed` order never becomes a sale — so pinning a designed problem state would force one for a condition that cannot occur, the same lie in the other direction. When E2–E3 brings a real failure path, its designed state returns with a wire behind it. The screen now carries MORE honest states than before and they are pinned instead.
+
+**Disclosed, not fixed:** the ACCUEIL preview still lists demo rows (names, products). Out of this slice's scope; no false delivery claim there, but it is not her real data.
+
+**Evidence:** reseller-app **422/422** across 30 files · typecheck clean · **shop gates board exit 0, ALL GATES GREEN** (including the artifact export gate that builds the real app) · pushed `7e5bbcf` · CI dispatched.
