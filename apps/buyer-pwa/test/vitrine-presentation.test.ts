@@ -82,6 +82,16 @@ describe('her présentation appears EXACTLY ONCE, whatever header she chose', ()
     }
   });
 
+  it('the once-law is BEHAVIORAL for a slotted unit, not just the pinned set — indigo, by name', async () => {
+    // Mutation-measured: dropping 'indigo' from ENTETES_AVEC_BIO passed the
+    // loop above (it iterates the shrunken set) and only the mechanical pin
+    // fired. This literal-key assertion is the behavioral half: if the set
+    // ever lies about a slotted unit, the page doubles her sentence and this
+    // counts it.
+    await loadAllEntetes();
+    expect(bioCount(ready('indigo'))).toBe(1);
+  });
+
   it('classique has always shown it in the hero panel — no block', async () => {
     await loadAllEntetes();
     const html = ready('classique');
