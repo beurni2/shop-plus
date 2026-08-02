@@ -2752,3 +2752,27 @@ The fresh-context verifier failed the slice. Its central finding: **four of the 
 **Seven mutations re-run against the fixes, every one red:** base-price leak · gross leak · redelivery repair removed · per-row failures swallowed · ops preflight removed · id un-escaped · id cap removed.
 
 **Evidence:** storefront-service **438/438** (19 files) · reseller-app **397/397** (28 files) · both typechecks clean · **shop run-gates exit 0, ALL GATES GREEN**, whole-log zero `GATE FAILED` · pushed `166a058` · CI dispatched · **verifier round 2 running over the fix diff** — a fix round reviewed only by its author is the same blind spot that produced round 1. Nothing merges or deploys before that verdict and the founder's go.
+
+## 2026-08-02 — READINESS-RETURN-1c (`09d8453`): Shop+ receives the return leg — the wire is closed
+
+**Founder order: « finish the shop+ intake ».** Boutik+ was emitting into nothing; her follow-up still stopped at « payée ». It no longer does.
+
+**Canon repinned to v3.3.0, both places.** `package.json` AND the `pnpm-workspace.yaml` override — the override is what actually wins, and the boutik side of this same wire proved it an hour earlier by installing 3.2.0 despite nine updated package.json files. Installed version verified BY VALUE (grep the new export out of the installed dist) before being trusted.
+
+**The door.** `POST /fulfillment/progress` behind **`PROGRESS_WRITE_SECRET`** — its own value. `FULFILLMENT_WRITE_SECRET` is this Worker's key INTO Boutik+; this is Boutik+'s key into this Worker, and one key must never unlock the other direction. Fail-closed, constant-time, one uniform 401 computed before any dispatch. The door matrix asserts every other credential in the ecosystem — write key, webhook secret, intake secret, the founder's own ops key — is refused.
+
+**Parsed through the canon artifact ON RECEIPT.** This is what binding name to payload was for: a body carrying a supplier id, a readiness challenge, a photo or a franc is refused HERE by construction, even if a future producer bug sent one — asserted for five banned fields. A non-canonical body is **400, not 5xx**, so a producer bug surfaces as a repeating refusal in both Workers' logs while a real outage stays retryable.
+
+**Where the facts live.** Their own key on the order — NOT merged into the frozen quote bytes and NOT a transition of the payment machine, because this is another domain's news about the same order. Keeping it separate is what lets it be absent without the order being wrong. **First-wins per fact**, so an at-least-once redelivery cannot move a clock she has already been shown. **An order this Worker never saw is a 404 that writes nothing** — a preparation event must never conjure a sale nobody paid for.
+
+**Her feed: PAYÉE → EN PRÉPARATION → PRÊTE**, each only once Boutik+ actually said so. Absent means « not yet », never « no » — no default fills a missing step in. **It stops at readiness**, and a byte-scan asserts no delivery vocabulary is reachable from any input. B+I-06 makes readiness the PRECONDITION for a pickup being requested, so « prête » is not a delivery claim. New string `ventes.etat_prete` in the i18n catalog with its register tag, never inline.
+
+**My own re-projection caught me**, which is the point of having it: the router's field-by-field allowlist silently dropped `acceptedAt`/`readyAt` until I added them — the M7 defence working exactly as designed on the person who built it.
+
+**Five mutations, all red:** fail-closed removed · first-wins removed · canon parse replaced by a raw cast (banned fields walked in) · unknown-order guard removed · the model claiming PRÊTE for every sale.
+
+**Two gates fired and taught the same lesson twice.** The catalog rewrite turned escaped ` ` into raw bytes (money-discipline caught it — fixed by inserting the entry textually instead of re-serialising the file). Then `no-drop-code-exposure` caught my test naming the field literally; the repo's technique is to assemble it at runtime — and my first fix **named the scan in its own comment and tripped it again**, exactly as the journal records happening once before. Reworded.
+
+**Evidence:** storefront-service **448/448** · reseller-app **404/404** · both typechecks clean · **shop gates board exit 0, ALL GATES GREEN**, whole-log zero `GATE FAILED` · pushed `09d8453` · CI dispatched · **cross-repo fresh-context verifier running over all three diffs**. NO merge, NO deploy before its verdict and the founder's go.
+
+**Deploy prerequisites for the whole return leg:** boutik's `STOREFRONT` service binding, and `wrangler secret put PROGRESS_WRITE_SECRET` **on both Workers** with the same value. Unset ⇒ the intake 401s and boutik's outbox retries; nothing is lost while it waits.
