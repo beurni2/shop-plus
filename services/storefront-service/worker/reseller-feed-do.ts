@@ -27,14 +27,16 @@
  *
  * ═══ WHAT THE FEED CAN HONESTLY SAY TODAY (and what it must not) ═══
  *
- * Shop+ can prove three states about an order: it is waiting for the
- * operator (`payment_pending`), the operator confirmed the money
- * (`confirmed`), or the payment failed (`payment_failed`). THAT IS ALL.
+ * Shop+ can prove three states about an order — waiting for the operator
+ * (`payment_pending`), confirmed (`confirmed`), or failed (`payment_failed`)
+ * — and THIS WIRE CARRIES ONLY THE MIDDLE ONE, because a row enters the index
+ * at the confirm transition and nowhere else (verifier M9: the first draft of
+ * this comment claimed all three rode here, which was never true).
  * « En préparation » lives in Boutik+'s book (acceptedAt / readyAt) and no
  * wire carries it back here; « en route », « à la porte » and « livrée »
  * belong to Séra, which does not exist yet. This object therefore reports
- * the three real states and NOTHING ELSE — the missing steps are named as
- * missing on her screen rather than invented here. Closing that gap needs a
+ * only what it can prove — the missing steps are named as missing on her
+ * screen rather than invented here. Closing that gap needs a
  * return event (`package.ready.v1`), which is a canon contracts change and
  * the founder's call, not mine.
  *
@@ -111,7 +113,13 @@ export class ResellerFeedDO {
     if (request.method === 'POST' && pathname === '/code/mint') {
       const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
       const resellerId = body?.['resellerId'];
-      if (typeof resellerId !== 'string' || resellerId === '' || Object.keys(body ?? {}).length !== 1) {
+      // The 128 cap MATCHES `/register` below (verifier M2): without it a
+      // mint could create a code for an id no row can ever name, i.e. a
+      // permanent key that opens an eternally empty feed.
+      if (
+        typeof resellerId !== 'string' || resellerId === '' || resellerId.length > 128 ||
+        Object.keys(body ?? {}).length !== 1
+      ) {
         return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       }
       const code = mintResellerCode();
@@ -164,7 +172,12 @@ export class ResellerFeedDO {
       ) {
         return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       }
-      const key = `${ROW_PREFIX}${resellerId}:${orderId}`;
+      // VERIFIER M1 — the id is ESCAPED into the key. Unescaped, the pair
+      // (`rs-AAA`, `BBB:ord-x`) built the same key as (`rs-AAA:BBB`, `ord-x`),
+      // so a code minted for `rs-AAA:BBB` listed another reseller's row — a
+      // real breach of the first lock, contained end-to-end only by the
+      // order's second check. `encodeURIComponent` makes the boundary exact.
+      const key = `${ROW_PREFIX}${encodeURIComponent(resellerId)}:${orderId}`;
       const existing = await this.state.storage.get<FeedRow>(key);
       if (existing !== undefined) return Response.json({ ok: true, status: 'already_registered' });
       await this.state.storage.put(key, { orderId, at: new Date().toISOString() } satisfies FeedRow);
@@ -178,7 +191,7 @@ export class ResellerFeedDO {
       const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
       const resolved = await this.resolveCode(body?.['code']);
       if (resolved === null) return Response.json({ ok: false, reason: 'unauthorized' }, { status: 401 });
-      const rows = await this.state.storage.list<FeedRow>({ prefix: `${ROW_PREFIX}${resolved.resellerId}:` });
+      const rows = await this.state.storage.list<FeedRow>({ prefix: `${ROW_PREFIX}${encodeURIComponent(resolved.resellerId)}:` });
       const orders = [...rows.values()]
         .sort((a, b) => (a.at < b.at ? 1 : -1))
         .map((r) => ({ orderId: r.orderId, at: r.at }));

@@ -52,10 +52,14 @@ export type FeedVue =
   | { readonly kind: 'unreachable' }
   /** The door opened and she has no confirmed sale yet. An HONEST empty,
    *  designed as a real state, never an error wall and never a fake count. */
-  | { readonly kind: 'empty' }
+  | { readonly kind: 'empty'; readonly incomplet: boolean }
   | {
       readonly kind: 'ready';
       readonly ventes: readonly VenteReelle[];
+      /** The server could not read everything it holds for her. The screen
+       *  states it plainly instead of presenting a short list as the whole
+       *  truth (Ten Laws #7: honest states are designed states). */
+      readonly incomplet: boolean;
       /** Rows the server sent that are NOT confirmed sales. Registration only
        *  happens at the confirm transition, so this should always be 0; it is
        *  surfaced rather than silently dropped, because a silent drop is how a
@@ -70,10 +74,10 @@ const ETAT_PAYEE_KEY = 'ventes.etat_payee';
  * Newest first. The comparator is on the server's `createdAt` — her order of
  * events, not the order the fan-out happened to return.
  */
-export function vueDesVentes(rows: readonly FeedVente[]): FeedVue {
+export function vueDesVentes(rows: readonly FeedVente[], incomplet = false): FeedVue {
   const confirmees = rows.filter((r) => r.state === 'confirmed');
   const nonConfirmees = rows.length - confirmees.length;
-  if (confirmees.length === 0 && nonConfirmees === 0) return { kind: 'empty' };
+  if (confirmees.length === 0 && nonConfirmees === 0) return { kind: 'empty', incomplet };
   const ventes = [...confirmees]
     .sort((a, b) => (a.createdAt === b.createdAt ? 0 : a.createdAt < b.createdAt ? 1 : -1))
     .map(
@@ -85,8 +89,8 @@ export function vueDesVentes(rows: readonly FeedVente[]): FeedVue {
         zoneTo: r.zoneTo,
       }),
     );
-  if (ventes.length === 0) return { kind: 'empty' };
-  return { kind: 'ready', ventes, nonConfirmees };
+  if (ventes.length === 0) return { kind: 'empty', incomplet };
+  return { kind: 'ready', ventes, nonConfirmees, incomplet };
 }
 
 /** Her total, from rows already on screen — a sum of copied nets, never a

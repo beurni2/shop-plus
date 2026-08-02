@@ -1027,6 +1027,20 @@ export class OrderDO {
       if (stranded?.status === 'pending' && (await this.state.storage.getAlarm()) === null) {
         await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
       }
+      /**
+       * RF-1a (verifier B2) — AND THE SAME REDELIVERY REPAIRS HER FEED. The
+       * first cut registered her row ONLY inside the first-confirmation
+       * branch below, then claimed in a comment that « the next confirmation
+       * re-registers it ». That was FALSE: this early return means a
+       * redelivered webhook never reaches that branch, so a row lost to a
+       * transient binding failure was lost FOREVER — her feed silently
+       * missing a real, paid sale that the founder's board still showed.
+       * Registration is first-wins, so re-firing it here costs nothing and
+       * makes the self-heal real rather than asserted.
+       */
+      if (spine.journey.state === 'confirmed') {
+        await this.registerForReseller(quote.attributionResellerId, origin.orderId);
+      }
       return Response.json({ ok: true, status: 'duplicate', state: spine.journey.state });
     }
 
@@ -1065,21 +1079,25 @@ export class OrderDO {
       // durably stored (verifier MINOR); the duplicate-webhook re-arm above is
       // the recovery for an outbox left pending without an alarm.
       if (composition.ok) await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
-      /**
-       * RF-1a — HER FEED LEARNS AT THE SAME INSTANT BOUTIK+ DOES. The sale
-       * becomes true here, so it enters her index here — never earlier (an
-       * unpaid order is not a sale) and never from a screen's guess.
-       *
-       * BEST-EFFORT AND SWALLOWED, deliberately, exactly like the dispatch
-       * mirror: a confirmation that is already durably stored must never be
-       * 500'd by an index write, and the buyer's money path must never
-       * depend on a reseller's convenience. A lost row costs her feed one
-       * line until the next confirmation for that order re-registers it;
-       * `/register` is first-wins, so the retry is free.
-       */
-      await this.registerForReseller(quote.attributionResellerId, origin.orderId);
     } else {
       await this.state.storage.put(LOG_KEY, next);
+    }
+    /**
+     * RF-1a — HER FEED LEARNS AT THE SAME INSTANT BOUTIK+ DOES. The sale
+     * becomes true here, so it enters her index here — never earlier (an
+     * unpaid order is not a sale) and never from a screen's guess.
+     *
+     * OUTSIDE the outbox branch on purpose (verifier B2): that branch runs
+     * only for the FIRST confirmation of an order, so registering inside it
+     * made a lost row unrecoverable. Here it fires on every applied
+     * confirmation, and the duplicate path above fires on every redelivery —
+     * which is what makes the self-heal real. BEST-EFFORT AND SWALLOWED: a
+     * confirmation already durably stored must never be 500'd by an index
+     * write, and the buyer's money path must never depend on a reseller's
+     * convenience.
+     */
+    if (confirmed.applied) {
+      await this.registerForReseller(quote.attributionResellerId, origin.orderId);
     }
     return Response.json({ ok: true, status: 'applied', state: spine.journey.state });
   }

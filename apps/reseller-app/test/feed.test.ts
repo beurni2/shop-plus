@@ -214,3 +214,51 @@ describe('RF-1b — her credential is never in the bundle', () => {
     }
   });
 });
+
+describe('RF-1b (verifier B3) — a partial feed is never presented as a complete one', () => {
+  it('the server’s incomplet flag reaches her view', async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ ok: true, ventes: [], incomplet: true }), { status: 200 })) as unknown as typeof fetch;
+    try {
+      const res = await new HttpResellerFeed('https://api.example').mesVentes('SP-x');
+      if (!res.ok) throw new Error('expected ok');
+      expect(res.incomplet).toBe(true);
+      expect(vueDesVentes(res.ventes, res.incomplet)).toEqual({ kind: 'empty', incomplet: true });
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
+  it('a row THIS reader had to drop also makes the answer incomplete — even when the server called it complete', async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ ok: true, ventes: [row(), { orderId: 'broken' }], incomplet: false }), {
+        status: 200,
+      })) as unknown as typeof fetch;
+    try {
+      const res = await new HttpResellerFeed('https://api.example').mesVentes('SP-x');
+      if (!res.ok) throw new Error('expected ok');
+      expect(res.ventes.length).toBe(1);
+      expect(res.incomplet, 'a dropped row must be declared').toBe(true);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
+  it('a fully-read feed says so, so the flag carries information', async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ ok: true, ventes: [row()], incomplet: false }), { status: 200 })) as unknown as typeof fetch;
+    try {
+      const res = await new HttpResellerFeed('https://api.example').mesVentes('SP-x');
+      if (!res.ok) throw new Error('expected ok');
+      expect(res.incomplet).toBe(false);
+      const vue = vueDesVentes(res.ventes, res.incomplet);
+      if (vue.kind !== 'ready') throw new Error('expected ready');
+      expect(vue.incomplet).toBe(false);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});

@@ -42,7 +42,15 @@ export interface FeedVente {
 }
 
 export type FeedResult =
-  | { readonly ok: true; readonly ventes: readonly FeedVente[] }
+  | {
+      readonly ok: true;
+      readonly ventes: readonly FeedVente[];
+      /** TRUE when the server could not read every row it holds for her (a
+       *  failed order read, or more sales than one answer fans out to). Her
+       *  screen must SAY SO — a short list served as a complete one is the
+       *  same lie as a fake count. */
+      readonly incomplet: boolean;
+    }
   | { readonly ok: false; readonly reason: 'unauthorized' | 'unreachable' | 'malformed' };
 
 export interface ResellerFeedPort {
@@ -97,11 +105,16 @@ export class HttpResellerFeed implements ResellerFeedPort {
       const rows = (body as Record<string, unknown>)['ventes'];
       if (!Array.isArray(rows)) return { ok: false, reason: 'malformed' };
       const ventes: FeedVente[] = [];
+      let dropped = 0;
       for (const row of rows) {
         const parsed = readFeedVente(row);
-        if (parsed !== null) ventes.push(parsed);
+        if (parsed === null) dropped += 1;
+        else ventes.push(parsed);
       }
-      return { ok: true, ventes };
+      // Incomplete if the SERVER said so, or if this reader itself had to drop
+      // a row — either way she is not looking at all of her sales.
+      const declared = (body as Record<string, unknown>)['incomplet'] === true;
+      return { ok: true, ventes, incomplet: declared || dropped > 0 };
     } catch {
       // an abort and a dead network are the same thing to her: not reached
       return { ok: false, reason: 'unreachable' };

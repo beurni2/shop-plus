@@ -226,8 +226,12 @@ export default {
       if (request.method === 'OPTIONS') return resellerPreflight();
       if (request.method !== 'GET') return withResellerCors(unauthorized());
       const auth = request.headers.get('Authorization') ?? '';
-      const code = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length).trim() : '';
+      const code = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
       if (code === '') return withResellerCors(unauthorized());
+      // RF-1a (verifier M3) — a Worker deployed before migration v5 has no
+      // RESELLER binding. Refuse like every other unauthorized caller rather
+      // than throwing a raw TypeError onto the wire.
+      if (env.RESELLER === undefined) return withResellerCors(unauthorized());
       const feed = env.RESELLER.get(env.RESELLER.idFromName(RESELLER_FEED_NAME));
       const mineRes = await feed.fetch(
         new Request('https://do/mine', { method: 'POST', body: JSON.stringify({ code }) }),
@@ -238,20 +242,38 @@ export default {
       if (mine?.ok !== true || typeof mine.resellerId !== 'string' || !Array.isArray(mine.orders)) {
         return withResellerCors(unauthorized());
       }
+      /**
+       * THE FAN-OUT, BOUNDED AND HONEST ABOUT WHAT IT COULD NOT READ
+       * (verifier B3). The first cut looped over every row with a bare
+       * `catch {}`, which meant a failed read became a SHORTER LIST OF HER
+       * MONEY served as `200 ok` — she could not tell « you have no sales »
+       * from « we could not read your sales ». Two changes: the loop is
+       * capped well under the platform's per-request subrequest ceiling, and
+       * anything not read is COUNTED and declared. A partial answer is
+       * allowed (one bad order must not blank her feed) but it is never
+       * allowed to look complete.
+       */
+      const asked = mine.orders.slice(0, MAX_FEED_FANOUT);
+      let illisibles = mine.orders.length - asked.length;
       const ventes: unknown[] = [];
-      for (const row of mine.orders) {
+      for (const row of asked) {
         try {
           const res = await env.ORDER.get(env.ORDER.idFromName(row.orderId)).fetch(
             new Request(`https://do/entry/reseller/${encodeURIComponent(mine.resellerId)}`),
           );
-          const v = (await res.json().catch(() => null)) as { ok?: boolean; exists?: boolean } | null;
-          if (v?.ok === true && v.exists === true) ventes.push(v);
+          const v = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+          const projected = projectVente(v);
+          if (projected === null) illisibles += 1;
+          else ventes.push(projected);
         } catch {
-          // one unreadable order must not blank her whole feed — the row is
-          // omitted and the rest of her sales still reach her
+          illisibles += 1;
         }
       }
-      return withResellerCors(Response.json({ ok: true, ventes }));
+      // RF-1a (verifier M5) — an authenticated money-bearing answer is never
+      // a cacheable one.
+      const answer = Response.json({ ok: true, ventes, incomplet: illisibles > 0 });
+      answer.headers.set('Cache-Control', 'private, no-store');
+      return withResellerCors(answer);
     }
 
     /** RF-1a — the founder MINTS and REVOKES a reseller's feed code. His own
@@ -259,24 +281,34 @@ export default {
      *  person, same Worker, same class of act); the body crosses VERBATIM so
      *  the object's exact-key check refuses a smuggled field rather than
      *  this layer silently stripping it. */
-    if (request.method === 'POST' && (pathname === '/reseller/code' || pathname === '/reseller/code/revoke')) {
+    if (pathname === '/reseller/code' || pathname === '/reseller/code/revoke') {
+      if (request.method === 'OPTIONS') return opsPreflight('POST');
+      if (request.method !== 'POST') return withOpsCors(unauthorized());
       const refused = await rejectUnauthorizedOpsRead(request, env);
-      if (refused) return refused;
+      if (refused) return withOpsCors(refused);
+      if (env.RESELLER === undefined) return withOpsCors(unauthorized());
       const body = await request.text();
       const feed = env.RESELLER.get(env.RESELLER.idFromName(RESELLER_FEED_NAME));
-      return feed.fetch(
-        new Request(pathname === '/reseller/code' ? 'https://do/code/mint' : 'https://do/code/revoke', {
-          method: 'POST',
-          body,
-        }),
+      return withOpsCors(
+        await feed.fetch(
+          new Request(pathname === '/reseller/code' ? 'https://do/code/mint' : 'https://do/code/revoke', {
+            method: 'POST',
+            body,
+          }),
+        ),
       );
     }
 
     /** RF-1a — the founder's inventory of feed doors. Same credential. */
-    if (request.method === 'GET' && pathname === '/reseller/codes') {
+    if (pathname === '/reseller/codes') {
+      if (request.method === 'OPTIONS') return opsPreflight('GET');
+      if (request.method !== 'GET') return withOpsCors(unauthorized());
       const refused = await rejectUnauthorizedOpsRead(request, env);
-      if (refused) return refused;
-      return env.RESELLER.get(env.RESELLER.idFromName(RESELLER_FEED_NAME)).fetch(new Request('https://do/codes'));
+      if (refused) return withOpsCors(refused);
+      if (env.RESELLER === undefined) return withOpsCors(unauthorized());
+      return withOpsCors(
+        await env.RESELLER.get(env.RESELLER.idFromName(RESELLER_FEED_NAME)).fetch(new Request('https://do/codes')),
+      );
     }
 
     /**
@@ -562,6 +594,61 @@ function resellerPreflight(): Response {
  * exact-origin stamp (never `*`: this route answers with buyer contact).
  */
 const DISPATCH_CORS_ORIGIN = 'https://boutik-plus-web.pages.dev';
+
+/**
+ * RF-1a (verifier B3) — the fan-out ceiling. Workers cap subrequests per
+ * request (50 on the free plan); past it every remaining `fetch` throws. A
+ * bound WELL under that, with the overflow declared as unread rather than
+ * dropped, is the difference between « we showed you part » and a silent lie.
+ * Her older sales are not lost — they are simply not in this answer, and the
+ * answer says so.
+ */
+const MAX_FEED_FANOUT = 40;
+
+/**
+ * RF-1a (verifier M7) — RE-PROJECT AT THE ROUTER. The OrderDO's projection is
+ * already a literal allowlist, but forwarding its object whole made that the
+ * only thing standing between a future OrderDO field and her wire. This
+ * rebuilds the row field by field and drops anything that does not typecheck,
+ * so a row can never reach her half-formed and a new field upstream can never
+ * ride out of here by accident. `ok`/`exists` are routing facts and stay here.
+ */
+function projectVente(v: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (v === null || v['ok'] !== true || v['exists'] !== true) return null;
+  const { orderId, state, createdAt, resellerNet, productVersionId, zoneTo } = v;
+  if (typeof orderId !== 'string' || orderId === '') return null;
+  if (typeof state !== 'string' || state === '') return null;
+  if (typeof createdAt !== 'string' || createdAt === '') return null;
+  if (typeof resellerNet !== 'number' || !Number.isInteger(resellerNet)) return null;
+  if (typeof productVersionId !== 'string' || typeof zoneTo !== 'string') return null;
+  return { orderId, state, createdAt, resellerNet, productVersionId, zoneTo };
+}
+
+/**
+ * RF-1a (verifier B4) — the founder's FEED-CODE routes answer his console,
+ * the same reader and the same exact-origin discipline his dispatch read got
+ * one screen earlier. Without this they were curl-only, and their fall-through
+ * 404 was stamped with the BUYER PWA's origin.
+ */
+function withOpsCors(res: Response): Response {
+  const headers = new Headers(res.headers);
+  headers.set('Access-Control-Allow-Origin', DISPATCH_CORS_ORIGIN);
+  headers.set('Vary', 'Origin');
+  headers.set('Cache-Control', 'private, no-store');
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
+function opsPreflight(methods: string): Response {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': DISPATCH_CORS_ORIGIN,
+      'Access-Control-Allow-Methods': methods,
+      'Access-Control-Allow-Headers': 'Accept, Authorization, Content-Type',
+      'Access-Control-Max-Age': '86400',
+    },
+  });
+}
 
 function withDispatchCors(res: Response): Response {
   const headers = new Headers(res.headers);
