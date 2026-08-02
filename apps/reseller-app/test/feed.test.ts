@@ -294,3 +294,65 @@ describe('RF-1b (verifier B3) — a partial feed is never presented as a complet
     }
   });
 });
+
+describe('READINESS-RETURN-1c — her follow-up continues past payée, and stops where proof stops', () => {
+  it('PAYÉE → EN PRÉPARATION → PRÊTE, each only once Boutik+ has actually said so', () => {
+    const payee = vueDesVentes([row()], false);
+    if (payee.kind !== 'ready') throw new Error('expected ready');
+    expect(payee.ventes[0]!.etatKey).toBe('ventes.etat_payee');
+
+    const prep = vueDesVentes([row({ acceptedAt: '2026-08-02T09:00:00.000Z' })], false);
+    if (prep.kind !== 'ready') throw new Error('expected ready');
+    expect(prep.ventes[0]!.etatKey).toBe('ventes.etat_preparation');
+
+    const prete = vueDesVentes(
+      [row({ acceptedAt: '2026-08-02T09:00:00.000Z', readyAt: '2026-08-02T10:30:00.000Z' })],
+      false,
+    );
+    if (prete.kind !== 'ready') throw new Error('expected ready');
+    expect(prete.ventes[0]!.etatKey).toBe('ventes.etat_prete');
+  });
+
+  it('READY WITHOUT ACCEPTED still reads PRÊTE — the furthest PROVEN fact wins, never a guessed sequence', () => {
+    const vue = vueDesVentes([row({ readyAt: '2026-08-02T10:30:00.000Z' })], false);
+    if (vue.kind !== 'ready') throw new Error('expected ready');
+    expect(vue.ventes[0]!.etatKey).toBe('ventes.etat_prete');
+  });
+
+  it('THE WIRE STILL STOPS AT READINESS: no delivery state is reachable from any input', () => {
+    const vue = vueDesVentes(
+      [row({ acceptedAt: '2026-08-02T09:00:00.000Z', readyAt: '2026-08-02T10:30:00.000Z' })],
+      false,
+    );
+    const bytes = JSON.stringify(vue);
+    for (const invented of ['en_route', 'porte', 'livree', 'probleme', 'courier', 'custody']) {
+      expect(bytes.includes(invented), `invented a state Séra alone could prove: ${invented}`).toBe(false);
+    }
+  });
+
+  it('every state key it can emit EXISTS in the catalog — a chip must never render a missing string', async () => {
+    const fs = await import('node:fs');
+    const catalog = JSON.parse(
+      fs.readFileSync(new URL('../i18n/catalog.json', import.meta.url), 'utf8'),
+    ) as { key: string; register: string }[];
+    const keys = new Set(catalog.map((e) => e.key));
+    for (const r of [
+      row(),
+      row({ acceptedAt: '2026-08-02T09:00:00.000Z' }),
+      row({ acceptedAt: '2026-08-02T09:00:00.000Z', readyAt: '2026-08-02T10:30:00.000Z' }),
+    ]) {
+      const vue = vueDesVentes([r], false);
+      if (vue.kind !== 'ready') throw new Error('expected ready');
+      expect(keys.has(vue.ventes[0]!.etatKey), `missing catalog key: ${vue.ventes[0]!.etatKey}`).toBe(true);
+    }
+  });
+
+  it('a malformed preparation instant is DROPPED, and the sale itself survives it', () => {
+    expect(readFeedVente({ ...row(), acceptedAt: 42 })).toEqual(row());
+    expect(readFeedVente({ ...row(), readyAt: '' })).toEqual(row());
+    // …and a good one is kept
+    expect(readFeedVente({ ...row(), readyAt: '2026-08-02T10:30:00.000Z' })!.readyAt).toBe(
+      '2026-08-02T10:30:00.000Z',
+    );
+  });
+});

@@ -187,6 +187,25 @@ export interface BuyerContact {
 
 const CONTACT_KEY = 'buyer-contact';
 
+/**
+ * READINESS-RETURN-1c — BOUTIK+'S PREPARATION FACTS, as this order received
+ * them. Stored under their OWN key, never merged into the frozen quote bytes
+ * and never into the order's own journey: this is another domain's news about
+ * the same order, not a transition of the payment machine. Keeping it separate
+ * is what lets it be absent without the order being wrong.
+ *
+ * FIRST-WINS PER FACT: acceptance happened once, readiness happened once, and
+ * an at-least-once redelivery may not move either clock. The stored instant is
+ * BOUTIK+'S, carried on the event — the domain that observed the act owns its
+ * time, exactly as `paidAt` is this Worker's clock and not the provider's.
+ */
+const PREPARATION_KEY = 'fulfillment-preparation';
+
+interface PreparationRecord {
+  readonly acceptedAt?: string;
+  readonly readyAt?: string;
+}
+
 /** Strict shape: EXACTLY the three approved keys, phone and quartier
  *  non-empty, all bounded. Anything else is null (the caller refuses). */
 export function readBuyerContact(value: unknown): BuyerContact | null {
@@ -437,6 +456,39 @@ export class OrderDO {
     }
 
     /**
+     * READINESS-RETURN-1c — RECORD A PREPARATION FACT from Boutik+. INTERNAL
+     * ONLY: the composition root parses the canon event, checks its own
+     * secret, and passes just the fact and its instant. FIRST-WINS per fact,
+     * so an at-least-once redelivery can never move a clock a reseller has
+     * already been shown.
+     *
+     * An order this Worker does not know is a 404 and NOT a write: inventing
+     * an empty order from a preparation event would create a row no buyer
+     * ever paid for. Boutik+ treats a non-2xx as undelivered and retries,
+     * which is the honest outcome if the two Workers ever disagree.
+     */
+    if (request.method === 'POST' && pathname === '/entry/preparation') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      const fact = body?.['fact'];
+      const at = body?.['at'];
+      if ((fact !== 'accepted' && fact !== 'ready') || typeof at !== 'string' || at === '') {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      if ((await this.state.storage.get<StoredOrigin>(ORIGIN_KEY)) === undefined) {
+        return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+      }
+      const existing = (await this.state.storage.get<PreparationRecord>(PREPARATION_KEY)) ?? {};
+      const already = fact === 'accepted' ? existing.acceptedAt : existing.readyAt;
+      if (already !== undefined) {
+        return Response.json({ ok: true, status: 'already_recorded', at: already });
+      }
+      const next: PreparationRecord =
+        fact === 'accepted' ? { ...existing, acceptedAt: at } : { ...existing, readyAt: at };
+      await this.state.storage.put(PREPARATION_KEY, next);
+      return Response.json({ ok: true, status: 'recorded', at });
+    }
+
+    /**
      * RF-1a — THE RESELLER'S PROJECTION. INTERNAL ONLY (the public router
      * maps no path here); reachable only through her personal-code door at
      * the composition root, and only for the orders HER index names.
@@ -469,6 +521,7 @@ export class OrderDO {
       }
       const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
       const spine = rebuildOrderSpine(quote, origin, log);
+      const prep = (await this.state.storage.get<PreparationRecord>(PREPARATION_KEY)) ?? {};
       return Response.json({
         ok: true,
         exists: true,
@@ -479,6 +532,15 @@ export class OrderDO {
         resellerNet: quote.resellerNet,
         productVersionId: origin.fulfillment?.productVersionId ?? '',
         zoneTo: origin.fulfillment?.zoneTo ?? '',
+        /**
+         * READINESS-RETURN-1c — the preparation facts, each present ONLY once
+         * Boutik+ has actually said so. Absent means « not yet », never
+         * « no »: a missing key is how her screen knows to say the step has
+         * not happened rather than inventing that it has. Instants only — the
+         * supplier's identity, his challenge and his photo stay in Boutik+.
+         */
+        ...(prep.acceptedAt !== undefined ? { acceptedAt: prep.acceptedAt } : {}),
+        ...(prep.readyAt !== undefined ? { readyAt: prep.readyAt } : {}),
       });
     }
 

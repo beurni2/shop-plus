@@ -2,6 +2,10 @@ import sfRouter, { StorefrontDO } from './storefront-do.js';
 import lstRouter, { ListingDO } from './listing-do.js';
 import checkoutRouter, { CheckoutDO } from './checkout-do.js';
 import orderRouter, { OrderDO } from './order-do.js';
+import {
+  FulfillmentAcceptedEventSchema,
+  FulfillmentReadyEventSchema,
+} from '@platform/contracts';
 import { DispatchIndexDO, DISPATCH_INDEX_NAME } from './dispatch-index-do.js';
 import { ResellerFeedDO, RESELLER_FEED_NAME } from './reseller-feed-do.js';
 import { checkoutPreflight, handleRequest, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
@@ -16,6 +20,7 @@ import {
   keyAuthorized,
   paymentWebhookAuthorized,
   unauthorized,
+  rejectUnauthorizedProgress,
   type WriteAuthEnv,
 } from './auth.js';
 
@@ -222,6 +227,45 @@ export default {
      * The fan-out reads each order's own reseller projection, so a stale
      * state or a stale franc is unrepresentable: the index holds ids only.
      */
+    /**
+     * ═══ READINESS-RETURN-1c — THE RETURN LEG'S INTAKE (founder order,
+     *     2026-08-02: « build the return signal ») ═══
+     *
+     * Boutik+ delivers `fulfillment.accepted.v1` / `fulfillment.ready.v1` here
+     * at-least-once. This is the FIRST event this Worker receives rather than
+     * sends, so it gets its own secret (`PROGRESS_WRITE_SECRET`) — never the
+     * one this Worker uses to write INTO Boutik+.
+     *
+     * PARSED THROUGH THE CANON ARTIFACT ON RECEIPT, which is the whole point
+     * of binding name to payload: a body carrying a supplier id, a readiness
+     * challenge, a photo or a franc is refused HERE, by construction, even if
+     * a future producer bug tried to send one. The refusal is a 400 and not a
+     * 5xx, deliberately: a producer bug must surface as a repeating refusal in
+     * both Workers' logs, while a real outage stays retryable.
+     *
+     * The gate runs BEFORE any dispatch, so a 401 can never become an
+     * existence oracle for order ids.
+     */
+    if (pathname === '/fulfillment/progress') {
+      if (request.method !== 'POST') return unauthorized();
+      const refused = await rejectUnauthorizedProgress(request, env);
+      if (refused) return refused;
+      const raw: unknown = await request.json().catch(() => null);
+      const accepted = FulfillmentAcceptedEventSchema.safeParse(raw);
+      const ready = accepted.success ? null : FulfillmentReadyEventSchema.safeParse(raw);
+      if (!accepted.success && (ready === null || !ready.success)) {
+        return Response.json({ ok: false, reason: 'event_not_canonical' }, { status: 400 });
+      }
+      const event = accepted.success ? accepted.data : ready!.data!;
+      const fact = event.name === 'fulfillment.accepted.v1' ? 'accepted' : 'ready';
+      return env.ORDER.get(env.ORDER.idFromName(event.payload.orderId)).fetch(
+        new Request('https://do/entry/preparation', {
+          method: 'POST',
+          body: JSON.stringify({ fact, at: event.payload.at }),
+        }),
+      );
+    }
+
     if (pathname === '/reseller/ventes') {
       if (request.method === 'OPTIONS') return resellerPreflight();
       if (request.method !== 'GET') return withResellerCors(unauthorized());
@@ -635,7 +679,18 @@ function projectVente(v: Record<string, unknown> | null): Record<string, unknown
   if (typeof createdAt !== 'string' || createdAt === '') return null;
   if (typeof resellerNet !== 'number' || !Number.isInteger(resellerNet)) return null;
   if (typeof productVersionId !== 'string' || typeof zoneTo !== 'string') return null;
-  return { orderId, state, createdAt, resellerNet, productVersionId, zoneTo };
+  /**
+   * READINESS-RETURN-1c — the preparation instants, carried ONLY when present
+   * and only when they are strings. Absent stays absent: « not yet » is a real
+   * state on her screen and must never be filled in with a default.
+   */
+  const acceptedAt = v['acceptedAt'];
+  const readyAt = v['readyAt'];
+  return {
+    orderId, state, createdAt, resellerNet, productVersionId, zoneTo,
+    ...(typeof acceptedAt === 'string' && acceptedAt !== '' ? { acceptedAt } : {}),
+    ...(typeof readyAt === 'string' && readyAt !== '' ? { readyAt } : {}),
+  };
 }
 
 /**

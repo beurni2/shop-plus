@@ -959,3 +959,243 @@ describe('RF-1a B3 — a feed longer than the fan-out cap is truncated and SAYS 
     rmSync(persistT, { recursive: true, force: true });
   });
 });
+
+/**
+ * READINESS-RETURN-1c — THE RETURN LEG ARRIVING, on real workerd.
+ *
+ * Boutik+ delivers `fulfillment.accepted.v1` / `fulfillment.ready.v1`; this
+ * Worker records them and her feed carries them. The properties that matter:
+ * the door is its OWN secret and fails closed, the canon artifact refuses a
+ * banned field ON RECEIPT, a redelivery never moves a clock she has been
+ * shown, and NO DELIVERY STATE is invented from a readiness fact.
+ */
+describe('READINESS-RETURN-1c — preparation news arrives and reaches her feed', () => {
+  const PROGRESS_SECRET = 'test-progress-write-secret-r1c';
+  const persistR = mkdtempSync(join(tmpdir(), 'rr1c-'));
+  const world = new Miniflare({
+    modules: true,
+    scriptPath: SCRIPT,
+    durableObjects: {
+      STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
+      ORDER: 'OrderDO', DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO',
+    },
+    durableObjectsPersist: persistR,
+    bindings: {
+      STOREFRONT_WRITE_SECRET: WRITE_SECRET,
+      PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
+      FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
+      CHECKOUT_OPS_SECRET: OPS_SECRET,
+      PROGRESS_WRITE_SECRET: PROGRESS_SECRET,
+    },
+    serviceBindings: {
+      OFFER: async (request: Request) => {
+        const path = new URL(request.url).pathname;
+        if (request.method === 'POST' && path === '/fulfillment/order-confirmed') {
+          return Response.json({ ok: true, status: 'registered' });
+        }
+        const single = /^\/supply-projection\/([^/]+)$/.exec(path);
+        if (single) {
+          const value = SUPPLY.find((v) => v.productVersionId === decodeURIComponent(single[1]!));
+          if (value === undefined) return Response.json({ status: 'not_found' }, { status: 404 });
+          return Response.json({ version: 1, asOf: new Date().toISOString(), value });
+        }
+        return Response.json({ status: 'not_found' }, { status: 404 });
+      },
+    },
+  });
+  afterAll(async () => {
+    await world.dispose();
+    rmSync(persistR, { recursive: true, force: true });
+  });
+
+  const RID = 'rs-rr1c-01';
+  let orderId = '';
+  let code = '';
+
+  const envelope = (n: string) => ({
+    command_id: `ful-${n}`, correlation_id: `corr-${n}`, aggregateVersion: 1,
+    actor: 'offer-service:fulfillment', serverTime: '2026-08-02T09:00:00.000Z', version: 'v1',
+  });
+  const deliver = async (body: unknown, bearer: string | null = PROGRESS_SECRET) => {
+    const res = await world.dispatchFetch('http://c/fulfillment/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(bearer !== null ? { Authorization: `Bearer ${bearer}` } : {}) },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    return { status: res.status, text, json: safeJson(text) };
+  };
+  const herFeed = async () => {
+    const res = await world.dispatchFetch('http://c/reseller/ventes', { headers: { Authorization: `Bearer ${code}` } });
+    return ((await res.json()) as { ventes: Record<string, unknown>[] }).ventes;
+  };
+
+  it('sets the stage: one confirmed sale of hers', async () => {
+    const sf = await world.dispatchFetch('http://c/storefronts', {
+      method: 'POST', headers: authed,
+      body: JSON.stringify({
+        commandId: 'cmd-rr1c', id: 'sf-rr1c', resellerId: RID, shortCode: 'RRC-0001',
+        name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
+        correlationId: 'corr-rr1c', at: T0,
+      }),
+    });
+    expect(sf.status).toBe(200);
+    const pub = await world.dispatchFetch('http://c/listings', {
+      method: 'POST', headers: authed,
+      body: JSON.stringify({
+        commandId: 'cmd-rr1c-l', listingId: 'lst-rr1c', storefrontId: 'sf-rr1c', resellerId: RID,
+        productVersionId: 'pv-dispatch-1', offerVersion: 'ov-dispatch-1', markup: 1_500,
+        correlationId: 'corr-rr1c', at: T0,
+      }),
+    });
+    expect(((await pub.json()) as { status?: string }).status).toBe('published');
+    const q = await world.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug: 'rrc-0001', pid: 'pv-dispatch-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+        attributionResellerId: RID, requestKey: `rk-rr1c-0001-${'x'.repeat(10)}`,
+      }),
+    });
+    const quoteId = ((await q.json()) as { quoteId: string }).quoteId;
+    await world.dispatchFetch(`http://c/checkout/quote/${encodeURIComponent(quoteId)}/reserve`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commandId: 'cmd-rr1c-r', holderRef: 'holder-rr1c' }),
+    });
+    const o = await world.dispatchFetch('http://c/checkout/order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quoteId, holderRef: 'holder-rr1c', commandId: 'cmd-rr1c-o' }),
+    });
+    const amount = ((await o.json()) as { amountPaidAtCheckout: number }).amountPaidAtCheckout;
+    orderId = `ord-${quoteId}`;
+    const ns = await world.getDurableObjectNamespace('ORDER');
+    const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
+      attempts?: { attemptId: string }[];
+    };
+    const attemptId = audit.attempts![audit.attempts!.length - 1]!.attemptId;
+    const hook = await world.dispatchFetch('http://c/checkout/webhook/payment', {
+      method: 'POST', headers: signed, body: JSON.stringify(webhookEvent(orderId, amount, attemptId)),
+    });
+    expect(hook.status).toBe(200);
+    const mint = await world.dispatchFetch('http://c/reseller/code', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${OPS_SECRET}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resellerId: RID }),
+    });
+    code = ((await mint.json()) as { code: string }).code;
+    const rows = await herFeed();
+    expect(rows.length).toBe(1);
+    // BEFORE any news: no preparation key exists — absent means « not yet »
+    expect(rows[0]!['acceptedAt']).toBeUndefined();
+    expect(rows[0]!['readyAt']).toBeUndefined();
+  });
+
+  it('THE DOOR: its own secret, and every other credential in the ecosystem is refused with ONE 401', async () => {
+    for (const bearer of [null, 'wrong', WRITE_SECRET, WEBHOOK_SECRET, FULFILL_SECRET, OPS_SECRET]) {
+      const res = await deliver(
+        { name: 'fulfillment.accepted.v1', envelope: envelope('a'), payload: { orderId, at: T0 } },
+        bearer,
+      );
+      expect(res.status, String(bearer)).toBe(401);
+      expect(res.text).toBe('{"error":"unauthorized"}');
+    }
+  });
+
+  it('ACCEPTED then READY reach her feed as instants — and no delivery state is invented', async () => {
+    const acc = await deliver({ name: 'fulfillment.accepted.v1', envelope: envelope('a'), payload: { orderId, at: '2026-08-02T09:00:00.000Z' } });
+    expect(acc.status, acc.text).toBe(200);
+    let rows = await herFeed();
+    expect(rows[0]!['acceptedAt']).toBe('2026-08-02T09:00:00.000Z');
+    expect(rows[0]!['readyAt'], 'readiness has not happened yet').toBeUndefined();
+
+    const rdy = await deliver({ name: 'fulfillment.ready.v1', envelope: envelope('r'), payload: { orderId, at: '2026-08-02T10:30:00.000Z' } });
+    expect(rdy.status, rdy.text).toBe(200);
+    rows = await herFeed();
+    expect(rows[0]!['acceptedAt']).toBe('2026-08-02T09:00:00.000Z');
+    expect(rows[0]!['readyAt']).toBe('2026-08-02T10:30:00.000Z');
+
+    // THE STATE IS STILL THE ORDER'S OWN — readiness is not delivery (B+I-06
+    // makes it the PRECONDITION for a pickup even being requested).
+    expect(rows[0]!['state']).toBe('confirmed');
+    const bytes = JSON.stringify(rows);
+    for (const invented of ['delivered', 'en_route', 'livree', 'custody', 'courier', 'handoff']) {
+      expect(bytes.toLowerCase().includes(invented), `invented a delivery fact: ${invented}`).toBe(false);
+    }
+  });
+
+  it('A REDELIVERY never moves a clock she has already been shown', async () => {
+    const again = await deliver({ name: 'fulfillment.ready.v1', envelope: envelope('r2'), payload: { orderId, at: '2026-08-02T23:59:00.000Z' } });
+    expect(again.status).toBe(200);
+    expect(again.json['status']).toBe('already_recorded');
+    const rows = await herFeed();
+    expect(rows[0]!['readyAt'], 'first-wins: the later claim must not win').toBe('2026-08-02T10:30:00.000Z');
+  });
+
+  it('THE CANON ARTIFACT REFUSES A BANNED FIELD ON RECEIPT — a producer bug cannot smuggle one past this door', async () => {
+    for (const extra of [
+      { supplierId: 'sup-0001' },
+      { readinessChallenge: 'srch-abc' },
+      { photoRef: { ref: 'media/x', sha256: 'a'.repeat(64), mimeType: 'image/jpeg' } },
+      { sellerBasePrice: 10_000 },
+      { buyerDropCode: '4821' },
+    ]) {
+      const res = await deliver({
+        name: 'fulfillment.ready.v1', envelope: envelope('bad'),
+        payload: { orderId, at: T0, ...extra },
+      });
+      expect(res.status, Object.keys(extra)[0]).toBe(400);
+      expect(res.json['reason']).toBe('event_not_canonical');
+    }
+    // …and an unregistered event name is refused too
+    const wrongName = await deliver({ name: 'order.confirmed.v1', envelope: envelope('x'), payload: { orderId, at: T0 } });
+    expect(wrongName.status).toBe(400);
+  });
+
+  it('AN ORDER THIS WORKER NEVER SAW is a 404 and writes nothing — a preparation fact cannot conjure a sale', async () => {
+    const res = await deliver({ name: 'fulfillment.accepted.v1', envelope: envelope('ghost'), payload: { orderId: 'ord-does-not-exist', at: T0 } });
+    expect(res.status).toBe(404);
+    expect(res.json['reason']).toBe('unknown_order');
+  });
+});
+
+/**
+ * READINESS-RETURN-1c — FAIL CLOSED. A Worker deployed before
+ * `wrangler secret put PROGRESS_WRITE_SECRET` must refuse EVERYONE, including
+ * the caller who sends nothing (empty-vs-empty must never match). This is the
+ * same MAJOR the BC-1a verifier caught on the dispatch door, written from the
+ * first line here instead of after the fact.
+ */
+describe('READINESS-RETURN-1c — with no PROGRESS_WRITE_SECRET, the intake refuses everyone', () => {
+  it('no header, empty bearer and any value all answer the same 401', async () => {
+    const p = mkdtempSync(join(tmpdir(), 'rr1c-closed-'));
+    const closed = new Miniflare({
+      modules: true,
+      scriptPath: SCRIPT,
+      durableObjects: {
+        STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
+        ORDER: 'OrderDO', DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO',
+      },
+      durableObjectsPersist: p,
+      bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET, PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET },
+    });
+    try {
+      for (const headers of [{}, { Authorization: 'Bearer ' }, { Authorization: 'Bearer anything' }]) {
+        const res = await closed.dispatchFetch('http://c/fulfillment/progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({
+            name: 'fulfillment.ready.v1',
+            envelope: {
+              command_id: 'c', correlation_id: 'c', aggregateVersion: 1,
+              actor: 'a', serverTime: T0, version: 'v1',
+            },
+            payload: { orderId: 'ord-x', at: T0 },
+          }),
+        });
+        expect(res.status, JSON.stringify(headers)).toBe(401);
+      }
+    } finally {
+      await closed.dispose();
+      rmSync(p, { recursive: true, force: true });
+    }
+  });
+});

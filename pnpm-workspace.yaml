@@ -22,6 +22,13 @@ onlyBuiltDependencies:
 # resolution to the same pinned git ref (CONSUMING.md). Pin = sha 0ff6696a
 # (canon v0.5.0; founder ruling: tags are unreliable, the release ref is
 # the commit).
+#
+# READINESS-RETURN-1c (founder order 2026-08-02): re-pinned to canon v3.3.0
+# (sha 58e249b) — the RETURN LEG, `fulfillment.accepted.v1` +
+# `fulfillment.ready.v1`, which this repo now RECEIVES so a reseller's
+# follow-up can continue past « payée ». ADDITIVE (no export removed, no
+# existing schema changed), hence MINOR. contracts + kernel-types move
+# together as always.
 overrides:
   # @platform/contracts re-pinned to canon v3.0.0 (sha 767e6d0) — CATEGORY-WIRE-1,
   # founder-authorized 2026-08-01: `SupplyProjection` gains `category`, REQUIRED,
@@ -44,8 +51,8 @@ overrides:
   # and the RUNTIME schema from @platform/contracts (which had not). Types said
   # eight fields, the validator refused the eighth, 21 tests failed. After
   # touching any pin, verify the INSTALLED package, not the manifest.
-  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#bd32ab20e496a00e79b53a3c6d93332967205553&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#bd32ab20e496a00e79b53a3c6d93332967205553&path:packages/contracts"
+  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#58e249bde9ceb52d3fed06f8ded115d29b2b7c34&path:packages/kernel-types"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#58e249bde9ceb52d3fed06f8ded115d29b2b7c34&path:packages/contracts"
   # @platform/ui-tokens is UNIFIED at canon v0.9.9 (1c98ad1, + Storefront aggregate fields WO-5.13) — WO-7.0/WO-7.2b/SP#001-A
   # killed the WO-5.3 per-app skew and re-pinned the whole workspace to the current
   # release in one bump. reseller-app runs its visual layer on the Grand Teint API

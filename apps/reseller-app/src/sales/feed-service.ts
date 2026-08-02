@@ -39,6 +39,13 @@ export interface FeedVente {
   readonly resellerNet: number;
   readonly productVersionId: string;
   readonly zoneTo: string;
+  /**
+   * READINESS-RETURN-1c — Boutik+'s preparation news, present ONLY once the
+   * supplier actually acted. OPTIONAL on purpose: absent means « not yet »,
+   * never « no », and a default would turn a missing step into a claimed one.
+   */
+  readonly acceptedAt?: string;
+  readonly readyAt?: string;
 }
 
 export type FeedResult =
@@ -75,6 +82,10 @@ export function readFeedVente(raw: unknown): FeedVente | null {
   if (typeof resellerNet !== 'number' || !Number.isInteger(resellerNet) || resellerNet < 0) return null;
   if (typeof productVersionId !== 'string') return null;
   if (typeof zoneTo !== 'string') return null;
+  const { acceptedAt, readyAt } = r;
+  // Each instant is carried only when it is a non-empty string. A malformed
+  // one is DROPPED rather than failing the whole row: a real confirmed sale
+  // must not vanish from her feed because a preparation clock was garbled.
   return {
     orderId,
     state: state as FeedState,
@@ -82,6 +93,8 @@ export function readFeedVente(raw: unknown): FeedVente | null {
     resellerNet,
     productVersionId,
     zoneTo,
+    ...(typeof acceptedAt === 'string' && acceptedAt !== '' ? { acceptedAt } : {}),
+    ...(typeof readyAt === 'string' && readyAt !== '' ? { readyAt } : {}),
   };
 }
 

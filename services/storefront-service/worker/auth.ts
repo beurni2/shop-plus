@@ -58,6 +58,15 @@ export interface WriteAuthEnv {
    * for everyone.
    */
   readonly CHECKOUT_OPS_SECRET?: string;
+  /**
+   * READINESS-RETURN-1c — the RETURN LEG's intake secret. Boutik+ presents it
+   * as Bearer when delivering `fulfillment.accepted.v1` / `fulfillment.ready.v1`.
+   * ITS OWN VALUE, deliberately: `FULFILLMENT_WRITE_SECRET` is THIS Worker's
+   * key to write INTO Boutik+, and one key must never unlock the other
+   * direction's capability. UNSET ⇒ the intake refuses everyone and Boutik+'s
+   * outbox retries until the founder sets both sides.
+   */
+  readonly PROGRESS_WRITE_SECRET?: string;
 }
 
 /** A write is any request whose method is not a safe read method. */
@@ -143,6 +152,22 @@ export async function rejectUnauthorizedWrite(request: Request, env: WriteAuthEn
  */
 export async function rejectUnauthorizedOpsRead(request: Request, env: WriteAuthEnv): Promise<Response | null> {
   const secret = env.CHECKOUT_OPS_SECRET ?? '';
+  const auth = request.headers.get('Authorization') ?? '';
+  const provided = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
+  const match = await timingSafeEqual(provided, secret);
+  return secret.length > 0 && match ? null : unauthorized();
+}
+
+
+/**
+ * READINESS-RETURN-1c — the return leg's gate. The same three properties every
+ * gate in this file carries: FAIL CLOSED (no secret ⇒ nobody passes, including
+ * a caller who sends nothing — empty-vs-empty must never match), constant-time,
+ * and ONE identical 401 computed before any dispatch, so a refusal can never
+ * become an existence oracle for order ids.
+ */
+export async function rejectUnauthorizedProgress(request: Request, env: WriteAuthEnv): Promise<Response | null> {
+  const secret = env.PROGRESS_WRITE_SECRET ?? '';
   const auth = request.headers.get('Authorization') ?? '';
   const provided = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
   const match = await timingSafeEqual(provided, secret);

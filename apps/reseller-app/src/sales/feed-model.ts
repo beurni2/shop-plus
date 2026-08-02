@@ -16,9 +16,13 @@
  * design flourish, it is a lie told to someone deciding whether to trust this
  * app with her livelihood. Queued is pending, never done (Ten Laws #7).
  *
- * SAFEST DEFAULT, FLAGGED FOR THE FOUNDER: the follow-up truthfully stops at
- * « payée ». Carrying it further needs a `package.ready.v1` return event from
- * Boutik+ — a canon contracts change, and his call, not mine.
+ * READINESS-RETURN-1c (founder order 2026-08-02, canon v3.3.0): the return
+ * wire now exists, so the follow-up continues two real steps further —
+ * « en préparation » when the supplier accepted, « prête » when he confirmed
+ * package-ready. IT STOPS THERE, and that is not a gap to be filled: « en
+ * route » and « livrée » are Séra's facts and Séra does not exist. B+I-06
+ * makes readiness the PRECONDITION for a pickup being requested, so a
+ * « prête » chip is emphatically not a delivery claim.
  *
  * ═══ THE MONEY ═══
  * `netFcfa` is COPIED from the wire, which copied it from the frozen Quote.
@@ -39,6 +43,10 @@ export interface VenteReelle {
   readonly netFcfa: number;
   readonly createdAt: string;
   readonly zoneTo: string;
+  /** Present only when Boutik+ has actually said so — the screen shows the
+   *  step as not-yet-happened when absent, never as done. */
+  readonly acceptedAt?: string;
+  readonly readyAt?: string;
 }
 
 export type FeedVue =
@@ -75,8 +83,23 @@ export type FeedVue =
       readonly nonConfirmees: number;
     };
 
-/** The ONE state Shop+ can prove about a sale today. */
+/**
+ * THE THREE STATES SHOP+ CAN NOW PROVE, in the order they occur. Two keys
+ * already existed; `ventes.etat_prete` is new and lives in the i18n catalog
+ * with its register tag like every other string (Ten Laws #6 — never inline).
+ * None of the delivery keys is reachable from this module at all.
+ */
 const ETAT_PAYEE_KEY = 'ventes.etat_payee';
+const ETAT_PREPARATION_KEY = 'ventes.etat_preparation';
+const ETAT_PRETE_KEY = 'ventes.etat_prete';
+
+/** The furthest fact Boutik+ has proven, and nothing beyond it. Read newest
+ *  first: readiness implies acceptance, so `readyAt` wins when both exist. */
+function etatKeyPour(r: FeedVente): string {
+  if (r.readyAt !== undefined) return ETAT_PRETE_KEY;
+  if (r.acceptedAt !== undefined) return ETAT_PREPARATION_KEY;
+  return ETAT_PAYEE_KEY;
+}
 
 /**
  * Newest first. The comparator is on the server's `createdAt` — her order of
@@ -98,10 +121,12 @@ export function vueDesVentes(rows: readonly FeedVente[], incomplet: boolean): Fe
     .map(
       (r): VenteReelle => ({
         orderId: r.orderId,
-        etatKey: ETAT_PAYEE_KEY,
+        etatKey: etatKeyPour(r),
         netFcfa: r.resellerNet,
         createdAt: r.createdAt,
         zoneTo: r.zoneTo,
+        ...(r.acceptedAt !== undefined ? { acceptedAt: r.acceptedAt } : {}),
+        ...(r.readyAt !== undefined ? { readyAt: r.readyAt } : {}),
       }),
     );
   return { kind: 'ready', ventes, nonConfirmees, incomplet };
