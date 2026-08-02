@@ -1242,7 +1242,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
       '<div class="cl-sub">',
       '<div class="cl-sub-overline">ENVOI SÉCURISÉ</div>',
       '<div class="cl-sub-title">Un instant.</div>',
-      `<div class="cl-sub-body">Nous envoyons votre demande de paiement de <b>${payNowStr}</b> <span class="cl-envoi-fin">à l’opérateur.</span></div>`,
+      `<div class="cl-sub-body">Nous envoyons votre demande de paiement de <b>${payNowStr}</b>\u00a0<span class="cl-envoi-fin">à l’opérateur.</span></div>`,
       '<div class="cl-bar-track"><div class="cl-bar-fill"></div></div>',
       '</div></div>',
     ].join('');
@@ -1256,7 +1256,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
       '<div class="cl-prov-title">Confirmez sur votre téléphone</div>',
       `<div class="cl-prov-body">Composez votre <span class="cl-prov-cle">code secret <b>Orange Money</b></span> pour valider <b>${payNowStr}</b>.</div>`,
       '<div class="cl-prov-wait"><span class="cl-prov-dots"><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span></span><span>En attente de la confirmation de l’opérateur…</span></div>',
-      '<div class="cl-prov-law">Rien n’est confirmé tant que l’opérateur n’a pas répondu. Nous ne dirons jamais le contraire.</div>',
+      '<div class="cl-prov-law">Rien n’est confirmé tant que l’opérateur n’a pas répondu. Nous ne dirons\u00a0jamais\u00a0le\u00a0contraire.</div>',
       '</div></div>',
     ].join('');
   }
@@ -1296,7 +1296,15 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
           `<div class="cl-payopt-warn" data-role="frais-non-remboursables">${PAIEMENT.avertissementB}</div>`,
           '</button>',
         ].join(''),
-    '<div class="cl-quote">Vous inspectez le colis avant de payer le reste.</div>',
+    // GLUED AS ONE CLAUSE. Set in Instrument Sans at 360px this sentence needs
+    // 301px of a 299px box, so « reste. » — the word that says what she still
+    // owes — dropped alone onto a second line at 0.137 of the block. It only
+    // ever showed up in CI when the face WON its `font-display: optional`
+    // window; every run that fell back to the wider system face measured 0.426
+    // and passed, which is why it read as a flake for three runs. Welding the
+    // whole clause moves the only break point to after « colis », measured at
+    // 0.553 (real face) and 0.700 (fallback) at 360px, 0.639 / 0.808 at 320px.
+    '<div class="cl-quote">Vous inspectez le colis avant\u00a0de\u00a0payer\u00a0le\u00a0reste.</div>',
     redite === '' ? '' : `<div class="cl-redite" data-role="redite">${redite}</div>`,
     `<button class="cl-cta cl-cta-c5${can ? '' : ' cl-cta-off'}" data-action="payer"${can ? '' : ' disabled'}>${ctaLabel}</button>`,
     '<div class="cl-providers">ORANGE MONEY · MOOV MONEY</div>',

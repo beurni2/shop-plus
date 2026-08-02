@@ -649,6 +649,156 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
 });
 
 /**
+ * ═══ THE SWEEP ABOVE RACES THE FONT. THIS ONE DECIDES IT. (round 8) ═══
+ *
+ * WHAT HAPPENED. CI run 30760780865 failed on « Vous inspectez le colis avant
+ * de payer le reste. » at 0.137 — and the NEXT run, on a tree differing by
+ * eighteen lines of JOURNAL.md, passed. Three runs read as flake. It was not
+ * flake: every face in `src/fonts.css` is declared `font-display: optional`,
+ * which gives the webfont a ~100 ms window at load and, if it misses, keeps
+ * the fallback FOR THE WHOLE PAGE LIFE — there is never a swap. So the sweep
+ * measures whichever face won a race it does not control, and BOTH outcomes
+ * ship to real buyers: the fallback is exactly what a cold, slow, low-end
+ * phone gets, and the real face is what everyone else gets.
+ *
+ * Measured on the pre-fix markup, at 360px, on the same files:
+ *   · real Instrument Sans → 0.137  (the CI failure, reproduced to the digit)
+ *   · fallback             → 0.426  (passes — this is what the green runs saw)
+ * The sentence needed 301px of a 299px box, so « reste. » — the word naming
+ * what she still owes — stood alone on line two.
+ *
+ * WHY WAITING CANNOT FIX IT, and this was tried first: `policesChargees` already
+ * awaits `document.fonts.ready`, and its own comment records this exact 14 %
+ * failure. Measured again here — a warm cache and a reload both still lay out
+ * on the fallback while `document.fonts.check()` returns TRUE. Under `optional`
+ * the decision is made once, at load, and the Font Loading API cannot revisit
+ * it. A guard that waits is a guard that hopes.
+ *
+ * SO THE FACE IS PINNED BY POLICY, NOT BY LUCK: the same woff2 files, the same
+ * families, re-declared `font-display: block` — or blocked outright for the
+ * fallback regime. Two runs, both deterministic, both real user conditions.
+ *
+ * THE GUARD ON THE GUARD: `largeurDuTemoin` asserts the pin actually changed
+ * the layout. Without it a broken font URL would silently measure the fallback
+ * twice and this test would pass by never looking — which is failure mode #1
+ * in the table inside `sweepC5`, and the reason that table exists.
+ */
+const FACES_INSTRUMENT: ReadonlyArray<readonly [string, number]> = [
+  ['Instrument-Regular', 400],
+  ['Instrument-Medium', 500],
+  ['Instrument-SemiBold', 600],
+  ['Instrument-Bold', 700],
+];
+
+const CSS_FACE_EPINGLEE = [
+  ...FACES_INSTRUMENT.map(
+    ([fichier, poids]) =>
+      `@font-face{font-family:'Instrument Sans';src:url('/fonts/${fichier}.woff2') format('woff2');` +
+      `font-weight:${poids};font-style:normal;font-display:block;}`,
+  ),
+  `@font-face{font-family:'Bricolage Grotesque';src:url('/fonts/Bricolage-Bold.woff2') format('woff2');` +
+    `font-weight:700;font-style:normal;font-display:block;}`,
+  `@font-face{font-family:'Bricolage Grotesque';src:url('/fonts/Bricolage-ExtraBold.woff2') format('woff2');` +
+    `font-weight:800;font-style:normal;font-display:block;}`,
+].join('');
+
+/**
+ * The C5 quote's own width with wrapping suppressed, read off the ELEMENT THAT
+ * IS ALREADY LAID OUT — never a fresh probe. A probe created after load would
+ * pick up the face the page itself declined to use under `optional`, and would
+ * report the pin working when it had not.
+ */
+async function largeurDuTemoin(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const el = document.querySelector('.cl-quote') as HTMLElement | null;
+    if (el === null) return -1;
+    const avant = el.style.whiteSpace;
+    el.style.whiteSpace = 'nowrap';
+    const largeur = el.scrollWidth;
+    el.style.whiteSpace = avant;
+    return largeur;
+  });
+}
+
+/** Measured today, at 13.5px/600: real face 301px · fallback 412px (scaled). */
+const TEMOIN_MAX_FACE_REELLE = 340;
+const TEMOIN_MIN_REPLI = 360;
+
+/**
+ * SCOPE, STATED SO IT CANNOT DRIFT: this gate pins the FACE at 360px — the same
+ * width the sweep above already covers. It deliberately does NOT add 320px,
+ * because widening two axes in one slice hides which one found what.
+ *
+ * 320px WAS measured while building this, and it found a REAL defect that is
+ * NOT fixed here and is not carved out either — it is simply outside this
+ * gate's stated width: under the fallback face at 320px, « À payer maintenant :
+ * {X} FCFA » (`[data-role="payline-maintenant"]`) breaks before its amount and
+ * lands at 0.34, just under the bar. That is a §6.1 money line dropping the
+ * figure onto a line of its own. It is recorded for the founder and owed a
+ * slice of its own, at which point this loop gains its second width.
+ */
+for (const regime of ['face réelle', 'repli'] as const) {
+  test(`C5 at 360px — NO sentence orphans with the face PINNED (${regime})`, async ({ page }) => {
+    if (regime === 'repli') {
+      await page.route('**/*.woff2', (route) => route.abort());
+    } else {
+      // Before the first navigation, and on every navigation the sweep makes.
+      await page.addInitScript((css: string) => {
+        const poser = (): void => {
+          const style = document.createElement('style');
+          style.setAttribute('data-face-epinglee', '1');
+          style.textContent = css;
+          document.head.appendChild(style);
+        };
+        if (document.head !== null) poser();
+        else document.addEventListener('DOMContentLoaded', poser, { once: true });
+      }, CSS_FACE_EPINGLEE);
+    }
+
+    for (const largeurEcran of [360]) {
+      await page.setViewportSize({ width: largeurEcran, height: 900 });
+      const url = '/?demo-cliente=C5&theme=indigo';
+      await page.goto(url);
+      await policesChargees(page);
+      await expect(page.locator('[data-screen="C5"]')).toBeVisible();
+      await page.locator('[data-action="choix-paiement"][data-mode="A"]').click();
+
+      // THE PIN REALLY TOOK. A silent miss here would measure one face twice.
+      const temoin = await largeurDuTemoin(page);
+      if (regime === 'face réelle') {
+        expect(
+          temoin,
+          `@${largeurEcran}px: the real face is NOT laid out (témoin ${temoin}px) — the pinned @font-face did not apply, ` +
+            `so this run would measure the fallback twice and prove nothing`,
+        ).toBeLessThan(TEMOIN_MAX_FACE_REELLE);
+      } else {
+        expect(
+          temoin,
+          `@${largeurEcran}px: the webfont was NOT blocked (témoin ${temoin}px) — the fallback regime is measuring the real face`,
+        ).toBeGreaterThan(TEMOIN_MIN_REPLI);
+      }
+
+      const etats = await sweepEveryState(page, `${regime} · ${largeurEcran}px`, url);
+      for (const { label, etat, blocks, attendu, plancher } of etats) {
+        expect(etat, `${label}: swept « ${etat} » — this is not the branch under test`).toBe(attendu);
+        expect(blocks.length, `${label}: no multi-line text found on C5`).toBeGreaterThanOrEqual(plancher);
+        for (const b of blocks) {
+          expect(
+            b.lastRatio,
+            `${label}: « ${b.text} » ends on an orphan line (${Math.round(b.lastRatio * 100)}% of the block, ${b.lines} lines)`,
+          ).toBeGreaterThan(0.35);
+        }
+      }
+      for (const { label, glued } of etats) {
+        for (const g of glued) {
+          expect(g.lines, `${label}: the no-wrap unit « ${g.text} » (${g.cls}) wrapped onto ${g.lines} lines`).toBe(1);
+        }
+      }
+    }
+  });
+}
+
+/**
  * THE ARTICLE LINE CANNOT ORPHAN ITS VARIANT — ON ANY FACE, NOT JUST OURS.
  *
  * CI caught what this machine could not: on the runner, « Robe brodée bogolan ·
