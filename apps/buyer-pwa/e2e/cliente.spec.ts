@@ -763,14 +763,22 @@ const TEMOIN_MIN_REPLI = 360;
  * « Livraison Séra — jamais cachée » then sets on four lines (70·56·92·19px),
  * ending at 0.20.
  *
- * THAT IS A LAYOUT DEFECT, NOT A TYPOGRAPHIC ONE, and the distinction is the
- * whole reason it is not fixed here: no glue survives a 94px column. Welding
- * the label's dash was tried and MEASURED — it made the ratio WORSE (0.06) and
- * broke three cells that had been passing. The fix is in how the row shares its
- * width between label and figure, on a §6.1 money screen, and it belongs to the
- * founder and a slice of its own — not to a late edit inside a typography gate.
+ * THAT IS A LAYOUT DEFECT, NOT A TYPOGRAPHIC ONE: no glue survives a 94px
+ * column. Welding the label's dash was tried and MEASURED — it made the ratio
+ * WORSE (0.06) and broke three cells that had been passing.
  *
- * Recorded, owed, and deliberately not hidden behind a per-block exemption.
+ * FOUNDER RULING, 2026-08-02: « 20M FCFA basket unreal enough to leave. » The
+ * cell stays out, and the question is CLOSED — not pending, not owed. Do not
+ * reopen it by quietly adding the cell back; a basket near twenty million
+ * francs is not a Shop+ order, and the sweep should spend its time on baskets
+ * a buyer can actually have.
+ *
+ * WHAT WOULD REOPEN IT: the same 94px squeeze reached by a REALISTIC amount.
+ * The row divides its width between label and figure with no floor on the
+ * label, so a longer figure always takes from the words — this is simply the
+ * first basket big enough to make it visible. If a plausible order ever lands
+ * a §6.1 label on four lines, that is a new finding and a real slice, and this
+ * paragraph is the note that says so.
  */
 const CELLULES: ReadonlyArray<readonly [number, string, string]> = [
   [360, 'panier 12 500', '/?demo-cliente=C5&theme=indigo'],
