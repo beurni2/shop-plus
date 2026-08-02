@@ -178,3 +178,21 @@ PRODUCT_MEDIA_BASE = "https://media-service.ilboudobernard2.workers.dev"
 [[services]]
 binding = "OFFER"
 service = "offer-service"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# READINESS-RETURN-1c — THE RETURN LEG'S INTAKE SECRET.
+# ═══════════════════════════════════════════════════════════════════════════
+# `PROGRESS_WRITE_SECRET` gates POST /fulfillment/progress ONLY — the route
+# Boutik+ delivers `fulfillment.accepted.v1` / `fulfillment.ready.v1` to, so a
+# reseller's follow-up can continue past « payée ».
+#
+# ITS OWN VALUE, deliberately. FULFILLMENT_WRITE_SECRET is THIS Worker's key to
+# write INTO Boutik+; this one is Boutik+'s key to write into this Worker. One
+# key must never unlock the other direction's capability — the same separation
+# every other secret here keeps.
+#
+# Set the SAME value on BOTH Workers with `wrangler secret put
+# PROGRESS_WRITE_SECRET` (piped, never passed as an argument). UNSET ⇒ the
+# intake answers 401 to everyone — including a caller who sends no header at
+# all, which is asserted by its own test — and Boutik+'s outbox retries on its
+# backoff until both sides hold it. Nothing is lost while it is unset.
