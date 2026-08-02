@@ -2,6 +2,7 @@ import sfRouter, { StorefrontDO } from './storefront-do.js';
 import lstRouter, { ListingDO } from './listing-do.js';
 import checkoutRouter, { CheckoutDO } from './checkout-do.js';
 import orderRouter, { OrderDO } from './order-do.js';
+import { DispatchIndexDO, DISPATCH_INDEX_NAME } from './dispatch-index-do.js';
 import { checkoutPreflight, handleRequest, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
 import { SUPPLY_COLLECTION_ROUTE } from '../src/supply-collection.js';
 import { signPrice } from '../src/publish-price.js';
@@ -10,6 +11,7 @@ import { orderIdForQuote } from '../src/order-core.js';
 import type { R2BucketLike } from '../src/media/media-store.js';
 import {
   rejectUnauthorizedWrite,
+  rejectUnauthorizedOpsRead,
   keyAuthorized,
   paymentWebhookAuthorized,
   unauthorized,
@@ -29,7 +31,7 @@ import {
  *
  * wrangler binds these two classes by their exported names.
  */
-export { StorefrontDO, ListingDO, CheckoutDO, OrderDO };
+export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO };
 
 interface Env extends WriteAuthEnv {
   STOREFRONT: DurableObjectNamespace;
@@ -39,6 +41,10 @@ interface Env extends WriteAuthEnv {
   /** SP3.3a — one instance per ORDER id, and the order id is a function of the
    *  quote id, so one quote can never grow a second order. */
   ORDER: DurableObjectNamespace;
+  /** BC-1a — the dispatch index (one singleton): order ids + first-seen
+   *  clocks, so the founder's dispatch read can find the per-order objects.
+   *  Holds no contact and no money. */
+  DISPATCH: DurableObjectNamespace;
   /** SP3.3a — the certified sandbox provider's behaviour knobs. UNSET on the
    *  deploy (the well-behaved provider); read by OrderDO, never by a route. */
   PAYMENT_SANDBOX_BEHAVIOR?: string;
@@ -181,7 +187,58 @@ export default {
       return withReadCors(answered);
     }
     if (isPublicOrder) {
-      return withReadCors(await orderRouter.fetch(request, { ORDER: env.ORDER, CHECKOUT: env.CHECKOUT }));
+      // BC-1a — the dispatch index learns about the order the moment its
+      // create answers 200 (first of the TWO best-effort registration
+      // moments; the webhook below is the second).
+      const createSource =
+        isOrderCreate && request.method === 'POST' ? request.clone() : undefined;
+      const answered = await orderRouter.fetch(request, { ORDER: env.ORDER, CHECKOUT: env.CHECKOUT });
+      if (createSource !== undefined && answered.status === 200) {
+        await mirrorDispatchRow(env, createSource);
+      }
+      return withReadCors(answered);
+    }
+
+    /**
+     * ═══ BC-1a — THE FOUNDER'S DISPATCH READ (approved proposal, 2026-08-02) ═══
+     *
+     * The ONE door to buyer contact: `Authorization: Bearer` against
+     * CHECKOUT_OPS_SECRET (« value C » — this Worker's founder credential,
+     * held nowhere but his browser and this Worker's encrypted store), gated
+     * BEFORE any dispatch so the 401 is never an existence oracle. The write
+     * key, the webhook secret, and Boutik+'s ops key all open nothing here.
+     *
+     * The read fans out from the index to each order's OWN internal dispatch
+     * projection — state, contact, product facts; no quote bytes, no
+     * attempts, no economics — so this route can never serve a stale contact
+     * or invent a state. Unbounded at pilot scale on purpose (the paid-order
+     * book's reasoning).
+     *
+     * CORS: the CONSOLE's exact origin, never `*` and never the buyer PWA's —
+     * a different reader, its own stamp.
+     */
+    if (pathname === '/checkout/dispatch') {
+      if (request.method === 'OPTIONS') return dispatchPreflight();
+      if (request.method !== 'GET') return withDispatchCors(unauthorized());
+      const refused = await rejectUnauthorizedOpsRead(request, env);
+      if (refused) return withDispatchCors(refused);
+      const stub = env.DISPATCH.get(env.DISPATCH.idFromName(DISPATCH_INDEX_NAME));
+      const listRes = await stub.fetch(new Request('https://do/list'));
+      const list = (await listRes.json().catch(() => null)) as
+        | { ok?: boolean; orders?: { orderId: string; firstSeenAt: string }[] }
+        | null;
+      if (list?.ok !== true || !Array.isArray(list.orders)) {
+        return withDispatchCors(Response.json({ ok: false, reason: 'index_unavailable' }, { status: 503 }));
+      }
+      const rows: unknown[] = [];
+      for (const entry of list.orders) {
+        const res = await env.ORDER.get(env.ORDER.idFromName(entry.orderId)).fetch(
+          new Request('https://do/entry/dispatch'),
+        );
+        const row = (await res.json().catch(() => null)) as { ok?: boolean; exists?: boolean } | null;
+        if (row?.ok === true && row.exists === true) rows.push(row);
+      }
+      return withDispatchCors(Response.json({ ok: true, orders: rows }));
     }
 
     /**
@@ -215,7 +272,13 @@ export default {
       (pathname === '/checkout/webhook/payment' || pathname === '/checkout/webhook/door')
     ) {
       if (!(await paymentWebhookAuthorized(request, env))) return unauthorized();
-      return orderRouter.fetch(request, { ORDER: env.ORDER, CHECKOUT: env.CHECKOUT });
+      // BC-1a — the SECOND best-effort registration moment: a 200 webhook
+      // means the order certainly exists, so a row the create-time mirror
+      // lost is repaired here, idempotently.
+      const webhookSource = request.clone();
+      const answered = await orderRouter.fetch(request, { ORDER: env.ORDER, CHECKOUT: env.CHECKOUT });
+      if (answered.status === 200) await mirrorDispatchRow(env, webhookSource);
+      return answered;
     }
 
     // SERVICE-WRITE-AUTH-1 — gate EVERY write at the one deployed entry, before
@@ -386,6 +449,65 @@ export default {
  * `quote_not_reserved` until the next reserve (which is idempotent and rewrites
  * it) — a refusal, never a wrong success.
  */
+/**
+ * BC-1a — the dispatch view is served to the founder's CONSOLE, which lives on
+ * its own Pages origin — a different reader from the buyer PWA, so its own
+ * exact-origin stamp (never `*`: this route answers with buyer contact).
+ */
+const DISPATCH_CORS_ORIGIN = 'https://boutik-plus-web.pages.dev';
+
+function withDispatchCors(res: Response): Response {
+  const headers = new Headers(res.headers);
+  headers.set('Access-Control-Allow-Origin', DISPATCH_CORS_ORIGIN);
+  headers.set('Vary', 'Origin');
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
+function dispatchPreflight(): Response {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': DISPATCH_CORS_ORIGIN,
+      'Access-Control-Allow-Methods': 'GET',
+      // Authorization: the founder's Bearer — granting the HEADER grants
+      // nothing; the route still 401s anything but his key.
+      'Access-Control-Allow-Headers': 'Accept, Authorization',
+      'Access-Control-Max-Age': '86400',
+    },
+  });
+}
+
+/**
+ * BC-1a — register one order in the dispatch index, BEST-EFFORT and swallowed
+ * on purpose (the reservation mirror's own discipline): the order path, the
+ * money path, and the webhook's answer are all untouched by a failed
+ * registration; the row is retried at the other moment. The orderId is read
+ * from the SAME field the target route itself uses — the create body's
+ * `quoteId` (via `orderIdForQuote`) or the webhook payload's `order_id` — so
+ * the mirror can never register a row the route would not have addressed.
+ */
+async function mirrorDispatchRow(env: Env, source: Request): Promise<void> {
+  try {
+    const body = (await source.json().catch(() => null)) as Record<string, unknown> | null;
+    if (body === null) return;
+    let orderId: string | undefined;
+    if (typeof body['quoteId'] === 'string' && body['quoteId'] !== '') {
+      orderId = orderIdForQuote(body['quoteId']);
+    } else {
+      const payload = body['payload'] as Record<string, unknown> | undefined;
+      const fromEvent = payload?.['order_id'];
+      if (typeof fromEvent === 'string' && fromEvent !== '') orderId = fromEvent;
+    }
+    if (orderId === undefined) return;
+    await env.DISPATCH.get(env.DISPATCH.idFromName(DISPATCH_INDEX_NAME)).fetch(
+      new Request('https://do/register', { method: 'POST', body: JSON.stringify({ orderId }) }),
+    );
+  } catch {
+    // Swallowed on purpose — see above. Nothing downstream depends on this row
+    // existing; the dispatch list self-repairs at the next webhook.
+  }
+}
+
 async function mirrorReservationReceipt(
   env: Env,
   pathname: string,

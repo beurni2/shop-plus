@@ -36,6 +36,14 @@ class_name = "CheckoutDO"
 name = "ORDER"
 class_name = "OrderDO"
 
+# BC-1a — the dispatch index. ONE singleton instance (idFromName inside):
+# order ids + first-seen clocks only, so the founder's dispatch read can find
+# the per-order objects. No contact, no money — those never leave OrderDO
+# except through the CHECKOUT_OPS_SECRET-gated read.
+[[durable_objects.bindings]]
+name = "DISPATCH"
+class_name = "DispatchIndexDO"
+
 # FIRST-DEPLOY MIGRATION — create both DO classes. `new_sqlite_classes` is CORRECT
 # AND MANDATORY, not a coin-flip: Cloudflare stopped issuing key-value-backed DO
 # namespaces (changelog 2026-07-09) to any account without a pre-existing one, and
@@ -64,6 +72,12 @@ new_sqlite_classes = ["CheckoutDO"]
 [[migrations]]
 tag = "v3"
 new_sqlite_classes = ["OrderDO"]
+
+# BC-1a — DispatchIndexDO arrives as its OWN tag, for the identical
+# append-only reason every tag above states. Same UNPROVEN-UNTIL-DEPLOY caveat.
+[[migrations]]
+tag = "v4"
+new_sqlite_classes = ["DispatchIndexDO"]
 
 # The PRIVATE R2 bucket (exists: Standard, jurisdiction default, location hint
 # ENAM). Reads go THROUGH the Worker (GET /media/{key}); never a public custom

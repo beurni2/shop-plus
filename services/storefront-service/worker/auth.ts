@@ -46,6 +46,18 @@ export interface WriteAuthEnv {
    * fails OPEN is a route that lets anyone declare an order paid.
    */
   readonly PAYMENT_WEBHOOK_SECRET?: string;
+  /**
+   * BC-1a — THE FOUNDER'S OWN DISPATCH CREDENTIAL (« value C », approved
+   * 2026-08-02): it unlocks buyer contact (phone, quartier, repère) on the
+   * dispatch read, and NOTHING else opens that door — not the write key (it
+   * ships in the reseller bundle), not the webhook secret (the provider
+   * holds it), not Boutik+'s ops key (a different Worker's credential;
+   * buyer contact never crosses to Boutik+). It exists in exactly two
+   * places: this Worker's encrypted store (`wrangler secret put`, value
+   * piped) and the founder's own browser. UNSET ⇒ the dispatch read is 401
+   * for everyone.
+   */
+  readonly CHECKOUT_OPS_SECRET?: string;
 }
 
 /** A write is any request whose method is not a safe read method. */
@@ -121,4 +133,18 @@ export function unauthorized(): Response {
 export async function rejectUnauthorizedWrite(request: Request, env: WriteAuthEnv): Promise<Response | null> {
   if (!isWrite(request.method)) return null;
   return (await keyAuthorized(request, env)) ? null : unauthorized();
+}
+
+/**
+ * BC-1a — the dispatch read's gate: `Authorization: Bearer` against
+ * CHECKOUT_OPS_SECRET, FAIL CLOSED, constant-time, one identical 401 computed
+ * before any dispatch — the same three properties every gate in this file
+ * carries, on the founder's own credential.
+ */
+export async function rejectUnauthorizedOpsRead(request: Request, env: WriteAuthEnv): Promise<Response | null> {
+  const secret = env.CHECKOUT_OPS_SECRET ?? '';
+  const auth = request.headers.get('Authorization') ?? '';
+  const provided = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
+  const match = await timingSafeEqual(provided, secret);
+  return secret.length > 0 && match ? null : unauthorized();
 }

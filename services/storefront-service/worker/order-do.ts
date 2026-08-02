@@ -150,6 +150,58 @@ interface CreateArgs {
   /** ORDER-PAID-WIRE-1b — the quote's fulfillment facts, from the internal
    *  checkout read on the same hop as the bytes. `null` = an old quote. */
   fulfillment?: { productVersionId?: string; zoneTo?: string; offerVersion?: string } | null;
+  /** BC-1a — the buyer's own dispatch contact, from the public create body
+   *  (strict-validated at the router AND here). `null`/absent = none given. */
+  contact?: BuyerContact | null;
+}
+
+/**
+ * ═══ BC-1a — THE BUYER'S DISPATCH CONTACT (founder-approved, 2026-08-02) ═══
+ *
+ * Phone + quartier + repère, entered by the buyer at checkout so the FOUNDER
+ * can dispatch a rider himself. The three approved fields and nothing else.
+ *
+ * WHERE IT LIVES AND WHERE IT NEVER GOES:
+ *  · stored under its OWN key on this object — never inside `quoteBytes`
+ *    (the frozen money bytes stay money-only, byte-stable);
+ *  · NEVER on the buyer projection (`projectForBuyer` untouched): the public
+ *    order view is reachable by anyone holding the order link, and a phone
+ *    number there would leak to every screenshot of it;
+ *  · NEVER on `order.confirmed.v1` (no contracts change; the supplier wire
+ *    stays contact-free, the founder's standing privacy ruling);
+ *  · read by exactly one door: the founder's CHECKOUT_OPS_SECRET-gated
+ *    dispatch route, through `/entry/dispatch` below.
+ *
+ * LIFECYCLE, for free from create()'s own branches: written atomically with
+ * the order's birth, REPLACEABLE on the payment_failed retry (a buyer fixing
+ * a typo'd phone before paying), and FROZEN after confirm — the
+ * already-exists-not-failed branch answers without writing anything.
+ */
+export interface BuyerContact {
+  readonly phone: string;
+  readonly quartier: string;
+  /** The landmark. May be '' — not every address has one to name. */
+  readonly repere: string;
+}
+
+const CONTACT_KEY = 'buyer-contact';
+
+/** Strict shape: EXACTLY the three approved keys, phone and quartier
+ *  non-empty, all bounded. Anything else is null (the caller refuses). */
+export function readBuyerContact(value: unknown): BuyerContact | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const r = value as Record<string, unknown>;
+  const keys = Object.keys(r).sort();
+  if (keys.length !== 3 || keys[0] !== 'phone' || keys[1] !== 'quartier' || keys[2] !== 'repere') {
+    return null;
+  }
+  const phone = r['phone'];
+  const quartier = r['quartier'];
+  const repere = r['repere'];
+  if (typeof phone !== 'string' || phone.trim() === '' || phone.length > 32) return null;
+  if (typeof quartier !== 'string' || quartier.trim() === '' || quartier.length > 120) return null;
+  if (typeof repere !== 'string' || repere.length > 200) return null;
+  return { phone, quartier, repere };
 }
 
 export interface OrderDOEnv {
@@ -271,7 +323,15 @@ export class OrderDO {
       ) {
         return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       }
-      return this.create(args.quoteId, args.holderRef, args.commandId, args.quoteBytes, args.fulfillment ?? undefined);
+      // BC-1a — a PRESENT contact must be whole or the create refuses: a
+      // half-formed contact stored quietly would surface at dispatch time, on
+      // the one screen whose worth is that every line on it is true.
+      let contact: BuyerContact | null = null;
+      if (args.contact !== undefined && args.contact !== null) {
+        contact = readBuyerContact(args.contact);
+        if (contact === null) return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      return this.create(args.quoteId, args.holderRef, args.commandId, args.quoteBytes, args.fulfillment ?? undefined, contact);
     }
 
     /** ORDER-PAID-WIRE-1b — the OUTBOX READ. Internal wire only (the composition
@@ -337,6 +397,36 @@ export class OrderDO {
         doorLeg: spine.doorLegState,
         receipt: receipt ?? null,
         inputCount: log.length,
+      });
+    }
+
+    /**
+     * BC-1a — THE DISPATCH PROJECTION. INTERNAL ONLY, like the audit read: the
+     * public router maps no path here; it is reachable only through the
+     * founder's CHECKOUT_OPS_SECRET-gated dispatch route at the composition
+     * root. Built FIELD BY FIELD (never a spread): the state, the contact,
+     * and the fulfillment facts — no quote bytes, no attempts, no provider
+     * refs, no economics.
+     */
+    if (request.method === 'GET' && pathname === '/entry/dispatch') {
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      if (origin === undefined) return Response.json({ ok: true, exists: false });
+      const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      const quote = parseStoredQuote(origin.quoteBytes);
+      if (quote === undefined) {
+        return Response.json({ ok: false, reason: 'stored_quote_unreadable' }, { status: 422 });
+      }
+      const spine = rebuildOrderSpine(quote, origin, log);
+      const contact = await this.state.storage.get<BuyerContact>(CONTACT_KEY);
+      return Response.json({
+        ok: true,
+        exists: true,
+        orderId: origin.orderId,
+        state: spine.journey.state,
+        createdAt: origin.createdAt,
+        contact: contact ?? null,
+        productVersionId: origin.fulfillment?.productVersionId ?? '',
+        zoneTo: origin.fulfillment?.zoneTo ?? '',
       });
     }
 
@@ -417,6 +507,7 @@ export class OrderDO {
     commandId: string,
     wireQuoteBytes: string | undefined,
     wireFulfillment?: { productVersionId?: string; zoneTo?: string; offerVersion?: string },
+    contact: BuyerContact | null = null,
   ): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     const receipt = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
@@ -593,6 +684,12 @@ export class OrderDO {
     await this.state.storage.put(LOG_KEY, log);
     await this.state.storage.put(ATTEMPTS_KEY, attempts);
     await this.state.storage.put(LEG_KEYS_KEY, { ...legKeys, [leg.legType]: providerKey });
+    // BC-1a — the dispatch contact rides the same durable moment as the order
+    // itself. Reached only by create()'s two MUTATING branches, so it is
+    // replaceable until the payment confirms and frozen after (see
+    // BuyerContact). An absent contact never erases a stored one: the retry
+    // that omits it (an old client) keeps what the buyer already gave.
+    if (contact !== null) await this.state.storage.put(CONTACT_KEY, contact);
 
     /**
      * ═══ THE ORDERING IS STRUCTURAL, NOT A COMMENT (verifier finding, round 2) ═══
@@ -1163,7 +1260,7 @@ const orderStub = (env: Env, orderId: string): DurableObjectStub =>
   env.ORDER.get(env.ORDER.idFromName(orderId));
 
 /** The wire vocabulary a caller may send. Anything else is REFUSED, not ignored. */
-const ORDER_FIELDS = ['quoteId', 'holderRef', 'commandId'];
+const ORDER_FIELDS = ['quoteId', 'holderRef', 'commandId', 'contact'];
 /** SP4.2a-bis — the door charge's own two-key allowlist. NO amount field. */
 const DOOR_CHARGE_FIELDS = ['holderRef', 'commandId'];
 
@@ -1251,6 +1348,16 @@ export default {
       if (!bounded(body['commandId'], 128) || !ID_ALPHABET.test(body['commandId'])) {
         return badRequest('bad_field', 'commandId');
       }
+      // BC-1a — the buyer's dispatch contact, OPTIONAL and strict when
+      // present: exactly {phone, quartier, repere}, bounded, phone and
+      // quartier non-empty. Refused HERE with the field named, before any
+      // object is touched — a half-formed contact never travels. Still no
+      // amount field on this body, and no way to add one.
+      let contact: BuyerContact | null = null;
+      if (body['contact'] !== undefined && body['contact'] !== null) {
+        contact = readBuyerContact(body['contact']);
+        if (contact === null) return badRequest('bad_field', 'contact');
+      }
       const quoteId = body['quoteId'];
 
       // THE QUOTE'S OWN BYTES, read server-side from the object that owns them.
@@ -1280,6 +1387,8 @@ export default {
             // above has no such field: a caller cannot name a product or a zone
             // here any more than an amount.
             fulfillment: quoteBody.fulfillment ?? null,
+            // BC-1a — the validated contact, or null. The object re-validates.
+            contact,
           }),
         }),
       );
