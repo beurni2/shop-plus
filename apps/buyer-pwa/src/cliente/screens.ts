@@ -469,6 +469,8 @@ export interface C3State {
   readonly zone: string | null;
   readonly repere: string;
   readonly indic: string;
+  /** BC-1b — her number, for the delivery and for nothing else. */
+  readonly phone: string;
   readonly voice: VoiceEtat;
   readonly recTime: string;
   readonly canContinue: boolean;
@@ -517,6 +519,16 @@ export function renderC3(s: C3State): string {
     `<input class="cl-field cl-field-indic" data-role="indic" value="${esc(s.indic)}" placeholder="Indication en plus (facultatif)">`,
     '<div class="cl-overline">Ou dites-le de vive voix</div>',
     renderVoiceBlock(s),
+    /**
+     * BC-1b — HER NUMBER, WITH ITS CAUSE STATED (founder-approved dispatch
+     * contact). It sits AFTER the address block because it belongs to the
+     * same question — « où livrer ? » — and BEFORE the privacy line, which
+     * now covers it: the number goes to the delivery organiser and nowhere
+     * else, never to the seller, never on any public page. That is what
+     * keeps every « Votre numéro reste privé » in this app a true sentence.
+     */
+    '<div class="cl-overline">Votre numéro, pour la livraison</div>',
+    `<input class="cl-field" data-role="phone" type="tel" inputmode="tel" value="${esc(s.phone)}" placeholder="Ex. : 70 12 34 56">`,
     `<div class="cl-privline">${iconLock(14)}Le livreur passe par un relais. Votre numéro reste privé.</div>`,
     `<button class="cl-cta cl-cta-c3${s.canContinue ? '' : ' cl-cta-off'}" data-action="continuer-c3"${s.canContinue ? '' : ' disabled'}>Continuer</button>`,
     '</div>',

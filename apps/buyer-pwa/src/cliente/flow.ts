@@ -87,6 +87,8 @@ interface FlowState {
   zone: string | null;
   repere: string;
   indic: string;
+  /** BC-1b — her number, captured on C3 for the dispatch contact. */
+  phone: string;
   voice: VoiceEtat;
   vSec: number;
   delivery: Livraison | null;
@@ -118,7 +120,7 @@ interface FlowState {
     reserve: (mode: ModePaiement) => Promise<ReserveFetch>;
     /** SP3.3c — create the order for the chosen mode, and read it back. Bound
      *  to the same per-mode quote the hold was taken on. */
-    commander: (mode: ModePaiement, essai: number) => Promise<OrderFetch>;
+    commander: (mode: ModePaiement, essai: number, contact?: { phone: string; quartier: string; repere: string }) => Promise<OrderFetch>;
     etatCommande: (orderId: string) => Promise<OrderFetch>;
     /** SP4.2b — ask for the product leg to be collected at her door. */
     payerALaPorte: (orderId: string, essai: number) => Promise<OrderFetch>;
@@ -257,6 +259,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     zone: null,
     repere: '',
     indic: '',
+    phone: '',
     voice: (init.microRefuse ?? false) ? 'refused' : 'idle',
     vSec: 0,
     delivery: null,
@@ -389,8 +392,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   }
 
   const recTime = (): string => `0:${String(state.vSec).padStart(2, '0')}`;
+  const telValide = (): boolean => (state.phone.match(/[0-9]/g) ?? []).length >= 8;
   const canC3 = (): boolean =>
-    !!state.zone && (state.repere.trim().length > 0 || state.voice === 'recorded' || state.voice === 'queued');
+    !!state.zone && telValide() && (state.repere.trim().length > 0 || state.voice === 'recorded' || state.voice === 'queued');
 
   function screenHtml(): string {
     // A NAMED REFUSAL OUTRANKS EVERY SCREEN. It is not an overlay and not a
@@ -402,7 +406,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         return renderC1(m, { epuise: state.stock === 'out', sansVoix: init.sansVoix ?? false });
       case 'C3':
         return renderC3({
-          zone: state.zone, repere: state.repere, indic: state.indic,
+          zone: state.zone, repere: state.repere, indic: state.indic, phone: state.phone,
           voice: state.voice, recTime: recTime(), canContinue: canC3(),
         });
       case 'C4':
@@ -705,12 +709,24 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
    * l'opérateur. » — never a confirmation, because a created order is not a
    * paid one.
    */
+  /** BC-1b — the dispatch contact, from C3's own answers: her number, her
+   *  quartier, and the repère (text plus the optional indication; possibly ''
+   *  when she chose the voice note — the service accepts an empty repère).
+   *  Assembled at SEND, so a corrected number on a retry travels corrected. */
+  function contactLivraison(): { phone: string; quartier: string; repere: string } | undefined {
+    const phone = state.phone.trim();
+    const quartier = state.zone ?? '';
+    if (phone === '' || quartier === '') return undefined;
+    const repere = [state.repere.trim(), state.indic.trim()].filter((v) => v !== '').join(' · ').slice(0, 200);
+    return { phone: phone.slice(0, 32), quartier: quartier.slice(0, 120), repere };
+  }
+
   function passerLaCommande(mode: ModePaiement, gen: number): void {
     const live = state.live;
     if (live === null) return;
     state.paying = 'provider';
     render();
-    void live.commander(mode, state.essai).then((r) => {
+    void live.commander(mode, state.essai, contactLivraison()).then((r) => {
       if (gen !== generation) return;
       if (r.status !== 'order') {
         // The service refused to create the order (an expired hold, a hold
@@ -759,6 +775,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     const role = el.getAttribute('data-role');
     if (role === 'repere') { state.repere = el.value; patchC3Cta(); }
     if (role === 'indic') state.indic = el.value;
+    if (role === 'phone') { state.phone = el.value; patchC3Cta(); }
   });
 
   container.addEventListener('click', (ev) => {
@@ -790,7 +807,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       case 'commander':
         if (state.stock !== 'out') {
           jump('C3', {
-            zone: null, repere: '', indic: '',
+            zone: null, repere: '', indic: '', phone: '',
             voice: (init.microRefuse ?? false) ? 'refused' : 'idle', vSec: 0,
           });
         }

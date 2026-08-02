@@ -63,7 +63,7 @@
  */
 
 import type { ClienteQuote, LegSplits, ModePaiement } from './screens';
-import { mintCommandId, type OrderOutcome, type PaymentModeWire, type QuoteIntent, type QuoteOutcome, type QuotePort, type ServerQuote } from './quote-port';
+import { mintCommandId, type ContactLivraison, type OrderOutcome, type PaymentModeWire, type QuoteIntent, type QuoteOutcome, type QuotePort, type ServerQuote } from './quote-port';
 
 export type ClienteQuoteFromServer =
   | { readonly ok: true; readonly quote: ClienteQuote; readonly bIndisponible: boolean }
@@ -278,7 +278,7 @@ export type QuoteFetch =
        * `orderCommandIdFor`. The flow passes 0 for the first order and
        * increments only when the buyer taps retry on a FAILED payment.
        */
-      readonly commander: (mode: ModePaiement, essai: number) => Promise<OrderFetch>;
+      readonly commander: (mode: ModePaiement, essai: number, contact?: ContactLivraison) => Promise<OrderFetch>;
       /**
        * READ THE ORDER BACK. The only source of « confirmé par l'opérateur »
        * anywhere in this app.
@@ -525,7 +525,7 @@ export async function fetchClienteQuote(
      * reserve wrote, and a different value here is `reservation_held_by_another`
      * — a refusal caused by this file disagreeing with itself two functions up.
      */
-    commander: (mode: ModePaiement, essai: number): Promise<OrderFetch> => {
+    commander: (mode: ModePaiement, essai: number, contact?: ContactLivraison): Promise<OrderFetch> => {
       const cible = mode === 'B' ? doorHold : { quoteId, commandId };
       const holder = mode === 'B' ? doorKey : fullKey;
       // Unreachable through the UI for the same reason `reserve`'s branch is:
@@ -537,7 +537,11 @@ export async function fetchClienteQuote(
       // request key and the reservation command: an idempotency key a collision
       // can reach is an idempotency key in front of a charge.
       if (cmd === undefined) return Promise.resolve({ status: 'refused', reason: 'no_secure_random' });
-      return port.order(cible.quoteId, cmd, holder);
+      // BC-1b — the contact rides the CREATE and nothing else: the retry path
+      // reuses this same function, so a buyer who fixed her number before a
+      // payment retry sends the corrected one (the object replaces until the
+      // payment confirms, then freezes).
+      return port.order(cible.quoteId, cmd, holder, contact);
     },
 
     etatCommande: (orderId: string): Promise<OrderFetch> => port.orderState(orderId),

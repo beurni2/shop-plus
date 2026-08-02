@@ -30,7 +30,7 @@ const N = '\u202f'; // the only NNBSP source in this test — no raw byte in the
 
 const Q = composeQuote(ROBE.priceFcfa);
 
-const C3_BASE: C3State = { zone: 'Gounghin', repere: 'Face à la pharmacie du marché', indic: '', voice: 'idle', recTime: '0:00', canContinue: true };
+const C3_BASE: C3State = { zone: 'Gounghin', repere: 'Face à la pharmacie du marché', indic: '', phone: '70 12 34 56', voice: 'idle', recTime: '0:00', canContinue: true };
 
 /** Tags out, NOTHING inserted — the concatenated text a buyer reads. */
 const stripTags = (html: string): string => html.replace(/<[^>]+>/g, '');
@@ -324,5 +324,32 @@ describe('§6.2 — each category allows its OWN checks, and refuses its OWN rea
     // and it claims nothing category-specific
     expect(plain).not.toContain('scellé');
     expect(plain).not.toContain('boîte');
+  });
+});
+
+/* ═════════════ BC-1b — the dispatch contact, captured once on C3 ═════════════ */
+
+describe('BC-1b — her number for the delivery: asked once, gated, sent at order time', () => {
+  it('renderC3 asks for the number with its cause stated, beside the privacy line it must keep true', () => {
+    const html = renderC3({ ...C3_BASE, phone: '' });
+    expect(html).toContain('data-role="phone"');
+    expect(html).toContain('type="tel"');
+    expect(html).toContain('Votre numéro, pour la livraison');
+    // the standing promise stays on the same screen as the field it covers
+    expect(stripTags(html)).toContain('Votre numéro reste privé.');
+  });
+
+  it('[source-text checks] the flow gates C3 on a dialable number, assembles the contact from what she ALREADY gave, and sends it exactly once — at order creation', () => {
+    const flow = readFileSync(join(import.meta.dirname, '..', 'src/cliente/flow.ts'), 'utf8');
+    // ≥ 8 digits judged on digits alone — spaces and prefixes welcome
+    expect(flow).toContain("(state.phone.match(/[0-9]/g) ?? []).length >= 8");
+    expect(flow).toMatch(/const canC3 = \(\): boolean =>\n\s*!!state\.zone && telValide\(\)/);
+    // asked ONCE: the contact is assembled from C3's own answers, never a second form
+    expect(flow).toContain('const quartier = state.zone ?? ');
+    expect(flow).toContain("[state.repere.trim(), state.indic.trim()].filter((v) => v !== '').join(' · ')");
+    // and it rides the CREATE — the one call the service stores it from
+    expect(flow).toContain('live.commander(mode, state.essai, contactLivraison())');
+    // typing updates the gate live, like the repère
+    expect(flow).toContain("if (role === 'phone') { state.phone = el.value; patchC3Cta(); }");
   });
 });

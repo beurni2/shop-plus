@@ -185,6 +185,8 @@ async function askForPrice(page: Page, zone = 'Gounghin'): Promise<void> {
   await page.locator('[data-screen="C3"]').waitFor();
   await page.locator(`[data-action="zone"][data-zone="${zone}"]`).click();
   await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
+  // BC-1b — her number for the dispatch contact; the CTA gates on it now.
+  await page.locator('[data-role="phone"]').fill('70 12 34 56');
   await page.locator('[data-action="continuer-c3"]').click();
 }
 

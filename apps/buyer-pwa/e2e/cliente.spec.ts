@@ -1090,15 +1090,22 @@ test('hors ligne — the ink banner rides every screen; payNow lands on C6 hors-
   await expect(page.locator('[data-role="voice-queued"]')).toBeVisible();
 });
 
-test('C3 — the five voice states + the gate (zone + repère/voix) drive the CTA', async ({ page }) => {
+test('C3 — the five voice states + the gate (zone + repère/voix + numéro) drive the CTA', async ({ page }) => {
   await page.goto('/?demo-cliente=C3');
-  // pixel truth: C3 mounts EMPTY — no zone picked, no repère typed; the CTA
-  // sleeps until canC3 = zone && (repère || voix) turns true.
+  // pixel truth: C3 mounts EMPTY — no zone picked, no repère typed, no
+  // number; the CTA sleeps until canC3 = zone && numéro && (repère || voix)
+  // turns true (BC-1b: a dispatch with no number is a rider with no door).
   const cta = page.locator('[data-action="continuer-c3"]');
   await expect(cta).toBeDisabled();
   await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
   await expect(cta).toBeDisabled();
   await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
+  await expect(cta).toBeDisabled(); // zone + repère alone no longer suffice
+  await page.locator('[data-role="phone"]').fill('70 12 34 56');
+  await expect(cta).toBeEnabled();
+  await page.locator('[data-role="phone"]').fill('70 12'); // 4 digits: not dialable
+  await expect(cta).toBeDisabled();
+  await page.locator('[data-role="phone"]').fill('70 12 34 56');
   await expect(cta).toBeEnabled();
   await page.locator('[data-role="repere"]').fill('');
   await expect(cta).toBeDisabled();

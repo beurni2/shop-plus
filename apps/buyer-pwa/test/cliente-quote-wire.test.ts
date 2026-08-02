@@ -1489,11 +1489,32 @@ describe('httpQuotePort.order — the body is the service’s three-key allowlis
     expect(body).toEqual({ quoteId: 'q1', holderRef: 'holder-1', commandId: 'cmd-1' });
   });
 
-  it('NO AMOUNT can ride on this wire — not from the caller, not from anywhere', () => {
-    // The body is built as one object literal from three named arguments, so
-    // there is no parameter an amount could arrive through. Stated as a test
-    // because the day someone adds a fourth argument, this must be re-read.
-    expect(httpQuotePort('https://svc.example').order.length).toBe(3);
+  it('NO AMOUNT can ride on this wire — not from the caller, not from anywhere', async () => {
+    // The body is built as one object literal from named arguments, so there
+    // is no parameter an amount could arrive through. The arity pin fired on
+    // BC-1b exactly as designed, and this is the RE-READ it demanded: the
+    // fourth parameter is the founder-approved dispatch contact — three
+    // BOUNDED STRINGS built field-by-field (phone, quartier, repere), no
+    // amount representable in any of them, and the service's allowlist still
+    // refuses every unknown key. Arity 4 is now the decided shape; a FIFTH
+    // argument must come re-decide here.
+    expect(httpQuotePort('https://svc.example').order.length).toBe(4);
+    let seen: RequestInit | undefined;
+    await withFetch(
+      (async (_url: string, init: RequestInit) => {
+        seen = init;
+        return jsonRes({ orderId: 'ord-c1', state: 'payment_pending', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0 });
+      }) as unknown as typeof fetch,
+      () =>
+        httpQuotePort('https://svc.example').order('q1', 'cmd-1', 'holder-1', {
+          phone: '70 12 34 56',
+          quartier: 'Gounghin',
+          repere: 'Face à la pharmacie',
+        }),
+    );
+    const body = JSON.parse(String(seen?.body)) as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(['commandId', 'contact', 'holderRef', 'quoteId']);
+    expect(Object.keys(body['contact'] as Record<string, unknown>).sort()).toEqual(['phone', 'quartier', 'repere']);
   });
 
   it('GETs /checkout/order/{id}, encoded — a hostile id cannot escape the path', async () => {

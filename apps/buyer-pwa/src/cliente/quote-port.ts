@@ -158,6 +158,20 @@ export type OrderOutcome =
   | { readonly status: 'unreachable' }
   | { readonly status: 'unreadable' };
 
+/**
+ * BC-1b — the buyer's dispatch contact (founder-approved 2026-08-02): phone +
+ * quartier + repère, entered once on C3, sent ONCE on order creation so the
+ * founder can dispatch a rider. The service stores it on the order's own
+ * object behind the founder-only dispatch read; it never returns on any
+ * public view — which is what keeps every « Votre numéro reste privé » line
+ * in this app a true sentence.
+ */
+export interface ContactLivraison {
+  readonly phone: string;
+  readonly quartier: string;
+  readonly repere: string;
+}
+
 export interface QuotePort {
   request(intent: QuoteIntent, requestKey: string): Promise<QuoteOutcome>;
   reserve(quoteId: string, commandId: string, holderRef: string): Promise<ReserveOutcome>;
@@ -177,7 +191,7 @@ export interface QuotePort {
    * second order and never a second charge (`order-do.ts` create, the « an
    * impatient double-tap is harmless » branch).
    */
-  order(quoteId: string, commandId: string, holderRef: string): Promise<OrderOutcome>;
+  order(quoteId: string, commandId: string, holderRef: string, contact?: ContactLivraison): Promise<OrderOutcome>;
   /**
    * READ THE ORDER BACK. The ONLY thing in this app that may ever move the
    * confirmation screen to « confirmé par l'opérateur »: the state it returns
@@ -394,14 +408,23 @@ export function httpQuotePort(baseUrl: string): QuotePort {
       return nonEmpty(expiresAt) ? { status: 'reserved', expiresAt } : { status: 'reserved' };
     },
 
-    async order(quoteId: string, commandId: string, holderRef: string): Promise<OrderOutcome> {
+    async order(quoteId: string, commandId: string, holderRef: string, contact?: ContactLivraison): Promise<OrderOutcome> {
       // THE BODY IS THE SERVICE'S ALLOWLIST, BUILT AS ONE LITERAL — never a
       // spread of anything. `order-do.ts` refuses an unknown key with 400
       // `unknown_field`, and that refusal is a feature: it is how a caller that
       // grew an amount field finds out immediately instead of quietly.
+      // BC-1b: `contact` is the allowlist's fourth (optional) key, built
+      // field-by-field for the same reason — still no amount, still no spread.
       let payload: string;
       try {
-        payload = JSON.stringify({ quoteId, holderRef, commandId });
+        payload = JSON.stringify({
+          quoteId,
+          holderRef,
+          commandId,
+          ...(contact !== undefined
+            ? { contact: { phone: contact.phone, quartier: contact.quartier, repere: contact.repere } }
+            : {}),
+        });
       } catch {
         return { status: 'unreadable' };
       }
