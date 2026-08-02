@@ -53,7 +53,7 @@ describe('RF-1b — the boundary reader drops a bad row WHOLE', () => {
 
 describe('RF-1b — her screen may only claim what Shop+ can prove', () => {
   it('a confirmed sale reads PAYÉE, from the catalog, never an inline string', () => {
-    const vue = vueDesVentes([row()]);
+    const vue = vueDesVentes([row()], false);
     expect(vue.kind).toBe('ready');
     if (vue.kind !== 'ready') throw new Error('unreachable');
     expect(vue.ventes[0]!.etatKey).toBe('ventes.etat_payee');
@@ -61,7 +61,7 @@ describe('RF-1b — her screen may only claim what Shop+ can prove', () => {
   });
 
   it('NO unproven state is ever produced: preparation, route, door and delivery are absent from every output', () => {
-    const vue = vueDesVentes([row(), row({ orderId: 'ord-2' })]);
+    const vue = vueDesVentes([row(), row({ orderId: 'ord-2' })], false);
     const bytes = JSON.stringify(vue);
     for (const invented of ['preparation', 'en_route', 'porte', 'livree', 'probleme']) {
       expect(bytes.includes(invented), `invented a state it cannot prove: ${invented}`).toBe(false);
@@ -69,18 +69,18 @@ describe('RF-1b — her screen may only claim what Shop+ can prove', () => {
   });
 
   it('no gross, no commission, no base price is representable in the view at all', () => {
-    const bytes = JSON.stringify(vueDesVentes([row()]));
+    const bytes = JSON.stringify(vueDesVentes([row()], false));
     for (const banned of ['gross', 'commission', 'basePrice', 'sellerBasePrice', 'markup', 'buyerTotal']) {
       expect(bytes.toLowerCase().includes(banned.toLowerCase()), `leaked ${banned}`).toBe(false);
     }
   });
 
   it('an empty feed is an HONEST empty state, not an error and not a fake count', () => {
-    expect(vueDesVentes([]).kind).toBe('empty');
+    expect(vueDesVentes([], false).kind).toBe('empty');
   });
 
   it('a non-confirmed row is never a sale — it is counted, not silently dropped', () => {
-    const vue = vueDesVentes([row(), row({ orderId: 'ord-p', state: 'payment_pending' })]);
+    const vue = vueDesVentes([row(), row({ orderId: 'ord-p', state: 'payment_pending' })], false);
     if (vue.kind !== 'ready') throw new Error('expected ready');
     expect(vue.ventes.length).toBe(1);
     expect(vue.ventes[0]!.orderId).toBe('ord-1');
@@ -88,7 +88,7 @@ describe('RF-1b — her screen may only claim what Shop+ can prove', () => {
   });
 
   it('rows with ONLY unconfirmed orders show empty — an unpaid order is not a sale', () => {
-    const vue = vueDesVentes([row({ state: 'payment_pending' }), row({ state: 'payment_failed' })]);
+    const vue = vueDesVentes([row({ state: 'payment_pending' }), row({ state: 'payment_failed' })], false);
     expect(vue.kind).toBe('empty');
   });
 
@@ -97,13 +97,13 @@ describe('RF-1b — her screen may only claim what Shop+ can prove', () => {
       row({ orderId: 'old', createdAt: '2026-08-01T08:00:00.000Z' }),
       row({ orderId: 'new', createdAt: '2026-08-02T09:00:00.000Z' }),
       row({ orderId: 'mid', createdAt: '2026-08-02T08:00:00.000Z' }),
-    ]);
+    ], false);
     if (vue.kind !== 'ready') throw new Error('expected ready');
     expect(vue.ventes.map((v) => v.orderId)).toEqual(['new', 'mid', 'old']);
   });
 
   it('her total is a SUM OF COPIED NETS — never recomputed from a base and a rate', () => {
-    const vue = vueDesVentes([row({ resellerNet: 2_800 }), row({ orderId: 'b', resellerNet: 1_200 })]);
+    const vue = vueDesVentes([row({ resellerNet: 2_800 }), row({ orderId: 'b', resellerNet: 1_200 })], false);
     if (vue.kind !== 'ready') throw new Error('expected ready');
     expect(totalNet(vue.ventes)).toBe(4_000);
   });
@@ -224,7 +224,7 @@ describe('RF-1b (verifier B3) — a partial feed is never presented as a complet
       const res = await new HttpResellerFeed('https://api.example').mesVentes('SP-x');
       if (!res.ok) throw new Error('expected ok');
       expect(res.incomplet).toBe(true);
-      expect(vueDesVentes(res.ventes, res.incomplet)).toEqual({ kind: 'empty', incomplet: true });
+      expect(vueDesVentes(res.ventes, res.incomplet)).toEqual({ kind: 'empty', incomplet: true, nonConfirmees: 0 });
     } finally {
       globalThis.fetch = original;
     }
@@ -244,6 +244,38 @@ describe('RF-1b (verifier B3) — a partial feed is never presented as a complet
     } finally {
       globalThis.fetch = original;
     }
+  });
+
+  it('a READY view carries incomplet TRUE when the server said so — the direction the old test never covered', async () => {
+    // VERIFIER ROUND 2, vacuous test closed: the suite only ever asserted the
+    // `false` direction on a ready view, so hardcoding the model to
+    // `incomplet: false` — B3's exact failure, one layer down — left 397/397
+    // green. This constructs the TRUE direction on a NON-EMPTY feed.
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ ok: true, ventes: [row()], incomplet: true }), { status: 200 })) as unknown as typeof fetch;
+    try {
+      const res = await new HttpResellerFeed('https://api.example').mesVentes('SP-x');
+      if (!res.ok) throw new Error('expected ok');
+      const vue = vueDesVentes(res.ventes, res.incomplet);
+      if (vue.kind !== 'ready') throw new Error('expected ready');
+      expect(vue.ventes.length).toBe(1);
+      expect(vue.incomplet, 'a partial feed must never render as the whole truth').toBe(true);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
+  it('an EMPTY view still reports how many rows were not sales — a wire bug must not be invisible', () => {
+    // VERIFIER ROUND 2, new defect closed: rows that are ALL unconfirmed
+    // produce an empty view, and the count was dropped there — the one place
+    // it matters most, while the comment claimed it was surfaced.
+    const vue = vueDesVentes([row({ state: 'payment_pending' }), row({ state: 'payment_failed' })], false);
+    if (vue.kind !== 'empty') throw new Error('expected empty');
+    expect(vue.nonConfirmees, 'she must tell "nothing sent" from "nothing was a sale"').toBe(2);
+    const nothing = vueDesVentes([], false);
+    if (nothing.kind !== 'empty') throw new Error('expected empty');
+    expect(nothing.nonConfirmees).toBe(0);
   });
 
   it('a fully-read feed says so, so the flag carries information', async () => {

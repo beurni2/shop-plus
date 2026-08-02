@@ -51,8 +51,16 @@ export type FeedVue =
   | { readonly kind: 'refused' }
   | { readonly kind: 'unreachable' }
   /** The door opened and she has no confirmed sale yet. An HONEST empty,
-   *  designed as a real state, never an error wall and never a fake count. */
-  | { readonly kind: 'empty'; readonly incomplet: boolean }
+   *  designed as a real state, never an error wall and never a fake count.
+   *
+   *  It CARRIES `nonConfirmees` too (verifier round 2): the first cut dropped
+   *  the count here — the one place it matters most, since rows that are all
+   *  unconfirmed produce an empty view — and the comment below claimed it was
+   *  surfaced. That was the same failure as B2: an assertion in prose that the
+   *  code did not keep. Her screen must be able to tell « the server sent
+   *  nothing » from « the server sent rows and none of them is a sale », the
+   *  second being a wire bug that would otherwise be invisible. */
+  | { readonly kind: 'empty'; readonly incomplet: boolean; readonly nonConfirmees: number }
   | {
       readonly kind: 'ready';
       readonly ventes: readonly VenteReelle[];
@@ -74,10 +82,17 @@ const ETAT_PAYEE_KEY = 'ventes.etat_payee';
  * Newest first. The comparator is on the server's `createdAt` — her order of
  * events, not the order the fan-out happened to return.
  */
-export function vueDesVentes(rows: readonly FeedVente[], incomplet = false): FeedVue {
+/**
+ * `incomplet` is REQUIRED, with no default (verifier round 2 minor). A default
+ * of `false` would let a screen written as `vueDesVentes(res.ventes)` report a
+ * partial feed as the whole truth, with no type error to catch it — the exact
+ * lie B3 was fixed to prevent. Making it required moves that from a discipline
+ * to a compile error.
+ */
+export function vueDesVentes(rows: readonly FeedVente[], incomplet: boolean): FeedVue {
   const confirmees = rows.filter((r) => r.state === 'confirmed');
   const nonConfirmees = rows.length - confirmees.length;
-  if (confirmees.length === 0 && nonConfirmees === 0) return { kind: 'empty', incomplet };
+  if (confirmees.length === 0) return { kind: 'empty', incomplet, nonConfirmees };
   const ventes = [...confirmees]
     .sort((a, b) => (a.createdAt === b.createdAt ? 0 : a.createdAt < b.createdAt ? 1 : -1))
     .map(
@@ -89,7 +104,6 @@ export function vueDesVentes(rows: readonly FeedVente[], incomplet = false): Fee
         zoneTo: r.zoneTo,
       }),
     );
-  if (ventes.length === 0) return { kind: 'empty', incomplet };
   return { kind: 'ready', ventes, nonConfirmees, incomplet };
 }
 

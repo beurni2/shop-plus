@@ -253,7 +253,7 @@ export default {
        * allowed (one bad order must not blank her feed) but it is never
        * allowed to look complete.
        */
-      const asked = mine.orders.slice(0, MAX_FEED_FANOUT);
+      const asked = mine.orders.slice(0, feedFanoutMax(env));
       let illisibles = mine.orders.length - asked.length;
       const ventes: unknown[] = [];
       for (const row of asked) {
@@ -604,6 +604,20 @@ const DISPATCH_CORS_ORIGIN = 'https://boutik-plus-web.pages.dev';
  * answer says so.
  */
 const MAX_FEED_FANOUT = 40;
+
+/**
+ * The cap, with a TEST KNOB THAT CAN ONLY LOWER IT — the same clamped shape
+ * `READINESS_TTL_MS` uses in Boutik+, and for the same reason: truncation is
+ * otherwise observable only by building 41 real confirmed orders, so it went
+ * untested and a mutation removing the cap stayed green. Clamped, a typo in
+ * the environment can shorten her page but can never raise the ceiling above
+ * the subrequest budget.
+ */
+function feedFanoutMax(env: Env): number {
+  const raw = Number((env as { FEED_FANOUT_MAX?: string }).FEED_FANOUT_MAX);
+  if (!Number.isInteger(raw) || raw < 1) return MAX_FEED_FANOUT;
+  return Math.min(raw, MAX_FEED_FANOUT);
+}
 
 /**
  * RF-1a (verifier M7) — RE-PROJECT AT THE ROUTER. The OrderDO's projection is

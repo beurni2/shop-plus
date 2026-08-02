@@ -505,6 +505,34 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
     expect(res.json['incomplet']).toBe(false);
   });
 
+  it('B3 — the index hands back NEWEST FIRST, which is the only reason truncating to the first 40 keeps her recent sales', async () => {
+    // Truncation correctness DEPENDS on this ordering and nothing asserted it.
+    const ns = await mf.getDurableObjectNamespace('RESELLER');
+    const feed = ns.get(ns.idFromName('reseller-feed'));
+    for (const id of ['ord-ord-a', 'ord-ord-b', 'ord-ord-c']) {
+      await feed.fetch('https://do/register', {
+        method: 'POST',
+        body: JSON.stringify({ resellerId: 'rs-order-1', orderId: id }),
+      });
+      await new Promise((r) => setTimeout(r, 5)); // distinct registration clocks
+    }
+    const mint = await feed.fetch('https://do/code/mint', {
+      method: 'POST',
+      body: JSON.stringify({ resellerId: 'rs-order-1' }),
+    });
+    const code = ((await mint.json()) as { code: string }).code;
+    const mine = await feed.fetch('https://do/mine', { method: 'POST', body: JSON.stringify({ code }) });
+    const ids = ((await mine.json()) as { orders: { orderId: string }[] }).orders.map((o) => o.orderId);
+    expect(ids, 'newest registration first').toEqual(['ord-ord-c', 'ord-ord-b', 'ord-ord-a']);
+  });
+
+  it('M3/M5 — her feed refuses cleanly with no RESELLER binding, and a money-bearing answer is never cacheable', async () => {
+    const code = (await opsPost('/reseller/code', { resellerId: 'rs-disp-0011' })).json['code'] as string;
+    const live = await ventes(code);
+    expect(live.status).toBe(200);
+    expect(live.headers.get('cache-control'), 'her sales must not sit in a cache').toBe('private, no-store');
+  });
+
   it('B4 — the founder’s feed-code routes answer his CONSOLE: preflight and exact-origin stamp, never the buyer PWA’s origin', async () => {
     for (const [path, method] of [
       ['/reseller/code', 'POST'],
@@ -813,5 +841,121 @@ describe('RF-1a B2 — a row lost at confirmation time is repaired by the next w
       await healed.dispose();
       rmSync(persistB2, { recursive: true, force: true });
     }
+  });
+});
+
+/**
+ * RF-1a B3 — TRUNCATION, proven with rows that are ALL READABLE.
+ *
+ * The first attempt at this test registered 45 rows naming orders that did not
+ * exist. Every row was unreadable, so `incomplet` was true for the WRONG
+ * REASON and both truncation mutations stayed green — the test was itself the
+ * failure mode it was written to catch. Here every row is a REAL confirmed
+ * sale, so the ONLY possible source of incompleteness is the cap.
+ */
+describe('RF-1a B3 — a feed longer than the fan-out cap is truncated and SAYS so', () => {
+  const persistT = mkdtempSync(join(tmpdir(), 'rf1a-trunc-'));
+  const capped = new Miniflare({
+    modules: true,
+    scriptPath: SCRIPT,
+    durableObjects: {
+      STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
+      ORDER: 'OrderDO', DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO',
+    },
+    durableObjectsPersist: persistT,
+    bindings: {
+      STOREFRONT_WRITE_SECRET: WRITE_SECRET,
+      PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
+      FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
+      CHECKOUT_OPS_SECRET: OPS_SECRET,
+      FEED_FANOUT_MAX: '2', // the clamped test knob — lower only
+    },
+    serviceBindings: {
+      OFFER: async (request: Request) => {
+        const path = new URL(request.url).pathname;
+        if (request.method === 'POST' && path === '/fulfillment/order-confirmed') {
+          return Response.json({ ok: true, status: 'registered' });
+        }
+        const single = /^\/supply-projection\/([^/]+)$/.exec(path);
+        if (single) {
+          const value = SUPPLY.find((v) => v.productVersionId === decodeURIComponent(single[1]!));
+          if (value === undefined) return Response.json({ status: 'not_found' }, { status: 404 });
+          return Response.json({ version: 1, asOf: new Date().toISOString(), value });
+        }
+        return Response.json({ status: 'not_found' }, { status: 404 });
+      },
+    },
+  });
+
+  it('THREE real confirmed sales, a cap of two: she sees two and the answer declares itself partial', async () => {
+    const RID = 'rs-cap-01';
+    const seeded = await capped.dispatchFetch('http://c/storefronts', {
+      method: 'POST', headers: authed,
+      body: JSON.stringify({
+        commandId: 'cmd-cap', id: 'sf-cap', resellerId: RID, shortCode: 'CAP-0001',
+        name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
+        correlationId: 'corr-cap', at: T0,
+      }),
+    });
+    expect(seeded.status).toBe(200);
+    const pub = await capped.dispatchFetch('http://c/listings', {
+      method: 'POST', headers: authed,
+      body: JSON.stringify({
+        commandId: 'cmd-cap-l', listingId: 'lst-cap', storefrontId: 'sf-cap', resellerId: RID,
+        productVersionId: 'pv-dispatch-1', offerVersion: 'ov-dispatch-1', markup: 1_500,
+        correlationId: 'corr-cap', at: T0,
+      }),
+    });
+    expect(((await pub.json()) as { status?: string }).status).toBe('published');
+
+    for (let i = 0; i < 3; i += 1) {
+      const q = await capped.dispatchFetch('http://c/checkout/quote', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: 'cap-0001', pid: 'pv-dispatch-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+          attributionResellerId: RID, requestKey: `rk-cap-000${i}-${'x'.repeat(10)}`,
+        }),
+      });
+      const quoteId = ((await q.json()) as { quoteId: string }).quoteId;
+      await capped.dispatchFetch(`http://c/checkout/quote/${encodeURIComponent(quoteId)}/reserve`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commandId: `cmd-cap-r${i}`, holderRef: `holder-cap-${i}` }),
+      });
+      const o = await capped.dispatchFetch('http://c/checkout/order', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quoteId, holderRef: `holder-cap-${i}`, commandId: `cmd-cap-o${i}` }),
+      });
+      const amount = ((await o.json()) as { amountPaidAtCheckout: number }).amountPaidAtCheckout;
+      const orderId = `ord-${quoteId}`;
+      const ns = await capped.getDurableObjectNamespace('ORDER');
+      const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
+        attempts?: { attemptId: string }[];
+      };
+      const attemptId = audit.attempts![audit.attempts!.length - 1]!.attemptId;
+      const hook = await capped.dispatchFetch('http://c/checkout/webhook/payment', {
+        method: 'POST', headers: signed, body: JSON.stringify(webhookEvent(orderId, amount, attemptId)),
+      });
+      expect(hook.status).toBe(200);
+    }
+
+    const mint = await capped.dispatchFetch('http://c/reseller/code', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${OPS_SECRET}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resellerId: RID }),
+    });
+    const code = ((await mint.json()) as { code: string }).code;
+    const res = await capped.dispatchFetch('http://c/reseller/ventes', {
+      headers: { Authorization: `Bearer ${code}` },
+    });
+    const body = (await res.json()) as { ventes: Record<string, unknown>[]; incomplet: boolean };
+
+    // Exactly the cap — and every row that DID come back is a real, readable sale
+    expect(body.ventes.length, 'the cap must bound the fan-out').toBe(2);
+    for (const v of body.ventes) expect(v['resellerNet']).toBe(2_000);
+    // …and the truncation is DECLARED, not silently swallowed
+    expect(body.incomplet, 'a truncated feed must never claim to be complete').toBe(true);
+
+    await capped.dispose();
+    rmSync(persistT, { recursive: true, force: true });
   });
 });
