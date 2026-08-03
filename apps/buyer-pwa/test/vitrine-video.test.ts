@@ -182,7 +182,9 @@ describe('C1 — the product page frame plays the clip when there is one', () =>
     const html = renderC1({ ...base, videoRef: CLIP } as never, { epuise: false, sansVoix: true });
     const video = html.match(/<video[^>]*>/)?.[0];
     expect(video, 'no <video> on a clip-bearing product page').toBeDefined();
-    for (const attr of ['muted', 'playsinline', 'loop', 'preload="metadata"', `poster="${HERO}"`, `src="${CLIP}"`, 'data-role="video-hero"']) {
+    // `autoplay` FIRST: this screen mounts no scroll observer, so without it
+    // the element renders and never plays — the founder-reported silent no-op.
+    for (const attr of ['autoplay', 'muted', 'playsinline', 'loop', 'preload="metadata"', `poster="${HERO}"`, `src="${CLIP}"`, 'data-role="video-hero"']) {
       expect(video, attr).toContain(attr);
     }
     // the frame is STILL the gallery tap target — the clip took nothing away

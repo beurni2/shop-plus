@@ -2937,3 +2937,19 @@ Founder, after seeing it work à la une: « I want it to be on other products to
 3. Only then is `expo-preview.yml` (the OTA channel) safe to dispatch again.
 
 **Until then:** « opportunités » and « ma vitrine » show PHOTOGRAPHS. Nothing is broken — `ProductClip` is not in that binary at all; the wire already carries `videoRef` and simply goes unused. Every other surface (buyer vitrine, buyer product page, Boutik+ « Mes produits ») is live and playing clips.
+
+### VIDEO-C1-AUTOPLAY — the buyer's product page rendered the clip and never played it (founder-reported)
+
+**Founder, 2026-08-03: « On the buyer's pwa I meant this. The video is not playing here » — then, decisively: « the bouteille has a video, i checked in mes produits et ma boutique ».** He was right, and the bug was mine.
+
+**The cause, exactly.** C1's `<video>` carried the whole honesty kit — `muted playsinline loop preload="metadata"` + the photograph as poster — and **no `autoplay`**. On the vitrine that is correct: clips there are started by `mountVideoScroll`'s IntersectionObserver, which pauses every sibling so at most one clip ever plays. But `grep -rn "mountVideoScroll"` finds exactly two sites — the import and `vitrine/flows.ts:239`. **That observer is mounted by the VITRINE flow only, and the product page is the CLIENTE flow.** So the element rendered perfectly, was never told to play, and displayed its poster: the hero photograph — pixel-identical to the old `<img>`. Nothing threw, nothing logged, every test stayed green. **A silent no-op, visible only on a real device — which is why the founder found it and the suite did not.**
+
+**The fix is one attribute, and the reasoning for it is now in the file:** `autoplay` on the C1 element. `muted` + `playsinline` are what make autoplay PERMITTED at all (iOS refuses unmuted, and refuses inline video that implies fullscreen). This page holds ONE clip, above the fold, on the product the buyer deliberately opened — so it plays on arrival rather than waiting for a scroll that may never happen. **The 1GB-Android promise is unchanged:** one clip, `preload="metadata"` (bytes flow on play, not on render), poster first paint. `data-role="video-hero"` stays, so if this screen ever mounts the observer the element is already a legitimate target.
+
+**Why the pin did not catch it, and what changed.** The C1 test asserted the attribute kit — and `autoplay` was simply not in the list, because I wrote the list from the vitrine's kit where the observer supplies the play. The pin now **leads with `'autoplay'`** and says in a comment why it is first: this screen mounts no observer, so without it the element renders and never plays.
+
+**MUTATION-VERIFIED:** removing `autoplay` from `screens.ts` ⇒ **1 failed | 12 passed**; restored ⇒ 13/13. The pin fails for the real reason, not incidentally.
+
+**Evidence:** `vitrine-video.test.ts` **13/13** · buyer-pwa **834/834** · `tsc --noEmit` exit 0 · **gates board exit 0, ALL GATES GREEN** (`grep -c "GATE FAILED"` = 0 over the whole log).
+
+**Scope:** buyer PWA only. No service, no wire, no canon — `pwa-preview.yml` is the only deploy this needs.

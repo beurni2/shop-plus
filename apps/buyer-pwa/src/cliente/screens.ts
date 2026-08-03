@@ -400,16 +400,29 @@ function photoFrame(m: ClienteProduit, out: boolean): string {
     // photo is discoverable rather than secret. Sans photo: no affordance.
     const count = m.assetRefs.filter((r) => r !== '').length;
     // VIDEO-PARTOUT — a product with a clip plays it IN the frame, with the
-    // photograph as poster so a slow connection still sees the product at once
-    // and the clip's bytes flow only when it plays. Same honesty kit as the
-    // vitrine card (muted · playsinline · loop · metadata-only) and the same
-    // `data-role`, so the existing scroll observer adopts it with no wiring.
+    // photograph as poster so a slow connection still sees the product at once.
+    //
+    // `autoplay` IS LOAD-BEARING HERE, and its absence was a real founder-
+    // reported bug (2026-08-03: « the video is not playing » on this screen).
+    // The vitrine's clips are started by `mountVideoScroll`'s observer — but
+    // that observer is mounted by the VITRINE flow only, and this is the
+    // CLIENTE flow. With no autoplay and no observer the element rendered
+    // perfectly and simply never played, showing its poster: the hero
+    // photograph, visually identical to the old <img>. A silent no-op is the
+    // worst kind of failure, and only a live device could show it.
+    //
+    // `muted` + `playsinline` are what make autoplay PERMITTED (iOS refuses
+    // both unmuted and fullscreen-implying inline video). This page holds ONE
+    // clip, above the fold, on the product the buyer chose to open — so it
+    // plays on arrival rather than waiting for a scroll that may never come.
+    // The `data-role` stays: if this screen ever mounts the observer, the
+    // element is already a legitimate target.
     // The frame stays the SAME tap target onto the gallery — the clip does not
     // steal the photographs' affordance; « PHOTO RÉELLE » still describes them.
     const clip = m.videoRef !== undefined && m.videoRef !== '' ? m.videoRef : undefined;
     const art =
       clip !== undefined
-        ? `<video class="cl-photo-img" data-role="video-hero" src="${esc(clip)}" poster="${esc(src)}" muted playsinline loop preload="metadata"></video>`
+        ? `<video class="cl-photo-img" data-role="video-hero" src="${esc(clip)}" poster="${esc(src)}" autoplay muted playsinline loop preload="metadata"></video>`
         : `<img class="cl-photo-img" src="${esc(src)}" alt="" decoding="async">`;
     return [
       `<div class="cl-photo" data-role="photo-reelle" data-action="photo-galerie" role="button" tabindex="0" aria-label="Voir les photos">`,
