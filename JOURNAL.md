@@ -3166,3 +3166,33 @@ New catalog key `vitrine.personnaliser` (« Personnaliser », selling/label), in
 Nothing invented, nothing half-wired, no placeholder row faking a note. **Waiting on him for the field; the other two follow it.**
 
 **Scope:** reseller app only — no service, no wire, no canon. Pure JS, ships over the air.
+
+### VOIX-PRODUIT + APERÇU EN-TÊTE — the audio line wired end to end, and the preview he designed
+
+**Founder, 2026-08-03, two orders:** « 1 - build the audio line end to end. 2 on the en-tête preview build it with the RN webview ».
+
+**THE §7 STOP HE ANSWERED.** I reported that finishing the audio line needs one additive field on `StorefrontSchema` and that a `contracts/` change is his call, not mine. « Build the audio line end to end » **is** that authorization, and it is logged as one — **canon v3.5.0, `productNotes`**, additive and defaulted, on the ENTETES-B precedent.
+
+**MY OWN REPORT WAS WRONG IN TWO PLACES, and I found out by reading the code instead of the comments.** I told him three parts were missing — capture, storage, wire. In fact **the media service already had a `voice` kind** (per-product pid, magic-byte audio sniff, 4 MB / 60 s bounds, review off) and **`voice-capture.ts` had been the screen's real expo-audio recorder for some time**. What misled me was `voice.ts`'s own banner, still saying « capture is DEMO-FED » long after it stopped being true. **I quoted a stale comment to the founder as current fact.** The banner is corrected and says why; a comment describing a former state is worse than no comment.
+
+**WHAT WAS ACTUALLY MISSING was the POINTER WRITE.** `handleMediaUpload` pointed cover and avatar at the storefront and **left `voice` out** — which is precisely the « stored but unpointed » defect described in the comment directly above it. Bytes reached R2, nothing on the shop referenced them, and the buyer honestly rendered nothing. **That is why he could not find where to tap.** Also missing: the DO route, the projection, the buyer parse, and the app-side upload call.
+
+**A PRODUCTION BREAK THE TESTS CAUGHT, and it would have been the worst kind.** `Object.entries(sf.productNotes)` throws on a storefront written before this deploy — canon defaults on PARSE, but DO storage holds a plain object that never re-parses on read. That is **a 500 on `GET /s/{slug}` for every existing shop**, over a feature none of them use. `?? {}`, pinned, and mutation-verified: removing it fails the new test with that exact TypeError.
+
+**THE PIN TRAP, HIT AND CAUGHT.** `pnpm-workspace.yaml`'s `overrides` is the real canon pin — its own comment says so and records boutik-plus hitting this before. Editing four package.json files installed nothing; `pnpm install` reported success while contracts stayed 3.4.0. The law in that comment is the one that saved it: **verify the INSTALLED package, not the manifest.**
+
+**« ready » IS UNREACHABLE FROM THE PHONE, by construction.** `readyNote(notes, pid, url)` takes the service's address as a REQUIRED argument, so no sequence of taps can produce the buyer-visible state. A failed upload returns the note to `recorded` rather than leaving it « pending » forever — there is no retry queue here, and a note that will never publish described as on its way is the queued-means-done lie told slowly. The old pin « the reducer never emits ready » was **evolved, not deleted**: its title would have become a lie, and the claim that still matters (she cannot publish herself into « en ligne ») is what it now asserts.
+
+**APERÇU EN-TÊTE — his flow, his call on the cost.** Tap a style → a sheet slides up showing **her own live page** in that header via `?entete=` → « Appliquer » or slide it down. **I pushed back on « this doesn't need eas build » and he overrode it**: `react-native-webview` is native, so the sheet is dark until the next build. I offered the OTA alternative (43 rendered screenshots, a representative shop rather than his own) and he chose fidelity over immediacy. Logged as a founder override.
+
+**THE GUARD IS THE PART THAT MATTERS.** `screens.tsx` imports the sheet at the top level, so a static native import would have taken **the whole Personnaliser flow dead on launch**, over the air, on a phone that was working. Guarded runtime require, decided once at module scope — the same cure `product-clip.tsx` applied to expo-video, applied before it could bite.
+
+**LOOKING IS NO LONGER APPLYING**, which is a safety fix as much as a flow one: the old grid wrote to her live shop on every tap, so browsing 43 styles meant 43 writes visible to any client watching.
+
+**Also corrected while there:** I told him « eleven headers ». It is **43 pickable**, and **10 of them** (`cristal, masque, couture, prisme, pop, neon, perle, graffiti, dunda, bronze`) have **no render unit** and draw `classique`. The real preview will show him that honestly.
+
+**Evidence:** contracts **181/181** · storefront-service **461/461** · buyer-pwa **855/855** · reseller-app **471/471** · every `tsc --noEmit` exit 0 · **both gates boards exit 0, ALL GREEN, zero `GATE FAILED`**. Mutation-verified: 1 on the migration, 3 on the voice reducers, 4 on the preview sheet — each fails with the mutation, passes restored.
+
+**Three gates caught me and were right:** the SP-I03 buyer-surface allowlist (a new field must be admitted deliberately, in two files), the dependency allowlist (a new native dep must be named with its reason — the non-expo entries are now enumerated rather than prefix-matched), and the copy-lint (« vérifiez votre connexion » at 2.50 syllables/word against the 2.4 status budget; « votre réseau » now). **A fourth was my own control assertion** from this morning, which caught a slice-based pin going empty when I moved `EnteteApercu` to its own module.
+
+**NOT MERGED, NOT DEPLOYED — awaiting his go-ahead.** Order when it comes: canon to main first (fast-forward keeps sha `18e5cfe`, which the app pins), then shop-plus, then the storefront-service deploy, then the PWA. The reseller sheet needs his `eas build` and nothing else does.
