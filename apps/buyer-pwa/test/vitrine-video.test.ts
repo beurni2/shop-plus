@@ -18,18 +18,11 @@ import { productFromWireForTest } from '../src/vitrine/profile';
  * short video to be the hero card and will start playing a preview when a
  * client/viewer scrolls and pause on that. »
  *
- * ORDER WIDENED 2026-08-03: « I want the video to be displayed on any product
- * if it has one not just a la une product. » So the pin below flipped — EVERY
- * in-stock card carrying a clip is a `<video>`, hero or grid. The 1GB-Android
- * promise is kept by the OBSERVER (at most one clip plays at a time) and by
- * `preload="metadata"` + poster, not by refusing the element.
- *
- * What must hold: a product WITH a clip renders as a `<video>` — muted (the
- * only autoplay that respects anyone), playsinline, loop, `preload="metadata"`,
- * the hero PHOTO as poster; a product without one renders the photo card
- * byte-for-byte as before; an ÉPUISÉ tile stays a photograph (veiled, muette —
- * a clip playing under the stamp advertises what cannot be bought); and the
- * scroll rule is pure and pinned.
+ * What must hold: a product WITH a clip renders the featured card as a
+ * `<video>` — muted (the only autoplay that respects anyone), playsinline,
+ * loop, `preload="metadata"`, the hero PHOTO as poster; a product without one
+ * renders the photo card byte-for-byte as before; the grid tiles NEVER become
+ * videos; and the scroll rule is pure and pinned.
  */
 
 const SF = {
@@ -63,35 +56,11 @@ describe('the featured card IS the video hero when a clip exists', () => {
     }
   });
 
-  it('EVERY card with a clip — hero AND grid (founder order 2026-08-03)', () => {
+  it('ONLY the featured card — the grid tiles stay photographs (a page of videos is a stutter on 1GB)', () => {
     const html = ready(CLIP);
-    // pv-1 is featured, pv-2 renders in the grid; both carry a clip, so both
-    // are videos. The old build stopped at 1 — this is the pin that flipped.
-    expect(html.split('<video').length - 1).toBe(2);
-    // and each one is a REAL observer target, not decoration
-    expect(html.split('data-role="video-hero"').length - 1).toBe(2);
-  });
-
-  it('a MIXED shop renders each product as what it actually has', () => {
-    // pv-1 with a clip, pv-2 without: one video, one photo — never the clip
-    // borrowed onto the neighbour, never a photo hiding an existing clip.
-    const mixed = [
-      { pid: 'pv-1', name: 'Bazin riche', priceFcfa: 9_400, inStock: true, assetRefs: [HERO], videoRef: CLIP },
-      { pid: 'pv-2', name: 'Pagne tissé', priceFcfa: 7_000, inStock: true, assetRefs: [HERO] },
-    ];
-    const html = renderVitrineReady(SF as never, TRUST as never, {} as never, {}, mixed as never, 'classique');
+    // pv-1 is featured (video); pv-2 renders in the grid and must stay an <img>.
     expect(html.split('<video').length - 1).toBe(1);
-    expect(html).toContain('data-role="tile-photo"'); // the clip-less one stays a photograph
-  });
-
-  it('an ÉPUISÉ tile stays a photograph even when the product has a clip', () => {
-    const epuise = [
-      { pid: 'pv-1', name: 'Bazin riche', priceFcfa: 9_400, inStock: true, assetRefs: [HERO], videoRef: CLIP },
-      { pid: 'pv-2', name: 'Pagne tissé', priceFcfa: 7_000, inStock: false, assetRefs: [HERO], videoRef: CLIP },
-    ];
-    const html = renderVitrineReady(SF as never, TRUST as never, {} as never, {}, epuise as never, 'classique');
-    expect(html.split('<video').length - 1).toBe(1); // the hero only; the sold-out tile is veiled
-    expect(html).toContain('vt-tile-epuise');
+    expect(html).toContain('vt-tile-photo'); // the grid tile's photo class survives
   });
 
   it('no clip ⇒ the photo card, byte-for-byte as before — and no <video> anywhere', () => {
