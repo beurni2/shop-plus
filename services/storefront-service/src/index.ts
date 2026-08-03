@@ -129,6 +129,34 @@ async function handleMediaUpload(request: Request, env?: StorefrontServiceEnv): 
       return Response.json({ service: SERVICE_NAME, error: reason }, { status: 502 });
     }
   }
+  // ═══ VOIX-PRODUIT — THE SAME LAW, FOR THE NOTE ═══
+  //
+  // The block above pointed cover and avatar and left `voice` out, which is
+  // EXACTLY the « stored but unpointed » defect its own comment describes: the
+  // bytes reached R2, nothing on the storefront referenced them, and the buyer
+  // correctly rendered nothing. That is why the founder could not find where to
+  // tap — the app was telling the truth about a note that existed nowhere.
+  //
+  // A note needs its PID: without it the service would know a shop has audio
+  // but not which product it is about, so an upload with no pid is refused
+  // rather than pointed at a guess.
+  if (r.kind === 'voice' && r.status === 'live' && env?.STOREFRONT_DO) {
+    if (pidParam === null || pidParam === '') {
+      return Response.json({ service: SERVICE_NAME, error: 'pid_required' }, { status: 400 });
+    }
+    const pointed = await env.STOREFRONT_DO.fetch(
+      new Request(`https://do/storefronts/${encodeURIComponent(storefrontId)}/voice`, {
+        method: 'POST',
+        body: JSON.stringify({ pid: pidParam, url: r.url, durationMs: r.durationMs ?? 0, at: new Date().toISOString() }),
+      }),
+    ).catch(() => null);
+    if (pointed === null || !pointed.ok) {
+      // Same known residue as the photo path: the bytes are in R2 and nothing
+      // now references them. Named, not discovered from a bill.
+      const reason = pointed === null ? 'storefront_unreachable' : pointed.status === 404 ? 'storefront_absent' : 'not_pointed';
+      return Response.json({ service: SERVICE_NAME, error: reason }, { status: 502 });
+    }
+  }
   return Response.json(
     { service: SERVICE_NAME, kind: r.kind, status: r.status, url: r.url, width: r.width, height: r.height, durationMs: r.durationMs },
     { status: 201 },

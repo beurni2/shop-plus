@@ -4,6 +4,7 @@ import {
   decideDelete,
   decideSaveIdentity,
   decideSetMedia,
+  decideSetVoiceNote,
   decideToggle,
   type CreateDecision,
   type CreateStorefrontCommand,
@@ -136,6 +137,32 @@ export class StorefrontDO {
       if (next) await this.state.storage.put(ENTRY_KEY, next);
       const mediaStatus = decision.status === 'absent' ? 404 : decision.status === 'refused' ? 422 : 200;
       return Response.json(decision, { status: mediaStatus });
+    }
+    // VOIX-PRODUIT — the same law, one field over: the service writes the note's
+    // address onto her shop the moment it holds the bytes. Kept apart from
+    // `/entry/media` because the body is a different shape (pid + durationMs)
+    // and a shared route would have to guess which half of it is required.
+    if (request.method === 'POST' && pathname === '/entry/voice') {
+      let body: { pid?: string; url?: string; durationMs?: number; at?: string };
+      try {
+        body = (await request.json()) as { pid?: string; url?: string; durationMs?: number; at?: string };
+      } catch {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      if (typeof body.pid !== 'string' || typeof body.url !== 'string' || body.url === '' || typeof body.durationMs !== 'number') {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      const current = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
+      const { decision, next } = decideSetVoiceNote(
+        current,
+        body.pid,
+        body.url,
+        body.durationMs,
+        body.at ?? new Date().toISOString(),
+      );
+      if (next) await this.state.storage.put(ENTRY_KEY, next);
+      const voiceStatus = decision.status === 'absent' ? 404 : decision.status === 'refused' ? 422 : 200;
+      return Response.json(decision, { status: voiceStatus });
     }
     if (request.method === 'GET' && pathname === '/entry') {
       const entry = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
@@ -314,6 +341,14 @@ export default {
       const id = decodeURIComponent(m[1]!);
       const body = await request.clone().text();
       const res = await sfStub(env, id).fetch(new Request('https://do/entry/media', { method: 'POST', body }));
+      return forward(res);
+    }
+
+    m = /^\/storefronts\/([^/]+)\/voice$/.exec(pathname);
+    if (m && request.method === 'POST') {
+      const id = decodeURIComponent(m[1]!);
+      const body = await request.clone().text();
+      const res = await sfStub(env, id).fetch(new Request('https://do/entry/voice', { method: 'POST', body }));
       return forward(res);
     }
 

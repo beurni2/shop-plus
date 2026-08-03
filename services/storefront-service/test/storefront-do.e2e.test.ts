@@ -89,7 +89,8 @@ describe('StorefrontDO — the durable read path GET /s/{slug}, Shape C slug poi
       [
         'avatar', 'bio', 'category', 'cover', 'createdAt', 'curatedItems', 'discoverable',
         'featuredItems', 'headerStyle', // ENTETES-B — deliberately admitted: presentation, never economics
-        'id', 'name', 'resellerId', 'sections', 'slug', 'tagline', 'theme', 'updatedAt', 'zone',
+        'id', 'name', 'productNotes', // VOIX-PRODUIT — deliberately admitted: her recorded voice, ready-only, no economics
+        'resellerId', 'sections', 'slug', 'tagline', 'theme', 'updatedAt', 'zone',
       ].sort(),
     );
   });

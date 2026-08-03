@@ -500,6 +500,67 @@ export function decideSetMedia(
   return { decision: { status: 'set', storefront }, next: { ...current, storefront } };
 }
 
+/* ----------------------------------------------------- VOIX-PRODUIT ----- */
+
+export type SetVoiceNoteDecision =
+  | { readonly status: 'set'; readonly storefront: Storefront }
+  | { readonly status: 'absent' }
+  | { readonly status: 'refused'; readonly reason: 'url_not_absolute' | 'pid_blank' | 'duration_invalid' };
+
+/**
+ * HER VOICE NOTE ON ONE PRODUCT — written BY THE SERVICE, never by the app.
+ *
+ * Same law as the cover (PUBLISH-PRICE-1 applied to media): the app hands over
+ * BYTES; the address of what was stored is the service's to author. There is no
+ * patch field an app could use to claim a note it never uploaded.
+ *
+ * WHY A SECOND FUNCTION AND NOT AN OVERLOAD OF `decideSetMedia`: a voice note
+ * needs a `pid` and a `durationMs` that are meaningless for a cover, and it
+ * writes a different field. Threading two optional arguments through the photo
+ * path so one caller can ignore them would make both harder to read than
+ * keeping them apart.
+ *
+ * `ready`, NOT `pending`, AND THAT IS DELIBERATE. This is reachable only from a
+ * completed upload of sniffed, bounded, stored bytes, and `REQUIRES_REVIEW.voice`
+ * is false — exactly the condition under which a cover becomes `live`. `pending`
+ * is the PHONE's honest state while the bytes are in flight (loi 7: queued is
+ * pending, never done); once the service holds them and can address them, the
+ * note is playable and saying otherwise would be its own small lie.
+ *
+ * A RELATIVE URL IS REFUSED HERE, not merely avoided in config — the MEDIA-2
+ * lesson, applied to audio: React Native cannot resolve a relative URI and a
+ * browser resolves it against the wrong origin, so the record simply cannot
+ * hold an address a client is unable to fetch.
+ *
+ * REPLACEMENT IS THE ONLY UPDATE. Re-recording overwrites this pid's note; the
+ * other pids' notes are untouched by construction. There is no remove path
+ * here, and one is not faked — MEDIA-2's « Retirer la couverture » removed
+ * nothing and lied about it, and that is not repeated.
+ */
+export function decideSetVoiceNote(
+  current: StorefrontEntry | undefined,
+  pid: string,
+  url: string,
+  durationMs: number,
+  at: string,
+): { decision: SetVoiceNoteDecision; next?: StorefrontEntry } {
+  if (!current) return { decision: { status: 'absent' } };
+  if (pid.trim() === '') return { decision: { status: 'refused', reason: 'pid_blank' } };
+  if (!/^https?:\/\//.test(url)) {
+    return { decision: { status: 'refused', reason: 'url_not_absolute' } };
+  }
+  if (!Number.isInteger(durationMs) || durationMs < 0) {
+    return { decision: { status: 'refused', reason: 'duration_invalid' } };
+  }
+  const sf = current.storefront;
+  const storefront = StorefrontSchema.parse({
+    ...sf,
+    productNotes: { ...sf.productNotes, [pid]: { status: 'ready' as const, url, durationMs } },
+    updatedAt: at,
+  });
+  return { decision: { status: 'set', storefront }, next: { ...current, storefront } };
+}
+
 /* --------------------------------------------- STOREFRONT-DELETE-1 ------ */
 
 export type DeleteDecision =

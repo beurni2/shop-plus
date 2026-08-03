@@ -220,6 +220,16 @@ export interface StorefrontView {
   readonly curatedItems: readonly string[];
   readonly featuredItems: readonly string[];
   readonly sections: Storefront['sections'];
+  /**
+   * VOIX-PRODUIT — pid → her recorded note, READY ONES ONLY.
+   *
+   * A `pending` note is bytes in flight: it has no playable url, and shipping
+   * it would put a « Écouter la note » row on the buyer's screen with nothing
+   * behind it. The projection is where that is decided, not the browser — the
+   * buyer receives only what can actually be played, the same rule the media
+   * projection applies to a held photograph.
+   */
+  readonly productNotes: Readonly<Record<string, { readonly url: string; readonly durationMs: number }>>;
   readonly discoverable: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -242,6 +252,22 @@ export function toStorefrontView(sf: Storefront): StorefrontView {
     curatedItems: [...sf.curatedItems],
     featuredItems: [...sf.featuredItems],
     sections: sf.sections,
+    // READY + a real url, or the pid is not on the buyer's surface at all.
+    // Both halves are checked: canon lets `url` be absent while pending, so
+    // testing the status alone would let `undefined` through as a url.
+    //
+    // `?? {}` IS THE MIGRATION, AND IT IS LOAD-BEARING. Canon defaults this
+    // field on PARSE, but a storefront written before this deploy sits in DO
+    // storage as a plain object that never re-parses on read — so `productNotes`
+    // is genuinely `undefined` there, and `Object.entries(undefined)` THROWS.
+    // Without this, `GET /s/{slug}` would 500 for every shop that existed
+    // before today: the vitrine down for all of them, on a feature none of them
+    // use. The service tests caught it; it is not hypothetical.
+    productNotes: Object.fromEntries(
+      Object.entries(sf.productNotes ?? {})
+        .filter(([, n]) => n.status === 'ready' && typeof n.url === 'string' && n.url !== '')
+        .map(([pid, n]) => [pid, { url: n.url as string, durationMs: n.durationMs }]),
+    ),
     discoverable: sf.discoverable,
     createdAt: sf.createdAt,
     updatedAt: sf.updatedAt,

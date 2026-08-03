@@ -119,6 +119,10 @@ const AICHA_DEFAULT: Storefront = {
   discoverable: true,
   // ENTETES-B — jour 1: the shipped default header, exactly as canon backfills it
   headerStyle: 'classique',
+  // VOIX-PRODUIT — the canon default. The DEMO's own notes live in
+  // AICHA_VOICE_NOTES beside the profile, never on the storefront record, so
+  // this stays what canon backfills for a real shop: no note.
+  productNotes: {},
 };
 
 /** V2 — the customised variant (Indigo · cover · à la une · sections), §5 V2 exact. */
@@ -345,6 +349,32 @@ function sanitizeFocus<T extends { readonly focus?: unknown }>(part: T): T {
  * SAME honest not-found the flow renders as VitrineEtat 'invalid'; never a throw
  * up the mount path, never a neighbouring store.
  */
+/**
+ * VOIX-PRODUIT — the wire's `productNotes` turned into the shape the render
+ * already speaks, defensively.
+ *
+ * WHY A PARSER AND NOT A CAST: this is a network boundary. The buyer plays
+ * whatever url lands here, so a missing, blank or non-string url must drop the
+ * ENTRY — not reach an <audio> element that then fails silently and leaves her
+ * tapping a dead button. Everything that survives is `ready` WITH a real url,
+ * which is exactly what the existing render contract means by a playable note.
+ *
+ * `durationMs` is normalised rather than trusted: it drives « 0:08 », and a
+ * negative or fractional value would print nonsense next to a real recording.
+ */
+function notesFromWire(raw: unknown): ProductVoiceNotes {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, ProductVoiceNote> = {};
+  for (const [pid, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (pid === '' || value === null || typeof value !== 'object') continue;
+    const { url, durationMs } = value as { url?: unknown; durationMs?: unknown };
+    if (typeof url !== 'string' || url === '') continue;
+    const ms = typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs > 0 ? Math.floor(durationMs) : 0;
+    out[pid] = { status: 'ready', url, durationMs: ms };
+  }
+  return out;
+}
+
 export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
   const base = baseUrl.replace(/\/+$/, '');
   return {
@@ -376,8 +406,17 @@ export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
         ...(rawCover !== null && typeof rawCover === 'object' ? { cover: sanitizeFocus(rawCover as Storefront['cover']) } : {}),
         ...(rawAvatar !== null && typeof rawAvatar === 'object' ? { avatar: sanitizeFocus(rawAvatar as Storefront['avatar']) } : {}),
       };
-      // REAL storefront → ABSENT trust, NO notes. Never another reseller's proof.
-      return { storefront, trust: ABSENT_TRUST, notes: {}, ...(products !== undefined ? { products } : {}) };
+      // VOIX-PRODUIT — HER OWN notes now arrive on the wire, so the `{}` that
+      // BUYER-REAL-HONESTY-1 put here is replaced by the real thing rather than
+      // relaxed. The honesty rule it enforced is UNCHANGED and is what this
+      // parser keeps: a note is rendered only if it is THIS shop's and playable.
+      // The service already ships ready-only, so this is the second line —
+      // network boundary, hostile shape, same discipline as `products`.
+      // TRUST STAYS ABSENT: no producer for it exists server-side, and borrowing
+      // another reseller's deliveries is the very defect that rule was written
+      // for. Only the notes half is filled in.
+      const notes = notesFromWire((view as { productNotes?: unknown }).productNotes);
+      return { storefront, trust: ABSENT_TRUST, notes, ...(products !== undefined ? { products } : {}) };
     },
   };
 }
