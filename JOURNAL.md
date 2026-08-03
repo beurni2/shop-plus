@@ -2888,3 +2888,15 @@ Full six-run provenance, including boutik's media/offer/web deploys, is recorded
 **STILL OPEN (his live report, not yet explained):** he published a product with a clip and the hero card rendered a PHOTOGRAPH. Not reproduced here — every unit on both sides of the wire passes. The decisive next reading is the PUBLIC vitrine JSON (`/s/{slug}`): `videoRef` present ⇒ the wire is fine and the app was stale or the render is at fault; absent ⇒ the clip never reached the projection (upload refused at publish, or `assets.video` never welded). Journalled rather than guessed.
 
 **COUNTERMANDED same day, reverted before any merge.** Founder: « I said video should play only from the hero card not on any card. » (His earlier message this session read « I want the video to be displayed on any product if it has one not just a la une product » — both quoted here so the record carries both; the later order stands.) Commit `0db860c` reverted verbatim: `featuredArt` hero-only again, grid tiles photographs, the « ONLY the featured card » pin restored. Nothing had merged or deployed. vitrine-video 8/8, tsc clean.
+
+### RE-ORDERED 2026-08-03 (third and standing): the clip plays on EVERY product card
+
+Founder, after seeing it work à la une: « I want it to be on other products too whether it's the a la une product or not if a product has a video on it, i want it to be showing as well. And I want the video to be showing on opportunités, on ma vitrine and on the buyer's pwa as well and on produits from my boutik+ as well. » This supersedes the hero-only countermand; `b15d493` is reverted and the every-card build (`0db860c`) stands. Buyer vitrine: DONE, 831/831.
+
+**THE END-TO-END WIRE IS PROVEN LIVE** — the founder pinned a clip-bearing product « à la une » on `chezaichamod-1869` and the video played. So capture → upload → weld → projection → shop intake → buyer render all work. My earlier reading (« the clip was lost at publish ») was WRONG and is corrected here: the product he was checking had simply never been added to that vitrine (its `updatedAt` predated the video feature).
+
+**BLOCKER FOUND, founder decision needed — the reseller app cannot play video today.** `apps/reseller-app` is React Native and has NO video dependency (`expo-av`/`expo-video` absent from package.json). « Opportunités » and « ma vitrine » live there. Adding a native media module changes the native runtime, so those two surfaces cannot ship as an EAS over-the-air update — they need a new build. Flagged rather than silently added.
+
+**Second gap on the same path:** `handleSupplyCollection` (the opportunités wire) allowlists `productName` + `assetRefs` and carries NO `videoRef`; when added it must be absolutized through `PRODUCT_MEDIA_BASE` exactly as the photos are, or the relative ref reaches a phone that cannot resolve it.
+
+**Remaining, no blocker:** buyer product page C1 (`ClienteProduit` needs `videoRef` threaded) · Boutik+ « Mes produits » (`SupplierOfferRow` carries no video field; the listing surface is a webapp, so a real `<video>` works there).

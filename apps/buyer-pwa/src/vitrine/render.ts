@@ -291,7 +291,7 @@ function tile(p: VitrineProduct, note?: ProductVoiceNote): string {
   // as unmeasured, reaffirmed, rendered as given.
   return [
     `<button class="${cls}" data-role="vitrine-produit" ${attrs}>`,
-    `<div class="vt-artwrap">${tileArt(!p.inStock, p.assetRefs)}${p.inStock ? fav(p.pid) : ''}</div>`,
+    `<div class="vt-artwrap">${produitArt(p, !p.inStock)}${p.inStock ? fav(p.pid) : ''}</div>`,
     '<div class="vt-tile-body">',
     `<div class="vt-tile-name"><v>${esc(p.name)}</v></div>`,
     '<div class="vt-tile-pricerow">',
@@ -323,13 +323,24 @@ function tile(p: VitrineProduct, note?: ProductVoiceNote): string {
  * `loop`, `preload="metadata"` with the HERO PHOTOGRAPH as poster — so a slow
  * connection sees the photo instantly and the clip's bytes flow only when it
  * actually plays. Play/pause on scroll is `video-scroll.ts`'s observer; this
- * function only DECLARES the element. The GRID tiles deliberately stay
- * photographs: a page of autoplaying videos on a 1GB Android is a stutter,
- * and the founder named the HERO card.
+ * function only DECLARES the element.
+ *
+ * EVERY CARD, NOT ONLY THE HERO (founder order 2026-08-03: « I want the video
+ * to be displayed on any product if it has one not just a la une product »).
+ * The first cut kept grid tiles as photographs because a page of autoplaying
+ * clips on a 1GB Android is a stutter. That concern is answered by the
+ * observer, not by the markup: `video-scroll.ts` plays AT MOST ONE clip at a
+ * time (starting one pauses every sibling) and every element is
+ * `preload="metadata"` with the photograph as poster — so an unplayed card
+ * costs a poster image, exactly what it cost as a photo tile. What the founder
+ * asked for and what the phone can carry are the same build.
+ *
+ * ÉPUISÉ TILES STAY PHOTOGRAPHS: a sold-out tile is veiled and muette, and a
+ * clip playing under a « épuisé » stamp advertises what cannot be bought.
  */
-function featuredArt(p: VitrineProduct): string {
+function produitArt(p: VitrineProduct, veiled: boolean): string {
   const clip = p.videoRef;
-  if (clip !== undefined && clip !== '') {
+  if (!veiled && clip !== undefined && clip !== '') {
     const poster = p.assetRefs[0];
     return [
       '<div class="vt-tile-art vt-tile-art-photo" data-role="tile-video">',
@@ -337,7 +348,11 @@ function featuredArt(p: VitrineProduct): string {
       '</div>',
     ].join('');
   }
-  return tileArt(false, p.assetRefs);
+  return tileArt(veiled, p.assetRefs);
+}
+
+function featuredArt(p: VitrineProduct): string {
+  return produitArt(p, false); // the hero is never an épuisé (auto-retrait)
 }
 
 function featuredTile(p: VitrineProduct, note?: ProductVoiceNote, pinnedByHer = true): string {
