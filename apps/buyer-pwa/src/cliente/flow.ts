@@ -23,6 +23,7 @@ import { applyTheme, type VitrineThemeKey } from '../vitrine/themes';
 import {
   renderC1, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
   renderGalerie, renderOffline, renderRefus, renderSheet, renderSkeleton, renderToasts,
+  galerieSlides,
   splitFor, MESSAGES, SUIVI_STEPS,
   type ClienteProduit, type ClienteQuote, type ConfirmEtat, type DoorEtat,
   type Livraison, type ModePaiement, type VoiceEtat,
@@ -799,7 +800,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       case 'galerie-precedente':
         state.galerie = Math.max(0, (state.galerie ?? 0) - 1); render(); return;
       case 'galerie-suivante':
-        state.galerie = Math.min(Math.max(0, m.assetRefs.filter((r) => r !== '').length - 1), (state.galerie ?? 0) + 1);
+        // THE BOUND COUNTS SLIDES, NOT PHOTOGRAPHS. It used to count
+        // `assetRefs` alone; once the clip became slide 0 that was one short,
+        // and the LAST PHOTO became unreachable — a silent off-by-one that no
+        // amount of tapping would reveal as a bug, only as a missing photo.
+        state.galerie = Math.min(Math.max(0, galerieSlides(m).length - 1), (state.galerie ?? 0) + 1);
         render(); return;
       case 'fermer-protections':
       case 'fermer-protections-cta':

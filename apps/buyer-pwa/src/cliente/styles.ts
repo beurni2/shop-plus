@@ -1,9 +1,9 @@
 /**
  * PWA CLIENTE — the stylesheet (HANDOFF Indigo §1 tokens · §2 components ·
- * §4 anatomies · §5 motion), pixel-for-pixel to `docs/PWA Cliente -
- * Redesign.dc.html`. Every hex/px/radius/shadow is the pixel source's exact
+ * §4 anatomies · §5 motion), pixel-for-pixel to "docs/PWA Cliente -
+ * Redesign.dc.html". Every hex/px/radius/shadow is the pixel source's exact
  * byte. θ-parametric properties (§1.2 « qui consomme θ » — 47 accent sites)
- * read the `--vt-*` custom properties `applyTheme` sets on the container, so
+ * read the "--vt-*" custom properties "applyTheme" sets on the container, so
  * the four habillages drive the whole flow the way the vitrine does — one
  * property flip, repaint, no reflow. Indigo is the themeless fallback (flow.ts).
  *
@@ -15,8 +15,8 @@
  * keep #F8E1DE / #7E1A15 / #8C1D18 / #C4574B / #D9A49C under every habillage
  * (gate-locked by the e2e; never ghost, never themed).
  *
- * θ.on at alpha uses `color-mix` (the vitrine/achat precedent — `--vt-on` is a
- * hex); θ shadows use `rgba(var(--vt-sh), a)` (`--vt-sh` is the rgb triplet).
+ * θ.on at alpha uses "color-mix" (the vitrine/achat precedent — "--vt-on" is a
+ * hex); θ shadows use "rgba(var(--vt-sh), a)" ("--vt-sh" is the rgb triplet).
  */
 
 export const CLIENTE_STYLES = `
@@ -138,7 +138,31 @@ export const CLIENTE_STYLES = `
   /* ══ C1 — photo sable + ticks encre ══ */
   /* REAL-PRODUCT-RENDER-1 — la PHOTO réelle remplit le cadre ; sans photo, le
      même tissage ornemental que les tuiles, dérivé de l'habillage. */
-  .cl-photo-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* CADRE-C1 (founder order 2026-08-03: « the square frame there on that screen
+     is cropping part of images, drop the square rule on that screen as well »).
+
+     The media is now IN FLOW and sets the frame's height from its own real
+     proportions — "position: absolute; inset: 0" inside a fixed 238px box is
+     exactly what beheaded his portrait photographs. Bounded so one panorama
+     cannot make a sliver and one full-length shot cannot fill the screen; inside
+     those bounds nothing is trimmed at all, which is the point of the order.
+
+     "z-index: 1" IS LOAD-BEARING. ".cl-photo-caps" is an in-flow flex child that
+     the absolutely-positioned media used to paint over — that is why « PHOTO
+     RÉELLE DU PRODUIT » is not visible on a card that has a photo. Now that the
+     media is in flow, the caption is pushed OUT of flow (below) and the media
+     is lifted above it, so the frame looks exactly as it did. Without this the
+     caption would suddenly appear across his product photo. */
+  .cl-photo-img {
+    position: relative; z-index: 1;
+    width: 100%; height: auto; min-height: 200px; max-height: 70vh;
+    object-fit: cover; display: block;
+  }
+  /* …and the caption goes under the media rather than beneath it in flow. */
+  .cl-photo[data-role="photo-reelle"] .cl-photo-caps { position: absolute; z-index: 0; }
+  /* The overlays must clear the lifted media: ticks, count and the épuisé veil
+     all sat above it purely by DOM order before, which "z-index: 1" broke. */
+  .cl-photo .cl-tick, .cl-photo-count, .cl-photo-veil { z-index: 2; }
   .cl-photo-sansphoto { background: var(--vt-soft, #F1E7D3); }
   .cl-weave {
     position: absolute; inset: 0; width: 100%; height: 100%;
@@ -153,8 +177,12 @@ export const CLIENTE_STYLES = `
         rgba(0,0,0,0) 9px, rgba(0,0,0,0) 22px);
   }
   .cl-photo-sansphoto .cl-photo-caps { position: relative; }
+  /* CADRE-C1 — "height: 238px" REMOVED. It cropped every photograph that was
+     not that shape, which is precisely the founder's report. The frame now
+     takes the media's height; "min-height" keeps the SANS-PHOTO state (which
+     has no media to measure) at exactly the box it always had. */
   .cl-photo {
-    margin-top: 14px; position: relative; height: 238px; border-radius: 22px; overflow: hidden;
+    margin-top: 14px; position: relative; min-height: 238px; border-radius: 22px; overflow: hidden;
     background: #F1E7D3; border: 1px solid #EDE4D3;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px;
     box-shadow: 0 16px 36px -18px rgba(28,22,15,.3);

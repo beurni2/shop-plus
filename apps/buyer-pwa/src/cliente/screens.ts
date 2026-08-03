@@ -1718,22 +1718,57 @@ export function renderSheet(): string {
  * « Précédente / Suivante » at the ends disabled (no wrap — she always knows
  * where she is) and the « {n} sur {N} » counter. One close action.
  */
-export function renderGalerie(m: ClienteProduit, idx: number): string {
+/**
+ * THE SLIDES, in order — the CLIP FIRST when there is one, then every capture.
+ *
+ * FOUNDER REPORT 2026-08-03: « the video is previewing but when I tap to view
+ * entirely it becomes a photo and I do not see the video. » Exactly right, and
+ * the cause was here: this gallery was built from `assetRefs` alone, so tapping
+ * the PLAYING clip opened a viewer that had never heard of it and landed on the
+ * hero photograph. The clip was the one thing the tap promised and the one
+ * thing the gallery could not show.
+ *
+ * THE CLIP LEADS because it is what the buyer just tapped — arriving on slide 2
+ * to hunt for it would be its own small betrayal. The photographs keep their
+ * order behind it, so « n sur N » still counts the same captures plus the clip,
+ * and no new word appears on screen: the counter already says everything.
+ *
+ * Exported for the pins: a viewer's slide list is worth asserting directly.
+ */
+export function galerieSlides(m: ClienteProduit): readonly { readonly kind: 'clip' | 'photo'; readonly src: string }[] {
   const refs = m.assetRefs.filter((r) => r !== '');
-  const shown = Math.min(Math.max(idx, 0), Math.max(0, refs.length - 1));
-  const src = refs[shown];
-  if (src === undefined) return '';
+  const clip = m.videoRef !== undefined && m.videoRef !== '' ? m.videoRef : undefined;
+  return [
+    ...(clip !== undefined ? [{ kind: 'clip' as const, src: clip }] : []),
+    ...refs.map((src) => ({ kind: 'photo' as const, src })),
+  ];
+}
+
+export function renderGalerie(m: ClienteProduit, idx: number): string {
+  const slides = galerieSlides(m);
+  const shown = Math.min(Math.max(idx, 0), Math.max(0, slides.length - 1));
+  const slide = slides[shown];
+  if (slide === undefined) return '';
+  // The clip gets CONTROLS here and nowhere else: this is the full view the
+  // buyer asked for by tapping, so she may scrub, pause, and unmute — the card
+  // preview stays a silent, controlless loop. Still muted on arrival, because
+  // that is what lets it start playing at all, and sound in a market should be
+  // her decision rather than a surprise.
+  const scene =
+    slide.kind === 'clip'
+      ? `<video class="cl-galerie-img" data-role="galerie-video" src="${esc(slide.src)}" controls autoplay muted playsinline loop preload="metadata"></video>`
+      : `<img class="cl-galerie-img" src="${esc(slide.src)}" alt="" decoding="async">`;
   return [
     '<div class="cl-galerie" data-role="galerie" role="dialog" aria-label="Photos du produit">',
     '<div class="cl-galerie-top">',
     `<span class="cl-galerie-titre">${esc(m.productName)}</span>`,
     '<button class="cl-galerie-fermer" data-action="galerie-fermer">Fermer</button>',
     '</div>',
-    `<div class="cl-galerie-scene"><img class="cl-galerie-img" src="${esc(src)}" alt="" decoding="async"></div>`,
+    `<div class="cl-galerie-scene">${scene}</div>`,
     '<div class="cl-galerie-bas">',
     `<button class="cl-galerie-nav" data-action="galerie-precedente"${shown === 0 ? ' disabled' : ''}>‹ Précédente</button>`,
-    `<span class="cl-galerie-compteur" data-role="galerie-compteur">${shown + 1} sur ${refs.length}</span>`,
-    `<button class="cl-galerie-nav" data-action="galerie-suivante"${shown === refs.length - 1 ? ' disabled' : ''}>Suivante ›</button>`,
+    `<span class="cl-galerie-compteur" data-role="galerie-compteur">${shown + 1} sur ${slides.length}</span>`,
+    `<button class="cl-galerie-nav" data-action="galerie-suivante"${shown === slides.length - 1 ? ' disabled' : ''}>Suivante ›</button>`,
     '</div>',
     '</div>',
   ].join('');

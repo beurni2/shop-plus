@@ -3086,3 +3086,24 @@ Exactly one site depends on the observer, and it is the one screen that mounts i
 - **Storefront (buyer PWA):** `pwa-preview` `30804234278` on `444a053` — success. GRILLE-ETAGEE is LIVE.
 - **Reseller app OTA:** `expo-preview` `30835125376` on `1021dba` — success, and **the publish step genuinely RAN (68 s, 17:05:22→17:06:30)**, not skipped. That check matters: this workflow gates every step on `steps.token.outputs.present == 'true'` and reports SUCCESS with everything skipped when `EXPO_TOKEN` is absent — a green run that did nothing. Verified at the step, never from the run's conclusion.
 - **The `eas build` is no longer a blocker.** Opportunités now carries its new geometry over the air, showing photographs; the clips light up on their own once the founder runs the build.
+
+### GALERIE-CLIP + CADRE-C1 — two founder reports from one screenshot
+
+**Founder, 2026-08-03, on the buyer's product page:** « the video is previewing but when I tap to view entirely it becomes a photo and I do not see the video », and « the square frame there on that screen is cropping part of images, drop the square rule on that screen as well ».
+
+**1 · THE GALLERY HAD NEVER HEARD OF THE CLIP.** `renderGalerie` built its slides from `assetRefs` alone and always emitted `<img>`. So tapping the PLAYING clip opened a viewer that could not show it and landed on the hero photograph — the one thing the tap promised was the one thing it could not deliver. His description was exact.
+
+**The clip is now slide 0**, then every photograph in wire order, via a new exported `galerieSlides()`. **It LEADS** because it is what he tapped; arriving on slide 2 to hunt for it is its own small betrayal. **No new word appears on screen** — « n sur N » already counts correctly once the clip is a slide, so nothing new had to be written, translated or register-tagged.
+
+**CONTROLS, here and nowhere else.** The card preview stays a silent controlless loop; the full view gets `controls` so she can scrub, pause and **unmute** — still muted on arrival, because that is what lets it start at all and because sound in a market should be her decision, not a surprise.
+
+**AN OFF-BY-ONE THAT WOULD HAVE LOOKED LIKE A MISSING PHOTO:** `flow.ts`'s « Suivante » bound was `assetRefs.filter(…).length - 1`. With the clip at slide 0 that is one short, so **the last photograph became unreachable** — no error, no clue, just a photo that seems not to exist. Now bounded by `galerieSlides(m).length - 1`, and pinned.
+
+**2 · CADRE-C1 — `.cl-photo { height: 238px }` is gone.** A fixed box crops everything that is not that shape, which is his report. The media is now in flow at its own proportions, bounded `min-height: 200px` / `max-height: 70vh`.
+**One consequence I had to chase, and it would have been ugly:** `.cl-photo-caps` (« PHOTO RÉELLE DU PRODUIT ») is an in-flow flex child that the ABSOLUTE media used to paint over — which is why it is invisible on a card that has a photo. Put the media in flow naively and that caption appears **across his product photo**, a change he never asked for arriving as a side effect of a crop fix. Fixed with `z-index: 1` on the media and `position: absolute; z-index: 0` on the caption, plus `z-index: 2` for ticks/count/veil which had been riding on DOM order alone. `min-height: 238px` keeps the SANS-PHOTO state at exactly the box it always had.
+
+**Evidence:** buyer-pwa **855/855** · tsc exit 0 · **gates board exit 0, ALL GATES GREEN**. **Mutation-verified five ways** — gallery drops the clip ⇒ 4 tests fail; clip loses `controls` ⇒ fails; the 238px height returns ⇒ fails; the media goes back to absolute ⇒ fails; the flow bound counts photographs again ⇒ fails.
+
+**3 · THE BACKTICK TRAP, HIT A SECOND TIME — and the guard rewritten because the first version could not work.** I broke `cliente/styles.ts` exactly as I had broken `vitrine/styles.ts` an hour earlier: a CSS comment quoting a property in backticks closes the template literal. **The JOURNAL note I wrote after the first one did not prevent the second.**
+My first guard was worse than useless in the case it existed for: it lived beside the tests for the screens it protects and IMPORTED the stylesheet, so a parse error stopped the whole test FILE from loading — the assertion never ran, and CI failed on an esbuild stack dump instead of a sentence. **Verified by mutation, not assumed:** with the backtick in, that run reported « Test Files 1 failed · Tests no tests ».
+Moved to `test/stylesheet-literal.test.ts`, which **imports nothing** and reads both files as text. Same detection, but it now fails with the file name, the count, and the fix. Re-mutated: « src/cliente/styles.ts: 4 backticks … use « guillemets » or plain quotes ».
