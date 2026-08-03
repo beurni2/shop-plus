@@ -834,12 +834,6 @@
   "screenClass": "label"
  },
  {
-  "key": "vitrine.personnaliser",
-  "fr": "Personnaliser",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
   "key": "vitrine.apercu_public",
   "fr": "Aperçu public",
   "register": "neutral",

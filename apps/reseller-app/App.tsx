@@ -1175,31 +1175,6 @@ export default function App() {
                         <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
                       </View>
                     </View>
-                    {/* PERSONNALISER-LISIBLE (founder order 2026-08-03: « make
-                        the personnaliser button more understandable and
-                        professional instead of just Aa »).
-
-                        « Aa » is a typographer's shorthand: it means « type » to
-                        someone who already knows, and nothing at all to Aïcha —
-                        the 5-second test failed on two letters. It is now an
-                        ICON PAIRED WITH ITS WORD (§5: icons always paired with
-                        text), carrying the label the screen reader already had
-                        rather than inventing a second name for the same door.
-
-                        THE APERÇU BUTTON THAT SAT BESIDE IT IS GONE, by the same
-                        order — which is what makes room for a word here. */}
-                    <Pressable
-                      style={({ pressed }) => [styles.vitrinePersoBtn, pressed && styles.pressed]}
-                      onPress={() => go('personnaliser')}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('k.entree')}
-                    >
-                      {/* The boutique glyph: what she is customising IS her
-                          shop, and the word beside it carries the verb. Reused
-                          rather than drawing a new icon for one button. */}
-                      <IconVitrine size={dimension.iconSizePx.badge} color={shopColour.deep} />
-                      <Text style={styles.vitrinePersoLabel} numberOfLines={1}>{t('vitrine.personnaliser')}</Text>
-                    </Pressable>
                     <Pressable
                       style={({ pressed }) => [styles.vitrineToggle, pressed && styles.pressed]}
                       onPress={() => {
@@ -1214,6 +1189,28 @@ export default function App() {
                       <Text style={styles.toggleLabel}>{vitrineCol.isDiscoverable() ? t('vitrine.toggle_publique') : t('vitrine.toggle_privee')}</Text>
                     </Pressable>
                   </View>
+                  {/* PERSONNALISER-LISIBLE (founder orders 2026-08-03: « make the
+                      personnaliser button more understandable and professional
+                      instead of just Aa », then « put 'personnaliser ma boutique'
+                      instead of just personnaliser »).
+
+                      IT MOVED OUT OF THE HEADER ROW to carry his full sentence.
+                      « Personnaliser ma boutique » beside the public/private
+                      toggle on a narrow phone truncates — and a label that
+                      ellipsises is the 5-second failure « Aa » already was, in a
+                      longer form. Full width, one line, no competition.
+
+                      The string is `k.entree`, the name the screen reader has
+                      always spoken for this door: one door, one sentence. */}
+                  <Pressable
+                    style={({ pressed }) => [styles.vitrinePersoBtn, pressed && styles.pressed]}
+                    onPress={() => go('personnaliser')}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('k.entree')}
+                  >
+                    <IconVitrine size={dimension.iconSizePx.badge} color={shopColour.deep} />
+                    <Text style={styles.vitrinePersoLabel}>{t('k.entree')}</Text>
+                  </Pressable>
                   <Text style={styles.noteLine}>{t('vitrine.sous_titre')}</Text>
                 </View>
               }
@@ -2236,21 +2233,21 @@ const styles = StyleSheet.create({
   vitrinePersoBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    justifyContent: 'center',
+    gap: spacing.sm,
     minHeight: spacing.xxl + spacing.md,
     paddingHorizontal: spacing.md,
+    marginTop: spacing.sm,
     borderRadius: radius.pill,
     borderWidth: interaction.hairline.thin,
     borderColor: sharedColour.hairlineStrong,
     backgroundColor: sharedColour.card,
-    flexShrink: 1,
   },
   vitrinePersoLabel: {
     color: sharedColour.ink,
     fontFamily: TEXT_FAMILY_BOLD,
     fontSize: rmax(t2.scale.body.size),
     fontWeight: '700',
-    flexShrink: 1,
   },
   vitrineIconBtn: {
     width: spacing.xxl + spacing.md,

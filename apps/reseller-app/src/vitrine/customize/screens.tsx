@@ -61,6 +61,7 @@ import { fromCatalog, type KCatalogItem } from './catalog';
 // copies of a patch shape are two shapes that drift on the first field added.
 import type { StorefrontIdentityPatch } from '../service';
 import { pickPhoto } from './photo-pick';
+import { cadreRatio } from '../../ui/cadre';
 import { uploadFailureCopy } from './upload-outcome';
 import { K_RAW_STYLES } from './k-styles';
 /** ONE money source — the app's canonical formatter (U+202F+FCFA, re-pin site). */
@@ -736,6 +737,24 @@ function CountedField({ label, value, max, onChange, onCommit, placeholder, mult
 
 function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar, coverError, avatarSending, disabledNote, onAdjustCover, onAdjustAvatar }: { sf: Storefront; onBack: () => void; onPickCover: () => void; onRetry: () => void; uploadWired?: boolean; onPickAvatar?: (() => void) | undefined; coverError?: { title: string; body: string } | null; avatarSending?: boolean | undefined; disabledNote?: string | undefined; onAdjustCover?: (() => void) | undefined; onAdjustAvatar?: (() => void) | undefined }) {
   const st = sf.cover.status;
+  /**
+   * CADRE-COUVERTURE (founder order 2026-08-03: « on couverture & portrait
+   * change the photo frame and remove the square rule there, cause the frame
+   * badly cropped it »).
+   *
+   * The slot was a FIXED 120px band with `resizeMode="cover"`, so a portrait
+   * photograph was beheaded — he sent the screenshot. This is the same defect
+   * the opportunités grid and the buyer's product page already had, on the one
+   * screen whose whole job is showing him his photograph.
+   *
+   * The measurement is the photo's own, via `onLoad`, bounded by `cadreRatio`
+   * — the SAME rule the product cards use, so « what a frame may do to a photo »
+   * has one answer in this app rather than three.
+   *
+   * UNMEASURED ⇒ the old 120px band, unchanged: the empty, uploading and error
+   * states have no photograph to measure and must keep the box they had.
+   */
+  const [coverRatio, setCoverRatio] = useState<number | null>(null);
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
       <KHeader title={t('k.cover.title')} onBack={onBack} />
@@ -764,10 +783,27 @@ function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar, cover
         </View>
       )}
       {(st === 'pending' || st === 'live') && (
-        <View style={[S.coverSlot, S.coverSlotPhoto]}>
+        <View style={[S.coverSlot, S.coverSlotPhoto, coverRatio !== null ? { height: undefined, aspectRatio: coverRatio } : null]}>
           {/* HER ACTUAL PHOTOGRAPH — the slot used to draw a coloured field with a
-              pill and no image, so « en ligne » was a claim about nothing. */}
-          {sf.cover.url ? <Image source={{ uri: sf.cover.url }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+              pill and no image, so « en ligne » was a claim about nothing.
+              CADRE-COUVERTURE: the slot now takes THIS photo's proportions, so
+              nothing is cut off; `contain` because on this screen he is checking
+              his picture, not previewing a crop — « Ajuster le cadrage » is
+              where the header's real framing is decided. */}
+          {sf.cover.url ? (
+            <Image
+              source={{ uri: sf.cover.url }}
+              style={StyleSheet.absoluteFill}
+              resizeMode="contain"
+              onLoad={(e) => {
+                const src = e.nativeEvent.source as { width?: number; height?: number } | undefined;
+                if (src?.width !== undefined && src?.height !== undefined) {
+                  const r = cadreRatio(src.width, src.height);
+                  setCoverRatio((prev) => (prev === r ? prev : r));
+                }
+              }}
+            />
+          ) : null}
           <View style={[S.pill, st === 'pending' ? S.pillWarn : S.pillOk]}>
             <Text style={[S.pillText, { color: st === 'pending' ? '#7A5104' : '#14603A' }]}>{t(st === 'pending' ? 'k.cover.pilule_verif' : 'k.cover.pilule_ligne')}</Text>
           </View>

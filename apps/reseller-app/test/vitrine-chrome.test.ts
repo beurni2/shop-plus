@@ -53,33 +53,46 @@ describe('2 · the Personnaliser button says what it does', () => {
     expect(head).not.toMatch(/>Aa</);
   });
 
-  it('it is an ICON PAIRED WITH ITS WORD, and the word comes from the catalog', () => {
-    expect(app).toContain("<Text style={styles.vitrinePersoLabel}");
-    expect(app).toContain("{t('vitrine.personnaliser')}");
+  it('it is an ICON PAIRED WITH ITS FULL SENTENCE, from the catalog', () => {
+    // PIN EVOLVED (founder order 2026-08-03: « put 'personnaliser ma boutique'
+    // instead of just personnaliser »). The short key I had added is DELETED
+    // rather than left dead in the catalog — `k.entree` already carried his
+    // sentence and was already the screen-reader name for this door.
+    // SCOPED TO THE VISIBLE TEXT, not the file. A bare `toContain("t('k.entree')")`
+    // passes on the accessibilityLabel alone — mutation proved it: swapping the
+    // VISIBLE label back to the one-word key left this test green. The visible
+    // sentence and the spoken one must be asserted at their own sites.
+    expect(app).toContain("<Text style={styles.vitrinePersoLabel}>{t('k.entree')}</Text>");
     // Scoped to the button itself rather than a character window: the JSX
     // carries a comment block, so a fixed-distance regex measures prose length
     // instead of structure — and would 'fail' on a correct button.
     const btn = app.slice(app.indexOf('styles.vitrinePersoBtn'), app.indexOf('</Pressable>', app.indexOf('styles.vitrinePersoBtn')));
-    expect(btn).toContain('<IconVitrine'); // icon and word inside ONE button
-    expect(btn).toContain("t('vitrine.personnaliser')");
+    expect(btn).toContain('<IconVitrine'); // icon and sentence inside ONE button
+    expect(btn).toContain("t('k.entree')");
     // the screen-reader name is unchanged — one door, one name
     expect(app).toMatch(/accessibilityLabel=\{t\('k\.entree'\)\}/);
   });
 
-  it('the new string is a REAL catalog entry with its register and class', () => {
-    const e = entries.find((x) => x.key === 'vitrine.personnaliser');
-    expect(e, 'vitrine.personnaliser missing from the catalog').toBeDefined();
-    expect(e!.fr).toBe('Personnaliser');
-    expect(e!.register).toBe('selling');
-    expect(e!.screenClass).toBe('label');
+  it('the sentence is the CATALOG one, and the short key I added is gone', () => {
+    const e = entries.find((x) => x.key === 'k.entree');
+    expect(e, 'k.entree missing from the catalog').toBeDefined();
+    expect(e!.fr).toBe('Personnaliser ma boutique');
+    // the one-word key existed for about an hour; a dead catalog entry is a
+    // string a translator would eventually be asked to translate for nothing
+    expect(entries.some((x) => x.key === 'vitrine.personnaliser')).toBe(false);
   });
 
-  it('the button can SHRINK — French is long and the toggle must not fall off', () => {
-    // A fixed-width pill with a French word in it pushes the public/private
-    // switch off a narrow phone. Both the pill and its label give way first.
-    const style = app.slice(app.indexOf('vitrinePersoBtn: {'), app.indexOf('vitrineIconBtn: {'));
-    expect(style).toContain('flexShrink: 1');
-    expect(style).toContain('minHeight'); // …but never below the touch law
+  it('it has its OWN ROW — the full sentence must not ellipsise beside the toggle', () => {
+    // PIN EVOLVED with the label: « Personnaliser ma boutique » does not fit
+    // beside the public/private switch on a narrow phone, and a truncated label
+    // is the same 5-second failure « Aa » was, only longer. So the button left
+    // the header row entirely.
+    const head = app.slice(app.indexOf('vitrineHeadRow'), app.indexOf('</View>', app.indexOf('vitrineToggle')));
+    expect(head).not.toContain('vitrinePersoBtn'); // no longer crammed in the row
+    const style = app.slice(app.indexOf('vitrinePersoBtn: {'), app.indexOf('vitrinePersoLabel: {'));
+    expect(style).toContain("justifyContent: 'center'");
+    expect(style).toContain('minHeight'); // the touch law still holds
+    expect(style).not.toContain('flexShrink'); // nothing to shrink against now
   });
 });
 
@@ -134,5 +147,34 @@ describe('3 · every en-tête shows its silhouette before the tap', () => {
     expect(comp).not.toContain('<Image');
     expect(comp).not.toContain('uri:');
     expect(comp).toContain('backgroundColor: deep');
+  });
+});
+
+describe('4 · Couverture & portrait stops cropping his photograph', () => {
+  it('the filled slot takes THE PHOTO’S proportions, not a fixed band', () => {
+    // The defect, from his screenshot: `coverSlot` is a fixed 120px band and the
+    // image was `resizeMode="cover"`, so a portrait photograph was beheaded on
+    // the one screen whose whole job is showing him his photograph.
+    expect(screens).toContain('coverRatio !== null ? { height: undefined, aspectRatio: coverRatio } : null');
+    expect(screens).toMatch(/resizeMode="contain"/); // he is checking the picture, not previewing a crop
+  });
+
+  it('the bound is the SAME rule the product cards use — one answer in this app', () => {
+    // `cadreRatio` already decides how far a frame may follow a photo. A second
+    // clamp here would be a second answer to one question.
+    expect(screens).toContain("import { cadreRatio } from '../../ui/cadre'");
+    expect(screens).toContain('cadreRatio(src.width, src.height)');
+  });
+
+  it('UNMEASURED ⇒ the old band, so empty/uploading/error keep their box', () => {
+    // Those three states have no photograph to measure. The 120px must survive
+    // for them or the screen collapses exactly where it has least to show.
+    const kstyles = read('src', 'vitrine', 'customize', 'k-styles.ts');
+    expect(kstyles).toMatch(/coverSlot: \{ height: 120,/);
+    expect(screens).toContain('useState<number | null>(null)');
+  });
+
+  it('the measurement is written ONCE — no re-render loop on a repeated onLoad', () => {
+    expect(screens).toContain('setCoverRatio((prev) => (prev === r ? prev : r))');
   });
 });
