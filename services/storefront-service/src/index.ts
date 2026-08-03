@@ -238,10 +238,23 @@ async function describeProducts(
     // the buyer renders it straight into `src`, so it would resolve against the
     // PWA's own origin and draw a broken image instead of the designed no-image
     // state. An unset base yields `[]`, which IS that designed state.
+    // VIDEO-PRODUIT — the clip's ref becomes absolute through the SAME base as
+    // the images; an unset base omits it (the honest absence — the buyer draws
+    // photos only, never a broken player), exactly as assetRefs yields [].
+    const videoAbs =
+      described?.videoRef !== undefined ? absoluteAssetRefs(env?.PRODUCT_MEDIA_BASE, [described.videoRef]) : [];
+    // The RELATIVE videoRef is STRIPPED before the spread: with an unset base
+    // it would otherwise survive verbatim into the record — the exact
+    // broken-ref class absoluteAssetRefs exists to prevent for the images.
+    const { videoRef: _relative, ...describedSansVideo } = described ?? {};
     const supplied =
       described === undefined
         ? undefined
-        : { ...described, assetRefs: absoluteAssetRefs(env?.PRODUCT_MEDIA_BASE, described.assetRefs) };
+        : {
+            ...(describedSansVideo as Omit<NonNullable<typeof described>, 'videoRef'>),
+            assetRefs: absoluteAssetRefs(env?.PRODUCT_MEDIA_BASE, described.assetRefs),
+            ...(videoAbs.length > 0 ? { videoRef: videoAbs[0]! } : {}),
+          };
     const record = joinVitrineProduct(side, supplied);
     if (record !== undefined) out.push(record); // undescribable → omitted, never invented
   }

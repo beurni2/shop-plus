@@ -87,6 +87,13 @@ export interface VitrineProductRecord {
    * product off her page. Absent may only ever WITHHOLD, never reveal.
    */
   readonly category: string;
+  /**
+   * VIDEO-PRODUIT (canon v3.4.0) — the short clip's ABSOLUTE url, exactly as
+   * `assetRefs` carries the images (absolutized server-side, same base).
+   * OPTIONAL: most products have none, an older Worker omits it, and the
+   * buyer treats absence as « photos only » — never a broken player.
+   */
+  readonly videoRef?: string;
 }
 
 /** What the join needs from the LISTING side (never from supply). */
@@ -107,6 +114,9 @@ export interface SupplySide {
   readonly available: number;
   /** CATEGORY-WIRE-1 — display data, from the projection, never invented here. */
   readonly category: string;
+  /** VIDEO-PRODUIT — the clip's ABSOLUTE url (the caller absolutized it with
+   *  the images); absent when the product has none or the base is unset. */
+  readonly videoRef?: string;
 }
 
 /**
@@ -176,6 +186,8 @@ export function joinVitrineProduct(listing: ListingSide, supply: SupplySide | un
     // From SUPPLY, like the name and the images — never from the listing, and
     // never a default. The reseller sets a markup, not what a product IS.
     category: supply.category,
+    // VIDEO-PRODUIT — carried exactly as the images are; absent stays absent.
+    ...(supply.videoRef !== undefined && supply.videoRef !== '' ? { videoRef: supply.videoRef } : {}),
   };
 }
 

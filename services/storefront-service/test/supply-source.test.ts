@@ -191,6 +191,16 @@ describe('ABSENT renders as OMITTED — a product that cannot be described is no
     expect(joinVitrineProduct(hidden, { productName: 'Sac tressé', assetRefs: [], category: 'fashion_bags_fabrics' })).toBeUndefined();
   });
 
+  it('VIDEO-PRODUIT: a described video RIDES the record; absence stays ABSENT, never an undefined key', () => {
+    const base = { productName: 'Sac tressé', assetRefs: ['ref/hero'], available: 2, category: 'fashion_bags_fabrics' };
+    const avec = joinVitrineProduct(LISTING, { ...base, videoRef: 'https://media.example/media/v1' })!;
+    expect(avec.videoRef).toBe('https://media.example/media/v1');
+    const sans = joinVitrineProduct(LISTING, base)!;
+    expect('videoRef' in sans).toBe(false); // absent key — canon optional, never explicit undefined
+    const vide = joinVitrineProduct(LISTING, { ...base, videoRef: '' })!;
+    expect('videoRef' in vide).toBe(false); // a blank ref is no ref
+  });
+
   it('the HAND-ROLLED PARSER IS GONE — validation belongs to the certified consumer alone', async () => {
     const src = readFileSync(join(import.meta.dirname, '../src/supply-source.ts'), 'utf8');
     // one consumer, not two: no second envelope parse, no second identity regex

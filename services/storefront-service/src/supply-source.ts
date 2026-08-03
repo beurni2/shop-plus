@@ -88,6 +88,13 @@ export interface ProductDescription {
    */
   readonly category: string;
   /**
+   * VIDEO-PRODUIT (canon v3.4.0) — the short clip's bare display ref, exactly
+   * as `assetRefs` carries the images. OPTIONAL twice over: most products have
+   * no video, and a producer older than v3.4.0 sends nothing. Display data,
+   * not identity — the producer's out-guard swept it before it ever left.
+   */
+  readonly videoRef?: string;
+  /**
    * SELLER-TIER-WIRE-1 (canon v3.1.0) — §6.1's « seller tier ≥ verified », as
    * the PRODUCER states it. OPTIONAL because an offer-service older than v3.1.0
    * sends nothing, and because absence must degrade rather than break: no tier
@@ -338,7 +345,7 @@ export class BoundSupplySource implements SupplySourcePort {
     const r = await this.fresh(productVersionId);
     if (r.verdict !== 'fresh') return undefined;
     const p = r.projection;
-    return { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available, category: p.category, ...(p.sellerTier !== undefined ? { sellerTier: p.sellerTier } : {}) };
+    return { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available, category: p.category, ...(p.videoRef !== undefined ? { videoRef: p.videoRef } : {}), ...(p.sellerTier !== undefined ? { sellerTier: p.sellerTier } : {}) };
   }
 
   /** AUTO-HIDE-WATCH-1 — the same one fetch, surfaced with evidence semantics. */
@@ -349,7 +356,7 @@ export class BoundSupplySource implements SupplySourcePort {
     const p = r.projection;
     return {
       kind: 'present',
-      description: { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available, category: p.category, ...(p.sellerTier !== undefined ? { sellerTier: p.sellerTier } : {}) },
+      description: { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available, category: p.category, ...(p.videoRef !== undefined ? { videoRef: p.videoRef } : {}), ...(p.sellerTier !== undefined ? { sellerTier: p.sellerTier } : {}) },
     };
   }
 
@@ -374,6 +381,9 @@ export class BoundSupplySource implements SupplySourcePort {
 interface SupplyProjectionValue {
   readonly productName: string;
   readonly assetRefs: readonly string[];
+  /** VIDEO-PRODUIT — canon v3.4.0, OPTIONAL on the projection (same
+   *  type-level widening note as `sellerTier` below). */
+  readonly videoRef?: string | undefined;
   readonly available: number;
   /** CATEGORY-WIRE-1 — canon v3.0.0, required on the projection. */
   readonly category: string;
