@@ -2967,3 +2967,26 @@ Founder, after seeing it work à la une: « I want it to be on other products to
 | boutik-plus `v2/fiche-video.tsx` (native half) | none — no video capability by design; renders a text state |
 
 Exactly one site depends on the observer, and it is the one screen that mounts it. **No other instance of the defect exists.** This table is why the founder's two other observations were right and consistent: « mes produits » works (autoPlay) and « ma boutique » works (observer) — the product page was the single surface with neither.
+
+### RESELLER-UX-4 — bigger opportunités cards (founder reference)
+
+**Founder, 2026-08-03, with an Alibaba two-up screenshot: « On opportunités I want products card sizes to be like this. »**
+
+**What was already true, read before changing anything:** opportunités has been a two-column grid since RESELLER-UX-3 (`numColumns={2}`), with a SQUARE photo frame — and the reference's photos are square too, measured off the screenshot at ~206×202pt. So the column count and the frame shape were already right. **The gap was card WIDTH**, which nothing on the tile controls: it is decided entirely by the grid's outer padding, the gutter, and `flex: 1`.
+
+**Measured, not eyeballed** (390pt phone · reference iPhone 428pt):
+- reference card ≈ 206pt of 428 = **48.1%** of screen
+- ours before: `390 − (lg 16 × 2) − (md 12) = 346` ⇒ **173pt = 44.4%**
+- ours after: `390 − (sm 8 × 2) − (sm 8) = 366` ⇒ **183pt = 46.9%**, photo 183×183, **+12% photo area**
+
+**Three edits, all on-token:** a new `oppGrid` container (outer `lg`→`sm`), `oppGridRow` gutter (`md`→`sm`), `oppCardBody` padding (`md`→`sm`).
+
+**`oppGrid` EXISTS BECAUSE `scrollList` IS SHARED BY FOUR SCREENS.** Editing the shared style would have widened three screens the founder never mentioned — the silent-blast-radius class. Pinned: the grid must not reuse `scrollList`.
+
+**NOTHING WAS REMOVED TO BUY SPACE.** The net line, the base whisper, the source mark and the épuisé chip are each a standing ruling; padding was the only slack. Pinned by name, so a future "make it bigger" cannot quietly delete one.
+
+**WHY NOT AS TIGHT AS THE REFERENCE:** it leaves ~5pt at the bezel. Matching that needs an off-scale hardcoded value and a card touching the screen edge — against §5 (« generous whitespace even on small screens », « no one-off snowflake styling »). `spacing.sm` is the last honest step and it stops there. **Remaining difference is the text block, not the width:** the reference's photo holds ~75% of its card, ours ~60%, because ours carries four named lines to its two. Closing that means dropping one — the founder's call, not mine.
+
+**Evidence:** reseller-app **425/425** · tsc exit 0 · **gates board exit 0, ALL GATES GREEN**. New pin **mutation-verified three ways** — outer padding back to `lg` ⇒ fails; gutter back to `md` ⇒ fails; grid re-sharing `scrollList` ⇒ fails.
+
+**NOT VISIBLE UNTIL THE `eas build`** — same standing block as the video work: this is the reseller app, and its installed binary predates `expo-video`, so no OTA can carry this either.

@@ -877,7 +877,12 @@ export default function App() {
             initialNumToRender={6}
             windowSize={5}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollList}
+            // RESELLER-UX-4 (founder reference 2026-08-03: « On opportunités I
+            // want products card sizes to be like this ») — its OWN container,
+            // deliberately not the shared `scrollList`: three other screens use
+            // that one, and widening them all to serve this order would be a
+            // change he did not ask for. See `oppGrid` for the geometry.
+            contentContainerStyle={styles.oppGrid}
             ListHeaderComponent={
               // Frame L113–114 — the big screen title (Bricolage 800/28) lands
               // in-content; the net-first selling subtitle sits under it.
@@ -1882,7 +1887,28 @@ const styles = StyleSheet.create({
   // columns of photo-first tiles, SQUARE cover photos edge-to-edge (the square
   // frame is what makes cover honest — it barely trims), compact named detail
   // under. Replaces the single-column card of UX-2.
-  oppGridRow: { gap: spacing.md },
+  /**
+   * RESELLER-UX-4 — THE WIDER OPPORTUNITÉS GRID (founder reference 2026-08-03).
+   *
+   * He sent a two-up marketplace grid whose cards run nearly edge-to-edge and
+   * asked for « card sizes to be like this ». The card was already half-width;
+   * what made his reference's cards bigger was the CHROME AROUND them, not the
+   * column count. So the two numbers that decide card width move down one token
+   * step each — outer padding `lg`→`sm`, gutter `md`→`sm` — and the photograph,
+   * being square, grows in BOTH dimensions with it.
+   *
+   * MEASURED, not eyeballed, on a 390pt phone:
+   *   before  390 − (16×2) − 12 = 346 ⇒ 173pt card · 173×173 photo
+   *   after   390 − ( 8×2) −  8 = 366 ⇒ 183pt card · 183×183 photo  (+12% area)
+   * That lands the card at 47% of the screen against the reference's ~48%.
+   *
+   * WHY NOT TIGHTER: the reference leaves ~5pt at the screen edge. Going there
+   * means a hardcoded value off our spacing scale AND a card that touches the
+   * bezel — the opposite of the warm, breathing surface this app is meant to
+   * be. `spacing.sm` is the last honest step on the scale; it stops here.
+   */
+  oppGrid: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.sm },
+  oppGridRow: { gap: spacing.sm },
   oppTile: {
     flex: 1,
     backgroundColor: sharedColour.card,
@@ -1904,7 +1930,13 @@ const styles = StyleSheet.create({
   oppTileGhost: { flex: 1 },
   oppTileName: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size), fontWeight: '700', lineHeight: rmax(t2.scale.body.size) * 1.3 },
   oppTileBase: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
-  oppCardBody: { padding: spacing.md, gap: spacing.xs },
+  // RESELLER-UX-4 — the text block tightens by one step (`md`→`sm`) so the
+  // PHOTOGRAPH holds more of the taller card, which is what the founder's
+  // reference actually looks like. NOTHING IS REMOVED to buy that room: the
+  // net line, the base whisper, the source mark and the épuisé chip are each
+  // a standing ruling, and dropping one to win pixels would be me editing his
+  // product. Padding is the only thing here that was never load-bearing.
+  oppCardBody: { padding: spacing.sm, gap: spacing.xs },
   // The thumbnail strip (fiche + Ma Vitrine) — every capture visible, the
   // reference's « Photos 1/6 » made tangible. Square thumbs, hairline, the
   // active one keylined in the shop accent on the fiche.

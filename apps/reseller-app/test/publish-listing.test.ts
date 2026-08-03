@@ -346,6 +346,52 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     expect(body).toMatch(/item\.available === 0 &&/); // …and only when actually zero
   });
 
+  /**
+   * RESELLER-UX-4 (founder order 2026-08-03: « On opportunités I want products
+   * card sizes to be like this », with a two-up marketplace reference).
+   *
+   * Card width on this screen is decided by exactly three numbers — the grid's
+   * outer padding, the gutter between the columns, and the fact that each tile
+   * is `flex: 1`. None of them lives on the tile itself, which is precisely why
+   * a later edit can shrink his cards back without ever touching `oppTile`.
+   * So the three are pinned HERE, by value, with the arithmetic stated.
+   */
+  it('UX-4 — the opportunités grid is WIDER than the shared lists, by its own container', () => {
+    // 1 · it does NOT reuse `scrollList`. Three other screens do; widening them
+    //     to serve this order would be a change the founder never asked for.
+    const gridIdx = app.indexOf('columnWrapperStyle={styles.oppGridRow}');
+    expect(gridIdx).toBeGreaterThan(-1);
+    const flatList = app.slice(gridIdx, app.indexOf('ListHeaderComponent=', gridIdx));
+    expect(flatList).toContain('contentContainerStyle={styles.oppGrid}');
+    expect(flatList).not.toContain('styles.scrollList');
+
+    // 2 · the two numbers that set the width, at the tighter step. `spacing.lg`
+    //     (16) here would silently return the card to its old 173pt.
+    expect(app).toMatch(/oppGrid: \{ paddingHorizontal: spacing\.sm,/);
+    expect(app).toMatch(/oppGridRow: \{ gap: spacing\.sm \}/);
+
+    // 3 · the arithmetic those tokens produce, asserted rather than trusted:
+    //     390 − (8×2) − 8 = 366, halved = 183pt (was 173pt at lg/md).
+    const SCREEN = 390, sm = 8, md = 12, lg = 16;
+    const cardAt = (outer: number, gutter: number) => (SCREEN - outer * 2 - gutter) / 2;
+    expect(cardAt(sm, sm)).toBe(183);
+    expect(cardAt(lg, md)).toBe(173); // the old geometry, kept as the contrast
+    expect(cardAt(sm, sm)).toBeGreaterThan(cardAt(lg, md)); // the order, as arithmetic
+
+    // 4 · the photo is SQUARE, so the width gain is an area gain — this is the
+    //     whole mechanism by which « bigger cards » becomes « bigger photos ».
+    expect(app).toMatch(/oppTileArt: \{\n\s*width: '100%',\n\s*aspectRatio: 1,/);
+
+    // 5 · the body tightened by PADDING ONLY. Every named line survives: losing
+    //     one to win pixels would be editing his product, not sizing his cards.
+    expect(app).toMatch(/oppCardBody: \{ padding: spacing\.sm, gap: spacing\.xs \}/);
+    const oppIdx = app.indexOf('styles.oppTile,');
+    const tile = app.slice(oppIdx, app.indexOf('</Pressable>', oppIdx));
+    for (const kept of ["tf('opportunity.gagnez'", "t('fiche.prix_base')", "t('opportunites.source')", "t('opportunites.epuise')"]) {
+      expect(tile, `UX-4 dropped a standing line to buy space: ${kept}`).toContain(kept);
+    }
+  });
+
   it('item 2 (UX-3 form) — the fiche is a PRODUCT PAGE: square héro, thumbnails switch it, tap opens the gallery ON it', () => {
     expect(app).toMatch(/opp\.assetRefs\.length > 0 \? \(/);
     expect(app).toMatch(/setGallery\(\{ name: opp\.productName, refs: opp\.assetRefs, startAt: ficheHeroIdx \}\)/);
