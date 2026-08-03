@@ -157,6 +157,10 @@ export const K_RAW_STYLES = {
     borderWidth: 2, borderColor: '#A31D4E',
     shadowColor: '#A31D4E', shadowOpacity: 0.35, shadowRadius: 15, shadowOffset: { width: 0, height: 12 }, elevation: 5,
   },
+  // ENTETES-APERÇU — the silhouette band, sized like the habillage card's
+  // colour row so the two grids sit at the same rhythm.
+  enteteApercu: { height: 62, marginTop: 0, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  enteteApercuLigne: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3 },
   themeSwatches: { flexDirection: 'row', gap: 6, paddingTop: 13, paddingHorizontal: 14 },
   swatch: { width: 20, height: 20, borderRadius: 99, borderWidth: 1, borderColor: 'rgba(28,23,16,0.08)' },
   themeNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingTop: 9, paddingHorizontal: 14 },

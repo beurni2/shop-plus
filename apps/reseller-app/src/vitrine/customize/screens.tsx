@@ -49,7 +49,7 @@ import {
 // ENTETES-C — the framing sheet (drag-to-frame) + its kind. The sheet's
 // geometry is the PURE math in framing-math.ts, executed by Node tests.
 import { FramingSheet } from './framing';
-import type { FrameKind } from './framing-math';
+import { apercuBox, frameSpecFor, type FrameKind, type FrameSpec } from './framing-math';
 
 
 
@@ -867,15 +867,67 @@ function PortraitSegments({ sf, onPickAvatar, sending, onAdjust }: { sf: Storefr
   );
 }
 
+/**
+ * EN-TÊTE — LA SILHOUETTE (founder order 2026-08-03: « on theme I want to see
+ * the en-tête preview attached to its name so I can see it before tapping to
+ * choose like the habillages »).
+ *
+ * The habillage cards have always shown their colours above their name; the
+ * en-tête cards showed a name and a sentence, so choosing meant tapping and
+ * looking. This draws THE SHAPE each style puts her cover photograph in —
+ * Royale's medallion, Héritage's full-width strip, Chaleureux's galet, and so
+ * on — so the difference is visible before the tap.
+ *
+ * IT IS NOT A DRAWING I INVENTED. The silhouette comes from `frameSpecFor`,
+ * the SAME source the framing sheet uses to crop her real photo, so the preview
+ * and the crop can never disagree: if a style's frame changes, both move
+ * together. A key with no built render unit falls back to `classique` there and
+ * therefore here too — the fallback is shared, not duplicated.
+ *
+ * NO PHOTOGRAPH IS SHOWN. This is a shape, in her theme's own tones, not a
+ * fake cover: promising a preview of HER header and drawing someone else's
+ * picture would be the kind of pretend this app does not do.
+ */
+function EnteteApercu({ spec, deep, soft, accent }: { spec: FrameSpec; deep: string; soft: string; accent: string }) {
+  // The fit is `apercuBox` — pure, clamped, and tested; a component is the
+  // wrong place for arithmetic no test can reach.
+  const { width: w, height: h } = apercuBox(spec);
+  const [tl, tr, br, bl] = spec.radii;
+  const r = (frac: number): number => (spec.circle ? Math.min(w, h) / 2 : frac * w);
+  return (
+    <View style={[S.enteteApercu, { backgroundColor: soft }]}>
+      <View
+        style={{
+          width: w,
+          height: h,
+          backgroundColor: deep,
+          borderTopLeftRadius: r(tl),
+          borderTopRightRadius: r(tr),
+          borderBottomRightRadius: r(br),
+          borderBottomLeftRadius: r(bl),
+        }}
+      />
+      {/* the accent hairline echoes the woven band on the habillage cards, so
+          the two grids read as one family rather than two conventions */}
+      <View style={[S.enteteApercuLigne, { backgroundColor: accent }]} />
+    </View>
+  );
+}
+
 /* ------------------------------------------------------------------- K4 -- */
 
 function K4({ sf, onBack, onPick, onPickEntete, enteteEnCours }: { sf: Storefront; onBack: () => void; onPick: (k: VitrineThemeKey) => void; onPickEntete: (k: HeaderStyleKey) => void; enteteEnCours?: HeaderStyleKey | undefined }) {
   const ORDER: VitrineThemeKey[] = ['laterite', 'danfani', 'indigo', 'foret'];
-  // ENTETES-B — the six canon headers as TEXT cards (name + a one-line whisper
-  // of character). No preview thumbnails this slice: the founder sees the real
-  // render via « voir comme cliente » / `?entete=` on the buyer page.
+  // ENTETES-B — the canon headers as cards: name + a one-line whisper of
+  // character. ENTETES-APERÇU (founder order 2026-08-03) added the SILHOUETTE
+  // above the name, so the shape each style gives her cover is visible before
+  // the tap — the comment that used to stand here said there were no preview
+  // thumbnails, and that is no longer true.
   const currentEntete = headerStyleOf(sf);
   const enCours = enteteEnCours;
+  // The previews wear HER chosen habillage, so the two grids answer the same
+  // question — « what will my shop look like » — in one visual language.
+  const thCourant = THEMES[sf.theme];
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
       <KHeader title={t('k.theme.title')} onBack={onBack} />
@@ -917,6 +969,7 @@ function K4({ sf, onBack, onPick, onPickEntete, enteteEnCours }: { sf: Storefron
           const selected = currentEntete === key;
           return (
             <Pressable key={key} style={[S.themeCard, selected ? S.themeCardSelected : S.themeCardRest]} onPress={() => onPickEntete(key)} accessibilityRole="button" accessibilityState={{ selected }}>
+              <EnteteApercu spec={frameSpecFor(key, 'cover')} deep={thCourant.deep} soft={thCourant.soft} accent={thCourant.accent} />
               <View style={S.themeNameRow}>
                 <Text style={S.themeName}>{t(`k.entete.nom_${key}`)}</Text>
                 {key === 'classique' && (

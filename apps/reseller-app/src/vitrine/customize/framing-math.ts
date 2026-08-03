@@ -428,3 +428,21 @@ export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFo
   if (kind === 'avatar') return AVATAR_DEFAULTS[style] ?? { x: 50, y: 50 };
   return COVER_DEFAULTS[style] ?? COVER_DEFAULTS.classique!;
 }
+
+/**
+ * ENTETES-APERÇU — the silhouette's box inside a picker card (founder order
+ * 2026-08-03: « I want to see the en-tête preview attached to its name »).
+ *
+ * Pure, and separated from the component because it is ARITHMETIC WITH A CLAMP,
+ * which a source-grep cannot check. Height leads so nothing can overflow the
+ * card vertically; the width clamp then catches the widest silhouettes
+ * (Héritage's 360/238 strip) before they push out of a 47%-wide card.
+ */
+export const APERCU_BOX_H = 42;
+export const APERCU_MAX_W = 96;
+
+export function apercuBox(spec: FrameSpec): Size {
+  const w = APERCU_BOX_H * spec.aspect;
+  if (w <= APERCU_MAX_W) return { width: w, height: APERCU_BOX_H };
+  return { width: APERCU_MAX_W, height: APERCU_MAX_W / spec.aspect };
+}

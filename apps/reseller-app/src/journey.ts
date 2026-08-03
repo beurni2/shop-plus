@@ -10,7 +10,6 @@ export type Screen =
   | 'opportunites'
   | 'fiche'
   | 'vitrine'
-  | 'pubvitrine'
   | 'personnaliser'
   | 'lien'
   | 'gains'
@@ -30,12 +29,16 @@ export const START: Screen = 'accueil';
 export const JOURNEY: Record<Screen, readonly Screen[]> = {
   accueil: ['opportunites', 'gains', 'ventes', 'cercle'],
   // WO-VITRINE-FLOW — Opportunités → Fiche (single product, add to vitrine) →
-  // Ma vitrine → Partager. « Vitrine publique » is the aperçu-cliente target.
+  // Ma vitrine → Partager.
+  //
+  // APERÇU-CLIENTE RETIRÉ (founder order 2026-08-03): `pubvitrine` was a replica
+  // of the cliente view reachable from Ma vitrine AND from Personnaliser. Both
+  // edges go with the screen — a journey map that still names a screen nobody
+  // can reach is a map that lies about the app.
   opportunites: ['fiche'],
   fiche: ['vitrine'],
-  vitrine: ['lien', 'pubvitrine', 'personnaliser'],
-  personnaliser: ['pubvitrine'],
-  pubvitrine: [],
+  vitrine: ['lien', 'personnaliser'],
+  personnaliser: [],
   lien: ['gains'],
   gains: ['opportunites'],
   // WO-7.2a — S7: « Mes ventes » (the sales list) → a sale's detail.

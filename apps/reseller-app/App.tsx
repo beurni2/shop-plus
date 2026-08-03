@@ -148,7 +148,6 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
   opportunites: 'app.title',
   fiche: 'fiche.title',
   vitrine: 'vitrine.title',
-  pubvitrine: 'pubvitrine.title',
   personnaliser: 'k.title',
   cercle: 'ce.hub_titre',
   campnew: 'ce.w1_titre',
@@ -1176,21 +1175,30 @@ export default function App() {
                         <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
                       </View>
                     </View>
+                    {/* PERSONNALISER-LISIBLE (founder order 2026-08-03: « make
+                        the personnaliser button more understandable and
+                        professional instead of just Aa »).
+
+                        « Aa » is a typographer's shorthand: it means « type » to
+                        someone who already knows, and nothing at all to Aïcha —
+                        the 5-second test failed on two letters. It is now an
+                        ICON PAIRED WITH ITS WORD (§5: icons always paired with
+                        text), carrying the label the screen reader already had
+                        rather than inventing a second name for the same door.
+
+                        THE APERÇU BUTTON THAT SAT BESIDE IT IS GONE, by the same
+                        order — which is what makes room for a word here. */}
                     <Pressable
-                      style={({ pressed }) => [styles.vitrineIconBtn, pressed && styles.pressed]}
+                      style={({ pressed }) => [styles.vitrinePersoBtn, pressed && styles.pressed]}
                       onPress={() => go('personnaliser')}
                       accessibilityRole="button"
                       accessibilityLabel={t('k.entree')}
                     >
-                      <Text style={styles.homeSubName}>Aa</Text>
-                    </Pressable>
-                    <Pressable
-                      style={({ pressed }) => [styles.vitrineIconBtn, pressed && styles.pressed]}
-                      onPress={() => go('pubvitrine')}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('vitrine.apercu_public')}
-                    >
+                      {/* The boutique glyph: what she is customising IS her
+                          shop, and the word beside it carries the verb. Reused
+                          rather than drawing a new icon for one button. */}
                       <IconVitrine size={dimension.iconSizePx.badge} color={shopColour.deep} />
+                      <Text style={styles.vitrinePersoLabel} numberOfLines={1}>{t('vitrine.personnaliser')}</Text>
                     </Pressable>
                     <Pressable
                       style={({ pressed }) => [styles.vitrineToggle, pressed && styles.pressed]}
@@ -1649,54 +1657,13 @@ export default function App() {
             }}
           />
         )}
-        {screen === 'pubvitrine' && (
-          <FlatList
-            style={styles.screenScroll}
-            data={vitrineOffers}
-            keyExtractor={(o) => o.productVersionId}
-            numColumns={2}
-            columnWrapperStyle={styles.gridRow}
-            initialNumToRender={6}
-            windowSize={5}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollList}
-            ListHeaderComponent={
-              <View style={styles.pubHead}>
-                <View style={styles.pubPillRow}>
-                  <StatusChip tone="muted" label={t('pubvitrine.lecture')} />
-                </View>
-                <View style={styles.pubIdentity}>
-                  <View style={styles.pubMonogram}>
-                    <Text style={styles.pubMonogramText}>{DEMO_SHARE_IDENTITY.resellerName.slice(0, 1)}</Text>
-                  </View>
-                  <View style={styles.homeSubRow}>
-                    <Text style={styles.pubShopName}>{DEMO_SHARE_IDENTITY.resellerName}</Text>
-                    <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
-                  </View>
-                  <Text style={styles.pubZone}>{t('pubvitrine.zone')}</Text>
-                </View>
-              </View>
-            }
-            renderItem={({ item }) => (
-              // the cliente's tile — client price ONLY (at her markup), neutral crown
-              <DuotoneTile glyph={item.productName.slice(0, 1)} photoUri={item.assetRefs[0]} crownTone="neutral" style={styles.gridTile}>
-                <Text style={styles.tileName} numberOfLines={2}>{item.productName}</Text>
-                <Text style={styles.tilePrice}>{formatFcfa(viewOfOffer(item).client)}</Text>
-              </DuotoneTile>
-            )}
-            ListEmptyComponent={
-              <EmptyState
-                glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />}
-                title={t('vitrine.vide')}
-              />
-            }
-            ListFooterComponent={
-              <View style={styles.inkBanner}>
-                <Text style={styles.inkBannerText}>{t('pubvitrine.ink_banner')}</Text>
-              </View>
-            }
-          />
-        )}
+        {/* APERÇU-CLIENTE RETIRÉ (founder order 2026-08-03: « on ma vitrine
+            remove the aperçu cliente screen and its button »). The screen that
+            stood here was a REPLICA of the cliente view, drawn from the same
+            offers with a neutral crown — a second thing claiming to be the shop
+            page. « Voir comme cliente » inside Personnaliser already opens the
+            REAL page once the shop is live, which is the view that cannot drift.
+            Removing the replica removes the only copy that could. */}
         {/* ── LE CERCLE (SP9, scoped override — UI + certified mock) ── */}
         {screen === 'cercle' && (
           <CercleHub
@@ -2258,6 +2225,33 @@ const styles = StyleSheet.create({
   ficheChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   // ── MA VITRINE frame (planche L239–267) — header row + toggle + tile net ──
   vitrineHeadRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  /**
+   * PERSONNALISER-LISIBLE — the labelled entry to Personnaliser. Same pill
+   * family and same minimum height as the toggle beside it, so the header row
+   * still reads as one band; it simply carries a WORD instead of two letters.
+   * `flexShrink` lets the label give way before the toggle does on a narrow
+   * phone — French is long, and « Personnaliser » must not push the public/
+   * private switch off the screen.
+   */
+  vitrinePersoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    minHeight: spacing.xxl + spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    borderWidth: interaction.hairline.thin,
+    borderColor: sharedColour.hairlineStrong,
+    backgroundColor: sharedColour.card,
+    flexShrink: 1,
+  },
+  vitrinePersoLabel: {
+    color: sharedColour.ink,
+    fontFamily: TEXT_FAMILY_BOLD,
+    fontSize: rmax(t2.scale.body.size),
+    fontWeight: '700',
+    flexShrink: 1,
+  },
   vitrineIconBtn: {
     width: spacing.xxl + spacing.md,
     height: spacing.xxl + spacing.md,
