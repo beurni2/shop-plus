@@ -41,6 +41,13 @@ export interface Offer {
   readonly available: number;
   readonly productName: string;
   readonly assetRefs: readonly string[];
+  /**
+   * VIDEO-PARTOUT (founder order 2026-08-03) — the ≤ 6 s clip's ABSOLUTE url,
+   * absolutized by the wire through the same base as `assetRefs`. Optional:
+   * most products have none, and an older service sends nothing. Display data
+   * only, exactly like the photographs — it carries nothing about WHO supplies.
+   */
+  readonly videoRef?: string;
 }
 
 /**

@@ -19,6 +19,7 @@ import { foldVitrine, type VitrineEvent } from './src/vitrine/collection';
 import { marginBreakdown, markupCap, defaultMarkup, snapMarkup } from './src/vitrine/margin';
 import { MarginSlider } from './src/ui/margin-slider';
 import { PhotoGallery } from './src/ui/photo-gallery';
+import { ProductClip } from './src/ui/product-clip';
 import { HeroLedger, DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
 import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, type StorefrontIdentityPatch } from './src/vitrine/service';
@@ -922,8 +923,12 @@ export default function App() {
                   {/* RESELLER-PHOTOS-1 — the REAL photograph when the wire carries
                       one (absolute URL, absolutized server-side with the same base
                       as the buyer wire). No ref ⇒ the designed glyph tile. */}
-                  {item.assetRefs[0] ? (
-                    <Image source={{ uri: item.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
+                  {/* VIDEO-PARTOUT — a clip PLAYS here when the product has one
+                      (muted, looping, the photograph underneath as the resting
+                      state); no clip ⇒ ProductClip renders the photo alone, so
+                      this branch reads exactly as it did before. */}
+                  {item.assetRefs[0] || item.videoRef ? (
+                    <ProductClip videoRef={item.videoRef} photoUri={item.assetRefs[0]} style={styles.artPhoto} />
                   ) : (
                     <>
                       <View style={styles.artTileStripe} />
@@ -1178,7 +1183,7 @@ export default function App() {
                           accessibilityRole="button"
                           accessibilityLabel={t('galerie.ouvrir')}
                         >
-                          <Image source={{ uri: item.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
+                          <ProductClip videoRef={item.videoRef} photoUri={item.assetRefs[0]} style={styles.artPhoto} />
                         </Pressable>
                         {item.assetRefs.length > 1 && (
                           <View style={styles.thumbRow}>

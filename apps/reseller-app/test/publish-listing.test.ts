@@ -268,11 +268,21 @@ describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
   });
 
   it('PHOTOS — every reseller surface renders the real photograph with the glyph as fallback', () => {
-    // opp card, fiche héro, vitrine card, share héro: the Image reads
-    // assetRefs[0]. (RESELLER-UX-2 wrapped two sites in the gallery Pressable,
-    // so the pin counts the Image sources themselves, not the ternary shape.)
-    const photoSites = app.match(/<Image source=\{\{ uri: (item|opp|shareOffer)\.assetRefs\[0\] \}\}/g) ?? [];
+    // opp card, fiche héro, vitrine card, share héro: each shows assetRefs[0].
+    // PIN EVOLVED (VIDEO-PARTOUT 2026-08-03): the opp card and the vitrine card
+    // now render `ProductClip`, which draws that SAME photograph as its resting
+    // state and only layers a clip over it when one exists. The property is
+    // unchanged — every surface shows the real photograph — so the pin counts
+    // BOTH spellings rather than the obsolete one. A surface that dropped the
+    // photo entirely still fails, which is what this test is for.
+    const photoSites = [
+      ...(app.match(/<Image source=\{\{ uri: (item|opp|shareOffer)\.assetRefs\[0\] \}\}/g) ?? []),
+      ...(app.match(/<ProductClip videoRef=\{item\.videoRef\} photoUri=\{item\.assetRefs\[0\]\}/g) ?? []),
+    ];
     expect(photoSites.length).toBeGreaterThanOrEqual(3);
+    // …and the clip surfaces pass the photograph, never a bare video with no
+    // fallback: a product whose clip fails to load must still look like itself.
+    expect(app).toMatch(/<ProductClip videoRef=\{item\.videoRef\} photoUri=\{item\.assetRefs\[0\]\}/);
     // aperçu cliente goes through the kit tile's photo variant
     expect(app).toMatch(/photoUri=\{item\.assetRefs\[0\]\}/);
   });
@@ -320,7 +330,14 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     const oppTileIdx = app.indexOf('styles.oppTile,');
     const body = app.slice(oppTileIdx, app.indexOf('</Pressable>', oppTileIdx));
     expect(body).toContain('numberOfLines={2}');
-    expect(body).toContain('resizeMode="cover"');
+    // PIN EVOLVED (VIDEO-PARTOUT): the tile art is `ProductClip` now. The FIT
+    // LAW is unchanged and still asserted — the component fills the square with
+    // `cover` for both the photograph and the clip (product-clip.tsx), so the
+    // square-crop discipline this test protects is proven at its new home.
+    expect(body).toContain('<ProductClip');
+    const clip = readFileSync(join(__dirname, '..', 'src', 'ui', 'product-clip.tsx'), 'utf8');
+    expect(clip).toContain('resizeMode="cover"'); // the photograph
+    expect(clip).toContain('contentFit="cover"'); // the clip
     expect(body).toContain("t('fiche.prix_base')"); // Prix de base, NAMED on the tile
     expect(body).toContain("tf('opportunity.gagnez'"); // net holds the price position
     // NET FIRST IN RENDER ORDER (SP-I04/I12): gagnez renders BEFORE the base row.

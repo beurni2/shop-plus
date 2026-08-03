@@ -2900,3 +2900,17 @@ Founder, after seeing it work à la une: « I want it to be on other products to
 **Second gap on the same path:** `handleSupplyCollection` (the opportunités wire) allowlists `productName` + `assetRefs` and carries NO `videoRef`; when added it must be absolutized through `PRODUCT_MEDIA_BASE` exactly as the photos are, or the relative ref reaches a phone that cannot resolve it.
 
 **Remaining, no blocker:** buyer product page C1 (`ClienteProduit` needs `videoRef` threaded) · Boutik+ « Mes produits » (`SupplierOfferRow` carries no video field; the listing surface is a webapp, so a real `<video>` works there).
+
+### VIDEO-PARTOUT (3/5) — « opportunités » and « ma vitrine » play the clip (native build required)
+
+**Founder ruling 2026-08-03, cost stated and accepted:** « yes add video to the reseller app ». This app had NO video capability at all, so the two screens could not show a clip whatever the wire carried.
+
+**`expo-video ~3.0.16`** — the version `expo/bundledNativeModules.json` pairs with SDK 54, READ from the installed package, never guessed (expo-av is gone in 54; `expo-video@latest` is 57.x and belongs to a later SDK). **It is a NATIVE module: « opportunités » and « ma vitrine » cannot arrive as an over-the-air update — the reseller app needs a rebuild.** Recorded in the dependency gate itself, beside the ruling that authorized it.
+
+**`ProductClip`** (`src/ui/product-clip.tsx`) — one component both card surfaces use. Muted (the only autoplay that respects someone in a market, and the only one iOS permits inline), looping (a 6 s clip that stops once reads as broken), no controls / no fullscreen / no PiP (a card is not a player — the tap belongs to the card's own action), and **the photograph rendered UNDERNEATH as a real `<Image>`**: RN has no `poster`, so a clip that never loads leaves the product looking exactly as it did before. `play()` refusals are caught. **No clip ⇒ the photograph and nothing else**, so a caller can never accidentally show a video frame for a product without one.
+
+**THREE GATES CAUGHT THIS DIFF, all correctly** — worth recording because they are the reason a native dep cannot slip in quietly: the approved-dependency allowlist refused `expo-video` twice (named check + exhaustive list); the RESELLER-UX-1 photo pin counted `<Image>` sites and saw them drop from 3 to 1; the opp-grid pin demanded `resizeMode="cover"` inside the tile. **Both UI pins were EVOLVED, not weakened** — the photo pin now counts both spellings and additionally requires every `ProductClip` to be passed the photograph (a bare video with no fallback fails), and the cover pin asserts the fit law at its new home in `product-clip.tsx` for BOTH the photo and the clip.
+
+**Evidence:** reseller-app **424/424** · tsc exit 0 · **gates board exit 0, ALL GATES GREEN**. The board's first run failed `attribution-service` (miniflare e2e); **43/43 in isolation**, board re-run clean — the load-flake class already journalled for checkout-real, stated rather than hidden.
+
+**Remaining in the family:** buyer product page C1 · Boutik+ « Mes produits ».

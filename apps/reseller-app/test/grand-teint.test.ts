@@ -104,6 +104,13 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     // capture (record/stop/playback + mic permission), no backend (persistence
     // stays mocked). SDK-54 bundled version.
     expect(pkg.dependencies['expo-audio']).toBe('~1.1.1');
+    // VIDEO-PARTOUT — expo-video, FOUNDER RULING 2026-08-03, given with the cost
+    // stated and accepted: « yes add video to the reseller app ». This app had NO
+    // video capability at all, so « opportunités » and « ma vitrine » could not
+    // show a clip whatever the wire carried. It is a NATIVE module: the two
+    // screens cannot arrive as an over-the-air update — the app needs a rebuild.
+    // Version read from `expo/bundledNativeModules.json` for SDK 54, never guessed.
+    expect(pkg.dependencies['expo-video']).toBe('~3.0.16');
     // RESELLER-IDENTITY-1 — expo-crypto (the OS CSPRNG, replacing a Math.random mint)
     // and expo-file-system (the document directory, so the identity survives restart
     // and an EAS republish). BOTH are first-party Expo SDK modules, at the versions
@@ -149,7 +156,7 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     expect(added.sort()).toEqual([
       '@shop-plus/reseller-money',
       'expo-audio', 'expo-crypto', 'expo-file-system', 'expo-font', 'expo-haptics',
-      'expo-image-manipulator', 'expo-image-picker', 'react-native-svg',
+      'expo-image-manipulator', 'expo-image-picker', 'expo-video', 'react-native-svg',
     ]);
     // …and NO third-party runtime dep sneaks in under cover of the workspace one
     for (const d of added) {
