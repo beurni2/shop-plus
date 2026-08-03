@@ -2922,3 +2922,18 @@ Founder, after seeing it work à la une: « I want it to be on other products to
 **What the clip did NOT take:** the frame is still the tap target onto the photo gallery, « PHOTO RÉELLE DU PRODUIT » still describes the photographs, and **a product with a clip but NO photograph still renders « SANS PHOTO »** — a clip may not borrow the promise a photograph earns. All three pinned.
 
 **Evidence:** buyer-pwa **834/834** · tsc exit 0.
+
+### OPEN ACTION — the reseller app needs an `eas build` (founder will run it later)
+
+**Founder, 2026-08-03: « I will do the eas build later. »** Recorded here as the one thing standing between the built code and two live screens.
+
+**Why it is required and not optional:** `expo-video ~3.0.16` is a NATIVE module. The installed reseller binary does not contain it, so the JavaScript that imports it cannot run there.
+
+**Why the OTA was NOT sent** (`expo-preview.yml` runs `eas update`, an over-the-air JS push): shipping that update to today's binary would make the app **crash at launch** — the JS would require native code that is absent. It was deliberately withheld at the 2026-08-03 deploy; every other surface went live.
+
+**The safe order, when he runs it:**
+1. `eas build` for the reseller app (produces an installable binary carrying expo-video).
+2. Install that build on the device.
+3. Only then is `expo-preview.yml` (the OTA channel) safe to dispatch again.
+
+**Until then:** « opportunités » and « ma vitrine » show PHOTOGRAPHS. Nothing is broken — `ProductClip` is not in that binary at all; the wire already carries `videoRef` and simply goes unused. Every other surface (buyer vitrine, buyer product page, Boutik+ « Mes produits ») is live and playing clips.
