@@ -2872,3 +2872,17 @@ CI green on `1ae7720` (run **30778805075**) before the merge; main fast-forwarde
 **Shop+ deployed FIRST, by the strict-parse law** stated in the V-1d entry above: **storefront-deploy 30779091630** on `1ae7720` — success, including « Assert the live Worker speaks the canon this job bundled » and the checkout smoke. Only after that green did boutik's producer go out (offer-deploy 30779150725 on `5fff2cb`), so no projection carrying `videoRef` ever met a v3.3.0 parser. Then **pwa-preview 30779147409** and **expo-preview 30779148196**, both success on the same sha (the push-triggered pair 30779088759 / 30779088778 also green).
 
 Full six-run provenance, including boutik's media/offer/web deploys, is recorded in the boutik-plus journal.
+
+## 2026-08-03 — VIDEO-PRODUIT widened: the clip plays on ANY card, not only « à la une »
+
+**Founder order, verbatim:** « I want the video to be displayed on any product if it has one not just a la une product. » This REVERSES my V-1e decision to keep grid tiles as photographs, and he is right to overrule it: the reason I gave (a page of autoplaying clips stutters on a 1GB Android) is answered by the OBSERVER, not by the markup. `video-scroll.ts` already plays **at most one clip at a time** — starting one pauses every sibling — and every element is `preload="metadata"` with the photograph as poster, so an unplayed card costs exactly what it cost as a photo tile: one poster image.
+
+**The change:** `featuredArt` became `produitArt(p, veiled)`, used by BOTH `featuredTile` and `tile`. Same element, same `data-role="video-hero"` (so the existing observer adopts grid clips with no wiring), same honesty kit (muted · playsinline · loop · metadata · poster).
+
+**ÉPUISÉ TILES STAY PHOTOGRAPHS** — my call, stated so he can overrule it too: a sold-out tile is veiled and muette, and a clip playing under the « épuisé » stamp advertises what cannot be bought.
+
+**The pin that flipped:** « ONLY the featured card — the grid tiles stay photographs » was a test asserting the OLD order. Replaced by « EVERY card with a clip — hero AND grid », plus two new cases: a MIXED shop (one product with a clip, one without ⇒ exactly one video, the other stays a photograph — the clip is never borrowed onto a neighbour) and an ÉPUISÉ product with a clip (stays veiled). **Mutation-proven:** putting the grid back on `tileArt` fails 1 test; restored byte-identical.
+
+**Evidence:** buyer-pwa **831/831** · tsc exit 0 · **gates board exit 0, ALL GATES GREEN**, whole-log zero `GATE FAILED`.
+
+**STILL OPEN (his live report, not yet explained):** he published a product with a clip and the hero card rendered a PHOTOGRAPH. Not reproduced here — every unit on both sides of the wire passes. The decisive next reading is the PUBLIC vitrine JSON (`/s/{slug}`): `videoRef` present ⇒ the wire is fine and the app was stale or the render is at fault; absent ⇒ the clip never reached the projection (upload refused at publish, or `assets.video` never welded). Journalled rather than guessed.
