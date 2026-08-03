@@ -649,9 +649,39 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
   ).toBe(true);
 
   // …and the honesty line says what it says, on at most two lines.
-  const rec = petit[0]!.blocks.find((b) => b.text.startsWith('12'));
-  expect(rec?.text).toBe(`12${NNBSP}500 = 11${NNBSP}500 + 1${NNBSP}000 — chaque franc a sa place.`);
-  expect(rec?.lines, 'the reconciliation sentence spilled past two lines').toBeLessThanOrEqual(2);
+  //
+  // EVOLVED (CI run 30773205806, 2026-08-02 — failed on a path this diff never
+  // touched). The old read went through the SWEEP set, which keeps only
+  // WRAPPED blocks — an assertion that the sentence takes two lines, smuggled
+  // inside an assertion about its words. On the CI runner the sentence was not
+  // in the set (a one-line render or a not-yet-rendered bill — either drops it)
+  // and the read came back `undefined`: a report about layout dressed as a
+  // report about text, reproducible 0/4 locally. The wrap was never the
+  // invariant; the WORDS and the no-spill bound are. So the sentence is read
+  // off its OWN element now, with a real wait — one line is better than two,
+  // and a bill that never renders fails BY NAME on the wait, not as undefined.
+  await page.goto(URL_DEFAULT);
+  await policesChargees(page);
+  const recEl = page.locator('[data-screen="C5"] [data-role="reconcile"]');
+  await recEl.waitFor({ state: 'visible' });
+  const rec = await recEl.evaluate((el) => {
+    // Same line-clustering as the sweep (rects within 2px of the line's top).
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const rects = [...range.getClientRects()].filter((r) => r.width > 0).sort((a, b) => a.top - b.top);
+    let lines = 0;
+    let groupTop = Number.NEGATIVE_INFINITY;
+    for (const r of rects) {
+      if (r.top - groupTop > 2) {
+        lines += 1;
+        groupTop = r.top;
+      }
+    }
+    return { text: (el.textContent ?? '').trim(), lines };
+  });
+  expect(rec.text).toBe(`12${NNBSP}500 = 11${NNBSP}500 + 1${NNBSP}000 — chaque franc a sa place.`);
+  expect(rec.lines, 'the reconciliation sentence rendered no measurable line').toBeGreaterThan(0);
+  expect(rec.lines, 'the reconciliation sentence spilled past two lines').toBeLessThanOrEqual(2);
 });
 
 /**
