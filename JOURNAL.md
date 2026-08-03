@@ -2953,3 +2953,17 @@ Founder, after seeing it work à la une: « I want it to be on other products to
 **Evidence:** `vitrine-video.test.ts` **13/13** · buyer-pwa **834/834** · `tsc --noEmit` exit 0 · **gates board exit 0, ALL GATES GREEN** (`grep -c "GATE FAILED"` = 0 over the whole log).
 
 **Scope:** buyer PWA only. No service, no wire, no canon — `pwa-preview.yml` is the only deploy this needs.
+
+**MERGED AND DEPLOYED 2026-08-03** (founder: « On green merge and deploy »). CI `30797617383` green on `261921f` — every step success, including the full gates step (4m54s) → fast-forward `0ecb42f..261921f` on main (guard: `merge-base --is-ancestor` passed) → **`pwa-preview` run `30798332431` from main: deploy job success**. Buyer PWA only; no service redeployed, because nothing server-side changed.
+
+**BUG-CLASS SWEEP, done because this defect was invisible to the whole suite.** Every video element in both repos, and what actually starts each one:
+
+| Surface | Play trigger |
+|---|---|
+| buyer-pwa `cliente/screens.ts` (C1 product page) | `autoplay` — **was missing; this fix** |
+| buyer-pwa `vitrine/render.ts` (hero + grid cards) | `mountVideoScroll(root)`, mounted immediately after `renderVitrineReady` in the same branch (`vitrine/flows.ts:239`) |
+| reseller-app `ui/product-clip.tsx` | `player.play()` in the effect, refusals caught |
+| boutik-plus `v2/fiche-video.web.tsx` (fiche + Produits rows) | `autoPlay: true` |
+| boutik-plus `v2/fiche-video.tsx` (native half) | none — no video capability by design; renders a text state |
+
+Exactly one site depends on the observer, and it is the one screen that mounts it. **No other instance of the defect exists.** This table is why the founder's two other observations were right and consistent: « mes produits » works (autoPlay) and « ma boutique » works (observer) — the product page was the single surface with neither.
