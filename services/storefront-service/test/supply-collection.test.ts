@@ -318,4 +318,62 @@ describe('RESELLER-PHOTOS-1 — the browse wire carries ABSOLUTE photo urls', ()
     const body = (await res.json()) as { offers: { assetRefs: string[] }[] };
     expect(body.offers[0]!.assetRefs).toEqual([]);
   });
+
+  /* ---------------------------------------------------- VIDEO-PRODUIT -- */
+
+  // `null` means NO CLIP — not `undefined`, which a defaulted parameter
+  // silently replaces with the default (this helper's first cut did exactly
+  // that and the no-clip case was secretly testing the with-clip case).
+  const envWithClip = (base?: string, clip: string | null = 'media/video/vid-1') => ({
+    OFFER: {
+      fetch: async () =>
+        Response.json({
+          asOf: fresh(),
+          items: [
+            {
+              version: 1,
+              asOf: fresh(),
+              value: {
+                productVersionId: 'pv-clip-1',
+                offerVersion: 'ov-1',
+                basePrice: 10_000,
+                resellerCommission: 750,
+                available: 3,
+                productName: 'Bazin',
+                assetRefs: ['media/hero-square/cap-1'],
+                category: 'fashion_bags_fabrics',
+                ...(clip !== null ? { videoRef: clip } : {}),
+              },
+            },
+          ],
+        }),
+    },
+    ...(base !== undefined ? { PRODUCT_MEDIA_BASE: base } : {}),
+  });
+
+  const clipOf = async (env: object): Promise<{ videoRef?: string; assetRefs: string[] }> => {
+    const res = await handleRequest(new Request('https://svc/supply-projections'), env as never);
+    const body = (await res.json()) as { offers: { videoRef?: string; assetRefs: string[] }[] };
+    return body.offers[0]!;
+  };
+
+  it('THE CLIP RIDES THIS WIRE TOO, absolutized through the SAME base as the photographs', async () => {
+    const o = await clipOf(envWithClip('https://media-service.example.workers.dev'));
+    expect(o.videoRef).toBe('https://media-service.example.workers.dev/media/video/vid-1');
+    expect(o.assetRefs).toEqual(['https://media-service.example.workers.dev/media/hero-square/cap-1']);
+  });
+
+  it('AN UNSET BASE OMITS THE CLIP — the relative ref must NOT reach a phone', async () => {
+    // THE RED CHECK for a naive `...o` spread: with the base set the absolute
+    // ref masks the leak; only here does `media/video/vid-1` survive into a
+    // device that resolves it against nothing and plays nothing.
+    const o = await clipOf(envWithClip(undefined));
+    expect('videoRef' in o).toBe(false);
+  });
+
+  it('NO CLIP ⇒ no key, base set or not — never invented', async () => {
+    const o = await clipOf(envWithClip('https://media-service.example.workers.dev', null));
+    expect('videoRef' in o).toBe(false);
+    expect(o.assetRefs).toHaveLength(1); // photos untouched by the clip's absence
+  });
 });

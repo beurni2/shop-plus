@@ -370,10 +370,20 @@ async function handleSupplyCollection(env?: StorefrontServiceEnv): Promise<Respo
       // one join function, two consumers — the buyer wire and this one cannot
       // disagree about where a photograph lives. An unset base yields [] and the
       // app draws its glyph tile: the designed no-photo state, never a broken image.
-      offers: result.offers.map((o) => ({
-        ...o,
-        assetRefs: absoluteAssetRefs(env?.PRODUCT_MEDIA_BASE, o.assetRefs),
-      })),
+      // VIDEO-PRODUIT (founder order 2026-08-03) — the clip travels this wire
+      // too, and through the SAME base as the photographs. The RELATIVE ref is
+      // STRIPPED before the spread, exactly as the buyer join does: with an
+      // unset base it would otherwise survive verbatim into a phone that
+      // resolves it against nothing and plays nothing — the broken-ref class
+      // `absoluteAssetRefs` exists to prevent, arriving through a new door.
+      offers: result.offers.map(({ videoRef: relative, ...o }) => {
+        const clip = relative === undefined ? [] : absoluteAssetRefs(env?.PRODUCT_MEDIA_BASE, [relative]);
+        return {
+          ...o,
+          assetRefs: absoluteAssetRefs(env?.PRODUCT_MEDIA_BASE, o.assetRefs),
+          ...(clip.length > 0 ? { videoRef: clip[0]! } : {}),
+        };
+      }),
       diagnostic: {
         status: result.status,
         refusals: result.refusals,

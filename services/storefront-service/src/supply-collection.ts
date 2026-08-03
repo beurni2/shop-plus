@@ -73,6 +73,19 @@ export interface SupplyOffer {
   /** CATEGORY-WIRE-1 (canon v3.0.0) — WHAT is sold, never WHO sells it, so it
    *  belongs here beside `productName` while `zone` stays stripped. */
   readonly category: string;
+  /**
+   * VIDEO-PRODUIT (canon v3.4.0, founder order 2026-08-03: the clip shows on
+   * « opportunités » too). The BARE display ref, exactly as `assetRefs` carries
+   * the photographs — display data, never identity, so it rides the same wire
+   * under the same rule. OPTIONAL: most products have none.
+   *
+   * IT IS RELATIVE HERE, like `assetRefs`, and MUST be absolutized at the route
+   * (`handleSupplyCollection`) through `PRODUCT_MEDIA_BASE` before it reaches a
+   * phone — a relative ref resolves against nothing on a device and plays
+   * nothing. The photographs learned that lesson in RESELLER-PHOTOS-1; the clip
+   * does not get to learn it again.
+   */
+  readonly videoRef?: string;
 }
 
 /** Why one item did not become an offer. Operator-facing — never shown to a reseller. */
@@ -262,6 +275,9 @@ export async function readSupplyCollection(
         productName: p.productName,
         assetRefs: [...p.assetRefs],
         category: p.category,
+        // Conditionally spread: no clip ⇒ the key is ABSENT, never an explicit
+        // `undefined` the JSON would carry as a lie about what exists.
+        ...(p.videoRef !== undefined && p.videoRef !== '' ? { videoRef: p.videoRef } : {}),
       });
       continue;
     }
