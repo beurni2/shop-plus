@@ -3159,6 +3159,10 @@ New catalog key `vitrine.personnaliser` (« Personnaliser », selling/label), in
 · `httpStorefrontPort` — the adapter behind his REAL shop — returns **`NOTES → {}`** by the **BUYER-REAL-HONESTY-1** decision (`buyer-pwa/src/vitrine/profile.ts:339`), because it previously played **another reseller's recording as if it were hers**. That removal was deliberate and is not a regression to undo;
 · `productNotes` exists in **exactly three places, all of them comments naming the field that is missing** — no schema, no service, no wire, no canon.
 **WHY THE DEMO SHOP STILL PLAYS ONE:** the V-demo profile hard-codes `ready` notes for `p1…p8, k1`. So the line looks alive on the demo vitrine and is absent on his own — which is precisely the shape of his report.
-**Completing this line requires one additive, defaulted field on `StorefrontSchema`** — a **`contracts/` change**, which §7 puts in his hands and not mine. Nothing invented, nothing half-wired, no placeholder row that would fake a note. **Blocked on the founder.**
+**THE LINE IS MISSING THREE PARTS, AND ONLY ONE OF THEM IS HIS.** Naming them separately, because « no real wire » is not one blocker:
+· **CAPTURE** — a real `expo-audio` recorder behind the existing `RecorderAdapter` seam. `expo-audio` is **already a dependency**, so it ships with the pending `eas build`; the seam was built for exactly this swap and the reducer and screen do not move. **Mine.**
+· **STORAGE** — media-service accepts photos and, since VIDEO-1b, bounded mp4; audio needs the same bounded treatment under the same key regime. **Mine.**
+· **THE WIRE** — one additive, defaulted `productNotes?: Record<pid, { status; url; durationMs }>` on `StorefrontSchema`. **A `contracts/` change: §7 puts it in his hands, not mine.** Note `voice.ts:10-13` already keeps the reseller shape **byte-identical to the buyer's**, so the canon pin is a swap, not a rebuild.
+Nothing invented, nothing half-wired, no placeholder row faking a note. **Waiting on him for the field; the other two follow it.**
 
 **Scope:** reseller app only — no service, no wire, no canon. Pure JS, ships over the air.
