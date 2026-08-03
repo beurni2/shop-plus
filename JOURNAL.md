@@ -3080,3 +3080,9 @@ Exactly one site depends on the observer, and it is the one screen that mounts i
 **Evidence:** reseller-app **440/440** · tsc exit 0 · **gates board exit 0, ALL GATES GREEN** — including `no-demo-adapter-in-bundle`, which runs a REAL `expo export` (2 506 732-byte bundle), so the runtime require is proven to bundle rather than assumed. New `test/ota-safety.test.ts` (5 tests) **mutation-verified four ways** — restore the static import ⇒ fails; the catch rethrows ⇒ fails; the fallback renders an empty frame ⇒ fails; the export always picks the video body ⇒ fails.
 
 **CONSEQUENCE FOR DELIVERY:** the reseller OTA (`expo-preview.yml`) is now safe to run **before** any `eas build`. Opportunités ships today with its new geometry, showing photographs; the clips light up by themselves once the founder runs the build. **The `eas build` is no longer a blocker — it is now only what turns video on.**
+
+**MERGED AND DEPLOYED 2026-08-03** (founder: « On green merge and deploy », then « Yes »).
+- CI `30804800579` green on `1021dba` → fast-forward `444a053..1021dba` on main (guard passed).
+- **Storefront (buyer PWA):** `pwa-preview` `30804234278` on `444a053` — success. GRILLE-ETAGEE is LIVE.
+- **Reseller app OTA:** `expo-preview` `30835125376` on `1021dba` — success, and **the publish step genuinely RAN (68 s, 17:05:22→17:06:30)**, not skipped. That check matters: this workflow gates every step on `steps.token.outputs.present == 'true'` and reports SUCCESS with everything skipped when `EXPO_TOKEN` is absent — a green run that did nothing. Verified at the step, never from the run's conclusion.
+- **The `eas build` is no longer a blocker.** Opportunités now carries its new geometry over the air, showing photographs; the clips light up on their own once the founder runs the build.
