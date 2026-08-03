@@ -2864,3 +2864,11 @@ The founder's sentence, built: « I want the short video to be the hero card and
 **The pin (`test/video-media-base.test.ts`):** four behavioral cases through the REAL `handleRequest` with fake bindings — base set ⇒ absolute `videoRef`, same origin as the images · base unset ⇒ the key is ABSENT (the M4 red check) · base `''` ⇒ same absence · no clip ⇒ never invented, photos untouched. The naive-spread mutant was installed, failed 2/4, and the original restored byte-identical.
 
 **Evidence:** storefront-service **455/455** · tsc clean · **gates board exit 0, ALL GATES GREEN**. The boutik half of the round (B1 blocker + M1/M2/M3/M5 + minors) is journalled in boutik-plus.
+
+### MERGED AND DEPLOYED (2026-08-03, founder order « everything green merge and deploy all »)
+
+CI green on `1ae7720` (run **30778805075**) before the merge; main fast-forwarded `06a8516..1ae7720` (ancestry checked, sha from `git rev-parse`).
+
+**Shop+ deployed FIRST, by the strict-parse law** stated in the V-1d entry above: **storefront-deploy 30779091630** on `1ae7720` — success, including « Assert the live Worker speaks the canon this job bundled » and the checkout smoke. Only after that green did boutik's producer go out (offer-deploy 30779150725 on `5fff2cb`), so no projection carrying `videoRef` ever met a v3.3.0 parser. Then **pwa-preview 30779147409** and **expo-preview 30779148196**, both success on the same sha (the push-triggered pair 30779088759 / 30779088778 also green).
+
+Full six-run provenance, including boutik's media/offer/web deploys, is recorded in the boutik-plus journal.
