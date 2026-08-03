@@ -355,6 +355,33 @@ function featuredArt(p: VitrineProduct): string {
   return produitArt(p, false); // the hero is never an épuisé (auto-retrait)
 }
 
+/**
+ * GRILLE-ETAGEE — the storefront's product grid, staggered (founder order
+ * 2026-08-03: « Apply all these changes on ma boutique/storefront as well, the
+ * size, the space scale, the square, etc »), matching what opportunités got.
+ *
+ * WHY THIS FUNCTION EXISTS AT ALL: the grid was `<div class="vt-grid">` with
+ * every tile as a direct child of a two-column CSS grid — and a CSS grid lays
+ * out in ROWS, so the two tiles on a line always shared a top and a bottom.
+ * Same defect as the reseller's `numColumns={2}`, same fix: two columns that
+ * flow INDEPENDENTLY, so a tall card pushes only its own column down.
+ *
+ * THE SPLIT IS ALTERNATING INDEX, deliberately the same rule as the reseller
+ * app's — evens left, odds right, pure and stable (Loi 5). CSS `column-count`
+ * would have done this in one line, but it fills COLUMN-MAJOR: articles 1-2-3
+ * would run down the left column and 4-5-6 down the right, silently changing
+ * the order she arranged her shop in. Reading order is hers, not the layout's.
+ *
+ * BOTH GRIDS GO THROUGH HERE — the sections and the residual « autres articles »
+ * — because a shop where one grid staggers and the other does not looks broken
+ * rather than designed.
+ */
+function grille(prods: readonly VitrineProduct[], notes: ProductVoiceNotes): string {
+  const colonne = (c: 0 | 1): string =>
+    prods.filter((_, i) => i % 2 === c).map((p) => tile(p, notes[p.pid])).join('');
+  return `<div class="vt-grid"><div class="vt-col">${colonne(0)}</div><div class="vt-col">${colonne(1)}</div></div>`;
+}
+
 function featuredTile(p: VitrineProduct, note?: ProductVoiceNote, pinnedByHer = true): string {
   return [
     `<button class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${p.pid}">`,
@@ -502,7 +529,7 @@ export function renderVitrineReady(
   for (const s of visibleSections) {
     const prods = orderedProducts(sf, s.pids, described);
     parts.push(groupTitle(esc(s.name).toUpperCase(), prods.length, 'section'));
-    parts.push(`<div class="vt-grid">${prods.map((p) => tile(p, notes[p.pid])).join('')}</div>`);
+    parts.push(grille(prods, notes));
   }
   // NORTH-STAR-1 fix (verifier blocker): a featured article also rendered in the
   // grid — two tiles, two hearts, desynced on tap; and « AUTRES ARTICLES » that
@@ -522,7 +549,7 @@ export function renderVitrineReady(
     // honest title is « TOUS LES ARTICLES ».
     const residualLabel = featured.length > 0 || visibleSections.length > 0 ? t('vit.head_autres') : t('vit.head_tous');
     parts.push(sectionHead(iconBag(15, '#6F6355', 1.9), residualLabel, undefined, undefined, residual.length));
-    parts.push(`<div class="vt-grid">${residual.map((p) => tile(p, notes[p.pid])).join('')}</div>`);
+    parts.push(grille(residual, notes));
   }
 
   parts.push(inkBandAndFooter(sf));

@@ -4,7 +4,7 @@
  * Every value is the Phase-0 computed-style table's byte (colors, fonts,
  * paddings, radii, shadows, gradients) — the table, not the prose, is the
  * build target; the Phase-4 property diff re-verifies each rule against it.
- * Theme-parametric colors read the `--vt-*` custom properties `applyTheme`
+ * Theme-parametric colors read the "--vt-*" custom properties "applyTheme"
  * sets, so a theme change re-tints in one repaint (§8.5, no reflow).
  *
  * Properties the Phase-0 extractor does not capture (opacity, absolute
@@ -227,7 +227,26 @@ export const VITRINE_STYLES = `
   .vt-group-first { margin-top: 22px; }
   .vt-group b { font-size: 11px; font-weight: 700; letter-spacing: 1.1px; color: #6F6355; display: block; }
   .vt-group i { font-size: 11px; font-weight: 700; color: #8A7D6B; display: block; font-variant-numeric: tabular-nums; }
-  .vt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+  /* GRILLE-ETAGEE (founder order 2026-08-03 — the same treatment opportunités
+     got: « the size, the space scale, the square »).
+
+     TWO INDEPENDENT COLUMNS, NOT A CSS GRID. "grid-template-columns: 1fr 1fr"
+     lays out in ROWS, so the two tiles on a line always shared a top and a
+     bottom — the same lock-step the reseller's "numColumns={2}" produced. Flex
+     columns with "align-items: flex-start" let each column fall where its own
+     cards land, and the shorter column is never stretched to match.
+
+     THE NEGATIVE MARGIN IS THE « SPACE SCALE » (measured, not guessed). The page
+     scrolls inside ".vt-scroll { padding: 16px 20px 46px }", and 20px each side
+     is right for TEXT — pulling that padding in globally would shove the whole
+     page against the bezel. So only the GRID escapes it: -16px leaves 4px at the
+     screen edge, and the gutter is 4px to match.
+       before  390 − (20×2) − 12 = 338 ⇒ 169px card (43.3% of the screen)
+       after   390 − ( 4×2) −  4 = 378 ⇒ 189px card (48.5%)
+     Identical arithmetic to the reseller grid, and within half a point of the
+     founder's reference (206/428 = 48.1%). */
+  .vt-grid { display: flex; align-items: flex-start; gap: 4px; margin: 10px -16px 0; }
+  .vt-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 
   /* C-VIT4 — la tuile produit v2. */
   .vt-tile {
@@ -238,17 +257,36 @@ export const VITRINE_STYLES = `
     font: inherit; color: inherit;
   }
   .vt-tile:active { transform: scale(.97); }
-  .vt-tile-art {
-    position: relative; height: 132px;
-    display: flex; align-items: center; justify-content: center;
-  }
+  /* CADRE — the fixed 132px height is GONE (founder order: « Drop the square
+     rule », extended here). A height every card shares is a height that keeps
+     the columns in lock-step, and it also crops every portrait photograph to a
+     letterbox. The media now sets its own height from its real proportions.
+
+     ON THE WEB THIS NEEDS NO MEASUREMENT AT ALL: the browser knows an image's
+     intrinsic ratio and "height: auto" simply obeys it. (The reseller app had to
+     measure via "onLoad" because React Native has no such thing — same rule,
+     cheaper implementation here.)
+
+     The flex centring moved to the SANS-PHOTO variant, which is the only branch
+     that still needs to centre anything inside a box of its own height. */
+  .vt-tile-art { position: relative; }
   /* C-VIT4 — la PHOTO réelle du produit (REAL-PRODUCT-RENDER-1) : la première
      référence d'image (le héros) remplit la tuile. object-fit cover garde le
      cadrage sur toutes les proportions ; le fond sable évite le flash blanc
      pendant le chargement sur réseau lent. */
-  .vt-tile-art-photo { background-color: var(--vt-soft); }
+  .vt-tile-art-photo { background-color: var(--vt-soft); display: block; }
+  /* CADRE — the photograph decides the card's height, WITHIN BOUNDS.
+     "height: auto" obeys the real ratio; the min/max keep one panorama or one
+     full-length screenshot from producing a letterbox sliver or a card taller
+     than the phone, which would wreck the whole column beneath it. "object-fit:
+     cover" still governs, so only those clamped extremes are trimmed — where the
+     old fixed height trimmed EVERY photo that was not 4:3.
+     The px bounds approximate the same band the reseller clamps by ratio
+     ([0.75, 1.33] w/h ⇒ roughly 142–252px tall at a 189px card). They are px
+     and not exact ratios because clamping intrinsic media by ratio needs
+     container queries, and this page has to render on old Android WebViews. */
   .vt-tile-photo {
-    position: absolute; inset: 0; width: 100%; height: 100%;
+    position: static; width: 100%; height: auto; min-height: 120px; max-height: 260px;
     object-fit: cover; display: block;
   }
 
@@ -258,8 +296,15 @@ export const VITRINE_STYLES = `
      habillages produit le sien, et il fonctionne pour un produit sans aucune
      donnée d'image. Jamais pris pour le produit : les quatre équerres et la
      mention « SANS PHOTO » (précédent C1) le désignent comme un ornement. */
+  /* CADRE — the SANS-PHOTO tile KEEPS a height of its own, and must: there is no
+     photograph here to derive one from, so without this the woven habillage
+     collapses to nothing and the card becomes a bare caption. 132px is the
+     height every tile used to have, so the honest no-photo state looks exactly
+     as it did. Same principle as the reseller's « unmeasured ⇒ the old square ».
+     This carries the flex centring that ".vt-tile-art" used to provide. */
   .vt-tile-art-sansphoto {
-    background-color: var(--vt-soft);
+    background-color: var(--vt-soft); height: 132px;
+    display: flex; align-items: center; justify-content: center;
     flex-direction: column; gap: 0;
     transition: background-color .3s;
   }
@@ -345,7 +390,19 @@ export const VITRINE_STYLES = `
   /* NORTH-STAR-1 — the big featured card: tall photo, « À LA UNE » badge (her
      true curation, never « BEST SELLER »), price large, Commander CTA. */
   .vt-featured-artwrap { position: relative; }
+  /* THE « À LA UNE » HERO KEEPS ITS DESIGNED 210px. It is ONE full-width card
+     with nothing beside it, so it aligns with nothing and cannot lock a column —
+     the stagger has no work for it to do, and letting a portrait photo make it
+     420px tall would push the whole grid below the fold. Scoped exactly like the
+     reseller, where the fiche héro and the vitrine card kept their square.
+
+     …AND ITS MEDIA IS TOLD TO FILL THAT HEIGHT. This override is load-bearing:
+     the grid rule above sets "height: auto" with px bounds, and inherited here
+     it would leave the hero's photo floating at its own size inside a 210px box,
+     with the sand background showing through. */
   .vt-featured .vt-tile-art { height: 210px; }
+  .vt-featured .vt-tile-photo,
+  .vt-featured .vt-video-hero { height: 100%; min-height: 0; max-height: none; }
   .vt-featured .vt-sansphoto-caps { font-size: 10.5px; }
   .vt-featured-badge {
     position: absolute; top: 12px; left: 12px;
@@ -377,7 +434,15 @@ export const VITRINE_STYLES = `
      slot: a quiet warm card, her words only, no chrome competing with the hero. */
   /* VIDEO-PRODUIT V-1e — the featured card's video hero: fills the art frame
      exactly as the photograph does; the poster shows until the observer plays. */
-  .vt-video-hero { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* CADRE — a CLIP sizes itself exactly as a photograph does, and under the same
+     bounds: a product's video is the same product, so it may not follow a
+     different height law from its photo or the grid would jump as clips load.
+     "height: 100%" here would resolve against an auto-height parent and collapse
+     the tile — the bug this line is written to prevent. */
+  .vt-video-hero {
+    width: 100%; height: auto; min-height: 120px; max-height: 260px;
+    object-fit: cover; display: block;
+  }
 
   .vt-presentation {
     margin-top: 14px; border-radius: 18px;

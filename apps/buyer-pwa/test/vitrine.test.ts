@@ -557,7 +557,14 @@ describe('round 4 — the one-product shop tells no lies below the lead', () => 
     const html = renderVitrineReady(sfOne as never, trust, { fromProduct: false }, {}, one);
     expect(html).toContain('data-role="vitrine-a-la-une"');
     expect(html).not.toContain('Autres articles');
-    expect(html).not.toContain('<div class="vt-grid"></div>');
+    // PIN REPAIRED (GRILLE-ETAGEE): this used to read `<div class="vt-grid"></div>`
+    // — the empty-grid spelling BEFORE the grid grew its two column children.
+    // After the change an empty grid renders as `…><div class="vt-col"></div>…`,
+    // so the old string could never match and the assertion passed vacuously
+    // while protecting nothing. Asserting the CLASS's absence outright is the
+    // guarantee that was meant, and it cannot go stale on the inner markup.
+    expect(html).not.toContain('vt-grid');
+    expect(html).not.toContain('vt-col');
     // no target below ⇒ no « Voir tout » link and no orphaned anchor
     expect(html).not.toContain('data-action="ancre"');
     expect(html).not.toContain('id="vt-anchor-grid"');

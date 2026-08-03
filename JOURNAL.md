@@ -3033,3 +3033,30 @@ Exactly one site depends on the observer, and it is the one screen that mounts i
 **FOUR PINS EVOLVED, none weakened** — the UX-2 grid pin, the UX-4 geometry pin and the FIT-LAW family loop all asserted `aspectRatio: 1` on `oppTileArt`; each now asserts the per-card measured frame instead, with the fit law itself moved to `test/cadre.test.ts`. The fourth was a **false alarm worth recording**: the photo-site counter matched a ONE-LINE `<ProductClip …>`, so wrapping that call across lines to add `onAspect` read as « this surface lost its photograph ». Fixed by making the matcher whitespace-insensitive — the count is unchanged. Loosening the count instead would have been the easy, wrong repair.
 
 **NOT VISIBLE UNTIL THE `eas build`** — same standing block.
+
+### GRILLE-ETAGEE — the storefront gets the opportunités treatment
+
+**Founder, 2026-08-03: « Apply all these changes on ma boutique/storefront as well, the size, the space scale, the square, etc. »**
+
+**WHICH SURFACE « ma boutique » MEANS, settled from his own earlier words, not guessed.** Both the reseller's « Ma Vitrine » screen and the buyer-facing storefront page were plausible. Earlier today he wrote « the bouteille has a video, i checked in mes produits **and ma boutique** » — and the reseller app cannot show video at all until the pending `eas build`. So the surface he looks at under that name is the **live storefront page** (`buyer-pwa/src/vitrine`), which is what this slice changes.
+
+**1 · SIZE + SPACE SCALE.** `390 − (4×2) − 4 = 378` ⇒ **189px card = 48.5%** (was `390 − (20×2) − 12 = 338` ⇒ 169px = 43.3%). Same arithmetic and same result as the reseller grid, within half a point of the reference.
+**The page padding was NOT touched.** `.vt-scroll` keeps `16px 20px 46px`, because 20px is right for TEXT; only `.vt-grid` escapes it with `margin: 10px -16px 0`. Shrinking `.vt-scroll` was the tempting one-liner and would have shoved the entire page — headings, trust band, footer — against the bezel.
+
+**2 · STAGGER.** `grid-template-columns: 1fr 1fr` lays out in **rows**, the exact CSS twin of `numColumns={2}`. Replaced by two flex columns with **`align-items: flex-start`** (flex's default `stretch` would pull the short column to the tall one's height and kill the stagger silently). Both grids — sections and the residual « autres articles » — go through one `grille()` helper, because a shop where one grid staggers and the other does not looks broken rather than designed.
+**Split by ALTERNATING INDEX, same law as the reseller.** `column-count: 2` would have done it in one CSS line but fills **column-major** — articles 1-2-3 down the left, 4-5-6 down the right — silently reordering the arrangement she chose. Reading order is hers, not the layout's.
+
+**3 · THE SQUARE (the fixed `height: 132px`) IS DROPPED.** The media now sizes itself. **On the web this needs no measurement at all** — the browser knows an image's intrinsic ratio and `height: auto` obeys it; the reseller app needed an `onLoad` callback only because React Native has no equivalent. Same rule, cheaper implementation.
+**Three consequences handled rather than discovered later:**
+- **Bounded** `min-height: 120px / max-height: 260px` on both the photo and the clip — approximating the reseller's [0.75, 1.33] band in px, because clamping intrinsic media *by ratio* needs container queries and this page must render on old Android WebViews.
+- **`.vt-video-hero` had `height: 100%`** — against a now-auto-height parent that resolves to a **collapsed tile**. Changed to `auto` with the same bounds: a product's clip may not follow a different height law from its photo, or the grid jumps as clips load.
+- **SANS PHOTO keeps `height: 132px`** and inherits the flex centring `.vt-tile-art` used to provide. There is no photograph to derive a height from, so without it the woven habillage collapses to a bare caption. Same principle as « unmeasured ⇒ the old square ».
+- **The « à la une » hero keeps its designed 210px**, and its media got an explicit `height: 100%` override — one full-width card aligns with nothing, so the stagger has no work for it, and a portrait photo at 420px would push the grid below the fold. Scoped exactly as the reseller's fiche héro and vitrine card were.
+
+**Evidence:** buyer-pwa **844/844** · tsc exit 0 · **gates board exit 0, ALL GATES GREEN**. New `test/vitrine-grille.test.ts` (10 tests) **mutation-verified five ways** — row-based grid restored ⇒ fails; `align-items: stretch` ⇒ fails; fixed art height back ⇒ fails; clamp removed ⇒ fails; **column-major split ⇒ fails (2)**.
+
+**TWO SELF-INFLICTED TRAPS, both worth recording.**
+1. **`styles.ts` is one big template literal**, so the backticks I wrote inside CSS comments terminated the string and broke 4 test files at parse time. All comment backticks are now guillemets. Anything written into that file must stay backtick-free.
+2. **A pin that had silently stopped protecting anything:** `vitrine.test.ts` asserted `not.toContain('<div class="vt-grid"></div>')` — the empty-grid spelling from *before* the grid grew column children. After this change that exact string can never appear, so the assertion would have passed forever while guarding nothing. Repaired to assert the classes' absence outright. **This is the failure mode where a green suite is a lie**, and it was found by reading the pin rather than by it failing.
+
+**Un-run:** the storefront page renders from the buyer PWA, which deploys on merge to main — so unlike the reseller work, this one does NOT wait on the `eas build`.
