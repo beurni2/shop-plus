@@ -204,6 +204,19 @@ export interface StorefrontServicePort {
   unpublish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string }>>;
   uploadCover(storefrontId: string, bytes: Uint8Array, contentType: string): Promise<ServiceResult<UploadOutcome>>;
   uploadAvatar(storefrontId: string, bytes: Uint8Array, contentType: string): Promise<ServiceResult<UploadOutcome>>;
+  /**
+   * VOIX-PRODUIT — her recorded note for ONE product. Same seam as the photos,
+   * two extra facts the service needs: WHICH product it is about, and how long
+   * the take ran. The service writes the note onto her shop and answers with
+   * the address it stored; the app never authors one.
+   */
+  uploadVoiceNote(
+    storefrontId: string,
+    pid: string,
+    bytes: Uint8Array,
+    contentType: string,
+    durationMs: number,
+  ): Promise<ServiceResult<UploadOutcome>>;
   list(): Promise<ServiceResult<readonly StorefrontRow[]>>;
   /**
    * PUBLISH-PRICE-1 — list a product at HER markup. The service signs the price.
@@ -315,8 +328,18 @@ export class HttpStorefrontService implements StorefrontServicePort {
     return this.postJson(`/storefronts/${encodeURIComponent(id)}/unpublish`, { id, correlationId, at });
   }
 
-  private async upload(kind: 'cover' | 'avatar', storefrontId: string, bytes: Uint8Array, contentType: string): Promise<ServiceResult<UploadOutcome>> {
-    const q = `?kind=${kind}&storefrontId=${encodeURIComponent(storefrontId)}`;
+  private async upload(
+    kind: 'cover' | 'avatar' | 'voice',
+    storefrontId: string,
+    bytes: Uint8Array,
+    contentType: string,
+    // VOIX-PRODUIT — only a note carries these, and the query only grows when
+    // they are present, so the photo request is byte-identical to what it was.
+    extra?: { pid: string; durationMs: number },
+  ): Promise<ServiceResult<UploadOutcome>> {
+    const q =
+      `?kind=${kind}&storefrontId=${encodeURIComponent(storefrontId)}` +
+      (extra ? `&pid=${encodeURIComponent(extra.pid)}&durationMs=${String(Math.max(0, Math.floor(extra.durationMs)))}` : '');
     let res: Response;
     try {
       res = await fetch(`${this.base}/media/upload${q}`, {
@@ -345,6 +368,16 @@ export class HttpStorefrontService implements StorefrontServicePort {
 
   uploadAvatar(storefrontId: string, bytes: Uint8Array, contentType: string): Promise<ServiceResult<UploadOutcome>> {
     return this.upload('avatar', storefrontId, bytes, contentType);
+  }
+
+  uploadVoiceNote(
+    storefrontId: string,
+    pid: string,
+    bytes: Uint8Array,
+    contentType: string,
+    durationMs: number,
+  ): Promise<ServiceResult<UploadOutcome>> {
+    return this.upload('voice', storefrontId, bytes, contentType, { pid, durationMs });
   }
 
   /**

@@ -1956,6 +1956,18 @@
   "screenClass": "status"
  },
  {
+  "key": "k.voix.toast_en_ligne",
+  "fr": "Votre note est en ligne",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.voix.toast_echec",
+  "fr": "Note pas envoy\u00e9e. R\u00e9essayez dans un moment.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "k.voix.toast_publiee",
   "fr": "Note enregistrée — publiée dès que le réseau revient.",
   "register": "neutral",

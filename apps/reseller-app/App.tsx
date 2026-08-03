@@ -29,7 +29,7 @@ import { loadOrMintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
 import type { ResellerIdentity } from './src/identity/mint';
 import { expoIdentityStore, expoRandomBytes } from './src/identity/expoStore';
-import { useVoiceNotes, VoiceNoteSheet, voiceCardLabel } from './src/vitrine/customize/voice-sheet';
+import { useVoiceNotes, VoiceNoteSheet, voiceCardLabel, type VoiceUploader } from './src/vitrine/customize/voice-sheet';
 import {
   useCercle, CercleHub, CampWizard, CampaignActive, CampaignFunding, CercleReputation,
   CercleMembres, IconCercleDeux, PendingHero, GainsSaleCard, CercleAccueilCard,
@@ -299,7 +299,6 @@ export default function App() {
   // Notes vocales — ONE controller (real capture, expo-audio) hosted here, so the
   // mic on each Ma Vitrine product card opens a record SHEET for THAT product
   // (founder Option A — recording lives with the product, not behind « Aa »).
-  const voice = useVoiceNotes(setToast);
   const [voiceSheet, setVoiceSheet] = useState<{ pid: string; name: string } | null>(null);
   // LE CERCLE — one controller (campaign + draft + the [MOCK-PARTENAIRE] port).
   const cercle = useCercle(setToast);
@@ -467,6 +466,41 @@ export default function App() {
     },
     [service, identity, liveStorefront],
   );
+
+  /**
+   * VOIX-PRODUIT — her note's bytes to the service, and the SERVICE's url back.
+   *
+   * READ THE FILE HERE, not in the sheet: the take is a local `file://` uri from
+   * expo-audio, and turning it into bytes is a platform act that belongs beside
+   * the other upload call sites, not inside a pure-ish controller.
+   *
+   * CONFIRMED BY READ-BACK, exactly as MEDIA-2 made the cover do: a 201 is not
+   * proof. We re-read the shop and check that the note under THIS pid carries
+   * the url THIS upload minted — `Boolean(note)` would be true of a note she
+   * recorded last week, so a failed replacement could have reported success.
+   */
+  const uploadVoiceNote = useCallback<VoiceUploader>(
+    async (pid, fileUri, durationMs) => {
+      if (service === null || identity === null || identity === undefined) return { ok: false, reason: 'unconfigured' };
+      let bytes: Uint8Array;
+      try {
+        const res = await fetch(fileUri);
+        bytes = new Uint8Array(await res.arrayBuffer());
+      } catch {
+        return { ok: false, reason: 'file_unreadable' };
+      }
+      if (bytes.length === 0) return { ok: false, reason: 'file_empty' };
+      const up = await service.uploadVoiceNote(identity.storefrontId, pid, bytes, 'audio/mp4', durationMs);
+      if (!up.ok) return { ok: false, reason: up.reason };
+      const fresh = await service.getById(identity.storefrontId);
+      if (fresh.ok && fresh.value !== undefined) setLiveStorefront(fresh.value);
+      const confirmed =
+        fresh.ok && fresh.value !== undefined && fresh.value.productNotes?.[pid]?.url === up.value.url;
+      return confirmed ? { ok: true, url: up.value.url } : { ok: false, reason: 'not_confirmed' };
+    },
+    [service, identity],
+  );
+  const voice = useVoiceNotes(setToast, uploadVoiceNote);
 
   /** MEDIA-2 — her PORTRAIT, same law as the cover: bytes up, URL owned by the
    *  service, success only once the read-back shows it. */

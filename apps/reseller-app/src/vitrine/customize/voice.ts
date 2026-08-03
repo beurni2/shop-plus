@@ -12,15 +12,22 @@
  * SWAP not a rebuild. CANON WOULD NEED one additive, defaulted field on
  * StorefrontSchema: `productNotes?: Record<pid, { status; url; durationMs }>`.
  *
- * HONESTY LAW (queued = pending, never done): with no media backend, a
- * published note is `pending` (« publiée dès que le réseau revient ») — the
- * reducer NEVER produces `ready`. `ready` is the buyer-visible, backend-stored
- * state only; a conformance test pins that the reseller never emits it.
+ * HONESTY LAW (queued = pending, never done): tapping « Publier » makes a note
+ * `pending` (« publiée dès que le réseau revient »). It becomes `ready` ONLY
+ * when the SERVICE has stored the bytes and answered with the address it minted
+ * — `readyNote` takes that url as an argument and cannot be called without one.
+ * No local action reaches `ready`; a conformance test pins exactly that, and it
+ * is the claim that matters: she cannot publish herself into « en ligne ».
  *
- * FLAG STOREFRONT-MEDIA-BACKING: capture is DEMO-FED — createDemoRecorder()
- * captures nothing (url stays null); it only measures the real elapsed time so
- * the duration is honest. The real native recorder (a future expo-audio adapter)
- * swaps THIS seam, never the reducer or the screen.
+ * VOIX-PRODUIT (2026-08-03) — THIS BANNER USED TO SAY CAPTURE WAS DEMO-FED, AND
+ * IT WAS STALE. `voice-capture.ts` (expo-audio) has been the screen's recorder
+ * for some time; `createDemoRecorder` is a TEST double and nothing else imports
+ * it. The stale sentence was read as current in a status report and made the
+ * line sound less built than it was. A comment that describes a former state is
+ * worse than no comment.
+ *
+ * WHAT WAS GENUINELY MISSING was the UPLOAD, and it is now here: the controller
+ * hands the take's bytes to the service, which writes the note onto her shop.
  */
 
 export type ProductVoiceStatus = 'none' | 'recording' | 'recorded' | 'pending' | 'ready';
@@ -72,6 +79,36 @@ export function publishNote(notes: ProductVoiceNotes, pid: string): ProductVoice
   const n = noteOf(notes, pid);
   if (n.status !== 'recorded') return notes;
   return { ...notes, [pid]: { ...n, status: 'pending' } };
+}
+
+/**
+ * THE SERVICE CONFIRMED IT — `pending` → `ready`, carrying the url the SERVICE
+ * minted, never the local file path.
+ *
+ * `url` IS A REQUIRED ARGUMENT, and that is the whole design: `ready` is
+ * unreachable without an address someone else authored, so no local sequence of
+ * taps can produce it. Refuses from any other state — a `recorded` note that
+ * somehow got a url was never published, and a second confirmation of an
+ * already-`ready` note is a no-op rather than a duplicate write.
+ */
+export function readyNote(notes: ProductVoiceNotes, pid: string, url: string): ProductVoiceNotes {
+  const n = noteOf(notes, pid);
+  if (n.status !== 'pending' || url === '') return notes;
+  return { ...notes, [pid]: { ...n, status: 'ready', url } };
+}
+
+/**
+ * THE UPLOAD FAILED — `pending` → back to `recorded`, take intact.
+ *
+ * There is no retry queue in this app, so leaving her note « pending » forever
+ * would be the queued-means-done lie in slow motion: a note that will never
+ * publish, described as on its way. The local take still exists, so `recorded`
+ * is the true state and « Publier » is right there to tap again.
+ */
+export function failPublish(notes: ProductVoiceNotes, pid: string): ProductVoiceNotes {
+  const n = noteOf(notes, pid);
+  if (n.status !== 'pending') return notes;
+  return { ...notes, [pid]: { ...n, status: 'recorded' } };
 }
 
 /** « Annuler » a live recording — back to no note (drops the in-progress take). */

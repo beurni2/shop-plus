@@ -167,6 +167,38 @@ export class DemoStorefrontService implements StorefrontServicePort {
     return { ok: true, value: { status: 'pending', url } };
   }
 
+  /**
+   * VOIX-PRODUIT — the demo double. CONTRACT-CERTIFIED in the one way that
+   * matters here (Execution Contract §3): it answers `ready`, which is what the
+   * real service answers, because a double that returned `pending` forever
+   * would make the honest « publiée dès que le réseau revient » state look like
+   * the normal outcome and hide the real one.
+   *
+   * The demo URL keeps the `demo://` prefix the bundle gate scans for, so a
+   * demo address can never ship inside a release artifact unnoticed.
+   */
+  async uploadVoiceNote(
+    storefrontId: string,
+    pid: string,
+    bytes: Uint8Array,
+    _contentType?: string,
+    durationMs = 0,
+  ): Promise<ServiceResult<UploadOutcome>> {
+    this.uploads.push({ kind: 'voice', storefrontId, size: bytes.length });
+    const read = await this.getById(storefrontId);
+    // An upload against a shop that does not exist is a FAILED upload, not a
+    // quiet success — the same refusal the real service answers (MEDIA-2).
+    if (!read.ok || read.value === undefined) return { ok: false, reason: 'storefront_absent' };
+    const url = `demo://voice/${storefrontId}/${pid}`;
+    // Written onto the HELD SHOP, exactly as the real service writes it, so a
+    // test that reads the storefront back sees the note the same way she will.
+    this.identities.set(storefrontId, {
+      ...read.value,
+      productNotes: { ...(read.value.productNotes ?? {}), [pid]: { status: 'ready', url, durationMs } },
+    });
+    return { ok: true, value: { status: 'ready', url } };
+  }
+
   async list(): Promise<ServiceResult<readonly StorefrontRow[]>> {
     return {
       ok: true,

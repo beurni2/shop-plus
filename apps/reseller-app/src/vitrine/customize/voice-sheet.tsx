@@ -22,6 +22,8 @@ import {
   startRecording,
   stopRecording,
   publishNote,
+  readyNote,
+  failPublish,
   cancelRecording,
   deleteNote,
   type ProductVoiceNote,
@@ -76,10 +78,26 @@ export interface VoiceNotesController {
   retryPermission(): void;
 }
 
+/**
+ * VOIX-PRODUIT — the publish seam. Given the take's local file uri and how long
+ * it ran, it uploads and answers with the url THE SERVICE minted.
+ *
+ * A SEAM RATHER THAN A SERVICE IMPORT, for the reason the recorder is one: this
+ * module is loaded by the screen, and the App is where identity, the storefront
+ * id and the service adapter live. It is OPTIONAL so a preview build with no
+ * service configured still records and plays back — it simply cannot publish,
+ * and says so instead of pretending.
+ */
+export type VoiceUploader = (
+  pid: string,
+  fileUri: string,
+  durationMs: number,
+) => Promise<{ ok: true; url: string } | { ok: false; reason: string }>;
+
 /** One recorder, one controller — hosted at the App level, shared by every
  * card mic and the sheet. Async takes land via a functional setState so a stale
  * closure can never overwrite a later state. */
-export function useVoiceNotes(onToast: (m: string) => void): VoiceNotesController {
+export function useVoiceNotes(onToast: (m: string) => void, upload?: VoiceUploader): VoiceNotesController {
   const [notes, setNotes] = useState<ProductVoiceNotes>(DEFAULT_VOICE_NOTES);
   const [micDenied, setMicDenied] = useState(false);
   const [playingPid, setPlayingPid] = useState<string | null>(null);
@@ -119,6 +137,37 @@ export function useVoiceNotes(onToast: (m: string) => void): VoiceNotesControlle
         onToast(interrupted('arrêt', err));
       }
     };
+    /**
+     * PUBLIER — pending first, then the real upload, then the SERVICE's answer.
+     *
+     * The order is the honesty: she sees « publiée dès que le réseau revient »
+     * the instant she taps (loi 7 — queued is pending, never done), and the note
+     * only becomes `ready` when the service hands back the address it stored.
+     * A failure puts the take back to `recorded` with its own reason, because
+     * this app has no retry queue and a note stuck « pending » forever would be
+     * the same lie told slowly.
+     */
+    const publishRec = async (pid: string): Promise<void> => {
+      const note = noteOf(notes, pid);
+      if (note.status !== 'recorded' || note.url === null) return;
+      const take = { url: note.url, durationMs: note.durationMs };
+      setNotes((cur) => publishNote(cur, pid));
+      if (upload === undefined) {
+        // No service in this build: it is genuinely queued nowhere. Say the
+        // pending sentence and stop — never « en ligne ».
+        onToast(t('k.voix.toast_publiee'));
+        return;
+      }
+      onToast(t('k.voix.toast_publiee'));
+      const res = await upload(pid, take.url, take.durationMs);
+      if (res.ok) {
+        setNotes((cur) => readyNote(cur, pid, res.url));
+        onToast(t('k.voix.toast_en_ligne'));
+        return;
+      }
+      setNotes((cur) => failPublish(cur, pid));
+      onToast(t('k.voix.toast_echec'));
+    };
     const playRec = async (pid: string, url: string): Promise<void> => {
       if (playingPid === pid) { await recorder.stopPlayback(); setPlayingPid(null); return; }
       await recorder.play(url); // her own take, local file — real playback
@@ -136,10 +185,7 @@ export function useVoiceNotes(onToast: (m: string) => void): VoiceNotesControlle
         setNotes((cur) => cancelRecording(cur, pid));
       },
       playRec: (pid, url) => void playRec(pid, url),
-      publishRec: (pid) => {
-        setNotes((cur) => publishNote(cur, pid));
-        onToast(t('k.voix.toast_publiee')); // honesty: « publiée dès que le réseau revient », never « en ligne »
-      },
+      publishRec: (pid) => void publishRec(pid),
       deleteRec: (pid) => {
         if (playingPid === pid) { void recorder.stopPlayback(); setPlayingPid(null); }
         setNotes((cur) => deleteNote(cur, pid));
@@ -149,7 +195,7 @@ export function useVoiceNotes(onToast: (m: string) => void): VoiceNotesControlle
         void recorder.requestPermission().then((p) => setMicDenied(p === 'denied'));
       },
     };
-  }, [notes, micDenied, playingPid, recorder, onToast]);
+  }, [notes, micDenied, playingPid, recorder, onToast, upload]);
 }
 
 /** The card label for a product's note — drives the mic affordance text. */

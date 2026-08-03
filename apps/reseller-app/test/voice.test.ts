@@ -18,6 +18,8 @@ import {
   cancelRecording,
   deleteNote,
   createDemoRecorder,
+  readyNote,
+  failPublish,
   fmtVoiceDuration,
   type ProductVoiceNotes,
   type ProductVoiceStatus,
@@ -79,7 +81,18 @@ describe('re-record and delete are possible from any kept state', () => {
   });
 });
 
-describe('HONESTY — the reducer never emits `ready`', () => {
+describe('HONESTY — no LOCAL action reaches `ready`; only the service does', () => {
+  /**
+   * PIN EVOLVED (VOIX-PRODUIT, 2026-08-03). It used to read « the reducer never
+   * emits `ready` », which was true when nothing could store a note. Now
+   * `readyNote` exists, and leaving the old name would have been a test whose
+   * title lied about what it protects.
+   *
+   * THE CLAIM THAT ACTUALLY MATTERS IS UNCHANGED and is what is asserted here:
+   * SHE cannot publish herself into « en ligne ». `ready` is reachable only by
+   * handing over a url the service minted — which no amount of tapping can
+   * produce.
+   */
   it('no sequence of record/stop/publish/re-record ever produces the buyer-only `ready` status', () => {
     const seen = new Set<ProductVoiceStatus>();
     let n: ProductVoiceNotes = DEFAULT_VOICE_NOTES;
@@ -89,6 +102,41 @@ describe('HONESTY — the reducer never emits `ready`', () => {
     record(); stop(); publish(); record(); stop(); publish();
     expect(seen.has('ready')).toBe(false);
     expect([...seen].sort()).toEqual(['pending', 'recorded', 'recording']);
+  });
+
+  it('`readyNote` is the ONLY door to `ready`, and it cannot be opened without a service url', () => {
+    let n = publishNote(stopRecording(startRecording(DEFAULT_VOICE_NOTES, 'p1'), 'p1', TAKE), 'p1');
+    expect(noteOf(n, 'p1').status).toBe('pending');
+    // A blank url changes NOTHING — « ready » with nothing to play is the exact
+    // dead-button defect the buyer projection also refuses.
+    expect(readyNote(n, 'p1', '')).toBe(n);
+    n = readyNote(n, 'p1', 'https://media/notes/p1.m4a');
+    expect(noteOf(n, 'p1').status).toBe('ready');
+    // …and the url stored is the SERVICE's, never the local file the phone had.
+    expect(noteOf(n, 'p1').url).toBe('https://media/notes/p1.m4a');
+    expect(noteOf(n, 'p1').url).not.toBe(TAKE.url);
+  });
+
+  it('only a PENDING note can be confirmed — a recorded one was never published', () => {
+    const recorded = stopRecording(startRecording(DEFAULT_VOICE_NOTES, 'p1'), 'p1', TAKE);
+    expect(readyNote(recorded, 'p1', 'https://media/x.m4a')).toBe(recorded);
+    // and confirming twice is a no-op, not a second write
+    const ready = readyNote(publishNote(recorded, 'p1'), 'p1', 'https://media/x.m4a');
+    expect(readyNote(ready, 'p1', 'https://media/y.m4a')).toBe(ready);
+  });
+
+  it('A FAILED UPLOAD GOES BACK TO `recorded` — never left pending forever', () => {
+    // There is no retry queue in this app. A note stuck « publiée dès que le
+    // réseau revient » that will never publish is the queued-means-done lie told
+    // slowly; the take is still on the phone, so `recorded` is the true state
+    // and « Publier » is right there to tap again.
+    const pending = publishNote(stopRecording(startRecording(DEFAULT_VOICE_NOTES, 'p1'), 'p1', TAKE), 'p1');
+    const back = failPublish(pending, 'p1');
+    expect(noteOf(back, 'p1').status).toBe('recorded');
+    expect(noteOf(back, 'p1').url).toBe(TAKE.url); // the take SURVIVED
+    // it refuses from any other state, so it can never undo a confirmed note
+    const ready = readyNote(pending, 'p1', 'https://media/x.m4a');
+    expect(failPublish(ready, 'p1')).toBe(ready);
   });
 });
 

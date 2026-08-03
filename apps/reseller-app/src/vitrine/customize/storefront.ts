@@ -223,6 +223,14 @@ export interface Storefront {
    *  OLD deployed service omits it on the wire; `headerStyleOf` reads the
    *  absence (and any unknown value) as `classique`. */
   readonly headerStyle?: string;
+  /** VOIX-PRODUIT — pid → her recorded note, mirroring canon
+   *  `StorefrontVoiceNoteSchema`. OPTIONAL for the same reason `headerStyle` is:
+   *  a service deployed before this field omits it on the wire, and absent must
+   *  read as « aucune note » rather than crash the screen. The URL is written BY
+   *  THE SERVICE from a completed upload; the app never patches it. */
+  readonly productNotes?: Readonly<
+    Record<string, { readonly status: 'pending' | 'ready'; readonly url?: string; readonly durationMs: number }>
+  >;
 }
 
 /** §3.1 bounds (mechanically asserted in §8.6/8.8/8.9 tests). */

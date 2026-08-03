@@ -620,3 +620,40 @@ describe('PERSONNALISER-HONESTY-1 — a refused save says the true thing', () =>
     }
   });
 });
+
+describe('VOIX-PRODUIT — the note upload seam, on the certified demo double', () => {
+  it('writes the note ONTO THE SHOP and answers with the address it minted', async () => {
+    const svc = new DemoStorefrontService();
+    await svc.create(CMD);
+    const res = await svc.uploadVoiceNote(CMD.id, 'pv_001', new Uint8Array([1, 2, 3, 4]), 'audio/mp4', 7_400);
+    expect(res.ok).toBe(true);
+    // The read-back is the point: the app confirms success by re-reading the
+    // shop, so a double that returned a url without storing it would make the
+    // real « not_confirmed » path untestable (certified-mock rule, Contract §3).
+    const back = await svc.getById(CMD.id);
+    expect(back.ok && back.value?.productNotes?.['pv_001']).toEqual({
+      status: 'ready',
+      url: res.ok ? res.value.url : '',
+      durationMs: 7_400,
+    });
+    expect(svc.uploads).toContainEqual({ kind: 'voice', storefrontId: CMD.id, size: 4 });
+  });
+
+  it('an upload against a shop that does not exist FAILS — never a phantom success', async () => {
+    const svc = new DemoStorefrontService();
+    const res = await svc.uploadVoiceNote('sf-nope', 'pv_001', new Uint8Array([1]), 'audio/mp4', 100);
+    expect(res).toEqual({ ok: false, reason: 'storefront_absent' });
+  });
+
+  it('a second note for the SAME product replaces it; another product is untouched', async () => {
+    const svc = new DemoStorefrontService();
+    await svc.create(CMD);
+    await svc.uploadVoiceNote(CMD.id, 'pv_001', new Uint8Array([1]), 'audio/mp4', 1_000);
+    await svc.uploadVoiceNote(CMD.id, 'pv_002', new Uint8Array([1]), 'audio/mp4', 2_000);
+    await svc.uploadVoiceNote(CMD.id, 'pv_001', new Uint8Array([1]), 'audio/mp4', 3_000);
+    const back = await svc.getById(CMD.id);
+    const notes = back.ok ? back.value?.productNotes : undefined;
+    expect(notes?.['pv_001']?.durationMs).toBe(3_000); // replaced
+    expect(notes?.['pv_002']?.durationMs).toBe(2_000); // untouched
+  });
+});
