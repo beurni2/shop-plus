@@ -2914,3 +2914,11 @@ Founder, after seeing it work à la une: « I want it to be on other products to
 **Evidence:** reseller-app **424/424** · tsc exit 0 · **gates board exit 0, ALL GATES GREEN**. The board's first run failed `attribution-service` (miniflare e2e); **43/43 in isolation**, board re-run clean — the load-flake class already journalled for checkout-real, stated rather than hidden.
 
 **Remaining in the family:** buyer product page C1 · Boutik+ « Mes produits ».
+
+### VIDEO-PARTOUT (4/5) — the buyer's PRODUCT PAGE (C1) plays the clip
+
+`ClienteProduit` gains an optional `videoRef`, threaded at the ONE seam where a `VitrineProduct` becomes one (`cliente/seed.ts`), conditionally spread exactly as `category` is — absent stays absent, never an explicit `undefined`. The C1 frame renders a `<video>` with the PHOTOGRAPH AS POSTER and the same `data-role="video-hero"`, so the existing scroll observer adopts it with no new wiring.
+
+**What the clip did NOT take:** the frame is still the tap target onto the photo gallery, « PHOTO RÉELLE DU PRODUIT » still describes the photographs, and **a product with a clip but NO photograph still renders « SANS PHOTO »** — a clip may not borrow the promise a photograph earns. All three pinned.
+
+**Evidence:** buyer-pwa **834/834** · tsc exit 0.

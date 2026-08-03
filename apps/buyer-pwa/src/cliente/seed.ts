@@ -157,6 +157,9 @@ export function clienteProduitReel(
       // becoming an explicit `undefined`: `inspectionPour` treats both the same
       // today, but a key that exists with no value is the kind of thing a future
       // `'category' in produit` check reads as « we have one ».
+      // VIDEO-PARTOUT — same conditional-spread rule as `category`: absent
+      // stays ABSENT, never an explicit `undefined` a later check misreads.
+      ...(product.videoRef !== undefined ? { videoRef: product.videoRef } : {}),
       ...(product.category !== undefined ? { category: product.category } : {}),
       ...(voiceDuree !== undefined ? { voiceDuree } : {}),
       ...(voiceUrl !== undefined ? { voiceUrl } : {}),

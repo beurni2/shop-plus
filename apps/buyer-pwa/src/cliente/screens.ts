@@ -52,6 +52,12 @@ export interface ClienteProduit {
    * the honest normal case → the woven « SANS PHOTO » frame, and the « photo
    * réelle » promise is NOT made (REAL-PRODUCT-RENDER-1). */
   readonly assetRefs: readonly string[];
+  /**
+   * VIDEO-PARTOUT (founder order 2026-08-03: the clip shows « on the buyer's
+   * pwa as well ») — the ≤ 6 s clip's ABSOLUTE url, absolutized server-side
+   * through the same base as `assetRefs`. Optional: most products have none.
+   */
+  readonly videoRef?: string;
   readonly voiceDuree?: string;
   /** Playable note url (ready notes only) — tap plays, never autoplay. */
   readonly voiceUrl?: string;
@@ -393,9 +399,21 @@ function photoFrame(m: ClienteProduit, out: boolean): string {
     // The photo count rides the corner when there is more than one, so a second
     // photo is discoverable rather than secret. Sans photo: no affordance.
     const count = m.assetRefs.filter((r) => r !== '').length;
+    // VIDEO-PARTOUT — a product with a clip plays it IN the frame, with the
+    // photograph as poster so a slow connection still sees the product at once
+    // and the clip's bytes flow only when it plays. Same honesty kit as the
+    // vitrine card (muted · playsinline · loop · metadata-only) and the same
+    // `data-role`, so the existing scroll observer adopts it with no wiring.
+    // The frame stays the SAME tap target onto the gallery — the clip does not
+    // steal the photographs' affordance; « PHOTO RÉELLE » still describes them.
+    const clip = m.videoRef !== undefined && m.videoRef !== '' ? m.videoRef : undefined;
+    const art =
+      clip !== undefined
+        ? `<video class="cl-photo-img" data-role="video-hero" src="${esc(clip)}" poster="${esc(src)}" muted playsinline loop preload="metadata"></video>`
+        : `<img class="cl-photo-img" src="${esc(src)}" alt="" decoding="async">`;
     return [
       `<div class="cl-photo" data-role="photo-reelle" data-action="photo-galerie" role="button" tabindex="0" aria-label="Voir les photos">`,
-      `<img class="cl-photo-img" src="${esc(src)}" alt="" decoding="async">`,
+      art,
       ticks,
       '<div class="cl-photo-caps">PHOTO RÉELLE DU PRODUIT</div>',
       count > 1 ? `<div class="cl-photo-count">${count} photos</div>` : '',

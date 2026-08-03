@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest';
 import { renderVitrineReady } from '../src/vitrine/render';
 import { decideLecture, mountVideoScroll, SEUIL_LECTURE } from '../src/vitrine/video-scroll';
 import { productFromWireForTest } from '../src/vitrine/profile';
+import { renderC1 } from '../src/cliente/screens';
 
 /**
  * VIDEO-PRODUIT V-1e — the founder's sentence, as assertions: « I want the
@@ -162,5 +163,44 @@ describe('the scroll rule — pure, pinned, one at a time', () => {
       if (had !== undefined) (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = had;
       else delete (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver;
     }
+  });
+});
+
+/**
+ * VIDEO-PARTOUT (4/5) — the buyer's PRODUCT PAGE (C1) plays the clip too
+ * (founder order 2026-08-03: « on the buyer's pwa as well »). The frame keeps
+ * every promise it already made: the photograph is the poster, the tap target
+ * onto the gallery survives, and « PHOTO RÉELLE » still describes photographs.
+ */
+describe('C1 — the product page frame plays the clip when there is one', () => {
+  const base = {
+    shopName: 'Chez Awa', prenom: 'Awa', slug: 'chez-awa', productName: 'Bazin riche',
+    zone: 'Dassasgho', priceFcfa: 9_400, assetRefs: [HERO], inStock: true,
+  };
+
+  it('WITH a clip: a <video> with the photo as poster, the whole honesty kit, same observer role', () => {
+    const html = renderC1({ ...base, videoRef: CLIP } as never, { epuise: false, sansVoix: true });
+    const video = html.match(/<video[^>]*>/)?.[0];
+    expect(video, 'no <video> on a clip-bearing product page').toBeDefined();
+    for (const attr of ['muted', 'playsinline', 'loop', 'preload="metadata"', `poster="${HERO}"`, `src="${CLIP}"`, 'data-role="video-hero"']) {
+      expect(video, attr).toContain(attr);
+    }
+    // the frame is STILL the gallery tap target — the clip took nothing away
+    expect(html).toContain('data-action="photo-galerie"');
+    expect(html).toContain('PHOTO RÉELLE DU PRODUIT');
+  });
+
+  it('WITHOUT a clip: the photograph, byte-for-byte as before — no <video> anywhere', () => {
+    const html = renderC1(base as never, { epuise: false, sansVoix: true });
+    expect(html.includes('<video')).toBe(false);
+    expect(html).toContain('<img class="cl-photo-img"');
+  });
+
+  it('SANS PHOTO stays sans photo — a clip never fakes a photograph that does not exist', () => {
+    // No assetRefs ⇒ the woven frame and NO « photo réelle » promise. A product
+    // with a clip but no photo must not borrow the promise the photo earns.
+    const html = renderC1({ ...base, assetRefs: [], videoRef: CLIP } as never, { epuise: false, sansVoix: true });
+    expect(html).toContain('data-role="photo-sans"');
+    expect(html.includes('PHOTO RÉELLE DU PRODUIT')).toBe(false);
   });
 });
