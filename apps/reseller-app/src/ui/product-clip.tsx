@@ -33,12 +33,26 @@ export function ProductClip({
   videoRef,
   photoUri,
   style,
+  onAspect,
 }: {
   /** The clip's ABSOLUTE url (the wire absolutizes it); absent ⇒ photo only. */
   readonly videoRef?: string | undefined;
   /** The hero photograph — the resting state, and the fallback that always holds. */
   readonly photoUri?: string | undefined;
   readonly style?: StyleProp<ViewStyle>;
+  /**
+   * CADRE (founder order 2026-08-03: « Drop the square rule ») — reports the
+   * PHOTOGRAPH'S true pixel shape once it has loaded, so the caller can let the
+   * frame take the photo's own proportions instead of forcing a square.
+   *
+   * IT IS THE PHOTO THAT IS MEASURED, NEVER THE CLIP, and that is deliberate on
+   * two counts: the photograph is the resting state every card shows (the clip
+   * only plays over it), and it is the one this component already renders, so
+   * measuring costs a callback rather than a second network round. A product
+   * with a clip and no photograph reports nothing — and the caller's own
+   * fallback, the old square, is the honest answer to an unmeasured frame.
+   */
+  readonly onAspect?: ((width: number, height: number) => void) | undefined;
 }): React.ReactElement {
   const clip = videoRef !== undefined && videoRef !== '' ? videoRef : null;
   // The player is created unconditionally (hooks may not be conditional) but is
@@ -61,7 +75,20 @@ export function ProductClip({
   return (
     <View style={[S.wrap, style]}>
       {photoUri !== undefined && photoUri !== '' ? (
-        <Image source={{ uri: photoUri }} style={S.fill} resizeMode="cover" />
+        <Image
+          source={{ uri: photoUri }}
+          style={S.fill}
+          resizeMode="cover"
+          // CADRE — the real pixel shape, straight off the decoded image. No
+          // extra fetch and no `Image.getSize` round: this element is loading
+          // the bytes anyway, so the measurement is a by-product of the render
+          // the card already pays for. A failed load never fires it, which is
+          // exactly when the caller should keep its neutral frame.
+          onLoad={onAspect === undefined ? undefined : (e) => {
+            const src = e.nativeEvent.source as { width?: number; height?: number } | undefined;
+            if (src?.width !== undefined && src?.height !== undefined) onAspect(src.width, src.height);
+          }}
+        />
       ) : null}
       {clip !== null ? (
         <VideoView

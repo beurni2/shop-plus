@@ -3013,3 +3013,23 @@ Exactly one site depends on the observer, and it is the one screen that mounts i
 **WHAT STILL WILL NOT LOOK LIKE THE REFERENCE, AND WHY — founder decision needed.** His reference staggers *visibly* because its photos are **different shapes**. Ours are all **square** by the RESELLER-UX-3 ruling, pinned as a family law across `oppTileArt` · `ficheHero` · `vitrineCardArt`. With uniform photo heights, our stagger comes only from body height (a 1- vs 2-line name, the épuisé chip) — real, but subtler. Matching it fully needs the photo's **true aspect ratio**, which means either (a) relaxing the square-frame ruling, or (b) carrying image dimensions on the wire — **(b) is a `contracts/` change and a §7 hard stop**. Neither taken unilaterally.
 
 **NOT VISIBLE UNTIL THE `eas build`** — same standing block as the video work.
+
+### CADRE — the square rule is retired (founder override)
+
+**Founder, 2026-08-03: « Drop the square rule. »** Asked after I reported that RESELLER-UX-3's square frame was the reason the new staggered columns barely staggered. **This retires a standing ruling, so it is logged as an override, not a refinement.**
+
+**What the square rule was for, and why dropping it does not resurrect its hazard.** UX-3 framed every photo square because `cover` on a square barely trims where a wide banner butchers a portrait. The frame now takes the PHOTOGRAPH'S OWN shape — so it is no longer fighting the photo, it agrees with it, and the trim the rule guarded against does not come back. **Identical frames also meant identical heights**, which is exactly why two independently flowing columns still looked aligned.
+
+**`src/ui/cadre.ts` — one pure, testable rule.** `cadreRatio(w, h)` returns RN's `aspectRatio` (**width ÷ height**, so portrait is BELOW 1), clamped to **[0.75, 1.33]** (3:4 … 4:3).
+- **Bounded on purpose:** unclamped, one panorama or one full-length screenshot makes a letterbox sliver or a card taller than the phone, and a single bad upload wrecks the column for every product beneath it. Inside the clamp the photo is obeyed exactly; only genuine extremes are trimmed — far cheaper than trimming all of them.
+- **Every failed measurement returns the old square** (zero, negative, NaN, Infinity, missing). This is the branch that runs when a photo 404s, so it is not theoretical.
+
+**Measured from the PHOTOGRAPH, not the layout.** `ProductClip` gained `onAspect`, fired from the `<Image>`'s own `onLoad` — no extra fetch, no `Image.getSize` round, because that element is loading the bytes anyway. Measuring the rendered view instead would read back whatever the frame already imposed (the square) and confirm it forever. The write is guarded so an identical value never re-renders the grid.
+
+**SCOPED TO OPPORTUNITÉS, deliberately.** `ficheHero` and `vitrineCardArt` **keep their square**, and that is pinned. The order came out of the opportunités stagger; dropping the rule on surfaces he never raised would be redesigning screens he did not ask about.
+
+**Evidence:** reseller-app **435/435** · tsc exit 0 · **gates board exit 0, ALL GATES GREEN**. `cadreRatio` is **mutation-verified four ways** — square back in the stylesheet ⇒ fails; clamp removed ⇒ fails (2); divide-by-zero guard removed ⇒ fails; **ratio inverted (portrait rendered wide) ⇒ fails (2)**. That last one matters: an inverted ratio is the one bug here that would look deliberate rather than broken.
+
+**FOUR PINS EVOLVED, none weakened** — the UX-2 grid pin, the UX-4 geometry pin and the FIT-LAW family loop all asserted `aspectRatio: 1` on `oppTileArt`; each now asserts the per-card measured frame instead, with the fit law itself moved to `test/cadre.test.ts`. The fourth was a **false alarm worth recording**: the photo-site counter matched a ONE-LINE `<ProductClip …>`, so wrapping that call across lines to add `onAspect` read as « this surface lost its photograph ». Fixed by making the matcher whitespace-insensitive — the count is unchanged. Loosening the count instead would have been the easy, wrong repair.
+
+**NOT VISIBLE UNTIL THE `eas build`** — same standing block.

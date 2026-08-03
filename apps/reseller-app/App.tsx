@@ -20,6 +20,7 @@ import { marginBreakdown, markupCap, defaultMarkup, snapMarkup } from './src/vit
 import { MarginSlider } from './src/ui/margin-slider';
 import { PhotoGallery } from './src/ui/photo-gallery';
 import { ProductClip } from './src/ui/product-clip';
+import { cadreRatio, CADRE_DEFAUT } from './src/ui/cadre';
 import { HeroLedger, DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
 import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, type StorefrontIdentityPatch } from './src/vitrine/service';
@@ -276,6 +277,19 @@ export default function App() {
   // RESELLER-UX-3 — which capture the fiche héro shows (the reference's
   // thumbnail-switches-hero behaviour). Reset to 0 at every fiche open.
   const [ficheHeroIdx, setFicheHeroIdx] = useState(0);
+  /**
+   * CADRE (founder order 2026-08-03: « Drop the square rule ») — each product's
+   * measured photo shape, keyed by productVersionId, filled in as photographs
+   * load. A pid absent here has not been measured yet (or its photo failed), and
+   * `cadreRatio`'s neutral square stands in — so the grid renders correctly on
+   * the very first frame and simply grows into its true proportions.
+   *
+   * WHY STATE AND NOT A LAYOUT MEASUREMENT: the shape must come from the
+   * PHOTOGRAPH, not from the space the card happens to occupy. Measuring the
+   * rendered view would read back whatever the frame already imposed — the
+   * square — and dutifully confirm it forever.
+   */
+  const [cadres, setCadres] = useState<Record<string, number>>({});
   const [shareFmt, setShareFmt] = useState<'card' | 'story' | 'affiche'>('card');
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
@@ -939,7 +953,12 @@ export default function App() {
                         onPress={() => { setFicheId(item.productVersionId); setFicheHeroIdx(0); go('fiche'); }}
                         accessibilityRole="button"
                       >
-                        <View style={styles.oppTileArt}>
+                        {/* CADRE (founder order: « Drop the square rule ») — the frame
+                            takes THIS photograph's proportions, bounded by cadreRatio.
+                            Unmeasured ⇒ the neutral square, so nothing jumps on first
+                            paint; measured ⇒ tall stays tall, and it is this per-product
+                            height that finally makes the two columns fall out of step. */}
+                        <View style={[styles.oppTileArt, { aspectRatio: cadres[item.productVersionId] ?? CADRE_DEFAUT }]}>
                           {/* RESELLER-PHOTOS-1 — the REAL photograph when the wire carries
                               one (absolute URL, absolutized server-side with the same base
                               as the buyer wire). No ref ⇒ the designed glyph tile. */}
@@ -948,7 +967,18 @@ export default function App() {
                               state); no clip ⇒ ProductClip renders the photo alone, so
                               this branch reads exactly as it did before. */}
                           {item.assetRefs[0] || item.videoRef ? (
-                            <ProductClip videoRef={item.videoRef} photoUri={item.assetRefs[0]} style={styles.artPhoto} />
+                            <ProductClip
+                              videoRef={item.videoRef}
+                              photoUri={item.assetRefs[0]}
+                              style={styles.artPhoto}
+                              onAspect={(w, h) => {
+                                const ratio = cadreRatio(w, h);
+                                // Written ONCE per product: `onLoad` can fire again on
+                                // re-mount, and a state write on every fire would
+                                // re-render the whole grid for an identical value.
+                                setCadres((prev) => (prev[item.productVersionId] === ratio ? prev : { ...prev, [item.productVersionId]: ratio }));
+                              }}
+                            />
                           ) : (
                             <>
                               <View style={styles.artTileStripe} />
@@ -1956,7 +1986,13 @@ const styles = StyleSheet.create({
   },
   oppTileArt: {
     width: '100%',
-    aspectRatio: 1,
+    // CADRE — NO `aspectRatio` HERE ANY MORE (founder order 2026-08-03: « Drop
+    // the square rule »). The ratio is supplied per card at the call site from
+    // the photograph's own measured shape, because a value pinned in the
+    // stylesheet is by definition the same for every product — which is exactly
+    // what kept the two columns in lockstep. The fiche héro and the Ma Vitrine
+    // card KEEP their square: this order was about the opportunités stagger,
+    // and those two surfaces were not in it.
     backgroundColor: shopColour.soft,
     overflow: 'hidden',
     alignItems: 'center',

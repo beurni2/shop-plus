@@ -275,14 +275,21 @@ describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
     // unchanged — every surface shows the real photograph — so the pin counts
     // BOTH spellings rather than the obsolete one. A surface that dropped the
     // photo entirely still fails, which is what this test is for.
+    // PIN EVOLVED AGAIN (CADRE): the opportunités `ProductClip` now spans several
+    // lines because it also carries `onAspect`. The old matcher was written
+    // against the one-line spelling, so a purely cosmetic wrap would have read
+    // as « this surface lost its photograph » — a false alarm that teaches the
+    // next author to loosen the count instead of fixing the matcher. Matching is
+    // now WHITESPACE-INSENSITIVE and the count is unchanged.
+    const CLIP_WITH_PHOTO = /<ProductClip\s+videoRef=\{item\.videoRef\}\s+photoUri=\{item\.assetRefs\[0\]\}/g;
     const photoSites = [
       ...(app.match(/<Image source=\{\{ uri: (item|opp|shareOffer)\.assetRefs\[0\] \}\}/g) ?? []),
-      ...(app.match(/<ProductClip videoRef=\{item\.videoRef\} photoUri=\{item\.assetRefs\[0\]\}/g) ?? []),
+      ...(app.match(CLIP_WITH_PHOTO) ?? []),
     ];
     expect(photoSites.length).toBeGreaterThanOrEqual(3);
     // …and the clip surfaces pass the photograph, never a bare video with no
     // fallback: a product whose clip fails to load must still look like itself.
-    expect(app).toMatch(/<ProductClip videoRef=\{item\.videoRef\} photoUri=\{item\.assetRefs\[0\]\}/);
+    expect(app).toMatch(new RegExp(CLIP_WITH_PHOTO.source));
     // aperçu cliente goes through the kit tile's photo variant
     expect(app).toMatch(/photoUri=\{item\.assetRefs\[0\]\}/);
   });
@@ -335,7 +342,14 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     // guarantee expressed against the structure that now exists.
     expect(app).toContain('styles.oppColumns');
     expect(app).toContain('styles.oppColumn');
-    expect(app).toMatch(/oppTileArt: \{\n\s*width: '100%',\n\s*aspectRatio: 1,/);
+    // PIN EVOLVED AGAIN (CADRE, founder order « Drop the square rule »): the
+    // opportunités frame no longer carries a fixed square — it takes each
+    // photograph's own measured shape, which is what finally staggers the
+    // columns. The FIT law it protected is unchanged and asserted at its new
+    // home in test/cadre.test.ts, together with the bounds that stop one bad
+    // upload owning a column. Asserting `aspectRatio: 1` here now would pin the
+    // exact rule the founder retired.
+    expect(app).toContain('{ aspectRatio: cadres[item.productVersionId] ?? CADRE_DEFAUT }');
     const oppTileIdx = app.indexOf('styles.oppTile,');
     const body = app.slice(oppTileIdx, app.indexOf('</Pressable>', oppTileIdx));
     expect(body).toContain('numberOfLines={2}');
@@ -391,9 +405,10 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     expect(cardAt(xs, xs) / SCREEN).toBeCloseTo(0.485, 3);
     expect(Math.abs(cardAt(xs, xs) / SCREEN - 206 / 428)).toBeLessThan(0.005); // within ½pt of the reference
 
-    // 4 · the photo is SQUARE, so the width gain is an area gain — this is the
-    //     whole mechanism by which « bigger cards » becomes « bigger photos ».
-    expect(app).toMatch(/oppTileArt: \{\n\s*width: '100%',\n\s*aspectRatio: 1,/);
+    // 4 · the frame is full-bleed to the card, so the width gain IS a photo
+    //     gain whatever shape the photograph turns out to be. (It used to be
+    //     square here; CADRE retired that — see test/cadre.test.ts.)
+    expect(app).toMatch(/oppTileArt: \{\n\s*width: '100%',/);
 
     // 5 · the body tightened by PADDING ONLY. Every named line survives: losing
     //     one to win pixels would be editing his product, not sizing his cards.
@@ -526,7 +541,12 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     // judging surfaces are square; no contain survives IN App.tsx (the
     // full-screen gallery viewer keeps contain deliberately — full-screen
     // viewing wants the whole photo, and it lives in photo-gallery.tsx).
-    for (const frame of ['oppTileArt', 'ficheHero', 'vitrineCardArt']) {
+    // CADRE — `oppTileArt` LEFT THIS FAMILY by founder order (« Drop the square
+    // rule »); its frame is now the photograph's own shape, bounded, and is
+    // pinned in test/cadre.test.ts. The other two judging surfaces keep the
+    // square, and keeping them here is the point: the order was about the
+    // opportunités stagger, so dropping it elsewhere would be unasked-for.
+    for (const frame of ['ficheHero', 'vitrineCardArt']) {
       expect(app).toMatch(new RegExp(`${frame}: \\{\\n[^}]*aspectRatio: 1,`));
     }
     expect(app).not.toContain('resizeMode="contain"');
