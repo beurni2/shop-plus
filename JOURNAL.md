@@ -3060,3 +3060,23 @@ Exactly one site depends on the observer, and it is the one screen that mounts i
 2. **A pin that had silently stopped protecting anything:** `vitrine.test.ts` asserted `not.toContain('<div class="vt-grid"></div>')` — the empty-grid spelling from *before* the grid grew column children. After this change that exact string can never appear, so the assertion would have passed forever while guarding nothing. Repaired to assert the classes' absence outright. **This is the failure mode where a green suite is a lie**, and it was found by reading the pin rather than by it failing.
 
 **Un-run:** the storefront page renders from the buyer PWA, which deploys on merge to main — so unlike the reseller work, this one does NOT wait on the `eas build`.
+
+### OTA-SAFETY — the founder was right, and one line was in the way
+
+**Founder, 2026-08-03: « I do not think the changes on opportunités needs an eas build before deploying and showing. »**
+
+**HE WAS RIGHT ABOUT THE WORK AND I HAD NAMED THE WRONG BLOCKER.** RESELLER-UX-4/5 and CADRE are pure JavaScript — grid, spacing, frame rule — and `eas update` carries JavaScript perfectly well. What actually stood in the way was **one line**: `import { useVideoPlayer, VideoView } from 'expo-video'` at the top of `product-clip.tsx`.
+
+**Why that line made an OTA fatal, stated precisely:** `expo-video` resolves its NATIVE side at import time. On a binary built before the module existed it throws « Cannot find native module » — and since `App.tsx` imports `product-clip.tsx` at the top level, that is a **crash at launch**, not a broken card on one screen. I had been reporting « the layout can't ship » when the truth was « this import can't ship ». Same conclusion for the wrong reason, and the wrong reason hid a fix.
+
+**Verified before changing anything, not recalled:** `expo-preview.yml` runs `eas update` (three `eas-cli` lines, no build step); **no workflow anywhere runs `eas build`**; `expo-video ~3.0.16` entered in `d94c1cc` today and has never been in a binary.
+
+**THE FIX — a guarded runtime require, and two bodies behind one export.** `require('expo-video')` inside `try/catch`, `null` on failure. Where the native module exists the component is byte-for-byte what it was; where it does not, `ClipPhoto` renders **the photograph** — exactly the card these screens showed before clips existed, not a blank frame and not an apology.
+
+**The export is chosen ONCE at module scope** (`EXPO_VIDEO === null ? ClipPhoto : ClipVideo`), never inside a render. A binary either has the module or it does not and that cannot change while the app runs — so this is a constant, and choosing here keeps the hook set from varying between renders. Branching inside a single component would have made the hooks conditional: a React invariant violation, not a style opinion.
+
+**THIS CLOSES A HAZARD CLASS, not just today's blocker.** Any future OTA reaching an older binary now degrades to photographs instead of failing to start. Binary/update skew is normal in Expo; it should never be fatal.
+
+**Evidence:** reseller-app **440/440** · tsc exit 0 · **gates board exit 0, ALL GATES GREEN** — including `no-demo-adapter-in-bundle`, which runs a REAL `expo export` (2 506 732-byte bundle), so the runtime require is proven to bundle rather than assumed. New `test/ota-safety.test.ts` (5 tests) **mutation-verified four ways** — restore the static import ⇒ fails; the catch rethrows ⇒ fails; the fallback renders an empty frame ⇒ fails; the export always picks the video body ⇒ fails.
+
+**CONSEQUENCE FOR DELIVERY:** the reseller OTA (`expo-preview.yml`) is now safe to run **before** any `eas build`. Opportunités ships today with its new geometry, showing photographs; the clips light up by themselves once the founder runs the build. **The `eas build` is no longer a blocker — it is now only what turns video on.**

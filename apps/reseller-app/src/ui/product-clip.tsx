@@ -1,6 +1,49 @@
 import { useEffect } from 'react';
 import { Image, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+
+/**
+ * ═══ OTA-SAFE LOADING OF THE NATIVE VIDEO MODULE (founder challenge) ═══
+ *
+ * Founder, 2026-08-03: « I do not think the changes on opportunités needs an
+ * eas build before deploying and showing. » He was RIGHT about the layout work
+ * — the grid, the spacing and the frame rule are pure JavaScript, and an
+ * over-the-air update carries JavaScript perfectly well.
+ *
+ * He was right about the wrong thing standing in the way, though. A STATIC
+ * `import … from 'expo-video'` at the top of this file made the whole screen
+ * depend on NATIVE code, and `expo-video` resolves its native side at import
+ * time: on a binary built before it existed, that import throws « Cannot find
+ * native module » — at launch, because App.tsx imports this file at the top
+ * level. The layout changes were never the problem; this line was.
+ *
+ * SO THE IMPORT IS NOW A GUARDED, RUNTIME ONE. Where the native module exists
+ * the component is exactly what it was. Where it does not, `require` throws,
+ * we catch, and the app renders THE PHOTOGRAPH — which is what these screens
+ * showed yesterday and is a perfectly honest product card. Nothing crashes,
+ * and the layout work ships over the air today.
+ *
+ * THE CHOICE IS MADE ONCE, AT MODULE SCOPE, and never re-evaluated: a binary
+ * either contains the native module or it does not, and that cannot change
+ * while the app is running. Deciding here rather than inside the component
+ * means the hook set never varies between renders — the correctness reason to
+ * pick the implementation up front rather than branch inside it.
+ *
+ * THIS ALSO CLOSES A HAZARD CLASS, not just today's blocker: any future OTA
+ * that reaches an older binary now degrades to photographs instead of a
+ * launch crash. Binary/update skew is normal in Expo; it should never be fatal.
+ */
+type ExpoVideo = typeof import('expo-video');
+const EXPO_VIDEO: ExpoVideo | null = (() => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+    return require('expo-video') as ExpoVideo;
+  } catch {
+    return null; // older binary — the photograph stands, exactly as before
+  }
+})();
+
+/** True when the running binary can actually play a clip. Read by the tests. */
+export const CLIP_NATIF_DISPONIBLE = EXPO_VIDEO !== null;
 
 /**
  * VIDEO-PARTOUT (founder order 2026-08-03: « I want the video to be showing on
@@ -29,12 +72,8 @@ import { useVideoPlayer, VideoView } from 'expo-video';
  * a video frame for a product that has none.
  */
 
-export function ProductClip({
-  videoRef,
-  photoUri,
-  style,
-  onAspect,
-}: {
+/** The props both implementations accept — one contract, two bodies. */
+interface ProductClipProps {
   /** The clip's ABSOLUTE url (the wire absolutizes it); absent ⇒ photo only. */
   readonly videoRef?: string | undefined;
   /** The hero photograph — the resting state, and the fallback that always holds. */
@@ -53,12 +92,45 @@ export function ProductClip({
    * fallback, the old square, is the honest answer to an unmeasured frame.
    */
   readonly onAspect?: ((width: number, height: number) => void) | undefined;
-}): React.ReactElement {
+}
+
+/** The photograph's own measurement handler — identical in both bodies. */
+function mesure(onAspect: ProductClipProps['onAspect']) {
+  return onAspect === undefined
+    ? undefined
+    : (e: { nativeEvent: { source?: { width?: number; height?: number } } }): void => {
+        const src = e.nativeEvent.source;
+        if (src?.width !== undefined && src?.height !== undefined) onAspect(src.width, src.height);
+      };
+}
+
+/**
+ * THE PHOTOGRAPH, on its own. Rendered when the running binary has no video
+ * module — and it is NOT a degraded state to apologise for: it is exactly the
+ * card these screens showed before clips existed. `videoRef` is accepted and
+ * deliberately unused, so no caller ever has to know which build it is on.
+ */
+function ClipPhoto({ photoUri, style, onAspect }: ProductClipProps): React.ReactElement {
+  return (
+    <View style={[S.wrap, style]}>
+      {photoUri !== undefined && photoUri !== '' ? (
+        <Image source={{ uri: photoUri }} style={S.fill} resizeMode="cover" onLoad={mesure(onAspect)} />
+      ) : null}
+    </View>
+  );
+}
+
+// Bound at module scope, where the null check has already happened. The `use…`
+// name is what keeps the rules-of-hooks lint meaningful at the call site below.
+const useVideoPlayer = EXPO_VIDEO?.useVideoPlayer;
+const VideoView = EXPO_VIDEO?.VideoView;
+
+function ClipVideo({ videoRef, photoUri, style, onAspect }: ProductClipProps): React.ReactElement {
   const clip = videoRef !== undefined && videoRef !== '' ? videoRef : null;
   // The player is created unconditionally (hooks may not be conditional) but is
   // handed a null source when there is no clip — expo-video treats that as "no
   // media", loads nothing, and costs nothing.
-  const player = useVideoPlayer(clip, (p) => {
+  const player = useVideoPlayer!(clip, (p) => {
     p.loop = true;
     p.muted = true;
   });
@@ -84,13 +156,10 @@ export function ProductClip({
           // the bytes anyway, so the measurement is a by-product of the render
           // the card already pays for. A failed load never fires it, which is
           // exactly when the caller should keep its neutral frame.
-          onLoad={onAspect === undefined ? undefined : (e) => {
-            const src = e.nativeEvent.source as { width?: number; height?: number } | undefined;
-            if (src?.width !== undefined && src?.height !== undefined) onAspect(src.width, src.height);
-          }}
+          onLoad={mesure(onAspect)}
         />
       ) : null}
-      {clip !== null ? (
+      {clip !== null && VideoView !== undefined ? (
         <VideoView
           player={player}
           style={S.fill}
@@ -108,3 +177,15 @@ const S = StyleSheet.create({
   wrap: { overflow: 'hidden', position: 'relative' },
   fill: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
 });
+
+/**
+ * THE ONE EXPORT — chosen once, from what the binary actually contains.
+ *
+ * A binary either has the native video module or it does not, and that cannot
+ * change while the app runs; so this is a constant, and picking here means the
+ * hook set never varies between renders of a mounted component. Branching
+ * INSIDE a single component would have made the hooks conditional — the bug
+ * this shape exists to make impossible.
+ */
+export const ProductClip: (props: ProductClipProps) => React.ReactElement =
+  EXPO_VIDEO === null ? ClipPhoto : ClipVideo;
