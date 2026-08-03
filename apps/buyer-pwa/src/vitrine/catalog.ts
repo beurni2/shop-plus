@@ -70,6 +70,13 @@ export interface VitrineProduct {
   /** Bare display refs; `[0]` is the hero. Empty ⇒ the woven no-image state. */
   readonly assetRefs: readonly string[];
   /**
+   * VIDEO-PRODUIT (canon v3.4.0) — the short clip's ABSOLUTE url, carried like
+   * `assetRefs` with zero transformation. OPTIONAL with the `category`
+   * doctrine: an older Worker omits it, the demo seed has none, and absence
+   * only ever WITHHOLDS — the tile falls back to the hero photograph.
+   */
+  readonly videoRef?: string;
+  /**
    * CATEGORY-WIRE-1 — the supplier's category (canon v3.0.0
    * `SupplyProjection.category`), carried with zero transformation like
    * `assetRefs`. It decides which §6.2 at-door inspection row the buyer is shown

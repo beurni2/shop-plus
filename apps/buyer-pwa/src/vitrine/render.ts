@@ -314,10 +314,36 @@ function tile(p: VitrineProduct, note?: ProductVoiceNote): string {
  * row would be invented. « Commander » is a labeled CTA inside the one button
  * this card already is; it opens her product page, same action as the card.
  */
+/**
+ * VIDEO-PRODUIT V-1e (founder order 2026-08-02: « I want the short video to be
+ * the hero card and will start playing a preview when a client/viewer scrolls
+ * and pause on that ») — when the product carries a clip, the FEATURED card's
+ * art is a `<video>`: MUTED (the only autoplay browsers permit, and the only
+ * one that respects her cliente), `playsinline` (never a fullscreen hijack),
+ * `loop`, `preload="metadata"` with the HERO PHOTOGRAPH as poster — so a slow
+ * connection sees the photo instantly and the clip's bytes flow only when it
+ * actually plays. Play/pause on scroll is `video-scroll.ts`'s observer; this
+ * function only DECLARES the element. The GRID tiles deliberately stay
+ * photographs: a page of autoplaying videos on a 1GB Android is a stutter,
+ * and the founder named the HERO card.
+ */
+function featuredArt(p: VitrineProduct): string {
+  const clip = p.videoRef;
+  if (clip !== undefined && clip !== '') {
+    const poster = p.assetRefs[0];
+    return [
+      '<div class="vt-tile-art vt-tile-art-photo" data-role="tile-video">',
+      `<video class="vt-video-hero" data-role="video-hero" src="${esc(clip)}" muted playsinline loop preload="metadata"${poster !== undefined && poster !== '' ? ` poster="${esc(poster)}"` : ''}></video>`,
+      '</div>',
+    ].join('');
+  }
+  return tileArt(false, p.assetRefs);
+}
+
 function featuredTile(p: VitrineProduct, note?: ProductVoiceNote, pinnedByHer = true): string {
   return [
     `<button class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${p.pid}">`,
-    `<div class="vt-featured-artwrap">${tileArt(false, p.assetRefs)}${pinnedByHer ? `<span class="vt-featured-badge">${t('vit.a_la_une')}</span>` : ''}${fav(p.pid)}</div>`,
+    `<div class="vt-featured-artwrap">${featuredArt(p)}${pinnedByHer ? `<span class="vt-featured-badge">${t('vit.a_la_une')}</span>` : ''}${fav(p.pid)}</div>`,
     '<div class="vt-featured-body">',
     `<span class="vt-featured-name"><v>${esc(p.name)}</v></span>`,
     `<b class="vt-featured-price"><v>${fmtFcfa(p.priceFcfa)}</v></b>`,

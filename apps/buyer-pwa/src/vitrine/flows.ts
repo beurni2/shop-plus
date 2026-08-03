@@ -30,6 +30,10 @@ import { ENTETES_STYLES, type EnteteKey } from './entetes';
 import { loadEntete, loadedEnteteCss } from './entetes/registry';
 import { iconCheck } from './icons';
 import { wireVoicePlay } from './voice-player';
+import { mountVideoScroll } from './video-scroll';
+
+/** V-1e — the live observer's unmount; replaced on every ready render. */
+let demonteVideos: () => void = () => {};
 
 export type VitrineEtat = 'loading' | 'ready' | 'empty' | 'offline' | 'invalid';
 
@@ -197,6 +201,10 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
     // when present, else HER `headerStyle`, now that the storefront is in hand.
     // The port already normalised the field (absent/unknown wire ⇒ classique).
     const entete = enteteForRender(harness.entete, sf?.headerStyle);
+    // VIDEO-PRODUIT V-1e — every render below REPLACES innerHTML, so the
+    // previous observer must die with the nodes it watched (observers piling
+    // up across navigations is a leak wearing a feature's clothes).
+    demonteVideos();
     if (needsEnteteSheet(entete)) ensureEnteteSheet();
     applyTheme(root, sf?.theme ?? DEFAULT_THEME);
     root.setAttribute('data-etat', etat);
@@ -226,6 +234,9 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
           showable === 0
             ? renderVitrineEmpty(sf!, resolved!.trust, { fromProduct }, entete)
             : renderVitrineReady(sf!, resolved!.trust, { fromProduct }, resolved!.notes, described, entete);
+        // VIDEO-PRODUIT V-1e — the scroll-play observer mounts over the nodes
+        // just rendered; no video hero on the page ⇒ it mounts nothing.
+        demonteVideos = mountVideoScroll(root);
         break;
       }
     }

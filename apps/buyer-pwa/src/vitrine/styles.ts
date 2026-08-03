@@ -375,6 +375,10 @@ export const VITRINE_STYLES = `
 
   /* VITRINE-PRESENTATION-1 — her présentation under a header that gives it no
      slot: a quiet warm card, her words only, no chrome competing with the hero. */
+  /* VIDEO-PRODUIT V-1e — the featured card's video hero: fills the art frame
+     exactly as the photograph does; the poster shows until the observer plays. */
+  .vt-video-hero { width: 100%; height: 100%; object-fit: cover; display: block; }
+
   .vt-presentation {
     margin-top: 14px; border-radius: 18px;
     background: #FFFDF8; border: 1px solid #EAE1CF;

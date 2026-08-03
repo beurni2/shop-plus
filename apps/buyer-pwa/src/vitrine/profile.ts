@@ -262,8 +262,14 @@ function looksLikeProduct(v: unknown): v is VitrineProduct {
  * `category` that is not a string, so no consumer needs to re-check it.
  */
 function productFromWire(p: VitrineProduct): VitrineProduct {
-  const { category, ...rest } = p;
-  return typeof category === 'string' ? { ...rest, category } : rest;
+  // VIDEO-PRODUIT — same boundary law as `category`: a non-string (or absent)
+  // videoRef becomes an ABSENT key; downstream never re-checks it.
+  const { category, videoRef, ...rest } = p;
+  return {
+    ...rest,
+    ...(typeof category === 'string' ? { category } : {}),
+    ...(typeof videoRef === 'string' && videoRef !== '' ? { videoRef } : {}),
+  };
 }
 
 /** A storefront looks real when the service handed back at least an id + slug. */
