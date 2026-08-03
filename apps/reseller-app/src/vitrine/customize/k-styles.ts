@@ -295,6 +295,17 @@ export const K_RAW_STYLES = {
   vSheetKicker: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, color: '#6F6355' },
   vSheetTitle: { fontFamily: DISPLAY_FAMILY, fontSize: 20, fontWeight: '800', color: '#1C1710', letterSpacing: -0.2 },
 
+  /* APERÇU EN-TÊTE — the preview sheet (founder flow 2026-08-03). Shares the
+     vSheet chrome above; own rows, EXISTING palette bytes only.
+     `entScene` is a fixed 300 band rather than a fraction of the sheet: the
+     header it shows is the top of a real page, and a stage that changed height
+     between styles would read as the styles being different sizes. */
+  entScene: { height: 300, marginTop: 12, borderRadius: 18, overflow: 'hidden', backgroundColor: '#F1E7D3' },
+  entWeb: { flex: 1, backgroundColor: '#F1E7D3' },
+  entOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 18, backgroundColor: '#F1E7D3' },
+  entVide: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 18 },
+  entVideText: { fontFamily: TEXT_FAMILY, fontSize: 13, lineHeight: 19, color: '#4A3F33', textAlign: 'center' },
+
   /* ENTETES-C — the FRAMING sheet (drag-to-frame). Shares the vSheet chrome
      above; these are its own rows, on EXISTING palette bytes only. */
   frHint: { fontFamily: TEXT_FAMILY, fontSize: 13, lineHeight: 19, color: '#4A3F33', marginTop: 6 },

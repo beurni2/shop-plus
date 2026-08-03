@@ -111,6 +111,20 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     // screens cannot arrive as an over-the-air update — the app needs a rebuild.
     // Version read from `expo/bundledNativeModules.json` for SDK 54, never guessed.
     expect(pkg.dependencies['expo-video']).toBe('~3.0.16');
+    // APERÇU EN-TÊTE — react-native-webview, FOUNDER RULING 2026-08-03, given
+    // after the cost was stated and the cheaper option offered: I told him a
+    // WebView is a NATIVE module and cannot ship over the air, and proposed
+    // rendered screenshots instead (OTA, but a representative shop rather than
+    // his own). He answered « on the en-tête preview build it with the RN
+    // webview ». So the preview sheet is dark until the next eas build, by his
+    // choice, and the guarded require in entete-sheet.tsx makes that a smaller
+    // promise honestly kept instead of a launch crash.
+    //
+    // THE ONE NON-EXPO RUNTIME DEP IN THIS APP, and named as such: no first-party
+    // Expo module renders arbitrary HTML, so the « prefer expo, it reaches Expo
+    // Go over the air » rule below has nothing to prefer here. 13.15.0 is what
+    // `expo/bundledNativeModules.json` pins for SDK 54 — read, not guessed.
+    expect(pkg.dependencies['react-native-webview']).toBe('13.15.0');
     // RESELLER-IDENTITY-1 — expo-crypto (the OS CSPRNG, replacing a Math.random mint)
     // and expo-file-system (the document directory, so the identity survives restart
     // and an EAS republish). BOTH are first-party Expo SDK modules, at the versions
@@ -148,7 +162,7 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     // ~14.0.8 is what `expo/bundledNativeModules.json` pins for SDK 54 (VERIFIED by
     // reading that manifest), so it reaches Expo Go over the air with no rebuild.
     expect(pkg.dependencies['expo-image-manipulator']).toBe('~14.0.8');
-    // the only deps beyond the pre-WO set are exactly these nine
+    // the only deps beyond the pre-WO set are exactly these eleven
     const before = new Set([
       '@platform/ui-tokens', 'expo', 'expo-status-bar', 'expo-updates', 'react', 'react-native',
     ]);
@@ -156,11 +170,17 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     expect(added.sort()).toEqual([
       '@shop-plus/reseller-money',
       'expo-audio', 'expo-crypto', 'expo-file-system', 'expo-font', 'expo-haptics',
-      'expo-image-manipulator', 'expo-image-picker', 'expo-video', 'react-native-svg',
+      'expo-image-manipulator', 'expo-image-picker', 'expo-video',
+      'react-native-svg', 'react-native-webview',
     ]);
-    // …and NO third-party runtime dep sneaks in under cover of the workspace one
+    // …and NO third-party runtime dep sneaks in under cover of the workspace one.
+    // The two `react-native-*` names are ENUMERATED, not pattern-matched: a
+    // prefix rule would silently admit the next community module someone adds,
+    // and admitting a native dependency is exactly the decision that must stay
+    // the founder's rather than a regex's.
+    const NON_EXPO_ALLOWED = new Set(['react-native-svg', 'react-native-webview']);
     for (const d of added) {
-      expect(d.startsWith('@shop-plus/') || d.startsWith('expo') || d === 'react-native-svg').toBe(true);
+      expect(d.startsWith('@shop-plus/') || d.startsWith('expo') || NON_EXPO_ALLOWED.has(d), d).toBe(true);
     }
   });
 });

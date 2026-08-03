@@ -31,6 +31,23 @@ export function signedProductShareUrl(storeSlug: string, pid: string): string {
 }
 
 /**
+ * APERÇU EN-TÊTE (founder flow 2026-08-03) — her OWN live page, drawn with one
+ * header style, for the preview sheet.
+ *
+ * IT LIVES HERE, WITH THE OTHER URL BUILDERS, FOR A REASON THAT IS A LAW: the
+ * sheet imports `react-native-webview`, so no vitest can load that module (the
+ * Metro-safe law). A url builder that no test can reach is a url nobody checks
+ * — and this one carries a slug straight into a path segment.
+ *
+ * `?entete=` is the buyer PWA's OWN override (`enteteOverride`, entetes.ts):
+ * present ⇒ it wins over her stored `headerStyle` FOR THAT VIEW ONLY. Looking
+ * persists nothing; « Appliquer » is what writes.
+ */
+export function apercuEnteteUrl(storeSlug: string, styleKey: string): string {
+  return `${QR_ORIGIN}${QR_BASE}/v/${encodeURIComponent(storeSlug)}?entete=${encodeURIComponent(styleKey)}`;
+}
+
+/**
  * The canon-form law: an identity URL the QR may encode is the real origin + base
  * + a canon `/v/{slug}` path — never the bare `/v/{prenom}` short form, never a
  * query string. This is the gate's discriminator (a planted `/v/aicha` fails).

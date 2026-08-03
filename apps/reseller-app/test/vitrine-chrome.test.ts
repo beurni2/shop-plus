@@ -139,8 +139,13 @@ describe('3 · every en-tête shows its silhouette before the tap', () => {
   it('the preview shows a SHAPE, never a borrowed photograph', () => {
     // Drawing someone else's picture under « voici votre en-tête » would be
     // exactly the pretend this app refuses. The band is theme tones only.
-    const from = screens.indexOf('function EnteteApercu');
-    const comp = screens.slice(from, screens.indexOf('\nfunction ', from + 1));
+    // MOVED FILE (2026-08-03): EnteteApercu now lives in its own module because
+    // entete-sheet.tsx needs it and screens.tsx imports the sheet — a cycle
+    // otherwise. The CONTROL below is what caught the move: the old slice went
+    // empty and the two negatives would have passed on nothing. Again.
+    const apercu = read('src', 'vitrine', 'customize', 'screens-apercu.tsx');
+    const from = apercu.indexOf('export function EnteteApercu');
+    const comp = apercu.slice(from);
     // CONTROL — an empty slice would make both negatives below pass while
     // protecting nothing. This is the assertion that caught exactly that.
     expect(comp.length).toBeGreaterThan(200);

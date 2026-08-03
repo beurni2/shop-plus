@@ -1392,6 +1392,36 @@
   "screenClass": "status"
  },
  {
+  "key": "k.entete.appliquer",
+  "fr": "Appliquer cet en-t\u00eate",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.entete.apercu_chargement",
+  "fr": "Votre boutique arrive\u2026",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.entete.apercu_echec",
+  "fr": "Aper\u00e7u pas affich\u00e9 : v\u00e9rifiez votre r\u00e9seau.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.entete.apercu_maj",
+  "fr": "L\u2019aper\u00e7u en vrai arrive avec la prochaine mise \u00e0 jour de l\u2019application.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.entete.apercu_hors_ligne",
+  "fr": "Publiez votre boutique pour voir cet en-t\u00eate en vrai.",
+  "register": "selling",
+  "screenClass": "instruction"
+ },
+ {
   "key": "k.entete.caps",
   "fr": "EN-TÊTE DE BOUTIQUE",
   "register": "selling",

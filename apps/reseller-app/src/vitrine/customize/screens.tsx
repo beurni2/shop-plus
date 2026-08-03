@@ -62,6 +62,8 @@ import { fromCatalog, type KCatalogItem } from './catalog';
 import type { StorefrontIdentityPatch } from '../service';
 import { pickPhoto } from './photo-pick';
 import { cadreRatio } from '../../ui/cadre';
+import { EnteteApercu } from './screens-apercu';
+import { EnteteApercuSheet } from './entete-sheet';
 import { uploadFailureCopy } from './upload-outcome';
 import { K_RAW_STYLES } from './k-styles';
 /** ONE money source — the app's canonical formatter (U+202F+FCFA, re-pin site). */
@@ -453,6 +455,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
       {route === 'k4' && (
         <K4
           sf={sf}
+          liveSlug={liveSlug}
           onBack={back}
           onPick={(key) => {
             setSf(setTheme(sf, key));
@@ -903,56 +906,18 @@ function PortraitSegments({ sf, onPickAvatar, sending, onAdjust }: { sf: Storefr
   );
 }
 
-/**
- * EN-TÊTE — LA SILHOUETTE (founder order 2026-08-03: « on theme I want to see
- * the en-tête preview attached to its name so I can see it before tapping to
- * choose like the habillages »).
- *
- * The habillage cards have always shown their colours above their name; the
- * en-tête cards showed a name and a sentence, so choosing meant tapping and
- * looking. This draws THE SHAPE each style puts her cover photograph in —
- * Royale's medallion, Héritage's full-width strip, Chaleureux's galet, and so
- * on — so the difference is visible before the tap.
- *
- * IT IS NOT A DRAWING I INVENTED. The silhouette comes from `frameSpecFor`,
- * the SAME source the framing sheet uses to crop her real photo, so the preview
- * and the crop can never disagree: if a style's frame changes, both move
- * together. A key with no built render unit falls back to `classique` there and
- * therefore here too — the fallback is shared, not duplicated.
- *
- * NO PHOTOGRAPH IS SHOWN. This is a shape, in her theme's own tones, not a
- * fake cover: promising a preview of HER header and drawing someone else's
- * picture would be the kind of pretend this app does not do.
- */
-function EnteteApercu({ spec, deep, soft, accent }: { spec: FrameSpec; deep: string; soft: string; accent: string }) {
-  // The fit is `apercuBox` — pure, clamped, and tested; a component is the
-  // wrong place for arithmetic no test can reach.
-  const { width: w, height: h } = apercuBox(spec);
-  const [tl, tr, br, bl] = spec.radii;
-  const r = (frac: number): number => (spec.circle ? Math.min(w, h) / 2 : frac * w);
-  return (
-    <View style={[S.enteteApercu, { backgroundColor: soft }]}>
-      <View
-        style={{
-          width: w,
-          height: h,
-          backgroundColor: deep,
-          borderTopLeftRadius: r(tl),
-          borderTopRightRadius: r(tr),
-          borderBottomRightRadius: r(br),
-          borderBottomLeftRadius: r(bl),
-        }}
-      />
-      {/* the accent hairline echoes the woven band on the habillage cards, so
-          the two grids read as one family rather than two conventions */}
-      <View style={[S.enteteApercuLigne, { backgroundColor: accent }]} />
-    </View>
-  );
-}
-
-/* ------------------------------------------------------------------- K4 -- */
-
-function K4({ sf, onBack, onPick, onPickEntete, enteteEnCours }: { sf: Storefront; onBack: () => void; onPick: (k: VitrineThemeKey) => void; onPickEntete: (k: HeaderStyleKey) => void; enteteEnCours?: HeaderStyleKey | undefined }) {
+function K4({ sf, onBack, onPick, onPickEntete, enteteEnCours, liveSlug }: { sf: Storefront; onBack: () => void; onPick: (k: VitrineThemeKey) => void; onPickEntete: (k: HeaderStyleKey) => void; enteteEnCours?: HeaderStyleKey | undefined; liveSlug?: string | undefined }) {
+  /**
+   * APERÇU AVANT D'APPLIQUER (founder flow, 2026-08-03): a tap no longer
+   * changes her shop — it opens the sheet showing that header on her REAL page.
+   * « Appliquer » in the sheet is what writes it, and sliding the sheet down
+   * leaves everything as it was.
+   *
+   * WHY THIS IS THE SAFER SHAPE, not just the prettier one: the old grid saved
+   * on every tap, so browsing forty-three styles meant forty-three writes to
+   * her live shop, each one visible to any client who happened to be looking.
+   */
+  const [apercu, setApercu] = useState<HeaderStyleKey | null>(null);
   const ORDER: VitrineThemeKey[] = ['laterite', 'danfani', 'indigo', 'foret'];
   // ENTETES-B — the canon headers as cards: name + a one-line whisper of
   // character. ENTETES-APERÇU (founder order 2026-08-03) added the SILHOUETTE
@@ -1004,7 +969,7 @@ function K4({ sf, onBack, onPick, onPickEntete, enteteEnCours }: { sf: Storefron
         {PICKABLE_HEADER_STYLES.map((key) => {
           const selected = currentEntete === key;
           return (
-            <Pressable key={key} style={[S.themeCard, selected ? S.themeCardSelected : S.themeCardRest]} onPress={() => onPickEntete(key)} accessibilityRole="button" accessibilityState={{ selected }}>
+            <Pressable key={key} style={[S.themeCard, selected ? S.themeCardSelected : S.themeCardRest]} onPress={() => setApercu(key)} accessibilityRole="button" accessibilityState={{ selected }}>
               <EnteteApercu spec={frameSpecFor(key, 'cover')} deep={thCourant.deep} soft={thCourant.soft} accent={thCourant.accent} />
               <View style={S.themeNameRow}>
                 <Text style={S.themeName}>{t(`k.entete.nom_${key}`)}</Text>
@@ -1031,6 +996,18 @@ function K4({ sf, onBack, onPick, onPickEntete, enteteEnCours }: { sf: Storefron
         })}
       </View>
       <View style={S.noteCard}><Text style={S.noteCardText}>{t('k.theme.note')}</Text></View>
+      <EnteteApercuSheet
+        visible={apercu !== null}
+        styleKey={apercu}
+        label={apercu === null ? '' : t(`k.entete.nom_${apercu}`)}
+        liveSlug={liveSlug}
+        themeTones={{ deep: thCourant.deep, soft: thCourant.soft, accent: thCourant.accent }}
+        onApply={(k) => {
+          setApercu(null);
+          onPickEntete(k);
+        }}
+        onClose={() => setApercu(null)}
+      />
     </ScrollView>
   );
 }
