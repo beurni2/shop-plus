@@ -2990,3 +2990,26 @@ Exactly one site depends on the observer, and it is the one screen that mounts i
 **Evidence:** reseller-app **425/425** · tsc exit 0 · **gates board exit 0, ALL GATES GREEN**. New pin **mutation-verified three ways** — outer padding back to `lg` ⇒ fails; gutter back to `md` ⇒ fails; grid re-sharing `scrollList` ⇒ fails.
 
 **NOT VISIBLE UNTIL THE `eas build`** — same standing block as the video work: this is the reseller app, and its installed binary predates `expo-video`, so no OTA can carry this either.
+
+### RESELLER-UX-5 — opportunités staggers, and the spacing goes to the reference
+
+**Two founder orders, 2026-08-03, the second a CORRECTION OF MY READING:**
+1. « You can make the spacing scale to be like the reference » — an explicit **override** of the stop I had argued for at `spacing.sm`.
+2. « I meant on the reference the products card are **not** aligned horizontally at the same level » — I had read his first sentence as *make them align*, and was one edit away from building the exact opposite. He caught it before I wrote it.
+
+**1 · SPACING — OVERRIDE APPLIED AND LOGGED (§6).** Outer padding and gutter both go to `spacing.xs`. On a 390pt phone: `390 − (4×2) − 4 = 378` ⇒ **189pt card = 48.5%** of the screen, against the reference's measured `206/428 = 48.1%`. Within half a point. **His override cost nothing I was actually right about:** `spacing.xs` is a real step on our scale, so the tighter grid is still token-pure — no snowflake value entered the app.
+
+**2 · THE STAGGER WAS STRUCTURAL, NOT COSMETIC.** `FlatList numColumns={2}` lays out in **rows**; each row is a flex row whose children stretch to the tallest, so the two cards on a line always began and ended together. **No styling can stagger that** — rows are what that prop *is*. So the two columns are now **independent stacks**: `oppColumns` (row, `alignItems: 'flex-start'`) holding two `oppColumn` (`flex: 1`, vertical). Split by **alternating index** — pure, stable, identical on every render (Loi 5). A shortest-column heuristic packs tighter and would let the same catalogue render differently on two phones; not a trade worth making.
+
+**THREE CONSEQUENCES I HAD TO CHASE, none of them cosmetic:**
+- **`oppTile` lost `flex: 1` — a correctness fix.** It gave the tile its half-width as a child of a row. In a **column**, flex governs **height**: left in place, every card would stretch to share the column and the row-locked look would be straight back. Width now comes from the column; height is the card's content, which is exactly what lets the columns fall out of step.
+- **The odd-count ghost spacer is DELETED.** It existed because a lone last tile stretched across a **row**. No rows ⇒ no hazard ⇒ an odd count just ends one column a card early, which *is* the staggered look. Its pin was retired with a written reason rather than silently dropped.
+- **`ScrollView` replaces `FlatList` ⇒ virtualisation is gone.** Stated, not buried: every card renders. Acceptable **here and now** (one founder's catalogue, tens of products); **not** at hundreds. **The threshold is named at ~100 offers**, and the first symptom will be a slow first paint on a 1GB Android — so it is a decision with a trigger, not a surprise.
+
+**Evidence:** reseller-app **426/426** · tsc exit 0 · **gates board exit 0, ALL GATES GREEN**. The UX-5 pin is **mutation-verified three ways** — restore `flex: 1` on the tile ⇒ fails; `alignItems` back to `stretch` ⇒ fails (2 tests); spacing back to `sm` ⇒ fails.
+
+**A PIN-WRITING TRAP, HIT TWICE NOW AND WRITTEN DOWN.** This slice's negatives forbid `numColumns` / `columnWrapperStyle` / `oppGridRow` — and the comments explaining *why they were removed* name those same constructs, so a bare `not.toContain` failed on my own prose. Fixed properly: the negatives scan **comment-stripped** source via a `decomment()` helper, plus a **control assertion** that the stripped slice is non-empty, so the negatives can never pass vacuously. Same class as the C1 `video-hero` pin.
+
+**WHAT STILL WILL NOT LOOK LIKE THE REFERENCE, AND WHY — founder decision needed.** His reference staggers *visibly* because its photos are **different shapes**. Ours are all **square** by the RESELLER-UX-3 ruling, pinned as a family law across `oppTileArt` · `ficheHero` · `vitrineCardArt`. With uniform photo heights, our stagger comes only from body height (a 1- vs 2-line name, the épuisé chip) — real, but subtler. Matching it fully needs the photo's **true aspect ratio**, which means either (a) relaxing the square-frame ruling, or (b) carrying image dimensions on the wire — **(b) is a `contracts/` change and a §7 hard stop**. Neither taken unilaterally.
+
+**NOT VISIBLE UNTIL THE `eas build`** — same standing block as the video work.

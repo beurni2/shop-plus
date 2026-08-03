@@ -855,48 +855,62 @@ export default function App() {
         )}
 
         {screen === 'opportunites' && (
-          <FlatList
+          /**
+           * RESELLER-UX-5 — THE STAGGERED GRID (founder correction 2026-08-03:
+           * « on the reference the products card are NOT aligned horizontally at
+           * the same level, make opportunité the same thing as well »).
+           *
+           * WHAT THIS REPLACES, and why the replacement had to be structural:
+           * this was a `FlatList numColumns={2}`, which lays out in ROWS — every
+           * row is a flex row whose children stretch to the tallest, so the two
+           * cards on a line ALWAYS started and ended together. No styling could
+           * stagger that; rows are what FlatList's multi-column mode is.
+           *
+           * So the two columns now FLOW INDEPENDENTLY: each is its own stack, a
+           * card sits directly under the card above it, and the columns drift
+           * out of step exactly as his reference does.
+           *
+           * THE SPLIT IS ALTERNATING INDEX — evens left, odds right. Pure,
+           * stable, and identical on every render (Loi 5: nothing ranked,
+           * nothing measured, nothing clever). A shortest-column heuristic would
+           * pack tighter and would also mean the same catalogue could land in a
+           * different order on two phones, which is not a trade worth making.
+           *
+           * THE GHOST SPACER IS GONE, and its absence is the point: it existed
+           * because an odd count left a lone tile stretching across a ROW. There
+           * are no rows now — an odd count simply ends one column one card
+           * earlier, which is what a staggered grid is supposed to look like.
+           *
+           * VIRTUALISATION, STATED HONESTLY: `ScrollView` renders every card,
+           * where `FlatList` windowed them. That is the cost of independent
+           * columns without a masonry dependency, and it is acceptable HERE and
+           * NOW because this feed is one founder's catalogue — tens of products.
+           * It is not acceptable at hundreds. THE THRESHOLD IS NAMED so it is a
+           * decision and not a surprise: past ~100 offers this needs a windowed
+           * masonry, and the first sign will be a slow first paint on a 1GB
+           * Android, not a crash.
+           */
+          <ScrollView
             style={styles.screenScroll}
-            // BROWSE-SUPPLY-1 — LIVE offers from boutik, through this Worker. Was
-            // `world.opportunities`, seven frozen « (démo) » seeds.
-            //
-            // THE GHOST SPACER (verifier finding): an ODD offer count would leave
-            // the last flex:1 tile alone in its row, stretching to a screen-wide
-            // square. A trailing null pads the row; it renders an invisible
-            // flex:1 sibling, so the lone tile keeps its EXACT half-width — no
-            // percentage approximation drifting against the row gap.
-            data={offers.length % 2 === 1 ? ([...offers, null] as (Offer | null)[]) : offers}
-            keyExtractor={(o, i) => o?.productVersionId ?? `ghost-${i}`}
-            // RESELLER-UX-3 (founder reference, 2026-07-27) — the MARKETPLACE
-            // GRID: two columns of photo-first tiles, the browse idiom every
-            // sourcing app trained her eye on. The photo is SQUARE — the frame
-            // shape, not the fit, was what made cover crop badly: a wide short
-            // banner butchers a portrait shot, a square barely trims it.
-            numColumns={2}
-            columnWrapperStyle={styles.oppGridRow}
-            initialNumToRender={6}
-            windowSize={5}
-            showsVerticalScrollIndicator={false}
-            // RESELLER-UX-4 (founder reference 2026-08-03: « On opportunités I
-            // want products card sizes to be like this ») — its OWN container,
-            // deliberately not the shared `scrollList`: three other screens use
-            // that one, and widening them all to serve this order would be a
-            // change he did not ask for. See `oppGrid` for the geometry.
+            // RESELLER-UX-4 — its OWN container, deliberately not the shared
+            // `scrollList`: three other screens use that one, and widening them
+            // all to serve this order would be a change he did not ask for.
             contentContainerStyle={styles.oppGrid}
-            ListHeaderComponent={
-              // Frame L113–114 — the big screen title (Bricolage 800/28) lands
-              // in-content; the net-first selling subtitle sits under it.
-              <View style={styles.oppHead}>
-                <Text style={styles.screenTitle}>{t('opportunites.title')}</Text>
-                <Text style={styles.oppSub}>{t('opportunites.sous_titre')}</Text>
-              </View>
-            }
-            // THE HONEST EMPTY STATE — shown while loading resolves to nothing, when
-            // nothing is published, and when the wire is unconfigured or unreachable.
-            // Deliberately ONE state for all of them: the reseller gets an honest
-            // screen, never a diagnosis. The WHY is operator-facing and lives on the
-            // service's `diagnostic`, which this app never reads.
-            ListEmptyComponent={
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Frame L113–114 — the big screen title (Bricolage 800/28) lands
+                in-content; the net-first selling subtitle sits under it. */}
+            <View style={styles.oppHead}>
+              <Text style={styles.screenTitle}>{t('opportunites.title')}</Text>
+              <Text style={styles.oppSub}>{t('opportunites.sous_titre')}</Text>
+            </View>
+            {/* THE HONEST EMPTY STATE — shown while loading resolves to nothing,
+                when nothing is published, and when the wire is unconfigured or
+                unreachable. Deliberately ONE state for all of them: the reseller
+                gets an honest screen, never a diagnosis. The WHY is operator-
+                facing and lives on the service's `diagnostic`, which this app
+                never reads. */}
+            {offers.length === 0 ? (
               feed === undefined ? null : (
                 <EmptyState
                   glyph={<IconProduits size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />}
@@ -904,68 +918,72 @@ export default function App() {
                   hint=""
                 />
               )
-            }
-            renderItem={({ item }) => (
-              item === null ? (
-                <View style={styles.oppTileGhost} />
-              ) : (
-              // §4 L70 — a tappable product TILE → its FICHE (journey edge
-              // opportunites→fiche). RESELLER-UX-3 (founder reference): the
-              // marketplace tile — SQUARE photo edge-to-edge on top (cover; a
-              // square frame barely trims, which is why the reference looks
-              // professional), then the compact detail: 2-line name, « Gagnez ≈
-              // {net} net » as the price position (NET FIRST in render order —
-              // SP-I04/I12; gross never), the base as the quiet metadata line,
-              // the source pill and the honest épuisé chip. The estimate reads
-              // at the default markup (0 — founder override), same figure the
-              // fiche opens on.
-              <Pressable
-                style={({ pressed }) => [styles.oppTile, pressed && styles.pressed]}
-                onPress={() => { setFicheId(item.productVersionId); setFicheHeroIdx(0); go('fiche'); }}
-                accessibilityRole="button"
-              >
-                <View style={styles.oppTileArt}>
-                  {/* RESELLER-PHOTOS-1 — the REAL photograph when the wire carries
-                      one (absolute URL, absolutized server-side with the same base
-                      as the buyer wire). No ref ⇒ the designed glyph tile. */}
-                  {/* VIDEO-PARTOUT — a clip PLAYS here when the product has one
-                      (muted, looping, the photograph underneath as the resting
-                      state); no clip ⇒ ProductClip renders the photo alone, so
-                      this branch reads exactly as it did before. */}
-                  {item.assetRefs[0] || item.videoRef ? (
-                    <ProductClip videoRef={item.videoRef} photoUri={item.assetRefs[0]} style={styles.artPhoto} />
-                  ) : (
-                    <>
-                      <View style={styles.artTileStripe} />
-                      <Text style={styles.ficheHeroGlyph}>{item.productName.slice(0, 1)}</Text>
-                    </>
-                  )}
-                </View>
-                <View style={styles.oppCardBody}>
-                  <Text style={styles.oppTileName} numberOfLines={2}>{item.productName}</Text>
-                  {/* NET FIRST, in RENDER ORDER (SP-I04/I12): gagnez holds the
-                      tile's price position; the base is the metadata whisper. */}
-                  <Text style={styles.oppNet}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOfOffer(item).net) })}</Text>
-                  <View style={styles.margeHeadRow}>
-                    <Overline>{t('fiche.prix_base')}</Overline>
-                    <Text style={styles.oppTileBase}>{formatFcfa(item.basePrice)}</Text>
+            ) : (
+              <View style={styles.oppColumns}>
+                {([0, 1] as const).map((col) => (
+                  <View key={col} style={styles.oppColumn}>
+                    {offers.filter((_, i) => i % 2 === col).map((item) => (
+                      // §4 L70 — a tappable product TILE → its FICHE (journey edge
+                      // opportunites→fiche). RESELLER-UX-3 (founder reference): the
+                      // marketplace tile — SQUARE photo edge-to-edge on top (cover; a
+                      // square frame barely trims, which is why the reference looks
+                      // professional), then the compact detail: 2-line name, « Gagnez ≈
+                      // {net} net » as the price position (NET FIRST in render order —
+                      // SP-I04/I12; gross never), the base as the quiet metadata line,
+                      // the source pill and the honest épuisé chip. The estimate reads
+                      // at the default markup (0 — founder override), same figure the
+                      // fiche opens on.
+                      <Pressable
+                        key={item.productVersionId}
+                        style={({ pressed }) => [styles.oppTile, pressed && styles.pressed]}
+                        onPress={() => { setFicheId(item.productVersionId); setFicheHeroIdx(0); go('fiche'); }}
+                        accessibilityRole="button"
+                      >
+                        <View style={styles.oppTileArt}>
+                          {/* RESELLER-PHOTOS-1 — the REAL photograph when the wire carries
+                              one (absolute URL, absolutized server-side with the same base
+                              as the buyer wire). No ref ⇒ the designed glyph tile. */}
+                          {/* VIDEO-PARTOUT — a clip PLAYS here when the product has one
+                              (muted, looping, the photograph underneath as the resting
+                              state); no clip ⇒ ProductClip renders the photo alone, so
+                              this branch reads exactly as it did before. */}
+                          {item.assetRefs[0] || item.videoRef ? (
+                            <ProductClip videoRef={item.videoRef} photoUri={item.assetRefs[0]} style={styles.artPhoto} />
+                          ) : (
+                            <>
+                              <View style={styles.artTileStripe} />
+                              <Text style={styles.ficheHeroGlyph}>{item.productName.slice(0, 1)}</Text>
+                            </>
+                          )}
+                        </View>
+                        <View style={styles.oppCardBody}>
+                          <Text style={styles.oppTileName} numberOfLines={2}>{item.productName}</Text>
+                          {/* NET FIRST, in RENDER ORDER (SP-I04/I12): gagnez holds the
+                              tile's price position; the base is the metadata whisper. */}
+                          <Text style={styles.oppNet}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOfOffer(item).net) })}</Text>
+                          <View style={styles.margeHeadRow}>
+                            <Overline>{t('fiche.prix_base')}</Overline>
+                            <Text style={styles.oppTileBase}>{formatFcfa(item.basePrice)}</Text>
+                          </View>
+                          {/* THE SOURCE MARK (founder ruling) — a PROVENANCE mark, not a
+                              location: boutik strips zone deliberately (supplier-
+                              identifying). Same pill family as « livré par Séra »,
+                              deliberately quieter than « Vérifiée ». CONSTANT, never data.
+                              HARD GATE: a second supplier makes this line a LIE. */}
+                          <View style={styles.oppSourcePill}>
+                            <Text style={styles.oppSourcePillText}>{t('opportunites.source')}</Text>
+                          </View>
+                          {/* Honest stock: a zero-stock offer says so on the tile, before
+                              she invests a tap (the wire's `available`, stated not styled). */}
+                          {item.available === 0 && <StatusChip tone="muted" label={t('opportunites.epuise')} />}
+                        </View>
+                      </Pressable>
+                    ))}
                   </View>
-                  {/* THE SOURCE MARK (founder ruling) — a PROVENANCE mark, not a
-                      location: boutik strips zone deliberately (supplier-
-                      identifying). Same pill family as « livré par Séra »,
-                      deliberately quieter than « Vérifiée ». CONSTANT, never data.
-                      HARD GATE: a second supplier makes this line a LIE. */}
-                  <View style={styles.oppSourcePill}>
-                    <Text style={styles.oppSourcePillText}>{t('opportunites.source')}</Text>
-                  </View>
-                  {/* Honest stock: a zero-stock offer says so on the tile, before
-                      she invests a tap (the wire's `available`, stated not styled). */}
-                  {item.available === 0 && <StatusChip tone="muted" label={t('opportunites.epuise')} />}
-                </View>
-              </Pressable>
-              )
+                ))}
+              </View>
             )}
-          />
+          </ScrollView>
         )}
 
         {/* FICHE (frame 03 / HANDOFF §4 L72, RE-SCOPED add-only per founder redirect):
@@ -1893,24 +1911,43 @@ const styles = StyleSheet.create({
    * He sent a two-up marketplace grid whose cards run nearly edge-to-edge and
    * asked for « card sizes to be like this ». The card was already half-width;
    * what made his reference's cards bigger was the CHROME AROUND them, not the
-   * column count. So the two numbers that decide card width move down one token
-   * step each — outer padding `lg`→`sm`, gutter `md`→`sm` — and the photograph,
-   * being square, grows in BOTH dimensions with it.
+   * column count. So the two numbers that decide card width come down — outer
+   * padding `lg`→`xs`, gutter `md`→`xs` — and the photograph, being square,
+   * grows in BOTH dimensions with it.
+   *
+   * FOUNDER OVERRIDE, LOGGED (§6): I first stopped at `spacing.sm`, arguing §5's
+   * « generous whitespace even on small screens ». He answered « you can make
+   * the spacing scale to be like the reference ». His call, and it costs nothing
+   * I was right about: `spacing.xs` is a REAL STEP ON OUR SCALE, so the tighter
+   * grid is still token-pure — no snowflake value entered the app to get here.
    *
    * MEASURED, not eyeballed, on a 390pt phone:
-   *   before  390 − (16×2) − 12 = 346 ⇒ 173pt card · 173×173 photo
-   *   after   390 − ( 8×2) −  8 = 366 ⇒ 183pt card · 183×183 photo  (+12% area)
-   * That lands the card at 47% of the screen against the reference's ~48%.
-   *
-   * WHY NOT TIGHTER: the reference leaves ~5pt at the screen edge. Going there
-   * means a hardcoded value off our spacing scale AND a card that touches the
-   * bezel — the opposite of the warm, breathing surface this app is meant to
-   * be. `spacing.sm` is the last honest step on the scale; it stops here.
+   *   original  390 − (16×2) − 12 = 346 ⇒ 173pt card (44.4%)
+   *   interim   390 − ( 8×2) −  8 = 366 ⇒ 183pt card (46.9%)
+   *   NOW       390 − ( 4×2) −  4 = 378 ⇒ 189pt card (48.5%) · 189×189 photo
+   * The reference measures ~206pt of a 428pt screen = 48.1%. We are within half
+   * a point of it, which is as close as arithmetic on this scale can land.
    */
-  oppGrid: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.sm },
-  oppGridRow: { gap: spacing.sm },
+  oppGrid: { paddingHorizontal: spacing.xs, paddingTop: spacing.sm, paddingBottom: spacing.xxl, gap: spacing.sm },
+  /**
+   * RESELLER-UX-5 — the two INDEPENDENT column stacks (founder correction: the
+   * cards must NOT line up across the two columns). `oppColumns` is the pair
+   * side by side with the gutter between them; each `oppColumn` is a stack whose
+   * cards sit directly under one another. Nothing here aligns anything to the
+   * other column — that absence IS the feature, and it is why the old
+   * `oppGridRow` (a FlatList row wrapper) no longer exists.
+   */
+  oppColumns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
+  oppColumn: { flex: 1, gap: spacing.xs },
   oppTile: {
-    flex: 1,
+    // RESELLER-UX-5 — `flex: 1` REMOVED, and this is a correctness fix, not
+    // tidying. It used to give the tile its half-width as a child of a flex ROW.
+    // The tile is now a child of a COLUMN, where flex governs the MAIN axis =
+    // HEIGHT: leaving it would have asked every card to share the column's
+    // height and stretch, which is precisely the row-locked look the founder
+    // asked me to remove. Width now comes from the column's own `flex: 1`, and
+    // the card fills it by the default cross-axis stretch. Height is the card's
+    // content — which is what lets the two columns fall out of step.
     backgroundColor: sharedColour.card,
     borderRadius: radius.tile,
     borderWidth: interaction.hairline.thin,
@@ -1925,9 +1962,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // The invisible row-mate for an odd offer count: same flex, no surface — the
-  // lone real tile keeps its exact half-width instead of stretching.
-  oppTileGhost: { flex: 1 },
+  // RESELLER-UX-5 — the odd-count ghost spacer is DELETED, not orphaned. It
+  // existed to stop a lone last tile stretching across its ROW; there are no
+  // rows any more, so an odd count just ends one column a card early, which is
+  // the staggered look the founder asked for. Left in place it would have been
+  // dead style nobody could explain in six months.
   oppTileName: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size), fontWeight: '700', lineHeight: rmax(t2.scale.body.size) * 1.3 },
   oppTileBase: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
   // RESELLER-UX-4 — the text block tightens by one step (`md`→`sm`) so the

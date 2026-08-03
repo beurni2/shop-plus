@@ -324,8 +324,17 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     // the founder's reference: two-column browse, photo edge-to-edge, compact
     // named detail. The SQUARE frame is the fit law now — cover on a square
     // barely trims, which is what makes the reference look professional.
-    expect(app).toContain('numColumns={2}');
-    expect(app).toContain('columnWrapperStyle={styles.oppGridRow}');
+    //
+    // PIN EVOLVED (RESELLER-UX-5, founder correction 2026-08-03): « two columns »
+    // is still the law and still asserted — but it is no longer spelled
+    // `numColumns={2}`. That prop lays out in ROWS, which locked the two cards
+    // on a line to the same top and bottom; he asked for the reference's
+    // STAGGER, so the columns are now two independent stacks. The old
+    // assertions are REPLACED, not deleted: two-columns-ness is proven below by
+    // the column container and the alternating split, which is the same
+    // guarantee expressed against the structure that now exists.
+    expect(app).toContain('styles.oppColumns');
+    expect(app).toContain('styles.oppColumn');
     expect(app).toMatch(/oppTileArt: \{\n\s*width: '100%',\n\s*aspectRatio: 1,/);
     const oppTileIdx = app.indexOf('styles.oppTile,');
     const body = app.slice(oppTileIdx, app.indexOf('</Pressable>', oppTileIdx));
@@ -359,24 +368,28 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
   it('UX-4 — the opportunités grid is WIDER than the shared lists, by its own container', () => {
     // 1 · it does NOT reuse `scrollList`. Three other screens do; widening them
     //     to serve this order would be a change the founder never asked for.
-    const gridIdx = app.indexOf('columnWrapperStyle={styles.oppGridRow}');
+    const gridIdx = app.indexOf('styles.oppColumns');
     expect(gridIdx).toBeGreaterThan(-1);
-    const flatList = app.slice(gridIdx, app.indexOf('ListHeaderComponent=', gridIdx));
-    expect(flatList).toContain('contentContainerStyle={styles.oppGrid}');
-    expect(flatList).not.toContain('styles.scrollList');
+    const grid = app.slice(app.indexOf("screen === 'opportunites'"), gridIdx);
+    expect(grid).toContain('contentContainerStyle={styles.oppGrid}');
+    expect(grid).not.toContain('styles.scrollList');
 
-    // 2 · the two numbers that set the width, at the tighter step. `spacing.lg`
-    //     (16) here would silently return the card to its old 173pt.
-    expect(app).toMatch(/oppGrid: \{ paddingHorizontal: spacing\.sm,/);
-    expect(app).toMatch(/oppGridRow: \{ gap: spacing\.sm \}/);
+    // 2 · the two numbers that set the width, at the REFERENCE step (founder
+    //     override 2026-08-03: « you can make the spacing scale to be like the
+    //     reference »). `spacing.sm` here would give back 6pt of card width.
+    expect(app).toMatch(/oppGrid: \{ paddingHorizontal: spacing\.xs,/);
+    expect(app).toMatch(/oppColumns: \{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing\.xs \}/);
 
     // 3 · the arithmetic those tokens produce, asserted rather than trusted:
-    //     390 − (8×2) − 8 = 366, halved = 183pt (was 173pt at lg/md).
-    const SCREEN = 390, sm = 8, md = 12, lg = 16;
+    //     390 − (4×2) − 4 = 378, halved = 189pt — 48.5% of the screen, against
+    //     the reference's measured 206/428 = 48.1%.
+    const SCREEN = 390, xs = 4, sm = 8, md = 12, lg = 16;
     const cardAt = (outer: number, gutter: number) => (SCREEN - outer * 2 - gutter) / 2;
-    expect(cardAt(sm, sm)).toBe(183);
-    expect(cardAt(lg, md)).toBe(173); // the old geometry, kept as the contrast
-    expect(cardAt(sm, sm)).toBeGreaterThan(cardAt(lg, md)); // the order, as arithmetic
+    expect(cardAt(xs, xs)).toBe(189);
+    expect(cardAt(sm, sm)).toBe(183); // the interim step
+    expect(cardAt(lg, md)).toBe(173); // the original, kept as the contrast
+    expect(cardAt(xs, xs) / SCREEN).toBeCloseTo(0.485, 3);
+    expect(Math.abs(cardAt(xs, xs) / SCREEN - 206 / 428)).toBeLessThan(0.005); // within ½pt of the reference
 
     // 4 · the photo is SQUARE, so the width gain is an area gain — this is the
     //     whole mechanism by which « bigger cards » becomes « bigger photos ».
@@ -390,6 +403,71 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     for (const kept of ["tf('opportunity.gagnez'", "t('fiche.prix_base')", "t('opportunites.source')", "t('opportunites.epuise')"]) {
       expect(tile, `UX-4 dropped a standing line to buy space: ${kept}`).toContain(kept);
     }
+  });
+
+  /**
+   * RESELLER-UX-5 — THE STAGGER (founder correction 2026-08-03: « on the
+   * reference the products card are NOT aligned horizontally at the same level,
+   * make opportunité the same thing as well »).
+   *
+   * This is the hardest pin in the file to write honestly, because the thing
+   * being protected is an ABSENCE — nothing must align the two columns. A test
+   * that only checked "the new styles exist" would pass just as happily on a
+   * layout that silently locked back into rows. So each assertion below names
+   * the specific mechanism that WOULD re-align the cards, and forbids it.
+   */
+  it('UX-5 — the two columns flow INDEPENDENTLY: nothing can line the cards up again', () => {
+    // EVERY NEGATIVE BELOW SCANS CODE WITH THE COMMENTS STRIPPED. This slice is
+    // heavily commented — it has to be, since what it documents is why the old
+    // layout was removed — and those comments NAME the very constructs being
+    // forbidden. A bare `not.toContain` would read the explanation as the
+    // violation and fail on prose. (Same trap as the C1 video pin; stated here
+    // so the next author does not re-lay it.)
+    const decomment = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const screen = decomment(app.slice(app.indexOf("screen === 'opportunites'"), app.indexOf('{/* FICHE')));
+    const code = decomment(app);
+    // CONTROL — the strip must not have emptied the slice, or every negative
+    // below would pass vacuously against an empty string.
+    expect(screen).toContain('styles.oppColumns');
+
+    // 1 · `numColumns` IS GONE from THIS screen. It is not a style — it is
+    //     FlatList's row-based multi-column mode, and while it is present the
+    //     two cards on a line are stretched to a shared height by construction.
+    //     Its absence is the whole slice; if it returns, the order is undone.
+    //     (« Ma vitrine » still uses it, correctly — hence the scoped slice.)
+    expect(screen).not.toContain('numColumns');
+    expect(screen).not.toContain('columnWrapperStyle');
+    expect(code).not.toContain('oppGridRow'); // the row wrapper style, deleted with it
+
+    // 2 · two real column stacks, side by side, each laying out vertically.
+    expect(app).toMatch(/oppColumns: \{ flexDirection: 'row',/);
+    expect(app).toMatch(/oppColumn: \{ flex: 1, gap: spacing\.xs \}/);
+
+    // 3 · `alignItems: 'flex-start'` on the pair. The Yoga default is STRETCH,
+    //     which would pull the shorter column to the taller one's height — the
+    //     re-alignment trap, and invisible in a screenshot with equal columns.
+    expect(app).toMatch(/oppColumns: \{[^}]*alignItems: 'flex-start'/);
+
+    // 4 · the TILE no longer carries `flex: 1`. In a column, flex governs
+    //     HEIGHT — a flexed card would stretch to share the column, putting the
+    //     row-locked look straight back. Width comes from the column instead.
+    const tileStyle = decomment(app.slice(app.indexOf('oppTile: {'), app.indexOf('oppTileArt: {')));
+    expect(tileStyle).not.toMatch(/^\s*flex: 1,/m);
+
+    // 5 · the split is DETERMINISTIC and alternating — every render, every
+    //     phone, the same card in the same column (Loi 5: nothing ranked,
+    //     nothing measured). A height-balancing heuristic would be prettier and
+    //     would make the same catalogue render differently on two devices.
+    expect(screen).toMatch(/offers\.filter\(\(_, i\) => i % 2 === col\)/);
+
+    // 6 · the odd-count ghost spacer is DELETED, not merely unused — it only
+    //     ever made sense inside a row.
+    expect(code).not.toContain('oppTileGhost');
+
+    // 7 · and the stagger bought nothing at the honest empty state's expense:
+    //     an empty feed still shows the one designed state, never a bare grid.
+    expect(screen).toContain('offers.length === 0');
+    expect(screen).toContain("t('opportunites.vide')");
   });
 
   it('item 2 (UX-3 form) — the fiche is a PRODUCT PAGE: square héro, thumbnails switch it, tap opens the gallery ON it', () => {
@@ -452,10 +530,15 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
       expect(app).toMatch(new RegExp(`${frame}: \\{\\n[^}]*aspectRatio: 1,`));
     }
     expect(app).not.toContain('resizeMode="contain"');
-    // …and the ODD-count ghost: a lone last tile must keep its half-width, not
-    // stretch into a screen-wide square (verifier finding).
-    expect(app).toMatch(/offers\.length % 2 === 1 \? \(\[\.\.\.offers, null\]/);
-    expect(app).toContain('styles.oppTileGhost');
+    // PIN RETIRED (RESELLER-UX-5) — the odd-count ghost spacer USED to be
+    // asserted here: with `numColumns={2}`, an odd offer count left the last
+    // tile alone in a flex row and it stretched to a screen-wide square, so a
+    // trailing null padded the row. THE HAZARD NO LONGER EXISTS: the columns
+    // are independent stacks, so an odd count simply ends one column a card
+    // early — which is the staggered look the founder asked for. Keeping the
+    // assertion would have pinned a workaround to a problem that is gone, and
+    // deleting it silently would have hidden that. The replacement guarantee —
+    // no row can re-form — is asserted in full by the UX-5 test above.
   });
 
   it('the gallery page RE-SYNCS per product (to startAt) and the width is LIVE (verifier findings, pinned)', () => {
