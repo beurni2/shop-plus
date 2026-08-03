@@ -2856,3 +2856,11 @@ The founder's sentence, built: « I want the short video to be the hero card and
 **Evidence:** buyer-pwa **829/829** (10 new: the honesty kit attrs · only-the-featured · no-clip byte-path · attribute-injection escape · wire normalisation · threshold pins · no-IO fallback · one-at-a-time with a fake observer) · buyer tsc clean · vitrine/entêtes e2e green locally · **gates board exit 0, ALL GATES GREEN**. First board run failed ONE spec (`checkout-real` SP3.3c retry-id — a path this diff never touches), 3/3 green in isolation: a load-flake under the parallel board, stated rather than hidden; the re-run board is clean. **Follow-ups journalled, not built:** buyer C1 product-page video · reseller opp-card preview · a scroll-play e2e (the unit fake covers the rule; a real-scroll spec wants its own harness care).
 
 **Deploy order for the family, restated:** Shop+ storefront-service BEFORE boutik offer-service (strict parse vs the new wire field) · media-service deploy needed for `/media/video` · boutik webapp deploy for the capture UI · pwa deploy for the hero. All awaiting founder go-ahead.
+
+## 2026-08-03 — VIDEO-PRODUIT family verifier round, shop half: M4 pinned
+
+**The finding:** the relative-strip at the absolutize seam (`index.ts` — the destructure that keeps a RELATIVE `videoRef` out of the buyer record when `PRODUCT_MEDIA_BASE` is unset) was UNTESTED: replacing it with the naive `...described` spread stayed green, because with the base SET the absolute ref overwrites the relative one and every existing case masked the leak.
+
+**The pin (`test/video-media-base.test.ts`):** four behavioral cases through the REAL `handleRequest` with fake bindings — base set ⇒ absolute `videoRef`, same origin as the images · base unset ⇒ the key is ABSENT (the M4 red check) · base `''` ⇒ same absence · no clip ⇒ never invented, photos untouched. The naive-spread mutant was installed, failed 2/4, and the original restored byte-identical.
+
+**Evidence:** storefront-service **455/455** · tsc clean · **gates board exit 0, ALL GATES GREEN**. The boutik half of the round (B1 blocker + M1/M2/M3/M5 + minors) is journalled in boutik-plus.
