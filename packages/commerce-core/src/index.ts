@@ -6,6 +6,7 @@
 export * from './fixtures.js';
 export * from './pay-at-door-policy.js';
 export * from './refusal-ladder.js';
+export * from './related-party.js';
 export * from './quote-issuance.js';
 export * from './reservation.js';
 export * from './order-machine.js';

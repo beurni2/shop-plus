@@ -35,7 +35,7 @@
     "@types/react": "~19.1.0",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4",
-    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#05d8c115b4f65ba74b43c877da982de7a85b4697&path:packages/contracts",
+    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#c8a0d4a72e0819a003585a0b3625ff7217b6ab37&path:packages/contracts",
     "@shop-plus/commerce-core": "workspace:*",
     "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#be2199c95d27e6ae5f6c7381c12e18a9796d9800&path:packages/i18n"
   }
