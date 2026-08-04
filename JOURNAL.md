@@ -11,6 +11,15 @@ Format per entry:
 
 ## 2026-08-04 · OPTION-B-REACHABLE-1 + SP6.1 · IN REVIEW
 
+### MERGED AND DEPLOYED (founder order 2026-08-04: « once everything is green merge and deploy all »)
+
+- **platform-contracts main:** `05d8c11` → **`c8a0d4a`** (v3.6.0) → **`eeee930`** (v3.7.0). Both by guarded fast-forward (`merge-base --is-ancestor` checked, sha substituted from `git rev-parse`, never typed) after CI green on each.
+- **shop-plus main:** `7243a97` → **`49440ff`**. Guarded fast-forward, CI green on `49440ff` with the invariant-gate step verified as RUN (09:44:55→09:49:54), not merely reported.
+- **storefront-service Worker** — run 30898194875, deploy job success. **Migration v6 created `BuyerLadderDO`** (the one step wrangler.toml warns is unproven until a real deploy). « Assert the live Worker speaks the canon this job bundled » and the checkout smoke both passed.
+- **buyer PWA** — run 30898377539, both jobs success; payload budget gate passed on THE deploy build; `actions/deploy-pages@v4` completed.
+- **reseller app (EAS)** — run 30898384697. **The publish STEP ran for 66 s** (09:55:08→09:56:14), verified per the standing law that this workflow reports success with everything skipped when `EXPO_TOKEN` is absent.
+- **boutik-plus was NOT touched this session and was NOT deployed.** The video deploy-order law (shop-plus storefront-service before boutik offer-service) did not apply — there is no boutik change to sequence.
+
 ### OPTION-B-REACHABLE-1 — « Option B still not reachable », and it was never the zones
 
 - **I HAD ALREADY BEEN WRONG ABOUT THIS ONCE, in the previous message.** I told the founder M4 was gated on an empty zone allowlist; it was not — he ruled zones open on 2026-08-01 and the code already shipped `networkReliableZones: 'all'`. I had quoted a stale JOURNAL entry describing the ORIGINAL default instead of reading the live file. He replied « Option B still not reachable », which was the correct and generous answer. **The rule I wrote for myself two entries ago — read the live code before quoting the journal about it — is the rule I broke.**
