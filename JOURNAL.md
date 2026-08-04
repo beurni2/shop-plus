@@ -3204,3 +3204,26 @@ Nothing invented, nothing half-wired, no placeholder row faking a note. **Waitin
 **ONE VERIFICATION I COULD NOT DO, stated rather than glossed:** the live `GET /s/{slug}` smoke check. Outbound to `storefront-service.ilboudobernard2.workers.dev` is refused by this container's network policy (proxy answers 403 to CONNECT), so **I have not seen the deployed JSON carry `productNotes` with my own eyes**. What IS evidence: the deploy run succeeded, and the projection — including the pre-existing-storefront migration — is covered by the 461 service tests and mutation-verified.
 
 **Still owed by the founder:** the `eas build`. The reseller app's **en-tête preview sheet** is the only thing waiting on it; the guarded require means his current binary keeps working and simply says the real preview arrives with the update. Everything else in this batch — cover frame, the full-sentence Personnaliser button, the voice upload — shipped over the air in `30864064209`.
+
+### Le glissement mort, le 404 qui n'en était pas un, et la voix qui prend sa place
+
+**Founder, 2026-08-04, with a screenshot of « Aperçu pas affiché » over a shop that is perfectly online.** Five reports, three of them defects I shipped the day before.
+
+**1 · THE 404 WAS THE MECHANISM, NOT A FAULT — my bug, not his network.** His vitrine is served by GitHub Pages, a **static host with no router**: `/shop-plus/v/{slug}` matches no file, so Pages answers **404** with `404.html`, whose script rewrites the path to `/?/v/{slug}` and the app boots from there. That 404 is the SPA fallback **working** — it is how every `/v/` link in this product resolves, « Voir comme cliente » included. My `onHttpError` treated it as a failure and painted the error state over a page that was about to load fine. A 404 now passes through; every other status still fails, and `onError` is untouched.
+
+**2 · « NOT SMOOTH … MULTIPLE TIMES » WAS NOT SLOWNESS. THERE WAS NO DRAG AT ALL.** `Modal animationType="slide"` animates on open and close and nothing else. The only exit was a tap on the thin backdrop strip, and **every downward swipe he tried landed inside the WebView, which swallows touches**. Repeating a gesture is exactly what a person does when it is silently ignored — his description was precise and I had read it as a performance complaint.
+The sheet now drags, **on the header**, which is where it has to be: a handle drawn over the WebView would have been as dead as the swipe. Past 120 pt or on a flick it closes; less springs back, so a half-swipe never leaves her guessing. **The inert `<Pressable>` wrapper had to go** — it sat between the grip and the card and would have eaten the gesture.
+
+**3 · Taller:** the band 300 → 430.
+
+**4 + 5 · THE VOICE GETS A SURFACE ON BOTH SIDES, and neither needed new wiring.**
+Reseller: replay-before-publish **already worked**. It was one of five equal chips — écouter · durée · publier · refaire · supprimer — wrapping on a narrow phone, so the act she wants FIRST looked exactly as important as « Supprimer ». It is now a full-width tappable block with a filled disc and « Écoutez avant de publier », **above** the primary Publier, with the two undo verbs whispering on their own row.
+Buyer: an inline-flex outline chip that read as a minor link beside the price. On a product whose seller took the trouble to record something, the one human moment on the page looked like a footnote. Now a full-width card: disc, a line saying the seller is talking about this product, duration in tabular figures. **Tap-to-play, never autoplay, and a note without a ready url still renders nothing** — unchanged.
+
+**The buyer token gate caught a `2px` literal I wrote** (no px outside the 1 px hairline); it is `var(--sp-xs)`.
+
+**Evidence:** reseller-app **477/477** · buyer-pwa **855/855** · tsc exit 0 both · **gates board exit 0, ALL GATES GREEN, zero `GATE FAILED`**. Mutation-verified four ways — the 404 counted as failure again ⇒ 2 fail · the drag zone moved inside the WebView ⇒ fails · the band shrank to 300 ⇒ fails · listening dropped below publishing ⇒ fails. One stale pin (`onHttpError` as a blanket failure) was **evolved rather than deleted**, since the behaviour it described is exactly what changed.
+
+**MERGED AND DEPLOYED 2026-08-04** (founder: « go ahead »). CI `30866030365` green on `c35e1af` → fast-forward `0cd8a68..c35e1af` on main (guard passed) → **`pwa-preview` `30869215331`: success** → **`expo-preview` `30869218888`: success, publish step RAN 67 s** (01:35:52→01:36:59), verified at the step. No service or canon change in this batch, so nothing else was redeployed.
+
+**Still owed:** the founder's `eas build`. The **en-tête preview sheet** — including all three fixes above — is the only thing waiting on it. The voice work on both surfaces shipped over the air in this update.
