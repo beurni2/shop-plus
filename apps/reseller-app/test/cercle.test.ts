@@ -340,7 +340,14 @@ describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)'
 
   it('§8.1 — the dock has FIVE tabs, exact order and labels; Cercle between Ma Vitrine and Gains; two-heads icon verbatim', () => {
     const app = read('App.tsx');
-    const dock = app.slice(app.indexOf('<TabBar'), app.indexOf('</SafeAreaView>'));
+    // ACCESS-GATE-1 — the FIRST closing tag AFTER the dock, not the first in
+    // the file: the access gate returns its own <SafeAreaView> above this one,
+    // and an unanchored search made the slice empty (which passed as « no tabs »
+    // rather than failing as « the pin cannot see the dock »).
+    const debut = app.indexOf('<TabBar');
+    const dock = app.slice(debut, app.indexOf('</SafeAreaView>', debut));
+    expect(debut, 'the dock must exist').toBeGreaterThan(-1);
+    expect(dock.length, 'the slice must actually contain the dock').toBeGreaterThan(0);
     const order = [...dock.matchAll(/key: '(\w+)'/g)].map((m) => m[1]);
     expect(order).toEqual(['accueil', 'opportunites', 'vitrine', 'cercle', 'gains']);
     expect(dock).toContain("label: t('nav.tab_cercle')");

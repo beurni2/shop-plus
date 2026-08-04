@@ -52,8 +52,6 @@ export interface GainsEcran {
   readonly noticeKeys: readonly string[];
   /** Params for any notice key carrying `{n}`, by key. */
   readonly noticeParams: Readonly<Record<string, Record<string, string>>>;
-  /** TRUE only while a real credential is required and absent. */
-  readonly demandeCode: boolean;
 }
 
 const AUCUN: readonly PalierLigne[] = [];
@@ -89,13 +87,12 @@ function ligne(p: PalierGains): PalierLigne {
  * never inspects raw rows.
  */
 export function ecranDesGains(vue: GainsVue): GainsEcran {
-  const shell = (kind: GainsEcran['kind'], titreKey: string, demandeCode = false): GainsEcran => ({
+  const shell = (kind: GainsEcran['kind'], titreKey: string): GainsEcran => ({
     kind,
     titreKey,
     paliers: AUCUN,
     noticeKeys: [],
     noticeParams: SANS_PARAMS,
-    demandeCode,
   });
 
   switch (vue.kind) {
@@ -106,11 +103,11 @@ export function ecranDesGains(vue: GainsVue): GainsEcran {
     case 'non_branche':
       return shell('non_branche', 'ventes.reel_non_branche_titre');
     case 'verrouille':
-      return shell('porte', 'gains.title', true);
+      return shell('porte', 'gains.title');
     case 'chargement':
       return shell('chargement', 'gains.title');
     case 'refus':
-      return shell('refus', 'ventes.reel_refus_titre', true);
+      return shell('refus', 'ventes.reel_refus_titre');
     case 'hors_ligne':
       return shell('hors_ligne', 'ventes.reel_hors_ligne_titre');
     case 'echelle': {
@@ -132,7 +129,6 @@ export function ecranDesGains(vue: GainsVue): GainsEcran {
         paliers: vue.paliers.map(ligne),
         noticeKeys,
         noticeParams,
-        demandeCode: false,
       };
     }
   }

@@ -10,6 +10,12 @@
  * document directory the reseller identity uses (durable across app-kill,
  * reboot and an EAS republish), and sent as a Bearer. The only value read from
  * the environment is the base URL.
+ *
+ * ACCESS-GATE-1 — AND IT IS TYPED AT THE ENTRANCE, NEVER HERE. This hook still
+ * owns the credential and still exposes `ouvrir`, because verifying a code IS
+ * one feed read and there is no second route that could validate one. What
+ * changed is WHO calls it: the access screen, once, instead of two walls in the
+ * middle of the app. `codePresent` is what the gate reads.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -39,15 +45,31 @@ export interface VentesReelles {
    * first rung is precisely the sales that are not confirmed yet.
    */
   readonly gains: GainsEcran;
-  /** Submit a code typed at the door. Persists it only once it actually opens. */
+  /** Submit a code typed at the ENTRANCE. Persists it only once it opens. */
   readonly ouvrir: (code: string) => Promise<void>;
   readonly recharger: () => Promise<void>;
+  /**
+   * ACCESS-GATE-1 — does this device hold a code?
+   *
+   * `undefined` while the durable store is still answering, and the gate MUST
+   * treat that as « do not know yet » rather than « no »: flashing the entrance
+   * for one frame at every launch, to a reseller who typed her code weeks ago,
+   * is how an app stops feeling trustworthy on a slow phone.
+   */
+  readonly codePresent: boolean | undefined;
+  /** TRUE while the entrance is verifying a typed code — one feed read. */
+  readonly verification: boolean;
+  /** The last typed code was refused by the server (401). */
+  readonly refuse: boolean;
 }
 
 export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null = resolveResellerFeed()): VentesReelles {
   const [vue, setVue] = useState<FeedVue>(port === null ? { kind: 'not_configured' } : { kind: 'loading' });
   const [gains, setGains] = useState<GainsVue>(port === null ? { kind: 'non_branche' } : { kind: 'chargement' });
   const code = useRef<string | null>(null);
+  const [codePresent, setCodePresent] = useState<boolean | undefined>(undefined);
+  const [verification, setVerification] = useState(false);
+  const [refuse, setRefuse] = useState(false);
   /**
    * A monotonic read token. Two reads can be in flight when she retries on a
    * slow connection, and only the NEWEST may write the screen — otherwise a
@@ -70,11 +92,14 @@ export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null
       const res = await port.mesVentes(theCode);
       if (mine !== seq.current) return; // a newer read already answered
       if (!res.ok) {
+        setRefuse(res.reason === 'unauthorized');
         setVue(res.reason === 'unauthorized' ? { kind: 'refused' } : { kind: 'unreachable' });
         setGains(res.reason === 'unauthorized' ? { kind: 'refus' } : { kind: 'hors_ligne' });
         return;
       }
       code.current = theCode;
+      setCodePresent(true);
+      setRefuse(false);
       setVue(vueDesVentes(res.ventes, res.incomplet));
       // The RAW rows — see `VentesReelles.gains` for why this cannot read `vue`.
       setGains(vueDesGains(res.ventes, res.incomplet));
@@ -89,14 +114,27 @@ export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null
   useEffect(() => {
     let alive = true;
     void (async () => {
-      if (port === null) return;
+      if (port === null) {
+        // NO FEED CONFIGURED. The gate must still resolve — leaving it on
+        // « lecture » forever would be a permanent spinner instead of a
+        // sentence — so it resolves to « no code », and the entrance says
+        // plainly that the app is not connected rather than offering an input
+        // that could never succeed.
+        setCodePresent(false);
+        return;
+      }
       const stored = await store.read().catch(() => null);
       if (!alive) return;
       if (stored === null || stored === '') {
+        setCodePresent(false);
         setVue({ kind: 'locked' });
         setGains({ kind: 'verrouille' });
         return;
       }
+      // A STORED CODE MEANS THE GATE OPENS NOW, before the read answers. The
+      // shell must not wait on the network to let her in (Ten Laws #7); if the
+      // code has since been revoked, the read below says so honestly.
+      setCodePresent(true);
       await lire(stored);
     })();
     return () => {
@@ -109,10 +147,13 @@ export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null
     async (typed: string): Promise<void> => {
       const trimmed = typed.trim();
       if (trimmed === '') {
+        setRefuse(true);
         setVue({ kind: 'refused' });
         return;
       }
+      setVerification(true);
       await lire(trimmed);
+      setVerification(false);
       // PERSISTED ONLY AFTER IT OPENED. Storing a refused code would greet her
       // with a refusal on every launch until she found where to clear it.
       if (code.current === trimmed) await store.write(trimmed).catch(() => undefined);
@@ -129,5 +170,13 @@ export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null
     await lire(code.current);
   }, [lire]);
 
-  return { ecran: ecranDesVentes(vue), gains: ecranDesGains(gains), ouvrir, recharger };
+  return {
+    ecran: ecranDesVentes(vue),
+    gains: ecranDesGains(gains),
+    ouvrir,
+    recharger,
+    codePresent,
+    verification,
+    refuse,
+  };
 }

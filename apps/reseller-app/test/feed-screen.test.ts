@@ -85,17 +85,33 @@ describe('RF-1c — every state her screen can reach is honest and nameable', ()
     expect(offline.lignes).toEqual([]);
   });
 
-  it('the door is asked for ONLY when a credential is genuinely required', () => {
-    expect(ecranDesVentes({ kind: 'locked' }).demandeCode).toBe(true);
-    expect(ecranDesVentes({ kind: 'refused' }).demandeCode).toBe(true);
+  /**
+   * ACCESS-GATE-1 — THE CLAIM CHANGED BECAUSE THE PRODUCT DID.
+   *
+   * This screen used to carry `demandeCode` and render a code field on
+   * `locked`/`refused`. Founder order, 2026-08-04: « i do not want resellers
+   * feed to have any code gated. the only gate i want is the access gate ».
+   * There is now ONE door and it is the app's entrance; no screen inside the
+   * app asks for a credential. The pin therefore asserts the ABSENCE — a field
+   * quietly reintroduced here would rebuild the wall he had removed.
+   */
+  it('NO SCREEN STATE ASKS FOR A CODE — the only door is the app entrance', () => {
     for (const vue of [
+      { kind: 'locked' } as const,
+      { kind: 'refused' } as const,
       { kind: 'loading' } as const,
       { kind: 'unreachable' } as const,
       { kind: 'not_configured' } as const,
       { kind: 'empty', incomplet: false, nonConfirmees: 0 } as const,
     ]) {
-      expect(ecranDesVentes(vue).demandeCode, vue.kind).toBe(false);
+      expect(Object.keys(ecranDesVentes(vue)), vue.kind).not.toContain('demandeCode');
     }
+    // …and the locked state still says something TRUE rather than nothing: it
+    // is « not connected yet », which is the honest reading of a device that
+    // has never been given a code.
+    const locked = ecranDesVentes({ kind: 'locked' });
+    expect(locked.titreKey).toBe('ventes.reel_porte_titre');
+    expect(locked.lignes).toEqual([]);
   });
 
   it('A PARTIAL READ AND A NON-SALE ROW BOTH REACH HER EYES, in a fixed order', () => {

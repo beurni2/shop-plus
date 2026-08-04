@@ -117,17 +117,18 @@ describe('ACCUEIL-HONESTY-1 — a figure on the home screen means a real sale, o
   it('NO CODE, NO FEED, OFFLINE, REFUSED, LOADING — a sentence, never a zero', () => {
     // A zero is a claim (« you have earned nothing ») and we do not know it.
     const etats = [
-      { vue: { kind: 'verrouille' } as const, demandeCode: true },
-      { vue: { kind: 'non_branche' } as const, demandeCode: false },
-      { vue: { kind: 'hors_ligne' } as const, demandeCode: false },
-      { vue: { kind: 'refus' } as const, demandeCode: true },
-      { vue: { kind: 'chargement' } as const, demandeCode: false },
+      { kind: 'verrouille' } as const,
+      { kind: 'non_branche' } as const,
+      { kind: 'hors_ligne' } as const,
+      { kind: 'refus' } as const,
+      { kind: 'chargement' } as const,
     ];
-    for (const { vue, demandeCode } of etats) {
+    for (const vue of etats) {
       const ecran = ecranAccueil(ecranDesGains(vue), ecranDesVentes({ kind: 'locked' }));
       expect(ecran.gains.kind, vue.kind).toBe('silence');
       if (ecran.gains.kind !== 'silence') throw new Error('unreachable');
-      expect(ecran.gains.demandeCode, vue.kind).toBe(demandeCode);
+      // ACCESS-GATE-1 — none of them offers a code field.
+      expect(Object.keys(ecran.gains), vue.kind).not.toContain('demandeCode');
       // every sentence resolves to real copy
       const fr = new Map(catalog.map((e) => [e.key, e.fr]));
       expect(fr.get(ecran.gains.titreKey), ecran.gains.titreKey).toBeTruthy();
@@ -149,9 +150,10 @@ describe('ACCUEIL-HONESTY-1 — a figure on the home screen means a real sale, o
     // is what made the refusal read as « we never saw your code »
     expect(refus.gains.texteKey).not.toBe(porte.gains.texteKey);
     expect(refus.gains.titreKey).not.toBe(porte.gains.titreKey);
-    // …and both still point her at the door she can act on
-    expect(refus.gains.demandeCode).toBe(true);
-    expect(porte.gains.demandeCode).toBe(true);
+    // ACCESS-GATE-1 — and NEITHER offers a code field: the home screen points
+    // at no door, because the only door is the app's entrance.
+    expect(Object.keys(refus.gains)).not.toContain('demandeCode');
+    expect(Object.keys(porte.gains)).not.toContain('demandeCode');
 
     // the sentence must actually tell her what to DO about a bad code
     const fr = new Map(catalog.map((e) => [e.key, e.fr]));

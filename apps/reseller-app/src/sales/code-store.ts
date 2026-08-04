@@ -1,5 +1,11 @@
 /**
- * RF-1c — where her feed code lives between sessions.
+ * ACCESS-GATE-1 — where her ACCESS code lives between sessions.
+ *
+ * It was `reseller-feed-code.v1.txt` and it gated two screens. It is now the
+ * app's single credential, typed once at the entrance (`access/gate.ts`), and
+ * the OLD FILE IS STILL READ: a reseller who typed a code before this slice
+ * must not be shown a door she has already opened. Written back under the new
+ * name on the next successful open, so the migration completes itself.
  *
  * The SAME durability choice `identity/expoStore.ts` made, for the same
  * reasons, verified against the same installed SDK: `Paths.document` survives
@@ -22,14 +28,26 @@
 import { File, Paths } from 'expo-file-system';
 import type { CodeStore } from './use-ventes-reelles';
 
-export function expoVenteCodeStore(fileName = 'reseller-feed-code.v1.txt'): CodeStore {
+/** The pre-ACCESS-GATE-1 name. Read-only, and never written again. */
+const ANCIEN = 'reseller-feed-code.v1.txt';
+
+function lire(file: File): string | null {
+  try {
+    if (!file.exists) return null;
+    const raw = file.textSync().trim();
+    return raw === '' ? null : raw;
+  } catch {
+    return null;
+  }
+}
+
+export function expoAccessCodeStore(fileName = 'reseller-access-code.v1.txt'): CodeStore {
   const file = new File(Paths.document, fileName);
+  const ancien = new File(Paths.document, ANCIEN);
   return {
     async read(): Promise<string | null> {
       try {
-        if (!file.exists) return null;
-        const raw = file.textSync().trim();
-        return raw === '' ? null : raw;
+        return lire(file) ?? lire(ancien);
       } catch {
         // An unreadable file is « no code », never a crash: she is shown the
         // door and can type it again.

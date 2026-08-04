@@ -94,9 +94,14 @@ describe('WO-FP-SHOP states-law — every existing rendered state survives the r
    * state comes back here with a wire behind it.
    */
   it('HONEST STATES — the real ventes screen designs every outcome it can reach', () => {
-    // the door she opens, not a blank screen behind a spinner
-    expect(app).toMatch(/ventesReelles\.ecran\.demandeCode/);
+    // ACCESS-GATE-1 — the door moved to the app's ENTRANCE (founder order,
+    // 2026-08-04: « the only gate i want is the access gate »). This screen no
+    // longer opens anything, so the pin follows the door rather than deleting
+    // the claim: the code is typed once, at `EcranAcces`, and nowhere else.
+    expect(app).toMatch(/<EcranAcces/);
     expect(app).toMatch(/ventesReelles\.ouvrir\(codeSaisi\)/);
+    // exactly ONE place in the whole app submits a code
+    expect([...app.matchAll(/ventesReelles\.ouvrir\(/g)]).toHaveLength(1);
     // offline gets a way forward, not an error wall
     expect(app).toMatch(/ecran\.kind === 'hors_ligne'/);
     expect(app).toMatch(/ventesReelles\.recharger\(\)/);

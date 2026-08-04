@@ -325,13 +325,13 @@
  },
  {
   "key": "ventes.reel_porte_titre",
-  "fr": "Vos ventes, en direct",
+  "fr": "Pas encore reliée à votre compte",
   "register": "selling",
   "screenClass": "selling_surface"
  },
  {
   "key": "ventes.reel_porte_hint",
-  "fr": "Entrez le code que Beurni vous a remis. Il n'ouvre que vos ventes.",
+  "fr": "Vos ventes s'afficheront ici dès que votre compte sera relié.",
   "register": "neutral",
   "screenClass": "instruction"
  },
@@ -3484,5 +3484,53 @@
   "fr": "Voir tout dans « Mes ventes »",
   "register": "neutral",
   "screenClass": "label"
+ },
+ {
+  "key": "acces.titre",
+  "fr": "Bienvenue sur Shop+",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "acces.sous_titre",
+  "fr": "Entrez le code qu'on vous a donné pour commencer.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "acces.champ",
+  "fr": "Votre code",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "acces.action",
+  "fr": "Entrer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "acces.verification",
+  "fr": "Un instant…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "acces.refuse",
+  "fr": "Ce code n'ouvre pas. Vérifiez-le, ou demandez-en un nouveau.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "acces.hors_ligne",
+  "fr": "Pas de réseau. Réessayez dès que ça revient.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "acces.non_branche",
+  "fr": "L'application n'est pas encore reliée à Shop+.",
+  "register": "neutral",
+  "screenClass": "status"
  }
 ]

@@ -45,9 +45,6 @@ export interface VentesEcran {
   readonly hintKey?: string;
   readonly lignes: readonly VenteLigne[];
   readonly noticeKeys: readonly string[];
-  /** TRUE only while a real credential is required and absent — the screen
-   *  shows the code field, never a fake list behind it. */
-  readonly demandeCode: boolean;
 }
 
 const VIDE: readonly VenteLigne[] = [];
@@ -67,7 +64,6 @@ export function ecranDesVentes(vue: FeedVue): VentesEcran {
         hintKey: 'ventes.reel_non_branche_hint',
         lignes: VIDE,
         noticeKeys: [],
-        demandeCode: false,
       };
     case 'locked':
       return {
@@ -76,7 +72,6 @@ export function ecranDesVentes(vue: FeedVue): VentesEcran {
         hintKey: 'ventes.reel_porte_hint',
         lignes: VIDE,
         noticeKeys: [],
-        demandeCode: true,
       };
     case 'loading':
       return {
@@ -84,7 +79,6 @@ export function ecranDesVentes(vue: FeedVue): VentesEcran {
         titreKey: 'ventes.reel_chargement',
         lignes: VIDE,
         noticeKeys: [],
-        demandeCode: false,
       };
     case 'refused':
       // ONE message. The door is not an oracle, and neither is this screen.
@@ -94,7 +88,6 @@ export function ecranDesVentes(vue: FeedVue): VentesEcran {
         hintKey: 'ventes.reel_refus_hint',
         lignes: VIDE,
         noticeKeys: [],
-        demandeCode: true,
       };
     case 'unreachable':
       // OFFLINE IS A DESIGNED STATE, never an empty list: « we could not
@@ -106,7 +99,6 @@ export function ecranDesVentes(vue: FeedVue): VentesEcran {
         hintKey: 'ventes.reel_hors_ligne_hint',
         lignes: VIDE,
         noticeKeys: [],
-        demandeCode: false,
       };
     case 'empty':
       return {
@@ -115,7 +107,6 @@ export function ecranDesVentes(vue: FeedVue): VentesEcran {
         hintKey: 'ventes.vide_hint',
         lignes: VIDE,
         noticeKeys: noticesPour(vue.incomplet, vue.nonConfirmees),
-        demandeCode: false,
       };
     case 'ready':
       return {
@@ -128,7 +119,6 @@ export function ecranDesVentes(vue: FeedVue): VentesEcran {
           createdAt: v.createdAt,
         })),
         noticeKeys: noticesPour(vue.incomplet, vue.nonConfirmees),
-        demandeCode: false,
       };
   }
 }

@@ -72,9 +72,6 @@ export type AccueilGains =
       readonly kind: 'silence';
       readonly titreKey: string;
       readonly texteKey: string;
-      /** TRUE only when a real credential is required and absent — the home
-       *  screen points at the door rather than opening a second one. */
-      readonly demandeCode: boolean;
     };
 
 export interface AccueilEcran {
@@ -103,14 +100,12 @@ function silence(gains: GainsEcran): AccueilGains {
         kind: 'silence',
         titreKey: 'accueil.gains_verrouille',
         texteKey: 'accueil.gains_verrouille_sub',
-        demandeCode: true,
       };
     case 'chargement':
       return {
         kind: 'silence',
         titreKey: 'accueil.gains_chargement',
         texteKey: 'accueil.gains_patience',
-        demandeCode: false,
       };
     case 'refus':
       return {
@@ -123,14 +118,12 @@ function silence(gains: GainsEcran): AccueilGains {
         // thing she has just done. A refused code and an absent code are
         // different situations and may not share a sentence.
         texteKey: 'ventes.reel_refus_hint',
-        demandeCode: true,
       };
     case 'hors_ligne':
       return {
         kind: 'silence',
         titreKey: 'ventes.reel_hors_ligne_titre',
         texteKey: 'accueil.gains_patience',
-        demandeCode: false,
       };
     default:
       // 'non_branche' — and the default arm is deliberate: an unknown future
@@ -140,7 +133,6 @@ function silence(gains: GainsEcran): AccueilGains {
         kind: 'silence',
         titreKey: 'ventes.reel_non_branche_titre',
         texteKey: 'accueil.gains_patience',
-        demandeCode: false,
       };
   }
 }

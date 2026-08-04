@@ -36,9 +36,17 @@ function vuePour(res: FeedResult) {
 }
 
 describe('RF-1c — what she feels, decided outside React', () => {
-  it('a REFUSED code shows the door again, and an UNREACHABLE feed does not', () => {
-    expect(ecranDesVentes(vuePour({ ok: false, reason: 'unauthorized' })).demandeCode).toBe(true);
-    expect(ecranDesVentes(vuePour({ ok: false, reason: 'unreachable' })).demandeCode).toBe(false);
+  /** ACCESS-GATE-1 — neither reason reopens a door here any more; both are
+   *  states with their own sentence, and the door lives at the entrance. What
+   *  still matters, and is pinned, is that they stay DISTINGUISHABLE: a
+   *  refused code and a dead network must never read the same. */
+  it('a REFUSED code and an UNREACHABLE feed are different states, and neither asks for a code', () => {
+    const refus = ecranDesVentes(vuePour({ ok: false, reason: 'unauthorized' }));
+    const mort = ecranDesVentes(vuePour({ ok: false, reason: 'unreachable' }));
+    expect(refus.kind).not.toBe(mort.kind);
+    expect(refus.titreKey).not.toBe(mort.titreKey);
+    expect(Object.keys(refus)).not.toContain('demandeCode');
+    expect(Object.keys(mort)).not.toContain('demandeCode');
   });
 
   it('OFFLINE never renders as "no sales" — the two states differ on screen', () => {

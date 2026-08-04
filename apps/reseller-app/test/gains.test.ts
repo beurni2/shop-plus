@@ -211,11 +211,13 @@ describe('SP6.1 — the screen says the honest thing in every state', () => {
     }
   });
 
-  it('the door and a refusal both ASK FOR THE CODE; loading and offline do not', () => {
-    expect(ecranDesGains({ kind: 'verrouille' }).demandeCode).toBe(true);
-    expect(ecranDesGains({ kind: 'refus' }).demandeCode).toBe(true);
-    expect(ecranDesGains({ kind: 'chargement' }).demandeCode).toBe(false);
-    expect(ecranDesGains({ kind: 'hors_ligne' }).demandeCode).toBe(false);
+  /** ACCESS-GATE-1 — « Mes gains » was the second code wall. Founder order,
+   *  2026-08-04: one door, at the app's entrance. The pin asserts the absence
+   *  so the wall cannot come back one `demandeCode` at a time. */
+  it('« Mes gains » NEVER asks for a code — no state on this screen carries a door', () => {
+    for (const kind of ['verrouille', 'refus', 'chargement', 'hors_ligne', 'non_branche'] as const) {
+      expect(Object.keys(ecranDesGains({ kind })), kind).not.toContain('demandeCode');
+    }
   });
 
   it('a DORMANT rung reads « pas encore » — never « aucune vente », which answers a question she did not ask', () => {

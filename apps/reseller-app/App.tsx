@@ -36,7 +36,8 @@ import {
 } from './src/cercle/screens';
 import { produit as cercleProduit, CERCLE_DIVERS, partagerBadge } from './src/cercle/model';
 import { useVentesReelles } from './src/sales/use-ventes-reelles';
-import { expoVenteCodeStore } from './src/sales/code-store';
+import { expoAccessCodeStore } from './src/sales/code-store';
+import { decideAcces, gateArme } from './src/access/gate';
 import { ecranAccueil } from './src/sales/accueil-model';
 import {
   demoDetail,
@@ -232,7 +233,7 @@ function feedStateKey(status: OfferFeed['status'] | undefined): string {
 
 /** RF-1c — module scope on purpose: a store recreated each render would
  *  restart the hook's mount effect on every keystroke. */
-const venteCodeStore = expoVenteCodeStore();
+const accessCodeStore = expoAccessCodeStore();
 
 export default function App() {
   // COLD-START LAW: load the Faso Premium faces asynchronously and DO NOT gate
@@ -775,7 +776,7 @@ export default function App() {
    * the tab it links to. ONE fetch still, for all three surfaces.
    */
   const [codeSaisi, setCodeSaisi] = useState('');
-  const ventesReelles = useVentesReelles(venteCodeStore);
+  const ventesReelles = useVentesReelles(accessCodeStore);
   const accueil = ecranAccueil(ventesReelles.gains, ventesReelles.ecran);
   const saleDetail = demoDetail();
   const headerTitle =
@@ -788,6 +789,34 @@ export default function App() {
         IN_CONTENT_TITLE.includes(screen)
         ? ''
         : t(SCREEN_TITLE_KEY[screen]);
+
+  /**
+   * ACCESS-GATE-1 — THE ONE DOOR, AND IT IS AT THE ENTRANCE.
+   *
+   * Disarmed today by founder order, so `decideAcces` returns « ouvert » for
+   * everyone and this branch never renders. Armed, it is the whole app: no tab,
+   * no screen and no read is reachable until a code opens it, which is what
+   * makes it an ACCESS gate rather than another wall in the middle.
+   */
+  const acces = decideAcces(gateArme(), ventesReelles.codePresent);
+  if (acces.kind !== 'ouvert') {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <StatusBar style="dark" backgroundColor={sharedColour.paper} />
+        <WaxBand />
+        <EcranAcces
+          etat={acces.kind}
+          code={codeSaisi}
+          onCode={setCodeSaisi}
+          onEntrer={() => { void ventesReelles.ouvrir(codeSaisi); }}
+          verification={ventesReelles.verification}
+          refuse={ventesReelles.refuse}
+          horsLigne={ventesReelles.ecran.kind === 'hors_ligne'}
+          nonBranche={ventesReelles.ecran.kind === 'non_branche'}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -855,12 +884,10 @@ export default function App() {
             ) : (
               <Card style={styles.ledgerSilence}>
                 <Text style={styles.cardTitle}>{t(accueil.gains.titreKey)}</Text>
+                {/* ACCESS-GATE-1 — no button to a code door, because there is
+                    no code door inside the app any more. The sentence is the
+                    whole card. */}
                 <Text style={styles.ledgerCardSub}>{t(accueil.gains.texteKey)}</Text>
-                {accueil.gains.demandeCode && (
-                  <Pressable style={({ pressed }) => [styles.toutVoirPill, pressed && styles.pressed]} onPress={() => go('gains')} accessibilityRole="button">
-                    <Text style={styles.toutVoirText}>{t('accueil.card_gains')}</Text>
-                  </Pressable>
-                )}
               </Card>
             )}
 
@@ -1563,23 +1590,6 @@ export default function App() {
               </Card>
             ))}
 
-            {ventesReelles.gains.demandeCode && (
-              <>
-                <TextInput
-                  style={styles.margeInput}
-                  value={codeSaisi}
-                  onChangeText={setCodeSaisi}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  placeholder="SP-"
-                  accessibilityLabel={t('ventes.reel_porte_hint')}
-                />
-                <PrimaryButton
-                  label={t('ventes.reel_porte_titre')}
-                  onPress={() => { void ventesReelles.ouvrir(codeSaisi); }}
-                />
-              </>
-            )}
             {ventesReelles.gains.kind === 'hors_ligne' && (
               <SecondaryButton label={t('ventes.reel_chargement')} onPress={() => { void ventesReelles.recharger(); }} />
             )}
@@ -1641,23 +1651,6 @@ export default function App() {
               {ventesReelles.ecran.noticeKeys.map((k) => (
                 <Text key={k} style={styles.noteLine}>{t(k)}</Text>
               ))}
-              {ventesReelles.ecran.demandeCode && (
-                <>
-                  <TextInput
-                    style={styles.margeInput}
-                    value={codeSaisi}
-                    onChangeText={setCodeSaisi}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    placeholder="SP-"
-                    accessibilityLabel={t('ventes.reel_porte_hint')}
-                  />
-                  <PrimaryButton
-                    label={t('ventes.reel_porte_titre')}
-                    onPress={() => { void ventesReelles.ouvrir(codeSaisi); }}
-                  />
-                </>
-              )}
               {ventesReelles.ecran.kind === 'hors_ligne' && (
                 <SecondaryButton label={t('ventes.reel_chargement')} onPress={() => { void ventesReelles.recharger(); }} />
               )}
@@ -1960,6 +1953,11 @@ const styles = StyleSheet.create({
   homeTagline: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   homeStatGrid: { flexDirection: 'row', gap: spacing.md },
   ledgerCard: { flex: 1 },
+  // ACCESS-GATE-1 — the entrance. Generous, centred, nothing else on it.
+  accesEcran: { flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.xxl, gap: spacing.md },
+  accesTitre: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.screen.size, fontWeight: w(t2.scale.screen.wght) },
+  accesSous: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size },
+  accesMessage: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size },
   // ACCUEIL-HONESTY-1 — the no-figure block. Full width because it replaces
   // BOTH cards: half a grid with one card in it would read as a figure that
   // failed to load, which is the opposite of what it says.
@@ -2521,3 +2519,77 @@ const styles = StyleSheet.create({
   fmtSegText: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
   fmtSegTextOn: { color: sharedColour.ink },
 });
+
+/**
+ * ACCESS-GATE-1 — THE ENTRANCE. One field, one action, one sentence.
+ *
+ * She has been handed a code by the founder and is opening Shop+ for the first
+ * time. Everything about this screen is that moment: her name is not known yet,
+ * there is nothing to browse behind it, and the only thing she can do is the
+ * thing she came to do. One primary action, per §5.
+ *
+ * IT NEVER SAYS « ACCÈS REFUSÉ ». A refused code is a code to check or replace,
+ * not a verdict on her — the sentence names the cause and the way out, the same
+ * way the refusal ladder's own copy does. The trust test applies at the door
+ * more than anywhere: this is the first screen of the platform she will ever
+ * see, and it must make her calmer, not audited.
+ */
+function EcranAcces({
+  etat,
+  code,
+  onCode,
+  onEntrer,
+  verification,
+  refuse,
+  horsLigne,
+  nonBranche,
+}: {
+  etat: 'porte' | 'lecture';
+  code: string;
+  onCode: (v: string) => void;
+  onEntrer: () => void;
+  verification: boolean;
+  refuse: boolean;
+  horsLigne: boolean;
+  nonBranche: boolean;
+}) {
+  // STILL READING THE DURABLE STORE. No field, no sentence, no flash of a door
+  // to a reseller who typed her code weeks ago — just the app's own surface.
+  if (etat === 'lecture') return <View style={styles.accesEcran} />;
+
+  return (
+    <View style={styles.accesEcran}>
+      <Text style={styles.accesTitre}>{t('acces.titre')}</Text>
+      <Text style={styles.accesSous}>{t('acces.sous_titre')}</Text>
+
+      {nonBranche ? (
+        // An app with no Shop+ base cannot verify anyone. Saying so is the only
+        // honest thing here; an input that could never succeed would be worse.
+        <Text style={styles.accesMessage}>{t('acces.non_branche')}</Text>
+      ) : (
+        <>
+          <TextInput
+            style={styles.margeInput}
+            value={code}
+            onChangeText={onCode}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            placeholder="SP-"
+            accessibilityLabel={t('acces.champ')}
+            editable={!verification}
+          />
+          {verification && <Text style={styles.accesMessage}>{t('acces.verification')}</Text>}
+          {!verification && refuse && <Text style={styles.accesMessage}>{t('acces.refuse')}</Text>}
+          {!verification && !refuse && horsLigne && (
+            <Text style={styles.accesMessage}>{t('acces.hors_ligne')}</Text>
+          )}
+          <PrimaryButton
+            label={t('acces.action')}
+            onPress={onEntrer}
+            disabled={verification || code.trim() === ''}
+          />
+        </>
+      )}
+    </View>
+  );
+}
