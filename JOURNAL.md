@@ -3420,3 +3420,40 @@ Both 422s share one sentence because they mean one thing to a console — no usa
 **MERGED AND DEPLOYED 2026-08-04** (founder: « once everything is green merge and deploy all »). CI `30929618257` green on `82ddb36` → fast-forward `308b000..82ddb36` on main (ancestor guard passed) → **`storefront-deploy` `30930138512`: success**, with its own two live steps green on the runner — « Assert the live Worker speaks the canon this job bundled » and the checkout smoke. Deployed FIRST, before the Boutik+ console that calls it, so the route existed before its caller.
 
 **WHAT IS AND IS NOT VERIFIED LIVE, stated exactly:** the deployed Worker is proven to be the bundle from `82ddb36` (the provenance step) and proven to answer the checkout surface by name (the smoke step). **The refusal route itself was NOT called against production** — the deploy job's smoke does not exercise it, and outbound from this sandbox to `storefront-service.ilboudobernard2.workers.dev` is still refused by the egress proxy (`CONNECT tunnel failed, response 403`, curl exit 56), the same standing policy journalled on 2026-07-3x. Its coverage is the miniflare e2e suite, which is real but is not production.
+
+## 2026-08-04 · ACCUEIL-HONESTY-1 — the first screen stops inventing her earnings
+
+**Founder asked what was next; this was my recommendation and he said go.** It is not a Building Plan slice — it is a defect on a live surface, and it directly contradicted the slice I had shipped hours earlier.
+
+**WHAT WAS ON THE SCREEN, verified in code before touching anything (`App.tsx:845–853`, `demo/store.ts:121`, `sales/ventes.ts:93`):**
+
+- « Gains nets — juin » → `MONTHLY_NET_DEMO = 34500`, a hardcoded constant, with the sub-line **« Versés sur Mobile Money »**
+- « En attente (net) » → `enAttenteNet()` summed over `DEMO_SALES`
+- two « ventes en cours » rows → `ventesListModel()` over the same demo world, **naming customers** (Mariam and her neighbours) who are not hers
+
+Both figures in the type reserved for real money, on the screen that opens first. **The first told her the money had been paid into her Mobile Money account.** Nothing has ever been paid to anyone, by any process, in any repo — there is no payout process to have done it.
+
+**WHY THIS WAS WORSE THAN AN OLD TODO:** SP6.1 removed exactly this defect from « Mes gains », one tab away, this week. Leaving it on ACCUEIL meant a reseller met the invented number BEFORE she ever met the honest ladder — so the honest ladder read as the app having lost track of her money, and the fix looked like the bug.
+
+**`accueil-model.ts` invents nothing and fetches nothing.** It is a pure reading of the two screens she already has, from the SAME `useVentesReelles` hook: one fetch, three surfaces. Home therefore cannot disagree with the tab it links to, because there is one answer and home is a projection of it.
+
+**WHICH FIGURES APPEAR IS DERIVED, and that is the whole point.** The cards are the ladder rungs a real sale can occupy today — `enSommeil === false`, itself computed by `gains-model.ts` by exhausting the wire's own vocabulary. Two today. When Séra's validated delivery makes `Eligible` reachable, a third card appears on its own. **A hand-picked pair is precisely the kind of list that goes stale silently — the failure this whole slice is about.** Pinned with a control: the fixture proves there ARE dormant rungs being excluded, so « excludes all dormant » is not vacuously true.
+
+**AND WHEN THERE IS NOTHING TRUE TO SHOW, THERE IS NO FIGURE.** No code entered, no feed configured, offline, refused, still loading → a sentence. **A zero would be a claim — « vous n'avez rien gagné » — and we do not know that.** Three of the five sentences are the ones « Mes ventes » already uses, so she never learns two vocabularies for « I am offline ». The `default` arm is deliberate: an unknown future kind lands on the quietest honest state, never falls through to a figure. Failing closed on a money surface means saying less.
+
+**The preview rows are her real feed** — net-first with a state chip, the same shape « Mes ventes » paints, because they are the same `VenteLigne` objects (pinned by equality, not by resemblance). No buyer name: a reseller surface has never seen one (SP-I03), and the pin asserts the absent FIELDS rather than trusting the shape.
+
+**Four catalog keys retired with the block that rendered them**, « Versés sur Mobile Money » among them — plus a sweep asserting that sentence appears nowhere else in the catalog under any key. `chipTone` was deleted with its only caller rather than left for a future screen to rediscover and trust.
+
+**A PIN WAS REWRITTEN, NOT DROPPED.** `states-law.test.ts` asserted the ventes empty state through App.tsx literals that lived in the demo block. The state still exists — its title and hint are now decided in `feed-screen.ts`, where a decision belongs — so the claim moved to where each half now is, and the screen is separately asserted to render whatever the model chose. A model that decides a state nobody paints is not a state.
+
+**Evidence:** reseller-app **517/517** · `pnpm run typecheck` exit 0 · **gates board exit 0, ALL GATES GREEN, zero `GATE FAILED (expected pass)`**.
+
+**Mutation-verified, 8 mutations, 8 killed** — dormant rungs shown (the Paid card returns) ⇒ 2 red · silence replaced by a zero-figure card ⇒ red · the preview cap dropped ⇒ red · a non-list feed silently rendering an empty list instead of its sentence ⇒ 2 red · the door state no longer asking for a code ⇒ red · an unknown gains kind falling through to figures ⇒ red · the screen re-importing the demo constants ⇒ red · the silence sentence unrendered ⇒ red.
+
+**TWO PROCESS FAILURES OF MINE, BOTH CAUGHT BY THE BOARD RATHER THAN BY ME:**
+
+1. **I typechecked before writing the tests and not after.** `pnpm -C apps/reseller-app exec tsc` passed; then I added `accueil.test.ts` with a `FeedVente` fixture missing two required fields and never re-ran it. The gates board caught it. **The rule is not « typecheck the app », it is « typecheck after the last edit » — the same shape as the `worker/tsconfig.json` miss two slices ago.**
+2. **`no-wallet-no-funds` tripped on my own prose for the FIFTH time this session** — the word « balance », in a comment explaining that no such thing exists here. Reworded; the guard stays blunt. I have now written « the code bends around the scan » five times, which means the lesson is not the scan, it is that I keep reaching for the vocabulary the scan exists to forbid.
+
+**NOT TOUCHED, and named rather than implied:** the greeting still reads `DEMO_SHARE_IDENTITY.resellerName` and the zone is the constant « Gounghin ». That is a **reseller identity** problem (SP0.2 auth), not a money one — there is no signed-in reseller anywhere in this app to read a real name from. `screen === 'vente_detail'` still renders `demoDetail()`, and it is **unreachable**: nothing calls `go('vente_detail')`. Dead, not a live lie; left alone rather than widening this slice.
