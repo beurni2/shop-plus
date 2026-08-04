@@ -38,6 +38,13 @@ import { produit as cercleProduit, CERCLE_DIVERS, partagerBadge } from './src/ce
 import { useVentesReelles } from './src/sales/use-ventes-reelles';
 import { expoAccessCodeStore } from './src/sales/code-store';
 import { decideAcces, gateArme } from './src/access/gate';
+import {
+  compteStoreSur,
+  resolveCompteService,
+  type CompteLocal,
+  type CompteServicePort,
+} from './src/access/compte-service';
+import { identityFromDigits } from './src/identity/mint';
 import { ecranAccueil } from './src/sales/accueil-model';
 import {
   demoDetail,
@@ -234,6 +241,9 @@ function feedStateKey(status: OfferFeed['status'] | undefined): string {
 /** RF-1c — module scope on purpose: a store recreated each render would
  *  restart the hook's mount effect on every keystroke. */
 const accessCodeStore = expoAccessCodeStore();
+/** RESELLER-ACCOUNTS-1d — what the device knows about HER account (id, name,
+ *  last-known state). Durable beside the bearer; never a credential. */
+const compteStore = compteStoreSur(expoAccessCodeStore('reseller-compte.v1.txt'));
 
 export default function App() {
   // COLD-START LAW: load the Faso Premium faces asynchronously and DO NOT gate
@@ -778,6 +788,53 @@ export default function App() {
   const [codeSaisi, setCodeSaisi] = useState('');
   const ventesReelles = useVentesReelles(accessCodeStore);
   const accueil = ecranAccueil(ventesReelles.gains, ventesReelles.ecran);
+
+  /* ── RESELLER-ACCOUNTS-1d — the account at the entrance ─────────────────── */
+  const compteService = useMemo<CompteServicePort | null>(() => resolveCompteService(), []);
+  const [compte, setCompte] = useState<CompteLocal | null | undefined>(undefined);
+  const [compteEnvoi, setCompteEnvoi] = useState(false);
+  const [compteErreurKey, setCompteErreurKey] = useState<string | null>(null);
+
+  /**
+   * HER ACCOUNT ID BECOMES HER APP IDENTITY. The server minted `rs-{4 digits}`;
+   * `identityFromDigits` derives the same storefront/command ids from those
+   * digits, so everything she creates from here on — shop, listings, orders —
+   * rides the id her feed and the founder's suivi are keyed by. Without this
+   * write, her sales would ride the device-random id and her feed would be
+   * forever empty: the exact split-brain this slice exists to end.
+   */
+  const adopterCompte = async (nouveau: CompteLocal, session?: string): Promise<void> => {
+    if (session !== undefined) await accessCodeStore.write(session);
+    await compteStore.write(nouveau);
+    setCompte(nouveau);
+    setCompteErreurKey(null);
+    const digits = /^rs-(\d{4})$/.exec(nouveau.accountId)?.[1];
+    if (digits !== undefined) {
+      await expoIdentityStore().write(JSON.stringify({ version: 1, digits })).catch(() => undefined);
+      setIdentity(identityFromDigits(digits));
+    }
+  };
+
+  useEffect(() => {
+    void (async () => {
+      const connu = await compteStore.read();
+      setCompte(connu);
+      // THE BACKGROUND REFRESH — how a founder's pause reaches a device that
+      // is already inside. Best-effort: a dead network changes nothing (the
+      // last-known state rules, Ten Laws #7); a fresh answer replaces it.
+      if (connu !== null && compteService !== null) {
+        const bearer = await accessCodeStore.read();
+        if (bearer !== null && bearer.startsWith('SPS-')) {
+          const res = await compteService.session(bearer);
+          if (res.ok) {
+            await compteStore.write(res.compte);
+            setCompte(res.compte);
+          }
+        }
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const saleDetail = demoDetail();
   const headerTitle =
     screen === 'vente_detail'
@@ -798,22 +855,71 @@ export default function App() {
    * no screen and no read is reachable until a code opens it, which is what
    * makes it an ACCESS gate rather than another wall in the middle.
    */
-  const acces = decideAcces(gateArme(), ventesReelles.codePresent);
+  const acces = decideAcces(gateArme(), compte);
   if (acces.kind !== 'ouvert') {
     return (
       <SafeAreaView style={styles.screen}>
         <StatusBar style="dark" backgroundColor={sharedColour.paper} />
         <WaxBand />
-        <EcranAcces
-          etat={acces.kind}
-          code={codeSaisi}
-          onCode={setCodeSaisi}
-          onEntrer={() => { void ventesReelles.ouvrir(codeSaisi); }}
-          verification={ventesReelles.verification}
-          refuse={ventesReelles.refuse}
-          horsLigne={ventesReelles.ecran.kind === 'hors_ligne'}
-          nonBranche={ventesReelles.ecran.kind === 'non_branche'}
-        />
+        {acces.kind === 'lecture' ? (
+          <View style={styles.accesEcran} />
+        ) : acces.kind === 'coupe' ? (
+          <View style={styles.accesEcran}>
+            <Text style={styles.accesTitre}>{t('coupe.titre')}</Text>
+            <Text style={styles.accesSous}>{t('coupe.texte')}</Text>
+            <PrimaryButton
+              label={t('coupe.reessayer')}
+              onPress={() => {
+                void (async () => {
+                  if (compteService === null) return;
+                  const bearer = await accessCodeStore.read();
+                  if (bearer === null) return;
+                  const res = await compteService.session(bearer);
+                  if (res.ok) await adopterCompte(res.compte);
+                })();
+              }}
+            />
+          </View>
+        ) : acces.kind === 'admission' ? (
+          <EcranAdmission
+            code={codeSaisi}
+            onCode={setCodeSaisi}
+            envoi={compteEnvoi}
+            erreurKey={compteErreurKey}
+            onEntrer={() => {
+              void (async () => {
+                if (compteService === null || compte === null || compte === undefined) return;
+                setCompteEnvoi(true);
+                setCompteErreurKey(null);
+                const bearer = await accessCodeStore.read();
+                const res = bearer === null
+                  ? ({ ok: false, reason: 'unreachable' } as const)
+                  : await compteService.admission(bearer, codeSaisi.trim());
+                setCompteEnvoi(false);
+                if (res.ok) {
+                  setCodeSaisi('');
+                  await adopterCompte({ ...compte, state: 'active' });
+                } else {
+                  setCompteErreurKey(
+                    res.reason === 'code_refuse' ? 'admission.refuse'
+                    : res.reason === 'acces_coupe' ? 'coupe.texte'
+                    : 'compte.reseau',
+                  );
+                  if (res.reason === 'acces_coupe') await adopterCompte({ ...compte, state: 'paused' });
+                }
+              })();
+            }}
+          />
+        ) : (
+          <EcranCompte
+            service={compteService}
+            envoi={compteEnvoi}
+            erreurKey={compteErreurKey}
+            onEnvoi={setCompteEnvoi}
+            onErreur={setCompteErreurKey}
+            onCompte={(c, session) => { void adopterCompte(c, session); }}
+          />
+        )}
       </SafeAreaView>
     );
   }
@@ -2521,75 +2627,131 @@ const styles = StyleSheet.create({
 });
 
 /**
- * ACCESS-GATE-1 — THE ENTRANCE. One field, one action, one sentence.
+ * RESELLER-ACCOUNTS-1d — THE ENTRANCE, now an account.
  *
- * She has been handed a code by the founder and is opening Shop+ for the first
- * time. Everything about this screen is that moment: her name is not known yet,
- * there is nothing to browse behind it, and the only thing she can do is the
- * thing she came to do. One primary action, per §5.
- *
- * IT NEVER SAYS « ACCÈS REFUSÉ ». A refused code is a code to check or replace,
- * not a verdict on her — the sentence names the cause and the way out, the same
- * way the refusal ladder's own copy does. The trust test applies at the door
- * more than anywhere: this is the first screen of the platform she will ever
- * see, and it must make her calmer, not audited.
+ * Two modes on one screen — « Créer mon compte » (nom · email · téléphone ·
+ * mot de passe) and « J'ai déjà un compte » (email · mot de passe) — because a
+ * woman handed a phone in a market must not hunt across screens for the one
+ * she needs. One primary action per mode (§5). Errors name the field and the
+ * way out; a refused login is ONE sentence, because the server is not an email
+ * oracle and this screen does not paint one.
  */
-function EcranAcces({
-  etat,
-  code,
-  onCode,
-  onEntrer,
-  verification,
-  refuse,
-  horsLigne,
-  nonBranche,
-}: {
-  etat: 'porte' | 'lecture';
-  code: string;
-  onCode: (v: string) => void;
-  onEntrer: () => void;
-  verification: boolean;
-  refuse: boolean;
-  horsLigne: boolean;
-  nonBranche: boolean;
+function EcranCompte({ service, envoi, erreurKey, onEnvoi, onErreur, onCompte }: {
+  service: CompteServicePort | null;
+  envoi: boolean;
+  erreurKey: string | null;
+  onEnvoi: (v: boolean) => void;
+  onErreur: (k: string | null) => void;
+  onCompte: (c: CompteLocal, session: string) => void;
 }) {
-  // STILL READING THE DURABLE STORE. No field, no sentence, no flash of a door
-  // to a reseller who typed her code weeks ago — just the app's own surface.
-  if (etat === 'lecture') return <View style={styles.accesEcran} />;
+  const [mode, setMode] = useState<'creer' | 'connexion'>('creer');
+  const [nom, setNom] = useState('');
+  const [email, setEmail] = useState('');
+  const [tel, setTel] = useState('');
+  const [mdp, setMdp] = useState('');
+
+  if (service === null) {
+    return (
+      <View style={styles.accesEcran}>
+        <Text style={styles.accesTitre}>{t('acces.titre')}</Text>
+        <Text style={styles.accesMessage}>{t('acces.non_branche')}</Text>
+      </View>
+    );
+  }
+
+  const soumettre = () => {
+    onEnvoi(true);
+    onErreur(null);
+    void (async () => {
+      const res = mode === 'creer'
+        ? await service.inscrire({ name: nom.trim(), email: email.trim(), phone: tel.trim(), password: mdp })
+        : await service.connecter(email.trim(), mdp);
+      onEnvoi(false);
+      if (res.ok) {
+        onCompte(res.compte, res.session);
+        return;
+      }
+      onErreur(
+        res.reason === 'email_pris' ? 'compte.email_pris'
+        : res.reason === 'champ_invalide' ? 'compte.champ_invalide'
+        : res.reason === 'refuse' ? 'compte.refuse'
+        : 'compte.reseau',
+      );
+    })();
+  };
+
+  const pret = mode === 'creer'
+    ? nom.trim() !== '' && email.trim() !== '' && tel.trim() !== '' && mdp.length >= 8
+    : email.trim() !== '' && mdp !== '';
 
   return (
-    <View style={styles.accesEcran}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.accesEcran} keyboardShouldPersistTaps="handled">
       <Text style={styles.accesTitre}>{t('acces.titre')}</Text>
-      <Text style={styles.accesSous}>{t('acces.sous_titre')}</Text>
+      <Text style={styles.accesSous}>{t(mode === 'creer' ? 'compte.creer_sous' : 'compte.connexion_sous')}</Text>
 
-      {nonBranche ? (
-        // An app with no Shop+ base cannot verify anyone. Saying so is the only
-        // honest thing here; an input that could never succeed would be worse.
-        <Text style={styles.accesMessage}>{t('acces.non_branche')}</Text>
-      ) : (
+      {mode === 'creer' && (
         <>
-          <TextInput
-            style={styles.margeInput}
-            value={code}
-            onChangeText={onCode}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            placeholder="SP-"
-            accessibilityLabel={t('acces.champ')}
-            editable={!verification}
-          />
-          {verification && <Text style={styles.accesMessage}>{t('acces.verification')}</Text>}
-          {!verification && refuse && <Text style={styles.accesMessage}>{t('acces.refuse')}</Text>}
-          {!verification && !refuse && horsLigne && (
-            <Text style={styles.accesMessage}>{t('acces.hors_ligne')}</Text>
-          )}
-          <PrimaryButton
-            label={t('acces.action')}
-            onPress={onEntrer}
-            disabled={verification || code.trim() === ''}
-          />
+          <TextInput style={styles.margeInput} value={nom} onChangeText={setNom} autoCorrect={false} placeholder={t('compte.nom')} accessibilityLabel={t('compte.nom')} editable={!envoi} />
+          <TextInput style={styles.margeInput} value={tel} onChangeText={setTel} keyboardType="phone-pad" placeholder={t('compte.telephone')} accessibilityLabel={t('compte.telephone')} editable={!envoi} />
         </>
       )}
+      <TextInput style={styles.margeInput} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholder={t('compte.email')} accessibilityLabel={t('compte.email')} editable={!envoi} />
+      {/* visible on purpose: she is alone with her screen, and seeing what she
+          types beats a masked field she cannot check — the console key made the
+          same call. A masking toggle can come with a founder ask. */}
+      <TextInput style={styles.margeInput} value={mdp} onChangeText={setMdp} autoCapitalize="none" autoCorrect={false} placeholder={t('compte.mot_de_passe')} accessibilityLabel={t('compte.mot_de_passe')} editable={!envoi} />
+
+      {envoi && <Text style={styles.accesMessage}>{t('compte.envoi')}</Text>}
+      {!envoi && erreurKey !== null && <Text style={styles.accesMessage}>{t(erreurKey)}</Text>}
+
+      <PrimaryButton
+        label={t(mode === 'creer' ? 'compte.creer' : 'compte.se_connecter')}
+        onPress={soumettre}
+        disabled={envoi || !pret}
+      />
+      <Pressable
+        onPress={() => { onErreur(null); setMode(mode === 'creer' ? 'connexion' : 'creer'); }}
+        accessibilityRole="button"
+        style={({ pressed }) => [pressed && styles.pressed]}
+      >
+        <Text style={styles.accesMessage}>
+          {t(mode === 'creer' ? 'compte.deja' : 'compte.nouveau')}
+        </Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+/**
+ * RESELLER-ACCOUNTS-1d — THE ADMISSION SCREEN. Her account exists; the app
+ * stays closed until the one-time code the founder minted for HER account
+ * opens it. One field, one action, and the sentence says who gives the code —
+ * the founder's access gate, in her words.
+ */
+function EcranAdmission({ code, onCode, envoi, erreurKey, onEntrer }: {
+  code: string;
+  onCode: (v: string) => void;
+  envoi: boolean;
+  erreurKey: string | null;
+  onEntrer: () => void;
+}) {
+  return (
+    <View style={styles.accesEcran}>
+      <Text style={styles.accesTitre}>{t('admission.titre')}</Text>
+      <Text style={styles.accesSous}>{t('admission.sous_titre')}</Text>
+      <TextInput
+        style={styles.margeInput}
+        value={code}
+        onChangeText={onCode}
+        autoCapitalize="characters"
+        autoCorrect={false}
+        placeholder="SPA-"
+        accessibilityLabel={t('admission.champ')}
+        editable={!envoi}
+      />
+      {envoi && <Text style={styles.accesMessage}>{t('acces.verification')}</Text>}
+      {!envoi && erreurKey !== null && <Text style={styles.accesMessage}>{t(erreurKey)}</Text>}
+      <PrimaryButton label={t('admission.action')} onPress={onEntrer} disabled={envoi || code.trim() === ''} />
     </View>
   );
 }

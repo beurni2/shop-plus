@@ -3532,5 +3532,143 @@
   "fr": "L'application n'est pas encore reliée à Shop+.",
   "register": "neutral",
   "screenClass": "status"
+ },
+ {
+  "key": "compte.creer_sous",
+  "fr": "Créez votre compte pour commencer à vendre.",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "compte.connexion_sous",
+  "fr": "Content de vous revoir. Connectez-vous.",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "compte.nom",
+  "fr": "Votre nom",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.email",
+  "fr": "Votre email",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.telephone",
+  "fr": "Votre numéro de téléphone",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.mot_de_passe",
+  "fr": "Votre mot de passe (8 lettres ou plus)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.creer",
+  "fr": "Créer mon compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.se_connecter",
+  "fr": "Me connecter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.deja",
+  "fr": "J'ai déjà un compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.nouveau",
+  "fr": "Je suis nouvelle ici",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.envoi",
+  "fr": "Un instant…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.email_pris",
+  "fr": "Cet email a déjà un compte. Connectez-vous plutôt.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.champ_invalide",
+  "fr": "Un champ ne va pas. Vérifiez et réessayez.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.refuse",
+  "fr": "Email ou mot de passe incorrect. Vérifiez et réessayez.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "compte.reseau",
+  "fr": "Pas de réseau. Réessayez dès que ça revient.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "admission.titre",
+  "fr": "Encore un pas",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "admission.sous_titre",
+  "fr": "Votre compte est prêt. Entrez le code d'accès qu'on vous a donné pour ouvrir l'application.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "admission.champ",
+  "fr": "Votre code d'accès",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "admission.action",
+  "fr": "Ouvrir",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "admission.refuse",
+  "fr": "Ce code n'ouvre pas. Vérifiez-le, ou demandez-en un nouveau.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "coupe.titre",
+  "fr": "Votre accès est en pause",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "coupe.texte",
+  "fr": "Votre compte existe toujours, mais l'accès est en pause pour le moment. Contactez-nous pour en parler.",
+  "register": "neutral",
+  "screenClass": "general"
+ },
+ {
+  "key": "coupe.reessayer",
+  "fr": "Vérifier à nouveau",
+  "register": "neutral",
+  "screenClass": "label"
  }
 ]

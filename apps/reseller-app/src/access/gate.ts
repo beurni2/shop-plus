@@ -1,5 +1,13 @@
 /**
- * ACCESS-GATE-1 — ONE CODE, AT THE DOOR, AND NOWHERE ELSE.
+ * ACCESS-GATE-1 → RESELLER-ACCOUNTS-1d — ONE DOOR, AT THE ENTRANCE.
+ *
+ * SAME-DAY EVOLUTION, founder-directed: the entrance is no longer « type a
+ * code » but « create your account (nom · email · mot de passe · téléphone — his
+ * explicit override of phone-alias) or sign in », and the ACCESS CODE moved
+ * one step later: after signup the account exists but the app stays closed
+ * until she enters the one-time code he minted for HER account. Admitted
+ * once, nothing inside ever asks again. He can pause any account; paused is
+ * its own designed state here, never a disguised error.
  *
  * FOUNDER ORDER, 2026-08-04, verbatim: « i do not want resellers feed to have
  * any code gated. the only gate i want is the access gate, something like a new
@@ -66,12 +74,17 @@ export function gateArme(): boolean {
 }
 
 export type Acces =
-  /** The app is usable. Either the gate is disarmed, or she holds a code. */
+  /** The app is usable: gate disarmed, or an ACTIVE account on this device. */
   | { readonly kind: 'ouvert' }
-  /** Still reading the durable store — never render the door on a maybe. */
+  /** Still reading the durable stores — never render a door on a maybe. */
   | { readonly kind: 'lecture' }
-  /** The gate is armed and this device holds no code: show the entrance. */
-  | { readonly kind: 'porte' };
+  /** No account known here: the entrance (créer un compte / se connecter). */
+  | { readonly kind: 'porte' }
+  /** RESELLER-ACCOUNTS-1d — signed up, not yet admitted: the code screen. */
+  | { readonly kind: 'admission' }
+  /** The founder paused her. Said plainly, with a way to re-check — never a
+   *  hidden button and never dressed up as a network fault. */
+  | { readonly kind: 'coupe' };
 
 /**
  * The whole rule, pure and total.
@@ -87,10 +100,20 @@ export type Acces =
  * exactly the kind of thing that makes an app feel untrustworthy on a slow
  * phone.
  */
-export function decideAcces(arme: boolean, codePresent: boolean | undefined): Acces {
+export function decideAcces(
+  arme: boolean,
+  compte: { readonly state: 'pending_access' | 'active' | 'paused' } | null | undefined,
+): Acces {
   // DISARMED WINS OVER EVERYTHING, and it is checked FIRST so that no storage
   // state, however odd, can produce a door the founder has switched off.
   if (!arme) return { kind: 'ouvert' };
-  if (codePresent === undefined) return { kind: 'lecture' };
-  return codePresent ? { kind: 'ouvert' } : { kind: 'porte' };
+  if (compte === undefined) return { kind: 'lecture' };
+  if (compte === null) return { kind: 'porte' };
+  // The LAST-KNOWN state rules until a fresh server answer replaces it —
+  // offline-first (Ten Laws #7): a dead network must not close an admitted
+  // app, and a pause therefore lands on the next successful refresh, which is
+  // the honest cost of an app that works without a connection.
+  if (compte.state === 'active') return { kind: 'ouvert' };
+  if (compte.state === 'paused') return { kind: 'coupe' };
+  return { kind: 'admission' };
 }

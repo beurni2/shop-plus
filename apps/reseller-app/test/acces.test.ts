@@ -53,27 +53,32 @@ describe('ACCESS-GATE-1 — the flag', () => {
   });
 });
 
-describe('ACCESS-GATE-1 — the decision', () => {
+describe('RESELLER-ACCOUNTS-1d — the decision, on account state', () => {
   it('DISARMED opens for everyone, whatever the store says — checked before any other condition', () => {
-    for (const code of [undefined, null as unknown as undefined, true, false]) {
-      expect(decideAcces(false, code as boolean | undefined), String(code)).toEqual({ kind: 'ouvert' });
+    for (const compte of [undefined, null, { state: 'pending_access' }, { state: 'active' }, { state: 'paused' }] as const) {
+      expect(decideAcces(false, compte as Parameters<typeof decideAcces>[1]), JSON.stringify(compte)).toEqual({ kind: 'ouvert' });
     }
   });
 
-  it('ARMED: a held code opens, no code shows the entrance, and « not read yet » is NEITHER', () => {
-    expect(decideAcces(true, true)).toEqual({ kind: 'ouvert' });
-    expect(decideAcces(true, false)).toEqual({ kind: 'porte' });
-    // The one that matters on a slow phone: while the durable store is still
-    // answering, a reseller who typed her code weeks ago must not see the door
-    // flash. `lecture` is its own state precisely so it can render nothing.
+  it('ARMED: the four honest doors — no account, pending, paused, active — and « not read yet » renders NOTHING', () => {
+    expect(decideAcces(true, null)).toEqual({ kind: 'porte' }); // créer / se connecter
+    expect(decideAcces(true, { state: 'pending_access' })).toEqual({ kind: 'admission' }); // the founder's code screen
+    // THE PAUSE IS ITS OWN STATE, never dressed as a network fault or a bad
+    // credential — the founder's cut must read as exactly what it is.
+    expect(decideAcces(true, { state: 'paused' })).toEqual({ kind: 'coupe' });
+    expect(decideAcces(true, { state: 'active' })).toEqual({ kind: 'ouvert' });
+    // slow phone: the durable store still answering must not flash a door at
+    // a reseller who signed in weeks ago
     expect(decideAcces(true, undefined)).toEqual({ kind: 'lecture' });
   });
 
-  it('takes a BOOLEAN, never the code — a decision that cannot see a secret cannot leak one', () => {
+  it('sees only the STATE, never a credential — a decision that cannot see a secret cannot leak one', () => {
     const src = readFileSync(join(appDir, 'src/access/gate.ts'), 'utf8');
-    expect(src).toMatch(/decideAcces\(arme: boolean, codePresent: boolean \| undefined\)/);
-    // no string comparison against a credential anywhere in the gate
-    expect(src).not.toMatch(/code(Present)? === '/);
+    expect(src).toMatch(/decideAcces\(\s*arme: boolean,\s*compte: \{ readonly state:/);
+    // identifiers only — the header COMMENT may say « mot de passe » in prose
+    for (const banni of ['password', 'passwordhash', 'mdp']) {
+      expect(src.toLowerCase(), banni).not.toContain(banni);
+    }
   });
 });
 
@@ -86,36 +91,43 @@ describe('ACCESS-GATE-1 — the app has exactly one door, and it is the entrance
     // Armed, NOTHING behind the door renders — that is what makes it an ACCESS
     // gate rather than one more wall in the middle of the app.
     expect(gate).toBeLessThan(shell);
-    expect(app).toMatch(/<EcranAcces\b/);
+    // RESELLER-ACCOUNTS-1d — the entrance is the ACCOUNT now: signup/login,
+    // then the admission code, then (if the founder paused her) the coupe
+    // sentence. All four doors mount inside the gate branch, before the shell.
+    expect(app).toMatch(/<EcranCompte\b/);
+    expect(app).toMatch(/<EcranAdmission\b/);
+    expect(app).toMatch(/t\('coupe\.titre'\)/);
   });
 
-  it('NO SCREEN INSIDE THE APP ASKS FOR A CODE — the two old walls are gone and cannot return', () => {
-    // « Mes ventes » and « Mes gains » each rendered a TextInput + PrimaryButton
-    // behind `demandeCode`. The founder removed that concept; the field itself
-    // is gone from all three screen models, so a re-render is not expressible.
+  it('NO SCREEN INSIDE THE APP ASKS FOR A CODE OR A PASSWORD — the walls are gone and cannot return', () => {
+    // « Mes ventes » and « Mes gains » each rendered a code door once. The
+    // concept is deleted from all three screen models; and with accounts, the
+    // ONLY credential entry points are the gate branch's screens.
     expect(app).not.toMatch(/demandeCode/);
-    // and only one submit site exists in the whole app
-    expect([...app.matchAll(/ventesReelles\.ouvrir\(/g)]).toHaveLength(1);
+    // `ventesReelles.ouvrir` — the legacy type-a-feed-code path — has NO mount
+    // left: the entrance signs in through the account service instead. The
+    // hook keeps the function (the founder's legacy code path server-side),
+    // but no screen offers it.
+    expect([...app.matchAll(/ventesReelles\.ouvrir\(/g)]).toHaveLength(0);
   });
 
   it('the entrance never renders a field it cannot verify, and never flashes on a slow store', () => {
-    // no Shop+ base ⇒ a sentence, not an input that could only fail
-    expect(app).toMatch(/nonBranche \?/);
+    // no Shop+ base ⇒ a sentence, not a form that could only fail
     expect(app).toMatch(/t\('acces\.non_branche'\)/);
     // still reading the durable store ⇒ the surface, nothing on it
-    expect(app).toMatch(/if \(etat === 'lecture'\) return <View style=\{styles\.accesEcran\} \/>;/);
+    expect(app).toMatch(/acces\.kind === 'lecture' \? \(\s*<View style=\{styles\.accesEcran\} \/>/);
   });
 
-  it('every acces.* string the entrance renders exists in the catalog', () => {
+  it('every acces.* / compte.* / admission.* / coupe.* string the doors render exists in the catalog', () => {
     const keys = new Set(catalog.map((e) => e.key));
-    const used = [...app.matchAll(/t\('(acces\.[a-z_]+)'\)/g)].map((m) => m[1]!);
-    expect(used.length, 'the extraction must actually see the entrance').toBeGreaterThan(4);
+    const used = [...app.matchAll(/t\('((?:acces|compte|admission|coupe)\.[a-z_]+)'\)/g)].map((m) => m[1]!);
+    expect(used.length, 'the extraction must actually see the doors').toBeGreaterThan(12);
     for (const k of used) expect(keys.has(k), `${k} rendered but not in catalog`).toBe(true);
   });
 
   it('the refusal at the door names the cause and the way out — never a verdict on her', () => {
     const fr = new Map(catalog.map((e) => [e.key, e.fr]));
-    const refuse = (fr.get('acces.refuse') ?? '').toLowerCase();
+    const refuse = (fr.get('admission.refuse') ?? '').toLowerCase();
     expect(refuse).not.toBe('');
     expect(refuse).toContain('vérifiez'); // what to do
     // this is the first screen of the platform she will ever see

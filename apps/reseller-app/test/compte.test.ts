@@ -1,0 +1,126 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { compteStoreSur, resolveCompteService } from '../src/access/compte-service';
+
+/**
+ * RESELLER-ACCOUNTS-1d — the app's account client. The Worker's e2e proves the
+ * book; THIS file proves the client tells the truth about what the book said,
+ * and that no credential lingers on the device.
+ */
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
+
+const BASE = 'EXPO_PUBLIC_STOREFRONT_BASE';
+
+function stubFetch(reply: (url: string, init?: RequestInit) => Promise<Response>) {
+  const spy = vi.fn(reply);
+  vi.stubGlobal('fetch', spy);
+  return spy;
+}
+
+const COMPTE = { accountId: 'rs-1234', name: 'Awa', state: 'pending_access' };
+
+describe('RESELLER-ACCOUNTS-1d — the four calls, honestly mapped', () => {
+  it('signup POSTs EXACTLY the four fields, and success carries the account + session', async () => {
+    vi.stubEnv(BASE, 'https://shop.example/');
+    const spy = stubFetch(async () => new Response(JSON.stringify({ ok: true, ...COMPTE, session: 'SPS-AAAA' })));
+    const res = await resolveCompteService()!.inscrire({
+      name: 'Awa', email: 'awa@example.bf', phone: '+226 70 00 00 01', password: 'grain-de-nere-77',
+    });
+    expect(res).toEqual({ ok: true, compte: COMPTE, session: 'SPS-AAAA' });
+    const [url, init] = spy.mock.calls[0]!;
+    expect(url).toBe('https://shop.example/reseller/signup');
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    // the Worker's allowlist refuses a fifth field by name; this client never
+    // gives it one to refuse
+    expect(Object.keys(body).sort()).toEqual(['email', 'name', 'password', 'phone']);
+  });
+
+  it('signup maps the named refusals — email_pris keeps her out of a duplicate, champ_invalide names the field', async () => {
+    vi.stubEnv(BASE, 'https://shop.example');
+    const port = resolveCompteService()!;
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'email_taken' }), { status: 409 }));
+    expect(await port.inscrire({ name: 'A', email: 'a@b.bf', phone: '70000000', password: 'x'.repeat(8) }))
+      .toEqual({ ok: false, reason: 'email_pris' });
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'bad_field', field: 'phone' }), { status: 400 }));
+    expect(await port.inscrire({ name: 'A', email: 'a@b.bf', phone: '1', password: 'x'.repeat(8) }))
+      .toEqual({ ok: false, reason: 'champ_invalide', field: 'phone' });
+  });
+
+  it('login: ONE refusal for every wrong way in — this client never reconstructs the email oracle the server refuses to be', async () => {
+    vi.stubEnv(BASE, 'https://shop.example');
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'bad_credentials' }), { status: 401 }));
+    expect(await resolveCompteService()!.connecter('a@b.bf', 'wrong')).toEqual({ ok: false, reason: 'refuse' });
+  });
+
+  it('admission separates the three answers a screen must treat differently: refused code, PAUSED account, dead network', async () => {
+    vi.stubEnv(BASE, 'https://shop.example');
+    const port = resolveCompteService()!;
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'code_refused' }), { status: 401 }));
+    expect(await port.admission('SPS-1', 'SPA-X')).toEqual({ ok: false, reason: 'code_refuse' });
+    // a paused account trying its old code must hear « paused », not « bad
+    // code » — she would retype forever against a door the founder closed
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'access_paused' }), { status: 403 }));
+    expect(await port.admission('SPS-1', 'SPA-X')).toEqual({ ok: false, reason: 'acces_coupe' });
+    stubFetch(() => Promise.reject(new Error('down')));
+    expect(await port.admission('SPS-1', 'SPA-X')).toEqual({ ok: false, reason: 'unreachable' });
+  });
+
+  it('the session refresh carries the Bearer and yields the fresh state — how a founder pause reaches a device already inside', async () => {
+    vi.stubEnv(BASE, 'https://shop.example');
+    const spy = stubFetch(async () => new Response(JSON.stringify({ ok: true, accountId: 'rs-1234', name: 'Awa', state: 'paused' })));
+    const res = await resolveCompteService()!.session('SPS-AAAA');
+    expect(res).toEqual({ ok: true, compte: { accountId: 'rs-1234', name: 'Awa', state: 'paused' } });
+    expect((spy.mock.calls[0]![1]?.headers as Record<string, string>)['Authorization']).toBe('Bearer SPS-AAAA');
+  });
+
+  it('an answer with an UNKNOWN state is not a success — the gate must never decide on a word it does not know', async () => {
+    vi.stubEnv(BASE, 'https://shop.example');
+    stubFetch(async () => new Response(JSON.stringify({ ok: true, accountId: 'rs-1', name: 'A', state: 'banned' })));
+    expect(await resolveCompteService()!.session('SPS-1')).toEqual({ ok: false, reason: 'unreachable' });
+  });
+
+  it('unset base resolves to NOTHING — never a demo account', () => {
+    vi.stubEnv(BASE, '');
+    expect(resolveCompteService()).toBeNull();
+  });
+});
+
+describe('RESELLER-ACCOUNTS-1d — what the device remembers', () => {
+  function memoire(): { texte: { read(): Promise<string | null>; write(v: string): Promise<void> }; contenu: () => string | null } {
+    let contenu: string | null = null;
+    return {
+      texte: {
+        read: async () => contenu,
+        write: async (v: string) => { contenu = v; },
+      },
+      contenu: () => contenu,
+    };
+  }
+
+  it('round-trips the account — and NEVER a credential: the stored bytes carry no password and no session', async () => {
+    const m = memoire();
+    const store = compteStoreSur(m.texte);
+    await store.write({ accountId: 'rs-1234', name: 'Awa', state: 'active' });
+    expect(await store.read()).toEqual({ accountId: 'rs-1234', name: 'Awa', state: 'active' });
+    // THE PROPERTY: CompteLocal has no credential field to serialize, so the
+    // bytes cannot carry one — asserted on the bytes anyway, as the book does.
+    expect(m.contenu()).not.toMatch(/password|session|mdp/i);
+  });
+
+  it('an unreadable or corrupt file is « no account », never a crash and never a guessed state', async () => {
+    const store = compteStoreSur({ read: async () => '{corrompu', write: async () => undefined });
+    expect(await store.read()).toBeNull();
+    const vide = compteStoreSur({ read: async () => null, write: async () => undefined });
+    expect(await vide.read()).toBeNull();
+    // a stored record with an unknown state is DROPPED — the gate decides on
+    // « no account » (the entrance) rather than on a word it cannot map
+    const inconnu = compteStoreSur({
+      read: async () => JSON.stringify({ accountId: 'rs-1', name: 'A', state: 'banned' }),
+      write: async () => undefined,
+    });
+    expect(await inconnu.read()).toBeNull();
+  });
+});
