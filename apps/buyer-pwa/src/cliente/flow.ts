@@ -29,6 +29,17 @@ import {
   type Livraison, type ModePaiement, type VoiceEtat,
 } from './screens';
 import { fmtFCFA } from './money';
+import { iconPause, iconPlay } from './icons';
+
+/**
+ * « m:ss » for the ticking clock — the SAME shape `m.voiceDuree` already shows
+ * (« 0:12 »), so the number that appears while it plays and the number that was
+ * there before it started belong to one another instead of being two formats.
+ */
+function fmtSecondes(sec: number): string {
+  const total = Math.max(0, Math.floor(sec));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
 import { prixExpire, type OrderFetch, type QuoteFetch, type ReserveFetch } from './quote-model';
 
 export type ClienteEcran = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9';
@@ -319,11 +330,77 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
    * cannot decode, and an unhandled rejection on the payment screen is a
    * console error where a true sentence belongs.
    */
-  function jouerLaNote(url: string, siRefus: () => void): void {
-    if (!voixAudio) voixAudio = new Audio();
+  /**
+   * ═══ VOIX-ÉTAT — THE PLAYER HAD NO FACE (founder, 2026-08-04) ═══
+   *
+   * « the seconds are still not counting when i tap play the audio here and the
+   * play button doesn't change to pause button. » Literally true, twice over:
+   * this function drove the <audio> element and touched NO DOM. The triangle
+   * was drawn once by `renderC1` and never swapped; the duration was
+   * `m.voiceDuree`, a static string. Tapping did play the note — and looked
+   * exactly like tapping nothing.
+   *
+   * (I had fixed the vitrine's player first. Same defect, different file: the
+   * screen he was pointing at is C1, and « the buyer's pwa » means THIS one.)
+   *
+   * `bouton` is the element that was tapped, so the state lives on the control
+   * that caused it and dies with it: every screen here replaces innerHTML, so a
+   * re-render cannot inherit a stale « pause » — the node it belonged to is
+   * gone. Both C1 and C5 come through here, so both gain this at once, which is
+   * the reason the shared part was lifted in the first place.
+   */
+  let voixHote: HTMLElement | null = null;
+  let voixTotal = '';
+
+  const voixGlyphe = (el: HTMLElement, lecture: boolean): void => {
+    const cible = el.querySelector('svg');
+    if (cible !== null) cible.outerHTML = lecture ? iconPause(16) : iconPlay(16);
+  };
+  const voixHorloge = (texte: string): void => {
+    const cible = document.querySelector('.cl-voix-dur');
+    if (cible instanceof HTMLElement) cible.textContent = texte;
+  };
+  /** Back to rest: the triangle returns and the clock shows the total again. */
+  const voixRepos = (): void => {
+    if (voixHote === null) return;
+    voixGlyphe(voixHote, false);
+    if (voixTotal !== '') voixHorloge(voixTotal);
+    voixHote = null;
+  };
+
+  function jouerLaNote(url: string, siRefus: () => void, bouton?: HTMLElement): void {
+    if (!voixAudio) {
+      voixAudio = new Audio();
+      // EVERY way playback can stop puts the control back. A pause glyph over
+      // silence is the same lie as a play glyph over sound.
+      voixAudio.addEventListener('ended', voixRepos);
+      voixAudio.addEventListener('pause', voixRepos);
+      voixAudio.addEventListener('error', voixRepos);
+      voixAudio.addEventListener('timeupdate', () => {
+        if (voixHote !== null && voixAudio !== null) voixHorloge(fmtSecondes(voixAudio.currentTime));
+      });
+    }
+    // Tapping the note that is PLAYING pauses it — the pause glyph has to mean
+    // something when she taps it.
+    if (voixHote !== null && bouton === voixHote && !voixAudio.paused) {
+      voixAudio.pause();
+      return;
+    }
     if (voixAudio.src !== url) voixAudio.src = url;
     voixAudio.currentTime = 0;
-    void voixAudio.play().catch(siRefus);
+    voixRepos(); // a second control takes over: the first goes back to rest
+    if (bouton !== undefined) {
+      voixHote = bouton;
+      const dur = document.querySelector('.cl-voix-dur');
+      voixTotal = dur instanceof HTMLElement ? dur.textContent ?? '' : '';
+      voixGlyphe(bouton, true);
+      voixHorloge(fmtSecondes(0));
+    }
+    void voixAudio.play().catch((e: unknown) => {
+      voixRepos(); // a refusal must not leave a pause glyph over nothing
+      siRefus();
+      return e;
+    });
   }
 
   let t1: ReturnType<typeof setTimeout> | null = null;
@@ -848,7 +925,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         // behaviour explicitly out of scope.
         const url = el.getAttribute('data-voix-url');
         const demo = (): void => toast(`La voix d’${m.prenom} — ${m.voiceDuree ?? ''} (démo)`);
-        if (url) jouerLaNote(url, demo);
+        if (url) jouerLaNote(url, demo, el);
         else demo();
         return;
       }

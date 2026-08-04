@@ -50,6 +50,15 @@ export const iconChevron = (s: number, sw = 2): string =>
 export const iconPlay = (s: number): string =>
   svg({ w: s }, '0 0 24 24', '<path d="M9 7.2v9.6l8.2-4.8z"></path>', 'currentColor', false);
 
+/**
+ * VOIX-ÉTAT (founder 2026-08-04) — the pause twin of `iconPlay`, same 24-grid
+ * and same fill, so the glyph does not shift when playback starts. « the play
+ * button doesn't change to pause button » was literally true: nothing ever
+ * swapped it.
+ */
+export const iconPause = (s: number): string =>
+  svg({ w: s }, '0 0 24 24', '<path d="M8.4 6.6h2.7v10.8H8.4zm4.5 0h2.7v10.8h-2.7z"></path>', 'currentColor', false);
+
 /** Petit triangle de lecture (ÉCOUTER LA NOTE / barre vocale — pixel 10×12 grid). */
 export const iconPlaySmall = (w: number, h: number): string =>
   `<svg width="${w}" height="${h}" viewBox="0 0 10 12" aria-hidden="true"><path d="M0.5 0.8l9 5.2-9 5.2z" fill="currentColor"></path></svg>`;
