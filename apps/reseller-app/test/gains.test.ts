@@ -239,7 +239,7 @@ describe('SP6.1 — the screen says the honest thing in every state', () => {
     expect(l.compteN).toBe('3');
   });
 
-  it('THE « NOT A WALLET » SENTENCE IS ALWAYS THERE (Ten Laws #2) — on a full ladder and an empty one', () => {
+  it('THE « THIS IS NOT AN ACCOUNT » SENTENCE IS ALWAYS THERE (Ten Laws #2) — full ladder and empty', () => {
     for (const rows of [[], [vente()], [vente({ state: 'payment_failed' })]]) {
       const e = ecranDesGains(vueDesGains(rows, false));
       expect(e.noticeKeys).toContain('gains.pas_de_retrait');

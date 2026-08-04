@@ -325,8 +325,16 @@ describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)'
     expect(app).toMatch(/<CercleAccueilCard[^/]*onPress=\{\(\) => go\('cercle'\)\}/);
     // D3/D4/D5 — the deltas are mounted in their carrier screens
     expect(app).toMatch(/saleDetail\.campFcfa > 0 &&/);
-    expect(app).toMatch(/<PendingHero label=\{t\('ce\.gains_attente_label'\)\}/);
-    expect(app).toMatch(/<GainsSaleCard key=\{c\.code\}/);
+    // SP6.1 — THE D4 DELTA LOST ITS CARRIER, and that is the correct state.
+    // Both of these were mounted on the DEMO gains screen (`PendingHero` fed by
+    // `enAttenteNet()`, `GainsSaleCard` per DEMO_SALES row). That screen is now
+    // the real settlement ladder, which carries no Cercle contribution line
+    // because Cercle is BUILD-GATED (SP9) and no real order has ever had one.
+    // The hero itself survives — pinned in `ui-kit.test.ts` on the « Locked »
+    // rung — so what is asserted here is the honest thing: the demo carrier is
+    // gone, and the D3/D5 deltas that DO have real carriers are still mounted.
+    expect(app).toMatch(/<PendingHero label=\{t\(p\.titreKey\)\}/);
+    expect(app).not.toMatch(/<GainsSaleCard/);
     expect(app).toMatch(/campShare !== null &&/);
   });
 

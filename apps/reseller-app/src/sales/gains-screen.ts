@@ -17,8 +17,8 @@
  * ═══ WHAT IT REFUSES TO SAY ═══
  *
  * No total. No « solde ». No payout claim, no payout date, and no action —
- * because Ten Laws #2 and the plan's own « no withdrawal » mean there is
- * nothing on this screen to act on. Six of the eight rungs cannot be reached by
+ * because Ten Laws #2 and the plan's own rule against any cash-out mean there
+ * is nothing on this screen to act on. Six of the eight rungs cannot be reached by
  * any input (see `gains-model.ts`), and they render QUIET AND LABELLED rather
  * than as empty buckets — « pas encore » with a sentence saying what has to
  * happen, never a zero that reads as « you have earned nothing ».

@@ -32,7 +32,7 @@ import { expoIdentityStore, expoRandomBytes } from './src/identity/expoStore';
 import { useVoiceNotes, VoiceNoteSheet, voiceCardLabel, type VoiceUploader } from './src/vitrine/customize/voice-sheet';
 import {
   useCercle, CercleHub, CampWizard, CampaignActive, CampaignFunding, CercleReputation,
-  CercleMembres, IconCercleDeux, PendingHero, GainsSaleCard, CercleAccueilCard,
+  CercleMembres, IconCercleDeux, PendingHero, CercleAccueilCard,
 } from './src/cercle/screens';
 import { produit as cercleProduit, CERCLE_DIVERS, partagerBadge } from './src/cercle/model';
 import { useVentesReelles } from './src/sales/use-ventes-reelles';
@@ -42,8 +42,6 @@ import {
   demoDetail,
   type SaleRow,
   enAttenteNet,
-  payeSemaine,
-  gainsCards,
   type SaleDetail,
   type TimelineStep,
 } from './src/sales/ventes';
@@ -1512,12 +1510,29 @@ export default function App() {
                 never a 0 FCFA, which would read as « you earned nothing »
                 rather than « this step does not exist yet ». */}
             {ventesReelles.gains.paliers.map((p) => (
-              <Card key={p.etat} style={p.enSommeil ? styles.gainsPalierSommeil : undefined}>
-                <Overline>{t(p.titreKey)}</Overline>
-                {p.enSommeil ? (
-                  <Text style={styles.gainsSommeilMontant}>{t('gains.pas_encore')}</Text>
+              /* ONE HERO, AND IT IS « LOCKED » (§5: one primary thing per
+                 screen, hierarchy ruthless). There is deliberately NO total on
+                 this screen — a running total is what an ACCOUNT has, and Shop+
+                 keeps none — so the hero is instead the one figure that is
+                 unambiguously, settledly HERS: the net on
+                 sales whose payment the provider confirmed. Projected is not
+                 hers yet; the six dormant rungs hold nothing. The hero is
+                 therefore a true number, not a composed one. */
+              <Card
+                key={p.etat}
+                style={p.etat === 'Locked' ? styles.gainsHeroCard : p.enSommeil ? styles.gainsPalierSommeil : undefined}
+              >
+                {p.etat === 'Locked' ? (
+                  <PendingHero label={t(p.titreKey)} amount={p.netFcfa} />
                 ) : (
-                  <Text style={styles.gainsMontant}>{formatFcfa(p.netFcfa)}</Text>
+                  <>
+                    <Overline>{t(p.titreKey)}</Overline>
+                    {p.enSommeil ? (
+                      <Text style={styles.gainsSommeilMontant}>{t('gains.pas_encore')}</Text>
+                    ) : (
+                      <Text style={styles.gainsMontant}>{formatFcfa(p.netFcfa)}</Text>
+                    )}
+                  </>
                 )}
                 <Text style={styles.gainsCompte}>
                   {p.compteN === undefined ? t(p.compteKey) : tf(p.compteKey, { n: p.compteN })}

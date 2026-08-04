@@ -67,6 +67,9 @@ capture net-first-display-ventes-row pass node scripts/gates/net-first-display.m
 log "gate: net-first-display — S7 ventes detail surface (WO-7.2a, net before son prix; must pass)"
 capture net-first-display-ventes-detail pass node scripts/gates/net-first-display.mjs gates/fixtures/surfaces/ventes-detail.json
 
+log "gate: net-first-display — SP6.1 gains ladder (pinned to gains-model.ts by unit test; must pass)"
+capture net-first-display-gains pass node scripts/gates/net-first-display.mjs gates/fixtures/surfaces/gains-echelle.json
+
 log "gate: net-first-display — NEGATIVE FIXTURE (gross-first earnings surface, must fail)"
 capture net-first-display-negative fail node scripts/gates/net-first-display.mjs gates/fixtures/negative/surfaces/gross-first-card.json
 

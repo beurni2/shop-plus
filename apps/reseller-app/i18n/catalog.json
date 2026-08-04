@@ -253,7 +253,7 @@
  },
  {
   "key": "money.amount_f",
-  "fr": "{amount} FCFA",
+  "fr": "{amount}\u202fFCFA",
   "register": "money",
   "screenClass": "general"
  },
@@ -775,7 +775,7 @@
  },
  {
   "key": "fiche.livraison_note",
-  "fr": "Livraison dès 1 000 FCFA, payée par la cliente.",
+  "fr": "Livraison dès 1\u202f000\u202fFCFA, payée par la cliente.",
   "register": "money",
   "screenClass": "general"
  },
@@ -1525,7 +1525,7 @@
  },
  {
   "key": "k.entete.sub_grenat",
-  "fr": "Un faire-part : portrait ovale, tout au centre.",
+  "fr": "Un faire-part\u202f: portrait ovale, tout au centre.",
   "register": "selling",
   "screenClass": "label"
  },
@@ -1741,7 +1741,7 @@
  },
  {
   "key": "k.entete.sub_flamboyant",
-  "fr": "La cour à 17 h, lumière dorée et fleurs de feu.",
+  "fr": "La cour à 17\u202fh, lumière dorée et fleurs de feu.",
   "register": "selling",
   "screenClass": "label"
  },
@@ -2407,7 +2407,7 @@
  },
  {
   "key": "ce.parrainage_montant",
-  "fr": "+1 000 FCFA chacune",
+  "fr": "+1\u202f000\u202fFCFA chacune",
   "register": "money",
   "screenClass": "label"
  },
@@ -2425,7 +2425,7 @@
  },
  {
   "key": "ce.toast_parrainage",
-  "fr": "Carte de parrainage copiée — +1 000 FCFA chacune après sa première vente livrée",
+  "fr": "Carte de parrainage copiée — +1\u202f000\u202fFCFA chacune après sa première vente livrée",
   "register": "neutral",
   "screenClass": "status"
  },
@@ -2563,13 +2563,13 @@
  },
  {
   "key": "ce.w3_note_zero",
-  "fr": "0 FCFA = promotion seule, sans argent engagé.",
+  "fr": "0\u202fFCFA = promotion seule, sans argent engagé.",
   "register": "money",
   "screenClass": "status"
  },
  {
   "key": "ce.w3_note_k",
-  "fr": "La cliente paiera la livraison {part} au lieu de 1 000 FCFA.",
+  "fr": "La cliente paiera la livraison {part} au lieu de 1\u202f000\u202fFCFA.",
   "register": "money",
   "screenClass": "status"
  },
@@ -2659,7 +2659,7 @@
  },
  {
   "key": "ce.g2",
-  "fr": "Bloqué : la contribution dépasse le tarif Séra (1 000 FCFA). Séra est financée au franc près, jamais plus, jamais moins.",
+  "fr": "Bloqué : la contribution dépasse le tarif Séra (1\u202f000\u202fFCFA). Séra est financée au franc près, jamais plus, jamais moins.",
   "register": "money",
   "screenClass": "general"
  },
@@ -2731,7 +2731,7 @@
  },
  {
   "key": "ce.a1_meta_prepay",
-  "fr": "{fenetre} · avantage {k} / commande · cliente paie 0 FCFA (prépaiement requis)",
+  "fr": "{fenetre} · avantage {k} / commande · cliente paie 0\u202fFCFA (prépaiement requis)",
   "register": "money",
   "screenClass": "status"
  },

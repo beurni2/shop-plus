@@ -50,14 +50,19 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(kit).toMatch(/fontWeight: w\(t2\.scale\.heroMoney\.wght\)/);
     expect(kit).toMatch(/fontFamily: DISPLAY_FAMILY/);
     expect(kit).toMatch(/fontVariant: \['tabular-nums'\]/);
-    // D4 (Cercle) — the gains screen leads with the composed pending hero
-    // (montant 38 + FCFA 17, §7 count-up), label from the catalog, amount from
-    // the sales world (En attente = Σ net − camp). Copy never inline.
+    // SP6.1 — THE GAINS SCREEN STILL LEADS WITH THE COMPOSED HERO, but on a
+    // REAL figure now. This block used to pin `label={t('ce.gains_attente_label')}`
+    // and `amount={enAttenteNet()}` — both from the DEMO model over DEMO_SALES,
+    // beside a « Payé cette semaine » line on a platform that has never paid
+    // anyone. The claim is rewritten, not dropped: the hero survives, the label
+    // still comes from the catalog (never inline), and the amount is now the
+    // « Locked » rung — the one net that is settled and unambiguously hers.
     const app = read('App.tsx');
     expect(app).toMatch(/<PendingHero/);
-    expect(app).toMatch(/label=\{t\('ce\.gains_attente_label'\)\}/);
-    expect(app).toMatch(/amount=\{enAttenteNet\(\)\}/);
-    expect(app).toMatch(/ce\.gains_paye_semaine/);
+    expect(app).toMatch(/label=\{t\(p\.titreKey\)\} amount=\{p\.netFcfa\}/);
+    // …and the retired fiction is GONE, asserted directly so it cannot return.
+    expect(app).not.toMatch(/ce\.gains_paye_semaine/);
+    expect(app).not.toMatch(/amount=\{enAttenteNet\(\)\}/);
     // francs render tabular in the App too (money lines + stats)
     expect(app).toMatch(/fontVariant: \['tabular-nums'\]/);
     // the hero size is a real hero (doctrine: the amount is the screen's hero) —
