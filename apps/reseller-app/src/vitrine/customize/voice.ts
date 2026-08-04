@@ -140,8 +140,14 @@ export interface VoiceRecorderAdapter {
   start(): Promise<void>;
   /** Resolves with the finished take — a real local file `url` + elapsed ms. */
   stop(): Promise<{ url: string | null; durationMs: number }>;
-  /** Play a recorded take back (her own voice, local file). */
-  play(url: string): Promise<void>;
+  /**
+   * Play a recorded take back (her own voice, local file).
+   *
+   * `onEnd` fires when the take FINISHES on its own. Without it the screen has
+   * no way to learn that playback stopped, so the button stays « Pause » over
+   * silence for ever — the state the founder reported.
+   */
+  play(url: string, onEnd?: () => void): Promise<void>;
   stopPlayback(): Promise<void>;
 }
 
@@ -167,7 +173,7 @@ export function createDemoRecorder(now: () => number = () => Date.now()): VoiceR
       startedAt = null;
       return Promise.resolve({ url: null, durationMs: elapsed });
     },
-    play() {
+    play(_url: string, _onEnd?: () => void) {
       return Promise.resolve();
     },
     stopPlayback() {

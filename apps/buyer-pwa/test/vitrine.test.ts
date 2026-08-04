@@ -644,3 +644,50 @@ describe('VOIX-VISIBLE — the buyer can tell there is a voice to hear', () => {
     }
   });
 });
+
+describe('VOIX-ÉTAT — the player has a face (founder 2026-08-04)', () => {
+  // « the seconds are not counting and the play button doesn't change to pause
+  // button ». Exactly right: the handler drove the <audio> element and nothing
+  // else. A button identical playing and stopped gives her no way to tell
+  // whether her tap worked — on a slow connection that is indistinguishable
+  // from broken.
+  const src = readFileSync(join(import.meta.dirname, '..', 'src', 'vitrine', 'voice-player.ts'), 'utf8');
+
+  it('the glyph swaps to a PAUSE twin, and back on every way playback can stop', () => {
+    expect(src).toContain("glyphe(el, 'pause')");
+    expect(src).toContain("glyphe(hote, 'ecouter')");
+    // ending, being paused, and FAILING all restore it — silence under a
+    // « Pause » glyph is the exact lie this exists to prevent
+    for (const ev of ['ended', 'pause', 'error']) {
+      expect(src, `no restore on ${ev}`).toContain(`addEventListener('${ev}', repos)`);
+    }
+    // a failed play() restores it too
+    expect(src).toContain('.catch(() => repos())');
+  });
+
+  it('the seconds COUNT while it plays, and the total returns when it stops', () => {
+    expect(src).toContain("addEventListener('timeupdate'");
+    expect(src).toContain('fmtVoiceDuration(audio.currentTime * 1000)');
+    expect(src).toContain('horloge(hote, total)'); // the total, restored
+  });
+
+  it('a SECOND note takes over cleanly — the first button never stays stuck', () => {
+    // `repos()` runs before the new host is adopted, so two buttons can never
+    // both read « Pause ».
+    const i = src.indexOf('repos(); // a second note takes over');
+    expect(i).toBeGreaterThan(0);
+    expect(src.indexOf('hote = el;')).toBeGreaterThan(i);
+  });
+
+  it('the pause glyph EXISTS and matches the play glyph’s ring', async () => {
+    const { icon } = await import('../src/icons.js');
+    const pause = icon('pause', 'x');
+    const play = icon('ecouter', 'x');
+    expect(pause).toContain('<svg'); // a missing glyph renders an empty <svg>
+    expect(pause).toContain('circle');
+    expect(pause).not.toBe(play);
+    // same ring radius, so the glyph does not jump size when playback starts
+    expect(pause).toContain('r="9"');
+    expect(play).toContain('r="9"');
+  });
+});

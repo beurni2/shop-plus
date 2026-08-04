@@ -34,6 +34,8 @@ export function useVoiceCapture(): VoiceRecorderAdapter {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const startedAt = useRef<number | null>(null);
   const player = useRef<AudioPlayer | null>(null);
+  /** The current end-of-take subscription, so takes replace it rather than pile up. */
+  const fin = useRef<{ remove: () => void } | null>(null);
 
   return useMemo<VoiceRecorderAdapter>(
     () => ({
@@ -52,14 +54,42 @@ export function useVoiceCapture(): VoiceRecorderAdapter {
         await recorder.stop();
         const durationMs = startedAt.current === null ? 0 : Math.max(0, Date.now() - startedAt.current);
         startedAt.current = null;
-        // Release the recording session so playback routes to the speaker.
-        await setAudioModeAsync({ allowsRecording: false });
+        // ═══ THE SILENT PLAYBACK, AND WHY IT WAS SILENT ═══
+        //
+        // Founder, three times: « I am still not able to listen to the audio
+        // recording from ma vitrine before publishing. » The button was there,
+        // the take was there, the player ran — and he heard nothing.
+        //
+        // `setAudioModeAsync` SETS THE WHOLE MODE; it does not merge. `start()`
+        // sets `playsInSilentMode: true` so recording works, and this call —
+        // whose own comment says « so playback routes to the speaker » —
+        // dropped that flag back to false. On an iPhone with the ringer switch
+        // on silent (which is most iPhones, most of the time) iOS then plays
+        // the take at zero volume. Nothing errors. Nothing is logged. The
+        // feature simply has no sound.
+        //
+        // Both flags are passed now, every time, because a partial mode is a
+        // mode that silently forgets the other half.
+        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
         return { url: recorder.uri, durationMs };
       },
-      async play(url: string) {
+      async play(url: string, onEnd?: () => void) {
+        // Same reason as above: a take played from a screen that never recorded
+        // in this session (she reopens the sheet) has had no `start()` to set
+        // the mode, so playback would be silent on a silent-switched iPhone.
+        // Setting it HERE makes « can I hear my note » independent of whatever
+        // happened before.
+        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
         if (player.current === null) player.current = createAudioPlayer(null);
-        player.current.replace({ uri: url });
-        player.current.play();
+        const p = player.current;
+        fin.current?.remove(); // one listener at a time — takes replace, never stack
+        // WHEN THE TAKE ENDS, SAY SO. Without this the screen never learns that
+        // playback finished, so « Pause » sits over silence until she taps it.
+        fin.current = p.addListener('playbackStatusUpdate', (st) => {
+          if (st.didJustFinish) onEnd?.();
+        });
+        p.replace({ uri: url });
+        p.play();
       },
       async stopPlayback() {
         player.current?.pause();

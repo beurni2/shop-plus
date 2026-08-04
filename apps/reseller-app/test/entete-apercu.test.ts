@@ -185,3 +185,40 @@ describe('6 · listening comes before publishing', () => {
     expect(sheetVoice).toContain('onPress={() => ctl.playRec(pid, n.url!)}');
   });
 });
+
+describe('7 · the three reports of 2026-08-04, round two', () => {
+  it('PLAYBACK IS AUDIBLE — the mode never drops `playsInSilentMode`', () => {
+    // « I am still not able to listen to the audio recording from ma vitrine
+    // before publishing », three times. The button was there, the take was
+    // there, the player ran — and setAudioModeAsync SETS the whole mode rather
+    // than merging, so releasing the recorder dropped the flag that lets an
+    // iPhone on silent make any sound at all. Nothing errored; it just had no
+    // volume.
+    const capture = read('src', 'vitrine', 'customize', 'voice-capture.ts');
+    const appels = capture.match(/setAudioModeAsync\(\{[^}]*\}\)/g) ?? [];
+    expect(appels.length, 'no setAudioModeAsync calls found').toBeGreaterThanOrEqual(3);
+    for (const a of appels) {
+      expect(a, `a partial mode forgets the other half: ${a}`).toContain('playsInSilentMode: true');
+    }
+  });
+
+  it('the button COMES BACK when a take finishes on its own', () => {
+    const capture = read('src', 'vitrine', 'customize', 'voice-capture.ts');
+    const sheet = read('src', 'vitrine', 'customize', 'voice-sheet.tsx');
+    expect(capture).toContain('didJustFinish');
+    expect(capture).toContain("fin.current?.remove()"); // one listener, never a pile
+    expect(sheet).toContain('setPlayingPid((cur) => (cur === pid ? null : cur))');
+  });
+
+  it('APPLIQUER OPENS THE FRAMING, and only when there IS a photo to frame', () => {
+    // One decision, not two: every header frames the cover differently, so the
+    // moment a style is applied is the moment the framing is wrong.
+    expect(screens).toContain('onCadrerApres?.();');
+    // the guard is the SAME one K3's « Ajuster le cadrage » uses
+    const call = screens.slice(screens.indexOf('onCadrerApres={'), screens.indexOf('onBack={back}', screens.indexOf('onCadrerApres={')));
+    expect(call).toContain("sf.cover.status === 'live'");
+    expect(call).toContain('sf.cover.url');
+    expect(call).toContain('onSaveIdentity !== undefined');
+    expect(call).toContain("setFraming('cover')");
+  });
+});

@@ -77,6 +77,46 @@ export function renderVoiceChip(note: ProductVoiceNote | undefined): string {
 export function wireVoicePlay(root: HTMLElement): void {
   let audio: HTMLAudioElement | null = null;
   let current: string | null = null;
+  /** The element currently playing — the one whose glyph and clock we drive. */
+  let hote: HTMLElement | null = null;
+  /** Its total, restored when playback stops. */
+  let total = '';
+
+  /**
+   * ═══ THE PLAYER HAD NO FACE ═══
+   *
+   * Founder, 2026-08-04: « the seconds are not counting and the play button
+   * doesn't change to pause button ». Exactly right, and the cause is that this
+   * handler drove the <audio> element and NOTHING ELSE — the icon and the
+   * duration were rendered once, from the note, and never touched again. A
+   * button that looks identical playing and stopped gives her no way to know
+   * whether her tap worked, which on a slow connection is indistinguishable
+   * from broken.
+   *
+   * The DOM it updates is only ever the button that was tapped, and it is put
+   * back the moment playback ends, pauses or errors — so a re-render (the
+   * vitrine replaces innerHTML on every state change) can never inherit a
+   * stale « Pause » or a frozen clock: the nodes it referred to are gone.
+   */
+  // Found by CLASS, the same way the clock is: `icon()` emits a plain <svg> with
+  // no hook of its own, and adding one to a helper eleven other surfaces share
+  // would be a change to all of them for the sake of this one.
+  const GLYPHE = '.voix-icon, .vt-tile-voix-icon';
+  const glyphe = (el: HTMLElement, nom: 'ecouter' | 'pause'): void => {
+    const cible = el.querySelector(GLYPHE);
+    if (cible instanceof SVGElement) cible.outerHTML = icon(nom, cible.getAttribute('class') ?? '');
+  };
+  const horloge = (el: HTMLElement, texte: string): void => {
+    const cible = el.querySelector('.voix-duration, .vt-tile-voix-dur');
+    if (cible instanceof HTMLElement) cible.textContent = texte;
+  };
+  const repos = (): void => {
+    if (hote === null) return;
+    glyphe(hote, 'ecouter');
+    horloge(hote, total);
+    hote = null;
+  };
+
   root.addEventListener('click', (ev) => {
     const el = (ev.target as HTMLElement).closest('[data-action="voix-produit-play"]');
     if (!(el instanceof HTMLElement)) return;
@@ -85,13 +125,31 @@ export function wireVoicePlay(root: HTMLElement): void {
     if (!src) return;
     if (audio && current === src && !audio.paused) {
       audio.pause();
+      repos();
       return;
     }
-    if (audio === null) audio = new Audio();
+    if (audio === null) {
+      audio = new Audio();
+      // Every way playback can stop puts the button back — ending, being
+      // paused elsewhere, or failing. Silence with a « Pause » glyph over it
+      // is the exact lie this is here to prevent.
+      audio.addEventListener('ended', repos);
+      audio.addEventListener('pause', repos);
+      audio.addEventListener('error', repos);
+      audio.addEventListener('timeupdate', () => {
+        if (hote !== null && audio !== null) horloge(hote, fmtVoiceDuration(audio.currentTime * 1000));
+      });
+    }
     if (current !== src) {
       audio.src = src;
       current = src;
     }
-    void audio.play().catch(() => undefined);
+    repos(); // a second note takes over: the first one's button goes back first
+    hote = el;
+    const dur = el.querySelector('.voix-duration, .vt-tile-voix-dur');
+    total = dur instanceof HTMLElement ? dur.textContent ?? '' : '';
+    glyphe(el, 'pause');
+    horloge(el, fmtVoiceDuration(0));
+    void audio.play().catch(() => repos());
   });
 }

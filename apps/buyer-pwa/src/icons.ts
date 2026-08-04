@@ -36,6 +36,11 @@ const GLYPHS: Record<string, string> = {
     '<path d="M12 3l7.5 4.2v9.6L12 21l-7.5-4.2V7.2L12 3z"></path><path d="M4.5 7.2L12 11.5l7.5-4.3"></path><path d="M12 11.5V21"></path>',
   ecouter:
     '<circle cx="12" cy="12" r="9"></circle><path d="M10.2 8.8l5.2 3.2-5.2 3.2z" fill="currentColor" stroke="none"></path>',
+  // VOIX-ÉTAT — the pause twin of `ecouter`, same 9-radius ring so the glyph
+  // does not jump size when playback starts (founder: « the play button doesn't
+  // change to pause button »).
+  pause:
+    '<circle cx="12" cy="12" r="9"></circle><path d="M10 8.6h1.6v6.8H10zm2.9 0h1.6v6.8h-1.6z" fill="currentColor" stroke="none"></path>',
   enregistrer:
     '<circle cx="12" cy="12" r="8.5"></circle><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"></circle>',
   filtre: '<path d="M4 5h16l-6 7v5.5l-4 2.5v-8L4 5z"></path>',

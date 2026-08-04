@@ -456,6 +456,11 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
         <K4
           sf={sf}
           liveSlug={liveSlug}
+          // Same guard as K3's « Ajuster le cadrage »: a framing sheet needs a
+          // photo to frame AND the save seam the framing persists through.
+          onCadrerApres={
+            onSaveIdentity !== undefined && sf.cover.status === 'live' && sf.cover.url ? () => setFraming('cover') : undefined
+          }
           onBack={back}
           onPick={(key) => {
             setSf(setTheme(sf, key));
@@ -906,7 +911,7 @@ function PortraitSegments({ sf, onPickAvatar, sending, onAdjust }: { sf: Storefr
   );
 }
 
-function K4({ sf, onBack, onPick, onPickEntete, enteteEnCours, liveSlug }: { sf: Storefront; onBack: () => void; onPick: (k: VitrineThemeKey) => void; onPickEntete: (k: HeaderStyleKey) => void; enteteEnCours?: HeaderStyleKey | undefined; liveSlug?: string | undefined }) {
+function K4({ sf, onBack, onPick, onPickEntete, enteteEnCours, liveSlug, onCadrerApres }: { sf: Storefront; onBack: () => void; onPick: (k: VitrineThemeKey) => void; onPickEntete: (k: HeaderStyleKey) => void; enteteEnCours?: HeaderStyleKey | undefined; liveSlug?: string | undefined; onCadrerApres?: (() => void) | undefined }) {
   /**
    * APERÇU AVANT D'APPLIQUER (founder flow, 2026-08-03): a tap no longer
    * changes her shop — it opens the sheet showing that header on her REAL page.
@@ -1005,6 +1010,22 @@ function K4({ sf, onBack, onPick, onPickEntete, enteteEnCours, liveSlug }: { sf:
         onApply={(k) => {
           setApercu(null);
           onPickEntete(k);
+          // CADRER TOUT DE SUITE (founder 2026-08-04: « when a reseller decides
+          // to appliquer a theme and tap on it I want the next slide to be to
+          // adjust the photo on the frame at the same time instead going back
+          // to another screen couverture & portrait to do that »).
+          //
+          // HE IS DESCRIBING ONE DECISION, NOT TWO. Every header frames the
+          // cover differently — Royale's medallion and Héritage's strip keep
+          // completely different parts of the same photograph — so the moment a
+          // style is applied is exactly the moment the framing is wrong and she
+          // knows it. Sending her to another screen to fix what this screen just
+          // broke is the app making its own structure her problem.
+          //
+          // ONLY WHEN THERE IS SOMETHING TO FRAME: the caller passes this
+          // undefined unless a LIVE cover exists, so applying a style on a shop
+          // with no photograph does what it always did and opens nothing.
+          onCadrerApres?.();
         }}
         onClose={() => setApercu(null)}
       />

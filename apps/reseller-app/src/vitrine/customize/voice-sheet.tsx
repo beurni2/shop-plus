@@ -170,7 +170,10 @@ export function useVoiceNotes(onToast: (m: string) => void, upload?: VoiceUpload
     };
     const playRec = async (pid: string, url: string): Promise<void> => {
       if (playingPid === pid) { await recorder.stopPlayback(); setPlayingPid(null); return; }
-      await recorder.play(url); // her own take, local file — real playback
+      // …and when the take ENDS on its own, the button must come back to
+      // « Écouter ». Without this callback it stayed « Pause » over silence
+      // until she tapped it — the founder's second report.
+      await recorder.play(url, () => setPlayingPid((cur) => (cur === pid ? null : cur)));
       setPlayingPid(pid);
     };
     return {
