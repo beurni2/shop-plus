@@ -9,6 +9,11 @@ import {
 import { DispatchIndexDO, DISPATCH_INDEX_NAME } from './dispatch-index-do.js';
 import { ResellerFeedDO, RESELLER_FEED_NAME } from './reseller-feed-do.js';
 import { BuyerLadderDO, ladderName } from './buyer-ladder-do.js';
+import {
+  RESELLER_ACCOUNTS_NAME,
+  ResellerAccountsDO,
+  resoudreCompte,
+} from './reseller-accounts-do.js';
 import { checkoutPreflight, handleRequest, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
 import { SUPPLY_COLLECTION_ROUTE } from '../src/supply-collection.js';
 import { signPrice } from '../src/publish-price.js';
@@ -38,7 +43,7 @@ import {
  *
  * wrangler binds these two classes by their exported names.
  */
-export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO, ResellerFeedDO, BuyerLadderDO };
+export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO, ResellerFeedDO, BuyerLadderDO, ResellerAccountsDO };
 
 interface Env extends WriteAuthEnv {
   STOREFRONT: DurableObjectNamespace;
@@ -58,6 +63,8 @@ interface Env extends WriteAuthEnv {
   RESELLER: DurableObjectNamespace;
   /** SP6.3 — the §6.4 buyer-refusal ladder, one instance per buyer key. */
   LADDER: DurableObjectNamespace;
+  /** RESELLER-ACCOUNTS-1b — the singleton account book (canon v3.8.0). */
+  COMPTES?: DurableObjectNamespace;
   /** SP3.3a — the certified sandbox provider's behaviour knobs. UNSET on the
    *  deploy (the well-behaved provider); read by OrderDO, never by a route. */
   PAYMENT_SANDBOX_BEHAVIOR?: string;
@@ -291,12 +298,33 @@ export default {
       // than throwing a raw TypeError onto the wire.
       if (env.RESELLER === undefined) return withResellerCors(unauthorized());
       const feed = env.RESELLER.get(env.RESELLER.idFromName(RESELLER_FEED_NAME));
-      const mineRes = await feed.fetch(
-        new Request('https://do/mine', { method: 'POST', body: JSON.stringify({ code }) }),
-      );
-      const mine = (await mineRes.json().catch(() => null)) as
-        | { ok?: boolean; resellerId?: string; orders?: { orderId: string }[] }
-        | null;
+      /**
+       * RESELLER-ACCOUNTS-1b — a SESSION opens this read too. Tried first
+       * (its prefix is unambiguous); a resolved-but-not-active account is
+       * refused BY NAME — the founder's pause must read as a pause, never as
+       * a network fault or a bad credential. The legacy feed-code path is
+       * untouched underneath: the founder's own code keeps working.
+       */
+      type MineShape = { ok?: boolean; resellerId?: string; orders?: { orderId: string }[] } | null;
+      let mine: MineShape = null;
+      const compte = await resoudreCompte(env, code);
+      if (compte !== undefined) {
+        if (compte.state === 'paused') {
+          return withResellerCors(Response.json({ ok: false, reason: 'access_paused' }, { status: 403 }));
+        }
+        if (compte.state === 'pending_access') {
+          return withResellerCors(Response.json({ ok: false, reason: 'access_required' }, { status: 403 }));
+        }
+        const rowsRes = await feed.fetch(
+          new Request('https://do/rows', { method: 'POST', body: JSON.stringify({ resellerId: compte.accountId }) }),
+        );
+        mine = (await rowsRes.json().catch(() => null)) as MineShape;
+      } else {
+        const mineRes = await feed.fetch(
+          new Request('https://do/mine', { method: 'POST', body: JSON.stringify({ code }) }),
+        );
+        mine = (await mineRes.json().catch(() => null)) as MineShape;
+      }
       if (mine?.ok !== true || typeof mine.resellerId !== 'string' || !Array.isArray(mine.orders)) {
         return withResellerCors(unauthorized());
       }
@@ -332,6 +360,150 @@ export default {
       const answer = Response.json({ ok: true, ventes, incomplet: illisibles > 0 });
       answer.headers.set('Cache-Control', 'private, no-store');
       return withResellerCors(answer);
+    }
+
+    /**
+     * ═══ RESELLER-ACCOUNTS-1b — THE ACCOUNT DOORS (canon v3.8.0) ═══
+     *
+     * PUBLIC on the same terms as checkout: a stranger holds no key and must
+     * be able to CREATE an account and LOG IN. What that does not open: no
+     * money can arrive or leave through these routes, the admission code is
+     * founder-minted, and every read behind them refuses on account state.
+     * KNOWN RESIDUE (journalled, same class as the open quote POST): no rate
+     * limit in front of signup — that belongs on the real-money gate's
+     * checklist, not on a pretend one here.
+     */
+    if (
+      pathname === '/reseller/signup' ||
+      pathname === '/reseller/login' ||
+      pathname === '/reseller/session' ||
+      pathname === '/reseller/admission'
+    ) {
+      if (request.method === 'OPTIONS') return resellerPreflight();
+      if (request.method !== 'POST') return withResellerCors(unauthorized());
+      if (env.COMPTES === undefined) {
+        return withResellerCors(Response.json({ ok: false, reason: 'accounts_unavailable' }, { status: 503 }));
+      }
+      const comptes = env.COMPTES.get(env.COMPTES.idFromName(RESELLER_ACCOUNTS_NAME));
+      // session/admission authenticate with the Bearer; the DO receives it in
+      // the body because a DO fetch has no ambient auth of its own.
+      if (pathname === '/reseller/session' || pathname === '/reseller/admission') {
+        const auth = request.headers.get('Authorization') ?? '';
+        const session = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
+        const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+        const answer = await comptes.fetch(
+          new Request(`https://do${pathname.slice('/reseller'.length)}`, {
+            method: 'POST',
+            body: JSON.stringify({ ...body, session }),
+          }),
+        );
+        const out = new Response(answer.body, answer);
+        out.headers.set('Cache-Control', 'private, no-store');
+        return withResellerCors(out);
+      }
+      // signup/login carry credentials in the body VERBATIM — the DO's own
+      // allowlist refuses a smuggled field rather than this layer stripping it.
+      const answer = await comptes.fetch(
+        new Request(`https://do${pathname.slice('/reseller'.length)}`, { method: 'POST', body: await request.text() }),
+      );
+      const out = new Response(answer.body, answer);
+      out.headers.set('Cache-Control', 'private, no-store');
+      return withResellerCors(out);
+    }
+
+    /**
+     * THE FOUNDER'S ACCOUNT CONSOLE — roster, pause/resume, admission-code
+     * mint, and the suivi. Key C, the same credential as the dispatch board:
+     * same person, same Worker, same class of act.
+     */
+    if (
+      pathname === '/reseller/accounts' ||
+      pathname === '/reseller/accounts/access-code' ||
+      pathname === '/reseller/accounts/pause' ||
+      pathname === '/reseller/accounts/resume'
+    ) {
+      const isList = pathname === '/reseller/accounts';
+      if (request.method === 'OPTIONS') return dispatchPreflight(isList ? 'GET' : 'POST');
+      if (request.method !== (isList ? 'GET' : 'POST')) return withDispatchCors(unauthorized());
+      const refused = await rejectUnauthorizedOpsRead(request, env);
+      if (refused) return withDispatchCors(refused);
+      if (env.COMPTES === undefined) {
+        return withDispatchCors(Response.json({ ok: false, reason: 'accounts_unavailable' }, { status: 503 }));
+      }
+      const comptes = env.COMPTES.get(env.COMPTES.idFromName(RESELLER_ACCOUNTS_NAME));
+      const cible = isList ? '/accounts' : pathname.slice('/reseller/accounts'.length);
+      return withDispatchCors(
+        await comptes.fetch(
+          new Request(`https://do${cible}`, isList ? undefined : { method: 'POST', body: await request.text() }),
+        ),
+      );
+    }
+
+    /**
+     * LE SUIVI — every account, its confirmed sales and its net, in one read.
+     * Key C. The counts are EXACT COUNTS and the francs are COPIES of frozen
+     * quote nets summed (SP-I04's law, same as the gains ladder) — no score,
+     * no rank is computed anywhere; the console sorts by the count it shows.
+     * Fan-out bounded and HONEST: what could not be read within the budget is
+     * counted and declared per row (`incomplet`), never silently dropped.
+     */
+    if (pathname === '/reseller/suivi') {
+      if (request.method === 'OPTIONS') return dispatchPreflight();
+      if (request.method !== 'GET') return withDispatchCors(unauthorized());
+      const refused = await rejectUnauthorizedOpsRead(request, env);
+      if (refused) return withDispatchCors(refused);
+      if (env.COMPTES === undefined || env.RESELLER === undefined) {
+        return withDispatchCors(Response.json({ ok: false, reason: 'accounts_unavailable' }, { status: 503 }));
+      }
+      const comptes = env.COMPTES.get(env.COMPTES.idFromName(RESELLER_ACCOUNTS_NAME));
+      const listRes = await comptes.fetch(new Request('https://do/accounts'));
+      const list = (await listRes.json().catch(() => null)) as
+        | { ok?: boolean; accounts?: { accountId: string; name: string; state: string }[] }
+        | null;
+      if (list?.ok !== true || !Array.isArray(list.accounts)) {
+        return withDispatchCors(Response.json({ ok: false, reason: 'unreadable' }, { status: 502 }));
+      }
+      const feed = env.RESELLER.get(env.RESELLER.idFromName(RESELLER_FEED_NAME));
+      let budget = feedFanoutMax(env); // one global order-read budget for the whole board
+      const lignes: unknown[] = [];
+      for (const acc of list.accounts.slice(0, 50)) {
+        const rowsRes = await feed
+          .fetch(new Request('https://do/rows', { method: 'POST', body: JSON.stringify({ resellerId: acc.accountId }) }))
+          .catch(() => null);
+        const rows = rowsRes === null
+          ? null
+          : ((await rowsRes.json().catch(() => null)) as { ok?: boolean; orders?: { orderId: string }[] } | null);
+        if (rows?.ok !== true || !Array.isArray(rows.orders)) {
+          lignes.push({ accountId: acc.accountId, name: acc.name, state: acc.state, ventes: 0, netFcfa: 0, incomplet: true });
+          continue;
+        }
+        let net = 0;
+        let lues = 0;
+        let incomplet = false;
+        for (const row of rows.orders) {
+          if (budget <= 0) { incomplet = true; break; }
+          budget -= 1;
+          try {
+            const res = await env.ORDER.get(env.ORDER.idFromName(row.orderId)).fetch(
+              new Request(`https://do/entry/reseller/${encodeURIComponent(acc.accountId)}`),
+            );
+            const v = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+            const projected = projectVente(v);
+            if (projected === null) { incomplet = true; continue; }
+            const p = projected as { state?: unknown; resellerNet?: unknown };
+            if (p.state === 'confirmed' && typeof p.resellerNet === 'number') {
+              net += p.resellerNet;
+              lues += 1;
+            }
+          } catch {
+            incomplet = true;
+          }
+        }
+        lignes.push({ accountId: acc.accountId, name: acc.name, state: acc.state, ventes: lues, netFcfa: net, incomplet });
+      }
+      const answer = Response.json({ ok: true, lignes });
+      answer.headers.set('Cache-Control', 'private, no-store');
+      return withDispatchCors(answer);
     }
 
     /** RF-1a — the founder MINTS and REVOKES a reseller's feed code. His own
@@ -732,8 +904,11 @@ function resellerPreflight(): Response {
     status: 204,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET',
-      'Access-Control-Allow-Headers': 'Accept, Authorization',
+      // RESELLER-ACCOUNTS-1b — the account routes are POSTs on this same
+      // public reseller surface; granting the METHOD grants nothing, every
+      // route still authenticates its own way (session, code, or key C).
+      'Access-Control-Allow-Methods': 'GET, POST',
+      'Access-Control-Allow-Headers': 'Accept, Authorization, Content-Type',
       'Access-Control-Max-Age': '86400',
     },
   });

@@ -198,6 +198,28 @@ export class ResellerFeedDO {
       return Response.json({ ok: true, resellerId: resolved.resellerId, orders });
     }
 
+    /**
+     * RESELLER-ACCOUNTS-1b — the SAME projection keyed by id, for callers the
+     * ROUTER has already authenticated: a session resolved to this accountId
+     * (accounts are minted in the rs-{4 digits} shape the feed already
+     * speaks), or the founder's key-C suivi read. INTERNAL ONLY — a DO fetch
+     * is reachable solely from the composition root, exactly like /register;
+     * no external path leads here, so this is not a second door around the
+     * code book, it is the code book's projection behind someone else's auth.
+     */
+    if (request.method === 'POST' && pathname === '/rows') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      const resellerId = body?.['resellerId'];
+      if (typeof resellerId !== 'string' || resellerId === '' || resellerId.length > 128) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const rows = await this.state.storage.list<FeedRow>({ prefix: `${ROW_PREFIX}${encodeURIComponent(resellerId)}:` });
+      const orders = [...rows.values()]
+        .sort((a, b) => (a.at < b.at ? 1 : -1))
+        .map((r) => ({ orderId: r.orderId, at: r.at }));
+      return Response.json({ ok: true, resellerId, orders });
+    }
+
     return Response.json({ error: 'not_found' }, { status: 404 });
   }
 }

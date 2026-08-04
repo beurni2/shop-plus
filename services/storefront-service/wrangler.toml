@@ -60,6 +60,10 @@ class_name = "ResellerFeedDO"
 name = "LADDER"
 class_name = "BuyerLadderDO"
 
+[[durable_objects.bindings]]
+name = "COMPTES"
+class_name = "ResellerAccountsDO"
+
 # FIRST-DEPLOY MIGRATION — create both DO classes. `new_sqlite_classes` is CORRECT
 # AND MANDATORY, not a coin-flip: Cloudflare stopped issuing key-value-backed DO
 # namespaces (changelog 2026-07-09) to any account without a pre-existing one, and
@@ -109,6 +113,10 @@ new_sqlite_classes = ["ResellerFeedDO"]
 [[migrations]]
 tag = "v6"
 new_sqlite_classes = ["BuyerLadderDO"]
+
+[[migrations]]
+tag = "v7"
+new_sqlite_classes = ["ResellerAccountsDO"]
 
 # The PRIVATE R2 bucket (exists: Standard, jurisdiction default, location hint
 # ENAM). Reads go THROUGH the Worker (GET /media/{key}); never a public custom
