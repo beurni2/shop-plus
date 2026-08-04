@@ -181,13 +181,13 @@
  },
  {
   "key": "gains.title",
-  "fr": "Mes gains (essai)",
-  "register": "neutral",
+  "fr": "Mes gains",
+  "register": "money",
   "screenClass": "label"
  },
  {
   "key": "gains.sous_titre",
-  "fr": "Toujours en net — versé sur votre Mobile Money.",
+  "fr": "Ce que chaque vente vous rapporte, et où elle en est.",
   "register": "money",
   "screenClass": "general"
  },
@@ -253,7 +253,7 @@
  },
  {
   "key": "money.amount_f",
-  "fr": "{amount}\u202fFCFA",
+  "fr": "{amount} FCFA",
   "register": "money",
   "screenClass": "general"
  },
@@ -775,7 +775,7 @@
  },
  {
   "key": "fiche.livraison_note",
-  "fr": "Livraison dès 1\u202f000\u202fFCFA, payée par la cliente.",
+  "fr": "Livraison dès 1 000 FCFA, payée par la cliente.",
   "register": "money",
   "screenClass": "general"
  },
@@ -1285,7 +1285,7 @@
  },
  {
   "key": "k.cover.service",
-  "fr": "Photo pas enregistrée. Ce n\u2019est pas votre photo : réessayez plus tard.",
+  "fr": "Photo pas enregistrée. Ce n’est pas votre photo : réessayez plus tard.",
   "register": "neutral",
   "screenClass": "status"
  },
@@ -1393,31 +1393,31 @@
  },
  {
   "key": "k.entete.appliquer",
-  "fr": "Appliquer cet en-t\u00eate",
+  "fr": "Appliquer cet en-tête",
   "register": "selling",
   "screenClass": "label"
  },
  {
   "key": "k.entete.apercu_chargement",
-  "fr": "Votre boutique arrive\u2026",
+  "fr": "Votre boutique arrive…",
   "register": "neutral",
   "screenClass": "status"
  },
  {
   "key": "k.entete.apercu_echec",
-  "fr": "Aper\u00e7u pas affich\u00e9 : v\u00e9rifiez votre r\u00e9seau.",
+  "fr": "Aperçu pas affiché : vérifiez votre réseau.",
   "register": "neutral",
   "screenClass": "status"
  },
  {
   "key": "k.entete.apercu_maj",
-  "fr": "L\u2019aper\u00e7u en vrai arrive avec la prochaine mise \u00e0 jour de l\u2019application.",
+  "fr": "L’aperçu en vrai arrive avec la prochaine mise à jour de l’application.",
   "register": "neutral",
   "screenClass": "status"
  },
  {
   "key": "k.entete.apercu_hors_ligne",
-  "fr": "Publiez votre boutique pour voir cet en-t\u00eate en vrai.",
+  "fr": "Publiez votre boutique pour voir cet en-tête en vrai.",
   "register": "selling",
   "screenClass": "instruction"
  },
@@ -1525,7 +1525,7 @@
  },
  {
   "key": "k.entete.sub_grenat",
-  "fr": "Un faire-part\u202f: portrait ovale, tout au centre.",
+  "fr": "Un faire-part : portrait ovale, tout au centre.",
   "register": "selling",
   "screenClass": "label"
  },
@@ -1537,7 +1537,7 @@
  },
  {
   "key": "k.entete.sub_kraft",
-  "fr": "Papier kraft, photo scotch\u00e9e, tampon rouge.",
+  "fr": "Papier kraft, photo scotchée, tampon rouge.",
   "register": "selling",
   "screenClass": "label"
  },
@@ -1573,7 +1573,7 @@
  },
  {
   "key": "k.entete.sub_chrome",
-  "fr": "Noir laqu\u00e9, lettres argent et violet.",
+  "fr": "Noir laqué, lettres argent et violet.",
   "register": "selling",
   "screenClass": "label"
  },
@@ -1585,7 +1585,7 @@
  },
  {
   "key": "k.entete.sub_artisan",
-  "fr": "Cuir et vert profond, filets dor\u00e9s.",
+  "fr": "Cuir et vert profond, filets dorés.",
   "register": "selling",
   "screenClass": "label"
  },
@@ -1597,13 +1597,13 @@
  },
  {
   "key": "k.entete.sub_braise",
-  "fr": "Charbon et corail, un soleil derri\u00e8re la photo.",
+  "fr": "Charbon et corail, un soleil derrière la photo.",
   "register": "selling",
   "screenClass": "label"
  },
  {
   "key": "k.entete.nom_karite",
-  "fr": "Karit\u00e9",
+  "fr": "Karité",
   "register": "neutral",
   "screenClass": "label"
  },
@@ -1741,7 +1741,7 @@
  },
  {
   "key": "k.entete.sub_flamboyant",
-  "fr": "La cour à 17\u202fh, lumière dorée et fleurs de feu.",
+  "fr": "La cour à 17 h, lumière dorée et fleurs de feu.",
   "register": "selling",
   "screenClass": "label"
  },
@@ -1837,7 +1837,7 @@
  },
  {
   "key": "k.une.zero_titre",
-  "fr": "Pas encore d\u2019article",
+  "fr": "Pas encore d’article",
   "register": "neutral",
   "screenClass": "status"
  },
@@ -1909,7 +1909,7 @@
  },
  {
   "key": "k.voix.carte_sous",
-  "fr": "Parlez de ce produit \u00e0 vos clientes",
+  "fr": "Parlez de ce produit à vos clientes",
   "register": "selling",
   "screenClass": "instruction"
  },
@@ -1969,7 +1969,7 @@
  },
  {
   "key": "k.voix.avant_publier",
-  "fr": "\u00c9coutez avant de publier",
+  "fr": "Écoutez avant de publier",
   "register": "selling",
   "screenClass": "instruction"
  },
@@ -2005,7 +2005,7 @@
  },
  {
   "key": "k.voix.toast_echec",
-  "fr": "Note pas envoy\u00e9e. R\u00e9essayez dans un moment.",
+  "fr": "Note pas envoyée. Réessayez dans un moment.",
   "register": "neutral",
   "screenClass": "status"
  },
@@ -2407,7 +2407,7 @@
  },
  {
   "key": "ce.parrainage_montant",
-  "fr": "+1\u202f000\u202fFCFA chacune",
+  "fr": "+1 000 FCFA chacune",
   "register": "money",
   "screenClass": "label"
  },
@@ -2425,7 +2425,7 @@
  },
  {
   "key": "ce.toast_parrainage",
-  "fr": "Carte de parrainage copiée — +1\u202f000\u202fFCFA chacune après sa première vente livrée",
+  "fr": "Carte de parrainage copiée — +1 000 FCFA chacune après sa première vente livrée",
   "register": "neutral",
   "screenClass": "status"
  },
@@ -2563,13 +2563,13 @@
  },
  {
   "key": "ce.w3_note_zero",
-  "fr": "0\u202fFCFA = promotion seule, sans argent engagé.",
+  "fr": "0 FCFA = promotion seule, sans argent engagé.",
   "register": "money",
   "screenClass": "status"
  },
  {
   "key": "ce.w3_note_k",
-  "fr": "La cliente paiera la livraison {part} au lieu de 1\u202f000\u202fFCFA.",
+  "fr": "La cliente paiera la livraison {part} au lieu de 1 000 FCFA.",
   "register": "money",
   "screenClass": "status"
  },
@@ -2659,7 +2659,7 @@
  },
  {
   "key": "ce.g2",
-  "fr": "Bloqué : la contribution dépasse le tarif Séra (1\u202f000\u202fFCFA). Séra est financée au franc près, jamais plus, jamais moins.",
+  "fr": "Bloqué : la contribution dépasse le tarif Séra (1 000 FCFA). Séra est financée au franc près, jamais plus, jamais moins.",
   "register": "money",
   "screenClass": "general"
  },
@@ -2731,7 +2731,7 @@
  },
  {
   "key": "ce.a1_meta_prepay",
-  "fr": "{fenetre} · avantage {k} / commande · cliente paie 0\u202fFCFA (prépaiement requis)",
+  "fr": "{fenetre} · avantage {k} / commande · cliente paie 0 FCFA (prépaiement requis)",
   "register": "money",
   "screenClass": "status"
  },
@@ -3154,10 +3154,10 @@
   "fr": "Produits : non relié",
   "register": "neutral",
   "screenClass": "label"
-  },
+ },
  {
   "key": "fiche.cta_non_relie",
-  "fr": "Votre boutique n\u2019est pas encore reli\u00e9e.",
+  "fr": "Votre boutique n’est pas encore reliée.",
   "register": "neutral",
   "screenClass": "label"
  },
@@ -3169,20 +3169,22 @@
  },
  {
   "key": "fiche.publier.ajoute",
-  "fr": "C\u2019est ajout\u00e9 \u00e0 votre vitrine.",
+  "fr": "C’est ajouté à votre vitrine.",
   "register": "selling",
   "screenClass": "instruction"
  },
  {
   "key": "fiche.publier.reessayer",
-  "fr": "Le produit n\u2019a pas r\u00e9pondu. R\u00e9essayez dans un moment.",
+  "fr": "Le produit n’a pas répondu. Réessayez dans un moment.",
   "register": "neutral",
-  "screenClass": "instruction"  },
+  "screenClass": "instruction"
+ },
  {
   "key": "k.publier.en_ligne_sans_slug",
-  "fr": "Votre boutique est en ligne. Son adresse n\u2019est pas encore revenue.",
+  "fr": "Votre boutique est en ligne. Son adresse n’est pas encore revenue.",
   "register": "neutral",
-  "screenClass": "instruction"  },
+  "screenClass": "instruction"
+ },
  {
   "key": "fiche.prix_base",
   "fr": "Prix de base",
@@ -3332,5 +3334,149 @@
   "fr": "Cadrage d'origine rétabli",
   "register": "neutral",
   "screenClass": "status"
+ },
+ {
+  "key": "gains.projected_titre",
+  "fr": "En attente de paiement",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.projected_texte",
+  "fr": "La cliente a commandé. Son paiement n'est pas encore confirmé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.locked_titre",
+  "fr": "Gain bloqué pour vous",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.locked_texte",
+  "fr": "Le paiement est confirmé. Ce montant est à vous et ne bouge plus.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.eligible_titre",
+  "fr": "Prêt à être versé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.eligible_texte",
+  "fr": "Après la livraison confirmée par Séra.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.payable_titre",
+  "fr": "À verser",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.payable_texte",
+  "fr": "Quand le versement sera préparé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.processing_titre",
+  "fr": "Versement en cours",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.processing_texte",
+  "fr": "Quand l'argent sera en route vers vous.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.paid_titre",
+  "fr": "Versé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.paid_texte",
+  "fr": "Quand vous aurez reçu l'argent.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.held_titre",
+  "fr": "En attente d'un contrôle",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.held_texte",
+  "fr": "Si une vente doit être vérifiée avant le versement.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.adjusted_titre",
+  "fr": "Corrigé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.adjusted_texte",
+  "fr": "Si un montant doit être corrigé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.pas_encore",
+  "fr": "Pas encore",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.etape_absente",
+  "fr": "Cette étape n'est pas encore branchée.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.vente_une",
+  "fr": "1 vente",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.ventes_n",
+  "fr": "{n} ventes",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.aucune_vente",
+  "fr": "Aucune vente ici",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "gains.sans_obligation",
+  "fr": "{n} commande(s) sans paiement confirmé. Elles ne comptent pas ici.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.incomplet",
+  "fr": "Nous n'avons pas pu tout lire. Cette liste n'est pas complète.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "gains.pas_de_retrait",
+  "fr": "Shop+ ne garde pas votre argent. Chaque gain suit sa vente.",
+  "register": "money",
+  "screenClass": "general"
  }
 ]

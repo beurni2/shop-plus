@@ -1487,25 +1487,66 @@ export default function App() {
           </ScrollView>
         )}
 
+        {/* SP6.1 — « MES GAINS » ON REAL DATA. This screen used to render
+            `enAttenteNet()`, `payeSemaine()` and `gainsCards()` — all three
+            from the DEMO model over DEMO_SALES, which meant it showed a « Payé
+            cette semaine » figure on a platform where nothing has ever been
+            paid out. Every figure below is a sum of nets copied from frozen
+            quotes, sorted onto the eight settlement states of the plan by
+            `gains-model.ts`, which cannot express a payout at all. */}
         {screen === 'gains' && (
           <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
-            {/* Title (Bricolage 800/28, in-content) + net/Mobile-Money subtitle
-                (frame L644–645); the header chrome shows the brand (hub). */}
-            <Text style={styles.screenTitle}>{t('gains.title')}</Text>
-            <Text style={styles.oppSub}>{t('gains.sous_titre')}</Text>
-            {/* Accent pending hero — the net « en majesté » on magenta (D4a:
-                composed 38+17, §7 count-up in PendingHero, reduced-motion safe). */}
-            {/* D4a — « En attente (net) » (compose 38+17, count-up §7) + Payé semaine. */}
-            <Card style={styles.gainsHeroCard}>
-              <PendingHero label={t('ce.gains_attente_label')} amount={enAttenteNet()} />
-              <Text style={styles.gainsPayeLine}>{tf('ce.gains_paye_semaine', { amount: formatFcfa(payeSemaine()) })}</Text>
-            </Card>
-            {/* D4b — per-sale detail cards; −Cercle line only on campaign orders. */}
-            <Overline>{t('ce.gains_detail_caps')}</Overline>
-            {gainsCards().map((c) => (
-              <GainsSaleCard key={c.code} card={c} />
+            <Text style={styles.screenTitle}>{t(ventesReelles.gains.titreKey)}</Text>
+            {ventesReelles.gains.sousTitreKey !== undefined && (
+              <Text style={styles.oppSub}>{t(ventesReelles.gains.sousTitreKey)}</Text>
+            )}
+
+            {ventesReelles.gains.noticeKeys.map((k) => (
+              <Text key={k} style={styles.noteLine}>
+                {ventesReelles.gains.noticeParams[k] === undefined ? t(k) : tf(k, ventesReelles.gains.noticeParams[k]!)}
+              </Text>
             ))}
-            <Text style={styles.noteLine}>{t('gains.suite')}</Text>
+
+            {/* THE LADDER. Reachable rungs carry her net in the money face;
+                the six that no fact can reach yet stay quiet and SAY so —
+                never a 0 FCFA, which would read as « you earned nothing »
+                rather than « this step does not exist yet ». */}
+            {ventesReelles.gains.paliers.map((p) => (
+              <Card key={p.etat} style={p.enSommeil ? styles.gainsPalierSommeil : undefined}>
+                <Overline>{t(p.titreKey)}</Overline>
+                {p.enSommeil ? (
+                  <Text style={styles.gainsSommeilMontant}>{t('gains.pas_encore')}</Text>
+                ) : (
+                  <Text style={styles.gainsMontant}>{formatFcfa(p.netFcfa)}</Text>
+                )}
+                <Text style={styles.gainsCompte}>
+                  {p.compteN === undefined ? t(p.compteKey) : tf(p.compteKey, { n: p.compteN })}
+                </Text>
+                <Text style={styles.message}>{p.enSommeil ? t('gains.etape_absente') : t(p.texteKey)}</Text>
+                {p.enSommeil && <Text style={styles.gainsCompte}>{t(p.texteKey)}</Text>}
+              </Card>
+            ))}
+
+            {ventesReelles.gains.demandeCode && (
+              <>
+                <TextInput
+                  style={styles.margeInput}
+                  value={codeSaisi}
+                  onChangeText={setCodeSaisi}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  placeholder="SP-"
+                  accessibilityLabel={t('ventes.reel_porte_hint')}
+                />
+                <PrimaryButton
+                  label={t('ventes.reel_porte_titre')}
+                  onPress={() => { void ventesReelles.ouvrir(codeSaisi); }}
+                />
+              </>
+            )}
+            {ventesReelles.gains.kind === 'hors_ligne' && (
+              <SecondaryButton label={t('ventes.reel_chargement')} onPress={() => { void ventesReelles.recharger(); }} />
+            )}
             <SecondaryButton label={t('opportunites.title')} onPress={() => go('opportunites')} />
           </ScrollView>
         )}
@@ -2098,6 +2139,13 @@ const styles = StyleSheet.create({
   },
   // S7 — ventes list + detail.
   venteRowGroup: { gap: spacing.xs },
+  /* SP6.1 — the ladder. A dormant rung is QUIETER, never hidden: same card,
+     same geometry, lower contrast, so the road ahead is visible without
+     competing with the money she actually has. */
+  gainsPalierSommeil: { opacity: 0.55 },
+  gainsMontant: { color: shopColour.deep, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.cardMoney.size, fontWeight: w(t2.scale.cardMoney.wght), fontVariant: ['tabular-nums' as const] },
+  gainsSommeilMontant: { color: sharedColour.sub, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.view.size), fontWeight: w(t2.scale.view.wght) },
+  gainsCompte: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   problemeEncart: { gap: spacing.sm },
   netCard: {
     borderWidth: spacing.xs / 2,

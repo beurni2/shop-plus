@@ -16,6 +16,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { resolveResellerFeed, type ResellerFeedPort } from './feed-service';
 import { vueDesVentes, type FeedVue } from './feed-model';
 import { ecranDesVentes, type VentesEcran } from './feed-screen';
+import { vueDesGains, type GainsVue } from './gains-model';
+import { ecranDesGains, type GainsEcran } from './gains-screen';
 
 /** Where her code lives between sessions. Injected so tests never touch native. */
 export interface CodeStore {
@@ -25,6 +27,18 @@ export interface CodeStore {
 
 export interface VentesReelles {
   readonly ecran: VentesEcran;
+  /**
+   * SP6.1 — the SAME rows, sorted onto the settlement ladder. ONE FETCH, TWO
+   * SURFACES, deliberately: « Mes ventes » and « Mes gains » are two readings
+   * of one answer, so they can never disagree about which sales exist or what
+   * each one is worth. A second endpoint would have made that a matter of
+   * timing.
+   *
+   * The gains view is built from the RAW rows, not from `FeedVue` — `FeedVue`
+   * has already dropped everything that is not `confirmed`, and the ladder's
+   * first rung is precisely the sales that are not confirmed yet.
+   */
+  readonly gains: GainsEcran;
   /** Submit a code typed at the door. Persists it only once it actually opens. */
   readonly ouvrir: (code: string) => Promise<void>;
   readonly recharger: () => Promise<void>;
@@ -32,6 +46,7 @@ export interface VentesReelles {
 
 export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null = resolveResellerFeed()): VentesReelles {
   const [vue, setVue] = useState<FeedVue>(port === null ? { kind: 'not_configured' } : { kind: 'loading' });
+  const [gains, setGains] = useState<GainsVue>(port === null ? { kind: 'non_branche' } : { kind: 'chargement' });
   const code = useRef<string | null>(null);
   /**
    * A monotonic read token. Two reads can be in flight when she retries on a
@@ -45,19 +60,24 @@ export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null
     async (theCode: string): Promise<void> => {
       if (port === null) {
         setVue({ kind: 'not_configured' });
+        setGains({ kind: 'non_branche' });
         return;
       }
       seq.current += 1;
       const mine = seq.current;
       setVue({ kind: 'loading' });
+      setGains({ kind: 'chargement' });
       const res = await port.mesVentes(theCode);
       if (mine !== seq.current) return; // a newer read already answered
       if (!res.ok) {
         setVue(res.reason === 'unauthorized' ? { kind: 'refused' } : { kind: 'unreachable' });
+        setGains(res.reason === 'unauthorized' ? { kind: 'refus' } : { kind: 'hors_ligne' });
         return;
       }
       code.current = theCode;
       setVue(vueDesVentes(res.ventes, res.incomplet));
+      // The RAW rows — see `VentesReelles.gains` for why this cannot read `vue`.
+      setGains(vueDesGains(res.ventes, res.incomplet));
     },
     [port],
   );
@@ -74,6 +94,7 @@ export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null
       if (!alive) return;
       if (stored === null || stored === '') {
         setVue({ kind: 'locked' });
+        setGains({ kind: 'verrouille' });
         return;
       }
       await lire(stored);
@@ -102,10 +123,11 @@ export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null
   const recharger = useCallback(async (): Promise<void> => {
     if (code.current === null) {
       setVue({ kind: 'locked' });
+      setGains({ kind: 'verrouille' });
       return;
     }
     await lire(code.current);
   }, [lire]);
 
-  return { ecran: ecranDesVentes(vue), ouvrir, recharger };
+  return { ecran: ecranDesVentes(vue), gains: ecranDesGains(gains), ouvrir, recharger };
 }
