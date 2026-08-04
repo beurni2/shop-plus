@@ -1802,14 +1802,27 @@ describe('SP6.3 — the buyer rung is enforced at ORDER CREATE, where her phone 
    *  that, and the fix is the right one: whoever records a refusal (the
    *  founder's console today, Séra later) must key it exactly as checkout
    *  does, so the recorder shares the function rather than imitating it. */
-  async function reportRefusal(m: Miniflare, phone: string, reason: string) {
+  /**
+   * REFUS-IDEMPOTENCE-1 — the ladder now requires the ORDER the refusal
+   * happened on, as its idempotency key. Each call here defaults to a FRESH
+   * one, so every existing case below keeps meaning exactly what it meant: a
+   * distinct doorstep. Passing the same id twice is a replay, and that is
+   * asserted where it belongs — on the real route, in `dispatch.e2e.test.ts`.
+   */
+  let doorstepN = 0;
+  async function reportRefusal(m: Miniflare, phone: string, reason: string, orderId?: string) {
     const key = cleAcheteur(phone);
     if (key === null) throw new Error(`unkeyable test phone: ${phone}`);
     const id = await m.getDurableObjectNamespace('LADDER');
     const stub = id.get(id.idFromName(`ladder:${key}`));
     return stub.fetch('https://do/entry/refusal', {
       method: 'POST',
-      body: JSON.stringify({ buyerRef: key, reason, at: new Date().toISOString() }),
+      body: JSON.stringify({
+        buyerRef: key,
+        orderId: orderId ?? `ord-doorstep-${String((doorstepN += 1)).padStart(4, '0')}`,
+        reason,
+        at: new Date().toISOString(),
+      }),
     });
   }
 
@@ -1908,6 +1921,29 @@ describe('SP6.3 — the buyer rung is enforced at ORDER CREATE, where her phone 
     expect(res.status).toBe(400);
     // …and nothing was recorded: her door is still open.
     const created = await doorOrder(mf, '0609', { ...CONTACT, phone: '76 77 88 99' });
+    expect(created.status, created.text).toBe(200);
+  });
+
+  /**
+   * REFUS-IDEMPOTENCE-1 — the key is REQUIRED at the book itself, not merely
+   * supplied by today's one caller. An internal recorder that omitted it would
+   * otherwise get the old count-every-tap behaviour back silently, which is
+   * the exact bug the slice removes; here it is refused by name instead.
+   */
+  it('A REFUSAL WITH NO ORDER IS REFUSED — the idempotency key cannot be skipped by a caller', async () => {
+    const key = cleAcheteur('76 33 44 55')!;
+    const ns = await mf.getDurableObjectNamespace('LADDER');
+    const stub = ns.get(ns.idFromName(`ladder:${key}`));
+    for (const sans of [{}, { orderId: '' }, { orderId: 42 }]) {
+      const res = await stub.fetch('https://do/entry/refusal', {
+        method: 'POST',
+        body: JSON.stringify({ buyerRef: key, reason: 'change_of_mind', at: new Date().toISOString(), ...sans }),
+      });
+      expect(res.status, JSON.stringify(sans)).toBe(400);
+      expect(safeJson(await res.text())['field']).toBe('orderId');
+    }
+    // …and her door is still open: a refused call recorded nothing.
+    const created = await doorOrder(mf, '0610', { ...CONTACT, phone: '76 33 44 55' });
     expect(created.status, created.text).toBe(200);
   });
 });

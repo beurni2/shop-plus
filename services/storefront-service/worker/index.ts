@@ -658,7 +658,17 @@ export default {
           await env.LADDER.get(env.LADDER.idFromName(name)).fetch(
             new Request('https://do/entry/refusal', {
               method: 'POST',
-              body: JSON.stringify({ buyerRef: name, reason: body.reason, at: new Date().toISOString() }),
+              // REFUS-IDEMPOTENCE-1 — the order id travels INTO the ladder as
+              // the idempotency key (founder ruling, option A). It comes from
+              // the path this route already matched, never from the body, so
+              // the one-field allowlist above is untouched and a caller still
+              // cannot say anything about who is being recorded.
+              body: JSON.stringify({
+                buyerRef: name,
+                orderId,
+                reason: body.reason,
+                at: new Date().toISOString(),
+              }),
             }),
           ),
         );

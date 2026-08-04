@@ -1243,16 +1243,93 @@ describe('SP6.3 — recording a refusal from the console: the buyer is named by 
   });
 
   it('THE HAPPY ROAD: two ordinary faults recorded → §6.4 opens the prepay-only window', async () => {
-    const { orderId } = await orderWith('6002', acheteuse('76 00 00 02'));
+    // REFUS-IDEMPOTENCE-1 CORRECTED THIS FIXTURE, and the correction is the
+    // point of the slice: it used to record BOTH faults against ONE order,
+    // which is precisely the double-count the ladder must now refuse. Two
+    // doorsteps means two ORDERS — same woman, same phone, so the same ladder.
+    const phone = '76 00 00 02';
+    const { orderId: premier } = await orderWith('6002', acheteuse(phone));
+    const { orderId: second } = await orderWith('6012', acheteuse(phone));
+    const first = await refuse(premier, { reason: 'change_of_mind' });
+    expect(first.status, first.text).toBe(200);
+    expect(first.json['rung']).toBe('first_fault_recorded');
+    const deuxieme = await refuse(second, { reason: 'insufficient_balance' });
+    expect(deuxieme.status, deuxieme.text).toBe(200);
+    expect(deuxieme.json['rung']).toBe('prepay_only_window');
+    // …and the record that came back is the canonical one, at count 2.
+    const record = deuxieme.json['record'] as Record<string, unknown>;
+    expect(record['buyerRefusalCount']).toBe(2);
+  });
+
+  /**
+   * REFUS-IDEMPOTENCE-1 — THE SLICE'S OWN CLAIM (founder ruling, option A:
+   * « derive it from the order », no wire change).
+   *
+   * §6.4: « 1st ordinary buyer-fault → next order requires higher delivery
+   * commitment or small product deposit; 2nd → FULL_PREPAY for next 3 orders ».
+   * A double-tap or a retry after a dropped response therefore cost a real
+   * buyer full prepayment on three orders for ONE doorstep. It cannot now.
+   */
+  it('A REPLAY OF THE SAME REFUSAL MOVES NOTHING — same order, same reason, byte-identical answer', async () => {
+    const { orderId } = await orderWith('6006', acheteuse('76 00 00 06'));
     const first = await refuse(orderId, { reason: 'change_of_mind' });
     expect(first.status, first.text).toBe(200);
     expect(first.json['rung']).toBe('first_fault_recorded');
-    const second = await refuse(orderId, { reason: 'insufficient_balance' });
-    expect(second.status, second.text).toBe(200);
-    expect(second.json['rung']).toBe('prepay_only_window');
-    // …and the record that came back is the canonical one, at count 2.
-    const record = second.json['record'] as Record<string, unknown>;
+    expect(first.json['replay']).toBeUndefined();
+
+    // The founder's thumb, twice. Or one tap and one retry after the answer
+    // was lost on the way back — indistinguishable from here, which is the
+    // whole reason this key exists.
+    for (const _ of [1, 2, 3]) {
+      const encore = await refuse(orderId, { reason: 'change_of_mind' });
+      expect(encore.status, encore.text).toBe(200);
+      expect(encore.json['replay']).toBe(true);
+      // THE ANSWER IS THE FIRST ONE, not a fresh decision that happens to
+      // match: same rung, same record, same count.
+      expect(encore.json['rung']).toBe('first_fault_recorded');
+      expect(encore.json['record']).toEqual(first.json['record']);
+    }
+
+    // THE CONTROL THAT MAKES THIS TEST WORTH HAVING: her ladder is still at
+    // ONE fault. Read through a DIFFERENT order for the same woman — if the
+    // replays had counted, this next real refusal would land on the prepay
+    // rung instead of being only her second.
+    const { orderId: autre } = await orderWith('6016', acheteuse('76 00 00 06'));
+    const vrai = await refuse(autre, { reason: 'change_of_mind' });
+    expect(vrai.json['rung']).toBe('prepay_only_window');
+    expect((vrai.json['record'] as Record<string, unknown>)['buyerRefusalCount']).toBe(2);
+  });
+
+  it('A DIFFERENT REASON FOR THE SAME ORDER IS 409, NAMING WHAT IS RECORDED — a correction is never silently swallowed', async () => {
+    const { orderId } = await orderWith('6007', acheteuse('76 00 00 07'));
+    expect((await refuse(orderId, { reason: 'change_of_mind' })).status).toBe(200);
+    // He now presses « Fraude » on the same row. Answering 200 with the old
+    // record would show « premier manquement noté » and let him believe the
+    // graver note landed.
+    const corrige = await refuse(orderId, { reason: 'fraud' });
+    expect(corrige.status, corrige.text).toBe(409);
+    expect(corrige.json['reason']).toBe('already_recorded');
+    expect(corrige.json['recorded']).toBe('change_of_mind');
+    // AND THE REFUSED CALL CHANGED NOTHING — she is not restricted, and her
+    // count is still one, verified through a second order.
+    const { orderId: autre } = await orderWith('6017', acheteuse('76 00 00 07'));
+    const suite = await refuse(autre, { reason: 'change_of_mind' });
+    expect(suite.json['rung']).toBe('prepay_only_window');
+    const record = suite.json['record'] as Record<string, unknown>;
     expect(record['buyerRefusalCount']).toBe(2);
+    expect(record['state']).not.toBe('restricted');
+  });
+
+  it('THE KEY IS THE ORDER, NOT THE REASON — the same reason for a DIFFERENT order still counts', async () => {
+    // The mirror of the replay test, and the one that would catch a dedupe
+    // keyed by reason (which would silently forgive every repeat offence).
+    const phone = '76 00 00 08';
+    const { orderId: a } = await orderWith('6008', acheteuse(phone));
+    const { orderId: b } = await orderWith('6018', acheteuse(phone));
+    expect((await refuse(a, { reason: 'change_of_mind' })).json['rung']).toBe('first_fault_recorded');
+    const second = await refuse(b, { reason: 'change_of_mind' });
+    expect(second.json['rung']).toBe('prepay_only_window');
+    expect(second.json['replay']).toBeUndefined();
   });
 
   it('THE CALLER CANNOT NAME THE BUYER — a `phone` field is refused BY NAME, not ignored', async () => {
