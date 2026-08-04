@@ -579,3 +579,68 @@ describe('round 4 — the one-product shop tells no lies below the lead', () => 
     expect(html).toContain('Autres articles');
   });
 });
+
+describe('APERÇU NU — the en-tête preview shows the FRAME, not his photograph', () => {
+  it('blanks BOTH photo frames, and invents nothing to fill them', async () => {
+    const { sansPhotos } = await import('../src/vitrine/flows.js');
+    const sf = {
+      name: 'Chez Aïcha',
+      cover: { status: 'live', url: 'https://m/cover.jpg', focus: { x: 40, y: 60 } },
+      avatar: { mode: 'photo', url: 'https://m/face.jpg' },
+    };
+    const nu = sansPhotos(sf);
+    // The two states a shop that never uploaded anything already has — drawn by
+    // the theme's own woven default. No placeholder, no stand-in photograph.
+    expect(nu.cover).toEqual({ status: 'none' });
+    expect(nu.avatar).toEqual({ mode: 'monogram' });
+    // the stale FRAMING goes with the photo it framed
+    expect(JSON.stringify(nu)).not.toContain('focus');
+    expect(JSON.stringify(nu)).not.toContain('cover.jpg');
+    expect(JSON.stringify(nu)).not.toContain('face.jpg');
+  });
+
+  it('it is a VIEW — the original object is untouched', async () => {
+    // The preview must not be able to change her shop by being looked at, which
+    // is the same rule « Appliquer » exists to keep.
+    const { sansPhotos } = await import('../src/vitrine/flows.js');
+    const sf = { cover: { status: 'live', url: 'u' }, avatar: { mode: 'photo', url: 'v' } };
+    const before = JSON.stringify(sf);
+    void sansPhotos(sf);
+    expect(JSON.stringify(sf)).toBe(before);
+  });
+
+  it('everything else about the shop survives — only the photographs go', async () => {
+    const { sansPhotos } = await import('../src/vitrine/flows.js');
+    const sf = {
+      name: 'Chez Aïcha', slug: 'aicha-4821', theme: 'indigo', headerStyle: 'royale',
+      curatedItems: ['p1', 'p2'], cover: { status: 'live', url: 'u' }, avatar: { mode: 'photo', url: 'v' },
+    };
+    const nu = sansPhotos(sf) as typeof sf;
+    expect(nu.name).toBe('Chez Aïcha');
+    expect(nu.headerStyle).toBe('royale'); // the style being previewed, obviously
+    expect(nu.theme).toBe('indigo');
+    expect(nu.curatedItems).toEqual(['p1', 'p2']);
+  });
+});
+
+describe('VOIX-VISIBLE — the buyer can tell there is a voice to hear', () => {
+  it('the tile chip carries THE WORD, not only a clock', async () => {
+    const { renderVoiceChip } = await import('../src/vitrine/voice-player.js');
+    const html = renderVoiceChip({ status: 'ready', url: 'https://m/a.m4a', durationMs: 5_000 });
+    // « 0:05 » alone reads as a timestamp; a buyer scanning a grid has no reason
+    // to tap it.
+    expect(html).toContain('vt-tile-voix-mot');
+    expect(html).toContain('0:05');
+    // …and the rules that were already right are untouched
+    expect(html).toContain('role="button"'); // never a nested <button>
+    expect(html).toContain('data-action="voix-produit-play"');
+  });
+
+  it('a note that is NOT playable still renders nothing at all', async () => {
+    const { renderVoiceChip, renderVoicePlayer } = await import('../src/vitrine/voice-player.js');
+    for (const bad of [undefined, { status: 'pending', durationMs: 0 }, { status: 'ready', url: '', durationMs: 9 }]) {
+      expect(renderVoiceChip(bad as never), JSON.stringify(bad)).toBe('');
+      expect(renderVoicePlayer(bad as never), JSON.stringify(bad)).toBe('');
+    }
+  });
+});

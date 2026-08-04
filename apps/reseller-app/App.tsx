@@ -1328,14 +1328,35 @@ export default function App() {
                     <Text style={styles.noteLine}>{tf('fiche.plafond', { amount: formatFcfa(v.cap) })}</Text>
                     {/* Note vocale — the mic lives WITH the product (founder Option A);
                         tapping opens the record sheet for THIS article. */}
+                    {/* VOIX-VISIBLE (founder 2026-08-04: « I was talking about
+                        the "ajouter une note vocale" on the product card … make
+                        it be more visible, nice and professional on both sides »).
+
+                        IT WAS A BARE TEXT LINK — a small magenta line with a mic
+                        beside it, sitting under the price rows with no surface of
+                        its own. Next to a full-width « Partager » button it read
+                        as fine print, which is the wrong weight for the one act
+                        that makes her shop sound like a person.
+
+                        It is a real card now: tinted panel, the mic in a filled
+                        disc, the state sentence on top and a second line saying
+                        what it is for. The STATE SENTENCE IS UNCHANGED —
+                        `voiceCardLabel` still decides between « ajouter »,
+                        « à publier » and « en attente », so the card never
+                        claims more than the note actually is. */}
                     <Pressable
                       style={({ pressed }) => [styles.vitrineVoiceBtn, pressed && styles.pressed]}
                       onPress={() => setVoiceSheet({ pid: item.productVersionId, name: item.productName })}
                       accessibilityRole="button"
                       accessibilityLabel={t('k.voix.note_produit')}
                     >
-                      <IconVoix size={dimension.iconSizePx.badge} color={shopColour.primary} />
-                      <Text style={styles.vitrineVoiceLabel}>{voiceCardLabel(voice.notes[item.productVersionId])}</Text>
+                      <View style={styles.vitrineVoiceDisc}>
+                        <IconVoix size={dimension.iconSizePx.badge} color={shopColour.onPrimary} />
+                      </View>
+                      <View style={styles.vitrineVoiceTexte}>
+                        <Text style={styles.vitrineVoiceLabel}>{voiceCardLabel(voice.notes[item.productVersionId])}</Text>
+                        <Text style={styles.vitrineVoiceSous}>{t('k.voix.carte_sous')}</Text>
+                      </View>
                     </Pressable>
                     <SecondaryButton
                       label={t('vitrine.partager')}
@@ -2372,10 +2393,19 @@ const styles = StyleSheet.create({
   gainsPayeLine: { marginTop: spacing.sm, color: shopColour.onPrimary, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
   campagneLigne: { marginTop: spacing.sm, color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size) },
   vitrineVoiceBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    minHeight: touch.minTargetPx, alignSelf: 'flex-start', paddingVertical: spacing.xs,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    minHeight: touch.minTargetPx, paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    borderRadius: radius.card, borderWidth: interaction.hairline.thin,
+    borderColor: sharedColour.hairline, backgroundColor: shopColour.soft,
   },
-  vitrineVoiceLabel: { color: shopColour.primary, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size) },
+  vitrineVoiceDisc: {
+    width: spacing.xxl, height: spacing.xxl, borderRadius: radius.pill,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: shopColour.primary,
+  },
+  vitrineVoiceTexte: { flex: 1, gap: spacing.xs / 2 },
+  vitrineVoiceLabel: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size) },
+  vitrineVoiceSous: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   vitrineCardArt: {
     // RESELLER-UX-3 — SQUARE product-page photo on HER card (founder reference).
     width: '100%',

@@ -366,16 +366,31 @@ export const VITRINE_STYLES = `
      duration). A role="button" <span> inside the tile <button>: its own tap
      target, themed to the accent. The delegated handler plays it; the tile's
      « produit » navigation never fires on a voice tap (closest() wins here). */
+  /* VOIX-VISIBLE (founder 2026-08-04) — it was a small pill showing only a play
+     glyph and « 0:05 », which reads as a timestamp, not as an invitation: a
+     buyer had no way to know a real person had recorded something about this
+     product. It carries the WORD now, full width under the price, on the theme
+     accent so it is the warmest thing on the tile. Still a <span role=button>
+     inside the tile <button> (never a nested <button>), still one delegated
+     handler, still no autoplay. */
   .vt-tile-voix {
-    display: inline-flex; align-items: center; gap: 5px; margin-top: 8px;
-    min-height: 30px; padding: 3px 10px 3px 6px; border-radius: 999px;
+    display: flex; width: 100%; box-sizing: border-box; align-items: center; gap: 7px; margin-top: 8px;
+    min-height: 36px; padding: 5px 12px 5px 7px; border-radius: 999px;
     background: var(--vt-soft); color: var(--vt-deep); cursor: pointer;
     font-family: 'Instrument Sans', system-ui, sans-serif;
     font-size: 11.5px; font-weight: 700; letter-spacing: .2px;
     font-variant-numeric: tabular-nums;
   }
   .vt-tile-voix:active { transform: scale(.97); }
-  .vt-tile-voix-icon { width: 15px; height: 15px; flex: none; }
+  /* The glyph sits in a filled disc — the same house listen affordance the
+     product page uses, so one visual idea means « there is a voice here » in
+     both places. */
+  .vt-tile-voix-icon {
+    width: 14px; height: 14px; flex: none; box-sizing: content-box; padding: 6px;
+    border-radius: 999px; background: var(--vt-accent); color: var(--vt-on);
+  }
+  .vt-tile-voix-mot { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .vt-tile-voix-dur { flex: none; opacity: .75; }
   .vt-featured .vt-tile-voix { flex-basis: 100%; margin-top: 2px; }
 
   /* C-VIT5 — tuile à la une (pleine largeur). */

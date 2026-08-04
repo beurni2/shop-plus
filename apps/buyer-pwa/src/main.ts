@@ -870,6 +870,11 @@ if (app) {
       fromProduct: params.get('demo-vitrine-depuis') === 'produit',
       fige: params.has('demo-vitrine-fige'),
       entete,
+      // APERÇU NU — the reseller's en-tête preview asks for empty photo frames,
+      // so the FRAME is what he compares across forty-three styles instead of
+      // his own cover cropped forty-three ways. View-only: it changes what this
+      // one render draws and nothing that is stored.
+      sansPhotos: params.has('apercu-nu'),
     });
   } else {
     // WO-7.2a — S3 DÉCOUVERTE is the root (« root » entry, founder-ruled) and

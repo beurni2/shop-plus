@@ -48,6 +48,9 @@ export interface VitrineHarness {
    *  over the storefront's own `headerStyle`; ABSENT (undefined) ⇒ the field
    *  drives the render (classique when the field is absent too). */
   readonly entete?: EnteteKey | undefined;
+  /** APERÇU NU — render her header with EMPTY photo frames, so the frame itself
+   *  is what he sees while choosing. View-only; nothing is saved. */
+  readonly sansPhotos?: boolean | undefined;
 }
 
 /**
@@ -64,6 +67,33 @@ export function enteteForRender(
   headerStyle: EnteteKey | undefined,
 ): EnteteKey {
   return override ?? headerStyle ?? 'classique';
+}
+
+/**
+ * APERÇU NU — the header WITHOUT her photographs (founder, 2026-08-04: « on the
+ * entetes webviews do not put the uploaded photo on frames, just leave it
+ * blank »).
+ *
+ * WHY HE IS RIGHT, and it is not only taste: he is choosing between forty-three
+ * FRAMES. With his own cover filling each one, the eye reads the PHOTOGRAPH —
+ * the same picture, forty-three times, cropped slightly differently — and the
+ * frame itself, which is the only thing that actually differs, is the part he
+ * cannot see. Empty, the shape is the subject.
+ *
+ * PURE, AND EXPORTED, for the reason `enteteForRender` is: a rule buried in the
+ * mount is a rule no test can fail loudly.
+ *
+ * IT REMOVES, NEVER INVENTS. The cover falls back to `status: 'none'` and the
+ * avatar to its monogram — the two states a shop that never uploaded anything
+ * already has, drawn by the theme's own woven default. No placeholder image, no
+ * stand-in photograph: this is the honest empty header, not a fake one.
+ *
+ * IT IS A RENDER-TIME VIEW ONLY. Nothing is saved, nothing is patched — the
+ * preview cannot alter her shop by being looked at, which is the same rule
+ * « Appliquer » exists to keep.
+ */
+export function sansPhotos<T extends { cover: unknown; avatar: unknown }>(sf: T): T {
+  return { ...sf, cover: { status: 'none' }, avatar: { mode: 'monogram' } };
 }
 
 /** ENTETES-A perf guard, kept for BOTH sources: classique — every shop that
@@ -196,7 +226,10 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   // (never re-resolved per state), the widened async seam feeding this.
   const render = (etatDemande: VitrineEtat, resolved: Resolved): void => {
     const etat = etatForRender(etatDemande, resolved !== undefined && resolved !== null);
-    const sf = resolved?.storefront;
+    // APERÇU NU — applied HERE, at the single point every render reads the
+    // storefront from, so no branch below can accidentally keep the photograph.
+    const sfBrut = resolved?.storefront;
+    const sf = sfBrut !== undefined && harness.sansPhotos === true ? sansPhotos(sfBrut) : sfBrut;
     // ENTETES-B — the mounted key: `?entete=` (the founder's preview override)
     // when present, else HER `headerStyle`, now that the storefront is in hand.
     // The port already normalised the field (absent/unknown wire ⇒ classique).

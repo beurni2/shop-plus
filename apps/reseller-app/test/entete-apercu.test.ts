@@ -80,10 +80,17 @@ describe('3 · the preview is HER REAL PAGE, not a drawing', () => {
     const { apercuEnteteUrl: apercuUrl } = await import('../src/qr/identity.js');
     for (const key of PICKABLE_HEADER_STYLES) {
       const u = apercuUrl('chez-aicha-1', key);
-      expect(u, key).toMatch(/^https:\/\/[^ ]+\/v\/chez-aicha-1\?entete=[a-z0-9]+$/);
+      // PIN EVOLVED 2026-08-04: the url now also carries `apercu-nu`, which
+      // blanks the photo frames on the previewed page — he is comparing FRAMES,
+      // and his own cover filling each one is what hides the difference.
+      expect(u, key).toMatch(/^https:\/\/[^ ]+\/v\/chez-aicha-1\?entete=[a-z0-9]+&apercu-nu=1$/);
     }
     // a hostile slug cannot break out of the path segment
     expect(apercuUrl('a/b?x=1', 'royale')).toContain('a%2Fb%3Fx%3D1');
+    // and the blanking flag is on EVERY preview, not just the sampled one
+    for (const key of PICKABLE_HEADER_STYLES) {
+      expect(apercuUrl('s', key), key).toContain('&apercu-nu=1');
+    }
   });
 });
 

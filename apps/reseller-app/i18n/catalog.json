@@ -1908,6 +1908,12 @@
   "screenClass": "status"
  },
  {
+  "key": "k.voix.carte_sous",
+  "fr": "Parlez de ce produit \u00e0 vos clientes",
+  "register": "selling",
+  "screenClass": "instruction"
+ },
+ {
   "key": "k.voix.carte_ajouter",
   "fr": "Ajouter une note vocale",
   "register": "selling",

@@ -44,7 +44,10 @@ export function signedProductShareUrl(storeSlug: string, pid: string): string {
  * persists nothing; « Appliquer » is what writes.
  */
 export function apercuEnteteUrl(storeSlug: string, styleKey: string): string {
-  return `${QR_ORIGIN}${QR_BASE}/v/${encodeURIComponent(storeSlug)}?entete=${encodeURIComponent(styleKey)}`;
+  // `apercu-nu` blanks the photo frames on the previewed page (founder,
+  // 2026-08-04): he is comparing FRAMES, and his own cover filling each one is
+  // the thing that hides the difference between them.
+  return `${QR_ORIGIN}${QR_BASE}/v/${encodeURIComponent(storeSlug)}?entete=${encodeURIComponent(styleKey)}&apercu-nu=1`;
 }
 
 /**

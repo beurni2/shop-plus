@@ -60,6 +60,9 @@ export function renderVoiceChip(note: ProductVoiceNote | undefined): string {
   return [
     `<span class="vt-tile-voix" role="button" tabindex="0" data-action="voix-produit-play" data-voix-url="${esc(note.url)}" aria-label="${t('voix_produit.aria')}">`,
     icon('ecouter', 'vt-tile-voix-icon'),
+    // VOIX-VISIBLE — the WORD, not just the clock. « 0:05 » alone reads as a
+    // timestamp; a buyer scanning a grid has no reason to tap it.
+    `<span class="vt-tile-voix-mot">${t('voix_produit.ecouter')}</span>`,
     `<span class="vt-tile-voix-dur">${fmtVoiceDuration(note.durationMs)}</span>`,
     '</span>',
   ].join('');
