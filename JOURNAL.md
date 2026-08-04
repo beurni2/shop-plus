@@ -3268,3 +3268,26 @@ Both flags now travel together, in `stop()` **and** in `play()` — the second b
 **MERGED AND DEPLOYED 2026-08-04** (founder: « Merge and deploy »). CI `30876361407` green on `20e1c67` → fast-forward `5ed46c8..20e1c67` on main (guard passed) → **`pwa-preview` `30876981080`: success** → **`expo-preview` `30876985022`: success, publish step RAN 68 s** (04:12:45→04:13:53), verified at the step.
 
 **THE SPLIT MATTERS THIS TIME:** the buyer's player fix is web and is **live now**. The audio-mode fix and the Appliquer→cadrage jump are **reseller-side JavaScript** — they ride the OTA update, so they reach his phone on the next app launch WITHOUT a build. What still needs the `eas build` is only the WebView itself (the preview sheet's native module).
+
+### J'avais réparé le mauvais lecteur — C1 et son visage
+
+**Founder, 2026-08-04, with the screenshot:** « whenever i say buyer's pwa i mean this screen, the seconds are still not counting when i tap play the audio here and the play button doesn't change to pause button. »
+
+**HE HAD TO SAY IT TWICE BECAUSE I FIXED THE WRONG PLAYER.** This app contains **two implementations of the same idea**: the vitrine's tile/product row (`src/vitrine/voice-player.ts`) and **C1's « La voix » bar with the waveform** (`src/cliente/`). Yesterday I gave the first one a face and reported « the buyer's player » fixed. The screen he opens — the one in every screenshot he has ever sent about audio — is **C1**.
+
+**The defect there was the same, and just as literal:** `jouerLaNote` drove the `<audio>` element and touched **no DOM at all**. `renderC1` drew the triangle once and printed `m.voiceDuree`, a static string. Tapping genuinely played the note and looked exactly like tapping nothing.
+
+· the glyph swaps to **`iconPause`** — new, same 24-grid and fill as `iconPlay`, so it cannot shift size when playback starts — and returns on **ended / pause / error**, and on a **refused `play()`**, which otherwise leaves a pause glyph sitting over silence;
+· `.cl-voix-dur` **ticks** in the same `m:ss` shape `voiceDuree` already uses, so the number while it plays and the number before it started belong to one another; the total returns when it stops;
+· **tapping the note that is playing pauses it** — a pause glyph has to mean something when she taps it;
+· the state lives on the **element that was tapped**, so a re-render (every screen here replaces `innerHTML`) cannot inherit a stale pause: the node it belonged to is gone.
+
+**C5's « Écouter la note » comes through the same function** and gains all of it for free — which is exactly why the shared part was lifted on 2026-07-30.
+
+**`test/cliente-flow.test.ts` is NEW, and deliberately its own file.** Two players in two directories is *how* I fixed the wrong one; a pin named for C1 makes the second implementation visible from the test tree instead of hiding behind a name that could mean either.
+
+**THE PATTERN, THIRD ENTRY THIS WEEK:** he says « the audio », I map it onto the surface I was last looking at, and I fix the neighbour. « Ajouter une note vocale » was the same mistake. **When he names a screen, find THAT screen's code before touching anything** — the app has more than one of most things.
+
+**Evidence:** buyer-pwa **869/869** · tsc exit 0 · **gates board exit 0, ALL GATES GREEN, zero `GATE FAILED`**. Mutation-verified four ways — the button not handed to the player ⇒ fails · the glyph stops swapping ⇒ fails · the clock stops ticking ⇒ fails · a refused play leaves the pause glyph ⇒ fails.
+
+**MERGED AND DEPLOYED 2026-08-04** (founder: « on green merge and deploy »). CI `30881797200` green on `89a9ce1` → fast-forward `fbb7572..89a9ce1` on main (guard passed) → **`pwa-preview` `30882198115`: success**. Web only — no reseller-app change in this batch, so no Expo update was needed.
