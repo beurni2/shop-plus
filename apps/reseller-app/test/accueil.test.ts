@@ -135,6 +135,29 @@ describe('ACCUEIL-HONESTY-1 — a figure on the home screen means a real sale, o
     }
   });
 
+  it('A REFUSED CODE AND AN ABSENT CODE DO NOT SHARE A SENTENCE — founder-found, 2026-08-04', () => {
+    // The first cut paired « Ce code n'ouvre pas. » with « Entrez votre code
+    // dans « Mes gains » pour les voir » — telling her to do the thing she has
+    // just done, and implying the app had not noticed her code at all.
+    const refus = ecranAccueil(ecranDesGains({ kind: 'refus' }), ecranDesVentes({ kind: 'refused' }));
+    const porte = ecranAccueil(ecranDesGains({ kind: 'verrouille' }), ecranDesVentes({ kind: 'locked' }));
+    if (refus.gains.kind !== 'silence' || porte.gains.kind !== 'silence') throw new Error('expected silence');
+
+    expect(refus.gains.titreKey).toBe('ventes.reel_refus_titre');
+    expect(refus.gains.texteKey).toBe('ventes.reel_refus_hint');
+    // the two states are DISTINGUISHABLE in both lines — a shared second line
+    // is what made the refusal read as « we never saw your code »
+    expect(refus.gains.texteKey).not.toBe(porte.gains.texteKey);
+    expect(refus.gains.titreKey).not.toBe(porte.gains.titreKey);
+    // …and both still point her at the door she can act on
+    expect(refus.gains.demandeCode).toBe(true);
+    expect(porte.gains.demandeCode).toBe(true);
+
+    // the sentence must actually tell her what to DO about a bad code
+    const fr = new Map(catalog.map((e) => [e.key, e.fr]));
+    expect((fr.get(refus.gains.texteKey) ?? '').toLowerCase()).toContain('vérifiez');
+  });
+
   it('the preview shows HER rows, capped, and never a name — a reseller surface has never seen a buyer (SP-I03)', () => {
     const rows = [
       vente('ord-1', 'confirmed', 1_000),

@@ -116,7 +116,13 @@ function silence(gains: GainsEcran): AccueilGains {
       return {
         kind: 'silence',
         titreKey: 'ventes.reel_refus_titre',
-        texteKey: 'accueil.gains_verrouille_sub',
+        // « Vérifiez le code, ou demandez-en un nouveau. » — the REFUSED door's
+        // own second line, not the locked door's. Founder-found, 2026-08-04:
+        // the first cut paired « Ce code n'ouvre pas. » with « Entrez votre
+        // code dans « Mes gains » pour les voir », which tells her to do the
+        // thing she has just done. A refused code and an absent code are
+        // different situations and may not share a sentence.
+        texteKey: 'ventes.reel_refus_hint',
         demandeCode: true,
       };
     case 'hors_ligne':
