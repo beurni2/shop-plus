@@ -166,6 +166,71 @@ describe('SP3.3 — the Option-B eligibility gate (§6.1, evaluated at quote, fa
     expect(decision).toMatchObject({ eligible: false, reason: 'zone_not_network_reliable' });
   });
 
+  /**
+   * ═══ OPTION-B-REACHABLE-1 — THE VOCABULARY GAP THAT REFUSED EVERY LISTING ═══
+   *
+   * Founder, 2026-08-04: « Option B still not reachable ». With the zones open
+   * and the tier attested, this was the condition still refusing: Boutik+ writes
+   * the SUPPLIER'S OWN CHIP into `category` (« Mode femme », « Chaussures »…)
+   * and its producer explicitly defers the meaning to Shop+ — « Shop+ allowlists
+   * what it recognises … the only side that may decide what a category MEANS ».
+   * Shop+ compared those French words to §6.2's row names and never matched one.
+   *
+   * These are the eight strings a supplier can actually produce today, asserted
+   * against the SHIPPED policy — not a fixture invented for the test.
+   */
+  it('THE EIGHT REAL BOUTIK+ CHIPS — seven reach §6.2 rows, « Maison » reaches none', () => {
+    const verdict = (category: string) =>
+      decidePayAtDoorEligibility({ ...GATE_CONTEXT, category, buyerTotalFcfa: 12_500, nowIso: T }, PAY_AT_DOOR_POLICY_DEFAULTS);
+    for (const chip of ['Mode femme', 'Mode homme', 'Enfant', 'Sacs', 'Tissus', 'Chaussures', 'Beauté scellée']) {
+      expect(verdict(chip), chip).toMatchObject({ eligible: true });
+    }
+    // §6.2 names four rows and « home goods » is not one of them, so this is the
+    // fail-closed answer, not an omission: no row means no inspection rights.
+    expect(verdict('Maison')).toMatchObject({ eligible: false, reason: 'category_not_inspectable' });
+  });
+
+  it('§6.2’s OWN ROW NAMES still pass — a producer already speaking canon is not broken by the map', () => {
+    for (const row of ['fashion_bags_fabrics', 'shoes', 'sealed_beauty_cosmetics']) {
+      expect(
+        decidePayAtDoorEligibility({ ...GATE_CONTEXT, category: row, buyerTotalFcfa: 12_500, nowIso: T }, PAY_AT_DOOR_POLICY_DEFAULTS),
+        row,
+      ).toMatchObject({ eligible: true });
+    }
+  });
+
+  it('ANYTHING ELSE REFUSES — free text, a typo, a prototype chain member', () => {
+    // `rangeeInspection` is a Map for the reason `categorie-details.ts` states
+    // on its twin: an object literal would resolve `constructor` to a function
+    // and hand the gate a truthy non-row. These are the exact strings that
+    // would have walked past that mistake.
+    for (const junk of ['electronics', 'mode femme', 'MODE FEMME', 'Chaussure', 'constructor', 'toString', '__proto__', '']) {
+      expect(
+        decidePayAtDoorEligibility({ ...GATE_CONTEXT, category: junk, buyerTotalFcfa: 12_500, nowIso: T }, PAY_AT_DOOR_POLICY_DEFAULTS),
+        junk,
+      ).toMatchObject({ eligible: false, reason: 'category_not_inspectable' });
+    }
+  });
+
+  it('THE POLICY STILL NARROWS — a mapped row the founder withdraws is refused, chip and canon name alike', () => {
+    // The two questions stay separate: `rangeeInspection` reads §6.2 (fixed),
+    // `inspectableCategories` is ⏳ FOUNDER-TUNABLE. Closing a row must refuse
+    // BOTH the canonical name and the chip that resolves to it, or the founder
+    // would close a door that stayed open to whoever typed the French word.
+    const noShoes = { ...PAY_AT_DOOR_POLICY_DEFAULTS, inspectableCategories: ['fashion_bags_fabrics'] };
+    for (const shoe of ['shoes', 'Chaussures']) {
+      expect(
+        decidePayAtDoorEligibility({ ...GATE_CONTEXT, category: shoe, buyerTotalFcfa: 12_500, nowIso: T }, noShoes),
+        shoe,
+      ).toMatchObject({ eligible: false, reason: 'category_not_inspectable' });
+    }
+    // …and the row that stayed open is still open, so the narrowing is real and
+    // not a blanket refusal (the control this assertion exists to provide).
+    expect(
+      decidePayAtDoorEligibility({ ...GATE_CONTEXT, category: 'Mode femme', buyerTotalFcfa: 12_500, nowIso: T }, noShoes),
+    ).toMatchObject({ eligible: true });
+  });
+
   it('a NAMED allowlist still allowlists — narrowing later stays possible', () => {
     const narrowed = { ...PAY_AT_DOOR_POLICY_DEFAULTS, networkReliableZones: ['ouaga-centre'] };
     expect(
