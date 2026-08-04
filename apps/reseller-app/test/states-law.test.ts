@@ -16,6 +16,8 @@ import { describe, expect, it } from 'vitest';
 
 const appDir = join(import.meta.dirname, '..');
 const app = readFileSync(join(appDir, 'App.tsx'), 'utf8');
+/** ACCUEIL-HONESTY-1 — the decisions moved here; the pins follow them. */
+const feedScreen = readFileSync(join(appDir, 'src/sales/feed-screen.ts'), 'utf8');
 
 describe('WO-FP-SHOP states-law — every existing rendered state survives the reskin', () => {
   it('EMPTY — the vitrine empty state (kit EmptyState + canon glyph + catalog copy)', () => {
@@ -23,10 +25,50 @@ describe('WO-FP-SHOP states-law — every existing rendered state survives the r
     expect(app).toMatch(/title=\{t\('vitrine\.vide'\)\}/);
   });
 
-  it('EMPTY — the ventes empty state (title + hint + a way forward)', () => {
-    expect(app).toMatch(/title=\{t\('ventes\.vide_titre'\)\}/);
-    expect(app).toMatch(/hint=\{t\('ventes\.vide_hint'\)\}/);
+  /**
+   * ACCUEIL-HONESTY-1 — THE CLAIM IS THE SAME, THE PIN MOVED WITH THE CODE.
+   *
+   * `ventes.vide_titre` and `ventes.vide_hint` used to be App.tsx literals, in
+   * the ACCUEIL preview — the block that rendered `ventesListModel()` over
+   * DEMO_SALES. That block is gone: accueil now paints her real feed and, when
+   * there is no list, renders the FEED'S OWN sentence for whatever state it is
+   * in. The empty state therefore lives in `feed-screen.ts`, which is where a
+   * decision belongs; App.tsx only paints it.
+   *
+   * So the property is asserted in TWO places, exactly where each half now is,
+   * and the state is still title + hint + a way forward.
+   */
+  it('EMPTY — the ventes empty state (title + hint + a way forward), decided in the model and painted by the screen', () => {
+    expect(feedScreen).toMatch(/titreKey: 'ventes\.vide_titre'/);
+    expect(feedScreen).toMatch(/hintKey: 'ventes\.vide_hint'/);
+    // the way forward is an ACTION, so it stays in the screen
     expect(app).toMatch(/label=\{t\('ventes\.vide_action'\)\}/);
+    // …and the screen must actually render whatever title/hint the model chose —
+    // a model that decides an empty state nobody paints is not a state.
+    expect(app).toMatch(/title=\{t\(ventesReelles\.ecran\.titreKey\)\}/);
+    expect(app).toMatch(/title=\{t\(accueil\.apercuEtatKey\)\}/);
+  });
+
+  /**
+   * ACCUEIL-HONESTY-1 — the home screen's own honest states. Before this slice
+   * it had none: it always had two FCFA figures to show, because both were
+   * invented. Now the no-figure case is a designed state.
+   */
+  it('SILENCE — accueil shows a sentence instead of a figure when no honest number exists', () => {
+    expect(app).toMatch(/accueil\.gains\.kind === 'chiffres' \? \(/);
+    expect(app).toMatch(/styles\.ledgerSilence/);
+    expect(app).toMatch(/\{t\(accueil\.gains\.titreKey\)\}/);
+    expect(app).toMatch(/\{t\(accueil\.gains\.texteKey\)\}/);
+    // AND THE DEMO SOURCES ARE NOT REACHABLE FROM THIS SCREEN AT ALL.
+    // Asserted on the IMPORT, not on the word: a comment explaining why they
+    // were removed is worth keeping, and a substring ban would forbid the
+    // explanation while still permitting a re-import written differently.
+    // Un-imported is the property — what cannot be named cannot be rendered.
+    for (const demo of ['MONTHLY_NET_DEMO', 'enAttenteNet', 'ventesListModel']) {
+      expect(app, `${demo} must not be imported by App.tsx`).not.toMatch(
+        new RegExp(`^\\s*${demo},\\s*$`, 'm'),
+      );
+    }
   });
 
   it('PREVIEW/SANDBOX — the honest « aperçu » banner rides behind IS_PREVIEW', () => {

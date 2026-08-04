@@ -37,18 +37,15 @@ import {
 import { produit as cercleProduit, CERCLE_DIVERS, partagerBadge } from './src/cercle/model';
 import { useVentesReelles } from './src/sales/use-ventes-reelles';
 import { expoVenteCodeStore } from './src/sales/code-store';
+import { ecranAccueil } from './src/sales/accueil-model';
 import {
-  ventesListModel,
   demoDetail,
-  type SaleRow,
-  enAttenteNet,
   type SaleDetail,
   type TimelineStep,
 } from './src/sales/ventes';
 import {
   DEMO_SHARE_LINK,
   createDemoWorld,
-  MONTHLY_NET_DEMO,
   sharePidFor,
   type DemoOpportunity,
   type DemoWorld,
@@ -94,15 +91,11 @@ const navColor = (active: boolean): string => (active ? shopColour.deep : shared
  * as calm muted lines, a dashed rule, then the net — the strongest line,
  * never gross-first (SP-I04/SP-I12). */
 
-/** S7 status → chip tone, matching the mockup palette: a PROBLÈME reads « bad »
- * (danger), À LA PORTE — the nearest to the door — reads « warn » (amber), and
- * LIVRÉE is a server fact in « ink » (never money-green, never a lie before the
- * operator); the in-transit/paid middle states stay calm (muted). */
-const chipTone = (row: SaleRow): ChipTone =>
-  row.status === 'probleme' ? 'bad'
-  : row.status === 'a_la_porte' ? 'warn'
-  : row.status === 'livree' ? 'ink'
-  : 'muted';
+/* ACCUEIL-HONESTY-1 — `chipTone(row: SaleRow)` lived here and mapped a DEMO
+ * sale's status onto a chip colour. Its only caller was the accueil preview,
+ * which now paints real `VenteLigne`s in « ink » exactly as « Mes ventes »
+ * does, so the mapping had no input left. Deleted with its caller rather than
+ * left behind for a future screen to rediscover and trust. */
 
 /* S7 detail — the coarse custody timeline (« OÙ EN EST LA COMMANDE »): a dot
  * column (done: ink · now: accent ring + MAINTENANT · later: hairline) + label
@@ -771,16 +764,19 @@ export default function App() {
   // (SP-I19). It carries the live-truth signed link by construction — no
   // commission field exists on the type (SP-I03).
   const shareCard = composeShareCard(DEMO_SHARE_IDENTITY);
-  // S7 — the sales list (net-first, problems-first) + the demo detail (Mariam).
-  const ventesRows = ventesListModel();
   /**
-   * RF-1c — HER REAL SALES. `ventesRows` above still feeds the ACCUEIL preview
-   * (demo world); this screen no longer reads it. The code lives in the same
-   * document directory the reseller identity uses — durable across app-kill,
-   * reboot and an EAS republish — and never in the bundle.
+   * RF-1c — HER REAL SALES. The code lives in the same document directory the
+   * reseller identity uses — durable across app-kill, reboot and an EAS
+   * republish — and never in the bundle.
+   *
+   * ACCUEIL-HONESTY-1 — and ACCUEIL now reads the same hook. The home screen
+   * used to render `ventesListModel()` and two demo money constants; it is a
+   * projection of these two honest screens instead, so it cannot disagree with
+   * the tab it links to. ONE fetch still, for all three surfaces.
    */
   const [codeSaisi, setCodeSaisi] = useState('');
   const ventesReelles = useVentesReelles(venteCodeStore);
+  const accueil = ecranAccueil(ventesReelles.gains, ventesReelles.ecran);
   const saleDetail = demoDetail();
   const headerTitle =
     screen === 'vente_detail'
@@ -839,19 +835,34 @@ export default function App() {
             <Text style={styles.greeting}>{tf('accueil.bonjour', { name: DEMO_SHARE_IDENTITY.resellerName })}</Text>
             <Text style={styles.homeTagline}>{t('accueil.tagline')}</Text>
 
-            {/* Two ledger cards — caps label · Bricolage 800/24 tnum · sub-line (net-first: the money is the figure) */}
-            <View style={styles.homeStatGrid}>
-              <Card style={styles.ledgerCard}>
-                <Overline>{t('accueil.gains_mois_label')}</Overline>
-                <Text style={styles.ledgerMoneyDeep}>{formatFcfa(MONTHLY_NET_DEMO)}</Text>
-                <Text style={styles.ledgerCardSub}>{t('accueil.gains_mois_sub')}</Text>
+            {/* ACCUEIL-HONESTY-1 — the ledger cards, from her REAL ladder.
+                Every figure here is a sum of amounts copied off frozen quotes
+                for sales that exist; when there is no honest number the block
+                says a sentence instead of a zero. Which cards appear is
+                derived (`accueil-model.ts`), never chosen. */}
+            {accueil.gains.kind === 'chiffres' ? (
+              <View style={styles.homeStatGrid}>
+                {accueil.gains.cartes.map((c, i) => (
+                  <Card key={c.etat} style={styles.ledgerCard}>
+                    <Overline>{t(c.libelleKey)}</Overline>
+                    <Text style={i === 0 ? styles.ledgerMoney : styles.ledgerMoneyDeep}>{formatFcfa(c.netFcfa)}</Text>
+                    <Text style={styles.ledgerCardSub}>
+                      {c.compteN === undefined ? t(c.compteKey) : tf(c.compteKey, { n: c.compteN })}
+                    </Text>
+                  </Card>
+                ))}
+              </View>
+            ) : (
+              <Card style={styles.ledgerSilence}>
+                <Text style={styles.cardTitle}>{t(accueil.gains.titreKey)}</Text>
+                <Text style={styles.ledgerCardSub}>{t(accueil.gains.texteKey)}</Text>
+                {accueil.gains.demandeCode && (
+                  <Pressable style={({ pressed }) => [styles.toutVoirPill, pressed && styles.pressed]} onPress={() => go('gains')} accessibilityRole="button">
+                    <Text style={styles.toutVoirText}>{t('accueil.card_gains')}</Text>
+                  </Pressable>
+                )}
               </Card>
-              <Card style={styles.ledgerCard}>
-                <Overline>{t('accueil.attente_label')}</Overline>
-                <Text style={styles.ledgerMoney}>{formatFcfa(enAttenteNet())}</Text>
-                <Text style={styles.ledgerCardSub}>{t('accueil.attente_sub')}</Text>
-              </Card>
-            </View>
+            )}
 
             {/* Primary CTA — accent, Bricolage 700/16 + canon IconProduits (frame's decorative
                 sparkle is not a canon glyph — the 29-icon set is geometry-locked; divergence listed). */}
@@ -868,24 +879,34 @@ export default function App() {
               </Pressable>
             </View>
 
-            {/* Active-sales rows — the duotone art-tile treatment (replaces the letter-chip) */}
-            {ventesRows.length === 0 ? (
-              <EmptyState glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />} title={t('ventes.vide_titre')} hint={t('ventes.vide_hint')} />
+            {/* ACCUEIL-HONESTY-1 — HER sales, or the feed's own honest sentence.
+                These rows used to come from `ventesListModel()` over DEMO_SALES
+                and named customers who are not hers. A reseller surface has
+                never seen a buyer's name and does not start now (SP-I03), so
+                the row is net-first with its state chip — the same shape « Mes
+                ventes » paints, because it is the same row. */}
+            {accueil.apercuEtatKey !== undefined ? (
+              <EmptyState
+                glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />}
+                title={t(accueil.apercuEtatKey)}
+                {...(accueil.apercuHintKey === undefined ? {} : { hint: t(accueil.apercuHintKey) })}
+              />
             ) : (
               <View style={styles.homeSalesList}>
-                {ventesRows.slice(0, 2).map((row) => (
-                  <Pressable key={row.id} style={({ pressed }) => [styles.homeSaleRow, pressed && styles.pressed]} onPress={() => go('ventes')} accessibilityRole="button">
+                {accueil.apercu.map((ligne) => (
+                  <Pressable key={ligne.orderId} style={({ pressed }) => [styles.homeSaleRow, pressed && styles.pressed]} onPress={() => go('ventes')} accessibilityRole="button">
                     <View style={styles.artTile}>
                       <View style={styles.artTileStripe} />
-                      <Text style={styles.artTileGlyph}>{row.productName.slice(0, 1)}</Text>
                     </View>
                     <View style={styles.homeSaleBody}>
-                      <Text style={styles.homeSaleTitle} numberOfLines={1}>{row.clientFirstName}</Text>
-                      <Text style={styles.homeSaleSub} numberOfLines={1}>{row.productName}</Text>
+                      <Text style={styles.homeSaleTitle} numberOfLines={1}>
+                        {tf('ventes.net_ligne', { amount: formatFcfa(ligne.netFcfa) })}
+                      </Text>
                     </View>
-                    <StatusChip tone={chipTone(row)} label={t(row.statusKey)} />
+                    <StatusChip tone="ink" label={t(ligne.etatKey)} />
                   </Pressable>
                 ))}
+                <Text style={styles.noteLine}>{t('accueil.apercu_suite')}</Text>
               </View>
             )}
 
@@ -1939,6 +1960,10 @@ const styles = StyleSheet.create({
   homeTagline: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   homeStatGrid: { flexDirection: 'row', gap: spacing.md },
   ledgerCard: { flex: 1 },
+  // ACCUEIL-HONESTY-1 — the no-figure block. Full width because it replaces
+  // BOTH cards: half a grid with one card in it would read as a figure that
+  // failed to load, which is the opposite of what it says.
+  ledgerSilence: { gap: spacing.xs, alignItems: 'flex-start' },
   ledgerMoneyDeep: { color: shopColour.deep, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.cardMoney.size, fontWeight: w(t2.scale.cardMoney.wght), fontVariant: ['tabular-nums'] },
   ledgerMoney: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.cardMoney.size, fontWeight: w(t2.scale.cardMoney.wght), fontVariant: ['tabular-nums'] },
   ledgerCardSub: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size },
