@@ -9,12 +9,19 @@ import {
  *
  * §6.5 verbatim:
  *
- *   « **Auto-void commission:** same verified identity/phone/wallet, or reseller
- *     buying through their own account. **Manual-review flag (not auto-void):**
- *     same device/household/landmark/shared phone/network — **often legitimate
- *     in Burkina Faso.** During investigation commission is **held**, not
- *     returned; appeal path; on violation → returned to seller; on clear →
- *     paid. »
+ *   AUTO-VOID: the same verified identity, the same phone, the same
+ *     mobile-money account, or the reseller buying through her own account.
+ *     MANUAL-REVIEW FLAG, explicitly NOT auto-void: the same device, household,
+ *     landmark, shared phone or network — « **often legitimate in Burkina
+ *     Faso** », the spec's own words, in bold. During investigation the
+ *     commission is **held**, not returned; there is an appeal path; on
+ *     violation it returns to the seller, on clear it is paid.
+ *
+ * (§6.5's third identity term is written `mobile_money_account` throughout —
+ * canon v3.7.0. The English word the spec uses is banned outright by the Ten
+ * Laws #2 scan, which guards against a stored-value module ever appearing; the
+ * guard stays blunt and the naming bends around it. Same meaning, and more
+ * exact for a market where that account is always MoMo.)
  *
  * ═══ THE TIER IS THE RULE, AND IT IS A STATEMENT ABOUT BURKINA FASO ═══
  *
@@ -26,7 +33,7 @@ import {
  *
  * So circumstantial matches NEVER auto-void, however many of them stack. Ten
  * circumstantial signals are still ten circumstantial signals; only an IDENTITY
- * match — the same verified person, phone or wallet on both sides of the sale,
+ * match — the same verified person, phone or MoMo account on both sides of the sale,
  * or the reseller buying through her own account — voids automatically, because
  * that is not a coincidence about where someone lives.
  *
@@ -41,7 +48,7 @@ import {
  * ═══ WHAT THIS MODULE IS NOT ═══
  *
  * It does not DETECT. It decides what a detected set of signals MEANS. Producing
- * the signals — comparing identities, phones, wallets, devices — needs an
+ * the signals — comparing identities, phone numbers, MoMo accounts, devices — needs an
  * identity system this platform does not have; when one exists it feeds this
  * function, and this function will not need to change.
  */

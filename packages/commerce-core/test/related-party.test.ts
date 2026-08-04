@@ -12,7 +12,7 @@ import { RELATED_PARTY_POLICY_VERSION, commissionRetenue, decideRelatedParty } f
  */
 
 const T = '2026-08-04T09:00:00.000Z';
-const IDENTITY = ['verified_identity', 'phone', 'wallet', 'own_account'] as const;
+const IDENTITY = ['verified_identity', 'phone', 'mobile_money_account', 'own_account'] as const;
 const CIRCUMSTANTIAL = ['device', 'household', 'landmark', 'shared_phone', 'network'] as const;
 
 const decide = (identity: readonly string[], circumstantial: readonly string[]) =>
@@ -50,7 +50,7 @@ describe('§6.5 — identity signals auto-void, and are never softened', () => {
     // the phone match is explained ». Buying through your own account is not
     // explained by your address.
     expect(decide(['own_account'], CIRCUMSTANTIAL).outcome).toBe('auto_void');
-    expect(decide(['wallet'], ['household']).outcome).toBe('auto_void');
+    expect(decide(['mobile_money_account'], ['household']).outcome).toBe('auto_void');
   });
 });
 
@@ -85,7 +85,7 @@ describe('§6.5 — no signals is CLEAR, and the decision is auditable', () => {
   it('the input is COPIED, not captured — a caller mutating its array cannot move a decision', () => {
     const identity: string[] = [];
     const d = decideRelatedParty({ orderId: 'ord_0001', signals: { identity, circumstantial: ['device'] } as never, nowIso: T });
-    identity.push('wallet');
+    identity.push('mobile_money_account');
     expect(d.signals.identity).toEqual([]);
     expect(d.outcome).toBe('held_for_review');
   });
