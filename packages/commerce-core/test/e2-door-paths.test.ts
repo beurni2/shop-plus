@@ -212,7 +212,7 @@ describe('SP3.3 — the Option-B eligibility gate (§6.1, evaluated at quote, fa
     }
   });
 
-  it('THE POLICY STILL NARROWS — a mapped row the founder withdraws is refused, chip and canon name alike', () => {
+  it('THE POLICY STILL NARROWS — a mapped row the founder CLOSES is refused, chip and canon name alike', () => {
     // The two questions stay separate: `rangeeInspection` reads §6.2 (fixed),
     // `inspectableCategories` is ⏳ FOUNDER-TUNABLE. Closing a row must refuse
     // BOTH the canonical name and the chip that resolves to it, or the founder

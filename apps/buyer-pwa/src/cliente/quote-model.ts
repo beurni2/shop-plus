@@ -416,12 +416,26 @@ export async function fetchClienteQuote(
 
   // ═══ BOTH ASKS GO OUT TOGETHER; ONLY ONE OF THEM CAN HOLD UP THE BILL ═══
   //
-  // Serialized, the door ask — which the service refuses for EVERY buyer today —
-  // sat in front of the price. Issued together, a slow pair costs one wait
-  // instead of two. But `Promise.all` alone was not enough: it still AWAITS the
-  // door, so one STALLED door ask held the whole bill hostage for 13.7 s
-  // (measured). Ten Laws #7 puts the low-end phone on the slow link first, and
-  // that wait buys her nothing — the option at the end of it is refused today.
+  // Serialized, the door ask sat in front of the price. Issued together, a slow
+  // pair costs one wait instead of two. But `Promise.all` alone was not enough:
+  // it still AWAITS the door, so one STALLED door ask held the whole bill
+  // hostage for 13.7 s (measured). Ten Laws #7 puts the low-end phone on the
+  // slow link first, and the BILL must never wait on the OPTION.
+  //
+  // NOTE — THE JUSTIFICATION FOR THE DEADLINE CHANGED ON 2026-08-04, AND SAYING SO
+  // IS THE POINT. This comment used to add « that wait buys her nothing — the
+  // option at the end of it is refused today », which was true while §6.1
+  // refused every door request and made 1 500 ms an easy number to pick.
+  // OPTION-B-REACHABLE-1 ended that: the door ask can now come back with a real
+  // quote, and it is also the SLOWER of the two, because only it makes the
+  // service read supply from boutik.
+  //
+  // The deadline STAYS — a stalled option must never hold a bill — but note
+  // what it now budgets: not a whole request, only the extra cross-Worker fetch,
+  // measured from the moment the FULL ask has already answered. If Option B
+  // starts appearing intermittently on a slow link, this constant is the first
+  // place to look, and it should be raised against a measurement rather than a
+  // guess (flagged to the founder, not silently retuned).
   //
   // So: the FULL ask has NO deadline and stays fully authoritative — its
   // refusal, its `unreachable`, its `unreadable` all decide the screen exactly

@@ -304,7 +304,7 @@ export function decidePayAtDoorEligibility(
   // knows « Chaussures » IS shoes.
   //
   // BOTH HALVES REFUSE. A category §6.2 does not name resolves to `null`; a row
-  // §6.2 names but the policy has withdrawn is not in the list. Either way the
+  // §6.2 names but the policy has since CLOSED is not in the list. Either way the
   // door is not offered, and the buyer's checklist (which reads the SAME map,
   // through the customer projection) shows the cautious row rather than
   // promising rights she does not have.

@@ -533,12 +533,20 @@ async function readOrder(res: Response): Promise<OrderOutcome> {
  *     appears while a real request is in flight — the waiting skeleton, a slow
  *     3G stall, a request that arrives after the buyer has walked back — is
  *     exercised by it. The real port is the only place those are real.
- *   · THE §6.1 DOOR REFUSAL. The live service refuses EVERY pay-at-door request
- *     today (`PAY_AT_DOOR_POLICY_DEFAULTS` ships an empty `networkReliableZones`
- *     allowlist), so on the real path « Payer à la livraison » is unavailable.
- *     This mock answers a door quote instead, which makes the demo look MORE
- *     capable than production. It is the harness's one deliberate optimism and
- *     it must never be read as evidence that mode B works.
+ *   · THE §6.1 DOOR CONDITIONS. This entry said, until 2026-08-04, that « the
+ *     live service refuses EVERY pay-at-door request today » because of an empty
+ *     zone allowlist. Both halves of that are now out of date — the founder
+ *     opened the zones on 2026-08-01, and OPTION-B-REACHABLE-1 closed the two
+ *     real blockers behind it (§6.4's record had no server-side producer, and
+ *     §6.2's rows were compared against the supplier's French chip). The live
+ *     service ISSUES an Option-B quote now.
+ *
+ *     WHAT STAYS TRUE ABOUT THIS MOCK, which is the point of the entry: it
+ *     answers a door quote UNCONDITIONALLY. It has no seller tier, no category,
+ *     no price cap — so it says yes for products the real gate refuses (an
+ *     unattested supplier, « Maison », anything over 25 000 F). It is still more
+ *     capable than production and still must not be read as evidence that a
+ *     GIVEN product is door-eligible.
  *   · EXPIRY AS A SERVER BEHAVIOUR. It stamps a shape-true expiry 15 minutes out
  *     (`QUOTE_TTL_MS`, the vault's own figure) so the flow's expiry gate has a
  *     real instant to compare against — but it will happily re-issue a fresh one
