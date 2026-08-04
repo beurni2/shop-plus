@@ -3246,3 +3246,25 @@ Buyer: an inline-flex outline chip that read as a minor link beside the price. O
 **MERGED AND DEPLOYED 2026-08-04** (founder: « go »). CI `30874230440` green on `cbdddad` → fast-forward `c643da9..cbdddad` on main (guard passed) → **`pwa-preview` `30874760668`: success** → **`expo-preview` `30874764422`: success, publish step RAN 67 s** (03:26:53→03:28:00), verified at the step. No service or canon change, so nothing else was redeployed.
 
 **Still owed:** the `eas build`. The en-tête preview sheet — the WebView itself, the 404 fix, the drag-to-close, the taller band, and now the blank frames — is the only thing waiting on it. Both voice affordances shipped over the air in this update.
+
+### Le son muet, le lecteur sans visage, et le cadrage là où le style se choisit
+
+**Founder, 2026-08-04.** Three reports, three genuinely different causes — and the first one I had been failing to hear for three rounds.
+
+**1 · « I am still not able to listen to the audio recording from ma vitrine before publishing » — THE THIRD TIME HE SAID IT.** Twice I answered by redesigning the button. The button was never the problem.
+
+`setAudioModeAsync` **sets the whole audio mode; it does not merge.** `start()` sets `playsInSilentMode: true` so recording works; `stop()` — whose own comment reads « so playback routes to the speaker » — passed `{ allowsRecording: false }` alone and **dropped that flag back to false**. On an iPhone with the ringer switch on silent, which is most iPhones most of the time, iOS then plays the take at **zero volume**. Nothing throws. Nothing logs. The feature simply has no sound, which from his side is indistinguishable from a dead button — so « I cannot listen » was exactly, literally accurate every time.
+
+**THE LESSON, written down because it cost three rounds:** he reported a *symptom* (« I cannot listen ») and I kept reading it as a *design* complaint (« the button is hard to find »). A report about whether something WORKS deserves a test of the mechanism before a redesign of its surface.
+
+Both flags now travel together, in `stop()` **and** in `play()` — the second because a take played from a freshly-opened sheet has had no `start()` to set the mode at all. **The pin asserts EVERY `setAudioModeAsync` call carries it**, so a partial mode cannot creep back in a future edit.
+
+**2 · « the seconds are not counting and the play button doesn't change to pause button » — precisely right.** `wireVoicePlay` drove the `<audio>` element and **nothing else**: the icon and the duration were rendered once, from the note, and never touched again. A button that looks identical playing and stopped gives her no way to know her tap landed; on a slow connection that is indistinguishable from broken. It now swaps the glyph to a pause twin (**same 9-radius ring**, so it does not jump size), ticks the elapsed seconds on `timeupdate`, and restores both on **ended / pause / error / a failed `play()`**. A second note restores the first button before adopting the new one, so two can never both read « Pause ».
+
+**3 · « when a reseller decides to appliquer a theme … I want the next slide to be to adjust the photo on the frame at the same time » — one decision, not two.** Every header frames the cover differently: Royale's medallion and Héritage's strip keep completely different parts of the same photograph. So the moment a style is applied **is** the moment the framing is wrong, and she knows it. Sending her to another screen to fix what this screen just broke is the app making its own structure her problem. « Appliquer » now opens the framing sheet directly, under the **same guard** K3's « Ajuster le cadrage » uses — a live cover plus the save seam — so applying a style on a shop with no photograph opens nothing, exactly as before.
+
+**Evidence:** reseller-app **480/480** · buyer-pwa **864/864** · tsc exit 0 both · **gates board exit 0, ALL GATES GREEN, zero `GATE FAILED`**. Mutation-verified four ways — the silent-mode flag dropped again ⇒ fails · Appliquer stops opening the framing ⇒ fails · the glyph stops swapping ⇒ fails · the clock stops ticking ⇒ fails.
+
+**MERGED AND DEPLOYED 2026-08-04** (founder: « Merge and deploy »). CI `30876361407` green on `20e1c67` → fast-forward `5ed46c8..20e1c67` on main (guard passed) → **`pwa-preview` `30876981080`: success** → **`expo-preview` `30876985022`: success, publish step RAN 68 s** (04:12:45→04:13:53), verified at the step.
+
+**THE SPLIT MATTERS THIS TIME:** the buyer's player fix is web and is **live now**. The audio-mode fix and the Appliquer→cadrage jump are **reseller-side JavaScript** — they ride the OTA update, so they reach his phone on the next app launch WITHOUT a build. What still needs the `eas build` is only the WebView itself (the preview sheet's native module).
