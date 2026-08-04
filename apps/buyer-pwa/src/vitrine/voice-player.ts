@@ -37,7 +37,14 @@ export function renderVoicePlayer(note: ProductVoiceNote | undefined): string {
     '<div class="voix-note" data-role="voix-produit">',
     `<button class="voix-btn" type="button" data-action="voix-produit-play" data-voix-url="${esc(note.url)}" aria-label="${t('voix_produit.aria')}">`,
     icon('ecouter', 'voix-icon'),
+    // VOIX-VISIBLE — the label carries a SECOND line saying whose voice it is.
+    // « Écouter la note » alone does not tell a first-time buyer that a real
+    // person recorded this about this product, which is the entire reason the
+    // row earns its space.
+    '<span class="voix-texte">',
     `<span class="voix-label">${t('voix_produit.ecouter')}</span>`,
+    `<span class="voix-sous">${t('voix_produit.sous')}</span>`,
+    '</span>',
     `<span class="voix-duration">${fmtVoiceDuration(note.durationMs)}</span>`,
     '</button>',
     '</div>',

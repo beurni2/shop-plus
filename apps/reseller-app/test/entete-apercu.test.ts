@@ -94,7 +94,11 @@ describe('4 · the honest states are real states', () => {
     expect(sheet).toContain("t('k.entete.apercu_chargement')");
     expect(sheet).toContain("t('k.entete.apercu_echec')");
     expect(sheet).toContain('onError={() => setEtat(\'echec\')}');
-    expect(sheet).toContain('onHttpError={() => setEtat(\'echec\')}');
+    // PIN EVOLVED 2026-08-04: `onHttpError` is no longer a blanket failure —
+    // the SPA fallback's 404 is the mechanism, not a fault (see describe 5).
+    // It still fails on every other status, which is what this asserts.
+    expect(sheet).toContain('setEtat(\'echec\');');
+    expect(sheet).toContain('e.nativeEvent.statusCode !== 404');
     // and a failure offers the way out, not just the news
     expect(sheet).toContain("t('k.cover.reessayer')");
   });
@@ -106,5 +110,71 @@ describe('4 · the honest states are real states', () => {
       expect(e!.fr.length, `${key} empty`).toBeGreaterThan(0);
       expect(e!.register, `${key} untagged`).toBeTruthy();
     }
+  });
+});
+
+describe('5 · the founder’s three defects, 2026-08-04', () => {
+  it('THE SPA FALLBACK’S 404 IS NOT A FAILURE — it is how every /v/ link resolves', () => {
+    // His screenshot showed « Aperçu pas affiché » over a shop that was online.
+    // GitHub Pages is a STATIC host: /shop-plus/v/{slug} matches no file, so it
+    // answers 404 with 404.html, whose script rewrites the path and the app
+    // boots. Treating that as an error painted failure over a page that was
+    // about to load. Every OTHER status is still a real failure.
+    expect(sheet).toContain('if (e.nativeEvent.statusCode !== 404) setEtat(\'echec\');');
+    expect(sheet).toContain("onError={() => setEtat('echec')}"); // a dead network still fails
+  });
+
+  it('THE SHEET CAN BE SWIPED DOWN, and the drag lives OUTSIDE the WebView', () => {
+    // « it's not smooth and takes a lot of time and I have to do it multiple
+    // times » — there was no drag at all: Modal slide animates open/close only,
+    // and every downward swipe landed inside the WebView, which swallows
+    // touches. A handle drawn OVER the WebView would be just as dead.
+    expect(sheet).toContain('PanResponder.create');
+    expect(sheet).toContain('onPanResponderRelease');
+    // the grip wraps the handle + title, and the WebView is NOT inside it
+    const grip = sheet.slice(sheet.indexOf('{...pan.panHandlers}'), sheet.indexOf('S.entScene'));
+    expect(grip.length).toBeGreaterThan(60); // CONTROL — a real slice
+    expect(grip).not.toContain('<Web');
+    // a half-swipe springs back rather than leaving her guessing
+    expect(sheet).toContain('Animated.spring(glisse');
+  });
+
+  it('the dismiss threshold is a real distance OR a flick, not a hair trigger', async () => {
+    const { SEUIL_FERMETURE } = await import('../src/qr/identity.js').then(() => import('../src/vitrine/customize/entete-sheet.js')).catch(() => ({ SEUIL_FERMETURE: null }));
+    // The module cannot be imported (native WebView), so the value is read from
+    // source — the honest way, rather than pretending the import worked.
+    expect(SEUIL_FERMETURE).toBeNull();
+    expect(sheet).toMatch(/export const SEUIL_FERMETURE = 120;/);
+    expect(sheet).toContain('g.dy > SEUIL_FERMETURE || g.vy > 0.8');
+  });
+
+  it('the preview band is TALLER than it was', () => {
+    const kstyles = read('src', 'vitrine', 'customize', 'k-styles.ts');
+    const m = /entScene: \{ height: (\d+),/.exec(kstyles);
+    expect(m, 'entScene height not found').not.toBeNull();
+    expect(Number(m![1])).toBeGreaterThan(300); // it shipped at 300; he asked for more
+  });
+});
+
+describe('6 · listening comes before publishing', () => {
+  it('the take gets its OWN tappable block, above the primary action', () => {
+    // « make its area more visible … I am able to replay it, listen before
+    // adding it to the product ». The playback was always real — it sat as one
+    // of five equal chips, the same size as « Supprimer ».
+    const sheetVoice = read('src', 'vitrine', 'customize', 'voice-sheet.tsx');
+    const bloc = sheetVoice.slice(sheetVoice.indexOf("n.status === 'recorded'"), sheetVoice.indexOf("{kept && ("));
+    expect(bloc.length).toBeGreaterThan(400); // CONTROL — a real slice
+    expect(bloc).toContain('S.vEcouteBloc');
+    expect(bloc).toContain("t('k.voix.avant_publier')");
+    // listening is ABOVE publishing, and publishing is the primary CTA
+    expect(bloc.indexOf('S.vEcouteBloc')).toBeLessThan(bloc.indexOf("t('k.voix.publier')"));
+    expect(bloc).toContain('S.cta');
+    // …and the two undo verbs are on their own row, no longer beside it
+    expect(bloc.indexOf("t('k.voix.publier')")).toBeLessThan(bloc.indexOf('S.vSecondaires'));
+  });
+
+  it('it plays the SAME real take — no new playback path was invented', () => {
+    const sheetVoice = read('src', 'vitrine', 'customize', 'voice-sheet.tsx');
+    expect(sheetVoice).toContain('onPress={() => ctl.playRec(pid, n.url!)}');
   });
 });

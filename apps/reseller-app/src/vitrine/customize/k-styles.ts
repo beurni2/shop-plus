@@ -286,6 +286,34 @@ export const K_RAW_STYLES = {
   vPendingPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 99, paddingVertical: 5, paddingHorizontal: 11, backgroundColor: '#F6E9C9' },
   vPendingText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 11.5, fontWeight: '700', color: '#7A5104' },
   vPlayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, borderRadius: 14, paddingHorizontal: 14, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF' },
+  /* ÉCOUTE — the take she just made, given its own block (founder 2026-08-04:
+     « make its area more visible, nice and professional … I am able to replay
+     it, listen before adding it to the product »).
+
+     WHY A BLOCK AND NOT ANOTHER BUTTON IN THE ROW: « Écouter » already existed,
+     but it sat as one of five equal chips (écouter · durée · publier · refaire ·
+     supprimer) wrapping on a narrow phone — so the one act she wants FIRST,
+     hearing herself before committing, looked exactly as important as
+     « Supprimer ». Hierarchy is ruthless (§5): listening gets the surface,
+     publishing gets the primary button under it, and the two destructive
+     verbs whisper. */
+  vEcouteBloc: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: 16, paddingVertical: 12, paddingHorizontal: 14,
+    backgroundColor: '#F4EDDF', borderWidth: 1, borderColor: '#E5DCC9',
+  },
+  vEcouteDisque: {
+    width: 46, height: 46, borderRadius: 99, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#A31D4E',
+  },
+  vEcouteTexte: { flex: 1, gap: 2 },
+  vEcouteTitre: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 14, fontWeight: '700', color: '#1C1710' },
+  vEcouteSous: { fontFamily: TEXT_FAMILY, fontSize: 12, color: '#6F6355' },
+  vEcouteDur: { fontFamily: DISPLAY_FAMILY, fontSize: 16, fontWeight: '800', color: '#701134' },
+  /* The two verbs that undo — deliberately quiet, and on their own row so
+     neither sits beside the primary action. */
+  vSecondaires: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+
   vDeniedBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', borderRadius: 14, backgroundColor: '#F8E1DE', borderWidth: 1, borderColor: '#E7B8B0', paddingVertical: 12, paddingHorizontal: 14, marginBottom: 12 },
   vDeniedText: { flex: 1, fontFamily: TEXT_FAMILY, fontSize: 12.5, color: '#8C1D18', minWidth: 170 },
   /* The record SHEET (per-product, opened from the Ma Vitrine card mic). */
@@ -300,7 +328,8 @@ export const K_RAW_STYLES = {
      `entScene` is a fixed 300 band rather than a fraction of the sheet: the
      header it shows is the top of a real page, and a stage that changed height
      between styles would read as the styles being different sizes. */
-  entScene: { height: 300, marginTop: 12, borderRadius: 18, overflow: 'hidden', backgroundColor: '#F1E7D3' },
+  entScene: { height: 430, marginTop: 12, borderRadius: 18, overflow: 'hidden', backgroundColor: '#F1E7D3' },
+  entGrip: { paddingBottom: 4 },
   entWeb: { flex: 1, backgroundColor: '#F1E7D3' },
   entOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 18, backgroundColor: '#F1E7D3' },
   entVide: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 18 },

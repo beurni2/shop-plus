@@ -419,17 +419,32 @@ style.textContent = `
   .audio-note-pending { color: var(--c-muted); }
   /* « La voix » — the per-product voice-note player (house standard §5): the
      filled play triangle + caps label + visible duration. Tap plays (no autoplay). */
+  /* VOIX-VISIBLE (founder 2026-08-04: « make its area more visible, nice and
+     professional on both sides »). It was an inline-flex outline chip that read
+     as a minor link beside the price — on a product whose seller took the
+     trouble to RECORD something, the one human moment on the page looked like a
+     footnote. It is now a full-width card with a filled disc, a sentence that
+     says whose voice it is, and the duration in tabular figures.
+     THE RULES ARE UNCHANGED: tap to play, never autoplay, duration always
+     visible, and a note without a ready url still renders nothing at all. */
   .voix-note { margin: 0; }
   .voix-btn {
-    display: inline-flex; align-items: center; gap: var(--sp-sm);
-    min-height: var(--touch); border: 1px solid var(--c-hairline);
-    background: var(--c-paper); color: var(--c-primaryStrong);
-    padding: var(--sp-sm) var(--sp-md); cursor: pointer;
+    display: flex; width: 100%; align-items: center; gap: var(--sp-md); text-align: left;
+    min-height: var(--touch); border: 1px solid var(--c-hairline); border-radius: var(--r-md);
+    background: var(--c-surface); color: var(--c-ink);
+    padding: var(--sp-md); cursor: pointer;
   }
   .voix-btn:active { opacity: var(--pressed-opacity); }
-  .voix-icon { width: var(--icon-sm); height: var(--icon-sm); color: var(--c-primaryStrong); flex: none; }
-  .voix-label { font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght}; letter-spacing: var(--ls-labelXS); text-transform: uppercase; }
-  .voix-duration { font-size: var(--t-labelXS); color: var(--c-muted); font-variant-numeric: tabular-nums; }
+  /* The disc is the affordance: filled, primary, unmistakably a play control. */
+  .voix-icon {
+    width: var(--icon-md); height: var(--icon-md); flex: none; box-sizing: content-box;
+    padding: var(--sp-sm); border-radius: var(--r-pill);
+    background: var(--c-primary); color: var(--c-onPrimary);
+  }
+  .voix-texte { flex: 1; display: grid; gap: var(--sp-xs); min-width: 0; }
+  .voix-label { font-size: var(--t-bodyStrong); font-weight: ${type.scale.bodyStrong.wght}; }
+  .voix-sous { font-size: var(--t-caption); color: var(--c-muted); }
+  .voix-duration { font-size: var(--t-bodyStrong); font-weight: ${type.scale.bodyStrong.wght}; color: var(--c-primaryStrong); font-variant-numeric: tabular-nums; flex: none; }
   /* C7 — the coarse honest timeline (never a GPS dot). */
   .timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-md); }
   .timeline-step { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--sp-md); font-size: var(--t-body); }

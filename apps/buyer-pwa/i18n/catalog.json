@@ -444,6 +444,12 @@
   "screenClass": "label"
  },
  {
+  "key": "voix_produit.sous",
+  "fr": "La vendeuse vous parle de ce produit",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "voix_produit.aria",
   "fr": "Écouter la note vocale de la vendeuse",
   "register": "neutral",

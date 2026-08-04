@@ -260,19 +260,44 @@ export function VoiceNoteControls({ pid, ctl }: { pid: string; ctl: VoiceNotesCo
         </View>
       )}
 
+      {/* ÉCOUTEZ-VOUS D'ABORD (founder 2026-08-04). The take she just made now
+          gets its own block, tappable across its whole width, above everything
+          else — because « did I say it well? » is the question she actually has
+          at this moment, and « Écouter » used to be one chip among five, the
+          same size as « Supprimer ». Publishing is the primary button BELOW it;
+          refaire and supprimer whisper on their own row. Nothing new was wired:
+          the playback was always real, it was merely hard to see. */}
       {n.status === 'recorded' && (
-        <View style={S.vActions}>
-          {n.url ? <PlayBtn playing={playing} onPress={() => ctl.playRec(pid, n.url!)} /> : null}
-          <Text style={S.vDur}>{fmtVoiceDuration(n.durationMs)}</Text>
-          <Pressable style={({ pressed }) => [S.vPublishBtn, pressed && S.pressed]} onPress={() => ctl.publishRec(pid)} accessibilityRole="button">
-            <Text style={S.vPublishText}>{t('k.voix.publier')}</Text>
+        <View style={{ gap: 12 }}>
+          {n.url ? (
+            <Pressable
+              style={({ pressed }) => [S.vEcouteBloc, pressed && S.pressed]}
+              onPress={() => ctl.playRec(pid, n.url!)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: playing }}
+              accessibilityLabel={t(playing ? 'k.voix.pause' : 'k.voix.ecouter')}
+            >
+              <View style={S.vEcouteDisque}>
+                {playing ? <IconPauseK size={18} color="#FFF6EC" /> : <IconPlayK size={18} color="#FFF6EC" />}
+              </View>
+              <View style={S.vEcouteTexte}>
+                <Text style={S.vEcouteTitre}>{t(playing ? 'k.voix.pause' : 'k.voix.ecouter')}</Text>
+                <Text style={S.vEcouteSous}>{t('k.voix.avant_publier')}</Text>
+              </View>
+              <Text style={S.vEcouteDur}>{fmtVoiceDuration(n.durationMs)}</Text>
+            </Pressable>
+          ) : null}
+          <Pressable style={({ pressed }) => [S.cta, pressed && S.pressed]} onPress={() => ctl.publishRec(pid)} accessibilityRole="button">
+            <Text style={S.ctaText}>{t('k.voix.publier')}</Text>
           </Pressable>
-          <Pressable style={({ pressed }) => [S.vGhost, pressed && S.pressed]} onPress={() => ctl.startRec(pid)} accessibilityRole="button">
-            <Text style={S.vGhostText}>{t('k.voix.refaire')}</Text>
-          </Pressable>
-          <Pressable style={({ pressed }) => [S.vGhost, S.vDanger, pressed && S.pressed]} onPress={() => ctl.deleteRec(pid)} accessibilityRole="button">
-            <Text style={[S.vGhostText, S.vDangerText]}>{t('k.voix.supprimer')}</Text>
-          </Pressable>
+          <View style={S.vSecondaires}>
+            <Pressable style={({ pressed }) => [S.vGhost, pressed && S.pressed]} onPress={() => ctl.startRec(pid)} accessibilityRole="button">
+              <Text style={S.vGhostText}>{t('k.voix.refaire')}</Text>
+            </Pressable>
+            <Pressable style={({ pressed }) => [S.vGhost, S.vDanger, pressed && S.pressed]} onPress={() => ctl.deleteRec(pid)} accessibilityRole="button">
+              <Text style={[S.vGhostText, S.vDangerText]}>{t('k.voix.supprimer')}</Text>
+            </Pressable>
+          </View>
         </View>
       )}
 

@@ -1962,6 +1962,12 @@
   "screenClass": "label"
  },
  {
+  "key": "k.voix.avant_publier",
+  "fr": "\u00c9coutez avant de publier",
+  "register": "selling",
+  "screenClass": "instruction"
+ },
+ {
   "key": "k.voix.publier",
   "fr": "Publier",
   "register": "neutral",

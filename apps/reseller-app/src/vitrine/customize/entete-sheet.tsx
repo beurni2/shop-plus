@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Modal, PanResponder, Pressable, Text, View } from 'react-native';
 import { t } from '../../i18n';
 import { apercuEnteteUrl } from '../../qr/identity';
 import { K_RAW_STYLES as S } from './k-styles';
@@ -74,6 +74,11 @@ const RN_WEBVIEW: RNWebView | null = (() => {
   }
 })();
 
+/** Past this many points of downward drag the sheet closes; below it, it springs
+ *  back. A third of the sheet's height, in round numbers — far enough that a
+ *  stray scroll never dismisses, near enough that a deliberate swipe always does. */
+export const SEUIL_FERMETURE = 120;
+
 /** True when the running binary can actually draw a web preview. Read by tests. */
 export const APERCU_NATIF_DISPONIBLE = RN_WEBVIEW !== null;
 
@@ -108,6 +113,44 @@ export function EnteteApercuSheet({
   // PREVIOUS style for a moment after she taps a new card.
   const [nonce, setNonce] = useState(0);
 
+  /**
+   * GLISSER POUR FERMER (founder, 2026-08-04: « if I want to slide it down it's
+   * not smooth and takes a lot of time and I have to do it multiple times »).
+   *
+   * HE WAS DESCRIBING A REAL DEAD END, not slowness. A `Modal` with
+   * `animationType="slide"` animates on OPEN and CLOSE but has no drag: the only
+   * way out was a tap on the thin backdrop strip above the sheet, and every
+   * downward swipe he tried landed INSIDE THE WEBVIEW, which swallows touches
+   * and did nothing. « Multiple times » is exactly what a person does when a
+   * gesture is silently ignored.
+   *
+   * So the sheet now has a real drag, on the HEADER — the handle and title
+   * strip, which is outside the WebView and therefore actually receives the
+   * gesture. Down follows the finger; past a third of the sheet (or on a fast
+   * flick) it closes; anything less springs back so a half-swipe never leaves
+   * her wondering whether it worked.
+   */
+  const glisse = useRef(new Animated.Value(0)).current;
+  const pan = useRef(
+    PanResponder.create({
+      // Claim the gesture only once it is clearly a DOWNWARD drag, so a tap on
+      // the handle still reads as a tap.
+      onMoveShouldSetPanResponder: (_e, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_e, g) => {
+        if (g.dy > 0) glisse.setValue(g.dy); // never drag it UPWARD past its seat
+      },
+      onPanResponderRelease: (_e, g) => {
+        const parti = g.dy > SEUIL_FERMETURE || g.vy > 0.8; // distance OR a flick
+        if (parti) {
+          onClose();
+          glisse.setValue(0); // reset for the next open
+          return;
+        }
+        Animated.spring(glisse, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
+      },
+    }),
+  ).current;
+
   if (styleKey === null) return null;
   // Two different reasons for the same fallback, and both are true statements:
   // no live page to show, or no native module to show it with.
@@ -118,9 +161,22 @@ export function EnteteApercuSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={S.vSheetBackdrop} onPress={onClose} accessibilityLabel={t('k.retour')}>
-        <Pressable style={S.vSheetCard} onPress={() => undefined} accessibilityViewIsModal>
-          <View style={S.vSheetHandle} />
-          <Text style={S.vSheetTitle}>{label}</Text>
+        {/* The card swallows taps itself (a tap inside must never reach the
+            dismissing backdrop), so the old inert <Pressable> wrapper is gone —
+            it would have sat between the drag zone and the card and eaten the
+            gesture. */}
+        <Animated.View
+          style={[S.vSheetCard, { transform: [{ translateY: glisse }] }]}
+          accessibilityViewIsModal
+          onStartShouldSetResponder={() => true}
+        >
+          {/* THE DRAG ZONE. It must live OUTSIDE the WebView — a WebView
+              consumes its own touches, so a handle drawn over it would be as
+              dead as the swipe he was attempting. */}
+          <View {...pan.panHandlers} style={S.entGrip}>
+            <View style={S.vSheetHandle} />
+            <Text style={S.vSheetTitle}>{label}</Text>
+          </View>
 
           <View style={S.entScene}>
             {Web === null || url === null ? (
@@ -144,7 +200,27 @@ export function EnteteApercuSheet({
                   style={S.entWeb}
                   onLoadEnd={() => setEtat((cur) => (cur === 'echec' ? cur : 'pret'))}
                   onError={() => setEtat('echec')}
-                  onHttpError={() => setEtat('echec')}
+                  // ═══ THE 404 IS THE MECHANISM, NOT A FAULT ═══
+                  //
+                  // Founder screenshot, 2026-08-04: « Aperçu pas affiché »
+                  // over a shop that is perfectly online. The bug was mine.
+                  //
+                  // Her vitrine is served by GitHub Pages, a STATIC host with
+                  // no router: `/shop-plus/v/{slug}` matches no file, so Pages
+                  // answers **404** with `404.html`, whose script rewrites the
+                  // path into `/?/v/{slug}` and the app boots from there. That
+                  // 404 is the SPA fallback WORKING — it is how every `/v/`
+                  // link in this product resolves, including « Voir comme
+                  // cliente ». Treating it as an error painted the failure
+                  // state over a page that was about to load fine.
+                  //
+                  // So a 404 is ignored and the load is allowed to continue;
+                  // every OTHER status is still a real failure and still says
+                  // so. `onError` remains untouched — a dead network is a dead
+                  // network.
+                  onHttpError={(e) => {
+                    if (e.nativeEvent.statusCode !== 404) setEtat('echec');
+                  }}
                   // Her own page, read-only: nothing here needs to run a
                   // download, open a window, or leave the origin.
                   javaScriptEnabled
@@ -180,9 +256,9 @@ export function EnteteApercuSheet({
             )}
           </View>
 
-          {/* ONE primary action (§5). Dismiss is the backdrop and the slide-down
-              he described — a « Annuler » button beside Appliquer would give the
-              screen two weights and no clear one. */}
+          {/* ONE primary action (§5). Dismiss is the swipe on the header, or a
+              tap on the backdrop — a « Annuler » button beside Appliquer would
+              give the screen two weights and no clear one. */}
           <Pressable
             style={({ pressed }) => [S.cta, pressed && S.pressed]}
             onPress={() => onApply(styleKey)}
@@ -190,7 +266,7 @@ export function EnteteApercuSheet({
           >
             <Text style={S.ctaText}>{t('k.entete.appliquer')}</Text>
           </Pressable>
-        </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
