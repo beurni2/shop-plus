@@ -20,6 +20,129 @@ const SELLER_TIER_RANK: Readonly<Record<string, number>> = {
   trusted: 2,
 };
 
+/**
+ * ═══ OPTION-B-REACHABLE-1 — THE WORD A SUPPLIER TYPES vs THE ROW §6.2 NAMES ═══
+ *
+ * Founder, 2026-08-04: « Option B still not reachable ». It was not the zone
+ * rule (he opened that on 2026-08-01 and the code shipped `'all'`). One of the
+ * two remaining causes is here, and it is a VOCABULARY MISMATCH between two
+ * repositories that were each individually correct:
+ *
+ *   · Boutik+ writes the supplier's own chip into `product.category` — the
+ *     eight words she actually taps: « Mode femme », « Mode homme », « Enfant »,
+ *     « Chaussures », « Sacs », « Maison », « Tissus », « Beauté scellée »
+ *     (`apps/supplier-app/src/v2/categorie-details.ts`). Its producer carries
+ *     that string VERBATIM onto the supply wire and says so: « NO MAPPING AND
+ *     NO DEFAULT HERE … Shop+ allowlists what it recognises and fails closed on
+ *     the rest, WHICH IS THE ONLY SIDE THAT MAY DECIDE WHAT A CATEGORY MEANS. »
+ *   · Shop+ allowlisted `fashion_bags_fabrics · shoes · sealed_beauty_cosmetics`
+ *     — §6.2's own row names — and compared them to those French words directly.
+ *
+ * The two sets do not intersect, so **every listing the founder can create
+ * refused `category_not_inspectable`**, and the same mismatch quietly degraded
+ * the buyer's at-door inspection card to the cautious row for every product.
+ * Boutik+ named Shop+ as the side that decides meaning; this map is Shop+
+ * finally doing it.
+ *
+ * ═══ EACH ROW IS §6.2's, QUOTED — NOTHING HERE IS INVENTED ═══
+ *
+ * §6.2's rows are « Fashion, bags, fabrics » · « Shoes (IN pilot) » · « Sealed
+ * beauty/cosmetics » · « Electronics/complex — EXCLUDED from MVP ». The eight
+ * chips land on them by plain reading, not by judgement:
+ *   Mode femme · Mode homme · Enfant · Sacs · Tissus → row 1 (fashion, BAGS,
+ *     FABRICS — the row names all three in its own title)
+ *   Chaussures → row 2       Beauté scellée → row 3
+ *   Maison → NO ROW. Home goods are not one of §6.2's four rows, so they are
+ *     not inspectable at the door and Option B refuses for them. That is the
+ *     fail-closed answer, not an oversight: the spec grants at-door inspection
+ *     rights row by row, and a row that does not exist grants nothing.
+ *
+ * THE CANONICAL IDS MAP TO THEMSELVES so a producer that already speaks §6.2's
+ * vocabulary (the e2e fixtures, and anything Boutik+ may later emit) keeps
+ * working unchanged. Everything else — a supplier's free text, a typo, a chip
+ * added tomorrow — resolves to `null` and refuses. **A category this map cannot
+ * read is a category with no inspection rights**, which is the only safe answer:
+ * the buyer's door screen promises exactly what §6.2 says it may, or promises
+ * nothing.
+ *
+ * A `Map`, not an object literal, for the reason `categorie-details.ts` states
+ * on its own twin: a plain-object lookup walks `Object.prototype`, so a category
+ * named `constructor` would resolve to a function instead of missing.
+ */
+const RANGEE_62: ReadonlyMap<string, string> = new Map([
+  // §6.2 row 1 — « Fashion, bags, fabrics »
+  ['fashion_bags_fabrics', 'fashion_bags_fabrics'],
+  ['Mode femme', 'fashion_bags_fabrics'],
+  ['Mode homme', 'fashion_bags_fabrics'],
+  ['Enfant', 'fashion_bags_fabrics'],
+  ['Sacs', 'fashion_bags_fabrics'],
+  ['Tissus', 'fashion_bags_fabrics'],
+  // §6.2 row 2 — « Shoes (IN pilot) »
+  ['shoes', 'shoes'],
+  ['Chaussures', 'shoes'],
+  // §6.2 row 3 — « Sealed beauty/cosmetics »
+  ['sealed_beauty_cosmetics', 'sealed_beauty_cosmetics'],
+  ['Beauté scellée', 'sealed_beauty_cosmetics'],
+]);
+
+/**
+ * The §6.2 row a product is inspected under, or `null` when §6.2 names none.
+ *
+ * ONE MAP, TWO CONSUMERS, AND THAT IS THE WHOLE POINT: the §6.1 gate below asks
+ * it whether the door may be offered, and `customer-projection.ts` asks it what
+ * to put on the buyer's wire so her at-door checklist and her eligibility can
+ * never disagree about what she is buying. A second copy of this table is how
+ * those two answers drift apart.
+ */
+export function rangeeInspection(category: string): string | null {
+  return RANGEE_62.get(category) ?? null;
+}
+
+/**
+ * ═══ THE BUYER'S LADDER RECORD BEFORE ANY LADDER EXISTS (OPTION-B-REACHABLE-1) ═══
+ *
+ * The SECOND cause of « Option B still not reachable », and the one that fired
+ * FIRST, for every buyer, before any of §6.1's five conditions was evaluated:
+ * `PayAtDoorEligibility` is OWNER: Risk (§6.4), no Risk service exists, so
+ * nothing produced the record — and a request with no record refuses
+ * `context_missing` in `quote-issuance.ts` before the gate is even consulted.
+ *
+ * WHY A SERVER-SIDE BASELINE AND NOT A FIELD ON THE BUYER'S REQUEST. The record
+ * used to be caller-supplied, and `checkout-core.ts` called that out as « the
+ * one remaining self-declared §6.1 input … a live exposure ». Filling it in from
+ * the browser would have made Option B reachable AND left the buyer answering
+ * the condition she is being measured by. Deciding it HERE closes that: the
+ * field leaves the wire entirely, so a caller cannot answer it even by mistake.
+ *
+ * ⏳ WHAT THIS COSTS, STATED PLAINLY BECAUSE IT IS REAL: until SP6.3 builds the
+ * ladder book, **no buyer can be restricted** — there is nowhere to write a
+ * refusal count, so every buyer reads as having none. That matches the founder's
+ * ruling of 2026-08-01 (« it's open to every buyer who want that option ») and
+ * §6.4's own shape, where the ladder only ever RESTRICTS from an unrestricted
+ * start (« 1st ordinary buyer-fault → … »). It is not an invented policy value;
+ * it is the top of the documented ladder, and SP6.3 replaces this constant with
+ * a real read.
+ *
+ * `buyerRef` IS `'anonyme'` AND THAT IS NOT A PLACEHOLDER FOR A KNOWN VALUE —
+ * checkout carries no buyer identity at quote time by design (`QuoteRequest`
+ * has slug · pid · paymentMode · zoneTo · attributionResellerId · requestKey and
+ * nothing else; her phone and quartier are captured later, at ORDER create).
+ * There is no key to look a ladder entry up BY yet, which is the deeper reason
+ * SP6.3 is the slice that closes this and this constant cannot.
+ *
+ * The other four §6.1 conditions are UNTOUCHED and still gate every door quote:
+ * seller tier ≥ verified · category inspectable · buyerTotal ≤ the cap · zone.
+ */
+export const ELIGIBILITE_SANS_HISTORIQUE = Object.freeze({
+  buyerRef: 'anonyme',
+  state: 'allowed',
+  buyerRefusalCount: 0,
+  /** No risk recorded — the only honest value when no ladder has ever run. */
+  buyerRiskState: 'none',
+  /** §6.4's deposit rung is a ladder consequence; an unladdered buyer owes none. */
+  requiredDeposit: 0,
+});
+
 export interface PayAtDoorPolicy {
   /** Version every eligibility decision names — decisions are replayable. */
   version: string;
@@ -172,7 +295,23 @@ export function decidePayAtDoorEligibility(
   const minRank = SELLER_TIER_RANK[policy.minSellerTier]!;
   if (tierRank === undefined || tierRank < minRank) return refuse('seller_tier_below_minimum');
 
-  if (!policy.inspectableCategories.includes(ctx.category)) return refuse('category_not_inspectable');
+  // ═══ THE SUPPLIER'S WORD, THEN THE POLICY — TWO SEPARATE QUESTIONS ═══
+  //
+  // `rangeeInspection` answers « which §6.2 row is this », a reading of the
+  // spec that does not change; `policy.inspectableCategories` answers « which
+  // rows are open today », which is ⏳ FOUNDER-TUNABLE. Keeping them apart is
+  // what lets the founder later close, say, shoes without touching the map that
+  // knows « Chaussures » IS shoes.
+  //
+  // BOTH HALVES REFUSE. A category §6.2 does not name resolves to `null`; a row
+  // §6.2 names but the policy has withdrawn is not in the list. Either way the
+  // door is not offered, and the buyer's checklist (which reads the SAME map,
+  // through the customer projection) shows the cautious row rather than
+  // promising rights she does not have.
+  const rangee = rangeeInspection(ctx.category);
+  if (rangee === null || !policy.inspectableCategories.includes(rangee)) {
+    return refuse('category_not_inspectable');
+  }
 
   if (ctx.buyerTotalFcfa > policy.priceCapFcfa) return refuse('over_price_cap');
 

@@ -1,4 +1,5 @@
 import type { Storefront, WaterfallResult } from '@platform/contracts';
+import { rangeeInspection } from '@shop-plus/commerce-core';
 
 /**
  * Customer-surface projection (SP-I03): "Customer-facing pages MUST show the
@@ -185,7 +186,25 @@ export function joinVitrineProduct(listing: ListingSide, supply: SupplySide | un
     assetRefs: [...supply.assetRefs],
     // From SUPPLY, like the name and the images — never from the listing, and
     // never a default. The reseller sets a markup, not what a product IS.
-    category: supply.category,
+    //
+    // ═══ OPTION-B-REACHABLE-1 — RESOLVED TO ITS §6.2 ROW, NOT CARRIED RAW ═══
+    //
+    // This used to be `supply.category` verbatim: the supplier's own chip word
+    // (« Mode femme », « Chaussures »…). The buyer's only consumer of this field
+    // is `inspectionPour()`, which looks it up in a table keyed by §6.2's ROW
+    // NAMES — so every real product missed, and every at-door screen showed the
+    // cautious row. The identical mismatch refused Option B at the gate.
+    //
+    // `rangeeInspection` is the SAME function §6.1 consults (commerce-core), so
+    // one product cannot be door-eligible under one vocabulary while its
+    // checklist is drawn under another. That is the whole reason it is imported
+    // rather than re-tabulated here.
+    //
+    // '' WHEN §6.2 NAMES NO ROW (« Maison », a supplier's free text). The field
+    // is required on this wire, and an empty string is the honest « no row »:
+    // the buyer's lookup misses and she gets the cautious checklist, which is
+    // exactly what a product with no at-door inspection rights should show.
+    category: rangeeInspection(supply.category) ?? '',
     // VIDEO-PRODUIT — carried exactly as the images are; absent stays absent.
     ...(supply.videoRef !== undefined && supply.videoRef !== '' ? { videoRef: supply.videoRef } : {}),
   };

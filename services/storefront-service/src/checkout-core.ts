@@ -1,5 +1,6 @@
 import { QuoteSchema, type DeliveryFeeQuote, type Quote } from '@platform/contracts';
 import {
+  ELIGIBILITE_SANS_HISTORIQUE,
   ImmutableQuoteStore,
   decideReservation,
   issueQuote,
@@ -79,45 +80,25 @@ import type { ProductDescription } from './supply-source.js';
  * THREE of the five §6.1 conditions were answered by the party they exist to
  * constrain. **That period is over for two of the three (SELLER-TIER-WIRE-1).**
  *
- * WHERE EACH CONDITION IS DECIDED NOW:
+ * WHERE EACH CONDITION IS DECIDED NOW — ALL FIVE ON THE SERVER:
  *  · `sellerTier` — SERVER. Canon v3.1.0 added it to `SupplyProjection`, so
  *    Boutik+ answers the question on the wire it already publishes — a
  *    three-value band carrying no supplier identity, which is what let it cross
  *    B4.2 at all. Read here from `IssueQuoteInput.supply`.
  *  · `category` — SERVER. Canon v3.0.0, REQUIRED on the projection. Same source.
- *  · `eligibility` — STILL THE CALLER'S. §6.4 assigns `PayAtDoorEligibility` to
- *    Risk and no Risk service exists, so there is nowhere to read it from. This
- *    is the one remaining self-declared §6.1 input and it is NOT closed.
+ *  · `eligibility` — SERVER, as of OPTION-B-REACHABLE-1. It was the last
+ *    self-declared §6.1 input; this shape no longer exists and the field is
+ *    refused as an `unknown_field` if sent. `ELIGIBILITE_SANS_HISTORIQUE` (in
+ *    `pay-at-door-policy.ts`) supplies the baseline until SP6.3 builds the §6.4
+ *    ladder book — with the ⏳ cost written out there in full: no buyer can be
+ *    RESTRICTED yet, because nothing records a refusal.
  *  · price cap · zone — never on this shape; the vault computes the first from
  *    the pinned waterfall and the founder opened the second.
  *
- * WHAT HAS ALWAYS HELD, so the remaining exposure is not overstated: Law #3 is
- * untouched. The product is never handed over on a self-declared profile —
- * custody transfers only after the door leg is PROVIDER-confirmed
- * (`revelationPermise`, `order-core.ts` `decideDoorCharge`). The exposure is not
- * free goods; it is that the refusal/no-show risk §6.1 bounds is, for the buyer
- * half alone, still self-reported.
+ * WHAT HAS ALWAYS HELD: Law #3 is untouched. The product is never handed over on
+ * any profile, self-declared or not — custody transfers only after the door leg
+ * is PROVIDER-confirmed (`revelationPermise`, `order-core.ts` `decideDoorCharge`).
  */
-export interface PayAtDoorRequestContext {
-  /**
-   * The canonical PayAtDoorEligibility record (OWNER: Risk). Parsed by the vault.
-   *
-   * ═══ THE LAST SELF-DECLARED §6.1 INPUT, AND WHY IT IS STILL HERE ═══
-   *
-   * `sellerTier` and `category` LEFT THIS SHAPE (SELLER-TIER-WIRE-1): both are
-   * now read from the supply projection the service resolves for itself, so a
-   * caller can no longer answer the conditions it is being measured against.
-   * A field that does not exist cannot be trusted by mistake.
-   *
-   * `eligibility` remains because there is nowhere yet to read it FROM — §6.4
-   * assigns `PayAtDoorEligibility` to Risk, and no Risk service exists. It is
-   * still caller-supplied and still a live exposure; it is NOT closed by this
-   * change and must not be read as closed. The vault parses it strictly and
-   * refuses anything that is not the canonical record, which bounds the SHAPE
-   * but not the CLAIM.
-   */
-  readonly eligibility: unknown;
-}
 
 /**
  * THE ONLY THING A CALLER MAY SEND.
@@ -149,7 +130,11 @@ export interface QuoteRequest {
   readonly attributionResellerId: string;
   /** The buyer's own idempotency token: one key ⇒ at most one quote, forever. */
   readonly requestKey: string;
-  readonly payAtDoorContext?: PayAtDoorRequestContext;
+  /* OPTION-B-REACHABLE-1 — there is NO `payAtDoorContext` here any more. Every
+     §6.1 input is now a server truth (see the block above), so the door mode is
+     requested by `paymentMode` alone and answered entirely from facts the buyer
+     cannot write. The router refuses the old field by name rather than ignoring
+     it, so a stale client learns that the server stopped asking. */
 }
 
 /**
@@ -396,10 +381,24 @@ function issueQuoteFrom(
     // A supply projection older than canon v3.1.0 carries no `sellerTier`; the
     // vault then refuses `seller_tier_below_minimum`, because an unprovable
     // condition is a refused condition.
-    ...(request.payAtDoorContext !== undefined && supply !== undefined
+    //
+    // OPTION-B-REACHABLE-1 — WHAT NOW DECIDES WHETHER THIS BLOCK EXISTS. It used
+    // to be `request.payAtDoorContext !== undefined`, i.e. the BUYER decided
+    // whether §6.1 ran at all — and since her PWA never sent that field, the
+    // block was never built and every door quote refused `context_missing`
+    // before a single condition was evaluated. That is why « Option B still not
+    // reachable » survived opening the zones: the gate was never reached.
+    //
+    // The block is now built for the DOOR MODE ITSELF, from supply. `supply ===
+    // undefined` still omits it — supply could not be described, so §6.1 cannot
+    // prove its conditions and `context_missing` is still the honest answer.
+    ...(supply !== undefined
       ? {
           payAtDoor: {
-            eligibility: request.payAtDoorContext.eligibility,
+            // §6.4's record, from the server. See ELIGIBILITE_SANS_HISTORIQUE
+            // for what it asserts, what it cannot yet assert, and why SP6.3 is
+            // the slice that replaces it with a real ladder read.
+            eligibility: ELIGIBILITE_SANS_HISTORIQUE,
             sellerTier: supply.sellerTier ?? '',
             category: supply.category,
             // The zone the DELIVERY was priced for — one zone, never two.

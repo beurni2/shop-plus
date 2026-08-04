@@ -550,16 +550,39 @@ describe('SUPPLY-WIRE-AUTH-1 — the bearer credential, env-gated', () => {
  * visible in a test that only checks the field EXISTS. So the assertions use a
  * value nothing in this repo hardcodes.
  */
-describe('CATEGORY-WIRE-1 — supply owns the category; the join carries it verbatim', () => {
+describe('CATEGORY-WIRE-1 — supply owns the category; the join resolves it to its §6.2 row', () => {
   const LISTING_SIDE: ListingSide = { productVersionId: 'pv_cat_1', customerPriceFcfa: 14_750, status: 'published' };
   const supply = (category: string) => ({ productName: 'Sac tressé', assetRefs: [], available: 3, category });
 
-  it('an ARBITRARY category survives the join unchanged — no mapping, no allowlist, no default', () => {
-    // Deliberately NOT one of §6.2's rows and not a value this repo uses
-    // anywhere: if the join defaulted or normalised, this string could not
-    // survive. Policy (which categories mean what) lives on the READING side.
-    const rec = joinVitrineProduct(LISTING_SIDE, supply('un-truc-que-personne-ne-connait'))!;
-    expect(rec.category).toBe('un-truc-que-personne-ne-connait');
+  /**
+   * ═══ THE CLAIM THIS BLOCK MAKES WAS REVERSED ON PURPOSE (OPTION-B-REACHABLE-1) ═══
+   *
+   * It used to assert « no mapping, no allowlist, no default — policy lives on
+   * the READING side ». That was a coherent design and it shipped a real defect:
+   * the only reader of this field is the buyer's `inspectionPour()`, whose table
+   * is keyed by §6.2's ROW NAMES, while Boutik+ writes the French chip the
+   * supplier tapped. Carrying it verbatim meant every real product missed the
+   * table and every at-door screen showed the cautious checklist.
+   *
+   * So the mapping moved to THIS side — the same `rangeeInspection` the §6.1
+   * gate consults, which is what makes « may I pay at the door » and « what may
+   * I inspect there » two answers to one question. What is asserted below is
+   * therefore the opposite of what was asserted before, and deliberately so.
+   */
+  it('a chip a SUPPLIER actually taps resolves to its §6.2 row — this is the wire the buyer reads', () => {
+    expect(joinVitrineProduct(LISTING_SIDE, supply('Mode femme'))!.category).toBe('fashion_bags_fabrics');
+    expect(joinVitrineProduct(LISTING_SIDE, supply('Chaussures'))!.category).toBe('shoes');
+    expect(joinVitrineProduct(LISTING_SIDE, supply('Beauté scellée'))!.category).toBe('sealed_beauty_cosmetics');
+  });
+
+  it('a category §6.2 NAMES NO ROW FOR travels as \'\' — never as a row it is not', () => {
+    // « Maison » is a real chip; the arbitrary string is a supplier's free text.
+    // Both have no at-door inspection rights, and the honest wire value for that
+    // is the empty string: the buyer's lookup misses and she is shown the
+    // cautious checklist. Inventing a row here would promise her rights §6.2
+    // does not grant — the one failure this field can cause at a doorstep.
+    expect(joinVitrineProduct(LISTING_SIDE, supply('Maison'))!.category).toBe('');
+    expect(joinVitrineProduct(LISTING_SIDE, supply('un-truc-que-personne-ne-connait'))!.category).toBe('');
   });
 
   it('two products differing ONLY in category produce two different records', () => {

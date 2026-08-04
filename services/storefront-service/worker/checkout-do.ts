@@ -5,7 +5,6 @@ import {
   decideStoreQuote,
   readStoredQuote,
   toBuyerQuoteView,
-  type PayAtDoorRequestContext,
   type QuoteRequest,
 } from '../src/checkout-core.js';
 import { quoteDeliveryFee } from '../src/delivery-source.js';
@@ -332,19 +331,23 @@ const quoteStub = (env: Env, quoteId: string): DurableObjectStub =>
 const keyStub = (env: Env, requestKey: string): DurableObjectStub =>
   env.CHECKOUT.get(env.CHECKOUT.idFromName(`key:${requestKey}`));
 
-/** The wire vocabulary a caller may send. Anything else is REFUSED, not ignored. */
-const REQUEST_FIELDS = ['slug', 'pid', 'paymentMode', 'zoneTo', 'attributionResellerId', 'requestKey', 'payAtDoorContext'];
 /**
- * SELLER-TIER-WIRE-1 — `sellerTier` AND `category` LEFT THIS LIST.
+ * The wire vocabulary a caller may send. Anything else is REFUSED, not ignored.
  *
- * They are no longer dropped-if-sent; they are REFUSED if sent
- * (`unknown_field · payAtDoorContext.sellerTier`), on the same allowlist law
- * `policy` has always been held to: a caller who could answer a §6.1 condition
- * could measure themselves against it, and the only way a caller finds out that
- * the server stopped asking is to be told. Both facts now come from the supply
- * projection this Worker reads for itself.
+ * ═══ OPTION-B-REACHABLE-1 — `payAtDoorContext` LEFT THIS LIST ENTIRELY ═══
+ *
+ * SELLER-TIER-WIRE-1 had already taken `sellerTier` and `category` off it, on
+ * the law that « a caller who could answer a §6.1 condition could measure
+ * themselves against it ». `eligibility` was the last one left, and it is gone
+ * for the same reason — `checkout-core.ts` now supplies §6.4's record from the
+ * server. With nothing left inside it, the container field goes too.
+ *
+ * REFUSED, NOT IGNORED, and that is deliberate: a client still sending it gets
+ * `unknown_field · payAtDoorContext` rather than a quote issued on a body the
+ * server silently disagreed with. The deployed buyer PWA never sent it, so
+ * nothing in production breaks — but the next client to try learns immediately.
  */
-const DOOR_FIELDS = ['eligibility'];
+const REQUEST_FIELDS = ['slug', 'pid', 'paymentMode', 'zoneTo', 'attributionResellerId', 'requestKey'];
 
 /**
  * The one payment mode whose quote consults §6.1 — and therefore the only mode
@@ -445,25 +448,10 @@ function validateQuoteRequest(body: unknown): Validated {
   if (attribution !== undefined && attribution !== '' && !bounded(attribution, 128)) {
     return { ok: false, response: badRequest('bad_field', 'attributionResellerId') };
   }
-  let door: PayAtDoorRequestContext | undefined;
-  const doorRaw = raw['payAtDoorContext'];
-  if (doorRaw !== undefined) {
-    if (doorRaw === null || typeof doorRaw !== 'object' || Array.isArray(doorRaw)) {
-      return { ok: false, response: badRequest('bad_field', 'payAtDoorContext') };
-    }
-    const d = doorRaw as Record<string, unknown>;
-    // `policy` is the key that must never be reachable from the wire: it is the
-    // yardstick the §6.1 gate measures against, and a caller who could send one
-    // could measure themselves. It is not in DOOR_FIELDS, so it lands here.
-    for (const key of Object.keys(d)) {
-      if (!DOOR_FIELDS.includes(key)) return { ok: false, response: badRequest('unknown_field', `payAtDoorContext.${key}`) };
-    }
-    // `eligibility` is NOT shape-checked here on purpose: the vault parses it
-    // against the canonical `PayAtDoorEligibility` record and refuses anything
-    // else by name. A second, weaker copy of that check in the router is how two
-    // halves of a validation drift apart.
-    door = { eligibility: d['eligibility'] };
-  }
+  /* The `payAtDoorContext` block that stood here is gone (OPTION-B-REACHABLE-1).
+     It parsed one field, `eligibility`, which the server now decides for itself;
+     `payAtDoorContext` is absent from REQUEST_FIELDS, so a body still carrying it
+     is refused `unknown_field` by the loop above — one rule, one place. */
   return {
     ok: true,
     request: {
@@ -473,7 +461,6 @@ function validateQuoteRequest(body: unknown): Validated {
       zoneTo: raw['zoneTo'] as string,
       attributionResellerId: typeof attribution === 'string' ? attribution : '',
       requestKey: raw['requestKey'],
-      ...(door !== undefined ? { payAtDoorContext: door } : {}),
     },
   };
 }
@@ -577,10 +564,10 @@ export default {
 
       // ═══ SELLER-TIER-WIRE-1 — THE §6.1 FACTS, READ BY THE SERVER ═══
       //
-      // FOUR CONDITIONS, AND EACH ONE EARNS ITS PLACE. An earlier cut of this
+      // THREE CONDITIONS, AND EACH ONE EARNS ITS PLACE. An earlier cut of this
       // gated on `payAtDoorContext !== undefined` alone, and a verifier showed
-      // what that costs: `payAtDoorContext` is a field ANY caller may add to ANY
-      // request, so an anonymous `POST /checkout/quote` carrying
+      // what that costs: `payAtDoorContext` was a field ANY caller could add to
+      // ANY request, so an anonymous `POST /checkout/quote` carrying
       // `{paymentMode:'FULL_PREPAY', payAtDoorContext:{}}` and an INVENTED `pid`
       // forced this Worker to fetch boutik — with `SUPPLY_READ_SECRET` on the
       // request — for a product nobody sells, before refusing `listing_unknown`.
@@ -591,8 +578,6 @@ export default {
       //    no other mode, so no other mode may pay for the fetch. This is also
       //    what makes the sentence « only for an Option-B request » TRUE rather
       //    than merely intended.
-      //  · `payAtDoorContext` is present — without it `checkout-core.ts` omits
-      //    the block regardless, so the read would be pure waste.
       //  · `entry !== undefined` — the listing RESOLVED. An unknown listing
       //    already refuses `listing_unknown` before supply is consulted, so this
       //    read can no longer be aimed at an arbitrary productVersionId; the pid
@@ -626,12 +611,7 @@ export default {
       // and `checkout-core.ts` omits the whole block, which the vault refuses
       // `context_missing`. THAT path is covered, three ways, over HTTP.
       let supply: ProductDescription | undefined;
-      if (
-        req.paymentMode === DOOR_PAYMENT_MODE &&
-        req.payAtDoorContext !== undefined &&
-        entry !== undefined &&
-        env.SUPPLY !== undefined
-      ) {
+      if (req.paymentMode === DOOR_PAYMENT_MODE && entry !== undefined && env.SUPPLY !== undefined) {
         supply = await env.SUPPLY.describe(req.pid).catch(() => undefined);
       }
 

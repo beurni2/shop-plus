@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { QuoteSchema, ResellerListingSchema, canonicalJsonStringify, type DeliveryFeeQuote, type Quote } from '@platform/contracts';
-import { PAY_AT_DOOR_POLICY_DEFAULTS, QUOTE_TTL_MS, type PayAtDoorPolicy } from '@shop-plus/commerce-core';
+import {
+  PayAtDoorEligibilitySchema,
+  QuoteSchema,
+  ResellerListingSchema,
+  canonicalJsonStringify,
+  type DeliveryFeeQuote,
+  type Quote,
+} from '@platform/contracts';
+import {
+  ELIGIBILITE_SANS_HISTORIQUE,
+  PAY_AT_DOOR_POLICY_DEFAULTS,
+  QUOTE_TTL_MS,
+  type PayAtDoorPolicy,
+} from '@shop-plus/commerce-core';
 import {
   decideIssueQuote,
   decideReserveForQuote,
@@ -77,18 +89,12 @@ function requestFixture(over: Partial<QuoteRequest> = {}): QuoteRequest {
 
 const SERVICEABLE = quoteDeliveryFee('Ouagadougou', 'Ouagadougou');
 
-/**
- * The canonical `PayAtDoorEligibility` record, in its ALLOWED state. It is the
- * LAST caller-supplied §6.1 input and it stays one on purpose: §6.4 assigns it
- * to Risk, and no Risk service exists to read it from (JOURNALLED, still open).
- */
-const ELIGIBLE = {
-  buyerRef: 'buyer-1',
-  state: 'allowed',
-  buyerRefusalCount: 0,
-  buyerRiskState: 'normal',
-  requiredDeposit: 0,
-} as const;
+/* The `ELIGIBLE` fixture that stood here is gone with the field it fed
+   (OPTION-B-REACHABLE-1): §6.4's record is no longer caller-supplied, so no test
+   at this layer can hand one in. The server's own baseline is asserted by value
+   in « THE §6.4 RECORD IS THE SERVER'S »; a RESTRICTED record — suspended,
+   deposit owed, inside a prepay-only window — is exercised where it can still be
+   supplied, against `decidePayAtDoorEligibility` in commerce-core. */
 
 /**
  * SELLER-TIER-WIRE-1 — the SUPPLY PROJECTION behind the listing, the way the
@@ -390,48 +396,88 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     expect(refusalOf(issue({ request: { paymentMode: '' } }))).toBe('payment_mode_unknown');
   });
 
-  it('pay_at_door_not_eligible — missing context, and the shipped conservative policy, both refuse', () => {
-    expect(refusalOf(issue({ request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' } }))).toBe(
-      'pay_at_door_not_eligible',
-    );
-    // FOUNDER RULING 2026-08-01 — the zone allowlist is OPEN, so a request that
-    // satisfies the other four §6.1 conditions now ISSUES. This assertion used
-    // to pin the opposite; it is rewritten rather than deleted because « what
-    // does the SHIPPED policy do to a well-formed door request » is the question
-    // that matters most about this gate.
-    expect(PAY_AT_DOOR_POLICY_DEFAULTS.networkReliableZones).toBe('all');
-    const eligible = issue({
-      request: {
-        paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
-        payAtDoorContext: { eligibility: ELIGIBLE },
-      },
-    });
-    expect(eligible.ok, `the founder ruling is not live: ${refusalOf(eligible) ?? ''}`).toBe(true);
+  it('THE DOOR MODE ALONE ISSUES — a buyer asks with `paymentMode` and nothing else (OPTION-B-REACHABLE-1)', () => {
+    // ═══ THIS ASSERTION WAS EXACTLY INVERTED, AND THAT WAS THE BUG ═══
+    //
+    // It used to read « a door request with no context refuses », and it passed
+    // for a year — because a buyer had NO WAY to send that context. Her PWA
+    // never did, so `checkout-core` omitted the §6.1 block and the vault refused
+    // `context_missing` before one of the five conditions was evaluated. The
+    // founder's « Option B still not reachable » was this line, pinned green.
+    //
+    // The claim is rewritten, not deleted, and it is now the strongest one this
+    // file can make about the gate: a well-formed door request, carrying nothing
+    // but the mode, ISSUES under the shipped policy.
+    expect(PAY_AT_DOOR_POLICY_DEFAULTS.networkReliableZones).toBe('all'); // founder ruling 2026-08-01
+    const eligible = issue({ request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' } });
+    expect(eligible.ok, `Option B is unreachable again: ${refusalOf(eligible)}`).toBe(true);
+  });
+
+  it('THE §6.4 RECORD IS THE SERVER’S — the wire cannot carry one, so a buyer cannot answer her own condition', () => {
+    // The type-level half of OPTION-B-REACHABLE-1. `QuoteRequest` has no
+    // `payAtDoorContext` at all, so the old « self-declared eligibility »
+    // exposure is not merely unused — it is unrepresentable. What the server
+    // substitutes is the documented top of §6.4's ladder, asserted by VALUE so
+    // a future edit that quietly promotes a buyer (a deposit waived, a
+    // suspension defaulted away) reddens here.
+    expect(ELIGIBILITE_SANS_HISTORIQUE.state).toBe('allowed');
+    expect(ELIGIBILITE_SANS_HISTORIQUE.buyerRefusalCount).toBe(0);
+    expect(ELIGIBILITE_SANS_HISTORIQUE.requiredDeposit).toBe(0);
+    // …and it IS the canonical record, not a shape that merely looks like one:
+    // the vault parses it strictly and would refuse `eligibility_record_not_
+    // canonical` otherwise — which is what the issuing assertion above proves.
+    expect(PayAtDoorEligibilitySchema.safeParse(ELIGIBILITE_SANS_HISTORIQUE).success).toBe(true);
   });
 
   it('…and the OTHER FOUR §6.1 conditions still refuse under the shipped policy', () => {
     // Opening the zones changed ONE of five conditions. A door request that
     // fails any of the rest is still refused, and still by name.
     //
-    // SELLER-TIER-WIRE-1 — note WHERE each condition is now failed from: the
-    // tier and the category are failed on the SUPPLY fixture (server truth),
-    // and only `eligibility` is still failed from the request, because Risk
-    // still has no service to read it from.
-    const cases: { supply?: Partial<ProductDescription>; eligibility?: unknown }[] = [
-      { supply: { sellerTier: 'provisional' } },
-      { supply: { category: 'electronics' } },
-      { eligibility: { ...ELIGIBLE, state: 'suspended' } },
+    // EVERY REMAINING CONDITION IS NOW FAILED FROM SERVER TRUTH — there is no
+    // request-side lever left to pull (OPTION-B-REACHABLE-1 took the last one,
+    // `eligibility`, off the wire). The buyer-side rung of §6.4 is exercised
+    // where it now lives: directly against `decidePayAtDoorEligibility` in
+    // `commerce-core/test/e2-door-paths.test.ts`, which is the only caller that
+    // can still supply a restricted record.
+    const cases: Partial<ProductDescription>[] = [
+      { sellerTier: 'provisional' },
+      { category: 'electronics' },
+      // « Maison » — a REAL chip a supplier taps in Boutik+, and one §6.2 names
+      // no row for. It must refuse exactly as an unknown string does, or the
+      // door would be offered for goods with no inspection rights.
+      { category: 'Maison' },
     ];
-    for (const c of cases) {
+    for (const supply of cases) {
       const outcome = issue({
-        request: {
-          paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
-          payAtDoorContext: { eligibility: c.eligibility ?? ELIGIBLE },
-        },
-        ...(c.supply !== undefined ? { supply: supplyFixture(c.supply) } : {}),
+        request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' },
+        supply: supplyFixture(supply),
       });
-      expect(refusalOf(outcome), JSON.stringify(c)).toBe('pay_at_door_not_eligible');
+      expect(refusalOf(outcome), JSON.stringify(supply)).toBe('pay_at_door_not_eligible');
     }
+  });
+
+  it('THE SUPPLIER’S OWN CHIPS REACH THE DOOR — the eight Boutik+ words, mapped to §6.2 (OPTION-B-REACHABLE-1)', () => {
+    // THE SECOND HALF OF « still not reachable », and the one no type checked:
+    // Boutik+ writes the word she tapped (« Mode femme »), Shop+ allowlisted
+    // §6.2's row names (`fashion_bags_fabrics`). The sets did not intersect, so
+    // EVERY listing the founder can create refused `category_not_inspectable`.
+    //
+    // Asserted against the REAL vocabulary, not a fixture invented here — these
+    // are the exact eight strings in `boutik-plus/apps/supplier-app/src/v2/
+    // categorie-details.ts`. If that list moves, this pin is how we find out.
+    const doorFor = (category: string): boolean =>
+      issue({
+        request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' },
+        supply: supplyFixture({ category }),
+      }).ok;
+    for (const chip of ['Mode femme', 'Mode homme', 'Enfant', 'Sacs', 'Tissus', 'Chaussures', 'Beauté scellée']) {
+      expect(doorFor(chip), `${chip} must reach the door`).toBe(true);
+    }
+    // …and the eighth does NOT, because §6.2 names no row for home goods.
+    expect(doorFor('Maison'), 'Maison has no §6.2 row and must refuse').toBe(false);
+    // A CONTROL, so the loop above cannot pass by everything being true: free
+    // text a supplier typed is not a category anyone may inspect at a door.
+    expect(doorFor('un-truc-que-personne-ne-connait')).toBe(false);
   });
 
   /* ═══ THE SLICE'S OWN PROPERTY: a caller cannot answer its own gate ═══ */
@@ -441,10 +487,7 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     // field, so the only tier in play is the supply projection's. Same request
     // bytes, two supplies, two different verdicts — which proves the decision
     // moved to the server rather than merely being spelled differently.
-    const request = {
-      paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
-      payAtDoorContext: { eligibility: ELIGIBLE },
-    } as const;
+    const request = { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' } as const;
     expect(issue({ request, supply: supplyFixture({ sellerTier: 'verified' }) }).ok).toBe(true);
     expect(refusalOf(issue({ request, supply: supplyFixture({ sellerTier: 'provisional' }) }))).toBe(
       'pay_at_door_not_eligible',
@@ -462,10 +505,7 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     // category. The block is OMITTED, so the vault answers the same refusal a
     // door request with no context at all gets.
     const outcome = issue({
-      request: {
-        paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
-        payAtDoorContext: { eligibility: ELIGIBLE },
-      },
+      request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' },
       supply: undefined,
     });
     if (outcome.ok || outcome.reason !== 'pay_at_door_not_eligible') throw new Error('expected the door refusal');
@@ -474,10 +514,7 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
 
   it('A PRODUCER OLDER THAN CANON v3.1.0 SENDS NO TIER, and an unprovable condition is a REFUSED condition', () => {
     const outcome = issue({
-      request: {
-        paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
-        payAtDoorContext: { eligibility: ELIGIBLE },
-      },
+      request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' },
       // exactly what canon v3.0.0 supply looks like: category, no sellerTier
       supply: { productName: 'Bazin riche', assetRefs: [], available: 3, category: 'shoes' },
     });
@@ -489,21 +526,28 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     // The safety property behind reading supply only for Option-B requests: a
     // supply outage must cost the door mode, never the mode every buyer uses.
     //
-    // TWO CASES, and the second is the one that matters (verifier NIT): a bare
-    // FULL_PREPAY omits the block on the FIRST half of the condition regardless
-    // of supply, so it proves almost nothing on its own. The real regression a
-    // future edit would produce is a FULL_PREPAY request that happens to carry a
-    // `payAtDoorContext` while the supply read failed — if that ever refuses,
-    // ordinary checkout has been made hostage to boutik's uptime.
+    // EVOLVED (OPTION-B-REACHABLE-1). The second case used to send a
+    // `payAtDoorContext` on a FULL_PREPAY request; that field no longer exists,
+    // so the shape it guarded against is unrepresentable. The claim it protected
+    // — « a supply outage must never refuse ordinary checkout » — is kept and
+    // strengthened: a FULL_PREPAY quote issues with NO supply at all, and the
+    // door refusal that a failed supply read produces is pinned separately
+    // (`context_missing`, above), so the two outcomes cannot be confused.
     expect(issue({ supply: undefined }).ok).toBe(true);
     expect(
-      issue({ request: { payAtDoorContext: { eligibility: ELIGIBLE } }, supply: undefined }).ok,
-      'a FULL_PREPAY quote must issue even with a door context and a failed supply read',
-    ).toBe(true);
+      refusalOf(issue({ request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' }, supply: undefined })),
+      'the SAME failed supply read must still cost the DOOR mode',
+    ).toBe('pay_at_door_not_eligible');
   });
 
   it('THE OPS DETAIL RIDES THE REFUSAL, so the service can diagnose without telling the buyer', () => {
-    const outcome = issue({ request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' } });
+    // `supply: undefined` is what produces `context_missing` now — the caller
+    // has no context to omit (OPTION-B-REACHABLE-1), so the only way the §6.1
+    // block goes missing is the server failing to describe the product.
+    const outcome = issue({
+      request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' },
+      supply: undefined,
+    });
     if (outcome.ok || outcome.reason !== 'pay_at_door_not_eligible') throw new Error('expected the door refusal');
     expect(outcome.refusal).toBe('context_missing');
     expect(outcome.policyVersion).toBe(PAY_AT_DOOR_POLICY_DEFAULTS.version);
@@ -537,14 +581,12 @@ describe('decideIssueQuote — the §5.5 pay-at-door split, when a policy allows
     inspectableCategories: ['shoes'],
     networkReliableZones: ['Ouagadougou'],
   };
-  // SELLER-TIER-WIRE-1 — the request carries `eligibility` and NOTHING ELSE.
-  // The tier and the category this policy measures come from `supplyFixture()`
-  // (`sellerTier: 'trusted'` ≥ `minSellerTier: 'verified'`, `category: 'shoes'`
-  // in `inspectableCategories`), which is the server's own read.
-  const doorRequest = {
-    paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
-    payAtDoorContext: { eligibility: ELIGIBLE },
-  } as const;
+  // OPTION-B-REACHABLE-1 — the request carries THE MODE AND NOTHING ELSE. Every
+  // value this policy measures is a server read: the tier and the category from
+  // `supplyFixture()` (`sellerTier: 'trusted'` ≥ `minSellerTier: 'verified'`,
+  // `category: 'shoes'` in `inspectableCategories`), the §6.4 record from
+  // `ELIGIBILITE_SANS_HISTORIQUE`, the amount from the pinned waterfall.
+  const doorRequest = { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' } as const;
 
   it('D is paid at checkout, the product at the door, and the two legs SUM to buyerTotal', () => {
     const q = issuedQuote({ request: doorRequest, deps: { payAtDoorPolicy: OPEN_POLICY } });

@@ -200,7 +200,9 @@ let keySeq = 0;
 const freshKey = (): string => `rk-${String(keySeq++).padStart(4, '0')}-${'x'.repeat(12)}`;
 
 /** The canonical `PayAtDoorEligibility` record, allowed. Since
- *  SELLER-TIER-WIRE-1 it is the ONLY thing `payAtDoorContext` may carry. */
+ *  OPTION-B-REACHABLE-1 the wire may not carry it AT ALL — the server supplies
+ *  §6.4's record itself. It survives here as the body a STALE CLIENT would send,
+ *  which the allowlist test uses to prove the route refuses it by name. */
 const ELIGIBLE = {
   buyerRef: 'b1',
   state: 'allowed',
@@ -515,7 +517,6 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
       ...base,
       paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
       requestKey: freshKey(),
-      payAtDoorContext: { eligibility: ELIGIBLE },
     });
     expect(door.status).toBe(422);
     expect(door.json['error']).toBe('pay_at_door_not_eligible');
@@ -532,9 +533,22 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
    * been — not dropped, because a caller who is silently ignored never learns
    * the server stopped believing them.
    */
-  it('a caller can no longer ANSWER its own §6.1 gate — `sellerTier` and `category` are refused on the wire', async () => {
+  it('a caller can no longer ANSWER its own §6.1 gate — the WHOLE door context is refused on the wire', async () => {
+    // EVOLVED (OPTION-B-REACHABLE-1), claim strengthened rather than dropped.
+    // `sellerTier` and `category` left the door context first; `eligibility` was
+    // the last one and left with this slice, so the CONTAINER is no longer wire
+    // vocabulary either. There is now no shape a caller can send that answers
+    // any part of §6.1 — asserted body by body, on the real HTTP bytes.
     const { slug, resellerId, pid } = await seedShop('0023');
-    for (const field of ['sellerTier', 'category']) {
+    const bodies: Record<string, unknown>[] = [
+      { eligibility: ELIGIBLE }, // what her own PWA would once have sent
+      { eligibility: { ...ELIGIBLE, state: 'suspended' } }, // …or under-claimed
+      { eligibility: ELIGIBLE, sellerTier: 'verified' },
+      { eligibility: ELIGIBLE, category: 'shoes' },
+      {}, // even an EMPTY one: the key itself is the refusal
+    ];
+    for (const payAtDoorContext of bodies) {
+      const label = JSON.stringify(payAtDoorContext);
       const res = await postQuote({
         slug,
         pid,
@@ -542,11 +556,11 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
         zoneTo: 'Ouagadougou',
         attributionResellerId: resellerId,
         requestKey: freshKey(),
-        payAtDoorContext: { eligibility: ELIGIBLE, [field]: 'verified' },
+        payAtDoorContext,
       });
-      expect(res.status, field).toBe(400);
-      expect(res.json['error']).toBe('unknown_field');
-      expect(res.json['field']).toBe(`payAtDoorContext.${field}`);
+      expect(res.status, label).toBe(400);
+      expect(res.json['error'], label).toBe('unknown_field');
+      expect(res.json['field'], label).toBe('payAtDoorContext');
     }
   });
 
@@ -564,8 +578,7 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
         zoneTo: 'Ouagadougou',
         attributionResellerId: s.resellerId,
         requestKey: freshKey(),
-        payAtDoorContext: { eligibility: ELIGIBLE },
-      });
+        });
     const yes = await ask(attested);
     const no = await ask(unattested);
     expect(yes.status, yes.text).toBe(200);
@@ -591,9 +604,7 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
       attributionResellerId: resellerId,
       paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
       requestKey: freshKey(),
-      // SELLER-TIER-WIRE-1 — `eligibility` alone. The tier and the category the
-      // gate measures are read from the supply projection, server-side.
-      payAtDoorContext: { eligibility: ELIGIBLE },
+      // OPTION-B-REACHABLE-1 — the MODE alone. Every §6.1 input is a server read.
     });
     expect(door.status, door.text).toBe(200);
     // §5.5 Option B, to the franc: she pays the DELIVERY FEE now and the
@@ -632,6 +643,11 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
   });
 
   it('the §6.1 POLICY is unreachable from the wire — a caller cannot loosen its own gate', async () => {
+    // The yardstick has never been reachable and still is not; only the NAME of
+    // the refusal moved, because the container that used to hold it is itself
+    // gone from the allowlist (OPTION-B-REACHABLE-1). Kept as its own test: a
+    // caller sending a policy is the single most dangerous body on this route,
+    // and it deserves a red line of its own rather than a row in a loop.
     const { slug, resellerId } = await seedShop('0014');
     const res = await postQuote({
       slug,
@@ -647,7 +663,9 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
     });
     expect(res.status).toBe(400);
     expect(res.json['error']).toBe('unknown_field');
-    expect(res.json['field']).toBe('payAtDoorContext.policy');
+    expect(res.json['field']).toBe('payAtDoorContext');
+    // …and the loosened cap never took effect: no quote was issued at all.
+    expect(res.text.includes('amountDueAtDelivery')).toBe(false);
   });
 
   it('a mis-shaped request key is refused before any object is created', async () => {
@@ -1355,8 +1373,7 @@ describe('CheckoutDO — a supply read that FAILS refuses Option B, and never in
       body: JSON.stringify({
         slug: s.slug, pid: 'pv-checkout-1', paymentMode: mode, zoneTo: 'Ouagadougou',
         attributionResellerId: s.resellerId, requestKey: freshKey(),
-        payAtDoorContext: { eligibility: ELIGIBLE },
-      }),
+        }),
     });
     const text = await res.text();
     return { status: res.status, text, json: safeJson(text) };
@@ -1418,12 +1435,17 @@ describe('CheckoutDO — a supply read that FAILS refuses Option B, and never in
   });
 
   /**
-   * THE AMPLIFICATION GUARD (verifier MAJOR 3). `payAtDoorContext` is a field
-   * ANY caller may attach to ANY request. Gated on its presence alone, an
+   * THE AMPLIFICATION GUARD (verifier MAJOR 3). `payAtDoorContext` WAS a field
+   * ANY caller could attach to ANY request. Gated on its presence alone, an
    * anonymous FULL_PREPAY request with an invented pid made this Worker fetch
-   * boutik — carrying `SUPPLY_READ_SECRET` — for a product nobody sells. The
-   * read is now additionally gated on the door payment mode AND on the listing
-   * having RESOLVED, so it cannot be aimed at an arbitrary productVersionId.
+   * boutik — carrying `SUPPLY_READ_SECRET` — for a product nobody sells.
+   *
+   * OPTION-B-REACHABLE-1 removed that field, which removes the ATTACK SHAPE but
+   * NOT the property worth guarding: the supply read is gated on the door
+   * payment mode AND on the listing having RESOLVED, so it still cannot be aimed
+   * at an arbitrary productVersionId. Case (a) sends a plain FULL_PREPAY — the
+   * strongest remaining form of the same request — and case (c) is the control
+   * that proves the gate is not simply switched off.
    */
   it('AN UNAUTHENTICATED REQUEST CANNOT AIM THIS WORKER AT BOUTIK — no supply read for a non-door mode or an unknown listing', async () => {
     let reads = 0;
@@ -1457,8 +1479,7 @@ describe('CheckoutDO — a supply read that FAILS refuses Option B, and never in
         body: JSON.stringify({
           slug: shop.slug, pid: 'pv-attacker-chosen-0001', paymentMode: 'FULL_PREPAY',
           zoneTo: 'Ouagadougou', attributionResellerId: shop.resellerId, requestKey: freshKey(),
-          payAtDoorContext: { eligibility: ELIGIBLE },
-        }),
+            }),
       });
       expect(bogus.status).toBe(404);
       expect(reads, 'a FULL_PREPAY request must never reach boutik').toBe(after);
@@ -1471,8 +1492,7 @@ describe('CheckoutDO — a supply read that FAILS refuses Option B, and never in
           slug: shop.slug, pid: 'pv-attacker-chosen-0002',
           paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR', zoneTo: 'Ouagadougou',
           attributionResellerId: shop.resellerId, requestKey: freshKey(),
-          payAtDoorContext: { eligibility: ELIGIBLE },
-        }),
+            }),
       });
       expect(unknownPid.status).toBe(404);
       expect(reads, 'an unresolvable listing must never reach boutik').toBe(after);

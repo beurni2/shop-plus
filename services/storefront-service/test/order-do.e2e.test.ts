@@ -291,9 +291,8 @@ async function issueDoorQuoteFor(m: Miniflare, shop: { slug: string; resellerId:
       zoneTo: 'Ouagadougou',
       attributionResellerId: shop.resellerId,
       requestKey: freshKey(),
-      payAtDoorContext: {
-        eligibility: { buyerRef: 'b1', state: 'allowed', buyerRefusalCount: 0, buyerRiskState: 'normal', requiredDeposit: 0 },
-      },
+      // OPTION-B-REACHABLE-1 — the door is asked for by MODE alone; §6.4's
+      // record is the server's, so there is nothing else for a buyer to send.
     }),
   });
   const text = await res.text();
