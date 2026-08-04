@@ -51,6 +51,15 @@ class_name = "DispatchIndexDO"
 name = "RESELLER"
 class_name = "ResellerFeedDO"
 
+# SP6.3 — the §6.4 buyer-refusal ladder. ONE INSTANCE PER BUYER, named by her
+# normalised phone (`cleAcheteur`), which is what makes the object itself the
+# per-buyer lock: two refusals reported for the same woman serialise, and a
+# refusal for a different woman cannot reach her record. Holds the canonical
+# PayAtDoorEligibility and nothing else — no money, no order, no contact.
+[[durable_objects.bindings]]
+name = "LADDER"
+class_name = "BuyerLadderDO"
+
 # FIRST-DEPLOY MIGRATION — create both DO classes. `new_sqlite_classes` is CORRECT
 # AND MANDATORY, not a coin-flip: Cloudflare stopped issuing key-value-backed DO
 # namespaces (changelog 2026-07-09) to any account without a pre-existing one, and
@@ -91,6 +100,15 @@ new_sqlite_classes = ["DispatchIndexDO"]
 [[migrations]]
 tag = "v5"
 new_sqlite_classes = ["ResellerFeedDO"]
+
+# SP6.3 — BuyerLadderDO on its OWN tag, for the identical reason v2–v5 each
+# took one: the migration list is append-only and every tag is applied once, so
+# editing v5 instead would be a no-op on an account that already ran it and the
+# class would never be created. Same UNPROVEN-UNTIL-DEPLOY caveat as the header:
+# Miniflare binds this class from its own test config, never from this file.
+[[migrations]]
+tag = "v6"
+new_sqlite_classes = ["BuyerLadderDO"]
 
 # The PRIVATE R2 bucket (exists: Standard, jurisdiction default, location hint
 # ENAM). Reads go THROUGH the Worker (GET /media/{key}); never a public custom

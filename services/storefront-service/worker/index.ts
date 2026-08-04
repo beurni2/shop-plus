@@ -8,6 +8,7 @@ import {
 } from '@platform/contracts';
 import { DispatchIndexDO, DISPATCH_INDEX_NAME } from './dispatch-index-do.js';
 import { ResellerFeedDO, RESELLER_FEED_NAME } from './reseller-feed-do.js';
+import { BuyerLadderDO } from './buyer-ladder-do.js';
 import { checkoutPreflight, handleRequest, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
 import { SUPPLY_COLLECTION_ROUTE } from '../src/supply-collection.js';
 import { signPrice } from '../src/publish-price.js';
@@ -37,7 +38,7 @@ import {
  *
  * wrangler binds these two classes by their exported names.
  */
-export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO, ResellerFeedDO };
+export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO, ResellerFeedDO, BuyerLadderDO };
 
 interface Env extends WriteAuthEnv {
   STOREFRONT: DurableObjectNamespace;
@@ -55,6 +56,8 @@ interface Env extends WriteAuthEnv {
    *  her index of CONFIRMED sales. Holds no franc: every figure is read from
    *  the order's own object at read time. */
   RESELLER: DurableObjectNamespace;
+  /** SP6.3 — the §6.4 buyer-refusal ladder, one instance per buyer key. */
+  LADDER: DurableObjectNamespace;
   /** SP3.3a — the certified sandbox provider's behaviour knobs. UNSET on the
    *  deploy (the well-behaved provider); read by OrderDO, never by a route. */
   PAYMENT_SANDBOX_BEHAVIOR?: string;
@@ -202,7 +205,18 @@ export default {
       // moments; the webhook below is the second).
       const createSource =
         isOrderCreate && request.method === 'POST' ? request.clone() : undefined;
-      const answered = await orderRouter.fetch(request, { ORDER: env.ORDER, CHECKOUT: env.CHECKOUT });
+      const answered = await orderRouter.fetch(request, {
+        ORDER: env.ORDER,
+        CHECKOUT: env.CHECKOUT,
+        // SP6.3 — the §6.4 ladder book, NAMED EXPLICITLY like its two
+        // neighbours. This composition root hands each router the exact
+        // bindings it may reach rather than the whole env, so a capability
+        // a route was not given is one it cannot use by accident. Adding
+        // the ladder here is what makes the buyer rung readable at order
+        // create; forgetting it fails CLOSED (the door refuses), which is
+        // how this omission was found.
+        LADDER: env.LADDER,
+      });
       if (createSource !== undefined && answered.status === 200) {
         await mirrorDispatchRow(env, createSource);
       }
@@ -432,7 +446,18 @@ export default {
       // means the order certainly exists, so a row the create-time mirror
       // lost is repaired here, idempotently.
       const webhookSource = request.clone();
-      const answered = await orderRouter.fetch(request, { ORDER: env.ORDER, CHECKOUT: env.CHECKOUT });
+      const answered = await orderRouter.fetch(request, {
+        ORDER: env.ORDER,
+        CHECKOUT: env.CHECKOUT,
+        // SP6.3 — the §6.4 ladder book, NAMED EXPLICITLY like its two
+        // neighbours. This composition root hands each router the exact
+        // bindings it may reach rather than the whole env, so a capability
+        // a route was not given is one it cannot use by accident. Adding
+        // the ladder here is what makes the buyer rung readable at order
+        // create; forgetting it fails CLOSED (the door refuses), which is
+        // how this omission was found.
+        LADDER: env.LADDER,
+      });
       if (answered.status === 200) await mirrorDispatchRow(env, webhookSource);
       return answered;
     }

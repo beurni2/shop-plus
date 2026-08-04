@@ -78,7 +78,7 @@ function makeMf(): Miniflare {
       STOREFRONT: 'StorefrontDO',
       LISTING: 'ListingDO',
       CHECKOUT: 'CheckoutDO',
-      ORDER: 'OrderDO',
+      ORDER: 'OrderDO', LADDER: 'BuyerLadderDO',
     },
     durableObjectsPersist: persist,
     bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
@@ -1299,7 +1299,7 @@ describe('CheckoutDO — a supply read that FAILS refuses Option B, and never in
     return new Miniflare({
       modules: true,
       scriptPath: SCRIPT,
-      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO' },
+      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', LADDER: 'BuyerLadderDO' },
       durableObjectsPersist: dir,
       bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
       serviceBindings: {
@@ -1334,7 +1334,7 @@ describe('CheckoutDO — a supply read that FAILS refuses Option B, and never in
     return new Miniflare({
       modules: true,
       scriptPath: SCRIPT,
-      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO' },
+      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', LADDER: 'BuyerLadderDO' },
       durableObjectsPersist: dir,
       bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
     });
@@ -1453,7 +1453,7 @@ describe('CheckoutDO — a supply read that FAILS refuses Option B, and never in
     const inst = new Miniflare({
       modules: true,
       scriptPath: SCRIPT,
-      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO' },
+      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', LADDER: 'BuyerLadderDO' },
       durableObjectsPersist: dir,
       bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
       serviceBindings: {

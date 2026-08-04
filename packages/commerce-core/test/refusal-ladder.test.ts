@@ -4,6 +4,8 @@ import {
   PREPAY_ONLY_WINDOW_DAYS,
   REFUSAL_REASONS,
   appliquerRefus,
+  cleAcheteur,
+  decideBuyerRung,
   decidePayAtDoorEligibility,
   eligibiliteInitiale,
   type RefusalReason,
@@ -239,5 +241,83 @@ describe('§6.4 — the ladder is replayable', () => {
       requiredDeposit: 0,
     });
     expect(PayAtDoorEligibilitySchema.safeParse(rec).success).toBe(true);
+  });
+});
+
+/* ═══════════════════ the ladder's key ═══════════════════ */
+
+describe('SP6.3 — `cleAcheteur`: one woman, one ladder, however she types her number', () => {
+  it('every way a Burkinabè number is written reduces to the SAME key', () => {
+    // The whole ruling rests on this. Get it wrong one way and two people share
+    // a ladder; wrong the other way and one person has two, so a refusal is
+    // forgotten the moment she writes her number differently.
+    const formes = [
+      '70123456',
+      '70 12 34 56',
+      '70-12-34-56',
+      '70.12.34.56',
+      '+226 70123456',
+      '+22670123456',
+      '00226 70 12 34 56',
+      '226-70123456',
+      ' 70123456 ',
+    ];
+    const cles = new Set(formes.map((f) => cleAcheteur(f)));
+    expect(cles.size, `expected one key, got ${[...cles].join(' | ')}`).toBe(1);
+    expect([...cles][0]).toBe('70123456');
+  });
+
+  it('TWO DIFFERENT NUMBERS NEVER COLLIDE — the control the test above needs', () => {
+    // Without this, a normaliser that returned a constant would pass the first
+    // test perfectly and put every buyer on one shared ladder.
+    expect(cleAcheteur('70123456')).not.toBe(cleAcheteur('70123457'));
+    expect(cleAcheteur('+22670123456')).not.toBe(cleAcheteur('+22676543210'));
+  });
+
+  it('a number too short to hold anyone to is UNKEYABLE, and the caller fails closed', () => {
+    for (const bad of ['', '   ', '1234567', 'sans numéro', '+226']) {
+      expect(cleAcheteur(bad), bad).toBeNull();
+    }
+  });
+
+  it('a FOREIGN number keeps its own digits — keyed, never refused for being unfamiliar', () => {
+    const fr = cleAcheteur('+33 6 12 34 56 78');
+    expect(fr).toBe('33612345678');
+    expect(fr).not.toBe(cleAcheteur('+22670123456'));
+  });
+});
+
+/* ═══════════════════ one implementation, two gates ═══════════════════ */
+
+describe('SP6.3 — the buyer rung has ONE implementation, shared by both gates', () => {
+  it('`decideBuyerRung` and the full §6.1 gate agree on every ladder state', () => {
+    // The defect this prevents: two gates disagreeing about « allowed » — she is
+    // offered the door at one step and refused at the next with no stated reason,
+    // or refused at quote and admitted at order.
+    const états = [
+      eligibiliteInitiale(BUYER),
+      monter(['change_of_mind']),
+      monter(['change_of_mind', 'change_of_mind']),
+      appliquerRefus(eligibiliteInitiale(BUYER), 'repeated_abuse', T).record,
+      appliquerRefus(eligibiliteInitiale(BUYER), 'fraud', T).record,
+      monter(['honest_absence']),
+      monter(['conformity_mismatch']),
+    ];
+    for (const rec of états) {
+      const rung = decideBuyerRung(rec, T);
+      const gate = decidePayAtDoorEligibility({
+        eligibility: rec, sellerTier: 'verified', category: 'shoes',
+        zoneTo: 'Ouagadougou', buyerTotalFcfa: 12_500, nowIso: T,
+      });
+      expect(rung.allowed, JSON.stringify(rec)).toBe(gate.eligible);
+    }
+  });
+
+  it('a record that is not the canonical shape refuses, by its own name', () => {
+    expect(decideBuyerRung({ not: 'canonical' }, T)).toEqual({
+      allowed: false,
+      reason: 'eligibility_record_not_canonical',
+    });
+    expect(decideBuyerRung(undefined, T).allowed).toBe(false);
   });
 });

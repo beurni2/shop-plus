@@ -51,7 +51,7 @@ const mf = new Miniflare({
     STOREFRONT: 'StorefrontDO',
     LISTING: 'ListingDO',
     CHECKOUT: 'CheckoutDO',
-    ORDER: 'OrderDO',
+    ORDER: 'OrderDO', LADDER: 'BuyerLadderDO',
     DISPATCH: 'DispatchIndexDO',
     RESELLER: 'ResellerFeedDO',
   },
@@ -233,7 +233,7 @@ describe('BC-1a — the contact travels to exactly one reader', () => {
       scriptPath: SCRIPT,
       durableObjects: {
         STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
-        ORDER: 'OrderDO', DISPATCH: 'DispatchIndexDO',
+        ORDER: 'OrderDO', LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO',
       },
       durableObjectsPersist: bare,
       bindings: {
@@ -732,7 +732,7 @@ describe('RF-1a B2 — a row lost at confirmation time is repaired by the next w
         STOREFRONT: 'StorefrontDO',
         LISTING: 'ListingDO',
         CHECKOUT: 'CheckoutDO',
-        ORDER: 'OrderDO',
+        ORDER: 'OrderDO', LADDER: 'BuyerLadderDO',
         DISPATCH: 'DispatchIndexDO',
         ...(withFeed ? { RESELLER: 'ResellerFeedDO' } : {}),
       },
@@ -860,7 +860,7 @@ describe('RF-1a B3 — a feed longer than the fan-out cap is truncated and SAYS 
     scriptPath: SCRIPT,
     durableObjects: {
       STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
-      ORDER: 'OrderDO', DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO',
+      ORDER: 'OrderDO', LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO',
     },
     durableObjectsPersist: persistT,
     bindings: {
@@ -977,7 +977,7 @@ describe('READINESS-RETURN-1c — preparation news arrives and reaches her feed'
     scriptPath: SCRIPT,
     durableObjects: {
       STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
-      ORDER: 'OrderDO', DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO',
+      ORDER: 'OrderDO', LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO',
     },
     durableObjectsPersist: persistR,
     bindings: {
@@ -1176,7 +1176,7 @@ describe('READINESS-RETURN-1c — with no PROGRESS_WRITE_SECRET, the intake refu
       scriptPath: SCRIPT,
       durableObjects: {
         STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
-        ORDER: 'OrderDO', DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO',
+        ORDER: 'OrderDO', LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO',
       },
       durableObjectsPersist: p,
       bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET, PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET },

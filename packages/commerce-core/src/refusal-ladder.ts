@@ -280,3 +280,41 @@ export function appliquerRefus(
     rung: 'first_fault_recorded',
   };
 }
+
+/**
+ * ═══ THE LADDER'S KEY (SP6.3, founder ruling 2026-08-04) ═══
+ *
+ * The founder ruled on the keying question: **the buyer rung is enforced at
+ * ORDER CREATE**, the first moment Shop+ knows who the buyer is (her phone
+ * arrives with the dispatch contact, BC-1a). This is the function that turns
+ * what she typed into the key the book is stored under, and it carries the
+ * whole weight of that ruling: get it wrong in one direction and two people
+ * share a ladder; wrong in the other and one person has two.
+ *
+ * WHAT IT ACCEPTS, and why it is generous rather than strict. Real people type
+ * « 70 12 34 56 », « +226 70123456 », « 00226-70-12-34-56 », « 226.70123456 ».
+ * All four are one woman and must key identically. So: every non-digit is
+ * dropped, a leading international prefix is removed, and what remains is the
+ * key. A Burkinabè number reduces to its eight digits whichever way she wrote
+ * it.
+ *
+ * FOREIGN NUMBERS ARE KEYED, NOT REFUSED. A number that is not Burkinabè keeps
+ * its own digits and gets its own ladder — deterministic, and better than
+ * refusing a real buyer for having a number we did not anticipate.
+ *
+ * `null` MEANS UNKEYABLE, AND THE CALLER MUST FAIL CLOSED. Fewer than eight
+ * digits is not a phone number anyone can be held to. §6.1's posture everywhere
+ * is « an unprovable condition is a refused condition », and the cost here is
+ * proportionate: she loses the door option for that order, not the purchase.
+ */
+export function cleAcheteur(phone: string): string | null {
+  const digits = phone.replace(/\D/g, '');
+  // « 00 » international prefix, then the Burkina country code, in that order.
+  const sansPrefixe = digits.startsWith('00') ? digits.slice(2) : digits;
+  const national =
+    sansPrefixe.length === 11 && sansPrefixe.startsWith('226') ? sansPrefixe.slice(3) : sansPrefixe;
+  // Eight is a Burkinabè number; fifteen is E.164's ceiling. Outside that band
+  // there is nothing to key on.
+  if (national.length < 8 || national.length > 15) return null;
+  return national;
+}

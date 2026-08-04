@@ -231,6 +231,39 @@ export type PayAtDoorDecision =
   | { eligible: true; policyVersion: string }
   | { eligible: false; policyVersion: string; reason: PayAtDoorRefusalReason };
 
+/**
+ * ═══ THE BUYER HALF OF §6.1, ON ITS OWN — SP6.3 ═══
+ *
+ * Extracted because it is now read from TWO places and must give one answer:
+ *
+ *  · at QUOTE, inside `decidePayAtDoorEligibility` below, where it runs against
+ *    the server's baseline record; and
+ *  · at ORDER CREATE, where her phone finally exists and the real §6.4 ladder
+ *    book can be read (founder ruling 2026-08-04 — see `buyer-ladder-do.ts`).
+ *
+ * A SECOND COPY OF THESE FOUR CHECKS WOULD BE THE DEFECT. Two gates that
+ * disagree about what « allowed » means is how a buyer is offered the door at
+ * one step and refused at the next for no stated reason — or, worse, refused at
+ * quote and admitted at order.
+ */
+export function decideBuyerRung(
+  eligibility: unknown,
+  nowIso: string,
+): { allowed: true } | { allowed: false; reason: 'eligibility_record_not_canonical' | 'buyer_not_allowed' } {
+  const parsed = PayAtDoorEligibilitySchema.safeParse(eligibility);
+  if (!parsed.success) return { allowed: false, reason: 'eligibility_record_not_canonical' };
+  const record = parsed.data;
+  if (record.state !== 'allowed') return { allowed: false, reason: 'buyer_not_allowed' };
+  // §6.4 ladder: an active prepay-only window means FULL_PREPAY only.
+  if (record.prepayOnlyUntil !== undefined && nowIso < record.prepayOnlyUntil) {
+    return { allowed: false, reason: 'buyer_not_allowed' };
+  }
+  // ⏳ requiredDeposit > 0 is a ladder consequence with NO built flow — refuse
+  // the mode rather than silently waive the deposit.
+  if (record.requiredDeposit > 0) return { allowed: false, reason: 'buyer_not_allowed' };
+  return { allowed: true };
+}
+
 export function decidePayAtDoorEligibility(
   ctx: PayAtDoorContext,
   policy: PayAtDoorPolicy = PAY_AT_DOOR_POLICY_DEFAULTS,
@@ -241,18 +274,9 @@ export function decidePayAtDoorEligibility(
     reason,
   });
 
-  // Buyer side — the canonical record must parse AND affirmatively allow.
-  const parsed = PayAtDoorEligibilitySchema.safeParse(ctx.eligibility);
-  if (!parsed.success) return refuse('eligibility_record_not_canonical');
-  const record = parsed.data;
-  if (record.state !== 'allowed') return refuse('buyer_not_allowed');
-  // §6.4 ladder: an active prepay-only window means FULL_PREPAY only.
-  if (record.prepayOnlyUntil !== undefined && ctx.nowIso < record.prepayOnlyUntil) {
-    return refuse('buyer_not_allowed');
-  }
-  // ⏳ requiredDeposit > 0 is a ladder consequence with NO built flow at E2 —
-  // conservative: refuse the mode rather than silently waive the deposit.
-  if (record.requiredDeposit > 0) return refuse('buyer_not_allowed');
+  // Buyer side — ONE implementation, shared with the order-create gate.
+  const rung = decideBuyerRung(ctx.eligibility, ctx.nowIso);
+  if (!rung.allowed) return refuse(rung.reason);
 
   // ═══ `Object.hasOwn` — WITHOUT IT THIS CONDITION DID NOT EXIST ═══
   //

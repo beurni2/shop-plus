@@ -1,4 +1,5 @@
 import { PlatformEventSchema, type Quote } from '@platform/contracts';
+import { decideBuyerRung } from '@shop-plus/commerce-core';
 import {
   acceptChargeForLeg,
   applyOrderInput,
@@ -18,6 +19,11 @@ import {
   type ReservationReceipt,
 } from '../src/order-core.js';
 import { readSandboxBehavior, sandboxPaymentProvider, type ChargeOutcome } from '../src/payment-port.js';
+import { lireEligibilite } from './buyer-ladder-do.js';
+
+/** SP6.3 — the one mode whose order consults the §6.4 ladder. Spelled once
+ *  so the check and the vault agree on one string. */
+const DOOR_MODE = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
 import { RESELLER_FEED_NAME } from './reseller-feed-do.js';
 
 /**
@@ -1418,6 +1424,13 @@ interface Env {
   ORDER: DurableObjectNamespace;
   /** The quote authority — read-only from here: the order copies, never writes. */
   CHECKOUT: DurableObjectNamespace;
+  /**
+   * SP6.3 — the §6.4 ladder book, read-only from here. OPTIONAL: an
+   * unconfigured Worker has no binding, and `lireEligibilite` answers
+   * `undefined`, which this route treats as « cannot prove the buyer rung » and
+   * refuses the DOOR MODE only. A full-prepay order never consults it.
+   */
+  LADDER?: DurableObjectNamespace;
 }
 
 const orderStub = (env: Env, orderId: string): DurableObjectStub =>
@@ -1531,11 +1544,55 @@ export default {
         new Request('https://do/entry'),
       );
       const quoteBody = (await quoteRes.json().catch(() => null)) as
-        | { ok?: boolean; reason?: string; canonicalBytes?: string; fulfillment?: unknown }
+        | { ok?: boolean; reason?: string; canonicalBytes?: string; fulfillment?: unknown; quote?: { paymentMode?: unknown } }
         | null;
       if (quoteBody === null) return refuse('quote_unknown');
       if (quoteBody.ok !== true || typeof quoteBody.canonicalBytes !== 'string') {
         return refuse(quoteBody.reason === 'not_found' ? 'quote_unknown' : (quoteBody.reason ?? 'quote_unknown'));
+      }
+
+      /**
+       * ═══ SP6.3 — THE §6.4 BUYER RUNG, EVALUATED WHERE ITS KEY EXISTS ═══
+       *
+       * Founder ruling 2026-08-04. §6.1 evaluates the Option-B gate « at
+       * quote », and four of its five conditions genuinely are (seller tier,
+       * category, price cap, zone — `pay-at-door-policy.ts`). The fifth is
+       * about the BUYER, and at quote time this service knows of no buyer:
+       * `QuoteRequest` carries nothing that identifies her. Her phone arrives
+       * HERE, with the dispatch contact.
+       *
+       * So the rung is read here — still before any money moves and before any
+       * custody, which is what keeps Law #3 untouched. The cost was stated to
+       * the founder before he ruled: she chooses the door, fills in her
+       * details, and only then may be redirected to full prepayment.
+       *
+       * FAIL-CLOSED, THREE WAYS, and each is a real state:
+       *   · no contact on a door order  — nothing to key on
+       *   · a phone that cannot be keyed — `cleAcheteur` returned null
+       *   · no ladder binding at all     — an unconfigured Worker
+       * All three refuse the DOOR MODE only. A full-prepay order is never
+       * touched by any of this: her ladder has no say over money paid up front.
+       */
+      const doorMode = quoteBody.quote?.paymentMode === DOOR_MODE;
+      if (doorMode) {
+        // NO CONTACT ON A DOOR ORDER IS ITS OWN REFUSAL, and deliberately not
+        // folded into the eligibility one. Two different things are true and a
+        // buyer deserves the actionable one: « we need your phone » is a field
+        // she can fill, « pay-at-door is not available » is not. Naming them
+        // apart also means the eligibility refusal never fires for a reason
+        // that has nothing to do with her history.
+        //
+        // A door delivery with no phone was never deliverable anyway — the
+        // rider has no way to reach her — so this refuses something that could
+        // not have worked, one step earlier and by name.
+        if (contact === null) return refuse('contact_required_for_door');
+        const eligibility = await lireEligibilite(env, contact.phone);
+        // `undefined` = an unkeyable phone, or no ladder binding at all. Both
+        // are « the buyer rung cannot be proved », and §6.1's posture
+        // everywhere is that an unprovable condition is a refused condition.
+        if (eligibility === undefined) return refuse('pay_at_door_not_eligible');
+        const verdict = decideBuyerRung(eligibility, new Date().toISOString());
+        if (!verdict.allowed) return refuse('pay_at_door_not_eligible');
       }
 
       const res = await orderStub(env, orderIdForQuote(quoteId)).fetch(

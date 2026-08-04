@@ -1,6 +1,10 @@
 export * from '../../../packages/commerce-core/dist/quote-issuance.js';
 export * from '../../../packages/commerce-core/dist/reservation.js';
 export * from '../../../packages/commerce-core/dist/pay-at-door-policy.js';
+// SP6.3 — §6.4's refusal ladder: the pure rung decisions, the buyer key, and
+// the initial record. `BuyerLadderDO` stores what these return and decides
+// nothing itself, so the ladder rules stay readable in one file in the vault.
+export * from '../../../packages/commerce-core/dist/refusal-ladder.js';
 // SP3.3a — the payment half of the vault. `order-spine.js` is the DECISION
 // AUTHORITY for the provider webhook and for « no confirmed order without funded
 // legs »; it pulls `order-machine.js` and `ledger.js` in through its own imports,

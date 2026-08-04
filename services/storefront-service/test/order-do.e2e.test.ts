@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { Miniflare } from 'miniflare';
+import { cleAcheteur } from '@shop-plus/commerce-core';
 import { afterAll, describe, expect, it } from 'vitest';
 
 /**
@@ -89,7 +90,7 @@ function makeMf(
       STOREFRONT: 'StorefrontDO',
       LISTING: 'ListingDO',
       CHECKOUT: 'CheckoutDO',
-      ORDER: 'OrderDO',
+      ORDER: 'OrderDO', LADDER: 'BuyerLadderDO',
     },
     durableObjectsPersist: persistDir,
     bindings: {
@@ -1725,7 +1726,13 @@ describe('ORDER-PAID-WIRE-1b verifier round — Option B, the honest clock, the 
     const holderRef = 'holder-0070';
     const held = await reserve(mf, quote.quoteId, 'cmd-reserve-0070', holderRef);
     expect(held.status).toBe(200);
-    const created = await postOrder(mf, { quoteId: quote.quoteId, holderRef, commandId: 'cmd-order-0070' });
+    // SP6.3 — a DOOR order now carries a contact, and that is not test
+    // bookkeeping: her phone is the key the §6.4 ladder is read by, and a door
+    // delivery with no phone was never deliverable (the rider cannot reach
+    // her). Without it the create refuses `contact_required_for_door`, which is
+    // asserted on its own below.
+    const contact = { phone: '70123456', quartier: 'Gounghin', repere: 'près du marché' };
+    const created = await postOrder(mf, { quoteId: quote.quoteId, holderRef, commandId: 'cmd-order-0070', contact });
     expect(created.status, created.text).toBe(200);
     const orderId = `ord-${quote.quoteId}`;
 
@@ -1780,3 +1787,128 @@ describe('ORDER-PAID-WIRE-1b verifier round — Option B, the honest clock, the 
     expect(ok.json['state']).toBe('confirmed');
   });
 });
+
+/* ═══════════════ SP6.3 — the §6.4 ladder, over real HTTP ═══════════════ */
+
+describe('SP6.3 — the buyer rung is enforced at ORDER CREATE, where her phone finally exists', () => {
+  const CONTACT = { phone: '70 12 34 56', quartier: 'Gounghin', repere: 'près du marché' };
+
+  /** Record one refusal against her ladder, through the DO the Worker uses.
+   *
+   *  THE KEY COMES FROM `cleAcheteur`, not from a shortcut in this file. The
+   *  first cut stripped non-digits by hand, which turned « +226 76 55 44 33 »
+   *  into `22676554433` while the production path keyed it `76554433` — so the
+   *  refusal was written to a ladder nobody would ever read. The test caught
+   *  that, and the fix is the right one: whoever records a refusal (the
+   *  founder's console today, Séra later) must key it exactly as checkout
+   *  does, so the recorder shares the function rather than imitating it. */
+  async function reportRefusal(m: Miniflare, phone: string, reason: string) {
+    const key = cleAcheteur(phone);
+    if (key === null) throw new Error(`unkeyable test phone: ${phone}`);
+    const id = await m.getDurableObjectNamespace('LADDER');
+    const stub = id.get(id.idFromName(`ladder:${key}`));
+    return stub.fetch('https://do/entry/refusal', {
+      method: 'POST',
+      body: JSON.stringify({ buyerRef: key, reason, at: new Date().toISOString() }),
+    });
+  }
+
+  async function doorOrder(m: Miniflare, n: string, contact: unknown) {
+    const shop = await seedShop(m, n);
+    const quote = await issueDoorQuoteFor(m, shop);
+    const holderRef = `holder-${n}`;
+    await reserve(m, quote.quoteId, `cmd-reserve-${n}`, holderRef);
+    return postOrder(m, {
+      quoteId: quote.quoteId,
+      holderRef,
+      commandId: `cmd-order-${n}`,
+      ...(contact === undefined ? {} : { contact }),
+    });
+  }
+
+  it('A CLEAN BUYER GETS THE DOOR — the control, without which every case below passes vacuously', async () => {
+    const created = await doorOrder(mf, '0601', CONTACT);
+    expect(created.status, created.text).toBe(200);
+  });
+
+  it('NO CONTACT ⇒ its OWN refusal, not an eligibility one — she gets the actionable sentence', async () => {
+    const created = await doorOrder(mf, '0602', undefined);
+    expect(created.status).toBe(422);
+    expect(created.json['error']).toBe('contact_required_for_door');
+  });
+
+  it('TWO ordinary faults ⇒ the door is REFUSED on the next order, over HTTP, end to end', async () => {
+    // The whole slice in one test: a refusal is reported, §6.4 escalates it, the
+    // book stores it, and the order-create path reads it and refuses. Nothing
+    // here inspects the record — the assertion is on what the BUYER is told.
+    const phone = '76 00 11 22';
+    for (const r of ['change_of_mind', 'insufficient_balance']) {
+      const res = await reportRefusal(mf, phone, r);
+      expect(res.status, r).toBe(200);
+    }
+    const created = await doorOrder(mf, '0603', { ...CONTACT, phone });
+    expect(created.status, created.text).toBe(422);
+    expect(created.json['error']).toBe('pay_at_door_not_eligible');
+    // …and her rung is HERS: a different woman is untouched by it.
+    const autre = await doorOrder(mf, '0604', { ...CONTACT, phone: '76 99 88 77' });
+    expect(autre.status, autre.text).toBe(200);
+  });
+
+  it('THE SAME LADDER WHATEVER SHE TYPES — a refusal on « +226 76 55 44 33 » refuses « 76554433 »', async () => {
+    // The normaliser, measured where it matters rather than in isolation: if
+    // the key drifted, she would escape her own history by writing her number
+    // a different way at checkout.
+    await reportRefusal(mf, '+226 76 55 44 33', 'repeated_abuse');
+    const created = await doorOrder(mf, '0605', { ...CONTACT, phone: '76554433' });
+    expect(created.status, created.text).toBe(422);
+    expect(created.json['error']).toBe('pay_at_door_not_eligible');
+  });
+
+  it('A VALID REJECTION NEVER CLOSES HER DOOR — ten conformity refusals, still eligible', async () => {
+    // §6.2 calls a wrong/damaged/short article a VALID rejection. This is the
+    // §6.4 rule that matters most to a buyer, asserted on the real path.
+    const phone = '76 11 22 33';
+    for (let i = 0; i < 10; i += 1) await reportRefusal(mf, phone, 'conformity_mismatch');
+    const created = await doorOrder(mf, '0606', { ...CONTACT, phone });
+    expect(created.status, created.text).toBe(200);
+  });
+
+  it('FULL PREPAY IS NEVER TOUCHED BY THE LADDER — a suspended buyer still buys, paying up front', async () => {
+    // The safety property. Her history narrows ONE payment mode; it must never
+    // cost her the ability to buy at all.
+    const phone = '76 44 55 66';
+    await reportRefusal(mf, phone, 'fraud');
+    const shop = await seedShop(mf, '0607');
+    const q = await mf.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug: shop.slug, pid: shop.pid, paymentMode: 'FULL_PREPAY',
+        zoneTo: 'Ouagadougou', attributionResellerId: shop.resellerId, requestKey: freshKey(),
+      }),
+    });
+    const quote = safeJson(await q.text()) as { quoteId: string };
+    const holderRef = 'holder-0607';
+    await reserve(mf, quote.quoteId, 'cmd-reserve-0607', holderRef);
+    const created = await postOrder(mf, {
+      quoteId: quote.quoteId, holderRef, commandId: 'cmd-order-0607',
+      contact: { ...CONTACT, phone },
+    });
+    expect(created.status, created.text).toBe(200);
+  });
+
+  it('AN UNKEYABLE PHONE REFUSES THE DOOR — fail-closed, and she keeps full prepay', async () => {
+    const created = await doorOrder(mf, '0608', { ...CONTACT, phone: '12345' });
+    expect(created.status).toBe(422);
+    expect(created.json['error']).toBe('pay_at_door_not_eligible');
+  });
+
+  it('AN UNKNOWN REFUSAL REASON IS REFUSED BY NAME — no guessing which rung a typo belongs on', async () => {
+    const res = await reportRefusal(mf, '76 77 88 99', 'il-na-pas-voulu');
+    expect(res.status).toBe(400);
+    // …and nothing was recorded: her door is still open.
+    const created = await doorOrder(mf, '0609', { ...CONTACT, phone: '76 77 88 99' });
+    expect(created.status, created.text).toBe(200);
+  });
+});
+
