@@ -3498,3 +3498,13 @@ Both figures in the type reserved for real money, on the screen that opens first
 **Evidence:** 487/487 incl. the 8-test accounts e2e (the full loop: signup → refused by name → mint → one code once → her real confirmed sale reaches her session feed AND the suivi at **2 000 F to the franc** — 20 % of (C 1 000 + M 1 500)). Gates board exit 0. **Mutations: 10 run, 9 killed outright, 1 (W1) survived → new pin → killed on re-run.** W10 (`suivi` counting non-confirmed) is a NO-OP by construction — the feed only ever indexes confirmed orders (verifier M9), so the `state === 'confirmed'` filter is defensive; recorded rather than claimed as coverage.
 
 **Known residue, his checklist not mine:** no rate limit on the open signup POST (same class as the open quote POST — real-money gate item). **⏳ still open: idempotency key on the §6.4 refusal route** — asked twice, unanswered.
+
+### RESELLER-ACCOUNTS-1d — the entrance is an account (`3616223`, merged, EAS `30957899364`, publish step 71s)
+
+The founder's flow, complete in the app: **EcranCompte** (créer un compte: nom · email · téléphone · mot de passe — his phone-alias override; or « J'ai déjà un compte ») → **EcranAdmission** (her account exists; the one-time `SPA-` code he minted for HER account opens the app) → open forever, nothing inside asks again → **« Votre accès est en pause »** as its own designed state with a re-check, never a disguised error.
+
+**HER ACCOUNT ID BECOMES HER APP IDENTITY** — the server-minted `rs-{4 digits}` is written into the identity store on signup/login/admission, so her shop, listings and orders ride the id her feed and the founder's suivi are keyed by. Without that write her sales would ride the device-random id and her feed would be forever empty. **Named cost:** on a device that already carried a random identity, adopting the account id orphans anything created under the old one — today that is nobody (the gate is off and the only real user is the founder); noted rather than hidden.
+
+The SESSION is the app's one bearer, stored where the feed already reads — « Mes ventes »/« Mes gains » ride her account with zero changes. Gate decides on LAST-KNOWN state (offline-first); a background session refresh at launch is how a pause reaches a device already inside. The legacy type-a-feed-code path has **no mount left** (pinned at zero); the server keeps honoring legacy codes.
+
+**Evidence:** 542/542 · typecheck 0 · gates 0 · **6 mutations, 6 killed** (paused opening anyway · pending skipping admission · the login client rebuilding the email oracle · an unknown state reaching the gate · admission collapsing « paused » into « bad code » · the legacy path re-mounted). CI `30957498310` green → ff merge → EAS publish verified.
