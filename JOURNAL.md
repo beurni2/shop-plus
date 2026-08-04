@@ -3388,3 +3388,31 @@ Both flags now travel together, in `stop()` **and** in `play()` — the second b
 **Evidence:** buyer-pwa **869/869** · tsc exit 0 · **gates board exit 0, ALL GATES GREEN, zero `GATE FAILED`**. Mutation-verified four ways — the button not handed to the player ⇒ fails · the glyph stops swapping ⇒ fails · the clock stops ticking ⇒ fails · a refused play leaves the pause glyph ⇒ fails.
 
 **MERGED AND DEPLOYED 2026-08-04** (founder: « on green merge and deploy »). CI `30881797200` green on `89a9ce1` → fast-forward `fbb7572..89a9ce1` on main (guard passed) → **`pwa-preview` `30882198115`: success**. Web only — no reseller-app change in this batch, so no Expo update was needed.
+
+### SP6.3 (part 4) — the ladder finally has a way to MOVE
+
+**What existed before today:** the book (`BuyerLadderDO`), the decision (`appliquerRefus`, §6.4, pure), and the enforcement at order create. What did **not** exist: any way for a refusal to be recorded. The ladder was a closed loop reading a record nothing could write, so every buyer sat at the top rung forever and the enforcement I shipped had nothing to enforce. **That gap was named in the previous entry and is now closed on both sides.**
+
+**Shop+ (`5e0003a`) — `POST /checkout/dispatch/{orderId}/refusal`, key C.** Same door and same credential as the dispatch read it sits beside, because that is the row he is already looking at when the rider calls back.
+
+**THE BODY CANNOT NAME THE BUYER, AND THAT IS THE ROUTE'S WHOLE SHAPE.** One field — the §6.4 reason — on an exact-key allowlist, so a `phone` sent here is refused **by name** rather than ignored: a client that thinks it may name her learns immediately that it may not. Her ladder key comes from the ORDER'S OWN contact, server-side, through the same internal projection the dispatch list uses. The consequence is worth stating precisely: a console typo can refuse **the wrong order** — visible on his screen, and his to correct — but can never move **a stranger's history**, which a phone field would have made one wrong digit away. Same law as §6.1's facts after the last slice: the values a decision is measured by come from server truth, never from the wire.
+
+Named refusals rather than one 500: `no_contact_on_order` / `phone_not_keyable` (422) so the console can say something true, `ladder_unavailable` (503) when the binding is missing — never a silent success. `decodeOrderId` mirrors checkout-do's decoder so a lone percent escape is a 404 and not an uncaught throw.
+
+**Boutik+ (`e30b5dc`) — the fold under each dispatch card.**
+
+**THE VOCABULARY IS DERIVED, NOT RESTATED.** `MOTIFS_REFUS` is asserted equal to `DELIVERY_FAILURE_REASONS` **minus `provider_failure`**, against the contracts package itself. The day canon grows an eighth buyer reason the suite goes red instead of the operator quietly never being able to pick it. `provider_failure` is excluded on purpose and the test says why: our provider dying is not something that happened at her door, and nobody standing there should be able to name it.
+
+**ORDER IS A DESIGN DECISION.** Everyday reasons on top where a tired thumb lands; « Abus répété » and « Fraude » — the two that end her access to the door — apart at the bottom behind a wider gap **derived from `MOTIFS_GRAVES`**, so reordering the list can never leave the seam on the wrong row. « L'article n'était pas le bon » stays in the ordinary block **carrying the sentence that it never counts against her**: without a true option there an honest operator reaches for « elle a changé d'avis », and a buyer takes a fault for our mistake.
+
+**⚠ FLAGGED TO THE FOUNDER — THE REFUSAL ROUTE HAS NO IDEMPOTENCY KEY.** A lost response is indistinguishable from a lost request: the note may already have landed. **Two ordinary faults close her door for a month**, so a blind retry can cost a real buyer a month for one real refusal. I did **not** invent a request key — that is a wire shape, and wire shapes are his (§7). What the console does instead: **any failed attempt removes the reason list from the screen**, and the sentence says « la note est peut-être déjà partie : vérifiez avant de recommencer » rather than blaming his network. He must reopen deliberately. **The real fix is a request key on that route and it is his call.**
+
+Both 422s share one sentence because they mean one thing to a console — no usable number on this order, and retrying will not change that. The earlier draft mapped `phone_not_keyable` to « Votre réseau, sans doute », which was simply false.
+
+**Evidence, this session, all run:** storefront-service **479/479** · supplier-app **671/671** · `tsc` exit 0 on **both** storefront projects (`src` AND `worker` — the lesson from part 3) and on supplier-app · **gates board exit 0 in both repos, zero `GATE FAILED (expected pass)`**.
+
+**Mutation-verified, 14 mutations, 14 killed** — drop `conformity_mismatch` ⇒ 2 red · interleave a grave reason ⇒ red · offer `provider_failure` ⇒ 4 red · smuggle a `phone` into the body ⇒ red · 422 claims a network fault ⇒ red · orderId unencoded ⇒ red · 401 loses its own name ⇒ red · timeout removed ⇒ red · failure re-offers all seven buttons ⇒ red · hand-typed divider + flipped grave order ⇒ 2 red · guard drops `aUnNumero` ⇒ red · card claims every row has a number ⇒ red · fold never mounted ⇒ red · label key hand-built instead of `libelleMotif` ⇒ red.
+
+**`no-wallet-no-funds` tripped on my own prose for the FOURTH time this session** — « WITHDRAWN » in a comment and a test title, both about a UI list. Reworded; the guard stays blunt. The convention is settled and I keep re-learning it: **the code bends around the scan, never the reverse.**
+
+**Still not built, and named rather than implied:** nothing DETECTS related parties (§6.5 decides a signal set it is not given — that needs an identity system this platform does not have), and consent-scoped customers still has no consent capture anywhere.
