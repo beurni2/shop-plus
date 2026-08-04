@@ -3227,3 +3227,22 @@ Buyer: an inline-flex outline chip that read as a minor link beside the price. O
 **MERGED AND DEPLOYED 2026-08-04** (founder: « go ahead »). CI `30866030365` green on `c35e1af` → fast-forward `0cd8a68..c35e1af` on main (guard passed) → **`pwa-preview` `30869215331`: success** → **`expo-preview` `30869218888`: success, publish step RAN 67 s** (01:35:52→01:36:59), verified at the step. No service or canon change in this batch, so nothing else was redeployed.
 
 **Still owed:** the founder's `eas build`. The **en-tête preview sheet** — including all three fixes above — is the only thing waiting on it. The voice work on both surfaces shipped over the air in this update.
+
+### Les deux bonnes affordances vocales, et le cadre laissé vide
+
+**Founder, 2026-08-04, with two screenshots:** « i was talking about the 'ajouter une note vocale' on the product card on ma vitrine and the one the buyer's pwa … and on the entetes webviews do not put the uploaded photo on frames, just leave it blank ».
+
+**I HAD FIXED THE ADJACENT SURFACES.** The day before I redesigned the buyer's product **page** row and the reseller's **recorded-state** controls. Both were worth doing; neither was what he pointed at. His screenshots show the two AFFORDANCES — the entry points — not the players. Recorded because it is a specific failure mode: « the audio area » named two things I mapped onto the two I had already been looking at.
+
+**MA VITRINE, on the product card:** a **bare text link** — a small magenta line with a mic, under the price rows, no surface of its own, sitting next to a full-width « Partager » button. It read as fine print, which is the wrong weight for the one act that makes her shop sound like a person. Now a tinted card: the mic in a filled disc, the state sentence, a second line saying what it is for. **`voiceCardLabel` still decides** between « ajouter », « à publier » and « en attente », so the card never claims more than the note actually is.
+
+**BUYER, the tile chip:** a pill with a glyph and « 0:05 » — which **reads as a timestamp, not an invitation**. A buyer scanning a grid had no way to know a real person recorded something about this product. It carries the WORD now, full width under the price, the glyph in a filled disc so one visual idea means « there is a voice here » on both the tile and the product page. Still a `span role="button"` inside the tile `<button>`, one delegated handler, no autoplay, and an unplayable note still renders **nothing**.
+
+**APERÇU NU — the preview frames go empty, and he is right for a reason past taste.** He is choosing between **forty-three frames**. With his cover filling each one, the eye reads the PHOTOGRAPH — the same picture, cropped slightly differently, forty-three times — while the frame, the only thing that actually differs, is the part he cannot see. Empty, the shape is the subject.
+`sansPhotos` is **pure and exported** (the `enteteForRender` precedent: a rule buried in the mount is a rule no test can fail loudly), applied at the ONE point every render reads the storefront so no branch can accidentally keep the photo. **It removes and never invents:** cover → `status: 'none'`, avatar → monogram — the two states a shop that never uploaded anything already has, drawn by the theme's own woven default. The stale framing goes with the photo it framed. **It is a view**: nothing is saved, so the preview cannot change her shop by being looked at — the same rule « Appliquer » exists to keep.
+
+**Evidence:** buyer-pwa **860/860** · reseller-app **477/477** · tsc exit 0 both · **gates board exit 0, ALL GATES GREEN, zero `GATE FAILED`**. Mutation-verified three ways — `sansPhotos` keeping the cover ⇒ fails · `sansPhotos` mutating its input ⇒ fails · the tile chip losing its word ⇒ fails. Two pins **evolved rather than deleted**: the preview-url shape (it now carries `apercu-nu`, asserted for **every** pickable style rather than a sampled one).
+
+**MERGED AND DEPLOYED 2026-08-04** (founder: « go »). CI `30874230440` green on `cbdddad` → fast-forward `c643da9..cbdddad` on main (guard passed) → **`pwa-preview` `30874760668`: success** → **`expo-preview` `30874764422`: success, publish step RAN 67 s** (03:26:53→03:28:00), verified at the step. No service or canon change, so nothing else was redeployed.
+
+**Still owed:** the `eas build`. The en-tête preview sheet — the WebView itself, the 404 fix, the drag-to-close, the taller band, and now the blank frames — is the only thing waiting on it. Both voice affordances shipped over the air in this update.
