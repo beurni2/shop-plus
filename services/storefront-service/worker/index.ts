@@ -8,7 +8,7 @@ import {
 } from '@platform/contracts';
 import { DispatchIndexDO, DISPATCH_INDEX_NAME } from './dispatch-index-do.js';
 import { ResellerFeedDO, RESELLER_FEED_NAME } from './reseller-feed-do.js';
-import { BuyerLadderDO } from './buyer-ladder-do.js';
+import { BuyerLadderDO, ladderName } from './buyer-ladder-do.js';
 import { checkoutPreflight, handleRequest, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
 import { SUPPLY_COLLECTION_ROUTE } from '../src/supply-collection.js';
 import { signPrice } from '../src/publish-price.js';
@@ -412,6 +412,88 @@ export default {
     }
 
     /**
+     * ═══ SP6.3 — THE FOUNDER RECORDS ONE DOORSTEP REFUSAL (§6.4) ═══
+     *
+     * `POST /checkout/dispatch/{orderId}/refusal`, key C, same door and same
+     * credential as the dispatch read it sits beside: he is already looking at
+     * that row when the rider tells him what happened.
+     *
+     * ═══ THE BUYER IS NAMED BY THE ORDER, NEVER BY THE CALLER ═══
+     *
+     * The body carries ONE field — the §6.4 reason. It cannot carry a phone,
+     * and that is the whole shape of this route: the key is read from the
+     * ORDER'S OWN contact, server-side, through the same internal projection
+     * the dispatch list uses. A console typo can therefore refuse the wrong
+     * ORDER (visible, and his to correct) but can never move a stranger's
+     * ladder — which a phone field would have made a one-digit mistake away.
+     * Same law as §6.1's facts: the values a decision is measured by come from
+     * server truth, never from the wire.
+     *
+     * A door that only the founder holds, on a Worker whose write key, webhook
+     * secret and Boutik+ ops key all open nothing here.
+     */
+    {
+      const refusalRoute = /^\/checkout\/dispatch\/([^/]+)\/refusal$/.exec(pathname);
+      if (refusalRoute !== null) {
+        if (request.method === 'OPTIONS') return dispatchPreflight('POST');
+        if (request.method !== 'POST') return withDispatchCors(unauthorized());
+        const refused = await rejectUnauthorizedOpsRead(request, env);
+        if (refused) return withDispatchCors(refused);
+        if (env.LADDER === undefined) {
+          return withDispatchCors(Response.json({ ok: false, reason: 'ladder_unavailable' }, { status: 503 }));
+        }
+        const orderId = decodeOrderId(refusalRoute[1]!);
+        if (orderId === undefined) return withDispatchCors(Response.json({ ok: false, reason: 'not_found' }, { status: 404 }));
+
+        const body = (await request.json().catch(() => null)) as { reason?: unknown } | null;
+        if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+          return withDispatchCors(Response.json({ ok: false, reason: 'malformed' }, { status: 400 }));
+        }
+        for (const key of Object.keys(body)) {
+          // ONE FIELD, and the allowlist is the shape — a `phone` sent here is
+          // refused by NAME rather than ignored, so a client that thinks it may
+          // name the buyer learns immediately that it may not.
+          if (key !== 'reason') {
+            return withDispatchCors(Response.json({ ok: false, reason: 'unknown_field', field: key }, { status: 400 }));
+          }
+        }
+
+        // THE ORDER'S OWN CONTACT, read the way the dispatch list reads it.
+        const orderRes = await env.ORDER.get(env.ORDER.idFromName(orderId)).fetch(
+          new Request('https://do/entry/dispatch'),
+        );
+        const order = (await orderRes.json().catch(() => null)) as
+          | { ok?: boolean; exists?: boolean; contact?: { phone?: unknown } | null }
+          | null;
+        if (order?.ok !== true || order.exists !== true) {
+          return withDispatchCors(Response.json({ ok: false, reason: 'not_found' }, { status: 404 }));
+        }
+        const phone = order.contact?.phone;
+        if (typeof phone !== 'string' || phone === '') {
+          // No contact on the order — there is no buyer to key a ladder to, and
+          // inventing one is not on the table. Named so the console can say
+          // something true instead of « it did not work ».
+          return withDispatchCors(Response.json({ ok: false, reason: 'no_contact_on_order' }, { status: 422 }));
+        }
+        const name = ladderName(phone);
+        if (name === null) {
+          return withDispatchCors(Response.json({ ok: false, reason: 'phone_not_keyable' }, { status: 422 }));
+        }
+
+        // The DO validates the reason against §6.4's closed vocabulary and
+        // applies the rung; nothing here decides anything about her history.
+        return withDispatchCors(
+          await env.LADDER.get(env.LADDER.idFromName(name)).fetch(
+            new Request('https://do/entry/refusal', {
+              method: 'POST',
+              body: JSON.stringify({ buyerRef: name, reason: body.reason, at: new Date().toISOString() }),
+            }),
+          ),
+        );
+      }
+    }
+
+    /**
      * ═══ SP3.3a — THE PAYMENT WEBHOOK: AUTHENTICATED BEFORE IT IS ROUTED ═══
      *
      * It is NOT in the public exemption above and never can be: it is the only
@@ -751,15 +833,32 @@ function withDispatchCors(res: Response): Response {
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
 }
 
-function dispatchPreflight(): Response {
+/** SP6.3 — a path segment that is not a decodable id is not an id. Mirrors
+ *  `checkout-do.ts`'s own decoder: a lone escape THROWS on `decodeURIComponent`
+ *  and an uncaught throw answers 500, which every route in this Worker refuses
+ *  to do. A malformed id becomes an honest 404 instead. */
+function decodeOrderId(raw: string): string | undefined {
+  try {
+    const decoded = decodeURIComponent(raw);
+    return decoded === '' || decoded.length > 191 ? undefined : decoded;
+  } catch {
+    return undefined;
+  }
+}
+
+function dispatchPreflight(methods: 'GET' | 'POST' = 'GET'): Response {
   return new Response(null, {
     status: 204,
     headers: {
       'Access-Control-Allow-Origin': DISPATCH_CORS_ORIGIN,
-      'Access-Control-Allow-Methods': 'GET',
+      // SP6.3 — the refusal route is a POST on this same door, so the preflight
+      // advertises the method the caller is actually about to use. Advertising
+      // GET for a POST route is a preflight that passes and a request that then
+      // fails in the browser with nothing the console can say about it.
+      'Access-Control-Allow-Methods': methods,
       // Authorization: the founder's Bearer — granting the HEADER grants
       // nothing; the route still 401s anything but his key.
-      'Access-Control-Allow-Headers': 'Accept, Authorization',
+      'Access-Control-Allow-Headers': 'Accept, Authorization, Content-Type',
       'Access-Control-Max-Age': '86400',
     },
   });

@@ -1203,3 +1203,109 @@ describe('READINESS-RETURN-1c — with no PROGRESS_WRITE_SECRET, the intake refu
     }
   });
 });
+
+/* ═══════ SP6.3 — the founder records one doorstep refusal, key C ═══════ */
+
+describe('SP6.3 — recording a refusal from the console: the buyer is named by the ORDER, never by the caller', () => {
+  /**
+   * ONE PHONE PER TEST, and the first cut of this suite got it wrong in an
+   * instructive way: every case reused the shared `CONTACT`, so every order
+   * belonged to the SAME buyer and they all shared one ladder — the third test
+   * inherited two faults from the second and its control assertion failed.
+   *
+   * That is the ladder behaving exactly as designed (it is keyed by phone, not
+   * by order, so a repeat buyer carries her history between orders) and the
+   * fixtures being wrong. Distinct numbers here; the cross-order behaviour has
+   * its own test in `order-do.e2e.test.ts` where it is the claim rather than an
+   * accident.
+   */
+  const acheteuse = (phone: string) => ({ ...CONTACT, phone });
+
+  const refuse = async (orderId: string, body: unknown, bearer: string | null = OPS_SECRET) => {
+    const res = await mf.dispatchFetch(`http://c/checkout/dispatch/${encodeURIComponent(orderId)}/refusal`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(bearer !== null ? { Authorization: `Bearer ${bearer}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    return { status: res.status, text, json: safeJson(text) };
+  };
+
+  it('ONLY KEY C OPENS IT — no key, a wrong key, and the WRITE key are all 401', async () => {
+    const { orderId } = await orderWith('6001', acheteuse('76 00 00 01'));
+    for (const bearer of [null, 'not-the-key', WRITE_SECRET]) {
+      const res = await refuse(orderId, { reason: 'change_of_mind' }, bearer);
+      expect(res.status, String(bearer)).toBe(401);
+    }
+  });
+
+  it('THE HAPPY ROAD: two ordinary faults recorded → §6.4 opens the prepay-only window', async () => {
+    const { orderId } = await orderWith('6002', acheteuse('76 00 00 02'));
+    const first = await refuse(orderId, { reason: 'change_of_mind' });
+    expect(first.status, first.text).toBe(200);
+    expect(first.json['rung']).toBe('first_fault_recorded');
+    const second = await refuse(orderId, { reason: 'insufficient_balance' });
+    expect(second.status, second.text).toBe(200);
+    expect(second.json['rung']).toBe('prepay_only_window');
+    // …and the record that came back is the canonical one, at count 2.
+    const record = second.json['record'] as Record<string, unknown>;
+    expect(record['buyerRefusalCount']).toBe(2);
+  });
+
+  it('THE CALLER CANNOT NAME THE BUYER — a `phone` field is refused BY NAME, not ignored', async () => {
+    // The shape of this route is its safety property: the key comes from the
+    // ORDER's own contact, server-side. A client that believes it may name the
+    // buyer must be told, not quietly overruled.
+    const { orderId } = await orderWith('6003', acheteuse('76 00 00 03'));
+    const res = await refuse(orderId, { reason: 'fraud', phone: '76 99 99 99' });
+    expect(res.status).toBe(400);
+    expect(res.json['error'] ?? res.json['reason']).toBe('unknown_field');
+    expect(res.json['field']).toBe('phone');
+    // …AND NOTHING WAS RECORDED. The control that makes the assertion above
+    // worth having: a refused body must not have moved anyone's ladder.
+    const after = await refuse(orderId, { reason: 'change_of_mind' });
+    expect(after.json['rung']).toBe('first_fault_recorded'); // still the FIRST
+  });
+
+  it('AN UNKNOWN §6.4 REASON IS REFUSED — no guessing which rung a typo belongs on', async () => {
+    const { orderId } = await orderWith('6004', acheteuse('76 00 00 04'));
+    for (const reason of ['il-na-pas-voulu', '', 'CHANGE_OF_MIND', 42, null]) {
+      const res = await refuse(orderId, { reason });
+      expect(res.status, JSON.stringify(reason)).toBe(400);
+    }
+  });
+
+  it('AN ORDER WITH NO CONTACT says so BY NAME — there is no buyer to key a ladder to', async () => {
+    const { orderId } = await orderWith('6005', undefined);
+    const res = await refuse(orderId, { reason: 'change_of_mind' });
+    expect(res.status).toBe(422);
+    expect(res.json['reason']).toBe('no_contact_on_order');
+  });
+
+  it('AN UNKNOWN ORDER IS 404, and a malformed id is 404 too — never a 500', async () => {
+    expect((await refuse('ord-nobody-has-this', { reason: 'fraud' })).status).toBe(404);
+    // A lone escape THROWS on decodeURIComponent; an uncaught throw would be a
+    // 500 on a founder route, which this Worker never answers.
+    const res = await mf.dispatchFetch('http://c/checkout/dispatch/%FF/refusal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPS_SECRET}` },
+      body: JSON.stringify({ reason: 'fraud' }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('THE PREFLIGHT ADVERTISES POST — a GET-only preflight passes and the real call then fails in the browser', async () => {
+    const res = await mf.dispatchFetch('http://c/checkout/dispatch/ord-x/refusal', { method: 'OPTIONS' });
+    expect(res.status).toBe(204);
+    expect(res.headers.get('Access-Control-Allow-Methods')).toBe('POST');
+    expect(res.headers.get('Access-Control-Allow-Headers')).toContain('Content-Type');
+    // …and the LIST preflight still advertises GET: one door, two methods, each
+    // preflight telling the truth about its own route.
+    const list = await mf.dispatchFetch('http://c/checkout/dispatch', { method: 'OPTIONS' });
+    expect(list.headers.get('Access-Control-Allow-Methods')).toBe('GET');
+  });
+});
+
