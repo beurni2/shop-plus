@@ -51,8 +51,8 @@ overrides:
   # and the RUNTIME schema from @platform/contracts (which had not). Types said
   # eight fields, the validator refused the eighth, 21 tests failed. After
   # touching any pin, verify the INSTALLED package, not the manifest.
-  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#542fdba9994bab00af5fb418b75d7761fceba9e4&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#542fdba9994bab00af5fb418b75d7761fceba9e4&path:packages/contracts"
+  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#4d048b0ace40d99c2d61856e3ea9d0d9be1fe8ca&path:packages/kernel-types"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#4d048b0ace40d99c2d61856e3ea9d0d9be1fe8ca&path:packages/contracts"
   # @platform/ui-tokens is UNIFIED at canon v0.9.9 (1c98ad1, + Storefront aggregate fields WO-5.13) — WO-7.0/WO-7.2b/SP#001-A
   # killed the WO-5.3 per-app skew and re-pinned the whole workspace to the current
   # release in one bump. reseller-app runs its visual layer on the Grand Teint API

@@ -923,7 +923,12 @@ function K4({ sf, onBack, onPick, onPickEntete, enteteEnCours, liveSlug, onCadre
    * her live shop, each one visible to any client who happened to be looking.
    */
   const [apercu, setApercu] = useState<HeaderStyleKey | null>(null);
-  const ORDER: VitrineThemeKey[] = ['laterite', 'danfani', 'indigo', 'foret'];
+  // THEMES-8 — the picker offers EVERY curated preset, derived from the record
+  // so a canon preset can never exist without a card to choose it. (The header
+  // grid opposite deliberately does NOT do this: header keys can be canon
+  // vocabulary with no render unit yet, and offering one would draw the default
+  // silently. A theme has no such gap — its four tokens ARE its render.)
+  const ORDER = Object.keys(THEMES) as VitrineThemeKey[];
   // ENTETES-B — the canon headers as cards: name + a one-line whisper of
   // character. ENTETES-APERÇU (founder order 2026-08-03) added the SILHOUETTE
   // above the name, so the shape each style gives her cover is visible before

@@ -18,13 +18,39 @@
  * prix signés, badge vérifié, protections, réputation, avis.
  */
 
-export type VitrineThemeKey = 'laterite' | 'danfani' | 'indigo' | 'foret';
+/**
+ * THEMES-8 (canon v3.9.0, founder order 2026-08-05: « add 4 more nice and
+ * beautiful habillage colors and make sure there is a light pink in it »).
+ *
+ * MIRRORED from the buyer's `vitrine/themes.ts` byte-for-byte on the four token
+ * values — one shape, two apps, zero drift by intent (same law as the Storefront
+ * shape above; the Metro bundle bans a runtime @platform import, so a Node-side
+ * conformance test pins this record to canon instead).
+ *
+ * Hibiscus is the founder's light pink. Its ACCENT is a rose rather than a
+ * pastel because `on` must stay near-white for the deep surfaces — the light
+ * pink is `soft`, which is what actually covers her vitrine. The full reasoning
+ * and the measured contrast ratios live in the buyer module, beside the tokens.
+ */
+export type VitrineThemeKey =
+  | 'laterite'
+  | 'danfani'
+  | 'indigo'
+  | 'foret'
+  | 'frangipanier'
+  | 'lagune'
+  | 'aubergine'
+  | 'sahel';
 
 export const THEMES: Record<VitrineThemeKey, { name: string; accent: string; deep: string; soft: string; on: string }> = {
   laterite: { name: 'Latérite', accent: '#C2571B', deep: '#7A340E', soft: '#F7E7D8', on: '#FFF6EC' },
   danfani: { name: 'Dan Fani', accent: '#A31D4E', deep: '#701134', soft: '#F8E4EC', on: '#FCF4EE' },
   indigo: { name: 'Indigo', accent: '#3E4B8C', deep: '#232B54', soft: '#E7EAF6', on: '#F2F4FC' },
   foret: { name: 'Forêt', accent: '#0B5B47', deep: '#073B2E', soft: '#E4EFE9', on: '#F6F1E7' },
+  frangipanier: { name: 'Frangipanier', accent: '#B0446B', deep: '#6E1F3C', soft: '#FAD3E1', on: '#FFF4F7' },
+  lagune: { name: 'Lagune', accent: '#0E6E70', deep: '#06484A', soft: '#E2F1F0', on: '#F0F8F7' },
+  aubergine: { name: 'Aubergine', accent: '#6A2D6E', deep: '#431B47', soft: '#F1E7F3', on: '#F8F1F9' },
+  sahel: { name: 'Sahel', accent: '#8A6413', deep: '#5A400A', soft: '#F7EBD2', on: '#FDF6E6' },
 };
 
 export type CoverStatus = 'none' | 'uploading' | 'pending' | 'live' | 'error';

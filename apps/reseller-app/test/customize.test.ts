@@ -19,6 +19,7 @@ import {
   DEFAULT_STOREFRONT,
   FEATURED_CAP,
   SECTIONS_CAP,
+  HEADER_STYLES,
   THEMES,
   coverTo,
   createSection,
@@ -30,7 +31,7 @@ import {
 } from '../src/vitrine/customize/storefront';
 import { K_SEED } from '../src/vitrine/customize/storefront';
 import { K_RAW_STYLES as S } from '../src/vitrine/customize/k-styles';
-import { StorefrontSchema } from '@platform/contracts';
+import { StorefrontSchema, STOREFRONT_THEMES } from '@platform/contracts';
 
 const flat = (style: unknown): Record<string, unknown> => style as Record<string, unknown>;
 
@@ -98,10 +99,83 @@ describe('K property pins — the Phase-0 table bytes in the runtime StyleSheet'
     expect(flat(S.ctaTextDisabled).color).toBe('#8A7D6B');
   });
 
-  it('the theme set is CLOSED at exactly the four §1.2 presets (no free colors)', () => {
-    expect(Object.keys(THEMES).sort()).toEqual(['danfani', 'foret', 'indigo', 'laterite']);
+  /**
+   * THEMES-8 (canon v3.9.0, founder order 2026-08-05) — the curated set is
+   * eight. The claim was never « exactly four »: it is that the set is CLOSED
+   * and MIRRORS CANON. Both halves are asserted below, and the mirror half is
+   * the one that matters — a preset canon accepts but this app has no tokens
+   * for would render a seller's shop with `undefined` colours.
+   */
+  it('the theme set is CLOSED and mirrors canon exactly — no free colours, no drift', () => {
+    expect(Object.keys(THEMES).sort()).toEqual(
+      ['aubergine', 'danfani', 'foret', 'frangipanier', 'indigo', 'sahel', 'laterite', 'lagune'].sort(),
+    );
+    // THE MIRROR, both directions: canon's vocabulary and this record's keys are
+    // the same set. A canon preset with no tokens here, or a theme here that
+    // canon would refuse to store, both fail.
+    expect(Object.keys(THEMES).sort()).toEqual([...STOREFRONT_THEMES].sort());
     expect(THEMES.laterite).toMatchObject({ accent: '#C2571B', deep: '#7A340E', soft: '#F7E7D8', on: '#FFF6EC' });
     expect(THEMES.indigo).toMatchObject({ accent: '#3E4B8C', deep: '#232B54', soft: '#E7EAF6', on: '#F2F4FC' });
+    // the founder's light pink, by value — « make sure there is a light pink in it »
+    expect(THEMES.frangipanier).toMatchObject({ name: 'Frangipanier', accent: '#B0446B', deep: '#6E1F3C', soft: '#FAD3E1', on: '#FFF4F7' });
+  });
+
+  /**
+   * THEMES-8 — NO NEW NAME MAY COLLIDE WITH A HEADER STYLE.
+   *
+   * Caught in review before merge: `hibiscus` and `karite` were the first two
+   * picks, and both are already header keys. The personnalisation screen renders
+   * the theme grid and the header grid one under the other, so the seller would
+   * have met two identically-labelled cards with no way to tell them apart.
+   *
+   * `indigo` is grandfathered: it shipped in both vocabularies long before this
+   * slice, and renaming a live key would orphan every shop stored under it. The
+   * exemption is exactly one, asserted, so the next preset cannot join it
+   * quietly.
+   */
+  it('no theme key collides with a header style — except the grandfathered indigo', () => {
+    const collisions = Object.keys(THEMES).filter((k) => (HEADER_STYLES as readonly string[]).includes(k));
+    expect(collisions).toEqual(['indigo']);
+  });
+
+  /**
+   * THE CONTRAST LAW IS COMPUTED, NOT TRUSTED (§1.2: « contrasts are
+   * pre-validated by design »). Eyeballing a hex is how an unreadable price
+   * band ships to a woman standing in the sun, so the ratios are measured here
+   * from the shipped bytes, for every preset, on every new one.
+   *
+   * THE FOUR ORIGINALS ARE MEASURED TOO — and one of them, Latérite, comes in
+   * at 4.20:1 on its price-band text, under the 4.5 floor its own docstring
+   * names. That is a SHIPPED, founder-owned brand colour and the default
+   * habillage; silently retuning it would be a redesign nobody asked for. It is
+   * recorded here as a known exemption and flagged to the founder, and the law
+   * is enforced strictly on everything else.
+   */
+  it('CONTRAST — every preset proves θ.on/θ.accent ≥ 4.5:1 and θ.deep/white ≥ 7:1, computed from the shipped bytes', () => {
+    const lum = (hex: string): number => {
+      const h = hex.replace('#', '');
+      const ch = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+      const lin = ch.map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * lin[0]! + 0.7152 * lin[1]! + 0.0722 * lin[2]!;
+    };
+    const ratio = (a: string, b: string): number => {
+      const [la, lb] = [lum(a), lum(b)];
+      return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    };
+    // the control: the function itself must be able to fail
+    expect(ratio('#FFFFFF', '#000000')).toBeCloseTo(21, 0);
+    expect(ratio('#FFFFFF', '#FFFFFF')).toBeCloseTo(1, 5);
+
+    const EXEMPT_ON_ACCENT = new Set(['laterite']); // shipped brand colour, see the docstring
+    for (const [key, th] of Object.entries(THEMES)) {
+      expect(ratio(th.deep, '#FFFFFF'), `${key} deep-on-white`).toBeGreaterThanOrEqual(7);
+      if (EXEMPT_ON_ACCENT.has(key)) continue;
+      expect(ratio(th.on, th.accent), `${key} on-accent`).toBeGreaterThanOrEqual(4.5);
+    }
+    // …and the exemption is EXACTLY ONE preset, measured — so a future theme
+    // cannot be quietly added to the escape hatch.
+    expect(EXEMPT_ON_ACCENT.size).toBe(1);
+    expect(ratio(THEMES.laterite.on, THEMES.laterite.accent)).toBeLessThan(4.5);
   });
 
 });

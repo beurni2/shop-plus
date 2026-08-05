@@ -3536,3 +3536,23 @@ The SESSION is the app's one bearer, stored where the feed already reads — « 
 **Evidence:** reseller-app **543/543** (542 + 1 new) · typecheck 0 · gates board exit 0 · **5 mutations, 5 killed** — the héro back to a bare Image (the founder's exact defect) ⇒ red · the clip covering every thumbnail ⇒ red · the photograph dropped from under the video ⇒ red · a clip-only product opening an empty gallery ⇒ red · the gate forgetting clip-only products ⇒ red.
 
 **Named residue:** the full-screen photo gallery (tap the héro) still shows photographs only — the clip does not play there. Not ordered, not built; flagged here rather than assumed.
+
+## 2026-08-05 · THEMES-8 — quatre habillages de plus, dont le rose clair (canon v3.9.0)
+
+**Founder order:** « add 4 more nice and beautiful habillage colors and make sure there is a light pink in it ». The set goes 4 → 8: **Frangipanier** (the light pink), **Lagune** (teal), **Aubergine** (violet), **Sahel** (bronze) — the hues the original four left open, so no two presets are mistakable for each other.
+
+**§7 — this touched `contracts/`, and here is the reading.** `STOREFRONT_THEMES` is canon, and §1.2 calls the set « ensemble fermé · aucun sélecteur de couleur libre, jamais ». **Closed means CURATED, not FROZEN**: what it forbids is a colour picker in a seller's hands, because every preset must arrive with its contrasts already proven. The header set has read it that way twice already, growing 5 → 10 → 31 under « a CLOSED set on the theme precedent ». The founder ordering four more presets is the same act. Canon bumped v3.8.0 → **v3.9.0**, full ritual (5 manifests + inter-package pins + api snapshot + lockfile + both docs manifests), consumers repinned and the INSTALLED package verified (`3.9.0`, eight keys) before any app code was trusted.
+
+**The contrast law is computed, not eyeballed.** θ.on/θ.accent ≥ 4.5:1 and θ.deep/white ≥ 7:1, measured from the shipped bytes in a test that walks every preset and carries its own control (white/black = 21, white/white = 1).
+
+**Why the pink's ACCENT is a rose and not a pastel** — the one place the order and the law pulled apart. `θ.on` is the ink on `θ.deep` (the header/hero band), so it must stay near-white, which forces the accent dark enough to carry white text. `#B0446B` is the **lightest** rose that still clears 4.5:1 (measured 5.03; the next step lighter, `#B84E74`, falls to 4.46). The light pink the founder asked for is therefore **θ.soft `#FAD3E1`**, which is what actually covers the vitrine — cover default, tile art, chips, section surfaces. Flagged to him in plain words rather than silently resolved.
+
+**TWO DEFECTS CAUGHT IN REVIEW, BOTH BEFORE MERGE, BOTH FOUND BY LOOKING:**
+1. **Rendered the eight and compared them by eye.** The first pink's `soft` (`#FBE3EC`) was four channel-steps from Dan Fani's (`#F8E4EC`) — two presets a seller could not tell apart. Pushed to `#FAD3E1`, a true blush, and re-rendered to confirm.
+2. **`hibiscus` and `karite` — the first two names — are already HEADER style keys.** The personnalisation screen stacks the theme grid and the header grid, so the seller would have met two identically-labelled cards. Renamed to `frangipanier` / `sahel` (canon fixup commit) and pinned: no theme key may collide with a header key, `indigo` grandfathered as the single asserted exemption because renaming a live key would orphan every shop stored under it.
+
+**A blind string-replace during that rename also hit the HEADER lists** (source and test), silently turning canon header keys into theme names. Caught by the ENTETES conformance pin, restored, and worth recording as the lesson: a rename across a file that holds two vocabularies must be scoped to one of them.
+
+**Known, recorded, NOT fixed:** shipped **Latérite** measures **4.20:1** on its own price-band text — under the 4.5 floor its docstring names. It is a founder-owned brand colour and the default habillage; retuning it is a redesign nobody ordered. It is an asserted, single-preset exemption in the contrast test and flagged to the founder.
+
+**Evidence:** canon 191/191 · reseller-app **545/545** · buyer-pwa **869/869** · typecheck 0 both apps · gates board exit 0 · installed canon verified 3.9.0/8 keys · the eight rendered and reviewed twice.
