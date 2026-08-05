@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { StorefrontSchema } from '@platform/contracts';
+import { STOREFRONT_THEMES, StorefrontSchema } from '@platform/contracts';
 import {
   StorefrontRegistry,
   StorefrontShortCodeError,
@@ -221,6 +221,32 @@ describe('PERSONNALISER-REAL-1 — decideSaveIdentity, the presentation she owns
     // …and the boundary values PASS, so the bound is a ceiling and not a wall
     expect(reason({ name: 'abc' })).toBe('saved');
     expect(reason({ featuredItems: ['a', 'b'] })).toBe('saved');
+  });
+
+  it('THEMES-8b: EVERY CANON HABILLAGE SAVES — the service accepts exactly what canon lists', async () => {
+    const { decideSaveIdentity } = await import('../src/storefront-core.js');
+    const e = await entry();
+    // THE DEFECT THIS PINS (founder-found, 2026-08-05): canon grew to eight
+    // presets while the service kept a hand-copied set of four, so the four new
+    // habillages were offered by the app and refused by the service — the seller
+    // tapped one and read « Pas enregistré » with no cause on the screen. The
+    // loop walks CANON, never a list retyped here: a ninth preset is covered the
+    // day it is added, and a service that lags canon fails on that preset BY NAME.
+    for (const theme of STOREFRONT_THEMES) {
+      const { decision } = decideSaveIdentity(e, { theme }, T3);
+      if (decision.status === 'refused') {
+        throw new Error(`canon theme ${theme} was refused: ${decision.reason}`);
+      }
+      if (theme === e.storefront.theme) {
+        expect(decision.status).toBe('unchanged'); // the base's own theme — a no-op save, not a write
+      } else {
+        if (decision.status !== 'saved') throw new Error(`expected saved for ${theme}`);
+        expect(decision.storefront.theme).toBe(theme); // and it is the value that lands
+      }
+    }
+    // the set is CLOSED, not open: canon's own vocabulary is the whole vocabulary
+    const off = decideSaveIdentity(e, { theme: 'sahel' }, T3).decision; // a preset that was renamed away
+    expect(off).toEqual({ status: 'refused', reason: 'unknown_theme' });
   });
 
   it('AN ABSENT STOREFRONT IS SURFACED — never a phantom save', async () => {

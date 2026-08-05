@@ -108,7 +108,7 @@ describe('K property pins — the Phase-0 table bytes in the runtime StyleSheet'
    */
   it('the theme set is CLOSED and mirrors canon exactly — no free colours, no drift', () => {
     expect(Object.keys(THEMES).sort()).toEqual(
-      ['aubergine', 'danfani', 'foret', 'frangipanier', 'indigo', 'sahel', 'laterite', 'lagune'].sort(),
+      ['aubergine', 'danfani', 'foret', 'frangipanier', 'indigo', 'brique', 'laterite', 'lagune'].sort(),
     );
     // THE MIRROR, both directions: canon's vocabulary and this record's keys are
     // the same set. A canon preset with no tokens here, or a theme here that
@@ -117,7 +117,7 @@ describe('K property pins — the Phase-0 table bytes in the runtime StyleSheet'
     expect(THEMES.laterite).toMatchObject({ accent: '#C2571B', deep: '#7A340E', soft: '#F7E7D8', on: '#FFF6EC' });
     expect(THEMES.indigo).toMatchObject({ accent: '#3E4B8C', deep: '#232B54', soft: '#E7EAF6', on: '#F2F4FC' });
     // the founder's light pink, by value — « make sure there is a light pink in it »
-    expect(THEMES.frangipanier).toMatchObject({ name: 'Frangipanier', accent: '#B0446B', deep: '#6E1F3C', soft: '#FAD3E1', on: '#FFF4F7' });
+    expect(THEMES.frangipanier).toMatchObject({ name: 'Frangipanier', accent: '#AD4F83', deep: '#641E47', soft: '#FCD9EA', on: '#FFF4F7' });
   });
 
   /**
@@ -176,6 +176,66 @@ describe('K property pins — the Phase-0 table bytes in the runtime StyleSheet'
     // cannot be quietly added to the escape hatch.
     expect(EXEMPT_ON_ACCENT.size).toBe(1);
     expect(ratio(THEMES.laterite.on, THEMES.laterite.accent)).toBeLessThan(4.5);
+  });
+
+  /**
+   * THEMES-8b — NO TWO HABILLAGES MAY READ AS THE SAME COLOUR.
+   *
+   * The founder, on a real phone: « forêt et lagune are the same color ». My
+   * swatch review had missed it because the review sheet drew cards four times
+   * the size a seller actually sees, and « they look different to me » is not a
+   * measurement. So the claim is computed here, in CIE Lab ΔE*ab, from the
+   * shipped bytes — the same discipline the contrast law already gets.
+   *
+   * THE METRIC MATCHES WHAT HE LOOKED AT. The picker card (K4) draws three
+   * swatches — accent, deep, soft — so two cards are confusable only when ALL
+   * THREE are close; one clearly different swatch is enough to tell them apart.
+   * Card distance is therefore the MAXIMUM of the three ΔEs, not the mean.
+   *
+   * THE FLOOR IS 20, and it is derived from the defect, not chosen for comfort:
+   * the pair he rejected measures 16.2. A second pair, Dan Fani / Frangipanier,
+   * measured 12.9 — WORSE than the one he sent back, found by running this
+   * metric over the set rather than by looking again; the pink was retuned for
+   * it (see themes.ts). Everything now clears 22.9.
+   */
+  it('SEPARATION — no two habillages are confusable on the picker card (ΔE*ab ≥ 20), computed from the shipped bytes', () => {
+    const lab = (hex: string): [number, number, number] => {
+      const h = hex.replace('#', '');
+      const [r, g, b] = [0, 2, 4]
+        .map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)) as [number, number, number];
+      const f = (t: number): number => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+      const X = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047);
+      const Y = f(0.2126 * r + 0.7152 * g + 0.0722 * b);
+      const Z = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
+      return [116 * Y - 16, 500 * (X - Y), 200 * (Y - Z)];
+    };
+    const dE = (a: string, b: string): number => {
+      const [x, y] = [lab(a), lab(b)];
+      return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]);
+    };
+    // the control: the metric must be able to FAIL, and it must fail on exactly
+    // the pair the founder rejected — Lagune BEFORE the fix, against Forêt.
+    const LAGUNE_REJECTED = { accent: '#0E6E70', deep: '#06484A', soft: '#E2F1F0' };
+    const rejected = Math.max(
+      dE(THEMES.foret.accent, LAGUNE_REJECTED.accent),
+      dE(THEMES.foret.deep, LAGUNE_REJECTED.deep),
+      dE(THEMES.foret.soft, LAGUNE_REJECTED.soft),
+    );
+    expect(rejected).toBeLessThan(20); // the defect scores BELOW the floor…
+    expect(dE('#FFFFFF', '#FFFFFF')).toBe(0); // …and identical colours are 0
+
+    const keys = Object.keys(THEMES) as (keyof typeof THEMES)[];
+    let pairs = 0;
+    for (let i = 0; i < keys.length; i++) {
+      for (let j = i + 1; j < keys.length; j++) {
+        const [x, y] = [THEMES[keys[i]!]!, THEMES[keys[j]!]!];
+        const card = Math.max(dE(x.accent, y.accent), dE(x.deep, y.deep), dE(x.soft, y.soft));
+        expect(card, `${keys[i]} / ${keys[j]}`).toBeGreaterThanOrEqual(20);
+        pairs++;
+      }
+    }
+    expect(pairs).toBe((keys.length * (keys.length - 1)) / 2); // every pair, not a sample
   });
 
 });

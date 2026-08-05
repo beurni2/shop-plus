@@ -40,17 +40,17 @@ export type VitrineThemeKey =
   | 'frangipanier'
   | 'lagune'
   | 'aubergine'
-  | 'sahel';
+  | 'brique';
 
 export const THEMES: Record<VitrineThemeKey, { name: string; accent: string; deep: string; soft: string; on: string }> = {
   laterite: { name: 'Latérite', accent: '#C2571B', deep: '#7A340E', soft: '#F7E7D8', on: '#FFF6EC' },
   danfani: { name: 'Dan Fani', accent: '#A31D4E', deep: '#701134', soft: '#F8E4EC', on: '#FCF4EE' },
   indigo: { name: 'Indigo', accent: '#3E4B8C', deep: '#232B54', soft: '#E7EAF6', on: '#F2F4FC' },
   foret: { name: 'Forêt', accent: '#0B5B47', deep: '#073B2E', soft: '#E4EFE9', on: '#F6F1E7' },
-  frangipanier: { name: 'Frangipanier', accent: '#B0446B', deep: '#6E1F3C', soft: '#FAD3E1', on: '#FFF4F7' },
-  lagune: { name: 'Lagune', accent: '#0E6E70', deep: '#06484A', soft: '#E2F1F0', on: '#F0F8F7' },
+  frangipanier: { name: 'Frangipanier', accent: '#AD4F83', deep: '#641E47', soft: '#FCD9EA', on: '#FFF4F7' },
+  lagune: { name: 'Lagune', accent: '#0F6E8C', deep: '#08475C', soft: '#E1F0F5', on: '#F0F9FC' },
   aubergine: { name: 'Aubergine', accent: '#6A2D6E', deep: '#431B47', soft: '#F1E7F3', on: '#F8F1F9' },
-  sahel: { name: 'Sahel', accent: '#8A6413', deep: '#5A400A', soft: '#F7EBD2', on: '#FDF6E6' },
+  brique: { name: 'Brique', accent: '#9E3D2E', deep: '#63241A', soft: '#F8E3DE', on: '#FFF3EF' },
 };
 
 export type CoverStatus = 'none' | 'uploading' | 'pending' | 'live' | 'error';

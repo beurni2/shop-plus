@@ -2,6 +2,7 @@ import {
   PlatformEventSchema,
   ResellerShortCodeSchema,
   STOREFRONT_HEADER_STYLES,
+  STOREFRONT_THEMES,
   StorefrontSchema,
   shortCodeToSlug,
   type PlatformEvent,
@@ -281,7 +282,21 @@ const ZONE_MAX = 40;
 const SECTION_NAME_MAX = 20;
 const FEATURED_CAP = 2;
 const SECTIONS_CAP = 4;
-const THEMES: ReadonlySet<string> = new Set(['laterite', 'danfani', 'indigo', 'foret']);
+/**
+ * THEMES-8 (founder-found, 2026-08-05: « When I select one of the new 4
+ * habillages, it says pas enregistré »).
+ *
+ * THIS LINE WAS A HAND-COPIED `new Set(['laterite','danfani','indigo','foret'])`
+ * — and the comment immediately below it, written for the header set, already
+ * named the rule it broke: « the CANON closed set, IMPORTED, never a
+ * hand-copied list ». Canon grew to eight presets, this copy did not, and the
+ * service answered `unknown_theme` for every one of the four new habillages.
+ * The seller saw « Pas enregistré » and had no idea why.
+ *
+ * IMPORTED NOW, exactly like the headers beside it: the service refuses exactly
+ * what canon refuses, by construction, and a ninth preset needs no edit here.
+ */
+const THEMES: ReadonlySet<string> = new Set<string>(STOREFRONT_THEMES);
 /** ENTETES-B — the CANON closed set, imported, never a hand-copied list: the
  *  service refuses exactly what canon refuses, by construction. */
 const HEADER_STYLES: ReadonlySet<string> = new Set<string>(STOREFRONT_HEADER_STYLES);

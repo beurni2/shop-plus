@@ -1,7 +1,7 @@
 /**
- * VITRINE — §1.2 LES QUATRE HABILLAGES « FASO PREMIUM » (ensemble fermé).
+ * VITRINE — §1.2 LES HABILLAGES « FASO PREMIUM » (ensemble fermé).
  *
- * The closed theme set for the buyer-side vitrine surface. Four presets, no
+ * The closed theme set for the buyer-side vitrine surface. Eight presets, no
  * free color picker, ever — contrasts are pre-validated by design (θ.on on
  * θ.accent ≥ 4.5:1 ; θ.deep on white ≥ 7:1). The values are the Phase-0
  * computed-style table's bytes (extracted from the pixel source), which match
@@ -27,7 +27,7 @@ export type VitrineThemeKey =
   | 'frangipanier'
   | 'lagune'
   | 'aubergine'
-  | 'sahel';
+  | 'brique';
 
 export interface VitrineTheme {
   /** UI name (K4 preset card). */
@@ -56,12 +56,19 @@ export interface VitrineTheme {
  * WHY THE PINK'S ACCENT IS A ROSE AND NOT A PASTEL, stated because it is the
  * one place the order and the law pull apart: `θ.on` is the ink on `θ.deep`
  * (see `.vt-*` header rules), so it must stay near-white — which forces the
- * accent dark enough to carry white text. `#B0446B` is the LIGHTEST rose that
- * still clears 4.5:1 (it measures 5.03; the next step lighter, `#B84E74`, falls
- * to 4.46 and fails). The LIGHT pink the founder asked for is therefore θ.soft
- * — `#FBE3EC` — which is what actually covers the vitrine: cover default, tile
- * art, chips, section surfaces. The habillage reads pink and light; only its
- * price band is deep enough to be read in the sun.
+ * accent dark enough to carry white text. The LIGHT pink the founder asked for
+ * is therefore θ.soft — `#FCD9EA` — which is what actually covers the vitrine:
+ * cover default, tile art, chips, section surfaces. The habillage reads pink
+ * and light; only its price band is deep enough to be read in the sun.
+ *
+ * THEMES-8b — THE ROSE MOVED, and the reason is measured, not aesthetic. The
+ * first pick, `#B0446B`, sat ΔE*ab 12.9 from Dan Fani's `#A31D4E` on the picker
+ * card — CLOSER than the Forêt/Lagune pair the founder rejected by eye at 16.2.
+ * Two rose cards side by side is the same defect he had just sent back. The
+ * accent moved to `#AD4F83` (rose-orchid, hue 346°, moderate chroma so it stays
+ * warm rather than neon), which puts the pink 22.9 from its nearest neighbour —
+ * every pair in the set now clears 22, and the whole separation table is pinned
+ * in `apps/reseller-app/test/customize.test.ts`.
  */
 export const VITRINE_THEMES: Record<VitrineThemeKey, VitrineTheme> = {
   laterite: { name: 'Latérite', accent: '#C2571B', deep: '#7A340E', soft: '#F7E7D8', on: '#FFF6EC', sh: '194,87,27' },
@@ -69,10 +76,10 @@ export const VITRINE_THEMES: Record<VitrineThemeKey, VitrineTheme> = {
   indigo: { name: 'Indigo', accent: '#3E4B8C', deep: '#232B54', soft: '#E7EAF6', on: '#F2F4FC', sh: '62,75,140' },
   foret: { name: 'Forêt', accent: '#0B5B47', deep: '#073B2E', soft: '#E4EFE9', on: '#F6F1E7', sh: '11,91,71' },
   // THEMES-8 — measured ratios in the comment: on/accent · deep/white.
-  frangipanier: { name: 'Frangipanier', accent: '#B0446B', deep: '#6E1F3C', soft: '#FAD3E1', on: '#FFF4F7', sh: '176,68,107' }, // 5.03 · 10.91
-  lagune: { name: 'Lagune', accent: '#0E6E70', deep: '#06484A', soft: '#E2F1F0', on: '#F0F8F7', sh: '14,110,112' }, //   5.59 · 10.33
+  frangipanier: { name: 'Frangipanier', accent: '#AD4F83', deep: '#641E47', soft: '#FCD9EA', on: '#FFF4F7', sh: '173,79,131' }, // 4.63 · 11.55
+  lagune: { name: 'Lagune', accent: '#0F6E8C', deep: '#08475C', soft: '#E1F0F5', on: '#F0F9FC', sh: '15,110,140' }, //   5.42 · 10.16
   aubergine: { name: 'Aubergine', accent: '#6A2D6E', deep: '#431B47', soft: '#F1E7F3', on: '#F8F1F9', sh: '106,45,110' }, // 8.56 · 14.13
-  sahel: { name: 'Sahel', accent: '#8A6413', deep: '#5A400A', soft: '#F7EBD2', on: '#FDF6E6', sh: '138,100,19' }, //   4.98 · 9.67
+  brique: { name: 'Brique', accent: '#9E3D2E', deep: '#63241A', soft: '#F8E3DE', on: '#FFF3EF', sh: '158,61,46' }, //   6.11 · 11.68
 };
 
 /** The default theme (§1.2): Latérite. */

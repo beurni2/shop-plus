@@ -292,7 +292,7 @@ export const VITRINE_STYLES = `
 
   /* C-VIT4 — l'état SANS PHOTO (BUYER-REAL-HONESTY-1, décision fondateur).
      Un tissage ornemental, géométrique, DÉRIVÉ DU THÈME (--vt-soft / --vt-accent,
-     le même vocabulaire tissé que la couverture) — donc chacun des quatre
+     le même vocabulaire tissé que la couverture) — donc chacun des
      habillages produit le sien, et il fonctionne pour un produit sans aucune
      donnée d'image. Jamais pris pour le produit : les quatre équerres et la
      mention « SANS PHOTO » (précédent C1) le désignent comme un ornement. */

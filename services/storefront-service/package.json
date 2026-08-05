@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@shop-plus/observability": "workspace:*",
-    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#6331b1b817748577acfecb8ed6073674c4022de9&path:packages/contracts",
+    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#e8bf4be8e52535a1995e44418e0692778dbd708c&path:packages/contracts",
     "@shop-plus/supply-consumer": "workspace:*",
     "@shop-plus/reseller-money": "workspace:*",
     "@shop-plus/commerce-core": "workspace:*"
