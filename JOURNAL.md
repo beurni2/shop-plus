@@ -3522,3 +3522,17 @@ The SESSION is the app's one bearer, stored where the feed already reads — « 
 **Named cost, stated when the option was chosen:** a genuinely second refusal on the same order cannot be recorded, and correcting a recorded reason has no route in this slice. Reversing a rung is its own decision, not a side effect of a retry.
 
 **Evidence:** storefront-service **491/491** (487 + 4 new) · typecheck 0 on both projects (`src` and `worker/`) · gates board exit 0 · **7 mutations, 7 killed** — no dedupe at all ⇒ red · a different reason returning the stored answer ⇒ red · keying by reason instead of order (which would forgive every repeat offence) ⇒ red · the guard never written ⇒ red · `orderId` optional again ⇒ red · the router not passing it ⇒ red · a replay not flagged ⇒ red.
+
+## 2026-08-05 · VIDEO-FICHE-1 — the clip plays on the Opportunité fiche (founder-found)
+
+**Founder, 2026-08-05, with a screenshot of the fiche: « The product video is not playing in this screen ».** He was right, and the cause was not video: `VIDEO-PARTOUT` wired `ProductClip` into the opportunités GRID tile and the Ma Vitrine card, and the FICHE — the page she actually reads before deciding to sell — kept rendering a bare `<Image>`. The clip had simply never been asked for on that surface.
+
+**The fix, and the one rule it needed.** The héro is now `ProductClip`, photograph underneath as the resting state. **The clip rides the COVER only** (`ficheHeroIdx === 0`): there is one clip per product and it is not one of the captures, and `ProductClip` fills its video over the photo — so playing it over capture 3 would make the reseller's own thumbnail tap look broken. Back on the first thumbnail, the clip returns. A **clip-only product** now gets a héro too (the gate widened by exactly that case) and its press returns instead of opening an empty gallery.
+
+**The class, named:** a surface can forget to ask for the clip and nothing anywhere fails. That is why the new pin is on the SURFACE, not on the component, and why it bans the old spelling by name (`<Image source={{ uri: opp.assetRefs[Math.min(ficheHeroIdx…`) rather than only asserting the new one.
+
+**A pin of my own failed first, and the correction is worth recording:** I wrote `indexOf('<ProductClip videoRef={ficheHeroIdx === 0')` against a one-line spelling while the JSX I had actually written wraps — the exact « matcher written against a spelling » trap this test file warns about two tests above. It asserted nothing the whitespace-insensitive regex beside it did not, so it was deleted rather than loosened.
+
+**Evidence:** reseller-app **543/543** (542 + 1 new) · typecheck 0 · gates board exit 0 · **5 mutations, 5 killed** — the héro back to a bare Image (the founder's exact defect) ⇒ red · the clip covering every thumbnail ⇒ red · the photograph dropped from under the video ⇒ red · a clip-only product opening an empty gallery ⇒ red · the gate forgetting clip-only products ⇒ red.
+
+**Named residue:** the full-screen photo gallery (tap the héro) still shows photographs only — the clip does not play there. Not ordered, not built; flagged here rather than assumed.
