@@ -1231,18 +1231,36 @@ export default function App() {
                     the thumbnail strip under it switching the héro, and a tap on
                     the héro opening the gallery ON that capture. Sans photo, the
                     duotone banner and no affordance. */}
-                {opp.assetRefs.length > 0 ? (
+                {/* VIDEO-FICHE-1 (founder-found, 2026-08-05: « The product video is
+                    not playing in this screen »). The clip played on the opportunités
+                    GRID and on Ma Vitrine, but this page — the one she actually reads
+                    before deciding — rendered a bare <Image>. It was simply never
+                    wired; ProductClip has always taken both and needs no branch.
+
+                    THE CLIP RIDES THE COVER ONLY, and that is the whole rule. There is
+                    ONE clip per product and it is not one of the captures, so it
+                    belongs on the capture the grid also shows — index 0. Tapping
+                    thumbnail 3 is an explicit request to look at THAT photograph, and a
+                    video covering it (ProductClip fills over the photo) would make her
+                    own tap look broken. Back on the first thumbnail, the clip returns. */}
+                {opp.assetRefs.length > 0 || (opp.videoRef !== undefined && opp.videoRef !== '') ? (
                   <>
                     <Pressable
                       style={({ pressed }) => [styles.ficheHero, pressed && styles.pressed]}
-                      onPress={() => setGallery({ name: opp.productName, refs: opp.assetRefs, startAt: ficheHeroIdx })}
+                      onPress={() => {
+                        // NEVER A DEAD TAP: a clip-only product has no gallery to open,
+                        // so the press does nothing and says so by doing nothing —
+                        // rather than opening an empty viewer.
+                        if (opp.assetRefs.length === 0) return;
+                        setGallery({ name: opp.productName, refs: opp.assetRefs, startAt: ficheHeroIdx });
+                      }}
                       accessibilityRole="button"
                       accessibilityLabel={t('galerie.ouvrir')}
                     >
-                      <Image
-                        source={{ uri: opp.assetRefs[Math.min(ficheHeroIdx, opp.assetRefs.length - 1)] }}
+                      <ProductClip
+                        videoRef={ficheHeroIdx === 0 ? opp.videoRef : undefined}
+                        photoUri={opp.assetRefs[Math.min(ficheHeroIdx, opp.assetRefs.length - 1)]}
                         style={styles.artPhoto}
-                        resizeMode="cover"
                       />
                     </Pressable>
                     {opp.assetRefs.length > 1 && (

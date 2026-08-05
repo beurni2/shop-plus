@@ -486,7 +486,12 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
   });
 
   it('item 2 (UX-3 form) — the fiche is a PRODUCT PAGE: square héro, thumbnails switch it, tap opens the gallery ON it', () => {
-    expect(app).toMatch(/opp\.assetRefs\.length > 0 \? \(/);
+    // PIN EVOLVED (VIDEO-FICHE-1): the héro used to appear only for a product
+    // with captures. A product can now carry a CLIP and no photograph, and that
+    // product must still get a héro — so the gate widened by exactly that case.
+    // The property this line guards is unchanged: nothing renders a héro frame
+    // for a product with no media at all (the glyph branch owns that).
+    expect(app).toMatch(/opp\.assetRefs\.length > 0 \|\| \(opp\.videoRef !== undefined && opp\.videoRef !== ''\) \? \(/);
     expect(app).toMatch(/setGallery\(\{ name: opp\.productName, refs: opp\.assetRefs, startAt: ficheHeroIdx \}\)/);
     expect(app).toMatch(/ficheHero: \{\n[^}]*aspectRatio: 1,/);
     // the thumbnail strip exists only when there is more than one capture, and
@@ -498,6 +503,39 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     expect(app).toMatch(/setFicheId\(item\.productVersionId\); setFicheHeroIdx\(0\);/);
     expect(app).toContain("accessibilityLabel={t('galerie.ouvrir')}");
     expect(app).toContain('<PhotoGallery product={gallery} onClose=');
+  });
+
+  /**
+   * VIDEO-FICHE-1 — FOUNDER-FOUND, 2026-08-05: « The product video is not
+   * playing in this screen », with a screenshot of the Opportunité fiche.
+   *
+   * The clip played on the opportunités GRID and on Ma Vitrine; the fiche — the
+   * page she actually reads before deciding to sell — rendered a bare <Image>.
+   * Nothing was broken about video; this surface was simply never wired to it.
+   * The whole class of defect is « a surface forgot to ask for the clip », so
+   * the pin is on the SURFACE, not on the component.
+   */
+  it('VIDEO-FICHE-1 — the fiche héro PLAYS the clip, on the cover capture, over the photograph', () => {
+    // the héro is ProductClip, not a bare Image
+    expect(app).toMatch(/<ProductClip\s+videoRef=\{ficheHeroIdx === 0 \? opp\.videoRef : undefined\}/);
+    // …carrying the photograph as its resting state, from the SELECTED thumbnail
+    expect(app).toMatch(/photoUri=\{opp\.assetRefs\[Math\.min\(ficheHeroIdx, opp\.assetRefs\.length - 1\)\]\}/);
+
+    // THE RULE — the clip rides the COVER only — is carried by the first
+    // matcher above (`ficheHeroIdx === 0 ? opp.videoRef : undefined`), which is
+    // a spelling unique to this surface. An `indexOf` of the one-line form stood
+    // here for a moment and failed against the wrapped JSX I actually wrote:
+    // exactly the « matcher written against a spelling » trap this file warns
+    // about two tests up. It asserted nothing the regex did not, so it is gone
+    // rather than loosened.
+
+    // AND THE OLD SPELLING CANNOT COME BACK: a bare <Image> reading the fiche
+    // héro index is exactly the defect the founder photographed.
+    expect(app).not.toMatch(/<Image\s+source=\{\{ uri: opp\.assetRefs\[Math\.min\(ficheHeroIdx/);
+
+    // a clip-only product has no gallery to open — the press returns instead of
+    // opening an empty viewer (never a dead tap that lies)
+    expect(app).toMatch(/if \(opp\.assetRefs\.length === 0\) return;/);
   });
 
   it('item 3 (UX-3 form) — Ma Vitrine card is a PRODUCT PAGE: square photo, thumbnail strip, named money rows', () => {
