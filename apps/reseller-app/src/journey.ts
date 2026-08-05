@@ -40,7 +40,12 @@ export const JOURNEY: Record<Screen, readonly Screen[]> = {
   vitrine: ['lien', 'personnaliser'],
   personnaliser: [],
   lien: ['gains'],
-  gains: ['opportunites'],
+  // GAINS-OPP-1 — the `gains → opportunites` edge existed for ONE render site,
+  // the « Les opportunités » button the founder found on this screen; with the
+  // button gone nothing declares it, and the rule three lines above cuts both
+  // ways — an edge no UI walks is the same lie as a screen nobody reaches. The
+  // dock's own `toHub` does not travel this map.
+  gains: [],
   // WO-7.2a — S7: « Mes ventes » (the sales list) → a sale's detail.
   ventes: ['vente_detail'],
   vente_detail: [],

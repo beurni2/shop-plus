@@ -34,14 +34,19 @@ const gainsBlock = (): string => {
  */
 describe('GAINS-OPP-1 — the gains screen keeps its own subject', () => {
   it('no route to opportunités renders inside the gains screen', () => {
-    const block = gainsBlock();
+    // COMMENTS STRIPPED FIRST, and that is load-bearing: the block now carries
+    // prose ABOUT this defect, so a case-insensitive scan of the raw region
+    // matches the explanation rather than any code. Un-accent one word in a
+    // comment and the pin would fail spuriously; scan the code only.
+    const code = gainsBlock().replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     // the exact defect, by name…
-    expect(block).not.toContain("go('opportunites')");
+    expect(code).not.toContain("go('opportunites')");
     // …and the label that made it read as another screen's furniture
-    expect(block).not.toContain('opportunites.title');
-    // any other spelling of the same navigation is refused too, so the fix
-    // cannot come back wearing a different label
-    expect(block).not.toMatch(/opportunites/);
+    expect(code).not.toContain('opportunites.title');
+    // …and ANY spelling of the word in code — accented or not, upper or lower,
+    // so an extracted `<OpportunitesLink />` or a `const OPP = 'opportunites'`
+    // hop cannot walk the button back in under a different name.
+    expect(code).not.toMatch(/opportunit/i);
   });
 
   it('THE CONTROL: the slice really is the gains screen, and it still renders its own content', () => {
@@ -63,5 +68,36 @@ describe('GAINS-OPP-1 — the gains screen keeps its own subject', () => {
     // with it: « hors ligne » still offers a reload, and only in that state
     expect(block).toContain("ventesReelles.gains.kind === 'hors_ligne'");
     expect(block).toContain("t('ventes.reel_chargement')");
+  });
+
+  it('NO STATE IS A BARE TITLE: every non-ladder state says what is happening', async () => {
+    // The other half of the founder's report. That button was the last element
+    // on four of these states; deleting it would have left « Mes gains » alone
+    // on an empty screen — including on a fresh install, which is the FIRST
+    // thing a new reseller sees when she taps Gains.
+    const { ecranDesGains } = await import('../src/sales/gains-screen');
+    const vues = [
+      { kind: 'non_branche' }, { kind: 'verrouille' }, { kind: 'chargement' },
+      { kind: 'refus' }, { kind: 'hors_ligne' },
+    ] as const;
+    const titres = new Set<string>();
+    for (const vue of vues) {
+      const e = ecranDesGains(vue as Parameters<typeof ecranDesGains>[0]);
+      expect(e.paliers, `${vue.kind} has no ladder`).toHaveLength(0);
+      // chargement is the one state that legitimately says only « Lecture… » —
+      // a hint under a spinner is noise, and it is transient by definition
+      if (vue.kind !== 'chargement') {
+        expect(e.hintKey, `${vue.kind} is a bare title`).toBeDefined();
+      }
+      titres.add(e.titreKey);
+    }
+    // …and no two of the five wear the same face. « Mes gains » used to title
+    // both `verrouille` and `chargement`: two different truths, one screen.
+    expect(titres.size).toBe(vues.length);
+    // the ladder state keeps its own voice and gains no hint — it has the
+    // ladder to speak with
+    const echelle = ecranDesGains({ kind: 'echelle', paliers: [], incomplet: false, sansObligation: 0 } as Parameters<typeof ecranDesGains>[0]);
+    expect(echelle.hintKey).toBeUndefined();
+    expect(echelle.sousTitreKey).toBe('gains.sous_titre');
   });
 });

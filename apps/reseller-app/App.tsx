@@ -1670,6 +1670,14 @@ export default function App() {
             {ventesReelles.gains.sousTitreKey !== undefined && (
               <Text style={styles.oppSub}>{t(ventesReelles.gains.sousTitreKey)}</Text>
             )}
+            {/* GAINS-OPP-1 — the second line of the five non-ladder states.
+                Removing the stray button left four of them (locked · refused ·
+                not-yet-open · offline) as a bare title on an empty screen, and
+                « Mes gains » alone tells her nothing about why nothing is
+                there. Same words « Mes ventes » shows for the same states. */}
+            {ventesReelles.gains.hintKey !== undefined && (
+              <Text style={styles.noteLine}>{t(ventesReelles.gains.hintKey)}</Text>
+            )}
 
             {ventesReelles.gains.noticeKeys.map((k) => (
               <Text key={k} style={styles.noteLine}>
