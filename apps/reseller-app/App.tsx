@@ -1717,7 +1717,17 @@ export default function App() {
             {ventesReelles.gains.kind === 'hors_ligne' && (
               <SecondaryButton label={t('ventes.reel_chargement')} onPress={() => { void ventesReelles.recharger(); }} />
             )}
-            <SecondaryButton label={t('opportunites.title')} onPress={() => go('opportunites')} />
+            {/* GAINS-OPP-1 (founder-found 2026-08-05: « When I tap on gains
+                screen I see opportunité there »). A « Les opportunités » button
+                used to sit here unconditionally — a NOUN, not an action, on the
+                money screen, going somewhere the dock already reaches in one
+                tap from this very screen (`gains` is in HUBS, so the TabBar is
+                always on-screen here). Two routes to one place, and the nearer
+                one is permanently visible: the button read as a stray piece of
+                another screen, which is exactly how he read it.
+                §5: one primary action per screen, secondary actions whisper —
+                and « Mes gains » already has its one thing to say, the settled
+                net in the hero. */}
           </ScrollView>
         )}
 
