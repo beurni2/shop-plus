@@ -5,8 +5,8 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@platform/kernel-types': git+https://github.com/beurni2/platform-contracts.git#e8bf4be8e52535a1995e44418e0692778dbd708c&path:packages/kernel-types
-  '@platform/contracts': git+https://github.com/beurni2/platform-contracts.git#e8bf4be8e52535a1995e44418e0692778dbd708c&path:packages/contracts
+  '@platform/kernel-types': git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/kernel-types
+  '@platform/contracts': git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/contracts
   '@platform/ui-tokens': git+https://github.com/beurni2/platform-contracts.git#be2199c95d27e6ae5f6c7381c12e18a9796d9800&path:packages/ui-tokens
 
 importers:
@@ -14,14 +14,14 @@ importers:
   .:
     dependencies:
       '@platform/contracts':
-        specifier: git+https://github.com/beurni2/platform-contracts.git#e8bf4be8e52535a1995e44418e0692778dbd708c&path:packages/contracts
-        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/contracts
+        specifier: git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/contracts
+        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/contracts
       '@platform/i18n':
         specifier: git+https://github.com/beurni2/platform-contracts.git#be2199c95d27e6ae5f6c7381c12e18a9796d9800&path:packages/i18n
         version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/be2199c95d27e6ae5f6c7381c12e18a9796d9800#path:packages/i18n
       '@platform/kernel-types':
-        specifier: git+https://github.com/beurni2/platform-contracts.git#e8bf4be8e52535a1995e44418e0692778dbd708c&path:packages/kernel-types
-        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/kernel-types
+        specifier: git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/kernel-types
+        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/kernel-types
       '@platform/ui-tokens':
         specifier: git+https://github.com/beurni2/platform-contracts.git#be2199c95d27e6ae5f6c7381c12e18a9796d9800&path:packages/ui-tokens
         version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/be2199c95d27e6ae5f6c7381c12e18a9796d9800#path:packages/ui-tokens
@@ -125,8 +125,8 @@ importers:
         specifier: ^7.25.2
         version: 7.29.7
       '@platform/contracts':
-        specifier: git+https://github.com/beurni2/platform-contracts.git#e8bf4be8e52535a1995e44418e0692778dbd708c&path:packages/contracts
-        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/contracts
+        specifier: git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/contracts
+        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/contracts
       '@platform/i18n':
         specifier: git+https://github.com/beurni2/platform-contracts.git#be2199c95d27e6ae5f6c7381c12e18a9796d9800&path:packages/i18n
         version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/be2199c95d27e6ae5f6c7381c12e18a9796d9800#path:packages/i18n
@@ -168,11 +168,11 @@ importers:
   packages/commerce-core:
     dependencies:
       '@platform/contracts':
-        specifier: git+https://github.com/beurni2/platform-contracts.git#e8bf4be8e52535a1995e44418e0692778dbd708c&path:packages/contracts
-        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/contracts
+        specifier: git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/contracts
+        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/contracts
       '@platform/kernel-types':
-        specifier: git+https://github.com/beurni2/platform-contracts.git#e8bf4be8e52535a1995e44418e0692778dbd708c&path:packages/kernel-types
-        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/kernel-types
+        specifier: git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/kernel-types
+        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/kernel-types
       '@shop-plus/flags-client':
         specifier: workspace:*
         version: link:../flags-client
@@ -235,8 +235,8 @@ importers:
   packages/supply-consumer:
     dependencies:
       '@platform/contracts':
-        specifier: git+https://github.com/beurni2/platform-contracts.git#e8bf4be8e52535a1995e44418e0692778dbd708c&path:packages/contracts
-        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/contracts
+        specifier: git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/contracts
+        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/contracts
       zod:
         specifier: ^4.1.5
         version: 4.4.3
@@ -251,8 +251,8 @@ importers:
   services/attribution-service:
     dependencies:
       '@platform/contracts':
-        specifier: git+https://github.com/beurni2/platform-contracts.git#e8bf4be8e52535a1995e44418e0692778dbd708c&path:packages/contracts
-        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/contracts
+        specifier: git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/contracts
+        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/contracts
       '@shop-plus/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -282,8 +282,8 @@ importers:
   services/discovery-service:
     dependencies:
       '@platform/contracts':
-        specifier: git+https://github.com/beurni2/platform-contracts.git#e8bf4be8e52535a1995e44418e0692778dbd708c&path:packages/contracts
-        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/contracts
+        specifier: git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/contracts
+        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/contracts
       '@shop-plus/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -304,8 +304,8 @@ importers:
   services/storefront-service:
     dependencies:
       '@platform/contracts':
-        specifier: git+https://github.com/beurni2/platform-contracts.git#e8bf4be8e52535a1995e44418e0692778dbd708c&path:packages/contracts
-        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/contracts
+        specifier: git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/contracts
+        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/contracts
       '@shop-plus/commerce-core':
         specifier: workspace:*
         version: link:../../packages/commerce-core
@@ -1376,9 +1376,9 @@ packages:
     resolution: {path: packages/certification, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/be2199c95d27e6ae5f6c7381c12e18a9796d9800}
     version: 1.1.0
 
-  '@platform/contracts@https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/contracts':
-    resolution: {path: packages/contracts, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c}
-    version: 3.9.0
+  '@platform/contracts@https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/contracts':
+    resolution: {path: packages/contracts, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011}
+    version: 3.10.0
     hasBin: true
 
   '@platform/i18n@https://codeload.github.com/beurni2/platform-contracts/tar.gz/be2199c95d27e6ae5f6c7381c12e18a9796d9800#path:packages/i18n':
@@ -1386,9 +1386,9 @@ packages:
     version: 1.1.0
     hasBin: true
 
-  '@platform/kernel-types@https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/kernel-types':
-    resolution: {path: packages/kernel-types, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c}
-    version: 3.9.0
+  '@platform/kernel-types@https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/kernel-types':
+    resolution: {path: packages/kernel-types, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011}
+    version: 3.10.0
 
   '@platform/ui-tokens@https://codeload.github.com/beurni2/platform-contracts/tar.gz/be2199c95d27e6ae5f6c7381c12e18a9796d9800#path:packages/ui-tokens':
     resolution: {path: packages/ui-tokens, tarball: https://codeload.github.com/beurni2/platform-contracts/tar.gz/be2199c95d27e6ae5f6c7381c12e18a9796d9800}
@@ -5047,20 +5047,20 @@ snapshots:
 
   '@platform/certification@https://codeload.github.com/beurni2/platform-contracts/tar.gz/be2199c95d27e6ae5f6c7381c12e18a9796d9800#path:packages/certification':
     dependencies:
-      '@platform/contracts': https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/contracts
+      '@platform/contracts': https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/contracts
       '@platform/ui-tokens': https://codeload.github.com/beurni2/platform-contracts/tar.gz/be2199c95d27e6ae5f6c7381c12e18a9796d9800#path:packages/ui-tokens
       zod: 4.4.3
 
-  '@platform/contracts@https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/contracts':
+  '@platform/contracts@https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/contracts':
     dependencies:
-      '@platform/kernel-types': https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/kernel-types
+      '@platform/kernel-types': https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/kernel-types
       zod: 4.4.3
 
   '@platform/i18n@https://codeload.github.com/beurni2/platform-contracts/tar.gz/be2199c95d27e6ae5f6c7381c12e18a9796d9800#path:packages/i18n':
     dependencies:
       zod: 4.4.3
 
-  '@platform/kernel-types@https://codeload.github.com/beurni2/platform-contracts/tar.gz/e8bf4be8e52535a1995e44418e0692778dbd708c#path:packages/kernel-types':
+  '@platform/kernel-types@https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/kernel-types':
     dependencies:
       zod: 4.4.3
 
