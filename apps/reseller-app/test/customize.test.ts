@@ -235,7 +235,13 @@ describe('K property pins — the Phase-0 table bytes in the runtime StyleSheet'
         pairs++;
       }
     }
-    expect(pairs).toBe((keys.length * (keys.length - 1)) / 2); // every pair, not a sample
+    // THE COUNT IS LITERAL ON BOTH SIDES, and it has to be: my first spelling
+    // was `expect(pairs).toBe((keys.length * (keys.length - 1)) / 2)`, where
+    // both sides derive from `keys.length` — an identity that cannot fail,
+    // asserting nothing while claiming to prove coverage (§9.7). Eight presets
+    // are 28 pairs; delete one and this goes red instead of quietly checking 21.
+    expect(keys).toHaveLength(8);
+    expect(pairs).toBe(28);
   });
 
 });

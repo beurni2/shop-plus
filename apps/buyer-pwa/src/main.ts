@@ -24,7 +24,7 @@ import { commandIdFor, forgetRequestKey, orderCommandIdFor, requestKeyFor, resol
 import { fetchClienteQuote, MODES_WIRE, type QuoteBase, type QuoteFetch } from './cliente/quote-model';
 import { productFromSeed, seedProduct } from './vitrine/catalog';
 import { CLIENTE_STYLES } from './cliente/styles';
-import type { VitrineThemeKey } from './vitrine/themes';
+import { VITRINE_THEMES, type VitrineThemeKey } from './vitrine/themes';
 // The Faso Premium face substrate (six @font-face, WO-FP STEP 0) — injected as
 // raw CSS so './fonts/…' stays document-relative (the Archivo pattern; correct
 // under base './' at / and /shop-plus/).
@@ -559,8 +559,12 @@ clienteStyle.setAttribute('data-cliente', '');
 clienteStyle.textContent = CLIENTE_STYLES;
 document.head.appendChild(clienteStyle);
 
-/** Validate a harness `theme` param against the closed §1.2 set (default indigo). */
-const CLIENTE_THEMES: readonly VitrineThemeKey[] = ['laterite', 'danfani', 'indigo', 'foret'];
+/** Validate a harness `theme` param against the closed §1.2 set (default indigo).
+ *  THEMES-8b — DERIVED from the record, never a second hand-typed list: this
+ *  said four while the set was eight, so `?theme=brique` silently rendered
+ *  indigo. The same defect class as the service's « Pas enregistré », one
+ *  surface over. */
+const CLIENTE_THEMES: readonly VitrineThemeKey[] = Object.keys(VITRINE_THEMES) as VitrineThemeKey[];
 function clienteTheme(raw: string | null): VitrineThemeKey {
   return raw && (CLIENTE_THEMES as readonly string[]).includes(raw) ? (raw as VitrineThemeKey) : 'indigo';
 }

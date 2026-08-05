@@ -94,8 +94,11 @@ export const BUYER_GOLD = '#C89A3F';
  */
 export function applyTheme(root: HTMLElement, key: VitrineThemeKey): void {
   const t = VITRINE_THEMES[key];
-  // Theme class — carries the statically-authored per-theme rules (the cover
-  // stripes keep the stylesheet-parsed 8-digit-hex serialization).
+  // Theme class — a render HOOK, not a carrier: every theme-parametric rule
+  // reads the `--vt-*` variables set below, and a grep for `vt-theme-` across
+  // the workspace finds only these two lines. (It used to say it carried
+  // statically-authored per-theme rules; those are gone, and a comment that
+  // describes CSS which no longer exists is a trap for whoever reads it next.)
   //
   // THEMES-8: the removal list is DERIVED from the record, never re-typed. The
   // hand-written list of four was a trap with a delay on it — adding a preset

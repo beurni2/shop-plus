@@ -26,6 +26,11 @@ import type { VitrineProduct } from './catalog';
 // (STOREFRONT_HEADER_STYLES) by entetes.test.ts — a seventh canon style fails
 // a buyer test instead of silently coercing to classique.
 import { ENTETE_KEYS, type EnteteKey } from './entetes';
+// THEMES-8b — same reasoning, same shape: the app's own closed habillage record
+// is the runtime authority here, pinned to the EXECUTED canon import by
+// themes-canon.test.ts, so a ninth canon habillage fails a buyer test rather
+// than reaching `VITRINE_THEMES[key]` as `undefined`.
+import { VITRINE_THEMES, DEFAULT_THEME, type VitrineThemeKey } from './themes';
 
 export type { Storefront };
 
@@ -298,6 +303,28 @@ function headerStyleFromWire(raw: unknown): EnteteKey {
 }
 
 /**
+ * THEMES-8b (verifier finding) — the wire's `theme`, validated at the SAME
+ * boundary, and for a harder reason than the header's.
+ *
+ * `headerStyle` had this guard from its first day; `theme` never did, and the
+ * difference is a crash. `applyTheme` reads `VITRINE_THEMES[key].accent`
+ * (themes.ts) and `render.ts` reads `VITRINE_THEMES[sf.theme]` at four more
+ * sites — an unknown key is `undefined` there, so `.accent` throws, and the
+ * throw happens BEFORE `root.innerHTML` is assigned (flows.ts). The buyer would
+ * get a blank page: not the offline state, not a default habillage, nothing.
+ *
+ * THAT IS REACHABLE BECAUSE THE THREE ARTIFACTS DEPLOY SEPARATELY. The service
+ * can be ahead of a cached PWA bundle by one habillage — the mirror image of
+ * « Pas enregistré », which was this same skew pointing the other way. Guarded
+ * here, an unknown habillage costs the seller her colours and nothing else.
+ */
+function themeFromWire(raw: unknown): VitrineThemeKey {
+  return typeof raw === 'string' && Object.prototype.hasOwnProperty.call(VITRINE_THEMES, raw)
+    ? (raw as VitrineThemeKey)
+    : DEFAULT_THEME;
+}
+
+/**
  * ENTETES-C — a wire `focus`, validated the same way (the `headerStyleFromWire`
  * pattern): a canon-shaped pair — integers 0–100, exactly {x, y} — passes
  * through; anything else (floats, strings, lone axes, extra keys, a hostile
@@ -398,7 +425,13 @@ export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
       // resolved storefront reads a valid key (old wire without it ⇒ classique).
       // ENTETES-C — the framing gets the same treatment: a non-canon `focus` on
       // cover/avatar is STRIPPED at this one boundary, never seen downstream.
-      const withHeader = { ...view, headerStyle: headerStyleFromWire((view as { headerStyle?: unknown }).headerStyle) } as Storefront;
+      const withHeader = {
+        ...view,
+        headerStyle: headerStyleFromWire((view as { headerStyle?: unknown }).headerStyle),
+        // THEMES-8b — normalised HERE, once, like the header beside it: every
+        // downstream reader indexes VITRINE_THEMES with a key that exists.
+        theme: themeFromWire((view as { theme?: unknown }).theme),
+      } as Storefront;
       const rawCover = (withHeader as { cover?: unknown }).cover;
       const rawAvatar = (withHeader as { avatar?: unknown }).avatar;
       const storefront: Storefront = {

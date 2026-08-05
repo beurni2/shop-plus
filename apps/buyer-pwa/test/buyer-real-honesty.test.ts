@@ -127,16 +127,19 @@ describe('item 4 — the NO-IMAGE state is woven, theme-derived, and LABELLED so
     for (const p of VITRINE_SEED) expect(html).not.toContain(`data-glyph="${p.glyph}"`);
   });
 
-  it('THEME-DERIVED: the weave + ticks + label read ONLY theme tokens, so each of the four habillages draws its own', async () => {
+  it('THEME-DERIVED: the weave + ticks + label read ONLY theme tokens, so each habillage draws its own', async () => {
     const styles = (await import('../src/vitrine/styles')).VITRINE_STYLES;
     const weave = styles.slice(styles.indexOf('.vt-weave'), styles.indexOf('.vt-tick '));
     expect(weave).toContain('var(--vt-accent)'); // habillage-derived, not a fixed colour
     expect(weave).toMatch(/repeating-linear-gradient/); // woven, geometric, ornamental
     expect(weave).not.toMatch(/#[0-9A-Fa-f]{6}/); // no hardcoded hex in the weave
-    // applyTheme sets --vt-accent/--vt-soft/--vt-deep per habillage, so all four differ
-    const keys: VitrineThemeKey[] = ['laterite', 'danfani', 'indigo', 'foret'];
+    // applyTheme sets --vt-accent/--vt-soft/--vt-deep per habillage, so they all
+    // differ. THEMES-8b: the key list is DERIVED, not the four this test was
+    // born with — retyped, it kept passing while four presets were added, and
+    // would have kept passing if those four had been deleted again.
+    const keys = Object.keys(VITRINE_THEMES) as VitrineThemeKey[];
     const accents = new Set(keys.map((k) => VITRINE_THEMES[k].accent));
-    expect(accents.size).toBe(4);
+    expect(accents.size).toBe(keys.length);
   });
 
   it('the art carries NO product identity of its own — it is ornament, and the tile name/price still carry the truth', () => {

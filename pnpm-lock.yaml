@@ -54,6 +54,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/store-projection
     devDependencies:
+      '@platform/contracts':
+        specifier: git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/contracts
+        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/a45047e1f988d2bdef1a6d2575af80abda24d011#path:packages/contracts
       '@playwright/test':
         specifier: ^1.57.0
         version: 1.61.1
