@@ -91,6 +91,20 @@ describe('THEMES-8b — the buyer habillage record ⇄ canon', () => {
     expect([...classes]).toEqual([`vt-theme-${last}`]);
   });
 
+  it('the cliente harness list is DERIVED from the record — no second hand-typed habillage list', async () => {
+    // `clienteTheme` lives in main.ts, which mounts the app on import, so it
+    // cannot be driven directly from here — this reads the source instead. The
+    // defect it pins is concrete: this list said four while the set was eight,
+    // so `?theme=brique` — the founder's own new habillage — silently rendered
+    // indigo. The mutation that restores the literal must go red.
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(new URL('../src/main.ts', import.meta.url), 'utf8');
+    const line = src.split('\n').find((l) => l.includes('const CLIENTE_THEMES'));
+    expect(line, 'CLIENTE_THEMES not found — renamed or moved, so this pin is watching nothing').toBeDefined();
+    expect(line).toContain('Object.keys(VITRINE_THEMES)');
+    expect(line, 'a hand-typed list of quoted keys is the defect').not.toMatch(/\[\s*'/);
+  });
+
   it('THE BOUNDARY: an unknown wire theme becomes the default instead of throwing on her phone', async () => {
     const { httpStorefrontPort } = await import('../src/vitrine/profile');
     const base = {
