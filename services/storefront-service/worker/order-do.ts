@@ -1037,12 +1037,18 @@ export class OrderDO {
    * in an alarm handler would burn the alarm without rescheduling it.
    */
   async alarm(): Promise<void> {
-    // SE-LIVE-2a — TWO destinations, ONE alarm, INDEPENDENT fates. Each wire
-    // keeps its own status and attempt count, so boutik being down can never
-    // hold Séra's fact back (or the reverse), and a delivered wire is never
-    // re-sent. The alarm re-arms while EITHER is still pending, on the
-    // higher of the two attempt counts' backoffs — the retry cadence of the
-    // wire that is actually still failing.
+    // SE-LIVE-2a — TWO destinations, ONE alarm, INDEPENDENT STATE. Each wire
+    // keeps its own status and attempt count, so one being down never marks
+    // the other delivered, undelivered, or re-sends it. The alarm re-arms
+    // while EITHER is pending, on the higher attempt count's backoff.
+    //
+    // ⚠ INDEPENDENT STATE IS NOT INDEPENDENT TIMING (verifier NOTE): these
+    // run in sequence on one alarm, so a slow boutik binding delays the Séra
+    // attempt within a cycle, and the shared re-arm means the wire with fewer
+    // attempts waits on the other's rung. Acceptable — both are
+    // at-least-once and neither can lose a fact — but the earlier wording
+    // claimed more than the code does, so it is corrected here rather than
+    // left to read as a guarantee.
     const boutikPending = await this.flushBoutikOutbox();
     const seraPending = await this.flushSeraOutbox();
     const stillPending = Math.max(boutikPending, seraPending);
