@@ -1,0 +1,181 @@
+{
+  "_why": "Ten Laws #2 — no app holds funds. A wallet is not a word, it is PERSISTED STATE. Every durable write must be declared here. \"balance\": true means this key accumulates a per-actor amount the app treats as owed or held — which the law forbids, so it requires a quoted founder ruling. A per-ORDER price record is not a balance.",
+  "_verified": "At the time of writing, no Durable Object in this repo accumulates an amount (`+=` over any amount/fcfa/total field): zero matches across all worker sources.",
+  "keys": [
+    {
+      "id": "services/attribution-service/worker/attribution-lock-do.ts::LOCK_KEY",
+      "what": "attribution lock: the LOCK_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/attribution-service/worker/attribution-lock-do.ts::SEQ_KEY",
+      "what": "attribution lock: the SEQ_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/buyer-ladder-do.ts::<object form>",
+      "what": "buyer ladder: a multi-key batch write (object form) — see the call site",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/checkout-do.ts::batch",
+      "what": "checkout: rows written under a computed key variable — see the call site",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/checkout-do.ts::RESERVATION_KEY",
+      "what": "checkout: the RESERVATION_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/checkout-do.ts::KEY_POINTER_KEY",
+      "what": "checkout: the KEY_POINTER_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/dispatch-index-do.ts::key",
+      "what": "dispatch index: rows written under a computed key variable — see the call site",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/listing-do.ts::ENTRY_KEY",
+      "what": "listing: the ENTRY_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/listing-do.ts::PID_POINTER_KEY",
+      "what": "listing: the PID_POINTER_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/order-do.ts::RECEIPT_KEY",
+      "what": "order: the RECEIPT_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/order-do.ts::PREPARATION_KEY",
+      "what": "order: the PREPARATION_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/order-do.ts::ORIGIN_KEY",
+      "what": "order: the ORIGIN_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/order-do.ts::LOG_KEY",
+      "what": "order: the LOG_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/order-do.ts::ATTEMPTS_KEY",
+      "what": "order: the ATTEMPTS_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/order-do.ts::LEG_KEYS_KEY",
+      "what": "order: the LEG_KEYS_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/order-do.ts::CONTACT_KEY",
+      "what": "order: the CONTACT_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/order-do.ts::RESULTS_KEY",
+      "what": "order: the RESULTS_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/order-do.ts::OUTBOX_KEY",
+      "what": "order: the OUTBOX_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/order-do.ts::{ [LOG_KEY]: next",
+      "what": "order: the { [LOG_KEY]: next record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/order-do.ts::DOOR_ATTEMPTS_KEY",
+      "what": "order: the DOOR_ATTEMPTS_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/order-do.ts::DOOR_RESULTS_KEY",
+      "what": "order: the DOOR_RESULTS_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/reseller-accounts-do.ts::`${AUDIT_PREFIX}${accountId}:${at}`",
+      "what": "reseller accounts: prefixed keys (${AUDIT_PREFIX}${accountId}:${at}) — one record per subject",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/reseller-accounts-do.ts::<object form>",
+      "what": "reseller accounts: a multi-key batch write (object form) — see the call site",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/reseller-accounts-do.ts::`${SESSION_PREFIX}${await sha256Hex(session",
+      "what": "reseller accounts: prefixed keys (${SESSION_PREFIX}${await sha256Hex(session) — one record per subject",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/reseller-accounts-do.ts::`${ACCOUNT_PREFIX}${record.accountId}`",
+      "what": "reseller accounts: prefixed keys (${ACCOUNT_PREFIX}${record.accountId}) — one record per subject",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/reseller-accounts-do.ts::`${ACCOUNT_PREFIX}${accountId}`",
+      "what": "reseller accounts: prefixed keys (${ACCOUNT_PREFIX}${accountId}) — one record per subject",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/reseller-feed-do.ts::`${CODEHASH_PREFIX}${previous.hash}`",
+      "what": "reseller feed: prefixed keys (${CODEHASH_PREFIX}${previous.hash}) — one record per subject",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/reseller-feed-do.ts::<object form>",
+      "what": "reseller feed: a multi-key batch write (object form) — see the call site",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/reseller-feed-do.ts::[`${CODEHASH_PREFIX}${existing.hash}`",
+      "what": "reseller feed: a batch DELETE of prefixed keys",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/reseller-feed-do.ts::key",
+      "what": "reseller feed: rows written under a computed key variable — see the call site",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/storefront-do.ts::ENTRY_KEY",
+      "what": "storefront: the ENTRY_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/storefront-do.ts::POINTER_KEY",
+      "what": "storefront: the POINTER_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/storefront-do.ts::INDEX_KEY",
+      "what": "storefront: the INDEX_KEY record",
+      "balance": false
+    },
+    {
+      "id": "services/storefront-service/worker/storefront-do.ts::<object form>",
+      "what": "storefront: a multi-key batch write (object form) — see the call site",
+      "balance": false
+    },
+    {
+      "id": "packages/commerce-core/worker/reservation-do.ts::STATE_KEY",
+      "what": "reservation: the STATE_KEY record",
+      "balance": false
+    }
+  ]
+}
