@@ -1,181 +1,276 @@
 {
-  "_why": "Ten Laws #2 — no app holds funds. A wallet is not a word, it is PERSISTED STATE. Every durable write must be declared here. \"balance\": true means this key accumulates a per-actor amount the app treats as owed or held — which the law forbids, so it requires a quoted founder ruling. A per-ORDER price record is not a balance.",
-  "_verified": "At the time of writing, no Durable Object in this repo accumulates an amount (`+=` over any amount/fcfa/total field): zero matches across all worker sources.",
+  "_why": "Ten Laws #2 — no app holds funds. A wallet must be PERSISTED to be a wallet, so every durable write call is declared here. \"balance\": true means this key accumulates a per-actor amount treated as owed or held — forbidden, so it demands a quoted founder ruling. A per-ORDER price record is NOT a balance.",
+  "_fingerprint": "sha256 of the normalised write call. If the call changes, the declaration must be re-read and renewed in the same commit — a batch write cannot silently absorb a new key.",
   "keys": [
     {
-      "id": "services/attribution-service/worker/attribution-lock-do.ts::LOCK_KEY",
-      "what": "attribution lock: the LOCK_KEY record",
-      "balance": false
+      "id": "services/attribution-service/worker/attribution-lock-do.ts::storage.put(LOCK_KEY)",
+      "what": "attribution-lock-do: key 'attribution-lock' — stores `LOCK_KEY, decision.lock`",
+      "balance": false,
+      "fingerprint": "be491574c8c6"
     },
     {
-      "id": "services/attribution-service/worker/attribution-lock-do.ts::SEQ_KEY",
-      "what": "attribution lock: the SEQ_KEY record",
-      "balance": false
+      "id": "services/attribution-service/worker/attribution-lock-do.ts::storage.put(SEQ_KEY)",
+      "what": "attribution-lock-do: key 'collision-seq' — stores `SEQ_KEY, seq`",
+      "balance": false,
+      "fingerprint": "41a2e0d7d97b"
     },
     {
-      "id": "services/storefront-service/worker/buyer-ladder-do.ts::<object form>",
-      "what": "buyer ladder: a multi-key batch write (object form) — see the call site",
-      "balance": false
+      "id": "services/storefront-service/src/media/media-store.ts::BUCKET.put(key)",
+      "what": "media-store: key expression `key` — stores `key, bytes, { httpMetadata }`",
+      "balance": false,
+      "fingerprint": "0b3426f62335"
     },
     {
-      "id": "services/storefront-service/worker/checkout-do.ts::batch",
-      "what": "checkout: rows written under a computed key variable — see the call site",
-      "balance": false
+      "id": "services/storefront-service/src/media/media-store.ts::bucket.put(key)",
+      "what": "media-store: key expression `key` — stores `key, bytes, { httpMetadata: { contentType } }`",
+      "balance": false,
+      "fingerprint": "15446248ffe4"
     },
     {
-      "id": "services/storefront-service/worker/checkout-do.ts::RESERVATION_KEY",
-      "what": "checkout: the RESERVATION_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/buyer-ladder-do.ts::storage.put({ [RECORD_KEY]: decision.record)",
+      "what": "buyer-ladder-do: key expression `{ [RECORD_KEY]: decision.record` — stores `{ [RECORD_KEY]: decision.record, buyerRef, [refusKey(orderId)]: { reason: reason as RefusalReason, record: decision.record, rung: decision.r`",
+      "balance": false,
+      "fingerprint": "009b255e42d4"
     },
     {
-      "id": "services/storefront-service/worker/checkout-do.ts::KEY_POINTER_KEY",
-      "what": "checkout: the KEY_POINTER_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/checkout-do.ts::storage.put(batch)",
+      "what": "checkout-do: key expression `batch` — stores `batch`",
+      "balance": false,
+      "fingerprint": "1ede01a8770d"
     },
     {
-      "id": "services/storefront-service/worker/dispatch-index-do.ts::key",
-      "what": "dispatch index: rows written under a computed key variable — see the call site",
-      "balance": false
+      "id": "services/storefront-service/worker/checkout-do.ts::storage.put(RESERVATION_KEY)",
+      "what": "checkout-do: key 'reservation-state' — stores `RESERVATION_KEY, decision.state`",
+      "balance": false,
+      "fingerprint": "35b61a575483"
     },
     {
-      "id": "services/storefront-service/worker/listing-do.ts::ENTRY_KEY",
-      "what": "listing: the ENTRY_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/checkout-do.ts::storage.put(KEY_POINTER_KEY)",
+      "what": "checkout-do: key 'request-key-pointer' — stores `KEY_POINTER_KEY, { quoteId: body.candidateQuoteId }`",
+      "balance": false,
+      "fingerprint": "0133a0911221"
     },
     {
-      "id": "services/storefront-service/worker/listing-do.ts::PID_POINTER_KEY",
-      "what": "listing: the PID_POINTER_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/dispatch-index-do.ts::storage.put(key)",
+      "what": "dispatch-index-do: key expression `key` — stores `key, { orderId, firstSeenAt: new Date().toISOString() } satisfies DispatchRow`",
+      "balance": false,
+      "fingerprint": "f24079c68261"
     },
     {
-      "id": "services/storefront-service/worker/order-do.ts::RECEIPT_KEY",
-      "what": "order: the RECEIPT_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/listing-do.ts::storage.put(ENTRY_KEY)",
+      "what": "listing-do: key 'listing-entry' — stores `ENTRY_KEY, next`",
+      "balance": false,
+      "fingerprint": "fadba947994e"
     },
     {
-      "id": "services/storefront-service/worker/order-do.ts::PREPARATION_KEY",
-      "what": "order: the PREPARATION_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/listing-do.ts::storage.put(PID_POINTER_KEY)",
+      "what": "listing-do: key 'pid-pointer' — stores `PID_POINTER_KEY, { listingId: ptr.listingId }`",
+      "balance": false,
+      "fingerprint": "8c26bb962a17"
     },
     {
-      "id": "services/storefront-service/worker/order-do.ts::ORIGIN_KEY",
-      "what": "order: the ORIGIN_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(RECEIPT_KEY)",
+      "what": "order-do: key 'reservation-receipt' — stores `RECEIPT_KEY, receipt`",
+      "balance": false,
+      "fingerprint": "bb5463f73917"
     },
     {
-      "id": "services/storefront-service/worker/order-do.ts::LOG_KEY",
-      "what": "order: the LOG_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(PREPARATION_KEY)",
+      "what": "order-do: key 'fulfillment-preparation' — stores `PREPARATION_KEY, next`",
+      "balance": false,
+      "fingerprint": "9da45a178bc4"
     },
     {
-      "id": "services/storefront-service/worker/order-do.ts::ATTEMPTS_KEY",
-      "what": "order: the ATTEMPTS_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(ORIGIN_KEY)",
+      "what": "order-do: key 'order-origin' — stores `ORIGIN_KEY, stored`",
+      "balance": false,
+      "fingerprint": "7049ed1da09a"
     },
     {
-      "id": "services/storefront-service/worker/order-do.ts::LEG_KEYS_KEY",
-      "what": "order: the LEG_KEYS_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(LOG_KEY)",
+      "what": "order-do: key 'order-input-log' — stores `LOG_KEY, log`",
+      "balance": false,
+      "fingerprint": "ebe6a6075021"
     },
     {
-      "id": "services/storefront-service/worker/order-do.ts::CONTACT_KEY",
-      "what": "order: the CONTACT_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(ATTEMPTS_KEY)",
+      "what": "order-do: key 'payment-attempts' — stores `ATTEMPTS_KEY, attempts`",
+      "balance": false,
+      "fingerprint": "70242e7f149b"
     },
     {
-      "id": "services/storefront-service/worker/order-do.ts::RESULTS_KEY",
-      "what": "order: the RESULTS_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(LEG_KEYS_KEY)",
+      "what": "order-do: key 'provider-leg-keys' — stores `LEG_KEYS_KEY, { ...legKeys, [leg.legType]: providerKey }`",
+      "balance": false,
+      "fingerprint": "c0e359561639"
     },
     {
-      "id": "services/storefront-service/worker/order-do.ts::OUTBOX_KEY",
-      "what": "order: the OUTBOX_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(CONTACT_KEY)",
+      "what": "order-do: key 'buyer-contact' — stores `CONTACT_KEY, contact`",
+      "balance": false,
+      "fingerprint": "4a7c439f43a0"
     },
     {
-      "id": "services/storefront-service/worker/order-do.ts::{ [LOG_KEY]: next",
-      "what": "order: the { [LOG_KEY]: next record",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(RESULTS_KEY)",
+      "what": "order-do: key 'command-results' — stores `RESULTS_KEY, { ...results, [commandId]: answer }`",
+      "balance": false,
+      "fingerprint": "2c0627f9237f"
     },
     {
-      "id": "services/storefront-service/worker/order-do.ts::DOOR_ATTEMPTS_KEY",
-      "what": "order: the DOOR_ATTEMPTS_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(LOG_KEY)",
+      "what": "order-do: key 'order-input-log' — stores `LOG_KEY, next`",
+      "balance": false,
+      "fingerprint": "e80512d320a1"
     },
     {
-      "id": "services/storefront-service/worker/order-do.ts::DOOR_RESULTS_KEY",
-      "what": "order: the DOOR_RESULTS_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(OUTBOX_KEY)",
+      "what": "order-do: key 'order-confirmed-outbox' — stores `OUTBOX_KEY, { ...outbox, status: 'delivered', attempts: outbox.attempts + 1, deliveredAt: new Date().toISOString(), }`",
+      "balance": false,
+      "fingerprint": "29bae1ffa0d1"
     },
     {
-      "id": "services/storefront-service/worker/reseller-accounts-do.ts::`${AUDIT_PREFIX}${accountId}:${at}`",
-      "what": "reseller accounts: prefixed keys (${AUDIT_PREFIX}${accountId}:${at}) — one record per subject",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(OUTBOX_KEY)",
+      "what": "order-do: key 'order-confirmed-outbox' — stores `OUTBOX_KEY, { ...outbox, attempts }`",
+      "balance": false,
+      "fingerprint": "edc7aebd4dea"
     },
     {
-      "id": "services/storefront-service/worker/reseller-accounts-do.ts::<object form>",
-      "what": "reseller accounts: a multi-key batch write (object form) — see the call site",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put({ [LOG_KEY]: next)",
+      "what": "order-do: key expression `{ [LOG_KEY]: next` — stores `{ [LOG_KEY]: next, [OUTBOX_KEY]: outbox }`",
+      "balance": false,
+      "fingerprint": "d14ac8c21321"
     },
     {
-      "id": "services/storefront-service/worker/reseller-accounts-do.ts::`${SESSION_PREFIX}${await sha256Hex(session",
-      "what": "reseller accounts: prefixed keys (${SESSION_PREFIX}${await sha256Hex(session) — one record per subject",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(LEG_KEYS_KEY)",
+      "what": "order-do: key 'provider-leg-keys' — stores `LEG_KEYS_KEY, { ...legKeys, door: providerKey }`",
+      "balance": false,
+      "fingerprint": "80a9857defe6"
     },
     {
-      "id": "services/storefront-service/worker/reseller-accounts-do.ts::`${ACCOUNT_PREFIX}${record.accountId}`",
-      "what": "reseller accounts: prefixed keys (${ACCOUNT_PREFIX}${record.accountId}) — one record per subject",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(DOOR_ATTEMPTS_KEY)",
+      "what": "order-do: key 'door-payment-attempts' — stores `DOOR_ATTEMPTS_KEY, [...attempts, record]`",
+      "balance": false,
+      "fingerprint": "c86b01ee13d4"
     },
     {
-      "id": "services/storefront-service/worker/reseller-accounts-do.ts::`${ACCOUNT_PREFIX}${accountId}`",
-      "what": "reseller accounts: prefixed keys (${ACCOUNT_PREFIX}${accountId}) — one record per subject",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(DOOR_ATTEMPTS_KEY)",
+      "what": "order-do: key 'door-payment-attempts' — stores `DOOR_ATTEMPTS_KEY, [...attempts, settled]`",
+      "balance": false,
+      "fingerprint": "c1ac920f3a13"
     },
     {
-      "id": "services/storefront-service/worker/reseller-feed-do.ts::`${CODEHASH_PREFIX}${previous.hash}`",
-      "what": "reseller feed: prefixed keys (${CODEHASH_PREFIX}${previous.hash}) — one record per subject",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(DOOR_RESULTS_KEY)",
+      "what": "order-do: key 'door-command-results' — stores `DOOR_RESULTS_KEY, { ...results, [commandId]: answer }`",
+      "balance": false,
+      "fingerprint": "435127522d86"
     },
     {
-      "id": "services/storefront-service/worker/reseller-feed-do.ts::<object form>",
-      "what": "reseller feed: a multi-key batch write (object form) — see the call site",
-      "balance": false
+      "id": "services/storefront-service/worker/order-do.ts::storage.put(LOG_KEY)",
+      "what": "order-do: key 'order-input-log' — stores `LOG_KEY, [...log, input]`",
+      "balance": false,
+      "fingerprint": "c628fbb5410d"
     },
     {
-      "id": "services/storefront-service/worker/reseller-feed-do.ts::[`${CODEHASH_PREFIX}${existing.hash}`",
-      "what": "reseller feed: a batch DELETE of prefixed keys",
-      "balance": false
+      "id": "services/storefront-service/worker/reseller-accounts-do.ts::storage.put(`${AUDIT_PREFIX}${accountId}:${at}`)",
+      "what": "reseller-accounts-do: key expression ``${AUDIT_PREFIX}${accountId}:${at}`` — stores ``${AUDIT_PREFIX}${accountId}:${at}`, row`",
+      "balance": false,
+      "fingerprint": "10dc662be715"
     },
     {
-      "id": "services/storefront-service/worker/reseller-feed-do.ts::key",
-      "what": "reseller feed: rows written under a computed key variable — see the call site",
-      "balance": false
+      "id": "services/storefront-service/worker/reseller-accounts-do.ts::storage.put({ [`${ACCOUNT_PREFIX}${accountId}`]: record)",
+      "what": "reseller-accounts-do: key expression `{ [`${ACCOUNT_PREFIX}${accountId}`]: record` — stores `{ [`${ACCOUNT_PREFIX}${accountId}`]: record, [emailKey]: accountId, [`${SESSION_PREFIX}${await sha256Hex(session)}`]: accountId, }`",
+      "balance": false,
+      "fingerprint": "c9b75a7e3c90"
     },
     {
-      "id": "services/storefront-service/worker/storefront-do.ts::ENTRY_KEY",
-      "what": "storefront: the ENTRY_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/reseller-accounts-do.ts::storage.put(`${SESSION_PREFIX}${await sha256Hex(session)}`)",
+      "what": "reseller-accounts-do: key expression ``${SESSION_PREFIX}${await sha256Hex(session)}`` — stores ``${SESSION_PREFIX}${await sha256Hex(session)}`, accountId`",
+      "balance": false,
+      "fingerprint": "220cf39edd60"
     },
     {
-      "id": "services/storefront-service/worker/storefront-do.ts::POINTER_KEY",
-      "what": "storefront: the POINTER_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/reseller-accounts-do.ts::storage.put(`${ACCOUNT_PREFIX}${record.accountId}`)",
+      "what": "reseller-accounts-do: key expression ``${ACCOUNT_PREFIX}${record.accountId}`` — stores ``${ACCOUNT_PREFIX}${record.accountId}`, { ...rest, state: 'active' }`",
+      "balance": false,
+      "fingerprint": "26a8dbc5c1ef"
     },
     {
-      "id": "services/storefront-service/worker/storefront-do.ts::INDEX_KEY",
-      "what": "storefront: the INDEX_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/reseller-accounts-do.ts::storage.put(`${ACCOUNT_PREFIX}${accountId}`)",
+      "what": "reseller-accounts-do: key expression ``${ACCOUNT_PREFIX}${accountId}`` — stores ``${ACCOUNT_PREFIX}${accountId}`, { ...record, accessCodeHash: await sha256Hex(code) }`",
+      "balance": false,
+      "fingerprint": "657b5811765a"
     },
     {
-      "id": "services/storefront-service/worker/storefront-do.ts::<object form>",
-      "what": "storefront: a multi-key batch write (object form) — see the call site",
-      "balance": false
+      "id": "services/storefront-service/worker/reseller-accounts-do.ts::storage.put(`${ACCOUNT_PREFIX}${record.accountId}`)",
+      "what": "reseller-accounts-do: key expression ``${ACCOUNT_PREFIX}${record.accountId}`` — stores ``${ACCOUNT_PREFIX}${record.accountId}`, { ...record, state: cible }`",
+      "balance": false,
+      "fingerprint": "6bc37098a4d2"
     },
     {
-      "id": "packages/commerce-core/worker/reservation-do.ts::STATE_KEY",
-      "what": "reservation: the STATE_KEY record",
-      "balance": false
+      "id": "services/storefront-service/worker/reseller-feed-do.ts::storage.delete(`${CODEHASH_PREFIX}${previous.hash}`)",
+      "what": "reseller-feed-do: key expression ``${CODEHASH_PREFIX}${previous.hash}`` — stores ``${CODEHASH_PREFIX}${previous.hash}``",
+      "balance": false,
+      "fingerprint": "1a0df3af5696"
+    },
+    {
+      "id": "services/storefront-service/worker/reseller-feed-do.ts::storage.put({ [`${CODEHASH_PREFIX}${hash}`]: { resellerId)",
+      "what": "reseller-feed-do: key expression `{ [`${CODEHASH_PREFIX}${hash}`]: { resellerId` — stores `{ [`${CODEHASH_PREFIX}${hash}`]: { resellerId, mintedAt } satisfies ResellerCodeRecord, [`${RESELLERCODE_PREFIX}${resellerId}`]: { hash, min`",
+      "balance": false,
+      "fingerprint": "21b14b87fd13"
+    },
+    {
+      "id": "services/storefront-service/worker/reseller-feed-do.ts::storage.delete([`${CODEHASH_PREFIX}${existing.hash}`)",
+      "what": "reseller-feed-do: key expression `[`${CODEHASH_PREFIX}${existing.hash}`` — stores `[`${CODEHASH_PREFIX}${existing.hash}`, `${RESELLERCODE_PREFIX}${resellerId}`]`",
+      "balance": false,
+      "fingerprint": "8dfdd3bdac49"
+    },
+    {
+      "id": "services/storefront-service/worker/reseller-feed-do.ts::storage.put(key)",
+      "what": "reseller-feed-do: key expression `key` — stores `key, { orderId, at: new Date().toISOString() } satisfies FeedRow`",
+      "balance": false,
+      "fingerprint": "4d88f2a6f2c6"
+    },
+    {
+      "id": "services/storefront-service/worker/storefront-do.ts::storage.put(ENTRY_KEY)",
+      "what": "storefront-do: key 'storefront-entry' — stores `ENTRY_KEY, next`",
+      "balance": false,
+      "fingerprint": "fadba947994e"
+    },
+    {
+      "id": "services/storefront-service/worker/storefront-do.ts::storage.delete(ENTRY_KEY)",
+      "what": "storefront-do: key 'storefront-entry' — stores `ENTRY_KEY`",
+      "balance": false,
+      "fingerprint": "1454625f03bb"
+    },
+    {
+      "id": "services/storefront-service/worker/storefront-do.ts::storage.put(POINTER_KEY)",
+      "what": "storefront-do: key 'slug-pointer' — stores `POINTER_KEY, ptr`",
+      "balance": false,
+      "fingerprint": "37f8d61ea6c6"
+    },
+    {
+      "id": "services/storefront-service/worker/storefront-do.ts::storage.delete(POINTER_KEY)",
+      "what": "storefront-do: key 'slug-pointer' — stores `POINTER_KEY`",
+      "balance": false,
+      "fingerprint": "aeea24c7a4b8"
+    },
+    {
+      "id": "services/storefront-service/worker/storefront-do.ts::storage.put(INDEX_KEY)",
+      "what": "storefront-do: key 'index-list' — stores `INDEX_KEY, list`",
+      "balance": false,
+      "fingerprint": "3c4c4bc4460b"
+    },
+    {
+      "id": "services/storefront-service/worker/storefront-do.ts::storage.put(INDEX_KEY)",
+      "what": "storefront-do: key 'index-list' — stores `INDEX_KEY, list.filter((r) => r.id !== row.id),`",
+      "balance": false,
+      "fingerprint": "a374e3ba5036"
+    },
+    {
+      "id": "packages/commerce-core/worker/reservation-do.ts::storage.put(STATE_KEY)",
+      "what": "reservation-do: key 'reservation-state' — stores `STATE_KEY, decision.state`",
+      "balance": false,
+      "fingerprint": "e5d3e4a2fcf9"
     }
   ]
 }
