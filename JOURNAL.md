@@ -9,6 +9,12 @@ Format per entry:
 
 ---
 
+## 2026-08-06 · LAW-2-STRUCTURAL REVERTED in this repo too · DONE (branch)
+- **Commit:** shop-plus `4878773` (boutik-plus `c016734` · sera `aa9324e` — same revert, same day). Gate board green after the revert (`ALL GATES GREEN`, exit 0). Pushed to `claude/buyer-pwa-standing-laws-nerljz`; CI dispatched.
+- **Removed:** `scripts/gates/persisted-state-declared.mjs` (273 lines) + `gates/persisted-state.json` (276 lines) + four board entries in `run-gates.sh` + the probe-fixture `.gitignore` line. Diffstat −579 / +15. **No product code touched** — `git show --stat 4878773` lists only `.gitignore`, `gates/`, `scripts/`.
+- **Why:** founder called the proportion and was right — product code on this branch moved +18/−1 while gate tooling moved +1450/−41. The gate needed a hand-maintained manifest of every persisted key; a manifest goes stale the first time someone adds a key without updating it, and a stale manifest passes while lying. Full reasoning in the boutik-plus JOURNAL entry of the same date, which is the canonical record for this decision.
+- **What survives here:** the French patterns in `no-wallet-no-funds` / `no-seller-deposit` / `single-level`, the French negative fixtures, `no-seller-deposit` + `no-seller-debit` existing in this repo at all (Law 4 had no gate here before — founder-ruled), and `fr-pattern-coverage` with its regex-source roster. The four law-gate headers now point at review of the persistence layer, not at the deleted gate.
+
 ## 2026-08-06 · CI FLAKE, recorded not papered over — `cliente.spec.ts:440` C5 sentence-orphan sweep
 - **Same commit `87799ba`, two runs, opposite results.** Run 31064422388 FAILED (1 of 88 Playwright tests); run 31064768627 on the **identical sha** SUCCEEDED. Nothing changed between them.
 - **The commit cannot have caused it:** `git show 87799ba --name-only` is 8 files, all under `scripts/` and `gates/`. No app source, no CSS, no component. A gate script cannot change how text wraps in a browser. The three preceding heads (`055b7fb`, `632294d`, `3d20d9c`) all passed CI.
