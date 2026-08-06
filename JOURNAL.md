@@ -9,6 +9,16 @@ Format per entry:
 
 ---
 
+## 2026-08-06 · CI FLAKE, recorded not papered over — `cliente.spec.ts:440` C5 sentence-orphan sweep
+- **Same commit `87799ba`, two runs, opposite results.** Run 31064422388 FAILED (1 of 88 Playwright tests); run 31064768627 on the **identical sha** SUCCEEDED. Nothing changed between them.
+- **The commit cannot have caused it:** `git show 87799ba --name-only` is 8 files, all under `scripts/` and `gates/`. No app source, no CSS, no component. A gate script cannot change how text wraps in a browser. The three preceding heads (`055b7fb`, `632294d`, `3d20d9c`) all passed CI.
+- **The assertion:** `cliente.spec.ts:649` — « basket 19 753 086: the CTA was not swept — it is a text block by display, or it stopped wrapping ».
+- **Why this test specifically:** it is the font-UNPINNED variant. Its two siblings at `:825` — « face PINNED (face réelle) » and « (repli) » — both PASSED in the same run. The app ships `font-display: optional`, so the real face either arrives before first paint or does not, and the text metrics differ between the two. Whether the CTA wraps at that basket width depends on which face won the race.
+- **This family has bitten before:** a prior slice is titled « C5 orphan under fallback metrics — fix the sentence, make the sweep face-deterministic ». The pinned variants were the fix; `:440` was left unpinned and is the residue.
+- **NOT FIXED, deliberately, and flagged to the founder.** Editing a test so CI goes green is the failure mode of « make CI green » over « make it true ». Recommendation: pin the face in `:440` exactly as `:825` already does, as its own small slice — a flaky test on a MONEY screen is worse than a missing one, because it teaches everyone to re-run instead of read.
+
+---
+
 ## 2026-08-04 · OPTION-B-REACHABLE-1 + SP6.1 · IN REVIEW
 
 ### MERGED AND DEPLOYED (founder order 2026-08-04: « once everything is green merge and deploy all »)
