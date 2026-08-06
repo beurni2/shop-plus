@@ -84,6 +84,16 @@ const ORIGIN_KEY = 'order-origin';
  * the signal. The intake absorbs redeliveries first-wins on `orderId`.
  */
 const OUTBOX_KEY = 'order-confirmed-outbox';
+/**
+ * SE-LIVE-2a — the SÉRA FUNDING-FACT outbox, a SECOND destination for the
+ * same confirm transition, kept under its own key so neither wire can ever
+ * mask the other's fate (boutik delivered / séra pending is a real and
+ * visible state). Séra's dispatch gate (SE-I02) admits a delivery task only
+ * for a « funded per payment mode + non-cancelled » order, and Séra never
+ * computes that truth — it consumes this fact. Shop+ sends the FACT, never a
+ * task and never an amount: no franc figure crosses this wire.
+ */
+const SERA_OUTBOX_KEY = 'sera-funding-outbox';
 const LOG_KEY = 'order-input-log';
 const ATTEMPTS_KEY = 'payment-attempts';
 const RESULTS_KEY = 'command-results';
@@ -251,6 +261,17 @@ export interface OrderDOEnv {
    */
   readonly OFFER?: { fetch(request: Request): Promise<Response> };
   readonly FULFILLMENT_WRITE_SECRET?: string;
+  /**
+   * SE-LIVE-2a — the wire to Séra's intake door. A PLAIN HTTPS base (a var —
+   * the URL is public) rather than a service binding, deliberately: a binding
+   * to a Worker that does not exist yet fails the DEPLOY, and the deploy-order
+   * law puts the consumer's door first. With the base or the secret absent the
+   * fact stays `pending` and the alarm retries — the same at-least-once shape
+   * the boutik wire uses, so a Shop+ deployed before Séra loses nothing and
+   * drains the moment the founder sets both.
+   */
+  readonly SERA_INTAKE_BASE?: string;
+  readonly SERA_INTAKE_SECRET?: string;
   /** RF-1a — the reseller feed index (one singleton). Bound on the Worker, so
    *  this object writes her row at the confirm transition without a
    *  composition-root shim, exactly as `OFFER` needs none. ABSENT ⇒ the
@@ -371,7 +392,11 @@ export class OrderDO {
     if (request.method === 'GET' && pathname === '/entry/outbox') {
       const outbox = await this.state.storage.get(OUTBOX_KEY);
       if (outbox === undefined) return Response.json({ ok: false, reason: 'no_outbox' }, { status: 404 });
-      return Response.json({ ok: true, outbox });
+      // SE-LIVE-2a: the Séra wire's fate is reported BESIDE boutik's, never
+      // folded into it — « boutik delivered, Séra still pending » is a real
+      // state an operator must be able to see.
+      const sera = await this.state.storage.get(SERA_OUTBOX_KEY);
+      return Response.json({ ok: true, outbox, ...(sera !== undefined ? { seraOutbox: sera } : {}) });
     }
 
     /** THE BUYER READ. Already projected — the Quote does not leave this object. */
@@ -1012,13 +1037,29 @@ export class OrderDO {
    * in an alarm handler would burn the alarm without rescheduling it.
    */
   async alarm(): Promise<void> {
+    // SE-LIVE-2a — TWO destinations, ONE alarm, INDEPENDENT fates. Each wire
+    // keeps its own status and attempt count, so boutik being down can never
+    // hold Séra's fact back (or the reverse), and a delivered wire is never
+    // re-sent. The alarm re-arms while EITHER is still pending, on the
+    // higher of the two attempt counts' backoffs — the retry cadence of the
+    // wire that is actually still failing.
+    const boutikPending = await this.flushBoutikOutbox();
+    const seraPending = await this.flushSeraOutbox();
+    const stillPending = Math.max(boutikPending, seraPending);
+    if (stillPending > 0) {
+      await this.state.storage.setAlarm(Date.now() + outboxBackoffMs(stillPending));
+    }
+  }
+
+  /** Returns the attempt count if still pending after this try, else 0. */
+  private async flushBoutikOutbox(): Promise<number> {
     const outbox = await this.state.storage.get<{
       status: 'pending' | 'delivered' | 'unsendable';
       event?: unknown;
       attempts: number;
       deliveredAt?: string;
     }>(OUTBOX_KEY);
-    if (outbox === undefined || outbox.status !== 'pending' || outbox.event === undefined) return;
+    if (outbox === undefined || outbox.status !== 'pending' || outbox.event === undefined) return 0;
 
     let delivered = false;
     if (this.env.OFFER !== undefined) {
@@ -1044,11 +1085,54 @@ export class OrderDO {
         attempts: outbox.attempts + 1,
         deliveredAt: new Date().toISOString(),
       });
-      return;
+      return 0;
     }
     const attempts = outbox.attempts + 1;
     await this.state.storage.put(OUTBOX_KEY, { ...outbox, attempts });
-    await this.state.storage.setAlarm(Date.now() + outboxBackoffMs(attempts));
+    return attempts;
+  }
+
+  /**
+   * SE-LIVE-2a — the funding fact to Séra's intake door. Delivered means the
+   * door answered 2xx and NOTHING else: a 401 (secret not yet set) and a 422
+   * (Séra refused the fact) both retry, exactly like the boutik wire, because
+   * an undelivered dispatch signal must outlive any outage or misconfiguration.
+   * With the base or the secret unset nothing is even attempted — the fact
+   * stays pending and drains when configuration arrives.
+   */
+  private async flushSeraOutbox(): Promise<number> {
+    const outbox = await this.state.storage.get<{
+      status: 'pending' | 'delivered';
+      fact?: { orderId: string; status: string; paymentMode: string; asOf: string };
+      attempts: number;
+      deliveredAt?: string;
+    }>(SERA_OUTBOX_KEY);
+    if (outbox === undefined || outbox.status !== 'pending' || outbox.fact === undefined) return 0;
+
+    const base = (this.env.SERA_INTAKE_BASE ?? '').replace(/\/+$/, '');
+    const secret = this.env.SERA_INTAKE_SECRET ?? '';
+    let delivered = false;
+    if (base !== '' && secret !== '') {
+      const res = await fetch(`${base}/intake/funding`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+        body: JSON.stringify(outbox.fact),
+      }).catch(() => undefined);
+      delivered = res !== undefined && res.ok;
+    }
+
+    if (delivered) {
+      await this.state.storage.put(SERA_OUTBOX_KEY, {
+        ...outbox,
+        status: 'delivered',
+        attempts: outbox.attempts + 1,
+        deliveredAt: new Date().toISOString(),
+      });
+      return 0;
+    }
+    const attempts = outbox.attempts + 1;
+    await this.state.storage.put(SERA_OUTBOX_KEY, { ...outbox, attempts });
+    return attempts;
   }
 
   private async onProviderEvent(event: unknown): Promise<Response> {
@@ -1091,8 +1175,14 @@ export class OrderDO {
       // batch put and `setAlarm`, or an alarm-scheduling throw), this redelivery
       // is the recovery hook that re-arms it (verifier MINOR: belt-and-braces
       // so at-least-once never rests on write-coalescing subtleties alone).
+      // SE-LIVE-2a: the recovery hook now covers BOTH wires — a stranded Séra
+      // funding fact is exactly as unrecoverable as a stranded boutik event.
       const stranded = await this.state.storage.get<{ status?: string }>(OUTBOX_KEY);
-      if (stranded?.status === 'pending' && (await this.state.storage.getAlarm()) === null) {
+      const strandedSera = await this.state.storage.get<{ status?: string }>(SERA_OUTBOX_KEY);
+      if (
+        (stranded?.status === 'pending' || strandedSera?.status === 'pending') &&
+        (await this.state.storage.getAlarm()) === null
+      ) {
         await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
       }
       /**
@@ -1142,11 +1232,33 @@ export class OrderDO {
       const outbox = composition.ok
         ? { status: 'pending' as const, event: composition.event, attempts: 0 }
         : { status: 'unsendable' as const, reason: composition.reason, attempts: 0 };
-      await this.state.storage.put({ [LOG_KEY]: next, [OUTBOX_KEY]: outbox });
+      /**
+       * SE-LIVE-2a — the SAME transition arms Séra's funding fact. It carries
+       * the order, the payment mode, and the instant THIS object observed the
+       * confirmation (`confirm.serverTime` — the same clock that starts
+       * boutik's preparation, never the provider's claimed time). NO AMOUNT:
+       * Séra's gate asks « funded per mode? », never « how much? » (SE-I09 —
+       * Séra never computes proceeds). Stored in the same batch as the log, so
+       * a confirmation and its two outboxes are one durable fact.
+       */
+      const seraOutbox = {
+        status: 'pending' as const,
+        fact: {
+          orderId: origin.orderId,
+          status: 'funded' as const,
+          paymentMode: quote.paymentMode,
+          asOf: confirm.serverTime,
+        },
+        attempts: 0,
+      };
+      await this.state.storage.put({ [LOG_KEY]: next, [OUTBOX_KEY]: outbox, [SERA_OUTBOX_KEY]: seraOutbox });
       // A scheduling throw must never 500 a confirmation that is already
       // durably stored (verifier MINOR); the duplicate-webhook re-arm above is
       // the recovery for an outbox left pending without an alarm.
-      if (composition.ok) await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      // SE-LIVE-2a: armed for EITHER wire — Séra's fact is always pending at
+      // this point, so an unsendable boutik composition must no longer leave
+      // the alarm unset (it would strand the funding fact forever).
+      await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
     } else {
       await this.state.storage.put(LOG_KEY, next);
     }

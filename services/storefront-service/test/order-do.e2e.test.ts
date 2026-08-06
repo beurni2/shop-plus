@@ -1,5 +1,7 @@
 import { OrderConfirmedEventSchema } from '@platform/contracts';
 import { mkdtempSync, rmSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MockPaymentProvider } from '@shop-plus/commerce-core';
@@ -33,11 +35,71 @@ const persist = mkdtempSync(join(tmpdir(), 'order-do-'));
 const persistSlow = mkdtempSync(join(tmpdir(), 'order-do-slow-'));
 const persistNoSecret = mkdtempSync(join(tmpdir(), 'order-do-nosecret-'));
 const persistEmptySecret = mkdtempSync(join(tmpdir(), 'order-do-emptysecret-'));
+const persistSeraless = mkdtempSync(join(tmpdir(), 'order-do-seraless-'));
 const T0 = '2026-07-30T08:00:00.000Z';
 
 const WRITE_SECRET = 'test-write-secret-0001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-0001';
 const FULFILL_SECRET = 'test-fulfillment-write-secret-0001';
+
+/**
+ * ═══ SE-LIVE-2a — SÉRA'S INTAKE DOOR, AS A REAL HTTP ORIGIN ═══
+ *
+ * The funding wire uses the Worker's GLOBAL fetch (not a service binding — a
+ * binding to a Worker that does not exist yet fails the deploy, and the
+ * consumer's door ships first). So the stand-in here is a real local http
+ * server: workerd opens a real socket to it, and what the suite asserts is the
+ * request that actually leaves the Worker — headers, path and body.
+ *
+ * It also LIES ON DEMAND (`seraRespond`), because the wire's whole promise is
+ * that a refusing or unreachable Séra loses nothing: 422 and 401 must both
+ * retry, exactly like boutik's 500.
+ */
+const seraPosts: { auth: string | null; path: string; body: unknown }[] = [];
+let seraRespond: 'ok' | 'refuse' | 'unauthorized' = 'ok';
+let seraServer: Server;
+let SERA_BASE = '';
+const SERA_SECRET = 'test-sera-intake-secret-0001';
+
+async function startSeraDoor(): Promise<void> {
+  seraServer = createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => {
+      const raw = Buffer.concat(chunks).toString('utf8');
+      seraPosts.push({
+        auth: req.headers['authorization'] ?? null,
+        path: req.url ?? '',
+        body: raw === '' ? null : (JSON.parse(raw) as unknown),
+      });
+      if (seraRespond === 'refuse') {
+        res.writeHead(422, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, admitted: false, reason: 'funding_projection_stale' }));
+        return;
+      }
+      if (seraRespond === 'unauthorized') {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'unauthorized' }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, applied: true }));
+    });
+  });
+  await new Promise<void>((resolve) => seraServer.listen(0, '127.0.0.1', resolve));
+  const addr = seraServer.address() as AddressInfo;
+  SERA_BASE = `http://127.0.0.1:${addr.port}`;
+}
+
+/** Poll until Séra's door has received `n` posts (the alarm fires ~immediately). */
+async function waitForSeraPosts(n: number, timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (seraPosts.length < n && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+await startSeraDoor();
 const authed = { 'X-Write-Key': WRITE_SECRET };
 const signed = { 'X-Payment-Webhook-Key': WEBHOOK_SECRET, 'Content-Type': 'application/json' };
 
@@ -82,6 +144,8 @@ function makeMf(
   persistDir: string,
   sandboxBehavior?: string,
   webhookSecret: string | null = WEBHOOK_SECRET,
+  seraBase: string | null = SERA_BASE,
+  seraSecret: string | null = SERA_SECRET,
 ): Miniflare {
   return new Miniflare({
     modules: true,
@@ -96,6 +160,11 @@ function makeMf(
     bindings: {
       STOREFRONT_WRITE_SECRET: WRITE_SECRET,
       FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
+      // SE-LIVE-2a — Séra's intake door, as a REAL http origin the Worker's
+      // global fetch actually calls (a local server, not a stub): the wire
+      // under test is the one that ships.
+      ...(seraBase !== null ? { SERA_INTAKE_BASE: seraBase } : {}),
+      ...(seraSecret !== null ? { SERA_INTAKE_SECRET: seraSecret } : {}),
       ...(webhookSecret !== null ? { PAYMENT_WEBHOOK_SECRET: webhookSecret } : {}),
       ...(sandboxBehavior !== undefined ? { PAYMENT_SANDBOX_BEHAVIOR: sandboxBehavior } : {}),
     },
@@ -172,11 +241,25 @@ function emptySecretMf(): Miniflare {
   return emptySecret;
 }
 
+/**
+ * SE-LIVE-2a — THE DEPLOYMENT THAT SHIPS BEFORE SÉRA EXISTS: both the base
+ * and the secret absent, which is exactly a Shop+ deployed ahead of the
+ * logistics Worker (the deploy-order law's normal case). Its own persist dir.
+ */
+let seraless: Miniflare | undefined;
+function seralessMf(): Miniflare {
+  seraless ??= makeMf(persistSeraless, undefined, WEBHOOK_SECRET, null, null);
+  return seraless;
+}
+
 afterAll(async () => {
   await mf.dispose();
   if (slow !== undefined) await slow.dispose();
   if (noSecret !== undefined) await noSecret.dispose();
   if (emptySecret !== undefined) await emptySecret.dispose();
+  if (seraless !== undefined) await seraless.dispose();
+  await new Promise<void>((resolve) => seraServer.close(() => resolve()));
+  rmSync(persistSeraless, { recursive: true, force: true });
   for (const dir of [persist, persistSlow, persistNoSecret, persistEmptySecret]) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -1948,3 +2031,141 @@ describe('SP6.3 — the buyer rung is enforced at ORDER CREATE, where her phone 
   });
 });
 
+
+/**
+ * ═══ SE-LIVE-2a — THE FUNDING FACT REACHES SÉRA'S DOOR ═══
+ *
+ * Séra's dispatch gate (SE-I02) admits a delivery task only for an order that
+ * is « funded per payment mode … non-cancelled », and SE-I09 forbids Séra from
+ * computing that truth itself. This is the wire that tells it — and these are
+ * its promises, each asserted against the REAL http request that leaves the
+ * Worker (a local origin, not a stub of `fetch`):
+ *
+ *   · the fact is armed by the SAME confirm transition that arms boutik;
+ *   · it carries the order, the payment mode, and the instant THIS object
+ *     observed the confirmation — and NO AMOUNT, ever;
+ *   · a refusing (422) or unauthorized (401) door RETRIES, losing nothing;
+ *   · a Shop+ deployed BEFORE Séra exists keeps the fact pending forever
+ *     rather than dropping it — the deploy-order law, made survivable;
+ *   · the two wires' fates are INDEPENDENT: boutik down never holds Séra back.
+ */
+describe('SE-LIVE-2a — the Séra funding fact, at-least-once and amount-free', () => {
+  it('THE HAPPY WIRE: confirm → ONE POST to /intake/funding with the bearer, the order, the mode and the confirm instant', async () => {
+    seraPosts.length = 0;
+    seraRespond = 'ok';
+    const { created, orderId } = await orderedQuote(mf, '0700');
+    expect(created.status).toBe(200);
+    const applied = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0700'));
+    expect(applied.json['state']).toBe('confirmed');
+
+    await waitForSeraPosts(1);
+    expect(seraPosts).toHaveLength(1);
+    const post = seraPosts[0]!;
+    expect(post.path).toBe('/intake/funding');
+    expect(post.auth).toBe(`Bearer ${SERA_SECRET}`);
+    const fact = post.body as Record<string, unknown>;
+    expect(fact['orderId']).toBe(orderId);
+    expect(fact['status']).toBe('funded');
+    expect(fact['paymentMode']).toBe('FULL_PREPAY');
+    // The instant is a real ISO stamp from THIS object's clock (the same one
+    // that starts boutik's preparation) — not the provider's claimed time.
+    expect(typeof fact['asOf']).toBe('string');
+    expect(Number.isFinite(Date.parse(fact['asOf'] as string))).toBe(true);
+
+    // ⚠ THE MONEY LAW ON THIS WIRE (SE-I09 / Ten Laws #2): Séra is told THAT
+    // the order is funded, never HOW MUCH. The buyer total is 12 500 in this
+    // harness — assert on the raw bytes that no franc figure crossed.
+    const raw = JSON.stringify(fact);
+    expect(raw).not.toMatch(/12500|12 500/);
+    expect(Object.keys(fact).sort()).toEqual(['asOf', 'orderId', 'paymentMode', 'status']);
+
+    // …and the fact is marked delivered on the object, beside boutik's own.
+    const box = (await outboxOf(mf, orderId)) as unknown as {
+      seraOutbox?: { status: string; attempts: number; deliveredAt?: string };
+    };
+    expect(box.seraOutbox?.status).toBe('delivered');
+    expect(typeof box.seraOutbox?.deliveredAt).toBe('string');
+  });
+
+  it('A REFUSING DOOR (422) RETRIES — the fact stays pending and is NEVER marked delivered', async () => {
+    seraPosts.length = 0;
+    seraRespond = 'refuse';
+    const { created, orderId } = await orderedQuote(mf, '0701');
+    expect(created.status).toBe(200);
+    expect((await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0701'))).json['state']).toBe('confirmed');
+    await waitForSeraPosts(1);
+    expect(seraPosts.length).toBeGreaterThanOrEqual(1);
+
+    const box = (await outboxOf(mf, orderId)) as unknown as {
+      seraOutbox?: { status: string; attempts: number; deliveredAt?: string };
+    };
+    // 422 is Séra saying « not admissible YET » (readiness has not arrived).
+    // The emitter's law: redeliver after upstream state heals — so pending,
+    // attempted, and pointedly NOT delivered.
+    expect(box.seraOutbox?.status).toBe('pending');
+    expect(box.seraOutbox?.attempts).toBeGreaterThanOrEqual(1);
+    expect(box.seraOutbox?.deliveredAt).toBeUndefined();
+    seraRespond = 'ok';
+  });
+
+  it('AN UNAUTHORIZED DOOR (401 — the secret not yet set on Séra) also retries, never drops', async () => {
+    seraPosts.length = 0;
+    seraRespond = 'unauthorized';
+    const { created, orderId } = await orderedQuote(mf, '0702');
+    expect(created.status).toBe(200);
+    expect((await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0702'))).json['state']).toBe('confirmed');
+    await waitForSeraPosts(1);
+    const box = (await outboxOf(mf, orderId)) as unknown as { seraOutbox?: { status: string } };
+    expect(box.seraOutbox?.status).toBe('pending');
+    seraRespond = 'ok';
+  });
+
+  it('SHOP+ DEPLOYED BEFORE SÉRA (no base, no secret): the fact is stored pending, nothing is attempted, and it SURVIVES A RESTART', async () => {
+    const before = seraPosts.length;
+    const m = seralessMf();
+    const { created, orderId } = await orderedQuote(m, '0703');
+    expect(created.status).toBe(200);
+    expect((await postWebhook(m, webhookEvent(orderId, 12_500, 'att-0703'))).json['state']).toBe('confirmed');
+    // Give the alarm the same window the delivering tests get.
+    await new Promise((r) => setTimeout(r, 300));
+    // NOTHING was sent — an unconfigured wire does not guess a URL.
+    expect(seraPosts.length).toBe(before);
+
+    const box = (await outboxOf(m, orderId)) as unknown as {
+      seraOutbox?: { status: string; fact?: Record<string, unknown> };
+    };
+    expect(box.seraOutbox?.status).toBe('pending');
+    expect(box.seraOutbox?.fact?.['orderId']).toBe(orderId);
+
+    // A PROCESS DEATH does not lose it: the backlog is durable and drains
+    // whenever the founder finally sets the base and the secret.
+    await seraless!.dispose();
+    seraless = makeMf(persistSeraless, undefined, WEBHOOK_SECRET, null, null);
+    const after = (await outboxOf(seraless, orderId)) as unknown as {
+      seraOutbox?: { status: string; fact?: Record<string, unknown> };
+    };
+    expect(after.seraOutbox?.status).toBe('pending');
+    expect(after.seraOutbox?.fact?.['orderId']).toBe(orderId);
+  });
+
+  it('INDEPENDENT FATES: boutik refusing every delivery does not stop Séra being told', async () => {
+    seraPosts.length = 0;
+    fulfillmentPosts.length = 0;
+    seraRespond = 'ok';
+    fulfillmentRespond = 'fail';
+    const { created, orderId } = await orderedQuote(mf, '0704');
+    expect(created.status).toBe(200);
+    expect((await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0704'))).json['state']).toBe('confirmed');
+
+    await waitForSeraPosts(1);
+    const box = (await outboxOf(mf, orderId)) as unknown as {
+      ok: boolean;
+      outbox?: { status: string };
+      seraOutbox?: { status: string };
+    };
+    // The two wires disagree about the world, and the object records both.
+    expect(box.seraOutbox?.status).toBe('delivered');
+    expect(box.outbox?.status).toBe('pending');
+    fulfillmentRespond = 'ok';
+  });
+});
