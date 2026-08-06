@@ -215,6 +215,7 @@ async function sweepC5(page: Page, label: string): Promise<EtatBalaye> {
       return {
         etat: null as string | null,
         blocks: [] as Array<{ cls: string; text: string; lines: number; lastRatio: number }>,
+        mesurables: [] as string[],
         glued: [] as Array<{ cls: string; text: string; lines: number }>,
       };
     }
@@ -247,6 +248,19 @@ async function sweepC5(page: Page, label: string): Promise<EtatBalaye> {
       if (d !== 'block' && d !== 'list-item' && d !== 'flow-root') return false;
       return [...el.children].every((c) => getComputedStyle(c).display === 'inline');
     };
+    /* ── MEASURABLE ≠ WRAPPED (CI flake, run 31064422388, 2026-08-06) ──────
+       `blocks` below keeps only elements that WRAPPED (`lines > 1`). The CTA
+       assertion downstream reads that set to prove the CTA « is a text block
+       by display » — but those are two different facts, and under
+       `font-display: optional` the second one is a coin toss: the real face
+       and the fallback face lay the same CTA out at different widths, so at a
+       large basket it wraps under one and not the other. Same sha, run 1 red,
+       run 2 green. So the set an assertion about DISPLAY should read is
+       collected here: every text block, wrapped or not. */
+    const mesurables = [...screen.querySelectorAll('*')]
+      .filter((el) => el.closest('svg') === null && (el.textContent ?? '').trim() !== '' && isTextBlock(el))
+      .map((el) => (el.getAttribute('class') ?? ''));
+
     const multi = [...screen.querySelectorAll('*')].filter((el) => {
       if (el.closest('svg') !== null) return false;
       if ((el.textContent ?? '').trim() === '') return false;
@@ -324,9 +338,9 @@ async function sweepC5(page: Page, label: string): Promise<EtatBalaye> {
     // — inside the one evaluate, off the one layout — means a branch that
     // advanced mid-sweep can only ever produce a WRONG-STATE FAILURE, never a
     // ratio quietly taken from the next screen.
-    return { etat: screen.getAttribute('data-etat'), blocks, glued };
+    return { etat: screen.getAttribute('data-etat'), blocks, mesurables, glued };
   });
-  return { label, etat: seen.etat, blocks: seen.blocks, glued: seen.glued };
+  return { label, etat: seen.etat, blocks: seen.blocks, mesurables: seen.mesurables, glued: seen.glued };
 }
 
 /** One swept sub-state: what it is, and how many wrapped blocks it must yield.
@@ -336,6 +350,9 @@ interface EtatBalaye {
   readonly label: string;
   readonly etat: string | null;
   readonly blocks: BlocBalaye[];
+  /** Every text block on the screen, WRAPPED OR NOT — the set an assertion
+   *  about `display` must read. See the flake note in `sweepC5`. */
+  readonly mesurables: string[];
   readonly glued: Array<{ cls: string; text: string; lines: number }>;
 }
 
@@ -643,9 +660,18 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
   // computes to inline-block, `isTextBlock` drops it, and this fails BY NAME
   // rather than by a silently smaller swept set.
   const ctaState = grand.find((s) => s.attendu === 'choix' && s.mode === 'B');
+  // MEASURABLE, not wrapped. The old read went through `blocks` — the WRAPPED
+  // set — so it also asserted that the CTA happens to wrap at this basket,
+  // which depends on which face won the `font-display: optional` race. That
+  // made a MONEY screen's test flaky (run 31064422388 red, 31064768627 green,
+  // same sha), and a flaky test on a money screen is worse than none: it
+  // teaches everyone to re-run instead of read. The invariant this line was
+  // always for is that the CTA is a text block BY DISPLAY, and so can be
+  // measured at all; remove `display: block` and it computes to inline-block,
+  // leaves `mesurables`, and this fails by name exactly as before.
   expect(
-    ctaState?.blocks.some((b) => b.cls.includes('cl-cta-c5')),
-    `${BASKET_LARGE}: the CTA was not swept — it is a text block by display, or it stopped wrapping`,
+    ctaState?.mesurables.some((cls) => cls.includes('cl-cta-c5')),
+    `${BASKET_LARGE}: the CTA is not a text block by display — it cannot be measured for orphans`,
   ).toBe(true);
 
   // …and the honesty line says what it says, on at most two lines.
