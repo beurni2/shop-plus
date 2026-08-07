@@ -58,7 +58,33 @@ jobs:
         working-directory: services/storefront-service
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npx --yes wrangler@4 deploy
+          SERA_INTAKE_BASE: ${{ vars.SERA_INTAKE_BASE }}
+        run: |
+          set -euo pipefail
+          # SE-LIVE-2: `order-do.ts` delivers the funding fact to Séra's intake
+          # door and reads this from the Worker env. A public Worker URL, so a
+          # `--var` and not a secret — the door refuses without the key anyway.
+          # Unset is the deploy-order law's normal case: the outbox holds the
+          # fact and retries rather than dropping it, so this warns, not fails.
+          if [ -n "${SERA_INTAKE_BASE}" ]; then
+            npx --yes wrangler@4 deploy --var SERA_INTAKE_BASE:"${SERA_INTAKE_BASE}"
+          else
+            echo "::warning title=Fil Sera NON arme::SERA_INTAKE_BASE is not set — the funding fact has nowhere to go. The outbox keeps it and retries; nothing is dropped and nothing reports delivered."
+            npx --yes wrangler@4 deploy
+          fi
+
+      - name: Arm the Sera intake key (piped — warns only if the repo secret is absent)
+        working-directory: services/storefront-service
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SERA_INTAKE_SECRET: ${{ secrets.SERA_INTAKE_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SERA_INTAKE_SECRET}" ]; then
+            echo "::warning title=Cle Sera NON armee::SERA_INTAKE_SECRET absent — Sera's door will refuse every delivery (fail-closed) until the repo secret is set and this workflow re-dispatched."
+            exit 0
+          fi
+          printf '%s' "${SERA_INTAKE_SECRET}" | npx --yes wrangler@4 secret put SERA_INTAKE_SECRET
       # DEPLOY-SMOKE-1 — PROVE THE DEPLOYED SURFACE ANSWERS, here and nowhere else.
       #
       # A green `wrangler deploy` proves the upload was accepted. It does NOT prove
