@@ -84,6 +84,16 @@ interface Env extends WriteAuthEnv {
   /** PRODUCT-MEDIA-BASE-1 — public origin for boutik's PRODUCT media. A `[vars]`
    * value, deliberately not a secret, and NOT `MEDIA_PUBLIC_BASE` (different bucket). */
   PRODUCT_MEDIA_BASE?: string;
+  /** REPERE-AUDIO-REEL — the media Worker, as a SERVICE BINDING (the
+   * SUPPLY_BASE / error-1042 lesson: cross-Worker fetch rides bindings in
+   * this account, never public URLs). Transport only — the door's write gate
+   * still stands. */
+  MEDIA?: { fetch(request: Request): Promise<Response> };
+  /** REPERE-AUDIO-REEL — the media service's write secret, so THIS Worker can
+   * hand a buyer's voice note to the media door server-side. `wrangler secret
+   * put MEDIA_WRITE_KEY`, the founder's alone — never [vars], never bundled.
+   * UNSET ⇒ every note is honestly `perdue`; no order is ever blocked. */
+  MEDIA_WRITE_KEY?: string;
 }
 
 export default {
@@ -224,6 +234,11 @@ export default {
         // create; forgetting it fails CLOSED (the door refuses), which is
         // how this omission was found.
         LADDER: env.LADDER,
+        // REPERE-AUDIO-REEL — the media door, for the buyer's voice note at
+        // create. Same explicit-grant law; forgetting either fails SOFT by
+        // design (the note is `perdue`, the sale never blocks).
+        ...(env.MEDIA !== undefined ? { MEDIA: env.MEDIA } : {}),
+        ...(env.MEDIA_WRITE_KEY !== undefined ? { MEDIA_WRITE_KEY: env.MEDIA_WRITE_KEY } : {}),
       });
       if (createSource !== undefined && answered.status === 200) {
         await mirrorDispatchRow(env, createSource);

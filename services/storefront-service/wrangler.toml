@@ -205,6 +205,17 @@ PRODUCT_MEDIA_BASE = "https://media-service.ilboudobernard2.workers.dev"
 binding = "OFFER"
 service = "offer-service"
 
+# REPERE-AUDIO-REEL — the media Worker, for the buyer's voice note at order
+# create. A SERVICE BINDING for the same reason OFFER is one (the SUPPLY_BASE /
+# error-1042 lesson: cross-Worker public-URL fetch in this account failed
+# closed for a full day). TRANSPORT ONLY: the media door still gates on its
+# write secret — `wrangler secret put MEDIA_WRITE_KEY` HERE, same value as
+# media-service's MEDIA_WRITE_SECRET. UNSET ⇒ notes are honestly `perdue`
+# (named on the create response); no order is ever blocked.
+[[services]]
+binding = "MEDIA"
+service = "media-service"
+
 # ═══════════════════════════════════════════════════════════════════════════
 # READINESS-RETURN-1c — THE RETURN LEG'S INTAKE SECRET.
 # ═══════════════════════════════════════════════════════════════════════════

@@ -199,6 +199,10 @@ export interface BuyerContact {
   readonly quartier: string;
   /** The landmark. May be '' — not every address has one to name. */
   readonly repere: string;
+  /** REPERE-AUDIO-REEL — her voice note's opaque media ref, minted by the
+   *  media service AFTER this Worker handed it the bytes server-side. Never
+   *  caller-supplied; absent when she typed instead of speaking. */
+  readonly audioRef?: string;
 }
 
 const CONTACT_KEY = 'buyer-contact';
@@ -222,14 +226,25 @@ interface PreparationRecord {
   readonly readyAt?: string;
 }
 
-/** Strict shape: EXACTLY the three approved keys, phone and quartier
- *  non-empty, all bounded. Anything else is null (the caller refuses). */
+/**
+ * REPERE-AUDIO-REEL — the opaque key Boutik+'s media service mints for a
+ * stored voice note: `media/{uuid v4}`. Mirrored byte-for-byte (the minting
+ * module lives in another repo); anything else is not a ref this platform
+ * ever produced.
+ */
+const AUDIO_REF = /^media\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+/** Strict STORED shape: the three approved keys plus the server-minted
+ *  `audioRef` (optional), phone and quartier non-empty, all bounded. Anything
+ *  else is null (the caller refuses). The PUBLIC wire never carries
+ *  `audioRef` — see `readBuyerContactWire`: a ref is minted server-side or it
+ *  does not exist. */
 export function readBuyerContact(value: unknown): BuyerContact | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
   const r = value as Record<string, unknown>;
-  const keys = Object.keys(r).sort();
-  if (keys.length !== 3 || keys[0] !== 'phone' || keys[1] !== 'quartier' || keys[2] !== 'repere') {
-    return null;
+  const allowed = new Set(['phone', 'quartier', 'repere', 'audioRef']);
+  for (const key of Object.keys(r)) {
+    if (!allowed.has(key)) return null;
   }
   const phone = r['phone'];
   const quartier = r['quartier'];
@@ -237,7 +252,43 @@ export function readBuyerContact(value: unknown): BuyerContact | null {
   if (typeof phone !== 'string' || phone.trim() === '' || phone.length > 32) return null;
   if (typeof quartier !== 'string' || quartier.trim() === '' || quartier.length > 120) return null;
   if (typeof repere !== 'string' || repere.length > 200) return null;
+  const audioRef = r['audioRef'];
+  if (audioRef !== undefined) {
+    if (typeof audioRef !== 'string' || !AUDIO_REF.test(audioRef)) return null;
+    return { phone, quartier, repere, audioRef };
+  }
   return { phone, quartier, repere };
+}
+
+/**
+ * REPERE-AUDIO-REEL — the PUBLIC wire shape of a contact. What a buyer may
+ * send: the three contact fields plus `audioB64`, her voice note's RAW BYTES
+ * base64'd from the recorder. Never `audioRef` — a caller who could name a
+ * ref could attach a stranger's note to their order; the ref is minted
+ * server-side after this Worker itself hands the bytes to the media door.
+ * The base64 is bounded to ~1 MiB of bytes (minutes of Opus; the capture UI
+ * stops at 30 s) and alphabet-checked so a malformed note refuses LOUDLY at
+ * the door instead of dying quietly on `atob`.
+ */
+const AUDIO_B64_MAX_CHARS = 1_400_000;
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+
+export function readBuyerContactWire(
+  value: unknown,
+): { contact: BuyerContact; audioB64?: string } | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const r = value as Record<string, unknown>;
+  const allowed = new Set(['phone', 'quartier', 'repere', 'audioB64']);
+  for (const key of Object.keys(r)) {
+    if (!allowed.has(key)) return null;
+  }
+  const contact = readBuyerContact({ phone: r['phone'], quartier: r['quartier'], repere: r['repere'] });
+  if (contact === null) return null;
+  const audioB64 = r['audioB64'];
+  if (audioB64 === undefined) return { contact };
+  if (typeof audioB64 !== 'string' || audioB64.length === 0 || audioB64.length > AUDIO_B64_MAX_CHARS) return null;
+  if (!BASE64.test(audioB64)) return null;
+  return { contact, audioB64 };
 }
 
 export interface OrderDOEnv {
@@ -1683,10 +1734,61 @@ interface Env {
    * refuses the DOOR MODE only. A full-prepay order never consults it.
    */
   LADDER?: DurableObjectNamespace;
+  /** REPERE-AUDIO-REEL — Boutik+'s media door, for the buyer's voice note.
+   *  A SERVICE BINDING, not a URL — the SUPPLY_BASE lesson (error 1042: a
+   *  Worker's public-URL fetch of another Worker in this account failed
+   *  closed for a full day); the OFFER binding is the proven cross-repo
+   *  road. TRANSPORT ONLY: the media door is still gated by its write
+   *  secret, so `MEDIA_WRITE_KEY` (set via `wrangler secret put`, the
+   *  founder's alone — never [vars], never bundled) rides every call. Both
+   *  optional: unconfigured, every note is honestly `perdue` and no order
+   *  is ever blocked. */
+  MEDIA?: { fetch(request: Request): Promise<Response> };
+  MEDIA_WRITE_KEY?: string;
 }
 
 const orderStub = (env: Env, orderId: string): DurableObjectStub =>
   env.ORDER.get(env.ORDER.idFromName(orderId));
+
+/**
+ * REPERE-AUDIO-REEL — hand the buyer's note to the media door, server-side,
+ * and come back with the minted ref or null. Null on EVERY failure class —
+ * no config, undecodable base64, refused bytes, unreachable service — because
+ * the caller's law is « the note never blocks the sale »; the caller names
+ * the loss on the response instead.
+ */
+async function televerserNoteVocale(env: Env, audioB64: string): Promise<string | null> {
+  const media = env.MEDIA;
+  const key = env.MEDIA_WRITE_KEY;
+  if (media === undefined || typeof key !== 'string' || key === '') return null;
+  let bytes: Uint8Array;
+  try {
+    const bin = atob(audioB64);
+    bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+  } catch {
+    return null;
+  }
+  if (bytes.length === 0) return null;
+  try {
+    // The host is a placeholder — a service binding routes by BINDING, and
+    // the media Worker reads only the path.
+    const res = await media.fetch(new Request('https://media/media/audio', {
+      method: 'POST',
+      headers: { 'X-Write-Key': key },
+      body: bytes,
+    }));
+    if (res.status !== 201) return null;
+    const body = (await res.json().catch(() => null)) as { ref?: unknown } | null;
+    const ref = body?.ref;
+    // The SAME strict shape the stored-contact validator demands (AUDIO_REF) —
+    // a ref this refuses would be refused again inside the object, and THAT
+    // refusal would block the sale; this one only loses the note.
+    return typeof ref === 'string' && AUDIO_REF.test(ref) ? ref : null;
+  } catch {
+    return null;
+  }
+}
 
 /** The wire vocabulary a caller may send. Anything else is REFUSED, not ignored. */
 const ORDER_FIELDS = ['quoteId', 'holderRef', 'commandId', 'contact'];
@@ -1778,14 +1880,18 @@ export default {
         return badRequest('bad_field', 'commandId');
       }
       // BC-1a — the buyer's dispatch contact, OPTIONAL and strict when
-      // present: exactly {phone, quartier, repere}, bounded, phone and
-      // quartier non-empty. Refused HERE with the field named, before any
+      // present: {phone, quartier, repere} plus REPERE-AUDIO-REEL's
+      // `audioB64` (her voice note's bytes — never a ref; refs are minted
+      // server-side below). Refused HERE with the field named, before any
       // object is touched — a half-formed contact never travels. Still no
       // amount field on this body, and no way to add one.
       let contact: BuyerContact | null = null;
+      let audioB64: string | undefined;
       if (body['contact'] !== undefined && body['contact'] !== null) {
-        contact = readBuyerContact(body['contact']);
-        if (contact === null) return badRequest('bad_field', 'contact');
+        const wire = readBuyerContactWire(body['contact']);
+        if (wire === null) return badRequest('bad_field', 'contact');
+        contact = wire.contact;
+        audioB64 = wire.audioB64;
       }
       const quoteId = body['quoteId'];
 
@@ -1847,6 +1953,26 @@ export default {
         if (!verdict.allowed) return refuse('pay_at_door_not_eligible');
       }
 
+      /**
+       * REPERE-AUDIO-REEL — the note becomes a REF before the order is born.
+       * This Worker hands the bytes to Boutik+'s media door with ITS OWN
+       * credential (the write key never rides in the buyer's public bundle),
+       * and only the minted opaque ref travels on. BEST-EFFORT BY RULING: an
+       * unreachable or refusing media backend must never block the sale — the
+       * typed repère is still on the contact — but the loss is NAMED on the
+       * response (`noteVocale: 'perdue'`), never silent.
+       */
+      let noteVocale: 'gardee' | 'perdue' | undefined;
+      if (contact !== null && audioB64 !== undefined) {
+        const ref = await televerserNoteVocale(env, audioB64);
+        if (ref !== null) {
+          contact = { ...contact, audioRef: ref };
+          noteVocale = 'gardee';
+        } else {
+          noteVocale = 'perdue';
+        }
+      }
+
       const res = await orderStub(env, orderIdForQuote(quoteId)).fetch(
         new Request('https://do/entry/create', {
           method: 'POST',
@@ -1870,7 +1996,11 @@ export default {
         | null;
       if (decided === null) return refuse('not_found');
       if (decided.ok !== true || decided.view === undefined) return refuse(decided.reason ?? 'not_found');
-      // THE BOUNDARY. Only the object's own projection ever reaches a buyer.
+      // THE BOUNDARY. Only the object's own projection ever reaches a buyer —
+      // plus ONE fact this Worker itself owns: what became of her voice note.
+      if (noteVocale !== undefined) {
+        return Response.json({ ...(decided.view as Record<string, unknown>), noteVocale }, { status: 200 });
+      }
       return Response.json(decided.view, { status: 200 });
     }
 

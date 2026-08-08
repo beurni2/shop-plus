@@ -41,6 +41,7 @@ function fmtSecondes(sec: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 import { prixExpire, type OrderFetch, type QuoteFetch, type ReserveFetch } from './quote-model';
+import { creerEnregistreurNote, type EnregistreurNote, type NoteEnregistree } from './voice-note';
 
 export type ClienteEcran = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9';
 /** C2 is the protections SHEET, not a linear stop — mounting at C2 opens the
@@ -86,6 +87,9 @@ export interface ClienteInit {
   readonly revealed?: boolean | undefined;
   /** Navigate to her full vitrine — the frozen attribution seam (main.ts). */
   readonly onVitrine?: ((slug: string) => void) | undefined;
+  /** REPERE-AUDIO-REEL — the recorder seam. Tests and the harness inject a
+   *  fake; the real app records with the phone's own MediaRecorder. */
+  readonly enregistreur?: EnregistreurNote | undefined;
 }
 
 interface FlowState {
@@ -103,6 +107,9 @@ interface FlowState {
   phone: string;
   voice: VoiceEtat;
   vSec: number;
+  /** REPERE-AUDIO-REEL — the RECORDED note (bytes + her replay URL), held on
+   *  the phone until it rides the order create. null = nothing recorded. */
+  note: NoteEnregistree | null;
   delivery: Livraison | null;
   pay: ModePaiement | null;
   paying: 'idle' | 'submitting' | 'provider';
@@ -132,7 +139,7 @@ interface FlowState {
     reserve: (mode: ModePaiement) => Promise<ReserveFetch>;
     /** SP3.3c — create the order for the chosen mode, and read it back. Bound
      *  to the same per-mode quote the hold was taken on. */
-    commander: (mode: ModePaiement, essai: number, contact?: { phone: string; quartier: string; repere: string }) => Promise<OrderFetch>;
+    commander: (mode: ModePaiement, essai: number, contact?: { phone: string; quartier: string; repere: string; audioB64?: string }) => Promise<OrderFetch>;
     etatCommande: (orderId: string) => Promise<OrderFetch>;
     /** SP4.2b — ask for the product leg to be collected at her door. */
     payerALaPorte: (orderId: string, essai: number) => Promise<OrderFetch>;
@@ -274,6 +281,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     phone: '',
     voice: (init.microRefuse ?? false) ? 'refused' : 'idle',
     vSec: 0,
+    note: null,
     delivery: null,
     pay: null,
     paying: 'idle',
@@ -409,6 +417,28 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
    *  the rest, so leaving the screen stops asking. */
   let tSuivi: ReturnType<typeof setTimeout> | null = null;
   let ticker: ReturnType<typeof setInterval> | null = null;
+
+  /** REPERE-AUDIO-REEL — the recorder behind « Enregistrer le repère ». One
+   *  per flow; tests and the harness inject a fake through `init`. */
+  const enregistreur: EnregistreurNote = init.enregistreur ?? creerEnregistreurNote();
+  /** The capture ceiling — a repère is a sentence, not a speech. The media
+   *  door's own walls (2 MiB / 60 s) sit far behind this. */
+  const NOTE_MAX_SEC = 30;
+  /** One replay element for HER OWN note (blob URL — never leaves the phone). */
+  let noteAudio: HTMLAudioElement | null = null;
+
+  /** Stop = the button AND the 30 s cap, one act: assemble the note, keep it
+   *  for the order, and say the honest state (queued when offline — kept, it
+   *  rides the order once the network is back; the order needs network too). */
+  const arreterNote = (): void => {
+    if (ticker) clearInterval(ticker);
+    ticker = null;
+    void enregistreur.arreter().then((note) => {
+      state.note = note;
+      state.voice = note === null ? 'refused' : state.offline ? 'queued' : 'recorded';
+      render();
+    });
+  };
 
   /**
    * THE PAYMENT ATTEMPT'S GENERATION (verifier BLOCKER 3).
@@ -794,12 +824,19 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
    *  quartier, and the repère (text plus the optional indication; possibly ''
    *  when she chose the voice note — the service accepts an empty repère).
    *  Assembled at SEND, so a corrected number on a retry travels corrected. */
-  function contactLivraison(): { phone: string; quartier: string; repere: string } | undefined {
+  function contactLivraison(): { phone: string; quartier: string; repere: string; audioB64?: string } | undefined {
     const phone = state.phone.trim();
     const quartier = state.zone ?? '';
     if (phone === '' || quartier === '') return undefined;
     const repere = [state.repere.trim(), state.indic.trim()].filter((v) => v !== '').join(' · ').slice(0, 200);
-    return { phone: phone.slice(0, 32), quartier: quartier.slice(0, 120), repere };
+    return {
+      phone: phone.slice(0, 32),
+      quartier: quartier.slice(0, 120),
+      repere,
+      // REPERE-AUDIO-REEL — her recorded note rides the create beside the
+      // text, assembled at SEND like everything else here.
+      ...(state.note !== null ? { audioB64: state.note.audioB64 } : {}),
+    };
   }
 
   function passerLaCommande(mode: ModePaiement, gen: number): void {
@@ -893,7 +930,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         if (state.stock !== 'out') {
           jump('C3', {
             zone: null, repere: '', indic: '', phone: '',
-            voice: (init.microRefuse ?? false) ? 'refused' : 'idle', vSec: 0,
+            voice: (init.microRefuse ?? false) ? 'refused' : 'idle', vSec: 0, note: null,
           });
         }
         return;
@@ -949,21 +986,42 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         state.zone = el.getAttribute('data-zone'); render(); return;
       case 'voix-demarrer':
       case 'voix-refaire':
-        state.voice = 'recording'; state.vSec = 0; render();
-        ticker = setInterval(() => {
-          state.vSec += 1;
-          const t = container.querySelector('[data-role="rec-time"]');
-          if (t) t.textContent = recTime();
-        }, 1000);
+        // REPERE-AUDIO-REEL — the REAL microphone, no more pantomime. The
+        // permission prompt answers first; a refusal (hers, or a browser with
+        // no recorder) lands on the standing honest state, and the typed
+        // repère stays the primary road.
+        state.note = null;
+        void enregistreur.demarrer().then((debut) => {
+          if (debut === 'refused') {
+            state.voice = 'refused';
+            render();
+            return;
+          }
+          state.voice = 'recording';
+          state.vSec = 0;
+          render();
+          ticker = setInterval(() => {
+            state.vSec += 1;
+            const t = container.querySelector('[data-role="rec-time"]');
+            if (t) t.textContent = recTime();
+            // The cap is the SAME act as her own ARRÊTER — never a lost note.
+            if (state.vSec >= NOTE_MAX_SEC) arreterNote();
+          }, 1000);
+        });
         return;
       case 'voix-arreter':
-        if (ticker) clearInterval(ticker);
-        ticker = null;
-        state.voice = state.offline ? 'queued' : 'recorded';
-        render();
+        arreterNote();
         return;
-      case 'voix-lire-note':
-        toast('Lecture de votre note vocale (démo)'); return;
+      case 'voix-lire-note': {
+        // HER OWN replay, from the phone's blob — nothing fetched, nothing sent.
+        const url = state.note?.blobUrl;
+        if (url === undefined || typeof Audio === 'undefined') return;
+        if (noteAudio === null) noteAudio = new Audio();
+        if (noteAudio.src !== url) noteAudio.src = url;
+        noteAudio.currentTime = 0;
+        void noteAudio.play().catch(() => toast(MESSAGES.noteInjouable));
+        return;
+      }
       case 'continuer-c3':
         if (!canC3()) return;
         // SP3.2b — the destination is now known, so this is where the price is

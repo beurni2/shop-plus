@@ -170,6 +170,10 @@ export interface ContactLivraison {
   readonly phone: string;
   readonly quartier: string;
   readonly repere: string;
+  /** REPERE-AUDIO-REEL — her voice note's bytes, base64'd, riding the create
+   *  ONCE beside the text repère. The service turns it into an opaque media
+   *  ref server-side; no ref ever travels FROM this app. */
+  readonly audioB64?: string;
 }
 
 export interface QuotePort {
@@ -422,7 +426,16 @@ export function httpQuotePort(baseUrl: string): QuotePort {
           holderRef,
           commandId,
           ...(contact !== undefined
-            ? { contact: { phone: contact.phone, quartier: contact.quartier, repere: contact.repere } }
+            ? {
+                contact: {
+                  phone: contact.phone,
+                  quartier: contact.quartier,
+                  repere: contact.repere,
+                  // REPERE-AUDIO-REEL — the note's bytes, field-by-field like
+                  // its neighbours; still no amount, still no spread.
+                  ...(contact.audioB64 !== undefined ? { audioB64: contact.audioB64 } : {}),
+                },
+              }
             : {}),
         });
       } catch {

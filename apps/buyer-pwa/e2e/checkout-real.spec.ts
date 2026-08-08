@@ -834,3 +834,36 @@ test('SP4.2b · a REFUSED door charge gets an honest screen and a retry — neve
   await expect.poll(() => wire.doorCharges.length, { timeout: 10_000 }).toBe(2);
   expect(wire.doorCharges[1]!.body['commandId']).not.toBe(wire.doorCharges[0]!.body['commandId']);
 });
+
+test('REPERE-AUDIO-REEL · the REAL recorder — her note is captured by the phone and rides the order as audioB64', async ({ page }) => {
+  // Chromium's fake microphone (playwright.config launch args) feeds a REAL
+  // MediaRecorder: no mock, no pantomime — the same road her phone drives.
+  const wire = await scriptService(page, { orderStates: ['payment_pending'] });
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-role="phone"]').fill('70 12 34 56');
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie');
+  await page.locator('[data-action="voix-demarrer"]').click();
+  // The permission resolved and the recording state is REAL before ARRÊTER exists.
+  await page.locator('[data-action="voix-arreter"]').waitFor();
+  await page.waitForTimeout(1_200); // let the fake microphone produce real bytes
+  await page.locator('[data-action="voix-arreter"]').click();
+  await page.locator('[data-role="voice-recorded"]').waitFor(); // the note EXISTS on the phone
+  await page.locator('[data-action="continuer-c3"]').click();
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+
+  const body = wire.orders[0]!.body;
+  const contact = body['contact'] as Record<string, unknown>;
+  // The fourth key is the NOTE — and only ever the bytes, never a ref.
+  expect(Object.keys(contact).sort()).toEqual(['audioB64', 'phone', 'quartier', 'repere']);
+  expect('audioRef' in contact).toBe(false);
+  const bytes = Buffer.from(String(contact['audioB64']), 'base64');
+  expect(bytes.length).toBeGreaterThan(0);
+  // Chromium's recorder emits WebM — the exact EBML head the media door sniffs.
+  expect([...bytes.subarray(0, 4)]).toEqual([0x1a, 0x45, 0xdf, 0xa3]);
+});
