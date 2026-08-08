@@ -69,6 +69,8 @@ interface Scripted {
   /** hold `POST /checkout/order` this long — makes the « order in flight »
    *  window observable, which is when she can still press Retour. */
   orderDelayMs?: number;
+  /** REPERE-AUDIO-REEL — what the create says became of her voice note. */
+  noteVocale?: 'gardee' | 'perdue';
   /** SP4.2b — the door leg per read, the LAST repeating. `none` = mode A. */
   doorLegs?: string[];
   /** refuse `POST …/door-charge` by name, the way the service would. */
@@ -127,6 +129,7 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
         amountPaidAtCheckout: 12_500,
         amountDueAtDelivery: 0,
         doorLeg: opts.doorLegs?.[0] ?? 'none',
+        ...(opts.noteVocale !== undefined ? { noteVocale: opts.noteVocale } : {}),
       });
     }
     /* ── SP4.2b — she asks for the product leg to be collected ──────────── */
@@ -866,4 +869,31 @@ test('REPERE-AUDIO-REEL · the REAL recorder — her note is captured by the pho
   expect(bytes.length).toBeGreaterThan(0);
   // Chromium's recorder emits WebM — the exact EBML head the media door sniffs.
   expect([...bytes.subarray(0, 4)]).toEqual([0x1a, 0x45, 0xdf, 0xa3]);
+});
+
+test('REPERE-AUDIO-REEL · a LOST note gets its sentence — the diagnostic hole the founder hit is closed', async ({ page }) => {
+  // The service says the note could not be kept (`noteVocale: 'perdue'`).
+  // Before this test's line existed, NOTHING anywhere said so — the founder
+  // stood at Terminées wondering whether the note was never sent or died on
+  // the media hop. Now the buyer's own screen says it, once, calmly.
+  await scriptService(page, { orderStates: ['payment_pending'], noteVocale: 'perdue' });
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-role="phone"]').fill('70 12 34 56');
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie');
+  await page.locator('[data-action="voix-demarrer"]').click();
+  await page.locator('[data-action="voix-arreter"]').waitFor();
+  await page.waitForTimeout(600);
+  await page.locator('[data-action="voix-arreter"]').click();
+  await page.locator('[data-role="voice-recorded"]').waitFor();
+  await page.locator('[data-action="continuer-c3"]').click();
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+  await expect(page.locator('main.cl-root')).toContainText('Votre note vocale n’a pas pu être gardée');
+  // …and the honest half-sentence beside it: her written repère DID travel.
+  await expect(page.locator('main.cl-root')).toContainText('Votre repère écrit est bien transmis');
 });

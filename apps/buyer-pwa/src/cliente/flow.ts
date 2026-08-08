@@ -861,6 +861,13 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       state.doorLeg = r.order.doorLeg ?? null;
       const etat = etatDeC6(r.order.state);
       jump('C6', { confirmState: etat, step: 1, orderId: r.order.orderId, relance: false, horsPortee: false });
+      // REPERE-AUDIO-REEL — a LOST note gets its sentence, spoken once, calm:
+      // her order is untouched and her written repère travelled. Silence here
+      // was the diagnostic hole the founder hit — a note could die on the
+      // media hop with nothing anywhere saying so.
+      if (r.order.noteVocale === 'perdue') {
+        toast('Votre note vocale n’a pas pu être gardée. Votre repère écrit est bien transmis.');
+      }
       // `jump` cleared the timers and bumped the generation — so the watch must
       // start from the NEW one, or its first read would discard itself.
       if (etat === 'attente') suivreLePaiement(r.order.orderId, generation, 0);

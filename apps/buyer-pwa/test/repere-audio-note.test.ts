@@ -64,6 +64,26 @@ describe('the order wire — audioB64 rides INSIDE contact, and a ref can never 
   });
 });
 
+describe('the create answer — what became of her note travels back, or stays silent', () => {
+  const order = (extra: Record<string, unknown>) => ({
+    orderId: 'ord-1', state: 'payment_pending', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, ...extra,
+  });
+  const fetchAnswering = (body: unknown): typeof fetch =>
+    (async () => jsonRes(body)) as unknown as typeof fetch;
+
+  it('gardee and perdue pass through; anything else is silence, never an invented state', async () => {
+    for (const [wire, kept] of [
+      ['gardee', 'gardee'], ['perdue', 'perdue'], ['n_importe_quoi', undefined], [undefined, undefined],
+    ] as const) {
+      const out = await withFetch(fetchAnswering(order(wire !== undefined ? { noteVocale: wire } : {})), () =>
+        httpQuotePort('http://s').order('q', 'cmd', 'h'),
+      );
+      expect(out.status).toBe('order');
+      if (out.status === 'order') expect(out.order.noteVocale).toBe(kept);
+    }
+  });
+});
+
 describe('the recorder — a device with no microphone road answers the honest refusal', () => {
   it('no mediaDevices / no MediaRecorder (this Node) → demarrer says refused, arreter says null', async () => {
     const rec = creerEnregistreurNote();

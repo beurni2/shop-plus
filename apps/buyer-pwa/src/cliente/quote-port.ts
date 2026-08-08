@@ -140,6 +140,15 @@ export interface ServerOrder {
    * `looksLikeServerOrder`.
    */
   readonly doorLeg?: string | undefined;
+  /**
+   * REPERE-AUDIO-REEL — what became of her voice note, on the CREATE answer
+   * only (the Worker's own word: `gardee` when the media door minted a ref,
+   * `perdue` when it could not). Optional: polls and older Workers never
+   * send it, and absence simply says nothing — only `perdue` is ever spoken
+   * to her, because a lost note deserves a sentence and a kept one already
+   * shows on the founder's Commandes.
+   */
+  readonly noteVocale?: 'gardee' | 'perdue' | undefined;
 }
 
 /**
@@ -526,6 +535,11 @@ async function readOrder(res: Response): Promise<OrderOutcome> {
       amountPaidAtCheckout: body.amountPaidAtCheckout,
       amountDueAtDelivery: body.amountDueAtDelivery,
       doorLeg: body.doorLeg,
+      // REPERE-AUDIO-REEL — carried only when the Worker said one of its two
+      // words; anything else stays silent rather than inventing a state.
+      ...(body.noteVocale === 'gardee' || body.noteVocale === 'perdue'
+        ? { noteVocale: body.noteVocale }
+        : {}),
     },
   };
 }
