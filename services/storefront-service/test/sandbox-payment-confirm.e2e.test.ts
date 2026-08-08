@@ -32,6 +32,7 @@ const T0 = '2026-08-08T08:00:00.000Z';
 const WRITE_SECRET = 'test-write-secret-sp001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-sp001';
 const OPS_SECRET = 'test-checkout-ops-secret-sp001';
+const PROGRESS_SECRET = 'test-progress-write-secret-sp001';
 const authed = { 'X-Write-Key': WRITE_SECRET };
 
 const SUPPLY = [
@@ -68,6 +69,7 @@ const mf = new Miniflare({
     STOREFRONT_WRITE_SECRET: WRITE_SECRET,
     PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
     CHECKOUT_OPS_SECRET: OPS_SECRET,
+    PROGRESS_WRITE_SECRET: PROGRESS_SECRET,
   },
   serviceBindings: {
     OFFER: async (request: Request) => {
@@ -294,5 +296,129 @@ describe('RB-3 — the gains read serves the FROZEN waterfall, franc-exact, foun
     for (const secret of ['sellerNet', 'resellerNet', 'sellerPlatformFee', 'sellerBasePrice']) {
       expect(pubText, `${secret} on the buyer view`).not.toContain(secret);
     }
+  }, 60_000);
+});
+
+/**
+ * ═══ SE-LIVE-5b — SÉRA'S VALIDATED SIGNAL BECOMES SETTLEMENT RECORDS ═══
+ *
+ * The event below is byte-shaped as the CUSTODY SPINE emits it
+ * (sera `custody-spine.ts`, `confirmDropAndEmitEligibility`): name
+ * `delivery.validated.v1`, envelope correlation `corr-{orderId}` (the
+ * order's own, minted at creation — order-do.ts), actor
+ * `custody-service:e1`, payload {order_id, task_id, validation_id,
+ * result, settlement_eligibility} + the 5b `supplier_ref` the signal
+ * carries because the storefront domain never learns a supplier. Any
+ * drift in the sera emitter must be mirrored here BY HAND, eyes open.
+ */
+describe('SE-LIVE-5b — the delivered order settles, copied from the frozen quote', () => {
+  const validatedEvent = (orderId: string, over: Record<string, unknown> = {}) => ({
+    name: 'delivery.validated.v1',
+    envelope: {
+      command_id: `eligibility-${orderId}`,
+      correlation_id: `corr-${orderId}`,
+      aggregateVersion: 9,
+      actor: 'custody-service:e1',
+      serverTime: new Date().toISOString(),
+      version: '1',
+      ...(typeof over['correlation_id'] === 'string' ? { correlation_id: over['correlation_id'] } : {}),
+    },
+    payload: {
+      order_id: orderId,
+      task_id: `task-${orderId}`,
+      validation_id: `val-${orderId}`,
+      result: 'validated',
+      settlement_eligibility: true,
+      supplier_ref: 'supplier-sp001',
+    },
+  });
+
+  const progress = (event: unknown, secret: string) =>
+    mf.dispatchFetch('http://c/fulfillment/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+      body: JSON.stringify(event),
+    });
+
+  it('confirm → validated signal → exactly two Eligible obligations, franc-exact, once — and the buyer view leaks none of it', async () => {
+    const { orderId } = await realOrder('0011');
+    expect((await runScript(orderId, WEBHOOK_SECRET)).code).toBe(0);
+
+    const res = await progress(validatedEvent(orderId), PROGRESS_SECRET);
+    const body = (safeJson(await res.text())) as { ok?: boolean; status?: string; obligations?: number };
+    expect(res.status, 'the signal must be recorded').toBe(200);
+    expect(body.status).toBe('recorded');
+    expect(body.obligations, 'exactly two obligations — supplier and reseller').toBe(2);
+
+    // ── the founder's gains row now says LIVRÉE, with the records ─────────
+    const gains = await mf.dispatchFetch('http://c/checkout/gains', {
+      headers: { Authorization: `Bearer ${OPS_SECRET}` },
+    });
+    const g = (safeJson(await gains.text())) as { gains?: Record<string, unknown>[] };
+    const row = g.gains?.find((r) => r['orderId'] === orderId);
+    expect(row, 'the delivered order still stands in the gains read').toBeDefined();
+    expect(row!['livree'], 'the delivered truth').toBe(true);
+    const obligations = row!['obligations'] as { party: string; amount: number; state: string }[];
+    expect(obligations).toHaveLength(2);
+    const supplier = obligations.find((o) => o.party.startsWith('supplier:'))!;
+    const reseller = obligations.find((o) => o.party.startsWith('reseller:'))!;
+    // COPIED from the frozen quote, to the franc (§5.6, B+I-05) — and the
+    // supplier identity is the one the SIGNAL carried.
+    expect(supplier.party).toBe('supplier:supplier-sp001');
+    expect(supplier.amount, 'supplier obligation = sellerNet (B − C − fee)').toBe(8_500);
+    expect(supplier.state).toBe('Eligible');
+    expect(reseller.amount, 'reseller obligation = resellerNet').toBe(2_000);
+    expect(reseller.state).toBe('Eligible');
+    // §5.4 reconciliation on the SERVED bytes: obligations + both platform
+    // fees meet the stored subtotal exactly.
+    const split = row!['split'] as Record<string, number>;
+    expect(
+      supplier.amount + reseller.amount + split['sellerPlatformFee']! + split['resellerPlatformFee']!,
+      'obligations + fees == productSubtotal, to the franc',
+    ).toBe(split['productSubtotal']);
+
+    // ── redelivery absorbs: at-least-once, ONE fold ───────────────────────
+    const again = await progress(validatedEvent(orderId), PROGRESS_SECRET);
+    expect(((safeJson(await again.text())) as { status?: string }).status).toBe('duplicate');
+    const gains2 = await mf.dispatchFetch('http://c/checkout/gains', {
+      headers: { Authorization: `Bearer ${OPS_SECRET}` },
+    });
+    const row2 = ((safeJson(await gains2.text())) as { gains?: Record<string, unknown>[] }).gains?.find(
+      (r) => r['orderId'] === orderId,
+    );
+    expect((row2!['obligations'] as unknown[]).length, 'a redelivery must not double the records').toBe(2);
+
+    // ── the PUBLIC order view carries none of it (SP-I03) ─────────────────
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+    const pubText = await pub.text();
+    for (const secret of ['obligations', 'Eligible', 'supplier:', 'sellerNet']) {
+      expect(pubText, `${secret} on the buyer view`).not.toContain(secret);
+    }
+  }, 60_000);
+
+  it('the spine refuses by NAME: wrong correlation, and an order never confirmed', async () => {
+    const { orderId: paid } = await realOrder('0012');
+    expect((await runScript(paid, WEBHOOK_SECRET)).code).toBe(0);
+    const wrong = await progress(validatedEvent(paid, { correlation_id: 'corr-autre' }), PROGRESS_SECRET);
+    expect(wrong.status, 'a foreign correlation is refused loudly').toBe(409);
+    expect(((safeJson(await wrong.text())) as { reason?: string }).reason).toBe('wrong_correlation');
+
+    const { orderId: unpaid } = await realOrder('0013');
+    const early = await progress(validatedEvent(unpaid), PROGRESS_SECRET);
+    expect(early.status, 'no settlement before confirmation').toBe(409);
+    expect(((safeJson(await early.text())) as { reason?: string }).reason).toBe('out_of_order');
+  }, 60_000);
+
+  it('the door: wrong secret is a 401 and records nothing', async () => {
+    const { orderId } = await realOrder('0014');
+    expect((await runScript(orderId, WEBHOOK_SECRET)).code).toBe(0);
+    expect((await progress(validatedEvent(orderId), 'mauvaise-cle')).status).toBe(401);
+    const gains = await mf.dispatchFetch('http://c/checkout/gains', {
+      headers: { Authorization: `Bearer ${OPS_SECRET}` },
+    });
+    const row = ((safeJson(await gains.text())) as { gains?: Record<string, unknown>[] }).gains?.find(
+      (r) => r['orderId'] === orderId,
+    );
+    expect(row!['livree'], 'a refused signal must not deliver an order').toBe(false);
   }, 60_000);
 });

@@ -553,6 +553,13 @@ export class OrderDO {
       if (!reconciles) {
         return Response.json({ ok: false, reason: 'stored_quote_incoherent' }, { status: 422 });
       }
+      // SE-LIVE-5b — the DELIVERED truth: Séra's validated signal recorded
+      // obligations copied from this same frozen quote. Their presence IS the
+      // fact « livrée » (the two-obligation fold happens exactly once, on the
+      // signal); the rows are served as stored, never recomputed.
+      const obligations = spine.ledger
+        .obligationsFor(origin.orderId)
+        .map((o) => ({ party: o.party, amount: o.amount, state: o.state }));
       return Response.json({
         ok: true,
         exists: true,
@@ -562,6 +569,54 @@ export class OrderDO {
         productVersionId: origin.fulfillment?.productVersionId ?? '',
         zoneTo: origin.fulfillment?.zoneTo ?? '',
         split,
+        livree: obligations.length > 0,
+        obligations,
+      });
+    }
+
+    /**
+     * ═══ SE-LIVE-5b — SÉRA'S SETTLEMENT-ELIGIBILITY SIGNAL ═══
+     *
+     * `delivery.validated.v1`, carried into the order's own input log EXACTLY
+     * as it arrived. The SPINE does every check that matters — canon envelope,
+     * event name, THE ORDER'S OWN correlation (`corr-{orderId}`, minted at
+     * creation), idempotency by command_id, confirmed-first — and then copies
+     * exactly two SettlementObligations from the frozen Quote (supplier
+     * sellerNet · reseller resellerNet, both `Eligible`; §5.6, B+I-05: locked,
+     * never recomputed). The supplier identity rides ON the signal, because
+     * this domain never learns one (see OrderOrigin.supplierRef).
+     *
+     * A refusal is 409 and NOT a 5xx, deliberately: the custody outbox retries
+     * a producer bug into BOTH Workers' logs, loudly, while a real outage
+     * stays retryable — the same taxonomy `/fulfillment/progress` set.
+     * INTERNAL ONLY, reached through that secret-gated route.
+     */
+    if (request.method === 'POST' && pathname === '/entry/eligibility') {
+      const event: unknown = await request.json().catch(() => null);
+      if (event === null) return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      if (origin === undefined) {
+        return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+      }
+      const quote = parseStoredQuote(origin.quoteBytes);
+      if (quote === undefined) {
+        return Response.json({ ok: false, reason: 'stored_quote_unreadable' }, { status: 422 });
+      }
+      const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      const spine = rebuildOrderSpine(quote, origin, log);
+      const input: OrderInput = { kind: 'eligibility', event };
+      const outcome = applyOrderInput(spine, input);
+      if (!outcome.applied) {
+        return Response.json({ ok: false, reason: outcome.reason }, { status: 409 });
+      }
+      if (outcome.duplicate) {
+        return Response.json({ ok: true, status: 'duplicate' });
+      }
+      await this.state.storage.put(LOG_KEY, [...log, input]);
+      return Response.json({
+        ok: true,
+        status: 'recorded',
+        obligations: spine.ledger.obligationsFor(origin.orderId).length,
       });
     }
 

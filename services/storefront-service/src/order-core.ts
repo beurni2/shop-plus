@@ -482,6 +482,14 @@ export type OrderInput =
    * handlers), and it is what replays out of the durable log.
    */
   | { readonly kind: 'door_provider'; readonly event: unknown }
+  /**
+   * SE-LIVE-5b — Séra's settlement-eligibility signal (`delivery.validated.v1`),
+   * carried into the log EXACTLY as it arrived. The spine does every check that
+   * matters (canon envelope, event name, the order's own correlation,
+   * idempotency by command_id, confirmed-first) and copies the obligations from
+   * the frozen Quote — this kind adds nothing of its own.
+   */
+  | { readonly kind: 'eligibility'; readonly event: unknown }
   | {
       readonly kind: 'confirm';
       readonly command_id: string;
@@ -584,6 +592,12 @@ export function applyOrderInput(spine: OrderSpine, input: OrderInput): ApplyOutc
     }
     case 'provider': {
       const outcome = spine.onProviderPaymentEvent(input.event);
+      return outcome.applied
+        ? { applied: true, duplicate: outcome.duplicate }
+        : { applied: false, reason: outcome.reason };
+    }
+    case 'eligibility': {
+      const outcome = spine.onEligibilityEvent(input.event);
       return outcome.applied
         ? { applied: true, duplicate: outcome.duplicate }
         : { applied: false, reason: outcome.reason };

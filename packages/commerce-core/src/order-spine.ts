@@ -461,10 +461,19 @@ export class OrderSpine {
     if (this.journeyState.state !== 'confirmed' || this.orderId === undefined) {
       return { applied: false, reason: 'out_of_order' };
     }
+    // SE-LIVE-5b — THE SIGNAL CARRIES THE SUPPLIER, exactly as OrderOrigin's
+    // own comment demanded when it left `supplierRef` empty: the storefront
+    // domain never learns a supplier, but Séra's custody chain HOLDS one (it
+    // named `seller:{supplierId}` in every transition). An event without one
+    // falls back to the constructor's ref, so pre-5b fixtures keep their
+    // meaning; it is never invented here.
+    const payloadSupplier = (event.payload as Record<string, unknown>)['supplier_ref'];
+    const supplierRef =
+      typeof payloadSupplier === 'string' && payloadSupplier !== '' ? payloadSupplier : this.supplierRef;
     const { replay } = this.ledger.recordObligationsOnEligibility(
       this.orderId,
       this.quote,
-      this.supplierRef,
+      supplierRef,
     );
     this.processedCommandIds.add(event.envelope.command_id);
     return { applied: true, duplicate: replay };

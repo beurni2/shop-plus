@@ -5,6 +5,7 @@ import orderRouter, { OrderDO } from './order-do.js';
 import {
   FulfillmentAcceptedEventSchema,
   FulfillmentReadyEventSchema,
+  PlatformEventSchema,
 } from '@platform/contracts';
 import { DispatchIndexDO, DISPATCH_INDEX_NAME } from './dispatch-index-do.js';
 import { ResellerFeedDO, RESELLER_FEED_NAME } from './reseller-feed-do.js';
@@ -274,17 +275,46 @@ export default {
       const raw: unknown = await request.json().catch(() => null);
       const accepted = FulfillmentAcceptedEventSchema.safeParse(raw);
       const ready = accepted.success ? null : FulfillmentReadyEventSchema.safeParse(raw);
-      if (!accepted.success && (ready === null || !ready.success)) {
-        return Response.json({ ok: false, reason: 'event_not_canonical' }, { status: 400 });
+      if (accepted.success || (ready !== null && ready.success)) {
+        const event = accepted.success ? accepted.data : ready!.data!;
+        const fact = event.name === 'fulfillment.accepted.v1' ? 'accepted' : 'ready';
+        return env.ORDER.get(env.ORDER.idFromName(event.payload.orderId)).fetch(
+          new Request('https://do/entry/preparation', {
+            method: 'POST',
+            body: JSON.stringify({ fact, at: event.payload.at }),
+          }),
+        );
       }
-      const event = accepted.success ? accepted.data : ready!.data!;
-      const fact = event.name === 'fulfillment.accepted.v1' ? 'accepted' : 'ready';
-      return env.ORDER.get(env.ORDER.idFromName(event.payload.orderId)).fetch(
-        new Request('https://do/entry/preparation', {
-          method: 'POST',
-          body: JSON.stringify({ fact, at: event.payload.at }),
-        }),
-      );
+      /**
+       * SE-LIVE-5b — the THIRD event this door accepts: Séra's
+       * `delivery.validated.v1`. Canon names the event but publishes no typed
+       * payload artifact for it yet, so the binding of name to payload happens
+       * HERE, strictly, on the fields the custody spine actually emits — a
+       * body carrying anything less is refused 400 like every other
+       * non-canonical caller. The RAW event goes to the vault untouched: the
+       * spine re-parses the envelope, checks the order's own correlation and
+       * absorbs redeliveries by command_id.
+       */
+      const validated = PlatformEventSchema.safeParse(raw);
+      if (validated.success && validated.data.name === 'delivery.validated.v1') {
+        const p = validated.data.payload as Record<string, unknown>;
+        if (
+          typeof p['order_id'] !== 'string' ||
+          p['order_id'] === '' ||
+          p['order_id'].length > 256 ||
+          p['result'] !== 'validated' ||
+          p['settlement_eligibility'] !== true
+        ) {
+          return Response.json({ ok: false, reason: 'event_not_canonical' }, { status: 400 });
+        }
+        return env.ORDER.get(env.ORDER.idFromName(p['order_id'])).fetch(
+          new Request('https://do/entry/eligibility', {
+            method: 'POST',
+            body: JSON.stringify(validated.data),
+          }),
+        );
+      }
+      return Response.json({ ok: false, reason: 'event_not_canonical' }, { status: 400 });
     }
 
     if (pathname === '/reseller/ventes') {
