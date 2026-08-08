@@ -475,6 +475,34 @@ describe('SP3.3c — the two new C6 states say what is true and no more', () => 
     }
   });
 
+  it('the reference names the SERVER’S order — on every state that has one, on none that does not', () => {
+    // SANDBOX-PAY-1 (founder, from a live buy): the waiting screen named no
+    // order, so the one value that lets anyone act on it — confirming it in
+    // the sandbox era, reading it to a person who helps her later — existed
+    // only on the ops console.
+    const id = 'ord-quote-927d19c1-8b4e-4506-b774-46ff85ceafae';
+    for (const confirmState of ['attente', 'confirmed', 'echec'] as const) {
+      const text = visible(renderC6(ROBE, { confirmState, paid: undefined, commande: id }));
+      expect(text, `${confirmState} must carry the label`).toContain(CONFIRMATION.reference);
+      expect(text, `${confirmState} must carry the id itself`).toContain(id);
+    }
+    // The offline/outbox states have no server order yet — an id here would
+    // name a commande that does not exist. And '' is an absence, not a name.
+    for (const [confirmState, commande] of [
+      ['attente', undefined],
+      ['attente', ''],
+      ['pending', id],
+      ['offline', id],
+    ] as const) {
+      const text = visible(renderC6(ROBE, { confirmState, paid: undefined, commande }));
+      if (confirmState === 'attente') {
+        expect(text, 'no id given, no reference shown').not.toContain(CONFIRMATION.reference);
+      } else {
+        expect(text, `${confirmState} has no server order to name`).not.toContain(id);
+      }
+    }
+  });
+
   it('« attente » never says the sentence that belongs to a queued request', () => {
     const text = visible(renderC6(ROBE, { confirmState: 'attente', paid: undefined }));
     expect(text).toContain(CONFIRMATION.attenteTitre);

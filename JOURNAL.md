@@ -3652,3 +3652,15 @@ A fresh-context verifier read this slice against the specs. It found one blocker
 **Evidence:** storefront-service **22 files / 501 tests** green (4 new) · workspace typecheck 19/19 · test 23/23 · gate board **ALL GATES GREEN**.
 
 **Séra note, stated honestly:** on confirm the funding fact goes to the logistics intake (armed in storefront-deploy). The ready-queue admits a task only when READINESS also arrives — the supplier's « colis prêt » through the fournisseur surface — and taking it further (assign → rider custody → drop code) is the SE-LIVE-5 door flow, not this slice.
+
+---
+
+## 2026-08-08 · SANDBOX-PAY-1b — the waiting screen names its own order
+
+**FOUNDER, from a live buy** (screenshot of « Nous attendons l'opérateur »): the flow worked on the first try — order created on the deployed Worker, the honest pending state on screen — but my walkthrough said the screen shows the order id, and it did not. The one value that lets anyone act on the order lived only on the ops console behind key C. My error, caught by his phone.
+
+**The fix:** C6 now renders « Numéro de commande : ord-… » — a whisper below the state card (sub colour, 12px, selectable for a long-press copy, `word-break` so the UUID never widens the screen). The id is the SERVER'S byte passed down from `state.orderId`; the label joins `CONFIRMATION` and the copy-lint manifest in the same commit (its structural floor treats an unknown field as a hard failure — the ritual worked as designed).
+
+**Guarded by state, not only by the caller:** my first cut rendered the reference whenever an id was passed — including on the `pending`/`offline` OUTBOX states, whose own sentence is « votre commande attend sur ce téléphone ». A server id beside that sentence claims an existence the screen just denied. My own new test caught it before it ran once.
+
+**Evidence:** buyer-pwa typecheck clean · **876 tests** (28 files, +1) · workspace typecheck + tests green · gate board **ALL GATES GREEN** (copy-lint included, with the grown manifest) · 2 mutations, 2 killed, anchors verified (state guard dropped ⇒ the pending screen leaks the id, red · reference never rendered ⇒ red).

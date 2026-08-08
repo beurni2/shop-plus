@@ -512,6 +512,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
           paid: state.pay === null ? undefined : splitFor(q, state.delivery ?? 'today', state.pay),
           relance: state.relance,
           horsPortee: state.horsPortee,
+          // SANDBOX-PAY-1 — the server's own order id, or nothing: the
+          // offline/outbox states have no server order to name yet.
+          commande: state.orderId ?? undefined,
         });
       case 'C7':
         return renderC7({ step: state.step, problem: state.problem, demo });

@@ -1024,6 +1024,15 @@ export const CONFIRMATION = {
   echecTitre: 'Le paiement n’a pas abouti.',
   echecCorps: 'Rien n’a été confirmé. Votre commande vous attend — vous pouvez réessayer.',
   echecAction: 'Réessayer le paiement',
+  /**
+   * SANDBOX-PAY-1 (founder, 2026-08-08, from a live buy): the waiting screen
+   * named no order, so the one value that lets anyone act on the order — the
+   * founder confirming it in the sandbox era, a buyer reading it to a person
+   * who helps her later — existed only on the ops console. The ID ITSELF is
+   * appended by the renderer from the server's own byte (the same rule as
+   * PORTE.resteAPayer's figure) — never interpolated into this sentence.
+   */
+  reference: 'Numéro de commande',
 } as const;
 
 /** The view a refusal name renders as — the generic one for every name this
@@ -1405,6 +1414,12 @@ export function renderC6(
      * « Vérifier à nouveau » from being a tap that answers nothing.
      */
     horsPortee?: boolean | undefined;
+    /**
+     * SANDBOX-PAY-1 — the order's own id, when the SERVER has named one. The
+     * offline/outbox states have no server order yet and pass nothing: an id
+     * this screen invented would name a commande that does not exist.
+     */
+    commande?: string | undefined;
   },
 ): string {
   let body: string;
@@ -1480,6 +1495,16 @@ export function renderC6(
   return [
     '<div class="cl-screen" data-screen="C6">',
     body,
+    // The reference WHISPERS (sub colour, small, selectable) — it must never
+    // compete with the state sentence above it. GUARDED BY STATE here, not
+    // only by the caller: `pending`/`offline` are the outbox states whose own
+    // sentence is « votre commande attend sur ce téléphone » — a server id
+    // beside that sentence would claim an existence the screen just denied.
+    typeof o.commande === 'string' &&
+    o.commande !== '' &&
+    (o.confirmState === 'attente' || o.confirmState === 'confirmed' || o.confirmState === 'echec')
+      ? `<div class="cl-conf-ref">${CONFIRMATION.reference}&nbsp;: <span class="cl-conf-ref-id">${esc(o.commande)}</span></div>`
+      : '',
     /**
      * ═══ « SUIVRE MA COMMANDE » EXISTS ONLY ONCE THE PAYMENT IS CONFIRMED ═══
      *

@@ -152,6 +152,10 @@ const CONFIRMATION_FIELDS = {
   echecTitre: { screenClass: 'label', fills: [] },
   echecCorps: { screenClass: 'checkout', fills: [] },
   echecAction: { screenClass: 'label', fills: [] },
+  /** SANDBOX-PAY-1 — « Numéro de commande », the label alone: the id itself is
+   *  a server byte the renderer appends, exactly as PORTE.resteAPayer's figure
+   *  is, so the field carries no placeholder and no fills. */
+  reference: { screenClass: 'label', fills: [] },
 };
 
 /**
