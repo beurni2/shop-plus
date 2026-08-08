@@ -1,0 +1,67 @@
+name: sandbox-payment
+
+# ═══ SANDBOX-PAY-1 — the founder plays the payment provider, one order at a time ═══
+#
+# WHAT THIS IS. Until the aggregator Decision (⏳ Build Spec §12) closes at the
+# Real-Money Gate, no one delivers the provider's confirmation webhook — so a
+# real order placed on the deployed buyer PWA sits honestly in « paiement en
+# attente » forever. Dispatching this workflow with an order id does what the
+# real provider's callback will one day do, against the SAME route
+# (`POST /checkout/webhook/payment`), the SAME secret, and the SAME franc-exact
+# vault checks. Nothing about the money path is bypassed: if the amount, state
+# or correlation is wrong, the vault refuses and this run fails red.
+#
+# HOW THE FOUNDER USES IT (phone-friendly):
+#   1. Buy on the PWA. The order screen shows « Commande ord-q-… » — that id
+#      also sits on the console's Livraisons rows (state: payment_pending).
+#   2. Actions → sandbox-payment → Run workflow → paste the order id.
+#   3. Green run = confirmed. The buyer's screen flips paid; the paid order
+#      reaches the Boutik+ board and the Séra funding fact by outbox
+#      (at-least-once, ~a minute).
+#
+# Dispatching twice for the same order is a provider REDELIVERY — absorbed,
+# never a second payment. NO REAL MONEY exists anywhere in this path.
+#
+# RETIRES AT THE REAL-MONEY GATE, with the sandbox provider it completes.
+#
+# NEEDS: the repo secret PAYMENT_WEBHOOK_SECRET (armed on the Worker by the
+# payment-webhook-secret workflow — this run fails with that name if unset).
+
+on:
+  workflow_dispatch:
+    inputs:
+      order_id:
+        description: "L'identifiant de la commande (ord-…)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sandbox-payment
+  cancel-in-progress: false
+
+jobs:
+  confirm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Dependency-free by design: no pnpm install, no build — the founder's
+      # dispatch answers in seconds. The composition this script sends is held
+      # to the REAL Worker's acceptance by the seam test
+      # services/storefront-service/test/sandbox-payment-confirm.e2e.test.ts.
+      - name: Play the provider's confirmation for this order
+        env:
+          STOREFRONT_BASE: https://storefront-service.ilboudobernard2.workers.dev
+          ORDER_ID: ${{ inputs.order_id }}
+          PAYMENT_WEBHOOK_SECRET: ${{ secrets.PAYMENT_WEBHOOK_SECRET }}
+        run: |
+          if [ -z "$PAYMENT_WEBHOOK_SECRET" ]; then
+            echo "::error::the repo secret PAYMENT_WEBHOOK_SECRET is unset — set it, run the payment-webhook-secret workflow to arm the Worker, then re-dispatch this."
+            exit 1
+          fi
+          node scripts/sandbox-payment-confirm.mjs
