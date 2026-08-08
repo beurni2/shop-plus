@@ -242,3 +242,57 @@ describe('SANDBOX-PAY-1 — the founder plays the provider against the real Work
     expect(run.stderr).toContain('NO SUCH ORDER');
   }, 60_000);
 });
+
+describe('RB-3 — the gains read serves the FROZEN waterfall, franc-exact, founder-only', () => {
+  it('a confirmed order’s split reconciles on the served bytes; unconfirmed and wrong keys get nothing', async () => {
+    const { orderId } = await realOrder('0010');
+
+    // ── BEFORE confirmation: no gains to explain — the row must be absent ──
+    const gate = await mf.dispatchFetch('http://c/checkout/gains', {
+      headers: { Authorization: `Bearer ${OPS_SECRET}` },
+    });
+    expect(gate.status).toBe(200);
+    const before = (safeJson(await gate.text())['gains'] ?? []) as { orderId?: string }[];
+    expect(before.some((g) => g.orderId === orderId)).toBe(false);
+
+    // ── confirm through the founder's own tool (the real webhook road) ─────
+    expect((await runScript(orderId, WEBHOOK_SECRET)).code).toBe(0);
+
+    const read = await mf.dispatchFetch('http://c/checkout/gains', {
+      headers: { Authorization: `Bearer ${OPS_SECRET}` },
+    });
+    expect(read.status).toBe(200);
+    const rows = (safeJson(await read.text())['gains'] ?? []) as Record<string, unknown>[];
+    const row = rows.find((g) => g['orderId'] === orderId);
+    expect(row, 'the confirmed order must carry a gains row').toBeDefined();
+    const s = row!['split'] as Record<string, number>;
+
+    // ═══ TEN LAWS #1 ON THE SERVED BYTES — to the franc, not to the idea ═══
+    // The listing: B=10 000 · C=1 000 · M=1 500; the quote's own delivery fee
+    // rides in s.deliveryFee. Every identity checked on what the FOUNDER will
+    // actually read:
+    expect(s['sellerBasePrice']).toBe(10_000);
+    expect(s['sellerFundedCommission']).toBe(1_000);
+    expect(s['resellerMarkup']).toBe(1_500);
+    expect(s['productSubtotal'], 'productSubtotal = B + M').toBe(11_500);
+    expect(s['buyerTotal'], 'buyerTotal = B + M + D').toBe(11_500 + s['deliveryFee']!);
+    expect(s['sellerPlatformFee'], 'seller fee = 5% · B').toBe(500);
+    expect(s['sellerNet'], 'seller net = B − C − fee (the commission is SELLER-funded)').toBe(8_500);
+    expect(s['resellerPlatformFee'], 'reseller fee = 20% · (C + M)').toBe(500);
+    expect(s['resellerNet'], 'reseller net = (C + M) − fee').toBe(2_000);
+
+    // ── the door: founder key only, one uniform refusal ────────────────────
+    expect(
+      (await mf.dispatchFetch('http://c/checkout/gains', { headers: { Authorization: 'Bearer wrong' } }))
+        .status,
+    ).toBe(401);
+    expect((await mf.dispatchFetch('http://c/checkout/gains')).status).toBe(401);
+
+    // ── and the PUBLIC order view still leaks none of it (SP-I03) ──────────
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+    const pubText = await pub.text();
+    for (const secret of ['sellerNet', 'resellerNet', 'sellerPlatformFee', 'sellerBasePrice']) {
+      expect(pubText, `${secret} on the buyer view`).not.toContain(secret);
+    }
+  }, 60_000);
+});

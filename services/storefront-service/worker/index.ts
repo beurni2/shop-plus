@@ -559,6 +559,41 @@ export default {
      * CORS: the CONSOLE's exact origin, never `*` and never the buyer PWA's —
      * a different reader, its own stamp.
      */
+    /**
+     * RB-3 — THE GAINS READ: every CONFIRMED order's frozen waterfall, to the
+     * founder alone (key C — the same credential as the dispatch read: one
+     * Shop+ ops door, one identity). Composed exactly as the dispatch read is:
+     * the index names the orders, each OrderDO serves ITS OWN stored split
+     * (or refuses 422 if its bytes no longer reconcile — a refused row is
+     * DROPPED here, never rendered wrong). Only `confirmed` rows leave: an
+     * unpaid order has no gains to explain.
+     */
+    if (pathname === '/checkout/gains') {
+      if (request.method === 'OPTIONS') return dispatchPreflight();
+      if (request.method !== 'GET') return withDispatchCors(unauthorized());
+      const refused = await rejectUnauthorizedOpsRead(request, env);
+      if (refused) return withDispatchCors(refused);
+      const stub = env.DISPATCH.get(env.DISPATCH.idFromName(DISPATCH_INDEX_NAME));
+      const listRes = await stub.fetch(new Request('https://do/list'));
+      const list = (await listRes.json().catch(() => null)) as
+        | { ok?: boolean; orders?: { orderId: string }[] }
+        | null;
+      if (list?.ok !== true || !Array.isArray(list.orders)) {
+        return withDispatchCors(Response.json({ ok: false, reason: 'index_unavailable' }, { status: 503 }));
+      }
+      const gains: unknown[] = [];
+      for (const entry of list.orders) {
+        const res = await env.ORDER.get(env.ORDER.idFromName(entry.orderId)).fetch(
+          new Request('https://do/entry/gains'),
+        );
+        const row = (await res.json().catch(() => null)) as
+          | { ok?: boolean; exists?: boolean; state?: string }
+          | null;
+        if (row?.ok === true && row.exists === true && row.state === 'confirmed') gains.push(row);
+      }
+      return withDispatchCors(Response.json({ ok: true, gains }));
+    }
+
     if (pathname === '/checkout/dispatch') {
       if (request.method === 'OPTIONS') return dispatchPreflight();
       if (request.method !== 'GET') return withDispatchCors(unauthorized());

@@ -1,4 +1,4 @@
-import { PlatformEventSchema, type Quote } from '@platform/contracts';
+import { PlatformEventSchema, assertQuoteReconciles, type Quote } from '@platform/contracts';
 import { decideBuyerRung } from '@shop-plus/commerce-core';
 import {
   acceptChargeForLeg,
@@ -483,6 +483,85 @@ export class OrderDO {
         contact: contact ?? null,
         productVersionId: origin.fulfillment?.productVersionId ?? '',
         zoneTo: origin.fulfillment?.zoneTo ?? '',
+      });
+    }
+
+    /**
+     * ═══ RB-3 — THE GAINS ROW: the frozen waterfall, SERVED, never recomputed ═══
+     *
+     * The founder's Gains tab (his direction 2026-08-08: « the money share
+     * well explained between supplier, reseller, and fees ») reads THIS. Every
+     * figure is the stored immutable Quote's OWN byte — the one issued by
+     * `computeWaterfall` and parsed by canon at issuance — copied field by
+     * field. Nothing here adds, derives, or rounds (Ten Laws #1: the money
+     * model reconciles at the SOURCE; #2: no app computes another domain's
+     * amounts — including this one re-deriving its own).
+     *
+     * SERVED ONLY WHILE COHERENT: the row re-checks the §5.4 identities on the
+     * stored bytes and answers 422 rather than display a split that does not
+     * reconcile — a wrong money figure shown to the founder is worse than a
+     * named refusal. INTERNAL ONLY, reached through the key-C-gated
+     * `/checkout/gains` composition — the same door discipline as
+     * `/entry/dispatch` above; never a buyer surface (SP-I03: these numbers
+     * yield the supplier's base by subtraction).
+     */
+    if (request.method === 'GET' && pathname === '/entry/gains') {
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      if (origin === undefined) return Response.json({ ok: true, exists: false });
+      const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      const quote = parseStoredQuote(origin.quoteBytes);
+      if (quote === undefined) {
+        return Response.json({ ok: false, reason: 'stored_quote_unreadable' }, { status: 422 });
+      }
+      const spine = rebuildOrderSpine(quote, origin, log);
+      const q = quote as unknown as Record<string, unknown>;
+      const n = (k: string): number => (typeof q[k] === 'number' ? (q[k] as number) : Number.NaN);
+      const B = n('sellerBasePrice');
+      const C = n('sellerFundedCommission');
+      const M = n('resellerMarkup');
+      const D = n('deliveryFee');
+      const split = {
+        sellerBasePrice: B,
+        sellerFundedCommission: C,
+        resellerMarkup: M,
+        deliveryFee: D,
+        productSubtotal: n('productSubtotal'),
+        buyerTotal: n('buyerTotal'),
+        sellerPlatformFee: n('sellerPlatformFee'),
+        sellerNet: n('sellerNet'),
+        resellerPlatformFee: n('resellerPlatformFee'),
+        resellerNet: n('resellerNet'),
+      };
+      // The reconciliation identities belong to CANON, never to this file:
+      // `assertQuoteReconciles` is the same §5.4/§5.5 judge that certified the
+      // quote at issuance (it knows the commission is seller-funded; a local
+      // re-statement of the formulas is exactly how a wrong split would be
+      // displayed with confidence). Here we add only what canon leaves to the
+      // carrier: every served figure is a non-negative integer franc, and the
+      // subtotal is B + M.
+      const shapeSound =
+        Object.values(split).every((v) => Number.isInteger(v) && v >= 0) &&
+        split.productSubtotal === B + M;
+      let reconciles = shapeSound;
+      if (reconciles) {
+        try {
+          assertQuoteReconciles(quote);
+        } catch {
+          reconciles = false;
+        }
+      }
+      if (!reconciles) {
+        return Response.json({ ok: false, reason: 'stored_quote_incoherent' }, { status: 422 });
+      }
+      return Response.json({
+        ok: true,
+        exists: true,
+        orderId: origin.orderId,
+        state: spine.journey.state,
+        createdAt: origin.createdAt,
+        productVersionId: origin.fulfillment?.productVersionId ?? '',
+        zoneTo: origin.fulfillment?.zoneTo ?? '',
+        split,
       });
     }
 
