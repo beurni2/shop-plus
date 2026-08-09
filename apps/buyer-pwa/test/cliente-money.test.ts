@@ -376,7 +376,11 @@ describe('BC-1b — her number for the delivery: asked once, gated, sent at orde
     expect(flow).toContain("[state.repere.trim(), state.indic.trim()].filter((v) => v !== '').join(' · ')");
     // and it rides the CREATE — the one call the service stores it from
     expect(flow).toContain('live.commander(mode, state.essai, contactLivraison())');
-    // typing updates the gate live, like the repère
-    expect(flow).toContain("if (role === 'phone') { state.phone = el.value; patchC3Cta(); }");
+    // typing updates the gate live, like the repère — TEL-PAIRES (founder
+    // 2026-08-09): what she typed is paired first, then stored, then re-gated;
+    // the digit-counting gate above is untouched by the spaces.
+    expect(flow).toContain("const net = telEnPaires(el.value);");
+    expect(flow).toContain('state.phone = net;');
+    expect(flow).toMatch(/state\.phone = net;\s*patchC3Cta\(\);/);
   });
 });

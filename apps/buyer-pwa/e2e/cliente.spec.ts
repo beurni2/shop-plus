@@ -1428,6 +1428,37 @@ test('C3 — the five voice states + the gate (zone + repère/voix + numéro) dr
   await expect(page.locator('[data-role="voice-refused"]')).toBeVisible();
 });
 
+test('C3 — TEL-PAIRES: the number spaces itself in pairs AS SHE TYPES, and a middle edit keeps her caret', async ({ page }) => {
+  // Founder order 2026-08-09: « make spaced after 2 numbers like this
+  // 76 16 02 55 ». Real keystrokes, real input events — the exact path the
+  // formatter hooks; fill() would set the value in one shot and prove less.
+  await page.goto('/?demo-cliente=C3');
+  const tel = page.locator('[data-role="phone"]');
+  await tel.click();
+  await tel.pressSequentially('76160255');
+  await expect(tel).toHaveValue('76 16 02 55');
+  // the gate still counts DIGITS — the spaces changed nothing for the CTA
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie');
+  await expect(page.locator('[data-action="continuer-c3"]')).toBeEnabled();
+  // a correction IN THE MIDDLE: caret set after « 76 1 » (3 digits in), one
+  // digit typed — the value regroups and the caret stays with her digits,
+  // never thrown to the end of the field.
+  await tel.click(); // focus FIRST — pressing via the locator would re-focus and reset the caret
+  await tel.evaluate((el) => {
+    (el as HTMLInputElement).setSelectionRange(4, 4);
+  });
+  await page.keyboard.press('9');
+  // digits were 76160255; the 9 lands after the 3rd digit → 761960255, paired
+  await expect(tel).toHaveValue('76 19 60 25 5');
+  const caret = await tel.evaluate((el) => (el as HTMLInputElement).selectionStart);
+  expect(caret, 'the caret must follow her digits, not jump to the end').toBe(5);
+  // letters never enter; her « + » survives
+  await tel.fill('');
+  await tel.pressSequentially('+abc7616');
+  await expect(tel).toHaveValue('+76 16');
+});
+
 test('C2 — the protections sheet opens over C1 and closes on « Compris »', async ({ page }) => {
   await page.goto('/?demo-cliente=C1');
   await page.locator('.cl-shield').click();

@@ -29,6 +29,7 @@ import {
   type Livraison, type ModePaiement, type VoiceEtat,
 } from './screens';
 import { fmtFCFA } from './money';
+import { caretApresChiffres, telEnPaires } from './telephone';
 import { iconPause, iconPauseSmall, iconPlay, iconPlaySmall } from './icons';
 
 /**
@@ -972,7 +973,24 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     const role = el.getAttribute('data-role');
     if (role === 'repere') { state.repere = el.value; patchC3Cta(); }
     if (role === 'indic') state.indic = el.value;
-    if (role === 'phone') { state.phone = el.value; patchC3Cta(); }
+    if (role === 'phone') {
+      /**
+       * TEL-PAIRES (founder order 2026-08-09) — the field does what its own
+       * placeholder shows: pairs, as she types. The caret is restored after
+       * the same COUNT OF DIGITS it stood behind, so a correction in the
+       * middle never throws her to the end of her number.
+       */
+      const caret = el.selectionStart ?? el.value.length;
+      const chiffresAvant = el.value.slice(0, caret).replace(/\D/g, '').length;
+      const net = telEnPaires(el.value);
+      if (net !== el.value) {
+        el.value = net;
+        const pos = caretApresChiffres(net, chiffresAvant);
+        el.setSelectionRange(pos, pos);
+      }
+      state.phone = net;
+      patchC3Cta();
+    }
   });
 
   container.addEventListener('click', (ev) => {
