@@ -424,3 +424,93 @@ describe('RESELLER-ACCOUNTS — the session opens HER feed, and the suivi shows 
     expect(ligne.name).toContain('Awa');
   });
 });
+
+describe('CODE-REVU (founder ruling 2026-08-09) — the founder rereads an UNCONSUMED admission code; a spent one is gone', () => {
+  const relire = async (accountId: string) => {
+    const res = await mf.dispatchFetch('http://c/reseller/accounts/access-code/reveal', {
+      method: 'POST',
+      headers: { ...cleC, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId }),
+    });
+    return { status: res.status, json: safeJson(await res.text()) as { code?: string; reason?: string } };
+  };
+
+  it('mint → reveal answers the SAME code; the roster says revelable; admission SPENDS the plaintext with the hash', async () => {
+    const elle = await inscrire();
+    const accountId = elle.json.accountId!;
+    const session = elle.json.session!;
+    const minted = await minterCode(accountId);
+    expect(minted.status).toBe(200);
+
+    // The reveal answers the very bytes he gave her.
+    const revu = await relire(accountId);
+    expect(revu.status).toBe(200);
+    expect(revu.json.code).toBe(minted.json.code);
+
+    // The roster carries the FLAG, never the code (the allowlist holds).
+    const roster = await mf.dispatchFetch('http://c/reseller/accounts', { headers: cleC });
+    const rosterText = await roster.text();
+    const rows = (safeJson(rosterText) as { accounts: Record<string, unknown>[] }).accounts;
+    const ligne = rows.find((r) => r['accountId'] === accountId)!;
+    expect(ligne).toMatchObject({ accessCodePending: true, accessCodeRevelable: true });
+    expect(rosterText.includes(minted.json.code!)).toBe(false);
+
+    // She uses it — the plaintext dies IN THE SAME WRITE as the hash: a spent
+    // admission code must never linger anywhere, even founder-side.
+    expect((await admission(session, minted.json.code!)).status).toBe(200);
+    const apres = await relire(accountId);
+    expect(apres.status).toBe(404);
+    expect(apres.json.reason).toBe('no_code');
+  });
+
+  it('reveal refuses without key C, and an unknown account by name', async () => {
+    const naked = await mf.dispatchFetch('http://c/reseller/accounts/access-code/reveal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId: 'acc-nowhere' }),
+    });
+    expect(naked.status).toBe(401);
+    const inconnu = await relire('acc-nowhere');
+    expect(inconnu.status).toBe(404);
+    expect(inconnu.json.reason).toBe('not_found');
+  });
+});
+
+describe('CODE-REVU — the reseller FEED code rereads too, same law', () => {
+  it('mint → /reseller/codes says revelable (never the code) → reveal answers the same bytes → revoke kills the reread', async () => {
+    const minted = await mf.dispatchFetch('http://c/reseller/code', {
+      method: 'POST',
+      headers: { ...cleC, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resellerId: 'rev-revu-1' }),
+    });
+    expect(minted.status).toBe(200);
+    const code = (safeJson(await minted.text()) as { code: string }).code;
+
+    const liste = await mf.dispatchFetch('http://c/reseller/codes', { headers: cleC });
+    const listeText = await liste.text();
+    const rows = (safeJson(listeText) as { codes: Record<string, unknown>[] }).codes;
+    expect(rows.find((r) => r['resellerId'] === 'rev-revu-1')).toMatchObject({ revelable: true });
+    expect(listeText.includes(code)).toBe(false);
+
+    const revu = await mf.dispatchFetch('http://c/reseller/code/reveal', {
+      method: 'POST',
+      headers: { ...cleC, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resellerId: 'rev-revu-1' }),
+    });
+    expect(revu.status).toBe(200);
+    expect((safeJson(await revu.text()) as { code: string }).code).toBe(code);
+
+    const coupe = await mf.dispatchFetch('http://c/reseller/code/revoke', {
+      method: 'POST',
+      headers: { ...cleC, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resellerId: 'rev-revu-1' }),
+    });
+    expect(coupe.status).toBe(200);
+    const mort = await mf.dispatchFetch('http://c/reseller/code/reveal', {
+      method: 'POST',
+      headers: { ...cleC, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resellerId: 'rev-revu-1' }),
+    });
+    expect(mort.status).toBe(404);
+  });
+});

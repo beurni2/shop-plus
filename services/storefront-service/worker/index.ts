@@ -464,6 +464,7 @@ export default {
     if (
       pathname === '/reseller/accounts' ||
       pathname === '/reseller/accounts/access-code' ||
+      pathname === '/reseller/accounts/access-code/reveal' ||
       pathname === '/reseller/accounts/pause' ||
       pathname === '/reseller/accounts/resume'
     ) {
@@ -556,7 +557,7 @@ export default {
      *  person, same Worker, same class of act); the body crosses VERBATIM so
      *  the object's exact-key check refuses a smuggled field rather than
      *  this layer silently stripping it. */
-    if (pathname === '/reseller/code' || pathname === '/reseller/code/revoke') {
+    if (pathname === '/reseller/code' || pathname === '/reseller/code/revoke' || pathname === '/reseller/code/reveal') {
       if (request.method === 'OPTIONS') return opsPreflight('POST');
       if (request.method !== 'POST') return withOpsCors(unauthorized());
       const refused = await rejectUnauthorizedOpsRead(request, env);
@@ -566,7 +567,12 @@ export default {
       const feed = env.RESELLER.get(env.RESELLER.idFromName(RESELLER_FEED_NAME));
       return withOpsCors(
         await feed.fetch(
-          new Request(pathname === '/reseller/code' ? 'https://do/code/mint' : 'https://do/code/revoke', {
+          new Request(
+            pathname === '/reseller/code'
+              ? 'https://do/code/mint'
+              : pathname === '/reseller/code/revoke'
+                ? 'https://do/code/revoke'
+                : 'https://do/code/reveal', {
             method: 'POST',
             body,
           }),

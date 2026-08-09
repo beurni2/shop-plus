@@ -58,6 +58,11 @@ export interface AccountRecord {
   readonly passwordHashHex: string;
   /** SHA-256 of the one-time admission code, present only while one is live. */
   readonly accessCodeHash?: string;
+  /** CODE-REVU (founder ruling 2026-08-09, all code desks): the plaintext,
+   *  kept ONLY while the code is unconsumed so the founder can reread it —
+   *  stripped in the same write that spends the hash. Founder-read only:
+   *  `toView` never carries it. */
+  readonly accessCode?: string;
 }
 
 /** The roster row the console reads — NEVER the record itself: no salt, no
@@ -71,6 +76,8 @@ export interface AccountView {
   readonly createdAt: string;
   /** TRUE while an unconsumed admission code exists for this account. */
   readonly accessCodePending: boolean;
+  /** CODE-REVU: « Voir le code » can answer — false for pre-ruling codes. */
+  readonly accessCodeRevelable: boolean;
 }
 
 function toView(a: AccountRecord): AccountView {
@@ -82,6 +89,7 @@ function toView(a: AccountRecord): AccountView {
     state: a.state,
     createdAt: a.createdAt,
     accessCodePending: a.accessCodeHash !== undefined,
+    accessCodeRevelable: a.accessCode !== undefined,
   };
 }
 
@@ -269,7 +277,7 @@ export class ResellerAccountsDO {
       }
       // CONSUMED: the hash is deleted in the same write that flips the state,
       // so the code cannot admit a second device later.
-      const { accessCodeHash: _spent, ...rest } = record;
+      const { accessCodeHash: _spent, accessCode: _clair, ...rest } = record;
       await this.state.storage.put(`${ACCOUNT_PREFIX}${record.accountId}`, { ...rest, state: 'active' });
       await this.consigner(record.accountId, 'active', 'admission');
       return Response.json({ ok: true, state: 'active' });
@@ -300,8 +308,32 @@ export class ResellerAccountsDO {
         return Response.json({ ok: false, reason: 'not_pending' }, { status: 409 });
       }
       const code = mintToken('SPA');
-      await this.state.storage.put(`${ACCOUNT_PREFIX}${accountId}`, { ...record, accessCodeHash: await sha256Hex(code) });
+      await this.state.storage.put(`${ACCOUNT_PREFIX}${accountId}`, {
+        ...record,
+        accessCodeHash: await sha256Hex(code),
+        // CODE-REVU: kept while unconsumed so /access-code/reveal can answer.
+        accessCode: code,
+      });
       return Response.json({ ok: true, accountId, code });
+    }
+
+    /** CODE-REVU — the founder REREADS an unconsumed admission code. A spent
+     *  code is gone (`no_code`); a pre-ruling one answers `code_anterieur`. */
+    if (request.method === 'POST' && pathname === '/access-code/reveal') {
+      const body = (await request.json().catch(() => null)) as { accountId?: unknown } | null;
+      const accountId = champ(body?.['accountId']);
+      if (accountId === null || Object.keys(body ?? {}).length !== 1) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const record = await this.compte(accountId);
+      if (record === undefined) return Response.json({ ok: false, reason: 'not_found' }, { status: 404 });
+      if (record.accessCodeHash === undefined) {
+        return Response.json({ ok: false, reason: 'no_code' }, { status: 404 });
+      }
+      if (record.accessCode === undefined) {
+        return Response.json({ ok: false, reason: 'code_anterieur' }, { status: 409 });
+      }
+      return Response.json({ ok: true, accountId, code: record.accessCode });
     }
 
     if (request.method === 'POST' && (pathname === '/pause' || pathname === '/resume')) {

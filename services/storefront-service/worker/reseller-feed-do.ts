@@ -128,8 +128,12 @@ export class ResellerFeedDO {
       const previous = await this.state.storage.get<{ hash: string }>(`${RESELLERCODE_PREFIX}${resellerId}`);
       if (previous !== undefined) await this.state.storage.delete(`${CODEHASH_PREFIX}${previous.hash}`);
       await this.state.storage.put({
+        // CODE-REVU (founder ruling 2026-08-09, all code desks): the
+        // plaintext is KEPT on the founder-side pointer so /code/reveal can
+        // show it back — key-C-gated at the router; the code door still
+        // verifies on the hash and the /codes allowlist never carries it.
         [`${CODEHASH_PREFIX}${hash}`]: { resellerId, mintedAt } satisfies ResellerCodeRecord,
-        [`${RESELLERCODE_PREFIX}${resellerId}`]: { hash, mintedAt },
+        [`${RESELLERCODE_PREFIX}${resellerId}`]: { hash, mintedAt, code },
       });
       return Response.json({ ok: true, code, resellerId, mintedAt });
     }
@@ -147,12 +151,32 @@ export class ResellerFeedDO {
       return Response.json({ ok: true, status: 'revoked' });
     }
 
+    /** CODE-REVU — the founder REREADS a feed code already given. Pre-ruling
+     *  codes exist only as hashes and answer `code_anterieur`, honestly. */
+    if (request.method === 'POST' && pathname === '/code/reveal') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      const resellerId = body?.['resellerId'];
+      if (typeof resellerId !== 'string' || resellerId === '' || Object.keys(body ?? {}).length !== 1) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const pointer = await this.state.storage.get<{ mintedAt: string; code?: string }>(
+        `${RESELLERCODE_PREFIX}${resellerId}`,
+      );
+      if (pointer === undefined) return Response.json({ ok: false, reason: 'no_code' }, { status: 404 });
+      if (pointer.code === undefined) return Response.json({ ok: false, reason: 'code_anterieur' }, { status: 409 });
+      return Response.json({ ok: true, code: pointer.code, resellerId, mintedAt: pointer.mintedAt });
+    }
+
     /** THE INVENTORY — who holds a feed door, since when. `{resellerId,
      *  mintedAt}` ONLY: the stored hash never leaves this object. */
     if (request.method === 'GET' && pathname === '/codes') {
-      const entries = await this.state.storage.list<{ mintedAt: string }>({ prefix: RESELLERCODE_PREFIX });
+      const entries = await this.state.storage.list<{ mintedAt: string; code?: string }>({ prefix: RESELLERCODE_PREFIX });
       const codes = [...entries.entries()]
-        .map(([key, v]) => ({ resellerId: key.slice(RESELLERCODE_PREFIX.length), mintedAt: v.mintedAt }))
+        .map(([key, v]) => ({
+          resellerId: key.slice(RESELLERCODE_PREFIX.length),
+          mintedAt: v.mintedAt,
+          revelable: v.code !== undefined,
+        }))
         .sort((a, b) => (a.resellerId < b.resellerId ? -1 : 1));
       return Response.json({ ok: true, codes });
     }

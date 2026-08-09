@@ -570,7 +570,10 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
     expect(res.status).toBe(200);
     const codes = (safeJson(text)['codes'] as Record<string, unknown>[]).filter((c) => c['resellerId'] === 'rs-inv-1');
     expect(codes.length).toBe(1);
-    expect(Object.keys(codes[0]!).sort()).toEqual(['mintedAt', 'resellerId']);
+    // CODE-REVU (2026-08-09) widened the allowlist by ONE boolean flag —
+    // `revelable` says « Voir le code » can answer, never the bytes.
+    expect(Object.keys(codes[0]!).sort()).toEqual(['mintedAt', 'resellerId', 'revelable']);
+    expect(typeof codes[0]!['revelable']).toBe('boolean');
     expect(text.includes('hash')).toBe(false);
     // and it is HIS door only
     for (const bearer of [null, WRITE_SECRET, 'wrong']) {
