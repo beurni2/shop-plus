@@ -8,8 +8,13 @@
  * bound is length ≤ 32 (order-do `readBuyerContact`), and buyer IDENTITY is
  * keyed by `cleAcheteur`, which strips every non-digit before keying — so
  * « 76 16 02 55 » and « 76160255 » name the same buyer and the same ladder.
- * A leading « + » is HERS and survives; every other non-digit is dropped; 15
- * digits is E.164's ceiling, the same band `cleAcheteur` accepts.
+ * A leading « + » is HERS and survives; every other non-digit is dropped; the
+ * cap is 15 RAW digits (E.164's ceiling including country code). NOTE the
+ * bound is not identical to `cleAcheteur`'s: that one strips a 00/226 prefix
+ * BEFORE its 8–15 window, so a 00-prefixed number longer than 13 national
+ * digits is clipped here that cleAcheteur would refuse by name. Burkina
+ * numbers are 8 digits; the divergence is an edge of an edge, named rather
+ * than hidden (verifier minor, 2026-08-09).
  *
  * Idempotent on purpose: formatting a formatted string changes nothing, so
  * the input handler can run it on every keystroke without drift.

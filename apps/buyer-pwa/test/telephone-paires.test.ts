@@ -46,8 +46,11 @@ describe('telEnPaires — the founder’s exact example, and every keystroke on 
   });
 
   it('the spaced form stays inside the order door’s 32-char bound at the 15-digit ceiling', () => {
-    // 15 digits → 7 spaces + optional '+' = 23 chars, well under readBuyerContact's 32
-    expect(telEnPaires('+123456789012345').length).toBeLessThanOrEqual(32);
+    // EXACT output at the ceiling — falsifiable, unlike a « ≤ 32 » that the
+    // 15-digit cap makes unreachable (verifier vacuity finding): 15 digits in
+    // pairs is 7 spaces + the '+', 23 chars, and readBuyerContact bounds 32.
+    expect(telEnPaires('+123456789012345')).toBe('+12 34 56 78 90 12 34 5');
+    expect('+12 34 56 78 90 12 34 5'.length).toBe(23);
   });
 });
 
