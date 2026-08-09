@@ -918,6 +918,59 @@ test('VOIX-ÉTAT-2 · her own note shows PAUSE and counts while it plays, then g
   await expect(horloge).toHaveText(total);
 });
 
+/**
+ * VOIX-ÉTAT-2 · C5 — THE CONTROL ON THE MONEY SCREEN.
+ *
+ * The verifier found this call site had never passed its button to the shared
+ * player (2026-08-09): the glyph never swapped, the seconds never counted, and
+ * the pause-toggle compared against a host that was always null — so tapping a
+ * playing note RESTARTED it with no way to stop. On the screen where she is
+ * deciding to part with money. Proven here in a real browser rather than by
+ * another source scan, because a source scan is exactly what read the shared
+ * player and concluded both screens used it.
+ */
+test('VOIX-ÉTAT-2 · C5 « Écouter la note » shows pause, counts, and stops when tapped again', async ({ page }) => {
+  await scriptService(page, { orderStates: ['payment_pending'] });
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-role="phone"]').fill('70 12 34 56');
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie');
+  await page.locator('[data-action="continuer-c3"]').click();
+  await toPayer(page, 'A');
+
+  const TRIANGLE = 'M0.5 0.8l9 5.2-9 5.2z';
+  const BARRES = 'M0.9 0.8h2.8v10.4H0.9zm4.4 0h2.8v10.4H5.3z';
+  const bouton = page.locator('[data-role="ecouter-note"]');
+  await bouton.waitFor();
+  const horloge = bouton.locator('.cl-voix-dur');
+  const glyphe = bouton.locator('svg path');
+
+  // AT REST: the small triangle, and NO clock — this screen never knew a total,
+  // and printing one we do not have would be an invention.
+  await expect(glyphe).toHaveAttribute('d', TRIANGLE);
+  await expect(bouton.locator('svg')).toHaveAttribute('viewBox', '0 0 10 12');
+  await expect(horloge).toHaveText('');
+
+  await bouton.click();
+  // THE PAUSE SIGN, on the live button. Under the old code this element was
+  // never handed to the player, so nothing could swap it.
+  await expect(glyphe).toHaveAttribute('d', BARRES, { timeout: 5_000 });
+  // …in its OWN family: the 10×12 grid, not the 24-grid pair C1 uses.
+  await expect(bouton.locator('svg')).toHaveAttribute('viewBox', '0 0 10 12');
+  // THE CLOCK IS DRIVEN — it was empty a moment ago and now carries a position.
+  await expect(horloge).toHaveText(/^\d+:\d\d$/, { timeout: 5_000 });
+
+  // AND IT COMES BACK. The demo asset is a 1.1 s tone, so this lands via the
+  // `ended` path; the same restore serves pause and error. Before the fix
+  // `voixRepos` skipped the clock whenever the total was empty — which on this
+  // screen is always — so the position would have been stranded here for ever.
+  await expect(glyphe).toHaveAttribute('d', TRIANGLE, { timeout: 8_000 });
+  await expect(horloge).toHaveText('');
+});
+
 test('REPERE-AUDIO-REEL · a LOST note gets its sentence — the diagnostic hole the founder hit is closed', async ({ page }) => {
   // The service says the note could not be kept (`noteVocale: 'perdue'`).
   // Before this test's line existed, NOTHING anywhere said so — the founder

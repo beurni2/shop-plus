@@ -360,9 +360,20 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   let voixHote: HTMLElement | null = null;
   let voixTotal = '';
 
+  /**
+   * VOIX-ÉTAT-2 — THE GLYPH KEEPS ITS OWN FORM. C1's control carries the
+   * 24-grid triangle; C5's carries the small 10×12 one. Swapping both to the
+   * 24-grid pause would resize C5's button mid-tap. The existing svg's viewBox
+   * says which family it belongs to, so the pair is chosen from the DOM rather
+   * than assumed from the screen.
+   */
   const voixGlyphe = (el: HTMLElement, lecture: boolean): void => {
     const cible = el.querySelector('svg');
-    if (cible !== null) cible.outerHTML = lecture ? iconPause(16) : iconPlay(16);
+    if (cible === null) return;
+    const petit = cible.getAttribute('viewBox') === '0 0 10 12';
+    cible.outerHTML = petit
+      ? (lecture ? iconPauseSmall(13, 14) : iconPlaySmall(13, 14))
+      : (lecture ? iconPause(16) : iconPlay(16));
   };
   const voixHorloge = (texte: string): void => {
     const cible = document.querySelector('.cl-voix-dur');
@@ -372,7 +383,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   const voixRepos = (): void => {
     if (voixHote === null) return;
     voixGlyphe(voixHote, false);
-    if (voixTotal !== '') voixHorloge(voixTotal);
+    // ALWAYS restore, including to the empty string. C5 has no total to go back
+    // to, and the old `if (voixTotal !== '')` guard would have stranded the
+    // counting position on that button for ever.
+    voixHorloge(voixTotal);
     voixHote = null;
   };
 
@@ -509,6 +523,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
 
   function jump(screen: EcranLineaire, extra?: Partial<FlowState>): void {
     clearT();
+    // LEAVING C3 STOPS HER NOTE (verifier, 2026-08-09). Nothing paused it, so
+    // her own voice followed her onto C4 and C5 with no control anywhere on
+    // screen to stop it — the same defect Séra already treats as a bug when the
+    // rider accepts a course. The control is gone; the sound goes with it.
+    noteAudio?.pause();
     state.sheet = false;
     state.paying = 'idle';
     // Landing on a screen ends the refusal that was standing in front of it.
@@ -909,6 +928,18 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   }
 
   function render(): void {
+    // VOIX-ÉTAT-2 — THE FACE MUST SURVIVE THE REBUILD (verifier, 2026-08-09).
+    // This replaces the WHOLE of `container.innerHTML`, so the recorded block
+    // comes back from `renderVoiceBlock` with the play triangle and the static
+    // total — while `noteAudio` keeps playing and `timeupdate` keeps writing the
+    // running position into the freshly-built clock node. Tapping a zone chip
+    // mid-note left her looking at a play triangle over a counting clock, which
+    // is the same lie as a pause glyph over silence, inverted.
+    //
+    // The audio is NOT stopped here: a re-render is not her asking for silence
+    // (a toast alone triggers one), and cutting her own note because a chip
+    // moved would be its own defect. The face is re-applied instead.
+    const noteEnCours = noteAudio !== null && !noteAudio.paused;
     container.innerHTML = [
       '<div class="cl-status"></div>',
       '<div class="cl-lisere"></div>',
@@ -918,6 +949,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       state.galerie !== null ? renderGalerie(m, state.galerie) : '',
       renderToasts(state.toasts),
     ].join('');
+    if (noteEnCours && noteAudio !== null) {
+      noteGlyphe(true);
+      noteHorloge(fmtSecondes(noteAudio.currentTime));
+    }
   }
 
   /** Live-enable the C3 CTA while she types — no re-render, no lost focus. */
@@ -1019,7 +1054,14 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       // on the screen where she is deciding to part with money.
       case 'voix-lire-paiement': {
         const url = el.getAttribute('data-voix-url');
-        if (url) jouerLaNote(url, () => toast(MESSAGES.noteInjouable));
+        // `el` — THE THIRD ARGUMENT WAS MISSING HERE (verifier, 2026-08-09).
+        // C1 has passed its button since 2026-08-04; this call site never did,
+        // so `voixHote` stayed null, the `timeupdate` handler was gated out,
+        // the glyph never swapped, and the pause-toggle (which compares against
+        // `voixHote`) could never match — tapping a playing note RESTARTED it
+        // with no way to stop. On the screen where she decides to part with
+        // money. The shared player was right; one call site was not using it.
+        if (url) jouerLaNote(url, () => toast(MESSAGES.noteInjouable), el);
         return;
       }
       // — C3 —

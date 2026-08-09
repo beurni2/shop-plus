@@ -212,9 +212,30 @@ describe('VOIX-ÉTAT-2 — the reseller’s note counts while it plays', () => {
     expect(sheet, 'a control still printing the static total').not.toContain('fmtVoiceDuration(n.durationMs)}<');
   });
 
-  it('every path that ends playback also clears the clock', () => {
-    // stop-toggle, natural end, and delete — a leftover position under a
-    // « Écouter » button is the same class of lie as a leftover pause glyph.
-    expect(sheet.match(/setPlayingSec\(0\)/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
+  it('every path that ends playback also clears the clock — NAMED, not counted', () => {
+    // The first cut of this test counted `setPlayingSec(0)` occurrences and
+    // demanded four. There are exactly four and ONE OF THEM IS THE START PATH,
+    // so the count was satisfiable without a single end path clearing anything
+    // (verifier, 2026-08-09 — project failure mode #7). Each end path is now
+    // named and matched with its own trigger.
+    const bloc = (depuis: string, taille = 260): string =>
+      sheet.slice(sheet.indexOf(depuis), sheet.indexOf(depuis) + taille);
+    expect(sheet.indexOf('if (playingPid === pid) {'), 'the stop-toggle anchor').toBeGreaterThan(-1);
+    expect(bloc('if (playingPid === pid) {'), 'stop-toggle').toContain('setPlayingSec(0)');
+    expect(bloc('() => {\n          if (playingPidRef.current === pid) playingPidRef.current = null;'), 'natural end')
+      .toContain('setPlayingSec(0)');
+    expect(bloc('deleteRec: (pid) => {'), 'delete').toContain('setPlayingSec(0)');
+  });
+
+  it('the controller memo DEPENDS on the clock — the whole fix died without it', () => {
+    // What this replaces: the deps list omitted `playingSec`, nothing else in
+    // it changed during a take, and the memo handed back a CACHED controller —
+    // so both controls read « 0:00 » for the entire note, worse than the frozen
+    // total they replaced. 18 source-scan tests passed over it. There is no
+    // eslint in this workspace, so exhaustive-deps never ran; this is the pin
+    // that stands in its place.
+    const deps = /}, \[([^\]]*)\]\);/.exec(sheet.slice(sheet.indexOf('return useMemo<VoiceNotesController>')));
+    expect(deps, 'the controller memo deps array must be findable').not.toBeNull();
+    expect(deps![1]).toContain('playingSec');
   });
 });

@@ -1218,7 +1218,11 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
   const ecouterNote =
     m.voiceUrl === undefined || m.voiceUrl === ''
       ? ''
-      : `<button class="cl-ecouter" data-role="ecouter-note" data-action="voix-lire-paiement" data-voix-url="${esc(m.voiceUrl)}">${iconPlaySmall(13, 14)}${PAIEMENT.ecouterNote}</button>`;
+      // VOIX-ÉTAT-2 — the clock node. It starts EMPTY on purpose: this screen
+      // never knew the note's length, and printing a total we do not have would
+      // be an invention. It fills with the live position while the note plays
+      // and empties again at rest, which is the whole of what she asked of it.
+      : `<button class="cl-ecouter" data-role="ecouter-note" data-action="voix-lire-paiement" data-voix-url="${esc(m.voiceUrl)}">${iconPlaySmall(13, 14)}${PAIEMENT.ecouterNote}<span class="cl-voix-dur"></span></button>`;
 
   /* ═══ §6.1 — ONE AVAILABILITY DECISION, AND EVERY PART OF THE SCREEN OBEYS IT ═══
    *

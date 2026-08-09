@@ -238,7 +238,16 @@ export function useVoiceNotes(onToast: (m: string) => void, upload?: VoiceUpload
         void recorder.requestPermission().then((p) => setMicDenied(p === 'denied'));
       },
     };
-  }, [notes, micDenied, playingPid, recorder, onToast, upload]);
+    // `playingSec` IS A DEPENDENCY, and leaving it out cost the whole fix.
+    // Nothing else in this list changes during a take — `notes` and `micDenied`
+    // are untouched, `playingPid` is fixed for the take, `recorder` is a stable
+    // hook object, `onToast` is a setState, `upload` a useCallback — so every
+    // `setPlayingSec(n)` re-rendered and this memo handed back the CACHED
+    // controller with the old value. The clock read « 0:00 » for the entire
+    // note: worse than the frozen total it replaced. There is no eslint in this
+    // workspace, so `react-hooks/exhaustive-deps` never ran; the source pin in
+    // test/voice.test.ts is what stands in its place.
+  }, [notes, micDenied, playingPid, playingSec, recorder, onToast, upload]);
 }
 
 /** The card label for a product's note — drives the mic affordance text. */
