@@ -461,6 +461,16 @@ describe('CODE-REVU (founder ruling 2026-08-09) — the founder rereads an UNCON
     const apres = await relire(accountId);
     expect(apres.status).toBe(404);
     expect(apres.json.reason).toBe('no_code');
+    // ⚠ The reveal's no_code alone only proves the HASH died (it is checked
+    // first). `accessCodeRevelable` is computed from the PLAINTEXT field
+    // (`a.accessCode !== undefined`), so the roster going false is the strip
+    // itself, pinned (CODE-REVU verifier MINOR-4).
+    const rosterApres = await mf.dispatchFetch('http://c/reseller/accounts', { headers: cleC });
+    const rowsApres = (safeJson(await rosterApres.text()) as { accounts: Record<string, unknown>[] }).accounts;
+    expect(rowsApres.find((r) => r['accountId'] === accountId)).toMatchObject({
+      accessCodePending: false,
+      accessCodeRevelable: false,
+    });
   });
 
   it('reveal refuses without key C, and an unknown account by name', async () => {
