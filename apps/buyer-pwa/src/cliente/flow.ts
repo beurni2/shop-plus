@@ -24,7 +24,7 @@ import {
   renderC1, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
   renderGalerie, renderOffline, renderRefus, renderSheet, renderSkeleton, renderToasts,
   galerieSlides,
-  splitFor, MESSAGES, SUIVI_STEPS,
+  splitFor, MESSAGES, SUIVI_STEPS, VOIX,
   type ClienteProduit, type ClienteQuote, type ConfirmEtat, type DoorEtat,
   type Livraison, type ModePaiement, type VoiceEtat,
 } from './screens';
@@ -462,7 +462,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     const bouton = noteBloc('note-play');
     const cible = bouton?.querySelector('svg');
     if (cible !== null && cible !== undefined) cible.outerHTML = lecture ? iconPauseSmall(13, 14) : iconPlaySmall(13, 14);
-    bouton?.setAttribute('aria-label', lecture ? 'Pause' : 'Écouter');
+    // The control's NAME, from the one table the inline-copy gate reads —
+    // the same strings `renderVoiceBlock` puts on the button at rest, so the
+    // markup and this handler cannot drift into two different words.
+    bouton?.setAttribute('aria-label', lecture ? VOIX.pause : VOIX.ecouter);
   };
   const noteHorloge = (texte: string): void => {
     const cible = noteBloc('note-time');

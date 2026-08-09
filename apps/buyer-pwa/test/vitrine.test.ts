@@ -655,7 +655,7 @@ describe('VOIX-ÉTAT — the player has a face (founder 2026-08-04)', () => {
 
   it('the glyph swaps to a PAUSE twin, and back on every way playback can stop', () => {
     expect(src).toContain("glyphe(el, 'pause')");
-    expect(src).toContain("glyphe(hote, 'ecouter')");
+    expect(src).toContain("glyphe(el, 'ecouter')");
     // ending, being paused, and FAILING all restore it — silence under a
     // « Pause » glyph is the exact lie this exists to prevent
     for (const ev of ['ended', 'pause', 'error']) {
@@ -668,7 +668,7 @@ describe('VOIX-ÉTAT — the player has a face (founder 2026-08-04)', () => {
   it('the seconds COUNT while it plays, and the total returns when it stops', () => {
     expect(src).toContain("addEventListener('timeupdate'");
     expect(src).toContain('fmtVoiceDuration(audio.currentTime * 1000)');
-    expect(src).toContain('horloge(hote, total)'); // the total, restored
+    expect(src).toContain('horloge(el, total)'); // the total, restored
   });
 
   it('a SECOND note takes over cleanly — the first button never stays stuck', () => {
@@ -676,7 +676,33 @@ describe('VOIX-ÉTAT — the player has a face (founder 2026-08-04)', () => {
     // both read « Pause ».
     const i = src.indexOf('repos(); // a second note takes over');
     expect(i).toBeGreaterThan(0);
-    expect(src.indexOf('hote = el;')).toBeGreaterThan(i);
+    expect(src.indexOf('hoteUrl = src;')).toBeGreaterThan(i);
+  });
+
+  /**
+   * ═══ THE PROPERTY THESE THREE COULD NOT SEE (closed 2026-08-09) ═══
+   *
+   * All of the above are source scans, and every one of them passed over a
+   * handler that held the tapped ELEMENT. A `innerHTML` rebuild detaches that
+   * node without clearing the reference, so the clock went on being written
+   * into a node no buyer could see while the visible control sat at rest.
+   * Latent rather than live — after the first `ready` render the only path back
+   * through the vitrine's `render()` is the offline retry, where no chip exists
+   * — but it is the trap the next screen to rebuild mid-note would inherit.
+   *
+   * Pinned as the SHAPE that makes it impossible: the host is a URL, re-found
+   * on every touch. The behaviour itself is proven in a real browser
+   * (`e2e/vitrine-voix.spec.ts`), which is where a DOM question belongs.
+   */
+  it('the host is a URL re-found on every touch — never a held node', () => {
+    expect(src).toContain('let hoteUrl: string | null = null;');
+    expect(src, 'a held element is the defect').not.toMatch(/let hote: HTMLElement \| null/);
+    // …and it is resolved from the LIVE document each time it is needed.
+    expect(src).toContain('const hoteEl = (): HTMLElement | null =>');
+    expect(src).toContain("root.querySelectorAll('[data-action=\"voix-produit-play\"]')");
+    // the tick re-dresses whatever node is live now, once per rebuild
+    expect(src).toContain('enLecture(hote);');
+    expect(src).toContain("if (el.getAttribute(ETAT) === 'lecture') return;");
   });
 
   it('the pause glyph EXISTS and matches the play glyph’s ring', async () => {

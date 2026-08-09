@@ -528,7 +528,7 @@ function renderVoiceBlock(s: C3State): string {
       // touched are gone.
       return [
         '<div class="cl-voice-done" data-role="voice-recorded">',
-        `<button class="cl-voice-done-play" data-role="note-play" data-action="voix-lire-note" aria-label="Écouter">${iconPlaySmall(13, 14)}</button>`,
+        `<button class="cl-voice-done-play" data-role="note-play" data-action="voix-lire-note" aria-label="${VOIX.ecouter}">${iconPlaySmall(13, 14)}</button>`,
         `<span class="cl-voice-done-wave">${RECORDED_WAVE_SVG}</span>`,
         `<span class="cl-voice-done-time" data-role="note-time">${esc(s.recTime)}</span>`,
         '<button class="cl-refaire" data-action="voix-refaire">REFAIRE</button>',
@@ -1003,6 +1003,32 @@ export const PAIEMENT = {
  * on the same structural floor: a DELETED sentence fails as loudly as a
  * violated one.
  */
+/**
+ * ═══ C3 — THE VOICE CONTROL'S OWN NAME (journalled debt, closed 2026-08-09) ═══
+ *
+ * The labels on the control that plays back the repère she just recorded. They
+ * were INLINE `aria-label` attributes — user-facing by any honest reading, since
+ * a screen reader speaks them and for a buyer who navigates that way they ARE
+ * the control's name — and read by NO gate: `copy-lint` walks the i18n catalogs,
+ * and this module's inline-copy gate did not know these two existed.
+ *
+ * They live here for the same reason `PAIEMENT.ecouterNote` does: THIS TABLE IS
+ * WHAT THE GATE READS. Putting a string in it makes it linted, structurally
+ * required (deleting one fails as loudly as violating one) and single-sourced
+ * between the markup that renders it at rest and the handler that swaps it
+ * during playback — which is also how the two can no longer drift apart.
+ *
+ * NOT the full catalog migration Ten Laws #6 ultimately asks of the cliente
+ * module — that remains its own slice, named in the gate's own header. This is
+ * the two strings THIS change introduced, carried rather than left behind.
+ */
+export const VOIX = {
+  /** At rest: the control offers to play her note back. */
+  ecouter: 'Écouter',
+  /** While it plays: what the next tap actually does. */
+  pause: 'Pause',
+} as const;
+
 export const CONFIRMATION = {
   /** The order exists on the service; the operator has not answered. */
   attenteTitre: 'Nous attendons l’opérateur.',

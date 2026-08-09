@@ -77,10 +77,29 @@ export function renderVoiceChip(note: ProductVoiceNote | undefined): string {
 export function wireVoicePlay(root: HTMLElement): void {
   let audio: HTMLAudioElement | null = null;
   let current: string | null = null;
-  /** The element currently playing — the one whose glyph and clock we drive. */
-  let hote: HTMLElement | null = null;
+  /**
+   * The note currently playing, held as its URL — NOT as an element.
+   *
+   * ═══ WHY A URL AND NOT A NODE (journalled debt, closed 2026-08-09) ═══
+   *
+   * The comment here used to argue that a re-render « can never inherit a stale
+   * Pause: the nodes it referred to are gone ». That is exactly backwards, and
+   * it is why this bug survived the 2026-08-04 fix. The nodes leave the
+   * DOCUMENT; the REFERENCE does not go anywhere. The vitrine replaces
+   * `innerHTML` on every state change, so this handler went on writing the
+   * counting clock into a DETACHED node while the control the buyer could
+   * actually see had been rebuilt from the note — triangle, static total — with
+   * the sound still coming out of her phone.
+   *
+   * Holding the URL means the host is RE-FOUND after every rebuild: the face
+   * follows the NOTE rather than the node it happened to be drawn in.
+   */
+  let hoteUrl: string | null = null;
   /** Its total, restored when playback stops. */
   let total = '';
+  /** Marks the control already dressed for playback, so the glyph is swapped
+   *  once per rebuild rather than on every `timeupdate` tick. */
+  const ETAT = 'data-voix-etat';
 
   /**
    * ═══ THE PLAYER HAD NO FACE ═══
@@ -92,11 +111,6 @@ export function wireVoicePlay(root: HTMLElement): void {
    * button that looks identical playing and stopped gives her no way to know
    * whether her tap worked, which on a slow connection is indistinguishable
    * from broken.
-   *
-   * The DOM it updates is only ever the button that was tapped, and it is put
-   * back the moment playback ends, pauses or errors — so a re-render (the
-   * vitrine replaces innerHTML on every state change) can never inherit a
-   * stale « Pause » or a frozen clock: the nodes it referred to are gone.
    */
   // Found by CLASS, the same way the clock is: `icon()` emits a plain <svg> with
   // no hook of its own, and adding one to a helper eleven other surfaces share
@@ -110,11 +124,31 @@ export function wireVoicePlay(root: HTMLElement): void {
     const cible = el.querySelector('.voix-duration, .vt-tile-voix-dur');
     if (cible instanceof HTMLElement) cible.textContent = texte;
   };
+  /** The LIVE control for the note that is playing, whatever render built it.
+   *  Matched by READING the attribute rather than by a selector, so a URL
+   *  carrying quotes or brackets needs no escaping to be found again. */
+  const hoteEl = (): HTMLElement | null => {
+    if (hoteUrl === null) return null;
+    for (const el of root.querySelectorAll('[data-action="voix-produit-play"]')) {
+      if (el instanceof HTMLElement && el.getAttribute('data-voix-url') === hoteUrl) return el;
+    }
+    return null;
+  };
+  /** Dress the live control for playback — once per rebuild, not once per tick. */
+  const enLecture = (el: HTMLElement): void => {
+    if (el.getAttribute(ETAT) === 'lecture') return;
+    glyphe(el, 'pause');
+    el.setAttribute(ETAT, 'lecture');
+  };
   const repos = (): void => {
-    if (hote === null) return;
-    glyphe(hote, 'ecouter');
-    horloge(hote, total);
-    hote = null;
+    if (hoteUrl === null) return;
+    const el = hoteEl();
+    if (el !== null) {
+      glyphe(el, 'ecouter');
+      horloge(el, total);
+      el.removeAttribute(ETAT);
+    }
+    hoteUrl = null;
   };
 
   root.addEventListener('click', (ev) => {
@@ -137,7 +171,13 @@ export function wireVoicePlay(root: HTMLElement): void {
       audio.addEventListener('pause', repos);
       audio.addEventListener('error', repos);
       audio.addEventListener('timeupdate', () => {
-        if (hote !== null && audio !== null) horloge(hote, fmtVoiceDuration(audio.currentTime * 1000));
+        const hote = hoteEl();
+        if (hote === null || audio === null) return;
+        // A rebuild brings this control back from the note — triangle, static
+        // total — while the sound carries on. Put the face back on whatever
+        // node is live NOW, rather than on the one that has left the document.
+        enLecture(hote);
+        horloge(hote, fmtVoiceDuration(audio.currentTime * 1000));
       });
     }
     if (current !== src) {
@@ -145,10 +185,10 @@ export function wireVoicePlay(root: HTMLElement): void {
       current = src;
     }
     repos(); // a second note takes over: the first one's button goes back first
-    hote = el;
+    hoteUrl = src;
     const dur = el.querySelector('.voix-duration, .vt-tile-voix-dur');
     total = dur instanceof HTMLElement ? dur.textContent ?? '' : '';
-    glyphe(el, 'pause');
+    enLecture(el);
     horloge(el, fmtVoiceDuration(0));
     void audio.play().catch(() => repos());
   });

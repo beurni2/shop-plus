@@ -139,6 +139,22 @@ const PAIEMENT_FIELDS = {
  * sentence about money that did not move — the gate refuses it by giving every
  * field an EMPTY `fills`.
  */
+/**
+ * ═══ C3's VOICE CONTROL — ITS OWN NAME, READ AT LAST ═══
+ *
+ * The labels on the control that plays back her recorded repère. They shipped
+ * as inline `aria-label` attributes: a screen reader speaks them, so they are
+ * user-facing, and NOTHING read them — not `copy-lint` (which walks the i18n
+ * catalogs) and not this gate (whose tables did not know they existed).
+ *
+ * Neither takes a placeholder, and that is a rule rather than an accident: the
+ * name of a button does not vary with an amount. An empty `fills` refuses one.
+ */
+const VOIX_FIELDS = {
+  ecouter: { screenClass: 'label', fills: [] },
+  pause: { screenClass: 'label', fills: [] },
+};
+
 const CONFIRMATION_FIELDS = {
   attenteTitre: { screenClass: 'label', fills: [] },
   attenteCorps: { screenClass: 'checkout', fills: [] },
@@ -526,6 +542,47 @@ if (conf === null) {
   }
 }
 
+/* ════════ C3's voice control — its labels, on the same terms ═════════════ */
+
+let voixCount = 0;
+const voix = /export const VOIX\s*=\s*\{([\s\S]*?)\n\}/.exec(src);
+if (voix === null) {
+  problems.push(
+    'the VOIX block is missing — those two words are the NAME a screen reader gives the control that ' +
+      'plays her own voice back, and they would ship unread. Re-point this gate, never delete it.',
+  );
+} else {
+  const fields = fieldsOf(voix[1], 'VOIX');
+  for (const required of Object.keys(VOIX_FIELDS)) {
+    if (!(required in fields)) problems.push(`VOIX: missing field « ${required} » (C3 voice control label)`);
+  }
+  for (const present of Object.keys(fields)) {
+    if (present in VOIX_FIELDS) continue;
+    problems.push(
+      `VOIX: unknown field « ${present} » — add it to VOIX_FIELDS with its screen class so it gets ` +
+        'linted; nothing here may go unread',
+    );
+  }
+  for (const [field, { screenClass, fills }] of Object.entries(VOIX_FIELDS)) {
+    if (!(field in fields)) continue;
+    const v = readValue(fields[field]);
+    if (v.kind !== 'text') {
+      problems.push(`VOIX.${field}: ${v.why ?? 'null is not copy'}`);
+      continue;
+    }
+    if (v.text === '') {
+      problems.push(`VOIX.${field}: empty — a control with no name is a control nobody can hear`);
+      continue;
+    }
+    for (const brace of v.text.match(/\{[^}]*\}/gu) ?? []) {
+      if (fills.includes(brace)) continue;
+      problems.push(`VOIX.${field}: « ${brace} » is filled by nothing — a button's name takes no amount`);
+    }
+    entries.push({ key: `cliente.voix.${field}.${n++}`, fr: v.text, register: 'neutral', screenClass });
+    voixCount += 1;
+  }
+}
+
 /* ══ §6.1: « séquestre »/« escrow » appear NOWHERE a buyer can read them ═══ */
 
 /**
@@ -595,6 +652,7 @@ for (const file of scanned) {
 console.log(
   `  ${views.length} refusal view(s) · ${paiementCount} §6.1 payment string(s) · ` +
     `${confirmationCount} C6 post-payment string(s) · ${porteCount} door string(s) · ` +
+    `${voixCount} voice-control label(s) · ` +
     `${entries.length} user-facing strings extracted from ${rel} · ${scanned.length} file(s) scanned`,
 );
 
@@ -650,13 +708,13 @@ console.log('\ncopy-lint-inline-refus: OK');
 console.log(
   `  LINTED (French Voice): the REFUS table (${views.length} views), MESSAGES, the §6.1 PAIEMENT ` +
     `table (${paiementCount} strings), the C6 CONFIRMATION table (${confirmationCount} strings) ` +
-    `and the PORTE table (${porteCount} strings) ` +
+    `the PORTE table (${porteCount} strings) and the C3 VOIX labels (${voixCount} strings) ` +
     `— ${entries.length} strings from ${rel}.`,
 );
 console.log(
   '  NOT LINTED, and named so the gap is visible: every OTHER inline string in that module — the bill ' +
     'labels, the C5 quote line, the operator screens, and C6–C9 outside CONFIRMATION. This gate reads ' +
-    'four tables, not the file. ' +
+    'five tables, not the file. ' +
     'The cure is the i18n catalog migration, which is its own slice.',
 );
 console.log(`  SCANNED for the two words §6.1 forbids: ${scanned.length} file(s) — ${scanDescription}.`);
