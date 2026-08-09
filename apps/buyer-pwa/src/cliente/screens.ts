@@ -521,11 +521,16 @@ function renderVoiceBlock(s: C3State): string {
         '<div class="cl-rec-hint">Parlez comme au marché : « Face à la pharmacie, portail bleu. »</div>',
       ].join('');
     case 'recorded':
+      // VOIX-ÉTAT-2 — the two nodes the player drives carry ROLE hooks, so the
+      // handler finds them by intent rather than by a styling class that a
+      // redesign could rename out from under it. The block is re-rendered on
+      // every state change, so a stale « pause » cannot survive: the nodes it
+      // touched are gone.
       return [
         '<div class="cl-voice-done" data-role="voice-recorded">',
-        `<button class="cl-voice-done-play" data-action="voix-lire-note" aria-label="Écouter">${iconPlaySmall(13, 14)}</button>`,
+        `<button class="cl-voice-done-play" data-role="note-play" data-action="voix-lire-note" aria-label="Écouter">${iconPlaySmall(13, 14)}</button>`,
         `<span class="cl-voice-done-wave">${RECORDED_WAVE_SVG}</span>`,
-        `<span class="cl-voice-done-time">${esc(s.recTime)}</span>`,
+        `<span class="cl-voice-done-time" data-role="note-time">${esc(s.recTime)}</span>`,
         '<button class="cl-refaire" data-action="voix-refaire">REFAIRE</button>',
         '</div>',
       ].join('');

@@ -73,7 +73,7 @@ export function useVoiceCapture(): VoiceRecorderAdapter {
         await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
         return { url: recorder.uri, durationMs };
       },
-      async play(url: string, onEnd?: () => void) {
+      async play(url: string, onEnd?: () => void, onTick?: (seconds: number) => void) {
         // Same reason as above: a take played from a screen that never recorded
         // in this session (she reopens the sheet) has had no `start()` to set
         // the mode, so playback would be silent on a silent-switched iPhone.
@@ -86,7 +86,11 @@ export function useVoiceCapture(): VoiceRecorderAdapter {
         // WHEN THE TAKE ENDS, SAY SO. Without this the screen never learns that
         // playback finished, so « Pause » sits over silence until she taps it.
         fin.current = p.addListener('playbackStatusUpdate', (st) => {
-          if (st.didJustFinish) onEnd?.();
+          if (st.didJustFinish) { onEnd?.(); return; }
+          // VOIX-ÉTAT-2 — the position, from the SAME event that already told
+          // us the take had ended. Nothing new is polled and no timer of our own
+          // runs alongside a note it cannot see.
+          onTick?.(Math.max(0, Math.floor(st.currentTime)));
         });
         p.replace({ uri: url });
         p.play();

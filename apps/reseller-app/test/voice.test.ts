@@ -7,6 +7,8 @@
  * The reducer is pure and lives with no react-native import, so drift fails here
  * (Node), never on a device.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_VOICE_NOTES,
@@ -163,5 +165,56 @@ describe('fmtVoiceDuration — m:ss, mirrors the buyer formatter', () => {
     expect(fmtVoiceDuration(8_000)).toBe('0:08');
     expect(fmtVoiceDuration(1_100)).toBe('0:01');
     expect(fmtVoiceDuration(72_000)).toBe('1:12');
+  });
+});
+
+/**
+ * ═══ VOIX-ÉTAT-2 — HER OWN NOTE'S CLOCK (founder report 2026-08-09) ═══
+ *
+ * « the seconds are not counting ». On this screen the number was
+ * `fmtVoiceDuration(n.durationMs)` — the take's TOTAL — printed identically
+ * before, during and after playback, in BOTH controls.
+ *
+ * HONEST LIMIT, STATED RATHER THAN HIDDEN: the sheet is a React screen over
+ * `expo-audio`, a NATIVE module — neither can be executed under vitest, so
+ * unlike the buyer PWA (which gets a real-browser e2e for the same fix) this
+ * one is pinned at its call sites. What is executable — the adapter contract
+ * and the demo double — is executed.
+ */
+describe('VOIX-ÉTAT-2 — the reseller’s note counts while it plays', () => {
+  const dir = join(import.meta.dirname, '..', 'src', 'vitrine', 'customize');
+  const sheet = readFileSync(join(dir, 'voice-sheet.tsx'), 'utf8');
+  const capture = readFileSync(join(dir, 'voice-capture.ts'), 'utf8');
+
+  it('the adapter seam CARRIES a position, not just an end', () => {
+    // The demo double must accept it too, or the real adapter is the only
+    // implementation of an interface the tests cannot hold.
+    const rec = createDemoRecorder();
+    expect(rec.play.length, 'play(url, onEnd, onTick)').toBe(3);
+  });
+
+  it('the real adapter reports the position off the SAME status event', () => {
+    expect(capture).toContain("p.addListener('playbackStatusUpdate'");
+    expect(capture).toContain('onTick?.(Math.max(0, Math.floor(st.currentTime)))');
+    // …and the end still short-circuits, so a finished take reports rest, not 0:00 forever.
+    expect(capture).toContain('if (st.didJustFinish) { onEnd?.(); return; }');
+  });
+
+  it('the controller passes a tick, and guards it against the take she left', () => {
+    expect(sheet).toContain('(sec) => { if (playingPidRef.current === pid) setPlayingSec(sec); }');
+    expect(sheet).toContain('playingPidRef.current = pid;');
+  });
+
+  it('BOTH controls read the live clock — the frozen total is gone from each', () => {
+    expect(sheet).toContain('const horloge = fmtVoiceDuration(playing ? ctl.playingSec * 1000 : n.durationMs);');
+    expect(sheet).toContain('<Text style={S.vEcouteDur}>{horloge}</Text>');
+    expect(sheet).toContain('<Text style={S.vDur}>{horloge}</Text>');
+    expect(sheet, 'a control still printing the static total').not.toContain('fmtVoiceDuration(n.durationMs)}<');
+  });
+
+  it('every path that ends playback also clears the clock', () => {
+    // stop-toggle, natural end, and delete — a leftover position under a
+    // « Écouter » button is the same class of lie as a leftover pause glyph.
+    expect(sheet.match(/setPlayingSec\(0\)/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
   });
 });

@@ -11,7 +11,7 @@
  * ./voice are what Node tests exercise.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { t, tf } from '../../i18n';
@@ -68,6 +68,13 @@ export interface VoiceNotesController {
   readonly notes: ProductVoiceNotes;
   readonly micDenied: boolean;
   readonly playingPid: string | null;
+  /**
+   * VOIX-ÉTAT-2 (founder 2026-08-09) — « the seconds are not counting ». They
+   * could not: both controls printed `fmtVoiceDuration(n.durationMs)`, the
+   * take's TOTAL, which is the same number before, during and after playback.
+   * This is the live position, in whole seconds, of whichever take is playing.
+   */
+  readonly playingSec: number;
   readonly anyRecording: boolean;
   startRec(pid: string): void;
   stopRec(pid: string): void;
@@ -101,6 +108,15 @@ export function useVoiceNotes(onToast: (m: string) => void, upload?: VoiceUpload
   const [notes, setNotes] = useState<ProductVoiceNotes>(DEFAULT_VOICE_NOTES);
   const [micDenied, setMicDenied] = useState(false);
   const [playingPid, setPlayingPid] = useState<string | null>(null);
+  const [playingSec, setPlayingSec] = useState(0);
+  /**
+   * Which take the player is on, readable from inside a callback the PLAYER
+   * owns. `playingPid` is captured stale by that closure — it still holds the
+   * previous take when `play()` is called — so the ref is set eagerly at the
+   * moment we decide, and cleared everywhere playback ends. A tick that arrives
+   * after she has moved on must never drive another take's clock.
+   */
+  const playingPidRef = useRef<string | null>(null);
   const recorder = useVoiceCapture();
 
   return useMemo<VoiceNotesController>(() => {
@@ -169,17 +185,36 @@ export function useVoiceNotes(onToast: (m: string) => void, upload?: VoiceUpload
       onToast(t('k.voix.toast_echec'));
     };
     const playRec = async (pid: string, url: string): Promise<void> => {
-      if (playingPid === pid) { await recorder.stopPlayback(); setPlayingPid(null); return; }
+      if (playingPid === pid) {
+        playingPidRef.current = null;
+        await recorder.stopPlayback();
+        setPlayingPid(null);
+        setPlayingSec(0);
+        return;
+      }
+      playingPidRef.current = pid;
+      setPlayingSec(0);
       // …and when the take ENDS on its own, the button must come back to
       // « Écouter ». Without this callback it stayed « Pause » over silence
       // until she tapped it — the founder's second report.
-      await recorder.play(url, () => setPlayingPid((cur) => (cur === pid ? null : cur)));
+      await recorder.play(
+        url,
+        () => {
+          if (playingPidRef.current === pid) playingPidRef.current = null;
+          setPlayingPid((cur) => (cur === pid ? null : cur));
+          setPlayingSec(0);
+        },
+        // VOIX-ÉTAT-2 — the clock. Guarded on the pid so a tick from a take she
+        // has already left cannot drive the number under the current one.
+        (sec) => { if (playingPidRef.current === pid) setPlayingSec(sec); },
+      );
       setPlayingPid(pid);
     };
     return {
       notes,
       micDenied,
       playingPid,
+      playingSec,
       anyRecording: Object.values(notes).some((n) => n.status === 'recording'),
       startRec: (pid) => void startRec(pid),
       stopRec: (pid) => void stopRec(pid),
@@ -190,7 +225,12 @@ export function useVoiceNotes(onToast: (m: string) => void, upload?: VoiceUpload
       playRec: (pid, url) => void playRec(pid, url),
       publishRec: (pid) => void publishRec(pid),
       deleteRec: (pid) => {
-        if (playingPid === pid) { void recorder.stopPlayback(); setPlayingPid(null); }
+        if (playingPid === pid) {
+          playingPidRef.current = null;
+          void recorder.stopPlayback();
+          setPlayingPid(null);
+          setPlayingSec(0);
+        }
         setNotes((cur) => deleteNote(cur, pid));
         onToast(t('k.voix.toast_supprimee'));
       },
@@ -226,6 +266,12 @@ export function VoiceNoteControls({ pid, ctl }: { pid: string; ctl: VoiceNotesCo
   const n = noteOf(ctl.notes, pid);
   const kept = n.status === 'pending' || n.status === 'ready';
   const playing = ctl.playingPid === pid;
+  /**
+   * VOIX-ÉTAT-2 — WHILE IT PLAYS, the clock is the POSITION; at rest it is the
+   * TOTAL she recorded. Both controls used to print the total unconditionally,
+   * so the number never moved and « did that actually start? » had no answer.
+   */
+  const horloge = fmtVoiceDuration(playing ? ctl.playingSec * 1000 : n.durationMs);
   return (
     <View style={{ gap: 12 }}>
       {ctl.micDenied && (
@@ -287,7 +333,7 @@ export function VoiceNoteControls({ pid, ctl }: { pid: string; ctl: VoiceNotesCo
                 <Text style={S.vEcouteTitre}>{t(playing ? 'k.voix.pause' : 'k.voix.ecouter')}</Text>
                 <Text style={S.vEcouteSous}>{t('k.voix.avant_publier')}</Text>
               </View>
-              <Text style={S.vEcouteDur}>{fmtVoiceDuration(n.durationMs)}</Text>
+              <Text style={S.vEcouteDur}>{horloge}</Text>
             </Pressable>
           ) : null}
           <Pressable style={({ pressed }) => [S.cta, pressed && S.pressed]} onPress={() => ctl.publishRec(pid)} accessibilityRole="button">
@@ -309,7 +355,7 @@ export function VoiceNoteControls({ pid, ctl }: { pid: string; ctl: VoiceNotesCo
           <View style={S.vPendingPill}><Text style={S.vPendingText}>{t('k.voix.en_attente')}</Text></View>
           <View style={S.vActions}>
             {n.url ? <PlayBtn playing={playing} onPress={() => ctl.playRec(pid, n.url!)} /> : null}
-            <Text style={S.vDur}>{fmtVoiceDuration(n.durationMs)}</Text>
+            <Text style={S.vDur}>{horloge}</Text>
             <Pressable style={({ pressed }) => [S.vGhost, pressed && S.pressed]} onPress={() => ctl.startRec(pid)} accessibilityRole="button">
               <Text style={S.vGhostText}>{t('k.voix.refaire')}</Text>
             </Pressable>

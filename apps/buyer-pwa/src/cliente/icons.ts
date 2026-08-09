@@ -63,6 +63,15 @@ export const iconPause = (s: number): string =>
 export const iconPlaySmall = (w: number, h: number): string =>
   `<svg width="${w}" height="${h}" viewBox="0 0 10 12" aria-hidden="true"><path d="M0.5 0.8l9 5.2-9 5.2z" fill="currentColor"></path></svg>`;
 
+/**
+ * VOIX-ÉTAT-2 (founder 2026-08-09) — the pause twin of `iconPlaySmall`, on the
+ * SAME 10×12 grid and the same fill, so the glyph does not jump when she taps.
+ * « the button is not displaying the pause sign » was literally true of her own
+ * note: the recorded block drew this triangle once and never swapped it.
+ */
+export const iconPauseSmall = (w: number, h: number): string =>
+  `<svg width="${w}" height="${h}" viewBox="0 0 10 12" aria-hidden="true"><path d="M0.9 0.8h2.8v10.4H0.9zm4.4 0h2.8v10.4H5.3z" fill="currentColor"></path></svg>`;
+
 /** Le micro. */
 export const iconMic = (s: number, sw = 1.9): string =>
   svg({ w: s }, '0 0 24 24', '<path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"></path><path d="M6 11a6 6 0 0 0 12 0"></path><path d="M12 17v3.5"></path>', 'none', true, sw);

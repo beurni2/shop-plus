@@ -146,8 +146,13 @@ export interface VoiceRecorderAdapter {
    * `onEnd` fires when the take FINISHES on its own. Without it the screen has
    * no way to learn that playback stopped, so the button stays « Pause » over
    * silence for ever — the state the founder reported.
+   *
+   * VOIX-ÉTAT-2 (founder 2026-08-09): « the seconds are not counting ». `onTick`
+   * is why they can now — the screen was showing `durationMs`, the take's TOTAL,
+   * frozen, for the whole of playback. It reports the position in whole seconds,
+   * straight off the player's own status.
    */
-  play(url: string, onEnd?: () => void): Promise<void>;
+  play(url: string, onEnd?: () => void, onTick?: (seconds: number) => void): Promise<void>;
   stopPlayback(): Promise<void>;
 }
 
@@ -173,7 +178,7 @@ export function createDemoRecorder(now: () => number = () => Date.now()): VoiceR
       startedAt = null;
       return Promise.resolve({ url: null, durationMs: elapsed });
     },
-    play(_url: string, _onEnd?: () => void) {
+    play(_url: string, _onEnd?: () => void, _onTick?: (seconds: number) => void) {
       return Promise.resolve();
     },
     stopPlayback() {

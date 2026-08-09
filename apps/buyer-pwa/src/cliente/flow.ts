@@ -29,7 +29,7 @@ import {
   type Livraison, type ModePaiement, type VoiceEtat,
 } from './screens';
 import { fmtFCFA } from './money';
-import { iconPause, iconPlay } from './icons';
+import { iconPause, iconPauseSmall, iconPlay, iconPlaySmall } from './icons';
 
 /**
  * « m:ss » for the ticking clock — the SAME shape `m.voiceDuree` already shows
@@ -426,6 +426,40 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   const NOTE_MAX_SEC = 30;
   /** One replay element for HER OWN note (blob URL — never leaves the phone). */
   let noteAudio: HTMLAudioElement | null = null;
+  /**
+   * ═══ VOIX-ÉTAT-2 — HER OWN NOTE HAD NO FACE EITHER (founder, 2026-08-09) ═══
+   *
+   * « When buyer records the audio and then plays to listen back the button is
+   * not displaying the pause sign and the seconds are not counting. » Exactly
+   * right, and for the third time in this codebase for the same reason: the
+   * handler drove the <audio> element and touched NO DOM. C1/C5's player and
+   * the vitrine's were fixed on 2026-08-04; THIS one — the note she just
+   * recorded, the moment she most wants to know « did that work? » — was never
+   * given the same treatment.
+   *
+   * The DOM it drives is the recorded block, which `render()` rebuilds on every
+   * state change, so a stale pause glyph cannot outlive it.
+   */
+  const noteBloc = (role: 'note-play' | 'note-time'): HTMLElement | null => {
+    const el = container.querySelector(`[data-role="${role}"]`);
+    return el instanceof HTMLElement ? el : null;
+  };
+  const noteGlyphe = (lecture: boolean): void => {
+    const bouton = noteBloc('note-play');
+    const cible = bouton?.querySelector('svg');
+    if (cible !== null && cible !== undefined) cible.outerHTML = lecture ? iconPauseSmall(13, 14) : iconPlaySmall(13, 14);
+    bouton?.setAttribute('aria-label', lecture ? 'Pause' : 'Écouter');
+  };
+  const noteHorloge = (texte: string): void => {
+    const cible = noteBloc('note-time');
+    if (cible !== null) cible.textContent = texte;
+  };
+  /** Back to rest — the triangle returns and the clock shows the TOTAL again
+   *  (`recTime()`, the length she actually recorded), never a frozen position. */
+  const noteRepos = (): void => {
+    noteGlyphe(false);
+    noteHorloge(recTime());
+  };
 
   /** Stop = the button AND the 30 s cap, one act: assemble the note, keep it
    *  for the order, and say the honest state (queued when offline — kept, it
@@ -998,6 +1032,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         // no recorder) lands on the standing honest state, and the typed
         // repère stays the primary road.
         state.note = null;
+        // VOIX-ÉTAT-2 — REFAIRE while her old note is playing must silence it:
+        // recording over her own voice coming out of the speaker is a note
+        // nobody can use.
+        noteAudio?.pause();
         void enregistreur.demarrer().then((debut) => {
           if (debut === 'refused') {
             state.voice = 'refused';
@@ -1023,10 +1061,31 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         // HER OWN replay, from the phone's blob — nothing fetched, nothing sent.
         const url = state.note?.blobUrl;
         if (url === undefined || typeof Audio === 'undefined') return;
-        if (noteAudio === null) noteAudio = new Audio();
+        if (noteAudio === null) {
+          noteAudio = new Audio();
+          // EVERY way playback can stop puts the control back. A pause glyph
+          // over silence is the same lie as a play glyph over sound.
+          noteAudio.addEventListener('ended', noteRepos);
+          noteAudio.addEventListener('pause', noteRepos);
+          noteAudio.addEventListener('error', noteRepos);
+          noteAudio.addEventListener('timeupdate', () => {
+            if (noteAudio !== null && !noteAudio.paused) noteHorloge(fmtSecondes(noteAudio.currentTime));
+          });
+        }
+        // Tapping her note WHILE it plays pauses it — the pause glyph has to
+        // mean something when she taps it.
+        if (!noteAudio.paused && noteAudio.src === url) {
+          noteAudio.pause();
+          return;
+        }
         if (noteAudio.src !== url) noteAudio.src = url;
         noteAudio.currentTime = 0;
-        void noteAudio.play().catch(() => toast(MESSAGES.noteInjouable));
+        noteGlyphe(true);
+        noteHorloge(fmtSecondes(0));
+        void noteAudio.play().catch(() => {
+          noteRepos(); // a refusal must not leave a pause glyph over nothing
+          toast(MESSAGES.noteInjouable);
+        });
         return;
       }
       case 'continuer-c3':

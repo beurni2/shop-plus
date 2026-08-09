@@ -871,6 +871,53 @@ test('REPERE-AUDIO-REEL · the REAL recorder — her note is captured by the pho
   expect([...bytes.subarray(0, 4)]).toEqual([0x1a, 0x45, 0xdf, 0xa3]);
 });
 
+/**
+ * ═══ VOIX-ÉTAT-2 · THE SEAM TEST (founder report 2026-08-09) ═══
+ *
+ * « When buyer records the audio and then plays to listen back the button is
+ * not displaying the pause sign and the seconds are not counting. »
+ *
+ * A source scan can prove the handler CONTAINS the swap; only this can prove
+ * the swap REACHES her screen — a real MediaRecorder take, a real blob URL, a
+ * real <audio> element in a real browser, and the DOM read back after the tap.
+ * The 2026-08-04 fix on C1 shipped behind a source scan and this block, which
+ * has the identical defect, was never noticed. So: the browser answers.
+ */
+test('VOIX-ÉTAT-2 · her own note shows PAUSE and counts while it plays, then goes back to rest', async ({ page }) => {
+  await scriptService(page, { orderStates: ['payment_pending'] });
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-action="voix-demarrer"]').click();
+  await page.locator('[data-action="voix-arreter"]').waitFor();
+  await page.waitForTimeout(2_200); // a note long enough for a second to tick
+  await page.locator('[data-action="voix-arreter"]').click();
+  await page.locator('[data-role="voice-recorded"]').waitFor();
+
+  const bouton = page.locator('[data-role="note-play"]');
+  const horloge = page.locator('[data-role="note-time"]');
+  // AT REST: the triangle, and the TOTAL she recorded.
+  await expect(bouton).toHaveAttribute('aria-label', 'Écouter');
+  const total = (await horloge.textContent())?.trim() ?? '';
+  expect(total).toMatch(/^0:\d\d$/);
+
+  await bouton.click();
+  // THE PAUSE SIGN. Not « the code contains iconPauseSmall » — the button in
+  // the page says so, which is what the founder was looking at.
+  await expect(bouton).toHaveAttribute('aria-label', 'Pause', { timeout: 5_000 });
+  // THE SECONDS COUNT. The clock leaves the total and lands on a real
+  // position; a frozen clock is the reported bug.
+  await expect(horloge).toHaveText('0:00', { timeout: 5_000 });
+  await expect(horloge).toHaveText('0:01', { timeout: 5_000 });
+
+  // …and tapping the PAUSE actually pauses, putting the face back.
+  await bouton.click();
+  await expect(bouton).toHaveAttribute('aria-label', 'Écouter');
+  await expect(horloge).toHaveText(total);
+});
+
 test('REPERE-AUDIO-REEL · a LOST note gets its sentence — the diagnostic hole the founder hit is closed', async ({ page }) => {
   // The service says the note could not be kept (`noteVocale: 'perdue'`).
   // Before this test's line existed, NOTHING anywhere said so — the founder
