@@ -9,6 +9,19 @@ Format per entry:
 
 ---
 
+## 2026-08-10 · STANDING ORDER — the screen is DRIVEN, never only read · LAW
+**Founder:** « Make it a law from now on every build and fix should uses this tool for tests before merge and deploy ask. »
+
+Written into `§6bis` of `CLAUDE.md` and `AGENTS.md` in **all four repos**, byte-identical (`b0c23c14`) — the parity rule of §6.
+
+**What it says, in short:** any build or fix touching a user-facing screen ends with a RENDU-RÉEL walk — mount the real screen, press the real controls, assert the person reaches the next step — before merge and deploy are asked for. Every new screen gets a walk in the same slice that builds it, and **every screen bug the founder reports gets its walk written FIRST, red, before the fix.** Its bound is absolute: it may never claim anything about appearance.
+
+**⚠ WHAT THIS REPO OWES.** The reference implementation is the Séra rider app (`apps/rider-app/test/rendu.tsx` + `rendu-course.test.tsx` + `rendu-harness.test.ts` + `test/doubles/`). **No harness exists in this repo yet.** The order is explicit: the first slice that touches a screen here BUILDS the equivalent, or says plainly in the report that it did not and why. Silently falling back to source scans is the thing the order forbids.
+
+**The slice sequence is now:** tests + typecheck + gate board green → **the screen walk** → the end-to-end seam test against the real service → the ONE fresh-context verifier pass → commit + push → report, then WAIT.
+
+---
+
 ## 2026-08-06 · AUDIT-B+1 F12 — the copy-lint learns administrative register, and the pin is GATED · DONE (branch)
 - **What changed here:** `@platform/i18n` re-pinned to `199bc2ab` (canon), plus a new negative fixture `catalog.administrative-register.json` wired into the gate board.
 - **Why the pin alone was not enough (verifier round 2 blocker).** Canon carried the new word list while every app still resolved the OLD package, so the lint was unchanged for users and the journal said DONE. The pin lives in **two places per repo** — the root `package.json` AND each workspace package's own; moving only the root reports success and changes nothing.
