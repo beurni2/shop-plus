@@ -153,18 +153,121 @@ export type ConfirmEtat = 'confirmed' | 'attente' | 'echec' | 'pending' | 'offli
 /** Les 8 zones (§4 C3 — l'ensemble exact du pixel source). */
 export const ZONES: readonly string[] = ['Gounghin', 'Dassasgho', 'Pissy', 'Tampouy', 'Wemtenga', 'Zogona', 'Cissin', 'Somgandé'];
 
-/** Les 6 étapes du suivi (§4 C7 — titres + descriptions verbatim). */
+/**
+ * ═══ VRAI-SUIVI — C7/C9's COPY TABLE, read by `copy-lint-inline-refus` ═══
+ *
+ * The tracking became REAL (founder, 2026-08-10): the six steps derive from the
+ * order's own recorded facts, so every sentence here had to become one a fact
+ * can keep. Three lies died in this table's making, named so they stay dead:
+ *
+ *  · « Vérifiée et scellée par Séra » CLAIMED THE SEAL FROM `readyAt`. That
+ *    fact proves the SELLER says the parcel is ready — the custody seal is
+ *    Séra's own act at pickup verification, a different fact this wire does not
+ *    carry. The step now says what `readyAt` proves: prête chez la vendeuse.
+ *    (Ten Laws #3 — the seal is sacred precisely because nobody claims it
+ *    on someone else's behalf.)
+ *  · « Nous vous prévenons à chaque étape » PROMISED A PUSH THAT DOES NOT
+ *    EXIST. Nothing notifies anyone. What is true: she can come back to this
+ *    page whenever she wants and it tells the truth when she does.
+ *  · « Aïcha prépare votre colis » NAMED THE DEMO SELLER on every real order.
+ *    The step speaks of « la vendeuse », which is true whoever she is.
+ *
+ * Absence of a fact = « pas encore », never done (Ten Laws #7). No field here
+ * takes a placeholder: a tracking sentence carries no amount, and the order id
+ * beside the title is a server byte the renderer appends — never interpolated.
+ */
+export const SUIVI = {
+  etape1Titre: 'Commande enregistrée',
+  etape1Corps: 'Nous avons bien reçu votre commande.',
+  etape2Titre: 'Préparée par la vendeuse',
+  etape2Corps: 'La vendeuse prépare votre colis.',
+  etape3Titre: 'Prête chez la vendeuse',
+  etape3Corps: 'Le colis attend le livreur Séra.',
+  etape4Titre: 'En route',
+  etape4Corps: 'Le colis est en chemin vers votre repère.',
+  etape5Titre: 'À votre porte',
+  etape5Corps: 'Inspectez avant d’accepter.',
+  etape6Titre: 'Remise',
+  etape6Corps: 'Votre code fait foi.',
+  /** The honest intro — she may leave; the page tells the truth on return. */
+  intro: 'Revenez ici quand vous voulez : cette page se met à jour.',
+  /** The honest footnote — no GPS point exists and none is promised. */
+  gps: 'Pas de point GPS — des étapes claires, que vous suivez ici.',
+  /** One more read, on her word, after the automatic checks stopped. */
+  verifier: 'Vérifier à nouveau',
+  /** The last read did not arrive. Says nothing about the delivery. */
+  horsPortee: 'Nous n’arrivons pas à joindre le service pour l’instant. Votre commande est bien là.',
+  /** The rider arrived — her code exists and this opens it. */
+  voirCode: 'Voir mon code',
+  /** livree — she dismisses the finished order and the phone forgets it. */
+  terminee: 'C’est terminé',
+  /** The re-entry affordance on the shell — her way back to a live order. */
+  reentree: 'Ma commande',
+  /** C9 before the rider arrives — the code appears at arrival, per the
+   *  founder's 2026-08-10 ruling, and never before. */
+  c9Attente: 'Votre code apparaîtra ici quand le livreur sera à votre porte. Jamais avant.',
+  /** C9 once the arrival fact exists but the code has not landed yet. */
+  c9Arrivee: 'Le livreur est là. Votre code arrive dans un instant.',
+  /** The demo C9's code is a demonstration, and says so. */
+  codeDemo: 'Code de démonstration',
+} as const;
+
+/** Les 6 étapes du suivi (§4 C7) — DERIVED from the linted SUIVI table, so the
+ *  demo timeline and the real one can never say two different things. */
 export const SUIVI_STEPS: ReadonlyArray<{ t: string; d: string }> = [
-  { t: 'Commande enregistrée', d: 'Nous avons bien reçu votre commande.' },
-  { t: 'Préparée par la vendeuse', d: 'Aïcha prépare votre colis.' },
-  { t: 'Vérifiée et scellée par Séra', d: 'Le livreur contrôle le colis avant de partir.' },
-  { t: 'En route', d: 'Le colis est en chemin vers votre repère.' },
-  { t: 'À votre porte', d: 'Inspectez avant de payer le reste.' },
-  { t: 'Remise', d: 'Votre code fait foi.' },
+  { t: SUIVI.etape1Titre, d: SUIVI.etape1Corps },
+  { t: SUIVI.etape2Titre, d: SUIVI.etape2Corps },
+  { t: SUIVI.etape3Titre, d: SUIVI.etape3Corps },
+  { t: SUIVI.etape4Titre, d: SUIVI.etape4Corps },
+  { t: SUIVI.etape5Titre, d: SUIVI.etape5Corps },
+  { t: SUIVI.etape6Titre, d: SUIVI.etape6Corps },
 ];
 
 /** [DEMO] le libellé de l'étape suivante (index = step courant 1–4). */
-export const SIM_LABELS: readonly string[] = ['', 'Préparée', 'Vérifiée et scellée', 'En route', 'À votre porte'];
+export const SIM_LABELS: readonly string[] = ['', 'Préparée', 'Prête', 'En route', 'À votre porte'];
+
+/**
+ * ═══ VRAI-SUIVI — WHICH STEP THE FACTS PROVE ═══
+ *
+ * The CURRENT step is the FURTHEST PROVEN FACT, checked from the end: `livree`
+ * ⇒ 6, `arrivedAt` ⇒ 5, `departedAt` ⇒ 4, `readyAt` ⇒ 3, `acceptedAt` ⇒ 2 —
+ * and an order with no marks at all stands at 1, because the one fact every
+ * C7-real mount carries is the order's own existence (`POST /checkout/order`
+ * answered 200, which is exactly what « Commande enregistrée — nous avons bien
+ * reçu votre commande » claims and nothing more).
+ *
+ * ABSENCE = « pas encore », NEVER DONE — a missing `departedAt` under a
+ * present `arrivedAt` still yields 5 (the furthest PROVEN fact), because the
+ * later fact is proven and the earlier one's absence must not subtract from
+ * it; but no absent fact ever ADVANCES anything. There is no clock in this
+ * function and no branch that can invent progress.
+ */
+export interface MarquesSuivi {
+  readonly acceptedAt?: string | undefined;
+  readonly readyAt?: string | undefined;
+  readonly departedAt?: string | undefined;
+  readonly arrivedAt?: string | undefined;
+  readonly livree?: boolean | undefined;
+}
+
+export function etapeDeSuivi(m: MarquesSuivi): number {
+  if (m.livree === true) return 6;
+  if (m.arrivedAt !== undefined) return 5;
+  if (m.departedAt !== undefined) return 4;
+  if (m.readyAt !== undefined) return 3;
+  if (m.acceptedAt !== undefined) return 2;
+  return 1;
+}
+
+/**
+ * The REAL code, displayed the way the pixel design displays its demo one:
+ * « 123 456 » — a plain space, because it is a code and not an amount. Any
+ * shape the service sends that is not six digits passes through untouched:
+ * reformatting an unknown code is inventing one.
+ */
+export function codeAffiche(code: string): string {
+  return /^\d{6}$/.test(code) ? `${code.slice(0, 3)} ${code.slice(3)}` : code;
+}
 
 /** Les 3 motifs de signalement (§4 C8). */
 /**
@@ -1064,6 +1167,13 @@ export const CONFIRMATION = {
    * PORTE.resteAPayer's figure) — never interpolated into this sentence.
    */
   reference: 'Numéro de commande',
+  /**
+   * VRAI-SUIVI — the third « what happens next » row. It read « Nous vous
+   * prévenons à chaque étape » — a push notification this app does not send.
+   * What is true, and now said: the tracking page exists and she follows the
+   * steps there herself.
+   */
+  etapeSuivre: 'Vous suivez chaque étape sur cette page.',
 } as const;
 
 /** The view a refusal name renders as — the generic one for every name this
@@ -1471,7 +1581,10 @@ export function renderC6(
       '<div class="cl-steps">',
       `<div class="cl-step-row"><span class="cl-step-num">1</span><span class="cl-step-txt">${esc(m.prenom)} prépare votre commande</span></div>`,
       '<div class="cl-step-row"><span class="cl-step-num">2</span><span class="cl-step-txt">Séra vérifie et scelle le colis</span></div>',
-      '<div class="cl-step-row"><span class="cl-step-num">3</span><span class="cl-step-txt">Nous vous prévenons à chaque étape</span></div>',
+      // VRAI-SUIVI — the honest third row, from the linted table: no push
+      // exists, so none is promised; the « Suivre ma commande » CTA below is
+      // the road this sentence points at.
+      `<div class="cl-step-row"><span class="cl-step-num">3</span><span class="cl-step-txt">${CONFIRMATION.etapeSuivre}</span></div>`,
       '</div>',
     ].join('');
   } else if (o.confirmState === 'attente') {
@@ -1575,16 +1688,51 @@ export interface C7State {
   readonly step: number;
   readonly problem: boolean;
   readonly demo: boolean;
+  /**
+   * VRAI-SUIVI — the REAL path. `reel: true` kills the simulation lever
+   * unconditionally (a real buyer must never see « Simuler », whatever the
+   * `demo` flag says) and turns the screen's facts server-fed: the order id
+   * in the corner, the derived step, the code affordance at arrival.
+   */
+  readonly reel?: boolean | undefined;
+  /** The order's own id, when a server has named one — the corner chip. No
+   *  id ⇒ no chip: the CMD-2417 literal is dead, nothing invents a number. */
+  readonly commande?: string | undefined;
+  /** arrivedAt exists and the remise is not done ⇒ « Voir mon code ». */
+  readonly voirCode?: boolean | undefined;
+  /**
+   * May « Je suis à la porte » be offered at step 5? `false` on the re-entry
+   * mount, which has no live checkout handle and therefore no door-charge
+   * road — a button whose action cannot complete is a false affordance.
+   * Absent ⇒ offered (the demo and the in-flow real path, as before).
+   */
+  readonly porte?: boolean | undefined;
+  /** The automatic reads stopped ⇒ she gains « Vérifier à nouveau ». */
+  readonly relance?: boolean | undefined;
+  /** The LAST read did not reach the service — said, never swallowed. */
+  readonly horsPortee?: boolean | undefined;
+  /** livree ⇒ « C'est terminé » — dismissing clears the phone's memory of it. */
+  readonly terminee?: boolean | undefined;
 }
 
 export function renderC7(s: C7State): string {
-  const atDoor = s.step >= 5 && !s.problem && s.step < 6;
-  const canSim = s.demo && s.step < 5 && !s.problem;
+  const atDoor = s.step >= 5 && !s.problem && s.step < 6 && s.porte !== false;
+  // THE SIMULATION EXISTS ONLY OFF THE REAL PATH. `!s.reel` is structural, not
+  // a preference: `demo` defaults true on every mount that never says
+  // otherwise, and that default put « Simuler » under a real buyer's thumb.
+  const canSim = s.demo && !(s.reel === true) && s.step < 5 && !s.problem;
   return [
     '<div class="cl-screen" data-screen="C7">',
-    '<div class="cl-stephead"><div class="cl-steptitle">Le suivi</div><span class="cl-cmd">CMD-2417</span></div>',
-    '<div class="cl-c7-intro">Nous vous prévenons à chaque étape. Pas besoin de rester sur cette page.</div>',
+    `<div class="cl-stephead"><div class="cl-steptitle">Le suivi</div>${
+      s.commande !== undefined && s.commande !== '' ? `<span class="cl-cmd">${esc(s.commande)}</span>` : ''
+    }</div>`,
+    `<div class="cl-c7-intro">${SUIVI.intro}</div>`,
     s.problem ? '<div class="cl-problem" data-role="problem-banner">Problème signalé. Une personne s’en occupe. La commande reste protégée.</div>' : '',
+    // The last read did not land — one added fact about the network, zero
+    // removed facts about the delivery (the C6 hors-portee law, one screen on).
+    s.horsPortee === true
+      ? `<div class="cl-conf-horsportee" data-role="suivi-hors-portee">${SUIVI.horsPortee}</div>`
+      : '',
     '<div class="cl-tl">',
     SUIVI_STEPS.map((st, i) => {
       const n = i + 1;
@@ -1609,12 +1757,26 @@ export function renderC7(s: C7State): string {
     }).join(''),
     '</div>',
     atDoor ? '<button class="cl-cta cl-cta-door" data-action="porte">Je suis à la porte</button>' : '',
+    // VRAI-SUIVI — the rider is at her door, so her code exists: the founder's
+    // 2026-08-10 ruling made arrival the moment it appears, and this is where
+    // it appears from.
+    s.voirCode === true && !s.problem
+      ? `<button class="cl-cta cl-cta-door" data-action="voir-code">${SUIVI.voirCode}</button>`
+      : '',
+    // The automatic reads ran out — asking again is her choice, one request.
+    s.relance === true
+      ? `<button class="cl-conf-relance" data-action="verifier-suivi">${SUIVI.verifier}</button>`
+      : '',
+    // livree — the finished order can be dismissed; the key clears with it.
+    s.terminee === true
+      ? `<button class="cl-conf-relance" data-role="suivi-terminer" data-action="suivi-terminer">${SUIVI.terminee}</button>`
+      : '',
     canSim ? `<button class="cl-sim" data-action="simuler">▶ Simuler l’étape suivante — ${SIM_LABELS[s.step] ?? ''} (démo)</button>` : '',
     '<div class="cl-c7-actions">',
     '<button class="cl-c7-btn" data-action="ouvrir-protections">Vos protections</button>',
     '<button class="cl-c7-btn cl-c7-report" data-action="signaler-c7">Signaler un problème</button>',
     '</div>',
-    '<div class="cl-footnote">Pas de point GPS — des étapes claires, et nous vous prévenons.</div>',
+    `<div class="cl-footnote">${SUIVI.gps}</div>`,
     '</div>',
   ].join('');
 }
@@ -1722,17 +1884,40 @@ export function renderC8(m: ClienteProduit, q: ClienteQuote, s: C8State): string
 
 /* ----------------------------------------------------------------- C9 ---- */
 
-export function renderC9(o: { revealed: boolean }): string {
-  const body = o.revealed
+/**
+ * ═══ VRAI-SUIVI — C9 SPEAKS FOR A REAL CODE, OR HONESTLY WAITS ═══
+ *
+ * REAL PATH (`reel: true`): the figure is the SERVICE'S OWN code, fetched from
+ * the remise route with her bearer ref — the `CODE_REMISE` demo constant is
+ * unrenderable here by construction (this branch never reads it). No code yet
+ * ⇒ the honest waiting card: before the rider arrives it says WHEN the code
+ * will exist (at arrival — the founder's 2026-08-10 ruling; the old caption
+ * tied it to payment confirmation, which was never the fact that reveals it);
+ * once arrived but not yet fetched, it says the rider is there and offers one
+ * manual retry.
+ *
+ * DEMO PATH: the pixel behaviour, plus the label that says the code is a
+ * demonstration — a demo figure with no label is a mock impersonating proof.
+ */
+export function renderC9(o: {
+  revealed: boolean;
+  reel?: boolean | undefined;
+  code?: string | undefined;
+  arrivee?: boolean | undefined;
+}): string {
+  const reel = o.reel === true;
+  const figure = reel ? (o.code !== undefined ? codeAffiche(o.code) : undefined) : o.revealed ? CODE_REMISE : undefined;
+  const body = figure !== undefined
     ? [
         '<div class="cl-code-revealed" data-role="code-revele">',
         '<div class="cl-code-overline">VOTRE PREUVE</div>',
         '<div class="cl-code-card">',
         '<div class="cl-code-tick cl-code-tick-tl"></div><div class="cl-code-tick cl-code-tick-tr"></div><div class="cl-code-tick cl-code-tick-bl"></div><div class="cl-code-tick cl-code-tick-br"></div>',
-        `<div class="cl-code-figure">${CODE_REMISE}</div>`,
+        `<div class="cl-code-figure">${esc(figure)}</div>`,
         '</div>',
         '<div class="cl-code-proof">Ce code est votre preuve.</div>',
         '<div class="cl-code-how">Donnez-le au livreur seulement au moment de la remise. Montrez-le, ou dites-le à voix haute.</div>',
+        reel ? '' : `<div class="cl-code-how" data-role="code-demo">${SUIVI.codeDemo}</div>`,
         `<div class="cl-code-kept">${iconShieldCheck(15, 1.9)}Gardé sur ce téléphone — même sans réseau.</div>`,
         '</div>',
       ].join('')
@@ -1740,7 +1925,12 @@ export function renderC9(o: { revealed: boolean }): string {
         '<div class="cl-code-hidden" data-role="code-cache">',
         iconLock(34, 1.7),
         '<div class="cl-code-dots">••• •••</div>',
-        '<div class="cl-code-hidden-body">Votre code apparaîtra ici dès que le paiement sera confirmé par l’opérateur. Jamais avant.</div>',
+        `<div class="cl-code-hidden-body">${reel && o.arrivee === true ? SUIVI.c9Arrivee : SUIVI.c9Attente}</div>`,
+        // Arrived and still no code — the fetch may have missed once; one
+        // manual ask, on her word, exactly the C6 relance shape.
+        reel && o.arrivee === true
+          ? `<button class="cl-conf-relance" data-action="verifier-code">${SUIVI.verifier}</button>`
+          : '',
         '</div>',
       ].join('');
   return [

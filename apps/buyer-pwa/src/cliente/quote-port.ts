@@ -149,6 +149,34 @@ export interface ServerOrder {
    * shows on the founder's Commandes.
    */
   readonly noteVocale?: 'gardee' | 'perdue' | undefined;
+  /**
+   * ═══ VRAI-SUIVI — THE DELIVERY'S OWN FACTS, AS THE SERVER RECORDED THEM ═══
+   *
+   * Four ISO instants and one boolean, ALL OPTIONAL, and absence means exactly
+   * one thing: NOT YET (Ten Laws #7 — queued = pending, never done; the
+   * reseller-feed doctrine, applied to the buyer's own tracking). Nothing on
+   * this client may infer a later mark from an earlier one, and nothing may
+   * treat a missing field as progress.
+   *
+   * EACH MARK IS VALIDATED INDIVIDUALLY IN `readOrder` AND DROPPED ALONE when
+   * malformed — a garbage `acceptedAt` must not take the whole order read down,
+   * because the read also carries the payment truth C6 depends on. A dropped
+   * mark can only ever UNDERSTATE progress, never invent it.
+   */
+  readonly acceptedAt?: string | undefined;
+  readonly readyAt?: string | undefined;
+  readonly departedAt?: string | undefined;
+  readonly arrivedAt?: string | undefined;
+  /** The remise happened — the drop code was spoken and honoured. Carried only
+   *  when the server says literally `true`; anything else reads as « not yet ». */
+  readonly livree?: boolean | undefined;
+  /**
+   * VRAI-SUIVI — the buyer's own bearer token for `GET …/remise`. The service
+   * returns it ONCE, on the CREATE answer (and on an idempotent replayed
+   * create) — never on the poll — so this field is only ever filled from the
+   * order that `POST /checkout/order` handed back.
+   */
+  readonly buyerRef?: string | undefined;
 }
 
 /**
@@ -165,6 +193,27 @@ export type OrderOutcome =
    *  `reservation_expired`, `reservation_held_by_another`, `quote_expired`… */
   | { readonly status: 'refused'; readonly reason: string }
   | { readonly status: 'unreachable' }
+  | { readonly status: 'unreadable' };
+
+/**
+ * ═══ VRAI-SUIVI — WHAT THE REMISE ROUTE CAN ANSWER ═══
+ *
+ * The SAME four-outcome discipline as every other route in this file, with one
+ * deliberate difference: `refused` CARRIES NO NAME, because the service gives
+ * none. `GET /checkout/order/{id}/remise` answers a uniform `{ok:false}` 404
+ * for a wrong token, an unknown order AND a not-yet-arrived rider —
+ * indistinguishable ON PURPOSE, so the route leaks nothing about which orders
+ * exist or where a rider stands. This port carries that silence verbatim
+ * instead of inventing a reason the server refused to state.
+ */
+export type RemiseOutcome =
+  /** The code, and only when the ARRIVAL FACT exists on the service. */
+  | { readonly status: 'code'; readonly code: string }
+  /** The uniform `{ok:false}` — no name, by the service's own design. */
+  | { readonly status: 'refused' }
+  /** Nothing answered. The only outcome « Pas de connexion » could be true of. */
+  | { readonly status: 'unreachable' }
+  /** Something answered and it was not usable. */
   | { readonly status: 'unreadable' };
 
 /**
@@ -225,6 +274,17 @@ export interface QuotePort {
    * `{holderRef, commandId}` and the figure is read off the immutable Quote.
    */
   doorCharge(orderId: string, commandId: string, holderRef: string): Promise<OrderOutcome>;
+  /**
+   * VRAI-SUIVI — ASK FOR THE DROP CODE, with the buyer's own bearer token.
+   *
+   * `GET {base}/checkout/order/{id}/remise`, `Authorization: Bearer <buyerRef>`.
+   * The service answers the code ONLY once the rider's arrival fact exists
+   * (founder, 2026-08-10: « the code appears for the buyer only when the rider
+   * taps Je suis arrivé »), and answers a uniform nameless 404 otherwise. This
+   * call can never CAUSE anything — it is a read, it moves no money and no
+   * custody, and a client that never calls it simply never shows a code.
+   */
+  remise(orderId: string, buyerRef: string): Promise<RemiseOutcome>;
 }
 
 /* ───────────────────────────── the shape check ───────────────────────────── */
@@ -290,8 +350,26 @@ export function looksLikeServerOrder(v: unknown): v is ServerOrder {
     // absent is treated as « still owed » at the one place it decides anything
     // (`revelationPermise`), so a missing field can only ever WITHHOLD the drop
     // code, never reveal it.
+    //
+    // VRAI-SUIVI — the four delivery marks and `livree` are DELIBERATELY not
+    // checked here. Rejecting the whole order for one malformed mark would take
+    // the PAYMENT truth down with it; instead each mark is validated alone in
+    // `readOrder` and dropped alone when bad, which can only ever UNDERSTATE
+    // progress (absence = not yet), never invent it.
     (o['doorLeg'] === undefined || nonEmpty(o['doorLeg']))
   );
+}
+
+/**
+ * ONE DELIVERY MARK, OR NOTHING — a non-empty string this JS engine can parse
+ * as an instant. `Date.parse` on garbage answers `NaN`, and a mark that cannot
+ * be read is a mark that does not exist: dropped INDIVIDUALLY, so a bad
+ * `acceptedAt` never kills the read and never touches its neighbours. Dropping
+ * fails toward « not yet », which is the only safe direction on a tracking
+ * screen (Ten Laws #7).
+ */
+function marqueIso(v: unknown): string | undefined {
+  return typeof v === 'string' && v !== '' && !Number.isNaN(Date.parse(v)) ? v : undefined;
 }
 
 /** The refusal NAME a non-2xx body carries (`{error}` — or `{reason}`, which is
@@ -503,6 +581,40 @@ export function httpQuotePort(baseUrl: string): QuotePort {
       }
       return readOrder(res);
     },
+
+    async remise(orderId: string, buyerRef: string): Promise<RemiseOutcome> {
+      // URL built OUTSIDE the fetch `try` — the reserve/orderState law: a
+      // request the BROWSER refused to construct is not a missing network.
+      let url: string;
+      try {
+        url = `${base}/checkout/order/${encodeURIComponent(orderId)}/remise`;
+      } catch {
+        return { status: 'unreadable' };
+      }
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${buyerRef}` },
+        });
+      } catch {
+        return { status: 'unreachable' }; // nothing answered
+      }
+      const body: unknown = await res.json().catch(() => undefined);
+      const o = body !== null && typeof body === 'object' ? (body as Record<string, unknown>) : undefined;
+      if (!res.ok) {
+        // The service's ONE refusal shape: `{ok:false}`, nameless on purpose
+        // (wrong token, unknown order, not yet arrived — indistinguishable).
+        // Anything else that answered — a proxy's HTML 500 — is `unreadable`,
+        // never « no connection » and never a refusal we would be inventing.
+        return o !== undefined && o['ok'] === false ? { status: 'refused' } : { status: 'unreadable' };
+      }
+      // A 200 is a code or it is nothing: `{ok:true, code}` with a real string.
+      if (o !== undefined && o['ok'] === true && nonEmpty(o['code'])) {
+        return { status: 'code', code: o['code'] };
+      }
+      return { status: 'unreadable' };
+    },
   };
 }
 
@@ -527,6 +639,17 @@ async function readOrder(res: Response): Promise<OrderOutcome> {
   // mirror on this side, for the reason the quote's own build documents: an
   // allowlist that must be edited to grow is the only shape where forgetting
   // fails toward silence.
+  //
+  // VRAI-SUIVI — the marks are read off the RAW body (the type guard
+  // deliberately did not vouch for them) and validated ONE BY ONE: a malformed
+  // mark is dropped alone, the read survives, and progress can only ever be
+  // understated. `livree` is carried only on the literal `true` — anything
+  // else, including a string "true", reads as « not yet ».
+  const brut = body as unknown as Record<string, unknown>;
+  const acceptedAt = marqueIso(brut['acceptedAt']);
+  const readyAt = marqueIso(brut['readyAt']);
+  const departedAt = marqueIso(brut['departedAt']);
+  const arrivedAt = marqueIso(brut['arrivedAt']);
   return {
     status: 'order',
     order: {
@@ -540,6 +663,15 @@ async function readOrder(res: Response): Promise<OrderOutcome> {
       ...(body.noteVocale === 'gardee' || body.noteVocale === 'perdue'
         ? { noteVocale: body.noteVocale }
         : {}),
+      ...(acceptedAt !== undefined ? { acceptedAt } : {}),
+      ...(readyAt !== undefined ? { readyAt } : {}),
+      ...(departedAt !== undefined ? { departedAt } : {}),
+      ...(arrivedAt !== undefined ? { arrivedAt } : {}),
+      ...(brut['livree'] === true ? { livree: true } : {}),
+      // VRAI-SUIVI — the buyer's bearer token, present only on the CREATE
+      // answer by the service's design; carried verbatim when it is a real
+      // string, silent otherwise.
+      ...(nonEmpty(brut['buyerRef']) ? { buyerRef: brut['buyerRef'] } : {}),
     },
   };
 }
@@ -657,6 +789,10 @@ export function demoQuotePort(produitFcfa: number = ROBE.priceFcfa): QuotePort {
           amountPaidAtCheckout: door ? c.feeToday : c.totalToday,
           amountDueAtDelivery: door ? c.produitFcfa : 0,
           doorLeg: door ? 'due' : 'none',
+          // VRAI-SUIVI — the create carries a bearer ref exactly as the real
+          // service does; the demo `remise` below refuses it anyway, because
+          // no rider exists here to make the arrival fact true.
+          buyerRef: `ref-demo-${quoteId}`,
         },
       };
     },
@@ -708,6 +844,18 @@ export function demoQuotePort(produitFcfa: number = ROBE.priceFcfa): QuotePort {
           doorLeg: !door ? 'none' : portePayee.has(quoteId) ? 'paid' : 'due',
         },
       };
+    },
+
+    /**
+     * VRAI-SUIVI — THE DEMO HAS NO RIDER, so it has no arrival fact and no
+     * code to hand out: the honest answer is the service's own uniform
+     * refusal, every time. Named in the certification list above by the same
+     * rule as the rest: this mock reports NO delivery marks either, so a
+     * preview with no service shows a tracking that honestly never advances —
+     * it must never be read as evidence that the suivi loop closes.
+     */
+    async remise(): Promise<RemiseOutcome> {
+      return { status: 'refused' };
     },
   };
 }
@@ -937,5 +1085,77 @@ export function forgetRequestKey(intent: QuoteIntent, storage?: Storage): void {
     storage.removeItem(KEY_PREFIX + intentFingerprint(intent));
   } catch {
     /* storage unavailable — the next ask mints a fresh key anyway */
+  }
+}
+
+/* ──────────────────── VRAI-SUIVI — her order, kept on the phone ──────────── */
+
+/**
+ * ═══ THE ONE ORDER THIS PHONE REMEMBERS ═══
+ *
+ * `localStorage` (not session — she closes the browser and comes back
+ * tomorrow), ONE slot, newest wins: at pilot scale a buyer has one live order,
+ * and a second `garderCommande` simply replaces the first. What is kept is the
+ * MINIMUM that re-opens her tracking: the order's id, her bearer ref for the
+ * remise route, and when it was stored. No amount, no product, no address —
+ * nothing here is worth stealing and nothing here can price anything.
+ *
+ * EVERY function tolerates a dead or lying storage (private mode, quota, a
+ * webview that throws on touch): keeping the record is best-effort, and losing
+ * it costs her the shortcut, never the order — the order lives on the service.
+ */
+export const COMMANDE_CLE = 'sp-commande:v1';
+
+export interface CommandeGardee {
+  readonly orderId: string;
+  readonly buyerRef: string;
+  readonly at: string;
+}
+
+export function garderCommande(c: CommandeGardee, storage?: Storage): void {
+  if (storage === undefined) return;
+  try {
+    // Field by field, never a spread — the same allowlist law as every wire
+    // body in this file: what is stored is exactly what is named.
+    storage.setItem(COMMANDE_CLE, JSON.stringify({ orderId: c.orderId, buyerRef: c.buyerRef, at: c.at }));
+  } catch {
+    /* best-effort — the order still lives on the service */
+  }
+}
+
+/** The stored order, or nothing — a record missing ANY field is nothing, so a
+ *  half-written or hand-edited slot can never mount a tracking it cannot poll. */
+export function commandeGardee(storage?: Storage): CommandeGardee | undefined {
+  if (storage === undefined) return undefined;
+  try {
+    const raw = storage.getItem(COMMANDE_CLE);
+    if (raw === null || raw === '') return undefined;
+    const v: unknown = JSON.parse(raw);
+    if (v === null || typeof v !== 'object') return undefined;
+    const o = v as Record<string, unknown>;
+    if (!nonEmpty(o['orderId']) || !nonEmpty(o['buyerRef']) || !nonEmpty(o['at'])) return undefined;
+    return { orderId: o['orderId'], buyerRef: o['buyerRef'], at: o['at'] };
+  } catch {
+    return undefined;
+  }
+}
+
+/** She said « C'est terminé » — the slot clears and the shortcut goes away. */
+export function oublierCommande(storage?: Storage): void {
+  if (storage === undefined) return;
+  try {
+    storage.removeItem(COMMANDE_CLE);
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** `localStorage`, or nothing — merely READING the property throws in a
+ *  locked-down webview (the `sessionStorageOrUndefined` precedent, main.ts). */
+export function localStorageOrUndefined(): Storage | undefined {
+  try {
+    return globalThis.localStorage ?? undefined;
+  } catch {
+    return undefined;
   }
 }

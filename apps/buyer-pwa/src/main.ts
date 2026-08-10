@@ -20,7 +20,8 @@ import { enteteOverride } from './vitrine/entetes';
 import { ENT_STYLES } from './vitrine/entries';
 import { createCliente, type ClienteEcran } from './cliente/flow';
 import { clienteProduit, clienteProduitReel, composeQuote, harnessFrancs } from './cliente/seed';
-import { commandIdFor, forgetRequestKey, orderCommandIdFor, requestKeyFor, resolveQuotePort, villeDe } from './cliente/quote-port';
+import { commandIdFor, commandeGardee, forgetRequestKey, localStorageOrUndefined, orderCommandIdFor, requestKeyFor, resolveQuotePort, villeDe } from './cliente/quote-port';
+import { SUIVI } from './cliente/screens';
 import { fetchClienteQuote, MODES_WIRE, type QuoteBase, type QuoteFetch } from './cliente/quote-model';
 import { productFromSeed, seedProduct } from './vitrine/catalog';
 import { CLIENTE_STYLES } from './cliente/styles';
@@ -546,6 +547,28 @@ style.textContent = `
   .bq-error-title { margin: 0; font-size: var(--t-body); font-weight: ${type.scale.bodyStrong.wght}; color: var(--c-ink); }
   .bq-error-hint { margin: 0; font-size: var(--t-caption); color: var(--c-body); }
   .bq-foot { margin: 0; font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
+
+  /* VRAI-SUIVI — « Ma commande », the quiet way back to a live order. Chrome,
+     not content: a full-width sand band under the ribbon, token-driven, one
+     line, no new nav system. */
+  .ma-commande {
+    width: 100%;
+    display: flex; align-items: center; justify-content: space-between; gap: var(--sp-sm);
+    min-height: var(--touch);
+    border: 0; border-bottom: var(--hair-mid) solid var(--c-hairlineStrong);
+    background: var(--c-sand); color: var(--c-ink);
+    font-family: inherit;
+    font-size: var(--t-label); font-weight: ${type.scale.label.wght};
+    letter-spacing: var(--ls-label); text-transform: uppercase;
+    padding: var(--sp-sm) var(--sp-lg);
+    text-align: left; cursor: pointer;
+  }
+  .ma-commande:active { opacity: var(--pressed-opacity); }
+  .ma-commande-ref {
+    font-size: var(--t-labelXS); color: var(--c-muted);
+    letter-spacing: var(--ls-labelXS); text-transform: none;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
 `;
 document.head.appendChild(style);
 
@@ -900,5 +923,64 @@ if (app) {
     const main = document.createElement('main');
     main.innerHTML = renderBoutiques({ state, query });
     app.append(main);
+  }
+
+  /**
+   * ═══ VRAI-SUIVI — « MA COMMANDE », THE WAY BACK TO A LIVE ORDER ═══
+   *
+   * The order create stored `{orderId, buyerRef, at}` under `sp-commande:v1`
+   * (one slot, newest wins — pilot scale). When that record exists, every
+   * shell entry — the directory, a vitrine, a signed product page — carries a
+   * quiet band under the ribbon that reopens the REAL tracking: `createCliente`
+   * mounted straight at C7 with a `suivi` source over the env-gated port, so
+   * the re-entry polls the same service the checkout did. NOT offered on the
+   * `?demo-cliente=` harness — a demo walk must never wear a real order.
+   *
+   * The text nodes are built with `textContent` (never innerHTML): the order
+   * id is a server byte and travels as text, exactly as C6's reference does.
+   */
+  const gardee = clienteDemo === null ? commandeGardee(localStorageOrUndefined()) : undefined;
+  if (gardee !== undefined) {
+    const gardeeSure = gardee;
+    const suiviBtn = document.createElement('button');
+    suiviBtn.className = 'ma-commande';
+    suiviBtn.setAttribute('data-role', 'ma-commande');
+    const suiviLabel = document.createElement('span');
+    suiviLabel.textContent = SUIVI.reentree;
+    const suiviRef = document.createElement('span');
+    suiviRef.className = 'ma-commande-ref';
+    suiviRef.textContent = gardeeSure.orderId;
+    suiviBtn.append(suiviLabel, suiviRef);
+    suiviBtn.addEventListener('click', () => {
+      // The tracking takes the screen: everything but the sandbox ribbon goes,
+      // and the cliente flow mounts at C7 exactly as the signed path mounts it.
+      for (const child of Array.from(app.children)) {
+        if (child !== ribbon) child.remove();
+      }
+      const port = resolveQuotePort();
+      const suiviMain = document.createElement('main');
+      createCliente(suiviMain, {
+        // C7/C9 read nothing off the product; the record deliberately stores
+        // none (no amount, no name — nothing worth stealing). This stub is
+        // unrenderable: C7 has no back road to C1 and the re-entry withholds
+        // the door screen (no live checkout handle).
+        produit: { shopName: '', prenom: '', slug: '', productName: '', zone: '', priceFcfa: 0, assetRefs: [], inStock: true },
+        theme: 'indigo',
+        ecran: 'C7',
+        suivi: {
+          orderId: gardeeSure.orderId,
+          buyerRef: gardeeSure.buyerRef,
+          etatCommande: (id) => port.orderState(id),
+          remise: (id, ref) => port.remise(id, ref),
+        },
+        // « C'est terminé » cleared the key; the reload lands her on the shell
+        // with the band gone.
+        onTerminee: () => {
+          window.location.reload();
+        },
+      });
+      app.append(suiviMain);
+    });
+    ribbon.after(suiviBtn);
   }
 }

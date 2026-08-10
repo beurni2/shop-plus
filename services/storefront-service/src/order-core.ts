@@ -683,6 +683,30 @@ export interface BuyerOrderView {
    * beside it are the Quote's own and were already here.
    */
   readonly doorLeg: DoorLegState;
+  /**
+   * VRAI-SUIVI (SP6 — « responsible next party, masked relay ») — THE JOURNEY'S
+   * INSTANTS, each present ONLY once its owning domain actually said so:
+   * `acceptedAt`/`readyAt` are Boutik+'s preparation facts (first-wins, the
+   * same record the reseller projection already serves), `departedAt`/
+   * `arrivedAt` are Séra's transit marks (first-wins per stage). ABSENT MEANS
+   * « not yet », never « no » — a missing key is how her screen knows to say
+   * the step has not happened rather than inventing that it has.
+   *
+   * WHAT IS DELIBERATELY NOT HERE (SP-I03 and the founder's privacy rulings):
+   * no rider identity, no exact rider position, no franc split, no buyer
+   * token, and NEVER her remise code — that code has exactly one door, and it
+   * is not the poll view.
+   */
+  readonly acceptedAt?: string;
+  readonly readyAt?: string;
+  readonly departedAt?: string;
+  readonly arrivedAt?: string;
+  /**
+   * VRAI-SUIVI — « livrée », derived EXACTLY as `/entry/gains` derives it: the
+   * settlement obligations Séra's validated signal recorded exist (their
+   * presence IS the fact). A state, never an amount.
+   */
+  readonly livree?: boolean;
 }
 
 export function toBuyerOrderView(args: {
@@ -690,7 +714,18 @@ export function toBuyerOrderView(args: {
   readonly state: string;
   readonly quote: Quote;
   readonly doorLeg: DoorLegState;
+  /** VRAI-SUIVI — the journey facts, OPTIONAL: only the poll projection owns
+   *  all of them; the create/door-charge answers legitimately omit what has
+   *  not happened by their moment. Each key crosses only when present. */
+  readonly suivi?: {
+    readonly acceptedAt?: string;
+    readonly readyAt?: string;
+    readonly departedAt?: string;
+    readonly arrivedAt?: string;
+    readonly livree?: boolean;
+  };
 }): BuyerOrderView {
+  const suivi = args.suivi ?? {};
   return {
     orderId: args.orderId,
     state: args.state,
@@ -701,6 +736,12 @@ export function toBuyerOrderView(args: {
     // > 0 » says what she OWES, not what she has PAID, and deriving one from the
     // other would make the door leg look unpaid forever.
     doorLeg: args.doorLeg,
+    // VRAI-SUIVI — present ⇔ recorded; the allowlist idiom the whole view uses.
+    ...(suivi.acceptedAt !== undefined ? { acceptedAt: suivi.acceptedAt } : {}),
+    ...(suivi.readyAt !== undefined ? { readyAt: suivi.readyAt } : {}),
+    ...(suivi.departedAt !== undefined ? { departedAt: suivi.departedAt } : {}),
+    ...(suivi.arrivedAt !== undefined ? { arrivedAt: suivi.arrivedAt } : {}),
+    ...(suivi.livree !== undefined ? { livree: suivi.livree } : {}),
   };
 }
 

@@ -63,7 +63,7 @@
  */
 
 import type { ClienteQuote, LegSplits, ModePaiement } from './screens';
-import { mintCommandId, type ContactLivraison, type OrderOutcome, type PaymentModeWire, type QuoteIntent, type QuoteOutcome, type QuotePort, type ServerQuote } from './quote-port';
+import { mintCommandId, type ContactLivraison, type OrderOutcome, type PaymentModeWire, type QuoteIntent, type QuoteOutcome, type QuotePort, type RemiseOutcome, type ServerQuote } from './quote-port';
 
 export type ClienteQuoteFromServer =
   | { readonly ok: true; readonly quote: ClienteQuote; readonly bIndisponible: boolean }
@@ -225,6 +225,13 @@ export type ReserveFetch =
 export type OrderFetch = OrderOutcome;
 
 /**
+ * VRAI-SUIVI — the remise route's answer, passed through unchanged for the
+ * same reason `OrderFetch` is: one route, one nameless refusal, and nothing
+ * this app could translate without inventing a reason the server never gave.
+ */
+export type RemiseFetch = RemiseOutcome;
+
+/**
  * The ONE answer `ClienteInit.quoteSource` gives the flow.
  *
  * `expiry` and `reserve` ride on the READY variant rather than on `ClienteInit`
@@ -294,6 +301,12 @@ export type QuoteFetch =
        * receipt and answers `reservation_held_by_another` otherwise.
        */
       readonly payerALaPorte: (orderId: string, essai: number) => Promise<OrderFetch>;
+      /**
+       * VRAI-SUIVI — ASK FOR THE DROP CODE with the buyer's own bearer ref
+       * (returned once, on the order CREATE). A pure read: it can cause
+       * nothing, and the service answers only once the arrival fact exists.
+       */
+      readonly remise: (orderId: string, buyerRef: string) => Promise<RemiseFetch>;
     }
   | { readonly status: 'refused'; readonly reason: string }
   | { readonly status: 'unreachable' }
@@ -570,5 +583,7 @@ export async function fetchClienteQuote(
       if (cmd === undefined) return Promise.resolve({ status: 'refused', reason: 'no_secure_random' });
       return port.doorCharge(orderId, cmd, doorKey);
     },
+
+    remise: (orderId: string, buyerRef: string): Promise<RemiseFetch> => port.remise(orderId, buyerRef),
   };
 }

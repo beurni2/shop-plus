@@ -24,6 +24,7 @@ import {
   renderC1, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
   renderGalerie, renderOffline, renderRefus, renderSheet, renderSkeleton, renderToasts,
   galerieSlides,
+  etapeDeSuivi,
   splitFor, MESSAGES, SUIVI_STEPS, VOIX,
   type ClienteProduit, type ClienteQuote, type ConfirmEtat, type DoorEtat,
   type Livraison, type ModePaiement, type VoiceEtat,
@@ -41,7 +42,8 @@ function fmtSecondes(sec: number): string {
   const total = Math.max(0, Math.floor(sec));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
-import { prixExpire, type OrderFetch, type QuoteFetch, type ReserveFetch } from './quote-model';
+import { prixExpire, type OrderFetch, type QuoteFetch, type RemiseFetch, type ReserveFetch } from './quote-model';
+import { garderCommande, localStorageOrUndefined, oublierCommande, type ServerOrder } from './quote-port';
 import { creerEnregistreurNote, type EnregistreurNote, type NoteEnregistree } from './voice-note';
 
 export type ClienteEcran = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9';
@@ -91,6 +93,26 @@ export interface ClienteInit {
   /** REPERE-AUDIO-REEL — the recorder seam. Tests and the harness inject a
    *  fake; the real app records with the phone's own MediaRecorder. */
   readonly enregistreur?: EnregistreurNote | undefined;
+  /**
+   * ═══ VRAI-SUIVI — THE RE-ENTRY MOUNT (« Ma commande ») ═══
+   *
+   * Present ⇒ this flow opens ON AN EXISTING ORDER: it mounts at C7, polls the
+   * order's own state through `etatCommande`, and asks the remise route for
+   * the code through `remise`, with the buyer's stored bearer ref. There is NO
+   * live checkout handle on this path — no quote, no hold, no door charge —
+   * which is why C7 withholds « Je suis à la porte » here: a door payment
+   * cannot be started from a re-entry, and a button that cannot complete is a
+   * false affordance. The tracking and the code are the whole of it.
+   */
+  readonly suivi?: {
+    readonly orderId: string;
+    readonly buyerRef: string | null;
+    readonly etatCommande: (orderId: string) => Promise<OrderFetch>;
+    readonly remise: (orderId: string, buyerRef: string) => Promise<RemiseFetch>;
+  } | undefined;
+  /** VRAI-SUIVI — after « C'est terminé » clears the stored order, the host
+   *  decides where she lands (main.ts reloads onto the shell). */
+  readonly onTerminee?: (() => void) | undefined;
 }
 
 interface FlowState {
@@ -144,6 +166,8 @@ interface FlowState {
     etatCommande: (orderId: string) => Promise<OrderFetch>;
     /** SP4.2b — ask for the product leg to be collected at her door. */
     payerALaPorte: (orderId: string, essai: number) => Promise<OrderFetch>;
+    /** VRAI-SUIVI — ask the remise route for the code, with her bearer ref. */
+    remise: (orderId: string, buyerRef: string) => Promise<RemiseFetch>;
   } | null;
   /**
    * The phone's clock disagreed with a QUOTE THE SERVICE JUST ISSUED, so the
@@ -171,6 +195,32 @@ interface FlowState {
   doorLeg: string | null;
   /** Which DOOR-charge attempt this is — +1 per deliberate retry. */
   essaiPorte: number;
+  /* ── VRAI-SUIVI — the delivery's facts, and her code ───────────────────── */
+  /** Her bearer ref for the remise route — the CREATE's own byte, or the
+   *  stored one on a re-entry. null = this session never learned one. */
+  buyerRef: string | null;
+  /** The four delivery marks, EXACTLY as the server last reported them.
+   *  Replaced wholesale on every read: absence = « pas encore », never done. */
+  marques: {
+    acceptedAt?: string | undefined;
+    readyAt?: string | undefined;
+    departedAt?: string | undefined;
+    arrivedAt?: string | undefined;
+  };
+  /** The remise happened — terminal. Once the server says it, it stays said:
+   *  a delivered order cannot un-deliver, and a glitchy later read must not
+   *  resurrect a live tracking. */
+  livree: boolean;
+  /** The code the REMISE ROUTE answered — the only code the real C9 can show.
+   *  null until the service hands one over (post-arrival, by its design). */
+  codeRemise: string | null;
+  /** The C7 ladder ran out ⇒ « Vérifier à nouveau » on the tracking. */
+  suiviRelance: boolean;
+  /** The LAST tracking read did not reach the service. Same law as C6's
+   *  `horsPortee`: it says nothing about the delivery, ever. */
+  suiviHorsPortee: boolean;
+  /** She tapped « C'est terminé » — the button goes away, the screen stays. */
+  termineeVue: boolean;
 }
 
 /**
@@ -304,7 +354,36 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     horsPortee: false,
     doorLeg: null,
     essaiPorte: 0,
+    buyerRef: null,
+    marques: {},
+    livree: false,
+    codeRemise: null,
+    suiviRelance: false,
+    suiviHorsPortee: false,
+    termineeVue: false,
   };
+
+  /**
+   * ═══ VRAI-SUIVI — IS THIS A REAL BUYER'S FLOW? ═══
+   *
+   * TRUE on both real roads: the signed checkout (`quoteSource` — every franc
+   * asked of the service) and the re-entry (`suivi` — an order this phone
+   * remembers). On either, C7 derives its step from server facts, « Simuler »
+   * is unrenderable, and C9 can only ever show a code the remise route
+   * answered. FALSE only on the `?demo-cliente=` harness, which keeps its
+   * documented levers and its clearly-labelled demo code.
+   */
+  const reel = init.quoteSource !== undefined || init.suivi !== undefined;
+  if (init.suivi !== undefined) {
+    state.orderId = init.suivi.orderId;
+    state.buyerRef = init.suivi.buyerRef;
+  }
+  /** WHO ANSWERS A TRACKING READ — the re-entry's own port, or the live
+   *  checkout's handle. null = nobody can (the harness), so nothing polls. */
+  const lireCommande = (): ((orderId: string) => Promise<OrderFetch>) | null =>
+    init.suivi?.etatCommande ?? (state.live !== null ? state.live.etatCommande : null);
+  const lireRemise = (): ((orderId: string, buyerRef: string) => Promise<RemiseFetch>) | null =>
+    init.suivi?.remise ?? (state.live !== null ? state.live.remise : null);
 
   /**
    * THE ONE QUOTE EVERY SCREEN READS. The server's answer wins the moment it
@@ -603,8 +682,32 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
           // offline/outbox states have no server order to name yet.
           commande: state.orderId ?? undefined,
         });
-      case 'C7':
+      case 'C7': {
+        if (reel) {
+          /**
+           * ═══ VRAI-SUIVI — THE REAL TIMELINE DERIVES FROM FACTS ═══
+           *
+           * The step is `etapeDeSuivi` over the marks the SERVER last reported
+           * — never `state.step`, never a tap, never a clock. « Simuler » is
+           * unrenderable on this branch (`reel: true` wins over the `demo`
+           * default). « Je suis à la porte » needs the live checkout handle
+           * (the door charge rides it), so the re-entry mount withholds it.
+           */
+          return renderC7({
+            step: etapeDeSuivi({ ...state.marques, livree: state.livree }),
+            problem: state.problem,
+            demo,
+            reel: true,
+            commande: state.orderId ?? undefined,
+            voirCode: state.marques.arrivedAt !== undefined && !state.livree,
+            porte: state.live !== null,
+            relance: state.suiviRelance,
+            horsPortee: state.suiviHorsPortee,
+            terminee: state.livree && !state.termineeVue,
+          });
+        }
         return renderC7({ step: state.step, problem: state.problem, demo });
+      }
       case 'C8':
         return q === null ? renderRefus('') : renderC8(m, q, {
           door: state.door,
@@ -617,8 +720,23 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
             ? undefined
             : splitFor(q, state.delivery ?? 'today', state.pay)?.dueAtDelivery,
         });
-      case 'C9':
+      case 'C9': {
+        if (reel) {
+          /**
+           * ═══ VRAI-SUIVI — THE REAL C9 SHOWS THE REMISE ROUTE'S CODE, OR
+           *     WAITS HONESTLY. `CODE_REMISE` (the '734 921' demo constant) is
+           *     UNREACHABLE from this branch: the renderer's real variant reads
+           *     only `state.codeRemise`, which only the service can fill. ═══
+           */
+          return renderC9({
+            revealed: state.codeRemise !== null,
+            reel: true,
+            ...(state.codeRemise !== null ? { code: state.codeRemise } : {}),
+            arrivee: state.marques.arrivedAt !== undefined,
+          });
+        }
         return renderC9({ revealed: state.leg2 === 'confirmed' });
+      }
     }
   }
 
@@ -687,6 +805,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       commander: fetched.commander,
       etatCommande: fetched.etatCommande,
       payerALaPorte: fetched.payerALaPorte,
+      remise: fetched.remise,
     };
     // A NEW PRICE IS A NEW CHECKOUT. The old order id belonged to the old
     // quote; carrying it forward would let « Vérifier à nouveau » poll an order
@@ -697,6 +816,14 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     state.horsPortee = false;
     state.doorLeg = null;
     state.essaiPorte = 0;
+    // …and the old order's delivery facts die with its id (VRAI-SUIVI).
+    state.buyerRef = null;
+    state.marques = {};
+    state.livree = false;
+    state.codeRemise = null;
+    state.suiviRelance = false;
+    state.suiviHorsPortee = false;
+    state.termineeVue = false;
     // ═══ IS THIS PHONE'S CLOCK TRUSTWORTHY? (verifier BLOCKER 5) ═══
     // A quote the service JUST issued is alive by construction. If this device
     // reads it as already expired, the wrong clock is the phone's — so the local
@@ -774,6 +901,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         const etat = etatDeC6(r.order.state);
         state.confirmState = etat;
         state.doorLeg = r.order.doorLeg ?? null;
+        absorberMarques(r.order); // VRAI-SUIVI — every order read carries the marks
         // SETTLED, EITHER WAY ⇒ STOP ASKING. `confirmed` and `echec` are the two
         // states the server will not move off on its own, so a further read
         // could only ever return the same answer at her expense.
@@ -851,9 +979,14 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       if (gen !== generation) return;
       if (r.status === 'order') {
         state.doorLeg = r.order.doorLeg ?? null;
+        absorberMarques(r.order); // VRAI-SUIVI — the door watch reads orders too
         if (state.doorLeg === 'paid') {
-          // PROVIDER-CONFIRMED. Only now, and §6.3 is satisfied.
+          // PROVIDER-CONFIRMED. Only now, and §6.3 is satisfied. On the real
+          // path C9 shows the REMISE ROUTE'S code (or its honest wait) — the
+          // ask goes out AFTER the jump, so it lives in the NEW generation and
+          // its answer is not discarded as a stale one.
           jump('C9', { leg2: 'confirmed', step: 6, door: 'inspecting' });
+          if (state.marques.arrivedAt !== undefined) demanderLeCode();
           return;
         }
       }
@@ -868,6 +1001,103 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       render();
       tSuivi = setTimeout(() => suivreLaPorte(orderId, gen, etape + 1), attente);
     });
+  }
+
+  /**
+   * ═══ VRAI-SUIVI — THE DELIVERY'S FACTS, TAKEN FROM EVERY ORDER READ ═══
+   *
+   * The marks are REPLACED WHOLESALE with what the server just said — this
+   * client holds no memory a fresh read cannot overrule, because the server is
+   * the only party that ever recorded a fact. `livree` alone is a ratchet: a
+   * remise that happened cannot un-happen, and a glitchy later read must not
+   * resurrect a finished tracking.
+   */
+  function absorberMarques(order: ServerOrder): void {
+    state.marques = {
+      ...(order.acceptedAt !== undefined ? { acceptedAt: order.acceptedAt } : {}),
+      ...(order.readyAt !== undefined ? { readyAt: order.readyAt } : {}),
+      ...(order.departedAt !== undefined ? { departedAt: order.departedAt } : {}),
+      ...(order.arrivedAt !== undefined ? { arrivedAt: order.arrivedAt } : {}),
+    };
+    if (order.livree === true) state.livree = true;
+  }
+
+  /**
+   * ═══ VRAI-SUIVI — ASK FOR HER CODE, ONCE THE ARRIVAL FACT EXISTS ═══
+   *
+   * Fired from exactly two places: a tracking read that just observed
+   * `arrivedAt`, and the C9 entry/retry. Single-flight (`codeEnDemande`), and
+   * idempotent once a code exists. A refusal is SILENT here on purpose: the
+   * waiting card already says the true sentence, and the service's nameless
+   * 404 carries nothing further to say. The generation guard is the standing
+   * BLOCKER-3 device — an answer that lands after she navigated writes nothing.
+   */
+  let codeEnDemande = false;
+  function demanderLeCode(): void {
+    const id = state.orderId;
+    const ref = state.buyerRef;
+    const lire = lireRemise();
+    if (id === null || ref === null || lire === null) return;
+    if (codeEnDemande || state.codeRemise !== null) return;
+    codeEnDemande = true;
+    const gen = generation;
+    void lire(id, ref).then((r) => {
+      codeEnDemande = false;
+      if (gen !== generation) return;
+      if (r.status === 'code') state.codeRemise = r.code;
+      render();
+    });
+  }
+
+  /**
+   * ═══ VRAI-SUIVI — WATCH THE DELIVERY, on the SAME bounded ladder the
+   *     payment watch uses, and for the same Ten-Laws-#7 reasons ═══
+   *
+   * One read, then the next from `SUIVI_PAIEMENT_MS` — or it stops and hands
+   * her « Vérifier à nouveau ». It reads the order's OWN marks and nothing
+   * else: there is no clock here and no branch that can advance a step by
+   * itself. A FAILED READ IS NOT A FAILED DELIVERY — `suiviHorsPortee` adds a
+   * fact about the network and removes none about the parcel. The ladder ends
+   * for good at `livree`: a finished order costs her no further data.
+   */
+  function suivreLaLivraison(orderId: string, gen: number, etape: number): void {
+    const lire = lireCommande();
+    if (lire === null) return;
+    void lire(orderId).then((r) => {
+      if (gen !== generation) return;
+      state.suiviHorsPortee = r.status !== 'order';
+      if (r.status === 'order') {
+        absorberMarques(r.order);
+        state.doorLeg = r.order.doorLeg ?? null;
+        // THE ARRIVAL FACT LANDED ⇒ her code exists on the service. Fetch it
+        // now, so « Voir mon code » opens on the figure and not on a spinner.
+        if (state.marques.arrivedAt !== undefined && state.codeRemise === null) demanderLeCode();
+        if (state.livree) {
+          state.suiviRelance = false;
+          render();
+          return;
+        }
+      }
+      const attente = SUIVI_PAIEMENT_MS[etape];
+      if (attente === undefined) {
+        // Out of scheduled reads — not out of truth. The timeline keeps its
+        // proven step; asking again becomes her choice, one request at a time.
+        state.suiviRelance = true;
+        render();
+        return;
+      }
+      render();
+      tSuivi = setTimeout(() => suivreLaLivraison(orderId, gen, etape + 1), attente);
+    });
+  }
+
+  /** Start (or restart) the tracking watch — every road INTO C7 calls this,
+   *  after its `jump` has already bumped the generation. */
+  function demarrerSuivi(): void {
+    const id = state.orderId;
+    if (!reel || id === null || state.livree) return;
+    state.suiviRelance = false;
+    suivreLaLivraison(id, generation, 0);
   }
 
   /**
@@ -916,6 +1146,23 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       }
       state.orderId = r.order.orderId;
       state.doorLeg = r.order.doorLeg ?? null;
+      absorberMarques(r.order);
+      /**
+       * ═══ VRAI-SUIVI — THE ORDER FOLLOWS HER PHONE HOME ═══
+       *
+       * The CREATE (and only the create — the service's design) carries her
+       * bearer ref. It is kept, and the {orderId, buyerRef, at} record lands
+       * in localStorage so « Ma commande » can reopen this tracking after the
+       * tab dies. ONE slot, newest wins — pilot scale. Best-effort: a dead
+       * storage costs the shortcut, never the order.
+       */
+      if (r.order.buyerRef !== undefined) {
+        state.buyerRef = r.order.buyerRef;
+        garderCommande(
+          { orderId: r.order.orderId, buyerRef: r.order.buyerRef, at: new Date().toISOString() },
+          localStorageOrUndefined(),
+        );
+      }
       const etat = etatDeC6(r.order.state);
       jump('C6', { confirmState: etat, step: 1, orderId: r.order.orderId, relance: false, horsPortee: false });
       // REPERE-AUDIO-REEL — a LOST note gets its sentence, spoken once, calm:
@@ -1049,7 +1296,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       case 'retour-c4':
         clearT(); state.paying = 'idle'; state.refus = null; state.screen = 'C4'; render(); return;
       case 'retour-c7':
-        jump('C7', { step: Math.max(state.step, 1) }); return;
+        jump('C7', { step: Math.max(state.step, 1) });
+        // VRAI-SUIVI — landing back on the tracking restarts its watch, in
+        // the generation the jump just opened.
+        demarrerSuivi();
+        return;
       // — C1 —
       case 'voix-lire': {
         // REAL tap-to-play (founder order 2026-07-22): the reseller's note
@@ -1325,9 +1576,51 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         // pays, and only THEN does the code exist. (Caught by its own e2e: the
         // first version of this guard blocked the tracking screen too.)
         if (state.live !== null && state.confirmState !== 'confirmed') return;
-        jump('C7', { step: Math.max(state.step, 1) }); return;
+        jump('C7', { step: Math.max(state.step, 1) });
+        // VRAI-SUIVI — the real tracking starts watching the order the moment
+        // it is on screen (bounded ladder; stops at livree or hands her the
+        // manual check).
+        demarrerSuivi();
+        return;
       case 'simuler':
+        // BELT AND BRACES on the renderer's own omission: the simulation must
+        // never advance a REAL order's timeline, even if something emits the
+        // action anyway — the real step derives from server facts and ignores
+        // `state.step`, but a guard that costs one line keeps the invariant
+        // even if that derivation ever changes.
+        if (reel) return;
         state.step += 1; render(); return;
+      // ── VRAI-SUIVI — the code, and the tracking's own manual check ────────
+      case 'voir-code':
+        // The affordance renders only once `arrivedAt` is a server fact, and
+        // the fetch goes out in the generation the jump opens.
+        jump('C9');
+        demanderLeCode();
+        return;
+      case 'verifier-code':
+        demanderLeCode();
+        return;
+      case 'verifier-suivi': {
+        // ONE read, on her word, after the automatic ones stopped — the C6
+        // « Vérifier à nouveau » shape: it does not restart the schedule.
+        const id = state.orderId;
+        if (id === null) return;
+        state.suiviRelance = false;
+        render();
+        suivreLaLivraison(id, generation, SUIVI_PAIEMENT_MS.length);
+        return;
+      }
+      case 'suivi-terminer':
+        // « C'est terminé » — the phone forgets the finished order. The order
+        // itself lives on the service; only the shortcut goes away.
+        oublierCommande(localStorageOrUndefined());
+        state.termineeVue = true;
+        if (init.onTerminee !== undefined) {
+          init.onTerminee();
+          return;
+        }
+        render();
+        return;
       case 'porte':
         jump('C8', { door: 'inspecting', leg2: 'idle', reason: null }); return;
       case 'signaler-c7':
@@ -1359,7 +1652,12 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
           payerALaPorte(generation);
           return;
         }
-        if (!revelationPermise(state.live !== null, state.confirmState, state.doorLeg)) return;
+        // `reel`, not `state.live !== null` (VRAI-SUIVI): the re-entry mount
+        // has no live handle but is every bit a real buyer, and the harness
+        // levers must not open for it. Unreachable there today — C7 withholds
+        // « Je suis à la porte » without a live handle — but a guard that is
+        // satisfied only by unreachability is the exact shape §6bis warns of.
+        if (!revelationPermise(reel, state.confirmState, state.doorLeg)) return;
         if (state.pay === 'A') { jump('C9', { leg2: 'confirmed', step: 6 }); return; }
         state.door = 'accepted'; render();
         t1 = setTimeout(() => jump('C9', { leg2: 'confirmed', step: 6, door: 'inspecting' }), 2600);
@@ -1378,11 +1676,19 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
       case 'motif':
         state.reason = el.getAttribute('data-motif'); render(); return;
       case 'confirmer-signalement':
-        jump('C7', { step: 5, problem: true, door: 'inspecting' }); return;
+        jump('C7', { step: 5, problem: true, door: 'inspecting' });
+        // VRAI-SUIVI — a reported problem does not stop the truth: the watch
+        // keeps reading the order (the banner and the facts coexist).
+        demarrerSuivi();
+        return;
     }
   });
 
   render();
+  // VRAI-SUIVI — the re-entry mount opens ON the tracking, so its watch starts
+  // with it: first read on the ladder's first rung, exactly as « Suivre ma
+  // commande » starts it in-flow.
+  if (init.suivi !== undefined && state.screen === 'C7') demarrerSuivi();
 }
 
 export { SUIVI_STEPS };

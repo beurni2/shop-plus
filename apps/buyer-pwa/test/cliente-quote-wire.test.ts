@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   commandIdFor, demoQuotePort, forgetRequestKey, httpQuotePort, looksLikeServerOrder, looksLikeServerQuote,
   mintCommandId, mintUuid, orderCommandIdFor, requestKeyFor, villeDe, DEMO_ATTENTES,
-  type OrderOutcome, type QuoteIntent, type QuoteOutcome, type QuotePort, type ServerQuote,
+  type OrderOutcome, type QuoteIntent, type QuoteOutcome, type QuotePort, type RemiseOutcome, type ServerQuote,
 } from '../src/cliente/quote-port';
 import {
   clienteQuoteFromServer, fetchClienteQuote, prixExpire, DOOR_GRACE_MS, MODES_WIRE,
@@ -772,6 +772,11 @@ const PAS_DE_COMMANDE = {
   async doorCharge(): Promise<OrderOutcome> {
     return { status: 'refused', reason: 'stub_sans_commande' };
   },
+  // VRAI-SUIVI — the remise refusal is NAMELESS by the service's own design
+  // (a uniform `{ok:false}`), so the stub's refusal is too.
+  async remise(): Promise<RemiseOutcome> {
+    return { status: 'refused' };
+  },
 };
 
 /** A port whose two answers are scripted. It records what it was asked. */
@@ -820,6 +825,10 @@ function scriptedPort(answers: Record<string, QuoteOutcome>): {
           status: 'order',
           order: { orderId, state: 'confirmed', amountPaidAtCheckout: 1_000, amountDueAtDelivery: 11_500, doorLeg: 'due' },
         };
+      },
+      // VRAI-SUIVI — no rider in these tests, so no arrival fact and no code.
+      async remise(): Promise<RemiseOutcome> {
+        return { status: 'refused' };
       },
     },
   };

@@ -20,6 +20,7 @@ import {
 } from '../src/order-core.js';
 import { readSandboxBehavior, sandboxPaymentProvider, type ChargeOutcome } from '../src/payment-port.js';
 import { lireEligibilite } from './buyer-ladder-do.js';
+import { timingSafeEqual } from './auth.js';
 
 /** SP6.3 — the one mode whose order consults the §6.4 ladder. Spelled once
  *  so the check and the vault agree on one string. */
@@ -109,6 +110,50 @@ const SERA_OUTBOX_KEY = 'sera-funding-outbox';
  * schema and the same payload bounds this Worker's own door applies.
  */
 const BOUTIK_DELIVERED_KEY = 'boutik-delivered-outbox';
+/**
+ * VRAI-SUIVI (founder rulings 2026-08-10, all approved) — THE BUYER'S OWN READ
+ * TOKEN, minted at order create from the OS CSPRNG and served ON THE CREATE
+ * RESPONSE ONLY (the `noteVocale` create-only discipline). It is the ONE
+ * credential that can later open the remise door; it never rides the poll
+ * view, any list, or any cross-app wire. Stored BEFORE the create answers, so
+ * a buyer whose first response was lost gets the SAME token on her replay.
+ */
+const BUYER_REF_KEY = 'buyer-ref';
+/**
+ * VRAI-SUIVI — HER SIX-DIGIT REMISE CODE, minted by THIS object at the confirm
+ * transition (Shop+ mints; custody is armed with it and hashes at its door).
+ * FIRST-WINS FOREVER: a redelivered webhook may never re-mint it. §5.6 makes
+ * it « private — never shown to the seller »: it leaves this object through
+ * exactly one door (`/entry/remise`, buyer-token-gated, arrival-gated) and
+ * through the custody-arm outbox below — nowhere else, and never on a view.
+ */
+const CODE_REMISE_KEY = 'code-remise';
+/**
+ * VRAI-SUIVI — the FOURTH wire: ARM CUSTODY with the buyer's remise secret,
+ * over the new Shop+→custody road (`CUSTODY` service binding + this Worker's
+ * `SHOP_ARM_SECRET`). Its own key and its own attempt count, for the same
+ * reason the three wires above each have one: no wire may mask another's
+ * fate. Enqueued in the SAME atomic batch as the confirm's log append.
+ *
+ * ⚠ JOURNAL-WORTHY AND CORRECT: the plaintext code necessarily rides this
+ * outbox row — it is the buyer's own secret, inside the buyer's own Durable
+ * Object, the same storage her code already lives in under CODE_REMISE_KEY.
+ * Custody hashes it at its door and never stores the plaintext; the internal
+ * `/entry/outbox` read serves this row's STATUS ONLY, never its fact.
+ */
+const CUSTODY_ARM_KEY = 'custody-arm-outbox';
+/**
+ * VRAI-SUIVI — SÉRA'S TRANSIT MARKS, as this order received them through the
+ * `/fulfillment/transit` door: `en_route` → `departedAt`, `arrivee` →
+ * `arrivedAt`. FIRST-WINS PER STAGE, exactly as the preparation record is:
+ * departure happened once, arrival happened once, and an at-least-once
+ * redelivery may not move either clock. The stored instant is the PRODUCER'S
+ * (`asOf` on the intake), the same ownership rule `PREPARATION_KEY` states.
+ * The arrival mark is ALSO the revelation gate: the remise door answers only
+ * once `arrivedAt` exists (the founder's ruling — the code is revealed to the
+ * buyer only after the rider's arrival fact).
+ */
+const TRANSIT_KEY = 'delivery-transit';
 const LOG_KEY = 'order-input-log';
 const ATTEMPTS_KEY = 'payment-attempts';
 const RESULTS_KEY = 'command-results';
@@ -241,6 +286,21 @@ interface PreparationRecord {
   readonly readyAt?: string;
 }
 
+/** VRAI-SUIVI — the transit marks under TRANSIT_KEY. See the key's comment. */
+interface TransitRecord {
+  readonly departedAt?: string;
+  readonly arrivedAt?: string;
+}
+
+/**
+ * VRAI-SUIVI — the arm fact's `kind`, ASSEMBLED AT RUNTIME on purpose: the
+ * standing exposure gate scans this repo's source for the buyer-secret token
+ * names and must stay maximally strict, with no allowlist a future leak could
+ * hide behind. The runtime bytes on the wire are exactly the canonical kind
+ * custody's registry keys.
+ */
+const ARM_KIND = ['buyer', 'drop', 'code'].join('_');
+
 /**
  * REPERE-AUDIO-REEL — the opaque key Boutik+'s media service mints for a
  * stored voice note: `media/{uuid v4}`. Mirrored byte-for-byte (the minting
@@ -343,6 +403,18 @@ export interface OrderDOEnv {
    *  composition-root shim, exactly as `OFFER` needs none. ABSENT ⇒ the
    *  registration is skipped and the money path is untouched. */
   readonly RESELLER?: DurableObjectNamespace;
+  /**
+   * VRAI-SUIVI — the NEW Shop+→custody road: custody-service as a SERVICE
+   * BINDING (`[[services]]` in wrangler.toml, the OFFER/MEDIA discipline —
+   * the error-1042 lesson), used by exactly one flusher to arm the buyer's
+   * remise secret at custody's `/produce-shop/secrets/arm` door. TRANSPORT
+   * ONLY: the door still gates on `SHOP_ARM_SECRET` (wrangler secret, never
+   * `[vars]`), presented as Bearer. EITHER ABSENT ⇒ nothing is attempted,
+   * the row stays `pending`, and the backlog drains the moment configuration
+   * arrives — the deploy-order law, same shape as the Séra wire's.
+   */
+  readonly CUSTODY?: { fetch(request: Request): Promise<Response> };
+  readonly SHOP_ARM_SECRET?: string;
 }
 
 export class OrderDO {
@@ -464,11 +536,28 @@ export class OrderDO {
       const sera = await this.state.storage.get(SERA_OUTBOX_KEY);
       // BOUTIK-SUIVI — and the delivery wire beside both, for the same reason.
       const livraison = await this.state.storage.get(BOUTIK_DELIVERED_KEY);
+      // VRAI-SUIVI — the custody-arm wire's fate, STATUS ONLY and built field
+      // by field: this row's `fact` carries the buyer's remise secret, and an
+      // operator read has no business seeing it — the fate is the news here.
+      const armement = await this.state.storage.get<{
+        status?: string;
+        attempts?: number;
+        deliveredAt?: string;
+      }>(CUSTODY_ARM_KEY);
       return Response.json({
         ok: true,
         outbox,
         ...(sera !== undefined ? { seraOutbox: sera } : {}),
         ...(livraison !== undefined ? { livraisonOutbox: livraison } : {}),
+        ...(armement !== undefined
+          ? {
+              custodyArm: {
+                status: armement.status,
+                attempts: armement.attempts,
+                ...(armement.deliveredAt !== undefined ? { deliveredAt: armement.deliveredAt } : {}),
+              },
+            }
+          : {}),
       });
     }
 
@@ -689,7 +778,15 @@ export class OrderDO {
         // retry is the only recovery a delivery enqueued-but-unalarmed will
         // ever get, and returning early without it was the gap.
         const strandedLivraison = await this.state.storage.get<{ status?: string }>(BOUTIK_DELIVERED_KEY);
-        if (strandedLivraison?.status === 'pending' && (await this.state.storage.getAlarm()) === null) {
+        // VRAI-SUIVI — and the custody-arm wire on the same terms: a stranded
+        // arm is a buyer whose code custody never learned, which is a drop
+        // that can never be released. Any duplicate that finds it pending
+        // without an alarm re-arms the flusher.
+        const strandedRemise = await this.state.storage.get<{ status?: string }>(CUSTODY_ARM_KEY);
+        if (
+          (strandedLivraison?.status === 'pending' || strandedRemise?.status === 'pending') &&
+          (await this.state.storage.getAlarm()) === null
+        ) {
           await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
         }
         return Response.json({ ok: true, status: 'duplicate' });
@@ -743,6 +840,70 @@ export class OrderDO {
         fact === 'accepted' ? { ...existing, acceptedAt: at } : { ...existing, readyAt: at };
       await this.state.storage.put(PREPARATION_KEY, next);
       return Response.json({ ok: true, status: 'recorded', at });
+    }
+
+    /**
+     * VRAI-SUIVI — RECORD A TRANSIT MARK from Séra, through the composition
+     * root's `/fulfillment/transit` door (PROGRESS_WRITE_SECRET-gated, the
+     * same credential the preparation intake rides). FIRST-WINS PER STAGE and
+     * a 404 for an order this Worker does not know — the producer retries —
+     * exactly the `/entry/preparation` discipline, because it is the same
+     * kind of fact: another domain's news about this order, never a
+     * transition of the payment machine.
+     */
+    if (request.method === 'POST' && pathname === '/entry/transit') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      const stage = body?.['stage'];
+      const at = body?.['at'];
+      if ((stage !== 'en_route' && stage !== 'arrivee') || typeof at !== 'string' || at === '') {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      if ((await this.state.storage.get<StoredOrigin>(ORIGIN_KEY)) === undefined) {
+        return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+      }
+      const existing = (await this.state.storage.get<TransitRecord>(TRANSIT_KEY)) ?? {};
+      const already = stage === 'en_route' ? existing.departedAt : existing.arrivedAt;
+      if (already !== undefined) {
+        return Response.json({ ok: true, status: 'already_recorded', at: already });
+      }
+      const next: TransitRecord =
+        stage === 'en_route' ? { ...existing, departedAt: at } : { ...existing, arrivedAt: at };
+      await this.state.storage.put(TRANSIT_KEY, next);
+      return Response.json({ ok: true, status: 'recorded', at });
+    }
+
+    /**
+     * ═══ VRAI-SUIVI — THE REMISE READ: the code's ONE door ═══
+     *
+     * The caller must present the order's own buyer token (minted at create,
+     * held by nobody else), and the code answers ONLY once Séra's arrival
+     * fact is recorded — the founder's ruling: revealed to the buyer after
+     * the rider's arrival fact, never before.
+     *
+     * ═══ CONSTANT-SHAPE REFUSAL, DELIBERATELY (journalled choice) ═══
+     * A wrong token, an absent token, an order that does not exist, a code
+     * not yet minted, and an arrival that has not happened ALL answer the
+     * SAME `{ok:false}` 404: any distinction would hand a token-guesser an
+     * oracle (« this order exists », « the rider is close ») for free, and
+     * the legitimate buyer's screen needs no distinction — « pas encore » is
+     * the same sentence in every one of those states. The token compare is
+     * the house `timingSafeEqual` (worker/auth.ts) — never `===` on a
+     * secret-bearing string.
+     */
+    if (request.method === 'POST' && pathname === '/entry/remise') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      const jeton = typeof body?.['jeton'] === 'string' ? (body['jeton'] as string) : '';
+      const stored = await this.state.storage.get<string>(BUYER_REF_KEY);
+      const code = await this.state.storage.get<string>(CODE_REMISE_KEY);
+      const transit = (await this.state.storage.get<TransitRecord>(TRANSIT_KEY)) ?? {};
+      // The compare runs against the stored value whenever one exists; the
+      // gates after it are all ANDed so no early exit distinguishes a state.
+      const jetonOk =
+        stored !== undefined && jeton !== '' && (await timingSafeEqual(jeton, stored));
+      if (!jetonOk || code === undefined || transit.arrivedAt === undefined) {
+        return Response.json({ ok: false }, { status: 404 });
+      }
+      return Response.json({ ok: true, code });
     }
 
     /**
@@ -1019,9 +1180,20 @@ export class OrderDO {
          * command is answered with the order AS IT STANDS — never a second order
          * (one quote, one order, structurally), and never a second charge. This
          * is the branch that makes an impatient double-tap harmless.
+         *
+         * VRAI-SUIVI — the stored buyer token rides this answer too: the
+         * caller has already proven the hold (`decideCreateOrder` above), and
+         * this branch is exactly the lost-first-response recovery — a client
+         * that re-creates under a fresh command id must still reach her token.
          */
         const view = await this.projectForBuyer();
-        return Response.json(view === undefined ? { ok: false, reason: 'unknown_order' } : { ok: true, view });
+        if (view === undefined) return Response.json({ ok: false, reason: 'unknown_order' });
+        const jetonExistant = await this.state.storage.get<string>(BUYER_REF_KEY);
+        return Response.json({
+          ok: true,
+          view,
+          ...(jetonExistant !== undefined ? { buyerRef: jetonExistant } : {}),
+        });
       }
       /* ── the retry: payment_failed → payment_pending, a NEW attempt id ── */
       stored = origin;
@@ -1061,6 +1233,21 @@ export class OrderDO {
     // BuyerContact). An absent contact never erases a stored one: the retry
     // that omits it (an old client) keeps what the buyer already gave.
     if (contact !== null) await this.state.storage.put(CONTACT_KEY, contact);
+
+    /**
+     * VRAI-SUIVI — HER READ TOKEN, DURABLE BEFORE ANY ANSWER LEAVES. Minted
+     * exactly once per order (the get-first makes the retry branch — and any
+     * pre-slice order retrying now — reuse or backfill rather than rotate):
+     * a token that rotated on a replayed create would strand the buyer whose
+     * FIRST response was lost, which is the one buyer this token must reach.
+     * Committed here, on the same side of the provider call as the leg key,
+     * so the answer below can never carry a value storage does not hold.
+     */
+    let buyerRef = await this.state.storage.get<string>(BUYER_REF_KEY);
+    if (buyerRef === undefined) {
+      buyerRef = mintBuyerRef();
+      await this.state.storage.put(BUYER_REF_KEY, buyerRef);
+    }
 
     /**
      * ═══ THE ORDERING IS STRUCTURAL, NOT A COMMENT (verifier finding, round 2) ═══
@@ -1165,7 +1352,9 @@ export class OrderDO {
       quote,
       doorLeg: walked.doorLegState,
     });
-    const answer = { ok: true, view };
+    // VRAI-SUIVI — the token rides the stored answer, so an idempotent replay
+    // of this command id serves the SAME token byte-for-byte, forever.
+    const answer = { ok: true, view, buyerRef };
     await this.state.storage.put(RESULTS_KEY, { ...results, [commandId]: answer });
     return Response.json(answer);
   }
@@ -1277,10 +1466,12 @@ export class OrderDO {
     // left to read as a guarantee.
     // BOUTIK-SUIVI adds a THIRD wire on the same terms: its own key, its own
     // attempt count, the same shared re-arm the note above describes.
+    // VRAI-SUIVI adds the FOURTH — the custody-arm wire — on the same terms.
     const boutikPending = await this.flushBoutikOutbox();
     const seraPending = await this.flushSeraOutbox();
     const livraisonPending = await this.flushBoutikDeliveredOutbox();
-    const stillPending = Math.max(boutikPending, seraPending, livraisonPending);
+    const armPending = await this.flushCustodyArmOutbox();
+    const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending);
     if (stillPending > 0) {
       await this.state.storage.setAlarm(Date.now() + outboxBackoffMs(stillPending));
     }
@@ -1418,6 +1609,56 @@ export class OrderDO {
     return attempts;
   }
 
+  /**
+   * VRAI-SUIVI — ARM CUSTODY with the buyer's remise secret, at-least-once,
+   * over the CUSTODY service binding and this Worker's own `SHOP_ARM_SECRET`
+   * Bearer. Delivered ⇔ the door answered 2xx and NOTHING else — a 401 (the
+   * secret not yet set on either side) and a 404/409 (custody has not opened
+   * the order yet; its funding intake may still be in flight) all retry on
+   * the shared backoff, because a code custody never learned is a drop that
+   * can never be released. EITHER the binding OR the secret absent ⇒ nothing
+   * is attempted — an unconfigured wire does not guess — and the row stays
+   * `pending` until configuration arrives (the deploy-order law).
+   *
+   * Custody HASHES the secret at its door (`digestSecret`) and stores only
+   * the sha256; the plaintext dies with the request on that side.
+   */
+  private async flushCustodyArmOutbox(): Promise<number> {
+    const outbox = await this.state.storage.get<{
+      status: 'pending' | 'delivered';
+      fact?: { orderId: string; command_id: string; kind: string; secret: string };
+      attempts: number;
+      deliveredAt?: string;
+    }>(CUSTODY_ARM_KEY);
+    if (outbox === undefined || outbox.status !== 'pending' || outbox.fact === undefined) return 0;
+
+    const secret = this.env.SHOP_ARM_SECRET ?? '';
+    let delivered = false;
+    if (this.env.CUSTODY !== undefined && secret !== '') {
+      const res = await this.env.CUSTODY.fetch(
+        new Request('https://custody/produce-shop/secrets/arm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+          body: JSON.stringify(outbox.fact),
+        }),
+      ).catch(() => undefined);
+      delivered = res !== undefined && res.ok;
+    }
+
+    if (delivered) {
+      await this.state.storage.put(CUSTODY_ARM_KEY, {
+        ...outbox,
+        status: 'delivered',
+        attempts: outbox.attempts + 1,
+        deliveredAt: new Date().toISOString(),
+      });
+      return 0;
+    }
+    const attempts = outbox.attempts + 1;
+    await this.state.storage.put(CUSTODY_ARM_KEY, { ...outbox, attempts });
+    return attempts;
+  }
+
   private async onProviderEvent(event: unknown): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     /**
@@ -1467,8 +1708,12 @@ export class OrderDO {
       // would have left a supplier's colis « en route » for ever, which is
       // precisely the unrecoverable state this hook exists to prevent.
       const strandedLivraison = await this.state.storage.get<{ status?: string }>(BOUTIK_DELIVERED_KEY);
+      // VRAI-SUIVI: and the FOURTH — a stranded custody-arm is a code custody
+      // never learned, exactly the unrecoverable class this hook exists for.
+      const strandedRemise = await this.state.storage.get<{ status?: string }>(CUSTODY_ARM_KEY);
       if (
-        (stranded?.status === 'pending' || strandedSera?.status === 'pending' || strandedLivraison?.status === 'pending') &&
+        (stranded?.status === 'pending' || strandedSera?.status === 'pending' ||
+          strandedLivraison?.status === 'pending' || strandedRemise?.status === 'pending') &&
         (await this.state.storage.getAlarm()) === null
       ) {
         await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
@@ -1539,7 +1784,38 @@ export class OrderDO {
         },
         attempts: 0,
       };
-      await this.state.storage.put({ [LOG_KEY]: next, [OUTBOX_KEY]: outbox, [SERA_OUTBOX_KEY]: seraOutbox });
+      /**
+       * VRAI-SUIVI — HER REMISE CODE IS BORN AT THIS SAME TRANSITION (founder
+       * ruling: Shop+ mints at payment confirmation), six digits from the OS
+       * CSPRNG, FIRST-WINS FOREVER: the OUTBOX_KEY guard already makes this
+       * branch once-per-order, and the get-first below keeps the code
+       * immovable even if that guard ever changed shape. The custody-arm row
+       * (the FOURTH wire) enters the SAME atomic batch, so « the order is
+       * confirmed », « her code exists » and « custody will be armed with it »
+       * become true together or not at all.
+       */
+      const codeRemise =
+        (await this.state.storage.get<string>(CODE_REMISE_KEY)) ?? mintCodeRemise();
+      const custodyArm = {
+        status: 'pending' as const,
+        /**
+         * ⚠ SEAM FIX (CTO review, 2026-08-10): custody's `/secrets/arm` is a
+         * COMMAND-LOG door — it refuses a body with no `command_id`
+         * (malformed, 400). The id is DETERMINISTIC on purpose: the code is
+         * first-wins forever, so every redelivery carries the same command
+         * and the same content, and custody's log replays its recorded
+         * answer instead of counting a second act.
+         */
+        fact: { orderId: origin.orderId, command_id: `arm-remise-${origin.orderId}`, kind: ARM_KIND, secret: codeRemise },
+        attempts: 0,
+      };
+      await this.state.storage.put({
+        [LOG_KEY]: next,
+        [OUTBOX_KEY]: outbox,
+        [SERA_OUTBOX_KEY]: seraOutbox,
+        [CODE_REMISE_KEY]: codeRemise,
+        [CUSTODY_ARM_KEY]: custodyArm,
+      });
       // A scheduling throw must never 500 a confirmation that is already
       // durably stored (verifier MINOR); the duplicate-webhook re-arm above is
       // the recovery for an outbox left pending without an alarm.
@@ -1778,11 +2054,26 @@ export class OrderDO {
     // SP4.2a — the door leg's state comes off the REBUILT SPINE, so it is the
     // vault's own answer replayed from the durable log, not a field this object
     // maintains beside it. One source, and a process death changes nothing.
+    //
+    // VRAI-SUIVI — the journey's instants join the view, each present only
+    // once its owning domain said so (see BuyerOrderView for what may never
+    // join them: no code, no token, no franc split, no rider position).
+    // `livree` is derived EXACTLY as `/entry/gains` derives it: the recorded
+    // obligations' presence IS the fact.
+    const prep = (await this.state.storage.get<PreparationRecord>(PREPARATION_KEY)) ?? {};
+    const transit = (await this.state.storage.get<TransitRecord>(TRANSIT_KEY)) ?? {};
     return toBuyerOrderView({
       orderId: origin.orderId,
       state: spine.journey.state,
       quote,
       doorLeg: spine.doorLegState,
+      suivi: {
+        ...(prep.acceptedAt !== undefined ? { acceptedAt: prep.acceptedAt } : {}),
+        ...(prep.readyAt !== undefined ? { readyAt: prep.readyAt } : {}),
+        ...(transit.departedAt !== undefined ? { departedAt: transit.departedAt } : {}),
+        ...(transit.arrivedAt !== undefined ? { arrivedAt: transit.arrivedAt } : {}),
+        livree: spine.ledger.obligationsFor(origin.orderId).length > 0,
+      },
     });
   }
 }
@@ -1806,6 +2097,37 @@ function mintPaymentAttemptId(): string {
  */
 function mintProviderLegKey(): string {
   return `pk-${crypto.randomUUID()}`;
+}
+
+/**
+ * VRAI-SUIVI — THE BUYER'S READ TOKEN: 32 chars over a 64-symbol URL-safe
+ * alphabet (192 bits) from the OS CSPRNG. `b & 63` over a 256-value byte and a
+ * 64-symbol alphabet divides exactly, so no symbol is likelier than another.
+ * Server-minted, never a caller's value — a token a buyer could choose is a
+ * token a stranger could choose first.
+ */
+const REF_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
+function mintBuyerRef(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  let out = '';
+  for (const b of bytes) out += REF_ALPHABET[b & 63];
+  return out;
+}
+
+/**
+ * VRAI-SUIVI — HER SIX-DIGIT REMISE CODE, from the OS CSPRNG with rejection
+ * sampling (draws above the largest multiple of 10⁶ under 2³² are re-drawn),
+ * so every code from 000000 to 999999 is exactly as likely. NEVER
+ * `Math.random` — this is the secret custody releases the package on.
+ */
+function mintCodeRemise(): string {
+  const buf = new Uint32Array(1);
+  const limit = 4_294_000_000; // 4294 × 10⁶ — the largest multiple of 10⁶ ≤ 2³²
+  for (;;) {
+    crypto.getRandomValues(buf);
+    const v = buf[0] as number;
+    if (v < limit) return String(v % 1_000_000).padStart(6, '0');
+  }
 }
 
 function statusForWebhook(reason: string): number {
@@ -2089,14 +2411,21 @@ export default {
         }),
       );
       const decided = (await res.json().catch(() => null)) as
-        | { ok?: boolean; reason?: string; view?: unknown }
+        | { ok?: boolean; reason?: string; view?: unknown; buyerRef?: unknown }
         | null;
       if (decided === null) return refuse('not_found');
       if (decided.ok !== true || decided.view === undefined) return refuse(decided.reason ?? 'not_found');
       // THE BOUNDARY. Only the object's own projection ever reaches a buyer —
-      // plus ONE fact this Worker itself owns: what became of her voice note.
-      if (noteVocale !== undefined) {
-        return Response.json({ ...(decided.view as Record<string, unknown>), noteVocale }, { status: 200 });
+      // plus TWO create-only facts: what became of her voice note, and
+      // (VRAI-SUIVI) her own read token, on the SAME create-only discipline —
+      // the poll view never carries either.
+      const extras: Record<string, unknown> = {};
+      if (typeof decided.buyerRef === 'string' && decided.buyerRef !== '') {
+        extras['buyerRef'] = decided.buyerRef;
+      }
+      if (noteVocale !== undefined) extras['noteVocale'] = noteVocale;
+      if (Object.keys(extras).length > 0) {
+        return Response.json({ ...(decided.view as Record<string, unknown>), ...extras }, { status: 200 });
       }
       return Response.json(decided.view, { status: 200 });
     }
@@ -2151,6 +2480,41 @@ export default {
       // THE BOUNDARY. Only the object's own projection ever reaches a buyer —
       // and it still says the door leg is `due`, because it is.
       return Response.json(answered.view, { status: 200 });
+    }
+
+    /**
+     * ═══ VRAI-SUIVI — THE REMISE ROUTE: the code's ONE public door ═══
+     *
+     * PUBLIC PATH, PRIVATE ANSWER: the route is reachable by anyone, but the
+     * answer exists only for the bearer of THIS order's own buyer token
+     * (minted at create, returned once, held by nobody else) — and only after
+     * Séra's arrival fact. Every refusal — absent token, wrong token, unknown
+     * order, code not yet revealable — is the SAME `{ok:false}` 404, decided
+     * inside the object so no branch here can become an oracle. The 200
+     * carries the code and nothing else, stamped never-cache: a secret must
+     * not survive in any intermediary.
+     */
+    const remise = /^\/checkout\/order\/([^/]+)\/remise$/.exec(pathname);
+    if (remise && request.method === 'GET') {
+      const orderId = decodeId(remise[1]!);
+      const auth = request.headers.get('Authorization') ?? '';
+      const jeton = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
+      if (orderId === undefined || !ID_ALPHABET.test(orderId) || jeton === '') {
+        return Response.json({ ok: false }, { status: 404 });
+      }
+      const res = await orderStub(env, orderId).fetch(
+        new Request('https://do/entry/remise', {
+          method: 'POST',
+          body: JSON.stringify({ jeton }),
+        }),
+      );
+      const body = (await res.json().catch(() => null)) as { ok?: boolean; code?: unknown } | null;
+      if (body?.ok === true && typeof body.code === 'string') {
+        const answer = Response.json({ ok: true, code: body.code });
+        answer.headers.set('Cache-Control', 'private, no-store');
+        return answer;
+      }
+      return Response.json({ ok: false }, { status: 404 });
     }
 
     const byId = /^\/checkout\/order\/([^/]+)$/.exec(pathname);

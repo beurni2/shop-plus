@@ -172,6 +172,46 @@ const CONFIRMATION_FIELDS = {
    *  a server byte the renderer appends, exactly as PORTE.resteAPayer's figure
    *  is, so the field carries no placeholder and no fills. */
   reference: { screenClass: 'label', fills: [] },
+  /** VRAI-SUIVI — the honest third « what happens next » row: the push it used
+   *  to promise does not exist, and the replacement sentence is linted here. */
+  etapeSuivre: { screenClass: 'checkout', fills: [] },
+};
+
+/**
+ * ═══ VRAI-SUIVI — THE TRACKING'S COPY (C7 + the real C9 + the re-entry) ═══
+ *
+ * The buyer's tracking became real (founder, 2026-08-10): six fact-derived
+ * steps, an honest intro that promises no push, the arrival-gated code
+ * captions, and the shell's « Ma commande » way back. Every sentence a buyer
+ * reads on that road lives in the SUIVI table and is linted here on the same
+ * terms as the rest: structural floor (a deleted step fails as loudly as a
+ * violated one), unknown-field hard failure, and NO placeholders anywhere —
+ * a tracking sentence carries no amount, and the order id beside the title is
+ * a server byte the renderer appends, never interpolated.
+ */
+const SUIVI_FIELDS = {
+  etape1Titre: { screenClass: 'label', fills: [] },
+  etape1Corps: { screenClass: 'status', fills: [] },
+  etape2Titre: { screenClass: 'label', fills: [] },
+  etape2Corps: { screenClass: 'status', fills: [] },
+  etape3Titre: { screenClass: 'label', fills: [] },
+  etape3Corps: { screenClass: 'status', fills: [] },
+  etape4Titre: { screenClass: 'label', fills: [] },
+  etape4Corps: { screenClass: 'status', fills: [] },
+  etape5Titre: { screenClass: 'label', fills: [] },
+  etape5Corps: { screenClass: 'status', fills: [] },
+  etape6Titre: { screenClass: 'label', fills: [] },
+  etape6Corps: { screenClass: 'status', fills: [] },
+  intro: { screenClass: 'status', fills: [] },
+  gps: { screenClass: 'status', fills: [] },
+  verifier: { screenClass: 'label', fills: [] },
+  horsPortee: { screenClass: 'checkout', fills: [] },
+  voirCode: { screenClass: 'label', fills: [] },
+  terminee: { screenClass: 'label', fills: [] },
+  reentree: { screenClass: 'label', fills: [] },
+  c9Attente: { screenClass: 'checkout', fills: [] },
+  c9Arrivee: { screenClass: 'status', fills: [] },
+  codeDemo: { screenClass: 'label', fills: [] },
 };
 
 /**
@@ -583,6 +623,51 @@ if (voix === null) {
   }
 }
 
+/* ═══════ VRAI-SUIVI — the tracking's copy, on the same terms ═════════════ */
+
+let suiviCount = 0;
+const suivi = /export const SUIVI\s*=\s*\{([\s\S]*?)\n\}/.exec(src);
+if (suivi === null) {
+  problems.push(
+    'the SUIVI block is missing — the tracking steps, the code captions and the re-entry label are what ' +
+      'a buyer reads while her parcel is on the road, and they would ship unlinted. Re-point this gate, ' +
+      'never delete it.',
+  );
+} else {
+  const fields = fieldsOf(suivi[1], 'SUIVI');
+  for (const required of Object.keys(SUIVI_FIELDS)) {
+    if (!(required in fields)) problems.push(`SUIVI: missing field « ${required} » (tracking copy)`);
+  }
+  for (const present of Object.keys(fields)) {
+    if (present in SUIVI_FIELDS) continue;
+    problems.push(
+      `SUIVI: unknown field « ${present} » — add it to SUIVI_FIELDS with its screen class ` +
+        'so it gets linted; nothing here may go unread',
+    );
+  }
+  for (const [field, { screenClass, fills }] of Object.entries(SUIVI_FIELDS)) {
+    if (!(field in fields)) continue;
+    const v = readValue(fields[field]);
+    if (v.kind !== 'text') {
+      problems.push(`SUIVI.${field}: ${v.why ?? 'null is not copy'}`);
+      continue;
+    }
+    if (v.text === '') {
+      problems.push(`SUIVI.${field}: empty — a tracking step with no sentence is a step with no honesty`);
+      continue;
+    }
+    for (const brace of v.text.match(/\{[^}]*\}/gu) ?? []) {
+      if (fills.includes(brace)) continue;
+      problems.push(
+        `SUIVI.${field}: « ${brace} » is filled by nothing — a tracking sentence carries no amount, and ` +
+          'the order id beside the title is a server byte the renderer appends, never interpolated',
+      );
+    }
+    entries.push({ key: `cliente.suivi.${field}.${n++}`, fr: v.text, register: 'money', screenClass });
+    suiviCount += 1;
+  }
+}
+
 /* ══ §6.1: « séquestre »/« escrow » appear NOWHERE a buyer can read them ═══ */
 
 /**
@@ -652,7 +737,7 @@ for (const file of scanned) {
 console.log(
   `  ${views.length} refusal view(s) · ${paiementCount} §6.1 payment string(s) · ` +
     `${confirmationCount} C6 post-payment string(s) · ${porteCount} door string(s) · ` +
-    `${voixCount} voice-control label(s) · ` +
+    `${voixCount} voice-control label(s) · ${suiviCount} tracking string(s) · ` +
     `${entries.length} user-facing strings extracted from ${rel} · ${scanned.length} file(s) scanned`,
 );
 
@@ -708,13 +793,14 @@ console.log('\ncopy-lint-inline-refus: OK');
 console.log(
   `  LINTED (French Voice): the REFUS table (${views.length} views), MESSAGES, the §6.1 PAIEMENT ` +
     `table (${paiementCount} strings), the C6 CONFIRMATION table (${confirmationCount} strings) ` +
-    `the PORTE table (${porteCount} strings) and the C3 VOIX labels (${voixCount} strings) ` +
+    `the PORTE table (${porteCount} strings), the C3 VOIX labels (${voixCount} strings) ` +
+    `and the SUIVI tracking table (${suiviCount} strings) ` +
     `— ${entries.length} strings from ${rel}.`,
 );
 console.log(
   '  NOT LINTED, and named so the gap is visible: every OTHER inline string in that module — the bill ' +
-    'labels, the C5 quote line, the operator screens, and C6–C9 outside CONFIRMATION. This gate reads ' +
-    'five tables, not the file. ' +
+    'labels, the C5 quote line, the operator screens, and C6–C9 outside CONFIRMATION and SUIVI. This ' +
+    'gate reads six tables, not the file. ' +
     'The cure is the i18n catalog migration, which is its own slice.',
 );
 console.log(`  SCANNED for the two words §6.1 forbids: ${scanned.length} file(s) — ${scanDescription}.`);

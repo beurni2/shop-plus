@@ -216,6 +216,21 @@ service = "offer-service"
 binding = "MEDIA"
 service = "media-service"
 
+# VRAI-SUIVI — the NEW Shop+ → custody road (founder rulings 2026-08-10): at
+# payment confirmation the OrderDO mints the buyer's private remise secret and
+# ARMS custody with it at POST /produce-shop/secrets/arm. A SERVICE BINDING for
+# the same reason OFFER and MEDIA are (the SUPPLY_BASE / error-1042 lesson).
+# TRANSPORT ONLY: the custody door gates on `SHOP_ARM_SECRET` — set the SAME
+# value with `wrangler secret put SHOP_ARM_SECRET` HERE and on custody-service
+# (its gate). Never [vars]: the repos are public. UNSET (secret) ⇒ nothing is
+# attempted, the arm row stays pending, and the backlog drains the moment both
+# sides hold the value. ⚠ DEPLOY ORDER: a [[services]] binding to a Worker that
+# does not exist FAILS THE DEPLOY — custody-service must be deployed (even as a
+# stub) before the next `wrangler deploy` of this Worker runs.
+[[services]]
+binding = "CUSTODY"
+service = "custody-service"
+
 # ═══════════════════════════════════════════════════════════════════════════
 # READINESS-RETURN-1c — THE RETURN LEG'S INTAKE SECRET.
 # ═══════════════════════════════════════════════════════════════════════════

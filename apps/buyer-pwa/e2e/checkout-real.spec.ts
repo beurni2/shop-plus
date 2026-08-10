@@ -73,8 +73,23 @@ interface Scripted {
   noteVocale?: 'gardee' | 'perdue';
   /** SP4.2b — the door leg per read, the LAST repeating. `none` = mode A. */
   doorLegs?: string[];
+  /**
+   * SP4.2b — the door legs AFTER a door-charge has been posted, per read, the
+   * LAST repeating. Without it, reads consumed by the C7 tracking watch would
+   * walk `doorLegs` toward `paid` before any charge was ever asked for —
+   * exactly the premature reveal the tests exist to forbid.
+   */
+  doorLegsApresCharge?: string[];
   /** refuse `POST …/door-charge` by name, the way the service would. */
   doorChargeRefusal?: string;
+  /* ── VRAI-SUIVI — the delivery marks + the remise route ─────────────── */
+  /** The marks per read, the LAST repeating — each entry is spread into the
+   *  order body ({acceptedAt…arrivedAt, livree}). Default: none, forever. */
+  marques?: Array<Record<string, unknown>>;
+  /** The remise route's code. Answered ONLY once the last-served marks carry
+   *  `arrivedAt` AND the Bearer matches the create's buyerRef — the service's
+   *  own gate, scripted. Absent ⇒ the route always answers the uniform 404. */
+  codeRemise?: string;
 }
 
 interface Wire {
@@ -86,18 +101,28 @@ interface Wire {
   orderReads: string[];
   /** SP4.2b — every `POST …/door-charge`. */
   doorCharges: Array<{ url: string; body: Record<string, unknown> }>;
+  /** VRAI-SUIVI — every `GET …/remise`, with the Authorization it carried. */
+  remises: Array<{ url: string; auth: string }>;
   /** The route names in the order the browser actually asked for them, so
    *  « the hold is taken BEFORE the order » is provable and not assumed. */
   sequence: string[];
 }
 
+/** The bearer ref the scripted create hands out — the remise route's own key. */
+const BUYER_REF = 'ref-buyer-e2e-1';
+
 /** Install the scripted checkout service and return the wire log. */
 async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
-  const wire: Wire = { quotes: [], reserves: [], orders: [], orderReads: [], doorCharges: [], sequence: [] };
+  const wire: Wire = { quotes: [], reserves: [], orders: [], orderReads: [], doorCharges: [], remises: [], sequence: [] };
   const ttl = opts.ttlMs ?? 15 * 60_000;
   let issued = 0;
   /** How many times each order has been read back, so `orderStates` walks. */
   const reads = new Map<string, number>();
+  /** VRAI-SUIVI — the marks entry the LAST order read served: the remise
+   *  route's « does the arrival fact exist? » gate, scripted. */
+  let marquesServies: Record<string, unknown> = {};
+  /** SP4.2b — reads after a door-charge walk `doorLegsApresCharge` instead. */
+  let chargeReads = -1;
   await page.route('**/checkout/**', async (route: Route) => {
     const req = route.request();
     const json = (status: number, body: unknown): Promise<void> =>
@@ -129,6 +154,8 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
         amountPaidAtCheckout: 12_500,
         amountDueAtDelivery: 0,
         doorLeg: opts.doorLegs?.[0] ?? 'none',
+        // VRAI-SUIVI — the bearer ref rides the CREATE, and only the create.
+        buyerRef: BUYER_REF,
         ...(opts.noteVocale !== undefined ? { noteVocale: opts.noteVocale } : {}),
       });
     }
@@ -137,6 +164,7 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
       wire.doorCharges.push({ url: req.url(), body });
       wire.sequence.push('door-charge');
       if (opts.doorChargeRefusal !== undefined) return json(422, { error: opts.doorChargeRefusal });
+      chargeReads = 0;
       // A CHARGE INITIATED IS NOT A PAYMENT — the service answers with the door
       // leg still `due`, and only the webhook moves it.
       return json(200, {
@@ -147,6 +175,19 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
         doorLeg: 'due',
       });
     }
+    /* ── VRAI-SUIVI — the remise route: the code, arrival-gated + bearer ── */
+    if (/\/order\/[^/]+\/remise$/.test(req.url()) && req.method() === 'GET') {
+      const auth = req.headers()['authorization'] ?? '';
+      wire.remises.push({ url: req.url(), auth });
+      wire.sequence.push('remise');
+      const arrived = marquesServies['arrivedAt'] !== undefined;
+      if (opts.codeRemise !== undefined && arrived && auth === `Bearer ${BUYER_REF}`) {
+        return json(200, { ok: true, code: opts.codeRemise });
+      }
+      // The uniform, nameless 404 — wrong token, unknown order and not-yet-
+      // arrived are indistinguishable ON PURPOSE.
+      return json(404, { ok: false });
+    }
     const byId = /\/checkout\/order\/([^/]+)$/.exec(req.url());
     if (byId && req.method() === 'GET') {
       const orderId = decodeURIComponent(byId[1]!);
@@ -156,9 +197,21 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
       reads.set(orderId, seen + 1);
       const script = opts.orderStates ?? ['payment_pending'];
       const state = script[Math.min(seen, script.length - 1)]!;
-      const doors = opts.doorLegs ?? ['none'];
-      const doorLeg = doors[Math.min(seen, doors.length - 1)]!;
-      return json(200, { orderId, state, amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, doorLeg });
+      // The door leg: before any charge, `doorLegs` walks per read; AFTER a
+      // charge, `doorLegsApresCharge` walks per post-charge read — so reads
+      // consumed by the tracking watch can never move the leg toward `paid`
+      // on their own.
+      let doorLeg: string;
+      if (chargeReads >= 0 && opts.doorLegsApresCharge !== undefined) {
+        doorLeg = opts.doorLegsApresCharge[Math.min(chargeReads, opts.doorLegsApresCharge.length - 1)]!;
+        chargeReads += 1;
+      } else {
+        const doors = opts.doorLegs ?? ['none'];
+        doorLeg = doors[Math.min(seen, doors.length - 1)]!;
+      }
+      const marques = opts.marques === undefined ? {} : opts.marques[Math.min(seen, opts.marques.length - 1)]!;
+      marquesServies = marques;
+      return json(200, { orderId, state, amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, doorLeg, ...marques });
     }
     wire.quotes.push(body);
     wire.sequence.push('quote');
@@ -714,6 +767,16 @@ test('BLOCKER 2 · « Vérifier à nouveau » always ANSWERS — a dead link is 
   await expect(page.locator('[data-role="hors-portee"]')).toHaveCount(0);
 });
 
+/** VRAI-SUIVI — the rider's whole road, as the server records it. The four
+ *  simuler-walks these tests used to do are gone WITH the button: on the real
+ *  path C7 advances only on these facts. */
+const MARQUES_ARRIVEE = {
+  acceptedAt: '2026-08-10T08:00:00.000Z',
+  readyAt: '2026-08-10T08:10:00.000Z',
+  departedAt: '2026-08-10T08:20:00.000Z',
+  arrivedAt: '2026-08-10T08:30:00.000Z',
+};
+
 test('SP4.2b · §6.3 — she can TRACK while she still owes, but the code is withheld', async ({ page }) => {
   /**
    * THE DEFECT THIS GUARDS, reachable the day the founder opened the zone rule:
@@ -724,19 +787,21 @@ test('SP4.2b · §6.3 — she can TRACK while she still owes, but the code is wi
    *
    * The service is scripted to report the door leg as `due` throughout: the
    * client knows only what the server says about it, which is the point.
+   * VRAI-SUIVI: the rider HAS arrived (the marks say so), so the tracking
+   * stands at step 5 and the remise route COULD answer — the door leg still
+   * withholds the reveal on this client, and no code is scripted anyway.
    */
-  await scriptService(page, { orderStates: ['confirmed'], doorLegs: ['due'] });
+  await scriptService(page, { orderStates: ['confirmed'], doorLegs: ['due'], marques: [MARQUES_ARRIVEE] });
   await askForPrice(page);
   await toPayer(page, 'A');
   await page.locator('[data-action="payer"]').click();
   await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
 
-  // SHE MAY FOLLOW HER ORDER — tracking is not custody transfer.
+  // SHE MAY FOLLOW HER ORDER — tracking is not custody transfer. The first
+  // tracking read (~1.5 s) lands the server's arrival fact: step 5, real door.
   await page.locator('[data-action="suivre"]').click();
   await page.locator('[data-screen="C7"]').waitFor();
-  // C7 only offers « Je suis à la porte » at step 5 — the four demo steps are
-  // how the tracking screen is walked (`renderC7`'s `atDoor`).
-  for (let i = 0; i < 4; i += 1) await page.locator('[data-action="simuler"]').click();
+  await page.locator('[data-action="porte"]').waitFor({ timeout: 10_000 });
   await page.locator('[data-action="porte"]').click();
   await page.locator('[data-screen="C8"]').waitFor();
 
@@ -749,23 +814,27 @@ test('SP4.2b · §6.3 — she can TRACK while she still owes, but the code is wi
   expect(await screenOf(page), 'she was walked past the door screen unpaid').toBe('C8');
 });
 
-test('SP4.2b · …and once the provider confirms the door payment, the code is hers', async ({ page }) => {
-  // Only the server's word about the door leg differs from the test above.
-  await scriptService(page, { orderStates: ['confirmed'], doorLegs: ['paid'] });
+test('SP4.2b · …and once the provider confirms the door payment, the code is hers — the REAL one', async ({ page }) => {
+  // Only the server's word about the door leg differs from the test above —
+  // and the code on C9 is now the REMISE ROUTE'S, never the demo constant.
+  await scriptService(page, { orderStates: ['confirmed'], doorLegs: ['paid'], marques: [MARQUES_ARRIVEE], codeRemise: '654321' });
   await askForPrice(page);
   await toPayer(page, 'A');
   await page.locator('[data-action="payer"]').click();
   await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
   await page.locator('[data-action="suivre"]').click();
   await page.locator('[data-screen="C7"]').waitFor();
-  // C7 only offers « Je suis à la porte » at step 5 — the four demo steps are
-  // how the tracking screen is walked (`renderC7`'s `atDoor`).
-  for (let i = 0; i < 4; i += 1) await page.locator('[data-action="simuler"]').click();
+  await page.locator('[data-action="porte"]').waitFor({ timeout: 10_000 });
   await page.locator('[data-action="porte"]').click();
   await page.locator('[data-screen="C8"]').waitFor();
   await page.locator('[data-action="porte-bon"]').click();
   await page.locator('[data-screen="C9"]').waitFor({ timeout: 15_000 });
-  expect((await stage(page)).replace(/\s+/g, ' ')).toContain('code de remise');
+  const text = (await stage(page)).replace(/\s+/g, ' ');
+  expect(text).toContain('code de remise');
+  // THE SERVICE'S CODE, paired for reading — and the '734 921' demo constant
+  // nowhere on the real path.
+  expect(text).toContain('654 321');
+  expect(text).not.toContain('734 921');
 });
 
 test('SP4.2b · the door payment: she pays the product, THEN the code — no timer anywhere', async ({ page }) => {
@@ -780,7 +849,12 @@ test('SP4.2b · the door payment: she pays the product, THEN the code — no tim
   const wire = await scriptService(page, {
     doorAvailable: true, // the founder opened the zones — mode B is real now
     orderStates: ['confirmed'],
-    doorLegs: ['due', 'due', 'paid'],
+    // The leg stays `due` for EVERY read until a charge is posted — the C7
+    // tracking watch consumes reads too, and none of them may move the leg.
+    doorLegs: ['due'],
+    doorLegsApresCharge: ['due', 'paid'],
+    marques: [MARQUES_ARRIVEE],
+    codeRemise: '654321',
   });
   await askForPrice(page);
   await toPayer(page, 'B');
@@ -788,7 +862,7 @@ test('SP4.2b · the door payment: she pays the product, THEN the code — no tim
   await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
   await page.locator('[data-action="suivre"]').click();
   await page.locator('[data-screen="C7"]').waitFor();
-  for (let i = 0; i < 4; i += 1) await page.locator('[data-action="simuler"]').click();
+  await page.locator('[data-action="porte"]').waitFor({ timeout: 10_000 });
   await page.locator('[data-action="porte"]').click();
   await page.locator('[data-screen="C8"]').waitFor();
 
@@ -804,7 +878,11 @@ test('SP4.2b · the door payment: she pays the product, THEN the code — no tim
   const waiting = (await stage(page)).replace(/\s+/g, ' ');
   expect(waiting, 'the code appeared while the charge was still in flight').not.toContain('code de remise');
   await page.locator('[data-screen="C9"]').waitFor({ timeout: 30_000 });
-  expect((await stage(page)).replace(/\s+/g, ' ')).toContain('code de remise');
+  const apres = (await stage(page)).replace(/\s+/g, ' ');
+  expect(apres).toContain('code de remise');
+  // The figure is the remise route's own — never the demo constant.
+  expect(apres).toContain('654 321');
+  expect(apres).not.toContain('734 921');
 });
 
 test('SP4.2b · a REFUSED door charge gets an honest screen and a retry — never a code', async ({ page }) => {
@@ -813,6 +891,7 @@ test('SP4.2b · a REFUSED door charge gets an honest screen and a retry — neve
     orderStates: ['confirmed'],
     doorLegs: ['due'],
     doorChargeRefusal: 'door_leg_not_due',
+    marques: [MARQUES_ARRIVEE],
   });
   await askForPrice(page);
   await toPayer(page, 'B');
@@ -820,7 +899,7 @@ test('SP4.2b · a REFUSED door charge gets an honest screen and a retry — neve
   await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
   await page.locator('[data-action="suivre"]').click();
   await page.locator('[data-screen="C7"]').waitFor();
-  for (let i = 0; i < 4; i += 1) await page.locator('[data-action="simuler"]').click();
+  await page.locator('[data-action="porte"]').waitFor({ timeout: 10_000 });
   await page.locator('[data-action="porte"]').click();
   await page.locator('[data-action="porte-bon"]').click();
 
@@ -969,6 +1048,108 @@ test('VOIX-ÉTAT-2 · C5 « Écouter la note » shows pause, counts, and stops w
   // screen is always — so the position would have been stranded here for ever.
   await expect(glyphe).toHaveAttribute('d', TRIANGLE, { timeout: 8_000 });
   await expect(horloge).toHaveText('');
+});
+
+/* ══════════════════════════════════════════════════════════════════════════ *
+ *  VRAI-SUIVI — THE TRACKING IS REAL, AND HER CODE IS HERS (founder,
+ *  2026-08-10). The seam tests: the REAL bundle, the REAL `httpQuotePort`,
+ *  a scripted service answering the marks progressively — and not one tap of
+ *  « Simuler » anywhere, because the button no longer exists on this path.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+test('VRAI-SUIVI · the timeline advances on server facts alone, and the code arrives from the remise route', async ({ page }) => {
+  test.setTimeout(120_000);
+  const wire = await scriptService(page, {
+    orderStates: ['confirmed'],
+    // One entry per read, the LAST repeating: nothing → accepted → departed →
+    // arrived → livree. The C6 payment read consumes entry 0.
+    marques: [
+      {},
+      { acceptedAt: MARQUES_ARRIVEE.acceptedAt },
+      { acceptedAt: MARQUES_ARRIVEE.acceptedAt, readyAt: MARQUES_ARRIVEE.readyAt, departedAt: MARQUES_ARRIVEE.departedAt },
+      MARQUES_ARRIVEE,
+      { ...MARQUES_ARRIVEE, livree: true },
+    ],
+    codeRemise: '123456',
+  });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+
+  // THE CREATE STORED THE ORDER ON THE PHONE — the re-entry record, written
+  // where the bearer ref is born.
+  const gardee = await page.evaluate(() => localStorage.getItem('sp-commande:v1'));
+  expect(gardee).toContain('ord-quote-full-1');
+  expect(gardee).toContain(BUYER_REF);
+
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+  // THE REAL ORDER NUMBER in the corner — CMD-2417 is dead.
+  await expect(page.locator('.cl-cmd')).toHaveText('ord-quote-full-1');
+  expect(await stage(page)).not.toContain('CMD-2417');
+
+  // The facts land one poll at a time, and the timeline follows THEM.
+  await expect(page.locator('.cl-tl-t-now')).toHaveText('Préparée par la vendeuse', { timeout: 10_000 });
+  await expect(page.locator('[data-action="simuler"]')).toHaveCount(0);
+  await expect(page.locator('.cl-tl-t-now')).toHaveText('En route', { timeout: 10_000 });
+  // BEFORE the arrival fact: no remise ask has gone out and no code exists
+  // anywhere on the page.
+  expect(wire.remises.length, 'the code was asked for before the rider arrived').toBe(0);
+  expect(await stage(page)).not.toContain('123 456');
+
+  // The rider taps « Je suis arrivé » (the server records arrivedAt) — step 5,
+  // and the code affordance surfaces.
+  await page.locator('[data-action="voir-code"]').waitFor({ timeout: 15_000 });
+  await expect(page.locator('.cl-tl-t-now')).toHaveText('À votre porte');
+  await expect(page.locator('[data-action="simuler"]')).toHaveCount(0);
+  await page.locator('[data-action="voir-code"]').click();
+  await page.locator('[data-role="code-revele"]').waitFor({ timeout: 10_000 });
+  const avecCode = (await stage(page)).replace(/\s+/g, ' ');
+  expect(avecCode).toContain('123 456');
+  expect(avecCode, 'the demo constant leaked onto the real path').not.toContain('734 921');
+  // …fetched from the remise route, under HER bearer ref.
+  expect(wire.remises.length).toBeGreaterThan(0);
+  expect(wire.remises[0]!.auth).toBe(`Bearer ${BUYER_REF}`);
+
+  // Back on the tracking, the last fact lands: remise — step 6, terminal.
+  await page.locator('[data-action="retour-c7"]').click();
+  await expect(page.locator('.cl-tl-t-now')).toHaveText('Remise', { timeout: 15_000 });
+  // « C'est terminé » — the phone forgets the finished order.
+  await page.locator('[data-action="suivi-terminer"]').click();
+  expect(await page.evaluate(() => localStorage.getItem('sp-commande:v1'))).toBeNull();
+});
+
+test('VRAI-SUIVI · re-entry — « Ma commande » reopens the REAL tracking of the stored order', async ({ page }) => {
+  test.setTimeout(90_000);
+  const wire = await scriptService(page, { orderStates: ['confirmed'], marques: [MARQUES_ARRIVEE], codeRemise: '654321' });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+
+  // The tab dies; she comes back to the shell. The stored order is the way in.
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  const bande = page.locator('[data-role="ma-commande"]');
+  await bande.waitFor();
+  await expect(bande).toContainText('Ma commande');
+  await expect(bande).toContainText('ord-quote-full-1');
+  await bande.click();
+
+  await page.locator('[data-screen="C7"]').waitFor();
+  await expect(page.locator('.cl-cmd')).toHaveText('ord-quote-full-1');
+  // The re-entry polls the REAL service: the arrival fact lands, step 5.
+  await page.locator('[data-action="voir-code"]').waitFor({ timeout: 15_000 });
+  // No Simuler — and no door road either: a re-entry has no live checkout
+  // handle, so a door charge could never complete from here.
+  await expect(page.locator('[data-action="simuler"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="porte"]')).toHaveCount(0);
+  // Her code, from the remise route, under the STORED bearer ref.
+  await page.locator('[data-action="voir-code"]').click();
+  await page.locator('[data-role="code-revele"]').waitFor({ timeout: 10_000 });
+  expect((await stage(page)).replace(/\s+/g, ' ')).toContain('654 321');
+  expect(wire.remises[0]!.auth).toBe(`Bearer ${BUYER_REF}`);
 });
 
 test('REPERE-AUDIO-REEL · a LOST note gets its sentence — the diagnostic hole the founder hit is closed', async ({ page }) => {

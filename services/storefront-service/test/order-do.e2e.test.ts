@@ -1072,21 +1072,29 @@ describe('OrderDO — the emitted bytes carry no supplier economics and no payme
     // platform 2 000. Every one of those is a different number.
     expect(created.json['amountPaidAtCheckout']).toBe(26_000);
 
-    for (const res of [created, await getOrder(mf, orderId)]) {
-      // FIVE KEYS since SP4.2a — `doorLeg` is a STATE (`none|due|paid`), never
-      // an amount, and the value scan below runs over it unchanged. Growing this
-      // list is an edit somebody had to make on purpose; that is the point.
+    for (const [moment, res] of [['create', created], ['poll', await getOrder(mf, orderId)]] as const) {
+      // SIX KEYS EACH since VRAI-SUIVI, and the sixth DIFFERS BY MOMENT on
+      // purpose: the CREATE answer alone carries the buyer's read token
+      // (`buyerRef`, create-only by founder ruling 2026-08-10), the POLL alone
+      // carries `livree` (a STATE derived from the recorded obligations —
+      // never an amount, like `doorLeg`). Growing either list is an edit
+      // somebody had to make on purpose; that is the point.
       expect(Object.keys(res.json).sort()).toEqual(
-        ['amountDueAtDelivery', 'amountPaidAtCheckout', 'doorLeg', 'orderId', 'state'].sort(),
+        moment === 'create'
+          ? ['amountDueAtDelivery', 'amountPaidAtCheckout', 'buyerRef', 'doorLeg', 'orderId', 'state'].sort()
+          : ['amountDueAtDelivery', 'amountPaidAtCheckout', 'doorLeg', 'livree', 'orderId', 'state'].sort(),
       );
       // …and on a FULL_PREPAY order nothing is owed at the door, so the only
       // honest value here is `none`.
       expect(res.json['doorLeg']).toBe('none');
-      // The order id is the only random token in the payload, and a v4 uuid can
-      // contain any digit run by chance — so it is EXCISED before the value scan
-      // and asserted separately, rather than left to make the scan lucky.
+      // The order id — and on the create answer the buyer token — are the only
+      // random tokens in the payload, and a random token can contain any digit
+      // run by chance — so both are EXCISED before the value scan and asserted
+      // separately, rather than left to make the scan lucky.
       expect(res.text.includes(orderId)).toBe(true);
-      const scannable = res.text.split(orderId).join('');
+      const token = typeof res.json['buyerRef'] === 'string' ? (res.json['buyerRef'] as string) : undefined;
+      const withoutId = res.text.split(orderId).join('');
+      const scannable = token !== undefined ? withoutId.split(token).join('') : withoutId;
       const headerBytes = [...res.headers].map(([k, v]) => `${k}:${v}`).join('\n');
       for (const banned of [
         'sellerBasePrice',
@@ -1602,11 +1610,14 @@ describe('SP4.2a — the door leg is provider truth, behind the secret, and neve
     const before = await getOrder(mf, orderId);
     expect(before.status).toBe(200);
     const shape = before.json as Record<string, unknown>;
-    // FIVE FIELDS, and the fifth is a STATE — no amount rides in with it.
+    // SIX FIELDS since VRAI-SUIVI, and the fifth and sixth are both STATES —
+    // no amount rides in with either (`livree` is the poll view's delivered
+    // fact, derived from the recorded obligations, false until Séra says so).
     expect(Object.keys(shape).sort()).toEqual(
-      ['amountDueAtDelivery', 'amountPaidAtCheckout', 'doorLeg', 'orderId', 'state'],
+      ['amountDueAtDelivery', 'amountPaidAtCheckout', 'doorLeg', 'livree', 'orderId', 'state'],
     );
     expect(shape['doorLeg']).toBe('none');
+    expect(shape['livree']).toBe(false);
 
     // A REAL PROCESS DEATH on the same persist dir: the door leg is REPLAYED
     // from the durable log, never held in an object's memory.

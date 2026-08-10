@@ -156,16 +156,25 @@ export default {
      * side of the secret. This route only asks a provider to collect.
      */
     const isOrderDoorCharge = /^\/checkout\/order\/[^/]+\/door-charge$/.test(pathname);
+    /**
+     * VRAI-SUIVI — the buyer's remise read. PUBLIC PATH on the same terms as
+     * the order read (she holds no service key), but the ANSWER is gated
+     * inside the object on the order's own buyer token AND Séra's arrival
+     * fact, with one constant-shape 404 for every refusal. No amount can
+     * arrive (GET, no body) and none can leave (the 200 carries the six-digit
+     * code and nothing else). Matched exactly, like its five neighbours.
+     */
+    const isOrderRemise = /^\/checkout\/order\/[^/]+\/remise$/.test(pathname);
     const isPublicQuote =
       (request.method === 'POST' && (isCheckoutQuote || isCheckoutReserve)) ||
       (request.method === 'GET' && isCheckoutQuoteById);
     const isPublicOrder =
       (request.method === 'POST' && (isOrderCreate || isOrderDoorCharge)) ||
-      (request.method === 'GET' && isOrderById);
+      (request.method === 'GET' && (isOrderById || isOrderRemise));
     if (
       request.method === 'OPTIONS' &&
       (isCheckoutQuote || isCheckoutQuoteById || isCheckoutReserve || isOrderCreate || isOrderById ||
-        isOrderDoorCharge)
+        isOrderDoorCharge || isOrderRemise)
     ) {
       return checkoutPreflight();
     }
@@ -330,6 +339,54 @@ export default {
         );
       }
       return Response.json({ ok: false, reason: 'event_not_canonical' }, { status: 400 });
+    }
+
+    /**
+     * ═══ VRAI-SUIVI — SÉRA'S TRANSIT MARKS (the buyer-tracking intake) ═══
+     *
+     * Séra tells this Worker the rider departed (`en_route`) and arrived
+     * (`arrivee`), so the buyer's « Mes commandes » can say where her package
+     * stands — SP6's masked relay: a stage and an instant, never a rider
+     * identity and never a position. The SAME secret as `/fulfillment/progress`
+     * (`PROGRESS_WRITE_SECRET` — Séra already presents it on the eligibility
+     * signal, one credential per direction), and the gate runs BEFORE any
+     * dispatch so the 401 is never an existence oracle.
+     *
+     * EXACT-SHAPE BODY: {orderId, stage, asOf} and nothing else — an unknown
+     * field, an unknown stage or an unparseable instant refuses 400 BY NAME
+     * (a producer bug must surface as a repeating refusal in both Workers'
+     * logs). An order this Worker does not know is 404 and NOT a write: the
+     * producer retries, exactly as the preparation intake has it.
+     */
+    if (pathname === '/fulfillment/transit') {
+      if (request.method !== 'POST') return unauthorized();
+      const refused = await rejectUnauthorizedProgress(request, env);
+      if (refused) return refused;
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      for (const key of Object.keys(body)) {
+        if (key !== 'orderId' && key !== 'stage' && key !== 'asOf') {
+          return Response.json({ ok: false, reason: 'unknown_field', field: key }, { status: 400 });
+        }
+      }
+      const orderId = body['orderId'];
+      const stage = body['stage'];
+      const asOf = body['asOf'];
+      if (
+        typeof orderId !== 'string' || orderId === '' || orderId.length > 256 ||
+        (stage !== 'en_route' && stage !== 'arrivee') ||
+        typeof asOf !== 'string' || Number.isNaN(Date.parse(asOf))
+      ) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      return env.ORDER.get(env.ORDER.idFromName(orderId)).fetch(
+        new Request('https://do/entry/transit', {
+          method: 'POST',
+          body: JSON.stringify({ stage, at: asOf }),
+        }),
+      );
     }
 
     if (pathname === '/reseller/ventes') {
