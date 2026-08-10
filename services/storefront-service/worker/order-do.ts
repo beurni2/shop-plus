@@ -896,10 +896,15 @@ export class OrderDO {
       const stored = await this.state.storage.get<string>(BUYER_REF_KEY);
       const code = await this.state.storage.get<string>(CODE_REMISE_KEY);
       const transit = (await this.state.storage.get<TransitRecord>(TRANSIT_KEY)) ?? {};
-      // The compare runs against the stored value whenever one exists; the
-      // gates after it are all ANDed so no early exit distinguishes a state.
-      const jetonOk =
-        stored !== undefined && jeton !== '' && (await timingSafeEqual(jeton, stored));
+      // ⚠ THE COMPARE RUNS UNCONDITIONALLY (verifier NOTE, VRAI-ROUTE): a
+      // short-circuit on « no stored token » skipped the HMAC for an order
+      // that never existed while running it for a wrong token — identical
+      // bytes, distinguishable timing, a weak existence oracle this door's
+      // own comment promised away. An absent token compares against a decoy,
+      // and the decoy can never win because `stored !== undefined` is still
+      // required in the verdict.
+      const compared = await timingSafeEqual(jeton, stored ?? 'jeton-absent-decoy');
+      const jetonOk = stored !== undefined && jeton !== '' && compared;
       if (!jetonOk || code === undefined || transit.arrivedAt === undefined) {
         return Response.json({ ok: false }, { status: 404 });
       }
