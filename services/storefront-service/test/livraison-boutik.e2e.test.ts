@@ -1,7 +1,8 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
+import { PlatformEventSchema } from '@platform/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
@@ -95,16 +96,23 @@ function makeMf(persistDir: string): Miniflare {
           };
           if (boutikRespond === 'down') return answer(500, { ok: false });
           if (auth !== `Bearer ${FULFILL_SECRET}`) return answer(401, { error: 'unauthorized' });
-          const p = (body?.['payload'] ?? null) as Record<string, unknown> | null;
-          const env = (body?.['envelope'] ?? null) as Record<string, unknown> | null;
+          // ⚠ CERTIFIED AGAINST THE REAL DOOR, NOT PARAPHRASED (verifier,
+          // 2026-08-10 — Execution Contract §3): Boutik+ parses with THIS
+          // schema (strict envelope, extra keys refused), bounds `order_id`
+          // at 256, and requires a PARSEABLE instant. A stub looser than the
+          // door it stands for would pass bytes the real one refuses.
+          const parsed = PlatformEventSchema.safeParse(body);
+          const p = parsed.success ? (parsed.data.payload as Record<string, unknown>) : null;
           const orderId = p?.['order_id'];
           if (
-            body?.['name'] !== 'delivery.validated.v1' || typeof orderId !== 'string' || orderId === '' ||
-            p?.['result'] !== 'validated' || p?.['settlement_eligibility'] !== true ||
-            typeof env?.['serverTime'] !== 'string'
+            !parsed.success || parsed.data.name !== 'delivery.validated.v1' ||
+            typeof orderId !== 'string' || orderId === '' || orderId.length > 256 ||
+            p['result'] !== 'validated' || p['settlement_eligibility'] !== true ||
+            parsed.data.envelope.serverTime === '' || Number.isNaN(Date.parse(parsed.data.envelope.serverTime))
           ) {
             return answer(400, { ok: false, reason: 'event_not_canonical' });
           }
+          const env = { serverTime: parsed.data.envelope.serverTime };
           if (!registered.has(orderId)) return answer(404, { ok: false, reason: 'unknown_order' });
           const already = livraisons.get(orderId);
           if (already !== undefined) return answer(200, { ok: true, status: 'already_delivered', deliveredAt: already });
@@ -318,4 +326,36 @@ describe('BOUTIK-SUIVI — Séra’s delivery reaches the supplier’s book, onc
     expect(deliveredPosts.length).toBe(avant);
     expect(livraisons.has(orderId)).toBe(false);
   }, 60_000);
+});
+
+describe('BOUTIK-SUIVI — a stranded delivery is recovered, never abandoned', () => {
+  /**
+   * ⚠ WHY THIS IS A CALL-SITE PIN AND NOT A DRIVEN CASE. The stranded state
+   * is « pending outbox, NO alarm » — reachable only by a crash in the narrow
+   * window between the batch put and `setAlarm`, which no test can produce
+   * from outside the object (after any failed attempt the flusher has already
+   * re-armed on backoff). The two older wires' identical recovery hook is
+   * held to exactly this standard; the defect the verifier found was that
+   * this wire had NO hook at all, and that IS visible here.
+   */
+  const src = readFileSync(
+    join(import.meta.dirname, '..', 'worker', 'order-do.ts'),
+    'utf8',
+  );
+
+  it('the webhook recovery hook covers all THREE wires, not just the two older ones', () => {
+    const hook = src.slice(src.indexOf('const stranded = await this.state.storage.get'));
+    const guard = hook.slice(0, hook.indexOf('setAlarm'));
+    expect(guard).toContain('BOUTIK_DELIVERED_KEY');
+    expect(guard).toContain("strandedLivraison?.status === 'pending'");
+  });
+
+  it('a REDELIVERED eligibility re-arms it too — Séra’s retry is the only recovery this wire can get', () => {
+    const dup = src.slice(src.indexOf('if (outcome.duplicate) {'));
+    const body = dup.slice(0, dup.indexOf("status: 'duplicate'"));
+    expect(body).toContain('BOUTIK_DELIVERED_KEY');
+    expect(body).toContain('setAlarm(Date.now())');
+    // and it stays a duplicate answer — the recovery must not re-apply the fact
+    expect(body).not.toContain('storage.put');
+  });
 });

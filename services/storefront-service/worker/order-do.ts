@@ -683,6 +683,15 @@ export class OrderDO {
         return Response.json({ ok: false, reason: outcome.reason }, { status: 409 });
       }
       if (outcome.duplicate) {
+        // BOUTIK-SUIVI (verifier, 2026-08-10) — A REDELIVERY REPAIRS A
+        // STRANDED RELAY, the same way a redelivered webhook repairs the two
+        // wires above. Séra retries this signal for an hour at a time; that
+        // retry is the only recovery a delivery enqueued-but-unalarmed will
+        // ever get, and returning early without it was the gap.
+        const strandedLivraison = await this.state.storage.get<{ status?: string }>(BOUTIK_DELIVERED_KEY);
+        if (strandedLivraison?.status === 'pending' && (await this.state.storage.getAlarm()) === null) {
+          await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+        }
         return Response.json({ ok: true, status: 'duplicate' });
       }
       // BOUTIK-SUIVI — the supplier's « Livré et terminé » screen is fed from
@@ -1453,8 +1462,13 @@ export class OrderDO {
       // funding fact is exactly as unrecoverable as a stranded boutik event.
       const stranded = await this.state.storage.get<{ status?: string }>(OUTBOX_KEY);
       const strandedSera = await this.state.storage.get<{ status?: string }>(SERA_OUTBOX_KEY);
+      // BOUTIK-SUIVI (verifier, 2026-08-10): and the THIRD wire. The flush was
+      // at parity with Séra's; the RECOVERY was not — a stranded delivery
+      // would have left a supplier's colis « en route » for ever, which is
+      // precisely the unrecoverable state this hook exists to prevent.
+      const strandedLivraison = await this.state.storage.get<{ status?: string }>(BOUTIK_DELIVERED_KEY);
       if (
-        (stranded?.status === 'pending' || strandedSera?.status === 'pending') &&
+        (stranded?.status === 'pending' || strandedSera?.status === 'pending' || strandedLivraison?.status === 'pending') &&
         (await this.state.storage.getAlarm()) === null
       ) {
         await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
