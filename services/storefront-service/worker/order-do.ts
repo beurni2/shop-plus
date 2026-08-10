@@ -94,6 +94,21 @@ const OUTBOX_KEY = 'order-confirmed-outbox';
  * task and never an amount: no franc figure crosses this wire.
  */
 const SERA_OUTBOX_KEY = 'sera-funding-outbox';
+/**
+ * BOUTIK-SUIVI (founder, 2026-08-09: « when the delivery is completed … the
+ * product leaves en route to that screen ») — a THIRD destination, its own
+ * key for the same reason Séra has one: neither wire may mask the other's
+ * fate. Séra proves the delivery and tells this object (`/entry/eligibility`);
+ * the supplier's own console cannot hear Séra, so the fact is relayed on the
+ * road that already exists — the OFFER binding and the fulfillment write
+ * secret this object already holds.
+ *
+ * ⚠ THE CANONICAL EVENT TRAVELS VERBATIM. No new event name is minted here:
+ * `delivery.validated.v1` is already canon, and inventing a Boutik+-shaped
+ * one would be a §7 contracts change. Boutik+ re-parses it with the same
+ * schema and the same payload bounds this Worker's own door applies.
+ */
+const BOUTIK_DELIVERED_KEY = 'boutik-delivered-outbox';
 const LOG_KEY = 'order-input-log';
 const ATTEMPTS_KEY = 'payment-attempts';
 const RESULTS_KEY = 'command-results';
@@ -447,7 +462,14 @@ export class OrderDO {
       // folded into it — « boutik delivered, Séra still pending » is a real
       // state an operator must be able to see.
       const sera = await this.state.storage.get(SERA_OUTBOX_KEY);
-      return Response.json({ ok: true, outbox, ...(sera !== undefined ? { seraOutbox: sera } : {}) });
+      // BOUTIK-SUIVI — and the delivery wire beside both, for the same reason.
+      const livraison = await this.state.storage.get(BOUTIK_DELIVERED_KEY);
+      return Response.json({
+        ok: true,
+        outbox,
+        ...(sera !== undefined ? { seraOutbox: sera } : {}),
+        ...(livraison !== undefined ? { livraisonOutbox: livraison } : {}),
+      });
     }
 
     /** THE BUYER READ. Already projected — the Quote does not leave this object. */
@@ -663,7 +685,17 @@ export class OrderDO {
       if (outcome.duplicate) {
         return Response.json({ ok: true, status: 'duplicate' });
       }
-      await this.state.storage.put(LOG_KEY, [...log, input]);
+      // BOUTIK-SUIVI — the supplier's « Livré et terminé » screen is fed from
+      // HERE, in the same atomic batch as the log: a delivery this object
+      // recorded but never enqueued would leave his colis « en route » for
+      // ever, which is the exact class of silent loss the accept-leg verifier
+      // caught on the other wire (B1). The relay is at-least-once and
+      // first-wins at Boutik+'s door.
+      await this.state.storage.put({
+        [LOG_KEY]: [...log, input],
+        [BOUTIK_DELIVERED_KEY]: { status: 'pending', event, attempts: 0 },
+      });
+      await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
       return Response.json({
         ok: true,
         status: 'recorded',
@@ -1234,9 +1266,12 @@ export class OrderDO {
     // at-least-once and neither can lose a fact — but the earlier wording
     // claimed more than the code does, so it is corrected here rather than
     // left to read as a guarantee.
+    // BOUTIK-SUIVI adds a THIRD wire on the same terms: its own key, its own
+    // attempt count, the same shared re-arm the note above describes.
     const boutikPending = await this.flushBoutikOutbox();
     const seraPending = await this.flushSeraOutbox();
-    const stillPending = Math.max(boutikPending, seraPending);
+    const livraisonPending = await this.flushBoutikDeliveredOutbox();
+    const stillPending = Math.max(boutikPending, seraPending, livraisonPending);
     if (stillPending > 0) {
       await this.state.storage.setAlarm(Date.now() + outboxBackoffMs(stillPending));
     }
@@ -1323,6 +1358,54 @@ export class OrderDO {
     }
     const attempts = outbox.attempts + 1;
     await this.state.storage.put(SERA_OUTBOX_KEY, { ...outbox, attempts });
+    return attempts;
+  }
+
+  /**
+   * BOUTIK-SUIVI — the delivery fact to Boutik+, at-least-once, on the OFFER
+   * binding and the fulfillment write secret this object already carries for
+   * `order.confirmed.v1`. Boutik+ answers 404 while it has not yet registered
+   * the order (its own intake may still be in flight on the same road) — that
+   * is a RETRY, not a terminal: `res.ok` alone decides, exactly as the
+   * confirmed leg decides, so a slow sibling wire can never lose the fact.
+   */
+  private async flushBoutikDeliveredOutbox(): Promise<number> {
+    const outbox = await this.state.storage.get<{
+      status: 'pending' | 'delivered';
+      event?: unknown;
+      attempts: number;
+      deliveredAt?: string;
+    }>(BOUTIK_DELIVERED_KEY);
+    if (outbox === undefined || outbox.status !== 'pending' || outbox.event === undefined) return 0;
+
+    let delivered = false;
+    if (this.env.OFFER !== undefined) {
+      const res = await this.env.OFFER.fetch(
+        new Request('https://offer/fulfillment/delivered', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(this.env.FULFILLMENT_WRITE_SECRET !== undefined && this.env.FULFILLMENT_WRITE_SECRET !== ''
+              ? { Authorization: `Bearer ${this.env.FULFILLMENT_WRITE_SECRET}` }
+              : {}),
+          },
+          body: JSON.stringify(outbox.event),
+        }),
+      ).catch(() => undefined);
+      delivered = res !== undefined && res.ok;
+    }
+
+    if (delivered) {
+      await this.state.storage.put(BOUTIK_DELIVERED_KEY, {
+        ...outbox,
+        status: 'delivered',
+        attempts: outbox.attempts + 1,
+        deliveredAt: new Date().toISOString(),
+      });
+      return 0;
+    }
+    const attempts = outbox.attempts + 1;
+    await this.state.storage.put(BOUTIK_DELIVERED_KEY, { ...outbox, attempts });
     return attempts;
   }
 
