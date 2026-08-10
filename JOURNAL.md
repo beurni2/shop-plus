@@ -9,6 +9,22 @@ Format per entry:
 
 ---
 
+## 2026-08-10 · VOIX-VITRINE — playback that asked a player with nothing loaded to start · IN-REVIEW (branch, awaiting founder)
+**Founder report:** « On ma vitrine in shop+ when I record an audio and want to play it back it's not working. »
+
+**THIS IS THE SECOND HALF OF A BUG WHOSE FIRST HALF WAS ALREADY FIXED.** `voice-capture.ts` already carries the silent-switch fix — `setAudioModeAsync` sets the WHOLE mode rather than merging, so an earlier call had been dropping `playsInSilentMode` back to false and iOS played the take at zero volume. That was real and it shipped. It did not finish the job.
+
+**FOUND:** `play()` called `p.replace({ uri: url })` and then `p.play()` on the very next line. `replace()` hands the player a new source; **loading it is asynchronous.** `play()` on a player with nothing loaded returns without error and without sound. Whether anything was heard depended on a race the code never acknowledged — a short local take on a fast phone sometimes won it, which is exactly why this read as intermittent rather than broken.
+
+**FIXED:** playback now waits for the player's own word. `isLoaded` is the fact (`expo-audio` `AudioModule.types.d.ts` l.44 — « whether the player is finished loading »), and it arrives on the same `playbackStatusUpdate` the listener already reads. Both roads are covered and neither can double up: a `lance` flag starts playback exactly once, whether the player was ALREADY loaded (she listens to the same take twice — no further status may arrive, so waiting for one would hang) or becomes loaded a moment later.
+
+**⚠ EVIDENCE, STATED HONESTLY — AND THIS IS THE NEW LAW'S FIRST EXCEPTION.** `voice-capture.ts` is the NATIVE adapter: it imports `expo-audio` at module scope and is by construction never imported by a test (the file's own header states this, and the Metro-safe law requires it). The pure reducer and the demo double in `./voice.ts` are what the Node tests exercise, and they do not model loading at all. So this fix is gated by **tsc only**, exactly as the file was designed to be, and is **founder-device-verified** per the standing RN device-matrix note.
+- **What that means for the 2026-08-10 screen-walk law:** it is not evaded here, it does not reach. The law binds SCREENS; this is a native module adapter behind a seam, with no screen in it. **The screen that drives it — the voice sheet — still has no walk, because this repo has no harness.** That obligation stands and is recorded in the STANDING ORDER entry below.
+
+**Pending:** merge + deploy approval. Reseller-app changes reach the founder through its own preview publish.
+
+---
+
 ## 2026-08-10 · STANDING ORDER — the screen is DRIVEN, never only read · LAW
 **Founder:** « Make it a law from now on every build and fix should uses this tool for tests before merge and deploy ask. »
 

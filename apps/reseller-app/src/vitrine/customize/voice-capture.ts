@@ -83,9 +83,38 @@ export function useVoiceCapture(): VoiceRecorderAdapter {
         if (player.current === null) player.current = createAudioPlayer(null);
         const p = player.current;
         fin.current?.remove(); // one listener at a time — takes replace, never stack
+        /**
+         * ═══ ⚠ PLAY BEFORE LOADED IS PLAY THAT NEVER HAPPENS ═══
+         *
+         * FOUNDER, AGAIN (2026-08-10): « on ma vitrine when I record an audio
+         * and want to play it back it's not working. » The silent-switch half
+         * of this was fixed above and was real; this is the OTHER half, and it
+         * is why the fix did not finish the job.
+         *
+         * `replace()` hands the player a new source; loading it is ASYNC.
+         * `play()` on the very next line asks a player that has nothing loaded
+         * yet to start — it returns without error and without sound. Whether
+         * anything is heard then depends on a race the code never acknowledged:
+         * a short local take on a fast phone sometimes won it, which is exactly
+         * why this looked intermittent rather than broken.
+         *
+         * So playback now waits for the player's OWN word. `isLoaded` is the
+         * fact (`AudioModule.types` l.44 — « whether the player is finished
+         * loading »), delivered on the same `playbackStatusUpdate` this
+         * listener already reads. Both roads are covered and neither can double
+         * up: the flag starts it once, whether the player was already loaded
+         * (a second listen to the same take) or becomes loaded a moment later.
+         */
+        let lance = false;
+        const lancer = (): void => {
+          if (lance) return;
+          lance = true;
+          p.play();
+        };
         // WHEN THE TAKE ENDS, SAY SO. Without this the screen never learns that
         // playback finished, so « Pause » sits over silence until she taps it.
         fin.current = p.addListener('playbackStatusUpdate', (st) => {
+          if (st.isLoaded) lancer();
           if (st.didJustFinish) { onEnd?.(); return; }
           // VOIX-ÉTAT-2 — the position, from the SAME event that already told
           // us the take had ended. Nothing new is polled and no timer of our own
@@ -93,7 +122,9 @@ export function useVoiceCapture(): VoiceRecorderAdapter {
           onTick?.(Math.max(0, Math.floor(st.currentTime)));
         });
         p.replace({ uri: url });
-        p.play();
+        // Already loaded (she is listening to the same take a second time) —
+        // no further status may arrive, so do not sit waiting for one.
+        if (p.isLoaded) lancer();
       },
       async stopPlayback() {
         player.current?.pause();
