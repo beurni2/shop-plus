@@ -20,6 +20,7 @@ import { marginBreakdown, markupCap, defaultMarkup, snapMarkup } from './src/vit
 import { MarginSlider } from './src/ui/margin-slider';
 import { PhotoGallery } from './src/ui/photo-gallery';
 import { ProductClip } from './src/ui/product-clip';
+import { vignette } from './src/vitrine/vignette';
 import { cadreRatio, CADRE_DEFAUT } from './src/ui/cadre';
 import { HeroLedger, DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
@@ -1412,7 +1413,10 @@ export default function App() {
                             accessibilityState={{ selected: i === Math.min(ficheHeroIdx, opp.assetRefs.length - 1) }}
                             accessibilityLabel={t('galerie.ouvrir')}
                           >
-                            <Image source={{ uri: ref }} style={styles.artPhoto} resizeMode="cover" />
+                            {/* VIGNETTE — the 52 px strip asks for the SMALL copy.
+                                The hero above it does NOT: it renders at full card
+                                width, where 320 px would look soft. */}
+                            <Image source={{ uri: vignette(ref) }} style={styles.artPhoto} resizeMode="cover" />
                           </Pressable>
                         ))}
                       </View>
@@ -1595,7 +1599,9 @@ export default function App() {
                                 accessibilityRole="button"
                                 accessibilityLabel={t('galerie.ouvrir')}
                               >
-                                <Image source={{ uri: ref }} style={styles.artPhoto} resizeMode="cover" />
+                                {/* VIGNETTE — same rule as the fiche strip: small
+                                    render, small file; the card hero stays full. */}
+                                <Image source={{ uri: vignette(ref) }} style={styles.artPhoto} resizeMode="cover" />
                               </Pressable>
                             ))}
                           </View>

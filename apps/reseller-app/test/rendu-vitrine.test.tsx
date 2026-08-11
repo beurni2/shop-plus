@@ -305,3 +305,52 @@ describe('THE TWO BLOCKERS THE VERIFIER FOUND — each walked', () => {
     screen.unmount();
   });
 });
+
+/**
+ * ═══ VIGNETTE — THE SMALL RENDER ASKS FOR THE SMALL FILE ═══
+ *
+ * Founder, 2026-08-11: « implement the vignette on all of them. »
+ *
+ * The judgement this pins is NOT « append a query » — it is WHERE. A 320 px
+ * file is right for the 52 px thumbnail strip and wrong for the card hero,
+ * which renders at full card width. Both halves are asserted, because getting
+ * only the first right makes her product photography look cheap on the surface
+ * that sells it.
+ */
+describe('VIGNETTE — small render, small file; big render, big file', () => {
+  const AVEC_PHOTOS = 'https://media.test/media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const DEUXIEME = 'https://media.test/media/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+  it('the thumbnail strip requests ?v=thumb while the card hero requests the full photograph', async () => {
+    const state = { offers: [PV_A], curated: [PV_A] };
+    wire([
+      (path) =>
+        path === '/supply-projections'
+          ? {
+              status: 200,
+              json: {
+                // TWO refs, because the strip only renders when there is more
+                // than one photograph — with a single ref this walk would pass
+                // while asserting nothing about the strip at all.
+                offers: [{ ...offer(PV_A, 'Bazin riche'), assetRefs: [AVEC_PHOTOS, DEUXIEME] }],
+                diagnostic: { status: 'ok', refusals: [] },
+              },
+            }
+          : null,
+      (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
+      (path) =>
+        /^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: storefront(state.curated) as never } : null,
+    ]);
+    const screen = await openVitrine();
+    await screen.settle();
+
+    const images = screen.images();
+    // THE STRIP — the small file, for both thumbnails.
+    expect(images, 'the 52px thumbnail must ask for the vignette').toContain(`${AVEC_PHOTOS}?v=thumb`);
+    expect(images).toContain(`${DEUXIEME}?v=thumb`);
+    // THE HERO — the full photograph, unchanged. This is the half that stops
+    // « all of them » from making her best surface look soft.
+    expect(images, 'the card hero must stay full size').toContain(AVEC_PHOTOS);
+    screen.unmount();
+  });
+});
