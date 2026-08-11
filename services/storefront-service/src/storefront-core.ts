@@ -259,11 +259,21 @@ export function decideRemoveItem(
   if (!sf.curatedItems.includes(pid)) {
     return { decision: { status: 'not_present', storefront: sf } };
   }
+  /**
+   * THE TWO ARRAYS ARE GUARDED, and this is not defensive habit (verifier
+   * MAJOR). DO storage is read RAW — nothing re-parses an entry on the way out
+   * — so a shop written before `featuredItems`/`sections` existed sits there as
+   * a plain object missing them. `customer-projection.ts` records the same scar
+   * verbatim: « a storefront written before this deploy sits in DO storage as a
+   * plain object that never re-parses on read… it is not hypothetical. » Without
+   * the guard, `.filter` on `undefined` throws and the removal answers an
+   * unnamed 500 — she would be told nothing at all.
+   */
   const storefront: Storefront = {
     ...sf,
     curatedItems: sf.curatedItems.filter((p) => p !== pid),
-    featuredItems: sf.featuredItems.filter((p) => p !== pid),
-    sections: sf.sections.map((s) => ({ ...s, pids: s.pids.filter((p) => p !== pid) })),
+    featuredItems: (sf.featuredItems ?? []).filter((p) => p !== pid),
+    sections: (sf.sections ?? []).map((s) => ({ ...s, pids: (s.pids ?? []).filter((p) => p !== pid) })),
     updatedAt: at,
   };
   return { decision: { status: 'removed', storefront }, next: { ...current, storefront } };

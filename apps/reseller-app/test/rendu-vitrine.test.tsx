@@ -92,12 +92,17 @@ function service(opts: { offers: readonly string[]; curated: readonly string[] }
       if (!/^\/storefronts\/[^/]+\/items\/remove$/.test(path)) return null;
       state.removeCalls += 1;
       const pid = typeof body?.['pid'] === 'string' ? (body['pid'] as string) : '';
-      if (!state.curated.includes(pid)) return { status: 200, json: { status: 'not_present' } };
+      if (!state.curated.includes(pid)) {
+        return { status: 200, json: { status: 'not_present', storefront: storefront(state.curated) as never } };
+      }
       state.curated = state.curated.filter((p) => p !== pid);
-      return { status: 200, json: { status: 'removed' } };
+      // The REAL decision body carries the post-removal shop; a fake that
+      // withheld it would make the screen's second-read fallback look dead.
+      return { status: 200, json: { status: 'removed', storefront: storefront(state.curated) as never } };
     },
     // The admin list — how the app learns her shop's slug.
-    (path) => (path === '/storefronts' ? { status: 200, json: { rows: [] } as never } : null),
+    // A BARE ARRAY, which is what `GET /storefronts` really answers.
+    (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
     (path) =>
       /^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: storefront(state.curated) as never } : null,
   ];
@@ -230,6 +235,73 @@ describe('OPPORTUNITÉS — the browse list RE-READS', () => {
     ).toBeGreaterThan(readsBefore);
     expect(screen.texts().join(' '), 'the deleted product must be gone').not.toContain('Sac en cuir');
     expect(screen.shows('Bazin riche'), 'and the ones still on offer stay').toBe(true);
+    screen.unmount();
+  });
+});
+
+describe('THE TWO BLOCKERS THE VERIFIER FOUND — each walked', () => {
+  it('NO SHOP YET shows the honest empty vitrine, never cards « Retirer » could not remove', async () => {
+    /**
+     * BLOCKER 1: the fallback also fired on `null` (« asked, and she has no
+     * shop »), so a reseller with no boutique saw cards drawn from the session
+     * log. The service had never heard of them and « Retirer » could only ever
+     * answer 404 — a dead control telling her to retry the impossible.
+     */
+    const svc = service({ offers: [PV_A], curated: [] });
+    wire([
+      // getById 404s: she has not gone online yet.
+      (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 404, json: { error: 'not_found' } } : null),
+      // The listing publishes anyway — `decidePublish` never checks that a
+      // storefront exists, and the membership POST that follows is answered
+      // `absent` at HTTP 200 and IGNORED by the composition root. That is a
+      // separate defect, journalled for the founder; it is reproduced here
+      // because it is what puts a pid in the session log with no shop behind it.
+      (path) => (path === '/listings' ? { status: 200, json: { status: 'published' } } : null),
+      ...svc.routes,
+    ]);
+    const screen = await mountApp();
+
+    // She publishes a product without ever having gone online.
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+    await screen.press('Ajouter à ma vitrine');
+
+    // …and Ma Vitrine must NOT claim it is in a shop that does not exist.
+    expect(screen.shows('Ma vitrine') || screen.shows('Ma Vitrine')).toBe(true);
+    expect(
+      screen.texts().join(' '),
+      'no product may be claimed for a shop the service has never heard of',
+    ).not.toContain('Bazin riche');
+    screen.unmount();
+  });
+
+  it('a removal whose SHOP READ fails still tells the truth — no success over a stale card', async () => {
+    /**
+     * BLOCKER 2: the screen re-read after the write and swallowed the failure,
+     * so a POST that landed followed by a GET that did not left the product on
+     * screen under « Retiré de votre boutique. » The shop now rides back on the
+     * write itself; this walks the OLD-Worker path, where it does not.
+     */
+    const svc = service({ offers: [PV_A, PV_B], curated: [PV_A, PV_B] });
+    let removed = false;
+    wire([
+      (path, body) => {
+        if (!/\/items\/remove$/.test(path)) return null;
+        removed = true;
+        svc.state.curated = svc.state.curated.filter((p) => p !== String(body?.['pid'] ?? ''));
+        // An OLDER Worker: no storefront on the answer.
+        return { status: 200, json: { status: 'removed' } };
+      },
+      // …and the fallback read is down.
+      (path) => (/^\/storefronts\/[^/]+$/.test(path) && removed ? { status: 503, json: { error: 'down' } } : null),
+      ...svc.routes,
+    ]);
+    const screen = await openVitrine();
+    await screen.press('Retirer de ma vitrine', 0);
+
+    // It must NOT claim the shop changed when it could not read the shop.
+    expect(screen.shows('Retiré de votre boutique.'), 'no success it cannot see').toBe(false);
+    expect(screen.shows("Retiré, mais votre boutique n'a pas répondu. Rouvrez Ma vitrine pour voir.")).toBe(true);
     screen.unmount();
   });
 });

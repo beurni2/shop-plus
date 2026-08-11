@@ -242,7 +242,11 @@ export interface StorefrontServicePort {
    * the outcome she asked for — a retry after a lost answer converges quietly
    * instead of painting a failure over work already done.
    */
-  removeItem(storefrontId: string, pid: string, at: string): Promise<ServiceResult<{ status: string }>>;
+  removeItem(
+    storefrontId: string,
+    pid: string,
+    at: string,
+  ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>>;
 }
 
 /**
@@ -432,7 +436,11 @@ export class HttpStorefrontService implements StorefrontServicePort {
     return { ok: true, value: { status: data?.status ?? 'published' } };
   }
 
-  async removeItem(storefrontId: string, pid: string, at: string): Promise<ServiceResult<{ status: string }>> {
+  async removeItem(
+    storefrontId: string,
+    pid: string,
+    at: string,
+  ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
     let res: Response;
     try {
       res = await fetch(`${this.base}/storefronts/${encodeURIComponent(storefrontId)}/items/remove`, {
@@ -443,9 +451,26 @@ export class HttpStorefrontService implements StorefrontServicePort {
     } catch {
       return { ok: false, reason: 'offline' };
     }
-    const data = (await res.json().catch(() => null)) as { status?: string; error?: string } | null;
+    /**
+     * THE SHOP RIDES BACK ON THE ANSWER (verifier BLOCKER). The decision body is
+     * `{status, storefront}` and the first cut discarded the storefront, so the
+     * screen had to make a SECOND read to learn the outcome — and a POST that
+     * lands followed by a GET that does not is an ordinary event on the network
+     * Law 7 names. That left the removed product on screen under « Retiré de
+     * votre boutique. »: the exact symptom, with a success message over it.
+     * Reading the shop off the write closes the window entirely.
+     */
+    const data = (await res.json().catch(() => null)) as
+      | { status?: string; error?: string; storefront?: Storefront }
+      | null;
     if (!res.ok) return { ok: false, reason: data?.error ?? `http_${res.status}` };
-    return { ok: true, value: { status: data?.status ?? 'removed' } };
+    return {
+      ok: true,
+      value: {
+        status: data?.status ?? 'removed',
+        ...(data?.storefront !== undefined ? { storefront: data.storefront } : {}),
+      },
+    };
   }
 
   async list(): Promise<ServiceResult<readonly StorefrontRow[]>> {

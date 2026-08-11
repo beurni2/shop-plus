@@ -237,19 +237,26 @@ export class DemoStorefrontService implements StorefrontServicePort {
    * only dropped `curatedItems` would make the real one's atomicity look like an
    * implementation detail instead of the contract it is.
    */
-  async removeItem(storefrontId: string, pid: string, at: string): Promise<ServiceResult<{ status: string }>> {
+  async removeItem(
+    storefrontId: string,
+    pid: string,
+    at: string,
+  ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
     const read = await this.getById(storefrontId);
     const current = read.ok ? read.value : undefined;
     // The honest 404 the real adapter gives for a shop that does not exist.
     if (current === undefined) return { ok: false, reason: 'http_404' };
-    if (!current.curatedItems.includes(pid)) return { ok: true, value: { status: 'not_present' } };
-    this.identities.set(storefrontId, {
+    if (!current.curatedItems.includes(pid)) return { ok: true, value: { status: 'not_present', storefront: current } };
+    const next: Storefront = {
       ...current,
       curatedItems: current.curatedItems.filter((p: string) => p !== pid),
       featuredItems: current.featuredItems.filter((p: string) => p !== pid),
       sections: current.sections.map((sec) => ({ ...sec, pids: sec.pids.filter((p: string) => p !== pid) })),
       updatedAt: at,
-    });
-    return { ok: true, value: { status: 'removed' } };
+    };
+    this.identities.set(storefrontId, next);
+    // The SHOP rides back, exactly as the real answer carries it — a demo that
+    // withheld it would make the screen's second-read window look unnecessary.
+    return { ok: true, value: { status: 'removed', storefront: next } };
   }
 }

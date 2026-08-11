@@ -3694,5 +3694,11 @@
   "fr": "Ce produit n'a pas été retiré. Réessayez.",
   "register": "selling",
   "screenClass": "general"
+ },
+ {
+  "key": "vitrine.retirer_incertain",
+  "fr": "Retiré, mais votre boutique n'a pas répondu. Rouvrez Ma vitrine pour voir.",
+  "register": "selling",
+  "screenClass": "general"
  }
 ]

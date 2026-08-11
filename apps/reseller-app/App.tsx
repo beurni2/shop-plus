@@ -373,6 +373,13 @@ export default function App() {
       setFeed({ status: 'unconfigured' });
       return;
     }
+    // ON ENTERING, NOT ON LEAVING (verifier MAJOR). A boolean dependency changes
+    // in BOTH directions, so the first cut also re-read when she walked away —
+    // roughly double the requests this comment promised, on a metered
+    // connection. The first read still happens whatever screen she starts on
+    // (`feed === undefined`); after that, only being on one of the two screens
+    // asks again.
+    if (feed !== undefined && !surOpportunites && !surVitrine) return;
     void offerSource.list().then((f) => {
       if (live) setFeed(f);
     });
@@ -442,12 +449,32 @@ export default function App() {
    * on a failed read — a fault leaves it `undefined` rather than inventing a shop.
    */
   const [liveStorefront, setLiveStorefront] = useState<Storefront | null | undefined>(undefined);
+  /**
+   * ONE ADOPTER, AND IT ONLY EVER MOVES FORWARD (verifier MAJOR — a stale
+   * response could bring the removed card back). Two writers set this value:
+   * the entry effect and the removal. Enter Ma Vitrine, tap « Retirer » before
+   * the entry read lands, and the OLDER answer could resolve last and restore
+   * the pre-removal shop — the same symptom as the bug being fixed. `updatedAt`
+   * is the server's own clock and moves on every real change, so refusing an
+   * answer older than the one held makes the order deterministic.
+   */
+  const adopterStorefront = useCallback((next: Storefront): void => {
+    setLiveStorefront((held) =>
+      held !== null && held !== undefined && held.updatedAt > next.updatedAt ? held : next,
+    );
+  }, []);
   useEffect(() => {
     if (service === null || identity === null || identity === undefined) return;
+    // ON ENTERING, NOT ON LEAVING — the same reason as the supply feed above.
+    // `liveStorefront === undefined` is « never asked », so the first read
+    // always runs; a re-read costs a screen she deliberately opened.
+    if (liveStorefront !== undefined && !surPersonnaliser && !surVitrine) return;
     let live = true;
     void service.getById(identity.storefrontId).then((res) => {
       if (!live || !res.ok) return; // a fault leaves it UNASKED, never a fabricated shop
-      setLiveStorefront(res.value ?? null);
+      // `null` (no shop yet) still lands directly — there is no clock to compare.
+      if (res.value === undefined) setLiveStorefront(null);
+      else adopterStorefront(res.value);
     });
     return () => {
       live = false;
@@ -492,7 +519,7 @@ export default function App() {
       const res = await service.uploadCover(identity.storefrontId, bytes, contentType);
       if (!res.ok) return { ok: false, reason: res.reason };
       const fresh = await service.getById(identity.storefrontId);
-      if (fresh.ok && fresh.value !== undefined) setLiveStorefront(fresh.value);
+      if (fresh.ok && fresh.value !== undefined) adopterStorefront(fresh.value);
       // ═══ MEDIA-2 — SUCCESS IS WHAT THE READ-BACK SHOWS, NOT WHAT 201 SAID ═══
       //
       // A 201 with no confirming read left the slot spinning « ENVOI… » forever
@@ -697,14 +724,17 @@ export default function App() {
    * was moved onto `curatedItems` for exactly this reason and this grid was left
    * behind; it joins it now, so ONE membership answers both.
    *
-   * `liveStorefront` not yet read ⇒ the log is used as the interim answer rather
-   * than showing her an empty shop she has not got: `undefined` here means « not
-   * asked yet », never « nothing there ».
+   * THE FALLBACK IS `undefined` ONLY (verifier BLOCKER). The first cut also fell
+   * back on `null`, and in this file `null` means « asked, and she has no shop
+   * yet » — every other consumer REFUSES on it (`:491`, `:551`, `:584`). Falling
+   * back there rendered cards for a woman with no boutique at all: they came
+   * from the session log, the service had never heard of them, and « Retirer »
+   * could only ever answer 404 — a dead control telling her to retry something
+   * that can never work. `undefined` (« not asked yet ») keeps the interim
+   * answer; `null` shows the designed empty state, which is the truth.
    */
   const vitrineLive: readonly string[] =
-    liveStorefront === null || liveStorefront === undefined
-      ? vitrineCol.listings()
-      : liveStorefront.curatedItems;
+    liveStorefront === undefined ? vitrineCol.listings() : (liveStorefront?.curatedItems ?? []);
   const vitrineOffers = offers.filter((o) => vitrineLive.includes(o.productVersionId));
   const ficheOpp = world.opportunities.find((o) => o.id === ficheId);
   const shareOpp = world.opportunities.find((o) => o.id === shareId);
@@ -804,8 +834,25 @@ export default function App() {
         return setToast(t('vitrine.retirer_echec'));
       }
       vitrineCol.removeFromVitrine(pid);
-      const fresh = await service.getById(identity.storefrontId);
-      if (fresh.ok && fresh.value !== undefined) setLiveStorefront(fresh.value);
+      /**
+       * THE SHOP COMES OFF THE WRITE, not a second read (verifier BLOCKER). The
+       * first cut re-read with `getById` and swallowed its failure, so a POST
+       * that landed followed by a GET that did not left the removed product on
+       * screen under « Retiré de votre boutique. » — the founder's own symptom
+       * with a success message painted over it. The decision body already
+       * carries the post-removal shop; a fallback read runs only if an older
+       * Worker sent none, and its failure is now SAID rather than swallowed.
+       */
+      if (res.value.storefront !== undefined) {
+        adopterStorefront(res.value.storefront);
+      } else {
+        const fresh = await service.getById(identity.storefrontId);
+        if (fresh.ok && fresh.value !== undefined) adopterStorefront(fresh.value);
+        else {
+          setRetiring(null);
+          return setToast(t('vitrine.retirer_incertain'));
+        }
+      }
       setRetiring(null);
       setToast(t('vitrine.retirer_fait'));
     },
