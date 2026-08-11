@@ -203,6 +203,72 @@ export function decideAddItem(
   return { decision: { status: 'added', storefront }, next: { ...current, storefront } };
 }
 
+export type RemoveItemDecision =
+  | { readonly status: 'removed'; readonly storefront: Storefront }
+  /** Idempotent and HONEST: a pid her shop does not hold is already the outcome
+   *  she asked for, so a lost answer replayed converges quietly. */
+  | { readonly status: 'not_present'; readonly storefront: Storefront }
+  | { readonly status: 'absent' };
+
+/**
+ * ═══ VITRINE-RETRAIT (founder, 2026-08-11) — SHE TAKES A PRODUCT OUT ═══
+ *
+ * « when they delete products from their ma vitrine these products still show
+ * on their boutique. »
+ *
+ * THE HOLE THIS FILLS, stated exactly: membership was APPEND-ONLY. `decideAddItem`
+ * could put a pid in `curatedItems` and NOTHING could take it out — `applyPresentation`
+ * refuses any `curatedItems` that is not a PERMUTATION of what is held (« dropping
+ * one would retire a product through a reorder »), which is the right rule and
+ * always was. What was missing is the act that comment names: a removal with its
+ * own screen and its own words. The reseller app's « retirer » wrote to a
+ * SESSION-LOCAL event log that no wire ever carried, so her boutique kept the
+ * product forever and the removal itself vanished when she reopened the app.
+ *
+ * IT REMOVES EVERY REFERENCE, NOT ONLY THE MEMBERSHIP. A pid can also be PINNED
+ * (« à la une ») and placed in a SECTION. Dropping it from `curatedItems` alone
+ * would leave a pin and a section row pointing at a product the shop no longer
+ * holds — the buyer projection would carry ids the catalogue cannot describe, and
+ * the arrangement screens would show a slot she cannot fill. So the pin and the
+ * section entries go with it, in the same decision, atomically.
+ *
+ * WHAT IT DELIBERATELY DOES NOT TOUCH, and why:
+ *   · ORDERS ALREADY PLACED. Nothing here reaches an order; taking a product off
+ *     a shelf is not a statement about a sale already made. (Boutik+'s own delete
+ *     tells the supplier the same thing in the same words: « Les commandes déjà
+ *     passées ne changent pas. »)
+ *   · HER VOICE NOTE for that pid. It is her recording, keyed by product, and the
+ *     buyer surface already renders notes only for products the shop holds — so a
+ *     note for an absent pid shows nobody anything, and keeping it means putting
+ *     the product back restores her voice with it. Deleting a recording she made
+ *     is its own act, with its own words, and this is not it.
+ *   · SUPPLY. The product still exists in Boutik+; she has removed it from HER
+ *     shop, not from the platform.
+ *
+ * An empty section is LEFT EMPTY rather than deleted: « Section supprimée » is a
+ * sentence she is shown when SHE deletes one, and a removal that silently took a
+ * section with it would be this act quietly performing another.
+ */
+export function decideRemoveItem(
+  current: StorefrontEntry | undefined,
+  pid: string,
+  at: string,
+): { decision: RemoveItemDecision; next?: StorefrontEntry } {
+  if (!current) return { decision: { status: 'absent' } };
+  const sf = current.storefront;
+  if (!sf.curatedItems.includes(pid)) {
+    return { decision: { status: 'not_present', storefront: sf } };
+  }
+  const storefront: Storefront = {
+    ...sf,
+    curatedItems: sf.curatedItems.filter((p) => p !== pid),
+    featuredItems: sf.featuredItems.filter((p) => p !== pid),
+    sections: sf.sections.map((s) => ({ ...s, pids: s.pids.filter((p) => p !== pid) })),
+    updatedAt: at,
+  };
+  return { decision: { status: 'removed', storefront }, next: { ...current, storefront } };
+}
+
 /* ------------------------------------------ PERSONNALISER-REAL-1 -------- */
 
 /**

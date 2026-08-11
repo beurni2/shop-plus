@@ -227,6 +227,22 @@ export interface StorefrontServicePort {
    * correct failure — a price signed against a base nobody could read is not.
    */
   publishListing(req: PublishListingRequest): Promise<ServiceResult<{ status: string }>>;
+  /**
+   * VITRINE-RETRAIT (founder, 2026-08-11: « when they delete products from their
+   * ma vitrine these products still show on their boutique ») — take ONE product
+   * OUT of her shop.
+   *
+   * There was no such call and no such route: membership was append-only, so
+   * « retirer » could only ever be a local gesture and her boutique kept the
+   * product for good. The service's decision also clears the pin and the section
+   * rows for that pid, so nothing on the buyer's page can point at a product the
+   * shop no longer holds.
+   *
+   * IDEMPOTENT: removing a pid she does not hold answers `not_present`, which is
+   * the outcome she asked for — a retry after a lost answer converges quietly
+   * instead of painting a failure over work already done.
+   */
+  removeItem(storefrontId: string, pid: string, at: string): Promise<ServiceResult<{ status: string }>>;
 }
 
 /**
@@ -414,6 +430,22 @@ export class HttpStorefrontService implements StorefrontServicePort {
     // HTTP code here would throw away the one word that decides what she is told.
     if (!res.ok) return { ok: false, reason: data?.error ?? `http_${res.status}` };
     return { ok: true, value: { status: data?.status ?? 'published' } };
+  }
+
+  async removeItem(storefrontId: string, pid: string, at: string): Promise<ServiceResult<{ status: string }>> {
+    let res: Response;
+    try {
+      res = await fetch(`${this.base}/storefronts/${encodeURIComponent(storefrontId)}/items/remove`, {
+        method: 'POST',
+        headers: this.headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ pid, at }),
+      });
+    } catch {
+      return { ok: false, reason: 'offline' };
+    }
+    const data = (await res.json().catch(() => null)) as { status?: string; error?: string } | null;
+    if (!res.ok) return { ok: false, reason: data?.error ?? `http_${res.status}` };
+    return { ok: true, value: { status: data?.status ?? 'removed' } };
   }
 
   async list(): Promise<ServiceResult<readonly StorefrontRow[]>> {

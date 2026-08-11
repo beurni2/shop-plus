@@ -3670,5 +3670,29 @@
   "fr": "Vérifier à nouveau",
   "register": "neutral",
   "screenClass": "label"
+ },
+ {
+  "key": "vitrine.retirer",
+  "fr": "Retirer de ma vitrine",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vitrine.retirer_encours",
+  "fr": "Retrait…",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vitrine.retirer_fait",
+  "fr": "Retiré de votre boutique.",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "vitrine.retirer_echec",
+  "fr": "Ce produit n'a pas été retiré. Réessayez.",
+  "register": "selling",
+  "screenClass": "general"
  }
 ]

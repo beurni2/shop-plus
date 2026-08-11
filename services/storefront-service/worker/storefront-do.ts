@@ -1,5 +1,6 @@
 import {
   decideAddItem,
+  decideRemoveItem,
   decideCreate,
   decideDelete,
   decideSaveIdentity,
@@ -99,6 +100,23 @@ export class StorefrontDO {
       const { decision, next } = decideAddItem(current, args.pid, args.at ?? new Date().toISOString());
       if (next) await this.state.storage.put(ENTRY_KEY, next);
       return Response.json(decision);
+    }
+    // VITRINE-RETRAIT (founder, 2026-08-11) — MEMBERSHIP, THE OTHER DIRECTION:
+    // she takes a product OUT of her shop. Same shape as the add above, and the
+    // decision (not this route) is what also clears the pin and the section rows
+    // — one place, so the two can never disagree.
+    if (request.method === 'POST' && pathname === '/entry/items/remove') {
+      let args: { pid?: string; at?: string };
+      try {
+        args = (await request.json()) as { pid?: string; at?: string };
+      } catch {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      if (typeof args.pid !== 'string' || args.pid === '') return Response.json({ error: 'malformed' }, { status: 400 });
+      const current = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
+      const { decision, next } = decideRemoveItem(current, args.pid, args.at ?? new Date().toISOString());
+      if (next) await this.state.storage.put(ENTRY_KEY, next);
+      return Response.json(decision, { status: decision.status === 'absent' ? 404 : 200 });
     }
     // PERSONNALISER-REAL-1 — save the presentation she owns. Absent → 404 (never
     // a phantom save); a bounds/canon refusal → 422 with its NAMED reason, so her
@@ -358,6 +376,20 @@ export default {
       const args = (await request.clone().json().catch(() => ({}))) as { pid?: string; at?: string };
       const res = await sfStub(env, id).fetch(
         new Request('https://do/entry/items/add', { method: 'POST', body: JSON.stringify(args) }),
+      );
+      return forward(res);
+    }
+
+    // VITRINE-RETRAIT — a SEPARATE route, deliberately, rather than a `remove`
+    // flag on the add: « mettre dans ma vitrine » and « retirer de ma vitrine »
+    // are two acts a reseller performs on purpose, and a body field that flips
+    // one into the other is one typo away from emptying a shop.
+    m = /^\/storefronts\/([^/]+)\/items\/remove$/.exec(pathname);
+    if (m && request.method === 'POST') {
+      const id = decodeURIComponent(m[1]!);
+      const args = (await request.clone().json().catch(() => ({}))) as { pid?: string; at?: string };
+      const res = await sfStub(env, id).fetch(
+        new Request('https://do/entry/items/remove', { method: 'POST', body: JSON.stringify(args) }),
       );
       return forward(res);
     }

@@ -254,6 +254,20 @@ export default function App() {
   const [world, setWorld] = useState<DemoWorld>(() => createDemoWorld());
   const [stack, setStack] = useState<Screen[]>([START]);
   const screen = stack[stack.length - 1] ?? START;
+  /**
+   * THE RE-READ TRIGGERS, NAMED (not inlined into the dep arrays below).
+   *
+   * Two reasons, and the second is not style. First, a dep array reads better
+   * as « re-read when she opens Ma Vitrine » than as a comparison. Second, and
+   * concretely: `test/ui-kit.test.ts` slices this file per screen to pin the
+   * net-first money law, and it anchors on the RENDER blocks. Naming the
+   * triggers keeps the comparison out of the dep arrays, and the pin's anchors
+   * were tightened to the render form in the same slice — a money pin that
+   * quietly stops looking is worse than one that fails.
+   */
+  const surOpportunites = screen === 'opportunites';
+  const surVitrine = screen === 'vitrine';
+  const surPersonnaliser = screen === 'personnaliser';
 
   // WO-VITRINE-FLOW — the vitrine-collection seam, React-backed: an in-memory
   // VitrineEvent log in state + the shared `foldVitrine`. The flow calls the
@@ -365,7 +379,28 @@ export default function App() {
     return () => {
       live = false;
     };
-  }, [offerSource]);
+    /**
+     * ═══ OPPORTUNITÉS RE-READS (founder, 2026-08-11) ═══
+     *
+     * « When products are deleted from another supplier's listing, these
+     * products are still present in opportunité on shop+. »
+     *
+     * `offerSource` is a `useMemo` with no deps, so this used to fire EXACTLY
+     * ONCE per app process. A product deleted in Boutik+ therefore stayed on her
+     * browse screen — and on Ma Vitrine, which filters the same list — until she
+     * killed and reopened the app, which on a phone can be days. (Boutik+'s own
+     * delete is sound: driven against its real Worker, the deleted offer leaves
+     * the very collection this list reads, in the same request.)
+     *
+     * Opening the screen is the natural, deliberate refresh — the same idiom
+     * `liveStorefront` already uses for Personnaliser, and it costs one request
+     * per visit rather than a poll on a metered connection.
+     *
+     * The read is ADDITIVE, never a blanking one: `setFeed` replaces the list
+     * only when an answer arrives, so a failed refresh leaves what she was
+     * already reading on screen instead of emptying her shop over a hiccup.
+     */
+  }, [offerSource, surOpportunites, surVitrine]);
   const offers: readonly Offer[] = feed?.status === 'ok' ? feed.offers : [];
   // RESELLER-IDENTITY-1 — the identity is now DEVICE-STORED and minted ONCE from the
   // OS CSPRNG, replacing a `Math.random` mint that was stable only per SESSION. That
@@ -421,7 +456,11 @@ export default function App() {
     // launch used to leave this `undefined` forever, and with the save gated on it
     // her edits would never persist for the rest of the session with no way back.
     // Opening the screen is the natural, deliberate retry.
-  }, [service, identity, screen === 'personnaliser']);
+    // VITRINE-RETRAIT — « vitrine » joins « personnaliser » as a re-read trigger:
+    // the Ma Vitrine grid now RENDERS this value, so opening the screen must be
+    // able to correct a read that failed at launch. Without it a launch-time
+    // fault would show her an empty shop with no way back for the session.
+  }, [service, identity, surPersonnaliser, surVitrine]);
 
   /**
    * PERSONNALISER-REAL-1 — THE SAVE. Optimistic on her screen, then persisted;
@@ -643,7 +682,29 @@ export default function App() {
   // The grid therefore reads the LIVE offer feed filtered by membership, not the demo
   // world: the product she publishes, the card she adjusts and the price that gets
   // signed are now the same object under the same key.
-  const vitrineLive = vitrineCol.listings();
+  /**
+   * ═══ VITRINE-RETRAIT (founder, 2026-08-11) — MA VITRINE READS THE SERVICE ═══
+   *
+   * « when they delete products from their ma vitrine these products still show
+   * on their boutique. »
+   *
+   * THE GRID USED TO READ `vitrineCol.listings()` — a SESSION-LOCAL event log
+   * initialized empty on every launch and never hydrated (`useState([])`, and
+   * `VITRINE-REAL-BACKING` names the slice that was meant to replace it). So Ma
+   * Vitrine and her boutique were two different answers to « what is in my
+   * shop »: the grid forgot everything when she reopened the app, while the
+   * boutique kept rendering `curatedItems` forever. The Personnaliser catalogue
+   * was moved onto `curatedItems` for exactly this reason and this grid was left
+   * behind; it joins it now, so ONE membership answers both.
+   *
+   * `liveStorefront` not yet read ⇒ the log is used as the interim answer rather
+   * than showing her an empty shop she has not got: `undefined` here means « not
+   * asked yet », never « nothing there ».
+   */
+  const vitrineLive: readonly string[] =
+    liveStorefront === null || liveStorefront === undefined
+      ? vitrineCol.listings()
+      : liveStorefront.curatedItems;
   const vitrineOffers = offers.filter((o) => vitrineLive.includes(o.productVersionId));
   const ficheOpp = world.opportunities.find((o) => o.id === ficheId);
   const shareOpp = world.opportunities.find((o) => o.id === shareId);
@@ -719,6 +780,36 @@ export default function App() {
       toHub('vitrine');
     },
     [service, identity, markups, vitrineCol, toHub],
+  );
+  /**
+   * VITRINE-RETRAIT — « Retirer de ma vitrine », the act that was missing.
+   *
+   * It goes to the SERVICE and re-reads her shop from it, because the whole
+   * defect this fixes was a removal that lived only on her phone. Optimism is
+   * deliberately absent here: the card disappears when the shop says it is gone,
+   * not when the tap lands — a product she watched leave and that comes back on
+   * the next read is the fabricated-success shape refused everywhere else.
+   *
+   * The local log is updated too, so a session with no readable shop (the interim
+   * answer above) still behaves.
+   */
+  const [retiring, setRetiring] = useState<string | null>(null);
+  const retirerDeVitrine = useCallback(
+    async (pid: string): Promise<void> => {
+      if (service === null || identity === null || identity === undefined) return;
+      setRetiring(pid);
+      const res = await service.removeItem(identity.storefrontId, pid, new Date().toISOString());
+      if (!res.ok) {
+        setRetiring(null);
+        return setToast(t('vitrine.retirer_echec'));
+      }
+      vitrineCol.removeFromVitrine(pid);
+      const fresh = await service.getById(identity.storefrontId);
+      if (fresh.ok && fresh.value !== undefined) setLiveStorefront(fresh.value);
+      setRetiring(null);
+      setToast(t('vitrine.retirer_fait'));
+    },
+    [service, identity, vitrineCol],
   );
   const ficheOffer = offers.find((o) => o.productVersionId === ficheId);
   // Her REAL share link — the canon buyer origin + base. Partager is opened FROM a
@@ -1532,6 +1623,26 @@ export default function App() {
                       label={t('vitrine.partager')}
                       onPress={() => { setShareCampBadge(false); setShareId(item.productVersionId); go('lien'); }}
                     />
+                    {/* VITRINE-RETRAIT — « Retirer de ma vitrine ». It WHISPERS
+                        (§5: one primary action per screen; Partager is the loud
+                        one on this card) and it is disabled while the service is
+                        answering, so a second tap cannot fire a second removal.
+                        It carries no confirmation step on purpose: putting the
+                        product back is one tap from Opportunités, so a mistap
+                        costs her a tap — not a confirmation dialog on every
+                        card she ever tidies. */}
+                    <Pressable
+                      style={({ pressed }) => [styles.vitrineRetirer, pressed && styles.pressed]}
+                      onPress={() => void retirerDeVitrine(item.productVersionId)}
+                      disabled={retiring !== null}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: retiring !== null }}
+                      accessibilityLabel={t('vitrine.retirer')}
+                    >
+                      <Text style={styles.vitrineRetirerLabel}>
+                        {retiring === item.productVersionId ? t('vitrine.retirer_encours') : t('vitrine.retirer')}
+                      </Text>
+                    </Pressable>
                   </Card>
                 );
               }}
@@ -2531,6 +2642,22 @@ const styles = StyleSheet.create({
     fontFamily: TEXT_FAMILY_BOLD,
     fontSize: rmax(t2.scale.body.size),
     fontWeight: '700',
+  },
+  /* VITRINE-RETRAIT — the quiet exit. Same 44px+ touch box every control on this
+     screen carries, no border and no fill: it must be reachable and legible, and
+     it must never compete with « Partager », which is what she came to do. */
+  vitrineRetirer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: spacing.xxl + spacing.md,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.xs,
+  },
+  vitrineRetirerLabel: {
+    color: sharedColour.sub,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.pill.size),
+    fontWeight: '600',
   },
   vitrineIconBtn: {
     width: spacing.xxl + spacing.md,

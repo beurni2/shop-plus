@@ -143,9 +143,23 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     // reseller's NET and never a gross figure — gross-first is prohibited. (The
     // gains breakdown legitimately shows gross BESIDE net, net strongest — its
     // net-first is pinned in demo-store.test, not here.)
-    const opp = app.slice(app.indexOf("screen === 'opportunites'"), app.indexOf("screen === 'fiche'"));
-    const fiche = app.slice(app.indexOf("screen === 'fiche'"), app.indexOf("screen === 'vitrine'"));
-    const vitrine = app.slice(app.indexOf("screen === 'vitrine'"), app.indexOf("screen === 'lien'"));
+    // ANCHORED ON THE RENDER FORM `{screen === 'x'`, NOT the bare comparison.
+    // The bare one also occurs in dep arrays and tab chrome ABOVE the render
+    // blocks, so `indexOf` found those instead and handed this pin an EMPTY
+    // region — a money law checked against ''. Every slice is asserted
+    // non-empty below, so an anchor that stops matching fails loudly rather
+    // than passing over nothing.
+    const at = (screen: string): number => {
+      const i = app.indexOf(`{screen === '${screen}'`);
+      expect(i, `no render block for '${screen}' — this pin's anchor has moved`).toBeGreaterThan(-1);
+      return i;
+    };
+    const opp = app.slice(at('opportunites'), at('fiche'));
+    const fiche = app.slice(at('fiche'), at('vitrine'));
+    const vitrine = app.slice(at('vitrine'), at('lien'));
+    for (const [name, region] of [['opp', opp], ['fiche', fiche], ['vitrine', vitrine]] as const) {
+      expect(region.length, `${name} region is EMPTY — the pin is watching nothing`).toBeGreaterThan(200);
+    }
     expect(opp, 'opp row net line').toContain("'opportunity.gagnez'");
     expect(fiche, 'fiche net line').toContain("'opportunity.gagnez'");
     // MA VITRINE leads with the net hero (« Votre gain net » + formatFcfa(v.net));

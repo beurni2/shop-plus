@@ -84,7 +84,7 @@ export function useVoiceCapture(): VoiceRecorderAdapter {
         const p = player.current;
         fin.current?.remove(); // one listener at a time — takes replace, never stack
         /**
-         * ═══ ⚠ PLAY BEFORE LOADED IS PLAY THAT NEVER HAPPENS ═══
+         * ═══ PLAY BEFORE LOADED IS PLAY THAT NEVER HAPPENS ═══
          *
          * FOUNDER, AGAIN (2026-08-10): « on ma vitrine when I record an audio
          * and want to play it back it's not working. » The silent-switch half

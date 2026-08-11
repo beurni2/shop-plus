@@ -147,11 +147,22 @@ describe('5 · the founder’s three defects, 2026-08-04', () => {
   });
 
   it('the dismiss threshold is a real distance OR a flick, not a hair trigger', async () => {
-    const { SEUIL_FERMETURE } = await import('../src/qr/identity.js').then(() => import('../src/vitrine/customize/entete-sheet.js')).catch(() => ({ SEUIL_FERMETURE: null }));
-    // The module cannot be imported (native WebView), so the value is read from
-    // source — the honest way, rather than pretending the import worked.
-    expect(SEUIL_FERMETURE).toBeNull();
-    expect(sheet).toMatch(/export const SEUIL_FERMETURE = 120;/);
+    /**
+     * THIS USED TO ASSERT THE MODULE COULD NOT BE IMPORTED, and said so: « the
+     * module cannot be imported (native WebView), so the value is read from
+     * source — the honest way, rather than pretending the import worked. » That
+     * was true and is no longer: RENDU-RÉEL doubles the native boundaries, so
+     * the real module loads and the real constant can be read BY EXECUTION —
+     * strictly stronger than a regex over its declaration. Asserting `null` now
+     * would be asserting the harness is absent.
+     */
+    const { SEUIL_FERMETURE } = (await import('../src/vitrine/customize/entete-sheet.js')) as {
+      SEUIL_FERMETURE: number;
+    };
+    expect(SEUIL_FERMETURE).toBe(120);
+    // The CONDITION still comes from source — it is a branch inside a gesture
+    // handler this harness deliberately does not simulate (see the double's
+    // stated bound: no gesture system).
     expect(sheet).toContain('g.dy > SEUIL_FERMETURE || g.vy > 0.8');
   });
 

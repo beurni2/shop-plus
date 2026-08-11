@@ -368,10 +368,19 @@ describe('PERSONNALISER-REAL-1 — the demo seed can never be saved over her sho
     expect(app).toMatch(/savesPersist=\{liveStorefront !== null && liveStorefront !== undefined\}/);
   });
 
-  it('A FAILED READ SELF-HEALS — opening Personnaliser re-asks, never a dead session', () => {
+  it('A FAILED READ SELF-HEALS — opening Personnaliser OR Ma Vitrine re-asks, never a dead session', () => {
     // the read used to leave `undefined` forever on a fault; with the save gated
     // on it, her edits would never persist again for the whole session.
-    expect(app).toMatch(/\[service, identity, screen === 'personnaliser'\]/);
+    // VITRINE-RETRAIT widened this: the Ma Vitrine GRID now renders that same
+    // read (`curatedItems`, not the session log), so opening THAT screen must
+    // also be able to correct a launch-time fault — otherwise a bad first read
+    // shows her an empty shop for the session, which is the same defect one
+    // screen over. Both triggers are pinned; dropping either goes red.
+    expect(app).toMatch(/\[service, identity, surPersonnaliser, surVitrine\]/);
+    // …and the two names really ARE those screens — a pin on the names alone
+    // would go green if one were quietly rebound to another screen.
+    expect(app).toMatch(/const surPersonnaliser = screen === 'personnaliser';/);
+    expect(app).toMatch(/const surVitrine = screen === 'vitrine';/);
   });
 
   it('NOT-LIVE AND NOT-LOADED ARE DIFFERENT SENTENCES', () => {

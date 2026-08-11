@@ -299,7 +299,12 @@ describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
     // fiche block: RESELLER-UX-2 put « Prix de base » on the Opportunités card
     // too (earlier in the file), so a whole-file indexOf no longer measures the
     // fiche's own order.
-    const fiche = app.slice(app.indexOf("screen === 'fiche'"), app.indexOf("screen === 'vitrine'"));
+    // ANCHORED ON THE RENDER FORM, not the bare comparison: `screen === 'x'`
+    // also occurs in dep arrays and tab chrome ABOVE the render blocks, so the
+    // bare `indexOf` handed this money pin an EMPTY region — SP-I04 checked
+    // against ''. The non-empty assertion below makes a moved anchor fail loudly.
+    const fiche = app.slice(app.indexOf("{screen === 'fiche'"), app.indexOf("{screen === 'vitrine'"));
+    expect(fiche.length, 'the fiche region is EMPTY — this pin is watching nothing').toBeGreaterThan(200);
     const gagnez = fiche.indexOf("tf('opportunity.gagnez'");
     const base = fiche.indexOf("t('fiche.prix_base')");
     const cliente = fiche.indexOf("t('fiche.prix_cliente')");
