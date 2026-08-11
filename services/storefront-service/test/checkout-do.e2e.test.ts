@@ -1507,3 +1507,124 @@ describe('CheckoutDO — a supply read that FAILS refuses Option B, and never in
     }
   });
 });
+
+describe('VITRINE-RETRAIT — a product she took out of her shop cannot be quoted', () => {
+  /**
+   * Founder ruling 2026-08-11. The listing SURVIVES a removal — it is her
+   * signed price and nothing here unsigns it — and the pid-pointer with it, so
+   * a buyer holding a link shared BEFORE the removal could be quoted and then
+   * order a product that is no longer in her boutique. `curatedItems` is the
+   * canon MEMBERSHIP statement and is authoritative for the buyer, so the QUOTE
+   * obeys it too, not only the page.
+   */
+  it('quotes before the removal and refuses after — by the SAME name an unknown product gets', async () => {
+    const { slug, resellerId, pid } = await seedShop('9100');
+
+    // BEFORE: the link works, which is what makes the after meaningful.
+    const avant = await postQuote({
+      slug, pid, paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+      attributionResellerId: resellerId, requestKey: freshKey(),
+    });
+    expect(avant.status, avant.text).toBe(200);
+
+    // She takes it out of her vitrine.
+    const removed = await mf.dispatchFetch('http://c/storefronts/sf-checkout-9100/items/remove', {
+      method: 'POST', headers: authed, body: JSON.stringify({ pid, at: T0 }),
+    });
+    expect(removed.status, await removed.clone().text()).toBe(200);
+
+    // AFTER: the same link, a fresh request key — refused.
+    const apres = await postQuote({
+      slug, pid, paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+      attributionResellerId: resellerId, requestKey: freshKey(),
+    });
+    expect(apres.status, apres.text).not.toBe(200);
+    expect(JSON.stringify(apres.json)).toContain('listing_unknown');
+
+    // …and INDISTINGUISHABLE from a product this shop never sold, so the
+    // refusal is not an oracle for « was this ever on sale here ».
+    const jamais = await postQuote({
+      slug, pid: 'pv-jamais-vendu', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+      attributionResellerId: resellerId, requestKey: freshKey(),
+    });
+    expect(jamais.status).toBe(apres.status);
+    expect(JSON.stringify(jamais.json)).toBe(JSON.stringify(apres.json));
+  });
+
+  it('her OTHER products still quote — a removal removes ONE thing', async () => {
+    const { slug, resellerId } = await seedShop('9101');
+    // Add a second product to the same shop, then remove only the first.
+    // A pid the supply fixture actually knows —  has no
+    // economics, so its publish would refuse and the test would prove nothing.
+    const second = 'pv-checkout-prov';
+    const pub = await mf.dispatchFetch('http://c/listings', {
+      method: 'POST', headers: authed,
+      body: JSON.stringify({
+        commandId: 'cmd-listing-9101b', listingId: 'lst-checkout-9101b',
+        storefrontId: 'sf-checkout-9101', resellerId, productVersionId: second,
+        offerVersion: 'ov-checkout-1', markup: 1_500, correlationId: 'corr-9101b', at: T0,
+      }),
+    });
+    expect(((await pub.json()) as { status?: string }).status).toBe('published');
+
+    await mf.dispatchFetch('http://c/storefronts/sf-checkout-9101/items/remove', {
+      method: 'POST', headers: authed, body: JSON.stringify({ pid: 'pv-checkout-1', at: T0 }),
+    });
+
+    const encore = await postQuote({
+      slug, pid: second, paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+      attributionResellerId: resellerId, requestKey: freshKey(),
+    });
+    expect(encore.status, encore.text).toBe(200);
+  });
+});
+
+describe('PUBLIER SANS BOUTIQUE — a publication with no shop behind it is refused', () => {
+  /**
+   * Founder ruling 2026-08-11. A verifier walked this: `decidePublish` never
+   * checked that a storefront existed, and the MEMBERSHIP write that follows
+   * answered `absent` at HTTP 200, which the composition root ignored. So a
+   * reseller who had not yet put her boutique online could publish, be told
+   * « C'est ajouté à votre vitrine », and have it in no vitrine at all — a
+   * success message that cannot fail, over a product no buyer could reach.
+   */
+  it('publishing for a storefront that does not exist is REFUSED, by name', async () => {
+    const res = await mf.dispatchFetch('http://c/listings', {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({
+        commandId: 'cmd-listing-sans-shop',
+        listingId: 'lst-sans-shop',
+        storefrontId: 'sf-jamais-creee',
+        resellerId: 'rs-sans-shop',
+        productVersionId: 'pv-checkout-1',
+        offerVersion: 'ov-checkout-1',
+        markup: 1_500,
+        correlationId: 'corr-sans-shop',
+        at: T0,
+      }),
+    });
+    expect(res.status, await res.clone().text()).toBe(409);
+    expect(((await res.json()) as { error?: string }).error).toBe('storefront_absent');
+  });
+
+  it('and the membership route itself no longer answers `absent` at 200', async () => {
+    // The pre-check makes that path nearly unreachable — « nearly » is what a
+    // shop deleted between the two calls costs, so the route is honest too.
+    const res = await mf.dispatchFetch('http://c/storefronts/sf-jamais-creee/items', {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({ pid: 'pv-checkout-1', at: T0 }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('a REAL shop still publishes — the guard refuses absence, not publishing', async () => {
+    const { slug, resellerId, pid } = await seedShop('9102');
+    const q = await postQuote({
+      slug, pid, paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+      attributionResellerId: resellerId, requestKey: freshKey(),
+    });
+    expect(q.status, q.text).toBe(200);
+  });
+});

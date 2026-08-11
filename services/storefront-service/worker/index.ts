@@ -965,6 +965,34 @@ export default {
       if ('customerPriceFcfa' in cmd) {
         return Response.json({ error: 'price_not_accepted' }, { status: 400 });
       }
+      /**
+       * ═══ NO BOUTIQUE, NO PUBLICATION (founder ruling 2026-08-11) ═══
+       *
+       * A verifier walked this: `decidePublish` never checks that a storefront
+       * exists, and the MEMBERSHIP write that follows answers `absent` at HTTP
+       * 200 — which this root then ignored. So a reseller who had not yet put
+       * her boutique online could publish, be told « C'est ajouté à votre
+       * vitrine », and have it in no vitrine at all: a success message that
+       * cannot fail, over a product no buyer could ever reach.
+       *
+       * THE CHECK IS BEFORE THE PUBLISH, not after. Publishing first and
+       * undoing on `absent` would mean a signed listing existing for a moment
+       * with no shop behind it, and an undo that can itself fail. Refusing
+       * first leaves nothing to undo.
+       *
+       * IT REFUSES ONLY ON A DEFINITE 404. An unreachable or erroring shop read
+       * is NOT « she has no shop » — that would take publishing down for
+       * everyone on a hiccup — so anything but a clean not-found falls through
+       * and the pre-existing behaviour stands.
+       */
+      if (typeof cmd.storefrontId === 'string' && cmd.storefrontId !== '') {
+        const shop = await sfRouter
+          .fetch(new Request(`https://do/storefronts/${encodeURIComponent(cmd.storefrontId)}`), env)
+          .catch(() => undefined);
+        if (shop !== undefined && shop.status === 404) {
+          return Response.json({ error: 'storefront_absent' }, { status: 409 });
+        }
+      }
       const signed = signPrice(await resolveSupplySource(env).economics(cmd.productVersionId), cmd.markup);
       if (signed.status !== 'signed') {
         // The reason is NAMED, not collapsed: each needs a different response from
@@ -989,13 +1017,25 @@ export default {
       const res = await lstRouter.fetch(priced, env);
       const decision = (await res.clone().json().catch(() => null)) as { status?: string } | null;
       if (decision?.status === 'published' && cmd?.storefrontId && cmd?.productVersionId) {
-        await sfRouter.fetch(
+        const added = await sfRouter.fetch(
           new Request(`https://do/storefronts/${encodeURIComponent(cmd.storefrontId)}/items`, {
             method: 'POST',
             body: JSON.stringify({ pid: cmd.productVersionId, at: cmd.at }),
           }),
           env,
         );
+        /**
+         * THE MEMBERSHIP ANSWER IS READ, not thrown away. The pre-check above
+         * makes `absent` nearly unreachable, but « nearly » is what the shop
+         * being deleted between the two calls costs — and a publish that
+         * reports success while the product is in no shop is the exact lie
+         * this ruling closes. Named so she is told, rather than left to
+         * discover an empty vitrine.
+         */
+        const membership = (await added.json().catch(() => null)) as { status?: string } | null;
+        if (membership?.status === 'absent') {
+          return Response.json({ error: 'storefront_absent' }, { status: 409 });
+        }
       }
       return res;
     }

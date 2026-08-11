@@ -99,7 +99,11 @@ export class StorefrontDO {
       const current = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
       const { decision, next } = decideAddItem(current, args.pid, args.at ?? new Date().toISOString());
       if (next) await this.state.storage.put(ENTRY_KEY, next);
-      return Response.json(decision);
+      // `absent` is a 404, as it is on the remove route beside it. It answered
+      // 200 before, which is how a membership write against a shop that does
+      // not exist could look like a success to a caller that only reads status
+      // codes (founder ruling 2026-08-11).
+      return Response.json(decision, { status: decision.status === 'absent' ? 404 : 200 });
     }
     // VITRINE-RETRAIT (founder, 2026-08-11) — MEMBERSHIP, THE OTHER DIRECTION:
     // she takes a product OUT of her shop. Same shape as the add above, and the

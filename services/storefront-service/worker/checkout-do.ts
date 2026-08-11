@@ -480,8 +480,37 @@ async function readAuthority(
 ): Promise<{ entry: ListingEntry | undefined; zoneFrom: string }> {
   const sfRes = await env.STOREFRONT_DO.fetch(new Request(`https://do/s/${encodeURIComponent(slug)}`)).catch(() => undefined);
   if (sfRes === undefined || sfRes.status !== 200) return { entry: undefined, zoneFrom: '' };
-  const sf = (await sfRes.json().catch(() => null)) as { id?: string; zone?: string } | null;
+  const sf = (await sfRes.json().catch(() => null)) as
+    | { id?: string; zone?: string; curatedItems?: unknown }
+    | null;
   if (sf === null || typeof sf.id !== 'string' || typeof sf.zone !== 'string') return { entry: undefined, zoneFrom: '' };
+  /**
+   * VITRINE-RETRAIT (founder ruling 2026-08-11) — A PRODUCT SHE HAS TAKEN OUT
+   * OF HER SHOP CANNOT BE QUOTED.
+   *
+   * The listing survives a removal (it is her signed price, and nothing here
+   * unsigns it), and the pid-pointer with it — so before this guard a buyer
+   * holding a link shared BEFORE the removal could still be quoted, and then
+   * order, a product that is no longer in her boutique. `curatedItems` is the
+   * canon MEMBERSHIP statement and it is authoritative for the buyer, so the
+   * quote must obey it too, not only the page.
+   *
+   * IT COSTS NO EXTRA REQUEST: the buyer-safe view this function already reads
+   * carries `curatedItems` in its allowlist.
+   *
+   * AND IT REFUSES THROUGH THE EXISTING DOOR — `entry: undefined`, which
+   * `decideIssueQuote` turns into the NAMED `listing_unknown`, the same answer
+   * an unknown shop and an unknown product already get. A distinct reason here
+   * would make this surface an existence oracle for « was this ever sold »,
+   * which the header above exists to prevent.
+   *
+   * A view that carries no `curatedItems` (an older Worker) is NOT treated as
+   * « empty »: absence is unknown, and refusing every quote on an unreadable
+   * field would take the whole shop down for a nicety.
+   */
+  if (Array.isArray(sf.curatedItems) && !sf.curatedItems.includes(pid)) {
+    return { entry: undefined, zoneFrom: sf.zone };
+  }
   const lstRes = await env.LISTING_DO.fetch(
     new Request(`https://do/listings/by-pid/${encodeURIComponent(sf.id)}/${encodeURIComponent(pid)}/economics`),
   ).catch(() => undefined);
