@@ -1,5 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import React from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import * as double from './doubles/react-native';
 import * as svgDouble from './doubles/react-native-svg';
@@ -154,6 +156,69 @@ describe('every double is CERTIFIED to what the app imports', () => {
     expect(typeof double.Pressable).toBe('function');
     expect(typeof double.StyleSheet.create).toBe('function');
     expect(typeof double.Animated.Value).toBe('function');
+  });
+
+  /** RENDER it, never inspect the element tree: `React.createElement(fn)` holds
+   *  a function, and a check that stringified it would pass over a header that
+   *  renders nothing. The defect below was exactly « present as a prop, absent
+   *  on screen », so only rendering can tell. */
+  const renderList = (props: Record<string, unknown>): string => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    let tree!: ReactTestRenderer;
+    act(() => {
+      tree = create(React.createElement(double.FlatList, props));
+    });
+    // READ AFTER act RETURNS: React 19 commits on the way out, so a toJSON
+    // taken inside the callback answers `null` — which would have looked like
+    // « the header does not render » no matter what the double does.
+    return JSON.stringify(tree.toJSON());
+  };
+
+  it('FlatList renders its HEADER and FOOTER, not only its rows', () => {
+    // THE DEFECT THIS PINS, found on 2026-08-11 while walking the 44 px
+    // arrangement rows: `ListHeaderComponent` fell into the rest-props and was
+    // handed to the host element as a plain prop, so it never rendered. Ma
+    // Vitrine keeps its title, its public/privée toggle and « Personnaliser ma
+    // boutique » in that header — every one of them reported NOT ON SCREEN to
+    // every walk, and any walk asserting one had disappeared would have passed
+    // over a region that was never drawn. A double that shows less than the app
+    // is still a double that lies (§9.8).
+    const flat = renderList({
+      data: ['ligne'],
+      renderItem: ({ item }: { item: unknown }) => String(item),
+      ListHeaderComponent: () => 'EN-TETE',
+      ListFooterComponent: 'PIED',
+    });
+    expect(flat, 'the header must render').toContain('EN-TETE');
+    expect(flat, 'a footer given as an ELEMENT, not a component, renders too').toContain('PIED');
+    expect(flat, 'and the rows are still there').toContain('ligne');
+  });
+
+  it('FlatList draws header and footer even when the list is EMPTY', () => {
+    // The real list does, and Ma Vitrine's « no articles yet » state relies on
+    // it: a walk on an empty shop must still be able to reach the door.
+    const flat = renderList({
+      data: [],
+      renderItem: () => null,
+      ListHeaderComponent: () => 'EN-TETE',
+      ListEmptyComponent: () => 'VIDE',
+      ListFooterComponent: () => 'PIED',
+    });
+    expect(flat).toContain('EN-TETE');
+    expect(flat).toContain('VIDE');
+    expect(flat).toContain('PIED');
+  });
+
+  it('a control answers to its accessibilityLabel, not only to its text', () => {
+    // The thumbnail strips are `<Pressable>`s holding ONE `<Image>` and no text
+    // at all. Matching on text alone made them unpressable by any walk — and
+    // `press` would have called them « not on screen », which is the WRONG
+    // diagnosis, not merely a missing one.
+    const src = readFileSync(join(appDir, 'test/rendu.tsx'), 'utf8');
+    expect(src).toContain("const a11y = n.props['accessibilityLabel'];");
+    // Both finders must use it, or « is it there » and « is it pressable »
+    // answer from two different worlds.
+    expect(src.match(/labelOf\(p\)\.includes\(label\)/g) ?? []).toHaveLength(2);
   });
 
   it('Modal hides its children when it is not visible', () => {

@@ -57,6 +57,7 @@ import { formatFcfa } from '../../earnings';
 import { K_SEED } from './storefront';
 
 import { fromCatalog, type KCatalogItem } from './catalog';
+import { vignette } from '../vignette';
 // PERSONNALISER-REAL-1 — the WIRE shape, imported rather than re-declared: two
 // copies of a patch shape are two shapes that drift on the first field added.
 import type { StorefrontIdentityPatch } from '../service';
@@ -1066,8 +1067,13 @@ function K5({ sf, onBack, onPin, onMove, catalog }: { sf: Storefront; onBack: ()
           return (
             <View key={p.pid} style={[S.orderRow, i > 0 && S.rowDivider, !p.inStock && S.orderRowEpuise]}>
               <Text style={S.grip}>≡</Text>
+              {/* VIGNETTE — 44 px of art, the SMALLEST product render in the app,
+                  and the one that repeats most: twelve curated articles pulled
+                  twelve full-size photographs to fill twelve 44 px squares. No
+                  hero sits beside these rows, so every one of them asks for the
+                  small copy. */}
               {p.assetRefs[0] !== undefined ? (
-                <Image source={{ uri: p.assetRefs[0] }} style={S.orderArt as unknown as ImageStyle} resizeMode="cover" />
+                <Image source={{ uri: vignette(p.assetRefs[0]) }} style={S.orderArt as unknown as ImageStyle} resizeMode="cover" />
               ) : (
                 <View style={S.orderArt} />
               )}
@@ -1157,8 +1163,9 @@ function K6b({ sf, sectionId, onBack, onRename, onRenameCommit, onTogglePid, onD
           const checked = section.pids.includes(p.pid);
           return (
             <Pressable key={p.pid} style={({ pressed }) => [S.row, i > 0 && S.rowDivider, pressed && S.pressed]} onPress={() => onTogglePid(p.pid)} accessibilityRole="checkbox" accessibilityState={{ checked }}>
+              {/* VIGNETTE — same 44 px square as K5, same rule. */}
               {p.assetRefs[0] !== undefined ? (
-                <Image source={{ uri: p.assetRefs[0] }} style={S.orderArt as unknown as ImageStyle} resizeMode="cover" />
+                <Image source={{ uri: vignette(p.assetRefs[0]) }} style={S.orderArt as unknown as ImageStyle} resizeMode="cover" />
               ) : (
                 <View style={S.orderArt} />
               )}

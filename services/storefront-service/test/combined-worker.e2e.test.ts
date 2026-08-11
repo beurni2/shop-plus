@@ -880,6 +880,30 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     for (const ref of product!.assetRefs) expect(ref.startsWith('https://')).toBe(true);
   });
 
+  it('VIGNETTE — the app\u2019s OWN helper, over the url this REAL service emits, still addresses the media worker', async () => {
+    // THE SEAM, end to end: this service absolutizes a relative ref against
+    // PRODUCT_MEDIA_BASE; the reseller app then appends the vignette query at
+    // the render site. Two repos, one url — and nothing until now asserted that
+    // the second step leaves the first step's url ADDRESSABLE.
+    //
+    // The helper is IMPORTED from the app, never re-implemented here. A copy
+    // would pass while the shipped one was broken, which is §9.7 exactly.
+    const { vignette } = await import('../../../apps/reseller-app/src/vitrine/vignette.js');
+    const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
+    const view = (await read.json()) as StorefrontView & { products: { pid: string; assetRefs: string[] }[] };
+    const reel = view.products.find((p) => p.pid === 'pv-a2-1')!.assetRefs[0]!;
+
+    const petite = new URL(vignette(reel));
+    // THE PATH IS UNTOUCHED — the media worker parses its key off the path, and
+    // a query that disturbed it would 404 every thumbnail in the app.
+    expect(petite.pathname).toBe(new URL(reel).pathname);
+    expect(petite.origin).toBe(new URL(reel).origin);
+    // ONE query, spelled the way the deployed worker reads it: it answers the
+    // small copy on `v=thumb` and falls back to the full photograph otherwise.
+    expect(petite.searchParams.get('v')).toBe('thumb');
+    expect(vignette(reel).split('?')).toHaveLength(2);
+  });
+
   it('inStock is DERIVED FROM LIVE STOCK — a zero-stock offer is never an in-stock tile', async () => {
     await mf.dispatchFetch('http://c/listings', {
       method: 'POST',

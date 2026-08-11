@@ -39,3 +39,29 @@ export function vignette(url: string): string {
   if (url === '') return url;
   return url.includes('?') ? `${url}&v=thumb` : `${url}?v=thumb`;
 }
+
+/**
+ * The strip's url for photograph `index`, when the photograph at `heroIndex` is
+ * ALSO on screen at full size above it.
+ *
+ * THIS IS THE HALF THAT KEEPS THE CHANGE FROM COSTING MORE THAN IT SAVES, and
+ * it was missing from the first version. A thumbnail strip renders EVERY
+ * photograph, including the one currently the hero. Ask for that one under
+ * `?v=thumb` and it becomes a DIFFERENT uri from the hero's — and React Native's
+ * image cache is keyed on the uri, so the same photograph is fetched twice.
+ *
+ * Do the arithmetic on his catalogue as it stands today, where NO product has a
+ * stored vignette (the small copy is written in the 15 minutes after an upload;
+ * there is no backfill, so every photograph listed before today falls back to
+ * the full file):
+ *   · three photographs, before → 3 full fetches, the hero's shared with the strip
+ *   · three photographs, naive  → 4 full fetches. WORSE, on every product he owns.
+ *   · three photographs, this   → 3 fetches, still shared. Never worse; two of
+ *     them shrink to 320 px the day the product is re-listed with a vignette.
+ *
+ * So the rule is: the hero's own thumbnail re-uses the hero's file, and only the
+ * OTHER thumbnails ask for the small copy.
+ */
+export function vignetteSaufHero(url: string, index: number, heroIndex: number): string {
+  return index === heroIndex ? url : vignette(url);
+}

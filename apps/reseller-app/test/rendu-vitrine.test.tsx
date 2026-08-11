@@ -311,46 +311,126 @@ describe('THE TWO BLOCKERS THE VERIFIER FOUND — each walked', () => {
  *
  * Founder, 2026-08-11: « implement the vignette on all of them. »
  *
- * The judgement this pins is NOT « append a query » — it is WHERE. A 320 px
- * file is right for the 52 px thumbnail strip and wrong for the card hero,
- * which renders at full card width. Both halves are asserted, because getting
- * only the first right makes her product photography look cheap on the surface
- * that sells it.
+ * The judgement this pins is NOT « append a query » — it is WHERE, and it has
+ * THREE halves, each of which fails differently:
+ *
+ *   1. the thumbnail strips ask for the small copy;
+ *   2. the heroes do NOT — they render at full card width, where a 320 px file
+ *      would visibly soften the product photography §5 asks us to respect;
+ *   3. the thumbnail OF the hero asks for nothing either. It is the same
+ *      photograph already on screen above it, and a second uri for it is a
+ *      second download — on his catalogue today, where no photograph has a
+ *      stored vignette yet, that turned three fetches into four.
+ *
+ * BOTH RENDER SITES ARE WALKED, from their own screens. The first version of
+ * this block entered only through Ma Vitrine, so the fiche's strip was shipped
+ * with nothing exercising it: deleting the call there kept the board green.
  */
 describe('VIGNETTE — small render, small file; big render, big file', () => {
-  const AVEC_PHOTOS = 'https://media.test/media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-  const DEUXIEME = 'https://media.test/media/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const A = 'https://media.test/media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const B = 'https://media.test/media/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const C = 'https://media.test/media/cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
-  it('the thumbnail strip requests ?v=thumb while the card hero requests the full photograph', async () => {
-    const state = { offers: [PV_A], curated: [PV_A] };
+  /** Three photographs on ONE product — the strip only renders above one, and
+   *  three is the smallest count where « the hero's own thumbnail » is telling
+   *  apart from « the first thumbnail ». */
+  function troisPhotos(curated: readonly string[], sections: readonly unknown[] = []): void {
     wire([
       (path) =>
         path === '/supply-projections'
           ? {
               status: 200,
               json: {
-                // TWO refs, because the strip only renders when there is more
-                // than one photograph — with a single ref this walk would pass
-                // while asserting nothing about the strip at all.
-                offers: [{ ...offer(PV_A, 'Bazin riche'), assetRefs: [AVEC_PHOTOS, DEUXIEME] }],
+                offers: [{ ...offer(PV_A, 'Bazin riche'), assetRefs: [A, B, C] }],
                 diagnostic: { status: 'ok', refusals: [] },
               },
             }
           : null,
       (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
       (path) =>
-        /^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: storefront(state.curated) as never } : null,
+        /^\/storefronts\/[^/]+$/.test(path)
+          ? { status: 200, json: { ...storefront(curated), sections: [...sections] } as never }
+          : null,
     ]);
+  }
+
+  it('MA VITRINE — the card hero is full, its own thumbnail re-uses it, the others are small', async () => {
+    troisPhotos([PV_A]);
     const screen = await openVitrine();
     await screen.settle();
 
     const images = screen.images();
-    // THE STRIP — the small file, for both thumbnails.
-    expect(images, 'the 52px thumbnail must ask for the vignette').toContain(`${AVEC_PHOTOS}?v=thumb`);
-    expect(images).toContain(`${DEUXIEME}?v=thumb`);
-    // THE HERO — the full photograph, unchanged. This is the half that stops
-    // « all of them » from making her best surface look soft.
-    expect(images, 'the card hero must stay full size').toContain(AVEC_PHOTOS);
+    // THE HERO — full, unchanged. The half that stops « all of them » from
+    // making her best selling surface look soft.
+    expect(images, 'the card hero must stay full size').toContain(A);
+    // THE OTHER THUMBNAILS — the small copy.
+    expect(images, 'the 52px thumbnails must ask for the vignette').toContain(`${B}?v=thumb`);
+    expect(images).toContain(`${C}?v=thumb`);
+    // THE HERO'S OWN THUMBNAIL — asks for NOTHING. This card's hero is always
+    // capture 0, so `A?v=thumb` anywhere on this screen is the same photograph
+    // being fetched a second time under a second uri.
+    expect(images, 'the hero photograph must not be requested twice').not.toContain(`${A}?v=thumb`);
+    screen.unmount();
+  });
+
+  it('LA FICHE — same rule, and the strip FOLLOWS the hero when she taps another capture', async () => {
+    troisPhotos([]);
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+    expect(screen.shows('Bazin riche'), 'the fiche opened').toBe(true);
+
+    const avant = screen.images();
+    expect(avant, 'the fiche hero is the full photograph').toContain(A);
+    expect(avant, 'the fiche strip asks for the vignette').toContain(`${B}?v=thumb`);
+    expect(avant).toContain(`${C}?v=thumb`);
+    expect(avant, 'capture 0 is the hero — not fetched twice').not.toContain(`${A}?v=thumb`);
+
+    // SHE TAPS THE THIRD CAPTURE. An image-only control: no text, reachable
+    // only by its label — which is why the harness had to learn to press those.
+    // nth 0 is the hero itself (same label), so the strip starts at 1.
+    await screen.press('Voir les photos', 3);
+
+    const apres = screen.images();
+    expect(apres, 'the hero moved to capture 2, at full size').toContain(C);
+    expect(apres, 'and capture 2 is no longer asked for twice').not.toContain(`${C}?v=thumb`);
+    expect(apres, 'capture 0 is now an ordinary thumbnail — small').toContain(`${A}?v=thumb`);
+    expect(apres).toContain(`${B}?v=thumb`);
+    screen.unmount();
+  });
+
+  it('PERSONNALISER — the 44 px arrangement rows, the smallest render in the app, ask small', async () => {
+    // The site the verifier found missing: « À la une & ordre » draws one 44 px
+    // square PER CURATED ARTICLE, so a shop with twelve articles pulled twelve
+    // full-size photographs to fill twelve 44 px squares. No hero sits beside
+    // these rows, so EVERY one of them asks for the small copy — there is no
+    // exception here, which is what makes this different from the two strips.
+    troisPhotos([PV_A]);
+    const screen = await openVitrine();
+    await screen.press('Personnaliser ma boutique');
+    await screen.press('À la une & ordre');
+    expect(screen.shows('Bazin riche'), 'the arrangement screen lists her article').toBe(true);
+
+    const images = screen.images();
+    expect(images, 'the 44px row art must ask for the vignette').toContain(`${A}?v=thumb`);
+    expect(images, 'and must NOT ask for the full photograph').not.toContain(A);
+    screen.unmount();
+  });
+
+  it('PERSONNALISER — the SECTION picker draws the same 44 px square, and asks small too', async () => {
+    // The second of the two rows the verifier found. It is a DIFFERENT screen
+    // from « À la une », reached by a different door, and a walk that covered
+    // only the first would leave this one exactly as unpinned as the fiche was.
+    troisPhotos([PV_A], [{ id: 'sec-tissus', name: 'Tissus', pids: [] }]);
+    const screen = await openVitrine();
+    await screen.press('Personnaliser ma boutique');
+    await screen.press('Sections');
+    await screen.press('Tissus');
+    expect(screen.shows('Bazin riche'), 'the section picker lists her articles').toBe(true);
+
+    const images = screen.images();
+    expect(images, 'the 44px picker art must ask for the vignette').toContain(`${A}?v=thumb`);
+    expect(images, 'and must NOT ask for the full photograph').not.toContain(A);
     screen.unmount();
   });
 });

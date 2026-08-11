@@ -77,17 +77,39 @@ Modal.displayName = 'Modal';
  * FlatList renders EVERY item — no windowing. Windowing is a performance
  * behaviour and this double makes no performance claim; what a walk needs is
  * that the rows the data produces are reachable.
+ *
+ * AND IT RENDERS THE HEADER AND THE FOOTER, which this double did NOT until
+ * 2026-08-11. They fell into `...rest` and were handed to the host element as
+ * plain props, so they never rendered — and Ma Vitrine puts its screen title,
+ * its public/privée toggle and « Personnaliser ma boutique » in the header.
+ * Every control in that region was invisible to every walk in this repo: a walk
+ * asking for one was told it is NOT ON SCREEN, and a walk asserting one is gone
+ * would have passed over a header that never existed. That is §9.8 exactly — a
+ * double that makes the app look different from what it is — and it is why the
+ * K5 walk below could not reach the door it needed.
+ *
+ * The real list draws header → (items | empty) → footer, and draws header and
+ * footer even when `data` is empty; that order is reproduced here.
  */
 export const FlatList: React.FC<AnyProps> = (props) => {
-  const { data, renderItem, keyExtractor, ListEmptyComponent, ...rest } = props;
+  const {
+    data,
+    renderItem,
+    keyExtractor,
+    ListEmptyComponent,
+    ListHeaderComponent,
+    ListFooterComponent,
+    ...rest
+  } = props;
   const rows = Array.isArray(data) ? data : [];
   const render = renderItem as ((info: { item: unknown; index: number }) => React.ReactNode) | undefined;
   const key = keyExtractor as ((item: unknown, index: number) => string) | undefined;
-  const children =
+  /** RN accepts a component TYPE or an already-built element for these three. */
+  const slot = (c: unknown): React.ReactNode =>
+    typeof c === 'function' ? React.createElement(c as React.FC) : ((c as React.ReactNode) ?? null);
+  const body =
     rows.length === 0
-      ? (typeof ListEmptyComponent === 'function'
-          ? React.createElement(ListEmptyComponent as React.FC)
-          : (ListEmptyComponent as React.ReactNode) ?? null)
+      ? slot(ListEmptyComponent)
       : rows.map((item, index) =>
           React.createElement(
             React.Fragment,
@@ -95,7 +117,13 @@ export const FlatList: React.FC<AnyProps> = (props) => {
             render?.({ item, index }),
           ),
         );
-  return React.createElement('FlatList', rest as never, children);
+  return React.createElement(
+    'FlatList',
+    rest as never,
+    React.createElement(React.Fragment, { key: 'h' }, slot(ListHeaderComponent)),
+    body,
+    React.createElement(React.Fragment, { key: 'f' }, slot(ListFooterComponent)),
+  );
 };
 FlatList.displayName = 'FlatList';
 

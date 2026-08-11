@@ -162,7 +162,32 @@ export async function mountApp(): Promise<Screen> {
    * a harness blind to them would report real controls as absent.
    */
   const textNodes = (): ReactTestInstance[] =>
-    tree.root.findAll((n) => typeof n.type === 'string' && textOf(n) !== '', { deep: true });
+    tree.root.findAll(
+      (n) =>
+        typeof n.type === 'string' &&
+        (textOf(n) !== '' || typeof n.props['accessibilityLabel'] === 'string'),
+      { deep: true },
+    );
+
+  /**
+   * WHAT A CONTROL ANSWERS TO: its text, OR its `accessibilityLabel`.
+   *
+   * The text alone was not enough, and a whole class of control was invisible
+   * because of it: the fiche's thumbnail strip and the Ma Vitrine card's are
+   * `<Pressable>`s containing ONE `<Image>` and no text at all. `textOf` is `''`
+   * for those, so they never entered the candidate set — a walk could not press
+   * them, and `press` would have reported them « not on screen » rather than
+   * « on screen and dead ». That is precisely the diagnosis this harness exists
+   * to make, failing on the controls a thumb reaches by picture.
+   *
+   * The two are joined by NUL — a byte no rendered string and no label can
+   * contain — so a search can never match by straddling the boundary between
+   * them and matching a control that answers to neither half.
+   */
+  const labelOf = (n: ReactTestInstance): string => {
+    const a11y = n.props['accessibilityLabel'];
+    return `${textOf(n)}\u0000${typeof a11y === 'string' ? a11y : ''}`;
+  };
 
   /**
    * UNPRESSABLE IS NOT PRESSABLE. `pointerEvents="none"` is a NATIVE prop,
@@ -188,7 +213,7 @@ export async function mountApp(): Promise<Screen> {
   /** Any node carrying the label, pressable or not — used ONLY to tell
    *  « not on screen » apart from « on screen and dead ». */
   const allWithText = (label: string): ReactTestInstance[] =>
-    innermost(textNodes().filter((p) => textOf(p).includes(label)));
+    innermost(textNodes().filter((p) => labelOf(p).includes(label)));
 
   /**
    * The CONTROLS carrying the label. Innermost is computed WITHIN the pressable
@@ -199,7 +224,7 @@ export async function mountApp(): Promise<Screen> {
    */
   const allByLabel = (label: string): ReactTestInstance[] =>
     innermost(textNodes().filter(
-      (p) => typeof p.props['onPress'] === 'function' && textOf(p).includes(label),
+      (p) => typeof p.props['onPress'] === 'function' && labelOf(p).includes(label),
     ));
   const findByLabel = (label: string, nth = 0): ReactTestInstance | null =>
     allByLabel(label)[nth] ?? null;

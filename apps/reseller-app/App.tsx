@@ -20,7 +20,7 @@ import { marginBreakdown, markupCap, defaultMarkup, snapMarkup } from './src/vit
 import { MarginSlider } from './src/ui/margin-slider';
 import { PhotoGallery } from './src/ui/photo-gallery';
 import { ProductClip } from './src/ui/product-clip';
-import { vignette } from './src/vitrine/vignette';
+import { vignetteSaufHero } from './src/vitrine/vignette';
 import { cadreRatio, CADRE_DEFAUT } from './src/ui/cadre';
 import { HeroLedger, DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
@@ -1415,8 +1415,15 @@ export default function App() {
                           >
                             {/* VIGNETTE — the 52 px strip asks for the SMALL copy.
                                 The hero above it does NOT: it renders at full card
-                                width, where 320 px would look soft. */}
-                            <Image source={{ uri: vignette(ref) }} style={styles.artPhoto} resizeMode="cover" />
+                                width, where 320 px would look soft. And the SELECTED
+                                thumbnail asks for nothing either — it is the same
+                                photograph the hero is already showing, and a second
+                                uri for it would fetch that file twice. */}
+                            <Image
+                              source={{ uri: vignetteSaufHero(ref, i, Math.min(ficheHeroIdx, opp.assetRefs.length - 1)) }}
+                              style={styles.artPhoto}
+                              resizeMode="cover"
+                            />
                           </Pressable>
                         ))}
                       </View>
@@ -1600,8 +1607,14 @@ export default function App() {
                                 accessibilityLabel={t('galerie.ouvrir')}
                               >
                                 {/* VIGNETTE — same rule as the fiche strip: small
-                                    render, small file; the card hero stays full. */}
-                                <Image source={{ uri: vignette(ref) }} style={styles.artPhoto} resizeMode="cover" />
+                                    render, small file; the card hero stays full. Here
+                                    the hero is always capture 0 (this strip does not
+                                    switch it), so index 0 re-uses the hero's file. */}
+                                <Image
+                                  source={{ uri: vignetteSaufHero(ref, i, 0) }}
+                                  style={styles.artPhoto}
+                                  resizeMode="cover"
+                                />
                               </Pressable>
                             ))}
                           </View>
