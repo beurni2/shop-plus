@@ -521,9 +521,9 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     // in `checkout-do.e2e.test.ts`. Failure mode #7, caught by a verifier.)
   });
 
-  it('⚠ NO SUPPLY NO LONGER REFUSES THE DOOR — the founder opened the conditions supply was read FOR', () => {
+  it('NO SUPPLY NO LONGER REFUSES THE DOOR — the founder opened the conditions supply was read FOR', () => {
     /**
-     * ⚠ THIS TEST ASSERTED THE OPPOSITE, AND IT WAS A SECOND GATE ON THE DOOR
+     * THIS TEST ASSERTED THE OPPOSITE, AND IT WAS A SECOND GATE ON THE DOOR
      * THAT NOBODY WAS TOLD ABOUT (verifier MAJOR, 2026-08-12).
      *
      * An unconfigured binding, an unreachable producer and a STALE projection
@@ -549,7 +549,7 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     expect(outcome.ok, 'the shipped policy consults neither field — the door must be offered').toBe(true);
   });
 
-  it('⚠ …and it STILL refuses, by name, the moment a condition actually needs supply', () => {
+  it('…and it STILL refuses, by name, the moment a condition actually needs supply', () => {
     /**
      * THE FAIL-CLOSED HALF, per condition rather than in bulk — and this is why
      * the change above is safe. Missing supply travels as `''`, which is not a

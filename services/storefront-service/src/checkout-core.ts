@@ -408,7 +408,7 @@ function issueQuoteFrom(
      * her screen — the founder's own « Option B still not reachable », with a
      * different root cause underneath it.
      *
-     * ⚠ AND IT IS STILL FAIL-CLOSED, PER CONDITION RATHER THAN IN BULK. Missing
+     * AND IT IS STILL FAIL-CLOSED, PER CONDITION RATHER THAN IN BULK. Missing
      * supply travels as `''` for both fields, which is not a substitution and
      * not a repair: `''` is not a member of `SELLER_TIER_RANK`, so a policy
      * with a real minimum refuses `seller_tier_below_minimum`; `''` maps to no

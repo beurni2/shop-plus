@@ -1221,7 +1221,7 @@ test('SUIVI-VIVANT · the watch does NOT give up: it is still asking long after 
   // Let the ladder's first rungs run, then jump past where the OLD one died.
   // SUIVI_PAIEMENT_MS totals ~35 s over six scheduled reads; two minutes of
   // held 20 s rungs is far beyond it.
-  // ⚠ THE ASSERTION NO PRE-FIX BUILD CAN PASS. `SUIVI_PAIEMENT_MS` has six
+  // THE ASSERTION NO PRE-FIX BUILD CAN PASS. `SUIVI_PAIEMENT_MS` has six
   // rungs, so the old watch made SEVEN reads in all and then surrendered. Nine
   // reads is past the end of a ladder that used to run out.
   await expect
@@ -1233,7 +1233,7 @@ test('SUIVI-VIVANT · the watch does NOT give up: it is still asking long after 
   await expect(page.locator('[data-action="verifier-suivi"]')).toHaveCount(0);
 
   /**
-   * ⚠ AND IT IS A WATCH, NOT A HAMMER — the other half, and the half that a
+   * AND IT IS A WATCH, NOT A HAMMER — the other half, and the half that a
    * « does it keep asking? » assertion can never see. A verifier replaced the
    * scheduled delay with the literal 1 at the call site and every test stayed
    * green: an infinite ladder is only affordable at the RATE it holds. Two
@@ -1263,7 +1263,7 @@ test('SUIVI-VIVANT · the watch does NOT give up: it is still asking long after 
 test('SUIVI-VIVANT · in her pocket the watch SLEEPS, and it is current the instant she looks', async ({ page }) => {
   test.setTimeout(120_000);
   /**
-   * ⚠ THE HALF NOTHING DROVE. The hold is only affordable because the watch
+   * THE HALF NOTHING DROVE. The hold is only affordable because the watch
    * stops entirely while the page is hidden and takes one immediate read when
    * she returns. A verifier deleted the `visibilitychange` registration and
    * forced `cacheeMaintenant()` permanently true, and the whole suite stayed
@@ -1323,7 +1323,7 @@ test('SUIVI-VIVANT · in her pocket the watch SLEEPS, and it is current the inst
 test('SUIVI-VIVANT · a link that will not answer STOPS the watch and gives her the control back', async ({ page }) => {
   test.setTimeout(120_000);
   /**
-   * ⚠ THIS IS THE VERIFIER'S BLOCKER, DRIVEN. Making the ladder infinite also
+   * THIS IS THE VERIFIER'S BLOCKER, DRIVEN. Making the ladder infinite also
    * deleted the only `suiviRelance = true`, so « Vérifier à nouveau » could no
    * longer render — and C7's other controls are all gated on facts a failing
    * read never delivers. A dead link therefore left her on a frozen screen with
@@ -1346,7 +1346,7 @@ test('SUIVI-VIVANT · a link that will not answer STOPS the watch and gives her 
   await page.locator('[data-action="verifier-suivi"]').waitFor({ timeout: 60_000 });
   await expect(page.locator('[data-role="suivi-hors-portee"]')).toBeVisible();
 
-  // ⚠ AND THE POLLING ACTUALLY STOPPED. This is the half a « the button came
+  // AND THE POLLING ACTUALLY STOPPED. This is the half a « the button came
   // back » assertion cannot see: an infinite ladder would keep spending her
   // data behind the very control that says it is her choice now.
   const arrete = wire.orderReads.length;

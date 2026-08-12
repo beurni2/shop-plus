@@ -1412,7 +1412,7 @@ describe('CheckoutDO — a supply read that FAILS no longer costs her the door, 
     ['A STALE PROJECTION — correct data, past the freshness bound', 'stale'],
   ] as const)('%s ⇒ the door is STILL OFFERED, and nothing is invented on the way', async (_label, mode) => {
     /**
-     * ⚠ THESE THREE ASSERTED A 422, AND THAT REFUSAL WAS THE FOUNDER'S OWN
+     * THESE THREE ASSERTED A 422, AND THAT REFUSAL WAS THE FOUNDER'S OWN
      * COMPLAINT WEARING A NEW CAUSE (verifier MAJOR, 2026-08-12).
      *
      * The door read supply for exactly two facts — `sellerTier` and `category`

@@ -213,7 +213,7 @@ export interface PayAtDoorPolicy {
  * lands on the supplier and on him. The cap is what bounds the loss on any
  * single refusal. Neither risk went away; he accepted both.
  *
- * ⚠ THE RULES ARE NOT DELETED — each is given a sentinel that means « open »,
+ * THE RULES ARE NOT DELETED — each is given a sentinel that means « open »,
  * exactly as the 2026-08-01 zones ruling was applied. That keeps §6.1's
  * structure intact, keeps every decision REPLAYABLE (each answer names the
  * `version` it was decided under), and makes re-tightening a policy edit with an
@@ -395,7 +395,7 @@ export function decidePayAtDoorEligibility(
   // FOUNDER OVERRIDE 2026-08-12 — `'aucun'` means no ceiling. A NUMBER still caps
   // exactly as before, so setting one is how he re-bounds his exposure later.
   //
-  // ⚠ THIS ONE FAILED OPEN, AND IT IS THE ONE THAT BOUNDS THE LOSS. The first
+  // THIS ONE FAILED OPEN, AND IT IS THE ONE THAT BOUNDS THE LOSS. The first
   // cut was `policy.priceCapFcfa !== 'aucun' && ctx.buyerTotalFcfa > policy.priceCapFcfa`,
   // which compares a number against WHATEVER the value is: `'acun'`, `'AUCUN'`,
   // `undefined` and a missing key all yielded false and skipped the refusal — a

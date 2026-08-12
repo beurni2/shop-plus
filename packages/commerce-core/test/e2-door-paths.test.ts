@@ -592,7 +592,7 @@ describe('§6.1 — the seller-tier condition cannot be walked past on the proto
 });
 
 
-describe('⚠ A HALF-WRITTEN POLICY FAILS CLOSED — measured, not asserted in a comment', () => {
+describe('A HALF-WRITTEN POLICY FAILS CLOSED — measured, not asserted in a comment', () => {
   /**
    * The override's whole safety argument is that the rules survive as sentinels
    * so a re-tightening is a policy edit rather than a code change — and that a
@@ -647,7 +647,7 @@ describe('⚠ A HALF-WRITTEN POLICY FAILS CLOSED — measured, not asserted in a
   });
 
   it('a mistyped zone list REFUSES', () => {
-    // ⚠ THE VALUE THAT MATTERS IS THE ONE THAT CONTAINS THE ZONE. My first cut
+    // THE VALUE THAT MATTERS IS THE ONE THAT CONTAINS THE ZONE. My first cut
     // used 'al'/'ALL'/'Ouagadougou', none of which contains « ouaga-centre », so
     // the string branch refused anyway and the test passed with the guard
     // REMOVED — a mutation proved it. A comma-joined list is the realistic
