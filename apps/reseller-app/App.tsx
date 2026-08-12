@@ -787,13 +787,25 @@ export default function App() {
    * success message over it is the fabricated-success shape this project
    * refuses everywhere else.
    *
-   * NAMED, NOT FIXED HERE: there is no re-price path at all. `publishListing`
-   * is the ONLY call that carries a markup and the service has no route to
-   * change one, so a published marge is frozen at its first value — which makes
-   * Ma Vitrine's marge slider a control that moves numbers on screen and signs
-   * nothing. That is a money-truth decision for the founder (what happens to a
-   * cliente holding the old price), not something to invent inside a screen fix.
-   * Journalled and reported; this fix removes the trap, it does not open the door.
+   * NAMED, NOT FIXED HERE — AND THE CONSTRAINT IS THIS APP'S, NOT THE SERVICE'S
+   * (verifier: my first version of this comment blamed the wrong repo, which
+   * would have sent the next engineer looking in storefront-service).
+   * `listing-core.ts` says the opposite in its own header, under a founder
+   * ruling: « idempotent on the publish command_id; A NEW COMMAND_ID
+   * (RE)PUBLISHES … REPUBLISH IS A NEW VERSION, NEVER A MUTATION », and the
+   * Worker re-signs against live supply on every accepted POST. Re-pricing is
+   * blocked HERE, by one line — `commandId: publish-${listingId}` in
+   * `src/vitrine/service.ts` — which pins every re-tap to the first command.
+   * Reading her signed marge back is available too: `GET
+   * /listings/by-pid/{sfId}/{pid}` exists, behind the key this app already
+   * holds.
+   *
+   * So a published marge is frozen at its first value, which makes Ma Vitrine's
+   * marge slider a control that moves numbers on screen and signs nothing. What
+   * is open is not « can the service do it » but « should the app offer a
+   * re-price act, and what happens to a cliente holding the old price » — the
+   * founder's call, not something to invent inside a screen fix. Journalled and
+   * reported; this fix removes the trap, it does not open the door.
    */
   const dejaDansVitrine = (pid: string): boolean => vitrineLive.includes(pid);
   const ficheOpp = world.opportunities.find((o) => o.id === ficheId);
@@ -862,7 +874,23 @@ export default function App() {
       // CONFIRMED. Membership is recorded now, keyed by productVersionId — the one
       // keyspace the fiche, the grid and the signed price all share.
       vitrineCol.addToVitrine(o.productVersionId);
-      setToast(t('fiche.publier.ajoute'));
+      /**
+       * `idempotent` IS NOT `published`, AND SHE IS TOLD SO (verifier MAJOR).
+       *
+       * The status was read as « ok » and reported as « C'est ajouté à votre
+       * vitrine » whatever it said. That is right for `published` and a lie for
+       * `idempotent`: the service recognised the command, wrote NOTHING, and
+       * kept the marge it signed the first time. Her product IS in her shop
+       * (so the membership above still stands, and this is not an error) — but
+       * if she had moved her marge expecting this tap to apply it, the toast
+       * was telling her a price her cliente will never be charged.
+       *
+       * This closes the hole in EVERY state, including the ones the screen
+       * cannot see: the « déjà » guard is a screen-level check over a shop read
+       * that can fail, and when it does the button comes back. Here the answer
+       * comes from the service itself, so it cannot be out of date.
+       */
+      setToast(res.value.status === 'idempotent' ? t('fiche.publier.deja') : t('fiche.publier.ajoute'));
       // RESELLER-UX-1 item 4 (founder walk: « I am still in that screen ») — the
       // add lands her ON the vitrine so the product she just added is the first
       // thing she sees. Cause and effect on one screen; toHub resets the stack so
@@ -1424,7 +1452,10 @@ export default function App() {
             silently succeeding — the fabricated-success shape refused everywhere else. */}
         {screen === 'fiche' && ficheOffer !== undefined &&
           ((opp: Offer) => {
-            const already = false;
+            // (`const already = false` lived here — a hardcoded « not already
+            // added » flag nobody read, inside the very block whose subject is
+            // now already-added. `dejaDansVitrine` answers that question for
+            // real; a dead one beside it would only mislead. Verifier minor.)
             return (
               <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
                 {/* the vérifié badge language (§4 L72 tier pill) */}
@@ -1511,30 +1542,62 @@ export default function App() {
                     what it costs (Prix de base), what she adds (the typable control),
                     what the cliente pays (Prix cliente, live). Cause and effect in
                     three labelled rows instead of one floating estimate. */}
-                <Text style={styles.ficheGagnez}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOfOffer(opp).net) })}</Text>
-                <Card style={styles.ficheMoneyCard}>
-                  <View style={styles.margeHeadRow}>
-                    <Overline>{t('fiche.prix_base')}</Overline>
-                    <Text style={styles.margeAmount}>{formatFcfa(opp.basePrice)}</Text>
-                  </View>
-                  {/* THE MARGE CONTROL IS FOR A PRODUCT SHE HAS NOT ADDED YET.
-                      Once published, the signed marge cannot be changed — the
-                      service has no re-price route and a re-publish answers
-                      `idempotent` — so a slider here would move her cliente's
-                      price on screen and nowhere else. It is not shown rather
-                      than shown-and-dead. */}
-                  {dejaDansVitrine(opp.productVersionId) ? null : (
-                    <MarkupControl
-                      value={viewOfOffer(opp).markup}
-                      cap={viewOfOffer(opp).cap}
-                      onChange={(m) => setMarkups((prev) => ({ ...prev, [opp.productVersionId]: m }))}
-                    />
-                  )}
-                  <View style={styles.margeHeadRow}>
-                    <Overline>{t('fiche.prix_cliente')}</Overline>
-                    <Text style={styles.margeAmount}>{formatFcfa(viewOfOffer(opp).client)}</Text>
-                  </View>
-                </Card>
+                {/* THE ESTIMATE AND THE MARGE ROWS ARE A QUOTE FOR ADDING — they
+                    belong to a product she has NOT added yet, and on a product she
+                    HAS they would be a claim about a live listing this app cannot
+                    make (verifier BLOCKER).
+
+                    Every one of these figures comes from `markups[pid] ??
+                    defaultMarkup(cap)` — REACT STATE, which dies with the session —
+                    while the signed marge lives in the listing and is never read
+                    back. Session 1 she types 2 000 and publishes: the service signs
+                    a cliente price of 12 000. Session 2, same fiche: the app has
+                    forgotten, renders the default 0, and would print « Prix cliente
+                    10 000 » and a net a third of the truth — DIRECTLY UNDER a
+                    sentence asserting the listing exists. Law 1, « every quote
+                    reconciling to the franc », and the trust test both fail there.
+
+                    So on an added product the fiche states the ONE figure it can
+                    vouch for — the base price — and sends her to Ma Vitrine for her
+                    own terms. Silence beats a confident wrong number.
+
+                    (The real remedy is to READ her signed marge: the service already
+                    exposes `GET /listings/by-pid/{sfId}/{pid}` behind the key this
+                    app holds. That is a port this slice did not add — journalled,
+                    and it belongs with the founder's re-price decision.) */}
+                {/* THE NOT-ADDED BRANCH IS WRITTEN FIRST, and that is load-bearing:
+                    `publish-listing.test.ts` pins SP-I04 by SOURCE ORDER over the
+                    fiche region — « gagnez » must precede « prix de base » must
+                    precede « prix cliente ». Putting the déjà card first moved a
+                    `prix_base` above `gagnez` and turned that pin red. The pin was
+                    right and the layout was wrong way round; net stays first. */}
+                {!dejaDansVitrine(opp.productVersionId) ? (
+                  <>
+                    <Text style={styles.ficheGagnez}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOfOffer(opp).net) })}</Text>
+                    <Card style={styles.ficheMoneyCard}>
+                      <View style={styles.margeHeadRow}>
+                        <Overline>{t('fiche.prix_base')}</Overline>
+                        <Text style={styles.margeAmount}>{formatFcfa(opp.basePrice)}</Text>
+                      </View>
+                      <MarkupControl
+                        value={viewOfOffer(opp).markup}
+                        cap={viewOfOffer(opp).cap}
+                        onChange={(m) => setMarkups((prev) => ({ ...prev, [opp.productVersionId]: m }))}
+                      />
+                      <View style={styles.margeHeadRow}>
+                        <Overline>{t('fiche.prix_cliente')}</Overline>
+                        <Text style={styles.margeAmount}>{formatFcfa(viewOfOffer(opp).client)}</Text>
+                      </View>
+                    </Card>
+                  </>
+                ) : (
+                  <Card style={styles.ficheMoneyCard}>
+                    <View style={styles.margeHeadRow}>
+                      <Overline>{t('fiche.prix_base')}</Overline>
+                      <Text style={styles.margeAmount}>{formatFcfa(opp.basePrice)}</Text>
+                    </View>
+                  </Card>
+                )}
                 {/* protections chips — the trust affordances */}
                 <View style={styles.ficheChips}>
                   <StatusChip tone="muted" label={t('fiche.chip_inspection')} />

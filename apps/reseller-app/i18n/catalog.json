@@ -3162,6 +3162,12 @@
   "screenClass": "instruction"
  },
  {
+  "key": "fiche.publier.deja",
+  "fr": "Ce produit était déjà dans votre vitrine. Votre marge n’a pas changé.",
+  "register": "money",
+  "screenClass": "instruction"
+ },
+ {
   "key": "fiche.publier.reessayer",
   "fr": "Le produit n’a pas répondu. Réessayez dans un moment.",
   "register": "neutral",

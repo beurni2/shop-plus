@@ -651,10 +651,28 @@ describe('DÉJÀ-DANS-MA-VITRINE — Opportunités knows what is already hers', 
       'a second « Ajouter » is a button whose only outcome is a no-op the service answers idempotent',
     ).toBe(false);
 
+    // THE MONEY ROWS OF A QUOTE-FOR-ADDING ARE GONE. Every one of them is
+    // derived from local state the app forgets, so over a LIVE listing they
+    // would be a confident wrong number — « Prix cliente » under « c'est déjà
+    // dans votre vitrine » is a claim, not an estimate (verifier BLOCKER).
+    expect(screen.shows('Prix cliente'), 'a price this app cannot vouch for, over a live listing').toBe(false);
+    expect(screen.texts().join(' '), 'the estimate belongs to a product she has not added').not.toContain('Gagnez environ');
+    // …and the marge control with them: it could only move numbers on screen.
+    expect(screen.shows('Votre marge'), 'a slider that signs nothing').toBe(false);
+    // The one figure it CAN vouch for stays — the supplier's base price.
+    expect(screen.shows('Prix de base')).toBe(true);
+
     // …and she can REACH THE NEXT STEP — the four questions, this one.
     expect(screen.canPress('Voir dans ma vitrine')).toBe(true);
     await screen.press('Voir dans ma vitrine');
-    expect(screen.shows('Bazin riche'), 'the way in must land her on the product').toBe(true);
+    /**
+     * ASSERT SOMETHING ONLY MA VITRINE RENDERS. This used to check the product
+     * name, which is already on the fiche she is standing on — so it survived
+     * the button being DEAD (the verifier emptied the handler and all 20 walks
+     * stayed green). « Retirer de ma vitrine » exists on no other screen.
+     */
+    expect(screen.canPress('Retirer de ma vitrine'), 'the way in never left the fiche').toBe(true);
+    expect(screen.shows('Bazin riche'), 'and it landed on the product she asked for').toBe(true);
 
     // NOTHING WAS PUBLISHED by any of that.
     expect(w.calls.some((c) => c.path === '/listings'), 'no write may leave this screen').toBe(false);
@@ -730,6 +748,52 @@ describe("DÉJÀ-DANS-MA-VITRINE — the founder's own sequence, in one session"
     await screen.press('Bazin riche');
     expect(screen.canPress('Ajouter à ma vitrine'), 'a second add is still on offer').toBe(false);
     expect(screen.shows('Ce produit est déjà dans votre vitrine.')).toBe(true);
+    screen.unmount();
+  });
+});
+
+describe('DÉJÀ-DANS-MA-VITRINE — the answer the SERVICE gives, when the screen cannot know', () => {
+  it('a shop read that FAILS leaves the button, and an idempotent write is not reported as an add', async () => {
+    /**
+     * THE HOLE THE SCREEN GUARD CANNOT CLOSE (verifier MAJOR). `dejaDansVitrine`
+     * reads `vitrineLive`, which falls back to the session log when the shop
+     * read has not answered — so if `GET /storefronts/:id` fails, a product she
+     * added in an EARLIER session is unmarked and the « Ajouter » button comes
+     * back. The guard is a screen-level check over a value that can be stale.
+     *
+     * The write's own answer cannot be stale. The service says `idempotent` —
+     * « I recognised this command, I wrote nothing, the first marge stands » —
+     * and that must never be reported as « C'est ajouté à votre vitrine », or
+     * a reseller who moved her marge is told a price her cliente will never be
+     * charged. CONTRACT-CERTIFIED: `200 {"status":"idempotent"}` is exactly what
+     * the real Worker answers a re-tap (`republish-idempotent.e2e.test.ts`).
+     */
+    const svc = service({ offers: [PV_A], curated: [PV_A] });
+    const w = wire([
+      // Her shop is unreadable this session…
+      (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 500, json: { error: 'down' } } : null),
+      // …and the product is already published, so the write is a no-op.
+      (path) => (path === '/listings' ? { status: 200, json: { status: 'idempotent' } } : null),
+      ...svc.routes,
+    ]);
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+
+    // The guard is blind here, and the walk says so rather than pretending.
+    expect(screen.canPress('Ajouter à ma vitrine'), 'the unreadable shop leaves the button — that is the state under test').toBe(true);
+    await screen.press('Ajouter à ma vitrine');
+    await screen.settle();
+
+    expect(w.calls.some((c) => c.path === '/listings'), 'the tap never reached the service').toBe(true);
+    expect(
+      screen.shows("C'est ajouté à votre vitrine.") || screen.shows('C’est ajouté à votre vitrine.'),
+      'a write that changed NOTHING was reported as an add',
+    ).toBe(false);
+    expect(
+      screen.shows('Ce produit était déjà dans votre vitrine. Votre marge n’a pas changé.'),
+      'she must be told what actually happened, including that her marge did not move',
+    ).toBe(true);
     screen.unmount();
   });
 });
