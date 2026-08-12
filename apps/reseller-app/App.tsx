@@ -30,7 +30,7 @@ import { loadOrMintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
 import type { ResellerIdentity } from './src/identity/mint';
 import { expoIdentityStore, expoRandomBytes } from './src/identity/expoStore';
-import { useVoiceNotes, VoiceNoteSheet, voiceCardLabel, type VoiceUploader } from './src/vitrine/customize/voice-sheet';
+import { useVoiceNotes, VoiceNoteSheet, voiceCardLabel, type VoiceRemover, type VoiceUploader } from './src/vitrine/customize/voice-sheet';
 import {
   useCercle, CercleHub, CampWizard, CampaignActive, CampaignFunding, CercleReputation,
   CercleMembres, IconCercleDeux, PendingHero, CercleAccueilCard,
@@ -569,7 +569,34 @@ export default function App() {
     },
     [service, identity],
   );
-  const voice = useVoiceNotes(setToast, uploadVoiceNote);
+  // VOIX-PRODUIT (founder 2026-08-12) — the shop's OWN notes reach the
+  // controller. Without this third argument it only knew the takes made in this
+  // session, so a note the service had stored was invisible on the card and had
+  // no url to play. `liveStorefront` is the service's truth, re-read on every
+  // load; the merge inside refuses to overwrite a take she is holding.
+  /**
+   * VOIX-SUPPRIMER-1 (founder, 2026-08-12: « build the real delete ») — the act
+   * behind « Supprimer ». It removes the note from HER SHOP, so the buyers on
+   * the fiche stop hearing it, and it refreshes the held storefront off the
+   * answer rather than making a second read: a POST that lands followed by a
+   * GET that does not would leave the note on screen under a message saying it
+   * is gone. Same law as `removeItem`, and for the same reason.
+   */
+  const removeVoiceNote = useCallback<VoiceRemover>(
+    async (pid) => {
+      if (service === null || identity === null || identity === undefined) {
+        return { ok: false, reason: 'unconfigured' };
+      }
+      const r = await service.removeVoiceNote(identity.storefrontId, pid, new Date().toISOString());
+      if (!r.ok) return { ok: false, reason: r.reason };
+      if (r.value.storefront !== undefined) setLiveStorefront(r.value.storefront);
+      // `no_note` is a success with nothing to show — the note is not on her
+      // shop, which is what she asked for. Only a refusal is a refusal.
+      return { ok: true };
+    },
+    [service, identity],
+  );
+  const voice = useVoiceNotes(setToast, uploadVoiceNote, liveStorefront?.productNotes, removeVoiceNote);
 
   /** MEDIA-2 — her PORTRAIT, same law as the cover: bytes up, URL owned by the
    *  service, success only once the read-back shows it. */

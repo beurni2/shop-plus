@@ -10,22 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  DEFAULT_VOICE_NOTES,
-  NONE_NOTE,
-  noteOf,
-  startRecording,
-  stopRecording,
-  publishNote,
-  cancelRecording,
-  deleteNote,
-  createDemoRecorder,
-  readyNote,
-  failPublish,
-  fmtVoiceDuration,
-  type ProductVoiceNotes,
-  type ProductVoiceStatus,
-} from '../src/vitrine/customize/voice';
+import { DEFAULT_VOICE_NOTES, NONE_NOTE, cancelRecording, createDemoRecorder, deleteNote, failPublish, fmtVoiceDuration, fusionnerNotesStockees, noteOf, publishNote, readyNote, startRecording, stopRecording, type ProductVoiceNotes, type ProductVoiceStatus } from '../src/vitrine/customize/voice';
 
 const TAKE = { url: null, durationMs: 8_000 };
 
@@ -237,5 +222,64 @@ describe('VOIX-ÉTAT-2 — the reseller’s note counts while it plays', () => {
     const deps = /}, \[([^\]]*)\]\);/.exec(sheet.slice(sheet.indexOf('return useMemo<VoiceNotesController>')));
     expect(deps, 'the controller memo deps array must be findable').not.toBeNull();
     expect(deps![1]).toContain('playingSec');
+  });
+});
+
+/**
+ * ═══ FUSIONNER — the shop's stored notes, and the one thing that outranks them ═══
+ *
+ * Founder, 2026-08-12: a note recorded and published did not show on the card
+ * and played nothing. The controller only ever knew this session's takes; the
+ * shop's `productNotes` was never read back onto the screen.
+ *
+ * The merge itself is trivial. What these pin is the JUDGEMENT around it: a take
+ * in her hands is never overwritten by a read that lands mid-record, a stored
+ * row without a usable url is dropped rather than rendered as a play button over
+ * silence, and nothing-moved returns the SAME OBJECT — because the caller runs
+ * this in an effect and a fresh object every pass would re-render forever.
+ */
+describe('fusionnerNotesStockees — what the shop holds, safely', () => {
+  const URL_A = 'https://media.test/voice/a.m4a';
+  const PRETE = { status: 'ready', url: URL_A, durationMs: 8_000 } as const;
+
+  it('adopts a stored note for a product the session knows nothing about', () => {
+    const out = fusionnerNotesStockees({}, { 'pv-1': PRETE });
+    expect(out['pv-1']).toEqual({ status: 'ready', url: URL_A, durationMs: 8_000 });
+  });
+
+  it('NEVER overwrites a take she is holding — recording, reviewing or publishing', () => {
+    for (const status of ['recording', 'recorded', 'pending'] as const) {
+      const local = { 'pv-1': { status, url: 'file:///take.m4a', durationMs: 3_000 } };
+      const out = fusionnerNotesStockees(local, { 'pv-1': PRETE });
+      expect(out['pv-1'], `a ${status} take is hers until it settles`).toEqual(local['pv-1']);
+      expect(out, 'and nothing moved, so the same object comes back').toBe(local);
+    }
+  });
+
+  it('replaces an OLDER ready note when the shop holds a different one', () => {
+    const local = { 'pv-1': { status: 'ready' as const, url: 'https://media.test/voice/old.m4a', durationMs: 2_000 } };
+    const out = fusionnerNotesStockees(local, { 'pv-1': PRETE });
+    expect(out['pv-1']?.url).toBe(URL_A);
+  });
+
+  it('returns the SAME OBJECT when nothing moves — or the effect loops forever', () => {
+    const local = { 'pv-1': { ...PRETE } };
+    expect(fusionnerNotesStockees(local, { 'pv-1': PRETE })).toBe(local);
+    expect(fusionnerNotesStockees(local, {})).toBe(local);
+    expect(fusionnerNotesStockees(local, null)).toBe(local);
+    expect(fusionnerNotesStockees(local, 'nonsense')).toBe(local);
+  });
+
+  it('DROPS a malformed row rather than rendering a play button over silence', () => {
+    const bad: Record<string, unknown> = {
+      'pv-no-url': { status: 'ready', url: '', durationMs: 8_000 },
+      'pv-null-url': { status: 'ready', url: null, durationMs: 8_000 },
+      'pv-bad-duration': { status: 'ready', url: URL_A, durationMs: 'huit' },
+      'pv-negative': { status: 'ready', url: URL_A, durationMs: -1 },
+      'pv-not-ready': { status: 'pending', url: URL_A, durationMs: 8_000 },
+      'pv-not-object': 'nope',
+    };
+    const out = fusionnerNotesStockees({}, bad);
+    expect(Object.keys(out), 'not one of these is playable').toEqual([]);
   });
 });

@@ -501,28 +501,40 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
     expect(refused.json['error']).toBe('attribution_missing');
   });
 
-  it('an unknown payment mode is 422, and an INELIGIBLE door request refuses without leaking why', async () => {
+  it('an unknown payment mode is 422 — and after the override, an UNATTESTED supplier’s door request is not', async () => {
     // SELLER-TIER-WIRE-1 — the shop sells the UNATTESTED supplier's product, so
     // the projection this Worker reads carries `sellerTier: 'provisional'`. The
     // buyer's body cannot say otherwise: the field left the wire.
     const { slug, resellerId, pid } = await seedShop('0012', 1_500, 'pv-checkout-prov');
     const base = { slug, pid, zoneTo: 'Ouagadougou', attributionResellerId: resellerId };
+
+    // AN UNKNOWN MODE IS STILL 422 — the control. The override opened §6.1's
+    // conditions; it did not stop this Worker refusing what it cannot price.
     const bogus = await postQuote({ ...base, paymentMode: 'CASH_ON_TRUST', requestKey: freshKey() });
     expect(bogus.status).toBe(422);
     expect(bogus.json['error']).toBe('payment_mode_unknown');
 
-    // The ZONE no longer refuses anyone (founder ruling 2026-08-01), so this
-    // drives one of the OTHER four §6.1 conditions — an unverified seller.
+    // ═══ FOUNDER OVERRIDE 2026-08-12, PROVEN ON THE REAL WORKER ═══
+    //
+    // « for pay at the door I do not want any gate at all, make it open to any
+    // product from any supplier. » This test used to assert the opposite — a
+    // provisional seller refused 422 — and that refusal was the single condition
+    // keeping the door off most of his catalogue. It is rewritten rather than
+    // deleted, because the question it asks is the one that matters: WHAT DOES
+    // THE SHIPPED WORKER DO with an unattested supplier?
     const door = await postQuote({
       ...base,
       paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
       requestKey: freshKey(),
     });
-    expect(door.status).toBe(422);
-    expect(door.json['error']).toBe('pay_at_door_not_eligible');
-    // the §6.1 OPS DETAIL never reaches the buyer
+    expect(door.status, door.text).toBe(200);
+    // …and the quote it issued is a REAL §5.5 door split, not a shape that
+    // merely stopped refusing: the delivery leg now, the product at the door.
+    expect(door.json['paymentMode']).toBe('DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
+    expect(door.json['amountPaidAtCheckout']).toBe(door.json['deliveryFee']);
+    expect(door.json['amountDueAtDelivery']).toBe(door.json['productSubtotal']);
+    // THE OPS DETAIL STILL NEVER REACHES THE BUYER — unchanged by the override.
     expect(door.text.includes('policyVersion')).toBe(false);
-    expect(door.text.includes('seller_tier_below_minimum')).toBe(false);
   });
 
   /**
@@ -564,7 +576,7 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
     }
   });
 
-  it('THE SAME BUYER REQUEST, TWO SUPPLIERS, TWO VERDICTS — the tier now comes from the projection', async () => {
+  it('THE SAME BUYER REQUEST, TWO SUPPLIERS — the tier comes from the projection, and the open policy admits both', async () => {
     // The proof that the decision MOVED rather than being spelled differently:
     // byte-identical door context, two shops, and the only difference is which
     // supplier's product each one sells.
@@ -581,9 +593,14 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
         });
     const yes = await ask(attested);
     const no = await ask(unattested);
+    // FOUNDER OVERRIDE 2026-08-12 — the tier still comes from the projection and
+    // never from the buyer's body (that is what SELLER-TIER-WIRE-1 fixed, and it
+    // is untouched). What changed is what the policy DOES with it: nothing. Both
+    // suppliers reach the door now, which is what « any product from any
+    // supplier » means, and the two verdicts this test was named for are one.
     expect(yes.status, yes.text).toBe(200);
-    expect(no.status, no.text).toBe(422);
-    expect(no.json['error']).toBe('pay_at_door_not_eligible');
+    expect(no.status, no.text).toBe(200);
+    expect(no.json['paymentMode']).toBe('DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
   });
 
   /**
@@ -1291,7 +1308,64 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
  * These cases give the Worker a producer that FAILS, and a Worker with no
  * producer at all, and drive a real door request at each.
  */
-describe('CheckoutDO — a supply read that FAILS refuses Option B, and never invents a seller', () => {
+describe('POLITIQUE-AU-QUOTE — the admitting policy rides the quote off the REAL worker', () => {
+  /**
+   * The issuer-level pin lives in commerce-core; this is the seam question it
+   * cannot answer: does the version survive `QuoteSchema.parse`, the durable
+   * put, and the HTTP boundary — and does it reach the buyer\'s response at all?
+   *
+   * It rides the QUOTE, which is not ops detail: the buyer already receives the
+   * quote she is being asked to pay. What must never leak is the §6.1 REFUSAL
+   * detail, and that is asserted elsewhere and unchanged.
+   */
+  it('a door quote issued over HTTP carries the shipped policy version; a prepaid quote carries none', async () => {
+    const { slug, resellerId, pid } = await seedShop('0061', 2_000);
+    const base = { slug, pid, zoneTo: 'Ouagadougou', attributionResellerId: resellerId };
+
+    const door = await postQuote({
+      ...base,
+      paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+      requestKey: freshKey(),
+    });
+    expect(door.status, door.text).toBe(200);
+
+    /**
+     * THE BUYER'S RESPONSE MUST NOT CARRY IT, and that is not a gap — it is
+     * `toBuyerQuoteView`'s allowlist doing its job. The audit record lives on
+     * the STORED quote, which is what a dispute reads; the buyer receives eight
+     * money fields and nothing else. Both halves are asserted here so neither
+     * can drift into the other.
+     */
+    expect(door.json['policyVersions'], 'the §6.1 record reached the buyer wire').toBeUndefined();
+
+    // ASK THE DURABLE RECORD, not the response. `QUOTE_BYTES` is the canonical
+    // serialisation of the whole quote — the same bytes an order later carries.
+    const ns = await mf.getDurableObjectNamespace('CHECKOUT');
+    const stub = ns.get(ns.idFromName(door.json['quoteId'] as string));
+    const stored = await stub.fetch('https://do/entry');
+    const body = (await stored.json()) as { ok: boolean; quote?: { policyVersions?: Record<string, unknown> } };
+    expect(body.ok, JSON.stringify(body)).toBe(true);
+    expect(
+      body.quote?.policyVersions?.['payAtDoorPolicyVersion'],
+      'the admitted door quote recorded no policy — a dispute cannot say which rules let it through',
+    ).toBe('option-b-policy.v2-ouvert-a-tous');
+
+    // …and a PREPAID quote's durable record carries none: no door gate was consulted.
+    const prepay = await postQuote({ ...base, paymentMode: 'FULL_PREPAY', requestKey: freshKey() });
+    expect(prepay.status, prepay.text).toBe(200);
+    const nsP = await mf.getDurableObjectNamespace('CHECKOUT');
+    const stubP = nsP.get(nsP.idFromName(prepay.json['quoteId'] as string));
+    const storedP = (await (await stubP.fetch('https://do/entry')).json()) as {
+      quote?: { policyVersions?: Record<string, unknown> };
+    };
+    expect(
+      storedP.quote?.policyVersions?.['payAtDoorPolicyVersion'],
+      'a prepaid quote was stamped with a door decision nobody took',
+    ).toBeUndefined();
+  });
+});
+
+describe('CheckoutDO — a supply read that FAILS no longer costs her the door, and still never invents a seller', () => {
   /** A Worker whose OFFER answers the publish read (so a listing can exist) and
    *  then breaks for the CHECKOUT read. `mode` picks how it breaks. */
   function makeBroken(mode: 'throw' | 'five-hundred' | 'stale', dir: string): Miniflare {
@@ -1393,18 +1467,41 @@ describe('CheckoutDO — a supply read that FAILS refuses Option B, and never in
     ['UNREACHABLE (the fetch throws)', 'throw'],
     ['A 5xx FROM THE PRODUCER', 'five-hundred'],
     ['A STALE PROJECTION — correct data, past the freshness bound', 'stale'],
-  ] as const)('%s ⇒ Option B is REFUSED by name, and no quote exists', async (_label, mode) => {
+  ] as const)('%s ⇒ the door is STILL OFFERED, and nothing is invented on the way', async (_label, mode) => {
+    /**
+     * THESE THREE ASSERTED A 422, AND THAT REFUSAL WAS THE FOUNDER'S OWN
+     * COMPLAINT WEARING A NEW CAUSE (verifier MAJOR, 2026-08-12).
+     *
+     * The door read supply for exactly two facts — `sellerTier` and `category`
+     * — and refused the whole mode when the read failed. After « I do not want
+     * any gate at all » NEITHER field is consulted, so a slow offer-service, a
+     * redeploy or one aged projection took « Payer le produit à la livraison »
+     * off her screen for a reason the decision no longer cares about. Three
+     * shipped tests certified that behaviour as correct.
+     *
+     * WHAT IS ASSERTED INSTEAD IS STRONGER, not weaker: the quote issues, it is
+     * a REAL §5.5 door split, and the two safety properties this describe was
+     * named for still hold — no tier is invented, and no ops detail reaches the
+     * buyer. **The fail-closed half moved to where it belongs**: with a policy
+     * that actually reads those fields, an unreadable projection refuses BY
+     * NAME. That cannot be driven over HTTP (the Worker ships one policy), so it
+     * is pinned in `checkout-core.test.ts` — « …and it STILL refuses, by name,
+     * the moment a condition actually needs supply ».
+     */
     const inst = makeBroken(mode, scratch());
     try {
       const shop = await seedOn(inst, '0001');
       const door = await doorQuoteOn(inst, shop);
-      expect(door.status, door.text).toBe(422);
-      expect(door.json['error']).toBe('pay_at_door_not_eligible');
-      // NOTHING was invented on the way to that refusal, and the §6.1 ops detail
-      // still does not reach the buyer.
+      expect(door.status, door.text).toBe(200);
+      // A REAL door split, not merely a request that stopped being refused.
+      expect(door.json['paymentMode']).toBe('DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
+      expect(door.json['amountPaidAtCheckout']).toBe(door.json['deliveryFee']);
+      expect(door.json['amountDueAtDelivery']).toBe(door.json['productSubtotal']);
+      // NOTHING WAS INVENTED. The broken read contributed no tier: the absence
+      // travelled as an absence, and the §6.1 ops detail still never reaches her.
       expect(door.text.includes('verified')).toBe(false);
       expect(door.text.includes('policyVersion')).toBe(false);
-      expect(door.text.includes('amountDueAtDelivery')).toBe(false);
+      expect(door.text.includes('sellerTier')).toBe(false);
     } finally {
       await inst.dispose();
     }

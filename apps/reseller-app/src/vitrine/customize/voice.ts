@@ -194,3 +194,58 @@ export function fmtVoiceDuration(durationMs: number): string {
   const s = total % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
 }
+
+/**
+ * ═══ WHAT THE SHOP ALREADY HOLDS, BROUGHT ONTO THE SCREEN ═══
+ *
+ * Founder, 2026-08-12: « when I record an audio and tap publier it does not show
+ * on the product as a recorded audio and when I tap to listen I am not hearing
+ * anything. »
+ *
+ * THE CAUSE: the controller's notes are React state seeded {@link DEFAULT_VOICE_NOTES}
+ * — empty — and moved only by this session's record/publish flow. The service
+ * stores the note on her shop (`Storefront.productNotes`, the same
+ * `{status, url, durationMs}` shape) and nothing ever read it back onto the
+ * screen. So the bytes were on the server and the card did not know: after any
+ * relaunch every note read « Ajouter une note vocale » and there was no url for
+ * the player to open, which is the silence he heard.
+ *
+ * THE RULE, and the only interesting part: A TAKE IN HER HANDS ALWAYS WINS. If
+ * she is recording, reviewing or publishing this pid right now, the stored note
+ * is ignored — a read landing mid-take must never overwrite the take. Anything
+ * else (`none`, or an older `ready`) adopts what the shop holds.
+ *
+ * IT RETURNS `local` UNCHANGED WHEN NOTHING MOVES, by identity. The caller
+ * runs this in an effect and stores the result; a fresh object every pass would
+ * re-render forever.
+ *
+ * A MALFORMED STORED ROW IS DROPPED, never rendered half-formed: a note with no
+ * usable url is a play button over silence, which is the bug this closes.
+ */
+const EN_COURS: readonly ProductVoiceStatus[] = ['recording', 'recorded', 'pending'];
+
+export function fusionnerNotesStockees(
+  local: ProductVoiceNotes,
+  stockees: unknown,
+): ProductVoiceNotes {
+  if (stockees === null || typeof stockees !== 'object') return local;
+  // Mutable inside, Readonly out — the map's own type forbids assignment.
+  let suivant: Record<string, ProductVoiceNote> | null = null;
+  for (const [pid, brut] of Object.entries(stockees as Record<string, unknown>)) {
+    if (pid === '' || brut === null || typeof brut !== 'object') continue;
+    const r = brut as Record<string, unknown>;
+    const status = r['status'];
+    const url = r['url'];
+    const durationMs = r['durationMs'];
+    // WHOLE OR NOTHING. `ready` is the only status a shop can hold — the others
+    // are in-session steps — and it is worth nothing without an address.
+    if (status !== 'ready' || typeof url !== 'string' || url === '') continue;
+    if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs < 0) continue;
+    const courant = noteOf(local, pid);
+    if (EN_COURS.includes(courant.status)) continue; // her take wins, always
+    if (courant.status === 'ready' && courant.url === url && courant.durationMs === durationMs) continue;
+    suivant ??= { ...local };
+    suivant[pid] = { status: 'ready', url, durationMs };
+  }
+  return suivant ?? local;
+}

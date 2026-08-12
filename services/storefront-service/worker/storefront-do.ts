@@ -5,6 +5,7 @@ import {
   decideDelete,
   decideSaveIdentity,
   decideSetMedia,
+  decideRemoveVoiceNote,
   decideSetVoiceNote,
   decideToggle,
   type CreateDecision,
@@ -185,6 +186,25 @@ export class StorefrontDO {
       if (next) await this.state.storage.put(ENTRY_KEY, next);
       const voiceStatus = decision.status === 'absent' ? 404 : decision.status === 'refused' ? 422 : 200;
       return Response.json(decision, { status: voiceStatus });
+    }
+    // VOIX-SUPPRIMER-1 — the founder's 2026-08-12 decision. « Supprimer » used
+    // to remove the note from her phone alone while buyers kept hearing it;
+    // this is the act that makes it true. `no_note` is 200, not 404: deleting
+    // a note that is not there is not a failure, and the act must be safe to
+    // repeat when a queued removal arrives twice.
+    if (request.method === 'POST' && pathname === '/entry/voice/remove') {
+      let body: { pid?: string; at?: string };
+      try {
+        body = (await request.json()) as { pid?: string; at?: string };
+      } catch {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      if (typeof body.pid !== 'string') return Response.json({ error: 'malformed' }, { status: 400 });
+      const current = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
+      const { decision, next } = decideRemoveVoiceNote(current, body.pid, body.at ?? new Date().toISOString());
+      if (next) await this.state.storage.put(ENTRY_KEY, next);
+      const code = decision.status === 'absent' ? 404 : decision.status === 'refused' ? 422 : 200;
+      return Response.json(decision, { status: code });
     }
     if (request.method === 'GET' && pathname === '/entry') {
       const entry = await this.state.storage.get<StorefrontEntry>(ENTRY_KEY);
@@ -371,6 +391,16 @@ export default {
       const id = decodeURIComponent(m[1]!);
       const body = await request.clone().text();
       const res = await sfStub(env, id).fetch(new Request('https://do/entry/voice', { method: 'POST', body }));
+      return forward(res);
+    }
+
+    m = /^\/storefronts\/([^/]+)\/voice\/remove$/.exec(pathname);
+    if (m && request.method === 'POST') {
+      const id = decodeURIComponent(m[1]!);
+      const body = await request.clone().text();
+      const res = await sfStub(env, id).fetch(
+        new Request('https://do/entry/voice/remove', { method: 'POST', body }),
+      );
       return forward(res);
     }
 

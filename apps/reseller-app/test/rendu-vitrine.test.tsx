@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountApp, wire, wiredEnv, type Route, type Wire } from './rendu';
 import { resetFiles } from './doubles/expo-file-system';
 
@@ -41,7 +41,7 @@ const offer = (pv: string, name: string) => ({
 });
 
 /** Her shop as the service holds it — `curatedItems` is the MEMBERSHIP. */
-function storefront(curated: readonly string[]) {
+function storefront(curated: readonly string[], productNotes: Record<string, unknown> = {}) {
   return {
     id: 'SF',
     resellerId: 'RS',
@@ -61,7 +61,7 @@ function storefront(curated: readonly string[]) {
     sections: [],
     featuredItems: [],
     headerStyle: 'classique',
-    productNotes: {},
+    productNotes,
   };
 }
 
@@ -119,6 +119,12 @@ async function openVitrine(): Promise<Awaited<ReturnType<typeof mountApp>>> {
 }
 
 beforeEach(() => {
+  // EACH WALK GETS A FRESH MODULE GRAPH. Without this the App's module-level
+  // state carried between mounts, and the fourth walk in this file opened on an
+  // EMPTY vitrine — the shop it had just been served silently replaced by a
+  // neighbour's leftovers. It looked like a bug in the walk; it was the file
+  // handing every walk the previous one's app.
+  vi.resetModules();
   wiredEnv();
   resetFiles();
 });
@@ -431,6 +437,176 @@ describe('VIGNETTE — small render, small file; big render, big file', () => {
     const images = screen.images();
     expect(images, 'the 44px picker art must ask for the vignette').toContain(`${A}?v=thumb`);
     expect(images, 'and must NOT ask for the full photograph').not.toContain(A);
+    screen.unmount();
+  });
+});
+
+
+/**
+ * ═══ VOIX-PRODUIT — A NOTE THE SERVICE HOLDS IS A NOTE THE CARD SHOWS ═══
+ *
+ * Founder, 2026-08-12: « on ma vitrine when I record an audio and tap publier it
+ * does not show on the product as a recorded audio and when I tap to listen I am
+ * not hearing anything. »
+ *
+ * THE DEFECT, and it is the third of its family in two days: the card renders
+ * `voice.notes[pid]` — REACT STATE, seeded `DEFAULT_VOICE_NOTES` (empty) and
+ * mutated only by the record/publish flow in this session. The shop's stored
+ * `productNotes` is read in exactly one place, to CONFIRM the upload, and never
+ * to fill that state. So the bytes are on the server and the screen does not
+ * know: relaunch and every note she ever recorded is « Ajouter une note vocale »
+ * again, with no url to play — which is the silence he heard.
+ *
+ * These walk the SERVICE's truth, not a session's memory.
+ */
+describe('VOIX-PRODUIT — the note the shop holds', () => {
+  const NOTE_URL = 'https://media.test/voice/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.m4a';
+
+  function avecNote(note: Record<string, unknown> | null): ReturnType<typeof wire> {
+    return wire([
+      (path) =>
+        path === '/supply-projections'
+          ? {
+              status: 200,
+              json: {
+                offers: [offer(PV_A, 'Bazin riche')],
+                diagnostic: { status: 'ok', refusals: [] },
+              },
+            }
+          : null,
+      (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
+      (path) =>
+        /^\/storefronts\/[^/]+$/.test(path)
+          ? {
+              status: 200,
+              json: storefront([PV_A], note === null ? {} : { [PV_A]: note }) as never,
+            }
+          : null,
+      // VOIX-SUPPRIMER-1 — the real remove path, answering as the Worker does.
+      (path) =>
+        /^\/storefronts\/[^/]+\/voice\/remove$/.test(path)
+          ? { status: 200, json: { status: 'removed', storefront: storefront([PV_A], {}) } as never }
+          : null,
+    ]);
+  }
+
+  it('a STORED note shows on the card — never « Ajouter » over a note that exists', async () => {
+    avecNote({ status: 'ready', url: NOTE_URL, durationMs: 8_000 });
+    const screen = await openVitrine();
+    await screen.settle();
+
+    expect(
+      screen.shows('Ajouter une note vocale'),
+      'the shop holds a note — the card must not offer to add one',
+    ).toBe(false);
+    expect(screen.shows('Note vocale en ligne'), 'and it must say the note is live').toBe(true);
+    screen.unmount();
+  });
+
+  it('a product with NO note still offers to add one — the narrowness', async () => {
+    avecNote(null);
+    const screen = await openVitrine();
+    await screen.settle();
+    expect(screen.shows('Ajouter une note vocale'), 'nothing stored ⇒ the invitation stands').toBe(true);
+    expect(screen.shows('Note vocale en ligne')).toBe(false);
+    screen.unmount();
+  });
+
+  it('the note’s own URL reaches the screen — the PLAY control is there and pressable', async () => {
+    /**
+     * THIS TEST USED TO ASSERT THE WRONG TWO THINGS. It checked the product
+     * name and « 0:08 » — a duration, which is an INDEPENDENT field from the
+     * url — while the play control is gated on `n.url` alone. A verifier
+     * deleted the control from this branch entirely and all 56 tests stayed
+     * green: a build where a stored note is visible and completely unplayable,
+     * which is the founder's second sentence (« when I tap to listen I am not
+     * hearing anything ») shipping under a green board.
+     *
+     * « Present AND pressable » is the standing order's own wording, and it is
+     * the half a `shows()` can never answer.
+     */
+    avecNote({ status: 'ready', url: NOTE_URL, durationMs: 8_000 });
+    const screen = await openVitrine();
+    await screen.press('Note vocale');
+    await screen.settle();
+    expect(screen.shows('Bazin riche'), 'the sheet opened on this product').toBe(true);
+    expect(screen.shows('0:08'), 'the take’s real length came from the shop, not from zero').toBe(true);
+    expect(screen.canPress('Écouter'), 'a stored note with a url must be playable').toBe(true);
+    screen.unmount();
+  });
+
+  it('the sheet says EN LIGNE over a live note — it used to say « En attente »', async () => {
+    /**
+     * THE VERIFIER'S BLOCKER. `voiceCardLabel` was taught that queued and live
+     * are different facts; the SHEET was not. `kept = pending || ready` rendered
+     * the waiting pill and « Rien n'est envoyé tant que le réseau n'est pas
+     * revenu » over a note the service had been serving to buyers for a day —
+     * one tap below a card reading « Note vocale en ligne ». The screen
+     * contradicted itself about the state of her own shop.
+     */
+    avecNote({ status: 'ready', url: NOTE_URL, durationMs: 8_000 });
+    const screen = await openVitrine();
+    await screen.press('Note vocale');
+    await screen.settle();
+    expect(screen.shows('En ligne'), 'a stored note is LIVE and must say so').toBe(true);
+    expect(screen.shows('En attente'), 'a live note must not be called a waiting one').toBe(false);
+    expect(
+      screen.shows('Rien n’est envoyé tant que le réseau n’est pas revenu'),
+      'the queued sentence must not sit under a note that is already online',
+    ).toBe(false);
+    screen.unmount();
+  });
+
+  it('« Supprimer » REACHES THE SERVICE — it used to remove the note from her phone alone', async () => {
+    /**
+     * THE VERIFIER'S MAJOR, and the founder's answer to it (« build the real
+     * delete », 2026-08-12). « Supprimer » cleared the local note and toasted
+     * « Note supprimée. » with nothing sent anywhere: buyers went on hearing the
+     * audio on the fiche, and once this slice wired the shop's own notes into
+     * her screen, the note came BACK at the next read. She was told a thing was
+     * gone, twice over, while it was not.
+     *
+     * This asserts the CALL SITE — that the tap actually reaches the service —
+     * because « the port exists » was true the whole time it was never called.
+     */
+    const w = avecNote({ status: 'ready', url: NOTE_URL, durationMs: 8_000 });
+    const screen = await openVitrine();
+    await screen.press('Note vocale');
+    await screen.settle();
+    expect(screen.canPress('Supprimer'), 'the remove control must be there and live').toBe(true);
+
+    await screen.press('Supprimer');
+    await screen.settle();
+
+    const remove = w.calls.filter((c) => /\/voice\/remove$/.test(c.path) && c.method === 'POST');
+    expect(remove.length, 'the tap never reached the service — the note is still on her shop').toBe(1);
+    expect(remove[0]!.body?.['pid'], 'it must name the product it is removing').toBe(PV_A);
+    screen.unmount();
+  });
+
+  it('a shop row that is NOT `ready` is never adopted — no live pill over a note the shop has not stored', async () => {
+    /**
+     * THE NARROWNESS, stated as the code actually enforces it. I first wrote
+     * this test as « a queued note still says En attente », mounted a `pending`
+     * row on the shop and watched it fail: the merge adopts `ready` ALONE, on
+     * purpose — the service writes `ready` and nothing else, and `pending` is a
+     * state of HER PHONE while bytes are in flight. A stored `pending` is
+     * therefore unreachable, and a walk asserting it would have been asserting
+     * a fiction. What is real, and what this pins, is that such a row changes
+     * nothing on screen: the card keeps offering to add a note, and no live
+     * pill appears over something the shop is not serving.
+     *
+     * (The queued pill itself belongs to the local record-and-publish path,
+     * where `pending` is genuinely reachable; it is not a shop-side fact.)
+     */
+    avecNote({ status: 'pending', url: NOTE_URL, durationMs: 8_000 });
+    const screen = await openVitrine();
+    await screen.settle();
+    expect(
+      screen.shows('Note vocale en ligne'),
+      'a row the shop has not marked ready must not read as live',
+    ).toBe(false);
+    expect(screen.shows('Ajouter une note vocale'), 'so the invitation stands').toBe(true);
     screen.unmount();
   });
 });

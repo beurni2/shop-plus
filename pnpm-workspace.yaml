@@ -51,8 +51,16 @@ overrides:
   # and the RUNTIME schema from @platform/contracts (which had not). Types said
   # eight fields, the validator refused the eighth, 21 tests failed. After
   # touching any pin, verify the INSTALLED package, not the manifest.
-  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/contracts"
+  # POLITIQUE-AU-QUOTE (founder authorisation 2026-08-12) — re-pinned to canon
+  # v3.12.0 (sha a418ca4): `Quote.policyVersions` gains OPTIONAL
+  # `payAtDoorPolicyVersion`, so an ADMITTED door quote records which §6.1
+  # policy admitted it. Additive and backwards-compatible, hence MINOR; every
+  # quote issued before the key existed still parses. contracts + kernel-types
+  # move together as always. And this block was edited FIRST, not last: the
+  # warning above is not decoration — the previous attempt at this bump moved
+  # all 19 package.json pins, installed clean, and resolved 3.10.0 anyway.
+  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#a418ca4ba5521d3f50ccf7c8abb538525a6ecc32&path:packages/kernel-types"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#a418ca4ba5521d3f50ccf7c8abb538525a6ecc32&path:packages/contracts"
   # @platform/ui-tokens is UNIFIED at canon v0.9.9 (1c98ad1, + Storefront aggregate fields WO-5.13) — WO-7.0/WO-7.2b/SP#001-A
   # killed the WO-5.3 per-app skew and re-pinned the whole workspace to the current
   # release in one bump. reseller-app runs its visual layer on the Grand Teint API

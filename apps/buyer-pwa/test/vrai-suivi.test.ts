@@ -1,13 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
-  COMMANDE_CLE, commandeGardee, garderCommande, httpQuotePort, oublierCommande,
-  type QuotePort,
+  COMMANDE_CLE, LECTURE_COMMANDE_TIMEOUT_MS, commandeGardee, garderCommande, httpQuotePort,
+  oublierCommande, type QuotePort,
 } from '../src/cliente/quote-port';
 import {
-  CODE_REMISE, SUIVI, SUIVI_STEPS, codeAffiche, etapeDeSuivi, renderC7, renderC9,
+  CODE_REMISE, SUIVI, SUIVI_STEPS, codeAffiche, etapeDeSuivi, renderC10, renderC7, renderC9,
 } from '../src/cliente/screens';
+import { SUIVI_LIVRAISON_MS, SUIVI_PAIEMENT_MS, attenteLivraison } from '../src/cliente/flow';
 
 /**
  * VRAI-SUIVI-PWA — the buyer's tracking becomes real, and her code becomes hers.
@@ -141,6 +142,56 @@ describe('readOrder (via the real port) — marks carried verbatim, malformed ma
     expect(sans.status).toBe('order');
     if (sans.status !== 'order') return;
     expect(sans.order.buyerRef).toBeUndefined();
+  });
+});
+
+describe('orderState — the ONE self-scheduled read is bounded in time', () => {
+  /**
+   * Shipped untested and named in the verification audit; closed here. The
+   * delivery watch schedules its next rung from this promise, so a socket that
+   * never settles used to freeze the tracking screen with no timer, no failure
+   * and nothing to press. The bound: an AbortController fires at
+   * LECTURE_COMMANDE_TIMEOUT_MS and the read answers `unreachable` — a failed
+   * read, never a failed delivery.
+   *
+   * The fake fetch below settles ONLY when its signal aborts. If the abort is
+   * ever removed, this promise never resolves and the test fails by timeout —
+   * which is exactly the frozen screen, reproduced in miniature.
+   */
+  it('a read that hangs is ABANDONED at the bound and answers unreachable', async () => {
+    vi.useFakeTimers();
+    try {
+      const pendu: typeof fetch = ((_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        })) as unknown as typeof fetch;
+      const enCours = withFetch(pendu, () => httpQuotePort('https://svc.example').orderState('ord-pendu'));
+      await vi.advanceTimersByTimeAsync(LECTURE_COMMANDE_TIMEOUT_MS);
+      expect(await enCours).toEqual({ status: 'unreachable' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a SLOW read that lands inside the bound is NOT aborted — twelve seconds is slow, not broken', async () => {
+    vi.useFakeTimers();
+    try {
+      let aborted = false;
+      const lent: typeof fetch = ((_url: string, init?: RequestInit) =>
+        new Promise((resolve) => {
+          init?.signal?.addEventListener('abort', () => {
+            aborted = true;
+          });
+          setTimeout(() => resolve(jsonRes(ORDRE_BASE)), LECTURE_COMMANDE_TIMEOUT_MS - 1_000);
+        })) as unknown as typeof fetch;
+      const enCours = withFetch(lent, () => httpQuotePort('https://svc.example').orderState('ord-lent'));
+      await vi.advanceTimersByTimeAsync(LECTURE_COMMANDE_TIMEOUT_MS + 1_000);
+      const got = await enCours;
+      expect(got.status).toBe('order');
+      expect(aborted, 'the stall timer must be CLEARED by a read that lands').toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -377,5 +428,82 @@ describe('[source-text checks] the flow wires the real tracking, not just declar
 
   it('« C’est terminé » clears the phone’s memory of the order', () => {
     expect(flow).toMatch(/case 'suivi-terminer':\s*[\s\S]{0,400}oublierCommande\(localStorageOrUndefined\(\)\)/);
+  });
+});
+
+/**
+ * ═══ LE SUIVI NE S'ARRÊTE PLUS (founder, 2026-08-12) ═══
+ *
+ * « le suivi screen there is not updating in real time with product movements. »
+ *
+ * THE CAUSE: the delivery watch reused the PAYMENT ladder — six reads over about
+ * thirty-five seconds, then stop. Right for a payment, which confirms in
+ * seconds; wrong for a delivery, which takes half an hour. The screen froze
+ * almost immediately and every later movement became something she had to ask
+ * for by hand.
+ *
+ * These pin the two halves of the fix by value: it never runs out, and it holds
+ * at a cadence that is honest on a 1 GB Android paying for its own data.
+ */
+describe('suivi de livraison — the ladder ramps, then holds, and never runs out', () => {
+  it('RAMPS from a quick first read to a steady cadence', () => {
+    expect(SUIVI_LIVRAISON_MS[0], 'the rider accepting is the moment she is watching for').toBeLessThanOrEqual(2_000);
+    for (let i = 1; i < SUIVI_LIVRAISON_MS.length; i += 1) {
+      expect(SUIVI_LIVRAISON_MS[i]!, `rung ${String(i)} must not be quicker than the one before`)
+        .toBeGreaterThanOrEqual(SUIVI_LIVRAISON_MS[i - 1]!);
+    }
+  });
+
+  it('HOLDS at the last rung instead of running out — this is the whole bug', () => {
+    const dernier = SUIVI_LIVRAISON_MS[SUIVI_LIVRAISON_MS.length - 1]!;
+    // Past the end of the array is exactly where the old ladder gave up.
+    for (const etape of [SUIVI_LIVRAISON_MS.length, 20, 200, 5_000]) {
+      expect(attenteLivraison(etape), `read #${String(etape)} still has a next one`).toBe(dernier);
+    }
+    // …and it is a REAL wait, never zero — a hold at 0 ms is a spin loop, which
+    // is the opposite failure and worse than the one being fixed.
+    expect(dernier).toBeGreaterThanOrEqual(10_000);
+  });
+
+  it('is SLOWER than the payment ladder’s tail — a parcel is not a payment', () => {
+    // The distinction the bug erased: the payment watch is allowed to be eager
+    // because it ends in seconds. This one runs for the length of a delivery.
+    expect(attenteLivraison(99)).toBeGreaterThanOrEqual(SUIVI_PAIEMENT_MS[SUIVI_PAIEMENT_MS.length - 1]!);
+  });
+});
+
+/**
+ * ═══ C10 « MERCI » — the delivery ENDS, on screen (founder, 2026-08-12) ═══
+ *
+ * « once delivery and everything is confirmé on the buyer's payment pwa … make
+ * it close nicely and return to the initial state … and a thank you screen for
+ * buyer's pwa. »
+ *
+ * WHAT IT REPLACED: when `livree` landed, C7 stayed exactly where it was — a
+ * six-step timeline — and grew a « C'est terminé » button. The order was over
+ * and the screen still read as one being waited for.
+ */
+describe('C10 — the thank-you screen', () => {
+  it('says what happened before it says thank you, and offers ONE action', () => {
+    const html = renderC10();
+    expect(html).toContain('data-screen="C10"');
+    // The FACT, not just the warmth — a thank-you that never names what it is
+    // thanking her for is decoration.
+    expect(html).toContain('livrée');
+    expect(html).toContain(SUIVI.merciTitre);
+    // The reassurance the screen provokes: closing it does not close the proof.
+    expect(html).toContain(SUIVI.merciPreuve);
+    // ONE primary action (§5), wired to the act that forgets the order.
+    expect(html).toContain('data-action="suivi-terminer"');
+    const actions = html.match(/data-action="/g) ?? [];
+    expect(actions, 'exactly one action on the closing screen').toHaveLength(1);
+  });
+
+  it('carries NO step timeline — the waiting screen is over', () => {
+    // The defect this closes: a finished order rendered as a thing in progress.
+    const html = renderC10();
+    for (const mot of ['data-screen="C7"', SUIVI.verifier, SUIVI.voirCode]) {
+      expect(html, `${mot} belongs to the waiting screen, not the ending`).not.toContain(mot);
+    }
   });
 });

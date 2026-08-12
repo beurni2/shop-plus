@@ -391,3 +391,71 @@ describe('StorefrontDO — ENTETES-C: photo focus is durable and a new photo sta
     expect(((await readSlug('seller-0024')).view as StorefrontView).cover.focus).toBeUndefined();
   });
 });
+
+
+describe('VOIX-SUPPRIMER-1 — the remove route on the REAL worker, over HTTP', () => {
+  /**
+   * The route shipped with zero service-side tests: the reseller walk proves the
+   * APP posts to /voice/remove, and nothing proved the worker answers. This
+   * drives the shipped bundle: set a note through the real voice route, remove
+   * it, read the shop back, and ask again.
+   */
+  const VS = {
+    commandId: 'cmd-vs-create',
+    id: 'sf-vs-0001',
+    resellerId: 'rs-vs-0001',
+    shortCode: 'VOIXSUP-0001',
+    name: 'Boutique du fondateur',
+    zone: 'Ouagadougou',
+    category: 'Général',
+    correlationId: 'corr-vs',
+    at: T0,
+  };
+  const voix = (id: string, body: object) =>
+    mf.dispatchFetch(`http://sf/storefronts/${id}/voice`, { method: 'POST', body: JSON.stringify(body) });
+  const retirer = (id: string, body: object) =>
+    mf.dispatchFetch(`http://sf/storefronts/${id}/voice/remove`, { method: 'POST', body: JSON.stringify(body) });
+
+  it('set → remove → the note is GONE from the answer AND from a fresh read; asking again is no_note', async () => {
+    expect((await create(VS)).body.status).toBe('created');
+    const set = await voix('sf-vs-0001', { pid: 'pv-vs-1', url: 'https://m/vs.m4a', durationMs: 8_000, at: T0 });
+    expect(set.status).toBe(200);
+
+    const rem = await retirer('sf-vs-0001', { pid: 'pv-vs-1', at: '2026-08-12T13:00:00.000Z' });
+    expect(rem.status).toBe(200);
+    const remBody = (await rem.json()) as { status: string; storefront?: { productNotes: Record<string, unknown> } };
+    expect(remBody.status).toBe('removed');
+    // the shop rides back on the answer, and the key is ABSENT from it
+    expect(Object.hasOwn(remBody.storefront!.productNotes, 'pv-vs-1')).toBe(false);
+
+    // the DURABLE truth agrees — a fresh read, not the response\'s echo
+    const read = await mf.dispatchFetch('http://sf/storefronts/sf-vs-0001', { method: 'GET' });
+    const shop = (await read.json()) as { productNotes: Record<string, unknown> };
+    expect(Object.hasOwn(shop.productNotes, 'pv-vs-1')).toBe(false);
+
+    // repeat: no_note, 200 — the act is safe to arrive twice
+    const again = await retirer('sf-vs-0001', { pid: 'pv-vs-1', at: T0 });
+    expect(again.status).toBe(200);
+    expect(((await again.json()) as { status: string }).status).toBe('no_note');
+  });
+
+  it('an absent shop is 404, a bodyless or pid-less ask is 400 — never a phantom success', async () => {
+    const absent = await retirer('sf-vs-jamais', { pid: 'pv-x', at: T0 });
+    expect(absent.status).toBe(404);
+    const malforme = await mf.dispatchFetch('http://sf/storefronts/sf-vs-0001/voice/remove', {
+      method: 'POST',
+      body: 'pas du json',
+    });
+    expect(malforme.status).toBe(400);
+    const sansPid = await retirer('sf-vs-0001', { at: T0 });
+    expect(sansPid.status).toBe(400);
+  });
+
+  it('the removal SURVIVES a restart — durable, not in-memory', async () => {
+    await restart();
+    const read = await mf.dispatchFetch('http://sf/storefronts/sf-vs-0001', { method: 'GET' });
+    expect(read.status).toBe(200);
+    const shop = (await read.json()) as { productNotes: Record<string, unknown> };
+    expect(Object.hasOwn(shop.productNotes, 'pv-vs-1')).toBe(false);
+  });
+});

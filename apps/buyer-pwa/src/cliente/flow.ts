@@ -21,7 +21,7 @@
 
 import { applyTheme, type VitrineThemeKey } from '../vitrine/themes';
 import {
-  renderC1, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
+  renderC1, renderC10, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
   renderGalerie, renderOffline, renderRefus, renderSheet, renderSkeleton, renderToasts,
   galerieSlides,
   etapeDeSuivi,
@@ -46,7 +46,7 @@ import { prixExpire, type OrderFetch, type QuoteFetch, type RemiseFetch, type Re
 import { garderCommande, localStorageOrUndefined, oublierCommande, type ServerOrder } from './quote-port';
 import { creerEnregistreurNote, type EnregistreurNote, type NoteEnregistree } from './voice-note';
 
-export type ClienteEcran = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9';
+export type ClienteEcran = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9' | 'C10';
 /** C2 is the protections SHEET, not a linear stop — mounting at C2 opens the
  * sheet over C1 (PWA-CLEANUP-1 §5: the reachability gate covers every screen,
  * C2 included). The linear machine walks the pixel's 8-screen list. */
@@ -247,6 +247,54 @@ interface FlowState {
 export const SUIVI_PAIEMENT_MS: readonly number[] = [1_500, 2_500, 4_000, 6_000, 9_000, 12_000];
 
 /**
+ * ═══ THE DELIVERY IS NOT A PAYMENT, AND IT NEEDED ITS OWN CADENCE ═══
+ *
+ * Founder, 2026-08-12: « le suivi screen there is not updating in real time
+ * with product movements. »
+ *
+ * THE CAUSE: the delivery watch reused {@link SUIVI_PAIEMENT_MS}. That ladder is
+ * right for what it was built for — a payment confirms in seconds, so six reads
+ * over ~35 s then stop is generous. A DELIVERY takes half an hour or more. Thirty
+ * five seconds after she lands on C7 the reads were exhausted, the screen froze
+ * on whatever step it had, and « Vérifier à nouveau » made every subsequent
+ * movement something she had to ask for by hand. Nothing was broken; it had
+ * simply stopped looking.
+ *
+ * SO IT RAMPS AND THEN HOLDS. Quick at first (she has just paid and wants to see
+ * the rider accept), settling to one read every twenty seconds for as long as
+ * the parcel is moving. The last value REPEATS — reaching the end of this array
+ * is no longer « stop asking », it is « keep asking at this rate ».
+ *
+ * AND THE BATTERY ARGUMENT IN THE COMMENT ABOVE IS ANSWERED, NOT IGNORED: a
+ * client that polls forever in a pocket is exactly what that comment refuses,
+ * and it was right. The watch now SLEEPS WHENEVER THE PAGE IS HIDDEN and takes
+ * one immediate read when she comes back — so it costs nothing at all while the
+ * phone is in her pocket, and it is current the instant she looks. That is the
+ * behaviour « real time » actually means on a 1 GB Android on paid data.
+ *
+ * It still ends for good at `livree`: a finished order costs her no further read.
+ */
+export const SUIVI_LIVRAISON_MS: readonly number[] = [2_000, 3_000, 5_000, 8_000, 12_000, 20_000];
+
+/**
+ * How many CONSECUTIVE refused reads before the watch stops asking by itself.
+ *
+ * The hold added above is only safe while the reads can land. Three in a row
+ * means the service is not answering for this order, and continuing would be a
+ * poll every twenty seconds, for ever, on a screen with no control on it and on
+ * her paid data. At three the ladder stops and « Vérifier à nouveau » returns —
+ * one request, on her choice. A single read that lands resets the count.
+ */
+export const SUIVI_ECHECS_AVANT_PAUSE = 3;
+
+/** The wait before read `etape`, holding at the last rung instead of running
+ *  out. Exported so a test can pin « it never stops » by value. */
+export function attenteLivraison(etape: number): number {
+  const dernier = SUIVI_LIVRAISON_MS[SUIVI_LIVRAISON_MS.length - 1]!;
+  return SUIVI_LIVRAISON_MS[etape] ?? dernier;
+}
+
+/**
  * THE SERVER'S ORDER STATE → WHAT C6 IS ALLOWED TO SAY. An ALLOWLIST, in one
  * place, and everything it does not name falls to « we are waiting ».
  *
@@ -309,7 +357,25 @@ export function etatDeC6(state: string): ConfirmEtat {
   return 'attente';
 }
 
-export function createCliente(container: HTMLElement, init: ClienteInit): void {
+/**
+ * Mount the buyer's flow into `container`.
+ *
+ * ═══ IT RETURNS A TEARDOWN, AND THAT IS NOT OPTIONAL ANY MORE ═══
+ *
+ * It used to return nothing, and the `visibilitychange` listener it registers
+ * was never removed. That was harmless only by accident: the delivery watch ran
+ * out after six rungs, so an instance whose DOM had been thrown away stopped by
+ * itself in about thirty-five seconds. SUIVI-VIVANT made the ladder hold, and
+ * the accident became a leak — a detached instance polling the service every
+ * twenty seconds for as long as the tab is open, rendering into a container
+ * that is no longer in the document, its listener holding the whole closure
+ * alive. Two of them, in the ordinary case where she opens « Ma commande » over
+ * a signed product page.
+ *
+ * So the caller is handed the way to stop it, and `main.ts` stops the previous
+ * instance before mounting the next.
+ */
+export function createCliente(container: HTMLElement, init: ClienteInit): () => void {
   applyTheme(container, init.theme ?? 'indigo');
   container.classList.add('cl-root');
 
@@ -510,6 +576,18 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   /** SP3.3c — the next scheduled read of the order. Cleared by `clearT()` with
    *  the rest, so leaving the screen stops asking. */
   let tSuivi: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Where the delivery watch parked when the page went hidden — `null` when it
+   * is not parked. The pocket case: no timer runs, so a screen she is not
+   * looking at costs nothing, and `reprendreSuivi` reads once on return.
+   */
+  let suiviEnAttenteDeRetour: number | null = null;
+  /**
+   * CONSECUTIVE refused reads on the delivery watch. Reset by any read that
+   * lands; at {@link SUIVI_ECHECS_AVANT_PAUSE} the automatic ladder stops and
+   * the manual control comes back. See the run-of-refusals block below.
+   */
+  let echecsSuivi = 0;
   let ticker: ReturnType<typeof setInterval> | null = null;
 
   /** REPERE-AUDIO-REEL — the recorder behind « Enregistrer le repère ». One
@@ -590,6 +668,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     if (tSuivi) clearTimeout(tSuivi);
     if (ticker) clearInterval(ticker);
     t1 = t2 = tSuivi = null;
+    suiviEnAttenteDeRetour = null;
+    echecsSuivi = 0;
     ticker = null;
     generation += 1;
   }
@@ -720,6 +800,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
             ? undefined
             : splitFor(q, state.delivery ?? 'today', state.pay)?.dueAtDelivery,
         });
+      case 'C10':
+        // The end of the road. It takes no state: everything it says is true of
+        // any finished delivery, and a finished order must not depend on a read.
+        return renderC10();
       case 'C9': {
         if (reel) {
           /**
@@ -1073,21 +1157,58 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         // now, so « Voir mon code » opens on the figure and not on a spinner.
         if (state.marques.arrivedAt !== undefined && state.codeRemise === null) demanderLeCode();
         if (state.livree) {
+          // ═══ THE DELIVERY IS PROVEN ⇒ THE SCREEN ENDS (founder 2026-08-12) ══
+          //
+          // It used to stay on C7 — a six-step timeline with a « C'est terminé »
+          // button bolted on — so a finished order still read as one being
+          // waited for. `jump` bumps the generation, which also stops this watch
+          // for good: a finished order costs her no further read.
           state.suiviRelance = false;
+          jump('C10');
+          return;
+        }
+        // A read that ANSWERED clears the run: the ladder holds for as long as
+        // the service is actually talking to her.
+        echecsSuivi = 0;
+      } else {
+        /**
+         * ═══ THE WATCH HOLDS ONLY WHILE IT CAN SUCCEED (verifier BLOCKER) ═══
+         *
+         * SUIVI-VIVANT made the ladder infinite and, in the same stroke, deleted
+         * the only `suiviRelance = true` — so « Vérifier à nouveau » could no
+         * longer render and C7's other controls are all gated on facts a failing
+         * read never delivers. Two states were therefore reachable and
+         * INESCAPABLE: an order the service will never answer for (a purged id,
+         * a record written against another base) and a link that keeps refusing.
+         * The screen froze with no control on it while her phone spent a request
+         * every twenty seconds on paid data — the founder's original bug in a
+         * worse dress, and caused by its fix.
+         *
+         * So the hold is CONDITIONAL on the reads landing. A run of refusals
+         * stops the automatic ladder and hands her back the one honest control:
+         * asking again, one request, on her choice. That is Ten-Laws #7 read
+         * correctly — a failed read is still not a failed delivery, so the
+         * timeline keeps every proven step and `suiviHorsPortee` says only that
+         * the network is missing.
+         */
+        echecsSuivi += 1;
+        if (echecsSuivi >= SUIVI_ECHECS_AVANT_PAUSE) {
+          state.suiviRelance = true;
           render();
           return;
         }
       }
-      const attente = SUIVI_PAIEMENT_MS[etape];
-      if (attente === undefined) {
-        // Out of scheduled reads — not out of truth. The timeline keeps its
-        // proven step; asking again becomes her choice, one request at a time.
-        state.suiviRelance = true;
-        render();
+      // NO LONGER RUNS OUT (founder 2026-08-12). The ladder ramps and then holds,
+      // so the timeline keeps following the parcel instead of freezing 35 s in
+      // and making every later movement something she has to ask for.
+      render();
+      if (cacheeMaintenant()) {
+        // Hidden page ⇒ no timer at all. `reprendreSuivi` takes one read the
+        // moment she returns, so nothing is missed and nothing is spent.
+        suiviEnAttenteDeRetour = etape;
         return;
       }
-      render();
-      tSuivi = setTimeout(() => suivreLaLivraison(orderId, gen, etape + 1), attente);
+      tSuivi = setTimeout(() => suivreLaLivraison(orderId, gen, etape + 1), attenteLivraison(etape));
     });
   }
 
@@ -1097,7 +1218,53 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     const id = state.orderId;
     if (!reel || id === null || state.livree) return;
     state.suiviRelance = false;
+    suiviEnAttenteDeRetour = null;
+    echecsSuivi = 0;
     suivreLaLivraison(id, generation, 0);
+  }
+
+  /**
+   * Is the page hidden right now? Guarded rather than assumed: this module runs
+   * under a test DOM and inside a service-worker-less shell where `document`
+   * may not carry `visibilityState`, and a wrong answer here would either
+   * park a watch that never resumes or poll a pocket forever.
+   */
+  function cacheeMaintenant(): boolean {
+    return typeof document !== 'undefined' && document.visibilityState === 'hidden';
+  }
+
+  /**
+   * SHE CAME BACK — take one read immediately, then resume the ladder where it
+   * parked. Immediately, because the whole point of sleeping in her pocket is
+   * that the screen is CURRENT the instant she looks at it; waiting out a rung
+   * first would show her a stale step and prove the sleep was a downgrade.
+   */
+  function reprendreSuivi(): void {
+    if (suiviEnAttenteDeRetour === null || cacheeMaintenant()) return;
+    const id = state.orderId;
+    const etape = suiviEnAttenteDeRetour;
+    suiviEnAttenteDeRetour = null;
+    if (!reel || id === null || state.livree) return;
+    suivreLaLivraison(id, generation, etape + 1);
+  }
+
+  const ecouteVisibilite =
+    typeof document !== 'undefined' && typeof document.addEventListener === 'function';
+  if (ecouteVisibilite) document.addEventListener('visibilitychange', reprendreSuivi);
+
+  /**
+   * STOP THIS INSTANCE FOR GOOD. Bumps the generation first, so any read
+   * already on the wire is discarded when it lands rather than rendering into a
+   * detached container; then kills every timer and takes the listener off
+   * `document`. Idempotent — calling it twice is a no-op, which matters because
+   * the caller cannot always know whether a mount happened.
+   */
+  function arreter(): void {
+    generation += 1;
+    clearT();
+    if (ecouteVisibilite && typeof document.removeEventListener === 'function') {
+      document.removeEventListener('visibilitychange', reprendreSuivi);
+    }
   }
 
   /**
@@ -1596,31 +1763,86 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         // the fetch goes out in the generation the jump opens.
         jump('C9');
         demanderLeCode();
+        // ═══ THE WATCH FOLLOWS HER TO C9 (verifier MAJOR, 2026-08-12) ═══
+        //
+        // C9 is where she IS at the moment the delivery is proven: the rider is
+        // at the door, she has opened her code to show him. `jump` bumps the
+        // generation and kills the delivery watch, and nothing restarted it
+        // here — so the rider took the remise, the server set `livree`, and her
+        // screen went on showing the code for ever. She only ever reached the
+        // closing screen by pressing back to C7 first, which is a road she has
+        // no reason to take while holding her phone up to a stranger.
+        //
+        // The watch's own rule does the rest: when it proves `livree` it jumps
+        // to C10 from wherever it is running.
+        demarrerSuivi();
         return;
       case 'verifier-code':
         demanderLeCode();
         return;
       case 'verifier-suivi': {
-        // ONE read, on her word, after the automatic ones stopped — the C6
-        // « Vérifier à nouveau » shape: it does not restart the schedule.
+        /**
+         * REACHABLE AGAIN, and this is the way out of a frozen C7.
+         *
+         * It was dead for one commit: SUIVI-VIVANT made the ladder hold and
+         * deleted the only `suiviRelance = true`, so `renderC7` could not emit
+         * this action and a screen whose reads all failed had no control on it
+         * at all. The run-of-refusals rule raises the flag again, which is what
+         * puts « Vérifier à nouveau » back under her thumb.
+         *
+         * It resumes at the HELD rung, not at the top: the ladder's early rungs
+         * are for a parcel that has just started moving, and an order she has
+         * been watching for an hour does not need them. And it clears the run,
+         * so a service that has come back gets the full benefit of the hold
+         * again rather than pausing after one more stumble.
+         */
         const id = state.orderId;
         if (id === null) return;
         state.suiviRelance = false;
+        echecsSuivi = 0;
         render();
-        suivreLaLivraison(id, generation, SUIVI_PAIEMENT_MS.length);
+        suivreLaLivraison(id, generation, SUIVI_LIVRAISON_MS.length);
         return;
       }
-      case 'suivi-terminer':
-        // « C'est terminé » — the phone forgets the finished order. The order
-        // itself lives on the service; only the shortcut goes away.
+      case 'suivi-terminer': {
+        // « Terminer » — the phone forgets the finished order. The order itself
+        // lives on the service; only the shortcut goes away.
         oublierCommande(localStorageOrUndefined());
         state.termineeVue = true;
         if (init.onTerminee !== undefined) {
+          // A host that wants to own the ending gets it (the shell uses this to
+          // return to its own home) — unchanged.
           init.onTerminee();
           return;
         }
-        render();
+        // ═══ AND IT CLOSES (founder 2026-08-12: « make it close nicely and
+        //     return to the initial state ») ═══
+        //
+        // Without a host hook this used to `render()` — repainting the very
+        // screen she had just dismissed, so the one action on it appeared to do
+        // nothing. She goes back to the beginning, and the ORDER'S OWN STATE is
+        // cleared with her: leaving `orderId` and the marks behind would let a
+        // later screen resurrect a delivery she has finished with.
+        state.orderId = null;
+        state.buyerRef = null;
+        state.marques = {};
+        state.livree = false;
+        state.codeRemise = null;
+        state.suiviRelance = false;
+        state.suiviHorsPortee = false;
+        // `problem` IS THE ONE THAT COULD STRAND HER NEXT ORDER (verifier
+        // BLOCKER, 2026-08-12). Nothing else in this module ever clears it. If
+        // she reported a problem on THIS order and the delivery completed
+        // anyway, the flag rode through « Terminer » into her next checkout —
+        // where `renderC7` withholds BOTH « Je suis à la porte » and « Voir mon
+        // code » on `!s.problem`, and prints « Problème signalé » over an order
+        // that has none. She could not open her drop code and could not pay at
+        // the door. That road exists only because this reset opened C1 as a
+        // destination, so closing it belongs here.
+        state.problem = false;
+        jump('C1');
         return;
+      }
       case 'porte':
         jump('C8', { door: 'inspecting', leg2: 'idle', reason: null }); return;
       case 'signaler-c7':
@@ -1689,6 +1911,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   // with it: first read on the ladder's first rung, exactly as « Suivre ma
   // commande » starts it in-flow.
   if (init.suivi !== undefined && state.screen === 'C7') demarrerSuivi();
+
+  return arreter;
 }
 
 export { SUIVI_STEPS };

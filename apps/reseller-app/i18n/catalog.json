@@ -3700,5 +3700,29 @@
   "fr": "Retiré, mais votre boutique n'a pas répondu. Rouvrez Ma vitrine pour voir.",
   "register": "selling",
   "screenClass": "general"
+ },
+ {
+  "key": "k.voix.carte_en_ligne",
+  "fr": "Note vocale en ligne",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "k.voix.toast_suppr_echec",
+  "fr": "Note pas supprimée. Réessayez dans un moment.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.voix.en_ligne",
+  "fr": "En ligne",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.voix.note_en_ligne",
+  "fr": "Vos clientes l’écoutent sur la fiche de l’article.",
+  "register": "selling",
+  "screenClass": "selling_surface"
  }
 ]

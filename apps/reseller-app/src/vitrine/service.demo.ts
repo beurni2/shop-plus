@@ -199,6 +199,31 @@ export class DemoStorefrontService implements StorefrontServicePort {
     return { ok: true, value: { status: 'ready', url } };
   }
 
+  /**
+   * VOIX-SUPPRIMER-1 — the demo remove, CONTRACT-CERTIFIED to the real one.
+   *
+   * It answers the SAME four statuses the Worker answers and in the same
+   * conditions: `absent` when the shop does not exist, `no_note` when there is
+   * nothing on that product, `removed` with the shop otherwise. A double is
+   * only worth having if it can refuse the way the real thing refuses — a demo
+   * that always said « removed » would make every screen above it look correct.
+   */
+  async removeVoiceNote(
+    storefrontId: string,
+    pid: string,
+    _at?: string,
+  ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
+    const read = await this.getById(storefrontId);
+    if (!read.ok || read.value === undefined) return { ok: true, value: { status: 'absent' } };
+    const notes = read.value.productNotes ?? {};
+    if (!Object.hasOwn(notes, pid)) return { ok: true, value: { status: 'no_note' } };
+    const restants: Record<string, (typeof notes)[string]> = {};
+    for (const [k, v] of Object.entries(notes)) if (k !== pid) restants[k] = v;
+    const storefront = { ...read.value, productNotes: restants };
+    this.identities.set(storefrontId, storefront);
+    return { ok: true, value: { status: 'removed', storefront } };
+  }
+
   async list(): Promise<ServiceResult<readonly StorefrontRow[]>> {
     return {
       ok: true,

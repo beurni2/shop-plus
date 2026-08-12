@@ -392,15 +392,41 @@ function issueQuoteFrom(
     // The block is now built for the DOOR MODE ITSELF, from supply. `supply ===
     // undefined` still omits it — supply could not be described, so §6.1 cannot
     // prove its conditions and `context_missing` is still the honest answer.
-    ...(supply !== undefined
+    /**
+     * ═══ THE BLOCK IS BUILT FOR THE DOOR MODE, SUPPLY OR NO SUPPLY ═══
+     *
+     * It used to be built only when `supply !== undefined`, so a supply read
+     * that came back empty refused the whole mode `context_missing`. That was
+     * right while §6.1 needed the read: the two facts supply contributes are
+     * `sellerTier` and `category`, and a gate that cannot see its inputs must
+     * refuse. **After the founder's 2026-08-12 override it was wrong**, and it
+     * was A SECOND GATE ON THE DOOR THAT NOBODY WAS TOLD ABOUT: under
+     * `minSellerTier: 'aucun'` and `inspectableCategories: 'toutes'` NEITHER
+     * field is read, so the door was being refused for want of data the
+     * decision no longer consults. A slow Boutik+ offer-service, a redeploy, or
+     * one aged projection and « Payer le produit à la livraison » vanished from
+     * her screen — the founder's own « Option B still not reachable », with a
+     * different root cause underneath it.
+     *
+     * AND IT IS STILL FAIL-CLOSED, PER CONDITION RATHER THAN IN BULK. Missing
+     * supply travels as `''` for both fields, which is not a substitution and
+     * not a repair: `''` is not a member of `SELLER_TIER_RANK`, so a policy
+     * with a real minimum refuses `seller_tier_below_minimum`; `''` maps to no
+     * §6.2 row, so a policy with a real list refuses `category_not_inspectable`.
+     * The day the founder re-tightens either rule, an unreadable projection
+     * refuses again — by NAME, and only the condition that actually needs the
+     * data. Nothing the BUYER controls reaches these fields; they come from the
+     * projection or they come from nowhere.
+     */
+    ...(request.paymentMode === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR'
       ? {
           payAtDoor: {
             // §6.4's record, from the server. See ELIGIBILITE_SANS_HISTORIQUE
             // for what it asserts, what it cannot yet assert, and why SP6.3 is
             // the slice that replaces it with a real ladder read.
             eligibility: ELIGIBILITE_SANS_HISTORIQUE,
-            sellerTier: supply.sellerTier ?? '',
-            category: supply.category,
+            sellerTier: supply?.sellerTier ?? '',
+            category: supply?.category ?? '',
             // The zone the DELIVERY was priced for — one zone, never two.
             zoneTo: request.zoneTo,
             ...(deps.payAtDoorPolicy !== undefined ? { policy: deps.payAtDoorPolicy } : {}),

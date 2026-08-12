@@ -24,11 +24,29 @@ const deps = (): QuoteIssuanceDeps => ({ flags, now: () => new Date(T), newId: (
 
 /** A policy with one reliable zone so the POSITIVE path is testable —
  * the shipped DEFAULT allowlist stays empty (conservative). */
+/**
+ * THE RESTRICTIVE POLICY, SPELLED OUT — never `...PAY_AT_DOOR_POLICY_DEFAULTS`.
+ *
+ * It used to spread the shipped default, and on 2026-08-12 that stopped being a
+ * detail: the founder opened every condition, the spread inherited « open », and
+ * eight tests that claim to prove « each §6.1 condition refuses » would have gone
+ * green while refusing nothing. A gate test that leans on the shipped default
+ * tests the default, not the gate (§9.7).
+ *
+ * These are §6.1's values as written, and they stay here so the MECHANISM keeps
+ * being proven whatever the founder ships: the day he re-tightens the policy,
+ * these are the assertions that say the tightening still works.
+ */
 const TEST_POLICY: PayAtDoorPolicy = {
-  ...PAY_AT_DOOR_POLICY_DEFAULTS,
   version: 'option-b-policy.v0-conservative+test-zone',
+  priceCapFcfa: 25_000,
+  minSellerTier: 'verified',
+  inspectableCategories: ['fashion_bags_fabrics', 'shoes', 'sealed_beauty_cosmetics'],
   networkReliableZones: ['ouaga-centre'],
 };
+
+/** The same conservative rules, with zones open — what shipped until 2026-08-12. */
+const POLITIQUE_V1: PayAtDoorPolicy = { ...TEST_POLICY, version: 'option-b-policy.v1-open-zones', networkReliableZones: 'all' };
 
 const ALLOWED_ELIGIBILITY = {
   buyerRef: 'buyer-b-1',
@@ -151,7 +169,7 @@ describe('SP3.3 — the Option-B eligibility gate (§6.1, evaluated at quote, fa
       [{ ...base, eligibility: { ...GATE_CONTEXT.eligibility, state: 'suspended' } }, 'buyer_not_allowed'],
     ] as const;
     for (const [ctx, reason] of cases) {
-      expect(decidePayAtDoorEligibility(ctx, PAY_AT_DOOR_POLICY_DEFAULTS), reason)
+      expect(decidePayAtDoorEligibility(ctx, POLITIQUE_V1), reason)
         .toMatchObject({ eligible: false, reason });
     }
   });
@@ -161,7 +179,7 @@ describe('SP3.3 — the Option-B eligibility gate (§6.1, evaluated at quote, fa
     // only the literal `'all'` opens it, never the absence of zones.
     const decision = decidePayAtDoorEligibility(
       { ...GATE_CONTEXT, buyerTotalFcfa: 12_500, nowIso: T },
-      { ...PAY_AT_DOOR_POLICY_DEFAULTS, networkReliableZones: [] },
+      { ...POLITIQUE_V1, networkReliableZones: [] },
     );
     expect(decision).toMatchObject({ eligible: false, reason: 'zone_not_network_reliable' });
   });
@@ -181,7 +199,7 @@ describe('SP3.3 — the Option-B eligibility gate (§6.1, evaluated at quote, fa
    */
   it('THE EIGHT REAL BOUTIK+ CHIPS — seven reach §6.2 rows, « Maison » reaches none', () => {
     const verdict = (category: string) =>
-      decidePayAtDoorEligibility({ ...GATE_CONTEXT, category, buyerTotalFcfa: 12_500, nowIso: T }, PAY_AT_DOOR_POLICY_DEFAULTS);
+      decidePayAtDoorEligibility({ ...GATE_CONTEXT, category, buyerTotalFcfa: 12_500, nowIso: T }, POLITIQUE_V1);
     for (const chip of ['Mode femme', 'Mode homme', 'Enfant', 'Sacs', 'Tissus', 'Chaussures', 'Beauté scellée']) {
       expect(verdict(chip), chip).toMatchObject({ eligible: true });
     }
@@ -190,10 +208,60 @@ describe('SP3.3 — the Option-B eligibility gate (§6.1, evaluated at quote, fa
     expect(verdict('Maison')).toMatchObject({ eligible: false, reason: 'category_not_inspectable' });
   });
 
+  /**
+   * ═══ THE SHIPPED POLICY, AFTER THE FOUNDER'S 2026-08-12 OVERRIDE ═══
+   *
+   * « for pay at the door I do not want any gate at all, make it open to any
+   * product from any supplier. » These assert what he asked for, against the
+   * policy that actually ships — the tests above keep proving the mechanism
+   * against an explicit restrictive one.
+   */
+  it('THE SHIPPED POLICY OFFERS THE DOOR ON EVERYTHING — any supplier, any category, any amount', () => {
+    const base = { ...GATE_CONTEXT, nowIso: T };
+    // An UNATTESTED supplier — the condition that was refusing most of his catalogue.
+    expect(
+      decidePayAtDoorEligibility({ ...base, sellerTier: 'provisional', buyerTotalFcfa: 12_500 }, PAY_AT_DOOR_POLICY_DEFAULTS),
+      'no tier is required any more',
+    ).toMatchObject({ eligible: true });
+    // A supplier whose tier is MISSING entirely (a pre-canon producer, `?? ''`).
+    expect(
+      decidePayAtDoorEligibility({ ...base, sellerTier: '', buyerTotalFcfa: 12_500 }, PAY_AT_DOOR_POLICY_DEFAULTS),
+    ).toMatchObject({ eligible: true });
+    // A category §6.2 has NO ROW for — « Maison », and electronics, which §6.2
+    // excluded from the MVP. He was told what that means and asked for it.
+    for (const category of ['Maison', 'electronics', 'n’importe quoi']) {
+      expect(
+        decidePayAtDoorEligibility({ ...base, category, buyerTotalFcfa: 12_500 }, PAY_AT_DOOR_POLICY_DEFAULTS),
+        category,
+      ).toMatchObject({ eligible: true });
+    }
+    // And no ceiling.
+    expect(
+      decidePayAtDoorEligibility({ ...base, buyerTotalFcfa: 900_000 }, PAY_AT_DOOR_POLICY_DEFAULTS),
+      'the cap is gone',
+    ).toMatchObject({ eligible: true });
+    // THE VERSION MOVED WITH THE MEANING — every decision names the rules it was
+    // decided under, so this override is replayable rather than invisible.
+    expect(PAY_AT_DOOR_POLICY_DEFAULTS.version).toBe('option-b-policy.v2-ouvert-a-tous');
+  });
+
+  it('THE ONE GATE HE DID NOT OPEN still refuses — a buyer the record forbids', () => {
+    // `PayAtDoorEligibility` is untouched: it refuses nobody today, and it is the
+    // only thing that could ever stop a buyer who repeatedly refuses at the door.
+    // Flagged to him rather than silently dropped, and pinned here so « no gate
+    // at all » cannot quietly become « not even that one » by accident.
+    expect(
+      decidePayAtDoorEligibility(
+        { ...GATE_CONTEXT, nowIso: T, buyerTotalFcfa: 12_500, eligibility: { ...GATE_CONTEXT.eligibility, state: 'suspended' } },
+        PAY_AT_DOOR_POLICY_DEFAULTS,
+      ),
+    ).toMatchObject({ eligible: false, reason: 'buyer_not_allowed' });
+  });
+
   it('§6.2’s OWN ROW NAMES still pass — a producer already speaking canon is not broken by the map', () => {
     for (const row of ['fashion_bags_fabrics', 'shoes', 'sealed_beauty_cosmetics']) {
       expect(
-        decidePayAtDoorEligibility({ ...GATE_CONTEXT, category: row, buyerTotalFcfa: 12_500, nowIso: T }, PAY_AT_DOOR_POLICY_DEFAULTS),
+        decidePayAtDoorEligibility({ ...GATE_CONTEXT, category: row, buyerTotalFcfa: 12_500, nowIso: T }, POLITIQUE_V1),
         row,
       ).toMatchObject({ eligible: true });
     }
@@ -206,7 +274,7 @@ describe('SP3.3 — the Option-B eligibility gate (§6.1, evaluated at quote, fa
     // would have walked past that mistake.
     for (const junk of ['electronics', 'mode femme', 'MODE FEMME', 'Chaussure', 'constructor', 'toString', '__proto__', '']) {
       expect(
-        decidePayAtDoorEligibility({ ...GATE_CONTEXT, category: junk, buyerTotalFcfa: 12_500, nowIso: T }, PAY_AT_DOOR_POLICY_DEFAULTS),
+        decidePayAtDoorEligibility({ ...GATE_CONTEXT, category: junk, buyerTotalFcfa: 12_500, nowIso: T }, POLITIQUE_V1),
         junk,
       ).toMatchObject({ eligible: false, reason: 'category_not_inspectable' });
     }
@@ -465,7 +533,7 @@ describe('§6.1 — the seller-tier condition cannot be walked past on the proto
 
   it('an Object.prototype member is BELOW MINIMUM, exactly like any other non-tier', () => {
     for (const key of ['__proto__', 'constructor', 'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf']) {
-      const d = decidePayAtDoorEligibility(ctx(key));
+      const d = decidePayAtDoorEligibility(ctx(key), POLITIQUE_V1);
       expect(d.eligible, `sellerTier '${key}' must NOT be eligible`).toBe(false);
       if (!d.eligible) expect(d.reason).toBe('seller_tier_below_minimum');
     }
@@ -487,7 +555,7 @@ describe('§6.1 — the seller-tier condition cannot be walked past on the proto
    * opened.
    */
   it("THE EMPTY TIER — what a pre-canon-v3.1.0 producer looks like — refuses, and this is the pin storefront-service's `?? ''` depends on", () => {
-    const d = decidePayAtDoorEligibility(ctx(''));
+    const d = decidePayAtDoorEligibility(ctx(''), POLITIQUE_V1);
     expect(d.eligible, 'an absent producer tier must never be eligible').toBe(false);
     if (!d.eligible) expect(d.reason).toBe('seller_tier_below_minimum');
   });
@@ -502,23 +570,174 @@ describe('§6.1 — the seller-tier condition cannot be walked past on the proto
     // loaded from config. An unreadable rule must never be an absent rule.
     for (const minSellerTier of ['toString', '__proto__', 'constructor', 'valueOf', 'pas-un-palier']) {
       const d = decidePayAtDoorEligibility(ctx('provisional'), {
-        ...PAY_AT_DOOR_POLICY_DEFAULTS,
+        ...POLITIQUE_V1,
         minSellerTier: minSellerTier as 'verified',
       });
       expect(d.eligible, `minSellerTier '${minSellerTier}' must not admit a provisional seller`).toBe(false);
       if (!d.eligible) expect(d.reason).toBe('seller_tier_below_minimum');
     }
     // …and a REAL minimum still discriminates exactly as before.
-    expect(decidePayAtDoorEligibility(ctx('verified'), { ...PAY_AT_DOOR_POLICY_DEFAULTS, minSellerTier: 'verified' }).eligible).toBe(true);
-    expect(decidePayAtDoorEligibility(ctx('verified'), { ...PAY_AT_DOOR_POLICY_DEFAULTS, minSellerTier: 'trusted' }).eligible).toBe(false);
+    expect(decidePayAtDoorEligibility(ctx('verified'), { ...POLITIQUE_V1, minSellerTier: 'verified' }).eligible).toBe(true);
+    expect(decidePayAtDoorEligibility(ctx('verified'), { ...POLITIQUE_V1, minSellerTier: 'trusted' }).eligible).toBe(false);
   });
 
   it('…and the REAL tiers are untouched — this refuses impostors, not sellers', () => {
-    expect(decidePayAtDoorEligibility(ctx('provisional')).eligible).toBe(false);
-    expect(decidePayAtDoorEligibility(ctx('verified')).eligible).toBe(true);
-    expect(decidePayAtDoorEligibility(ctx('trusted')).eligible).toBe(true);
-    const garbage = decidePayAtDoorEligibility(ctx('pas-un-palier'));
+    expect(decidePayAtDoorEligibility(ctx('provisional'), POLITIQUE_V1).eligible).toBe(false);
+    expect(decidePayAtDoorEligibility(ctx('verified'), POLITIQUE_V1).eligible).toBe(true);
+    expect(decidePayAtDoorEligibility(ctx('trusted'), POLITIQUE_V1).eligible).toBe(true);
+    const garbage = decidePayAtDoorEligibility(ctx('pas-un-palier'), POLITIQUE_V1);
     expect(garbage.eligible).toBe(false);
     if (!garbage.eligible) expect(garbage.reason).toBe('seller_tier_below_minimum');
+  });
+});
+
+
+describe('A HALF-WRITTEN POLICY FAILS CLOSED — measured, not asserted in a comment', () => {
+  /**
+   * The override's whole safety argument is that the rules survive as sentinels
+   * so a re-tightening is a policy edit rather than a code change — and that a
+   * config which arrives half-written REFUSES rather than opening. That claim was
+   * written in the source, the commit and the journal, and it was FALSE of the
+   * one condition that bounds the loss: `priceCapFcfa` had no guard, so
+   * `'acun'`, `'AUCUN'`, `undefined` and a missing key all skipped the ceiling
+   * and admitted a 900 000 FCFA basket at the door.
+   *
+   * Nothing tested a malformed sentinel on ANY of the four. These do.
+   *
+   * The casts are the point: the day a tuned policy is loaded from JSON instead
+   * of a TypeScript literal — which this file's own header anticipates — the
+   * type stops guarding anything and only these guards remain.
+   */
+  const GROS: PayAtDoorContext = { ...GATE_CONTEXT, buyerTotalFcfa: 900_000 };
+
+  const abime = (patch: Record<string, unknown>): PayAtDoorPolicy =>
+    ({ ...PAY_AT_DOOR_POLICY_DEFAULTS, ...patch }) as unknown as PayAtDoorPolicy;
+
+  it('a mistyped price ceiling REFUSES — it used to admit 900 000 FCFA', () => {
+    for (const mauvais of ['acun', 'AUCUN', 'aucune', '', undefined, null, 25_000 .toString()]) {
+      expect(
+        decidePayAtDoorEligibility(GROS, abime({ priceCapFcfa: mauvais })),
+        `priceCapFcfa=${JSON.stringify(mauvais)} must refuse, not open`,
+      ).toMatchObject({ eligible: false, reason: 'over_price_cap' });
+    }
+  });
+
+  it('a MISSING price ceiling refuses too — a key dropped while editing is not « no cap »', () => {
+    const sansClef = { ...PAY_AT_DOOR_POLICY_DEFAULTS } as Record<string, unknown>;
+    delete sansClef['priceCapFcfa'];
+    expect(decidePayAtDoorEligibility(GROS, sansClef as unknown as PayAtDoorPolicy))
+      .toMatchObject({ eligible: false, reason: 'over_price_cap' });
+  });
+
+  it('a REAL ceiling still caps, and a real « aucun » still opens — the guards changed nothing else', () => {
+    expect(decidePayAtDoorEligibility(GROS, abime({ priceCapFcfa: 25_000 })))
+      .toMatchObject({ eligible: false, reason: 'over_price_cap' });
+    expect(decidePayAtDoorEligibility(GROS, PAY_AT_DOOR_POLICY_DEFAULTS)).toMatchObject({ eligible: true });
+  });
+
+  it('a mistyped category list REFUSES, and never substring-matches a row into being open', () => {
+    // `'toutes-shoes'` is not the sentinel; on a string `.includes('shoes')` is
+    // TRUE, so the row the founder meant to close by omission would have opened.
+    for (const mauvais of ['toute', 'toutess', 'toutes-shoes', 'fashion_bags_fabrics,shoes', '']) {
+      expect(
+        decidePayAtDoorEligibility({ ...GATE_CONTEXT, category: 'shoes' }, abime({ inspectableCategories: mauvais })),
+        `inspectableCategories=${JSON.stringify(mauvais)} must refuse`,
+      ).toMatchObject({ eligible: false, reason: 'category_not_inspectable' });
+    }
+  });
+
+  it('a mistyped zone list REFUSES', () => {
+    // THE VALUE THAT MATTERS IS THE ONE THAT CONTAINS THE ZONE. My first cut
+    // used 'al'/'ALL'/'Ouagadougou', none of which contains « ouaga-centre », so
+    // the string branch refused anyway and the test passed with the guard
+    // REMOVED — a mutation proved it. A comma-joined list is the realistic
+    // config slip, and it is the one that opens without the guard.
+    for (const mauvais of ['ouaga-centre,bobo', 'al', 'ALL', 'Ouagadougou']) {
+      expect(
+        decidePayAtDoorEligibility(GATE_CONTEXT, abime({ networkReliableZones: mauvais })),
+        `networkReliableZones=${JSON.stringify(mauvais)} must refuse`,
+      ).toMatchObject({ eligible: false, reason: 'zone_not_network_reliable' });
+    }
+  });
+
+  it('a mistyped seller minimum REFUSES — the guard that was already there, pinned at last', () => {
+    for (const mauvais of ['acun', 'AUCUN', 'verifie', '']) {
+      expect(
+        decidePayAtDoorEligibility(GATE_CONTEXT, abime({ minSellerTier: mauvais })),
+        `minSellerTier=${JSON.stringify(mauvais)} must refuse`,
+      ).toMatchObject({ eligible: false, reason: 'seller_tier_below_minimum' });
+    }
+  });
+});
+
+
+describe('POLITIQUE-AU-QUOTE — an admitted door quote records the policy that admitted it', () => {
+  /**
+   * Founder authorisation, 2026-08-12. Until this, `decidePayAtDoorEligibility`
+   * returned its version and `issueQuote` read it ONLY on the refusal branch —
+   * so an admitted door order held no record of the rules that admitted it, and
+   * a dispute could not tell a v1 order from a v2-ouvert-a-tous one.
+   *
+   * The schema key is OPTIONAL (old quotes stay canon), so « every door quote
+   * carries it » is a rule about the ISSUER. This is where that rule lives.
+   */
+  /** A door request judged by the SHIPPED policy — `policy` omitted, so
+   *  `issueQuote` falls to `PAY_AT_DOOR_POLICY_DEFAULTS` exactly as the Worker does. */
+  const issueDoorQuote = (policy?: unknown) =>
+    issueQuote(deps(), {
+      listingRef: 'lst-pv',
+      offerRef: 'offer-pv',
+      attributionResellerId: 'reseller-pv',
+      ...WORKED_BASELINE_INPUT,
+      paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+      payAtDoor: { ...GATE_CONTEXT, ...(policy !== undefined ? { policy } : {}) },
+      nowIso: T,
+    } as Parameters<typeof issueQuote>[1]);
+
+  /** The same basket, prepaid — no door gate is consulted at all. */
+  const issuePrepayQuote = () =>
+    issueQuote(deps(), {
+      listingRef: 'lst-pv',
+      offerRef: 'offer-pv',
+      attributionResellerId: 'reseller-pv',
+      ...WORKED_BASELINE_INPUT,
+      paymentMode: 'FULL_PREPAY',
+      nowIso: T,
+    } as Parameters<typeof issueQuote>[1]);
+
+  it('an OPTION-B quote names the shipped policy version', () => {
+    const out = issueDoorQuote();
+    if (!out.ok) throw new Error(`expected an issued quote, got ${out.reason}`);
+    expect(out.quote.policyVersions.payAtDoorPolicyVersion).toBe(PAY_AT_DOOR_POLICY_DEFAULTS.version);
+  });
+
+  it('it names the policy that ACTUALLY judged it — not the shipped default, when a tuned one is passed', () => {
+    // The distinction that makes the record worth having: re-tighten, and the
+    // quotes issued afterwards say so. A stamp that always printed the default
+    // would be decoration.
+    const out = issueDoorQuote(POLITIQUE_V1);
+    if (!out.ok) throw new Error(`expected an issued quote, got ${out.reason}`);
+    expect(out.quote.policyVersions.payAtDoorPolicyVersion).toBe(POLITIQUE_V1.version);
+    expect(out.quote.policyVersions.payAtDoorPolicyVersion).not.toBe(PAY_AT_DOOR_POLICY_DEFAULTS.version);
+  });
+
+  it('a FULL_PREPAY quote carries NO version — it passed through no door gate', () => {
+    const out = issuePrepayQuote();
+    if (!out.ok) throw new Error(`expected an issued quote, got ${out.reason}`);
+    expect(out.quote.policyVersions.payAtDoorPolicyVersion).toBeUndefined();
+    // …and the two carriers that were always there are untouched.
+    expect(out.quote.policyVersions.settlementPolicyVersion).toBe('e1-sandbox');
+    expect(out.quote.policyVersions.inspectionPolicyVersion).toBe('e1-sandbox');
+  });
+
+  it('the quote still RECONCILES with the key on it — the record is not money', () => {
+    const out = issueDoorQuote();
+    if (!out.ok) throw new Error('expected an issued quote');
+    const q = out.quote;
+    expect(q.productSubtotal).toBe(q.sellerBasePrice + q.resellerMarkup);
+    expect(q.buyerTotal).toBe(q.productSubtotal + q.deliveryFee);
+    expect(q.amountPaidAtCheckout + q.amountDueAtDelivery).toBe(q.buyerTotal);
+    expect(q.amountPaidAtCheckout).toBe(q.deliveryFee);
+    expect(q.amountDueAtDelivery).toBe(q.productSubtotal);
   });
 });

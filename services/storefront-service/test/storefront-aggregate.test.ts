@@ -139,6 +139,53 @@ describe('STOREFRONT-DELETE-1 — decideDelete, the pure erasure decision', () =
   });
 });
 
+describe('VOIX-SUPPRIMER-1 — decideRemoveVoiceNote, the act that makes « Supprimer » true', () => {
+  /**
+   * This decision shipped with ZERO tests — named in the verification audit and
+   * closed here. It is a WRITE path on her public shop: a wrong answer either
+   * leaves audio playing to buyers under a « supprimée » toast (the lie this
+   * slice exists to end) or erases a neighbour product\'s note.
+   */
+  const T3 = '2026-08-12T12:00:00.000Z';
+  const avecNotes = async () => {
+    const { decideCreate, decideSetVoiceNote } = await import('../src/storefront-core.js');
+    const base = decideCreate(undefined, SELLER_001).next!;
+    const un = decideSetVoiceNote(base, 'pv-1', 'https://m/a.m4a', 8_000, T3).next!;
+    return decideSetVoiceNote(un, 'pv-2', 'https://m/b.m4a', 5_000, T3).next!;
+  };
+
+  it('REMOVES exactly the named note: the key is GONE from the record, the neighbour survives, updatedAt moves', async () => {
+    const { decideRemoveVoiceNote } = await import('../src/storefront-core.js');
+    const entry = await avecNotes();
+    const { decision, next } = decideRemoveVoiceNote(entry, 'pv-1', '2026-08-12T13:00:00.000Z');
+    if (decision.status !== 'removed') throw new Error(`expected removed, got ${decision.status}`);
+    // The key must be ABSENT, not set to undefined — a serialised { pv-1: undefined }
+    // is a row the phone-side merge would adopt as malformed rather than gone.
+    expect(Object.hasOwn(decision.storefront.productNotes, 'pv-1')).toBe(false);
+    expect(decision.storefront.productNotes['pv-2']?.url).toBe('https://m/b.m4a');
+    expect(decision.storefront.updatedAt).toBe('2026-08-12T13:00:00.000Z');
+    expect(next?.storefront.productNotes).toEqual(decision.storefront.productNotes);
+  });
+
+  it('no note on that product answers no_note and WRITES NOTHING — safe to repeat, never a phantom act', async () => {
+    const { decideRemoveVoiceNote } = await import('../src/storefront-core.js');
+    const entry = await avecNotes();
+    const once = decideRemoveVoiceNote(entry, 'pv-1', T3);
+    const twice = decideRemoveVoiceNote(once.next!, 'pv-1', T3);
+    expect(twice.decision.status).toBe('no_note');
+    expect(twice.next).toBeUndefined();
+    // and the second ask moved nothing: updatedAt is the FIRST removal\'s stamp
+    expect(once.next!.storefront.updatedAt).toBe(T3);
+  });
+
+  it('an absent shop is surfaced, a blank pid refuses by name — never a phantom success', async () => {
+    const { decideRemoveVoiceNote } = await import('../src/storefront-core.js');
+    expect(decideRemoveVoiceNote(undefined, 'pv-1', T3).decision).toEqual({ status: 'absent' });
+    const entry = await avecNotes();
+    expect(decideRemoveVoiceNote(entry, '  ', T3).decision).toEqual({ status: 'refused', reason: 'pid_blank' });
+  });
+});
+
 describe('PERSONNALISER-REAL-1 — decideSaveIdentity, the presentation she owns', () => {
   const entry = async () => {
     const { decideCreate } = await import('../src/storefront-core.js');

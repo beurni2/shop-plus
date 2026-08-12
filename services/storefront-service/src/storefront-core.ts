@@ -623,10 +623,17 @@ export type SetVoiceNoteDecision =
  * browser resolves it against the wrong origin, so the record simply cannot
  * hold an address a client is unable to fetch.
  *
- * REPLACEMENT IS THE ONLY UPDATE. Re-recording overwrites this pid's note; the
- * other pids' notes are untouched by construction. There is no remove path
- * here, and one is not faked — MEDIA-2's « Retirer la couverture » removed
- * nothing and lied about it, and that is not repeated.
+ * REPLACEMENT IS ONE UPDATE; REMOVAL IS THE OTHER, AND IT IS REAL NOW.
+ * Re-recording overwrites this pid's note; the other pids' notes are untouched
+ * by construction. **The remove path is {@link decideRemoveVoiceNote}, added on
+ * the founder's 2026-08-12 decision.** What this comment used to say — « there
+ * is no remove path here, and one is not faked » — was the right refusal at the
+ * time: MEDIA-2's « Retirer la couverture » removed nothing and lied about it,
+ * and a second fake was not going to be written. But the app kept a
+ * « Supprimer » button that deleted the note on her phone alone, so she was
+ * told « Note supprimée. » while buyers went on hearing it — the same lie by
+ * omission, one layer up. The answer was never to keep faking it; it was to
+ * build the endpoint. It is built.
  */
 export function decideSetVoiceNote(
   current: StorefrontEntry | undefined,
@@ -650,6 +657,55 @@ export function decideSetVoiceNote(
     updatedAt: at,
   });
   return { decision: { status: 'set', storefront }, next: { ...current, storefront } };
+}
+
+/* ------------------------------------------------- VOIX-SUPPRIMER-1 ------ */
+
+export type RemoveVoiceNoteDecision =
+  | { readonly status: 'removed'; readonly storefront: Storefront }
+  | { readonly status: 'absent' }
+  | { readonly status: 'no_note' }
+  | { readonly status: 'refused'; readonly reason: 'pid_blank' };
+
+/**
+ * REMOVE ONE PRODUCT'S VOICE NOTE — the founder's 2026-08-12 decision.
+ *
+ * « Supprimer » existed on the seller's sheet and deleted the note on her PHONE
+ * only. She was shown « Note supprimée. » while the service went on serving the
+ * audio to every buyer on the fiche — and once the storefront read was wired
+ * into the app's state, the note reappeared on her own screen at the next poll.
+ * A button that says a thing is gone must make it gone.
+ *
+ * `no_note` IS ITS OWN ANSWER, not a success and not an error. Deleting a note
+ * that is not there changes nothing, and a caller that cannot tell « I removed
+ * it » from « there was nothing to remove » cannot write an honest screen. It
+ * is also what makes the act SAFE TO REPEAT: a queued removal that arrives
+ * twice gets `removed` then `no_note`, and neither is a failure.
+ *
+ * THE BYTES ARE NOT THIS DECISION'S BUSINESS. It removes the ADDRESS from her
+ * shop, which is what stops a buyer hearing it — the same boundary the write
+ * side keeps, where the app hands over bytes and the service authors the
+ * address. Reaping the stored object belongs to whoever owns the bucket's
+ * lifecycle, and inventing that here would be a second system pretending to
+ * own storage it does not.
+ */
+export function decideRemoveVoiceNote(
+  current: StorefrontEntry | undefined,
+  pid: string,
+  at: string,
+): { decision: RemoveVoiceNoteDecision; next?: StorefrontEntry } {
+  if (!current) return { decision: { status: 'absent' } };
+  if (pid.trim() === '') return { decision: { status: 'refused', reason: 'pid_blank' } };
+  const sf = current.storefront;
+  const notes = sf.productNotes ?? {};
+  if (!Object.hasOwn(notes, pid)) return { decision: { status: 'no_note' } };
+  // Rebuilt WITHOUT the key rather than set to undefined: a `productNotes` that
+  // carries `{ pv: undefined }` serialises to a key the reader still sees, and
+  // the merge on the phone would treat it as a row to adopt.
+  const restants: Record<string, (typeof notes)[string]> = {};
+  for (const [k, v] of Object.entries(notes)) if (k !== pid) restants[k] = v;
+  const storefront = StorefrontSchema.parse({ ...sf, productNotes: restants, updatedAt: at });
+  return { decision: { status: 'removed', storefront }, next: { ...current, storefront } };
 }
 
 /* --------------------------------------------- STOREFRONT-DELETE-1 ------ */

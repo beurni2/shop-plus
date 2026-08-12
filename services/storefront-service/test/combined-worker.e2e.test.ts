@@ -280,6 +280,27 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(((await withKey.json()) as { status: string }).status).toBe('created');
   });
 
+  it('POST /storefronts/:id/voice/remove is gated — 401 without the key, processed with it (VOIX-SUPPRIMER-1)', async () => {
+    // This write ERASES a note from her public shop. An open route here would let
+    // anyone who guessed a storefront id silence a seller\'s voice — so the
+    // refusal is proven on the real composed worker, not assumed from the
+    // write-gate\'s prefix match.
+    const body = JSON.stringify({ pid: 'pv-quelconque', at: T0 });
+    const noKey = await mf.dispatchFetch('http://c/storefronts/sf-auth-0001/voice/remove', { method: 'POST', body });
+    expect(noKey.status).toBe(401);
+    expect((await noKey.json()) as unknown).toEqual({ error: 'unauthorized' });
+
+    // with the key it is PROCESSED: this shop holds no note, so the true answer
+    // is no_note — reaching the decision at all is what proves the gate passed it.
+    const withKey = await mf.dispatchFetch('http://c/storefronts/sf-auth-0001/voice/remove', {
+      method: 'POST',
+      headers: authed,
+      body,
+    });
+    expect(withKey.status).toBe(200);
+    expect(((await withKey.json()) as { status: string }).status).toBe('no_note');
+  });
+
   it('POST /storefronts/:id/publish and /unpublish are gated', async () => {
     const toggleBody = JSON.stringify({ id: 'sf-auth-0001', correlationId: 'corr-auth', at: T0 });
 

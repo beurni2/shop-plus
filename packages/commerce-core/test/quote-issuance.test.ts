@@ -91,7 +91,7 @@ describe('quote issuance — reconciliation enforced at issue time (WO-1.1 a, SP
       ok: false,
       reason: 'pay_at_door_not_eligible',
       refusal: 'context_missing',
-      policyVersion: 'option-b-policy.v1-open-zones',
+      policyVersion: 'option-b-policy.v2-ouvert-a-tous',
     });
   });
 

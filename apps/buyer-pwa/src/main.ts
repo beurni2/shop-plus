@@ -19,6 +19,26 @@ import { harnessProfil, mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { enteteOverride } from './vitrine/entetes';
 import { ENT_STYLES } from './vitrine/entries';
 import { createCliente, type ClienteEcran } from './cliente/flow';
+
+/**
+ * ═══ ONE MOUNTED FLOW AT A TIME, AND THE OLD ONE IS STOPPED ═══
+ *
+ * `createCliente` registers a `visibilitychange` listener and runs a delivery
+ * watch that now HOLDS instead of expiring. Mounting a second flow without
+ * stopping the first therefore left the first one polling the service every
+ * twenty seconds, for ever, into a container already removed from the page —
+ * the ordinary case being « Ma commande » tapped over a signed product page,
+ * which doubles her data and battery cost on exactly the phone this app is for.
+ *
+ * So every mount goes through {@link monterCliente}, which stops whatever was
+ * mounted before it.
+ */
+let arreterCliente: (() => void) | null = null;
+
+function monterCliente(...args: Parameters<typeof createCliente>): void {
+  arreterCliente?.();
+  arreterCliente = createCliente(...args);
+}
 import { clienteProduit, clienteProduitReel, composeQuote, harnessFrancs } from './cliente/seed';
 import { commandIdFor, commandeGardee, forgetRequestKey, localStorageOrUndefined, orderCommandIdFor, requestKeyFor, resolveQuotePort, villeDe } from './cliente/quote-port';
 import { SUIVI } from './cliente/screens';
@@ -777,7 +797,7 @@ if (app) {
         // buyer C1→C9 flow is ALWAYS INDIGO — the resolved storefront's theme
         // no longer drives it. Her vitrine keeps her habillage; the harness
         // `theme=` param stays as the §1.2 gate/audit lever only.
-        createCliente(main, {
+        monterCliente(main, {
           produit,
           quoteSource,
           theme: 'indigo',
@@ -845,7 +865,7 @@ if (app) {
     };
     const confRaw = params.get('conf');
     const main = document.createElement('main');
-    createCliente(main, {
+    monterCliente(main, {
       produit,
       quote: composeQuote(produit.priceFcfa, frais),
       theme,
@@ -959,7 +979,7 @@ if (app) {
       }
       const port = resolveQuotePort();
       const suiviMain = document.createElement('main');
-      createCliente(suiviMain, {
+      monterCliente(suiviMain, {
         // C7/C9 read nothing off the product; the record deliberately stores
         // none (no amount, no name — nothing worth stealing). This stub is
         // unrenderable: C7 has no back road to C1 and the re-entry withholds

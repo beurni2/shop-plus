@@ -573,11 +573,34 @@ export function httpQuotePort(baseUrl: string): QuotePort {
       } catch {
         return { status: 'unreadable' };
       }
+      /**
+       * ═══ THIS ONE READ IS BOUNDED IN TIME, AND ONLY THIS ONE ═══
+       *
+       * The delivery watch schedules its next read from the `.then` of this
+       * promise. A `fetch` that never settles — a stalled 3G socket, the classic
+       * on the phones this app is built for — therefore leaves NO pending timer
+       * and NO failure: the tracking screen simply stops, for ever, with nothing
+       * to press. Every other call here is driven by a tap, where a stall shows
+       * as a control that stays busy and she can act on it; this one is driven
+       * by itself, which is why it alone needs the bound.
+       *
+       * `AbortController` rather than `AbortSignal.timeout`, which the Android
+       * WebViews this app targets do not all carry — and the whole thing is
+       * guarded, because a missing `AbortController` must degrade to today's
+       * behaviour rather than throw on the first read.
+       */
       let res: Response;
+      const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      const stall = ctrl === null ? null : setTimeout(() => ctrl.abort(), LECTURE_COMMANDE_TIMEOUT_MS);
       try {
-        res = await fetch(url, { method: 'GET' });
+        res = await fetch(url, ctrl === null ? { method: 'GET' } : { method: 'GET', signal: ctrl.signal });
       } catch {
+        // An abort arrives here too, and « unreachable » is the honest name for
+        // it: the read did not land. A failed read is still not a failed
+        // delivery — the timeline keeps every proven step.
         return { status: 'unreachable' };
+      } finally {
+        if (stall !== null) clearTimeout(stall);
       }
       return readOrder(res);
     },
@@ -731,6 +754,17 @@ async function readOrder(res: Response): Promise<OrderOutcome> {
  * a mock that skips a state is a mock that makes the integration look healthier
  * than it is (Execution Contract §3).
  */
+/**
+ * How long a single delivery-tracking read may hang before it is abandoned.
+ *
+ * Generous on purpose — this is a 1 GB Android on a congested cell, and a read
+ * that takes twelve seconds is slow, not broken. What it forbids is the read
+ * that takes for ever, because the watch schedules its next rung from this
+ * promise and a socket that never settles freezes the screen with nothing on it
+ * to press. It is a floor under the tracking screen, not a latency budget.
+ */
+export const LECTURE_COMMANDE_TIMEOUT_MS = 12_000;
+
 export const DEMO_ATTENTES = 2;
 
 export function demoQuotePort(produitFcfa: number = ROBE.priceFcfa): QuotePort {
