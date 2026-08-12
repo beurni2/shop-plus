@@ -41,7 +41,7 @@ const offer = (pv: string, name: string) => ({
 });
 
 /** Her shop as the service holds it — `curatedItems` is the MEMBERSHIP. */
-function storefront(curated: readonly string[]) {
+function storefront(curated: readonly string[], productNotes: Record<string, unknown> = {}) {
   return {
     id: 'SF',
     resellerId: 'RS',
@@ -61,7 +61,7 @@ function storefront(curated: readonly string[]) {
     sections: [],
     featuredItems: [],
     headerStyle: 'classique',
-    productNotes: {},
+    productNotes,
   };
 }
 
@@ -431,6 +431,85 @@ describe('VIGNETTE — small render, small file; big render, big file', () => {
     const images = screen.images();
     expect(images, 'the 44px picker art must ask for the vignette').toContain(`${A}?v=thumb`);
     expect(images, 'and must NOT ask for the full photograph').not.toContain(A);
+    screen.unmount();
+  });
+});
+
+
+/**
+ * ═══ VOIX-PRODUIT — A NOTE THE SERVICE HOLDS IS A NOTE THE CARD SHOWS ═══
+ *
+ * Founder, 2026-08-12: « on ma vitrine when I record an audio and tap publier it
+ * does not show on the product as a recorded audio and when I tap to listen I am
+ * not hearing anything. »
+ *
+ * THE DEFECT, and it is the third of its family in two days: the card renders
+ * `voice.notes[pid]` — REACT STATE, seeded `DEFAULT_VOICE_NOTES` (empty) and
+ * mutated only by the record/publish flow in this session. The shop's stored
+ * `productNotes` is read in exactly one place, to CONFIRM the upload, and never
+ * to fill that state. So the bytes are on the server and the screen does not
+ * know: relaunch and every note she ever recorded is « Ajouter une note vocale »
+ * again, with no url to play — which is the silence he heard.
+ *
+ * These walk the SERVICE's truth, not a session's memory.
+ */
+describe('VOIX-PRODUIT — the note the shop holds', () => {
+  const NOTE_URL = 'https://media.test/voice/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.m4a';
+
+  function avecNote(note: Record<string, unknown> | null): void {
+    wire([
+      (path) =>
+        path === '/supply-projections'
+          ? {
+              status: 200,
+              json: {
+                offers: [offer(PV_A, 'Bazin riche')],
+                diagnostic: { status: 'ok', refusals: [] },
+              },
+            }
+          : null,
+      (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
+      (path) =>
+        /^\/storefronts\/[^/]+$/.test(path)
+          ? {
+              status: 200,
+              json: storefront([PV_A], note === null ? {} : { [PV_A]: note }) as never,
+            }
+          : null,
+    ]);
+  }
+
+  it('a STORED note shows on the card — never « Ajouter » over a note that exists', async () => {
+    avecNote({ status: 'ready', url: NOTE_URL, durationMs: 8_000 });
+    const screen = await openVitrine();
+    await screen.settle();
+
+    expect(
+      screen.shows('Ajouter une note vocale'),
+      'the shop holds a note — the card must not offer to add one',
+    ).toBe(false);
+    expect(screen.shows('Note vocale en ligne'), 'and it must say the note is live').toBe(true);
+    screen.unmount();
+  });
+
+  it('a product with NO note still offers to add one — the narrowness', async () => {
+    avecNote(null);
+    const screen = await openVitrine();
+    await screen.settle();
+    expect(screen.shows('Ajouter une note vocale'), 'nothing stored ⇒ the invitation stands').toBe(true);
+    expect(screen.shows('Note vocale en ligne')).toBe(false);
+    screen.unmount();
+  });
+
+  it('the note’s own URL reaches the screen — or there is nothing to play', async () => {
+    // The silence he reported: with no url in state the play control has nothing
+    // to hand the player. Asserted on the sheet, where the control lives.
+    avecNote({ status: 'ready', url: NOTE_URL, durationMs: 8_000 });
+    const screen = await openVitrine();
+    await screen.press('Note vocale');
+    await screen.settle();
+    expect(screen.shows('Bazin riche'), 'the sheet opened on this product').toBe(true);
+    expect(screen.shows('0:08'), 'the take’s real length came from the shop, not from zero').toBe(true);
     screen.unmount();
   });
 });

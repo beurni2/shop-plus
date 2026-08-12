@@ -3700,5 +3700,11 @@
   "fr": "Retiré, mais votre boutique n'a pas répondu. Rouvrez Ma vitrine pour voir.",
   "register": "selling",
   "screenClass": "general"
+ },
+ {
+  "key": "k.voix.carte_en_ligne",
+  "fr": "Note vocale en ligne",
+  "register": "selling",
+  "screenClass": "selling_surface"
  }
 ]

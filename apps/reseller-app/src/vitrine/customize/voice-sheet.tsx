@@ -11,24 +11,11 @@
  * ./voice are what Node tests exercise.
  */
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { t, tf } from '../../i18n';
-import {
-  DEFAULT_VOICE_NOTES,
-  fmtVoiceDuration,
-  noteOf,
-  startRecording,
-  stopRecording,
-  publishNote,
-  readyNote,
-  failPublish,
-  cancelRecording,
-  deleteNote,
-  type ProductVoiceNote,
-  type ProductVoiceNotes,
-} from './voice';
+import { DEFAULT_VOICE_NOTES, cancelRecording, deleteNote, failPublish, fmtVoiceDuration, fusionnerNotesStockees, noteOf, publishNote, readyNote, startRecording, stopRecording, type ProductVoiceNote, type ProductVoiceNotes } from './voice';
 import { useVoiceCapture } from './voice-capture';
 import { K_RAW_STYLES } from './k-styles';
 import { IS_PREVIEW } from '../../preview';
@@ -104,8 +91,25 @@ export type VoiceUploader = (
 /** One recorder, one controller — hosted at the App level, shared by every
  * card mic and the sheet. Async takes land via a functional setState so a stale
  * closure can never overwrite a later state. */
-export function useVoiceNotes(onToast: (m: string) => void, upload?: VoiceUploader): VoiceNotesController {
+export function useVoiceNotes(
+  onToast: (m: string) => void,
+  upload?: VoiceUploader,
+  /**
+   * WHAT THE SHOP HOLDS (`Storefront.productNotes`), handed down on every read.
+   *
+   * Without it this controller only ever knew about takes made in THIS session,
+   * so a note the service had stored was invisible and unplayable — the founder's
+   * 2026-08-12 report. `fusionnerNotesStockees` owns the merge and its one rule:
+   * a take she is recording, reviewing or publishing is never overwritten.
+   */
+  stockees?: unknown,
+): VoiceNotesController {
   const [notes, setNotes] = useState<ProductVoiceNotes>(DEFAULT_VOICE_NOTES);
+  // The merge returns its input by IDENTITY when nothing moves, so this settles
+  // in one pass instead of re-rendering forever.
+  useEffect(() => {
+    setNotes((cur) => fusionnerNotesStockees(cur, stockees));
+  }, [stockees]);
   const [micDenied, setMicDenied] = useState(false);
   const [playingPid, setPlayingPid] = useState<string | null>(null);
   const [playingSec, setPlayingSec] = useState(0);
@@ -253,7 +257,12 @@ export function useVoiceNotes(onToast: (m: string) => void, upload?: VoiceUpload
 /** The card label for a product's note — drives the mic affordance text. */
 export function voiceCardLabel(note: ProductVoiceNote | undefined): string {
   const st = note?.status ?? 'none';
-  if (st === 'pending' || st === 'ready') return t('k.voix.carte_en_attente');
+  // `ready` USED TO SHARE THE « en attente » SENTENCE with `pending`, so a note
+  // the service had already stored still read as waiting — the second half of
+  // the founder's report (« it does not show as a recorded audio »). They are
+  // different facts and now say different things: queued vs live.
+  if (st === 'ready') return t('k.voix.carte_en_ligne');
+  if (st === 'pending') return t('k.voix.carte_en_attente');
   if (st === 'recorded') return t('k.voix.carte_a_publier');
   return t('k.voix.carte_ajouter');
 }

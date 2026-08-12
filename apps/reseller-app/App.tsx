@@ -569,7 +569,12 @@ export default function App() {
     },
     [service, identity],
   );
-  const voice = useVoiceNotes(setToast, uploadVoiceNote);
+  // VOIX-PRODUIT (founder 2026-08-12) — the shop's OWN notes reach the
+  // controller. Without this third argument it only knew the takes made in this
+  // session, so a note the service had stored was invisible on the card and had
+  // no url to play. `liveStorefront` is the service's truth, re-read on every
+  // load; the merge inside refuses to overwrite a take she is holding.
+  const voice = useVoiceNotes(setToast, uploadVoiceNote, liveStorefront?.productNotes);
 
   /** MEDIA-2 — her PORTRAIT, same law as the cover: bytes up, URL owned by the
    *  service, success only once the read-back shows it. */
