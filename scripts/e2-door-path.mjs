@@ -23,9 +23,17 @@ const deps = { flags, now: () => new Date(T), newId: () => 'quote-b-0001' };
 // The run policy pins ONE named zone so the allowlist READING stays exercised
 // here even though the shipped default is now `'all'` (founder ruling
 // 2026-08-01). Both readings are checked below. ⏳ founder-tunable values.
+// FOUNDER OVERRIDE 2026-08-12 — the SHIPPED policy now opens every condition
+// (« no gate at all »). This evidence script exists to prove the GATE still
+// refuses when a policy asks it to, so it spells §6.1's conditions out instead
+// of spreading the shipped default: a spread would inherit « open » and the
+// negative below would stop proving anything (§9.7). The shipped policy's own
+// behaviour is asserted in commerce-core's suite, against the real defaults.
 const RUN_POLICY = {
-  ...PAY_AT_DOOR_POLICY_DEFAULTS,
-  version: `${PAY_AT_DOOR_POLICY_DEFAULTS.version}+e2-sandbox-zone`,
+  version: 'option-b-policy.v1-open-zones+e2-sandbox-zone',
+  priceCapFcfa: 25_000,
+  minSellerTier: 'verified',
+  inspectableCategories: ['fashion_bags_fabrics', 'shoes', 'sealed_beauty_cosmetics'],
   networkReliableZones: ['ouaga-centre'],
 };
 const GATE_CONTEXT = {

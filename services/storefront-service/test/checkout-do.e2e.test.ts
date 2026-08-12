@@ -501,28 +501,40 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
     expect(refused.json['error']).toBe('attribution_missing');
   });
 
-  it('an unknown payment mode is 422, and an INELIGIBLE door request refuses without leaking why', async () => {
+  it('an unknown payment mode is 422 — and after the override, an UNATTESTED supplier’s door request is not', async () => {
     // SELLER-TIER-WIRE-1 — the shop sells the UNATTESTED supplier's product, so
     // the projection this Worker reads carries `sellerTier: 'provisional'`. The
     // buyer's body cannot say otherwise: the field left the wire.
     const { slug, resellerId, pid } = await seedShop('0012', 1_500, 'pv-checkout-prov');
     const base = { slug, pid, zoneTo: 'Ouagadougou', attributionResellerId: resellerId };
+
+    // AN UNKNOWN MODE IS STILL 422 — the control. The override opened §6.1's
+    // conditions; it did not stop this Worker refusing what it cannot price.
     const bogus = await postQuote({ ...base, paymentMode: 'CASH_ON_TRUST', requestKey: freshKey() });
     expect(bogus.status).toBe(422);
     expect(bogus.json['error']).toBe('payment_mode_unknown');
 
-    // The ZONE no longer refuses anyone (founder ruling 2026-08-01), so this
-    // drives one of the OTHER four §6.1 conditions — an unverified seller.
+    // ═══ FOUNDER OVERRIDE 2026-08-12, PROVEN ON THE REAL WORKER ═══
+    //
+    // « for pay at the door I do not want any gate at all, make it open to any
+    // product from any supplier. » This test used to assert the opposite — a
+    // provisional seller refused 422 — and that refusal was the single condition
+    // keeping the door off most of his catalogue. It is rewritten rather than
+    // deleted, because the question it asks is the one that matters: WHAT DOES
+    // THE SHIPPED WORKER DO with an unattested supplier?
     const door = await postQuote({
       ...base,
       paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
       requestKey: freshKey(),
     });
-    expect(door.status).toBe(422);
-    expect(door.json['error']).toBe('pay_at_door_not_eligible');
-    // the §6.1 OPS DETAIL never reaches the buyer
+    expect(door.status, door.text).toBe(200);
+    // …and the quote it issued is a REAL §5.5 door split, not a shape that
+    // merely stopped refusing: the delivery leg now, the product at the door.
+    expect(door.json['paymentMode']).toBe('DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
+    expect(door.json['amountPaidAtCheckout']).toBe(door.json['deliveryFee']);
+    expect(door.json['amountDueAtDelivery']).toBe(door.json['productSubtotal']);
+    // THE OPS DETAIL STILL NEVER REACHES THE BUYER — unchanged by the override.
     expect(door.text.includes('policyVersion')).toBe(false);
-    expect(door.text.includes('seller_tier_below_minimum')).toBe(false);
   });
 
   /**
@@ -564,7 +576,7 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
     }
   });
 
-  it('THE SAME BUYER REQUEST, TWO SUPPLIERS, TWO VERDICTS — the tier now comes from the projection', async () => {
+  it('THE SAME BUYER REQUEST, TWO SUPPLIERS — the tier comes from the projection, and the open policy admits both', async () => {
     // The proof that the decision MOVED rather than being spelled differently:
     // byte-identical door context, two shops, and the only difference is which
     // supplier's product each one sells.
@@ -581,9 +593,14 @@ describe('CheckoutDO — every failure is a NAMED refusal, and nothing is persis
         });
     const yes = await ask(attested);
     const no = await ask(unattested);
+    // FOUNDER OVERRIDE 2026-08-12 — the tier still comes from the projection and
+    // never from the buyer's body (that is what SELLER-TIER-WIRE-1 fixed, and it
+    // is untouched). What changed is what the policy DOES with it: nothing. Both
+    // suppliers reach the door now, which is what « any product from any
+    // supplier » means, and the two verdicts this test was named for are one.
     expect(yes.status, yes.text).toBe(200);
-    expect(no.status, no.text).toBe(422);
-    expect(no.json['error']).toBe('pay_at_door_not_eligible');
+    expect(no.status, no.text).toBe(200);
+    expect(no.json['paymentMode']).toBe('DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
   });
 
   /**

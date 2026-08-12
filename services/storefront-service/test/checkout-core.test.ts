@@ -335,6 +335,25 @@ describe('decideIssueQuote — B, C and M are READ off frozen stored fields', ()
 
 /* ═══════════════════════ every refusal, BY VALUE ══════════════════════════ */
 
+/**
+ * §6.1'S CONDITIONS AS THEY WERE WRITTEN, spelled out rather than taken from the
+ * shipped policy.
+ *
+ * On 2026-08-12 the founder opened every one of them (« I do not want any gate at
+ * all »). The tests below prove the GATE MECHANISM — that each condition refuses
+ * by its own name — and a gate test that reads the shipped default stops testing
+ * anything the day the default opens (§9.7). So they measure against this, and
+ * the tests that ask « what does the SHIPPED policy do? » assert the open answer
+ * explicitly, further down.
+ */
+const POLITIQUE_STRICTE: PayAtDoorPolicy = {
+  version: 'option-b-policy.v1-open-zones',
+  priceCapFcfa: 25_000,
+  minSellerTier: 'verified',
+  inspectableCategories: ['fashion_bags_fabrics', 'shoes', 'sealed_beauty_cosmetics'],
+  networkReliableZones: 'all',
+};
+
 describe('decideIssueQuote — every failure is a NAMED refusal that fails closed', () => {
   const refusalOf = (o: IssueQuoteOutcome): string => (o.ok ? 'ISSUED' : o.reason);
 
@@ -451,6 +470,7 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
       const outcome = issue({
         request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' },
         supply: supplyFixture(supply),
+        deps: { payAtDoorPolicy: POLITIQUE_STRICTE },
       });
       expect(refusalOf(outcome), JSON.stringify(supply)).toBe('pay_at_door_not_eligible');
     }
@@ -469,6 +489,7 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
       issue({
         request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' },
         supply: supplyFixture({ category }),
+        deps: { payAtDoorPolicy: POLITIQUE_STRICTE },
       }).ok;
     for (const chip of ['Mode femme', 'Mode homme', 'Enfant', 'Sacs', 'Tissus', 'Chaussures', 'Beauté scellée']) {
       expect(doorFor(chip), `${chip} must reach the door`).toBe(true);
@@ -488,8 +509,9 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     // bytes, two supplies, two different verdicts — which proves the decision
     // moved to the server rather than merely being spelled differently.
     const request = { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' } as const;
-    expect(issue({ request, supply: supplyFixture({ sellerTier: 'verified' }) }).ok).toBe(true);
-    expect(refusalOf(issue({ request, supply: supplyFixture({ sellerTier: 'provisional' }) }))).toBe(
+    const strict = { payAtDoorPolicy: POLITIQUE_STRICTE };
+    expect(issue({ request, supply: supplyFixture({ sellerTier: 'verified' }), deps: strict }).ok).toBe(true);
+    expect(refusalOf(issue({ request, supply: supplyFixture({ sellerTier: 'provisional' }), deps: strict }))).toBe(
       'pay_at_door_not_eligible',
     );
     // (An assertion on `Object.keys(request.payAtDoorContext)` used to sit here,
@@ -517,6 +539,7 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
       request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' },
       // exactly what canon v3.0.0 supply looks like: category, no sellerTier
       supply: { productName: 'Bazin riche', assetRefs: [], available: 3, category: 'shoes' },
+      deps: { payAtDoorPolicy: POLITIQUE_STRICTE },
     });
     if (outcome.ok || outcome.reason !== 'pay_at_door_not_eligible') throw new Error('expected the door refusal');
     expect(outcome.refusal).toBe('seller_tier_below_minimum');

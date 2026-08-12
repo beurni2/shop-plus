@@ -152,15 +152,22 @@ export interface PayAtDoorPolicy {
    * applied to buyerTotal (the larger figure — the STRICTER reading; the
    * spec's "order" does not say which amount, flagged in JOURNAL).
    */
-  priceCapFcfa: number;
-  /** §6.1 "seller tier ≥ verified" — spec text, not tunable downward. */
-  minSellerTier: 'verified' | 'trusted';
+  priceCapFcfa: number | 'aucun';
+  /**
+   * §6.1 "seller tier ≥ verified".
+   *
+   * FOUNDER OVERRIDE 2026-08-12: « for pay at the door I do not want any gate at
+   * all, make it open to any product from any supplier. » Given after being told
+   * what §6.1 says and what the tier protects, and repeated. `'aucun'` is the
+   * sentinel that means no tier is required.
+   */
+  minSellerTier: 'verified' | 'trusted' | 'aucun';
   /**
    * §6.2 category inspection matrix — the MVP rows that allow at-door
    * inspection. ⏳ FOUNDER-TUNABLE identifiers; electronics is EXCLUDED from
    * MVP by the matrix itself.
    */
-  inspectableCategories: readonly string[];
+  inspectableCategories: readonly string[] | 'toutes';
   /**
    * §6.1 "network-reliable zone". ⏳ FOUNDER-TUNABLE, and the founder RULED on
    * 2026-08-01: « remove the list of the eligibility rule of neighbourhoods,
@@ -191,11 +198,40 @@ export interface PayAtDoorPolicy {
  * THE VERSION STRING IS PART OF THE DECISION — every eligibility answer names
  * it — so it moves whenever the policy's MEANING moves. It did here.
  */
+/**
+ * ═══ FOUNDER OVERRIDE 2026-08-12 — OPTION B IS OFFERED ON EVERYTHING ═══
+ *
+ * « for pay at the door I do not want any gate at all, make it open to any
+ * product from any supplier. » Said after being shown §6.1's five conditions
+ * verbatim and told what each one protects, and repeated when the concern was
+ * raised. It is his decision and it is recorded as one; §6.1/§6.2 are updated to
+ * match rather than left contradicting the code.
+ *
+ * WHAT HE WAS TOLD, kept here because a reversal should be able to read it:
+ * §6.2 excludes electronics because a buyer cannot meaningfully inspect one at
+ * the door, and an opened box that is then refused cannot be resold — that loss
+ * lands on the supplier and on him. The cap is what bounds the loss on any
+ * single refusal. Neither risk went away; he accepted both.
+ *
+ * ⚠ THE RULES ARE NOT DELETED — each is given a sentinel that means « open »,
+ * exactly as the 2026-08-01 zones ruling was applied. That keeps §6.1's
+ * structure intact, keeps every decision REPLAYABLE (each answer names the
+ * `version` it was decided under), and makes re-tightening a policy edit with an
+ * audit trail instead of a code change. Sentinels are WORDS, never a huge number
+ * or an empty list: « open » has to be typed out by someone who meant it, and a
+ * config that arrives half-written still fails closed.
+ *
+ * WHAT IS *NOT* OPENED, and it is deliberate: `PayAtDoorEligibility`. It refuses
+ * nobody today (`ELIGIBILITE_SANS_HISTORIQUE` allows every buyer, because
+ * nothing yet records a refusal) so it is not gating anything he can see, and it
+ * is the only thing that could ever stop a buyer who repeatedly refuses at the
+ * door. Flagged to him rather than silently dropped.
+ */
 export const PAY_AT_DOOR_POLICY_DEFAULTS: PayAtDoorPolicy = {
-  version: 'option-b-policy.v1-open-zones',
-  priceCapFcfa: 25_000,
-  minSellerTier: 'verified',
-  inspectableCategories: ['fashion_bags_fabrics', 'shoes', 'sealed_beauty_cosmetics'],
+  version: 'option-b-policy.v2-ouvert-a-tous',
+  priceCapFcfa: 'aucun',
+  minSellerTier: 'aucun',
+  inspectableCategories: 'toutes',
   /**
    * FOUNDER RULING 2026-08-01 — Option B is offered to every buyer who wants
    * it, in every zone. The other four §6.1 conditions are UNTOUCHED and still
@@ -315,9 +351,15 @@ export function decidePayAtDoorEligibility(
   // instead of a TypeScript literal, the type stops guarding anything and this
   // opens. A policy this module cannot interpret must refuse the mode, never
   // grant it: an unreadable rule is not an absent rule.
-  if (!Object.hasOwn(SELLER_TIER_RANK, policy.minSellerTier)) return refuse('seller_tier_below_minimum');
-  const minRank = SELLER_TIER_RANK[policy.minSellerTier]!;
-  if (tierRank === undefined || tierRank < minRank) return refuse('seller_tier_below_minimum');
+  // FOUNDER OVERRIDE 2026-08-12 — `'aucun'` means no tier is required, so the
+  // comparison is skipped rather than satisfied by a fake rank. The guard below
+  // is untouched for every other value: a minimum this module cannot interpret
+  // still REFUSES, because an unreadable rule is not an absent rule.
+  if (policy.minSellerTier !== 'aucun') {
+    if (!Object.hasOwn(SELLER_TIER_RANK, policy.minSellerTier)) return refuse('seller_tier_below_minimum');
+    const minRank = SELLER_TIER_RANK[policy.minSellerTier]!;
+    if (tierRank === undefined || tierRank < minRank) return refuse('seller_tier_below_minimum');
+  }
 
   // ═══ THE SUPPLIER'S WORD, THEN THE POLICY — TWO SEPARATE QUESTIONS ═══
   //
@@ -332,12 +374,23 @@ export function decidePayAtDoorEligibility(
   // door is not offered, and the buyer's checklist (which reads the SAME map,
   // through the customer projection) shows the cautious row rather than
   // promising rights she does not have.
-  const rangee = rangeeInspection(ctx.category);
-  if (rangee === null || !policy.inspectableCategories.includes(rangee)) {
-    return refuse('category_not_inspectable');
+  // FOUNDER OVERRIDE 2026-08-12 — `'toutes'` opens every category, INCLUDING the
+  // ones §6.2 has no row for. That is the point of the sentinel: the previous
+  // code refused an unknown category twice over (no row, and not in the list),
+  // and he asked for any product. The §6.2 map still decides what the buyer's
+  // at-door checklist SAYS; it no longer decides whether the door is offered.
+  if (policy.inspectableCategories !== 'toutes') {
+    const rangee = rangeeInspection(ctx.category);
+    if (rangee === null || !policy.inspectableCategories.includes(rangee)) {
+      return refuse('category_not_inspectable');
+    }
   }
 
-  if (ctx.buyerTotalFcfa > policy.priceCapFcfa) return refuse('over_price_cap');
+  // FOUNDER OVERRIDE 2026-08-12 — `'aucun'` means no ceiling. A NUMBER still caps
+  // exactly as before, so setting one is how he re-bounds his exposure later.
+  if (policy.priceCapFcfa !== 'aucun' && ctx.buyerTotalFcfa > policy.priceCapFcfa) {
+    return refuse('over_price_cap');
+  }
 
   // `'all'` short-circuits; an ARRAY still allowlists, and an empty one still
   // refuses everything. The two readings share no code path.
