@@ -9,6 +9,27 @@ Format per entry:
 
 ---
 
+## 2026-08-12 · DÉJÀ-DANS-MA-VITRINE — Opportunités offered what she already owned · IN-REVIEW (branch, awaiting founder)
+**Founder report:** « on shop+ when i add a product on ma vitrine, it still shows on opportunites the option the add the same product on ma vitrine instead of displaying this product is already added. »
+
+**THE WALK WAS WRITTEN FIRST, RED** (standing order 2026-08-10). Two walks in `apps/reseller-app/test/rendu-vitrine.test.tsx`: one over a shop that already holds the product, and one that earns it the way HE does — press « Ajouter à ma vitrine », come back to Opportunités — because those are different code paths and the second is the half he hits first. Both failed on the exact sentence he described before any fix existed.
+
+**WHAT WAS WRONG.** The membership was already computed — `vitrineLive` (App.tsx:765), the same `curatedItems` Ma Vitrine reads — and Opportunités never asked it. The CTA's only gate was « is the service reachable ». Nothing was missing from the file; a JOIN was missing, and a join that was never made looks exactly like a file that is fine.
+
+**AND THE SECOND TAP WAS NOT HARMLESS — verified against the REAL Worker,** not read: driven in miniflare against a freshly built `dist/worker/worker.mjs`, publish #1 at marge 0 answers `200 {"status":"published"}` and the shop reads `["pv-…"]`; publish #2 of the same product at marge 500 answers **`200 {"status":"idempotent"}` and returns the ORIGINAL listing — `markup: 0, version: 1`.** The app reads that 200 as success and toasts « C'est ajouté à votre vitrine. » So a reseller who moved her marge and tapped again was told a price **her cliente will never be charged.** A button whose only outcome is a silent no-op under a success message is the fabricated-success shape this project refuses everywhere else.
+
+**FIXED:** `dejaDansVitrine(pid)` joins the one membership. The grid carries a « Déjà dans ma vitrine » chip (same family as « épuisé » — a fact, stated not styled). The fiche of an added product says « Ce produit est déjà dans votre vitrine. » and its primary action becomes « Voir dans ma vitrine » — one action, and one that can succeed. The marge control is **not rendered** on an added product, because it cannot change anything (below).
+
+**OPEN — AND IT IS THE FOUNDER'S CALL, NOT MINE: THERE IS NO RE-PRICE PATH AT ALL.** `publishListing` is the only call in the app that carries a markup, the service has no route to change one, and the publish command id is DERIVED from the listing id — so a published marge is frozen at its first value, for ever. Consequences, all verified by reading the only three `setMarkups` sites and the whole service port surface: Ma Vitrine's marge slider moves numbers on screen and signs nothing; and on a fresh launch the app does not know her signed marge at all (`markups` starts `{}`), so it renders the default beside a product whose signed marge may be different. **This fix removes the trap; it does not open the door.** A re-price is a money decision (what happens to a cliente holding the old price, and whether an open quote may move) and it is his to make.
+
+**THE FACT THE SCREEN RESTS ON IS NOW PINNED, not just probed.** `services/storefront-service/test/republish-idempotent.e2e.test.ts` drives the REAL Worker: publish at marge 0 → `published`; publish the same product at marge 500 → `idempotent`, and the LEDGER still reads `markup: 0, version: 1` with `curatedItems: [pv]` unduplicated. If a re-price path is ever added this test goes red — and it should, because the screen fix would then be hiding a door that had opened. *(It also cost me a run: the certified consumer applies a 15-MINUTE FRESHNESS BOUND, so my fixed `asOf` made every publish answer `supply_unavailable`. The bound is now named in the file.)*
+
+**Evidence:** reseller-app **599/599** · storefront-service **550/550** · typecheck clean · gate board **ALL GATES GREEN exit 0** (96 gates).
+**Mutations, anchor-verified:** membership forced false → both new walks red · the fiche branch forced to the old CTA → both red on the right sentences · the Worker's idempotency guard removed → the seam test red on exactly the claim the screen relies on. The control walk (« a product she has NOT added still adds in one tap ») stays green throughout, which is what keeps the guard from being a door.
+**A gate caught the same glyph a third time:** `no-emoji-in-chrome` named three `⚠` in NEW comments (Shop+'s gate is stricter than Boutik+'s — it reads comments too). Fixed at the three lines it printed, and nowhere else.
+
+---
+
 ## 2026-08-10 · VOIX-VITRINE — playback that asked a player with nothing loaded to start · IN-REVIEW (branch, awaiting founder)
 **Founder report:** « On ma vitrine in shop+ when I record an audio and want to play it back it's not working. »
 

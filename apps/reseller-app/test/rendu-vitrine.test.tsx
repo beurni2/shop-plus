@@ -610,3 +610,126 @@ describe('VOIX-PRODUIT — the note the shop holds', () => {
     screen.unmount();
   });
 });
+
+/**
+ * ═══ DÉJÀ-DANS-MA-VITRINE — the screen must not offer what she already has ═══
+ *
+ * FOUNDER REPORT (2026-08-12): « when i add a product on ma vitrine, it still
+ * shows on opportunites the option the add the same product on ma vitrine
+ * instead of displaying this product is already added ».
+ *
+ * WRITTEN FIRST, RED, per the standing order — « every screen bug the founder
+ * reports gets its walk written FIRST … before the fix. A bug he has hit once
+ * must never be able to reach him twice. »
+ *
+ * WHY NO SCAN COULD SEE IT: the membership (`vitrineLive`) and the CTA are both
+ * in App.tsx, three hundred lines apart, and the CTA's only gate is « is the
+ * service reachable ». Nothing is missing from the file; what is missing is a
+ * JOIN, and a join that was never made looks exactly like a file that is fine.
+ */
+describe('DÉJÀ-DANS-MA-VITRINE — Opportunités knows what is already hers', () => {
+  it('marks the product she already added, and its fiche offers the way IN, not a second add', async () => {
+    const svc = service({ offers: [PV_A, PV_B], curated: [PV_A] });
+    const w = wire(svc.routes);
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+
+    // ── ON THE GRID: the tile says so, before she spends a tap ────────────
+    expect(
+      screen.shows('Déjà dans ma vitrine'),
+      'the grid offers a product she already has with no mark on it',
+    ).toBe(true);
+
+    // ── ON THE FICHE: no second « Ajouter », and a way forward ────────────
+    await screen.press('Bazin riche');
+    expect(
+      screen.shows('Ce produit est déjà dans votre vitrine.'),
+      'the fiche must say what is true before it offers anything',
+    ).toBe(true);
+    expect(
+      screen.canPress('Ajouter à ma vitrine'),
+      'a second « Ajouter » is a button whose only outcome is a no-op the service answers idempotent',
+    ).toBe(false);
+
+    // …and she can REACH THE NEXT STEP — the four questions, this one.
+    expect(screen.canPress('Voir dans ma vitrine')).toBe(true);
+    await screen.press('Voir dans ma vitrine');
+    expect(screen.shows('Bazin riche'), 'the way in must land her on the product').toBe(true);
+
+    // NOTHING WAS PUBLISHED by any of that.
+    expect(w.calls.some((c) => c.path === '/listings'), 'no write may leave this screen').toBe(false);
+    screen.unmount();
+  });
+
+  it('a product she has NOT added still adds in one tap — the mark closes no door', async () => {
+    // The other half, and the one that keeps the fix honest: the guard must
+    // not swallow the main flow it sits in front of.
+    const svc = service({ offers: [PV_A, PV_B], curated: [PV_A] });
+    const w = wire([
+      (path) => (path === '/listings' ? { status: 200, json: { status: 'published' } } : null),
+      ...svc.routes,
+    ]);
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    await screen.press('Sac en cuir');
+
+    expect(screen.canPress('Ajouter à ma vitrine'), 'the product she does not have must still be addable').toBe(true);
+    await screen.press('Ajouter à ma vitrine');
+
+    const published = w.calls.filter((c) => c.path === '/listings');
+    expect(published, 'the tap never reached the service').toHaveLength(1);
+    expect(published[0]?.body?.['productVersionId']).toBe(PV_B);
+    screen.unmount();
+  });
+});
+
+describe("DÉJÀ-DANS-MA-VITRINE — the founder's own sequence, in one session", () => {
+  it('she ADDS a product, returns to Opportunités, and it is marked — no second add offered', async () => {
+    /**
+     * HIS WORDS, EXACTLY: « when i add a product on ma vitrine, it still shows
+     * on opportunites the option the add the same product ». The walk above
+     * seeds a shop that already holds it; THIS one earns it the way he does —
+     * by tapping « Ajouter à ma vitrine » — because the two are different code
+     * paths. Membership after a publish comes from a shop the app must RE-READ:
+     * if it does not, the mark is right for a shop she reopens and wrong for
+     * the one she is standing in, which is the half he would have hit first.
+     *
+     * THE PUBLISH ROUTE APPENDS TO `curatedItems`, because the real Worker does:
+     * verified in miniflare against `dist/worker/worker.mjs` — publish 200
+     * `{"status":"published"}` and the shop reads `["pv-…"]` immediately after.
+     */
+    const svc = service({ offers: [PV_A, PV_B], curated: [] });
+    const w = wire([
+      (path, body) => {
+        if (path !== '/listings') return null;
+        const pid = typeof body?.['productVersionId'] === 'string' ? (body['productVersionId'] as string) : '';
+        if (!svc.state.curated.includes(pid)) svc.state.curated.push(pid);
+        return { status: 200, json: { status: 'published' } };
+      },
+      ...svc.routes,
+    ]);
+    const screen = await mountApp();
+
+    await screen.press('Opportunités');
+    expect(screen.shows('Déjà dans ma vitrine'), 'nothing is hers yet').toBe(false);
+    await screen.press('Bazin riche');
+    await screen.press('Ajouter à ma vitrine');
+    await screen.settle();
+
+    expect(w.calls.some((c) => c.path === '/listings'), 'the add never reached the service').toBe(true);
+
+    // …and back on Opportunités, the product she just added says so.
+    await screen.press('Opportunités');
+    await screen.settle();
+    expect(
+      screen.shows('Déjà dans ma vitrine'),
+      'the product she added THIS SESSION still offers to be added again',
+    ).toBe(true);
+
+    // Her fiche agrees — this is the tap he actually makes twice.
+    await screen.press('Bazin riche');
+    expect(screen.canPress('Ajouter à ma vitrine'), 'a second add is still on offer').toBe(false);
+    expect(screen.shows('Ce produit est déjà dans votre vitrine.')).toBe(true);
+    screen.unmount();
+  });
+});

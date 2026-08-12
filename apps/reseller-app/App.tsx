@@ -764,6 +764,38 @@ export default function App() {
   const vitrineLive: readonly string[] =
     liveStorefront === undefined ? vitrineCol.listings() : (liveStorefront?.curatedItems ?? []);
   const vitrineOffers = offers.filter((o) => vitrineLive.includes(o.productVersionId));
+  /**
+   * ═══ DÉJÀ-DANS-MA-VITRINE (founder, 2026-08-12) — ONE MEMBERSHIP, BOTH SCREENS ═══
+   *
+   * « when i add a product on ma vitrine, it still shows on opportunites the
+   * option the add the same product on ma vitrine instead of displaying this
+   * product is already added. »
+   *
+   * He is right, and the second half of the sentence is the part that matters.
+   * The membership was already computed — `vitrineLive`, one line up, the same
+   * `curatedItems` Ma Vitrine reads — and Opportunités simply never asked it.
+   * The CTA's only gate was « is the service reachable », so a product she had
+   * just added kept offering to be added.
+   *
+   * AND THE SECOND TAP WAS NOT HARMLESS. Verified against the real Worker
+   * (miniflare, `decidePublish`): the command id is DERIVED from the listing id,
+   * so a re-publish answers `200 {"status":"idempotent"}` and returns the
+   * ORIGINAL listing — `markup: 0, version: 1` — while the app read that 200 as
+   * success and toasted « C'est ajouté à votre vitrine. » So if she moved the
+   * marge and tapped again, the screen told her a marge that HER CLIENTE WILL
+   * NEVER BE CHARGED. A button whose only outcome is a silent no-op with a
+   * success message over it is the fabricated-success shape this project
+   * refuses everywhere else.
+   *
+   * NAMED, NOT FIXED HERE: there is no re-price path at all. `publishListing`
+   * is the ONLY call that carries a markup and the service has no route to
+   * change one, so a published marge is frozen at its first value — which makes
+   * Ma Vitrine's marge slider a control that moves numbers on screen and signs
+   * nothing. That is a money-truth decision for the founder (what happens to a
+   * cliente holding the old price), not something to invent inside a screen fix.
+   * Journalled and reported; this fix removes the trap, it does not open the door.
+   */
+  const dejaDansVitrine = (pid: string): boolean => vitrineLive.includes(pid);
   const ficheOpp = world.opportunities.find((o) => o.id === ficheId);
   const shareOpp = world.opportunities.find((o) => o.id === shareId);
   // RESELLER-UX-1 item 5 — THE SHARE LOOKUP JOINS THE LIVE KEYSPACE. `shareId` is a
@@ -1357,6 +1389,13 @@ export default function App() {
                           {/* Honest stock: a zero-stock offer says so on the tile, before
                               she invests a tap (the wire's `available`, stated not styled). */}
                           {item.available === 0 && <StatusChip tone="muted" label={t('opportunites.epuise')} />}
+                          {/* DÉJÀ-DANS-MA-VITRINE — said on the TILE, before she spends
+                              a tap on a fiche that can only tell her the same thing.
+                              Same chip family as « épuisé »: a fact about this product,
+                              stated rather than styled. */}
+                          {dejaDansVitrine(item.productVersionId) && (
+                            <StatusChip tone="ok" label={t('opportunites.deja')} />
+                          )}
                         </View>
                       </Pressable>
                     ))}
@@ -1478,11 +1517,19 @@ export default function App() {
                     <Overline>{t('fiche.prix_base')}</Overline>
                     <Text style={styles.margeAmount}>{formatFcfa(opp.basePrice)}</Text>
                   </View>
-                  <MarkupControl
-                    value={viewOfOffer(opp).markup}
-                    cap={viewOfOffer(opp).cap}
-                    onChange={(m) => setMarkups((prev) => ({ ...prev, [opp.productVersionId]: m }))}
-                  />
+                  {/* THE MARGE CONTROL IS FOR A PRODUCT SHE HAS NOT ADDED YET.
+                      Once published, the signed marge cannot be changed — the
+                      service has no re-price route and a re-publish answers
+                      `idempotent` — so a slider here would move her cliente's
+                      price on screen and nowhere else. It is not shown rather
+                      than shown-and-dead. */}
+                  {dejaDansVitrine(opp.productVersionId) ? null : (
+                    <MarkupControl
+                      value={viewOfOffer(opp).markup}
+                      cap={viewOfOffer(opp).cap}
+                      onChange={(m) => setMarkups((prev) => ({ ...prev, [opp.productVersionId]: m }))}
+                    />
+                  )}
                   <View style={styles.margeHeadRow}>
                     <Overline>{t('fiche.prix_cliente')}</Overline>
                     <Text style={styles.margeAmount}>{formatFcfa(viewOfOffer(opp).client)}</Text>
@@ -1493,22 +1540,36 @@ export default function App() {
                   <StatusChip tone="muted" label={t('fiche.chip_inspection')} />
                   <StatusChip tone="muted" label={t('fiche.chip_refus')} />
                 </View>
-                <PrimaryButton
-                  label={t('fiche.cta')}
-                  // ONE HONEST GATE (RESELLER-UX-2, founder walk item 2 — « the
-                  // button was dead on arrival »): no seam ⇒ no write is possible,
-                  // so the button must not pretend. The old second gate (slider
-                  // untouched) is retired WITH its reason: the default it guarded
-                  // against is now 0, so an on-arrival publish signs the lowest
-                  // cliente price and pays her the commission net — a safe act.
-                  disabled={service === null || publishing}
-                  onPress={() => void publishListing(opp)}
-                />
-                {/* The reason the button is asleep, stated plainly — never a dead
-                    control the user has to guess about. */}
-                {service === null ? (
-                  <Text style={styles.noteLine}>{t('fiche.cta_non_relie')}</Text>
-                ) : null}
+                {/* DÉJÀ-DANS-MA-VITRINE — the fiche of a product she already has
+                    offers the way IN, never a second add. The state is said first
+                    (« c'est déjà à vous »), then the one action that is true here:
+                    go and see it. Same rule as everywhere on this app — one primary
+                    action per screen, and it must be one that can succeed. */}
+                {dejaDansVitrine(opp.productVersionId) ? (
+                  <>
+                    <Text style={styles.noteLine}>{t('fiche.deja')}</Text>
+                    <PrimaryButton label={t('fiche.cta_voir')} onPress={() => toHub('vitrine')} />
+                  </>
+                ) : (
+                  <>
+                    <PrimaryButton
+                      label={t('fiche.cta')}
+                      // ONE HONEST GATE (RESELLER-UX-2, founder walk item 2 — « the
+                      // button was dead on arrival »): no seam ⇒ no write is possible,
+                      // so the button must not pretend. The old second gate (slider
+                      // untouched) is retired WITH its reason: the default it guarded
+                      // against is now 0, so an on-arrival publish signs the lowest
+                      // cliente price and pays her the commission net — a safe act.
+                      disabled={service === null || publishing}
+                      onPress={() => void publishListing(opp)}
+                    />
+                    {/* The reason the button is asleep, stated plainly — never a dead
+                        control the user has to guess about. */}
+                    {service === null ? (
+                      <Text style={styles.noteLine}>{t('fiche.cta_non_relie')}</Text>
+                    ) : null}
+                  </>
+                )}
               </ScrollView>
             );
           })(ficheOffer)}

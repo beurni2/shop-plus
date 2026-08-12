@@ -786,6 +786,18 @@
   "screenClass": "label"
  },
  {
+  "key": "fiche.cta_voir",
+  "fr": "Voir dans ma vitrine",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.deja",
+  "fr": "Ce produit est déjà dans votre vitrine.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
   "key": "fiche.ajoutee_toast",
   "fr": "Produit ajouté à votre vitrine",
   "register": "selling",
@@ -3194,6 +3206,12 @@
  {
   "key": "opportunites.epuise",
   "fr": "Épuisé pour le moment",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "opportunites.deja",
+  "fr": "Déjà dans ma vitrine",
   "register": "neutral",
   "screenClass": "status"
  },
