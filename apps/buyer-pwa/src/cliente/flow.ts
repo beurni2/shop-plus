@@ -1681,13 +1681,36 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         // the fetch goes out in the generation the jump opens.
         jump('C9');
         demanderLeCode();
+        // ═══ THE WATCH FOLLOWS HER TO C9 (verifier MAJOR, 2026-08-12) ═══
+        //
+        // C9 is where she IS at the moment the delivery is proven: the rider is
+        // at the door, she has opened her code to show him. `jump` bumps the
+        // generation and kills the delivery watch, and nothing restarted it
+        // here — so the rider took the remise, the server set `livree`, and her
+        // screen went on showing the code for ever. She only ever reached the
+        // closing screen by pressing back to C7 first, which is a road she has
+        // no reason to take while holding her phone up to a stranger.
+        //
+        // The watch's own rule does the rest: when it proves `livree` it jumps
+        // to C10 from wherever it is running.
+        demarrerSuivi();
         return;
       case 'verifier-code':
         demanderLeCode();
         return;
       case 'verifier-suivi': {
-        // ONE read, on her word, after the automatic ones stopped — the C6
-        // « Vérifier à nouveau » shape: it does not restart the schedule.
+        // CURRENTLY UNREACHABLE, and said so rather than left to look live
+        // (verifier MAJOR, 2026-08-12). `suiviRelance` is never set true any
+        // more: SUIVI-VIVANT made the delivery ladder HOLD instead of running
+        // out, and deleted the one assignment that raised this flag. So
+        // `renderC7` never emits this action and nothing can dispatch it.
+        //
+        // KEPT, not deleted, for one reason: the renderer's relance branch is
+        // still there, and a handler-less action is worse than a dead one — the
+        // day anything sets the flag again, a tap must not fall through to
+        // nothing. The comment that used to sit here claimed « it does not
+        // restart the schedule », which was false twice over: it would resume at
+        // the held 20 s rung, and it cannot run at all.
         const id = state.orderId;
         if (id === null) return;
         state.suiviRelance = false;
@@ -1721,6 +1744,16 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         state.codeRemise = null;
         state.suiviRelance = false;
         state.suiviHorsPortee = false;
+        // `problem` IS THE ONE THAT COULD STRAND HER NEXT ORDER (verifier
+        // BLOCKER, 2026-08-12). Nothing else in this module ever clears it. If
+        // she reported a problem on THIS order and the delivery completed
+        // anyway, the flag rode through « Terminer » into her next checkout —
+        // where `renderC7` withholds BOTH « Je suis à la porte » and « Voir mon
+        // code » on `!s.problem`, and prints « Problème signalé » over an order
+        // that has none. She could not open her drop code and could not pay at
+        // the door. That road exists only because this reset opened C1 as a
+        // destination, so closing it belongs here.
+        state.problem = false;
         jump('C1');
         return;
       }

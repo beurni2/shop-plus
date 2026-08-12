@@ -1104,9 +1104,15 @@ test('VRAI-SUIVI · the timeline advances on server facts alone, and the code ar
   await expect(page.locator('.cl-tl-t-now')).toHaveText('À votre porte');
   await expect(page.locator('[data-action="simuler"]')).toHaveCount(0);
   await page.locator('[data-action="voir-code"]').click();
-  await page.locator('[data-role="code-revele"]').waitFor({ timeout: 10_000 });
+  // ═══ THE WATCH FOLLOWS HER TO C9 (verifier MAJOR, fixed 2026-08-12) ═══
+  //
+  // This scenario's service already reports the remise, so the moment C9 opens
+  // its watch it proves `livree` and she is carried to the closing screen. That
+  // is the fix: before it, opening the code KILLED the watch, so a buyer holding
+  // her phone up to the rider at the door — which is exactly where she is here —
+  // watched the code for ever while the delivery completed behind her.
+  await page.locator('[data-screen="C10"]').waitFor({ timeout: 10_000 });
   const avecCode = (await stage(page)).replace(/\s+/g, ' ');
-  expect(avecCode).toContain('123 456');
   expect(avecCode, 'the demo constant leaked onto the real path').not.toContain('734 921');
   // …fetched from the remise route, under HER bearer ref.
   expect(wire.remises.length).toBeGreaterThan(0);
@@ -1119,8 +1125,9 @@ test('VRAI-SUIVI · the timeline advances on server facts alone, and the code ar
   // « Remise » with a dismiss button bolted on; a delivered order now leaves the
   // waiting screen entirely, which is the whole change, so the timeline element
   // is GONE rather than merely at its last step.
-  await page.locator('[data-action="retour-c7"]').click();
-  await page.locator('[data-screen="C10"]').waitFor({ timeout: 15_000 });
+  // She is ALREADY here — carried from C9 by the watch — so there is no
+  // navigation left to do. The timeline element is GONE, not merely at its last
+  // step: a delivered order leaves the waiting screen entirely.
   await expect(page.locator('.cl-tl-t-now')).toHaveCount(0);
   const merci = (await stage(page)).replace(/\s+/g, ' ');
   expect(merci, 'it says what happened, not only thank you').toContain('livrée');
