@@ -1308,6 +1308,63 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
  * These cases give the Worker a producer that FAILS, and a Worker with no
  * producer at all, and drive a real door request at each.
  */
+describe('POLITIQUE-AU-QUOTE — the admitting policy rides the quote off the REAL worker', () => {
+  /**
+   * The issuer-level pin lives in commerce-core; this is the seam question it
+   * cannot answer: does the version survive `QuoteSchema.parse`, the durable
+   * put, and the HTTP boundary — and does it reach the buyer\'s response at all?
+   *
+   * It rides the QUOTE, which is not ops detail: the buyer already receives the
+   * quote she is being asked to pay. What must never leak is the §6.1 REFUSAL
+   * detail, and that is asserted elsewhere and unchanged.
+   */
+  it('a door quote issued over HTTP carries the shipped policy version; a prepaid quote carries none', async () => {
+    const { slug, resellerId, pid } = await seedShop('0061', 2_000);
+    const base = { slug, pid, zoneTo: 'Ouagadougou', attributionResellerId: resellerId };
+
+    const door = await postQuote({
+      ...base,
+      paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+      requestKey: freshKey(),
+    });
+    expect(door.status, door.text).toBe(200);
+
+    /**
+     * THE BUYER'S RESPONSE MUST NOT CARRY IT, and that is not a gap — it is
+     * `toBuyerQuoteView`'s allowlist doing its job. The audit record lives on
+     * the STORED quote, which is what a dispute reads; the buyer receives eight
+     * money fields and nothing else. Both halves are asserted here so neither
+     * can drift into the other.
+     */
+    expect(door.json['policyVersions'], 'the §6.1 record reached the buyer wire').toBeUndefined();
+
+    // ASK THE DURABLE RECORD, not the response. `QUOTE_BYTES` is the canonical
+    // serialisation of the whole quote — the same bytes an order later carries.
+    const ns = await mf.getDurableObjectNamespace('CHECKOUT');
+    const stub = ns.get(ns.idFromName(door.json['quoteId'] as string));
+    const stored = await stub.fetch('https://do/entry');
+    const body = (await stored.json()) as { ok: boolean; quote?: { policyVersions?: Record<string, unknown> } };
+    expect(body.ok, JSON.stringify(body)).toBe(true);
+    expect(
+      body.quote?.policyVersions?.['payAtDoorPolicyVersion'],
+      'the admitted door quote recorded no policy — a dispute cannot say which rules let it through',
+    ).toBe('option-b-policy.v2-ouvert-a-tous');
+
+    // …and a PREPAID quote's durable record carries none: no door gate was consulted.
+    const prepay = await postQuote({ ...base, paymentMode: 'FULL_PREPAY', requestKey: freshKey() });
+    expect(prepay.status, prepay.text).toBe(200);
+    const nsP = await mf.getDurableObjectNamespace('CHECKOUT');
+    const stubP = nsP.get(nsP.idFromName(prepay.json['quoteId'] as string));
+    const storedP = (await (await stubP.fetch('https://do/entry')).json()) as {
+      quote?: { policyVersions?: Record<string, unknown> };
+    };
+    expect(
+      storedP.quote?.policyVersions?.['payAtDoorPolicyVersion'],
+      'a prepaid quote was stamped with a door decision nobody took',
+    ).toBeUndefined();
+  });
+});
+
 describe('CheckoutDO — a supply read that FAILS no longer costs her the door, and still never invents a seller', () => {
   /** A Worker whose OFFER answers the publish read (so a listing can exist) and
    *  then breaks for the CHECKOUT read. `mode` picks how it breaks. */

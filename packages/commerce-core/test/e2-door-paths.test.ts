@@ -669,3 +669,75 @@ describe('A HALF-WRITTEN POLICY FAILS CLOSED — measured, not asserted in a com
     }
   });
 });
+
+
+describe('POLITIQUE-AU-QUOTE — an admitted door quote records the policy that admitted it', () => {
+  /**
+   * Founder authorisation, 2026-08-12. Until this, `decidePayAtDoorEligibility`
+   * returned its version and `issueQuote` read it ONLY on the refusal branch —
+   * so an admitted door order held no record of the rules that admitted it, and
+   * a dispute could not tell a v1 order from a v2-ouvert-a-tous one.
+   *
+   * The schema key is OPTIONAL (old quotes stay canon), so « every door quote
+   * carries it » is a rule about the ISSUER. This is where that rule lives.
+   */
+  /** A door request judged by the SHIPPED policy — `policy` omitted, so
+   *  `issueQuote` falls to `PAY_AT_DOOR_POLICY_DEFAULTS` exactly as the Worker does. */
+  const issueDoorQuote = (policy?: unknown) =>
+    issueQuote(deps(), {
+      listingRef: 'lst-pv',
+      offerRef: 'offer-pv',
+      attributionResellerId: 'reseller-pv',
+      ...WORKED_BASELINE_INPUT,
+      paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+      payAtDoor: { ...GATE_CONTEXT, ...(policy !== undefined ? { policy } : {}) },
+      nowIso: T,
+    } as Parameters<typeof issueQuote>[1]);
+
+  /** The same basket, prepaid — no door gate is consulted at all. */
+  const issuePrepayQuote = () =>
+    issueQuote(deps(), {
+      listingRef: 'lst-pv',
+      offerRef: 'offer-pv',
+      attributionResellerId: 'reseller-pv',
+      ...WORKED_BASELINE_INPUT,
+      paymentMode: 'FULL_PREPAY',
+      nowIso: T,
+    } as Parameters<typeof issueQuote>[1]);
+
+  it('an OPTION-B quote names the shipped policy version', () => {
+    const out = issueDoorQuote();
+    if (!out.ok) throw new Error(`expected an issued quote, got ${out.reason}`);
+    expect(out.quote.policyVersions.payAtDoorPolicyVersion).toBe(PAY_AT_DOOR_POLICY_DEFAULTS.version);
+  });
+
+  it('it names the policy that ACTUALLY judged it — not the shipped default, when a tuned one is passed', () => {
+    // The distinction that makes the record worth having: re-tighten, and the
+    // quotes issued afterwards say so. A stamp that always printed the default
+    // would be decoration.
+    const out = issueDoorQuote(POLITIQUE_V1);
+    if (!out.ok) throw new Error(`expected an issued quote, got ${out.reason}`);
+    expect(out.quote.policyVersions.payAtDoorPolicyVersion).toBe(POLITIQUE_V1.version);
+    expect(out.quote.policyVersions.payAtDoorPolicyVersion).not.toBe(PAY_AT_DOOR_POLICY_DEFAULTS.version);
+  });
+
+  it('a FULL_PREPAY quote carries NO version — it passed through no door gate', () => {
+    const out = issuePrepayQuote();
+    if (!out.ok) throw new Error(`expected an issued quote, got ${out.reason}`);
+    expect(out.quote.policyVersions.payAtDoorPolicyVersion).toBeUndefined();
+    // …and the two carriers that were always there are untouched.
+    expect(out.quote.policyVersions.settlementPolicyVersion).toBe('e1-sandbox');
+    expect(out.quote.policyVersions.inspectionPolicyVersion).toBe('e1-sandbox');
+  });
+
+  it('the quote still RECONCILES with the key on it — the record is not money', () => {
+    const out = issueDoorQuote();
+    if (!out.ok) throw new Error('expected an issued quote');
+    const q = out.quote;
+    expect(q.productSubtotal).toBe(q.sellerBasePrice + q.resellerMarkup);
+    expect(q.buyerTotal).toBe(q.productSubtotal + q.deliveryFee);
+    expect(q.amountPaidAtCheckout + q.amountDueAtDelivery).toBe(q.buyerTotal);
+    expect(q.amountPaidAtCheckout).toBe(q.deliveryFee);
+    expect(q.amountDueAtDelivery).toBe(q.productSubtotal);
+  });
+});

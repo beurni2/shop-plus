@@ -97,6 +97,22 @@ export function issueQuote(deps: QuoteIssuanceDeps, input: QuoteIssuanceInput): 
     paymentMode: input.paymentMode,
   });
 
+  /**
+   * WHICH §6.1 POLICY ADMITTED THIS QUOTE (founder authorisation 2026-08-12).
+   *
+   * The refusal path has always carried the version as ops detail; the ELIGIBLE
+   * path computed it and dropped it, so an admitted door order recorded nothing
+   * about the rules that let it through. A dispute months later could not tell
+   * an order admitted under the 25 000 FCFA / verified-seller policy from one
+   * admitted under `v2-ouvert-a-tous`, and a re-tightening could not be dated —
+   * which is the audit trail the tunable sentinels were kept for.
+   *
+   * `undefined` for FULL_PREPAY, and that is not an omission: a prepaid quote
+   * passes through no door gate, so stamping a version on it would name a
+   * decision nobody took.
+   */
+  let policyAuPorte: string | undefined;
+
   if (input.paymentMode === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') {
     // §6.1 gate, evaluated at quote — FAILS CLOSED on missing context.
     const policy = input.payAtDoor?.policy ?? PAY_AT_DOOR_POLICY_DEFAULTS;
@@ -127,6 +143,10 @@ export function issueQuote(deps: QuoteIssuanceDeps, input: QuoteIssuanceInput): 
         policyVersion: decision.policyVersion,
       };
     }
+    // ADMITTED — and now it is recorded, from the decision itself rather than
+    // from the policy we happened to pass in, so the quote names what actually
+    // judged it.
+    policyAuPorte = decision.policyVersion;
   }
 
   const issuedAt = deps.now();
@@ -141,6 +161,7 @@ export function issueQuote(deps: QuoteIssuanceDeps, input: QuoteIssuanceInput): 
     policyVersions: {
       settlementPolicyVersion: 'e1-sandbox',
       inspectionPolicyVersion: 'e1-sandbox',
+      ...(policyAuPorte !== undefined ? { payAtDoorPolicyVersion: policyAuPorte } : {}),
     },
     expiry: new Date(issuedAt.getTime() + QUOTE_TTL_MS).toISOString(),
   });

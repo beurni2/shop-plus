@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#be2199c95d27e6ae5f6c7381c12e18a9796d9800&path:packages/ui-tokens",
+    "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#a418ca4ba5521d3f50ccf7c8abb538525a6ecc32&path:packages/ui-tokens",
     "@shop-plus/reseller-money": "workspace:*",
     "expo": "~54.0.35",
     "expo-video": "~3.0.16",
@@ -31,8 +31,8 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
-    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#a45047e1f988d2bdef1a6d2575af80abda24d011&path:packages/contracts",
-    "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#199bc2ab172dbbf93b446af35445e17f5a0f3f35&path:packages/i18n",
+    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#a418ca4ba5521d3f50ccf7c8abb538525a6ecc32&path:packages/contracts",
+    "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#a418ca4ba5521d3f50ccf7c8abb538525a6ecc32&path:packages/i18n",
     "@shop-plus/commerce-core": "workspace:*",
     "@types/react": "~19.1.0",
     "@types/react-test-renderer": "^19.1.0",
