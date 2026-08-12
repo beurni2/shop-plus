@@ -681,6 +681,18 @@ export const CLIENTE_STYLES = `
   .cl-code-kept { margin-top: 20px; display: flex; align-items: center; gap: 8px; padding: 11px 15px; border-radius: 14px; background: #F1E7D3; color: #4A3F33; font-size: 12.5px; font-weight: 600; }
   .cl-code-kept svg { flex: none; }
 
+  /* ══ C10 — merci (founder 2026-08-12: « close nicely … a thank you screen ») ══
+     Borrowed wholesale from the C9 proof block's vocabulary — the same warm
+     sand, the same radii, the same measure — because this is the same moment
+     seen from the other side, and a bespoke look here would read as a
+     different app congratulating her. Centred, generous, one CTA. */
+  .cl-merci { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 34px 20px 26px; }
+  .cl-merci-sceau { display: flex; align-items: center; justify-content: center; width: 68px; height: 68px; border-radius: 999px; background: #F1E7D3; color: #2F6B4F; }
+  .cl-merci-titre { margin-top: 18px; font-weight: 800; font-size: 26px; letter-spacing: -.01em; }
+  .cl-merci-corps { margin-top: 10px; font-size: 15px; line-height: 1.6; color: #4A3F33; max-width: 290px; }
+  .cl-merci-preuve { margin-top: 18px; padding: 11px 15px; border-radius: 14px; background: #F1E7D3; color: #4A3F33; font-size: 12.5px; font-weight: 600; }
+  .cl-merci .cl-cta { margin-top: 26px; width: 100%; }
+
   /* ══ C2 — sheet protections ══ */
   .cl-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(24,18,11,.45); display: flex; align-items: flex-end; }
   @media (prefers-reduced-motion: no-preference) { .cl-scrim { animation: clFade .2s ease; } }

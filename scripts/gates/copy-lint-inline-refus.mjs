@@ -212,6 +212,13 @@ const SUIVI_FIELDS = {
   c9Attente: { screenClass: 'checkout', fills: [] },
   c9Arrivee: { screenClass: 'status', fills: [] },
   codeDemo: { screenClass: 'label', fills: [] },
+  // C10 « merci » — the end of a delivery (founder 2026-08-12). The body and
+  // the proof line are `status`: they state what happened. Title and CTA are
+  // labels. Nothing here carries an amount, so no fills.
+  merciTitre: { screenClass: 'label', fills: [] },
+  merciCorps: { screenClass: 'status', fills: [] },
+  merciPreuve: { screenClass: 'status', fills: [] },
+  merciFermer: { screenClass: 'label', fills: [] },
 };
 
 /**

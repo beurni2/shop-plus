@@ -6,7 +6,7 @@ import {
   type QuotePort,
 } from '../src/cliente/quote-port';
 import {
-  CODE_REMISE, SUIVI, SUIVI_STEPS, codeAffiche, etapeDeSuivi, renderC7, renderC9,
+  CODE_REMISE, SUIVI, SUIVI_STEPS, codeAffiche, etapeDeSuivi, renderC10, renderC7, renderC9,
 } from '../src/cliente/screens';
 import { SUIVI_LIVRAISON_MS, SUIVI_PAIEMENT_MS, attenteLivraison } from '../src/cliente/flow';
 
@@ -419,5 +419,41 @@ describe('suivi de livraison — the ladder ramps, then holds, and never runs ou
     // The distinction the bug erased: the payment watch is allowed to be eager
     // because it ends in seconds. This one runs for the length of a delivery.
     expect(attenteLivraison(99)).toBeGreaterThanOrEqual(SUIVI_PAIEMENT_MS[SUIVI_PAIEMENT_MS.length - 1]!);
+  });
+});
+
+/**
+ * ═══ C10 « MERCI » — the delivery ENDS, on screen (founder, 2026-08-12) ═══
+ *
+ * « once delivery and everything is confirmé on the buyer's payment pwa … make
+ * it close nicely and return to the initial state … and a thank you screen for
+ * buyer's pwa. »
+ *
+ * WHAT IT REPLACED: when `livree` landed, C7 stayed exactly where it was — a
+ * six-step timeline — and grew a « C'est terminé » button. The order was over
+ * and the screen still read as one being waited for.
+ */
+describe('C10 — the thank-you screen', () => {
+  it('says what happened before it says thank you, and offers ONE action', () => {
+    const html = renderC10();
+    expect(html).toContain('data-screen="C10"');
+    // The FACT, not just the warmth — a thank-you that never names what it is
+    // thanking her for is decoration.
+    expect(html).toContain('livrée');
+    expect(html).toContain(SUIVI.merciTitre);
+    // The reassurance the screen provokes: closing it does not close the proof.
+    expect(html).toContain(SUIVI.merciPreuve);
+    // ONE primary action (§5), wired to the act that forgets the order.
+    expect(html).toContain('data-action="suivi-terminer"');
+    const actions = html.match(/data-action="/g) ?? [];
+    expect(actions, 'exactly one action on the closing screen').toHaveLength(1);
+  });
+
+  it('carries NO step timeline — the waiting screen is over', () => {
+    // The defect this closes: a finished order rendered as a thing in progress.
+    const html = renderC10();
+    for (const mot of ['data-screen="C7"', SUIVI.verifier, SUIVI.voirCode]) {
+      expect(html, `${mot} belongs to the waiting screen, not the ending`).not.toContain(mot);
+    }
   });
 });

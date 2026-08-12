@@ -21,7 +21,7 @@
 
 import { applyTheme, type VitrineThemeKey } from '../vitrine/themes';
 import {
-  renderC1, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
+  renderC1, renderC10, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
   renderGalerie, renderOffline, renderRefus, renderSheet, renderSkeleton, renderToasts,
   galerieSlides,
   etapeDeSuivi,
@@ -46,7 +46,7 @@ import { prixExpire, type OrderFetch, type QuoteFetch, type RemiseFetch, type Re
 import { garderCommande, localStorageOrUndefined, oublierCommande, type ServerOrder } from './quote-port';
 import { creerEnregistreurNote, type EnregistreurNote, type NoteEnregistree } from './voice-note';
 
-export type ClienteEcran = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9';
+export type ClienteEcran = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9' | 'C10';
 /** C2 is the protections SHEET, not a linear stop — mounting at C2 opens the
  * sheet over C1 (PWA-CLEANUP-1 §5: the reachability gate covers every screen,
  * C2 included). The linear machine walks the pixel's 8-screen list. */
@@ -764,6 +764,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
             ? undefined
             : splitFor(q, state.delivery ?? 'today', state.pay)?.dueAtDelivery,
         });
+      case 'C10':
+        // The end of the road. It takes no state: everything it says is true of
+        // any finished delivery, and a finished order must not depend on a read.
+        return renderC10();
       case 'C9': {
         if (reel) {
           /**
@@ -1117,8 +1121,14 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         // now, so « Voir mon code » opens on the figure and not on a spinner.
         if (state.marques.arrivedAt !== undefined && state.codeRemise === null) demanderLeCode();
         if (state.livree) {
+          // ═══ THE DELIVERY IS PROVEN ⇒ THE SCREEN ENDS (founder 2026-08-12) ══
+          //
+          // It used to stay on C7 — a six-step timeline with a « C'est terminé »
+          // button bolted on — so a finished order still read as one being
+          // waited for. `jump` bumps the generation, which also stops this watch
+          // for good: a finished order costs her no further read.
           state.suiviRelance = false;
-          render();
+          jump('C10');
           return;
         }
       }
@@ -1682,20 +1692,38 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         if (id === null) return;
         state.suiviRelance = false;
         render();
-        suivreLaLivraison(id, generation, SUIVI_PAIEMENT_MS.length);
+        suivreLaLivraison(id, generation, SUIVI_LIVRAISON_MS.length);
         return;
       }
-      case 'suivi-terminer':
-        // « C'est terminé » — the phone forgets the finished order. The order
-        // itself lives on the service; only the shortcut goes away.
+      case 'suivi-terminer': {
+        // « Terminer » — the phone forgets the finished order. The order itself
+        // lives on the service; only the shortcut goes away.
         oublierCommande(localStorageOrUndefined());
         state.termineeVue = true;
         if (init.onTerminee !== undefined) {
+          // A host that wants to own the ending gets it (the shell uses this to
+          // return to its own home) — unchanged.
           init.onTerminee();
           return;
         }
-        render();
+        // ═══ AND IT CLOSES (founder 2026-08-12: « make it close nicely and
+        //     return to the initial state ») ═══
+        //
+        // Without a host hook this used to `render()` — repainting the very
+        // screen she had just dismissed, so the one action on it appeared to do
+        // nothing. She goes back to the beginning, and the ORDER'S OWN STATE is
+        // cleared with her: leaving `orderId` and the marks behind would let a
+        // later screen resurrect a delivery she has finished with.
+        state.orderId = null;
+        state.buyerRef = null;
+        state.marques = {};
+        state.livree = false;
+        state.codeRemise = null;
+        state.suiviRelance = false;
+        state.suiviHorsPortee = false;
+        jump('C1');
         return;
+      }
       case 'porte':
         jump('C8', { door: 'inspecting', leg2: 'idle', reason: null }); return;
       case 'signaler-c7':

@@ -1112,12 +1112,23 @@ test('VRAI-SUIVI · the timeline advances on server facts alone, and the code ar
   expect(wire.remises.length).toBeGreaterThan(0);
   expect(wire.remises[0]!.auth).toBe(`Bearer ${BUYER_REF}`);
 
-  // Back on the tracking, the last fact lands: remise — step 6, terminal.
+  // Back on the tracking, the last fact lands — and the screen ENDS on it.
+  //
+  // C10 « merci » (founder 2026-08-12: « make it close nicely … and a thank you
+  // screen for buyer's pwa »). This used to assert the C7 timeline sitting at
+  // « Remise » with a dismiss button bolted on; a delivered order now leaves the
+  // waiting screen entirely, which is the whole change, so the timeline element
+  // is GONE rather than merely at its last step.
   await page.locator('[data-action="retour-c7"]').click();
-  await expect(page.locator('.cl-tl-t-now')).toHaveText('Remise', { timeout: 15_000 });
-  // « C'est terminé » — the phone forgets the finished order.
+  await page.locator('[data-screen="C10"]').waitFor({ timeout: 15_000 });
+  await expect(page.locator('.cl-tl-t-now')).toHaveCount(0);
+  const merci = (await stage(page)).replace(/\s+/g, ' ');
+  expect(merci, 'it says what happened, not only thank you').toContain('livrée');
+  // …and the one action closes it: the phone forgets the finished order and she
+  // is returned to the beginning rather than left on a screen she dismissed.
   await page.locator('[data-action="suivi-terminer"]').click();
   expect(await page.evaluate(() => localStorage.getItem('sp-commande:v1'))).toBeNull();
+  await page.locator('[data-screen="C1"]').waitFor({ timeout: 10_000 });
 });
 
 test('VRAI-SUIVI · re-entry — « Ma commande » reopens the REAL tracking of the stored order', async ({ page }) => {

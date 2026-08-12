@@ -210,6 +210,17 @@ export const SUIVI = {
   c9Arrivee: 'Le livreur est là. Votre code arrive dans un instant.',
   /** The demo C9's code is a demonstration, and says so. */
   codeDemo: 'Code de démonstration',
+  /* ── C10 « merci », the end of a delivery (founder, 2026-08-12) ───────── */
+  /** The title. Warm and short — she has her parcel and is done reading. */
+  merciTitre: 'Merci !',
+  /** WHAT HAPPENED, stated as fact, because a thank-you that does not say what
+   *  it is thanking her for is decoration. */
+  merciCorps: 'Votre commande est livrée. Nous espérons qu’elle vous plaît.',
+  /** The reassurance she may need tomorrow: the proof is not lost with this
+   *  screen — it stays with the order on the service. */
+  merciPreuve: 'La preuve de votre livraison est gardée.',
+  /** The ONE action. It closes the order and gives the shop back. */
+  merciFermer: 'Terminer',
 } as const;
 
 /** Les 6 étapes du suivi (§4 C7) — DERIVED from the linted SUIVI table, so the
@@ -1937,6 +1948,37 @@ export function renderC9(o: {
     '<div class="cl-screen" data-screen="C9">',
     stepHead('retour-c7', 'Le code de remise'),
     body,
+    '</div>',
+  ].join('');
+}
+
+/**
+ * ═══ C10 — MERCI. The delivery is finished, and the screen says so and stops ═══
+ *
+ * Founder, 2026-08-12: « once delivery and everything is confirmé on the buyer's
+ * payment pwa … make it close nicely and return to the initial state … and a
+ * thank you screen for buyer's pwa. »
+ *
+ * WHAT IT REPLACES: C7 grew a « C'est terminé » button when `livree` landed, on
+ * a screen still laid out as a six-step timeline. The order was over and the
+ * screen still read as waiting. This is the ending it never had.
+ *
+ * §5, and the restraint is the point: ONE primary action, the fact stated
+ * plainly before any warmth, and NO confetti — « celebration with dignity ».
+ * The proof line is here because the question this screen provokes is « and if
+ * something is wrong tomorrow? »; the answer is that the order and its evidence
+ * live on the service, not in this screen she is about to close.
+ */
+export function renderC10(): string {
+  return [
+    '<div class="cl-screen" data-screen="C10">',
+    '<div class="cl-merci">',
+    `<div class="cl-merci-sceau">${iconShieldCheck(34, 1.8)}</div>`,
+    `<div class="cl-merci-titre">${SUIVI.merciTitre}</div>`,
+    `<div class="cl-merci-corps">${SUIVI.merciCorps}</div>`,
+    `<div class="cl-merci-preuve">${SUIVI.merciPreuve}</div>`,
+    `<button class="cl-cta" data-role="merci-fermer" data-action="suivi-terminer">${SUIVI.merciFermer}</button>`,
+    '</div>',
     '</div>',
   ].join('');
 }
