@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
-  COMMANDE_CLE, commandeGardee, garderCommande, httpQuotePort, oublierCommande,
-  type QuotePort,
+  COMMANDE_CLE, LECTURE_COMMANDE_TIMEOUT_MS, commandeGardee, garderCommande, httpQuotePort,
+  oublierCommande, type QuotePort,
 } from '../src/cliente/quote-port';
 import {
   CODE_REMISE, SUIVI, SUIVI_STEPS, codeAffiche, etapeDeSuivi, renderC10, renderC7, renderC9,
@@ -142,6 +142,56 @@ describe('readOrder (via the real port) — marks carried verbatim, malformed ma
     expect(sans.status).toBe('order');
     if (sans.status !== 'order') return;
     expect(sans.order.buyerRef).toBeUndefined();
+  });
+});
+
+describe('orderState — the ONE self-scheduled read is bounded in time', () => {
+  /**
+   * Shipped untested and named in the verification audit; closed here. The
+   * delivery watch schedules its next rung from this promise, so a socket that
+   * never settles used to freeze the tracking screen with no timer, no failure
+   * and nothing to press. The bound: an AbortController fires at
+   * LECTURE_COMMANDE_TIMEOUT_MS and the read answers `unreachable` — a failed
+   * read, never a failed delivery.
+   *
+   * The fake fetch below settles ONLY when its signal aborts. If the abort is
+   * ever removed, this promise never resolves and the test fails by timeout —
+   * which is exactly the frozen screen, reproduced in miniature.
+   */
+  it('a read that hangs is ABANDONED at the bound and answers unreachable', async () => {
+    vi.useFakeTimers();
+    try {
+      const pendu: typeof fetch = ((_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        })) as unknown as typeof fetch;
+      const enCours = withFetch(pendu, () => httpQuotePort('https://svc.example').orderState('ord-pendu'));
+      await vi.advanceTimersByTimeAsync(LECTURE_COMMANDE_TIMEOUT_MS);
+      expect(await enCours).toEqual({ status: 'unreachable' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a SLOW read that lands inside the bound is NOT aborted — twelve seconds is slow, not broken', async () => {
+    vi.useFakeTimers();
+    try {
+      let aborted = false;
+      const lent: typeof fetch = ((_url: string, init?: RequestInit) =>
+        new Promise((resolve) => {
+          init?.signal?.addEventListener('abort', () => {
+            aborted = true;
+          });
+          setTimeout(() => resolve(jsonRes(ORDRE_BASE)), LECTURE_COMMANDE_TIMEOUT_MS - 1_000);
+        })) as unknown as typeof fetch;
+      const enCours = withFetch(lent, () => httpQuotePort('https://svc.example').orderState('ord-lent'));
+      await vi.advanceTimersByTimeAsync(LECTURE_COMMANDE_TIMEOUT_MS + 1_000);
+      const got = await enCours;
+      expect(got.status).toBe('order');
+      expect(aborted, 'the stall timer must be CLEARED by a read that lands').toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

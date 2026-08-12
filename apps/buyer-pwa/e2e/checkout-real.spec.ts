@@ -1366,6 +1366,64 @@ test('SUIVI-VIVANT · a link that will not answer STOPS the watch and gives her 
   await expect(page.locator('[data-role="suivi-hors-portee"]')).toHaveCount(0);
 });
 
+test('SUIVI-VIVANT · « Ma commande » over a LIVE flow strands no orphan — the superseded watch stops', async ({ page }) => {
+  test.setTimeout(240_000);
+  /**
+   * THE LEAK THE TEARDOWN EXISTS FOR, driven end to end. `createCliente`
+   * registers a visibility listener and runs a watch that now holds for ever;
+   * `main.ts`'s « Ma commande » band removes the previous instance's DOM
+   * without a page reload. Before `monterCliente`, the detached instance kept
+   * polling its order every rung into a container no longer in the document —
+   * two immortal watches on one phone, on paid data. Nothing drove that road:
+   * the existing re-entry test does a full `goto`, which is a fresh document
+   * and kills the old watch for free.
+   *
+   * Here both instances share ONE document. The wire mints one order id per
+   * checkout, so the two watches are told apart by what they ask for.
+   */
+  const wire = await scriptService(page, { orderStates: ['confirmed'], marques: [{}] });
+
+  // Checkout ONE stores the order the band will reopen (ord-quote-full-1).
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+
+  // Reboot the shell: the band renders over the signed flow (instance A).
+  await page.goto(ENTRY);
+  await page.locator('[data-role="ma-commande"]').waitFor();
+
+  // Instance A buys AGAIN in the same document and tracks ord-quote-full-2.
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+  const lit2 = () => wire.orderReads.filter((id) => id === 'ord-quote-full-2').length;
+  const lit1 = () => wire.orderReads.filter((id) => id === 'ord-quote-full-1').length;
+  await expect.poll(lit2, { timeout: 20_000 }).toBeGreaterThan(0);
+
+  // She taps « Ma commande »: instance A's DOM goes, instance B mounts — SAME
+  // document, no reload. This is the exact road that used to leak.
+  await page.locator('[data-role="ma-commande"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+
+  // Instance B is ALIVE: the stored order's reads flow.
+  const avantB = lit1();
+  await expect.poll(lit1, { timeout: 20_000 }).toBeGreaterThan(avantB);
+
+  // And instance A is DEAD. One in-flight read may still land; after a settle,
+  // a 25 s window — early rungs AND the held 20 s one — must add NOTHING.
+  await page.waitForTimeout(3_000);
+  const orphelin = lit2();
+  await page.waitForTimeout(25_000);
+  expect(
+    lit2() - orphelin,
+    'the superseded instance is still polling its order — the orphan watch is back',
+  ).toBe(0);
+});
+
 test('REPERE-AUDIO-REEL · a LOST note gets its sentence — the diagnostic hole the founder hit is closed', async ({ page }) => {
   // The service says the note could not be kept (`noteVocale: 'perdue'`).
   // Before this test's line existed, NOTHING anywhere said so — the founder
