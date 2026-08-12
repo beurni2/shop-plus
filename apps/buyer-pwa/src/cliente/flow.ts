@@ -247,6 +247,43 @@ interface FlowState {
 export const SUIVI_PAIEMENT_MS: readonly number[] = [1_500, 2_500, 4_000, 6_000, 9_000, 12_000];
 
 /**
+ * ═══ THE DELIVERY IS NOT A PAYMENT, AND IT NEEDED ITS OWN CADENCE ═══
+ *
+ * Founder, 2026-08-12: « le suivi screen there is not updating in real time
+ * with product movements. »
+ *
+ * THE CAUSE: the delivery watch reused {@link SUIVI_PAIEMENT_MS}. That ladder is
+ * right for what it was built for — a payment confirms in seconds, so six reads
+ * over ~35 s then stop is generous. A DELIVERY takes half an hour or more. Thirty
+ * five seconds after she lands on C7 the reads were exhausted, the screen froze
+ * on whatever step it had, and « Vérifier à nouveau » made every subsequent
+ * movement something she had to ask for by hand. Nothing was broken; it had
+ * simply stopped looking.
+ *
+ * SO IT RAMPS AND THEN HOLDS. Quick at first (she has just paid and wants to see
+ * the rider accept), settling to one read every twenty seconds for as long as
+ * the parcel is moving. The last value REPEATS — reaching the end of this array
+ * is no longer « stop asking », it is « keep asking at this rate ».
+ *
+ * AND THE BATTERY ARGUMENT IN THE COMMENT ABOVE IS ANSWERED, NOT IGNORED: a
+ * client that polls forever in a pocket is exactly what that comment refuses,
+ * and it was right. The watch now SLEEPS WHENEVER THE PAGE IS HIDDEN and takes
+ * one immediate read when she comes back — so it costs nothing at all while the
+ * phone is in her pocket, and it is current the instant she looks. That is the
+ * behaviour « real time » actually means on a 1 GB Android on paid data.
+ *
+ * It still ends for good at `livree`: a finished order costs her no further read.
+ */
+export const SUIVI_LIVRAISON_MS: readonly number[] = [2_000, 3_000, 5_000, 8_000, 12_000, 20_000];
+
+/** The wait before read `etape`, holding at the last rung instead of running
+ *  out. Exported so a test can pin « it never stops » by value. */
+export function attenteLivraison(etape: number): number {
+  const dernier = SUIVI_LIVRAISON_MS[SUIVI_LIVRAISON_MS.length - 1]!;
+  return SUIVI_LIVRAISON_MS[etape] ?? dernier;
+}
+
+/**
  * THE SERVER'S ORDER STATE → WHAT C6 IS ALLOWED TO SAY. An ALLOWLIST, in one
  * place, and everything it does not name falls to « we are waiting ».
  *
@@ -510,6 +547,12 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   /** SP3.3c — the next scheduled read of the order. Cleared by `clearT()` with
    *  the rest, so leaving the screen stops asking. */
   let tSuivi: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Where the delivery watch parked when the page went hidden — `null` when it
+   * is not parked. The pocket case: no timer runs, so a screen she is not
+   * looking at costs nothing, and `reprendreSuivi` reads once on return.
+   */
+  let suiviEnAttenteDeRetour: number | null = null;
   let ticker: ReturnType<typeof setInterval> | null = null;
 
   /** REPERE-AUDIO-REEL — the recorder behind « Enregistrer le repère ». One
@@ -590,6 +633,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     if (tSuivi) clearTimeout(tSuivi);
     if (ticker) clearInterval(ticker);
     t1 = t2 = tSuivi = null;
+    suiviEnAttenteDeRetour = null;
     ticker = null;
     generation += 1;
   }
@@ -1078,16 +1122,17 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
           return;
         }
       }
-      const attente = SUIVI_PAIEMENT_MS[etape];
-      if (attente === undefined) {
-        // Out of scheduled reads — not out of truth. The timeline keeps its
-        // proven step; asking again becomes her choice, one request at a time.
-        state.suiviRelance = true;
-        render();
+      // NO LONGER RUNS OUT (founder 2026-08-12). The ladder ramps and then holds,
+      // so the timeline keeps following the parcel instead of freezing 35 s in
+      // and making every later movement something she has to ask for.
+      render();
+      if (cacheeMaintenant()) {
+        // Hidden page ⇒ no timer at all. `reprendreSuivi` takes one read the
+        // moment she returns, so nothing is missed and nothing is spent.
+        suiviEnAttenteDeRetour = etape;
         return;
       }
-      render();
-      tSuivi = setTimeout(() => suivreLaLivraison(orderId, gen, etape + 1), attente);
+      tSuivi = setTimeout(() => suivreLaLivraison(orderId, gen, etape + 1), attenteLivraison(etape));
     });
   }
 
@@ -1097,7 +1142,37 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     const id = state.orderId;
     if (!reel || id === null || state.livree) return;
     state.suiviRelance = false;
+    suiviEnAttenteDeRetour = null;
     suivreLaLivraison(id, generation, 0);
+  }
+
+  /**
+   * Is the page hidden right now? Guarded rather than assumed: this module runs
+   * under a test DOM and inside a service-worker-less shell where `document`
+   * may not carry `visibilityState`, and a wrong answer here would either
+   * park a watch that never resumes or poll a pocket forever.
+   */
+  function cacheeMaintenant(): boolean {
+    return typeof document !== 'undefined' && document.visibilityState === 'hidden';
+  }
+
+  /**
+   * SHE CAME BACK — take one read immediately, then resume the ladder where it
+   * parked. Immediately, because the whole point of sleeping in her pocket is
+   * that the screen is CURRENT the instant she looks at it; waiting out a rung
+   * first would show her a stale step and prove the sleep was a downgrade.
+   */
+  function reprendreSuivi(): void {
+    if (suiviEnAttenteDeRetour === null || cacheeMaintenant()) return;
+    const id = state.orderId;
+    const etape = suiviEnAttenteDeRetour;
+    suiviEnAttenteDeRetour = null;
+    if (!reel || id === null || state.livree) return;
+    suivreLaLivraison(id, generation, etape + 1);
+  }
+
+  if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+    document.addEventListener('visibilitychange', reprendreSuivi);
   }
 
   /**

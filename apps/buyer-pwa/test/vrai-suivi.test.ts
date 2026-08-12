@@ -8,6 +8,7 @@ import {
 import {
   CODE_REMISE, SUIVI, SUIVI_STEPS, codeAffiche, etapeDeSuivi, renderC7, renderC9,
 } from '../src/cliente/screens';
+import { SUIVI_LIVRAISON_MS, SUIVI_PAIEMENT_MS, attenteLivraison } from '../src/cliente/flow';
 
 /**
  * VRAI-SUIVI-PWA — the buyer's tracking becomes real, and her code becomes hers.
@@ -377,5 +378,46 @@ describe('[source-text checks] the flow wires the real tracking, not just declar
 
   it('« C’est terminé » clears the phone’s memory of the order', () => {
     expect(flow).toMatch(/case 'suivi-terminer':\s*[\s\S]{0,400}oublierCommande\(localStorageOrUndefined\(\)\)/);
+  });
+});
+
+/**
+ * ═══ LE SUIVI NE S'ARRÊTE PLUS (founder, 2026-08-12) ═══
+ *
+ * « le suivi screen there is not updating in real time with product movements. »
+ *
+ * THE CAUSE: the delivery watch reused the PAYMENT ladder — six reads over about
+ * thirty-five seconds, then stop. Right for a payment, which confirms in
+ * seconds; wrong for a delivery, which takes half an hour. The screen froze
+ * almost immediately and every later movement became something she had to ask
+ * for by hand.
+ *
+ * These pin the two halves of the fix by value: it never runs out, and it holds
+ * at a cadence that is honest on a 1 GB Android paying for its own data.
+ */
+describe('suivi de livraison — the ladder ramps, then holds, and never runs out', () => {
+  it('RAMPS from a quick first read to a steady cadence', () => {
+    expect(SUIVI_LIVRAISON_MS[0], 'the rider accepting is the moment she is watching for').toBeLessThanOrEqual(2_000);
+    for (let i = 1; i < SUIVI_LIVRAISON_MS.length; i += 1) {
+      expect(SUIVI_LIVRAISON_MS[i]!, `rung ${String(i)} must not be quicker than the one before`)
+        .toBeGreaterThanOrEqual(SUIVI_LIVRAISON_MS[i - 1]!);
+    }
+  });
+
+  it('HOLDS at the last rung instead of running out — this is the whole bug', () => {
+    const dernier = SUIVI_LIVRAISON_MS[SUIVI_LIVRAISON_MS.length - 1]!;
+    // Past the end of the array is exactly where the old ladder gave up.
+    for (const etape of [SUIVI_LIVRAISON_MS.length, 20, 200, 5_000]) {
+      expect(attenteLivraison(etape), `read #${String(etape)} still has a next one`).toBe(dernier);
+    }
+    // …and it is a REAL wait, never zero — a hold at 0 ms is a spin loop, which
+    // is the opposite failure and worse than the one being fixed.
+    expect(dernier).toBeGreaterThanOrEqual(10_000);
+  });
+
+  it('is SLOWER than the payment ladder’s tail — a parcel is not a payment', () => {
+    // The distinction the bug erased: the payment watch is allowed to be eager
+    // because it ends in seconds. This one runs for the length of a delivery.
+    expect(attenteLivraison(99)).toBeGreaterThanOrEqual(SUIVI_PAIEMENT_MS[SUIVI_PAIEMENT_MS.length - 1]!);
   });
 });
