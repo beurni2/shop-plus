@@ -119,7 +119,7 @@ async function openVitrine(): Promise<Awaited<ReturnType<typeof mountApp>>> {
 }
 
 beforeEach(() => {
-  // ⚠ EACH WALK GETS A FRESH MODULE GRAPH. Without this the App's module-level
+  // EACH WALK GETS A FRESH MODULE GRAPH. Without this the App's module-level
   // state carried between mounts, and the fourth walk in this file opened on an
   // EMPTY vitrine — the shop it had just been served silently replaced by a
   // neighbour's leftovers. It looked like a bug in the walk; it was the file
@@ -514,7 +514,7 @@ describe('VOIX-PRODUIT — the note the shop holds', () => {
 
   it('the note’s own URL reaches the screen — the PLAY control is there and pressable', async () => {
     /**
-     * ⚠ THIS TEST USED TO ASSERT THE WRONG TWO THINGS. It checked the product
+     * THIS TEST USED TO ASSERT THE WRONG TWO THINGS. It checked the product
      * name and « 0:08 » — a duration, which is an INDEPENDENT field from the
      * url — while the play control is gated on `n.url` alone. A verifier
      * deleted the control from this branch entirely and all 56 tests stayed
@@ -535,9 +535,9 @@ describe('VOIX-PRODUIT — the note the shop holds', () => {
     screen.unmount();
   });
 
-  it('⚠ the sheet says EN LIGNE over a live note — it used to say « En attente »', async () => {
+  it('the sheet says EN LIGNE over a live note — it used to say « En attente »', async () => {
     /**
-     * ⚠ THE VERIFIER'S BLOCKER. `voiceCardLabel` was taught that queued and live
+     * THE VERIFIER'S BLOCKER. `voiceCardLabel` was taught that queued and live
      * are different facts; the SHEET was not. `kept = pending || ready` rendered
      * the waiting pill and « Rien n'est envoyé tant que le réseau n'est pas
      * revenu » over a note the service had been serving to buyers for a day —
@@ -557,9 +557,9 @@ describe('VOIX-PRODUIT — the note the shop holds', () => {
     screen.unmount();
   });
 
-  it('⚠ « Supprimer » REACHES THE SERVICE — it used to remove the note from her phone alone', async () => {
+  it('« Supprimer » REACHES THE SERVICE — it used to remove the note from her phone alone', async () => {
     /**
-     * ⚠ THE VERIFIER'S MAJOR, and the founder's answer to it (« build the real
+     * THE VERIFIER'S MAJOR, and the founder's answer to it (« build the real
      * delete », 2026-08-12). « Supprimer » cleared the local note and toasted
      * « Note supprimée. » with nothing sent anywhere: buyers went on hearing the
      * audio on the fiche, and once this slice wired the shop's own notes into
@@ -584,7 +584,7 @@ describe('VOIX-PRODUIT — the note the shop holds', () => {
     screen.unmount();
   });
 
-  it('⚠ a shop row that is NOT `ready` is never adopted — no live pill over a note the shop has not stored', async () => {
+  it('a shop row that is NOT `ready` is never adopted — no live pill over a note the shop has not stored', async () => {
     /**
      * THE NARROWNESS, stated as the code actually enforces it. I first wrote
      * this test as « a queued note still says En attente », mounted a `pending`
