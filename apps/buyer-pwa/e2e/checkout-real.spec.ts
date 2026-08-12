@@ -1170,6 +1170,202 @@ test('VRAI-SUIVI · re-entry — « Ma commande » reopens the REAL tracking of 
   expect(wire.remises[0]!.auth).toBe(`Bearer ${BUYER_REF}`);
 });
 
+/**
+ * ═══ SUIVI-VIVANT, THE TWO THINGS ITS OWN TESTS COULD NOT SEE ═══
+ *
+ * The slice that made the delivery watch hold instead of expiring was proven by
+ * unit tests over two PURE VALUES — the ladder array and `attenteLivraison`. A
+ * verifier mutated the CALL SITE three ways (delete the visibility listener,
+ * force the page permanently hidden, replace the scheduled delay with 1 ms) and
+ * the whole suite stayed green through all three, because nothing anywhere
+ * drove `createCliente`. The seam e2e above did not help either: its scripted
+ * delivery finishes inside the OLD schedule, so it passes identically on the
+ * broken code.
+ *
+ * These two drive the real bundle in a real browser and count what the SERVICE
+ * actually received. Between them they pin the whole mechanism: the watch keeps
+ * asking while the reads land, and it stops — handing her back a control —
+ * when they do not.
+ */
+test('SUIVI-VIVANT · the watch does NOT give up: it is still asking long after the old ladder had surrendered', async ({ page }) => {
+  test.setTimeout(240_000);
+  /**
+   * THIS ONE RUNS ON REAL TIME, ON PURPOSE, AND IT IS SLOW.
+   *
+   * I first wrote it against Playwright's fake clock and it passed in ten
+   * seconds — proving nothing: after `clock.resume()` the fast-forward no
+   * longer drives the page's timers, so « two simulated minutes » advanced
+   * nothing and the assertion below was satisfied by four ordinary reads, which
+   * the OLD ladder also allowed. That is precisely the flaw this test exists to
+   * correct in the seam test above it, reproduced. A mutation proved it: the
+   * 1 ms spin loop stayed green.
+   *
+   * So it waits. The old ladder gave up after SIX scheduled reads (~35 s); this
+   * asserts the watch is still asking on the NINTH, which no pre-fix build can
+   * reach. Ninety seconds of wall clock is the price of an honest answer.
+   */
+
+  // The parcel is accepted and moving, and it NEVER arrives — the case the old
+  // ladder handled by giving up thirty-five seconds in.
+  const wire = await scriptService(page, {
+    orderStates: ['confirmed'],
+    marques: [{}, { acceptedAt: MARQUES_ARRIVEE.acceptedAt }],
+  });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+
+  // Let the ladder's first rungs run, then jump past where the OLD one died.
+  // SUIVI_PAIEMENT_MS totals ~35 s over six scheduled reads; two minutes of
+  // held 20 s rungs is far beyond it.
+  // ⚠ THE ASSERTION NO PRE-FIX BUILD CAN PASS. `SUIVI_PAIEMENT_MS` has six
+  // rungs, so the old watch made SEVEN reads in all and then surrendered. Nine
+  // reads is past the end of a ladder that used to run out.
+  await expect
+    .poll(() => wire.orderReads.length, { timeout: 150_000, intervals: [1_000] })
+    .toBeGreaterThanOrEqual(9);
+  // …and the manual control is NOT offered, because nothing has gone wrong:
+  // « Vérifier à nouveau » is for a link that will not answer, not for a parcel
+  // that is simply still on the road.
+  await expect(page.locator('[data-action="verifier-suivi"]')).toHaveCount(0);
+
+  /**
+   * ⚠ AND IT IS A WATCH, NOT A HAMMER — the other half, and the half that a
+   * « does it keep asking? » assertion can never see. A verifier replaced the
+   * scheduled delay with the literal 1 at the call site and every test stayed
+   * green: an infinite ladder is only affordable at the RATE it holds. Two
+   * simulated minutes at the held 20 s rung is a handful of reads; a 1 ms loop
+   * over the same window is tens of thousands of requests against the service
+   * and her data.
+   */
+  /**
+   * Measured over a SETTLED WINDOW, not at the instant the poll above resolves.
+   * Read count alone cannot tell a hold from a storm: the poll returns the
+   * moment the ninth read lands, so a spin loop looks identical to a 20 s rung
+   * until you let the clock run. Ten seconds at the held rung is at most one
+   * more read; a loop scheduled at 0 or 1 ms is thousands. Both mutations that
+   * survived an earlier version of this test — `?? 0` in `attenteLivraison`
+   * and the literal `1` at the call site — are caught here and nowhere else.
+   */
+  const apresNeuf = wire.orderReads.length;
+  await page.waitForTimeout(10_000);
+  expect(
+    wire.orderReads.length - apresNeuf,
+    'the watch is spinning, not holding — this is a request storm on her paid data',
+  ).toBeLessThanOrEqual(2);
+  // …and the timeline still tells her the truth it was told, not a guess.
+  await expect(page.locator('.cl-tl-t-now')).toHaveText('Préparée par la vendeuse');
+});
+
+test('SUIVI-VIVANT · in her pocket the watch SLEEPS, and it is current the instant she looks', async ({ page }) => {
+  test.setTimeout(120_000);
+  /**
+   * ⚠ THE HALF NOTHING DROVE. The hold is only affordable because the watch
+   * stops entirely while the page is hidden and takes one immediate read when
+   * she returns. A verifier deleted the `visibilitychange` registration and
+   * forced `cacheeMaintenant()` permanently true, and the whole suite stayed
+   * green through both — the first leaves a parked watch that can never wake
+   * (a permanently frozen screen, strictly worse than the bug this slice
+   * fixed), the second stops the watch after one read for ever.
+   *
+   * THE ONE DOUBLE, and its bound stated: `visibilityState` is a NATIVE
+   * boundary Playwright cannot drive, so it is overridden here and the real
+   * event is dispatched. Nothing in the app is stubbed — `cacheeMaintenant`,
+   * the park, the listener and `reprendreSuivi` are all the shipped code.
+   */
+  const cacher = async (hidden: boolean): Promise<void> => {
+    await page.evaluate((h) => {
+      Object.defineProperty(document, 'visibilityState', { value: h ? 'hidden' : 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, hidden);
+  };
+
+  const wire = await scriptService(page, {
+    orderStates: ['confirmed'],
+    marques: [{}, { acceptedAt: MARQUES_ARRIVEE.acceptedAt }],
+  });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+  await expect.poll(() => wire.orderReads.length, { timeout: 20_000 }).toBeGreaterThan(1);
+
+  // ── THE PHONE GOES IN THE POCKET ────────────────────────────────────────
+  await cacher(true);
+  // One read may already have been in flight or armed when she locked it; let
+  // that settle, then measure a window in which NOTHING may be spent.
+  await page.waitForTimeout(3_000);
+  const enPoche = wire.orderReads.length;
+  await page.waitForTimeout(30_000);
+  expect(
+    wire.orderReads.length,
+    'the watch kept polling while the page was hidden — this is her paid data in a pocket',
+  ).toBe(enPoche);
+
+  // ── SHE LOOKS AGAIN ─────────────────────────────────────────────────────
+  // Immediately, because the whole point of sleeping is that the screen is
+  // CURRENT the instant she looks; waiting out a rung first would show her a
+  // stale step and prove the sleep was a downgrade.
+  await cacher(false);
+  await expect
+    .poll(() => wire.orderReads.length, { timeout: 5_000 })
+    .toBeGreaterThan(enPoche);
+  // …and it is a WATCH she came back to, not a single read: the ladder resumed.
+  const auRetour = wire.orderReads.length;
+  await expect.poll(() => wire.orderReads.length, { timeout: 40_000 }).toBeGreaterThan(auRetour);
+});
+
+test('SUIVI-VIVANT · a link that will not answer STOPS the watch and gives her the control back', async ({ page }) => {
+  test.setTimeout(120_000);
+  /**
+   * ⚠ THIS IS THE VERIFIER'S BLOCKER, DRIVEN. Making the ladder infinite also
+   * deleted the only `suiviRelance = true`, so « Vérifier à nouveau » could no
+   * longer render — and C7's other controls are all gated on facts a failing
+   * read never delivers. A dead link therefore left her on a frozen screen with
+   * nothing to press, while the phone spent a request every twenty seconds on
+   * paid data. The founder's original bug, in a worse dress, caused by its fix.
+   */
+  const wire = await scriptService(page, { orderStates: ['confirmed'], marques: [{}] });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+
+  // The order exists; NOW every subsequent read dies on the wire.
+  await page.route('**/checkout/order/**', (route) => route.abort('failed'));
+
+  // A run of refusals stops the automatic ladder and returns the ONE honest
+  // control. Before this fix, this locator never appeared at all.
+  await page.locator('[data-action="verifier-suivi"]').waitFor({ timeout: 60_000 });
+  await expect(page.locator('[data-role="suivi-hors-portee"]')).toBeVisible();
+
+  // ⚠ AND THE POLLING ACTUALLY STOPPED. This is the half a « the button came
+  // back » assertion cannot see: an infinite ladder would keep spending her
+  // data behind the very control that says it is her choice now.
+  const arrete = wire.orderReads.length;
+  await page.waitForTimeout(25_000);
+  expect(wire.orderReads.length, 'the watch kept polling a dead link behind her back').toBe(arrete);
+
+  // A FAILED READ IS STILL NOT A FAILED DELIVERY — the timeline keeps every
+  // proven step and says only that the network is missing.
+  const texte = (await stage(page)).replace(/\s+/g, ' ');
+  expect(texte).not.toContain('livrée');
+
+  // Her tap is answered: the link comes back, exactly one read goes out, and
+  // the honest « we cannot reach the service » note clears.
+  await page.unroute('**/checkout/order/**');
+  await page.locator('[data-action="verifier-suivi"]').click();
+  await expect.poll(() => wire.orderReads.length, { timeout: 15_000 }).toBe(arrete + 1);
+  await expect(page.locator('[data-role="suivi-hors-portee"]')).toHaveCount(0);
+});
+
 test('REPERE-AUDIO-REEL · a LOST note gets its sentence — the diagnostic hole the founder hit is closed', async ({ page }) => {
   // The service says the note could not be kept (`noteVocale: 'perdue'`).
   // Before this test's line existed, NOTHING anywhere said so — the founder

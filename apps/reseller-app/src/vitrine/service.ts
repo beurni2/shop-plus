@@ -217,6 +217,23 @@ export interface StorefrontServicePort {
     contentType: string,
     durationMs: number,
   ): Promise<ServiceResult<UploadOutcome>>;
+  /**
+   * VOIX-SUPPRIMER-1 (founder, 2026-08-12: « build the real delete ») — take
+   * ONE product's note OFF her shop, for buyers as well as for her.
+   *
+   * « Supprimer » used to clear the note on her phone alone and toast « Note
+   * supprimée. » while the service kept serving the audio on the fiche; once
+   * the shop's own notes were wired into her screen, it came back at the next
+   * read. The shop rides back on the answer for the same reason `removeItem`
+   * carries it: a POST that lands followed by a GET that does not is an
+   * ordinary event on this network, and it would leave the note on screen
+   * under a message saying it is gone.
+   */
+  removeVoiceNote(
+    storefrontId: string,
+    pid: string,
+    at: string,
+  ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>>;
   list(): Promise<ServiceResult<readonly StorefrontRow[]>>;
   /**
    * PUBLISH-PRICE-1 — list a product at HER markup. The service signs the price.
@@ -398,6 +415,35 @@ export class HttpStorefrontService implements StorefrontServicePort {
     durationMs: number,
   ): Promise<ServiceResult<UploadOutcome>> {
     return this.upload('voice', storefrontId, bytes, contentType, { pid, durationMs });
+  }
+
+  async removeVoiceNote(
+    storefrontId: string,
+    pid: string,
+    at: string,
+  ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
+    let res: Response;
+    try {
+      res = await fetch(`${this.base}/storefronts/${encodeURIComponent(storefrontId)}/voice/remove`, {
+        method: 'POST',
+        headers: this.headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ pid, at }),
+      });
+    } catch {
+      return { ok: false, reason: 'offline' };
+    }
+    if (!res.ok) return { ok: false, reason: `http_${res.status}` };
+    const body = (await res.json().catch(() => null)) as
+      | { status?: string; storefront?: Storefront }
+      | null;
+    if (body === null || typeof body.status !== 'string') return { ok: false, reason: 'malformed' };
+    // `no_note` is a SUCCESS with nothing to show: the note is not on her shop,
+    // which is exactly what she asked for. The caller distinguishes them by
+    // `status`, never by ok/not-ok.
+    return {
+      ok: true,
+      value: { status: body.status, ...(body.storefront !== undefined ? { storefront: body.storefront } : {}) },
+    };
   }
 
   /**

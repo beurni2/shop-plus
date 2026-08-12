@@ -590,3 +590,82 @@ describe('§6.1 — the seller-tier condition cannot be walked past on the proto
     if (!garbage.eligible) expect(garbage.reason).toBe('seller_tier_below_minimum');
   });
 });
+
+
+describe('⚠ A HALF-WRITTEN POLICY FAILS CLOSED — measured, not asserted in a comment', () => {
+  /**
+   * The override's whole safety argument is that the rules survive as sentinels
+   * so a re-tightening is a policy edit rather than a code change — and that a
+   * config which arrives half-written REFUSES rather than opening. That claim was
+   * written in the source, the commit and the journal, and it was FALSE of the
+   * one condition that bounds the loss: `priceCapFcfa` had no guard, so
+   * `'acun'`, `'AUCUN'`, `undefined` and a missing key all skipped the ceiling
+   * and admitted a 900 000 FCFA basket at the door.
+   *
+   * Nothing tested a malformed sentinel on ANY of the four. These do.
+   *
+   * The casts are the point: the day a tuned policy is loaded from JSON instead
+   * of a TypeScript literal — which this file's own header anticipates — the
+   * type stops guarding anything and only these guards remain.
+   */
+  const GROS: PayAtDoorContext = { ...GATE_CONTEXT, buyerTotalFcfa: 900_000 };
+
+  const abime = (patch: Record<string, unknown>): PayAtDoorPolicy =>
+    ({ ...PAY_AT_DOOR_POLICY_DEFAULTS, ...patch }) as unknown as PayAtDoorPolicy;
+
+  it('a mistyped price ceiling REFUSES — it used to admit 900 000 FCFA', () => {
+    for (const mauvais of ['acun', 'AUCUN', 'aucune', '', undefined, null, 25_000 .toString()]) {
+      expect(
+        decidePayAtDoorEligibility(GROS, abime({ priceCapFcfa: mauvais })),
+        `priceCapFcfa=${JSON.stringify(mauvais)} must refuse, not open`,
+      ).toMatchObject({ eligible: false, reason: 'over_price_cap' });
+    }
+  });
+
+  it('a MISSING price ceiling refuses too — a key dropped while editing is not « no cap »', () => {
+    const sansClef = { ...PAY_AT_DOOR_POLICY_DEFAULTS } as Record<string, unknown>;
+    delete sansClef['priceCapFcfa'];
+    expect(decidePayAtDoorEligibility(GROS, sansClef as unknown as PayAtDoorPolicy))
+      .toMatchObject({ eligible: false, reason: 'over_price_cap' });
+  });
+
+  it('a REAL ceiling still caps, and a real « aucun » still opens — the guards changed nothing else', () => {
+    expect(decidePayAtDoorEligibility(GROS, abime({ priceCapFcfa: 25_000 })))
+      .toMatchObject({ eligible: false, reason: 'over_price_cap' });
+    expect(decidePayAtDoorEligibility(GROS, PAY_AT_DOOR_POLICY_DEFAULTS)).toMatchObject({ eligible: true });
+  });
+
+  it('a mistyped category list REFUSES, and never substring-matches a row into being open', () => {
+    // `'toutes-shoes'` is not the sentinel; on a string `.includes('shoes')` is
+    // TRUE, so the row the founder meant to close by omission would have opened.
+    for (const mauvais of ['toute', 'toutess', 'toutes-shoes', 'fashion_bags_fabrics,shoes', '']) {
+      expect(
+        decidePayAtDoorEligibility({ ...GATE_CONTEXT, category: 'shoes' }, abime({ inspectableCategories: mauvais })),
+        `inspectableCategories=${JSON.stringify(mauvais)} must refuse`,
+      ).toMatchObject({ eligible: false, reason: 'category_not_inspectable' });
+    }
+  });
+
+  it('a mistyped zone list REFUSES', () => {
+    // ⚠ THE VALUE THAT MATTERS IS THE ONE THAT CONTAINS THE ZONE. My first cut
+    // used 'al'/'ALL'/'Ouagadougou', none of which contains « ouaga-centre », so
+    // the string branch refused anyway and the test passed with the guard
+    // REMOVED — a mutation proved it. A comma-joined list is the realistic
+    // config slip, and it is the one that opens without the guard.
+    for (const mauvais of ['ouaga-centre,bobo', 'al', 'ALL', 'Ouagadougou']) {
+      expect(
+        decidePayAtDoorEligibility(GATE_CONTEXT, abime({ networkReliableZones: mauvais })),
+        `networkReliableZones=${JSON.stringify(mauvais)} must refuse`,
+      ).toMatchObject({ eligible: false, reason: 'zone_not_network_reliable' });
+    }
+  });
+
+  it('a mistyped seller minimum REFUSES — the guard that was already there, pinned at last', () => {
+    for (const mauvais of ['acun', 'AUCUN', 'verifie', '']) {
+      expect(
+        decidePayAtDoorEligibility(GATE_CONTEXT, abime({ minSellerTier: mauvais })),
+        `minSellerTier=${JSON.stringify(mauvais)} must refuse`,
+      ).toMatchObject({ eligible: false, reason: 'seller_tier_below_minimum' });
+    }
+  });
+});

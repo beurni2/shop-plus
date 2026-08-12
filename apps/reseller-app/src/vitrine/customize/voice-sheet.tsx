@@ -82,6 +82,17 @@ export interface VoiceNotesController {
  * service configured still records and plays back — it simply cannot publish,
  * and says so instead of pretending.
  */
+/**
+ * VOIX-SUPPRIMER-1 — the REMOVE seam (founder, 2026-08-12: « build the real
+ * delete »). Same shape and same reasons as {@link VoiceUploader}: the App owns
+ * identity and the service adapter, the sheet owns the button.
+ *
+ * OPTIONAL for the same reason too — a preview build with no service still
+ * records and plays back. What it may NOT do is claim a removal it could not
+ * perform, so an absent remover clears nothing and says so.
+ */
+export type VoiceRemover = (pid: string) => Promise<{ ok: true } | { ok: false; reason: string }>;
+
 export type VoiceUploader = (
   pid: string,
   fileUri: string,
@@ -103,6 +114,8 @@ export function useVoiceNotes(
    * a take she is recording, reviewing or publishing is never overwritten.
    */
   stockees?: unknown,
+  /** VOIX-SUPPRIMER-1 — the act that makes « Supprimer » true on the service. */
+  remove?: VoiceRemover,
 ): VoiceNotesController {
   const [notes, setNotes] = useState<ProductVoiceNotes>(DEFAULT_VOICE_NOTES);
   // The merge returns its input by IDENTITY when nothing moves, so this settles
@@ -235,8 +248,29 @@ export function useVoiceNotes(
           setPlayingPid(null);
           setPlayingSec(0);
         }
+        /**
+         * ═══ IT REMOVES IT FROM HER SHOP, NOT ONLY FROM HER PHONE ═══
+         *
+         * This used to clear the local note and toast « Note supprimée. » with
+         * nothing sent anywhere: buyers went on hearing the audio on the fiche,
+         * and once the shop's own notes reached this controller the note
+         * REAPPEARED on her screen at the next read. A button that says a thing
+         * is gone must make it gone (founder, 2026-08-12).
+         *
+         * THE LOCAL CLEAR HAPPENS FIRST and is not conditional — she tapped it,
+         * and a screen that argues with her tap while the network decides is the
+         * opposite of calm. If the service refuses, the note comes back on the
+         * next read (that merge is exactly what makes this safe) and she is told
+         * plainly rather than left believing it is gone.
+         */
         setNotes((cur) => deleteNote(cur, pid));
-        onToast(t('k.voix.toast_supprimee'));
+        if (remove === undefined) {
+          onToast(t('k.voix.toast_supprimee'));
+          return;
+        }
+        void remove(pid).then((r) => {
+          onToast(t(r.ok ? 'k.voix.toast_supprimee' : 'k.voix.toast_suppr_echec'));
+        });
       },
       retryPermission: () => {
         void recorder.requestPermission().then((p) => setMicDenied(p === 'denied'));
@@ -251,7 +285,7 @@ export function useVoiceNotes(
     // note: worse than the frozen total it replaced. There is no eslint in this
     // workspace, so `react-hooks/exhaustive-deps` never ran; the source pin in
     // test/voice.test.ts is what stands in its place.
-  }, [notes, micDenied, playingPid, playingSec, recorder, onToast, upload]);
+  }, [notes, micDenied, playingPid, playingSec, recorder, onToast, upload, remove]);
 }
 
 /** The card label for a product's note — drives the mic affordance text. */
@@ -370,7 +404,25 @@ export function VoiceNoteControls({ pid, ctl }: { pid: string; ctl: VoiceNotesCo
 
       {kept && (
         <>
-          <View style={S.vPendingPill}><Text style={S.vPendingText}>{t('k.voix.en_attente')}</Text></View>
+          {/**
+            * ═══ QUEUED AND LIVE ARE DIFFERENT FACTS, HERE TOO (verifier BLOCKER) ═══
+            *
+            * `voiceCardLabel` was taught the difference and this block was not,
+            * so the CARD said « Note vocale en ligne » and the sheet she opens
+            * to listen — one tap below it — answered « En attente » over a note
+            * the service had been serving to buyers for a day. The screen
+            * contradicted itself about the state of her own shop, which is the
+            * founder's report still on screen after its fix.
+            *
+            * Ten-Laws #7 is « queued = pending, never done ». Saying done is
+            * queued is the same rule broken from the other side, and it is the
+            * one that makes her doubt a shop that is working.
+            */}
+          <View style={n.status === 'ready' ? S.vLivePill : S.vPendingPill}>
+            <Text style={n.status === 'ready' ? S.vLiveText : S.vPendingText}>
+              {t(n.status === 'ready' ? 'k.voix.en_ligne' : 'k.voix.en_attente')}
+            </Text>
+          </View>
           <View style={S.vActions}>
             {n.url ? <PlayBtn playing={playing} onPress={() => ctl.playRec(pid, n.url!)} /> : null}
             <Text style={S.vDur}>{horloge}</Text>
@@ -420,7 +472,13 @@ export function VoiceNoteSheet({
               <Text style={S.vSheetKicker}>{t('k.voix.note_produit')}</Text>
               <Text style={S.vSheetTitle} numberOfLines={2}>{product.name}</Text>
               <VoiceNoteControls pid={product.pid} ctl={ctl} />
-              <Text style={S.noteSableText}>{t('k.voix.note')}</Text>
+              {/* The same split as the pill: the « nothing is sent until the
+                * network returns » half is true of a QUEUED note and false of a
+                * live one, and printing it under a live note is what told her
+                * the shop was waiting when it was not. */}
+              <Text style={S.noteSableText}>
+                {t(noteOf(ctl.notes, product.pid).status === 'ready' ? 'k.voix.note_en_ligne' : 'k.voix.note')}
+              </Text>
               <Pressable style={({ pressed }) => [S.vGhost, pressed && S.pressed]} onPress={close} accessibilityRole="button">
                 <Text style={S.vGhostText}>{t('k.voix.fermer')}</Text>
               </Pressable>

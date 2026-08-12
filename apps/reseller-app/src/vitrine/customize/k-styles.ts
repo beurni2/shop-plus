@@ -285,6 +285,13 @@ export const K_RAW_STYLES = {
   vDur: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 12.5, fontWeight: '700', color: '#6F6355' },
   vPendingPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 99, paddingVertical: 5, paddingHorizontal: 11, backgroundColor: '#F6E9C9' },
   vPendingText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 11.5, fontWeight: '700', color: '#7A5104' },
+  // ── A LIVE note is not a waiting one, and it must not look like one ──────
+  // Same geometry as the pending pill, on the app's existing « ok » ground
+  // (`etatPillOk`, #DFEEE3). The ink is deeper than that pill's warm grey
+  // because this one carries a fact she is checking rather than a passive
+  // status: 6.98:1 on its ground, against the shipped pending pair's 5.79:1.
+  vLivePill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 99, paddingVertical: 5, paddingHorizontal: 11, backgroundColor: '#DFEEE3' },
+  vLiveText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 11.5, fontWeight: '700', color: '#2E5638' },
   vPlayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, borderRadius: 14, paddingHorizontal: 14, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF' },
   /* ÉCOUTE — the take she just made, given its own block (founder 2026-08-04:
      « make its area more visible, nice and professional … I am able to replay

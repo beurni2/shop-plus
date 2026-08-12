@@ -276,6 +276,17 @@ export const SUIVI_PAIEMENT_MS: readonly number[] = [1_500, 2_500, 4_000, 6_000,
  */
 export const SUIVI_LIVRAISON_MS: readonly number[] = [2_000, 3_000, 5_000, 8_000, 12_000, 20_000];
 
+/**
+ * How many CONSECUTIVE refused reads before the watch stops asking by itself.
+ *
+ * The hold added above is only safe while the reads can land. Three in a row
+ * means the service is not answering for this order, and continuing would be a
+ * poll every twenty seconds, for ever, on a screen with no control on it and on
+ * her paid data. At three the ladder stops and « Vérifier à nouveau » returns —
+ * one request, on her choice. A single read that lands resets the count.
+ */
+export const SUIVI_ECHECS_AVANT_PAUSE = 3;
+
 /** The wait before read `etape`, holding at the last rung instead of running
  *  out. Exported so a test can pin « it never stops » by value. */
 export function attenteLivraison(etape: number): number {
@@ -346,7 +357,25 @@ export function etatDeC6(state: string): ConfirmEtat {
   return 'attente';
 }
 
-export function createCliente(container: HTMLElement, init: ClienteInit): void {
+/**
+ * Mount the buyer's flow into `container`.
+ *
+ * ═══ IT RETURNS A TEARDOWN, AND THAT IS NOT OPTIONAL ANY MORE ═══
+ *
+ * It used to return nothing, and the `visibilitychange` listener it registers
+ * was never removed. That was harmless only by accident: the delivery watch ran
+ * out after six rungs, so an instance whose DOM had been thrown away stopped by
+ * itself in about thirty-five seconds. SUIVI-VIVANT made the ladder hold, and
+ * the accident became a leak — a detached instance polling the service every
+ * twenty seconds for as long as the tab is open, rendering into a container
+ * that is no longer in the document, its listener holding the whole closure
+ * alive. Two of them, in the ordinary case where she opens « Ma commande » over
+ * a signed product page.
+ *
+ * So the caller is handed the way to stop it, and `main.ts` stops the previous
+ * instance before mounting the next.
+ */
+export function createCliente(container: HTMLElement, init: ClienteInit): () => void {
   applyTheme(container, init.theme ?? 'indigo');
   container.classList.add('cl-root');
 
@@ -553,6 +582,12 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
    * looking at costs nothing, and `reprendreSuivi` reads once on return.
    */
   let suiviEnAttenteDeRetour: number | null = null;
+  /**
+   * CONSECUTIVE refused reads on the delivery watch. Reset by any read that
+   * lands; at {@link SUIVI_ECHECS_AVANT_PAUSE} the automatic ladder stops and
+   * the manual control comes back. See the run-of-refusals block below.
+   */
+  let echecsSuivi = 0;
   let ticker: ReturnType<typeof setInterval> | null = null;
 
   /** REPERE-AUDIO-REEL — the recorder behind « Enregistrer le repère ». One
@@ -634,6 +669,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     if (ticker) clearInterval(ticker);
     t1 = t2 = tSuivi = null;
     suiviEnAttenteDeRetour = null;
+    echecsSuivi = 0;
     ticker = null;
     generation += 1;
   }
@@ -1131,6 +1167,36 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
           jump('C10');
           return;
         }
+        // A read that ANSWERED clears the run: the ladder holds for as long as
+        // the service is actually talking to her.
+        echecsSuivi = 0;
+      } else {
+        /**
+         * ═══ THE WATCH HOLDS ONLY WHILE IT CAN SUCCEED (verifier BLOCKER) ═══
+         *
+         * SUIVI-VIVANT made the ladder infinite and, in the same stroke, deleted
+         * the only `suiviRelance = true` — so « Vérifier à nouveau » could no
+         * longer render and C7's other controls are all gated on facts a failing
+         * read never delivers. Two states were therefore reachable and
+         * INESCAPABLE: an order the service will never answer for (a purged id,
+         * a record written against another base) and a link that keeps refusing.
+         * The screen froze with no control on it while her phone spent a request
+         * every twenty seconds on paid data — the founder's original bug in a
+         * worse dress, and caused by its fix.
+         *
+         * So the hold is CONDITIONAL on the reads landing. A run of refusals
+         * stops the automatic ladder and hands her back the one honest control:
+         * asking again, one request, on her choice. That is Ten-Laws #7 read
+         * correctly — a failed read is still not a failed delivery, so the
+         * timeline keeps every proven step and `suiviHorsPortee` says only that
+         * the network is missing.
+         */
+        echecsSuivi += 1;
+        if (echecsSuivi >= SUIVI_ECHECS_AVANT_PAUSE) {
+          state.suiviRelance = true;
+          render();
+          return;
+        }
       }
       // NO LONGER RUNS OUT (founder 2026-08-12). The ladder ramps and then holds,
       // so the timeline keeps following the parcel instead of freezing 35 s in
@@ -1153,6 +1219,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     if (!reel || id === null || state.livree) return;
     state.suiviRelance = false;
     suiviEnAttenteDeRetour = null;
+    echecsSuivi = 0;
     suivreLaLivraison(id, generation, 0);
   }
 
@@ -1181,8 +1248,23 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
     suivreLaLivraison(id, generation, etape + 1);
   }
 
-  if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
-    document.addEventListener('visibilitychange', reprendreSuivi);
+  const ecouteVisibilite =
+    typeof document !== 'undefined' && typeof document.addEventListener === 'function';
+  if (ecouteVisibilite) document.addEventListener('visibilitychange', reprendreSuivi);
+
+  /**
+   * STOP THIS INSTANCE FOR GOOD. Bumps the generation first, so any read
+   * already on the wire is discarded when it lands rather than rendering into a
+   * detached container; then kills every timer and takes the listener off
+   * `document`. Idempotent — calling it twice is a no-op, which matters because
+   * the caller cannot always know whether a mount happened.
+   */
+  function arreter(): void {
+    generation += 1;
+    clearT();
+    if (ecouteVisibilite && typeof document.removeEventListener === 'function') {
+      document.removeEventListener('visibilitychange', reprendreSuivi);
+    }
   }
 
   /**
@@ -1699,21 +1781,25 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
         demanderLeCode();
         return;
       case 'verifier-suivi': {
-        // CURRENTLY UNREACHABLE, and said so rather than left to look live
-        // (verifier MAJOR, 2026-08-12). `suiviRelance` is never set true any
-        // more: SUIVI-VIVANT made the delivery ladder HOLD instead of running
-        // out, and deleted the one assignment that raised this flag. So
-        // `renderC7` never emits this action and nothing can dispatch it.
-        //
-        // KEPT, not deleted, for one reason: the renderer's relance branch is
-        // still there, and a handler-less action is worse than a dead one — the
-        // day anything sets the flag again, a tap must not fall through to
-        // nothing. The comment that used to sit here claimed « it does not
-        // restart the schedule », which was false twice over: it would resume at
-        // the held 20 s rung, and it cannot run at all.
+        /**
+         * REACHABLE AGAIN, and this is the way out of a frozen C7.
+         *
+         * It was dead for one commit: SUIVI-VIVANT made the ladder hold and
+         * deleted the only `suiviRelance = true`, so `renderC7` could not emit
+         * this action and a screen whose reads all failed had no control on it
+         * at all. The run-of-refusals rule raises the flag again, which is what
+         * puts « Vérifier à nouveau » back under her thumb.
+         *
+         * It resumes at the HELD rung, not at the top: the ladder's early rungs
+         * are for a parcel that has just started moving, and an order she has
+         * been watching for an hour does not need them. And it clears the run,
+         * so a service that has come back gets the full benefit of the hold
+         * again rather than pausing after one more stumble.
+         */
         const id = state.orderId;
         if (id === null) return;
         state.suiviRelance = false;
+        echecsSuivi = 0;
         render();
         suivreLaLivraison(id, generation, SUIVI_LIVRAISON_MS.length);
         return;
@@ -1825,6 +1911,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): void {
   // with it: first read on the ladder's first rung, exactly as « Suivre ma
   // commande » starts it in-flow.
   if (init.suivi !== undefined && state.screen === 'C7') demarrerSuivi();
+
+  return arreter;
 }
 
 export { SUIVI_STEPS };

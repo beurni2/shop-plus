@@ -380,6 +380,12 @@ export function decidePayAtDoorEligibility(
   // and he asked for any product. The §6.2 map still decides what the buyer's
   // at-door checklist SAYS; it no longer decides whether the door is offered.
   if (policy.inspectableCategories !== 'toutes') {
+    // AN UNREADABLE LIST REFUSES — the `minSellerTier` guard's law, applied here.
+    // Without it `.includes()` runs on a STRING and becomes SUBSTRING matching:
+    // a config written as `'fashion_bags_fabrics,shoes'` instead of an array
+    // would open `shoes` by accident, and `'toutes-shoes'` opens it while the
+    // sentinel itself is misspelt. Measured, not theorised.
+    if (!Array.isArray(policy.inspectableCategories)) return refuse('category_not_inspectable');
     const rangee = rangeeInspection(ctx.category);
     if (rangee === null || !policy.inspectableCategories.includes(rangee)) {
       return refuse('category_not_inspectable');
@@ -388,14 +394,30 @@ export function decidePayAtDoorEligibility(
 
   // FOUNDER OVERRIDE 2026-08-12 — `'aucun'` means no ceiling. A NUMBER still caps
   // exactly as before, so setting one is how he re-bounds his exposure later.
-  if (policy.priceCapFcfa !== 'aucun' && ctx.buyerTotalFcfa > policy.priceCapFcfa) {
-    return refuse('over_price_cap');
+  //
+  // ⚠ THIS ONE FAILED OPEN, AND IT IS THE ONE THAT BOUNDS THE LOSS. The first
+  // cut was `policy.priceCapFcfa !== 'aucun' && ctx.buyerTotalFcfa > policy.priceCapFcfa`,
+  // which compares a number against WHATEVER the value is: `'acun'`, `'AUCUN'`,
+  // `undefined` and a missing key all yielded false and skipped the refusal — a
+  // 900 000 FCFA basket admitted at the door under a config its author believed
+  // capped it. Measured on all four. The other three conditions refused
+  // correctly because each had a guard; this one had none, while this file's own
+  // comment claimed « a config that arrives half-written still fails closed ».
+  // It does now.
+  if (policy.priceCapFcfa !== 'aucun') {
+    if (typeof policy.priceCapFcfa !== 'number' || !Number.isFinite(policy.priceCapFcfa)) {
+      return refuse('over_price_cap');
+    }
+    if (ctx.buyerTotalFcfa > policy.priceCapFcfa) return refuse('over_price_cap');
   }
 
   // `'all'` short-circuits; an ARRAY still allowlists, and an empty one still
   // refuses everything. The two readings share no code path.
-  if (policy.networkReliableZones !== 'all' && !policy.networkReliableZones.includes(ctx.zoneTo)) {
-    return refuse('zone_not_network_reliable');
+  if (policy.networkReliableZones !== 'all') {
+    // Same guard, same reason: a mistyped `'al'` would otherwise substring-match
+    // any zone whose name contains « al ».
+    if (!Array.isArray(policy.networkReliableZones)) return refuse('zone_not_network_reliable');
+    if (!policy.networkReliableZones.includes(ctx.zoneTo)) return refuse('zone_not_network_reliable');
   }
 
   return { eligible: true, policyVersion: policy.version };

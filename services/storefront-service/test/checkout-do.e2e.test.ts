@@ -1308,7 +1308,7 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
  * These cases give the Worker a producer that FAILS, and a Worker with no
  * producer at all, and drive a real door request at each.
  */
-describe('CheckoutDO — a supply read that FAILS refuses Option B, and never invents a seller', () => {
+describe('CheckoutDO — a supply read that FAILS no longer costs her the door, and still never invents a seller', () => {
   /** A Worker whose OFFER answers the publish read (so a listing can exist) and
    *  then breaks for the CHECKOUT read. `mode` picks how it breaks. */
   function makeBroken(mode: 'throw' | 'five-hundred' | 'stale', dir: string): Miniflare {
@@ -1410,18 +1410,41 @@ describe('CheckoutDO — a supply read that FAILS refuses Option B, and never in
     ['UNREACHABLE (the fetch throws)', 'throw'],
     ['A 5xx FROM THE PRODUCER', 'five-hundred'],
     ['A STALE PROJECTION — correct data, past the freshness bound', 'stale'],
-  ] as const)('%s ⇒ Option B is REFUSED by name, and no quote exists', async (_label, mode) => {
+  ] as const)('%s ⇒ the door is STILL OFFERED, and nothing is invented on the way', async (_label, mode) => {
+    /**
+     * ⚠ THESE THREE ASSERTED A 422, AND THAT REFUSAL WAS THE FOUNDER'S OWN
+     * COMPLAINT WEARING A NEW CAUSE (verifier MAJOR, 2026-08-12).
+     *
+     * The door read supply for exactly two facts — `sellerTier` and `category`
+     * — and refused the whole mode when the read failed. After « I do not want
+     * any gate at all » NEITHER field is consulted, so a slow offer-service, a
+     * redeploy or one aged projection took « Payer le produit à la livraison »
+     * off her screen for a reason the decision no longer cares about. Three
+     * shipped tests certified that behaviour as correct.
+     *
+     * WHAT IS ASSERTED INSTEAD IS STRONGER, not weaker: the quote issues, it is
+     * a REAL §5.5 door split, and the two safety properties this describe was
+     * named for still hold — no tier is invented, and no ops detail reaches the
+     * buyer. **The fail-closed half moved to where it belongs**: with a policy
+     * that actually reads those fields, an unreadable projection refuses BY
+     * NAME. That cannot be driven over HTTP (the Worker ships one policy), so it
+     * is pinned in `checkout-core.test.ts` — « …and it STILL refuses, by name,
+     * the moment a condition actually needs supply ».
+     */
     const inst = makeBroken(mode, scratch());
     try {
       const shop = await seedOn(inst, '0001');
       const door = await doorQuoteOn(inst, shop);
-      expect(door.status, door.text).toBe(422);
-      expect(door.json['error']).toBe('pay_at_door_not_eligible');
-      // NOTHING was invented on the way to that refusal, and the §6.1 ops detail
-      // still does not reach the buyer.
+      expect(door.status, door.text).toBe(200);
+      // A REAL door split, not merely a request that stopped being refused.
+      expect(door.json['paymentMode']).toBe('DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
+      expect(door.json['amountPaidAtCheckout']).toBe(door.json['deliveryFee']);
+      expect(door.json['amountDueAtDelivery']).toBe(door.json['productSubtotal']);
+      // NOTHING WAS INVENTED. The broken read contributed no tier: the absence
+      // travelled as an absence, and the §6.1 ops detail still never reaches her.
       expect(door.text.includes('verified')).toBe(false);
       expect(door.text.includes('policyVersion')).toBe(false);
-      expect(door.text.includes('amountDueAtDelivery')).toBe(false);
+      expect(door.text.includes('sellerTier')).toBe(false);
     } finally {
       await inst.dispose();
     }

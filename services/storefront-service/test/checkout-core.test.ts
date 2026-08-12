@@ -521,17 +521,51 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     // in `checkout-do.e2e.test.ts`. Failure mode #7, caught by a verifier.)
   });
 
-  it('NO SUPPLY ⇒ NO OPTION B, and the ops detail says `context_missing` — an unreadable projection never becomes a default', () => {
-    // Unconfigured binding, unreachable producer, STALE projection: all arrive
-    // here as `undefined`, and none of them may be repaired into a tier or a
-    // category. The block is OMITTED, so the vault answers the same refusal a
-    // door request with no context at all gets.
+  it('⚠ NO SUPPLY NO LONGER REFUSES THE DOOR — the founder opened the conditions supply was read FOR', () => {
+    /**
+     * ⚠ THIS TEST ASSERTED THE OPPOSITE, AND IT WAS A SECOND GATE ON THE DOOR
+     * THAT NOBODY WAS TOLD ABOUT (verifier MAJOR, 2026-08-12).
+     *
+     * An unconfigured binding, an unreachable producer and a STALE projection
+     * all arrive as `undefined`, and the block used to be omitted — refusing
+     * the whole mode `context_missing`. That was right while §6.1 NEEDED the
+     * read: supply contributes exactly two facts, `sellerTier` and `category`,
+     * and a gate that cannot see its inputs must refuse.
+     *
+     * After « I do not want any gate at all » neither field is consulted, so
+     * the door was being refused for want of data the decision ignores. On a
+     * slow Boutik+ offer-service « Payer le produit à la livraison » simply
+     * vanished — the founder's own « Option B still not reachable », with a
+     * different cause underneath.
+     *
+     * The refusal is not gone; it MOVED to the condition that actually needs
+     * the data — see the test directly below, which is the other half of this
+     * one and must be read with it.
+     */
     const outcome = issue({
       request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' },
       supply: undefined,
     });
-    if (outcome.ok || outcome.reason !== 'pay_at_door_not_eligible') throw new Error('expected the door refusal');
-    expect(outcome.refusal).toBe('context_missing');
+    expect(outcome.ok, 'the shipped policy consults neither field — the door must be offered').toBe(true);
+  });
+
+  it('⚠ …and it STILL refuses, by name, the moment a condition actually needs supply', () => {
+    /**
+     * THE FAIL-CLOSED HALF, per condition rather than in bulk — and this is why
+     * the change above is safe. Missing supply travels as `''`, which is not a
+     * substitution and not a repair: `''` is in no tier rank, so a policy with
+     * a real minimum refuses `seller_tier_below_minimum`, and `''` maps to no
+     * §6.2 row, so a policy with a real list refuses `category_not_inspectable`.
+     * The day the founder re-tightens either rule, an unreadable projection
+     * refuses again — and NEVER by inventing a seller (SELLER-TIER-WIRE-1).
+     */
+    const tier = issue({
+      request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' },
+      supply: undefined,
+      deps: { payAtDoorPolicy: POLITIQUE_STRICTE },
+    });
+    if (tier.ok || tier.reason !== 'pay_at_door_not_eligible') throw new Error('expected the door refusal');
+    expect(tier.refusal, 'an absent tier is not a passing tier').toBe('seller_tier_below_minimum');
   });
 
   it('A PRODUCER OLDER THAN CANON v3.1.0 SENDS NO TIER, and an unprovable condition is a REFUSED condition', () => {
@@ -557,23 +591,31 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     // door refusal that a failed supply read produces is pinned separately
     // (`context_missing`, above), so the two outcomes cannot be confused.
     expect(issue({ supply: undefined }).ok).toBe(true);
+    // AND THE DOOR MODE NO LONGER PAYS FOR IT EITHER (founder override
+    // 2026-08-12) — under the shipped policy a supply outage costs NEITHER
+    // mode, because neither mode's decision reads what supply carries. Under a
+    // tightened policy it costs the door alone, by name, which is the pin in
+    // the test above. What is asserted here is the ORIGINAL safety property,
+    // unchanged: a supply outage never touches ordinary checkout.
     expect(
-      refusalOf(issue({ request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' }, supply: undefined })),
-      'the SAME failed supply read must still cost the DOOR mode',
-    ).toBe('pay_at_door_not_eligible');
+      issue({ request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' }, supply: undefined }).ok,
+      'the shipped policy reads nothing supply carries',
+    ).toBe(true);
   });
 
   it('THE OPS DETAIL RIDES THE REFUSAL, so the service can diagnose without telling the buyer', () => {
-    // `supply: undefined` is what produces `context_missing` now — the caller
-    // has no context to omit (OPTION-B-REACHABLE-1), so the only way the §6.1
-    // block goes missing is the server failing to describe the product.
+    // Driven through a TIGHTENED policy, because under the shipped one a
+    // missing supply read no longer refuses at all (see above). The property
+    // this test exists for is unchanged: a refusal carries the named condition
+    // and the policy version it was decided under, for ops — never for her.
     const outcome = issue({
       request: { paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR' },
       supply: undefined,
+      deps: { payAtDoorPolicy: POLITIQUE_STRICTE },
     });
     if (outcome.ok || outcome.reason !== 'pay_at_door_not_eligible') throw new Error('expected the door refusal');
-    expect(outcome.refusal).toBe('context_missing');
-    expect(outcome.policyVersion).toBe(PAY_AT_DOOR_POLICY_DEFAULTS.version);
+    expect(outcome.refusal).toBe('seller_tier_below_minimum');
+    expect(outcome.policyVersion).toBe(POLITIQUE_STRICTE.version);
   });
 
   it('NO REFUSAL EVER CARRIES A QUOTE — a refused request produces nothing to charge against', () => {
