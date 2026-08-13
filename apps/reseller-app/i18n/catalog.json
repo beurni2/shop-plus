@@ -3068,7 +3068,7 @@
  {
   "key": "fiche.publier.retour",
   "fr": "C’est de retour dans votre vitrine, à votre marge d’avant.",
-  "register": "selling",
+  "register": "money",
   "screenClass": "instruction"
  },
  {
