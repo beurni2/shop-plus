@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-13 · REPRISE-PWA + CODE-VISIBLE — a refresh keeps her place, and her code stays within reach · IN-REVIEW (branch, awaiting founder)
+## 2026-08-13 · REPRISE-PWA + CODE-VISIBLE — a refresh keeps her place, and her code stays within reach · DONE
+
+**MERGED AND DEPLOYED (founder's word, 2026-08-13):** main fast-forwarded to `2ceb003`; `pwa-preview` run 31743290803 **green** on `2ceb003`. Live on the buyer PWA on next load.
 **Founder:** « when i refresh at any step it always takes me back to the initial payment screen commander like a new produt order to buy again. and when i am on the suivi screen i can not go back to the previous screen to see the code to give the rider. »
 
 **BUILT (both sentences red-first in the real browser over the real bundle):** the tab's journey survives reload in a sessionStorage snapshot (`sp-reprise:v1`, keyed to the signed link, allowlisted fields ONLY — never the drop code, a mark or an amount, pinned by a smuggling test and a browser assertion on the actual storage bytes; malformed discards to a fresh C1; C1/C10 clear it). Resume roads: C3-C5 restore her entered fields; C4-C6 re-ask the price over the reload-stable request/command keys (the real service replays the same quote/hold/order by its own idempotency — verified in checkout-do, the mock deliberately pessimistic); C6 resumes WAITING and only post-reload reads can say « confirmée »; tracking resumes with the delivery watch restarted (e6bcc54); the code screen resumes with the code re-asked from the remise route; **the door-payment screen resumes to tracking** (a reload cannot resurrect the live checkout handle — resuming it would put a dead primary under her thumb; the honest bound, decided and documented). CODE-VISIBLE: « Voir mon code » is offered for the whole live delivery (the arrival gate dropped — it protected nothing: the server's remise route stays the sole reveal authority, arrival-gated + bearer-gated with a nameless 404, and blocked her at the door when the arrival fact lagged).
