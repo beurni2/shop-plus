@@ -9,6 +9,23 @@ Format per entry:
 
 ---
 
+## 2026-08-13 · INCIDENT — the storefront lost its en-têtes, the batch was reverted, and the code was exonerated · RESOLVED (revert live; re-land prepared, awaiting founder)
+**Founder (with screenshot):** the live buyer storefront rendered the DEFAULT classique header with no cover and no articles for a shop that had all three; « Even The storefront is not showing any en-têtes ». He ordered the 2026-08-12 batch reverted: « this push merged and deployed is the one that broke things revert all of it ».
+
+**REVERTED, ALL FOUR REPOS, IMMEDIATELY.** Current mains preserved on `rescue/avant-revert-2026-08-13` in every repo; mains force-pushed to pre-batch (shop-plus `a70d5f6` · sera `2f1644c` · platform-contracts `55ddf89` · boutik-plus `624d0cf`); the batch's four deploys re-run green from the reverted code (`storefront-deploy` · `pwa-preview` · `expo-preview` · sera `expo-preview`). **Founder confirmed on the live page: everything back — en-têtes, couverture, storefront.**
+
+**THEN THE FORENSICS, and they matter for every deploy after this one.** A worktree agent replayed what production actually experiences: durable storage WRITTEN by the previously-deployed worker (`49440ff`, canon 3.7.0 — and separately by `a70d5f6`, canon 3.10.0), READ by the batch build (`9520abe`, canon 3.12.0), over the same Miniflare persist dir, real workerd. **Byte-for-byte identical reads: headerStyle `heritage` intact, cover live, products described, publish-to-existing-shop `published`, stored quote re-read identical, fresh quote reconciling to the franc.** The built-bundle diff (243 lines) carries only relaxations on the read-relevant shapes (`pin` → optional; `payAtDoorPolicyVersion` optional); `StorefrontSchema` is byte-identical across canon 3.10→3.12; the storefront READ path holds no schema parse at all (`GET /entry` returns raw storage; parses live only in write deciders); `wrangler.toml` and both deploy workflows: empty diff. **The prime suspect — canon repin breaking stored-shop reads — is falsified. The batch code is exonerated for these symptoms.**
+
+**THE LEADING CAUSE IS THE DEPLOY, NOT THE CONTENT.** The incident window had two `pwa-preview` runs racing, one CANCELLED by `cancel-in-progress: true` — a Pages publish killed mid-flight. The page's own state machine corroborates: « Les articles arrivent » is the EMPTY state, which requires a RESOLVED storefront (a failed read renders « aucune boutique », flows.ts:121) — no code in the range can produce resolved-but-default over this data, but a half-published artifact can. And the healing signature matches: ANY redeploy fixed it.
+
+**MY OWN MISDIAGNOSES, on the record.** (1) I first told the founder the batch could not be the break because the vitrine files were untouched — right premise, wrong conclusion delivered before the forensics; the revert order was correct incident response regardless. (2) Worse: for two days I diagnosed his `storefront_absent` refusals as « your device identity has no shop — create your boutique first ». If the incident began at the batch DEPLOY (19:13, before his first report), the service edge state may have been the real cause the whole time, and the PAS-DE-BOUTIQUE screen work — correct as a designed state for genuinely new resellers — was built on a wrong diagnosis of HIS device. His adds should work again now; to be re-verified with him.
+
+**THE GUARDS, committed here:** `pwa-preview` publishes now QUEUE (`cancel-in-progress: false`) — a superseded run wastes minutes, a half-cancelled publish costs the storefront. And `scripts/compat/` holds the old-write/new-read protocol as a permanent pre-deploy gate (README states when it binds: any canon repin, any storefront-service change), smoked green at this very commit.
+
+**THE RE-LAND, prepared and WAITING FOR HIS WORD.** The reverted batch is exactly the four things he has since re-asked for by name (audio notes on products · pay-at-door for every product · suivi in real time · the clean close on both apps). This branch = the full rescue state + the two guards. On his go: ff mains, deploy with the compat gate run first and a live page check immediately after, sera/boutik mains restored the same way.
+
+---
+
 ## 2026-08-13 · PAS-DE-BOUTIQUE — the refusal that told him to retry the impossible · IN-REVIEW (branch, awaiting founder)
 **Founder report (screenshot):** « when adding a product on ma vitrine from opportunites it is not working and it says l'envoi n'a pas marcher ». His toast, verbatim: **« L'envoi n'a pas marché — storefront_absent — réessayez »**.
 

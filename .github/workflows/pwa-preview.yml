@@ -20,9 +20,24 @@ permissions:
   pages: write
   id-token: write
 
+# ═══ INCIDENT 2026-08-13 — A PUBLISH IS NEVER KILLED MID-FLIGHT ═══
+#
+# The founder's live storefront lost its en-têtes, cover and articles after the
+# 2026-08-12 deploy batch — and a forensic replay EXONERATED the code: a shop
+# written by the actually-deployed 49440ff worker (canon 3.7.0) read perfectly
+# under the batch build (canon 3.12.0), byte for byte, publish included; the
+# built-bundle diff carried only relaxations and the storefront read path has
+# no schema parse at all. What the incident window DID have is two runs of this
+# workflow racing, one CANCELLED by `cancel-in-progress: true` — a Pages
+# publish killed partway. Any redeploy healed the page, which is the signature
+# of a bad artifact, not bad content.
+#
+# So publishes now QUEUE instead of killing each other. A superseded run
+# wastes a few runner minutes; a half-cancelled publish costs the founder his
+# storefront and a four-repo revert.
 concurrency:
   group: pwa-preview
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
