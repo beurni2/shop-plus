@@ -205,25 +205,14 @@ export const K_RAW_STYLES = {
   },
   starBtnPinned: { backgroundColor: '#F8E4EC', borderColor: '#F8E4EC' },
 
-  /* K6 dashed + danger */
+  /* K5 dashed empty/charge card (createBtn/checkbox/dangerGhost left with the
+     K6 sections editor — founder order 2026-08-13) */
   dashedCard: {
     borderRadius: 20, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#DDD2BC', backgroundColor: '#FCF9F2',
     padding: 22, alignItems: 'center', marginTop: 4,
   },
   dashedTitle: { fontFamily: DISPLAY_FAMILY, fontSize: 15, fontWeight: '800', color: '#1C1710' },
   dashedBody: { fontFamily: TEXT_FAMILY, fontSize: 12.5, lineHeight: 19, color: '#6F6355', textAlign: 'center', marginTop: 6 },
-  createBtn: {
-    height: 50, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#C9BDA3',
-    alignItems: 'center', justifyContent: 'center', marginTop: 14,
-  },
-  createBtnText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13.5, fontWeight: '700', color: '#6F6355' },
-  checkbox: { width: 26, height: 26, borderRadius: 9, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  checkboxOn: { backgroundColor: '#A31D4E', borderColor: '#A31D4E' },
-  dangerGhost: {
-    height: 48, borderRadius: 14, borderWidth: 1.5, borderColor: '#D9A49C', backgroundColor: '#FFFFFF',
-    alignItems: 'center', justifyContent: 'center', marginTop: 16,
-  },
-  dangerGhostText: { fontFamily: DISPLAY_FAMILY, fontSize: 14, fontWeight: '700', color: '#8C1D18' },
 
   /* K7 aperçu */
   apercuCover: { height: 116, borderRadius: 22, overflow: 'hidden', alignItems: 'flex-end', justifyContent: 'flex-end' },

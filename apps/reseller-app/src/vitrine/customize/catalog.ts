@@ -3,10 +3,12 @@ import { K_SEED } from './storefront';
 /**
  * PERSONNALISER-PARITY-1 — HER REAL LISTINGS reach the arrangement screens.
  *
- * K5 (à la une + order), K6b (section contents) and K7 (the preview) mapped
- * `curatedItems` through K_SEED — the EIGHT DEMO PRODUCTS. Her real pids found
- * nothing there, so K5 listed nothing to pin: she could not feature a real
- * product at all, which is why her live page had no « Produit à la une ».
+ * K5 (à la une + order) and K7 (the preview) mapped `curatedItems` through
+ * K_SEED — the EIGHT DEMO PRODUCTS. (K6b, section contents, consumed this seam
+ * too until it left with the sections editor — founder order 2026-08-13.)
+ * Her real pids found nothing there, so K5 listed nothing to pin: she could
+ * not feature a real product at all, which is why her live page had no
+ * « Produit à la une ».
  *
  * RN-free on purpose: the seam is a pure function so a node test can EXECUTE it
  * (the vacuous-test lesson — a source-text grep proves nothing).

@@ -27,18 +27,13 @@ import {
   FEATURED_CAP,
   NAME_MIN,
   PICKABLE_HEADER_STYLES,
-  SECTIONS_CAP,
   ZONE_MAX,
   THEMES,
   coverTo,
-  createSection,
-  deleteSection,
   headerStyleOf,
   moveItem,
-  renameSection,
   saveIdentity,
   setTheme,
-  toggleSectionPid,
   togglePin,
   withFocus,
   type HeaderStyleKey,
@@ -74,7 +69,14 @@ const SHOP = { accent: '#A31D4E', deep: '#701134', soft: '#F8E4EC' }; // §1.3 c
 const GOLD_K = '#E0A11B'; // §1.3 liseré or (K chrome)
 const GOLD_BUYER = '#C89A3F';
 
-type KRoute = 'k1' | 'k2' | 'k3' | 'k4' | 'k5' | 'k6' | 'k6b' | 'k7';
+/* SECTIONS RETIRÉES (founder order, 2026-08-13: « remove 'Sections' from
+   personnaliser ») — the k6/k6b routes, their two screens, the K1 row and the
+   four pure actions are gone. UI ONLY: the canon Storefront keeps `sections`,
+   the service keeps accepting the field on the wire (absent = untouched, never
+   cleared — storefront-core's own merge law), and a buyer shop already holding
+   sections keeps rendering them (customer-projection and render.ts are
+   untouched, and ApercuCliente below still groups by them for parity). */
+type KRoute = 'k1' | 'k2' | 'k3' | 'k4' | 'k5' | 'k7';
 
 export interface CustomizeProps {
   onClose: () => void;
@@ -117,8 +119,9 @@ export interface CustomizeProps {
    * too, just more quietly. NOT an error state — nothing is broken and she did
    * nothing wrong; this build simply has not been told where to write. */
   serviceUnconfigured?: boolean;
-  /** PERSONNALISER-PARITY-1 — her REAL listings for K5/K6b/K7. Absent (tests,
-   *  demo) ⇒ the K_SEED fallback, exactly as before. */
+  /** PERSONNALISER-PARITY-1 — her REAL listings for K5/K7 (K6b left with the
+   *  sections editor, 2026-08-13). Absent (tests, demo) ⇒ the K_SEED fallback,
+   *  exactly as before. */
   catalog?: readonly KCatalogItem[] | undefined;
 }
 
@@ -209,7 +212,6 @@ function KHeader({ title, onBack, pill }: { title: string; onBack: () => void; p
 export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist, shopIsLive, onUploadCover, onUploadAvatar, catalog }: CustomizeProps) {
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
-  const [editingSection, setEditingSection] = useState<string | null>(null);
   // PERSONNALISER-HONESTY-1 — which header save is in flight, so K4 can say
   // « Enregistrement… » on that card instead of drawing a check it has not earned.
   const [enteteEnCours, setEnteteEnCours] = useState<HeaderStyleKey | undefined>(undefined);
@@ -246,11 +248,18 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
   /**
    * PERSONNALISER-REAL-1 — every edit both RENDERS and PERSISTS.
    *
-   * The six presentation fields ride on every save rather than only the changed
+   * The presentation fields ride on every save rather than only the changed
    * one: the service compares field by field and answers `unchanged` for a no-op,
-   * so sending all six costs nothing and makes it impossible to forget one at a
+   * so sending them all costs nothing and makes it impossible to forget one at a
    * call site. Cover cycles through here too and simply never matches a patch
    * field — it is not part of the presentation patch (its own slice).
+   *
+   * SECTIONS RETIRÉES (founder order, 2026-08-13): `sections` no longer rides.
+   * This app has no sections editor any more, so carrying `next.sections` would
+   * only ever echo a value it can no longer change — and the wire's own law is
+   * that an ABSENT field is UNTOUCHED, never cleared (storefront-core merges
+   * `...(sections !== undefined ? { sections } : {})`), so a shop already
+   * holding sections keeps them through every save made here.
    */
   const setSf = (next: Storefront, opts?: { readonly withOrder?: boolean }): void => {
     setSfRaw(next);
@@ -262,7 +271,6 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
       zone: next.zone, // VITRINE-QUARTIER-1 — her quartier finally has a write path
       theme: next.theme,
       featuredItems: next.featuredItems,
-      sections: next.sections,
       // K5 ▲▼ ONLY (verifier finding): carrying the order on EVERY save let a
       // STALE membership refuse an unrelated edit — publish a product, re-enter,
       // tap a theme before the re-read lands, and the theme was rejected for a
@@ -371,7 +379,6 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
 
   const back = (): void => {
     if (route === 'k1') onClose();
-    else if (route === 'k6b') setRoute('k6');
     else setRoute('k1');
   };
 
@@ -503,43 +510,6 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           catalog={catalog}
         />
       )}
-      {route === 'k6' && (
-        <K6
-          sf={sf}
-          onBack={back}
-          onCreate={() => {
-            const r = createSection(sf, `s${Date.now()}`, t('k.sections.nouvelle'));
-            if (r.ok) {
-              setSf(r.next);
-              setEditingSection(r.next.sections[r.next.sections.length - 1]!.id);
-              setRoute('k6b');
-            } else onToast(t(r.toastKey));
-          }}
-          onEdit={(id) => {
-            setEditingSection(id);
-            setRoute('k6b');
-          }}
-        />
-      )}
-      {route === 'k6b' && editingSection && (
-        <K6b
-          sf={sf}
-          sectionId={editingSection}
-          onBack={() => setRoute('k6')}
-          catalog={catalog}
-          onRename={(name) => setSfRaw(renameSection(sf, editingSection, name))}
-          onRenameCommit={(name) => setSf(renameSection(sf, editingSection, name))}
-          onTogglePid={(pid) => setSf(toggleSectionPid(sf, editingSection, pid))}
-          onDelete={() => {
-            const r = deleteSection(sf, editingSection);
-            if (r.ok) {
-              setSf(r.next);
-              onToast(t(r.toastKey ?? ''));
-              setRoute('k6');
-            }
-          }}
-        />
-      )}
       {route === 'k7' && <ApercuCliente sf={sf} catalog={catalog} onBack={() => setRoute('k1')} onReadOnlyTap={() => onToast(t('k.apercu.lecture_toast'))} />}
       {/* ENTETES-C — ONE framing sheet, two kinds; it reads the LIVE sf, so
           the photo a just-finished upload wrote arrives through adoption. */}
@@ -565,7 +535,9 @@ function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnc
     { key: 'k3', glyph: <IconCamera size={18} color={SHOP.deep} />, title: t('k.row.cover'), sub: coverSub },
     { key: 'k4', glyph: <Text style={S.rowGlyphText}>◐</Text>, title: t('k.row.theme'), sub: sf.theme === 'laterite' ? tf('k.row.theme_defaut', { nom: th.name }) : th.name },
     { key: 'k5', glyph: <IconStarK size={18} filled={false} />, title: t('k.row.une'), sub: tf('k.row.une_sub', { n: String(sf.featuredItems.length), total: String(catalogTotal ?? K_SEED.length) }) },
-    { key: 'k6', glyph: <Text style={S.rowGlyphText}>≡</Text>, title: t('k.row.sections'), sub: sf.sections.length === 0 ? t('k.row.sections_zero') : tf('k.row.sections_n', { n: String(sf.sections.length) }) },
+    // SECTIONS RETIRÉES (founder order, 2026-08-13) — the « Sections » row left
+    // with its two screens; the canon `sections` FIELD stays, and the aperçu
+    // below keeps grouping by it for buyer parity.
   ];
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
@@ -1099,91 +1071,6 @@ function K5({ sf, onBack, onPin, onMove, catalog }: { sf: Storefront; onBack: ()
         })}
       </View>
       <View style={S.noteSable}><Text style={S.noteSableText}>{t('k.une.note_epuise')}</Text></View>
-    </ScrollView>
-  );
-}
-
-/* ------------------------------------------------------------ K6 / K6b -- */
-
-function K6({ sf, onBack, onCreate, onEdit }: { sf: Storefront; onBack: () => void; onCreate: () => void; onEdit: (id: string) => void }) {
-  const full = sf.sections.length >= SECTIONS_CAP;
-  return (
-    <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
-      <KHeader
-        title={t('k.sections.title')}
-        onBack={onBack}
-        pill={<View style={[S.etatPill, S.etatPillNeutre]}><Text style={S.etatPillText}>{tf('k.sections.pill', { n: String(sf.sections.length), cap: String(SECTIONS_CAP) })}</Text></View>}
-      />
-      {sf.sections.length === 0 ? (
-        <View style={S.dashedCard}>
-          <Text style={S.dashedTitle}>{t('k.sections.zero_titre')}</Text>
-          <Text style={S.dashedBody}>{t('k.sections.zero_corps')}</Text>
-        </View>
-      ) : (
-        <View style={S.rowsCard}>
-          {sf.sections.map((s, i) => (
-            <Pressable key={s.id} style={({ pressed }) => [S.row, i > 0 && S.rowDivider, pressed && S.pressed]} onPress={() => onEdit(s.id)} accessibilityRole="button">
-              <View style={S.rowBody}>
-                <Text style={S.rowTitle}>{s.name}</Text>
-                <Text style={S.rowSub}>{tf('k.sections.n_articles', { n: String(s.pids.length) })}</Text>
-              </View>
-              <Text style={S.rowChevron}>›</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-      <Pressable style={({ pressed }) => [S.createBtn, full && S.ctaDisabled, pressed && !full && S.pressed]} disabled={full} onPress={onCreate} accessibilityRole="button" accessibilityState={{ disabled: full }}>
-        <Text style={[S.createBtnText, full && S.ctaTextDisabled]}>{t(full ? 'k.sections.refus_cap' : 'k.sections.creer')}</Text>
-      </Pressable>
-      <View style={S.noteSable}><Text style={S.noteSableText}>{t('k.sections.note')}</Text></View>
-    </ScrollView>
-  );
-}
-
-function K6b({ sf, sectionId, onBack, onRename, onRenameCommit, onTogglePid, onDelete, catalog }: { sf: Storefront; sectionId: string; onBack: () => void; onRename: (name: string) => void; onRenameCommit: (name: string) => void; onTogglePid: (pid: string) => void; onDelete: () => void; catalog?: readonly KCatalogItem[] | undefined }) {
-  const section = sf.sections.find((s) => s.id === sectionId);
-  if (!section) return null;
-  return (
-    <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
-      <KHeader title={t('k.section.title')} onBack={onBack} />
-      {/* TYPING IS LOCAL, COMMITTING IS A SAVE (verifier finding): keying the
-          service call to every character fired one POST + one read-back per
-          keystroke on a patchy connection, and an emptied field toasted a refusal
-          on each one. The value renders live; the save lands when she leaves. */}
-      <CountedField label={t('k.section.nom_label')} value={section.name} max={20} onChange={onRename} onCommit={onRenameCommit} />
-      <Text style={S.caps}>{t('k.section.articles_caps')}</Text>
-      {sf.curatedItems.map((pid) => fromCatalog(catalog, pid)).filter((p) => p !== undefined).length === 0 && (
-        <View style={S.dashedCard}>
-          <Text style={S.dashedTitle}>{t(sf.curatedItems.length === 0 ? 'k.une.zero_titre' : 'k.une.charge_titre')}</Text>
-          <Text style={S.dashedBody}>{t(sf.curatedItems.length === 0 ? 'k.une.zero_corps' : 'k.une.charge_corps')}</Text>
-        </View>
-      )}
-      <View style={S.rowsCard}>
-        {sf.curatedItems.map((pid) => fromCatalog(catalog, pid)).filter((p): p is KCatalogItem => p !== undefined).map((p, i) => {
-          const checked = section.pids.includes(p.pid);
-          return (
-            <Pressable key={p.pid} style={({ pressed }) => [S.row, i > 0 && S.rowDivider, pressed && S.pressed]} onPress={() => onTogglePid(p.pid)} accessibilityRole="checkbox" accessibilityState={{ checked }}>
-              {/* VIGNETTE — same 44 px square as K5, same rule. */}
-              {p.assetRefs[0] !== undefined ? (
-                <Image source={{ uri: vignette(p.assetRefs[0]) }} style={S.orderArt as unknown as ImageStyle} resizeMode="cover" />
-              ) : (
-                <View style={S.orderArt} />
-              )}
-              <View style={S.rowBody}><Text style={S.rowTitle} numberOfLines={1}>{p.name}</Text></View>
-              <View style={[S.checkbox, checked && S.checkboxOn]}>
-                {checked && <IconCheckK size={14} color="#FFFFFF" />}
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-      {section.pids.length === 0 && <View style={S.noteSable}><Text style={S.noteSableText}>{t('k.section.note_vide')}</Text></View>}
-      <Pressable style={({ pressed }) => [S.dangerGhost, pressed && S.pressed]} onPress={onDelete} accessibilityRole="button">
-        <Text style={S.dangerGhostText}>{t('k.section.supprimer')}</Text>
-      </Pressable>
-      <Pressable style={({ pressed }) => [S.cta, pressed && S.pressed]} onPress={onBack} accessibilityRole="button">
-        <Text style={S.ctaText}>{t('k.enregistrer')}</Text>
-      </Pressable>
     </ScrollView>
   );
 }

@@ -144,7 +144,12 @@ export function FramingSheet({ visible, kind, sf, onSave, onClose }: FramingShee
                       { translateY: translateFor(scaled.height, frame.height, percent.y) },
                     ],
                   }}
-                  resizeMode="stretch"
+                  // CADRAGE-PARITÉ — `cover`, not `stretch`: identical once
+                  // the photo is measured (the scaled box has the image's own
+                  // aspect), and an honest center-crop while unmeasured or
+                  // when getSize fails — stretch would distort in exactly
+                  // those states.
+                  resizeMode="cover"
                 />
               )}
             </View>

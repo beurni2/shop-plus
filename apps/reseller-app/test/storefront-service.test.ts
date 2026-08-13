@@ -303,13 +303,17 @@ describe('PERSONNALISER-REAL-1 — the wiring (source-pinned)', () => {
     expect(app).not.toMatch(/storefront=\{DEFAULT_STOREFRONT\}/);
   });
 
-  it('EVERY EDIT PERSISTS — setSf saves all six presentation fields, never a subset', () => {
+  it('EVERY EDIT PERSISTS — setSf saves every presentation field, never a subset', () => {
     const setSf = /const setSf = \(next: Storefront, opts\?[\s\S]*?\n  \};/.exec(screens)?.[0] ?? '';
     expect(setSf).toContain('onSaveIdentity?.(');
-    for (const field of ['name', 'tagline', 'bio', 'theme', 'featuredItems', 'sections']) {
+    // zone joined via VITRINE-QUARTIER-1; sections LEFT with the K6 editor
+    // (founder order 2026-08-13 — the wire still accepts the field, the app
+    // simply no longer edits it, so it must not ride and half-overwrite).
+    for (const field of ['name', 'tagline', 'bio', 'zone', 'theme', 'featuredItems']) {
       expect(setSf, `setSf must save ${field}`).toContain(`${field}: next.${field}`);
     }
-    // …and no money field can ride along: the patch names exactly the six
+    expect(setSf, 'sections has no editor — it must not ride the patch').not.toContain('sections: next.sections');
+    // …and no money field can ride along
     expect(setSf).not.toMatch(/markup|priceFcfa|commission/);
   });
 
@@ -407,17 +411,44 @@ describe('PERSONNALISER-REAL-1 — the demo seed can never be saved over her sho
     expect(screens).toMatch(/savesPersist !== false\s*\n\s*\? t\(r\.toastKey \?\? 'k\.toast_enregistre'\)\s*\n\s*: shopIsLive === true\s*\n\s*\? t\('k\.enreg\.pas_charge'\)\s*\n\s*: t\('k\.enreg\.brouillon_toast'\)/);
   });
 
-  it('A SECTION RENAME SAVES ON LEAVING THE FIELD, not on every keystroke', () => {
-    // one POST + one read-back per character on a patchy connection is a loi-7
-    // failure, and an emptied field toasted a refusal on each one.
-    expect(screens).toMatch(/onRename=\{\(name\) => setSfRaw\(renameSection/);
-    expect(screens).toMatch(/onRenameCommit=\{\(name\) => setSf\(renameSection/);
-    expect(screens).toMatch(/onCommit\?\.\(value\)/);
+  // (The section-rename commit pin left with its screen — SECTIONS RETIRÉES,
+  // founder order 2026-08-13, « remove 'Sections' from personnaliser ».)
+
+  it('SECTIONS SURVIVE HER UNRELATED SAVES — an absent field is UNTOUCHED, never a wipe (EXECUTED)', async () => {
+    /**
+     * SECTIONS RETIRÉES took the editor, not the data: a shop already holding
+     * sections (grouped before 2026-08-13, or via the wire) must keep them
+     * through every save this app still makes. The wire's law — proven here
+     * against the contract-certified demo adapter, which mirrors
+     * storefront-core's own merge (`...(sections !== undefined ? { sections }
+     * : {})`) — is that ABSENT means UNTOUCHED. So the patch `setSf` now sends
+     * (name/tagline/bio/zone/theme/featuredItems, no `sections` key) cannot
+     * wipe her grouping; a patch that carried `sections: []` WOULD.
+     */
+    const { DemoStorefrontService } = await import('../src/vitrine/service.demo');
+    const svc = new DemoStorefrontService();
+    await svc.create(CMD);
+    const grouped = [{ id: 's1', name: 'Tissus', pids: [] }];
+    // her grouping reaches the shop (the wire still accepts the field)…
+    expect((await svc.saveIdentity(CMD.id, { sections: grouped }, 'T1')).ok).toBe(true);
+    // …then an unrelated save shaped EXACTLY like setSf's ride-along — every
+    // field it sends, and no `sections` key at all.
+    const ride = { name: 'Chez Awa', tagline: 'Le wax', bio: '', zone: 'Ouagadougou', theme: 'danfani', featuredItems: [] };
+    expect('sections' in ride).toBe(false);
+    expect((await svc.saveIdentity(CMD.id, ride, 'T2')).ok).toBe(true);
+    const read = await svc.getById(CMD.id);
+    expect(read.ok && read.value?.name).toBe('Chez Awa'); // the save landed…
+    expect(read.ok && read.value?.sections, 'her stored grouping must survive a save that does not mention it').toEqual(grouped);
+    // …and the wipe shape really is a wipe, so the absence above is load-bearing
+    expect((await svc.saveIdentity(CMD.id, { sections: [] }, 'T3')).ok).toBe(true);
+    const wiped = await svc.getById(CMD.id);
+    expect(wiped.ok && wiped.value?.sections).toEqual([]);
   });
 });
 
 /**
- * PERSONNALISER-PARITY-1 — K5/K6b/K7 run on HER REAL LISTINGS.
+ * PERSONNALISER-PARITY-1 — K5/K7 run on HER REAL LISTINGS (K6b left with the
+ * sections editor, founder order 2026-08-13).
  *
  * They mapped curatedItems through K_SEED (the eight demo products), so her real
  * pids resolved to NOTHING: K5 listed nothing to pin, and she could not feature
@@ -441,9 +472,11 @@ describe('PERSONNALISER-PARITY-1 — the catalog seam, executed', () => {
     expect(seed?.assetRefs).toEqual([]);
   });
 
-  it('WIRING: K5, K6b and K7 consume the catalog, and K_SEED is only the fallback', () => {
+  it('WIRING: K5 and K7 consume the catalog, and K_SEED is only the fallback', () => {
     const screens = readFileSync(new URL('../src/vitrine/customize/screens.tsx', import.meta.url), 'utf8');
-    // every arrangement surface resolves pids through the seam…
+    // every arrangement surface resolves pids through the seam — K5's rows,
+    // and K7's featured + section groups + residual grid (K6b's two sites
+    // left with its screen, 2026-08-13)
     expect(screens.match(/fromCatalog\(catalog, pid\)/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
     // …and no arrangement surface maps curatedItems/featuredItems through K_SEED any more
     expect(screens).not.toMatch(/curatedItems\.map\(\(pid\) => K_SEED\.find/);

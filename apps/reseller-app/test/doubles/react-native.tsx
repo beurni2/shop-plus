@@ -54,7 +54,20 @@ function host(name: string): React.FC<AnyProps> {
 
 export const View = host('View');
 export const Text = host('Text');
-export const Image = host('Image');
+/**
+ * Image carries the real module's ONE static the app calls: `getSize`. Here it
+ * always reports FAILURE, asynchronously — exactly what a test:// url does on
+ * a device with no network — so a screen's unmeasured branch is the branch a
+ * walk drives. THE BOUND HOLDS: this double never measures a photograph and
+ * never claims one loaded; a walk on it may not assert an image's size.
+ */
+export const Image: React.FC<AnyProps> & {
+  getSize: (uri: string, ok: (w: number, h: number) => void, fail?: (e: unknown) => void) => void;
+} = Object.assign(host('Image'), {
+  getSize: (_uri: string, _ok: (w: number, h: number) => void, fail?: (e: unknown) => void): void => {
+    queueMicrotask(() => fail?.(new Error('rendu-double: no network, no measurement')));
+  },
+});
 export const SafeAreaView = host('SafeAreaView');
 export const ScrollView = host('ScrollView');
 export const TextInput = host('TextInput');

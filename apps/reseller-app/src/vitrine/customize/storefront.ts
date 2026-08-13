@@ -267,9 +267,10 @@ export const BIO_MAX = 160;
 /** VITRINE-QUARTIER-1 — display bound, mirrored from the service. NOT a
  *  gazetteer: the zone list stays an open founder decision; the string stays free. */
 export const ZONE_MAX = 40;
-export const SECTION_NAME_MAX = 20;
 export const FEATURED_CAP = 2;
-export const SECTIONS_CAP = 4;
+// SECTION_NAME_MAX / SECTIONS_CAP left with the K6 editor (founder order
+// 2026-08-13, « remove 'Sections' from personnaliser ») — the `sections` FIELD
+// stays canon; only its editor is gone. The service still holds both bounds.
 
 // §4.4's COVER_UPLOAD_MS / COVER_VERIFY_MS are GONE with the simulation they timed.
 // The K3 cycle is a real pick, a real upload and a real read-back now, so
@@ -347,35 +348,11 @@ export function moveItem(sf: Storefront, pid: string, dir: -1 | 1): Storefront {
   return { ...sf, curatedItems: items };
 }
 
-/** K6 « + Créer une section » — < 4 only; nom pré-rempli. */
-export function createSection(sf: Storefront, id: string, prefillName: string): ActionResult {
-  if (sf.sections.length >= SECTIONS_CAP) return { ok: false, toastKey: 'k.sections.refus_cap' };
-  return { ok: true, next: { ...sf, sections: [...sf.sections, { id, name: prefillName, pids: [] }] } };
-}
-
-/** K6b coche — a product joins/leaves the section; ≤ 1 section per product
- * (joining removes it from any other section). */
-export function toggleSectionPid(sf: Storefront, sectionId: string, pid: string): Storefront {
-  const sections = sf.sections.map((s) => {
-    if (s.id === sectionId) {
-      return s.pids.includes(pid) ? { ...s, pids: s.pids.filter((p) => p !== pid) } : { ...s, pids: [...s.pids, pid] };
-    }
-    return { ...s, pids: s.pids.filter((p) => p !== pid) };
-  });
-  return { ...sf, sections };
-}
-
-export function renameSection(sf: Storefront, sectionId: string, name: string): Storefront {
-  return {
-    ...sf,
-    sections: sf.sections.map((s) => (s.id === sectionId ? { ...s, name: name.slice(0, SECTION_NAME_MAX) } : s)),
-  };
-}
-
-/** K6b « Supprimer » — les articles restent en boutique (only the grouping dies). */
-export function deleteSection(sf: Storefront, sectionId: string): ActionResult {
-  return { ok: true, next: { ...sf, sections: sf.sections.filter((s) => s.id !== sectionId) }, toastKey: 'k.sections.toast_supprimee' };
-}
+// createSection / toggleSectionPid / renameSection / deleteSection left with
+// the K6 editor (SECTIONS RETIRÉES, founder order 2026-08-13). The canon
+// `sections` field and `StorefrontSection` shape STAY: a shop already holding
+// sections keeps them (the wire's absent-means-untouched law), and the aperçu
+// keeps grouping by them for buyer parity.
 
 /**
  * K3 — move the cover to a LOCAL status without forgetting where the photo is.

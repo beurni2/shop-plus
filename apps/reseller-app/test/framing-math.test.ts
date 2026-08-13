@@ -100,8 +100,84 @@ describe('framing-math — the representative frames (aspect + silhouette, per s
     expect(ry.aspect).toBe(1);
     const he = frameSpecFor('heritage', 'cover');
     expect(he.circle).toBe(false);
-    expect(he.aspect).toBeGreaterThan(1); // the 238-tall full-width strip
+    expect(he.aspect).toBeGreaterThan(1);
     expect(new Set(he.radii).size).toBe(1); // uniform corners
+  });
+
+  it('CADRAGE-PARITÉ — classique and héritage match the SHIPPED buyer CSS, to the digit', () => {
+    /**
+     * Founder, 2026-08-13: « the photo frame is cropping wrongly the photo ».
+     * The two sheets exist to AGREE, so each spec answers to the buyer css the
+     * page actually ships, not to the relevé.
+     *
+     * classique — buyer-pwa styles.ts:59/:73: `.vt-hero` grid 54%/46%, margin
+     * -76px -20px 0 (cancels the 20px scroll pad ⇒ % of the full 360),
+     * padding-top 60 over min-height 340 ⇒ photo column 0.46×360 = 165.6 wide
+     * × 280 tall. Of the hero's `border-radius: 0 0 26px 26px` only the
+     * BOTTOM-RIGHT corner touches the photo column (its bottom-left sits
+     * mid-grid at 54%), inherited through overflow:hidden. The old 3/4 card
+     * previewed a slice ~27% wider than the page crops.
+     */
+    const cl = frameSpecFor('classique', 'cover');
+    expect(cl.aspect).toBeCloseTo(165.6 / 280, 10);
+    expect(cl.circle).toBe(false);
+    expect(cl.radii).toEqual([0, 0, 26 / 165.6, 0]);
+    /**
+     * heritage — the ENTETES-D full-bleed override is cascade-LAST in
+     * entetes/heritage.ts:187 and wins: `margin: -60px 0 0; height: 298px;
+     * border-radius: 0` inside the full-width `.vt-ent` ⇒ the shipped box is
+     * full-width 360×298, square. The old 360/238 r24 spec came from the base
+     * rule (heritage.ts:90) the override replaces.
+     */
+    const he2 = frameSpecFor('heritage', 'cover');
+    expect(he2.aspect).toBeCloseTo(360 / 298, 10);
+    expect(he2.radii).toEqual([0, 0, 0, 0]);
+    // …and the fallback for every unbuilt style is classique, so the corrected
+    // aspect also repairs every fallback preview at once.
+    expect(frameSpecFor('inconnu' as never, 'cover')).toEqual(cl);
+  });
+
+  it('CADRAGE-PARITÉ — the two drag regressions the old specs caused can never come back', () => {
+    /** The app's own photo-pick output: 2048 long edge, 4:3 (landscape take
+     *  2048×1536, portrait take 1536×2048) — the sizes his phone actually
+     *  produces, which is why both defects reached him and no test. */
+    const stage = (spec: { aspect: number }): { width: number; height: number } => {
+      // the sheet's own fit rule (framing.tsx): width = min(300, 320·aspect)
+      const w = Math.min(300, 320 * spec.aspect);
+      return { width: w, height: w / spec.aspect };
+    };
+
+    /**
+     * CLASSIQUE, portrait take — the OLD 3/4 spec froze the drag entirely:
+     * at its 240×320 stage, 240/1536 = 320/2048 exactly ⇒ zero overflow on
+     * BOTH axes, so dragToPercent returned the start value forever while the
+     * buyer page (46%-column, aspect ≈0.591) crops ~21% of the width. The
+     * corrected spec must leave overflow on the crop axis (x), so her drag
+     * MOVES.
+     */
+    const cl = frameSpecFor('classique', 'cover');
+    const clFrame = stage(cl);
+    const portrait = coverScaledSize({ width: 1536, height: 2048 }, clFrame);
+    expect(overflowFor(portrait.width, clFrame.width)).toBeGreaterThan(0); // x drags…
+    expect(overflowFor(portrait.height, clFrame.height)).toBe(0); // …exactly as the page crops
+    expect(dragToPercent(50, 10, portrait.width, clFrame.width)).not.toBe(50);
+    // …and a landscape take overflows on the same crop axis, wider still.
+    const landscape = coverScaledSize({ width: 2048, height: 1536 }, clFrame);
+    expect(overflowFor(landscape.width, clFrame.width)).toBeGreaterThan(0);
+
+    /**
+     * HÉRITAGE, landscape take — the OLD 360/238 spec FLIPPED the drag axis:
+     * frame aspect 1.513 > image 1.333 ⇒ the sheet was width-bound (only y
+     * dragged) while the shipped 360×298 page box (aspect 1.208 < 1.333) is
+     * height-bound (only x crops). Her drag moved the axis the page never
+     * cuts. The corrected spec's drag axis must MATCH the page's crop axis.
+     */
+    const he = frameSpecFor('heritage', 'cover');
+    const heFrame = stage(he);
+    const take = coverScaledSize({ width: 2048, height: 1536 }, heFrame);
+    expect(overflowFor(take.width, heFrame.width)).toBeGreaterThan(0); // x drags…
+    expect(overflowFor(take.height, heFrame.height)).toBeCloseTo(0, 10); // …y has nothing to cut
+    expect(dragToPercent(50, 10, take.width, heFrame.width)).not.toBe(50);
   });
 
   it('Chaleureux cover is the galet — four DIFFERENT large radii; Dynamique is a portrait column', () => {

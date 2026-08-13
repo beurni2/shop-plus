@@ -427,22 +427,8 @@ describe('VIGNETTE — small render, small file; big render, big file', () => {
     screen.unmount();
   });
 
-  it('PERSONNALISER — the SECTION picker draws the same 44 px square, and asks small too', async () => {
-    // The second of the two rows the verifier found. It is a DIFFERENT screen
-    // from « À la une », reached by a different door, and a walk that covered
-    // only the first would leave this one exactly as unpinned as the fiche was.
-    troisPhotos([PV_A], [{ id: 'sec-tissus', name: 'Tissus', pids: [] }]);
-    const screen = await openVitrine();
-    await screen.press('Personnaliser ma boutique');
-    await screen.press('Sections');
-    await screen.press('Tissus');
-    expect(screen.shows('Bazin riche'), 'the section picker lists her articles').toBe(true);
-
-    const images = screen.images();
-    expect(images, 'the 44px picker art must ask for the vignette').toContain(`${A}?v=thumb`);
-    expect(images, 'and must NOT ask for the full photograph').not.toContain(A);
-    screen.unmount();
-  });
+  // (The SECTION-picker vignette walk left with its screen — founder order
+  // 2026-08-13, « remove 'Sections' from personnaliser ».)
 });
 
 
@@ -1251,6 +1237,164 @@ describe('PAS-DE-BOUTIQUE — « Ajouter » refused storefront_absent must not d
       screen.shows('Mettre ma boutique en ligne'),
       'the door never left the empty vitrine — pressable and DEAD',
     ).toBe(true);
+    screen.unmount();
+  });
+});
+
+/**
+ * ═══ PERSONNALISER — SECTIONS RETIRÉES + CADRAGE-PARITÉ (founder, 2026-08-13) ═══
+ *
+ * Two orders, walked: « remove 'Sections' from personnaliser » and « the photo
+ * frame is cropping wrongly the photo ». The first is a UI removal whose
+ * promise is that it is UI ONLY — the canon `sections` field stays, and a shop
+ * already holding sections keeps rendering them for her clientes. The second
+ * is crop MATH (COVER_FRAMES parity with the shipped buyer CSS), pinned
+ * numerically in framing-math.test.ts; what a walk can add — within the
+ * harness's stated bound, NO appearance claims — is that the sheet those specs
+ * feed still mounts and its primary action still reaches the service.
+ */
+describe('PERSONNALISER — SECTIONS RETIRÉES + CADRAGE-PARITÉ, walked', () => {
+  const COVER_URL = 'https://media.test/media/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+
+  /** Her LIVE shop (getById 200) — one curated product, and per test a stored
+   *  section grouping and/or a live cover. `/storefronts` stays `[]` (her shop
+   *  is not in the admin list), so `liveSlug` is undefined and « Voir comme
+   *  cliente » opens the K7 replica — the only cliente view walkable here. */
+  function boutique(opts: { sections?: readonly unknown[]; cover?: Record<string, unknown> } = {}): Wire {
+    return wire([
+      (path) =>
+        path === '/supply-projections'
+          ? {
+              status: 200,
+              json: { offers: [offer(PV_A, 'Bazin riche')], diagnostic: { status: 'ok', refusals: [] } },
+            }
+          : null,
+      // The identity save — recorded so a walk can assert WHAT rode the wire.
+      (path) => (/^\/storefronts\/[^/]+\/identity$/.test(path) ? { status: 200, json: { status: 'saved' } } : null),
+      (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
+      (path) =>
+        /^\/storefronts\/[^/]+$/.test(path)
+          ? {
+              status: 200,
+              json: {
+                ...storefront([PV_A]),
+                sections: [...(opts.sections ?? [])],
+                ...(opts.cover !== undefined ? { cover: opts.cover } : {}),
+              } as never,
+            }
+          : null,
+    ]);
+  }
+
+  async function ouvrirPersonnaliser(): Promise<Awaited<ReturnType<typeof mountApp>>> {
+    const screen = await openVitrine();
+    await screen.press('Personnaliser ma boutique');
+    await screen.settle();
+    return screen;
+  }
+
+  it('SECTIONS — the row is gone, and every remaining row still opens its screen', async () => {
+    /**
+     * FOUNDER ORDER: « remove 'Sections' from personnaliser ». The row must be
+     * gone — and the rows that STAY must each still reach their screen, because
+     * a removal that broke a neighbouring route would be a second bug shipped
+     * under the first one's flag.
+     */
+    boutique();
+    const screen = await ouvrirPersonnaliser();
+
+    expect(screen.shows('Personnaliser'), 'K1 mounted').toBe(true);
+    expect(screen.texts().join(' '), 'the Sections row must be gone').not.toContain('Sections');
+
+    // Each named row REACHES its screen (something only that screen renders),
+    // and « Retour » comes back — the tree survives the whole round. TWO
+    // controls answer to « Retour » here: the App chrome's « ← Retour » chip
+    // (render order 0) and the K screen's own back (1) — the walk presses the
+    // K screen's, because that is the one the removal could have broken.
+    await screen.press('Identité');
+    expect(screen.shows('NOM DE LA BOUTIQUE'), 'K2 identité opened').toBe(true);
+    await screen.press('Retour', 1);
+    await screen.press('Couverture & portrait');
+    expect(screen.shows('Ajouter une couverture'), 'K3 couverture opened').toBe(true);
+    await screen.press('Retour', 1);
+    await screen.press('Thème');
+    expect(screen.shows('HABILLAGES FASO PREMIUM'), 'K4 thème opened').toBe(true);
+    await screen.press('Retour', 1);
+    await screen.press('À la une & ordre');
+    expect(screen.shows('Bazin riche'), 'K5 à-la-une opened on her real article').toBe(true);
+    await screen.press('Retour', 1);
+    expect(screen.shows('Personnaliser'), 'back on K1 after the full round').toBe(true);
+    screen.unmount();
+  });
+
+  it('PARITÉ CLIENTE — a shop already holding sections still renders them in the aperçu', async () => {
+    /**
+     * THE « UI ONLY » PROMISE, executed: the editor is gone, the DATA is not.
+     * A shop grouped before 2026-08-13 keeps its grouping wherever the cliente
+     * view shows it — here the K7 replica, which still groups by
+     * `sf.sections` exactly as the buyer page does.
+     */
+    boutique({ sections: [{ id: 'sec-tissus', name: 'Tissus', pids: [PV_A] }] });
+    const screen = await ouvrirPersonnaliser();
+    expect(screen.texts().join(' '), 'no Sections editor row, even over a shop that has sections').not.toContain('Sections');
+
+    await screen.press('Voir comme cliente');
+    expect(screen.shows('Aperçu — vue cliente'), 'the cliente replica opened').toBe(true);
+    expect(screen.shows('TISSUS'), 'her stored section still heads its group').toBe(true);
+    expect(screen.shows('Bazin riche'), 'with her article inside it').toBe(true);
+    screen.unmount();
+  });
+
+  it('PAS D’EFFACEMENT — an unrelated save leaves `sections` OFF the wire, so the service keeps hers', async () => {
+    /**
+     * THE HALF A SOURCE PIN CANNOT PROVE: the patch the app actually POSTS.
+     * The service's law (storefront-core, proven against the demo adapter in
+     * storefront-service.test.ts) is absent-means-untouched — so the ONE way
+     * this app could still wipe her grouping is by SENDING the field. She
+     * picks a theme; the ride-along patch must carry the theme and no
+     * `sections` key at all.
+     */
+    const w = boutique({ sections: [{ id: 'sec-tissus', name: 'Tissus', pids: [PV_A] }] });
+    const screen = await ouvrirPersonnaliser();
+    await screen.press('Thème');
+    await screen.press('Dan Fani');
+    await screen.settle();
+
+    const saves = w.calls.filter((c) => /\/identity$/.test(c.path) && c.method === 'POST');
+    expect(saves.length, 'the theme tap never reached the service').toBeGreaterThanOrEqual(1);
+    const patch = (saves[0]!.body?.['patch'] ?? {}) as Record<string, unknown>;
+    expect(patch['theme'], 'the save she asked for rode').toBe('danfani');
+    expect('sections' in patch, 'sections must be ABSENT — absent is untouched; [] would wipe').toBe(false);
+    screen.unmount();
+  });
+
+  it('CADRAGE — « Ajuster le cadrage » still mounts the sheet, and « Enregistrer » reaches the service', async () => {
+    /**
+     * CADRAGE-PARITÉ is arithmetic (framing-math.test.ts pins the corrected
+     * classique 165.6×280 br-26 and héritage 360×298 square to the digit); the
+     * sheet consumes `frameSpecFor` directly, so no rendering change was
+     * needed for the corrected specs to take effect. What this walk pins is
+     * the ROAD: the sheet mounts on her live cover, and its primary action is
+     * pressable AND wired — the save leaves the screen as `coverFocus` ALONE
+     * (one save, one thing), never the six-field ride-along.
+     */
+    const w = boutique({ cover: { status: 'live', url: COVER_URL } });
+    const screen = await ouvrirPersonnaliser();
+    await screen.press('Couverture & portrait');
+    await screen.settle();
+
+    await screen.press('Ajuster le cadrage');
+    await screen.settle();
+    expect(screen.shows('Placez votre photo'), 'the framing sheet mounted').toBe(true);
+    expect(screen.canPress('Enregistrer'), 'the primary action is present and live').toBe(true);
+
+    await screen.press('Enregistrer');
+    await screen.settle();
+    const saves = w.calls.filter((c) => /\/identity$/.test(c.path) && c.method === 'POST');
+    expect(saves.length, 'the save never reached the service').toBeGreaterThanOrEqual(1);
+    const patch = (saves[0]!.body?.['patch'] ?? {}) as Record<string, unknown>;
+    expect(patch['coverFocus'], 'her framing rode the wire').toBeDefined();
+    expect(Object.keys(patch), 'one save, one thing — the focus rides ALONE').toEqual(['coverFocus']);
     screen.unmount();
   });
 });

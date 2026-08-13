@@ -309,9 +309,37 @@ const SERIE2_FOCUS = {
  * same key — the two sheets agree on the fallback as well as on the shapes.
  */
 const COVER_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = {
-  classique: RECT(3 / 4, 0.07),
+  /**
+   * CADRAGE-PARITÉ (founder, 2026-08-13: « the photo frame is cropping wrongly
+   * the photo ») — two specs disagreed with the SHIPPED buyer CSS, so the sheet
+   * taught a crop the page never draws. These two sheets exist to AGREE; the
+   * spec answers to the byte the buyer ships, not to the relevé.
+   *
+   * classique — the buyer hero is a 54%/46% grid whose photo column is
+   * `position:absolute; inset:0` in the right 46% (buyer-pwa styles.ts:59 the
+   * grid, :73 the photo column): `margin: -76px -20px 0` cancels the 20px
+   * scroll pad so 46% resolves against the full 360, and the content box below
+   * the 60px status padding of the 340 min-height is 280 tall
+   * ⇒ 0.46×360 = 165.6 wide × 280 ⇒ aspect ≈ 0.591 — NOT the 3/4 card this
+   * carried, which previewed a slice ~27% wider than the page crops (and, for
+   * portrait photos, froze the drag entirely: 240/1536 = 320/2048 exactly,
+   * zero overflow on both axes). Of the hero's `border-radius: 0 0 26px 26px`
+   * only the BOTTOM-RIGHT corner touches the photo column (its bottom-left
+   * sits mid-grid at 54%), inherited through `overflow: hidden` ⇒ one 26px
+   * radius, bottom-right, as a fraction of the 165.6 frame width.
+   *
+   * heritage — the ENTETES-D full-bleed override is cascade-LAST and WINS
+   * (entetes/heritage.ts:187: `margin: -60px 0 0; height: 298px;
+   * border-radius: 0`, inside the full-width `.vt-ent`), so the shipped box is
+   * full-width 360×298 square-cornered, not the base 340×238 r24 strip the
+   * relevé recorded (heritage.ts:90, the very rule the override replaces).
+   * With the app's own 2048×1536 output the old spec even flipped the drag
+   * axis: the sheet was width-bound (only y dragged) while the page is
+   * height-bound (only x crops).
+   */
+  classique: { aspect: (0.46 * 360) / 280, circle: false, radii: [0, 0, 26 / (0.46 * 360), 0] },
   royale: CIRCLE,
-  heritage: RECT(360 / 238, 24 / 360),
+  heritage: RECT(360 / 298, 0),
   chaleureux: { aspect: 150 / 198, circle: false, radii: [76 / 150, 58 / 150, 72 / 150, 62 / 150] },
   dynamique: RECT(152 / 320, 0.08),
   // ENTETES-E — founder ruling 2026-07-30 (« make it all be like the 6 original

@@ -1068,24 +1068,6 @@
   "screenClass": "label"
  },
  {
-  "key": "k.row.sections",
-  "fr": "Sections",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.row.sections_zero",
-  "fr": "Aucune — une seule grille",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.row.sections_n",
-  "fr": "{n} sections",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
   "key": "k.voir_cliente",
   "fr": "Voir comme cliente",
   "register": "selling",
@@ -2046,94 +2028,10 @@
   "screenClass": "status"
  },
  {
-  "key": "k.sections.title",
-  "fr": "Sections",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.sections.pill",
-  "fr": "{n}/{cap}",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.sections.zero_titre",
-  "fr": "Sans sections, une seule grille.",
-  "register": "neutral",
-  "screenClass": "status"
- },
- {
-  "key": "k.sections.zero_corps",
-  "fr": "Tous vos articles s’affichent ensemble — c’est très bien aussi. Les sections servent quand la boutique grandit.",
-  "register": "selling",
-  "screenClass": "status"
- },
- {
-  "key": "k.sections.n_articles",
-  "fr": "{n} articles",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.sections.creer",
-  "fr": "+ Créer une section",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
   "key": "k.sections.refus_cap",
   "fr": "4 sections au plus — regroupez plutôt que multiplier.",
   "register": "neutral",
   "screenClass": "status"
- },
- {
-  "key": "k.sections.nouvelle",
-  "fr": "Nouvelle section",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.sections.note",
-  "fr": "Une section vide n’apparaît pas chez vos clientes. Un article peut vivre dans une seule section à la fois ; les autres restent dans « Tous les articles ».",
-  "register": "neutral",
-  "screenClass": "status"
- },
- {
-  "key": "k.sections.toast_supprimee",
-  "fr": "Section supprimée — les articles restent en boutique",
-  "register": "neutral",
-  "screenClass": "status"
- },
- {
-  "key": "k.section.title",
-  "fr": "La section",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.section.nom_label",
-  "fr": "NOM DE LA SECTION",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.section.articles_caps",
-  "fr": "LES ARTICLES DEDANS",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.section.note_vide",
-  "fr": "Une section vide n’apparaît pas chez vos clientes.",
-  "register": "neutral",
-  "screenClass": "status"
- },
- {
-  "key": "k.section.supprimer",
-  "fr": "Supprimer la section",
-  "register": "neutral",
-  "screenClass": "label"
  },
  {
   "key": "k.apercu.title",

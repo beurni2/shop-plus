@@ -8,9 +8,9 @@
  *
  * FLOW LAW (§8.5–§8.10): theme set closed at 4; K2 name < 3 refused; K3 cycle
  * none→uploading(1 400)→pending(2 600)→live; 3rd pin refused; pinned épuisé
- * refused; ▲▼ reorders curatedItems; 5th section refused; section ≤ 1 per
- * product; delete keeps articles; the pin PERSISTS on an épuisé (K5 shows it,
- * the BUYER display auto-retires it).
+ * refused; ▲▼ reorders curatedItems; the pin PERSISTS on an épuisé (K5 shows
+ * it, the BUYER display auto-retires it). (Sections and their laws left with
+ * the K6 editor — founder order 2026-08-13; the canon FIELD stays.)
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,15 +18,11 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_STOREFRONT,
   FEATURED_CAP,
-  SECTIONS_CAP,
   HEADER_STYLES,
   THEMES,
   coverTo,
-  createSection,
-  deleteSection,
   moveItem,
   saveIdentity,
-  toggleSectionPid,
   togglePin,
 } from '../src/vitrine/customize/storefront';
 import { K_SEED } from '../src/vitrine/customize/storefront';
@@ -89,11 +85,7 @@ describe('K property pins — the Phase-0 table bytes in the runtime StyleSheet'
     expect(flat(S.orderRowEpuise).opacity).toBe(0.62);
   });
 
-  it('C-K8 checkbox: 26 r9, checked #A31D4E; danger ghost #D9A49C/#8C1D18; CTA 54 r16 #A31D4E, disabled #DDD5C3/#8A7D6B', () => {
-    expect(flat(S.checkbox)).toMatchObject({ width: 26, height: 26, borderRadius: 9, borderColor: '#E5DCC9' });
-    expect(flat(S.checkboxOn).backgroundColor).toBe('#A31D4E');
-    expect(flat(S.dangerGhost).borderColor).toBe('#D9A49C');
-    expect(flat(S.dangerGhostText).color).toBe('#8C1D18');
+  it('C-K8 CTA 54 r16 #A31D4E, disabled #DDD5C3/#8A7D6B (checkbox/danger pins left with the K6 editor, founder order 2026-08-13)', () => {
     expect(flat(S.cta)).toMatchObject({ height: 54, borderRadius: 16, backgroundColor: '#A31D4E' });
     expect(flat(S.ctaDisabled).backgroundColor).toBe('#DDD5C3');
     expect(flat(S.ctaTextDisabled).color).toBe('#8A7D6B');
@@ -294,27 +286,6 @@ describe('K flows — §8.5–§8.10 as assertions', () => {
     const moved = moveItem(sf, 'p2', -1);
     expect(moved.curatedItems.slice(0, 2)).toEqual(['p2', 'p1']);
     expect(moveItem(sf, 'p1', -1)).toBe(sf); // top can't rise
-  });
-
-  it('§8.9 K6: the 5th section is refused; a product lives in ≤ 1 section; delete keeps the articles', () => {
-    let cur = sf;
-    for (let i = 0; i < SECTIONS_CAP; i++) {
-      const r = createSection(cur, `s${i}`, 'Nouvelle section');
-      expect(r.ok).toBe(true);
-      if (r.ok) cur = r.next;
-    }
-    const fifth = createSection(cur, 'sX', 'Nouvelle section');
-    expect(fifth.ok).toBe(false);
-    cur = toggleSectionPid(cur, 's0', 'p1');
-    cur = toggleSectionPid(cur, 's1', 'p1'); // joining s1 removes from s0
-    expect(cur.sections.find((s) => s.id === 's0')!.pids).toEqual([]);
-    expect(cur.sections.find((s) => s.id === 's1')!.pids).toEqual(['p1']);
-    const del = deleteSection(cur, 's1');
-    expect(del.ok).toBe(true);
-    if (del.ok) {
-      expect(del.next.sections.find((s) => s.id === 's1')).toBeUndefined();
-      expect(del.next.curatedItems).toContain('p1'); // articles stay in boutique
-    }
   });
 
   it('the LOCAL mirror parses with the CANON v1.1.0 StorefrontSchema (RN bundle bans runtime imports; drift fails HERE)', () => {
