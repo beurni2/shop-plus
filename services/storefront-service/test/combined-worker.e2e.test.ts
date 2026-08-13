@@ -243,6 +243,89 @@ describe('combined Worker — the shim + the R2 media path, on real workerd', ()
     const read = await mf.dispatchFetch('http://c/media/storefronts/sf-x/cover/nope.png', { method: 'GET' });
     expect(read.status).toBe(404);
   });
+
+  /**
+   * ═══ PORTÉE-MEDIA — THE iPHONE'S PLAYER ASKS IN RANGES (founder, 2026-08-13) ═══
+   *
+   * « for the audio i am getting the la note ne se lit pas and not hearing
+   * anything … and the seconds are not counting » — from an iPhone. iOS
+   * AVPlayer probes a media URL with `Range: bytes=0-1` and REFUSES the whole
+   * resource when the server answers 200-full-body with no Accept-Ranges (the
+   * exact response this route used to give — the same day's seam drive
+   * recorded it). Android's player tolerates it, which is why every Android
+   * road stayed green while every iPhone heard silence: the item never loads,
+   * no status ever fires, and the app's watchdog (correctly) says « La note ne
+   * se lit pas ». Safari's <audio> on the buyer page needs the same semantics.
+   *
+   * These tests were written RED against the 200-full behaviour, then the
+   * route learned ranges (R2 serves them natively).
+   */
+  it('PORTÉE-MEDIA: the AVPlayer probe — Range: bytes=0-1 answers 206 with exactly two bytes and the total', async () => {
+    const up = await mf.dispatchFetch('http://c/media/upload?kind=cover&storefrontId=sf-seller-0001', {
+      method: 'POST',
+      headers: authed,
+      body: tinyPng(),
+    });
+    expect(up.status).toBe(201);
+    const rec = (await up.json()) as { url: string };
+    const recPath = rec.url.slice(MEDIA_PUBLIC_BASE.length);
+
+    const probe = await mf.dispatchFetch(`http://c${recPath}`, {
+      method: 'GET',
+      headers: { Range: 'bytes=0-1' },
+    });
+    expect(probe.status, 'a ranged ask must be answered 206, never 200-full — iOS refuses the media otherwise').toBe(206);
+    expect(probe.headers.get('content-range')).toBe('bytes 0-1/64');
+    expect(probe.headers.get('accept-ranges')).toBe('bytes');
+    expect(probe.headers.get('content-length')).toBe('2');
+    const bytes = new Uint8Array(await probe.arrayBuffer());
+    expect([...bytes]).toEqual([0x89, 0x50]); // the PNG signature's first two bytes — the range is REAL, not a re-labelled full body
+  });
+
+  it('PORTÉE-MEDIA: open-ended and suffix ranges serve the right slices; the full read advertises ranges', async () => {
+    const up = await mf.dispatchFetch('http://c/media/upload?kind=cover&storefrontId=sf-seller-0001', {
+      method: 'POST',
+      headers: authed,
+      body: tinyPng(),
+    });
+    const rec = (await up.json()) as { url: string };
+    const recPath = rec.url.slice(MEDIA_PUBLIC_BASE.length);
+
+    const tail = await mf.dispatchFetch(`http://c${recPath}`, { method: 'GET', headers: { Range: 'bytes=60-' } });
+    expect(tail.status).toBe(206);
+    expect(tail.headers.get('content-range')).toBe('bytes 60-63/64');
+    expect(new Uint8Array(await tail.arrayBuffer()).length).toBe(4);
+
+    const suffix = await mf.dispatchFetch(`http://c${recPath}`, { method: 'GET', headers: { Range: 'bytes=-8' } });
+    expect(suffix.status).toBe(206);
+    expect(suffix.headers.get('content-range')).toBe('bytes 56-63/64');
+    expect(new Uint8Array(await suffix.arrayBuffer()).length).toBe(8);
+
+    // The unranged read stays a 200 full body — and now SAYS ranges are
+    // welcome, which is what lets a player ask for them at all.
+    const full = await mf.dispatchFetch(`http://c${recPath}`, { method: 'GET' });
+    expect(full.status).toBe(200);
+    expect(full.headers.get('accept-ranges')).toBe('bytes');
+    expect(new Uint8Array(await full.arrayBuffer()).length).toBe(64);
+  });
+
+  it('PORTÉE-MEDIA: a range past the end answers 416 with the total; a malformed Range is ignored, never a 500', async () => {
+    const up = await mf.dispatchFetch('http://c/media/upload?kind=cover&storefrontId=sf-seller-0001', {
+      method: 'POST',
+      headers: authed,
+      body: tinyPng(),
+    });
+    const rec = (await up.json()) as { url: string };
+    const recPath = rec.url.slice(MEDIA_PUBLIC_BASE.length);
+
+    const beyond = await mf.dispatchFetch(`http://c${recPath}`, { method: 'GET', headers: { Range: 'bytes=999-' } });
+    expect(beyond.status).toBe(416);
+    expect(beyond.headers.get('content-range')).toBe('bytes */64');
+
+    const malformed = await mf.dispatchFetch(`http://c${recPath}`, { method: 'GET', headers: { Range: 'zorbles=nope' } });
+    expect(malformed.status, 'an unparseable Range is IGNORED per RFC 7233 — the full body answers').toBe(200);
+    expect(new Uint8Array(await malformed.arrayBuffer()).length).toBe(64);
+  });
 });
 
 /**

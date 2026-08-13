@@ -1,6 +1,6 @@
 import { makeHealthFetch, provenance } from '@shop-plus/observability';
 import type { ResellerListing, Storefront } from '@platform/contracts';
-import { resolveMediaStore, type MediaEnv } from './media/media-store.js';
+import { resolveMediaStore, type MediaEnv, type R2ObjectBodyLike } from './media/media-store.js';
 import { StorefrontMediaService, type MediaKind } from './media/service.js';
 import { absoluteAssetRefs, joinVitrineProduct, toStorefrontView, type VitrineProductRecord } from './customer-projection.js';
 import { resolveStorefrontStore, type StorefrontStoreEnv } from './storefront-store.js';
@@ -298,10 +298,102 @@ async function describeProducts(
  * NOTE (journaled): a live-only gate belongs here once the media registry is
  * durable — today the buyer projection already emits live-only URLs.
  */
-async function handleMediaRead(key: string, env?: MediaEnv): Promise<Response> {
+/**
+ * PORTÉE-MEDIA (founder, 2026-08-13) — the Range header, parsed to R2's own
+ * range shape. SINGLE ranges only (`bytes=a-b`, `bytes=a-`, `bytes=-n`); a
+ * multi-range or unparseable header returns null and the caller serves the
+ * full 200, which RFC 7233 permits (« MAY ignore the Range header field »).
+ * A null here is never an error road — only `bytes=` with neither bound is
+ * genuinely malformed, and it too just falls back to the full body.
+ */
+function parseRange(header: string | null): { offset?: number; length?: number; suffix?: number } | null {
+  if (header === null) return null;
+  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (m === null) return null;
+  const [, a, b] = m;
+  if (a === '' && b === '') return null;
+  if (a === '') return { suffix: Number(b) };
+  if (b === '') return { offset: Number(a) };
+  const offset = Number(a);
+  const end = Number(b);
+  if (end < offset) return null;
+  return { offset, length: end - offset + 1 };
+}
+
+async function handleMediaRead(key: string, env?: MediaEnv, rangeHeader: string | null = null): Promise<Response> {
   const bucket = env?.BUCKET;
   if (bucket === undefined || typeof bucket.get !== 'function') {
     return Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 });
+  }
+  /**
+   * ═══ PORTÉE-MEDIA — THE iPHONE'S PLAYER ASKS IN RANGES ═══
+   *
+   * (Founder, 2026-08-13: « la note ne se lit pas … not hearing anything …
+   * the seconds are not counting » — from an iPhone.) iOS AVPlayer probes any
+   * media URL with `Range: bytes=0-1` and REFUSES the whole resource when the
+   * server answers 200-full-body with no Accept-Ranges — which is exactly
+   * what this route did (the 2026-08-13 seam drive recorded it, and called it
+   * « not a blocker »: true for Android's player, false for every iPhone and
+   * for Safari's <audio> on the buyer page). R2 serves ranges natively, so
+   * the route now answers them: 206 + Content-Range for a satisfiable single
+   * range, 416 + `bytes *​/total` past the end, and the full 200 — now
+   * advertising `Accept-Ranges: bytes` — for no header or one this parser
+   * ignores. The immutable cache header stays on every road: the keys are
+   * content-versioned, a slice of an immutable object is itself immutable.
+   */
+  const range = parseRange(rangeHeader);
+  const baseHeaders = (contentType: string | undefined): Record<string, string> => ({
+    'Content-Type': contentType ?? 'application/octet-stream',
+    'Cache-Control': 'public, max-age=31536000, immutable',
+    'Accept-Ranges': 'bytes',
+  });
+  if (range !== null) {
+    let object: R2ObjectBodyLike | null = null;
+    let unsatisfiable = false;
+    try {
+      object = await bucket.get(key, { range });
+    } catch {
+      // R2 throws on an out-of-bounds range rather than answering — the 416
+      // still owes the caller the TOTAL, so the plain object is read for it.
+      unsatisfiable = true;
+    }
+    if (unsatisfiable || object === null) {
+      const whole = await bucket.get(key);
+      if (whole === null) {
+        return Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 });
+      }
+      if (!unsatisfiable) {
+        // The ranged get answered null while the object exists — treat as
+        // unsatisfiable rather than inventing a slice.
+      }
+      const total = whole.size;
+      return new Response(null, {
+        status: 416,
+        headers: { ...baseHeaders(whole.httpMetadata?.contentType), 'Content-Range': `bytes */${total ?? 0}` },
+      });
+    }
+    const total = object.size ?? 0;
+    // R2 reports the range it actually served; recompute from the ask only
+    // when the binding (or an older shim) omits it.
+    const served = object.range ?? range;
+    const start =
+      served.offset ?? (served.suffix !== undefined ? Math.max(0, total - served.suffix) : 0);
+    const length = served.length ?? (served.suffix !== undefined ? Math.min(served.suffix, total) : total - start);
+    const end = start + length - 1;
+    if (total > 0 && start >= total) {
+      return new Response(null, {
+        status: 416,
+        headers: { ...baseHeaders(object.httpMetadata?.contentType), 'Content-Range': `bytes */${total}` },
+      });
+    }
+    return new Response(object.body, {
+      status: 206,
+      headers: {
+        ...baseHeaders(object.httpMetadata?.contentType),
+        'Content-Range': `bytes ${start}-${end}/${total}`,
+        'Content-Length': String(length),
+      },
+    });
   }
   const object = await bucket.get(key);
   if (object === null) {
@@ -309,10 +401,9 @@ async function handleMediaRead(key: string, env?: MediaEnv): Promise<Response> {
   }
   return new Response(object.body, {
     status: 200,
-    headers: {
-      'Content-Type': object.httpMetadata?.contentType ?? 'application/octet-stream',
-      'Cache-Control': 'public, max-age=31536000, immutable',
-    },
+    headers: object.size !== undefined
+      ? { ...baseHeaders(object.httpMetadata?.contentType), 'Content-Length': String(object.size) }
+      : baseHeaders(object.httpMetadata?.contentType),
   });
 }
 
@@ -448,7 +539,7 @@ export const handleRequest = async (request: Request, env?: StorefrontServiceEnv
   // CORS preflight for the buyer read routes only.
   if (request.method === 'OPTIONS' && isReadRoute) return readPreflight();
   if (request.method === 'GET' && slugMatch) return withReadCors(await handleStorefrontRead(decodeURIComponent(slugMatch[1]!), env));
-  if (request.method === 'GET' && mediaReadMatch) return withReadCors(await handleMediaRead(decodeURI(mediaReadMatch[1]!), env));
+  if (request.method === 'GET' && mediaReadMatch) return withReadCors(await handleMediaRead(decodeURI(mediaReadMatch[1]!), env, request.headers.get('Range')));
   // health (and the honest 404 fallthrough) — the buyer read surface, CORS on.
   return withReadCors(await healthWithProvenance(request));
 };

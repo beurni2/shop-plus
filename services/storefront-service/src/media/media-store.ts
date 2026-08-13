@@ -58,10 +58,21 @@ export interface R2ObjectBodyLike {
   /** The object bytes as a stream — handed straight to a `Response` on read. */
   readonly body: ReadableStream | null;
   readonly httpMetadata?: { readonly contentType?: string };
+  /** The FULL object size in bytes (R2 reports the total even on a ranged
+   *  get) — what Content-Range's denominator needs. */
+  readonly size?: number;
+  /** The range R2 actually served, when one was asked. */
+  readonly range?: { readonly offset?: number; readonly length?: number; readonly suffix?: number };
+}
+/** PORTÉE-MEDIA — the slice a ranged read asks R2 for (native R2GetOptions). */
+export interface R2RangeLike {
+  readonly offset?: number;
+  readonly length?: number;
+  readonly suffix?: number;
 }
 export interface R2BucketLike {
   put(key: string, value: Uint8Array, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
-  get(key: string): Promise<R2ObjectBodyLike | null>;
+  get(key: string, options?: { range?: R2RangeLike }): Promise<R2ObjectBodyLike | null>;
 }
 
 /**
