@@ -25,6 +25,8 @@ import { Image, Modal, PanResponder, Pressable, Text, View, type LayoutChangeEve
 import { t } from '../../i18n';
 import { focusOf, headerStyleOf, type PhotoFocus, type Storefront } from './storefront';
 import {
+  STAGE_MAX_H,
+  STAGE_MAX_W,
   coverScaledSize,
   defaultFocusFor,
   dragToPercent,
@@ -37,9 +39,8 @@ import { K_RAW_STYLES } from './k-styles';
 
 const S = K_RAW_STYLES as unknown as Record<keyof typeof K_RAW_STYLES, ViewStyle & TextStyle>;
 
-/** The stage never overruns a small phone: the frame fits this box. */
-const STAGE_MAX_W = 300;
-const STAGE_MAX_H = 320;
+// The stage bounds live in framing-math (the pure module) so the regression
+// tests execute the sheet's own numbers — see STAGE_MAX_W/H there.
 
 export interface FramingSheetProps {
   readonly visible: boolean;

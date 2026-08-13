@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   clampPercent,
   coverScaledSize,
+  STAGE_MAX_H,
+  STAGE_MAX_W,
   defaultFocusFor,
   dragToPercent,
   focusPosition,
@@ -142,8 +144,10 @@ describe('framing-math — the representative frames (aspect + silhouette, per s
      *  2048×1536, portrait take 1536×2048) — the sizes his phone actually
      *  produces, which is why both defects reached him and no test. */
     const stage = (spec: { aspect: number }): { width: number; height: number } => {
-      // the sheet's own fit rule (framing.tsx): width = min(300, 320·aspect)
-      const w = Math.min(300, 320 * spec.aspect);
+      // the sheet's own fit rule, on the sheet's OWN exported bounds — a
+      // re-implemented 300/320 here would stay green if the sheet moved
+      // (verifier MINOR, 2026-08-13)
+      const w = Math.min(STAGE_MAX_W, STAGE_MAX_H * spec.aspect);
       return { width: w, height: w / spec.aspect };
     };
 

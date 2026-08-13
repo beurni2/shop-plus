@@ -51,6 +51,14 @@ export function translateFor(scaledSize: number, frameSize: number, p: number): 
 }
 
 /** Clamp + integer-round a percentage (canon stores integers 0–100). */
+/** The sheet's stage bounds — the frame fits this box on a small phone.
+ *  HERE, in the pure module, so the drag-regression tests execute the SAME
+ *  numbers the sheet renders from (verifier MINOR, 2026-08-13: the test
+ *  re-implemented them, and a changed sheet would have left it green against
+ *  a stage the sheet no longer used). */
+export const STAGE_MAX_W = 300;
+export const STAGE_MAX_H = 320;
+
 export function clampPercent(p: number): number {
   return Math.min(100, Math.max(0, Math.round(p)));
 }
@@ -297,10 +305,13 @@ const SERIE2_FOCUS = {
   kraft: { x: 50, y: 26 },
 } as const satisfies Record<string, PhotoFocus>;
 
-/** Cover silhouettes, from the contract's own dimensions (ENTETES-A relevé):
- *  Royale medallion 188×188 · Héritage strip 238 tall full-width · Chaleureux
- *  galet 150×198 (radii 76/58/72/62 of 150) · Cristal frame 196 tall
- *  full-width · Dynamique column 152 wide full-height · classique hero column. */
+/** Cover silhouettes. Most follow the ENTETES-A relevé (Royale medallion
+ *  188×188 · Chaleureux galet 150×198, radii 76/58/72/62 of 150 · Cristal
+ *  frame 196 tall full-width · Dynamique column 152 wide full-height) —
+ *  but CADRAGE-PARITÉ (2026-08-13) rebound classique and héritage to the
+ *  SHIPPED buyer CSS where the relevé had drifted from it: héritage is the
+ *  full-bleed 360×298 override, classique the 46% hero column. The shipped
+ *  byte outranks the relevé everywhere they disagree. */
 /**
  * ENTETES-H — PARTIAL since canon v2.4.0. The vocabulary carries 31 keys but
  * only the ELEVEN that are built have a silhouette here; a key with no buyer
@@ -464,7 +475,8 @@ export function defaultFocusFor(style: HeaderStyleKey, kind: FrameKind): PhotoFo
  * Pure, and separated from the component because it is ARITHMETIC WITH A CLAMP,
  * which a source-grep cannot check. Height leads so nothing can overflow the
  * card vertically; the width clamp then catches the widest silhouettes
- * (Héritage's 360/238 strip) before they push out of a 47%-wide card.
+ * (Héritage's full-bleed 360/298 band — CADRAGE-PARITÉ rebound it from the
+ * relevé's 360/238) before they push out of a 47%-wide card.
  */
 export const APERCU_BOX_H = 42;
 export const APERCU_MAX_W = 96;
