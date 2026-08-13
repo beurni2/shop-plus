@@ -584,6 +584,38 @@ describe('VOIX-PRODUIT — the note the shop holds', () => {
     screen.unmount();
   });
 
+  it('Écouter on a STORED note REACHES the player — pressable was never the same as wired', async () => {
+    /**
+     * THE DIAGNOSIS'S G1, and the hole in the test above this one: it asserts
+     * `canPress('Écouter')` and stops, so dead-wiring the press (`onPress` →
+     * nothing, voice-sheet l.427) left every test green over the founder's
+     * second sentence — « when I tap to listen I am not hearing anything ».
+     * The expo-audio double now RECORDS what the app asks of the player, so
+     * the press can be followed all the way to the native surface. The double's
+     * bound holds: this proves the player was ASKED, never that sound played.
+     */
+    avecNote({ status: 'ready', url: NOTE_URL, durationMs: 8_000 });
+    const screen = await openVitrine();
+    await screen.press('Note vocale');
+    await screen.settle();
+
+    await screen.press('Écouter');
+    // The SAME module instance the app drives: after vi.resetModules() the
+    // static top-of-file import would be a stale twin, so import dynamically.
+    const audio = await import('./doubles/expo-audio');
+    expect(
+      audio.journalLecteur,
+      'the press never handed the note to the player',
+    ).toContain(`replace:${NOTE_URL}`);
+    expect(
+      audio.journalLecteur,
+      'the note was loaded but never started',
+    ).toContain(`play:${NOTE_URL}`);
+    // …and the screen knows it is playing — the way back (Pause) is live.
+    expect(screen.canPress('Pause'), 'the button must flip to Pause').toBe(true);
+    screen.unmount();
+  });
+
   it('a shop row that is NOT `ready` is never adopted — no live pill over a note the shop has not stored', async () => {
     /**
      * THE NARROWNESS, stated as the code actually enforces it. I first wrote
@@ -607,6 +639,115 @@ describe('VOIX-PRODUIT — the note the shop holds', () => {
       'a row the shop has not marked ready must not read as live',
     ).toBe(false);
     expect(screen.shows('Ajouter une note vocale'), 'so the invitation stands').toBe(true);
+    screen.unmount();
+  });
+});
+
+/**
+ * ═══ VOIX-PRODUIT — SHE RECORDS, LISTENS, PUBLISHES — IN ONE SESSION ═══
+ *
+ * THE DIAGNOSIS'S G2: nothing drove record → stop → Publier on the real screen,
+ * because the expo-audio double yielded no take — so deleting the readyNote
+ * adoption at the upload-success site (voice-sheet l.197) left all 601 tests
+ * green over a publish that never becomes « en ligne » on her screen. The
+ * double now yields a canned take (a uri + marker bytes: what the native side
+ * yields, and ALL it yields), so the whole path she walks is walkable.
+ *
+ * AND G3 RIDES THE SAME WALK: RN Android has refused `file://` through fetch —
+ * `fetch(fileUri)` throwing lands as `file_unreadable` → « Note pas envoyée »
+ * with no upload attempted, on the founder's device, under a green board. So
+ * this walk pins the CALL SITE: the take's bytes come through the
+ * expo-file-system port, and no fetch(file://) leaves the app.
+ */
+describe('VOIX-PRODUIT — record → stop → Publier, on the real screen', () => {
+  const NOTE_URL = 'https://media.test/voice/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.m4a';
+
+  /**
+   * A STATEFUL fake service, CONTRACT-CERTIFIED to the real Worker
+   * (services/storefront-service/src/index.ts, handleMediaUpload): the upload
+   * answers 201 `{kind:'voice', status:'live', url, durationMs}` AND points the
+   * storefront at the note — `productNotes[pid] = {status:'ready', url,
+   * durationMs}` (storefront-core.ts l.656) — so the app's read-back
+   * confirmation has a truth to read, exactly as it does live.
+   */
+  function serviceVoixPublie(): { routes: Route[]; state: { note: Record<string, unknown> | null } } {
+    const state = { note: null as Record<string, unknown> | null };
+    const routes: Route[] = [
+      (path) =>
+        path === '/supply-projections'
+          ? {
+              status: 200,
+              json: { offers: [offer(PV_A, 'Bazin riche')], diagnostic: { status: 'ok', refusals: [] } },
+            }
+          : null,
+      (path) => {
+        if (path !== '/media/upload') return null;
+        state.note = { status: 'ready', url: NOTE_URL, durationMs: 0 };
+        return {
+          status: 201,
+          json: { service: 'storefront-service', kind: 'voice', status: 'live', url: NOTE_URL, durationMs: 0 },
+        };
+      },
+      (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
+      (path) =>
+        /^\/storefronts\/[^/]+$/.test(path)
+          ? {
+              status: 200,
+              json: storefront([PV_A], state.note === null ? {} : { [PV_A]: state.note }) as never,
+            }
+          : null,
+    ];
+    return { routes, state };
+  }
+
+  it('the take goes through the FILE port to the service, and the card reads « en ligne » THIS session', async () => {
+    const svc = serviceVoixPublie();
+    const w = wire(svc.routes);
+    const screen = await openVitrine();
+    await screen.press('Note vocale');
+    await screen.press('Enregistrer une note');
+    expect(screen.shows('Enregistrement…'), 'the take is running').toBe(true);
+    await screen.press('Arrêter');
+
+    // ÉCOUTEZ-VOUS D'ABORD — the recorded-branch listen block (voice-sheet
+    // l.374), unwalked until now: the fresh take's press must reach the player.
+    await screen.press('Écouter');
+    const audio = await import('./doubles/expo-audio');
+    expect(
+      audio.journalLecteur,
+      'pressing Écouter on the fresh take never started the player',
+    ).toContain(`play:${audio.PRISE_URI}`);
+
+    await screen.press('Publier');
+    await screen.settle();
+    await screen.settle();
+
+    // THE UPLOAD LEFT THE SCREEN — path, pid, and real bytes on the wire.
+    const ups = w.calls.filter((c) => c.path === '/media/upload' && c.method === 'POST');
+    expect(ups, 'Publier never reached the service').toHaveLength(1);
+    expect(ups[0]!.search).toContain('kind=voice');
+    expect(ups[0]!.search).toContain(`pid=${PV_A}`);
+    expect(ups[0]!.bytes, 'the POST carried no bytes').toBeGreaterThan(0);
+
+    // G3 — the bytes came through expo-file-system, never fetch(file://).
+    const fs = await import('./doubles/expo-file-system');
+    expect(
+      fs.journalOctetsLus,
+      "the take's bytes were not read through the expo-file-system port",
+    ).toContain(audio.PRISE_URI);
+    expect(
+      w.calls.some((c) => c.path.includes('prise-rendu')),
+      'the take went out over fetch(file://) — the read RN Android refuses',
+    ).toBe(false);
+
+    // …and the SAME SESSION shows the note live: the sheet says so…
+    expect(screen.shows('En ligne'), 'the sheet must say the note is live').toBe(true);
+    // …and one « Fermer » later, so does the card — no relaunch required.
+    await screen.press('Fermer');
+    expect(
+      screen.shows('Note vocale en ligne'),
+      'the card must show the live note in the session that recorded it',
+    ).toBe(true);
     screen.unmount();
   });
 });

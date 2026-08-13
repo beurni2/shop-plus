@@ -3,6 +3,7 @@ import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { FlatList, Image, Linking, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Updates from 'expo-updates';
+import { File } from 'expo-file-system';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, touch, interaction, dimension } from '@platform/ui-tokens/legacy';
 import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './src/ui/faso-fonts';
@@ -562,18 +563,36 @@ export default function App() {
   const uploadVoiceNote = useCallback<VoiceUploader>(
     async (pid, fileUri, durationMs) => {
       if (service === null || identity === null || identity === undefined) return { ok: false, reason: 'unconfigured' };
+      /**
+       * ═══ THE TAKE'S BYTES COME THROUGH expo-file-system, NOT fetch(file://) ═══
+       *
+       * RN Android has historically refused `file://` through fetch. The old
+       * read (`await fetch(fileUri)`) then threw, landed as `file_unreadable`
+       * → « Note pas envoyée » — with NO upload ever attempted, on the
+       * founder's device, under a fully green board. `File.bytes()` is the
+       * same read the photo path has shipped on since MEDIA-2 (photo-pick.ts).
+       * fetch stays as the FALLBACK for a platform where the File read itself
+       * throws — two roads to the same bytes, and only both failing is
+       * `file_unreadable`.
+       */
       let bytes: Uint8Array;
       try {
-        const res = await fetch(fileUri);
-        bytes = new Uint8Array(await res.arrayBuffer());
+        bytes = await new File(fileUri).bytes();
       } catch {
-        return { ok: false, reason: 'file_unreadable' };
+        try {
+          const res = await fetch(fileUri);
+          bytes = new Uint8Array(await res.arrayBuffer());
+        } catch {
+          return { ok: false, reason: 'file_unreadable' };
+        }
       }
       if (bytes.length === 0) return { ok: false, reason: 'file_empty' };
       const up = await service.uploadVoiceNote(identity.storefrontId, pid, bytes, 'audio/mp4', durationMs);
       if (!up.ok) return { ok: false, reason: up.reason };
       const fresh = await service.getById(identity.storefrontId);
-      if (fresh.ok && fresh.value !== undefined) setLiveStorefront(fresh.value);
+      // The clock-guarded adoption, same as the cover's read-back: a bare
+      // setLiveStorefront here could let an older answer overwrite a newer shop.
+      if (fresh.ok && fresh.value !== undefined) adopterStorefront(fresh.value);
       const confirmed =
         fresh.ok && fresh.value !== undefined && fresh.value.productNotes?.[pid]?.url === up.value.url;
       return confirmed ? { ok: true, url: up.value.url } : { ok: false, reason: 'not_confirmed' };

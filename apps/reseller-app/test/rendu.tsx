@@ -36,8 +36,18 @@ export type Route = (path: string, body: Record<string, unknown> | null) =>
 
 export interface Wire {
   /** Every request the app made, in order — the record a test asks « was this
-   *  port actually CALLED », which is the question source scans cannot answer. */
-  readonly calls: { path: string; method: string; body: Record<string, unknown> | null }[];
+   *  port actually CALLED », which is the question source scans cannot answer.
+   *  `search` is the query string (`?kind=voice&pid=…`) — the upload routes
+   *  carry their facts there, and `path` alone would hide them. `bytes` is the
+   *  byte COUNT of a non-JSON body (an upload's payload): a count only — the
+   *  wire never claims the bytes decode to audio or to an image. */
+  readonly calls: {
+    path: string;
+    method: string;
+    body: Record<string, unknown> | null;
+    search: string;
+    bytes: number;
+  }[];
 }
 
 /**
@@ -47,10 +57,12 @@ export interface Wire {
 export function wire(routes: readonly Route[]): Wire {
   const calls: Wire['calls'] = [];
   const fake = async (input: string, init?: RequestInit): Promise<Response> => {
-    const path = new URL(input, 'http://shop.test').pathname;
+    const u = new URL(input, 'http://shop.test');
+    const path = u.pathname;
     const raw = init?.body;
     const body = typeof raw === 'string' ? (JSON.parse(raw) as Record<string, unknown>) : null;
-    calls.push({ path, method: init?.method ?? 'GET', body });
+    const bytes = raw instanceof Uint8Array ? raw.byteLength : 0;
+    calls.push({ path, method: init?.method ?? 'GET', body, search: u.search, bytes });
     for (const r of routes) {
       const answer = r(path, body);
       if (answer !== null) {

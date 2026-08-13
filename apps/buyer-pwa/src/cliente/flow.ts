@@ -1071,6 +1071,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
           // its answer is not discarded as a stale one.
           jump('C9', { leg2: 'confirmed', step: 6, door: 'inspecting' });
           if (state.marques.arrivedAt !== undefined) demanderLeCode();
+          // ═══ THE WATCH FOLLOWS HER TO C9 — the voir-code fix (e6bcc54),
+          // owed on this road too. `jump` killed the delivery watch; without
+          // this restart the remise happens, the server records `livree`, and
+          // her screen shows the code for ever — no C10, no close.
+          demarrerSuivi();
           return;
         }
       }
@@ -1880,9 +1885,16 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // « Je suis à la porte » without a live handle — but a guard that is
         // satisfied only by unreachability is the exact shape §6bis warns of.
         if (!revelationPermise(reel, state.confirmState, state.doorLeg)) return;
-        if (state.pay === 'A') { jump('C9', { leg2: 'confirmed', step: 6 }); return; }
+        // ═══ EVERY C9 ENTRY RESTARTS THE DELIVERY WATCH — the voir-code fix
+        // (e6bcc54), owed on both of these roads too. `jump` kills the watch;
+        // without the restart the server records `livree` and nobody reads it:
+        // the code stands on screen for ever, no C10, no close. On C9 the
+        // watch's own arrivedAt rule fetches her code, and its `livree` rule
+        // ends the screen. (No-op on the demo path — `demarrerSuivi` holds on
+        // `!reel`.)
+        if (state.pay === 'A') { jump('C9', { leg2: 'confirmed', step: 6 }); demarrerSuivi(); return; }
         state.door = 'accepted'; render();
-        t1 = setTimeout(() => jump('C9', { leg2: 'confirmed', step: 6, door: 'inspecting' }), 2600);
+        t1 = setTimeout(() => { jump('C9', { leg2: 'confirmed', step: 6, door: 'inspecting' }); demarrerSuivi(); }, 2600);
         return;
       // SP4.2b — a NEW attempt, and therefore a new command id, exactly as C6's
       // retry works. The provider key belongs to the LEG and is reused, so a

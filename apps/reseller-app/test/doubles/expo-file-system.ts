@@ -1,9 +1,14 @@
 /**
- * RENDU-RÉEL (Shop+ reseller) — expo-file-system, inert.
+ * RENDU-RÉEL (Shop+ reseller) — expo-file-system, inert but for two named holds.
  *
  * The app reads picked files here. No walk drives a real file through it: the
  * byte paths (resize, re-encode, hash, upload) keep their own unit tests, and a
  * double that pretended to hold bytes would make those look covered from here.
+ * The two exceptions, each bounded where it lives: the IDENTITY file (below)
+ * and the voice take's marker « bytes » (written by the expo-audio double) —
+ * strings in a map, so `File.bytes()` can answer the app's upload read with
+ * something non-empty. NEVER audio, never an image: a walk may assert the read
+ * HAPPENED (`journalOctetsLus`), not that the content was anything.
  */
 export const EncodingType = { Base64: 'base64', UTF8: 'utf8' } as const;
 export const documentDirectory = 'file:///rendu/';
@@ -29,14 +34,24 @@ export async function makeDirectoryAsync(): Promise<void> {}
  * no real filesystem. The upload byte paths keep their own tests.
  */
 const FILES = new Map<string, string>();
+/**
+ * VOIX-PRODUIT — every uri whose BYTES the app asked for, in order. The pin a
+ * walk needs for « the take was read through the FILE port, not fetch(file://) »
+ * — RN Android has refused file:// via fetch, so the call SITE is the fact.
+ * An entry says the port was called with that uri; nothing about the content.
+ */
+export const journalOctetsLus: string[] = [];
 export function resetFiles(): void {
   FILES.clear();
+  journalOctetsLus.length = 0;
 }
 export const Paths = { document: 'file:///rendu/', cache: 'file:///rendu-cache/' };
 export class File {
   private readonly key: string;
-  constructor(dir: string, name: string) {
-    this.key = `${dir}${name}`;
+  /** The real API joins its segments: `new File(uri)` and `new File(dir, name)`
+   *  are both how the app builds one (photo-pick, expoStore, code-store). */
+  constructor(...parts: string[]) {
+    this.key = parts.join('');
   }
   get exists(): boolean {
     return FILES.has(this.key);
@@ -49,5 +64,14 @@ export class File {
   }
   write(data: string): void {
     FILES.set(this.key, data);
+  }
+  /** The byte read the upload paths use. THROWS on a missing file, as the
+   *  device does — answering empty would hide `file_unreadable` for ever. The
+   *  bytes are the stored marker string encoded, never audio (bound above). */
+  async bytes(): Promise<Uint8Array> {
+    journalOctetsLus.push(this.key);
+    const held = FILES.get(this.key);
+    if (held === undefined) throw new Error(`rendu: aucun fichier sous ${this.key}`);
+    return new TextEncoder().encode(held);
   }
 }
