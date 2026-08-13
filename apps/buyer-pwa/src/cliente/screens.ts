@@ -1933,7 +1933,12 @@ export function renderC9(o: {
         '<div class="cl-code-proof">Ce code est votre preuve.</div>',
         '<div class="cl-code-how">Donnez-le au livreur seulement au moment de la remise. Montrez-le, ou dites-le à voix haute.</div>',
         reel ? '' : `<div class="cl-code-how" data-role="code-demo">${SUIVI.codeDemo}</div>`,
-        `<div class="cl-code-kept">${iconShieldCheck(15, 1.9)}Gardé sur ce téléphone — même sans réseau.</div>`,
+        // REPRISE-PWA (verifier MINOR, 2026-08-13): the old sentence promised
+        // « même sans réseau » — but the code is DELIBERATELY never stored on
+        // the phone, so a refresh without network cannot bring it back. The
+        // sentence now says the true bound: it stays as long as this screen
+        // does.
+        `<div class="cl-code-kept">${iconShieldCheck(15, 1.9)}Le code reste sur cet écran — gardez la page ouverte jusqu’à la remise.</div>`,
         '</div>',
       ].join('')
     : [

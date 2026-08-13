@@ -1868,8 +1868,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         state.step += 1; render(); return;
       // ── VRAI-SUIVI — the code, and the tracking's own manual check ────────
       case 'voir-code':
-        // The affordance renders only once `arrivedAt` is a server fact, and
-        // the fetch goes out in the generation the jump opens.
+        // CODE-VISIBLE (2026-08-13): offered for the whole live delivery —
+        // the arrival gate is gone; the REMISE ROUTE stays the sole reveal
+        // authority, and the fetch goes out in the generation the jump opens.
         jump('C9');
         demanderLeCode();
         // ═══ THE WATCH FOLLOWS HER TO C9 (verifier MAJOR, 2026-08-12) ═══

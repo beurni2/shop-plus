@@ -1494,6 +1494,50 @@ test('REPRISE · un rechargement après paiement retombe sur sa commande', async
     JSON.stringify(Object.keys(sessionStorage).map((k) => [k, sessionStorage.getItem(k)])),
   );
   expect(stocke, 'the drop code was persisted on the phone').not.toContain('654321');
+  // ═══ AND THE C9-RESUME RESTARTS THE WATCH TOO (verifier MAJOR, 2026-08-13:
+  // deleting demarrerSuivi() from THIS resume branch left the whole suite
+  // green — the code re-showed via demanderLeCode alone while the delivery
+  // watch stayed dead, the e6bcc54 class on the reload road: `livree` would
+  // never arrive and the code screen would sit there past the delivery). ═══
+  const apresRechargeC9 = wire.orderReads.length;
+  await expect
+    .poll(() => wire.orderReads.length, { timeout: 20_000 })
+    .toBeGreaterThan(apresRechargeC9);
+});
+
+test('REPRISE · un rechargement pendant le paiement re-demande la vérité au serveur', async ({ page }) => {
+  test.setTimeout(120_000);
+  /**
+   * THE LIKELIEST REAL REFRESH (verifier MAJOR, 2026-08-13 — correct in code,
+   * held by nothing): she pays, the screen waits on the provider, and she
+   * refreshes. The resume must land on the WAITING screen — never a resumed
+   * « paid » — and the confirmation may arrive ONLY through reads made after
+   * the reload. The service answers pending twice, then confirmed, so a
+   * snapshot that trusted its own memory would claim a state the server had
+   * not yet said.
+   */
+  const wire = await scriptService(page, {
+    orderStates: ['pending', 'pending', 'confirmed'],
+    marques: [MARQUES_ARRIVEE],
+    codeRemise: '654321',
+  });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-screen="C6"]').waitFor({ timeout: 15_000 });
+
+  await page.reload();
+  // The resume lands on C6 WAITING — in-flight is never resumed as paid.
+  await page.locator('[data-screen="C6"]').waitFor({ timeout: 15_000 });
+  expect((await stage(page)).replace(/\s+/g, ' ')).not.toContain('confirmée');
+  // …and the truth arrives through POST-reload reads: the watch re-asks until
+  // the service itself says confirmed, and only then does the screen move.
+  const lecturesAvant = wire.orderReads.length;
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 20_000 });
+  expect(
+    wire.orderReads.length,
+    'the confirmation must come from a read made AFTER the reload — never from the snapshot',
+  ).toBeGreaterThan(lecturesAvant);
 });
 
 test('CODE-VISIBLE · depuis le suivi, le code reste à portée', async ({ page }) => {
