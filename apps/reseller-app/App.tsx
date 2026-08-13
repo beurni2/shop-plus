@@ -942,15 +942,31 @@ export default function App() {
        * cannot see: the « déjà » guard is a screen-level check over a shop read
        * that can fail, and when it does the button comes back. Here the answer
        * comes from the service itself, so it cannot be out of date.
+       *
+       * RE-AJOUT (founder bug, 2026-08-13): « When I add a product to ma
+       * vitrine, remove it and trying t re-add it, it says the product exist
+       * already » — over an EMPTY vitrine. The service now states membership
+       * on the idempotent road too, and when the product was genuinely gone it
+       * says so: `remise: true`, with the post-add shop riding on the write
+       * (the removeItem precedent). Adopting it through the clock-guarded
+       * adopter puts the card back on Ma Vitrine BEFORE any re-read, and the
+       * toast tells the truth: it is BACK, at the marge she signed before —
+       * the replay re-signs nothing, so « déjà » would be the wrong sentence
+       * and « ajouté » would promise a marge the replay never applied.
        */
-      setToast(res.value.status === 'idempotent' ? t('fiche.publier.deja') : t('fiche.publier.ajoute'));
+      if (res.value.status === 'idempotent' && res.value.remise === true) {
+        if (res.value.storefront !== undefined) adopterStorefront(res.value.storefront);
+        setToast(t('fiche.publier.retour'));
+      } else {
+        setToast(res.value.status === 'idempotent' ? t('fiche.publier.deja') : t('fiche.publier.ajoute'));
+      }
       // RESELLER-UX-1 item 4 (founder walk: « I am still in that screen ») — the
       // add lands her ON the vitrine so the product she just added is the first
       // thing she sees. Cause and effect on one screen; toHub resets the stack so
       // « Retour » from here does not replay the fiche.
       toHub('vitrine');
     },
-    [service, identity, markups, vitrineCol, toHub],
+    [service, identity, markups, vitrineCol, toHub, adopterStorefront],
   );
   /**
    * VITRINE-RETRAIT — « Retirer de ma vitrine », the act that was missing.

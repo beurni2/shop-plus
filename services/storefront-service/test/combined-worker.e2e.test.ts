@@ -875,6 +875,85 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     expect(view2.curatedItems).toEqual(['pv-a2-1']); // appended ONCE, not reordered
   });
 
+  it('RE-AJOUT — a REMOVED product returns on the idempotent republish the app actually sends', async () => {
+    /**
+     * FOUNDER BUG (2026-08-13, screenshot): « When I add a product to ma
+     * vitrine, remove it and trying t re-add it, it says the product exist
+     * already » — his vitrine showed the EMPTY state under the « déjà » toast.
+     *
+     * THE APP PINS THE COMMAND ID (`publish-${listingId}`,
+     * apps/reseller-app/src/vitrine/service.ts) — deliberate, and untouched:
+     * a re-tap stays idempotent, and the deferred re-price road stays closed.
+     * So a re-add after a removal replays `idempotent`, and the composition
+     * root's membership append used to run only on `published` — the product
+     * could never return. « Publish states membership » is this root's own
+     * documented law; an idempotent publish must state it too.
+     *
+     * ONE command id for ALL THREE publishes below, exactly as the app sends it.
+     */
+    const SF_RM = {
+      commandId: 'cmd-remise-create',
+      id: 'sf-remise-0001',
+      resellerId: 'rs-remise-0001',
+      shortCode: 'REMISE-0001',
+      name: 'Boutique remise',
+      zone: 'Ouagadougou',
+      category: 'Général',
+      correlationId: 'corr-remise',
+      at: T0,
+    };
+    await mf.dispatchFetch('http://c/storefronts', { method: 'POST', headers: authed, body: JSON.stringify(SF_RM) });
+    const publish = (): Promise<Response> =>
+      mf.dispatchFetch('http://c/listings', {
+        method: 'POST',
+        headers: authed,
+        body: publishCmd({
+          commandId: 'cmd-remise-pinned', // the SAME id every time — the app derives it
+          listingId: 'lst-remise-0001',
+          storefrontId: 'sf-remise-0001',
+          resellerId: 'rs-remise-0001',
+        }),
+      });
+
+    // ADD — publish states membership.
+    const first = await publish();
+    expect(((await first.json()) as { status: string }).status).toBe('published');
+
+    // RETIRER — on the exact route the app's removeItem calls.
+    const removed = await mf.dispatchFetch('http://c/storefronts/sf-remise-0001/items/remove', {
+      method: 'POST',
+      headers: authed,
+      body: JSON.stringify({ pid: 'pv-a2-1', at: '2026-08-13T09:00:00.000Z' }),
+    });
+    expect(((await removed.json()) as { status: string }).status).toBe('removed');
+
+    // RE-ADD — the same pinned command replays `idempotent`, AND the membership
+    // returns: `remise: true`, with the post-add shop riding on the write (the
+    // removeItem precedent — the shop comes off the write).
+    const re = await publish();
+    expect(re.status).toBe(200);
+    const body = (await re.json()) as {
+      status: string;
+      remise?: boolean;
+      storefront?: { curatedItems: string[] };
+    };
+    expect(body.status).toBe('idempotent'); // the listing is a REPLAY — no new version, her original marge stands
+    expect(body.remise, 'an idempotent re-add after removal must SAY the product came back').toBe(true);
+    expect(body.storefront?.curatedItems).toContain('pv-a2-1');
+    // …and a FRESH read agrees — the append landed in the ledger, not only in the answer.
+    const fresh = await mf.dispatchFetch('http://c/storefronts/sf-remise-0001', { method: 'GET', headers: authed });
+    expect(((await fresh.json()) as { curatedItems: string[] }).curatedItems).toContain('pv-a2-1');
+
+    // A THIRD publish (same command, product now PRESENT): idempotent, and the
+    // body is EXACTLY today's — `remise` appears only when something actually returned.
+    const third = await publish();
+    expect(third.status).toBe(200);
+    const thirdBody = (await third.json()) as Record<string, unknown>;
+    expect(thirdBody['status']).toBe('idempotent');
+    expect('remise' in thirdBody, '`remise` on a no-op would make every re-tap claim a return').toBe(false);
+    expect('storefront' in thirdBody).toBe(false);
+  });
+
   it('PUBLISH-PRICE-1 — THE SERVICE SIGNS THE PRICE; an app-supplied customerPriceFcfa is DISCARDED', async () => {
     // The command below sends `customerPriceFcfa: 9_200` and `offerVersion: ov-a2-1`.
     // The LIVE projection says basePrice 8 000, offerVersion `ov-a2-live`, and the

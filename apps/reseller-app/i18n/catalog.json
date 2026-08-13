@@ -3066,6 +3066,12 @@
   "screenClass": "instruction"
  },
  {
+  "key": "fiche.publier.retour",
+  "fr": "C’est de retour dans votre vitrine, à votre marge d’avant.",
+  "register": "selling",
+  "screenClass": "instruction"
+ },
+ {
   "key": "fiche.publier.pas_de_boutique",
   "fr": "Créez d’abord votre boutique : ouvrez Ma Vitrine, puis « Personnaliser ma boutique ».",
   "register": "neutral",

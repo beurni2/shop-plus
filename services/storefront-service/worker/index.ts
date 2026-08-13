@@ -1016,7 +1016,25 @@ export default {
       });
       const res = await lstRouter.fetch(priced, env);
       const decision = (await res.clone().json().catch(() => null)) as { status?: string } | null;
-      if (decision?.status === 'published' && cmd?.storefrontId && cmd?.productVersionId) {
+      /**
+       * ═══ RE-AJOUT (founder bug, 2026-08-13) — AN IDEMPOTENT PUBLISH STATES
+       * MEMBERSHIP TOO ═══
+       *
+       * « When I add a product to ma vitrine, remove it and trying t re-add it,
+       * it says the product exist already » — over an EMPTY vitrine. The app
+       * pins every publish of a product to ONE command id (deliberate: a re-tap
+       * stays idempotent, and the deferred re-price road stays closed), so a
+       * re-add after « Retirer de ma vitrine » replays `idempotent` here — and
+       * this append used to run only on `published`, so the product could never
+       * return. « Publish states membership » is this root's own law; a replay
+       * is still a publish, so it states it too. The listing itself is NOT
+       * re-signed — the product returns at her ORIGINAL signed marge.
+       */
+      if (
+        (decision?.status === 'published' || decision?.status === 'idempotent') &&
+        cmd?.storefrontId &&
+        cmd?.productVersionId
+      ) {
         const added = await sfRouter.fetch(
           new Request(`https://do/storefronts/${encodeURIComponent(cmd.storefrontId)}/items`, {
             method: 'POST',
@@ -1032,9 +1050,32 @@ export default {
          * this ruling closes. Named so she is told, rather than left to
          * discover an empty vitrine.
          */
-        const membership = (await added.json().catch(() => null)) as { status?: string } | null;
+        const membership = (await added.json().catch(() => null)) as
+          | { status?: string; storefront?: unknown }
+          | null;
         if (membership?.status === 'absent') {
           return Response.json({ error: 'storefront_absent' }, { status: 409 });
+        }
+        /**
+         * RE-AJOUT, the answer's half: an IDEMPOTENT publish whose append
+         * genuinely ADDED (the product was gone — a re-add after removal)
+         * says so: `remise: true`, with the post-add shop off the decider's
+         * own answer (the removeItem precedent — the shop comes off the
+         * write, never a second read). An idempotent replay whose append
+         * answered `already_present` keeps today's body EXACTLY — `remise`
+         * appears only when something actually returned. A `published`
+         * answer keeps today's body exactly, too.
+         */
+        if (decision.status === 'idempotent' && membership?.status === 'added') {
+          const replay = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+          return Response.json(
+            {
+              ...(replay ?? { status: 'idempotent' }),
+              remise: true,
+              ...(membership.storefront !== undefined ? { storefront: membership.storefront } : {}),
+            },
+            { status: res.status },
+          );
         }
       }
       return res;

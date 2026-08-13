@@ -242,8 +242,16 @@ export interface StorefrontServicePort {
    * screen: `supply_unavailable` means the offer could not be read right now and
    * she should try again; anything else is a fault. A refusal she can retry is the
    * correct failure — a price signed against a base nobody could read is not.
+   *
+   * RE-AJOUT (founder bug, 2026-08-13): an `idempotent` answer can now carry
+   * `remise: true` + the post-add `storefront` — the service's word that a
+   * product she had REMOVED just returned to her shop (at its original signed
+   * marge; the pinned command id stays pinned). A plain idempotent replay
+   * carries neither field.
    */
-  publishListing(req: PublishListingRequest): Promise<ServiceResult<{ status: string }>>;
+  publishListing(
+    req: PublishListingRequest,
+  ): Promise<ServiceResult<{ status: string; remise?: boolean; storefront?: Storefront }>>;
   /**
    * VITRINE-RETRAIT (founder, 2026-08-11: « when they delete products from their
    * ma vitrine these products still show on their boutique ») — take ONE product
@@ -454,7 +462,9 @@ export class HttpStorefrontService implements StorefrontServicePort {
    * are surfaced with their NAMED reason rather than collapsed into `http_409`,
    * because « réessayez » and « c'est un défaut » are different things to tell her.
    */
-  async publishListing(req: PublishListingRequest): Promise<ServiceResult<{ status: string }>> {
+  async publishListing(
+    req: PublishListingRequest,
+  ): Promise<ServiceResult<{ status: string; remise?: boolean; storefront?: Storefront }>> {
     const listingId = listingIdFor(req.storefrontId, req.productVersionId);
     let res: Response;
     try {
@@ -475,11 +485,23 @@ export class HttpStorefrontService implements StorefrontServicePort {
     } catch {
       return { ok: false, reason: 'offline' };
     }
-    const data = (await res.json().catch(() => null)) as { status?: string; error?: string } | null;
+    const data = (await res.json().catch(() => null)) as
+      | { status?: string; error?: string; remise?: boolean; storefront?: Storefront }
+      | null;
     // The service's own named refusal survives to the caller — collapsing it to the
     // HTTP code here would throw away the one word that decides what she is told.
     if (!res.ok) return { ok: false, reason: data?.error ?? `http_${res.status}` };
-    return { ok: true, value: { status: data?.status ?? 'published' } };
+    // RE-AJOUT — `remise` + the post-add shop survive to the screen when the
+    // service sent them (a removed product just returned); dropping them here
+    // was how every answer collapsed into « déjà ».
+    return {
+      ok: true,
+      value: {
+        status: data?.status ?? 'published',
+        ...(data?.remise === true ? { remise: true } : {}),
+        ...(data?.storefront !== undefined ? { storefront: data.storefront } : {}),
+      },
+    };
   }
 
   async removeItem(

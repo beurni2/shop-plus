@@ -1152,6 +1152,96 @@ describe('DÉJÀ-DANS-MA-VITRINE — the answer the SERVICE gives, when the scre
   });
 });
 
+describe("RE-AJOUT — a removed product can RETURN to Ma Vitrine (founder, 2026-08-13)", () => {
+  it('add → Retirer → re-add: the product is BACK on her vitrine and the toast says so', async () => {
+    /**
+     * HIS WORDS, WITH THE SCREENSHOT: « When I add a product to ma vitrine,
+     * remove it and trying t re-add it, it says the product exist already » —
+     * the vitrine showed the EMPTY state while the toast read « Ce produit
+     * était déjà dans votre vitrine… ». The pinned command id replayed
+     * `idempotent`, the service appended nothing, and the product could never
+     * come back.
+     *
+     * THE WIRE MIRRORS THE REAL WORKER'S NEW ANSWER — contract-certified to
+     * combined-worker.e2e.test.ts « RE-AJOUT — a REMOVED product returns… »,
+     * and never kinder than it:
+     *   · first publish of a command id → 200 {status:'published'}, membership
+     *     appended (the existing append pin);
+     *   · a REPLAYED command id whose pid is GONE from the shop → 200
+     *     {status:'idempotent', remise:true, storefront} — the append runs and
+     *     the post-add shop rides on the write (the removeItem precedent);
+     *   · a replayed command id whose pid is PRESENT → 200 {status:'idempotent'}
+     *     and nothing else — `remise` appears only when something returned.
+     * The marge is NOT re-signed on the replay: the re-add returns at her
+     * ORIGINAL signed marge, which is what the new toast tells her.
+     */
+    const svc = service({ offers: [PV_A], curated: [] });
+    const seen = new Set<string>(); // the listing DO's command-id memory
+    const w = wire([
+      (path, body) => {
+        if (path !== '/listings') return null;
+        const commandId = typeof body?.['commandId'] === 'string' ? (body['commandId'] as string) : '';
+        const pid = typeof body?.['productVersionId'] === 'string' ? (body['productVersionId'] as string) : '';
+        const replay = seen.has(commandId);
+        seen.add(commandId);
+        if (!replay) {
+          if (!svc.state.curated.includes(pid)) svc.state.curated.push(pid);
+          return { status: 200, json: { status: 'published' } };
+        }
+        if (!svc.state.curated.includes(pid)) {
+          svc.state.curated.push(pid);
+          return {
+            status: 200,
+            json: { status: 'idempotent', remise: true, storefront: storefront(svc.state.curated) as never },
+          };
+        }
+        return { status: 200, json: { status: 'idempotent' } };
+      },
+      ...svc.routes,
+    ]);
+    const screen = await mountApp();
+
+    // ── ADD — and the add lands her ON the vitrine, product visible ─────────
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+    await screen.press('Ajouter à ma vitrine');
+    await screen.settle();
+    expect(screen.canPress('Retirer de ma vitrine'), 'the first add never reached her vitrine').toBe(true);
+
+    // ── RETIRER — the card goes when the shop says so ───────────────────────
+    await screen.press('Retirer de ma vitrine');
+    await screen.settle();
+    expect(screen.shows('Bazin riche'), 'the removed card stayed on screen').toBe(false);
+
+    // ── RE-ADD — the déjà guard is off (the shop no longer holds it) ────────
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+    expect(screen.canPress('Ajouter à ma vitrine'), 'a removed product must be addable again').toBe(true);
+    await screen.press('Ajouter à ma vitrine');
+    await screen.settle();
+
+    // THE ROOT CAUSE RODE THE WIRE: both publishes carried the SAME pinned
+    // command id — the second was a replay, exactly what his phone sends.
+    const pubs = w.calls.filter((c) => c.path === '/listings');
+    expect(pubs).toHaveLength(2);
+    expect(pubs[1]?.body?.['commandId']).toBe(pubs[0]?.body?.['commandId']);
+
+    // ── THE VITRINE SHOWS THE PRODUCT AGAIN — his exact complaint ───────────
+    expect(screen.canPress('Retirer de ma vitrine'), 'the removed product could never return').toBe(true);
+    expect(screen.shows('Bazin riche'), 'the vitrine is the screen the add lands on, and it must hold the product').toBe(true);
+    // …and the toast tells the truth: back, at the marge she signed before.
+    expect(
+      screen.shows('C’est de retour dans votre vitrine, à votre marge d’avant.'),
+      'she must be told it CAME BACK, not that it « existed already »',
+    ).toBe(true);
+    expect(
+      screen.shows('Ce produit était déjà dans votre vitrine. Votre marge n’a pas changé.'),
+      'the « déjà » sentence over a product that just returned is his bug, verbatim',
+    ).toBe(false);
+    screen.unmount();
+  });
+});
+
 describe('PAS-DE-BOUTIQUE — « Ajouter » refused storefront_absent must not dead-end her', () => {
   it("names the real next step instead of « réessayez » — and the empty vitrine HAS that door", async () => {
     /**
