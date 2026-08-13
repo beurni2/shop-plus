@@ -9,7 +9,8 @@ Format per entry:
 
 ---
 
-## 2026-08-13 · RE-AJOUT — a removed product can return to Ma Vitrine · IN-REVIEW (branch, awaiting founder)
+## 2026-08-13 · RE-AJOUT — a removed product can return to Ma Vitrine · DONE (merged + deployed)
+**MERGED AND DEPLOYED (founder: « Merge and deploy », 2026-08-13).** `main` fast-forwarded `80eec26..6cfeb6c`; **`storefront-deploy` green** (run 31727376606 — the live-canon assert passed) **and `expo-preview` green** (run 31727378912), both on 6cfeb6c. The Worker half (membership restored on the idempotent replay) is live immediately; the app half (the « de retour » toast + shop adoption) reaches his phone after two restarts — the loop already works server-side even on the old app bundle, where the re-added product appears on the next shop read.
 **Founder (screenshot: the EMPTY vitrine under the toast):** « When I add a product to ma vitrine, remove it and trying t re-add it, it says the product exist already. »
 
 **ROOT CAUSE, proven at both layers:** the app pins every publish of a product to ONE command id (deliberate, twice over: a re-tap stays idempotent, and the deferred re-price door stays closed — BOTH survive this fix). The listing DO replays a known command as `idempotent`, and the composition root appended the pid to `curatedItems` only on `published` — so after « Retirer de ma vitrine » deleted the membership, a re-add replayed idempotent, appended nothing, and the product could never come back. Both halves of his screen were honest (« était déjà » was true of the LISTING; the empty vitrine was true of the MEMBERSHIP); the seam between them was the bug.
