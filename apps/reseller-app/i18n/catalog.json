@@ -3754,5 +3754,17 @@
   "fr": "Vos clientes l’écoutent sur la fiche de l’article.",
   "register": "selling",
   "screenClass": "selling_surface"
+ },
+ {
+  "key": "k.voix.refaire_note",
+  "fr": "Refaire la note vocale",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.voix.lecture_echec",
+  "fr": "La note ne se lit pas. Vérifiez le réseau et réessayez.",
+  "register": "neutral",
+  "screenClass": "status"
  }
 ]

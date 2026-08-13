@@ -141,7 +141,8 @@ export interface VoiceRecorderAdapter {
   /** Resolves with the finished take — a real local file `url` + elapsed ms. */
   stop(): Promise<{ url: string | null; durationMs: number }>;
   /**
-   * Play a recorded take back (her own voice, local file).
+   * Play a recorded take back (her own voice, local file) or a stored note
+   * (the service's url).
    *
    * `onEnd` fires when the take FINISHES on its own. Without it the screen has
    * no way to learn that playback stopped, so the button stays « Pause » over
@@ -151,8 +152,19 @@ export interface VoiceRecorderAdapter {
    * is why they can now — the screen was showing `durationMs`, the take's TOTAL,
    * frozen, for the whole of playback. It reports the position in whole seconds,
    * straight off the player's own status.
+   *
+   * VOIX-CARTE (founder 2026-08-13): `onEchec` fires ONCE when the source
+   * fails to load — expo-audio surfaces no error to JS, so without this the
+   * screen keeps saying « Pause » over permanent silence. `stage` names which
+   * detector saw it ('idle' = the player's error terminal, 'delai' = the
+   * watchdog); it is diagnostic, never product copy.
    */
-  play(url: string, onEnd?: () => void, onTick?: (seconds: number) => void): Promise<void>;
+  play(
+    url: string,
+    onEnd?: () => void,
+    onTick?: (seconds: number) => void,
+    onEchec?: (stage: 'idle' | 'delai') => void,
+  ): Promise<void>;
   stopPlayback(): Promise<void>;
 }
 

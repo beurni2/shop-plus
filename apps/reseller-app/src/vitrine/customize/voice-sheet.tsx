@@ -224,6 +224,22 @@ export function useVoiceNotes(
         // VOIX-ÉTAT-2 — the clock. Guarded on the pid so a tick from a take she
         // has already left cannot drive the number under the current one.
         (sec) => { if (playingPidRef.current === pid) setPlayingSec(sec); },
+        /**
+         * VOIX-CARTE — THE FAILURE ROAD (founder 2026-08-13: « when i tap to
+         * listen back, i am not hearing anything »). A source that fails to
+         * load reaches JS as nothing at all (expo-audio registers no error
+         * listener), so the adapter detects it and this callback gives the
+         * button back and tells her — instead of « Pause » over permanent
+         * silence, which was his symptom. The IS_PREVIEW suffix is the same
+         * diag pattern as `interrupted()` above: which detector fired, in
+         * parentheses — diagnostic text, not product copy.
+         */
+        (stage) => {
+          if (playingPidRef.current === pid) playingPidRef.current = null;
+          setPlayingPid((cur) => (cur === pid ? null : cur));
+          setPlayingSec(0);
+          onToast(IS_PREVIEW ? `${t('k.voix.lecture_echec')} (${stage})` : t('k.voix.lecture_echec'));
+        },
       );
       setPlayingPid(pid);
     };
@@ -303,12 +319,52 @@ export function voiceCardLabel(note: ProductVoiceNote | undefined): string {
 
 /* ------------------------------------------------------- the controls ---- */
 
-function PlayBtn({ playing, onPress }: { playing: boolean; onPress: () => void }): React.ReactElement {
+export function PlayBtn({ playing, onPress }: { playing: boolean; onPress: () => void }): React.ReactElement {
   return (
     <Pressable style={({ pressed }) => [S.vPlayBtn, pressed && S.pressed]} onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: playing }}>
       {playing ? <IconPauseK size={15} color="#1C1710" /> : <IconPlayK size={15} color="#1C1710" />}
       <Text style={S.vGhostText}>{t(playing ? 'k.voix.pause' : 'k.voix.ecouter')}</Text>
     </Pressable>
+  );
+}
+
+/**
+ * VOIX-CARTE (founder 2026-08-13: « i want it to display with play and pause
+ * button attach to the product and with a button at the end right for redo
+ * it ») — the player ON the Ma Vitrine card, for a note that exists. Play /
+ * pause and the clock are the sheet's own controls re-composed (same PlayBtn,
+ * same horloge expression); « Refaire » sits at the row's right edge. What
+ * redoing MEANS is the App's decision (`onRefaire` opens the sheet AND starts
+ * the take) — a Refaire that did not actually redo would be a two-tap lie.
+ * Publier and Supprimer stay sheet-only; the strip above this row opens it.
+ */
+export function VoiceCardRow({
+  pid,
+  ctl,
+  onRefaire,
+}: {
+  pid: string;
+  ctl: VoiceNotesController;
+  onRefaire: () => void;
+}): React.ReactElement {
+  const n = noteOf(ctl.notes, pid);
+  const playing = ctl.playingPid === pid;
+  const horloge = fmtVoiceDuration(playing ? ctl.playingSec * 1000 : n.durationMs);
+  return (
+    <View style={S.vActions}>
+      {n.url ? <PlayBtn playing={playing} onPress={() => ctl.playRec(pid, n.url!)} /> : null}
+      <Text style={S.vDur}>{horloge}</Text>
+      <Pressable
+        style={({ pressed }) => [S.vGhost, S.vCarteRefaire, ctl.anyRecording && S.ctaDisabled, pressed && !ctl.anyRecording && S.pressed]}
+        disabled={ctl.anyRecording}
+        onPress={onRefaire}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: ctl.anyRecording }}
+        accessibilityLabel={t('k.voix.refaire_note')}
+      >
+        <Text style={S.vGhostText}>{t('k.voix.refaire')}</Text>
+      </Pressable>
+    </View>
   );
 }
 

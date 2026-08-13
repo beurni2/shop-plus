@@ -320,6 +320,9 @@ export const K_RAW_STYLES = {
   /* The two verbs that undo — deliberately quiet, and on their own row so
      neither sits beside the primary action. */
   vSecondaires: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  /* VOIX-CARTE — pushes « Refaire » to the card row's right edge (the founder's
+     « button at the end right »); the flex spacer, as a margin. */
+  vCarteRefaire: { marginLeft: 'auto' },
 
   vDeniedBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', borderRadius: 14, backgroundColor: '#F8E1DE', borderWidth: 1, borderColor: '#E7B8B0', paddingVertical: 12, paddingHorizontal: 14, marginBottom: 12 },
   vDeniedText: { flex: 1, fontFamily: TEXT_FAMILY, fontSize: 12.5, color: '#8C1D18', minWidth: 170 },

@@ -31,7 +31,8 @@ import { loadOrMintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
 import type { ResellerIdentity } from './src/identity/mint';
 import { expoIdentityStore, expoRandomBytes } from './src/identity/expoStore';
-import { useVoiceNotes, VoiceNoteSheet, voiceCardLabel, type VoiceRemover, type VoiceUploader } from './src/vitrine/customize/voice-sheet';
+import { useVoiceNotes, VoiceCardRow, VoiceNoteSheet, voiceCardLabel, type VoiceRemover, type VoiceUploader } from './src/vitrine/customize/voice-sheet';
+import { noteOf } from './src/vitrine/customize/voice';
 import {
   useCercle, CercleHub, CampWizard, CampaignActive, CampaignFunding, CercleReputation,
   CercleMembres, IconCercleDeux, PendingHero, CercleAccueilCard,
@@ -1810,6 +1811,12 @@ export default function App() {
                 // the control never reached a live offer.
                 const v = viewOfOffer(item);
                 const markup = v.markup;
+                // VOIX-CARTE — which state the card's voice block draws. A note
+                // in hand (recorded | pending | ready) gets the player row; the
+                // no-note states keep the plain invitation strip unchanged.
+                const noteVocale = noteOf(voice.notes, item.productVersionId);
+                const noteEnMain =
+                  noteVocale.status === 'recorded' || noteVocale.status === 'pending' || noteVocale.status === 'ready';
                 return (
                   <Card style={styles.vitrineCard}>
                     {/* RESELLER-UX-3 — the PRODUCT-PAGE treatment on HER card
@@ -1913,9 +1920,28 @@ export default function App() {
                       </View>
                       <View style={styles.vitrineVoiceTexte}>
                         <Text style={styles.vitrineVoiceLabel}>{voiceCardLabel(voice.notes[item.productVersionId])}</Text>
-                        <Text style={styles.vitrineVoiceSous}>{t('k.voix.carte_sous')}</Text>
+                        {/* VOIX-CARTE — « Parlez de ce produit à vos clientes »
+                            is the INVITATION to add a note; under a note that
+                            already exists it is a wrong invitation, and the
+                            player row below carries the real acts instead. */}
+                        {!noteEnMain && <Text style={styles.vitrineVoiceSous}>{t('k.voix.carte_sous')}</Text>}
                       </View>
                     </Pressable>
+                    {/* VOIX-CARTE (founder 2026-08-13) — play/pause + the clock
+                        + « Refaire » at the row's end, ON the product. Refaire
+                        opens the sheet AND starts the take — the sheet owns the
+                        mic-permission banner, Annuler and the recording UI, so
+                        a Refaire that only opened it would be a two-tap lie. */}
+                    {noteEnMain && (
+                      <VoiceCardRow
+                        pid={item.productVersionId}
+                        ctl={voice}
+                        onRefaire={() => {
+                          setVoiceSheet({ pid: item.productVersionId, name: item.productName });
+                          voice.startRec(item.productVersionId);
+                        }}
+                      />
+                    )}
                     <SecondaryButton
                       label={t('vitrine.partager')}
                       onPress={() => { setShareCampBadge(false); setShareId(item.productVersionId); go('lien'); }}

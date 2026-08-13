@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react-test-renderer';
 import { mountApp, wire, wiredEnv, type Route, type Wire } from './rendu';
 import { resetFiles } from './doubles/expo-file-system';
 
@@ -131,6 +132,9 @@ beforeEach(() => {
 
 afterEach(() => {
   delete (globalThis as { fetch?: unknown }).fetch;
+  // The failure-road walks run on fake timers (a 10 s watchdog is not a wait
+  // any suite should serve in real time); everyone after them gets real ones.
+  vi.useRealTimers();
 });
 
 describe('MA VITRINE — what is in her shop is what the SERVICE says', () => {
@@ -512,7 +516,7 @@ describe('VOIX-PRODUIT — the note the shop holds', () => {
     screen.unmount();
   });
 
-  it('the note’s own URL reaches the screen — the PLAY control is there and pressable', async () => {
+  it('the note’s own URL reaches the CARD — Écouter is there, pressable, and plays with NO sheet', async () => {
     /**
      * THIS TEST USED TO ASSERT THE WRONG TWO THINGS. It checked the product
      * name and « 0:08 » — a duration, which is an INDEPENDENT field from the
@@ -524,14 +528,21 @@ describe('VOIX-PRODUIT — the note the shop holds', () => {
      *
      * « Present AND pressable » is the standing order's own wording, and it is
      * the half a `shows()` can never answer.
+     *
+     * VOIX-CARTE RETARGETED IT TO THE CARD (founder 2026-08-13: the player
+     * lives « attach to the product » now): no sheet is opened — the card's own
+     * Écouter must reach the player, asserted in the journal, never inferred.
      */
     avecNote({ status: 'ready', url: NOTE_URL, durationMs: 8_000 });
     const screen = await openVitrine();
-    await screen.press('Note vocale');
     await screen.settle();
-    expect(screen.shows('Bazin riche'), 'the sheet opened on this product').toBe(true);
-    expect(screen.shows('0:08'), 'the take’s real length came from the shop, not from zero').toBe(true);
-    expect(screen.canPress('Écouter'), 'a stored note with a url must be playable').toBe(true);
+    expect(screen.shows('0:08'), 'the take’s real length came from the shop, onto the card').toBe(true);
+    expect(screen.canPress('Écouter'), 'a stored note with a url must be playable from the card').toBe(true);
+    await screen.press('Écouter');
+    // The SAME module instance the app drives (see the dynamic-import note below).
+    const audio = await import('./doubles/expo-audio');
+    expect(audio.journalLecteur, 'the press never handed the note to the player').toContain(`replace:${NOTE_URL}`);
+    expect(audio.journalLecteur, 'the note was loaded but never started').toContain(`play:${NOTE_URL}`);
     screen.unmount();
   });
 
@@ -584,19 +595,21 @@ describe('VOIX-PRODUIT — the note the shop holds', () => {
     screen.unmount();
   });
 
-  it('Écouter on a STORED note REACHES the player — pressable was never the same as wired', async () => {
+  it('Écouter on a STORED note REACHES the player from the CARD — pressable was never the same as wired', async () => {
     /**
      * THE DIAGNOSIS'S G1, and the hole in the test above this one: it asserts
      * `canPress('Écouter')` and stops, so dead-wiring the press (`onPress` →
-     * nothing, voice-sheet l.427) left every test green over the founder's
-     * second sentence — « when I tap to listen I am not hearing anything ».
-     * The expo-audio double now RECORDS what the app asks of the player, so
-     * the press can be followed all the way to the native surface. The double's
-     * bound holds: this proves the player was ASKED, never that sound played.
+     * nothing) left every test green over the founder's second sentence —
+     * « when I tap to listen I am not hearing anything ». The expo-audio
+     * double RECORDS what the app asks of the player, so the press can be
+     * followed all the way to the native surface. The double's bound holds:
+     * this proves the player was ASKED, never that sound played.
+     *
+     * VOIX-CARTE RETARGETED IT TO THE CARD: no sheet opening — his listen tap
+     * is one tap on the product now, and this drives exactly that tap.
      */
     avecNote({ status: 'ready', url: NOTE_URL, durationMs: 8_000 });
     const screen = await openVitrine();
-    await screen.press('Note vocale');
     await screen.settle();
 
     await screen.press('Écouter');
@@ -709,9 +722,13 @@ describe('VOIX-PRODUIT — record → stop → Publier, on the real screen', () 
     expect(screen.shows('Enregistrement…'), 'the take is running').toBe(true);
     await screen.press('Arrêter');
 
-    // ÉCOUTEZ-VOUS D'ABORD — the recorded-branch listen block (voice-sheet
-    // l.374), unwalked until now: the fresh take's press must reach the player.
-    await screen.press('Écouter');
+    // ÉCOUTEZ-VOUS D'ABORD — the recorded-branch listen block (voice-sheet's
+    // vEcouteBloc), unwalked until now: the fresh take's press must reach the
+    // player. TWO Écouter are on screen since VOIX-CARTE — the card row renders
+    // under the open sheet for the same recorded take — and the harness rightly
+    // refuses the ambiguity: index 1 is the SHEET's block (the card renders
+    // first, the Modal last).
+    await screen.press('Écouter', 1);
     const audio = await import('./doubles/expo-audio');
     expect(
       audio.journalLecteur,
@@ -748,6 +765,158 @@ describe('VOIX-PRODUIT — record → stop → Publier, on the real screen', () 
       screen.shows('Note vocale en ligne'),
       'the card must show the live note in the session that recorded it',
     ).toBe(true);
+    screen.unmount();
+  });
+});
+
+/**
+ * ═══ VOIX-CARTE — THE PLAYER ON THE CARD, AND THE FAILURE ROAD MADE HONEST ═══
+ *
+ * Founder, 2026-08-13: « the audio on ma vitrine when i tap to listen back, i
+ * am not hearing anything and also i want it to display with play and pause
+ * button attach to the product and with a button at the end right for redo it ».
+ *
+ * THE FIRST HALF IS A SCREEN BUG, so its walk is written FIRST, red, per the
+ * standing order. The verified mechanism (established against the installed
+ * expo-audio 1.1.1 source): the library registers NO error listener on Android,
+ * so a source that fails to load delivers NOTHING to JS — `isLoaded` never
+ * arrives, the wait-for-isLoaded code never calls `play()`, and the UI still
+ * flips to « Pause ». Permanent silence, no feedback: his symptom exactly.
+ *
+ * The double's dead-load mode (`prochainePriseMuette`) reproduces that bound
+ * faithfully; its header states what it may never claim (no audible sound, no
+ * appearance).
+ */
+describe('VOIX-CARTE — the player on the product card', () => {
+  const NOTE_URL = 'https://media.test/voice/cccccccc-cccc-4ccc-8ccc-cccccccccccc.m4a';
+  const NOTE_URL_B = 'https://media.test/voice/dddddddd-dddd-4ddd-8ddd-dddddddddddd.m4a';
+
+  /** Two curated products; whichever pids appear in `notes` carry a stored,
+   *  live note — the state in which the card must offer play/pause + Refaire. */
+  function avecNotesCarte(notes: Record<string, Record<string, unknown>>): Wire {
+    return wire([
+      (path) =>
+        path === '/supply-projections'
+          ? {
+              status: 200,
+              json: {
+                offers: [offer(PV_A, 'Bazin riche'), offer(PV_B, 'Sac en cuir')],
+                diagnostic: { status: 'ok', refusals: [] },
+              },
+            }
+          : null,
+      (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
+      (path) =>
+        /^\/storefronts\/[^/]+$/.test(path)
+          ? { status: 200, json: storefront([PV_A, PV_B], notes) as never }
+          : null,
+    ]);
+  }
+
+  it('ÉCHEC DE LECTURE — a note that never loads gives « Écouter » back and says so', async () => {
+    /**
+     * HIS BUG, REPRODUCED: the player never reports loaded. Before the fix the
+     * card had no player at all and the sheet's button sat on « Pause » over
+     * silence forever; after it, the watchdog fires, the button returns, and
+     * the failure sentence reaches the toast.
+     */
+    const audio = await import('./doubles/expo-audio');
+    audio.prochainePriseMuette();
+    avecNotesCarte({ [PV_A]: { status: 'ready', url: NOTE_URL, durationMs: 8_000 } });
+    const screen = await openVitrine();
+    await screen.settle();
+
+    vi.useFakeTimers();
+    await screen.press('Écouter');
+    // The tap flips the button — honest so far: the app believes it is loading.
+    expect(screen.canPress('Pause'), 'the tap must register').toBe(true);
+
+    // Past the watchdog. The load never answered; the screen must stop claiming.
+    await act(async () => {
+      vi.advanceTimersByTime(11_000);
+      await Promise.resolve();
+    });
+    await screen.settle();
+
+    expect(
+      screen.canPress('Écouter'),
+      'the button must RETURN — « Pause » over permanent silence is his report',
+    ).toBe(true);
+    expect(
+      screen.shows('La note ne se lit pas. Vérifiez le réseau et réessayez.'),
+      'she must be told, not left listening to nothing',
+    ).toBe(true);
+    screen.unmount();
+  });
+
+  it('CARTE — Pause rend la main : the second press reaches stopPlayback and « Écouter » returns', async () => {
+    avecNotesCarte({ [PV_A]: { status: 'ready', url: NOTE_URL, durationMs: 8_000 } });
+    const screen = await openVitrine();
+    await screen.settle();
+
+    await screen.press('Écouter');
+    expect(screen.canPress('Pause'), 'the first press must flip the button').toBe(true);
+    await screen.press('Pause');
+
+    // The pause REACHED the player — asserted in the journal, never inferred
+    // from the label alone (a flipped label over a still-playing note would be
+    // the same lie in the other direction).
+    const audio = await import('./doubles/expo-audio');
+    expect(audio.journalLecteur, 'the second press never reached stopPlayback').toContain(`pause:${NOTE_URL}`);
+    expect(screen.canPress('Écouter'), 'the button must come back to Écouter').toBe(true);
+    expect(screen.canPress('Pause'), 'and Pause must leave with the playback').toBe(false);
+    screen.unmount();
+  });
+
+  it("CARTE — Refaire ouvre la route d'enregistrement, Annuler en main", async () => {
+    /**
+     * A Refaire that only opened the sheet would be a two-tap lie: the button
+     * says REDO, so the take starts. The sheet owns the mic banner, Annuler
+     * and the recording UI — which is exactly why it opens WITH the take.
+     */
+    avecNotesCarte({
+      [PV_A]: { status: 'ready', url: NOTE_URL, durationMs: 8_000 },
+      [PV_B]: { status: 'ready', url: NOTE_URL_B, durationMs: 5_000 },
+    });
+    const screen = await openVitrine();
+    await screen.settle();
+
+    // Two cards, two Refaire — the index names the card (render order).
+    await screen.press('Refaire', 0);
+
+    expect(screen.shows('Enregistrement…'), 'the sheet opened IN the recording state').toBe(true);
+    expect(screen.canPress('Annuler'), 'her way out of the take is live').toBe(true);
+    // …and while she records, every other card's Refaire is disabled — one
+    // microphone, one take at a time (the anyRecording guard).
+    expect(screen.canPress('Refaire'), "the other product's Refaire must sit disabled").toBe(false);
+    screen.unmount();
+  });
+
+  it('CARTE — the play is IMMEDIATE: play: follows replace: with NO loaded event delivered', async () => {
+    /**
+     * THE PIN THAT KEEPS THE ANDROID SUCCESS ROAD INDEPENDENT OF EVENT
+     * DELIVERY. Verified 2026-08-13: on Android, play-after-replace is queued
+     * via ExoPlayer's playWhenReady and is never lost — so the app calls
+     * `play()` unconditionally after `replace()`, and waits for NO event. The
+     * dead-load mode delivers no loaded event at all; `play:` must be in the
+     * journal anyway, after its `replace:`.
+     */
+    const audio = await import('./doubles/expo-audio');
+    audio.prochainePriseMuette();
+    avecNotesCarte({ [PV_A]: { status: 'ready', url: NOTE_URL, durationMs: 8_000 } });
+    const screen = await openVitrine();
+    await screen.settle();
+
+    await screen.press('Écouter');
+    const iReplace = audio.journalLecteur.indexOf(`replace:${NOTE_URL}`);
+    const iPlay = audio.journalLecteur.indexOf(`play:${NOTE_URL}`);
+    expect(iReplace, 'the note never reached the player').toBeGreaterThanOrEqual(0);
+    expect(iPlay, 'play: must be asked without waiting for any event, AFTER replace:').toBeGreaterThan(iReplace);
+
+    // Her way out of the hung load is Pause — pressing it clears the watchdog
+    // (stopPlayback's job), so no failure toast can chase her afterwards.
+    await screen.press('Pause');
+    expect(screen.canPress('Écouter'), 'Pause during the hung load hands the button back').toBe(true);
     screen.unmount();
   });
 });

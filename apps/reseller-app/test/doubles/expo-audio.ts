@@ -26,8 +26,8 @@ type Status = { currentTime?: number; playing?: boolean; didJustFinish?: boolean
  *
  * VOIX-PRODUIT diagnosis: `canPress('Écouter')` was the only pin on the listen
  * press — a dead-wired `onPress` left every test green. A walk must be able to
- * assert the press REACHED the player, so `replace:`/`play:` calls are recorded
- * here, in order.
+ * assert the press REACHED the player, so `replace:`/`play:`/`pause:` calls are
+ * recorded here, in order.
  *
  * ITS BOUND IS ABSOLUTE: an entry says the app CALLED the native surface with
  * that source. It may never be read as « audio was heard » — there is no sound
@@ -35,9 +35,33 @@ type Status = { currentTime?: number; playing?: boolean; didJustFinish?: boolean
  */
 export const journalLecteur: string[] = [];
 
+/**
+ * ═══ THE DEAD LOAD — a source that never finishes loading ═══
+ *
+ * VOIX-CARTE (founder, 2026-08-13: « when i tap to listen back, i am not
+ * hearing anything ») — the real failure mode this arms: the installed
+ * expo-audio registers NO error listener on Android, so a source that fails to
+ * load (offline, 404, dead file) drops to ExoPlayer's 'idle' terminal,
+ * `isLoaded` never becomes true, and NOTHING reaches JS. Call this before a
+ * walk's press and the NEXT `replace()` produces exactly that player: the
+ * journal still records what the app asked, but no loaded event and no status
+ * of any kind is ever delivered.
+ *
+ * ITS BOUND IS ABSOLUTE, same as the journal's: « muette » here means the fake
+ * delivers no JS events — it says NOTHING about audible sound, volume, routing
+ * or appearance. Whether a real note is heard stays with the founder's ear.
+ */
+let prochaineChargeMuette = false;
+export function prochainePriseMuette(): void {
+  prochaineChargeMuette = true;
+}
+
 class AudioPlayer {
   private dead = false;
   private loaded: boolean;
+  /** The dead-load mode (see `prochainePriseMuette`): loaded never arrives and
+   *  no status event of any kind is delivered — as the device behaves. */
+  private muette = false;
   private listener: ((s: Status) => void) | null = null;
   constructor(public source: string | null) {
     // A player created over a real source starts loading it; over null there is
@@ -61,19 +85,27 @@ class AudioPlayer {
   play(): void {
     this.native('play');
     journalLecteur.push(`play:${this.source ?? '(rien)'}`);
+    // A dead load answers the CALL (the journal above) and delivers NOTHING —
+    // on the device the play is queued on playWhenReady over a source that
+    // will never be ready, and no status reaches JS.
+    if (this.muette) return;
     this.listener?.({ playing: true, currentTime: 0 });
   }
   pause(): void {
     this.native('pause');
+    journalLecteur.push(`pause:${this.source ?? '(rien)'}`);
   }
   seekTo(): void {
     this.native('seekTo');
   }
-  /** Native: swap the loaded source. Loads synchronously here (see isLoaded). */
+  /** Native: swap the loaded source. Loads synchronously here (see isLoaded) —
+   *  unless the dead-load mode is armed, in which case it never loads at all. */
   replace(src: { uri: string } | string | null): void {
     this.native('replace');
     this.source = typeof src === 'string' ? src : src === null ? null : src.uri;
-    this.loaded = this.source !== null;
+    this.muette = prochaineChargeMuette;
+    prochaineChargeMuette = false; // one take — the next replace loads normally
+    this.loaded = !this.muette && this.source !== null;
     journalLecteur.push(`replace:${this.source ?? '(rien)'}`);
   }
   /** Native: drops the module's reference. Does NOT detach. */
