@@ -40,6 +40,8 @@ Format per entry:
 
 **Evidence after the verifier's findings:** reseller-app **600/600** · storefront-service **550/550** · typecheck clean · gate board **ALL GATES GREEN exit 0**. Six anchor-verified mutations in total, each red on the right test.
 
+**MERGED AND DEPLOYED (founder: « merge and deploy », 2026-08-13).** `main` fast-forwarded `c22b88c..6076371`; **`expo-preview` green on 6076371** (two runs — my dispatch and the push trigger — both `publish-reseller-app preview update` success). The reseller app is the only surface this slice touches; no service source changed, so `storefront-deploy` was deliberately NOT re-run — the new `republish-idempotent.e2e.test.ts` is a test, and the Worker it drives is the one already live.
+
 ---
 
 ## 2026-08-10 · VOIX-VITRINE — playback that asked a player with nothing loaded to start · IN-REVIEW (branch, awaiting founder)
