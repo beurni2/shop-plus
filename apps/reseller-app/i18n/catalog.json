@@ -3170,7 +3170,7 @@
  {
   "key": "fiche.publier.pas_de_boutique",
   "fr": "Créez d’abord votre boutique : ouvrez Ma Vitrine, puis « Personnaliser ma boutique ».",
-  "register": "selling",
+  "register": "neutral",
   "screenClass": "instruction"
  },
  {

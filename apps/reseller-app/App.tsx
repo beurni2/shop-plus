@@ -287,6 +287,17 @@ export default function App() {
   // her net is what the commission alone pays — publishing on arrival is a safe
   // deliberate act, not a trap, so the button lives the moment the seam is wired.
   const [publishing, setPublishing] = useState(false);
+  /**
+   * PAS-DE-BOUTIQUE (verifier MAJOR) — the service said « no boutique », and
+   * that fact must OUTLIVE A TOAST. The recovery sentence first shipped as a
+   * toast, which auto-clears in 2.6 s: the one sentence naming her next step,
+   * for the exact founder-reported bug, flashed and was gone mid-read. The
+   * state is identity-level, not per-product — no boutique means no adds at
+   * all — so one flag serves every fiche. It renders as the persistent note
+   * under the CTA (the `cta_non_relie` pattern: why this button cannot work,
+   * stated where the button is) and clears the moment a publish succeeds.
+   */
+  const [sansBoutique, setSansBoutique] = useState(false);
   // RESELLER-UX-2 (items 2 + 3) — the photo gallery: which product's photos are
   // open full-screen. null = closed (the voice-sheet idiom).
   const [gallery, setGallery] = useState<{ name: string; refs: readonly string[]; startAt?: number } | null>(null);
@@ -879,12 +890,23 @@ export default function App() {
         // step that is actually hers to take. The refusal is permanent-until-
         // she-acts, so the sentence names the act — and the empty vitrine now
         // carries the « Personnaliser ma boutique » door it points at.
-        if (res.reason === 'storefront_absent') return setToast(t('fiche.publier.pas_de_boutique'));
+        //
+        // NOT A TOAST (verifier MAJOR): it sets the persistent state above, so
+        // the sentence renders under the CTA she just pressed and STAYS — a
+        // 2.6 s toast was the sole carrier of the recovery path and died
+        // mid-read. One state, one sentence, one voice: no toast beside it.
+        if (res.reason === 'storefront_absent') {
+          setToast(null);
+          return setSansBoutique(true);
+        }
         return setToast(res.reason === 'supply_unavailable' ? t('fiche.publier.reessayer') : tf('k.publier.erreur', { raison: res.reason }));
       }
       // CONFIRMED. Membership is recorded now, keyed by productVersionId — the one
       // keyspace the fiche, the grid and the signed price all share.
       vitrineCol.addToVitrine(o.productVersionId);
+      // A publish that landed proves the boutique exists — the persistent
+      // « créez d'abord » note comes down with the fact that made it true.
+      setSansBoutique(false);
       /**
        * `idempotent` IS NOT `published`, AND SHE IS TOLD SO (verifier MAJOR).
        *
@@ -1642,6 +1664,14 @@ export default function App() {
                     {service === null ? (
                       <Text style={styles.noteLine}>{t('fiche.cta_non_relie')}</Text>
                     ) : null}
+                    {/* PAS-DE-BOUTIQUE — the same pattern, for the refusal the
+                        service just gave: why the add cannot land yet, and the
+                        step that is hers, PERSISTENT under the button she
+                        pressed. The CTA stays pressable on purpose — once her
+                        boutique exists the same tap succeeds and clears this. */}
+                    {sansBoutique ? (
+                      <Text style={styles.noteLine}>{t('fiche.publier.pas_de_boutique')}</Text>
+                    ) : null}
                   </>
                 )}
               </ScrollView>
@@ -1669,7 +1699,6 @@ export default function App() {
                 glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />}
                 title={t('vitrine.vide')}
               />
-              <SecondaryButton label={t('accueil.cta_trouver')} onPress={() => toHub('opportunites')} />
               {/* PAS-DE-BOUTIQUE (founder screenshot, 2026-08-13) — the same door
                   the non-empty header carries, because the reseller who NEEDS the
                   mise-en-ligne screen is precisely the one with no shop and no
@@ -1677,7 +1706,10 @@ export default function App() {
                   it shows points HERE. Until this, the empty branch offered only
                   the way back to Opportunités — an instruction naming a door
                   that did not exist. Same control, same label (`k.entree`), one
-                  door one sentence. */}
+                  door one sentence. It comes FIRST (verifier minor):
+                  for the reseller with no shop, creating the boutique is the
+                  step everything else waits on, and it is the door the
+                  refusal names. */}
               <Pressable
                 style={({ pressed }) => [styles.vitrinePersoBtn, pressed && styles.pressed]}
                 onPress={() => go('personnaliser')}
@@ -1687,6 +1719,7 @@ export default function App() {
                 <IconVitrine size={dimension.iconSizePx.badge} color={shopColour.deep} />
                 <Text style={styles.vitrinePersoLabel}>{t('k.entree')}</Text>
               </Pressable>
+              <SecondaryButton label={t('accueil.cta_trouver')} onPress={() => toHub('opportunites')} />
             </ScrollView>
           ) : (
             <FlatList

@@ -24,6 +24,14 @@ Format per entry:
 
 **Evidence:** reseller-app **601/601** · typecheck clean · gate board **ALL GATES GREEN exit 0** · two anchor-verified mutations (named toast dropped → red on the token assertion · door deadened → red on the CTA assertion).
 
+**THE ONE VERIFIER PASS — no blockers · 1 major · 3 minors, handled once (2026-08-09 order).**
+- **MAJOR — the recovery sentence lived in a toast that dies in 2.6 s**, the sole carrier of the fix for his exact bug, unreadable at the reading pace Law 6 designs for. **Fixed with the fiche's own existing pattern** (`cta_non_relie`): `storefront_absent` now sets a persistent identity-level state and the sentence renders UNDER THE CTA SHE PRESSED, staying until a publish succeeds. No toast beside it — one state, one sentence, one voice. The walk now waits out the real 2.6 s toast lifetime and asserts the sentence survives; mutating the fix back to a toast turns exactly that assertion red.
+- **Minor, fixed:** the « Personnaliser ma boutique » door now comes FIRST on the empty vitrine — for the reseller with no shop it is the step everything else waits on, and it is the door the refusal names. `register` aligned to `neutral`, matching its sibling refusal `fiche.publier.reessayer`.
+- **Minor, journalled not changed:** the sentence says « ouvrez Ma Vitrine » while the fiche itself has no tab bar — she taps Retour first, which natural back-navigation covers; wording it as three steps would trade clarity for completeness.
+- The verifier confirmed the rest end-to-end with its own mutations: the token intercept, the door's DESTINATION (not merely its presence), K1 offering « Mettre ma boutique en ligne » for a reseller with no shop, and that no other surface can leak `storefront_absent` (retirer's fixed sentence · upload mapping · the mise-en-ligne adapters collapse non-2xx to `http_XXX`).
+
+**Evidence after the verifier's findings:** reseller-app **601/601** · typecheck clean · gate board **ALL GATES GREEN exit 0** · three of my mutations red on the right assertions (toast-only carrier · named mapping dropped · door deadened), plus the verifier's three, applied and restored.
+
 ---
 
 ## 2026-08-12 · DÉJÀ-DANS-MA-VITRINE — Opportunités offered what she already owned · IN-REVIEW (branch, awaiting founder)

@@ -846,6 +846,20 @@ describe('PAS-DE-BOUTIQUE — « Ajouter » refused storefront_absent must not d
       screen.shows('Créez d’abord votre boutique : ouvrez Ma Vitrine, puis « Personnaliser ma boutique ».'),
       'the refusal must name HER next step',
     ).toBe(true);
+    /**
+     * AND IT OUTLIVES A TOAST (verifier MAJOR — the first cut put this
+     * sentence in a toast that auto-clears in 2.6 s, so the sole carrier of
+     * the recovery path died mid-read). Toasts live in the `toast` state and
+     * every one of them expires; this sentence is the persistent note under
+     * the CTA. Proven structurally: fire the toast timer to exhaustion and
+     * the sentence is still on screen.
+     */
+    await new Promise((r) => setTimeout(r, 2_700));
+    await screen.settle();
+    expect(
+      screen.shows('Créez d’abord votre boutique : ouvrez Ma Vitrine, puis « Personnaliser ma boutique ».'),
+      'the recovery sentence died with a toast — she was mid-read',
+    ).toBe(true);
 
     // …and the step must EXIST: her vitrine is empty, and the door is there.
     // (« Retour » first: the fiche has no tab bar, and the only « Ma Vitrine »
