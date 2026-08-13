@@ -32,6 +32,8 @@ Format per entry:
 
 **Evidence after the verifier's findings:** reseller-app **601/601** · typecheck clean · gate board **ALL GATES GREEN exit 0** · three of my mutations red on the right assertions (toast-only carrier · named mapping dropped · door deadened), plus the verifier's three, applied and restored.
 
+**MERGED AND DEPLOYED (founder: « merge and deploy », 2026-08-13 — after his follow-up « make sure the personnaliser ma boutique option is on ma vitrine even if its empty », which this slice already carried and the walk proves).** `main` fast-forwarded `77cbded..645bcdb`; **`expo-preview` green on 645bcdb twice** (dispatch run 319 + push run 318, both `publish-preview` success). Reseller app only — no service source changed, no other workflow run.
+
 ---
 
 ## 2026-08-12 · DÉJÀ-DANS-MA-VITRINE — Opportunités offered what she already owned · IN-REVIEW (branch, awaiting founder)
