@@ -235,7 +235,12 @@ export function useVoiceNotes(
          * parentheses — diagnostic text, not product copy.
          */
         (stage) => {
-          if (playingPidRef.current === pid) playingPidRef.current = null;
+          // A stale failure is NOT this listen's business (verifier,
+          // 2026-08-13): if she already left — paused, or started another
+          // take — the ref no longer names this pid, and a toast about the
+          // abandoned load would land over whatever she is doing now.
+          if (playingPidRef.current !== pid) return;
+          playingPidRef.current = null;
           setPlayingPid((cur) => (cur === pid ? null : cur));
           setPlayingSec(0);
           onToast(IS_PREVIEW ? `${t('k.voix.lecture_echec')} (${stage})` : t('k.voix.lecture_echec'));

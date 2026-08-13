@@ -565,6 +565,16 @@ describe('VOIX-PRODUIT — the note the shop holds', () => {
       screen.shows('Rien n’est envoyé tant que le réseau n’est pas revenu'),
       'the queued sentence must not sit under a note that is already online',
     ).toBe(false);
+    // THE SHEET'S OWN ÉCOUTER STAYS WIRED (verifier MINOR, 2026-08-13): the two
+    // card walks no longer open the sheet, so without this press the kept-branch
+    // PlayBtn could dead-wire with every test green. Index 1 is the sheet's
+    // control — the card renders first, the Modal last.
+    await screen.press('Écouter', 1);
+    const audio = await import('./doubles/expo-audio');
+    expect(
+      audio.journalLecteur,
+      "the SHEET's Écouter never reached the player",
+    ).toContain(`play:${NOTE_URL}`);
     screen.unmount();
   });
 
@@ -892,6 +902,40 @@ describe('VOIX-CARTE — the player on the product card', () => {
     screen.unmount();
   });
 
+  it('CARTE — Refaire pendant un chargement muet : the record sheet is never toasted about the dead load', async () => {
+    /**
+     * THE OTHER ESCAPE FROM A HUNG LOAD (verifier MINOR, 2026-08-13): she taps
+     * Écouter, nothing loads, and within the watchdog's bound she taps Refaire
+     * on the same card. Recording is LEAVING the listen road — `start()` kills
+     * the watchdog — so the failure sentence about the abandoned load must not
+     * land on her record sheet ten seconds into the take. The pid-guard cannot
+     * catch this one (she never paused, so the ref still names this pid): the
+     * `start()` clear is the only defence, and this walk is its pin.
+     */
+    const audio = await import('./doubles/expo-audio');
+    audio.prochainePriseMuette();
+    avecNotesCarte({ [PV_A]: { status: 'ready', url: NOTE_URL, durationMs: 8_000 } });
+    const screen = await openVitrine();
+    await screen.settle();
+
+    vi.useFakeTimers();
+    await screen.press('Écouter');
+    await screen.press('Refaire');
+    expect(screen.shows('Enregistrement…'), 'the take must be running').toBe(true);
+
+    await act(async () => {
+      vi.advanceTimersByTime(11_000);
+      await Promise.resolve();
+    });
+    await screen.settle();
+    expect(
+      screen.shows('La note ne se lit pas. Vérifiez le réseau et réessayez.'),
+      'the dead load toasted over her recording — start() must kill the watchdog',
+    ).toBe(false);
+    expect(screen.shows('Enregistrement…'), 'the take survived the window').toBe(true);
+    screen.unmount();
+  });
+
   it('CARTE — the play is IMMEDIATE: play: follows replace: with NO loaded event delivered', async () => {
     /**
      * THE PIN THAT KEEPS THE ANDROID SUCCESS ROAD INDEPENDENT OF EVENT
@@ -907,16 +951,30 @@ describe('VOIX-CARTE — the player on the product card', () => {
     const screen = await openVitrine();
     await screen.settle();
 
+    vi.useFakeTimers();
     await screen.press('Écouter');
     const iReplace = audio.journalLecteur.indexOf(`replace:${NOTE_URL}`);
     const iPlay = audio.journalLecteur.indexOf(`play:${NOTE_URL}`);
     expect(iReplace, 'the note never reached the player').toBeGreaterThanOrEqual(0);
     expect(iPlay, 'play: must be asked without waiting for any event, AFTER replace:').toBeGreaterThan(iReplace);
 
-    // Her way out of the hung load is Pause — pressing it clears the watchdog
-    // (stopPlayback's job), so no failure toast can chase her afterwards.
+    // Her way out of the hung load is Pause.
     await screen.press('Pause');
     expect(screen.canPress('Écouter'), 'Pause during the hung load hands the button back').toBe(true);
+
+    // AND NO FAILURE TOAST CHASES HER (verifier MAJOR, 2026-08-13: this half of
+    // the DoD was implemented but pinned by nothing — a mutation that let the
+    // watchdog outlive her Pause survived the whole suite). Past the watchdog's
+    // whole bound: the abandoned load must stay abandoned, silently.
+    await act(async () => {
+      vi.advanceTimersByTime(11_000);
+      await Promise.resolve();
+    });
+    await screen.settle();
+    expect(
+      screen.shows('La note ne se lit pas. Vérifiez le réseau et réessayez.'),
+      'she paused and moved on — the dead load must not toast her ten seconds later',
+    ).toBe(false);
     screen.unmount();
   });
 });

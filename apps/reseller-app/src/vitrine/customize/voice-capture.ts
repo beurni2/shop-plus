@@ -60,6 +60,10 @@ export function useVoiceCapture(): VoiceRecorderAdapter {
         return res.granted ? 'granted' : 'denied';
       },
       async start() {
+        // Recording is LEAVING the listen road: a watchdog still waiting on a
+        // hung load must die here, or its failure toast lands on the record
+        // sheet ten seconds into her take (verifier, 2026-08-13).
+        if (garde.current !== null) { clearTimeout(garde.current); garde.current = null; }
         // iOS needs the session flipped to recording; harmless on Android.
         await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
         await recorder.prepareToRecordAsync();
@@ -95,6 +99,11 @@ export function useVoiceCapture(): VoiceRecorderAdapter {
         onTick?: (seconds: number) => void,
         onEchec?: (stage: 'idle' | 'delai') => void,
       ) {
+        // FIRST, before any await: a previous take's watchdog dies the moment a
+        // new listen begins. Clearing it after the mode await left a window
+        // where take A's timer could fire DURING take B's start and toast about
+        // A over B (verifier, 2026-08-13).
+        if (garde.current !== null) { clearTimeout(garde.current); garde.current = null; }
         // Same reason as above: a take played from a screen that never recorded
         // in this session (she reopens the sheet) has had no `start()` to set
         // the mode, so playback would be silent on a silent-switched iPhone.
@@ -104,7 +113,6 @@ export function useVoiceCapture(): VoiceRecorderAdapter {
         if (player.current === null) player.current = createAudioPlayer(null);
         const p = player.current;
         fin.current?.remove(); // one listener at a time — takes replace, never stack
-        if (garde.current !== null) { clearTimeout(garde.current); garde.current = null; }
         /**
          * ═══ PLAY AFTER REPLACE IS SAFE; A LOAD THAT FAILS IS SILENT ═══
          *
