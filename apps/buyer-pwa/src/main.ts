@@ -804,6 +804,18 @@ if (app) {
           ecran: 'C1',
           epuise: !produit.inStock,
           sansVoix: produit.voiceDuree === undefined,
+          // REPRISE-PWA (founder 2026-08-13) — the tab's journey survives a
+          // refresh. Keyed to THIS link (slug#pid) so another product's link
+          // never resumes it; sessionStorage so a CLOSED tab ends it — the
+          // cross-visit road stays the « Ma commande » band below, unchanged.
+          // The two reads are the order-scoped pair the band's re-entry
+          // already polls with, over the same env-gated port.
+          reprise: {
+            lien: `${signedSlug}#${pid}`,
+            storage: sessionStorageOrUndefined(),
+            etatCommande: (id) => quotePort.orderState(id),
+            remise: (id, ref) => quotePort.remise(id, ref),
+          },
           onVitrine: (slug) => {
             window.location.href = vitrineHref(window.location.pathname, slug);
           },

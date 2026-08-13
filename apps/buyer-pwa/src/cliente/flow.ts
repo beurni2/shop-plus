@@ -44,6 +44,7 @@ function fmtSecondes(sec: number): string {
 }
 import { prixExpire, type OrderFetch, type QuoteFetch, type RemiseFetch, type ReserveFetch } from './quote-model';
 import { garderCommande, localStorageOrUndefined, oublierCommande, type ServerOrder } from './quote-port';
+import { garderReprise, lireReprise, oublierReprise, type Reprise } from './reprise';
 import { creerEnregistreurNote, type EnregistreurNote, type NoteEnregistree } from './voice-note';
 
 export type ClienteEcran = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9' | 'C10';
@@ -113,6 +114,26 @@ export interface ClienteInit {
   /** VRAI-SUIVI — after « C'est terminé » clears the stored order, the host
    *  decides where she lands (main.ts reloads onto the shell). */
   readonly onTerminee?: (() => void) | undefined;
+  /**
+   * ═══ REPRISE-PWA — THE TAB'S JOURNEY SURVIVES A REFRESH (2026-08-13) ═══
+   *
+   * Present ⇒ the flow KEEPS a journey snapshot in sessionStorage on every
+   * state change and field commit (screen + what she entered — reprise.ts
+   * names what may never be in it), and on mount RESUMES a snapshot matching
+   * this link instead of opening at C1. Only the plain signed entry passes
+   * this; the harness and the « Ma commande » re-entry never do.
+   *
+   * The two port functions are the ORDER-SCOPED reads a resumed tracking
+   * polls with — the same pair the re-entry uses — because a reload destroys
+   * the live checkout handle, and the order's truth lives with the server,
+   * never in the snapshot.
+   */
+  readonly reprise?: {
+    readonly lien: string;
+    readonly storage: Storage | undefined;
+    readonly etatCommande: (orderId: string) => Promise<OrderFetch>;
+    readonly remise: (orderId: string, buyerRef: string) => Promise<RemiseFetch>;
+  } | undefined;
 }
 
 interface FlowState {
@@ -444,12 +465,13 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     state.orderId = init.suivi.orderId;
     state.buyerRef = init.suivi.buyerRef;
   }
-  /** WHO ANSWERS A TRACKING READ — the re-entry's own port, or the live
-   *  checkout's handle. null = nobody can (the harness), so nothing polls. */
+  /** WHO ANSWERS A TRACKING READ — the re-entry's own port, the live
+   *  checkout's handle, or (REPRISE-PWA) the resumed journey's order-scoped
+   *  port. null = nobody can (the harness), so nothing polls. */
   const lireCommande = (): ((orderId: string) => Promise<OrderFetch>) | null =>
-    init.suivi?.etatCommande ?? (state.live !== null ? state.live.etatCommande : null);
+    init.suivi?.etatCommande ?? (state.live !== null ? state.live.etatCommande : null) ?? init.reprise?.etatCommande ?? null;
   const lireRemise = (): ((orderId: string, buyerRef: string) => Promise<RemiseFetch>) | null =>
-    init.suivi?.remise ?? (state.live !== null ? state.live.remise : null);
+    init.suivi?.remise ?? (state.live !== null ? state.live.remise : null) ?? init.reprise?.remise ?? null;
 
   /**
    * THE ONE QUOTE EVERY SCREEN READS. The server's answer wins the moment it
@@ -779,7 +801,16 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
             demo,
             reel: true,
             commande: state.orderId ?? undefined,
-            voirCode: state.marques.arrivedAt !== undefined && !state.livree,
+            // ═══ CODE-VISIBLE (founder 2026-08-13): « when i am on the suivi
+            // screen i can not go back to the previous screen to see the code
+            // to give the rider. » The arrivedAt gate is GONE — her own code
+            // road stays open for the whole live delivery. The gate protected
+            // nothing: the reveal authority is the REMISE ROUTE, which answers
+            // by its own rules (and refuses before them), so pre-arrival C9
+            // shows the honest waiting card — while the gate locked her out at
+            // the door whenever the arrival fact lagged. Only `livree` still
+            // closes the road: a delivered order has no code left to give.
+            voirCode: !state.livree,
             porte: state.live !== null,
             relance: state.suiviRelance,
             horsPortee: state.suiviHorsPortee,
@@ -845,7 +876,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    * and an unreachable service both land on the honest surface, because a price
    * we invented is worse than no price.
    */
-  async function demanderLePrix(renouveler = false, auto = false): Promise<void> {
+  async function demanderLePrix(renouveler = false, auto = false, reprendre?: Reprise): Promise<void> {
     const ask = init.quoteSource;
     if (ask === undefined) return;
     // WHAT SHE HAD CHOSEN, so an automatic refresh does not quietly throw it
@@ -944,6 +975,41 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         jump('C5', { delivery: 'today', pay: modeEncorePossible ? modeAvant : null });
         return;
       }
+    }
+    // ═══ REPRISE-PWA — the refresh lands back on HER screen, not on ours ═══
+    //
+    // C4, C5 and C6 cannot render without the server's price, so the resume
+    // came through this ask. The request key and command ids are deliberately
+    // reload-stable (quote-port.ts), so on the real service this re-ask is
+    // answered with the SAME quote and her own hold/order replay — the exact
+    // reload road those storage slots were built for.
+    if (reprendre !== undefined) {
+      // Her C3 answers travel as jump EXTRAS so the demo prefill can never
+      // dress a real journey (the 2026-07-22 leak class): extras win last.
+      const extras = { zone: reprendre.zone, repere: reprendre.repere, indic: reprendre.indic, phone: reprendre.phone };
+      if (reprendre.ecran === 'C6' && reprendre.orderId !== null && reprendre.buyerRef !== null) {
+        // The order is hers again — but its truth is the SERVER'S: C6 mounts
+        // WAITING and the payment watch re-asks, so a payment that was in
+        // flight resumes as « nous attendons », never as paid (the SP3.3c law,
+        // kept across the reload). `essai` restored ⇒ a retry from here mints
+        // a genuinely new command instead of replaying the old attempt.
+        state.orderId = reprendre.orderId;
+        state.buyerRef = reprendre.buyerRef;
+        state.essai = reprendre.essai;
+        jump('C6', { ...extras, confirmState: 'attente', delivery: reprendre.delivery ?? 'today', pay: reprendre.pay, step: 1 });
+        suivreLePaiement(reprendre.orderId, generation, 0);
+        return;
+      }
+      // Mode B may have died with the re-asked quote — the same rule the
+      // automatic refresh applies: an impossible mode is unchosen, never
+      // silently swapped for another.
+      const modePossible = reprendre.pay === 'A' || (reprendre.pay === 'B' && !fetched.bIndisponible);
+      jump(reprendre.ecran === 'C5' ? 'C5' : 'C4', {
+        ...extras,
+        delivery: reprendre.delivery ?? 'today',
+        pay: modePossible ? reprendre.pay : null,
+      });
+      return;
     }
     // ONE fee for this zone pair ⇒ nothing to choose ⇒ the C4 CTA is live on
     // arrival. `delivery` is set only so the selectors have a slot to read; both
@@ -1350,6 +1416,40 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     });
   }
 
+  /**
+   * REPRISE-PWA — write the journey where a refresh will look for it. Called
+   * from `render()` (the one choke point every state change crosses) and from
+   * every field commit, so the snapshot is never older than the screen. C1 and
+   * C10 CLEAR the slot instead of writing: the start and the end of a journey
+   * are not places a refresh should resurrect. What is written — and what may
+   * never be — is the codec's law (reprise.ts): no code, no server truth, no
+   * amount.
+   */
+  function noterReprise(): void {
+    const rep = init.reprise;
+    if (rep === undefined) return;
+    if (state.screen === 'C1' || state.screen === 'C10') {
+      oublierReprise(rep.storage);
+      return;
+    }
+    garderReprise(
+      {
+        lien: rep.lien,
+        ecran: state.screen,
+        zone: state.zone,
+        repere: state.repere,
+        indic: state.indic,
+        phone: state.phone,
+        delivery: state.delivery,
+        pay: state.pay,
+        orderId: state.orderId,
+        buyerRef: state.buyerRef,
+        essai: state.essai,
+      },
+      rep.storage,
+    );
+  }
+
   function render(): void {
     // VOIX-ÉTAT-2 — THE FACE MUST SURVIVE THE REBUILD (verifier, 2026-08-09).
     // This replaces the WHOLE of `container.innerHTML`, so the recorded block
@@ -1376,6 +1476,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       noteGlyphe(true);
       noteHorloge(fmtSecondes(noteAudio.currentTime));
     }
+    noterReprise();
   }
 
   /** Live-enable the C3 CTA while she types — no re-render, no lost focus. */
@@ -1410,6 +1511,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       state.phone = net;
       patchC3Cta();
     }
+    // REPRISE-PWA — a field commit is journey state too: the typed repère and
+    // her number survive a refresh even though typing never re-renders.
+    noterReprise();
   });
 
   container.addEventListener('click', (ev) => {
@@ -1918,11 +2022,89 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     }
   });
 
+  /**
+   * ═══ REPRISE-PWA — RESUME THE TAB'S JOURNEY (founder, 2026-08-13) ═══
+   *
+   * Each screen resumes through a road the flow ALREADY owns — never a bespoke
+   * one, so every guard on those roads still guards:
+   *
+   *  · C3 — her fields come back; there is nobody to ask.
+   *  · C4 · C5 · C6 — unrenderable without the server's price, so the resume
+   *    ASKS AGAIN through `demanderLePrix` (reload-stable keys ⇒ the real
+   *    service answers the same quote and her own hold/order replay). A
+   *    refusal lands on the flow's own refusal surface. C6 then re-asks the
+   *    ORDER: a payment in flight resumes as WAITING, never as paid.
+   *  · C7 · C9 — the tracking needs no price: it polls through the
+   *    order-scoped `init.reprise` ports (the « Ma commande » pair). Every
+   *    entry restarts the delivery watch (the e6bcc54 law), and C9 re-asks the
+   *    remise route for the code — the snapshot never carried it.
+   *  · C8 resumes to C7, not C8: the door screen rides the LIVE checkout
+   *    handle (the door charge, the C8 bill) and a reload cannot resurrect
+   *    it — a « Tout est bon » that cannot complete is a false affordance, the
+   *    same withholding the re-entry mount applies to « Je suis à la porte ».
+   *    Her code stays one tap away (« Voir mon code », CODE-VISIBLE).
+   *  · `livree` is NOT trusted from the snapshot: if the order finished while
+   *    the tab was away, the restarted watch proves it and ends the screen
+   *    (C10) by its own rule.
+   */
+  function reprendreParcours(r: Reprise): void {
+    state.zone = r.zone;
+    state.repere = r.repere;
+    state.indic = r.indic;
+    state.phone = r.phone;
+    state.delivery = r.delivery;
+    state.pay = r.pay;
+    state.essai = r.essai;
+    if (r.ecran === 'C3') {
+      // Extras, not prefill: a resumed journey must never inherit the demo
+      // zone/repère (the 2026-07-22 leak class) — what she typed, even empty,
+      // wins last.
+      jump('C3', { zone: r.zone, repere: r.repere, indic: r.indic, phone: r.phone });
+      return;
+    }
+    if (r.ecran === 'C4' || r.ecran === 'C5' || r.ecran === 'C6') {
+      // The target screen AND the order linkage are claimed BEFORE the ask, so
+      // the snapshot keeps naming a valid journey while the skeleton (or a
+      // refusal) stands — a second refresh mid-ask resumes the same journey
+      // instead of falling to C1. (`demanderLePrix`'s own « a new price is a
+      // new checkout » reset still runs; the C6 resume tail restores after it.)
+      state.screen = r.ecran;
+      state.orderId = r.orderId;
+      state.buyerRef = r.buyerRef;
+      void demanderLePrix(false, false, r);
+      return;
+    }
+    // C7 · C8 · C9 — the tracking road. The codec guarantees the linkage; the
+    // guard is belt-and-braces against a future codec loosening.
+    if (r.orderId === null || r.buyerRef === null) return;
+    state.orderId = r.orderId;
+    state.buyerRef = r.buyerRef;
+    if (r.ecran === 'C9') {
+      // The voir-code entry, verbatim: jump, ask the remise route for the
+      // code, restart the watch (e6bcc54 — a C9 whose watch is dead shows the
+      // code for ever, no C10, no close).
+      jump('C9', { repere: r.repere, indic: r.indic, phone: r.phone });
+      demanderLeCode();
+      demarrerSuivi();
+      return;
+    }
+    jump('C7', { step: Math.max(state.step, 1), repere: r.repere, indic: r.indic, phone: r.phone });
+    demarrerSuivi();
+  }
+
+  // REPRISE-PWA — read BEFORE the first render: rendering C1 clears the slot
+  // (C1 is the fresh start), so reading after would erase what we came for.
+  const repriseAvant = init.reprise !== undefined ? lireReprise(init.reprise.storage, init.reprise.lien) : undefined;
+
   render();
   // VRAI-SUIVI — the re-entry mount opens ON the tracking, so its watch starts
   // with it: first read on the ladder's first rung, exactly as « Suivre ma
   // commande » starts it in-flow.
   if (init.suivi !== undefined && state.screen === 'C7') demarrerSuivi();
+  // REPRISE-PWA — a matching snapshot resumes her journey instead of C1. Only
+  // the plain signed entry (mounted at C1, no re-entry source) carries
+  // `reprise`, so an explicit-screen mount can never be overridden by it.
+  else if (repriseAvant !== undefined && startScreen === 'C1') reprendreParcours(repriseAvant);
 
   return arreter;
 }

@@ -197,7 +197,8 @@ export const SUIVI = {
   verifier: 'Vérifier à nouveau',
   /** The last read did not arrive. Says nothing about the delivery. */
   horsPortee: 'Nous n’arrivons pas à joindre le service pour l’instant. Votre commande est bien là.',
-  /** The rider arrived — her code exists and this opens it. */
+  /** Her code road on the tracking — open for the whole live delivery
+   *  (CODE-VISIBLE, 2026-08-13: the arrival gate blocked her at the door). */
   voirCode: 'Voir mon code',
   /** livree — she dismisses the finished order and the phone forgets it. */
   terminee: 'C’est terminé',
@@ -1709,7 +1710,9 @@ export interface C7State {
   /** The order's own id, when a server has named one — the corner chip. No
    *  id ⇒ no chip: the CMD-2417 literal is dead, nothing invents a number. */
   readonly commande?: string | undefined;
-  /** arrivedAt exists and the remise is not done ⇒ « Voir mon code ». */
+  /** The order is not yet `livree` ⇒ « Voir mon code » (CODE-VISIBLE,
+   *  2026-08-13 — the flow no longer waits on the arrival fact; the remise
+   *  route stays the only authority on whether a code is answered). */
   readonly voirCode?: boolean | undefined;
   /**
    * May « Je suis à la porte » be offered at step 5? `false` on the re-entry
@@ -1768,9 +1771,10 @@ export function renderC7(s: C7State): string {
     }).join(''),
     '</div>',
     atDoor ? '<button class="cl-cta cl-cta-door" data-action="porte">Je suis à la porte</button>' : '',
-    // VRAI-SUIVI — the rider is at her door, so her code exists: the founder's
-    // 2026-08-10 ruling made arrival the moment it appears, and this is where
-    // it appears from.
+    // VRAI-SUIVI · CODE-VISIBLE — her code road, open for the whole live
+    // delivery (2026-08-13; it used to wait on the arrival fact, which locked
+    // her out at the door whenever that fact lagged). The code itself remains
+    // the remise route's to answer — C9 waits honestly until it does.
     s.voirCode === true && !s.problem
       ? `<button class="cl-cta cl-cta-door" data-action="voir-code">${SUIVI.voirCode}</button>`
       : '',

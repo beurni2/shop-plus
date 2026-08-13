@@ -1147,6 +1147,11 @@ test('VRAI-SUIVI · re-entry — « Ma commande » reopens the REAL tracking of 
   await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
 
   // The tab dies; she comes back to the shell. The stored order is the way in.
+  // REPRISE-PWA made a same-tab goto a REFRESH (the journey snapshot resumes
+  // her place — the wanted behaviour); this test's premise is the CLOSED tab,
+  // whose sessionStorage dies with it, so the snapshot is ended by hand and
+  // only the localStorage band survives.
+  await page.evaluate(() => sessionStorage.removeItem('sp-reprise:v1'));
   await page.goto(ENTRY);
   await page.locator('[data-screen="C1"]').waitFor();
   const bande = page.locator('[data-role="ma-commande"]');
@@ -1390,6 +1395,9 @@ test('SUIVI-VIVANT · « Ma commande » over a LIVE flow strands no orphan — t
   await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
 
   // Reboot the shell: the band renders over the signed flow (instance A).
+  // REPRISE-PWA: the premise is a fresh visit, not a refresh — the journey
+  // snapshot (sessionStorage) is ended by hand, as a closed tab ends it.
+  await page.evaluate(() => sessionStorage.removeItem('sp-reprise:v1'));
   await page.goto(ENTRY);
   await page.locator('[data-role="ma-commande"]').waitFor();
 
@@ -1422,6 +1430,120 @@ test('SUIVI-VIVANT · « Ma commande » over a LIVE flow strands no orphan — t
     lit2() - orphelin,
     'the superseded instance is still polling its order — the orphan watch is back',
   ).toBe(0);
+});
+
+/* ══════════════════════════════════════════════════════════════════════════ *
+ *  REPRISE-PWA + CODE-VISIBLE (founder, 2026-08-13):
+ *  « when i refresh at any step it always takes me back to the initial payment
+ *  screen commander like a new produt order to buy again. and when i am on the
+ *  suivi screen i can not go back to the previous screen to see the code to
+ *  give the rider. »
+ *
+ *  Written RED FIRST, against the shipped bundle, before the fix — each one
+ *  reproduces one of his two sentences in a real browser.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+test('REPRISE · un rechargement au milieu du parcours garde sa place', async ({ page }) => {
+  await scriptService(page);
+  await askForPrice(page);
+  await toPayer(page, 'A'); // C5, mode A chosen — a mid-journey step with a choice made
+
+  await page.reload();
+
+  // RED today: the flow remounts at C1 — « like a new product order to buy again ».
+  await page.locator('[data-screen="C5"]').waitFor({ timeout: 15_000 });
+  // …and her CHOICE is intact: the CTA is the live « Payer », not the unchosen state.
+  const cta = await page.locator('[data-action="payer"]').innerText();
+  expect(cta).toContain('Payer');
+  expect(cta).not.toContain('Choisissez pour continuer');
+});
+
+test('REPRISE · un rechargement après paiement retombe sur sa commande', async ({ page }) => {
+  test.setTimeout(120_000);
+  const wire = await scriptService(page, { orderStates: ['confirmed'], marques: [MARQUES_ARRIVEE], codeRemise: '654321' });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+
+  // ── the refresh, on the tracking ──────────────────────────────────────────
+  await page.reload();
+  // RED today: C1 renders and the order is nowhere on screen.
+  await page.locator('[data-screen="C7"]').waitFor({ timeout: 15_000 });
+  await expect(page.locator('.cl-cmd')).toHaveText('ord-quote-full-1');
+  // …and the delivery watch is LIVE again: reads keep flowing to the service.
+  // (This is the assertion the « resume skips the watch restart » mutation —
+  // the e6bcc54 class — must turn red: a resumed C7 with a dead watch renders
+  // and never reads.)
+  const apresRecharge = wire.orderReads.length;
+  await expect.poll(() => wire.orderReads.length, { timeout: 20_000 }).toBeGreaterThan(apresRecharge);
+
+  // ── the refresh, on the code screen ───────────────────────────────────────
+  await page.locator('[data-action="voir-code"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="voir-code"]').click();
+  await page.locator('[data-role="code-revele"]').waitFor({ timeout: 10_000 });
+  await page.reload();
+  await page.locator('[data-screen="C9"]').waitFor({ timeout: 15_000 });
+  // The code is BACK — and it is the REMISE ROUTE'S answer, never a stored
+  // byte: nothing in the tab's storage may carry it.
+  await page.locator('[data-role="code-revele"]').waitFor({ timeout: 15_000 });
+  expect((await stage(page)).replace(/\s+/g, ' ')).toContain('654 321');
+  const stocke = await page.evaluate(() =>
+    JSON.stringify(Object.keys(sessionStorage).map((k) => [k, sessionStorage.getItem(k)])),
+  );
+  expect(stocke, 'the drop code was persisted on the phone').not.toContain('654321');
+});
+
+test('CODE-VISIBLE · depuis le suivi, le code reste à portée', async ({ page }) => {
+  test.setTimeout(120_000);
+  // THE ARRIVAL FACT LAGS — the rider is at her door, « Je suis arrivé » has
+  // not landed yet. Reads 1–4 carry no arrivedAt; from read 5 it exists. The
+  // remise route stays arrival-gated throughout (the service's own bound).
+  const wire = await scriptService(page, {
+    orderStates: ['confirmed'],
+    marques: [
+      {},
+      { acceptedAt: MARQUES_ARRIVEE.acceptedAt },
+      { acceptedAt: MARQUES_ARRIVEE.acceptedAt, readyAt: MARQUES_ARRIVEE.readyAt, departedAt: MARQUES_ARRIVEE.departedAt },
+      { acceptedAt: MARQUES_ARRIVEE.acceptedAt, readyAt: MARQUES_ARRIVEE.readyAt, departedAt: MARQUES_ARRIVEE.departedAt },
+      MARQUES_ARRIVEE,
+    ],
+    codeRemise: '654321',
+  });
+  await askForPrice(page);
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="confirmee"]').waitFor({ timeout: 15_000 });
+  await page.locator('[data-action="suivre"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+
+  // WITHOUT the arrival fact, « Voir mon code » is offered. RED today: the
+  // arrivedAt gate withholds it, and she is locked out of her own code at the
+  // exact moment the rider is standing in front of her.
+  const voir = page.locator('[data-action="voir-code"]');
+  await voir.waitFor({ timeout: 4_000 });
+  // …and the arrival fact has genuinely NOT landed at this moment.
+  expect(await page.locator('.cl-tl-t-now').innerText()).not.toBe('À votre porte');
+
+  // Present AND pressable AND wired: the tap lands on the code screen, alive.
+  await voir.click();
+  await page.locator('[data-screen="C9"]').waitFor();
+  // Before the service hands the code over, the screen says so honestly —
+  // the client cannot reveal what the remise route has not answered.
+  await expect(page.locator('[data-role="code-cache"]')).toBeVisible();
+  // The watch is STILL RUNNING on the code screen: the arrival fact lands,
+  // the code is fetched from the remise route, and it appears under her eyes.
+  await page.locator('[data-role="code-revele"]').waitFor({ timeout: 45_000 });
+  expect((await stage(page)).replace(/\s+/g, ' ')).toContain('654 321');
+
+  // …and back on the suivi, the watch survives the return (the four questions:
+  // the tree lived, the action moved her, and the next step stays reachable).
+  await page.locator('[data-action="retour-c7"]').click();
+  await page.locator('[data-screen="C7"]').waitFor();
+  const avantRetour = wire.orderReads.length;
+  await expect.poll(() => wire.orderReads.length, { timeout: 30_000 }).toBeGreaterThan(avantRetour);
 });
 
 test('REPERE-AUDIO-REEL · a LOST note gets its sentence — the diagnostic hole the founder hit is closed', async ({ page }) => {

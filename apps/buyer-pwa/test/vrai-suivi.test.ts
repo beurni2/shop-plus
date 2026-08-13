@@ -336,7 +336,7 @@ describe('renderC7 réel — the real timeline', () => {
     expect(renderC7({ step: 2, problem: false, demo: true })).not.toContain('cl-cmd');
   });
 
-  it('arrivedAt ⇒ « Voir mon code »; before it, no code affordance exists', () => {
+  it('voirCode ⇒ « Voir mon code »; without the flag, no code affordance exists (the flow now raises it for the whole live delivery — CODE-VISIBLE 2026-08-13)', () => {
     expect(renderC7({ ...REEL, step: 5, voirCode: true })).toContain('data-action="voir-code"');
     expect(renderC7({ ...REEL, step: 4 })).not.toContain('data-action="voir-code"');
   });
