@@ -362,10 +362,8 @@ async function handleMediaRead(key: string, env?: MediaEnv, rangeHeader: string 
       if (whole === null) {
         return Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 });
       }
-      if (!unsatisfiable) {
-        // The ranged get answered null while the object exists — treat as
-        // unsatisfiable rather than inventing a slice.
-      }
+      // (A ranged get answering null while the object exists lands here too —
+      // treated as unsatisfiable rather than inventing a slice.)
       const total = whole.size;
       return new Response(null, {
         status: 416,
@@ -374,11 +372,16 @@ async function handleMediaRead(key: string, env?: MediaEnv, rangeHeader: string 
     }
     const total = object.size ?? 0;
     // R2 reports the range it actually served; recompute from the ask only
-    // when the binding (or an older shim) omits it.
+    // when the binding (or an older shim) omits it — and CLAMP that fallback
+    // to the object (verifier MINOR, 2026-08-13): a shim echoing an unclamped
+    // `bytes=0-999999` ask must not mint a Content-Range wider than the body.
+    // Real workerd always reports the clamped range, so this arm is armor for
+    // a future nonconforming double, never the live road.
     const served = object.range ?? range;
     const start =
       served.offset ?? (served.suffix !== undefined ? Math.max(0, total - served.suffix) : 0);
-    const length = served.length ?? (served.suffix !== undefined ? Math.min(served.suffix, total) : total - start);
+    const rawLength = served.length ?? (served.suffix !== undefined ? Math.min(served.suffix, total) : total - start);
+    const length = total > 0 ? Math.min(rawLength, total - start) : rawLength;
     const end = start + length - 1;
     if (total > 0 && start >= total) {
       return new Response(null, {
