@@ -869,6 +869,17 @@ export default function App() {
         // The service's NAMED refusal decides what she is told. « Supply unavailable »
         // is a retry, not a defect, and saying so is the difference between a calm
         // money moment and an anxious one.
+        //
+        // PAS-DE-BOUTIQUE (founder screenshot, 2026-08-13): `storefront_absent`
+        // reached his phone RAW, inside « L'envoi n'a pas marché —
+        // storefront_absent — réessayez ». Three failures in one sentence: a
+        // wire token where a reseller reads (Law 6), « réessayez » for a state
+        // the service refuses BY DESIGN until her boutique exists (« no
+        // boutique, no publication », 2026-08-11), and not a word about the
+        // step that is actually hers to take. The refusal is permanent-until-
+        // she-acts, so the sentence names the act — and the empty vitrine now
+        // carries the « Personnaliser ma boutique » door it points at.
+        if (res.reason === 'storefront_absent') return setToast(t('fiche.publier.pas_de_boutique'));
         return setToast(res.reason === 'supply_unavailable' ? t('fiche.publier.reessayer') : tf('k.publier.erreur', { raison: res.reason }));
       }
       // CONFIRMED. Membership is recorded now, keyed by productVersionId — the one
@@ -1659,6 +1670,23 @@ export default function App() {
                 title={t('vitrine.vide')}
               />
               <SecondaryButton label={t('accueil.cta_trouver')} onPress={() => toHub('opportunites')} />
+              {/* PAS-DE-BOUTIQUE (founder screenshot, 2026-08-13) — the same door
+                  the non-empty header carries, because the reseller who NEEDS the
+                  mise-en-ligne screen is precisely the one with no shop and no
+                  products: the add refuses `storefront_absent` and the sentence
+                  it shows points HERE. Until this, the empty branch offered only
+                  the way back to Opportunités — an instruction naming a door
+                  that did not exist. Same control, same label (`k.entree`), one
+                  door one sentence. */}
+              <Pressable
+                style={({ pressed }) => [styles.vitrinePersoBtn, pressed && styles.pressed]}
+                onPress={() => go('personnaliser')}
+                accessibilityRole="button"
+                accessibilityLabel={t('k.entree')}
+              >
+                <IconVitrine size={dimension.iconSizePx.badge} color={shopColour.deep} />
+                <Text style={styles.vitrinePersoLabel}>{t('k.entree')}</Text>
+              </Pressable>
             </ScrollView>
           ) : (
             <FlatList

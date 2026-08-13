@@ -9,6 +9,23 @@ Format per entry:
 
 ---
 
+## 2026-08-13 · PAS-DE-BOUTIQUE — the refusal that told him to retry the impossible · IN-REVIEW (branch, awaiting founder)
+**Founder report (screenshot):** « when adding a product on ma vitrine from opportunites it is not working and it says l'envoi n'a pas marcher ». His toast, verbatim: **« L'envoi n'a pas marché — storefront_absent — réessayez »**.
+
+**THE REFUSAL ITSELF IS CORRECT AND STAYS.** `storefront_absent` is the Worker's own named 409, built under the founder's 2026-08-11 ruling « no boutique, no publication », and pinned by two seam tests (`checkout-do.e2e.test.ts:1705`, `combined-worker.e2e.test.ts:580`). His app identity's storefront does not exist on the service; one pass through « Mettre ma boutique en ligne » creates it and the add works. *(Why his shop is absent on that Worker I cannot determine from here — the sandbox preview app is wired to the live service and its device identity has no shop there; not probed, his keys.)*
+
+**WHAT WAS WRONG WAS THE SCREEN, three ways in one sentence:** a raw wire token where a reseller reads (Law 6) · « réessayez » for a state the service refuses BY DESIGN until she acts (retrying can never work) · and silence about the step that is actually hers. **And the step had no door:** « Personnaliser ma boutique » existed only on the NON-EMPTY vitrine branch, so the reseller who gets this refusal — no shop, no products — had no path to the mise-en-ligne screen at all.
+
+**THE WALK WAS WRITTEN FIRST, RED,** on his exact toast (`rendu-vitrine.test.tsx`, PAS-DE-BOUTIQUE): tap « Ajouter » over a 409, assert the token is nowhere a reseller can read, the named sentence shows, and — pressing through Retour → Ma Vitrine → Personnaliser — the mise-en-ligne CTA is actually reached.
+
+**FIXED:** `publishListing` maps `storefront_absent` to « Créez d'abord votre boutique : ouvrez Ma Vitrine, puis « Personnaliser ma boutique ». » (catalog, selling register), and the EMPTY vitrine now carries the same `k.entree` door the non-empty header always had — one door, one sentence, and the instruction points at a door that exists.
+
+**MY OWN WALK WAS VACUOUS ONCE, the same failure as the déjà slice, caught by mutation before commit:** the dead-door mutation (`onPress → void 0`) stayed green while the walk asserted a product's ABSENCE — which the empty vitrine satisfies too. It now asserts « Mettre ma boutique en ligne », which only Personnaliser renders; the mutation re-run goes red on exactly that line.
+
+**Evidence:** reseller-app **601/601** · typecheck clean · gate board **ALL GATES GREEN exit 0** · two anchor-verified mutations (named toast dropped → red on the token assertion · door deadened → red on the CTA assertion).
+
+---
+
 ## 2026-08-12 · DÉJÀ-DANS-MA-VITRINE — Opportunités offered what she already owned · IN-REVIEW (branch, awaiting founder)
 **Founder report:** « on shop+ when i add a product on ma vitrine, it still shows on opportunites the option the add the same product on ma vitrine instead of displaying this product is already added. »
 

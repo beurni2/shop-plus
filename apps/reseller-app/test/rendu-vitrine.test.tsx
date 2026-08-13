@@ -797,3 +797,78 @@ describe('DÉJÀ-DANS-MA-VITRINE — the answer the SERVICE gives, when the scre
     screen.unmount();
   });
 });
+
+describe('PAS-DE-BOUTIQUE — « Ajouter » refused storefront_absent must not dead-end her', () => {
+  it("names the real next step instead of « réessayez » — and the empty vitrine HAS that door", async () => {
+    /**
+     * FOUNDER REPORT (2026-08-13, screenshot): « when adding a product on ma
+     * vitrine from opportunites it is not working and it says l'envoi n'a pas
+     * marcher ». The toast on his phone read, verbatim:
+     * « L'envoi n'a pas marché — storefront_absent — réessayez »
+     *
+     * THREE THINGS WRONG IN ONE SENTENCE: a raw English token on a screen a
+     * reseller reads (Law 6) · « réessayez » for a state where retrying can
+     * NEVER work — the service refuses BY DESIGN until her boutique exists
+     * (founder ruling 2026-08-11, « no boutique, no publication ») · and no
+     * word about the actual next step, which is hers to take.
+     *
+     * AND THE NEXT STEP HAD NO DOOR: « Personnaliser ma boutique » lived only
+     * on the NON-EMPTY vitrine branch — a reseller with no shop and no
+     * products (exactly the person who gets this refusal) had no path to the
+     * mise-en-ligne screen at all.
+     *
+     * CONTRACT-CERTIFIED: 409 {"error":"storefront_absent"} is the real
+     * Worker's answer, pinned in checkout-do.e2e.test.ts:1705 and
+     * combined-worker.e2e.test.ts:580.
+     */
+    const svc = service({ offers: [PV_A], curated: [] });
+    const w = wire([
+      // She has NO shop: the id read is a clean 404 and the admin list is empty.
+      (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 404, json: { error: 'not_found' } } : null),
+      (path) => (path === '/listings' ? { status: 409, json: { error: 'storefront_absent' } } : null),
+      ...svc.routes,
+    ]);
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+    await screen.press('Ajouter à ma vitrine');
+    await screen.settle();
+
+    expect(w.calls.some((c) => c.path === '/listings'), 'the tap never reached the service').toBe(true);
+    // The tree survived, and the raw token is NOWHERE a reseller can read.
+    expect(screen.texts().join(' '), 'a wire token is not a sentence (Law 6)').not.toContain('storefront_absent');
+    expect(
+      screen.shows("L'envoi n'a pas marché — storefront_absent — réessayez") ||
+        screen.shows('L’envoi n’a pas marché — storefront_absent — réessayez'),
+      'she is told to retry the one thing that cannot work until her boutique exists',
+    ).toBe(false);
+    expect(
+      screen.shows('Créez d’abord votre boutique : ouvrez Ma Vitrine, puis « Personnaliser ma boutique ».'),
+      'the refusal must name HER next step',
+    ).toBe(true);
+
+    // …and the step must EXIST: her vitrine is empty, and the door is there.
+    // (« Retour » first: the fiche has no tab bar, and the only « Ma Vitrine »
+    // on it is the toast's own sentence — an inert Text the harness rightly
+    // refuses to press.)
+    await screen.press('Retour');
+    await screen.press('Ma Vitrine');
+    expect(
+      screen.canPress('Personnaliser ma boutique'),
+      'the empty vitrine offered no way to the mise-en-ligne screen — the instruction pointed at a door that was not there',
+    ).toBe(true);
+    await screen.press('Personnaliser ma boutique');
+    /**
+     * ASSERT SOMETHING ONLY PERSONNALISER RENDERS — the mise-en-ligne CTA
+     * itself, which is the whole reason she was sent here. The first cut
+     * asserted a product's ABSENCE, which the empty vitrine satisfies too:
+     * the verifier's dead-button mutation (onPress → void 0) stayed green.
+     * This is the same vacuity caught twice on the déjà slice; same cure.
+     */
+    expect(
+      screen.shows('Mettre ma boutique en ligne'),
+      'the door never left the empty vitrine — pressable and DEAD',
+    ).toBe(true);
+    screen.unmount();
+  });
+});
