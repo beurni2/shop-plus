@@ -9,6 +9,21 @@ Format per entry:
 
 ---
 
+## 2026-08-13 · RESTAURATION — the founder said « go »; the four mains restored and deployed · DONE
+**Founder:** « go », on the diagnosed re-land state below. Everything in this entry is from tool results in this session.
+
+**MAINS RESTORED, all four repos, fast-forward pushed:** shop-plus `main = b66acff` · sera `main = dae662b` · platform-contracts `main = 21872e9` · boutik-plus `main = ac145ca`. The pre-batch mains stay reachable for instant rollback: shop-plus `a70d5f6` · sera `2f1644c` · platform-contracts `55ddf89` · boutik-plus `624d0cf` — and the incident proved a redeploy of `a70d5f6` heals the live page.
+
+**THE COMPAT GATE'S EVIDENCE TRANSFERS TO THIS DEPLOY, verified before pushing:** `git diff --stat 9520abe b66acff -- services/storefront-service/src services/storefront-service/worker packages/commerce-core/src` is EMPTY — the Worker deployed here is source-identical to the build the old-write/new-read forensics certified (durable data written by `49440ff`/`a70d5f6`, read back byte-for-byte by this code: headerStyle `heritage` intact, cover live, quotes reconciling).
+
+**FOUR DEPLOYS, ALL GREEN:** shop-plus `storefront-deploy` run 31668528169 success on b66acff — its own live-canon assert step passed, so the deployed Worker is this build's bundle · `pwa-preview` run 31668679261 success on b66acff (publishes now QUEUE — the guard is live in this deploy) · `expo-preview` run 31668680363 success on b66acff · sera `expo-preview` run 31668681637 success on dae662b.
+
+**LIVE AGAIN:** her voice notes record, publish, show on the product and PLAY (the listen press is walk-pinned) · « Payer le produit à la livraison » for every product, every client, policy stamped on the durable quote · le suivi follows the parcel in real time on every road into C9 (the three dead watch sites closed) · the buyer's order ends in a thank-you and the rider's course closes cleanly.
+
+**STILL OPEN, named:** the rider's « waiting for another order » against the real service needs its own slice (logistics has no delivered terminal; nothing tells it a delivery happened — `/rider/moi` serves the finished course until then; the app side is proven ready) — awaiting his word · the Personnaliser quintuple (sections removal, cover tap, framing, A la Une) is stashed WIP on this branch, to be re-validated against the healthy service before any board · the founder checks the live storefront now; if anything regresses, rollback is one redeploy of `a70d5f6`.
+
+---
+
 ## 2026-08-13 · DIAGNOSTIC-AVANT-RESTAURATION — the founder-ordered review of every reverted fix · DONE (re-land candidate ready, awaiting founder)
 **Founder:** « i want you diagnose all the fixes to see if they are clean enough and really fixed the issues before restoring them. » Run as ordered — a re-inspection of already-verified slices, which the NO-LOOP law forbids on my own initiative and permits on his; logged here as his order.
 
