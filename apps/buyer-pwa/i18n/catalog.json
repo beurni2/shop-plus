@@ -439,7 +439,7 @@
  },
  {
   "key": "voix_produit.ecouter",
-  "fr": "La voix",
+  "fr": "Note vocale",
   "register": "selling",
   "screenClass": "label"
  },

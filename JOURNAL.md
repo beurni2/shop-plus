@@ -9,6 +9,17 @@ Format per entry:
 
 ---
 
+## 2026-08-14 · VENDU-PAR + NOTE-VOCALE — the whole boutique name, and the voice card stops mangling it · IN-REVIEW (branch, awaiting founder)
+**Founder:** « On the buyer's payment pwa it is written la voix d'Maman, find something professional and cool. And on vendu par Maman make sure the whole name the reseller has put is displayed »
+
+**ROOT CAUSES (read at the source before writing):** (1) the seed mapping cut the boutique name to its FIRST WORD (`storefront.name.replace(/^Chez/…).split(' ')[0]`) — « Vendu par Maman » for any multi-word name; (2) the C1 voice card hardcoded the elision « La voix d’{prénom} » — wrong French before every consonant-initial name (« d’Maman »).
+
+**BUILT, red-first (the walk reproduced his screenshot byte-for-byte before the fix):** « Vendu par » now carries `shopName` — the name she typed, VERBATIM, never cut — and `.cl-vendu` lost its `nowrap` so a long name wraps instead of clipping. The voice card title is now **« Note vocale »** with its aria « Écouter la note vocale » — the SAME word Ma Vitrine already uses for the same object (reseller catalog: « Note vocale », « Refaire la note vocale »), so reseller and buyer read one vocabulary; the vitrine chip/player word (`voix_produit.ecouter`) renamed to match, and the C1 demo toast reads the same table. Both new strings live in the linted VOIX table and are registered in the gate's `VOIX_FIELDS` (the gate itself refused the build until they were — structural floor working as designed). Same-family fixes in the same slice: the épuisé card's « la boutique d’Maman » reworded (« Revenez voir sa boutique — … »), and C6's step 1 (« {prénom} prépare votre commande » — would read « La prépare votre commande » for a boutique named « La … ») now names the full boutique, pinned by its own walk assertion.
+
+**VERIFIER (fresh context: order + diff + DoD): NO BLOCKERS, 4 minors, handled once.** Fixed: the C6 step-row first-word cut (+walk pin) · the « La voix » naming drift in comments/describe titles. Journalled, not fixed: (a) the C1 demo toast (`voix-lire`, no-url branch) is pinned by no test — it now reads `VOIX.titre` at the one call site (source-verified by the verifier); building a flow harness for a demo-only toast is not worth the machinery; (b) the épuisé-card sentence stays an inline string no gate reads — that is the C1 catalog-migration debt already named in the gate's own header, not new debt from this slice.
+
+**EVIDENCE (my own runs):** walk red 4/4 on the exact broken bytes → green · buyer-pwa **973/973** · tsc clean · gate board **ALL GATES GREEN exit 0** (after registering the new VOIX keys) · real browser: cliente e2e **26/26**, checkout-real e2e **41/41** against the real service (covers C6's changed step row).
+
 ## 2026-08-13 · REPRISE-PWA + CODE-VISIBLE — a refresh keeps her place, and her code stays within reach · DONE
 
 **MERGED AND DEPLOYED (founder's word, 2026-08-13):** main fast-forwarded to `2ceb003`; `pwa-preview` run 31743290803 **green** on `2ceb003`. Live on the buyer PWA on next load.

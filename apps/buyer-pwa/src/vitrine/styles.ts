@@ -362,7 +362,7 @@ export const VITRINE_STYLES = `
   }
   .vt-tile-livree { margin-top: 3px; font-size: 10.5px; font-weight: 600; color: #6F6355; }
 
-  /* « La voix » — the tile voice chip (tap-to-play; the play triangle +
+  /* « Note vocale » — the tile voice chip (tap-to-play; the play triangle +
      duration). A role="button" <span> inside the tile <button>: its own tap
      target, themed to the accent. The delegated handler plays it; the tile's
      « produit » navigation never fires on a voice tap (closest() wins here). */

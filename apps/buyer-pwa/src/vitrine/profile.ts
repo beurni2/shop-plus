@@ -168,13 +168,13 @@ const ABSENT_TRUST: VitrineTrust = { deliveredCount: 0, rating: '', reviewCount:
 /**
  * V-demo voice notes — two products carry a `ready` note ([DEMO] placeholder
  * tone, STOREFRONT-MEDIA-BACKING). p1 is featured, p5 is a regular tile, so the
- * « La voix » affordance is demonstrable on a featured tile, a grid tile, and
+ * « Note vocale » affordance is demonstrable on a featured tile, a grid tile, and
  * both their product pages. Everything else has no note → the buyer sees
  * nothing (no placeholder gap). Swapping in the real media backend replaces
  * these urls; the shape and the player never change.
  */
 // FOUNDER ORDER (2026-07-22): EVERY curated product carries a ready [DEMO]
-// note, so « La voix d'Aïcha » is present and playable on every shared C1 —
+// note, so the « Note vocale » card is present and playable on every shared C1 —
 // not just p1/p5. Same placeholder asset; the media backend swaps the url.
 const AICHA_VOICE_NOTES: ProductVoiceNotes = {
   p1: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },

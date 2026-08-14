@@ -570,9 +570,9 @@ export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: bool
   const voix = !o.sansVoix && m.voiceDuree
     ? [
         '<div class="cl-voix" data-role="voix">',
-        `<button class="cl-voix-play" data-action="voix-lire"${m.voiceUrl ? ` data-voix-url="${esc(m.voiceUrl)}"` : ''} aria-label="Écouter la voix d’${esc(m.prenom)}">${iconPlay(16)}</button>`,
+        `<button class="cl-voix-play" data-action="voix-lire"${m.voiceUrl ? ` data-voix-url="${esc(m.voiceUrl)}"` : ''} aria-label="${VOIX.ecouterProduit}">${iconPlay(16)}</button>`,
         '<div class="cl-voix-col"><div class="cl-voix-top">',
-        `<span class="cl-voix-title">La voix d’${esc(m.prenom)}</span><span class="cl-voix-dur">${esc(m.voiceDuree)}</span>`,
+        `<span class="cl-voix-title">${VOIX.titre}</span><span class="cl-voix-dur">${esc(m.voiceDuree)}</span>`,
         '</div><div class="cl-wave">',
         VOICE_WAVE_HEIGHTS.map((h) => `<span class="cl-wavebar" style="height:${h}px;"></span>`).join(''),
         '</div></div></div>',
@@ -587,7 +587,7 @@ export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: bool
     `<button class="cl-shield" data-action="ouvrir-protections" aria-label="Vos protections">${iconShieldCheck(18, 1.9)}</button>`,
     '</div>',
     photoFrame(m, out),
-    `<div class="cl-caption-row">${hero(m) !== undefined ? '<span>Photo réelle — ce que vous recevrez.</span>' : '<span></span>'}<span class="cl-vendu">Vendu par ${esc(m.prenom)}</span></div>`,
+    `<div class="cl-caption-row">${hero(m) !== undefined ? '<span>Photo réelle — ce que vous recevrez.</span>' : '<span></span>'}<span class="cl-vendu">Vendu par ${esc(m.shopName)}</span></div>`,
     `<div class="cl-prodtitle">${esc(m.productName)}</div>`,
     `<div class="cl-chiprow">${m.variant ? `<span class="cl-variant">${esc(m.variant)}</span>` : ''}<span class="cl-prod-zone">${esc(m.zone)}</span></div>`,
     voix,
@@ -602,7 +602,7 @@ export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: bool
     `<div class="cl-trust-row"><span class="cl-trust-ic">${iconShieldCheck(17, 1.8)}</span><span class="cl-trust-txt">Paiement protégé — inspectez avant de payer</span></div>`,
     `<button class="cl-trust-link" data-action="ouvrir-protections"><span class="cl-trust-ic">${iconLock(16, 1.9)}</span><span class="cl-trust-link-txt">Vos protections</span><span class="cl-trust-chev">${iconChevron(14)}</span></button>`,
     '</div>',
-    out ? `<div class="cl-epuise-card">Ce produit est épuisé pour le moment. Revenez voir la boutique d’${esc(m.prenom)} — elle ajoute souvent de nouveaux articles.</div>` : '',
+    out ? '<div class="cl-epuise-card">Ce produit est épuisé pour le moment. Revenez voir sa boutique — elle ajoute souvent de nouveaux articles.</div>' : '',
     `<button class="cl-cta cl-cta-c1${out ? ' cl-cta-off' : ''}" data-action="commander"${out ? ' disabled' : ''}>Commander</button>`,
     '<div class="cl-footnote">Votre numéro reste privé.</div>',
     '</div>',
@@ -1142,6 +1142,16 @@ export const VOIX = {
   ecouter: 'Écouter',
   /** While it plays: what the next tap actually does. */
   pause: 'Pause',
+  /**
+   * NOTE-VOCALE (founder, 2026-08-14) — the C1 card title. It replaced
+   * « La voix d’{prénom} », whose hardcoded elision broke on every
+   * consonant-initial name (« La voix d’Maman ») — and it is the SAME word
+   * Ma Vitrine already uses for the same object, so the reseller and her
+   * buyer read one vocabulary.
+   */
+  titre: 'Note vocale',
+  /** The C1 play control's at-rest announcement (same order, same reason). */
+  ecouterProduit: 'Écouter la note vocale',
 } as const;
 
 export const CONFIRMATION = {
@@ -1591,7 +1601,10 @@ export function renderC6(
       `<div class="cl-conf-body">Paiement${montant} confirmé par l’opérateur.</div>`,
       '</div>',
       '<div class="cl-steps">',
-      `<div class="cl-step-row"><span class="cl-step-num">1</span><span class="cl-step-txt">${esc(m.prenom)} prépare votre commande</span></div>`,
+      // VENDU-PAR (verifier, 2026-08-14): the FULL boutique name here too —
+      // the first-word cut read « La prépare votre commande » for a boutique
+      // named « La … », the same root the founder reported on C1.
+      `<div class="cl-step-row"><span class="cl-step-num">1</span><span class="cl-step-txt">${esc(m.shopName)} prépare votre commande</span></div>`,
       '<div class="cl-step-row"><span class="cl-step-num">2</span><span class="cl-step-txt">Séra vérifie et scelle le colis</span></div>',
       // VRAI-SUIVI — the honest third row, from the linted table: no push
       // exists, so none is promised; the « Suivre ma commande » CTA below is

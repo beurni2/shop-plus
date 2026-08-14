@@ -438,7 +438,7 @@ style.textContent = `
   }
   .audio-note-label { font-size: var(--t-labelXS); font-weight: ${type.scale.labelXS.wght}; letter-spacing: var(--ls-labelXS); text-transform: uppercase; text-decoration: underline; text-underline-offset: var(--sp-xs); }
   .audio-note-pending { color: var(--c-muted); }
-  /* « La voix » — the per-product voice-note player (house standard §5): the
+  /* « Note vocale » — the per-product voice-note player (house standard §5): the
      filled play triangle + caps label + visible duration. Tap plays (no autoplay). */
   /* VOIX-VISIBLE (founder 2026-08-04: « make its area more visible, nice and
      professional on both sides »). It was an inline-flex outline chip that read

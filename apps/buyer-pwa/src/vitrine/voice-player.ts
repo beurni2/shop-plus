@@ -1,5 +1,5 @@
 /**
- * VITRINE — the buyer-side « La voix » per-product player (DESIGN-LANGUAGE §5:
+ * VITRINE — the buyer-side « Note vocale » per-product player (DESIGN-LANGUAGE §5:
  * the house listen affordance — the filled play triangle + a caps label). Used
  * BOTH on the vitrine tile (compact chip) and on the product page (full row).
  *

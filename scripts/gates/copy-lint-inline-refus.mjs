@@ -153,6 +153,12 @@ const PAIEMENT_FIELDS = {
 const VOIX_FIELDS = {
   ecouter: { screenClass: 'label', fills: [] },
   pause: { screenClass: 'label', fills: [] },
+  /** NOTE-VOCALE (founder, 2026-08-14) — the C1 card title and its play
+   *  control's at-rest announcement. They replaced « La voix d’{prénom} »,
+   *  whose hardcoded elision broke on consonant-initial names. Names never
+   *  vary these labels now, so neither takes a placeholder. */
+  titre: { screenClass: 'label', fills: [] },
+  ecouterProduit: { screenClass: 'label', fills: [] },
 };
 
 const CONFIRMATION_FIELDS = {

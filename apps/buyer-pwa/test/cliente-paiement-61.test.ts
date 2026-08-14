@@ -899,7 +899,7 @@ describe('the reseller’s note is listenable from the payment screen — and on
    * THE TEMPTING SHORTCUT, LOCKED OUT (work order FORBIDDEN, round 7).
    *
    * C1's `voix-lire` handler answers a MISSING URL — and a refused `play()` —
-   * with « La voix d'Aïcha — 0:12 (démo) ». Reusing that action here would have
+   * with « Note vocale — 0:12 (démo) ». Reusing that action here would have
    * inherited the demo claim on the money screen, which is Ten Laws #5 and
    * Execution Contract §3 at once. The payment control has its OWN action name,
    * so the fallback is unreachable structurally rather than by care; `flow.ts`'s

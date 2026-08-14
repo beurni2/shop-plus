@@ -270,7 +270,7 @@ function tileArt(veiled: boolean, assetRefs: readonly string[] = []): string {
 }
 
 /** C-VIT4 — tuile produit v2. Épuisé: voile + tampon, muette (aria-disabled).
- * A `ready` voice note adds the compact « La voix » chip (in-stock tiles only —
+ * A `ready` voice note adds the compact « Note vocale » chip (in-stock tiles only —
  * an épuisé tile is muette and carries no interactive child). */
 /** The wishlist heart — role=button inside the tile button (voice-chip
  *  precedent: closest() routes its tap to `favori`, never to `produit`). */

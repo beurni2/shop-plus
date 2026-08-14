@@ -3,7 +3,7 @@
  *
  * FLAG STOREFRONT-MEDIA-BACKING: no audio backend exists. This is a short
  * synthetic TONE (300 Hz, ~1.1 s), NOT recorded voice and NOT synthesized
- * speech — a placeholder that lets the buyer « La voix » player be exercised
+ * speech — a placeholder that lets the buyer « Note vocale » player be exercised
  * (tap-to-play, duration) inside the sandbox « aperçu » preview, which is
  * ribboned as demo on every screen. The real recorded-voice asset arrives with
  * the media backend; swapping it changes this constant + the port's demo seed,

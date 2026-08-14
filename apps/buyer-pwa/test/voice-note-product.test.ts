@@ -12,7 +12,7 @@ import { seedProduct } from '../src/vitrine/catalog';
 
 /**
  * PER-PRODUCT VOICE NOTE (buyer side). The founder's rules, as assertions:
- * a ready note shows the « La voix » affordance with a visible duration and tap
+ * a ready note shows the « Note vocale » affordance with a visible duration and tap
  * (never autoplay); a pending/none/absent note shows NOTHING (no gap); the
  * buyer never sees a reseller-only capture state; SP-I03 leak law still holds.
  */
@@ -41,12 +41,12 @@ describe('fmtVoiceDuration — always m:ss, never a bare number', () => {
   });
 });
 
-describe('renderVoicePlayer — product page « La voix » (tap to play, duration visible)', () => {
+describe('renderVoicePlayer — product page « Note vocale » (tap to play, duration visible)', () => {
   it('a ready note renders the player: play action, url, label, duration — and NO autoplay', () => {
     const html = renderVoicePlayer(READY);
     expect(html).toContain('data-action="voix-produit-play"');
     expect(html).toContain('data-voix-url="data:audio/wav;base64,AAAA"');
-    expect(html).toContain('La voix');
+    expect(html).toContain('Note vocale'); // the house word (founder, 2026-08-14)
     expect(html).toContain('0:12'); // duration is visible
     expect(html.toLowerCase()).not.toContain('autoplay'); // never autoplays
     expect(html).not.toContain('<audio'); // playback is JS-driven from the tap, not an embedded control

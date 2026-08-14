@@ -1246,7 +1246,7 @@ test('C5 — « Écouter la note » plays HER note when one exists, and does not
  *
  * The tempting shortcut this locks out was named in the work order: reuse C1's
  * `voix-lire` action and inherit its toast. C1 answers BOTH a missing url and a
- * refused `play()` with « La voix d'Aïcha — 0:12 (démo) ». On C5 the missing-url
+ * refused `play()` with « Note vocale — 0:12 (démo) ». On C5 the missing-url
  * case cannot arise (no url ⇒ no button), and the REFUSAL case is driven here
  * for real: `play()` is stubbed to reject before the page loads, exactly as an
  * autoplay policy or an undecodable codec would, and the sentence she gets is

@@ -487,7 +487,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   // C4, today/B on C5·C6·C8). C4 therefore mounts with NO option selected and
   // C3 mounts empty, exactly like the prototype.
 
-  // ONE audio element for « La voix » — created on the FIRST TAP only (never
+  // ONE audio element for « Note vocale » — created on the FIRST TAP only (never
   // autoplay, law 5: recorded audio; the [DEMO] tone until the media backend).
   let voixAudio: HTMLAudioElement | null = null;
 
@@ -1588,7 +1588,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // exactly as before — the work order that added C5's control put C1's
         // behaviour explicitly out of scope.
         const url = el.getAttribute('data-voix-url');
-        const demo = (): void => toast(`La voix d’${m.prenom} — ${m.voiceDuree ?? ''} (démo)`);
+        const demo = (): void => toast(`${VOIX.titre} — ${m.voiceDuree ?? ''} (démo)`);
         if (url) jouerLaNote(url, demo, el);
         else demo();
         return;

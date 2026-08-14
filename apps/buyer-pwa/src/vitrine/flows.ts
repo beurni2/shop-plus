@@ -216,7 +216,7 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
 
   const fromProduct = harness.fromProduct ?? false;
 
-  // « La voix » tile chips play here (tap only, never autoplay). Attached once;
+  // « Note vocale » tile chips play here (tap only, never autoplay). Attached once;
   // it no-ops on every non-voice click and survives re-renders (delegated).
   wireVoicePlay(root);
 

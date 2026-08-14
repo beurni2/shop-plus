@@ -198,7 +198,9 @@ export const CLIENTE_STYLES = `
   .cl-photo-veil { position: absolute; inset: 0; background: rgba(244,239,230,.78); display: flex; align-items: center; justify-content: center; }
   .cl-epuise-stamp { border: 2px solid #1C1710; background: #FFFFFF; border-radius: 12px; padding: 9px 18px; font-family: var(--cld); font-weight: 800; font-size: 14px; letter-spacing: .2em; }
   .cl-caption-row { margin-top: 9px; display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: #6F6355; }
-  .cl-vendu { font-weight: 700; color: #1C1710; white-space: nowrap; }
+  /* VENDU-PAR (founder, 2026-08-14): the WHOLE boutique name displays, so it
+   * must be allowed to wrap — nowrap on a long name clipped it at the card. */
+  .cl-vendu { font-weight: 700; color: #1C1710; text-align: right; }
   .cl-prodtitle { margin-top: 14px; font-family: var(--cld); font-weight: 800; font-size: 26px; line-height: 1.1; letter-spacing: -.02em; }
   .cl-chiprow { margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .cl-variant { font-size: 11px; font-weight: 700; padding: 5px 11px; border-radius: 99px; white-space: nowrap; border: 1.5px solid #1C1710; }
