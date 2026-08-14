@@ -1220,11 +1220,41 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
+    /**
+     * OPPORTUNITÉS-BLANC (founder order 2026-08-14, with an Alibaba grid as the
+     * reference): « make the background of opportunités screen all white ».
+     *
+     * THE GROUND MOVES, NOT THE SCREEN'S CONTENTS. The header band, the scroll
+     * area, the footer strip and the overscroll are ALL transparent over this
+     * root, so tinting the ROOT turns every one of them white together — a
+     * per-block background would have left the header on warm paper with a
+     * seam across the middle of his screen.
+     *
+     * WHAT STAYS WARM, NAMED HONESTLY (the comment this replaced said « the
+     * whole screen », which was not true and is exactly how a comment becomes
+     * a lie): the bottom TAB BAR keeps its own fill in `kit.tsx`, and in a
+     * preview build the « aperçu » BANNER keeps its own. Both are opaque
+     * chrome with their own backgrounds — this root never reached them. Both
+     * are the founder's call, put to him with the build rather than guessed.
+     *
+     * ONLY THIS TAB, and that is deliberate: `styles.screen` is the ground for
+     * all five hubs, so changing it there would have repainted accueil, ma
+     * vitrine, cercle and gains — four screens he did not ask about. The
+     * bottom tab bar keeps its own warm fill (`kit.tsx`), because it is ONE
+     * continuous chrome band across every tab: tinting it here would make it
+     * flash warm→white→warm as he moves between hubs.
+     *
+     * `sharedColour.card` IS the white the design system already owns — the
+     * very token the product tiles on this screen are filled with. No colour
+     * is typed here: the scan below this file forbids a literal, and rightly.
+     */
+    <SafeAreaView style={[styles.screen, surOpportunites && styles.screenBlanc]}>
       {/* SDK 54: backgroundColor restored per the WO-4.0d-prep founder
           ruling ③ — pre-edge-to-edge Android draws a default bar; the
-          surface token is the correct fill. */}
-      <StatusBar style="dark" backgroundColor={sharedColour.paper} />
+          surface token is the correct fill. OPPORTUNITÉS-BLANC: the bar
+          follows the ground it sits on, or Android draws a warm strip
+          above a white screen. */}
+      <StatusBar style="dark" backgroundColor={surOpportunites ? sharedColour.card : sharedColour.paper} />
       <WaxBand />
       {IS_PREVIEW && (
         <View style={styles.previewBanner}>
@@ -2458,6 +2488,21 @@ export default function App() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: sharedColour.paper },
+  /**
+   * OPPORTUNITÉS-BLANC — the white ground for the opportunités hub ONLY,
+   * composed OVER `screen` (never replacing it), so every other hub keeps the
+   * warm paper untouched. `card` is the system's own white — and it is ALSO
+   * what the product tiles are filled with, which is the honest trade of this
+   * change: the tile's FILL stops separating it from the ground entirely
+   * (1.15:1 → 1.00:1), so the card is drawn by its hairline and its
+   * photograph alone. The hairline itself gains against white rather than
+   * losing (1.10:1 → 1.26:1 — measured, both pinned in
+   * `test/opportunites-blanc.test.ts`), but 1.26:1 is faint on a hot phone in
+   * sunlight: the reference this came from carries full-bleed photography
+   * where ours carries a tinted art block, so the card edge is the thing to
+   * judge with eyes on a real screen, not with a ratio.
+   */
+  screenBlanc: { backgroundColor: sharedColour.card },
   content: { flex: 1 },
   // FULL-BLEED SCROLL (founder ruling — the « small window » defect): the screen
   // IS the scroll surface (flex:1, edge-to-edge under the chrome); the padding
