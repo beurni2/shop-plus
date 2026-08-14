@@ -91,7 +91,7 @@ const SUPPLY = [
  * WHAT IT MAY NEVER CLAIM: nothing about custody's ledger, seals, or the
  * rider — only this door's answers. It stores no amount (SE-I09).
  */
-let custodyDoorRespond: 'ok' | 'down' = 'ok';
+let custodyDoorRespond: 'ok' | 'down' | 'actor_mismatch' = 'ok';
 const awaitingDoor = new Set<string>();
 const seenDoorCommands = new Set<string>();
 
@@ -101,6 +101,12 @@ function doorSignalDoor(
 ): { status: number; payload: unknown } {
   if (custodyDoorRespond === 'down') return { status: 500, payload: { ok: false } };
   if (auth !== `Bearer ${ARM_SECRET}`) return { status: 401, payload: { error: 'unauthorized' } };
+  // Forced permanent verdict — stands in for any event-verdict 409 the real
+  // door could mint that this double's own checks cannot reach through the
+  // verbatim wire (order-do pre-validates name/schema before arming).
+  if (custodyDoorRespond === 'actor_mismatch') {
+    return { status: 409, payload: { ok: false, reason: 'producer_actor_mismatch' } };
+  }
   if (
     body === null ||
     Object.keys(body).sort().join(',') !== 'command_id,event,orderId' ||
@@ -113,7 +119,9 @@ function doorSignalDoor(
   if (!parsed.success || parsed.data.name !== 'payment.door_leg_confirmed.v1') {
     return { status: 409, payload: { ok: false, reason: 'door_signal_invalid' } };
   }
-  if (!parsed.data.envelope.actor.startsWith('payment-provider:')) {
+  // EXACT, like the real registry's entry — a prefix here was kinder than
+  // custody ('payment-provider:evil' must refuse).
+  if (parsed.data.envelope.actor !== 'payment-provider:sandbox') {
     return { status: 409, payload: { ok: false, reason: 'producer_actor_mismatch' } };
   }
   const commandId = body['command_id'];
@@ -473,26 +481,57 @@ describe('PORTE-CUSTODY — the applied door webhook arms the wire and the alarm
     }
   }, 60_000);
 
-  it('custody answers 409: the refusal is RECORDED — done-as-refused, reason kept, and NEVER retried', async () => {
+  it('custody says door_signal_not_awaited: the wire KEEPS CARRYING — she paid before the accord was noted, and the signal lands once it is', async () => {
     custodyDoorRespond = 'ok';
     const { orderId } = await confirmedDoorOrder('0004');
-    // NOT in `awaitingDoor` — the genuinely reachable out-of-order case: the
-    // provider confirms while custody's inspection has not been accepted.
+    // NOT in `awaitingDoor` — the genuinely reachable race: the buyer pays on
+    // her page BEFORE the rider records her accord. `not_awaited` is custody's
+    // STATE, not a verdict on the event — treating it as carriage complete
+    // stranded the order forever (the provider never redelivers; custody
+    // would await a signal nobody re-sends). The row must stay PENDING.
     expect((await postWebhook('/checkout/webhook/door', doorWebhookEvent(orderId, 'att-door-0004'))).status).toBe(200);
     await waitForDoorPosts(orderId);
-    const box = await waitForDoorSignalDone(orderId);
-    expect(box.doorSignal?.status).toBe('delivered');
-    expect(box.doorSignal?.outcome).toBe('refused');
-    expect(box.doorSignal?.reason).toBe('door_signal_not_awaited');
+    let box = await outboxOf(orderId);
+    expect(box.doorSignal?.status).toBe('pending');
+    expect(box.doorSignal?.outcome).toBeUndefined();
     expect(box.doorSignal?.attempts).toBe(1);
 
-    // A RECORDED refusal is terminal for the wire: custody heard and said no
-    // (and raises its own reconciliation alert on that side) — re-posting a
-    // refusal forever helps nobody. No further POST arrives.
-    await new Promise((r) => setTimeout(r, 400));
-    expect(doorPostsFor(orderId)).toHaveLength(1);
-    // …and Shop+'s own spine is untouched by custody's no.
-    expect((await vue(orderId))['doorLeg']).toBe('paid');
+    // The rider records the accord — custody now awaits. The provider's
+    // redelivery of the SAME webhook (its own at-least-once) trips the
+    // duplicate-branch revival hook, so the retry fires now rather than on
+    // the backoff rung — same command_id, and the signal lands.
+    awaitingDoor.add(orderId);
+    expect((await postWebhook('/checkout/webhook/door', doorWebhookEvent(orderId, 'att-door-0004'))).status).toBe(200);
+    box = await waitForDoorSignalDone(orderId);
+    expect(box.doorSignal?.status).toBe('delivered');
+    expect(box.doorSignal?.outcome).toBe('accepted');
+    const posts = doorPostsFor(orderId);
+    expect(posts.length).toBeGreaterThanOrEqual(2);
+    // one command, every attempt — the retry is a replay, never a re-mint
+    expect(new Set(posts.map((p) => (p.body as Record<string, unknown>)['command_id'])).size).toBe(1);
+    awaitingDoor.delete(orderId);
+  }, 60_000);
+
+  it("custody's verdict on the EVENT ITSELF is terminal: recorded as refused, reason kept, never re-posted", async () => {
+    custodyDoorRespond = 'actor_mismatch';
+    try {
+      const { orderId } = await confirmedDoorOrder('0006');
+      expect((await postWebhook('/checkout/webhook/door', doorWebhookEvent(orderId, 'att-door-0006'))).status).toBe(200);
+      await waitForDoorPosts(orderId);
+      const box = await waitForDoorSignalDone(orderId);
+      expect(box.doorSignal?.status).toBe('delivered');
+      expect(box.doorSignal?.outcome).toBe('refused');
+      expect(box.doorSignal?.reason).toBe('producer_actor_mismatch');
+      expect(box.doorSignal?.attempts).toBe(1);
+      // Terminal: custody judged the event itself (and raised its own
+      // reconciliation alert on that side) — no further POST arrives.
+      await new Promise((r) => setTimeout(r, 400));
+      expect(doorPostsFor(orderId)).toHaveLength(1);
+      // …and Shop+'s own spine is untouched by custody's no.
+      expect((await vue(orderId))['doorLeg']).toBe('paid');
+    } finally {
+      custodyDoorRespond = 'ok';
+    }
   }, 60_000);
 
   it('a MEGABYTE command_id on the door event is refused BY NAME before anything is applied or armed', async () => {
@@ -554,11 +593,15 @@ describe('PORTE-CUSTODY — crash-window recovery, held to the standing call-sit
     // The `strandedPorte` read exists at THREE sites (checkout hook,
     // eligibility hook, door hook) — anchor on the DOOR branch's own
     // distinctive comment so this pin cannot be satisfied by the wrong site.
-    const hookAt = anchored('the redelivery IS the recovery hook for a');
+    const hookAt = anchored('the redelivery IS a recovery hook for a');
     const branch = src.slice(hookAt, src.indexOf("status: 'duplicate', doorLeg: spine.doorLegState", hookAt));
     expect(branch).toContain('DOOR_SIGNAL_KEY');
     expect(branch).toContain("strandedPorte?.status === 'pending'");
     expect(branch).toContain('setAlarm(Date.now())');
+    // …and NO alarm-is-null guard survives here: a pending row's booked
+    // backoff rung is deliberately pulled FORWARD by a redelivery — a
+    // not_awaited retry waits on that rung while a rider stands at a door.
+    expect(branch).not.toContain('getAlarm');
     expect(branch).not.toContain('storage.put');
   });
 

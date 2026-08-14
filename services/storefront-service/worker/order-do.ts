@@ -1766,10 +1766,23 @@ export class OrderDO {
           done = { outcome: 'accepted' };
         } else if (res.status === 409) {
           const body = (await res.json().catch(() => null)) as { reason?: unknown } | null;
-          done = {
-            outcome: 'refused',
-            ...(typeof body?.reason === 'string' ? { reason: body.reason } : {}),
-          };
+          const reason = typeof body?.reason === 'string' ? body.reason : undefined;
+          // ⚠ NOT EVERY 409 IS FINAL. `door_signal_not_awaited` is custody's
+          // STATE, not its verdict on the event: the buyer can pay before the
+          // rider records her accord, and treating that refusal as carriage
+          // complete would strand the order FOREVER (the provider never
+          // redelivers; custody would await a signal nobody re-sends). It
+          // stays pending and retries on the shared backoff — same
+          // command_id, so custody's replay absorbs and its alert stays
+          // one-per-signal. The other 409s (producer_actor_mismatch,
+          // door_signal_invalid) are verdicts on the EVENT ITSELF: permanent,
+          // recorded, never re-posted.
+          if (reason !== 'door_signal_not_awaited') {
+            done = {
+              outcome: 'refused',
+              ...(reason !== undefined ? { reason } : {}),
+            };
+          }
         }
       }
     }
@@ -2186,12 +2199,16 @@ export class OrderDO {
       // NO SECOND OUTBOX ROW: the spine absorbs the redelivery, so the wire
       // arms only on the newly-applied branch below.
       //
-      // PORTE-CUSTODY part B — but the redelivery IS the recovery hook for a
-      // door-signal row stranded pending without an alarm (the narrow crash
-      // window between the batch put below and `setAlarm`), exactly as the
-      // checkout webhook's duplicate branch recovers the other four wires.
+      // PORTE-CUSTODY part B — but the redelivery IS a recovery hook for a
+      // door-signal row still pending: it covers the narrow crash window
+      // (batch put below → `setAlarm`) like the checkout webhook's duplicate
+      // branch covers the other four wires, AND it pulls a BOOKED backoff
+      // rung forward — a `door_signal_not_awaited` retry is waiting on that
+      // rung while a rider stands at a door, and the provider's own
+      // at-least-once redelivery is a legitimate « try again now ». Harmless
+      // when early: the flush replays the same command_id and custody absorbs.
       const strandedPorte = await this.state.storage.get<{ status?: string }>(DOOR_SIGNAL_KEY);
-      if (strandedPorte?.status === 'pending' && (await this.state.storage.getAlarm()) === null) {
+      if (strandedPorte?.status === 'pending') {
         await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
       }
       return Response.json({ ok: true, status: 'duplicate', doorLeg: spine.doorLegState });
