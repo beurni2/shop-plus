@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-14 · BOUTIQUE-BLANC — the buyer-facing boutique stands on white, the en-tête untouched, no theme erased · IN-REVIEW (branch — he sees before merging)
+## 2026-08-14 · BOUTIQUE-BLANC — the buyer-facing boutique stands on white, the en-tête untouched, no theme erased · DONE
+
+**MERGED AND DEPLOYED (founder's word, 2026-08-14):** main fast-forwarded to `778b703`; `pwa-preview` run 31786589337 **green** — live on the boutique pages on next load.
 **Founder (correcting my reading, then adding the theme law):** « I meant the buyer facing boutique whitening it but without touching the en-tête/headers section » · « And make sure no theme is getting erased ». My earlier reading (the reseller app's Ma Vitrine hub) was wrong — that change was REVERTED clean; the double-check verifier's applicable findings on the committed OPPORTUNITÉS-BLANC work were closed once in the same build (tour steps now assert hub-unique content, the vacuous ratio(x,x) pin is gone, the what-stays-warm inventory names the WovenBand).
 
 **BUILT — one declaration plus one shell rule.** The boutique page's ground (`.vt-root`) was a fixed warm paper for EVERY habillage — the theme never lived on the ground; it lives in the `--vt-*` variables (liseré, en-tête sheets, accents, price ink, art blocks). So whitening the ground moves no themed pixel by construction. The en-tête stays untouched the same way: the classique hero and all 32 per-style units paint their OWN backgrounds edge to edge over the -76px bleed — re-derived by the verifier unit by unit, and now a DIRECTORY-WIDE pin: an en-tête unit that paints no background fails by name. The shell body behind the page follows the ground (the cliente body:has idiom), or the overscroll rubber-band flashed a warm seam. The buyer PAYMENT pages keep their warm ground: he named the boutique.
@@ -22,7 +24,9 @@ Format per entry:
 
 **EVIDENCE (my own runs):** buyer-pwa **980/980** · reseller-app **623/623** · tsc clean both · boutique e2e **2/2** in the real browser · gate board **ALL GATES GREEN exit 0**.
 
-## 2026-08-14 · OPPORTUNITÉS-BLANC — the opportunités hub stands on white · IN-REVIEW (branch — he asked to SEE it before any merge)
+## 2026-08-14 · OPPORTUNITÉS-BLANC — the opportunités hub stands on white · DONE
+
+**MERGED AND DEPLOYED (founder's word, 2026-08-14, same set as BOUTIQUE-BLANC):** main at `778b703`; `expo-preview` run 31786591265 **green** — reaches his phone after two Expo Go restarts. The double-check he ordered ran as one fresh pass over the whole white work: no blockers; its findings are closed in the entries above.
 **Founder (with an Alibaba all-white product grid attached):** « I want you to make the background of opportunités screen all white like the screenshot and let me see first before merging ».
 
 **BUILT — one style, at the layer that actually carries a screen.** The ground moves, not the contents: the header band, the scroll area, the footer strip and the overscroll are ALL transparent over the root `SafeAreaView`, so tinting the ROOT (behind the pre-existing `surOpportunites` flag) turns every one of them white together. A per-block background — the tempting version — would have painted only the grid's own extent and left the header on warm paper with a seam across the middle of his screen, plus warm overscroll on a short list; the recon named all four seams before a line was written. The white is `sharedColour.card`, the system's own — the very token the tiles are filled with — and the status bar follows the ground, or pre-edge-to-edge Android draws a warm strip above a white screen. `styles.screen` is untouched, so accueil, Ma Vitrine, Cercle and Gains keep the warm paper: he asked about one screen.
