@@ -23,10 +23,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * exact bytes): POST `${custody}/produce-shop/door-signal`, Bearer = the SAME
  * SHOP_ARM_SECRET the arm wire presents, body `{orderId, command_id, event}`
  * with the event FORWARDED VERBATIM (never re-minted, never re-actored) and
- * `command_id = door-signal-${the event's own envelope.command_id}`. Custody
- * answers 200 `{ok:true, duplicate}` or 409 `{ok:false, reason}`; 2xx and 409
- * are both DELIVERED (a 409 is custody's recorded refusal), everything else
- * retries.
+ * `command_id = door-signal-${the event's own envelope.command_id}-a${attempt}`
+ * — PER-ATTEMPT (custody commits and replays every outcome per outer id, so a
+ * frozen id could never re-judge `door_signal_not_awaited` after the accord;
+ * the spine's true idempotency keys on the event's own envelope id). Custody
+ * answers 200 `{ok:true, duplicate}` or 409 `{ok:false, reason}`; 2xx and the
+ * event-verdict 409s are DELIVERED; `door_signal_not_awaited` keeps carrying;
+ * everything else retries.
  */
 
 const SCRIPT = 'dist/worker/worker.mjs';
@@ -93,7 +96,11 @@ const SUPPLY = [
  */
 let custodyDoorRespond: 'ok' | 'down' | 'actor_mismatch' = 'ok';
 const awaitingDoor = new Set<string>();
-const seenDoorCommands = new Set<string>();
+/** EVERY judged command's outcome, replayed VERBATIM on a reused id — the
+ * real custody-do commits refusals too (verifier BLOCKER, proven on the
+ * bundle): a repeated command_id never re-judges the world. Fresh judgment
+ * needs a fresh outer id, which is exactly the wire's per-attempt mint. */
+const judgedDoorCommands = new Map<string, { status: number; payload: Record<string, unknown> }>();
 
 function doorSignalDoor(
   auth: string | null,
@@ -125,14 +132,15 @@ function doorSignalDoor(
     return { status: 409, payload: { ok: false, reason: 'producer_actor_mismatch' } };
   }
   const commandId = body['command_id'];
-  if (seenDoorCommands.has(commandId)) {
-    return { status: 200, payload: { ok: true, duplicate: true } };
+  const prior = judgedDoorCommands.get(commandId);
+  if (prior !== undefined) {
+    return { status: prior.status, payload: { ...prior.payload, duplicate: true } };
   }
-  if (!awaitingDoor.has(body['orderId'])) {
-    return { status: 409, payload: { ok: false, reason: 'door_signal_not_awaited' } };
-  }
-  seenDoorCommands.add(commandId);
-  return { status: 200, payload: { ok: true, duplicate: false } };
+  const judged = !awaitingDoor.has(body['orderId'])
+    ? { status: 409, payload: { ok: false, reason: 'door_signal_not_awaited' } as Record<string, unknown> }
+    : { status: 200, payload: { ok: true, duplicate: false } as Record<string, unknown> };
+  judgedDoorCommands.set(commandId, judged);
+  return judged;
 }
 
 /** Every door-signal POST custody's door received over the WIRE, verbatim. */
@@ -346,9 +354,9 @@ async function waitForDoorSignalDone(orderId: string, timeoutMs = 8_000) {
 
 describe('PORTE-CUSTODY — the custody double is certified: never kinder than the real door', () => {
   const okAuth = `Bearer ${ARM_SECRET}`;
-  const bodyFor = (orderId: string, event: unknown) => {
+  const bodyFor = (orderId: string, event: unknown, attempt = 0) => {
     const parsed = PlatformEventSchema.parse(event);
-    return { orderId, command_id: `door-signal-${parsed.envelope.command_id}`, event };
+    return { orderId, command_id: `door-signal-${parsed.envelope.command_id}-a${attempt}`, event };
   };
 
   it('driven OUT OF ORDER (custody not awaiting) it refuses 409 door_signal_not_awaited', () => {
@@ -418,7 +426,7 @@ describe('PORTE-CUSTODY — the applied door webhook arms the wire and the alarm
     // DETERMINISTIC command id, derived from the EVENT'S OWN envelope: a
     // redelivery replays at custody's command log instead of counting twice.
     const envelope = (event as { envelope: { command_id: string; actor: string } }).envelope;
-    expect(post.body!['command_id']).toBe(`door-signal-${envelope.command_id}`);
+    expect(post.body!['command_id']).toBe(`door-signal-${envelope.command_id}-a0`);
     // THE EVENT TRAVELS VERBATIM — same name, same envelope (actor included:
     // custody verifies the producer itself), same payload. Never re-minted.
     expect(post.body!['event']).toEqual(event);
@@ -507,8 +515,16 @@ describe('PORTE-CUSTODY — the applied door webhook arms the wire and the alarm
     expect(box.doorSignal?.outcome).toBe('accepted');
     const posts = doorPostsFor(orderId);
     expect(posts.length).toBeGreaterThanOrEqual(2);
-    // one command, every attempt — the retry is a replay, never a re-mint
-    expect(new Set(posts.map((p) => (p.body as Record<string, unknown>)['command_id'])).size).toBe(1);
+    // FRESH outer id per attempt (custody replays a recorded 409 verbatim for
+    // a reused id — the frozen id was the stranding); one shared base, and
+    // the EVENT'S envelope id constant, which is what keeps custody's
+    // consumption and alert idempotent across the re-judgments.
+    const ids = posts.map((p) => String((p.body as Record<string, unknown>)['command_id']));
+    expect(new Set(ids).size).toBeGreaterThanOrEqual(2);
+    expect(new Set(ids.map((i) => i.replace(/-a\d+$/, ''))).size).toBe(1);
+    expect(
+      new Set(posts.map((p) => (PlatformEventSchema.parse((p.body as Record<string, unknown>)['event'])).envelope.command_id)).size,
+    ).toBe(1);
     awaitingDoor.delete(orderId);
   }, 60_000);
 

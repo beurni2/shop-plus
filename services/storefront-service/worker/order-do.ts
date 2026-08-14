@@ -155,9 +155,12 @@ const CUSTODY_ARM_KEY = 'custody-arm-outbox';
  * THE FACT IS THE RECEIVED-AND-VALIDATED `payment.door_leg_confirmed.v1`
  * EVENT, FORWARDED VERBATIM — never re-minted, never re-actored: custody
  * verifies the producer actor itself and refuses anything not from the
- * provider class. `command_id` is `door-signal-${the event's own envelope
- * command_id}` — deterministic, so a redelivery replays at custody's
- * command log instead of counting a second act.
+ * provider class. The row's `command_id` BASE is `door-signal-${the event's
+ * own envelope command_id}`; the wire posts `${base}-a${attempt}` — fresh
+ * per attempt, because custody commits and replays every outcome per outer
+ * id (a frozen id could never re-judge a `not_awaited` state). Safe on
+ * every road: the spine's true idempotency keys on the event's own
+ * envelope id, so no fresh outer id can double-advance or double-alert.
  *
  * DELIVERY SEMANTICS DIFFER FROM THE ARM WIRE'S BY CONTRACT: custody's 200
  * (`{ok:true, duplicate}`) AND its 409 (`{ok:false, reason}` —
@@ -1754,11 +1757,27 @@ export class OrderDO {
     const secret = this.env.SHOP_ARM_SECRET ?? '';
     let done: { outcome: 'accepted' | 'refused'; reason?: string } | undefined;
     if (this.env.CUSTODY !== undefined && secret !== '') {
+      /**
+       * ⚠ THE OUTER COMMAND ID IS PER-ATTEMPT (verifier BLOCKER, 2026-08-14,
+       * proven on the real custody bundle): custody COMMITS every outcome —
+       * including a 409 `door_signal_not_awaited` — and replays it verbatim
+       * for a reused command_id, so a frozen id could never re-judge after
+       * the rider records the accord: the paid order stranded forever. The
+       * spine's true idempotency keys on the EVENT's own envelope command_id
+       * (consumption absorbed once landed, the reconciliation alert minted
+       * once), which is what makes fresh outer ids safe on every road: a
+       * lost 200 re-asked under `-a(N+1)` answers `duplicate:true` from the
+       * event registry, and a crash-rerun of attempt N replays `-aN`'s
+       * recorded outcome. Deterministic per attempt, fresh across attempts.
+       */
       const res = await this.env.CUSTODY.fetch(
         new Request('https://custody/produce-shop/door-signal', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
-          body: JSON.stringify(outbox.fact),
+          body: JSON.stringify({
+            ...outbox.fact,
+            command_id: `${outbox.fact.command_id}-a${outbox.attempts}`,
+          }),
         }),
       ).catch(() => undefined);
       if (res !== undefined) {
@@ -1772,11 +1791,12 @@ export class OrderDO {
           // rider records her accord, and treating that refusal as carriage
           // complete would strand the order FOREVER (the provider never
           // redelivers; custody would await a signal nobody re-sends). It
-          // stays pending and retries on the shared backoff — same
-          // command_id, so custody's replay absorbs and its alert stays
-          // one-per-signal. The other 409s (producer_actor_mismatch,
-          // door_signal_invalid) are verdicts on the EVENT ITSELF: permanent,
-          // recorded, never re-posted.
+          // stays pending and retries on the shared backoff under the NEXT
+          // attempt's fresh outer id (see the mint above) so custody
+          // re-judges its state; the alert stays one-per-signal because the
+          // spine keys it on the event's own envelope id. The other 409s
+          // (producer_actor_mismatch, door_signal_invalid) are verdicts on
+          // the EVENT ITSELF: permanent, recorded, never re-posted.
           if (reason !== 'door_signal_not_awaited') {
             done = {
               outcome: 'refused',
@@ -2219,9 +2239,9 @@ export class OrderDO {
      * door leg is paid » and « custody will be told » become true together or
      * not at all. The fact is the received-and-validated event FORWARDED
      * VERBATIM (the vault just applied it, so it parses), under the
-     * deterministic `door-signal-${its own envelope command_id}` — a
-     * redelivered webhook is absorbed above and never arms a second row, and
-     * a redelivered POST replays at custody's command log. First-wins guard
+     * base id `door-signal-${its own envelope command_id}` (the flusher
+     * appends `-a${attempt}`) — a redelivered webhook is absorbed above and
+     * never arms a second row. First-wins guard
      * on the row itself, belt-and-braces like the confirm branch's OUTBOX_KEY
      * guard: the vault admits one door confirmation per order, and even if
      * that ever changed shape the recorded signal would stay immovable.
