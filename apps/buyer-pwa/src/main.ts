@@ -8,11 +8,9 @@ import {
   motion,
   interaction,
   band,
-  ribbon as ribbonTokens,
   skeleton,
   landmark,
 } from '@platform/ui-tokens/legacy';
-import { t } from './i18n';
 import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, vitrineHref } from './vitrine-link';
 import { demoStorefrontPort, resolveStorefrontPort } from './vitrine/profile';
 import { harnessProfil, mountVitrine, type VitrineEtat } from './vitrine/flows';
@@ -80,12 +78,6 @@ const ms = (n: number): string => `${n}ms`;
 for (const [name, value] of Object.entries(theme.colours)) {
   root.style.setProperty(`--c-${name}`, value);
 }
-// The sandbox ribbon stripes + skeleton fill (their own token groups).
-root.style.setProperty('--ribbon-a', ribbonTokens.sandbox.stripeA);
-root.style.setProperty('--ribbon-b', ribbonTokens.sandbox.stripeB);
-root.style.setProperty('--ribbon-text', ribbonTokens.sandbox.text);
-root.style.setProperty('--ribbon-h', px(ribbonTokens.sandbox.heightPx));
-root.style.setProperty('--ribbon-stripe', px(ribbonTokens.sandbox.stripePx));
 root.style.setProperty('--skeleton-bg', skeleton.bg);
 
 // Spacing scale 4/8/12/16/24/34.
@@ -212,23 +204,6 @@ style.textContent = `
     padding: var(--sp-xl);
     color: var(--c-body);
     font-size: var(--t-body);
-  }
-  /* Sandbox ribbon — the striped sandbox band, on EVERY screen (WO-4.2E). */
-  .sandbox-ribbon {
-    margin: 0;
-    min-height: var(--ribbon-h);
-    display: flex; align-items: center; justify-content: center;
-    background: repeating-linear-gradient(45deg,
-      var(--ribbon-a), var(--ribbon-a) var(--ribbon-stripe),
-      var(--ribbon-b) var(--ribbon-stripe), var(--ribbon-b) calc(var(--ribbon-stripe) * 2));
-    color: var(--ribbon-text);
-    font-size: var(--t-labelXS);
-    font-weight: ${type.scale.labelXS.wght};
-    letter-spacing: var(--ls-labelXS);
-    text-transform: uppercase;
-    text-align: center;
-    padding: var(--sp-xs) var(--sp-md);
-    border-bottom: var(--theme-strip) solid var(--c-themeStrip);
   }
   /* Offline is a designed state: a full-width ink band, never an alert. */
   .offline-banner {
@@ -569,7 +544,7 @@ style.textContent = `
   .bq-foot { margin: 0; font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
 
   /* VRAI-SUIVI — « Ma commande », the quiet way back to a live order. Chrome,
-     not content: a full-width sand band under the ribbon, token-driven, one
+     not content: a full-width sand band at the head of the shell, token-driven, one
      line, no new nav system. */
   .ma-commande {
     width: 100%;
@@ -626,14 +601,18 @@ function sessionStorageOrUndefined(): Storage | undefined {
 
 const app = document.querySelector('#app');
 if (app) {
-  // WO-4.2E — the SANDBOX RIBBON: a deployed preview must NEVER be
-  // mistakable for a real store. Unconditional — no profile, no URL param,
-  // no code path renders this surface without it.
-  const ribbon = document.createElement('p');
-  ribbon.className = 'sandbox-ribbon';
-  ribbon.setAttribute('data-role', 'sandbox-ribbon');
-  ribbon.textContent = t('apercu.ruban');
-  app.append(ribbon);
+  /**
+   * BANDEAUX-RETIRÉS (founder order 2026-08-14): « remove … the one on
+   * buyer's payment pwa ». The WO-4.2E sandbox ribbon stood here,
+   * unconditionally, on every screen. It answered to no canon sentence —
+   * verified across the contract and the Shop+ spec — so this is his
+   * product call, not a spec change. WHAT IT COST IS NAMED IN THE JOURNAL:
+   * while the provider is still the sandbox mock, no band on the buyer's
+   * screen says the payment is a test. The honest sentences that speak on
+   * their OWN events survive untouched — « Rien n'a été débité » on a
+   * refusal, on a cancellation — because those are facts about what
+   * happened, not chrome.
+   */
 
   const params = new URLSearchParams(window.location.search);
   // ENTETES-A/B — the founder's header preview, an OVERRIDE threaded through
@@ -963,7 +942,7 @@ if (app) {
    * The order create stored `{orderId, buyerRef, at}` under `sp-commande:v1`
    * (one slot, newest wins — pilot scale). When that record exists, every
    * shell entry — the directory, a vitrine, a signed product page — carries a
-   * quiet band under the ribbon that reopens the REAL tracking: `createCliente`
+   * quiet band at the head of the shell that reopens the REAL tracking: `createCliente`
    * mounted straight at C7 with a `suivi` source over the env-gated port, so
    * the re-entry polls the same service the checkout did. NOT offered on the
    * `?demo-cliente=` harness — a demo walk must never wear a real order.
@@ -984,11 +963,10 @@ if (app) {
     suiviRef.textContent = gardeeSure.orderId;
     suiviBtn.append(suiviLabel, suiviRef);
     suiviBtn.addEventListener('click', () => {
-      // The tracking takes the screen: everything but the sandbox ribbon goes,
-      // and the cliente flow mounts at C7 exactly as the signed path mounts it.
-      for (const child of Array.from(app.children)) {
-        if (child !== ribbon) child.remove();
-      }
+      // The tracking takes the screen, and the cliente flow mounts at C7
+      // exactly as the signed path mounts it. (The clear used to spare the
+      // sandbox ribbon; with the ribbon gone it simply clears — BANDEAUX-RETIRÉS.)
+      for (const child of Array.from(app.children)) child.remove();
       const port = resolveQuotePort();
       const suiviMain = document.createElement('main');
       monterCliente(suiviMain, {
@@ -1013,6 +991,10 @@ if (app) {
       });
       app.append(suiviMain);
     });
-    ribbon.after(suiviBtn);
+    // BANDEAUX-RETIRÉS — this band was inserted AFTER the ribbon object; with
+    // the ribbon gone it takes the ribbon's place at the head of the shell,
+    // which is where it always rendered. `prepend` keeps that position without
+    // depending on any other element existing.
+    app.prepend(suiviBtn);
   }
 }

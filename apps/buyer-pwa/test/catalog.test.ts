@@ -17,7 +17,19 @@ describe('buyer-pwa catalog', () => {
     const keys = new Set(catalog.map((e) => e.key));
     const source = readFileSync(join(appDir, 'src/main.ts'), 'utf8');
     const usedKeys = [...source.matchAll(/(?<![\w.])t\('([^']+)'\)/g)].map((m) => m[1]);
-    expect(usedKeys.length).toBeGreaterThan(0);
+    /**
+     * BANDEAUX-RETIRÉS (founder, 2026-08-14) — the shell's key count may now be
+     * ZERO, and legitimately: `t('apercu.ruban')` (the sandbox ribbon) was the
+     * only catalog string main.ts ever rendered, and the ribbon is removed. The
+     * old `usedKeys.length > 0` guarded against the regex silently matching
+     * nothing; that guard now moves onto the REGEX ITSELF, so it still cannot
+     * rot into a vacuous pass while the real assertions below stay honest.
+     */
+    const sonde = "const x = t('probe.key');";
+    expect(
+      [...sonde.matchAll(/(?<![\w.])t\('([^']+)'\)/g)].map((m) => m[1]),
+      'the key-extraction regex must still extract keys',
+    ).toEqual(['probe.key']);
     for (const key of usedKeys) {
       expect(keys.has(key ?? '')).toBe(true);
     }

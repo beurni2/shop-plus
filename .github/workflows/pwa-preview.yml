@@ -6,8 +6,10 @@ name: pwa-preview
 # budget on THAT build, and deploy to GitHub Pages via stock actions.
 # FOUNDER ONE-CLICK (only if the first run errors on Pages-not-enabled):
 # shop-plus → Settings → Pages → Source: "GitHub Actions".
-# The deployed preview is a SANDBOX: the app carries an unremovable
-# ribbon (« Aperçu — données d'essai. Rien ici n'est réel. ») and the
+# The deployed preview is a SANDBOX: the payment provider is the certified
+# mock and nothing is ever debited. The on-screen ribbon that used to say so
+# was removed on the founder's order (2026-08-14, BANDEAUX-RETIRÉS), so the
+# sandbox status is no longer stated to the visitor — see JOURNAL.md. The
 # root lands on the walkable journey. No production claim, ever.
 
 on:

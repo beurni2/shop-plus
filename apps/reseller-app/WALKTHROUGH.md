@@ -2,9 +2,7 @@
 
 Ouvrez l'aperçu dans Expo Go (voir PREVIEW.md à la racine). Le bandeau
 « Aperçu — bac à sable » reste visible : tout ici est un essai, rien n'est
-réel. En bas de chaque écran : « Données d'essai — rien ici n'est réel. » et
-« Recommencer la démo » (remet tout à zéro, un seul geste). « Retour » en
-haut à gauche revient toujours en arrière.
+réel. « Retour » en haut à gauche revient toujours en arrière.
 
 ## Le chemin, étape par étape
 
@@ -44,8 +42,7 @@ haut à gauche revient toujours en arrière.
    les règles. Votre part vous revient. »
    *Test 5 secondes : je sais exactement ce que je touche, et pourquoi.*
 
-Depuis « Mes gains », « Les opportunités » relance un tour ; « Recommencer la
-démo » remet le monde et le chemin à zéro.
+Depuis « Mes gains », « Les opportunités » relance un tour.
 
 ## Ce qui est volontairement absent
 Aucun paiement réel, aucun réseau, aucun vrai lien : le lien affiché ne

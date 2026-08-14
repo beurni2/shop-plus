@@ -6,8 +6,7 @@ L'aperçu du parcours acheteur vit à l'adresse
 **https://beurni2.github.io/shop-plus/** (publié à chaque mise à jour de
 `main` par le workflow `pwa-preview`). C'est un **bac à sable** : les
 produits, les prix et la commande sont des données d'essai — aucun paiement
-n'est possible, aucun article n'existe, rien n'est réel, et chaque écran
-porte le bandeau « Aperçu — données d'essai ». La page d'accueil ouvre
+n'est possible, aucun article n'existe, rien n'est réel. La page d'accueil ouvre
 directement le parcours (produit → où vous trouver → livraison → paiement →
 suivi) pour l'essayer du pouce, comme une cliente. Ce n'est **pas** la
 boutique Shop+ : pas de vrais vendeurs, pas de vrais comptes, pas d'argent.

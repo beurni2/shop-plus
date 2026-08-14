@@ -9,6 +9,23 @@ Format per entry:
 
 ---
 
+## 2026-08-14 · BANDEAUX-RETIRÉS — the two demo banners are gone · IN-REVIEW (branch, awaiting founder)
+**Founder:** « On Shop+ remove the demo banner at bottom and the one on buyer's payment pwa ».
+
+**REMOVED.** Reseller app: the bottom strip (« Données d'essai », the build stamp, the resolved storefront host, the operator line, « Recommencer la démo ») and everything only it used — `reset()`, `buildStamp` + the expo-updates import, `SEAM_HOST`, `SEAM_KEY_PRESENT`, `feedStateKey()`, six styles, 11 orphaned catalog keys. Buyer PWA: the WO-4.2E sandbox ribbon, its CSS, its five token vars, its import, its catalog key, and the `t` import that died with it. Verified against canon first: NO spec sentence mandates a preview marker — the ribbon was an app convention, so this is a product call, not a canon change.
+
+**THE ONE HAZARD, REWIRED AND PROVEN:** « Ma commande » was positioned by `ribbon.after(suiviBtn)` and the shell-clear spared the ribbon by identity. Both rewired (`app.prepend`, plain clear) — the ribbon was child 0, so the band keeps its exact position — and driven in a REAL browser: **checkout-real 41/41**, the only surface that exercises that band.
+
+**WHAT IT COSTS, NAMED RATHER THAN DISCOVERED LATER.** (a) **The buyer**: nothing on any Shop+ buyer screen now says the payment is a test, while the provider is still the certified sandbox mock and the PWA publishes to Pages on every push to main. The honest per-event sentences survive (« Rien n'a été débité » on a refusal or cancellation) but a SUCCESSFUL path never shows them. (b) **The reseller** keeps « Aperçu — bac à sable » at the top, but loses three diagnostics that lived only in that strip: the feed's true state (unconfigured / 401 / unreachable / empty all wear one card by design), the resolved storefront host, and the running bundle id. A blank Opportunités is now diagnosed from the service, not the screen.
+
+**PROOF.** A new RENDU walk (`test/rendu-bandeau.test.tsx`) drives all four hubs: none renders any of the five removed sentences, each still renders its own content, and the tile→fiche road still runs — mutation-red when the strip text is put back. The banner pins were INVERTED, not deleted (a removal that can silently regrow is not removed), and the unrelated vite-base test housed in the ribbon file was preserved. The identity suite's invariant got STRONGER: App.tsx now reads the write key zero times.
+
+**VERIFIER (fresh context): 2 blockers + 7 minors, all closed.** Blockers: no RENDU walk for a shell-wide change (written, mutation-proven) and a dead `t` import (removed). Minors closed: four stale comment blocks, and three documents that had begun telling the founder something false — PREVIEW.md, WALKTHROUGH.md and the pwa-preview workflow's own justification all claimed the banners were there. Journalled, not fixed: 31 gallery captures still show the old ribbon; four buyer-side comments justify demo data by « under the ribbon » (the per-item « démo » marker survives, so the counts stay labelled). It also caught my evidence overclaiming « real-browser 5/5 » without naming the specs — corrected above.
+
+**MY OWN SLIP, RECORDED:** deleting the catalog keys by JSON round-trip reformatted both catalogs — a 10,000-line diff for 12 entries. Caught, reverted, redone as an exact block removal with every survivor byte-identical; the diff is now pure deletion (6 and 66 lines).
+
+**EVIDENCE (my own runs):** reseller **626/626** · buyer **981/981** · tsc clean both · checkout-real **41/41** + vitrine/deploy-base **5/5** in the real browser · gate board **ALL GATES GREEN exit 0**.
+
 ## 2026-08-14 · BOUTIQUE-BLANC — the buyer-facing boutique stands on white, the en-tête untouched, no theme erased · DONE
 
 **MERGED AND DEPLOYED (founder's word, 2026-08-14):** main fast-forwarded to `778b703`; `pwa-preview` run 31786589337 **green** — live on the boutique pages on next load.

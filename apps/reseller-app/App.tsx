@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { FlatList, Image, Linking, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
-import * as Updates from 'expo-updates';
 import { File } from 'expo-file-system';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, touch, interaction, dimension } from '@platform/ui-tokens/legacy';
@@ -164,36 +163,13 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
   vente_detail: 'vente.titre',
 };
 
-// SEAM-ERROR-VISIBILITY-1 — the storefront base the app RESOLVED at bundle time,
-// surfaced once in the footer so a wrong/empty inline is VISIBLE. `||` catches the
-// empty string too. Never the key — only the base.
-//
-// RESELLER-SEAM-HONESTY-1 follow-up: this used to read « (demo) » when unset, which is
-// now FALSE — there is no demo adapter any more, only a connected or unconnected app.
-// The vocabulary mirrors the ruled « relié / non relié ».
-//
-// THE HOST IS NAMED DELIBERATELY (founder-approved): this line exists BECAUSE a wrong
-// or empty inline was invisible, and « Relié » alone cannot tell the production Worker
-// apart from a staging URL or a typo that happens to resolve — the exact failure it was
-// added to catch. It is useful to the founder and meaningless to a reseller, so the
-// whole line is deleted at onboarding rather than softened now.
-const SEAM_HOST = process.env.EXPO_PUBLIC_STOREFRONT_BASE || '';
+// BANDEAUX-RETIRÉS (2026-08-14) — SEAM-ERROR-VISIBILITY-1 and SEAM-PRESENCE-1
+// stood here. They surfaced the resolved storefront base, the write key's
+// PRESENCE and the feed's true state in the bottom strip, because unconfigured,
+// 401, unreachable and genuinely-empty all render as ONE identical card by
+// design. The founder ordered the strip removed; those three diagnostics went
+// with it, and that loss is recorded in JOURNAL.md rather than left implicit.
 
-/**
- * SEAM-PRESENCE-1 — WHETHER THE WRITE KEY IS PRESENT. **Presence only: never the
- * value, never a prefix, never a hash** (founder ruling — a prefix is a value, and a
- * hash of a short secret is a value with extra steps).
- *
- * WHY THIS LINE EXISTS, and it is load-bearing rather than decoration: the host is
- * named here precisely because a wrong or EMPTY inline is otherwise INVISIBLE — and
- * the write key had exactly that failure and cost the founder an entire evening. The
- * app sent a key, the Worker refused it with 401, and **unconfigured, 401,
- * unreachable and genuinely-empty all render as one identical card BY DESIGN**: the
- * reseller sees an honest empty state and never a diagnosis. That is right for her
- * and useless for him, so the operator line carries what the card deliberately
- * cannot. Member-expression access so babel-preset-expo inlines it; `?? ''` catches
- * the unset case and `!== ''` the empty-string one.
- */
 /**
  * RESELLER-UX-1 item 3 — THE MARKUP IS TYPABLE, NOT ONLY SLIDABLE (founder walk).
  * One value, two hands on it: the slider for feel, the field for the exact figure
@@ -229,16 +205,6 @@ function MarkupControl({ value, cap, onChange }: { value: number; cap: number; o
       <Text style={styles.noteLine}>{tf('fiche.plafond', { amount: formatFcfa(cap) })}</Text>
     </View>
   );
-}
-
-const SEAM_KEY_PRESENT = (process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY ?? '') !== '';
-
-/** The operator words for the feed's own state — the fourth fact the empty card hides. */
-function feedStateKey(status: OfferFeed['status'] | undefined): string {
-  if (status === undefined) return 'seam.produits_chargement';
-  if (status === 'ok') return 'seam.produits_recus';
-  if (status === 'unconfigured') return 'seam.produits_non_relie';
-  return 'seam.produits_indisponibles';
 }
 
 /** RF-1c — module scope on purpose: a store recreated each render would
@@ -358,10 +324,6 @@ export default function App() {
     [stack],
   );
   const back = useCallback(() => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)), []);
-  const reset = useCallback(() => {
-    setWorld(createDemoWorld());
-    setStack([START]);
-  }, []);
   // Waypoint reset, never an edge: each hub state is already reachable
   // from START along declared edges; the tab jumps to that exact state.
   const toHub = useCallback((hub: Screen) => {
@@ -1065,7 +1027,6 @@ export default function App() {
   );
   // The demo build stamp — the actual OTA update id (expo-updates), « dev » in
   // the local runtime; honest provenance in the demo footer, never a fake build.
-  const buildStamp = Updates.updateId ?? 'dev';
   // The share card is DETERMINISTIC from her price-free assets + price snapshot
   // (SP-I19). It carries the live-truth signed link by construction — no
   // commission field exists on the type (SP-I03).
@@ -2448,29 +2409,20 @@ export default function App() {
           Vitrine card both open it; refs carry the hero AND the proof shot). */}
       <PhotoGallery product={gallery} onClose={() => setGallery(null)} />
 
-      <View style={styles.footer}>
-        <View style={styles.footerInfo}>
-          <Text style={styles.footerHint}>{t('demo.donnees')}</Text>
-          {/* the build stamp — the real OTA update id (« dev » locally): honest
-              provenance so a device pass can name the exact bundle it ran. */}
-          <Text style={styles.footerBuild}>{tf('demo.build', { id: buildStamp.slice(0, 8) })}</Text>
-          {/* SEAM-ERROR-VISIBILITY-1 — the resolved storefront base (never the key). */}
-          <Text style={styles.footerBuild}>
-            {SEAM_HOST === '' ? t('seam.non_relie') : tf('seam.relie', { host: SEAM_HOST })}
-          </Text>
-          {/* SEAM-PRESENCE-1 — the operator line. Key PRESENCE (never the value) and
-              the feed's own state, because the empty card deliberately shows the same
-              face for unconfigured, 401, unreachable and genuinely-empty. Deleted
-              wholesale at onboarding along with the host line above: operator-facing,
-              not product copy. The separator is punctuation, not a translated word. */}
-          <Text style={styles.footerBuild}>
-            {`${t(SEAM_KEY_PRESENT ? 'seam.cle_presente' : 'seam.cle_absente')} · ${t(feedStateKey(feed?.status))}`}
-          </Text>
-        </View>
-        <Pressable style={styles.resetAction} onPress={reset}>
-          <Text style={styles.resetActionText}>{t('nav.recommencer')}</Text>
-        </Pressable>
-      </View>
+      {/**
+        * BANDEAUX-RETIRÉS (founder order 2026-08-14): « On Shop+ remove the
+        * demo banner at bottom ». The strip that stood here carried « Données
+        * d'essai », the build stamp, the resolved storefront host, the
+        * operator line (key PRESENCE + feed state) and « Recommencer la
+        * démo » — operator and developer chrome, which the operator line's
+        * own comment had already marked for deletion at onboarding.
+        *
+        * WHAT HE LOSES, NAMED IN THE JOURNAL RATHER THAN DISCOVERED LATER:
+        * that operator line was the ONLY place the feed's true state showed,
+        * because the empty card deliberately wears the same face for
+        * unconfigured, 401, unreachable and genuinely-empty. Diagnosing a
+        * blank Opportunités now needs the service, not the screen.
+        */}
 
       {HUBS.includes(screen) && (
         <TabBar
@@ -2946,16 +2898,6 @@ const styles = StyleSheet.create({
     fontSize: rmax(t2.scale.body.size),
     textAlign: 'center',
   },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    minHeight: touch.minTargetPx,
-  },
-  footerHint: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size },
-  resetAction: { minHeight: touch.minTargetPx, justifyContent: 'center', paddingHorizontal: spacing.md },
-  resetActionText: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
   previewBanner: {
     backgroundColor: sharedColour.dim,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -3114,8 +3056,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toastText: { color: sharedColour.paper, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size), fontWeight: w(t2.scale.row.wght), textAlign: 'center' },
-  footerInfo: { flexShrink: 1 },
-  footerBuild: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size, fontVariant: ['tabular-nums'] },
   // ── FICHE money line (« Gagnez ≈ {net} net », §4 L70/L72) — net-forward, deep ──
   ficheGagnez: {
     color: shopColour.deep,

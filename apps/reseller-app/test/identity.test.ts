@@ -136,29 +136,59 @@ describe('the mint path carries NO Math.random — the defect that started this'
  * the reseller and useless for the operator, so the footer carries what it cannot.
  * These assert the boundary: PRESENCE, never the value, never a prefix, never a hash.
  */
-describe('the operator line never leaks the key', () => {
+describe('BANDEAUX-RETIRÉS — the operator line is gone, and the key is safer for it', () => {
   const app = readFileSync(join(import.meta.dirname, '..', 'App.tsx'), 'utf8');
 
-  it('the key is reduced to a BOOLEAN at its only read site — nothing downstream can render it', () => {
-    // The one permitted read is the presence test itself.
+  /**
+   * FOUNDER ORDER (2026-08-14): « On Shop+ remove the demo banner at bottom ».
+   *
+   * This suite used to guard the operator line — « Clé : présente · Produits :
+   * reçus » — proving it showed the key's PRESENCE and never its value. That
+   * line is removed, and the invariant it protected does not weaken: it becomes
+   * absolute. App.tsx no longer reads the write key AT ALL, so no rendered
+   * string in this file can carry any part of it. The pins invert rather than
+   * being deleted, because the leak they forbid must stay forbidden.
+   *
+   * The key itself is untouched where it belongs — the service layer
+   * (`src/vitrine/offers.ts`, `src/vitrine/service.ts`) still sends it on the
+   * wire. Removing a DISPLAY of its presence took nothing from the app's
+   * ability to write.
+   */
+  it('the screen file does not read the write key at all — the strongest form of « never leaks »', () => {
     const reads = [...app.matchAll(/process\.env\.EXPO_PUBLIC_STOREFRONT_WRITE_KEY/g)];
-    expect(reads).toHaveLength(1);
-    expect(app).toContain("const SEAM_KEY_PRESENT = (process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY ?? '') !== '';");
+    expect(reads, 'App.tsx must not touch the write key now that the operator line is gone').toHaveLength(0);
   });
 
-  it('no substring, slice or hash of the key reaches a rendered string', () => {
+  it('no substring, slice or hash of the key can reach a rendered string', () => {
     const code = app.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-    // A prefix is a value with fewer characters; a hash of a short secret is a value
-    // with extra steps. Neither is permitted, so neither shape may appear near it.
-    expect(code).not.toMatch(/EXPO_PUBLIC_STOREFRONT_WRITE_KEY[^\n]*\.(slice|substring|substr)/);
-    expect(code).not.toMatch(/EXPO_PUBLIC_STOREFRONT_WRITE_KEY[^\n]*(hash|digest|sha)/i);
-    // …and the boolean, not the env read, is what the render site consumes.
-    expect(code).toMatch(/SEAM_KEY_PRESENT \? 'seam\.cle_presente' : 'seam\.cle_absente'/);
+    expect(code).not.toMatch(/EXPO_PUBLIC_STOREFRONT_WRITE_KEY/);
+    expect(code).not.toMatch(/SEAM_KEY_PRESENT/);
   });
 
-  it('the feed state maps every branch to a catalog key — the fourth fact the empty card hides', () => {
-    for (const key of ['seam.produits_chargement', 'seam.produits_recus', 'seam.produits_non_relie', 'seam.produits_indisponibles']) {
-      expect(app, `${key} must be reachable from feedStateKey`).toContain(key);
+  it('the seam copy went WITH the line — no dead operator strings left to re-render', () => {
+    const catalog = JSON.parse(
+      readFileSync(join(import.meta.dirname, '..', 'i18n', 'catalog.json'), 'utf8'),
+    ) as { key: string }[];
+    const keys = new Set(catalog.map((e) => e.key));
+    for (const dead of [
+      'seam.cle_presente', 'seam.cle_absente', 'seam.relie', 'seam.non_relie',
+      'seam.produits_chargement', 'seam.produits_recus',
+      'seam.produits_non_relie', 'seam.produits_indisponibles',
+      'demo.donnees', 'demo.build', 'nav.recommencer',
+    ]) {
+      expect(keys.has(dead), `${dead} is orphaned copy — it must not linger in the catalog`).toBe(false);
     }
+  });
+
+  it('THE COST, PINNED SO IT IS NOT FORGOTTEN: the feed state is no longer visible on any screen', () => {
+    /**
+     * The operator line was the ONLY surface showing the feed's true state,
+     * because the empty card deliberately wears one face for unconfigured,
+     * 401, unreachable and genuinely-empty. Diagnosing a blank Opportunités
+     * now needs the service, not the screen. Recorded in JOURNAL.md; if a
+     * diagnostic ever returns it will be a deliberate slice, not a regrowth
+     * of this strip.
+     */
+    expect(app).not.toContain('feedStateKey');
   });
 });

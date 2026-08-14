@@ -43,12 +43,15 @@ describe('reseller journey spine', () => {
     }
   });
 
-  it('the App navigates only along journey edges and always offers retour + reset + demo hint', () => {
+  it('the App navigates only along journey edges and always offers retour (the demo strip is retired — BANDEAUX-RETIRÉS)', () => {
     const source = readFileSync(join(import.meta.dirname, '..', 'App.tsx'), 'utf8');
     expect(source).toMatch(/JOURNEY\[stack\[stack\.length - 1\] \?\? START\]\.includes\(next\)/);
     expect(source).toMatch(/t\('nav\.retour'\)/);
-    expect(source).toMatch(/t\('nav\.recommencer'\)/);
-    expect(source).toMatch(/t\('demo\.donnees'\)/);
+    // BANDEAUX-RETIRÉS (founder, 2026-08-14) — « remove the demo banner at
+    // bottom ». The two pins that stood here asserted `nav.recommencer` and
+    // `demo.donnees`, the strip's own copy; both the strip and its catalog
+    // keys are gone, so the pins invert: neither may come back by accident.
+    expect(source).not.toMatch(/nav\.recommencer|demo\.donnees/);
     expect(source).toMatch(/<FlatList/);
   });
 
