@@ -143,6 +143,32 @@ const CODE_REMISE_KEY = 'code-remise';
  */
 const CUSTODY_ARM_KEY = 'custody-arm-outbox';
 /**
+ * PORTE-CUSTODY part B — the FIFTH wire: FORWARD THE DOOR LEG'S PROVIDER
+ * TRUTH to custody, at-least-once, over the SAME road the arm wire rides
+ * (the CUSTODY service binding + `SHOP_ARM_SECRET`), at custody's
+ * `/produce-shop/door-signal` door. Its own key and its own attempt count,
+ * the standing rule: no wire may mask another's fate. Without it custody's
+ * SE-I11 gate (« custody→customer ONLY after provider-confirmed door
+ * payment ») could never open — Shop+ applied the webhook to its own spine
+ * and told nobody, so the rider's drop refused forever.
+ *
+ * THE FACT IS THE RECEIVED-AND-VALIDATED `payment.door_leg_confirmed.v1`
+ * EVENT, FORWARDED VERBATIM — never re-minted, never re-actored: custody
+ * verifies the producer actor itself and refuses anything not from the
+ * provider class. `command_id` is `door-signal-${the event's own envelope
+ * command_id}` — deterministic, so a redelivery replays at custody's
+ * command log instead of counting a second act.
+ *
+ * DELIVERY SEMANTICS DIFFER FROM THE ARM WIRE'S BY CONTRACT: custody's 200
+ * (`{ok:true, duplicate}`) AND its 409 (`{ok:false, reason}` —
+ * door_signal_not_awaited · producer_actor_mismatch · door_signal_invalid)
+ * both END the row. A 409 is a RECORDED refusal — custody heard the truth
+ * and said no, and it raises its own reconciliation alert on that side;
+ * retrying it would re-post a refusal forever. Transport failures and every
+ * other status stay `pending` on the shared backoff.
+ */
+const DOOR_SIGNAL_KEY = 'custody-door-signal-outbox';
+/**
  * VRAI-SUIVI — SÉRA'S TRANSIT MARKS, as this order received them through the
  * `/fulfillment/transit` door: `en_route` → `departedAt`, `arrivee` →
  * `arrivedAt`. FIRST-WINS PER STAGE, exactly as the preparation record is:
@@ -406,11 +432,12 @@ export interface OrderDOEnv {
   /**
    * VRAI-SUIVI — the NEW Shop+→custody road: custody-service as a SERVICE
    * BINDING (`[[services]]` in wrangler.toml, the OFFER/MEDIA discipline —
-   * the error-1042 lesson), used by exactly one flusher to arm the buyer's
-   * remise secret at custody's `/produce-shop/secrets/arm` door. TRANSPORT
-   * ONLY: the door still gates on `SHOP_ARM_SECRET` (wrangler secret, never
+   * the error-1042 lesson), used by exactly two flushers: the arm wire at
+   * custody's `/produce-shop/secrets/arm` door, and (PORTE-CUSTODY part B)
+   * the door-signal wire at `/produce-shop/door-signal`. TRANSPORT
+   * ONLY: both doors still gate on `SHOP_ARM_SECRET` (wrangler secret, never
    * `[vars]`), presented as Bearer. EITHER ABSENT ⇒ nothing is attempted,
-   * the row stays `pending`, and the backlog drains the moment configuration
+   * the rows stay `pending`, and the backlog drains the moment configuration
    * arrives — the deploy-order law, same shape as the Séra wire's.
    */
   readonly CUSTODY?: { fetch(request: Request): Promise<Response> };
@@ -544,6 +571,18 @@ export class OrderDO {
         attempts?: number;
         deliveredAt?: string;
       }>(CUSTODY_ARM_KEY);
+      // PORTE-CUSTODY part B — the door-signal wire's fate beside the four
+      // others, STATUS ONLY and built field by field like the arm wire's:
+      // the fact is provider truth already in the durable log, but the read
+      // serves the wire's fate, never its cargo. `outcome`/`reason` name what
+      // custody answered — « accepted » or a 409 refusal, recorded, not retried.
+      const porte = await this.state.storage.get<{
+        status?: string;
+        attempts?: number;
+        outcome?: string;
+        reason?: string;
+        deliveredAt?: string;
+      }>(DOOR_SIGNAL_KEY);
       return Response.json({
         ok: true,
         outbox,
@@ -555,6 +594,17 @@ export class OrderDO {
                 status: armement.status,
                 attempts: armement.attempts,
                 ...(armement.deliveredAt !== undefined ? { deliveredAt: armement.deliveredAt } : {}),
+              },
+            }
+          : {}),
+        ...(porte !== undefined
+          ? {
+              doorSignal: {
+                status: porte.status,
+                attempts: porte.attempts,
+                ...(porte.outcome !== undefined ? { outcome: porte.outcome } : {}),
+                ...(porte.reason !== undefined ? { reason: porte.reason } : {}),
+                ...(porte.deliveredAt !== undefined ? { deliveredAt: porte.deliveredAt } : {}),
               },
             }
           : {}),
@@ -783,8 +833,13 @@ export class OrderDO {
         // that can never be released. Any duplicate that finds it pending
         // without an alarm re-arms the flusher.
         const strandedRemise = await this.state.storage.get<{ status?: string }>(CUSTODY_ARM_KEY);
+        // PORTE-CUSTODY part B — and the door-signal wire on the same terms: a
+        // stranded signal is a door payment custody never heard, which is a
+        // drop the rider can never complete.
+        const strandedPorte = await this.state.storage.get<{ status?: string }>(DOOR_SIGNAL_KEY);
         if (
-          (strandedLivraison?.status === 'pending' || strandedRemise?.status === 'pending') &&
+          (strandedLivraison?.status === 'pending' || strandedRemise?.status === 'pending' ||
+            strandedPorte?.status === 'pending') &&
           (await this.state.storage.getAlarm()) === null
         ) {
           await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
@@ -1472,11 +1527,13 @@ export class OrderDO {
     // BOUTIK-SUIVI adds a THIRD wire on the same terms: its own key, its own
     // attempt count, the same shared re-arm the note above describes.
     // VRAI-SUIVI adds the FOURTH — the custody-arm wire — on the same terms.
+    // PORTE-CUSTODY part B adds the FIFTH — the door-signal wire — likewise.
     const boutikPending = await this.flushBoutikOutbox();
     const seraPending = await this.flushSeraOutbox();
     const livraisonPending = await this.flushBoutikDeliveredOutbox();
     const armPending = await this.flushCustodyArmOutbox();
-    const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending);
+    const doorSignalPending = await this.flushDoorSignalOutbox();
+    const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending);
     if (stillPending > 0) {
       await this.state.storage.setAlarm(Date.now() + outboxBackoffMs(stillPending));
     }
@@ -1664,6 +1721,77 @@ export class OrderDO {
     return attempts;
   }
 
+  /**
+   * PORTE-CUSTODY part B — FORWARD THE DOOR LEG'S PROVIDER TRUTH to custody,
+   * at-least-once, over the SAME road as the arm wire (the CUSTODY binding +
+   * `SHOP_ARM_SECRET` Bearer), at `/produce-shop/door-signal`. EITHER the
+   * binding OR the secret absent ⇒ nothing is attempted and the row rests
+   * `pending` until configuration arrives (the deploy-order law).
+   *
+   * ═══ WHAT ENDS THIS ROW, BY CONTRACT — see DOOR_SIGNAL_KEY ═══
+   *
+   * Custody's 200 `{ok:true, duplicate}` (accepted or absorbed) AND its 409
+   * `{ok:false, reason}` both end it: a 409 is custody's RECORDED refusal —
+   * it heard the provider truth, said no by name (door_signal_not_awaited ·
+   * producer_actor_mismatch · door_signal_invalid) and raised its own
+   * reconciliation alert; re-posting a refusal forever helps nobody. The row
+   * records WHICH (`outcome`: 'accepted' | 'refused', plus custody's reason)
+   * so the operator read can tell them apart. A 401 (secret not yet armed on
+   * either side), any 5xx, and every transport failure stay `pending` on the
+   * shared backoff — an outage or misconfiguration must never eat the fact.
+   */
+  private async flushDoorSignalOutbox(): Promise<number> {
+    const outbox = await this.state.storage.get<{
+      status: 'pending' | 'delivered';
+      fact?: { orderId: string; command_id: string; event: unknown };
+      attempts: number;
+      outcome?: 'accepted' | 'refused';
+      reason?: string;
+      deliveredAt?: string;
+    }>(DOOR_SIGNAL_KEY);
+    if (outbox === undefined || outbox.status !== 'pending' || outbox.fact === undefined) return 0;
+
+    const secret = this.env.SHOP_ARM_SECRET ?? '';
+    let done: { outcome: 'accepted' | 'refused'; reason?: string } | undefined;
+    if (this.env.CUSTODY !== undefined && secret !== '') {
+      const res = await this.env.CUSTODY.fetch(
+        new Request('https://custody/produce-shop/door-signal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+          body: JSON.stringify(outbox.fact),
+        }),
+      ).catch(() => undefined);
+      if (res !== undefined) {
+        if (res.ok) {
+          done = { outcome: 'accepted' };
+        } else if (res.status === 409) {
+          const body = (await res.json().catch(() => null)) as { reason?: unknown } | null;
+          done = {
+            outcome: 'refused',
+            ...(typeof body?.reason === 'string' ? { reason: body.reason } : {}),
+          };
+        }
+      }
+    }
+
+    if (done !== undefined) {
+      await this.state.storage.put(DOOR_SIGNAL_KEY, {
+        ...outbox,
+        status: 'delivered',
+        outcome: done.outcome,
+        ...(done.reason !== undefined ? { reason: done.reason } : {}),
+        attempts: outbox.attempts + 1,
+        // The instant custody HEARD the truth — recorded for the refusal too:
+        // the wire's job was carriage, and carriage completed here.
+        deliveredAt: new Date().toISOString(),
+      });
+      return 0;
+    }
+    const attempts = outbox.attempts + 1;
+    await this.state.storage.put(DOOR_SIGNAL_KEY, { ...outbox, attempts });
+    return attempts;
+  }
+
   private async onProviderEvent(event: unknown): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     /**
@@ -1716,9 +1844,13 @@ export class OrderDO {
       // VRAI-SUIVI: and the FOURTH — a stranded custody-arm is a code custody
       // never learned, exactly the unrecoverable class this hook exists for.
       const strandedRemise = await this.state.storage.get<{ status?: string }>(CUSTODY_ARM_KEY);
+      // PORTE-CUSTODY part B: and the FIFTH — a stranded door signal is a
+      // door payment custody never heard, so its SE-I11 gate never opens.
+      const strandedPorte = await this.state.storage.get<{ status?: string }>(DOOR_SIGNAL_KEY);
       if (
         (stranded?.status === 'pending' || strandedSera?.status === 'pending' ||
-          strandedLivraison?.status === 'pending' || strandedRemise?.status === 'pending') &&
+          strandedLivraison?.status === 'pending' || strandedRemise?.status === 'pending' ||
+          strandedPorte?.status === 'pending') &&
         (await this.state.storage.getAlarm()) === null
       ) {
         await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
@@ -2032,6 +2164,17 @@ export class OrderDO {
     const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
     const spine = rebuildOrderSpine(quote, origin, log);
 
+    // PORTE-CUSTODY part B — the SAME bounded-envelope guard the checkout
+    // webhook carries, for the same reason it was added there (verifier
+    // MINOR): `command_id` is about to be embedded in a durable log entry,
+    // the door-signal outbox and the cross-app wire, and canon's envelope
+    // schema is `.min(1)` only. Refused BY NAME before anything is applied.
+    {
+      const probe = PlatformEventSchema.safeParse(event);
+      if (probe.success && probe.data.envelope.command_id.length > 1024) {
+        return Response.json({ ok: false, reason: 'envelope_field_too_long' }, { status: 422 });
+      }
+    }
     const input: OrderInput = { kind: 'door_provider', event };
     const outcome = applyOrderInput(spine, input);
     if (!outcome.applied) {
@@ -2039,10 +2182,55 @@ export class OrderDO {
     }
     if (outcome.duplicate) {
       // ABSORBED. Nothing appended, nothing charged, nothing moved — and the
-      // door leg reads exactly as it did before the redelivery.
+      // door leg reads exactly as it did before the redelivery. In particular
+      // NO SECOND OUTBOX ROW: the spine absorbs the redelivery, so the wire
+      // arms only on the newly-applied branch below.
+      //
+      // PORTE-CUSTODY part B — but the redelivery IS the recovery hook for a
+      // door-signal row stranded pending without an alarm (the narrow crash
+      // window between the batch put below and `setAlarm`), exactly as the
+      // checkout webhook's duplicate branch recovers the other four wires.
+      const strandedPorte = await this.state.storage.get<{ status?: string }>(DOOR_SIGNAL_KEY);
+      if (strandedPorte?.status === 'pending' && (await this.state.storage.getAlarm()) === null) {
+        await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      }
       return Response.json({ ok: true, status: 'duplicate', doorLeg: spine.doorLegState });
     }
-    await this.state.storage.put(LOG_KEY, [...log, input]);
+    /**
+     * PORTE-CUSTODY part B — THE APPLIED (non-duplicate) BRANCH ARMS THE
+     * DOOR-SIGNAL WIRE, in the SAME atomic batch as the log append, so « the
+     * door leg is paid » and « custody will be told » become true together or
+     * not at all. The fact is the received-and-validated event FORWARDED
+     * VERBATIM (the vault just applied it, so it parses), under the
+     * deterministic `door-signal-${its own envelope command_id}` — a
+     * redelivered webhook is absorbed above and never arms a second row, and
+     * a redelivered POST replays at custody's command log. First-wins guard
+     * on the row itself, belt-and-braces like the confirm branch's OUTBOX_KEY
+     * guard: the vault admits one door confirmation per order, and even if
+     * that ever changed shape the recorded signal would stay immovable.
+     */
+    const parsed = PlatformEventSchema.parse(event);
+    const existingSignal = await this.state.storage.get(DOOR_SIGNAL_KEY);
+    await this.state.storage.put({
+      [LOG_KEY]: [...log, input],
+      ...(existingSignal === undefined
+        ? {
+            [DOOR_SIGNAL_KEY]: {
+              status: 'pending' as const,
+              fact: {
+                orderId: origin.orderId,
+                command_id: `door-signal-${parsed.envelope.command_id}`,
+                event,
+              },
+              attempts: 0,
+            },
+          }
+        : {}),
+    });
+    // A scheduling throw must never 500 a door confirmation already durably
+    // stored — the duplicate-redelivery hook above is the recovery for a row
+    // left pending without an alarm (the confirm branch's own discipline).
+    await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
     return Response.json({ ok: true, status: 'applied', doorLeg: spine.doorLegState });
   }
 

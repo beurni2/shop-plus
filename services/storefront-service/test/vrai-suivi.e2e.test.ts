@@ -545,7 +545,11 @@ describe('VRAI-SUIVI — the stranded arm is recovered, never abandoned (call-si
 
   it('the alarm flushes the fourth wire and re-arms on its pending count', () => {
     expect(src).toContain('const armPending = await this.flushCustodyArmOutbox();');
-    expect(src).toContain('Math.max(boutikPending, seraPending, livraisonPending, armPending)');
+    // PORTE-CUSTODY part B widened the shared re-arm to the fifth wire; the
+    // pin follows so the fourth wire's count is still provably inside it.
+    expect(src).toContain(
+      'Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending)',
+    );
   });
 
   it('the code and the arm row enter the SAME atomic batch as the confirm log append', () => {
