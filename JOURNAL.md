@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-14 · PORTE-CUSTODY (part B) — the door leg's provider truth reaches custody · IN-REVIEW (branch, awaiting founder)
+## 2026-08-14 · PORTE-CUSTODY (part B) — the door leg's provider truth reaches custody · DONE
+
+**MERGED AND DEPLOYED (founder's word, 2026-08-14):** main fast-forwarded to `e81211b`; `storefront-deploy` run 31778261944 **green** on `e81211b`. The fifth wire is live — no new secrets; it rides the same key as the arm wire.
 **The gap:** the door webhook validated `payment.door_leg_confirmed.v1`, funded the leg in the vault — and told custody nothing, so SE-I11's gate never opened and the rider's drop refused forever.
 
 **BUILT:** a fifth outbox wire armed in the SAME atomic batch as the door log append — the event forwarded VERBATIM (never re-minted, never re-actored; custody judges the producer actor itself) to custody's `/produce-shop/door-signal`, riding the same config, bearer, backoff and revival discipline as the four elder wires; `/entry/outbox` serves the wire's fate, never the cargo. **Delivery semantics, both chosen deliberately after a verifier BLOCKER proven on the real custody bundle:** the outer command id is PER-ATTEMPT (`…-a№`) — custody commits and replays every outcome per id, so a frozen id could never re-judge `door_signal_not_awaited` after the rider records the accord: the pay-before-accord race stranded a PAID order forever behind a double kinder than the service (§9.8, re-certified to the real record-and-replay bound). The event-verdict 409s (`producer_actor_mismatch`, `door_signal_invalid`) are terminal, recorded-as-refused; `not_awaited` keeps carrying on the shared backoff, and a provider redelivery pulls a booked rung forward — a rider is standing at a door.
