@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-14 · VENDU-PAR + NOTE-VOCALE — the whole boutique name, and the voice card stops mangling it · IN-REVIEW (branch, awaiting founder)
+## 2026-08-14 · VENDU-PAR + NOTE-VOCALE — the whole boutique name, and the voice card stops mangling it · DONE
+
+**MERGED AND DEPLOYED (founder's word, 2026-08-14):** main fast-forwarded to `afa615e`; `pwa-preview` run 31768584482 **green** on `afa615e`. Live on the buyer PWA on next load.
 **Founder:** « On the buyer's payment pwa it is written la voix d'Maman, find something professional and cool. And on vendu par Maman make sure the whole name the reseller has put is displayed »
 
 **ROOT CAUSES (read at the source before writing):** (1) the seed mapping cut the boutique name to its FIRST WORD (`storefront.name.replace(/^Chez/…).split(' ')[0]`) — « Vendu par Maman » for any multi-word name; (2) the C1 voice card hardcoded the elision « La voix d’{prénom} » — wrong French before every consonant-initial name (« d’Maman »).
