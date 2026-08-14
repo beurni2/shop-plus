@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-14 · BANDEAUX-RETIRÉS — the two demo banners are gone · IN-REVIEW (branch, awaiting founder)
+## 2026-08-14 · BANDEAUX-RETIRÉS — the two demo banners are gone · DONE
+
+**MERGED AND DEPLOYED (founder's word, 2026-08-14):** main fast-forwarded to `0f2230c`; `pwa-preview` run 31848808082 and `expo-preview` run 31848814181 both **green**. The same push carries the 2026-08-14 working law into CLAUDE.md + AGENTS.md.
 **Founder:** « On Shop+ remove the demo banner at bottom and the one on buyer's payment pwa ».
 
 **REMOVED.** Reseller app: the bottom strip (« Données d'essai », the build stamp, the resolved storefront host, the operator line, « Recommencer la démo ») and everything only it used — `reset()`, `buildStamp` + the expo-updates import, `SEAM_HOST`, `SEAM_KEY_PRESENT`, `feedStateKey()`, six styles, 11 orphaned catalog keys. Buyer PWA: the WO-4.2E sandbox ribbon, its CSS, its five token vars, its import, its catalog key, and the `t` import that died with it. Verified against canon first: NO spec sentence mandates a preview marker — the ribbon was an app convention, so this is a product call, not a canon change.
