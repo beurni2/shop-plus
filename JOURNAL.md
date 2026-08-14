@@ -9,6 +9,15 @@ Format per entry:
 
 ---
 
+## 2026-08-14 · PORTE-CUSTODY (part B) — the door leg's provider truth reaches custody · IN-REVIEW (branch, awaiting founder)
+**The gap:** the door webhook validated `payment.door_leg_confirmed.v1`, funded the leg in the vault — and told custody nothing, so SE-I11's gate never opened and the rider's drop refused forever.
+
+**BUILT:** a fifth outbox wire armed in the SAME atomic batch as the door log append — the event forwarded VERBATIM (never re-minted, never re-actored; custody judges the producer actor itself) to custody's `/produce-shop/door-signal`, riding the same config, bearer, backoff and revival discipline as the four elder wires; `/entry/outbox` serves the wire's fate, never the cargo. **Delivery semantics, both chosen deliberately after a verifier BLOCKER proven on the real custody bundle:** the outer command id is PER-ATTEMPT (`…-a№`) — custody commits and replays every outcome per id, so a frozen id could never re-judge `door_signal_not_awaited` after the rider records the accord: the pay-before-accord race stranded a PAID order forever behind a double kinder than the service (§9.8, re-certified to the real record-and-replay bound). The event-verdict 409s (`producer_actor_mismatch`, `door_signal_invalid`) are terminal, recorded-as-refused; `not_awaited` keeps carrying on the shared backoff, and a provider redelivery pulls a booked rung forward — a rider is standing at a door.
+
+**Journalled:** a buyer who pays then validly refuses at the door leaves the signal permanently un-awaited — the wire retries hourly with no recorded terminal; the terminal belongs to the E2 refusal roads, named in sera's journal too.
+
+**EVIDENCE (supervisor's own runs):** storefront-service **569/569** · tsc clean · gate board **ALL GATES GREEN exit 0** · the cross-repo seam (sera, two real Workers) walks the race road end to end.
+
 ## 2026-08-14 · VENDU-PAR + NOTE-VOCALE — the whole boutique name, and the voice card stops mangling it · DONE
 
 **MERGED AND DEPLOYED (founder's word, 2026-08-14):** main fast-forwarded to `afa615e`; `pwa-preview` run 31768584482 **green** on `afa615e`. Live on the buyer PWA on next load.
