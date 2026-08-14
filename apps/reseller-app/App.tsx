@@ -1233,9 +1233,10 @@ export default function App() {
      * WHAT STAYS WARM, NAMED HONESTLY (the comment this replaced said « the
      * whole screen », which was not true and is exactly how a comment becomes
      * a lie): the bottom TAB BAR keeps its own fill in `kit.tsx`, and in a
-     * preview build the « aperçu » BANNER keeps its own. Both are opaque
-     * chrome with their own backgrounds — this root never reached them. Both
-     * are the founder's call, put to him with the build rather than guessed.
+     * preview build the « aperçu » BANNER keeps its own — and the 8px
+     * WOVEN BAND at the very top carries paper slivers inside its weave.
+     * All three are opaque chrome with their own backgrounds — this root
+     * never reached them. The founder's call, put to him with the build.
      *
      * ONLY THIS TAB, and that is deliberate: `styles.screen` is the ground for
      * all five hubs, so changing it there would have repainted accueil, ma

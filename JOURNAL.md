@@ -9,6 +9,19 @@ Format per entry:
 
 ---
 
+## 2026-08-14 · BOUTIQUE-BLANC — the buyer-facing boutique stands on white, the en-tête untouched, no theme erased · IN-REVIEW (branch — he sees before merging)
+**Founder (correcting my reading, then adding the theme law):** « I meant the buyer facing boutique whitening it but without touching the en-tête/headers section » · « And make sure no theme is getting erased ». My earlier reading (the reseller app's Ma Vitrine hub) was wrong — that change was REVERTED clean; the double-check verifier's applicable findings on the committed OPPORTUNITÉS-BLANC work were closed once in the same build (tour steps now assert hub-unique content, the vacuous ratio(x,x) pin is gone, the what-stays-warm inventory names the WovenBand).
+
+**BUILT — one declaration plus one shell rule.** The boutique page's ground (`.vt-root`) was a fixed warm paper for EVERY habillage — the theme never lived on the ground; it lives in the `--vt-*` variables (liseré, en-tête sheets, accents, price ink, art blocks). So whitening the ground moves no themed pixel by construction. The en-tête stays untouched the same way: the classique hero and all 32 per-style units paint their OWN backgrounds edge to edge over the -76px bleed — re-derived by the verifier unit by unit, and now a DIRECTORY-WIDE pin: an en-tête unit that paints no background fails by name. The shell body behind the page follows the ground (the cliente body:has idiom), or the overscroll rubber-band flashed a warm seam. The buyer PAYMENT pages keep their warm ground: he named the boutique.
+
+**NO THEME ERASED — measured one by one, never promised.** For every canon habillage on the NEW white ground: deep ink ≥ 7:1 (the canon's own bar — minimum today 9.03, laterite), accent ≥ 3:1 (minimum 4.49), the soft art block still separates (minimum 1.17, lagune). All eight iterate from VITRINE_THEMES itself — a ninth that cannot stand on white fails by name. The mechanism is untouched (themes-canon still pins applyTheme setting every variable for every habillage).
+
+**FOR HIS EYES, NAMED HONESTLY:** the white tiles' fill no longer separates from the ground — the 1px hairline (1.26:1, better than on paper) and the photograph carry each card; the presentation card and the empty card undergo the same fill-vanishes trade behind their own borders; the skeleton avatar's paper ring fades to near-nil during loads. All hairline-carried, none broken — the sunlight judgement is his.
+
+**VERIFIER (fresh context, order + diff + DoD): NO BLOCKERS, 4 minors, closed once** — the en-tête pin was narrower than its claim (now the 32-unit directory law) · the scope test carried a latent vacuous fallback (removed; a .cl-root rename now fails loudly) · the sibling-surface trades were undocumented (pinned + named above) · the warm overscroll seam (fixed with the shell rule). One of my comments used backticks inside the CSS template literal and broke the build — vitest caught it before anything shipped; fixed.
+
+**EVIDENCE (my own runs):** buyer-pwa **980/980** · reseller-app **623/623** · tsc clean both · boutique e2e **2/2** in the real browser · gate board **ALL GATES GREEN exit 0**.
+
 ## 2026-08-14 · OPPORTUNITÉS-BLANC — the opportunités hub stands on white · IN-REVIEW (branch — he asked to SEE it before any merge)
 **Founder (with an Alibaba all-white product grid attached):** « I want you to make the background of opportunités screen all white like the screenshot and let me see first before merging ».
 

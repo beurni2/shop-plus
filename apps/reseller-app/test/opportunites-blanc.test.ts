@@ -123,7 +123,8 @@ describe('OPPORTUNITÉS-BLANC — what the white does to legibility, measured', 
     expect(tile, 'the oppTile style must exist').not.toBe('STYLE NOT FOUND');
     expect(tile).toContain('backgroundColor: sharedColour.card');
     expect(tile).toContain('borderColor: sharedColour.hairline');
-    expect(ratio(WHITE, WHITE)).toBeCloseTo(1, 5); // …hence: the fill no longer separates
+    // (The former `ratio(WHITE, WHITE) === 1` line is gone — ratio(x,x) is 1
+    // for every x, so it could never fail; the source facts above are the pin.)
     const hairlineAvant = ratio(sharedColour.hairline, PAPER);
     const hairlineApres = ratio(sharedColour.hairline, WHITE);
     expect(hairlineApres).toBeGreaterThan(hairlineAvant);

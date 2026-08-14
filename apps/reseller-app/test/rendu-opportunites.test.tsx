@@ -156,13 +156,19 @@ describe('OPPORTUNITÉS-BLANC — the white ground did not cost her the screen',
     await screen.press('Opportunités');
     expect(screen.shows('Les opportunités')).toBe(true);
 
+    // Asserted on the hub's OWN subtitle (double-check verifier: « Ma
+    // vitrine » is ALSO the accueil header's exact string, so a toHub
+    // regression resetting to accueil would have passed the old line).
     await screen.press('Ma Vitrine');
-    expect(screen.shows('Ma vitrine'), `vitrine: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.shows('Votre vitrine attend ses premiers produits'), `vitrine: ${JSON.stringify(screen.texts())}`).toBe(true);
 
-    // CERCLE — the fifth hub, and it was missing here (verifier): the DoD
-    // names four hubs that must keep the warm paper and the walk visited three.
+    // CERCLE — the fifth hub. The old assertion (`texts().length > 0`) was
+    // permanently satisfied by the tab-bar labels alone (double-check
+    // verifier) — the exact defect this same file fixed for Gains. Asserted
+    // on content the tab bar cannot provide.
     await screen.press('Cercle');
-    expect(screen.texts().length, 'the cercle hub must render').toBeGreaterThan(0);
+    const cercleTexts = screen.texts().filter((t) => !['Accueil','Opportunités','Ma Vitrine','Cercle','Gains'].includes(t));
+    expect(cercleTexts.length, `cercle must render its OWN content: ${JSON.stringify(screen.texts())}`).toBeGreaterThan(2);
 
     // GAINS — asserted on its OWN heading, not on `texts().length > 0`, which
     // the tab-bar labels alone would have satisfied over a hub rendering
@@ -170,8 +176,11 @@ describe('OPPORTUNITÉS-BLANC — the white ground did not cost her the screen',
     // …its own content, which in the wired-but-unlinked state of this harness
     // is the honest « pas encore reliée » sentence — asserted as the hub
     // actually renders it, not as I first assumed it would.
+    // GAINS — the hint string ALSO renders on accueil (double-check verifier),
+    // so the step additionally proves we LEFT accueil: its greeting is gone.
     await screen.press('Gains');
     expect(screen.shows("Vos ventes s'afficheront ici"), `gains: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.texts().join(' ')).not.toContain('Bonjour');
 
     await screen.press('Accueil');
     expect(screen.shows('Bonjour')).toBe(true);

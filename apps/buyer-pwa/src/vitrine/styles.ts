@@ -14,11 +14,28 @@
 
 export const VITRINE_STYLES = `
   .vt-root {
-    background: #F4EFE6; color: #1C1710;
+    /* BOUTIQUE-BLANC (founder order 2026-08-14): « the buyer facing boutique
+       whitening it but without touching the en-tête/headers section ». The
+       ground was a fixed warm paper for EVERY theme — the theme never lived
+       here; it lives in the liseré, the en-tête sheets and the accents, all
+       of which paint their OWN surfaces edge to edge (the en-tête bleeds
+       over the page top and ends on its rounded corners + shadow). So the
+       one line below whitens the products page under her themed header
+       without moving a themed pixel. The tiles are white cards: their fill
+       stops separating on white and their 1px hairline + the photograph
+       carry the edge — same measured trade as the reseller app's white grid,
+       pinned in test/vitrine-blanc.test.ts. The buyer PAYMENT pages (cl-*)
+       keep their own warm ground: he named the boutique. */
+    background: #FFFFFF; color: #1C1710;
     font-family: 'Instrument Sans', system-ui, sans-serif;
     font-size: 16px; font-weight: 400; line-height: normal;
     min-height: 100vh;
   }
+  /* BOUTIQUE-BLANC (verifier) — the SHELL body behind this page still paints
+     the warm paper, so the overscroll rubber-band flashed a warm seam that
+     never existed when both grounds matched. Same idiom the payment pages
+     already use — body:has(.cl-root) in cliente/styles.ts. */
+  body:has(.vt-root) { background: #FFFFFF; }
   .vt-root * { box-sizing: border-box; margin: 0; }
   .vt-root b, .vt-root i, .vt-root em { font-style: normal; }
   .vt-root v { display: inline; }
