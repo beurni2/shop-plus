@@ -477,14 +477,12 @@ export function controls(v: Vals, style: string, prop: string, near: string, far
  * slot must update this list or fail in vitest — the list cannot rot silently.
  */
 export const ENTETES_AVEC_BIO: ReadonlySet<EnteteKey> = new Set<EnteteKey>([
-  'artisan',
   'chaleureux',
   'dynamique',
   'grenat',
   'indigo',
   'kraft',
   'royale',
-  'safran',
 ]);
 
 /**

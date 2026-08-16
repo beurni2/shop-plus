@@ -79,7 +79,7 @@ describe('BOUTIQUE-BLANC — the ground is white, the en-tête is untouched, the
      */
     const unitsDir = join(new URL('.', import.meta.url).pathname, '..', 'src', 'vitrine', 'entetes');
     const units = readdirSync(unitsDir).filter((f) => f.endsWith('.ts') && f !== 'registry.ts');
-    expect(units.length, 'the en-tête units must exist').toBeGreaterThanOrEqual(30);
+    expect(units.length, 'the en-tête units must exist').toBeGreaterThanOrEqual(28);
     for (const f of units) {
       const css = readFileSync(join(unitsDir, f), 'utf8');
       expect(/background(-color)?:/.test(css), `${f}: an en-tête unit must paint its own background`).toBe(true);

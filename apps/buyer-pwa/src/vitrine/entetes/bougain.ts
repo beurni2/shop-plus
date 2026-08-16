@@ -147,7 +147,7 @@ const css = `
   /* THE ARCH — 150 wide, top 24 to the hero's FOOT. The triple setting is a
      box-shadow reaching 7px past the box and NO layout box accounts for it, so
      the column clears the SETTING at x=203, not the arch's own 196. Third time
-     this arithmetic has mattered (Calebasse's rim, Fil d'Or's facing); it is
+     this arithmetic has mattered (Calebasse's rim); it is
      written here rather than rediscovered. */
   .vt-bg .bg-arche {
     position: absolute; right: 14px; top: 24px; bottom: 0; width: 150px;

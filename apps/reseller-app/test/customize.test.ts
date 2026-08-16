@@ -412,21 +412,18 @@ describe('ENTETES-F/J — the picker is a strict subset of canon vocabulary', ()
       // therefore the first to be offered. It was added here LAST, after its
       // chunk, its catalog strings and its framing silhouette existed.
       'indigo',
-      'safran',
       'grenat',
       'kraft',
       'audace',
       'fleurie',
-      'chrome',
-      'artisan',
       'braise',
       'karite',
       'calebasse',
       'pagne',
       // ENTETES-L — séries 8/9. Same order of operations as Indigo above: the
       // six modules, their chunks, their catalog strings and their framing
-      // silhouettes all landed before these six lines were added.
-      'fildor',
+      // silhouettes all landed before these lines were added — six then,
+      // five since ENTETES-N retired Fil d'or.
       'bazin',
       'couverture',
       'billet',
@@ -462,8 +459,14 @@ describe('ENTETES-F/J — the picker is a strict subset of canon vocabulary', ()
     // never be offerable, and a new key is vocabulary before it is pickable.
     expect(PICKABLE_HEADER_STYLES.length).toBeLessThan(HEADER_STYLES.length);
     // and the ten that were cut are ABSENT from the picker, by name
+    // ENTETES-N appended four to the ENTETES-J roster (founder, 2026-08-15:
+    // « cleanly remove the en-têtes Safran, chrome, artisan and fil d'or »).
+    // BOTH halves matter and they pull opposite ways: a key with no drawing
+    // must never be offerable, and a retired key must never stop being
+    // ACCEPTED — a live storefront still carries it.
     for (const cut of ['bronze', 'dunda', 'graffiti', 'perle', 'neon',
-                       'pop', 'prisme', 'couture', 'masque', 'cristal']) {
+                       'pop', 'prisme', 'couture', 'masque', 'cristal',
+                       'safran', 'chrome', 'artisan', 'fildor']) {
       expect(PICKABLE_HEADER_STYLES, cut).not.toContain(cut);
       expect(HEADER_STYLES, `${cut} must stay canon vocabulary`).toContain(cut);
     }

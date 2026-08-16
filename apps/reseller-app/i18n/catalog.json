@@ -1458,18 +1458,6 @@
   "screenClass": "label"
  },
  {
-  "key": "k.entete.nom_safran",
-  "fr": "Safran",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.sub_safran",
-  "fr": "Soleil du matin, photo ronde à gauche.",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
   "key": "k.entete.nom_grenat",
   "fr": "Grenat",
   "register": "neutral",
@@ -1518,30 +1506,6 @@
   "screenClass": "label"
  },
  {
-  "key": "k.entete.nom_chrome",
-  "fr": "Chrome",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.sub_chrome",
-  "fr": "Noir laqué, lettres argent et violet.",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.nom_artisan",
-  "fr": "Artisan",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.sub_artisan",
-  "fr": "Cuir et vert profond, filets dorés.",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
   "key": "k.entete.nom_braise",
   "fr": "Braise",
   "register": "neutral",
@@ -1586,18 +1550,6 @@
  {
   "key": "k.entete.sub_pagne",
   "fr": "Motifs wax et perles, le pagne des grands jours.",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.nom_fildor",
-  "fr": "Fil d’or",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.entete.sub_fildor",
-  "fr": "Dan fani tissé et fil d’or, comme la couture.",
   "register": "selling",
   "screenClass": "label"
  },

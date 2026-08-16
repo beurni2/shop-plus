@@ -113,7 +113,7 @@ const css = `
   /* padding-top 76 = the relevé's 16 + the shell's 60 status pad */
   .vt-au .au-hero { position: relative; overflow: hidden; margin-top: -60px; padding: 76px 16px 16px; background: var(--au-marine); }
   /* the corner triangles keep their raw 0: they are anchored to the card's real
-     corner, above the status pad, exactly like Safran's sunburst */
+     corner, above the status pad — the série 2 sunburst placement */
   .vt-au .au-tri-o {
     position: absolute; top: 0; left: 0; width: 80px; height: 80px; opacity: .95;
     background: linear-gradient(135deg, var(--au-orange) 0%, var(--au-orange-2) 100%);

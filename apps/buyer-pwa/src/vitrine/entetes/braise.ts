@@ -35,7 +35,8 @@ import type { EnteteUnit } from './registry';
  *
  * SPLIT COLUMN, so the > 14 chars → 20px tier applies.
  *
- * Bio not drawn — série 3 shows a présentation on Perle and Artisan only.
+ * Bio not drawn — and since ENTETES-N retired Artisan, no série 3 style
+ * shows a présentation at all.
  */
 
 function render(v: Vals): string {

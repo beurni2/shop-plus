@@ -133,8 +133,8 @@ const BEURNI_FRAMES = {
 /** ENTETES-H · SÉRIE 3 — ten faithful replicas of the supplied boards. */
 const SERIE3_FRAMES = {
   // Audace — a 172 disc pushed off the right edge at −42, so only ~130 show.
-  // Same honest approximation as Safran: the CROP is exact, the cut is not
-  // drawn, and the default bias (40 %) is what keeps her face off the cut.
+  // The preview draws the WHOLE disc: the CROP is exact, the cut is not drawn,
+  // and the default bias (40 %) is what keeps her face off the cut.
   audace: CIRCLE,
   // Fleurie — the organic galet, 158×196. Its eight-value border-radius cannot
   // be expressed as four corner fractions, so the silhouette approximates the
@@ -142,16 +142,10 @@ const SERIE3_FRAMES = {
   fleurie: { aspect: 158 / 196, circle: false, radii: [0.62, 0.38, 0.56, 0.44] },
   // Pop — the browser window's SCREEN, 158 tall inside the 3px outline. The
   // window's chrome bar, its black border and its −1° tilt are frame, not
-  // Chrome — a 168 disc pushed off the right edge at −38, ringed in chrome. The
-  chrome: CIRCLE,
   // Néon — the taped frame, 150×184 inside its 3px fluo edge. The tape, the
   // glow and the 2° tilt are frame, not photo, so none of them enters the
   // Perle — a 186 disc pushed off the right edge at −44. Same approximation as
-  // Safran and Audace: the whole disc is drawn, the CROP is exact, and the
-  // Artisan — the right column, 126 wide over a ~300 panel, ARCHED on its left
-  // edge only (130px radius on that side). The two left radii approximate the
-  // arch; the right edge is square, as the panel's own edge is.
-  artisan: { aspect: 126 / 300, circle: false, radii: [0.52, 0, 0, 0.52] },
+  // Audace: the whole disc is drawn, the CROP is exact, and the
   // Braise — the 172 photo circle laid on the coral disc, offset and biting the
   // right edge. The disc behind it is decoration, not frame; her drag positions
   // the circle, and the 46 % bias keeps her face off the cut.
@@ -168,10 +162,11 @@ const SERIE3_FRAMES = {
 } as const satisfies Record<string, FrameSpec>;
 
 /**
- * ENTETES-L — the SÉRIE 8/9 six, each read off its own module's CSS rather than
- * off the relevé, because the module is what the buyer actually draws.
+ * ENTETES-L — the SÉRIE 8/9 set, each read off its own module's CSS rather than
+ * off the relevé, because the module is what the buyer actually draws. It was
+ * six until ENTETES-N retired Fil d'or with the other three the founder cut.
  *
- * THE DECORATION IS NEVER IN THE SILHOUETTE. Fil d'Or's écru facing (9px),
+ * THE DECORATION IS NEVER IN THE SILHOUETTE.
  * Bazin's silver mount (8px), Billet's intaglio hatch, Hologramme's 10px ring
  * and Couverture's red flat offset are all drawn OUTSIDE the photo box — they
  * are frame, not photograph — so none of them enters the shape her drag
@@ -179,8 +174,6 @@ const SERIE3_FRAMES = {
  * already follow; it is the reason the sheet's crop matches the buyer's byte
  * for byte.
  *
- *   · Fil d'or    — the sewn label, 146×184 at r4 (a hair of rounding, kept
- *     honest rather than squared).
  *   · Bazin       — the cameo OVAL, 144×178. `circle:true` on a non-square box
  *     is « radius = half the box », which is exactly the ellipse drawn.
  *   · Couverture  — full-height, flush right: 150 wide from top 84 to the hero's
@@ -191,7 +184,6 @@ const SERIE3_FRAMES = {
  *   · Hologramme  — the crown, a 144 circle.
  */
 const SERIE89_FRAMES = {
-  fildor: { aspect: 146 / 184, circle: false, radii: [4 / 146, 4 / 146, 4 / 146, 4 / 146] },
   bazin: { aspect: 144 / 178, circle: true, radii: [0.5, 0.5, 0.5, 0.5] },
   couverture: { aspect: 150 / 262, circle: false, radii: [0, 0, 0, 0] },
   billet: { aspect: 142 / 176, circle: true, radii: [0.5, 0.5, 0.5, 0.5] },
@@ -243,7 +235,6 @@ const SERIE1011_FOCUS = {
 /** Each of the six draws its cover at its module's own `framePhoto` bias — the
  *  second argument of the `framePhoto(v, '…')` call, style for style. */
 const SERIE89_FOCUS = {
-  fildor: { x: 50, y: 24 },
   bazin: { x: 50, y: 25 },
   couverture: { x: 50, y: 22 },
   billet: { x: 50, y: 25 },
@@ -254,8 +245,6 @@ const SERIE89_FOCUS = {
 const SERIE3_FOCUS = {
   audace: { x: 40, y: 28 },
   fleurie: { x: 44, y: 26 },
-  chrome: { x: 40, y: 28 },
-  artisan: { x: 56, y: 22 },
   braise: { x: 46, y: 28 },
   karite: { x: 50, y: 28 },
   calebasse: { x: 50, y: 26 },
@@ -265,13 +254,6 @@ const SERIE3_FOCUS = {
 const SERIE2_FRAMES = {
   indigo: { aspect: 360 / 300, circle: false, radii: [0, 0, 0, 0] },
   // Couture — a letterbox band, and the ONE style of the series with square
-  // Safran — a 190×190 disc, of which the header shows only the right 132: it
-  // sits at left −58 and the card's overflow cuts it. The preview draws the
-  // WHOLE disc, the same honest approximation Prestige's clip-path takes: the
-  // CROP it teaches her is exact (190×190 at her focus is byte-for-byte what
-  // the buyer computes), only the left third is then hidden — which is why the
-  // relevé's default bias is 58 % and not 50 %, « le sujet fuit le bord coupé ».
-  safran: CIRCLE,
   // Grenat — the cameo: a 136×176 OVAL, which the FrameSpec vocabulary carries
   // exactly (circle:true is « radius = half the box », an ellipse on a
   // non-square box). Her drag previews the real portrait shape.
@@ -297,9 +279,6 @@ const BEURNI_FOCUS = {
 /** Indigo's relevé: « cover, object-position:50% 30% ». */
 const SERIE2_FOCUS = {
   indigo: { x: 50, y: 30 },
-  // « cover / 58% 30% (le sujet fuit le bord coupé) » — the x-bias is not a
-  // taste call, it is what keeps her face off the 58px the header clips.
-  safran: { x: 58, y: 30 },
   // « cover / 50% 22% » — a cameo crops tight, so the bias sits high.
   grenat: { x: 50, y: 22 },
   kraft: { x: 50, y: 26 },
@@ -375,12 +354,12 @@ const COVER_FRAMES: Partial<Record<HeaderStyleKey, FrameSpec>> = {
  * they have always had.
  */
 /**
- * ENTETES-L — the six join AVATAR_FRAMES, and that is not the SÉRIE 3 habit.
+ * ENTETES-L — these join AVATAR_FRAMES, and that is not the SÉRIE 3 habit.
  * These styles draw ONE photo slot: `framePhoto` puts her cover in it, or her
  * portrait when she has no cover, in the SAME box. So the box is the shape for
  * both kinds, and leaving them out would have previewed her portrait as a
- * circle while the buyer draws it in Fil d'Or's 146×184 label, Couverture's
- * 150×262 panel, or the two ovals — the sheet lying about the crop it teaches.
+ * circle while the buyer draws it in Couverture's 150×262 panel or the two
+ * ovals — the sheet lying about the crop it teaches.
  * (Série 3's omission is harmless only because every one of its unlisted
  * frames happens to already be a circle.)
  */
@@ -442,16 +421,11 @@ const AVATAR_DEFAULTS: Partial<Record<HeaderStyleKey, PhotoFocus>> = {
   cauris: SERIE4_PORTRAIT,
   // Indigo's portrait fallback sits in the same band, at its own high bias.
   indigo: { x: 50, y: 24 },
-  // Safran frames the SAME disc whichever photo fills it, so the portrait
-  // fallback keeps the cut-edge bias too.
-  safran: { x: 58, y: 30 },
   // the small overlapping portrait, at the relevé's own bias
   grenat: { x: 50, y: 32 },
   kraft: { x: 50, y: 32 },
   audace: { x: 40, y: 28 },
   fleurie: { x: 50, y: 32 },
-  chrome: { x: 40, y: 28 },
-  artisan: { x: 50, y: 30 },
   braise: { x: 46, y: 28 },
   karite: { x: 50, y: 28 },
   calebasse: { x: 50, y: 26 },

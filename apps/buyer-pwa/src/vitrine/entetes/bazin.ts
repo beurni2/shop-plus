@@ -26,7 +26,7 @@ import type { EnteteUnit } from './registry';
  *
  * THE PHOTOGRAPH IS A CAMEO-BROOCH: an oval in a silver mount with a pearl set
  * at its crown. The mount is a box-shadow reaching 8px beyond the oval, so — as
- * on Fil d'Or and Calebasse — the column's clearance is measured from the MOUNT.
+ * on Calebasse — the column's clearance is measured from the MOUNT.
  *
  * MINIMAL is a notched ribbon, cut with `clip-path`, and it lives IN THE COLUMN
  * in the proof's own slot. Never over her portrait (ENTETES-K).

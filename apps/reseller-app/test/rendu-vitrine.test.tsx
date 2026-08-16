@@ -1383,6 +1383,48 @@ describe('PERSONNALISER — SECTIONS RETIRÉES + CADRAGE-PARITÉ, walked', () =>
     return screen;
   }
 
+  it('ENTETES-N — the four retired en-têtes are off the picker, and the picker still works', async () => {
+    /**
+     * FOUNDER, 2026-08-15: « cleanly remove the en-têtes Safran, chrome,
+     * artisan and fil d'or ». « The key is not in the list » is a source scan,
+     * and the standing order does not accept one for a screen: the grid is
+     * BUILT from `PICKABLE_HEADER_STYLES`, and each card resolves TWO catalog
+     * strings by key. `t()` THROWS on a missing string (`src/i18n.ts`), so a
+     * key left in the picker after its strings are gone does not cost one tile
+     * — it takes the whole Personnaliser screen down. Both halves of the
+     * removal have to land together, and only driving the real grid proves it.
+     */
+    boutique();
+    const screen = await ouvrirPersonnaliser();
+    await screen.press('Thème');
+    expect(screen.shows('EN-TÊTE DE BOUTIQUE'), 'the en-tête grid is on this screen').toBe(true);
+
+    // 1. GONE — by the name the seller reads, not by the key.
+    for (const nom of ['Safran', 'Chrome', 'Artisan', 'Fil d’or']) {
+      expect(screen.texts().join(' | '), `« ${nom} » is still offered`).not.toContain(nom);
+    }
+
+    // 2. NOT A BLANK TILE IN THEIR PLACE. Every card the grid still draws
+    // carries a real name — an empty one is what a missing catalog string
+    // looks like, and it is the failure mode this walk exists for.
+    const noms = ['Classique', 'Royale', 'Héritage', 'Chaleureux', 'Dynamique', 'Terracotta',
+      'Étendard', 'Douceur', 'Tissage', 'Indigo', 'Grenat', 'Kraft', 'Audace', 'Fleurie',
+      'Braise', 'Karité', 'Calebasse', 'Pagne', 'Bazin', 'Couverture', 'Billet', 'Enseigne',
+      'Hologramme', 'Dentelle', 'Bougainvillier', 'Flamboyant', 'Hibiscus', 'Papillons', 'Guirlande'];
+    const on = screen.texts().join(' | ');
+    for (const nom of noms) {
+      expect(on, `« ${nom} » vanished with the four — the removal took a neighbour`).toContain(nom);
+    }
+
+    // 3. THE SCREEN STILL WORKS: a surviving style is pressable and REACHES
+    // the next step (its aperçu, with the one primary action).
+    expect(screen.canPress('Bazin'), 'a surviving style must stay pressable').toBe(true);
+    await screen.press('Bazin');
+    expect(screen.shows('Appliquer cet en-tête'), 'the aperçu did not open on a surviving style').toBe(true);
+    expect(screen.texts().length, 'the tree did not survive the tap').toBeGreaterThan(0);
+    screen.unmount();
+  });
+
   it('SECTIONS — the row is gone, and every remaining row still opens its screen', async () => {
     /**
      * FOUNDER ORDER: « remove 'Sections' from personnaliser ». The row must be

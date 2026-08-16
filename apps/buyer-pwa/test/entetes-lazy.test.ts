@@ -114,25 +114,6 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
   });
 
 
-  it('SAFRAN — its chunk draws, applies the split-column long-name rule, and stays honest', async () => {
-    await loadEntete('safran');
-    expect(loadedEntete('safran'), 'the safran chunk did not register').toBeDefined();
-    const html = renderEntete('safran', SF as never, TRUST as never, {});
-    expect(html).toContain('class="vt-ent vt-sa"');
-    expect(html).toContain('Gounghin, Ouagadougou');
-    expect(html).toContain('data-role="reputation"');
-    expect(html).not.toContain('data-role="chip-nouvelle"');
-
-    // « Colonnes fendues (Safran, Kraft) : nom > 14 caractères → 20 px fixe ».
-    // « Chez Awa » is 9 characters, so it must NOT carry the tier…
-    expect(html, 'a 9-char name took the long tier').not.toContain('vt-ent-long');
-    // …and a 24-character name must, or the name runs into the photograph.
-    const long = renderEntete('safran', { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});
-    expect(long, 'a 24-char name did not take the long tier').toContain('vt-ent-long');
-    // the tier is only worth anything if the sheet actually sizes it
-    expect(loadedEntete('safran')!.css).toContain('.sa-name.vt-ent-long');
-  });
-
   it('GRENAT — its chunk draws, stays full-width (no long-name tier), and inverts the trust card', async () => {
     await loadEntete('grenat');
     expect(loadedEntete('grenat'), 'the grenat chunk did not register').toBeDefined();
@@ -143,8 +124,8 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     expect(html).not.toContain('data-role="chip-nouvelle"');
 
     // « Pleine largeur (Indigo, Couture, Grenat) : pas de règle fixe » — even a
-    // 24-char name must NOT take a fixed tier here; it wraps instead. Safran
-    // does the opposite, and getting the two confused is the easy mistake.
+    // 24-char name must NOT take a fixed tier here; it wraps instead. Kraft's
+    // split column does the opposite, and confusing the two is the easy mistake.
     const long = renderEntete('grenat', { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});
     expect(long, 'grenat is full-width and must not size a long name down').not.toContain('.gr-name.vt-ent-long');
     expect(loadedEntete('grenat')!.css, 'a fixed tier crept into a full-width style').not.toContain('.gr-name.vt-ent-long');
@@ -185,9 +166,9 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     expect(html).toContain('vt-ent-acc');
     expect(loadedEntete('audace')!.css).toContain('.au-name .vt-ent-acc { color: var(--au-orange); }');
 
-    // série 3 draws the bio on Perle and Artisan ONLY — not here
+    // série 3 draws no bio at all since ENTETES-N — and never did here
     const withBio = renderEntete('audace', { ...SF, bio: 'Tissus choisis un par un.' } as never, TRUST as never, {});
-    expect(withBio, 'audace drew a bio; only Perle and Artisan show one').not.toContain('Tissus choisis');
+    expect(withBio, 'audace drew a bio; no série 3 style shows one').not.toContain('Tissus choisis');
 
     // the fixed decorative line is a CATALOG string, never inline (loi 6)
     expect(html).toContain('Partenaire de confiance');
@@ -201,7 +182,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     expect(html).toContain('Gounghin, Ouagadougou');
     expect(html).toContain('data-role="reputation"');
     const withBio = renderEntete('fleurie', { ...SF, bio: 'Tissus choisis un par un.' } as never, TRUST as never, {});
-    expect(withBio, 'fleurie drew a bio; only Perle and Artisan show one').not.toContain('Tissus choisis');
+    expect(withBio, 'fleurie drew a bio; no série 3 style shows one').not.toContain('Tissus choisis');
 
     // THE BADGE STRING IS NOT CUT BY HAND. The board sets « Nouvelle / vendeuse »
     // on two lines; the disc's width does that, not a <br> in the markup — a
@@ -215,6 +196,34 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
 
 
 
+  it('ENTETES-N — the four retired styles stay canon vocabulary and draw the DEFAULT', async () => {
+    /**
+     * FOUNDER, 2026-08-15: « cleanly remove the en-têtes Safran, chrome,
+     * artisan and fil d'or ». Their drawings are gone; their KEYS are not, and
+     * that distinction is the whole safety of the removal (ENTETES-J, same
+     * shape): `storefront-core.ts` refuses any headerStyle outside the canon
+     * set, so deleting the keys would refuse the save AND the page of every
+     * seller already carrying one.
+     *
+     * This is the inverted twin of the four per-style tests that went with the
+     * modules, and it is the only one that exercises a RETIRED key on a value a
+     * live storefront can still hold — the thing most likely to break someone.
+     */
+    const { loadEntete, loadedEntete, isLazyEntete } = await import('../src/vitrine/entetes/registry');
+    const classique = renderEntete('classique', SF as never, TRUST as never, {});
+
+    for (const key of ['safran', 'chrome', 'artisan', 'fildor'] as const) {
+      expect(ENTETE_KEYS, `${key} must stay canon vocabulary`).toContain(key);
+      expect(isLazyEntete(key), `${key} still has a drawing`).toBe(false);
+      // …and asking for it is not an error: it resolves, registers nothing, and
+      // the shop draws. A throw here would take her whole page down.
+      await loadEntete(key);
+      expect(loadedEntete(key), `${key} registered a unit it no longer has`).toBeUndefined();
+      expect(renderEntete(key, SF as never, TRUST as never, {}), `${key} did not fall back to classique`)
+        .toBe(classique);
+    }
+  });
+
   it('EVERY lazy style keeps its CSS to its OWN root — every resident sheet stays scoped', async () => {
     // the guard that has to grow with the set: as each of the twenty lands, its
     // rules join one shared <style> element, and a single unscoped selector
@@ -222,10 +231,10 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const sheet = loadedEnteteCss();
-    for (const root of ['.vt-in', '.vt-sa', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-ch3', '.vt-ar', '.vt-br', '.vt-ka', '.vt-cb', '.vt-pg',
+    for (const root of ['.vt-in', '.vt-gr', '.vt-kr', '.vt-au', '.vt-fl', '.vt-br', '.vt-ka', '.vt-cb', '.vt-pg',
       '.vt-ry', '.vt-he', '.vt-ch', '.vt-dy',
       '.vt-te', '.vt-et', '.vt-do', '.vt-ti',
-      '.vt-fd', '.vt-bz', '.vt-cv', '.vt-bi', '.vt-eg', '.vt-ho',
+      '.vt-bz', '.vt-cv', '.vt-bi', '.vt-eg', '.vt-ho',
       '.vt-dt', '.vt-bg', '.vt-fm', '.vt-hb', '.vt-pp', '.vt-gu']) {
       expect(sheet, `${root} absent — the scan would pass by having nothing to check`).toContain(root);
     }
@@ -233,7 +242,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     for (const line of sheet.split('\n')) {
       const m = /^\s{2}(\.[^\s{]+[^{]*)\{/.exec(line);
       if (m) {
-        expect(m[1], line).toMatch(/^\.vt-(co|in|sa|gr|kr|au|fl|pi|po|ch3|ne|pe|ar|br|gf|ka|cb|pg|ry|he|ch|dy|te|et|do|ti|fd|bz|cv|bi|eg|ho|dt|bg|fm|hb|pp|gu)[ .]/);
+        expect(m[1], line).toMatch(/^\.vt-(co|in|gr|kr|au|fl|pi|po|ne|pe|br|gf|ka|cb|pg|ry|he|ch|dy|te|et|do|ti|bz|cv|bi|eg|ho|dt|bg|fm|hb|pp|gu)[ .]/);
         checked += 1;
       }
     }
@@ -241,7 +250,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
   });
 
 
-  it('THE BIO RULE holds across the whole série 3 set — two draw it, the rest do not', async () => {
+  it('THE BIO RULE holds across the whole série 3 set — since ENTETES-N, none of them draws one', async () => {
     // « La présentation ne s'affiche que sur Perle et Artisan (seuls visuels
     // qui la montrent) ». Asserted as a SET rather than style by style: a new
     // série 3 unit that copies the wrong neighbour fails here, and so does one
@@ -249,21 +258,18 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const bio = 'Tissus choisis un par un.';
-    // ENTETES-J — Perle was one of the TWO that drew it and is gone, along with
-    // Prisme, Pop, Néon and Graffiti. Artisan is now the ONLY style in the app
-    // that shows her présentation, which makes this guard MORE load-bearing,
-    // not less: nothing else is left to compare it against.
-    const SERIE3_AVEC = ['artisan'];
-    const SERIE3_SANS = ['audace', 'fleurie', 'chrome', 'braise'];
-    for (const k of SERIE3_AVEC) {
-      const html = renderEntete(k as EnteteKey, { ...SF, bio } as never, TRUST as never, {});
-      expect(html, `${k} must draw her présentation — its board shows one`).toContain(bio);
-    }
+    // ENTETES-J took Perle, one of the TWO that drew it; ENTETES-N took Artisan,
+    // which was the other. SÉRIE 3 NOW DRAWS NO PRÉSENTATION AT ALL — so this
+    // guard inverts rather than disappears: the remaining three must all stay
+    // silent, and the app-wide truth about who draws a bio lives in
+    // `ENTETES_AVEC_BIO`, which `vitrine-presentation.test.ts` pins against the
+    // modules' own source rather than against a hand-kept list like this one.
+    const SERIE3_SANS = ['audace', 'fleurie', 'braise'];
     for (const k of SERIE3_SANS) {
       const html = renderEntete(k as EnteteKey, { ...SF, bio } as never, TRUST as never, {});
-      expect(html, `${k} drew a bio; only Perle and Artisan show one`).not.toContain(bio);
+      expect(html, `${k} drew a bio; no série 3 style shows one any more`).not.toContain(bio);
     }
-    expect(SERIE3_AVEC.length + SERIE3_SANS.length, 'the série 3 set shrank — this scan is going stale').toBe(5);
+    expect(SERIE3_SANS.length, 'the série 3 set shrank — this scan is going stale').toBe(3);
   });
 
   it('THE HONESTY MARKERS are on EVERY built style — proof XOR badge, never both', async () => {
@@ -278,7 +284,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const built = (ENTETE_KEYS as readonly EnteteKey[]).filter(
       (k) => k !== 'classique' && (isLazyEntete(k) || renderEntete(k, SF as never, TRUST as never, {}) !== classique),
     );
-    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(32);
+    expect(built.length, 'no built styles found — this scan would pass vacuously').toBeGreaterThanOrEqual(28);
 
     const zero = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
     for (const k of built) {
@@ -294,9 +300,11 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
 
   it('NO TWO CHUNKS CLAIM THE SAME ROOT — one shop, one header, one owner per class', async () => {
     // CHROME nearly collided. Its natural prefix is « ch », which Chaleureux
-    // (.vt-ch) already owns; a sheet using it would repaint that header the
-    // moment a Chrome shop was loaded, and only for buyers who had visited one.
-    // It ships as .vt-ch3; the canon KEY is unchanged.
+    // (.vt-ch) already owns; a sheet using it would have repainted that header
+    // the moment a Chrome shop was loaded, and only for buyers who had visited
+    // one. It shipped as .vt-ch3 instead, and ENTETES-N has since retired it —
+    // the lesson outlives the style, which is why this guard is written per
+    // module rather than as a list of names.
     //
     // ENTETES-I RESTATED THIS GUARD, because its old premise is gone. It used
     // to name the ten COMPILED-IN roots and forbid a chunk from writing one.
@@ -308,7 +316,7 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { readdirSync, readFileSync } = await import('node:fs');
     const dir = new URL('../src/vitrine/entetes/', import.meta.url).pathname;
     const modules = readdirSync(dir).filter((f) => f.endsWith('.ts') && f !== 'registry.ts');
-    expect(modules.length, 'no style modules found — this scan would assert over nothing').toBeGreaterThan(30);
+    expect(modules.length, 'no style modules found — this scan would assert over nothing').toBeGreaterThan(26);
 
     const SHELL = new Set(
       [...ENTETES_STYLES.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\.(vt-[\w-]+)/g)].map((m) => m[1]!),
@@ -344,10 +352,12 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
         owner.set(root, file);
       }
     }
-    expect(owner.size, 'no roots were collected — the scan would pass vacuously').toBeGreaterThan(30);
-    // the near-miss itself, pinned by name
-    expect(owner.get('vt-ch3')).toBe('chrome.ts');
+    expect(owner.size, 'no roots were collected — the scan would pass vacuously').toBeGreaterThan(26);
+    // ENTETES-N — the near-miss went with Chrome; the root it nearly took is
+    // still asserted, because « .vt-ch belongs to Chaleureux » is what any
+    // future two-letter prefix has to be checked against.
     expect(owner.get('vt-ch')).toBe('chaleureux.ts');
+    expect(owner.get('vt-ch3'), 'Chrome was retired — nothing may claim its root').toBeUndefined();
   });
 
   it('THE SÉRIE 5 TIER — 24 px on the split columns, and 20 px on Karité alone', async () => {
@@ -380,9 +390,10 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     const { loadAllEntetes } = await import('../src/vitrine/entetes/registry');
     await loadAllEntetes();
     const PREFIX: Record<string, string> = {
-      fildor: 'fd', bazin: 'bz', couverture: 'cv', billet: 'bi', enseigne: 'eg', hologramme: 'ho',
+      bazin: 'bz', couverture: 'cv', billet: 'bi', enseigne: 'eg', hologramme: 'ho',
     };
-    expect(Object.keys(PREFIX).length, 'the ENTETES-L set shrank — this scan is going stale').toBe(6);
+    // Six until ENTETES-N retired Fil d'or.
+    expect(Object.keys(PREFIX).length, 'the ENTETES-L set shrank — this scan is going stale').toBe(5);
     for (const [key, p] of Object.entries(PREFIX)) {
       const long = renderEntete(key as EnteteKey, { ...SF, name: 'Atelier Élégance-Burkina' } as never, TRUST as never, {});
       expect(long, `${key} must take the fixed tier on a long name`).toContain('vt-ent-long');
@@ -477,9 +488,12 @@ describe('ENTETES-G — a lazily-loaded style draws, and a missing one never bre
     // half is now the shared shell alone (about a dozen rules), so a per-sheet
     // floor of 50 fails on a sheet that is doing exactly what it should.
     expect(total, 'the rule scan found almost nothing — it would pass vacuously').toBeGreaterThan(400);
-    // ENTETES-J — Bronze (.txb) and Prestige went with the founder's cut.
-    // Chrome (.txc, .txv) · Étendard · Tissage remain.
-    expect(checked, 'no gradient-clipped text found — this scan asserted over nothing').toBe(4);
+    // ENTETES-J — Bronze (.txb) and Prestige went with the founder's cut, and
+    // ENTETES-N took Chrome (.txc, .txv), which owned HALF of what was left.
+    // Terracotta and Tissage are the only gradient-clipped names still shipping.
+    // The hazard was never the style, it is the PROPERTY: whoever adds the next
+    // one inherits the promise that a solid colour is declared under it.
+    expect(checked, 'no gradient-clipped text found — this scan asserted over nothing').toBe(2);
   });
 
   it('no style module hides a BACKTICK inside its css template literal', async () => {

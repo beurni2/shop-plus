@@ -27,9 +27,9 @@ import type { EnteteUnit } from './registry';
  * something printed and handed to you.
  *
  * THE ONE DARK TRUST CARD IN THE SERIES, and the relevé is explicit that this
- * is deliberate: « seule carte sombre sur page claire de la série ». Indigo,
- * Couture and Safran all put a light row on their own ground; Grenat inverts
- * it, and the inversion is what anchors the bottom of a very pale composition.
+ * is deliberate: « seule carte sombre sur page claire de la série ». Indigo
+ * puts a light row on its own ground; Grenat inverts it, and the inversion is
+ * what anchors the bottom of a very pale composition.
  *
  * FULL WIDTH, so NO fixed long-name tier — « Pleine largeur (Indigo, Couture,
  * Grenat) : pas de règle fixe ». A long name wraps; it never shrinks.

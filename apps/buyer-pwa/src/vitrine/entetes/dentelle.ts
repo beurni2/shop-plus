@@ -33,7 +33,7 @@ import type { EnteteUnit } from './registry';
  * THE PHOTO IS A COLLERETTE: a 126 circle under two SVG rings — white picots
  * (`dasharray 0.1 8.4` with a round linecap, which draws dots, not dashes) and
  * an old-rose basting ring. Both are inside the 144 wrap, so unlike Calebasse's
- * rim and Fil d'Or's facing the decoration is INSIDE the box the column clears.
+ * rim the decoration is INSIDE the box the column clears.
  *
  * MINIMAL is an embroidery hoop — wooden ring, tensioning screw, canvas — and
  * it sits IN THE COLUMN, in the proof's own slot, never on her portrait
@@ -156,7 +156,7 @@ const css = `
     background-size: 16px 10px; background-position: 50% 0;
   }
   /* THE COLLERETTE. Both rings live INSIDE the 144 wrap — unlike Calebasse's
-     rim or Fil d'Or's facing, no decoration reaches past this box, so the
+     rim, no decoration reaches past this box, so the
      column's clearance is the box itself. 144 at right 12 ⇒ it owns past
      x=204; 100% is the hero's padded box (332 at 360) and 156 off it stops the
      column at 176. */

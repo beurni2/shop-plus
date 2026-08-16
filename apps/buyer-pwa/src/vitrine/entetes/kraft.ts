@@ -30,7 +30,7 @@ import type { EnteteUnit } from './registry';
  * letter-spaced, rotated −2°. Long zones wrap INSIDE the frame rather than
  * stretching it, which is why it is an inline-flex with max-width 100 %.
  *
- * A SPLIT COLUMN like Safran, so the long-name rule applies: « nom > 14
+ * A SPLIT COLUMN, so the long-name rule applies: « nom > 14
  * caractères : 20 px fixe ». The polaroid owns the right 154px and the text
  * column takes what is left.
  *

@@ -1014,6 +1014,24 @@ describe('ENTETES-E0 — the wire accepts the five; the renderer falls back unti
     expect(bad!.storefront.headerStyle).toBe('classique');
   });
 
+  it('ENTETES-N — the four styles the founder cut are still ACCEPTED on the wire, and draw CLASSIQUE', async () => {
+    // The same inversion as the `masque` test below, for the four retired on
+    // 2026-08-15. This is the boundary that decides whether a live seller is
+    // stranded: her storefront row still holds `safran`, the service still
+    // returns it, and the port must hand it back UNCOERCED — anything else and
+    // her page is refused rather than merely plainer than it was.
+    const { httpStorefrontPort } = await import('../src/vitrine/profile');
+    for (const key of ['safran', 'chrome', 'artisan', 'fildor'] as const) {
+      const resolved = await stubFetch({ ...WIRE_BASE, headerStyle: key }, () =>
+        httpStorefrontPort('https://svc.example').resolve('chez-w-1'),
+      );
+      expect(resolved!.storefront.headerStyle, `${key}: the wire must still ACCEPT a retired key`).toBe(key);
+      const out = renderEntete(resolved!.storefront.headerStyle, resolved!.storefront, REAL as never, { fromProduct: true });
+      expect(out, `${key}: a retired key must draw the shipped default`).toContain('class="vt-hero"');
+      expect(out.length, `${key}: the shop came back empty`).toBeGreaterThan(500);
+    }
+  });
+
   it("the ACCEPTED 'masque' — wire-normalised, not cast — now draws CLASSIQUE, never a blank", async () => {
     // ENTETES-J INVERTED THIS, and the inversion is the point. `masque` used to
     // render the Prestige unit; the founder cut that style on looks. The key

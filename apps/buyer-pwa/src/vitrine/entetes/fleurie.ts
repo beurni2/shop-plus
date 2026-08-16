@@ -37,7 +37,8 @@ import type { EnteteUnit } from './registry';
  * string broken by hand in markup is a string that no longer lives in the
  * catalog (loi 6).
  *
- * Bio not drawn — série 3 shows a présentation on Perle and Artisan only.
+ * Bio not drawn — and since ENTETES-N retired Artisan, no série 3 style
+ * shows a présentation at all.
  */
 
 /** The proof glyph, and the two florals. Local by DESIGN, not laziness: these

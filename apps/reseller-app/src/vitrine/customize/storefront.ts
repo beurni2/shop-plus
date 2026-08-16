@@ -142,18 +142,14 @@ export const PICKABLE_HEADER_STYLES = [
   // became pickable LAST: its render unit, its chunk, its catalog strings and
   // its framing silhouette all landed before this line was added.
   'indigo',
-  'safran',
   'grenat',
   'kraft',
   'audace',
   'fleurie',
-  'chrome',
-  'artisan',
   'braise',
   'karite',
   'calebasse',
   'pagne',
-  'fildor',
   'bazin',
   'couverture',
   'billet',
