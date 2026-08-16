@@ -17,7 +17,6 @@ import { DEMO_QR_URL, QR_ORIGIN, QR_BASE, signedProductShareUrl } from './src/qr
 import { FONTS_TO_LOAD } from './src/ui/fonts-load';
 import { foldVitrine, type VitrineEvent } from './src/vitrine/collection';
 import { marginBreakdown, markupCap, defaultMarkup, snapMarkup } from './src/vitrine/margin';
-import { MarginSlider } from './src/ui/margin-slider';
 import { PhotoGallery } from './src/ui/photo-gallery';
 import { ProductClip } from './src/ui/product-clip';
 import { vignetteSaufHero } from './src/vitrine/vignette';
@@ -171,21 +170,36 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
 // with it, and that loss is recorded in JOURNAL.md rather than left implicit.
 
 /**
- * RESELLER-UX-1 item 3 — THE MARKUP IS TYPABLE, NOT ONLY SLIDABLE (founder walk).
- * One value, two hands on it: the slider for feel, the field for the exact figure
- * a seller already has in her head. The FIELD IS THE SAME VALUE — it commits
- * through the SAME `snapMarkup` (step 100, clamped to [0, cap]) on blur/submit, so
- * neither control can produce a markup the other could not. While she types,
- * nothing commits: committing per keystroke would snap-fight the digits under her
- * thumb. A cleared or unparseable field commits nothing and falls back to the last
- * real value on blur — never NaN, never a silent zero.
+ * MARGE-EXACTE (founder, 2026-08-15) — SHE TYPES THE FIGURE, AND IT STAYS.
+ *
+ * « remove the slide where resellers use to add their margin and just let it be
+ * typable, make sure i can type any number without rounding it up, cause right
+ * now if i type 750, the system rounds it to 800 ».
+ *
+ * THE ROUNDING WAS A MONEY BUG IN A UI COSTUME. This committed through
+ * `snapMarkup(parsed, cap)`, whose DEFAULT step is 100 — so 750 became 800 on
+ * blur, silently, and her cliente was quoted a price she never chose. The step
+ * was never canon: it came from the planche's `<input step=100>`, and
+ * `signPrice` in storefront-service — the thing that actually BOUNDS a published
+ * markup — accepts any safe non-negative integer up to the cap and knows nothing
+ * of hundreds. So the step existed only to match a slider that no longer exists.
+ *
+ * AND THE CLAMP IS STILL THE SHARED RULE, not a local one. `snapMarkup` takes
+ * its step as a parameter; passing 1 rounds to the franc — which is identity on
+ * an integer — and keeps the SAME [0, cap] clamp the money tests pin. A local
+ * `Math.min(cap, …)` here would be a second copy of a pricing bound, which is
+ * exactly what `vitrine/margin.ts` exists to prevent.
+ *
+ * While she types, nothing commits: committing per keystroke would fight the
+ * digits under her thumb. A cleared or unparseable field commits nothing and
+ * falls back to the last real value on blur — never NaN, never a silent zero.
  */
 function MarkupControl({ value, cap, onChange }: { value: number; cap: number; onChange: (m: number) => void }) {
   const [text, setText] = useState<string | null>(null); // null = not editing; show the value
   const commit = (raw: string) => {
     const parsed = Number.parseInt(raw.replace(/[^0-9]/g, ''), 10);
     setText(null);
-    if (Number.isFinite(parsed)) onChange(snapMarkup(parsed, cap));
+    if (Number.isFinite(parsed)) onChange(snapMarkup(parsed, cap, 1));
   };
   return (
     <View>
@@ -201,7 +215,6 @@ function MarkupControl({ value, cap, onChange }: { value: number; cap: number; o
           accessibilityLabel={t('fiche.marge_titre')}
         />
       </View>
-      <MarginSlider value={value} cap={cap} onChange={(m) => { setText(null); onChange(m); }} />
       <Text style={styles.noteLine}>{tf('fiche.plafond', { amount: formatFcfa(cap) })}</Text>
     </View>
   );
@@ -1885,20 +1898,19 @@ export default function App() {
                       <Overline>{t('fiche.prix_base')}</Overline>
                       <Text style={styles.margeAmount}>{formatFcfa(item.basePrice)}</Text>
                     </View>
-                    <View style={styles.margeHeadRow}>
-                      <Overline>{t('fiche.marge_titre')}</Overline>
-                      <Text style={styles.margeAmount}>{formatFcfa(markup)}</Text>
-                    </View>
-                    <View style={styles.margeHeadRow}>
-                      <Overline>{t('fiche.prix_cliente')}</Overline>
-                      <Text style={styles.margeAmount}>{formatFcfa(v.client)}</Text>
-                    </View>
-                    <MarginSlider
+                    {/* MARGE-EXACTE — the SAME control as the fiche, not a
+                        read-only row plus a slider underneath it. She sets the
+                        figure where she reads it, and « Prix cliente » below is
+                        the arithmetic answering her in place. */}
+                    <MarkupControl
                       value={markup}
                       cap={v.cap}
                       onChange={(m) => setMarkups((prev) => ({ ...prev, [item.productVersionId]: m }))}
                     />
-                    <Text style={styles.noteLine}>{tf('fiche.plafond', { amount: formatFcfa(v.cap) })}</Text>
+                    <View style={styles.margeHeadRow}>
+                      <Overline>{t('fiche.prix_cliente')}</Overline>
+                      <Text style={styles.margeAmount}>{formatFcfa(v.client)}</Text>
+                    </View>
                     {/* Note vocale — the mic lives WITH the product (founder Option A);
                         tapping opens the record sheet for THIS article. */}
                     {/* VOIX-VISIBLE (founder 2026-08-04: « I was talking about

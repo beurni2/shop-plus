@@ -1012,7 +1012,7 @@ describe('DÉJÀ-DANS-MA-VITRINE — Opportunités knows what is already hers', 
     expect(screen.shows('Prix cliente'), 'a price this app cannot vouch for, over a live listing').toBe(false);
     expect(screen.texts().join(' '), 'the estimate belongs to a product she has not added').not.toContain('Gagnez environ');
     // …and the marge control with them: it could only move numbers on screen.
-    expect(screen.shows('Votre marge'), 'a slider that signs nothing').toBe(false);
+    expect(screen.shows('Vous ajoutez'), 'a control that signs nothing').toBe(false);
     // The one figure it CAN vouch for stays — the supplier's base price.
     expect(screen.shows('Prix de base')).toBe(true);
 
@@ -1145,8 +1145,8 @@ describe('DÉJÀ-DANS-MA-VITRINE — the answer the SERVICE gives, when the scre
       'a write that changed NOTHING was reported as an add',
     ).toBe(false);
     expect(
-      screen.shows('Ce produit était déjà dans votre vitrine. Votre marge n’a pas changé.'),
-      'she must be told what actually happened, including that her marge did not move',
+      screen.shows('Ce produit était déjà dans votre vitrine. Le montant que vous ajoutez n’a pas changé.'),
+      'she must be told what actually happened, including that her figure did not move',
     ).toBe(true);
     screen.unmount();
   });
@@ -1231,7 +1231,7 @@ describe("RE-AJOUT — a removed product can RETURN to Ma Vitrine (founder, 2026
     expect(screen.shows('Bazin riche'), 'the vitrine is the screen the add lands on, and it must hold the product').toBe(true);
     // …and the toast tells the truth: back, at the marge she signed before.
     expect(
-      screen.shows('C’est de retour dans votre vitrine, à votre marge d’avant.'),
+      screen.shows('C’est de retour dans votre vitrine, au montant que vous aviez ajouté.'),
       'she must be told it CAME BACK, not that it « existed already »',
     ).toBe(true);
     expect(

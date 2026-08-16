@@ -75,8 +75,16 @@ export function defaultMarkup(cap: number): number {
   return Math.min(DEFAULT_MARKUP, cap);
 }
 
-/** Snap a raw markup to the slider step (100) and clamp to [0, cap]
- * (planche slider: `min 0 · max cap · step 100`). */
+/**
+ * Clamp a raw markup to [0, cap], rounding to `step`.
+ *
+ * MARGE-EXACTE (founder, 2026-08-15) — THE STEP IS NO LONGER USED IN PRODUCTION.
+ * It existed for the planche's `<input step=100>`; the reseller app removed that
+ * slider and now passes `step: 1`, because a default of 100 silently turned a
+ * typed 750 into 800. The CLAMP is what every caller still wants, and it is the
+ * one pricing bound the app shares with `signPrice` in storefront-service. The
+ * default is kept only so the money tests can pin the rounding behaviour itself.
+ */
 export function snapMarkup(raw: number, cap: number, step = 100): number {
   const snapped = Math.round(raw / step) * step;
   return Math.max(0, Math.min(cap, snapped));

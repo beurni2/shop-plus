@@ -178,11 +178,15 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(row.indexOf('styles.rowDetail')).toBeGreaterThan(row.indexOf('styles.rowNet'));
   });
 
-  it('per-product markup: Ma Vitrine composes the MarginSlider that writes markups[pid] live', () => {
+  it('per-product markup: Ma Vitrine composes the MarkupControl that writes markups[pid] live', () => {
     const app = read('App.tsx');
     // WO-VITRINE-FLOW (founder redirect): the reseller sets her markup per product
-    // on Ma Vitrine; the slider writes markups[pid] and the net/client recompute live.
-    expect(app).toMatch(/<MarginSlider/);
+    // on Ma Vitrine; the control writes markups[pid] and the net/client recompute live.
+    // MARGE-EXACTE (2026-08-15) — it is the TYPABLE control now, the same one the
+    // fiche uses; the slider it replaced is gone (« remove the slide … just let it
+    // be typable »).
+    expect(app).toMatch(/<MarkupControl/);
+    expect(app).not.toMatch(/MarginSlider/);
     expect(app).toMatch(/value=\{markup\}/);
     expect(app).toMatch(/cap=\{v\.cap\}/);
     // PUBLISH-PRICE-1 — ONE KEYSPACE: the slider writes `markups[productVersionId]`,
@@ -196,11 +200,11 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     // lowest cliente price and no untouched-slider guard is needed. The state
     // must be gone entirely, not lingering half-wired.
     expect(app).not.toMatch(/setMarkupTouched/);
-    // the slider value comes from the SAME margin view the signed price is quoted from
+    // the control's value comes from the SAME margin view the signed price is quoted from
     expect(app).toMatch(/const markup = v\.markup;/);
-    // the slider routes the value through the PURE snapMarkup (step + clamp)
-    const slider = read('src/ui/margin-slider.tsx');
-    expect(slider).toMatch(/snapMarkup\(raw, capRef\.current\)/);
+    // MARGE-EXACTE — the field routes through the SHARED `snapMarkup`, at step 1:
+    // the clamp is still the one pricing bound, and nothing rounds her figure.
+    expect(app).toMatch(/snapMarkup\(parsed, cap, 1\)/);
   });
 
   it('honest states stay designed: the vitrine empty state is the kit EmptyState on the catalog string, with a CANON glyph (never an emoji)', () => {

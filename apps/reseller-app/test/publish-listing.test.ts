@@ -311,8 +311,11 @@ describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
     expect(gagnez).toBeGreaterThan(-1);
     expect(gagnez).toBeLessThan(base);
     expect(base).toBeLessThan(cliente);
-    // the typed field commits through the SAME snap as the slider — one value
-    expect(app).toMatch(/onChange\(snapMarkup\(parsed, cap\)\)/);
+    // MARGE-EXACTE (founder, 2026-08-15) — the typed field commits AT THE FRANC.
+    // `snapMarkup`'s default step is 100, which silently turned her 750 into 800;
+    // step 1 keeps the SHARED [0, cap] clamp and rounds nothing. The behaviour is
+    // driven on the real screen in `rendu-marge.test.tsx`; this pins the call.
+    expect(app).toMatch(/onChange\(snapMarkup\(parsed, cap, 1\)\)/);
     expect(app).toMatch(/<MarkupControl/);
   });
 });
@@ -550,9 +553,21 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     expect(app).toMatch(/item\.assetRefs\.length > 1 && \(\s*\n\s*<View style=\{styles\.thumbRow\}>/);
     // the card reasons in the fiche's vocabulary: base · marge · prix cliente
     const cardIdx = app.indexOf('styles.vitrineCard}');
-    const card = app.slice(cardIdx, app.indexOf('MarginSlider', cardIdx));
+    // MARGE-EXACTE — the region used to end at the slider that followed the rows.
+    // The slider is gone, so it ends at the voice button that now follows them.
+    // THE BOUND IS ASSERTED, because `indexOf` answers -1 for a marker that does
+    // not exist and `slice(i, -1)` then runs to the END OF THE FILE — a pin that
+    // silently watches the whole module, StyleSheet included, and can no longer
+    // fail. That is exactly what a first pass at this edit did.
+    const cardEnd = app.indexOf("t('k.voix.note_produit')", cardIdx);
+    expect(cardEnd, 'the card-end anchor moved — this pin is watching the whole file').toBeGreaterThan(cardIdx);
+    const card = app.slice(cardIdx, cardEnd);
+    // ~6 kB is the real card (photo, thumbnails, money rows). The whole module is
+    // north of 100 kB, so this bound separates the two without being brittle.
+    expect(card.length, 'the vitrine card region is implausibly large — the anchor is wrong').toBeLessThan(12_000);
     expect(card).toContain("t('fiche.prix_base')");
-    expect(card).toContain("t('fiche.marge_titre')");
+    // the markup row is the shared control, which carries `fiche.marge_titre` itself
+    expect(card).toContain('<MarkupControl');
     expect(card).toContain("t('fiche.prix_cliente')");
     // net-first survives the restructure: her net is still the hero figure
     expect(card).toContain('styles.vitrineNetHero');

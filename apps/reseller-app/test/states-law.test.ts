@@ -111,10 +111,11 @@ describe('WO-FP-SHOP states-law — every existing rendered state survives the r
     expect(app).toMatch(/t\('ventes\.reel_suite'\)/);
   });
 
-  it('MARKUP — the per-product marge slider is a designed interactive state (Ma Vitrine)', () => {
+  it('MARKUP — the per-product markup field is a designed interactive state (Ma Vitrine)', () => {
     // WO-VITRINE-FLOW (founder redirect): the ≤3 multi-select is dropped; the
-    // designed interactive state is now the per-product markup slider on Ma Vitrine.
-    expect(app).toMatch(/<MarginSlider/);
+    // designed interactive state is the per-product markup on Ma Vitrine.
+    // MARGE-EXACTE (2026-08-15) — that state is a TYPABLE FIELD now, not a slider.
+    expect(app).toMatch(/<MarkupControl/);
     expect(app).toMatch(/setMarkups\(\(prev\) =>/);
     // the empty vitrine surface is honest too — an EmptyState when the seam's
     // live listings are empty, never a blank screen. PUBLISH-PRICE-1: the grid now

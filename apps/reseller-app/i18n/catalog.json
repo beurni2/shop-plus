@@ -673,7 +673,7 @@
  },
  {
   "key": "accueil.astuce",
-  "fr": "Astuce : le prix client = prix de base + votre marge. Vous voyez toujours votre gain net avant de partager.",
+  "fr": "Astuce : le prix cliente = prix de base + ce que vous ajoutez. Vous voyez toujours votre gain net avant de partager.",
   "register": "selling",
   "screenClass": "selling_surface"
  },
@@ -703,13 +703,13 @@
  },
  {
   "key": "fiche.marge_titre",
-  "fr": "Votre marge",
+  "fr": "Vous ajoutez",
   "register": "money",
   "screenClass": "label"
  },
  {
   "key": "fiche.plafond",
-  "fr": "Marge libre, jusqu'à {amount}.",
+  "fr": "Vous pouvez ajouter jusqu'à {amount}.",
   "register": "money",
   "screenClass": "label"
  },
@@ -2935,7 +2935,7 @@
  },
  {
   "key": "fiche.cta_choisir_marge",
-  "fr": "Choisissez votre marge pour continuer.",
+  "fr": "Choisissez votre montant pour continuer.",
   "register": "selling",
   "screenClass": "instruction"
  },
@@ -2947,13 +2947,13 @@
  },
  {
   "key": "fiche.publier.deja",
-  "fr": "Ce produit était déjà dans votre vitrine. Votre marge n’a pas changé.",
+  "fr": "Ce produit était déjà dans votre vitrine. Le montant que vous ajoutez n’a pas changé.",
   "register": "money",
   "screenClass": "instruction"
  },
  {
   "key": "fiche.publier.retour",
-  "fr": "C’est de retour dans votre vitrine, à votre marge d’avant.",
+  "fr": "C’est de retour dans votre vitrine, au montant que vous aviez ajouté.",
   "register": "money",
   "screenClass": "instruction"
  },
