@@ -630,14 +630,8 @@
   "screenClass": "label"
  },
  {
-  "key": "accueil.comment",
-  "fr": "Comment ça marche",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
   "key": "accueil.bonjour",
-  "fr": "Bonjour, {name}",
+  "fr": "Bonjour",
   "register": "selling",
   "screenClass": "selling_surface"
  },
@@ -666,8 +660,8 @@
   "screenClass": "selling_surface"
  },
  {
-  "key": "accueil.zone",
-  "fr": "Gounghin",
+  "key": "accueil.sans_boutique",
+  "fr": "Créez votre boutique dans « Ma Vitrine ».",
   "register": "neutral",
   "screenClass": "label"
  },
@@ -2754,16 +2748,10 @@
   "screenClass": "label"
  },
  {
-  "key": "ce.d2_sous_ligne",
-  "fr": "{membres} membres · campagne {recette} {o}/{max}",
-  "register": "neutral",
-  "screenClass": "status"
- },
- {
-  "key": "ce.d2_sous_vide",
-  "fr": "{membres} membres · aucune campagne en cours",
-  "register": "neutral",
-  "screenClass": "status"
+  "key": "ce.d2_sous_invite",
+  "fr": "Vendez ensemble, dans votre quartier.",
+  "register": "selling",
+  "screenClass": "selling_surface"
  },
  {
   "key": "ce.gains_attente_label",

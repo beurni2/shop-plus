@@ -268,7 +268,12 @@ export function GainsSaleCard({ card }: { card: { code: string; productName: str
 }
 
 /** D2 — C-CE23 « Mon Cercle » Accueil card (living sub-line). */
-export function CercleAccueilCard({ camp, membres, onPress }: { camp: Campagne | null; membres: number; onPress: () => void }) {
+/** ACCUEIL-PRO (founder, 2026-08-17: « remove all mocks ») — the sub-line
+ *  carries NO figures. It used to print « 214 membres · campagne … » from the
+ *  SP9 demo seed on the REAL home screen — a fake count where the doctrine
+ *  says « never fake counts ». The invitation is the whole line until the SP9
+ *  gate opens and a real number exists to print. */
+export function CercleAccueilCard({ onPress }: { onPress: () => void }) {
   return (
     <Pressable style={({ pressed }) => [S.aProdCard, { marginTop: 12, padding: 14, paddingHorizontal: 15, borderRadius: 18 }, pressed && { transform: [{ scale: 0.98 }] }]} onPress={onPress} accessibilityRole="button">
       <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: '#F8E4EC', alignItems: 'center', justifyContent: 'center' }}>
@@ -276,11 +281,7 @@ export function CercleAccueilCard({ camp, membres, onPress }: { camp: Campagne |
       </View>
       <View style={S.rowBody}>
         <Text style={S.campTileTitle}>{t('ce.d2_titre')}</Text>
-        <Text style={[S.memberSub, { fontSize: 12.5 }]} numberOfLines={1}>
-          {camp !== null
-            ? tf('ce.d2_sous_ligne', { membres: String(membres), recette: camp.recipe, o: String(camp.orders), max: String(camp.maxOrders) })
-            : tf('ce.d2_sous_vide', { membres: String(membres) })}
-        </Text>
+        <Text style={[S.memberSub, { fontSize: 12.5 }]} numberOfLines={1}>{t('ce.d2_sous_invite')}</Text>
       </View>
       <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#B3A78F" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round">
         <Path d="M9.5 6l6 6-6 6" />

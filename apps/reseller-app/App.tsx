@@ -11,7 +11,7 @@ import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
 import { t, tf } from './src/i18n';
 import { JOURNEY, START, type Screen } from './src/journey';
-import { DEMO_SHARE_IDENTITY, frenchDate } from './src/share/hub';
+import { frenchDate } from './src/share/hub';
 import { QrCode } from './src/qr/QrCode';
 import { afficheQrUrl, boutiqueShareUrl, signedProductShareUrl } from './src/qr/identity';
 import { FONTS_TO_LOAD } from './src/ui/fonts-load';
@@ -35,7 +35,7 @@ import {
   useCercle, CercleHub, CampWizard, CampaignActive, CampaignFunding, CercleReputation,
   CercleMembres, IconCercleDeux, PendingHero, CercleAccueilCard,
 } from './src/cercle/screens';
-import { produit as cercleProduit, CERCLE_DIVERS, partagerBadge } from './src/cercle/model';
+import { produit as cercleProduit, partagerBadge } from './src/cercle/model';
 import { useVentesReelles } from './src/sales/use-ventes-reelles';
 import { expoAccessCodeStore } from './src/sales/code-store';
 import { decideAcces, gateArme } from './src/access/gate';
@@ -360,7 +360,6 @@ export default function App() {
       listings: (): readonly string[] => live,
       has: (listingId: string) => live.includes(listingId),
       isDiscoverable: () => discoverable,
-      shareSlug: () => DEMO_SHARE_IDENTITY.identityLinkSuffix,
     };
   }, [vitrineLog]);
 
@@ -1345,26 +1344,45 @@ export default function App() {
       <View style={styles.content}>
         {screen === 'accueil' && (
           <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
-            {/* Header — monogram · « Ma vitrine » + name + canon verified glyph + zone · « Comment ça marche » */}
+            {/* ACCUEIL-PRO (founder, 2026-08-17: « remove all mocks … very
+                professional … very simple ») — the header is HER shop or an
+                honest absence. Real initial, real name, her real zone; the
+                vérifié mark ONLY when her shop is live (an unconditional badge
+                is a fake badge). While the read is in flight the row stays
+                empty — brief and honest — and a resolved « no shop yet » says
+                where the shop is created. The demo identity (« Aïcha »,
+                « Gounghin ») and the « Comment ça marche » pill — a control
+                wired to NOTHING since the day it was drawn — are gone. */}
             <View style={styles.homeHeader}>
               <View style={styles.monogram}>
-                <Text style={styles.monogramText}>{DEMO_SHARE_IDENTITY.resellerName.slice(0, 1)}</Text>
+                {liveStorefront !== null && liveStorefront !== undefined ? (
+                  <Text style={styles.monogramText}>{liveStorefront.name.slice(0, 1).toUpperCase()}</Text>
+                ) : (
+                  <IconVitrine size={dimension.iconSizePx.badge} color={shopColour.deep} />
+                )}
               </View>
               <View style={styles.homeHeaderBody}>
                 <Text style={styles.homeTitle} numberOfLines={1}>{t('accueil.home_titre')}</Text>
-                <View style={styles.homeSubRow}>
-                  <Text style={styles.homeSubName} numberOfLines={1}>{DEMO_SHARE_IDENTITY.resellerName}</Text>
-                  <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
-                  <Text style={styles.homeSubZone}>{` · ${t('accueil.zone')}`}</Text>
-                </View>
+                {liveStorefront !== null && liveStorefront !== undefined ? (
+                  <View style={styles.homeSubRow}>
+                    <Text style={styles.homeSubName} numberOfLines={1}>{liveStorefront.name}</Text>
+                    {liveShop !== null && liveShop !== undefined ? (
+                      <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
+                    ) : null}
+                    {liveStorefront.zone !== '' ? (
+                      <Text style={styles.homeSubZone}>{` · ${liveStorefront.zone}`}</Text>
+                    ) : null}
+                  </View>
+                ) : liveStorefront === null ? (
+                  <Text style={styles.homeSubZone}>{t('accueil.sans_boutique')}</Text>
+                ) : null}
               </View>
-              <Pressable style={({ pressed }) => [styles.commentPill, pressed && styles.pressed]} accessibilityRole="button">
-                <Text style={styles.commentPillText}>{t('accueil.comment')}</Text>
-              </Pressable>
             </View>
 
-            {/* Greeting hero (Bricolage 800/28) + tagline */}
-            <Text style={styles.greeting}>{tf('accueil.bonjour', { name: DEMO_SHARE_IDENTITY.resellerName })}</Text>
+            {/* Greeting hero (Bricolage 800/28) + tagline — « Bonjour », plain:
+                the app knows her SHOP, not her first name, and a borrowed name
+                is worse than none. */}
+            <Text style={styles.greeting}>{t('accueil.bonjour')}</Text>
             <Text style={styles.homeTagline}>{t('accueil.tagline')}</Text>
 
             {/* ACCUEIL-HONESTY-1 — the ledger cards, from her REAL ladder.
@@ -1445,8 +1463,11 @@ export default function App() {
               <Text style={styles.astuceText}>{t('accueil.astuce')}</Text>
             </View>
             {/* D2 — C-CE23 « Mon Cercle » (second, contextual entry — the dock
-                tab stays the canonical one). Living sub-line. */}
-            <CercleAccueilCard camp={cercle.camp} membres={CERCLE_DIVERS.membres} onPress={() => go('cercle')} />
+                tab stays the canonical one). ACCUEIL-PRO: the sub-line carries
+                NO figures — the demo world's « 214 membres · campagne … » was
+                a fake count on the real home screen. The invitation is the
+                whole line until SP9 makes a real one possible. */}
+            <CercleAccueilCard onPress={() => go('cercle')} />
           </ScrollView>
         )}
 
@@ -1840,10 +1861,16 @@ export default function App() {
             <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
               <View style={styles.vitrineHead}>
                 <Text style={styles.screenTitle}>{t('vitrine.title')}</Text>
-                <View style={styles.homeSubRow}>
-                  <Text style={styles.homeSubName} numberOfLines={1}>{DEMO_SHARE_IDENTITY.resellerName}</Text>
-                  <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
-                </View>
+                {/* ACCUEIL-PRO — HER shop name (never the demo's), the vérifié
+                    mark only when the shop is live. No shop resolved: no row. */}
+                {liveStorefront !== null && liveStorefront !== undefined ? (
+                  <View style={styles.homeSubRow}>
+                    <Text style={styles.homeSubName} numberOfLines={1}>{liveStorefront.name}</Text>
+                    {liveShop !== null && liveShop !== undefined ? (
+                      <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
+                    ) : null}
+                  </View>
+                ) : null}
               </View>
               <Text style={styles.noteLine}>{t('vitrine.sous_titre')}</Text>
               <EmptyState
@@ -1892,10 +1919,15 @@ export default function App() {
                   <View style={styles.vitrineHeadRow}>
                     <View style={styles.vitrineHead}>
                       <Text style={styles.screenTitle}>{t('vitrine.title')}</Text>
-                      <View style={styles.homeSubRow}>
-                        <Text style={styles.homeSubName} numberOfLines={1}>{DEMO_SHARE_IDENTITY.resellerName}</Text>
-                        <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
-                      </View>
+                      {/* ACCUEIL-PRO — same law as the empty branch above. */}
+                      {liveStorefront !== null && liveStorefront !== undefined ? (
+                        <View style={styles.homeSubRow}>
+                          <Text style={styles.homeSubName} numberOfLines={1}>{liveStorefront.name}</Text>
+                          {liveShop !== null && liveShop !== undefined ? (
+                            <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
+                          ) : null}
+                        </View>
+                      ) : null}
                     </View>
                     <Pressable
                       style={({ pressed }) => [styles.vitrineToggle, pressed && styles.pressed]}
@@ -2657,17 +2689,6 @@ const styles = StyleSheet.create({
   homeSubRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   homeSubName: { flexShrink: 1, color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   homeSubZone: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
-  commentPill: {
-    minHeight: spacing.xxl + spacing.xs,
-    borderRadius: radius.pill,
-    borderWidth: interaction.hairline.thin,
-    borderColor: sharedColour.hairlineStrong,
-    backgroundColor: sharedColour.card,
-    paddingHorizontal: spacing.md,
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  commentPillText: { color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
   greeting: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.screen.size, fontWeight: w(t2.scale.screen.wght) },
   homeTagline: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   homeStatGrid: { flexDirection: 'row', gap: spacing.md },

@@ -1,0 +1,196 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mountApp, wire, wiredEnv, type Route } from './rendu';
+import { resetFiles } from './doubles/expo-file-system';
+
+/**
+ * ═══ RENDU-RÉEL — ACCUEIL-PRO: the first screen, real bytes only ═══
+ *
+ * FOUNDER, 2026-08-17: « Fix the accueil as well remove all mocks, and make
+ * very professional and well detailed and very simple ». The money block and
+ * the sales rows were already honest (ACCUEIL-HONESTY-1); what was still fake
+ * was the IDENTITY — « Aïcha », the « Gounghin » quartier, an unconditional
+ * vérifié badge — plus a « Comment ça marche » pill wired to nothing and the
+ * Cercle card's « 214 membres » demo count. These walks read the MOUNTED tree:
+ *   1. the header is HER shop — name, zone, the badge only when live;
+ *   2. no shop resolved → an honest sentence, NO badge, NO borrowed name;
+ *   3. the one primary action still reaches the product grid;
+ *   4. the Cercle card invites without inventing a number, and still opens;
+ *   5. none of the retired demo bytes can come back.
+ */
+
+const PV = 'pv-bazin';
+const SF_ID = 'sf-0258';
+const SLUG = 'boutique-0001';
+const NOM = 'Boutique test';
+
+const offer = () => ({
+  productVersionId: PV,
+  offerVersion: 'ov-1',
+  basePrice: 10_000,
+  resellerCommission: 1_000,
+  available: 5,
+  productName: 'Bazin riche',
+  assetRefs: [] as string[],
+  category: 'mode',
+});
+
+const storefront = () => ({
+  id: SF_ID,
+  resellerId: 'RS',
+  slug: SLUG,
+  discoverable: true,
+  curatedItems: [PV],
+  name: NOM,
+  zone: 'Ouagadougou',
+  category: 'mode',
+  createdAt: '2026-08-15T08:00:00.000Z',
+  updatedAt: '2026-08-15T08:00:00.000Z',
+  tagline: '',
+  bio: '',
+  cover: { status: 'none' },
+  avatar: { mode: 'monogram' },
+  theme: 'laterite',
+  sections: [],
+  featuredItems: [],
+  headerStyle: 'classique',
+  productNotes: {},
+});
+
+/** CONTRACT-CERTIFIED to `storefront-service` (same rows as rendu-partager):
+ *  the list answers `{id, slug, name}` rows; the by-id read answers the canon
+ *  Storefront. The sales feed route is deliberately NOT wired: the accueil's
+ *  money block must answer with its honest silence, never a figure. */
+const routes: Route[] = [
+  (path) =>
+    path === '/supply-projections'
+      ? { status: 200, json: { offers: [offer()], diagnostic: { status: 'ok', refusals: [] } } }
+      : null,
+  (path) =>
+    path === '/storefronts'
+      ? { status: 200, json: [{ id: SF_ID, slug: SLUG, name: NOM }] as never }
+      : null,
+  (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: storefront() as never } : null),
+];
+
+/** The same world with NO storefront — the day before she creates her shop. */
+const routesSansBoutique: Route[] = [
+  routes[0]!,
+  (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
+];
+
+/** A shop RECORD without the live listing: the by-id read answers her
+ *  storefront while the admin list answers no row — the state between a save
+ *  landing and the listing catching up. Her name is true; « live » is not yet. */
+const routesNonListee: Route[] = [
+  routes[0]!,
+  (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
+  routes[2]!,
+];
+
+async function surAccueil(r: Route[] = routes) {
+  wire(r);
+  const screen = await mountApp();
+  await screen.settle();
+  return screen;
+}
+
+beforeEach(() => {
+  vi.resetModules();
+  wiredEnv();
+  resetFiles();
+});
+
+describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence', () => {
+  it('the header is HER shop: real name, real zone, the vérifié mark — none of the demo identity', async () => {
+    const screen = await surAccueil();
+    const lu = screen.texts().join(' | ');
+    expect(lu, `her real shop name leads the header — on screen: ${lu.slice(0, 400)}`).toContain(NOM);
+    expect(lu, 'her real zone rides the name').toContain('· Ouagadougou');
+    expect(lu, 'the plain greeting renders').toContain('Bonjour');
+    /**
+     * THE MOCKS, ABSENT BY THEIR BYTES: the demo reseller's first name, her
+     * invented quartier, the Cercle demo count, and the pill that pressed to
+     * nothing. Each byte named so a regression names itself.
+     */
+    for (const demo of ['Aïcha', 'Gounghin', '214', 'Comment ça marche']) {
+      expect(lu, `the demo byte « ${demo} » is back on the screen`).not.toContain(demo);
+    }
+    // The vérifié mark is PRESENT — her shop is live in this fixture.
+    const { IconCoche } = await import('../src/ui/icons');
+    expect(screen.tree.root.findAllByType(IconCoche).length).toBeGreaterThanOrEqual(1);
+    screen.unmount();
+  });
+
+  it('no shop resolved → an honest sentence, NO badge, NO borrowed name — on the accueil AND on Ma Vitrine', async () => {
+    const screen = await surAccueil(routesSansBoutique);
+    const lu = screen.texts().join(' | ');
+    expect(lu, 'the honest no-shop sentence renders').toContain('Créez votre boutique dans « Ma Vitrine ».');
+    expect(lu).not.toContain(NOM);
+    expect(lu).not.toContain('Aïcha');
+    // An unconditional badge is a fake badge: no shop, no vérifié mark.
+    const { IconCoche } = await import('../src/ui/icons');
+    expect(screen.tree.root.findAllByType(IconCoche), 'a vérifié mark with no live shop').toHaveLength(0);
+    // Ma Vitrine's header holds the same law — its badge sites are SEPARATE
+    // JSX from the accueil's, so this walk must stand on that screen too.
+    await screen.press('Ma Vitrine');
+    await screen.settle();
+    expect(screen.texts().join(' | ')).not.toContain('Aïcha');
+    expect(
+      screen.tree.root.findAllByType(IconCoche),
+      'a vérifié mark on Ma Vitrine with no live shop',
+    ).toHaveLength(0);
+    screen.unmount();
+  });
+
+  it('a shop record without the live listing: her name renders, the badge WAITS', async () => {
+    /**
+     * The vérifié mark answers to `liveShop` (the listing read-back), not to
+     * the record read — a badge that rode the name alone would mark a shop
+     * « live » the instant its row was saved. This world reaches the state the
+     * inner guard exists for; without it, this test cannot redden.
+     */
+    const screen = await surAccueil(routesNonListee);
+    const lu = screen.texts().join(' | ');
+    expect(lu, 'her name renders from the record read').toContain(NOM);
+    const { IconCoche } = await import('../src/ui/icons');
+    expect(
+      screen.tree.root.findAllByType(IconCoche),
+      'the badge must wait for the live listing',
+    ).toHaveLength(0);
+    screen.unmount();
+  });
+
+  it('the money block answers with its honest silence — never a figure without a sale', async () => {
+    const screen = await surAccueil();
+    const lu = screen.texts().join(' | ');
+    // The feed route is unwired: no honest number exists, so a SENTENCE renders
+    // (ACCUEIL-HONESTY-1) — and the retired demo figures cannot come back.
+    expect(lu, 'no demo monthly figure').not.toContain('34 500');
+    expect(lu, 'no demo month').not.toContain('juin');
+    expect(
+      screen.shows("Vos gains sont prêts à s'afficher.") ||
+        screen.shows('Lecture de vos gains…') ||
+        screen.shows("Rien n'est perdu. Vos ventes vous attendent ici."),
+      `one of the honest silence sentences renders — on screen: ${lu.slice(0, 600)}`,
+    ).toBe(true);
+    screen.unmount();
+  });
+
+  it('the one primary action reaches the product grid', async () => {
+    const screen = await surAccueil();
+    await screen.press('Trouver des produits à vendre');
+    await screen.settle();
+    expect(screen.shows('Bazin riche'), `the grid did not open: ${JSON.stringify(screen.texts().slice(0, 20))}`).toBe(true);
+    screen.unmount();
+  });
+
+  it('the Cercle card invites without inventing a number — and still opens the hub', async () => {
+    const screen = await surAccueil();
+    expect(screen.shows('Vendez ensemble, dans votre quartier.')).toBe(true);
+    expect(screen.texts().join(' | '), 'no member count on the home card').not.toContain('membres');
+    await screen.press('Mon Cercle');
+    await screen.settle();
+    expect(screen.texts().length, 'the tree died opening the Cercle hub').toBeGreaterThan(0);
+    screen.unmount();
+  });
+});
