@@ -301,9 +301,12 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
      *  where her link will be. And pressing publish on the UNFILLED form is
      *  refused with a sentence, never sent. */
     const k1 = screen.texts().join(' | ');
-    for (const demo of ['Chez Aïcha Mode', 'Gounghin', 'aicha-4821']) {
+    for (const demo of ['Chez Aïcha Mode', 'Gounghin', 'aicha-4821', '8 articles']) {
       expect(k1, `the demo seed byte « ${demo} » is on the first-run stack`).not.toContain(demo);
     }
+    // No shop, no articles — the K5 row states the honest zero, never the
+    // demo catalog's count (verifier: « 8 articles » survived the first scan).
+    expect(k1, 'the first-run article count must be the honest zero').toContain('0 épinglé(s) · 0 articles');
     await screen.press('Mettre ma boutique en ligne');
     await screen.settle();
     expect(screen.shows('Donnez d’abord un nom et un quartier'), 'the empty form must be refused with a sentence').toBe(true);

@@ -42,7 +42,7 @@ const HEADER_STYLES: ReadonlySet<string> = new Set<string>(STOREFRONT_HEADER_STY
  * discoverable), so a test exercises the whole flow with no Worker.
  */
 export class DemoStorefrontService implements StorefrontServicePort {
-  private readonly stores = new Map<string, { slug: string; name: string; discoverable: boolean }>();
+  private readonly stores = new Map<string, { slug: string; name: string; zone: string; discoverable: boolean }>();
   readonly uploads: { kind: string; storefrontId: string; size: number }[] = [];
   /** PERSONNALISER-REAL-1 — saved presentations, read back by `getById`. */
   private readonly identities = new Map<string, Storefront>();
@@ -52,7 +52,10 @@ export class DemoStorefrontService implements StorefrontServicePort {
   async create(cmd: CreateStorefrontCommand): Promise<ServiceResult<{ status: string; slug: string | null }>> {
     const slug = cmd.shortCode.toLowerCase();
     if (this.stores.has(cmd.id)) return { ok: true, value: { status: 'idempotent', slug } };
-    this.stores.set(cmd.id, { slug, name: cmd.name, discoverable: false });
+    // SEED-NEUTRE (verifier) — carry the command's REAL zone, like the Worker:
+    // the neutral seed's '' riding through getById would answer a shape the
+    // real service can never answer (certified-mock rule, Contract §3).
+    this.stores.set(cmd.id, { slug, name: cmd.name, zone: cmd.zone, discoverable: false });
     return { ok: true, value: { status: 'created', slug } };
   }
 
@@ -65,7 +68,7 @@ export class DemoStorefrontService implements StorefrontServicePort {
     if (held) return { ok: true, value: held };
     const s = this.stores.get(id);
     if (!s) return { ok: true, value: undefined };
-    return { ok: true, value: { ...DEFAULT_STOREFRONT, id, slug: s.slug, name: s.name, discoverable: s.discoverable } };
+    return { ok: true, value: { ...DEFAULT_STOREFRONT, id, slug: s.slug, name: s.name, zone: s.zone, discoverable: s.discoverable } };
   }
 
   /** PERSONNALISER-REAL-1 — persists the patch AND refuses like the real service:

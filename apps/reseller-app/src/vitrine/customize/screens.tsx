@@ -49,7 +49,6 @@ import { apercuBox, frameSpecFor, type FrameKind, type FrameSpec } from './frami
 
 
 import { formatFcfa } from '../../earnings';
-import { K_SEED } from './storefront';
 
 import { fromCatalog, type KCatalogItem } from './catalog';
 import { vignette } from '../vignette';
@@ -120,8 +119,8 @@ export interface CustomizeProps {
    * nothing wrong; this build simply has not been told where to write. */
   serviceUnconfigured?: boolean;
   /** PERSONNALISER-PARITY-1 — her REAL listings for K5/K7 (K6b left with the
-   *  sections editor, 2026-08-13). Absent (tests, demo) ⇒ the K_SEED fallback,
-   *  exactly as before. */
+   *  sections editor, 2026-08-13). Absent ⇒ no live shop ⇒ zero articles
+   *  (SEED-NEUTRE: the K_SEED count fallback printed a demo « 8 » here). */
   catalog?: readonly KCatalogItem[] | undefined;
 }
 
@@ -230,7 +229,11 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
   // opens automatically after a successful upload, and from « Ajuster le
   // cadrage » next to each live photo on K3.
   const [framing, setFraming] = useState<FrameKind | null>(null);
-  const catalogTotal = catalog !== undefined ? catalog.length : K_SEED.length;
+  // SEED-NEUTRE (verifier) — no catalog means NO LIVE SHOP, and a shop that
+  // does not exist has zero articles. The K_SEED fallback printed « 8
+  // articles » on the first-run K1 row — a demo number on the exact surface
+  // this slice cleaned.
+  const catalogTotal = catalog !== undefined ? catalog.length : 0;
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
   // PERSONNALISER-REAL-1 — HER shop arrives asynchronously (the service read
@@ -534,7 +537,7 @@ function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnc
     { key: 'k2', glyph: <Text style={S.rowGlyphText}>Aa</Text>, title: t('k.row.identite'), sub: sf.tagline || t('k.row.identite_sub') },
     { key: 'k3', glyph: <IconCamera size={18} color={SHOP.deep} />, title: t('k.row.cover'), sub: coverSub },
     { key: 'k4', glyph: <Text style={S.rowGlyphText}>◐</Text>, title: t('k.row.theme'), sub: sf.theme === 'laterite' ? tf('k.row.theme_defaut', { nom: th.name }) : th.name },
-    { key: 'k5', glyph: <IconStarK size={18} filled={false} />, title: t('k.row.une'), sub: tf('k.row.une_sub', { n: String(sf.featuredItems.length), total: String(catalogTotal ?? K_SEED.length) }) },
+    { key: 'k5', glyph: <IconStarK size={18} filled={false} />, title: t('k.row.une'), sub: tf('k.row.une_sub', { n: String(sf.featuredItems.length), total: String(catalogTotal) }) },
     // SECTIONS RETIRÉES (founder order, 2026-08-13) — the « Sections » row left
     // with its two screens; the canon `sections` FIELD stays, and the aperçu
     // below keeps grouping by it for buyer parity.
