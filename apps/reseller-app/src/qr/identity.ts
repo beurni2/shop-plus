@@ -16,7 +16,9 @@
 export const QR_ORIGIN = 'https://beurni2.github.io';
 export const QR_BASE = '/shop-plus';
 
-/** The canon identity URL the QR encodes — pinned to canon shortCodeToSlug in test. */
+/** The canon-form SAMPLE URL, pinned to canon shortCodeToSlug in test. Since
+ *  PARTAGER-PRO the screen encodes HER live boutique URL — this constant's only
+ *  consumers are the encoder/canon-form tests, which need one stable sample. */
 export const DEMO_QR_URL = 'https://beurni2.github.io/shop-plus/v/aicha-4821';
 
 /**

@@ -2118,7 +2118,35 @@ export default function App() {
             keeps its own card below — a gated demo surface, journalled. */}
         {screen === 'lien' && (
           <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
-            {partage !== null ? (
+            {/* PRECEDENCE (verifier finding, fixed once): the campaign arm comes
+                FIRST. The badge is the discriminator — every Cercle hand-off
+                sets it true, the vitrine's Partager sets it false — but shareId
+                is never cleared, so a product-first ternary would shadow the
+                campaign card for anyone who ever shared a product. */}
+            {campShare !== null ? (
+              /* CERCLE'S CAMPAIGN CARD — the gated demo surface (SP9) sharing
+                 its pack. It keeps its own preview and nothing of the real
+                 sections below: mixing demo campaign money with her real links
+                 on one screen is how a mock sneaks back. Journalled. */
+              <Card>
+                <Overline>{t('share.og_titre')}</Overline>
+                <Text style={styles.cardTitle}>{cercleProduit(campShare.pid).name}</Text>
+                <Text style={styles.shareHeroPrice}>
+                  {tf('share.prix', { amount: formatFcfa(cercleProduit(campShare.pid).B + cercleProduit(campShare.pid).marge) })}
+                </Text>
+                <Text style={styles.campagneLigne}>
+                  {campShare.K === 1000
+                    ? tf('ce.d5_ligne_offerte', { zone: campShare.zone })
+                    : tf('ce.d5_ligne', { part: formatFcfa(1000 - campShare.K), zone: campShare.zone })}
+                </Text>
+                <Text style={styles.netCarte}>
+                  {tf('ce.d5_net_carte', { amount: formatFcfa(cercleProduit(campShare.pid).netNormal - campShare.K) })}
+                </Text>
+                <View style={styles.ogBadgeRow}>
+                  <StatusChip tone="ok" label={t('share.livre_sera')} />
+                </View>
+              </Card>
+            ) : partage !== null ? (
               <>
                 {/* the client PREVIEW — what she is about to send, exactly. HER
                     shop name, HER price, today's date. Never the net, never a
@@ -2188,29 +2216,6 @@ export default function App() {
                   <SecondaryButton label={t('share.qr_imprimer')} onPress={imprimerQr} />
                 </Card>
               </>
-            ) : campShare !== null ? (
-              /* CERCLE'S CAMPAIGN CARD — the gated demo surface (SP9) sharing
-                 its pack. It keeps its own preview and nothing of the real
-                 sections above: mixing demo campaign money with her real links
-                 on one screen is how a mock sneaks back. Journalled. */
-              <Card>
-                <Overline>{t('share.og_titre')}</Overline>
-                <Text style={styles.cardTitle}>{cercleProduit(campShare.pid).name}</Text>
-                <Text style={styles.shareHeroPrice}>
-                  {tf('share.prix', { amount: formatFcfa(cercleProduit(campShare.pid).B + cercleProduit(campShare.pid).marge) })}
-                </Text>
-                <Text style={styles.campagneLigne}>
-                  {campShare.K === 1000
-                    ? tf('ce.d5_ligne_offerte', { zone: campShare.zone })
-                    : tf('ce.d5_ligne', { part: formatFcfa(1000 - campShare.K), zone: campShare.zone })}
-                </Text>
-                <Text style={styles.netCarte}>
-                  {tf('ce.d5_net_carte', { amount: formatFcfa(cercleProduit(campShare.pid).netNormal - campShare.K) })}
-                </Text>
-                <View style={styles.ogBadgeRow}>
-                  <StatusChip tone="ok" label={t('share.livre_sera')} />
-                </View>
-              </Card>
             ) : (
               /* NO LIVE PRODUCT AND NO SHOP — the honest guard. A screen that
                  invented a link here would print a stranger's demo shop, which
