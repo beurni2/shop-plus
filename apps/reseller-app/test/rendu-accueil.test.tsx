@@ -184,6 +184,37 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
     screen.unmount();
   });
 
+  it('CTA-ENTIÈRE — the label stands alone on the button, and the tagline is said ONCE', async () => {
+    /**
+     * FOUNDER, 2026-08-17, from his phone: « the "trouver des produits à
+     * vendre" the end is cut, and also remove the little cube ». The button was
+     * a `flexDirection: 'row'` box with NO horizontal padding, and RN defaults
+     * `flexShrink: 0` — so the icon took its width first and the label, unable
+     * to shrink or wrap, ran past the button and was clipped mid-word.
+     *
+     * WHAT THIS WALK MAY AND MAY NOT SAY: it can count the cube (a component
+     * in the tree) and count how many times a sentence is printed (content).
+     * It may NOT claim the label is un-clipped — that is layout, which no walk
+     * in this repo is allowed to assert; the box's own shape is pinned in
+     * `ui-kit.test.ts`, and his eyes on the phone are the last check.
+     */
+    const screen = await surAccueil();
+    const { IconProduits } = await import('../src/ui/icons');
+    // The ONE cube left on the accueil is the dock's « Opportunités » tab —
+    // a canon tab glyph paired with its label. The button carries none.
+    expect(
+      screen.tree.root.findAllByType(IconProduits),
+      'the cube is back on the button (the dock tab is the only one allowed)',
+    ).toHaveLength(1);
+    // The tagline was printed TWICE — once as header chrome, once under
+    // « Bonjour ». One screen, one sentence.
+    const fois = screen.texts().filter((s) => s.includes('Choisissez de beaux produits')).length;
+    expect(fois, 'the tagline is printed more than once').toBe(1);
+    // …and the primary action still says its whole sentence, and still works.
+    expect(screen.canPress('Trouver des produits à vendre')).toBe(true);
+    screen.unmount();
+  });
+
   it('the Cercle card invites without inventing a number — and still opens the hub', async () => {
     const screen = await surAccueil();
     expect(screen.shows('Vendez ensemble, dans votre quartier.')).toBe(true);

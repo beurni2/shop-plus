@@ -1399,11 +1399,11 @@ export default function App() {
               </View>
             </View>
 
-            {/* Greeting hero (Bricolage 800/28) + tagline — « Bonjour », plain:
-                the app knows her SHOP, not her first name, and a borrowed name
-                is worse than none. */}
+            {/* Greeting hero — « Bonjour », plain: the app knows her SHOP, not
+                her first name, and a borrowed name is worse than none. The
+                tagline that stood here is REMOVED: the header already says it,
+                two lines above, so the screen printed one sentence twice. */}
             <Text style={styles.greeting}>{t('accueil.bonjour')}</Text>
-            <Text style={styles.homeTagline}>{t('accueil.tagline')}</Text>
 
             {/* ACCUEIL-HONESTY-1 — the ledger cards, from her REAL ladder.
                 Every figure here is a sum of amounts copied off frozen quotes
@@ -1432,10 +1432,11 @@ export default function App() {
               </Card>
             )}
 
-            {/* Primary CTA — accent, Bricolage 700/16 + canon IconProduits (frame's decorative
-                sparkle is not a canon glyph — the 29-icon set is geometry-locked; divergence listed). */}
+            {/* Primary CTA (founder, 2026-08-17: « the end is cut … remove the
+                little cube »). The label now stands alone in a padded, centred
+                box — the kit's own button geometry — so a long French sentence
+                wraps inside the button instead of running past its edge. */}
             <Pressable style={({ pressed }) => [styles.sparkleCta, pressed && styles.pressed]} onPress={() => go('opportunites')} accessibilityRole="button">
-              <IconProduits size={dimension.iconSizePx.tab} color={shopColour.onPrimary} />
               <Text style={styles.sparkleCtaText}>{t('accueil.cta_trouver')}</Text>
             </Pressable>
 
@@ -2710,7 +2711,6 @@ const styles = StyleSheet.create({
   homeSubName: { flexShrink: 1, color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   homeSubZone: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   greeting: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.screen.size, fontWeight: w(t2.scale.screen.wght) },
-  homeTagline: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   homeStatGrid: { flexDirection: 'row', gap: spacing.md },
   ledgerCard: { flex: 1 },
   // ACCESS-GATE-1 — the entrance. Generous, centred, nothing else on it.
@@ -2721,20 +2721,28 @@ const styles = StyleSheet.create({
   // ACCUEIL-HONESTY-1 — the no-figure block. Full width because it replaces
   // BOTH cards: half a grid with one card in it would read as a figure that
   // failed to load, which is the opposite of what it says.
-  ledgerSilence: { gap: spacing.xs, alignItems: 'flex-start' },
+  // `alignItems: 'flex-start'` left with the button that once sat here
+  // (ACCESS-GATE-1). On a card holding only sentences it did one thing: size
+  // each line to its own intrinsic width, so a sentence longer than the card
+  // could not wrap and would be clipped — the same defect as the CTA above.
+  ledgerSilence: { gap: spacing.xs },
   ledgerMoneyDeep: { color: shopColour.deep, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.cardMoney.size, fontWeight: w(t2.scale.cardMoney.wght), fontVariant: ['tabular-nums'] },
   ledgerMoney: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.cardMoney.size, fontWeight: w(t2.scale.cardMoney.wght), fontVariant: ['tabular-nums'] },
   ledgerCardSub: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size },
+  // CTA-ENTIÈRE — the kit's `buttonBase` geometry, verbatim: centred, PADDED,
+  // and NOT a row. As a row with no horizontal padding, the label (flexShrink
+  // defaults to 0 in RN) could neither shrink nor wrap and was clipped
+  // mid-word at the button's edge — the founder's « the end is cut ».
   sparkleCta: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
     minHeight: touch.minTargetPx + spacing.sm,
     borderRadius: radius.button,
     backgroundColor: shopColour.primary,
   },
-  sparkleCtaText: { color: shopColour.onPrimary, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
+  sparkleCtaText: { color: shopColour.onPrimary, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght), textAlign: 'center' },
   homeSectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm },
   toutVoirPill: {
     minHeight: spacing.xl + spacing.sm,

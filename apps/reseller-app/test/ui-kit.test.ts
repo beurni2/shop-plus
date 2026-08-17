@@ -224,6 +224,33 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(app).not.toMatch(/icon: '[^a-zA-Z]/);
   });
 
+  it('CTA-ENTIÈRE — no accueil box makes its own text unwrappable (founder: « the end is cut »)', () => {
+    const app = read('App.tsx');
+    /**
+     * THE MECHANISM, pinned where layout claims belong (a RENDU walk may never
+     * assert layout). React Native defaults `flexShrink` to 0, so a Text in a
+     * `flexDirection: 'row'` box takes its full single-line width and is
+     * clipped by the box instead of wrapping. The accueil's primary CTA was
+     * exactly that — a row, with NO horizontal padding — and his phone showed
+     * « Trouver des produits à vendr ».
+     */
+    const cta = /sparkleCta: \{[^}]*\}/.exec(app)?.[0] ?? '';
+    expect(cta, 'the sparkleCta style block must be found').not.toBe('');
+    expect(cta, 'a row makes the label unwrappable').not.toMatch(/flexDirection: 'row'/);
+    expect(cta, 'without horizontal padding the label touches the edge').toMatch(/paddingHorizontal: spacing\.lg/);
+    expect(app).toMatch(/sparkleCtaText: \{[^}]*textAlign: 'center'/);
+
+    // The SAME defect, one card up: `alignItems: 'flex-start'` sizes every
+    // child to its own intrinsic width, so a longer honest-silence sentence
+    // could not wrap either. It left with the button it was written for.
+    const silence = /ledgerSilence: \{[^}]*\}/.exec(app)?.[0] ?? '';
+    expect(silence, 'the ledgerSilence style block must be found').not.toBe('');
+    expect(silence, 'flex-start makes each sentence intrinsic-width').not.toMatch(/alignItems/);
+
+    // ONE sentence, said once: the hero tagline that duplicated the header is gone.
+    expect(app).not.toMatch(/styles\.homeTagline/);
+  });
+
   it('the kit imports stay inside the RN + tokens world (banned-import law extended to the kit)', () => {
     const BANNED = /@platform\/contracts|@platform\/i18n|@shop-plus\/commerce-core|^node:/;
     const kit = read('src/ui/kit.tsx');
