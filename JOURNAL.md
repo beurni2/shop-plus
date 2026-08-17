@@ -4377,3 +4377,19 @@ The audit of my own claims found three fixes with no test that would catch their
 - *(fixed)* my new comment claimed no scroll surface in the app had `keyboardShouldPersistTaps`; `EcranCompte` already did.
 
 **Status: pushed to `claude/buyer-pwa-standing-laws-nerljz-ue7lpy`, waiting on the founder's word to merge and deploy** (2026-08-10 order).
+
+### 2026-08-15 · CLAVIER-K2 — the keypad comes off the identité form
+
+**FOUNDER: « fix K2 »**, after I named it as the one LIVE screen left with the bug he had just reported on the fiche. Personnaliser → Identité carries four fields — nom, quartier, tagline and a **multiline bio** — with « Enregistrer » beneath them, so on an iPhone the keypad landed on the bio and the save button together.
+
+**The whole customize module had ZERO keyboard handling** — not one of its scroll surfaces yielded an inch or let a tap through. Android was already covered by the shell wrapper CLAVIER-MARGE added; iOS was not, because that wrapper is deliberately inert there and the iOS half lives on the scroll surface itself. K2's surface now carries `automaticallyAdjustKeyboardInsets` + `keyboardShouldPersistTaps="handled"`, and every field asks to be lifted **with 140 of slack below it** on focus — because the inset prop alone only brings the CARET to the keyboard's edge, which would have left « Enregistrer » underneath.
+
+**⚠ THE MONEY TRAP FROM CLAVIER-MARGE WAS CHECKED HERE, NOT ASSUMED.** `keyboardShouldPersistTaps="handled"` means her first tap no longer blurs the field — which on the fiche silently published a markup of 0, because that field committed on blur alone. **K2 is safe: its four fields write live through `onChange`, and `CountedField`'s blur-time `onCommit` is not passed by this screen** (it is declared but has no caller anywhere in the file). Verified before the prop went on, and stated at the call site so the next person does not have to re-derive it.
+
+**A WEAK ASSERTION OF MY OWN, caught by mutation rather than by review.** The walk first checked « each field has an `onFocus` » — which `CountedField` has always had, for its focus ring — so removing the lift entirely left it green. It now asserts the screen's lift handler is PASSED to all four fields, and reddens when it is not. **The first mutation run was also worthless and I nearly recorded it as passing:** my anchors matched the prop NAMES inside the new docblock, not the JSX, so `replace(…, 1)` edited a comment. Re-run against the real props, both mutations redden.
+
+**Evidence:** shop-plus **23/23 tasks** (reseller-app **634**) · typecheck 19/19 · `run-gates.sh` **ALL GATES GREEN** exit 0. **Mutations, anchor-verified on the JSX:** (1) both scroll props removed → the walk reddens · (2) the four `onFocusField` handlers removed → the walk reddens.
+
+**Still not fixed, and deliberately: `EcranCompte` and `EcranAdmission`.** I had reported all three as live; they are not. Both sit behind the access gate, and `gateArme()` reads `EXPO_PUBLIC_ACCESS_GATE === 'on'`, which appears in **no workflow, no `app.json`, no env file** — so `decideAcces` returns « ouvert » and neither screen renders in any build shipping today. `EcranAdmission` is the worse of the two structurally (a plain `View`, no scroll surface at all, so nothing can move out from under a keypad) and should be fixed as part of ARMING the gate, when it can actually be exercised on a device. Correcting my own overstatement here rather than leaving it in the record.
+
+**Status: pushed to `claude/buyer-pwa-standing-laws-nerljz-ue7lpy`, waiting on the founder's word to merge and deploy** (2026-08-10 order).

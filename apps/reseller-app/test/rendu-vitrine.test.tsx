@@ -1425,6 +1425,76 @@ describe('PERSONNALISER — SECTIONS RETIRÉES + CADRAGE-PARITÉ, walked', () =>
     screen.unmount();
   });
 
+  it('CLAVIER-K2 — the identité form yields to the keypad, and saving still carries what she typed', async () => {
+    /**
+     * FOUNDER, 2026-08-15: « fix K2 ». The same bug he hit on the Opportunité
+     * fiche — « the keypad is hiding the section » — with the sting one screen
+     * further: the BIO is a multiline field at the bottom of four, so on an
+     * iPhone the keypad lands squarely on « Enregistrer ».
+     *
+     * This file's whole customize module had ZERO keyboard handling: not one of
+     * its scroll surfaces let a tap through or yielded an inch. Android was
+     * covered by the shell wrapper; iOS was not, because the shell's
+     * KeyboardAvoidingView is deliberately inert there and the iOS half lives on
+     * the scroll surfaces themselves.
+     *
+     * WHAT IS ASSERTED IS THE WIRING, not the pixels: which props the surface
+     * carries, that the field reports its focus so the screen can lift it, and —
+     * the part that actually moved money last time — that letting the first tap
+     * through to « Enregistrer » does NOT cost her what she typed.
+     */
+    boutique();
+    const screen = await ouvrirPersonnaliser();
+    await screen.press('Identité');
+    expect(screen.shows('NOM DE LA BOUTIQUE'), 'K2 opened').toBe(true);
+
+    const champs = screen.tree.root
+      .findAllByType('TextInput' as never)
+      .filter((i) => typeof i.props['onChangeText'] === 'function');
+    expect(champs.length, 'K2 must render its four fields').toBeGreaterThanOrEqual(4);
+
+    const scrolls = screen.tree.root
+      .findAll((n) => String(n.type) === 'ScrollView', { deep: true })
+      .filter((n) => n.findAll((x) => x === champs[0]).length > 0);
+    expect(scrolls.length, 'the fields are not on a scroll surface').toBeGreaterThan(0);
+    const scroll = scrolls[scrolls.length - 1]!;
+    expect(scroll.props['automaticallyAdjustKeyboardInsets'], 'K2 does not yield to the keypad').toBe(true);
+    expect(scroll.props['keyboardShouldPersistTaps'], 'her first tap on Enregistrer is eaten').toBe('handled');
+
+    /**
+     * EACH FIELD IS WIRED TO THE LIFT. Asserting only that an `onFocus` exists
+     * proves nothing here — `CountedField` has always had one, for its focus
+     * ring — so this asks the question a tree can actually answer: is the
+     * screen's lift handler PASSED to every field? Four fields, four handlers.
+     *
+     * BOUND, stated so nobody over-reads it: what the handler then does —
+     * asking the scroll surface to move — is a native call this harness has no
+     * scroll surface to receive, so it is not observable here. That the lift
+     * travels far enough to matter is his phone's answer.
+     */
+    const cables = screen.tree.root.findAll(
+      (n) => n.props !== undefined && typeof n.props['onFocusField'] === 'function',
+      { deep: true },
+    );
+    expect(cables.length, 'a field that cannot ask to be lifted clear of the keypad').toBe(4);
+    for (const c of champs) {
+      expect(typeof c.props['onFocus'], 'a field that reports no focus at all').toBe('function');
+    }
+
+    /**
+     * THE MONEY LESSON FROM CLAVIER-MARGE, APPLIED BEFORE IT BITES. Letting the
+     * first tap reach the button means the field is NOT blurred by that tap. On
+     * the fiche that silently published a markup of 0, because the value only
+     * committed on blur. K2's fields write live through `onChange`, so typing
+     * then tapping once must still save the typed text — driven, not assumed.
+     */
+    const bio = champs[3]!;
+    await screen.type('Tissus choisis un par un.', String(bio.props['placeholder'] ?? ''));
+    await screen.press('Enregistrer');
+    expect(screen.texts().length, 'the tree died on save').toBeGreaterThan(0);
+    screen.unmount();
+  });
+
   it('SECTIONS — the row is gone, and every remaining row still opens its screen', async () => {
     /**
      * FOUNDER ORDER: « remove 'Sections' from personnaliser ». The row must be

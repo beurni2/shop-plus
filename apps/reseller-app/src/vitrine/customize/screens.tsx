@@ -19,7 +19,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, findNodeHandle, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { t, tf } from '../../i18n';
 import {
@@ -662,13 +662,45 @@ function K2({ sf, onBack, onSave }: { sf: Storefront; onBack: () => void; onSave
   const nameInvalid = name.trim().length < NAME_MIN; // K2b state
   const zoneInvalid = zone.trim().length === 0;
   const invalid = nameInvalid || zoneInvalid;
+  /**
+   * CLAVIER-K2 (founder, 2026-08-15: « fix K2 ») — THE KEYPAD COMES OFF THE FORM.
+   *
+   * This module had no keyboard handling at all: not one of its scroll surfaces
+   * yielded an inch or let a tap through. The app shell's KeyboardAvoidingView
+   * covers Android; it is deliberately inert on iOS, where the work is done by
+   * the scroll surface itself — so on an iPhone the keypad sat on the BIO, the
+   * multiline field at the bottom of four, and on « Enregistrer » beneath it.
+   *
+   * `automaticallyAdjustKeyboardInsets` only brings the CARET to the keyboard's
+   * edge, which would leave the save button underneath, so the focused row also
+   * asks to be lifted with slack below it — the same pair the fiche uses.
+   *
+   * `keyboardShouldPersistTaps="handled"` is SAFE HERE, and that is checked
+   * rather than assumed: these four fields write live through `onChange`, and
+   * `CountedField`'s blur-time `onCommit` is not passed by this screen. On the
+   * fiche the same prop published a markup of 0 precisely because that field
+   * committed on blur alone.
+   */
+  const liste = useRef<ScrollView>(null);
+  /** Enough for the field below plus « Enregistrer » and the pad under it. */
+  const SOUS_LE_CHAMP = 140;
+  const lever = (handle: number | null): void => {
+    if (handle === null) return;
+    liste.current?.scrollResponderScrollNativeHandleToKeyboard?.(handle, SOUS_LE_CHAMP, true);
+  };
   return (
-    <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
+    <ScrollView
+      ref={liste}
+      style={S.screen}
+      contentContainerStyle={S.scrollPad}
+      automaticallyAdjustKeyboardInsets
+      keyboardShouldPersistTaps="handled"
+    >
       <KHeader title={t('k.identite.title')} onBack={onBack} />
-      <CountedField label={t('k.identite.nom_label')} value={name} max={24} onChange={setName} invalid={nameInvalid} invalidNote={t('k.identite.nom_requis')} />
-      <CountedField label={t('k.identite.zone_label')} value={zone} max={ZONE_MAX} onChange={setZone} placeholder={t('k.identite.zone_ph')} invalid={zoneInvalid} invalidNote={t('k.identite.zone_requise')} />
-      <CountedField label={t('k.identite.tagline_label')} value={tagline} max={40} onChange={setTagline} placeholder={t('k.identite.tagline_ph')} />
-      <CountedField label={t('k.identite.bio_label')} value={bio} max={160} onChange={setBio} placeholder={t('k.identite.bio_ph')} multiline />
+      <CountedField label={t('k.identite.nom_label')} value={name} max={24} onChange={setName} onFocusField={lever} invalid={nameInvalid} invalidNote={t('k.identite.nom_requis')} />
+      <CountedField label={t('k.identite.zone_label')} value={zone} max={ZONE_MAX} onChange={setZone} onFocusField={lever} placeholder={t('k.identite.zone_ph')} invalid={zoneInvalid} invalidNote={t('k.identite.zone_requise')} />
+      <CountedField label={t('k.identite.tagline_label')} value={tagline} max={40} onChange={setTagline} onFocusField={lever} placeholder={t('k.identite.tagline_ph')} />
+      <CountedField label={t('k.identite.bio_label')} value={bio} max={160} onChange={setBio} onFocusField={lever} placeholder={t('k.identite.bio_ph')} multiline />
       <View style={S.noteRose}>
         <Text style={S.noteRoseText}>{tf('k.identite.note_slug', { slug: `/v/${sf.slug}` })}</Text>
       </View>
@@ -685,8 +717,9 @@ function K2({ sf, onBack, onSave }: { sf: Storefront; onBack: () => void; onSave
   );
 }
 
-function CountedField({ label, value, max, onChange, onCommit, placeholder, multiline, invalid, invalidNote }: { label: string; value: string; max: number; onChange: (v: string) => void; onCommit?: (v: string) => void; placeholder?: string; multiline?: boolean; invalid?: boolean; invalidNote?: string }) {
+function CountedField({ label, value, max, onChange, onCommit, placeholder, multiline, invalid, invalidNote, onFocusField }: { label: string; value: string; max: number; onChange: (v: string) => void; onCommit?: (v: string) => void; placeholder?: string; multiline?: boolean; invalid?: boolean; invalidNote?: string; onFocusField?: ((handle: number | null) => void) | undefined }) {
   const [focused, setFocused] = useState(false);
+  const champ = useRef<TextInput>(null);
   return (
     <View style={S.field}>
       <View style={S.fieldHead}>
@@ -694,6 +727,7 @@ function CountedField({ label, value, max, onChange, onCommit, placeholder, mult
         <Text style={[S.fieldCount, value.length >= max && S.fieldCountLimit]}>{value.length}/{max}</Text>
       </View>
       <TextInput
+        ref={champ}
         style={[S.fieldInput, multiline && S.fieldInputMulti, focused && S.fieldInputFocus, invalid && S.fieldInputError]}
         value={value}
         maxLength={max}
@@ -701,7 +735,12 @@ function CountedField({ label, value, max, onChange, onCommit, placeholder, mult
         placeholder={placeholder}
         placeholderTextColor="#8A7D6B"
         multiline={multiline}
-        onFocus={() => setFocused(true)}
+        onFocus={() => {
+          setFocused(true);
+          // CLAVIER-K2 — the screen owns the scroll surface and is the only
+          // thing that can lift THIS row clear of the keypad.
+          onFocusField?.(findNodeHandle(champ.current));
+        }}
         onBlur={() => {
           setFocused(false);
           // The COMMIT point (verifier finding): typing is local, leaving the
