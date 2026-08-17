@@ -745,10 +745,17 @@ export default function App() {
       if (created.value.slug === null || created.value.slug === '') {
         return setToast(t('k.publier.en_ligne_sans_slug'));
       }
+      // ACCUEIL-PRO (verifier) — adopt the created storefront off the create
+      // response itself. With only `liveShop` set, the accueil's honest-absent
+      // sentence could outlive the publish (the vitrine re-read is dropped when
+      // she leaves the screen early) and tell her to create the shop the toast
+      // just confirmed. The response IS a read-back; the adopter's updatedAt
+      // guard keeps ordering deterministic.
+      if (created.value.storefront !== undefined) adopterStorefront(created.value.storefront);
       setLiveShop({ slug: created.value.slug }); // the create response IS a read-back
       setToast(tf('k.publier.en_ligne', { slug: created.value.slug }));
     },
-    [service, identity],
+    [service, identity, adopterStorefront],
   );
   const listOnline = useCallback(async () => {
     // Same honesty on the read side: an unconfigured build cannot list what is online,

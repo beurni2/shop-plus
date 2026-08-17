@@ -67,7 +67,7 @@ const routes: Route[] = [
       : null,
   (path) =>
     path === '/storefronts'
-      ? { status: 200, json: [{ id: SF_ID, slug: SLUG, name: NOM }] as never }
+      ? { status: 200, json: [{ id: SF_ID, slug: SLUG, name: NOM, discoverable: true }] as never }
       : null,
   (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: storefront() as never } : null),
 ];
@@ -190,7 +190,85 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
     expect(screen.texts().join(' | '), 'no member count on the home card').not.toContain('membres');
     await screen.press('Mon Cercle');
     await screen.settle();
-    expect(screen.texts().length, 'the tree died opening the Cercle hub').toBeGreaterThan(0);
+    /**
+     * The HUB's own subtitle, not `texts().length > 0` — that count is
+     * permanently satisfied by the accueil's own texts (the exact defect
+     * rendu-opportunites already convicted for the dock tabs), and `go()`
+     * returns silently on a missing journey edge, so only a hub-exclusive
+     * byte proves the card actually navigated.
+     */
+    expect(
+      screen.shows('vos membres, vos campagnes.'),
+      `the Cercle hub did not mount: ${JSON.stringify(screen.texts().slice(0, 12))}`,
+    ).toBe(true);
+    screen.unmount();
+  });
+
+  it('publishing her shop reaches the accueil in the same breath — never « Créez votre boutique » after « En ligne »', async () => {
+    /**
+     * The false state this closes (verifier): `publishOnline` set only
+     * `liveShop`; the accueil's honest-absent sentence answers to
+     * `liveStorefront`, whose only re-readers are the vitrine/personnaliser
+     * entry effects — and those DROP their in-flight answer when she leaves
+     * early. Publish, hop to the accueil before the re-read lands, and the
+     * screen told her to create the shop the toast just confirmed. The create
+     * response carries the canon storefront; the app now adopts it directly.
+     * This walk drives that exact journey.
+     */
+    /** THE PATCHY-2G WORLD, stated: before the create her id reads an honest
+     *  404; the create POST succeeds (the worker's decision carries the canon
+     *  storefront); and every read AFTER it FAULTS — the connection that had
+     *  one POST left in it, which is this market's ordinary weather. Only the
+     *  create response itself can tell the accueil the truth. (A dropped
+     *  in-flight read has the same shape; the fault is the drivable form —
+     *  the harness answers instantly, so a true mid-hop race cannot be held
+     *  open here, and this world is the honest equivalent.) */
+    let creee = false;
+    const monde: Route[] = [
+      routes[0]!,
+      (path, body) => {
+        if (path !== '/storefronts' || body === null) return null;
+        creee = true; // the worker's create decision, canon storefront inside
+        return { status: 200, json: { status: 'created', storefront: storefront() } as never };
+      },
+      (path, body) =>
+        path === '/storefronts' && body === null
+          ? creee
+            ? { status: 500, json: { error: 'indisponible' } }
+            : { status: 200, json: [] as never }
+          : null,
+      (path, body) =>
+        /^\/storefronts\/[^/]+\/publish$/.test(path) && body !== null
+          ? { status: 200, json: { status: 'published' } }
+          : null,
+      (path) =>
+        /^\/storefronts\/[^/]+$/.test(path)
+          ? creee
+            ? { status: 500, json: { error: 'indisponible' } }
+            : { status: 404, json: { error: 'not_found' } }
+          : null,
+    ];
+    wire(monde);
+    const screen = await mountApp();
+    await screen.settle();
+    expect(screen.shows('Créez votre boutique dans « Ma Vitrine ».'), 'the walk must START from the honest absence').toBe(true);
+
+    await screen.press('Ma Vitrine');
+    await screen.settle();
+    await screen.press('Personnaliser ma boutique');
+    await screen.settle();
+    await screen.press('Mettre ma boutique en ligne');
+    await screen.settle();
+    expect(screen.shows('En ligne : boutique-0001'), 'the publish toast must land first').toBe(true);
+
+    // Leave the customize stack (no dock there), then hop home by the tab.
+    await screen.press('← Retour');
+    await screen.settle();
+    await screen.press('Accueil');
+    await screen.settle();
+    const lu = screen.texts().join(' | ');
+    expect(lu, 'the accueil must show the shop the service just confirmed').toContain(NOM);
+    expect(lu, 'the create-your-shop sentence outlived the publish').not.toContain('Créez votre boutique');
     screen.unmount();
   });
 });

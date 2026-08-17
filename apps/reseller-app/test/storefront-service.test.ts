@@ -84,7 +84,13 @@ describe('HttpStorefrontService — the request the app WOULD send', () => {
     const calls = stubFetch(200, { status: 'created', storefront: { slug: 'boutik-0007' } });
     const svc = new HttpStorefrontService('https://sf.example.dev/', 'SECRET-KEY');
     const r = await svc.create(CMD);
-    expect(r).toEqual({ ok: true, value: { status: 'created', slug: 'boutik-0007' } });
+    // ACCUEIL-PRO — the create value now HANDS THROUGH the decision's
+    // storefront (validated by its slug), so the caller can adopt the
+    // read-back instead of leaving the accueil to claim she has no shop.
+    expect(r).toEqual({
+      ok: true,
+      value: { status: 'created', slug: 'boutik-0007', storefront: { slug: 'boutik-0007' } },
+    });
     expect(calls[0]!.url).toBe('https://sf.example.dev/storefronts');
     expect(calls[0]!.init.method).toBe('POST');
     expect((calls[0]!.init.headers as Record<string, string>)[WRITE_KEY_HEADER]).toBe('SECRET-KEY');

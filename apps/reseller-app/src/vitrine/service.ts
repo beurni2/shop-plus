@@ -193,7 +193,7 @@ export interface StorefrontIdentityPatch {
 }
 
 export interface StorefrontServicePort {
-  create(cmd: CreateStorefrontCommand): Promise<ServiceResult<{ status: string; slug: string | null }>>;
+  create(cmd: CreateStorefrontCommand): Promise<ServiceResult<{ status: string; slug: string | null; storefront?: Storefront }>>;
   /** PERSONNALISER-REAL-1 — HER shop as the service holds it. `undefined` value =
    *  the honest not-found (no shop under that id yet), never a fabricated seed. */
   getById(id: string): Promise<ServiceResult<Storefront | undefined>>;
@@ -300,7 +300,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
     return { [WRITE_KEY_HEADER]: this.writeKey, ...extra };
   }
 
-  private async postJson(path: string, body: unknown): Promise<ServiceResult<{ status: string; slug: string | null }>> {
+  private async postJson(path: string, body: unknown): Promise<ServiceResult<{ status: string; slug: string | null; storefront?: Storefront }>> {
     let res: Response;
     try {
       res = await fetch(`${this.base}${path}`, {
@@ -311,12 +311,26 @@ export class HttpStorefrontService implements StorefrontServicePort {
     } catch {
       return { ok: false, reason: 'offline' };
     }
-    const data = (await res.json().catch(() => null)) as { status?: string; storefront?: { slug?: string } } | null;
+    const data = (await res.json().catch(() => null)) as { status?: string; storefront?: Storefront } | null;
     if (!res.ok) return { ok: false, reason: `http_${res.status}` };
-    return { ok: true, value: { status: data?.status ?? 'ok', slug: data?.storefront?.slug ?? null } };
+    // ACCUEIL-PRO (verifier) — the worker's create decision carries HER canon
+    // storefront; hand it through (validated the same way getById validates)
+    // so the caller can adopt the read-back. Without it, only `liveShop` moves
+    // on publish and a dropped re-read leaves the accueil telling her to
+    // create the shop she just put online.
+    const sf = data?.storefront;
+    const canon = sf !== undefined && typeof sf.slug === 'string' ? sf : undefined;
+    return {
+      ok: true,
+      value: {
+        status: data?.status ?? 'ok',
+        slug: data?.storefront?.slug ?? null,
+        ...(canon !== undefined ? { storefront: canon } : {}),
+      },
+    };
   }
 
-  create(cmd: CreateStorefrontCommand): Promise<ServiceResult<{ status: string; slug: string | null }>> {
+  create(cmd: CreateStorefrontCommand): Promise<ServiceResult<{ status: string; slug: string | null; storefront?: Storefront }>> {
     return this.postJson('/storefronts', cmd);
   }
 
