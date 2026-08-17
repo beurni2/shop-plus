@@ -60,16 +60,19 @@ describe('QrCode.tsx source discipline — tokens, the RN renderer, the real-ori
     expect(qrSource).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
 
-  it('defaults to DEMO_QR_URL and bakes no domain of its own', () => {
-    expect(qrSource).toMatch(/from '\.\/identity'/);
-    expect(qrSource).toMatch(/url = DEMO_QR_URL/);
-    expect(qrSource).not.toMatch(/https?:\/\//); // the URL lives in identity.ts, not here
+  it('the url is REQUIRED — no demo default, no baked domain (PARTAGER-PRO)', () => {
+    // PARTAGER-PRO — the DEMO_QR_URL default is retired: a call site that
+    // forgot the prop used to draw a scannable QR to a shop that is not hers.
+    // The compiler now refuses the omission instead.
+    expect(qrSource).toMatch(/\{ url \}: \{ url: string \}/);
+    expect(qrSource).not.toMatch(/DEMO_QR_URL/);
+    expect(qrSource).not.toMatch(/https?:\/\//); // the URL arrives from identity.ts builders, never lives here
   });
 });
 
 describe('the hub wiring — the QR card sends the canon vitrine, with a no-scan door', () => {
-  it('App renders <QrCode url={DEMO_QR_URL}/> and bakes no live URL of its own', () => {
-    expect(appSource).toMatch(/<QrCode url=\{DEMO_QR_URL\}/);
+  it('App renders <QrCode url={partage.lienBoutique}/> — HER boutique, never the demo (PARTAGER-PRO)', () => {
+    expect(appSource).toMatch(/<QrCode url=\{partage\.lienBoutique\}/);
     expect(appSource).toMatch(/from '\.\/src\/qr\/identity'/);
     // no hand-typed https vitrine URL smuggled into the screen.
     expect(appSource).not.toMatch(/https:\/\/beurni2\.github\.io/);

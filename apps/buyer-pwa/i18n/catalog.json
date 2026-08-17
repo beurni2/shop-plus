@@ -996,6 +996,24 @@
   "screenClass": "label"
  },
  {
+  "key": "affiche.legende",
+  "fr": "Scannez \u2014 vous arrivez sur la boutique.",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "affiche.code",
+  "fr": "Ou tapez : {code}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "affiche.imprimer",
+  "fr": "Imprimer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.ne_street",
   "fr": "L\u2019esprit de la rue",
   "register": "selling",

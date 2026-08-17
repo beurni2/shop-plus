@@ -1,37 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { sharePidFor, SHARE_PID_BY_OPP } from '../src/demo/store.js';
 import { signedProductShareUrl, QR_ORIGIN, QR_BASE } from '../src/qr/identity.js';
 
 /**
  * BUG 3 — the reseller's CORE LOOP, gate-locked. Partager is opened FROM a
  * product; it must send the signed PRODUCT link `/s/{slug}?pid={productId}` so the
  * buyer opens THAT offer (it used to send `/v/` with no pid, so every share opened
- * the buyer's default product). These pin: the opportunity→product bridge, the URL
- * builder (base-aware, one canon `/s/{slug}?pid=` form), and the App wiring.
+ * the buyer's default product). These pin the URL builder (base-aware, one canon
+ * `/s/{slug}?pid=` form) and the App wiring. The o→p demo bridge (`sharePidFor`)
+ * that once stood between them is retired with the mocks (PARTAGER-PRO): the
+ * live screen's pid IS the productVersionId, no mapping in between.
  */
-
-describe('the shared product carries its pid (opportunity → buyer storefront bridge)', () => {
-  it('every shareable opportunity maps to a buyer storefront pid', () => {
-    // the seven demo opportunities each resolve to a p-form storefront pid
-    for (const id of ['o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7']) {
-      expect(sharePidFor(id)).toMatch(/^(p[0-9]+|k[0-9]+)$/);
-    }
-    // the exact semantic match is pinned (o5 « Chemise Faso Dan Fani » → p8), plus
-    // the anchors the buyer e2e opens
-    expect(sharePidFor('o5')).toBe('p8'); // exact-name twin
-    expect(sharePidFor('o1')).toBe('p2'); // Pagne wax → Pagne wax 6 yards
-    expect(sharePidFor('o7')).toBe('p4'); // Sandales → Sandales cuir homme
-    expect(sharePidFor('o3')).toBe('p3'); // Sac → Sac cuir artisanal (out of stock)
-    expect(SHARE_PID_BY_OPP).toEqual({ o1: 'p2', o2: 'p5', o3: 'p3', o4: 'p7', o5: 'p8', o6: 'k1', o7: 'p4' });
-  });
-
-  it('an unmapped id falls back to a real storefront pid (never empty)', () => {
-    expect(sharePidFor('zzz')).toBe('p1');
-    expect(sharePidFor('zzz')).not.toBe('');
-  });
-});
 
 describe('the product-share URL is the canon /s/{slug}?pid= buyer route, base-aware', () => {
   it('builds the real origin + base + /s/{slug}?pid={pid}', () => {
@@ -46,16 +26,15 @@ describe('the product-share URL is the canon /s/{slug}?pid= buyer route, base-aw
 });
 
 describe('the Partager screen sends the product link (App wiring)', () => {
-  it('App.tsx builds shareUrl from signedProductShareUrl(storeSlug, sharePidFor(shareOpp.id))', () => {
+  it('App.tsx builds the product link from HER live shop only — the demo bridge is retired (PARTAGER-PRO)', () => {
     const source = readFileSync(join(import.meta.dirname, '..', 'App.tsx'), 'utf8');
-    // the storefront slug is derived from the seam's /v/ slug, then the signed
-    // PRODUCT url is built with the shared product's pid
-    expect(source).toMatch(/signedProductShareUrl\(storeSlug, sharePidFor\(shareOpp\.id\)\)/);
-    // RESELLER-UX-1 item 5 — the LIVE branch comes FIRST: a live product shares
-    // HER live shop's signed link with the productVersionId as pid (no demo
-    // bridge), and only the demo world falls to sharePidFor. The old assertion
-    // pinned the demo lookup as the ONLY branch, which is the exact bug shipped.
-    expect(source).toMatch(/shareOffer !== undefined && liveShop !== null && liveShop !== undefined\n\s+\? signedProductShareUrl\(liveShop\.slug, shareOffer\.productVersionId\)/);
+    // PARTAGER-PRO (founder, 2026-08-15: « remove all the mocks ») — the demo
+    // fallback branch (`storeSlug` + `sharePidFor(shareOpp.id)`) is GONE from
+    // the screen: the ONE product link is the signed live one, and the demo
+    // lookup may not come back. The /s/{slug}?pid= route form itself stays
+    // pinned by the builder tests above.
+    expect(source).toMatch(/signedProductShareUrl\(liveShop\.slug, shareOffer\.productVersionId\)/);
+    expect(source).not.toMatch(/sharePidFor|storeSlug/);
     expect(source).toMatch(/const shareOffer = offers\.find\(\(o\) => o\.productVersionId === shareId\);/);
   });
 });

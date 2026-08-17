@@ -1,7 +1,6 @@
 import { Svg, Rect, Path } from 'react-native-svg';
 import { shopPlusTheme as theme, shopColour, dimension } from '@platform/ui-tokens/legacy';
 import { encodeQr } from './encoder';
-import { DEMO_QR_URL } from './identity';
 
 /**
  * WO-7.2b — the on-screen QR (ruling #10: RN draws the same maths via
@@ -22,7 +21,10 @@ export function qrSideDp(modules: number): number {
   return (modules + 2 * QUIET) * MOD;
 }
 
-export function QrCode({ url = DEMO_QR_URL }: { url?: string }) {
+// PARTAGER-PRO — `url` is REQUIRED. It used to default to the demo shop's
+// address, so a call site that forgot the prop drew a scannable QR to a shop
+// that is not hers — the worst kind of quiet mock.
+export function QrCode({ url }: { url: string }) {
   const qr = encodeQr(url);
   const side = qrSideDp(qr.size);
   const tick = MOD * 3; // 12 dp corner tick, drawn outside the quiet zone

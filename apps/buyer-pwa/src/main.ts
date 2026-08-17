@@ -892,6 +892,19 @@ if (app) {
     });
     app.append(main);
     })();
+  } else if (vitrineSlug && params.get('affiche') === 'qr') {
+    /**
+     * AFFICHE-QR (founder, 2026-08-15) — the boutique page in its PRINT dress:
+     * the reseller app's « Imprimer le code QR » lands here. Same query-param
+     * pattern as `apercu-nu` below — it changes what this one render draws and
+     * nothing that is stored. The poster module owns the sheet.
+     */
+    // Its own lazy chunk (the neighbours' `void (async …)` pattern): a cliente
+    // opening a shop never downloads a byte of the print sheet.
+    void (async () => {
+      const { mountAffiche } = await import('./affiche/poster');
+      mountAffiche(app as HTMLElement, vitrineSlug);
+    })();
   } else if (vitrineSlug) {
     const VIT_ETATS: readonly VitrineEtat[] = ['loading', 'ready', 'empty', 'offline', 'invalid'];
     const etatParam = params.get('demo-vitrine-etat');

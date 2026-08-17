@@ -51,6 +51,28 @@ export function apercuEnteteUrl(storeSlug: string, styleKey: string): string {
 }
 
 /**
+ * PARTAGER-PRO (founder, 2026-08-15) — her BOUTIQUE link, the durable one. The
+ * canon `/v/{slug}` page: every product, her name, her header — and it never
+ * changes, which is why it is the one she prints and puts in a bio. Base-aware
+ * by construction, exactly like the signed product URL above.
+ */
+export function boutiqueShareUrl(storeSlug: string): string {
+  return `${QR_ORIGIN}${QR_BASE}/v/${encodeURIComponent(storeSlug)}`;
+}
+
+/**
+ * The PRINTABLE QR poster — the boutique page in its `affiche=qr` dress, which
+ * the buyer PWA renders as a print-ready sheet (big QR, her name, the link,
+ * a print button). Printing goes through the BROWSER on purpose: a print shop
+ * in Ouaga prints from a link or a browser tab, not from a phone's AirPrint —
+ * and the browser's print dialog also saves a PDF she can send on WhatsApp.
+ * Same query-param dress pattern as `apercu-nu` above.
+ */
+export function afficheQrUrl(storeSlug: string): string {
+  return `${QR_ORIGIN}${QR_BASE}/v/${encodeURIComponent(storeSlug)}?affiche=qr`;
+}
+
+/**
  * The canon-form law: an identity URL the QR may encode is the real origin + base
  * + a canon `/v/{slug}` path — never the bare `/v/{prenom}` short form, never a
  * query string. This is the gate's discriminator (a planted `/v/aicha` fails).

@@ -335,7 +335,10 @@ describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)'
     // gone, and the D3/D5 deltas that DO have real carriers are still mounted.
     expect(app).toMatch(/<PendingHero label=\{t\(p\.titreKey\)\}/);
     expect(app).not.toMatch(/<GainsSaleCard/);
-    expect(app).toMatch(/campShare !== null &&/);
+    // PARTAGER-PRO — the campaign share card is now a ternary arm of the
+    // rebuilt Partager screen (demo-model card, kept standalone until SP9),
+    // no longer a `&&` block. Same mount, new spelling.
+    expect(app).toMatch(/campShare !== null \? \(/);
   });
 
   it('§8.1 — the dock has FIVE tabs, exact order and labels; Cercle between Ma Vitrine and Gains; two-heads icon verbatim', () => {

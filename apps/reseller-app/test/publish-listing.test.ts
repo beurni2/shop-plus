@@ -243,10 +243,16 @@ describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
   });
 
   it('ITEM 5 — the share preview reads the LIVE offer: name, client price, net, photo', () => {
-    expect(app).toMatch(/shareOffer\?\.productName \?\? shareOpp\?\.name/);
-    expect(app).toMatch(/shareOffer !== undefined \? viewOfOffer\(shareOffer\)\.client/);
-    expect(app).toMatch(/shareOffer !== undefined \? viewOfOffer\(shareOffer\)\.net/);
-    expect(app).toMatch(/shareOffer\?\.assetRefs\[0\]/);
+    // PARTAGER-PRO — the demo fallbacks (`?? shareOpp…`) are retired with the
+    // mocks: the card reads ONLY the live offer, through the one `partage`
+    // derivation (`vue: viewOfOffer(shareOffer)`). The property is unchanged —
+    // name, client price, net and photo all come from the seam's live offer.
+    expect(app).toMatch(/vue: viewOfOffer\(shareOffer\)/);
+    expect(app).toMatch(/\{partage\.offre\.productName\}/);
+    expect(app).toMatch(/formatFcfa\(partage\.vue\.client\)/);
+    expect(app).toMatch(/formatFcfa\(partage\.vue\.net\)/);
+    expect(app).toMatch(/partage\.offre\.assetRefs\[0\]/);
+    expect(app).not.toMatch(/shareOpp/);
   });
 
   it('ITEM 6 — the live slug is READ BACK, never computed, and threads to the customize stack', () => {
@@ -256,8 +262,10 @@ describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
     expect(app).toMatch(/setLiveShop\(\{ slug: created\.value\.slug \}\)/);
     expect(app).not.toMatch(/setLiveShop\(\{ slug: deriveShortCode/);
     expect(app).toMatch(/liveSlug=\{liveShop\?\.slug\}/);
-    // « voir » opens HER public page from the read-back slug
-    expect(app).toMatch(/Linking\.openURL\(`\$\{QR_ORIGIN\}\$\{QR_BASE\}\/v\/\$\{slug\}`\)/);
+    // « voir » opens HER public page from the read-back slug — through the ONE
+    // canon builder (PARTAGER-PRO: the hand-assembled template is gone; the
+    // builder is the same byte the share screen and the QR encode).
+    expect(app).toMatch(/Linking\.openURL\(boutiqueShareUrl\(slug\)\)/);
   });
 
   it('ITEM 6 — the publish CTA retires once the shop is live (customize screens)', () => {
@@ -281,9 +289,12 @@ describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
     // as « this surface lost its photograph » — a false alarm that teaches the
     // next author to loosen the count instead of fixing the matcher. Matching is
     // now WHITESPACE-INSENSITIVE and the count is unchanged.
+    // PIN EVOLVED (PARTAGER-PRO): the share héro now reads the photo through
+    // the `partage` derivation (`partage.offre.assetRefs[0]`) — same live
+    // offer, new spelling — so the alternation carries it alongside the others.
     const CLIP_WITH_PHOTO = /<ProductClip\s+videoRef=\{item\.videoRef\}\s+photoUri=\{item\.assetRefs\[0\]\}/g;
     const photoSites = [
-      ...(app.match(/<Image source=\{\{ uri: (item|opp|shareOffer)\.assetRefs\[0\] \}\}/g) ?? []),
+      ...(app.match(/<Image source=\{\{ uri: (item|opp|partage\.offre)\.assetRefs\[0\] \}\}/g) ?? []),
       ...(app.match(CLIP_WITH_PHOTO) ?? []),
     ];
     expect(photoSites.length).toBeGreaterThanOrEqual(3);

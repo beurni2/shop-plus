@@ -11,9 +11,9 @@ import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
 import { t, tf } from './src/i18n';
 import { JOURNEY, START, type Screen } from './src/journey';
-import { DEMO_SHARE_IDENTITY, composeShareCard } from './src/share/hub';
+import { DEMO_SHARE_IDENTITY, frenchDate } from './src/share/hub';
 import { QrCode } from './src/qr/QrCode';
-import { DEMO_QR_URL, QR_ORIGIN, QR_BASE, signedProductShareUrl } from './src/qr/identity';
+import { afficheQrUrl, boutiqueShareUrl, signedProductShareUrl } from './src/qr/identity';
 import { FONTS_TO_LOAD } from './src/ui/fonts-load';
 import { foldVitrine, type VitrineEvent } from './src/vitrine/collection';
 import { marginBreakdown, markupCap, defaultMarkup, snapMarkup } from './src/vitrine/margin';
@@ -53,9 +53,7 @@ import {
   type TimelineStep,
 } from './src/sales/ventes';
 import {
-  DEMO_SHARE_LINK,
   createDemoWorld,
-  sharePidFor,
   type DemoOpportunity,
   type DemoWorld,
 } from './src/demo/store';
@@ -336,7 +334,6 @@ export default function App() {
    * square — and dutifully confirm it forever.
    */
   const [cadres, setCadres] = useState<Record<string, number>>({});
-  const [shareFmt, setShareFmt] = useState<'card' | 'story' | 'affiche'>('card');
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
     if (toast === null) return;
@@ -766,7 +763,7 @@ export default function App() {
 
   // WO-VITRINE-FLOW — the vitrine + share derived state, all from the seam's fold,
   // the frozen seed inputs (B, C), and the reseller's own markup. `vitrineOpps` are
-  // the products she added (the seam's live listings); `ficheOpp`/`shareOpp` are the
+  // the products she added (the seam's live listings); `ficheOpp`/`shareOffer` are the
   // tapped / to-share products. `viewOf` is the reseller-margin view at her markup
   // (markups[pid]) or the capped default — the ONE money computation the reseller
   // surfaces share (opp row · fiche · vitrine tile · partager), all reconciling.
@@ -853,7 +850,6 @@ export default function App() {
    */
   const dejaDansVitrine = (pid: string): boolean => vitrineLive.includes(pid);
   const ficheOpp = world.opportunities.find((o) => o.id === ficheId);
-  const shareOpp = world.opportunities.find((o) => o.id === shareId);
   // RESELLER-UX-1 item 5 — THE SHARE LOOKUP JOINS THE LIVE KEYSPACE. `shareId` is a
   // productVersionId since PUBLISH-PRICE-1, but this screen still looked it up in
   // the DEMO world by seed id — so tapping « Partager » on her real product found
@@ -1029,59 +1025,63 @@ export default function App() {
     [service, identity, vitrineCol],
   );
   const ficheOffer = offers.find((o) => o.productVersionId === ficheId);
-  // Her REAL share link — the canon buyer origin + base. Partager is opened FROM a
-  // product (setShareId → 'lien'), so it sends the signed PRODUCT link
-  // `/s/{storeSlug}?pid={productId}` — « the one she sends », which opens THAT
-  // offer on the buyer PWA (BUG 3: it used to send `/v/` with no pid, so every
-  // share opened the default product). The storefront slug is the seam's
-  // `/v/{slug}` with the `/v/` stripped; the pid is the shared product's buyer pid
-  // (demo bridge). No shared product (defensive) → her vitrine identity link.
-  const storeSlug = vitrineCol.shareSlug().replace(/^\/v\//, '');
-  // A LIVE product shares HER live shop's signed link — the pid IS the
-  // productVersionId (no demo bridge on the live path; the bridge maps demo seeds
-  // only). No live slug yet ⇒ fall through to the demo forms rather than compose
-  // an address nobody stored.
-  const shareUrl =
-    shareOffer !== undefined && liveShop !== null && liveShop !== undefined
-      ? signedProductShareUrl(liveShop.slug, shareOffer.productVersionId)
-      : shareOpp
-        ? signedProductShareUrl(storeSlug, sharePidFor(shareOpp.id))
-        : `${QR_ORIGIN}${QR_BASE}${vitrineCol.shareSlug()}`;
-  // The share channels — production-shaped over RN Share/Linking. The message is
-  // catalog copy (never inline), the link is her real signed slug. Deep-links try
-  // first (WhatsApp/Facebook), the OS share sheet is the honest fallback (and the
-  // « copier » path — a native Clipboard dep would need a full rebuild, not an OTA;
-  // FLAG VITRINE-SHARE-CLIPBOARD: swap the sheet for a one-tap copy at integration).
-  const shareVia = useCallback(
-    async (channel: 'copier' | 'whatsapp' | 'facebook' | 'tiktok') => {
-      const message = tf('partager.message', { url: shareUrl });
-      try {
-        if (channel === 'whatsapp') {
-          const wa = `whatsapp://send?text=${encodeURIComponent(message)}`;
-          if (await Linking.canOpenURL(wa)) {
-            await Linking.openURL(wa);
-            return;
-          }
-        } else if (channel === 'facebook') {
-          const fb = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
-          if (await Linking.canOpenURL(fb)) {
-            await Linking.openURL(fb);
-            return;
-          }
+  /**
+   * PARTAGER-PRO (founder, 2026-08-15: « more professional, very simple and
+   * well detailed … not display many partager buttons … remove all the mocks
+   * and use the real data »).
+   *
+   * THE SCREEN IS REAL-ONLY. It renders from three live facts and nothing
+   * else: HER product (`shareOffer`, from the live feed), HER shop's slug
+   * (`liveShop`, the admin list) and HER storefront (`liveStorefront`, the
+   * service's own record — the name on the card). No demo identity, no frozen
+   * link, no fallback card: a missing fact renders the honest guard, never a
+   * stranger's shop. The ONE exception is Cercle's campaign hand-off, which
+   * stays on its own gated demo surface (SP9) and is journalled.
+   *
+   * ONE SHARE PATH: the OS share sheet. WhatsApp, Facebook, TikTok and copy
+   * all live INSIDE the sheet the system already owns — four app buttons that
+   * each re-implemented one row of it were noise, and the founder called them.
+   */
+  const partage =
+    shareOffer !== undefined && liveShop !== null && liveShop !== undefined &&
+    liveStorefront !== null && liveStorefront !== undefined
+      ? {
+          offre: shareOffer,
+          vue: viewOfOffer(shareOffer),
+          nomBoutique: liveStorefront.name,
+          lienProduit: signedProductShareUrl(liveShop.slug, shareOffer.productVersionId),
+          lienBoutique: boutiqueShareUrl(liveShop.slug),
+          lienAffiche: afficheQrUrl(liveShop.slug),
+          // The spoken no-scan fallback — the slug itself, said out loud.
+          codeDit: liveShop.slug.toUpperCase(),
         }
-        await Share.share({ message });
-      } catch {
-        // best-effort: a declined or unavailable share sheet is not an error state.
-      }
-    },
-    [shareUrl],
-  );
+      : null;
+  const partagerProduit = useCallback(async () => {
+    if (partage === null) return;
+    try {
+      await Share.share({
+        message: tf('partager.message_produit', { nom: partage.offre.productName, url: partage.lienProduit }),
+      });
+    } catch {
+      // best-effort: a declined share sheet is not an error state.
+    }
+  }, [partage]);
+  const partagerBoutique = useCallback(async () => {
+    if (partage === null) return;
+    try {
+      await Share.share({ message: tf('partager.message', { url: partage.lienBoutique }) });
+    } catch {
+      // best-effort: a declined share sheet is not an error state.
+    }
+  }, [partage]);
+  const imprimerQr = useCallback(() => {
+    if (partage === null) return;
+    // The browser prints (see `afficheQrUrl`): the poster page carries the
+    // print button, and the browser's dialog also saves a PDF for a kiosk.
+    void Linking.openURL(partage.lienAffiche).catch(() => {});
+  }, [partage]);
   // The demo build stamp — the actual OTA update id (expo-updates), « dev » in
   // the local runtime; honest provenance in the demo footer, never a fake build.
-  // The share card is DETERMINISTIC from her price-free assets + price snapshot
-  // (SP-I19). It carries the live-truth signed link by construction — no
-  // commission field exists on the type (SP-I03).
-  const shareCard = composeShareCard(DEMO_SHARE_IDENTITY);
   /**
    * RF-1c — HER REAL SALES. The code lives in the same document directory the
    * reseller identity uses — durable across app-kill, reboot and an EAS
@@ -2110,121 +2110,115 @@ export default function App() {
           )
         )}
 
-        {/* PARTAGER (frame L193–236 / §4 L74, PER-PRODUCT per founder redirect):
-            the 3 format segments (Carte/Story/Affiche → art 150/250/190), the client
-            preview card at HER markup, the reseller-only net line, the share channels
-            over RN Share/Linking (the real signed slug), the signed product link, and
-            the QR to her `/v/{slug}`. The ≤3 multi-select is DROPPED (she shares one
-            product at a time). Net-first: the card shows HER price; her net is a
-            separate, reseller-only whisper — never on the cliente's card. */}
+        {/* PARTAGER-PRO (founder, 2026-08-15) — one product, three clear sections,
+            every byte real: the cliente's card (her shop name, her price, today's
+            date), ONE share action per thing she can share (the OS sheet carries
+            WhatsApp/Facebook/copy itself), her boutique's permanent link, and the
+            QR with a printable poster behind it. The Cercle campaign hand-off
+            keeps its own card below — a gated demo surface, journalled. */}
         {screen === 'lien' && (
           <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
-            {/* the 3 card formats — the segmented control (§4 L74) */}
-            <View style={styles.fmtSegments}>
-              {(['card', 'story', 'affiche'] as const).map((f) => {
-                const on = shareFmt === f;
-                const key = f === 'card' ? 'partager.fmt_carte' : f === 'story' ? 'partager.fmt_story' : 'partager.fmt_affiche';
-                return (
-                  <Pressable
-                    key={f}
-                    style={[styles.fmtSeg, on && styles.fmtSegOn]}
-                    onPress={() => setShareFmt(f)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
-                  >
-                    <Text style={[styles.fmtSegText, on && styles.fmtSegTextOn]}>{t(key)}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            {partage !== null ? (
+              <>
+                {/* the client PREVIEW — what she is about to send, exactly. HER
+                    shop name, HER price, today's date. Never the net, never a
+                    commission, never the supplier (SP-I03). */}
+                <Card>
+                  <Overline>{t('share.og_titre')}</Overline>
+                  <View style={styles.shareHero}>
+                    <View style={styles.artTileStripe} />
+                    {partage.offre.assetRefs[0] ? (
+                      <Image source={{ uri: partage.offre.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
+                    ) : (
+                      <Text style={styles.shareHeroGlyph}>{partage.offre.productName.slice(0, 1)}</Text>
+                    )}
+                  </View>
+                  <View style={styles.shareShopRow}>
+                    <Text style={styles.shareShopName} numberOfLines={1}>{partage.nomBoutique}</Text>
+                    <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
+                  </View>
+                  <Text style={styles.cardTitle}>{partage.offre.productName}</Text>
+                  <Text style={styles.shareHeroPrice}>{tf('share.prix', { amount: formatFcfa(partage.vue.client) })}</Text>
+                  {/* TODAY, because today is when she is sharing — the frozen
+                      « Prix du 13 juillet » was the demo's clock, not hers. */}
+                  <Text style={styles.ogValidite}>{tf('share.validite', { date: frenchDate(new Date().toISOString()) })}</Text>
+                  <View style={styles.ogBadgeRow}>
+                    <StatusChip tone="ok" label={t('share.livre_sera')} />
+                  </View>
+                  <Text style={styles.ogSigned}>{t('share.og_signe')}</Text>
+                </Card>
 
-            {/* the client PREVIEW — the product she is sharing, at HER markup. HER
-                price, « Livré par Séra », signed. Never the net, never a commission,
-                never the supplier (SP-I03) — the client-facing card. */}
-            <Card>
-              <Overline>{t('share.og_titre')}</Overline>
-              <View style={[styles.shareHero, shareFmt === 'story' && styles.shareHeroStory, shareFmt === 'affiche' && styles.shareHeroAffiche]}>
-                <View style={styles.artTileStripe} />
-                {shareOffer?.assetRefs[0] ? (
-                  <Image source={{ uri: shareOffer.assetRefs[0] }} style={styles.artPhoto} resizeMode="cover" />
-                ) : (
-                  <Text style={styles.shareHeroGlyph}>{(shareOffer?.productName ?? shareOpp?.name ?? shareCard.productName).slice(0, 1)}</Text>
-                )}
-              </View>
-              <View style={styles.shareShopRow}>
-                <Text style={styles.shareShopName} numberOfLines={1}>{DEMO_SHARE_IDENTITY.resellerName}</Text>
-                <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
-              </View>
-              <Text style={styles.cardTitle}>{campShare !== null ? cercleProduit(campShare.pid).name : shareOffer?.productName ?? shareOpp?.name ?? shareCard.productName}</Text>
-              <Text style={styles.shareHeroPrice}>
-                {tf('share.prix', { amount: formatFcfa(campShare !== null ? cercleProduit(campShare.pid).B + cercleProduit(campShare.pid).marge : shareOffer !== undefined ? viewOfOffer(shareOffer).client : shareOpp !== undefined ? viewOf(shareOpp).client : shareCard.priceFcfa) })}
-              </Text>
-              <Text style={styles.ogValidite}>
-                {tf('share.validite', { date: shareCard.priceValidityDate })}
-              </Text>
-              {/* D5 — C-CE24c: the campaign line, between validity and the badges. */}
-              {campShare !== null && (
+                {/* reseller-only: her net — « jamais visible par la cliente » */}
+                <Text style={styles.netCarte}>{tf('partager.net_carte', { amount: formatFcfa(partage.vue.net) })}</Text>
+
+                {/* ONE action for the product. The OS sheet owns the channels. */}
+                <PrimaryButton label={t('partager.action_produit')} onPress={() => { void partagerProduit(); }} />
+                <Card>
+                  <View style={styles.linkBox}>
+                    <Text style={styles.linkText}>{partage.lienProduit}</Text>
+                  </View>
+                  <Text style={styles.message}>{t('lien.explication')}</Text>
+                </Card>
+
+                {/* HER BOUTIQUE — the durable link: every product, one address,
+                    never changes. Its own section, its own ONE action. */}
+                <Card>
+                  <Overline>{t('partager.boutique_titre')}</Overline>
+                  <Text style={styles.message}>{t('share.bio')}</Text>
+                  <View style={styles.linkBox}>
+                    <Text style={styles.linkText}>{partage.lienBoutique}</Text>
+                  </View>
+                  <SecondaryButton label={t('partager.action_boutique')} onPress={() => { void partagerBoutique(); }} />
+                </Card>
+
+                {/* THE QR — scanned in person, or PRINTED. The poster opens in
+                    the browser: its print dialog reaches a real printer AND
+                    saves the PDF a print kiosk asks for. */}
+                <Card>
+                  <Overline>{t('share.qr_titre')}</Overline>
+                  <Text style={styles.message}>{t('share.qr_blurb')}</Text>
+                  <View style={styles.qrFrame}>
+                    <QrCode url={partage.lienBoutique} />
+                  </View>
+                  <View style={styles.qrCaption}>
+                    <Text style={styles.qrLegende}>{t('share.qr_legende')}</Text>
+                    <Text style={styles.codeStrong}>{partage.codeDit}</Text>
+                    <Text style={styles.qrRepli}>{tf('share.qr_repli', { code: partage.codeDit })}</Text>
+                  </View>
+                  <SecondaryButton label={t('share.qr_imprimer')} onPress={imprimerQr} />
+                </Card>
+              </>
+            ) : campShare !== null ? (
+              /* CERCLE'S CAMPAIGN CARD — the gated demo surface (SP9) sharing
+                 its pack. It keeps its own preview and nothing of the real
+                 sections above: mixing demo campaign money with her real links
+                 on one screen is how a mock sneaks back. Journalled. */
+              <Card>
+                <Overline>{t('share.og_titre')}</Overline>
+                <Text style={styles.cardTitle}>{cercleProduit(campShare.pid).name}</Text>
+                <Text style={styles.shareHeroPrice}>
+                  {tf('share.prix', { amount: formatFcfa(cercleProduit(campShare.pid).B + cercleProduit(campShare.pid).marge) })}
+                </Text>
                 <Text style={styles.campagneLigne}>
                   {campShare.K === 1000
                     ? tf('ce.d5_ligne_offerte', { zone: campShare.zone })
                     : tf('ce.d5_ligne', { part: formatFcfa(1000 - campShare.K), zone: campShare.zone })}
                 </Text>
-              )}
-              <View style={styles.ogBadgeRow}>
-                <StatusChip tone="ok" label={t('share.livre_sera')} />
-              </View>
-              <Text style={styles.ogSigned}>{t('share.og_signe')}</Text>
-            </Card>
-
-            {/* reseller-only: her net on this card — « jamais visible par la cliente » */}
-            {(shareOffer !== undefined || shareOpp !== undefined) && (
-              <Text style={styles.netCarte}>
-                {campShare !== null
-                  ? tf('ce.d5_net_carte', { amount: formatFcfa(cercleProduit(campShare.pid).netNormal - campShare.K) })
-                  : tf('partager.net_carte', {
-                      amount: formatFcfa(shareOffer !== undefined ? viewOfOffer(shareOffer).net : viewOf(shareOpp!).net),
-                    })}
-              </Text>
-            )}
-
-            {/* the share channels (frame L217–221) — RN Share/Linking, the real slug */}
-            <View style={styles.shareActions}>
-              <SecondaryButton label={t('partager.copier')} onPress={() => shareVia('copier')} />
-              <GhostButton label={t('partager.whatsapp')} onPress={() => shareVia('whatsapp')} />
-              <GhostButton label={t('partager.facebook')} onPress={() => shareVia('facebook')} />
-              <GhostButton label={t('partager.tiktok')} onPress={() => shareVia('tiktok')} />
-            </View>
-
-            {/* the signed PRODUCT link — the one she sends; the live price/stock
-                truth. Fictional sandbox link, honestly marked « lien d'essai ». */}
-            <Card>
-              <View style={styles.linkBox}>
-                <Text style={styles.linkText}>{DEMO_SHARE_LINK}</Text>
-                <Text style={styles.linkHint}>{t('lien.hint')}</Text>
-              </View>
-              <Text style={styles.message}>{t('lien.explication')}</Text>
-            </Card>
-
-            {/* the QR to her permanent `/v/{slug}` (frame L223–233) — react-native-svg
-                draws the vendored encoder's matrix; the slug + code print beside it,
-                so the no-scan fallback still works. */}
-            <Card>
-              <Overline>{t('share.qr_titre')}</Overline>
-              <Text style={styles.message}>{t('share.qr_blurb')}</Text>
-              <View style={styles.qrFrame}>
-                <QrCode url={DEMO_QR_URL} />
-              </View>
-              <View style={styles.qrCaption}>
-                <Text style={styles.linkText}>{DEMO_SHARE_IDENTITY.identityLinkSuffix}</Text>
-                <Text style={styles.qrLegende}>{t('share.qr_legende')}</Text>
-                <Text style={styles.codeStrong}>{DEMO_SHARE_IDENTITY.shortCode}</Text>
-                <Text style={styles.qrRepli}>
-                  {tf('share.qr_repli', { code: DEMO_SHARE_IDENTITY.shortCode })}
+                <Text style={styles.netCarte}>
+                  {tf('ce.d5_net_carte', { amount: formatFcfa(cercleProduit(campShare.pid).netNormal - campShare.K) })}
                 </Text>
-              </View>
-            </Card>
-
-            <PrimaryButton label={t('lien.action')} onPress={() => go('gains')} />
+                <View style={styles.ogBadgeRow}>
+                  <StatusChip tone="ok" label={t('share.livre_sera')} />
+                </View>
+              </Card>
+            ) : (
+              /* NO LIVE PRODUCT AND NO SHOP — the honest guard. A screen that
+                 invented a link here would print a stranger's demo shop, which
+                 is exactly what the founder once saw. */
+              <Card>
+                <Text style={styles.message}>{t('partager.indisponible')}</Text>
+              </Card>
+            )}
           </ScrollView>
         )}
 
@@ -2488,7 +2482,7 @@ export default function App() {
             onOpenBoutique={(slug) => {
               // Opens HER PUBLIC PAGE — the same URL a cliente gets. Read-back
               // slug only; best-effort open (a browserless device is not an error).
-              void Linking.openURL(`${QR_ORIGIN}${QR_BASE}/v/${slug}`).catch(() => undefined);
+              void Linking.openURL(boutiqueShareUrl(slug)).catch(() => undefined);
             }}
           />
         )}
@@ -2871,8 +2865,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shareHeroStory: { height: touch.minTargetPx * 5 + spacing.sm },
-  shareHeroAffiche: { height: touch.minTargetPx * 4 },
   shareHeroGlyph: { color: shopColour.deep, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.heroMoney.size), fontWeight: w(t2.scale.heroMoney.wght) },
   shareShopRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   shareShopName: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.caps.size), fontWeight: w(t2.scale.caps.wght), textTransform: 'uppercase' },
@@ -2989,12 +2981,6 @@ const styles = StyleSheet.create({
     fontFamily: TEXT_FAMILY_BOLD,
     fontSize: rmax(t2.scale.row.size),
     fontWeight: w(t2.scale.row.wght),
-    textAlign: 'center',
-  },
-  linkHint: {
-    color: sharedColour.sub,
-    fontFamily: TEXT_FAMILY,
-    fontSize: rmax(t2.scale.body.size),
     textAlign: 'center',
   },
   // WO-7.2b — the on-screen QR. Frame hugs the derived side (alignSelf), sits
@@ -3155,7 +3141,6 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     textAlign: 'center',
   },
-  shareActions: { gap: spacing.sm },
   // ── VITRINE PUBLIQUE frame (planche L714–740) — the cliente's read-only view ──
   pubHead: { gap: spacing.md, paddingBottom: spacing.sm },
   pubPillRow: { flexDirection: 'row', justifyContent: 'flex-end' },
@@ -3237,11 +3222,6 @@ const styles = StyleSheet.create({
   },
   // the cliente price — the secondary context line under the net hero.
   // ── PARTAGER format segments (planche piste r14 p4; active = white card) ──
-  fmtSegments: { flexDirection: 'row', gap: spacing.xs, backgroundColor: sharedColour.dim, borderRadius: radius.tile, padding: spacing.xs },
-  fmtSeg: { flex: 1, minHeight: touch.minTargetPx, borderRadius: radius.tile, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xs },
-  fmtSegOn: { backgroundColor: sharedColour.card },
-  fmtSegText: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.pill.size, fontWeight: w(t2.scale.pill.wght) },
-  fmtSegTextOn: { color: sharedColour.ink },
 });
 
 /**

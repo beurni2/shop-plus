@@ -77,44 +77,17 @@ const SEED = deepFreeze(rawSeed as unknown as SeedFile);
 assertSeedMoneyHonest('baseline', SEED.baseline.input, SEED.baseline.money);
 for (const o of SEED.opportunities) assertSeedMoneyHonest(o.id, o.input, o.money);
 
-/**
- * The signed PRODUCT link on her share card — « the one she sends ». Two truths
- * held together (founder ruling 2026-07-20): the SLUG is HER RESOLVING storefront
- * slug (`aicha-4821`, the same slug as her `/v/` identity), so the buyer PWA's
- * `/s/{slug}` route LANDS on the offer — the demo's core loop is walkable end to
- * end instead of dead-ending at not-found. The DOMAIN stays the visibly-fictional
- * « .demo » sandbox — never a real TLD, never a URL scheme (the card marks it
- * « lien d'essai ») — so the printed text is impossible to mistake for a live
- * store. Behaviour is unchanged either way: the buyer route already resolved
- * `aicha-4821` and honest-not-found'd `awa-essai`; this points the seed at the
- * resolving slug so a review walk closes the loop.
- */
-export const DEMO_SHARE_LINK = 'shop-plus.demo/s/aicha-4821';
-
-/**
- * DEMO BRIDGE (VITRINE-REAL-BACKING follow-on): the reseller's demo opportunities
- * (o1..) and the buyer storefront's vitrine seed (p1..k1) are two demo worlds
- * seeded independently; production unifies them into ONE catalog. Until then, this
- * maps each shareable opportunity to the buyer storefront pid it represents, so the
- * signed product link `/s/{slug}?pid=` opens the SAME product she shared (not the
- * default offer). Semantic matches: o5 « Chemise Faso Dan Fani » → p8 (exact), o1
- * « Pagne wax » → p2, o7 « Sandales » → p4, o2 « karité » → p5, o3 « Sac » → p3;
- * o4/o6 (no storefront twin) map to the nearest article. The mapping is DATA, not a
- * second link scheme — the `/s/{slug}?pid=` form is the one canon buyer route.
- */
-export const SHARE_PID_BY_OPP: Readonly<Record<string, string>> = {
-  o1: 'p2', o2: 'p5', o3: 'p3', o4: 'p7', o5: 'p8', o6: 'k1', o7: 'p4',
-};
-
-/** The buyer storefront pid for a shared opportunity (demo bridge, above). */
-export function sharePidFor(oppId: string): string {
-  return SHARE_PID_BY_OPP[oppId] ?? 'p1';
-}
+// PARTAGER-PRO (founder, 2026-08-15: « remove all the mocks ») — the demo share
+// link (`shop-plus.demo/s/aicha-4821`) and the o→p demo bridge (`sharePidFor`)
+// lived here for the mocked Partager screen; the screen now shares HER live
+// shop's signed link (`signedProductShareUrl(liveShop.slug, productVersionId)`),
+// so both left with it.
 
 /**
  * WO-7.2b — the media-kit link-out (Q5: a LINK, never a webview embed). Same
- * visibly-fictional sandbox form as the share link — the kit is a sibling web
- * surface (the composeur); here it is only pointed to, honestly « d'essai ».
+ * visibly-fictional sandbox form as the retired share link — the kit is a
+ * sibling web surface (the composeur); here it is only pointed to, honestly
+ * « d'essai ».
  */
 /** ACCUEIL frame — « Gains nets — juin », a demo monthly constant (HANDOFF §2: 34 500).
  * Marked demo; the real figure is a settled-payout sum in production. */

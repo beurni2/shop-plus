@@ -55,9 +55,15 @@ describe('reseller journey spine', () => {
     expect(source).toMatch(/<FlatList/);
   });
 
-  it('the share-link moment renders the fictional sandbox link WITH its « lien d’essai » hint', () => {
+  it('the share-link moment renders HER real links — the demo link is retired (PARTAGER-PRO)', () => {
     const source = readFileSync(join(import.meta.dirname, '..', 'App.tsx'), 'utf8');
-    expect(source).toMatch(/\{DEMO_SHARE_LINK\}/);
-    expect(source).toMatch(/t\('lien\.hint'\)/);
+    // PARTAGER-PRO (founder, 2026-08-15) — « remove all the mocks as well and
+    // use the real data ». This pin asserted the OPPOSITE: `{DEMO_SHARE_LINK}`
+    // and the « lien d'essai » hint on screen. Both inverted: the screen now
+    // renders the signed product link and the boutique link from HER storefront,
+    // and neither demo byte may come back by accident.
+    expect(source).not.toMatch(/DEMO_SHARE_LINK|lien\.hint/);
+    expect(source).toMatch(/\{partage\.lienProduit\}/);
+    expect(source).toMatch(/\{partage\.lienBoutique\}/);
   });
 });

@@ -150,22 +150,10 @@
   "screenClass": "label"
  },
  {
-  "key": "lien.hint",
-  "fr": "Lien d'essai — il ne s'ouvre pas.",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
   "key": "lien.explication",
   "fr": "Ce lien porte votre nom. Chaque vente passée par ce lien vous est comptée.",
   "register": "selling",
   "screenClass": "selling_surface"
- },
- {
-  "key": "lien.action",
-  "fr": "Voir mes gains",
-  "register": "neutral",
-  "screenClass": "label"
  },
  {
   "key": "gains.title",
@@ -864,26 +852,38 @@
   "screenClass": "general"
  },
  {
-  "key": "partager.copier",
-  "fr": "Copier le lien signé",
+  "key": "partager.action_produit",
+  "fr": "Partager ce produit",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "partager.action_boutique",
+  "fr": "Partager ma boutique",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "partager.boutique_titre",
+  "fr": "Votre boutique",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "partager.message_produit",
+  "fr": "Regardez « {nom} » sur ma vitrine : {url}",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "partager.indisponible",
+  "fr": "Ouvrez un produit dans « Ma Vitrine », puis touchez « Partager ».",
   "register": "neutral",
   "screenClass": "label"
  },
  {
-  "key": "partager.whatsapp",
-  "fr": "Partager sur WhatsApp",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "partager.facebook",
-  "fr": "Partager sur Facebook",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "partager.tiktok",
-  "fr": "Partager sur TikTok",
+  "key": "share.qr_imprimer",
+  "fr": "Imprimer le code QR",
   "register": "neutral",
   "screenClass": "label"
  },
@@ -932,24 +932,6 @@
  {
   "key": "vitrine.partager",
   "fr": "Partager",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "partager.fmt_carte",
-  "fr": "Carte WhatsApp",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
-  "key": "partager.fmt_story",
-  "fr": "Story",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "partager.fmt_affiche",
-  "fr": "Affiche",
   "register": "neutral",
   "screenClass": "label"
  },

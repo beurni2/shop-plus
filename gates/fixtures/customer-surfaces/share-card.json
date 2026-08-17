@@ -1,10 +1,9 @@
 {
-  "resellerName": "Aïcha",
-  "productName": "Bazin riche brodé",
-  "priceFcfa": 11500,
-  "signedProductLink": "shop-plus.demo/s/aicha-4821",
-  "identityLinkSuffix": "/v/aicha-4821",
-  "shortCode": "AICHA-4821",
-  "seraDelivery": true,
-  "priceValidityDate": "13 juillet"
+  "nomBoutique": "Boutique test",
+  "produit": "Bazin riche",
+  "prixClientFcfa": 10000,
+  "livreParSera": true,
+  "lienProduit": "https://beurni2.github.io/shop-plus/s/boutique-0001?pid=pv-bazin",
+  "lienBoutique": "https://beurni2.github.io/shop-plus/v/boutique-0001",
+  "codeDit": "BOUTIQUE-0001"
 }

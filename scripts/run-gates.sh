@@ -143,7 +143,7 @@ capture no-supplier-contact-positive pass node scripts/gates/no-supplier-contact
 log "gate: no-supplier-contact — S5 vitrine surface (WO-7.1, pinned to the view model; must pass)"
 capture no-supplier-contact-vitrine pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/vitrine-view.json
 
-log "gate: no-supplier-contact — S5 share card surface (WO-7.1, pinned to composeShareCard; must pass)"
+log "gate: no-supplier-contact — S5 share card surface (PARTAGER-PRO, pinned to the rendered Partager card in rendu-partager; must pass)"
 capture no-supplier-contact-share-card pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/share-card.json
 
 log "gate: no-supplier-contact — S3 découverte directory (WO-7.2a, pinned to the directory; must pass)"
