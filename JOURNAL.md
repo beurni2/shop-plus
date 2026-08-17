@@ -4376,7 +4376,7 @@ The audit of my own claims found three fixes with no test that would catch their
 - *(JOURNALLED)* RN's KAV captures its frame height ONCE, on the first screen ever laid out, so the first keyboard frame on a taller screen can overshoot by ~100dp before converging. Inherent to RN's component; a one-frame bounce, not a wrong resting state.
 - *(fixed)* my new comment claimed no scroll surface in the app had `keyboardShouldPersistTaps`; `EcranCompte` already did.
 
-**Status: pushed to `claude/buyer-pwa-standing-laws-nerljz-ue7lpy`, waiting on the founder's word to merge and deploy** (2026-08-10 order).
+**MERGED AND DEPLOYED with CLAVIER-K2 below (founder: « merge and deploy », 2026-08-15).** Both keypad slices went to `main` in one fast-forward; the run numbers are on that entry.
 
 ### 2026-08-15 · CLAVIER-K2 — the keypad comes off the identité form
 
@@ -4392,4 +4392,4 @@ The audit of my own claims found three fixes with no test that would catch their
 
 **Still not fixed, and deliberately: `EcranCompte` and `EcranAdmission`.** I had reported all three as live; they are not. Both sit behind the access gate, and `gateArme()` reads `EXPO_PUBLIC_ACCESS_GATE === 'on'`, which appears in **no workflow, no `app.json`, no env file** — so `decideAcces` returns « ouvert » and neither screen renders in any build shipping today. `EcranAdmission` is the worse of the two structurally (a plain `View`, no scroll surface at all, so nothing can move out from under a keypad) and should be fixed as part of ARMING the gate, when it can actually be exercised on a device. Correcting my own overstatement here rather than leaving it in the record.
 
-**Status: pushed to `claude/buyer-pwa-standing-laws-nerljz-ue7lpy`, waiting on the founder's word to merge and deploy** (2026-08-10 order).
+**MERGED AND DEPLOYED (founder: « merge and deploy », 2026-08-15).** `main` fast-forwarded `5c45e4f..db96394`, carrying both CLAVIER-MARGE and CLAVIER-K2. **Four workflows green on db96394: `ci` 520 · `expo-preview` 343 · `pwa-preview` 310 · `service-canon-drift` 170.** The reseller app ships through `expo-preview`; no service changed. *(Not claimed: I did not type into the live fields. The keypad's actual clearance is layout, which no walk here may assert — his phone is the check, on the fiche, on Ma Vitrine and on Identité.)*
