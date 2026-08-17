@@ -562,7 +562,9 @@ function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnc
           </View>
           <View style={S.previewNameRow}>
             <Text style={S.previewName} numberOfLines={1}>{sf.name}</Text>
-            <IconCheckK size={13} color={th.accent} />
+            {/* SEED-NEUTRE — no check mark beside an empty name: a dangling
+                badge on a shop with no name yet is a claim about nothing. */}
+            {sf.name !== '' ? <IconCheckK size={13} color={th.accent} /> : null}
           </View>
           {sf.tagline ? <Text style={S.previewTagline} numberOfLines={1}>{sf.tagline}</Text> : null}
           <View style={[S.previewChip, { backgroundColor: th.soft }]}>
@@ -641,7 +643,7 @@ function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnc
       {/* bande encre — jamais modifiable */}
       <View style={S.inkBand}>
         <Text style={S.inkBandText}>
-          <Text style={S.inkBandBold}>{t('k.jamais_titre')}</Text> {tf('k.jamais_corps', { slug: `/v/${sf.slug}` })}
+          <Text style={S.inkBandBold}>{t('k.jamais_titre')}</Text> {tf('k.jamais_corps', { slug: sf.slug === '' ? '/v/…' : `/v/${sf.slug}` })}
         </Text>
       </View>
     </ScrollView>
@@ -702,7 +704,9 @@ function K2({ sf, onBack, onSave }: { sf: Storefront; onBack: () => void; onSave
       <CountedField label={t('k.identite.tagline_label')} value={tagline} max={40} onChange={setTagline} onFocusField={lever} placeholder={t('k.identite.tagline_ph')} />
       <CountedField label={t('k.identite.bio_label')} value={bio} max={160} onChange={setBio} onFocusField={lever} placeholder={t('k.identite.bio_ph')} multiline />
       <View style={S.noteRose}>
-        <Text style={S.noteRoseText}>{tf('k.identite.note_slug', { slug: `/v/${sf.slug}` })}</Text>
+        {/* SEED-NEUTRE — before her shop exists there IS no link; « /v/… » says
+            « to come » instead of printing the demo's address. */}
+        <Text style={S.noteRoseText}>{tf('k.identite.note_slug', { slug: sf.slug === '' ? '/v/…' : `/v/${sf.slug}` })}</Text>
       </View>
       <Pressable
         style={({ pressed }) => [S.cta, invalid && S.ctaDisabled, pressed && !invalid && S.pressed]}
@@ -732,6 +736,9 @@ function CountedField({ label, value, max, onChange, onCommit, placeholder, mult
         value={value}
         maxLength={max}
         onChangeText={onChange}
+        // SEED-NEUTRE — the field carries its own name for a screen reader (it
+        // had none), which is also what lets the walks target it exactly.
+        accessibilityLabel={label}
         placeholder={placeholder}
         placeholderTextColor="#8A7D6B"
         multiline={multiline}

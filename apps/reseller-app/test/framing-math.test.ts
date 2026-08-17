@@ -272,6 +272,11 @@ describe('ENTETES-C — focusOf / withFocus on the local Storefront mirror', () 
   it('a focused local storefront still parses with the CANON schema (the mirror stays canon)', () => {
     const sf = {
       ...DEFAULT_STOREFRONT,
+      // SEED-NEUTRE — the seed is a pre-canon draft; the parse specimen fills
+      // the canon-required fields so what this test watches stays the FOCUS.
+      slug: 'aicha-4821',
+      name: 'Chez Aïcha Mode',
+      zone: 'Gounghin, Ouagadougou',
       cover: { status: 'live' as const, url: 'https://m/a.jpg', focus: { x: 10, y: 90 } },
       avatar: { mode: 'photo' as const, url: 'https://m/b.jpg', focus: { x: 40, y: 20 } },
     };

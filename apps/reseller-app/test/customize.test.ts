@@ -24,6 +24,7 @@ import {
   moveItem,
   saveIdentity,
   togglePin,
+  type Storefront,
 } from '../src/vitrine/customize/storefront';
 import { K_SEED } from '../src/vitrine/customize/storefront';
 import { K_RAW_STYLES as S } from '../src/vitrine/customize/k-styles';
@@ -239,7 +240,25 @@ describe('K property pins — the Phase-0 table bytes in the runtime StyleSheet'
 });
 
 describe('K flows — §8.5–§8.10 as assertions', () => {
-  const sf = DEFAULT_STOREFRONT;
+  /** SEED-NEUTRE (founder, 2026-08-17) — the SEED is an empty pre-canon draft
+   *  now (a first-run form cannot carry a name the reseller never chose), so
+   *  the flow/parse SPECIMEN is a filled variant: same mirror shape, canon
+   *  values. The seed's own emptiness is pinned separately below. */
+  const sf: Storefront = {
+    ...DEFAULT_STOREFRONT,
+    slug: 'aicha-4821',
+    name: 'Chez Aïcha Mode',
+    zone: 'Gounghin, Ouagadougou',
+    curatedItems: ['p1', 'p2', 'p4', 'p5', 'p7', 'p8', 'k1', 'p3'],
+  };
+
+  it('SEED-NEUTRE — the first-run seed itself is EMPTY: no demo name, zone, slug or pids', () => {
+    expect(DEFAULT_STOREFRONT.name).toBe('');
+    expect(DEFAULT_STOREFRONT.zone).toBe('');
+    expect(DEFAULT_STOREFRONT.slug).toBe('');
+    expect(DEFAULT_STOREFRONT.curatedItems).toEqual([]);
+    expect(DEFAULT_STOREFRONT.discoverable).toBe(false);
+  });
 
   it('§8.6 K2: a name under 3 chars is refused; a valid save publishes immediately', () => {
     const bad = saveIdentity(sf, { name: 'Ai', tagline: '', bio: '', zone: sf.zone });
@@ -289,12 +308,14 @@ describe('K flows — §8.5–§8.10 as assertions', () => {
   });
 
   it('the LOCAL mirror parses with the CANON v1.1.0 StorefrontSchema (RN bundle bans runtime imports; drift fails HERE)', () => {
-    expect(() => StorefrontSchema.parse(DEFAULT_STOREFRONT)).not.toThrow();
-    const saved = saveIdentity(DEFAULT_STOREFRONT, { name: 'Chez Aïcha Mode', tagline: 'Le wax', bio: '', zone: DEFAULT_STOREFRONT.zone });
+    // SEED-NEUTRE — the specimen, not the seed: the seed is a pre-canon draft
+    // (canon refuses blank name/zone, which is exactly why the draft is blank).
+    expect(() => StorefrontSchema.parse(sf)).not.toThrow();
+    const saved = saveIdentity(sf, { name: 'Chez Aïcha Mode', tagline: 'Le wax', bio: '', zone: sf.zone });
     expect(saved.ok).toBe(true);
     if (saved.ok) expect(() => StorefrontSchema.parse(saved.next)).not.toThrow();
     // canon bounds the name at ≤ 120; THIS app's 3–24 lives at the edit boundary
-    expect(saveIdentity(DEFAULT_STOREFRONT, { name: 'Ai', tagline: '', bio: '', zone: DEFAULT_STOREFRONT.zone }).ok).toBe(false);
+    expect(saveIdentity(sf, { name: 'Ai', tagline: '', bio: '', zone: sf.zone }).ok).toBe(false);
   });
 
   it('the K seed is the §3.2 catalog (8 articles, diaspora excluded, p3 the only épuisé)', () => {
@@ -372,9 +393,12 @@ describe('ENTETES-B — the local header-key mirror stays canon, and the fallbac
     expect(headerStyleOf({ ...DEFAULT_STOREFRONT, headerStyle: 'baroque' })).toBe('classique');
   });
 
-  it('the DEFAULT storefront carries classique and STILL parses with the canon schema', () => {
+  it('the DEFAULT storefront carries classique — and a filled variant parses with the canon schema', () => {
     expect(DEFAULT_STOREFRONT.headerStyle).toBe('classique');
-    expect(StorefrontSchema.parse(DEFAULT_STOREFRONT).headerStyle).toBe('classique');
+    // SEED-NEUTRE — the seed is a pre-canon draft; the parse rides a canon-
+    // valid fill of the SAME object, so mirror drift still fails here.
+    const rempli = { ...DEFAULT_STOREFRONT, slug: 'aicha-4821', name: 'Chez Aïcha Mode', zone: 'Gounghin, Ouagadougou' };
+    expect(StorefrontSchema.parse(rempli).headerStyle).toBe('classique');
   });
 });
 

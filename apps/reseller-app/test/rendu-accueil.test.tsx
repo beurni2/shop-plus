@@ -204,6 +204,44 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
     screen.unmount();
   });
 
+  it('BADGE-FIABLE — one failed launch read must not hide the vérifié mark all session', async () => {
+    /**
+     * FOUNDER, 2026-08-17 (« fix these 2 things »): the badge answered to a
+     * single launch-time list read; one patchy-2G failure hid the mark for the
+     * whole session, for a genuinely live shop. This world fails that FIRST
+     * read and heals the connection after — the mark must appear on a later
+     * hub entry, not wait for a restart.
+     */
+    let appels = 0;
+    const monde: Route[] = [
+      routes[0]!,
+      (path, body) => {
+        if (path !== '/storefronts' || body !== null) return null;
+        appels += 1;
+        return appels === 1
+          ? { status: 500, json: { error: 'indisponible' } }
+          : { status: 200, json: [{ id: SF_ID, slug: SLUG, name: NOM, discoverable: true }] as never };
+      },
+      routes[2]!,
+    ];
+    wire(monde);
+    const screen = await mountApp();
+    await screen.settle();
+    const { IconCoche } = await import('../src/ui/icons');
+    // The failed read leaves the mark honestly absent…
+    expect(screen.tree.root.findAllByType(IconCoche)).toHaveLength(0);
+    // …and a later hub entry re-asks instead of staying blind until restart.
+    await screen.press('Ma Vitrine');
+    await screen.settle();
+    await screen.press('Accueil');
+    await screen.settle();
+    expect(
+      screen.tree.root.findAllByType(IconCoche).length,
+      'the vérifié mark never recovered from one failed launch read',
+    ).toBeGreaterThanOrEqual(1);
+    screen.unmount();
+  });
+
   it('publishing her shop reaches the accueil in the same breath — never « Créez votre boutique » after « En ligne »', async () => {
     /**
      * The false state this closes (verifier): `publishOnline` set only
@@ -256,6 +294,26 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
     await screen.press('Ma Vitrine');
     await screen.settle();
     await screen.press('Personnaliser ma boutique');
+    await screen.settle();
+
+    /** SEED-NEUTRE — the first-run stack carries NONE of the demo identity:
+     *  no « Chez Aïcha Mode », no « Gounghin », no demo « /v/aicha-4821 »
+     *  where her link will be. And pressing publish on the UNFILLED form is
+     *  refused with a sentence, never sent. */
+    const k1 = screen.texts().join(' | ');
+    for (const demo of ['Chez Aïcha Mode', 'Gounghin', 'aicha-4821']) {
+      expect(k1, `the demo seed byte « ${demo} » is on the first-run stack`).not.toContain(demo);
+    }
+    await screen.press('Mettre ma boutique en ligne');
+    await screen.settle();
+    expect(screen.shows('Donnez d’abord un nom et un quartier'), 'the empty form must be refused with a sentence').toBe(true);
+
+    // She names her shop the way the flow intends: Identité, then publish.
+    await screen.press('Identité');
+    await screen.settle();
+    await screen.type(NOM, 'NOM DE LA BOUTIQUE');
+    await screen.type('Ouagadougou', 'QUARTIER');
+    await screen.press('Enregistrer');
     await screen.settle();
     await screen.press('Mettre ma boutique en ligne');
     await screen.settle();

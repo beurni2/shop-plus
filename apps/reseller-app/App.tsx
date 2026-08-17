@@ -450,6 +450,13 @@ export default function App() {
   const [liveShop, setLiveShop] = useState<{ slug: string } | null | undefined>(undefined);
   useEffect(() => {
     if (service === null || identity === null || identity === undefined) return;
+    // BADGE-FIABLE (founder, 2026-08-17) — `undefined` is « never answered »:
+    // the read failed or has not landed. This effect used to run ONCE per
+    // session, so one patchy-2G failure at launch hid the vérifié mark until
+    // restart, for a genuinely live shop. It now re-asks on every navigation
+    // until an answer exists; an ANSWER (row or null) is stable — publish and
+    // the create-response adoption move it from there.
+    if (liveShop !== undefined) return;
     let live = true;
     void service.list().then((res) => {
       if (!live || !res.ok) return;
@@ -459,7 +466,7 @@ export default function App() {
     return () => {
       live = false;
     };
-  }, [service, identity]);
+  }, [service, identity, liveShop, screen]);
 
   /**
    * PERSONNALISER-REAL-1 — HER STOREFRONT AS THE SERVICE HOLDS IT.
@@ -719,6 +726,12 @@ export default function App() {
       // shop she could never return to — the very defect this slice closes.
       if (identity === undefined) return setToast(t('k.publier.identite_attente'));
       if (identity === null) return setToast(t('k.publier.identite_absente'));
+      // SEED-NEUTRE — the first-run seed is empty now, so an unfilled form is a
+      // reachable state. The canon schema refuses blank name/zone server-side;
+      // this sentence says the same true thing in her language, before a send.
+      if (sf.name.trim() === '' || sf.zone.trim() === '') {
+        return setToast(t('k.publier.identite_dabord'));
+      }
       setToast(t('k.publier.envoi'));
       const shortCode = deriveShortCode(sf.name, identity.digits);
       const at = new Date().toISOString();

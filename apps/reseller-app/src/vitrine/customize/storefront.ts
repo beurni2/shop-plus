@@ -273,24 +273,31 @@ export const FEATURED_CAP = 2;
 // « uploading » lasts exactly as long as the network takes — there is no decreed
 // duration left to pin, and a constant nothing reads is a claim nothing checks.
 
+/** SEED-NEUTRE (founder, 2026-08-17: « fix these 2 things ») — the first-run
+ *  seed is EMPTY, not the demo's. It carried « Chez Aïcha Mode / Gounghin »
+ *  with the demo slug and demo curated pids, which is exactly what a reseller
+ *  with no shop would have PUBLISHED had she pressed « Mettre en ligne »
+ *  without editing. Blank name/zone land on K2's existing required states,
+ *  the publish handler refuses them with a plain sentence, and the canon
+ *  schema (TrimmedNonEmptyString) refuses them server-side regardless. */
 export const DEFAULT_STOREFRONT: Storefront = {
-  id: 'sf_aicha',
-  resellerId: 'res_aicha',
+  id: 'sf_nouvelle',
+  resellerId: 'rs_nouvelle',
   category: 'mode',
-  createdAt: '2026-07-01T08:00:00.000Z',
-  updatedAt: '2026-07-19T08:00:00.000Z',
-  slug: 'aicha-4821',
-  name: 'Chez Aïcha Mode',
+  createdAt: '2026-08-17T08:00:00.000Z',
+  updatedAt: '2026-08-17T08:00:00.000Z',
+  slug: '',
+  name: '',
   tagline: '',
   bio: '',
-  zone: 'Gounghin, Ouagadougou',
+  zone: '',
   theme: 'laterite',
   cover: { status: 'none' },
   avatar: { mode: 'monogram' },
-  curatedItems: ['p1', 'p2', 'p4', 'p5', 'p7', 'p8', 'k1', 'p3'],
+  curatedItems: [],
   featuredItems: [],
   sections: [],
-  discoverable: true,
+  discoverable: false,
   headerStyle: 'classique',
 };
 

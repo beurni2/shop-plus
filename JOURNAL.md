@@ -4413,6 +4413,8 @@ The audit of my own claims found three fixes with no test that would catch their
 
 **NOT claimed:** I did not print a poster on paper, and no walk asserts appearance — the poster's layout in a real print dialog and the card's look in sunlight are his phone's check. Waiting for his word before merge and deploy.
 
+**MERGED AND DEPLOYED with ACCUEIL-PRO (founder: « Merge and deploy both », 2026-08-17).** `main` fast-forwarded `0c6f603..6d85e6f`. **Four workflows green on 6d85e6f: `ci` 522 · `expo-preview` 345 · `pwa-preview` 312 · `service-canon-drift` 173.**
+
 ### 2026-08-17 · ACCUEIL-PRO — the home screen drops its last mocks
 
 **FOUNDER: « Fix the accueil as well remove all mocks, and make very professional and well detailed and very simple like a multibillion dollar app accueil screen ».**
@@ -4430,3 +4432,5 @@ The audit of my own claims found three fixes with no test that would catch their
 **The ONE fresh-context verifier pass** (spec quotes + diff + DoD; it re-ran the suite, tsc and copy-lint itself) returned **no blockers**, 2 concerns, 3 notes. Handled once: the publish false-state (fixed, above) · the vacuous `texts().length > 0` hub assertion — the exact anti-pattern rendu-opportunites already convicted — now asserts a hub-exclusive byte · the walk's list rows now carry `discoverable` (contract fidelity). **Journalled, not fixed:** the badge has NO RETRY — one failed launch-time list read hides the vérifié mark for the whole session (pre-existing machine; fails honest-side, badge withheld never faked) · badge-vs-`discoverable` semantics: after a create-ok/publish-fail run, the next launch's list read-back shows the badge for a never-published shop — whether « vérifié » may wear there is founder semantics, named in the report.
 
 **Still demo-flavored nearby, out of this order's scope:** the Personnaliser form's LOCAL seed (`DEFAULT_STOREFRONT`) is still « Chez Aïcha Mode / Gounghin » — the values she'd publish if she pressed « Mettre ma boutique en ligne » without editing the form. Named for the founder rather than silently widened into this slice.
+
+**MERGED AND DEPLOYED with PARTAGER-PRO (founder: « Merge and deploy both », 2026-08-17).** Same fast-forward, same four green runs — recorded on the PARTAGER-PRO entry above. Both named leftovers became the next slice on his order (« then fix these 2 things »).

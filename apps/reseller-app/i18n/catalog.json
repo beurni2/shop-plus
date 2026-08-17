@@ -2868,6 +2868,12 @@
   "screenClass": "status"
  },
  {
+  "key": "k.publier.identite_dabord",
+  "fr": "Donnez d’abord un nom et un quartier à votre boutique — dans « Identité ».",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "k.publier.non_relie",
   "fr": "Cette version n’est pas encore reliée au service. Votre boutique n’a pas été envoyée.",
   "register": "neutral",
