@@ -253,6 +253,17 @@ export const Linking = {
   addEventListener: (): { remove: () => void } => ({ remove: () => {} }),
 };
 
+/**
+ * The native handle a screen passes to a scroll responder so it can lift THAT
+ * row clear of the keypad.
+ *
+ * BOUND: there is no native view tree here, so this answers a stable sentinel
+ * rather than a real tag — enough to prove the screen ASKED, never enough to
+ * claim anything moved. `null` for a null ref, because « no field yet » is a
+ * case the caller must still handle.
+ */
+export const findNodeHandle = (ref: unknown): number | null => (ref === null || ref === undefined ? null : 1);
+
 export const Platform = { OS: 'android' as const, select: <T,>(o: { android?: T; default?: T }): T | undefined => o.android ?? o.default };
 export const Dimensions = { get: () => ({ width: 360, height: 640, scale: 2, fontScale: 1 }) };
 /** A 1GB Android in portrait — the device the whole app is designed for. It is

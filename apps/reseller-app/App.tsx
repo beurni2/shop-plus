@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
-import { FlatList, Image, Linking, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Image, KeyboardAvoidingView, Linking, Platform, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, View, findNodeHandle } from 'react-native';
 import { File } from 'expo-file-system';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, touch, interaction, dimension } from '@platform/ui-tokens/legacy';
@@ -194,21 +194,59 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
  * digits under her thumb. A cleared or unparseable field commits nothing and
  * falls back to the last real value on blur — never NaN, never a silent zero.
  */
-function MarkupControl({ value, cap, onChange }: { value: number; cap: number; onChange: (m: number) => void }) {
+function MarkupControl({
+  value,
+  cap,
+  onChange,
+  onFocusField,
+}: {
+  value: number;
+  cap: number;
+  onChange: (m: number) => void;
+  /** CLAVIER-MARGE — the caller owns the scroll surface and is the only thing
+   *  that can lift this card clear of the keypad. It gets the field's native
+   *  handle so it can scroll to THIS row rather than to the end of the list. */
+  onFocusField?: ((handle: number | null) => void) | undefined;
+}) {
   const [text, setText] = useState<string | null>(null); // null = not editing; show the value
-  const commit = (raw: string) => {
+  const champ = useRef<TextInput>(null);
+  /**
+   * COMMIT AS SHE TYPES, and this is a correction rather than a preference.
+   *
+   * It used to commit ONLY on blur/submit, and `keyboardShouldPersistTaps`
+   * ("handled") is precisely what stops her first tap from dismissing the
+   * keypad — which is what used to blur the field. So the button began firing
+   * while the field was still first responder, and the app published markup 0:
+   * she types 750, taps once, her cliente is quoted the base price. On iOS a
+   * `number-pad` has NO return key, so `onSubmitEditing` could not save it.
+   *
+   * Committing live is safe NOW in a way it was not before: MARGE-EXACTE took
+   * the step-100 snap out, so nothing rewrites her digits under her thumb. The
+   * only transformation left is the clamp, which bites at the ceiling alone.
+   * `text` is deliberately NOT cleared here — it holds exactly what she typed
+   * until she leaves the field, so a leading zero or a paste never jumps.
+   */
+  const pousser = (raw: string) => {
     const parsed = Number.parseInt(raw.replace(/[^0-9]/g, ''), 10);
-    setText(null);
     if (Number.isFinite(parsed)) onChange(snapMarkup(parsed, cap, 1));
+  };
+  const commit = (raw: string) => {
+    setText(null); // leave editing: the field falls back to the canonical value
+    pousser(raw);
   };
   return (
     <View>
       <View style={styles.margeHeadRow}>
         <Overline>{t('fiche.marge_titre')}</Overline>
         <TextInput
+          ref={champ}
           style={styles.margeInput}
           value={text ?? String(value)}
-          onChangeText={setText}
+          onChangeText={(v) => {
+            setText(v);
+            pousser(v);
+          }}
+          onFocus={() => onFocusField?.(findNodeHandle(champ.current))}
           onBlur={() => commit(text ?? String(value))}
           onSubmitEditing={() => commit(text ?? String(value))}
           keyboardType="number-pad"
@@ -1193,6 +1231,40 @@ export default function App() {
     );
   }
 
+  /**
+   * CLAVIER-MARGE — the two surfaces that carry the markup field, so the field
+   * can ask to be lifted CLEAR OF THE KEYPAD when it takes focus.
+   *
+   * `automaticallyAdjustKeyboardInsets` alone is not enough and that is a fact
+   * about what it does, not a preference: it scrolls the CARET to the keyboard's
+   * top edge (RN insets from `firstResponderFocus`, the selection rect + 15pt),
+   * so everything BELOW the caret inside the card — the ceiling note and « Prix
+   * cliente », the figure she is typing this number FOR — stays underneath. And
+   * when the field already sits above the keypad it scrolls nothing at all.
+   *
+   * `scrollResponderScrollNativeHandleToKeyboard` is the one RN path that takes
+   * an `additionalOffset`, i.e. slack BELOW the target. The offset is the height
+   * of what follows the field inside the money card.
+   */
+  const ficheScroll = useRef<ScrollView>(null);
+  const vitrineListe = useRef<FlatList<(typeof vitrineOffers)[number]>>(null);
+  /** Enough for the ceiling note + the « Prix cliente » row + the card's foot. */
+  const SOUS_LE_CHAMP = 120;
+  const leverFiche = useCallback((handle: number | null) => {
+    if (handle === null) return;
+    ficheScroll.current?.scrollResponderScrollNativeHandleToKeyboard?.(handle, SOUS_LE_CHAMP, true);
+  }, []);
+  const leverVitrine = useCallback((handle: number | null) => {
+    if (handle === null) return;
+    // RN types `getScrollResponder()` as `Element`, which does not carry the
+    // scroll-responder methods it actually returns; the cast names the ONE
+    // method used and nothing more.
+    const responder = vitrineListe.current?.getScrollResponder?.() as
+      | { scrollResponderScrollNativeHandleToKeyboard?: (h: number, offset: number, prevent: boolean) => void }
+      | undefined;
+    responder?.scrollResponderScrollNativeHandleToKeyboard?.(handle, SOUS_LE_CHAMP, true);
+  }, []);
+
   return (
     /**
      * OPPORTUNITÉS-BLANC (founder order 2026-08-14, with an Alibaba grid as the
@@ -1244,6 +1316,31 @@ export default function App() {
         onBack={stack.length > 1 ? back : undefined}
       />
 
+      {/**
+        * CLAVIER-MARGE (founder, 2026-08-15) — « When I tap to add the number the
+        * keypad is hiding the section ». The numeric keypad covered « Prix de
+        * base / Vous ajoutez / Prix cliente » — the three rows the figure she is
+        * typing is FOR, so she typed blind into the one card whose job is to show
+        * her the arithmetic.
+        *
+        * NOTHING IN THIS APP YIELDED TO THE KEYBOARD: no KeyboardAvoidingView
+        * anywhere, and — bar `EcranCompte`, which already had
+        * `keyboardShouldPersistTaps` — no scroll surface that let a tap through
+        * while the keypad was up. Expo SDK 54 draws Android edge-to-edge and iOS
+        * never resized for the IME either, so the keypad simply sat on whatever
+        * was underneath it.
+        *
+        * ONE MECHANISM PER PLATFORM, deliberately not two. Android gets this
+        * view's `height` behaviour; iOS gets `automaticallyAdjustKeyboardInsets`
+        * on the scroll surfaces themselves, which insets by the keypad AND brings
+        * the FOCUSED field into view — the right tool for a field sitting in the
+        * middle of a card rather than at the end of a scroll. Doing both on iOS
+        * would count the keyboard's height twice.
+        */}
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? undefined : 'height'}
+      >
       <ScreenTransition screenKey={screen}>
       <View style={styles.content}>
         {screen === 'accueil' && (
@@ -1531,7 +1628,19 @@ export default function App() {
             // now already-added. `dejaDansVitrine` answers that question for
             // real; a dead one beside it would only mislead. Verifier minor.)
             return (
-              <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
+              <ScrollView
+              ref={ficheScroll}
+              style={styles.screenScroll}
+              contentContainerStyle={styles.scrollBody}
+              showsVerticalScrollIndicator={false}
+              // CLAVIER-MARGE — iOS insets this scroll by the keypad and brings the
+              // FOCUSED field into view; the money card sits mid-scroll, so scrolling
+              // to the end would not have found it.
+              automaticallyAdjustKeyboardInsets
+              // …and her NEXT tap lands on « Ajouter à ma vitrine » instead of being
+              // spent dismissing the keypad.
+              keyboardShouldPersistTaps="handled"
+            >
                 {/* the vérifié badge language (§4 L72 tier pill) */}
                 <View style={styles.ficheTierRow}>
                   <StatusChip tone="ok" label={t('fiche.tier')} />
@@ -1654,6 +1763,7 @@ export default function App() {
                         <Text style={styles.margeAmount}>{formatFcfa(opp.basePrice)}</Text>
                       </View>
                       <MarkupControl
+                        onFocusField={leverFiche}
                         value={viewOfOffer(opp).markup}
                         cap={viewOfOffer(opp).cap}
                         onChange={(m) => setMarkups((prev) => ({ ...prev, [opp.productVersionId]: m }))}
@@ -1764,6 +1874,7 @@ export default function App() {
             </ScrollView>
           ) : (
             <FlatList
+              ref={vitrineListe}
               style={styles.screenScroll}
               data={vitrineOffers}
               keyExtractor={(o) => o.productVersionId}
@@ -1771,6 +1882,11 @@ export default function App() {
               windowSize={5}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.scrollList}
+              // CLAVIER-MARGE — Ma Vitrine's cards are a LIST, not the sibling
+              // ScrollView above, and each card now carries the markup field.
+              // FlatList forwards both of these to its own scroll surface.
+              automaticallyAdjustKeyboardInsets
+              keyboardShouldPersistTaps="handled"
               ListHeaderComponent={
                 <View style={styles.scrollHead}>
                   <View style={styles.vitrineHeadRow}>
@@ -1903,6 +2019,7 @@ export default function App() {
                         figure where she reads it, and « Prix cliente » below is
                         the arithmetic answering her in place. */}
                     <MarkupControl
+                      onFocusField={leverVitrine}
                       value={markup}
                       cap={v.cap}
                       onChange={(m) => setMarkups((prev) => ({ ...prev, [item.productVersionId]: m }))}
@@ -2406,6 +2523,7 @@ export default function App() {
         {screen === 'membres' && <CercleMembres onBack={back} />}
       </View>
       </ScreenTransition>
+      </KeyboardAvoidingView>
 
       {/* the toast — the toggle/add confirmations (auto-clears); pointerEvents none
           so it never eats a tap. Honest, brief, above the chrome. */}

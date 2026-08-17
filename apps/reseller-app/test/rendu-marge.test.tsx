@@ -241,3 +241,172 @@ describe('MARGE-EXACTE — Ma Vitrine', () => {
     screen.unmount();
   });
 });
+
+/**
+ * ═══ CLAVIER-MARGE — the keypad must not sit on the money card ═══
+ *
+ * FOUNDER, 2026-08-15, with a screenshot of the Opportunité fiche mid-typing:
+ * « When I tap to add the number the keypad is hiding the section ». The numeric
+ * keypad covers « Prix de base / Vous ajoutez / Prix cliente » — the three rows
+ * the figure he is typing is FOR. He is typing blind into the one card whose
+ * whole job is to show him the arithmetic.
+ *
+ * WHAT THIS WALK MAY AND MAY NOT SAY. Occlusion is layout, and the harness bound
+ * is absolute: nothing here can assert that the card is visible above a keypad.
+ * What it CAN ask are the tree facts underneath it — is the field inside the
+ * container that yields to the keyboard, and does its scroll surface carry the
+ * two props that make a focused field reachable and its neighbours tappable
+ * while the keypad is up. A source scan proves neither: `KeyboardAvoidingView`
+ * in the file says nothing about WHICH subtree it wraps, and this app renders a
+ * separate ScrollView per screen, so « the fiche's one » is the only one that
+ * matters here. His phone remains the last check.
+ */
+describe('CLAVIER-MARGE — the field is inside the keyboard-aware shell, on both screens', () => {
+  /**
+   * CONTAINMENT, NOT THE PARENT CHAIN. `.parent` stops at a component boundary
+   * on the vitrine card, so walking upward found the field's own control and
+   * nothing above it — a walk that would have reported « no scroll surface »
+   * for a field plainly sitting on one. Asking which ancestor CONTAINS the
+   * field answers the real question on both screens.
+   */
+  async function conteneurs(screen: Awaited<ReturnType<typeof mountApp>>) {
+    const champs = screen.tree.root
+      .findAllByType('TextInput' as never)
+      .filter((i) => String(i.props['accessibilityLabel'] ?? '').includes('Vous ajoutez'));
+    expect(champs, 'exactly one markup field on screen').toHaveLength(1);
+    const champ = champs[0]!;
+    const contient = (kind: string) =>
+      screen.tree.root
+        .findAll((n) => String(n.type) === kind, { deep: true })
+        .filter((n) => n.findAll((x) => x === champ).length > 0);
+    return { champ, contient };
+  }
+
+  it('the fiche: the field sits INSIDE the keyboard-aware view, on a scroll that yields to the keypad', async () => {
+    wire(service([]));
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+
+    const { contient } = await conteneurs(screen);
+    expect(contient('KeyboardAvoidingView').length, 'the money card is OUTSIDE any keyboard-aware container')
+      .toBeGreaterThan(0);
+
+    const scrolls = contient('ScrollView');
+    expect(scrolls.length, 'the field is not on a scroll surface — it cannot be scrolled clear of the keypad')
+      .toBeGreaterThan(0);
+    const scroll = scrolls[scrolls.length - 1]!; // the innermost surface holding it
+    // iOS insets the scroll by the keyboard AND brings the focused field into
+    // view; without this the fiche's card stays exactly where the keypad is.
+    expect(scroll.props['automaticallyAdjustKeyboardInsets'], 'the scroll does not yield to the keypad').toBe(true);
+    // …and her NEXT tap must land on the button, not merely dismiss the keypad.
+    expect(scroll.props['keyboardShouldPersistTaps'], 'the first tap after typing is eaten').toBe('handled');
+
+    screen.unmount();
+  });
+
+  it('Ma Vitrine: the same, on the card that carries the same control', async () => {
+    wire(service([PV]));
+    const screen = await mountApp();
+    await screen.press('Ma Vitrine');
+
+    const { contient } = await conteneurs(screen);
+    expect(contient('KeyboardAvoidingView').length, 'the vitrine card is OUTSIDE any keyboard-aware container')
+      .toBeGreaterThan(0);
+    // Ma Vitrine's cards are a FlatList, not the sibling ScrollView — the SAME
+    // two props, forwarded by FlatList to its own scroll surface. A walk that
+    // only looked for a ScrollView would report « no scroll surface » on a
+    // screen that plainly scrolls.
+    const scrolls = [...contient('ScrollView'), ...contient('FlatList')];
+    expect(scrolls.length, 'the field is not on a scroll surface').toBeGreaterThan(0);
+    const scroll = scrolls[scrolls.length - 1]!;
+    expect(scroll.props['automaticallyAdjustKeyboardInsets'], 'the scroll does not yield to the keypad').toBe(true);
+    expect(scroll.props['keyboardShouldPersistTaps'], 'the first tap after typing is eaten').toBe('handled');
+
+    screen.unmount();
+  });
+
+
+
+  it('focusing the field ASKS its surface to lift the whole card, not just the caret', async () => {
+    /**
+     * `automaticallyAdjustKeyboardInsets` scrolls the CARET to the keyboard's
+     * top edge, so the ceiling note and « Prix cliente » — the figure she is
+     * typing this number FOR — stay underneath it; and when the field already
+     * sits above the keypad it scrolls nothing at all. The screen therefore
+     * asks its own surface to lift the field WITH SLACK BELOW IT on focus.
+     *
+     * What is asserted is the wiring, which is all a tree can answer: the field
+     * reports its focus, and doing so does not throw. How far it actually moves
+     * is layout, and layout is his phone's answer, not this harness's.
+     */
+    wire(service([]));
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+
+    const { champ } = await conteneurs(screen);
+    const onFocus = champ.props['onFocus'] as (() => void) | undefined;
+    expect(typeof onFocus, 'the field does not tell the screen it was focused — nothing can lift it').toBe('function');
+    onFocus!();
+    expect(screen.texts().length, 'the tree died on focus').toBeGreaterThan(0);
+    screen.unmount();
+  });
+
+  it('ONE TAP, NO BLUR — what she typed still reaches the wire (verifier BLOCKER)', async () => {
+    /**
+     * THE BUG THE KEYBOARD FIX ITSELF INTRODUCED, and it moved money.
+     *
+     * `keyboardShouldPersistTaps="handled"` is what lets her FIRST tap reach the
+     * button instead of being spent dismissing the keypad. But the field used to
+     * commit only in `onBlur` / `onSubmitEditing`, and dismissing the keypad IS
+     * what blurred it. With the tap no longer dismissing anything, the button
+     * fires while the field is still first responder — so `commit()` never ran
+     * and the app published markup 0. On iOS a `number-pad` has NO return key,
+     * so `onSubmitEditing` cannot rescue it there: blur was the only path.
+     *
+     * She types 750, taps once, and her cliente is quoted the base price.
+     *
+     * This walk types the way a thumb does — `onChangeText` only, no blur, no
+     * submit — which is why every earlier walk here missed it: `saisir()` fires
+     * `onSubmitEditing` before it presses.
+     */
+    const w = wire(service([]));
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+
+    await screen.type('750', 'Vous ajoutez');
+    await screen.press('Ajouter à ma vitrine');
+
+    const publie = w.calls.filter((c) => c.method !== 'GET' && c.body !== null && 'markup' in (c.body ?? {}));
+    expect(publie.length, 'nothing was published').toBeGreaterThan(0);
+    expect(
+      publie[publie.length - 1]!.body!['markup'],
+      'the typed figure never committed — the wire carried a markup she did not choose',
+    ).toBe(750);
+    screen.unmount();
+  });
+
+  it('typing then confirming still works — the shell did not cost her the primary action', async () => {
+    /**
+     * The four questions, on the road he actually walks: type the figure, then
+     * reach the next step. A keyboard-aware wrapper that broke the tree or
+     * swallowed the tap would be a worse bug than the one it fixes.
+     */
+    const w = wire(service([]));
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+    await saisir(screen, '750');
+
+    expect(screen.texts().length, 'the tree died under the keyboard-aware shell').toBeGreaterThan(0);
+    expect(screen.canPress('Ajouter à ma vitrine'), 'the primary action is not reachable after typing').toBe(true);
+    await screen.press('Ajouter à ma vitrine');
+
+    const publie = w.calls.filter((c) => c.method !== 'GET' && c.body !== null && 'markup' in (c.body ?? {}));
+    expect(publie.length, 'nothing was published after typing under the keypad').toBeGreaterThan(0);
+    expect(publie[publie.length - 1]!.body!['markup']).toBe(750);
+    screen.unmount();
+  });
+});
