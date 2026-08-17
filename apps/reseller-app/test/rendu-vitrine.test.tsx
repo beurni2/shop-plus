@@ -153,7 +153,12 @@ describe('MA VITRINE — what is in her shop is what the SERVICE says', () => {
     expect(screen.shows('Bazin riche')).toBe(true);
     expect(screen.shows('Sac en cuir')).toBe(true);
     screen.unmount();
-  });
+  }, 15_000);
+  /** ↑ headroom, not indulgence: this is the FIRST mount in the file, so it
+   *  pays the whole module-graph cost inside its own budget. On GitHub's
+   *  runners that crossed 5s twice (ci 521 on 0c6f603 — BEFORE any of the
+   *  2026-08-17 slices — and ci 523 on 2f3f3cf; 520/522 passed the same
+   *  bytes), a runner-speed flake, never an app behavior. */
 
   it('a product in supply but NOT in her shop is not on her vitrine', async () => {
     // The join is a real filter, not « show me everything »: pv-b is on offer
