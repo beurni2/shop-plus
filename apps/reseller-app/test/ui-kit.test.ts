@@ -240,15 +240,22 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(cta, 'without horizontal padding the label touches the edge').toMatch(/paddingHorizontal: spacing\.lg/);
     expect(app).toMatch(/sparkleCtaText: \{[^}]*textAlign: 'center'/);
 
-    // The SAME defect, one card up: `alignItems: 'flex-start'` sizes every
-    // child to its own intrinsic width, so a longer honest-silence sentence
-    // could not wrap either. It left with the button it was written for.
-    const silence = /ledgerSilence: \{[^}]*\}/.exec(app)?.[0] ?? '';
-    expect(silence, 'the ledgerSilence style block must be found').not.toBe('');
-    expect(silence, 'flex-start makes each sentence intrinsic-width').not.toMatch(/alignItems/);
+    // The zone rides a ROW (`homeSubRow`), where RN's default shrink of 0 would
+    // paint a long quartier past the screen edge with no ellipsis — the very
+    // row in the founder's screenshot (« MAMAN & MOI · Zone I, Ouagadougou »).
+    expect(app).toMatch(/homeSubZone: \{[^}]*flexShrink: 1/);
+    expect(app).toMatch(/style=\{styles\.homeSubZone\} numberOfLines=\{1\}/);
 
-    // ONE sentence, said once: the hero tagline that duplicated the header is gone.
-    expect(app).not.toMatch(/styles\.homeTagline/);
+    /**
+     * ONE sentence, said ONCE — and said where it can be READ WHOLE. The
+     * header's slot is `numberOfLines={1}` (kit `AppHeader`), so the
+     * 69-character promise could only ever be cut there; the hero is a plain
+     * Text in a stretch column, which wraps. The first fix removed the wrong
+     * one of the two — this pin keeps the truncating slot from coming back.
+     */
+    expect(app).toMatch(/<Text style=\{styles\.homeTagline\}>\{t\('accueil\.tagline'\)\}<\/Text>/);
+    expect(app, 'the accueil must not feed the one-line header slot').not.toMatch(/subtitle=\{/);
+    expect(read('src/ui/kit.tsx'), 'the uncalled subtitle slot is gone with it').not.toMatch(/headerSub/);
   });
 
   it('the kit imports stay inside the RN + tokens world (banned-import law extended to the kit)', () => {

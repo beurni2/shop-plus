@@ -1328,9 +1328,13 @@ export default function App() {
         </View>
       )}
 
+      {/* CTA-ENTIÈRE (verifier) — the accueil subtitle is GONE, not the hero
+          line. This slot is `numberOfLines={1}`, so the 69-character promise
+          « Choisissez de beaux produits… » was cut here at every font scale,
+          for ever. It now renders ONCE, under « Bonjour », where it wraps and
+          can be read whole. */}
       <AppHeader
         title={headerTitle}
-        subtitle={screen === 'accueil' ? t('accueil.tagline') : undefined}
         backLabel={`← ${t('nav.retour')}`}
         onBack={stack.length > 1 ? back : undefined}
       />
@@ -1390,7 +1394,7 @@ export default function App() {
                       <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
                     ) : null}
                     {liveStorefront.zone !== '' ? (
-                      <Text style={styles.homeSubZone}>{` · ${liveStorefront.zone}`}</Text>
+                      <Text style={styles.homeSubZone} numberOfLines={1}>{` · ${liveStorefront.zone}`}</Text>
                     ) : null}
                   </View>
                 ) : liveStorefront === null ? (
@@ -1401,9 +1405,11 @@ export default function App() {
 
             {/* Greeting hero — « Bonjour », plain: the app knows her SHOP, not
                 her first name, and a borrowed name is worse than none. The
-                tagline that stood here is REMOVED: the header already says it,
-                two lines above, so the screen printed one sentence twice. */}
+                tagline is said HERE and only here: a plain Text in a stretch
+                column, so it wraps and reads whole (the header's one-line slot
+                could only ever cut it). */}
             <Text style={styles.greeting}>{t('accueil.bonjour')}</Text>
+            <Text style={styles.homeTagline}>{t('accueil.tagline')}</Text>
 
             {/* ACCUEIL-HONESTY-1 — the ledger cards, from her REAL ladder.
                 Every figure here is a sum of amounts copied off frozen quotes
@@ -2709,8 +2715,11 @@ const styles = StyleSheet.create({
   homeTitle: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.view.size), fontWeight: w(t2.scale.view.wght) },
   homeSubRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   homeSubName: { flexShrink: 1, color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
-  homeSubZone: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  // `flexShrink: 1` because this sits in a ROW (`homeSubRow`) where RN's
+  // default shrink of 0 would paint a long quartier past the screen edge.
+  homeSubZone: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), flexShrink: 1 },
   greeting: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.screen.size, fontWeight: w(t2.scale.screen.wght) },
+  homeTagline: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   homeStatGrid: { flexDirection: 'row', gap: spacing.md },
   ledgerCard: { flex: 1 },
   // ACCESS-GATE-1 — the entrance. Generous, centred, nothing else on it.
@@ -2721,15 +2730,12 @@ const styles = StyleSheet.create({
   // ACCUEIL-HONESTY-1 — the no-figure block. Full width because it replaces
   // BOTH cards: half a grid with one card in it would read as a figure that
   // failed to load, which is the opposite of what it says.
-  // `alignItems: 'flex-start'` left with the button that once sat here
-  // (ACCESS-GATE-1). On a card holding only sentences it did one thing: size
-  // each line to its own intrinsic width, so a sentence longer than the card
-  // could not wrap and would be clipped — the same defect as the CTA above.
-  ledgerSilence: { gap: spacing.xs },
+  ledgerSilence: { gap: spacing.xs, alignItems: 'flex-start' },
   ledgerMoneyDeep: { color: shopColour.deep, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.cardMoney.size, fontWeight: w(t2.scale.cardMoney.wght), fontVariant: ['tabular-nums'] },
   ledgerMoney: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.cardMoney.size, fontWeight: w(t2.scale.cardMoney.wght), fontVariant: ['tabular-nums'] },
   ledgerCardSub: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size },
-  // CTA-ENTIÈRE — the kit's `buttonBase` geometry, verbatim: centred, PADDED,
+  // CTA-ENTIÈRE — the kit's `buttonBase` geometry (plus its own vertical
+  // padding and fill): centred, PADDED,
   // and NOT a row. As a row with no horizontal padding, the label (flexShrink
   // defaults to 0 in RN) could neither shrink nor wrap and was clipped
   // mid-word at the button's edge — the founder's « the end is cut ».

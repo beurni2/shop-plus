@@ -60,13 +60,11 @@ export function WaxBand() {
 /* Header (prototype `Top`): back chip · title + one-line context · right slot. */
 export function AppHeader({
   title,
-  subtitle,
   backLabel,
   onBack,
   right,
 }: {
   title: string;
-  subtitle?: string | undefined;
   backLabel?: string | undefined;
   onBack?: (() => void) | undefined;
   right?: React.ReactNode | undefined;
@@ -86,11 +84,6 @@ export function AppHeader({
         {title !== '' && (
           <Text style={styles.headerTitle} numberOfLines={1}>
             {title}
-          </Text>
-        )}
-        {subtitle !== undefined && (
-          <Text style={styles.headerSub} numberOfLines={1}>
-            {subtitle}
           </Text>
         )}
       </View>
@@ -422,7 +415,6 @@ const styles = StyleSheet.create({
     fontSize: rmax(t2.scale.view.size),
     fontWeight: w(t2.scale.view.wght),
   },
-  headerSub: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   tabBar: {
     flexDirection: 'row',
     backgroundColor: sharedColour.paper,
