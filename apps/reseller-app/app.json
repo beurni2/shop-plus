@@ -19,6 +19,17 @@
         {
           "microphonePermission": "Shop+ utilise le micro pour enregistrer vos notes vocales sur vos articles."
         }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Bricolage-ExtraBold.ttf",
+            "./assets/fonts/Instrument-Regular.ttf",
+            "./assets/fonts/Instrument-SemiBold.ttf",
+            "./assets/fonts/Instrument-Bold.ttf"
+          ]
+        }
       ]
     ],
     "runtimeVersion": {

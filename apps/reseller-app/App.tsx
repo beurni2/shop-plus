@@ -86,6 +86,11 @@ import {
 
 /** Resolve a scale value canon may state as a range to its max (RN has no clamp
  * — the fuller legible value; the one documented rule). */
+/** POLICE-MESURE — the CEILING on the first-paint font wait. Not a measurement
+ *  of anything (ruling ① 2026-07-12: no device millisecond is invented here);
+ *  past it the app paints in the fallback, as it did before this slice. */
+export const PLAFOND_ATTENTE_POLICES_MS = 1500;
+
 const rmax = (v: number | { readonly min: number; readonly max: number }): number =>
   typeof v === 'number' ? v : v.max;
 /** RN fontWeight wants a string; the token carries the number. */
@@ -267,8 +272,22 @@ export default function App() {
   // COLD-START LAW, CORRECTED (POLICE-MESURE, founder 2026-08-17): the result
   // is READ now. Its premise — a « metrics-close » system fallback — was false
   // on his phone, and painting before the faces land measures every line in the
-  // wrong font. The gate itself sits just above the return, after every hook.
+  // fallback face. The gate itself sits just above the return, after every hook.
   const [facesPretes, faceErreur] = useFonts(FONTS_TO_LOAD);
+  /**
+   * THE WAIT IS BOUNDED, and this number is a CEILING, never a measurement:
+   * ruling ① of 2026-07-12 says no device millisecond is ever invented and his
+   * device is the only source of that one. Nothing here claims how long the
+   * faces take. It says only that past this ceiling the app paints anyway, in
+   * the fallback, exactly as it did before this slice — so a face fetched over
+   * a stalled LAN in Expo Go can never leave her on an empty screen.
+   */
+  const [attenteExpiree, setAttenteExpiree] = useState(false);
+  useEffect(() => {
+    if (facesPretes) return;
+    const minuteur = setTimeout(() => setAttenteExpiree(true), PLAFOND_ATTENTE_POLICES_MS);
+    return () => clearTimeout(minuteur);
+  }, [facesPretes]);
   const [world, setWorld] = useState<DemoWorld>(() => createDemoWorld());
   const [stack, setStack] = useState<Screen[]>([START]);
   const screen = stack[stack.length - 1] ?? START;
@@ -1288,20 +1307,25 @@ export default function App() {
    * POLICE-MESURE (founder, 2026-08-17, zoomed: the « e » of « vendre » sliced
    * inside a button with room to spare, « gagnez vo » cut on the line above).
    *
-   * A SCREEN PAINTED BEFORE ITS FACES LAND MEASURES ITSELF IN THE WRONG FONT.
-   * RN measures every Text once, with whatever face is resolved AT THAT MOMENT,
-   * and keeps that width. The old COLD-START LAW called the system fallback
-   * « metrics-close » and painted immediately; Instrument Sans and Bricolage are
-   * WIDER than it, so each line was sized for San Francisco and then drawn in
-   * the real face — every glyph past the measured width clipped. It struck the
-   * accueil alone because that is the only screen painted inside the loading
-   * window; Partager, reached later, always measured correctly.
+   * A SCREEN PAINTED BEFORE ITS FACES LAND MEASURES ITSELF IN THE FALLBACK.
+   * `CustomStyleSpan` resolves the typeface lazily through `ReactFontManager`
+   * — the same registry `expo-font` writes into when a face finishes loading —
+   * but the line widths were already computed, and RN draws a pre-computed
+   * Layout clipped to its padding box. Lines measured in the fallback, drawn in
+   * the real face: every glyph past the measured width is cut, mid-glyph, at
+   * the Text's own right edge. That the trailing « e » goes and the leading
+   * « T » stays is the centring offset using the cached width — his screenshot,
+   * predicted. The real faces being the wider ones is INFERRED from that
+   * direction of overrun, not measured here.
    *
-   * So the FIRST PAINT waits — and only the first, for bundled faces, which is
-   * a few frames. What the old law was really protecting is kept: a face that
-   * FAILS never holds the app, it renders at once in the fallback.
+   * It struck the accueil because that is the screen painted inside the loading
+   * window; Partager, reached later, measured correctly — an explanation that
+   * fits every symptom he reported, and that only his phone can confirm.
+   *
+   * So the FIRST PAINT waits, bounded (above). What the old law was really
+   * protecting is kept: a face that FAILS never holds the app.
    */
-  if (!facesPretes && faceErreur === null) return <View style={styles.attentePolices} />;
+  if (!facesPretes && faceErreur === null && !attenteExpiree) return <View style={styles.attentePolices} />;
 
   return (
     /**

@@ -1,3 +1,4 @@
+import { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountApp, wire, wiredEnv, type Route } from './rendu';
 import { resetFiles } from './doubles/expo-file-system';
@@ -225,6 +226,31 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
     const quandMeme = await mountApp();
     expect(quandMeme.shows('Bonjour'), 'a broken face blocked the whole app').toBe(true);
     quandMeme.unmount();
+
+    /**
+     * …and the wait is BOUNDED. A face fetched over a stalled LAN in Expo Go
+     * neither loads nor errors, and an unbounded gate would leave her on an
+     * empty screen for ever. Past the ceiling the app paints in the fallback —
+     * what it did before this slice. The ceiling is IMPORTED, never copied, so
+     * the test cannot drift from the number the app actually uses.
+     */
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.doMock('expo-font', async () => ({
+      ...(await vi.importActual<Record<string, unknown>>('expo-font')),
+      useFonts: () => [false, null],
+    }));
+    wire(routes);
+    const borne = await mountApp();
+    expect(borne.texts(), 'the gate must hold before the ceiling').toHaveLength(0);
+    const { PLAFOND_ATTENTE_POLICES_MS } = await import('../App');
+    await act(async () => {
+      vi.advanceTimersByTime(PLAFOND_ATTENTE_POLICES_MS + 100);
+    });
+    await borne.settle();
+    expect(borne.shows('Bonjour'), 'the bounded wait never released the screen').toBe(true);
+    borne.unmount();
+    vi.useRealTimers();
     vi.doUnmock('expo-font');
   });
 
