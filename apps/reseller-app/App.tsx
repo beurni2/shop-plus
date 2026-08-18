@@ -1183,13 +1183,20 @@ export default function App() {
    */
   const recommencer = useCallback(async () => {
     if (service === null) return setToast(t('k.publier.non_relie'));
-    if (compte !== null && compte !== undefined) return setToast(t('k.recommencer.compte'));
+    // The compte loads from disk on mount; while that read is in flight the
+    // guard cannot know, so it WAITS rather than passing an unknown through —
+    // a confirm in that window could split her sales from her shop.
+    if (compte === undefined) return setToast(t('k.publier.identite_attente'));
+    if (compte !== null) return setToast(t('k.recommencer.compte'));
     if (identity === null || identity === undefined) return setToast(t('k.publier.identite_attente'));
     if (liveStorefront === null || liveStorefront === undefined) return setToast(t('k.publier.identite_attente'));
     const ancienne = liveStorefront;
     setToast(t('k.publier.envoi'));
-    // Best-effort: the old shop leaves DISCOVERY; a failure here must not
-    // block the fresh start (the new shop is the act she asked for).
+    // Best-effort: the old shop leaves DISCOVERY when this lands. A failure
+    // here must not block the fresh start (the new shop is the act she asked
+    // for) — the accepted residual is an old shop still discoverable until the
+    // founder unpublishes it with the admin key; after the remint the app can
+    // never address the old id again. Journalled, not prevented.
     await service.unpublish(identity.storefrontId, identity.correlationId, new Date().toISOString()).catch(() => undefined);
     const neuve = await remintIdentity(expoIdentityStore(), expoRandomBytes, identity.digits);
     if (!neuve.ok) return setToast(t('k.publier.identite_absente'));

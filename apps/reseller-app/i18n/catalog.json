@@ -2905,7 +2905,7 @@
  },
  {
   "key": "k.recommencer.compte",
-  "fr": "Votre boutique est liée à votre compte. Pour changer d\u2019adresse, écrivez au support Shop+.",
+  "fr": "Votre boutique est liée à votre compte, et son adresse ne peut plus changer ici.",
   "register": "neutral",
   "screenClass": "status"
  },
