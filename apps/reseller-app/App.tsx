@@ -264,11 +264,11 @@ const accessCodeStore = expoAccessCodeStore();
 const compteStore = compteStoreSur(expoAccessCodeStore('reseller-compte.v1.txt'));
 
 export default function App() {
-  // COLD-START LAW: load the Faso Premium faces asynchronously and DO NOT gate
-  // first paint on them — the metrics-close system fallback renders immediately,
-  // and the faces swap in when ready (expo-font re-renders on load). First paint
-  // never waits; a face that never resolves simply stays in the fallback.
-  useFonts(FONTS_TO_LOAD);
+  // COLD-START LAW, CORRECTED (POLICE-MESURE, founder 2026-08-17): the result
+  // is READ now. Its premise — a « metrics-close » system fallback — was false
+  // on his phone, and painting before the faces land measures every line in the
+  // wrong font. The gate itself sits just above the return, after every hook.
+  const [facesPretes, faceErreur] = useFonts(FONTS_TO_LOAD);
   const [world, setWorld] = useState<DemoWorld>(() => createDemoWorld());
   const [stack, setStack] = useState<Screen[]>([START]);
   const screen = stack[stack.length - 1] ?? START;
@@ -1283,6 +1283,25 @@ export default function App() {
       | undefined;
     responder?.scrollResponderScrollNativeHandleToKeyboard?.(handle, SOUS_LE_CHAMP, true);
   }, []);
+
+  /**
+   * POLICE-MESURE (founder, 2026-08-17, zoomed: the « e » of « vendre » sliced
+   * inside a button with room to spare, « gagnez vo » cut on the line above).
+   *
+   * A SCREEN PAINTED BEFORE ITS FACES LAND MEASURES ITSELF IN THE WRONG FONT.
+   * RN measures every Text once, with whatever face is resolved AT THAT MOMENT,
+   * and keeps that width. The old COLD-START LAW called the system fallback
+   * « metrics-close » and painted immediately; Instrument Sans and Bricolage are
+   * WIDER than it, so each line was sized for San Francisco and then drawn in
+   * the real face — every glyph past the measured width clipped. It struck the
+   * accueil alone because that is the only screen painted inside the loading
+   * window; Partager, reached later, always measured correctly.
+   *
+   * So the FIRST PAINT waits — and only the first, for bundled faces, which is
+   * a few frames. What the old law was really protecting is kept: a face that
+   * FAILS never holds the app, it renders at once in the fallback.
+   */
+  if (!facesPretes && faceErreur === null) return <View style={styles.attentePolices} />;
 
   return (
     /**
@@ -2629,6 +2648,9 @@ export default function App() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: sharedColour.paper },
+  // POLICE-MESURE — the few frames before the faces land: the app's own
+  // paper, nothing on it. Never a spinner: at this length one would flash.
+  attentePolices: { flex: 1, backgroundColor: sharedColour.paper },
   /**
    * OPPORTUNITÉS-BLANC — the white ground for the opportunités hub ONLY,
    * composed OVER `screen` (never replacing it), so every other hub keeps the

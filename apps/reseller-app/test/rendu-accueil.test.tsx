@@ -184,6 +184,50 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
     screen.unmount();
   });
 
+  it('POLICE-MESURE — the first paint waits for the real faces, and NEVER for a broken one', async () => {
+    /**
+     * FOUNDER, 2026-08-17, zoomed screenshot: the « e » of « vendre » sliced
+     * down the middle INSIDE a button with wide empty space on both sides, and
+     * « gagnez vo » cut on the line above. The box was never the problem — the
+     * MEASUREMENT was: `useFonts` was fired and its result discarded, so the
+     * first screen was laid out in the system fallback and then drawn in
+     * Instrument Sans / Bricolage, which are wider. Every glyph past the
+     * measured width is clipped. It hits the accueil alone because that is the
+     * only screen painted inside the font-loading window — Partager, reached
+     * later, always measured correctly.
+     *
+     * The old comment called the fallback « metrics-close ». His phone says it
+     * is not, and a first paint measured in the wrong font is a first paint
+     * that lies about its own width.
+     */
+    vi.resetModules();
+    /** The alias routes several expo modules through ONE double, so the mock
+     *  keeps every other export and overrides `useFonts` alone. */
+    vi.doMock('expo-font', async () => ({
+      ...(await vi.importActual<Record<string, unknown>>('expo-font')),
+      useFonts: () => [false, null],
+    }));
+    wire(routes);
+    const attente = await mountApp();
+    expect(
+      attente.texts(),
+      'the screen painted — and measured itself — before the faces resolved',
+    ).toHaveLength(0);
+    attente.unmount();
+
+    // …and a face that FAILS must never hold the app hostage.
+    vi.resetModules();
+    vi.doMock('expo-font', async () => ({
+      ...(await vi.importActual<Record<string, unknown>>('expo-font')),
+      useFonts: () => [false, new Error('face manquante')],
+    }));
+    wire(routes);
+    const quandMeme = await mountApp();
+    expect(quandMeme.shows('Bonjour'), 'a broken face blocked the whole app').toBe(true);
+    quandMeme.unmount();
+    vi.doUnmock('expo-font');
+  });
+
   it('CTA-ENTIÈRE — the label stands alone on the button, and the tagline is said ONCE', async () => {
     /**
      * FOUNDER, 2026-08-17, from his phone: « the "trouver des produits à
