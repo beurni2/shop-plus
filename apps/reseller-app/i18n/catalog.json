@@ -2874,6 +2874,42 @@
   "screenClass": "status"
  },
  {
+  "key": "k.recommencer.action",
+  "fr": "Recommencer ma boutique",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.recommencer.titre",
+  "fr": "Repartir avec une nouvelle adresse ?",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.recommencer.corps",
+  "fr": "Votre boutique garde son nom et reçoit une nouvelle adresse, tirée de ce nom. Vos produits seront à réajouter depuis « Opportunités ». L\u2019ancien lien continuera d\u2019ouvrir l\u2019ancienne page.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.recommencer.confirmer",
+  "fr": "Oui, changer d\u2019adresse",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.recommencer.annuler",
+  "fr": "Garder mon adresse",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "k.recommencer.compte",
+  "fr": "Votre boutique est liée à votre compte. Pour changer d\u2019adresse, écrivez au support Shop+.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "k.publier.non_relie",
   "fr": "Cette version n’est pas encore reliée au service. Votre boutique n’a pas été envoyée.",
   "register": "neutral",

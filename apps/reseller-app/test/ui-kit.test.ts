@@ -258,6 +258,25 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(read('src/ui/kit.tsx'), 'the uncalled subtitle slot is gone with it').not.toMatch(/headerSub/);
   });
 
+  it('RECOMMENCER — the account guard refuses BEFORE any write (her feed is keyed by the account digits)', () => {
+    /**
+     * RESELLER-ACCOUNTS-1d makes the ACCOUNT's digits own the identity — her
+     * sales feed and the founder's suivi ride them. A device-side re-mint with
+     * a compte adopted would split her sales from her shop, so the handler
+     * refuses with a sentence FIRST. Pinned at the source because no walk can
+     * adopt a compte without the accounts flow; the guard's ORDER is the
+     * assertion — it must precede the unpublish, the re-mint and the create.
+     */
+    const app = read('App.tsx');
+    const handler = /const recommencer = useCallback\([\s\S]*?\n  \}, \[/.exec(app)?.[0] ?? '';
+    expect(handler, 'the recommencer handler must be found').not.toBe('');
+    const garde = handler.indexOf("t('k.recommencer.compte')");
+    expect(garde, 'the compte guard is missing').toBeGreaterThan(-1);
+    expect(garde).toBeLessThan(handler.indexOf('service.unpublish'));
+    expect(garde).toBeLessThan(handler.indexOf('remintIdentity'));
+    expect(garde).toBeLessThan(handler.indexOf('service.create'));
+  });
+
   it('the kit imports stay inside the RN + tokens world (banned-import law extended to the kit)', () => {
     const BANNED = /@platform\/contracts|@platform\/i18n|@shop-plus\/commerce-core|^node:/;
     const kit = read('src/ui/kit.tsx');

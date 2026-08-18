@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { IDENTITY_VERSION, digitsFromBytes, identityFromDigits } from '../src/identity/mint';
-import { InMemoryIdentityStore, loadOrMintIdentity, type RandomBytes } from '../src/identity/store';
+import { InMemoryIdentityStore, loadOrMintIdentity, remintIdentity, type RandomBytes } from '../src/identity/store';
 
 /**
  * RESELLER-IDENTITY-1 — the identity must SURVIVE a restart and must NEVER be
@@ -190,5 +190,43 @@ describe('BANDEAUX-RETIRÉS — the operator line is gone, and the key is safer 
      * of this strip.
      */
     expect(app).not.toContain('feedStateKey');
+  });
+});
+
+describe('remintIdentity — a NEW address means a NEW identity, never the old one back', () => {
+  it('mints fresh digits, persists them BEFORE returning, and derives the new ids', async () => {
+    const store = new InMemoryIdentityStore();
+    await store.write(JSON.stringify({ version: IDENTITY_VERSION, digits: '6839' }));
+    const re = await remintIdentity(store, fixed(0x12, 0xd5), '6839');
+    expect(re.ok).toBe(true);
+    if (re.ok) {
+      expect(re.identity.digits).toBe('4821'); // 0x12d5
+      expect(re.identity.storefrontId).toBe('sf-4821');
+      // persisted: a restart loads the NEW identity, not the old one
+      const back = await loadOrMintIdentity(store, fixed(0x00, 0x00));
+      expect(back.ok && back.identity.digits).toBe('4821');
+    }
+  });
+
+  it('REDRAWS on a collision with the current digits — same digits would answer `idempotent` and hand back the OLD shop', async () => {
+    const store = new InMemoryIdentityStore();
+    // First draw collides with the current digits; the second differs.
+    const draws: Uint8Array[] = [bytes(0x12, 0xd5), bytes(0x00, 0x2a)];
+    const seq: RandomBytes = () => draws.shift() ?? bytes(0x00, 0x00);
+    const re = await remintIdentity(store, seq, '4821');
+    expect(re.ok).toBe(true);
+    if (re.ok) expect(re.identity.digits).toBe('0042');
+  });
+
+  it('REFUSES when three draws all collide — a « new address » that changes nothing is a lie, not an outcome', async () => {
+    const store = new InMemoryIdentityStore();
+    const re = await remintIdentity(store, fixed(0x12, 0xd5), '4821');
+    expect(re).toEqual({ ok: false, reason: 'mint_failed' });
+  });
+
+  it('a minted id that did not persist is NOT an identity (the loadOrMint contract, inherited)', async () => {
+    const store = new InMemoryIdentityStore(true);
+    const re = await remintIdentity(store, fixed(0x12, 0xd5), '6839');
+    expect(re).toEqual({ ok: false, reason: 'persist_failed' });
   });
 });

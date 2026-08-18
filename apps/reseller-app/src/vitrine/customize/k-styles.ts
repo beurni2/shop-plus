@@ -86,6 +86,9 @@ export const K_RAW_STYLES = {
   fieldInputError: { borderColor: '#C4574B' },
   fieldError: { fontFamily: TEXT_FAMILY_SEMIBOLD, fontSize: 12, fontWeight: '600', color: '#8C1D18', marginTop: 6 },
   noteRose: { borderRadius: 14, backgroundColor: '#F8E4EC', padding: 12, marginTop: 16 },
+  // RECOMMENCER — the confirm card's title and the spacing its two buttons share.
+  recommencerTitre: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 14.5, fontWeight: '700', color: '#701134', marginBottom: 4 },
+  mt8: { marginTop: 8 },
   noteRoseText: { fontFamily: TEXT_FAMILY, fontSize: 12, lineHeight: 18, color: '#701134' },
   cta: {
     height: 54, borderRadius: 16, backgroundColor: '#A31D4E', alignItems: 'center', justifyContent: 'center', marginTop: 18,

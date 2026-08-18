@@ -387,7 +387,7 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
             : { status: 404, json: { error: 'not_found' } }
           : null,
     ];
-    wire(monde);
+    const fils = wire(monde);
     const screen = await mountApp();
     await screen.settle();
     expect(screen.shows('Créez votre boutique dans « Ma Vitrine ».'), 'the walk must START from the honest absence').toBe(true);
@@ -422,6 +422,15 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
     await screen.press('Mettre ma boutique en ligne');
     await screen.settle();
     expect(screen.shows('En ligne : boutique-0001'), 'the publish toast must land first').toBe(true);
+    /** THE PROPERTY THE FOUNDER NAMED (2026-08-18: « each time a reseller
+     *  creates a boutique, the QR address reads the newly created boutique's
+     *  name ») — pinned at the WIRE: the create body's shortCode is derived
+     *  from the name she typed, and the slug the service mints is that
+     *  shortCode lowercased. The fixture answers a fixed slug; this reads the
+     *  REQUEST, which is the app's half of the property. */
+    const envoye = fils.calls.filter((c) => c.path === '/storefronts' && c.method === 'POST');
+    expect(envoye).toHaveLength(1);
+    expect(String((envoye[0]!.body as Record<string, unknown>)['shortCode'])).toMatch(/^BOUTIQUETEST-\d{4}$/);
 
     // Leave the customize stack (no dock there), then hop home by the tab.
     await screen.press('← Retour');

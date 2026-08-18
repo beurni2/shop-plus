@@ -87,6 +87,9 @@ export interface CustomizeProps {
   onPublishOnline?: (sf: Storefront) => void;
   /** Show what the founder has already put online (the admin list). */
   onListStorefronts?: () => void;
+  /** RECOMMENCER — a fresh identity + a new storefront under the shop's current
+   *  name, so the address reads that name. Absent ⇒ the action stays hidden. */
+  onRecommencer?: () => void;
   /** RESELLER-UX-1 item 6 — her shop's REAL slug once it is live (read back from
    * the service, never computed). Present ⇒ the publish CTA is retired and
    * « voir » opens the public page; absent ⇒ first-time flow, unchanged. */
@@ -208,7 +211,7 @@ function KHeader({ title, onBack, pill }: { title: string; onBack: () => void; p
 
 /* ------------------------------------------------------------- the stack -- */
 
-export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist, shopIsLive, onUploadCover, onUploadAvatar, catalog }: CustomizeProps) {
+export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChange, onPublishOnline, onRecommencer, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, onSaveIdentity, savesPersist, shopIsLive, onUploadCover, onUploadAvatar, catalog }: CustomizeProps) {
   const [route, setRoute] = useState<KRoute>('k1');
   const [sf, setSfRaw] = useState<Storefront>(storefront ?? DEFAULT_STOREFRONT);
   // PERSONNALISER-HONESTY-1 — which header save is in flight, so K4 can say
@@ -396,6 +399,7 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           go={setRoute}
           onPublishOnline={onPublishOnline ? () => onPublishOnline(sf) : undefined}
           onListStorefronts={onListStorefronts}
+          onRecommencer={onRecommencer}
           serviceUnconfigured={serviceUnconfigured ?? false}
           liveSlug={liveSlug}
           onOpenBoutique={onOpenBoutique}
@@ -529,7 +533,11 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
 
 /* ------------------------------------------------------------------- K1 -- */
 
-function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, saveWired, savesPersist, shopIsLive, catalogTotal }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean; liveSlug?: string | undefined; onOpenBoutique?: ((slug: string) => void) | undefined; saveWired?: boolean; savesPersist?: boolean; shopIsLive?: boolean; catalogTotal?: number | undefined }) {
+function K1({ sf, th, onBack, go, onPublishOnline, onRecommencer, onListStorefronts, serviceUnconfigured, liveSlug, onOpenBoutique, saveWired, savesPersist, shopIsLive, catalogTotal }: { sf: Storefront; th: (typeof THEMES)[VitrineThemeKey]; onBack: () => void; go: (r: KRoute) => void; onPublishOnline?: (() => void) | undefined; onRecommencer?: (() => void) | undefined; onListStorefronts?: (() => void) | undefined; serviceUnconfigured?: boolean; liveSlug?: string | undefined; onOpenBoutique?: ((slug: string) => void) | undefined; saveWired?: boolean; savesPersist?: boolean; shopIsLive?: boolean; catalogTotal?: number | undefined }) {
+  // RECOMMENCER — the two-step stays local to K1: a destructive-adjacent act
+  // needs its consequences read before its button, and a stray tap must cost
+  // nothing (« Garder mon adresse » is the way out).
+  const [confirmeRecommencer, setConfirmeRecommencer] = useState(false);
   const initial = sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase();
   const coverSub =
     sf.cover.status === 'live' ? t('k.row.cover_live') : sf.cover.status === 'pending' ? t('k.row.cover_pending') : t('k.row.cover_defaut');
@@ -643,6 +651,28 @@ function K1({ sf, th, onBack, go, onPublishOnline, onListStorefronts, serviceUnc
           <Text style={S.ghostBtnText}>{t('k.publier.voir')}</Text>
         </Pressable>
       ) : null}
+      {/* RECOMMENCER (founder, 2026-08-18) — a live shop can start over under a
+          NEW address derived from its current name. Two steps: the quiet action
+          opens a card that says the consequences in plain words, and only its
+          own button sends. Hidden until the shop is live — before that, the
+          first publish already derives the address from her name. */}
+      {onRecommencer !== undefined && liveSlug !== undefined && !confirmeRecommencer && (
+        <Pressable style={({ pressed }) => [S.ghostBtn, pressed && S.pressed]} onPress={() => setConfirmeRecommencer(true)} accessibilityRole="button">
+          <Text style={S.ghostBtnText}>{t('k.recommencer.action')}</Text>
+        </Pressable>
+      )}
+      {onRecommencer !== undefined && liveSlug !== undefined && confirmeRecommencer && (
+        <View style={S.noteRose}>
+          <Text style={S.recommencerTitre}>{t('k.recommencer.titre')}</Text>
+          <Text style={S.noteRoseText}>{t('k.recommencer.corps')}</Text>
+          <Pressable style={({ pressed }) => [S.cta, S.mt8, pressed && S.pressed]} onPress={() => { setConfirmeRecommencer(false); onRecommencer(); }} accessibilityRole="button">
+            <Text style={S.ctaText}>{t('k.recommencer.confirmer')}</Text>
+          </Pressable>
+          <Pressable style={({ pressed }) => [S.ghostBtn, S.mt8, pressed && S.pressed]} onPress={() => setConfirmeRecommencer(false)} accessibilityRole="button">
+            <Text style={S.ghostBtnText}>{t('k.recommencer.annuler')}</Text>
+          </Pressable>
+        </View>
+      )}
       {/* bande encre — jamais modifiable */}
       <View style={S.inkBand}>
         <Text style={S.inkBandText}>

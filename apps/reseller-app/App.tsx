@@ -25,7 +25,7 @@ import { HeroLedger, DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
 import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, type StorefrontIdentityPatch } from './src/vitrine/service';
 import type { Storefront } from './src/vitrine/customize/storefront';
-import { loadOrMintIdentity } from './src/identity/store';
+import { loadOrMintIdentity, remintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
 import type { ResellerIdentity } from './src/identity/mint';
 import { expoIdentityStore, expoRandomBytes } from './src/identity/expoStore';
@@ -1159,6 +1159,66 @@ export default function App() {
       setIdentity(identityFromDigits(digits));
     }
   };
+
+  /**
+   * RECOMMENCER (founder, 2026-08-18: « each time a reseller creates a boutique,
+   * the QR address reads the newly created boutique's name ») — the address IS
+   * derived from the name at every create; what was missing is the way to
+   * create AGAIN. Canon locks a storefront's slug for life (loi gelée 3), and
+   * the identity is minted once — so a new address means a NEW identity and a
+   * NEW storefront, created in one confirmed tap from the old shop's own
+   * name/zone/category. She retypes nothing.
+   *
+   * ORDER MATTERS: the fresh identity is PERSISTED before anything is created
+   * under it (RESELLER-IDENTITY-1 — an unpersisted id is not an identity), and
+   * the old shop is unpublished BEST-EFFORT first so two shops with one name
+   * never sit in discovery together. The old page keeps resolving — canon:
+   * a printed QR never dies — it only leaves the directory.
+   *
+   * THE ACCOUNT GUARD, and it is money-adjacent so it refuses loudly: once a
+   * compte is adopted, the ACCOUNT's digits own the identity (her feed and the
+   * founder's suivi are keyed by them — RESELLER-ACCOUNTS-1d). A device-side
+   * re-mint would split her sales from her shop, so with a compte present this
+   * refuses with a sentence instead.
+   */
+  const recommencer = useCallback(async () => {
+    if (service === null) return setToast(t('k.publier.non_relie'));
+    if (compte !== null && compte !== undefined) return setToast(t('k.recommencer.compte'));
+    if (identity === null || identity === undefined) return setToast(t('k.publier.identite_attente'));
+    if (liveStorefront === null || liveStorefront === undefined) return setToast(t('k.publier.identite_attente'));
+    const ancienne = liveStorefront;
+    setToast(t('k.publier.envoi'));
+    // Best-effort: the old shop leaves DISCOVERY; a failure here must not
+    // block the fresh start (the new shop is the act she asked for).
+    await service.unpublish(identity.storefrontId, identity.correlationId, new Date().toISOString()).catch(() => undefined);
+    const neuve = await remintIdentity(expoIdentityStore(), expoRandomBytes, identity.digits);
+    if (!neuve.ok) return setToast(t('k.publier.identite_absente'));
+    setIdentity(neuve.identity);
+    // The session-local vitrine log described the OLD shop's session; the new
+    // shop starts empty on the service, so the log restarts with it.
+    setVitrineLog([]);
+    const at = new Date().toISOString();
+    const created = await service.create({
+      commandId: neuve.identity.commandId,
+      id: neuve.identity.storefrontId,
+      resellerId: neuve.identity.resellerId,
+      shortCode: deriveShortCode(ancienne.name, neuve.identity.digits),
+      name: ancienne.name,
+      zone: ancienne.zone,
+      category: ancienne.category,
+      correlationId: neuve.identity.correlationId,
+      at,
+    });
+    if (!created.ok) return setToast(tf('k.publier.erreur', { raison: created.reason }));
+    const pub = await service.publish(neuve.identity.storefrontId, neuve.identity.correlationId, at);
+    if (!pub.ok) return setToast(tf('k.publier.erreur', { raison: pub.reason }));
+    if (created.value.slug === null || created.value.slug === '') {
+      return setToast(t('k.publier.en_ligne_sans_slug'));
+    }
+    if (created.value.storefront !== undefined) adopterStorefront(created.value.storefront);
+    setLiveShop({ slug: created.value.slug });
+    setToast(tf('k.publier.en_ligne', { slug: created.value.slug }));
+  }, [service, compte, identity, liveStorefront, adopterStorefront]);
 
   useEffect(() => {
     void (async () => {
@@ -2546,6 +2606,7 @@ export default function App() {
             onClose={back}
             onToast={setToast}
             onPublishOnline={publishOnline}
+            onRecommencer={() => { void recommencer(); }}
             onListStorefronts={listOnline}
             serviceUnconfigured={service === null}
             // PERSONNALISER-REAL-1 — HER shop, read back from the service, and the

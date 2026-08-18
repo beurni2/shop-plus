@@ -82,6 +82,47 @@ export async function loadOrMintIdentity(store: IdentityStore, randomBytes: Rand
   return { ok: true, identity: identityFromDigits(digits), minted: true };
 }
 
+/**
+ * RECOMMENCER (founder, 2026-08-18: « each time a reseller creates a boutique,
+ * the QR address reads the newly created boutique's name ») — mint a FRESH
+ * identity over the stored one, so the next create derives a new address from
+ * the shop's current name.
+ *
+ * THE ONE RULE BEYOND loadOrMintIdentity: the new digits MUST differ from the
+ * current ones. `commandId` is `create-sf-{digits}`, so re-minting the SAME
+ * digits would make the next create answer `idempotent` and hand back the OLD
+ * shop under the OLD address — a « new address » button that silently changes
+ * nothing. 4 digits give a 1/9000 collision per draw; three draws make the
+ * failure odds ignorable, and past them the mint REFUSES rather than lies.
+ *
+ * The persistence contract is inherited unchanged: a minted id that did not
+ * persist is not an identity, so the write happens before the return.
+ */
+export async function remintIdentity(
+  store: IdentityStore,
+  randomBytes: RandomBytes,
+  currentDigits: string,
+): Promise<IdentityOutcome> {
+  let digits: string | undefined;
+  for (let essai = 0; essai < 3 && digits === undefined; essai += 1) {
+    try {
+      const tirage = digitsFromBytes(randomBytes(MINT_BYTES));
+      if (tirage !== currentDigits) digits = tirage;
+    } catch {
+      return { ok: false, reason: 'mint_failed' };
+    }
+  }
+  if (digits === undefined) return { ok: false, reason: 'mint_failed' };
+
+  const record: StoredIdentity = { version: IDENTITY_VERSION, digits };
+  try {
+    await store.write(JSON.stringify(record));
+  } catch {
+    return { ok: false, reason: 'persist_failed' };
+  }
+  return { ok: true, identity: identityFromDigits(digits), minted: true };
+}
+
 /** In-memory store — TESTS ONLY. Never imported by the app (it persists nothing). */
 export class InMemoryIdentityStore implements IdentityStore {
   private data: string | null = null;
