@@ -46,7 +46,9 @@ Format per entry:
 
 **EVIDENCE after closing the hole.** buyer **990/990** (37 files) · buyer tsc clean · gate board **ALL GATES GREEN exit 0**.
 
-**Pending:** merging and deploying on the founder's word (given 2026-08-19).
+**MERGED AND DEPLOYED (founder's word, 2026-08-19: « Close it, and merge and deploy »):** main fast-forwarded `cab9299..29c0938`. `pwa-preview` run 32268548198, `expo-preview` run 32268548296 and `service-canon-drift` run 32268548489 all **green on attempt 1**. `ci` run 32268548330 **hung on infrastructure** — the « Install Playwright chromium » step sat in_progress for 40+ minutes with every prior step green and nothing failing; I cancelled it and re-ran, and **attempt 2 completed success**. Recorded because it was a runner stall, not a code failure, and the same gate board had already run green locally.
+
+**OPEN, awaiting the founder's call:** the featured-inside-a-section duplicate tile described above. Unreachable for new shops; not fixed in this slice.
 
 ## 2026-08-14 · BANDEAUX-RETIRÉS — the two demo banners are gone · DONE
 
