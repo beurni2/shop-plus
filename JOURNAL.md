@@ -38,7 +38,15 @@ Format per entry:
 
 **EVIDENCE (my own runs).** reseller **650/650** · buyer **987/987** · monorepo tsc **19/19 clean** · full Playwright board **106/106** in Chromium · gate board **ALL GATES GREEN exit 0** · catalogs 587 and 210 entries, raw U+202F = 0 in both.
 
-**Pending:** the founder's word to merge and deploy.
+**COVERAGE HOLE CLOSED (founder, 2026-08-19: « Close it »).** `test/vitrine-sections.test.ts` drives a non-empty `sections` through `renderVitrineReady` for the first time in either repo: her headings render uppercased in HER stored order, each counted honestly, each grouped article drawn exactly ONCE; an EMPTY section stays invisible; and a shop with no grouping draws no heading at all — the control that stops the other two passing over a page that heads everything. Mutation-verified: starving `visibleSections` reds two of the three.
+
+**WHAT WRITING IT EXPOSED — a real pre-existing defect, NOT fixed here.** An article that is BOTH pinned « à la une » AND inside a section renders **TWICE** — once as the featured tile, once under the section heading. Measured, not inferred: a probe over a shop with `featuredItems: ['p1']` and a section holding `p1` counts 2 tiles for `p1`. `render.ts:524-533` excludes `sectioned` pids from the residual grid and excludes `featuredShown` pids from the residual grid, but nothing excludes a featured pid from a SECTION — so the very defect the file's own comment says it fixed for featured-vs-grid (« two tiles, two hearts, desynced on tap ») is still open for featured-vs-sections. It predates this slice and is unreachable for new shops (the sections editor left on 2026-08-13), so only a shop grouped before that date with a featured item inside a group can hit it. Out of scope for this fix; named to the founder rather than quietly pinned as expected behaviour.
+
+**NO SECOND VERIFIER PASS on this addition, by law.** The 2026-08-08 NO-LOOP order forbids re-inspecting a slice after handling a verifier's findings, and this test closes a hole that verifier itself named. It is proof written while building, evidenced by its own mutation.
+
+**EVIDENCE after closing the hole.** buyer **990/990** (37 files) · buyer tsc clean · gate board **ALL GATES GREEN exit 0**.
+
+**Pending:** merging and deploying on the founder's word (given 2026-08-19).
 
 ## 2026-08-14 · BANDEAUX-RETIRÉS — the two demo banners are gone · DONE
 
