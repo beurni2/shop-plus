@@ -72,7 +72,7 @@ function render(v: Vals): string {
     // B1 (verifier, browser-measured): at left the pair covered 58% of her
     // avatar AND the vérifié badge — the one thing this page exists to show.
     // Right side, same offsets, over the medallion's empty margin.
-    controls(v, 'ry', 'right', '14px', '66px', '#E9CF8F'),
+    controls(v, 'ry', '#E9CF8F'),
     '</div>',
     '</div>',
   ].join('');

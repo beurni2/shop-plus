@@ -37,12 +37,16 @@ describe('1 · the aperçu-cliente replica is GONE', () => {
     }
   });
 
-  it('THE REAL CLIENTE VIEW SURVIVES — the replica went, the genuine article did not', () => {
-    // This is what makes the removal safe rather than a loss: Personnaliser
-    // still opens the LIVE page (and the K7 replica only before a shop exists),
-    // which is the view that cannot drift from what a client sees.
-    expect(screens).toContain("t('k.voir_cliente')");
-    expect(screens).toMatch(/liveSlug !== undefined && onOpenBoutique !== undefined \? onOpenBoutique\(liveSlug\) : go\('k7'\)/);
+  it('THE REAL CLIENTE VIEW SURVIVES, and it is now the ONLY door (founder, 2026-08-18)', () => {
+    // « remove voir comme cliente cause voir ma boutique en ligne already does
+    // the same thing » — with a live shop both controls called
+    // `onOpenBoutique(liveSlug)`. The survivor is the one that opens the page
+    // that CANNOT drift from what a cliente sees; the K7 replica had no other
+    // door, so it went with the button.
+    expect(screens).toContain("t('k.publier.voir')");
+    expect(screens, 'the duplicate door is back').not.toContain("k.voir_cliente");
+    expect(screens, 'the unreachable replica is back').not.toContain('ApercuCliente');
+    expect(screens, 'the k7 route is back').not.toMatch(/'k7'/);
   });
 });
 

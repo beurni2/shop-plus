@@ -77,7 +77,7 @@ function render(v: Vals): string {
     cell(iconTagEnt(15, '#F0532D', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
     '</div>',
     '</div>',
-    controls(v, 'br', 'right', '20px', '72px', '#F4E9DC'),
+    controls(v, 'br', '#F4E9DC'),
     '</div>',
   ].join('');
 }

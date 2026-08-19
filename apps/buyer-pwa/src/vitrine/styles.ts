@@ -52,9 +52,9 @@ export const VITRINE_STYLES = `
   }
   .vt-scroll { padding: 16px 20px 46px; }
 
-  /* Top bar — (← si venue d'une page produit) + espace + partager 40 r99. */
+  /* Top bar — ← si venue d'une page produit, 40 r99. (Le partage a quitté
+     l'en-tête le 2026-08-18, et le spacer qui le poussait à droite avec lui.) */
   .vt-topbar { display: flex; align-items: center; gap: 10px; height: 40px; }
-  .vt-spacer { flex: 1; height: 0; }
   .vt-topbtn {
     width: 40px; height: 40px; border-radius: 99px;
     display: flex; align-items: center; justify-content: center;

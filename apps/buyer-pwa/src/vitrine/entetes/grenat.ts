@@ -87,7 +87,7 @@ function render(v: Vals): string {
     '</div>',
     // « retour gauche 16, partager droite 16 » — both fixed: share does NOT
     // slide here, so near === far, the same shape Couture uses.
-    controls(v, 'gr', 'right', '16px', '16px', '#5E1224'),
+    controls(v, 'gr', '#5E1224'),
     '</div>',
   ].join('');
 }

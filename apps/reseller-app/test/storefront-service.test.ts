@@ -478,12 +478,12 @@ describe('PERSONNALISER-PARITY-1 — the catalog seam, executed', () => {
     expect(seed?.assetRefs).toEqual([]);
   });
 
-  it('WIRING: K5 and K7 consume the catalog, and K_SEED is only the fallback', () => {
+  it('WIRING: K5 consumes the catalog, and K_SEED is only the fallback', () => {
     const screens = readFileSync(new URL('../src/vitrine/customize/screens.tsx', import.meta.url), 'utf8');
-    // every arrangement surface resolves pids through the seam — K5's rows,
-    // and K7's featured + section groups + residual grid (K6b's two sites
-    // left with its screen, 2026-08-13)
-    expect(screens.match(/fromCatalog\(catalog, pid\)/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
+    // every arrangement surface left resolves pids through the seam — K5's
+    // rows. (K6b's two sites left with its screen on 2026-08-13; K7's three
+    // left with the in-app replica on 2026-08-18.)
+    expect(screens.match(/fromCatalog\(catalog, pid\)/g)?.length ?? 0).toBe(1);
     // …and no arrangement surface maps curatedItems/featuredItems through K_SEED any more
     expect(screens).not.toMatch(/curatedItems\.map\(\(pid\) => K_SEED\.find/);
     expect(screens).not.toMatch(/featuredItems\.map\(\(pid\) => K_SEED\.find/);
@@ -499,14 +499,15 @@ describe('PERSONNALISER-PARITY-1 — the catalog seam, executed', () => {
     expect(app).toMatch(/liveStorefront === null \|\| liveStorefront === undefined\s*\n\s*\? undefined/);
   });
 
-  it('« VOIR COMME CLIENTE » OPENS THE REAL PAGE WHEN THE SHOP IS LIVE', () => {
+  it('THE CLIENTE VIEW IS THE REAL PAGE — one door, and no replica to fall back to', () => {
     // The K7 replica and the real page were two different things claiming the
-    // same view (founder walk). For a live shop the cliente view IS the real
-    // page — identical by construction, it can never drift again.
+    // same view (founder walk). It was first fixed by making « Voir comme
+    // cliente » open the real page for a live shop; on 2026-08-18 the founder
+    // removed that door outright — « voir ma boutique en ligne already does the
+    // same thing » — so the replica had no caller left and went with it.
     const screens = readFileSync(new URL('../src/vitrine/customize/screens.tsx', import.meta.url), 'utf8');
-    expect(screens).toContain(
-      "onPress={() => (liveSlug !== undefined && onOpenBoutique !== undefined ? onOpenBoutique(liveSlug) : go('k7'))}",
-    );
+    expect(screens).toContain('onPress={() => onOpenBoutique(liveSlug)}');
+    expect(screens, 'the in-app replica has a route again').not.toContain("go('k7')");
   });
 });
 

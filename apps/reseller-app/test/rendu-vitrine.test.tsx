@@ -1534,21 +1534,28 @@ describe('PERSONNALISER — SECTIONS RETIRÉES + CADRAGE-PARITÉ, walked', () =>
     screen.unmount();
   });
 
-  it('PARITÉ CLIENTE — a shop already holding sections still renders them in the aperçu', async () => {
+  it('SECTIONS RETIRÉES — the editor stays gone over a shop that HAS grouping, and her article is still hers', async () => {
     /**
-     * THE « UI ONLY » PROMISE, executed: the editor is gone, the DATA is not.
-     * A shop grouped before 2026-08-13 keeps its grouping wherever the cliente
-     * view shows it — here the K7 replica, which still groups by
-     * `sf.sections` exactly as the buyer page does.
+     * THE « UI ONLY » PROMISE, executed on the half a walk can still prove: the
+     * removal is not conditional on an empty `sections`. A shop grouped before
+     * 2026-08-13 opens Personnaliser with NO editor row and its articles intact.
+     *
+     * WHAT THIS WALK NO LONGER PROVES, said plainly: it used to press « Voir
+     * comme cliente » and read her section heading out of the K7 replica. The
+     * founder removed that door on 2026-08-18 (« voir ma boutique en ligne
+     * already does the same thing ») and the replica went with it, so the
+     * RENDERING of a stored grouping is not exercised in this repo any more —
+     * it belongs to the buyer page, where today no test drives a non-empty
+     * `sections` either. Journalled as a coverage hole, not silently dropped.
+     * The DATA's survival is still proven, on the wire, by PAS D'EFFACEMENT
+     * below and by storefront-service's absent-means-untouched pin.
      */
     boutique({ sections: [{ id: 'sec-tissus', name: 'Tissus', pids: [PV_A] }] });
     const screen = await ouvrirPersonnaliser();
     expect(screen.texts().join(' '), 'no Sections editor row, even over a shop that has sections').not.toContain('Sections');
 
-    await screen.press('Voir comme cliente');
-    expect(screen.shows('Aperçu — vue cliente'), 'the cliente replica opened').toBe(true);
-    expect(screen.shows('TISSUS'), 'her stored section still heads its group').toBe(true);
-    expect(screen.shows('Bazin riche'), 'with her article inside it').toBe(true);
+    await screen.press('À la une & ordre');
+    expect(screen.shows('Bazin riche'), 'her grouped article is still listed for arrangement').toBe(true);
     screen.unmount();
   });
 

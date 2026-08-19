@@ -16,8 +16,12 @@ import { isLazyEntete, loadAllEntetes, loadedEnteteCss } from '../src/vitrine/en
  *
  * So this asserts the property rather than six coordinates: on EVERY built
  * style, with a provenance, the button is a real ≥44px target that sits inside
- * the header with a margin, and never lands on top of « partager ». A new style
- * that forgets its rule fails here on the day it is written.
+ * the header with a margin. A new style that forgets its rule fails here on the
+ * day it is written.
+ *
+ * PARTAGE-HORS-ENTÊTE (2026-08-18) — it used to also check that retour never
+ * landed on top of « partager ». That control left the header, so the pairing
+ * check became a count: zero share signs, on every style.
  */
 
 const AVATAR_SVG =
@@ -75,7 +79,7 @@ async function mount(page: Page, key: string, trust: unknown = TRUST): Promise<v
 }
 
 for (const width of [360, 320] as const) {
-  test(`retour @ ${width}: drawn, inside the header, never under partager`, async ({ page }) => {
+  test(`retour @ ${width}: drawn, inside the header, with a margin on every style`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const keys = await builtKeys();
     // the guard against a vacuous sweep: if the key list ever empties, this
@@ -92,18 +96,20 @@ for (const width of [360, 320] as const) {
         };
         const hero = q('.vt-ent');
         const back = q('.vt-ent-back');
-        const share = q('.vt-ent-share');
-        return hero === null || back === null || share === null
+        return hero === null || back === null
           ? null
           : {
               back: { x: back.x, y: back.y, w: back.width, h: back.height, r: back.right, b: back.bottom },
-              share: { x: share.x, w: share.width, r: share.right },
               hero: { x: hero.x, y: hero.y, r: hero.right, b: hero.bottom },
+              // PARTAGE-HORS-ENTÊTE (2026-08-18) — nothing to collide with any
+              // more; the count proves the share sign did not come back.
+              partages: document.querySelectorAll('[data-action="partager"]').length,
             };
       });
 
-      expect(box, `${key}: retour or partager not drawn with fromProduct`).not.toBeNull();
-      const { back, share, hero } = box!;
+      expect(box, `${key}: retour not drawn with fromProduct`).not.toBeNull();
+      const { back, hero, partages } = box!;
+      expect(partages, `${key}: the share sign is back on the en-tête`).toBe(0);
 
       // §6 — a real target, not a collapsed box
       expect(back.w, `${key}: retour width`).toBeGreaterThanOrEqual(44);
@@ -116,10 +122,6 @@ for (const width of [360, 320] as const) {
       expect(back.r, `${key}: retour past the right edge`).toBeLessThanOrEqual(hero.r - 8);
       expect(back.y, `${key}: retour above the header`).toBeGreaterThanOrEqual(hero.y);
       expect(back.b, `${key}: retour below the header`).toBeLessThanOrEqual(hero.b);
-
-      // and the two controls never occupy the same place
-      const overlap = Math.min(back.r, share.r) - Math.max(back.x, share.x);
-      expect(overlap, `${key}: retour and partager overlap`).toBeLessThanOrEqual(0);
     }
   });
 
@@ -129,10 +131,14 @@ for (const width of [360, 320] as const) {
 
     // WHY THIS EXISTS: série 3's boards carry an app bar instead of floating
     // controls, so their MINIMAL badges are placed in the top-right corner —
-    // exactly where the CTO adaptation puts partager/retour. Fleurie collided
-    // there for real: at 320 the share button covered the sage disc and
+    // exactly where the CTO adaptation puts the floating controls. Fleurie
+    // collided there for real: at 320 a control covered the sage disc and
     // « vendeuse » was unreadable. Nine more série 3 styles are coming and each
     // places its own badge, so this checks the whole set rather than one style.
+    //
+    // THE SET SHRANK ON 2026-08-18 — the share sign left the header, so each
+    // style now floats ONE control instead of two. `boutons` counts them, or
+    // this sweep could go quietly vacuous the day a style stops drawing any.
     let chips = 0;
     for (const key of keys) {
       await mount(page, key, ZERO); // zero history ⇒ the badge, never the proof
@@ -141,16 +147,18 @@ for (const width of [360, 320] as const) {
         const chip = document.querySelector('[data-role="chip-nouvelle"]');
         if (chip === null) return null;
         const c = chip.getBoundingClientRect();
-        const worst = [...document.querySelectorAll('.vt-ent-btn')].map((b) => {
+        const btns = [...document.querySelectorAll('.vt-ent-btn')];
+        const worst = btns.map((b) => {
           const r = b.getBoundingClientRect();
           return Math.max(0, Math.min(c.right, r.right) - Math.max(c.left, r.left)) *
             Math.max(0, Math.min(c.bottom, r.bottom) - Math.max(c.top, r.top));
         });
-        return { area: Math.max(0, ...worst), chip: Math.round(c.width * c.height) };
+        return { area: Math.max(0, ...worst), boutons: btns.length };
       });
 
       expect(hit, `${key}: no « Nouvelle vendeuse » badge at zero history`).not.toBeNull();
       chips += 1;
+      expect(hit!.boutons, `${key}: no floating control drawn — the overlap check has nothing to check`).toBeGreaterThanOrEqual(1);
       expect(hit!.area, `${key}: a control overlaps the « Nouvelle vendeuse » badge`).toBe(0);
     }
     expect(chips, 'no badges found — this test would pass vacuously').toBeGreaterThanOrEqual(11);

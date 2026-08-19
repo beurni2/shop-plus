@@ -858,12 +858,6 @@
   "screenClass": "label"
  },
  {
-  "key": "vit.partager_aria",
-  "fr": "Partager la boutique",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
   "key": "vit.cover_caps",
   "fr": "PHOTO DE COUVERTURE",
   "register": "neutral",
@@ -1215,12 +1209,6 @@
   "key": "vit.vide_corps",
   "fr": "prépare sa boutique — gardez le lien et revenez bientôt.",
   "register": "selling",
-  "screenClass": "status"
- },
- {
-  "key": "vit.toast_copie",
-  "fr": "Lien signé copié — attribution verrouillée",
-  "register": "neutral",
   "screenClass": "status"
  },
  {

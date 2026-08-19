@@ -1026,12 +1026,6 @@
   "screenClass": "label"
  },
  {
-  "key": "k.voir_cliente",
-  "fr": "Voir comme cliente",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
   "key": "k.jamais_titre",
   "fr": "Jamais modifiable :",
   "register": "money",
@@ -1944,44 +1938,8 @@
   "screenClass": "status"
  },
  {
-  "key": "k.apercu.title",
-  "fr": "Aperçu — vue cliente",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "k.apercu.lecture",
-  "fr": "Lecture seule",
-  "register": "neutral",
-  "screenClass": "status"
- },
- {
-  "key": "k.apercu.lecture_toast",
-  "fr": "Lecture seule — l’aperçu n’ouvre pas les pages produit",
-  "register": "neutral",
-  "screenClass": "status"
- },
- {
-  "key": "k.apercu.verifiee",
-  "fr": "Vendeuse vérifiée · {zone}",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
   "key": "vit.chip_sera",
   "fr": "Livraison Séra vérifiée & scellée",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "vit.a_la_une",
-  "fr": "À LA UNE",
-  "register": "selling",
-  "screenClass": "label"
- },
- {
-  "key": "vit.groupe_tous",
-  "fr": "TOUS LES ARTICLES",
   "register": "neutral",
   "screenClass": "label"
  },
@@ -1989,12 +1947,6 @@
   "key": "vit.epuise",
   "fr": "ÉPUISÉ",
   "register": "neutral",
-  "screenClass": "status"
- },
- {
-  "key": "vit.bande_apercu",
-  "fr": "Chaque prix vient de la page signée du produit — c’est elle qui fait foi.",
-  "register": "money",
   "screenClass": "status"
  },
  {

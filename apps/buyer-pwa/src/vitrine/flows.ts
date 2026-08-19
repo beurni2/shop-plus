@@ -368,16 +368,6 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
       load(RETRY_MS, false);
     } else if (action === 'decouvrir') {
       window.location.href = '/boutiques';
-    } else if (action === 'partager') {
-      const url = `${window.location.origin}${window.location.pathname}`;
-      const done = (): void => toast(root, t('vit.toast_copie'));
-      if (navigator.share) {
-        navigator.share({ url }).catch(() => void 0);
-      } else if (navigator.clipboard) {
-        navigator.clipboard.writeText(url).then(done, done);
-      } else {
-        done();
-      }
     }
   });
 }

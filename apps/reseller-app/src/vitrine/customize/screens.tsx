@@ -1,5 +1,5 @@
 /**
- * PERSONNALISATION — K1…K7 (+K2b/K3b states), HANDOFF §5, Shop+ chrome §1.3.
+ * PERSONNALISATION — K1…K5 (+K2b/K3b states), HANDOFF §5, Shop+ chrome §1.3.
  *
  * Values are the Phase-0 table's bytes (bp-K* blueprints): row 64/pad 10 16/
  * icon 38 r12 #F8E4EC/#701134, titles IS700 14.5, subs IS400 12 #6F6355,
@@ -14,8 +14,6 @@
  *  - IS-800 pills map to the Bold(700) face — the planche's variable font
  *    clamps at 700 anyway (Instrument ships no 800);
  *  - the camera and star row glyphs are SVG (no-emoji gate); « Aa ◐ ≡ » stay text (lawful).
- *
- * §8.10: K7 is READ-ONLY — a product tap toasts, never navigates.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -74,8 +72,9 @@ const GOLD_BUYER = '#C89A3F';
    the service keeps accepting the field on the wire (absent = untouched, never
    cleared — storefront-core's own merge law), and a buyer shop already holding
    sections keeps rendering them (customer-projection and render.ts are
-   untouched, and ApercuCliente below still groups by them for parity). */
-type KRoute = 'k1' | 'k2' | 'k3' | 'k4' | 'k5' | 'k7';
+   untouched). The in-app replica that also grouped by them left with its
+   only door — « Voir comme cliente » — on 2026-08-18. */
+type KRoute = 'k1' | 'k2' | 'k3' | 'k4' | 'k5';
 
 export interface CustomizeProps {
   onClose: () => void;
@@ -129,6 +128,10 @@ export interface CustomizeProps {
 
 /* -------------------------------------------------------------- helpers -- */
 
+/** Exported for the property tests — the test pins its own independently
+ *  derived literals against these, so a silent value change fails there. */
+export const S = StyleSheet.create(K_RAW_STYLES as unknown as Record<keyof typeof K_RAW_STYLES, ViewStyle & TextStyle>);
+
 function IconCamera({ size, color }: { size: number; color: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -142,15 +145,6 @@ function IconStarK({ size, filled }: { size: number; filled: boolean }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? SHOP.accent : 'none'} stroke={filled ? SHOP.accent : '#8A7D6B'} strokeWidth={1.8} strokeLinejoin="round">
       <Path d="M12 3.4l2.7 5.4 6 .9-4.3 4.2 1 6-5.4-2.8-5.4 2.8 1-6L3.3 9.7l6-.9z" />
-    </Svg>
-  );
-}
-
-function IconEye({ size, color }: { size: number; color: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
-      <Circle cx={12} cy={12} r={3} />
     </Svg>
   );
 }
@@ -517,7 +511,6 @@ export function CustomizeStack({ onClose, onToast, storefront, onStorefrontChang
           catalog={catalog}
         />
       )}
-      {route === 'k7' && <ApercuCliente sf={sf} catalog={catalog} onBack={() => setRoute('k1')} onReadOnlyTap={() => onToast(t('k.apercu.lecture_toast'))} />}
       {/* ENTETES-C — ONE framing sheet, two kinds; it reads the LIVE sf, so
           the photo a just-finished upload wrote arrives through adoption. */}
       <FramingSheet
@@ -547,8 +540,9 @@ function K1({ sf, th, onBack, go, onPublishOnline, onRecommencer, onListStorefro
     { key: 'k4', glyph: <Text style={S.rowGlyphText}>◐</Text>, title: t('k.row.theme'), sub: sf.theme === 'laterite' ? tf('k.row.theme_defaut', { nom: th.name }) : th.name },
     { key: 'k5', glyph: <IconStarK size={18} filled={false} />, title: t('k.row.une'), sub: tf('k.row.une_sub', { n: String(sf.featuredItems.length), total: String(catalogTotal) }) },
     // SECTIONS RETIRÉES (founder order, 2026-08-13) — the « Sections » row left
-    // with its two screens; the canon `sections` FIELD stays, and the aperçu
-    // below keeps grouping by it for buyer parity.
+    // with its two screens; the canon `sections` FIELD stays, and the buyer
+    // page still groups by it. (The in-app replica that also did left with its
+    // own door on 2026-08-18.)
   ];
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
@@ -597,20 +591,6 @@ function K1({ sf, th, onBack, go, onPublishOnline, onRecommencer, onListStorefro
           </Pressable>
         ))}
       </View>
-      {/* PERSONNALISER-PARITY-1 (founder walk): « Voir comme cliente » showed the
-          K7 replica while « Voir ma boutique en ligne » opened the real page —
-          two different things claiming the same view. For a LIVE shop the cliente
-          view IS the real page, so that is what opens: identical by construction,
-          and it can never drift again. The K7 replica remains only before the
-          shop exists online, where there is no real page to show. */}
-      <Pressable
-        style={({ pressed }) => [S.ghostBtn, pressed && S.pressed]}
-        onPress={() => (liveSlug !== undefined && onOpenBoutique !== undefined ? onOpenBoutique(liveSlug) : go('k7'))}
-        accessibilityRole="button"
-      >
-        <IconEye size={17} color="#1C1710" />
-        <Text style={S.ghostBtnText}>{t('k.voir_cliente')}</Text>
-      </Pressable>
       {/* RESELLER-STOREFRONT-WRITE-1 — the app's real calls to the live service.
           Shown only when the seam is wired (App passes the handlers); the K-screen
           tests, which mount nothing here, are unaffected. */}
@@ -864,9 +844,16 @@ function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar, cover
               }}
             />
           ) : null}
-          <View style={[S.pill, st === 'pending' ? S.pillWarn : S.pillOk]}>
-            <Text style={[S.pillText, { color: st === 'pending' ? '#7A5104' : '#14603A' }]}>{t(st === 'pending' ? 'k.cover.pilule_verif' : 'k.cover.pilule_ligne')}</Text>
-          </View>
+        </View>
+      )}
+      {/* THE BADGE SITS BELOW HER PHOTOGRAPH, never on it (founder, 2026-08-18:
+          « on the photo the word "en ligne" hides the face »). It used to be a
+          child of the frame above, top-left, which is exactly where a face
+          lands in a portrait cover. A state badge must never cost her the view
+          of her own picture. */}
+      {(st === 'pending' || st === 'live') && (
+        <View style={[S.pill, S.pillSous, st === 'pending' ? S.pillWarn : S.pillOk]}>
+          <Text style={[S.pillText, { color: st === 'pending' ? '#7A5104' : '#14603A' }]}>{t(st === 'pending' ? 'k.cover.pilule_verif' : 'k.cover.pilule_ligne')}</Text>
         </View>
       )}
       {st === 'error' && (
@@ -1153,109 +1140,3 @@ function K5({ sf, onBack, onPin, onMove, catalog }: { sf: Storefront; onBack: ()
     </ScrollView>
   );
 }
-
-/* -------------------------------------------------------------- K7 (vue) -- */
-
-/** K7 — aperçu vue cliente (READ-ONLY, §8.10). Also mounted as the pubvitrine
- * screen's content (it replaces the old « Vitrine publique (aperçu) »). */
-export function ApercuCliente({ sf, onBack, onReadOnlyTap, catalog }: { sf: Storefront; onBack: () => void; onReadOnlyTap: () => void; catalog?: readonly KCatalogItem[] | undefined }) {
-  const th = THEMES[sf.theme];
-  const initial = sf.name.replace(/^Chez\s+/i, '').charAt(0).toUpperCase();
-  const sectioned = new Set(sf.sections.flatMap((s) => s.pids));
-  const featured = sf.featuredItems.map((pid) => fromCatalog(catalog, pid)).filter((p): p is KCatalogItem => p !== undefined && p.inStock);
-  const groups: { title: string; count: number; items: KCatalogItem[] }[] = [];
-  for (const s of sf.sections) {
-    if (s.pids.length === 0) continue; // section vide = invisible côté cliente
-    const items = s.pids.map((pid) => fromCatalog(catalog, pid)).filter((p): p is KCatalogItem => p !== undefined);
-    groups.push({ title: s.name.toUpperCase(), count: items.length, items: [...items.filter((p) => p.inStock), ...items.filter((p) => !p.inStock)] });
-  }
-  const residual = sf.curatedItems.map((pid) => fromCatalog(catalog, pid)).filter((p): p is KCatalogItem => p !== undefined && !sectioned.has(p.pid));
-  if (groups.length === 0 || residual.length > 0) {
-    groups.push({ title: t('vit.groupe_tous'), count: residual.length, items: [...residual.filter((p) => p.inStock), ...residual.filter((p) => !p.inStock)] });
-  }
-  return (
-    <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>
-      <View style={S.header}>
-        <Pressable style={({ pressed }) => [S.backBtn, pressed && S.pressed]} onPress={onBack} accessibilityRole="button" accessibilityLabel={t('k.retour')}>
-          <IconBackK size={17} />
-        </Pressable>
-        <Text style={S.apercuTitle} numberOfLines={1}>{t('k.apercu.title')}</Text>
-        <View style={[S.etatPill, S.etatPillNeutre]}><Text style={S.etatPillText}>{t('k.apercu.lecture')}</Text></View>
-      </View>
-      {/* APERCU-PHOTOS-1 (founder-caught 2026-07-30) — HER ACTUAL PHOTOGRAPHS.
-          This block drew a flat #8A5A3A rectangle whenever a cover was live and
-          the monogram whenever it was not, so « aperçu » showed her the SAME
-          brown field on every habillage and every en-tête, on a screen whose
-          only job is to tell her what her cliente will see. She reported the
-          cover « not showing on any of the en-têtes » from here — and the buyer
-          page had been drawing it correctly all along. The K3 slot had this
-          exact defect and was fixed (« a coloured field with no image, so « en
-          ligne » was a claim about nothing »); the aperçu was left behind.
-          Same idiom as K3 and the portrait cap: the real URL or nothing. */}
-      <View style={[S.apercuCover, { backgroundColor: sf.cover.status === 'live' ? th.deep : th.soft }]}>
-        {sf.cover.status === 'live' && sf.cover.url ? (
-          <Image source={{ uri: sf.cover.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        ) : (
-          <Text style={[S.previewFiligrane, { color: th.accent }]}>{initial}</Text>
-        )}
-      </View>
-      <View style={S.apercuIdentity}>
-        <View style={[S.apercuAvatar, { backgroundColor: th.accent }]}>
-          {sf.avatar.url ? (
-            <Image source={{ uri: sf.avatar.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          ) : (
-            <Text style={[S.apercuAvatarText, { color: th.on }]}>{initial}</Text>
-          )}
-        </View>
-        <View style={S.previewNameRow}>
-          <Text style={S.apercuName}>{sf.name}</Text>
-          <IconCheckK size={17} color={th.accent} width={2.6} />
-        </View>
-        {sf.tagline ? <Text style={S.previewTagline}>{sf.tagline}</Text> : null}
-        <Text style={S.apercuZone}>{tf('k.apercu.verifiee', { zone: sf.zone })}</Text>
-      </View>
-      {featured.length > 0 && (
-        <View>
-          <Text style={S.caps}>{t('vit.a_la_une')}</Text>
-          {featured.map((p) => (
-            <Pressable key={p.pid} style={S.apercuFeatured} onPress={onReadOnlyTap} accessibilityRole="button">
-              <View style={[S.apercuFeaturedArt, { backgroundColor: th.soft }]} />
-              <View style={S.apercuFeaturedBody}>
-                <Text style={S.apercuTileName}>{p.name}</Text>
-                <Text style={[S.apercuTilePrice, { color: th.deep }]}>{fmtFcfa(p.priceFcfa)}</Text>
-              </View>
-            </Pressable>
-          ))}
-        </View>
-      )}
-      {groups.map((g) => (
-        <View key={g.title}>
-          <View style={S.groupRow}>
-            <Text style={S.caps}>{g.title}</Text>
-            <Text style={S.groupCount}>· {g.count}</Text>
-          </View>
-          <View style={S.apercuGrid}>
-            {g.items.map((p) => (
-              <Pressable key={p.pid} style={S.apercuTile} onPress={onReadOnlyTap} accessibilityRole="button">
-                <View style={[S.apercuTileArt, { backgroundColor: th.soft }]}>
-                  {!p.inStock && (
-                    <View style={S.apercuVeil}><Text style={S.apercuTampon}>{t('vit.epuise')}</Text></View>
-                  )}
-                </View>
-                <Text style={S.apercuTileName} numberOfLines={2}>{p.name}</Text>
-                <Text style={[S.apercuTilePrice, !p.inStock ? S.apercuPriceEpuise : { color: th.deep }]}>{fmtFcfa(p.priceFcfa)}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      ))}
-      <View style={S.inkBand}><Text style={S.inkBandText}>{t('vit.bande_apercu')}</Text></View>
-    </ScrollView>
-  );
-}
-
-/* ---------------------------------------------------------------- styles -- */
-/** Exported for the property tests — values are the Phase-0 table's bytes
- * (bp-K1…K7 blueprints); the test pins its own independently-derived literals. */
-export const S = StyleSheet.create(K_RAW_STYLES as unknown as Record<keyof typeof K_RAW_STYLES, ViewStyle & TextStyle>);
-

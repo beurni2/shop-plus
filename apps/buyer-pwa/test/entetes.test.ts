@@ -18,7 +18,7 @@ import {
   type EnteteKey,
 } from '../src/vitrine/entetes';
 import { loadAllEntetes, loadedEntete, loadedEnteteCss } from '../src/vitrine/entetes/registry';
-import { renderVitrineEmpty, renderVitrineReady } from '../src/vitrine/render';
+import { renderVitrineEmpty, renderVitrineOffline, renderVitrineReady } from '../src/vitrine/render';
 
 /**
  * ENTETES-A — the five selectable headers.
@@ -160,19 +160,19 @@ describe('ENTETES-A — every key renders her identity and the trust row word fo
       expect(html).toContain('data-role="vitrine-trust"');
     });
 
-    it(`${key}: both controls are present and neither is below the touch floor`, () => {
+    it(`${key}: the back button obeys §2.5 — present from a product, absent on a direct landing`, () => {
+      /* PARTAGE-HORS-ENTÊTE (founder, 2026-08-18: « on boutique/storefront
+         remove the share sign that always shows on the en-tête/header »). This
+         block asserted the share button on every header, both ways, and pinned
+         the offset it slid to. The share is gone from every en-tête; what it
+         guarded that still exists is the back button's own §2.5 rule. */
       const fromProduct = head(key, WITH_COVER, REAL, true);
       expect(fromProduct).toContain('data-action="retour"');
-      expect(fromProduct).toContain('data-action="partager"');
       expect(fromProduct).toContain(`aria-label="${t('vit.retour_aria')}"`);
-      // §2.5 — no product provenance ⇒ no back button, and share takes the corner
+      expect(fromProduct, 'the share sign is back on the en-tête').not.toContain('data-action="partager"');
       const direct = head(key, WITH_COVER, REAL, false);
       expect(direct).not.toContain('data-action="retour"');
-      expect(direct).toContain('data-action="partager"');
-      // the share button MOVES when the back button is not there (contract shR3/shR5)
-      const offset = (h: string): string => /vt-ent-share[^>]*style="([^"]+)"/.exec(h)?.[1] ?? '';
-      expect(offset(direct)).not.toBe('');
-      expect(offset(fromProduct)).not.toBe(offset(direct));
+      expect(direct, 'the share sign is back on a direct landing').not.toContain('data-action="partager"');
     });
   }
 
@@ -1048,5 +1048,35 @@ describe('ENTETES-E0 — the wire accepts the five; the renderer falls back unti
     expect(out, 'a retired key must draw the shipped default').toContain('class="vt-hero"');
     expect(out).not.toContain('class="vt-ent vt-pr"');
     expect(out.length).toBeGreaterThan(500);
+  });
+});
+
+/**
+ * PARTAGE-HORS-ENTÊTE — the band the removal could have left behind.
+ *
+ * `topBar()` carried « retour » AND « partager ». Taking the share sign out
+ * left it EMPTY on every screen the buyer did not reach from a product — and
+ * `.vt-topbar` is 40px tall. On the hero screens that costs nothing (the hero
+ * positions it absolutely), but the OFFLINE screen has no hero, so 40px of
+ * blank warm surface would have sat above « Pas de connexion ». Nothing
+ * covered `renderVitrineOffline` when that happened; this does.
+ */
+describe('PARTAGE-HORS-ENTÊTE — no empty bar is left where the share sign stood', () => {
+  it('the offline screen draws NO top bar — and still says its whole piece', () => {
+    const out = renderVitrineOffline();
+    expect(out, 'an empty 40px band above « Pas de connexion »').not.toContain('vt-topbar');
+    expect(out).not.toContain('data-action="partager"');
+    // the screen itself is untouched: picto, title, body, and the way out
+    expect(out).toContain('data-etat="horsligne"');
+    expect(out).toContain(t('vit.horsligne_titre'));
+    expect(out).toContain(t('vit.horsligne_corps'));
+    expect(out).toContain('data-action="reessayer"');
+  });
+
+  it('a buyer who DID arrive from a product still gets her bar, with retour in it', () => {
+    const fromProduct = renderVitrineReady(WITH_COVER as never, REAL, { fromProduct: true }, {}, PRODUCTS);
+    expect(fromProduct, 'the bar must still be drawn when it carries something').toContain('vt-topbar');
+    expect(fromProduct).toContain('data-action="retour"');
+    expect(fromProduct).not.toContain('data-action="partager"');
   });
 });

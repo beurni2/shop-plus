@@ -150,16 +150,19 @@ describe('ENTETES-F — each unit renders her identity and the exact handoff str
       expect(html).toContain(t('vit.cell_prix_sub'));
     });
 
-    it(`${key}: both controls exist from a product; share alone (shifted) on a direct landing`, () => {
+    it(`${key}: the back button obeys §2.5 — present from a product, absent on a direct landing`, () => {
+      /* PARTAGE-HORS-ENTÊTE (founder, 2026-08-18: « on boutique/storefront
+         remove the share sign that always shows on the en-tête/header »). This
+         block asserted the share button on every header, both ways, and pinned
+         the offset it slid to. The share is gone from every en-tête; what it
+         guarded that still exists is the back button's own §2.5 rule. */
       const fromProduct = head(key, BASE, F1, true);
       expect(fromProduct).toContain('data-action="retour"');
-      expect(fromProduct).toContain('data-action="partager"');
+      expect(fromProduct).toContain(`aria-label="${t('vit.retour_aria')}"`);
+      expect(fromProduct, 'the share sign is back on the en-tête').not.toContain('data-action="partager"');
       const direct = head(key, BASE, F1, false);
       expect(direct).not.toContain('data-action="retour"');
-      expect(direct).toContain('data-action="partager"');
-      const offset = (h: string): string => /vt-ent-share[^>]*style="([^"]+)"/.exec(h)?.[1] ?? '';
-      expect(offset(direct)).not.toBe('');
-      expect(offset(fromProduct)).not.toBe(offset(direct));
+      expect(direct, 'the share sign is back on a direct landing').not.toContain('data-action="partager"');
     });
   }
 });

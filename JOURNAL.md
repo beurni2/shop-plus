@@ -9,6 +9,37 @@ Format per entry:
 
 ---
 
+## 2026-08-19 · UNE-PORTE / BADGE-HORS-PHOTO / PARTAGE-HORS-ENTÊTE — three chrome removals · IN-REVIEW (awaiting the founder's word)
+
+**Founder, 2026-08-18:** « On personnaliser remove voir comme cliente cause voir ma boutique en ligne already does the same thing. And on couverture and portrait, on the photo the word "en ligne" hides the face. and on boutique/storefront remove the share sign that always shows on the en-tête/header »
+
+**1 · UNE PORTE (reseller, Personnaliser K1).** The two controls did the SAME thing for a live shop — both called `onOpenBoutique(liveSlug)`. The founder kept the one that cannot drift from what a cliente actually sees: the real page. Gone with the button: the `ApercuCliente` replica it was the only door to (101 lines), the `'k7'` route, `IconEye`, 20 now-dead styles, and 8 catalog keys (`k.voir_cliente`, the four `k.apercu.*`, `vit.a_la_une`, `vit.bande_apercu`, `vit.groupe_tous`).
+
+**2 · BADGE HORS PHOTO (reseller, K3 Couverture & portrait).** « EN LIGNE » / « EN VÉRIFICATION » was a child of the cover photo frame, drawn over the face in his own cover. It is now a sibling BELOW the frame (`pillSous`, `alignSelf: 'flex-start'`). Nothing is hidden — the badge still states the state, it just no longer states it on someone's face.
+
+**3 · PARTAGE HORS EN-TÊTE (buyer PWA).** The share sign rendered on EVERY boutique header, always. Removed from `controls()` — and with it the `prop`/`near`/`far` arguments, which existed only to place it (the back button is placed by its own per-style CSS, untouched, proven in a real browser on every built style at 360 and 320). Also gone: the classique topbar's own share div and its `.vt-spacer`, the `partager` branch in `flows.ts`, `iconShare`, and 2 catalog keys.
+
+**THE DEFECT THE REMOVAL ITSELF CREATED, CAUGHT AND CLOSED.** `topBar()` carried both controls; with the share sign gone it emitted an EMPTY `.vt-topbar`, which is 40px tall. On the hero screens that costs nothing (they position it absolutely) — but `renderVitrineOffline` has no hero, so a buyer opening a boutique with no connection would have seen 40px of blank warm surface above « Pas de connexion ». Nothing covered that renderer. The bar is now drawn only when it carries something, and `entetes.test.ts` pins the offline screen for the first time.
+
+**PROOF.**
+- NEW `test/rendu-personnaliser.test.tsx` (2 walks): K1 still offers « Voir ma boutique en ligne » and no longer offers the duplicate door, and the surviving door really OPENS her live page (`Linking.opened` = `…/v/boutique-0001`); K3 draws both her photograph and « EN LIGNE ».
+- The walk deliberately does NOT claim WHERE the badge sits — that is appearance. **My own first draft tried, through `.parent`, and PASSED against the unfixed screen** (react-test-renderer hands back a fresh wrapper on every access). Placement moved to `customize.test.ts` (`BADGE-HORS-PHOTO`), on the frame's own source span.
+- Buyer: the §2.5 blocks in both en-tête suites inverted to back-only; both e2e specs now COUNT `[data-action="partager"]` and require 0 on every built style, in a real browser.
+
+**MUTATIONS (anchors verified before any conclusion).** Duplicate door restored → walk RED. Share button restored into `controls()` → 8 unit reds across both en-tête suites AND both e2e specs red in Chromium. Badge restored inside the frame → `BADGE-HORS-PHOTO` red. Always-emitted top bar restored → the new offline pin RED. Every target restored byte-identical from a file copy (never `git checkout --`).
+
+**COVERAGE I DESTROYED, NAMED RATHER THAN HIDDEN.** `rendu-vitrine`'s « PARITÉ CLIENTE » walk proved that a shop grouped before 2026-08-13 still RENDERS its grouping — through the K7 replica, which just left. **No test in either repo now drives a non-empty `sections` through a rendering path**; the buyer fixtures all carry `sections: []` except the V2 demo profile, which no test asserts headings against. The DATA's survival is still proven on the wire (PAS D'EFFACEMENT + storefront-service's absent-means-untouched pin). The test was retargeted to what it can still prove — the editor row stays gone over a shop that HAS grouping — and says this in its own comment. **OPEN: the buyer page's section-heading render is unproven.**
+
+**TWO PRE-EXISTING PINS RETARGETED (both weakened by the removal, both stated).** `storefront-service.test.ts`'s catalog-seam count drops 4 → exactly 1 (three of the four sites were K7's); and its « VOIR COMME CLIENTE » pin now asserts the SURVIVING door's call site plus the absence of any `go('k7')` fallback.
+
+**VERIFIER (fresh context — given only the founder's order, the diff, the new walk file, and the DoD): NO BLOCKERS.** It ran both suites, both typechecks, the copy-lint, Playwright on the two edited specs, and a `dist` build (zero `data-action="partager"` shipped); it reconstructed the pre-fix K3 block and confirmed `BADGE-HORS-PHOTO` fails against it on two assertions, so that pin is not a restatement of the new source. Its 8 minors and 6 notes, handled ONCE: **fixed** — the empty offline band (above), `.vt-spacer` and its stale comment, dead `groupRow`/`groupCount` under an orphaned « K7 aperçu » banner carrying a comment about a style that no longer exists, five stale comment sites in `screens.tsx` plus the orphan K7 banner at EOF and the `K1…K7` headers, the `S` export's dropped doc comment, the chip-collision sweep's vacuity guard (it counted chips, not buttons — it would have passed with zero controls on screen) and its comment naming the departed share button, and two stale test titles. **Journalled, not fixed:** (a) `coverSlotPhoto` keeps `alignItems`/`justifyContent`/`padding: 10` that only ever placed the badge — I left the geometry alone rather than risk his cover on a Yoga absolute-positioning claim I cannot prove without his eyes; (b) `BADGE-HORS-PHOTO` is brittle by design — it finds the frame's end at the first `</View>` and only catches a badge using `S.pill`; it catches the exact regression, not a differently-styled one; (c) pre-existing dead imports it flagged near my edits (`apercuBox`, `FrameSpec`, eight icons in `entetes.ts`) predate this slice — verified against HEAD — so they are not this removal's dead code and were left alone.
+
+**FOR HIS EYES, NAMED SO HE IS NOT SURPRISED:** the pre-live cliente preview is gone too, not just the duplicate. His premise holds for a live shop; with no `liveSlug` the survivor falls through to the storefront listing, so a reseller who has never published now has no way to preview her shop as a cliente. That is what was ordered, and it is documented at the call site.
+
+**EVIDENCE (my own runs).** reseller **650/650** · buyer **987/987** · monorepo tsc **19/19 clean** · full Playwright board **106/106** in Chromium · gate board **ALL GATES GREEN exit 0** · catalogs 587 and 210 entries, raw U+202F = 0 in both.
+
+**Pending:** the founder's word to merge and deploy.
+
 ## 2026-08-14 · BANDEAUX-RETIRÉS — the two demo banners are gone · DONE
 
 **MERGED AND DEPLOYED (founder's word, 2026-08-14):** main fast-forwarded to `0f2230c`; `pwa-preview` run 31848808082 and `expo-preview` run 31848814181 both **green**. The same push carries the 2026-08-14 working law into CLAUDE.md + AGENTS.md.

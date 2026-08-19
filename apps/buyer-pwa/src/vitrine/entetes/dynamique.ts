@@ -72,7 +72,7 @@ function render(v: Vals): string {
     cell('a', iconTagEnt(15, '#FFFFFF', 2.1), t('vit.cell_prix'), t('vit.cell_prix_sub')),
     '</div>',
     '<div class="dy-tail"></div>',
-    controls(v, 'dy', 'right', '10px', '62px', '#FFF0F8'),
+    controls(v, 'dy', '#FFF0F8'),
     '</div>',
     '</div>',
   ].join('');

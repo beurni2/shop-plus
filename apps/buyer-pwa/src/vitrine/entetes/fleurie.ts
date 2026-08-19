@@ -110,7 +110,7 @@ function render(v: Vals): string {
     cell(iconTagEnt(15, '#FDF4F0', 2), 'sauge', t('vit.cell_prix'), t('vit.cell_prix_sub')),
     '</div>',
     '</div>',
-    controls(v, 'fl', 'right', '20px', '72px', '#5A6142'),
+    controls(v, 'fl', '#5A6142'),
     '</div>',
   ].join('');
 }

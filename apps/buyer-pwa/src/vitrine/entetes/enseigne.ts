@@ -98,7 +98,7 @@ function render(v: Vals): string {
     cell(iconLockEnt(15, '#141117', 2.1), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
     cell(iconTagEnt(15, '#141117', 2.1), t('vit.cell_prix'), t('vit.cell_prix_sub')),
     '</div>',
-    controls(v, 'eg', 'right', '20px', '72px', '#F5E9F0'),
+    controls(v, 'eg', '#F5E9F0'),
     '</div>',
   ].join('');
 }

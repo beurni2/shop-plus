@@ -249,10 +249,13 @@ for (const width of [360, 320] as const) {
         });
         expect(collisions, `${fixture}: text under the photo`).toEqual([]);
 
-        // the share control keeps the 44px touch floor
-        const share = await page.locator('.vt-ent-share').boundingBox();
-        expect(share!.width).toBeGreaterThanOrEqual(44);
-        expect(share!.height).toBeGreaterThanOrEqual(44);
+        // PARTAGE-HORS-ENTÊTE (2026-08-18) — the share sign left the header for
+        // good; it lives on Partager, where the whole kit is. This counts, so a
+        // style that reintroduces one fails on the day it is written.
+        expect(
+          await unit.locator('[data-action="partager"]').count(),
+          `${fixture}: the share sign is back on the en-tête`,
+        ).toBe(0);
 
         // decorative layers never intercept taps
         const decor = await unit.evaluate((el) =>

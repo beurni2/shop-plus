@@ -39,7 +39,7 @@ function render(v: Vals): string {
     v.nouvelle
       ? `<span class="he-chip-n" data-role="chip-nouvelle">${iconStarEnt(14, '#C79A45')}<span>${t('vit.nouvelle_vendeuse')}</span></span>`
       : '',
-    controls(v, 'he', 'left', '10px', '62px', '#0B4638'),
+    controls(v, 'he', '#0B4638'),
     '</div>',
     '<div class="he-arch" data-role="vitrine-identity">',
     '<div class="he-med">',

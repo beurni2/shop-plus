@@ -82,7 +82,7 @@ function render(v: Vals): string {
     cell(iconLockEnt(15, '#7FDBFF', 2), t('vit.chip_paiement'), t('vit.cell_paiement_sub')),
     cell(iconTagEnt(15, '#7FDBFF', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
     '</div>',
-    controls(v, 'in', 'right', '12px', '64px', '#FFFFFF'),
+    controls(v, 'in', '#FFFFFF'),
     '</div>',
   ].join('');
 }
@@ -186,9 +186,9 @@ const css = `
      the status pad the shell reserves (relevé says top 12) */
   .vt-in .in-btn { background: rgba(13,19,58,.5); box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); }
   .vt-in .vt-ent-btn { top: 72px; }
-  /* back takes the NEAR slot (12), share slides to FAR (64) — the pairing this
-     file's controls() call already declares. Without it the button fell to its
-     static position at x=0, hard against the left edge. */
+  /* back takes the NEAR slot (12). Without this the button fell to its static
+     position at x=0, hard against the left edge. (The share button that once
+     took the FAR slot left on 2026-08-18.) */
   .vt-in .vt-ent-back { right: 12px; }
   /* her portrait, when she has no cover: the relevé's radial indigo + a Georgia
      monogram — a DIFFERENT treatment from the band's Bricolage 96 */

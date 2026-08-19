@@ -24,7 +24,6 @@ import {
   iconCheck,
   iconChevron,
   iconDevanture,
-  iconShare,
   iconShieldCheck,
   iconBag,
   iconHeart,
@@ -50,16 +49,19 @@ const AVIS_FLOOR = 3; // §9.4 frozen: the review chip appears at ≥ 3 verified
 
 /* ------------------------------------------------------------ components -- */
 
+/**
+ * PARTAGE-HORS-ENTÊTE (2026-08-18) — the bar held two things, « retour » and
+ * « partager ». With the share sign gone the bar is EMPTY whenever the buyer
+ * did not arrive from a product, and `.vt-topbar` is 40px tall: on the hero
+ * screens it is absolutely positioned so an empty one costs nothing, but the
+ * OFFLINE screen has no hero and the band sat in normal flow — 40px of blank
+ * warm surface above « Pas de connexion ». So the bar is drawn only when it
+ * has something to carry.
+ */
 function topBar(opts: { back: boolean; accent: string }): string {
-  return [
-    '<div class="vt-topbar" data-role="vitrine-topbar">',
-    opts.back
-      ? `<button class="vt-topbtn" data-action="retour" aria-label="${t('vit.retour_aria')}">${iconBack(17, '#1C1710', 2.1)}</button>`
-      : '',
-    '<div class="vt-spacer"></div>',
-    `<div class="vt-topbtn" data-action="partager" role="button" aria-label="${t('vit.partager_aria')}">${iconShare(17, '#1C1710', 1.9)}</div>`,
-    '</div>',
-  ].join('');
+  return opts.back
+    ? `<div class="vt-topbar" data-role="vitrine-topbar"><button class="vt-topbtn" data-action="retour" aria-label="${t('vit.retour_aria')}">${iconBack(17, '#1C1710', 2.1)}</button></div>`
+    : '';
 }
 
 /**

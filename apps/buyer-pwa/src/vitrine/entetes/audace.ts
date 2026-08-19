@@ -92,7 +92,7 @@ function render(v: Vals): string {
     cell(iconTagEnt(16, '#FFFFFF', 2), 'b', t('vit.cell_prix'), t('vit.cell_prix_sub')),
     '</div>',
     '</div>',
-    controls(v, 'au', 'right', '20px', '72px', '#FFFFFF'),
+    controls(v, 'au', '#FFFFFF'),
     '</div>',
   ].join('');
 }

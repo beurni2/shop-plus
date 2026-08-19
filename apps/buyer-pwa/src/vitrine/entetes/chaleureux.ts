@@ -68,7 +68,7 @@ function render(v: Vals): string {
     cell(iconTagEnt(16, '#D95238', 2.1), t('vit.cell_prix'), t('vit.cell_prix_sub')),
     '</div>',
     // §2.5 — le « ⋯ » du visuel EST le retour ; partager glisse d'un cran.
-    controls(v, 'ch', 'right', '20px', '72px', '#33221C'),
+    controls(v, 'ch', '#33221C'),
     '</div>',
     '</div>',
   ].join('');

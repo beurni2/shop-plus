@@ -1,7 +1,7 @@
 /**
  * K-STYLES — the raw style values (PURE data, no react-native import) so the
  * property tests can pin them Node-side. Values are the Phase-0 table's bytes
- * (bp-K1…K7). `screens.tsx` feeds this straight into StyleSheet.create.
+ * (bp-K1…K5). `screens.tsx` feeds this straight into StyleSheet.create.
  */
 import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_SEMIBOLD, TEXT_FAMILY_BOLD } from '../../ui/faso-fonts';
 
@@ -16,7 +16,6 @@ export const K_RAW_STYLES = {
     borderWidth: 1, borderColor: '#E5DCC9', alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { flex: 1, fontFamily: DISPLAY_FAMILY, fontSize: 19, fontWeight: '800', color: '#1C1710', letterSpacing: -0.19 },
-  apercuTitle: { flex: 1, fontFamily: DISPLAY_FAMILY, fontSize: 15, fontWeight: '700', color: '#6F6355' },
   etatPill: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 99, paddingVertical: 4, paddingHorizontal: 9 },
   etatPillOk: { backgroundColor: '#DFEEE3' },
   etatPillNeutre: { backgroundColor: '#EFE8DA' },
@@ -116,6 +115,9 @@ export const K_RAW_STYLES = {
   coverTrack: { width: 190, height: 4, borderRadius: 99, backgroundColor: '#ECE3D1', overflow: 'hidden' },
   coverBar: { width: '34%', height: 4, borderRadius: 99, backgroundColor: '#A31D4E' },
   pill: { borderRadius: 99, paddingVertical: 4, paddingHorizontal: 9 },
+  // The badge BELOW the photograph (founder, 2026-08-18) — it hugs its text
+  // instead of stretching, and keeps its distance from the frame above.
+  pillSous: { alignSelf: 'flex-start', marginTop: 8 },
   pillWarn: { backgroundColor: '#F6E9C8' },
   pillOk: { backgroundColor: '#DFEEE3' },
   pillText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
@@ -216,39 +218,6 @@ export const K_RAW_STYLES = {
   },
   dashedTitle: { fontFamily: DISPLAY_FAMILY, fontSize: 15, fontWeight: '800', color: '#1C1710' },
   dashedBody: { fontFamily: TEXT_FAMILY, fontSize: 12.5, lineHeight: 19, color: '#6F6355', textAlign: 'center', marginTop: 6 },
-
-  /* K7 aperçu */
-  apercuCover: { height: 116, borderRadius: 22, overflow: 'hidden', alignItems: 'flex-end', justifyContent: 'flex-end' },
-  apercuIdentity: { alignItems: 'center', marginTop: -30 },
-  // APERCU-PHOTOS-1 — `overflow: hidden` is load-bearing now that her real
-  // portrait can fill this circle: an absoluteFill Image without it paints a
-  // SQUARE over the round border, which is worse than the monogram it replaced.
-  apercuAvatar: { width: 64, height: 64, borderRadius: 99, borderWidth: 3, borderColor: '#F4EFE6', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  apercuAvatarText: { fontFamily: DISPLAY_FAMILY, fontSize: 24, fontWeight: '800' },
-  apercuName: { fontFamily: DISPLAY_FAMILY, fontSize: 24, fontWeight: '800', letterSpacing: -0.48, color: '#1C1710' },
-  apercuZone: { fontFamily: TEXT_FAMILY, fontSize: 12.5, color: '#6F6355', marginTop: 4 },
-  groupRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  groupCount: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 11, fontWeight: '700', color: '#8A7D6B' },
-  apercuGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  apercuTile: {
-    width: '47%', borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EDE4D3',
-    overflow: 'hidden', paddingBottom: 12,
-  },
-  apercuTileArt: { height: 132, marginBottom: 10 },
-  apercuVeil: { flex: 1, backgroundColor: 'rgba(244,239,230,0.72)', alignItems: 'center', justifyContent: 'center' },
-  apercuTampon: {
-    fontFamily: DISPLAY_FAMILY, fontSize: 10.5, fontWeight: '800', letterSpacing: 1.89, color: '#1C1710',
-    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#1C1710', borderRadius: 10, paddingVertical: 5, paddingHorizontal: 11,
-    overflow: 'hidden',
-  },
-  apercuTileName: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13.5, fontWeight: '700', color: '#1C1710', paddingHorizontal: 12, minHeight: 34 },
-  apercuTilePrice: { fontFamily: DISPLAY_FAMILY, fontSize: 14.5, fontWeight: '800', paddingHorizontal: 12, marginTop: 4 },
-  apercuPriceEpuise: { color: '#6F6355' },
-  apercuFeatured: {
-    borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EDE4D3', overflow: 'hidden', marginBottom: 12,
-  },
-  apercuFeaturedArt: { height: 140 },
-  apercuFeaturedBody: { flexDirection: 'row', alignItems: 'baseline', gap: 10, padding: 12, paddingHorizontal: 15 },
 
   /* Notes vocales (per-product) — a card per article, controls by state.
      (Cards after the first get S.rowDivider; the card itself carries no border.) */

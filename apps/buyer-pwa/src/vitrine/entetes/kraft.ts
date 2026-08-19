@@ -86,7 +86,7 @@ function render(v: Vals): string {
     cell(iconTagEnt(16, '#33261A', 2), t('vit.cell_prix'), t('vit.cell_prix_sub')),
     '</div>',
     '</div>',
-    controls(v, 'kr', 'right', '12px', '64px', '#33261A'),
+    controls(v, 'kr', '#33261A'),
     '</div>',
   ].join('');
 }

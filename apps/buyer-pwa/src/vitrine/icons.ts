@@ -83,14 +83,6 @@ export const iconDevanture = (size: number, color: string, width: number): strin
     stroke(color, width),
   );
 
-/** Share (vitrine top bar). */
-export const iconShare = (size: number, color: string, width: number): string =>
-  SVG(
-    size,
-    '<path d="M12 13.5V3.8"></path><path d="M8.5 7.2L12 3.8l3.5 3.4"></path><path d="M6.5 11.5H6a2 2 0 0 0-2 2V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4.5a2 2 0 0 0-2-2h-.5"></path>',
-    stroke(color, width),
-  );
-
 /** Filled review star (buyer gold — the avis chip). */
 export const iconStar = (size: number, fill: string): string =>
   SVG(size, '<path d="M12 2.6l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.5l-5.9 3.1 1.2-6.5L2.5 9.5l6.6-.9z"></path>', `fill="${fill}"`);

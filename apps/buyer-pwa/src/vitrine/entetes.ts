@@ -41,7 +41,6 @@ import {
   iconLockEnt,
   iconPinEnt,
   iconPinSolid,
-  iconShare,
   iconShieldEnt,
   iconSparkle,
   iconStarEnt,
@@ -348,19 +347,21 @@ export function weldSeal(tail: string, seal: string): string {
 }
 
 /**
- * The two floating controls. §2.5: back only when the buyer arrived from a
- * product, and share then slides one notch. Both are ≥ 44×44 (HANDOFF §6 —
- * the visuals' 40 rounds are carried to 44, the one dimensional deviation).
+ * The floating control. §2.5: back only when the buyer arrived from a product.
+ * ≥ 44×44 (HANDOFF §6 — the visuals' 40 rounds are carried to 44, the one
+ * dimensional deviation).
+ *
+ * THE SHARE BUTTON LEFT ON 2026-08-18 (founder: « on boutique/storefront remove
+ * the share sign that always shows on the en-tête/header »). It sat on EVERY
+ * header of every boutique, always — and the reseller's own Partager screen is
+ * where a boutique link is meant to come from. With it went the `prop`/`near`/
+ * `far` arguments, which existed only to place it: the back button is placed by
+ * its own per-style CSS.
  */
-export function controls(v: Vals, style: string, prop: string, near: string, far: string, ink: string): string {
-  const back = v.back
+export function controls(v: Vals, style: string, ink: string): string {
+  return v.back
     ? `<button class="vt-ent-btn vt-ent-back ${style}-btn" data-action="retour" aria-label="${t('vit.retour_aria')}">${iconBack(19, ink, 2.2)}</button>`
     : '';
-  const shareAt = v.back ? far : near;
-  return [
-    back,
-    `<button class="vt-ent-btn vt-ent-share ${style}-btn" data-action="partager" aria-label="${t('vit.partager_aria')}" style="${prop}:${shareAt}">${iconShare(18, ink, 2.1)}</button>`,
-  ].join('');
 }
 
 /* ------------------------------------------------------- 1 · ROYALE ------- */
