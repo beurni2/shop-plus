@@ -37,7 +37,7 @@ Format per entry:
 
 **EVIDENCE after the verifier's fixes.** buyer **994/994** (37 files) · buyer tsc clean · gate board **ALL GATES GREEN exit 0** · full Playwright board **106/106** (run before the comment-only corrections and the added test; the added test is Node-side).
 
-**Pending:** the founder's word to merge and deploy.
+**MERGED AND DEPLOYED (founder's word, 2026-08-19: « merge and deploy »):** main fast-forwarded `f886473..dcd8e1a`. All four workflows **green on attempt 1** — `ci`, `pwa-preview`, `expo-preview`, `service-canon-drift`. The boutique page now draws every article once.
 
 ## 2026-08-19 · UNE-PORTE / BADGE-HORS-PHOTO / PARTAGE-HORS-ENTÊTE — three chrome removals · IN-REVIEW (awaiting the founder's word)
 
