@@ -43,7 +43,7 @@ Format per entry:
 
 **EVIDENCE after the verifier's fixes.** reseller **650/650** · buyer **994/994** · both typechecks clean · gate board **ALL GATES GREEN exit 0** · full Playwright board **106/106** (run before the comment-only corrections).
 
-**Pending:** the founder's word to merge and deploy.
+**MERGED AND DEPLOYED (founder's word, 2026-08-19: « merge and deploy »):** main fast-forwarded `ef7f266..1630d90`. All four workflows **green on attempt 1** — `ci`, `pwa-preview`, `expo-preview`, `service-canon-drift`. Every boutique now shows one grid.
 
 ## 2026-08-19 · GROUPES-SANS-DOUBLON — an article is on the boutique page ONCE, wherever it sits · IN-REVIEW
 
