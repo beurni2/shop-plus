@@ -68,12 +68,12 @@ const GOLD_BUYER = '#C89A3F';
 
 /* SECTIONS RETIRÉES (founder order, 2026-08-13: « remove 'Sections' from
    personnaliser ») — the k6/k6b routes, their two screens, the K1 row and the
-   four pure actions are gone. UI ONLY: the canon Storefront keeps `sections`,
-   the service keeps accepting the field on the wire (absent = untouched, never
-   cleared — storefront-core's own merge law), and a buyer shop already holding
-   sections keeps rendering them (customer-projection and render.ts are
-   untouched). The in-app replica that also grouped by them left with its
-   only door — « Voir comme cliente » — on 2026-08-18. */
+   four pure actions are gone. The canon Storefront keeps `sections` and the
+   service keeps accepting the field on the wire (absent = untouched, never
+   cleared — storefront-core's own merge law), but NOTHING DRAWS IT any more:
+   the in-app replica left with its only door on 2026-08-18, and the buyer page
+   stopped grouping by it on 2026-08-19 (« remove sections on buyers page as
+   well »). The field is stored, not shown. */
 type KRoute = 'k1' | 'k2' | 'k3' | 'k4' | 'k5';
 
 export interface CustomizeProps {
@@ -540,9 +540,8 @@ function K1({ sf, th, onBack, go, onPublishOnline, onRecommencer, onListStorefro
     { key: 'k4', glyph: <Text style={S.rowGlyphText}>◐</Text>, title: t('k.row.theme'), sub: sf.theme === 'laterite' ? tf('k.row.theme_defaut', { nom: th.name }) : th.name },
     { key: 'k5', glyph: <IconStarK size={18} filled={false} />, title: t('k.row.une'), sub: tf('k.row.une_sub', { n: String(sf.featuredItems.length), total: String(catalogTotal) }) },
     // SECTIONS RETIRÉES (founder order, 2026-08-13) — the « Sections » row left
-    // with its two screens; the canon `sections` FIELD stays, and the buyer
-    // page still groups by it. (The in-app replica that also did left with its
-    // own door on 2026-08-18.)
+    // with its two screens. The canon `sections` FIELD stays on the wire, but
+    // nothing renders it now: the buyer page stopped on 2026-08-19.
   ];
   return (
     <ScrollView style={S.screen} contentContainerStyle={S.scrollPad}>

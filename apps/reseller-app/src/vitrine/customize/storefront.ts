@@ -354,8 +354,8 @@ export function moveItem(sf: Storefront, pid: string, dir: -1 | 1): Storefront {
 // createSection / toggleSectionPid / renameSection / deleteSection left with
 // the K6 editor (SECTIONS RETIRÉES, founder order 2026-08-13). The canon
 // `sections` field and `StorefrontSection` shape STAY: a shop already holding
-// sections keeps them (the wire's absent-means-untouched law), and the aperçu
-// keeps grouping by them for buyer parity.
+// sections keeps them (the wire's absent-means-untouched law). Nothing DRAWS
+// them any more — the buyer page stopped on 2026-08-19.
 
 /**
  * K3 — move the cover to a LOCAL status without forgetting where the photo is.

@@ -212,7 +212,6 @@ function sectionHead(glyph: string, title: string, linkLabel?: string, anchor?: 
   return `<div class="vt-head"><span class="vt-head-glyph">${glyph}</span><b class="vt-head-title">${title}</b>${n}<span class="vt-head-spacer"></span>${link}</div>`;
 }
 
-
 /**
  * C-VIT4 art — the NO-IMAGE state (founder ruling, BUYER-REAL-HONESTY-1).
  *
@@ -361,9 +360,9 @@ function featuredArt(p: VitrineProduct): string {
  * would run down the left column and 4-5-6 down the right, silently changing
  * the order she arranged her shop in. Reading order is hers, not the layout's.
  *
- * BOTH GRIDS GO THROUGH HERE — the sections and the residual « autres articles »
- * — because a shop where one grid staggers and the other does not looks broken
- * rather than designed.
+ * ONE GRID GOES THROUGH HERE since sections stopped being drawn (2026-08-19).
+ * It carried both — the sections and the residual — because a shop where one
+ * grid staggers and the other does not looks broken rather than designed.
  */
 function grille(prods: readonly VitrineProduct[], notes: ProductVoiceNotes): string {
   const colonne = (c: 0 | 1): string =>
@@ -452,7 +451,7 @@ export function renderVitrineReady(
   /** ENTETES-A — which of the five selectable headers to draw. `'classique'`
    *  (the default, and every existing caller) renders the unchanged hero+chips;
    *  the founder's `?entete=` preview swaps ONLY this header unit. Everything
-   *  below — à la une, sections, grid, bande, footer — is shared and untouched. */
+   *  below — à la une, grid, bande, footer — is shared and untouched. */
   entete: EnteteKey = 'classique',
 ): string {
   const th = VITRINE_THEMES[sf.theme];

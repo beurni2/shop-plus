@@ -239,7 +239,7 @@ export const VITRINE_STYLES = `
     font-size: 12.5px; font-weight: 700; color: #6F6355; cursor: pointer;
   }
 
-  /* C-VIT6 — titre de groupe + grille. */
+  /* La grille. (Le titre de groupe est parti avec les sections, 2026-08-19.) */
   /* GRILLE-ETAGEE (founder order 2026-08-03 — the same treatment opportunités
      got: « the size, the space scale, the square »).
 

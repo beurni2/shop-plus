@@ -29,7 +29,21 @@ Format per entry:
 
 **EVIDENCE.** buyer **994/994** (37 files) · buyer tsc clean · full Playwright board **106/106** in Chromium · gate board **ALL GATES GREEN exit 0**.
 
-**Pending:** the ONE fresh-context verifier pass (running at the time of this commit — its findings are handled inside this build), then the founder's word to merge and deploy.
+**VERIFIER (fresh context, given the founder's order, the diff and the intended rules): NO BLOCKER.** It built isolated pre/post copies OUTSIDE the repo (the probe-files lesson held — `git status` stayed clean) and ran a differential probe over **9 fixtures**, comparing every drawn article name across the grid AND the hero: **no article lost, none gained, none duplicated** in any reachable case — every-article-sectioned, épuisé-in-a-section, pinned+sectioned overlap, one-article shop, all-épuisé, and the real demo profile through the seed path. `sf.sections` is now read nowhere in `apps/buyer-pwa/src`. Contract shapes untouched; `toStorefrontView` still emits the field and `storefront-canon.test.ts` still pins its refusals.
+
+**IT FOUND SOMETHING THIS REMOVAL FIXES BY ACCIDENT, worth recording.** `toStorefrontView` emits `sections: sf.sections` with **no `?? []`** — unlike `productNotes`, whose `?? {}` is documented there as load-bearing for legacy DO objects that never re-parse — and `looksLikeStorefront` checks only `id` and `slug`. So a wire response without `sections` is a real production shape, and the verifier reproduced it: **pre-change it THREW `Cannot read properties of undefined (reading 'map')` before `root.innerHTML`, giving the buyer a blank page; post-change it renders.** A latent white-screen path, closed as a side effect.
+
+**Its two probes of the tests:** 5 of the 7 rewritten pins are red against `HEAD~1` (the other two are regression guards, correct for that job); the whole-HTML-identity pin is **not** vacuous — a mutation that silently reorders the grid without drawing headings turns it red, and it is the ONLY test that catches that class. Its M2 (reintroduce the loss) reds 5 pins plus `voice-note-product`; all mutation anchors were confirmed matched before running.
+
+**FINDINGS HANDLED ONCE — six stale comments FIXED,** three in the buyer files (« BOTH GRIDS GO THROUGH HERE », « à la une, sections, grid… », the `C-VIT6 titre de groupe` CSS banner) plus a double blank line where `groupTitle` was cut, and — the ones that mattered most, because the read-before-write law makes a future agent trust them — **three in the RESELLER app that asserted the opposite of reality**: `screens.tsx:74` (« a buyer shop already holding sections keeps rendering them »), `screens.tsx:544` (« the buyer page still groups by it ») and `storefront.ts:357` (« the aperçu keeps grouping by them for buyer parity » — doubly stale, the aperçu left 2026-08-18). All three now say the field is stored and nothing draws it.
+
+**JOURNALLED, not fixed:** (a) an UNREACHABLE duplicate edge — a pid repeated in `curatedItems` AND sectioned drew once before and draws twice now; not producible (`decideAddItem` refuses a present pid, `applyPresentation` requires a permutation), though `StorefrontSchema` would accept it, and an un-sectioned duplicate already drew twice before this change — so the removal lifts a masking, not a guard. (b) `voice-note-product` is not a red-first pin here: it passes against pre-change code because both arithmetics agree on that fixture. Its M2 red proves it still constrains the grid's contents.
+
+**SAID PLAINLY, per the 2026-08-10 order: there is still NO RENDU-RÉEL walk for the buyer PWA** (`test/rendu*` does not exist there), and this slice did not build one. The order asks that the first slice touching a screen there build the equivalent or say so — this says so. Mitigating, not excusing: this surface renders HTML strings rather than a React tree, and both the identity pins and the verifier's differential probe drive the REAL renderer end to end rather than scanning source. The Playwright board (106/106) drives the built page in Chromium.
+
+**EVIDENCE after the verifier's fixes.** reseller **650/650** · buyer **994/994** · both typechecks clean · gate board **ALL GATES GREEN exit 0** · full Playwright board **106/106** (run before the comment-only corrections).
+
+**Pending:** the founder's word to merge and deploy.
 
 ## 2026-08-19 · GROUPES-SANS-DOUBLON — an article is on the boutique page ONCE, wherever it sits · IN-REVIEW
 
