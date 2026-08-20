@@ -212,19 +212,6 @@ function sectionHead(glyph: string, title: string, linkLabel?: string, anchor?: 
   return `<div class="vt-head"><span class="vt-head-glyph">${glyph}</span><b class="vt-head-title">${title}</b>${n}<span class="vt-head-spacer"></span>${link}</div>`;
 }
 
-/** C-VIT6 — titre de groupe « CAPS · N ». The planche authors the count as a
- * `<v>` on the day-1 screen and as literal text on the customised one; we
- * mirror node-for-node (zero-diff law) — same rendered bytes either way. */
-function groupTitle(
-  label: string,
-  count: number | undefined,
-  mode: 'var' | 'literal' | 'section' = 'var',
-): string {
-  const b = mode === 'section' ? `<b><v>${label}</v></b>` : `<b>${label}</b>`;
-  const i =
-    count === undefined ? '' : mode === 'var' ? `<i>· <v>${count}</v></i>` : `<i>· ${count}</i>`;
-  return `<div class="vt-group">${b}${i}</div>`;
-}
 
 /**
  * C-VIT4 art — the NO-IMAGE state (founder ruling, BUYER-REAL-HONESTY-1).
@@ -502,34 +489,23 @@ export function renderVitrineReady(
     ? orderedProducts(sf, undefined, described).filter((p) => p.inStock).slice(0, 1)
     : [];
   const featured = pinned.length > 0 ? pinned : autoLead;
-  // GROUPES-SANS-DOUBLON (founder, 2026-08-19) — the exclusion below already
-  // guarded the residual grid; it was never applied to the SECTIONS, so an
-  // article both pinned and grouped drew TWICE, and its heading counted 2 for
-  // what is one article. NOT a heart desync: `applyFavoriteState` (flows.ts)
-  // flips every heart carrying the pid and favorites.test.ts executes it, so
-  // that half was already closed. The rule here is the residual's own —
-  // drop what the featured block ACTUALLY DREW, never what she pinned, so an
-  // épuisé pin (which reaches no hero) still shows, voilé, inside her group.
-  // A group left empty by that drop does not render: a heading over an empty
-  // grid is a heading lying about its own list.
+  // UNE SEULE GRILLE (founder, 2026-08-19: « remove sections on buyers page as
+  // well ») — the page no longer draws her stored `sections`. He removed the
+  // EDITOR on 2026-08-13 (« Sans sections, une seule grille. ») but the page
+  // kept drawing groupings nobody could change any more, and BOTH duplicate
+  // defects of 2026-08-19 lived in that gap: a pinned article redrawn inside
+  // its group, and an article listed in two groups drawn twice. One grid can
+  // draw one article once, by construction.
+  //
+  // The FIELD is canon (§5) and untouched: the wire still carries her grouping
+  // and the service still stores it. Only the rendering ends.
   const featuredShown = new Set(featured.map((p) => p.pid));
-  const groups = sf.sections
-    .map((sec) => ({
-      name: sec.name,
-      prods: orderedProducts(sf, sec.pids, described).filter((p) => !featuredShown.has(p.pid)),
-    }))
-    .filter((g) => g.prods.length > 0);
   // computed BEFORE the featured header so « Voir tout » renders only when the
   // anchor it targets will exist (verifier NB3: a link to a missing id is the
-  // dead button its own comment banned) — and it counts the groups that will
-  // DRAW, not the ones she stored, or a group emptied by the pin would promise
-  // something below that never arrives.
-  const sectionedEarly = new Set(sf.sections.flatMap((sec) => sec.pids));
-  const anythingBelow =
-    groups.length > 0 ||
-    orderedProducts(sf, undefined, described).some(
-      (p) => !sectionedEarly.has(p.pid) && !featuredShown.has(p.pid),
-    );
+  // dead button its own comment banned).
+  const anythingBelow = orderedProducts(sf, undefined, described).some(
+    (p) => !featuredShown.has(p.pid),
+  );
   if (featured.length > 0) {
     parts.push(
       sectionHead(
@@ -543,28 +519,24 @@ export function renderVitrineReady(
     if (anythingBelow) parts.push('<div id="vt-anchor-grid"></div>');
   }
 
-  // Sections (≤ 4, empty invisible), then the residual « TOUS LES ARTICLES ».
-  const sectioned = new Set(sf.sections.flatMap((s) => s.pids));
-  for (const g of groups) {
-    parts.push(groupTitle(esc(g.name).toUpperCase(), g.prods.length, 'section'));
-    parts.push(grille(g.prods, notes));
-  }
+  // THE ONE GRID — every article she curated, in her own order.
+  //
   // NORTH-STAR-1 fix (verifier blocker): a featured article also rendered in the
-  // grid — two tiles, two hearts, desynced on tap; and « AUTRES ARTICLES » that
-  // contains the same article is a title lying about its own list. The exclusion
-  // is the pids the featured section ACTUALLY rendered: an épuisé featured item
-  // never reaches the hero, so it still appears (voilé) in the grid.
+  // grid, and « AUTRES ARTICLES » containing the same article is a title lying
+  // about its own list. The exclusion is the pids the featured block ACTUALLY
+  // rendered: an épuisé featured item never reaches the hero, so it still
+  // appears (voilé) here.
   const residual = orderedProducts(sf, undefined, described).filter(
-    (p) => !sectioned.has(p.pid) && !featuredShown.has(p.pid),
+    (p) => !featuredShown.has(p.pid),
   );
   // Round 4 (verifier B3): a one-product shop's only article IS the auto-lead, so
   // the residual is empty — a heading announcing « Autres articles · 0 » over an
   // empty grid is a heading lying about its own list. Nothing renders instead.
   if (residual.length > 0) {
-    // « AUTRES ARTICLES » only when something CAME BEFORE it (à la une or a
-    // section) — with nothing above, « autres » would refer to nothing and the
-    // honest title is « TOUS LES ARTICLES ».
-    const residualLabel = featured.length > 0 || groups.length > 0 ? t('vit.head_autres') : t('vit.head_tous');
+    // « AUTRES ARTICLES » only when something CAME BEFORE it — since sections
+    // left, that is the « à la une » block alone. With nothing above, « autres »
+    // would refer to nothing and the honest title is « TOUS LES ARTICLES ».
+    const residualLabel = featured.length > 0 ? t('vit.head_autres') : t('vit.head_tous');
     parts.push(sectionHead(iconBag(15, '#6F6355', 1.9), residualLabel, undefined, undefined, residual.length));
     parts.push(grille(residual, notes));
   }

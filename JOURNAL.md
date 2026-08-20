@@ -9,6 +9,28 @@ Format per entry:
 
 ---
 
+## 2026-08-19 · UNE SEULE GRILLE — the buyer page stops drawing sections · IN-REVIEW
+
+**Founder, 2026-08-19: « remove sections on buyers page as well ».** He asked what « groups » meant; the answer was **Sections** — the shelves feature whose editor he removed from Personnaliser on 2026-08-13 (« Sans sections, une seule grille. »). The buyer page never stopped drawing the stored groupings, so every boutique arranged before that date still showed its customers headings nobody could edit. I put the choice to him — stop drawing them, or fix the remaining duplicate — and he chose the removal.
+
+**REMOVED (rendering only, `render.ts` + `styles.ts`):** the `groups` build, the heading + sub-grid loop, the `sectioned` exclusion on the residual, the section term in `anythingBelow` and in the residual label, the `groupTitle` helper (its only caller was the section heading; its `'var'`/`'literal'` modes had no callers at all) and the four `.vt-group*` CSS rules. Net −57 lines in the two source files.
+
+**THE FIELD IS UNTOUCHED, and that boundary is deliberate.** `sections` is canon §5, identical across three specs, and §7 makes any contract-shape change a stop-and-ask. The wire still carries her grouping, the service still stores it, `storefront-canon.test.ts` still pins it. If he ever wants shelves back, the data is there.
+
+**WHAT IT CLOSES FOR FREE:** the second duplicate I reported and left open — an article listed in TWO sections drew twice. One grid cannot draw one article twice, so the removal ends it by construction rather than by a dedupe. Pinned by its own test (2 → 1 on the mutation).
+
+**PROOF — inverted pins, red first.** `vitrine-sections.test.ts` was rewritten from « sections render » to « sections do not reach the page », **5 of its 7 red against the page as it stood**. The load-bearing pin is not « the headings are gone » but **whole-HTML identity**: the same shop with a grouping and without one now renders byte-for-byte the same page, plus a non-vacuity check that it is a real page over 1000 bytes carrying the trust row. A weaker pin would have passed while her grouping still silently reordered a cliente's page — sections drove ORDER as well as headings. The other pins: every curated article still on the page exactly once (a removal that dropped grouped articles would empty a boutique), the two-sections duplicate, the pinned-article duplicate, an épuisé article still veiled in the grid, « Autres articles » under a lead, and the CSS gone.
+
+**MY OWN ERROR, corrected by measurement.** My first order pin asserted `[p1,p2,p3,p4,p5]` and read `[p1,p2,p4,p3,p5]`. Not a bug — `grille` lays TWO columns that flow independently (GRILLE-ETAGEE), so the DOM order is column-major. The pin was replaced with whole-HTML identity, which is both stronger and immune to that shape; the reason is written in the test so the next reader does not repeat it.
+
+**`voice-note-product`'s derivation rewritten, and the reason recorded:** it walked `sections` then a residual excluding them. It would still have PASSED — every sectioned pid is also curated on that fixture, so both arithmetics reach the same total — which is precisely why it was rewritten rather than left green. It now derives from the law that exists: featured + curation minus featured.
+
+**MUTATIONS (anchors verified).** Sections drawn again → 4 reds across both files. Orphan `.vt-group` CSS restored → 1 red. Both restored from file copies.
+
+**EVIDENCE.** buyer **994/994** (37 files) · buyer tsc clean · full Playwright board **106/106** in Chromium · gate board **ALL GATES GREEN exit 0**.
+
+**Pending:** the ONE fresh-context verifier pass (running at the time of this commit — its findings are handled inside this build), then the founder's word to merge and deploy.
+
 ## 2026-08-19 · GROUPES-SANS-DOUBLON — an article is on the boutique page ONCE, wherever it sits · IN-REVIEW
 
 **Founder, 2026-08-19: « fix the duplicate bug ».** The one I found while closing the coverage hole earlier the same day and reported rather than fixed.

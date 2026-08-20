@@ -107,21 +107,17 @@ describe('integration — the chip appears on a noted tile, never on a note-less
     // catalog's stock, never a magic number.
     const inStock = (pid: string): boolean => seedProduct(pid)?.inStock === true;
     const featuredShown = r.storefront.featuredItems.filter(inStock);
-    // GROUPES-SANS-DOUBLON (founder, 2026-08-19) — sections USED to render her
-    // curation verbatim, so a featured pid she had also sectioned rendered in
-    // BOTH places: two tiles, two chips, two hearts for one article. The demo
-    // profile carries exactly that shape (p5 is pinned AND in « Maison &
-    // beauté »), which is why this count drops by one. Sections now exclude the
-    // pids the featured block DREW, on the same rule the residual grid has
-    // always used.
-    const sectioned = new Set(r.storefront.sections.flatMap((sec) => sec.pids));
-    const sectionChips = r.storefront.sections
-      .flatMap((sec) => sec.pids)
-      .filter((pid) => inStock(pid) && !featuredShown.includes(pid)).length;
-    const residualChips = r.storefront.curatedItems.filter(
-      (pid) => inStock(pid) && !sectioned.has(pid) && !featuredShown.includes(pid),
+    // UNE SEULE GRILLE (founder, 2026-08-19: « remove sections on buyers page as
+    // well ») — this derivation used to walk `sections` and then a residual that
+    // excluded them. The page no longer draws sections at all, so the grid IS
+    // her curation minus what the featured block drew, and the derivation says
+    // exactly that. Note the shape: the old version would still AGREE on this
+    // fixture — every sectioned pid is also curated, so both arithmetics reach
+    // the same total — which is why it is rewritten rather than left passing.
+    const gridChips = r.storefront.curatedItems.filter(
+      (pid) => inStock(pid) && !featuredShown.includes(pid),
     ).length;
-    expect(chips.length).toBe(featuredShown.length + sectionChips + residualChips);
+    expect(chips.length).toBe(featuredShown.length + gridChips);
     // …but the same render with NO notes has zero chips (no gap, no phantom)
     const bare = renderVitrineReady(r.storefront, r.trust, { fromProduct: false }, {});
     expect(bare).not.toContain('voix-produit-play');

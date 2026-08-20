@@ -11,24 +11,25 @@ const __m = new Map<string, string>();
 import { describe, expect, it } from 'vitest';
 import { t } from '../src/i18n';
 import { renderVitrineReady } from '../src/vitrine/render';
+import { VITRINE_STYLES } from '../src/vitrine/styles';
 
 /**
- * ═══ GROUPES-CLIENTE — a stored grouping is DRAWN on the page she shares ═══
+ * ═══ UNE SEULE GRILLE — the buyer page stops drawing sections ═══
  *
- * THE HOLE THIS FILLS, and how it opened. The reseller app used to carry an
- * in-app replica of the cliente view (`ApercuCliente`), and a walk over it was
- * the ONLY test in either repo that drove a non-empty `sections` through a
- * render. The founder removed that replica's only door on 2026-08-18 (« voir ma
- * boutique en ligne already does the same thing »), the replica went with it,
- * and the coverage went with the replica: every buyer fixture carries
- * `sections: []`, and the one demo profile that holds three real sections has
- * no test asserting a heading against it. So the DATA's survival was proven on
- * the wire while its DRAWING was proven nowhere.
+ * FOUNDER, 2026-08-19: « remove sections on buyers page as well ». He had
+ * already removed the EDITOR on 2026-08-13 — its own empty state read « Sans
+ * sections, une seule grille. » — but the buyer page kept drawing the stored
+ * groupings, so every boutique arranged before that date still showed its
+ * customers headings nobody could edit any more. Both duplicate-tile defects
+ * found on 2026-08-19 lived in exactly that gap.
  *
- * The `sections` field is canon and the editor for it left on 2026-08-13, so
- * what is pinned here is exactly what a shop grouped BEFORE that date still
- * gets: her headings, in her order, with her articles under them and counted,
- * each article drawn ONCE.
+ * THE FIELD STAYS. `sections` is canon (§5, identical across three specs) and
+ * this slice does not touch contract shapes — the wire still carries her stored
+ * grouping and `storefront-canon.test.ts` still pins that. What ends is the
+ * RENDERING: every article she curated now falls into one grid, in her own
+ * curation order.
+ *
+ * These pins were written against the page that still drew sections, red first.
  */
 
 const HERO = 'https://media.example/media/h.jpg';
@@ -54,8 +55,7 @@ const PRODUCTS = Array.from({ length: 5 }, (_, i) => ({
 const render = (sections: { id: string; name: string; pids: string[] }[]): string =>
   renderVitrineReady(shop(sections) as never, TRUST as never, {} as never, {}, PRODUCTS as never, 'classique');
 
-/** Same shop, but with articles PINNED « à la une » — the state that made an
- *  article render twice. */
+/** Same shop, but with articles PINNED « à la une ». */
 const renderAvecUne = (
   featuredItems: string[],
   sections: { id: string; name: string; pids: string[] }[],
@@ -65,20 +65,9 @@ const renderAvecUne = (
     TRUST as never, {} as never, {}, PRODUCTS as never, 'classique',
   );
 
-/** Every `<div class="vt-group">…` heading the page drew, in page order. */
+/** Every group heading the page drew. After this slice it must always be []. */
 function headings(html: string): string[] {
   return [...html.matchAll(/<div class="vt-group"><b>(?:<v>)?([^<]*)/g)].map((m) => m[1]!);
-}
-
-/** How many GRID tiles show this article name — the only way to count an
- *  ÉPUISÉ tile, which renders `disabled` and veiled and carries NO `data-pid`
- *  at all (measured, not assumed: a probe over an out-of-stock article found
- *  zero). BOUND: it matches `.vt-tile-name`, the GRID tile's element. The hero
- *  card uses `.vt-featured-name`, so this is blind to it — sound only where the
- *  article cannot be featured, which is exactly the épuisé case it exists for.
- *  Counting an in-stock article with it would report 1 for a doubled tile. */
-function parNom(html: string, nom: string): number {
-  return html.split(`<div class="vt-tile-name"><v>${nom}</v></div>`).length - 1;
 }
 
 /** How many TILES carry this pid — the « drawn once » question.
@@ -88,144 +77,100 @@ function tiles(html: string, pid: string): number {
   return html.split(`data-action="produit" data-pid="${pid}"`).length - 1;
 }
 
-describe('GROUPES-CLIENTE — her stored grouping reaches the page, headed and counted', () => {
-  it('each section heads its own group, in HER order, with HER articles under it', () => {
-    // p1 is deliberately NOT grouped: with nothing pinned, the page promotes the
-    // first in-stock article to an auto-lead « Produit à la une », and this pin
-    // is about GROUPING, not about that promotion.
+/** How many GRID tiles show this article name — the only way to count an
+ *  ÉPUISÉ tile, which renders `disabled` and veiled and carries NO `data-pid`
+ *  at all (measured, not assumed: a probe over an out-of-stock article found
+ *  zero). BOUND: it matches `.vt-tile-name`, the GRID tile's element. The hero
+ *  card uses `.vt-featured-name`, so this is blind to it — sound only where the
+ *  article cannot be featured, which is exactly the épuisé case it exists for. */
+function parNom(html: string, nom: string): number {
+  return html.split(`<div class="vt-tile-name"><v>${nom}</v></div>`).length - 1;
+}
+
+describe('UNE SEULE GRILLE — a stored grouping is no longer drawn, and nothing is lost with it', () => {
+  it('a shop WITH sections draws no heading, and every article is still on the page ONCE', () => {
     const html = render([
       { id: 'sec-t', name: 'Tissus', pids: ['p2', 'p4'] },
       { id: 'sec-s', name: 'Sacs', pids: ['p3'] },
     ]);
 
-    // HER headings, uppercased, in the order she stored them — and BEFORE the
-    // residual, which is where the ungrouped articles fall.
-    const heads = headings(html);
-    expect(heads, `headings drawn: ${JSON.stringify(heads)}`).toEqual(['TISSUS', 'SACS']);
-    // …each counted honestly: a heading that lies about its own list is the
-    // defect this page has shipped before.
-    expect(html).toContain('<div class="vt-group"><b><v>TISSUS</v></b><i>· 2</i></div>');
-    expect(html).toContain('<div class="vt-group"><b><v>SACS</v></b><i>· 1</i></div>');
+    // NO grouping is drawn — not the headings, not the markup behind them.
+    expect(headings(html), 'the buyer page is still drawing sections').toEqual([]);
+    expect(html, 'her section names must not reach the page').not.toContain('TISSUS');
+    expect(html).not.toContain('SACS');
 
-    // her grouped articles are on the page, and each is drawn exactly ONCE —
-    // grouped AND residual would be two tiles, two hearts, desynced on tap
-    for (const pid of ['p2', 'p3', 'p4']) {
-      expect(tiles(html, pid), `${pid} must be drawn exactly once`).toBe(1);
+    // AND NOTHING IS LOST. This is the half that makes the removal safe: every
+    // article she curated is still there, exactly once. A removal that dropped
+    // her grouped articles would empty her shop.
+    for (const pid of ['p1', 'p2', 'p3', 'p4', 'p5']) {
+      expect(tiles(html, pid), `${pid} must still be on the page, once`).toBe(1);
     }
-    // and the ungrouped remainder still gets its own honest heading, over the
-    // one article that is in no section and is not the lead
-    expect(html).toContain(t('vit.head_autres'));
-    expect(tiles(html, 'p5')).toBe(1);
-    expect(tiles(html, 'p1'), 'the auto-lead is drawn once, as the lead').toBe(1);
   });
 
-  it('an EMPTY section is invisible — never a heading over nothing', () => {
-    const html = render([
-      { id: 'sec-vide', name: 'Chaussures', pids: [] },
-      { id: 'sec-t', name: 'Tissus', pids: ['p2'] },
-    ]);
-    expect(headings(html), 'an empty section drew a heading').toEqual(['TISSUS']);
-    expect(html).not.toContain('CHAUSSURES');
-  });
-
-  it('a shop with NO grouping draws no group heading at all — the pins above are not free', () => {
-    // The control: without this, every assertion above could be satisfied by a
-    // page that heads everything, always.
-    const html = render([]);
-    expect(headings(html)).toEqual([]);
-    // « Autres » rather than « Tous » because the auto-lead came before it —
-    // the page's own rule: « autres » only when something stood above.
-    expect(html).toContain(t('vit.head_autres'));
-  });
-});
-
-/**
- * ═══ GROUPES-SANS-DOUBLON — an article is on the page ONCE, wherever it sits ═══
- *
- * FOUNDER, 2026-08-19: « fix the duplicate bug ». An article that was BOTH
- * pinned « à la une » AND inside a section rendered TWICE — once as the hero
- * tile, once under the section heading — on the page a cliente actually buys
- * from, with its heading counting 2 for what is one article.
- *
- * WHAT IT IS NOT, stated because the first draft of this file said otherwise:
- * the two tiles do NOT desync their hearts. `applyFavoriteState` (flows.ts)
- * flips every heart carrying the pid, and favorites.test.ts pins that by
- * EXECUTION. NORTH-STAR-1 closed that half when it de-duplicated the residual
- * grid; what it never did was apply the same exclusion to the SECTIONS. So the
- * harm here is the duplicate tile, the heading that lies about its own list,
- * and — when every article is pinned and grouped — a « Voir tout » pointing at
- * an anchor with nothing beneath it.
- *
- * Nothing drove a non-empty `sections` through the render until 2026-08-19,
- * which is why it was never seen. These pins are written against the broken
- * page first.
- *
- * WHO COULD REACH IT: only a shop grouped before 2026-08-13, when the sections
- * editor left. No shop created since can enter the state — which is why it
- * survived, not why it was acceptable.
- */
-describe('GROUPES-SANS-DOUBLON — a pinned article is not redrawn inside its section', () => {
-  it('an article pinned « à la une » AND grouped renders ONCE — and its heading counts what it drew', () => {
-    const html = renderAvecUne(['p1'], [{ id: 'sec-t', name: 'Tissus', pids: ['p1', 'p2'] }]);
-
-    // THE BUG, stated as the property it broke.
-    expect(tiles(html, 'p1'), 'p1 is pinned AND grouped — it must be drawn once').toBe(1);
-    // …and the heading counts the list it actually drew. « TISSUS · 2 » over one
-    // tile is the same lie in a different place.
-    expect(html).toContain('<div class="vt-group"><b><v>TISSUS</v></b><i>· 1</i></div>');
-    // the section's OTHER article is untouched — the fix drops one pid, not the group
-    expect(tiles(html, 'p2'), 'p2 must still be drawn under her heading').toBe(1);
-    // and the ungrouped remainder is unaffected
-    for (const pid of ['p3', 'p4', 'p5']) expect(tiles(html, pid)).toBe(1);
-  });
-
-  it('a section whose ONLY article is the pinned one disappears — never a heading over nothing', () => {
-    const html = renderAvecUne(['p1'], [
-      { id: 'sec-t', name: 'Tissus', pids: ['p1'] },
-      { id: 'sec-s', name: 'Sacs', pids: ['p2'] },
-    ]);
-    expect(headings(html), 'a section emptied by the pin still drew a heading').toEqual(['SACS']);
-    expect(html).not.toContain('<v>TISSUS</v>');
-    expect(tiles(html, 'p1'), 'the pinned article is still on the page, once').toBe(1);
-  });
-
-  it('a section whose articles do not RESOLVE vanishes too — the same law, a second cause', () => {
+  it('a stored grouping changes NOTHING — the same shop with and without one renders identically', () => {
     /**
-     * A SECOND BEHAVIOUR CHANGE THIS FIX CARRIES, named rather than left to be
-     * discovered. `orderedProducts` silently drops a pid that resolves to no
-     * product, and that happens on the LIVE path as well as here: a service
-     * response that omits one article (BUYER-LIVE-WIRE-3) leaves her section
-     * holding nothing. It used to draw the heading anyway, over an empty grid.
-     * Under the « a group left empty does not render » rule it now vanishes —
-     * the honest outcome, and the same one an empty `pids` list has always had.
+     * The strongest form of the founder's order, and the one that cannot rot:
+     * not « the headings are gone » but « the field no longer reaches the page
+     * at all ». Sections used to drive ORDER as well as headings — « Tissus »
+     * listing p4 before p2 drew them in that order — so a weaker pin could pass
+     * while her grouping still quietly rearranged a cliente's page.
+     *
+     * (The order is asserted here as whole-HTML identity rather than a pid
+     * sequence: `grille` lays two columns that flow independently, so the DOM
+     * order is column-major and a naive sequence assertion reads as a bug when
+     * it is the documented stagger — GRILLE-ETAGEE, vitrine-grille.test.ts.)
      */
-    const html = render([
-      { id: 'sec-f', name: 'Fantôme', pids: ['pid-inconnu'] },
-      { id: 'sec-s', name: 'Sacs', pids: ['p2'] },
+    const groupee = render([
+      { id: 'sec-t', name: 'Tissus', pids: ['p4', 'p2'] },
+      { id: 'sec-s', name: 'Sacs', pids: ['p3'] },
     ]);
-    expect(headings(html), 'a section that resolved nothing still drew a heading').toEqual(['SACS']);
-    expect(html).not.toContain('<v>FANTÔME</v>');
+    const sansGroupes = render([]);
+    expect(groupee, 'her grouping still reaches the buyer page').toBe(sansGroupes);
+    // …and it is a real page, not two empty strings agreeing with each other
+    expect(groupee.length).toBeGreaterThan(1000);
+    expect(groupee).toContain('data-role="vitrine-trust"');
   });
 
-  it('an ÉPUISÉ pinned article never reaches the hero, so its section still shows it', () => {
-    // THE BOUND OF THE FIX, and the page's own existing rule: the exclusion is
-    // the pids the featured block ACTUALLY DREW, never the pids she pinned. An
-    // out-of-stock pin renders no hero tile, so dropping it from her section
-    // would delete it from the page entirely.
-    //
-    // With p1 épuisé the page falls to its auto-lead — p2 — which is ALSO in
-    // her section, so this fixture carries the duplicate a second way.
-    const stock = PRODUCTS.map((p) => (p.pid === 'p1' ? { ...p, inStock: false } : p));
+  it('the heading over that grid is « Autres articles » under a lead — the page keeps its own rule', () => {
+    // « autres » only when something stood above. With sections gone, the lead
+    // is the only thing that ever can.
+    const avecUne = renderAvecUne(['p1'], [{ id: 'sec-t', name: 'Tissus', pids: ['p2'] }]);
+    expect(avecUne).toContain(t('vit.head_autres'));
+    expect(avecUne).not.toContain(t('vit.head_tous'));
+  });
+
+  it('a pinned article is still drawn ONCE — the duplicate cannot come back through a section', () => {
+    // GROUPES-SANS-DOUBLON (2026-08-19) fixed this by excluding featured pids
+    // from sections. With sections gone the exclusion lives only in the single
+    // grid; this pins that the outcome he saw is unchanged.
+    const html = renderAvecUne(['p1'], [{ id: 'sec-t', name: 'Tissus', pids: ['p1', 'p2'] }]);
+    expect(tiles(html, 'p1'), 'p1 is pinned AND was grouped — it must be drawn once').toBe(1);
+    expect(tiles(html, 'p2')).toBe(1);
+    expect(headings(html)).toEqual([]);
+  });
+
+  it('an article that was in TWO sections is drawn ONCE — the defect left open on 2026-08-19', () => {
+    // The second duplicate, closed by this removal rather than by a dedupe:
+    // sections were mapped independently, so a pid in two of them drew twice.
+    // One grid cannot draw one article twice.
+    const html = render([
+      { id: 'sec-t', name: 'Tissus', pids: ['p2'] },
+      { id: 'sec-s', name: 'Sacs', pids: ['p2'] },
+    ]);
+    expect(tiles(html, 'p2'), 'an article in two sections drew twice').toBe(1);
+  });
+
+  it('an ÉPUISÉ article still shows, veiled, in the one grid', () => {
+    const stock = PRODUCTS.map((p) => (p.pid === 'p2' ? { ...p, inStock: false } : p));
     const html = renderVitrineReady(
-      { ...shop([{ id: 'sec-t', name: 'Tissus', pids: ['p1', 'p2'] }]), featuredItems: ['p1'] } as never,
+      shop([{ id: 'sec-t', name: 'Tissus', pids: ['p2'] }]) as never,
       TRUST as never, {} as never, {}, stock as never, 'classique',
     );
-    // her épuisé pin is still on the page, in her group, veiled — counted by
-    // NAME because an épuisé tile carries no pid
-    expect(parNom(html, 'Article 1'), 'an épuisé pin must still appear, voilé, in her section').toBe(1);
+    expect(parNom(html, 'Article 2'), 'an épuisé article must not vanish with its section').toBe(1);
     expect(html).toContain('ÉPUISÉ');
-    // …and the auto-lead is drawn ONCE, as the lead — not again under TISSUS
-    expect(tiles(html, 'p2'), 'the auto-lead was redrawn inside her section').toBe(1);
-    expect(html).toContain('<div class="vt-group"><b><v>TISSUS</v></b><i>· 1</i></div>');
+  });
+
+  it('the grouping STYLES leave with the markup — no rule left addressing nothing', () => {
+    expect(VITRINE_STYLES, '.vt-group CSS outlived the markup it dressed').not.toContain('.vt-group');
   });
 });

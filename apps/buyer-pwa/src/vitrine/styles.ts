@@ -240,10 +240,6 @@ export const VITRINE_STYLES = `
   }
 
   /* C-VIT6 — titre de groupe + grille. */
-  .vt-group { display: flex; align-items: baseline; gap: 8px; margin-top: 22px; }
-  .vt-group-first { margin-top: 22px; }
-  .vt-group b { font-size: 11px; font-weight: 700; letter-spacing: 1.1px; color: #6F6355; display: block; }
-  .vt-group i { font-size: 11px; font-weight: 700; color: #8A7D6B; display: block; font-variant-numeric: tabular-nums; }
   /* GRILLE-ETAGEE (founder order 2026-08-03 — the same treatment opportunités
      got: « the size, the space scale, the square »).
 
