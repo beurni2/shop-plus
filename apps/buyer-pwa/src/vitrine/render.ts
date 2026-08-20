@@ -502,15 +502,33 @@ export function renderVitrineReady(
     ? orderedProducts(sf, undefined, described).filter((p) => p.inStock).slice(0, 1)
     : [];
   const featured = pinned.length > 0 ? pinned : autoLead;
+  // GROUPES-SANS-DOUBLON (founder, 2026-08-19) — the exclusion below already
+  // guarded the residual grid; it was never applied to the SECTIONS, so an
+  // article both pinned and grouped drew TWICE, and its heading counted 2 for
+  // what is one article. NOT a heart desync: `applyFavoriteState` (flows.ts)
+  // flips every heart carrying the pid and favorites.test.ts executes it, so
+  // that half was already closed. The rule here is the residual's own —
+  // drop what the featured block ACTUALLY DREW, never what she pinned, so an
+  // épuisé pin (which reaches no hero) still shows, voilé, inside her group.
+  // A group left empty by that drop does not render: a heading over an empty
+  // grid is a heading lying about its own list.
+  const featuredShown = new Set(featured.map((p) => p.pid));
+  const groups = sf.sections
+    .map((sec) => ({
+      name: sec.name,
+      prods: orderedProducts(sf, sec.pids, described).filter((p) => !featuredShown.has(p.pid)),
+    }))
+    .filter((g) => g.prods.length > 0);
   // computed BEFORE the featured header so « Voir tout » renders only when the
   // anchor it targets will exist (verifier NB3: a link to a missing id is the
-  // dead button its own comment banned).
+  // dead button its own comment banned) — and it counts the groups that will
+  // DRAW, not the ones she stored, or a group emptied by the pin would promise
+  // something below that never arrives.
   const sectionedEarly = new Set(sf.sections.flatMap((sec) => sec.pids));
-  const featuredShownEarly = new Set(featured.map((p) => p.pid));
   const anythingBelow =
-    sf.sections.some((sec) => sec.pids.length > 0) ||
+    groups.length > 0 ||
     orderedProducts(sf, undefined, described).some(
-      (p) => !sectionedEarly.has(p.pid) && !featuredShownEarly.has(p.pid),
+      (p) => !sectionedEarly.has(p.pid) && !featuredShown.has(p.pid),
     );
   if (featured.length > 0) {
     parts.push(
@@ -527,18 +545,15 @@ export function renderVitrineReady(
 
   // Sections (≤ 4, empty invisible), then the residual « TOUS LES ARTICLES ».
   const sectioned = new Set(sf.sections.flatMap((s) => s.pids));
-  const visibleSections = sf.sections.filter((s) => s.pids.length > 0);
-  for (const s of visibleSections) {
-    const prods = orderedProducts(sf, s.pids, described);
-    parts.push(groupTitle(esc(s.name).toUpperCase(), prods.length, 'section'));
-    parts.push(grille(prods, notes));
+  for (const g of groups) {
+    parts.push(groupTitle(esc(g.name).toUpperCase(), g.prods.length, 'section'));
+    parts.push(grille(g.prods, notes));
   }
   // NORTH-STAR-1 fix (verifier blocker): a featured article also rendered in the
   // grid — two tiles, two hearts, desynced on tap; and « AUTRES ARTICLES » that
   // contains the same article is a title lying about its own list. The exclusion
   // is the pids the featured section ACTUALLY rendered: an épuisé featured item
   // never reaches the hero, so it still appears (voilé) in the grid.
-  const featuredShown = new Set(featured.map((p) => p.pid));
   const residual = orderedProducts(sf, undefined, described).filter(
     (p) => !sectioned.has(p.pid) && !featuredShown.has(p.pid),
   );
@@ -549,7 +564,7 @@ export function renderVitrineReady(
     // « AUTRES ARTICLES » only when something CAME BEFORE it (à la une or a
     // section) — with nothing above, « autres » would refer to nothing and the
     // honest title is « TOUS LES ARTICLES ».
-    const residualLabel = featured.length > 0 || visibleSections.length > 0 ? t('vit.head_autres') : t('vit.head_tous');
+    const residualLabel = featured.length > 0 || groups.length > 0 ? t('vit.head_autres') : t('vit.head_tous');
     parts.push(sectionHead(iconBag(15, '#6F6355', 1.9), residualLabel, undefined, undefined, residual.length));
     parts.push(grille(residual, notes));
   }

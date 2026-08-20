@@ -107,10 +107,17 @@ describe('integration — the chip appears on a noted tile, never on a note-less
     // catalog's stock, never a magic number.
     const inStock = (pid: string): boolean => seedProduct(pid)?.inStock === true;
     const featuredShown = r.storefront.featuredItems.filter(inStock);
-    // sections render HER explicit curation verbatim (a featured pid she also
-    // sectioned still renders there); only the RESIDUAL grid excludes featured.
+    // GROUPES-SANS-DOUBLON (founder, 2026-08-19) — sections USED to render her
+    // curation verbatim, so a featured pid she had also sectioned rendered in
+    // BOTH places: two tiles, two chips, two hearts for one article. The demo
+    // profile carries exactly that shape (p5 is pinned AND in « Maison &
+    // beauté »), which is why this count drops by one. Sections now exclude the
+    // pids the featured block DREW, on the same rule the residual grid has
+    // always used.
     const sectioned = new Set(r.storefront.sections.flatMap((sec) => sec.pids));
-    const sectionChips = r.storefront.sections.flatMap((sec) => sec.pids).filter(inStock).length;
+    const sectionChips = r.storefront.sections
+      .flatMap((sec) => sec.pids)
+      .filter((pid) => inStock(pid) && !featuredShown.includes(pid)).length;
     const residualChips = r.storefront.curatedItems.filter(
       (pid) => inStock(pid) && !sectioned.has(pid) && !featuredShown.includes(pid),
     ).length;
