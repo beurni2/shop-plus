@@ -100,6 +100,13 @@ interface Env extends WriteAuthEnv {
   SERA_INTAKE_BASE?: string;
   SERA_INTAKE_SECRET?: string;
   SHOP_ARM_SECRET?: string;
+  /** G4 CHECKOUT-KILL — the founder's emergency stop for NEW QUOTES. Read by
+   * CheckoutDO from its own env; non-empty ⇒ every new quote refuses
+   * `checkout_killed` (503). Reads, orders in flight, and her shop are
+   * untouched. Arm/disarm in seconds, no code deploy:
+   * `printf '1' | wrangler secret put CHECKOUT_KILL` · `wrangler secret delete
+   * CHECKOUT_KILL`. Declared here for documentation; the router never reads it. */
+  CHECKOUT_KILL?: string;
 }
 
 export default {

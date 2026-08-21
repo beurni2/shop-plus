@@ -179,6 +179,18 @@ PRODUCT_MEDIA_BASE = "https://media-service.ilboudobernard2.workers.dev"
 # PAYMENT_SANDBOX_BEHAVIOR is also absent, and absent is its DEPLOYED value: it
 # configures the certified sandbox mock's misbehaviour for tests. It carries no
 # payment truth (webhooks are the only payment truth) and names no provider.
+#
+# G4 CHECKOUT-KILL — the founder's emergency stop for NEW QUOTES, absent by
+# design (absent = checkout runs). Non-empty ⇒ CheckoutDO refuses every new
+# quote `checkout_killed` (503); reads, orders already in flight, and every
+# shop stay untouched. Deliberately a secret-shaped value and NOT [vars]: a
+# secret flips in SECONDS without a code deploy, in both directions —
+#   arm:    printf '1' | wrangler secret put CHECKOUT_KILL
+#   disarm: wrangler secret delete CHECKOUT_KILL
+# ANY non-empty value arms (a typo over-triggers rather than under-triggers —
+# the right failure direction for an emergency stop). There is no fetched flag
+# snapshot behind this: the env read is atomic with the request, so there is no
+# outage in which the switch could silently disarm.
 
 # ORDER-PAID-WIRE-1b — FULFILLMENT_WRITE_SECRET is this Worker's copy of the
 # shared credential the boutik fulfillment intake gates on, presented as

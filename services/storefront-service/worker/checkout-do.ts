@@ -67,17 +67,35 @@ const RESERVATION_KEY = 'reservation-state';
 const KEY_POINTER_KEY = 'request-key-pointer';
 
 /**
- * The kill-switch snapshot the vault reads. Shop+ CONSUMES a remotely served
- * snapshot (`@shop-plus/flags-client`) and the flag service is E0 ecosystem
- * infrastructure that is not wired to this Worker — so the honest value here is
- * the documented empty snapshot: nothing enabled, nothing killed. It is stated
- * as a literal (rather than imported) because `flags-client` is not a dependency
- * of this service; the shape is the one `premiere-commande-reelle.e2e.test.ts`
- * already drives `issueQuote` with. JOURNALLED: wiring the real snapshot is what
- * makes `checkout_killed` reachable in production; until then the refusal exists
- * and is tested, but nothing can trip it at runtime.
+ * G4 CHECKOUT-KILL — the kill-switch snapshot the vault reads, now a REAL
+ * SWITCH. It was a hardcoded empty literal (journalled): `checkout_killed`
+ * existed and was tested, but nothing could trip it at runtime. The kills now
+ * come from THIS WORKER'S ENV: `CHECKOUT_KILL` non-empty ⇒ the 'checkout' kill
+ * is on and every new quote refuses `checkout_killed` (503). ANY non-empty
+ * value arms — a typo'd value over-triggers rather than under-triggers, which
+ * is the right failure direction for an emergency stop.
+ *
+ * DELIBERATELY env, not a fetched snapshot: an env read is atomic with the
+ * request — no fetch, no cache, and no outage in which the switch could
+ * silently disarm (flags-client's EMPTY_SNAPSHOT reads kills OFF on a fetch
+ * failure; that caveat binds any future remote-snapshot slice, and cannot
+ * occur here because there is nothing to fail). Armed and disarmed in seconds,
+ * no code deploy: `wrangler secret put CHECKOUT_KILL` / `wrangler secret
+ * delete CHECKOUT_KILL`. The shape stays the literal `flags-client` snapshot
+ * (structural — that package is still not a dependency of this service); only
+ * the 'checkout' kill has a call site (`issueQuote`), so only it is wired.
  */
-const FLAGS = { version: 'e1-sandbox', flags: {}, kills: [], killedCategories: [] } as const;
+interface CheckoutKillEnv {
+  readonly CHECKOUT_KILL?: string;
+}
+function flagsFrom(env: CheckoutKillEnv) {
+  return {
+    version: 'e1-sandbox',
+    flags: {},
+    kills: (env.CHECKOUT_KILL ?? '') !== '' ? (['checkout'] as const) : ([] as const),
+    killedCategories: [],
+  } as const;
+}
 
 interface IssueArgs {
   quoteId?: string;
@@ -102,7 +120,12 @@ interface IssueArgs {
 }
 
 export class CheckoutDO {
-  constructor(private readonly state: DurableObjectState) {}
+  // The runtime always passes (state, env); env carries the kill switch. The
+  // default keeps any env-less construction honest: no value ⇒ nothing killed.
+  constructor(
+    private readonly state: DurableObjectState,
+    private readonly env: CheckoutKillEnv = {},
+  ) {}
 
   async fetch(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
@@ -129,7 +152,7 @@ export class CheckoutDO {
       const quoteId = args.quoteId;
       const outcome = decideIssueQuote(
         {
-          flags: FLAGS,
+          flags: flagsFrom(this.env),
           now: () => new Date(),
           // The id is the DO's own address, minted by the router before it could
           // address this object. One variable, so the quote's id and the object

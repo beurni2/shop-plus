@@ -1725,3 +1725,115 @@ describe('PUBLIER SANS BOUTIQUE — a publication with no shop behind it is refu
     expect(q.status, q.text).toBe(200);
   });
 });
+
+/**
+ * G4 CHECKOUT-KILL — THE STOREFRONT KILL SWITCH IS A REAL SWITCH (audit G4).
+ *
+ * `issueQuote` has refused `checkout_killed` since SP3.2a and the DO maps it to
+ * 503 — but the snapshot it read was a hardcoded empty literal, so NOTHING could
+ * trip the switch at runtime. The kills now come from the Worker env:
+ * `CHECKOUT_KILL` non-empty ⇒ the 'checkout' kill is on. An env read is atomic
+ * with the request — no fetch, no cache, no outage in which the switch could
+ * silently disarm (the flags-client EMPTY_SNAPSHOT fail-open caveat cannot
+ * occur, because there is nothing to fail). Armed and disarmed with
+ * `wrangler secret put CHECKOUT_KILL` / `wrangler secret delete CHECKOUT_KILL`
+ * — seconds in both directions, no code deploy.
+ *
+ * Driven on the REAL bundle through real workerd, both directions across a
+ * process death on the same persist dir: killed refuses 503 by name, disarmed
+ * quotes normally, and nothing done while killed corrupts the shop.
+ */
+describe('G4 CHECKOUT-KILL — env-armed kill switch on the real Worker', () => {
+  const persistKill = mkdtempSync(join(tmpdir(), 'checkout-kill-'));
+  const makeKillMf = (killed: boolean): Miniflare =>
+    new Miniflare({
+      modules: true,
+      scriptPath: SCRIPT,
+      durableObjects: {
+        STOREFRONT: 'StorefrontDO',
+        LISTING: 'ListingDO',
+        CHECKOUT: 'CheckoutDO',
+        ORDER: 'OrderDO', LADDER: 'BuyerLadderDO',
+      },
+      durableObjectsPersist: persistKill,
+      bindings: {
+        STOREFRONT_WRITE_SECRET: WRITE_SECRET,
+        ...(killed ? { CHECKOUT_KILL: '1' } : {}),
+      },
+      serviceBindings: {
+        OFFER: async (request: Request) => {
+          const single = /^\/supply-projection\/([^/]+)$/.exec(new URL(request.url).pathname);
+          const value = single ? SUPPLY.find((v) => v.productVersionId === decodeURIComponent(single[1]!)) : undefined;
+          if (value === undefined) {
+            return Response.json({ service: 'offer-service', status: 'not_found', reason: 'unknown_product_version' }, { status: 404 });
+          }
+          return Response.json({ version: 1, asOf: new Date().toISOString(), value });
+        },
+      },
+    });
+
+  it('killed: every new quote refuses 503 checkout_killed — while her boutique keeps working; disarmed across a restart: the same buyer quotes normally', async () => {
+    const killedMf = makeKillMf(true);
+    try {
+      // The WRITE surface still works while checkout is killed — the switch
+      // stops NEW QUOTES, never her shop.
+      const created = await killedMf.dispatchFetch('http://c/storefronts', {
+        method: 'POST',
+        headers: authed,
+        body: JSON.stringify({
+          commandId: 'cmd-create-kill', id: 'sf-checkout-kill', resellerId: 'rs-checkout-kill',
+          shortCode: 'CHECK-9401', name: 'Boutique du fondateur', zone: 'Ouagadougou',
+          category: 'Général', correlationId: 'corr-kill', at: T0,
+        }),
+      });
+      expect(created.status).toBe(200);
+      const pub = await killedMf.dispatchFetch('http://c/listings', {
+        method: 'POST',
+        headers: authed,
+        body: JSON.stringify({
+          commandId: 'cmd-listing-kill', listingId: 'lst-checkout-kill', storefrontId: 'sf-checkout-kill',
+          resellerId: 'rs-checkout-kill', productVersionId: 'pv-checkout-1', offerVersion: 'ov-checkout-1',
+          markup: 1_500, correlationId: 'corr-kill', at: T0,
+        }),
+      });
+      expect(((await pub.json()) as { status?: string }).status).toBe('published');
+
+      const killedQuote = await killedMf.dispatchFetch('http://c/checkout/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: 'check-9401', pid: 'pv-checkout-1', paymentMode: 'FULL_PREPAY',
+          zoneTo: 'Ouagadougou', attributionResellerId: 'rs-checkout-kill',
+          requestKey: 'rk-kill-0001-xxxxxxxxxxxx',
+        }),
+      });
+      const killedBody = await killedQuote.text();
+      expect(killedQuote.status, killedBody).toBe(503);
+      expect(killedBody).toContain('checkout_killed');
+    } finally {
+      await killedMf.dispose();
+    }
+
+    // DISARM = remove the env value. Same persist dir = a real process death:
+    // the shop seeded while killed serves a normal quote the moment the value
+    // is gone, and nothing needs cleaning up.
+    const disarmedMf = makeKillMf(false);
+    try {
+      const quote = await disarmedMf.dispatchFetch('http://c/checkout/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: 'check-9401', pid: 'pv-checkout-1', paymentMode: 'FULL_PREPAY',
+          zoneTo: 'Ouagadougou', attributionResellerId: 'rs-checkout-kill',
+          requestKey: 'rk-kill-0002-xxxxxxxxxxxx',
+        }),
+      });
+      const body = await quote.text();
+      expect(quote.status, body).toBe(200);
+      expect(body).not.toContain('checkout_killed');
+    } finally {
+      await disarmedMf.dispose();
+      rmSync(persistKill, { recursive: true, force: true });
+    }
+  });
+});
