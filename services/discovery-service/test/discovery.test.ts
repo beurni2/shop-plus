@@ -48,6 +48,57 @@ describe('discovery-returns-stores', () => {
     expect(a.stores.map((s) => s.storeName)).toEqual(['Aïcha Mode', 'Boutique Mariam', 'Chez Awa']);
   });
 
+  /**
+   * Audit H2 — the order is FRENCH-AWARE without the runtime's collation
+   * tables. `localeCompare(x,'fr')` delegates to ICU, which differs across
+   * runtimes (workerd vs Node vs an upgrade) — the « deterministic » SP-I11
+   * order could silently differ between the deployed Worker and the CI that
+   * certified it. The comparator now folds accents/case via Unicode NFD
+   * (engine-stable by spec) with a raw tiebreak. These pin the two properties
+   * a naive codepoint sort loses: accents sort WITH their base letter, and
+   * case does not split the alphabet.
+   */
+  it('accented names sort beside their base letters, never after Z (audit H2)', () => {
+    const zone = 'Dassasgho';
+    const mk = (id: string, storeName: string): StorePreview => ({
+      storefrontId: id, resellerId: `res-${id}`, storeName, zone,
+    });
+    const r = buildStoreDiscoveryResponse([
+      mk('sf_a', 'Zanré Style'),
+      mk('sf_b', 'Épicerie du Marché'), // U+00C9 > 'Z' by codepoint — a naive sort puts it LAST
+      mk('sf_c', 'Etoile Boutique'),
+      mk('sf_d', 'aïcha couture'),      // lowercase + diaeresis — a naive sort splits it from 'Aicha'
+      mk('sf_e', 'Aicha Mode'),
+    ]);
+    expect(r.stores.map((s) => s.storeName)).toEqual([
+      'aïcha couture', // folds to « aicha couture » — before « aicha mode »
+      'Aicha Mode',
+      'Épicerie du Marché',
+      'Etoile Boutique',
+      'Zanré Style',
+    ]);
+  });
+
+  it('two names equal after folding still order totally (raw tiebreak, never a coin flip)', () => {
+    const zone = 'Gounghin';
+    const mk = (id: string, storeName: string): StorePreview => ({
+      storefrontId: id, resellerId: `res-${id}`, storeName, zone,
+    });
+    const a = buildStoreDiscoveryResponse([mk('sf_1', 'Awa'), mk('sf_2', 'AWA'), mk('sf_3', 'awa')]);
+    const b = buildStoreDiscoveryResponse([mk('sf_3', 'awa'), mk('sf_1', 'Awa'), mk('sf_2', 'AWA')]);
+    expect(a).toEqual(b);
+    expect(a.stores.map((s) => s.storeName)).toEqual(['AWA', 'Awa', 'awa']);
+  });
+
+  it('the comparator never reaches for the runtime collation tables (no localeCompare call in the module)', () => {
+    // Comments stripped first: the header documents WHY localeCompare left,
+    // so the word may appear in prose — never as a call.
+    const src = readFileSync(join(import.meta.dirname, '../src/discovery.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+    expect(src).not.toContain('localeCompare');
+  });
+
   it('the checked-in gate fixture matches this builder (pinning)', () => {
     const fixture = JSON.parse(
       readFileSync(

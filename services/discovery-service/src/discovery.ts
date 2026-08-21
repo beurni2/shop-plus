@@ -38,13 +38,34 @@ export const StoreDiscoveryResponseSchema = z
   .strict();
 export type StoreDiscoveryResponse = z.infer<typeof StoreDiscoveryResponseSchema>;
 
+/**
+ * Audit H2 — the French-aware comparator, WITHOUT the runtime's collation
+ * tables. `localeCompare(x, 'fr')` delegates to ICU, whose tables differ
+ * across runtimes and versions (workerd vs Node vs a future upgrade) — so the
+ * « deterministic » SP-I11 order could silently differ between the deployed
+ * Worker and the CI that certified it. This comparator depends only on
+ * Unicode NFD (specified by the standard, engine-stable): accents fold onto
+ * their base letters and case folds away for ORDERING (« Épicerie » sorts with
+ * the E names, « Aïcha » beside « Aicha »), then the raw string breaks ties so
+ * two distinct strings never compare equal (a total order, SP-I11).
+ */
+function frCompare(a: string, b: string): number {
+  const keyA = a.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const keyB = b.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (keyA < keyB) return -1;
+  if (keyA > keyB) return 1;
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
 /** Deterministic assembly: zone, then store name, then storefrontId. */
 export function buildStoreDiscoveryResponse(stores: StorePreview[]): StoreDiscoveryResponse {
   const ordered = [...stores].sort(
     (a, b) =>
-      a.zone.localeCompare(b.zone, 'fr') ||
-      a.storeName.localeCompare(b.storeName, 'fr') ||
-      a.storefrontId.localeCompare(b.storefrontId),
+      frCompare(a.zone, b.zone) ||
+      frCompare(a.storeName, b.storeName) ||
+      frCompare(a.storefrontId, b.storefrontId),
   );
   return StoreDiscoveryResponseSchema.parse({ stores: ordered });
 }
