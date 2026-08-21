@@ -9,7 +9,7 @@ Format per entry:
 
 ---
 
-## 2026-08-21 · G4 CHECKOUT-KILL — the storefront kill switch is a real switch · IN-REVIEW
+## 2026-08-21 · G4 CHECKOUT-KILL — the storefront kill switch is a real switch · DONE
 
 **Founder, 2026-08-21: « You can start working on G4 » (audit G4, KNOWN-OPEN).** `issueQuote` has refused `checkout_killed` since SP3.2a and the DO maps it to 503 — but the snapshot it read was a hardcoded empty literal in `checkout-do.ts`, so nothing could trip the switch at runtime: the founder had no working emergency stop for checkouts.
 
@@ -25,7 +25,7 @@ Format per entry:
 
 **EVIDENCE.** G4 e2e red→green on the real bundle · checkout-do.e2e 51/51 · full storefront suite 577/577 · typecheck clean · gate board ALL GATES GREEN exit 0 (storefront 577/577, Playwright 106/106, every negative fixture failed as required) · verifier: CONFORMS, ship it.
 
-**Pending:** founder approval to merge + deploy. The switch is live the moment this bundle deploys; arming it needs nothing but the wrangler command above.
+**MERGED AND DEPLOYED (founder: « Merge and deploy », 2026-08-21).** main fast-forwarded to 3c3cd8e; all five workflows green on attempt 1, storefront-deploy provenance-verified. The switch is LIVE and DISARMED (no CHECKOUT_KILL set — checkouts run normally); arming needs only `printf '1' | wrangler secret put CHECKOUT_KILL`.
 
 ---
 
