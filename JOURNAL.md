@@ -97,7 +97,7 @@ Format per entry:
 
 **VERIFIER NOTE (process, pre-existing, NOT fixed here — out of scope):** the storefront-service e2e suites read a PREBUILT `dist/worker/worker.mjs`; running `npx vitest run` directly skips the package `pretest` (`pnpm bundle:worker:combined`) that rebuilds it, so re-verifying via bare `vitest run` can silently exercise a STALE bundle and nearly produced a false « still passes on broken code » verdict. This is a repo-wide footgun, not introduced by this slice — flagged to the founder, journalled, not touched (scope lock). Re-verify storefront e2e with `pnpm test`, never bare `vitest run`.
 
-**Pending:** the founder's word to merge and deploy.
+**MERGED AND DEPLOYED (founder's word, 2026-08-21: « Merge and deploy »):** main fast-forwarded `ac9704a..d070ecd`. All four workflows **green on attempt 1** — `ci`, `pwa-preview`, `expo-preview`, `service-canon-drift`. The drop code is now withheld until the door leg is paid.
 
 ---
 
