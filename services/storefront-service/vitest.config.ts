@@ -11,5 +11,9 @@ export default defineConfig({
   test: {
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    // Build the worker bundles before the suite on EVERY invocation path, so
+    // `npx vitest run` never tests a stale `dist/worker/*.mjs` the way the
+    // `pretest` hook (which fires only on `pnpm test`) allowed. See global-setup.ts.
+    globalSetup: ['./test/global-setup.ts'],
   },
 });
