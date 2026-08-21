@@ -9,7 +9,7 @@ Format per entry:
 
 ---
 
-## 2026-08-21 · E6 CUSTODY-ARMED-SIGNAL — a green deploy can no longer be silent about unarmed custody wires · IN-REVIEW
+## 2026-08-21 · E6 CUSTODY-ARMED-SIGNAL — a green deploy can no longer be silent about unarmed custody wires · DONE
 
 **Founder, 2026-08-21: « Go ahead and fix E6 ».** The audit's E6 (KNOWN-OPEN): storefront-deploy exits green when SERA_INTAKE_SECRET / SHOP_ARM_SECRET are unset — deliberate (the deploy-order law: unset fails closed, the arm outbox holds and retries, nothing dropped) — but nothing proactively surfaced the stalled state; an operator found it only by manual inspection. The deploy-order law is UNTOUCHED: unset still never fails a deploy. What changed is that silence is no longer possible.
 
@@ -23,7 +23,7 @@ Format per entry:
 
 **EVIDENCE.** combined-worker.e2e 47/47 on the rebuilt real bundle · full storefront suite 576/576 · typecheck clean · workflow YAML parses, probe logic proven on six fixture branches · gate board ALL GATES GREEN exit 0 (storefront 576/576, Playwright 106/106, every negative fixture failed as required) · verifier: CONFORMS, ship-ready.
 
-**Pending:** founder approval to merge + deploy. Note for the first post-merge dispatch: the probe reads the field off the LIVE Worker, so its first truthful run is the deploy that ships this bundle.
+**MERGED AND DEPLOYED (founder: « Merge and deploy », 2026-08-21).** main fast-forwarded to 08a0322; all five workflows green on attempt 1. The probe's FIRST LIVE RUN took the armed branch — the deploy log reads « CUSTODY ARMED — all three wires present on the live Worker » (release 08a0322, canon 3.12.0), provenance and smoke green after it. The unarmed branch stays proven by the e2e (three present falses on an unarmed workerd instance) and the six local fixture branches.
 
 ---
 
