@@ -186,7 +186,13 @@ function serviceScripte(script: ScriptPorte): (quartier: string) => Promise<Quot
     // service answers the order with the door leg STILL DUE; only the
     // provider webhook moves it. This double must never answer `paid`.
     payerALaPorte: async (): Promise<OrderFetch> => ({ status: 'order', order: ordre({ doorLeg: 'due' }) }),
-    remise: async (): Promise<RemiseFetch> => ({ status: 'code', code: '654321' }),
+    // BOUND (contract-certified to the fixed server, 2026-08-21): §6.3 — the
+    // code comes AFTER door payment. The real remise route withholds (uniform
+    // `{ok:false}` 404 → `refused`) while the door leg is `due`; it answers the
+    // code only for `none` (full-prepay) or `paid`. A double that revealed on
+    // `due` would be kinder than the service it stands for.
+    remise: async (): Promise<RemiseFetch> =>
+      script.doorLeg === 'due' ? { status: 'refused' } : { status: 'code', code: '654321' },
   });
 }
 
@@ -322,6 +328,57 @@ describe('PORTE-VERS-MERCI — chaque route C8 → C9 garde la montre vivante', 
     presser(c, 'porte-bon');
     await vi.advanceTimersByTimeAsync(2_600);
     expect(c.innerHTML).toContain('data-screen="C9"');
+
+    await laRemiseDoitFermer(c, script);
+  });
+
+  /**
+   * §6.3 — « VOIR MON CODE » NEVER HANDS HER THE CODE BEFORE SHE PAYS THE DOOR.
+   *
+   * FOUNDER (2026-08-21): « if buyer chooses pay at the [door], code must be
+   * released after payment confirmation. » Audit finding A1/A2: on a door-DUE
+   * order the « Voir mon code » shortcut called `demanderLeCode` directly,
+   * bypassing the door-leg gate `revelationPermise` already encodes — and the
+   * server (now fixed) withholds, so the road only ever led to an honest « pas
+   * encore » card. This walk drives the REAL flow: on a due order the shortcut
+   * takes her to the DOOR (C8), the same screen « Je suis à la porte » opens,
+   * where she pays and the code reveals on confirmation. It was RED before the
+   * routing fix (the shortcut jumped to C9 and asked for a code it cannot have).
+   */
+  it('voir-code sur une commande à payer à la porte mène à la porte, jamais au code', async () => {
+    const script: ScriptPorte = { doorLeg: 'due', livree: false, etatReads: 0 };
+    const c = monter(script);
+
+    // C1 → C7 (tracking), the live door-due delivery — « Voir mon code » is on it.
+    presser(c, 'commander');
+    presser(c, 'zone', { 'data-zone': 'Gounghin' });
+    taper(c, 'phone', '70 12 34 56');
+    taper(c, 'repere', 'Face à la pharmacie du marché');
+    presser(c, 'continuer-c3');
+    await souffler();
+    presser(c, 'continuer-c4');
+    presser(c, 'choix-paiement', { 'data-mode': 'B' });
+    presser(c, 'payer');
+    await souffler();
+    presser(c, 'suivre');
+    await souffler();
+    expect(c.innerHTML).toContain('data-screen="C7"');
+
+    // §6.3: the product is still owed. « Voir mon code » must NOT open a code
+    // screen — it routes her to the door to pay first.
+    presser(c, 'voir-code');
+    expect(c.innerHTML, 'voir-code sur une commande due doit mener à la porte, pas au code').toContain('data-screen="C8"');
+    expect(c.innerHTML, 'aucun code avant le paiement de la porte').not.toContain('654 321');
+
+    // From the door she pays; the operator confirms; NOW the code, then C10.
+    presser(c, 'porte-bon');
+    await souffler();
+    expect(c.innerHTML).toContain('data-etat="paiement-porte"');
+    script.doorLeg = 'paid';
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(c.innerHTML).toContain('data-screen="C9"');
+    await souffler();
+    expect(c.innerHTML).toContain('654 321');
 
     await laRemiseDoitFermer(c, script);
   });

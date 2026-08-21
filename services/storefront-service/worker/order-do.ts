@@ -954,6 +954,23 @@ export class OrderDO {
       const stored = await this.state.storage.get<string>(BUYER_REF_KEY);
       const code = await this.state.storage.get<string>(CODE_REMISE_KEY);
       const transit = (await this.state.storage.get<TransitRecord>(TRANSIT_KEY)) ?? {};
+      // §6.3 — THE CODE COMES LAST, AFTER THE DOOR LEG IS PAID. On an Option-B
+      // order the code is minted at CONFIRM (the delivery-fee leg) while the
+      // product B+M is still owed at the door — `doorLegState` is `'due'`. This
+      // route is the reveal authority (the PWA's `revelationPermise` is
+      // belt-and-braces, and a non-PWA client has only this), so the door
+      // condition lives HERE: `due` withholds. The arrival-only gate (2026-08-13)
+      // missed that arrival PRECEDES door payment — an arrived buyer could read
+      // her code before paying (audit 2026-08-21). `none` (full-prepay) and
+      // `paid` reveal; anything we cannot prove settled withholds (fail closed).
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      const quote = origin === undefined ? undefined : parseStoredQuote(origin.quoteBytes);
+      const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      const doorLeg =
+        origin === undefined || quote === undefined
+          ? 'due'
+          : rebuildOrderSpine(quote, origin, log).doorLegState;
+      const doorSettled = doorLeg === 'none' || doorLeg === 'paid';
       // ⚠ THE COMPARE RUNS UNCONDITIONALLY (verifier NOTE, VRAI-ROUTE): a
       // short-circuit on « no stored token » skipped the HMAC for an order
       // that never existed while running it for a wrong token — identical
@@ -963,7 +980,7 @@ export class OrderDO {
       // required in the verdict.
       const compared = await timingSafeEqual(jeton, stored ?? 'jeton-absent-decoy');
       const jetonOk = stored !== undefined && jeton !== '' && compared;
-      if (!jetonOk || code === undefined || transit.arrivedAt === undefined) {
+      if (!jetonOk || code === undefined || transit.arrivedAt === undefined || !doorSettled) {
         return Response.json({ ok: false }, { status: 404 });
       }
       return Response.json({ ok: true, code });

@@ -1868,6 +1868,17 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         state.step += 1; render(); return;
       // ── VRAI-SUIVI — the code, and the tracking's own manual check ────────
       case 'voir-code':
+        // §6.3 — THE CODE COMES LAST, AFTER THE DOOR LEG IS PAID (founder,
+        // 2026-08-21; audit A1/A2). On Option B the product is still owed at
+        // the door (`doorLeg === 'due'`): the reveal road would only earn the
+        // honest « pas encore » (the server withholds too, now), so « Voir mon
+        // code » takes her to the DOOR — the SAME screen « Je suis à la porte »
+        // opens — where she pays and the code reveals on confirmation. Full
+        // prepay and an already-paid door keep the direct reveal below.
+        if (state.live !== null && state.confirmState === 'confirmed' && state.doorLeg === 'due') {
+          jump('C8', { door: 'inspecting', leg2: 'idle', reason: null });
+          return;
+        }
         // CODE-VISIBLE (2026-08-13): offered for the whole live delivery —
         // the arrival gate is gone; the REMISE ROUTE stays the sole reveal
         // authority, and the fetch goes out in the generation the jump opens.

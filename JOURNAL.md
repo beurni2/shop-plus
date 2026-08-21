@@ -75,6 +75,32 @@ Format per entry:
 
 **MERGED AND DEPLOYED (founder's word, 2026-08-19: « merge and deploy »):** main fast-forwarded `f886473..dcd8e1a`. All four workflows **green on attempt 1** — `ci`, `pwa-preview`, `expo-preview`, `service-canon-drift`. The boutique page now draws every article once.
 
+## 2026-08-21 · CODE-APRÈS-PORTE — the drop code is withheld until the door leg is paid (§6.3) · IN-REVIEW (awaiting founder's word)
+
+**Founder, 2026-08-21:** « if buyer chooses pay at the [door], code must be released after payment confirmation. » This confirms audit finding A1/A2 (2026-08-21) is a bug, not an owned decision. §6.3: « the buyer enters the drop code last, after any door payment is provider-confirmed »; §5.5 boundary puts « custody→customer (drop code last) » after « pay product leg → provider-confirmed »; Ten Laws #3.
+
+**THE DEFECT, verified end-to-end before the fix.** On an Option-B order the remise code is minted at CONFIRM — which for Option B is the delivery-fee leg — while the product (B+M = 11 500) is still owed at the door (`doorLeg = 'due'`). The server remise route (`order-do.ts` `/entry/remise`) gated on `jetonOk && code && transit.arrivedAt` — arrival + token, NEVER the door leg. Arrival precedes door payment, so an arrived buyer could read her code before paying. The client « Voir mon code » shortcut (`flow.ts` `voir-code`) called `demanderLeCode` directly, bypassing `revelationPermise` (which DID encode the door-leg rule) — the CODE-VISIBLE change of 2026-08-13 made the server « the sole reveal authority » but never put the door condition in it. Proven RED on the real Worker: Option-B, arrived, door due, `GET …/remise` returned `200 {"ok":true,"code":"607544"}`.
+
+**THE FIX — the server is the authority §6.3 names.**
+- **Server** (`order-do.ts` `/entry/remise`): rebuilds the spine and withholds when `doorLegState === 'due'`, folded into the SAME constant-shape `{ok:false}` 404 as every other « pas encore » (no new oracle). `none` (full-prepay) and `paid` reveal. Fails closed — if origin/quote can't be read, treats the leg as unsettled and withholds.
+- **Client** (`flow.ts` `voir-code`): on a confirmed live order with `doorLeg === 'due'`, routes to the door screen C8 — the SAME screen « Je suis à la porte » opens — instead of a dead « pas encore » C9. She inspects, pays, and the code reveals on confirmation (`leg2:'confirmed'`, unchanged). Full-prepay and paid-door keep the direct reveal.
+
+**PROOF (red-first, both).**
+- Server seam test (`porte-custody.e2e.test.ts`, REAL Worker/miniflare): Option-B, arrived, door due → remise `404 {"ok":false}` (was `200 …code…` before the fix); after the door webhook (`due→paid`) → the six-digit code. Added the arrival + remise + PROGRESS-secret plumbing this file lacked.
+- Client screen walk (`porte-vers-merci.test.ts`, REAL flow via `createCliente`, no app code stubbed): at C7 on a due order, « Voir mon code » lands on C8 (was C9 before the fix) and shows no code; she pays, the operator confirms, the code appears, `livree` → C10. The harness `remise` double was RE-CERTIFIED to the fixed server (returns `refused` while `due`) — a double kinder than the service is a bug I own.
+
+**OTHER REVEAL ROADS, backstopped:** every client road that fetches the code (`demanderLeCode` from `verifier-code`, the C9 watch's `arrivedAt` rule) now hits a server that withholds on `due` — the server is the single authority, the client routing is the UX layer over it.
+
+**EVIDENCE (my own runs):** buyer **995/995** · storefront-service **570/570** (incl. the two real-Worker seam files) · both service typechecks + buyer tsc + monorepo typecheck (19/19) clean · gate board **ALL GATES GREEN exit 0** (incl. the full Playwright board).
+
+**VERIFIER (fresh context, given the spec quotes + diff + DoD): NO BLOCKERS.** It reverted each source file, rebuilt the Worker bundle, and confirmed BOTH tests genuinely red on the pre-fix code (server `200 …code…` → `404`; client C9 → C8) and green fixed. Confirmed: the server gate is complete and fails closed (`parseStoredQuote` never throws), no new oracle; every other client reveal road (`demanderLeCode` from the C9 watch and `verifier-code`, the reprise resume-to-C9) funnels through the now-gated route; full-prepay and paid-door still reveal; no regressions (`vrai-suivi.e2e` 10/10, `cliente-paiement-61` + `vrai-suivi` 129/129, both typechecks clean); no dead-ends.
+
+**VERIFIER NOTE (process, pre-existing, NOT fixed here — out of scope):** the storefront-service e2e suites read a PREBUILT `dist/worker/worker.mjs`; running `npx vitest run` directly skips the package `pretest` (`pnpm bundle:worker:combined`) that rebuilds it, so re-verifying via bare `vitest run` can silently exercise a STALE bundle and nearly produced a false « still passes on broken code » verdict. This is a repo-wide footgun, not introduced by this slice — flagged to the founder, journalled, not touched (scope lock). Re-verify storefront e2e with `pnpm test`, never bare `vitest run`.
+
+**Pending:** the founder's word to merge and deploy.
+
+---
+
 ## 2026-08-19 · UNE-PORTE / BADGE-HORS-PHOTO / PARTAGE-HORS-ENTÊTE — three chrome removals · IN-REVIEW (awaiting the founder's word)
 
 **Founder, 2026-08-18:** « On personnaliser remove voir comme cliente cause voir ma boutique en ligne already does the same thing. And on couverture and portrait, on the photo the word "en ligne" hides the face. and on boutique/storefront remove the share sign that always shows on the en-tête/header »

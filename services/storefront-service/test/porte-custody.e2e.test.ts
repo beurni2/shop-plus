@@ -39,6 +39,7 @@ const T0 = '2026-08-12T08:00:00.000Z';
 const WRITE_SECRET = 'test-write-secret-pc001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-pc001';
 const FULFILL_SECRET = 'test-fulfillment-write-secret-pc001';
+const PROGRESS_SECRET = 'test-progress-write-secret-pc001';
 const ARM_SECRET = 'test-shop-arm-secret-pc001';
 const authed = { 'X-Write-Key': WRITE_SECRET };
 const signed = { 'X-Payment-Webhook-Key': WEBHOOK_SECRET, 'Content-Type': 'application/json' };
@@ -162,6 +163,7 @@ function makeMf(persistDir: string): Miniflare {
       STOREFRONT_WRITE_SECRET: WRITE_SECRET,
       PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
       FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
+      PROGRESS_WRITE_SECRET: PROGRESS_SECRET,
       SHOP_ARM_SECRET: ARM_SECRET,
     },
     serviceBindings: {
@@ -234,7 +236,7 @@ const freshKey = (): string => `rk-pc-${String((keySeq += 1)).padStart(4, '0')}-
 const CONTACT = { phone: '70 12 34 56', quartier: 'Gounghin', repere: 'près du marché' };
 
 /** The buyer's road to a CREATED pay-at-door order, over the public routes. */
-async function createdDoorOrder(n: string): Promise<{ orderId: string; quoteId: string }> {
+async function createdDoorOrder(n: string): Promise<{ orderId: string; quoteId: string; buyerRef: string }> {
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST', headers: authed,
     body: JSON.stringify({
@@ -276,7 +278,8 @@ async function createdDoorOrder(n: string): Promise<{ orderId: string; quoteId: 
     }),
   });
   if (ordered.status !== 200) throw new Error(`setup: order ${ordered.status} ${await ordered.text()}`);
-  return { orderId: `ord-${quote.quoteId}`, quoteId: quote.quoteId };
+  const createJson = safeJson(await ordered.text());
+  return { orderId: `ord-${quote.quoteId}`, quoteId: quote.quoteId, buyerRef: createJson['buyerRef'] as string };
 }
 
 /** A CHECKOUT-leg webhook (D = 1 000) built by the frozen vault's certified mock. */
@@ -310,11 +313,31 @@ async function postWebhook(path: string, event: unknown) {
 }
 
 /** shop → door order → confirmed (checkout leg paid): the door leg now `due`. */
-async function confirmedDoorOrder(n: string): Promise<{ orderId: string }> {
+async function confirmedDoorOrder(n: string): Promise<{ orderId: string; buyerRef: string }> {
   const o = await createdDoorOrder(n);
   const paid = await postWebhook('/checkout/webhook/payment', checkoutWebhookEvent(o.orderId, `att-pc-${n}`));
   if (paid.status !== 200) throw new Error(`setup: checkout webhook ${paid.status} ${paid.text}`);
   return o;
+}
+
+/** Séra's arrival fact, over the PROGRESS_WRITE_SECRET-gated transit intake. */
+async function transitArrivee(orderId: string, asOf: string) {
+  const res = await mf.dispatchFetch('http://c/fulfillment/transit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${PROGRESS_SECRET}` },
+    body: JSON.stringify({ orderId, stage: 'arrivee', asOf }),
+  });
+  return { status: res.status, text: await res.text() };
+}
+
+/** The buyer's remise read, over the public route, with her order token. */
+async function remiseRead(orderId: string, jeton: string) {
+  const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}/remise`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${jeton}` },
+  });
+  const text = await res.text();
+  return { status: res.status, text, json: safeJson(text) };
 }
 
 async function vue(orderId: string) {
@@ -631,5 +654,47 @@ describe('PORTE-CUSTODY — crash-window recovery, held to the standing call-sit
   it('the alarm flushes the fifth wire and re-arms on its pending count', () => {
     anchored('const doorSignalPending = await this.flushDoorSignalOutbox();');
     anchored('Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending)');
+  });
+});
+
+/**
+ * ═══ §6.3 — THE DROP CODE COMES LAST, AFTER THE DOOR LEG IS PAID ═══
+ *
+ * Spec §6.3: « the buyer enters the drop code last, after any door payment is
+ * provider-confirmed. » On an Option-B order the code is minted at CONFIRM —
+ * which for Option B is the delivery-fee leg — while the product (B+M) is still
+ * owed at the door (doorLeg = 'due'). The server remise route is the reveal
+ * authority; it must withhold the code while the door leg is due, in the SAME
+ * constant-shape 404 as every other « pas encore ».
+ *
+ * The audit (2026-08-21) found the route gated on arrival + token only, never
+ * on the door leg — and arrival precedes door payment, so an arrived buyer
+ * could read her code before paying the product. This walk drives the real
+ * Worker to prove the gate. It was RED before the door-leg condition was added.
+ */
+describe('§6.3 — the code is withheld while the door leg is due, revealed once paid', () => {
+  it('Option-B, arrived, door DUE → 404 (withheld); after the door leg is paid → the code', async () => {
+    const o = await confirmedDoorOrder('0007');
+    expect((await vue(o.orderId))['doorLeg'], 'the product is still owed at the door').toBe('due');
+    expect(typeof o.buyerRef, 'the buyer token was minted at create').toBe('string');
+
+    // Séra records the rider's arrival — the ONLY gate the route had before.
+    expect((await transitArrivee(o.orderId, '2026-08-10T15:00:00.000Z')).status).toBe(200);
+
+    // §6.3: arrived is not paid. Her own token learns « pas encore », the same
+    // 404 bytes as before-arrival — the code is NOT released while B+M is owed.
+    const due = await remiseRead(o.orderId, o.buyerRef);
+    expect(`${due.status} ${due.text}`, 'the code must be withheld while the door leg is due').toBe('404 {"ok":false}');
+
+    // The buyer pays the product at the door; the provider confirms it.
+    const paid = await postWebhook('/checkout/webhook/door', doorWebhookEvent(o.orderId, 'att-door-0007'));
+    expect(paid.status, paid.text).toBe(200);
+    expect((await vue(o.orderId))['doorLeg']).toBe('paid');
+
+    // NOW — and only now — her token reveals the code, colis en main.
+    const revealed = await remiseRead(o.orderId, o.buyerRef);
+    expect(revealed.status, revealed.text).toBe(200);
+    expect(revealed.json['ok']).toBe(true);
+    expect(/^\d{6}$/.test(revealed.json['code'] as string), 'six digits, as armed').toBe(true);
   });
 });
