@@ -9,6 +9,26 @@ Format per entry:
 
 ---
 
+## 2026-08-21 · G4 CHECKOUT-KILL — the storefront kill switch is a real switch · IN-REVIEW
+
+**Founder, 2026-08-21: « You can start working on G4 » (audit G4, KNOWN-OPEN).** `issueQuote` has refused `checkout_killed` since SP3.2a and the DO maps it to 503 — but the snapshot it read was a hardcoded empty literal in `checkout-do.ts`, so nothing could trip the switch at runtime: the founder had no working emergency stop for checkouts.
+
+**THE WIRING — env, deliberately not a fetched snapshot.** `CHECKOUT_KILL` non-empty on the Worker env ⇒ CheckoutDO's `flagsFrom(env)` arms the `'checkout'` kill ⇒ every NEW QUOTE refuses `checkout_killed` (503). Reads, orders in flight, and every shop write are untouched. ANY non-empty value arms — a typo over-triggers rather than under-triggers, the right failure direction for an emergency stop. The auditor's caveat (flags-client's `EMPTY_SNAPSHOT` has `kills: []`, so a FETCHED snapshot fails open during the very outage you'd want it in) is structurally impossible here: the env read is atomic with the request — no fetch, no cache, nothing to fail. That caveat stays binding on any future remote-snapshot slice. Only `'checkout'` is wired, matching the one `isKilled` call site in the canon vault.
+
+**OPERABILITY — seconds, both directions, no code deploy:** `printf '1' | wrangler secret put CHECKOUT_KILL` arms; `wrangler secret delete CHECKOUT_KILL` disarms. Documented in wrangler.toml beside the other secrets and on the worker Env declaration.
+
+**RED-FIRST on the real bundle through workerd.** Before the wiring, an armed instance issued a live 12,500 FCFA quote straight through the kill (the reproduced bug, red). After: the armed instance refuses 503 `checkout_killed` by name against a really-seeded shop+listing — proving the kill fires at the issue site, not masked by `listing_unknown` — while storefront create and listing publish still succeed on the SAME armed instance; a disarmed instance on the same persist dir (a real process death) serves a normal 200 quote.
+
+**THE BUYER ALREADY HAD THE SCREEN.** `checkout_killed` renders the designed suspension refusal (« Les commandes sont suspendues un moment. Réessayez dans un moment. Rien n'a été payé. » + Réessayer) — built and tested in SP3.2b, unreachable until now. No buyer file touched in this slice, so no screen walk was owed; the port maps the 503's named body to the designed screen, never to « pas de réseau ».
+
+**VERIFIER (fresh context, given the finding, the DoD and the diff): CONFORMS on all six items — ship it.** It re-ran the seam suite itself (51/51), confirmed `flagsFrom(this.env)` is the ONLY flags source at the one `decideIssueQuote` call site, confirmed no manual `CheckoutDO` construction exists and no flags-client dependency was added, proved the red-first claim independently (the unwired-kill AND always-killed mutants both fail the test), and traced the buyer path to the designed screen. **Its one caveat, in scope and worth knowing: a quote issued BEFORE arming can still be reserved and turned into an order for up to 15 minutes (the vault's own quote TTL) — the documented « orders in flight untouched » scope with a hard TTL-bounded tail. After expiry, every road to new money needs a new quote, which 503s.**
+
+**EVIDENCE.** G4 e2e red→green on the real bundle · checkout-do.e2e 51/51 · full storefront suite 577/577 · typecheck clean · gate board ALL GATES GREEN exit 0 (storefront 577/577, Playwright 106/106, every negative fixture failed as required) · verifier: CONFORMS, ship it.
+
+**Pending:** founder approval to merge + deploy. The switch is live the moment this bundle deploys; arming it needs nothing but the wrangler command above.
+
+---
+
 ## 2026-08-21 · E6 CUSTODY-ARMED-SIGNAL — a green deploy can no longer be silent about unarmed custody wires · DONE
 
 **Founder, 2026-08-21: « Go ahead and fix E6 ».** The audit's E6 (KNOWN-OPEN): storefront-deploy exits green when SERA_INTAKE_SECRET / SHOP_ARM_SECRET are unset — deliberate (the deploy-order law: unset fails closed, the arm outbox holds and retries, nothing dropped) — but nothing proactively surfaced the stalled state; an operator found it only by manual inspection. The deploy-order law is UNTOUCHED: unset still never fails a deploy. What changed is that silence is no longer possible.
