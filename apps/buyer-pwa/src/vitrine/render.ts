@@ -264,13 +264,13 @@ function tileArt(veiled: boolean, assetRefs: readonly string[] = []): string {
  *  precedent: closest() routes its tap to `favori`, never to `produit`). */
 function fav(pid: string): string {
   const on = isFavorite(pid);
-  return `<span class="vt-fav${on ? ' vt-fav-on' : ''}" role="button" tabindex="0" data-action="favori" data-pid="${pid}" aria-pressed="${on}" aria-label="${t('vit.favori_aria')}">${iconHeart(16, '#1C1710', 1.9)}</span>`;
+  return `<span class="vt-fav${on ? ' vt-fav-on' : ''}" role="button" tabindex="0" data-action="favori" data-pid="${esc(pid)}" aria-pressed="${on}" aria-label="${t('vit.favori_aria')}">${iconHeart(16, '#1C1710', 1.9)}</span>`;
 }
 
 function tile(p: VitrineProduct, note?: ProductVoiceNote): string {
   const cls = p.inStock ? 'vt-tile' : 'vt-tile vt-tile-epuise';
   const attrs = p.inStock
-    ? `data-action="produit" data-pid="${p.pid}"`
+    ? `data-action="produit" data-pid="${esc(p.pid)}"`
     : 'aria-disabled="true" disabled';
   // NORTH-STAR-1 — the go circle is a chevron, not a cart (no cart exists). The
   // heart is REAL: a working device-local wishlist (favorites.ts), because a
@@ -372,7 +372,7 @@ function grille(prods: readonly VitrineProduct[], notes: ProductVoiceNotes): str
 
 function featuredTile(p: VitrineProduct, note?: ProductVoiceNote, pinnedByHer = true): string {
   return [
-    `<button class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${p.pid}">`,
+    `<button class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${esc(p.pid)}">`,
     `<div class="vt-featured-artwrap">${featuredArt(p)}${pinnedByHer ? `<span class="vt-featured-badge">${t('vit.a_la_une')}</span>` : ''}${fav(p.pid)}</div>`,
     '<div class="vt-featured-body">',
     `<span class="vt-featured-name"><v>${esc(p.name)}</v></span>`,

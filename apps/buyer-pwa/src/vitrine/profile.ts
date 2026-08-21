@@ -254,7 +254,14 @@ function looksLikeProduct(v: unknown): v is VitrineProduct {
   if (v === null || typeof v !== 'object') return false;
   const p = v as VitrineProduct;
   return (
+    // A pid is an IDENTIFIER — it lands in `data-pid="${pid}"` on the page and
+    // in `applyFavoriteState`'s `[data-pid="${pid}"]` selector. The contract
+    // types `productVersionId` as a bare string, so the boundary pins the
+    // charset: real pids are `p1`/`pv-real-0001`; anything carrying markup or
+    // selector metacharacters is not a product Boutik+ published, and is
+    // dropped here (fail closed) rather than rendered (audit D1).
     typeof p.pid === 'string' &&
+    /^[A-Za-z0-9_-]+$/.test(p.pid) &&
     typeof p.name === 'string' &&
     typeof p.priceFcfa === 'number' &&
     typeof p.inStock === 'boolean' &&

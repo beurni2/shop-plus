@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import type { VitrineViewModel } from '../src/vitrine-view';
 import { harnessProfil } from '../src/vitrine/flows';
 import { renderVitrineReady } from '../src/vitrine/render';
+import { looksLikeProductForTest } from '../src/vitrine/profile';
 import { toggleFavorite, resetFavoritesCache } from '../src/vitrine/favorites';
 import {
   identityLinkSuffix,
@@ -281,7 +282,7 @@ describe('BUYER-LIVE-WIRE-4 — tapping a REAL tile opens the buyer flow, not th
 
   it('THE TILE CARRIES THE PID THE PRODUCT PAGE READS — the tap round-trips', () => {
     const render = readFileSync(join(__dirname, '..', 'src/vitrine/render.ts'), 'utf8');
-    expect(render).toMatch(/data-action="produit" data-pid="\$\{p\.pid\}"/);
+    expect(render).toMatch(/data-action="produit" data-pid="\$\{esc\(p\.pid\)\}"/);
     const flows = readFileSync(join(__dirname, '..', 'src/vitrine/flows.ts'), 'utf8');
     expect(flows).toMatch(/signedHref\(window\.location\.pathname, slug, pid\)/);
     expect(main).toMatch(/const pid = params\.get\('pid'\) \|\| defaultPid;/);
@@ -715,5 +716,58 @@ describe('VOIX-ÉTAT — the player has a face (founder 2026-08-04)', () => {
     // same ring radius, so the glyph does not jump size when playback starts
     expect(pause).toContain('r="9"');
     expect(play).toContain('r="9"');
+  });
+});
+
+
+/* ------------------------------------------------- BUYER-LIVE-WIRE-5 -- */
+
+describe('BUYER-LIVE-WIRE-5 — a product id is an identifier, never markup (audit D1)', () => {
+  // `productVersionId` is an unconstrained string on the wire (@platform/contracts
+  // types it `z.ZodString`), and it lands in `data-pid="${pid}"` on the boutique
+  // page AND in `applyFavoriteState`'s `[data-pid="${pid}"]` selector. Real pids
+  // are simple identifiers (`p1`, `pv-real-0001`); anything else is not a product
+  // Boutik+ can have published. The ONE network boundary drops it — fail closed —
+  // which neutralises both the render sink and the selector at once.
+  const bien = { pid: 'pv-real-0001', name: 'Bogolan', priceFcfa: 9_200, inStock: true, assetRefs: [] as string[] };
+
+  it('THE BOUNDARY DROPS A PID THAT IS NOT A PLAIN IDENTIFIER', () => {
+    expect(looksLikeProductForTest(bien)).toBe(true);
+    expect(looksLikeProductForTest({ ...bien, pid: 'p1" onmouseover="alert(1)' })).toBe(false);
+    expect(looksLikeProductForTest({ ...bien, pid: 'p1"]' })).toBe(false); // the selector breakout
+    expect(looksLikeProductForTest({ ...bien, pid: '<img src=x>' })).toBe(false);
+    expect(looksLikeProductForTest({ ...bien, pid: '' })).toBe(false); // an empty id is no id
+    // …and every shape of REAL pid still passes.
+    for (const pid of ['p1', 'k1', 'pv-real-0001', 'pv_real_1', 'PV-9']) {
+      expect(looksLikeProductForTest({ ...bien, pid }), pid).toBe(true);
+    }
+  });
+
+  it('THE RENDER SINK ESCAPES A PID ANYWAY — defence in depth at all three data-pid sites', () => {
+    // Even handed a hostile pid directly (a future caller that skips the
+    // boundary), no data-pid site may let it break out. Two products so BOTH
+    // the featured card (auto-lead) AND a grid tile + its heart are exercised —
+    // unescaping any one site reddens this.
+    const A = 'a" onmouseover="x';
+    const B = 'b" onclick="y';
+    const sf = {
+      id: 'sf-x', resellerId: 'rs-x', slug: 'chez-x',
+      name: 'Chez X', zone: 'Ouagadougou', category: 'Général',
+      tagline: '', bio: '', theme: 'laterite' as const,
+      cover: { status: 'none' as const }, avatar: { mode: 'monogram' as const },
+      curatedItems: [A, B], featuredItems: [A], sections: [],
+      discoverable: false, createdAt: 'T', updatedAt: 'T',
+    };
+    const trust = { deliveredCount: 0, rating: '', reviewCount: 0, demo: false };
+    const evil = [
+      { pid: A, name: 'Piège A', priceFcfa: 100, inStock: true, assetRefs: [] as string[] },
+      { pid: B, name: 'Piège B', priceFcfa: 200, inStock: true, assetRefs: [] as string[] },
+    ];
+    const html = renderVitrineReady(sf as never, trust, { fromProduct: false }, {}, evil);
+    expect(html, 'a hostile pid broke out of data-pid').not.toContain('onmouseover="x');
+    expect(html, 'a hostile pid broke out of data-pid').not.toContain('onclick="y');
+    // both appear, escaped, and each is drawn (featured A, grid B + its heart)
+    expect(html).toContain('data-pid="a&quot; onmouseover=&quot;x"');
+    expect(html).toContain('data-pid="b&quot; onclick=&quot;y"');
   });
 });
