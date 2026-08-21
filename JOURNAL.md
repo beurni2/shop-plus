@@ -9,6 +9,24 @@ Format per entry:
 
 ---
 
+## 2026-08-21 · E6 CUSTODY-ARMED-SIGNAL — a green deploy can no longer be silent about unarmed custody wires · IN-REVIEW
+
+**Founder, 2026-08-21: « Go ahead and fix E6 ».** The audit's E6 (KNOWN-OPEN): storefront-deploy exits green when SERA_INTAKE_SECRET / SHOP_ARM_SECRET are unset — deliberate (the deploy-order law: unset fails closed, the arm outbox holds and retries, nothing dropped) — but nothing proactively surfaced the stalled state; an operator found it only by manual inspection. The deploy-order law is UNTOUCHED: unset still never fails a deploy. What changed is that silence is no longer possible.
+
+**The signal (runtime truth).** `/health`'s 200 now carries `custody: { seraIntakeBase, seraIntakeSecret, shopArmSecret }` — presence booleans for the three custody wires (the two secrets the audit names + SERA_INTAKE_BASE, the same wire family the deploy already warns about). Set or unset, NEVER a value: the booleans are computed at the composition root (`worker/index.ts`) from env presence, and the secret values never enter the service env — health is handed « set or unset » because that is all it needs (the explicit-grant law). Composed at this service's edge like the provenance stamp, only on the 200; the 404 is unchanged; absent env (Node/unit contexts) ⇒ field absent, never a false claim. An empty-string secret reports UNARMED — the boolean can under-claim, never over-claim.
+
+**The probe (deploy surfacing).** storefront-deploy gains a step after the provenance assertion (which first proves the live bundle IS this build): it reads `.custody` off the live `/health` and writes any unarmed wire onto the run's front page — a `::warning` annotation per wire AND a `$GITHUB_STEP_SUMMARY` block naming exactly what is absent and what that means (outbox holds; set the repo secret and re-dispatch). Warns on every path, never fails: non-200 health, a transiently-propagating edge whose body lacks the field, malformed body, `custody: null`, all-armed, some-unarmed — all six branches proven locally against fixture bodies.
+
+**Red-first.** The two e2e assertions were written first and ran RED against the real bundle (custody undefined), then green after the wiring: the unarmed workerd instance answers three PRESENT falses (strict `toEqual`, not undefined-tolerant), a new armed instance answers three trues, and raw-body assertions pin that none of the bound fake values (even the non-secret base URL) reach the response.
+
+**VERIFIER (fresh context, given the finding, the DoD and the uncommitted diff): CONFORMS on all six items, ship-ready.** It re-ran the seam suite itself (47/47), traced every workflow exit path (none reaches exit 1 on an unarmed wire), confirmed `packages/observability`'s frozen shared handler untouched and `CUSTODY_WIRES` has exactly one reader, and judged the adversarial angle (empty-string → unarmed; public exposure is three booleans, nothing an attacker can use beyond « a wire is configured »). **Its one non-blocking finding — an unguarded `JSON.parse` on a network 200 inside a warn-only step — was fixed once in the same build** (try/catch + `custody:null` guard → the warn branch), proven on all four body shapes, not re-inspected.
+
+**EVIDENCE.** combined-worker.e2e 47/47 on the rebuilt real bundle · full storefront suite 576/576 · typecheck clean · workflow YAML parses, probe logic proven on six fixture branches · gate board ALL GATES GREEN exit 0 (storefront 576/576, Playwright 106/106, every negative fixture failed as required) · verifier: CONFORMS, ship-ready.
+
+**Pending:** founder approval to merge + deploy. Note for the first post-merge dispatch: the probe reads the field off the LIVE Worker, so its first truthful run is the deploy that ships this bundle.
+
+---
+
 ## 2026-08-21 · AUDIT CONFORMANCE FIXES (D1·G1·D3·F3·E2·E3·E4·F1·F2 + stale-bundle) · DONE
 
 **Founder, 2026-08-21: « Go and fix the rest from the audit ».** After the drop-code-before-payment custody fix (merged), this closes every actionable NEW finding from his Fable-5 audit agent's Shop+ conformance review, excluding KNOWN-OPEN founder decisions. Small reviewable slices, red-first throughout, ONE fresh-context verifier at the end.

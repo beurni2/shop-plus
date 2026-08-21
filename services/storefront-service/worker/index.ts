@@ -94,6 +94,12 @@ interface Env extends WriteAuthEnv {
    * put MEDIA_WRITE_KEY`, the founder's alone — never [vars], never bundled.
    * UNSET ⇒ every note is honestly `perdue`; no order is ever blocked. */
   MEDIA_WRITE_KEY?: string;
+  /** CUSTODY-ARMED-SIGNAL (audit E6) — the three custody wires the OrderDO
+   * reads from ITS OWN env (order-do.ts). Declared here ONLY so the router can
+   * compute presence booleans for /health; the router never reads a value. */
+  SERA_INTAKE_BASE?: string;
+  SERA_INTAKE_SECRET?: string;
+  SHOP_ARM_SECRET?: string;
 }
 
 export default {
@@ -1102,6 +1108,14 @@ export default {
       // The JOIN reaches the listing DO through the SAME shim pattern. Internal:
       // the public /listings* surface stays key-gated above (LISTING-READ-GATE-1).
       LISTING_DO: { fetch: (req: Request): Promise<Response> => lstRouter.fetch(req, env) },
+      // CUSTODY-ARMED-SIGNAL (audit E6) — presence only, computed HERE so the
+      // secret values never enter the service env (the explicit-grant law:
+      // health needs « set or unset », so that is all it is handed).
+      CUSTODY_WIRES: {
+        seraIntakeBase: (env.SERA_INTAKE_BASE ?? '') !== '',
+        seraIntakeSecret: (env.SERA_INTAKE_SECRET ?? '') !== '',
+        shopArmSecret: (env.SHOP_ARM_SECRET ?? '') !== '',
+      },
     };
     return handleRequest(request, serviceEnv);
   },

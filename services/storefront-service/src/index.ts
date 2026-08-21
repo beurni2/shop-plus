@@ -40,10 +40,29 @@ const health = makeHealthFetch(SERVICE_NAME);
  * own edge; the shared handler, and therefore every frozen consumer of it, is
  * untouched. Only the 200 carries the fields; the 404 is unchanged.
  */
-async function healthWithProvenance(request: Request): Promise<Response> {
+/**
+ * CUSTODY-ARMED-SIGNAL (audit E6) — presence booleans for the three custody
+ * wires, composed onto /health's 200. A deploy is deliberately GREEN when these
+ * are unset (the deploy-order law: the arm outbox holds and retries, nothing is
+ * dropped) — but green-with-a-warning surfaced the stalled state to nobody. The
+ * live Worker itself is the one place that KNOWS, so it answers: set or unset,
+ * NEVER a value. Computed at the composition root (worker/index.ts) from env
+ * presence — the secrets themselves are never handed to this module.
+ */
+export interface CustodyWires {
+  /** SE-LIVE-2 — where the funding fact is delivered (`--var` at deploy). */
+  readonly seraIntakeBase: boolean;
+  /** SE-LIVE-2 — the key Séra's intake door requires. */
+  readonly seraIntakeSecret: boolean;
+  /** VRAI-SUIVI — the key this Worker presents to arm the buyer's drop code. */
+  readonly shopArmSecret: boolean;
+}
+
+async function healthWithProvenance(request: Request, custody?: CustodyWires): Promise<Response> {
   const res = health(request);
   if (res.status !== 200) return res;
   const body = (await res.json()) as Record<string, unknown>;
+  if (custody !== undefined) body['custody'] = custody;
   const headers = new Headers(res.headers);
   // THE FRESHNESS INSTRUMENT MUST NOT BE CACHEABLE (founder finding, on a real
   // deploy): this response existed to answer WHICH BUILD IS LIVE, and it carried no
@@ -180,6 +199,10 @@ export type StorefrontServiceEnv = MediaEnv &
      * secret. Unset ⇒ the honest « SANS PHOTO » state, never a bare relative ref.
      */
     readonly PRODUCT_MEDIA_BASE?: string;
+    /** CUSTODY-ARMED-SIGNAL (audit E6) — presence booleans for the custody
+     * wires, computed at the composition root. Absent in Node/unit contexts
+     * (no worker env to read); the deployed router always passes it. */
+    readonly CUSTODY_WIRES?: CustodyWires;
   };
 
 /**
@@ -544,7 +567,7 @@ export const handleRequest = async (request: Request, env?: StorefrontServiceEnv
   if (request.method === 'GET' && slugMatch) return withReadCors(await handleStorefrontRead(decodeURIComponent(slugMatch[1]!), env));
   if (request.method === 'GET' && mediaReadMatch) return withReadCors(await handleMediaRead(decodeURI(mediaReadMatch[1]!), env, request.headers.get('Range')));
   // health (and the honest 404 fallthrough) — the buyer read surface, CORS on.
-  return withReadCors(await healthWithProvenance(request));
+  return withReadCors(await healthWithProvenance(request, env?.CUSTODY_WIRES));
 };
 
 export default { fetch: handleRequest };

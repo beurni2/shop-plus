@@ -183,6 +183,59 @@ jobs:
             fi
             sleep 10
           done
+      # CUSTODY-ARMED-SIGNAL (audit E6) — a deploy stays green when the custody
+      # wires are unset (the deploy-order law: the arm outbox holds and retries,
+      # nothing is dropped) — but green must never again be SILENT about it. The
+      # live Worker now answers presence booleans on /health (`custody`, set or
+      # unset, never a value). This step reads them AFTER the provenance
+      # assertion proved the live bundle is this build, and writes any unarmed
+      # wire onto the run's front page: a ::warning annotation AND the step
+      # summary, so the stalled state is visible without opening a single log.
+      # It WARNS and never fails — failing on unset would break the documented
+      # bootstrap order (custody-service and its secrets may legitimately land
+      # after this Worker's first deploy).
+      - name: Read the custody-armed signal off the live Worker
+        run: |
+          set -euo pipefail
+          BASE=https://storefront-service.ilboudobernard2.workers.dev
+          OUT=$(mktemp)
+          CODE=$(curl -sS -o "$OUT" -w '%{http_code}' "$BASE/health" || echo 000)
+          if [ "$CODE" != "200" ]; then
+            echo "::warning title=Signal custody illisible::/health answered $CODE — the custody-armed signal could not be read; check the wires by hand."
+            exit 0
+          fi
+          UNARMED=$(node -e '
+            // Verifier note (E6): this reads a network body inside a WARN-ONLY
+            // step — a malformed 200 must land in the warn branch, never fail.
+            let c;
+            try {
+              c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).custody;
+            } catch { console.log("__NO_FIELD__"); process.exit(0); }
+            if (c === undefined || c === null) { console.log("__NO_FIELD__"); process.exit(0); }
+            const names = { seraIntakeBase: "SERA_INTAKE_BASE", seraIntakeSecret: "SERA_INTAKE_SECRET", shopArmSecret: "SHOP_ARM_SECRET" };
+            console.log(Object.entries(names).filter(([k]) => c[k] !== true).map(([, n]) => n).join(" "));
+          ' "$OUT")
+          if [ "$UNARMED" = "__NO_FIELD__" ]; then
+            # Possible transiently: provenance proved ONE edge serves this
+            # bundle; this second read may land on an edge still propagating.
+            echo "::warning title=Signal custody absent::the /health answer carries no custody field (an edge still propagating?) — re-run this workflow or check by hand."
+            exit 0
+          fi
+          if [ -z "$UNARMED" ]; then
+            echo "CUSTODY ARMED — all three wires present on the live Worker."
+            echo "**Custody armée** — the live Worker holds all three custody wires (SERA_INTAKE_BASE, SERA_INTAKE_SECRET, SHOP_ARM_SECRET)." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          for W in $UNARMED; do
+            echo "::warning title=Custody NON armee::$W is unset on the LIVE Worker — drop codes / funding facts rest pending in the outbox until it is set and this workflow re-dispatched."
+          done
+          {
+            echo "## ⚠️ Custody NON armée"
+            echo ""
+            echo "The live Worker answers \`custody\` with these wires ABSENT: **$UNARMED**."
+            echo ""
+            echo "Nothing is lost — the outbox holds and retries — but the buyer's drop code cannot arm custody (and/or the funding fact cannot reach Séra) until the repo secret(s) are set and \`storefront-deploy\` is re-dispatched."
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Smoke — the deployed checkout surface answers by NAME, not by crashing
         run: |
           set -euo pipefail

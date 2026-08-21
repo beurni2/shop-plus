@@ -187,11 +187,30 @@ const mfNoSecret = new Miniflare({
   // deliberately NO `bindings` → STOREFRONT_WRITE_SECRET is undefined
 });
 
+// A THIRD Worker with the CUSTODY WIRES armed (audit E6) — to prove /health
+// answers `custody` presence truthfully in BOTH directions. Values are fakes:
+// health reports set/unset, never a value, so fakes prove exactly as much.
+const persistArmed = mkdtempSync(join(tmpdir(), 'combined-armed-'));
+const mfArmed = new Miniflare({
+  modules: true,
+  scriptPath: SCRIPT,
+  durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO' },
+  r2Buckets: ['BUCKET'],
+  durableObjectsPersist: persistArmed,
+  bindings: {
+    SERA_INTAKE_BASE: 'https://sera-intake.example.workers.dev',
+    SERA_INTAKE_SECRET: 'test-sera-intake-secret-e6',
+    SHOP_ARM_SECRET: 'test-shop-arm-secret-e6',
+  },
+});
+
 afterAll(async () => {
   await mf.dispose();
   await mfNoSecret.dispose();
+  await mfArmed.dispose();
   rmSync(persist, { recursive: true, force: true });
   rmSync(persistNoSecret, { recursive: true, force: true });
+  rmSync(persistArmed, { recursive: true, force: true });
 });
 
 describe('combined Worker — the shim + the R2 media path, on real workerd', () => {
@@ -1215,6 +1234,38 @@ describe('SERVICE-PROVENANCE-1 — /health answers which build is live', () => {
     expect(body['status']).toBe('not_found');
     expect(body['release']).toBeUndefined();
     expect(body['canon']).toBeUndefined();
+    expect(body['custody']).toBeUndefined();
+  });
+
+  /**
+   * CUSTODY-ARMED-SIGNAL (audit E6) — a deploy stays green when the custody
+   * secrets are unset (the deploy-order law: the arm outbox holds and retries,
+   * nothing is dropped), but until now NOTHING SURFACED the stalled state: an
+   * operator found it only by manual inspection. /health now answers presence
+   * booleans for the three custody wires — set or unset, NEVER a value — so the
+   * deploy's own readiness probe (and the founder's phone) can read « not armed »
+   * off the live Worker instead of trusting a warning that scrolled by.
+   */
+  it('CUSTODY-ARMED-SIGNAL (audit E6) — /health answers false for every unarmed custody wire', async () => {
+    const res = await mf.dispatchFetch('http://c/health', { method: 'GET' });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { custody?: Record<string, boolean> };
+    // This instance binds none of the three — the honest answer is three falses,
+    // PRESENT (an absent field would be indistinguishable from an old bundle).
+    expect(body.custody).toEqual({ seraIntakeBase: false, seraIntakeSecret: false, shopArmSecret: false });
+  });
+
+  it('CUSTODY-ARMED-SIGNAL (audit E6) — /health answers true when the custody wires are bound, and never leaks a value', async () => {
+    const res = await mfArmed.dispatchFetch('http://c/health', { method: 'GET' });
+    expect(res.status).toBe(200);
+    const raw = await res.text();
+    const body = JSON.parse(raw) as { custody?: Record<string, boolean> };
+    expect(body.custody).toEqual({ seraIntakeBase: true, seraIntakeSecret: true, shopArmSecret: true });
+    // Presence only, never the value: the bound fakes must not appear anywhere
+    // in the body. (The base is a public URL, but the same law keeps it out.)
+    expect(raw).not.toContain('test-sera-intake-secret-e6');
+    expect(raw).not.toContain('test-shop-arm-secret-e6');
+    expect(raw).not.toContain('sera-intake.example');
   });
 
   it('the DEFINES are wired into the deployed bundle script, and canon is read from the INSTALLED package', () => {
