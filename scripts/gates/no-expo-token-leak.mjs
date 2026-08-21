@@ -38,6 +38,21 @@ runScanGate({
     { name: 'EXPO_TOKEN literal assignment', regex: /['"]?EXPO_TOKEN['"]?\s*[:=]\s*['"]?(?!\$)[A-Za-z0-9_-]{8,}/ },
     // Documented Expo token prefixes appearing as literals anywhere.
     { name: 'expo token shape', regex: /\b(expo_pat_|ExponentPushToken\[)[A-Za-z0-9_-]{6,}/ },
+    /* Audit E3 — ANY founder secret committed as a literal, not just EXPO_TOKEN.
+       The founder's secrets (PAYMENT_WEBHOOK_SECRET, CLOUDFLARE_API_TOKEN,
+       MEDIA_WRITE_SECRET, SERA_*_SECRET, …) all live as GitHub/Wrangler secrets;
+       a literal value in a committed artifact is the same leak the EXPO rule
+       catches, generalised. Match an ALL-CAPS name ending SECRET/TOKEN/API_KEY,
+       = or :, then a value that is NOT a $reference and carries 32+ UNBROKEN
+       alphanumerics — the entropy signature of a real key. The unbroken run is
+       what makes it false-positive-safe: test fixtures assign DASHED fakes
+       (`WEBHOOK_SECRET = 'test-payment-webhook-secret-vs001'`), whose longest
+       alnum run is far under 32, so they never match. Verified: zero hits on the
+       whole tracked tree. */
+    {
+      name: 'secret literal assignment',
+      regex: /['"]?[A-Z][A-Z0-9_]*(?:SECRET|TOKEN|API_KEY)['"]?\s*[:=]\s*['"]?(?!\$)[A-Za-z0-9]{32,}/,
+    },
   ],
   defaultRoots: trackedFiles,
   scanExtensions: SCAN_EXTENSIONS,

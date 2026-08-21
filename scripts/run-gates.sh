@@ -164,6 +164,9 @@ capture no-expo-token-leak-positive pass node scripts/gates/no-expo-token-leak.m
 log "gate: no-expo-token-leak — NEGATIVE FIXTURE (committed token literal, must fail)"
 capture no-expo-token-leak-negative fail node scripts/gates/no-expo-token-leak.mjs gates/fixtures/negative/no-expo-token-leak
 
+log "gate: no-expo-token-leak — NEGATIVE FIXTURE (audit E3: generic secret literal, no EXPO_TOKEN, must fail)"
+capture no-expo-token-leak-secret-negative fail node scripts/gates/no-expo-token-leak.mjs gates/fixtures/negative/no-expo-token-leak/generic-secret.env
+
 log "gate: single-level — repo source (must pass)"
 capture single-level-positive pass node scripts/gates/single-level.mjs
 
