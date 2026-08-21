@@ -9,7 +9,7 @@ Format per entry:
 
 ---
 
-## 2026-08-21 · AUDIT CONFORMANCE FIXES (D1·G1·D3·F3·E2·E3·E4·F1·F2 + stale-bundle) · IN-REVIEW
+## 2026-08-21 · AUDIT CONFORMANCE FIXES (D1·G1·D3·F3·E2·E3·E4·F1·F2 + stale-bundle) · DONE
 
 **Founder, 2026-08-21: « Go and fix the rest from the audit ».** After the drop-code-before-payment custody fix (merged), this closes every actionable NEW finding from his Fable-5 audit agent's Shop+ conformance review, excluding KNOWN-OPEN founder decisions. Small reviewable slices, red-first throughout, ONE fresh-context verifier at the end.
 
@@ -39,7 +39,7 @@ Format per entry:
 
 **EVIDENCE.** commerce-core spine-misbehavior 20/20 · supply-consumer 18/18 · buyer-pwa vitrine 57/57 · reseller-kit 29/29 (incl. 4 rendu walks) · storefront deploy-topology 3/3 + livraison-boutik 8/8 · combined-worker.e2e 45/45 (globalSetup rebuild proof) · all affected typechecks clean · **gate board ALL GATES GREEN exit 0** (buyer-pwa 999/999, discovery 8/8, PWA payload OK, Playwright 106/106, every negative fixture failed as required) · **fresh-context verifier: all 8 fixes + E5 CONFORM, no defects** (it re-ran the gate sweeps itself and confirmed every assertion binds its invariant).
 
-**Pending:** founder approval to merge + deploy (ASK-BEFORE-MERGING law). 8 commits pushed to `claude/buyer-pwa-standing-laws-nerljz-ue7lpy`, awaiting his word.
+**MERGED AND DEPLOYED (founder: « Merge and deploy », 2026-08-21).** main fast-forwarded to bbd0aac; all five workflows green on attempt 1 — storefront-deploy (provenance-verified: live /health = bbd0aac + bundled canon, so the G1 guards are live), pwa-preview (D1 + F3 live on Pages, payload gate green on the deploy build), ci, expo-preview, service-canon-drift. reseller-kit (F1/F2) is merged but has no deploy target, as the audit noted.
 
 ---
 
