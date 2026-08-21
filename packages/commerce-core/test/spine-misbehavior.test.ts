@@ -216,6 +216,31 @@ describe('§3 misbehavior — Séra eligibility mock vs the spine', () => {
     expect(obligations.find((o) => o.party.startsWith('reseller:'))!.amount).toBe(quote.resellerNet);
   });
 
+  it('EMPTY PAYEE REFUSED (audit G1): an order that never learned a supplier + a signal without supplier_ref records NO obligation', () => {
+    // Production shape: OrderOrigin carries no supplier (order-do sets
+    // `supplierRef: ''`), so a `delivery.validated.v1` without `supplier_ref`
+    // would resolve the payee to `supplier:` (empty) — a payout obligation to
+    // nobody. §5.6 money integrity: refuse, so Séra resends with the ref.
+    const quote = issuedQuote();
+    const spine = new OrderSpine({ quote, supplierRef: '', correlationId: 'corr-spine', issueCommandId: 'c-issue', actor: 'a', serverTime: T });
+    spine.advance({ command_id: 'c-reserve', actor: 'a', serverTime: T, to: 'reserved', chainAdditions: { reservation_id: 'res-1' } });
+    spine.advance({ command_id: 'c-pay-init', actor: 'a', serverTime: T, to: 'payment_pending', chainAdditions: { payment_attempt_id: 'pay-1', order_id: 'ord-1' } });
+    const { plan: payPlan } = chargeAndPlan({}, quote);
+    spine.onProviderPaymentEvent(payPlan[0]!.event);
+    spine.confirmOrder({ command_id: 'c-confirm', actor: 'a', serverTime: T });
+
+    const { plan } = validatedPlan({}); // the mock's payload carries no supplier_ref
+    expect(spine.onEligibilityEvent(plan[0]!.event)).toEqual({ applied: false, reason: 'supplier_ref_missing' });
+    expect(spine.ledger.obligationsFor('ord-1'), 'no payout obligation to an empty payee').toHaveLength(0);
+
+    // A REDELIVERY WITH the supplier_ref converges — the refusal is not terminal.
+    const withRef = { ...plan[0]!.event, payload: { ...(plan[0]!.event.payload as object), supplier_ref: 'supplier-late' } };
+    expect(spine.onEligibilityEvent(withRef as never)).toEqual({ applied: true, duplicate: false });
+    const obligations = spine.ledger.obligationsFor('ord-1');
+    expect(obligations).toHaveLength(2);
+    expect(obligations.find((o) => o.party.startsWith('supplier:'))!.party).toBe('supplier:supplier-late');
+  });
+
   it('OUT OF ORDER (early): eligibility before the order is confirmed refuses closed; redelivery converges', () => {
     const quote = issuedQuote();
     const spine = spineAtPaymentPending(quote); // not confirmed yet

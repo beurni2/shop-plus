@@ -327,7 +327,12 @@ export default {
           p['order_id'] === '' ||
           p['order_id'].length > 256 ||
           p['result'] !== 'validated' ||
-          p['settlement_eligibility'] !== true
+          p['settlement_eligibility'] !== true ||
+          // audit G1: the signal names the SUPPLIER that gets paid. Without it
+          // the spine would record a settlement obligation to an empty payee.
+          // Refuse at the boundary so Séra resends with the ref.
+          typeof p['supplier_ref'] !== 'string' ||
+          p['supplier_ref'] === ''
         ) {
           return Response.json({ ok: false, reason: 'event_not_canonical' }, { status: 400 });
         }

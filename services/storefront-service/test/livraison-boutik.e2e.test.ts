@@ -265,6 +265,21 @@ describe('BOUTIK-SUIVI — Séra’s delivery reaches the supplier’s book, onc
     expect((await outboxOf(orderId)).livraisonOutbox?.status).toBe('delivered');
   }, 60_000);
 
+  it('audit G1 — a validated delivery WITHOUT supplier_ref is refused at the door, and records no obligation', async () => {
+    // The signal names the SUPPLIER that gets paid. A body omitting it would let
+    // the spine record a settlement obligation to an empty payee — so the door
+    // refuses it `event_not_canonical`, exactly like a missing result. Séra
+    // resends with the ref.
+    const orderId = await realOrder('0009');
+    const { supplier_ref: _drop, ...payloadSansSupplier } = validatedEvent(orderId, '2026-08-09T14:30:00.000Z').payload as Record<string, unknown>;
+    const sansSupplier = { ...validatedEvent(orderId, '2026-08-09T14:30:00.000Z'), payload: payloadSansSupplier };
+    const res = await progress(sansSupplier);
+    expect(`${res.status} ${await res.text()}`).toBe('400 {"ok":false,"reason":"event_not_canonical"}');
+    // and it never reached the ledger: no obligation, no relay
+    const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+    expect(vue['state'], 'the order state is untouched by a refused signal').toBe('confirmed');
+  }, 60_000);
+
   it('⚠ no buyer identity and no franc figure ride this wire — only the fact', async () => {
     const bytes = JSON.stringify(deliveredPosts.map((p) => p.body));
     // ⚠ THE CUSTODY TOKENS ARE ASSEMBLED, NOT SPELLED. The standing scan gate

@@ -62,7 +62,8 @@ export type SpineRefusalReason =
   | 'no_funded_checkout_leg'
   | 'reservation_not_confirmed'
   | 'door_leg_not_expected'
-  | 'door_leg_before_checkout_leg';
+  | 'door_leg_before_checkout_leg'
+  | 'supplier_ref_missing';
 
 export type SpineOutcome =
   | { applied: true; duplicate: boolean }
@@ -470,6 +471,15 @@ export class OrderSpine {
     const payloadSupplier = (event.payload as Record<string, unknown>)['supplier_ref'];
     const supplierRef =
       typeof payloadSupplier === 'string' && payloadSupplier !== '' ? payloadSupplier : this.supplierRef;
+    // §5.6 money integrity (audit G1): NEVER record a settlement obligation to
+    // an empty payee. An order that never learned a supplier (OrderOrigin's
+    // `supplierRef` is `''` by design) and a signal that omits `supplier_ref`
+    // would name party `supplier:` — a payout to nobody. Refuse; the signal is
+    // not consumed, so Séra's redelivery WITH the ref converges. The Worker
+    // intake also refuses a supplier-less event, so this is the core backstop.
+    if (supplierRef === '') {
+      return { applied: false, reason: 'supplier_ref_missing' };
+    }
     const { replay } = this.ledger.recordObligationsOnEligibility(
       this.orderId,
       this.quote,
