@@ -16,7 +16,7 @@
 import { isFavorite, toggleFavorite } from './favorites';
 import { t } from '../i18n';
 import { recordVitrineArrival, signedHref } from '../vitrine-link';
-import { demoStorefrontPort, resolveStorefrontPort, type StorefrontProfilePort } from './profile';
+import { demoStorefrontPort, resolveStorefrontPort, VitrineOffline, type StorefrontProfilePort } from './profile';
 import {
   renderVitrineEmpty,
   renderVitrineInvalid,
@@ -221,14 +221,23 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   wireVoicePlay(root);
 
   type Resolved = Awaited<ReturnType<StorefrontProfilePort['resolve']>>;
+  // audit F3 — the mount's local view of a resolution: the storefront, a
+  // not-found (`undefined`), or « pas de connexion » (`'offline'`, never a
+  // value the port's own return type carries).
+  type RenderInput = Resolved | 'offline';
 
   // Render from an ALREADY-RESOLVED value — the resolve happens ONCE per load
   // (never re-resolved per state), the widened async seam feeding this.
-  const render = (etatDemande: VitrineEtat, resolved: Resolved): void => {
-    const etat = etatForRender(etatDemande, resolved !== undefined && resolved !== null);
+  const render = (etatDemande: VitrineEtat, resolved: RenderInput): void => {
+    // audit F3 — a thrown fetch resolves to `'offline'`: force the designed
+    // offline surface, never « lien invalide ». Below, `resolu` is the storefront
+    // value only (the sentinel is not a resolution), so no branch reads it.
+    const horsLigne = resolved === 'offline';
+    const resolu = horsLigne ? undefined : resolved;
+    const etat = horsLigne ? 'offline' : etatForRender(etatDemande, resolu !== undefined && resolu !== null);
     // APERÇU NU — applied HERE, at the single point every render reads the
     // storefront from, so no branch below can accidentally keep the photograph.
-    const sfBrut = resolved?.storefront;
+    const sfBrut = resolu?.storefront;
     const sf = sfBrut !== undefined && harness.sansPhotos === true ? sansPhotos(sfBrut) : sfBrut;
     // ENTETES-B — the mounted key: `?entete=` (the founder's preview override)
     // when present, else HER `headerStyle`, now that the storefront is in hand.
@@ -252,7 +261,7 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
         root.innerHTML = renderVitrineInvalid();
         break;
       case 'empty':
-        root.innerHTML = renderVitrineEmpty(sf!, resolved!.trust, { fromProduct }, entete);
+        root.innerHTML = renderVitrineEmpty(sf!, resolu!.trust, { fromProduct }, entete);
         break;
       case 'ready': {
         // BUYER-LIVE-WIRE-3 — the empty/ready decision follows WHAT CAN ACTUALLY
@@ -261,12 +270,12 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
         // membership alone rendered the READY screen with an EMPTY GRID, which
         // reads as a broken page rather than an honest state. When the service
         // described products, THAT list decides; otherwise membership does.
-        const described = resolved!.products;
+        const described = resolu!.products;
         const showable = described !== undefined ? described.length : sf!.curatedItems.length;
         root.innerHTML =
           showable === 0
-            ? renderVitrineEmpty(sf!, resolved!.trust, { fromProduct }, entete)
-            : renderVitrineReady(sf!, resolved!.trust, { fromProduct }, resolved!.notes, described, entete);
+            ? renderVitrineEmpty(sf!, resolu!.trust, { fromProduct }, entete)
+            : renderVitrineReady(sf!, resolu!.trust, { fromProduct }, resolu!.notes, described, entete);
         // VIDEO-PRODUIT V-1e — the scroll-play observer mounts over the nodes
         // just rendered; no video hero on the page ⇒ it mounts nothing.
         demonteVideos = mountVideoScroll(root);
@@ -276,8 +285,8 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   };
 
   // Arrival attribution — best-effort, never blocks the render (unchanged seam).
-  const recordArrival = (resolved: Resolved): void => {
-    if (!resolved) return;
+  const recordArrival = (resolved: RenderInput): void => {
+    if (!resolved || resolved === 'offline') return;
     try {
       recordVitrineArrival(
         {
@@ -304,9 +313,15 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   // draws a skeleton with no header at all, so there is no flash and no swap.
   // A style that fails to fetch leaves the key unregistered and `classique`
   // draws — her products still reach the buyer (the ENTETES-E0 law).
-  const resolveWithStyle = async (): Promise<Resolved> => {
-    const resolved = await port.resolve(slug);
-    await loadEntete(enteteForRender(harness.entete, resolved?.storefront?.headerStyle));
+  const resolveWithStyle = async (): Promise<RenderInput> => {
+    let resolved: RenderInput;
+    try {
+      resolved = await port.resolve(slug);
+    } catch (e) {
+      if (e instanceof VitrineOffline) resolved = 'offline';
+      else throw e;
+    }
+    await loadEntete(enteteForRender(harness.entete, resolved === 'offline' ? undefined : resolved?.storefront?.headerStyle));
     return resolved;
   };
 

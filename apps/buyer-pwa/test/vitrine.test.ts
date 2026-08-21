@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
 import type { VitrineViewModel } from '../src/vitrine-view';
 import { harnessProfil } from '../src/vitrine/flows';
 import { renderVitrineReady } from '../src/vitrine/render';
-import { looksLikeProductForTest } from '../src/vitrine/profile';
+import { looksLikeProductForTest, httpStorefrontPort, VitrineOffline } from '../src/vitrine/profile';
 import { toggleFavorite, resetFavoritesCache } from '../src/vitrine/favorites';
 import {
   identityLinkSuffix,
@@ -769,5 +769,45 @@ describe('BUYER-LIVE-WIRE-5 — a product id is an identifier, never markup (aud
     // both appear, escaped, and each is drawn (featured A, grid B + its heart)
     expect(html).toContain('data-pid="a&quot; onmouseover=&quot;x"');
     expect(html).toContain('data-pid="b&quot; onclick=&quot;y"');
+  });
+});
+
+
+/* ------------------------------------------------- BUYER-LIVE-WIRE-6 -- */
+
+describe('BUYER-LIVE-WIRE-6 — offline is not a wrong link (audit F3)', () => {
+  // The port collapsed a thrown fetch (no connection) and a 404 both to
+  // `undefined`, so an offline buyer on a VALID /v/{slug} saw « lien invalide ».
+  // A thrown fetch now raises VitrineOffline; a 404 stays a plain not-found. The
+  // mount catches the marker and renders the designed offline surface.
+  const port = httpStorefrontPort('https://svc.example');
+
+  it('a THROWN fetch raises VitrineOffline; a 404 is still a plain not-found', async () => {
+    const original = globalThis.fetch;
+    // offline — the fetch itself throws
+    globalThis.fetch = (async () => { throw new TypeError('Failed to fetch'); }) as unknown as typeof fetch;
+    try {
+      await expect(port.resolve('chez-x')).rejects.toBeInstanceOf(VitrineOffline);
+    } finally {
+      globalThis.fetch = original;
+    }
+    // not-found — a real 404 resolves to undefined, NEVER offline
+    globalThis.fetch = (async () => new Response('nope', { status: 404 })) as unknown as typeof fetch;
+    try {
+      expect(await port.resolve('chez-x')).toBeUndefined();
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
+  it('the mount catches the marker and routes the OFFLINE surface, never « invalide »', () => {
+    // No DOM mount harness exists for the vitrine in this repo (the buyer PWA is
+    // node/string-tested), so the wiring is pinned at the source the way the
+    // rest of BUYER-LIVE-WIRE is: resolveWithStyle turns the thrown marker into
+    // the local `'offline'` signal, and render forces the offline etat from it.
+    const flows = readFileSync(join(__dirname, '..', 'src/vitrine/flows.ts'), 'utf8');
+    expect(flows).toMatch(/if \(e instanceof VitrineOffline\) resolved = 'offline';/);
+    expect(flows).toMatch(/const horsLigne = resolved === 'offline';/);
+    expect(flows).toMatch(/horsLigne \? 'offline' : etatForRender\(/);
   });
 });

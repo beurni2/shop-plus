@@ -409,6 +409,16 @@ function notesFromWire(raw: unknown): ProductVoiceNotes {
   return out;
 }
 
+/** audit F3 — raised by the HTTP port when the fetch itself throws (no
+ *  connection), so the mount can tell « pas de connexion » from a real
+ *  not-found. Never raised by the demo port; caught only in `mountVitrine`. */
+export class VitrineOffline extends Error {
+  constructor() {
+    super('vitrine-offline');
+    this.name = 'VitrineOffline';
+  }
+}
+
 export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
   const base = baseUrl.replace(/\/+$/, '');
   return {
@@ -417,7 +427,13 @@ export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
       try {
         res = await fetch(`${base}/s/${encodeURIComponent(slug)}`, { headers: { Accept: 'application/json' } });
       } catch {
-        return undefined; // offline / unreachable → honest not-found (never a throw)
+        // audit F3: a THROWN fetch is « pas de connexion », NOT a wrong link.
+        // Collapsing it to `undefined` (the not-found signal) showed an offline
+        // buyer on a valid /v/{slug} the « lien invalide » screen. Raise the
+        // OFFLINE marker so the mount routes the designed offline surface — kept
+        // OUT of the resolve return type so every not-found caller is untouched;
+        // the ONE caller (mountVitrine) catches it.
+        throw new VitrineOffline();
       }
       if (!res.ok) return undefined; // 404 and any non-2xx → honest not-found
       const view: unknown = await res.json().catch(() => null);
