@@ -79,7 +79,13 @@
   },
   {
     "key": "kit.etat_hors_ligne",
-    "fr": "Votre carte est prête. Le partage part dès que le réseau revient.",
+    "fr": "Carte prête — enregistrée sur ce téléphone. Pas besoin de réseau.",
+    "register": "selling",
+    "screenClass": "status"
+  },
+  {
+    "key": "kit.etat_echec",
+    "fr": "L'image n'a pas pu être créée. Touchez à nouveau pour réessayer.",
     "register": "selling",
     "screenClass": "status"
   },

@@ -169,19 +169,36 @@ function rebuildSegments(): void {
 function render(): void {
   rebuildSegments();
   const card = composeCard({ format, model, copy: copy(), qrUrl: DEMO_KIT.qrUrl });
-  paint(canvas, card, PREVIEW[format].width);
-  status.textContent = '';
+  // paint throws when the device gives no 2D context; the chrome is already built,
+  // so a failure shows the honest error rather than blanking the screen (audit F1).
+  try {
+    paint(canvas, card, PREVIEW[format].width);
+    status.textContent = '';
+  } catch {
+    status.textContent = t('kit.etat_echec');
+  }
 }
 
 cta.addEventListener('click', () => {
   status.textContent = t('kit.etat_rendu');
   const card = composeCard({ format, model, copy: copy(), qrUrl: DEMO_KIT.qrUrl });
   const out = document.createElement('canvas');
-  paint(out, card, OUTPUT[format].width);
+  try {
+    paint(out, card, OUTPUT[format].width);
+  } catch {
+    // No 2D context on the export canvas — leave a way out, not an uncaught throw.
+    status.textContent = t('kit.etat_echec');
+    return;
+  }
   const quality = format === 'affiche' ? 0.9 : 0.8;
   out.toBlob(
     (blob) => {
-      if (blob === null) return;
+      // A null blob is a real full-resolution outcome on a 1GB Android; show an
+      // error she can retry from, never a status stuck on « Rendue… » (audit F1).
+      if (blob === null) {
+        status.textContent = t('kit.etat_echec');
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
