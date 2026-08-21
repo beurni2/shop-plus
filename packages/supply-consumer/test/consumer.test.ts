@@ -95,6 +95,23 @@ describe('consumeSupplyProjection — pull, parse, sweep, freshness', () => {
     expect(SupplyReadModelSchema.safeParse({ version: 2, asOf: minutesAgo(1), value: { productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Pagne wax (démo)', assetRefs: [], category: 'fashion_bags_fabrics', supplierPhone: 'x' } }).success).toBe(false);
   });
 
+  it('LEAK-VALUE-SWEPT (audit D3): a phone number in the productName is REFUSED; a phone-CASE product is not', () => {
+    // The key sweep misses a supplier number smuggled into the one free-text
+    // field a supplier authors — « appelez 70 12 34 56 » in productName passes
+    // the strict schema and the key regex. A phone-SHAPED value pattern catches
+    // it; the word « téléphone » (a real product) must NOT trip it.
+    const leaky = new MockSupplyProjectionSource();
+    leaky.set({ productVersionId: 'pv_1', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Belle robe, appelez 70 12 34 56', assetRefs: [], category: 'fashion_bags_fabrics', asOf: minutesAgo(1), version: 2 });
+    const verdict = consumeSupplyProjection(leaky, 'pv_1', NOW);
+    expect(verdict.status).toBe('rejected');
+    if (verdict.status === 'rejected') expect(verdict.reason).toBe('identity_material_refused');
+
+    // THE FALSE-POSITIVE CONTROL: a phone case is a real product, not a leak.
+    const bien = new MockSupplyProjectionSource();
+    bien.set({ productVersionId: 'pv_2', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Coque téléphone Samsung A12', assetRefs: [], category: 'fashion_bags_fabrics', asOf: minutesAgo(1), version: 2 });
+    expect(consumeSupplyProjection(bien, 'pv_2', NOW).status).toBe('fresh');
+  });
+
   it('a non-contract payload and an absent product are both refused / absent (never a silent pass)', () => {
     const src = new MockSupplyProjectionSource();
     expect(consumeSupplyProjection(src, 'pv_unknown', NOW).status).toBe('absent');

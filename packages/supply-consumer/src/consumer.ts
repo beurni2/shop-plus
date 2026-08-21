@@ -38,11 +38,23 @@ export type SupplyVerdict =
     };
 
 /** Sweep the raw value's keys for supplier identity/contact/pickup material (SP-I03). */
+/** A phone number embedded in a free-text VALUE: ≥8 grouped digits, the shape
+ *  of a Burkina number (« 70 12 34 56 », « +226 70123456 »). Deliberately NOT
+ *  the IDENTITY_LEAK word-list, which matches « phone » — a value scan with it
+ *  would refuse « Coque téléphone », a real product. Broader prose moderation
+ *  (whatsapp, « appelez-moi », addresses) is Boutik+'s at authoring; this is the
+ *  one high-signal content leak the consumer catches (audit D3). */
+const CONTACT_NUMBER = /(?:\d[\s.\-]?){8,}/;
+
 function hasIdentityLeak(raw: unknown): boolean {
   if (raw === null || typeof raw !== 'object') return false;
   const value = (raw as { value?: unknown }).value;
   if (value === null || typeof value !== 'object') return false;
-  return Object.keys(value as object).some((k) => IDENTITY_LEAK.test(k));
+  const entries = Object.entries(value as Record<string, unknown>);
+  // 1) an identity-shaped KEY (supplierPhone, pickup, adresse …): the field leak.
+  if (entries.some(([k]) => IDENTITY_LEAK.test(k))) return true;
+  // 2) a phone number hidden in a free-text value (audit D3), fail closed.
+  return entries.some(([, v]) => typeof v === 'string' && CONTACT_NUMBER.test(v));
 }
 
 /**
