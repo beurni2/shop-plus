@@ -64,6 +64,15 @@ class_name = "BuyerLadderDO"
 name = "COMPTES"
 class_name = "ResellerAccountsDO"
 
+# C1/C2 (audit) — the durable attribution-lock book (SP-I09b.3
+# first-lock-wins), one instance per ORDER id. NO public route reaches it —
+# OrderDO claims the lock at order create; a colliding later claim is refused
+# and the lock never moves. Joined this combined Worker (the one-combined-
+# Worker ruling) instead of standing up a second deployable.
+[[durable_objects.bindings]]
+name = "ATTRIBUTION_LOCK"
+class_name = "AttributionLockDO"
+
 # FIRST-DEPLOY MIGRATION — create both DO classes. `new_sqlite_classes` is CORRECT
 # AND MANDATORY, not a coin-flip: Cloudflare stopped issuing key-value-backed DO
 # namespaces (changelog 2026-07-09) to any account without a pre-existing one, and
@@ -117,6 +126,13 @@ new_sqlite_classes = ["BuyerLadderDO"]
 [[migrations]]
 tag = "v7"
 new_sqlite_classes = ["ResellerAccountsDO"]
+
+# C1/C2 — AttributionLockDO on its OWN tag, the append-only law every tag
+# above states. Same UNPROVEN-UNTIL-DEPLOY caveat as the header: Miniflare
+# binds this class from its own test config, never from this file.
+[[migrations]]
+tag = "v8"
+new_sqlite_classes = ["AttributionLockDO"]
 
 # The PRIVATE R2 bucket (exists: Standard, jurisdiction default, location hint
 # ENAM). Reads go THROUGH the Worker (GET /media/{key}); never a public custom

@@ -155,7 +155,7 @@ function makeMf(persistDir: string): Miniflare {
     scriptPath: SCRIPT,
     durableObjects: {
       STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
-      ORDER: 'OrderDO', LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO',
+      ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO',
       RESELLER: 'ResellerFeedDO',
     },
     durableObjectsPersist: persistDir,

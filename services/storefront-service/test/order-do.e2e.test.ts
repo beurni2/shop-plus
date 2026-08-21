@@ -154,7 +154,7 @@ function makeMf(
       STOREFRONT: 'StorefrontDO',
       LISTING: 'ListingDO',
       CHECKOUT: 'CheckoutDO',
-      ORDER: 'OrderDO', LADDER: 'BuyerLadderDO',
+      ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO',
     },
     durableObjectsPersist: persistDir,
     bindings: {

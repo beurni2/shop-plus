@@ -68,7 +68,7 @@ const mf = new Miniflare({
     STOREFRONT: 'StorefrontDO',
     LISTING: 'ListingDO',
     CHECKOUT: 'CheckoutDO',
-    ORDER: 'OrderDO',
+    ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO',
     LADDER: 'BuyerLadderDO',
     DISPATCH: 'DispatchIndexDO',
     RESELLER: 'ResellerFeedDO',

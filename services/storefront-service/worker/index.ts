@@ -45,6 +45,17 @@ import {
  * wrangler binds these two classes by their exported names.
  */
 export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO, ResellerFeedDO, BuyerLadderDO, ResellerAccountsDO };
+/**
+ * C1/C2 (audit) — the DURABLE attribution-lock authority (SP-I09b.3
+ * first-lock-wins), deployed by joining THIS combined Worker like every other
+ * DO class (the founder's one-combined-Worker ruling) rather than standing up
+ * a second deployable. Imported from the attribution-service SOURCE — one
+ * implementation, never a copy. ITS AUTH MODEL IS NO DOOR AT ALL: no route on
+ * this Worker mounts /locks/*, so the lock is reachable only from inside
+ * (OrderDO claims it at order create). The standalone router in
+ * attribution-service stays undeployed test scaffolding.
+ */
+export { AttributionLockDO } from '../../attribution-service/worker/attribution-lock-do.js';
 
 interface Env extends WriteAuthEnv {
   STOREFRONT: DurableObjectNamespace;
@@ -64,6 +75,10 @@ interface Env extends WriteAuthEnv {
   RESELLER: DurableObjectNamespace;
   /** SP6.3 — the §6.4 buyer-refusal ladder, one instance per buyer key. */
   LADDER: DurableObjectNamespace;
+  /** C1/C2 (audit) — the durable attribution-lock book, one instance per
+   *  ORDER id. Claimed by OrderDO at create (SP-I09b.3 first-lock-wins);
+   *  no public route reaches it. */
+  ATTRIBUTION_LOCK: DurableObjectNamespace;
   /** RESELLER-ACCOUNTS-1b — the singleton account book (canon v3.8.0). */
   COMPTES?: DurableObjectNamespace;
   /** SP3.3a — the certified sandbox provider's behaviour knobs. UNSET on the

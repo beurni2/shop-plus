@@ -445,6 +445,15 @@ export interface OrderDOEnv {
    */
   readonly CUSTODY?: { fetch(request: Request): Promise<Response> };
   readonly SHOP_ARM_SECRET?: string;
+  /**
+   * C1 (audit) — the durable attribution-lock book (SP-I09b.3
+   * first-lock-wins), one instance per ORDER id, claimed by `create` below
+   * BEFORE any charge is initiated. No public route reaches it. ABSENT ⇒ the
+   * create refuses CLOSED (`attribution_lock_unavailable`): unlike the
+   * best-effort wires above, the lock is an integrity fact about who the
+   * order pays, and an order that cannot record it must not be born.
+   */
+  readonly ATTRIBUTION_LOCK?: DurableObjectNamespace;
 }
 
 export class OrderDO {
@@ -1155,6 +1164,52 @@ export class OrderDO {
 
     const orderId = orderIdForQuote(quoteId);
     const now = new Date().toISOString();
+
+    /**
+     * ═══ C1 (audit) — THE ATTRIBUTION LOCK IS CLAIMED BEFORE ANY CHARGE ═══
+     *
+     * SP-I09b.3: « Une fois la commande verrouillée, l'attribution est
+     * immuable (first-lock-wins) ». The durable book is claimed HERE, by the
+     * object that owns the order, before a franc is asked for: checkoutRef =
+     * this order's id, resellerId = the Quote's LOCKED attributionResellerId
+     * (SP-I01), tokenId = the quote id — the identity-scope qualification.
+     * SP5's signed product tokens will present their OWN ids and collide
+     * honestly here (refused, alerted) rather than re-attribute.
+     *
+     * Idempotent by construction: a retry or a second attempt carries the
+     * same (quoteId, reseller), so the book answers `idempotent`. A COLLISION
+     * (the book already names another reseller) refuses the create CLOSED —
+     * an order must never be born disagreeing with its own attribution book.
+     * An unreachable book also refuses closed: the claim is an integrity
+     * fact, not a courtesy, and nothing has been charged yet.
+     */
+    if (this.env.ATTRIBUTION_LOCK === undefined) {
+      return Response.json({ ok: false, reason: 'attribution_lock_unavailable' }, { status: 503 });
+    }
+    const lockStub = this.env.ATTRIBUTION_LOCK.get(this.env.ATTRIBUTION_LOCK.idFromName(orderId));
+    let lockAnswer: { ok?: boolean; status?: string } | null;
+    try {
+      const lockRes = await lockStub.fetch(
+        new Request('https://do/lock', {
+          method: 'POST',
+          body: JSON.stringify({
+            checkoutRef: orderId,
+            resellerId: quote.attributionResellerId,
+            tokenId: quoteId,
+            at: now,
+          }),
+        }),
+      );
+      lockAnswer = (await lockRes.json()) as { ok?: boolean; status?: string };
+    } catch {
+      lockAnswer = null;
+    }
+    if (lockAnswer === null || lockAnswer.ok !== true) {
+      if (lockAnswer?.status === 'collision') {
+        return Response.json({ ok: false, reason: 'attribution_locked_elsewhere' }, { status: 409 });
+      }
+      return Response.json({ ok: false, reason: 'attribution_lock_unavailable' }, { status: 503 });
+    }
 
     /**
      * ═══ ONE PROVIDER KEY PER LEG, MINTED ONCE, FOREVER (verifier BLOCKER) ═══

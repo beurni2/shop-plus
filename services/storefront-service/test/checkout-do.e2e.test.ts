@@ -78,7 +78,7 @@ function makeMf(): Miniflare {
       STOREFRONT: 'StorefrontDO',
       LISTING: 'ListingDO',
       CHECKOUT: 'CheckoutDO',
-      ORDER: 'OrderDO', LADDER: 'BuyerLadderDO',
+      ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO',
     },
     durableObjectsPersist: persist,
     bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
@@ -1373,7 +1373,7 @@ describe('CheckoutDO — a supply read that FAILS no longer costs her the door, 
     return new Miniflare({
       modules: true,
       scriptPath: SCRIPT,
-      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', LADDER: 'BuyerLadderDO' },
+      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO' },
       durableObjectsPersist: dir,
       bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
       serviceBindings: {
@@ -1408,7 +1408,7 @@ describe('CheckoutDO — a supply read that FAILS no longer costs her the door, 
     return new Miniflare({
       modules: true,
       scriptPath: SCRIPT,
-      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', LADDER: 'BuyerLadderDO' },
+      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO' },
       durableObjectsPersist: dir,
       bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
     });
@@ -1550,7 +1550,7 @@ describe('CheckoutDO — a supply read that FAILS no longer costs her the door, 
     const inst = new Miniflare({
       modules: true,
       scriptPath: SCRIPT,
-      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', LADDER: 'BuyerLadderDO' },
+      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO' },
       durableObjectsPersist: dir,
       bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
       serviceBindings: {
@@ -1753,7 +1753,7 @@ describe('G4 CHECKOUT-KILL — env-armed kill switch on the real Worker', () => 
         STOREFRONT: 'StorefrontDO',
         LISTING: 'ListingDO',
         CHECKOUT: 'CheckoutDO',
-        ORDER: 'OrderDO', LADDER: 'BuyerLadderDO',
+        ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO',
       },
       durableObjectsPersist: persistKill,
       bindings: {

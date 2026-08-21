@@ -7,5 +7,5 @@
     "module": "ESNext",
     "moduleResolution": "Bundler"
   },
-  "include": ["./**/*.ts", "../src/storefront-core.ts", "../src/listing-core.ts"]
+  "include": ["./**/*.ts", "../src/storefront-core.ts", "../src/listing-core.ts", "../../attribution-service/worker/attribution-lock-do.ts", "../../attribution-service/src/lock-core.ts"]
 }
