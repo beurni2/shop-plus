@@ -9,7 +9,7 @@ Format per entry:
 
 ---
 
-## 2026-08-21 · C1·C2·C3 + H2 — the attribution lock is real, keyed, and doored by nothing; discovery orders itself without ICU · IN-REVIEW
+## 2026-08-21 · C1·C2·C3 + H2 — the attribution lock is real, keyed, and doored by nothing; discovery orders itself without ICU · DONE
 
 **Founder, 2026-08-21: « You can start working on C1- C3 and H2 » (audit KNOWN-OPENs).** Spec authority re-read before writing: SP-I01 (« every confirmed order carries exactly one reseller_id locked from a qualified attribution or the storefront used for checkout »), SP-I09b.3 (« une fois la commande verrouillée, l'attribution est immuable — first-lock-wins; un second jeton valide sur une commande verrouillée est refusé, honnêtement »), SP-I09b.4 (nobody, never the platform), §4.1 (two scopes: `product` signed, `identity` server-resolved UNSIGNED), SP-I11 (deterministic order). **Scope held deliberately at the audit's own bounds:** wire the dormant machinery, do NOT build SP5's signed-link surface — that is its own milestone, and today's live attribution is the spec's identity scope, correctly unsigned.
 
@@ -27,7 +27,7 @@ Format per entry:
 
 **EVIDENCE.** attribution-lock.e2e 3/3 red→green on the real bundle · full storefront suite 580/580 (nine order-creating suites now pass through the live claim; their diffs are pure binding additions) · attribution-service 43/43 · discovery 11/11 + gate exit 0 · four typechecks clean · gate board ALL GATES GREEN exit 0 (storefront 580/580, Playwright 106/106, every negative fixture failed as required) · verifier: CONFORMS, mutations proven on C1 and H2.
 
-**Pending:** founder approval to merge + deploy. Deploy note: v8 migration creates AttributionLockDO on the first dispatch (same append-only law as v2–v7; unproven until a real deploy runs, per the wrangler.toml header). What stays open by design: SP5's signed product links (minting + verification wiring, the arrivals/last-touch surface) — the trigger remains « before multi-token attribution is offered ».
+**MERGED AND DEPLOYED (founder: « Merge and deploy », 2026-08-21).** main fast-forwarded to 695d0c8; all five workflows green on attempt 1. **The v8 migration is no longer unproven: the deploy was accepted, provenance verified the live bundle, and AttributionLockDO now exists in production — every new order claims its durable lock.** What stays open by design: SP5's signed product links (minting + verification wiring, the arrivals/last-touch surface) — the trigger remains « before multi-token attribution is offered ».
 
 ---
 
