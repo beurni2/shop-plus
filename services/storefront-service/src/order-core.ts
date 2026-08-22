@@ -1,4 +1,4 @@
-import { OrderConfirmedEventSchema, QuoteSchema, type OrderConfirmedEvent, type Quote } from '@platform/contracts';
+import { OrderConfirmedEventSchema, QuoteSchema, type OrderConfirmedEvent, type PlatformEvent, type Quote } from '@platform/contracts';
 import { OrderSpine, type DoorLegState, type PaymentFailureReason } from '@shop-plus/commerce-core';
 import { readStoredQuote } from './checkout-core.js';
 
@@ -568,7 +568,16 @@ export function rebuildOrderSpine(
 
 export type ApplyOutcome =
   | { readonly applied: true; readonly duplicate: boolean }
-  | { readonly applied: false; readonly reason: string };
+  | {
+      readonly applied: false;
+      readonly reason: string;
+      /**
+       * RAPPROCHEMENT-1 (E3 seed) — the vault's Contract-§6 alert, when the
+       * refusal is a provider-truth-vs-local-knowledge contradiction. The DO
+       * SINKS it durably (the B4 gap closed); it never rides a public answer.
+       */
+      readonly alert?: PlatformEvent;
+    };
 
 /**
  * ONE INPUT → THE VAULT'S OWN VERDICT, normalised. Not one rule lives here: every
@@ -608,7 +617,11 @@ export function applyOrderInput(spine: OrderSpine, input: OrderInput): ApplyOutc
       const outcome = spine.onProviderPaymentEvent(input.event, input.expectedProviderKey);
       return outcome.applied
         ? { applied: true, duplicate: outcome.duplicate }
-        : { applied: false, reason: outcome.reason };
+        : {
+            applied: false,
+            reason: outcome.reason,
+            ...(outcome.alert !== undefined ? { alert: outcome.alert } : {}),
+          };
     }
     case 'eligibility': {
       const outcome = spine.onEligibilityEvent(input.event);
@@ -625,18 +638,21 @@ export function applyOrderInput(spine: OrderSpine, input: OrderInput): ApplyOutc
      * actually funded. §5.5: « Option B: … product paid by MoMo at the door
      * before custody transfer. »
      *
-     * THE ALERT IS DROPPED HERE AND THAT IS A KNOWN GAP, named rather than
-     * hidden: `onProviderDoorPaymentEvent` can return a `reconciliation.alert.v1`
-     * for provider truth that contradicts local state, and this service has no
-     * alert sink yet (neither does the checkout leg's path). It changes no
-     * money — the outcome still refuses — but an operator who should have been
-     * told is not. It belongs with the reconciliation slice, E3.
+     * RAPPROCHEMENT-1 (E3) — THE ALERT IS DROPPED NO LONGER (audit B4 closed):
+     * `onProviderDoorPaymentEvent` can return a `reconciliation.alert.v1` for
+     * provider truth that contradicts local state, and it now rides this
+     * outcome to the DO's durable sink — on the checkout leg's path too. The
+     * money behavior is unchanged: the outcome still refuses.
      */
     case 'door_provider': {
       const outcome = spine.onProviderDoorPaymentEvent(input.event, input.expectedProviderKey);
       return outcome.applied
         ? { applied: true, duplicate: outcome.duplicate === true }
-        : { applied: false, reason: outcome.reason };
+        : {
+            applied: false,
+            reason: outcome.reason,
+            ...(outcome.alert !== null ? { alert: outcome.alert } : {}),
+          };
     }
     case 'confirm': {
       const outcome = spine.confirmOrder({

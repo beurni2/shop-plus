@@ -147,7 +147,8 @@ describe('§3 misbehavior — payment provider mock vs the spine', () => {
     const { plan } = chargeAndPlan({}, quote);
     const good = plan[0]!.event;
     const tampered = { ...good, payload: { ...good.payload, amount: (good.payload['amount'] as number) - 1 } };
-    expect(spine.onProviderPaymentEvent(tampered)).toEqual({ applied: false, reason: 'amount_mismatch' });
+    // RAPPROCHEMENT-1: the money contradiction now carries its §6 alert.
+    expect(spine.onProviderPaymentEvent(tampered)).toMatchObject({ applied: false, reason: 'amount_mismatch' });
     const refundedStatus = { ...good, payload: { ...good.payload, status: 'refunded' } };
     expect(spine.onProviderPaymentEvent(refundedStatus)).toEqual({ applied: false, reason: 'unfunded_leg_status' });
     const wrongCorr = { ...good, envelope: { ...good.envelope, correlation_id: 'corr-OTHER' } };
@@ -399,7 +400,7 @@ describe('NB-3 — webhook ids cross-checked against the chain', () => {
     const genuine = plan[0]!.event as { payload: Record<string, unknown> };
     const tampered = JSON.parse(JSON.stringify(genuine)) as { payload: Record<string, unknown> };
     tampered.payload['payment_attempt_id'] = 'pay-foreign';
-    expect(spine.onProviderPaymentEvent(tampered, 'pay-1')).toEqual({ applied: false, reason: 'attempt_mismatch' });
+    expect(spine.onProviderPaymentEvent(tampered, 'pay-1')).toMatchObject({ applied: false, reason: 'attempt_mismatch' });
     expect(spine.journey.state).toBe('payment_pending');
     expect(spine.ledger.escrowFor('ord-1')).toBeUndefined();
     expect(spine.onProviderPaymentEvent(genuine, 'pay-1')).toEqual({ applied: true, duplicate: false });
@@ -412,7 +413,7 @@ describe('NB-3 — webhook ids cross-checked against the chain', () => {
     const { plan } = chargeAndPlan({}, quote);
     const anonymous = JSON.parse(JSON.stringify(plan[0]!.event)) as { payload: Record<string, unknown> };
     delete anonymous.payload['payment_attempt_id'];
-    expect(spine.onProviderPaymentEvent(anonymous, 'pay-1')).toEqual({ applied: false, reason: 'attempt_mismatch' });
+    expect(spine.onProviderPaymentEvent(anonymous, 'pay-1')).toMatchObject({ applied: false, reason: 'attempt_mismatch' });
     expect(spine.ledger.escrowFor('ord-1')).toBeUndefined();
   });
 
@@ -431,7 +432,7 @@ describe('NB-3 — webhook ids cross-checked against the chain', () => {
     const { plan } = chargeAndPlan({}, quote);
     const contradicting = JSON.parse(JSON.stringify(plan[0]!.event)) as { payload: Record<string, unknown> };
     contradicting.payload['order_id'] = 'ord-SOMEONE-ELSE';
-    expect(spine.onProviderPaymentEvent(contradicting)).toEqual({ applied: false, reason: 'order_mismatch' });
+    expect(spine.onProviderPaymentEvent(contradicting)).toMatchObject({ applied: false, reason: 'order_mismatch' });
     expect(spine.ledger.escrowFor('ord-1')).toBeUndefined();
     // A payload NAMING the chain's own order applies — the check reads
     // contradiction, never mere presence.

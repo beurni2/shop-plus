@@ -332,7 +332,8 @@ describe('per-mode funded legs (SP3.2 extended — WO-2.5 item 2)', () => {
     const provider = new MockPaymentProvider();
     provider.initiateCharge({ orderId: 'order-b-1', paymentAttemptId: 'att-b-1', amount: 12_500, correlationId: 'corr-b-0001', requestedAtIso: T, legType: 'checkout' });
     const outcome = spine.onProviderPaymentEvent(provider.webhookDeliveryPlan()[0]!.event);
-    expect(outcome).toEqual({ applied: false, reason: 'amount_mismatch' });
+    // RAPPROCHEMENT-1: the money contradiction now carries its §6 alert.
+    expect(outcome).toMatchObject({ applied: false, reason: 'amount_mismatch' });
     expect(spine.journey.state).toBe('payment_pending'); // never paid, never confirmable
   });
 });

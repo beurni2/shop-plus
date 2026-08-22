@@ -1,5 +1,6 @@
 import { PlatformEventSchema, type PlatformEvent, type Quote } from '@platform/contracts';
 import { LedgerRecords } from './ledger.js';
+import type { ReconciliationSnapshot } from './reconcile.js';
 import {
   advanceOrder,
   beginJourney,
@@ -71,7 +72,18 @@ export type SpineRefusalReason =
 
 export type SpineOutcome =
   | { applied: true; duplicate: boolean }
-  | { applied: false; reason: SpineRefusalReason };
+  | {
+      applied: false;
+      reason: SpineRefusalReason;
+      /**
+       * RAPPROCHEMENT-1 (E3 seed) — present ONLY when the refusal is a
+       * Contract-§6 contradiction (provider truth vs local knowledge):
+       * a genuine webhook after local failure, an amount contradicting the
+       * immutable Quote, a foreign charge id, a conflicting confirmation.
+       * Ordinary refusals (early race, malformed, misrouted) carry none.
+       */
+      alert?: PlatformEvent;
+    };
 
 /** WO-2.5: shop-side Option-B door-leg projection — NOT an order status. */
 export type DoorLegState = 'none' | 'due' | 'paid';
@@ -271,19 +283,61 @@ export class OrderSpine {
       return { applied: true, duplicate: true };
     }
     if (this.journeyState.state !== 'payment_pending' || this.orderId === undefined) {
+      // RAPPROCHEMENT-1: a webhook NAMING OUR CHARGE that lands after this
+      // order LOCALLY failed is provider truth contradicting local failure
+      // knowledge (Contract §6) — the refusal stands (E3's refund saga owns
+      // what follows), but it now carries the alert instead of silence. The
+      // early pre-order race stays quiet: that is the provider's ordinary
+      // at-least-once behavior, not a contradiction.
+      const late = event.payload as Record<string, unknown>;
+      if (
+        this.journeyState.state === 'payment_failed' &&
+        this.paymentFailure !== undefined &&
+        this.checkWebhookIds(late, expectedProviderKey) === null
+      ) {
+        return {
+          applied: false,
+          reason: 'out_of_order',
+          alert: this.reconAlert('genuine_webhook_after_local_failure', event, {
+            leg: 'checkout',
+            local_failure_reason: this.paymentFailure.reason,
+            local_failure_at: this.paymentFailure.at,
+            provider_amount: typeof late['amount'] === 'number' ? late['amount'] : null,
+          }),
+        };
+      }
       return { applied: false, reason: 'out_of_order' };
     }
 
     const p = event.payload as Record<string, unknown>;
     const idCheck = this.checkWebhookIds(p, expectedProviderKey);
-    if (idCheck !== null) return { applied: false, reason: idCheck };
+    if (idCheck !== null) {
+      return {
+        applied: false,
+        reason: idCheck,
+        alert: this.reconAlert('webhook_names_foreign_charge', event, {
+          leg: 'checkout',
+          refusal: idCheck,
+          payload_attempt_id: typeof p['payment_attempt_id'] === 'string' ? p['payment_attempt_id'] : null,
+          payload_order_id: typeof p['order_id'] === 'string' ? p['order_id'] : null,
+        }),
+      };
+    }
     const amount = p['amount'];
     const status = p['status'];
     // PER MODE by construction (§5.5): amountPaidAtCheckout is buyerTotal
     // under FULL_PREPAY and exactly D under Option B — the pinned waterfall
     // wrote it into the immutable Quote; the checkout leg must equal it.
     if (typeof amount !== 'number' || amount !== this.quote.amountPaidAtCheckout) {
-      return { applied: false, reason: 'amount_mismatch' };
+      return {
+        applied: false,
+        reason: 'amount_mismatch',
+        alert: this.reconAlert('provider_amount_contradicts_quote', event, {
+          leg: 'checkout',
+          provider_amount: typeof amount === 'number' ? amount : null,
+          expected_amount: this.quote.amountPaidAtCheckout,
+        }),
+      };
     }
     if (status !== 'held' && status !== 'captured') {
       return { applied: false, reason: 'unfunded_leg_status' };
@@ -301,7 +355,18 @@ export class OrderSpine {
       fee: typeof p['fee'] === 'number' ? p['fee'] : 0,
       status,
     });
-    if (!recorded.ok) return { applied: false, reason: recorded.reason };
+    if (!recorded.ok) {
+      // A DIFFERENT confirmation for a leg already funded — double-charge
+      // territory, the loudest Contract-§6 class there is.
+      return {
+        applied: false,
+        reason: recorded.reason,
+        alert: this.reconAlert('conflicting_provider_confirmation', event, {
+          leg: 'checkout',
+          refusal: recorded.reason,
+        }),
+      };
+    }
 
     const advanced = this.advance({
       command_id: event.envelope.command_id,
@@ -390,14 +455,34 @@ export class OrderSpine {
     }
 
     const p = event.payload as Record<string, unknown>;
-    // NB-3 (E2) — same id cross-check as the checkout twin, same closed refusal.
+    // NB-3 (E2) — same id cross-check as the checkout twin, same closed
+    // refusal; RAPPROCHEMENT-1 — same Contract-§6 alerts as the twin too.
     const idCheck = this.checkWebhookIds(p, expectedProviderKey);
-    if (idCheck !== null) return { applied: false, reason: idCheck, alert: null };
+    if (idCheck !== null) {
+      return {
+        applied: false,
+        reason: idCheck,
+        alert: this.reconAlert('webhook_names_foreign_charge', event, {
+          leg: 'door',
+          refusal: idCheck,
+          payload_attempt_id: typeof p['payment_attempt_id'] === 'string' ? p['payment_attempt_id'] : null,
+          payload_order_id: typeof p['order_id'] === 'string' ? p['order_id'] : null,
+        }),
+      };
+    }
     const amount = p['amount'];
     const status = p['status'];
     // §5.5 Option B: amountDueAtDelivery == productSubtotal — franc-exact.
     if (typeof amount !== 'number' || amount !== this.quote.amountDueAtDelivery) {
-      return { applied: false, reason: 'amount_mismatch', alert: null };
+      return {
+        applied: false,
+        reason: 'amount_mismatch',
+        alert: this.reconAlert('provider_amount_contradicts_quote', event, {
+          leg: 'door',
+          provider_amount: typeof amount === 'number' ? amount : null,
+          expected_amount: this.quote.amountDueAtDelivery,
+        }),
+      };
     }
     if (status !== 'held' && status !== 'captured') {
       return { applied: false, reason: 'unfunded_leg_status', alert: null };
@@ -414,7 +499,16 @@ export class OrderSpine {
       fee: typeof p['fee'] === 'number' ? p['fee'] : 0,
       status,
     });
-    if (!recorded.ok) return { applied: false, reason: recorded.reason, alert: null };
+    if (!recorded.ok) {
+      return {
+        applied: false,
+        reason: recorded.reason,
+        alert: this.reconAlert('conflicting_provider_confirmation', event, {
+          leg: 'door',
+          refusal: recorded.reason,
+        }),
+      };
+    }
 
     this.doorLeg = 'paid';
     this.processedCommandIds.add(event.envelope.command_id);
@@ -467,6 +561,53 @@ export class OrderSpine {
       return 'order_mismatch';
     }
     return null;
+  }
+
+  /**
+   * RAPPROCHEMENT-1 (E3 seed) — the ONE mint for Contract-§6 refusal alerts:
+   * provider truth contradicting local knowledge. Deterministic per causing
+   * webhook (`recon-${its command_id}`), so a redelivered refusal re-mints
+   * the SAME alert and the durable sink dedupes instead of counting. Every
+   * figure in the payload is COPIED (Ten Laws #1/#2) — from the webhook, the
+   * immutable Quote, or recorded local knowledge — never computed here.
+   */
+  private reconAlert(scenario: string, cause: PlatformEvent, extra: Record<string, unknown>): PlatformEvent {
+    return PlatformEventSchema.parse({
+      name: 'reconciliation.alert.v1',
+      envelope: {
+        command_id: `recon-${cause.envelope.command_id}`,
+        correlation_id: this.journeyState.correlationId,
+        aggregateVersion: this.journeyState.aggregateVersion,
+        actor: 'commerce-core:ops',
+        serverTime: cause.envelope.serverTime,
+        version: '1',
+      },
+      payload: {
+        ...this.journeyState.chain,
+        alert: scenario,
+        provider_command_id: cause.envelope.command_id,
+        ...extra,
+      },
+    });
+  }
+
+  /**
+   * RAPPROCHEMENT-1 — everything `reconcileOrder` compares, read from the one
+   * replayed truth. INTERNAL ONLY: the snapshot carries the full immutable
+   * Quote and the money records; it may never reach a buyer surface (SP-I03).
+   */
+  reconciliationSnapshot(): ReconciliationSnapshot {
+    return {
+      orderId: this.orderId,
+      correlationId: this.journeyState.correlationId,
+      aggregateVersion: this.journeyState.aggregateVersion,
+      state: this.journeyState.state,
+      doorLeg: this.doorLeg,
+      quote: this.quote,
+      supplierRef: this.supplierRef,
+      escrow: this.orderId === undefined ? undefined : this.ledger.escrowFor(this.orderId),
+      obligations: this.orderId === undefined ? [] : this.ledger.obligationsFor(this.orderId),
+    };
   }
 
   /** Contract §6 alert: provider door truth contradicting local state. */

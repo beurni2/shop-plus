@@ -13,6 +13,9 @@ export * from '../../../packages/commerce-core/dist/refusal-ladder.js';
 export * from '../../../packages/commerce-core/dist/order-machine.js';
 export * from '../../../packages/commerce-core/dist/order-spine.js';
 export * from '../../../packages/commerce-core/dist/ledger.js';
+// RAPPROCHEMENT-1 (E3) — the pure reconciliation pass the OrderDO runs at
+// /entry/reconcile. Same vault-dist discipline as its siblings above.
+export * from '../../../packages/commerce-core/dist/reconcile.js';
 // The CERTIFIED sandbox provider (Execution Contract §3) — the ONE payment
 // implementation this Worker has. It is deterministic and config-driven: no
 // randomness, no clock, no network, and no aggregator named anywhere in it.

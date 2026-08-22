@@ -1,5 +1,5 @@
-import { PlatformEventSchema, assertQuoteReconciles, type Quote } from '@platform/contracts';
-import { decideBuyerRung } from '@shop-plus/commerce-core';
+import { PlatformEventSchema, assertQuoteReconciles, type PlatformEvent, type Quote } from '@platform/contracts';
+import { decideBuyerRung, reconcileOrder } from '@shop-plus/commerce-core';
 import {
   acceptChargeForLeg,
   applyOrderInput,
@@ -174,6 +174,18 @@ const CUSTODY_ARM_KEY = 'custody-arm-outbox';
  * failures and every other status stay `pending` on the shared backoff.
  */
 const DOOR_SIGNAL_KEY = 'custody-door-signal-outbox';
+/**
+ * RAPPROCHEMENT-1 (E3 seed) — THE DURABLE ALERT SINK (audit B4 closed: alerts
+ * were minted and dropped). Every reconciliation.alert.v1 the vault's refusal
+ * paths or the reconcile pass mint is RECORDED here — deduped on the alert's
+ * own envelope command_id (refusal alerts are deterministic per causing
+ * webhook, pass alerts per divergence, so redeliveries and repeated passes
+ * re-mint identical ids), and CAPPED so a hostile webhook storm cannot grow
+ * storage without bound. INTERNAL ONLY: read at /entry/audit and never on a
+ * public answer (SP-I03) — the operator's road, not the buyer's.
+ */
+const RECON_ALERTS_KEY = 'recon-alerts';
+const RECON_ALERTS_CAP = 50;
 /**
  * VRAI-SUIVI — SÉRA'S TRANSIT MARKS, as this order received them through the
  * `/fulfillment/transit` door: `en_route` → `departedAt`, `arrivee` →
@@ -704,7 +716,31 @@ export class OrderDO {
         // a genuine webhook names its leg's key, so the suites build webhooks
         // from the key the order actually holds instead of fabricating one.
         legKeys: (await this.state.storage.get<Record<string, string>>(LEG_KEYS_KEY)) ?? {},
+        // RAPPROCHEMENT-1 — the durable alert record, the operator's read.
+        reconAlerts: (await this.state.storage.get<PlatformEvent[]>(RECON_ALERTS_KEY)) ?? [],
       });
+    }
+
+    /**
+     * RAPPROCHEMENT-1 (E3) — THE PASS, on demand: rebuild the one replayed
+     * truth and run the pure comparison over it. NO provider records ride
+     * this road yet — the aggregator's settlement report is Real-Money-Gate
+     * work behind the open provider Decision, and absence of the report is
+     * not a clean bill, so none is faked here. Divergences SINK like every
+     * other alert, then answer. INTERNAL ONLY, like the audit read.
+     */
+    if (request.method === 'GET' && pathname === '/entry/reconcile') {
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      if (origin === undefined) return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+      const quote = parseStoredQuote(origin.quoteBytes);
+      if (quote === undefined) {
+        return Response.json({ ok: false, reason: 'stored_quote_unreadable' }, { status: 422 });
+      }
+      const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      const spine = rebuildOrderSpine(quote, origin, log);
+      const alerts = reconcileOrder(spine.reconciliationSnapshot(), { serverTime: new Date().toISOString() });
+      await this.sinkReconAlerts(alerts);
+      return Response.json({ ok: true, clean: alerts.length === 0, alerts });
     }
 
     /**
@@ -1928,6 +1964,23 @@ export class OrderDO {
     return attempts;
   }
 
+  /**
+   * RAPPROCHEMENT-1 — the ONE door into RECON_ALERTS_KEY: dedupe on the
+   * alert's own envelope command_id, cap the record, write only on growth.
+   */
+  private async sinkReconAlerts(alerts: readonly PlatformEvent[]): Promise<void> {
+    if (alerts.length === 0) return;
+    const held = (await this.state.storage.get<PlatformEvent[]>(RECON_ALERTS_KEY)) ?? [];
+    const known = new Set(held.map((a) => a.envelope.command_id));
+    const next = [...held];
+    for (const alert of alerts) {
+      if (known.has(alert.envelope.command_id) || next.length >= RECON_ALERTS_CAP) continue;
+      known.add(alert.envelope.command_id);
+      next.push(alert);
+    }
+    if (next.length !== held.length) await this.state.storage.put(RECON_ALERTS_KEY, next);
+  }
+
   private async onProviderEvent(event: unknown): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     /**
@@ -1974,6 +2027,9 @@ export class OrderDO {
       : null;
     const outcome = applyOrderInput(spine, { kind: 'provider', event, expectedProviderKey: chkLegKey });
     if (!outcome.applied) {
+      // RAPPROCHEMENT-1 (audit B4): a Contract-§6 contradiction refusal
+      // carries its alert — SUNK durably before the refusal is answered.
+      if (outcome.alert !== undefined) await this.sinkReconAlerts([outcome.alert]);
       return Response.json({ ok: false, reason: outcome.reason }, { status: statusForWebhook(outcome.reason) });
     }
     if (outcome.duplicate) {
@@ -2338,6 +2394,9 @@ export class OrderDO {
     const input: OrderInput = { kind: 'door_provider', event, expectedProviderKey: doorLegKey };
     const outcome = applyOrderInput(spine, input);
     if (!outcome.applied) {
+      // RAPPROCHEMENT-1 (audit B4): the door path's §6 alert — including the
+      // long-named door_confirmation_without_door_pending_order — sinks too.
+      if (outcome.alert !== undefined) await this.sinkReconAlerts([outcome.alert]);
       return Response.json({ ok: false, reason: outcome.reason }, { status: statusForWebhook(outcome.reason) });
     }
     if (outcome.duplicate) {

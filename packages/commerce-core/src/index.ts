@@ -11,6 +11,7 @@ export * from './quote-issuance.js';
 export * from './reservation.js';
 export * from './order-machine.js';
 export * from './order-spine.js';
+export * from './reconcile.js';
 export * from './ledger.js';
 export * from './problem-path.js';
 export * from './dlq.js';

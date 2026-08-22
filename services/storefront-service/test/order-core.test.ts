@@ -423,7 +423,8 @@ describe('the input journal — the same log replays to the same state, on any p
     const { quote } = fullPrepayQuote();
     const spine = rebuildOrderSpine(quote, origin, toPaymentPending());
     const short = webhookFor(quote, 'att-1', quote.amountPaidAtCheckout - 1);
-    expect(applyOrderInput(spine, { kind: 'provider', event: short })).toEqual({
+    // RAPPROCHEMENT-1: the money contradiction now carries its §6 alert.
+    expect(applyOrderInput(spine, { kind: 'provider', event: short })).toMatchObject({
       applied: false,
       reason: 'amount_mismatch',
     });

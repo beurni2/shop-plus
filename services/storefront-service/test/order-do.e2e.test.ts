@@ -2294,3 +2294,88 @@ describe('NB-3 — the webhook names the charge this order initiated (real Worke
     expect(door.status).toBe(404);
   });
 });
+
+/* ═══════════ RAPPROCHEMENT-1 (E3) — the alert sink + the reconcile pass ═══════════ */
+
+describe('RAPPROCHEMENT-1 — reconciliation alerts are SUNK durably (audit B4 closed), and the pass answers', () => {
+  const alertsOf = async (m: Miniflare, orderId: string) => {
+    const record = (await audit(m, orderId)) as unknown as {
+      reconAlerts?: { envelope: { command_id: string }; payload: Record<string, unknown> }[];
+    };
+    return record.reconAlerts ?? [];
+  };
+
+  it('an amount contradicting the Quote refuses 422 AND its §6 alert is RECORDED — once, however many redeliveries', async () => {
+    const { orderId } = await orderedQuote(mf, '9401');
+    const tampered = await trueWebhookEvent(mf, orderId, 11_111);
+    const refused = await postWebhook(mf, tampered);
+    expect(refused.status).toBe(422);
+    expect(refused.json['error']).toBe('amount_mismatch');
+
+    const alerts = await alertsOf(mf, orderId);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]!.payload).toMatchObject({
+      alert: 'provider_amount_contradicts_quote',
+      provider_amount: 11_111,
+      expected_amount: 12_500,
+      leg: 'checkout',
+    });
+
+    // The provider redelivers the SAME webhook: the refusal re-mints the same
+    // deterministic alert and the sink ABSORBS it — one record, not a count.
+    await postWebhook(mf, tampered);
+    expect(await alertsOf(mf, orderId)).toHaveLength(1);
+  });
+
+  it('B4 CLOSED ON THE DOOR ROAD: a door confirmation for an order NOT door-pending refuses AND the long-dropped alert is recorded', async () => {
+    const { orderId } = await orderedQuote(mf, '9402');
+    const paid = await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500));
+    expect(paid.status, paid.text).toBe(200); // confirmed, FULL_PREPAY — no door leg exists
+
+    const stray = doorWebhookEvent(orderId, 11_500, 'door-key-9402');
+    const refused = await postDoorWebhook(mf, stray);
+    expect(refused.status).toBe(422);
+    expect(refused.json['error']).toBe('door_leg_not_expected');
+
+    const alerts = await alertsOf(mf, orderId);
+    expect(alerts.map((a) => a.payload['alert'])).toContain('door_confirmation_without_door_pending_order');
+  });
+
+  it('a GENUINE webhook after a LOCALLY FAILED charge refuses out_of_order 409 AND genuine_webhook_after_local_failure is sunk', async () => {
+    const m = slowMf();
+    const { orderId, created } = await orderedQuote(m, '9403');
+    // The slow runtime's certified provider timed out the first charge — the
+    // order failed LOCALLY, and the provider truth below contradicts that.
+    expect(created.json['state']).toBe('payment_failed');
+
+    const genuine = await trueWebhookEvent(m, orderId, 12_500);
+    const refused = await postWebhook(m, genuine);
+    expect(refused.status).toBe(409);
+    expect(refused.json['error']).toBe('out_of_order');
+
+    const alerts = await alertsOf(m, orderId);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]!.payload).toMatchObject({
+      alert: 'genuine_webhook_after_local_failure',
+      local_failure_reason: 'charge_timeout',
+      leg: 'checkout',
+    });
+  });
+
+  it('/entry/reconcile: a CLEAN confirmed order answers clean:true with no alerts and sinks nothing — and the pass is INTERNAL only', async () => {
+    const { orderId } = await orderedQuote(mf, '9404');
+    const paid = await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500));
+    expect(paid.status, paid.text).toBe(200);
+
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    const res = await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/reconcile');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ ok: true, clean: true, alerts: [] });
+    expect(await alertsOf(mf, orderId)).toHaveLength(0);
+
+    // No public road reaches the pass — internal like the audit read.
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}/reconcile`);
+    expect(pub.status).toBe(404);
+  });
+});
