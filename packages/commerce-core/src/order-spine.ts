@@ -253,7 +253,9 @@ export class OrderSpine {
    * it refuses, because none can be genuine. A payload
    * `order_id` contradicting the chain's refuses unconditionally; correlation
    * already binds the journey, so this is a contradiction check, not a
-   * presence requirement (the certified provider does not send order_id).
+   * presence requirement — the certified provider DOES send order_id on both
+   * legs (payment-provider-mock echoes the charge request's), so in practice
+   * a genuine webhook always faces the check; absence alone never refuses.
    */
   onProviderPaymentEvent(raw: unknown, expectedProviderKey?: string | null): SpineOutcome {
     const parsed = PlatformEventSchema.safeParse(raw);
