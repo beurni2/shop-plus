@@ -9,6 +9,32 @@ Format per entry:
 
 ---
 
+## 2026-08-22 · QUARTIERS-OUAGA-1 — every official quartier of Ouagadougou on the buyer's payment screen · IN REVIEW (awaiting merge word)
+
+**Founder, 2026-08-22: « On boutik+, on the buyer's payment pwa screen, and in sera not all quartier from Ouagadougou are displayed, I want you search on an up to date doc where you will source all quartiers in Ouagadougou and put them on boutik+ and on sera and on the buyer's payment pwa screen. Make sure the displaying are nice and professional and doesn't break anything. »**
+
+**THE DOC (the up-to-date administrative truth): Loi n°066-2009/AN (22 déc 2009) — Ouagadougou reorganised into 12 arrondissements**, the structure in force today (the Dec 2012 amendment added secteur 24: a secteur change, not a quartier change). Every direct fetch of a source was EGRESS_BLOCKED by the session proxy (Wikipedia, insd.bf, the Burkinabè press), so the répartition was assembled from search-result snippets and **cross-checked across five independent reproductions** (Wakat Séra · aOuaga.com · Tinganews · Laborpresse · Nei Yibeogo), requiring ≥2 independent agreeing snippets per arrondissement; a synthesized answer that wrongly added Kouritenga to arr. 1 was rejected against the verbatim snippet. **78 rows, 77 distinct quartiers** (Dassasgho straddles arr. 10/11 and dedupes) — the app shipped eight. Plain « Gounghin » is not in the law (it split into Gounghin Sud, arr. 1 / Gounghin Nord, arr. 2), so every old default moved to « Gounghin Sud ».
+
+**BUILT (`76be2ee` + verifier fixes).** `quartiers-ouagadougou.ts` — the sourced module: `QUARTIERS_PAR_ARRONDISSEMENT`, the deduped flat list in deterministic accent-folded order, and `filtrerQuartiers` (plain folded substring, Law 5 — never a score). C3 « Votre quartier »: the full list as a scrollable chip cloud (176px, house chips), a filter field that patches ONLY the cloud (the focus law — typing never re-renders the tree; `zoneFiltre` deliberately outside the reprise snapshot), the kept choice pinned atop any narrowed or empty cloud, and a no-match query offering « Utiliser « … » » — her typed text, esc()'d, trimmed to the wire's 120 — never a dead end. **No allowlist anywhere: the wire still takes any bounded string** (order-do validation untouched), so villages rattachés and new lotissements keep working, and a future pay-at-door zone-policy re-tightening must simply speak these same names.
+
+**RED-FIRST + THE WALK.** Module pins written first (the 'goun' expectation itself corrected against the data). The Playwright walk (`e2e/quartiers.spec.ts`) drove the real page and **caught a real gap the unit tests missed: on the no-match road her earlier selection vanished from the cloud** — fixed in-build (the kept-choice chip now rides both branches). Mutation, anchor-verified in-session: severing the boutik+ chip wiring reddened the walk on the fill-the-field assertion.
+
+**Evidence.** buyer-pwa **1032/1032** (41 files, incl. 8 module pins + 4 picker tests) · e2e: full run 107/108 — the one red was a stale pin (`checkout-real.spec.ts:548` still expected `'Gounghin'`; moved to `'Gounghin Sud'`, its file re-run **41/41**) · quartiers walk green · typecheck clean · repo `run-gates.sh` **ALL GATES GREEN**.
+
+**VERIFIER (fresh context: the founder's order verbatim, Law 5/6 + §5 quotes, both repos' diffs, the DoD): no BLOCKER, 6 NOTEs, handled once:**
+- *(fixed)* the drift-catching claim in the module headers was stronger than the pins — the count is now pinned EXACT (78 rows / 77 flat) in both repos.
+- *(fixed)* the XSS proof covered the element context only; a quote-bearing payload (`" onmouseover=`) now pins the attribute context.
+- *(fixed)* `cliente-money.test.ts` fixtures still said plain `'Gounghin'` — aligned to `'Gounghin Sud'`.
+- *(fixed, boutik+)* the cloud-collapse was equality-based and inconsistent for substring names — a TAP now settles the cloud, typing reopens it (its journal).
+- *(noted)* boutik+ board confirmed genuinely green (it was — 976/74 + tsc).
+- *(reported plainly)* **séra ships NO diff, by decision:** no quartier picker exists anywhere in séra — the rider and console display the zone string the order carries (kernel `LocationSchema` bounds it; `landmarkFirstLines` renders `location.zone`), so the buyer-PWA list IS what fixes séra's display. Its only « Gounghin » bytes are sandbox fixtures.
+
+**Process, on the record:** one mutation-revert used `git checkout --` on the uncommitted `screens2.tsx` (the CLAVIER-MARGE trap, again) — rebuilt from the verified content and re-proven before proceeding.
+
+**Pending:** the founder's merge word for the branch. His phone remains the check on how the cloud LOOKS in the sun — no walk here claims appearance.
+
+---
+
 ## 2026-08-22 · PANIER-VITRINE-1 — her boutique remembers her: panier + hearts, no account · DONE
 
 **MERGED AND DEPLOYED (founder's word, 2026-08-22):** main fast-forwarded to `8d5ff88`; all four push-triggered workflows green on it, attempt 1 — ci run 548, **pwa-preview run 338 (the buyer PWA's Pages deploy — this slice's deployable)**, expo-preview run 371, service-canon-drift run 204. The storefront service is untouched by this slice, so no storefront-deploy dispatch was needed.

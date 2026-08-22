@@ -43,5 +43,10 @@ describe('renderC3 — the quartier block', () => {
     expect(html).toContain('data-zone="Zone du Bois"');
     const hostile = renderQuartierChips(null, '<img src=x onerror=alert(1)>');
     expect(hostile).not.toContain('<img');
+    // ATTRIBUTE context too (verifier note): her text also lands inside
+    // data-zone="…", so a raw double quote must never survive to break out.
+    const guillemet = renderQuartierChips(null, '" onmouseover="alert(1)');
+    expect(guillemet).not.toContain('"" onmouseover=');
+    expect(guillemet).toContain('&quot;');
   });
 });
