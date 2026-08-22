@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-22 · NB-3 + PORTE-REFUSÉE (E2) · in-review — on the branch, awaiting the founder's merge word
+## 2026-08-22 · NB-3 + PORTE-REFUSÉE (E2) · DONE
+
+**MERGED AND DEPLOYED (founder's word, 2026-08-22):** main fast-forwarded to `384fb24`; all five workflows green on it, attempt 1 — ci run 544, storefront-deploy run 61 (32579246073), expo-preview run 367, pwa-preview run 334, service-canon-drift run 200. Sera's half deployed the same hour (custody-deploy run 16, its journal).
 
 **Founder, 2026-08-21: « Fix the headers then start on the E2 gaps and NB-3, then then E3 reconciliation with B4's alert. »** Headers were done first (BOOKS-CORRECTION below). This entry is the two E2 gaps; E3 + B4 is next.
 
