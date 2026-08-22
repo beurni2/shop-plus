@@ -1092,6 +1092,36 @@
   "screenClass": "status"
  },
  {
+  "key": "vit.panier_titre",
+  "fr": "Mon panier",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.panier_aria",
+  "fr": "Mettre dans mon panier",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.panier_retirer_aria",
+  "fr": "Retirer du panier",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.panier_ajoute",
+  "fr": "Dans votre panier, sur ce téléphone",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.panier_retire",
+  "fr": "Retiré de votre panier",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "vit.head_une",
   "fr": "Produit à la une",
   "register": "selling",

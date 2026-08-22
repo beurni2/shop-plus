@@ -36,6 +36,7 @@ import {
 } from './icons';
 import { VITRINE_THEMES } from './themes';
 import { isFavorite } from './favorites';
+import { inPanier, panierOf } from './panier';
 import { enteteMontreBio, renderEntete, type EnteteKey } from './entetes';
 
 /** « X\u202fFCFA » — the ONE formatter (cliente/money): U+202F thousands +
@@ -267,19 +268,28 @@ function fav(pid: string): string {
   return `<span class="vt-fav${on ? ' vt-fav-on' : ''}" role="button" tabindex="0" data-action="favori" data-pid="${esc(pid)}" aria-pressed="${on}" aria-label="${t('vit.favori_aria')}">${iconHeart(16, '#1C1710', 1.9)}</span>`;
 }
 
-function tile(p: VitrineProduct, note?: ProductVoiceNote): string {
+/** PANIER-VITRINE-1 — the add-to-panier chip, the heart's sibling: top-left of
+ *  the art (the heart keeps top-right), device-local truth via panier.ts, and
+ *  closest() routes its tap to `panier`, never to `produit` (the fav law). */
+function pan(slug: string, pid: string): string {
+  const on = inPanier(slug, pid);
+  return `<span class="vt-pan${on ? ' vt-pan-on' : ''}" role="button" tabindex="0" data-action="panier" data-pid="${esc(pid)}" aria-pressed="${on}" aria-label="${t('vit.panier_aria')}">${iconBag(15, '#1C1710', 2)}</span>`;
+}
+
+function tile(p: VitrineProduct, note: ProductVoiceNote | undefined, slug: string): string {
   const cls = p.inStock ? 'vt-tile' : 'vt-tile vt-tile-epuise';
   const attrs = p.inStock
     ? `data-action="produit" data-pid="${esc(p.pid)}"`
     : 'aria-disabled="true" disabled';
-  // NORTH-STAR-1 — the go circle is a chevron, not a cart (no cart exists). The
-  // heart is REAL: a working device-local wishlist (favorites.ts), because a
-  // decorative heart would be a dead button. « Livraison 24–48h · Séra
+  // NORTH-STAR-1 — the heart is REAL (favorites.ts) and, since
+  // PANIER-VITRINE-1, so is the panier chip: both device-local, both honest,
+  // because a decorative chip would be a dead button. Neither renders on an
+  // épuisé — an add nobody can complete would lie. « Livraison 24–48h · Séra
   // vérifiée » is the FOUNDER'S delivery promise (his order, logged) — flagged
   // as unmeasured, reaffirmed, rendered as given.
   return [
     `<button class="${cls}" data-role="vitrine-produit" ${attrs}>`,
-    `<div class="vt-artwrap">${produitArt(p, !p.inStock)}${p.inStock ? fav(p.pid) : ''}</div>`,
+    `<div class="vt-artwrap">${produitArt(p, !p.inStock)}${p.inStock ? fav(p.pid) : ''}${p.inStock ? pan(slug, p.pid) : ''}</div>`,
     '<div class="vt-tile-body">',
     `<div class="vt-tile-name"><v>${esc(p.name)}</v></div>`,
     '<div class="vt-tile-pricerow">',
@@ -364,16 +374,16 @@ function featuredArt(p: VitrineProduct): string {
  * It carried both — the sections and the residual — because a shop where one
  * grid staggers and the other does not looks broken rather than designed.
  */
-function grille(prods: readonly VitrineProduct[], notes: ProductVoiceNotes): string {
+function grille(prods: readonly VitrineProduct[], notes: ProductVoiceNotes, slug: string): string {
   const colonne = (c: 0 | 1): string =>
-    prods.filter((_, i) => i % 2 === c).map((p) => tile(p, notes[p.pid])).join('');
+    prods.filter((_, i) => i % 2 === c).map((p) => tile(p, notes[p.pid], slug)).join('');
   return `<div class="vt-grid"><div class="vt-col">${colonne(0)}</div><div class="vt-col">${colonne(1)}</div></div>`;
 }
 
-function featuredTile(p: VitrineProduct, note?: ProductVoiceNote, pinnedByHer = true): string {
+function featuredTile(p: VitrineProduct, note: ProductVoiceNote | undefined, pinnedByHer: boolean, slug: string): string {
   return [
     `<button class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${esc(p.pid)}">`,
-    `<div class="vt-featured-artwrap">${featuredArt(p)}${pinnedByHer ? `<span class="vt-featured-badge">${t('vit.a_la_une')}</span>` : ''}${fav(p.pid)}</div>`,
+    `<div class="vt-featured-artwrap">${featuredArt(p)}${pinnedByHer ? `<span class="vt-featured-badge">${t('vit.a_la_une')}</span>` : ''}${fav(p.pid)}${pan(slug, p.pid)}</div>`,
     '<div class="vt-featured-body">',
     `<span class="vt-featured-name"><v>${esc(p.name)}</v></span>`,
     `<b class="vt-featured-price"><v>${fmtFcfa(p.priceFcfa)}</v></b>`,
@@ -437,6 +447,46 @@ export interface VitrineRenderOpts {
   readonly fromProduct: boolean;
 }
 
+/**
+ * PANIER-VITRINE-1 — the band's content: her saved articles for THIS boutique,
+ * in the order she added, each card opening its own product page (per-product
+ * checkout — §SP9's « no combined cart » holds by construction) with a
+ * « retirer » chip riding the same `panier` action as the tile chip. NO TOTAL
+ * anywhere: a sum would imply a combined purchase that does not exist. A
+ * saved pid absent from the current catalog renders nothing (it may return);
+ * an épuisé renders veiled with no product action, the grid's own convention.
+ * Exported so flows can refresh the slot in place after a toggle.
+ */
+export function renderPanierBand(sf: Storefront, described?: readonly VitrineProduct[]): string {
+  const saved = panierOf(sf.slug);
+  if (saved.length === 0) return '';
+  const catalogue = orderedProducts(sf, undefined, described);
+  const parPid = new Map(catalogue.map((p) => [p.pid, p]));
+  const articles = saved
+    .map((pid) => parPid.get(pid))
+    .filter((p): p is VitrineProduct => p !== undefined);
+  if (articles.length === 0) return '';
+  const cartes = articles.map((p) => {
+    const dispo = p.inStock;
+    return [
+      `<div class="vt-pan-card${dispo ? '' : ' vt-pan-card-epuise'}" data-role="panier-article">`,
+      `<button class="vt-pan-vis"${dispo ? ` data-action="produit" data-pid="${esc(p.pid)}"` : ' aria-disabled="true" disabled'}>`,
+      `<div class="vt-pan-art">${tileArt(!dispo, p.assetRefs)}</div>`,
+      `<div class="vt-pan-name"><v>${esc(p.name)}</v></div>`,
+      `<div class="vt-pan-price"><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
+      '</button>',
+      `<button class="vt-pan-retirer" data-action="panier" data-pid="${esc(p.pid)}" aria-label="${t('vit.panier_retirer_aria')}">×</button>`,
+      '</div>',
+    ].join('');
+  });
+  return [
+    '<div class="vt-panier" data-role="vitrine-panier">',
+    `<div class="vt-panier-head">${iconBag(15, '#6F6355', 1.9)}<span class="vt-panier-titre">${t('vit.panier_titre')}</span><span class="vt-panier-compte">· <v>${articles.length}</v></span></div>`,
+    `<div class="vt-panier-row">${cartes.join('')}</div>`,
+    '</div>',
+  ].join('');
+}
+
 /** V1/V2 — the vitrine, ready state. One renderer; the profile decides.
  * `notes` (pid → voice note) is render-only: a `ready` note adds the tile chip;
  * everything else renders no chip (§ honesty — a `pending` note never shows). */
@@ -476,6 +526,14 @@ export function renderVitrineReady(
     parts.push(`<div class="vt-presentation" data-role="vitrine-presentation"><v>${esc(sf.bio)}</v></div>`);
   }
 
+  // PANIER-VITRINE-1 — HER shelf, back where she left it (founder order
+  // 2026-08-22): rendered from the device-local store on every load, above the
+  // seller's showcase because a returning buyer's first question is « où en
+  // étais-je ? ». The slot always renders so a tap can refresh the band in
+  // place; an empty panier renders nothing inside it (honest silence, not an
+  // empty box).
+  parts.push(`<div data-role="vitrine-panier-slot">${renderPanierBand(sf, described)}</div>`);
+
   // « PRODUIT À LA UNE » — ≤ 2 pinned, never an out-of-stock article. When she
   // pinned NOTHING (K5), the page still leads with her FIRST in-stock article —
   // deterministic (her own curation order, position 1), so the page has the
@@ -514,7 +572,7 @@ export function renderVitrineReady(
         anythingBelow ? 'vt-anchor-grid' : undefined,
       ),
     );
-    for (const p of featured) parts.push(featuredTile(p, notes[p.pid], pinned.length > 0));
+    for (const p of featured) parts.push(featuredTile(p, notes[p.pid], pinned.length > 0, sf.slug));
     if (anythingBelow) parts.push('<div id="vt-anchor-grid"></div>');
   }
 
@@ -537,7 +595,7 @@ export function renderVitrineReady(
     // would refer to nothing and the honest title is « TOUS LES ARTICLES ».
     const residualLabel = featured.length > 0 ? t('vit.head_autres') : t('vit.head_tous');
     parts.push(sectionHead(iconBag(15, '#6F6355', 1.9), residualLabel, undefined, undefined, residual.length));
-    parts.push(grille(residual, notes));
+    parts.push(grille(residual, notes, sf.slug));
   }
 
   parts.push(inkBandAndFooter(sf));

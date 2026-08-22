@@ -224,6 +224,63 @@ export const VITRINE_STYLES = `
   .vt-fav-on svg path { fill: currentColor; stroke: currentColor; }
   .vt-featured-artwrap .vt-fav { top: 10px; right: 10px; }
 
+  /* PANIER-VITRINE-1 — the heart's sibling, top-LEFT so the pair never
+     collide; same 44px touch floor, same white disc, same accent when on. */
+  .vt-pan {
+    position: absolute; top: 6px; left: 6px; z-index: 1;
+    width: 44px; height: 44px; border-radius: 99px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #FFFFFF; box-shadow: 0 1px 3px rgba(28,22,15,.14);
+    color: #1C1710; cursor: pointer;
+  }
+  .vt-pan:active { transform: scale(.9); }
+  .vt-pan svg { display: block; }
+  .vt-pan-on { color: var(--vt-accent); }
+  .vt-pan-on svg path { fill: currentColor; stroke: currentColor; }
+  .vt-featured-artwrap .vt-pan { top: 10px; left: 10px; }
+
+  /* PANIER-VITRINE-1 — her shelf: a quiet band, a horizontal row of small
+     cards. It whispers (the page's primary action stays the seller's
+     showcase); it disappears entirely when empty. */
+  .vt-panier { margin-top: 18px; }
+  .vt-panier-head { display: flex; align-items: center; gap: 8px; }
+  .vt-panier-titre {
+    font-family: 'Sora', 'Inter', sans-serif; font-weight: 700; font-size: 13px;
+    letter-spacing: .08em; text-transform: uppercase; color: #1C1710;
+  }
+  .vt-panier-compte { font-size: 13px; color: #6F6355; }
+  .vt-panier-row {
+    display: flex; gap: 10px; margin-top: 10px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; padding-bottom: 4px;
+  }
+  .vt-panier-row::-webkit-scrollbar { display: none; }
+  .vt-pan-card {
+    position: relative; flex: none; width: 128px;
+    background: #FFFFFF; border-radius: 14px; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(28,22,15,.10);
+  }
+  .vt-pan-vis {
+    display: block; width: 100%; text-align: left;
+    border: 0; padding: 0 0 10px; background: none; cursor: pointer;
+  }
+  .vt-pan-card-epuise .vt-pan-vis { cursor: default; }
+  /* the parent clips; no height rule on .vt-tile-art itself — the grid's
+     no-fixed-art-height law scans that selector and must stay true. */
+  .vt-pan-art { height: 92px; overflow: hidden; }
+  .vt-pan-name {
+    font-size: 12.5px; font-weight: 600; color: #1C1710;
+    margin: 8px 10px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .vt-pan-price { font-size: 12.5px; font-weight: 700; color: #1C1710; margin: 2px 10px 0; }
+  .vt-pan-retirer {
+    position: absolute; top: 4px; right: 4px; z-index: 1;
+    width: 30px; height: 30px; border-radius: 99px; border: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #FFFFFF; box-shadow: 0 1px 3px rgba(28,22,15,.14);
+    color: #6F6355; font-size: 16px; line-height: 1; cursor: pointer;
+  }
+
   /* NORTH-STAR round 3 — the mockup's section heading. */
   .vt-head { display: flex; align-items: center; gap: 8px; margin-top: 24px; }
   .vt-head-glyph { display: inline-flex; flex: none; }

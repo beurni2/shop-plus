@@ -14,6 +14,7 @@
  */
 
 import { isFavorite, toggleFavorite } from './favorites';
+import { togglePanier } from './panier';
 import { t } from '../i18n';
 import { recordVitrineArrival, signedHref } from '../vitrine-link';
 import { demoStorefrontPort, resolveStorefrontPort, VitrineOffline, type StorefrontProfilePort } from './profile';
@@ -21,6 +22,7 @@ import {
   renderVitrineEmpty,
   renderVitrineInvalid,
   renderVitrineOffline,
+  renderPanierBand,
   renderVitrineReady,
   renderVitrineSkeleton,
 } from './render';
@@ -226,6 +228,11 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   // value the port's own return type carries).
   type RenderInput = Resolved | 'offline';
 
+  // PANIER-VITRINE-1 — what the last READY render drew from, kept so a panier
+  // tap can refresh the band in place without re-resolving or re-rendering
+  // the page (a full re-render would stop a playing voice note mid-word).
+  let dernierPret: { sf: Parameters<typeof renderPanierBand>[0]; described?: Parameters<typeof renderPanierBand>[1] } | null = null;
+
   // Render from an ALREADY-RESOLVED value — the resolve happens ONCE per load
   // (never re-resolved per state), the widened async seam feeding this.
   const render = (etatDemande: VitrineEtat, resolved: RenderInput): void => {
@@ -276,6 +283,7 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
           showable === 0
             ? renderVitrineEmpty(sf!, resolu!.trust, { fromProduct }, entete)
             : renderVitrineReady(sf!, resolu!.trust, { fromProduct }, resolu!.notes, described, entete);
+        dernierPret = showable === 0 ? null : { sf: sf!, described };
         // VIDEO-PRODUIT V-1e — the scroll-play observer mounts over the nodes
         // just rendered; no video hero on the page ⇒ it mounts nothing.
         demonteVideos = mountVideoScroll(root);
@@ -372,6 +380,21 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
       const pid = target.getAttribute('data-pid') ?? '';
       applyFavoriteState(root, pid, toggleFavorite(pid));
       toast(root, t(isFavorite(pid) ? 'vit.favori_garde' : 'vit.favori_retire'));
+    } else if (action === 'panier') {
+      // PANIER-VITRINE-1 — the panier is REAL (the favori law): toggle the
+      // device-local store, flip EVERY chip carrying this pid (a product can
+      // sit in the featured card AND the grid), refresh the band in place,
+      // and say honestly where it went. Same action serves the tile chip and
+      // the band's « retirer » — one toggle, two surfaces.
+      ev.preventDefault();
+      const pid = target.getAttribute('data-pid') ?? '';
+      const on = togglePanier(slug, pid);
+      applyPanierState(root, pid, on);
+      const slot = root.querySelector('[data-role="vitrine-panier-slot"]');
+      if (slot !== null && dernierPret !== null) {
+        slot.innerHTML = renderPanierBand(dernierPret.sf, dernierPret.described);
+      }
+      toast(root, t(on ? 'vit.panier_ajoute' : 'vit.panier_retire'));
     } else if (action === 'ancre') {
       // NORTH-STAR round 3 — « Voir tout » is a SCROLL, not a page (the boutique
       // IS this page); a link to nowhere would be the dead button the canon bans.
@@ -396,6 +419,19 @@ export function applyFavoriteState(
 ): void {
   for (const el of scope.querySelectorAll(`[data-action="favori"][data-pid="${pid}"]`)) {
     el.classList.toggle('vt-fav-on', on);
+    el.setAttribute('aria-pressed', String(on));
+  }
+}
+
+/** PANIER-VITRINE-1 — flip every panier chip carrying this pid (the
+ *  applyFavoriteState law, same reason: twins must never disagree). */
+export function applyPanierState(
+  scope: { querySelectorAll(sel: string): ArrayLike<Element> & Iterable<Element> },
+  pid: string,
+  on: boolean,
+): void {
+  for (const el of scope.querySelectorAll(`[data-action="panier"][data-pid="${pid}"]`)) {
+    el.classList.toggle('vt-pan-on', on);
     el.setAttribute('aria-pressed', String(on));
   }
 }
