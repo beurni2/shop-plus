@@ -298,6 +298,13 @@ export const CLIENTE_STYLES = `
     transition: transform .15s, background .2s;
   }
   .cl-chip:active { transform: scale(.95); }
+  /* QUARTIERS-OUAGA-1 — 77 official quartiers need a bounded, scrollable
+     cloud under the filter field: complete without burying the screen. */
+  .cl-chips-quartiers {
+    max-height: 176px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 2px 2px 6px; align-content: flex-start;
+  }
+  .cl-chip-libre { border-style: dashed; }
   .cl-chip-on { border-color: var(--vt-accent); background: var(--vt-soft); color: var(--vt-deep); }
   .cl-field {
     margin-top: 8px; width: 100%; font: inherit; font-size: 15.5px; padding: 15px;

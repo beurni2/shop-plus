@@ -21,7 +21,8 @@
 
 import { applyTheme, type VitrineThemeKey } from '../vitrine/themes';
 import {
-  renderC1, renderC10, renderC3, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
+  renderC1, renderC10, renderC3,
+  renderQuartierChips, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
   renderGalerie, renderOffline, renderRefus, renderSheet, renderSkeleton, renderToasts,
   galerieSlides,
   etapeDeSuivi,
@@ -145,6 +146,9 @@ interface FlowState {
   sheet: boolean;
   toasts: Array<{ id: number; m: string }>;
   zone: string | null;
+  /** QUARTIERS-OUAGA-1 — the quartier filter's text. UI state only: it is
+   *  deliberately NOT part of the reprise snapshot (the pinned key list). */
+  zoneFiltre: string;
   repere: string;
   indic: string;
   /** BC-1b — her number, captured on C3 for the dispatch contact. */
@@ -414,6 +418,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     sheet: init.ecran === 'C2',
     toasts: [],
     zone: null,
+    zoneFiltre: '',
     repere: '',
     indic: '',
     phone: '',
@@ -699,7 +704,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   function prefill(screen: EcranLineaire): void {
     const idx = ECRANS.indexOf(screen);
     if (idx >= 1) {
-      state.zone = state.zone || 'Gounghin';
+      state.zone = state.zone || 'Gounghin Sud';
       state.repere = state.repere || 'Face à la pharmacie du marché';
     }
     if (idx >= 2 && screen !== 'C3') state.delivery = state.delivery || 'today';
@@ -752,14 +757,14 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         return renderC1(m, { epuise: state.stock === 'out', sansVoix: init.sansVoix ?? false });
       case 'C3':
         return renderC3({
-          zone: state.zone, repere: state.repere, indic: state.indic, phone: state.phone,
+          zone: state.zone, zoneFiltre: state.zoneFiltre, repere: state.repere, indic: state.indic, phone: state.phone,
           voice: state.voice, recTime: recTime(), canContinue: canC3(),
         });
       case 'C4':
         // Render-time fallbacks — the pixel's zoneUpper/repereRecap `||` pair,
         // so a direct C4 mount shows a coherent récap without touching state.
         return q === null ? renderRefus('') : renderC4(q, {
-          zone: state.zone || 'Gounghin',
+          zone: state.zone || 'Gounghin Sud',
           repereRecap: (state.repere || 'Face à la pharmacie du marché') + (state.indic ? ` · ${state.indic}` : ''),
           delivery: state.delivery,
           ligneUnique: state.serverQuote !== null,
@@ -1492,6 +1497,14 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     const el = ev.target as HTMLInputElement;
     const role = el.getAttribute('data-role');
     if (role === 'repere') { state.repere = el.value; patchC3Cta(); }
+    if (role === 'quartier-filtre') {
+      // QUARTIERS-OUAGA-1 — typing filters the répertoire; only the chip
+      // cloud is patched (a full re-render would steal her caret, the same
+      // law the repère and phone fields already live by).
+      state.zoneFiltre = el.value;
+      const nuage = container.querySelector('[data-role="quartier-chips"]');
+      if (nuage !== null) nuage.innerHTML = renderQuartierChips(state.zone, state.zoneFiltre);
+    }
     if (role === 'indic') state.indic = el.value;
     if (role === 'phone') {
       /**

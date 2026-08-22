@@ -19,6 +19,7 @@
  */
 
 import { esc } from '../format';
+import { filtrerQuartiers, QUARTIERS_OUAGADOUGOU } from './quartiers-ouagadougou';
 import { productGlyph } from '../vitrine/icons';
 import { fmtFCFA, groupFr, NNBSP } from './money';
 import {
@@ -151,7 +152,44 @@ export type DoorEtat = 'inspecting' | 'accepted' | 'echec' | 'report';
 export type ConfirmEtat = 'confirmed' | 'attente' | 'echec' | 'pending' | 'offline';
 
 /** Les 8 zones (§4 C3 — l'ensemble exact du pixel source). */
-export const ZONES: readonly string[] = ['Gounghin', 'Dassasgho', 'Pissy', 'Tampouy', 'Wemtenga', 'Zogona', 'Cissin', 'Somgandé'];
+/**
+ * QUARTIERS-OUAGA-1 (founder order 2026-08-22) — the eight hand-picked zones
+ * are retired: the picker now carries the OFFICIAL répartition of Ouagadougou
+ * (Loi n°066-2009/AN, 12 arrondissements — sourced and pinned in
+ * quartiers-ouagadougou.ts), with a filter on top because 77 chips need a
+ * way in. No list can gate her: a quartier the doc does not know (villages
+ * rattachés, new lotissements) is offered back as her own typed text.
+ */
+export const ZONES: readonly string[] = QUARTIERS_OUAGADOUGOU;
+
+/** How many characters the wire accepts for a quartier (order-do's bound). */
+const QUARTIER_MAX = 120;
+
+/** The chip cloud alone — exported so the flow can patch it in place while
+ *  she types (a full re-render would steal the filter field's focus). */
+export function renderQuartierChips(zone: string | null, filtre: string): string {
+  const texte = filtre.trim().slice(0, QUARTIER_MAX);
+  const noms = filtrerQuartiers(texte);
+  if (noms.length === 0 && texte !== '') {
+    // HER word beats our list — never a dead end (the wire takes any
+    // bounded string; the répertoire is comfort, not a gate). An earlier
+    // choice stays visible beside the offer — a selection never looks lost
+    // (the walk caught exactly that disappearance).
+    const propre = esc(texte);
+    const garde = zone !== null && zone !== texte
+      ? `<button class="cl-chip cl-chip-on" data-action="zone" data-zone="${esc(zone)}">${esc(zone)}</button>`
+      : '';
+    return `${garde}<button class="cl-chip cl-chip-libre${zone === texte ? ' cl-chip-on' : ''}" data-action="zone" data-zone="${propre}">Utiliser « ${propre} »</button>`;
+  }
+  // The chosen quartier stays visible even when the filter no longer
+  // matches it — a selection must never look lost.
+  const choisi = zone !== null && !noms.includes(zone)
+    ? `<button class="cl-chip cl-chip-on" data-action="zone" data-zone="${esc(zone)}">${esc(zone)}</button>`
+    : '';
+  return choisi + noms
+    .map((z) => `<button class="cl-chip${zone === z ? ' cl-chip-on' : ''}" data-action="zone" data-zone="${esc(z)}">${esc(z)}</button>`)
+    .join('');
+}
 
 /**
  * ═══ VRAI-SUIVI — C7/C9's COPY TABLE, read by `copy-lint-inline-refus` ═══
@@ -613,6 +651,8 @@ export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: bool
 
 export interface C3State {
   readonly zone: string | null;
+  /** What she typed in the quartier filter — UI state, never persisted. */
+  readonly zoneFiltre: string;
   readonly repere: string;
   readonly indic: string;
   /** BC-1b — her number, for the delivery and for nothing else. */
@@ -661,10 +701,9 @@ export function renderC3(s: C3State): string {
     '<div class="cl-screen" data-screen="C3">',
     stepHead('retour-c1', 'Où livrer ?'),
     '<div class="cl-intro">Pas besoin d’adresse — ici, un bon repère vaut mieux. Le livreur connaît la ville.</div>',
-    '<div class="cl-overline">Votre zone</div>',
-    '<div class="cl-chips">',
-    ZONES.map((z) => `<button class="cl-chip${s.zone === z ? ' cl-chip-on' : ''}" data-action="zone" data-zone="${esc(z)}">${esc(z)}</button>`).join(''),
-    '</div>',
+    '<div class="cl-overline">Votre quartier</div>',
+    `<input class="cl-field" data-role="quartier-filtre" value="${esc(s.zoneFiltre)}" placeholder="Chercher votre quartier…" autocomplete="off">`,
+    `<div class="cl-chips cl-chips-quartiers" data-role="quartier-chips">${renderQuartierChips(s.zone, s.zoneFiltre)}</div>`,
     '<div class="cl-overline">Le repère</div>',
     `<input class="cl-field" data-role="repere" value="${esc(s.repere)}" placeholder="Ex. : Face à la pharmacie du marché">`,
     `<input class="cl-field cl-field-indic" data-role="indic" value="${esc(s.indic)}" placeholder="Indication en plus (facultatif)">`,

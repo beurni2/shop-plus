@@ -234,7 +234,7 @@ async function scriptService(page: Page, opts: Scripted = {}): Promise<Wire> {
 }
 
 /** C1 → C3 → (Continuer, which is where the price is asked for). */
-async function askForPrice(page: Page, zone = 'Gounghin'): Promise<void> {
+async function askForPrice(page: Page, zone = 'Gounghin Sud'): Promise<void> {
   await page.goto(ENTRY);
   await page.locator('[data-screen="C1"]').waitFor();
   await page.locator('[data-action="commander"]').click();
@@ -545,7 +545,7 @@ test('SP3.3c · the ORDER body is the allowlist — no amount crosses this wire 
   const contact = body['contact'] as Record<string, unknown>;
   expect(Object.keys(contact).sort()).toEqual(['phone', 'quartier', 'repere']);
   expect(contact['phone']).toBe('70 12 34 56'); // the journey's own C3 input, verbatim
-  expect(contact['quartier']).toBe('Gounghin');
+  expect(contact['quartier']).toBe('Gounghin Sud');
   for (const v of Object.values(contact)) expect(typeof v).toBe('string');
   for (const [k, v] of Object.entries(body)) {
     if (k !== 'contact') expect(typeof v, k).toBe('string');
@@ -925,7 +925,7 @@ test('REPERE-AUDIO-REEL · the REAL recorder — her note is captured by the pho
   await page.locator('[data-screen="C1"]').waitFor();
   await page.locator('[data-action="commander"]').click();
   await page.locator('[data-screen="C3"]').waitFor();
-  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-action="zone"][data-zone="Gounghin Sud"]').click();
   await page.locator('[data-role="phone"]').fill('70 12 34 56');
   await page.locator('[data-role="repere"]').fill('Face à la pharmacie');
   await page.locator('[data-action="voix-demarrer"]').click();
@@ -968,7 +968,7 @@ test('VOIX-ÉTAT-2 · her own note shows PAUSE and counts while it plays, then g
   await page.locator('[data-screen="C1"]').waitFor();
   await page.locator('[data-action="commander"]').click();
   await page.locator('[data-screen="C3"]').waitFor();
-  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-action="zone"][data-zone="Gounghin Sud"]').click();
   await page.locator('[data-action="voix-demarrer"]').click();
   await page.locator('[data-action="voix-arreter"]').waitFor();
   await page.waitForTimeout(2_200); // a note long enough for a second to tick
@@ -1014,7 +1014,7 @@ test('VOIX-ÉTAT-2 · C5 « Écouter la note » shows pause, counts, and stops w
   await page.locator('[data-screen="C1"]').waitFor();
   await page.locator('[data-action="commander"]').click();
   await page.locator('[data-screen="C3"]').waitFor();
-  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-action="zone"][data-zone="Gounghin Sud"]').click();
   await page.locator('[data-role="phone"]').fill('70 12 34 56');
   await page.locator('[data-role="repere"]').fill('Face à la pharmacie');
   await page.locator('[data-action="continuer-c3"]').click();
@@ -1600,7 +1600,7 @@ test('REPERE-AUDIO-REEL · a LOST note gets its sentence — the diagnostic hole
   await page.locator('[data-screen="C1"]').waitFor();
   await page.locator('[data-action="commander"]').click();
   await page.locator('[data-screen="C3"]').waitFor();
-  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-action="zone"][data-zone="Gounghin Sud"]').click();
   await page.locator('[data-role="phone"]').fill('70 12 34 56');
   await page.locator('[data-role="repere"]').fill('Face à la pharmacie');
   await page.locator('[data-action="voix-demarrer"]').click();

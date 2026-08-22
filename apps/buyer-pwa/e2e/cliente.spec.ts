@@ -1403,7 +1403,7 @@ test('C3 — the five voice states + the gate (zone + repère/voix + numéro) dr
   // turns true (BC-1b: a dispatch with no number is a rider with no door).
   const cta = page.locator('[data-action="continuer-c3"]');
   await expect(cta).toBeDisabled();
-  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-action="zone"][data-zone="Gounghin Sud"]').click();
   await expect(cta).toBeDisabled();
   await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
   await expect(cta).toBeDisabled(); // zone + repère alone no longer suffice
@@ -1438,7 +1438,7 @@ test('C3 — TEL-PAIRES: the number spaces itself in pairs AS SHE TYPES, and a m
   await tel.pressSequentially('76160255');
   await expect(tel).toHaveValue('76 16 02 55');
   // the gate still counts DIGITS — the spaces changed nothing for the CTA
-  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-action="zone"][data-zone="Gounghin Sud"]').click();
   await page.locator('[data-role="repere"]').fill('Face à la pharmacie');
   await expect(page.locator('[data-action="continuer-c3"]')).toBeEnabled();
   // a correction IN THE MIDDLE: caret set after « 76 1 » (3 digits in), one
