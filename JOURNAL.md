@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-22 · PANIER-VITRINE-1 — her boutique remembers her: panier + hearts, no account · in-review — on the branch, awaiting the founder's merge word
+## 2026-08-22 · PANIER-VITRINE-1 — her boutique remembers her: panier + hearts, no account · DONE
+
+**MERGED AND DEPLOYED (founder's word, 2026-08-22):** main fast-forwarded to `8d5ff88`; all four push-triggered workflows green on it, attempt 1 — ci run 548, **pwa-preview run 338 (the buyer PWA's Pages deploy — this slice's deployable)**, expo-preview run 371, service-canon-drift run 204. The storefront service is untouched by this slice, so no storefront-deploy dispatch was needed.
 
 **Founder, 2026-08-22: « Since the buyer screen does not require account creation on resellers boutiques/storefronts, I want if a buyer does some activities like (product like, product added to cart) on a reseller's boutique, goes out and comes back in, be able to see it again where he left off. »** Read-before-write found half the request already live: the heart persists device-locally (NORTH-STAR-1, `favorites.ts`, re-rendered from storage at draw time) — and NO cart existed anywhere (the tile comment said so in words: « the go circle is a chevron, not a cart (no cart exists) »). Spec authority: §SP9 « preserving per-product truth, stock, and economics — **no combined cart** » · the §boundary funds legs PER PRODUCT · §5 design doctrine (one primary action, honest states, 44px floor) · §10.5 French Voice · no-account buyer ⇒ device-local is the only lawful continuity.
 
