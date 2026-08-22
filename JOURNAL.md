@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-22 · RAPPROCHEMENT-1 (E3 seed) — the alerts get their sink, the pass names divergences · in-review — on the branch, awaiting the founder's merge word
+## 2026-08-22 · RAPPROCHEMENT-1 (E3 seed) — the alerts get their sink, the pass names divergences · DONE
+
+**MERGED AND DEPLOYED (founder's word, 2026-08-22):** main fast-forwarded to `daa67c9`; all five workflows green on it, attempt 1 — ci run 546, storefront-deploy run 62 (32584560336), expo-preview run 369, pwa-preview run 336, service-canon-drift run 202.
 
 **Founder's standing order (2026-08-21): « …then E3 reconciliation with B4's alert. »** Spec authority re-read before writing: Contract E2 exit (« the defined recovery state + a reconciliation alert »), Contract E3 (« settlement reconciliation »; « provider payout submitted → reconciled end-to-end on sandbox »), audit **B4 [med]** (« Reconciliation alerts are produced and dropped… no sink »), the E2 wo's carried finding 1 (« LATE PROVIDER WEBHOOK AFTER LOCAL FAILURE IS DROPPED WITHOUT AN ALERT — carried to the E3 work order as a named, non-optional item »), Ten Laws #1/#2, SP-I03. **Scope held deliberately:** the REAL aggregator sandbox, webhook signatures beyond the existing secret, payout submission and the refund saga are Real-Money-Gate work behind the OPEN provider Decision (§7) — this slice builds the provider-agnostic reconciliation machinery those will feed. NOT started, on purpose, and named here.
 
