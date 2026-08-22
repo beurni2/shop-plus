@@ -263,17 +263,14 @@ describe('BC-1a — the contact travels to exactly one reader', () => {
     const { orderId, created } = await orderWith('0002', CONTACT);
     expect(created.status, created.text).toBe(200);
     const amount = created.json['amountPaidAtCheckout'] as number;
-    const attempts = created.json['paymentAttemptId'];
-    // the attempt id rides the create answer? — if not, read it from the audit
-    let attemptId = typeof attempts === 'string' ? attempts : undefined;
-    if (attemptId === undefined) {
-      const ns = await mf.getDurableObjectNamespace('ORDER');
-      const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
-        attempts?: { attemptId: string }[];
-      };
-      attemptId = audit.attempts?.[audit.attempts.length - 1]?.attemptId;
-    }
-    if (attemptId === undefined) throw new Error('no attempt id');
+    // NB-3 — a genuine webhook names the LEG KEY the provider was charged
+    // with, off the order's own record (never the chain's audit id).
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
+      legKeys?: Record<string, string>;
+    };
+    const attemptId = audit.legKeys?.['checkout'];
+    if (attemptId === undefined) throw new Error('no checkout leg key');
     const hook = await mf.dispatchFetch('http://c/checkout/webhook/payment', {
       method: 'POST',
       headers: signed,
@@ -356,10 +353,10 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
   async function confirmOrder(orderId: string, amount: number): Promise<void> {
     const ns = await mf.getDurableObjectNamespace('ORDER');
     const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
-      attempts?: { attemptId: string }[];
+      legKeys?: Record<string, string>;
     };
-    const attemptId = audit.attempts?.[audit.attempts.length - 1]?.attemptId;
-    if (attemptId === undefined) throw new Error('no attempt id');
+    const attemptId = audit.legKeys?.['checkout'];
+    if (attemptId === undefined) throw new Error('no checkout leg key');
     const hook = await mf.dispatchFetch('http://c/checkout/webhook/payment', {
       method: 'POST',
       headers: signed,
@@ -798,9 +795,9 @@ describe('RF-1a B2 — a row lost at confirmation time is repaired by the next w
 
       const ns = await blind.getDurableObjectNamespace('ORDER');
       const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
-        attempts?: { attemptId: string }[];
+        legKeys?: Record<string, string>;
       };
-      const attemptId = audit.attempts![audit.attempts!.length - 1]!.attemptId;
+      const attemptId = audit.legKeys!['checkout']!;
       webhookBody = JSON.stringify(webhookEvent(orderId, amount, attemptId));
       const hook = await blind.dispatchFetch('http://c/checkout/webhook/payment', {
         method: 'POST', headers: signed, body: webhookBody,
@@ -932,9 +929,9 @@ describe('RF-1a B3 — a feed longer than the fan-out cap is truncated and SAYS 
       const orderId = `ord-${quoteId}`;
       const ns = await capped.getDurableObjectNamespace('ORDER');
       const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
-        attempts?: { attemptId: string }[];
+        legKeys?: Record<string, string>;
       };
-      const attemptId = audit.attempts![audit.attempts!.length - 1]!.attemptId;
+      const attemptId = audit.legKeys!['checkout']!;
       const hook = await capped.dispatchFetch('http://c/checkout/webhook/payment', {
         method: 'POST', headers: signed, body: JSON.stringify(webhookEvent(orderId, amount, attemptId)),
       });
@@ -1072,9 +1069,9 @@ describe('READINESS-RETURN-1c — preparation news arrives and reaches her feed'
     orderId = `ord-${quoteId}`;
     const ns = await world.getDurableObjectNamespace('ORDER');
     const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
-      attempts?: { attemptId: string }[];
+      legKeys?: Record<string, string>;
     };
-    const attemptId = audit.attempts![audit.attempts!.length - 1]!.attemptId;
+    const attemptId = audit.legKeys!['checkout']!;
     const hook = await world.dispatchFetch('http://c/checkout/webhook/payment', {
       method: 'POST', headers: signed, body: JSON.stringify(webhookEvent(orderId, amount, attemptId)),
     });

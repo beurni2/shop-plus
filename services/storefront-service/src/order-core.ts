@@ -465,7 +465,16 @@ export type OrderInput =
       readonly serverTime: string;
       readonly newPaymentAttemptId: string;
     }
-  | { readonly kind: 'provider'; readonly event: unknown }
+  | {
+      readonly kind: 'provider';
+      readonly event: unknown;
+      /** NB-3 (E2) — the checkout leg's provider key, read from durable
+       *  LEG_KEYS at the route and REPLAYED with the event: the spine refuses
+       *  a webhook naming any other charge; `null` affirms no charge was ever
+       *  initiated, so every webhook refuses. In the log so replay re-judges
+       *  with exactly what the original judgement saw. */
+      readonly expectedProviderKey?: string | null;
+    }
   /**
    * SP4.2a — THE DOOR LEG'S PROVIDER TRUTH, and it is a SEPARATE KIND from
    * `provider` on purpose.
@@ -481,7 +490,12 @@ export type OrderInput =
    * The kind is the routing decision, it is made at the ROUTE (two paths, two
    * handlers), and it is what replays out of the durable log.
    */
-  | { readonly kind: 'door_provider'; readonly event: unknown }
+  | {
+      readonly kind: 'door_provider';
+      readonly event: unknown;
+      /** NB-3 (E2) — the door leg's provider key, same law as `provider`'s. */
+      readonly expectedProviderKey?: string | null;
+    }
   /**
    * SE-LIVE-5b — Séra's settlement-eligibility signal (`delivery.validated.v1`),
    * carried into the log EXACTLY as it arrived. The spine does every check that
@@ -591,7 +605,7 @@ export function applyOrderInput(spine: OrderSpine, input: OrderInput): ApplyOutc
       return outcome.ok ? { applied: true, duplicate: false } : { applied: false, reason: outcome.reason };
     }
     case 'provider': {
-      const outcome = spine.onProviderPaymentEvent(input.event);
+      const outcome = spine.onProviderPaymentEvent(input.event, input.expectedProviderKey);
       return outcome.applied
         ? { applied: true, duplicate: outcome.duplicate }
         : { applied: false, reason: outcome.reason };
@@ -619,7 +633,7 @@ export function applyOrderInput(spine: OrderSpine, input: OrderInput): ApplyOutc
      * told is not. It belongs with the reconciliation slice, E3.
      */
     case 'door_provider': {
-      const outcome = spine.onProviderDoorPaymentEvent(input.event);
+      const outcome = spine.onProviderDoorPaymentEvent(input.event, input.expectedProviderKey);
       return outcome.applied
         ? { applied: true, duplicate: outcome.duplicate === true }
         : { applied: false, reason: outcome.reason };

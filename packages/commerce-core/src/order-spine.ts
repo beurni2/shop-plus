@@ -63,7 +63,11 @@ export type SpineRefusalReason =
   | 'reservation_not_confirmed'
   | 'door_leg_not_expected'
   | 'door_leg_before_checkout_leg'
-  | 'supplier_ref_missing';
+  | 'supplier_ref_missing'
+  /** NB-3 (E2): the webhook names a charge this order never initiated. */
+  | 'attempt_mismatch'
+  /** NB-3 (E2): the webhook's own order_id contradicts the chain's. */
+  | 'order_mismatch';
 
 export type SpineOutcome =
   | { applied: true; duplicate: boolean }
@@ -238,8 +242,20 @@ export class OrderSpine {
    * Provider webhook (the only payment truth). Idempotent on
    * envelope.command_id; validates the confirmed amount against the
    * immutable Quote to the franc; records the EscrowTxn; advances to paid.
+   *
+   * NB-3 (E2, deferred at E1 and journalled) — THE WEBHOOK MUST NAME THE
+   * CHARGE THIS ORDER INITIATED. `expectedProviderKey` is the LEG's provider
+   * key — the id the provider was actually charged with, stable across every
+   * retry of the leg (which is why it, and not the chain's per-attempt audit
+   * id, is what the webhook echoes). When the caller provides it, a payload
+   * naming any other id — or naming none — refuses closed. `null` means the
+   * caller affirms NO charge was ever initiated on the leg: every webhook for
+   * it refuses, because none can be genuine. A payload
+   * `order_id` contradicting the chain's refuses unconditionally; correlation
+   * already binds the journey, so this is a contradiction check, not a
+   * presence requirement (the certified provider does not send order_id).
    */
-  onProviderPaymentEvent(raw: unknown): SpineOutcome {
+  onProviderPaymentEvent(raw: unknown, expectedProviderKey?: string | null): SpineOutcome {
     const parsed = PlatformEventSchema.safeParse(raw);
     if (!parsed.success) return { applied: false, reason: 'not_a_platform_event' };
     const event = parsed.data;
@@ -257,6 +273,8 @@ export class OrderSpine {
     }
 
     const p = event.payload as Record<string, unknown>;
+    const idCheck = this.checkWebhookIds(p, expectedProviderKey);
+    if (idCheck !== null) return { applied: false, reason: idCheck };
     const amount = p['amount'];
     const status = p['status'];
     // PER MODE by construction (§5.5): amountPaidAtCheckout is buyerTotal
@@ -347,7 +365,7 @@ export class OrderSpine {
    * confirmation arriving for an order NOT door-pending refuses AND carries
    * a reconciliation.alert.v1.
    */
-  onProviderDoorPaymentEvent(raw: unknown): DoorPaymentOutcome {
+  onProviderDoorPaymentEvent(raw: unknown, expectedProviderKey?: string | null): DoorPaymentOutcome {
     const parsed = PlatformEventSchema.safeParse(raw);
     if (!parsed.success) return { applied: false, reason: 'not_a_platform_event', alert: null };
     const event = parsed.data;
@@ -370,6 +388,9 @@ export class OrderSpine {
     }
 
     const p = event.payload as Record<string, unknown>;
+    // NB-3 (E2) — same id cross-check as the checkout twin, same closed refusal.
+    const idCheck = this.checkWebhookIds(p, expectedProviderKey);
+    if (idCheck !== null) return { applied: false, reason: idCheck, alert: null };
     const amount = p['amount'];
     const status = p['status'];
     // §5.5 Option B: amountDueAtDelivery == productSubtotal — franc-exact.
@@ -416,6 +437,34 @@ export class OrderSpine {
       },
     });
     return { applied: true, duplicate: false, signal: this.doorSignal };
+  }
+
+  /**
+   * NB-3 (E2) — the shared id cross-check both webhook consumers run before a
+   * single franc is recorded. Returns the refusal, or null when the ids hold.
+   */
+  private checkWebhookIds(
+    p: Record<string, unknown>,
+    // `null` is the caller AFFIRMING no charge was ever initiated on this leg
+    // — no payload id can match it, so every webhook refuses. Deliberately
+    // checked AFTER the state gates, so the truer refusal names still win
+    // (`out_of_order` stays a retryable 409 for an early redelivery,
+    // `door_leg_not_expected` for a mode the leg does not exist in).
+    expectedProviderKey: string | null | undefined,
+  ): 'attempt_mismatch' | 'order_mismatch' | null {
+    if (expectedProviderKey !== undefined && p['payment_attempt_id'] !== expectedProviderKey) {
+      return 'attempt_mismatch';
+    }
+    const payloadOrder = p['order_id'];
+    if (
+      typeof payloadOrder === 'string' &&
+      payloadOrder !== '' &&
+      this.orderId !== undefined &&
+      payloadOrder !== this.orderId
+    ) {
+      return 'order_mismatch';
+    }
+    return null;
   }
 
   /** Contract §6 alert: provider door truth contradicting local state. */

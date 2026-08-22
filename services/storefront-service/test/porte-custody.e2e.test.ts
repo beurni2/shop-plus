@@ -312,12 +312,42 @@ async function postWebhook(path: string, event: unknown) {
   return { status: res.status, text, json: safeJson(text) };
 }
 
+/** NB-3 (E2) — the per-leg provider keys off the order's own record: a genuine
+ *  webhook names its leg's key, so the suite reads it rather than fabricating. */
+async function legKeyOf(orderId: string, leg: 'checkout' | 'door'): Promise<string> {
+  const ns = await mf.getDurableObjectNamespace('ORDER');
+  const res = await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit');
+  const record = (await res.json()) as { legKeys?: Record<string, string> };
+  const key = record.legKeys?.[leg];
+  if (key === undefined) throw new Error(`no ${leg} leg key on ${orderId}`);
+  return key;
+}
+
+/** The buyer ASKS for the door collection — the real road that mints the door
+ *  leg's key. NB-3 refuses a door webhook for a charge never initiated, so
+ *  every door confirmation in this suite now walks this first. */
+async function porteDemandee(orderId: string, n: string): Promise<void> {
+  const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}/door-charge`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ holderRef: `holder-${n}`, commandId: `cmd-door-${n}` }),
+  });
+  if (res.status !== 200) throw new Error(`setup: door-charge ${res.status} ${await res.text()}`);
+}
+
 /** shop → door order → confirmed (checkout leg paid): the door leg now `due`. */
 async function confirmedDoorOrder(n: string): Promise<{ orderId: string; buyerRef: string }> {
   const o = await createdDoorOrder(n);
-  const paid = await postWebhook('/checkout/webhook/payment', checkoutWebhookEvent(o.orderId, `att-pc-${n}`));
+  const paid = await postWebhook(
+    '/checkout/webhook/payment',
+    checkoutWebhookEvent(o.orderId, await legKeyOf(o.orderId, 'checkout')),
+  );
   if (paid.status !== 200) throw new Error(`setup: checkout webhook ${paid.status} ${paid.text}`);
   return o;
+}
+
+/** confirmed + door collection asked: the door webhook that names the real charge. */
+async function trueDoorEvent(orderId: string): Promise<unknown> {
+  return doorWebhookEvent(orderId, await legKeyOf(orderId, 'door'));
 }
 
 /** Séra's arrival fact, over the PROGRESS_WRITE_SECRET-gated transit intake. */
@@ -432,7 +462,8 @@ describe('PORTE-CUSTODY — the applied door webhook arms the wire and the alarm
     custodyDoorRespond = 'ok';
     const { orderId } = await confirmedDoorOrder('0001');
     awaitingDoor.add(orderId);
-    const event = doorWebhookEvent(orderId, 'att-door-0001');
+    await porteDemandee(orderId, '0001');
+    const event = await trueDoorEvent(orderId);
     const applied = await postWebhook('/checkout/webhook/door', event);
     expect(applied.status, applied.text).toBe(200);
     expect(applied.json['doorLeg']).toBe('paid');
@@ -466,7 +497,8 @@ describe('PORTE-CUSTODY — the applied door webhook arms the wire and the alarm
     custodyDoorRespond = 'ok';
     const { orderId } = await confirmedDoorOrder('0002');
     awaitingDoor.add(orderId);
-    const event = doorWebhookEvent(orderId, 'att-door-0002');
+    await porteDemandee(orderId, '0002');
+    const event = await trueDoorEvent(orderId);
     expect((await postWebhook('/checkout/webhook/door', event)).status).toBe(200);
     await waitForDoorPosts(orderId);
     await waitForDoorSignalDone(orderId);
@@ -489,7 +521,8 @@ describe('PORTE-CUSTODY — the applied door webhook arms the wire and the alarm
     try {
       const { orderId } = await confirmedDoorOrder('0003');
       awaitingDoor.add(orderId);
-      expect((await postWebhook('/checkout/webhook/door', doorWebhookEvent(orderId, 'att-door-0003'))).status).toBe(200);
+      await porteDemandee(orderId, '0003');
+      expect((await postWebhook('/checkout/webhook/door', await trueDoorEvent(orderId))).status).toBe(200);
       await waitForDoorPosts(orderId);
       const deadline = Date.now() + 5_000;
       let box = await outboxOf(orderId);
@@ -520,7 +553,9 @@ describe('PORTE-CUSTODY — the applied door webhook arms the wire and the alarm
     // STATE, not a verdict on the event — treating it as carriage complete
     // stranded the order forever (the provider never redelivers; custody
     // would await a signal nobody re-sends). The row must stay PENDING.
-    expect((await postWebhook('/checkout/webhook/door', doorWebhookEvent(orderId, 'att-door-0004'))).status).toBe(200);
+    await porteDemandee(orderId, '0004');
+    const event0004 = await trueDoorEvent(orderId);
+    expect((await postWebhook('/checkout/webhook/door', event0004)).status).toBe(200);
     await waitForDoorPosts(orderId);
     let box = await outboxOf(orderId);
     expect(box.doorSignal?.status).toBe('pending');
@@ -532,7 +567,7 @@ describe('PORTE-CUSTODY — the applied door webhook arms the wire and the alarm
     // duplicate-branch revival hook, so the retry fires now rather than on
     // the backoff rung — same command_id, and the signal lands.
     awaitingDoor.add(orderId);
-    expect((await postWebhook('/checkout/webhook/door', doorWebhookEvent(orderId, 'att-door-0004'))).status).toBe(200);
+    expect((await postWebhook('/checkout/webhook/door', event0004)).status).toBe(200);
     box = await waitForDoorSignalDone(orderId);
     expect(box.doorSignal?.status).toBe('delivered');
     expect(box.doorSignal?.outcome).toBe('accepted');
@@ -555,7 +590,8 @@ describe('PORTE-CUSTODY — the applied door webhook arms the wire and the alarm
     custodyDoorRespond = 'actor_mismatch';
     try {
       const { orderId } = await confirmedDoorOrder('0006');
-      expect((await postWebhook('/checkout/webhook/door', doorWebhookEvent(orderId, 'att-door-0006'))).status).toBe(200);
+      await porteDemandee(orderId, '0006');
+      expect((await postWebhook('/checkout/webhook/door', await trueDoorEvent(orderId))).status).toBe(200);
       await waitForDoorPosts(orderId);
       const box = await waitForDoorSignalDone(orderId);
       expect(box.doorSignal?.status).toBe('delivered');
@@ -575,7 +611,8 @@ describe('PORTE-CUSTODY — the applied door webhook arms the wire and the alarm
 
   it('a MEGABYTE command_id on the door event is refused BY NAME before anything is applied or armed', async () => {
     const { orderId } = await confirmedDoorOrder('0005');
-    const event = doorWebhookEvent(orderId, 'att-door-0005') as { envelope: { command_id: string } };
+    await porteDemandee(orderId, '0005');
+    const event = (await trueDoorEvent(orderId)) as { envelope: { command_id: string } };
     event.envelope.command_id = 'x'.repeat(1_048_576);
     const res = await postWebhook('/checkout/webhook/door', event);
     expect(res.status).toBe(422);
@@ -584,7 +621,7 @@ describe('PORTE-CUSTODY — the applied door webhook arms the wire and the alarm
     expect(box.doorSignal, 'nothing armed for a refused event').toBeUndefined();
     // The order is untouched: a NORMAL door webhook still lands afterwards.
     awaitingDoor.add(orderId);
-    const ok = await postWebhook('/checkout/webhook/door', doorWebhookEvent(orderId, 'att-door-0005'));
+    const ok = await postWebhook('/checkout/webhook/door', await trueDoorEvent(orderId));
     expect(ok.status, ok.text).toBe(200);
     awaitingDoor.delete(orderId);
   }, 60_000);
@@ -687,7 +724,8 @@ describe('§6.3 — the code is withheld while the door leg is due, revealed onc
     expect(`${due.status} ${due.text}`, 'the code must be withheld while the door leg is due').toBe('404 {"ok":false}');
 
     // The buyer pays the product at the door; the provider confirms it.
-    const paid = await postWebhook('/checkout/webhook/door', doorWebhookEvent(o.orderId, 'att-door-0007'));
+    await porteDemandee(o.orderId, '0007');
+    const paid = await postWebhook('/checkout/webhook/door', await trueDoorEvent(o.orderId));
     expect(paid.status, paid.text).toBe(200);
     expect((await vue(o.orderId))['doorLeg']).toBe('paid');
 

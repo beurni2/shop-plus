@@ -480,6 +480,28 @@ async function chargeKeySeenByProvider(m: Miniflare, orderId: string): Promise<s
   return last.collectRef.slice('collect-'.length);
 }
 
+/**
+ * NB-3 (E2) — a GENUINE webhook names the charge the order actually initiated:
+ * the leg's provider key, read off the order's own record (the audit surface),
+ * never fabricated by the test. A fabricated id is now refused by the vault —
+ * which is the invariant, so the fabricating builders survive only where a
+ * refusal BEFORE the id check is the thing under test.
+ */
+async function trueWebhookEvent(m: Miniflare, orderId: string, amount: number): Promise<unknown> {
+  const record = (await audit(m, orderId)) as { legKeys?: Record<string, string> };
+  const key = record.legKeys?.['checkout'];
+  if (key === undefined) throw new Error(`no checkout leg key on ${orderId}`);
+  return webhookEvent(orderId, amount, key);
+}
+
+/** NB-3 — the door twin: the DOOR leg's key, minted by a REAL door-charge. */
+async function trueDoorWebhookEvent(m: Miniflare, orderId: string, amount: number): Promise<unknown> {
+  const record = (await audit(m, orderId)) as { legKeys?: Record<string, string> };
+  const key = record.legKeys?.['door'];
+  if (key === undefined) throw new Error(`no door leg key on ${orderId} — drive /door-charge first`);
+  return doorWebhookEvent(orderId, amount, key);
+}
+
 /** shop → quote → hold → order, the whole buyer path, on the real Worker. */
 async function orderedQuote(
   m: Miniflare,
@@ -890,7 +912,7 @@ describe('OrderDO — the webhook is the ONLY payment truth, and it is authentic
   it('A SIGNED, AMOUNT-EXACT WEBHOOK PAYS AND CONFIRMS — with a funded checkout leg recorded', async () => {
     const { created, orderId } = await orderedQuote(mf, '0008');
     expect(created.status).toBe(200);
-    const applied = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0008'));
+    const applied = await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500));
     expect(applied.status, applied.text).toBe(200);
     expect(applied.json['status']).toBe('applied');
     expect(applied.json['state']).toBe('confirmed');
@@ -910,7 +932,7 @@ describe('OrderDO — the webhook is the ONLY payment truth, and it is authentic
   it('A DUPLICATE WEBHOOK IS ABSORBED — one leg, one payment, no second confirmation', async () => {
     const { created, orderId } = await orderedQuote(mf, '0009');
     expect(created.status).toBe(200);
-    const event = webhookEvent(orderId, 12_500, 'att-0009');
+    const event = await trueWebhookEvent(mf, orderId, 12_500);
     const first = await postWebhook(mf, event);
     expect(first.json['status']).toBe('applied');
 
@@ -933,8 +955,11 @@ describe('OrderDO — the webhook is the ONLY payment truth, and it is authentic
   it('AN AMOUNT THAT IS NOT THE LEG IS REFUSED — one franc over, one franc under, and zero', async () => {
     const { created, orderId } = await orderedQuote(mf, '0010');
     expect(created.status).toBe(200);
+    // The TRUE leg key, so the refusal under test (the amount) is the one that
+    // speaks — a fabricated id would refuse attempt_mismatch before the franc.
+    const key0010 = await chargeKeySeenByProvider(mf, orderId);
     for (const amount of [12_499, 12_501, 0, 1_000]) {
-      const res = await postWebhook(mf, webhookEvent(orderId, amount, `att-0010-${amount}`));
+      const res = await postWebhook(mf, webhookEvent(orderId, amount, key0010));
       expect(res.status, `amount ${amount}`).toBe(422);
       expect(res.json['error'], `amount ${amount}`).toBe('amount_mismatch');
     }
@@ -945,7 +970,7 @@ describe('OrderDO — the webhook is the ONLY payment truth, and it is authentic
     expect((await getOrder(mf, orderId)).json['state']).toBe('payment_pending');
 
     // …and the CORRECT amount still pays, so the refusals above closed nothing else
-    const ok = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0010-true'));
+    const ok = await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500));
     expect(ok.json['state']).toBe('confirmed');
   });
 
@@ -955,6 +980,8 @@ describe('OrderDO — the webhook is the ONLY payment truth, and it is authentic
     const orderId = `ord-${quote.quoteId}`;
 
     // BEFORE: an order that does not exist cannot be paid into existence.
+    // (Fabricated id, deliberately: no order ⇒ no leg key exists to name, and
+    // the 404 refuses before any id is looked at.)
     const early = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0011-early'));
     expect(early.status).toBe(404);
     expect(early.json['error']).toBe('unknown_order');
@@ -971,10 +998,14 @@ describe('OrderDO — the webhook is the ONLY payment truth, and it is authentic
     // refused, not parked, so the order is still unpaid.
     expect((await audit(mf, orderId)).escrow).toBeNull();
 
-    await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0011'));
+    await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500));
     // AFTER: a DIFFERENT confirmation arriving on an already-paid order is
-    // refused closed — never a second leg on one order.
-    const late = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0011-second'));
+    // refused closed — never a second leg on one order. Same genuine key (the
+    // provider re-announcing the same charge), FRESH command id — so the
+    // duplicate absorption cannot speak and the state gate must.
+    const reannounced = (await trueWebhookEvent(mf, orderId, 12_500)) as { envelope: { command_id: string } };
+    reannounced.envelope.command_id = 'whk-reannounce-0011';
+    const late = await postWebhook(mf, reannounced);
     expect(late.status).toBe(409);
     expect(late.json['error']).toBe('out_of_order');
     expect((await audit(mf, orderId)).escrow!.paymentLegs).toHaveLength(1);
@@ -1033,7 +1064,7 @@ describe('OrderDO — the order survives a process death', () => {
   it('a CONFIRMED order reads back identically after dispose(), with its funded leg intact', async () => {
     const { created, orderId } = await orderedQuote(mf, '0015');
     expect(created.status).toBe(200);
-    const paid = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0015'));
+    const paid = await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500));
     expect(paid.json['state']).toBe('confirmed');
     const before = await getOrder(mf, orderId);
 
@@ -1699,7 +1730,7 @@ describe('ORDER-PAID-WIRE-1b — order.confirmed.v1 is emitted on confirm, canon
     fulfillmentRespond = 'ok';
     const { created, orderId } = await orderedQuote(mf, '0060');
     expect(created.status).toBe(200);
-    const applied = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0060'));
+    const applied = await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500));
     expect(applied.json['state']).toBe('confirmed');
 
     await waitForFulfillmentPosts(1);
@@ -1739,7 +1770,7 @@ describe('ORDER-PAID-WIRE-1b — order.confirmed.v1 is emitted on confirm, canon
     fulfillmentPosts.length = 0;
     fulfillmentRespond = 'ok';
     const { orderId } = await orderedQuote(mf, '0061');
-    const event = webhookEvent(orderId, 12_500, 'att-0061');
+    const event = await trueWebhookEvent(mf, orderId, 12_500);
     await postWebhook(mf, event);
     await waitForFulfillmentPosts(1);
     await postWebhook(mf, event);
@@ -1752,7 +1783,7 @@ describe('ORDER-PAID-WIRE-1b — order.confirmed.v1 is emitted on confirm, canon
     fulfillmentPosts.length = 0;
     fulfillmentRespond = 'fail';
     const { orderId } = await orderedQuote(mf, '0062');
-    const applied = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0062'));
+    const applied = await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500));
     // THE MONEY PATH NEVER NOTICES: confirmed, 200, exactly as when boutik is up.
     expect(applied.status).toBe(200);
     expect(applied.json['state']).toBe('confirmed');
@@ -1796,7 +1827,7 @@ describe('ORDER-PAID-WIRE-1b — order.confirmed.v1 is emitted on confirm, canon
       }),
     });
     expect(created.status).toBe(200);
-    const applied = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0063'));
+    const applied = await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500));
     expect(applied.json['state']).toBe('confirmed');
     await new Promise((r) => setTimeout(r, 300));
     expect(fulfillmentPosts).toHaveLength(0);
@@ -1831,7 +1862,7 @@ describe('ORDER-PAID-WIRE-1b verifier round — Option B, the honest clock, the 
     const orderId = `ord-${quote.quoteId}`;
 
     // The CHECKOUT leg (D = 1 000) confirms → the ONE emission, door-mode.
-    const applied = await postWebhook(mf, webhookEvent(orderId, 1_000, 'att-0070'));
+    const applied = await postWebhook(mf, await trueWebhookEvent(mf, orderId, 1_000));
     expect(applied.json['state'], applied.text).toBe('confirmed');
     await waitForFulfillmentPosts(1);
     expect(fulfillmentPosts).toHaveLength(1);
@@ -1841,8 +1872,16 @@ describe('ORDER-PAID-WIRE-1b verifier round — Option B, the honest clock, the 
     expect(parsed.data.payload.paymentMode).toBe('DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
     expect(parsed.data.payload.sellerBasePrice).toBe(10_000); // B — never D, never the door amount
 
-    // The DOOR leg (11 500) confirms → state moves, and STILL exactly one post.
-    const door = await postDoorWebhook(mf, doorWebhookEvent(orderId, 11_500, 'att-door-0070'));
+    // The DOOR leg (11 500): the buyer ASKS for the collection first (the real
+    // road — NB-3 refuses a door webhook for a charge never initiated), then
+    // the provider's confirmation names that charge and the state moves.
+    const doorCharge = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}/door-charge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ holderRef, commandId: 'cmd-door-0070' }),
+    });
+    expect(doorCharge.status, await doorCharge.clone().text()).toBe(200);
+    const door = await postDoorWebhook(mf, await trueDoorWebhookEvent(mf, orderId, 11_500));
     expect(door.status, door.text).toBe(200);
     await new Promise((r) => setTimeout(r, 400));
     expect(fulfillmentPosts).toHaveLength(1);
@@ -1853,7 +1892,7 @@ describe('ORDER-PAID-WIRE-1b verifier round — Option B, the honest clock, the 
     fulfillmentRespond = 'ok';
     const { orderId } = await orderedQuote(mf, '0071');
     const before = Date.now();
-    const event = webhookEvent(orderId, 12_500, 'att-0071') as { envelope: { serverTime: string } };
+    const event = (await trueWebhookEvent(mf, orderId, 12_500)) as { envelope: { serverTime: string } };
     // The certified mock's claimed time is T0-era — days before "now". If the
     // emitter trusted it, paidAt would be that claim; the canon pin says the
     // CONFIRMED transition's own instant instead.
@@ -1877,7 +1916,7 @@ describe('ORDER-PAID-WIRE-1b verifier round — Option B, the honest clock, the 
     expect(res.status).toBe(422);
     expect(res.json['error']).toBe('envelope_field_too_long'); // the route maps `reason` → `error`
     // The order is untouched: a NORMAL webhook still confirms it afterwards.
-    const ok = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0072'));
+    const ok = await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500));
     expect(ok.json['state']).toBe('confirmed');
   });
 });
@@ -2066,7 +2105,7 @@ describe('SE-LIVE-2a — the Séra funding fact, at-least-once and amount-free',
     seraRespond = 'ok';
     const { created, orderId } = await orderedQuote(mf, '0700');
     expect(created.status).toBe(200);
-    const applied = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0700'));
+    const applied = await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500));
     expect(applied.json['state']).toBe('confirmed');
 
     await waitForSeraPosts(1);
@@ -2103,7 +2142,7 @@ describe('SE-LIVE-2a — the Séra funding fact, at-least-once and amount-free',
     seraRespond = 'refuse';
     const { created, orderId } = await orderedQuote(mf, '0701');
     expect(created.status).toBe(200);
-    expect((await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0701'))).json['state']).toBe('confirmed');
+    expect((await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500))).json['state']).toBe('confirmed');
     await waitForSeraPosts(1);
     expect(seraPosts.length).toBeGreaterThanOrEqual(1);
 
@@ -2124,7 +2163,7 @@ describe('SE-LIVE-2a — the Séra funding fact, at-least-once and amount-free',
     seraRespond = 'unauthorized';
     const { created, orderId } = await orderedQuote(mf, '0702');
     expect(created.status).toBe(200);
-    expect((await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0702'))).json['state']).toBe('confirmed');
+    expect((await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500))).json['state']).toBe('confirmed');
     await waitForSeraPosts(1);
     const box = (await outboxOf(mf, orderId)) as unknown as { seraOutbox?: { status: string } };
     expect(box.seraOutbox?.status).toBe('pending');
@@ -2136,7 +2175,7 @@ describe('SE-LIVE-2a — the Séra funding fact, at-least-once and amount-free',
     const m = seralessMf();
     const { created, orderId } = await orderedQuote(m, '0703');
     expect(created.status).toBe(200);
-    expect((await postWebhook(m, webhookEvent(orderId, 12_500, 'att-0703'))).json['state']).toBe('confirmed');
+    expect((await postWebhook(m, await trueWebhookEvent(m, orderId, 12_500))).json['state']).toBe('confirmed');
     // Give the alarm the same window the delivering tests get.
     await new Promise((r) => setTimeout(r, 300));
     // NOTHING was sent — an unconfigured wire does not guess a URL.
@@ -2166,7 +2205,7 @@ describe('SE-LIVE-2a — the Séra funding fact, at-least-once and amount-free',
     fulfillmentRespond = 'fail';
     const { created, orderId } = await orderedQuote(mf, '0704');
     expect(created.status).toBe(200);
-    expect((await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-0704'))).json['state']).toBe('confirmed');
+    expect((await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500))).json['state']).toBe('confirmed');
 
     await waitForSeraPosts(1);
     const box = (await outboxOf(mf, orderId)) as unknown as {
@@ -2178,5 +2217,80 @@ describe('SE-LIVE-2a — the Séra funding fact, at-least-once and amount-free',
     expect(box.seraOutbox?.status).toBe('delivered');
     expect(box.outbox?.status).toBe('pending');
     fulfillmentRespond = 'ok';
+  });
+});
+
+/**
+ * NB-3 (E2, deferred at E1 and journalled) — THE WEBHOOK MUST NAME THE CHARGE
+ * THIS ORDER INITIATED, proven on the REAL Worker through the public wire. The
+ * spine's unit twins live in commerce-core; these drive the deployed bundle:
+ * the leg's provider key is read from durable LEG_KEYS at the route and the
+ * vault refuses any webhook naming another id. (payload.order_id is the wire's
+ * ADDRESS — a contradicting one routes to the wrong object and dies on
+ * correlation; the spine's own order_mismatch guard is the DO-direct defense,
+ * unit-proven.)
+ */
+describe('NB-3 — the webhook names the charge this order initiated (real Worker)', () => {
+  it('a canonical, franc-exact webhook naming a FOREIGN charge refuses 422 attempt_mismatch — then the true key funds', async () => {
+    const { orderId } = await orderedQuote(mf, '9301');
+    const foreign = await postWebhook(mf, webhookEvent(orderId, 12_500, 'att-intrus-9301'));
+    expect(foreign.status, foreign.text).toBe(422);
+    expect(foreign.json['error']).toBe('attempt_mismatch');
+    const record = await audit(mf, orderId);
+    expect(record.state).toBe('payment_pending');
+    expect(record.escrow).toBeNull();
+
+    const genuine = await postWebhook(mf, await trueWebhookEvent(mf, orderId, 12_500));
+    expect(genuine.status, genuine.text).toBe(200);
+    expect((await audit(mf, orderId)).state).toBe('confirmed');
+  });
+
+  it('a DOOR webhook for a door-due order whose door charge was NEVER initiated refuses — the leg it names does not exist', async () => {
+    // Before NB-3 this FUNDED: correct correlation + amount + door-due were
+    // the only gates, so a webhook could pay a leg nobody asked to collect.
+    const shop = await seedShop(mf, '9302');
+    const quote = await issueDoorQuoteFor(mf, shop);
+    const held = await reserve(mf, quote.quoteId, 'cmd-reserve-9302', 'holder-9302');
+    expect(held.status).toBe(200);
+    const contact = { phone: '70123456', quartier: 'Gounghin', repere: 'près du marché' };
+    const created = await postOrder(mf, { quoteId: quote.quoteId, holderRef: 'holder-9302', commandId: 'cmd-order-9302', contact });
+    expect(created.status, created.text).toBe(200);
+    const orderId = `ord-${quote.quoteId}`;
+    const paid = await postWebhook(mf, await trueWebhookEvent(mf, orderId, 1_000));
+    expect(paid.json['state'], paid.text).toBe('confirmed'); // door now DUE
+
+    const ghostDoor = await postDoorWebhook(mf, doorWebhookEvent(orderId, 11_500, 'att-door-jamais'));
+    expect(ghostDoor.status, ghostDoor.text).toBe(422);
+    expect((ghostDoor.json as { error?: string }).error).toBe('attempt_mismatch');
+    expect((await getOrder(mf, orderId)).json['doorLeg']).toBe('due'); // unfunded, unpaid
+
+    // …and the REAL road still works: the buyer asks, the provider confirms.
+    const doorCharge = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}/door-charge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ holderRef: 'holder-9302', commandId: 'cmd-door-9302' }),
+    });
+    expect(doorCharge.status, await doorCharge.clone().text()).toBe(200);
+    const door = await postDoorWebhook(mf, await trueDoorWebhookEvent(mf, orderId, 11_500));
+    expect(door.status, door.text).toBe(200);
+    expect((await getOrder(mf, orderId)).json['doorLeg']).toBe('paid');
+  });
+
+  it('the leg-key read is SECRET-GATED and narrow: 401 unkeyed, one opaque key keyed, 404 for a leg never charged', async () => {
+    const { orderId } = await orderedQuote(mf, '9303');
+    const unkeyed = await mf.dispatchFetch(`http://c/checkout/webhook/leg-key/${encodeURIComponent(orderId)}?leg=checkout`);
+    expect(unkeyed.status).toBe(401);
+    const keyed = await mf.dispatchFetch(`http://c/checkout/webhook/leg-key/${encodeURIComponent(orderId)}?leg=checkout`, {
+      headers: { 'X-Payment-Webhook-Key': WEBHOOK_SECRET },
+    });
+    expect(keyed.status).toBe(200);
+    const body = (await keyed.json()) as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(['legKey', 'ok']); // the key and NOT ONE other field
+    expect(typeof body['legKey']).toBe('string');
+    // A leg never charged has no key to serve — 404, never an invention.
+    const door = await mf.dispatchFetch(`http://c/checkout/webhook/leg-key/${encodeURIComponent(orderId)}?leg=door`, {
+      headers: { 'X-Payment-Webhook-Key': WEBHOOK_SECRET },
+    });
+    expect(door.status).toBe(404);
   });
 });

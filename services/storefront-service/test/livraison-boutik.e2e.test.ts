@@ -189,6 +189,13 @@ async function realOrder(n: string): Promise<string> {
   if (ordered.status !== 200) throw new Error(`setup: order ${ordered.status}`);
   const orderId = `ord-${quote.quoteId}`;
   const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+  // NB-3: the event names the LEG KEY the order actually holds.
+  const nsOrd = await mf.getDurableObjectNamespace('ORDER');
+  const auditRec = (await (await nsOrd.get(nsOrd.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
+    legKeys?: Record<string, string>;
+  };
+  const legKey = auditRec.legKeys?.['checkout'];
+  if (legKey === undefined) throw new Error(`no checkout leg key on ${orderId}`);
   const paid = await mf.dispatchFetch('http://c/checkout/webhook/payment', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Payment-Webhook-Key': WEBHOOK_SECRET },
@@ -199,7 +206,7 @@ async function realOrder(n: string): Promise<string> {
         actor: 'sandbox:founder', serverTime: new Date().toISOString(), version: '1',
       },
       payload: {
-        provider: 'sandbox-provider', payment_attempt_id: `sandbox-${orderId}`,
+        provider: 'sandbox-provider', payment_attempt_id: legKey,
         collectRef: `collect-${orderId}`, amount: Number(vue['amountPaidAtCheckout']),
         fee: 0, status: 'held', order_id: orderId, redelivery: false,
       },

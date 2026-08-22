@@ -20,13 +20,16 @@
  * exists, and this whole file RETIRES at the Real-Money Gate when a real
  * aggregator takes over the half it stands in for.
  *
- * WHY COMPOSITION FROM (orderId, amount) IS ENOUGH — read from the vault, not
- * assumed (`order-spine.ts`, onProviderPaymentEvent): it validates the canon
- * envelope, the event name, `correlation_id === corr-<orderId>` (minted
- * deterministically at order create, order-do.ts), state `payment_pending`,
- * `amount === quote.amountPaidAtCheckout` TO THE FRANC, and a funded status.
- * The provider leg key is recorded, never validated. The amount is read off
- * the order's own public view — the same figure the buyer saw.
+ * WHAT THE VAULT VALIDATES — read from it, not assumed (`order-spine.ts`,
+ * onProviderPaymentEvent): the canon envelope, the event name,
+ * `correlation_id === corr-<orderId>` (minted deterministically at order
+ * create, order-do.ts), state `payment_pending`, `amount ===
+ * quote.amountPaidAtCheckout` TO THE FRANC, a funded status — and, since
+ * NB-3 (E2), that `payment_attempt_id` NAMES THE LEG'S PROVIDER KEY, the id
+ * the order actually charged with. A real aggregator knows that key because
+ * we charged it with one; this stand-in reads it from the secret-gated
+ * `GET /checkout/webhook/leg-key/{orderId}` before composing. The amount is
+ * read off the order's own public view — the same figure the buyer saw.
  *
  * IDEMPOTENT BY CONSTRUCTION: the envelope `command_id` is derived from the
  * order id alone, so a double dispatch is the provider redelivering the same
@@ -50,7 +53,7 @@ export const SANDBOX_ACTOR = 'payment-provider:sandbox';
  * it to the object. My first cut wrapped it here too, and the real Worker
  * refused it `malformed_event` — caught by the seam test, exactly its job.
  */
-export function composeSandboxConfirmation(orderId, amount, nowIso) {
+export function composeSandboxConfirmation(orderId, amount, nowIso, legKey) {
   return {
     name: 'payment.checkout_leg_confirmed.v1',
     envelope: {
@@ -64,8 +67,9 @@ export function composeSandboxConfirmation(orderId, amount, nowIso) {
     },
     payload: {
       provider: 'sandbox-provider',
-      payment_attempt_id: `sandbox-manual-${orderId}`,
-      collectRef: `collect-sandbox-${orderId}`,
+      // NB-3: the charge the order ACTUALLY initiated — the vault refuses any other name.
+      payment_attempt_id: legKey,
+      collectRef: `collect-${legKey}`,
       // Echoed from the order's OWN view — the vault refuses a franc short.
       amount,
       fee: 0,
@@ -121,11 +125,25 @@ async function main() {
     process.exit(1);
   }
 
+  // ── the key the provider must echo (NB-3) ────────────────────────────────
+  const keyRes = await fetch(`${base}/checkout/webhook/leg-key/${encodeURIComponent(orderId)}?leg=checkout`, {
+    headers: { [WEBHOOK_KEY_HEADER]: secret },
+  });
+  const keyBody = await keyRes.json().catch(() => ({}));
+  if (keyRes.status === 401) {
+    console.error('KEY READ REFUSED 401 — PAYMENT_WEBHOOK_SECRET here does not match the deployed Worker. Re-run the payment-webhook-secret workflow, then this one.');
+    process.exit(1);
+  }
+  if (keyRes.status !== 200 || typeof keyBody.legKey !== 'string') {
+    console.error(`KEY READ FAILED: HTTP ${keyRes.status} ${JSON.stringify(keyBody)} — a payment_pending order always holds its checkout leg key; investigate before retrying. Nothing was sent.`);
+    process.exit(1);
+  }
+
   // ── the provider's half ──────────────────────────────────────────────────
   const res = await fetch(`${base}/checkout/webhook/payment`, {
     method: 'POST',
     headers: { [WEBHOOK_KEY_HEADER]: secret, 'Content-Type': 'application/json' },
-    body: JSON.stringify(composeSandboxConfirmation(orderId, amount, new Date().toISOString())),
+    body: JSON.stringify(composeSandboxConfirmation(orderId, amount, new Date().toISOString(), keyBody.legKey)),
   });
   const answer = await res.json().catch(() => ({}));
   if (res.status === 401) {

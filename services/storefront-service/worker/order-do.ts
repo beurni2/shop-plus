@@ -638,6 +638,26 @@ export class OrderDO {
      * is what makes « the retry used a NEW attempt id » and « nothing charged
      * twice » provable against the real Worker rather than asserted.
      */
+    /**
+     * NB-3 (E2) — the ONE opaque key the provider must echo, for the sandbox
+     * stand-in (SANDBOX-PAY-1). A real aggregator knows its collect key
+     * because we charged it with one; the founder's confirm tool stands in
+     * for that aggregator and reads it here. The route to this entry is
+     * gated by PAYMENT_WEBHOOK_SECRET at the composition root — the holder
+     * can already declare money received, so reading the key it must echo
+     * widens nothing. Answers the key and NOT ONE other field.
+     */
+    if (request.method === 'GET' && pathname === '/entry/leg-key') {
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      if (origin === undefined) return Response.json({ ok: false }, { status: 404 });
+      const leg = new URL(request.url).searchParams.get('leg') ?? 'checkout';
+      if (leg !== 'checkout' && leg !== 'door') return Response.json({ ok: false }, { status: 404 });
+      const keys = (await this.state.storage.get<Record<string, string>>(LEG_KEYS_KEY)) ?? {};
+      const legKey = Object.prototype.hasOwnProperty.call(keys, leg) ? keys[leg] : undefined;
+      if (legKey === undefined) return Response.json({ ok: false }, { status: 404 });
+      return Response.json({ ok: true, legKey });
+    }
+
     if (request.method === 'GET' && pathname === '/entry/audit') {
       const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
       if (origin === undefined) {
@@ -677,6 +697,10 @@ export class OrderDO {
         doorLeg: spine.doorLegState,
         receipt: receipt ?? null,
         inputCount: log.length,
+        // NB-3 (E2) — the per-leg provider keys, on this INTERNAL surface only:
+        // a genuine webhook names its leg's key, so the suites build webhooks
+        // from the key the order actually holds instead of fabricating one.
+        legKeys: (await this.state.storage.get<Record<string, string>>(LEG_KEYS_KEY)) ?? {},
       });
     }
 
@@ -1927,7 +1951,21 @@ export class OrderDO {
         return Response.json({ ok: false, reason: 'envelope_field_too_long' }, { status: 422 });
       }
     }
-    const outcome = applyOrderInput(spine, { kind: 'provider', event });
+    /**
+     * NB-3 (E2) — THE WEBHOOK MUST NAME THE CHARGE THIS ORDER INITIATED. The
+     * leg's provider key is what the provider was actually charged with
+     * (stable across retries — order-do.ts's own one-key-per-leg law), read
+     * here from durable storage and handed to the vault, which refuses any
+     * webhook naming another id. No key on record means no charge was ever
+     * asked for on this leg, so no webhook for it can be genuine: `null`
+     * carries that affirmation into the vault, whose state gates still speak
+     * first (an early redelivery keeps its retryable `out_of_order`).
+     */
+    const chkLegKeys = (await this.state.storage.get<Record<string, string>>(LEG_KEYS_KEY)) ?? {};
+    const chkLegKey: string | null = Object.prototype.hasOwnProperty.call(chkLegKeys, 'checkout')
+      ? (chkLegKeys['checkout'] as string)
+      : null;
+    const outcome = applyOrderInput(spine, { kind: 'provider', event, expectedProviderKey: chkLegKey });
     if (!outcome.applied) {
       return Response.json({ ok: false, reason: outcome.reason }, { status: statusForWebhook(outcome.reason) });
     }
@@ -1978,7 +2016,7 @@ export class OrderDO {
     }
 
     const parsed = PlatformEventSchema.parse(event);
-    let next: OrderInput[] = [...log, { kind: 'provider', event }];
+    let next: OrderInput[] = [...log, { kind: 'provider', event, expectedProviderKey: chkLegKey }];
     const confirm: OrderInput = {
       kind: 'confirm',
       // Derived from the provider event's own command id, so a redelivery can
@@ -2280,7 +2318,17 @@ export class OrderDO {
         return Response.json({ ok: false, reason: 'envelope_field_too_long' }, { status: 422 });
       }
     }
-    const input: OrderInput = { kind: 'door_provider', event };
+    // NB-3 (E2) — the same law as the checkout webhook's: the door webhook
+    // must name the door charge THIS order initiated. `null` affirms no door
+    // charge was ever asked for, so no webhook for it can be genuine — before
+    // this, a door-due order with NO initiated charge would have FUNDED on
+    // correct correlation + amount alone. The vault's state gates still speak
+    // first (`door_leg_not_expected` for a mode the leg does not exist in).
+    const doorLegKeys = (await this.state.storage.get<Record<string, string>>(LEG_KEYS_KEY)) ?? {};
+    const doorLegKey: string | null = Object.prototype.hasOwnProperty.call(doorLegKeys, 'door')
+      ? (doorLegKeys['door'] as string)
+      : null;
+    const input: OrderInput = { kind: 'door_provider', event, expectedProviderKey: doorLegKey };
     const outcome = applyOrderInput(spine, input);
     if (!outcome.applied) {
       return Response.json({ ok: false, reason: outcome.reason }, { status: statusForWebhook(outcome.reason) });
@@ -2901,6 +2949,25 @@ export default {
      * the payload — so a checkout confirmation can never, by any payload shape,
      * mark the door leg paid.
      */
+    /**
+     * NB-3 (E2) — the key-read for the sandbox stand-in. GET-only, and it
+     * exists on the wire ONLY behind the composition root's webhook-secret
+     * gate (the same one the two POST routes below stand behind); the router
+     * itself is never mounted without it. One opaque key out, nothing else.
+     */
+    {
+      const legKeyMatch = /^\/checkout\/webhook\/leg-key\/([^/]+)$/.exec(pathname);
+      if (request.method === 'GET' && legKeyMatch !== null) {
+        const orderId = decodeURIComponent(legKeyMatch[1]!);
+        if (!ID_ALPHABET.test(orderId)) return badRequest('bad_field', 'orderId');
+        const leg = new URL(request.url).searchParams.get('leg') ?? 'checkout';
+        const res = await orderStub(env, orderId).fetch(
+          new Request(`https://do/entry/leg-key?leg=${encodeURIComponent(leg)}`),
+        );
+        return new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } });
+      }
+    }
+
     if (request.method === 'POST' && pathname === '/checkout/webhook/door') {
       const raw = await request.json().catch(() => null);
       const parsed = PlatformEventSchema.safeParse(raw);

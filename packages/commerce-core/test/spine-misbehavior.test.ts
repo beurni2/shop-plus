@@ -379,3 +379,64 @@ describe('ledger copy discipline (WO-1.1 d)', () => {
     ).toEqual({ ok: false, reason: 'conflicting_escrow_for_order' });
   });
 });
+
+/**
+ * NB-3 (E2 failure-complete; deferred at E1, journalled) — THE WEBHOOK MUST
+ * NAME THE CHARGE THIS ORDER INITIATED. Correlation, amount-to-the-franc and
+ * state already gate; what they cannot catch is a webhook naming a DIFFERENT
+ * charge (a foreign or fabricated payment_attempt_id, or a payload order_id
+ * contradicting the chain) that happens to carry the right correlation and
+ * amount. The caller passes the LEG'S PROVIDER KEY — the id the provider was
+ * actually charged with, stable across retries — and the spine refuses any
+ * webhook that does not name it. `order_id` is a contradiction check the
+ * spine does alone. Refusals are closed: no escrow, no transition.
+ */
+describe('NB-3 — webhook ids cross-checked against the chain', () => {
+  it('a FOREIGN payment_attempt_id refuses closed when the expected key is given; the true webhook then applies', () => {
+    const quote = issuedQuote();
+    const spine = spineAtPaymentPending(quote);
+    const { plan } = chargeAndPlan({}, quote);
+    const genuine = plan[0]!.event as { payload: Record<string, unknown> };
+    const tampered = JSON.parse(JSON.stringify(genuine)) as { payload: Record<string, unknown> };
+    tampered.payload['payment_attempt_id'] = 'pay-foreign';
+    expect(spine.onProviderPaymentEvent(tampered, 'pay-1')).toEqual({ applied: false, reason: 'attempt_mismatch' });
+    expect(spine.journey.state).toBe('payment_pending');
+    expect(spine.ledger.escrowFor('ord-1')).toBeUndefined();
+    expect(spine.onProviderPaymentEvent(genuine, 'pay-1')).toEqual({ applied: true, duplicate: false });
+    expect(spine.journey.state).toBe('paid');
+  });
+
+  it('a webhook OMITTING payment_attempt_id refuses when an expected key is given — the certified provider always names it', () => {
+    const quote = issuedQuote();
+    const spine = spineAtPaymentPending(quote);
+    const { plan } = chargeAndPlan({}, quote);
+    const anonymous = JSON.parse(JSON.stringify(plan[0]!.event)) as { payload: Record<string, unknown> };
+    delete anonymous.payload['payment_attempt_id'];
+    expect(spine.onProviderPaymentEvent(anonymous, 'pay-1')).toEqual({ applied: false, reason: 'attempt_mismatch' });
+    expect(spine.ledger.escrowFor('ord-1')).toBeUndefined();
+  });
+
+  it('WITHOUT an expected key the legacy contract is untouched (absence of the guard, stated plainly)', () => {
+    const quote = issuedQuote();
+    const spine = spineAtPaymentPending(quote);
+    const { plan } = chargeAndPlan({}, quote);
+    const tampered = JSON.parse(JSON.stringify(plan[0]!.event)) as { payload: Record<string, unknown> };
+    tampered.payload['payment_attempt_id'] = 'pay-foreign';
+    expect(spine.onProviderPaymentEvent(tampered)).toEqual({ applied: true, duplicate: false });
+  });
+
+  it('a payload order_id contradicting the chain refuses order_mismatch — no expected key needed', () => {
+    const quote = issuedQuote();
+    const spine = spineAtPaymentPending(quote);
+    const { plan } = chargeAndPlan({}, quote);
+    const contradicting = JSON.parse(JSON.stringify(plan[0]!.event)) as { payload: Record<string, unknown> };
+    contradicting.payload['order_id'] = 'ord-SOMEONE-ELSE';
+    expect(spine.onProviderPaymentEvent(contradicting)).toEqual({ applied: false, reason: 'order_mismatch' });
+    expect(spine.ledger.escrowFor('ord-1')).toBeUndefined();
+    // A payload NAMING the chain's own order applies — the check reads
+    // contradiction, never mere presence.
+    const agreeing = JSON.parse(JSON.stringify(plan[0]!.event)) as { payload: Record<string, unknown> };
+    agreeing.payload['order_id'] = 'ord-1';
+    expect(spine.onProviderPaymentEvent(agreeing, 'pay-1')).toEqual({ applied: true, duplicate: false });
+  });
+});

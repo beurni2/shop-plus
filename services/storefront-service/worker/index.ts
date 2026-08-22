@@ -877,6 +877,19 @@ export default {
      * ONE CONDITION, TWO PATHS, so neither can be added to the public list by
      * accident: a future edit that widens the exemption has to walk past this.
      */
+    /**
+     * NB-3 (E2) — the sandbox stand-in READS THE KEY IT MUST ECHO. The vault
+     * now refuses any webhook naming a charge the order never initiated, and a
+     * real aggregator knows its key because we charged it with one — the
+     * founder's SANDBOX-PAY-1 tool stands in for that aggregator, so it reads
+     * the key here. SAME secret as the webhook itself (its holder can already
+     * declare money received — reading one opaque key widens nothing), GET
+     * only, and it RETIRES with the tool at the Real-Money Gate.
+     */
+    if (request.method === 'GET' && /^\/checkout\/webhook\/leg-key\//.test(pathname)) {
+      if (!(await paymentWebhookAuthorized(request, env))) return unauthorized();
+      return orderRouter.fetch(request, { ORDER: env.ORDER, CHECKOUT: env.CHECKOUT, LADDER: env.LADDER });
+    }
     if (
       request.method === 'POST' &&
       (pathname === '/checkout/webhook/payment' || pathname === '/checkout/webhook/door')

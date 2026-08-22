@@ -384,17 +384,14 @@ describe('RESELLER-ACCOUNTS — the session opens HER feed, and the suivi shows 
     if (o.status !== 200) throw new Error(`order ${o.status} ${oText}`);
     const order = safeJson(oText) as { amountPaidAtCheckout: number; paymentAttemptId?: string };
     const orderId = `ord-${quote.quoteId}`;
-    // the webhook must name the REAL attempt the order minted — the vault
-    // validates it; an invented id is refused (correct behaviour, seen red)
-    let attemptId = order.paymentAttemptId;
-    if (attemptId === undefined) {
-      const ns = await mf.getDurableObjectNamespace('ORDER');
-      const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
-        attempts?: { attemptId: string }[];
-      };
-      attemptId = audit.attempts?.[audit.attempts.length - 1]?.attemptId;
-    }
-    if (attemptId === undefined) throw new Error('no attempt id');
+    // NB-3 — the webhook must name the LEG KEY the provider was charged with
+    // (the vault refuses any other id): read off the order's own record.
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
+      legKeys?: Record<string, string>;
+    };
+    const attemptId = audit.legKeys?.['checkout'];
+    if (attemptId === undefined) throw new Error('no checkout leg key');
     const provider = new MockPaymentProvider({});
     provider.initiateCharge({
       orderId, paymentAttemptId: attemptId,

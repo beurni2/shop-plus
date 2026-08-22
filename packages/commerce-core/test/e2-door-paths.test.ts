@@ -741,3 +741,36 @@ describe('POLITIQUE-AU-QUOTE — an admitted door quote records the policy that 
     expect(q.amountDueAtDelivery).toBe(q.productSubtotal);
   });
 });
+
+/**
+ * NB-3 (E2) — the DOOR webhook must name the charge this order initiated,
+ * exactly as the checkout leg's twin in spine-misbehavior.test.ts: the caller
+ * passes the door leg's provider key; a foreign or missing
+ * payment_attempt_id refuses closed, and a payload order_id contradicting
+ * the chain refuses with no expected key at all.
+ */
+describe('NB-3 — door webhook ids cross-checked against the chain', () => {
+  it('a FOREIGN door payment_attempt_id refuses closed; the true webhook then applies', () => {
+    const { spine, quote, provider } = confirmedOptionBSpine();
+    const genuine = doorWebhook(provider, quote.amountDueAtDelivery) as { payload: Record<string, unknown> };
+    const tampered = JSON.parse(JSON.stringify(genuine)) as { payload: Record<string, unknown> };
+    tampered.payload['payment_attempt_id'] = 'door-foreign';
+    expect(spine.onProviderDoorPaymentEvent(tampered, 'door-att-1')).toMatchObject({
+      applied: false,
+      reason: 'attempt_mismatch',
+    });
+    expect(spine.doorLegState).toBe('due');
+    expect(spine.onProviderDoorPaymentEvent(genuine, 'door-att-1')).toMatchObject({ applied: true, duplicate: false });
+    expect(spine.doorLegState).toBe('paid');
+  });
+
+  it('a door payload order_id contradicting the chain refuses order_mismatch, door stays due', () => {
+    const { spine, quote, provider } = confirmedOptionBSpine();
+    const contradicting = JSON.parse(JSON.stringify(doorWebhook(provider, quote.amountDueAtDelivery))) as {
+      payload: Record<string, unknown>;
+    };
+    contradicting.payload['order_id'] = 'order-SOMEONE-ELSE';
+    expect(spine.onProviderDoorPaymentEvent(contradicting)).toMatchObject({ applied: false, reason: 'order_mismatch' });
+    expect(spine.doorLegState).toBe('due');
+  });
+});

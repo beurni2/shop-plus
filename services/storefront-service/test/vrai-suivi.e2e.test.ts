@@ -203,24 +203,31 @@ async function createdOrder(n: string): Promise<{
   };
 }
 
-/** …and on to a PAID one, through the provider webhook. */
+/** …and on to a PAID one, through the provider webhook. NB-3: the event names
+ *  the LEG KEY the order actually holds — read off its record, never invented. */
 async function confirmOrder(orderId: string, amount: number): Promise<void> {
+  const ns = await mf.getDurableObjectNamespace('ORDER');
+  const audit = (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
+    legKeys?: Record<string, string>;
+  };
+  const legKey = audit.legKeys?.['checkout'];
+  if (legKey === undefined) throw new Error(`no checkout leg key on ${orderId}`);
   const paid = await mf.dispatchFetch('http://c/checkout/webhook/payment', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Payment-Webhook-Key': WEBHOOK_SECRET },
-    body: JSON.stringify(paymentEvent(orderId, amount)),
+    body: JSON.stringify(paymentEvent(orderId, amount, legKey)),
   });
   if (paid.status !== 200) throw new Error(`setup: webhook ${paid.status} ${await paid.text()}`);
 }
 
-const paymentEvent = (orderId: string, amount: number) => ({
+const paymentEvent = (orderId: string, amount: number, legKey: string) => ({
   name: 'payment.checkout_leg_confirmed.v1',
   envelope: {
     command_id: `whk-${orderId}`, correlation_id: `corr-${orderId}`, aggregateVersion: 1,
     actor: 'sandbox:founder', serverTime: new Date().toISOString(), version: '1',
   },
   payload: {
-    provider: 'sandbox-provider', payment_attempt_id: `sandbox-${orderId}`,
+    provider: 'sandbox-provider', payment_attempt_id: legKey,
     collectRef: `collect-${orderId}`, amount, fee: 0, status: 'held',
     order_id: orderId, redelivery: false,
   },
