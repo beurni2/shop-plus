@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-22 · QUARTIERS-OUAGA-1 — every official quartier of Ouagadougou on the buyer's payment screen · IN REVIEW (awaiting merge word)
+## 2026-08-22 · QUARTIERS-OUAGA-1 — every official quartier of Ouagadougou on the buyer's payment screen · DONE
+
+**MERGED AND DEPLOYED (founder's word, 2026-08-22: « merge and deploy »):** main fast-forwarded `93b5a1b..c890fce` (`76be2ee` the build + `c890fce` verifier fixes + journal). **All four push workflows green on c890fce, attempt 1 — ci run 550 · pwa-preview run 340 (the buyer PWA's Pages deploy, this slice's deployable) · expo-preview run 373 · service-canon-drift run 206.** The storefront service is untouched (the wire takes the same bounded string it always took), so no storefront-deploy dispatch was needed. Boutik-plus's half merged the same hour (`adcbc6a`, its journal).
 
 **Founder, 2026-08-22: « On boutik+, on the buyer's payment pwa screen, and in sera not all quartier from Ouagadougou are displayed, I want you search on an up to date doc where you will source all quartiers in Ouagadougou and put them on boutik+ and on sera and on the buyer's payment pwa screen. Make sure the displaying are nice and professional and doesn't break anything. »**
 
@@ -31,7 +33,7 @@ Format per entry:
 
 **Process, on the record:** one mutation-revert used `git checkout --` on the uncommitted `screens2.tsx` (the CLAVIER-MARGE trap, again) — rebuilt from the verified content and re-proven before proceeding.
 
-**Pending:** the founder's merge word for the branch. His phone remains the check on how the cloud LOOKS in the sun — no walk here claims appearance.
+**Remaining check:** his phone, on how the cloud LOOKS in the sun — no walk here claims appearance.
 
 ---
 
