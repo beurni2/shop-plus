@@ -146,21 +146,43 @@ describe('E3 — refusal-path alerts: provider truth contradicting local knowled
     expect(refusal2.alert?.payload).toMatchObject({ alert: 'webhook_names_foreign_charge', payload_order_id: 'ord-SOMEONE-ELSE' });
   });
 
-  it('a SECOND DIFFERENT confirmation for an already-funded leg refuses AND alerts conflicting_provider_confirmation', () => {
+  it('a SECOND DIFFERENT confirmation for an already-funded leg refuses AND alerts conflicting_provider_confirmation (E3 verifier MAJOR: the reachable double-charge signal)', () => {
     const quote = issuedQuote();
     const spine = spineAtPaymentPending(quote, 'cf1');
     expect(spine.onProviderPaymentEvent(genuineWebhook(quote, 'cf1'))).toEqual({ applied: true, duplicate: false });
-    // The order retries into payment_pending? No — it is paid. Drive the spine
-    // back is impossible; the conflicting webhook must be judged in the state
-    // where escrow recording is reached: this cannot happen post-paid (the
-    // state gate answers first). The reachable conflict is a DOOR leg twin —
-    // covered below — and the checkout-side conflict is caught by the PASS
-    // (escrow vs provider records). Here we pin the state gate still wins:
+    // A rival confirmation — fresh command_id, OUR charge's ids — after the
+    // leg funded. A redelivery of the genuine webhook (same command_id) is
+    // absorbed before this gate, so what lands here should not exist twice.
     const rival = new MockPaymentProvider({});
     rival.initiateCharge({ orderId: 'ord-cf1', paymentAttemptId: 'pay-cf1-rival', amount: quote.amountPaidAtCheckout, correlationId: 'corr-cf1', requestedAtIso: T });
-    const rivalRefusal = asRefusal(spine.onProviderPaymentEvent(rival.webhookDeliveryPlan()[0]!.event));
-    expect(rivalRefusal.reason).toBe('out_of_order');
-    expect(rivalRefusal.alert).toBeUndefined(); // paid, not failed — the state refusal is honest and quiet
+    const rivalEvent = rival.webhookDeliveryPlan()[0]!.event as { payload: Record<string, unknown> };
+    // The rival names OUR leg key in its payload (a doctored re-announcement).
+    const naming = { ...rivalEvent, payload: { ...rivalEvent.payload, payment_attempt_id: 'pay-cf1' } };
+    const rivalRefusal = asRefusal(spine.onProviderPaymentEvent(naming, 'pay-cf1'));
+    expect(rivalRefusal.reason).toBe('out_of_order'); // the refusal stands — money unchanged
+    expect(rivalRefusal.alert?.payload).toMatchObject({
+      alert: 'conflicting_provider_confirmation',
+      leg: 'checkout',
+      local_state: 'paid',
+    });
+    // …while a rival naming a FOREIGN charge stays a quiet state refusal:
+    const foreign = asRefusal(spine.onProviderPaymentEvent(rivalEvent, 'pay-cf1'));
+    expect(foreign.reason).toBe('out_of_order');
+    expect(foreign.alert).toBeUndefined();
+  });
+
+  it('a genuine webhook on a CANCELLED-after-failure order alerts too — the abandonment does not silence the contradiction', () => {
+    const quote = issuedQuote();
+    const spine = spineAtPaymentPending(quote, 'cx1');
+    spine.failPayment({ command_id: 'fail-cx1', actor: 'a', serverTime: LATER(1), reason: 'charge_rejected' });
+    expect(spine.cancelOrder({ command_id: 'cancel-cx1', actor: 'buyer', serverTime: LATER(2) }).ok).toBe(true);
+    const refusal = asRefusal(spine.onProviderPaymentEvent(genuineWebhook(quote, 'cx1')));
+    expect(refusal.reason).toBe('out_of_order');
+    expect(refusal.alert?.payload).toMatchObject({
+      alert: 'genuine_webhook_after_local_failure',
+      local_state: 'cancelled',
+      local_failure_reason: 'charge_rejected',
+    });
   });
 
   it('DOOR twins: a door amount contradicting amountDueAtDelivery alerts; a door confirmation before checkout funding alerts; door-not-expected keeps its existing alert', () => {

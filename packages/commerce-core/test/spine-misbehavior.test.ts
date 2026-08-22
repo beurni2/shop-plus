@@ -369,7 +369,10 @@ describe('ledger copy discipline (WO-1.1 d)', () => {
       envelope: { ...plan[0]!.event.envelope, command_id: 'whk-DIFFERENT' },
       payload: { ...plan[0]!.event.payload, collectRef: 'collect-DIFFERENT' },
     };
-    expect(spine.onProviderPaymentEvent(secondCharge)).toEqual({ applied: false, reason: 'out_of_order' });
+    // RAPPROCHEMENT-1 (verifier MAJOR): a rival confirmation naming our
+    // charge after the leg funded is the double-charge signal — the refusal
+    // stands and now carries conflicting_provider_confirmation beside it.
+    expect(spine.onProviderPaymentEvent(secondCharge)).toMatchObject({ applied: false, reason: 'out_of_order' });
     expect(spine.ledger.escrowFor('ord-1')!.paymentLegs).toHaveLength(1);
     // And the ledger itself refuses a direct conflicting record — defense in depth.
     expect(

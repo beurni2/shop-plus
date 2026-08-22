@@ -716,8 +716,14 @@ export class OrderDO {
         // a genuine webhook names its leg's key, so the suites build webhooks
         // from the key the order actually holds instead of fabricating one.
         legKeys: (await this.state.storage.get<Record<string, string>>(LEG_KEYS_KEY)) ?? {},
-        // RAPPROCHEMENT-1 — the durable alert record, the operator's read.
-        reconAlerts: (await this.state.storage.get<PlatformEvent[]>(RECON_ALERTS_KEY)) ?? [],
+        // RAPPROCHEMENT-1 — the durable alert record, the operator's read;
+        // `reconAlertsDropped` counts what the cap clipped (never silent).
+        ...(await (async () => {
+          const record =
+            (await this.state.storage.get<{ alerts: PlatformEvent[]; dropped: number }>(RECON_ALERTS_KEY)) ??
+            { alerts: [], dropped: 0 };
+          return { reconAlerts: record.alerts, reconAlertsDropped: record.dropped };
+        })()),
       });
     }
 
@@ -1970,15 +1976,27 @@ export class OrderDO {
    */
   private async sinkReconAlerts(alerts: readonly PlatformEvent[]): Promise<void> {
     if (alerts.length === 0) return;
-    const held = (await this.state.storage.get<PlatformEvent[]>(RECON_ALERTS_KEY)) ?? [];
-    const known = new Set(held.map((a) => a.envelope.command_id));
-    const next = [...held];
+    const held =
+      (await this.state.storage.get<{ alerts: PlatformEvent[]; dropped: number }>(RECON_ALERTS_KEY)) ??
+      { alerts: [], dropped: 0 };
+    const known = new Set(held.alerts.map((a) => a.envelope.command_id));
+    const next = [...held.alerts];
+    // The cap is HONEST when it clips (verifier MINOR): a full record counts
+    // what it could not keep, so an operator reading 50 alerts knows whether
+    // there was a 51st — silence and saturation must stay distinguishable.
+    let dropped = held.dropped;
     for (const alert of alerts) {
-      if (known.has(alert.envelope.command_id) || next.length >= RECON_ALERTS_CAP) continue;
+      if (known.has(alert.envelope.command_id)) continue;
+      if (next.length >= RECON_ALERTS_CAP) {
+        dropped += 1;
+        continue;
+      }
       known.add(alert.envelope.command_id);
       next.push(alert);
     }
-    if (next.length !== held.length) await this.state.storage.put(RECON_ALERTS_KEY, next);
+    if (next.length !== held.alerts.length || dropped !== held.dropped) {
+      await this.state.storage.put(RECON_ALERTS_KEY, { alerts: next, dropped });
+    }
   }
 
   private async onProviderEvent(event: unknown): Promise<Response> {

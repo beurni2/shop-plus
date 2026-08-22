@@ -291,7 +291,7 @@ export class OrderSpine {
       // at-least-once behavior, not a contradiction.
       const late = event.payload as Record<string, unknown>;
       if (
-        this.journeyState.state === 'payment_failed' &&
+        (this.journeyState.state === 'payment_failed' || this.journeyState.state === 'cancelled') &&
         this.paymentFailure !== undefined &&
         this.checkWebhookIds(late, expectedProviderKey) === null
       ) {
@@ -300,9 +300,29 @@ export class OrderSpine {
           reason: 'out_of_order',
           alert: this.reconAlert('genuine_webhook_after_local_failure', event, {
             leg: 'checkout',
+            local_state: this.journeyState.state,
             local_failure_reason: this.paymentFailure.reason,
             local_failure_at: this.paymentFailure.at,
             provider_amount: typeof late['amount'] === 'number' ? late['amount'] : null,
+          }),
+        };
+      }
+      // The REACHABLE double-charge signal (E3 verifier MAJOR): a rival
+      // confirmation — fresh command_id, OUR charge's ids — arriving after
+      // the leg already funded. A redelivery of the genuine webhook carries
+      // the SAME command_id and was absorbed above, so what reaches here
+      // naming our charge on a paid order is a confirmation that should not
+      // exist twice. The refusal stands; the alert is the point.
+      if (
+        (this.journeyState.state === 'paid' || this.journeyState.state === 'confirmed') &&
+        this.checkWebhookIds(late, expectedProviderKey) === null
+      ) {
+        return {
+          applied: false,
+          reason: 'out_of_order',
+          alert: this.reconAlert('conflicting_provider_confirmation', event, {
+            leg: 'checkout',
+            local_state: this.journeyState.state,
           }),
         };
       }
@@ -566,8 +586,11 @@ export class OrderSpine {
   /**
    * RAPPROCHEMENT-1 (E3 seed) — the ONE mint for Contract-§6 refusal alerts:
    * provider truth contradicting local knowledge. Deterministic per causing
-   * webhook (`recon-${its command_id}`), so a redelivered refusal re-mints
-   * the SAME alert and the durable sink dedupes instead of counting. Every
+   * webhook (`recon-whk-${its command_id}`), so a redelivered refusal re-mints
+   * the SAME alert and the durable sink dedupes instead of counting. The
+   * `whk`/`door`/`pass` namespaces are mutually non-prefixing ON PURPOSE
+   * (verifier MINOR): the causing command_id is attacker-influenced, and a
+   * crafted one must never be able to occupy ANOTHER class's dedupe key. Every
    * figure in the payload is COPIED (Ten Laws #1/#2) — from the webhook, the
    * immutable Quote, or recorded local knowledge — never computed here.
    */
@@ -575,7 +598,7 @@ export class OrderSpine {
     return PlatformEventSchema.parse({
       name: 'reconciliation.alert.v1',
       envelope: {
-        command_id: `recon-${cause.envelope.command_id}`,
+        command_id: `recon-whk-${cause.envelope.command_id}`,
         correlation_id: this.journeyState.correlationId,
         aggregateVersion: this.journeyState.aggregateVersion,
         actor: 'commerce-core:ops',
