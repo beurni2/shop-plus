@@ -387,14 +387,20 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
       // and say honestly where it went. Same action serves the tile chip and
       // the band's « retirer » — one toggle, two surfaces.
       ev.preventDefault();
+      // ONE key for write AND read (verifier MINOR): the store is keyed by
+      // the same sf.slug the chips and band render from — never the mount's
+      // URL slug, so a future alias/redirect cannot split the panier. Chips
+      // exist only on READY screens, where dernierPret is always set.
       const pid = target.getAttribute('data-pid') ?? '';
-      const on = togglePanier(slug, pid);
-      applyPanierState(root, pid, on);
-      const slot = root.querySelector('[data-role="vitrine-panier-slot"]');
-      if (slot !== null && dernierPret !== null) {
-        slot.innerHTML = renderPanierBand(dernierPret.sf, dernierPret.described);
+      if (dernierPret !== null) {
+        const on = togglePanier(dernierPret.sf.slug, pid);
+        applyPanierState(root, pid, on);
+        const slot = root.querySelector('[data-role="vitrine-panier-slot"]');
+        if (slot !== null) {
+          slot.innerHTML = renderPanierBand(dernierPret.sf, dernierPret.described);
+        }
+        toast(root, t(on ? 'vit.panier_ajoute' : 'vit.panier_retire'));
       }
-      toast(root, t(on ? 'vit.panier_ajoute' : 'vit.panier_retire'));
     } else if (action === 'ancre') {
       // NORTH-STAR round 3 — « Voir tout » is a SCROLL, not a page (the boutique
       // IS this page); a link to nowhere would be the dead button the canon bans.

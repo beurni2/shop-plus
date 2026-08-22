@@ -106,6 +106,30 @@ describe('the chip — every in-stock article can be put in the panier, and a ke
   });
 });
 
+describe('the geometry laws the verifier held this slice to, pinned at the source', () => {
+  it('the « retirer » BUTTON honors the 44px touch floor — the 30px disc is only the drawing', async () => {
+    const { VITRINE_STYLES } = await import('../src/vitrine/styles');
+    const rule = /\.vt-pan-retirer \{[^}]*\}/.exec(VITRINE_STYLES)?.[0] ?? '';
+    expect(rule).toContain('width: 44px');
+    expect(rule).toContain('height: 44px');
+    const disc = /\.vt-pan-retirer::before \{[^}]*\}/.exec(VITRINE_STYLES)?.[0] ?? '';
+    expect(disc).toContain('width: 30px');
+  });
+
+  it("the featured chip leaves « À LA UNE »'s corner — bottom-left, never over the badge", async () => {
+    const { VITRINE_STYLES } = await import('../src/vitrine/styles');
+    const rule = /\.vt-featured-artwrap \.vt-pan \{[^}]*\}/.exec(VITRINE_STYLES)?.[0] ?? '';
+    expect(rule).toContain('bottom: 10px');
+    expect(rule).toContain('top: auto');
+  });
+
+  it('a store holding the same pid twice renders it once (dedupe on load)', () => {
+    localStorage.setItem('shopplus.panier.v1', JSON.stringify({ 'chez-awa-1': ['p2', 'p2'] }));
+    resetPanierCache();
+    expect(panierOf('chez-awa-1')).toEqual(['p2']);
+  });
+});
+
 describe('applyPanierState — every chip carrying the pid flips (the favourites twin-sync law)', () => {
   it('flips class and aria-pressed on all matching chips, and only those', () => {
     const made: { classes: Set<string>; attrs: Map<string, string> }[] = [];

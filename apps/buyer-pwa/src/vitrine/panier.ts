@@ -30,7 +30,7 @@ function load(): Map<string, string[]> {
     if (raw) {
       const parsed = JSON.parse(raw) as Record<string, string[]>;
       for (const [slug, pids] of Object.entries(parsed)) {
-        if (Array.isArray(pids)) mem.set(slug, pids.filter((p) => typeof p === 'string'));
+        if (Array.isArray(pids)) mem.set(slug, [...new Set(pids.filter((p) => typeof p === 'string'))]);
       }
     }
   } catch {

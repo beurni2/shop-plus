@@ -237,7 +237,10 @@ export const VITRINE_STYLES = `
   .vt-pan svg { display: block; }
   .vt-pan-on { color: var(--vt-accent); }
   .vt-pan-on svg path { fill: currentColor; stroke: currentColor; }
-  .vt-featured-artwrap .vt-pan { top: 10px; left: 10px; }
+  /* On the featured card the top-left corner belongs to « À LA UNE » (her
+     honest curation claim — verifier MAJOR: the chip covered it). The chip
+     takes the free bottom-left corner instead; the heart keeps top-right. */
+  .vt-featured-artwrap .vt-pan { top: auto; bottom: 10px; left: 10px; }
 
   /* PANIER-VITRINE-1 — her shelf: a quiet band, a horizontal row of small
      cards. It whispers (the page's primary action stays the seller's
@@ -273,12 +276,19 @@ export const VITRINE_STYLES = `
     margin: 8px 10px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .vt-pan-price { font-size: 12.5px; font-weight: 700; color: #1C1710; margin: 2px 10px 0; }
+  /* 44px touch floor (verifier MAJOR — the miss-cost was opening the product
+     underneath): the BUTTON is 44px; the visible disc stays 30px, drawn by the
+     pseudo-element behind the ×. */
   .vt-pan-retirer {
-    position: absolute; top: 4px; right: 4px; z-index: 1;
-    width: 30px; height: 30px; border-radius: 99px; border: 0;
+    position: absolute; top: 0; right: 0; z-index: 1;
+    width: 44px; height: 44px; border: 0; background: none;
     display: inline-flex; align-items: center; justify-content: center;
-    background: #FFFFFF; box-shadow: 0 1px 3px rgba(28,22,15,.14);
     color: #6F6355; font-size: 16px; line-height: 1; cursor: pointer;
+  }
+  .vt-pan-retirer::before {
+    content: ''; position: absolute; z-index: -1;
+    width: 30px; height: 30px; border-radius: 99px;
+    background: #FFFFFF; box-shadow: 0 1px 3px rgba(28,22,15,.14);
   }
 
   /* NORTH-STAR round 3 — the mockup's section heading. */
