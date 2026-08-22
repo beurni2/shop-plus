@@ -9,6 +9,12 @@ Format per entry:
 
 ---
 
+## 2026-08-21 · BOOKS-CORRECTION — seventeen stale entry headers flipped to what main already holds · DONE
+
+**Founder, 2026-08-21: « Fix the headers ».** A journal-vs-git sweep (this repo + sera + boutik-plus) found entry headers still reading « IN-REVIEW / awaiting founder / DO NOT MERGE / (branch) » for work that is on `origin/main` — the exact books-drift the 2026-07-25 correction precedent names. **Evidence, per family:** `origin/claude/buyer-pwa-standing-laws-nerljz` is a full ancestor of `origin/main` (`git merge-base --is-ancestor` true), which settles every entry that lived on that branch (C5-ORPHELINS ×2, OPTION-B-REACHABLE-1+SP6.1, BROWSE-SUPPLY-1, HUB-ASSURANCE-1, SUPPLY-ID-MATCH-1, MINT-PATH-ENTROPY-1, BUNDLE-GATE-VISION-1, PAS-DE-BOUTIQUE, DÉJÀ-DANS-MA-VITRINE, VOIX-VITRINE, AUDIT-B+1 F12, LAW-2 revert); commit-message hits on `origin/main` settle UNE SEULE GRILLE (3), GROUPES-SANS-DOUBLON (2), CODE-APRÈS-PORTE (1), and the three chrome removals (the « three chrome removals merged and deployed » stamp, 2). Content anchors double-checked where wording differs: `product_mismatch` in supply-consumer, the mint-path-entropy gate on the board, OPTION-B comments in the worker. **Headers only — no entry body rewritten**; the two 08-13 INCIDENT/DIAGNOSTIC headers keep their historical wording because the RESTAURATION entry directly above them records the resolution.
+
+---
+
 ## 2026-08-21 · C1·C2·C3 + H2 — the attribution lock is real, keyed, and doored by nothing; discovery orders itself without ICU · DONE
 
 **Founder, 2026-08-21: « You can start working on C1- C3 and H2 » (audit KNOWN-OPENs).** Spec authority re-read before writing: SP-I01 (« every confirmed order carries exactly one reseller_id locked from a qualified attribution or the storefront used for checkout »), SP-I09b.3 (« une fois la commande verrouillée, l'attribution est immuable — first-lock-wins; un second jeton valide sur une commande verrouillée est refusé, honnêtement »), SP-I09b.4 (nobody, never the platform), §4.1 (two scopes: `product` signed, `identity` server-resolved UNSIGNED), SP-I11 (deterministic order). **Scope held deliberately at the audit's own bounds:** wire the dormant machinery, do NOT build SP5's signed-link surface — that is its own milestone, and today's live attribution is the spec's identity scope, correctly unsigned.
@@ -103,7 +109,7 @@ Format per entry:
 
 ---
 
-## 2026-08-19 · UNE SEULE GRILLE — the buyer page stops drawing sections · IN-REVIEW
+## 2026-08-19 · UNE SEULE GRILLE — the buyer page stops drawing sections · DONE (merged + deployed)
 
 **Founder, 2026-08-19: « remove sections on buyers page as well ».** He asked what « groups » meant; the answer was **Sections** — the shelves feature whose editor he removed from Personnaliser on 2026-08-13 (« Sans sections, une seule grille. »). The buyer page never stopped drawing the stored groupings, so every boutique arranged before that date still showed its customers headings nobody could edit. I put the choice to him — stop drawing them, or fix the remaining duplicate — and he chose the removal.
 
@@ -139,7 +145,7 @@ Format per entry:
 
 **MERGED AND DEPLOYED (founder's word, 2026-08-19: « merge and deploy »):** main fast-forwarded `ef7f266..1630d90`. All four workflows **green on attempt 1** — `ci`, `pwa-preview`, `expo-preview`, `service-canon-drift`. Every boutique now shows one grid.
 
-## 2026-08-19 · GROUPES-SANS-DOUBLON — an article is on the boutique page ONCE, wherever it sits · IN-REVIEW
+## 2026-08-19 · GROUPES-SANS-DOUBLON — an article is on the boutique page ONCE, wherever it sits · DONE (merged + deployed)
 
 **Founder, 2026-08-19: « fix the duplicate bug ».** The one I found while closing the coverage hole earlier the same day and reported rather than fixed.
 
@@ -169,7 +175,7 @@ Format per entry:
 
 **MERGED AND DEPLOYED (founder's word, 2026-08-19: « merge and deploy »):** main fast-forwarded `f886473..dcd8e1a`. All four workflows **green on attempt 1** — `ci`, `pwa-preview`, `expo-preview`, `service-canon-drift`. The boutique page now draws every article once.
 
-## 2026-08-21 · CODE-APRÈS-PORTE — the drop code is withheld until the door leg is paid (§6.3) · IN-REVIEW (awaiting founder's word)
+## 2026-08-21 · CODE-APRÈS-PORTE — the drop code is withheld until the door leg is paid (§6.3) · DONE (merged + deployed)
 
 **Founder, 2026-08-21:** « if buyer chooses pay at the [door], code must be released after payment confirmation. » This confirms audit finding A1/A2 (2026-08-21) is a bug, not an owned decision. §6.3: « the buyer enters the drop code last, after any door payment is provider-confirmed »; §5.5 boundary puts « custody→customer (drop code last) » after « pay product leg → provider-confirmed »; Ten Laws #3.
 
@@ -195,7 +201,7 @@ Format per entry:
 
 ---
 
-## 2026-08-19 · UNE-PORTE / BADGE-HORS-PHOTO / PARTAGE-HORS-ENTÊTE — three chrome removals · IN-REVIEW (awaiting the founder's word)
+## 2026-08-19 · UNE-PORTE / BADGE-HORS-PHOTO / PARTAGE-HORS-ENTÊTE — three chrome removals · DONE (merged + deployed)
 
 **Founder, 2026-08-18:** « On personnaliser remove voir comme cliente cause voir ma boutique en ligne already does the same thing. And on couverture and portrait, on the photo the word "en ligne" hides the face. and on boutique/storefront remove the share sign that always shows on the en-tête/header »
 
@@ -430,7 +436,7 @@ Format per entry:
 
 ---
 
-## 2026-08-13 · PAS-DE-BOUTIQUE — the refusal that told him to retry the impossible · IN-REVIEW (branch, awaiting founder)
+## 2026-08-13 · PAS-DE-BOUTIQUE — the refusal that told him to retry the impossible · DONE (merged)
 **Founder report (screenshot):** « when adding a product on ma vitrine from opportunites it is not working and it says l'envoi n'a pas marcher ». His toast, verbatim: **« L'envoi n'a pas marché — storefront_absent — réessayez »**.
 
 **THE REFUSAL ITSELF IS CORRECT AND STAYS.** `storefront_absent` is the Worker's own named 409, built under the founder's 2026-08-11 ruling « no boutique, no publication », and pinned by two seam tests (`checkout-do.e2e.test.ts:1705`, `combined-worker.e2e.test.ts:580`). His app identity's storefront does not exist on the service; one pass through « Mettre ma boutique en ligne » creates it and the add works. *(Why his shop is absent on that Worker I cannot determine from here — the sandbox preview app is wired to the live service and its device identity has no shop there; not probed, his keys.)*
@@ -457,7 +463,7 @@ Format per entry:
 
 ---
 
-## 2026-08-12 · DÉJÀ-DANS-MA-VITRINE — Opportunités offered what she already owned · IN-REVIEW (branch, awaiting founder)
+## 2026-08-12 · DÉJÀ-DANS-MA-VITRINE — Opportunités offered what she already owned · DONE (merged)
 **Founder report:** « on shop+ when i add a product on ma vitrine, it still shows on opportunites the option the add the same product on ma vitrine instead of displaying this product is already added. »
 
 **THE WALK WAS WRITTEN FIRST, RED** (standing order 2026-08-10). Two walks in `apps/reseller-app/test/rendu-vitrine.test.tsx`: one over a shop that already holds the product, and one that earns it the way HE does — press « Ajouter à ma vitrine », come back to Opportunités — because those are different code paths and the second is the half he hits first. Both failed on the exact sentence he described before any fix existed.
@@ -492,7 +498,7 @@ Format per entry:
 
 ---
 
-## 2026-08-10 · VOIX-VITRINE — playback that asked a player with nothing loaded to start · IN-REVIEW (branch, awaiting founder)
+## 2026-08-10 · VOIX-VITRINE — playback that asked a player with nothing loaded to start · DONE (merged)
 **Founder report:** « On ma vitrine in shop+ when I record an audio and want to play it back it's not working. »
 
 **THIS IS THE SECOND HALF OF A BUG WHOSE FIRST HALF WAS ALREADY FIXED.** `voice-capture.ts` already carries the silent-switch fix — `setAudioModeAsync` sets the WHOLE mode rather than merging, so an earlier call had been dropping `playsInSilentMode` back to false and iOS played the take at zero volume. That was real and it shipped. It did not finish the job.
@@ -521,7 +527,7 @@ Written into `§6bis` of `CLAUDE.md` and `AGENTS.md` in **all four repos**, byte
 
 ---
 
-## 2026-08-06 · AUDIT-B+1 F12 — the copy-lint learns administrative register, and the pin is GATED · DONE (branch)
+## 2026-08-06 · AUDIT-B+1 F12 — the copy-lint learns administrative register, and the pin is GATED · DONE (merged)
 - **What changed here:** `@platform/i18n` re-pinned to `199bc2ab` (canon), plus a new negative fixture `catalog.administrative-register.json` wired into the gate board.
 - **Why the pin alone was not enough (verifier round 2 blocker).** Canon carried the new word list while every app still resolved the OLD package, so the lint was unchanged for users and the journal said DONE. The pin lives in **two places per repo** — the root `package.json` AND each workspace package's own; moving only the root reports success and changes nothing.
 - **Why the fixture (verifier round 3 blocker).** The existing negative fixture violates « Veuillez » and « séquestre », which are in BOTH the old and new lists — so it discriminates nothing, and a pin regression left the board GREEN while the bureaucratic escape passed again. **Proven by execution.** The new fixture violates ONLY a token F12 added, so reverting the pin makes it stop failing and turns the board RED. §4: enforced by construction, not by discipline.
@@ -529,7 +535,7 @@ Written into `§6bis` of `CLAUDE.md` and `AGENTS.md` in **all four repos**, byte
 - **Evidence:** every catalog in this repo lints clean through the newly installed package; gate board green with the new negative fixture failing for the right reason (« cours d'instruction »).
 - **⚠ MERGE ORDER:** the pin references a `platform-contracts` commit that is on the branch only. **platform-contracts merges to main BEFORE this repo does**, or the pin dangles.
 
-## 2026-08-06 · LAW-2-STRUCTURAL REVERTED in this repo too · DONE (branch)
+## 2026-08-06 · LAW-2-STRUCTURAL REVERTED in this repo too · DONE (merged)
 - **Commit:** shop-plus `4878773` (boutik-plus `c016734` · sera `aa9324e` — same revert, same day). Gate board green after the revert (`ALL GATES GREEN`, exit 0). Pushed to `claude/buyer-pwa-standing-laws-nerljz`; CI dispatched.
 - **Removed:** `scripts/gates/persisted-state-declared.mjs` (273 lines) + `gates/persisted-state.json` (276 lines) + four board entries in `run-gates.sh` + the probe-fixture `.gitignore` line. Diffstat −579 / +15. **No product code touched** — `git show --stat 4878773` lists only `.gitignore`, `gates/`, `scripts/`.
 - **Verifier:** fresh-context verifier run at the end of the slice per the founder's standing order — `VERDICT: PASS`, blockers none. It ran this repo's board itself (exit 0), re-derived the persistence claim from the Durable Object sources (`order-do` keys are all under `idFromName(orderId)` → per-ORDER, not per-actor; `reseller-accounts-do` has no amount field; `reseller-feed-do` holds `{orderId, at}`), and replanted a French seller-wallet under `services/` — `no-wallet-no-funds` exit 1, 8 hits. Probe removed, tree clean.
@@ -546,7 +552,7 @@ Written into `§6bis` of `CLAUDE.md` and `AGENTS.md` in **all four repos**, byte
 
 ---
 
-## 2026-08-04 · OPTION-B-REACHABLE-1 + SP6.1 · IN REVIEW
+## 2026-08-04 · OPTION-B-REACHABLE-1 + SP6.1 · DONE (merged)
 
 ### MERGED AND DEPLOYED (founder order 2026-08-04: « once everything is green merge and deploy all »)
 
@@ -643,7 +649,7 @@ Written into `§6bis` of `CLAUDE.md` and `AGENTS.md` in **all four repos**, byte
 - **EVIDENCE:** `scripts/run-gates.sh` **exit 0 · zero `GATE FAILED`** · commerce-core **97/97** · storefront-service **464/464** · buyer-pwa **869/869** · reseller-app **505/505** · copy-lint **580 entries, 0 violations**.
 - **PENDING / NEXT:** SP6.3 (Clients + the §6.4 ladder + tiered related-party) — which is also what closes the ⏳ above. **BLOCKED-ON-FOUNDER: nothing**; two things for him to decide when he wants to — whether `DOOR_GRACE_MS` should be re-measured, and that the home screen's « en attente » stat (App.tsx:853) is still fed by `enAttenteNet()` from the demo model, which I left alone rather than widen this slice.
 
-## 2026-08-02 · C5-ORPHELINS-2 — the verifier's MAJOR, the 320px money line, and one weld I had to un-do · IN REVIEW
+## 2026-08-02 · C5-ORPHELINS-2 — the verifier's MAJOR, the 320px money line, and one weld I had to un-do · DONE (merged)
 - **FOUNDER ORDER:** « merge it and fix the 320px money line, on the verifier subagent do it ». Merge done (`0d1d9fa` fast-forwarded onto main by pushing the exact sha, NOT by checking out main — a fresh-context verifier was mid-experiment in that working tree and a branch switch would have destroyed its restore).
 - **VERIFIER VERDICT: PASS WITH FIXES.** It reproduced 0.137 independently, confirmed all five numeric claims to four decimals (0.1372 · 0.5535 · 0.6997 · 0.6390 · 0.8077), and confirmed the three sentences read codepoint-identical once NBSP is folded to space. **Its MAJOR was mine to own:** `largeurDuTemoin` returned `-1` for a missing element and **-1 satisfies a « less than » bound** — so DELETING the sentence the gate exists for turned the real-face regime GREEN, and nothing anywhere asserted that sentence exists. It proved it by deleting the line and watching the test pass. Fixed with an explicit `> 0` assertion at the call site: **the bound is on a MEASUREMENT, never on an absence.** Its four minors are all fixed too — unscoped `.cl-quote` selector (a second one lives on C4), the missing glue floor + presence checks, the duplicated `0.35` bar, and the un-swept large basket.
 - **A DEFECT OF MINE THE VERIFIER DID NOT CATCH, found while acting on its report:** the gate clicked mode A *before* calling `sweepEveryState`, so the state it labelled « nothing chosen » was actually mode-A-chosen. The label read true while the state it named went unmeasured. Removed the click.
@@ -655,7 +661,7 @@ Written into `§6bis` of `CLAUDE.md` and `AGENTS.md` in **all four repos**, byte
 - **FOUNDER RULING (2026-08-02), question CLOSED:** « 20M FCFA basket unreal enough to leave. » The 320px × 19.7M cell stays out of the sweep permanently — it is not pending and not owed. Recorded in `CELLULES` beside the measurement, together with what WOULD reopen it: the same 94px squeeze reached by a *realistic* amount. The bill row gives the label no width floor, so a longer figure always takes from the words; the 19.7M basket is merely the first one big enough to make that visible.
 - **MERGE RECORD:** `1c337f5` fast-forwarded onto main (CI run 30764543346 green on that exact sha, « Run every invariant gate » included). Previous slice `0d1d9fa` merged the same way on run 30762132874.
 
-## 2026-08-02 · C5-ORPHELINS — the « flake » that was three real defects · IN REVIEW (branch `claude/buyer-pwa-standing-laws-nerljz`)
+## 2026-08-02 · C5-ORPHELINS — the « flake » that was three real defects · DONE (merged)
 - **IT WAS NEVER A FLAKE.** CI run 30760780865 failed on « Vous inspectez le colis avant de payer le reste. » at **0.137** (bar 0.35); run 30760827619, on a tree differing by eighteen lines of JOURNAL.md, passed. Read as flake for three runs. **Cause, measured not guessed:** every face in `apps/buyer-pwa/src/fonts.css` is `font-display: optional`, which gives the webfont a ~100 ms window at load and, on a miss, keeps the fallback FOR THE WHOLE PAGE LIFE. The sweep measured whichever face won a race it did not control — and **both outcomes ship to real buyers**.
 - **REPRODUCED TO THE DIGIT, locally:** pinning the same woff2 files as `font-display: block` gives **0.137**, the exact CI number; blocking the woff2 gives 0.426, which is what every green run had been measuring. The sentence needed **301px of a 299px box**, so « reste. » — the word naming what she still owes — stood alone on line two.
 - **WAITING CANNOT FIX IT, and waiting was already tried.** `policesChargees` awaits `document.fonts.ready` and its own comment records this exact 14 % failure. Measured again: a warm cache AND a reload both still lay out on the fallback while `document.fonts.check()` returns **true**. Under `optional` the decision is made once, at load; the Font Loading API cannot revisit it. A guard that waits is a guard that hopes.
@@ -850,7 +856,7 @@ Written into `§6bis` of `CLAUDE.md` and `AGENTS.md` in **all four repos**, byte
 - **DEPLOY VERIFIED, with its provenance named:** run 11 (`30140335289`), head `65a2395`, completed/success, **Version ID `0684d279-584a-428a-a6e0-72987c32df10`**, startup 25 ms, bindings unchanged. **The deployed BUNDLE carries the route — verified structurally through the Cloudflare API, not from the workflow conclusion and not from `/health`.** The behavioural check (401 vs 404 vs 200 on `GET /supply-projections`) remains worth running because it exercises the GATE rather than the route's existence.
 - **The sequencing held:** merge → deploy in the same breath → do not walk it until both are green. The 404 window between the automatic Expo preview and the Worker deploy was real, and the founder did not walk into it.
 
-## 2026-07-25 · OZ1 — BROWSE-SUPPLY-1 (Opportunités reads the live wire; the demo products are gone) · in-review — DO NOT MERGE
+## 2026-07-25 · OZ1 — BROWSE-SUPPLY-1 (Opportunités reads the live wire; the demo products are gone) · DONE (merged)
 - **Founder walked Opportunités and ordered the seven « (démo) » seeds replaced with boutik's real offers.** His footer read `Relié : https://storefront-service…`, so the instrument built in the previous slice confirmed the app was connected before any of this began.
 - **THE DEMO OPPORTUNITIES ARE GONE — not filtered, not a fallback (founder ruling, and the sharpest version of the populated-fallback argument yet):** « (démo) » is **a label a reseller would learn to IGNORE rather than a state she would NOTICE**, which makes a demo fallback on a browse surface worse than most, not better. Unconfigured or failing ⇒ the honest empty state, nothing else.
 - **THE SHAPE QUESTION, ANSWERED BEFORE BUILDING: through storefront-service, never direct to boutik.** `SUPPLY_BASE`/`SUPPLY_READ_SECRET` are **Worker** secrets and are never readable from a phone; app-side boutik credentials would extend a weakness accepted once for the write key. **The honest price, stated rather than hidden: the route had to be ADDED** — supply was previously used only server-side inside `GET /s/{slug}`.
@@ -867,7 +873,7 @@ Written into `§6bis` of `CLAUDE.md` and `AGENTS.md` in **all four repos**, byte
 - **My own gate caught me again:** hardcoded `paddingVertical: 3` etc. in the new pill failed the token scan (`ui-kit.test.ts`). Replaced with `spacing.xs`/`spacing.sm`. Recorded because it is the second time this session a gate has caught its own author.
 - **Expect a SPARSE screen, and that is the correct outcome:** one real product (Bazin, base 10 000, commission 750, stock 10, `assetRefs` empty) rather than seven invented ones — and **because `assetRefs` is empty, the imageless treatment fires on the first real render.**
 
-## 2026-07-25 · OZ1 — HUB-ASSURANCE-1 (declared stock may never wear a verification badge) · in-review — DO NOT MERGE
+## 2026-07-25 · OZ1 — HUB-ASSURANCE-1 (declared stock may never wear a verification badge) · DONE (merged)
 - **The finding (mine, escalated and verified by the founder):** `store-projection.ts` set `verified = true` for a **WHOLE STORE** from a single listing's `hubVerified` flag, and `boutiques-view.ts:80-81` renders that as a check mark plus **« Vérifiée »** beside the shop name — **the same visual language as the ecosystem's own trust marks** (vérifié · scellé · livré par Séra). Publishing with the flag set from **declared** stock would have put a verification badge on a storefront **ON THE SELLER'S OWN WORD**. That is manufactured trust, and trust is what this ecosystem sells.
 - **Founder ruling: ADOPT THE ASSURANCE SHAPE** — `{ source: 'declared' | 'hub' }`, with **only `'hub'` ever setting the customer-visible badge**. Declared stock is still recorded; the badge stays dark until a real hub signal exists. **A rename could not carry that distinction** — the whole defect is that one boolean meant two different things.
 - **CHEAPER THAN I SCOPED IT — the founder checked and corrected me:** I called it a §7 stop-and-ask on the grounds that it changes an event payload. **`hubVerified` appears NOWHERE in `@platform/contracts`, and canon's `PlatformEventSchema` declares `payload` as a free-form record.** So the event **NAME** is canon; its **SHAPE** is ours. **Shop-local: no canon cycle, no three-repo migration, no CANON lane.** Verified independently here before building.
@@ -884,7 +890,7 @@ Written into `§6bis` of `CLAUDE.md` and `AGENTS.md` in **all four repos**, byte
 - **RULING: fold an operator diagnostic INTO the browse slice.** Not its own slice, not now. When a product is omitted, something must be able to say **WHY** — refused as stale, refused as mismatched, unreachable, unconfigured, or genuinely nothing listed. **Where it surfaces is mine to PROPOSE** (the key-gated admin read is one candidate, a structured log line is another, **and they are not exclusive**). **What is NOT acceptable is that the answer requires reading code and probing endpoints by hand — which is what it requires today.**
 - **OPERATOR-FACING ONLY. The buyer surface stays exactly as it is:** omitting a product that cannot be described is still the right thing to show a buyer.
 
-## 2026-07-25 · OZ1 — SUPPLY-ID-MATCH-1 (the answer must be about the product that was asked for) + the footer/comment corrections · in-review — DO NOT MERGE
+## 2026-07-25 · OZ1 — SUPPLY-ID-MATCH-1 (the answer must be about the product that was asked for) + the footer/comment corrections · DONE (merged)
 - **The hole, found by reading the consumer while answering a different question, then PROVEN with a run:** `consumeSupplyProjection(port, productVersionId, nowIso)` handed `productVersionId` to the port and **NEVER compared it to what came back**. A producer answering `/supply-projection/X` with product Y was accepted as **`fresh`**. Probe output before the fix: `asked for pv-ASKED · verdict fresh · got back pv-WRONG-PRODUCT · name that would render "Un autre produit"`.
 - **Why it is money-adjacent rather than cosmetic:** the buyer surface takes the **PRICE from the listing** (`customer-projection.ts:113`) and the **NAME + PHOTOGRAPHS from supply** (`:112`, `:115`). So a mis-routed answer shows **Y's product at X's price**, with nothing anywhere reporting a fault. Same family as the pid bug — an identity carried on one side of a join and never checked against the other.
 - **Founder escalation, verified and then CORRECTED on one point of fact:** he read `consumer.ts:90` — `byProduct.set(model.value.productVersionId, model)` — and noted the cache is keyed by the **RETURNED** id, so a substitution would be cached under Y and handed back as the answer to X, making it **persistent rather than per-request**. **His reading of the code is exactly right.** The correction is about live exposure, not about the code: **`SupplyProjectionCache` has NO PRODUCTION CALLER** — grepped repo-wide, it is referenced only by its own definition and `consumer.test.ts`. So **today** the exposure was per-request; **the moment the cache is wired, the upstream check is the only thing between a mis-routed answer and a poisoned cache entry.** Recorded on the class itself so whoever wires it reads it there.
@@ -916,7 +922,7 @@ Written into `§6bis` of `CLAUDE.md` and `AGENTS.md` in **all four repos**, byte
 - **Evidence:** reseller-app **260/260** (24 files) · full `pnpm test` **21/21 tasks** · typecheck **17** · `copy-lint` **415 entries, 0 violations** · `run-gates.sh` **ALL GATES GREEN** · **FROZEN VAULT 0 diff**.
 - **My own gate caught me mid-slice:** a `⚠` in a `mint.ts` doc comment failed `no-emoji-in-chrome` (Grand Teint §8), which scans reseller-app source. Removed. Recorded because it is the gate doing its job on its author.
 
-## 2026-07-24 · OZ1 — MINT-PATH-ENTROPY-1 (inherited from canon, adapted — and a bundle scan PROVEN impossible for this property) · in-review — DO NOT MERGE
+## 2026-07-24 · OZ1 — MINT-PATH-ENTROPY-1 (inherited from canon, adapted — and a bundle scan PROVEN impossible for this property) · DONE (merged; the gate runs on every board)
 - **Founder ruling: shop-plus should carry boutik's mint-path gate, with the bundle scan load-bearing if it can be made clean.** It cannot, for this property — measured, not assumed.
 - **WHY A BYTE-FOR-BYTE PORT WOULD HAVE CAUGHT NOTHING:** boutik's `check-mint-path-entropy.mjs:33` collects files matching `(command-id|commandId)*.{ts,mjs,js}` and **exits 0** with *"no mint path present in this repo"* when nothing matches (`:38-41`). Shop's mint lived in a **1 500-line `App.tsx`**, which matches no such pattern — **the ported gate would have printed OK and missed the very defect that shipped. A VACUOUS PASS IS WORSE THAN NO GATE, because it reads as coverage.**
 - **THE BUNDLE SCAN IS NOT NOISY — IT IS BLIND. MEASURED ON THE REAL ARTIFACT.** `Math.random()` was deliberately planted in `App.tsx` and the bundle re-exported; the artifact was **byte-indistinguishable** from the clean one:
@@ -933,7 +939,7 @@ Written into `§6bis` of `CLAUDE.md` and `AGENTS.md` in **all four repos**, byte
 - **A repo-wide sweep was REJECTED as the noisy gate the founder ruled against:** it would flag `apps/buyer-pwa/src/cliente/flow.ts:161` (`Date.now() + Math.random()` for a **toast id** — a UI list key, not an idempotency key). *"A gate people learn to ignore is worse than none."*
 - **PROVEN RED ON THE DEFECT:** the original `Math.random` mint planted back into `App.tsx` → `✘ App.tsx — Math.random in a MINT PATH`, **exit 1**. Restored → **exit 0**.
 
-## 2026-07-24 · OZ1 — BUNDLE-GATE-VISION-1 (the positive control + the Hermes encoding constraint) · in-review — DO NOT MERGE
+## 2026-07-24 · OZ1 — BUNDLE-GATE-VISION-1 (the positive control + the Hermes encoding constraint) · DONE (merged)
 - **Why (cross-lane relay from APPS, then VERIFIED HERE rather than taken on faith):** APPS built the bundle-absence gate on this lane's finding and hit what this lane did not — **Hermes stores accented strings as UTF-16**, so a French fingerprint is invisible to a byte grep and the gate would pass vacuously forever. Our fingerprints (`demo://cover/`, `demo://avatar/`) are ASCII, **so the gate worked by luck rather than by reasoning.**
 - **MEASURED ON THIS REPO'S OWN BUNDLE (`index-db85076a…hbc`), and the result is SHARPER than the relay:**
   - `'Mettre ma boutique en ligne'` → utf-8 **HIT**, utf-16le miss (pure ASCII)
