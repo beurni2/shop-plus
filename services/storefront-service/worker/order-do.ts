@@ -163,12 +163,15 @@ const CUSTODY_ARM_KEY = 'custody-arm-outbox';
  * envelope id, so no fresh outer id can double-advance or double-alert.
  *
  * DELIVERY SEMANTICS DIFFER FROM THE ARM WIRE'S BY CONTRACT: custody's 200
- * (`{ok:true, duplicate}`) AND its 409 (`{ok:false, reason}` —
- * door_signal_not_awaited · producer_actor_mismatch · door_signal_invalid)
- * both END the row. A 409 is a RECORDED refusal — custody heard the truth
- * and said no, and it raises its own reconciliation alert on that side;
- * retrying it would re-post a refusal forever. Transport failures and every
- * other status stay `pending` on the shared backoff.
+ * (`{ok:true, duplicate}`) ends the row, and so does every 409 EXCEPT
+ * `door_signal_not_awaited` (producer_actor_mismatch · door_signal_invalid ·
+ * door_signal_course_settled — the E2 terminal for a course custody refused
+ * home after the buyer paid). Those 409s are RECORDED refusals — custody
+ * heard the truth and said no, and it raises its own reconciliation alert
+ * on that side; retrying one would re-post a refusal forever.
+ * `door_signal_not_awaited` alone keeps carrying: it is custody's TRANSIENT
+ * state (paid before the accord was noted), not a verdict. Transport
+ * failures and every other status stay `pending` on the shared backoff.
  */
 const DOOR_SIGNAL_KEY = 'custody-door-signal-outbox';
 /**
@@ -1829,11 +1832,12 @@ export class OrderDO {
    *
    * ═══ WHAT ENDS THIS ROW, BY CONTRACT — see DOOR_SIGNAL_KEY ═══
    *
-   * Custody's 200 `{ok:true, duplicate}` (accepted or absorbed) AND its 409
-   * `{ok:false, reason}` both end it: a 409 is custody's RECORDED refusal —
-   * it heard the provider truth, said no by name (door_signal_not_awaited ·
-   * producer_actor_mismatch · door_signal_invalid) and raised its own
-   * reconciliation alert; re-posting a refusal forever helps nobody. The row
+   * Custody's 200 `{ok:true, duplicate}` (accepted or absorbed) ends it, and
+   * so does every 409 EXCEPT `door_signal_not_awaited`: a verdict 409 is
+   * custody's RECORDED refusal — it heard the provider truth, said no by name
+   * (producer_actor_mismatch · door_signal_invalid ·
+   * door_signal_course_settled) and raised its own reconciliation alert;
+   * re-posting a refusal forever helps nobody. The row
    * records WHICH (`outcome`: 'accepted' | 'refused', plus custody's reason)
    * so the operator read can tell them apart. A 401 (secret not yet armed on
    * either side), any 5xx, and every transport failure stay `pending` on the
@@ -1890,9 +1894,12 @@ export class OrderDO {
           // stays pending and retries on the shared backoff under the NEXT
           // attempt's fresh outer id (see the mint above) so custody
           // re-judges its state; the alert stays one-per-signal because the
-          // spine keys it on the event's own envelope id. The other 409s
-          // (producer_actor_mismatch, door_signal_invalid) are verdicts on
-          // the EVENT ITSELF: permanent, recorded, never re-posted.
+          // spine keys it on the event's own envelope id. The other 409s are
+          // permanent, recorded, never re-posted: verdicts on the EVENT
+          // ITSELF (producer_actor_mismatch, door_signal_invalid) and the E2
+          // terminal on the COURSE (door_signal_course_settled — custody
+          // refused it home after the buyer paid; it will never await this
+          // signal again, and custody raised the E3 refund-feedstock alert).
           if (reason !== 'door_signal_not_awaited') {
             done = {
               outcome: 'refused',

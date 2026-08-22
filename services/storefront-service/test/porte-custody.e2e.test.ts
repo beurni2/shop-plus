@@ -27,9 +27,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * — PER-ATTEMPT (custody commits and replays every outcome per outer id, so a
  * frozen id could never re-judge `door_signal_not_awaited` after the accord;
  * the spine's true idempotency keys on the event's own envelope id). Custody
- * answers 200 `{ok:true, duplicate}` or 409 `{ok:false, reason}`; 2xx and the
- * event-verdict 409s are DELIVERED; `door_signal_not_awaited` keeps carrying;
- * everything else retries.
+ * answers 200 `{ok:true, duplicate}` or 409 `{ok:false, reason}`; 2xx and
+ * every 409 EXCEPT `door_signal_not_awaited` are DELIVERED (verdicts on the
+ * event, and the settled-course terminal `door_signal_course_settled`);
+ * `door_signal_not_awaited` keeps carrying; everything else retries.
  */
 
 const SCRIPT = 'dist/worker/worker.mjs';
@@ -91,12 +92,20 @@ const SUPPLY = [
  *    knob stands in for: Option-B task, door inspection accepted, not yet
  *    confirmed) refuses 409 `door_signal_not_awaited` — driven out of order,
  *    the double says no, exactly as the real spine does.
+ *  · An order whose course custody SETTLED — refused home by a valid
+ *    rejection or an opened return (the `settledDoorOrders` knob) — refuses
+ *    409 `door_signal_course_settled`, the E2 TERMINAL: the real spine
+ *    answers it by name (raising its own refund-feedstock alert on that
+ *    side) so this at-least-once sender can stop. A settled order is never
+ *    also awaiting — tests move an order from one knob to the other, as the
+ *    real course does.
  *
  * WHAT IT MAY NEVER CLAIM: nothing about custody's ledger, seals, or the
  * rider — only this door's answers. It stores no amount (SE-I09).
  */
 let custodyDoorRespond: 'ok' | 'down' | 'actor_mismatch' = 'ok';
 const awaitingDoor = new Set<string>();
+const settledDoorOrders = new Set<string>();
 /** EVERY judged command's outcome, replayed VERBATIM on a reused id — the
  * real custody-do commits refusals too (verifier BLOCKER, proven on the
  * bundle): a repeated command_id never re-judges the world. Fresh judgment
@@ -137,9 +146,11 @@ function doorSignalDoor(
   if (prior !== undefined) {
     return { status: prior.status, payload: { ...prior.payload, duplicate: true } };
   }
-  const judged = !awaitingDoor.has(body['orderId'])
-    ? { status: 409, payload: { ok: false, reason: 'door_signal_not_awaited' } as Record<string, unknown> }
-    : { status: 200, payload: { ok: true, duplicate: false } as Record<string, unknown> };
+  const judged = settledDoorOrders.has(body['orderId'])
+    ? { status: 409, payload: { ok: false, reason: 'door_signal_course_settled' } as Record<string, unknown> }
+    : !awaitingDoor.has(body['orderId'])
+      ? { status: 409, payload: { ok: false, reason: 'door_signal_not_awaited' } as Record<string, unknown> }
+      : { status: 200, payload: { ok: true, duplicate: false } as Record<string, unknown> };
   judgedDoorCommands.set(commandId, judged);
   return judged;
 }
@@ -445,6 +456,15 @@ describe('PORTE-CUSTODY — the custody double is certified: never kinder than t
     awaitingDoor.delete('ord-cert-c');
   });
 
+  it('a SETTLED course refuses 409 door_signal_course_settled — the terminal the real spine answers by name', () => {
+    settledDoorOrders.add('ord-cert-e');
+    const event = doorWebhookEvent('ord-cert-e', 'att-cert-e');
+    const res = doorSignalDoor(okAuth, bodyFor('ord-cert-e', event));
+    expect(res.status).toBe(409);
+    expect(res.payload).toEqual({ ok: false, reason: 'door_signal_course_settled' });
+    settledDoorOrders.delete('ord-cert-e');
+  });
+
   it('the wrong Bearer is 401 and a malformed body 400 — both non-terminal for the wire', () => {
     const event = doorWebhookEvent('ord-cert-d', 'att-cert-d');
     expect(doorSignalDoor('Bearer pas-le-bon', bodyFor('ord-cert-d', event)).status).toBe(401);
@@ -584,6 +604,37 @@ describe('PORTE-CUSTODY — the applied door webhook arms the wire and the alarm
       new Set(posts.map((p) => (PlatformEventSchema.parse((p.body as Record<string, unknown>)['event'])).envelope.command_id)).size,
     ).toBe(1);
     awaitingDoor.delete(orderId);
+  }, 60_000);
+
+  it('custody says door_signal_course_settled: she paid, then the course was refused home — TERMINAL, recorded with its reason, never re-posted', async () => {
+    custodyDoorRespond = 'ok';
+    const { orderId } = await confirmedDoorOrder('0008');
+    // NOT in `awaitingDoor`: she paid before the accord was noted, so the
+    // wire is carrying on `not_awaited` — exactly the 0004 race, until…
+    await porteDemandee(orderId, '0008');
+    const event0008 = await trueDoorEvent(orderId);
+    expect((await postWebhook('/checkout/webhook/door', event0008)).status).toBe(200);
+    await waitForDoorPosts(orderId);
+    let box = await outboxOf(orderId);
+    expect(box.doorSignal?.status).toBe('pending');
+
+    // …the rider records her VALID refusal: custody settles the course home
+    // and will never await this signal again. The provider's redelivery
+    // trips the revival hook; custody answers the E2 terminal by name, and
+    // the wire STOPS — refused, reason kept, nothing re-posted.
+    settledDoorOrders.add(orderId);
+    expect((await postWebhook('/checkout/webhook/door', event0008)).status).toBe(200);
+    box = await waitForDoorSignalDone(orderId);
+    expect(box.doorSignal?.status).toBe('delivered');
+    expect(box.doorSignal?.outcome).toBe('refused');
+    expect(box.doorSignal?.reason).toBe('door_signal_course_settled');
+    const after = doorPostsFor(orderId).length;
+    await new Promise((r) => setTimeout(r, 400));
+    expect(doorPostsFor(orderId)).toHaveLength(after);
+    // Shop+'s own record of the provider truth is untouched by custody's no
+    // — the refund routing is E3's, fed by custody's alert on its side.
+    expect((await vue(orderId))['doorLeg']).toBe('paid');
+    settledDoorOrders.delete(orderId);
   }, 60_000);
 
   it("custody's verdict on the EVENT ITSELF is terminal: recorded as refused, reason kept, never re-posted", async () => {
