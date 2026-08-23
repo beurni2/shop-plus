@@ -347,6 +347,26 @@ export default {
        * spine re-parses the envelope, checks the order's own correlation and
        * absorbs redeliveries by command_id.
        */
+      /**
+       * STOCK-VENDU-1b — the FOURTH event this door accepts: Séra's
+       * `delivery.refused.v1` (already canon; sent so Boutik+ can restock the
+       * returned unit). Same strict binding-at-the-door discipline as the
+       * validated signal: the order id bounded, the raw event forwarded
+       * verbatim, the DO first-wins per order.
+       */
+      const refusee = PlatformEventSchema.safeParse(raw);
+      if (refusee.success && refusee.data.name === 'delivery.refused.v1') {
+        const p = refusee.data.payload as Record<string, unknown>;
+        if (typeof p['order_id'] !== 'string' || p['order_id'] === '' || p['order_id'].length > 256) {
+          return Response.json({ ok: false, reason: 'event_not_canonical' }, { status: 400 });
+        }
+        return env.ORDER.get(env.ORDER.idFromName(p['order_id'])).fetch(
+          new Request('https://do/entry/course-refusee', {
+            method: 'POST',
+            body: JSON.stringify(refusee.data),
+          }),
+        );
+      }
       const validated = PlatformEventSchema.safeParse(raw);
       if (validated.success && validated.data.name === 'delivery.validated.v1') {
         const p = validated.data.payload as Record<string, unknown>;

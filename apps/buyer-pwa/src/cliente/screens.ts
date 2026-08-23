@@ -855,6 +855,13 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
     action: 'voir-boutique',
     libelle: 'Voir la boutique',
   },
+  out_of_stock: {
+    overline: 'L’ARTICLE',
+    titre: 'Cet article vient d’être épuisé.',
+    phrase: 'Quelqu’un a pris le dernier. Rien n’a été payé.',
+    action: 'voir-boutique',
+    libelle: 'Voir la boutique',
+  },
   delivery_not_serviceable: {
     overline: 'LA LIVRAISON',
     titre: 'Séra ne livre pas encore ici.',

@@ -60,6 +60,9 @@ const livraisons = new Map<string, string>();
 /** Every delivery relay the stub received, verbatim. */
 const deliveredPosts: { auth: string | null; body: unknown; status: number }[] = [];
 let boutikRespond: 'ok' | 'down' = 'ok';
+/** STOCK-VENDU-1b — every REFUSED-course relay, verbatim, its own knob. */
+const refusedPosts: { auth: string | null; body: unknown; status: number }[] = [];
+let refusedRespond: 'ok' | 'down' = 'ok';
 
 let mf: Miniflare;
 
@@ -118,6 +121,33 @@ function makeMf(persistDir: string): Miniflare {
           if (already !== undefined) return answer(200, { ok: true, status: 'already_delivered', deliveredAt: already });
           livraisons.set(orderId, env['serverTime']);
           return answer(200, { ok: true, status: 'delivered', deliveredAt: env['serverTime'] });
+        }
+        if (request.method === 'POST' && path === '/fulfillment/delivery-refused') {
+          const auth = request.headers.get('Authorization');
+          const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+          const answer = (status: number, payload: unknown): Response => {
+            refusedPosts.push({ auth, body, status });
+            return Response.json(payload, { status });
+          };
+          if (refusedRespond === 'down') return answer(500, { ok: false });
+          if (auth !== `Bearer ${FULFILL_SECRET}`) return answer(401, { error: 'unauthorized' });
+          // ⚠ CERTIFIED AGAINST THE REAL DOOR (boutik-plus offer-service
+          // `handleRefusedIntake`, its own e2e pins these bounds): canonical
+          // PlatformEventSchema parse, name `delivery.refused.v1`, order_id
+          // bounded at 256 — else 400; an order its book never registered is
+          // 200 `unknown_order` ON PURPOSE (the wire must not wedge); the
+          // restock itself is marker-idempotent per order behind this answer.
+          const parsed = PlatformEventSchema.safeParse(body);
+          const p = parsed.success ? (parsed.data.payload as Record<string, unknown>) : null;
+          const orderId = p?.['order_id'];
+          if (
+            !parsed.success || parsed.data.name !== 'delivery.refused.v1' ||
+            typeof orderId !== 'string' || orderId === '' || orderId.length > 256
+          ) {
+            return answer(400, { ok: false, reason: 'event_not_canonical' });
+          }
+          if (!registered.has(orderId)) return answer(200, { ok: true, status: 'unknown_order' });
+          return answer(200, { ok: true, status: 'restocked' });
         }
         const single = /^\/supply-projection\/([^/]+)$/.exec(path);
         if (single) {
@@ -240,7 +270,34 @@ async function outboxOf(orderId: string) {
   const res = await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/outbox');
   return (await res.json()) as {
     livraisonOutbox?: { status: string; attempts: number; deliveredAt?: string };
+    refusOutbox?: { status: string; attempts: number; deliveredAt?: string };
   };
+}
+
+/** STOCK-VENDU-1b — the event exactly as Séra's return-open emits it (the
+ *  porte-custody walk in that repo captured it off the real wire): order,
+ *  task, the rejection arm and the fault_class Boutik+'s restock policy
+ *  reads. NO franc figure and no buyer identity anywhere in it. */
+const refusedEvent = (orderId: string, faultClass = 'seller') => ({
+  name: 'delivery.refused.v1',
+  envelope: {
+    command_id: `door-valid-rejection-${orderId}`, correlation_id: `corr-${orderId}`,
+    aggregateVersion: 9, actor: 'custody-service:e1', serverTime: '2026-08-23T10:00:00.000Z', version: '1',
+  },
+  payload: {
+    order_id: orderId, task_id: `task-${orderId}`,
+    rejection: 'valid_rejection', fault_class: faultClass,
+  },
+});
+
+async function waitForRefusRelay(orderId: string, timeoutMs = 8_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (
+    !refusedPosts.some((p) => (p.body as { payload?: { order_id?: string } })?.payload?.order_id === orderId) &&
+    Date.now() < deadline
+  ) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
 }
 
 async function waitForDelivered(orderId: string, timeoutMs = 8_000): Promise<void> {
@@ -348,6 +405,90 @@ describe('BOUTIK-SUIVI — Séra’s delivery reaches the supplier’s book, onc
     expect(deliveredPosts.length).toBe(avant);
     expect(livraisons.has(orderId)).toBe(false);
   }, 60_000);
+});
+
+/**
+ * ═══ STOCK-VENDU-1b — the REFUSED course reaches Boutik+'s stock (founder
+ * order 2026-08-23: « fix all 3 ») ═══
+ *
+ * Séra's return-open emits `delivery.refused.v1`; its own outbox lands it on
+ * `/fulfillment/progress` — the FOURTH event that door accepts. This object
+ * relays it VERBATIM to Boutik+ on the delivered wire's own terms (OFFER
+ * binding, fulfillment bearer, at-least-once, first-wins per order), so the
+ * sealed unit goes home to the supplier's counter per the fault-class policy
+ * Boutik+ applies on ITS side. NOT a spine input: no money moves here — the
+ * refund saga stays E3's, exactly as journalled.
+ */
+describe('STOCK-VENDU-1b — the refused course reaches the supplier’s stock wire, once', () => {
+  it('a refused course relays the CANONICAL event with the fulfillment bearer — fault_class intact — and the outbox says delivered', async () => {
+    const orderId = await realOrder('0011');
+    const res = await progress(refusedEvent(orderId));
+    expect(`${res.status} ${await res.text()}`).toBe('200 {"ok":true,"status":"recorded"}');
+
+    await waitForRefusRelay(orderId);
+    const post = refusedPosts.find((p) => (p.body as { payload?: { order_id?: string } })?.payload?.order_id === orderId);
+    expect(post, 'the refusal must have been relayed at all').toBeDefined();
+    expect(post?.auth).toBe(`Bearer ${FULFILL_SECRET}`);
+    expect(post?.status).toBe(200);
+    // VERBATIM — the canon name and the field Boutik+'s restock policy reads.
+    const body = post?.body as { name?: string; payload?: Record<string, unknown> };
+    expect(body.name).toBe('delivery.refused.v1');
+    expect(body.payload?.['fault_class']).toBe('seller');
+    expect(body.payload?.['rejection']).toBe('valid_rejection');
+    // The wire's fate is readable beside the five others…
+    expect((await outboxOf(orderId)).refusOutbox?.status).toBe('delivered');
+    // …and the ORDER'S OWN STATE is untouched: no refusal terminal exists on
+    // this wire — the refund saga is E3's, not a stock relay's.
+    const vue = safeJson(await (await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`)).text());
+    expect(vue['state']).toBe('confirmed');
+  }, 60_000);
+
+  it('a REDELIVERY answers duplicate and relays nothing new — first-wins per order on the row itself', async () => {
+    const orderId = await realOrder('0012');
+    expect((await progress(refusedEvent(orderId))).status).toBe(200);
+    await waitForRefusRelay(orderId);
+    const avant = refusedPosts.length;
+    const again = await progress(refusedEvent(orderId, 'buyer'));
+    expect(safeJson(await again.text())['status']).toBe('duplicate');
+    await new Promise((r) => setTimeout(r, 200));
+    expect(refusedPosts.length, 'a duplicate must enqueue nothing').toBe(avant);
+  }, 60_000);
+
+  it('Boutik+ down does not lose the refusal: pending, attempts climbing, nothing invented on the order', async () => {
+    const orderId = await realOrder('0013');
+    refusedRespond = 'down';
+    try {
+      expect((await progress(refusedEvent(orderId))).status).toBe(200);
+      const deadline = Date.now() + 5_000;
+      let box = (await outboxOf(orderId)).refusOutbox;
+      while ((box?.attempts ?? 0) < 1 && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 50));
+        box = (await outboxOf(orderId)).refusOutbox;
+      }
+      expect(box?.status, 'a refused relay stays pending — never delivered').toBe('pending');
+      expect(box?.attempts).toBeGreaterThanOrEqual(1);
+    } finally {
+      refusedRespond = 'ok';
+    }
+  }, 60_000);
+
+  it('an order this Worker never sold answers 404 and relays NOTHING — no row is invented from a stray event', async () => {
+    const avant = refusedPosts.length;
+    const res = await progress(refusedEvent('ord-jamais-vendu-9'));
+    expect(res.status).toBe(404);
+    expect(safeJson(await res.text())['reason']).toBe('unknown_order');
+    await new Promise((r) => setTimeout(r, 200));
+    expect(refusedPosts.length).toBe(avant);
+  }, 60_000);
+
+  it('⚠ no buyer identity and no franc figure ride this wire either — only the stock fact', async () => {
+    const bytes = JSON.stringify(refusedPosts.map((p) => p.body));
+    const codeRemise = `drop${'Code'}`;
+    for (const banned of ['buyerPhone', 'buyerTotal', 'sellerNet', 'resellerNet', codeRemise, `buyer${codeRemise}`, '12500', '10000']) {
+      expect(bytes.includes(banned), `the refusal wire must not carry ${banned}`).toBe(false);
+    }
+    expect(bytes.includes('delivery.refused.v1')).toBe(true);
+  });
 });
 
 describe('BOUTIK-SUIVI — a stranded delivery is recovered, never abandoned', () => {

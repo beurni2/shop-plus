@@ -378,6 +378,20 @@ describe('decideIssueQuote — every failure is a NAMED refusal that fails close
     ).toBe('listing_not_live');
   });
 
+  it('out_of_stock — supply POSITIVELY empty refuses BEFORE any money starts (STOCK-VENDU-1b, SP3)', () => {
+    expect(refusalOf(issue({ supply: supplyFixture({ available: 0 }) }))).toBe('out_of_stock');
+    // A counter driven below zero by any future fault refuses the same way.
+    expect(refusalOf(issue({ supply: supplyFixture({ available: -1 }) }))).toBe('out_of_stock');
+    // One unit left still sells — the refusal is « empty », never « low ».
+    expect(issue({ supply: supplyFixture({ available: 1 }) }).ok).toBe(true);
+  });
+
+  it('out_of_stock NEVER fires on a supply hiccup — undefined supply refuses nothing here (the standing law)', () => {
+    // Prepaid fixture with no supply resolved: the quote issues; only a
+    // POSITIVE « available: 0 » from the supply truth may refuse the sale.
+    expect(issue({ supply: undefined }).ok).toBe(true);
+  });
+
   it('commission_not_frozen — C absent means HER NET IS UNKNOWN, so the quote refuses rather than guess it', () => {
     const noC = entryFixture();
     const { resellerCommission: _dropped, ...withoutC } = noC;

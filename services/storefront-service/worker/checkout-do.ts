@@ -663,7 +663,13 @@ export default {
       // and `checkout-core.ts` omits the whole block, which the vault refuses
       // `context_missing`. THAT path is covered, three ways, over HTTP.
       let supply: ProductDescription | undefined;
-      if (req.paymentMode === DOOR_PAYMENT_MODE && entry !== undefined && env.SUPPLY !== undefined) {
+      // STOCK-VENDU-1b — resolved for BOTH modes now (it was door-only when
+      // §6.1 was its sole reader): the out-of-stock gate refuses a quote on a
+      // counter supply POSITIVELY says is empty, prepay included — a stale
+      // page must not start a payment for an épuisé product. The fail-open
+      // discipline is unchanged: a hiccup resolves `undefined`, which refuses
+      // NOTHING here (§6.1 keeps refusing door mode on it, as before).
+      if (entry !== undefined && env.SUPPLY !== undefined) {
         supply = await env.SUPPLY.describe(req.pid).catch(() => undefined);
       }
 

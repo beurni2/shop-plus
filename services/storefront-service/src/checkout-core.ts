@@ -198,6 +198,7 @@ export type CheckoutRefusalReason =
   | 'quote_not_issuable'
   | 'listing_unknown'
   | 'listing_not_live'
+  | 'out_of_stock'
   | 'commission_not_frozen'
   | 'stored_amounts_incoherent'
   | 'delivery_not_serviceable';
@@ -300,6 +301,19 @@ export function decideIssueQuote(deps: CheckoutDeps, input: IssueQuoteInput): Is
   }
   if (entry.listing.status !== LISTING_PUBLISHED) {
     return { ok: false, reason: 'listing_not_live' };
+  }
+  /**
+   * STOCK-VENDU-1b — supply POSITIVELY says the counter is empty: refuse
+   * BEFORE any money starts (SP3: « out-of-stock hides future buying » — a
+   * stale page must not reach a payment for an épuisé product). `undefined`
+   * supply refuses nothing — the standing law three fields up: a supply
+   * hiccup must never break ordinary checkout. Shop+ still alters no stock;
+   * it declines to SELL what the supply truth says is gone. The residual
+   * race (a quote issued while one unit remained, paid after someone else
+   * took it) stays open until B+5 reservation — journalled, not hidden.
+   */
+  if (input.supply !== undefined && input.supply.available <= 0) {
+    return { ok: false, reason: 'out_of_stock' };
   }
   if (entry.resellerCommission === undefined) {
     return { ok: false, reason: 'commission_not_frozen' };

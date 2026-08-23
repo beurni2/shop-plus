@@ -111,6 +111,17 @@ const SERA_OUTBOX_KEY = 'sera-funding-outbox';
  */
 const BOUTIK_DELIVERED_KEY = 'boutik-delivered-outbox';
 /**
+ * STOCK-VENDU-1b (founder order 2026-08-23: « fix all 3 ») — the FOURTH
+ * boutik-bound fact, on exactly the delivered relay's terms: Séra proves a
+ * REFUSED course and emits the canon `delivery.refused.v1`; this object
+ * relays it VERBATIM (no new event name — canon's enum already holds it) on
+ * the OFFER binding and the fulfillment write secret, so Boutik+ can send the
+ * sealed unit home to its own stock counter per its fault-class policy. This
+ * wire is a STOCK fact only: the order's own state machine records no refusal
+ * terminal here — the refund saga stays E3's, exactly as journalled.
+ */
+const BOUTIK_REFUSED_KEY = 'boutik-refused-outbox';
+/**
  * VRAI-SUIVI (founder rulings 2026-08-10, all approved) — THE BUYER'S OWN READ
  * TOKEN, minted at order create from the OS CSPRNG and served ON THE CREATE
  * RESPONSE ONLY (the `noteVocale` create-only discipline). It is the ONE
@@ -610,6 +621,14 @@ export class OrderDO {
         reason?: string;
         deliveredAt?: string;
       }>(DOOR_SIGNAL_KEY);
+      // STOCK-VENDU-1b — the refused-course wire's fate beside the five
+      // others, STATUS ONLY: the cargo is the canon event, already readable
+      // at its producer; the fate is the news here.
+      const refus = await this.state.storage.get<{
+        status?: string;
+        attempts?: number;
+        deliveredAt?: string;
+      }>(BOUTIK_REFUSED_KEY);
       return Response.json({
         ok: true,
         outbox,
@@ -632,6 +651,15 @@ export class OrderDO {
                 ...(porte.outcome !== undefined ? { outcome: porte.outcome } : {}),
                 ...(porte.reason !== undefined ? { reason: porte.reason } : {}),
                 ...(porte.deliveredAt !== undefined ? { deliveredAt: porte.deliveredAt } : {}),
+              },
+            }
+          : {}),
+        ...(refus !== undefined
+          ? {
+              refusOutbox: {
+                status: refus.status,
+                attempts: refus.attempts,
+                ...(refus.deliveredAt !== undefined ? { deliveredAt: refus.deliveredAt } : {}),
               },
             }
           : {}),
@@ -943,6 +971,34 @@ export class OrderDO {
         status: 'recorded',
         obligations: spine.ledger.obligationsFor(origin.orderId).length,
       });
+    }
+
+    /**
+     * STOCK-VENDU-1b — Séra's REFUSED-course fact. NOT a spine input: no
+     * money moves and no obligation is written on a refusal here (the refund
+     * saga is E3's, by the standing journal) — this route's whole job is the
+     * at-least-once relay that lets Boutik+ restock the returned unit.
+     * FIRST-WINS PER ORDER on the outbox row itself (this object IS the
+     * order); a redelivery that finds the row re-arms a stranded flusher,
+     * exactly the repair discipline of the wires above.
+     */
+    if (request.method === 'POST' && pathname === '/entry/course-refusee') {
+      const event: unknown = await request.json().catch(() => null);
+      if (event === null) return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      if (origin === undefined) {
+        return Response.json({ ok: false, reason: 'unknown_order' }, { status: 404 });
+      }
+      const existing = await this.state.storage.get<{ status?: string }>(BOUTIK_REFUSED_KEY);
+      if (existing !== undefined) {
+        if (existing.status === 'pending' && (await this.state.storage.getAlarm()) === null) {
+          await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+        }
+        return Response.json({ ok: true, status: 'duplicate' });
+      }
+      await this.state.storage.put(BOUTIK_REFUSED_KEY, { status: 'pending', event, attempts: 0 });
+      await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+      return Response.json({ ok: true, status: 'recorded' });
     }
 
     /**
@@ -1672,12 +1728,14 @@ export class OrderDO {
     // attempt count, the same shared re-arm the note above describes.
     // VRAI-SUIVI adds the FOURTH — the custody-arm wire — on the same terms.
     // PORTE-CUSTODY part B adds the FIFTH — the door-signal wire — likewise.
+    // STOCK-VENDU-1b adds the SIXTH — the refused-course relay — likewise.
     const boutikPending = await this.flushBoutikOutbox();
     const seraPending = await this.flushSeraOutbox();
     const livraisonPending = await this.flushBoutikDeliveredOutbox();
     const armPending = await this.flushCustodyArmOutbox();
     const doorSignalPending = await this.flushDoorSignalOutbox();
-    const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending);
+    const refusPending = await this.flushBoutikRefusedOutbox();
+    const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending);
     if (stillPending > 0) {
       await this.state.storage.setAlarm(Date.now() + outboxBackoffMs(stillPending));
     }
@@ -1812,6 +1870,54 @@ export class OrderDO {
     }
     const attempts = outbox.attempts + 1;
     await this.state.storage.put(BOUTIK_DELIVERED_KEY, { ...outbox, attempts });
+    return attempts;
+  }
+
+  /**
+   * STOCK-VENDU-1b — the refused-course fact to Boutik+, byte-for-byte the
+   * delivered relay's discipline: same binding, same secret, `res.ok` alone
+   * decides, and Boutik+'s own intake absorbs redeliveries (its restock is
+   * marker-idempotent per order). A 200 `unknown_order` from Boutik+ is a
+   * DELIVERY — its book never saw the order and never will differently; the
+   * intake said so on purpose rather than wedging the wire.
+   */
+  private async flushBoutikRefusedOutbox(): Promise<number> {
+    const outbox = await this.state.storage.get<{
+      status: 'pending' | 'delivered';
+      event?: unknown;
+      attempts: number;
+      deliveredAt?: string;
+    }>(BOUTIK_REFUSED_KEY);
+    if (outbox === undefined || outbox.status !== 'pending' || outbox.event === undefined) return 0;
+
+    let delivered = false;
+    if (this.env.OFFER !== undefined) {
+      const res = await this.env.OFFER.fetch(
+        new Request('https://offer/fulfillment/delivery-refused', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(this.env.FULFILLMENT_WRITE_SECRET !== undefined && this.env.FULFILLMENT_WRITE_SECRET !== ''
+              ? { Authorization: `Bearer ${this.env.FULFILLMENT_WRITE_SECRET}` }
+              : {}),
+          },
+          body: JSON.stringify(outbox.event),
+        }),
+      ).catch(() => undefined);
+      delivered = res !== undefined && res.ok;
+    }
+
+    if (delivered) {
+      await this.state.storage.put(BOUTIK_REFUSED_KEY, {
+        ...outbox,
+        status: 'delivered',
+        attempts: outbox.attempts + 1,
+        deliveredAt: new Date().toISOString(),
+      });
+      return 0;
+    }
+    const attempts = outbox.attempts + 1;
+    await this.state.storage.put(BOUTIK_REFUSED_KEY, { ...outbox, attempts });
     return attempts;
   }
 

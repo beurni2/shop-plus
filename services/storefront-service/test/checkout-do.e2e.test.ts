@@ -64,6 +64,20 @@ const SUPPLY = [
     category: 'fashion_bags_fabrics',
     sellerTier: 'provisional',
   },
+  // STOCK-VENDU-1b — a product whose counter the test DRAINS after publish
+  // (the stub serves the CURRENT value, like the real projection): the
+  // stale-buyer-page scenario, live.
+  {
+    productVersionId: 'pv-checkout-epuise',
+    offerVersion: 'ov-checkout-1',
+    basePrice: 10_000,
+    resellerCommission: 1_000,
+    available: 9,
+    productName: 'Bazin riche',
+    assetRefs: [] as string[],
+    category: 'fashion_bags_fabrics',
+    sellerTier: 'verified',
+  },
 ];
 
 function makeMf(): Miniflare {
@@ -1834,6 +1848,37 @@ describe('G4 CHECKOUT-KILL — env-armed kill switch on the real Worker', () => 
     } finally {
       await disarmedMf.dispose();
       rmSync(persistKill, { recursive: true, force: true });
+    }
+  });
+});
+
+/* ══════════ STOCK-VENDU-1b · the épuisé gate over the DEPLOYED bundle ══════ */
+
+describe('STOCK-VENDU-1b — a stale page cannot pay for an épuisé product', () => {
+  it('published while stock remained, drained to 0, the quote refuses out_of_stock — PREPAY, the mode that never read supply before', async () => {
+    const { slug, resellerId } = await seedShop('9501', 1_500, 'pv-checkout-epuise');
+    const drained = SUPPLY.find((v) => v.productVersionId === 'pv-checkout-epuise')!;
+    // One unit left still sells — the refusal is « empty », never « low ».
+    drained.available = 1;
+    const encore = await postQuote({
+      slug, pid: 'pv-checkout-epuise', paymentMode: 'FULL_PREPAY',
+      zoneTo: 'Ouagadougou', attributionResellerId: resellerId, requestKey: freshKey(),
+    });
+    expect(encore.status, encore.text).toBe(200);
+    expect(encore.json['buyerTotal']).toBe(12_500);
+    // The counter empties (every unit sold since her page loaded)…
+    drained.available = 0;
+    try {
+      const refused = await postQuote({
+        slug, pid: 'pv-checkout-epuise', paymentMode: 'FULL_PREPAY',
+        zoneTo: 'Ouagadougou', attributionResellerId: resellerId, requestKey: freshKey(),
+      });
+      // …and NO quote exists to pay: 422 like every refusal on this door,
+      // named — the PWA renders it « Cet article vient d'être épuisé. »
+      expect(refused.status).toBe(422);
+      expect(refused.json['error']).toBe('out_of_stock');
+    } finally {
+      drained.available = 9;
     }
   });
 });

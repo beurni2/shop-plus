@@ -537,6 +537,8 @@ describe('the refusal surface — one cause, one consequence, one action, for ev
     ['listing_unknown', 'Cet article n’est plus dans cette boutique.'],
     ['not_found', 'Cet article n’est plus dans cette boutique.'],
     ['listing_not_live', 'Cet article n’est plus en vente.'],
+    // STOCK-VENDU-1b — the quote gate's own name: the counter said empty.
+    ['out_of_stock', 'Cet article vient d’être épuisé.'],
     ['delivery_not_serviceable', 'Séra ne livre pas encore ici.'],
     ['attribution_missing', 'Ce lien ne permet pas de commander.'],
     ['attribution_mismatch', 'Ce lien ne permet pas de commander.'],
@@ -577,7 +579,7 @@ describe('the refusal surface — one cause, one consequence, one action, for ev
   });
 
   it('every refusal that follows a money moment says « Rien n’a été payé. »', () => {
-    for (const reason of ['listing_unknown', 'delivery_not_serviceable', 'checkout_killed', 'expired', 'unreachable', 'amounts_disagree']) {
+    for (const reason of ['listing_unknown', 'out_of_stock', 'delivery_not_serviceable', 'checkout_killed', 'expired', 'unreachable', 'amounts_disagree']) {
       expect(renderRefus(reason), reason).toContain('Rien n’a été payé.');
     }
   });
@@ -587,6 +589,7 @@ describe('the refusal surface — one cause, one consequence, one action, for ev
     expect(refusVue('expired').libelle).toBe('Voir le prix à jour');
     expect(refusVue('delivery_not_serviceable').action).toBe('retour-c3');
     expect(refusVue('listing_not_live').action).toBe('voir-boutique');
+    expect(refusVue('out_of_stock').action).toBe('voir-boutique');
     expect(refusVue('unreachable').action).toBe('reessayer-prix');
     expect(refusVue('amounts_disagree').action).toBe('reessayer-prix');
   });
