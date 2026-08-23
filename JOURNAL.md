@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-23 · STOCK-VENDU-1b — the out_of_stock gate + the refused-course relay · IN REVIEW (awaiting merge word, ships WITH STOCK-VENDU-1)
+## 2026-08-23 · STOCK-VENDU-1b — the out_of_stock gate + the refused-course relay · DONE
+
+**MERGED AND DEPLOYED (founder: « merge and deploy », 2026-08-23).** `main` fast-forwarded `166a4bb..c26708d` (`0945484` the build + the journal). **All four push workflows green on c26708d, attempt 1 — ci 552 · pwa-preview 342 (the buyer PWA with the épuisé card, this slice's Pages deployable) · expo-preview 375 · service-canon-drift 208 — then `storefront-deploy` run 63 → success** (the storefront worker: the quote gate + the sixth wire), dispatched after ci. *(ci 551 on the PREVIOUS journal-only commit had failed after the QUARTIERS stamp; 552 green on the same tree plus this slice settles it as runner flake — no code changed between them outside this slice's own files, all of which 552 covers.)*
 
 **Founder, 2026-08-23: « fix the all 3 as well ».** This repo's half (`0945484`); boutik `c328c6a` and sera `c0b097b` carry theirs. **Shop+ still alters NO stock** (Build-Spec line 22) — it declines to SELL what the supply truth says is gone, and it CARRIES the refusal fact; the counter moves only in boutik.
 
