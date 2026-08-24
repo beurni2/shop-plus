@@ -1098,6 +1098,12 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.whatsapp_aria",
+  "fr": "Écrire sur WhatsApp",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.panier_aria",
   "fr": "Mettre dans mon panier",
   "register": "selling",

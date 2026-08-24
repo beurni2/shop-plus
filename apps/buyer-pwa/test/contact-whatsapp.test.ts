@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { httpStorefrontPort, demoStorefrontPort } from '../src/vitrine/profile';
+import { renderVitrineReady } from '../src/vitrine/render';
+import { ouvrirWhatsApp } from '../src/vitrine/flows';
 import { renderC1, type ClienteProduit } from '../src/cliente/screens';
 import { clienteProduitReel } from '../src/cliente/seed';
 import { ROBE } from '../src/cliente/seed';
@@ -110,5 +112,93 @@ describe('C1 — the tap renders as an anchor the OS hands to WhatsApp', () => {
     const href = /href="([^"]+)"/.exec(html)![1]!;
     expect(href.startsWith('https://wa.me/22670112233?text=')).toBe(true);
     expect(href).not.toContain('<zip>');
+  });
+});
+
+/* ═══ CONTACT-WHATSAPP-2 (founder: « add the whatsapp icon on each tile as
+   well ») — the chip on the grid, fav/pan's third sibling ═══ */
+
+describe('the tile chip — every in-stock tile carries the tap, épuisé stays muette, absent renders nothing', () => {
+  const sf: Storefront = { ...resolvedDemo.storefront, name: 'Chez Binta', slug: 'binta-7412' };
+  const produits = [
+    { pid: 'pv_wa_a', name: 'Bazin riche', priceFcfa: 12_000, inStock: true, assetRefs: [] as string[] },
+    { pid: 'pv_wa_b', name: 'Robe wax', priceFcfa: 9_000, inStock: true, assetRefs: [] as string[] },
+    { pid: 'pv_wa_c', name: 'Sac cuir', priceFcfa: 15_000, inStock: false, assetRefs: [] as string[] },
+  ];
+  const sfAvec = { ...sf, curatedItems: produits.map((p) => p.pid), featuredItems: ['pv_wa_a'], sections: [] } as Storefront;
+  const rendu = (whatsapp?: string): string =>
+    renderVitrineReady(sfAvec, resolvedDemo.trust, { fromProduct: false, ...(whatsapp !== undefined ? { whatsapp } : {}) }, {}, produits);
+
+  it('with the number: one chip per in-stock tile (featured included), each href naming ITS product; the épuisé tile stays muette', () => {
+    const html = rendu('22670112233');
+    // pv_wa_a sits in the featured card AND the grid → 3 chips total (a, a-featured? no —
+    // featured pids are excluded from the residual grid or not? assert by href count instead:
+    const hrefA = encodeURIComponent('Bonjour Binta, je vous écris au sujet de « Bazin riche » vu sur Chez Binta.');
+    const hrefB = encodeURIComponent('Bonjour Binta, je vous écris au sujet de « Robe wax » vu sur Chez Binta.');
+    const hrefC = encodeURIComponent('Sac cuir');
+    expect(html).toContain(`https://wa.me/22670112233?text=${hrefA}`.replace(/&/g, '&amp;'));
+    expect(html).toContain(`https://wa.me/22670112233?text=${hrefB}`.replace(/&/g, '&amp;'));
+    // the épuisé product gets NO chip — the muette-tile law holds
+    expect(html.includes(hrefC)).toBe(false);
+    // every chip is the delegated action, aria-labelled
+    const chips = html.match(/data-action="whatsapp"/g) ?? [];
+    expect(chips.length).toBeGreaterThanOrEqual(2);
+    expect(html).toContain('Écrire sur WhatsApp');
+  });
+
+  it('without the number: not one wa.me byte on the whole boutique', () => {
+    const html = rendu();
+    expect(html).not.toContain('wa.me');
+    expect(html).not.toContain('data-action="whatsapp"');
+  });
+
+  it('the prenom rule is the fiche’s own — « Chez Binta » drafts « Bonjour Binta »', () => {
+    const html = rendu('22670112233');
+    expect(html).toContain(encodeURIComponent('Bonjour Binta,').replace(/&/g, '&amp;'));
+  });
+});
+
+describe('ouvrirWhatsApp — the delegated opener, by execution', () => {
+  /** The suite runs in node: give the opener the ONE browser global it uses,
+   *  record every call, and remove it after — nothing else is faked. */
+  function avecWindow(run: () => void): unknown[][] {
+    const appels: unknown[][] = [];
+    const g = globalThis as { window?: unknown };
+    const avait = 'window' in g;
+    const original = g.window;
+    g.window = { open: (...args: unknown[]) => { appels.push(args); return null; } };
+    try {
+      run();
+    } finally {
+      if (avait) g.window = original;
+      else delete g.window;
+    }
+    return appels;
+  }
+  it('a wa.me URL opens in a new tab with no opener back-channel', () => {
+    const appels = avecWindow(() => {
+      expect(ouvrirWhatsApp('https://wa.me/22670112233?text=Bonjour')).toBe(true);
+    });
+    expect(appels).toEqual([['https://wa.me/22670112233?text=Bonjour', '_blank', 'noopener']]);
+  });
+  it('anything that is not wa.me opens NOTHING — the chip cannot be steered elsewhere', () => {
+    const appels = avecWindow(() => {
+      for (const mauvais of ['', 'https://evil.example/x', 'javascript:alert(1)', 'http://wa.me/226', 'https://wa.me.evil.example/']) {
+        expect(ouvrirWhatsApp(mauvais), mauvais).toBe(false);
+      }
+    });
+    expect(appels).toHaveLength(0);
+  });
+});
+
+describe('the thread through the mount — pinned at the source, the vitrine.test discipline', () => {
+  it('mountVitrine hands the RESOLVED whatsapp to the READY render (a severed thread would render a boutique with no chips over a served number)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const flows = readFileSync(new URL('../src/vitrine/flows.ts', import.meta.url), 'utf8');
+    expect(flows).toMatch(/\{ fromProduct, \.\.\.\(resolu!\.whatsapp !== undefined \? \{ whatsapp: resolu!\.whatsapp \} : \{\}\) \}/);
+    // and the delegated branch opens ONLY through the guarded opener
+    const branche = flows.slice(flows.indexOf("action === 'whatsapp'"));
+    expect(branche.slice(0, 700)).toContain('ev.preventDefault();');
+    expect(branche.slice(0, 700)).toContain("ouvrirWhatsApp(target.getAttribute('data-wa-href') ?? '')");
   });
 });

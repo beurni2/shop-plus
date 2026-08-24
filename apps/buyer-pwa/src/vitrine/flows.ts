@@ -282,7 +282,17 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
         root.innerHTML =
           showable === 0
             ? renderVitrineEmpty(sf!, resolu!.trust, { fromProduct }, entete)
-            : renderVitrineReady(sf!, resolu!.trust, { fromProduct }, resolu!.notes, described, entete);
+            : renderVitrineReady(
+                sf!,
+                resolu!.trust,
+                // CONTACT-WHATSAPP-2 — the resolved contact rides into the grid
+                // exactly as it rides into the fiche (main.ts): conditionally,
+                // absent stays absent.
+                { fromProduct, ...(resolu!.whatsapp !== undefined ? { whatsapp: resolu!.whatsapp } : {}) },
+                resolu!.notes,
+                described,
+                entete,
+              );
         dernierPret = showable === 0 ? null : { sf: sf!, described };
         // VIDEO-PRODUIT V-1e — the scroll-play observer mounts over the nodes
         // just rendered; no video hero on the page ⇒ it mounts nothing.
@@ -401,6 +411,13 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
         }
         toast(root, t(on ? 'vit.panier_ajoute' : 'vit.panier_retire'));
       }
+    } else if (action === 'whatsapp') {
+      // CONTACT-WHATSAPP-2 — closest() resolved THIS chip, so the tile's
+      // `produit` navigation does not fire (the fav law). The chip carries the
+      // URL its own render vouched for; `ouvrirWhatsApp` refuses anything that
+      // is not a wa.me address, so no other bytes can ever be opened from here.
+      ev.preventDefault();
+      ouvrirWhatsApp(target.getAttribute('data-wa-href') ?? '');
     } else if (action === 'ancre') {
       // NORTH-STAR round 3 — « Voir tout » is a SCROLL, not a page (the boutique
       // IS this page); a link to nowhere would be the dead button the canon bans.
@@ -414,6 +431,15 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
       window.location.href = '/boutiques';
     }
   });
+}
+
+/** CONTACT-WHATSAPP-2 — open the WhatsApp draft, wa.me ONLY. Exported so the
+ *  guard is testable by execution (the applyFavoriteState precedent): a chip
+ *  whose attribute was somehow not a wa.me URL opens nothing, returns false. */
+export function ouvrirWhatsApp(href: string): boolean {
+  if (!href.startsWith('https://wa.me/')) return false;
+  window.open(href, '_blank', 'noopener');
+  return true;
 }
 
 /** Flip every heart carrying this pid — exported so the sync is testable by

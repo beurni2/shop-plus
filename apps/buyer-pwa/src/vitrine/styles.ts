@@ -242,6 +242,20 @@ export const VITRINE_STYLES = `
      takes the free bottom-left corner instead; the heart keeps top-right. */
   .vt-featured-artwrap .vt-pan { top: auto; bottom: 10px; left: 10px; }
 
+  /* CONTACT-WHATSAPP-2 — the third sibling: bottom-RIGHT of the art (heart
+     top-right, panier top-left), same 44px touch floor, same white disc; the
+     accent says « this one talks ». */
+  .vt-wa {
+    position: absolute; bottom: 6px; right: 6px; z-index: 1;
+    width: 44px; height: 44px; border-radius: 99px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #FFFFFF; box-shadow: 0 1px 3px rgba(28,22,15,.14);
+    color: var(--vt-accent); cursor: pointer;
+  }
+  .vt-wa:active { transform: scale(.9); }
+  .vt-wa svg { display: block; }
+  .vt-featured-artwrap .vt-wa { bottom: 10px; right: 10px; }
+
   /* PANIER-VITRINE-1 — her shelf: a quiet band, a horizontal row of small
      cards. It whispers (the page's primary action stays the seller's
      showcase); it disappears entirely when empty. */

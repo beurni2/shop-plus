@@ -14,6 +14,7 @@
 
 import { t, tf } from '../i18n';
 import { esc } from '../format';
+import { iconWhatsApp } from '../cliente/icons';
 import { fmtFCFA } from '../cliente/money';
 import { productFromSeed, seedProduct, type VitrineProduct, type VitrineSeedProduct } from './catalog';
 import { focusPosition, type Storefront, type VitrineTrust, type ProductVoiceNote, type ProductVoiceNotes } from './profile';
@@ -276,7 +277,7 @@ function pan(slug: string, pid: string): string {
   return `<span class="vt-pan${on ? ' vt-pan-on' : ''}" role="button" tabindex="0" data-action="panier" data-pid="${esc(pid)}" aria-pressed="${on}" aria-label="${t('vit.panier_aria')}">${iconBag(15, '#1C1710', 2)}</span>`;
 }
 
-function tile(p: VitrineProduct, note: ProductVoiceNote | undefined, slug: string): string {
+function tile(p: VitrineProduct, note: ProductVoiceNote | undefined, slug: string, wa?: WaCtx): string {
   const cls = p.inStock ? 'vt-tile' : 'vt-tile vt-tile-epuise';
   const attrs = p.inStock
     ? `data-action="produit" data-pid="${esc(p.pid)}"`
@@ -289,7 +290,7 @@ function tile(p: VitrineProduct, note: ProductVoiceNote | undefined, slug: strin
   // as unmeasured, reaffirmed, rendered as given.
   return [
     `<button class="${cls}" data-role="vitrine-produit" ${attrs}>`,
-    `<div class="vt-artwrap">${produitArt(p, !p.inStock)}${p.inStock ? fav(p.pid) : ''}${p.inStock ? pan(slug, p.pid) : ''}</div>`,
+    `<div class="vt-artwrap">${produitArt(p, !p.inStock)}${p.inStock ? fav(p.pid) : ''}${p.inStock ? pan(slug, p.pid) : ''}${p.inStock && wa !== undefined ? waChip(p, wa) : ''}</div>`,
     '<div class="vt-tile-body">',
     `<div class="vt-tile-name"><v>${esc(p.name)}</v></div>`,
     '<div class="vt-tile-pricerow">',
@@ -374,16 +375,16 @@ function featuredArt(p: VitrineProduct): string {
  * It carried both — the sections and the residual — because a shop where one
  * grid staggers and the other does not looks broken rather than designed.
  */
-function grille(prods: readonly VitrineProduct[], notes: ProductVoiceNotes, slug: string): string {
+function grille(prods: readonly VitrineProduct[], notes: ProductVoiceNotes, slug: string, wa?: WaCtx): string {
   const colonne = (c: 0 | 1): string =>
-    prods.filter((_, i) => i % 2 === c).map((p) => tile(p, notes[p.pid], slug)).join('');
+    prods.filter((_, i) => i % 2 === c).map((p) => tile(p, notes[p.pid], slug, wa)).join('');
   return `<div class="vt-grid"><div class="vt-col">${colonne(0)}</div><div class="vt-col">${colonne(1)}</div></div>`;
 }
 
-function featuredTile(p: VitrineProduct, note: ProductVoiceNote | undefined, pinnedByHer: boolean, slug: string): string {
+function featuredTile(p: VitrineProduct, note: ProductVoiceNote | undefined, pinnedByHer: boolean, slug: string, wa?: WaCtx): string {
   return [
     `<button class="vt-featured" data-role="vitrine-a-la-une" data-action="produit" data-pid="${esc(p.pid)}">`,
-    `<div class="vt-featured-artwrap">${featuredArt(p)}${pinnedByHer ? `<span class="vt-featured-badge">${t('vit.a_la_une')}</span>` : ''}${fav(p.pid)}${pan(slug, p.pid)}</div>`,
+    `<div class="vt-featured-artwrap">${featuredArt(p)}${pinnedByHer ? `<span class="vt-featured-badge">${t('vit.a_la_une')}</span>` : ''}${fav(p.pid)}${pan(slug, p.pid)}${wa !== undefined ? waChip(p, wa) : ''}</div>`,
     '<div class="vt-featured-body">',
     `<span class="vt-featured-name"><v>${esc(p.name)}</v></span>`,
     `<b class="vt-featured-price"><v>${fmtFcfa(p.priceFcfa)}</v></b>`,
@@ -445,6 +446,29 @@ function orderedProducts(
 export interface VitrineRenderOpts {
   /** ← appears only when arrived from a product page (§4.1). */
   readonly fromProduct: boolean;
+  /** CONTACT-WHATSAPP-2 (founder: « add the whatsapp icon on each tile as
+   *  well ») — the reseller's wa.me digits off the resolve, server-vouched.
+   *  Absent ⇒ no chip renders anywhere on the grid. */
+  readonly whatsapp?: string;
+}
+
+/** The per-tile WhatsApp context, computed ONCE from the resolved storefront
+ *  (the C1 fiche's own prenom rule, so the two surfaces draft the same
+ *  greeting). */
+interface WaCtx {
+  readonly digits: string;
+  readonly prenom: string;
+  readonly shopName: string;
+}
+
+/** CONTACT-WHATSAPP-2 — the tile chip: fav/pan's third sibling, same 44px
+ *  disc, same closest() law (its data-action routes the tap to `whatsapp`,
+ *  never to `produit`). The full wa.me URL rides the element so the handler
+ *  opens EXACTLY what this render vouched for — the draft names THIS product. */
+function waChip(p: VitrineProduct, ctx: WaCtx): string {
+  const texte = `Bonjour ${ctx.prenom}, je vous écris au sujet de « ${p.name} » vu sur ${ctx.shopName}.`;
+  const href = `https://wa.me/${ctx.digits}?text=${encodeURIComponent(texte)}`;
+  return `<span class="vt-wa" role="button" tabindex="0" data-action="whatsapp" data-pid="${esc(p.pid)}" data-wa-href="${esc(href)}" aria-label="${t('vit.whatsapp_aria')}">${iconWhatsApp(17, 1.8)}</span>`;
 }
 
 /**
@@ -505,6 +529,11 @@ export function renderVitrineReady(
   entete: EnteteKey = 'classique',
 ): string {
   const th = VITRINE_THEMES[sf.theme];
+  // CONTACT-WHATSAPP-2 — computed once; the prenom rule is the C1 fiche's own.
+  const waCtx: WaCtx | undefined =
+    opts.whatsapp !== undefined
+      ? { digits: opts.whatsapp, prenom: sf.name.replace(/^Chez\s+/i, '').split(' ')[0] ?? sf.name, shopName: sf.name }
+      : undefined;
   const parts = [
     renderEntete(
       entete,
@@ -572,7 +601,7 @@ export function renderVitrineReady(
         anythingBelow ? 'vt-anchor-grid' : undefined,
       ),
     );
-    for (const p of featured) parts.push(featuredTile(p, notes[p.pid], pinned.length > 0, sf.slug));
+    for (const p of featured) parts.push(featuredTile(p, notes[p.pid], pinned.length > 0, sf.slug, waCtx));
     if (anythingBelow) parts.push('<div id="vt-anchor-grid"></div>');
   }
 
@@ -595,7 +624,7 @@ export function renderVitrineReady(
     // would refer to nothing and the honest title is « TOUS LES ARTICLES ».
     const residualLabel = featured.length > 0 ? t('vit.head_autres') : t('vit.head_tous');
     parts.push(sectionHead(iconBag(15, '#6F6355', 1.9), residualLabel, undefined, undefined, residual.length));
-    parts.push(grille(residual, notes, sf.slug));
+    parts.push(grille(residual, notes, sf.slug, waCtx));
   }
 
   parts.push(inkBandAndFooter(sf));
