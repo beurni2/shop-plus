@@ -292,3 +292,22 @@ export function toStorefrontView(sf: Storefront): StorefrontView {
     updatedAt: sf.updatedAt,
   };
 }
+
+/**
+ * CONTACT-WHATSAPP-1 — the registration phone, made wa.me-ready. DETERMINISTIC
+ * digits only (Ten Laws #5): a leading `+` or `00` comes off, separators
+ * (spaces, dots, dashes, parens) come off, and what remains must be digits. A
+ * bare 8-digit Burkina number gets the country code, because `wa.me` requires
+ * the full international form; anything 10–15 digits is carried as she gave it
+ * (a `226…` is 11). Everything else — letters, too short, too long — is
+ * `undefined`, and undefined means the tap simply does not render: a number
+ * this function cannot vouch for must never become a dead WhatsApp link on a
+ * buyer's screen.
+ */
+export function whatsappDigits(raw: string): string | undefined {
+  const stripped = raw.trim().replace(/^\+/, '').replace(/^00/, '').replace(/[\s.\-()]/g, '');
+  if (!/^\d+$/.test(stripped)) return undefined;
+  if (stripped.length === 8) return `226${stripped}`;
+  if (stripped.length >= 10 && stripped.length <= 15) return stripped;
+  return undefined;
+}

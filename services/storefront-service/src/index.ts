@@ -2,7 +2,7 @@ import { makeHealthFetch, provenance } from '@shop-plus/observability';
 import type { ResellerListing, Storefront } from '@platform/contracts';
 import { resolveMediaStore, type MediaEnv, type R2ObjectBodyLike } from './media/media-store.js';
 import { StorefrontMediaService, type MediaKind } from './media/service.js';
-import { absoluteAssetRefs, joinVitrineProduct, toStorefrontView, type VitrineProductRecord } from './customer-projection.js';
+import { absoluteAssetRefs, joinVitrineProduct, toStorefrontView, whatsappDigits, type VitrineProductRecord } from './customer-projection.js';
 import { resolveStorefrontStore, type StorefrontStoreEnv } from './storefront-store.js';
 import { resolveSupplySource, type SupplySourceEnv } from './supply-source.js';
 import { SUPPLY_COLLECTION_ROUTE, readSupplyCollection } from './supply-collection.js';
@@ -203,6 +203,15 @@ export type StorefrontServiceEnv = MediaEnv &
      * wires, computed at the composition root. Absent in Node/unit contexts
      * (no worker env to read); the deployed router always passes it. */
     readonly CUSTODY_WIRES?: CustodyWires;
+    /**
+     * CONTACT-WHATSAPP-1 — the owner-contact port, injected at the
+     * composition root over the accounts book's internal `/contact-of`
+     * (active accounts only). `undefined` for a reseller with no compte, a
+     * non-active one, or any transport failure — the boutique read treats all
+     * three as « no contact » and renders unchanged. Absent in Node/unit
+     * contexts, like the bindings above.
+     */
+    readonly CONTACT?: { whatsappOf(resellerId: string): Promise<string | undefined> };
   };
 
 /**
@@ -217,7 +226,27 @@ async function handleStorefrontRead(slug: string, env?: StorefrontServiceEnv): P
     return Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 });
   }
   const products = await describeProducts(storefront.id, storefront.curatedItems, env);
-  return Response.json({ ...toStorefrontView(storefront), products }, { status: 200 });
+  /**
+   * CONTACT-WHATSAPP-1 — the owner's registration phone joins her public page
+   * as wa.me-ready digits, so a buyer can write to HER about a product (the
+   * reseller is the commercial relationship, SP-I03; the supplier still
+   * appears nowhere). Resolved through the CONTACT port — the accounts book
+   * answers only for an ACTIVE account, so pausing a reseller takes her
+   * number off the boutique with her. FAIL-OPEN ABSENT, never broken: a
+   * contact hiccup, a shop whose owner has no compte, or a phone the
+   * normalizer cannot vouch for all leave the key off, and the page renders
+   * exactly as it did before this slice — the supply-hiccup law, applied to
+   * contact.
+   */
+  let whatsapp: string | undefined;
+  if (env?.CONTACT !== undefined) {
+    const phone = await env.CONTACT.whatsappOf(storefront.resellerId).catch(() => undefined);
+    if (phone !== undefined) whatsapp = whatsappDigits(phone);
+  }
+  return Response.json(
+    { ...toStorefrontView(storefront), products, ...(whatsapp !== undefined ? { whatsapp } : {}) },
+    { status: 200 },
+  );
 }
 
 /**

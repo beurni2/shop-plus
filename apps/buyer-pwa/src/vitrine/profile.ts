@@ -95,6 +95,14 @@ export interface StorefrontProfilePort {
          * with zero transformation, exactly as `catalog.ts` always intended.
          */
         products?: readonly VitrineProduct[];
+        /**
+         * CONTACT-WHATSAPP-1 — the reseller's registration number, wa.me-ready
+         * digits, already normalized and vouched for SERVER-SIDE (active
+         * account only; the service omits the key otherwise). Re-checked at
+         * this boundary like every other wire field: digits or absent. Absent
+         * ⇒ no WhatsApp tap renders anywhere — the honest no-contact state.
+         */
+        whatsapp?: string;
       }
     | undefined
   >;
@@ -472,7 +480,19 @@ export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
       // another reseller's deliveries is the very defect that rule was written
       // for. Only the notes half is filled in.
       const notes = notesFromWire((view as { productNotes?: unknown }).productNotes);
-      return { storefront, trust: ABSENT_TRUST, notes, ...(products !== undefined ? { products } : {}) };
+      // CONTACT-WHATSAPP-1 — digits or absent, decided HERE once (network
+      // boundary, hostile shape — the `products` discipline). 10–15 digits is
+      // the wa.me-usable band the service already normalized into; anything
+      // else is treated as absent rather than becoming a dead link.
+      const rawWa = (view as { whatsapp?: unknown }).whatsapp;
+      const whatsapp = typeof rawWa === 'string' && /^\d{10,15}$/.test(rawWa) ? rawWa : undefined;
+      return {
+        storefront,
+        trust: ABSENT_TRUST,
+        notes,
+        ...(products !== undefined ? { products } : {}),
+        ...(whatsapp !== undefined ? { whatsapp } : {}),
+      };
     },
   };
 }

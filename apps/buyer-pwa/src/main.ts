@@ -720,7 +720,13 @@ if (app) {
         // product: a wrong link says so instead of selling something else.
         mountVitrine(app as HTMLElement, signedSlug, { etat: 'invalid' });
       } else {
-        const { produit } = clienteProduitReel(resolved.storefront, product, resolved.notes[product.pid]);
+        // CONTACT-WHATSAPP-1 — the resolved contact rides INTO the product
+        // model here, the one seam between the boutique read and the fiche.
+        const { produit } = clienteProduitReel(
+          { ...resolved.storefront, ...(resolved.whatsapp !== undefined ? { whatsapp: resolved.whatsapp } : {}) },
+          product,
+          resolved.notes[product.pid],
+        );
         // SP3.2b — THE REAL PATH ASKS THE SERVICE FOR THE PRICE.
         //
         // What this replaces: `quote: composeQuote(produit.priceFcfa)`, i.e. the

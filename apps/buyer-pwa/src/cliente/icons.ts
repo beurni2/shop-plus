@@ -116,3 +116,17 @@ export const RECORDED_WAVE_SVG =
   '<svg width="110" height="22" viewBox="0 0 120 22" fill="currentColor" aria-hidden="true" style="flex:1;min-width:0;"><rect x="0" y="8" width="3" height="6" rx="1.5"></rect><rect x="6" y="5" width="3" height="12" rx="1.5"></rect><rect x="12" y="2" width="3" height="18" rx="1.5"></rect><rect x="18" y="6" width="3" height="10" rx="1.5"></rect><rect x="24" y="3" width="3" height="16" rx="1.5"></rect><rect x="30" y="8" width="3" height="6" rx="1.5"></rect><rect x="36" y="4" width="3" height="14" rx="1.5"></rect><rect x="42" y="1" width="3" height="20" rx="1.5"></rect><rect x="48" y="6" width="3" height="10" rx="1.5"></rect><rect x="54" y="3" width="3" height="16" rx="1.5"></rect><rect x="60" y="7" width="3" height="8" rx="1.5"></rect><rect x="66" y="2" width="3" height="18" rx="1.5"></rect><rect x="72" y="6" width="3" height="10" rx="1.5"></rect><rect x="78" y="9" width="3" height="4" rx="1.5"></rect><rect x="84" y="4" width="3" height="14" rx="1.5"></rect><rect x="90" y="7" width="3" height="8" rx="1.5"></rect><rect x="96" y="2" width="3" height="18" rx="1.5"></rect><rect x="102" y="6" width="3" height="10" rx="1.5"></rect><rect x="108" y="8" width="3" height="6" rx="1.5"></rect><rect x="114" y="5" width="3" height="12" rx="1.5"></rect></svg>';
 
 export type { SvgOpts };
+
+/** La bulle WhatsApp — écrire à la vendeuse (CONTACT-WHATSAPP-1). Drawn in the
+ *  set's own stroke language (bubble + handset, currentColor) — the stylesheet
+ *  decides the color, never this module. */
+export const iconWhatsApp = (s: number, sw = 1.8): string =>
+  svg(
+    { w: s },
+    '0 0 24 24',
+    '<path d="M12 3.5a8.5 8.5 0 0 0-7.3 12.9L3.5 20.5l4.2-1.1A8.5 8.5 0 1 0 12 3.5z"></path><path d="M9.4 9.2c0-.4.3-.7.6-.8l.8-.2c.3-.1.6.1.7.3l.5 1c.1.3.1.6-.1.8l-.5.4c.4.9 1.1 1.6 2 2l.4-.5c.2-.2.5-.3.8-.1l1 .5c.3.1.4.4.4.7l-.2.8c-.1.4-.4.6-.8.6-2.9-.1-5.4-2.6-5.6-5.5z"></path>',
+    'none',
+    true,
+    sw,
+    true,
+  );

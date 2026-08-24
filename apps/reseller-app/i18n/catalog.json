@@ -3343,9 +3343,15 @@
  },
  {
   "key": "compte.telephone",
-  "fr": "Votre numéro de téléphone",
+  "fr": "Votre numéro WhatsApp",
   "register": "neutral",
   "screenClass": "label"
+ },
+ {
+  "key": "compte.telephone_aide",
+  "fr": "Vos clientes pourront vous écrire sur WhatsApp à ce numéro.",
+  "register": "neutral",
+  "screenClass": "instruction"
  },
  {
   "key": "compte.mot_de_passe",

@@ -26,7 +26,7 @@ import {
   RECORDED_WAVE_SVG, VOICE_WAVE_HEIGHTS,
   iconBack, iconCheck, iconCheckSquare, iconChevron, iconClock, iconEye, iconFlag,
   iconKey, iconLock, iconLockDot, iconMic, iconMicOff, iconPhone, iconPlay,
-  iconPlaySmall, iconScooter, iconShieldCheck, iconWifiOff,
+  iconPlaySmall, iconScooter, iconShieldCheck, iconWhatsApp, iconWifiOff,
 } from './icons';
 
 /** The offered product (the signed page's `prixClient` is `priceFcfa`). */
@@ -62,6 +62,9 @@ export interface ClienteProduit {
   readonly voiceDuree?: string;
   /** Playable note url (ready notes only) — tap plays, never autoplay. */
   readonly voiceUrl?: string;
+  /** CONTACT-WHATSAPP-1 — the reseller's wa.me-ready digits (server-vouched,
+   * active account only). Absent = no contact row renders. */
+  readonly whatsapp?: string;
   readonly inStock: boolean;
 }
 
@@ -599,6 +602,26 @@ function photoFrame(m: ClienteProduit, out: boolean): string {
 
 export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: boolean }): string {
   const out = o.epuise;
+  /**
+   * CONTACT-WHATSAPP-1 (founder order 2026-08-23) — « on each product an
+   * option where buyers can tap and send a private WhatsApp message or audio
+   * to the reseller about that specific product ». An ANCHOR, not a button:
+   * the OS hands the tap to WhatsApp with the product already named in the
+   * draft, and message vs note vocale is WhatsApp's own mic — nothing here
+   * records or relays anything. Absent number ⇒ no row at all (the honest
+   * no-contact state); the row renders on an épuisé product too — « quand
+   * est-ce qu'il revient ? » is exactly a WhatsApp question.
+   */
+  const waSujet = `Bonjour ${m.prenom}, je vous écris au sujet de « ${m.productName}${m.variant ? ` — ${m.variant}` : ''} » vu sur ${m.shopName}.`;
+  const waRow = m.whatsapp
+    ? [
+        `<a class="cl-wa" data-role="whatsapp" href="${esc(`https://wa.me/${m.whatsapp}?text=${encodeURIComponent(waSujet)}`)}" target="_blank" rel="noopener noreferrer">`,
+        `<span class="cl-wa-ic">${iconWhatsApp(18, 1.7)}</span>`,
+        `<span class="cl-wa-txt">Une question ? Écrire à ${esc(m.prenom)} sur WhatsApp<span class="cl-wa-sub">Message ou note vocale — à propos de cet article.</span></span>`,
+        `<span class="cl-wa-chev">${iconChevron(14)}</span>`,
+        '</a>',
+      ].join('')
+    : '';
   const pbPill = out
     ? '<span class="cl-pb-pill">ÉPUISÉ</span>'
     : `<span class="cl-pb-pill">PAGE SIGNÉE ${iconCheck(10, 3)}</span>`;
@@ -640,6 +663,7 @@ export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: bool
     `<div class="cl-trust-row"><span class="cl-trust-ic">${iconShieldCheck(17, 1.8)}</span><span class="cl-trust-txt">Paiement protégé — inspectez avant de payer</span></div>`,
     `<button class="cl-trust-link" data-action="ouvrir-protections"><span class="cl-trust-ic">${iconLock(16, 1.9)}</span><span class="cl-trust-link-txt">Vos protections</span><span class="cl-trust-chev">${iconChevron(14)}</span></button>`,
     '</div>',
+    waRow,
     out ? '<div class="cl-epuise-card">Ce produit est épuisé pour le moment. Revenez voir sa boutique — elle ajoute souvent de nouveaux articles.</div>' : '',
     `<button class="cl-cta cl-cta-c1${out ? ' cl-cta-off' : ''}" data-action="commander"${out ? ' disabled' : ''}>Commander</button>`,
     '<div class="cl-footnote">Votre numéro reste privé.</div>',

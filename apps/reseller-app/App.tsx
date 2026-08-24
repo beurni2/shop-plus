@@ -3465,6 +3465,9 @@ function EcranCompte({ service, envoi, erreurKey, onEnvoi, onErreur, onCompte }:
         <>
           <TextInput style={styles.margeInput} value={nom} onChangeText={setNom} autoCorrect={false} placeholder={t('compte.nom')} accessibilityLabel={t('compte.nom')} editable={!envoi} />
           <TextInput style={styles.margeInput} value={tel} onChangeText={setTel} keyboardType="phone-pad" placeholder={t('compte.telephone')} accessibilityLabel={t('compte.telephone')} editable={!envoi} />
+          {/* CONTACT-WHATSAPP-1 — said BEFORE she signs, not discovered on her
+              boutique: this number becomes the tap her buyers write to. */}
+          <Text style={styles.accesSous}>{t('compte.telephone_aide')}</Text>
         </>
       )}
       <TextInput style={styles.margeInput} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholder={t('compte.email')} accessibilityLabel={t('compte.email')} editable={!envoi} />

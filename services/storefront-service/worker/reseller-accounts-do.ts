@@ -283,6 +283,35 @@ export class ResellerAccountsDO {
       return Response.json({ ok: true, state: 'active' });
     }
 
+    /**
+     * ═══ CONTACT-WHATSAPP-1 (founder order 2026-08-23) — THE CONTACT READ ═══
+     *
+     * « The reseller WhatsApp number will be the one he will put during the
+     * registration » — and the registration ALREADY captures it: `phone`,
+     * step 1 of the flow above. This route is the ONE internal question the
+     * boutique's public read may ask this book: the phone of an ACTIVE
+     * account, by id, for the buyer-facing WhatsApp tap. Nothing else
+     * crosses: no email, no state detail, and never a salt/hash/code.
+     *
+     * REFUSE-CLOSED AND MUTE: pending, paused and absent all answer the
+     * SAME 404 — a paused reseller's number leaves the boutique the moment
+     * the founder pauses her, and the route cannot be used to probe which
+     * ids exist or what state they are in. INTERNAL ONLY by construction:
+     * no public router path forwards here (the `/entry/*` discipline).
+     */
+    if (request.method === 'POST' && pathname === '/contact-of') {
+      const body = (await request.json().catch(() => null)) as { accountId?: unknown } | null;
+      const accountId = champ(body?.['accountId']);
+      if (accountId === null || Object.keys(body ?? {}).length !== 1) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const record = await this.state.storage.get<AccountRecord>(`${ACCOUNT_PREFIX}${accountId}`);
+      if (record === undefined || record.state !== 'active') {
+        return Response.json({ ok: false, reason: 'not_found' }, { status: 404 });
+      }
+      return Response.json({ ok: true, phone: record.phone });
+    }
+
     /* ── FOUNDER (index.ts gates these behind key C before forwarding) ────── */
 
     if (request.method === 'GET' && pathname === '/accounts') {

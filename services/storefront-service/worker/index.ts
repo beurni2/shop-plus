@@ -1171,6 +1171,26 @@ export default {
         seraIntakeSecret: (env.SERA_INTAKE_SECRET ?? '') !== '',
         shopArmSecret: (env.SHOP_ARM_SECRET ?? '') !== '',
       },
+      // CONTACT-WHATSAPP-1 — the owner-contact port over the accounts book's
+      // internal /contact-of: the phone of an ACTIVE account, or undefined for
+      // everything else (no compte, paused, pending, transport failure — the
+      // boutique read renders unchanged on all of them). The port carries the
+      // ONE field the join needs, never the account record.
+      ...(env.COMPTES !== undefined
+        ? {
+            CONTACT: {
+              whatsappOf: async (resellerId: string): Promise<string | undefined> => {
+                const res = await env
+                  .COMPTES!.get(env.COMPTES!.idFromName(RESELLER_ACCOUNTS_NAME))
+                  .fetch(new Request('https://do/contact-of', { method: 'POST', body: JSON.stringify({ accountId: resellerId }) }))
+                  .catch(() => undefined);
+                if (res === undefined || !res.ok) return undefined;
+                const body = (await res.json().catch(() => null)) as { phone?: unknown } | null;
+                return typeof body?.phone === 'string' && body.phone !== '' ? body.phone : undefined;
+              },
+            },
+          }
+        : {}),
     };
     return handleRequest(request, serviceEnv);
   },

@@ -257,6 +257,15 @@ export const CLIENTE_STYLES = `
   .cl-trust-link .cl-trust-ic, .cl-trust-link .cl-trust-chev { color: var(--vt-accent); display: inline-flex; flex: none; }
   .cl-trust-link-txt { flex: 1; font-size: 13.5px; font-weight: 700; color: var(--vt-accent); }
   .cl-epuise-card { margin-top: 12px; padding: 13px 15px; border-radius: 16px; background: #F1E7D3; color: #4A3F33; font-size: 12.5px; line-height: 1.55; }
+  /* CONTACT-WHATSAPP-1 — the whisper row to the seller: same anatomy as the
+     trust card above it (Commander stays the ONE primary action). An anchor,
+     not a button — the OS opens WhatsApp, no JS in between. */
+  .cl-wa { margin-top: 12px; display: flex; align-items: center; gap: 11px; min-height: 48px; padding: 0 16px; border-radius: 20px; border: 1px solid #EDE4D3; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,22,15,.04); text-decoration: none; color: inherit; }
+  .cl-wa:active { background: #FBF6EB; }
+  .cl-wa-ic { color: var(--vt-accent); display: inline-flex; flex: none; }
+  .cl-wa-txt { flex: 1; font-size: 13.5px; font-weight: 700; color: var(--vt-accent); }
+  .cl-wa-sub { display: block; font-size: 11.5px; font-weight: 500; color: #6F6355; margin-top: 1px; }
+  .cl-wa-chev { color: var(--vt-accent); display: inline-flex; flex: none; }
 
   /* ══ CTA ══ */
   /* THE display: block BELOW IS LOAD-BEARING, not tidying (round 5, verifier).

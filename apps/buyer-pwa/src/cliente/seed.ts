@@ -135,7 +135,7 @@ function dureeLabel(ms: number): string {
  * seed: name · HER price · stock · real voice note, mapped into the C1 model.
  */
 export function clienteProduitReel(
-  storefront: { name: string; slug: string; theme: VitrineThemeKey; zone: string },
+  storefront: { name: string; slug: string; theme: VitrineThemeKey; zone: string; whatsapp?: string },
   product: VitrineProduct,
   note: ProductVoiceNote | undefined,
 ): { produit: ClienteProduit; theme: VitrineThemeKey } {
@@ -163,6 +163,9 @@ export function clienteProduitReel(
       ...(product.category !== undefined ? { category: product.category } : {}),
       ...(voiceDuree !== undefined ? { voiceDuree } : {}),
       ...(voiceUrl !== undefined ? { voiceUrl } : {}),
+      // CONTACT-WHATSAPP-1 — same conditional-spread rule as `category`:
+      // absent stays ABSENT, and C1 renders no contact row at all.
+      ...(storefront.whatsapp !== undefined ? { whatsapp: storefront.whatsapp } : {}),
     },
     theme: storefront.theme,
   };

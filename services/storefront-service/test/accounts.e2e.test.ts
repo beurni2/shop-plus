@@ -521,3 +521,99 @@ describe('CODE-REVU — the reseller FEED code rereads too, same law', () => {
     expect(mort.status).toBe(404);
   });
 });
+
+/**
+ * ═══ CONTACT-WHATSAPP-1 (founder order 2026-08-23) — THE NUMBER REACHES HER
+ * BOUTIQUE, and leaves it with her ═══
+ *
+ * « The reseller WhatsApp number will be the one he will put during the
+ * registration » — the signup phone above IS that number. This walk drives
+ * the whole road on the deployed bundle: signup → admission → her shop under
+ * her OWN accountId → `GET /s/{slug}` carries `whatsapp` as wa.me-ready
+ * digits — and a founder PAUSE takes it off the page with her. A shop whose
+ * owner has no compte renders exactly as before this slice: no key, page
+ * whole (the fail-open law).
+ */
+describe('CONTACT-WHATSAPP-1 — the registration number joins the boutique read, active accounts only', () => {
+  async function creerBoutique(resellerId: string, i: string): Promise<string> {
+    const res = await mf.dispatchFetch('http://c/storefronts', {
+      method: 'POST',
+      headers: { 'X-Write-Key': WRITE_SECRET, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        commandId: `cmd-wa-${i}`, id: `sf-wa-${i}`, resellerId,
+        shortCode: `WACT-${i}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
+        category: 'Général', correlationId: `corr-wa-${i}`, at: '2026-08-23T08:00:00.000Z',
+      }),
+    });
+    expect(res.status, 'setup: storefront create').toBe(200);
+    // The slug is DERIVED from the short code (slugFromShortCode), the same
+    // convention every sibling harness uses.
+    return `wact-${i}`;
+  }
+  const lireBoutique = async (slug: string) => {
+    const res = await mf.dispatchFetch(`http://c/s/${encodeURIComponent(slug)}`);
+    return { status: res.status, json: safeJson(await res.text()) as { whatsapp?: unknown } };
+  };
+
+  it('ACTIVE: the signup phone rides /s/{slug} normalized to wa.me digits — then a PAUSE removes it, a RESUME restores it', async () => {
+    const s = await inscrire({ phone: '+226 70 11 22 33' });
+    expect(s.status).toBe(200);
+    const accountId = s.json.accountId!;
+    const mint = await minterCode(accountId);
+    await admission(s.json.session!, mint.json.code!);
+    const slug = await creerBoutique(accountId, '0901');
+
+    const avec = await lireBoutique(slug);
+    expect(avec.status).toBe(200);
+    // NORMALIZED, not echoed: `+` and spaces die server-side; wa.me digits ride.
+    expect(avec.json.whatsapp).toBe('22670112233');
+
+    // The founder pauses her → her number leaves her public page with her.
+    const pause = await mf.dispatchFetch('http://c/reseller/accounts/pause', {
+      method: 'POST', headers: { ...cleC, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId }),
+    });
+    expect(pause.status).toBe(200);
+    const pausee = await lireBoutique(slug);
+    expect(pausee.status).toBe(200);
+    expect('whatsapp' in pausee.json, 'a paused reseller must not be writable-to').toBe(false);
+
+    const resume = await mf.dispatchFetch('http://c/reseller/accounts/resume', {
+      method: 'POST', headers: { ...cleC, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId }),
+    });
+    expect(resume.status).toBe(200);
+    expect((await lireBoutique(slug)).json.whatsapp).toBe('22670112233');
+  }, 60_000);
+
+  it('NO COMPTE: a shop whose owner never signed up reads exactly as before — no key, page whole', async () => {
+    const slug = await creerBoutique('rs-9999', '0902');
+    const sans = await lireBoutique(slug);
+    expect(sans.status).toBe(200);
+    expect('whatsapp' in sans.json).toBe(false);
+    // and the page is intact — the fields the vitrine renders are all present
+    for (const champ of ['name', 'zone', 'slug', 'products']) {
+      expect(champ in (sans.json as Record<string, unknown>), champ).toBe(true);
+    }
+  }, 60_000);
+
+  it('PENDING: an account that signed up but was never admitted exposes nothing', async () => {
+    const s = await inscrire({ phone: '+226 70 44 55 66' });
+    const slug = await creerBoutique(s.json.accountId!, '0903');
+    const lue = await lireBoutique(slug);
+    expect(lue.status).toBe(200);
+    expect('whatsapp' in lue.json).toBe(false);
+  }, 60_000);
+
+  it('⚠ the boutique read leaks NOTHING else from the account book — no email, no state, no credential material', async () => {
+    const s = await inscrire({ phone: '+226 70 77 88 99' });
+    await admission(s.json.session!, (await minterCode(s.json.accountId!)).json.code!);
+    const slug = await creerBoutique(s.json.accountId!, '0904');
+    const bytes = JSON.stringify((await lireBoutique(slug)).json);
+    for (const banned of ['example.bf', 'passwordHash', 'passwordSalt', 'accessCode', 'pending_access', '"state"', 'email']) {
+      expect(bytes.includes(banned), `the boutique read must not carry ${banned}`).toBe(false);
+    }
+    // and the scan is not vacuous — the number itself IS there
+    expect(bytes.includes('22670778899')).toBe(true);
+  }, 60_000);
+});
