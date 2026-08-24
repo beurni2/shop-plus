@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-23 · CONTACT-WHATSAPP-1 — a buyer taps a product and writes to the reseller on WhatsApp · IN REVIEW (awaiting merge word)
+## 2026-08-23 · CONTACT-WHATSAPP-1 — a buyer taps a product and writes to the reseller on WhatsApp · DONE
+
+**MERGED AND DEPLOYED (founder: « merge and deploy », 2026-08-23).** `main` fast-forwarded `2613971..777080e`. **All four push workflows green on 777080e, attempt 1 — ci 554 · pwa-preview 344 (the buyer PWA with the WhatsApp row, this slice's Pages deployable) · expo-preview 377 (the reseller app with the new signup label) · service-canon-drift 211 — then `storefront-deploy` run 64 → success** (the /s join + the accounts /contact-of), dispatched after ci. The consent note (verifier minor 3) was given to the founder in the report BEFORE his word; telling existing resellers is his.
 
 **Founder, 2026-08-23: « I want on boutique/storefront on each product an option where buyers can tap and send a private WhatsApp message or audio to the reseller about that specific product. The reseller WhatsApp number will be the one he will put during the registration ».** Shop-plus only (`4babbdd` + verifier notes `db4dff9`); boutik and sera untouched.
 
