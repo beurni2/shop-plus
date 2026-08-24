@@ -587,7 +587,9 @@ describe('CONTACT-WHATSAPP-1 — the registration number joins the boutique read
   }, 60_000);
 
   it('NO COMPTE: a shop whose owner never signed up reads exactly as before — no key, page whole', async () => {
-    const slug = await creerBoutique('rs-9999', '0902');
+    // An id the minter can never produce (it mints rs-{4 digits} only), so a
+    // same-run signup can never collide with this « no compte » owner.
+    const slug = await creerBoutique('rs-sans-compte', '0902');
     const sans = await lireBoutique(slug);
     expect(sans.status).toBe(200);
     expect('whatsapp' in sans.json).toBe(false);
