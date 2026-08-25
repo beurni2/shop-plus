@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-23 · RAYONS-REVENDEUR-1 — up to five rayons chosen at signup; Opportunités shows only hers · IN REVIEW (ships WITH CATEGORIES-OPPORTUNITES-1, awaiting one merge word)
+## 2026-08-23 · RAYONS-REVENDEUR-1 — up to five rayons chosen at signup; Opportunités shows only hers · DONE
+
+**MERGED AND DEPLOYED (founder: « merge and deploy », 2026-08-23 — one word for both slices).** `main` fast-forwarded `f618903..b12a463`, carrying CATEGORIES-OPPORTUNITES-1 AND this slice. **All four push workflows green on b12a463, attempt 1 — ci 558 · expo-preview 381 (the reseller app with the signup picker and the filtered Opportunités, this slice's deployable) · pwa-preview 348 · service-canon-drift 217 — then `storefront-deploy` run 65 → success** (the account book's categories field + answers), dispatched after ci.
 
 **Founder, 2026-08-23: « before merge and deploy, I want on shop+ during reseller registration the option for him to choose up to 5 categories products he wants to resell and show those categories and products only on his opportunités screen. »** Held CO-1's merge as ordered; this builds on it and the two ship together (`a942bc2` + verifier fixes `ed046d5`).
 
@@ -29,7 +31,7 @@ Format per entry:
 
 ---
 
-## 2026-08-23 · CATEGORIES-OPPORTUNITES-1 — resellers choose their category on Opportunités · IN REVIEW (awaiting merge word)
+## 2026-08-23 · CATEGORIES-OPPORTUNITES-1 — resellers choose their category on Opportunités · DONE (merged and deployed WITH RAYONS-REVENDEUR-1, 2026-08-23 — the runs are on that entry above)
 
 **Founder, 2026-08-23: « On opportunités in shop+ add products categories where resellers can choose their category. Make sure it's nicely, and well professionally implemented and doesn't break anything ».** Reseller-app only (`2d84f7f` + `0f0d021`).
 
