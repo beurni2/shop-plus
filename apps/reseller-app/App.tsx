@@ -27,6 +27,7 @@ import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, type St
 import type { Storefront } from './src/vitrine/customize/storefront';
 import { loadOrMintIdentity, remintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
+import { categoriesPresentes, filtrerOffres, labelCategorie } from './src/vitrine/rayons';
 import type { ResellerIdentity } from './src/identity/mint';
 import { expoIdentityStore, expoRandomBytes } from './src/identity/expoStore';
 import { useVoiceNotes, VoiceCardRow, VoiceNoteSheet, voiceCardLabel, type VoiceRemover, type VoiceUploader } from './src/vitrine/customize/voice-sheet';
@@ -451,6 +452,18 @@ export default function App() {
      */
   }, [offerSource, surOpportunites, surVitrine]);
   const offers: readonly Offer[] = feed?.status === 'ok' ? feed.offers : [];
+  /**
+   * CATEGORIES-OPPORTUNITES-1 — her category choice on the browse screen.
+   * The chips are DATA-DRIVEN from the live feed (a category exists on the
+   * row because a product carries it), and the ACTIVE filter is re-derived
+   * against the current feed: a category whose last product was deleted in
+   * Boutik+ silently falls back to « Tout » on the next re-read, never a
+   * stranded empty grid under a stuck chip. Pure derivation, no effect.
+   */
+  const [catFiltre, setCatFiltre] = useState<string | null>(null);
+  const categoriesOpp = useMemo(() => categoriesPresentes(offers), [offers]);
+  const catActive = catFiltre !== null && categoriesOpp.includes(catFiltre) ? catFiltre : null;
+  const offresFiltrees = filtrerOffres(offers, catActive);
   // RESELLER-IDENTITY-1 — the identity is now DEVICE-STORED and minted ONCE from the
   // OS CSPRNG, replacing a `Math.random` mint that was stable only per SESSION. That
   // regenerated `resellerId` on every restart and every preview republish, so the
@@ -1658,6 +1671,39 @@ export default function App() {
               <Text style={styles.screenTitle}>{t('opportunites.title')}</Text>
               <Text style={styles.oppSub}>{t('opportunites.sous_titre')}</Text>
             </View>
+            {/* CATEGORIES-OPPORTUNITES-1 (founder, 2026-08-23) — the rayons
+                row: « Tout » + one chip per category PRESENT in the live feed,
+                in the feed's own order. No categories on the wire ⇒ no row at
+                all — an empty filter bar would be furniture. The chips scroll
+                horizontally; the grid below re-renders filtered in place. */}
+            {categoriesOpp.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.oppFiltres}
+                contentContainerStyle={styles.oppFiltresRow}
+              >
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: catActive === null }}
+                  onPress={() => setCatFiltre(null)}
+                  style={[styles.oppChip, catActive === null && styles.oppChipOn]}
+                >
+                  <Text style={[styles.oppChipText, catActive === null && styles.oppChipTextOn]}>{t('opportunites.filtre_tout')}</Text>
+                </Pressable>
+                {categoriesOpp.map((c) => (
+                  <Pressable
+                    key={c}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: catActive === c }}
+                    onPress={() => setCatFiltre(catActive === c ? null : c)}
+                    style={[styles.oppChip, catActive === c && styles.oppChipOn]}
+                  >
+                    <Text style={[styles.oppChipText, catActive === c && styles.oppChipTextOn]}>{labelCategorie(c)}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
             {/* THE HONEST EMPTY STATE — shown while loading resolves to nothing,
                 when nothing is published, and when the wire is unconfigured or
                 unreachable. Deliberately ONE state for all of them: the reseller
@@ -1676,7 +1722,7 @@ export default function App() {
               <View style={styles.oppColumns}>
                 {([0, 1] as const).map((col) => (
                   <View key={col} style={styles.oppColumn}>
-                    {offers.filter((_, i) => i % 2 === col).map((item) => (
+                    {offresFiltrees.filter((_, i) => i % 2 === col).map((item) => (
                       // §4 L70 — a tappable product TILE → its FICHE (journey edge
                       // opportunites→fiche). RESELLER-UX-3 (founder reference): the
                       // marketplace tile — SQUARE photo edge-to-edge on top (cover; a
@@ -3019,6 +3065,15 @@ const styles = StyleSheet.create({
   // surface, radius 99, small bold caps-weight text) and DELIBERATELY QUIETER than
   // « Vérifiée » — Shop+ is offering these goods, not vouching for them, and that
   // distinction is what the hub-assurance slice exists to protect.
+  // CATEGORIES-OPPORTUNITES-1 — the rayons row: quiet pills, the active one
+  // filled in the shop accent (the tabActive/tabLabelActive pairing, worn as
+  // pills). 44px min height keeps the touch floor on a horizontal row.
+  oppFiltres: { marginBottom: spacing.md, flexGrow: 0 },
+  oppFiltresRow: { gap: spacing.xs, paddingRight: spacing.lg, alignItems: 'center' },
+  oppChip: { minHeight: touch.minTargetPx, justifyContent: 'center', borderRadius: radius.pill, borderWidth: interaction.hairline.strong, borderColor: shopColour.soft, backgroundColor: sharedColour.card, paddingHorizontal: spacing.md },
+  oppChipOn: { backgroundColor: shopColour.soft, borderColor: shopColour.primary },
+  oppChipText: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.pill.size), fontWeight: w(t2.scale.pill.wght) },
+  oppChipTextOn: { color: shopColour.deep },
   oppSourcePill: { alignSelf: 'flex-start', borderRadius: radius.pill, backgroundColor: shopColour.soft, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, marginTop: spacing.xs },
   oppSourcePillText: { color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.pill.size), fontWeight: w(t2.scale.pill.wght) },
   oppNet: { color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght), fontVariant: ['tabular-nums'] },

@@ -60,6 +60,12 @@
   "screenClass": "label"
  },
  {
+  "key": "opportunites.filtre_tout",
+  "fr": "Tout",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
   "key": "opportunites.sous_titre",
   "fr": "Produits de vendeurs vérifiés — votre gain net est affiché.",
   "register": "selling",

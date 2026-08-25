@@ -42,6 +42,13 @@ export interface Offer {
   readonly productName: string;
   readonly assetRefs: readonly string[];
   /**
+   * CATEGORIES-OPPORTUNITES-1 — the service has sent this since
+   * CATEGORY-WIRE-1 (WHAT is sold, never WHO sells it) and this mirror
+   * dropped it. OPTIONAL, defensively: an older service omits it, and the
+   * chips row simply does not build from what is not there.
+   */
+  readonly category?: string;
+  /**
    * VIDEO-PARTOUT (founder order 2026-08-03) — the ≤ 6 s clip's ABSOLUTE url,
    * absolutized by the wire through the same base as `assetRefs`. Optional:
    * most products have none, and an older service sends nothing. Display data

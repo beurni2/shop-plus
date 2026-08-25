@@ -492,7 +492,7 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     //     phone, the same card in the same column (Loi 5: nothing ranked,
     //     nothing measured). A height-balancing heuristic would be prettier and
     //     would make the same catalogue render differently on two devices.
-    expect(screen).toMatch(/offers\.filter\(\(_, i\) => i % 2 === col\)/);
+    expect(screen).toMatch(/offresFiltrees\.filter\(\(_, i\) => i % 2 === col\)/);
 
     // 6 · the odd-count ghost spacer is DELETED, not merely unused — it only
     //     ever made sense inside a row.

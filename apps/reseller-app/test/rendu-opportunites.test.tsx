@@ -37,7 +37,7 @@ const PV_A = 'pv-bazin';
 const PV_B = 'pv-sac';
 const NAMES: Record<string, string> = { [PV_A]: 'Bazin riche', [PV_B]: 'Sac en cuir' };
 
-const offer = (pv: string) => ({
+const offer = (pv: string, category = 'mode') => ({
   productVersionId: pv,
   offerVersion: 'ov-1',
   basePrice: 10_000,
@@ -45,7 +45,7 @@ const offer = (pv: string) => ({
   available: 5,
   productName: NAMES[pv] ?? pv,
   assetRefs: [],
-  category: 'mode',
+  category,
 });
 
 function storefront(curated: readonly string[]) {
@@ -72,11 +72,22 @@ function storefront(curated: readonly string[]) {
   };
 }
 
+function serviceOffres(offres: readonly { pv: string; cat?: string }[]): Route[] {
+  return [
+    (path) =>
+      path === '/supply-projections'
+        ? { status: 200, json: { offers: offres.map((o) => (o.cat === undefined ? { ...offer(o.pv), category: undefined } : offer(o.pv, o.cat))), diagnostic: { status: 'ok', refusals: [] } } }
+        : null,
+    (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
+    (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: storefront([]) as never } : null),
+  ];
+}
+
 function service(offers: readonly string[]): Route[] {
   return [
     (path) =>
       path === '/supply-projections'
-        ? { status: 200, json: { offers: offers.map(offer), diagnostic: { status: 'ok', refusals: [] } } }
+        ? { status: 200, json: { offers: offers.map((pv) => offer(pv)), diagnostic: { status: 'ok', refusals: [] } } }
         : null,
     (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
     (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: storefront([]) as never } : null),
@@ -190,6 +201,87 @@ describe('OPPORTUNITÉS-BLANC — the white ground did not cost her the screen',
     await screen.press('Opportunités');
     expect(screen.shows('Les opportunités')).toBe(true);
     expect(screen.canPress('Bazin riche'), 'the tile is still pressable on the second visit').toBe(true);
+    screen.unmount();
+  });
+});
+
+/**
+ * ═══ CATEGORIES-OPPORTUNITES-1 (founder, 2026-08-23: « add products
+ * categories where resellers can choose their category ») — THE RAYONS ROW,
+ * DRIVEN ═══
+ *
+ * The four questions, answered on the mounted tree: the row rendered · a chip
+ * is present AND pressable AND wired (pressing it re-renders the grid
+ * filtered in place — never a navigation) · « Tout » is the way back · and
+ * the road to the next screen (the fiche) still works from a filtered grid.
+ */
+describe('CATEGORIES-OPPORTUNITES — she chooses a rayon, the grid follows, « Tout » brings everything back', () => {
+  const PV_C = 'pv-vase';
+
+  it('the chips render from the LIVE feed in feed order; a press filters IN PLACE; « Tout » restores; the fiche still opens', async () => {
+    wire(serviceOffres([
+      { pv: PV_A, cat: 'Mode femme' },
+      { pv: PV_B, cat: 'Sacs' },
+      { pv: PV_C, cat: 'Mode femme' },
+    ]));
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+
+    // The row rendered, data-driven: « Tout » + the two categories present.
+    for (const chip of ['Tout', 'Mode femme', 'Sacs']) {
+      expect(screen.canPress(chip), `chip « ${chip} » must be pressable — on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    }
+
+    // She chooses « Sacs »: only its product remains, the others leave, and
+    // the screen did NOT navigate — the title is still hers.
+    await screen.press('Sacs');
+    expect(screen.shows('Les opportunités')).toBe(true);
+    expect(screen.shows('Sac en cuir')).toBe(true);
+    expect(screen.shows('Bazin riche')).toBe(false);
+    expect(screen.shows('pv-vase')).toBe(false);
+
+    // « Tout » is the way back — everything returns.
+    await screen.press('Tout');
+    expect(screen.shows('Bazin riche')).toBe(true);
+    expect(screen.shows('Sac en cuir')).toBe(true);
+
+    // And a FILTERED grid still reaches the next screen: filter, then open.
+    await screen.press('Mode femme');
+    expect(screen.shows('Sac en cuir')).toBe(false);
+    await screen.press('Bazin riche');
+    expect(screen.texts().join(' ')).not.toContain('Les opportunités');
+    screen.unmount();
+  });
+
+  it('re-pressing the active chip releases it — a toggle, never a stuck filter', async () => {
+    wire(serviceOffres([{ pv: PV_A, cat: 'Mode femme' }, { pv: PV_B, cat: 'Sacs' }]));
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    await screen.press('Sacs');
+    expect(screen.shows('Bazin riche')).toBe(false);
+    await screen.press('Sacs');
+    expect(screen.shows('Bazin riche')).toBe(true);
+    screen.unmount();
+  });
+
+  it('a canon id wears its French name on the chip, never snake_case', async () => {
+    wire(serviceOffres([{ pv: PV_A, cat: 'shoes' }, { pv: PV_B, cat: 'Sacs' }]));
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    expect(screen.canPress('Chaussures')).toBe(true);
+    expect(screen.shows('shoes')).toBe(false);
+    await screen.press('Chaussures');
+    expect(screen.shows('Bazin riche')).toBe(true);
+    expect(screen.shows('Sac en cuir')).toBe(false);
+    screen.unmount();
+  });
+
+  it('a feed with NO categories renders NO row — an empty filter bar would be furniture', async () => {
+    wire(serviceOffres([{ pv: PV_A }, { pv: PV_B }]));
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    expect(screen.shows('Bazin riche')).toBe(true);
+    expect(screen.canPress('Tout')).toBe(false);
     screen.unmount();
   });
 });
