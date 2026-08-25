@@ -301,3 +301,37 @@ describe('PROFIL-REVENDEUR-1 — verifier finding, fixed: the rayons card never 
     screen.unmount();
   });
 });
+
+describe('CERCLE-PROFIL-1 — the Cercle lives on her page now, and the dock is five', () => {
+  it('the row opens the hub, and « Retour » brings her back to her profile — the whole round trip', async () => {
+    await seedCompte();
+    const serveur = profilInitial();
+    wire(routes(serveur));
+    const screen = await mountApp();
+    await screen.press('Profil');
+
+    expect(screen.canPress('Mon Cercle'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    await screen.press('Mon Cercle');
+    // The hub's OWN content — not the row that opened it.
+    const horsDock = screen.texts().filter((t) => !['Accueil', 'Opportunités', 'Ma Vitrine', 'Gains', 'Profil'].includes(t));
+    expect(horsDock.length, `the hub must render: ${JSON.stringify(screen.texts())}`).toBeGreaterThan(2);
+    // The way back: the Cercle is a stacked screen now, never a trap.
+    await screen.press('Retour');
+    expect(screen.shows('Mes informations')).toBe(true);
+    screen.unmount();
+  });
+
+  it('no compte on the device: the Cercle row is STILL there — the retired tab never asked for one', async () => {
+    const serveur = profilInitial();
+    wire(routes(serveur));
+    const screen = await mountApp();
+    await screen.press('Profil');
+
+    expect(screen.shows('Pas encore de compte')).toBe(true);
+    expect(screen.canPress('Mon Cercle')).toBe(true);
+    await screen.press('Mon Cercle');
+    const horsDock = screen.texts().filter((t) => !['Accueil', 'Opportunités', 'Ma Vitrine', 'Gains', 'Profil'].includes(t));
+    expect(horsDock.length).toBeGreaterThan(2);
+    screen.unmount();
+  });
+});

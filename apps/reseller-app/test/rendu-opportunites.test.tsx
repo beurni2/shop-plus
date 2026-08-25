@@ -173,13 +173,13 @@ describe('OPPORTUNITÉS-BLANC — the white ground did not cost her the screen',
     await screen.press('Ma Vitrine');
     expect(screen.shows('Votre vitrine attend ses premiers produits'), `vitrine: ${JSON.stringify(screen.texts())}`).toBe(true);
 
-    // CERCLE — the fifth hub. The old assertion (`texts().length > 0`) was
-    // permanently satisfied by the tab-bar labels alone (double-check
-    // verifier) — the exact defect this same file fixed for Gains. Asserted
-    // on content the tab bar cannot provide.
-    await screen.press('Cercle');
-    const cercleTexts = screen.texts().filter((t) => !['Accueil','Opportunités','Ma Vitrine','Cercle','Gains'].includes(t));
-    expect(cercleTexts.length, `cercle must render its OWN content: ${JSON.stringify(screen.texts())}`).toBeGreaterThan(2);
+    // PROFIL — the fifth hub (CERCLE-PROFIL-1 retired the Cercle tab; the
+    // hub now opens from the Profil row and keeps its own walks in
+    // rendu-profil). Same law as the others: asserted on content the tab bar
+    // cannot provide.
+    await screen.press('Profil');
+    const profilTexts = screen.texts().filter((t) => !['Accueil','Opportunités','Ma Vitrine','Gains','Profil'].includes(t));
+    expect(profilTexts.length, `profil must render its OWN content: ${JSON.stringify(screen.texts())}`).toBeGreaterThan(2);
 
     // GAINS — asserted on its OWN heading, not on `texts().length > 0`, which
     // the tab-bar labels alone would have satisfied over a hub rendering

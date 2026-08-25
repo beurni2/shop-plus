@@ -64,5 +64,7 @@ export const JOURNEY: Record<Screen, readonly Screen[]> = {
   funding: [],
   reput: [],
   membres: [],
-  profil: [],
+  // CERCLE-PROFIL-1 (founder, 2026-08-25) — the Cercle tab is retired; the
+  // hub now opens from HER page's own row (and still from the accueil card).
+  profil: ['cercle'],
 };

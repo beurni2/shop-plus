@@ -116,10 +116,9 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
   it('navigation chrome: header everywhere, hubs = Accueil·Opportunités·Ma Vitrine·Gains, tabs are waypoint RESETS (never edges, never go())', () => {
     const app = read('App.tsx');
     expect(app).toMatch(/<AppHeader/);
-    // CERCLE (SP9, founder-override scoped to UI + certified mock, journaled
-    // 2026-07-19): the dock grows to 5 tabs — Cercle between Ma Vitrine and Gains.
-    // PROFIL-REVENDEUR-1 (founder order 2026-08-25): a sixth — Profil, last.
-    expect(app).toMatch(/HUBS: readonly Screen\[\] = \['accueil', 'opportunites', 'vitrine', 'cercle', 'gains', 'profil'\]/);
+    // PROFIL-REVENDEUR-1 (2026-08-25) added Profil; CERCLE-PROFIL-1 (same
+    // day) retired the Cercle tab — the hub now opens from the Profil row.
+    expect(app).toMatch(/HUBS: readonly Screen\[\] = \['accueil', 'opportunites', 'vitrine', 'gains', 'profil'\]/);
     expect(app).toMatch(/setStack\(hub === START \? \[START\] : \[START, hub\]\)/);
     for (const key of ['nav.tab_accueil', 'nav.tab_opportunites', 'nav.tab_vitrine', 'nav.tab_gains', 'nav.tab_profil']) {
       expect(app).toContain(`t('${key}')`);

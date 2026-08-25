@@ -341,7 +341,7 @@ describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)'
     expect(app).toMatch(/campShare !== null \? \(/);
   });
 
-  it('§8.1 — the dock has SIX tabs (PROFIL-REVENDEUR-1 added Profil, last), exact order and labels; Cercle between Ma Vitrine and Gains; two-heads icon verbatim', () => {
+  it('§8.1 evolved (CERCLE-PROFIL-1, founder 2026-08-25) — the dock has FIVE tabs, Cercle among them no longer; the hub opens from the Profil row; two-heads icon verbatim', () => {
     const app = read('App.tsx');
     // ACCESS-GATE-1 — the FIRST closing tag AFTER the dock, not the first in
     // the file: the access gate returns its own <SafeAreaView> above this one,
@@ -352,10 +352,14 @@ describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)'
     expect(debut, 'the dock must exist').toBeGreaterThan(-1);
     expect(dock.length, 'the slice must actually contain the dock').toBeGreaterThan(0);
     const order = [...dock.matchAll(/key: '(\w+)'/g)].map((m) => m[1]);
-    expect(order).toEqual(['accueil', 'opportunites', 'vitrine', 'cercle', 'gains', 'profil']);
-    expect(dock).toContain("label: t('nav.tab_cercle')");
+    expect(order).toEqual(['accueil', 'opportunites', 'vitrine', 'gains', 'profil']);
+    // The tab is RETIRED, not renamed — neither the row nor its catalog key survive.
+    expect(dock).not.toContain('nav.tab_cercle');
     expect(catalog.find((e) => e.key === 'nav.tab_vitrine')!.fr).toBe('Ma Vitrine');
-    expect(catalog.find((e) => e.key === 'nav.tab_cercle')!.fr).toBe('Cercle');
+    expect(catalog.find((e) => e.key === 'nav.tab_cercle')).toBeUndefined();
+    // …and the road that replaced it is WIRED: the Profil screen's row walks
+    // the profil → cercle edge (the accueil card keeps its own, as before).
+    expect(app).toMatch(/onCercle=\{\(\) => go\('cercle'\)\}/);
     // the C-CE22 two-heads geometry, spec paths verbatim
     const screens = read('src/cercle/screens.tsx');
     expect(screens).toContain('M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6');

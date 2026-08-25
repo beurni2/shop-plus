@@ -6,7 +6,7 @@ import { File } from 'expo-file-system';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, touch, interaction, dimension } from '@platform/ui-tokens/legacy';
 import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './src/ui/faso-fonts';
-import { IconAccueil, IconProduits, IconGains, IconProfil, IconVitrine, IconCoche, IconVoix } from './src/ui/icons';
+import { IconAccueil, IconChevron, IconProduits, IconGains, IconProfil, IconVitrine, IconCoche, IconVoix } from './src/ui/icons';
 import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
 import { t, tf } from './src/i18n';
@@ -136,10 +136,11 @@ function TimelineRow({ step, last }: { step: TimelineStep; last: boolean }) {
   );
 }
 
-/** The dock hubs — Accueil · Opportunités · Ma Vitrine · Cercle · Gains ·
- * Profil (six since PROFIL-REVENDEUR-1, founder order 2026-08-25). Tabs are
- * waypoint resets, never journey edges. */
-const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'vitrine', 'cercle', 'gains', 'profil'];
+/** The dock hubs — Accueil · Opportunités · Ma Vitrine · Gains · Profil
+ * (CERCLE-PROFIL-1, founder order 2026-08-25: the Cercle tab is retired; the
+ * hub now opens from the Profil screen's own row, and from the accueil card
+ * as before). Tabs are waypoint resets, never journey edges. */
+const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'vitrine', 'gains', 'profil'];
 
 /** Screens whose frame renders a big 28/800 title IN-CONTENT (planche) — the
  * chrome header title is suppressed for these so it isn't a duplicate. */
@@ -2768,6 +2769,7 @@ export default function App() {
             rayons={categoriesPresentes(offers)}
             onCompte={(c) => { void adopterCompte(c); }}
             onToast={setToast}
+            onCercle={() => go('cercle')}
           />
         )}
       </View>
@@ -2809,7 +2811,6 @@ export default function App() {
             { key: 'accueil', icon: <IconAccueil size={dimension.iconSizePx.tab} color={navColor(screen === 'accueil')} />, label: t('nav.tab_accueil'), active: screen === 'accueil', onPress: () => toHub('accueil') },
             { key: 'opportunites', icon: <IconProduits size={dimension.iconSizePx.tab} color={navColor(screen === 'opportunites')} />, label: t('nav.tab_opportunites'), active: screen === 'opportunites', onPress: () => toHub('opportunites') },
             { key: 'vitrine', icon: <IconVitrine size={dimension.iconSizePx.tab} color={navColor(screen === 'vitrine')} />, label: t('nav.tab_vitrine'), active: screen === 'vitrine', onPress: () => toHub('vitrine') },
-            { key: 'cercle', icon: <IconCercleDeux size={dimension.iconSizePx.tab} color={navColor(screen === 'cercle')} />, label: t('nav.tab_cercle'), active: screen === 'cercle', onPress: () => toHub('cercle') },
             { key: 'gains', icon: <IconGains size={dimension.iconSizePx.tab} color={navColor(screen === 'gains')} />, label: t('nav.tab_gains'), active: screen === 'gains', onPress: () => toHub('gains') },
             { key: 'profil', icon: <IconProfil size={dimension.iconSizePx.tab} color={navColor(screen === 'profil')} />, label: t('nav.tab_profil'), active: screen === 'profil', onPress: () => toHub('profil') },
           ]}
@@ -3498,6 +3499,11 @@ const styles = StyleSheet.create({
   profilNom: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.view.size), fontWeight: w(t2.scale.view.wght) },
   profilId: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
   profilCarte: { gap: spacing.sm },
+  // CERCLE-PROFIL-1 — the hub's row on her page: glyph · title + one quiet
+  // line · chevron, sized to the touch law.
+  profilCercleRang: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: touch.minTargetPx },
+  profilCercleTexte: { flex: 1, minWidth: 0, gap: spacing.xs / 2 },
+  profilCercleTitre: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
   profilChampLabel: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.pill.size), fontWeight: w(t2.scale.pill.wght), marginTop: spacing.xs },
   profilAide: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size },
   // The margeInput frame, reading-aligned: names and emails read left-to-right
@@ -3710,7 +3716,7 @@ function EcranAdmission({ code, onCode, envoi, erreurKey, onEntrer }: {
  * states until that answer lands. A saved WhatsApp number reaches her
  * boutique's buyer taps by itself — /contact-of reads the same record.
  */
-function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast }: {
+function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast, onCercle }: {
   compte: CompteLocal | null | undefined;
   service: CompteServicePort | null;
   lireBearer: () => Promise<string | null>;
@@ -3720,6 +3726,9 @@ function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast }:
   rayons: readonly string[];
   onCompte: (c: CompteLocal) => void;
   onToast: (m: string) => void;
+  /** CERCLE-PROFIL-1 (founder, 2026-08-25) — the Cercle tab is retired; HER
+   *  page is where the hub now opens. Walks the profil → cercle edge. */
+  onCercle: () => void;
 }) {
   type Section = 'infos' | 'rayons' | 'mdp';
   const [profil, setProfil] = useState<ProfilCompte | 'chargement' | 'reseau' | 'coupe'>('chargement');
@@ -3842,6 +3851,25 @@ function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast }:
     ...cats.filter((c) => !rayons.includes(c) && !catsServeur.includes(c)),
   ];
   const enTete = typeof profil === 'object' ? profil.name : compte?.name ?? '';
+  // CERCLE-PROFIL-1 — the hub's row, rendered in BOTH account states (the
+  // retired dock tab never asked for a compte, so this door must not either).
+  // One JSX value, two render sites, zero drift between them.
+  const rangCercle = (
+    <Card>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onCercle}
+        style={({ pressed }) => [styles.profilCercleRang, pressed && styles.pressed]}
+      >
+        <IconCercleDeux size={dimension.iconSizePx.tab} color={shopColour.deep} />
+        <View style={styles.profilCercleTexte}>
+          <Text style={styles.profilCercleTitre}>{t('ce.hub_titre')}</Text>
+          <Text style={styles.profilAide}>{t('profil.cercle_aide')}</Text>
+        </View>
+        <IconChevron size={dimension.iconSizePx.tab} color={sharedColour.sub} />
+      </Pressable>
+    </Card>
+  );
   // The chip prefers the WIRE's word when it disagrees with the disk mirror —
   // a freshly paused reseller must not read « Compte actif » one card above
   // the pause sentence while the background refresh is still in flight.
@@ -3852,10 +3880,13 @@ function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast }:
       <Text style={styles.screenTitle}>{t('profil.titre')}</Text>
 
       {compte === null && (
-        <Card style={styles.profilCarte}>
-          <Overline>{t('profil.sans_compte')}</Overline>
-          <Text style={styles.message}>{t('profil.sans_compte_texte')}</Text>
-        </Card>
+        <>
+          <Card style={styles.profilCarte}>
+            <Overline>{t('profil.sans_compte')}</Overline>
+            <Text style={styles.message}>{t('profil.sans_compte_texte')}</Text>
+          </Card>
+          {rangCercle}
+        </>
       )}
 
       {compte !== null && compte !== undefined && (
@@ -3879,6 +3910,8 @@ function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast }:
               />
             </View>
           </Card>
+
+          {rangCercle}
 
           {profil === 'chargement' && <Text style={styles.accesMessage}>{t('compte.envoi')}</Text>}
           {profil === 'coupe' && (

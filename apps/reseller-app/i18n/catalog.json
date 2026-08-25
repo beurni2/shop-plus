@@ -1956,12 +1956,6 @@
   "screenClass": "status"
  },
  {
-  "key": "nav.tab_cercle",
-  "fr": "Cercle",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
   "key": "ce.hub_titre",
   "fr": "Mon Cercle",
   "register": "neutral",
@@ -3502,6 +3496,12 @@
   "fr": "Mon profil",
   "register": "neutral",
   "screenClass": "label"
+ },
+ {
+  "key": "profil.cercle_aide",
+  "fr": "Vos campagnes et votre réputation.",
+  "register": "selling",
+  "screenClass": "general"
  },
  {
   "key": "profil.ouvrir",
