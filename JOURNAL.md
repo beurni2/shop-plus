@@ -9,6 +9,26 @@ Format per entry:
 
 ---
 
+## 2026-08-23 · RAYONS-REVENDEUR-1 — up to five rayons chosen at signup; Opportunités shows only hers · IN REVIEW (ships WITH CATEGORIES-OPPORTUNITES-1, awaiting one merge word)
+
+**Founder, 2026-08-23: « before merge and deploy, I want on shop+ during reseller registration the option for him to choose up to 5 categories products he wants to resell and show those categories and products only on his opportunités screen. »** Held CO-1's merge as ordered; this builds on it and the two ship together (`a942bc2` + verifier fixes `7190c30`).
+
+**AT THE ENTRANCE.** « Créer mon compte » now offers her rayons — CO-1's own law, unchanged: pills built from the categories PRESENT on the live browse wire, French labels, never a hardcoded taxonomy; a down wire hides the section and the choice stays OPTIONAL. Up to five, deduped after trim; **the sixth tap speaks** (« Vous avez déjà 5 rayons. Retirez-en un pour en choisir un autre. ») instead of dying silently, and a swap retires the sentence. The signup POST carries exactly her final picks, in pick order — and NO field at all when she chose none.
+
+**IN THE BOOK.** The account stores them (bounded ≤5 × ≤64 chars, refused BY NAME otherwise) and gives them back on every read — signup, login, session, the founder's roster. **Byte-compatible:** an account with no choice emits no key anywhere; old on-disk compte files parse unchanged; categories survive admission and pause/resume. The device compte remembers them and the session refresh keeps them fresh, so a future server-side change propagates.
+
+**ON OPPORTUNITÉS.** Her selection narrows the feed BEFORE the chips row builds: products outside her rayons never render, the chips are HER rayons only, « Tout » means all of THEM, and the CO-1 filter (toggle, vanish-guard) works within the narrowed set. No compte, or no choice, is the pre-slice screen byte-for-byte. All her rayons empty today → the honest empty sentence, never a blank grid (the empty gate moved to the narrowed list; the UX-5 pin follows it).
+
+**THE HARNESS GREW A REAL LIMB:** the expo-file-system double could never READ a seeded file — `code-store.ts` reads via `textSync`, which the double lacked; every prior walk simply never needed a pre-existing compte. `textSync` added in the double's own bounded style; the seeded-compte walks exist because of it.
+
+**Evidence:** the entrance walk drives the FULL signup (six live rayons pressable · five picked · the sixth tap speaks · swap · typed fields · POST body pinned to `[A,B,C,D,F]` · she reaches « Encore un pas »); the no-choice signup sends no field. Opportunités walks: hers-only grid AND hers-only chips (out-of-rayon chip unpressable) with the fiche reachable from a filtered grid · no-choice sees everything · all-empty shows the honest state. Service e2e on the deployed bundle: stored/deduped, answered on signup + session + roster **+ login** (the verifier caught that spread unpinned — assertion added, 18/18), six refused by name, non-string refused, absent stays absent. Port units 10/10. Boards: reseller-app **670/670** · storefront **609/609** · tsc ×2 clean · gates **ALL GREEN** (the French Voice lint refused my first helper sentence over the reading budget — rewritten simpler: « On ne vous montrera que ces rayons. »). **Mutations, anchor-verified, each red on its own test:** selection severed → the hers-only walk reds · the five-cap severed → the sixth-tap walk reds · the payload thread severed → the POST pin reds · the server-side cap severed → the six-refused e2e reds.
+
+**The ONE fresh-context verifier (order verbatim, spec quotes, DoD, the diff): SHIP — no blockers, no majors, four minors, handled once:** (1) the login-answer categories spread was UNPINNED — a two-line login assertion added to the e2e (real coverage, not cosmetics). (2) a stranded CO-1 comment pointed 700 lines away from the code it described — rewritten as a forwarding note. (3) *journalled, not coded:* while the compte file read is in flight, a first frame could theoretically render unfiltered if the network beat the disk — the disk read wins by orders of magnitude and the walks settle both; noted because « never render » is stated absolutely. (4) a `setPlein` call lived inside a state updater (the React-semantics class the RENDU law names) — moved to a pre-computed branch in the handler, walks re-green.
+
+**Open, named:** no edit-my-rayons screen exists after signup — registration-only, per his words; a reseller who wants to change her rayons later needs the founder (or its own small slice). The signup picker offers only categories with LIVE products at signup time — a category boutik adds later is choosable only by later registrants (same data-driven law as the chips row).
+
+---
+
 ## 2026-08-23 · CATEGORIES-OPPORTUNITES-1 — resellers choose their category on Opportunités · IN REVIEW (awaiting merge word)
 
 **Founder, 2026-08-23: « On opportunités in shop+ add products categories where resellers can choose their category. Make sure it's nicely, and well professionally implemented and doesn't break anything ».** Reseller-app only (`2d84f7f` + `0f0d021`).

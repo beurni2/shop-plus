@@ -639,6 +639,13 @@ describe('RAYONS-REVENDEUR-1 — the signup carries her rayons; every account an
     const rows = (await roster()).json.accounts ?? [];
     const mienne = rows.find((r) => r['accountId'] === s.json.accountId) as { categories?: unknown } | undefined;
     expect(mienne?.categories).toEqual(['Mode femme', 'Sacs', 'Poussette']);
+
+    // …and LOGIN gives them back too (verifier: this spread was unpinned).
+    const viaLogin = await mf.dispatchFetch('http://c/reseller/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: `awa${String(n).padStart(3, '0')}@example.bf`, password: MOT_DE_PASSE }),
+    });
+    expect((safeJson(await viaLogin.text()) as { categories?: unknown }).categories).toEqual(['Mode femme', 'Sacs', 'Poussette']);
   }, 60_000);
 
   it('SIX categories refuse BY NAME; a non-string entry refuses; nothing is stored on a refusal', async () => {
