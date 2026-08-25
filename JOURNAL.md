@@ -11,7 +11,7 @@ Format per entry:
 
 ## 2026-08-23 · RAYONS-REVENDEUR-1 — up to five rayons chosen at signup; Opportunités shows only hers · IN REVIEW (ships WITH CATEGORIES-OPPORTUNITES-1, awaiting one merge word)
 
-**Founder, 2026-08-23: « before merge and deploy, I want on shop+ during reseller registration the option for him to choose up to 5 categories products he wants to resell and show those categories and products only on his opportunités screen. »** Held CO-1's merge as ordered; this builds on it and the two ship together (`a942bc2` + verifier fixes `7190c30`).
+**Founder, 2026-08-23: « before merge and deploy, I want on shop+ during reseller registration the option for him to choose up to 5 categories products he wants to resell and show those categories and products only on his opportunités screen. »** Held CO-1's merge as ordered; this builds on it and the two ship together (`a942bc2` + verifier fixes `ed046d5`).
 
 **AT THE ENTRANCE.** « Créer mon compte » now offers her rayons — CO-1's own law, unchanged: pills built from the categories PRESENT on the live browse wire, French labels, never a hardcoded taxonomy; a down wire hides the section and the choice stays OPTIONAL. Up to five, deduped after trim; **the sixth tap speaks** (« Vous avez déjà 5 rayons. Retirez-en un pour en choisir un autre. ») instead of dying silently, and a swap retires the sentence. The signup POST carries exactly her final picks, in pick order — and NO field at all when she chose none.
 
