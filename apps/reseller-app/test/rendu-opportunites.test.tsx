@@ -284,4 +284,23 @@ describe('CATEGORIES-OPPORTUNITES — she chooses a rayon, the grid follows, « 
     expect(screen.canPress('Tout')).toBe(false);
     screen.unmount();
   });
+
+  it('a category whose last product left the feed FALLS BACK to « Tout » on the next re-read — never an empty grid under a stuck chip', async () => {
+    wire(serviceOffres([{ pv: PV_A, cat: 'Mode femme' }, { pv: PV_B, cat: 'Sacs' }]));
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    await screen.press('Sacs');
+    expect(screen.shows('Sac en cuir')).toBe(true);
+    expect(screen.shows('Bazin riche')).toBe(false);
+
+    // Boutik deletes the last « Sacs » product; the re-read on re-entry sees
+    // the new feed (the OPPORTUNITÉS RE-READS discipline, 2026-08-11).
+    wire(serviceOffres([{ pv: PV_A, cat: 'Mode femme' }]));
+    await screen.press('Accueil');
+    await screen.press('Opportunités');
+
+    expect(screen.shows('Bazin riche'), `after the vanish: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.canPress('Sacs')).toBe(false);
+    screen.unmount();
+  });
 });
