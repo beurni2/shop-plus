@@ -2814,6 +2814,12 @@
   "screenClass": "status"
  },
  {
+  "key": "k.publier.plafond",
+  "fr": "Ce montant dépasse le plafond. Baissez ce que vous ajoutez et réessayez.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
   "key": "k.publier.identite_attente",
   "fr": "Un instant — votre boutique se prépare.",
   "register": "neutral",

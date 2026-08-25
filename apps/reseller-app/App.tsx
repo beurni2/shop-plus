@@ -979,6 +979,11 @@ export default function App() {
           setToast(null);
           return setSansBoutique(true);
         }
+        // MARGE-PLAFOND-25 (verifier minor): reachable only when the live base
+        // dropped between her supply read and this tap — the stale session cap
+        // let her type a figure the fresh base refuses. Her own sentence, never
+        // the raw wire token.
+        if (res.reason === 'markup_over_cap') return setToast(t('k.publier.plafond'));
         return setToast(res.reason === 'supply_unavailable' ? t('fiche.publier.reessayer') : tf('k.publier.erreur', { raison: res.reason }));
       }
       // CONFIRMED. Membership is recorded now, keyed by productVersionId — the one
