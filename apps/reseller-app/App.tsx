@@ -27,7 +27,7 @@ import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, type St
 import type { Storefront } from './src/vitrine/customize/storefront';
 import { loadOrMintIdentity, remintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
-import { categoriesPresentes, filtrerOffres, labelCategorie } from './src/vitrine/rayons';
+import { categoriesPresentes, filtrerOffres, filtrerParSelection, labelCategorie } from './src/vitrine/rayons';
 import type { ResellerIdentity } from './src/identity/mint';
 import { expoIdentityStore, expoRandomBytes } from './src/identity/expoStore';
 import { useVoiceNotes, VoiceCardRow, VoiceNoteSheet, voiceCardLabel, type VoiceRemover, type VoiceUploader } from './src/vitrine/customize/voice-sheet';
@@ -461,9 +461,6 @@ export default function App() {
    * stranded empty grid under a stuck chip. Pure derivation, no effect.
    */
   const [catFiltre, setCatFiltre] = useState<string | null>(null);
-  const categoriesOpp = useMemo(() => categoriesPresentes(offers), [offers]);
-  const catActive = catFiltre !== null && categoriesOpp.includes(catFiltre) ? catFiltre : null;
-  const offresFiltrees = filtrerOffres(offers, catActive);
   // RESELLER-IDENTITY-1 — the identity is now DEVICE-STORED and minted ONCE from the
   // OS CSPRNG, replacing a `Math.random` mint that was stable only per SESSION. That
   // regenerated `resellerId` on every restart and every preview republish, so the
@@ -1150,6 +1147,15 @@ export default function App() {
   /* ── RESELLER-ACCOUNTS-1d — the account at the entrance ─────────────────── */
   const compteService = useMemo<CompteServicePort | null>(() => resolveCompteService(), []);
   const [compte, setCompte] = useState<CompteLocal | null | undefined>(undefined);
+  /**
+   * RAYONS-REVENDEUR-1 — her signup selection narrows the feed FIRST; the
+   * chips row then lives entirely inside it (« Tout » = all of HER rayons).
+   * No compte, or no choice made, leaves everything — the pre-slice screen.
+   */
+  const offresPourElle = filtrerParSelection(offers, compte?.categories);
+  const categoriesOpp = useMemo(() => categoriesPresentes(offresPourElle), [offresPourElle]);
+  const catActive = catFiltre !== null && categoriesOpp.includes(catFiltre) ? catFiltre : null;
+  const offresFiltrees = filtrerOffres(offresPourElle, catActive);
   const [compteEnvoi, setCompteEnvoi] = useState(false);
   const [compteErreurKey, setCompteErreurKey] = useState<string | null>(null);
 
@@ -1340,6 +1346,7 @@ export default function App() {
             service={compteService}
             envoi={compteEnvoi}
             erreurKey={compteErreurKey}
+            rayons={categoriesPresentes(offers)}
             onEnvoi={setCompteEnvoi}
             onErreur={setCompteErreurKey}
             onCompte={(c, session) => { void adopterCompte(c, session); }}
@@ -1710,7 +1717,7 @@ export default function App() {
                 gets an honest screen, never a diagnosis. The WHY is operator-
                 facing and lives on the service's `diagnostic`, which this app
                 never reads. */}
-            {offers.length === 0 ? (
+            {offresPourElle.length === 0 ? (
               feed === undefined ? null : (
                 <EmptyState
                   glyph={<IconProduits size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />}
@@ -3068,6 +3075,12 @@ const styles = StyleSheet.create({
   // CATEGORIES-OPPORTUNITES-1 — the rayons row: quiet pills, the active one
   // filled in the shop accent (the tabActive/tabLabelActive pairing, worn as
   // pills). 44px min height keeps the touch floor on a horizontal row.
+  // RAYONS-REVENDEUR-1 — the signup picker: the CO-1 pills, wrapped instead
+  // of scrolled (a form reads top to bottom; a hidden overflow would hide
+  // choices she is asked to make).
+  compteRayons: { gap: spacing.xs, marginTop: spacing.sm },
+  compteRayonsTitre: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size), fontWeight: w(t2.scale.row.wght) },
+  compteRayonsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xs },
   oppFiltres: { marginBottom: spacing.md, flexGrow: 0 },
   oppFiltresRow: { gap: spacing.xs, paddingRight: spacing.lg, alignItems: 'center' },
   oppChip: { minHeight: touch.minTargetPx, justifyContent: 'center', borderRadius: radius.pill, borderWidth: interaction.hairline.strong, borderColor: shopColour.soft, backgroundColor: sharedColour.card, paddingHorizontal: spacing.md },
@@ -3463,10 +3476,14 @@ const styles = StyleSheet.create({
  * way out; a refused login is ONE sentence, because the server is not an email
  * oracle and this screen does not paint one.
  */
-function EcranCompte({ service, envoi, erreurKey, onEnvoi, onErreur, onCompte }: {
+function EcranCompte({ service, envoi, erreurKey, rayons, onEnvoi, onErreur, onCompte }: {
   service: CompteServicePort | null;
   envoi: boolean;
   erreurKey: string | null;
+  /** RAYONS-REVENDEUR-1 — the categories PRESENT on the live browse wire,
+   *  offered at signup. Empty (wire down, nothing published) hides the
+   *  picker entirely: the choice is optional and absence is honest. */
+  rayons: readonly string[];
   onEnvoi: (v: boolean) => void;
   onErreur: (k: string | null) => void;
   onCompte: (c: CompteLocal, session: string) => void;
@@ -3476,6 +3493,22 @@ function EcranCompte({ service, envoi, erreurKey, onEnvoi, onErreur, onCompte }:
   const [email, setEmail] = useState('');
   const [tel, setTel] = useState('');
   const [mdp, setMdp] = useState('');
+  // RAYONS-REVENDEUR-1 — her picks, capped at five. A sixth tap does not
+  // silently die (the dead-button ban): the helper line switches to the
+  // « maximum » sentence until she deselects one.
+  const [cats, setCats] = useState<readonly string[]>([]);
+  const [plein, setPlein] = useState(false);
+  const basculer = (c: string) => {
+    setPlein(false);
+    setCats((prev) => {
+      if (prev.includes(c)) return prev.filter((x) => x !== c);
+      if (prev.length >= 5) {
+        setPlein(true);
+        return prev;
+      }
+      return [...prev, c];
+    });
+  };
 
   if (service === null) {
     return (
@@ -3491,7 +3524,7 @@ function EcranCompte({ service, envoi, erreurKey, onEnvoi, onErreur, onCompte }:
     onErreur(null);
     void (async () => {
       const res = mode === 'creer'
-        ? await service.inscrire({ name: nom.trim(), email: email.trim(), phone: tel.trim(), password: mdp })
+        ? await service.inscrire({ name: nom.trim(), email: email.trim(), phone: tel.trim(), password: mdp, ...(cats.length > 0 ? { categories: cats } : {}) })
         : await service.connecter(email.trim(), mdp);
       onEnvoi(false);
       if (res.ok) {
@@ -3523,6 +3556,32 @@ function EcranCompte({ service, envoi, erreurKey, onEnvoi, onErreur, onCompte }:
           {/* CONTACT-WHATSAPP-1 — said BEFORE she signs, not discovered on her
               boutique: this number becomes the tap her buyers write to. */}
           <Text style={styles.accesSous}>{t('compte.telephone_aide')}</Text>
+          {/* RAYONS-REVENDEUR-1 (founder, 2026-08-23) — up to five rayons,
+              from the LIVE browse wire (the CO-1 law: data-driven, never a
+              hardcoded taxonomy). Optional; a down wire hides the section. */}
+          {rayons.length > 0 && (
+            <View style={styles.compteRayons}>
+              <Text style={styles.compteRayonsTitre}>{t('compte.rayons_titre')}</Text>
+              <Text style={styles.accesSous}>{t(plein ? 'compte.rayons_max' : 'compte.rayons_aide')}</Text>
+              <View style={styles.compteRayonsRow}>
+                {rayons.map((c) => {
+                  const choisi = cats.includes(c);
+                  return (
+                    <Pressable
+                      key={c}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: choisi }}
+                      disabled={envoi}
+                      onPress={() => basculer(c)}
+                      style={[styles.oppChip, choisi && styles.oppChipOn]}
+                    >
+                      <Text style={[styles.oppChipText, choisi && styles.oppChipTextOn]}>{labelCategorie(c)}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
         </>
       )}
       <TextInput style={styles.margeInput} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholder={t('compte.email')} accessibilityLabel={t('compte.email')} editable={!envoi} />

@@ -52,6 +52,14 @@ export interface AccountRecord {
   readonly name: string;
   readonly email: string;
   readonly phone: string;
+  /**
+   * RAYONS-REVENDEUR-1 (founder order 2026-08-23) — the up-to-five product
+   * categories she chose to resell AT SIGNUP. Wire values verbatim (boutik's
+   * French labels / the canon ids), her Opportunités screen filters on them.
+   * ABSENT on every account that predates the slice — absent means « no
+   * choice », which the app renders as « everything », the pre-slice screen.
+   */
+  readonly categories?: readonly string[];
   readonly state: ResellerAccessState;
   readonly createdAt: string;
   readonly passwordSaltHex: string;
@@ -72,6 +80,8 @@ export interface AccountView {
   readonly name: string;
   readonly email: string;
   readonly phone: string;
+  /** RAYONS-REVENDEUR-1 — her chosen rayons, on the founder's roster row. */
+  readonly categories?: readonly string[];
   readonly state: ResellerAccessState;
   readonly createdAt: string;
   /** TRUE while an unconsumed admission code exists for this account. */
@@ -86,6 +96,7 @@ function toView(a: AccountRecord): AccountView {
     name: a.name,
     email: a.email,
     phone: a.phone,
+    ...(a.categories !== undefined ? { categories: a.categories } : {}),
     state: a.state,
     createdAt: a.createdAt,
     accessCodePending: a.accessCodeHash !== undefined,
@@ -182,7 +193,7 @@ export class ResellerAccountsDO {
       const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
       if (body === null) return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       for (const key of Object.keys(body)) {
-        if (!['name', 'email', 'phone', 'password'].includes(key)) {
+        if (!['name', 'email', 'phone', 'password', 'categories'].includes(key)) {
           return Response.json({ ok: false, reason: 'unknown_field', field: key }, { status: 400 });
         }
       }
@@ -200,6 +211,27 @@ export class ResellerAccountsDO {
       if (password.length < 8 || password.length > MAX_FIELD) {
         return Response.json({ ok: false, reason: 'bad_field', field: 'password' }, { status: 400 });
       }
+      /**
+       * RAYONS-REVENDEUR-1 — up to FIVE categories, OPTIONAL. Values are the
+       * browse wire's own (boutik's French labels / canon ids), bounded and
+       * deduped after trim; anything that is not a well-shaped small list of
+       * short strings refuses BY NAME, like every field above. `[]` and
+       * absent are the same « no choice ».
+       */
+      const rawCats = body['categories'];
+      let categories: readonly string[] | undefined;
+      if (rawCats !== undefined) {
+        if (!Array.isArray(rawCats) || rawCats.length > 5) {
+          return Response.json({ ok: false, reason: 'bad_field', field: 'categories' }, { status: 400 });
+        }
+        const nettoyees: string[] = [];
+        for (const c of rawCats) {
+          const v = champ(c, 64);
+          if (v === null) return Response.json({ ok: false, reason: 'bad_field', field: 'categories' }, { status: 400 });
+          if (!nettoyees.includes(v)) nettoyees.push(v);
+        }
+        categories = nettoyees.length > 0 ? nettoyees : undefined;
+      }
 
       const emailKey = `${EMAIL_PREFIX}${await sha256Hex(email)}`;
       if ((await this.state.storage.get(emailKey)) !== undefined) {
@@ -215,7 +247,7 @@ export class ResellerAccountsDO {
       const passwordHashHex = await derivePassword(password, saltHex);
       const createdAt = new Date().toISOString();
       const record: AccountRecord = {
-        accountId, name, email, phone, state: 'pending_access', createdAt, passwordSaltHex: saltHex, passwordHashHex,
+        accountId, name, email, phone, ...(categories !== undefined ? { categories } : {}), state: 'pending_access', createdAt, passwordSaltHex: saltHex, passwordHashHex,
       };
       const session = mintToken('SPS');
       await this.state.storage.put({
@@ -226,7 +258,7 @@ export class ResellerAccountsDO {
       await this.consigner(accountId, 'pending_access', 'signup');
       // The session exists BEFORE admission so the admission call can prove
       // which account it is for; every other read refuses on the state.
-      return Response.json({ ok: true, accountId, name, state: 'pending_access', session });
+      return Response.json({ ok: true, accountId, name, ...(categories !== undefined ? { categories } : {}), state: 'pending_access', session });
     }
 
     if (request.method === 'POST' && pathname === '/login') {
@@ -245,7 +277,7 @@ export class ResellerAccountsDO {
       if (!egaleConstante(derived, record.passwordHashHex)) return refuse();
       const session = mintToken('SPS');
       await this.state.storage.put(`${SESSION_PREFIX}${await sha256Hex(session)}`, accountId);
-      return Response.json({ ok: true, accountId, name: record.name, state: record.state, session });
+      return Response.json({ ok: true, accountId, name: record.name, ...(record.categories !== undefined ? { categories: record.categories } : {}), state: record.state, session });
     }
 
     /** WHO AM I — the app's gate read. Bearer session in the body (the router
@@ -254,7 +286,7 @@ export class ResellerAccountsDO {
       const body = (await request.json().catch(() => null)) as { session?: unknown } | null;
       const record = await this.resoudreSession(body?.session);
       if (record === null) return Response.json({ ok: false, reason: 'no_session' }, { status: 401 });
-      return Response.json({ ok: true, accountId: record.accountId, name: record.name, state: record.state });
+      return Response.json({ ok: true, accountId: record.accountId, name: record.name, ...(record.categories !== undefined ? { categories: record.categories } : {}), state: record.state });
     }
 
     /** ADMISSION — her one-time code, against HER account, exactly once. */

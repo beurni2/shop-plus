@@ -3360,6 +3360,24 @@
   "screenClass": "instruction"
  },
  {
+  "key": "compte.rayons_titre",
+  "fr": "Vos rayons (5 maximum)",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.rayons_aide",
+  "fr": "Choisissez ce que vous voulez revendre. On ne vous montrera que ces rayons.",
+  "register": "selling",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "compte.rayons_max",
+  "fr": "Vous avez déjà 5 rayons. Retirez-en un pour en choisir un autre.",
+  "register": "selling",
+  "screenClass": "instruction"
+ },
+ {
   "key": "compte.mot_de_passe",
   "fr": "Votre mot de passe (8 lettres ou plus)",
   "register": "neutral",

@@ -500,7 +500,7 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
 
     // 7 · and the stagger bought nothing at the honest empty state's expense:
     //     an empty feed still shows the one designed state, never a bare grid.
-    expect(screen).toContain('offers.length === 0');
+    expect(screen).toContain('offresPourElle.length === 0');
     expect(screen).toContain("t('opportunites.vide')");
   });
 

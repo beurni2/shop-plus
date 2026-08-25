@@ -59,6 +59,11 @@ export class File {
   text(): string {
     return FILES.get(this.key) ?? '';
   }
+  /** The sync read `code-store.ts` actually uses (SDK `textSync`). Same map,
+   *  same bound: bytes in, bytes out, nothing about a real filesystem. */
+  textSync(): string {
+    return FILES.get(this.key) ?? '';
+  }
   create(): void {
     if (!FILES.has(this.key)) FILES.set(this.key, '');
   }

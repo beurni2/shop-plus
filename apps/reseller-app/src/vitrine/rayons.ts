@@ -62,3 +62,16 @@ export function filtrerOffres(offers: readonly Offer[], categorie: string | null
   if (categorie === null) return offers;
   return offers.filter((o) => (typeof o.category === 'string' ? o.category.trim() : '') === categorie);
 }
+
+/**
+ * RAYONS-REVENDEUR-1 — HER selection first: the categories she chose at
+ * signup narrow the whole browse feed before the chips row even builds. No
+ * choice (absent/empty) = everything — the pre-slice screen, and every
+ * account that predates the slice. Trim-matched on the wire value, exactly
+ * as `filtrerOffres`.
+ */
+export function filtrerParSelection(offers: readonly Offer[], selection: readonly string[] | undefined): readonly Offer[] {
+  if (selection === undefined || selection.length === 0) return offers;
+  const voulu = selection.map((c) => c.trim());
+  return offers.filter((o) => voulu.includes(typeof o.category === 'string' ? o.category.trim() : ''));
+}

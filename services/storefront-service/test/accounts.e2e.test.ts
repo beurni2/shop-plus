@@ -619,3 +619,45 @@ describe('CONTACT-WHATSAPP-1 — the registration number joins the boutique read
     expect(bytes.includes('22670778899')).toBe(true);
   }, 60_000);
 });
+
+/**
+ * ═══ RAYONS-REVENDEUR-1 (founder, 2026-08-23) — « choose up to 5 categories
+ * products he wants to resell » AT SIGNUP, on the deployed bundle ═══
+ */
+describe('RAYONS-REVENDEUR-1 — the signup carries her rayons; every account answer gives them back', () => {
+  it('signup stores up to five (deduped after trim); signup, session, login and the roster all answer them', async () => {
+    const s = await inscrire({ categories: ['Mode femme', ' Sacs ', 'Sacs', 'Poussette'] });
+    expect(s.status, s.text).toBe(200);
+    const surSignup = (s.json as { categories?: unknown }).categories;
+    expect(surSignup).toEqual(['Mode femme', 'Sacs', 'Poussette']);
+
+    const viaSession = await mf.dispatchFetch('http://c/reseller/session', {
+      method: 'POST', headers: { Authorization: `Bearer ${s.json.session!}`, 'Content-Type': 'application/json' }, body: '{}',
+    });
+    expect((safeJson(await viaSession.text()) as { categories?: unknown }).categories).toEqual(['Mode femme', 'Sacs', 'Poussette']);
+
+    const rows = (await roster()).json.accounts ?? [];
+    const mienne = rows.find((r) => r['accountId'] === s.json.accountId) as { categories?: unknown } | undefined;
+    expect(mienne?.categories).toEqual(['Mode femme', 'Sacs', 'Poussette']);
+  }, 60_000);
+
+  it('SIX categories refuse BY NAME; a non-string entry refuses; nothing is stored on a refusal', async () => {
+    const six = await inscrire({ categories: ['a', 'b', 'c', 'd', 'e', 'f'] });
+    expect(six.status).toBe(400);
+    expect(six.json.reason).toBe('bad_field');
+    expect((six.json as { field?: string }).field).toBe('categories');
+    const mauvais = await inscrire({ categories: ['a', 7] });
+    expect(mauvais.status).toBe(400);
+    expect((mauvais.json as { field?: string }).field).toBe('categories');
+  }, 60_000);
+
+  it('no categories = the pre-slice signup, byte-compatible: no field anywhere', async () => {
+    const s = await inscrire();
+    expect(s.status).toBe(200);
+    expect('categories' in (s.json as Record<string, unknown>)).toBe(false);
+    const viaSession = await mf.dispatchFetch('http://c/reseller/session', {
+      method: 'POST', headers: { Authorization: `Bearer ${s.json.session!}`, 'Content-Type': 'application/json' }, body: '{}',
+    });
+    expect('categories' in (safeJson(await viaSession.text()) as Record<string, unknown>)).toBe(false);
+  }, 60_000);
+});

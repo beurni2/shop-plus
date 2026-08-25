@@ -38,6 +38,26 @@ describe('RESELLER-ACCOUNTS-1d — the four calls, honestly mapped', () => {
     expect(Object.keys(body).sort()).toEqual(['email', 'name', 'password', 'phone']);
   });
 
+  it('RAYONS-REVENDEUR-1 — her chosen rayons ride the signup ONLY when she chose some, and every answer\'s categories land on the compte', async () => {
+    vi.stubEnv(BASE, 'https://shop.example');
+    const port = resolveCompteService()!;
+    const spy = stubFetch(async () =>
+      new Response(JSON.stringify({ ok: true, ...COMPTE, categories: ['Mode femme', 'Sacs'], session: 'SPS-AAAA' })));
+    const res = await port.inscrire({
+      name: 'Awa', email: 'awa@example.bf', phone: '70 00 00 01', password: 'grain-de-nere-77',
+      categories: ['Mode femme', 'Sacs'],
+    });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.compte.categories).toEqual(['Mode femme', 'Sacs']);
+    const body = JSON.parse(String(spy.mock.calls[0]![1]?.body)) as Record<string, unknown>;
+    expect(body['categories']).toEqual(['Mode femme', 'Sacs']);
+    // a hostile/oversized answer never crashes the parse — it is « no choice »
+    stubFetch(async () => new Response(JSON.stringify({ ok: true, ...COMPTE, categories: ['a','b','c','d','e','f'], session: 'SPS-AAAA' })));
+    const trop = await port.connecter('a@b.bf', 'x'.repeat(8));
+    expect(trop.ok).toBe(true);
+    if (trop.ok) expect('categories' in trop.compte).toBe(false);
+  });
+
   it('signup maps the named refusals — email_pris keeps her out of a duplicate, champ_invalide names the field', async () => {
     vi.stubEnv(BASE, 'https://shop.example');
     const port = resolveCompteService()!;

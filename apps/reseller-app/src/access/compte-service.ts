@@ -26,6 +26,10 @@ export interface CompteLocal {
   readonly accountId: string;
   readonly name: string;
   readonly state: EtatAcces;
+  /** RAYONS-REVENDEUR-1 — the up-to-five categories she chose at signup.
+   *  Absent = no choice = Opportunités shows everything (the pre-slice
+   *  screen). Wire values verbatim; refreshed with every session read. */
+  readonly categories?: readonly string[];
 }
 
 export type InscriptionResult =
@@ -49,7 +53,7 @@ export type SessionResult =
   | { readonly ok: false; readonly reason: 'invalide' | 'unreachable' };
 
 export interface CompteServicePort {
-  inscrire(d: { name: string; email: string; phone: string; password: string }): Promise<InscriptionResult>;
+  inscrire(d: { name: string; email: string; phone: string; password: string; categories?: readonly string[] }): Promise<InscriptionResult>;
   connecter(email: string, password: string): Promise<ConnexionResult>;
   admission(session: string, code: string): Promise<AdmissionResult>;
   /** The background refresh — how a pause reaches a device that is already in. */
@@ -66,7 +70,15 @@ function lireCompte(body: Record<string, unknown> | null): CompteLocal | null {
   if (typeof accountId !== 'string' || accountId === '') return null;
   if (typeof name !== 'string') return null;
   if (typeof state !== 'string' || !ETATS.includes(state)) return null;
-  return { accountId, name, state: state as EtatAcces };
+  // RAYONS-REVENDEUR-1 — defensively: a well-shaped small list of short
+  // strings rides; anything else is treated as « no choice », never a crash
+  // (this parses server answers AND the on-disk compte file).
+  const rawCats = body?.['categories'];
+  const categories =
+    Array.isArray(rawCats) && rawCats.length <= 5 && rawCats.every((c) => typeof c === 'string' && c.trim() !== '' && c.length <= 64)
+      ? (rawCats as readonly string[]).map((c) => c.trim())
+      : undefined;
+  return { accountId, name, state: state as EtatAcces, ...(categories !== undefined && categories.length > 0 ? { categories } : {}) };
 }
 
 export function resolveCompteService(): CompteServicePort | null {
@@ -97,11 +109,18 @@ export function resolveCompteService(): CompteServicePort | null {
 
   return {
     async inscrire(d): Promise<InscriptionResult> {
-      // EXACTLY the four fields the Worker's allowlist admits — a fifth would
-      // be refused by name server-side, and rightly.
+      // EXACTLY the fields the Worker's allowlist admits — a stray one would
+      // be refused by name server-side, and rightly. `categories` rides only
+      // when she chose some (RAYONS-REVENDEUR-1).
       const res = await appel('/reseller/signup', {
         method: 'POST',
-        body: JSON.stringify({ name: d.name, email: d.email, phone: d.phone, password: d.password }),
+        body: JSON.stringify({
+          name: d.name,
+          email: d.email,
+          phone: d.phone,
+          password: d.password,
+          ...(d.categories !== undefined && d.categories.length > 0 ? { categories: d.categories } : {}),
+        }),
       });
       if (res === null) return { ok: false, reason: 'unreachable' };
       if (res.status === 409) return { ok: false, reason: 'email_pris' };
