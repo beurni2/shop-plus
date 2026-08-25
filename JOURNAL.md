@@ -9,9 +9,11 @@ Format per entry:
 
 ---
 
-## 2026-08-25 · CERCLE-PROFIL-1 — the Cercle tab is retired; the hub opens from the Profil screen · IN REVIEW (awaiting the founder's merge word)
+## 2026-08-25 · CERCLE-PROFIL-1 — the Cercle tab is retired; the hub opens from the Profil screen · DONE
 
-**Founder, 2026-08-25: « now remove cercle from the tab list and relocate it inside profile screen. »** Build `8d7e0e9`, verifier fix `e8bdb04`, pushed on the designated branch. **Not merged, not deployed — waiting for his word.** App-only; no service change.
+**MERGED AND DEPLOYED (founder: « Merge and deploy », 2026-08-25).** `main` fast-forwarded `7c4a4b8..530aa75`. **All four push workflows green on 530aa75 — ci 565 · expo-preview 388 (the reseller app with the five-tab dock and the Profil Cercle row, this slice's deployable) · pwa-preview 355 · service-canon-drift 224.** App-only — no storefront-deploy dispatch, per the CW-2 precedent for slices that touch no service.
+
+**Founder, 2026-08-25: « now remove cercle from the tab list and relocate it inside profile screen. »** Build `8d7e0e9`, verifier fix `e8bdb04`.
 
 **THE DOCK RETURNS TO FIVE** (Accueil · Opportunités · Ma Vitrine · Gains · Profil) and **her page becomes the Cercle's door**: a « Mon Cercle » row — two-heads glyph · title · « Vos campagnes et votre réputation. » · chevron — rendered in BOTH account states from one shared JSX value, because the retired tab never asked for a compte and this door must not either. The row walks a NEW `profil → cercle` journey edge; the accueil's Cercle card keeps its own edge untouched, so the hub has two independent doors. Off the dock, Cercle is a stacked screen: the header's « Retour » chip (always present there — the verifier traced every setStack site to prove the stack is ≥2 whenever cercle mounts) brings her back to her profile; the hub's internal edges (campnew/campaign/funding/reput/membres/lien) and the shareCampBadge flow are untouched. `nav.tab_cercle` retired from the catalog with the tab — the row speaks `ce.hub_titre`.
 
