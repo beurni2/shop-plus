@@ -9,9 +9,11 @@ Format per entry:
 
 ---
 
-## 2026-08-25 · MARGE-PLAFOND-25 — the markup ceiling is 25 % of base, on the fiche, on Ma Vitrine, and at the signing service · IN REVIEW (awaiting the founder's merge word)
+## 2026-08-25 · MARGE-PLAFOND-25 — the markup ceiling is 25 % of base, on the fiche, on Ma Vitrine, and at the signing service · DONE
 
-**Founder, 2026-08-25: « On opportunités and on ma vitrine make the mark up add amount not exceed 25% of the base price. Resellers cannot add more than 25% of the base price. »** Build `26e324c`, verifier fix `189a690`, pushed on the designated branch. **Not merged, not deployed — waiting for his word.**
+**MERGED AND DEPLOYED (founder: « merge and deploy », 2026-08-25).** `main` fast-forwarded `7b6d45d..1754a5c`. **All four push workflows green on 1754a5c — ci 563 · expo-preview 386 (the reseller app with the 25 % clamp on both screens, this slice's deployable) · pwa-preview 353 · service-canon-drift 222 — then `storefront-deploy` run 67 → success** (the signing service refusing above the new cap).
+
+**Founder, 2026-08-25: « On opportunités and on ma vitrine make the mark up add amount not exceed 25% of the base price. Resellers cannot add more than 25% of the base price. »** Build `26e324c`, verifier fix `189a690`.
 
 **ONE KNOB, BY CONSTRUCTION.** SP3's « markup within cap » rule already lives in `@shop-plus/reseller-money` with its value as the pilot-tunable knob (tuned 20 %→100 % on 2026-07-16, journalled then): `MARKUP_CAP_RATE` goes **1 → 0.25**. Both screens and the signing service consume the ONE constant, so the whole order lands with zero app-source change: the shared `MarkupControl` (the fiche AND the Ma Vitrine card are the same control) clamps through `snapMarkup(parsed, cap, 1)`, the ceiling sentence « Vous pouvez ajouter jusqu'à … » names the new bound on both screens, and `signPrice` refuses `markup_over_cap` on the same import — a bound only the app enforced would be a bound any other caller walks around.
 
