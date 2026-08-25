@@ -668,3 +668,183 @@ describe('RAYONS-REVENDEUR-1 — the signup carries her rayons; every account an
     expect('categories' in (safeJson(await viaSession.text()) as Record<string, unknown>)).toBe(false);
   }, 60_000);
 });
+
+/**
+ * ═══ PROFIL-REVENDEUR-1 (founder, 2026-08-25) — « view and modify their
+ * registration data and their rayons as well » ═══
+ *
+ * One route, session-authenticated, ACTIVE only. An empty patch READS the
+ * full profile (the one answer that carries email and phone back); present
+ * fields patch per-section with the signup validators; `categories: []`
+ * clears her rayons. Driven against the DEPLOYED bundle, and every claim is
+ * re-asked of the book (login roads, roster, re-reads) — never believed from
+ * the patch response alone.
+ */
+
+async function profil(bearer: string | null, patch: Record<string, unknown> = {}) {
+  const res = await mf.dispatchFetch('http://c/reseller/profile', {
+    method: 'POST',
+    headers: { ...(bearer === null ? {} : { Authorization: `Bearer ${bearer}` }), 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  const text = await res.text();
+  return { status: res.status, text, json: safeJson(text) as Record<string, unknown> };
+}
+
+/** Signup → founder mints → admission: an ACTIVE account with its session. */
+async function activer(over: Record<string, unknown> = {}) {
+  const s = await inscrire(over);
+  expect(s.status).toBe(200);
+  const code = await minterCode(s.json.accountId!);
+  expect(code.status).toBe(200);
+  const adm = await admission(s.json.session!, code.json.code!);
+  expect(adm.status).toBe(200);
+  const email = `awa${String(n).padStart(3, '0')}@example.bf`;
+  return { accountId: s.json.accountId!, session: s.json.session!, email };
+}
+
+describe('PROFIL-REVENDEUR-1 — she reads her registration data, whole and hers alone', () => {
+  it('an empty patch answers name, email, phone, state and rayons — and never a salt, a hash or a code', async () => {
+    const elle = await activer({ categories: ['Mode femme', 'Sacs'] });
+    const lu = await profil(elle.session);
+    expect(lu.status).toBe(200);
+    expect(lu.json['accountId']).toBe(elle.accountId);
+    expect(lu.json['email']).toBe(elle.email);
+    expect(String(lu.json['name'])).toContain('Awa Traoré');
+    expect(String(lu.json['phone'])).toContain('+226 70 00 00');
+    expect(lu.json['state']).toBe('active');
+    expect(lu.json['categories']).toEqual(['Mode femme', 'Sacs']);
+    // CREDENTIALS NEVER LEAVE THIS OBJECT — the profile answer included.
+    expect(lu.text).not.toMatch(/passwordSaltHex|passwordHashHex|accessCode|SPA-/);
+  }, 60_000);
+
+  it('no session refuses 401; a pending account 403 access_required; a paused one 403 access_paused', async () => {
+    expect((await profil(null)).status).toBe(401);
+    expect((await profil('SPS-FAUX-FAUX-FAUX-FAUX')).status).toBe(401);
+
+    const pending = await inscrire();
+    const refusPending = await profil(pending.json.session!);
+    expect(refusPending.status).toBe(403);
+    expect(refusPending.json['reason']).toBe('access_required');
+
+    const elle = await activer();
+    await mf.dispatchFetch('http://c/reseller/accounts/pause', {
+      method: 'POST', headers: { ...cleC, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId: elle.accountId }),
+    });
+    const refusPause = await profil(elle.session);
+    expect(refusPause.status).toBe(403);
+    expect(refusPause.json['reason']).toBe('access_paused');
+  }, 60_000);
+});
+
+describe('PROFIL-REVENDEUR-1 — each section patches alone, and the BOOK answers the question, not the response', () => {
+  it('name and phone save together; the roster (the founder\'s read of the record) shows both at once', async () => {
+    const elle = await activer();
+    const sauve = await profil(elle.session, { name: 'Awa Ouédraogo', phone: '76 55 44 33' });
+    expect(sauve.status).toBe(200);
+    // Ask the record, twice over: a fresh profile read AND the founder roster.
+    const relu = await profil(elle.session);
+    expect(relu.json['name']).toBe('Awa Ouédraogo');
+    expect(relu.json['phone']).toBe('76 55 44 33');
+    expect(relu.json['email']).toBe(elle.email); // untouched — absent means untouched
+    const r = await roster();
+    const ligne = r.json.accounts?.find((a) => a['accountId'] === elle.accountId);
+    expect(ligne?.['name']).toBe('Awa Ouédraogo');
+    expect(ligne?.['phone']).toBe('76 55 44 33'); // the number /contact-of hands her boutique
+  }, 60_000);
+
+  it('an email change re-indexes the login door: the new email opens, the old is free again', async () => {
+    const elle = await activer();
+    const neuf = `neuve${String(n).padStart(3, '0')}@example.bf`;
+    expect((await profil(elle.session, { email: neuf })).status).toBe(200);
+
+    const parNeuf = await mf.dispatchFetch('http://c/reseller/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: neuf, password: MOT_DE_PASSE }),
+    });
+    expect(parNeuf.status).toBe(200);
+    const parAncien = await mf.dispatchFetch('http://c/reseller/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: elle.email, password: MOT_DE_PASSE }),
+    });
+    expect(parAncien.status).toBe(401); // the old key is DELETED, not orphaned
+    // …and the old address can register a fresh account — the index truly moved.
+    const reprise = await inscrire({ email: elle.email });
+    expect(reprise.status).toBe(200);
+  }, 60_000);
+
+  it('an email already in the book refuses 409 email_taken and changes NOTHING', async () => {
+    const a = await activer();
+    const b = await activer();
+    const refus = await profil(b.session, { email: a.email });
+    expect(refus.status).toBe(409);
+    expect(refus.json['reason']).toBe('email_taken');
+    expect((await profil(b.session)).json['email']).toBe(b.email);
+  }, 60_000);
+
+  it('the password changes only past the CURRENT one: wrong refuses 401 and the old still opens; right retires the old', async () => {
+    const elle = await activer();
+    const refus = await profil(elle.session, { currentPassword: 'pas-le-bon-8', newPassword: 'toute-neuve-99' });
+    expect(refus.status).toBe(401);
+    expect(refus.json['reason']).toBe('bad_password');
+    const encore = await mf.dispatchFetch('http://c/reseller/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: elle.email, password: MOT_DE_PASSE }),
+    });
+    expect(encore.status).toBe(200); // a refused change changed nothing
+
+    expect((await profil(elle.session, { currentPassword: MOT_DE_PASSE, newPassword: 'toute-neuve-99' })).status).toBe(200);
+    const ancienne = await mf.dispatchFetch('http://c/reseller/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: elle.email, password: MOT_DE_PASSE }),
+    });
+    expect(ancienne.status).toBe(401);
+    const nouvelle = await mf.dispatchFetch('http://c/reseller/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: elle.email, password: 'toute-neuve-99' }),
+    });
+    expect(nouvelle.status).toBe(200);
+  }, 60_000);
+
+  it('rayons: trimmed and deduped on save, answered by /session; [] CLEARS them (the edit-screen asymmetry)', async () => {
+    const elle = await activer();
+    const sauve = await profil(elle.session, { categories: ['Mode femme', ' Sacs ', 'Sacs', 'Poussette'] });
+    expect(sauve.status).toBe(200);
+    expect(sauve.json['categories']).toEqual(['Mode femme', 'Sacs', 'Poussette']);
+    const viaSession = await mf.dispatchFetch('http://c/reseller/session', {
+      method: 'POST', headers: { Authorization: `Bearer ${elle.session}`, 'Content-Type': 'application/json' }, body: '{}',
+    });
+    expect((safeJson(await viaSession.text()) as { categories?: unknown }).categories).toEqual(['Mode femme', 'Sacs', 'Poussette']);
+
+    const vide = await profil(elle.session, { categories: [] });
+    expect(vide.status).toBe(200);
+    expect('categories' in vide.json).toBe(false);
+    const relu = await profil(elle.session);
+    expect('categories' in relu.json).toBe(false);
+  }, 60_000);
+
+  it('refusals name their field: unknown key, bad phone, six rayons, short new password, missing current', async () => {
+    const elle = await activer();
+    const inconnu = await profil(elle.session, { role: 'admin' });
+    expect(inconnu.status).toBe(400);
+    expect(inconnu.json['reason']).toBe('unknown_field');
+    expect(inconnu.json['field']).toBe('role');
+    const tel = await profil(elle.session, { phone: '12' });
+    expect(tel.status).toBe(400);
+    expect(tel.json['field']).toBe('phone');
+    const six = await profil(elle.session, { categories: ['a', 'b', 'c', 'd', 'e', 'f'] });
+    expect(six.status).toBe(400);
+    expect(six.json['field']).toBe('categories');
+    const court = await profil(elle.session, { currentPassword: MOT_DE_PASSE, newPassword: 'court' });
+    expect(court.status).toBe(400);
+    expect(court.json['field']).toBe('newPassword');
+    const sansActuel = await profil(elle.session, { newPassword: 'toute-neuve-99' });
+    expect(sansActuel.status).toBe(400);
+    expect(sansActuel.json['field']).toBe('currentPassword');
+    // NOTHING moved on any of these refusals.
+    const relu = await profil(elle.session);
+    expect(relu.json['email']).toBe(elle.email);
+    expect('categories' in relu.json).toBe(false);
+  }, 60_000);
+});

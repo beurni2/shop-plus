@@ -52,12 +52,41 @@ export type SessionResult =
   | { readonly ok: true; readonly compte: CompteLocal }
   | { readonly ok: false; readonly reason: 'invalide' | 'unreachable' };
 
+/** PROFIL-REVENDEUR-1 — the full registration data, HERS to reread: the one
+ *  answer that carries email and phone back (the session read never does). */
+export interface ProfilCompte extends CompteLocal {
+  readonly email: string;
+  readonly phone: string;
+}
+
+/** Absent means untouched — each section of the screen sends ONLY its own
+ *  fields. `categories: []` clears her rayons (an edit-screen choice, not a
+ *  skipped field). */
+export interface ProfilPatch {
+  readonly name?: string;
+  readonly email?: string;
+  readonly phone?: string;
+  readonly categories?: readonly string[];
+  readonly currentPassword?: string;
+  readonly newPassword?: string;
+}
+
+export type ProfilResult =
+  | { readonly ok: true; readonly profil: ProfilCompte }
+  | {
+      readonly ok: false;
+      readonly reason: 'invalide' | 'coupe' | 'email_pris' | 'champ_invalide' | 'mdp_refuse' | 'unreachable';
+      readonly field?: string;
+    };
+
 export interface CompteServicePort {
   inscrire(d: { name: string; email: string; phone: string; password: string; categories?: readonly string[] }): Promise<InscriptionResult>;
   connecter(email: string, password: string): Promise<ConnexionResult>;
   admission(session: string, code: string): Promise<AdmissionResult>;
   /** The background refresh — how a pause reaches a device that is already in. */
   session(session: string): Promise<SessionResult>;
+  /** PROFIL-REVENDEUR-1 — read with an empty patch, save with a sectioned one. */
+  profil(session: string, patch?: ProfilPatch): Promise<ProfilResult>;
 }
 
 const COMPTE_TIMEOUT_MS = 12_000;
@@ -166,6 +195,32 @@ export function resolveCompteService(): CompteServicePort | null {
       const compte = lireCompte(res.body);
       if (res.status !== 200 || compte === null) return { ok: false, reason: 'unreachable' };
       return { ok: true, compte };
+    },
+
+    async profil(session, patch = {}): Promise<ProfilResult> {
+      // JSON.stringify drops undefined properties, so the wire carries EXACTLY
+      // the section being saved — the server's absent-means-untouched contract.
+      const res = await appel('/reseller/profile', { method: 'POST', body: JSON.stringify(patch) }, session);
+      if (res === null) return { ok: false, reason: 'unreachable' };
+      // 401 wears two faces: a dead session, and a wrong CURRENT password on a
+      // password change — the second must speak as itself or she would be told
+      // to log back in when her session is fine.
+      if (res.status === 401) {
+        return { ok: false, reason: res.body?.['reason'] === 'bad_password' ? 'mdp_refuse' : 'invalide' };
+      }
+      if (res.status === 403) return { ok: false, reason: 'coupe' };
+      if (res.status === 409) return { ok: false, reason: 'email_pris' };
+      if (res.status === 400) {
+        const field = res.body?.['field'];
+        return { ok: false, reason: 'champ_invalide', ...(typeof field === 'string' ? { field } : {}) };
+      }
+      const compte = lireCompte(res.body);
+      const email = res.body?.['email'];
+      const phone = res.body?.['phone'];
+      if (res.status !== 200 || compte === null || typeof email !== 'string' || typeof phone !== 'string') {
+        return { ok: false, reason: 'unreachable' };
+      }
+      return { ok: true, profil: { ...compte, email, phone } };
     },
   };
 }

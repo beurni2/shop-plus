@@ -3486,6 +3486,102 @@
   "screenClass": "label"
  },
  {
+  "key": "nav.tab_profil",
+  "fr": "Profil",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "profil.titre",
+  "fr": "Mon profil",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "profil.ouvrir",
+  "fr": "Voir mon profil",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "profil.compte",
+  "fr": "Compte {id}",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "profil.etat_actif",
+  "fr": "Compte actif",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "profil.etat_attente",
+  "fr": "En attente",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "profil.etat_pause",
+  "fr": "Accès en pause",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "profil.sans_compte",
+  "fr": "Pas encore de compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "profil.sans_compte_texte",
+  "fr": "Quand vous aurez un compte, votre profil vivra ici.",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "profil.infos_titre",
+  "fr": "Mes informations",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "profil.enregistrer",
+  "fr": "Enregistrer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "profil.enregistre",
+  "fr": "C'est enregistré.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "profil.mdp_titre",
+  "fr": "Mot de passe",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "profil.mdp_actuel",
+  "fr": "Votre mot de passe actuel",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "profil.mdp_nouveau",
+  "fr": "Nouveau mot de passe (8 lettres ou plus)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "profil.mdp_refuse",
+  "fr": "Ce n'est pas votre mot de passe actuel. Vérifiez et réessayez.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "vitrine.retirer",
   "fr": "Retirer de ma vitrine",
   "register": "selling",

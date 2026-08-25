@@ -133,7 +133,10 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
     expect(screen.tree.root.findAllByType(IconCoche), 'a vérifié mark with no live shop').toHaveLength(0);
     // Ma Vitrine's header holds the same law — its badge sites are SEPARATE
     // JSX from the accueil's, so this walk must stand on that screen too.
-    await screen.press('Ma Vitrine');
+    // PROFIL-REVENDEUR-1: with no shop, the accueil header (now the pressable
+    // road to her profile) carries the « … dans « Ma Vitrine ». » sentence, so
+    // the label matches TWO controls; the dock tab renders second.
+    await screen.press('Ma Vitrine', 1);
     await screen.settle();
     expect(screen.texts().join(' | ')).not.toContain('Aïcha');
     expect(
@@ -392,7 +395,10 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
     await screen.settle();
     expect(screen.shows('Créez votre boutique dans « Ma Vitrine ».'), 'the walk must START from the honest absence').toBe(true);
 
-    await screen.press('Ma Vitrine');
+    // PROFIL-REVENDEUR-1: the honest-absence sentence sits INSIDE the header,
+    // which is now the pressable road to her profile — two controls answer to
+    // this label in this state; the dock tab renders second.
+    await screen.press('Ma Vitrine', 1);
     await screen.settle();
     await screen.press('Personnaliser ma boutique');
     await screen.settle();

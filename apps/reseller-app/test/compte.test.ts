@@ -106,6 +106,55 @@ describe('RESELLER-ACCOUNTS-1d — the four calls, honestly mapped', () => {
     vi.stubEnv(BASE, '');
     expect(resolveCompteService()).toBeNull();
   });
+
+  it('PROFIL-REVENDEUR-1 — the read: an EMPTY body rides the Bearer, and the full profile (email + phone) lands', async () => {
+    vi.stubEnv(BASE, 'https://shop.example');
+    const spy = stubFetch(async () =>
+      new Response(JSON.stringify({ ok: true, ...COMPTE, state: 'active', email: 'awa@example.bf', phone: '70 00 00 01', categories: ['Sacs'] })));
+    const res = await resolveCompteService()!.profil('SPS-1');
+    expect(res).toEqual({
+      ok: true,
+      profil: { accountId: 'rs-1234', name: 'Awa', state: 'active', categories: ['Sacs'], email: 'awa@example.bf', phone: '70 00 00 01' },
+    });
+    const [url, init] = spy.mock.calls[0]!;
+    expect(url).toBe('https://shop.example/reseller/profile');
+    expect(String(init?.body)).toBe('{}'); // absent means untouched — a read sends NOTHING
+    expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer SPS-1');
+  });
+
+  it('PROFIL-REVENDEUR-1 — a sectioned patch carries EXACTLY its fields, and the fresh profile comes back', async () => {
+    vi.stubEnv(BASE, 'https://shop.example');
+    const spy = stubFetch(async () =>
+      new Response(JSON.stringify({ ok: true, ...COMPTE, state: 'active', name: 'Awa O.', email: 'awa@example.bf', phone: '76 55 44 33' })));
+    const res = await resolveCompteService()!.profil('SPS-1', { name: 'Awa O.', phone: '76 55 44 33', email: 'awa@example.bf' });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.profil.phone).toBe('76 55 44 33');
+    const body = JSON.parse(String(spy.mock.calls[0]![1]?.body)) as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(['email', 'name', 'phone']); // no password field rides an infos save
+  });
+
+  it('PROFIL-REVENDEUR-1 — the refusals keep their names: 401 splits on bad_password, 403 is the pause, 409 the taken email, 400 names the field', async () => {
+    vi.stubEnv(BASE, 'https://shop.example');
+    const port = resolveCompteService()!;
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'bad_password' }), { status: 401 }));
+    expect(await port.profil('SPS-1', { currentPassword: 'x'.repeat(8), newPassword: 'y'.repeat(8) })).toEqual({ ok: false, reason: 'mdp_refuse' });
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'no_session' }), { status: 401 }));
+    expect(await port.profil('SPS-1')).toEqual({ ok: false, reason: 'invalide' });
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'access_paused' }), { status: 403 }));
+    expect(await port.profil('SPS-1')).toEqual({ ok: false, reason: 'coupe' });
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'email_taken' }), { status: 409 }));
+    expect(await port.profil('SPS-1', { email: 'prise@example.bf' })).toEqual({ ok: false, reason: 'email_pris' });
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'bad_field', field: 'phone' }), { status: 400 }));
+    expect(await port.profil('SPS-1', { phone: '12' })).toEqual({ ok: false, reason: 'champ_invalide', field: 'phone' });
+    stubFetch(async () => { throw new Error('réseau mort'); });
+    expect(await port.profil('SPS-1')).toEqual({ ok: false, reason: 'unreachable' });
+  });
+
+  it('PROFIL-REVENDEUR-1 — an answer missing email or phone is NOT a profile, whatever its status says', async () => {
+    vi.stubEnv(BASE, 'https://shop.example');
+    stubFetch(async () => new Response(JSON.stringify({ ok: true, ...COMPTE, state: 'active', email: 'awa@example.bf' })));
+    expect(await resolveCompteService()!.profil('SPS-1')).toEqual({ ok: false, reason: 'unreachable' });
+  });
 });
 
 describe('RESELLER-ACCOUNTS-1d — what the device remembers', () => {

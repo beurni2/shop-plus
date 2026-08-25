@@ -18,10 +18,11 @@ const iconsSrc = read('src/ui/icons.tsx');
 const svgDir = join(repoRoot, 'design-reference/grand-teint/icons');
 const svgNames = readdirSync(svgDir).filter((f) => f.endsWith('.svg')).map((f) => f.slice(0, -4)).sort();
 
-describe('the 29 icon components carry the design-reference geometry (byte-identity)', () => {
-  it('there are exactly 29 canonical glyphs, and 29 components', () => {
-    expect(svgNames).toHaveLength(29);
-    expect(iconsSrc.match(/export function Icon\w+\(/g)).toHaveLength(29);
+describe('the 30 icon components carry the design-reference geometry (byte-identity)', () => {
+  // PROFIL-REVENDEUR-1 (2026-08-25): profil.svg joined the canon — 30.
+  it('there are exactly 30 canonical glyphs, and 30 components', () => {
+    expect(svgNames).toHaveLength(30);
+    expect(iconsSrc.match(/export function Icon\w+\(/g)).toHaveLength(30);
   });
 
   it('every path `d`, circle and rect from every SVG appears verbatim in its component', () => {
@@ -42,7 +43,7 @@ describe('the 29 icon components carry the design-reference geometry (byte-ident
 
   it('every component defaults to currentColor and threads it to every stroke/fill', () => {
     const comps = iconsSrc.split('export function Icon').slice(1);
-    expect(comps).toHaveLength(29);
+    expect(comps).toHaveLength(30);
     for (const c of comps) {
       expect(c).toMatch(/color = 'currentColor'/); // the default
       expect(c).toMatch(/stroke=\{color\}/); // stroke threads it

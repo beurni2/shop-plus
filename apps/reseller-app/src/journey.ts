@@ -21,13 +21,19 @@ export type Screen =
   | 'campaign'
   | 'funding'
   | 'reput'
-  | 'membres';
+  | 'membres'
+  // PROFIL-REVENDEUR-1 (founder order 2026-08-25) — her registration data and
+  // her rayons, viewable and editable. A dock hub; the accueil header (her
+  // monogram and shop name) is the in-content road that walks the edge.
+  | 'profil';
 
 export const START: Screen = 'accueil';
 
 /** Forward edges only — « Retour » pops the stack and is always available. */
 export const JOURNEY: Record<Screen, readonly Screen[]> = {
-  accueil: ['opportunites', 'gains', 'ventes', 'cercle'],
+  // PROFIL-REVENDEUR-1 — accueil → profil rides the header (monogram + name),
+  // the same gesture every phone she has held uses for « my account ».
+  accueil: ['opportunites', 'gains', 'ventes', 'cercle', 'profil'],
   // WO-VITRINE-FLOW — Opportunités → Fiche (single product, add to vitrine) →
   // Ma vitrine → Partager.
   //
@@ -58,4 +64,5 @@ export const JOURNEY: Record<Screen, readonly Screen[]> = {
   funding: [],
   reput: [],
   membres: [],
+  profil: [],
 };

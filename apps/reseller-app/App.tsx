@@ -6,7 +6,7 @@ import { File } from 'expo-file-system';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, touch, interaction, dimension } from '@platform/ui-tokens/legacy';
 import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './src/ui/faso-fonts';
-import { IconAccueil, IconProduits, IconGains, IconVitrine, IconCoche, IconVoix } from './src/ui/icons';
+import { IconAccueil, IconProduits, IconGains, IconProfil, IconVitrine, IconCoche, IconVoix } from './src/ui/icons';
 import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
 import { t, tf } from './src/i18n';
@@ -45,6 +45,7 @@ import {
   resolveCompteService,
   type CompteLocal,
   type CompteServicePort,
+  type ProfilCompte,
 } from './src/access/compte-service';
 import { identityFromDigits } from './src/identity/mint';
 import { ecranAccueil } from './src/sales/accueil-model';
@@ -138,7 +139,7 @@ function TimelineRow({ step, last }: { step: TimelineStep; last: boolean }) {
 /** The dock hubs — WO-VITRINE-FLOW promotes Ma Vitrine to a tab: Accueil ·
  * Opportunités · Ma Vitrine · Gains (the planche dock is 5 incl. Cercle; Cercle
  * stays OUT — gated, SP9). Tabs are waypoint resets, never journey edges. */
-const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'vitrine', 'cercle', 'gains'];
+const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'vitrine', 'cercle', 'gains', 'profil'];
 
 /** Screens whose frame renders a big 28/800 title IN-CONTENT (planche) — the
  * chrome header title is suppressed for these so it isn't a duplicate. */
@@ -164,6 +165,8 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
   gains: 'app.title',
   ventes: 'ventes.titre',
   vente_detail: 'vente.titre',
+  // Hub — brand in the header; the big « Mon profil » title lands in-content.
+  profil: 'app.title',
 };
 
 // BANDEAUX-RETIRÉS (2026-08-14) — SEAM-ERROR-VISIBILITY-1 and SEAM-PRESENCE-1
@@ -1507,7 +1510,15 @@ export default function App() {
                 where the shop is created. The demo identity (« Aïcha »,
                 « Gounghin ») and the « Comment ça marche » pill — a control
                 wired to NOTHING since the day it was drawn — are gone. */}
-            <View style={styles.homeHeader}>
+            {/* PROFIL-REVENDEUR-1 — the header IS the road to her profile (the
+                gesture every phone she has held uses for « my account »), which
+                is what keeps the journey map's accueil → profil edge honest. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('profil.ouvrir')}
+              onPress={() => go('profil')}
+              style={({ pressed }) => [styles.homeHeader, pressed && styles.pressed]}
+            >
               <View style={styles.monogram}>
                 {liveStorefront !== null && liveStorefront !== undefined ? (
                   <Text style={styles.monogramText}>{liveStorefront.name.slice(0, 1).toUpperCase()}</Text>
@@ -1531,7 +1542,7 @@ export default function App() {
                   <Text style={styles.homeSubZone}>{t('accueil.sans_boutique')}</Text>
                 ) : null}
               </View>
-            </View>
+            </Pressable>
 
             {/* Greeting hero — « Bonjour », plain: the app knows her SHOP, not
                 her first name, and a borrowed name is worse than none. The
@@ -2743,6 +2754,17 @@ export default function App() {
         {screen === 'funding' && <CampaignFunding ctl={cercle} onBack={back} onToast={setToast} />}
         {screen === 'reput' && <CercleReputation onBack={back} />}
         {screen === 'membres' && <CercleMembres onBack={back} />}
+        {/* ── PROFIL-REVENDEUR-1 — her registration data and her rayons ── */}
+        {screen === 'profil' && (
+          <EcranProfil
+            compte={compte}
+            service={compteService}
+            lireBearer={() => accessCodeStore.read()}
+            rayons={categoriesPresentes(offers)}
+            onCompte={(c) => { void adopterCompte(c); }}
+            onToast={setToast}
+          />
+        )}
       </View>
       </ScreenTransition>
       </KeyboardAvoidingView>
@@ -2784,6 +2806,7 @@ export default function App() {
             { key: 'vitrine', icon: <IconVitrine size={dimension.iconSizePx.tab} color={navColor(screen === 'vitrine')} />, label: t('nav.tab_vitrine'), active: screen === 'vitrine', onPress: () => toHub('vitrine') },
             { key: 'cercle', icon: <IconCercleDeux size={dimension.iconSizePx.tab} color={navColor(screen === 'cercle')} />, label: t('nav.tab_cercle'), active: screen === 'cercle', onPress: () => toHub('cercle') },
             { key: 'gains', icon: <IconGains size={dimension.iconSizePx.tab} color={navColor(screen === 'gains')} />, label: t('nav.tab_gains'), active: screen === 'gains', onPress: () => toHub('gains') },
+            { key: 'profil', icon: <IconProfil size={dimension.iconSizePx.tab} color={navColor(screen === 'profil')} />, label: t('nav.tab_profil'), active: screen === 'profil', onPress: () => toHub('profil') },
           ]}
         />
       )}
@@ -3464,6 +3487,27 @@ const styles = StyleSheet.create({
   },
   // the cliente price — the secondary context line under the net hero.
   // ── PARTAGER format segments (planche piste r14 p4; active = white card) ──
+  // ── PROFIL-REVENDEUR-1 — identity header + three saving sections ──
+  profilEntete: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  profilEnteteBody: { flex: 1, minWidth: 0 },
+  profilNom: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.view.size), fontWeight: w(t2.scale.view.wght) },
+  profilId: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
+  profilCarte: { gap: spacing.sm },
+  profilChampLabel: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.pill.size), fontWeight: w(t2.scale.pill.wght), marginTop: spacing.xs },
+  profilAide: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size },
+  // The margeInput frame, reading-aligned: names and emails read left-to-right
+  // (the right-align there is for FIGURES she types toward a total).
+  profilInput: {
+    minHeight: touch.minTargetPx,
+    borderWidth: interaction.hairline.medium,
+    borderColor: sharedColour.hairlineStrong,
+    borderRadius: rmax(radius.buttonSecondary),
+    paddingHorizontal: spacing.md,
+    color: sharedColour.ink,
+    fontFamily: TEXT_FAMILY_BOLD,
+    fontSize: t2.scale.row.size,
+    backgroundColor: sharedColour.paper,
+  },
 });
 
 /**
@@ -3642,5 +3686,264 @@ function EcranAdmission({ code, onCode, envoi, erreurKey, onEntrer }: {
       {!envoi && erreurKey !== null && <Text style={styles.accesMessage}>{t(erreurKey)}</Text>}
       <PrimaryButton label={t('admission.action')} onPress={onEntrer} disabled={envoi || code.trim() === ''} />
     </View>
+  );
+}
+
+/**
+ * PROFIL-REVENDEUR-1 (founder order 2026-08-25) — « a profile tab and screen
+ * where resellers can view and modify their registration data and their
+ * rayons as well ».
+ *
+ * THREE SECTIONS, EACH WITH ITS OWN SAVE — the Personnaliser discipline: a
+ * save carries ONLY its own section's fields, so a patch can never blank what
+ * it did not mention. The identity card on top says WHO the book believes she
+ * is (name · account id · state) before anything is editable.
+ *
+ * THE DATA IS THE SERVER'S, NEVER THE DISK'S: email and phone live only in
+ * the account book (the compte file stores neither, by design), so the screen
+ * reads /reseller/profile on entry and renders honest loading and network
+ * states until that answer lands. A saved WhatsApp number reaches her
+ * boutique's buyer taps by itself — /contact-of reads the same record.
+ */
+function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast }: {
+  compte: CompteLocal | null | undefined;
+  service: CompteServicePort | null;
+  lireBearer: () => Promise<string | null>;
+  /** The live browse wire's rayons (the CO-1 law: data-driven, never a
+   *  hardcoded taxonomy). Her saved-but-off-wire rayons stay pressable so a
+   *  quiet wire can never trap a choice she wants to retire. */
+  rayons: readonly string[];
+  onCompte: (c: CompteLocal) => void;
+  onToast: (m: string) => void;
+}) {
+  type Section = 'infos' | 'rayons' | 'mdp';
+  const [profil, setProfil] = useState<ProfilCompte | 'chargement' | 'reseau' | 'coupe'>('chargement');
+  const [recharge, setRecharge] = useState(0);
+  const [nom, setNom] = useState('');
+  const [tel, setTel] = useState('');
+  const [email, setEmail] = useState('');
+  const [cats, setCats] = useState<readonly string[]>([]);
+  const [plein, setPlein] = useState(false);
+  const [mdpActuel, setMdpActuel] = useState('');
+  const [mdpNouveau, setMdpNouveau] = useState('');
+  const [envoi, setEnvoi] = useState<Section | null>(null);
+  const [msg, setMsg] = useState<{ section: Section; key: string } | null>(null);
+
+  useEffect(() => {
+    if (compte === null || compte === undefined || service === null) return;
+    let vivant = true;
+    void (async () => {
+      const bearer = await lireBearer();
+      if (bearer === null || !bearer.startsWith('SPS-')) {
+        if (vivant) setProfil('reseau');
+        return;
+      }
+      const res = await service.profil(bearer);
+      if (!vivant) return;
+      if (res.ok) {
+        setProfil(res.profil);
+        setNom(res.profil.name);
+        setTel(res.profil.phone);
+        setEmail(res.profil.email);
+        setCats(res.profil.categories ?? []);
+      } else {
+        // A dead session and a dead network share one honest card with a
+        // retry — nothing else in the app can revive either. A founder's
+        // pause speaks as itself.
+        setProfil(res.reason === 'coupe' ? 'coupe' : 'reseau');
+      }
+    })();
+    return () => { vivant = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compte?.accountId, service, recharge]);
+
+  const sauver = (section: Section, patch: Parameters<CompteServicePort['profil']>[1]) => {
+    setEnvoi(section);
+    setMsg(null);
+    void (async () => {
+      const bearer = await lireBearer();
+      const res = bearer === null || service === null
+        ? ({ ok: false, reason: 'unreachable' } as const)
+        : await service.profil(bearer, patch);
+      setEnvoi(null);
+      if (res.ok) {
+        setProfil(res.profil);
+        // Only the SAVED section reseeds from the answer — another section's
+        // unsent edits are hers, not this save's to overwrite.
+        if (section === 'infos') {
+          setNom(res.profil.name);
+          setTel(res.profil.phone);
+          setEmail(res.profil.email);
+        }
+        if (section === 'rayons') {
+          setCats(res.profil.categories ?? []);
+          setPlein(false);
+        }
+        if (section === 'mdp') {
+          setMdpActuel('');
+          setMdpNouveau('');
+        }
+        // The local mirror follows the book at once, so Opportunités filters
+        // and the accueil greet on what she JUST saved, not on a stale disk.
+        onCompte({
+          accountId: res.profil.accountId,
+          name: res.profil.name,
+          state: res.profil.state,
+          ...(res.profil.categories !== undefined && res.profil.categories.length > 0
+            ? { categories: res.profil.categories }
+            : {}),
+        });
+        onToast(t('profil.enregistre'));
+        return;
+      }
+      setMsg({
+        section,
+        key:
+          res.reason === 'email_pris' ? 'compte.email_pris'
+          : res.reason === 'champ_invalide' ? 'compte.champ_invalide'
+          : res.reason === 'mdp_refuse' ? 'profil.mdp_refuse'
+          : res.reason === 'coupe' ? 'coupe.texte'
+          : 'compte.reseau',
+      });
+    })();
+  };
+
+  // Her picks, capped at five — the cap DECISION is made in the handler (never
+  // inside a state updater, which React may replay) and a refused sixth tap
+  // speaks instead of dying.
+  const basculer = (c: string) => {
+    const deja = cats.includes(c);
+    const refuse = !deja && cats.length >= 5;
+    setPlein(refuse);
+    if (refuse) return;
+    setCats(deja ? cats.filter((x) => x !== c) : [...cats, c]);
+  };
+
+  const rayonsAffiches = [...rayons, ...cats.filter((c) => !rayons.includes(c))];
+  const enTete = typeof profil === 'object' ? profil.name : compte?.name ?? '';
+
+  return (
+    <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
+      <Text style={styles.screenTitle}>{t('profil.titre')}</Text>
+
+      {compte === null && (
+        <Card style={styles.profilCarte}>
+          <Overline>{t('profil.sans_compte')}</Overline>
+          <Text style={styles.message}>{t('profil.sans_compte_texte')}</Text>
+        </Card>
+      )}
+
+      {compte !== null && compte !== undefined && (
+        <>
+          <Card>
+            <View style={styles.profilEntete}>
+              <View style={styles.monogram}>
+                <Text style={styles.monogramText}>{enTete.slice(0, 1).toUpperCase()}</Text>
+              </View>
+              <View style={styles.profilEnteteBody}>
+                <Text style={styles.profilNom} numberOfLines={1}>{enTete}</Text>
+                <Text style={styles.profilId}>{tf('profil.compte', { id: compte.accountId })}</Text>
+              </View>
+              <StatusChip
+                tone={compte.state === 'active' ? 'ok' : compte.state === 'paused' ? 'warn' : 'info'}
+                label={t(
+                  compte.state === 'active' ? 'profil.etat_actif'
+                  : compte.state === 'paused' ? 'profil.etat_pause'
+                  : 'profil.etat_attente',
+                )}
+              />
+            </View>
+          </Card>
+
+          {profil === 'chargement' && <Text style={styles.accesMessage}>{t('compte.envoi')}</Text>}
+          {profil === 'coupe' && (
+            <Card style={styles.profilCarte}>
+              <Overline>{t('coupe.titre')}</Overline>
+              <Text style={styles.message}>{t('coupe.texte')}</Text>
+            </Card>
+          )}
+          {profil === 'reseau' && (
+            <Card style={styles.profilCarte}>
+              <Text style={styles.message}>{t('compte.reseau')}</Text>
+              <SecondaryButton
+                label={t('coupe.reessayer')}
+                onPress={() => {
+                  setProfil('chargement');
+                  setRecharge((n) => n + 1);
+                }}
+              />
+            </Card>
+          )}
+
+          {typeof profil === 'object' && (
+            <>
+              <Card style={styles.profilCarte}>
+                <Overline>{t('profil.infos_titre')}</Overline>
+                <Text style={styles.profilChampLabel}>{t('compte.nom')}</Text>
+                <TextInput style={styles.profilInput} value={nom} onChangeText={setNom} autoCorrect={false} accessibilityLabel={t('compte.nom')} editable={envoi === null} />
+                <Text style={styles.profilChampLabel}>{t('compte.telephone')}</Text>
+                <TextInput style={styles.profilInput} value={tel} onChangeText={setTel} keyboardType="phone-pad" accessibilityLabel={t('compte.telephone')} editable={envoi === null} />
+                <Text style={styles.profilAide}>{t('compte.telephone_aide')}</Text>
+                <Text style={styles.profilChampLabel}>{t('compte.email')}</Text>
+                <TextInput style={styles.profilInput} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" accessibilityLabel={t('compte.email')} editable={envoi === null} />
+                {envoi === 'infos' && <Text style={styles.accesMessage}>{t('compte.envoi')}</Text>}
+                {msg?.section === 'infos' && <Text style={styles.accesMessage}>{t(msg.key)}</Text>}
+                <PrimaryButton
+                  label={t('profil.enregistrer')}
+                  onPress={() => sauver('infos', { name: nom.trim(), phone: tel.trim(), email: email.trim() })}
+                  disabled={envoi !== null || nom.trim() === '' || tel.trim() === '' || email.trim() === ''}
+                />
+              </Card>
+
+              {rayonsAffiches.length > 0 && (
+                <Card style={styles.profilCarte}>
+                  <Overline>{t('compte.rayons_titre')}</Overline>
+                  <Text style={styles.profilAide}>{t(plein ? 'compte.rayons_max' : 'compte.rayons_aide')}</Text>
+                  <View style={styles.compteRayonsRow}>
+                    {rayonsAffiches.map((c) => {
+                      const choisi = cats.includes(c);
+                      return (
+                        <Pressable
+                          key={c}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: choisi }}
+                          disabled={envoi !== null}
+                          onPress={() => basculer(c)}
+                          style={[styles.oppChip, choisi && styles.oppChipOn]}
+                        >
+                          <Text style={[styles.oppChipText, choisi && styles.oppChipTextOn]}>{labelCategorie(c)}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  {envoi === 'rayons' && <Text style={styles.accesMessage}>{t('compte.envoi')}</Text>}
+                  {msg?.section === 'rayons' && <Text style={styles.accesMessage}>{t(msg.key)}</Text>}
+                  <PrimaryButton
+                    label={t('profil.enregistrer')}
+                    onPress={() => sauver('rayons', { categories: cats })}
+                    disabled={envoi !== null}
+                  />
+                </Card>
+              )}
+
+              <Card style={styles.profilCarte}>
+                <Overline>{t('profil.mdp_titre')}</Overline>
+                <Text style={styles.profilChampLabel}>{t('profil.mdp_actuel')}</Text>
+                <TextInput style={styles.profilInput} value={mdpActuel} onChangeText={setMdpActuel} autoCapitalize="none" autoCorrect={false} accessibilityLabel={t('profil.mdp_actuel')} editable={envoi === null} />
+                <Text style={styles.profilChampLabel}>{t('profil.mdp_nouveau')}</Text>
+                <TextInput style={styles.profilInput} value={mdpNouveau} onChangeText={setMdpNouveau} autoCapitalize="none" autoCorrect={false} accessibilityLabel={t('profil.mdp_nouveau')} editable={envoi === null} />
+                {envoi === 'mdp' && <Text style={styles.accesMessage}>{t('compte.envoi')}</Text>}
+                {msg?.section === 'mdp' && <Text style={styles.accesMessage}>{t(msg.key)}</Text>}
+                <PrimaryButton
+                  label={t('profil.enregistrer')}
+                  onPress={() => sauver('mdp', { currentPassword: mdpActuel, newPassword: mdpNouveau })}
+                  disabled={envoi !== null || mdpActuel === '' || mdpNouveau.length < 8}
+                />
+              </Card>
+            </>
+          )}
+        </>
+      )}
+    </ScrollView>
   );
 }

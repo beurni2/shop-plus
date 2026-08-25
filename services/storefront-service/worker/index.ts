@@ -532,7 +532,8 @@ export default {
       pathname === '/reseller/signup' ||
       pathname === '/reseller/login' ||
       pathname === '/reseller/session' ||
-      pathname === '/reseller/admission'
+      pathname === '/reseller/admission' ||
+      pathname === '/reseller/profile'
     ) {
       if (request.method === 'OPTIONS') return resellerPreflight();
       if (request.method !== 'POST') return withResellerCors(unauthorized());
@@ -540,9 +541,9 @@ export default {
         return withResellerCors(Response.json({ ok: false, reason: 'accounts_unavailable' }, { status: 503 }));
       }
       const comptes = env.COMPTES.get(env.COMPTES.idFromName(RESELLER_ACCOUNTS_NAME));
-      // session/admission authenticate with the Bearer; the DO receives it in
-      // the body because a DO fetch has no ambient auth of its own.
-      if (pathname === '/reseller/session' || pathname === '/reseller/admission') {
+      // session/admission/profile authenticate with the Bearer; the DO receives
+      // it in the body because a DO fetch has no ambient auth of its own.
+      if (pathname === '/reseller/session' || pathname === '/reseller/admission' || pathname === '/reseller/profile') {
         const auth = request.headers.get('Authorization') ?? '';
         const session = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
         const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;

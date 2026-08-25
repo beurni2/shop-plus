@@ -341,7 +341,7 @@ describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)'
     expect(app).toMatch(/campShare !== null \? \(/);
   });
 
-  it('§8.1 — the dock has FIVE tabs, exact order and labels; Cercle between Ma Vitrine and Gains; two-heads icon verbatim', () => {
+  it('§8.1 — the dock has SIX tabs (PROFIL-REVENDEUR-1 added Profil, last), exact order and labels; Cercle between Ma Vitrine and Gains; two-heads icon verbatim', () => {
     const app = read('App.tsx');
     // ACCESS-GATE-1 — the FIRST closing tag AFTER the dock, not the first in
     // the file: the access gate returns its own <SafeAreaView> above this one,
@@ -352,7 +352,7 @@ describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)'
     expect(debut, 'the dock must exist').toBeGreaterThan(-1);
     expect(dock.length, 'the slice must actually contain the dock').toBeGreaterThan(0);
     const order = [...dock.matchAll(/key: '(\w+)'/g)].map((m) => m[1]);
-    expect(order).toEqual(['accueil', 'opportunites', 'vitrine', 'cercle', 'gains']);
+    expect(order).toEqual(['accueil', 'opportunites', 'vitrine', 'cercle', 'gains', 'profil']);
     expect(dock).toContain("label: t('nav.tab_cercle')");
     expect(catalog.find((e) => e.key === 'nav.tab_vitrine')!.fr).toBe('Ma Vitrine');
     expect(catalog.find((e) => e.key === 'nav.tab_cercle')!.fr).toBe('Cercle');

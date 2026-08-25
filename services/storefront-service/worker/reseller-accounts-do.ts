@@ -316,6 +316,128 @@ export class ResellerAccountsDO {
     }
 
     /**
+     * ═══ PROFIL-REVENDEUR-1 (founder order 2026-08-25) — HER OWN PAGE ═══
+     *
+     * « a profile tab and screen where resellers can view and modify their
+     * registration data and their rayons as well. » One route carries both:
+     * a body with only `session` READS the full profile (the one place email
+     * and phone cross back to her — /session deliberately answers neither),
+     * and any present field PATCHES it, per-section, with EXACTLY the signup
+     * validators. ABSENT MEANS UNTOUCHED — a save that silently blanked what
+     * it did not mention would lose her account the way a full-replace
+     * Personnaliser would have lost her shop.
+     *
+     * ACTIVE ONLY, refused BY NAME: the founder's pause outranks every
+     * credential she holds, and a pending account is still at the door.
+     *
+     * The one asymmetry with signup, deliberate: `categories: []` here means
+     * « clear my rayons » (back to everything), because on an EDIT the empty
+     * list is a choice she just made, not a field she skipped.
+     */
+    if (request.method === 'POST' && pathname === '/profile') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      if (body === null) return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      for (const key of Object.keys(body)) {
+        if (!['session', 'name', 'email', 'phone', 'categories', 'currentPassword', 'newPassword'].includes(key)) {
+          return Response.json({ ok: false, reason: 'unknown_field', field: key }, { status: 400 });
+        }
+      }
+      const record = await this.resoudreSession(body['session']);
+      if (record === null) return Response.json({ ok: false, reason: 'no_session' }, { status: 401 });
+      if (record.state !== 'active') {
+        return Response.json(
+          { ok: false, reason: record.state === 'paused' ? 'access_paused' : 'access_required' },
+          { status: 403 },
+        );
+      }
+
+      let maj: AccountRecord = record;
+      if (body['name'] !== undefined) {
+        const name = champ(body['name'], 120);
+        if (name === null) return Response.json({ ok: false, reason: 'bad_field', field: 'name' }, { status: 400 });
+        maj = { ...maj, name };
+      }
+      if (body['phone'] !== undefined) {
+        const phone = champ(body['phone'], 32);
+        if (phone === null || phone.replace(/\D/g, '').length < 8) {
+          return Response.json({ ok: false, reason: 'bad_field', field: 'phone' }, { status: 400 });
+        }
+        // The number her buyers write to — /contact-of answers the record, so
+        // this save reaches her boutique's WhatsApp taps with no other write.
+        maj = { ...maj, phone };
+      }
+      let cleEmailNouvelle: string | null = null;
+      let cleEmailAncienne: string | null = null;
+      if (body['email'] !== undefined) {
+        const email = champ(body['email'])?.toLowerCase() ?? null;
+        if (email === null || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return Response.json({ ok: false, reason: 'bad_field', field: 'email' }, { status: 400 });
+        }
+        if (email !== record.email) {
+          cleEmailNouvelle = `${EMAIL_PREFIX}${await sha256Hex(email)}`;
+          if ((await this.state.storage.get(cleEmailNouvelle)) !== undefined) {
+            return Response.json({ ok: false, reason: 'email_taken' }, { status: 409 });
+          }
+          cleEmailAncienne = `${EMAIL_PREFIX}${await sha256Hex(record.email)}`;
+          maj = { ...maj, email };
+        }
+      }
+      if (body['categories'] !== undefined) {
+        const rawCats = body['categories'];
+        if (!Array.isArray(rawCats) || rawCats.length > 5) {
+          return Response.json({ ok: false, reason: 'bad_field', field: 'categories' }, { status: 400 });
+        }
+        const nettoyees: string[] = [];
+        for (const c of rawCats) {
+          const v = champ(c, 64);
+          if (v === null) return Response.json({ ok: false, reason: 'bad_field', field: 'categories' }, { status: 400 });
+          if (!nettoyees.includes(v)) nettoyees.push(v);
+        }
+        if (nettoyees.length > 0) {
+          maj = { ...maj, categories: nettoyees };
+        } else {
+          const { categories: _retirees, ...reste } = maj;
+          maj = reste;
+        }
+      }
+      if (body['currentPassword'] !== undefined || body['newPassword'] !== undefined) {
+        const actuel = typeof body['currentPassword'] === 'string' ? body['currentPassword'] : '';
+        const nouveau = typeof body['newPassword'] === 'string' ? body['newPassword'] : '';
+        if (actuel === '') return Response.json({ ok: false, reason: 'bad_field', field: 'currentPassword' }, { status: 400 });
+        if (nouveau.length < 8 || nouveau.length > MAX_FIELD) {
+          return Response.json({ ok: false, reason: 'bad_field', field: 'newPassword' }, { status: 400 });
+        }
+        // The CURRENT password re-proves it is her — a stolen handset with a
+        // live session must not be enough to lock her out of her own account.
+        const derive = await derivePassword(actuel, record.passwordSaltHex);
+        if (!egaleConstante(derive, record.passwordHashHex)) {
+          return Response.json({ ok: false, reason: 'bad_password' }, { status: 401 });
+        }
+        const saltHex = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+        maj = { ...maj, passwordSaltHex: saltHex, passwordHashHex: await derivePassword(nouveau, saltHex) };
+      }
+
+      if (maj !== record) {
+        // Every hash above is already computed, so these storage ops sit in one
+        // event-loop turn and coalesce into ONE atomic commit — the record and
+        // its email index can never land separately.
+        const ecritures: Record<string, unknown> = { [`${ACCOUNT_PREFIX}${record.accountId}`]: maj };
+        if (cleEmailNouvelle !== null) ecritures[cleEmailNouvelle] = record.accountId;
+        await this.state.storage.put(ecritures);
+        if (cleEmailAncienne !== null) await this.state.storage.delete(cleEmailAncienne);
+      }
+      return Response.json({
+        ok: true,
+        accountId: maj.accountId,
+        name: maj.name,
+        email: maj.email,
+        phone: maj.phone,
+        ...(maj.categories !== undefined ? { categories: maj.categories } : {}),
+        state: maj.state,
+      });
+    }
+
+    /**
      * ═══ CONTACT-WHATSAPP-1 (founder order 2026-08-23) — THE CONTACT READ ═══
      *
      * « The reseller WhatsApp number will be the one he will put during the

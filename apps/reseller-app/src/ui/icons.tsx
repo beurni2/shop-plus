@@ -232,6 +232,18 @@ export function IconProduits({ size = 20, color = 'currentColor' }: IconProps) {
   );
 }
 
+/** PROFIL-REVENDEUR-1 — the person glyph for her profile tab and screen. */
+export function IconProfil({ size = 20, color = 'currentColor' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"
+      color={color} accessibilityRole="image">
+      <Circle cx={12} cy={8} r={4} />
+      <Path d="M4.5 20.5c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5" />
+    </Svg>
+  );
+}
+
 export function IconRecherche({ size = 20, color = 'currentColor' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none"

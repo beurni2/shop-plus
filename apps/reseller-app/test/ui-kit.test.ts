@@ -118,9 +118,10 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(app).toMatch(/<AppHeader/);
     // CERCLE (SP9, founder-override scoped to UI + certified mock, journaled
     // 2026-07-19): the dock grows to 5 tabs — Cercle between Ma Vitrine and Gains.
-    expect(app).toMatch(/HUBS: readonly Screen\[\] = \['accueil', 'opportunites', 'vitrine', 'cercle', 'gains'\]/);
+    // PROFIL-REVENDEUR-1 (founder order 2026-08-25): a sixth — Profil, last.
+    expect(app).toMatch(/HUBS: readonly Screen\[\] = \['accueil', 'opportunites', 'vitrine', 'cercle', 'gains', 'profil'\]/);
     expect(app).toMatch(/setStack\(hub === START \? \[START\] : \[START, hub\]\)/);
-    for (const key of ['nav.tab_accueil', 'nav.tab_opportunites', 'nav.tab_vitrine', 'nav.tab_gains']) {
+    for (const key of ['nav.tab_accueil', 'nav.tab_opportunites', 'nav.tab_vitrine', 'nav.tab_gains', 'nav.tab_profil']) {
       expect(app).toContain(`t('${key}')`);
     }
     // go() is byte-identical to WO-4.1 (the spine test pins it too)
