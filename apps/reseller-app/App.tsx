@@ -1636,8 +1636,9 @@ export default function App() {
             <View style={styles.astuceCard}>
               <Text style={styles.astuceText}>{t('accueil.astuce')}</Text>
             </View>
-            {/* D2 — C-CE23 « Mon Cercle » (second, contextual entry — the dock
-                tab stays the canonical one). ACCUEIL-PRO: the sub-line carries
+            {/* D2 — C-CE23 « Mon Cercle » (contextual entry; since
+                CERCLE-PROFIL-1 the canonical door is the Profil screen's row —
+                the dock tab is retired). ACCUEIL-PRO: the sub-line carries
                 NO figures — the demo world's « 214 membres · campagne … » was
                 a fake count on the real home screen. The invitation is the
                 whole line until SP9 makes a real one possible. */}
