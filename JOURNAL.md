@@ -9,6 +9,18 @@ Format per entry:
 
 ---
 
+## 2026-08-25 · CERCLE-PROFIL-1 — the Cercle tab is retired; the hub opens from the Profil screen · IN REVIEW (awaiting the founder's merge word)
+
+**Founder, 2026-08-25: « now remove cercle from the tab list and relocate it inside profile screen. »** Build `8d7e0e9`, verifier fix `e8bdb04`, pushed on the designated branch. **Not merged, not deployed — waiting for his word.** App-only; no service change.
+
+**THE DOCK RETURNS TO FIVE** (Accueil · Opportunités · Ma Vitrine · Gains · Profil) and **her page becomes the Cercle's door**: a « Mon Cercle » row — two-heads glyph · title · « Vos campagnes et votre réputation. » · chevron — rendered in BOTH account states from one shared JSX value, because the retired tab never asked for a compte and this door must not either. The row walks a NEW `profil → cercle` journey edge; the accueil's Cercle card keeps its own edge untouched, so the hub has two independent doors. Off the dock, Cercle is a stacked screen: the header's « Retour » chip (always present there — the verifier traced every setStack site to prove the stack is ≥2 whenever cercle mounts) brings her back to her profile; the hub's internal edges (campnew/campaign/funding/reput/membres/lien) and the shareCampBadge flow are untouched. `nav.tab_cercle` retired from the catalog with the tab — the row speaks `ce.hub_titre`.
+
+**Evidence.** New walks: the whole round trip (Profil → row → the hub renders its OWN content → « Retour » → back on « Mes informations ») and the no-compte state still offering the row — plus the rendu-opportunites hub tour now walks Profil as the fifth tab. Pins moved deliberately: cercle §8.1 (five tabs, the tab GONE not renamed — `nav.tab_cercle` asserted absent from dock AND catalog — and the replacement road's wire pinned), ui-kit HUBS. Boards: app **685/685** · workspace tests **23/23 with --force** (cache off) · tsc · gates **ALL GREEN**. **Mutations, anchor-verified, each red on the round-trip walk:** the row's onPress severed → red (a dead row is exactly what the walk exists to catch) · the `profil → cercle` journey edge severed → red (the go() guard actually gates).
+
+**The ONE fresh-context verifier (order verbatim, six governing rules, the diff, the DoD): SHIP — two minors, handled once.** (1) *Fixed (`e8bdb04`):* the accueil card's comment still called the dock tab « the canonical one » — a lying comment is dead code the removal must take with it. (2) *Journalled, not coded:* during the transient `compte === undefined` disk-read window the Profil screen renders neither branch, so the row is briefly absent — matches the screen's pre-existing pattern (nothing else renders in that window either), self-resolves when the disk read lands, and Cercle stays reachable throughout via the accueil card. The verifier also confirmed: no `toHub('cercle')` or stale tab reference anywhere, the touch law held by `touch.minTargetPx`, src/cercle byte-untouched, no stranding path.
+
+---
+
 ## 2026-08-25 · MARGE-PLAFOND-25 — the markup ceiling is 25 % of base, on the fiche, on Ma Vitrine, and at the signing service · DONE
 
 **MERGED AND DEPLOYED (founder: « merge and deploy », 2026-08-25).** `main` fast-forwarded `7b6d45d..1754a5c`. **All four push workflows green on 1754a5c — ci 563 · expo-preview 386 (the reseller app with the 25 % clamp on both screens, this slice's deployable) · pwa-preview 353 · service-canon-drift 222 — then `storefront-deploy` run 67 → success** (the signing service refusing above the new cap).
