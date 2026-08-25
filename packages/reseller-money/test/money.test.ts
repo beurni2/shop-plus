@@ -35,12 +35,17 @@ describe('the arithmetic is BYTE-IDENTICAL to what shipped in the app', () => {
     }
   });
 
-  it('THE CEILING IS 100 % OF BASE, snapped to 100 — the pilot-tuned value, unchanged', () => {
-    expect(MARKUP_CAP_RATE).toBe(1);
-    expect(markupCap(10_000)).toBe(10_000);
-    expect(markupCap(8_000)).toBe(8_000);
-    expect(markupCap(1_549)).toBe(1_500); // round(1549/100)*100
+  it('THE CEILING IS 25 % OF BASE, floored to the franc (founder order 2026-08-25 — « cannot add more than 25% »)', () => {
+    expect(MARKUP_CAP_RATE).toBe(0.25);
+    expect(markupCap(10_000)).toBe(2_500);
+    expect(markupCap(8_000)).toBe(2_000);
+    expect(markupCap(1_549)).toBe(387); // floor(1549×0.25) — exact, never above 25 %
+    expect(markupCap(11_500)).toBe(2_875); // the old round(…/100)×100 said 2 900 — OVER the bound
     expect(markupCap(0)).toBe(0);
+    // The bound property the order states: cap never exceeds a quarter of B.
+    for (const b of [1, 999, 1_549, 8_000, 11_500, 123_456]) {
+      expect(markupCap(b)).toBeLessThanOrEqual(b * 0.25);
+    }
   });
 
   it('THE DEFAULT IS 0 (founder override 2026-07-26) and the slider snaps to 100, clamped to [0, cap]', () => {

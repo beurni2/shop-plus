@@ -328,7 +328,7 @@ describe('CheckoutDO — one request key, one quote, forever', () => {
 
   it('a key already used for one product IGNORES a later, different request — the frozen quote wins', async () => {
     const a = await seedShop('0005', 1_500);
-    const b = await seedShop('0006', 4_000);
+    const b = await seedShop('0006', 2_000); // within the 25 % cap; still ≠ shop A's price
     const key = freshKey();
     const first = await postQuote({
       slug: a.slug,
@@ -1035,7 +1035,7 @@ describe('CheckoutDO — a malformed id in the path is a named refusal, not a 50
 describe('CheckoutDO — one request key means ONE INTENT, not merely one quote', () => {
   it('the SAME key with a different shop, product or mode is REFUSED — never served the first price', async () => {
     const a = await seedShop('0044', 1_500);
-    const b = await seedShop('0045', 4_000);
+    const b = await seedShop('0045', 2_000); // within the 25 % cap; still ≠ shop A's price
     const key = freshKey();
     const first = await postQuote({
       slug: a.slug,
@@ -1099,7 +1099,7 @@ describe('CheckoutDO — the intent lives with the quote, so a RACE cannot cross
    */
   it('two DIFFERENT intents racing on one key: one issues, the other is refused — never given the winner\'s price', async () => {
     const a = await seedShop('0051', 1_500); // true total 12 500
-    const b = await seedShop('0052', 4_000); // true total 15 000
+    const b = await seedShop('0052', 2_000); // true total 13 000 (25 % cap)
     const key = freshKey();
     const mk = (shop: { slug: string; resellerId: string }) => ({
       slug: shop.slug,
@@ -1120,7 +1120,7 @@ describe('CheckoutDO — the intent lives with the quote, so a RACE cannot cross
     const aTotals = [results[0], results[2], results[4]].filter((r) => r.status === 200);
     const bTotals = [results[1], results[3], results[5]].filter((r) => r.status === 200);
     for (const r of aTotals) expect(r.json['buyerTotal'], 'shop A got a foreign price').toBe(12_500);
-    for (const r of bTotals) expect(r.json['buyerTotal'], 'shop B got a foreign price').toBe(15_000);
+    for (const r of bTotals) expect(r.json['buyerTotal'], 'shop B got a foreign price').toBe(13_000);
     // exactly one intent may hold the key; the other is refused BY NAME
     expect(aTotals.length === 0 || bTotals.length === 0).toBe(true);
     for (const r of results) {
@@ -1130,7 +1130,7 @@ describe('CheckoutDO — the intent lives with the quote, so a RACE cannot cross
     // …and the loser stays refused SEQUENTIALLY, and after a real restart —
     // never quietly served the winner's quote.
     const loser = aTotals.length === 0 ? a : b;
-    const winnerTotal = aTotals.length === 0 ? 15_000 : 12_500;
+    const winnerTotal = aTotals.length === 0 ? 13_000 : 12_500;
     const after = await postQuote(mk(loser));
     expect(after.status).toBe(409);
     expect(after.json['buyerTotal']).toBeUndefined();

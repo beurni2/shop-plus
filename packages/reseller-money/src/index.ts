@@ -23,11 +23,12 @@
  * for two reasons that agree: the RN bundle has to carry it under Metro, and a money
  * rule with a dependency graph is a money rule that can break for unrelated reasons.
  *
- * ═══ THE RULE VS ITS VALUE (journal, founder decision 2026-07-16) ═══
+ * ═══ THE RULE VS ITS VALUE (journal — tuned 2026-07-16, re-tuned 2026-08-25) ═══
  *
  * SP3's rule « markup within cap » is the canon-side rule and is untouched. Its VALUE
- * is the pilot-tunable knob, loosened from the planche's 20 %-of-base to 100 % of base
- * so the cliente never pays more than double base. SP3 itself states the cap is
+ * is the pilot-tunable knob: the planche's 20 %-of-base was loosened to 100 % on
+ * 2026-07-16, then set to **25 % of base** by founder order 2026-08-25 (« Resellers
+ * cannot add more than 25% of the base price »). SP3 itself states the cap is
  * « category-tunable, pilot », so tuning the value is not removing the rule. This cap
  * rate is DISTINCT from the 20 % reseller FEE, which is canon and untouched.
  */
@@ -35,7 +36,7 @@
 export interface MarginBreakdown {
   /** M — the reseller's markup. */
   readonly markup: number;
-  /** The markup ceiling — `round(B × MARKUP_CAP_RATE / 100) × 100` (loosened to 100 % of B). */
+  /** The markup ceiling — `floor(B × MARKUP_CAP_RATE)` (25 % of B, founder 2026-08-25). */
   readonly cap: number;
   /** C + M. */
   readonly gross: number;
@@ -60,13 +61,20 @@ export interface MarginBreakdown {
 export const DEFAULT_MARKUP = 0;
 
 /** The markup ceiling as a fraction of base B. SP3's « markup within cap » rule
- * holds; the VALUE is the pilot-tunable knob — loosened from 20 % to 100 % of B
- * (founder 2026-07-16), so the cliente never pays more than double base. */
-export const MARKUP_CAP_RATE = 1;
+ * holds; the VALUE is the pilot-tunable knob — set to 25 % of B (founder order
+ * 2026-08-25: « Resellers cannot add more than 25% of the base price »,
+ * superseding the 2026-07-16 loosening to 100 %). */
+export const MARKUP_CAP_RATE = 0.25;
 
-/** The markup ceiling for a base price — `round(B × MARKUP_CAP_RATE / 100) × 100`. */
+/** The markup ceiling for a base price — `floor(B × MARKUP_CAP_RATE)`.
+ *
+ * FLOOR, exact to the franc, replacing the old `round(…/100)×100`: that
+ * rounding came from the retired step-100 slider, and on a base like 11 500 it
+ * would place the cap at 2 900 — ABOVE 25 % (2 875), which is exactly what the
+ * founder's sentence forbids. She types exact francs (MARGE-EXACTE), so the
+ * cap can be exact too, and flooring means the bound is never exceeded. */
 export function markupCap(basePrice: number): number {
-  return Math.round((basePrice * MARKUP_CAP_RATE) / 100) * 100;
+  return Math.floor(basePrice * MARKUP_CAP_RATE);
 }
 
 /** The starting markup for a product: the default, clamped to its cap

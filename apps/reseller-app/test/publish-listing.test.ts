@@ -27,12 +27,13 @@ describe('ONE KEYSPACE — a markup written on the card is the markup the fiche 
 
   it('THE CARD WRITES AND THE FICHE READS THE SAME VALUE (this is the defect, by value)', () => {
     const markups: Record<string, number> = {};
-    // Ma Vitrine card: she drags the slider to 2 500.
-    markups[OFFER.productVersionId] = snapMarkup(2_500, markupCap(OFFER.basePrice));
-    // The fiche, reading by productVersionId, must see 2 500 — not the default.
+    // Ma Vitrine card: she sets 1 500 (within the 25 %-of-8 000 cap of 2 000 —
+    // MARGE-PLAFOND-25; this pin is about the KEYSPACE, not the ceiling).
+    markups[OFFER.productVersionId] = snapMarkup(1_500, markupCap(OFFER.basePrice));
+    // The fiche, reading by productVersionId, must see 1 500 — not the default.
     const onFiche = marginOf(markups, OFFER.productVersionId, OFFER.basePrice, OFFER.resellerCommission);
-    expect(onFiche.markup).toBe(2_500);
-    expect(onFiche.client).toBe(10_500); // B + M, the price the service will sign
+    expect(onFiche.markup).toBe(1_500);
+    expect(onFiche.client).toBe(9_500); // B + M, the price the service will sign
     // THE OLD BEHAVIOUR, PINNED AS A NEGATIVE: written under a demo seed id, the
     // fiche falls through to the DEFAULT — 0 since the founder's 2026-07-26
     // override (was min(1500, cap)) — and NOT the 2 500 she chose. The invariant

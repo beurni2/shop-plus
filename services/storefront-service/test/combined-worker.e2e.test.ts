@@ -433,7 +433,7 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
       resellerId: 'rs-seller-0001',
       productVersionId: 'pv-auth-1',
       offerVersion: 'ov-auth-1',
-      markup: 500,
+      markup: 300, // within the 25 % cap of base 1 500 (MARGE-PLAFOND-25: cap 375)
       // MONEY-SHAPE-1 — no `customerPriceFcfa`: the boundary now REFUSES a supplied
       // price rather than discarding it, so sending one is a 400 by design.
       stockAssurance: { source: 'hub' },
@@ -471,7 +471,7 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     const withKey = await mf.dispatchFetch('http://c/listings/lst-auth-0001', { method: 'GET', headers: authed });
     expect(withKey.status).toBe(200);
     const listing = (await withKey.json()) as { markup?: number };
-    expect(listing.markup).toBe(500); // the operator read still works, unchanged
+    expect(listing.markup).toBe(300); // the operator read still works, unchanged
   });
 
   it('/health is uncacheable THROUGH THE REAL BUNDLED WORKER — a cached release is indistinguishable from a stale deploy', async () => {
@@ -984,18 +984,18 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
 
     // NOW THE PROOF THAT IT IS DERIVED AND NOT ECHOED: republish the same product at
     // a DIFFERENT markup and the price must follow the MARKUP, not any stored value —
-    // 8 000 + 2 500 = 10 500. (MONEY-SHAPE-1: sending a contradicting price is no
+    // 8 000 + 1 800 = 9 800 (within the 25 % cap of 2 000 — MARGE-PLAFOND-25). (MONEY-SHAPE-1: sending a contradicting price is no
     // longer a way to test this, because the boundary now refuses one outright; that
     // refusal has its own test below.)
     const re = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
       headers: authed,
-      body: publishCmd({ commandId: 'cmd-a2-resign', markup: 2_500 }),
+      body: publishCmd({ commandId: 'cmd-a2-resign', markup: 1_800 }),
     });
     expect(((await re.json()) as { status: string }).status).toBe('published');
     const read2 = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
     const view2 = (await read2.json()) as StorefrontView & { products: { pid: string; priceFcfa: number }[] };
-    expect(view2.products.find((p) => p.pid === 'pv-a2-1')!.priceFcfa).toBe(10_500);
+    expect(view2.products.find((p) => p.pid === 'pv-a2-1')!.priceFcfa).toBe(9_800);
   });
 
   it('PUBLISH REFUSES when supply cannot be read — never signs against an assumed base', async () => {
@@ -1034,21 +1034,21 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
   });
 
   it('MONEY-SHAPE-1 — A MARKUP OVER THE CEILING IS REFUSED, with the cap named', async () => {
-    // pv-a2-1 has basePrice 8 000, so the ceiling is 8 000 (100 % of base).
+    // pv-a2-1 has basePrice 8 000, so the ceiling is 2 000 (25 % of base — MARGE-PLAFOND-25).
     const res = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
       headers: authed,
-      body: publishCmd({ commandId: 'cmd-a2-cap', listingId: 'lst-a2-cap', markup: 8_001 }),
+      body: publishCmd({ commandId: 'cmd-a2-cap', listingId: 'lst-a2-cap', markup: 2_001 }),
     });
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string; cap: number };
     expect(body.error).toBe('markup_over_cap');
-    expect(body.cap).toBe(8_000);
+    expect(body.cap).toBe(2_000);
     // …and exactly at the cap it signs, so the bound is a ceiling and not a wall.
     const ok = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
       headers: authed,
-      body: publishCmd({ commandId: 'cmd-a2-atcap', listingId: 'lst-a2-atcap', markup: 8_000 }),
+      body: publishCmd({ commandId: 'cmd-a2-atcap', listingId: 'lst-a2-atcap', markup: 2_000 }),
     });
     expect(((await ok.json()) as { status: string }).status).toBe('published');
   });
@@ -1110,7 +1110,8 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
       headers: authed,
-      body: publishCmd({ commandId: 'cmd-a2-epuise', listingId: 'lst-a2-epuise', productVersionId: 'pv-epuise-1' }),
+      // base 3 000 → 25 % cap 750, so the shared default 1 200 would refuse
+      body: publishCmd({ commandId: 'cmd-a2-epuise', listingId: 'lst-a2-epuise', productVersionId: 'pv-epuise-1', markup: 600 }),
     });
     const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
     const view = (await read.json()) as StorefrontView & { products: { pid: string; inStock: boolean }[] };

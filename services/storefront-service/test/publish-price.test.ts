@@ -36,9 +36,9 @@ describe('signPrice — the service signs HER price, the app never does', () => 
     for (const [base, markup] of [
       [0, 0],
       [10_000, 1_500],
-      [7_333, 2_667],
+      [7_333, 1_833], // exactly at the 25 % cap — floor(7333×0.25)
       [999_999, 1],
-      [50, 100],
+      [50, 12], // at the low-base cap — floor(50×0.25)
     ] as const) {
       const out = signPrice({ basePrice: base, offerVersion: 'v' }, markup);
       expect(out.status).toBe('signed');
@@ -194,16 +194,17 @@ describe('MONEY-SHAPE-1 — the ceiling is enforced by the service that signs', 
   const live = { basePrice: 10_000, offerVersion: 'ov', resellerCommission: 750 };
 
   it('A MARKUP AT THE CAP SIGNS; ONE FRANC OVER IS REFUSED WITH THE CAP NAMED', () => {
-    expect(signPrice(live, 10_000).status).toBe('signed'); // exactly at cap
-    const over = signPrice(live, 10_001);
-    expect(over).toEqual({ status: 'markup_over_cap', cap: 10_000 });
+    // MARGE-PLAFOND-25 (founder, 2026-08-25): cap = 25 % of base.
+    expect(signPrice(live, 2_500).status).toBe('signed'); // exactly at cap
+    const over = signPrice(live, 2_501);
+    expect(over).toEqual({ status: 'markup_over_cap', cap: 2_500 });
   });
 
   it('THE CAP COMES FROM THE SAME LIVE BASE THE PRICE IS SIGNED AGAINST', () => {
     // If the bound and the amount could read different B's they could disagree.
     const small = { basePrice: 1_500, offerVersion: 'ov', resellerCommission: 200 };
-    expect(signPrice(small, 1_600)).toEqual({ status: 'markup_over_cap', cap: 1_500 });
-    expect(signPrice(small, 1_500).status).toBe('signed');
+    expect(signPrice(small, 376)).toEqual({ status: 'markup_over_cap', cap: 375 });
+    expect(signPrice(small, 375).status).toBe('signed');
   });
 
   it('SHAPE IS CHECKED BEFORE SUPPLY, AND SUPPLY BEFORE THE CEILING', () => {
@@ -287,16 +288,14 @@ describe('MONEY-SHAPE-1 — the listing freezes HER side, not only the buyer’s
 });
 
 describe('MONEY-SHAPE-1 — the ceiling’s LOW-BASE edge, characterised rather than hidden', () => {
-  it('A BASE UNDER 50 FCFA HAS A CEILING OF ZERO — so only a zero markup signs', () => {
-    // `markupCap` rounds to the nearest 100, so bases 1–49 floor to 0. This is
-    // PRE-EXISTING behaviour of the shared function, unchanged by the move — but
-    // enforcing the ceiling server-side makes it REACHABLE for the first time, so it
-    // is pinned here rather than discovered later. Reported to the founder: no real
-    // offer is priced in tens of francs, so this is characterised, not "fixed".
+  it('A BASE UNDER 4 FCFA HAS A CEILING OF ZERO — so only a zero markup signs', () => {
+    // MARGE-PLAFOND-25: `markupCap` floors B×0.25 to the franc, so bases 1–3
+    // cap at 0. Characterised rather than hidden, same as the old round-to-100
+    // edge this replaces: no real offer is priced in single francs.
     const tiny = { basePrice: 1, offerVersion: 'ov', resellerCommission: 0 };
     expect(signPrice(tiny, 0).status).toBe('signed');
     expect(signPrice(tiny, 1)).toEqual({ status: 'markup_over_cap', cap: 0 });
-    // 50 is the first base that admits any markup at all
-    expect(signPrice({ ...tiny, basePrice: 50 }, 100).status).toBe('signed');
+    // 4 is the first base that admits any markup at all — floor(4×0.25) = 1
+    expect(signPrice({ ...tiny, basePrice: 4 }, 1).status).toBe('signed');
   });
 });

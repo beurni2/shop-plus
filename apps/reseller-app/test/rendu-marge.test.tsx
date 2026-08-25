@@ -156,13 +156,14 @@ describe('MARGE-EXACTE — the Opportunité fiche', () => {
     screen.unmount();
   });
 
-  it('the CAP still holds on the screen: an over-cap figure lands ON the ceiling', async () => {
+  it('the CAP still holds on the screen: an over-cap figure lands ON the 25 % ceiling', async () => {
     /**
      * Removing the STEP must not have removed the BOUND. `snapMarkup(_, cap, 1)`
      * still clamps to [0, cap], and this is the only place that fact is driven
      * through the real field — the unit tests hold the function, not the screen.
-     * Cap here is 100 % of base (10 000), so 99 999 must land at exactly 10 000
-     * and the cliente price at 20 000, never at 109 999.
+     * MARGE-PLAFOND-25 (founder, 2026-08-25): cap = 25 % of base (10 000) =
+     * 2 500, so 99 999 must land at exactly 2 500 and the cliente price at
+     * 12 500, never at 109 999 — and the ceiling sentence names the bound.
      */
     wire(service([]));
     const screen = await mountApp();
@@ -170,7 +171,8 @@ describe('MARGE-EXACTE — the Opportunité fiche', () => {
     await screen.press('Bazin riche');
 
     await saisir(screen, '99999');
-    expect(screen.shows(F('20 000')), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.shows(F('12 500')), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.shows(`Vous pouvez ajouter jusqu'à ${F('2 500')}`)).toBe(true);
     screen.unmount();
   });
 
@@ -238,6 +240,23 @@ describe('MARGE-EXACTE — Ma Vitrine', () => {
     const lu = screen.texts().join(' | ');
     expect(lu).toContain('Vous ajoutez');
     expect(lu.toLowerCase()).not.toContain('marge');
+    screen.unmount();
+  });
+
+  it('MARGE-PLAFOND-25 — the 25 % ceiling holds HERE too: an over-cap figure lands ON it, and the sentence names it', async () => {
+    /**
+     * The founder's order names BOTH screens (« On opportunités and on ma
+     * vitrine ») and Ma Vitrine's card is its own render site — a bound proven
+     * only on the fiche would be a bound assumed here. Base 10 000 → cap 2 500.
+     */
+    wire(dansLaVitrine());
+    const screen = await mountApp();
+    await screen.press('Ma Vitrine');
+
+    await saisir(screen, '99999');
+    expect(screen.shows(F('12 500')), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.shows(F('109 999'))).toBe(false);
+    expect(screen.shows(`Vous pouvez ajouter jusqu'à ${F('2 500')}`)).toBe(true);
     screen.unmount();
   });
 });

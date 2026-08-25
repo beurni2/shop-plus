@@ -22,12 +22,20 @@ const seed = JSON.parse(readFileSync(join(appDir, 'src/demo/seed.json'), 'utf8')
 };
 
 describe('reseller-margin arithmetic (margin.ts)', () => {
-  it('markupCap is the loosened 100 %-of-base ceiling, round(B×1/100)×100 (founder 2026-07-16)', () => {
-    // SP3's « markup within cap » rule holds; the pilot value is loosened 20 %→100 %.
-    expect(markupCap(8000)).toBe(8000);
-    expect(markupCap(1500)).toBe(1500);
-    expect(markupCap(1000)).toBe(1000);
-    expect(markupCap(12000)).toBe(12000);
+  it('markupCap is 25 % of base, floored to the franc (founder order 2026-08-25 — « cannot add more than 25% »)', () => {
+    // SP3's « markup within cap » rule holds; the pilot value is 25 % of B.
+    expect(markupCap(8000)).toBe(2000);
+    expect(markupCap(1500)).toBe(375);
+    expect(markupCap(1000)).toBe(250);
+    expect(markupCap(12000)).toBe(3000);
+    // FLOOR, never round: on these bases a rounded cap would EXCEED 25 %,
+    // which is exactly what the founder's sentence forbids.
+    expect(markupCap(11_500)).toBe(2_875);
+    expect(markupCap(999)).toBe(249);
+    // …and the bound property itself: cap ≤ B×0.25 on every base.
+    for (const b of [1, 999, 1_500, 8_000, 11_500, 123_456]) {
+      expect(markupCap(b)).toBeLessThanOrEqual(b * 0.25);
+    }
   });
 
   it('at each seed authored markup, the in-app math EQUALS the pinned seed money (net/fee/client)', () => {
