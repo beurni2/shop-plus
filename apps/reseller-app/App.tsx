@@ -136,9 +136,9 @@ function TimelineRow({ step, last }: { step: TimelineStep; last: boolean }) {
   );
 }
 
-/** The dock hubs — WO-VITRINE-FLOW promotes Ma Vitrine to a tab: Accueil ·
- * Opportunités · Ma Vitrine · Gains (the planche dock is 5 incl. Cercle; Cercle
- * stays OUT — gated, SP9). Tabs are waypoint resets, never journey edges. */
+/** The dock hubs — Accueil · Opportunités · Ma Vitrine · Cercle · Gains ·
+ * Profil (six since PROFIL-REVENDEUR-1, founder order 2026-08-25). Tabs are
+ * waypoint resets, never journey edges. */
 const HUBS: readonly Screen[] = ['accueil', 'opportunites', 'vitrine', 'cercle', 'gains', 'profil'];
 
 /** Screens whose frame renders a big 28/800 title IN-CONTENT (planche) — the
@@ -3796,6 +3796,10 @@ function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast }:
         onToast(t('profil.enregistre'));
         return;
       }
+      // `invalide` (a session dead mid-save) folds into the network sentence
+      // DELIBERATELY, same rationale as the load path: sessions carry no TTL,
+      // nothing in-app can revive one, and a wrong-but-calm retry sentence
+      // beats naming a state she has no road out of. Journalled.
       setMsg({
         section,
         key:
@@ -3819,8 +3823,24 @@ function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast }:
     setCats(deja ? cats.filter((x) => x !== c) : [...cats, c]);
   };
 
-  const rayonsAffiches = [...rayons, ...cats.filter((c) => !rayons.includes(c))];
+  // The chips she can see: the live wire's rayons, PLUS what the BOOK holds,
+  // PLUS her unsaved picks. The book's own list rides so the card can never
+  // vanish under her thumb (verifier finding): on a quiet wire, untapping her
+  // last rayon used to unmount the card — « Enregistrer » gone before she
+  // could press it, the clear never sendable, a deselected off-wire chip
+  // impossible to re-tap. With the server's list in the union, the card stands
+  // until a SAVE empties the book, and only then hides honestly.
+  const catsServeur = typeof profil === 'object' ? profil.categories ?? [] : [];
+  const rayonsAffiches = [
+    ...rayons,
+    ...catsServeur.filter((c) => !rayons.includes(c)),
+    ...cats.filter((c) => !rayons.includes(c) && !catsServeur.includes(c)),
+  ];
   const enTete = typeof profil === 'object' ? profil.name : compte?.name ?? '';
+  // The chip prefers the WIRE's word when it disagrees with the disk mirror —
+  // a freshly paused reseller must not read « Compte actif » one card above
+  // the pause sentence while the background refresh is still in flight.
+  const etatLu = profil === 'coupe' ? 'paused' : compte?.state ?? null;
 
   return (
     <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
@@ -3845,10 +3865,10 @@ function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast }:
                 <Text style={styles.profilId}>{tf('profil.compte', { id: compte.accountId })}</Text>
               </View>
               <StatusChip
-                tone={compte.state === 'active' ? 'ok' : compte.state === 'paused' ? 'warn' : 'info'}
+                tone={etatLu === 'active' ? 'ok' : etatLu === 'paused' ? 'warn' : 'info'}
                 label={t(
-                  compte.state === 'active' ? 'profil.etat_actif'
-                  : compte.state === 'paused' ? 'profil.etat_pause'
+                  etatLu === 'active' ? 'profil.etat_actif'
+                  : etatLu === 'paused' ? 'profil.etat_pause'
                   : 'profil.etat_attente',
                 )}
               />

@@ -266,3 +266,38 @@ describe('PROFIL-REVENDEUR-1 — each section saves ALONE, and a refusal leaves 
     screen.unmount();
   });
 });
+
+describe('PROFIL-REVENDEUR-1 — verifier finding, fixed: the rayons card never vanishes under her thumb', () => {
+  it('on a QUIET wire, untapping her last saved rayon keeps the chip and the save; the clear is SENT, then the card hides honestly', async () => {
+    await seedCompte([CAT.A]);
+    const serveur = profilInitial([CAT.A]);
+    // The wire is quiet: no live offers, so the ONLY chips are the book's own.
+    const muet: Route[] = [
+      (path) =>
+        path === '/supply-projections'
+          ? { status: 200, json: { offers: [], diagnostic: { status: 'ok', refusals: [] } } }
+          : null,
+      ...routes(serveur).slice(1),
+    ];
+    const fils = wire(muet);
+    const screen = await mountApp();
+    await screen.press('Profil');
+
+    // Her one saved rayon is on screen although the wire offers nothing.
+    expect(screen.canPress(CAT.A)).toBe(true);
+    await screen.press(CAT.A); // deselect the LAST one
+    // The dead-end the verifier named: chip and save must BOTH survive this tap
+    // — the chip so a mistap can be undone, the save so the clear can be sent.
+    expect(screen.canPress(CAT.A), 'the deselected chip must stay pressable').toBe(true);
+    expect(screen.canPress('Enregistrer')).toBe(true);
+    await screen.press('Enregistrer', 1);
+
+    const sauve = fils.calls.filter((c) => c.path === '/reseller/profile')[1];
+    expect(sauve!.body).toEqual({ categories: [] }); // the CLEAR, explicit on the wire
+    expect(screen.shows("C'est enregistré.")).toBe(true);
+    // Only now — the book emptied by a SAVE, the wire quiet — does the card
+    // hide, which is honesty, not a vanished control.
+    expect(screen.shows('Vos rayons (5 maximum)')).toBe(false);
+    screen.unmount();
+  });
+});
