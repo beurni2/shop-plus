@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-23 · CONTACT-WHATSAPP-2 — the WhatsApp chip on every product tile · IN REVIEW (awaiting merge word)
+## 2026-08-23 · CONTACT-WHATSAPP-2 — the WhatsApp chip on every product tile · DONE
+
+**MERGED AND DEPLOYED (founder: « merge and deploy », 2026-08-23).** `main` fast-forwarded `d0e979f..634c647`. **All four push workflows green on 634c647, attempt 1 — ci 556 · pwa-preview 346 (the buyer PWA with the tile chips, this slice's Pages deployable) · expo-preview 379 · service-canon-drift 215.** Buyer-pwa only, so no service deploy was needed or dispatched.
 
 **Founder, 2026-08-23: « add the whatsapp icon on each tile as well »** — overruling the fiche-only placement CONTACT-WHATSAPP-1's report offered him. Buyer-pwa only (`4d64972`).
 
