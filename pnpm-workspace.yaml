@@ -61,13 +61,14 @@ overrides:
   # all 19 package.json pins, installed clean, and resolved 3.10.0 anyway.
   #
   # FRAIS-ZERO (founder order 2026-08-25) — re-pinned to canon v3.13.0
-  # (sha 0846780): « For now remove all charging fees system everywhere. »
+  # (sha 35a21ea — 0846780 plus canon's own lockfile catch-up; content identical):
+  # « For now remove all charging fees system everywhere. »
   # Both RoundingLaw numerators go to 0/100; the waterfall, the fee fields
   # and every reconciliation identity stay standing. Behaviour change, not a
   # shape change — MINOR by the versioning convention (no export moved).
   # contracts + kernel-types move together as always.
-  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#084678005579c530f44eff05385852c5181b60aa&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#084678005579c530f44eff05385852c5181b60aa&path:packages/contracts"
+  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#35a21ea178ea3eb4cbb7d4d6c6264c5d2e5829ff&path:packages/kernel-types"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#35a21ea178ea3eb4cbb7d4d6c6264c5d2e5829ff&path:packages/contracts"
   # @platform/ui-tokens is UNIFIED at canon v0.9.9 (1c98ad1, + Storefront aggregate fields WO-5.13) — WO-7.0/WO-7.2b/SP#001-A
   # killed the WO-5.3 per-app skew and re-pinned the whole workspace to the current
   # release in one bump. reseller-app runs its visual layer on the Grand Teint API
