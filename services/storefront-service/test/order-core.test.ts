@@ -340,9 +340,12 @@ describe('toBuyerOrderView — five fields, and not one franc of economics', () 
       expect(bytes.includes(banned), banned).toBe(false);
     }
     // EVERY DERIVED AMOUNT IS DISTINCT in this fixture, so a leaked VALUE is
-    // detectable on its own: B, C, M, both fees, both nets, the platform revenue
-    // and the subtotal must all be absent.
-    for (const value of ['22000', '1500', '3000', '25000', '1100', '19400', '4500', '900', '3600', '2000']) {
+    // detectable on its own. FRAIS-ZERO (founder 2026-08-25): at rate 0 the
+    // derived set is B 22 000 · C 1 500 · M 3 000 · subtotal 25 000 ·
+    // sellerNet 20 500 · resellerGross == resellerNet 4 500; the fees and the
+    // platform revenue are 0, which cannot be scanned for (the view carries a
+    // legitimate 0). A future non-zero rate re-derives this list.
+    for (const value of ['22000', '1500', '3000', '25000', '20500', '4500']) {
       expect(bytes.includes(value), value).toBe(false);
     }
     // …and what the buyer IS owed is present and correct to the franc (SP-I13).

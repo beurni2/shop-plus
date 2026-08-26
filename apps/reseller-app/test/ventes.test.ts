@@ -37,25 +37,25 @@ describe('the money reconciles to the franc — every sale IS the pinned waterfa
       expect(() => assertQuoteReconciles(w)).not.toThrow();
       expect(s.netFcfa, `${s.clientFirstName} net drifted`).toBe(w.resellerNet);
       expect(s.sonPrixFcfa, `${s.clientFirstName} son prix drifted`).toBe(w.productSubtotal);
-      // net is 0.8·(C+M) — the honest 20 % fee is never added to her price
+      // net = gross − fee (FRAIS-ZERO: rate 0, so net == C+M) — a fee is never added to her price
       expect(s.netFcfa).toBe(w.resellerGrossEarnings - w.resellerPlatformFee);
     }
   });
 
-  it('the CERCLE o-world figures hold (§3.1 + §0.2.a): o1 net 2 000 · camp 600 · net versé 1 400; totals 4 840 / 2 800', () => {
+  it('the CERCLE o-world figures hold (§3.1 + §0.2.a, FRAIS-ZERO nets): o1 net 2 500 · camp 600 · net versé 1 900; totals 6 200 / 3 500', () => {
     const nets = allSales().map((s) => s.netFcfa);
-    expect(nets).toEqual([2160, 1640, 3440, 2000, 2800]);
+    expect(nets).toEqual([2700, 2050, 4300, 2500, 3500]);
     const o1 = allSales().find((s) => s.code === 'CMD-2417')!;
     expect(o1.clientFirstName).toBe('Awa');
-    expect(o1.netFcfa).toBe(2000);
+    expect(o1.netFcfa).toBe(2500);
     expect(o1.sonPrixFcfa).toBe(11500);
     expect(o1.campFcfa).toBe(600); // §0.2.a — camp FROZEN at attribution
-    expect(netPaye(o1)).toBe(1400); // net versé = net − camp
+    expect(netPaye(o1)).toBe(1900); // net versé = net − camp
     // every non-campaign order carries camp 0 (one offer per order, loi 7)
     for (const s2 of allSales()) if (s2.code !== 'CMD-2417') expect(s2.campFcfa).toBe(0);
     // D4a — the Gains aggregates (En attente excludes problems + settled)
-    expect(enAttenteNet()).toBe(4840);
-    expect(payeSemaine()).toBe(2800);
+    expect(enAttenteNet()).toBe(6200);
+    expect(payeSemaine()).toBe(3500);
   });
 });
 
@@ -116,11 +116,12 @@ describe('the detail timeline is coarse and honest (steps, never a GPS point)', 
     expect(d.code).toBe('CMD-2417');
     expect(d.timeline.map((s) => s.phase)).toEqual(['done', 'now', 'later', 'later']);
     expect(d.isProblem).toBe(false);
-    // D3 — the derivation the detail renders UNDER the net hero (net-first):
+    // D3 — the derivation the detail renders UNDER the net hero (net-first).
+    // FRAIS-ZERO: frais 0, so brut == net (2 500).
     expect(d.brutFcfa).toBe(2500);
-    expect(d.fraisFcfa).toBe(500);
+    expect(d.fraisFcfa).toBe(0);
     expect(d.campFcfa).toBe(600);
-    expect(d.netPayeFcfa).toBe(1400);
+    expect(d.netPayeFcfa).toBe(1900);
   });
 
   it('an en-route sale walks the steps; a problem sale flags isProblem', () => {

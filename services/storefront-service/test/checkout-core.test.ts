@@ -269,14 +269,15 @@ describe('decideIssueQuote — B, C and M are READ off frozen stored fields', ()
     expect(quote.sellerFundedCommission).toBe(C);
     expect(quote.deliveryFee).toBe(D);
     // …and every derived field is the pinned waterfall's, to the franc.
+    // FRAIS-ZERO (founder 2026-08-25): both rates 0 — fees 0, nets whole.
     expect(quote.productSubtotal).toBe(11_500);
     expect(quote.buyerTotal).toBe(12_500);
-    expect(quote.sellerPlatformFee).toBe(500);
-    expect(quote.sellerNet).toBe(8_500);
+    expect(quote.sellerPlatformFee).toBe(0);
+    expect(quote.sellerNet).toBe(9_000);
     expect(quote.resellerGrossEarnings).toBe(2_500);
-    expect(quote.resellerPlatformFee).toBe(500);
-    expect(quote.resellerNet).toBe(2_000);
-    expect(quote.platformProductFeeRevenue).toBe(1_000);
+    expect(quote.resellerPlatformFee).toBe(0);
+    expect(quote.resellerNet).toBe(2_500);
+    expect(quote.platformProductFeeRevenue).toBe(0);
     expect(quote.amountPaidAtCheckout).toBe(12_500);
     expect(quote.amountDueAtDelivery).toBe(0);
   });
@@ -302,9 +303,10 @@ describe('decideIssueQuote — B, C and M are READ off frozen stored fields', ()
     expect(q.buyerTotal).toBe(q.sellerBasePrice + q.resellerMarkup + q.deliveryFee);
     expect(q.productSubtotal).toBe(q.sellerNet + q.resellerNet + q.platformProductFeeRevenue);
     expect(q.amountPaidAtCheckout + q.amountDueAtDelivery).toBe(q.buyerTotal);
-    // delivery is OUTSIDE both fee bases
-    expect(q.sellerPlatformFee).toBe(Math.floor(0.05 * q.sellerBasePrice));
-    expect(q.resellerPlatformFee).toBe(Math.floor(0.2 * (q.sellerFundedCommission + q.resellerMarkup)));
+    // delivery is OUTSIDE both fee bases — and FRAIS-ZERO (founder 2026-08-25)
+    // pins both fees at literal 0, never a re-typing of the rate formula.
+    expect(q.sellerPlatformFee).toBe(0);
+    expect(q.resellerPlatformFee).toBe(0);
   });
 
   it('the quote is BYTE-STABLE and expires: canonical bytes round-trip, expiry is issue + the vault TTL', () => {
@@ -751,7 +753,13 @@ describe('toBuyerQuoteView — no supplier economics may reach a browser (SP-I03
     });
     const view = toBuyerQuoteView(q);
     const values = Object.values(view);
-    for (const hidden of [
+    // FRAIS-ZERO (founder 2026-08-25): the three fee figures are 0 by law, and
+    // the view legitimately carries 0 (amountDueAtDelivery on FULL_PREPAY) —
+    // scanning for a 0 would fail on a coincidence, not a leak, which is the
+    // exact failure this all-distinct fixture exists to avoid. A zero carries
+    // no economics; the scan keeps every non-zero hidden figure. The filter
+    // keys on VALUE, so any future non-zero rate rejoins the scan by itself.
+    const hiddenFigures = [
       q.sellerBasePrice,
       q.sellerFundedCommission,
       q.sellerNet,
@@ -761,9 +769,13 @@ describe('toBuyerQuoteView — no supplier economics may reach a browser (SP-I03
       q.resellerNet,
       q.resellerPlatformFee,
       q.platformProductFeeRevenue,
-    ]) {
+    ];
+    for (const hidden of hiddenFigures.filter((v) => v !== 0)) {
       expect(values).not.toContain(hidden);
     }
+    // …and the scan must still have teeth: the identity-bearing figures are
+    // non-zero on this fixture, so at least six values were actually scanned.
+    expect(hiddenFigures.filter((v) => v !== 0).length).toBeGreaterThanOrEqual(6);
     // the buyer's price is carried WHOLE, never decomposed
     expect(view.productSubtotal).toBe(q.productSubtotal);
     expect(view.buyerTotal).toBe(q.buyerTotal);

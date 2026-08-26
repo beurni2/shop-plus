@@ -408,8 +408,8 @@ describe('RESELLER-ACCOUNTS — the session opens HER feed, and the suivi shows 
     const rows = mesVentes.json['ventes'] as { state: string; resellerNet: number }[];
     expect(rows).toHaveLength(1);
     expect(rows[0]!.state).toBe('confirmed');
-    // her net to the franc: 20% fee on (C+M) = 0.2×2500 = 500 ⇒ net 2 000
-    expect(rows[0]!.resellerNet).toBe(2_000);
+    // her net to the franc: FRAIS-ZERO (founder 2026-08-25) — fee 0 ⇒ net = C+M = 2 500
+    expect(rows[0]!.resellerNet).toBe(2_500);
 
     // and the founder's suivi shows the same woman, the same count, the same franc
     const suivi = await mf.dispatchFetch('http://c/reseller/suivi', { headers: cleC });
@@ -417,7 +417,7 @@ describe('RESELLER-ACCOUNTS — the session opens HER feed, and the suivi shows 
     expect(suivi.status).toBe(200);
     const ligne = suiviJson.lignes!.find((l) => l.accountId === rid)!;
     expect(ligne.ventes).toBe(1);
-    expect(ligne.netFcfa).toBe(2_000);
+    expect(ligne.netFcfa).toBe(2_500);
     expect(ligne.name).toContain('Awa');
   });
 });

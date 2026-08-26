@@ -19,7 +19,7 @@
     "@shop-plus/store-projection": "workspace:*"
   },
   "devDependencies": {
-    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#a418ca4ba5521d3f50ccf7c8abb538525a6ecc32&path:packages/contracts",
+    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#084678005579c530f44eff05385852c5181b60aa&path:packages/contracts",
     "@playwright/test": "^1.57.0",
     "typescript": "^5.9.2",
     "vite": "^6.3.5",

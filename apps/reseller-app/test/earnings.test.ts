@@ -23,7 +23,7 @@ describe('net-first-display — opportunity card', () => {
   it('the card model puts the NET as the primary figure and renders no gross', () => {
     const money = computeWaterfall(WORKED_BASELINE_INPUT);
     const card = buildOpportunityCard(money);
-    expect(card.netFcfa).toBe(2_000); // §5.4 baseline resellerNet
+    expect(card.netFcfa).toBe(2_500); // §5.4 baseline resellerNet (FRAIS-ZERO: rate 0 ⇒ net = C+M)
     expect(card.customerPriceFcfa).toBe(11_500);
     expect(Object.keys(card)).toEqual(['netFcfa', 'customerPriceFcfa']);
     expect(JSON.stringify(card)).not.toMatch(/gross/i);

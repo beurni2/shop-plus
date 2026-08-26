@@ -422,11 +422,11 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
      * HER NET, TO THE FRANC (verifier B1 — the first cut asserted only
      * `typeof === 'number'`, and swapping this field for the SUPPLIER'S BASE
      * PRICE left all 429 tests green). The fixture is B 10 000 · C 1 000 ·
-     * M 1 500, so the reseller fee base is C+M = 2 500 and her net is
-     * 0.8 × 2 500 = 2 000. Any other figure on this wire — gross 2 500, base
-     * 10 000, subtotal 11 500 — now fails here.
+     * M 1 500. FRAIS-ZERO (founder 2026-08-25): rate 0, so her net is the
+     * whole C+M = 2 500. Any other figure on this wire — base 10 000,
+     * subtotal 11 500 — still fails here.
      */
-    expect(row['resellerNet']).toBe(2_000);
+    expect(row['resellerNet']).toBe(2_500);
     expect(Object.keys(row).sort()).toEqual(
       ['createdAt', 'orderId', 'productVersionId', 'resellerNet', 'state', 'zoneTo'],
     );
@@ -461,9 +461,12 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
      * keys catches an ADDED field; it cannot catch a SUBSTITUTED one — the
      * supplier's base price riding under the key `resellerNet` passed the key
      * scan cleanly. These are the fixture's other figures: base 10 000,
-     * commission 1 000, markup 1 500, her gross 2 500, subtotal 11 500.
+     * commission 1 000, markup 1 500, subtotal 11 500. FRAIS-ZERO (founder
+     * 2026-08-25): at rate 0 her gross EQUALS her net (2 500), so the gross
+     * leaves the banned list — it is no longer a figure distinct from hers.
+     * A future non-zero rate splits them again and must restore it here.
      */
-    for (const franc of [10_000, 1_000, 1_500, 2_500, 11_500]) {
+    for (const franc of [10_000, 1_000, 1_500, 11_500]) {
       expect(res.text.includes(String(franc)), `a franc that is not her net rode her wire: ${franc}`).toBe(false);
     }
   });
@@ -836,7 +839,7 @@ describe('RF-1a B2 — a row lost at confirmation time is repaired by the next w
       expect(rows.length, 'the redelivery must restore her lost sale').toBe(1);
       expect(rows[0]!['orderId']).toBe(orderId);
       expect(rows[0]!['state']).toBe('confirmed');
-      expect(rows[0]!['resellerNet']).toBe(2_000);
+      expect(rows[0]!['resellerNet']).toBe(2_500); // FRAIS-ZERO: net = C+M
     } finally {
       await healed.dispose();
       rmSync(persistB2, { recursive: true, force: true });
@@ -951,7 +954,7 @@ describe('RF-1a B3 — a feed longer than the fan-out cap is truncated and SAYS 
 
     // Exactly the cap — and every row that DID come back is a real, readable sale
     expect(body.ventes.length, 'the cap must bound the fan-out').toBe(2);
-    for (const v of body.ventes) expect(v['resellerNet']).toBe(2_000);
+    for (const v of body.ventes) expect(v['resellerNet']).toBe(2_500); // FRAIS-ZERO: net = C+M
     // …and the truncation is DECLARED, not silently swallowed
     expect(body.incomplet, 'a truncated feed must never claim to be complete').toBe(true);
 

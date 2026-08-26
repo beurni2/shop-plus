@@ -29,15 +29,15 @@ const NNBSP = '\u202f';
 /* ------------------------------------------------------ §8.7 math seed ---- */
 
 describe('§8.7 — the seed math holds to the franc (§3.2, §0.2 corrections in force)', () => {
-  it('restant 1 800 · places 3 · attribué 9 800 · investi 4 200 · ratio → note verte · jauge 70', () => {
+  it('restant 1 800 · places 3 · attribué 13 300 · investi 4 200 · ratio → note verte · jauge 70 (FRAIS-ZERO nets)', () => {
     expect(restant(CAMP_SEED)).toBe(1_800);
     expect(places(CAMP_SEED)).toBe(3);
-    expect(attribue(CAMP_SEED)).toBe(9_800);
+    expect(attribue(CAMP_SEED)).toBe(13_300); // 7 × (2 500 − 600) — FRAIS-ZERO netNormal
     expect(investi(CAMP_SEED)).toBe(4_200);
-    expect(ratioOk(CAMP_SEED)).toBe(true); // 9 800 / 4 200 = 2,33 ≥ 2
+    expect(ratioOk(CAMP_SEED)).toBe(true); // 13 300 / 4 200 = 3,17 ≥ 2
     expect(gaugePct(CAMP_SEED)).toBe(70);
     // below the threshold the note flips warn (ratio < 2)
-    expect(ratioOk({ ...CAMP_SEED, orders: 2 })).toBe(false); // 2 800 / 4 200
+    expect(ratioOk({ ...CAMP_SEED, orders: 2 })).toBe(false); // 3 800 / 4 200
   });
 
   it('§8.3 — every netNormal IS the pinned waterfall at the vitrine marge (never hand-authored)', () => {
@@ -48,7 +48,8 @@ describe('§8.7 — the seed math holds to the franc (§3.2, §0.2 corrections i
       });
       expect(p.netNormal, `${p.pid} netNormal drifted`).toBe(w.resellerNet);
     }
-    expect(CERCLE_PRODUITS.map((p) => p.netNormal)).toEqual([2000, 3440, 1600, 1200, 1080, 2400, 2200, 2800]);
+    // FRAIS-ZERO (founder 2026-08-25): rate 0 ⇒ netNormal = C + marge.
+    expect(CERCLE_PRODUITS.map((p) => p.netNormal)).toEqual([2500, 4300, 2000, 1500, 1350, 3000, 2750, 3500]);
   });
 
   it('§8.4 — diaspora is gone: 8 products, no d1, p3 the only épuisé and LAST (W2 order)', () => {
@@ -66,20 +67,22 @@ describe('§8.7 — the seed math holds to the franc (§3.2, §0.2 corrections i
 const draft = (over: Partial<CampDraft>): CampDraft => ({ ...draftInit(), ...over });
 
 describe('§8.5 — the five guardrails, exact (evaluated at W4, never elsewhere)', () => {
-  it('(p1, K 600) → G5 alone; CTA off until the consent, on after; eco 2 000/−600/1 400', () => {
+  it('(p1, K 600) → G5 alone; CTA off until the consent, on after; eco 2 500/−600/1 900 (FRAIS-ZERO net)', () => {
     const d = draft({ step: 3 });
     const g = evalGuards(d);
     expect([g.g1, g.g2, g.g3, g.g4, g.g5]).toEqual([false, false, false, false, true]);
     expect(g.ctaActive).toBe(false); // never pre-checked (§6)
     expect(evalGuards(toggleConsent(d)).ctaActive).toBe(true);
     const eco = ecoPreview(d);
-    expect([eco.dNet, eco.K, eco.reste, eco.investMax, eco.part]).toEqual([2000, 600, 1400, 6000, 400]);
+    expect([eco.dNet, eco.K, eco.reste, eco.investMax, eco.part]).toEqual([2500, 600, 1900, 6000, 400]);
   });
 
-  it('(p1, K 2 200) → G1 alone (blocking), no consent card, CTA off; reste clamps at 0', () => {
-    const g = evalGuards(draft({ K: 2_200 }));
+  it('(p7, K 1 400) → G1 alone (blocking), no consent card, CTA off; reste clamps at 0', () => {
+    // FRAIS-ZERO moved p1's dNet to 2 500 — beyond K_MAX, so p1 can no longer
+    // exercise G1. p7 (dNet 1 350) carries the case: K 1 400 > dNet.
+    const g = evalGuards(draft({ pid: 'p7', K: 1_400 }));
     expect([g.g1, g.g2, g.g3, g.g4, g.g5, g.ctaActive]).toEqual([true, false, false, false, false, false]);
-    expect(ecoPreview(draft({ K: 2_200 })).reste).toBe(0); // W4·c clamp
+    expect(ecoPreview(draft({ pid: 'p7', K: 1_400 })).reste).toBe(0); // W4·c clamp
   });
 
   it('(p2, K 1 100) → G2 alone (blocking), CTA off', () => {
@@ -392,6 +395,6 @@ describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)'
     expect(CERCLE_PRODUITS.map((p) => p.pid)).toEqual(['p1', 'p2', 'p4', 'p5', 'p7', 'p8', 'k1', 'p3']);
     const d = draftInit();
     expect(d).toMatchObject({ step: 0, recipe: 'Quartier', pid: 'p1', K: 600, maxOrders: 10, zone: 'Tampouy', ok: false });
-    expect(produit('p1').netNormal).toBe(2_000);
+    expect(produit('p1').netNormal).toBe(2_500);
   });
 });

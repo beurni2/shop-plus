@@ -235,8 +235,10 @@ export function PendingHero({ label, amount }: { label: string; amount: number }
 }
 
 /** D4b — a « Détail par vente » card. NET-FIRST: the net renders first (deep,
- * BG800/16); the brut/frais/−Cercle derivation renders under it on campaign
- * orders only (SP-I04/I12 over the planche's ledger order — flagged). */
+ * BG800/16); the brut/−Cercle derivation renders under it on campaign
+ * orders only (SP-I04/I12 over the planche's ledger order — flagged).
+ * FRAIS-ZERO (founder 2026-08-25): no frais row — there is no fee to show,
+ * and a « −0 F » line would name a charge that does not exist. */
 export function GainsSaleCard({ card }: { card: { code: string; productName: string; netPayeFcfa: number; campFcfa: number; brutFcfa: number; fraisFcfa: number } }) {
   return (
     <View style={S.reviewCard}>
@@ -252,10 +254,6 @@ export function GainsSaleCard({ card }: { card: { code: string; productName: str
           <View style={[S.moneyRow, { paddingVertical: 3 }]}>
             <Text style={[S.moneyLabelSub, { fontSize: 13 }]}>{t('ce.gains_brut_label')}</Text>
             <Text style={[S.moneyVal, { fontSize: 13 }]}>{fmt(card.brutFcfa)}</Text>
-          </View>
-          <View style={[S.moneyRow, { paddingVertical: 3 }]}>
-            <Text style={[S.moneyLabelSub, { fontSize: 13 }]}>{t('ce.gains_frais_label')}</Text>
-            <Text style={[S.moneyVal, { fontSize: 13 }]}>{`−${fmt(card.fraisFcfa)}`}</Text>
           </View>
           <View style={[S.moneyRow, { paddingVertical: 3 }]}>
             <Text style={[S.moneyLabelSub, { fontSize: 13 }]}>{t('ce.gains_cercle_label')}</Text>

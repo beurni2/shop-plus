@@ -192,12 +192,6 @@
   "screenClass": "label"
  },
  {
-  "key": "gains.part",
-  "fr": "Part Shop+ (20 %) : − {amount}",
-  "register": "money",
-  "screenClass": "label"
- },
- {
   "key": "gains.net",
   "fr": "Votre net : {amount}",
   "register": "money",
@@ -710,12 +704,6 @@
  {
   "key": "fiche.ligne_brut",
   "fr": "Gain brut",
-  "register": "money",
-  "screenClass": "label"
- },
- {
-  "key": "fiche.ligne_part",
-  "fr": "Part Shop+ (20 %)",
   "register": "money",
   "screenClass": "label"
  },
@@ -2736,12 +2724,6 @@
   "screenClass": "label"
  },
  {
-  "key": "ce.gains_frais_label",
-  "fr": "Frais Shop+ (20 %)",
-  "register": "money",
-  "screenClass": "label"
- },
- {
   "key": "ce.gains_cercle_label",
   "fr": "Contribution Cercle",
   "register": "money",
@@ -2750,12 +2732,6 @@
  {
   "key": "vente.brut_label",
   "fr": "Gain brut",
-  "register": "money",
-  "screenClass": "label"
- },
- {
-  "key": "vente.frais_label",
-  "fr": "Frais Shop+ (20 %)",
   "register": "money",
   "screenClass": "label"
  },

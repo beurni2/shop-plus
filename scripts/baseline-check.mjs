@@ -18,12 +18,13 @@ console.log(`sellerNet                 ${r.sellerNet}`);
 console.log(`resellerNet               ${r.resellerNet}`);
 console.log(`platformProductFeeRevenue ${r.platformProductFeeRevenue}`);
 
+// FRAIS-ZERO (founder order 2026-08-25): both rates 0 — fees 0, nets whole.
 const expected = {
   productSubtotal: 11_500,
   buyerTotal: 12_500,
-  sellerNet: 8_500,
-  resellerNet: 2_000,
-  platformProductFeeRevenue: 1_000,
+  sellerNet: 9_000,
+  resellerNet: 2_500,
+  platformProductFeeRevenue: 0,
 };
 for (const [k, v] of Object.entries(expected)) {
   if (r[k] !== v) {

@@ -18,7 +18,7 @@
  *
  * This is a PLACEMENT change, not a canon change. Nothing here is new arithmetic:
  * every function is the byte-identical body that shipped in the app, moved. The
- * canon 20 % reseller fee and `productSubtotal = B + M` are unchanged, and this
+ * reseller fee rate and `productSubtotal = B + M` live where they always did, and this
  * package deliberately imports NOTHING — no `@platform/*`, no zod, no runtime dep —
  * for two reasons that agree: the RN bundle has to carry it under Metro, and a money
  * rule with a dependency graph is a money rule that can break for unrelated reasons.
@@ -30,7 +30,7 @@
  * 2026-07-16, then set to **25 % of base** by founder order 2026-08-25 (« Resellers
  * cannot add more than 25% of the base price »). SP3 itself states the cap is
  * « category-tunable, pilot », so tuning the value is not removing the rule. This cap
- * rate is DISTINCT from the 20 % reseller FEE, which is canon and untouched.
+ * rate is DISTINCT from the reseller FEE rate (0 since FRAIS-ZERO, 2026-08-25).
  */
 
 export interface MarginBreakdown {
@@ -40,9 +40,11 @@ export interface MarginBreakdown {
   readonly cap: number;
   /** C + M. */
   readonly gross: number;
-  /** round(gross × 0.20) — the canon reseller fee, 20 %·(C+M) (Law #1). */
+  /** round(gross × rate) — the reseller platform fee. FRAIS-ZERO (founder
+   *  order 2026-08-25): the rate is 0, so this is 0 F on every breakdown —
+   *  the FIELD stays so his future fee design is a rate, not a reshape. */
   readonly fee: number;
-  /** gross − fee — the reseller's net (80 % of gross, à la franc près). */
+  /** gross − fee — the reseller's net (the whole gross while the rate is 0). */
   readonly net: number;
   /** B + M — the price the cliente pays (productSubtotal). */
   readonly client: number;
@@ -105,7 +107,10 @@ export function snapMarkup(raw: number, cap: number, step = 100): number {
  */
 export function marginBreakdown(basePrice: number, commission: number, markup: number): MarginBreakdown {
   const gross = commission + markup;
-  const fee = Math.round(gross * 0.2);
+  // FRAIS-ZERO (founder order 2026-08-25): « For now remove all charging
+  // fees system everywhere » — the rate is 0, mirroring RoundingLaw's zeroed
+  // numerators in @platform/contracts. The construction stays.
+  const fee = Math.round(gross * 0);
   return {
     markup,
     cap: markupCap(basePrice),
@@ -138,5 +143,7 @@ export function marginBreakdown(basePrice: number, commission: number, markup: n
  */
 export function netFromStored(storedCommission: number, storedMarkup: number): number {
   const gross = storedCommission + storedMarkup;
-  return gross - Math.round(gross * 0.2);
+  // FRAIS-ZERO (founder order 2026-08-25): rate 0 — her net IS the gross,
+  // still from stored fields alone, same construction.
+  return gross - Math.round(gross * 0);
 }

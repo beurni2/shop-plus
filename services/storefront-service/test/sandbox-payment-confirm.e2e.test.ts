@@ -278,10 +278,11 @@ describe('RB-3 — the gains read serves the FROZEN waterfall, franc-exact, foun
     expect(s['resellerMarkup']).toBe(1_500);
     expect(s['productSubtotal'], 'productSubtotal = B + M').toBe(11_500);
     expect(s['buyerTotal'], 'buyerTotal = B + M + D').toBe(11_500 + s['deliveryFee']!);
-    expect(s['sellerPlatformFee'], 'seller fee = 5% · B').toBe(500);
-    expect(s['sellerNet'], 'seller net = B − C − fee (the commission is SELLER-funded)').toBe(8_500);
-    expect(s['resellerPlatformFee'], 'reseller fee = 20% · (C + M)').toBe(500);
-    expect(s['resellerNet'], 'reseller net = (C + M) − fee').toBe(2_000);
+    // FRAIS-ZERO (founder 2026-08-25): both rates 0 — fees 0, nets whole.
+    expect(s['sellerPlatformFee'], 'seller fee = rate 0 · B').toBe(0);
+    expect(s['sellerNet'], 'seller net = B − C − fee (the commission is SELLER-funded)').toBe(9_000);
+    expect(s['resellerPlatformFee'], 'reseller fee = rate 0 · (C + M)').toBe(0);
+    expect(s['resellerNet'], 'reseller net = (C + M) − fee').toBe(2_500);
 
     // ── the door: founder key only, one uniform refusal ────────────────────
     expect(
@@ -365,9 +366,10 @@ describe('SE-LIVE-5b — the delivered order settles, copied from the frozen quo
     // COPIED from the frozen quote, to the franc (§5.6, B+I-05) — and the
     // supplier identity is the one the SIGNAL carried.
     expect(supplier.party).toBe('supplier:supplier-sp001');
-    expect(supplier.amount, 'supplier obligation = sellerNet (B − C − fee)').toBe(8_500);
+    // FRAIS-ZERO (founder 2026-08-25): fees 0 — obligations carry the whole nets.
+    expect(supplier.amount, 'supplier obligation = sellerNet (B − C − fee)').toBe(9_000);
     expect(supplier.state).toBe('Eligible');
-    expect(reseller.amount, 'reseller obligation = resellerNet').toBe(2_000);
+    expect(reseller.amount, 'reseller obligation = resellerNet').toBe(2_500);
     expect(reseller.state).toBe('Eligible');
     // §5.4 reconciliation on the SERVED bytes: obligations + both platform
     // fees meet the stored subtotal exactly.

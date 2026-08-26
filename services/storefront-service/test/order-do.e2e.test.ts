@@ -1097,10 +1097,11 @@ describe('OrderDO — the emitted bytes carry no supplier economics and no payme
       offer: 'ov-order-distinct',
     });
     expect(created.status, created.text).toBe(200);
-    // THE ALL-DISTINCT FIXTURE, to the franc: B 22 000 · C 1 500 · M 3 000 · D
-    // 1 000 ⇒ subtotal 25 000 · total 26 000 · sellerFee 1 100 · sellerNet
-    // 19 400 · resellerGross 4 500 · resellerFee 900 · resellerNet 3 600 ·
-    // platform 2 000. Every one of those is a different number.
+    // THE ALL-DISTINCT FIXTURE, to the franc — FRAIS-ZERO (founder 2026-08-25),
+    // rate 0: B 22 000 · C 1 500 · M 3 000 · D 1 000 ⇒ subtotal 25 000 ·
+    // total 26 000 · sellerNet 20 500 · resellerGross == resellerNet 4 500 ·
+    // fees and platform 0 (a 0 cannot be value-scanned — the wire carries a
+    // legitimate 0). Every non-zero figure is a different number.
     expect(created.json['amountPaidAtCheckout']).toBe(26_000);
 
     for (const [moment, res] of [['create', created], ['poll', await getOrder(mf, orderId)]] as const) {
@@ -1159,7 +1160,7 @@ describe('OrderDO — the emitted bytes carry no supplier economics and no payme
         expect(scannable.includes(banned), `body ${banned}`).toBe(false);
         expect(headerBytes.includes(banned), `header ${banned}`).toBe(false);
       }
-      for (const value of ['22000', '1500', '3000', '25000', '1100', '19400', '4500', '900', '3600', '2000']) {
+      for (const value of ['22000', '1500', '3000', '25000', '20500', '4500']) {
         expect(scannable.includes(value), `body ${value}`).toBe(false);
         expect(headerBytes.includes(value), `header ${value}`).toBe(false);
       }

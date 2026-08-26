@@ -47,7 +47,7 @@ describe('ONE KEYSPACE — a markup written on the card is the markup the fiche 
       const v = marginBreakdown(OFFER.basePrice, OFFER.resellerCommission, m);
       expect(v.gross).toBe(OFFER.resellerCommission + m);
       expect(v.net + v.fee).toBe(v.gross); // to the franc, at every markup
-      expect(v.fee).toBe(Math.round(v.gross * 0.2)); // canon 20 %·(C+M)
+      expect(v.fee).toBe(0); // FRAIS-ZERO (founder 2026-08-25): rate 0 — a real pin, not the formula re-typed
       expect(v.client).toBe(OFFER.basePrice + m); // productSubtotal
     }
   });

@@ -104,14 +104,14 @@
   ],
   "obligations": [
     {
-      "amount": 8501,
+      "amount": 9001,
       "holds": [],
       "orderId": "order-e1-0001",
       "party": "supplier:supplier-e1",
       "state": "Eligible"
     },
     {
-      "amount": 1999,
+      "amount": 2499,
       "holds": [],
       "orderId": "order-e1-0001",
       "party": "reseller:reseller-e1",
@@ -132,7 +132,7 @@
     "id": "quote-e1-0001",
     "paymentMode": "FULL_PREPAY",
     "paymentProcessingFeeEstimate": 0,
-    "platformProductFeeRevenue": 1000,
+    "platformProductFeeRevenue": 0,
     "policyVersions": {
       "inspectionPolicyVersion": "e1-sandbox",
       "settlementPolicyVersion": "e1-sandbox"
@@ -140,12 +140,12 @@
     "productSubtotal": 11500,
     "resellerGrossEarnings": 2500,
     "resellerMarkup": 1500,
-    "resellerNet": 2000,
-    "resellerPlatformFee": 500,
+    "resellerNet": 2500,
+    "resellerPlatformFee": 0,
     "sellerBasePrice": 10000,
     "sellerFundedCommission": 1000,
-    "sellerNet": 8500,
-    "sellerPlatformFee": 500,
+    "sellerNet": 9000,
+    "sellerPlatformFee": 0,
     "taxFields": {}
   }
 }

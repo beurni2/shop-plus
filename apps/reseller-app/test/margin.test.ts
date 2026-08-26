@@ -48,14 +48,17 @@ describe('reseller-margin arithmetic (margin.ts)', () => {
     }
   });
 
-  it('reconciles to the franc at EVERY markup on the slider range (net + fee = gross, fee = 20 %)', () => {
+  it('reconciles to the franc at EVERY markup on the slider range (net + fee = gross, fee = 0 — FRAIS-ZERO)', () => {
     for (const o of seed.opportunities) {
       const { sellerBasePrice: b, sellerFundedCommission: c } = o.input;
       const cap = markupCap(b);
       for (let m = 0; m <= cap; m += 100) {
         const r = marginBreakdown(b, c, m);
         expect(r.net + r.fee, `${o.id}@${m} reconcile`).toBe(r.gross);
-        expect(r.fee, `${o.id}@${m} fee`).toBe(Math.round(r.gross * 0.2));
+        // FRAIS-ZERO (founder 2026-08-25): a REAL pin — 0, never a re-typing
+        // of the module's own formula.
+        expect(r.fee, `${o.id}@${m} fee`).toBe(0);
+        expect(r.net, `${o.id}@${m} net`).toBe(c + m);
         expect(r.client, `${o.id}@${m} client`).toBe(b + m);
         expect(r.gross, `${o.id}@${m} gross`).toBe(c + m);
       }

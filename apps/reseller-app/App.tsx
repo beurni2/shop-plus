@@ -2635,9 +2635,11 @@ export default function App() {
             <Card style={styles.netCard}>
               {/* the hero ledger (signature module): the locked net as the hero,
                   its « réglé » reassurance as the ledger whisper below. D3: on a
-                  campaign order the hero IS net − camp (1 400) and the derivation
+                  campaign order the hero IS net − camp (1 900) and the derivation
                   renders UNDER it — NET-FIRST (SP-I04/I12) outranks the planche's
-                  top-to-bottom ledger order (flagged divergence, journaled). */}
+                  top-to-bottom ledger order (flagged divergence, journaled).
+                  FRAIS-ZERO (founder 2026-08-25): no frais row — there is no
+                  fee to show, and « −0 F » would name a charge that isn't. */}
               <HeroLedger
                 label={t('vente.net_label')}
                 amount={formatFcfa(saleDetail.netPayeFcfa)}
@@ -2648,10 +2650,6 @@ export default function App() {
                   <View style={styles.campLedgerRow}>
                     <Text style={styles.campLedgerLabel}>{t('vente.brut_label')}</Text>
                     <Text style={styles.campLedgerVal}>{formatFcfa(saleDetail.brutFcfa)}</Text>
-                  </View>
-                  <View style={styles.campLedgerRow}>
-                    <Text style={styles.campLedgerLabel}>{t('vente.frais_label')}</Text>
-                    <Text style={styles.campLedgerVal}>{`−${formatFcfa(saleDetail.fraisFcfa)}`}</Text>
                   </View>
                   <View style={styles.campLedgerRow}>
                     <Text style={styles.campLedgerLabel}>{t('vente.camp_label')}</Text>

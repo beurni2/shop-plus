@@ -31,11 +31,12 @@ describe('quote issuance — reconciliation enforced at issue time (WO-1.1 a, SP
     if (!outcome.ok) return;
     const q = outcome.quote;
     // The five §5.4 baseline figures, asserted literally — not via the waterfall.
+    // FRAIS-ZERO (founder 2026-08-25): both rates 0 — nets keep the whole amount.
     expect(q.productSubtotal).toBe(11_500);
     expect(q.buyerTotal).toBe(12_500);
-    expect(q.sellerNet).toBe(8_500);
-    expect(q.resellerNet).toBe(2_000);
-    expect(q.platformProductFeeRevenue).toBe(1_000);
+    expect(q.sellerNet).toBe(9_000);
+    expect(q.resellerNet).toBe(2_500);
+    expect(q.platformProductFeeRevenue).toBe(0);
     // FULL_PREPAY legs identity.
     expect(q.amountPaidAtCheckout).toBe(12_500);
     expect(q.amountDueAtDelivery).toBe(0);

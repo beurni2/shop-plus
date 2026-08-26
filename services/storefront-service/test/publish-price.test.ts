@@ -245,8 +245,8 @@ describe('MONEY-SHAPE-1 — the listing freezes HER side, not only the buyer’s
     const { decision, next } = decidePublish(undefined, cmd);
     expect(decision.status).toBe('published');
     expect(next!.resellerCommission).toBe(750);
-    // gross = 750 + 1900 = 2650 · fee = round(2650×0.2) = 530 · net = 2120
-    expect(netForListing(next!)).toBe(2_120);
+    // gross = 750 + 1900 = 2650 · FRAIS-ZERO (founder 2026-08-25): fee 0 · net = gross
+    expect(netForListing(next!)).toBe(2_650);
   });
 
   it('RED-PROVE: MOVING C AFTER PUBLISH DOES NOT MOVE THE LISTING’S NET', () => {

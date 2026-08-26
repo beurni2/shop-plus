@@ -28,7 +28,7 @@ describe('the arithmetic is BYTE-IDENTICAL to what shipped in the app', () => {
       for (const m of [0, 100, 1_500, 2_500, markupCap(b)]) {
         const v = marginBreakdown(b, c, m);
         expect(v.gross).toBe(c + m);
-        expect(v.fee).toBe(Math.round(v.gross * 0.2)); // canon 20 %·(C+M), untouched
+        expect(v.fee).toBe(0); // FRAIS-ZERO (founder 2026-08-25): rate 0, fee 0 on every gross
         expect(v.net + v.fee).toBe(v.gross); // to the franc, always
         expect(v.client).toBe(b + m); // productSubtotal = B + M
       }

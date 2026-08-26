@@ -67,18 +67,19 @@ describe('demo world money law', () => {
   });
 
   it('seeded gains are literal and reconcile to the franc (first seed + whole-world totals)', () => {
+    // FRAIS-ZERO (founder 2026-08-25): rate 0 — net == gross, fee 0 F.
     const world = createDemoWorld();
     const first = gainsLineFor(world.opportunities[0]!.money);
-    expect(first).toEqual({ netFcfa: 1_600, feeFcfa: 400, grossFcfa: 2_000 });
+    expect(first).toEqual({ netFcfa: 2_000, feeFcfa: 0, grossFcfa: 2_000 });
     const totals = gainsTotal(world.opportunities);
-    expect(totals).toEqual({ netFcfa: 9_520, feeFcfa: 2_380, grossFcfa: 11_900 });
+    expect(totals).toEqual({ netFcfa: 11_900, feeFcfa: 0, grossFcfa: 11_900 });
     expect(totals.netFcfa + totals.feeFcfa).toBe(totals.grossFcfa);
   });
 
-  it('the in-app baseline card shows the §5.4 worked baseline exactly (2 000 net = 2 500 gross − 500 fee)', () => {
+  it('the in-app baseline card shows the §5.4 worked baseline exactly (2 500 net = 2 500 gross − 0 fee, FRAIS-ZERO)', () => {
     expect(seedFile.baseline.input).toEqual(WORKED_BASELINE_INPUT);
     expect(seedFile.baseline.money).toEqual(computeWaterfall(WORKED_BASELINE_INPUT));
-    expect(baselineGains()).toEqual({ netFcfa: 2_000, feeFcfa: 500, grossFcfa: 2_500 });
+    expect(baselineGains()).toEqual({ netFcfa: 2_500, feeFcfa: 0, grossFcfa: 2_500 });
     expect(baselineProductPriceFcfa()).toBe(10_000);
   });
 
@@ -89,7 +90,7 @@ describe('demo world money law', () => {
     expect(() => {
       (seed.money as { resellerNet: number }).resellerNet += 1;
     }).toThrow(TypeError);
-    expect(seed.money.resellerNet).toBe(1_600);
+    expect(seed.money.resellerNet).toBe(2_000); // FRAIS-ZERO: net == gross (C+M)
     const tampered = { ...seed.money, resellerNet: seed.money.resellerNet + 1 };
     expect(() => assertQuoteReconciles(tampered)).toThrow(QuoteReconciliationError);
   });

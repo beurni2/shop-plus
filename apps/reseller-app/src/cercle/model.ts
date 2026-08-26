@@ -11,7 +11,8 @@
  * frozen seed nets are validated against the pinned `computeWaterfall` in
  * vitest (never on device). The §3.2 formulas below are the demo's « server »
  * (and QA): screens render what the model returns, never inline arithmetic.
- * `frais = round(brut × 0.20)` untouched. Lois gelées §0: single-level
+ * The frais rate is 0 since FRAIS-ZERO (founder 2026-08-25) — netNormal is
+ * C + marge while it holds. Lois gelées §0: single-level
  * parrainage (never a tree) · « attribué », jamais « généré » · only SETTLED
  * gains fund campaigns · no negative gain (G1) · Séra paid whole (G2) ·
  * arrêter = récupérer · one offer per order · signed page is the only truth ·
@@ -38,14 +39,14 @@ export interface CercleProduit {
 /** §3.1 catalog (8 — diaspora excluded by decree §0.1.4), curatedItems order
  * with the épuisé LAST (§5-W2). p3 stock 0 = seed correction §0.2.b. */
 export const CERCLE_PRODUITS: readonly CercleProduit[] = [
-  { pid: 'p1', name: 'Robe brodée bogolan', B: 10_000, C: 1_000, stock: 7, marge: 1_500, netNormal: 2_000 },
-  { pid: 'p2', name: 'Pagne wax 6 yards', B: 18_000, C: 1_800, stock: 11, marge: 2_500, netNormal: 3_440 },
-  { pid: 'p4', name: 'Sandales cuir homme', B: 8_000, C: 800, stock: 6, marge: 1_200, netNormal: 1_600 },
-  { pid: 'p5', name: 'Coffret karité pur', B: 6_000, C: 600, stock: 9, marge: 900, netNormal: 1_200 },
-  { pid: 'p7', name: 'Foulard Faso Dan Fani', B: 5_500, C: 550, stock: 14, marge: 800, netNormal: 1_080 },
-  { pid: 'p8', name: 'Chemise Faso Dan Fani', B: 12_000, C: 1_200, stock: 5, marge: 1_800, netNormal: 2_400 },
-  { pid: 'k1', name: 'Pack Cuisine Départ', B: 12_500, C: 1_250, stock: 28, marge: 1_500, netNormal: 2_200 },
-  { pid: 'p3', name: 'Sac cuir artisanal', B: 15_000, C: 1_500, stock: 0, marge: 2_000, netNormal: 2_800 },
+  { pid: 'p1', name: 'Robe brodée bogolan', B: 10_000, C: 1_000, stock: 7, marge: 1_500, netNormal: 2_500 },
+  { pid: 'p2', name: 'Pagne wax 6 yards', B: 18_000, C: 1_800, stock: 11, marge: 2_500, netNormal: 4_300 },
+  { pid: 'p4', name: 'Sandales cuir homme', B: 8_000, C: 800, stock: 6, marge: 1_200, netNormal: 2_000 },
+  { pid: 'p5', name: 'Coffret karité pur', B: 6_000, C: 600, stock: 9, marge: 900, netNormal: 1_500 },
+  { pid: 'p7', name: 'Foulard Faso Dan Fani', B: 5_500, C: 550, stock: 14, marge: 800, netNormal: 1_350 },
+  { pid: 'p8', name: 'Chemise Faso Dan Fani', B: 12_000, C: 1_200, stock: 5, marge: 1_800, netNormal: 3_000 },
+  { pid: 'k1', name: 'Pack Cuisine Départ', B: 12_500, C: 1_250, stock: 28, marge: 1_500, netNormal: 2_750 },
+  { pid: 'p3', name: 'Sac cuir artisanal', B: 15_000, C: 1_500, stock: 0, marge: 2_000, netNormal: 3_500 },
 ];
 
 export function produit(pid: string): CercleProduit {

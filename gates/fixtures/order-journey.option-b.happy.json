@@ -11,17 +11,18 @@
     "buyerTotal": 12500,
     "amountPaidAtCheckout": 1000,
     "amountDueAtDelivery": 11500,
-    "sellerPlatformFee": 500,
-    "sellerNet": 8500,
+    "sellerPlatformFee": 0,
+    "sellerNet": 9000,
     "resellerGrossEarnings": 2500,
-    "resellerPlatformFee": 500,
-    "resellerNet": 2000,
-    "platformProductFeeRevenue": 1000,
+    "resellerPlatformFee": 0,
+    "resellerNet": 2500,
+    "platformProductFeeRevenue": 0,
     "paymentProcessingFeeEstimate": 0,
     "taxFields": {},
     "policyVersions": {
       "settlementPolicyVersion": "e1-sandbox",
-      "inspectionPolicyVersion": "e1-sandbox"
+      "inspectionPolicyVersion": "e1-sandbox",
+      "payAtDoorPolicyVersion": "option-b-policy.v1-open-zones+e2-sandbox-zone"
     },
     "expiry": "2026-07-10T12:15:00.000Z"
   },
