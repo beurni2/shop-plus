@@ -23,6 +23,8 @@ Format per entry:
 
 **Named residue:** the « automatic » server-sent WhatsApp is the v2 seam — it needs the founder's Meta Business account, registered number, approved templates and API token (§7 external commitment); the stored opt-in + the confirmed transition are already the data and the moment that wire will ride. The ?cadeau link is order-id-addressed like the existing public order view — status and marks only, accepted surface.
 
+---
+
 ## 2026-08-26 · LISTE-ENVIES-1 — buyer wishlist on the boutique: shareable link + « offert » on webhook truth · DONE
 
 **MERGED AND DEPLOYED (founder: « Merge and deploy », 2026-08-26).** `main` fast-forwarded `6fe1326..55c6057` (build `d20e3b4` + verifier fixes `ce56128` + journal stamp). **All four push workflows green on 55c6057 — ci 572 · expo-preview 395 · pwa-preview 362 (the buyer PWA with the liste UI, deployed to Pages) · service-canon-drift 231 — then storefront-deploy run 69 SUCCESS**: the live worker now carries WishlistDO, the three /listes doors, the listeRef order field and the seventh outbox wire; migration **v9** applied by that deploy. A direct live probe of /listes was not possible from this container (the session's egress proxy refuses the workers.dev host — the standing environment restriction); the deploy workflow's success and the drift sentinel's next push probe are the live evidence.
