@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-26 · LISTE-ENVIES-1 — buyer wishlist on the boutique: shareable link + « offert » on webhook truth · IN-REVIEW (awaiting the founder's merge word)
+## 2026-08-26 · LISTE-ENVIES-1 — buyer wishlist on the boutique: shareable link + « offert » on webhook truth · DONE
+
+**MERGED AND DEPLOYED (founder: « Merge and deploy », 2026-08-26).** `main` fast-forwarded `6fe1326..55c6057` (build `d20e3b4` + verifier fixes `ce56128` + journal stamp). **All four push workflows green on 55c6057 — ci 572 · expo-preview 395 · pwa-preview 362 (the buyer PWA with the liste UI, deployed to Pages) · service-canon-drift 231 — then storefront-deploy run 69 SUCCESS**: the live worker now carries WishlistDO, the three /listes doors, the listeRef order field and the seventh outbox wire; migration **v9** applied by that deploy. A direct live probe of /listes was not possible from this container (the session's egress proxy refuses the workers.dev host — the standing environment restriction); the deploy workflow's success and the drift sentinel's next push probe are the live evidence.
 
 **Founder, 2026-08-26: « Now on reseller's boutique/storefront screen I want buyer to be able to create a products wishlist, and once a buyer finishes creating his products list a link is created for him with the same wishlist products added so he can share it and let his friends tap that link and it opens that boutique with his wishlist to order the products for him. »** Approved with the two recommendations: (1) v1 — the friend fills delivery himself like any order; (2) « Déjà offert » ships in v1, driven ONLY by provider-confirmed payment. Build `d20e3b4` + verifier fixes `ce56128`, pushed to the branch. **No main merge, no deploy — waiting on his word.** Deploy note for the go: the next `wrangler deploy` of storefront-service applies migration **v9** (WishlistDO) — append-only, same unproven-until-deploy caveat as every tag.
 
