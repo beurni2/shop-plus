@@ -27,6 +27,8 @@ Format per entry:
 
 **Open, named:** the non-recomputing money gates (shop + sera check identities only; boutik's recomputes) would have let the old-rate fixtures pass silently — they were regenerated anyway, but the gate gap stands as flagged before. The banned-franc lists in the leak scans are rate-coupled; the sites say so.
 
+**The ONE fresh-context verifier (order + chosen shape, the four diffs, the DoD; it re-ran the money tests itself): SHIP — nothing MEDIUM in this repo; one LOW, fixed once (`a41abc8`):** the two kernel-types package.json pins still declared old SHAs while the override (the real pin) and the lockfile already resolved 0846780 — the declarations now agree. It confirmed for this repo: seed/fixture arithmetic re-derived to the franc (all 7 opportunities, all 5 RAW_SALES, all 8 netNormal, attribué 13 300 = 7×1 900), every recomputed pin a literal, the leak-scan reshapes keep counted teeth, the negative fixtures still fail only in their negative dimension, D untouched, and the removed catalog keys (incl. the two orphans) referenced nowhere. One board flake noted: a single rendu test went red once under turbo parallelism and passed standalone twice and on the board rerun (35/35).
+
 ---
 
 ## 2026-08-25 · CERCLE-PROFIL-1 — the Cercle tab is retired; the hub opens from the Profil screen · DONE
