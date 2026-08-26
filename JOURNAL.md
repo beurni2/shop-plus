@@ -9,6 +9,18 @@ Format per entry:
 
 ---
 
+## 2026-08-26 · MARGE-EFFACÉE — an emptied markup field commits ZERO · IN REVIEW
+
+**Founder, 2026-08-26: « On opportunités and on ma vitrine when I add a mark up amount like 5 fcfa and remove it, on the gain net it still show the 5 fcfa added. »** Build `5e54b8e`, pushed, awaiting his merge word.
+
+**The bug was a design decision his report overrules.** `MarkupControl` parsed a cleared field to NaN and committed NOTHING — « falls back to the last real value on blur », written on 2026-08-15 to avoid a silent zero mid-typing — so erasing the 5 left markup 5 committed while the field showed empty: the net and the cliente price kept a figure the field no longer carried. An emptied field now commits **0**, through the same shared `snapMarkup` call (the one pricing bound — no local clamp), and **LIVE, not on blur**: `keyboardShouldPersistTaps` lets « Ajouter » fire while the field is still first responder, so a blur-only erase would publish the 5 she just deleted — the same hole the 2026-08-15 commit-as-she-types correction closed in the other direction. This is the law Boutik+'s money boxes already carry (« an EMPTY box is zero, not NaN »).
+
+**Walks written FIRST, red, per the standing order** — his exact gesture (add 5, erase it) on BOTH screens he named, money read back through the net and the cliente price (never the field's own text, which is the surface that lied), plus a third walk proving the erase commits with NO blur. Red-first proven by execution: on the pre-fix tree exactly the 3 new walks fail. **Mutations, anchor-verified:** the old NaN-swallowing guard restored → 3 walks red; a blur-only variant of the fix → exactly the no-blur walk red (the other two pass it — that walk alone carries the live-commit guarantee, by design and stated at its site). Source pins in publish-listing/ui-kit moved to the new commit form — strengthened, they now also pin the empty→0 mapping. reseller-app **688/688** · turbo test+typecheck **35/35 --force** · gates **ALL GREEN**.
+
+**The ONE fresh-context verifier (the report verbatim, the governing laws, the diff, the DoD; it re-ran the tests and both mutations itself — 60/60): DoD MET, no blocker, no medium. Two LOWs, journalled once, not coded:** (1) a paste of pure junk ("abc") now commits 0 where it used to commit nothing — accepted as the stated law's own consequence (« the digits strip leaves '' or an integer, nothing else »), unreachable from a number-pad except via paste; (2) the no-blur walk runs on the fiche only — accepted because both screens compose the SAME `MarkupControl` (pinned in ui-kit), so the live-commit road is one code path and a second copy of the walk would assert the same function twice.
+
+---
+
 ## 2026-08-25 · FRAIS-ZERO-1 — the reseller platform fee is 0 everywhere it lives · DONE
 
 **MERGED AND DEPLOYED (founder: « Merge and deploy », 2026-08-26).** `main` fast-forwarded to `19c8eb6` (build `d1e1676` + verifier fix `a41abc8` + the canon repin to `35a21ea` — canon's own lockfile had lagged its version bump and CI's cold frozen prepare caught what no local board could; journalled in platform-contracts). **ci 568 · expo-preview 391 · pwa-preview 358 green on 19c8eb6 → storefront-deploy run 68 SUCCESS** — the live checkout/signing worker now speaks canon 3.13.0 (rate 0). The service-canon-drift red between merge and deploy was the sentinel doing its job (live worker still 3.12.0 until run 68); re-verified by the next push.
