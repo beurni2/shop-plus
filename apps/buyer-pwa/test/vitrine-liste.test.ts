@@ -340,6 +340,7 @@ describe('the manage sheet — unchecking is the removal', () => {
     expect(kept.status).toBe('modifiee');
     if (kept.status === 'modifiee') expect(kept.liste.articles).toEqual([{ pid: 'p2', offert: false }]);
     const relu = await port.lire(token);
+    expect(relu.status).toBe('liste'); // a regressed lire must FAIL here, never skip the re-read
     if (relu.status === 'liste') expect(relu.liste.articles.map((a) => a.pid)).toEqual(['p2']);
   });
 });

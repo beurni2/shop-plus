@@ -169,10 +169,14 @@ export function demoListePort(): ListePort {
     },
     async modifier(token, editCle, pids): Promise<ListeModification> {
       const garde = held.get(token);
-      // The service's contract-certified bounds: wrong key ≡ absent liste as
-      // ONE refusal, empty pids refused, and « offert » survives on every
-      // pid she keeps (an edit rearranges wishes, it never un-gives a gift).
-      if (garde === undefined || garde.editCle !== editCle || pids.length === 0) return { status: 'refus' };
+      // The door's bounds this harness CAN honestly mirror: wrong key ≡
+      // absent liste as ONE refusal, the 1–20 selection band, and « offert »
+      // surviving on every pid she keeps (an edit rearranges wishes, it never
+      // un-gives a gift). What it does NOT enforce, stated: the membership
+      // law (`pids ⊆ curatedItems`) — this harness holds no catalogue, the
+      // UI only ever submits pids read off the liste, and the REAL door's
+      // check is e2e-covered on the service.
+      if (garde === undefined || garde.editCle !== editCle || pids.length === 0 || pids.length > 20) return { status: 'refus' };
       const marks = new Map(garde.liste.articles.map((a) => [a.pid, a.offert]));
       const liste: ListePublique = {
         ...garde.liste,
