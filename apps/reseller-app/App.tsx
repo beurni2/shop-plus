@@ -198,9 +198,15 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
  * `Math.min(cap, …)` here would be a second copy of a pricing bound, which is
  * exactly what `vitrine/margin.ts` exists to prevent.
  *
- * While she types, nothing commits: committing per keystroke would fight the
- * digits under her thumb. A cleared or unparseable field commits nothing and
- * falls back to the last real value on blur — never NaN, never a silent zero.
+ * MARGE-EFFACÉE (founder 2026-08-26, overruling the fallback below): « when I
+ * add a mark up amount like 5 fcfa and remove it, on the gain net it still
+ * show the 5 fcfa added ». An EMPTIED field now commits ZERO — erasing a
+ * figure is a decision, not a lapse to recover from. This is the law Boutik+'s
+ * money boxes already carry (« an EMPTY box is zero, not NaN »), and it must
+ * commit LIVE, not on blur: keyboardShouldPersistTaps lets « Ajouter » fire
+ * while the field is still first responder, so a blur-only erase would publish
+ * the 5 she just deleted. NaN remains unrepresentable — the digits strip
+ * leaves '' or an integer, nothing else.
  */
 function MarkupControl({
   value,
@@ -235,8 +241,8 @@ function MarkupControl({
    * until she leaves the field, so a leading zero or a paste never jumps.
    */
   const pousser = (raw: string) => {
-    const parsed = Number.parseInt(raw.replace(/[^0-9]/g, ''), 10);
-    if (Number.isFinite(parsed)) onChange(snapMarkup(parsed, cap, 1));
+    const digits = raw.replace(/[^0-9]/g, '');
+    onChange(snapMarkup(digits === '' ? 0 : Number.parseInt(digits, 10), cap, 1));
   };
   const commit = (raw: string) => {
     setText(null); // leave editing: the field falls back to the canonical value

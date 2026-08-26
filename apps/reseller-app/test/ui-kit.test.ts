@@ -204,7 +204,8 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     expect(app).toMatch(/const markup = v\.markup;/);
     // MARGE-EXACTE — the field routes through the SHARED `snapMarkup`, at step 1:
     // the clamp is still the one pricing bound, and nothing rounds her figure.
-    expect(app).toMatch(/snapMarkup\(parsed, cap, 1\)/);
+    // MARGE-EFFACÉE (2026-08-26): an emptied field commits zero through the same call.
+    expect(app).toMatch(/snapMarkup\(digits === '' \? 0 : Number\.parseInt\(digits, 10\), cap, 1\)/);
   });
 
   it('honest states stay designed: the vitrine empty state is the kit EmptyState on the catalog string, with a CANON glyph (never an emoji)', () => {

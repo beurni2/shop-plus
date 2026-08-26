@@ -429,3 +429,86 @@ describe('CLAVIER-MARGE — the field is inside the keyboard-aware shell, on bot
     screen.unmount();
   });
 });
+
+/**
+ * ═══ MARGE-EFFACÉE — an emptied field means ZERO, not the last figure ═══
+ *
+ * FOUNDER, 2026-08-26: « On opportunités and on ma vitrine when I add a mark
+ * up amount like 5 fcfa and remove it, on the gain net it still show the 5
+ * fcfa added ».
+ *
+ * THE BUG WAS A DESIGN DECISION HIS REPORT OVERRULES. `MarkupControl` parsed
+ * a cleared field to NaN and committed NOTHING — « falls back to the last
+ * real value on blur » — so erasing the 5 left markup 5 committed: the net
+ * and the cliente price kept a figure the field no longer showed. Boutik+'s
+ * money boxes already carry the opposite law (« an EMPTY box is zero, not
+ * NaN »); this aligns her field with it. Erasing a figure is a decision.
+ *
+ * Both screens are walked because he named both, and each is its own render
+ * site. The committed state is read back through the MONEY — the net row and
+ * the cliente price — never through the field's own text, which is exactly
+ * the surface that kept lying to him.
+ */
+describe('MARGE-EFFACÉE — removing the figure removes it from the money', () => {
+  it('the fiche: add 5, erase it — the net and the cliente price drop the 5', async () => {
+    wire(service([]));
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+
+    await saisir(screen, '5');
+    // committed: net 1 005 (C 1 000 + M 5) · cliente 10 005
+    expect(screen.shows(F('10 005')), `the 5 never landed — on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+
+    await saisir(screen, ''); // she selects the 5 and deletes it
+    expect(
+      screen.shows(F('10 005')),
+      `the erased 5 is still in the cliente price — on screen: ${JSON.stringify(screen.texts())}`,
+    ).toBe(false);
+    expect(screen.shows(F('1 005')), 'the erased 5 is still in her net').toBe(false);
+    expect(screen.shows(F('10 000')), 'the cliente price did not return to the base').toBe(true);
+    screen.unmount();
+  });
+
+  it('Ma Vitrine: the same gesture on the card — erased means erased', async () => {
+    wire(service([PV]));
+    const screen = await mountApp();
+    await screen.press('Ma Vitrine');
+    expect(screen.shows('Bazin riche'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+
+    await saisir(screen, '5');
+    expect(screen.shows(F('10 005')), `the 5 never landed — on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+
+    await saisir(screen, '');
+    expect(
+      screen.shows(F('10 005')),
+      `the erased 5 is still in the cliente price — on screen: ${JSON.stringify(screen.texts())}`,
+    ).toBe(false);
+    expect(screen.shows(F('1 005')), 'the erased 5 is still in her net').toBe(false);
+    expect(screen.shows(F('10 000')), 'the cliente price did not return to the base').toBe(true);
+    screen.unmount();
+  });
+
+  it('erasing commits LIVE, before any blur — the correction the keypad demands', async () => {
+    /**
+     * The commit-as-she-types law exists because `keyboardShouldPersistTaps`
+     * lets a button fire while the field is still first responder. An erase
+     * that only committed on blur would re-open that exact hole in reverse:
+     * she clears the field, taps « Ajouter à ma vitrine », and publishes the
+     * 5 she just deleted. So the zero must be committed by onChangeText('')
+     * alone — this walk types the erase and reads the money WITHOUT blurring.
+     */
+    wire(service([]));
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+
+    await saisir(screen, '5');
+    await screen.type('', 'Vous ajoutez'); // erase only — no submit, no blur
+    expect(
+      screen.shows(F('10 005')),
+      `an un-blurred erase left the 5 committed — on screen: ${JSON.stringify(screen.texts())}`,
+    ).toBe(false);
+    screen.unmount();
+  });
+});

@@ -325,9 +325,11 @@ describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
     expect(base).toBeLessThan(cliente);
     // MARGE-EXACTE (founder, 2026-08-15) — the typed field commits AT THE FRANC.
     // `snapMarkup`'s default step is 100, which silently turned her 750 into 800;
-    // step 1 keeps the SHARED [0, cap] clamp and rounds nothing. The behaviour is
-    // driven on the real screen in `rendu-marge.test.tsx`; this pins the call.
-    expect(app).toMatch(/onChange\(snapMarkup\(parsed, cap, 1\)\)/);
+    // step 1 keeps the SHARED [0, cap] clamp and rounds nothing. MARGE-EFFACÉE
+    // (founder, 2026-08-26): an emptied field commits ZERO through the same
+    // call — erased means erased. The behaviour is driven on the real screen
+    // in `rendu-marge.test.tsx`; this pins the call.
+    expect(app).toMatch(/onChange\(snapMarkup\(digits === '' \? 0 : Number\.parseInt\(digits, 10\), cap, 1\)\)/);
     expect(app).toMatch(/<MarkupControl/);
   });
 });
