@@ -536,7 +536,9 @@ export function articlesPourModif(sf: Storefront, described?: readonly VitrinePr
  * Two states from the device-local record: never made one here → the
  * invitation; made one → her liste's card with the share action first (the
  * link is the product of this feature) and « refaire » as the secondary road
- * (a remake mints a fresh link; the old one keeps working on the service).
+ * — since LISTE-REFAIRE an UPDATE in place: same token, same link, marks
+ * kept. A fresh link is minted only by a first create or the introuvable
+ * way-out.
  */
 export function renderListeBand(sf: Storefront): string {
   const gardee = listeGardee(sf.slug);

@@ -18,7 +18,7 @@ import { inPanier, togglePanier } from './panier';
 import { t } from '../i18n';
 import { recordVitrineArrival, signedHref, vitrineHref } from '../vitrine-link';
 import { demoStorefrontPort, resolveStorefrontPort, VitrineOffline, type StorefrontProfilePort } from './profile';
-import { garderListe, listeGardee, resolveListePort, type ListeLecture } from './liste';
+import { garderListe, listeGardee, resolveListePort, LISTE_MAX_ARTICLES, type ListeLecture } from './liste';
 import type { VitrineProduct } from './catalog';
 import {
   articlesPourListe,
@@ -591,6 +591,10 @@ export function mountVitrine(
         }
       };
       if (pids.length === 0) return direAlerte(t('vit.liste_vide_choix'));
+      // The door's ceiling, mirrored INLINE (verifier MINOR 2): a 21st check
+      // must be told the rule, never met with a generic erreur a retry can
+      // never fix.
+      if (pids.length > LISTE_MAX_ARTICLES) return direAlerte(t('vit.liste_trop'));
       if (nom === '') return direAlerte(t('vit.liste_nom_manque'));
       // LISTE-MERCI — the optional WhatsApp opt-in. Present, it must satisfy
       // the SAME bands `whatsappDigits` will apply server-side (8 Burkina
@@ -648,6 +652,7 @@ export function mountVitrine(
         }
       };
       if (pids.length === 0) return direAlerte(t('vit.liste_garder_un'));
+      if (pids.length > LISTE_MAX_ARTICLES) return direAlerte(t('vit.liste_trop'));
       if (nom === '') return direAlerte(t('vit.liste_nom_manque'));
       const bouton = target as HTMLButtonElement;
       bouton.disabled = true;

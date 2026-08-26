@@ -26,6 +26,10 @@
  *  param that fails this is treated as no liste at all — never sent. */
 export const LISTE_TOKEN = /^[A-Za-z0-9_-]{32}$/;
 
+/** The door's article ceiling, mirrored so the sheet can refuse INLINE (« 20
+ *  articles au plus ») instead of spending the wire on a certain refusal. */
+export const LISTE_MAX_ARTICLES = 20;
+
 /** The liste as the service projects it — the ONLY shape a friend ever sees. */
 export interface ListePublique {
   readonly nom: string;
@@ -178,7 +182,7 @@ export function demoListePort(): ListePort {
       // — this harness holds no catalogue, the UI only ever submits pids
       // read off rendered rows, and the REAL door's check is e2e-covered on
       // the service.
-      if (garde === undefined || garde.editCle !== editCle || pids.length === 0 || pids.length > 20) return { status: 'refus' };
+      if (garde === undefined || garde.editCle !== editCle || pids.length === 0 || pids.length > LISTE_MAX_ARTICLES) return { status: 'refus' };
       const marks = new Map(garde.liste.articles.map((a) => [a.pid, a.offert]));
       const liste: ListePublique = {
         ...garde.liste,
@@ -204,9 +208,10 @@ export function resolveListePort(): ListePort {
 /**
  * HER HANDLE TO THE LISTE SHE MADE — token, edit key, and enough to redraw
  * the link card without a network read. Keyed PER BOUTIQUE (the panier's
- * reasoning: a liste is intent bound to one shop), newest wins: remaking the
- * liste replaces the handle, and the old link simply keeps working on the
- * service side. The favorites.ts storage law applies whole: guarded, mem
+ * reasoning: a liste is intent bound to one shop), newest wins. Since
+ * LISTE-REFAIRE, redoing a liste UPDATES it in place — same token, same
+ * link; the handle is only ever REPLACED by a fresh create, which happens
+ * with no liste yet or from a dead handle's introuvable way-out. The favorites.ts storage law applies whole: guarded, mem
  * cache, session-degrade, never a crash.
  */
 const KEY = 'shopplus.listes.v1';

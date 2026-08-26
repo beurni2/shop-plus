@@ -1501,7 +1501,7 @@
  },
  {
   "key": "vit.liste_modif_texte",
-  "fr": "Cochez ce que vous voulez offrir, décochez le reste. Votre lien reste le même.",
+  "fr": "Cochez les articles qui vous font envie, décochez le reste. Votre lien reste le même.",
   "register": "selling",
   "screenClass": "selling_surface"
  },
@@ -1520,6 +1520,12 @@
  {
   "key": "vit.liste_garder_un",
   "fr": "Gardez au moins un article.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_trop",
+  "fr": "Une liste garde 20 articles au plus.",
   "register": "neutral",
   "screenClass": "status"
  },

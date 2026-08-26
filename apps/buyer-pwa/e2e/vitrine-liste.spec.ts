@@ -184,6 +184,33 @@ test('CREATOR — « Refaire ma liste » is the one road: one sheet, one save th
   await expect(page.locator('[data-role="vitrine-liste-carte"]')).toContainText('La liste de Awa · 1 envie');
 });
 
+test('CREATOR — closing the redo sheet while the read is out paints nothing (the torn-down container law)', async ({ page }) => {
+  await page.addInitScript(
+    ({ token, editCle }: { token: string; editCle: string }) => {
+      window.localStorage.setItem(
+        'shopplus.listes.v1',
+        JSON.stringify({ 'aicha-4821': { token, editCle, nom: 'Awa', pids: ['p1'], createdAt: 'T' } }),
+      );
+    },
+    { token: TOKEN, editCle: 'E'.repeat(32) },
+  );
+  await page.route('**/listes/**', async (route: Route) => {
+    await new Promise((r) => setTimeout(r, 600)); // the read is still on the road when she closes
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, liste: { nom: 'Awa', slug: 'aicha-4821', articles: [{ pid: 'p1', offert: false }] } }),
+    });
+  });
+  await page.goto(`${BASE}/?demo-vitrine=aicha-4821`);
+  await page.locator('[data-role="vitrine-liste-carte"] [data-action="liste-creer"]').click();
+  await expect(page.locator('[data-role="liste-modif-attente"]')).toBeVisible();
+  await page.locator('[data-action="liste-fermer"]').click();
+  await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
+  // the late answer arrives into a closed sheet — and must render NOTHING
+  await page.waitForTimeout(900);
+  await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
+});
+
 test('FRIEND — the banner renders the liste, an offert wish offers nothing, an ungiven one opens its fiche with the token', async ({ page }) => {
   await page.route('**/listes/**', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, liste: LISTE }) }),
