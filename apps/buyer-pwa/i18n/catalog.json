@@ -1500,6 +1500,42 @@
   "screenClass": "status"
  },
  {
+  "key": "vit.liste_modifier",
+  "fr": "Modifier ma liste",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_modif_texte",
+  "fr": "Décochez ce que vous ne voulez plus. Votre lien reste le même.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vit.liste_modif_cta",
+  "fr": "Enregistrer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_modif_encours",
+  "fr": "Enregistrement…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_garder_un",
+  "fr": "Gardez au moins un article, ou refaites une liste.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_modif_faite",
+  "fr": "C'est fait — votre liste est à jour.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
   "key": "cadeau.titre",
   "fr": "Suivi du cadeau",
   "register": "selling",

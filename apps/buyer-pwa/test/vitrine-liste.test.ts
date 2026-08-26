@@ -11,6 +11,7 @@ const __m = new Map<string, string>();
 } as Storage;
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  demoListePort,
   garderListe,
   httpListePort,
   listeGardee,
@@ -20,11 +21,13 @@ import {
 } from '../src/vitrine/liste';
 import {
   articlesPourListe,
+  articlesPourModif,
   renderListeAmie,
   renderListeBand,
   renderListeHorsLigne,
   renderListeIntrouvable,
   renderListeLien,
+  renderListeModif,
   renderListeSheet,
   renderVitrineReady,
 } from '../src/vitrine/render';
@@ -82,6 +85,7 @@ describe('the creator band — invitation, then her liste', () => {
     expect(band).toContain('data-role="vitrine-liste-carte"');
     expect(band).toContain('La liste de Awa · 2 envies');
     expect(band).toContain('data-action="liste-partager"');
+    expect(band).toContain('data-action="liste-modifier"'); // LISTE-RETRAIT — the edit road that keeps her link
     expect(band).toContain('data-action="liste-creer"'); // « refaire » rides the same sheet
   });
 
@@ -244,6 +248,99 @@ describe('httpListePort — the wire refuses to invent', () => {
     );
     expect(out.status).toBe('liste');
     if (out.status === 'liste') expect(out.liste.articles[0]!.offert).toBe(false);
+  });
+});
+
+/**
+ * LISTE-RETRAIT-1 — the removal road's laws, by execution:
+ *  · the manage sheet renders SERVER truth all-checked (unchecking IS the
+ *    removal), a given row wears the badge where its price would sit, an
+ *    épuisé row is still offered (removing it is why she came);
+ *  · every non-prete state is designed, with its way out wired;
+ *  · the wire sends the exact TWO-key body — `nom` absent keeps the stored
+ *    name, and no other key can ride;
+ *  · the demo port mirrors the service's certified bounds: wrong key is a
+ *    refusal, marks survive on every kept pid.
+ */
+describe('the manage sheet — unchecking is the removal', () => {
+  it('renders her liste all-checked, badges the given row instead of a price, keeps the épuisé row, one action', () => {
+    const [p1, p2, p3] = articlesPourModif(SF as never, prods([{ pid: 'p3', inStock: false }]) as never).values();
+    const sheet = renderListeModif({
+      etape: 'prete',
+      rows: [{ p: p1!, offert: true }, { p: p2!, offert: false }, { p: p3!, offert: false }],
+    });
+    expect(sheet).toContain('data-liste-pid="p1" checked');
+    expect(sheet).toContain('data-liste-pid="p2" checked');
+    expect(sheet).toContain('data-liste-pid="p3" checked'); // épuisé still removable
+    expect(sheet).toContain('Déjà offert'); // the given row says so while she decides
+    // the badge REPLACES the price on the given row: one badge, two prices
+    expect((sheet.match(/vt-liste-offert-badge/g) ?? []).length).toBe(1);
+    expect((sheet.match(/vt-liste-row-prix/g) ?? []).length).toBe(2);
+    expect(sheet).toContain('Votre lien reste le même.'); // the reason this road exists beside « refaire »
+    expect(sheet).toContain('data-action="liste-enregistrer"');
+    expect(sheet).toContain('data-role="liste-alerte"'); // inline refusals, no wall
+    expect(sheet).toContain('data-action="liste-fermer"'); // the way out
+  });
+
+  it('chargement, hors-ligne and introuvable are designed states with their way out wired', () => {
+    expect(renderListeModif({ etape: 'chargement' })).toContain('data-role="liste-modif-attente"');
+    const hl = renderListeModif({ etape: 'hors-ligne' });
+    expect(hl).toContain('data-role="liste-modif-horsligne"');
+    expect(hl).toContain('data-action="liste-modifier"'); // retry IS the open action
+    const perdu = renderListeModif({ etape: 'introuvable' });
+    expect(perdu).toContain('data-role="liste-modif-introuvable"');
+    expect(perdu).toContain('data-action="liste-creer"'); // way out: refaire
+  });
+
+  it('modifier sends the exact two-key body and reads the surviving projection', async () => {
+    let sent: { url: string; init: RequestInit | undefined; body: unknown } | undefined;
+    const out = await (async () => {
+      const held = globalThis.fetch;
+      globalThis.fetch = (async (url: string, init?: RequestInit) => {
+        sent = { url, init, body: JSON.parse(String(init?.body)) };
+        return Response.json({ ok: true, liste: { nom: 'Awa', slug: 's-1', articles: [{ pid: 'p1', offert: true }] } });
+      }) as typeof fetch;
+      try {
+        return await httpListePort('https://svc').modifier('T'.repeat(32), 'E'.repeat(32), ['p1']);
+      } finally {
+        globalThis.fetch = held;
+      }
+    })();
+    expect(sent?.url).toBe(`https://svc/listes/${'T'.repeat(32)}`);
+    expect(sent?.init?.method).toBe('POST');
+    expect(sent?.body).toEqual({ editCle: 'E'.repeat(32), pids: ['p1'] }); // `nom` absent = keep the stored name
+    expect(out.status).toBe('modifiee');
+    if (out.status === 'modifiee') expect(out.liste.articles).toEqual([{ pid: 'p1', offert: true }]);
+  });
+
+  it('a refused, thrown or malformed modifier collapses honestly — never an invented success', async () => {
+    const run = async (impl: () => Promise<Response>) => {
+      const held = globalThis.fetch;
+      globalThis.fetch = impl as typeof fetch;
+      try {
+        return await httpListePort('https://svc').modifier('T'.repeat(32), 'E'.repeat(32), ['p1']);
+      } finally {
+        globalThis.fetch = held;
+      }
+    };
+    expect((await run(async () => Response.json({ ok: false }, { status: 404 }))).status).toBe('refus');
+    expect((await run(async () => { throw new Error('down'); })).status).toBe('hors-ligne');
+    expect((await run(async () => Response.json({ ok: true, liste: { nom: 1 } }))).status).toBe('refus');
+  });
+
+  it('the demo port mirrors the certified bounds: marks survive on kept pids, wrong key refuses', async () => {
+    const port = demoListePort();
+    const made = await port.creer('s-1', 'Awa', ['p1', 'p2']);
+    expect(made.status).toBe('creee');
+    if (made.status !== 'creee') return;
+    const { token, editCle } = made.liste;
+    expect((await port.modifier(token, 'X'.repeat(32), ['p1'])).status).toBe('refus');
+    expect((await port.modifier(token, editCle, [])).status).toBe('refus');
+    const kept = await port.modifier(token, editCle, ['p2']);
+    expect(kept.status).toBe('modifiee');
+    if (kept.status === 'modifiee') expect(kept.liste.articles).toEqual([{ pid: 'p2', offert: false }]);
+    const relu = await port.lire(token);
+    if (relu.status === 'liste') expect(relu.liste.articles.map((a) => a.pid)).toEqual(['p2']);
   });
 });
 

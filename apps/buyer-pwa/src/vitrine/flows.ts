@@ -19,8 +19,11 @@ import { t } from '../i18n';
 import { recordVitrineArrival, signedHref, vitrineHref } from '../vitrine-link';
 import { demoStorefrontPort, resolveStorefrontPort, VitrineOffline, type StorefrontProfilePort } from './profile';
 import { garderListe, listeGardee, resolveListePort, type ListeLecture } from './liste';
+import type { VitrineProduct } from './catalog';
 import {
   articlesPourListe,
+  articlesPourModif,
+  renderListeModif,
   renderVitrineEmpty,
   renderVitrineInvalid,
   renderVitrineOffline,
@@ -587,6 +590,78 @@ export function mountVitrine(
         const sheet = root.querySelector('[data-role="liste-sheet"]');
         if (sheet !== null) sheet.outerHTML = renderListeLien(lienDeListe(res.liste.token));
         remplirListeSlot();
+      });
+    } else if (action === 'liste-modifier') {
+      // LISTE-RETRAIT-1 — the manage sheet opens on SERVER truth: the read
+      // brings the marks (« Déjà offert » must be visible while she decides),
+      // and the same action IS the hors-ligne retry. Her handle names the
+      // token; no handle, no road.
+      if (dernierPret === null) return;
+      const gardee = listeGardee(dernierPret.sf.slug);
+      if (gardee === undefined) return;
+      root.querySelector('[data-role="liste-sheet"]')?.remove();
+      root.insertAdjacentHTML('beforeend', renderListeModif({ etape: 'chargement' }));
+      void listePort.lire(gardee.token).then((res) => {
+        // Closed while the read was out → paint nothing (the torn-down
+        // container law, LISTE-MERCI MINOR 2's lesson applied here first).
+        const attente = root.querySelector('[data-role="liste-modif-attente"]');
+        const sheet = attente?.closest('[data-role="liste-sheet"]');
+        if (attente === null || sheet === null || sheet === undefined || dernierPret === null) return;
+        if (res.status === 'hors-ligne') {
+          sheet.outerHTML = renderListeModif({ etape: 'hors-ligne' });
+          return;
+        }
+        if (res.status === 'introuvable') {
+          sheet.outerHTML = renderListeModif({ etape: 'introuvable' });
+          return;
+        }
+        const catalogue = articlesPourModif(dernierPret.sf, dernierPret.described);
+        const rows: { p: VitrineProduct; offert: boolean }[] = [];
+        for (const a of res.liste.articles) {
+          const p = catalogue.get(a.pid);
+          // A pid the catalogue cannot resolve is not offered: the service's
+          // membership law would refuse any update still carrying it, so it
+          // leaves the liste on her next save — journalled, deliberate.
+          if (p !== undefined) rows.push({ p, offert: a.offert });
+        }
+        sheet.outerHTML = renderListeModif(rows.length === 0 ? { etape: 'introuvable' } : { etape: 'prete', rows });
+      });
+    } else if (action === 'liste-enregistrer') {
+      // What stays checked IS the liste; unchecking is the removal. The
+      // last-item refusal mirrors the door's own law (`pids` may not be
+      // empty) inline, while the choice is still under her thumb.
+      if (dernierPret === null) return;
+      const sfSlug = dernierPret.sf.slug;
+      const gardee = listeGardee(sfSlug);
+      if (gardee === undefined) return;
+      const pids: string[] = [];
+      for (const box of root.querySelectorAll<HTMLInputElement>('input[data-liste-pid]')) {
+        if (box.checked) pids.push(box.getAttribute('data-liste-pid') ?? '');
+      }
+      const alerte = root.querySelector<HTMLElement>('[data-role="liste-alerte"]');
+      const direAlerte = (message: string): void => {
+        if (alerte !== null) {
+          alerte.textContent = message;
+          alerte.hidden = false;
+        }
+      };
+      if (pids.length === 0) return direAlerte(t('vit.liste_garder_un'));
+      const bouton = target as HTMLButtonElement;
+      bouton.disabled = true;
+      bouton.textContent = t('vit.liste_modif_encours');
+      void listePort.modifier(gardee.token, gardee.editCle, pids).then((res) => {
+        if (res.status !== 'modifiee') {
+          bouton.disabled = false;
+          bouton.textContent = t('vit.liste_modif_cta');
+          direAlerte(t('vit.liste_erreur'));
+          return;
+        }
+        // The handle follows the SERVICE's answer (its projection is the
+        // truth of what survived), so the card's count can never drift.
+        garderListe(sfSlug, { ...gardee, pids: res.liste.articles.map((a) => a.pid) });
+        root.querySelector('[data-role="liste-sheet"]')?.remove();
+        remplirListeSlot();
+        toast(root, t('vit.liste_modif_faite'));
       });
     } else if (action === 'liste-partager') {
       const porte = target.getAttribute('data-lien');

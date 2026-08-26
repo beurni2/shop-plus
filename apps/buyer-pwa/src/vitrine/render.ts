@@ -521,6 +521,14 @@ export function articlesPourListe(sf: Storefront, described?: readonly VitrinePr
   return orderedProducts(sf, undefined, described).filter((p) => p.inStock);
 }
 
+/** LISTE-RETRAIT — the WHOLE catalogue keyed by pid, épuisé included: the
+ *  manage sheet must offer removing an article precisely because it can no
+ *  longer be bought. (The builder keeps its in-stock filter — ADDING a dead
+ *  fiche to a liste stays banned.) */
+export function articlesPourModif(sf: Storefront, described?: readonly VitrineProduct[]): Map<string, VitrineProduct> {
+  return new Map(orderedProducts(sf, undefined, described).map((p) => [p.pid, p]));
+}
+
 /**
  * THE CREATOR'S ENTRY — one quiet row, deliberately a whisper: the boutique's
  * primary action stays « buy », and the liste must invite without shouting.
@@ -548,6 +556,9 @@ export function renderListeBand(sf: Storefront): string {
     `<div class="vt-liste-inviter-txt">${iconHeart(15, '#B4544B', 1.9)}<div><div class="vt-liste-titre">${t('vit.liste_votre_titre')}</div><div class="vt-liste-texte"><v>${esc(detail)}</v></div></div></div>`,
     '<div class="vt-liste-actions">',
     `<button class="vt-liste-cta" data-action="liste-partager">${t('vit.liste_partager')}</button>`,
+    // LISTE-RETRAIT — the edit road KEEPS her link; « refaire » stays the
+    // separate road that mints a new one. Both whisper; share stays primary.
+    `<button class="vt-liste-secondaire" data-action="liste-modifier">${t('vit.liste_modifier')}</button>`,
     `<button class="vt-liste-secondaire" data-action="liste-creer">${t('vit.liste_refaire')}</button>`,
     '</div>',
     '</div>',
@@ -587,6 +598,71 @@ export function renderListeSheet(articles: readonly VitrineProduct[], precoche: 
     `<span class="vt-liste-texte">${t('vit.liste_tel_aide')}</span></label>`,
     '<div class="vt-liste-alerte" data-role="liste-alerte" hidden></div>',
     `<button class="vt-liste-valider" data-action="liste-valider">${t('vit.liste_creer_cta')}</button>`,
+    '</div>',
+    '</div>',
+  ].join('');
+}
+
+/**
+ * ═══ LISTE-RETRAIT-1 — THE MANAGE SHEET (founder order, 2026-08-26) ═══
+ *
+ * « option where wishlist creator can remove items from their wishlist »
+ *
+ * Her CURRENT liste as checked rows — SERVER truth, read fresh when the sheet
+ * opens, because the marks live there: a row already given wears « Déjà
+ * offert » where its price would sit (the price of a gift already made is not
+ * the point; knowing she is removing a granted wish is). Unchecking is the
+ * removal; ONE action saves; the LINK STAYS THE SAME — that sentence is on
+ * the sheet, because it is the reason this road exists beside « refaire ».
+ * Épuisé articles still render (removing one is exactly why she came); a pid
+ * the catalogue can no longer resolve is not offered and leaves on her next
+ * save — the service's own membership law (`pids ⊆ curatedItems`) would
+ * refuse any update still carrying it. Chargement, hors-ligne (retry = the
+ * same open action) and introuvable (way out: refaire) are designed states.
+ */
+export type ListeModifEtat =
+  | { readonly etape: 'chargement' }
+  | { readonly etape: 'hors-ligne' }
+  | { readonly etape: 'introuvable' }
+  | { readonly etape: 'prete'; readonly rows: readonly { readonly p: VitrineProduct; readonly offert: boolean }[] };
+
+export function renderListeModif(etat: ListeModifEtat): string {
+  let corps: string;
+  if (etat.etape === 'chargement') {
+    corps = `<div class="vt-liste-attente" data-role="liste-modif-attente">${t('vit.liste_chargement')}</div>`;
+  } else if (etat.etape === 'hors-ligne') {
+    corps = [
+      `<div class="vt-liste-texte" data-role="liste-modif-horsligne">${t('vit.liste_hors_ligne')}</div>`,
+      `<button class="vt-liste-valider" data-action="liste-modifier">${t('vit.reessayer')}</button>`,
+    ].join('');
+  } else if (etat.etape === 'introuvable') {
+    corps = [
+      `<div class="vt-liste-texte" data-role="liste-modif-introuvable">${t('vit.liste_introuvable')}</div>`,
+      `<button class="vt-liste-valider" data-action="liste-creer">${t('vit.liste_refaire')}</button>`,
+    ].join('');
+  } else {
+    const rows = etat.rows.map(({ p, offert }) => [
+      `<label class="vt-liste-row" data-role="liste-modif-row">`,
+      `<input type="checkbox" class="vt-liste-case" data-liste-pid="${esc(p.pid)}" checked>`,
+      `<div class="vt-liste-row-art">${tileArt(!p.inStock, p.assetRefs)}</div>`,
+      `<div class="vt-liste-row-infos"><div class="vt-liste-row-nom"><v>${esc(p.name)}</v></div>`,
+      offert
+        ? `<div class="vt-liste-offert-badge">${iconCheck(12, '#3F7D5C', 2.6)}${t('vit.liste_offert')}</div>`
+        : `<div class="vt-liste-row-prix"><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
+      '</div></label>',
+    ].join(''));
+    corps = [
+      `<div class="vt-liste-texte">${t('vit.liste_modif_texte')}</div>`,
+      `<div class="vt-liste-rows">${rows.join('')}</div>`,
+      '<div class="vt-liste-alerte" data-role="liste-alerte" hidden></div>',
+      `<button class="vt-liste-valider" data-action="liste-enregistrer">${t('vit.liste_modif_cta')}</button>`,
+    ].join('');
+  }
+  return [
+    '<div class="vt-liste-voile" data-role="liste-sheet">',
+    '<div class="vt-liste-sheet">',
+    `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${t('vit.liste_sheet_titre')}</div><button class="vt-liste-fermer" data-action="liste-fermer" aria-label="${t('vit.liste_fermer_aria')}">×</button></div>`,
+    corps,
     '</div>',
     '</div>',
   ].join('');

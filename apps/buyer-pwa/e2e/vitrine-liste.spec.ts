@@ -94,6 +94,88 @@ test('CREATOR — she builds her liste, the link is created, and her band rememb
   await expect(page.locator('[data-role="vitrine-liste-carte"]')).toBeVisible();
 });
 
+/**
+ * LISTE-RETRAIT-1 — THE REMOVAL WALK. Her handle is seeded on the phone, the
+ * scripted service answers the READ (marks included) and records the UPDATE.
+ * The four questions: the tree survives every tap (hors-ligne retry, the
+ * empty-selection refusal, the save) · the primary action is wired to a real
+ * POST whose exact bytes are asserted · the refusal leaves her a way out ·
+ * the next step is REACHED (the carte counts 1, the handle followed).
+ */
+test('CREATOR — she removes an article: server truth in the sheet, the exact wire out, the carte follows', async ({ page }) => {
+  await page.addInitScript(
+    ({ token, editCle }: { token: string; editCle: string }) => {
+      // set-if-absent: this runs on EVERY navigation, and the reload at the
+      // end must find the handle the SAVE wrote, not this seed again
+      if (window.localStorage.getItem('shopplus.listes.v1') === null) {
+        window.localStorage.setItem(
+          'shopplus.listes.v1',
+          JSON.stringify({
+            'aicha-4821': { token, editCle, nom: 'Awa', pids: ['p1', 'p2', 'p3'], createdAt: 'T' },
+          }),
+        );
+      }
+    },
+    { token: TOKEN, editCle: 'E'.repeat(32) },
+  );
+  let horsLigne = true;
+  const updates: Record<string, unknown>[] = [];
+  await page.route('**/listes/**', async (route: Route) => {
+    if (route.request().method() === 'POST') {
+      updates.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ ok: true, liste: { nom: 'Awa', slug: 'aicha-4821', articles: [{ pid: 'p1', offert: true }] } }),
+      });
+      return;
+    }
+    if (horsLigne) {
+      await route.abort('internetdisconnected');
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, liste: LISTE }) });
+  });
+  await page.goto(`${BASE}/?demo-vitrine=aicha-4821`);
+  await expect(page.locator('[data-role="vitrine-liste-carte"]')).toContainText('La liste de Awa · 3 envies');
+
+  // HORS-LIGNE FIRST — the honest state, and its retry is the SAME action.
+  await page.locator('[data-action="liste-modifier"]').click();
+  await expect(page.locator('[data-role="liste-modif-horsligne"]')).toBeVisible();
+  horsLigne = false;
+  await page.locator('[data-role="liste-sheet"] [data-action="liste-modifier"]').click();
+
+  // SERVER TRUTH, ALL CHECKED — the given row says « Déjà offert » while she
+  // decides, and the épuisé article is still offered for removal.
+  await expect(page.locator('[data-role="liste-modif-row"]')).toHaveCount(3);
+  await expect(page.locator('input[data-liste-pid="p1"]')).toBeChecked();
+  await expect(page.locator('[data-role="liste-sheet"]')).toContainText('Déjà offert');
+  await expect(page.locator('input[data-liste-pid="p3"]')).toHaveCount(1); // épuisé, removable
+  await expect(page.locator('[data-role="liste-sheet"]')).toContainText('Votre lien reste le même.');
+
+  // THE LAST-ITEM LAW, INLINE — nothing leaves the phone on a refused save.
+  await page.locator('input[data-liste-pid="p1"]').uncheck();
+  await page.locator('input[data-liste-pid="p2"]').uncheck();
+  await page.locator('input[data-liste-pid="p3"]').uncheck();
+  await page.locator('[data-action="liste-enregistrer"]').click();
+  await expect(page.locator('[data-role="liste-alerte"]')).toHaveText('Gardez au moins un article, ou refaites une liste.');
+  expect(updates).toHaveLength(0);
+
+  // SHE KEEPS THE GIVEN ONE — the wire carries the EXACT two-key body.
+  await page.locator('input[data-liste-pid="p1"]').check();
+  await page.locator('[data-action="liste-enregistrer"]').click();
+  await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
+  expect(updates).toHaveLength(1);
+  expect(updates[0]).toEqual({ editCle: 'E'.repeat(32), pids: ['p1'] });
+
+  // THE NEXT STEP IS REACHED — the carte counts 1 and the handle followed
+  // the SERVICE's answer, so a fresh visit agrees.
+  await expect(page.locator('[data-role="vitrine-liste-carte"]')).toContainText('La liste de Awa · 1 envie');
+  const handle = await page.evaluate(() => window.localStorage.getItem('shopplus.listes.v1'));
+  expect((JSON.parse(handle ?? '{}') as Record<string, { pids: string[] }>)['aicha-4821']?.pids).toEqual(['p1']);
+  await page.reload();
+  await expect(page.locator('[data-role="vitrine-liste-carte"]')).toContainText('La liste de Awa · 1 envie');
+});
+
 test('FRIEND — the banner renders the liste, an offert wish offers nothing, an ungiven one opens its fiche with the token', async ({ page }) => {
   await page.route('**/listes/**', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, liste: LISTE }) }),

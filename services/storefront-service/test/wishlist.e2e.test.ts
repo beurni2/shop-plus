@@ -323,6 +323,50 @@ describe('the liste doors', () => {
     expect(absente.status).toBe(404);
     expect(await mauvaise.text()).toBe(await absente.text());
   });
+
+  /**
+   * LISTE-RETRAIT-1 (founder order, 2026-08-26) — removal IS the update door:
+   * the pids she keeps replace the selection, and a mark already earned by a
+   * provider-confirmed order SURVIVES on every survivor (an edit rearranges
+   * wishes, it never un-gives a gift). The last-item law is the door's own:
+   * an empty selection is refused BY NAME — a liste with nothing on it is
+   * made by « refaire », never by erasing this one.
+   */
+  it('removing an article keeps the surviving offert mark, and an empty selection is refused by name', async () => {
+    const { slug, resellerId } = await boutique('0031');
+    const made = await creerListe(slug);
+    const token = made.json['token'] as string;
+    const editCle = made.json['editCle'] as string;
+
+    // the gift lands on pv-le-1 through the REAL road: order → provider webhook
+    const o = await ordered('0031', slug, resellerId, 'pv-le-1', token);
+    expect(o.status).toBe(200);
+    await confirmOrder(o.orderId, o.buyerTotal);
+    expect(await offertVisible(token, 'pv-le-1')).toBe(true);
+
+    // she removes pv-le-2 — the mark on pv-le-1 must ride through untouched
+    const retire = await mf.dispatchFetch(`http://c/listes/${token}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ editCle, pids: ['pv-le-1'] }),
+    });
+    expect(retire.status).toBe(200);
+    expect(safeJson(await retire.text())['liste']).toEqual({
+      nom: 'Awa', slug,
+      articles: [{ pid: 'pv-le-1', offert: true }],
+    });
+
+    // the friend's read agrees: one article, still offert, pv-le-2 gone
+    const relu = await lireListe(token);
+    expect((relu.json['liste'] as { articles: unknown }).articles).toEqual([{ pid: 'pv-le-1', offert: true }]);
+
+    // the last-item law, at the door
+    const vide = await mf.dispatchFetch(`http://c/listes/${token}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ editCle, pids: [] }),
+    });
+    expect(vide.status).toBe(400);
+    expect(safeJson(await vide.text())).toEqual({ ok: false, reason: 'bad_field', field: 'pids' });
+  });
 });
 
 describe('THE SEAM — webhook truth becomes « offert » on the shared liste', () => {

@@ -43,6 +43,7 @@ export interface ListeCreee {
 
 export type ListeCreation = { readonly status: 'creee'; readonly liste: ListeCreee } | { readonly status: 'refus' } | { readonly status: 'hors-ligne' };
 export type ListeLecture = { readonly status: 'liste'; readonly liste: ListePublique } | { readonly status: 'introuvable' } | { readonly status: 'hors-ligne' };
+export type ListeModification = { readonly status: 'modifiee'; readonly liste: ListePublique } | { readonly status: 'refus' } | { readonly status: 'hors-ligne' };
 
 export interface ListePort {
   /** LISTE-MERCI — `telephone` is the creator's WhatsApp opt-in (optional).
@@ -51,6 +52,13 @@ export interface ListePort {
    *  provider-confirmed purchaser of this liste. */
   creer(slug: string, nom: string, pids: readonly string[], telephone?: string): Promise<ListeCreation>;
   lire(token: string): Promise<ListeLecture>;
+  /** LISTE-RETRAIT — the creator's edit: the pids she KEEPS (the service
+   *  replaces the selection, preserving « offert » marks on survivors). The
+   *  edit key rides the body and the SAME link stays valid — removal never
+   *  mints anything. Every refusal (wrong key ≡ absent liste, empty pids,
+   *  hors-boutique) collapses to `refus`: the sheet's inline mirrors already
+   *  said everything sayable before the wire was spent. */
+  modifier(token: string, editCle: string, pids: readonly string[]): Promise<ListeModification>;
 }
 
 /** Parse a wire liste defensively — a 200 with an unreadable shape is
@@ -107,6 +115,25 @@ export function httpListePort(base: string): ListePort {
       const liste = body?.ok === true ? lireListeWire(body.liste) : undefined;
       return liste === undefined ? { status: 'introuvable' } : { status: 'liste', liste };
     },
+    async modifier(token, editCle, pids): Promise<ListeModification> {
+      let res: Response;
+      try {
+        res = await fetch(`${base}/listes/${encodeURIComponent(token)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // The update door's exact-key allowlist as ONE literal — `nom` is
+          // deliberately absent (absent = keep the stored name); no other key
+          // can ride from here.
+          body: JSON.stringify({ editCle, pids }),
+        });
+      } catch {
+        return { status: 'hors-ligne' };
+      }
+      const body = (await res.json().catch(() => null)) as { ok?: boolean; liste?: unknown } | null;
+      if (!res.ok || body?.ok !== true) return { status: 'refus' };
+      const liste = lireListeWire(body.liste);
+      return liste === undefined ? { status: 'refus' } : { status: 'modifiee', liste };
+    },
   };
 }
 
@@ -126,19 +153,33 @@ function mintDemoToken(): string | undefined {
 }
 
 export function demoListePort(): ListePort {
-  const held = new Map<string, ListePublique>();
+  const held = new Map<string, { editCle: string; liste: ListePublique }>();
   return {
     async creer(slug, nom, pids): Promise<ListeCreation> {
       const token = mintDemoToken();
       const editCle = mintDemoToken();
       if (token === undefined || editCle === undefined) return { status: 'refus' };
       const liste: ListePublique = { nom, slug, articles: pids.map((pid) => ({ pid, offert: false })) };
-      held.set(token, liste);
+      held.set(token, { editCle, liste });
       return { status: 'creee', liste: { token, editCle, liste } };
     },
     async lire(token): Promise<ListeLecture> {
-      const liste = held.get(token);
-      return liste === undefined ? { status: 'introuvable' } : { status: 'liste', liste };
+      const garde = held.get(token);
+      return garde === undefined ? { status: 'introuvable' } : { status: 'liste', liste: garde.liste };
+    },
+    async modifier(token, editCle, pids): Promise<ListeModification> {
+      const garde = held.get(token);
+      // The service's contract-certified bounds: wrong key ≡ absent liste as
+      // ONE refusal, empty pids refused, and « offert » survives on every
+      // pid she keeps (an edit rearranges wishes, it never un-gives a gift).
+      if (garde === undefined || garde.editCle !== editCle || pids.length === 0) return { status: 'refus' };
+      const marks = new Map(garde.liste.articles.map((a) => [a.pid, a.offert]));
+      const liste: ListePublique = {
+        ...garde.liste,
+        articles: pids.map((pid) => ({ pid, offert: marks.get(pid) === true })),
+      };
+      held.set(token, { editCle, liste });
+      return { status: 'modifiee', liste };
     },
   };
 }
