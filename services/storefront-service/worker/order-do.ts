@@ -2143,8 +2143,10 @@ export class OrderDO {
    * answered 2xx and NOTHING else — and the object answers 200 for `marked`,
    * `already` AND an unknown liste (`ignored`), because all three are
    * outcomes a retry cannot change. With the binding absent (a Worker
-   * deployed before migration v9) nothing is attempted and the row stays
-   * pending — it drains the moment the class exists, the deploy-order law.
+   * deployed before migration v9) nothing is attempted; the row stays
+   * pending while its attempt count still walks the shared backoff — and it
+   * drains the moment the class exists, the deploy-order law (the
+   * custody-arm wire's exact absent-config behaviour).
    */
   private async flushListeOffertOutbox(): Promise<number> {
     const outbox = await this.state.storage.get<{

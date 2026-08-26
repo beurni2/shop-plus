@@ -291,6 +291,16 @@ describe('the liste doors', () => {
     expect(truque.status).toBe(400);
     expect(safeJson(await truque.text())['field']).toBe('offert');
 
+    // VERIFIER MINOR 1 — the membership law holds for the liste's WHOLE life:
+    // an update naming a pid the boutique does not sell is refused exactly as
+    // the create refuses it, even with the creator's own edit key.
+    const horsBoutique = await mf.dispatchFetch(`http://c/listes/${token}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ editCle, pids: ['pv-le-1', 'pv-ailleurs'] }),
+    });
+    expect(horsBoutique.status).toBe(422);
+    expect(safeJson(await horsBoutique.text())).toEqual({ ok: false, reason: 'produit_hors_boutique', field: 'pv-ailleurs' });
+
     // the wrong key and an absent liste answer IDENTICALLY (no oracle)
     const mauvaise = await mf.dispatchFetch(`http://c/listes/${token}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

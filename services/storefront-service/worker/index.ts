@@ -10,7 +10,7 @@ import {
 import { DispatchIndexDO, DISPATCH_INDEX_NAME } from './dispatch-index-do.js';
 import { ResellerFeedDO, RESELLER_FEED_NAME } from './reseller-feed-do.js';
 import { WishlistDO, mintListeToken } from './wishlist-do.js';
-import { LISTE_TOKEN, validateListeCreate } from '../src/wishlist-core.js';
+import { LISTE_TOKEN, validateListeCreate, validateListeUpdate } from '../src/wishlist-core.js';
 import { BuyerLadderDO, ladderName } from './buyer-ladder-do.js';
 import {
   RESELLER_ACCOUNTS_NAME,
@@ -405,9 +405,42 @@ export default {
       // allowlist refuses a smuggled field rather than this layer stripping
       // it (the accounts-door discipline); the edit key is hash-compared
       // inside, where absent-liste and wrong-key are one indistinguishable 404.
+      const updateBody = await request.text();
+      /**
+       * VERIFIER (MINOR 1, handled once) — THE MEMBERSHIP LAW HOLDS FOR THE
+       * LISTE'S WHOLE LIFE, not only its birth: an update's pids are checked
+       * against the SAME curatedItems the create checked, through the liste's
+       * own stored slug. Only a WELL-FORMED body is checked here — a malformed
+       * one still crosses verbatim so the object's allowlist names the field.
+       * No new oracle: the check runs before the edit-key compare, but the
+       * slug it could reveal is already on the PUBLIC projection, and the
+       * catalogue is the boutique's public page. A boutique that no longer
+       * resolves skips the check rather than stranding her liste — nothing
+       * downstream renders a pid the catalogue cannot resolve anyway.
+       */
+      const askedUpdate = validateListeUpdate((() => {
+        try { return JSON.parse(updateBody) as unknown; } catch { return null; }
+      })());
+      if (askedUpdate.ok) {
+        const luRes = await listeStub(rawToken).fetch(new Request('https://do/entry'));
+        const lu = (await luRes.json().catch(() => null)) as { liste?: { slug?: unknown } } | null;
+        const slugListe = lu?.liste?.slug;
+        if (typeof slugListe === 'string') {
+          const sfRes = await sfRouter.fetch(new Request(`https://svc/s/${encodeURIComponent(slugListe)}`), env);
+          if (sfRes.status === 200) {
+            const entry = (await sfRes.json().catch(() => null)) as { curatedItems?: unknown } | null;
+            const curatedSet = new Set(Array.isArray(entry?.curatedItems) ? (entry.curatedItems as string[]) : []);
+            for (const pid of askedUpdate.value.pids) {
+              if (!curatedSet.has(pid)) {
+                return neverCache(Response.json({ ok: false, reason: 'produit_hors_boutique', field: pid }, { status: 422 }));
+              }
+            }
+          }
+        }
+      }
       return neverCache(
         await listeStub(rawToken).fetch(
-          new Request('https://do/entry/update', { method: 'POST', body: await request.text() }),
+          new Request('https://do/entry/update', { method: 'POST', body: updateBody }),
         ),
       );
     }
