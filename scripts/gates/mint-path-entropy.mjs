@@ -67,6 +67,11 @@ const MINT_PATHS = [
   // `requestKey` (one key ⇒ one quote, forever) and the reservation `commandId`.
   // Named the moment they existed, per this list's own rule above.
   'apps/buyer-pwa/src/cliente/quote-port.ts',
+  // LISTE-ENVIES-1 — the wishlist's share token and edit key (192-bit, the
+  // mintBuyerRef pattern) are minted here; the PWA's offline harness mints
+  // the same shapes in liste.ts. Named the moment they existed.
+  'services/storefront-service/worker/wishlist-do.ts',
+  'apps/buyer-pwa/src/vitrine/liste.ts',
 ];
 
 /** A CSPRNG token — at least one must appear across the mint paths, so an empty or

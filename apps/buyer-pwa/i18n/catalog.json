@@ -1294,5 +1294,191 @@
   "fr": "ajoute souvent de nouveaux articles.",
   "register": "selling",
   "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_entree_titre",
+  "fr": "Liste d'envies",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_entree_texte",
+  "fr": "Choisissez vos envies, partagez le lien à vos proches.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vit.liste_entree_cta",
+  "fr": "Créer ma liste",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_votre_titre",
+  "fr": "Votre liste d'envies",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_votre_detail",
+  "fr": "La liste de {nom} · {n} envies",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_partager",
+  "fr": "Partager le lien",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_refaire",
+  "fr": "Refaire ma liste",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_sheet_titre",
+  "fr": "Ma liste d'envies",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_sheet_texte",
+  "fr": "Cochez les articles qui vous font envie.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vit.liste_nom_label",
+  "fr": "Votre prénom",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_nom_aide",
+  "fr": "Vos proches verront « La liste de … »",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vit.liste_nom_manque",
+  "fr": "Dites-nous votre prénom.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_vide_choix",
+  "fr": "Choisissez au moins un article.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_creer_cta",
+  "fr": "Créer mon lien",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_creation",
+  "fr": "Création du lien…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_prete",
+  "fr": "Votre liste est prête",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_prete_texte",
+  "fr": "Partagez ce lien : vos proches verront vos envies et pourront commander pour vous.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vit.liste_copier",
+  "fr": "Copier le lien",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_copie",
+  "fr": "Lien copié",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_erreur",
+  "fr": "Impossible pour le moment. Réessayez.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_fermer_aria",
+  "fr": "Fermer la liste",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_amie_titre",
+  "fr": "La liste de {nom}",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_amie_texte",
+  "fr": "Choisissez un article de sa liste pour faire plaisir.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vit.liste_offert",
+  "fr": "Déjà offert",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_offrir",
+  "fr": "Offrir",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_tout_panier",
+  "fr": "Tout mettre au panier",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_panier_fait",
+  "fr": "Ajouté à votre panier, sur ce téléphone",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_chargement",
+  "fr": "La liste arrive…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_introuvable",
+  "fr": "Cette liste n'existe pas ou n'est plus disponible.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_hors_ligne",
+  "fr": "Pas de connexion — la liste n'a pas pu se charger.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_votre_detail_un",
+  "fr": "La liste de {nom} · 1 envie",
+  "register": "selling",
+  "screenClass": "label"
  }
 ]

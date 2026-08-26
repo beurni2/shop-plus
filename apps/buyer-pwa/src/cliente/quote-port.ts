@@ -252,8 +252,14 @@ export interface QuotePort {
    * already exists and has not failed returns that order AS IT STANDS, never a
    * second order and never a second charge (`order-do.ts` create, the « an
    * impatient double-tap is harmless » branch).
+   *
+   * LISTE-ENVIES-1 — `listeRef` is the allowlist's fifth (optional) key: the
+   * opaque wishlist token the fiche arrived with, forwarded so the service
+   * can mark « offert » at the provider-confirmed transition. It names no
+   * amount and no product — the service refuses anything but its own token
+   * shape, and an invented value marks nothing.
    */
-  order(quoteId: string, commandId: string, holderRef: string, contact?: ContactLivraison): Promise<OrderOutcome>;
+  order(quoteId: string, commandId: string, holderRef: string, contact?: ContactLivraison, listeRef?: string): Promise<OrderOutcome>;
   /**
    * READ THE ORDER BACK. The ONLY thing in this app that may ever move the
    * confirmation screen to « confirmé par l'opérateur »: the state it returns
@@ -499,13 +505,14 @@ export function httpQuotePort(baseUrl: string): QuotePort {
       return nonEmpty(expiresAt) ? { status: 'reserved', expiresAt } : { status: 'reserved' };
     },
 
-    async order(quoteId: string, commandId: string, holderRef: string, contact?: ContactLivraison): Promise<OrderOutcome> {
+    async order(quoteId: string, commandId: string, holderRef: string, contact?: ContactLivraison, listeRef?: string): Promise<OrderOutcome> {
       // THE BODY IS THE SERVICE'S ALLOWLIST, BUILT AS ONE LITERAL — never a
       // spread of anything. `order-do.ts` refuses an unknown key with 400
       // `unknown_field`, and that refusal is a feature: it is how a caller that
       // grew an amount field finds out immediately instead of quietly.
       // BC-1b: `contact` is the allowlist's fourth (optional) key, built
       // field-by-field for the same reason — still no amount, still no spread.
+      // LISTE-ENVIES-1: `listeRef` is the fifth — an opaque token, no amount.
       let payload: string;
       try {
         payload = JSON.stringify({
@@ -524,6 +531,7 @@ export function httpQuotePort(baseUrl: string): QuotePort {
                 },
               }
             : {}),
+          ...(listeRef !== undefined ? { listeRef } : {}),
         });
       } catch {
         return { status: 'unreadable' };

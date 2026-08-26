@@ -41,6 +41,7 @@ import { clienteProduit, clienteProduitReel, composeQuote, harnessFrancs } from 
 import { commandIdFor, commandeGardee, forgetRequestKey, localStorageOrUndefined, orderCommandIdFor, requestKeyFor, resolveQuotePort, villeDe } from './cliente/quote-port';
 import { SUIVI } from './cliente/screens';
 import { fetchClienteQuote, MODES_WIRE, type QuoteBase, type QuoteFetch } from './cliente/quote-model';
+import { LISTE_TOKEN } from './vitrine/liste';
 import { productFromSeed, seedProduct } from './vitrine/catalog';
 import { CLIENTE_STYLES } from './cliente/styles';
 import { VITRINE_THEMES, type VitrineThemeKey } from './vitrine/themes';
@@ -743,6 +744,12 @@ if (app) {
         // `produit.priceFcfa`; the real adapter is told no amount, ever.
         const quotePort = resolveQuotePort(produit.priceFcfa);
         const ville = villeDe(resolved.storefront.zone);
+        // LISTE-ENVIES-1 — the wishlist token this fiche was opened WITH (a
+        // friend tapped the liste's card on the vitrine). Shape-checked here
+        // so a mangled param is NO liste rather than a refused order later;
+        // it rides the order create only (see fetchClienteQuote's last param).
+        const listeParam = params.get('liste');
+        const listeRef = listeParam !== null && LISTE_TOKEN.test(listeParam) ? listeParam : undefined;
         const quoteBase = (quartier: string): QuoteBase => ({
           slug: signedSlug,
           pid,
@@ -776,6 +783,8 @@ if (app) {
             // command against it, and a deliberate retry after a failed payment
             // gets a genuinely new one.
             (quoteId, essai) => orderCommandIdFor(quoteId, essai, storage),
+            // LISTE-ENVIES-1 — the liste token, forwarded on the create only.
+            listeRef,
           );
         };
         // FOUNDER RULING (2026-07-22, supersedes the earlier theme seam): the
@@ -802,7 +811,10 @@ if (app) {
             remise: (id, ref) => quotePort.remise(id, ref),
           },
           onVitrine: (slug) => {
-            window.location.href = vitrineHref(window.location.pathname, slug);
+            // LISTE-ENVIES-1 — a friend who arrived through a liste keeps her
+            // banner when she steps back to the boutique.
+            const retour = vitrineHref(window.location.pathname, slug);
+            window.location.href = listeRef !== undefined ? `${retour}?liste=${encodeURIComponent(listeRef)}` : retour;
           },
         });
         app.append(main);
@@ -921,6 +933,10 @@ if (app) {
     // and made `VITE_STOREFRONT_BASE` unreadable no matter how correctly it was set.
     // Mirrors what the `/s/{slug}` route above already did.
     const isRealVitrinePath = vitrineSlugFromPath(window.location.pathname) !== undefined;
+    // LISTE-ENVIES-1 — a shared liste link is `/v/{slug}?liste={token}` (the
+    // ONE `/v/` link form, no second scheme). Shape-checked here: a mangled
+    // token mounts the plain boutique, never an error wall over her shop.
+    const listeParam = params.get('liste');
     mountVitrine(app as HTMLElement, vitrineSlug, {
       etat: etatParam && (VIT_ETATS as readonly string[]).includes(etatParam) ? (etatParam as VitrineEtat) : undefined,
       profil: harnessProfil(isRealVitrinePath, profilParam),
@@ -932,7 +948,7 @@ if (app) {
       // his own cover cropped forty-three ways. View-only: it changes what this
       // one render draws and nothing that is stored.
       sansPhotos: params.has('apercu-nu'),
-    });
+    }, listeParam !== null && LISTE_TOKEN.test(listeParam) ? listeParam : undefined);
   } else {
     // WO-7.2a — S3 DÉCOUVERTE is the root (« root » entry, founder-ruled) and
     // the /boutiques path. The store directory owns the screen (its own

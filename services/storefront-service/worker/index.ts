@@ -9,6 +9,8 @@ import {
 } from '@platform/contracts';
 import { DispatchIndexDO, DISPATCH_INDEX_NAME } from './dispatch-index-do.js';
 import { ResellerFeedDO, RESELLER_FEED_NAME } from './reseller-feed-do.js';
+import { WishlistDO, mintListeToken } from './wishlist-do.js';
+import { LISTE_TOKEN, validateListeCreate } from '../src/wishlist-core.js';
 import { BuyerLadderDO, ladderName } from './buyer-ladder-do.js';
 import {
   RESELLER_ACCOUNTS_NAME,
@@ -44,7 +46,7 @@ import {
  *
  * wrangler binds these two classes by their exported names.
  */
-export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO, ResellerFeedDO, BuyerLadderDO, ResellerAccountsDO };
+export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO, ResellerFeedDO, BuyerLadderDO, ResellerAccountsDO, WishlistDO };
 /**
  * C1/C2 (audit) — the DURABLE attribution-lock authority (SP-I09b.3
  * first-lock-wins), deployed by joining THIS combined Worker like every other
@@ -81,6 +83,10 @@ interface Env extends WriteAuthEnv {
   ATTRIBUTION_LOCK: DurableObjectNamespace;
   /** RESELLER-ACCOUNTS-1b — the singleton account book (canon v3.8.0). */
   COMPTES?: DurableObjectNamespace;
+  /** LISTE-ENVIES-1 — one instance per liste, idFromName('liste:'+token).
+   *  OPTIONAL like COMPTES: a Worker deployed before migration v9 has no
+   *  binding, and the liste doors answer a named 503 rather than throwing. */
+  WISHLIST?: DurableObjectNamespace;
   /** SP3.3a — the certified sandbox provider's behaviour knobs. UNSET on the
    *  deploy (the well-behaved provider); read by OrderDO, never by a route. */
   PAYMENT_SANDBOX_BEHAVIOR?: string;
@@ -281,6 +287,129 @@ export default {
         await mirrorDispatchRow(env, createSource);
       }
       return withReadCors(answered);
+    }
+
+    /**
+     * ═══ LISTE-ENVIES-1 — THE WISHLIST DOORS (founder order, 2026-08-25) ═══
+     *
+     * PUBLIC on the checkout surface's EXACT terms: a buyer holds no key and
+     * must never need one to make or open a wish list. What that does NOT
+     * open, stated like its neighbours because an exemption is a hole until
+     * proven otherwise:
+     *   · MATCHED EXACTLY — one `===` and one anchored single-segment regex;
+     *     every other method and every other `/listes/...` shape falls
+     *     through to the write gate and is refused 401.
+     *   · NO AMOUNT CAN ARRIVE — the create/update bodies are exact-key
+     *     allowlists (`wishlist-core`) with no money field, and the pids must
+     *     already be ON the boutique (checked against `curatedItems` below),
+     *     so a caller cannot even name a product the shop does not sell.
+     *   · NO ECONOMICS CAN LEAVE — the only answer shape is `projectListe`:
+     *     nom, slug, pids, and « offert » as a bare boolean. No price, no
+     *     supplier, no orderId crosses out.
+     *   · IT CANNOT DECLARE ANYTHING PAID — « offert » is written only by the
+     *     OrderDO's outbox at the provider-confirmed transition; the DO route
+     *     that writes it (/entry/offert) is mapped to no public path at all.
+     *   · WRITES ARE TOKEN-SCOPED — a liste is reachable only by its own
+     *     192-bit server-minted token, and editing needs the edit key, which
+     *     is hash-compared inside the object (absent liste and wrong key are
+     *     one uniform 404 — no oracle).
+     * KNOWN AND ACCEPTED RESIDUE (journalled — the THIRD named admission of
+     * this class, after the open quote POST and the signup POST): an open
+     * POST lets an anonymous caller create liste objects at will. They hold
+     * no money and no personal data beyond a first name, but there is no
+     * rate limit in front of them, and that belongs on the real-money gate's
+     * checklist, not on a pretend one here.
+     */
+    const isListeCreate = pathname === '/listes';
+    const isListeByToken = /^\/listes\/[^/]+$/.test(pathname);
+    if (request.method === 'OPTIONS' && (isListeCreate || isListeByToken)) {
+      // The checkout preflight, verbatim: same exact origin, and these doors
+      // need the same POST + Content-Type grant the order routes needed.
+      return checkoutPreflight();
+    }
+    if (
+      (request.method === 'POST' && isListeCreate) ||
+      ((request.method === 'GET' || request.method === 'POST') && isListeByToken)
+    ) {
+      if (env.WISHLIST === undefined) {
+        return withReadCors(Response.json({ ok: false, reason: 'listes_indisponibles' }, { status: 503 }));
+      }
+      const wishlist = env.WISHLIST;
+      const listeStub = (token: string): DurableObjectStub => wishlist.get(wishlist.idFromName(`liste:${token}`));
+      const neverCache = (res: Response): Response => {
+        const out = new Response(res.body, res);
+        out.headers.set('Cache-Control', 'private, no-store');
+        return withReadCors(out);
+      };
+      if (isListeCreate) {
+        const body = (await request.json().catch(() => null)) as unknown;
+        const asked = validateListeCreate(body);
+        if (!asked.ok) {
+          return neverCache(
+            Response.json(
+              { ok: false, reason: asked.error, ...(asked.field !== undefined ? { field: asked.field } : {}) },
+              { status: 400 },
+            ),
+          );
+        }
+        // THE BOUTIQUE IS RESOLVED THROUGH ITS OWN SLUG ROAD — the same
+        // pointer→entry read `GET /s/{slug}` uses, so an unknown slug is the
+        // same honest not-found and a private vitrine still resolves (the
+        // signed-link law). The pids must be a SUBSET of her curatedItems:
+        // a liste can only ever wish for what the shop actually sells.
+        const sfRes = await sfRouter.fetch(new Request(`https://svc/s/${encodeURIComponent(asked.value.slug)}`), env);
+        if (sfRes.status !== 200) {
+          return neverCache(Response.json({ ok: false, reason: 'boutique_inconnue' }, { status: 404 }));
+        }
+        // The DO road answers the storefront FLAT (`/entry` returns
+        // `entry.storefront`), so membership reads at the top level.
+        const entry = (await sfRes.json().catch(() => null)) as { curatedItems?: unknown } | null;
+        const curated = entry?.curatedItems;
+        const curatedSet = new Set(Array.isArray(curated) ? (curated as string[]) : []);
+        for (const pid of asked.value.pids) {
+          if (!curatedSet.has(pid)) {
+            return neverCache(Response.json({ ok: false, reason: 'produit_hors_boutique', field: pid }, { status: 422 }));
+          }
+        }
+        const token = mintListeToken();
+        const editCle = mintListeToken();
+        const created = await listeStub(token).fetch(
+          new Request('https://do/entry/create', {
+            method: 'POST',
+            body: JSON.stringify({ liste: asked.value, editCle }),
+          }),
+        );
+        const decided = (await created.json().catch(() => null)) as { ok?: boolean; liste?: unknown } | null;
+        if (decided?.ok !== true || decided.liste === undefined) {
+          // The only refusal a validated create can meet is a token-name
+          // collision — not a real event at 192 bits, so it is answered as
+          // the retryable unavailability it would be.
+          return neverCache(Response.json({ ok: false, reason: 'listes_indisponibles' }, { status: 503 }));
+        }
+        // THE EDIT KEY LEAVES EXACTLY ONCE, here, never-cache — the buyer-ref
+        // create-only discipline. The share token is the link; the edit key
+        // stays on the creator's own phone.
+        return neverCache(Response.json({ ok: true, token, editCle, liste: decided.liste }));
+      }
+      // BY TOKEN — read (friend) or update (creator). A malformed token is
+      // the SAME uniform 404 an unknown one earns inside the object: the
+      // charset pin refuses it before it becomes a Durable Object name.
+      const rawToken = decodeOrderId(pathname.slice('/listes/'.length));
+      if (rawToken === undefined || !LISTE_TOKEN.test(rawToken)) {
+        return neverCache(Response.json({ ok: false, reason: 'not_found' }, { status: 404 }));
+      }
+      if (request.method === 'GET') {
+        return neverCache(await listeStub(rawToken).fetch(new Request('https://do/entry')));
+      }
+      // UPDATE — the body crosses VERBATIM so the object's exact-key
+      // allowlist refuses a smuggled field rather than this layer stripping
+      // it (the accounts-door discipline); the edit key is hash-compared
+      // inside, where absent-liste and wrong-key are one indistinguishable 404.
+      return neverCache(
+        await listeStub(rawToken).fetch(
+          new Request('https://do/entry/update', { method: 'POST', body: await request.text() }),
+        ),
+      );
     }
 
     /**

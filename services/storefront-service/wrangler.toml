@@ -73,6 +73,14 @@ class_name = "ResellerAccountsDO"
 name = "ATTRIBUTION_LOCK"
 class_name = "AttributionLockDO"
 
+# LISTE-ENVIES-1 — the buyer's wishlist, ONE instance per liste, addressed by
+# idFromName('liste:'+token). Holds a name, a slug, up to twenty pids and
+# their « offert » marks — no money, no contact. The offert mark is written
+# only by OrderDO's outbox wire at the provider-confirmed transition.
+[[durable_objects.bindings]]
+name = "WISHLIST"
+class_name = "WishlistDO"
+
 # FIRST-DEPLOY MIGRATION — create both DO classes. `new_sqlite_classes` is CORRECT
 # AND MANDATORY, not a coin-flip: Cloudflare stopped issuing key-value-backed DO
 # namespaces (changelog 2026-07-09) to any account without a pre-existing one, and
@@ -133,6 +141,13 @@ new_sqlite_classes = ["ResellerAccountsDO"]
 [[migrations]]
 tag = "v8"
 new_sqlite_classes = ["AttributionLockDO"]
+
+# LISTE-ENVIES-1 — WishlistDO on its OWN tag, the append-only law every tag
+# above states. Same UNPROVEN-UNTIL-DEPLOY caveat as the header: Miniflare
+# binds this class from its own test config, never from this file.
+[[migrations]]
+tag = "v9"
+new_sqlite_classes = ["WishlistDO"]
 
 # The PRIVATE R2 bucket (exists: Standard, jurisdiction default, location hint
 # ENAM). Reads go THROUGH the Worker (GET /media/{key}); never a public custom

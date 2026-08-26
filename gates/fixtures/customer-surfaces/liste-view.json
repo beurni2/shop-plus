@@ -1,0 +1,8 @@
+{
+  "nom": "Awa",
+  "slug": "aicha-4821",
+  "articles": [
+    { "pid": "pv-le-1", "offert": true },
+    { "pid": "pv-le-2", "offert": false }
+  ]
+}

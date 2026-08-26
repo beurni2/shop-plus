@@ -1504,13 +1504,13 @@ describe('httpQuotePort.order — the body is the service’s three-key allowlis
   it('NO AMOUNT can ride on this wire — not from the caller, not from anywhere', async () => {
     // The body is built as one object literal from named arguments, so there
     // is no parameter an amount could arrive through. The arity pin fired on
-    // BC-1b exactly as designed, and this is the RE-READ it demanded: the
-    // fourth parameter is the founder-approved dispatch contact — three
-    // BOUNDED STRINGS built field-by-field (phone, quartier, repere), no
-    // amount representable in any of them, and the service's allowlist still
-    // refuses every unknown key. Arity 4 is now the decided shape; a FIFTH
-    // argument must come re-decide here.
-    expect(httpQuotePort('https://svc.example').order.length).toBe(4);
+    // BC-1b (the dispatch contact, arity 4) and again on LISTE-ENVIES-1, and
+    // this is the RE-READ each firing demanded: the fifth parameter is the
+    // wishlist token — ONE OPAQUE STRING the service charset-pins and reads
+    // for nothing but the offert marker; no amount is representable in it,
+    // and the service's allowlist still refuses every unknown key. Arity 5
+    // is now the decided shape; a SIXTH argument must come re-decide here.
+    expect(httpQuotePort('https://svc.example').order.length).toBe(5);
     let seen: RequestInit | undefined;
     await withFetch(
       (async (_url: string, init: RequestInit) => {
@@ -1522,11 +1522,23 @@ describe('httpQuotePort.order — the body is the service’s three-key allowlis
           phone: '70 12 34 56',
           quartier: 'Gounghin',
           repere: 'Face à la pharmacie',
-        }),
+        }, 'T'.repeat(32)),
     );
     const body = JSON.parse(String(seen?.body)) as Record<string, unknown>;
-    expect(Object.keys(body).sort()).toEqual(['commandId', 'contact', 'holderRef', 'quoteId']);
+    expect(Object.keys(body).sort()).toEqual(['commandId', 'contact', 'holderRef', 'listeRef', 'quoteId']);
     expect(Object.keys(body['contact'] as Record<string, unknown>).sort()).toEqual(['phone', 'quartier', 'repere']);
+    expect(body['listeRef']).toBe('T'.repeat(32));
+    // …and WITHOUT a liste the key does not exist at all — an absent liste is
+    // absent bytes, never `undefined` serialised or an empty string.
+    let sans: RequestInit | undefined;
+    await withFetch(
+      (async (_url: string, init: RequestInit) => {
+        sans = init;
+        return jsonRes({ orderId: 'ord-c2', state: 'payment_pending', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0 });
+      }) as unknown as typeof fetch,
+      () => httpQuotePort('https://svc.example').order('q1', 'cmd-1', 'holder-1'),
+    );
+    expect(Object.keys(JSON.parse(String(sans?.body)) as Record<string, unknown>).sort()).toEqual(['commandId', 'holderRef', 'quoteId']);
   });
 
   it('GETs /checkout/order/{id}, encoded — a hostile id cannot escape the path', async () => {

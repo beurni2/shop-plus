@@ -547,6 +547,17 @@ export interface OrderOrigin {
     readonly zoneTo: string;
     readonly offerVersion: string;
   };
+  /**
+   * LISTE-ENVIES-1 — the wishlist this order was placed FROM, when the buyer
+   * arrived through a shared liste link. The ONE caller-supplied origin fact,
+   * and deliberately safe as one: it is an opaque 192-bit token, charset-
+   * pinned at the door, that can neither price nor route anything — its only
+   * consumer is the offert outbox wire, which tells the liste's own object
+   * « this pid was paid for » at the provider-confirmed transition. A wrong
+   * or invented value marks nothing (the wishlist object answers `ignored`
+   * for a token it never minted). OPTIONAL: most orders have no liste.
+   */
+  readonly listeRef?: string;
 }
 
 export function rebuildOrderSpine(

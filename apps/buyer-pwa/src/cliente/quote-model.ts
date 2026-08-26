@@ -417,6 +417,16 @@ export async function fetchClienteQuote(
    * storage exists.
    */
   orderCommandIdFor: (quoteId: string, essai: number) => string | undefined = () => mintCommandId(),
+  /**
+   * LISTE-ENVIES-1 — the wishlist token this fiche was OPENED WITH (the
+   * `?liste=` a friend's shared link carries), closed over so `commander`
+   * forwards it on the order create and the service can mark « offert » at
+   * the provider-confirmed transition. DELIBERATELY NOT part of `QuoteBase`:
+   * the base spreads into every QuoteIntent — the quote request body and the
+   * request-key derivation — where an extra key would be refused by the
+   * service's own allowlist. It is an ORDER fact, so it rides only there.
+   */
+  listeRef?: string,
 ): Promise<QuoteFetch> {
   const intentFor = (paymentMode: PaymentModeWire): QuoteIntent => ({ ...base, paymentMode });
   const fullIntent = intentFor('FULL_PREPAY');
@@ -568,7 +578,8 @@ export async function fetchClienteQuote(
       // reuses this same function, so a buyer who fixed her number before a
       // payment retry sends the corrected one (the object replaces until the
       // payment confirms, then freezes).
-      return port.order(cible.quoteId, cmd, holder, contact);
+      // LISTE-ENVIES-1 — the liste token rides beside it, closed over above.
+      return port.order(cible.quoteId, cmd, holder, contact, listeRef);
     },
 
     etatCommande: (orderId: string): Promise<OrderFetch> => port.orderState(orderId),

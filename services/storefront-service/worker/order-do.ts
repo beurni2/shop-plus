@@ -19,6 +19,7 @@ import {
   type ReservationReceipt,
 } from '../src/order-core.js';
 import { readSandboxBehavior, sandboxPaymentProvider, type ChargeOutcome } from '../src/payment-port.js';
+import { LISTE_REF } from '../src/wishlist-core.js';
 import { lireEligibilite } from './buyer-ladder-do.js';
 import { timingSafeEqual } from './auth.js';
 
@@ -121,6 +122,19 @@ const BOUTIK_DELIVERED_KEY = 'boutik-delivered-outbox';
  * terminal here — the refund saga stays E3's, exactly as journalled.
  */
 const BOUTIK_REFUSED_KEY = 'boutik-refused-outbox';
+/**
+ * LISTE-ENVIES-1 (founder order 2026-08-25) — the SEVENTH wire: TELL THE
+ * LISTE ITS WISH WAS GRANTED. When an order that named a `listeRef` at birth
+ * reaches its provider-confirmed transition, this row carries {pid, orderId}
+ * to the liste's own object (`/entry/offert`, first-wins per pid), so the
+ * shared wishlist can say « déjà offert » on webhook truth and nothing
+ * softer. Its own key and its own attempt count, the six-wire law: a lost
+ * marker would be a DUPLICATE GIFT — two friends buying the same wish —
+ * which is exactly the class at-least-once exists for. Enqueued in the SAME
+ * atomic batch as the confirm's log append; rows exist only for orders that
+ * carry both a listeRef and a fulfillment record (the pid lives there).
+ */
+const LISTE_OFFERT_KEY = 'liste-offert-outbox';
 /**
  * VRAI-SUIVI (founder rulings 2026-08-10, all approved) — THE BUYER'S OWN READ
  * TOKEN, minted at order create from the OS CSPRNG and served ON THE CREATE
@@ -285,6 +299,9 @@ interface CreateArgs {
   /** BC-1a — the buyer's own dispatch contact, from the public create body
    *  (strict-validated at the router AND here). `null`/absent = none given. */
   contact?: BuyerContact | null;
+  /** LISTE-ENVIES-1 — the liste token from the public create body (charset-
+   *  pinned at the router AND re-checked here). `null`/absent = no liste. */
+  listeRef?: string | null;
 }
 
 /**
@@ -480,6 +497,14 @@ export interface OrderDOEnv {
    * order pays, and an order that cannot record it must not be born.
    */
   readonly ATTRIBUTION_LOCK?: DurableObjectNamespace;
+  /**
+   * LISTE-ENVIES-1 — the wishlist book, for the offert wire alone. Bound on
+   * the Worker like RESELLER, so this object marks the liste at the confirm
+   * transition without a composition-root shim. ABSENT ⇒ the wire's rows
+   * stay pending and drain when migration v9 lands — the money path never
+   * notices either way.
+   */
+  readonly WISHLIST?: DurableObjectNamespace;
 }
 
 export class OrderDO {
@@ -586,7 +611,17 @@ export class OrderDO {
         contact = readBuyerContact(args.contact);
         if (contact === null) return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       }
-      return this.create(args.quoteId, args.holderRef, args.commandId, args.quoteBytes, args.fulfillment ?? undefined, contact);
+      // LISTE-ENVIES-1 — re-checked here exactly as the contact is: the
+      // router validated it, and this object refuses to store what it would
+      // not have accepted at its own door.
+      let listeRef: string | null = null;
+      if (args.listeRef !== undefined && args.listeRef !== null) {
+        if (typeof args.listeRef !== 'string' || !LISTE_REF.test(args.listeRef)) {
+          return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+        }
+        listeRef = args.listeRef;
+      }
+      return this.create(args.quoteId, args.holderRef, args.commandId, args.quoteBytes, args.fulfillment ?? undefined, contact, listeRef);
     }
 
     /** ORDER-PAID-WIRE-1b — the OUTBOX READ. Internal wire only (the composition
@@ -629,6 +664,13 @@ export class OrderDO {
         attempts?: number;
         deliveredAt?: string;
       }>(BOUTIK_REFUSED_KEY);
+      // LISTE-ENVIES-1 — the offert wire's fate beside the six, STATUS ONLY:
+      // the mark itself is readable on the liste's own public projection.
+      const offert = await this.state.storage.get<{
+        status?: string;
+        attempts?: number;
+        deliveredAt?: string;
+      }>(LISTE_OFFERT_KEY);
       return Response.json({
         ok: true,
         outbox,
@@ -660,6 +702,15 @@ export class OrderDO {
                 status: refus.status,
                 attempts: refus.attempts,
                 ...(refus.deliveredAt !== undefined ? { deliveredAt: refus.deliveredAt } : {}),
+              },
+            }
+          : {}),
+        ...(offert !== undefined
+          ? {
+              listeOffert: {
+                status: offert.status,
+                attempts: offert.attempts,
+                ...(offert.deliveredAt !== undefined ? { deliveredAt: offert.deliveredAt } : {}),
               },
             }
           : {}),
@@ -1254,6 +1305,7 @@ export class OrderDO {
     wireQuoteBytes: string | undefined,
     wireFulfillment?: { productVersionId?: string; zoneTo?: string; offerVersion?: string },
     contact: BuyerContact | null = null,
+    listeRef: string | null = null,
   ): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     const receipt = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
@@ -1403,6 +1455,11 @@ export class OrderDO {
               },
             }
           : {}),
+        // LISTE-ENVIES-1 — an ORIGIN fact like its neighbours: written once
+        // at the order's birth, immutable after. The retry branch keeps the
+        // original (`stored = origin`), so a liste can never be attached to —
+        // or detached from — an order that already exists.
+        ...(listeRef !== null ? { listeRef } : {}),
       };
       attemptId = mintPaymentAttemptId();
       log = [
@@ -1729,13 +1786,15 @@ export class OrderDO {
     // VRAI-SUIVI adds the FOURTH — the custody-arm wire — on the same terms.
     // PORTE-CUSTODY part B adds the FIFTH — the door-signal wire — likewise.
     // STOCK-VENDU-1b adds the SIXTH — the refused-course relay — likewise.
+    // LISTE-ENVIES-1 adds the SEVENTH — the offert marker — likewise.
     const boutikPending = await this.flushBoutikOutbox();
     const seraPending = await this.flushSeraOutbox();
     const livraisonPending = await this.flushBoutikDeliveredOutbox();
     const armPending = await this.flushCustodyArmOutbox();
     const doorSignalPending = await this.flushDoorSignalOutbox();
     const refusPending = await this.flushBoutikRefusedOutbox();
-    const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending);
+    const offertPending = await this.flushListeOffertOutbox();
+    const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending);
     if (stillPending > 0) {
       await this.state.storage.setAlarm(Date.now() + outboxBackoffMs(stillPending));
     }
@@ -2077,6 +2136,55 @@ export class OrderDO {
   }
 
   /**
+   * LISTE-ENVIES-1 — the offert marker to the liste's own object, over the
+   * WISHLIST binding this Worker already declares (same-Worker DO — no
+   * cross-repo road, no secret to hold: /entry/offert is mapped to no public
+   * path, so only this wire can reach it). Delivered means the object
+   * answered 2xx and NOTHING else — and the object answers 200 for `marked`,
+   * `already` AND an unknown liste (`ignored`), because all three are
+   * outcomes a retry cannot change. With the binding absent (a Worker
+   * deployed before migration v9) nothing is attempted and the row stays
+   * pending — it drains the moment the class exists, the deploy-order law.
+   */
+  private async flushListeOffertOutbox(): Promise<number> {
+    const outbox = await this.state.storage.get<{
+      status: 'pending' | 'delivered';
+      fact?: { listeRef: string; pid: string; orderId: string };
+      attempts: number;
+      deliveredAt?: string;
+    }>(LISTE_OFFERT_KEY);
+    if (outbox === undefined || outbox.status !== 'pending' || outbox.fact === undefined) return 0;
+
+    let delivered = false;
+    const ns = this.env.WISHLIST;
+    if (ns !== undefined) {
+      const res = await ns
+        .get(ns.idFromName(`liste:${outbox.fact.listeRef}`))
+        .fetch(
+          new Request('https://do/entry/offert', {
+            method: 'POST',
+            body: JSON.stringify({ pid: outbox.fact.pid, orderId: outbox.fact.orderId }),
+          }),
+        )
+        .catch(() => undefined);
+      delivered = res !== undefined && res.ok;
+    }
+
+    if (delivered) {
+      await this.state.storage.put(LISTE_OFFERT_KEY, {
+        ...outbox,
+        status: 'delivered',
+        attempts: outbox.attempts + 1,
+        deliveredAt: new Date().toISOString(),
+      });
+      return 0;
+    }
+    const attempts = outbox.attempts + 1;
+    await this.state.storage.put(LISTE_OFFERT_KEY, { ...outbox, attempts });
+    return attempts;
+  }
+
+  /**
    * RAPPROCHEMENT-1 — the ONE door into RECON_ALERTS_KEY: dedupe on the
    * alert's own envelope command_id, cap the record, write only on growth.
    */
@@ -2177,10 +2285,13 @@ export class OrderDO {
       // PORTE-CUSTODY part B: and the FIFTH — a stranded door signal is a
       // door payment custody never heard, so its SE-I11 gate never opens.
       const strandedPorte = await this.state.storage.get<{ status?: string }>(DOOR_SIGNAL_KEY);
+      // LISTE-ENVIES-1: and the SEVENTH — a stranded offert marker is a
+      // liste that keeps offering a wish someone already paid for.
+      const strandedOffert = await this.state.storage.get<{ status?: string }>(LISTE_OFFERT_KEY);
       if (
         (stranded?.status === 'pending' || strandedSera?.status === 'pending' ||
           strandedLivraison?.status === 'pending' || strandedRemise?.status === 'pending' ||
-          strandedPorte?.status === 'pending') &&
+          strandedPorte?.status === 'pending' || strandedOffert?.status === 'pending') &&
         (await this.state.storage.getAlarm()) === null
       ) {
         await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
@@ -2276,12 +2387,29 @@ export class OrderDO {
         fact: { orderId: origin.orderId, command_id: `arm-remise-${origin.orderId}`, kind: ARM_KIND, secret: codeRemise },
         attempts: 0,
       };
+      /**
+       * LISTE-ENVIES-1 — the SEVENTH wire enters the SAME atomic batch, but
+       * ONLY for an order born from a liste with its fulfillment facts
+       * intact (the pid IS `fulfillment.productVersionId` — no other record
+       * of what was bought exists on this object outside the frozen bytes).
+       * An order with a liste but no fulfillment record marks nothing,
+       * honestly: a guessed pid on a gift marker would be worse than none.
+       */
+      const listeOffert =
+        origin.listeRef !== undefined && origin.fulfillment !== undefined
+          ? {
+              status: 'pending' as const,
+              fact: { listeRef: origin.listeRef, pid: origin.fulfillment.productVersionId, orderId: origin.orderId },
+              attempts: 0,
+            }
+          : undefined;
       await this.state.storage.put({
         [LOG_KEY]: next,
         [OUTBOX_KEY]: outbox,
         [SERA_OUTBOX_KEY]: seraOutbox,
         [CODE_REMISE_KEY]: codeRemise,
         [CUSTODY_ARM_KEY]: custodyArm,
+        ...(listeOffert !== undefined ? { [LISTE_OFFERT_KEY]: listeOffert } : {}),
       });
       // A scheduling throw must never 500 a confirmation that is already
       // durably stored (verifier MINOR); the duplicate-webhook re-arm above is
@@ -2749,8 +2877,10 @@ async function televerserNoteVocale(env: Env, audioB64: string): Promise<string 
   }
 }
 
-/** The wire vocabulary a caller may send. Anything else is REFUSED, not ignored. */
-const ORDER_FIELDS = ['quoteId', 'holderRef', 'commandId', 'contact'];
+/** The wire vocabulary a caller may send. Anything else is REFUSED, not ignored.
+ *  LISTE-ENVIES-1 added `listeRef` — optional, opaque, and priced by nothing:
+ *  see `OrderOrigin.listeRef` for why this one caller-supplied fact is safe. */
+const ORDER_FIELDS = ['quoteId', 'holderRef', 'commandId', 'contact', 'listeRef'];
 /** SP4.2a-bis — the door charge's own two-key allowlist. NO amount field. */
 const DOOR_CHARGE_FIELDS = ['holderRef', 'commandId'];
 
@@ -2852,6 +2982,17 @@ export default {
         contact = wire.contact;
         audioB64 = wire.audioB64;
       }
+      // LISTE-ENVIES-1 — the liste this order was placed from, OPTIONAL and
+      // charset-pinned (`LISTE_REF`, not ID_ALPHABET: a minted token may start
+      // with `_` or `-`). It becomes a DO name on the offert wire, so a
+      // malformed one is refused by name here, never stored.
+      let listeRef: string | null = null;
+      if (body['listeRef'] !== undefined && body['listeRef'] !== null) {
+        if (typeof body['listeRef'] !== 'string' || !LISTE_REF.test(body['listeRef'])) {
+          return badRequest('bad_field', 'listeRef');
+        }
+        listeRef = body['listeRef'];
+      }
       const quoteId = body['quoteId'];
 
       // THE QUOTE'S OWN BYTES, read server-side from the object that owns them.
@@ -2947,6 +3088,8 @@ export default {
             fulfillment: quoteBody.fulfillment ?? null,
             // BC-1a — the validated contact, or null. The object re-validates.
             contact,
+            // LISTE-ENVIES-1 — the validated liste token, or null.
+            listeRef,
           }),
         }),
       );

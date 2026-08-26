@@ -14,15 +14,24 @@
  */
 
 import { isFavorite, toggleFavorite } from './favorites';
-import { togglePanier } from './panier';
+import { inPanier, togglePanier } from './panier';
 import { t } from '../i18n';
-import { recordVitrineArrival, signedHref } from '../vitrine-link';
+import { recordVitrineArrival, signedHref, vitrineHref } from '../vitrine-link';
 import { demoStorefrontPort, resolveStorefrontPort, VitrineOffline, type StorefrontProfilePort } from './profile';
+import { garderListe, listeGardee, resolveListePort, type ListeLecture } from './liste';
 import {
+  articlesPourListe,
   renderVitrineEmpty,
   renderVitrineInvalid,
   renderVitrineOffline,
   renderPanierBand,
+  renderListeAmie,
+  renderListeBand,
+  renderListeChargement,
+  renderListeHorsLigne,
+  renderListeIntrouvable,
+  renderListeLien,
+  renderListeSheet,
   renderVitrineReady,
   renderVitrineSkeleton,
 } from './render';
@@ -172,7 +181,16 @@ const RETRY_MS = 900;
 const enum Never {}
 void 0 as unknown as Never; // keep const enum from being elided as unused
 
-export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHarness = {}): void {
+export function mountVitrine(
+  host: HTMLElement,
+  slug: string,
+  harness: VitrineHarness = {},
+  /** LISTE-ENVIES-1 — the `?liste=` token a shared liste link carries. A REAL
+   *  param (shape-checked in main.ts), never a harness lever: present, the
+   *  liste slot renders the FRIEND's banner from a service read; absent, it
+   *  renders the creator's own band from the device-local record. */
+  listeToken?: string,
+): void {
   const style = document.createElement('style');
   style.setAttribute('data-vitrine', '');
   style.textContent = VITRINE_STYLES;
@@ -232,6 +250,72 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
   // tap can refresh the band in place without re-resolving or re-rendering
   // the page (a full re-render would stop a playing voice note mid-word).
   let dernierPret: { sf: Parameters<typeof renderPanierBand>[0]; described?: Parameters<typeof renderPanierBand>[1] } | null = null;
+
+  /* ── LISTE-ENVIES-1 — the liste slot's own little machine ──────────────── */
+  const listePort = resolveListePort();
+  // The friend's liste, as last read: 'chargement' while the read is in
+  // flight, the port's own answer after. Cached so a band refresh never
+  // refetches; « Réessayer » is the one deliberate refetch.
+  let listeAmie: ListeLecture | 'chargement' = 'chargement';
+  let listeDemandee = false;
+  const remplirListeSlot = (): void => {
+    const slot = root.querySelector('[data-role="vitrine-liste-slot"]');
+    if (slot === null || dernierPret === null) return;
+    if (listeToken === undefined) {
+      slot.innerHTML = renderListeBand(dernierPret.sf);
+      return;
+    }
+    if (listeAmie === 'chargement') {
+      slot.innerHTML = renderListeChargement();
+    } else if (listeAmie.status === 'liste' && listeAmie.liste.slug === dernierPret.sf.slug) {
+      slot.innerHTML = renderListeAmie(listeAmie.liste, dernierPret.sf, dernierPret.described);
+    } else if (listeAmie.status === 'hors-ligne') {
+      slot.innerHTML = renderListeHorsLigne();
+    } else {
+      // Unknown token — or a token whose liste belongs to ANOTHER boutique
+      // (a mismatched pairing must not drape a stranger's wishes over this
+      // shop). One honest state for both.
+      slot.innerHTML = renderListeIntrouvable();
+    }
+  };
+  const chargerListe = (): void => {
+    if (listeToken === undefined) return;
+    listeAmie = 'chargement';
+    remplirListeSlot();
+    void listePort.lire(listeToken).then((res) => {
+      listeAmie = res;
+      remplirListeSlot();
+    });
+  };
+  // The full absolute link — what the share sheet and the clipboard carry.
+  const lienDeListe = (token: string): string =>
+    `${window.location.origin}${vitrineHref(window.location.pathname, slug)}?liste=${encodeURIComponent(token)}`;
+  const partagerLien = async (lien: string): Promise<void> => {
+    // OS share first (the phone's own sheet — WhatsApp lives there); the
+    // clipboard is the fallback, and its failure is NAMED, never silent.
+    const nav = navigator as { share?: (data: { url: string }) => Promise<void>; clipboard?: { writeText(t: string): Promise<void> } };
+    if (typeof nav.share === 'function') {
+      try {
+        await nav.share({ url: lien });
+        return;
+      } catch {
+        /* she closed the sheet — nothing to say */
+        return;
+      }
+    }
+    await copierLien(lien);
+  };
+  const copierLien = async (lien: string): Promise<void> => {
+    const nav = navigator as { clipboard?: { writeText(t: string): Promise<void> } };
+    try {
+      await nav.clipboard!.writeText(lien);
+      toast(root, t('vit.liste_copie'));
+    } catch {
+      // No clipboard (old WebView) — the link is drawn on the sheet, so the
+      // honest answer is the erreur line, not a fake « copié ».
+      toast(root, t('vit.liste_erreur'));
+    }
+  };
 
   // Render from an ALREADY-RESOLVED value — the resolve happens ONCE per load
   // (never re-resolved per state), the widened async seam feeding this.
@@ -297,6 +381,15 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
         // VIDEO-PRODUIT V-1e — the scroll-play observer mounts over the nodes
         // just rendered; no video hero on the page ⇒ it mounts nothing.
         demonteVideos = mountVideoScroll(root);
+        // LISTE-ENVIES-1 — fill the liste slot the renderer reserved: the
+        // creator's band synchronously, the friend's banner from ONE read
+        // (kicked off on the first ready render, cached across re-renders).
+        if (listeToken !== undefined && !listeDemandee) {
+          listeDemandee = true;
+          chargerListe();
+        } else {
+          remplirListeSlot();
+        }
         break;
       }
     }
@@ -429,6 +522,95 @@ export function mountVitrine(host: HTMLElement, slug: string, harness: VitrineHa
       load(RETRY_MS, false);
     } else if (action === 'decouvrir') {
       window.location.href = '/boutiques';
+    } else if (action === 'liste-creer') {
+      // LISTE-ENVIES-1 — the builder sheet, over the page. Pre-checked rows
+      // are her hearts on THIS boutique's catalogue: the liste starts from
+      // what she already told us she loves.
+      if (dernierPret !== null) {
+        root.querySelector('[data-role="liste-sheet"]')?.remove();
+        const articles = articlesPourListe(dernierPret.sf, dernierPret.described);
+        const precoche = new Set(articles.filter((p) => isFavorite(p.pid)).map((p) => p.pid));
+        root.insertAdjacentHTML('beforeend', renderListeSheet(articles, precoche));
+      }
+    } else if (action === 'liste-fermer') {
+      root.querySelector('[data-role="liste-sheet"]')?.remove();
+    } else if (action === 'liste-valider') {
+      // Read what she checked and how she signs — refusals are INLINE and
+      // actionable (« dites-nous votre prénom » is a field she can fill),
+      // never an error wall over the sheet.
+      if (dernierPret === null) return;
+      const sfSlug = dernierPret.sf.slug;
+      const pids: string[] = [];
+      for (const box of root.querySelectorAll<HTMLInputElement>('input[data-liste-pid]')) {
+        if (box.checked) pids.push(box.getAttribute('data-liste-pid') ?? '');
+      }
+      const nom = (root.querySelector<HTMLInputElement>('[data-role="liste-nom"]')?.value ?? '').trim();
+      const alerte = root.querySelector<HTMLElement>('[data-role="liste-alerte"]');
+      const direAlerte = (message: string): void => {
+        if (alerte !== null) {
+          alerte.textContent = message;
+          alerte.hidden = false;
+        }
+      };
+      if (pids.length === 0) return direAlerte(t('vit.liste_vide_choix'));
+      if (nom === '') return direAlerte(t('vit.liste_nom_manque'));
+      const bouton = target as HTMLButtonElement;
+      bouton.disabled = true;
+      bouton.textContent = t('vit.liste_creation');
+      void listePort.creer(sfSlug, nom, pids).then((res) => {
+        if (res.status !== 'creee') {
+          bouton.disabled = false;
+          bouton.textContent = t('vit.liste_creer_cta');
+          direAlerte(t('vit.liste_erreur'));
+          return;
+        }
+        // The handle is kept BEFORE the link is shown, so a phone that dies
+        // mid-celebration still owns its liste on the next visit.
+        garderListe(sfSlug, {
+          token: res.liste.token,
+          editCle: res.liste.editCle,
+          nom,
+          pids,
+          createdAt: new Date().toISOString(),
+        });
+        const sheet = root.querySelector('[data-role="liste-sheet"]');
+        if (sheet !== null) sheet.outerHTML = renderListeLien(lienDeListe(res.liste.token));
+        remplirListeSlot();
+      });
+    } else if (action === 'liste-partager') {
+      const porte = target.getAttribute('data-lien');
+      const gardee = dernierPret !== null ? listeGardee(dernierPret.sf.slug) : undefined;
+      const lien = porte ?? (gardee !== undefined ? lienDeListe(gardee.token) : undefined);
+      if (lien !== undefined) void partagerLien(lien);
+    } else if (action === 'liste-copier') {
+      const lien = target.getAttribute('data-lien');
+      if (lien !== null) void copierLien(lien);
+    } else if (action === 'liste-produit') {
+      // The friend's card → THAT product's own signed fiche, carrying the
+      // liste token so the order can name it (per-product checkout — the
+      // no-combined-cart law holds on the gift road).
+      const pid = target.getAttribute('data-pid') ?? '';
+      if (listeToken !== undefined) {
+        window.location.href = `${signedHref(window.location.pathname, slug, pid)}&liste=${encodeURIComponent(listeToken)}`;
+      }
+    } else if (action === 'liste-tout-panier') {
+      // A convenience for the friend: every ungiven, in-stock wish onto the
+      // device-local shelf. NEVER a checkout — the panier's own law.
+      if (dernierPret !== null && listeAmie !== 'chargement' && listeAmie.status === 'liste') {
+        const catalogue = articlesPourListe(dernierPret.sf, dernierPret.described);
+        const disponibles = new Set(catalogue.map((p) => p.pid));
+        for (const a of listeAmie.liste.articles) {
+          if (!a.offert && disponibles.has(a.pid) && !inPanier(dernierPret.sf.slug, a.pid)) {
+            const on = togglePanier(dernierPret.sf.slug, a.pid);
+            applyPanierState(root, a.pid, on);
+          }
+        }
+        const slot = root.querySelector('[data-role="vitrine-panier-slot"]');
+        if (slot !== null) slot.innerHTML = renderPanierBand(dernierPret.sf, dernierPret.described);
+        toast(root, t('vit.liste_panier_fait'));
+      }
+    } else if (action === 'liste-reessayer') {
+      chargerListe();
     }
   });
 }

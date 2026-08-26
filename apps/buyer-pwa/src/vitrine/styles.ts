@@ -305,6 +305,115 @@ export const VITRINE_STYLES = `
     background: #FFFFFF; box-shadow: 0 1px 3px rgba(28,22,15,.14);
   }
 
+  /* LISTE-ENVIES-1 — the wishlist. The creator's row whispers (the boutique's
+     primary action stays the seller's showcase); the FRIEND's banner leads,
+     because her link was the whole reason she came. Same warm surfaces, same
+     card family as the panier. */
+  .vt-liste-inviter, .vt-liste-carte {
+    margin-top: 18px; padding: 12px 14px;
+    background: #FFFFFF; border-radius: 14px;
+    box-shadow: 0 1px 3px rgba(28,22,15,.10);
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .vt-liste-carte { flex-direction: column; align-items: stretch; }
+  .vt-liste-inviter-txt { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .vt-liste-inviter-txt svg { flex: none; }
+  .vt-liste-titre {
+    font-family: 'Sora', 'Inter', sans-serif; font-weight: 700; font-size: 13px;
+    letter-spacing: .08em; text-transform: uppercase; color: #1C1710;
+  }
+  .vt-liste-texte { font-size: 12.5px; color: #6F6355; margin-top: 2px; }
+  .vt-liste-actions { display: flex; gap: 10px; margin-top: 10px; }
+  .vt-liste-cta {
+    flex: none; min-height: 44px; padding: 0 16px;
+    border: 0; border-radius: 12px; cursor: pointer;
+    background: #1C1710; color: #FFF8EE;
+    font-family: 'Sora', 'Inter', sans-serif; font-weight: 700; font-size: 13px;
+  }
+  .vt-liste-cta:active { transform: scale(.97); }
+  .vt-liste-secondaire {
+    min-height: 44px; padding: 0 14px; margin-top: 0;
+    border: 1.5px solid rgba(28,22,15,.16); border-radius: 12px; cursor: pointer;
+    background: none; color: #1C1710; font-weight: 700; font-size: 13px;
+  }
+  .vt-liste-amie > .vt-liste-secondaire { margin-top: 12px; width: 100%; }
+
+  /* the builder sheet — an overlay the page underneath survives. */
+  .vt-liste-voile {
+    position: fixed; inset: 0; z-index: 60;
+    background: rgba(28,22,15,.45);
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .vt-liste-sheet {
+    width: 100%; max-width: 480px; max-height: 86vh; overflow-y: auto;
+    background: #FFF8EE; border-radius: 22px 22px 0 0; padding: 18px 20px 24px;
+  }
+  .vt-liste-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .vt-liste-sheet-titre {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 18px; font-weight: 800; letter-spacing: -0.2px; color: #1C1710;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .vt-liste-fermer {
+    width: 44px; height: 44px; border: 0; background: none; cursor: pointer;
+    font-size: 20px; line-height: 1; color: #6F6355;
+  }
+  .vt-liste-rows { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .vt-liste-row {
+    display: flex; align-items: center; gap: 12px; min-height: 44px;
+    background: #FFFFFF; border-radius: 14px; padding: 8px 12px; cursor: pointer;
+    box-shadow: 0 1px 3px rgba(28,22,15,.08);
+  }
+  .vt-liste-case { width: 20px; height: 20px; flex: none; accent-color: #1C1710; }
+  .vt-liste-row-art { width: 44px; height: 44px; flex: none; border-radius: 10px; overflow: hidden; }
+  .vt-liste-row-infos { min-width: 0; }
+  .vt-liste-row-nom {
+    font-size: 13px; font-weight: 600; color: #1C1710;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .vt-liste-row-prix { font-size: 12.5px; font-weight: 700; color: #1C1710; }
+  .vt-liste-nom { display: block; margin-top: 14px; }
+  .vt-liste-nom-label { display: block; font-size: 12.5px; font-weight: 700; color: #1C1710; }
+  .vt-liste-nom-input {
+    display: block; width: 100%; box-sizing: border-box; margin-top: 6px;
+    min-height: 44px; padding: 0 12px; font-size: 15px; color: #1C1710;
+    background: #FFFFFF; border: 1.5px solid rgba(28,22,15,.16); border-radius: 12px;
+  }
+  .vt-liste-alerte {
+    margin-top: 10px; font-size: 12.5px; font-weight: 600; color: #B4544B;
+  }
+  .vt-liste-valider {
+    display: block; width: 100%; margin-top: 14px; min-height: 48px;
+    border: 0; border-radius: 14px; cursor: pointer;
+    background: #1C1710; color: #FFF8EE;
+    font-family: 'Sora', 'Inter', sans-serif; font-weight: 700; font-size: 14px;
+  }
+  .vt-liste-valider:disabled { opacity: .55; cursor: default; }
+  .vt-liste-sheet .vt-liste-secondaire { display: block; width: 100%; margin-top: 10px; }
+  .vt-liste-lien {
+    margin-top: 12px; padding: 10px 12px; border-radius: 12px;
+    background: #FFFFFF; border: 1.5px dashed rgba(28,22,15,.22);
+    font-size: 12px; color: #1C1710; word-break: break-all;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* the friend's banner + its honest waiting states */
+  .vt-liste-amie {
+    margin-top: 18px; padding: 12px 14px;
+    background: #FFFFFF; border-radius: 14px;
+    box-shadow: 0 1px 3px rgba(28,22,15,.10);
+  }
+  .vt-liste-attente { font-size: 13px; color: #6F6355; }
+  .vt-liste-offrir {
+    margin: 6px 10px 0; font-size: 12px; font-weight: 700; color: #3F7D5C;
+  }
+  .vt-liste-offerte .vt-pan-vis { cursor: default; }
+  .vt-liste-offert-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin: 6px 10px 0; font-size: 12px; font-weight: 700; color: #3F7D5C;
+  }
+  .vt-liste-offert-badge svg { flex: none; }
+
   /* NORTH-STAR round 3 — the mockup's section heading. */
   .vt-head { display: flex; align-items: center; gap: 8px; margin-top: 24px; }
   .vt-head-glyph { display: inline-flex; flex: none; }

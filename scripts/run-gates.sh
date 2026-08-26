@@ -152,6 +152,9 @@ capture no-supplier-contact-boutiques pass node scripts/gates/no-supplier-contac
 log "gate: no-supplier-contact — VITRINE redesign profile surface (HANDOFF §3.1, pinned to the storefront port; must pass)"
 capture no-supplier-contact-vitrine-profil pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/vitrine-profil.json
 
+log "gate: no-supplier-contact — LISTE-ENVIES public liste projection (pinned to the GET /listes shape the e2e asserts; must pass)"
+capture no-supplier-contact-liste pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/customer-surfaces/liste-view.json
+
 log "gate: no-supplier-contact — SW-2 LIVE supply path (customer surface derived from a supply projection through the consumer; must pass)"
 capture no-supplier-contact-supply-live pass node scripts/gates/no-supplier-contact.mjs gates/fixtures/supply/live-customer-surface.json
 

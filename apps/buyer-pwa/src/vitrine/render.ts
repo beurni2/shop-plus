@@ -38,6 +38,7 @@ import {
 import { VITRINE_THEMES } from './themes';
 import { isFavorite } from './favorites';
 import { inPanier, panierOf } from './panier';
+import { listeGardee, type ListePublique } from './liste';
 import { enteteMontreBio, renderEntete, type EnteteKey } from './entetes';
 
 /** « X\u202fFCFA » — the ONE formatter (cliente/money): U+202F thousands +
@@ -511,6 +512,167 @@ export function renderPanierBand(sf: Storefront, described?: readonly VitrinePro
   ].join('');
 }
 
+/* ------------------------------------------------- LISTE-ENVIES-1 (2026-08-25) -- */
+
+/** The articles the builder sheet OFFERS — her catalogue's in-stock rows, in
+ *  her own curation order. Exported so flows opens the sheet from the same
+ *  resolution every band renders from (one source, two surfaces). */
+export function articlesPourListe(sf: Storefront, described?: readonly VitrineProduct[]): VitrineProduct[] {
+  return orderedProducts(sf, undefined, described).filter((p) => p.inStock);
+}
+
+/**
+ * THE CREATOR'S ENTRY — one quiet row, deliberately a whisper: the boutique's
+ * primary action stays « buy », and the liste must invite without shouting.
+ * Two states from the device-local record: never made one here → the
+ * invitation; made one → her liste's card with the share action first (the
+ * link is the product of this feature) and « refaire » as the secondary road
+ * (a remake mints a fresh link; the old one keeps working on the service).
+ */
+export function renderListeBand(sf: Storefront): string {
+  const gardee = listeGardee(sf.slug);
+  if (gardee === undefined) {
+    return [
+      '<div class="vt-liste-inviter" data-role="vitrine-liste-inviter">',
+      `<div class="vt-liste-inviter-txt">${iconHeart(15, '#B4544B', 1.9)}<div><div class="vt-liste-titre">${t('vit.liste_entree_titre')}</div><div class="vt-liste-texte">${t('vit.liste_entree_texte')}</div></div></div>`,
+      `<button class="vt-liste-cta" data-action="liste-creer">${t('vit.liste_entree_cta')}</button>`,
+      '</div>',
+    ].join('');
+  }
+  const detail =
+    gardee.pids.length === 1
+      ? tf('vit.liste_votre_detail_un', { nom: gardee.nom })
+      : tf('vit.liste_votre_detail', { nom: gardee.nom, n: String(gardee.pids.length) });
+  return [
+    '<div class="vt-liste-carte" data-role="vitrine-liste-carte">',
+    `<div class="vt-liste-inviter-txt">${iconHeart(15, '#B4544B', 1.9)}<div><div class="vt-liste-titre">${t('vit.liste_votre_titre')}</div><div class="vt-liste-texte"><v>${esc(detail)}</v></div></div></div>`,
+    '<div class="vt-liste-actions">',
+    `<button class="vt-liste-cta" data-action="liste-partager">${t('vit.liste_partager')}</button>`,
+    `<button class="vt-liste-secondaire" data-action="liste-creer">${t('vit.liste_refaire')}</button>`,
+    '</div>',
+    '</div>',
+  ].join('');
+}
+
+/**
+ * THE BUILDER SHEET — her boutique's IN-STOCK articles as check rows, her
+ * first name, one primary action. Pre-checked rows are her hearts (the
+ * device-local favoris ∩ this boutique): the liste starts from what she
+ * already told us she loves. Épuisé articles are not offered — a liste that
+ * sends friends to a dead fiche would be a dead button wearing a gift bow.
+ */
+export function renderListeSheet(articles: readonly VitrineProduct[], precoche: ReadonlySet<string>): string {
+  const rows = articles.map((p) => [
+    `<label class="vt-liste-row" data-role="liste-choix">`,
+    `<input type="checkbox" class="vt-liste-case" data-liste-pid="${esc(p.pid)}"${precoche.has(p.pid) ? ' checked' : ''}>`,
+    `<div class="vt-liste-row-art">${tileArt(false, p.assetRefs)}</div>`,
+    `<div class="vt-liste-row-infos"><div class="vt-liste-row-nom"><v>${esc(p.name)}</v></div><div class="vt-liste-row-prix"><v>${fmtFcfa(p.priceFcfa)}</v></div></div>`,
+    '</label>',
+  ].join(''));
+  return [
+    '<div class="vt-liste-voile" data-role="liste-sheet">',
+    '<div class="vt-liste-sheet">',
+    `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${t('vit.liste_sheet_titre')}</div><button class="vt-liste-fermer" data-action="liste-fermer" aria-label="${t('vit.liste_fermer_aria')}">×</button></div>`,
+    `<div class="vt-liste-texte">${t('vit.liste_sheet_texte')}</div>`,
+    `<div class="vt-liste-rows">${rows.join('')}</div>`,
+    `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_nom_label')}</span>`,
+    `<input type="text" class="vt-liste-nom-input" data-role="liste-nom" maxlength="24" autocomplete="given-name">`,
+    `<span class="vt-liste-texte">${t('vit.liste_nom_aide')}</span></label>`,
+    '<div class="vt-liste-alerte" data-role="liste-alerte" hidden></div>',
+    `<button class="vt-liste-valider" data-action="liste-valider">${t('vit.liste_creer_cta')}</button>`,
+    '</div>',
+    '</div>',
+  ].join('');
+}
+
+/**
+ * THE LINK-READY STATE — the sheet's second face, the feature's emotional
+ * peak (celebration with dignity: a check, the truth, the link, no confetti).
+ * The link is SHOWN, not only shareable: seeing the thing makes it real, and
+ * copying by hand must stay possible on a phone whose share sheet fails.
+ */
+export function renderListeLien(lien: string): string {
+  return [
+    '<div class="vt-liste-voile" data-role="liste-sheet">',
+    '<div class="vt-liste-sheet">',
+    `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${iconCheck(16, '#3F7D5C', 2.4)} ${t('vit.liste_prete')}</div><button class="vt-liste-fermer" data-action="liste-fermer" aria-label="${t('vit.liste_fermer_aria')}">×</button></div>`,
+    `<div class="vt-liste-texte">${t('vit.liste_prete_texte')}</div>`,
+    `<div class="vt-liste-lien" data-role="liste-lien"><v>${esc(lien)}</v></div>`,
+    `<button class="vt-liste-valider" data-action="liste-partager" data-lien="${esc(lien)}">${t('vit.liste_partager')}</button>`,
+    `<button class="vt-liste-secondaire" data-action="liste-copier" data-lien="${esc(lien)}">${t('vit.liste_copier')}</button>`,
+    '</div>',
+    '</div>',
+  ].join('');
+}
+
+/**
+ * THE FRIEND'S BANNER — « La liste de {nom} », her wishes as cards. Each
+ * ungiven article opens its OWN fiche carrying the liste token (per-product
+ * checkout — the no-combined-cart law holds on the gift road too); a given
+ * one wears « Déjà offert » and offers no action — PROVIDER-CONFIRMED truth,
+ * displayed, never computed here. « Tout mettre au panier » fills the
+ * device-local shelf only: a convenience, never a checkout.
+ */
+export function renderListeAmie(liste: ListePublique, sf: Storefront, described?: readonly VitrineProduct[]): string {
+  const catalogue = orderedProducts(sf, undefined, described);
+  const parPid = new Map(catalogue.map((p) => [p.pid, p]));
+  const cartes: string[] = [];
+  let restants = 0;
+  for (const a of liste.articles) {
+    const p = parPid.get(a.pid);
+    if (p === undefined) continue; // delisted — renders nothing (the panier convention)
+    if (a.offert) {
+      cartes.push([
+        '<div class="vt-pan-card vt-liste-offerte" data-role="liste-article" data-offert="1">',
+        '<div class="vt-pan-vis" aria-disabled="true">',
+        `<div class="vt-pan-art">${tileArt(true, p.assetRefs)}</div>`,
+        `<div class="vt-pan-name"><v>${esc(p.name)}</v></div>`,
+        `<div class="vt-liste-offert-badge">${iconCheck(12, '#3F7D5C', 2.6)}${t('vit.liste_offert')}</div>`,
+        '</div>',
+        '</div>',
+      ].join(''));
+      continue;
+    }
+    const dispo = p.inStock;
+    if (dispo) restants += 1;
+    cartes.push([
+      `<div class="vt-pan-card${dispo ? '' : ' vt-pan-card-epuise'}" data-role="liste-article">`,
+      `<button class="vt-pan-vis"${dispo ? ` data-action="liste-produit" data-pid="${esc(p.pid)}"` : ' aria-disabled="true" disabled'}>`,
+      `<div class="vt-pan-art">${tileArt(!dispo, p.assetRefs)}</div>`,
+      `<div class="vt-pan-name"><v>${esc(p.name)}</v></div>`,
+      `<div class="vt-pan-price"><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
+      dispo ? `<div class="vt-liste-offrir">${t('vit.liste_offrir')}</div>` : '',
+      '</button>',
+      '</div>',
+    ].join(''));
+  }
+  if (cartes.length === 0) return renderListeIntrouvable();
+  return [
+    '<div class="vt-liste-amie" data-role="vitrine-liste-amie">',
+    `<div class="vt-panier-head">${iconHeart(15, '#B4544B', 1.9)}<span class="vt-panier-titre"><v>${esc(tf('vit.liste_amie_titre', { nom: liste.nom }))}</v></span></div>`,
+    `<div class="vt-liste-texte">${t('vit.liste_amie_texte')}</div>`,
+    `<div class="vt-panier-row">${cartes.join('')}</div>`,
+    restants > 0 ? `<button class="vt-liste-secondaire" data-action="liste-tout-panier">${t('vit.liste_tout_panier')}</button>` : '',
+    '</div>',
+  ].join('');
+}
+
+/** The friend band's three honest non-ready states (designed, never a wall). */
+export function renderListeChargement(): string {
+  return `<div class="vt-liste-amie vt-liste-attente" data-role="vitrine-liste-attente">${t('vit.liste_chargement')}</div>`;
+}
+export function renderListeIntrouvable(): string {
+  return `<div class="vt-liste-amie vt-liste-attente" data-role="vitrine-liste-introuvable">${t('vit.liste_introuvable')}</div>`;
+}
+export function renderListeHorsLigne(): string {
+  return [
+    '<div class="vt-liste-amie vt-liste-attente" data-role="vitrine-liste-horsligne">',
+    `<div>${t('vit.liste_hors_ligne')}</div>`,
+    `<button class="vt-liste-secondaire" data-action="liste-reessayer">${t('vit.reessayer')}</button>`,
+    '</div>',
+  ].join('');
+}
+
 /** V1/V2 — the vitrine, ready state. One renderer; the profile decides.
  * `notes` (pid → voice note) is render-only: a `ready` note adds the tile chip;
  * everything else renders no chip (§ honesty — a `pending` note never shows). */
@@ -554,6 +716,14 @@ export function renderVitrineReady(
   if (sf.bio !== '' && !enteteMontreBio(entete)) {
     parts.push(`<div class="vt-presentation" data-role="vitrine-presentation"><v>${esc(sf.bio)}</v></div>`);
   }
+
+  // LISTE-ENVIES-1 — the liste's slot, ABOVE the panier: a friend who tapped
+  // a shared liste link came for exactly this, so it is the first thing under
+  // the header. FLOWS fills it after mount (the friend's liste is a network
+  // read; the creator's band is drawn from the device-local record) — the
+  // renderer only reserves the place, so a re-render never flashes a stale
+  // liste.
+  parts.push('<div data-role="vitrine-liste-slot"></div>');
 
   // PANIER-VITRINE-1 — HER shelf, back where she left it (founder order
   // 2026-08-22): rendered from the device-local store on every load, above the
