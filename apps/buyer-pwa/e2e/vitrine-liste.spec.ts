@@ -69,6 +69,11 @@ test('CREATOR — she builds her liste, the link is created, and her band rememb
   await page.locator('[data-role="liste-tel"]').fill('pas un numero');
   await page.locator('[data-action="liste-valider"]').click();
   await expect(page.locator('[data-role="liste-alerte"]')).toHaveText('Ce numéro ne semble pas correct.');
+  // …a NINE-digit number too (verifier MINOR 1): the inline bands mirror
+  // whatsappDigits exactly — 8 or 10–15, never the band between.
+  await page.locator('[data-role="liste-tel"]').fill('701234567');
+  await page.locator('[data-action="liste-valider"]').click();
+  await expect(page.locator('[data-role="liste-alerte"]')).toHaveText('Ce numéro ne semble pas correct.');
   // …and a real one rides the create as the fourth key. THE LINK STATE IS REACHED.
   await page.locator('[data-role="liste-tel"]').fill('70 12 34 56');
   await page.locator('[data-action="liste-valider"]').click();

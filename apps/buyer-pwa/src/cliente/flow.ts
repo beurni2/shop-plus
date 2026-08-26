@@ -1461,7 +1461,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    * confirmation screen must not grow an error wall about a gift affordance.
    * The generation is deliberately NOT consulted: the answer mutates no
    * money state, and a purchaser who navigated away and back still deserves
-   * the block on the confirmed screen she returns to.
+   * the block on the confirmed screen she returns to. What IS consulted is
+   * the container's own liveness (verifier MINOR 2): an answer landing after
+   * teardown renders nothing — the instance's standing law that no read may
+   * land in a detached container.
    */
   function chargerMerci(): void {
     const source = init.merci;
@@ -1469,7 +1472,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     if (state.orderId === null || state.buyerRef === null) return;
     state.merciDemande = true;
     void source.charger(state.orderId, state.buyerRef).then((r) => {
-      if (r.status !== 'merci') return;
+      if (r.status !== 'merci' || !container.isConnected) return;
       state.merci = { nom: r.nom, telephone: r.telephone };
       render();
     });
@@ -1663,10 +1666,12 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // corrupted value can never open anything but a wa.me link — the
         // ouvrirWhatsApp law, applied where the URL is born.
         if (!/^\d{8,15}$/.test(state.merci.telephone)) return;
+        // Replacement-FUNCTION form (verifier MINOR 3): `$&`-class patterns
+        // in a prénom or product name travel verbatim instead of expanding.
         const texte = MERCI.message
-          .replace('{prenom}', prenom)
-          .replace('{article}', m.productName)
-          .replace('{lien}', source.lienCadeau(state.orderId));
+          .replace('{prenom}', () => prenom)
+          .replace('{article}', () => m.productName)
+          .replace('{lien}', () => source.lienCadeau(state.orderId as string));
         window.open(`https://wa.me/${state.merci.telephone}?text=${encodeURIComponent(texte)}`, '_blank', 'noopener');
         return;
       }

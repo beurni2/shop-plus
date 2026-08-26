@@ -554,14 +554,16 @@ export function mountVitrine(
       };
       if (pids.length === 0) return direAlerte(t('vit.liste_vide_choix'));
       if (nom === '') return direAlerte(t('vit.liste_nom_manque'));
-      // LISTE-MERCI — the optional WhatsApp opt-in. Present, it must look
-      // like a phone number HERE (8–15 digits once separators come off) so
-      // she learns about a typo while the field is still under her thumb,
-      // not from a served refusal; the service still normalises and re-pins.
+      // LISTE-MERCI — the optional WhatsApp opt-in. Present, it must satisfy
+      // the SAME bands `whatsappDigits` will apply server-side (8 Burkina
+      // digits, or 10–15 international — a bare 9 is neither), so she learns
+      // about a typo while the field is still under her thumb, never from a
+      // served refusal wearing the generic erreur (verifier MINOR 1).
       const tel = (root.querySelector<HTMLInputElement>('[data-role="liste-tel"]')?.value ?? '').trim();
       if (tel !== '') {
-        const chiffres = tel.replace(/^\+/, '').replace(/[\s.\-()]/g, '');
-        if (!/^\d{8,15}$/.test(chiffres)) return direAlerte(t('vit.liste_tel_invalide'));
+        const chiffres = tel.replace(/^\+/, '').replace(/^00/, '').replace(/[\s.\-()]/g, '');
+        const bande = chiffres.length === 8 || (chiffres.length >= 10 && chiffres.length <= 15);
+        if (!/^\d+$/.test(chiffres) || !bande) return direAlerte(t('vit.liste_tel_invalide'));
       }
       const bouton = target as HTMLButtonElement;
       bouton.disabled = true;
