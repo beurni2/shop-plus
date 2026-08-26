@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-25 · FRAIS-ZERO-1 — the reseller platform fee is 0 everywhere it lives · IN REVIEW
+## 2026-08-25 · FRAIS-ZERO-1 — the reseller platform fee is 0 everywhere it lives · DONE
+
+**MERGED AND DEPLOYED (founder: « Merge and deploy », 2026-08-26).** `main` fast-forwarded to `19c8eb6` (build `d1e1676` + verifier fix `a41abc8` + the canon repin to `35a21ea` — canon's own lockfile had lagged its version bump and CI's cold frozen prepare caught what no local board could; journalled in platform-contracts). **ci 568 · expo-preview 391 · pwa-preview 358 green on 19c8eb6 → storefront-deploy run 68 SUCCESS** — the live checkout/signing worker now speaks canon 3.13.0 (rate 0). The service-canon-drift red between merge and deploy was the sentinel doing its job (live worker still 3.12.0 until run 68); re-verified by the next push.
 
 **Founder, 2026-08-25: « For now remove all charging fees system everywhere, I haven't found the proper fees charge design yet. »** His chosen shape: **zero the rates** (canon v3.13.0, sha `0846780`) — the waterfall, fee fields and reconciliation identities stay standing. **Delivery stays** (D is the rider's price, not a platform charge). Build `d1e1676`.
 
