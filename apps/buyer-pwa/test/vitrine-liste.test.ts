@@ -112,6 +112,11 @@ describe('the builder sheet', () => {
     expect(sheet).toContain('data-action="liste-valider"');
     expect(sheet).toContain('data-action="liste-fermer"'); // the way out
     expect(sheet).toContain('data-role="liste-alerte"'); // inline refusals, no wall
+    // LISTE-MERCI — the WhatsApp opt-in is ONE optional field (filling it IS
+    // the choice), labelled facultatif, tel-shaped for the phone keyboard.
+    expect(sheet).toContain('data-role="liste-tel"');
+    expect(sheet).toContain('type="tel"');
+    expect(sheet).toContain('facultatif');
   });
 
   it('the link-ready face SHOWS the link and wires share + copier with the exact bytes', () => {
@@ -198,6 +203,26 @@ describe('httpListePort — the wire refuses to invent', () => {
     expect(sent?.body).toEqual({ slug: 's-1', nom: 'Awa', pids: ['p1'] });
     expect(out.status).toBe('creee');
     if (out.status === 'creee') expect(out.liste.token).toBe('T'.repeat(32));
+  });
+
+  it('LISTE-MERCI — a given telephone rides as the fourth key; an absent one is absent bytes', async () => {
+    let sent: unknown;
+    await withFetch(
+      async (_url, init) => {
+        sent = JSON.parse(String(init?.body));
+        return Response.json({ ok: true, token: 'T'.repeat(32), editCle: 'E'.repeat(32), liste: { nom: 'Awa', slug: 's-1', articles: [] } });
+      },
+      () => httpListePort('https://svc').creer('s-1', 'Awa', ['p1'], '70 12 34 56'),
+    );
+    expect(sent).toEqual({ slug: 's-1', nom: 'Awa', pids: ['p1'], telephone: '70 12 34 56' });
+    await withFetch(
+      async (_url, init) => {
+        sent = JSON.parse(String(init?.body));
+        return Response.json({ ok: true, token: 'T'.repeat(32), editCle: 'E'.repeat(32), liste: { nom: 'Awa', slug: 's-1', articles: [] } });
+      },
+      () => httpListePort('https://svc').creer('s-1', 'Awa', ['p1'], ''),
+    );
+    expect(Object.keys(sent as Record<string, unknown>).sort()).toEqual(['nom', 'pids', 'slug']);
   });
 
   it('a refusal is a refusal, a thrown fetch is hors-ligne, a malformed 200 is introuvable-class', async () => {

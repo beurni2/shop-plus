@@ -598,6 +598,16 @@ export const CLIENTE_STYLES = `
   .cl-conf-ref { margin-top: 14px; text-align: center; font-size: 12px; color: #6F6355; }
   .cl-conf-ref-id { display: inline-block; word-break: break-all; user-select: all; -webkit-user-select: all; font-weight: 700; }
   .cl-conf-relance { margin-top: 14px; min-height: 44px; padding: 12px 20px; border-radius: 14px; border: 1.5px solid #E0D6C2; background: #FFFFFF; color: #4A3F33; font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+  /* LISTE-MERCI — the gift block on the confirmed card: warm surface, one
+     primary action, refusal inline. It sits BELOW the three steps and keeps
+     their card language — celebration with dignity, not confetti. */
+  .cl-merci { margin-top: 18px; padding: 14px 16px; border-radius: 14px; background: #FFFFFF; border: 1.5px solid #E0D6C2; text-align: left; }
+  .cl-merci-titre { font-size: 15px; font-weight: 800; color: #1C1710; }
+  .cl-merci-corps { margin-top: 4px; font-size: 12.5px; color: #6F6355; }
+  .cl-merci-label { display: block; margin-top: 12px; font-size: 12.5px; font-weight: 700; color: #1C1710; }
+  .cl-merci-input { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; min-height: 44px; padding: 0 12px; font: inherit; font-size: 15px; color: #1C1710; background: #FFFFFF; border: 1.5px solid #E0D6C2; border-radius: 12px; }
+  .cl-merci-alerte { margin-top: 8px; font-size: 12.5px; font-weight: 600; color: #7E1A15; }
+  .cl-merci-cta { margin-top: 12px; }
   /* …and the failed payment's ring. The danger tokens this app already uses on
      the problem banner, at ring weight — a border, never a filled alarm. */
   .cl-conf-ring-echec { border-color: #7E1A15; color: #7E1A15; }

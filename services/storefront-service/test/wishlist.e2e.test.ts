@@ -125,10 +125,19 @@ async function boutique(n: string): Promise<{ slug: string; resellerId: string }
   return { slug: `le-${n}`, resellerId: `rs-le-${n}` };
 }
 
-async function creerListe(slug: string, nom = 'Awa', pids: string[] = ['pv-le-1', 'pv-le-2']) {
+async function creerListe(slug: string, nom = 'Awa', pids: string[] = ['pv-le-1', 'pv-le-2'], telephone?: string) {
   const res = await mf.dispatchFetch('http://c/listes', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ slug, nom, pids }),
+    body: JSON.stringify({ slug, nom, pids, ...(telephone !== undefined ? { telephone } : {}) }),
+  });
+  const text = await res.text();
+  return { status: res.status, headers: res.headers, json: safeJson(text), text };
+}
+
+async function lireMerci(orderId: string, jeton: string | null) {
+  const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}/liste-merci`, {
+    method: 'GET',
+    headers: jeton !== null ? { Authorization: `Bearer ${jeton}` } : {},
   });
   const text = await res.text();
   return { status: res.status, headers: res.headers, json: safeJson(text), text };
@@ -399,5 +408,108 @@ describe('THE SEAM — webhook truth becomes « offert » on the shared liste', 
     });
     expect(res.status).toBe(400);
     expect(safeJson(await res.text())).toEqual({ error: 'bad_field', field: 'listeRef' });
+  });
+});
+
+describe('LISTE-MERCI — the opt-in, the buyer-token-gated merci read, the full-prepay lock', () => {
+  it('a create with a telephone stores the opt-in OFF the public read, and a junk number is refused by name', async () => {
+    const { slug } = await boutique('0020');
+    const made = await creerListe(slug, 'Awa', ['pv-le-1'], '70 12 34 56');
+    expect(made.status).toBe(200);
+    // the create answer and the public read both carry NO phone bytes — the
+    // shared link is passed hand to hand, and a phone on it is harvestable
+    expect(made.text).not.toMatch(/telephone|70 12 34 56|22670123456/);
+    const lu = await lireListe(made.json['token'] as string);
+    expect(lu.text).not.toMatch(/telephone|70 12 34 56|22670123456/);
+
+    const junk = await creerListe(slug, 'Awa', ['pv-le-1'], 'pas-un-numero');
+    expect(junk.status).toBe(400);
+    expect(junk.json['field']).toBe('telephone');
+    // …and a number whatsappDigits cannot vouch for (7 digits) is refused too
+    const court = await creerListe(slug, 'Awa', ['pv-le-1'], '7012345');
+    expect(court.status).toBe(400);
+    expect(court.json['field']).toBe('telephone');
+  });
+
+  it('THE MERCI SEAM: only the confirmed order’s own bearer reads the creator’s nom + wa digits', async () => {
+    const { slug, resellerId } = await boutique('0021');
+    const made = await creerListe(slug, 'Awa', ['pv-le-1', 'pv-le-2'], '70 12 34 56');
+    const token = made.json['token'] as string;
+
+    const o = await ordered('0021', slug, resellerId, 'pv-le-1', token);
+    expect(o.status).toBe(200);
+    const buyerRef = o.json['buyerRef'] as string;
+    expect(typeof buyerRef).toBe('string');
+
+    // BEFORE the webhook: the payment is not confirmed, so the road is shut —
+    // even to the true bearer.
+    const avant = await lireMerci(o.orderId, buyerRef);
+    expect(avant.status).toBe(404);
+
+    await confirmOrder(o.orderId, o.buyerTotal);
+
+    // AFTER: the true bearer reads the facts — nom, the NORMALISED wa digits
+    // (226 joined to the 8-digit number), and the gifted pid. Never-cache.
+    const apres = await lireMerci(o.orderId, buyerRef);
+    expect(apres.status).toBe(200);
+    expect(apres.json).toEqual({ ok: true, nom: 'Awa', telephone: '22670123456', pid: 'pv-le-1' });
+    expect(apres.headers.get('Cache-Control')).toBe('private, no-store');
+
+    // a WRONG bearer answers the SAME uniform 404 as the unconfirmed read —
+    // byte-identical, no oracle
+    const faux = await lireMerci(o.orderId, 'X'.repeat(32));
+    expect(faux.status).toBe(404);
+    expect(faux.text).toBe(avant.text);
+    // …and no bearer at all likewise
+    expect((await lireMerci(o.orderId, null)).status).toBe(404);
+  });
+
+  it('no liste on the order, or no opt-in on the liste ⇒ the same shut door after confirmation', async () => {
+    const { slug, resellerId } = await boutique('0022');
+    // an ordinary order (no listeRef): confirmed, but the merci road stays 404
+    const sans = await ordered('0022', slug, resellerId, 'pv-le-1');
+    await confirmOrder(sans.orderId, sans.buyerTotal);
+    expect((await lireMerci(sans.orderId, sans.json['buyerRef'] as string)).status).toBe(404);
+  });
+
+  it('a liste WITHOUT the opt-in answers the same 404 even to the confirmed purchaser', async () => {
+    const { slug, resellerId } = await boutique('0023');
+    const made = await creerListe(slug, 'Awa', ['pv-le-1']); // no telephone
+    const o = await ordered('0023', slug, resellerId, 'pv-le-1', made.json['token'] as string);
+    await confirmOrder(o.orderId, o.buyerTotal);
+    expect((await lireMerci(o.orderId, o.json['buyerRef'] as string)).status).toBe(404);
+  });
+
+  it('FULL-PREPAY LOCK: a door-mode order naming a liste is refused by name, before any contact question', async () => {
+    const { slug, resellerId } = await boutique('0024');
+    const made = await creerListe(slug, 'Awa', ['pv-le-1']);
+    const token = made.json['token'] as string;
+    // the door quote ISSUES (verified tier + admitted category — the
+    // porte-custody recipe), so the refusal below is the order door's alone
+    const quoteRes = await mf.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug, pid: 'pv-le-1', paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
+        zoneTo: 'Ouagadougou', attributionResellerId: resellerId, requestKey: freshKey(),
+      }),
+    });
+    const quote = safeJson(await quoteRes.text()) as { quoteId?: string };
+    expect(typeof quote.quoteId, 'setup: the door quote must issue for this test to bite').toBe('string');
+    const held = await mf.dispatchFetch(
+      `http://c/checkout/quote/${encodeURIComponent(quote.quoteId as string)}/reserve`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commandId: 'cmd-reserve-0024', holderRef: 'holder-0024' }) },
+    );
+    expect(held.status).toBe(200);
+    // NO contact on purpose: the liste refusal must speak FIRST — a gift is
+    // never COD-shaped, whoever fills whatever afterwards.
+    const res = await mf.dispatchFetch('http://c/checkout/order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quoteId: quote.quoteId, holderRef: 'holder-0024', commandId: 'cmd-order-0024', listeRef: token,
+      }),
+    });
+    expect(res.status).toBe(422);
+    expect(safeJson(await res.text())).toEqual({ error: 'liste_prepaiement_requis' });
   });
 });

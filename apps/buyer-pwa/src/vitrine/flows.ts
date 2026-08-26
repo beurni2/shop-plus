@@ -554,10 +554,19 @@ export function mountVitrine(
       };
       if (pids.length === 0) return direAlerte(t('vit.liste_vide_choix'));
       if (nom === '') return direAlerte(t('vit.liste_nom_manque'));
+      // LISTE-MERCI — the optional WhatsApp opt-in. Present, it must look
+      // like a phone number HERE (8–15 digits once separators come off) so
+      // she learns about a typo while the field is still under her thumb,
+      // not from a served refusal; the service still normalises and re-pins.
+      const tel = (root.querySelector<HTMLInputElement>('[data-role="liste-tel"]')?.value ?? '').trim();
+      if (tel !== '') {
+        const chiffres = tel.replace(/^\+/, '').replace(/[\s.\-()]/g, '');
+        if (!/^\d{8,15}$/.test(chiffres)) return direAlerte(t('vit.liste_tel_invalide'));
+      }
       const bouton = target as HTMLButtonElement;
       bouton.disabled = true;
       bouton.textContent = t('vit.liste_creation');
-      void listePort.creer(sfSlug, nom, pids).then((res) => {
+      void listePort.creer(sfSlug, nom, pids, tel === '' ? undefined : tel).then((res) => {
         if (res.status !== 'creee') {
           bouton.disabled = false;
           bouton.textContent = t('vit.liste_creer_cta');

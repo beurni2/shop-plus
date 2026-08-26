@@ -84,9 +84,24 @@ export class WishlistDO {
         articles: asked.value.pids.map((pid) => ({ pid })),
         editCleHash: await sha256Hex(body.editCle),
         createdAt: new Date().toISOString(),
+        // LISTE-MERCI — the opt-in, already in wa.me digit form (validated
+        // and normalised by the pure law). Never on projectListe.
+        ...(asked.value.telephone !== undefined ? { notification: { telephone: asked.value.telephone } } : {}),
       };
       await this.state.storage.put(LISTE_KEY, record);
       return Response.json({ ok: true, liste: projectListe(record) });
+    }
+
+    /**
+     * LISTE-MERCI — the notify facts, INTERNAL WIRE ONLY (the router maps no
+     * public path here; the one caller is OrderDO's buyer-token-gated merci
+     * read). No opt-in and no liste answer the SAME 404 — a caller that
+     * somehow reached this door still cannot tell the two apart.
+     */
+    if (request.method === 'GET' && pathname === '/entry/notification') {
+      const record = await this.state.storage.get<ListeRecord>(LISTE_KEY);
+      if (record?.notification === undefined) return Response.json({ ok: false }, { status: 404 });
+      return Response.json({ ok: true, nom: record.nom, telephone: record.notification.telephone });
     }
 
     /** THE READ — already projected: the hash and every orderId stay here. */

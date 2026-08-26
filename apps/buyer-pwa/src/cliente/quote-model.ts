@@ -468,7 +468,18 @@ export async function fetchClienteQuote(
   // Attached the instant the promise exists: every early return below abandons
   // this ask, and an abandoned promise that later rejects is an unhandled
   // rejection on a money screen.
-  const doorAsk = port.request(doorIntent, doorKey).catch((): QuoteOutcome => ({ status: 'unreadable' }));
+  //
+  // LISTE-MERCI (founder ruling 2026-08-26) — A GIFT IS FULL-PREPAY ONLY:
+  // with a liste on this fiche the door ask is never even ISSUED. The service
+  // refuses a door-mode order naming a liste (`liste_prepaiement_requis`), so
+  // asking for a door price nobody may pay would spend a 2G round trip on an
+  // option the screen must not offer. The local refusal takes the SAME road
+  // every refused door ask takes — the approved « Pas disponible pour cette
+  // commande » state on C5.
+  const doorAsk: Promise<QuoteOutcome> =
+    listeRef !== undefined
+      ? Promise.resolve({ status: 'refused', reason: 'liste_prepaiement_requis' })
+      : port.request(doorIntent, doorKey).catch((): QuoteOutcome => ({ status: 'unreadable' }));
 
   const full = await fullAsk;
   if (full.status === 'refused') return { status: 'refused', reason: full.reason };

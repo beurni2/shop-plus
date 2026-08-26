@@ -5,6 +5,7 @@ import {
   commandIdFor, demoQuotePort, forgetRequestKey, httpQuotePort, looksLikeServerOrder, looksLikeServerQuote,
   mintCommandId, mintUuid, orderCommandIdFor, requestKeyFor, villeDe, DEMO_ATTENTES,
   type OrderOutcome, type QuoteIntent, type QuoteOutcome, type QuotePort, type RemiseOutcome, type ServerQuote,
+  type MerciOutcome,
 } from '../src/cliente/quote-port';
 import {
   clienteQuoteFromServer, fetchClienteQuote, prixExpire, DOOR_GRACE_MS, MODES_WIRE,
@@ -780,6 +781,10 @@ const PAS_DE_COMMANDE = {
   async remise(): Promise<RemiseOutcome> {
     return { status: 'refused' };
   },
+  // LISTE-MERCI — no liste in these tests; the honest non-answer.
+  async listeMerci(): Promise<MerciOutcome> {
+    return { status: 'indisponible' };
+  },
 };
 
 /** A port whose two answers are scripted. It records what it was asked. */
@@ -832,6 +837,10 @@ function scriptedPort(answers: Record<string, QuoteOutcome>): {
       // VRAI-SUIVI — no rider in these tests, so no arrival fact and no code.
       async remise(): Promise<RemiseOutcome> {
         return { status: 'refused' };
+      },
+      // LISTE-MERCI — no liste in these tests; the honest non-answer.
+      async listeMerci(): Promise<MerciOutcome> {
+        return { status: 'indisponible' };
       },
     },
   };

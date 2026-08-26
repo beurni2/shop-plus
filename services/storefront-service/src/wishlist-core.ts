@@ -24,6 +24,8 @@
  * touches canon `contracts/` shapes.
  */
 
+import { whatsappDigits } from './customer-projection.js';
+
 /** The token/editCle shape as MINTED: 32 chars over the 64-symbol URL-safe
  *  alphabet (192 bits, the `mintBuyerRef` law). Used to refuse a malformed
  *  token before it becomes a DO name. */
@@ -58,9 +60,18 @@ const PID_SHAPE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,191}$/;
 export const LISTE_MAX_ARTICLES = 20;
 
 /** The wire vocabulary each public door accepts. Anything else is REFUSED by
- *  name, never ignored — the order road's own law. */
-export const LISTE_CREATE_FIELDS = ['slug', 'nom', 'pids'];
+ *  name, never ignored — the order road's own law. LISTE-MERCI added the
+ *  optional `telephone` to the CREATE: the creator's WhatsApp opt-in. */
+export const LISTE_CREATE_FIELDS = ['slug', 'nom', 'pids', 'telephone'];
 export const LISTE_UPDATE_FIELDS = ['editCle', 'nom', 'pids'];
+
+/** What a telephone may look like ON THE WIRE before normalisation: digits
+ *  with the separators a phone keyboard produces. The stored value is the
+ *  `whatsappDigits` normal form, decided at validation — a number that
+ *  function cannot vouch for is REFUSED at create (bad_field), because the
+ *  one thing it will ever become is a wa.me link, and a dead WhatsApp link
+ *  on the purchaser's screen is the failure CONTACT-WHATSAPP-1 banned. */
+export const TELEPHONE_WIRE = /^[+\d][\d\s.\-()]{0,31}$/;
 
 export interface ListeArticle {
   readonly pid: string;
@@ -78,6 +89,16 @@ export interface ListeRecord {
    *  create and stored nowhere — the reseller-feed code-hash law. */
   readonly editCleHash: string;
   readonly createdAt: string;
+  /**
+   * LISTE-MERCI — the creator's WhatsApp opt-in: her number in wa.me digit
+   * form (`whatsappDigits` normalised at create). PRESENT = she asked to be
+   * told when a wish is granted; ABSENT = she did not, and no road serves a
+   * number. It NEVER rides `projectListe` — the public link is passed hand
+   * to hand, and a phone on it would be harvestable. Its one exit is the
+   * order's own buyer-token-gated merci read, served only to a purchaser
+   * whose payment is provider-confirmed.
+   */
+  readonly notification?: { readonly telephone: string };
 }
 
 export type ListeValidation<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string; readonly field?: string };
@@ -109,6 +130,9 @@ export interface ListeCreateCommand {
   readonly slug: string;
   readonly nom: string;
   readonly pids: readonly string[];
+  /** LISTE-MERCI — the opt-in number, already in wa.me digit form. Absent =
+   *  no opt-in; the record stores no number and no road serves one. */
+  readonly telephone?: string;
 }
 
 export function validateListeCreate(body: unknown): ListeValidation<ListeCreateCommand> {
@@ -121,7 +145,23 @@ export function validateListeCreate(body: unknown): ListeValidation<ListeCreateC
   if (typeof r['nom'] !== 'string' || !NOM_LISTE.test(r['nom'])) return { ok: false, error: 'bad_field', field: 'nom' };
   const pids = readPids(r['pids']);
   if (!pids.ok) return pids;
-  return { ok: true, value: { slug: r['slug'], nom: r['nom'], pids: pids.value } };
+  // LISTE-MERCI — a PRESENT telephone must normalise to wa.me digits or the
+  // create refuses BY NAME: the only thing this value will ever become is a
+  // WhatsApp link, and a number `whatsappDigits` cannot vouch for would be a
+  // dead link on the purchaser's screen (the CONTACT-WHATSAPP-1 law, applied
+  // loudly at the door instead of silently at render).
+  let telephone: string | undefined;
+  if (r['telephone'] !== undefined && r['telephone'] !== null && r['telephone'] !== '') {
+    if (typeof r['telephone'] !== 'string' || !TELEPHONE_WIRE.test(r['telephone'])) {
+      return { ok: false, error: 'bad_field', field: 'telephone' };
+    }
+    telephone = whatsappDigits(r['telephone']);
+    if (telephone === undefined) return { ok: false, error: 'bad_field', field: 'telephone' };
+  }
+  return {
+    ok: true,
+    value: { slug: r['slug'], nom: r['nom'], pids: pids.value, ...(telephone !== undefined ? { telephone } : {}) },
+  };
 }
 
 export interface ListeUpdateCommand {

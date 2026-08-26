@@ -578,6 +578,13 @@ export function renderListeSheet(articles: readonly VitrineProduct[], precoche: 
     `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_nom_label')}</span>`,
     `<input type="text" class="vt-liste-nom-input" data-role="liste-nom" maxlength="24" autocomplete="given-name">`,
     `<span class="vt-liste-texte">${t('vit.liste_nom_aide')}</span></label>`,
+    // LISTE-MERCI — the WhatsApp opt-in IS filling this field (one optional
+    // input beats a checkbox that reveals one — fewer controls, same choice).
+    // The number never appears on the shared liste; the aide says who will
+    // see it and why.
+    `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_tel_label')}</span>`,
+    `<input type="tel" class="vt-liste-nom-input" data-role="liste-tel" maxlength="24" inputmode="tel" autocomplete="tel">`,
+    `<span class="vt-liste-texte">${t('vit.liste_tel_aide')}</span></label>`,
     '<div class="vt-liste-alerte" data-role="liste-alerte" hidden></div>',
     `<button class="vt-liste-valider" data-action="liste-valider">${t('vit.liste_creer_cta')}</button>`,
     '</div>',

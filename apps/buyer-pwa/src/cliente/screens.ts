@@ -1268,6 +1268,26 @@ export const CONFIRMATION = {
   etapeSuivre: 'Vous suivez chaque étape sur cette page.',
 } as const;
 
+/**
+ * ═══ LISTE-MERCI — « PRÉVENIR {nom} » (founder order, 2026-08-26) ═══
+ *
+ * The purchaser bought a wish off someone's liste and the payment is
+ * provider-confirmed. The message leaves from THE PURCHASER'S OWN WhatsApp
+ * (the wa.me law — no server sends messages until the founder opens a
+ * Business API account), which is also the warmer message: it arrives from
+ * a friend's number, not a robot's. `{prenom}`, `{article}` and `{lien}`
+ * are filled by the flow at tap time; the creator's number never enters the
+ * DOM — it stays in state and becomes the wa.me address only.
+ */
+export const MERCI = {
+  titreAvant: 'Prévenez',
+  corps: 'Votre message partira de votre WhatsApp, avec le lien pour suivre la livraison.',
+  prenomLabel: 'Votre prénom',
+  prenomManque: 'Dites-nous votre prénom.',
+  action: 'Prévenir sur WhatsApp',
+  message: 'C’est {prenom} — je viens de t’offrir « {article} » de ta liste d’envies. Tu peux suivre la livraison ici : {lien}',
+} as const;
+
 /** The view a refusal name renders as — the generic one for every name this
  *  table does not know (`amounts_disagree`, `quote_not_issuable`, `stored_*`,
  *  `request_key_reused`, and anything the service grows next). */
@@ -1657,6 +1677,13 @@ export function renderC6(
      * this screen invented would name a commande that does not exist.
      */
     commande?: string | undefined;
+    /**
+     * LISTE-MERCI — the creator's FIRST NAME, present only when this order
+     * came through a liste, the payment is confirmed, and she opted in (the
+     * flow read it through the buyer-token-gated merci route). The NUMBER is
+     * deliberately not here: it stays in flow state and never enters the DOM.
+     */
+    merci?: { nom: string } | undefined;
   },
 ): string {
   let body: string;
@@ -1681,6 +1708,25 @@ export function renderC6(
       // the road this sentence points at.
       `<div class="cl-step-row"><span class="cl-step-num">3</span><span class="cl-step-txt">${CONFIRMATION.etapeSuivre}</span></div>`,
       '</div>',
+      /**
+       * LISTE-MERCI — the gift block, ONLY on the confirmed body: an unpaid
+       * gift announced would be this screen inventing a payment outcome. The
+       * prénom input + one action; the refusal (no prénom) is inline and
+       * actionable, never a wall on a money screen.
+       */
+      o.merci !== undefined
+        ? [
+            '<div class="cl-merci" data-role="liste-merci">',
+            `<div class="cl-merci-titre">${MERCI.titreAvant} <v>${esc(o.merci.nom)}</v></div>`,
+            `<div class="cl-merci-corps">${MERCI.corps}</div>`,
+            `<label class="cl-merci-label">${MERCI.prenomLabel}`,
+            '<input type="text" class="cl-merci-input" data-role="merci-prenom" maxlength="24" autocomplete="given-name">',
+            '</label>',
+            '<div class="cl-merci-alerte" data-role="merci-alerte" hidden></div>',
+            `<button class="cl-cta cl-merci-cta" data-action="merci-whatsapp">${MERCI.action}</button>`,
+            '</div>',
+          ].join('')
+        : '',
     ].join('');
   } else if (o.confirmState === 'attente') {
     // THE ORDER EXISTS AND NOBODY HAS PAID YET. No amount is printed here on

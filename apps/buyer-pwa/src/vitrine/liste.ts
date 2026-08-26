@@ -45,7 +45,11 @@ export type ListeCreation = { readonly status: 'creee'; readonly liste: ListeCre
 export type ListeLecture = { readonly status: 'liste'; readonly liste: ListePublique } | { readonly status: 'introuvable' } | { readonly status: 'hors-ligne' };
 
 export interface ListePort {
-  creer(slug: string, nom: string, pids: readonly string[]): Promise<ListeCreation>;
+  /** LISTE-MERCI — `telephone` is the creator's WhatsApp opt-in (optional).
+   *  It rides the create ONLY; the service normalises it to wa.me digits,
+   *  stores it OFF the public projection, and serves it to nobody but a
+   *  provider-confirmed purchaser of this liste. */
+  creer(slug: string, nom: string, pids: readonly string[], telephone?: string): Promise<ListeCreation>;
   lire(token: string): Promise<ListeLecture>;
 }
 
@@ -66,7 +70,7 @@ function lireListeWire(value: unknown): ListePublique | undefined {
 /** The REAL adapter — the storefront-service liste doors. */
 export function httpListePort(base: string): ListePort {
   return {
-    async creer(slug, nom, pids): Promise<ListeCreation> {
+    async creer(slug, nom, pids, telephone): Promise<ListeCreation> {
       let res: Response;
       try {
         res = await fetch(`${base}/listes`, {
@@ -74,8 +78,9 @@ export function httpListePort(base: string): ListePort {
           headers: { 'Content-Type': 'application/json' },
           // The service's exact-key allowlist, built as ONE literal — the
           // quote-port law: an unknown key is refused by name over there,
-          // and no other key can ride from here.
-          body: JSON.stringify({ slug, nom, pids }),
+          // and no other key can ride from here. An absent opt-in is absent
+          // bytes, never an empty string.
+          body: JSON.stringify({ slug, nom, pids, ...(telephone !== undefined && telephone !== '' ? { telephone } : {}) }),
         });
       } catch {
         return { status: 'hors-ligne' };

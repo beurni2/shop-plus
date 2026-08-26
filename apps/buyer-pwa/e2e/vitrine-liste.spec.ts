@@ -63,13 +63,19 @@ test('CREATOR — she builds her liste, the link is created, and her band rememb
   await page.locator('[data-action="liste-valider"]').click();
   await expect(page.locator('[data-role="liste-alerte"]')).toHaveText('Dites-nous votre prénom.');
 
-  // The whole road: prénom → créer → THE LINK STATE IS REACHED.
+  // The whole road: prénom → créer — WITH the WhatsApp opt-in. A junk number
+  // is refused INLINE while the field is still under her thumb…
   await page.locator('[data-role="liste-nom"]').fill('Awa');
+  await page.locator('[data-role="liste-tel"]').fill('pas un numero');
+  await page.locator('[data-action="liste-valider"]').click();
+  await expect(page.locator('[data-role="liste-alerte"]')).toHaveText('Ce numéro ne semble pas correct.');
+  // …and a real one rides the create as the fourth key. THE LINK STATE IS REACHED.
+  await page.locator('[data-role="liste-tel"]').fill('70 12 34 56');
   await page.locator('[data-action="liste-valider"]').click();
   await expect(page.locator('[data-role="liste-lien"]')).toContainText(`/v/aicha-4821?liste=${TOKEN}`);
-  // The wire carried the EXACT three-key body — no amount, no extra key.
+  // The wire carried the EXACT body — no amount, no extra key.
   expect(creates).toHaveLength(1);
-  expect(creates[0]).toEqual({ slug: 'aicha-4821', nom: 'Awa', pids: ['p1'] });
+  expect(creates[0]).toEqual({ slug: 'aicha-4821', nom: 'Awa', pids: ['p1'], telephone: '70 12 34 56' });
 
   // The way out closes the sheet; the band now shows HER liste.
   await page.locator('[data-action="liste-fermer"]').click();
@@ -137,14 +143,30 @@ test('FRIEND — introuvable and hors-ligne are designed states, and Réessayer 
   await expect(page.locator('[data-role="vitrine-liste-introuvable"]')).toBeVisible();
 });
 
-test('CHECKOUT — the fiche opened through a liste link sends listeRef on the REAL order create', async ({ page }) => {
+test('CHECKOUT — listeRef rides the REAL order create; the confirmed screen offers « Prévenir » and opens the purchaser’s OWN WhatsApp', async ({ page }) => {
   const orders: Record<string, unknown>[] = [];
+  const mercis: string[] = [];
+  const quoteAsks: string[] = [];
+  // window.open recorded, never followed — the wa.me URL is the assertion.
+  await page.addInitScript(() => {
+    (window as unknown as { __waOuvert: string[] }).__waOuvert = [];
+    window.open = ((url: string) => {
+      (window as unknown as { __waOuvert: string[] }).__waOuvert.push(String(url));
+      return null;
+    }) as typeof window.open;
+  });
   await page.route('**/checkout/**', async (route: Route) => {
     const req = route.request();
     const json = (status: number, body: unknown): Promise<void> =>
       route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     const body = JSON.parse(req.postData() ?? '{}') as Record<string, unknown>;
     if (/\/reserve$/.test(req.url())) return json(200, { status: 'reserved', reservationId: 'res-1' });
+    // LISTE-MERCI — the buyer-token-gated notify read, scripted to the
+    // service's real shape (nom + wa digits + pid), Bearer required.
+    if (/\/liste-merci$/.test(req.url()) && req.method() === 'GET') {
+      mercis.push(req.headers()['authorization'] ?? '');
+      return json(200, { ok: true, nom: 'Awa', telephone: '22670123456', pid: 'p1' });
+    }
     if (/\/checkout\/order$/.test(req.url()) && req.method() === 'POST') {
       orders.push(body);
       return json(200, {
@@ -153,11 +175,15 @@ test('CHECKOUT — the fiche opened through a liste link sends listeRef on the R
       });
     }
     if (/\/checkout\/order\//.test(req.url())) {
-      return json(200, { orderId: 'ord-1', state: 'payment_pending', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, doorLeg: 'none' });
+      // the FIRST poll confirms — the provider-truth moment the merci block
+      // is allowed to appear at, and never before
+      return json(200, { orderId: 'ord-quote-full-1', state: 'confirmed', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, doorLeg: 'none' });
     }
     if (body['paymentMode'] === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') {
+      quoteAsks.push('door');
       return json(422, { error: 'pay_at_door_not_eligible' });
     }
+    quoteAsks.push('full');
     return json(200, {
       quoteId: 'quote-full-1', paymentMode: 'FULL_PREPAY', productSubtotal: 11_500,
       deliveryFee: 1_000, buyerTotal: 12_500, amountPaidAtCheckout: 12_500,
@@ -184,4 +210,59 @@ test('CHECKOUT — the fiche opened through a liste link sends listeRef on the R
   const body = orders[0]!;
   expect(body['listeRef']).toBe(TOKEN);
   expect(Object.keys(body).sort()).toEqual(['commandId', 'contact', 'holderRef', 'listeRef', 'quoteId']);
+
+  // FULL-PREPAY LOCK, client half, on the WIRE: with a liste on the fiche
+  // the door ask never left the phone.
+  expect(quoteAsks).toEqual(['full']);
+
+  // THE MERCI BLOCK appears once the poll confirms — and the read carried
+  // the order's own bearer.
+  await page.locator('[data-role="liste-merci"]').waitFor({ timeout: 10_000 });
+  expect(mercis[0]).toBe('Bearer ref-1');
+  // Refusal inline: no prénom, no send, the tree survives.
+  await page.locator('[data-action="merci-whatsapp"]').click();
+  await expect(page.locator('[data-role="merci-alerte"]')).toHaveText('Dites-nous votre prénom.');
+  // The whole road: prénom → the purchaser's OWN WhatsApp opens on the
+  // creator's digits, with the prénom, the article and the ?cadeau= link.
+  await page.locator('[data-role="merci-prenom"]').fill('Karim');
+  await page.locator('[data-action="merci-whatsapp"]').click();
+  const ouverts = await page.evaluate(() => (window as unknown as { __waOuvert: string[] }).__waOuvert);
+  expect(ouverts).toHaveLength(1);
+  expect(ouverts[0]).toMatch(/^https:\/\/wa\.me\/22670123456\?text=/);
+  const texte = decodeURIComponent(ouverts[0]!.split('?text=')[1]!);
+  expect(texte).toContain('Karim');
+  expect(texte).toContain('Robe brodée bogolan');
+  expect(texte).toContain(`${BASE}/?cadeau=ord-quote-full-1`);
+});
+
+test('CADEAU — the creator’s tracking link renders the delivery’s facts, and Actualiser re-asks', async ({ page }) => {
+  let marques: Record<string, unknown> = { acceptedAt: '2026-08-26T10:00:00Z' };
+  await page.route('**/checkout/order/ord-w1', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        orderId: 'ord-w1', state: 'confirmed', amountPaidAtCheckout: 12_500,
+        amountDueAtDelivery: 0, doorLeg: 'none', ...marques,
+      }),
+    }),
+  );
+  await page.goto(`${BASE}/?cadeau=ord-w1`);
+  const carte = page.locator('[data-role="cadeau-suivi"]');
+  await expect(carte).toBeVisible();
+  await expect(page.locator('[data-role="cadeau-etat"]')).toHaveText('En préparation');
+  // no amount ever renders on the recipient's screen
+  await expect(carte).not.toContainText('FCFA');
+
+  // the road moves; « Actualiser » is a real re-ask, not a dead button
+  marques = { acceptedAt: '2026-08-26T10:00:00Z', readyAt: '2026-08-26T11:00:00Z', departedAt: '2026-08-26T12:00:00Z' };
+  await page.locator('[data-action="cadeau-actualiser"]').click();
+  await expect(page.locator('[data-role="cadeau-etat"]')).toHaveText('En route');
+
+  // a link that names nothing lands on the honest introuvable
+  await page.route('**/checkout/order/ord-perdu', (route: Route) =>
+    route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'unknown_order' }) }),
+  );
+  await page.goto(`${BASE}/?cadeau=ord-perdu`);
+  await expect(page.locator('main')).toContainText('Nous ne trouvons pas cette commande.');
 });

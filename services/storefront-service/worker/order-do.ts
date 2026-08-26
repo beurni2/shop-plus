@@ -1172,6 +1172,51 @@ export class OrderDO {
     }
 
     /**
+     * ═══ LISTE-MERCI — THE PURCHASER'S NOTIFY FACTS (founder order 2026-08-26) ═══
+     *
+     * « let the wishlist creator know that he purchased an item for him » —
+     * the transport is the PURCHASER'S OWN WhatsApp (the wa.me law; no
+     * server-sent message exists until the founder opens a Business API
+     * account), so what this road serves is the creator's opted-in number
+     * and first name, to EXACTLY ONE caller: the bearer of THIS order's own
+     * buyer token, and only once the payment is PROVIDER-CONFIRMED.
+     *
+     * The remise route's gate, verbatim: the compare runs unconditionally
+     * against a decoy when no token is stored (no timing oracle), and every
+     * refusal — wrong token, unknown order, not confirmed, no liste on the
+     * order, liste without an opt-in — is the SAME {ok:false} 404, decided
+     * here so no branch can become an oracle for any of those five facts.
+     * The answer carries the nom, the wa.me digits and the gifted pid, and
+     * nothing else — no amount, no contact, no economics.
+     */
+    if (request.method === 'POST' && pathname === '/entry/liste-merci') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      const jeton = typeof body?.['jeton'] === 'string' ? (body['jeton'] as string) : '';
+      const stored = await this.state.storage.get<string>(BUYER_REF_KEY);
+      const compared = await timingSafeEqual(jeton, stored ?? 'jeton-absent-decoy');
+      const jetonOk = stored !== undefined && jeton !== '' && compared;
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      const quote = origin === undefined ? undefined : parseStoredQuote(origin.quoteBytes);
+      const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      const confirmed =
+        origin !== undefined && quote !== undefined &&
+        rebuildOrderSpine(quote, origin, log).journey.state === 'confirmed';
+      const ns = this.env.WISHLIST;
+      if (!jetonOk || !confirmed || origin?.listeRef === undefined || origin.fulfillment === undefined || ns === undefined) {
+        return Response.json({ ok: false }, { status: 404 });
+      }
+      const lu = await ns
+        .get(ns.idFromName(`liste:${origin.listeRef}`))
+        .fetch(new Request('https://do/entry/notification'))
+        .catch(() => undefined);
+      const facts = lu === undefined ? null : ((await lu.json().catch(() => null)) as { ok?: boolean; nom?: unknown; telephone?: unknown } | null);
+      if (facts?.ok !== true || typeof facts.nom !== 'string' || typeof facts.telephone !== 'string') {
+        return Response.json({ ok: false }, { status: 404 });
+      }
+      return Response.json({ ok: true, nom: facts.nom, telephone: facts.telephone, pid: origin.fulfillment.productVersionId });
+    }
+
+    /**
      * RF-1a — THE RESELLER'S PROJECTION. INTERNAL ONLY (the public router
      * maps no path here); reachable only through her personal-code door at
      * the composition root, and only for the orders HER index names.
@@ -3035,6 +3080,16 @@ export default {
        */
       const doorMode = quoteBody.quote?.paymentMode === DOOR_MODE;
       if (doorMode) {
+        /**
+         * LISTE-MERCI (founder ruling, 2026-08-26): « for wishlist purchases
+         * pay full is the only option and never pay at the door. » A gift
+         * whose PRODUCT leg is collected at the door would make the receiving
+         * side pay for its own present — so an order that names a liste and
+         * rides a door-mode quote is refused BY NAME, before any contact or
+         * ladder question. The PWA never offers the door on a liste purchase;
+         * this is the layer a hand-crafted call cannot walk around.
+         */
+        if (listeRef !== null) return refuse('liste_prepaiement_requis');
         // NO CONTACT ON A DOOR ORDER IS ITS OWN REFUSAL, and deliberately not
         // folded into the eligibility one. Two different things are true and a
         // buyer deserves the actionable one: « we need your phone » is a field
@@ -3196,6 +3251,40 @@ export default {
       const body = (await res.json().catch(() => null)) as { ok?: boolean; code?: unknown } | null;
       if (body?.ok === true && typeof body.code === 'string') {
         const answer = Response.json({ ok: true, code: body.code });
+        answer.headers.set('Cache-Control', 'private, no-store');
+        return answer;
+      }
+      return Response.json({ ok: false }, { status: 404 });
+    }
+
+    /**
+     * LISTE-MERCI — the purchaser's notify read: the remise route's twin,
+     * shape for shape. PUBLIC PATH, PRIVATE ANSWER: gated inside the object
+     * on the order's own buyer token + the confirmed state + the liste
+     * opt-in, with one constant-shape 404 for every refusal. The 200 carries
+     * a first name and wa.me digits — a phone number — so it is stamped
+     * never-cache exactly as the code is: a secret must not survive in any
+     * intermediary.
+     */
+    const listeMerci = /^\/checkout\/order\/([^/]+)\/liste-merci$/.exec(pathname);
+    if (listeMerci && request.method === 'GET') {
+      const orderId = decodeId(listeMerci[1]!);
+      const auth = request.headers.get('Authorization') ?? '';
+      const jeton = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
+      if (orderId === undefined || !ID_ALPHABET.test(orderId) || jeton === '') {
+        return Response.json({ ok: false }, { status: 404 });
+      }
+      const res = await orderStub(env, orderId).fetch(
+        new Request('https://do/entry/liste-merci', {
+          method: 'POST',
+          body: JSON.stringify({ jeton }),
+        }),
+      );
+      const body = (await res.json().catch(() => null)) as
+        | { ok?: boolean; nom?: unknown; telephone?: unknown; pid?: unknown }
+        | null;
+      if (body?.ok === true && typeof body.nom === 'string' && typeof body.telephone === 'string' && typeof body.pid === 'string') {
+        const answer = Response.json({ ok: true, nom: body.nom, telephone: body.telephone, pid: body.pid });
         answer.headers.set('Cache-Control', 'private, no-store');
         return answer;
       }

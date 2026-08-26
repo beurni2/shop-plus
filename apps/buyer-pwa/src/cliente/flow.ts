@@ -26,7 +26,7 @@ import {
   renderGalerie, renderOffline, renderRefus, renderSheet, renderSkeleton, renderToasts,
   galerieSlides,
   etapeDeSuivi,
-  splitFor, MESSAGES, SUIVI_STEPS, VOIX,
+  splitFor, MERCI, MESSAGES, SUIVI_STEPS, VOIX,
   type ClienteProduit, type ClienteQuote, type ConfirmEtat, type DoorEtat,
   type Livraison, type ModePaiement, type VoiceEtat,
 } from './screens';
@@ -135,6 +135,23 @@ export interface ClienteInit {
     readonly etatCommande: (orderId: string) => Promise<OrderFetch>;
     readonly remise: (orderId: string, buyerRef: string) => Promise<RemiseFetch>;
   } | undefined;
+  /**
+   * ═══ LISTE-MERCI — « PRÉVENIR {nom} » (founder order, 2026-08-26) ═══
+   *
+   * Present ⇒ this checkout was opened THROUGH a wishlist link. Once the
+   * payment is PROVIDER-CONFIRMED, the flow asks `charger` for the creator's
+   * notify facts (a read gated server-side on this order's own buyer token —
+   * every refusal is one uniform 404 that simply renders no block), and C6
+   * offers the purchaser « Prévenir {nom} » : their prénom, one tap, and the
+   * message leaves from THEIR OWN WhatsApp with `lienCadeau(orderId)` inside
+   * so the creator can follow the delivery. The number never enters the DOM.
+   */
+  readonly merci?: {
+    readonly charger: (orderId: string, buyerRef: string) => Promise<
+      { status: 'merci'; nom: string; telephone: string } | { status: 'indisponible' }
+    >;
+    readonly lienCadeau: (orderId: string) => string;
+  } | undefined;
 }
 
 interface FlowState {
@@ -224,6 +241,12 @@ interface FlowState {
   /** Her bearer ref for the remise route — the CREATE's own byte, or the
    *  stored one on a re-entry. null = this session never learned one. */
   buyerRef: string | null;
+  /** LISTE-MERCI — the creator's notify facts, once the confirmed order's
+   *  merci read answered. The telephone lives HERE and only here: it becomes
+   *  the wa.me address at tap time and never enters the DOM. */
+  merci: { nom: string; telephone: string } | null;
+  /** One merci read per order — the ask fires on the FIRST confirmed sight. */
+  merciDemande: boolean;
   /** The four delivery marks, EXACTLY as the server last reported them.
    *  Replaced wholesale on every read: absence = « pas encore », never done. */
   marques: {
@@ -447,6 +470,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     doorLeg: null,
     essaiPorte: 0,
     buyerRef: null,
+    merci: null,
+    merciDemande: false,
     marques: {},
     livree: false,
     codeRemise: null,
@@ -788,6 +813,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
           // SANDBOX-PAY-1 — the server's own order id, or nothing: the
           // offline/outbox states have no server order to name yet.
           commande: state.orderId ?? undefined,
+          // LISTE-MERCI — the creator's prénom alone; the number stays in
+          // state and never enters the DOM.
+          merci: state.merci !== null ? { nom: state.merci.nom } : undefined,
         });
       case 'C7': {
         if (reel) {
@@ -1062,6 +1090,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // could only ever return the same answer at her expense.
         if (etat !== 'attente') {
           state.relance = false;
+          // LISTE-MERCI — the poll is the ordinary road to a confirmed sight.
+          if (etat === 'confirmed') chargerMerci();
           render();
           return;
         }
@@ -1418,6 +1448,30 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       // `jump` cleared the timers and bumped the generation — so the watch must
       // start from the NEW one, or its first read would discard itself.
       if (etat === 'attente') suivreLePaiement(r.order.orderId, generation, 0);
+      // LISTE-MERCI — a create that answered ALREADY-CONFIRMED (the replay /
+      // double-tap road) is a confirmed sight too.
+      if (etat === 'confirmed') chargerMerci();
+    });
+  }
+
+  /**
+   * LISTE-MERCI — ask ONCE, on the first confirmed sight, for the creator's
+   * notify facts. Total by construction: `indisponible` (which is also every
+   * network failure, the port's law) simply never renders the block — the
+   * confirmation screen must not grow an error wall about a gift affordance.
+   * The generation is deliberately NOT consulted: the answer mutates no
+   * money state, and a purchaser who navigated away and back still deserves
+   * the block on the confirmed screen she returns to.
+   */
+  function chargerMerci(): void {
+    const source = init.merci;
+    if (source === undefined || state.merciDemande) return;
+    if (state.orderId === null || state.buyerRef === null) return;
+    state.merciDemande = true;
+    void source.charger(state.orderId, state.buyerRef).then((r) => {
+      if (r.status !== 'merci') return;
+      state.merci = { nom: r.nom, telephone: r.telephone };
+      render();
     });
   }
 
@@ -1590,6 +1644,32 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // the generation the jump just opened.
         demarrerSuivi();
         return;
+      // ── LISTE-MERCI — the purchaser tells the creator, from their OWN phone ──
+      case 'merci-whatsapp': {
+        const source = init.merci;
+        if (source === undefined || state.merci === null || state.orderId === null) return;
+        const prenom = (container.querySelector<HTMLInputElement>('[data-role="merci-prenom"]')?.value ?? '').trim();
+        const alerte = container.querySelector<HTMLElement>('[data-role="merci-alerte"]');
+        // The refusal is INLINE and actionable — a prénom she can type, never
+        // a wall on a money screen.
+        if (prenom === '') {
+          if (alerte !== null) {
+            alerte.textContent = MERCI.prenomManque;
+            alerte.hidden = false;
+          }
+          return;
+        }
+        // The address is the service's wa.me digits, re-checked here so a
+        // corrupted value can never open anything but a wa.me link — the
+        // ouvrirWhatsApp law, applied where the URL is born.
+        if (!/^\d{8,15}$/.test(state.merci.telephone)) return;
+        const texte = MERCI.message
+          .replace('{prenom}', prenom)
+          .replace('{article}', m.productName)
+          .replace('{lien}', source.lienCadeau(state.orderId));
+        window.open(`https://wa.me/${state.merci.telephone}?text=${encodeURIComponent(texte)}`, '_blank', 'noopener');
+        return;
+      }
       // — C1 —
       case 'voix-lire': {
         // REAL tap-to-play (founder order 2026-07-22): the reseller's note

@@ -291,7 +291,23 @@ export interface QuotePort {
    * custody, and a client that never calls it simply never shows a code.
    */
   remise(orderId: string, buyerRef: string): Promise<RemiseOutcome>;
+  /**
+   * LISTE-MERCI — ASK FOR THE CREATOR'S NOTIFY FACTS, with the buyer's own
+   * bearer token: `GET {base}/checkout/order/{id}/liste-merci`,
+   * `Authorization: Bearer <buyerRef>`. Answered ONLY when this order named
+   * a liste at creation, its payment is provider-confirmed, and the creator
+   * opted in — a uniform nameless 404 otherwise, and every 404 collapses to
+   * `indisponible` here: the merci block simply does not render, which is
+   * the honest screen for all five indistinguishable reasons. A read; it
+   * can cause nothing.
+   */
+  listeMerci(orderId: string, buyerRef: string): Promise<MerciOutcome>;
 }
+
+/** LISTE-MERCI — the notify facts, or the one honest « rien à offrir ». */
+export type MerciOutcome =
+  | { readonly status: 'merci'; readonly nom: string; readonly telephone: string }
+  | { readonly status: 'indisponible' };
 
 /* ───────────────────────────── the shape check ───────────────────────────── */
 
@@ -646,6 +662,34 @@ export function httpQuotePort(baseUrl: string): QuotePort {
       }
       return { status: 'unreadable' };
     },
+
+    /**
+     * LISTE-MERCI — the remise read's twin, and DELIBERATELY TOTAL over one
+     * axis: every non-answer — refusal, unreachable, unreadable — collapses
+     * to `indisponible`, because the merci block is a GIFT AFFORDANCE, never
+     * a state the buyer must act on. A confirmation screen that grew an
+     * error wall about a WhatsApp button would be anxiety about nothing.
+     */
+    async listeMerci(orderId: string, buyerRef: string): Promise<MerciOutcome> {
+      let url: string;
+      try {
+        url = `${base}/checkout/order/${encodeURIComponent(orderId)}/liste-merci`;
+      } catch {
+        return { status: 'indisponible' };
+      }
+      let res: Response;
+      try {
+        res = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${buyerRef}` } });
+      } catch {
+        return { status: 'indisponible' };
+      }
+      const body: unknown = await res.json().catch(() => undefined);
+      const o = body !== null && typeof body === 'object' ? (body as Record<string, unknown>) : undefined;
+      if (res.ok && o !== undefined && o['ok'] === true && nonEmpty(o['nom']) && nonEmpty(o['telephone'])) {
+        return { status: 'merci', nom: o['nom'], telephone: o['telephone'] };
+      }
+      return { status: 'indisponible' };
+    },
   };
 }
 
@@ -898,6 +942,13 @@ export function demoQuotePort(produitFcfa: number = ROBE.priceFcfa): QuotePort {
      */
     async remise(): Promise<RemiseOutcome> {
       return { status: 'refused' };
+    },
+
+    /** LISTE-MERCI — the harness holds no liste and no creator: honestly
+     *  `indisponible`, so the demo confirmation never grows a gift block
+     *  about a person who does not exist. */
+    async listeMerci(): Promise<MerciOutcome> {
+      return { status: 'indisponible' };
     },
   };
 }

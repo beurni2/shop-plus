@@ -199,16 +199,23 @@ export default {
      * code and nothing else). Matched exactly, like its five neighbours.
      */
     const isOrderRemise = /^\/checkout\/order\/[^/]+\/remise$/.test(pathname);
+    /**
+     * LISTE-MERCI — the purchaser's notify read, PUBLIC on the remise route's
+     * exact terms (public path, private answer: buyer-token-gated inside the
+     * object, one uniform 404 for every refusal). GET, no body, and the 200
+     * carries a first name + wa.me digits and nothing else.
+     */
+    const isOrderListeMerci = /^\/checkout\/order\/[^/]+\/liste-merci$/.test(pathname);
     const isPublicQuote =
       (request.method === 'POST' && (isCheckoutQuote || isCheckoutReserve)) ||
       (request.method === 'GET' && isCheckoutQuoteById);
     const isPublicOrder =
       (request.method === 'POST' && (isOrderCreate || isOrderDoorCharge)) ||
-      (request.method === 'GET' && (isOrderById || isOrderRemise));
+      (request.method === 'GET' && (isOrderById || isOrderRemise || isOrderListeMerci));
     if (
       request.method === 'OPTIONS' &&
       (isCheckoutQuote || isCheckoutQuoteById || isCheckoutReserve || isOrderCreate || isOrderById ||
-        isOrderDoorCharge || isOrderRemise)
+        isOrderDoorCharge || isOrderRemise || isOrderListeMerci)
     ) {
       return checkoutPreflight();
     }

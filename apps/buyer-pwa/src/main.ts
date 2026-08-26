@@ -11,7 +11,8 @@ import {
   skeleton,
   landmark,
 } from '@platform/ui-tokens/legacy';
-import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, vitrineHref } from './vitrine-link';
+import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, vitrineHref, deployBaseFromPath } from './vitrine-link';
+import { mountCadeau } from './cadeau';
 import { demoStorefrontPort, resolveStorefrontPort } from './vitrine/profile';
 import { harnessProfil, mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { enteteOverride } from './vitrine/entetes';
@@ -506,6 +507,21 @@ style.textContent = `
   .vitrine-epuise-chip { font-size: var(--t-labelXS); letter-spacing: var(--ls-labelXS); text-transform: uppercase; color: var(--c-muted); }
   .vitrine-boutiques { margin-top: var(--sp-sm); }
 
+  /* LISTE-MERCI — the gift-tracking page (?cadeau=). One card, the state
+     line, four marks and a real refresh; every value a token var (the
+     boutiques-view law: the top-level module renders markup only). */
+  .cd-root { margin: 0 auto; padding: var(--sp-xl) var(--sp-lg) var(--sp-xxl); color: var(--c-ink); }
+  .cd-carte { background: var(--c-surface); border-radius: var(--r-button); padding: var(--sp-lg); border: var(--hair-mid) solid var(--c-hairline); }
+  .cd-titre { font-size: var(--t-title); font-weight: 800; }
+  .cd-etat { margin-top: var(--sp-xs); font-size: var(--t-row); font-weight: 700; color: var(--c-success); }
+  .cd-texte { margin-top: var(--sp-xs); font-size: var(--t-caption); color: var(--c-body); }
+  .cd-marques { margin-top: var(--sp-lg); display: flex; flex-direction: column; gap: var(--sp-sm); }
+  .cd-marque { display: flex; align-items: center; gap: var(--sp-sm); font-size: var(--t-label); color: var(--c-body); }
+  .cd-marque-point { width: var(--sp-sm); height: var(--sp-sm); border-radius: var(--r-pill); background: var(--c-hairline); flex: none; }
+  .cd-marque-faite .cd-marque-point { background: var(--c-success); }
+  .cd-marque-faite { font-weight: 700; color: var(--c-ink); }
+  .cd-actualiser { display: block; width: 100%; margin-top: var(--sp-lg); min-height: var(--touch); border: var(--hair-mid) solid var(--c-hairline); border-radius: var(--r-button); background: none; color: var(--c-ink); font: inherit; font-size: var(--t-label); font-weight: 700; cursor: pointer; }
+
   /* WO-7.2a — S3 DÉCOUVERTE (the store directory). Stores, never products:
      no photo, no price in the list — the price lives in the vitrine. Fixed
      76 px rows (no layout jump), hairline grammar, ink-on-paper. */
@@ -645,7 +661,21 @@ if (app) {
   // is an audit-only lever for the privée state.
   const signedSlug = signedProductSlugFromPath(window.location.pathname) ?? params.get('demo-signed') ?? undefined;
 
-  if (signedSlug) {
+  /**
+   * LISTE-MERCI — THE GIFT-TRACKING PAGE, `?cadeau={orderId}` (founder order
+   * 2026-08-26: « give him the option to track the delivery as well »). The
+   * link the purchaser's WhatsApp message carries. A READ-ONLY view over the
+   * public order projection: status and the delivery marks — never the code
+   * (buyer-token-gated), never an amount, never a contact. Query form on the
+   * root, so no router/404.html change — the liste link's own precedent.
+   */
+  const cadeauId = params.get('cadeau');
+
+  if (cadeauId !== null && /^[A-Za-z0-9][A-Za-z0-9_-]{0,191}$/.test(cadeauId)) {
+    const main = document.createElement('main');
+    mountCadeau(main, cadeauId, resolveQuotePort());
+    app.append(main);
+  } else if (signedSlug) {
     const profil = params.get('demo-signed-profil') === 'prive' ? 'private' : 'default';
     // A REAL shared link (the path slug) resolves through the env-gated port —
     // the real HTTP adapter iff a service base is configured, else the demo
@@ -810,6 +840,18 @@ if (app) {
             etatCommande: (id) => quotePort.orderState(id),
             remise: (id, ref) => quotePort.remise(id, ref),
           },
+          // LISTE-MERCI — only a fiche opened THROUGH a liste link offers the
+          // gift block; the read is buyer-token-gated server-side, and the
+          // message's tracking link is the absolute ?cadeau= form.
+          ...(listeRef !== undefined
+            ? {
+                merci: {
+                  charger: (id: string, ref: string) => quotePort.listeMerci(id, ref),
+                  lienCadeau: (id: string) =>
+                    `${window.location.origin}${deployBaseFromPath(window.location.pathname)}/?cadeau=${encodeURIComponent(id)}`,
+                },
+              }
+            : {}),
           onVitrine: (slug) => {
             // LISTE-ENVIES-1 — a friend who arrived through a liste keeps her
             // banner when she steps back to the boutique.

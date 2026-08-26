@@ -1480,5 +1480,95 @@
   "fr": "La liste de {nom} · 1 envie",
   "register": "selling",
   "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_tel_label",
+  "fr": "Votre numéro WhatsApp (facultatif)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_tel_aide",
+  "fr": "Si vous le donnez, on pourra vous prévenir sur WhatsApp quand on vous offre un article.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vit.liste_tel_invalide",
+  "fr": "Ce numéro ne semble pas correct.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cadeau.titre",
+  "fr": "Suivi du cadeau",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "cadeau.explique",
+  "fr": "Ce cadeau vient de votre liste d'envies. Voici où il en est.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "cadeau.chargement",
+  "fr": "Un instant…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cadeau.pas_confirmee",
+  "fr": "La commande n'est pas encore confirmée.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cadeau.introuvable",
+  "fr": "Nous ne trouvons pas cette commande.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cadeau.hors_ligne",
+  "fr": "Pas de connexion — réessayez.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cadeau.actualiser",
+  "fr": "Actualiser",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cadeau.etat_preparation",
+  "fr": "En préparation",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "cadeau.etat_pret",
+  "fr": "Prêt — Séra passe le chercher",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "cadeau.etat_route",
+  "fr": "En route",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "cadeau.etat_arrive",
+  "fr": "Arrivé — remise en cours",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "cadeau.etat_livre",
+  "fr": "Livré",
+  "register": "selling",
+  "screenClass": "status"
  }
 ]
