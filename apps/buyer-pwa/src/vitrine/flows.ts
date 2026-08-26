@@ -526,15 +526,50 @@ export function mountVitrine(
     } else if (action === 'decouvrir') {
       window.location.href = '/boutiques';
     } else if (action === 'liste-creer') {
-      // LISTE-ENVIES-1 — the builder sheet, over the page. Pre-checked rows
-      // are her hearts on THIS boutique's catalogue: the liste starts from
-      // what she already told us she loves.
-      if (dernierPret !== null) {
-        root.querySelector('[data-role="liste-sheet"]')?.remove();
+      // LISTE-REFAIRE — ONE action, two lives. No liste yet (or the way out
+      // of a dead handle, data-mode="nouvelle") → the builder that CREATES,
+      // pre-checked from her hearts. A liste already → the SAME sheet
+      // pre-checked from her CURRENT liste (server truth first — the marks
+      // live there): checking adds, unchecking removes, the link stays.
+      if (dernierPret === null) return;
+      const gardee = listeGardee(dernierPret.sf.slug);
+      root.querySelector('[data-role="liste-sheet"]')?.remove();
+      if (gardee === undefined || target.getAttribute('data-mode') === 'nouvelle') {
         const articles = articlesPourListe(dernierPret.sf, dernierPret.described);
         const precoche = new Set(articles.filter((p) => isFavorite(p.pid)).map((p) => p.pid));
         root.insertAdjacentHTML('beforeend', renderListeSheet(articles, precoche));
+        return;
       }
+      root.insertAdjacentHTML('beforeend', renderListeModif({ etape: 'chargement' }));
+      void listePort.lire(gardee.token).then((res) => {
+        // Closed while the read was out → paint nothing (the torn-down
+        // container law, LISTE-MERCI MINOR 2's lesson).
+        const attente = root.querySelector('[data-role="liste-modif-attente"]');
+        const sheet = attente?.closest('[data-role="liste-sheet"]');
+        if (attente === null || sheet === null || sheet === undefined || dernierPret === null) return;
+        if (res.status === 'hors-ligne') {
+          sheet.outerHTML = renderListeModif({ etape: 'hors-ligne' });
+          return;
+        }
+        if (res.status === 'introuvable') {
+          sheet.outerHTML = renderListeModif({ etape: 'introuvable' });
+          return;
+        }
+        // The rows she can decide on: every in-stock article (addable) PLUS
+        // her liste's own articles even when épuisé (removing one is a reason
+        // she came). A pid the catalogue cannot resolve is not offered and
+        // leaves on her next save — the door's membership law would refuse
+        // any update still carrying it (journalled, deliberate).
+        const catalogue = articlesPourModif(dernierPret.sf, dernierPret.described);
+        const surListe = new Set(res.liste.articles.map((a) => a.pid));
+        const rows = [...catalogue.values()].filter((p) => p.inStock || surListe.has(p.pid));
+        if (rows.length === 0) {
+          sheet.outerHTML = renderListeModif({ etape: 'introuvable' });
+          return;
+        }
+        const offerts = new Set(res.liste.articles.filter((a) => a.offert).map((a) => a.pid));
+        sheet.outerHTML = renderListeSheet(rows, surListe, { nom: res.liste.nom, offerts });
+      });
     } else if (action === 'liste-fermer') {
       root.querySelector('[data-role="liste-sheet"]')?.remove();
     } else if (action === 'liste-valider') {
@@ -591,45 +626,11 @@ export function mountVitrine(
         if (sheet !== null) sheet.outerHTML = renderListeLien(lienDeListe(res.liste.token));
         remplirListeSlot();
       });
-    } else if (action === 'liste-modifier') {
-      // LISTE-RETRAIT-1 — the manage sheet opens on SERVER truth: the read
-      // brings the marks (« Déjà offert » must be visible while she decides),
-      // and the same action IS the hors-ligne retry. Her handle names the
-      // token; no handle, no road.
-      if (dernierPret === null) return;
-      const gardee = listeGardee(dernierPret.sf.slug);
-      if (gardee === undefined) return;
-      root.querySelector('[data-role="liste-sheet"]')?.remove();
-      root.insertAdjacentHTML('beforeend', renderListeModif({ etape: 'chargement' }));
-      void listePort.lire(gardee.token).then((res) => {
-        // Closed while the read was out → paint nothing (the torn-down
-        // container law, LISTE-MERCI MINOR 2's lesson applied here first).
-        const attente = root.querySelector('[data-role="liste-modif-attente"]');
-        const sheet = attente?.closest('[data-role="liste-sheet"]');
-        if (attente === null || sheet === null || sheet === undefined || dernierPret === null) return;
-        if (res.status === 'hors-ligne') {
-          sheet.outerHTML = renderListeModif({ etape: 'hors-ligne' });
-          return;
-        }
-        if (res.status === 'introuvable') {
-          sheet.outerHTML = renderListeModif({ etape: 'introuvable' });
-          return;
-        }
-        const catalogue = articlesPourModif(dernierPret.sf, dernierPret.described);
-        const rows: { p: VitrineProduct; offert: boolean }[] = [];
-        for (const a of res.liste.articles) {
-          const p = catalogue.get(a.pid);
-          // A pid the catalogue cannot resolve is not offered: the service's
-          // membership law would refuse any update still carrying it, so it
-          // leaves the liste on her next save — journalled, deliberate.
-          if (p !== undefined) rows.push({ p, offert: a.offert });
-        }
-        sheet.outerHTML = renderListeModif(rows.length === 0 ? { etape: 'introuvable' } : { etape: 'prete', rows });
-      });
     } else if (action === 'liste-enregistrer') {
-      // What stays checked IS the liste; unchecking is the removal. The
-      // last-item refusal mirrors the door's own law (`pids` may not be
-      // empty) inline, while the choice is still under her thumb.
+      // LISTE-REFAIRE's save — what stays checked IS the liste. The
+      // empty-selection and empty-name refusals mirror the door's own laws
+      // inline, while the choice is still under her thumb; nothing leaves
+      // the phone on a refused save.
       if (dernierPret === null) return;
       const sfSlug = dernierPret.sf.slug;
       const gardee = listeGardee(sfSlug);
@@ -638,6 +639,7 @@ export function mountVitrine(
       for (const box of root.querySelectorAll<HTMLInputElement>('input[data-liste-pid]')) {
         if (box.checked) pids.push(box.getAttribute('data-liste-pid') ?? '');
       }
+      const nom = (root.querySelector<HTMLInputElement>('[data-role="liste-nom"]')?.value ?? '').trim();
       const alerte = root.querySelector<HTMLElement>('[data-role="liste-alerte"]');
       const direAlerte = (message: string): void => {
         if (alerte !== null) {
@@ -646,10 +648,11 @@ export function mountVitrine(
         }
       };
       if (pids.length === 0) return direAlerte(t('vit.liste_garder_un'));
+      if (nom === '') return direAlerte(t('vit.liste_nom_manque'));
       const bouton = target as HTMLButtonElement;
       bouton.disabled = true;
       bouton.textContent = t('vit.liste_modif_encours');
-      void listePort.modifier(gardee.token, gardee.editCle, pids).then((res) => {
+      void listePort.modifier(gardee.token, gardee.editCle, pids, nom).then((res) => {
         if (res.status !== 'modifiee') {
           bouton.disabled = false;
           bouton.textContent = t('vit.liste_modif_cta');
@@ -658,7 +661,7 @@ export function mountVitrine(
         }
         // The handle follows the SERVICE's answer (its projection is the
         // truth of what survived), so the card's count can never drift.
-        garderListe(sfSlug, { ...gardee, pids: res.liste.articles.map((a) => a.pid) });
+        garderListe(sfSlug, { ...gardee, nom: res.liste.nom, pids: res.liste.articles.map((a) => a.pid) });
         root.querySelector('[data-role="liste-sheet"]')?.remove();
         remplirListeSlot();
         toast(root, t('vit.liste_modif_faite'));

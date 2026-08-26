@@ -1500,14 +1500,8 @@
   "screenClass": "status"
  },
  {
-  "key": "vit.liste_modifier",
-  "fr": "Modifier ma liste",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
   "key": "vit.liste_modif_texte",
-  "fr": "Décochez ce que vous ne voulez plus. Votre lien reste le même.",
+  "fr": "Cochez ce que vous voulez offrir, décochez le reste. Votre lien reste le même.",
   "register": "selling",
   "screenClass": "selling_surface"
  },
@@ -1525,7 +1519,7 @@
  },
  {
   "key": "vit.liste_garder_un",
-  "fr": "Gardez au moins un article, ou refaites une liste.",
+  "fr": "Gardez au moins un article.",
   "register": "neutral",
   "screenClass": "status"
  },

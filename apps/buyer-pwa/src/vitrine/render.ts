@@ -521,10 +521,11 @@ export function articlesPourListe(sf: Storefront, described?: readonly VitrinePr
   return orderedProducts(sf, undefined, described).filter((p) => p.inStock);
 }
 
-/** LISTE-RETRAIT — the WHOLE catalogue keyed by pid, épuisé included: the
- *  manage sheet must offer removing an article precisely because it can no
- *  longer be bought. (The builder keeps its in-stock filter — ADDING a dead
- *  fiche to a liste stays banned.) */
+/** LISTE-REFAIRE — the WHOLE catalogue keyed by pid, épuisé included: the
+ *  redo sheet must offer removing an article precisely because it can no
+ *  longer be bought. (Creation keeps its in-stock filter — ADDING a dead
+ *  fiche to a liste stays banned, and the redo compose re-applies it to
+ *  anything not already on the liste.) */
 export function articlesPourModif(sf: Storefront, described?: readonly VitrineProduct[]): Map<string, VitrineProduct> {
   return new Map(orderedProducts(sf, undefined, described).map((p) => [p.pid, p]));
 }
@@ -556,9 +557,10 @@ export function renderListeBand(sf: Storefront): string {
     `<div class="vt-liste-inviter-txt">${iconHeart(15, '#B4544B', 1.9)}<div><div class="vt-liste-titre">${t('vit.liste_votre_titre')}</div><div class="vt-liste-texte"><v>${esc(detail)}</v></div></div></div>`,
     '<div class="vt-liste-actions">',
     `<button class="vt-liste-cta" data-action="liste-partager">${t('vit.liste_partager')}</button>`,
-    // LISTE-RETRAIT — the edit road KEEPS her link; « refaire » stays the
-    // separate road that mints a new one. Both whisper; share stays primary.
-    `<button class="vt-liste-secondaire" data-action="liste-modifier">${t('vit.liste_modifier')}</button>`,
+    // LISTE-REFAIRE (founder, 2026-08-26: « make the removing and adding
+    // items all be on 'refaire ma liste' ») — ONE secondary road: with a
+    // liste, this same action opens the ONE sheet where checking adds and
+    // unchecking removes, over the update door, so her LINK NEVER CHANGES.
     `<button class="vt-liste-secondaire" data-action="liste-creer">${t('vit.liste_refaire')}</button>`,
     '</div>',
     '</div>',
@@ -566,65 +568,79 @@ export function renderListeBand(sf: Storefront): string {
 }
 
 /**
- * THE BUILDER SHEET — her boutique's IN-STOCK articles as check rows, her
- * first name, one primary action. Pre-checked rows are her hearts (the
- * device-local favoris ∩ this boutique): the liste starts from what she
- * already told us she loves. Épuisé articles are not offered — a liste that
- * sends friends to a dead fiche would be a dead button wearing a gift bow.
+ * THE ONE BUILDER SHEET, two lives (LISTE-REFAIRE — founder, 2026-08-26:
+ * « make the removing and adding items all be on 'refaire ma liste' …
+ * understandable and very simple and clear »):
+ *  · CREATING (no `edition`) — her boutique's IN-STOCK articles as check
+ *    rows, pre-checked from her hearts, her first name, the WhatsApp opt-in,
+ *    one primary action that mints the link. Épuisé articles are not offered
+ *    — a liste that sends friends to a dead fiche would be a dead button
+ *    wearing a gift bow.
+ *  · REDOING (`edition` present) — the SAME rows, pre-checked from her
+ *    CURRENT liste (server truth): checking adds, unchecking removes, one
+ *    « Enregistrer » — nothing else to learn. An article already given wears
+ *    « Déjà offert » where its price would sit; an épuisé article ON the
+ *    liste still renders (removing it is a reason she came); the name is
+ *    prefilled and editable; the sheet says the LINK STAYS THE SAME. The
+ *    WhatsApp field does not appear — the opt-in is a creation-time choice
+ *    the update door does not carry (journalled residue).
  */
-export function renderListeSheet(articles: readonly VitrineProduct[], precoche: ReadonlySet<string>): string {
+export function renderListeSheet(
+  articles: readonly VitrineProduct[],
+  precoche: ReadonlySet<string>,
+  edition?: { readonly nom: string; readonly offerts: ReadonlySet<string> },
+): string {
   const rows = articles.map((p) => [
     `<label class="vt-liste-row" data-role="liste-choix">`,
     `<input type="checkbox" class="vt-liste-case" data-liste-pid="${esc(p.pid)}"${precoche.has(p.pid) ? ' checked' : ''}>`,
-    `<div class="vt-liste-row-art">${tileArt(false, p.assetRefs)}</div>`,
-    `<div class="vt-liste-row-infos"><div class="vt-liste-row-nom"><v>${esc(p.name)}</v></div><div class="vt-liste-row-prix"><v>${fmtFcfa(p.priceFcfa)}</v></div></div>`,
-    '</label>',
+    `<div class="vt-liste-row-art">${tileArt(!p.inStock, p.assetRefs)}</div>`,
+    `<div class="vt-liste-row-infos"><div class="vt-liste-row-nom"><v>${esc(p.name)}</v></div>`,
+    edition !== undefined && edition.offerts.has(p.pid)
+      ? `<div class="vt-liste-offert-badge">${iconCheck(12, '#3F7D5C', 2.6)}${t('vit.liste_offert')}</div>`
+      : `<div class="vt-liste-row-prix"><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
+    '</div></label>',
   ].join(''));
   return [
     '<div class="vt-liste-voile" data-role="liste-sheet">',
     '<div class="vt-liste-sheet">',
     `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${t('vit.liste_sheet_titre')}</div><button class="vt-liste-fermer" data-action="liste-fermer" aria-label="${t('vit.liste_fermer_aria')}">×</button></div>`,
-    `<div class="vt-liste-texte">${t('vit.liste_sheet_texte')}</div>`,
+    `<div class="vt-liste-texte">${edition !== undefined ? t('vit.liste_modif_texte') : t('vit.liste_sheet_texte')}</div>`,
     `<div class="vt-liste-rows">${rows.join('')}</div>`,
     `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_nom_label')}</span>`,
-    `<input type="text" class="vt-liste-nom-input" data-role="liste-nom" maxlength="24" autocomplete="given-name">`,
+    `<input type="text" class="vt-liste-nom-input" data-role="liste-nom" maxlength="24" autocomplete="given-name"${edition !== undefined ? ` value="${esc(edition.nom)}"` : ''}>`,
     `<span class="vt-liste-texte">${t('vit.liste_nom_aide')}</span></label>`,
-    // LISTE-MERCI — the WhatsApp opt-in IS filling this field (one optional
-    // input beats a checkbox that reveals one — fewer controls, same choice).
-    // The number never appears on the shared liste; the aide says who will
-    // see it and why.
-    `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_tel_label')}</span>`,
-    `<input type="tel" class="vt-liste-nom-input" data-role="liste-tel" maxlength="24" inputmode="tel" autocomplete="tel">`,
-    `<span class="vt-liste-texte">${t('vit.liste_tel_aide')}</span></label>`,
+    ...(edition === undefined
+      ? [
+          // LISTE-MERCI — the WhatsApp opt-in IS filling this field (one
+          // optional input beats a checkbox that reveals one — fewer
+          // controls, same choice). The number never appears on the shared
+          // liste; the aide says who will see it and why.
+          `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_tel_label')}</span>`,
+          `<input type="tel" class="vt-liste-nom-input" data-role="liste-tel" maxlength="24" inputmode="tel" autocomplete="tel">`,
+          `<span class="vt-liste-texte">${t('vit.liste_tel_aide')}</span></label>`,
+        ]
+      : []),
     '<div class="vt-liste-alerte" data-role="liste-alerte" hidden></div>',
-    `<button class="vt-liste-valider" data-action="liste-valider">${t('vit.liste_creer_cta')}</button>`,
+    edition !== undefined
+      ? `<button class="vt-liste-valider" data-action="liste-enregistrer">${t('vit.liste_modif_cta')}</button>`
+      : `<button class="vt-liste-valider" data-action="liste-valider">${t('vit.liste_creer_cta')}</button>`,
     '</div>',
     '</div>',
   ].join('');
 }
 
 /**
- * ═══ LISTE-RETRAIT-1 — THE MANAGE SHEET (founder order, 2026-08-26) ═══
- *
- * « option where wishlist creator can remove items from their wishlist »
- *
- * Her CURRENT liste as checked rows — SERVER truth, read fresh when the sheet
- * opens, because the marks live there: a row already given wears « Déjà
- * offert » where its price would sit (the price of a gift already made is not
- * the point; knowing she is removing a granted wish is). Unchecking is the
- * removal; ONE action saves; the LINK STAYS THE SAME — that sentence is on
- * the sheet, because it is the reason this road exists beside « refaire ».
- * Épuisé articles still render (removing one is exactly why she came); a pid
- * the catalogue can no longer resolve is not offered and leaves on her next
- * save — the service's own membership law (`pids ⊆ curatedItems`) would
- * refuse any update still carrying it. Chargement, hors-ligne (retry = the
- * same open action) and introuvable (way out: refaire) are designed states.
+ * LISTE-REFAIRE — the redo sheet's WAITING FACES. The interactive face is
+ * `renderListeSheet` with `edition`; these three cover the server read that
+ * precedes it (the marks and the current selection live there). The
+ * hors-ligne retry is the SAME open action; introuvable's way out is a FRESH
+ * create (`data-mode="nouvelle"` skips the redo branch — the dead handle is
+ * replaced on the next successful create, newest-wins).
  */
 export type ListeModifEtat =
   | { readonly etape: 'chargement' }
   | { readonly etape: 'hors-ligne' }
-  | { readonly etape: 'introuvable' }
-  | { readonly etape: 'prete'; readonly rows: readonly { readonly p: VitrineProduct; readonly offert: boolean }[] };
+  | { readonly etape: 'introuvable' };
 
 export function renderListeModif(etat: ListeModifEtat): string {
   let corps: string;
@@ -633,29 +649,12 @@ export function renderListeModif(etat: ListeModifEtat): string {
   } else if (etat.etape === 'hors-ligne') {
     corps = [
       `<div class="vt-liste-texte" data-role="liste-modif-horsligne">${t('vit.liste_hors_ligne')}</div>`,
-      `<button class="vt-liste-valider" data-action="liste-modifier">${t('vit.reessayer')}</button>`,
-    ].join('');
-  } else if (etat.etape === 'introuvable') {
-    corps = [
-      `<div class="vt-liste-texte" data-role="liste-modif-introuvable">${t('vit.liste_introuvable')}</div>`,
-      `<button class="vt-liste-valider" data-action="liste-creer">${t('vit.liste_refaire')}</button>`,
+      `<button class="vt-liste-valider" data-action="liste-creer">${t('vit.reessayer')}</button>`,
     ].join('');
   } else {
-    const rows = etat.rows.map(({ p, offert }) => [
-      `<label class="vt-liste-row" data-role="liste-modif-row">`,
-      `<input type="checkbox" class="vt-liste-case" data-liste-pid="${esc(p.pid)}" checked>`,
-      `<div class="vt-liste-row-art">${tileArt(!p.inStock, p.assetRefs)}</div>`,
-      `<div class="vt-liste-row-infos"><div class="vt-liste-row-nom"><v>${esc(p.name)}</v></div>`,
-      offert
-        ? `<div class="vt-liste-offert-badge">${iconCheck(12, '#3F7D5C', 2.6)}${t('vit.liste_offert')}</div>`
-        : `<div class="vt-liste-row-prix"><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
-      '</div></label>',
-    ].join(''));
     corps = [
-      `<div class="vt-liste-texte">${t('vit.liste_modif_texte')}</div>`,
-      `<div class="vt-liste-rows">${rows.join('')}</div>`,
-      '<div class="vt-liste-alerte" data-role="liste-alerte" hidden></div>',
-      `<button class="vt-liste-valider" data-action="liste-enregistrer">${t('vit.liste_modif_cta')}</button>`,
+      `<div class="vt-liste-texte" data-role="liste-modif-introuvable">${t('vit.liste_introuvable')}</div>`,
+      `<button class="vt-liste-valider" data-action="liste-creer" data-mode="nouvelle">${t('vit.liste_entree_cta')}</button>`,
     ].join('');
   }
   return [

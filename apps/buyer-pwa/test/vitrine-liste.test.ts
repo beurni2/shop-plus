@@ -85,8 +85,8 @@ describe('the creator band — invitation, then her liste', () => {
     expect(band).toContain('data-role="vitrine-liste-carte"');
     expect(band).toContain('La liste de Awa · 2 envies');
     expect(band).toContain('data-action="liste-partager"');
-    expect(band).toContain('data-action="liste-modifier"'); // LISTE-RETRAIT — the edit road that keeps her link
-    expect(band).toContain('data-action="liste-creer"'); // « refaire » rides the same sheet
+    expect(band).toContain('data-action="liste-creer"'); // LISTE-REFAIRE — adding AND removing live on this ONE road
+    expect(band).not.toContain('liste-modifier'); // the separate edit entry is gone (founder: confusing)
   });
 
   it('the record survives a fresh load and never bleeds across boutiques', () => {
@@ -252,65 +252,80 @@ describe('httpListePort — the wire refuses to invent', () => {
 });
 
 /**
- * LISTE-RETRAIT-1 — the removal road's laws, by execution:
- *  · the manage sheet renders SERVER truth all-checked (unchecking IS the
- *    removal), a given row wears the badge where its price would sit, an
- *    épuisé row is still offered (removing it is why she came);
- *  · every non-prete state is designed, with its way out wired;
- *  · the wire sends the exact TWO-key body — `nom` absent keeps the stored
- *    name, and no other key can ride;
- *  · the demo port mirrors the service's certified bounds: wrong key is a
- *    refusal, marks survive on every kept pid.
+ * LISTE-REFAIRE-1 — one road to add AND remove (founder: « make the removing
+ * and adding items all be on 'refaire ma liste' … very simple and clear »),
+ * by execution:
+ *  · the SAME builder sheet serves the redo: rows pre-checked from SERVER
+ *    truth, checking adds, unchecking removes, a given row wears the badge,
+ *    an épuisé row on the liste is still offered, the nom is prefilled, the
+ *    WhatsApp field does NOT appear (a creation-time choice);
+ *  · every waiting state is designed, with its way out wired;
+ *  · the wire sends the exact body — nom rides when given, nothing else;
+ *  · the demo port mirrors the door's key + band + nom laws.
  */
-describe('the manage sheet — unchecking is the removal', () => {
-  it('renders her liste all-checked, badges the given row instead of a price, keeps the épuisé row, one action', () => {
-    const [p1, p2, p3] = articlesPourModif(SF as never, prods([{ pid: 'p3', inStock: false }]) as never).values();
-    const sheet = renderListeModif({
-      etape: 'prete',
-      rows: [{ p: p1!, offert: true }, { p: p2!, offert: false }, { p: p3!, offert: false }],
-    });
+describe('the refaire sheet — one road to add and remove', () => {
+  it('redo mode: her liste pre-checked, addable rows unchecked, badge on the given row, épuisé kept, nom prefilled, ONE action', () => {
+    const catalogue = articlesPourModif(SF as never, prods([{ pid: 'p3', inStock: false }]) as never);
+    const surListe = new Set(['p1', 'p3']); // p3 est épuisé mais SUR sa liste
+    const rows = [...catalogue.values()].filter((p) => p.inStock || surListe.has(p.pid));
+    const sheet = renderListeSheet(rows, surListe, { nom: 'Awa', offerts: new Set(['p1']) });
     expect(sheet).toContain('data-liste-pid="p1" checked');
-    expect(sheet).toContain('data-liste-pid="p2" checked');
-    expect(sheet).toContain('data-liste-pid="p3" checked'); // épuisé still removable
+    expect(sheet).toContain('data-liste-pid="p3" checked'); // épuisé, still removable
+    expect(sheet).toContain('data-liste-pid="p2"');
+    expect(sheet).not.toContain('data-liste-pid="p2" checked'); // addable, not yet hers
     expect(sheet).toContain('Déjà offert'); // the given row says so while she decides
     // the badge REPLACES the price on the given row: one badge, two prices
     expect((sheet.match(/vt-liste-offert-badge/g) ?? []).length).toBe(1);
     expect((sheet.match(/vt-liste-row-prix/g) ?? []).length).toBe(2);
-    expect(sheet).toContain('Votre lien reste le même.'); // the reason this road exists beside « refaire »
+    expect(sheet).toContain('Votre lien reste le même.'); // the promise that makes redo safe to tap
+    expect(sheet).toContain('value="Awa"'); // her name, already there
+    expect(sheet).not.toContain('data-role="liste-tel"'); // the opt-in is a creation-time choice
     expect(sheet).toContain('data-action="liste-enregistrer"');
+    expect(sheet).not.toContain('data-action="liste-valider"'); // ONE primary action per sheet
     expect(sheet).toContain('data-role="liste-alerte"'); // inline refusals, no wall
     expect(sheet).toContain('data-action="liste-fermer"'); // the way out
+  });
+
+  it('create mode is untouched: tel field present, no prefill, the create action', () => {
+    const sheet = renderListeSheet(articlesPourListe(SF as never, prods() as never), new Set());
+    expect(sheet).toContain('data-role="liste-tel"');
+    expect(sheet).toContain('data-action="liste-valider"');
+    expect(sheet).not.toContain('data-action="liste-enregistrer"');
   });
 
   it('chargement, hors-ligne and introuvable are designed states with their way out wired', () => {
     expect(renderListeModif({ etape: 'chargement' })).toContain('data-role="liste-modif-attente"');
     const hl = renderListeModif({ etape: 'hors-ligne' });
     expect(hl).toContain('data-role="liste-modif-horsligne"');
-    expect(hl).toContain('data-action="liste-modifier"'); // retry IS the open action
+    expect(hl).toContain('data-action="liste-creer"'); // retry IS the open action
+    expect(hl).not.toContain('data-mode="nouvelle"'); // a blip must not shunt her to a NEW link
     const perdu = renderListeModif({ etape: 'introuvable' });
     expect(perdu).toContain('data-role="liste-modif-introuvable"');
-    expect(perdu).toContain('data-action="liste-creer"'); // way out: refaire
+    expect(perdu).toContain('data-action="liste-creer" data-mode="nouvelle"'); // way out: a fresh create
   });
 
-  it('modifier sends the exact two-key body and reads the surviving projection', async () => {
+  it('modifier sends the exact body — nom rides when given, stays home when absent — and reads the surviving projection', async () => {
     let sent: { url: string; init: RequestInit | undefined; body: unknown } | undefined;
-    const out = await (async () => {
+    const run = async (nom?: string) => {
       const held = globalThis.fetch;
       globalThis.fetch = (async (url: string, init?: RequestInit) => {
         sent = { url, init, body: JSON.parse(String(init?.body)) };
-        return Response.json({ ok: true, liste: { nom: 'Awa', slug: 's-1', articles: [{ pid: 'p1', offert: true }] } });
+        return Response.json({ ok: true, liste: { nom: 'Rasmata', slug: 's-1', articles: [{ pid: 'p1', offert: true }] } });
       }) as typeof fetch;
       try {
-        return await httpListePort('https://svc').modifier('T'.repeat(32), 'E'.repeat(32), ['p1']);
+        return await httpListePort('https://svc').modifier('T'.repeat(32), 'E'.repeat(32), ['p1'], nom);
       } finally {
         globalThis.fetch = held;
       }
-    })();
+    };
+    const out = await run('Rasmata');
     expect(sent?.url).toBe(`https://svc/listes/${'T'.repeat(32)}`);
     expect(sent?.init?.method).toBe('POST');
-    expect(sent?.body).toEqual({ editCle: 'E'.repeat(32), pids: ['p1'] }); // `nom` absent = keep the stored name
+    expect(sent?.body).toEqual({ editCle: 'E'.repeat(32), nom: 'Rasmata', pids: ['p1'] });
     expect(out.status).toBe('modifiee');
     if (out.status === 'modifiee') expect(out.liste.articles).toEqual([{ pid: 'p1', offert: true }]);
+    await run();
+    expect(sent?.body).toEqual({ editCle: 'E'.repeat(32), pids: ['p1'] }); // nom absent = keep the stored name
   });
 
   it('a refused, thrown or malformed modifier collapses honestly — never an invented success', async () => {
@@ -328,7 +343,7 @@ describe('the manage sheet — unchecking is the removal', () => {
     expect((await run(async () => Response.json({ ok: true, liste: { nom: 1 } }))).status).toBe('refus');
   });
 
-  it('the demo port mirrors the certified bounds: marks survive on kept pids, wrong key refuses', async () => {
+  it('the demo port mirrors the certified bounds: marks survive on kept pids, nom carries, wrong key refuses', async () => {
     const port = demoListePort();
     const made = await port.creer('s-1', 'Awa', ['p1', 'p2']);
     expect(made.status).toBe('creee');
@@ -336,9 +351,12 @@ describe('the manage sheet — unchecking is the removal', () => {
     const { token, editCle } = made.liste;
     expect((await port.modifier(token, 'X'.repeat(32), ['p1'])).status).toBe('refus');
     expect((await port.modifier(token, editCle, [])).status).toBe('refus');
-    const kept = await port.modifier(token, editCle, ['p2']);
+    const kept = await port.modifier(token, editCle, ['p2'], 'Rasmata');
     expect(kept.status).toBe('modifiee');
-    if (kept.status === 'modifiee') expect(kept.liste.articles).toEqual([{ pid: 'p2', offert: false }]);
+    if (kept.status === 'modifiee') {
+      expect(kept.liste.articles).toEqual([{ pid: 'p2', offert: false }]);
+      expect(kept.liste.nom).toBe('Rasmata');
+    }
     const relu = await port.lire(token);
     expect(relu.status).toBe('liste'); // a regressed lire must FAIL here, never skip the re-read
     if (relu.status === 'liste') expect(relu.liste.articles.map((a) => a.pid)).toEqual(['p2']);
