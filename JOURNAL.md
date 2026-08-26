@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-26 · MARGE-EFFACÉE — an emptied markup field commits ZERO · IN REVIEW
+## 2026-08-26 · MARGE-EFFACÉE — an emptied markup field commits ZERO · DONE
+
+**MERGED AND DEPLOYED (founder: « Go ahead », 2026-08-26).** `main` fast-forwarded to `9c6cc31`. **All four push workflows green — ci 570 · expo-preview 393 (the reseller app with the fix, this slice's deployable) · pwa-preview 360 · service-canon-drift 229.** App-only — no storefront-deploy, per the CW-2 precedent for slices that touch no service.
 
 **Founder, 2026-08-26: « On opportunités and on ma vitrine when I add a mark up amount like 5 fcfa and remove it, on the gain net it still show the 5 fcfa added. »** Build `5e54b8e`, pushed, awaiting his merge word.
 
