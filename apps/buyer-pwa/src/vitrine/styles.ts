@@ -372,7 +372,18 @@ export const VITRINE_STYLES = `
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .vt-liste-row-prix { font-size: 12.5px; font-weight: 700; color: #1C1710; }
-  .vt-liste-nom { display: block; margin-top: 14px; }
+  .vt-liste-section-titre {
+    margin-top: 16px; font-size: 13px; font-weight: 800; color: #1C1710;
+    letter-spacing: .01em;
+  }
+  .vt-liste-row-infos { flex: 1; }
+  .vt-liste-row-btn {
+    flex: none; min-height: 44px; padding: 0 16px; border-radius: 12px;
+    border: 1.5px solid #D9CFC2; background: #FFFFFF; color: #1C1710;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .vt-liste-row-btn:disabled { opacity: .55; cursor: default; }
+  .vt-liste-row-btn-ajout { border-color: #1C1710; background: #1C1710; color: #FFF8EF; }
   .vt-liste-nom-label { display: block; font-size: 12.5px; font-weight: 700; color: #1C1710; }
   .vt-liste-nom-input {
     display: block; width: 100%; box-sizing: border-box; margin-top: 6px;

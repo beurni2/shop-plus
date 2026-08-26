@@ -570,62 +570,96 @@ export function renderListeBand(sf: Storefront): string {
 }
 
 /**
- * THE ONE BUILDER SHEET, two lives (LISTE-REFAIRE — founder, 2026-08-26:
- * « make the removing and adding items all be on 'refaire ma liste' …
- * understandable and very simple and clear »):
- *  · CREATING (no `edition`) — her boutique's IN-STOCK articles as check
- *    rows, pre-checked from her hearts, her first name, the WhatsApp opt-in,
- *    one primary action that mints the link. Épuisé articles are not offered
- *    — a liste that sends friends to a dead fiche would be a dead button
- *    wearing a gift bow.
- *  · REDOING (`edition` present) — the SAME rows, pre-checked from her
- *    CURRENT liste (server truth): checking adds, unchecking removes, one
- *    « Enregistrer » — nothing else to learn. An article already given wears
- *    « Déjà offert » where its price would sit; an épuisé article ON the
- *    liste still renders (removing it is a reason she came); the name is
- *    prefilled and editable; the sheet says the LINK STAYS THE SAME. The
- *    WhatsApp field does not appear — the opt-in is a creation-time choice
- *    the update door does not carry (journalled residue).
+ * THE BUILDER SHEET — CREATION ONLY: her boutique's IN-STOCK articles as
+ * check rows, pre-checked from her hearts, her first name, the WhatsApp
+ * opt-in, one primary action that mints the link. Épuisé articles are not
+ * offered — a liste that sends friends to a dead fiche would be a dead
+ * button wearing a gift bow. (Editing an EXISTING liste is
+ * `renderListeGestion` below — LISTE-REFAIRE-2 retired the checkbox+save
+ * model there: the founder found a save word confusing for « remove ».)
  */
-export function renderListeSheet(
-  articles: readonly VitrineProduct[],
-  precoche: ReadonlySet<string>,
-  edition?: { readonly nom: string; readonly offerts: ReadonlySet<string> },
-): string {
+export function renderListeSheet(articles: readonly VitrineProduct[], precoche: ReadonlySet<string>): string {
   const rows = articles.map((p) => [
     `<label class="vt-liste-row" data-role="liste-choix">`,
     `<input type="checkbox" class="vt-liste-case" data-liste-pid="${esc(p.pid)}"${precoche.has(p.pid) ? ' checked' : ''}>`,
-    `<div class="vt-liste-row-art">${tileArt(!p.inStock, p.assetRefs)}</div>`,
-    `<div class="vt-liste-row-infos"><div class="vt-liste-row-nom"><v>${esc(p.name)}</v></div>`,
-    edition !== undefined && edition.offerts.has(p.pid)
-      ? `<div class="vt-liste-offert-badge">${iconCheck(12, '#3F7D5C', 2.6)}${t('vit.liste_offert')}</div>`
-      : `<div class="vt-liste-row-prix"><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
-    '</div></label>',
+    `<div class="vt-liste-row-art">${tileArt(false, p.assetRefs)}</div>`,
+    `<div class="vt-liste-row-infos"><div class="vt-liste-row-nom"><v>${esc(p.name)}</v></div><div class="vt-liste-row-prix"><v>${fmtFcfa(p.priceFcfa)}</v></div></div>`,
+    '</label>',
   ].join(''));
   return [
     '<div class="vt-liste-voile" data-role="liste-sheet">',
     '<div class="vt-liste-sheet">',
     `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${t('vit.liste_sheet_titre')}</div><button class="vt-liste-fermer" data-action="liste-fermer" aria-label="${t('vit.liste_fermer_aria')}">×</button></div>`,
-    `<div class="vt-liste-texte">${edition !== undefined ? t('vit.liste_modif_texte') : t('vit.liste_sheet_texte')}</div>`,
+    `<div class="vt-liste-texte">${t('vit.liste_sheet_texte')}</div>`,
     `<div class="vt-liste-rows">${rows.join('')}</div>`,
     `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_nom_label')}</span>`,
-    `<input type="text" class="vt-liste-nom-input" data-role="liste-nom" maxlength="24" autocomplete="given-name"${edition !== undefined ? ` value="${esc(edition.nom)}"` : ''}>`,
+    `<input type="text" class="vt-liste-nom-input" data-role="liste-nom" maxlength="24" autocomplete="given-name">`,
     `<span class="vt-liste-texte">${t('vit.liste_nom_aide')}</span></label>`,
-    ...(edition === undefined
-      ? [
-          // LISTE-MERCI — the WhatsApp opt-in IS filling this field (one
-          // optional input beats a checkbox that reveals one — fewer
-          // controls, same choice). The number never appears on the shared
-          // liste; the aide says who will see it and why.
-          `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_tel_label')}</span>`,
-          `<input type="tel" class="vt-liste-nom-input" data-role="liste-tel" maxlength="24" inputmode="tel" autocomplete="tel">`,
-          `<span class="vt-liste-texte">${t('vit.liste_tel_aide')}</span></label>`,
-        ]
-      : []),
+    // LISTE-MERCI — the WhatsApp opt-in IS filling this field (one optional
+    // input beats a checkbox that reveals one — fewer controls, same choice).
+    // The number never appears on the shared liste; the aide says who will
+    // see it and why.
+    `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_tel_label')}</span>`,
+    `<input type="tel" class="vt-liste-nom-input" data-role="liste-tel" maxlength="24" inputmode="tel" autocomplete="tel">`,
+    `<span class="vt-liste-texte">${t('vit.liste_tel_aide')}</span></label>`,
     '<div class="vt-liste-alerte" data-role="liste-alerte" hidden></div>',
-    edition !== undefined
-      ? `<button class="vt-liste-valider" data-action="liste-enregistrer">${t('vit.liste_modif_cta')}</button>`
-      : `<button class="vt-liste-valider" data-action="liste-valider">${t('vit.liste_creer_cta')}</button>`,
+    `<button class="vt-liste-valider" data-action="liste-valider">${t('vit.liste_creer_cta')}</button>`,
+    '</div>',
+    '</div>',
+  ].join('');
+}
+
+/**
+ * ═══ LISTE-REFAIRE-2 — THE GESTION SHEET (founder, 2026-08-26: « the word
+ * enregistrer and the flow makes it more confusing for someone wanting to
+ * remove an item, and also add the option to add an item and make very
+ * clear and very simple ») ═══
+ *
+ * NO SAVE WORD, NO CHECKBOX MODEL. Two plain sections and one verb per row:
+ *  · « Sur votre liste » — her articles, each with « Retirer ». A given row
+ *    wears « Déjà offert » where its price would sit; an épuisé article on
+ *    the liste still renders (removing it is a reason she came).
+ *  · « Ajouter un article » — the in-stock articles NOT yet hers, each with
+ *    « Ajouter »; empty → the honest « Tout est déjà sur votre liste. »
+ * EVERY TAP ACTS IMMEDIATELY (one update-door call), the rows move, the
+ * card follows — there is nothing to commit and nothing to remember. The
+ * one sentence above the sections is the promise that makes the sheet safe
+ * to touch: the LINK STAYS THE SAME.
+ */
+export function renderListeGestion(
+  miennes: readonly { readonly p: VitrineProduct; readonly offert: boolean }[],
+  ajoutables: readonly VitrineProduct[],
+): string {
+  const rowMienne = ({ p, offert }: { p: VitrineProduct; offert: boolean }): string => [
+    `<div class="vt-liste-row" data-role="liste-mienne">`,
+    `<div class="vt-liste-row-art">${tileArt(!p.inStock, p.assetRefs)}</div>`,
+    `<div class="vt-liste-row-infos"><div class="vt-liste-row-nom"><v>${esc(p.name)}</v></div>`,
+    offert
+      ? `<div class="vt-liste-offert-badge">${iconCheck(12, '#3F7D5C', 2.6)}${t('vit.liste_offert')}</div>`
+      : `<div class="vt-liste-row-prix"><v>${fmtFcfa(p.priceFcfa)}</v></div>`,
+    '</div>',
+    `<button class="vt-liste-row-btn" data-action="liste-retirer" data-pid="${esc(p.pid)}">${t('vit.liste_retirer')}</button>`,
+    '</div>',
+  ].join('');
+  const rowAjoutable = (p: VitrineProduct): string => [
+    `<div class="vt-liste-row" data-role="liste-ajoutable">`,
+    `<div class="vt-liste-row-art">${tileArt(false, p.assetRefs)}</div>`,
+    `<div class="vt-liste-row-infos"><div class="vt-liste-row-nom"><v>${esc(p.name)}</v></div><div class="vt-liste-row-prix"><v>${fmtFcfa(p.priceFcfa)}</v></div></div>`,
+    `<button class="vt-liste-row-btn vt-liste-row-btn-ajout" data-action="liste-ajouter" data-pid="${esc(p.pid)}">${t('vit.liste_ajouter')}</button>`,
+    '</div>',
+  ].join('');
+  return [
+    '<div class="vt-liste-voile" data-role="liste-sheet">',
+    '<div class="vt-liste-sheet">',
+    `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${t('vit.liste_sheet_titre')}</div><button class="vt-liste-fermer" data-action="liste-fermer" aria-label="${t('vit.liste_fermer_aria')}">×</button></div>`,
+    `<div class="vt-liste-texte">${t('vit.liste_modif_texte')}</div>`,
+    '<div class="vt-liste-alerte" data-role="liste-alerte" hidden></div>',
+    `<div class="vt-liste-section-titre">${t('vit.liste_mienne_titre')}</div>`,
+    `<div class="vt-liste-rows">${miennes.map(rowMienne).join('')}</div>`,
+    `<div class="vt-liste-section-titre">${t('vit.liste_ajouter_titre')}</div>`,
+    ajoutables.length === 0
+      ? `<div class="vt-liste-texte" data-role="liste-ajout-vide">${t('vit.liste_ajouter_vide')}</div>`
+      : `<div class="vt-liste-rows">${ajoutables.map(rowAjoutable).join('')}</div>`,
     '</div>',
     '</div>',
   ].join('');

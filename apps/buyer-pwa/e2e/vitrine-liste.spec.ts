@@ -95,21 +95,21 @@ test('CREATOR — she builds her liste, the link is created, and her band rememb
 });
 
 /**
- * LISTE-REFAIRE-1 — THE ONE-ROAD WALK (founder: « make the removing and
- * adding items all be on 'refaire ma liste' … very simple and clear »). Her
- * handle is seeded on the phone; « Refaire ma liste » opens the ONE sheet
- * pre-checked from the scripted service's READ; ONE save both removes and
- * adds; the recorded POST carries the exact bytes and the SAME link stays.
- * The four questions: the tree survives every tap (hors-ligne retry, the
- * empty-selection refusal, the save) · the primary action is wired to a real
- * POST · the refusal leaves her a way out · the next step is REACHED (the
- * carte follows, the handle follows, a reload agrees).
+ * LISTE-REFAIRE-2 — THE TAP-ACTS WALK (founder: « the word enregistrer and
+ * the flow makes it more confusing … add the option to add an item and make
+ * very clear and very simple »). « Refaire ma liste » opens the gestion
+ * sheet: « Retirer » on hers, « Ajouter » on the rest, NO save word — every
+ * tap is one immediate POST whose exact bytes are recorded, the rows move,
+ * the card follows, and the SAME link stays. The four questions: the tree
+ * survives every tap (hors-ligne retry, the last-item refusal, both acts) ·
+ * each verb is wired to a real POST · the refusal leaves her a way out ·
+ * the next step is REACHED (rows move, the handle follows, a reload agrees).
  */
-test('CREATOR — « Refaire ma liste » is the one road: one sheet, one save that removes AND adds, the link kept', async ({ page }) => {
+test('CREATOR — Retirer and Ajouter act on the tap: no save word, exact wires, the link kept', async ({ page }) => {
   await page.addInitScript(
     ({ token, editCle }: { token: string; editCle: string }) => {
       // set-if-absent: this runs on EVERY navigation, and the reload at the
-      // end must find the handle the SAVE wrote, not this seed again
+      // end must find the handle the ACTS wrote, not this seed again
       if (window.localStorage.getItem('shopplus.listes.v1') === null) {
         window.localStorage.setItem(
           'shopplus.listes.v1',
@@ -126,9 +126,14 @@ test('CREATOR — « Refaire ma liste » is the one road: one sheet, one save th
   await page.route('**/listes/**', async (route: Route) => {
     if (route.request().method() === 'POST') {
       updates.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);
+      // the scripted door answers each act with the truth it produced:
+      // 1st act (Ajouter p2) → [p1 offert, p2] · 2nd act (Retirer p1) → [p2]
+      const articles = updates.length === 1
+        ? [{ pid: 'p1', offert: true }, { pid: 'p2', offert: false }]
+        : [{ pid: 'p2', offert: false }];
       await route.fulfill({
         status: 200, contentType: 'application/json',
-        body: JSON.stringify({ ok: true, liste: { nom: 'Awa', slug: 'aicha-4821', articles: [{ pid: 'p2', offert: false }] } }),
+        body: JSON.stringify({ ok: true, liste: { nom: 'Awa', slug: 'aicha-4821', articles } }),
       });
       return;
     }
@@ -151,35 +156,45 @@ test('CREATOR — « Refaire ma liste » is the one road: one sheet, one save th
   horsLigne = false;
   await page.locator('[data-role="liste-sheet"] [data-action="liste-creer"]').click();
 
-  // THE ONE SHEET — hers checked (with « Déjà offert »), the rest addable,
-  // her name already written, no WhatsApp field, the link promise stated.
-  await expect(page.locator('input[data-liste-pid="p1"]')).toBeChecked();
-  await expect(page.locator('input[data-liste-pid="p2"]')).not.toBeChecked();
-  await expect(page.locator('input[data-liste-pid="p3"]')).toHaveCount(0); // épuisé and not hers — not addable
+  // THE GESTION SHEET — hers under « Sur votre liste » with Retirer and the
+  // badge; p2 under « Ajouter un article »; the dead p3 nowhere; NO save
+  // word, NO checkbox; the link promise stated.
+  await expect(page.locator('[data-action="liste-retirer"][data-pid="p1"]')).toBeVisible();
+  await expect(page.locator('[data-action="liste-ajouter"][data-pid="p2"]')).toBeVisible();
+  await expect(page.locator('[data-pid="p3"]')).toHaveCount(0); // épuisé and not hers — not addable
   await expect(page.locator('[data-role="liste-sheet"]')).toContainText('Déjà offert');
-  await expect(page.locator('[data-role="liste-sheet"] [data-role="liste-nom"]')).toHaveValue('Awa');
-  await expect(page.locator('[data-role="liste-sheet"] [data-role="liste-tel"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="liste-enregistrer"]')).toHaveCount(0);
+  await expect(page.locator('[data-role="liste-sheet"] input')).toHaveCount(0);
   await expect(page.locator('[data-role="liste-sheet"]')).toContainText('Votre lien reste le même.');
 
-  // THE LAST-ITEM LAW, INLINE — nothing leaves the phone on a refused save.
-  await page.locator('input[data-liste-pid="p1"]').uncheck();
-  await page.locator('[data-action="liste-enregistrer"]').click();
+  // THE LAST-ITEM LAW, INLINE — her only article cannot be removed, and
+  // nothing leaves the phone on the refusal.
+  await page.locator('[data-action="liste-retirer"][data-pid="p1"]').click();
   await expect(page.locator('[data-role="liste-alerte"]')).toHaveText('Gardez au moins un article.');
   expect(updates).toHaveLength(0);
 
-  // ONE SAVE, BOTH ACTS — p1 stays unchecked (removed), p2 checked (added):
-  // the wire carries the EXACT body, editCle in the BODY, never the URL.
-  await page.locator('input[data-liste-pid="p2"]').check();
-  await page.locator('[data-action="liste-enregistrer"]').click();
-  await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
-  expect(updates).toHaveLength(1);
-  expect(updates[0]).toEqual({ editCle: 'E'.repeat(32), nom: 'Awa', pids: ['p2'] });
+  // AJOUTER ACTS ON THE TAP — the exact body out, the row moves up.
+  await page.locator('[data-action="liste-ajouter"][data-pid="p2"]').click();
+  await expect(page.locator('[data-action="liste-retirer"][data-pid="p2"]')).toBeVisible();
+  expect(updates[0]).toEqual({ editCle: 'E'.repeat(32), pids: ['p1', 'p2'] });
+  await expect(page.locator('[data-role="vitrine-liste-carte"]')).toContainText('La liste de Awa · 2 envies');
+  await expect(page.locator('[data-action="liste-ajouter"][data-pid="p4"]')).toBeVisible(); // the rest stays addable
+  // (the empty add section's honest « Tout est déjà sur votre liste. » is
+  // unit-covered — this demo boutique always has more in stock)
 
-  // THE NEXT STEP IS REACHED — the handle followed the SERVICE's answer,
-  // and a fresh visit agrees.
+  // RETIRER ACTS ON THE TAP — now that she has two, p1 can go.
+  await page.locator('[data-action="liste-retirer"][data-pid="p1"]').click();
+  await expect(page.locator('[data-action="liste-retirer"][data-pid="p1"]')).toHaveCount(0);
+  expect(updates).toHaveLength(2);
+  expect(updates[1]).toEqual({ editCle: 'E'.repeat(32), pids: ['p2'] });
+
+  // THE NEXT STEP IS REACHED — the handle followed the SERVICE's answers,
+  // and a fresh visit agrees; the sheet's way out still works.
   await expect(page.locator('[data-role="vitrine-liste-carte"]')).toContainText('La liste de Awa · 1 envie');
   const handle = await page.evaluate(() => window.localStorage.getItem('shopplus.listes.v1'));
   expect((JSON.parse(handle ?? '{}') as Record<string, { pids: string[] }>)['aicha-4821']?.pids).toEqual(['p2']);
+  await page.locator('[data-action="liste-fermer"]').click();
+  await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
   await page.reload();
   await expect(page.locator('[data-role="vitrine-liste-carte"]')).toContainText('La liste de Awa · 1 envie');
 });

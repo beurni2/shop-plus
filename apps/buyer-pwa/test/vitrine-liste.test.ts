@@ -27,6 +27,7 @@ import {
   renderListeHorsLigne,
   renderListeIntrouvable,
   renderListeLien,
+  renderListeGestion,
   renderListeModif,
   renderListeSheet,
   renderVitrineReady,
@@ -252,45 +253,60 @@ describe('httpListePort — the wire refuses to invent', () => {
 });
 
 /**
- * LISTE-REFAIRE-1 — one road to add AND remove (founder: « make the removing
- * and adding items all be on 'refaire ma liste' … very simple and clear »),
+ * LISTE-REFAIRE-2 — no save word (founder: « the word enregistrer and the
+ * flow makes it more confusing for someone wanting to remove an item, and
+ * also add the option to add an item and make very clear and very simple »),
  * by execution:
- *  · the SAME builder sheet serves the redo: rows pre-checked from SERVER
- *    truth, checking adds, unchecking removes, a given row wears the badge,
- *    an épuisé row on the liste is still offered, the nom is prefilled, the
- *    WhatsApp field does NOT appear (a creation-time choice);
+ *  · the gestion sheet is two plain sections with ONE VERB PER ROW —
+ *    « Retirer » on hers (badge on the given row, épuisé kept), « Ajouter »
+ *    on the in-stock rest; NO Enregistrer, NO checkbox, NO name field;
+ *  · an empty add section is the honest « Tout est déjà sur votre liste. »;
  *  · every waiting state is designed, with its way out wired;
  *  · the wire sends the exact body — nom rides when given, nothing else;
  *  · the demo port mirrors the door's key + band + nom laws.
  */
-describe('the refaire sheet — one road to add and remove', () => {
-  it('redo mode: her liste pre-checked, addable rows unchecked, badge on the given row, épuisé kept, nom prefilled, ONE action', () => {
+describe('the gestion sheet — one verb per row, no save word', () => {
+  it('two sections: Retirer on hers (badge on the given, épuisé kept), Ajouter on the in-stock rest', () => {
     const catalogue = articlesPourModif(SF as never, prods([{ pid: 'p3', inStock: false }]) as never);
-    const surListe = new Set(['p1', 'p3']); // p3 est épuisé mais SUR sa liste
-    const rows = [...catalogue.values()].filter((p) => p.inStock || surListe.has(p.pid));
-    const sheet = renderListeSheet(rows, surListe, { nom: 'Awa', offerts: new Set(['p1']) });
-    expect(sheet).toContain('data-liste-pid="p1" checked');
-    expect(sheet).toContain('data-liste-pid="p3" checked'); // épuisé, still removable
-    expect(sheet).toContain('data-liste-pid="p2"');
-    expect(sheet).not.toContain('data-liste-pid="p2" checked'); // addable, not yet hers
+    const [p1, p2, p3] = [...catalogue.values()];
+    const sheet = renderListeGestion(
+      [{ p: p1!, offert: true }, { p: p3!, offert: false }], // p3 épuisé mais SUR sa liste
+      [p2!],
+    );
+    expect(sheet).toContain('Sur votre liste');
+    expect(sheet).toContain('Ajouter un article');
+    expect(sheet).toContain('data-action="liste-retirer" data-pid="p1"');
+    expect(sheet).toContain('data-action="liste-retirer" data-pid="p3"'); // épuisé, still removable
+    expect(sheet).toContain('data-action="liste-ajouter" data-pid="p2"');
+    expect(sheet).not.toContain('data-action="liste-ajouter" data-pid="p3"'); // dead fiche stays un-addable
     expect(sheet).toContain('Déjà offert'); // the given row says so while she decides
     // the badge REPLACES the price on the given row: one badge, two prices
     expect((sheet.match(/vt-liste-offert-badge/g) ?? []).length).toBe(1);
     expect((sheet.match(/vt-liste-row-prix/g) ?? []).length).toBe(2);
-    expect(sheet).toContain('Votre lien reste le même.'); // the promise that makes redo safe to tap
-    expect(sheet).toContain('value="Awa"'); // her name, already there
-    expect(sheet).not.toContain('data-role="liste-tel"'); // the opt-in is a creation-time choice
-    expect(sheet).toContain('data-action="liste-enregistrer"');
-    expect(sheet).not.toContain('data-action="liste-valider"'); // ONE primary action per sheet
+    expect(sheet).toContain('Votre lien reste le même.'); // the promise that makes the sheet safe to touch
+    // the save-word model is GONE — no commit control, no checkbox, no name field
+    expect(sheet).not.toContain('liste-enregistrer');
+    expect(sheet).not.toContain('data-liste-pid');
+    expect(sheet).not.toContain('data-role="liste-nom"');
+    expect(sheet).not.toContain('data-role="liste-tel"');
     expect(sheet).toContain('data-role="liste-alerte"'); // inline refusals, no wall
     expect(sheet).toContain('data-action="liste-fermer"'); // the way out
   });
 
-  it('create mode is untouched: tel field present, no prefill, the create action', () => {
+  it('with nothing left to add, the section says so honestly — never an empty hole', () => {
+    const catalogue = articlesPourModif(SF as never, prods() as never);
+    const sheet = renderListeGestion([...catalogue.values()].map((p) => ({ p, offert: false })), []);
+    expect(sheet).toContain('Tout est déjà sur votre liste.');
+    expect(sheet).not.toContain('data-action="liste-ajouter"');
+  });
+
+  it('the create sheet is back to creation only: checkboxes, tel field, the create action', () => {
     const sheet = renderListeSheet(articlesPourListe(SF as never, prods() as never), new Set());
+    expect(sheet).toContain('data-liste-pid="p1"');
     expect(sheet).toContain('data-role="liste-tel"');
     expect(sheet).toContain('data-action="liste-valider"');
-    expect(sheet).not.toContain('data-action="liste-enregistrer"');
+    expect(sheet).not.toContain('liste-enregistrer');
+    expect(sheet).not.toContain('liste-retirer');
   });
 
   it('chargement, hors-ligne and introuvable are designed states with their way out wired', () => {

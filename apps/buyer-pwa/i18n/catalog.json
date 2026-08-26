@@ -1501,21 +1501,9 @@
  },
  {
   "key": "vit.liste_modif_texte",
-  "fr": "Cochez les articles qui vous font envie, décochez le reste. Votre lien reste le même.",
+  "fr": "Votre lien reste le même.",
   "register": "selling",
   "screenClass": "selling_surface"
- },
- {
-  "key": "vit.liste_modif_cta",
-  "fr": "Enregistrer",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "vit.liste_modif_encours",
-  "fr": "Enregistrement…",
-  "register": "neutral",
-  "screenClass": "status"
  },
  {
   "key": "vit.liste_garder_un",
@@ -1530,8 +1518,32 @@
   "screenClass": "status"
  },
  {
-  "key": "vit.liste_modif_faite",
-  "fr": "C'est fait — votre liste est à jour.",
+  "key": "vit.liste_mienne_titre",
+  "fr": "Sur votre liste",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_ajouter_titre",
+  "fr": "Ajouter un article",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_retirer",
+  "fr": "Retirer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_ajouter",
+  "fr": "Ajouter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_ajouter_vide",
+  "fr": "Tout est déjà sur votre liste.",
   "register": "selling",
   "screenClass": "status"
  },

@@ -23,6 +23,7 @@ import type { VitrineProduct } from './catalog';
 import {
   articlesPourListe,
   articlesPourModif,
+  renderListeGestion,
   renderListeModif,
   renderVitrineEmpty,
   renderVitrineInvalid,
@@ -261,6 +262,26 @@ export function mountVitrine(
   // refetches; « Réessayer » is the one deliberate refetch.
   let listeAmie: ListeLecture | 'chargement' = 'chargement';
   let listeDemandee = false;
+  // LISTE-REFAIRE-2 — the gestion sheet's truth while it is open: her liste
+  // as LAST ANSWERED BY THE SERVICE (pids + offert marks). Every Retirer /
+  // Ajouter recomputes the next selection from THIS, never from the DOM.
+  let listeEnGestion: { pid: string; offert: boolean }[] | null = null;
+  const composeGestion = (): { miennes: { p: VitrineProduct; offert: boolean }[]; ajoutables: VitrineProduct[] } | null => {
+    if (dernierPret === null || listeEnGestion === null) return null;
+    // Every in-stock article is addable; her own articles render even when
+    // épuisé (removing one is a reason she came). A pid the catalogue cannot
+    // resolve is not offered and leaves on her next act — the door's
+    // membership law would refuse any update still carrying it.
+    const catalogue = articlesPourModif(dernierPret.sf, dernierPret.described);
+    const miennes: { p: VitrineProduct; offert: boolean }[] = [];
+    for (const a of listeEnGestion) {
+      const p = catalogue.get(a.pid);
+      if (p !== undefined) miennes.push({ p, offert: a.offert });
+    }
+    const surListe = new Set(listeEnGestion.map((a) => a.pid));
+    const ajoutables = [...catalogue.values()].filter((p) => p.inStock && !surListe.has(p.pid));
+    return { miennes, ajoutables };
+  };
   const remplirListeSlot = (): void => {
     const slot = root.querySelector('[data-role="vitrine-liste-slot"]');
     if (slot === null || dernierPret === null) return;
@@ -528,9 +549,9 @@ export function mountVitrine(
     } else if (action === 'liste-creer') {
       // LISTE-REFAIRE — ONE action, two lives. No liste yet (or the way out
       // of a dead handle, data-mode="nouvelle") → the builder that CREATES,
-      // pre-checked from her hearts. A liste already → the SAME sheet
-      // pre-checked from her CURRENT liste (server truth first — the marks
-      // live there): checking adds, unchecking removes, the link stays.
+      // pre-checked from her hearts. A liste already → the GESTION sheet
+      // (server truth first — the marks live there): « Retirer » on hers,
+      // « Ajouter » on the rest, every tap an immediate act, the link stays.
       if (dernierPret === null) return;
       const gardee = listeGardee(dernierPret.sf.slug);
       root.querySelector('[data-role="liste-sheet"]')?.remove();
@@ -555,20 +576,13 @@ export function mountVitrine(
           sheet.outerHTML = renderListeModif({ etape: 'introuvable' });
           return;
         }
-        // The rows she can decide on: every in-stock article (addable) PLUS
-        // her liste's own articles even when épuisé (removing one is a reason
-        // she came). A pid the catalogue cannot resolve is not offered and
-        // leaves on her next save — the door's membership law would refuse
-        // any update still carrying it (journalled, deliberate).
-        const catalogue = articlesPourModif(dernierPret.sf, dernierPret.described);
-        const surListe = new Set(res.liste.articles.map((a) => a.pid));
-        const rows = [...catalogue.values()].filter((p) => p.inStock || surListe.has(p.pid));
-        if (rows.length === 0) {
+        listeEnGestion = res.liste.articles.map((a) => ({ pid: a.pid, offert: a.offert }));
+        const composed = composeGestion();
+        if (composed === null || (composed.miennes.length === 0 && composed.ajoutables.length === 0)) {
           sheet.outerHTML = renderListeModif({ etape: 'introuvable' });
           return;
         }
-        const offerts = new Set(res.liste.articles.filter((a) => a.offert).map((a) => a.pid));
-        sheet.outerHTML = renderListeSheet(rows, surListe, { nom: res.liste.nom, offerts });
+        sheet.outerHTML = renderListeGestion(composed.miennes, composed.ajoutables);
       });
     } else if (action === 'liste-fermer') {
       root.querySelector('[data-role="liste-sheet"]')?.remove();
@@ -630,20 +644,17 @@ export function mountVitrine(
         if (sheet !== null) sheet.outerHTML = renderListeLien(lienDeListe(res.liste.token));
         remplirListeSlot();
       });
-    } else if (action === 'liste-enregistrer') {
-      // LISTE-REFAIRE's save — what stays checked IS the liste. The
-      // empty-selection and empty-name refusals mirror the door's own laws
-      // inline, while the choice is still under her thumb; nothing leaves
-      // the phone on a refused save.
-      if (dernierPret === null) return;
+    } else if (action === 'liste-retirer' || action === 'liste-ajouter') {
+      // LISTE-REFAIRE-2 — ONE TAP, ONE ACT (founder: the save word confused
+      // « remove »). The next selection is computed from the held SERVER
+      // truth, the door refusals are mirrored inline BEFORE the wire is
+      // spent, and while an act is on the road every row button sleeps so
+      // two taps can never race each other's selection.
+      if (dernierPret === null || listeEnGestion === null) return;
       const sfSlug = dernierPret.sf.slug;
       const gardee = listeGardee(sfSlug);
       if (gardee === undefined) return;
-      const pids: string[] = [];
-      for (const box of root.querySelectorAll<HTMLInputElement>('input[data-liste-pid]')) {
-        if (box.checked) pids.push(box.getAttribute('data-liste-pid') ?? '');
-      }
-      const nom = (root.querySelector<HTMLInputElement>('[data-role="liste-nom"]')?.value ?? '').trim();
+      const pid = target.getAttribute('data-pid') ?? '';
       const alerte = root.querySelector<HTMLElement>('[data-role="liste-alerte"]');
       const direAlerte = (message: string): void => {
         if (alerte !== null) {
@@ -651,25 +662,29 @@ export function mountVitrine(
           alerte.hidden = false;
         }
       };
-      if (pids.length === 0) return direAlerte(t('vit.liste_garder_un'));
-      if (pids.length > LISTE_MAX_ARTICLES) return direAlerte(t('vit.liste_trop'));
-      if (nom === '') return direAlerte(t('vit.liste_nom_manque'));
-      const bouton = target as HTMLButtonElement;
-      bouton.disabled = true;
-      bouton.textContent = t('vit.liste_modif_encours');
-      void listePort.modifier(gardee.token, gardee.editCle, pids, nom).then((res) => {
+      const actuels = listeEnGestion.map((a) => a.pid);
+      if (action === 'liste-retirer' && actuels.length <= 1) return direAlerte(t('vit.liste_garder_un'));
+      if (action === 'liste-ajouter' && actuels.length >= LISTE_MAX_ARTICLES) return direAlerte(t('vit.liste_trop'));
+      const pids = action === 'liste-retirer' ? actuels.filter((p) => p !== pid) : [...actuels, pid];
+      const boutons = [...root.querySelectorAll<HTMLButtonElement>('[data-role="liste-sheet"] .vt-liste-row-btn')];
+      for (const b of boutons) b.disabled = true;
+      void listePort.modifier(gardee.token, gardee.editCle, pids).then((res) => {
         if (res.status !== 'modifiee') {
-          bouton.disabled = false;
-          bouton.textContent = t('vit.liste_modif_cta');
+          for (const b of boutons) b.disabled = false;
           direAlerte(t('vit.liste_erreur'));
           return;
         }
-        // The handle follows the SERVICE's answer (its projection is the
-        // truth of what survived), so the card's count can never drift.
-        garderListe(sfSlug, { ...gardee, nom: res.liste.nom, pids: res.liste.articles.map((a) => a.pid) });
-        root.querySelector('[data-role="liste-sheet"]')?.remove();
+        // The SERVICE's answer drives everything: the handle (so the card
+        // can never drift), the held truth, and the repaint — the row she
+        // acted on visibly moves, which IS the feedback.
+        garderListe(sfSlug, { ...gardee, pids: res.liste.articles.map((a) => a.pid) });
+        listeEnGestion = res.liste.articles.map((a) => ({ pid: a.pid, offert: a.offert }));
         remplirListeSlot();
-        toast(root, t('vit.liste_modif_faite'));
+        // Closed while the act was out → the act still happened (the server
+        // answered); only the paint is skipped.
+        const sheet = root.querySelector('[data-role="liste-sheet"]');
+        const composed = composeGestion();
+        if (sheet !== null && composed !== null) sheet.outerHTML = renderListeGestion(composed.miennes, composed.ajoutables);
       });
     } else if (action === 'liste-partager') {
       const porte = target.getAttribute('data-lien');
