@@ -38,6 +38,7 @@ import {
   renderVitrineReady,
 } from '../src/vitrine/render';
 import { resetFavoritesCache, toggleFavorite } from '../src/vitrine/favorites';
+import { noteDepasseLaVoie } from '../src/vitrine/flows';
 import { QUARTIERS_OUAGADOUGOU } from '../src/cliente/quartiers-ouagadougou';
 
 /**
@@ -731,5 +732,13 @@ describe('the recorded repère', () => {
     expect(perdue).toContain('n\'a pas pu être gardée');
     const gardee = renderListeLien('https://x/v/s?liste=T');
     expect(gardee).not.toContain('data-role="liste-note-perdue"');
+  });
+});
+
+describe('LISTE-VOIX — the wire bound, mirrored pure', () => {
+  it('noteDepasseLaVoie refuses at exactly the door\'s own boundary — same operator, same constant', () => {
+    expect(noteDepasseLaVoie(1_400_000)).toBe(false); // the door accepts AT the bound
+    expect(noteDepasseLaVoie(1_400_001)).toBe(true);  // one char over refuses
+    expect(noteDepasseLaVoie(1_200_000)).toBe(false); // a full 5-minute voice-bitrate note fits
   });
 });

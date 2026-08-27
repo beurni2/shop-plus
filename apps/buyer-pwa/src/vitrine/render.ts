@@ -640,7 +640,7 @@ export function renderListeSheet(articles: readonly VitrineProduct[], precoche: 
  *
  * The C3 recorder's own anatomy, on the liste sheet: rest (one quiet button
  * — the typed repère stays primary), recording (the clock ticks, ARRÊTER is
- * the way out; the flow caps at 30 s), recorded (her note EXISTS on the
+ * the way out; the flow caps at 5 minutes), recorded (her note EXISTS on the
  * phone: replay, refaire, supprimer), and the honest refus (no mic ≠ no
  * liste — the sentence C3 already speaks). The bytes ride the create inside
  * `livraison.audioB64`; nothing here ever claims what became of them —

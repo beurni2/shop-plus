@@ -145,6 +145,17 @@ export function etatForRender(etat: VitrineEtat, hasResolved: boolean): VitrineE
 }
 
 /**
+ * LISTE-VOIX — the note wire bound's INLINE MIRROR, pure and exported (the
+ * `enteteForRender` law: a rule buried in the mount is a rule no test can
+ * fail loudly — the verifier proved this one unfalsifiable in place). Same
+ * operator, same constant as the door's `AUDIO_B64_MAX_CHARS`: a note the
+ * door would refuse must refuse HERE, under her thumb, before the wire.
+ */
+export function noteDepasseLaVoie(base64Chars: number): boolean {
+  return base64Chars > 1_400_000;
+}
+
+/**
  * BUYER-LIVE-WIRE-2 — WHICH PORT A `/v/{slug}` ENTRY GETS, made a decision that can
  * be TESTED instead of a ternary buried in the route dispatch.
  *
@@ -306,7 +317,7 @@ export function mountVitrine(
   /* ── LISTE-VOIX — the create sheet's recorded repère ───────────────────── */
   // The NOTE lives here (bytes + her replay URL), the SHEET only shows faces:
   // exactly the C3 split (voice-note.ts owns the mic, the flow owns states,
-  // the clock and the 30 s cap). One note at a time; a re-record replaces.
+  // the clock and the 5-minute cap). One note at a time; a re-record replaces.
   let enregistreurListe: EnregistreurNote | null = null;
   let noteListe: NoteEnregistree | null = null;
   let noteListeSecondes = 0;
@@ -777,7 +788,7 @@ export function mountVitrine(
       // browser that ignored the bitrate request could mint a note the door
       // would refuse with a generic erreur — she learns HERE, with the fix
       // under her thumb (refaire, plus courte).
-      if (noteListe !== null && noteListe.audioB64.length > 1_400_000) {
+      if (noteListe !== null && noteDepasseLaVoie(noteListe.audioB64.length)) {
         return direAlerte(t('vit.liste_voix_trop_longue'));
       }
       if (pids.length === 0) return direAlerte(t('vit.liste_vide_choix'));

@@ -4,7 +4,8 @@
  * Law 5's own sentence — voice = RECORDED AUDIO — finally recorded. This
  * module owns the phone's microphone road: `getUserMedia` → `MediaRecorder`
  * → one Blob → base64 for the order wire + a blob URL for her own replay.
- * The FLOW owns everything else (states, the ticking clock, the 30 s cap).
+ * The FLOW owns everything else — states, the ticking clock, and its own
+ * cap (30 s on the checkout's repère, 5 minutes on the liste's).
  *
  * HONEST REFUSALS, TWO KINDS, ONE ANSWER: a browser with no recorder and a
  * buyer who refused the permission prompt both come back `'refused'` — the
