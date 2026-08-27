@@ -312,6 +312,13 @@ export function mountVitrine(
   let noteListeSecondes = 0;
   let noteListeTicker: number | null = null;
   let noteListeAudio: HTMLAudioElement | null = null;
+  // VERIFIER m1/m2 (handled once) — the permission window is a WINDOW: one
+  // ask at a time, and a sheet closed (or replaced) while the prompt is up
+  // must orphan the grant, not the microphone. `voixDemande` bars a second
+  // ask; the epoch ties the continuation to the sheet that asked — a
+  // resolution landing after rangerVoix stops the recorder on the spot.
+  let voixDemande = false;
+  let voixEpoch = 0;
   const dureeDe = (s: number): string => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const peindreVoix = (etat: Parameters<typeof renderListeVoix>[0]): void => {
     // Teardown-safe: no slot (sheet closed) → no paint, ever.
@@ -354,6 +361,8 @@ export function mountVitrine(
       noteListeAudio = null;
     }
     noteListeSecondes = 0;
+    voixDemande = false;
+    voixEpoch += 1;
   };
   const remplirListeSlot = (): void => {
     const slot = root.querySelector('[data-role="vitrine-liste-slot"]');
@@ -670,13 +679,30 @@ export function mountVitrine(
       // LISTE-VOIX — record (or re-record: the old note is REPLACED — one
       // note, one truth). The mic road is the C3 recorder module verbatim;
       // 'refused' is the honest face, and the liste never needs a mic.
-      if (enregistreurListe !== null) return; // already recording
+      if (enregistreurListe !== null || voixDemande) return; // recording, or the prompt is up
+      // VERIFIER MAJOR (handled once) — REFAIRE while her old note is playing
+      // must SILENCE it first: recording over her own voice coming out of the
+      // speaker is a note nobody can use (the checkout's own founder-reported
+      // bug, C3's fix mirrored here).
+      if (noteListeAudio !== null) {
+        noteListeAudio.pause();
+        noteListeAudio = null;
+      }
       if (noteListe !== null) {
         URL.revokeObjectURL(noteListe.blobUrl);
         noteListe = null;
       }
+      voixDemande = true;
+      const epochVoix = voixEpoch;
       const enr = creerEnregistreurNote();
       void enr.demarrer().then((etat) => {
+        voixDemande = false;
+        // The sheet that asked is gone (closed or replaced while the prompt
+        // was up) — the grant is orphaned, the microphone goes OFF now.
+        if (voixEpoch !== epochVoix) {
+          if (etat === 'recording') void enr.arreter();
+          return;
+        }
         if (etat === 'refused') {
           peindreVoix({ etape: 'refus' });
           return;
@@ -736,6 +762,11 @@ export function mountVitrine(
           alerte.hidden = false;
         }
       };
+      // VERIFIER m3 (handled once) — a create while the recorder is RUNNING
+      // would drop the take with neither « gardée » nor « perdue »: the one
+      // road where a note could vanish unnamed. Refused inline instead —
+      // Arrêter is under her thumb.
+      if (enregistreurListe !== null || voixDemande) return direAlerte(t('vit.liste_voix_en_cours'));
       if (pids.length === 0) return direAlerte(t('vit.liste_vide_choix'));
       // The door's ceiling, mirrored INLINE (verifier MINOR 2): a 21st check
       // must be told the rule, never met with a generic erreur a retry can

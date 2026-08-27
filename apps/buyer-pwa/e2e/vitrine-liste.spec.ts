@@ -831,10 +831,32 @@ test('CREATOR — she records the repère: the bytes ride the create inside livr
   await page.locator('input[data-liste-pid="p1"]').check();
   await page.locator('[data-role="liste-nom"]').fill('Awa');
 
-  // RECORD — the real recorder, the real faces
+  // RECORD — the real recorder, the real faces. MID-RECORDING, créer is
+  // refused inline (verifier m3): a running take ends by HER hand, never
+  // vanishing unnamed under a create.
   await page.locator('[data-action="liste-voix-demarrer"]').click();
   await page.locator('[data-action="liste-voix-arreter"]').waitFor();
+  await page.locator('[data-action="liste-valider"]').click();
+  await expect(page.locator('[data-role="liste-alerte"]')).toHaveText('Terminez d\'abord votre note : appuyez sur Arrêter.');
+  expect(creates).toHaveLength(0);
   await page.waitForTimeout(1_200); // the fake microphone produces real bytes
+  await page.locator('[data-action="liste-voix-arreter"]').click();
+  await page.locator('[data-role="liste-voix-faite"]').waitFor();
+
+  // A CLOSED SHEET FORGETS ITS NOTE (verifier m4 — driven, not only read):
+  // the reopened sheet is at rest, so no orphan bytes can ride a later create.
+  await page.locator('[data-action="liste-fermer"]').click();
+  await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
+  await page.locator('[data-action="liste-creer"]').click();
+  await expect(page.locator('[data-role="liste-voix-faite"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="liste-voix-demarrer"]')).toBeVisible();
+  await page.locator('input[data-liste-pid="p1"]').check();
+  await page.locator('[data-role="liste-nom"]').fill('Awa');
+
+  // record anew — THIS take is the one that rides
+  await page.locator('[data-action="liste-voix-demarrer"]').click();
+  await page.locator('[data-action="liste-voix-arreter"]').waitFor();
+  await page.waitForTimeout(1_200);
   await page.locator('[data-action="liste-voix-arreter"]').click();
   await page.locator('[data-role="liste-voix-faite"]').waitFor();
 

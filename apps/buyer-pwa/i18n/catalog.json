@@ -1692,6 +1692,12 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.liste_voix_en_cours",
+  "fr": "Terminez d'abord votre note : appuyez sur Arrêter.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "vit.liste_voix_refus",
   "fr": "Le micro n'est pas disponible. Écrivez le repère au-dessus — ça marche aussi bien.",
   "register": "neutral",
