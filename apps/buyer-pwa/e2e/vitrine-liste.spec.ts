@@ -800,3 +800,78 @@ test('CREATOR — the direct « Fermer ma liste » asks the plain question, keep
   await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
   await expect(page.locator('[data-role="vitrine-liste-inviter"]')).toBeVisible();
 });
+
+/**
+ * LISTE-VOIX — THE RECORDED-REPÈRE WALK (founder, 2026-08-27: « on the
+ * repère add the audio option repère where the creator can record and it
+ * will be added to the delivery informations »). Chromium's fake microphone
+ * feeds a REAL MediaRecorder — the checkout walk's own road. The four
+ * questions: the tree survives every face (record → recorded → supprimer →
+ * re-record → create) · the record road is pressable and its bytes REACH the
+ * wire inside livraison · a note alone cannot make an impossible delivery
+ * (the inline refusal, zero wire) · the next step is reached — and the ONE
+ * loss (noteVocale perdue) is SPOKEN on the celebration.
+ */
+test('CREATOR — she records the repère: the bytes ride the create inside livraison, and a lost note is said honestly', async ({ page }) => {
+  const creates: Record<string, unknown>[] = [];
+  await page.route('**/listes', async (route: Route) => {
+    creates.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true, token: TOKEN, editCle: 'E'.repeat(32),
+        liste: { nom: 'Awa', slug: 'aicha-4821', articles: [{ pid: 'p1', offert: false }] },
+        // the scripted service loses the note — the walk proves the loss is SPOKEN
+        noteVocale: 'perdue',
+      }),
+    });
+  });
+  await page.goto(`${BASE}/?demo-vitrine=aicha-4821`);
+  await page.locator('[data-action="liste-creer"]').click();
+  await page.locator('input[data-liste-pid="p1"]').check();
+  await page.locator('[data-role="liste-nom"]').fill('Awa');
+
+  // RECORD — the real recorder, the real faces
+  await page.locator('[data-action="liste-voix-demarrer"]').click();
+  await page.locator('[data-action="liste-voix-arreter"]').waitFor();
+  await page.waitForTimeout(1_200); // the fake microphone produces real bytes
+  await page.locator('[data-action="liste-voix-arreter"]').click();
+  await page.locator('[data-role="liste-voix-faite"]').waitFor();
+
+  // A NOTE ALONE IS NOT A DELIVERY — the block counts as touched, the two
+  // required facts refuse inline, and NOTHING leaves the phone.
+  await page.locator('[data-action="liste-valider"]').click();
+  await expect(page.locator('[data-role="liste-alerte"]')).toHaveText('Choisissez votre quartier.');
+  expect(creates).toHaveLength(0);
+
+  // SUPPRIMER walks back to rest; RE-RECORD replaces (one note, one truth).
+  await page.locator('[data-action="liste-voix-supprimer"]').click();
+  await expect(page.locator('[data-role="liste-voix-faite"]')).toHaveCount(0);
+  await page.locator('[data-action="liste-voix-demarrer"]').click();
+  await page.locator('[data-action="liste-voix-arreter"]').waitFor();
+  await page.waitForTimeout(1_200);
+  await page.locator('[data-action="liste-voix-arreter"]').click();
+  await page.locator('[data-role="liste-voix-faite"]').waitFor();
+
+  // the address facts, then the create
+  await page.locator('[data-role="liste-quartier"]').selectOption('Dassasgho');
+  await page.locator('[data-role="liste-tel-livraison"]').fill('70 12 34 56');
+  await page.locator('[data-action="liste-valider"]').click();
+
+  // THE CELEBRATION — reached, with the ONE loss spoken plainly.
+  await expect(page.locator('[data-role="liste-lien"]')).toContainText(`/v/aicha-4821?liste=${TOKEN}`);
+  await expect(page.locator('[data-role="liste-note-perdue"]')).toHaveText(
+    'Votre note vocale n\'a pas pu être gardée. Le repère écrit reste.',
+  );
+
+  // THE WIRE — the note rides INSIDE livraison, real WebM bytes, never a ref.
+  expect(creates).toHaveLength(1);
+  const livraison = creates[0]!['livraison'] as Record<string, unknown>;
+  expect(Object.keys(livraison).sort()).toEqual(['audioB64', 'quartier', 'repere', 'telephone', 'zone']);
+  expect(livraison['quartier']).toBe('Dassasgho');
+  expect('audioRef' in livraison).toBe(false);
+  const bytes = Buffer.from(String(livraison['audioB64']), 'base64');
+  expect(bytes.length).toBeGreaterThan(0);
+  // Chromium's recorder emits WebM — the exact EBML head the media door sniffs.
+  expect([...bytes.subarray(0, 4)]).toEqual([0x1a, 0x45, 0xdf, 0xa3]);
+});

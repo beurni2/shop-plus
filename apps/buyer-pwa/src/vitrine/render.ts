@@ -621,11 +621,61 @@ export function renderListeSheet(articles: readonly VitrineProduct[], precoche: 
     `<input type="tel" class="vt-liste-nom-input" data-role="liste-tel-livraison" maxlength="32" inputmode="tel"></label>`,
     `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_repere_label')}</span>`,
     `<input type="text" class="vt-liste-nom-input" data-role="liste-repere" maxlength="200"></label>`,
+    // LISTE-VOIX — « on the repère add the audio option » (founder,
+    // 2026-08-27): the recorded repère joins her PRIVATE delivery info. The
+    // block's aide above already says who never sees any of it; the typed
+    // repère stays the primary road (the C3 recorder's own law).
+    `<div data-role="liste-voix-slot">${renderListeVoix({ etape: 'repos' })}</div>`,
     '<div class="vt-liste-alerte" data-role="liste-alerte" hidden></div>',
     `<button class="vt-liste-valider" data-action="liste-valider">${t('vit.liste_creer_cta')}</button>`,
     '</div>',
     '</div>',
   ].join('');
+}
+
+/**
+ * ═══ LISTE-VOIX — THE RECORDED REPÈRE'S FOUR FACES (founder, 2026-08-27:
+ * « on the repère add the audio option repère where the creator can record
+ * and it will be added to the delivery informations ») ═══
+ *
+ * The C3 recorder's own anatomy, on the liste sheet: rest (one quiet button
+ * — the typed repère stays primary), recording (the clock ticks, ARRÊTER is
+ * the way out; the flow caps at 30 s), recorded (her note EXISTS on the
+ * phone: replay, refaire, supprimer), and the honest refus (no mic ≠ no
+ * liste — the sentence C3 already speaks). The bytes ride the create inside
+ * `livraison.audioB64`; nothing here ever claims what became of them —
+ * `noteVocale` on the answer owns that.
+ */
+export type ListeVoixEtat =
+  | { readonly etape: 'repos' }
+  | { readonly etape: 'enregistre'; readonly duree: string }
+  | { readonly etape: 'faite'; readonly duree: string }
+  | { readonly etape: 'refus' };
+
+export function renderListeVoix(etat: ListeVoixEtat): string {
+  if (etat.etape === 'enregistre') {
+    return [
+      '<div class="vt-liste-voix vt-liste-voix-rec" data-role="liste-voix-rec">',
+      `<span class="vt-liste-voix-point"></span><span>${t('vit.liste_voix_enregistrement')}</span>`,
+      `<span class="vt-liste-voix-duree" data-role="liste-voix-duree"><v>${esc(etat.duree)}</v></span>`,
+      `<button class="vt-liste-row-btn" data-action="liste-voix-arreter">${t('vit.liste_voix_arreter')}</button>`,
+      '</div>',
+    ].join('');
+  }
+  if (etat.etape === 'faite') {
+    return [
+      '<div class="vt-liste-voix" data-role="liste-voix-faite">',
+      `<button class="vt-liste-row-btn vt-liste-voix-play" data-action="liste-voix-lire" aria-label="${t('vit.liste_voix_ecouter')}">${t('vit.liste_voix_ecouter')}</button>`,
+      `<span class="vt-liste-voix-texte">${t('vit.liste_voix_faite')} · <v>${esc(etat.duree)}</v></span>`,
+      `<button class="vt-liste-row-btn" data-action="liste-voix-demarrer">${t('vit.liste_voix_refaire')}</button>`,
+      `<button class="vt-liste-row-btn" data-action="liste-voix-supprimer">${t('vit.liste_voix_supprimer')}</button>`,
+      '</div>',
+    ].join('');
+  }
+  if (etat.etape === 'refus') {
+    return `<div class="vt-liste-texte" data-role="liste-voix-refus">${t('vit.liste_voix_refus')}</div>`;
+  }
+  return `<button class="vt-liste-row-btn vt-liste-voix-btn" data-action="liste-voix-demarrer">${t('vit.liste_voix_demarrer')}</button>`;
 }
 
 /**
@@ -860,12 +910,16 @@ export function renderListeModif(etat: ListeModifEtat): string {
  * The link is SHOWN, not only shareable: seeing the thing makes it real, and
  * copying by hand must stay possible on a phone whose share sheet fails.
  */
-export function renderListeLien(lien: string): string {
+export function renderListeLien(lien: string, notePerdue = false): string {
   return [
     '<div class="vt-liste-voile" data-role="liste-sheet">',
     '<div class="vt-liste-sheet">',
     `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${iconCheck(16, '#3F7D5C', 2.4)} ${t('vit.liste_prete')}</div><button class="vt-liste-fermer" data-action="liste-fermer" aria-label="${t('vit.liste_fermer_aria')}">×</button></div>`,
     `<div class="vt-liste-texte">${t('vit.liste_prete_texte')}</div>`,
+    // LISTE-VOIX — the one loss spoken, on the order road's own create-only
+    // discipline: her liste is fine, her typed repère stands, the note did
+    // not survive the media door. Never shown otherwise.
+    notePerdue ? `<div class="vt-liste-texte" data-role="liste-note-perdue">${t('vit.liste_voix_perdue')}</div>` : '',
     `<div class="vt-liste-lien" data-role="liste-lien"><v>${esc(lien)}</v></div>`,
     `<button class="vt-liste-valider" data-action="liste-partager" data-lien="${esc(lien)}">${t('vit.liste_partager')}</button>`,
     `<button class="vt-liste-secondaire" data-action="liste-copier" data-lien="${esc(lien)}">${t('vit.liste_copier')}</button>`,

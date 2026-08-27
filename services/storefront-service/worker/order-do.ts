@@ -2954,7 +2954,12 @@ const orderStub = (env: Env, orderId: string): DurableObjectStub =>
  * the caller's law is « the note never blocks the sale »; the caller names
  * the loss on the response instead.
  */
-async function televerserNoteVocale(env: Env, audioB64: string): Promise<string | null> {
+export async function televerserNoteVocale(
+  // Structural, deliberately: the LISTE-VOIX road calls this from the
+  // composition root's own env (same two bindings, different Env type).
+  env: { readonly MEDIA?: { fetch(request: Request): Promise<Response> }; readonly MEDIA_WRITE_KEY?: string },
+  audioB64: string,
+): Promise<string | null> {
   const media = env.MEDIA;
   const key = env.MEDIA_WRITE_KEY;
   if (media === undefined || typeof key !== 'string' || key === '') return null;
@@ -3198,7 +3203,7 @@ export default {
         );
         if (luLivraison.status === 200) {
           const livre = (await luLivraison.json().catch(() => null)) as
-            | { livraison?: { telephone?: unknown; quartier?: unknown; repere?: unknown; zone?: unknown } }
+            | { livraison?: { telephone?: unknown; quartier?: unknown; repere?: unknown; zone?: unknown; audioRef?: unknown } }
             | null;
           const livraison = livre?.livraison;
           if (
@@ -3210,7 +3215,18 @@ export default {
             if (contact !== null) return refuse('liste_contact_conflit');
             const quoteZone = (quoteBody.fulfillment as { zoneTo?: unknown } | null | undefined)?.zoneTo;
             if (quoteZone !== livraison.zone) return refuse('liste_zone_incoherente');
-            contact = { phone: livraison.telephone, quartier: livraison.quartier, repere: livraison.repere };
+            contact = {
+              phone: livraison.telephone,
+              quartier: livraison.quartier,
+              repere: livraison.repere,
+              // LISTE-VOIX — her voice repère, minted at LISTE create by the
+              // composition root; it rides onto the same dispatch-board field
+              // a buyer's own note lands on. Pin-checked here as belt and
+              // braces — the stored-contact validator would refuse it anyway.
+              ...(typeof livraison.audioRef === 'string' && AUDIO_REF.test(livraison.audioRef)
+                ? { audioRef: livraison.audioRef }
+                : {}),
+            };
           }
         }
       }

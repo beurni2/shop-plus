@@ -425,6 +425,19 @@ export const VITRINE_STYLES = `
   }
   .vt-liste-offert-badge svg { flex: none; }
 
+  /* LISTE-VOIX — the recorded repère's faces on the create sheet. */
+  .vt-liste-voix {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px;
+    font-size: 12.5px; font-weight: 600; color: #1C1710;
+  }
+  .vt-liste-voix-btn { margin-top: 10px; }
+  .vt-liste-voix-point {
+    width: 9px; height: 9px; border-radius: 50%; background: #B4544B;
+    flex: none;
+  }
+  .vt-liste-voix-duree { font-variant-numeric: tabular-nums; }
+  .vt-liste-voix-texte { flex: 1; min-width: 0; }
+
   /* LISTE-FERMER-2 — the direct close entry: full width below the sections,
    * the alerte red spoken quietly (destructive, never shouting). */
   .vt-liste-fermer-directe {

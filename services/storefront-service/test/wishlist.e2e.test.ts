@@ -27,7 +27,12 @@ const WRITE_SECRET = 'test-write-secret-le001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-le001';
 const OPS_SECRET = 'test-checkout-ops-secret-le001';
 const PROGRESS_SECRET = 'test-progress-write-secret-lc001';
+const MEDIA_KEY = 'test-media-write-key-lv001';
 const authed = { 'X-Write-Key': WRITE_SECRET };
+
+/** LISTE-VOIX — what the certified media door saw, for the seam's asserts. */
+const mediaCalls: { key: string | null; bytes: Uint8Array }[] = [];
+const mintedRefs: string[] = [];
 
 const SUPPLY = [
   {
@@ -76,6 +81,9 @@ beforeAll(() => {
       // LISTE-CADEAUX — Séra's transit door: the cadeaux seam drives a REAL
       // arrival fact so the code's reveal gate is exercised by execution.
       PROGRESS_WRITE_SECRET: PROGRESS_SECRET,
+      // LISTE-VOIX — the media door's write credential, held by the Worker
+      // alone; the seam asserts it rides every upload.
+      MEDIA_WRITE_KEY: MEDIA_KEY,
     },
     serviceBindings: {
       OFFER: async (request: Request) => {
@@ -92,6 +100,24 @@ beforeAll(() => {
           return Response.json({ version: 1, asOf: new Date().toISOString(), value });
         }
         return Response.json({ status: 'not_found' }, { status: 404 });
+      },
+      // LISTE-VOIX — the CERTIFIED media door (the repere-audio harness's own
+      // stub, verbatim): each clause is the real route's bound — gate first,
+      // magic-byte sniff, opaque `media/{uuid}` ref on 201.
+      MEDIA: async (request: Request) => {
+        const path = new URL(request.url).pathname;
+        if (request.method !== 'POST' || path !== '/media/audio') {
+          return Response.json({ service: 'media-service', status: 'not_found' }, { status: 404 });
+        }
+        const key = request.headers.get('X-Write-Key');
+        const bytes = new Uint8Array(await request.arrayBuffer());
+        mediaCalls.push({ key, bytes });
+        if (key !== MEDIA_KEY) return Response.json({ error: 'unauthorized' }, { status: 401 });
+        const isWebm = bytes.length >= 4 && bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
+        if (!isWebm) return Response.json({ error: 'rejected', reason: 'unsupported_type' }, { status: 400 });
+        const ref = `media/${crypto.randomUUID()}`;
+        mintedRefs.push(ref);
+        return Response.json({ ref, contentType: 'audio/webm', durationSeconds: null, byteLength: bytes.length }, { status: 201 });
       },
     },
   });
@@ -139,7 +165,7 @@ async function creerListe(
   nom = 'Awa',
   pids: string[] = ['pv-le-1', 'pv-le-2'],
   telephone?: string,
-  livraison?: { telephone: string; quartier: string; repere: string; zone: string },
+  livraison?: { telephone: string; quartier: string; repere: string; zone: string; audioB64?: string; audioRef?: string },
 ) {
   const res = await mf.dispatchFetch('http://c/listes', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -923,5 +949,145 @@ describe('LISTE-FERMER — removing everything terminates the liste, totally and
     }
     expect(status).toBe('delivered');
     expect((await lireListe(token)).status).toBe(404);
+  });
+});
+
+describe('LISTE-VOIX — her recorded repère becomes a ref at create and rides the gift order to the dispatch board', () => {
+  const webm = (): Uint8Array => {
+    const b = new Uint8Array(64);
+    b[0] = 0x1a; b[1] = 0x45; b[2] = 0xdf; b[3] = 0xa3;
+    for (let i = 4; i < 64; i += 1) b[i] = i;
+    return b;
+  };
+  const b64 = (bytes: Uint8Array): string => Buffer.from(bytes).toString('base64');
+  const LIV = { telephone: '70123456', quartier: 'Dassasgho', repere: 'Portail bleu', zone: 'Dassasgho, Ouagadougou' };
+
+  it('THE SEAM: audioB64 at liste create → the media door gets THE BYTES under THE KEY → the gift order attaches the minted ref where the board reads it', async () => {
+    const { slug, resellerId } = await boutique('0060');
+    const note = webm();
+    const avantMedia = mediaCalls.length;
+    const made = await creerListe(slug, 'Awa', ['pv-le-1'], undefined, { ...LIV, audioB64: b64(note) });
+    expect(made.status).toBe(200);
+    expect(made.json['noteVocale']).toBe('gardee');
+
+    // the door received the DECODED bytes, under the Worker's own write key
+    expect(mediaCalls.length).toBe(avantMedia + 1);
+    expect(mediaCalls[avantMedia]!.key).toBe(MEDIA_KEY);
+    expect([...mediaCalls[avantMedia]!.bytes]).toEqual([...note]);
+    const ref = mintedRefs[mintedRefs.length - 1]!;
+
+    // not one audio byte and not the ref on the create answer or the public read
+    expect(made.text).not.toContain(b64(note).slice(0, 24));
+    expect(made.text).not.toContain(ref);
+    const token = made.json['token'] as string;
+    const lu = await lireListe(token);
+    expect(lu.text).not.toContain(ref);
+    expect(lu.text).not.toContain('audio');
+
+    // the friend's pay-only gift → provider webhook → THE LEDGER: the
+    // dispatch board's contact carries her phone, quartier, repère AND ref
+    const quoteRes = await mf.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug, pid: 'pv-le-1', paymentMode: 'FULL_PREPAY', listeRef: token,
+        attributionResellerId: resellerId, requestKey: freshKey(),
+      }),
+    });
+    expect(quoteRes.status).toBe(200);
+    const quote = safeJson(await quoteRes.text()) as { quoteId?: string; amountPaidAtCheckout?: number };
+    const held = await mf.dispatchFetch(
+      `http://c/checkout/quote/${encodeURIComponent(quote.quoteId as string)}/reserve`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commandId: 'cmd-reserve-0060', holderRef: 'holder-0060' }) },
+    );
+    expect(held.status).toBe(200);
+    const created = await mf.dispatchFetch('http://c/checkout/order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quoteId: quote.quoteId, holderRef: 'holder-0060', commandId: 'cmd-order-0060', listeRef: token,
+      }),
+    });
+    expect(created.status).toBe(200);
+    expect(await created.text()).not.toContain(ref); // the friend never sees her note
+    const orderId = `ord-${quote.quoteId}`;
+
+    const board = await mf.dispatchFetch('http://c/checkout/dispatch', {
+      headers: { Authorization: `Bearer ${OPS_SECRET}` },
+    });
+    expect(board.status).toBe(200);
+    const rows = (safeJson(await board.text())['orders'] ?? []) as {
+      orderId?: string; contact?: { phone?: string; quartier?: string; repere?: string; audioRef?: string };
+    }[];
+    const mine = rows.find((r) => r.orderId === orderId);
+    expect(mine, 'the gift order must be on the dispatch board').toBeDefined();
+    expect(mine?.contact).toEqual({ phone: '70123456', quartier: 'Dassasgho', repere: 'Portail bleu', audioRef: ref });
+
+    // the friend's public order view still carries no address and no note
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+    expect(await pub.text()).not.toContain(ref);
+
+    await confirmOrder(orderId, quote.amountPaidAtCheckout as number);
+    expect(await offertVisible(token, 'pv-le-1')).toBe(true);
+  });
+
+  it('a refused media door NEVER blocks her liste: the loss is named, the address stands, and no ref ever attaches', async () => {
+    const { slug, resellerId } = await boutique('0061');
+    // JPEG magic bytes — the certified door refuses them, as the real one would
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 5, 6, 7, 8]);
+    const made = await creerListe(slug, 'Awa', ['pv-le-1'], undefined, { ...LIV, audioB64: b64(jpeg) });
+    expect(made.status).toBe(200);
+    expect(made.json['noteVocale']).toBe('perdue');
+    const token = made.json['token'] as string;
+
+    // the gift road works exactly as an address without a note: the attach
+    // carries the three typed facts and NOTHING pretending to be a ref
+    const quoteRes = await mf.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug, pid: 'pv-le-1', paymentMode: 'FULL_PREPAY', listeRef: token,
+        attributionResellerId: resellerId, requestKey: freshKey(),
+      }),
+    });
+    const quote = safeJson(await quoteRes.text()) as { quoteId?: string };
+    await mf.dispatchFetch(`http://c/checkout/quote/${encodeURIComponent(quote.quoteId as string)}/reserve`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commandId: 'cmd-reserve-0061', holderRef: 'holder-0061' }),
+    });
+    const created = await mf.dispatchFetch('http://c/checkout/order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quoteId: quote.quoteId, holderRef: 'holder-0061', commandId: 'cmd-order-0061', listeRef: token }),
+    });
+    expect(created.status).toBe(200);
+    const board = await mf.dispatchFetch('http://c/checkout/dispatch', {
+      headers: { Authorization: `Bearer ${OPS_SECRET}` },
+    });
+    const rows = (safeJson(await board.text())['orders'] ?? []) as {
+      orderId?: string; contact?: Record<string, unknown>;
+    }[];
+    const mine = rows.find((r) => r.orderId === `ord-${quote.quoteId}`);
+    expect(mine?.contact).toEqual({ phone: '70123456', quartier: 'Dassasgho', repere: 'Portail bleu' });
+  });
+
+  it('the wire never names a ref, and a malformed note refuses loudly: caller audioRef 400 · both-at-once 400 · junk base64 400 · oversize 400', async () => {
+    const { slug } = await boutique('0062');
+    // a caller who could name a ref could attach a stranger's note — refused
+    // BY NAME at the one public door, before any validation
+    const truque = await creerListe(slug, 'Awa', ['pv-le-1'], undefined, {
+      ...LIV, audioRef: 'media/1e6cfa62-59b5-4d70-9d10-4dcae21f0532',
+    });
+    expect(truque.status).toBe(400);
+    expect(truque.json).toEqual({ ok: false, reason: 'bad_field', field: 'livraison' });
+    // transport and storage confused — refused (shape law, and no upload runs)
+    const avantMedia = mediaCalls.length;
+    const deux = await creerListe(slug, 'Awa', ['pv-le-1'], undefined, {
+      ...LIV, audioB64: 'QQ==', audioRef: 'media/1e6cfa62-59b5-4d70-9d10-4dcae21f0532',
+    });
+    expect(deux.status).toBe(400);
+    const junk = await creerListe(slug, 'Awa', ['pv-le-1'], undefined, { ...LIV, audioB64: '!!!pas-du-base64!!!' });
+    expect(junk.status).toBe(400);
+    expect(junk.json['field']).toBe('livraison');
+    const trop = await creerListe(slug, 'Awa', ['pv-le-1'], undefined, { ...LIV, audioB64: 'A'.repeat(1_400_001) });
+    expect(trop.status).toBe(400);
+    expect(mediaCalls.length).toBe(avantMedia); // not one refused body reached the door
   });
 });

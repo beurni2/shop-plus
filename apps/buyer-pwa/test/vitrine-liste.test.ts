@@ -34,6 +34,7 @@ import {
   renderListeGestion,
   renderListeModif,
   renderListeSheet,
+  renderListeVoix,
   renderVitrineReady,
 } from '../src/vitrine/render';
 import { resetFavoritesCache, toggleFavorite } from '../src/vitrine/favorites';
@@ -648,5 +649,87 @@ describe('« Mes cadeaux » and « Fermer ma liste »', () => {
     expect((await port.fermer(token, editCle)).status).toBe('fermee');
     expect((await port.lire(token)).status).toBe('introuvable');
     expect((await port.fermer(token, editCle)).status).toBe('fermee'); // the replay
+  });
+});
+
+/**
+ * LISTE-VOIX (founder, 2026-08-27: « on the repère add the audio option ») —
+ * by execution: the four faces of the recorded repère; the sheet embeds the
+ * rest face; the wire carries the bytes INSIDE livraison and parses the
+ * service's create-only `noteVocale`; the celebration speaks the one loss.
+ */
+describe('the recorded repère', () => {
+  const withFetch = async <T>(impl: (url: string, init?: RequestInit) => Promise<Response>, run: () => Promise<T>): Promise<T> => {
+    const held = globalThis.fetch;
+    globalThis.fetch = impl as typeof fetch;
+    try {
+      return await run();
+    } finally {
+      globalThis.fetch = held;
+    }
+  };
+
+  it('the four faces: rest offers the record road; recording ticks with its way out; recorded offers replay/refaire/supprimer; refus is honest', () => {
+    const repos = renderListeVoix({ etape: 'repos' });
+    expect(repos).toContain('data-action="liste-voix-demarrer"');
+    expect(repos).toContain('Enregistrer un repère vocal');
+    const rec = renderListeVoix({ etape: 'enregistre', duree: '0:07' });
+    expect(rec).toContain('data-action="liste-voix-arreter"');
+    expect(rec).toContain('data-role="liste-voix-duree"');
+    expect(rec).toContain('0:07');
+    const faite = renderListeVoix({ etape: 'faite', duree: '0:12' });
+    expect(faite).toContain('data-action="liste-voix-lire"');
+    expect(faite).toContain('aria-label="Écouter"');
+    expect(faite).toContain('Note vocale enregistrée');
+    expect(faite).toContain('0:12');
+    expect(faite).toContain('data-action="liste-voix-demarrer"'); // refaire = re-record
+    expect(faite).toContain('data-action="liste-voix-supprimer"');
+    const refus = renderListeVoix({ etape: 'refus' });
+    expect(refus).toContain('Le micro n\'est pas disponible.');
+    expect(refus).not.toContain('data-action'); // the typed repère is the road
+  });
+
+  it('the create sheet embeds the rest face inside the address block', () => {
+    const sheet = renderListeSheet(articlesPourListe(SF as never, prods() as never), new Set());
+    expect(sheet).toContain('data-role="liste-voix-slot"');
+    expect(sheet).toContain('data-action="liste-voix-demarrer"');
+    // the slot sits with the address block, after the repère input
+    expect(sheet.indexOf('liste-voix-slot')).toBeGreaterThan(sheet.indexOf('data-role="liste-repere"'));
+  });
+
+  it('the wire carries the bytes INSIDE livraison, and the service\'s noteVocale reaches the creee outcome — junk shapes dropped', async () => {
+    let sent: Record<string, unknown> | undefined;
+    const out = await withFetch(
+      async (_url, init) => {
+        sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return Response.json({
+          ok: true, token: 'T'.repeat(32), editCle: 'E'.repeat(32),
+          liste: { nom: 'Awa', slug: 's-1', articles: [{ pid: 'p1', offert: false }] },
+          noteVocale: 'perdue',
+        });
+      },
+      () => httpListePort('https://svc').creer('s-1', 'Awa', ['p1'], undefined, {
+        telephone: '70 12 34 56', quartier: 'Dassasgho', repere: '', zone: 'Dassasgho, Ouagadougou', audioB64: 'AAAA',
+      }),
+    );
+    expect((sent?.['livraison'] as Record<string, unknown>)['audioB64']).toBe('AAAA');
+    expect(out.status).toBe('creee');
+    if (out.status === 'creee') expect(out.noteVocale).toBe('perdue');
+    const sans = await withFetch(
+      async () => Response.json({
+        ok: true, token: 'T'.repeat(32), editCle: 'E'.repeat(32),
+        liste: { nom: 'Awa', slug: 's-1', articles: [] }, noteVocale: 'peut-etre',
+      }),
+      () => httpListePort('https://svc').creer('s-1', 'Awa', ['p1']),
+    );
+    if (sans.status === 'creee') expect(sans.noteVocale).toBeUndefined();
+  });
+
+  it('the celebration speaks the ONE loss — and only when it happened', () => {
+    const perdue = renderListeLien('https://x/v/s?liste=T', true);
+    expect(perdue).toContain('data-role="liste-note-perdue"');
+    expect(perdue).toContain('n\'a pas pu être gardée');
+    const gardee = renderListeLien('https://x/v/s?liste=T');
+    expect(gardee).not.toContain('data-role="liste-note-perdue"');
   });
 });

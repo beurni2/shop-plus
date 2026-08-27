@@ -1,7 +1,7 @@
 import sfRouter, { StorefrontDO } from './storefront-do.js';
 import lstRouter, { ListingDO } from './listing-do.js';
 import checkoutRouter, { CheckoutDO } from './checkout-do.js';
-import orderRouter, { OrderDO } from './order-do.js';
+import orderRouter, { OrderDO, televerserNoteVocale } from './order-do.js';
 import {
   FulfillmentAcceptedEventSchema,
   FulfillmentReadyEventSchema,
@@ -411,6 +411,16 @@ export default {
       };
       if (isListeCreate) {
         const body = (await request.json().catch(() => null)) as unknown;
+        // LISTE-VOIX — THE PUBLIC WIRE NEVER NAMES A REF (the
+        // readBuyerContactWire law, applied to this door): a caller who could
+        // send `audioRef` could attach a stranger's note to their deliveries.
+        // The shared validator accepts the stored form because the DO
+        // re-validates this root's OWN composed payload — so the refusal
+        // lives HERE, at the one public door, by name.
+        const livraisonBrute = (body as { livraison?: { audioRef?: unknown } } | null)?.livraison;
+        if (livraisonBrute !== null && typeof livraisonBrute === 'object' && livraisonBrute.audioRef !== undefined) {
+          return neverCache(Response.json({ ok: false, reason: 'bad_field', field: 'livraison' }, { status: 400 }));
+        }
         const asked = validateListeCreate(body);
         if (!asked.ok) {
           return neverCache(
@@ -439,12 +449,45 @@ export default {
             return neverCache(Response.json({ ok: false, reason: 'produit_hors_boutique', field: pid }, { status: 422 }));
           }
         }
+        /**
+         * LISTE-VOIX — HER NOTE BECOMES A REF BEFORE THE LISTE IS BORN (the
+         * order road's REPERE-AUDIO-REEL discipline, verbatim): this Worker
+         * hands the bytes to the media door with ITS OWN write key, and only
+         * the minted opaque ref is stored — a Durable Object value never
+         * carries a megabyte of base64, and the write key never rides in any
+         * public bundle. BEST-EFFORT BY RULING: a refusing media backend must
+         * never block her liste — the typed repère and the address stand —
+         * but the loss is NAMED on the response (`noteVocale: 'perdue'`),
+         * never silent.
+         */
+        let noteVocale: 'gardee' | 'perdue' | undefined;
+        let livraisonFinale = asked.value.livraison;
+        if (asked.value.audioB64 !== undefined && livraisonFinale !== undefined) {
+          const ref = await televerserNoteVocale(env, asked.value.audioB64);
+          if (ref !== null) {
+            livraisonFinale = { ...livraisonFinale, audioRef: ref };
+            noteVocale = 'gardee';
+          } else {
+            noteVocale = 'perdue';
+          }
+        }
         const token = mintListeToken();
         const editCle = mintListeToken();
         const created = await listeStub(token).fetch(
           new Request('https://do/entry/create', {
             method: 'POST',
-            body: JSON.stringify({ liste: asked.value, editCle }),
+            // Composed EXPLICITLY, never a spread of the command: the bytes
+            // (`audioB64`) stop HERE — only the stored form crosses to the DO.
+            body: JSON.stringify({
+              liste: {
+                slug: asked.value.slug,
+                nom: asked.value.nom,
+                pids: asked.value.pids,
+                ...(asked.value.telephone !== undefined ? { telephone: asked.value.telephone } : {}),
+                ...(livraisonFinale !== undefined ? { livraison: livraisonFinale } : {}),
+              },
+              editCle,
+            }),
           }),
         );
         const decided = (await created.json().catch(() => null)) as { ok?: boolean; liste?: unknown } | null;
@@ -456,8 +499,11 @@ export default {
         }
         // THE EDIT KEY LEAVES EXACTLY ONCE, here, never-cache — the buyer-ref
         // create-only discipline. The share token is the link; the edit key
-        // stays on the creator's own phone.
-        return neverCache(Response.json({ ok: true, token, editCle, liste: decided.liste }));
+        // stays on the creator's own phone. `noteVocale` is the same
+        // create-only fact the order road serves: what became of her note.
+        return neverCache(
+          Response.json({ ok: true, token, editCle, liste: decided.liste, ...(noteVocale !== undefined ? { noteVocale } : {}) }),
+        );
       }
       // LISTE-CADEAUX — the creator's action doors. The malformed-token law
       // is the by-token read's, verbatim; the BODY crosses to the object

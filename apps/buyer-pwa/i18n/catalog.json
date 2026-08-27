@@ -1644,6 +1644,66 @@
   "screenClass": "status"
  },
  {
+  "key": "vit.liste_voix_demarrer",
+  "fr": "Enregistrer un repère vocal",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_voix_enregistrement",
+  "fr": "Enregistrement en cours",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_voix_arreter",
+  "fr": "Arrêter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_voix_faite",
+  "fr": "Note vocale enregistrée",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_voix_refaire",
+  "fr": "Refaire",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_voix_supprimer",
+  "fr": "Supprimer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_voix_ecouter",
+  "fr": "Écouter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_voix_pause",
+  "fr": "Pause",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_voix_refus",
+  "fr": "Le micro n'est pas disponible. Écrivez le repère au-dessus — ça marche aussi bien.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_voix_perdue",
+  "fr": "Votre note vocale n'a pas pu être gardée. Le repère écrit reste.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "vit.liste_fermer_directe",
   "fr": "Fermer votre liste ? Votre lien ne marchera plus.",
   "register": "neutral",

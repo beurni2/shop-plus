@@ -19,6 +19,7 @@ import { t } from '../i18n';
 import { recordVitrineArrival, signedHref, vitrineHref } from '../vitrine-link';
 import { demoStorefrontPort, resolveStorefrontPort, VitrineOffline, type StorefrontProfilePort } from './profile';
 import { garderListe, listeGardee, oublierListe, resolveListePort, LISTE_MAX_ARTICLES, type ListeLecture, type ListeLivraison } from './liste';
+import { creerEnregistreurNote, type EnregistreurNote, type NoteEnregistree } from '../cliente/voice-note';
 import { villeDe } from '../cliente/quote-port';
 import type { VitrineProduct } from './catalog';
 import {
@@ -29,6 +30,7 @@ import {
   renderListeFermerConfirm,
   renderListeGestion,
   renderListeModif,
+  renderListeVoix,
   renderVitrineEmpty,
   renderVitrineInvalid,
   renderVitrineOffline,
@@ -300,6 +302,58 @@ export function mountVitrine(
     const surListe = new Set(listeEnGestion.map((a) => a.pid));
     const ajoutables = [...catalogue.values()].filter((p) => p.inStock && !surListe.has(p.pid));
     return { miennes, ajoutables };
+  };
+  /* ── LISTE-VOIX — the create sheet's recorded repère ───────────────────── */
+  // The NOTE lives here (bytes + her replay URL), the SHEET only shows faces:
+  // exactly the C3 split (voice-note.ts owns the mic, the flow owns states,
+  // the clock and the 30 s cap). One note at a time; a re-record replaces.
+  let enregistreurListe: EnregistreurNote | null = null;
+  let noteListe: NoteEnregistree | null = null;
+  let noteListeSecondes = 0;
+  let noteListeTicker: number | null = null;
+  let noteListeAudio: HTMLAudioElement | null = null;
+  const dureeDe = (s: number): string => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const peindreVoix = (etat: Parameters<typeof renderListeVoix>[0]): void => {
+    // Teardown-safe: no slot (sheet closed) → no paint, ever.
+    const slot = root.querySelector('[data-role="liste-voix-slot"]');
+    if (slot !== null) slot.innerHTML = renderListeVoix(etat);
+  };
+  const arreterVoix = async (): Promise<void> => {
+    if (noteListeTicker !== null) {
+      window.clearInterval(noteListeTicker);
+      noteListeTicker = null;
+    }
+    const enr = enregistreurListe;
+    enregistreurListe = null;
+    const note = enr === null ? null : await enr.arreter();
+    if (note === null) {
+      peindreVoix({ etape: 'repos' });
+      return;
+    }
+    noteListe = note;
+    peindreVoix({ etape: 'faite', duree: dureeDe(noteListeSecondes) });
+  };
+  /** Everything off and forgotten — the sheet is closing or being replaced.
+   *  A note the closed sheet no longer shows must never ride a later create
+   *  (face and wire would disagree), and the microphone light must go off. */
+  const rangerVoix = (): void => {
+    if (noteListeTicker !== null) {
+      window.clearInterval(noteListeTicker);
+      noteListeTicker = null;
+    }
+    if (enregistreurListe !== null) {
+      void enregistreurListe.arreter();
+      enregistreurListe = null;
+    }
+    if (noteListe !== null) {
+      URL.revokeObjectURL(noteListe.blobUrl);
+      noteListe = null;
+    }
+    if (noteListeAudio !== null) {
+      noteListeAudio.pause();
+      noteListeAudio = null;
+    }
+    noteListeSecondes = 0;
   };
   const remplirListeSlot = (): void => {
     const slot = root.querySelector('[data-role="vitrine-liste-slot"]');
@@ -574,6 +628,7 @@ export function mountVitrine(
       if (dernierPret === null) return;
       const gardee = listeGardee(dernierPret.sf.slug);
       root.querySelector('[data-role="liste-sheet"]')?.remove();
+      rangerVoix(); // LISTE-VOIX — a replaced sheet forgets its note (face-and-wire law)
       if (gardee === undefined || target.getAttribute('data-mode') === 'nouvelle') {
         const articles = articlesPourListe(dernierPret.sf, dernierPret.described);
         const precoche = new Set(articles.filter((p) => isFavorite(p.pid)).map((p) => p.pid));
@@ -610,6 +665,59 @@ export function mountVitrine(
       });
     } else if (action === 'liste-fermer') {
       root.querySelector('[data-role="liste-sheet"]')?.remove();
+      rangerVoix(); // LISTE-VOIX — mic off, ticker off, note forgotten with its sheet
+    } else if (action === 'liste-voix-demarrer') {
+      // LISTE-VOIX — record (or re-record: the old note is REPLACED — one
+      // note, one truth). The mic road is the C3 recorder module verbatim;
+      // 'refused' is the honest face, and the liste never needs a mic.
+      if (enregistreurListe !== null) return; // already recording
+      if (noteListe !== null) {
+        URL.revokeObjectURL(noteListe.blobUrl);
+        noteListe = null;
+      }
+      const enr = creerEnregistreurNote();
+      void enr.demarrer().then((etat) => {
+        if (etat === 'refused') {
+          peindreVoix({ etape: 'refus' });
+          return;
+        }
+        enregistreurListe = enr;
+        noteListeSecondes = 0;
+        peindreVoix({ etape: 'enregistre', duree: dureeDe(0) });
+        noteListeTicker = window.setInterval(() => {
+          noteListeSecondes += 1;
+          const horloge = root.querySelector('[data-role="liste-voix-duree"]');
+          if (horloge !== null) horloge.innerHTML = `<v>${dureeDe(noteListeSecondes)}</v>`;
+          // The C3 cap, same number: 30 s says everything a livreur needs.
+          if (noteListeSecondes >= 30) void arreterVoix();
+        }, 1_000);
+      });
+    } else if (action === 'liste-voix-arreter') {
+      void arreterVoix();
+    } else if (action === 'liste-voix-supprimer') {
+      rangerVoix();
+      peindreVoix({ etape: 'repos' });
+    } else if (action === 'liste-voix-lire') {
+      // Her own replay, on her own phone — the blob URL never leaves it.
+      // Play/pause toggle with the aria swap the VOIX-ÉTAT law demands: the
+      // button SAYS what tapping it will do.
+      if (noteListe === null) return;
+      const bouton = target as HTMLButtonElement;
+      if (noteListeAudio !== null && !noteListeAudio.paused) {
+        noteListeAudio.pause();
+        return;
+      }
+      const repos = (): void => {
+        bouton.setAttribute('aria-label', t('vit.liste_voix_ecouter'));
+        bouton.textContent = t('vit.liste_voix_ecouter');
+      };
+      noteListeAudio = new Audio(noteListe.blobUrl);
+      noteListeAudio.addEventListener('ended', repos);
+      noteListeAudio.addEventListener('pause', repos);
+      bouton.setAttribute('aria-label', t('vit.liste_voix_pause'));
+      bouton.textContent = t('vit.liste_voix_pause');
+      // A blob that will not play lands back on repos — never a dead button.
+      noteListeAudio.play().catch(repos);
     } else if (action === 'liste-valider') {
       // Read what she checked and how she signs — refusals are INLINE and
       // actionable (« dites-nous votre prénom » is a field she can fill),
@@ -654,10 +762,17 @@ export function mountVitrine(
       const telL = (root.querySelector<HTMLInputElement>('[data-role="liste-tel-livraison"]')?.value ?? '').trim();
       const repereL = (root.querySelector<HTMLInputElement>('[data-role="liste-repere"]')?.value ?? '').trim();
       let livraison: ListeLivraison | undefined;
-      if (quartierL !== '' || telL !== '' || repereL !== '') {
+      // LISTE-VOIX — a RECORDED repère touches the block exactly as a typed
+      // one does: a voice note with no quartier and no phone is a delivery
+      // that cannot happen, refused inline while under her thumb.
+      if (quartierL !== '' || telL !== '' || repereL !== '' || noteListe !== null) {
         if (quartierL === '') return direAlerte(t('vit.liste_quartier_manque'));
         if (telL === '') return direAlerte(t('vit.liste_tel_livraison_manque'));
-        livraison = { telephone: telL, quartier: quartierL, repere: repereL, zone: `${quartierL}, ${villeDe(dernierPret.sf.zone)}` };
+        livraison = {
+          telephone: telL, quartier: quartierL, repere: repereL,
+          zone: `${quartierL}, ${villeDe(dernierPret.sf.zone)}`,
+          ...(noteListe !== null ? { audioB64: noteListe.audioB64 } : {}),
+        };
       }
       const bouton = target as HTMLButtonElement;
       bouton.disabled = true;
@@ -679,7 +794,10 @@ export function mountVitrine(
           createdAt: new Date().toISOString(),
         });
         const sheet = root.querySelector('[data-role="liste-sheet"]');
-        if (sheet !== null) sheet.outerHTML = renderListeLien(lienDeListe(res.liste.token));
+        if (sheet !== null) sheet.outerHTML = renderListeLien(lienDeListe(res.liste.token), res.noteVocale === 'perdue');
+        // The note was consumed by the create (kept or honestly lost) — the
+        // celebration face must never hide a live recorder state behind it.
+        rangerVoix();
         remplirListeSlot();
       });
     } else if (action === 'liste-retirer' || action === 'liste-ajouter') {

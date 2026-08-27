@@ -43,12 +43,17 @@ export interface ListePublique {
 /** LISTE-ADRESSE — what the creator stores at creation: the three facts her
  *  delivery needs (the checkout contact's own laws) plus the exact zone
  *  string a checkout from this boutique would compose. It rides the CREATE
- *  only; the service keeps it off every public read. */
+ *  only; the service keeps it off every public read.
+ *  LISTE-VOIX — `audioB64` is her VOICE repère's raw bytes off the recorder
+ *  (the checkout contact's own `audioB64` law): bytes at create only — the
+ *  service mints an opaque ref behind its own write key and stores THAT;
+ *  no audio byte and no ref ever appears on any public read. */
 export interface ListeLivraison {
   readonly telephone: string;
   readonly quartier: string;
   readonly repere: string;
   readonly zone: string;
+  readonly audioB64?: string;
 }
 
 /** What a successful create hands back: the share token, the edit key (kept
@@ -59,7 +64,14 @@ export interface ListeCreee {
   readonly liste: ListePublique;
 }
 
-export type ListeCreation = { readonly status: 'creee'; readonly liste: ListeCreee } | { readonly status: 'refus' } | { readonly status: 'hors-ligne' };
+/** LISTE-VOIX — `noteVocale` is the service's create-only word on what became
+ *  of her recorded repère (the order road's own discipline): `gardee`, or
+ *  `perdue` when the media backend refused — the liste itself is UNTOUCHED
+ *  either way, and only `perdue` is ever spoken to her. */
+export type ListeCreation =
+  | { readonly status: 'creee'; readonly liste: ListeCreee; readonly noteVocale?: 'gardee' | 'perdue' }
+  | { readonly status: 'refus' }
+  | { readonly status: 'hors-ligne' };
 export type ListeLecture = { readonly status: 'liste'; readonly liste: ListePublique } | { readonly status: 'introuvable' } | { readonly status: 'hors-ligne' };
 export type ListeModification = { readonly status: 'modifiee'; readonly liste: ListePublique } | { readonly status: 'refus' } | { readonly status: 'hors-ligne' };
 export type ListeFermeture = { readonly status: 'fermee' } | { readonly status: 'refus' } | { readonly status: 'hors-ligne' };
@@ -202,14 +214,18 @@ export function httpListePort(base: string): ListePort {
         return { status: 'hors-ligne' };
       }
       const body = (await res.json().catch(() => null)) as
-        | { ok?: boolean; token?: unknown; editCle?: unknown; liste?: unknown }
+        | { ok?: boolean; token?: unknown; editCle?: unknown; liste?: unknown; noteVocale?: unknown }
         | null;
       if (!res.ok || body?.ok !== true) return { status: 'refus' };
       const liste = lireListeWire(body.liste);
       if (liste === undefined || typeof body.token !== 'string' || typeof body.editCle !== 'string') {
         return { status: 'refus' };
       }
-      return { status: 'creee', liste: { token: body.token, editCle: body.editCle, liste } };
+      return {
+        status: 'creee',
+        liste: { token: body.token, editCle: body.editCle, liste },
+        ...(body.noteVocale === 'gardee' || body.noteVocale === 'perdue' ? { noteVocale: body.noteVocale } : {}),
+      };
     },
     lire,
     async modifier(token, editCle, pids, nom): Promise<ListeModification> {

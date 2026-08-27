@@ -96,12 +96,43 @@ export interface ListeLivraison {
   readonly quartier: string;
   readonly repere: string;
   readonly zone: string;
+  /**
+   * LISTE-VOIX — her VOICE repère's media ref, SERVER-MINTED ONLY: the
+   * composition root hands the recorded bytes to the media door with its own
+   * write key and stores the opaque ref it minted. The PUBLIC create wire
+   * carries `audioB64` (the bytes) and NEVER this field — a caller who could
+   * name a ref could attach a stranger's note to their deliveries (the
+   * readBuyerContactWire law, applied to this door); the composition root
+   * refuses a wire `audioRef` by name before validation. At gift-order time
+   * this ref rides the background attach onto `contact.audioRef`, exactly
+   * where BC-1a's dispatch board already plays a buyer's own note.
+   */
+  readonly audioRef?: string;
 }
 
-export function readListeLivraison(value: unknown): ListeLivraison | null {
+/** The media ref's exact shape, mirrored from the order road's AUDIO_REF pin
+ *  (worker/order-do.ts — `media/{uuid-v4}`): the ONE shape the media door has
+ *  ever minted. Mirrored, not imported: src/ never imports worker/. */
+const AUDIO_REF_LISTE = /^media\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+/** The note's wire bounds, mirrored from the order road (readBuyerContactWire):
+ *  ~1 MiB of bytes base64'd (the capture UI stops at 30 s), alphabet-checked
+ *  so a malformed note refuses LOUDLY instead of dying quietly on atob. */
+const AUDIO_B64_MAX_CHARS = 1_400_000;
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+
+/**
+ * Read a livraison, wire or stored: the four exact keys plus AT MOST ONE of
+ * `audioB64` (the PUBLIC wire — bytes to become a ref) and `audioRef` (the
+ * STORED form — the ref the composition root minted). Both at once is a
+ * caller confusing transport with storage and refuses. The stored form is
+ * returned; the bytes are SURFACED BESIDE it, never inside it — a Durable
+ * Object value must never carry a megabyte of base64.
+ */
+export function readListeLivraison(value: unknown): { livraison: ListeLivraison; audioB64?: string } | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
   const r = value as Record<string, unknown>;
-  const allowed = new Set(['telephone', 'quartier', 'repere', 'zone']);
+  const allowed = new Set(['telephone', 'quartier', 'repere', 'zone', 'audioB64', 'audioRef']);
   for (const key of Object.keys(r)) {
     if (!allowed.has(key)) return null;
   }
@@ -113,7 +144,19 @@ export function readListeLivraison(value: unknown): ListeLivraison | null {
   if (typeof quartier !== 'string' || quartier.trim() === '' || quartier.length > 120) return null;
   if (typeof repere !== 'string' || repere.length > 200) return null;
   if (typeof zone !== 'string' || zone.trim() === '' || zone.length > 128) return null;
-  return { telephone, quartier, repere, zone };
+  const audioB64 = r['audioB64'];
+  const audioRef = r['audioRef'];
+  if (audioB64 !== undefined && audioRef !== undefined) return null;
+  if (audioRef !== undefined) {
+    if (typeof audioRef !== 'string' || !AUDIO_REF_LISTE.test(audioRef)) return null;
+    return { livraison: { telephone, quartier, repere, zone, audioRef } };
+  }
+  if (audioB64 !== undefined) {
+    if (typeof audioB64 !== 'string' || audioB64.length === 0 || audioB64.length > AUDIO_B64_MAX_CHARS) return null;
+    if (!BASE64.test(audioB64)) return null;
+    return { livraison: { telephone, quartier, repere, zone }, audioB64 };
+  }
+  return { livraison: { telephone, quartier, repere, zone } };
 }
 
 /** What a telephone may look like ON THE WIRE before normalisation: digits
@@ -191,8 +234,11 @@ export interface ListeCreateCommand {
   /** LISTE-MERCI — the opt-in number, already in wa.me digit form. Absent =
    *  no opt-in; the record stores no number and no road serves one. */
   readonly telephone?: string;
-  /** LISTE-ADRESSE — her private delivery info. Absent = none stored. */
+  /** LISTE-ADRESSE — her private delivery info, STORED form. Absent = none. */
   readonly livraison?: ListeLivraison;
+  /** LISTE-VOIX — her voice repère's raw bytes off the wire, SURFACED for the
+   *  composition root to hand to the media door. Never stored anywhere. */
+  readonly audioB64?: string;
 }
 
 export function validateListeCreate(body: unknown): ListeValidation<ListeCreateCommand> {
@@ -221,11 +267,14 @@ export function validateListeCreate(body: unknown): ListeValidation<ListeCreateC
   // LISTE-ADRESSE — a PRESENT livraison must satisfy every law of the contact
   // it will become, or the create refuses BY NAME at her own door (the
   // CONTACT-WHATSAPP-1 posture: loudly now, never a dead delivery later).
+  // LISTE-VOIX — a recorded note's bytes are surfaced BESIDE the stored form.
   let livraison: ListeLivraison | undefined;
+  let audioB64: string | undefined;
   if (r['livraison'] !== undefined && r['livraison'] !== null) {
     const lue = readListeLivraison(r['livraison']);
     if (lue === null) return { ok: false, error: 'bad_field', field: 'livraison' };
-    livraison = lue;
+    livraison = lue.livraison;
+    audioB64 = lue.audioB64;
   }
   return {
     ok: true,
@@ -235,6 +284,7 @@ export function validateListeCreate(body: unknown): ListeValidation<ListeCreateC
       pids: pids.value,
       ...(telephone !== undefined ? { telephone } : {}),
       ...(livraison !== undefined ? { livraison } : {}),
+      ...(audioB64 !== undefined ? { audioB64 } : {}),
     },
   };
 }
