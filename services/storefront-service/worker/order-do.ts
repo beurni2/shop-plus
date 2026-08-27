@@ -2879,6 +2879,12 @@ interface Env {
    *  is ever blocked. */
   MEDIA?: { fetch(request: Request): Promise<Response> };
   MEDIA_WRITE_KEY?: string;
+  /** LISTE-ADRESSE — the liste book, read-only from here: the gift order's
+   *  background contact attach and its zone-coherence check. OPTIONAL: with
+   *  no binding the attach silently does not happen, which is SAFE — the
+   *  quote road is gated on the same binding, so no address-priced quote
+   *  can exist for this door to mismatch. */
+  WISHLIST?: DurableObjectNamespace;
 }
 
 const orderStub = (env: Env, orderId: string): DurableObjectStub =>
