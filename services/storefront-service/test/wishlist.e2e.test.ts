@@ -839,6 +839,9 @@ describe('LISTE-CADEAUX — her gifts on her own device, the code under the remi
     const rowsApres = apres.json['cadeaux'] as { pid: string; suivi?: { arrivedAt?: string }; code?: string }[];
     expect(rowsApres[0]!.suivi?.arrivedAt).toBe('2026-08-27T11:45:00.000Z');
     expect(rowsApres[0]!.code).toMatch(/^\d{6}$/);
+    // the byte probes hold on the REVEALED answer too (verifier OBS 3)
+    expect(apres.text).not.toContain(o.orderId);
+    expect(apres.text).not.toContain(String(o.buyerTotal));
     const jeton = o.json['buyerRef'] as string;
     const porte = await remiseRead(o.orderId, jeton);
     expect(porte.status).toBe(200);
