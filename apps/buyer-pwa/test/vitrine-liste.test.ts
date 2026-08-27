@@ -15,6 +15,7 @@ import {
   garderListe,
   httpListePort,
   listeGardee,
+  oublierListe,
   resetListesCache,
   LISTE_TOKEN,
   type ListePublique,
@@ -24,6 +25,9 @@ import {
   articlesPourModif,
   renderListeAmie,
   renderListeBand,
+  renderListeCadeaux,
+  renderListeFermee,
+  renderListeFermerConfirm,
   renderListeHorsLigne,
   renderListeIntrouvable,
   renderListeLien,
@@ -450,5 +454,183 @@ describe('the token pin', () => {
     expect(LISTE_TOKEN.test('T'.repeat(32))).toBe(true);
     expect(LISTE_TOKEN.test('T'.repeat(31))).toBe(false);
     expect(LISTE_TOKEN.test(`${'T'.repeat(31)}%`)).toBe(false);
+  });
+});
+
+/**
+ * LISTE-CADEAUX + LISTE-FERMER (founder, 2026-08-27) — by execution:
+ *  · the card's third quiet road « Mes cadeaux »; the sheet's faces — honest
+ *    empty, code big once revealed, attente line before, indisponible when
+ *    an order could not answer, NOTHING after livrée;
+ *  · the last Retirer ASKS instead of refusing; the farewell face; NO amount
+ *    ever renders on the cadeaux sheet (the ?cadeau dignity law);
+ *  · the wire adapters: fermer's exact one-key body and its already-closed
+ *    re-read (404 + liste gone = fermée · 404 + liste alive = refus, the
+ *    handle never abandoned); cadeaux' defensive parse;
+ *  · oublierListe forgets ONLY the named boutique's handle, persistently;
+ *  · the demo port mirrors the close and the honestly-empty cadeaux.
+ */
+describe('« Mes cadeaux » and « Fermer ma liste »', () => {
+  const withFetch = async <T>(impl: (url: string, init?: RequestInit) => Promise<Response>, run: () => Promise<T>): Promise<T> => {
+    const held = globalThis.fetch;
+    globalThis.fetch = impl as typeof fetch;
+    try {
+      return await run();
+    } finally {
+      globalThis.fetch = held;
+    }
+  };
+
+  it('the card gains the third quiet road, wired', () => {
+    garderListe('chez-awa-1', GARDEE);
+    const band = renderListeBand(SF as never);
+    expect(band).toContain('data-action="liste-cadeaux"');
+    expect(band).toContain('Mes cadeaux');
+  });
+
+  it('the confirm face asks in plain words with the close primary and the keep whisper; the farewell states what changed', () => {
+    const confirm = renderListeFermerConfirm();
+    expect(confirm).toContain('Retirer le dernier article ferme votre liste. Votre lien ne marchera plus.');
+    expect(confirm).toContain('data-action="liste-fermer-liste"');
+    expect(confirm).toContain('data-action="liste-garder"');
+    expect(confirm).toContain('data-role="liste-alerte"');
+    const adieu = renderListeFermee();
+    expect(adieu).toContain('votre liste est fermée');
+    expect(adieu).toContain('data-action="liste-fermer"');
+  });
+
+  it('the cadeaux sheet: empty is honest with the share way forward; hors-ligne retries by the SAME action; introuvable offers the fresh start', () => {
+    const vide = renderListeCadeaux({ etape: 'cadeaux', rows: [] });
+    expect(vide).toContain('Pas encore de cadeau.');
+    expect(vide).toContain('data-action="liste-partager"');
+    const hl = renderListeCadeaux({ etape: 'hors-ligne' });
+    expect(hl).toContain('data-action="liste-cadeaux"');
+    const morte = renderListeCadeaux({ etape: 'introuvable' });
+    expect(morte).toContain('data-mode="nouvelle"');
+  });
+
+  it('a row: état line from the ?cadeau law; code BIG once revealed with the livreur aide; attente before; nothing after livrée; indisponible without suivi — and never one FCFA byte', () => {
+    const rows = [
+      { titre: 'Bazin riche', cadeau: { pid: 'p1', suivi: { state: 'confirmed', arrivedAt: 'T-arr' }, code: '123456' } },
+      { titre: 'Écharpe', cadeau: { pid: 'p2', suivi: { state: 'confirmed' } } },
+      { titre: 'Sac', cadeau: { pid: 'p3', suivi: { state: 'confirmed', livree: true } } },
+      { titre: 'Article offert', cadeau: { pid: 'p4' } },
+    ] as const;
+    const sheet = renderListeCadeaux({ etape: 'cadeaux', rows: rows as never });
+    // p1 — revealed: the code, its label, the aide
+    expect(sheet).toContain('data-role="cadeau-code"');
+    expect(sheet).toContain('123456');
+    expect(sheet).toContain('Donnez ce code au livreur.');
+    expect(sheet).toContain('Arrivé — remise en cours');
+    // p2 — not yet: the honest attente
+    expect(sheet).toContain('data-role="cadeau-attente-code"');
+    // p3 — livrée: état says it, and the row carries neither code nor attente
+    expect(sheet).toContain('Livré');
+    expect((sheet.match(/data-role="cadeau-attente-code"/g) ?? []).length).toBe(1);
+    expect((sheet.match(/data-role="cadeau-code"/g) ?? []).length).toBe(1);
+    // p4 — the order could not answer: honest, never a dead row
+    expect(sheet).toContain('data-role="cadeau-indisponible"');
+    // the ?cadeau dignity law, held here too
+    expect(sheet).not.toContain('FCFA');
+  });
+
+  it('fermer sends the exact one-key body to the fermer door', async () => {
+    let sent: { url: string; body: unknown } | undefined;
+    const out = await withFetch(
+      async (url, init) => {
+        sent = { url, body: JSON.parse(String(init?.body)) };
+        return Response.json({ ok: true });
+      },
+      () => httpListePort('https://svc').fermer('T'.repeat(32), 'E'.repeat(32)),
+    );
+    expect(sent?.url).toBe(`https://svc/listes/${'T'.repeat(32)}/fermer`);
+    expect(sent?.body).toEqual({ editCle: 'E'.repeat(32) });
+    expect(out.status).toBe('fermee');
+  });
+
+  it("fermer's uniform 404 is told apart by ONE public re-read: liste gone = fermée (a retried tap lands), liste alive = refus (the handle is never abandoned)", async () => {
+    const deja = await withFetch(
+      async (url) =>
+        url.endsWith('/fermer')
+          ? Response.json({ ok: false, reason: 'not_found' }, { status: 404 })
+          : Response.json({ ok: false, reason: 'not_found' }, { status: 404 }),
+      () => httpListePort('https://svc').fermer('T'.repeat(32), 'E'.repeat(32)),
+    );
+    expect(deja.status).toBe('fermee');
+    const vivante = await withFetch(
+      async (url) =>
+        url.endsWith('/fermer')
+          ? Response.json({ ok: false, reason: 'not_found' }, { status: 404 })
+          : Response.json({ ok: true, liste: { nom: 'Awa', slug: 's', articles: [{ pid: 'p1', offert: false }] } }),
+      () => httpListePort('https://svc').fermer('T'.repeat(32), 'X'.repeat(32)),
+    );
+    expect(vivante.status).toBe('refus');
+    const coupee = await withFetch(
+      async () => { throw new Error('down'); },
+      () => httpListePort('https://svc').fermer('T'.repeat(32), 'E'.repeat(32)),
+    );
+    expect(coupee.status).toBe('hors-ligne');
+  });
+
+  it('cadeaux sends the exact one-key body and parses defensively: junk rows degrade to their pid, junk answers to introuvable', async () => {
+    let sent: { url: string; body: unknown } | undefined;
+    const out = await withFetch(
+      async (url, init) => {
+        sent = { url, body: JSON.parse(String(init?.body)) };
+        return Response.json({
+          ok: true, nom: 'Awa',
+          cadeaux: [
+            { pid: 'p1', suivi: { state: 'confirmed', arrivedAt: 'T' }, code: '654321' },
+            { pid: 'p2', suivi: { state: 7 } },
+            { pid: 'p3', code: 42 },
+            { suivi: { state: 'confirmed' } },
+          ],
+        });
+      },
+      () => httpListePort('https://svc').cadeaux('T'.repeat(32), 'E'.repeat(32)),
+    );
+    expect(sent?.url).toBe(`https://svc/listes/${'T'.repeat(32)}/cadeaux`);
+    expect(sent?.body).toEqual({ editCle: 'E'.repeat(32) });
+    expect(out.status).toBe('cadeaux');
+    if (out.status === 'cadeaux') {
+      expect(out.cadeaux).toEqual([
+        { pid: 'p1', suivi: { state: 'confirmed', arrivedAt: 'T' }, code: '654321' },
+        { pid: 'p2' },
+        { pid: 'p3' },
+      ]);
+    }
+    expect(
+      (await withFetch(async () => Response.json({ ok: false }, { status: 404 }), () => httpListePort('https://svc').cadeaux('T'.repeat(32), 'E'.repeat(32)))).status,
+    ).toBe('introuvable');
+    expect(
+      (await withFetch(async () => { throw new Error('down'); }, () => httpListePort('https://svc').cadeaux('T'.repeat(32), 'E'.repeat(32)))).status,
+    ).toBe('hors-ligne');
+  });
+
+  it('oublierListe forgets ONLY the named boutique, persistently', () => {
+    garderListe('chez-awa-1', GARDEE);
+    garderListe('chez-binta-2', { ...GARDEE, token: 'U'.repeat(32) });
+    oublierListe('chez-awa-1');
+    expect(listeGardee('chez-awa-1')).toBeUndefined();
+    expect(listeGardee('chez-binta-2')?.token).toBe('U'.repeat(32));
+    resetListesCache(); // a fresh load reads storage — the forget PERSISTED
+    expect(listeGardee('chez-awa-1')).toBeUndefined();
+    expect(listeGardee('chez-binta-2')?.token).toBe('U'.repeat(32));
+  });
+
+  it('the demo port mirrors the close (wrong key refused, gone is gone, a replay lands fermée) and the honestly-empty cadeaux', async () => {
+    const port = demoListePort();
+    const made = await port.creer('s-1', 'Awa', ['p1']);
+    expect(made.status).toBe('creee');
+    if (made.status !== 'creee') return;
+    const { token, editCle } = made.liste;
+    expect((await port.cadeaux(token, 'X'.repeat(32))).status).toBe('introuvable');
+    const cadeaux = await port.cadeaux(token, editCle);
+    expect(cadeaux).toEqual({ status: 'cadeaux', nom: 'Awa', cadeaux: [] });
+    expect((await port.fermer(token, 'X'.repeat(32))).status).toBe('refus');
+    expect((await port.lire(token)).status).toBe('liste');
+    expect((await port.fermer(token, editCle)).status).toBe('fermee');
+    expect((await port.lire(token)).status).toBe('introuvable');
+    expect((await port.fermer(token, editCle)).status).toBe('fermee'); // the replay
   });
 });

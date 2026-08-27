@@ -180,10 +180,15 @@ test('CREATOR — Retirer and Ajouter act on the tap: no save word, exact wires,
   await expect(page.locator('[data-role="liste-sheet"] input')).toHaveCount(0);
   await expect(page.locator('[data-role="liste-sheet"]')).toContainText('Votre lien reste le même.');
 
-  // THE LAST-ITEM LAW, INLINE — her only article cannot be removed, and
-  // nothing leaves the phone on the refusal.
+  // THE LAST-ITEM LAW, REWRITTEN (LISTE-CADEAUX-1): Retirer on her ONLY
+  // article no longer refuses — it ASKS. Nothing leaves the phone, and
+  // « Garder ma liste » walks straight back to the sheet, nothing lost.
   await page.locator('[data-action="liste-retirer"][data-pid="p1"]').click();
-  await expect(page.locator('[data-role="liste-alerte"]')).toHaveText('Gardez au moins un article.');
+  await expect(page.locator('[data-role="liste-fermer-question"]')).toBeVisible();
+  expect(updates).toHaveLength(0);
+  await page.locator('[data-action="liste-garder"]').click();
+  await expect(page.locator('[data-action="liste-retirer"][data-pid="p1"]')).toBeVisible();
+  await expect(page.locator('[data-role="liste-sheet"]')).toContainText('Déjà offert');
   expect(updates).toHaveLength(0);
 
   // AJOUTER ACTS ON THE TAP — the exact body out, the row moves up.
@@ -575,4 +580,152 @@ test('CADEAU — the creator’s tracking link renders the delivery’s facts, a
   );
   await page.goto(`${BASE}/?cadeau=ord-perdu`);
   await expect(page.locator('main')).toContainText('Nous ne trouvons pas cette commande.');
+});
+
+/**
+ * LISTE-FERMER — THE TERMINATION WALK (founder, 2026-08-27: « allow the
+ * wishlist creator to remove all his items to terminate the wishlist »).
+ * The four questions: the tree survives every tap (the question face, a
+ * FAILED close, the farewell) · « Fermer ma liste » is wired to a real POST
+ * whose exact bytes are recorded · the self-firing act's failure leaves a
+ * pressable way out · the next step is REACHED (the card back to the
+ * invitation, the handle gone, a reload agreeing).
+ */
+test('CREATOR — removing the last article asks, then closes: the link road dies, the card returns to the invitation', async ({ page }) => {
+  await page.addInitScript(
+    ({ token, editCle }: { token: string; editCle: string }) => {
+      if (window.localStorage.getItem('shopplus.listes.v1') === null) {
+        window.localStorage.setItem(
+          'shopplus.listes.v1',
+          JSON.stringify({ 'aicha-4821': { token, editCle, nom: 'Awa', pids: ['p1'], createdAt: 'T' } }),
+        );
+      }
+    },
+    { token: TOKEN, editCle: 'E'.repeat(32) },
+  );
+  let fermerEssais = 0;
+  const fermetures: Record<string, unknown>[] = [];
+  await page.route('**/listes/**', async (route: Route) => {
+    if (/\/fermer$/.test(route.request().url())) {
+      fermetures.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);
+      fermerEssais += 1;
+      // the FIRST close fails — the way-out law must be walked, not assumed
+      if (fermerEssais === 1) {
+        await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ ok: false }) });
+        return;
+      }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+      return;
+    }
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, liste: { nom: 'Awa', slug: 'aicha-4821', articles: [{ pid: 'p1', offert: false }] } }),
+    });
+  });
+  await page.goto(`${BASE}/?demo-vitrine=aicha-4821`);
+  await expect(page.locator('[data-role="vitrine-liste-carte"]')).toContainText('La liste de Awa · 1 envie');
+
+  // gestion → the last Retirer ASKS, with cause and effect stated
+  await page.locator('[data-role="vitrine-liste-carte"] [data-action="liste-creer"]').click();
+  await page.locator('[data-action="liste-retirer"][data-pid="p1"]').click();
+  await expect(page.locator('[data-role="liste-fermer-question"]')).toHaveText(
+    'Retirer le dernier article ferme votre liste. Votre lien ne marchera plus.',
+  );
+  expect(fermetures).toHaveLength(0); // nothing on the wire until she answers
+
+  // the confirmed close FAILS first — the reason shows, both buttons wake
+  await page.locator('[data-action="liste-fermer-liste"]').click();
+  await expect(page.locator('[data-role="liste-alerte"]')).toContainText('Réessayez');
+  await expect(page.locator('[data-action="liste-fermer-liste"]')).toBeEnabled();
+  await expect(page.locator('[data-action="liste-garder"]')).toBeEnabled();
+  expect(fermetures[0]).toEqual({ editCle: 'E'.repeat(32) });
+
+  // the retry succeeds — the farewell face, and the card is ALREADY back to
+  // the invitation underneath (the handle followed the truth)
+  await page.locator('[data-action="liste-fermer-liste"]').click();
+  await expect(page.locator('[data-role="liste-fermee"]')).toContainText('votre liste est fermée');
+  expect(fermetures).toHaveLength(2);
+  expect(fermetures[1]).toEqual({ editCle: 'E'.repeat(32) });
+  await expect(page.locator('[data-role="vitrine-liste-inviter"]')).toBeVisible();
+
+  // the way forward closes the sheet; the handle is gone; a reload agrees
+  await page.locator('[data-role="liste-sheet"] [data-action="liste-fermer"]').first().click();
+  await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
+  const handle = await page.evaluate(() => window.localStorage.getItem('shopplus.listes.v1'));
+  expect(JSON.parse(handle ?? '{}')).toEqual({});
+  await page.reload();
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  await expect(page.locator('[data-role="vitrine-liste-inviter"]')).toBeVisible();
+});
+
+/**
+ * LISTE-CADEAUX — THE « MES CADEAUX » WALK. The four questions: the tree
+ * survives the tap (chargement → hors-ligne → the rows) · the card entry is
+ * pressable and wired to a real POST with the exact one-key body · the
+ * hors-ligne face keeps its pressable retry (the SAME action) · the next
+ * step is REACHED (the revealed code readable, the not-yet row honest).
+ */
+test('CREATOR — « Mes cadeaux » reads fresh: hors-ligne retries, the code shows big once revealed, the not-yet row says so', async ({ page }) => {
+  await page.addInitScript(
+    ({ token, editCle }: { token: string; editCle: string }) => {
+      if (window.localStorage.getItem('shopplus.listes.v1') === null) {
+        window.localStorage.setItem(
+          'shopplus.listes.v1',
+          JSON.stringify({ 'aicha-4821': { token, editCle, nom: 'Awa', pids: ['p1', 'p2'], createdAt: 'T' } }),
+        );
+      }
+    },
+    { token: TOKEN, editCle: 'E'.repeat(32) },
+  );
+  const lectures: Record<string, unknown>[] = [];
+  let horsLigne = true;
+  await page.route('**/listes/**', async (route: Route) => {
+    if (!/\/cadeaux$/.test(route.request().url())) {
+      await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ ok: false }) });
+      return;
+    }
+    lectures.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);
+    if (horsLigne) {
+      await route.abort('internetdisconnected');
+      return;
+    }
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true, nom: 'Awa',
+        cadeaux: [
+          { pid: 'p1', suivi: { state: 'confirmed', arrivedAt: '2026-08-27T11:45:00.000Z', livree: false }, code: '123456' },
+          { pid: 'p2', suivi: { state: 'confirmed', livree: false } },
+        ],
+      }),
+    });
+  });
+  await page.goto(`${BASE}/?demo-vitrine=aicha-4821`);
+  await expect(page.locator('[data-role="vitrine-liste-carte"]')).toBeVisible();
+
+  // the third quiet road — HORS-LIGNE FIRST, with its pressable retry
+  await page.locator('[data-action="liste-cadeaux"]').click();
+  await expect(page.locator('[data-role="liste-cadeaux-horsligne"]')).toBeVisible();
+  horsLigne = false;
+  await page.locator('[data-role="liste-sheet"] [data-action="liste-cadeaux"]').click();
+
+  // THE ROWS — p1 arrived: the code big with the livreur aide; p2 on its
+  // way: the honest attente line; the état sentences from the ?cadeau law.
+  const rowP1 = page.locator('[data-role="liste-cadeau"][data-pid="p1"]');
+  await expect(rowP1.locator('[data-role="cadeau-code"] .vt-liste-code-chiffres')).toHaveText('123456');
+  await expect(rowP1).toContainText('Donnez ce code au livreur.');
+  await expect(rowP1.locator('[data-role="cadeau-etat"]')).toHaveText('Arrivé — remise en cours');
+  const rowP2 = page.locator('[data-role="liste-cadeau"][data-pid="p2"]');
+  await expect(rowP2.locator('[data-role="cadeau-attente-code"]')).toBeVisible();
+  await expect(rowP2.locator('[data-role="cadeau-code"]')).toHaveCount(0);
+
+  // the wire carried the exact one-key body, once per ask
+  expect(lectures).toHaveLength(2);
+  expect(lectures[0]).toEqual({ editCle: 'E'.repeat(32) });
+  expect(lectures[1]).toEqual({ editCle: 'E'.repeat(32) });
+
+  // the way out — and the card (and her handle) untouched by a mere read
+  await page.locator('[data-action="liste-fermer"]').click();
+  await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
+  await expect(page.locator('[data-role="vitrine-liste-carte"]')).toContainText('La liste de Awa · 2 envies');
 });

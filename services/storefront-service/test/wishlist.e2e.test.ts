@@ -26,6 +26,7 @@ const T0 = '2026-08-25T08:00:00.000Z';
 const WRITE_SECRET = 'test-write-secret-le001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-le001';
 const OPS_SECRET = 'test-checkout-ops-secret-le001';
+const PROGRESS_SECRET = 'test-progress-write-secret-lc001';
 const authed = { 'X-Write-Key': WRITE_SECRET };
 
 const SUPPLY = [
@@ -72,6 +73,9 @@ beforeAll(() => {
       // seam asks: the attached contact is asserted where it is actually
       // read, never off the create response.
       CHECKOUT_OPS_SECRET: OPS_SECRET,
+      // LISTE-CADEAUX — Séra's transit door: the cadeaux seam drives a REAL
+      // arrival fact so the code's reveal gate is exercised by execution.
+      PROGRESS_WRITE_SECRET: PROGRESS_SECRET,
     },
     serviceBindings: {
       OFFER: async (request: Request) => {
@@ -221,6 +225,45 @@ async function confirmOrder(orderId: string, amount: number): Promise<void> {
     }),
   });
   if (paid.status !== 200) throw new Error(`setup: webhook ${paid.status} ${await paid.text()}`);
+}
+
+/** LISTE-CADEAUX — the creator's two edit-key doors. */
+async function lireCadeaux(token: string, editCle: string | null) {
+  const res = await mf.dispatchFetch(`http://c/listes/${encodeURIComponent(token)}/cadeaux`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(editCle !== null ? { editCle } : {}),
+  });
+  const text = await res.text();
+  return { status: res.status, text, json: safeJson(text) };
+}
+
+async function fermerListe(token: string, editCle: string | null) {
+  const res = await mf.dispatchFetch(`http://c/listes/${encodeURIComponent(token)}/fermer`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(editCle !== null ? { editCle } : {}),
+  });
+  const text = await res.text();
+  return { status: res.status, text, json: safeJson(text) };
+}
+
+/** Séra's transit door — the arrival fact the code's reveal gate reads. */
+async function transit(body: unknown) {
+  const res = await mf.dispatchFetch('http://c/fulfillment/transit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${PROGRESS_SECRET}` },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status };
+}
+
+/** The purchaser's own remise door — the LEDGER the cadeaux code is compared
+ *  against: two doors, one stored code, byte-for-byte. */
+async function remiseRead(orderId: string, jeton: string) {
+  const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}/remise`, {
+    method: 'GET', headers: { Authorization: `Bearer ${jeton}` },
+  });
+  const text = await res.text();
+  return { status: res.status, json: safeJson(text) };
 }
 
 async function offertVisible(token: string, pid: string, timeoutMs = 8_000): Promise<boolean> {
@@ -740,5 +783,142 @@ describe('LISTE-ADRESSE — her address attaches in the background, and the frie
     expect(mauvaise.status).toBe(400);
     expect(mauvaise.json['reason']).toBe('bad_field');
     expect(mauvaise.json['field']).toBe('livraison');
+  });
+});
+
+describe('LISTE-CADEAUX — her gifts on her own device, the code under the remise gate', () => {
+  it('THE SEAM: gift confirmed → cadeaux names it; the code appears ONLY after arrival, byte-equal to the remise door', async () => {
+    const { slug, resellerId } = await boutique('0050');
+    const made = await creerListe(slug, 'Awa', ['pv-le-1', 'pv-le-2']);
+    const token = made.json['token'] as string;
+    const editCle = made.json['editCle'] as string;
+
+    // before any gift: the honest empty answer, to HER key alone
+    const vide = await lireCadeaux(token, editCle);
+    expect(vide.status).toBe(200);
+    expect(vide.json).toEqual({ ok: true, nom: 'Awa', cadeaux: [] });
+
+    // wrong key ≡ absent liste: ONE uniform 404, byte-identical
+    const mauvaise = await lireCadeaux(token, 'B'.repeat(32));
+    const absente = await lireCadeaux('C'.repeat(32), editCle);
+    expect(mauvaise.status).toBe(404);
+    expect(absente.status).toBe(404);
+    expect(mauvaise.text).toBe(absente.text);
+    // …and a malformed key is refused by name, never hashed
+    expect((await lireCadeaux(token, null)).status).toBe(400);
+
+    // the gift: order names the liste, the provider confirms, the mark lands
+    const o = await ordered('0050', slug, resellerId, 'pv-le-1', token);
+    expect(o.status).toBe(200);
+    await confirmOrder(o.orderId, o.buyerTotal);
+    expect(await offertVisible(token, 'pv-le-1')).toBe(true);
+
+    // BEFORE ARRIVAL — the journey shows, the code does NOT (§6.3's gate,
+    // proven by execution, not by the guard's presence)
+    const avant = await lireCadeaux(token, editCle);
+    expect(avant.status).toBe(200);
+    const rowsAvant = avant.json['cadeaux'] as { pid: string; suivi?: { state?: string; livree?: boolean }; code?: string }[];
+    expect(rowsAvant).toHaveLength(1);
+    expect(rowsAvant[0]!.pid).toBe('pv-le-1');
+    expect(rowsAvant[0]!.suivi?.state).toBe('confirmed');
+    expect(rowsAvant[0]!.suivi?.livree).toBe(false);
+    expect(rowsAvant[0]!.code).toBeUndefined();
+    expect(avant.text).not.toContain('"code"');
+    // …and not one identifying or money byte leaves: no orderId, no amount
+    expect(avant.text).not.toContain(o.orderId);
+    expect(avant.text).not.toContain(String(o.buyerTotal));
+
+    // Séra departs and arrives — the transit door, the real one
+    expect((await transit({ orderId: o.orderId, stage: 'en_route', asOf: '2026-08-27T11:00:00.000Z' })).status).toBe(200);
+    expect((await transit({ orderId: o.orderId, stage: 'arrivee', asOf: '2026-08-27T11:45:00.000Z' })).status).toBe(200);
+
+    // AFTER ARRIVAL — the code reveals, and THE LEDGER agrees: the remise
+    // door (the purchaser's own, buyer-token-gated) serves the SAME bytes.
+    const apres = await lireCadeaux(token, editCle);
+    expect(apres.status).toBe(200);
+    const rowsApres = apres.json['cadeaux'] as { pid: string; suivi?: { arrivedAt?: string }; code?: string }[];
+    expect(rowsApres[0]!.suivi?.arrivedAt).toBe('2026-08-27T11:45:00.000Z');
+    expect(rowsApres[0]!.code).toMatch(/^\d{6}$/);
+    const jeton = o.json['buyerRef'] as string;
+    const porte = await remiseRead(o.orderId, jeton);
+    expect(porte.status).toBe(200);
+    expect(rowsApres[0]!.code).toBe(porte.json['code']);
+  });
+});
+
+describe('LISTE-FERMER — removing everything terminates the liste, totally and fail-closed', () => {
+  it('THE SEAM: fermer deletes — the link dies, every door 404s, the gift quote fails closed, and a wrong key changed nothing', async () => {
+    const { slug, resellerId } = await boutique('0051');
+    const made = await creerListe(slug, 'Awa', ['pv-le-1'], undefined, {
+      telephone: '70123456', quartier: 'Dassasgho', repere: 'Portail bleu', zone: 'Dassasgho, Ouagadougou',
+    });
+    const token = made.json['token'] as string;
+    const editCle = made.json['editCle'] as string;
+
+    // a wrong key refuses uniformly AND the liste still answers afterwards
+    const truque = await fermerListe(token, 'B'.repeat(32));
+    expect(truque.status).toBe(404);
+    expect((await lireListe(token)).status).toBe(200);
+    // …and a malformed body is refused by name
+    expect((await fermerListe(token, null)).status).toBe(400);
+
+    // the confirmed close
+    const fermee = await fermerListe(token, editCle);
+    expect(fermee.status).toBe(200);
+    expect(fermee.json).toEqual({ ok: true });
+
+    // TOTAL: the shared link, the update door and the cadeaux door all 404
+    expect((await lireListe(token)).status).toBe(404);
+    const update = await mf.dispatchFetch(`http://c/listes/${token}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ editCle, pids: ['pv-le-1'] }),
+    });
+    expect(update.status).toBe(404);
+    expect((await lireCadeaux(token, editCle)).status).toBe(404);
+
+    // FAIL-CLOSED ON THE MONEY ROAD: a gift quote naming the closed liste
+    // meets the same refusal a liste without an address earns
+    const quoteRes = await mf.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug, pid: 'pv-le-1', paymentMode: 'FULL_PREPAY', listeRef: token,
+        attributionResellerId: resellerId, requestKey: freshKey(),
+      }),
+    });
+    expect(quoteRes.status).toBe(422);
+    expect(safeJson(await quoteRes.text())['reason']).toBe('liste_sans_adresse');
+
+    // a REPLAYED close is indistinguishable from a wrong key here — the
+    // anti-oracle holds; the CLIENT's public re-read owns the distinction
+    expect((await fermerListe(token, editCle)).status).toBe(404);
+  });
+
+  it('a gift in flight cannot wedge on a closed liste: the offert wire completes as ignored', async () => {
+    const { slug, resellerId } = await boutique('0052');
+    const made = await creerListe(slug, 'Awa', ['pv-le-1']);
+    const token = made.json['token'] as string;
+    const editCle = made.json['editCle'] as string;
+
+    // the order names the liste BEFORE the close; the provider confirms AFTER
+    const o = await ordered('0052', slug, resellerId, 'pv-le-1', token);
+    expect(o.status).toBe(200);
+    expect((await fermerListe(token, editCle)).status).toBe(200);
+    await confirmOrder(o.orderId, o.buyerTotal);
+
+    // the wire drains to its COMPLETE outcome — the sale is untouched, the
+    // liste stays gone, nothing retries forever
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    const deadline = Date.now() + 8_000;
+    let status: string | undefined;
+    while (Date.now() < deadline) {
+      const outbox = (await (await ns.get(ns.idFromName(o.orderId)).fetch('https://do/entry/outbox')).json()) as {
+        listeOffert?: { status?: string };
+      };
+      status = outbox.listeOffert?.status;
+      if (status === 'delivered') break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    expect(status).toBe('delivered');
+    expect((await lireListe(token)).status).toBe(404);
   });
 });

@@ -352,9 +352,17 @@ export default {
      * must never need one to make or open a wish list. What that does NOT
      * open, stated like its neighbours because an exemption is a hole until
      * proven otherwise:
-     *   · MATCHED EXACTLY — one `===` and one anchored single-segment regex;
-     *     every other method and every other `/listes/...` shape falls
-     *     through to the write gate and is refused 401.
+     *   · MATCHED EXACTLY — one `===`, one anchored single-segment regex,
+     *     and one anchored two-segment action regex whose second segment is a
+     *     LITERAL ALTERNATION (`fermer|cadeaux` — LISTE-CADEAUX); every other
+     *     method and every other `/listes/...` shape falls through to the
+     *     write gate and is refused 401.
+     *   · THE CADEAUX DOOR SERVES THE CREATOR ONLY — the edit key is the
+     *     credential (hash-compared inside the object, wrong key ≡ absent
+     *     liste), and what leaves per gift is the pid, the journey facts the
+     *     public ?cadeau view already serves, and the remise code under the
+     *     remise door's own reveal conditions (decided inside the OrderDO).
+     *     No orderId, no amount, no contact crosses out.
      *   · NO AMOUNT CAN ARRIVE — the create/update bodies are exact-key
      *     allowlists (`wishlist-core`) with no money field, and the pids must
      *     already be ON the boutique (checked against `curatedItems` below),
@@ -378,14 +386,18 @@ export default {
      */
     const isListeCreate = pathname === '/listes';
     const isListeByToken = /^\/listes\/[^/]+$/.test(pathname);
-    if (request.method === 'OPTIONS' && (isListeCreate || isListeByToken)) {
+    // LISTE-CADEAUX — the creator's two edit-key doors: close the liste,
+    // read her gifts. POST because the key rides the BODY, never a URL.
+    const listeAction = /^\/listes\/([^/]+)\/(fermer|cadeaux)$/.exec(pathname);
+    if (request.method === 'OPTIONS' && (isListeCreate || isListeByToken || listeAction !== null)) {
       // The checkout preflight, verbatim: same exact origin, and these doors
       // need the same POST + Content-Type grant the order routes needed.
       return checkoutPreflight();
     }
     if (
       (request.method === 'POST' && isListeCreate) ||
-      ((request.method === 'GET' || request.method === 'POST') && isListeByToken)
+      ((request.method === 'GET' || request.method === 'POST') && isListeByToken) ||
+      (request.method === 'POST' && listeAction !== null)
     ) {
       if (env.WISHLIST === undefined) {
         return withReadCors(Response.json({ ok: false, reason: 'listes_indisponibles' }, { status: 503 }));
@@ -446,6 +458,67 @@ export default {
         // create-only discipline. The share token is the link; the edit key
         // stays on the creator's own phone.
         return neverCache(Response.json({ ok: true, token, editCle, liste: decided.liste }));
+      }
+      // LISTE-CADEAUX — the creator's action doors. The malformed-token law
+      // is the by-token read's, verbatim; the BODY crosses to the object
+      // VERBATIM (the update door's discipline — the object's own validation
+      // refuses, never this layer).
+      if (listeAction !== null) {
+        const actionToken = decodeOrderId(listeAction[1]!);
+        if (actionToken === undefined || !LISTE_TOKEN.test(actionToken)) {
+          return neverCache(Response.json({ ok: false, reason: 'not_found' }, { status: 404 }));
+        }
+        const actionBody = await request.text();
+        if (listeAction[2] === 'fermer') {
+          // « remove all his items to terminate the wishlist » — the object
+          // deletes everything or refuses uniformly; nothing to add here.
+          return neverCache(
+            await listeStub(actionToken).fetch(
+              new Request('https://do/entry/delete', { method: 'POST', body: actionBody }),
+            ),
+          );
+        }
+        // cadeaux — the object hash-checks her key and names the gift orders;
+        // THEN this root (the one layer holding both namespaces) asks each
+        // order for its journey and, when the OrderDO's own remise conditions
+        // say so, the code. ≤20 by the liste's own ceiling. A gift whose
+        // order cannot answer degrades to its pid alone — the sheet says
+        // « suivi indisponible », never a dead screen.
+        const decided = await listeStub(actionToken).fetch(
+          new Request('https://do/entry/cadeaux', { method: 'POST', body: actionBody }),
+        );
+        if (!decided.ok) return neverCache(decided);
+        const lu = (await decided.json().catch(() => null)) as
+          | { ok?: boolean; nom?: unknown; cadeaux?: unknown }
+          | null;
+        if (lu?.ok !== true || typeof lu.nom !== 'string' || !Array.isArray(lu.cadeaux)) {
+          return neverCache(Response.json({ ok: false, reason: 'listes_indisponibles' }, { status: 503 }));
+        }
+        const rows = await Promise.all(
+          (lu.cadeaux as { pid?: unknown; orderId?: unknown }[]).map(async (c) => {
+            const pid = typeof c?.pid === 'string' ? c.pid : undefined;
+            const orderId = typeof c?.orderId === 'string' ? c.orderId : undefined;
+            if (pid === undefined) return null;
+            if (orderId === undefined) return { pid };
+            const res = await env.ORDER.get(env.ORDER.idFromName(orderId))
+              .fetch(
+                new Request('https://do/entry/cadeau-liste', {
+                  method: 'POST',
+                  body: JSON.stringify({ listeRef: actionToken }),
+                }),
+              )
+              .catch(() => undefined);
+            const facts =
+              res === undefined
+                ? null
+                : ((await res.json().catch(() => null)) as { ok?: boolean; suivi?: unknown; code?: unknown } | null);
+            if (facts?.ok !== true || facts.suivi === undefined) return { pid };
+            // The orderId NEVER rides out — the pid keys the row; the suivi
+            // and code are relayed as the OrderDO allowlisted them.
+            return { pid, suivi: facts.suivi, ...(typeof facts.code === 'string' ? { code: facts.code } : {}) };
+          }),
+        );
+        return neverCache(Response.json({ ok: true, nom: lu.nom, cadeaux: rows.filter((r) => r !== null) }));
       }
       // BY TOKEN — read (friend) or update (creator). A malformed token is
       // the SAME uniform 404 an unknown one earns inside the object: the

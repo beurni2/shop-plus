@@ -1217,6 +1217,63 @@ export class OrderDO {
     }
 
     /**
+     * ═══ LISTE-CADEAUX — THE CREATOR'S OWN READ OF HER GIFT (founder order,
+     * 2026-08-27) ═══
+     *
+     * INTERNAL WIRE ONLY — no public path maps here. The one caller is the
+     * composition root's `/listes/{token}/cadeaux` fan-out, which runs ONLY
+     * after the WishlistDO hash-verified the creator's edit key: THAT key is
+     * the credential of this road, exactly as the purchaser's buyer token is
+     * the credential of the merci read above. The `listeRef` match here is
+     * belt and braces against a confused-deputy fan-out (an orderId that
+     * never named this liste answers the uniform 404), never the gate — the
+     * ref is the share token, which every friend holds.
+     *
+     * WHAT LEAVES, field by field: the journey's state, the five delivery
+     * facts the PUBLIC ?cadeau view already serves — and, ONLY under the
+     * remise door's own revelation conditions verbatim (a code exists ∧
+     * Séra's arrival fact is recorded ∧ the door leg is settled — §6.3, fail
+     * closed), the six-digit remise code. The recipient at the door is the
+     * person this code exists FOR; the conditions that gate the purchaser's
+     * read gate hers identically. NO amount, NO contact, NO buyer token —
+     * a gift's franc never reaches the recipient's screen (the ?cadeau law).
+     */
+    if (request.method === 'POST' && pathname === '/entry/cadeau-liste') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      const listeRef = typeof body?.['listeRef'] === 'string' ? (body['listeRef'] as string) : '';
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      if (listeRef === '' || origin === undefined || origin.listeRef !== listeRef) {
+        return Response.json({ ok: false }, { status: 404 });
+      }
+      const quote = parseStoredQuote(origin.quoteBytes);
+      if (quote === undefined) return Response.json({ ok: false }, { status: 404 });
+      const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      const spine = rebuildOrderSpine(quote, origin, log);
+      const prep = (await this.state.storage.get<PreparationRecord>(PREPARATION_KEY)) ?? {};
+      const transit = (await this.state.storage.get<TransitRecord>(TRANSIT_KEY)) ?? {};
+      const code = await this.state.storage.get<string>(CODE_REMISE_KEY);
+      // §6.3 — the remise door's reveal conditions, VERBATIM (a gift order is
+      // full-prepay by the liste lock, so doorLeg is 'none' — but the check
+      // stays whole: a condition dropped because it « cannot happen » is the
+      // guard the next slice silently breaks).
+      const doorSettled = spine.doorLegState === 'none' || spine.doorLegState === 'paid';
+      const reveal = code !== undefined && transit.arrivedAt !== undefined && doorSettled;
+      return Response.json({
+        ok: true,
+        suivi: {
+          state: spine.journey.state,
+          ...(prep.acceptedAt !== undefined ? { acceptedAt: prep.acceptedAt } : {}),
+          ...(prep.readyAt !== undefined ? { readyAt: prep.readyAt } : {}),
+          ...(transit.departedAt !== undefined ? { departedAt: transit.departedAt } : {}),
+          ...(transit.arrivedAt !== undefined ? { arrivedAt: transit.arrivedAt } : {}),
+          // « livrée », derived EXACTLY as projectForBuyer derives it.
+          livree: spine.ledger.obligationsFor(origin.orderId).length > 0,
+        },
+        ...(reveal ? { code } : {}),
+      });
+    }
+
+    /**
      * RF-1a — THE RESELLER'S PROJECTION. INTERNAL ONLY (the public router
      * maps no path here); reachable only through her personal-code door at
      * the composition root, and only for the orders HER index names.

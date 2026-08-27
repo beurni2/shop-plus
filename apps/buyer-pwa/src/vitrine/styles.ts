@@ -425,6 +425,25 @@ export const VITRINE_STYLES = `
   }
   .vt-liste-offert-badge svg { flex: none; }
 
+  /* LISTE-CADEAUX — her gifts' rows and the remise code (large, confident
+   * figures — the money-moment trust law). */
+  .vt-liste-cadeau {
+    padding: 12px 0; border-bottom: 1px solid rgba(28,22,15,.08);
+  }
+  .vt-liste-cadeau:last-child { border-bottom: 0; }
+  .vt-liste-cadeau-etat {
+    margin-top: 4px; font-size: 12.5px; font-weight: 700; color: #3F7D5C;
+  }
+  .vt-liste-code {
+    margin-top: 10px; padding: 10px 12px; border-radius: 12px;
+    background: #FFFFFF; border: 1.5px dashed rgba(28,22,15,.22);
+  }
+  .vt-liste-code-label { font-size: 12px; font-weight: 700; color: #6F6355; }
+  .vt-liste-code-chiffres {
+    margin-top: 2px; font-size: 26px; font-weight: 800; color: #1C1710;
+    letter-spacing: .14em; font-variant-numeric: tabular-nums;
+  }
+
   /* NORTH-STAR round 3 — the mockup's section heading. */
   .vt-head { display: flex; align-items: center; gap: 8px; margin-top: 24px; }
   .vt-head-glyph { display: inline-flex; flex: none; }

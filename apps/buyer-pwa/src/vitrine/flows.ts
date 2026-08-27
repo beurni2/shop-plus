@@ -18,12 +18,15 @@ import { inPanier, togglePanier } from './panier';
 import { t } from '../i18n';
 import { recordVitrineArrival, signedHref, vitrineHref } from '../vitrine-link';
 import { demoStorefrontPort, resolveStorefrontPort, VitrineOffline, type StorefrontProfilePort } from './profile';
-import { garderListe, listeGardee, resolveListePort, LISTE_MAX_ARTICLES, type ListeLecture, type ListeLivraison } from './liste';
+import { garderListe, listeGardee, oublierListe, resolveListePort, LISTE_MAX_ARTICLES, type ListeLecture, type ListeLivraison } from './liste';
 import { villeDe } from '../cliente/quote-port';
 import type { VitrineProduct } from './catalog';
 import {
   articlesPourListe,
   articlesPourModif,
+  renderListeCadeaux,
+  renderListeFermee,
+  renderListeFermerConfirm,
   renderListeGestion,
   renderListeModif,
   renderVitrineEmpty,
@@ -701,7 +704,14 @@ export function mountVitrine(
         }
       };
       const actuels = listeEnGestion.map((a) => a.pid);
-      if (action === 'liste-retirer' && actuels.length <= 1) return direAlerte(t('vit.liste_garder_un'));
+      // LISTE-FERMER (founder, 2026-08-27) — the last article's Retirer is no
+      // longer refused: it ASKS. The sheet swaps to the confirm face — cause
+      // and effect stated, nothing on the wire until she answers.
+      if (action === 'liste-retirer' && actuels.length <= 1) {
+        const sheet = root.querySelector('[data-role="liste-sheet"][data-face="gestion"]');
+        if (sheet !== null) sheet.outerHTML = renderListeFermerConfirm();
+        return;
+      }
       if (action === 'liste-ajouter' && actuels.length >= LISTE_MAX_ARTICLES) return direAlerte(t('vit.liste_trop'));
       const pids = action === 'liste-retirer' ? actuels.filter((p) => p !== pid) : [...actuels, pid];
       const boutons = [...root.querySelectorAll<HTMLButtonElement>('[data-role="liste-sheet"] .vt-liste-row-btn')];
@@ -728,11 +738,89 @@ export function mountVitrine(
         remplirListeSlot();
         // Closed while the act was out → the act still happened (the server
         // answered; handle and card above are already true); only the paint
-        // is skipped. The paint targets ONLY the marked faces — never the
-        // create builder or the link celebration.
-        const sheet = root.querySelector('[data-role="liste-sheet"][data-face]');
+        // is skipped. The paint targets ONLY the gestion face and the
+        // attente it may have been reopened into — never the create builder,
+        // the link celebration, or (LISTE-CADEAUX) the cadeaux/fermer faces,
+        // which a late act answer must not overwrite.
+        const sheet = root.querySelector('[data-role="liste-sheet"][data-face="gestion"], [data-role="liste-sheet"][data-face="attente"]');
         const composed = composeGestion();
         if (sheet !== null && composed !== null) sheet.outerHTML = renderListeGestion(composed.miennes, composed.ajoutables);
+      });
+    } else if (action === 'liste-garder') {
+      // LISTE-FERMER — the dignified way back from the question: recompose
+      // the gestion sheet from the HELD truth. Zero wire, nothing lost.
+      const sheet = root.querySelector('[data-role="liste-sheet"][data-face="fermer"]');
+      const composed = composeGestion();
+      if (sheet !== null && composed !== null) sheet.outerHTML = renderListeGestion(composed.miennes, composed.ajoutables);
+    } else if (action === 'liste-fermer-liste') {
+      // LISTE-FERMER — the confirmed close. One act at a time (the gestion
+      // acts' own law), both buttons sleep while it rides, and a failure
+      // wakes them with the reason — the way out the RENDU-RÉEL law demands.
+      if (dernierPret === null || acteEnCours) return;
+      const sfSlug = dernierPret.sf.slug;
+      const gardee = listeGardee(sfSlug);
+      if (gardee === undefined) return;
+      const alerte = root.querySelector<HTMLElement>('[data-role="liste-alerte"]');
+      const bouton = target as HTMLButtonElement;
+      const garderBouton = root.querySelector<HTMLButtonElement>('[data-action="liste-garder"]');
+      bouton.disabled = true;
+      if (garderBouton !== null) garderBouton.disabled = true;
+      bouton.textContent = t('vit.liste_fermeture');
+      acteEnCours = true;
+      void listePort.fermer(gardee.token, gardee.editCle).then((res) => {
+        acteEnCours = false;
+        if (res.status !== 'fermee') {
+          bouton.disabled = false;
+          if (garderBouton !== null) garderBouton.disabled = false;
+          bouton.textContent = t('vit.liste_fermer_cta');
+          if (alerte !== null) {
+            alerte.textContent = t('vit.liste_erreur');
+            alerte.hidden = false;
+          }
+          return;
+        }
+        gestionEpoch += 1;
+        // The handle-token anchor (the gestion acts' MINOR-5 law): a close
+        // that raced a nouvelle-create must never erase the FRESH handle.
+        if (listeGardee(sfSlug)?.token === gardee.token) oublierListe(sfSlug);
+        listeEnGestion = null;
+        remplirListeSlot();
+        // Closed mid-act → the close still happened (handle and card above
+        // are already true); only the farewell paint is skipped.
+        const sheet = root.querySelector('[data-role="liste-sheet"][data-face="fermer"]');
+        if (sheet !== null) sheet.outerHTML = renderListeFermee();
+      });
+    } else if (action === 'liste-cadeaux') {
+      // LISTE-CADEAUX — her gifts, read FRESH on every open: the marks, the
+      // journeys and the code live server-side (the gestion sheet's own
+      // server-truth-first law). The same action is the hors-ligne retry.
+      if (dernierPret === null) return;
+      const gardee = listeGardee(dernierPret.sf.slug);
+      root.querySelector('[data-role="liste-sheet"]')?.remove();
+      if (gardee === undefined) return;
+      root.insertAdjacentHTML('beforeend', renderListeCadeaux({ etape: 'chargement' }));
+      void listePort.cadeaux(gardee.token, gardee.editCle).then((res) => {
+        // Torn down while the read was out → paint nothing (the teardown law).
+        const attente = root.querySelector('[data-role="liste-cadeaux-attente"]');
+        const sheet = attente?.closest('[data-role="liste-sheet"]');
+        if (attente === null || sheet === null || sheet === undefined || dernierPret === null) return;
+        if (res.status === 'hors-ligne') {
+          sheet.outerHTML = renderListeCadeaux({ etape: 'hors-ligne' });
+          return;
+        }
+        if (res.status === 'introuvable') {
+          sheet.outerHTML = renderListeCadeaux({ etape: 'introuvable' });
+          return;
+        }
+        // Names resolve through the WHOLE catalogue (épuisé included — a
+        // granted wish may have sold out since); one the catalogue no longer
+        // carries at all keeps its row under a plain name.
+        const catalogue = articlesPourModif(dernierPret.sf, dernierPret.described);
+        const rows = res.cadeaux.map((cadeau) => ({
+          titre: catalogue.get(cadeau.pid)?.name ?? t('vit.liste_cadeaux_article'),
+          cadeau,
+        }));
+        sheet.outerHTML = renderListeCadeaux({ etape: 'cadeaux', rows });
       });
     } else if (action === 'liste-partager') {
       const porte = target.getAttribute('data-lien');

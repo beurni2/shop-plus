@@ -33,6 +33,12 @@ export type CadeauEtat =
   | { readonly etape: 'introuvable' }
   | { readonly etape: 'suivi'; readonly commande: ServerOrder };
 
+/** LISTE-CADEAUX — the exact facts the état line reads, named so the
+ *  creator's « Mes cadeaux » sheet can reuse THIS law over its own wire
+ *  (whose suivi carries exactly these keys) instead of growing a twin that
+ *  could drift. A full ServerOrder satisfies it; nothing else changes. */
+export type CadeauFacts = Pick<ServerOrder, 'state' | 'acceptedAt' | 'readyAt' | 'departedAt' | 'arrivedAt' | 'livree'>;
+
 /**
  * WHICH SENTENCE IS TRUE — a pure decision over the server's own facts, so a
  * test can drive every rung. The marks outrank the state string (a mark is a
@@ -40,7 +46,7 @@ export type CadeauEtat =
  * provider-confirmed says so rather than promising a préparation that has
  * not begun.
  */
-export function ligneCadeau(commande: ServerOrder): string {
+export function ligneCadeau(commande: CadeauFacts): string {
   if (commande.livree === true) return t('cadeau.etat_livre');
   if (commande.arrivedAt !== undefined) return t('cadeau.etat_arrive');
   if (commande.departedAt !== undefined) return t('cadeau.etat_route');

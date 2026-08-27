@@ -29,6 +29,7 @@
 import {
   applyListeUpdate,
   applyOffert,
+  listeCadeaux,
   projectListe,
   validateListeCreate,
   validateListeUpdate,
@@ -143,6 +144,59 @@ export class WishlistDO {
       });
       await this.state.storage.put(LISTE_KEY, next);
       return Response.json({ ok: true, liste: projectListe(next) });
+    }
+
+    /**
+     * ═══ LISTE-CADEAUX — HER GIFTS' DOOR (founder order, 2026-08-27) ═══
+     *
+     * The EDIT KEY is the credential — the same hash compare as the update
+     * door, and the same anti-oracle: an absent liste and a wrong key are ONE
+     * uniform 404. What it answers is exactly what `projectListe` withholds
+     * from the shared link: which order granted each wish, so the composition
+     * root can ask each order for its journey and — under the remise door's
+     * own revelation conditions, decided in the OrderDO, never here — the
+     * code. This object holds no journey and no code; it names orders, only
+     * to the person whose key made the liste.
+     */
+    if (request.method === 'POST' && pathname === '/entry/cadeaux') {
+      const body = (await request.json().catch(() => null)) as { editCle?: unknown } | null;
+      if (typeof body?.editCle !== 'string' || !LISTE_TOKEN.test(body.editCle)) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const record = await this.state.storage.get<ListeRecord>(LISTE_KEY);
+      if (record === undefined || (await sha256Hex(body.editCle)) !== record.editCleHash) {
+        return Response.json({ ok: false, reason: 'not_found' }, { status: 404 });
+      }
+      return Response.json({ ok: true, nom: record.nom, cadeaux: listeCadeaux(record) });
+    }
+
+    /**
+     * ═══ LISTE-FERMER — REMOVING EVERYTHING IS CLOSING THE LISTE (founder
+     * order, 2026-08-27: « allow the wishlist creator to remove all his items
+     * to terminate the wishlist ») ═══
+     *
+     * The update door's empty-pids refusal STANDS — a liste that exists keeps
+     * at least one article. Termination is this SEPARATE act, same credential
+     * law (wrong key ≡ absent liste, one uniform 404), and it is TOTAL:
+     * `deleteAll`, so the shared link answers not_found, the update door
+     * answers not_found, and the money roads fail closed (a gift quote on a
+     * closed liste meets `liste_sans_adresse`; a late offert wire meets the
+     * `ignored` complete-outcome — nothing wedges). Deliberately NOT
+     * idempotent at this door: a replay is indistinguishable from a wrong key
+     * (the anti-oracle), so the CLIENT re-reads the public entry to tell
+     * « already closed » from « refused » — its 404 here stays uniform.
+     */
+    if (request.method === 'POST' && pathname === '/entry/delete') {
+      const body = (await request.json().catch(() => null)) as { editCle?: unknown } | null;
+      if (typeof body?.editCle !== 'string' || !LISTE_TOKEN.test(body.editCle)) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const record = await this.state.storage.get<ListeRecord>(LISTE_KEY);
+      if (record === undefined || (await sha256Hex(body.editCle)) !== record.editCleHash) {
+        return Response.json({ ok: false, reason: 'not_found' }, { status: 404 });
+      }
+      await this.state.storage.deleteAll();
+      return Response.json({ ok: true });
     }
 
     /** INTERNAL WIRE ONLY — the OrderDO's offert outbox. Every outcome is a

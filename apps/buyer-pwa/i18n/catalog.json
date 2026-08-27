@@ -1506,12 +1506,6 @@
   "screenClass": "selling_surface"
  },
  {
-  "key": "vit.liste_garder_un",
-  "fr": "Gardez au moins un article.",
-  "register": "neutral",
-  "screenClass": "status"
- },
- {
   "key": "vit.liste_trop",
   "fr": "Une liste garde 20 articles au plus.",
   "register": "neutral",
@@ -1588,6 +1582,96 @@
   "fr": "Choisissez votre quartier.",
   "register": "neutral",
   "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_cadeaux_cta",
+  "fr": "Mes cadeaux",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vit.liste_cadeaux_titre",
+  "fr": "Mes cadeaux",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vit.liste_cadeaux_texte",
+  "fr": "Voici où en sont les articles déjà offerts.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vit.liste_cadeaux_vide",
+  "fr": "Pas encore de cadeau. Partagez votre lien à vos proches.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vit.liste_cadeaux_article",
+  "fr": "Article offert",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_cadeaux_indisponible",
+  "fr": "Suivi indisponible pour le moment. Réessayez plus tard.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_cadeaux_attente_code",
+  "fr": "Le code de remise s'affichera ici quand le livreur arrivera.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_cadeaux_code_label",
+  "fr": "Code de remise",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_cadeaux_code_aide",
+  "fr": "Donnez ce code au livreur.",
+  "register": "money",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "vit.liste_fermer_question",
+  "fr": "Retirer le dernier article ferme votre liste. Votre lien ne marchera plus.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_fermer_cta",
+  "fr": "Fermer ma liste",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_garder_cta",
+  "fr": "Garder ma liste",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_fermeture",
+  "fr": "Fermeture…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_fermee",
+  "fr": "C'est fait : votre liste est fermée. Votre lien ne marche plus.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_fermee_cta",
+  "fr": "Revenir à la boutique",
+  "register": "selling",
+  "screenClass": "label"
  },
  {
   "key": "vit.liste_tel_livraison_manque",

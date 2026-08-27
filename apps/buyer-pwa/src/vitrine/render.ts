@@ -38,7 +38,8 @@ import {
 import { VITRINE_THEMES } from './themes';
 import { isFavorite } from './favorites';
 import { inPanier, panierOf } from './panier';
-import { listeGardee, type ListePublique } from './liste';
+import { listeGardee, type CadeauListe, type ListePublique } from './liste';
+import { ligneCadeau } from '../cadeau';
 import { QUARTIERS_OUAGADOUGOU } from '../cliente/quartiers-ouagadougou';
 import { enteteMontreBio, renderEntete, type EnteteKey } from './entetes';
 
@@ -565,6 +566,10 @@ export function renderListeBand(sf: Storefront): string {
     // liste, this same action opens the ONE sheet where checking adds and
     // unchecking removes, over the update door, so her LINK NEVER CHANGES.
     `<button class="vt-liste-secondaire" data-action="liste-creer">${t('vit.liste_refaire')}</button>`,
+    // LISTE-CADEAUX — her third, quiet road: where each granted wish stands,
+    // and the remise code once the service reveals it. Rendered whenever the
+    // handle exists: the sheet's own honest faces cover « rien encore ».
+    `<button class="vt-liste-secondaire" data-action="liste-cadeaux">${t('vit.liste_cadeaux_cta')}</button>`,
     '</div>',
     '</div>',
   ].join('');
@@ -674,6 +679,126 @@ export function renderListeGestion(
     ajoutables.length === 0
       ? `<div class="vt-liste-texte" data-role="liste-ajout-vide">${t('vit.liste_ajouter_vide')}</div>`
       : `<div class="vt-liste-rows">${ajoutables.map(rowAjoutable).join('')}</div>`,
+    '</div>',
+    '</div>',
+  ].join('');
+}
+
+/**
+ * ═══ LISTE-FERMER — THE LAST ARTICLE'S QUESTION, AND THE FAREWELL (founder
+ * order, 2026-08-27: « allow the wishlist creator to remove all his items to
+ * terminate the wishlist ») ═══
+ *
+ * Retirer on the LAST article is no longer refused — it becomes THIS asked
+ * question: cause and effect in plain words (the liste closes, the link
+ * stops working), one primary action that closes, one whisper that keeps.
+ * The refusal path is as dignified as the act (the trust test): « Garder ma
+ * liste » walks straight back to the gestion sheet, nothing spent.
+ */
+export function renderListeFermerConfirm(): string {
+  return [
+    '<div class="vt-liste-voile" data-role="liste-sheet" data-face="fermer">',
+    '<div class="vt-liste-sheet">',
+    `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${t('vit.liste_sheet_titre')}</div><button class="vt-liste-fermer" data-action="liste-fermer" aria-label="${t('vit.liste_fermer_aria')}">×</button></div>`,
+    `<div class="vt-liste-texte" data-role="liste-fermer-question">${t('vit.liste_fermer_question')}</div>`,
+    '<div class="vt-liste-alerte" data-role="liste-alerte" hidden></div>',
+    `<button class="vt-liste-valider" data-action="liste-fermer-liste">${t('vit.liste_fermer_cta')}</button>`,
+    `<button class="vt-liste-secondaire" data-action="liste-garder">${t('vit.liste_garder_cta')}</button>`,
+    '</div>',
+    '</div>',
+  ].join('');
+}
+
+/** …and the closed liste's honest goodbye: what happened, what it means for
+ *  the shared link, and the one way forward (the boutique underneath — the
+ *  card is already back to the invitation). */
+export function renderListeFermee(): string {
+  return [
+    '<div class="vt-liste-voile" data-role="liste-sheet" data-face="fermee">',
+    '<div class="vt-liste-sheet">',
+    `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${t('vit.liste_sheet_titre')}</div><button class="vt-liste-fermer" data-action="liste-fermer" aria-label="${t('vit.liste_fermer_aria')}">×</button></div>`,
+    `<div class="vt-liste-texte" data-role="liste-fermee">${t('vit.liste_fermee')}</div>`,
+    `<button class="vt-liste-valider" data-action="liste-fermer">${t('vit.liste_fermee_cta')}</button>`,
+    '</div>',
+    '</div>',
+  ].join('');
+}
+
+/**
+ * ═══ LISTE-CADEAUX — « MES CADEAUX », her gifts' own sheet ═══
+ *
+ * One row per GRANTED wish: the article's name, the delivery sentence (the
+ * ?cadeau page's own `ligneCadeau` law — one law, two surfaces), and the
+ * remise code once the service reveals it (arrival recorded, door settled —
+ * decided server-side; before that moment an honest « il s'affichera ici »,
+ * after delivery nothing — the code's moment has passed). A row whose order
+ * could not answer says « suivi indisponible » rather than pretending.
+ * NO amount renders here, ever — the ?cadeau dignity law, kept.
+ */
+export type ListeCadeauxEtat =
+  | { readonly etape: 'chargement' }
+  | { readonly etape: 'hors-ligne' }
+  | { readonly etape: 'introuvable' }
+  | { readonly etape: 'cadeaux'; readonly rows: readonly { readonly titre: string; readonly cadeau: CadeauListe }[] };
+
+export function renderListeCadeaux(etat: ListeCadeauxEtat): string {
+  let corps: string;
+  if (etat.etape === 'chargement') {
+    corps = `<div class="vt-liste-attente" data-role="liste-cadeaux-attente">${t('vit.liste_chargement')}</div>`;
+  } else if (etat.etape === 'hors-ligne') {
+    corps = [
+      `<div class="vt-liste-texte" data-role="liste-cadeaux-horsligne">${t('vit.liste_hors_ligne')}</div>`,
+      `<button class="vt-liste-valider" data-action="liste-cadeaux">${t('vit.reessayer')}</button>`,
+    ].join('');
+  } else if (etat.etape === 'introuvable') {
+    corps = [
+      `<div class="vt-liste-texte" data-role="liste-cadeaux-introuvable">${t('vit.liste_introuvable')}</div>`,
+      `<button class="vt-liste-valider" data-action="liste-creer" data-mode="nouvelle">${t('vit.liste_entree_cta')}</button>`,
+    ].join('');
+  } else if (etat.rows.length === 0) {
+    corps = [
+      `<div class="vt-liste-texte" data-role="liste-cadeaux-vide">${t('vit.liste_cadeaux_vide')}</div>`,
+      `<button class="vt-liste-valider" data-action="liste-partager">${t('vit.liste_partager')}</button>`,
+    ].join('');
+  } else {
+    const rows = etat.rows.map(({ titre, cadeau }) => {
+      const suivi = cadeau.suivi;
+      let bas: string;
+      if (suivi === undefined) {
+        bas = `<div class="vt-liste-texte" data-role="cadeau-indisponible">${t('vit.liste_cadeaux_indisponible')}</div>`;
+      } else if (cadeau.code !== undefined) {
+        bas = [
+          `<div class="vt-liste-code" data-role="cadeau-code">`,
+          `<div class="vt-liste-code-label">${t('vit.liste_cadeaux_code_label')}</div>`,
+          `<div class="vt-liste-code-chiffres"><v>${esc(cadeau.code)}</v></div>`,
+          `<div class="vt-liste-texte">${t('vit.liste_cadeaux_code_aide')}</div>`,
+          '</div>',
+        ].join('');
+      } else if (suivi.livree === true) {
+        // Delivered: the état line already says it; a code after the door
+        // would only confuse.
+        bas = '';
+      } else {
+        bas = `<div class="vt-liste-texte" data-role="cadeau-attente-code">${t('vit.liste_cadeaux_attente_code')}</div>`;
+      }
+      return [
+        `<div class="vt-liste-cadeau" data-role="liste-cadeau" data-pid="${esc(cadeau.pid)}">`,
+        `<div class="vt-liste-row-nom"><v>${esc(titre)}</v></div>`,
+        suivi !== undefined ? `<div class="vt-liste-cadeau-etat" data-role="cadeau-etat">${ligneCadeau(suivi)}</div>` : '',
+        bas,
+        '</div>',
+      ].join('');
+    });
+    corps = [
+      `<div class="vt-liste-texte">${t('vit.liste_cadeaux_texte')}</div>`,
+      `<div class="vt-liste-rows">${rows.join('')}</div>`,
+    ].join('');
+  }
+  return [
+    '<div class="vt-liste-voile" data-role="liste-sheet" data-face="cadeaux">',
+    '<div class="vt-liste-sheet">',
+    `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${t('vit.liste_cadeaux_titre')}</div><button class="vt-liste-fermer" data-action="liste-fermer" aria-label="${t('vit.liste_fermer_aria')}">×</button></div>`,
+    corps,
     '</div>',
     '</div>',
   ].join('');

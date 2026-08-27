@@ -62,6 +62,30 @@ export interface ListeCreee {
 export type ListeCreation = { readonly status: 'creee'; readonly liste: ListeCreee } | { readonly status: 'refus' } | { readonly status: 'hors-ligne' };
 export type ListeLecture = { readonly status: 'liste'; readonly liste: ListePublique } | { readonly status: 'introuvable' } | { readonly status: 'hors-ligne' };
 export type ListeModification = { readonly status: 'modifiee'; readonly liste: ListePublique } | { readonly status: 'refus' } | { readonly status: 'hors-ligne' };
+export type ListeFermeture = { readonly status: 'fermee' } | { readonly status: 'refus' } | { readonly status: 'hors-ligne' };
+
+/** LISTE-CADEAUX — one granted wish, as the service composes it: the pid,
+ *  the journey facts the ?cadeau page already reads (absent = the order
+ *  could not answer just now — « suivi indisponible », never a dead row),
+ *  and the remise code ONLY once the service's own reveal conditions hold
+ *  (arrival recorded, door leg settled — decided server-side, displayed
+ *  here). No orderId, no amount, no contact ever crosses this wire. */
+export interface CadeauListe {
+  readonly pid: string;
+  readonly suivi?: {
+    readonly state: string;
+    readonly acceptedAt?: string;
+    readonly readyAt?: string;
+    readonly departedAt?: string;
+    readonly arrivedAt?: string;
+    readonly livree?: boolean;
+  };
+  readonly code?: string;
+}
+export type ListeCadeauxLecture =
+  | { readonly status: 'cadeaux'; readonly nom: string; readonly cadeaux: readonly CadeauListe[] }
+  | { readonly status: 'introuvable' }
+  | { readonly status: 'hors-ligne' };
 
 export interface ListePort {
   /** LISTE-MERCI — `telephone` is the creator's WhatsApp opt-in (optional).
@@ -78,6 +102,17 @@ export interface ListePort {
    *  the sheet's inline mirrors already said everything sayable before the
    *  wire was spent. */
   modifier(token: string, editCle: string, pids: readonly string[], nom?: string): Promise<ListeModification>;
+  /** LISTE-FERMER — « remove all his items to terminate the wishlist »: the
+   *  edit-key-gated close. The service's refusal is DELIBERATELY uniform
+   *  (wrong key ≡ absent liste), so on a 404 the adapter re-reads the PUBLIC
+   *  entry once to tell « already closed » (the liste is gone → `fermee`,
+   *  idempotent for a retried tap) from « refused » (it still answers →
+   *  `refus`, and the handle is NOT abandoned). */
+  fermer(token: string, editCle: string): Promise<ListeFermeture>;
+  /** LISTE-CADEAUX — her gifts, edit-key-gated: which wishes were granted,
+   *  where each delivery stands, and the remise code once the service
+   *  reveals it. A wrong key and an absent liste are one `introuvable`. */
+  cadeaux(token: string, editCle: string): Promise<ListeCadeauxLecture>;
 }
 
 /** Parse a wire liste defensively — a 200 with an unreadable shape is
@@ -95,8 +130,57 @@ function lireListeWire(value: unknown): ListePublique | undefined {
   return { nom: r.nom, slug: r.slug, articles, livraison: r.livraison === true };
 }
 
+/** Parse the cadeaux wire defensively, field by field — an unreadable row
+ *  degrades to its pid (or drops if even that is missing), an unreadable
+ *  answer to `undefined`: a shape surprise must never crash HER sheet. */
+function lireCadeauxWire(value: unknown): { nom: string; cadeaux: CadeauListe[] } | undefined {
+  const r = value as { ok?: unknown; nom?: unknown; cadeaux?: unknown } | null;
+  if (r === null || typeof r !== 'object' || r.ok !== true || typeof r.nom !== 'string' || !Array.isArray(r.cadeaux)) {
+    return undefined;
+  }
+  const cadeaux: CadeauListe[] = [];
+  for (const c of r.cadeaux as { pid?: unknown; suivi?: unknown; code?: unknown }[]) {
+    if (typeof c?.pid !== 'string') continue;
+    const s = c.suivi as
+      | { state?: unknown; acceptedAt?: unknown; readyAt?: unknown; departedAt?: unknown; arrivedAt?: unknown; livree?: unknown }
+      | undefined
+      | null;
+    const suivi =
+      s !== null && typeof s === 'object' && typeof s.state === 'string'
+        ? {
+            state: s.state,
+            ...(typeof s.acceptedAt === 'string' ? { acceptedAt: s.acceptedAt } : {}),
+            ...(typeof s.readyAt === 'string' ? { readyAt: s.readyAt } : {}),
+            ...(typeof s.departedAt === 'string' ? { departedAt: s.departedAt } : {}),
+            ...(typeof s.arrivedAt === 'string' ? { arrivedAt: s.arrivedAt } : {}),
+            ...(s.livree === true ? { livree: true } : {}),
+          }
+        : undefined;
+    cadeaux.push({
+      pid: c.pid,
+      ...(suivi !== undefined ? { suivi } : {}),
+      ...(typeof c.code === 'string' && c.code !== '' ? { code: c.code } : {}),
+    });
+  }
+  return { nom: r.nom, cadeaux };
+}
+
 /** The REAL adapter — the storefront-service liste doors. */
 export function httpListePort(base: string): ListePort {
+  // A closure, not a method, so `fermer`'s already-closed re-read cannot
+  // break under destructuring (`this`-free by construction).
+  const lire = async (token: string): Promise<ListeLecture> => {
+    let res: Response;
+    try {
+      res = await fetch(`${base}/listes/${encodeURIComponent(token)}`);
+    } catch {
+      return { status: 'hors-ligne' };
+    }
+    if (!res.ok) return { status: 'introuvable' };
+    const body = (await res.json().catch(() => null)) as { ok?: boolean; liste?: unknown } | null;
+    const liste = body?.ok === true ? lireListeWire(body.liste) : undefined;
+    return liste === undefined ? { status: 'introuvable' } : { status: 'liste', liste };
+  };
   return {
     async creer(slug, nom, pids, telephone, livraison): Promise<ListeCreation> {
       let res: Response;
@@ -127,18 +211,7 @@ export function httpListePort(base: string): ListePort {
       }
       return { status: 'creee', liste: { token: body.token, editCle: body.editCle, liste } };
     },
-    async lire(token): Promise<ListeLecture> {
-      let res: Response;
-      try {
-        res = await fetch(`${base}/listes/${encodeURIComponent(token)}`);
-      } catch {
-        return { status: 'hors-ligne' };
-      }
-      if (!res.ok) return { status: 'introuvable' };
-      const body = (await res.json().catch(() => null)) as { ok?: boolean; liste?: unknown } | null;
-      const liste = body?.ok === true ? lireListeWire(body.liste) : undefined;
-      return liste === undefined ? { status: 'introuvable' } : { status: 'liste', liste };
-    },
+    lire,
     async modifier(token, editCle, pids, nom): Promise<ListeModification> {
       let res: Response;
       try {
@@ -157,6 +230,43 @@ export function httpListePort(base: string): ListePort {
       if (!res.ok || body?.ok !== true) return { status: 'refus' };
       const liste = lireListeWire(body.liste);
       return liste === undefined ? { status: 'refus' } : { status: 'modifiee', liste };
+    },
+    async fermer(token, editCle): Promise<ListeFermeture> {
+      let res: Response;
+      try {
+        res = await fetch(`${base}/listes/${encodeURIComponent(token)}/fermer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ editCle }),
+        });
+      } catch {
+        return { status: 'hors-ligne' };
+      }
+      if (res.ok) return { status: 'fermee' };
+      // The door's 404 is DELIBERATELY uniform (wrong key ≡ absent liste —
+      // no oracle server-side). On HER OWN device the distinction matters:
+      // a retried close must land « fermée » while a live liste must never
+      // be abandoned. ONE public re-read tells them apart.
+      if (res.status === 404) {
+        const relu = await lire(token);
+        if (relu.status === 'introuvable') return { status: 'fermee' };
+      }
+      return { status: 'refus' };
+    },
+    async cadeaux(token, editCle): Promise<ListeCadeauxLecture> {
+      let res: Response;
+      try {
+        res = await fetch(`${base}/listes/${encodeURIComponent(token)}/cadeaux`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ editCle }),
+        });
+      } catch {
+        return { status: 'hors-ligne' };
+      }
+      if (!res.ok) return { status: 'introuvable' };
+      const lu = lireCadeauxWire(await res.json().catch(() => null));
+      return lu === undefined ? { status: 'introuvable' } : { status: 'cadeaux', nom: lu.nom, cadeaux: lu.cadeaux };
     },
   };
 }
@@ -215,6 +325,26 @@ export function demoListePort(): ListePort {
       };
       held.set(token, { editCle, liste });
       return { status: 'modifiee', liste };
+    },
+    async fermer(token, editCle): Promise<ListeFermeture> {
+      const garde = held.get(token);
+      // The door's law this harness CAN mirror: wrong key ≡ absent liste as
+      // one refusal; a matching key deletes everything, and a RETRIED close
+      // of an already-gone liste lands « fermée » (the http adapter's
+      // re-read semantics, collapsed — the harness knows its own truth).
+      if (garde === undefined) return { status: 'fermee' };
+      if (garde.editCle !== editCle) return { status: 'refus' };
+      held.delete(token);
+      return { status: 'fermee' };
+    },
+    async cadeaux(token, editCle): Promise<ListeCadeauxLecture> {
+      const garde = held.get(token);
+      if (garde === undefined || garde.editCle !== editCle) return { status: 'introuvable' };
+      // The harness holds no orders and can mint no provider truth, so its
+      // offert marks are forever false and this list is honestly EMPTY —
+      // the sheet's « pas encore de cadeau » face. The journeys and the
+      // code live on the REAL service alone (e2e-covered there).
+      return { status: 'cadeaux', nom: garde.liste.nom, cadeaux: [] };
     },
   };
 }
@@ -284,6 +414,16 @@ export function listeGardee(slug: string): ListeGardee | undefined {
 export function garderListe(slug: string, gardee: ListeGardee): void {
   const map = load();
   map.set(slug, gardee);
+  persist(map);
+}
+
+/** LISTE-FERMER — the handle follows the truth: a closed liste's token and
+ *  edit key have nothing left to open, so the device forgets them and the
+ *  card returns to the invitation. Only the CLOSE road calls this — a mere
+ *  read failure never costs her the key. */
+export function oublierListe(slug: string): void {
+  const map = load();
+  map.delete(slug);
   persist(map);
 }
 

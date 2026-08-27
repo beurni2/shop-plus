@@ -306,6 +306,24 @@ export function applyListeUpdate(record: ListeRecord, update: { nom?: string; pi
 }
 
 /**
+ * ═══ LISTE-CADEAUX — HER GIFTS, FOR HER EYES ONLY (founder order, 2026-08-27) ═══
+ *
+ * The offert marks' orderIds, which `projectListe` deliberately withholds
+ * from the PUBLIC read, projected for exactly ONE caller: the edit-key-gated
+ * cadeaux door. The edit key is the creator's own credential (192 bits, hash
+ * -compared inside the object), so what the public projection hides from the
+ * passed-around link is exactly what this one shows to the person who made
+ * the liste — the same fact, two audiences, decided by the key.
+ */
+export function listeCadeaux(record: ListeRecord): { pid: string; orderId: string }[] {
+  const out: { pid: string; orderId: string }[] = [];
+  for (const a of record.articles) {
+    if (a.offert !== undefined) out.push({ pid: a.pid, orderId: a.offert.orderId });
+  }
+  return out;
+}
+
+/**
  * THE OFFERT MARK, applied FIRST-WINS per pid. `absent` (the pid is not on
  * the liste — edited away, or an order that predates an edit) and `already`
  * are both COMPLETE outcomes for the wire: the caller answers 200 and stops
