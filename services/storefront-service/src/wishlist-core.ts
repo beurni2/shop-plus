@@ -61,9 +61,60 @@ export const LISTE_MAX_ARTICLES = 20;
 
 /** The wire vocabulary each public door accepts. Anything else is REFUSED by
  *  name, never ignored — the order road's own law. LISTE-MERCI added the
- *  optional `telephone` to the CREATE: the creator's WhatsApp opt-in. */
-export const LISTE_CREATE_FIELDS = ['slug', 'nom', 'pids', 'telephone'];
+ *  optional `telephone` to the CREATE: the creator's WhatsApp opt-in.
+ *  LISTE-ADRESSE added the optional `livraison`: her private delivery info. */
+export const LISTE_CREATE_FIELDS = ['slug', 'nom', 'pids', 'telephone', 'livraison'];
 export const LISTE_UPDATE_FIELDS = ['editCle', 'nom', 'pids'];
+
+/**
+ * ═══ LISTE-ADRESSE-1 — HER PRIVATE DELIVERY INFO (founder order, 2026-08-27) ═══
+ *
+ * « put his delivery informations … and keep it private in the background so
+ * that if a friend decides to buy an item for him he only proceeds with the
+ * payment only … and the friend buying the item never sees the delivery
+ * information. »
+ *
+ * The four exact keys, each mirroring the law of the field it will become:
+ *  · `telephone` / `quartier` / `repere` — the BuyerContact laws verbatim
+ *    (phone non-empty ≤32, quartier non-empty ≤120, repère ≤200 and may be
+ *    ''): at order time these BECOME the order's dispatch contact, so a value
+ *    the contact door would refuse must refuse HERE, at her own door, loudly.
+ *  · `zone` — the exact `zoneTo` string the fiche's own checkout would have
+ *    composed (« {quartier}, {ville} », bounded to the quote road's 128).
+ *    The VITRINE composes it exactly as the fiche does for any buyer — the
+ *    same trust model as the normal road, where the payer names their
+ *    destination. The quote router prices the friend's gift FROM this value,
+ *    and the order door refuses any quote whose zone disagrees with it.
+ *
+ * PRIVACY: stored on the record, NEVER on `projectListe` (which says only
+ * `livraison: true` — a boolean, like « offert »). Its exits are internal:
+ * the quote router reads the zone to price, the order door reads the whole
+ * to attach the contact. No public route serves any byte of it.
+ */
+export interface ListeLivraison {
+  readonly telephone: string;
+  readonly quartier: string;
+  readonly repere: string;
+  readonly zone: string;
+}
+
+export function readListeLivraison(value: unknown): ListeLivraison | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const r = value as Record<string, unknown>;
+  const allowed = new Set(['telephone', 'quartier', 'repere', 'zone']);
+  for (const key of Object.keys(r)) {
+    if (!allowed.has(key)) return null;
+  }
+  const telephone = r['telephone'];
+  const quartier = r['quartier'];
+  const repere = r['repere'];
+  const zone = r['zone'];
+  if (typeof telephone !== 'string' || telephone.trim() === '' || telephone.length > 32) return null;
+  if (typeof quartier !== 'string' || quartier.trim() === '' || quartier.length > 120) return null;
+  if (typeof repere !== 'string' || repere.length > 200) return null;
+  if (typeof zone !== 'string' || zone.trim() === '' || zone.length > 128) return null;
+  return { telephone, quartier, repere, zone };
+}
 
 /** What a telephone may look like ON THE WIRE before normalisation: digits
  *  with the separators a phone keyboard produces. The stored value is the
@@ -99,6 +150,13 @@ export interface ListeRecord {
    * whose payment is provider-confirmed.
    */
   readonly notification?: { readonly telephone: string };
+  /**
+   * LISTE-ADRESSE — her private delivery info (see `readListeLivraison`).
+   * PRESENT = a friend's gift attaches it in the background and their
+   * checkout never asks for an address; ABSENT = the friend fills delivery
+   * as any buyer would. Never on `projectListe` beyond the bare boolean.
+   */
+  readonly livraison?: ListeLivraison;
 }
 
 export type ListeValidation<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string; readonly field?: string };
@@ -133,6 +191,8 @@ export interface ListeCreateCommand {
   /** LISTE-MERCI — the opt-in number, already in wa.me digit form. Absent =
    *  no opt-in; the record stores no number and no road serves one. */
   readonly telephone?: string;
+  /** LISTE-ADRESSE — her private delivery info. Absent = none stored. */
+  readonly livraison?: ListeLivraison;
 }
 
 export function validateListeCreate(body: unknown): ListeValidation<ListeCreateCommand> {
@@ -158,9 +218,24 @@ export function validateListeCreate(body: unknown): ListeValidation<ListeCreateC
     telephone = whatsappDigits(r['telephone']);
     if (telephone === undefined) return { ok: false, error: 'bad_field', field: 'telephone' };
   }
+  // LISTE-ADRESSE — a PRESENT livraison must satisfy every law of the contact
+  // it will become, or the create refuses BY NAME at her own door (the
+  // CONTACT-WHATSAPP-1 posture: loudly now, never a dead delivery later).
+  let livraison: ListeLivraison | undefined;
+  if (r['livraison'] !== undefined && r['livraison'] !== null) {
+    const lue = readListeLivraison(r['livraison']);
+    if (lue === null) return { ok: false, error: 'bad_field', field: 'livraison' };
+    livraison = lue;
+  }
   return {
     ok: true,
-    value: { slug: r['slug'], nom: r['nom'], pids: pids.value, ...(telephone !== undefined ? { telephone } : {}) },
+    value: {
+      slug: r['slug'],
+      nom: r['nom'],
+      pids: pids.value,
+      ...(telephone !== undefined ? { telephone } : {}),
+      ...(livraison !== undefined ? { livraison } : {}),
+    },
   };
 }
 
@@ -200,11 +275,16 @@ export function projectListe(record: ListeRecord): {
   nom: string;
   slug: string;
   articles: { pid: string; offert: boolean }[];
+  livraison: boolean;
 } {
   return {
     nom: record.nom,
     slug: record.slug,
     articles: record.articles.map((a) => ({ pid: a.pid, offert: a.offert !== undefined })),
+    // LISTE-ADRESSE — WHETHER an address exists, never a byte of it: the
+    // friend's checkout needs only the road decision (pay-only vs fill
+    // delivery), exactly as « offert » leaves as a bare boolean.
+    livraison: record.livraison !== undefined,
   };
 }
 

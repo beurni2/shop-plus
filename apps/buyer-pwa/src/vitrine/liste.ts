@@ -30,11 +30,25 @@ export const LISTE_TOKEN = /^[A-Za-z0-9_-]{32}$/;
  *  articles au plus ») instead of spending the wire on a certain refusal. */
 export const LISTE_MAX_ARTICLES = 20;
 
-/** The liste as the service projects it — the ONLY shape a friend ever sees. */
+/** The liste as the service projects it — the ONLY shape a friend ever sees.
+ *  LISTE-ADRESSE: `livraison` says WHETHER the creator stored an address —
+ *  a bare boolean, never a byte of the address itself. */
 export interface ListePublique {
   readonly nom: string;
   readonly slug: string;
   readonly articles: readonly { readonly pid: string; readonly offert: boolean }[];
+  readonly livraison: boolean;
+}
+
+/** LISTE-ADRESSE — what the creator stores at creation: the three facts her
+ *  delivery needs (the checkout contact's own laws) plus the exact zone
+ *  string a checkout from this boutique would compose. It rides the CREATE
+ *  only; the service keeps it off every public read. */
+export interface ListeLivraison {
+  readonly telephone: string;
+  readonly quartier: string;
+  readonly repere: string;
+  readonly zone: string;
 }
 
 /** What a successful create hands back: the share token, the edit key (kept
@@ -54,7 +68,7 @@ export interface ListePort {
    *  It rides the create ONLY; the service normalises it to wa.me digits,
    *  stores it OFF the public projection, and serves it to nobody but a
    *  provider-confirmed purchaser of this liste. */
-  creer(slug: string, nom: string, pids: readonly string[], telephone?: string): Promise<ListeCreation>;
+  creer(slug: string, nom: string, pids: readonly string[], telephone?: string, livraison?: ListeLivraison): Promise<ListeCreation>;
   lire(token: string): Promise<ListeLecture>;
   /** LISTE-REFAIRE — the creator's redo: the pids she KEEPS (the service
    *  replaces the selection, preserving « offert » marks on survivors) and
@@ -69,7 +83,7 @@ export interface ListePort {
 /** Parse a wire liste defensively — a 200 with an unreadable shape is
  *  `introuvable`-class, never a crash on a shared link. */
 function lireListeWire(value: unknown): ListePublique | undefined {
-  const r = value as { nom?: unknown; slug?: unknown; articles?: unknown } | null;
+  const r = value as { nom?: unknown; slug?: unknown; articles?: unknown; livraison?: unknown } | null;
   if (r === null || typeof r !== 'object') return undefined;
   if (typeof r.nom !== 'string' || typeof r.slug !== 'string' || !Array.isArray(r.articles)) return undefined;
   const articles: { pid: string; offert: boolean }[] = [];
@@ -77,13 +91,14 @@ function lireListeWire(value: unknown): ListePublique | undefined {
     if (typeof a?.pid !== 'string') return undefined;
     articles.push({ pid: a.pid, offert: a.offert === true });
   }
-  return { nom: r.nom, slug: r.slug, articles };
+  // strict, like offert: a truthy non-boolean must never open the pay-only road
+  return { nom: r.nom, slug: r.slug, articles, livraison: r.livraison === true };
 }
 
 /** The REAL adapter — the storefront-service liste doors. */
 export function httpListePort(base: string): ListePort {
   return {
-    async creer(slug, nom, pids, telephone): Promise<ListeCreation> {
+    async creer(slug, nom, pids, telephone, livraison): Promise<ListeCreation> {
       let res: Response;
       try {
         res = await fetch(`${base}/listes`, {
@@ -91,9 +106,13 @@ export function httpListePort(base: string): ListePort {
           headers: { 'Content-Type': 'application/json' },
           // The service's exact-key allowlist, built as ONE literal — the
           // quote-port law: an unknown key is refused by name over there,
-          // and no other key can ride from here. An absent opt-in is absent
-          // bytes, never an empty string.
-          body: JSON.stringify({ slug, nom, pids, ...(telephone !== undefined && telephone !== '' ? { telephone } : {}) }),
+          // and no other key can ride from here. An absent opt-in or an
+          // absent address is absent bytes, never an empty shape.
+          body: JSON.stringify({
+            slug, nom, pids,
+            ...(telephone !== undefined && telephone !== '' ? { telephone } : {}),
+            ...(livraison !== undefined ? { livraison } : {}),
+          }),
         });
       } catch {
         return { status: 'hors-ligne' };
@@ -160,11 +179,16 @@ function mintDemoToken(): string | undefined {
 export function demoListePort(): ListePort {
   const held = new Map<string, { editCle: string; liste: ListePublique }>();
   return {
-    async creer(slug, nom, pids): Promise<ListeCreation> {
+    async creer(slug, nom, pids, _telephone, livraison): Promise<ListeCreation> {
       const token = mintDemoToken();
       const editCle = mintDemoToken();
       if (token === undefined || editCle === undefined) return { status: 'refus' };
-      const liste: ListePublique = { nom, slug, articles: pids.map((pid) => ({ pid, offert: false })) };
+      // the harness mirrors the projection: the boolean, never the address
+      const liste: ListePublique = {
+        nom, slug,
+        articles: pids.map((pid) => ({ pid, offert: false })),
+        livraison: livraison !== undefined,
+      };
       held.set(token, { editCle, liste });
       return { status: 'creee', liste: { token, editCle, liste } };
     },

@@ -10,7 +10,7 @@ import {
 import { DispatchIndexDO, DISPATCH_INDEX_NAME } from './dispatch-index-do.js';
 import { ResellerFeedDO, RESELLER_FEED_NAME } from './reseller-feed-do.js';
 import { WishlistDO, mintListeToken } from './wishlist-do.js';
-import { LISTE_TOKEN, validateListeCreate, validateListeUpdate } from '../src/wishlist-core.js';
+import { LISTE_REF, LISTE_TOKEN, validateListeCreate, validateListeUpdate } from '../src/wishlist-core.js';
 import { BuyerLadderDO, ladderName } from './buyer-ladder-do.js';
 import {
   RESELLER_ACCOUNTS_NAME,
@@ -243,10 +243,53 @@ export default {
        */
       const mirrorSource =
         isCheckoutReserve && request.method === 'POST' ? request.clone() : undefined;
+      /**
+       * ═══ LISTE-ADRESSE-1 — A GIFT'S QUOTE NAMES THE LISTE, NEVER THE
+       *     DESTINATION (founder order, 2026-08-27) ═══
+       *
+       * A quote body carrying `listeRef` is priced FOR THE CREATOR'S STORED
+       * ZONE, resolved HERE (the one layer holding the WISHLIST binding) and
+       * forwarded to the vault as an ordinary zoneTo — the money-path
+       * validator underneath does not change at all. The laws:
+       *  · `zoneTo` alongside `listeRef` is refused BY NAME — one source of
+       *    truth for the destination, never two that could disagree;
+       *  · a liste without a stored address answers `liste_sans_adresse`
+       *    (the honest client never asks — the public boolean said no);
+       *  · the friend's answer carries the FEE and never the zone: the vault
+       *    echoes no destination on the buyer wire.
+       * The order door completes the pair: it re-reads the liste and refuses
+       * any quote whose stored zoneTo disagrees with hers, so a hand-crafted
+       * quote priced elsewhere can never carry her delivery.
+       */
+      let quoteRequest = request;
+      if (isCheckoutQuote && request.method === 'POST') {
+        const peeked = (await request.clone().json().catch(() => null)) as Record<string, unknown> | null;
+        if (peeked !== null && typeof peeked === 'object' && !Array.isArray(peeked) && peeked['listeRef'] !== undefined) {
+          if (typeof peeked['listeRef'] !== 'string' || !LISTE_REF.test(peeked['listeRef'])) {
+            return withReadCors(Response.json({ ok: false, reason: 'bad_field', field: 'listeRef' }, { status: 400 }));
+          }
+          if (peeked['zoneTo'] !== undefined) {
+            return withReadCors(Response.json({ ok: false, reason: 'bad_field', field: 'zoneTo' }, { status: 400 }));
+          }
+          if (env.WISHLIST === undefined) {
+            return withReadCors(Response.json({ ok: false, reason: 'listes_indisponibles' }, { status: 503 }));
+          }
+          const lu = await env.WISHLIST.get(env.WISHLIST.idFromName(`liste:${peeked['listeRef']}`)).fetch(
+            new Request('https://do/entry/livraison'),
+          );
+          const livre = lu.status === 200 ? ((await lu.json().catch(() => null)) as { livraison?: { zone?: unknown } } | null) : null;
+          const zone = livre?.livraison?.zone;
+          if (typeof zone !== 'string' || zone === '') {
+            return withReadCors(Response.json({ ok: false, reason: 'liste_sans_adresse' }, { status: 422 }));
+          }
+          const { listeRef: _retire, ...reste } = peeked;
+          quoteRequest = new Request(request, { body: JSON.stringify({ ...reste, zoneTo: zone }) });
+        }
+      }
       // CORS through the SAME exact-origin helper the buyer read routes use —
       // the PWA is served cross-origin from GitHub Pages, so without it the
       // browser blocks the 200 it just received.
-      const answered = await checkoutRouter.fetch(request, {
+      const answered = await checkoutRouter.fetch(quoteRequest, {
         CHECKOUT: env.CHECKOUT,
         // The same namespace→fetcher shim the service env uses, so the
         // checkout router depends on neither DO namespace directly and this
@@ -289,6 +332,12 @@ export default {
         // design (the note is `perdue`, the sale never blocks).
         ...(env.MEDIA !== undefined ? { MEDIA: env.MEDIA } : {}),
         ...(env.MEDIA_WRITE_KEY !== undefined ? { MEDIA_WRITE_KEY: env.MEDIA_WRITE_KEY } : {}),
+        // LISTE-ADRESSE — the liste book, for the gift order's background
+        // contact attach and the zone-coherence check. Same explicit-grant
+        // law; forgetting it would fail SOFT here (no attach) but the quote
+        // road above is gated on the same binding, so no address-priced
+        // quote could exist for this door to mismatch.
+        ...(env.WISHLIST !== undefined ? { WISHLIST: env.WISHLIST } : {}),
       });
       if (createSource !== undefined && answered.status === 200) {
         await mirrorDispatchRow(env, createSource);

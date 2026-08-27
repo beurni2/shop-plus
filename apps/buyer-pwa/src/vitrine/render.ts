@@ -39,6 +39,7 @@ import { VITRINE_THEMES } from './themes';
 import { isFavorite } from './favorites';
 import { inPanier, panierOf } from './panier';
 import { listeGardee, type ListePublique } from './liste';
+import { QUARTIERS_OUAGADOUGOU } from '../cliente/quartiers-ouagadougou';
 import { enteteMontreBio, renderEntete, type EnteteKey } from './entetes';
 
 /** « X\u202fFCFA » — the ONE formatter (cliente/money): U+202F thousands +
@@ -602,6 +603,19 @@ export function renderListeSheet(articles: readonly VitrineProduct[], precoche: 
     `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_tel_label')}</span>`,
     `<input type="tel" class="vt-liste-nom-input" data-role="liste-tel" maxlength="24" inputmode="tel" autocomplete="tel">`,
     `<span class="vt-liste-texte">${t('vit.liste_tel_aide')}</span></label>`,
+    // LISTE-ADRESSE — her PRIVATE delivery info, one optional block: filling
+    // the quartier (the official list, one native select — honest on a 1GB
+    // phone) is the choice; the aide says the one thing that matters — her
+    // friends will never see it. The service keeps every byte off the public
+    // read; only « an address exists » ever leaves.
+    `<div class="vt-liste-section-titre">${t('vit.liste_adresse_titre')}</div>`,
+    `<div class="vt-liste-texte">${t('vit.liste_adresse_aide')}</div>`,
+    `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_quartier_label')}</span>`,
+    `<select class="vt-liste-nom-input" data-role="liste-quartier"><option value="">${t('vit.liste_quartier_choix')}</option>${QUARTIERS_OUAGADOUGOU.map((q) => `<option value="${esc(q)}">${esc(q)}</option>`).join('')}</select></label>`,
+    `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_tel_livraison_label')}</span>`,
+    `<input type="tel" class="vt-liste-nom-input" data-role="liste-tel-livraison" maxlength="32" inputmode="tel"></label>`,
+    `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_repere_label')}</span>`,
+    `<input type="text" class="vt-liste-nom-input" data-role="liste-repere" maxlength="200"></label>`,
     '<div class="vt-liste-alerte" data-role="liste-alerte" hidden></div>',
     `<button class="vt-liste-valider" data-action="liste-valider">${t('vit.liste_creer_cta')}</button>`,
     '</div>',

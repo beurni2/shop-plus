@@ -87,6 +87,9 @@ export class WishlistDO {
         // LISTE-MERCI — the opt-in, already in wa.me digit form (validated
         // and normalised by the pure law). Never on projectListe.
         ...(asked.value.telephone !== undefined ? { notification: { telephone: asked.value.telephone } } : {}),
+        // LISTE-ADRESSE — her private delivery info, validated by the pure
+        // law. projectListe reduces it to a bare boolean.
+        ...(asked.value.livraison !== undefined ? { livraison: asked.value.livraison } : {}),
       };
       await this.state.storage.put(LISTE_KEY, record);
       return Response.json({ ok: true, liste: projectListe(record) });
@@ -102,6 +105,19 @@ export class WishlistDO {
       const record = await this.state.storage.get<ListeRecord>(LISTE_KEY);
       if (record?.notification === undefined) return Response.json({ ok: false }, { status: 404 });
       return Response.json({ ok: true, nom: record.nom, telephone: record.notification.telephone });
+    }
+
+    /**
+     * LISTE-ADRESSE — her delivery info, INTERNAL WIRE ONLY (the router maps
+     * no public path here). Two callers, both inside the Worker: the quote
+     * router reads the ZONE to price a gift's delivery, and the order door
+     * reads the whole to attach her contact. No livraison and no liste answer
+     * the SAME 404.
+     */
+    if (request.method === 'GET' && pathname === '/entry/livraison') {
+      const record = await this.state.storage.get<ListeRecord>(LISTE_KEY);
+      if (record?.livraison === undefined) return Response.json({ ok: false }, { status: 404 });
+      return Response.json({ ok: true, nom: record.nom, livraison: record.livraison });
     }
 
     /** THE READ — already projected: the hash and every orderId stay here. */

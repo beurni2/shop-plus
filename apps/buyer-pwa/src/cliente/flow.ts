@@ -77,6 +77,15 @@ export interface ClienteInit {
    * the « Voir le prix à jour » action after an expiry, and nothing else.
    */
   readonly quoteSource?: ((quartier: string, renouveler?: boolean) => Promise<QuoteFetch>) | undefined;
+  /**
+   * LISTE-ADRESSE — the liste this fiche was opened through STORED AN ADDRESS
+   * (its public boolean said so; the address itself never reaches this app).
+   * Present ⇒ C3 is never mounted: « Commander » asks the price directly (the
+   * caller's quoteSource names the liste, and the service prices her private
+   * zone), C4 says « Livré chez {nom}, à son adresse. » instead of a récap the
+   * friend never wrote, and every step-back from the price lands on C1.
+   */
+  readonly livraisonListe?: { readonly nom: string } | undefined;
   readonly theme?: VitrineThemeKey | undefined;
   readonly ecran?: ClienteEcran | undefined;
   /** §6 props (the pixel prototype's exact set). */
@@ -793,6 +802,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
           repereRecap: (state.repere || 'Face à la pharmacie du marché') + (state.indic ? ` · ${state.indic}` : ''),
           delivery: state.delivery,
           ligneUnique: state.serverQuote !== null,
+          // LISTE-ADRESSE — the récap the friend never wrote is replaced by
+          // the one true sentence; the fallbacks above become unreachable
+          // fiction on this road and must never paint.
+          ...(init.livraisonListe !== undefined ? { livreChez: init.livraisonListe.nom } : {}),
         });
       case 'C5':
         return q === null ? renderRefus('') : renderC5(m, q, {
@@ -1618,6 +1631,14 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         state.sheet = false; render(); return;
       case 'commander':
         if (state.stock !== 'out') {
+          // LISTE-ADRESSE — her address is stored; the friend only pays. The
+          // price is asked NOW (the destination is the liste's own), and the
+          // delivery form never mounts.
+          if (init.livraisonListe !== undefined) {
+            if (init.quoteSource !== undefined) { void demanderLePrix(); return; }
+            jump('C4', { delivery: null });
+            return;
+          }
           jump('C3', {
             zone: null, repere: '', indic: '', phone: '',
             voice: (init.microRefuse ?? false) ? 'refused' : 'idle', vSec: 0, note: null,
@@ -1638,7 +1659,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       case 'retour-c3':
         // Also the « Changer de zone » action on the refusal surface: she goes
         // back to the one thing she can change, and the next Continuer re-asks.
-        clearT(); state.paying = 'idle'; state.refus = null; state.screen = 'C3'; render(); return;
+        // LISTE-ADRESSE — with a stored address there IS no C3 to go back to:
+        // the step behind the price is the product itself.
+        clearT(); state.paying = 'idle'; state.refus = null;
+        state.screen = init.livraisonListe !== undefined ? 'C1' : 'C3';
+        render(); return;
       case 'retour-c4':
         clearT(); state.paying = 'idle'; state.refus = null; state.screen = 'C4'; render(); return;
       case 'retour-c7':

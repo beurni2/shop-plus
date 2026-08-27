@@ -1548,6 +1548,54 @@
   "screenClass": "status"
  },
  {
+  "key": "vit.liste_adresse_titre",
+  "fr": "Votre adresse de livraison (facultatif)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_adresse_aide",
+  "fr": "Vos proches pourront vous offrir un article sans jamais voir votre adresse.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "vit.liste_quartier_label",
+  "fr": "Votre quartier",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_quartier_choix",
+  "fr": "Choisissez votre quartier",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_tel_livraison_label",
+  "fr": "Numéro pour la livraison",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_repere_label",
+  "fr": "Un repère pour le livreur",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_quartier_manque",
+  "fr": "Choisissez votre quartier.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_tel_livraison_manque",
+  "fr": "Donnez un numéro pour la livraison.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "cadeau.titre",
   "fr": "Suivi du cadeau",
   "register": "selling",

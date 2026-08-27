@@ -33,6 +33,7 @@ import {
   renderVitrineReady,
 } from '../src/vitrine/render';
 import { resetFavoritesCache, toggleFavorite } from '../src/vitrine/favorites';
+import { QUARTIERS_OUAGADOUGOU } from '../src/cliente/quartiers-ouagadougou';
 
 /**
  * LISTE-ENVIES-1 — the wishlist's client law, by execution:
@@ -141,6 +142,7 @@ describe("the friend's banner — displayed truth, never computed here", () => {
       { pid: 'p2', offert: false },
       { pid: 'p3', offert: false },
     ],
+    livraison: false,
   };
 
   it('an offert article wears the badge and offers NO action; an ungiven one opens its fiche', () => {
@@ -376,6 +378,69 @@ describe('the gestion sheet — one verb per row, no save word', () => {
     const relu = await port.lire(token);
     expect(relu.status).toBe('liste'); // a regressed lire must FAIL here, never skip the re-read
     if (relu.status === 'liste') expect(relu.liste.articles.map((a) => a.pid)).toEqual(['p2']);
+  });
+});
+
+/**
+ * LISTE-ADRESSE-1 — the private address, client side, by execution:
+ *  · the create sheet offers the OPTIONAL block (official quartier list, one
+ *    native select) whose aide promises the one thing that matters;
+ *  · the wire carries `livraison` as the fifth key ONLY when she filled it —
+ *    absent bytes otherwise — and the friend's read reduces it to a STRICT
+ *    boolean (a truthy string must never open the pay-only road).
+ */
+describe('the private address block', () => {
+  it('the create sheet carries the block: official quartier select, delivery phone, repère, and the promise', () => {
+    const sheet = renderListeSheet(articlesPourListe(SF as never, prods() as never), new Set());
+    expect(sheet).toContain('data-role="liste-quartier"');
+    expect(sheet).toContain('data-role="liste-tel-livraison"');
+    expect(sheet).toContain('data-role="liste-repere"');
+    expect(sheet).toContain(`<option value="${QUARTIERS_OUAGADOUGOU[0]}"`); // the OFFICIAL list, not free text
+    expect(sheet).toContain('sans jamais voir votre adresse');
+  });
+
+  it('creer sends livraison as the fifth key when given, absent bytes when not', async () => {
+    let sent: Record<string, unknown> | undefined;
+    const run = async (livraison?: { telephone: string; quartier: string; repere: string; zone: string }) => {
+      const held = globalThis.fetch;
+      globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+        sent = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return Response.json({
+          ok: true, token: 'T'.repeat(32), editCle: 'E'.repeat(32),
+          liste: { nom: 'Awa', slug: 's-1', articles: [{ pid: 'p1', offert: false }], livraison: livraison !== undefined },
+        });
+      }) as typeof fetch;
+      try {
+        return await httpListePort('https://svc').creer('s-1', 'Awa', ['p1'], undefined, livraison);
+      } finally {
+        globalThis.fetch = held;
+      }
+    };
+    const adresse = { telephone: '70123456', quartier: 'Dassasgho', repere: 'Portail bleu', zone: 'Dassasgho, Ouagadougou' };
+    const fait = await run(adresse);
+    expect(sent).toEqual({ slug: 's-1', nom: 'Awa', pids: ['p1'], livraison: adresse });
+    expect(fait.status).toBe('creee');
+    if (fait.status === 'creee') expect(fait.liste.liste.livraison).toBe(true);
+    await run();
+    expect(Object.keys(sent as Record<string, unknown>).sort()).toEqual(['nom', 'pids', 'slug']);
+  });
+
+  it('the read reduces livraison to a STRICT boolean — a truthy string never opens the pay-only road', async () => {
+    const run = async (livraison: unknown) => {
+      const held = globalThis.fetch;
+      globalThis.fetch = (async () =>
+        Response.json({ ok: true, liste: { nom: 'A', slug: 's', articles: [], livraison } })) as typeof fetch;
+      try {
+        return await httpListePort('https://svc').lire('T'.repeat(32));
+      } finally {
+        globalThis.fetch = held;
+      }
+    };
+    const vrai = await run(true);
+    if (vrai.status === 'liste') expect(vrai.liste.livraison).toBe(true);
+    const menteur = await run('oui');
+    expect(menteur.status).toBe('liste');
+    if (menteur.status === 'liste') expect(menteur.liste.livraison).toBe(false);
   });
 });
 

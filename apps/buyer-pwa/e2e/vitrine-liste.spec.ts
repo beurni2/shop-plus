@@ -74,13 +74,26 @@ test('CREATOR — she builds her liste, the link is created, and her band rememb
   await page.locator('[data-role="liste-tel"]').fill('701234567');
   await page.locator('[data-action="liste-valider"]').click();
   await expect(page.locator('[data-role="liste-alerte"]')).toHaveText('Ce numéro ne semble pas correct.');
-  // …and a real one rides the create as the fourth key. THE LINK STATE IS REACHED.
   await page.locator('[data-role="liste-tel"]').fill('70 12 34 56');
+
+  // LISTE-ADRESSE — the private address block: touching it makes quartier +
+  // delivery phone required, refused INLINE while under her thumb…
+  await page.locator('[data-role="liste-tel-livraison"]').fill('70 12 34 56');
+  await page.locator('[data-action="liste-valider"]').click();
+  await expect(page.locator('[data-role="liste-alerte"]')).toHaveText('Choisissez votre quartier.');
+  await page.locator('[data-role="liste-quartier"]').selectOption('Dassasgho');
+  await page.locator('[data-role="liste-repere"]').fill('Portail bleu');
+
+  // …and a complete one rides the create. THE LINK STATE IS REACHED.
   await page.locator('[data-action="liste-valider"]').click();
   await expect(page.locator('[data-role="liste-lien"]')).toContainText(`/v/aicha-4821?liste=${TOKEN}`);
-  // The wire carried the EXACT body — no amount, no extra key.
+  // The wire carried the EXACT body — the zone composed exactly as this
+  // boutique's own checkout composes a buyer's destination.
   expect(creates).toHaveLength(1);
-  expect(creates[0]).toEqual({ slug: 'aicha-4821', nom: 'Awa', pids: ['p1'], telephone: '70 12 34 56' });
+  expect(creates[0]).toEqual({
+    slug: 'aicha-4821', nom: 'Awa', pids: ['p1'], telephone: '70 12 34 56',
+    livraison: { telephone: '70 12 34 56', quartier: 'Dassasgho', repere: 'Portail bleu', zone: 'Dassasgho, Ouagadougou' },
+  });
 
   // The way out closes the sheet; the band now shows HER liste.
   await page.locator('[data-action="liste-fermer"]').click();
@@ -437,6 +450,87 @@ test('CHECKOUT — listeRef rides the REAL order create; the confirmed screen of
   expect(texte).toContain('Karim');
   expect(texte).toContain('Robe brodée bogolan');
   expect(texte).toContain(`${BASE}/?cadeau=ord-quote-full-1`);
+});
+
+/**
+ * LISTE-ADRESSE-1 — THE PAY-ONLY WALK (founder: « he only proceeds with the
+ * payment only … the friend buying the item never sees the delivery
+ * information »). The liste stored an address (its read answers the bare
+ * boolean); the fiche's quote then NAMES the liste — no zoneTo on that wire —
+ * C3 never mounts, C4 carries the founder's exact sentence, and the order
+ * leaves with NO contact: the service attaches hers in the background. The
+ * four questions: the tree survives (Commander, back-to-C1, pay) · the
+ * primary action reaches a real POST · the back from the price lands on the
+ * product · the friend reaches CONFIRMED having typed nothing.
+ */
+test('GIFT — the friend only pays: C3 never mounts, « Livré chez Awa, à son adresse. », no contact on the wire', async ({ page }) => {
+  const quotes: Record<string, unknown>[] = [];
+  const orders: Record<string, unknown>[] = [];
+  await page.route('**/listes/**', (route: Route) =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, liste: { ...LISTE, livraison: true } }),
+    }),
+  );
+  await page.route('**/checkout/**', async (route: Route) => {
+    const req = route.request();
+    const json = (status: number, body: unknown): Promise<void> =>
+      route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    const body = JSON.parse(req.postData() ?? '{}') as Record<string, unknown>;
+    if (/\/reserve$/.test(req.url())) return json(200, { status: 'reserved', reservationId: 'res-1' });
+    if (/\/liste-merci$/.test(req.url()) && req.method() === 'GET') return json(404, { ok: false });
+    if (/\/checkout\/order$/.test(req.url()) && req.method() === 'POST') {
+      orders.push(body);
+      return json(200, {
+        orderId: `ord-${String(body['quoteId'])}`, state: 'payment_pending',
+        amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, doorLeg: 'none', buyerRef: 'ref-1',
+      });
+    }
+    if (/\/checkout\/order\//.test(req.url())) {
+      return json(200, { orderId: 'ord-quote-liste-1', state: 'confirmed', amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, doorLeg: 'none' });
+    }
+    quotes.push(body);
+    if (body['paymentMode'] === 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') return json(422, { error: 'pay_at_door_not_eligible' });
+    return json(200, {
+      quoteId: 'quote-liste-1', paymentMode: 'FULL_PREPAY', productSubtotal: 11_500,
+      deliveryFee: 1_000, buyerTotal: 12_500, amountPaidAtCheckout: 12_500,
+      amountDueAtDelivery: 0, expiry: new Date(Date.now() + 15 * 60_000).toISOString(),
+    });
+  });
+  await page.goto(`${BASE}/?demo-signed=aicha-4821&pid=p2&liste=${TOKEN}`);
+  await page.locator('[data-screen="C1"]').waitFor();
+  await page.locator('[data-action="commander"]').click();
+
+  // C3 NEVER MOUNTS — the price screen is next, carrying the founder's exact
+  // sentence and NO modifier (the address is not the friend's to change).
+  await page.locator('[data-screen="C4"]').waitFor({ timeout: 15_000 });
+  const chez = page.locator('[data-role="livre-chez"]');
+  await expect(chez).toBeVisible();
+  await expect(chez).toContainText('Livré chez Awa, à son adresse.');
+  await expect(page.locator('[data-action="retour-c3"].cl-modifier')).toHaveCount(0);
+  // the friend's quote NAMED the liste and carried NO destination
+  expect(quotes[0]!['listeRef']).toBe(TOKEN);
+  expect(quotes[0]!['zoneTo']).toBeUndefined();
+
+  // the step BACK from the price is the product, not a form she never saw
+  await page.locator('[data-screen="C4"] [data-action="retour-c3"]').click();
+  await page.locator('[data-screen="C1"]').waitFor();
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C4"]').waitFor({ timeout: 15_000 });
+
+  // PAY — and the order leaves with NO contact: four keys, nothing typed.
+  await page.locator('[data-action="continuer-c4"]').click();
+  await page.locator('[data-screen="C5"]').waitFor();
+  await page.locator('[data-action="choix-paiement"][data-mode="A"]').click();
+  await page.locator('[data-action="payer"]').click();
+  await expect.poll(() => orders.length, { timeout: 10_000 }).toBeGreaterThan(0);
+  const body = orders[0]!;
+  expect(body['listeRef']).toBe(TOKEN);
+  expect(body['contact']).toBeUndefined();
+  expect(Object.keys(body).sort()).toEqual(['commandId', 'holderRef', 'listeRef', 'quoteId']);
+
+  // the friend REACHES the confirmed screen having typed nothing at all
+  await page.locator('[data-screen="C6"]').waitFor({ timeout: 15_000 });
 });
 
 test('CADEAU — the creator’s tracking link renders the delivery’s facts, and Actualiser re-asks', async ({ page }) => {

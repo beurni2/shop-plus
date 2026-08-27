@@ -91,6 +91,11 @@ export interface QuoteIntent {
   readonly zoneTo: string;
   readonly attributionResellerId: string;
   readonly paymentMode: PaymentModeWire;
+  /** LISTE-ADRESSE — a GIFT'S quote names the liste, never a destination: the
+   *  service prices for the creator's PRIVATE stored zone, and `zoneTo` stays
+   *  OFF the wire (the router refuses the pair by name). Present only when
+   *  the liste's public boolean said an address exists. */
+  readonly listeRef?: string;
 }
 
 export type ReserveOutcome =
@@ -424,11 +429,14 @@ export function httpQuotePort(baseUrl: string): QuotePort {
       // to an online buyer as one.
       let payload: string;
       try {
+        // LISTE-ADRESSE — with a liste on the intent, the destination is the
+        // SERVICE'S to resolve: `listeRef` rides, `zoneTo` stays home (the
+        // router refuses both together by name — one source of truth).
         payload = JSON.stringify({
           slug: intent.slug,
           pid: intent.pid,
           paymentMode: intent.paymentMode,
-          zoneTo: intent.zoneTo,
+          ...(intent.listeRef !== undefined ? { listeRef: intent.listeRef } : { zoneTo: intent.zoneTo }),
           attributionResellerId: intent.attributionResellerId,
           requestKey,
         });
@@ -1002,7 +1010,10 @@ const KEY_PREFIX = 'sp-quote-key:';
  *  two ever disagree the server answers `request_key_reused` 409, so this list
  *  is the client half of that contract. */
 function intentFingerprint(intent: QuoteIntent): string {
-  return [intent.slug, intent.pid, intent.zoneTo, intent.attributionResellerId, intent.paymentMode].join('|');
+  // LISTE-ADRESSE — the liste joins the print ONLY when present, so every
+  // existing intent's key stays byte-identical across this deploy.
+  const socle = [intent.slug, intent.pid, intent.zoneTo, intent.attributionResellerId, intent.paymentMode];
+  return (intent.listeRef !== undefined ? [...socle, intent.listeRef] : socle).join('|');
 }
 
 /**

@@ -42,7 +42,7 @@ import { clienteProduit, clienteProduitReel, composeQuote, harnessFrancs } from 
 import { commandIdFor, commandeGardee, forgetRequestKey, localStorageOrUndefined, orderCommandIdFor, requestKeyFor, resolveQuotePort, villeDe } from './cliente/quote-port';
 import { SUIVI } from './cliente/screens';
 import { fetchClienteQuote, MODES_WIRE, type QuoteBase, type QuoteFetch } from './cliente/quote-model';
-import { LISTE_TOKEN } from './vitrine/liste';
+import { LISTE_TOKEN, resolveListePort } from './vitrine/liste';
 import { productFromSeed, seedProduct } from './vitrine/catalog';
 import { CLIENTE_STYLES } from './cliente/styles';
 import { VITRINE_THEMES, type VitrineThemeKey } from './vitrine/themes';
@@ -780,6 +780,16 @@ if (app) {
         // it rides the order create only (see fetchClienteQuote's last param).
         const listeParam = params.get('liste');
         const listeRef = listeParam !== null && LISTE_TOKEN.test(listeParam) ? listeParam : undefined;
+        // LISTE-ADRESSE — WHETHER the liste stored an address (a public
+        // boolean; the address itself never reaches this app). Read before
+        // the mount because it decides the ROAD: stored ⇒ the friend only
+        // pays (C3 never mounts, the quote names the liste). A read that
+        // fails keeps today's fill-it-yourself road — honest degradation.
+        const listeLue = listeRef !== undefined ? await resolveListePort().lire(listeRef) : undefined;
+        const livraisonListe =
+          listeLue !== undefined && listeLue.status === 'liste' && listeLue.liste.livraison
+            ? { nom: listeLue.liste.nom }
+            : undefined;
         const quoteBase = (quartier: string): QuoteBase => ({
           slug: signedSlug,
           pid,
@@ -815,6 +825,9 @@ if (app) {
             (quoteId, essai) => orderCommandIdFor(quoteId, essai, storage),
             // LISTE-ENVIES-1 — the liste token, forwarded on the create only.
             listeRef,
+            // LISTE-ADRESSE — the liste stored an address: the quote names it
+            // and the service prices her private zone (zoneTo stays home).
+            livraisonListe !== undefined,
           );
         };
         // FOUNDER RULING (2026-07-22, supersedes the earlier theme seam): the
@@ -834,6 +847,10 @@ if (app) {
           // cross-visit road stays the « Ma commande » band below, unchanged.
           // The two reads are the order-scoped pair the band's re-entry
           // already polls with, over the same env-gated port.
+          // LISTE-ADRESSE — the pay-only road: C3 never mounts, C4 carries
+          // « Livré chez {nom}, à son adresse. », the order sends no contact
+          // and the service attaches hers in the background.
+          ...(livraisonListe !== undefined ? { livraisonListe } : {}),
           reprise: {
             lien: `${signedSlug}#${pid}`,
             storage: sessionStorageOrUndefined(),

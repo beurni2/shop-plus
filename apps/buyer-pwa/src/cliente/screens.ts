@@ -754,6 +754,11 @@ export function renderC3(s: C3State): string {
 export interface C4State {
   readonly zone: string;
   readonly repereRecap: string;
+  /** LISTE-ADRESSE — the liste creator's first name. Present ⇒ the récap is
+   *  the ONE sentence « Livré chez {nom}, à son adresse. » (founder's exact
+   *  copy) with NO modifier — the address is not the friend's to see or
+   *  change, and no fallback zone may ever paint on this road. */
+  readonly livreChez?: string;
   readonly delivery: Livraison | null;
   /**
    * TRUE when the SERVER priced this delivery (SP3.2b). Canon prices ONE fee per
@@ -791,8 +796,12 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
     stepHead('retour-c3', 'La livraison'),
     '<div class="cl-recap">',
     `<span class="cl-recap-flag">${iconFlag(18)}</span>`,
-    `<div class="cl-recap-col"><div class="cl-recap-zone">${esc(s.zone.toUpperCase())}</div><div class="cl-recap-rep">${esc(s.repereRecap)}</div></div>`,
-    '<button class="cl-modifier" data-action="retour-c3">MODIFIER</button>',
+    s.livreChez !== undefined
+      ? `<div class="cl-recap-col" data-role="livre-chez"><div class="cl-recap-zone">Livré chez <v>${esc(s.livreChez)}</v>, à son adresse.</div></div>`
+      : [
+          `<div class="cl-recap-col"><div class="cl-recap-zone">${esc(s.zone.toUpperCase())}</div><div class="cl-recap-rep">${esc(s.repereRecap)}</div></div>`,
+          '<button class="cl-modifier" data-action="retour-c3">MODIFIER</button>',
+        ].join(''),
     '</div>',
     '<div class="cl-law">Le prix de la course est fixé par Séra. Il est affiché à part — jamais caché dans le prix du produit.</div>',
     s.ligneUnique === true ? ligne : options.map((o) => {

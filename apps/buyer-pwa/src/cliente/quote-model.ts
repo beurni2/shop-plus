@@ -427,8 +427,18 @@ export async function fetchClienteQuote(
    * service's own allowlist. It is an ORDER fact, so it rides only there.
    */
   listeRef?: string,
+  /**
+   * LISTE-ADRESSE — the liste STORED AN ADDRESS (its public boolean said so):
+   * the quote asks then name the liste instead of a destination — `listeRef`
+   * rides the wire, `zoneTo` stays home, and the service prices for the
+   * creator's private zone. False (every earlier caller): the wire is
+   * byte-identical to what it always was, listeRef or not.
+   */
+  adresseListe = false,
 ): Promise<QuoteFetch> {
-  const intentFor = (paymentMode: PaymentModeWire): QuoteIntent => ({ ...base, paymentMode });
+  const surAdresse = adresseListe && listeRef !== undefined;
+  const intentFor = (paymentMode: PaymentModeWire): QuoteIntent =>
+    surAdresse ? { ...base, paymentMode, listeRef } : { ...base, paymentMode };
   const fullIntent = intentFor('FULL_PREPAY');
   const doorIntent = intentFor('DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
   const fullKey = keyFor(fullIntent);

@@ -95,6 +95,7 @@ describe('projectListe — the ONLY public shape', () => {
         { pid: 'pv-1', offert: true },
         { pid: 'pv-2', offert: false },
       ],
+      livraison: false,
     });
     const bytes = JSON.stringify(projected);
     expect(bytes).not.toMatch(/editCle|Hash|ord-secret|createdAt/);

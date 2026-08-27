@@ -3111,6 +3111,48 @@ export default {
       }
 
       /**
+       * ═══ LISTE-ADRESSE-1 — HER ADDRESS ATTACHES IN THE BACKGROUND
+       *     (founder order, 2026-08-27) ═══
+       *
+       * An order that names a liste WITH a stored address becomes HER
+       * delivery: the contact is read server-side off the liste and stored
+       * exactly where BC-1a's dispatch door reads it — the purchaser types
+       * nothing and is shown nothing. Two laws guard the seam:
+       *  · a caller-sent contact on this road is refused BY NAME — the fee
+       *    was priced for HER zone, and two addresses on one order would
+       *    make the charged fee a lie for one of them;
+       *  · the QUOTE's own stored zoneTo must equal her stored zone — a
+       *    hand-crafted quote priced for another destination cannot carry
+       *    her delivery (`liste_zone_incoherente`).
+       * A liste WITHOUT a stored address changes nothing: the friend fills
+       * delivery as any buyer (the road every liste had before this slice).
+       * An absent WISHLIST binding also changes nothing — the quote road is
+       * already gated on it, so no address-priced quote can exist to attach.
+       */
+      if (listeRef !== null && env.WISHLIST !== undefined) {
+        const luLivraison = await env.WISHLIST.get(env.WISHLIST.idFromName(`liste:${listeRef}`)).fetch(
+          new Request('https://do/entry/livraison'),
+        );
+        if (luLivraison.status === 200) {
+          const livre = (await luLivraison.json().catch(() => null)) as
+            | { livraison?: { telephone?: unknown; quartier?: unknown; repere?: unknown; zone?: unknown } }
+            | null;
+          const livraison = livre?.livraison;
+          if (
+            typeof livraison?.telephone === 'string' &&
+            typeof livraison.quartier === 'string' &&
+            typeof livraison.repere === 'string' &&
+            typeof livraison.zone === 'string'
+          ) {
+            if (contact !== null) return refuse('liste_contact_conflit');
+            const quoteZone = (quoteBody.fulfillment as { zoneTo?: unknown } | null | undefined)?.zoneTo;
+            if (quoteZone !== livraison.zone) return refuse('liste_zone_incoherente');
+            contact = { phone: livraison.telephone, quartier: livraison.quartier, repere: livraison.repere };
+          }
+        }
+      }
+
+      /**
        * REPERE-AUDIO-REEL — the note becomes a REF before the order is born.
        * This Worker hands the bytes to Boutik+'s media door with ITS OWN
        * credential (the write key never rides in the buyer's public bundle),

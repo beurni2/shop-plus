@@ -18,7 +18,8 @@ import { inPanier, togglePanier } from './panier';
 import { t } from '../i18n';
 import { recordVitrineArrival, signedHref, vitrineHref } from '../vitrine-link';
 import { demoStorefrontPort, resolveStorefrontPort, VitrineOffline, type StorefrontProfilePort } from './profile';
-import { garderListe, listeGardee, resolveListePort, LISTE_MAX_ARTICLES, type ListeLecture } from './liste';
+import { garderListe, listeGardee, resolveListePort, LISTE_MAX_ARTICLES, type ListeLecture, type ListeLivraison } from './liste';
+import { villeDe } from '../cliente/quote-port';
 import type { VitrineProduct } from './catalog';
 import {
   articlesPourListe,
@@ -641,10 +642,24 @@ export function mountVitrine(
         const bande = chiffres.length === 8 || (chiffres.length >= 10 && chiffres.length <= 15);
         if (!/^\d+$/.test(chiffres) || !bande) return direAlerte(t('vit.liste_tel_invalide'));
       }
+      // LISTE-ADRESSE — the optional private-address block. Touching ANY of
+      // its fields is the choice, and then the two a delivery cannot happen
+      // without (quartier, phone) refuse inline while under her thumb. The
+      // zone is composed EXACTLY as this boutique's own checkout composes a
+      // buyer's destination — same trust, same bytes.
+      const quartierL = (root.querySelector<HTMLSelectElement>('[data-role="liste-quartier"]')?.value ?? '').trim();
+      const telL = (root.querySelector<HTMLInputElement>('[data-role="liste-tel-livraison"]')?.value ?? '').trim();
+      const repereL = (root.querySelector<HTMLInputElement>('[data-role="liste-repere"]')?.value ?? '').trim();
+      let livraison: ListeLivraison | undefined;
+      if (quartierL !== '' || telL !== '' || repereL !== '') {
+        if (quartierL === '') return direAlerte(t('vit.liste_quartier_manque'));
+        if (telL === '') return direAlerte(t('vit.liste_tel_livraison_manque'));
+        livraison = { telephone: telL, quartier: quartierL, repere: repereL, zone: `${quartierL}, ${villeDe(dernierPret.sf.zone)}` };
+      }
       const bouton = target as HTMLButtonElement;
       bouton.disabled = true;
       bouton.textContent = t('vit.liste_creation');
-      void listePort.creer(sfSlug, nom, pids, tel === '' ? undefined : tel).then((res) => {
+      void listePort.creer(sfSlug, nom, pids, tel === '' ? undefined : tel, livraison).then((res) => {
         if (res.status !== 'creee') {
           bouton.disabled = false;
           bouton.textContent = t('vit.liste_creer_cta');

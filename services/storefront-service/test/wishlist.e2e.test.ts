@@ -25,6 +25,7 @@ const T0 = '2026-08-25T08:00:00.000Z';
 
 const WRITE_SECRET = 'test-write-secret-le001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-le001';
+const OPS_SECRET = 'test-checkout-ops-secret-le001';
 const authed = { 'X-Write-Key': WRITE_SECRET };
 
 const SUPPLY = [
@@ -67,6 +68,10 @@ beforeAll(() => {
     bindings: {
       STOREFRONT_WRITE_SECRET: WRITE_SECRET,
       PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
+      // LISTE-ADRESSE — the founder's dispatch board is THE LEDGER this
+      // seam asks: the attached contact is asserted where it is actually
+      // read, never off the create response.
+      CHECKOUT_OPS_SECRET: OPS_SECRET,
     },
     serviceBindings: {
       OFFER: async (request: Request) => {
@@ -125,10 +130,20 @@ async function boutique(n: string): Promise<{ slug: string; resellerId: string }
   return { slug: `le-${n}`, resellerId: `rs-le-${n}` };
 }
 
-async function creerListe(slug: string, nom = 'Awa', pids: string[] = ['pv-le-1', 'pv-le-2'], telephone?: string) {
+async function creerListe(
+  slug: string,
+  nom = 'Awa',
+  pids: string[] = ['pv-le-1', 'pv-le-2'],
+  telephone?: string,
+  livraison?: { telephone: string; quartier: string; repere: string; zone: string },
+) {
   const res = await mf.dispatchFetch('http://c/listes', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ slug, nom, pids, ...(telephone !== undefined ? { telephone } : {}) }),
+    body: JSON.stringify({
+      slug, nom, pids,
+      ...(telephone !== undefined ? { telephone } : {}),
+      ...(livraison !== undefined ? { livraison } : {}),
+    }),
   });
   const text = await res.text();
   return { status: res.status, headers: res.headers, json: safeJson(text), text };
@@ -230,6 +245,7 @@ describe('the liste doors', () => {
     expect(res.json['liste']).toEqual({
       nom: 'Awa', slug,
       articles: [{ pid: 'pv-le-1', offert: false }, { pid: 'pv-le-2', offert: false }],
+      livraison: false,
     });
     expect(res.headers.get('Cache-Control')).toBe('private, no-store');
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://beurni2.github.io');
@@ -290,6 +306,7 @@ describe('the liste doors', () => {
     expect(safeJson(await edited.text())['liste']).toEqual({
       nom: 'Rasmata', slug,
       articles: [{ pid: 'pv-le-2', offert: false }, { pid: 'pv-le-1', offert: false }],
+      livraison: false,
     });
 
     // a smuggled offert field is refused BY NAME — the update body's allowlist
@@ -353,6 +370,7 @@ describe('the liste doors', () => {
     expect(safeJson(await retire.text())['liste']).toEqual({
       nom: 'Awa', slug,
       articles: [{ pid: 'pv-le-1', offert: true }],
+      livraison: false,
     });
 
     // the friend's read agrees: one article, still offert, pv-le-2 gone
@@ -555,5 +573,172 @@ describe('LISTE-MERCI — the opt-in, the buyer-token-gated merci read, the full
     });
     expect(res.status).toBe(422);
     expect(safeJson(await res.text())).toEqual({ error: 'liste_prepaiement_requis' });
+  });
+});
+
+describe('LISTE-ADRESSE — her address attaches in the background, and the friend never sees it', () => {
+  const LIVRAISON = {
+    telephone: '70123456',
+    quartier: 'Dassasgho',
+    repere: 'Portail bleu, cour commune',
+    zone: 'Dassasgho, Ouagadougou',
+  };
+  /** Every byte of her address, as a leak probe over any public answer. */
+  const OCTETS_PRIVES = /Dassasgho|70123456|Portail bleu/;
+
+  it('THE SEAM: private create → listeRef-priced quote → pay-only order → HER contact on the dispatch board → offert lands — and no public read carries one address byte', async () => {
+    const { slug, resellerId } = await boutique('0040');
+    const made = await creerListe(slug, 'Awa', ['pv-le-1'], undefined, LIVRAISON);
+    expect(made.status).toBe(200);
+    // the public projection says WHETHER, never WHAT
+    expect((made.json['liste'] as { livraison?: unknown }).livraison).toBe(true);
+    expect(made.text).not.toMatch(OCTETS_PRIVES);
+    const token = made.json['token'] as string;
+    const lu = await lireListe(token);
+    expect((lu.json['liste'] as { livraison?: unknown }).livraison).toBe(true);
+    expect(lu.text).not.toMatch(OCTETS_PRIVES);
+
+    // THE FRIEND'S QUOTE — names the liste, never a destination; priced for
+    // HER stored zone; the answer carries the fee and not one address byte.
+    const quoteRes = await mf.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug, pid: 'pv-le-1', paymentMode: 'FULL_PREPAY', listeRef: token,
+        attributionResellerId: resellerId, requestKey: freshKey(),
+      }),
+    });
+    expect(quoteRes.status).toBe(200);
+    const quoteText = await quoteRes.text();
+    expect(quoteText).not.toMatch(OCTETS_PRIVES);
+    const quote = safeJson(quoteText) as { quoteId?: string; deliveryFee?: number; amountPaidAtCheckout?: number };
+    expect(quote.deliveryFee).toBe(1_000); // the Ouagadougou tariff, reached through her PRIVATE zone
+    const held = await mf.dispatchFetch(
+      `http://c/checkout/quote/${encodeURIComponent(quote.quoteId as string)}/reserve`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commandId: 'cmd-reserve-0040', holderRef: 'holder-0040' }) },
+    );
+    expect(held.status).toBe(200);
+
+    // THE PAY-ONLY ORDER — no contact field at all; her address attaches inside.
+    const created = await mf.dispatchFetch('http://c/checkout/order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quoteId: quote.quoteId, holderRef: 'holder-0040', commandId: 'cmd-order-0040', listeRef: token,
+      }),
+    });
+    const createdText = await created.text();
+    expect(created.status).toBe(200);
+    expect(createdText).not.toMatch(OCTETS_PRIVES);
+    const orderId = `ord-${quote.quoteId}`;
+
+    // THE LEDGER — the founder's dispatch board (the ONE reader of contacts)
+    // holds HER phone, HER quartier, HER repère on this order.
+    const board = await mf.dispatchFetch('http://c/checkout/dispatch', {
+      headers: { Authorization: `Bearer ${OPS_SECRET}` },
+    });
+    expect(board.status).toBe(200);
+    const rows = (safeJson(await board.text())['orders'] ?? []) as {
+      orderId?: string; contact?: { phone?: string; quartier?: string; repere?: string };
+    }[];
+    const mine = rows.find((r) => r.orderId === orderId);
+    expect(mine, 'the gift order must be on the dispatch board').toBeDefined();
+    expect(mine?.contact).toEqual({ phone: '70123456', quartier: 'Dassasgho', repere: 'Portail bleu, cour commune' });
+
+    // the friend's own order read — the public view — has no address byte
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+    expect(await pub.text()).not.toMatch(OCTETS_PRIVES);
+
+    // and the roads still compose: webhook truth → « offert » on the liste
+    await confirmOrder(orderId, quote.amountPaidAtCheckout as number);
+    expect(await offertVisible(token, 'pv-le-1')).toBe(true);
+  });
+
+  it('the guard rails: zoneTo beside listeRef refused by name · no stored address answers liste_sans_adresse · a caller contact on the gift road refused · a quote priced elsewhere refused', async () => {
+    const { slug, resellerId } = await boutique('0041');
+    const avec = await creerListe(slug, 'Awa', ['pv-le-1'], undefined, LIVRAISON);
+    const tokenAvec = avec.json['token'] as string;
+    const sans = await creerListe(slug, 'Binta', ['pv-le-2']);
+    const tokenSans = sans.json['token'] as string;
+
+    // one source of truth for the destination — never two that could disagree
+    const deux = await mf.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug, pid: 'pv-le-1', paymentMode: 'FULL_PREPAY', listeRef: tokenAvec, zoneTo: 'Ouagadougou',
+        attributionResellerId: resellerId, requestKey: freshKey(),
+      }),
+    });
+    expect(deux.status).toBe(400);
+    expect(safeJson(await deux.text())).toEqual({ ok: false, reason: 'bad_field', field: 'zoneTo' });
+
+    // a liste that stored no address cannot price a quote
+    const sansAdresse = await mf.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug, pid: 'pv-le-2', paymentMode: 'FULL_PREPAY', listeRef: tokenSans,
+        attributionResellerId: resellerId, requestKey: freshKey(),
+      }),
+    });
+    expect(sansAdresse.status).toBe(422);
+    expect(safeJson(await sansAdresse.text())).toEqual({ ok: false, reason: 'liste_sans_adresse' });
+
+    // a quote priced for ANOTHER destination can never carry her delivery:
+    // ordinary quote (zoneTo 'Ouagadougou' ≠ her stored 'Dassasgho, Ouagadougou')
+    const etranger = await mf.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug, pid: 'pv-le-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+        attributionResellerId: resellerId, requestKey: freshKey(),
+      }),
+    });
+    const quoteEtranger = safeJson(await etranger.text()) as { quoteId?: string };
+    const heldEtranger = await mf.dispatchFetch(
+      `http://c/checkout/quote/${encodeURIComponent(quoteEtranger.quoteId as string)}/reserve`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commandId: 'cmd-reserve-0041a', holderRef: 'holder-0041' }) },
+    );
+    expect(heldEtranger.status).toBe(200);
+    const incoherent = await mf.dispatchFetch('http://c/checkout/order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quoteId: quoteEtranger.quoteId, holderRef: 'holder-0041', commandId: 'cmd-order-0041a', listeRef: tokenAvec,
+      }),
+    });
+    expect(incoherent.status).toBe(422);
+    expect(safeJson(await incoherent.text())).toEqual({ error: 'liste_zone_incoherente' });
+
+    // the fee was priced for HER zone — a second address on the same order is
+    // refused by name, not silently arbitrated
+    const quoteRes = await mf.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug, pid: 'pv-le-1', paymentMode: 'FULL_PREPAY', listeRef: tokenAvec,
+        attributionResellerId: resellerId, requestKey: freshKey(),
+      }),
+    });
+    const quote = safeJson(await quoteRes.text()) as { quoteId?: string };
+    const held = await mf.dispatchFetch(
+      `http://c/checkout/quote/${encodeURIComponent(quote.quoteId as string)}/reserve`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commandId: 'cmd-reserve-0041b', holderRef: 'holder-0041b' }) },
+    );
+    expect(held.status).toBe(200);
+    const conflit = await mf.dispatchFetch('http://c/checkout/order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quoteId: quote.quoteId, holderRef: 'holder-0041b', commandId: 'cmd-order-0041b', listeRef: tokenAvec,
+        contact: { phone: '76000000', quartier: 'Gounghin', repere: '' },
+      }),
+    });
+    expect(conflit.status).toBe(422);
+    expect(safeJson(await conflit.text())).toEqual({ error: 'liste_contact_conflit' });
+
+    // and a malformed livraison at create refuses BY NAME, storing nothing
+    const mauvaise = await creerListe(slug, 'Rasmata', ['pv-le-1'], undefined, {
+      telephone: '', quartier: 'Dassasgho', repere: '', zone: 'Ouagadougou',
+    });
+    expect(mauvaise.status).toBe(400);
+    expect(mauvaise.json['reason']).toBe('bad_field');
+    expect(mauvaise.json['field']).toBe('livraison');
   });
 });
