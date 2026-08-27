@@ -437,8 +437,12 @@ export async function fetchClienteQuote(
   adresseListe = false,
 ): Promise<QuoteFetch> {
   const surAdresse = adresseListe && listeRef !== undefined;
+  // On the address road the intent's zoneTo is PINNED EMPTY (verifier MINOR
+  // 2): the wire never carries it, but the request-KEY fingerprint does, and
+  // a phantom zone drifting in from screen state would mint a second quote
+  // where a reload should replay the first hold.
   const intentFor = (paymentMode: PaymentModeWire): QuoteIntent =>
-    surAdresse ? { ...base, paymentMode, listeRef } : { ...base, paymentMode };
+    surAdresse ? { ...base, zoneTo: '', paymentMode, listeRef } : { ...base, paymentMode };
   const fullIntent = intentFor('FULL_PREPAY');
   const doorIntent = intentFor('DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR');
   const fullKey = keyFor(fullIntent);

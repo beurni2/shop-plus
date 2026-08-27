@@ -852,7 +852,14 @@ if (app) {
           // and the service attaches hers in the background.
           ...(livraisonListe !== undefined ? { livraisonListe } : {}),
           reprise: {
-            lien: `${signedSlug}#${pid}`,
+            // LISTE-ADRESSE (verifier MAJOR 1) — the GIFT road resumes ONLY
+            // its own journeys: a stale non-liste snapshot under the plain
+            // key carries a typed phone that would ride every gift order
+            // into the server's liste_contact_conflit refusal, forever, and
+            // could even remount the C3 this road exists to never show. A
+            // road-scoped key makes both unrepresentable — and keeps a gift
+            // journey's snapshot invisible to later non-liste visits too.
+            lien: livraisonListe !== undefined ? `${signedSlug}#${pid}#liste:${listeRef}` : `${signedSlug}#${pid}`,
             storage: sessionStorageOrUndefined(),
             etatCommande: (id) => quotePort.orderState(id),
             remise: (id, ref) => quotePort.remise(id, ref),

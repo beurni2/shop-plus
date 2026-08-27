@@ -437,6 +437,7 @@ describe('the private address block', () => {
       }
     };
     const vrai = await run(true);
+    expect(vrai.status).toBe('liste'); // a failed read must FAIL here, never pass vacuously
     if (vrai.status === 'liste') expect(vrai.liste.livraison).toBe(true);
     const menteur = await run('oui');
     expect(menteur.status).toBe('liste');

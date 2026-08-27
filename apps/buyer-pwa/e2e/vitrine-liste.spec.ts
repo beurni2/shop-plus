@@ -466,6 +466,18 @@ test('CHECKOUT — listeRef rides the REAL order create; the confirmed screen of
 test('GIFT — the friend only pays: C3 never mounts, « Livré chez Awa, à son adresse. », no contact on the wire', async ({ page }) => {
   const quotes: Record<string, unknown>[] = [];
   const orders: Record<string, unknown>[] = [];
+  // A STALE NON-LISTE JOURNEY sits in this tab (same product, typed phone,
+  // parked on C5). The gift road must NEVER resume it (verifier MAJOR 1):
+  // its phone would ride every gift order into liste_contact_conflit.
+  await page.addInitScript(() => {
+    window.sessionStorage.setItem(
+      'sp-reprise:v1',
+      JSON.stringify({
+        lien: 'aicha-4821#p2', ecran: 'C5', zone: 'Gounghin Sud', repere: 'Face au marché',
+        indic: '', phone: '70 99 88 77', delivery: 'today', pay: 'A', orderId: null, buyerRef: null, essai: 0,
+      }),
+    );
+  });
   await page.route('**/listes/**', (route: Route) =>
     route.fulfill({
       status: 200, contentType: 'application/json',
