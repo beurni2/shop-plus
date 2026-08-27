@@ -199,6 +199,73 @@ test('CREATOR — Retirer and Ajouter act on the tap: no save word, exact wires,
   await expect(page.locator('[data-role="vitrine-liste-carte"]')).toContainText('La liste de Awa · 1 envie');
 });
 
+/**
+ * LISTE-REFAIRE-2 — THE ACT'S EDGES (verifier MAJOR 3): a failed act leaves a
+ * pressable way out · while an act is on the road every row button sleeps ·
+ * closing mid-act loses NOTHING (the server answered; the handle and the
+ * card follow) while the closed sheet is never repainted.
+ */
+test('CREATOR — a failed act keeps its way out, in-flight taps sleep, closing mid-act loses nothing', async ({ page }) => {
+  await page.addInitScript(
+    ({ token, editCle }: { token: string; editCle: string }) => {
+      if (window.localStorage.getItem('shopplus.listes.v1') === null) {
+        window.localStorage.setItem(
+          'shopplus.listes.v1',
+          JSON.stringify({ 'aicha-4821': { token, editCle, nom: 'Awa', pids: ['p1', 'p2'], createdAt: 'T' } }),
+        );
+      }
+    },
+    { token: TOKEN, editCle: 'E'.repeat(32) },
+  );
+  let posteEnPanne = true;
+  const updates: Record<string, unknown>[] = [];
+  await page.route('**/listes/**', async (route: Route) => {
+    if (route.request().method() === 'POST') {
+      updates.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);
+      if (posteEnPanne) {
+        await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ ok: false }) });
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 700)); // the act is ON THE ROAD
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ ok: true, liste: { nom: 'Awa', slug: 'aicha-4821', articles: [{ pid: 'p2', offert: false }] } }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, liste: { nom: 'Awa', slug: 'aicha-4821', articles: [{ pid: 'p1', offert: false }, { pid: 'p2', offert: false }] } }),
+    });
+  });
+  await page.goto(`${BASE}/?demo-vitrine=aicha-4821`);
+  await page.locator('[data-role="vitrine-liste-carte"] [data-action="liste-creer"]').click();
+  await expect(page.locator('[data-action="liste-retirer"][data-pid="p1"]')).toBeVisible();
+
+  // A FAILED ACT — the reason shows inline and the buttons WAKE: the way out.
+  await page.locator('[data-action="liste-retirer"][data-pid="p1"]').click();
+  await expect(page.locator('[data-role="liste-alerte"]')).toHaveText('Impossible pour le moment. Réessayez.');
+  await expect(page.locator('[data-action="liste-retirer"][data-pid="p1"]')).toBeEnabled();
+  expect(updates).toHaveLength(1);
+
+  // THE SLOW ROAD — while her act is out, every other row button sleeps (two
+  // racing taps could silently undo each other), and she closes the sheet.
+  posteEnPanne = false;
+  await page.locator('[data-action="liste-retirer"][data-pid="p1"]').click();
+  await expect(page.locator('[data-action="liste-ajouter"][data-pid="p4"]')).toBeDisabled();
+  await page.locator('[data-action="liste-fermer"]').click();
+  await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
+
+  // THE ACT STILL HAPPENED — the server answered after the close: the card
+  // and the handle follow, and the closed sheet is never repainted.
+  await expect(page.locator('[data-role="vitrine-liste-carte"]')).toContainText('La liste de Awa · 1 envie');
+  await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
+  expect(updates).toHaveLength(2);
+  expect(updates[1]).toEqual({ editCle: 'E'.repeat(32), pids: ['p2'] });
+  const handle = await page.evaluate(() => window.localStorage.getItem('shopplus.listes.v1'));
+  expect((JSON.parse(handle ?? '{}') as Record<string, { pids: string[] }>)['aicha-4821']?.pids).toEqual(['p2']);
+});
+
 test('CREATOR — closing the redo sheet while the read is out paints nothing (the torn-down container law)', async ({ page }) => {
   await page.addInitScript(
     ({ token, editCle }: { token: string; editCle: string }) => {

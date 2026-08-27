@@ -266,12 +266,27 @@ export function mountVitrine(
   // as LAST ANSWERED BY THE SERVICE (pids + offert marks). Every Retirer /
   // Ajouter recomputes the next selection from THIS, never from the DOM.
   let listeEnGestion: { pid: string; offert: boolean }[] | null = null;
+  // One act at a time (an airborne act's answer is the only truth-mover), and
+  // an epoch so a READ served before an act's write can never paint over the
+  // act's fresher answer (verifier MAJOR 2 — the close-and-reopen race).
+  let acteEnCours = false;
+  let gestionEpoch = 0;
+  /** Hold ONLY what the catalogue can resolve (verifier MAJOR 1): a delisted
+   *  pid renders nowhere AND rides no act — the door's membership law would
+   *  422 the whole update — so it genuinely leaves on her next act, and the
+   *  last-item mirror counts what she actually sees. */
+  const tenirGestion = (articles: readonly { pid: string; offert: boolean }[]): void => {
+    if (dernierPret === null) {
+      listeEnGestion = null;
+      return;
+    }
+    const catalogue = articlesPourModif(dernierPret.sf, dernierPret.described);
+    listeEnGestion = articles.filter((a) => catalogue.has(a.pid)).map((a) => ({ pid: a.pid, offert: a.offert }));
+  };
   const composeGestion = (): { miennes: { p: VitrineProduct; offert: boolean }[]; ajoutables: VitrineProduct[] } | null => {
     if (dernierPret === null || listeEnGestion === null) return null;
     // Every in-stock article is addable; her own articles render even when
-    // épuisé (removing one is a reason she came). A pid the catalogue cannot
-    // resolve is not offered and leaves on her next act — the door's
-    // membership law would refuse any update still carrying it.
+    // épuisé (removing one is a reason she came).
     const catalogue = articlesPourModif(dernierPret.sf, dernierPret.described);
     const miennes: { p: VitrineProduct; offert: boolean }[] = [];
     for (const a of listeEnGestion) {
@@ -562,12 +577,17 @@ export function mountVitrine(
         return;
       }
       root.insertAdjacentHTML('beforeend', renderListeModif({ etape: 'chargement' }));
+      const epochAuDepart = gestionEpoch;
       void listePort.lire(gardee.token).then((res) => {
         // Closed while the read was out → paint nothing (the torn-down
-        // container law, LISTE-MERCI MINOR 2's lesson).
+        // container law, LISTE-MERCI MINOR 2's lesson). An act that answered
+        // meanwhile moved the epoch: this read is then STALE by construction
+        // (served before the act's write) and is discarded — the act's own
+        // continuation painted the fresher truth.
         const attente = root.querySelector('[data-role="liste-modif-attente"]');
         const sheet = attente?.closest('[data-role="liste-sheet"]');
         if (attente === null || sheet === null || sheet === undefined || dernierPret === null) return;
+        if (gestionEpoch !== epochAuDepart) return;
         if (res.status === 'hors-ligne') {
           sheet.outerHTML = renderListeModif({ etape: 'hors-ligne' });
           return;
@@ -576,7 +596,7 @@ export function mountVitrine(
           sheet.outerHTML = renderListeModif({ etape: 'introuvable' });
           return;
         }
-        listeEnGestion = res.liste.articles.map((a) => ({ pid: a.pid, offert: a.offert }));
+        tenirGestion(res.liste.articles);
         const composed = composeGestion();
         if (composed === null || (composed.miennes.length === 0 && composed.ajoutables.length === 0)) {
           sheet.outerHTML = renderListeModif({ etape: 'introuvable' });
@@ -650,7 +670,7 @@ export function mountVitrine(
       // truth, the door refusals are mirrored inline BEFORE the wire is
       // spent, and while an act is on the road every row button sleeps so
       // two taps can never race each other's selection.
-      if (dernierPret === null || listeEnGestion === null) return;
+      if (dernierPret === null || listeEnGestion === null || acteEnCours) return;
       const sfSlug = dernierPret.sf.slug;
       const gardee = listeGardee(sfSlug);
       if (gardee === undefined) return;
@@ -660,6 +680,9 @@ export function mountVitrine(
         if (alerte !== null) {
           alerte.textContent = message;
           alerte.hidden = false;
+          // A refusal must be SEEN to be a refusal (verifier MAJOR 4): on a
+          // full sheet the tapped row can sit far below the message.
+          alerte.scrollIntoView?.({ block: 'nearest' });
         }
       };
       const actuels = listeEnGestion.map((a) => a.pid);
@@ -668,21 +691,31 @@ export function mountVitrine(
       const pids = action === 'liste-retirer' ? actuels.filter((p) => p !== pid) : [...actuels, pid];
       const boutons = [...root.querySelectorAll<HTMLButtonElement>('[data-role="liste-sheet"] .vt-liste-row-btn')];
       for (const b of boutons) b.disabled = true;
+      acteEnCours = true;
       void listePort.modifier(gardee.token, gardee.editCle, pids).then((res) => {
+        acteEnCours = false;
         if (res.status !== 'modifiee') {
+          // The way out of a failed act: the buttons wake, the reason shows.
           for (const b of boutons) b.disabled = false;
           direAlerte(t('vit.liste_erreur'));
           return;
         }
+        gestionEpoch += 1;
+        // The handle may have been REPLACED while the act was on the road (a
+        // dead liste's nouvelle-create, verifier MINOR 5) — a stale act must
+        // never overwrite the fresh handle nor repaint another liste's sheet.
+        if (listeGardee(sfSlug)?.token !== gardee.token) return;
         // The SERVICE's answer drives everything: the handle (so the card
         // can never drift), the held truth, and the repaint — the row she
         // acted on visibly moves, which IS the feedback.
         garderListe(sfSlug, { ...gardee, pids: res.liste.articles.map((a) => a.pid) });
-        listeEnGestion = res.liste.articles.map((a) => ({ pid: a.pid, offert: a.offert }));
+        tenirGestion(res.liste.articles);
         remplirListeSlot();
         // Closed while the act was out → the act still happened (the server
-        // answered); only the paint is skipped.
-        const sheet = root.querySelector('[data-role="liste-sheet"]');
+        // answered; handle and card above are already true); only the paint
+        // is skipped. The paint targets ONLY the marked faces — never the
+        // create builder or the link celebration.
+        const sheet = root.querySelector('[data-role="liste-sheet"][data-face]');
         const composed = composeGestion();
         if (sheet !== null && composed !== null) sheet.outerHTML = renderListeGestion(composed.miennes, composed.ajoutables);
       });

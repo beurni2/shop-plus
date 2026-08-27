@@ -649,7 +649,7 @@ export function renderListeGestion(
     '</div>',
   ].join('');
   return [
-    '<div class="vt-liste-voile" data-role="liste-sheet">',
+    '<div class="vt-liste-voile" data-role="liste-sheet" data-face="gestion">',
     '<div class="vt-liste-sheet">',
     `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${t('vit.liste_sheet_titre')}</div><button class="vt-liste-fermer" data-action="liste-fermer" aria-label="${t('vit.liste_fermer_aria')}">×</button></div>`,
     `<div class="vt-liste-texte">${t('vit.liste_modif_texte')}</div>`,
@@ -694,7 +694,7 @@ export function renderListeModif(etat: ListeModifEtat): string {
     ].join('');
   }
   return [
-    '<div class="vt-liste-voile" data-role="liste-sheet">',
+    '<div class="vt-liste-voile" data-role="liste-sheet" data-face="attente">',
     '<div class="vt-liste-sheet">',
     `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${t('vit.liste_sheet_titre')}</div><button class="vt-liste-fermer" data-action="liste-fermer" aria-label="${t('vit.liste_fermer_aria')}">×</button></div>`,
     corps,
