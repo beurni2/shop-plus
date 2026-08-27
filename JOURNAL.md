@@ -9,9 +9,11 @@ Format per entry:
 
 ---
 
-## 2026-08-27 · LISTE-FERMER-2 — the direct « Fermer ma liste » entry · IN-REVIEW (awaiting the founder's merge word)
+## 2026-08-27 · LISTE-FERMER-2 — the direct « Fermer ma liste » entry · DONE
 
-**Founder, 2026-08-27: « Add the direct Fermer ma liste button as well. »** The follow-up LISTE-CADEAUX-1's journal named. Build `961642b`, pushed to the branch. **No main merge, no deploy — waiting on his word.** PWA-ONLY: the fermer door has been live since storefront-deploy 72; when approved, the pwa-preview push workflow IS the deploy (no service dispatch).
+**MERGED AND DEPLOYED (founder: « Go », 2026-08-27).** `main` fast-forwarded `542fe57..4363d0e` (build `961642b` + journal). **All four push workflows green on 4363d0e — ci 584 · expo-preview 407 · pwa-preview 374 (the buyer PWA with the direct entry, deployed to Pages) · service-canon-drift 244.** No storefront-deploy dispatch, deliberately: the diff touches no worker source — the fermer door has been live since run 72. The PWA on Pages IS the deploy.
+
+**Founder, 2026-08-27: « Add the direct Fermer ma liste button as well. »** The follow-up LISTE-CADEAUX-1's journal named. Build `961642b`. PWA-ONLY.
 
 **THE ENTRY.** The gestion sheet gains a quiet destructive entry BELOW both sections — full width, the alerte red spoken quietly (closing is never the sheet's primary action). It opens the SAME confirm face as the last-Retirer road, now parameterized on its sentence: the direct road asks « Fermer votre liste ? Votre lien ne marchera plus. » while the last-Retirer road keeps its cause-and-effect sentence (walked verbatim — the parameterization changed nothing there). Underneath: the same confirm act, the same one-key `{editCle}` wire, the same farewell, handle-forget (token-anchored) and card-to-invitation — `git show` has no hunk in the `liste-fermer-liste` handler. The entry shares the row-btn class, so the in-flight act disable-and-wake law covers it with its siblings — a close racing an act could destroy the liste the act's answer is about to repaint — and it sleeps mid-act by execution, not by a guard's presence. One new catalog key, register-tagged.
 
