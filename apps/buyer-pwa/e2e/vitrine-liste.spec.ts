@@ -271,6 +271,10 @@ test('CREATOR — a failed act keeps its way out, in-flight taps sleep, closing 
   posteEnPanne = false;
   await page.locator('[data-action="liste-retirer"][data-pid="p1"]').click();
   await expect(page.locator('[data-action="liste-ajouter"][data-pid="p4"]')).toBeDisabled();
+  // LISTE-FERMER-2 — the direct close entry sleeps with its siblings: a
+  // close racing an act in flight could destroy the liste the act's answer
+  // is about to repaint.
+  await expect(page.locator('[data-action="liste-fermer-demande"]')).toBeDisabled();
   await page.locator('[data-action="liste-fermer"]').click();
   await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
 
@@ -728,4 +732,71 @@ test('CREATOR — « Mes cadeaux » reads fresh: hors-ligne retries, the code sh
   await page.locator('[data-action="liste-fermer"]').click();
   await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
   await expect(page.locator('[data-role="vitrine-liste-carte"]')).toContainText('La liste de Awa · 2 envies');
+});
+
+/**
+ * LISTE-FERMER-2 — THE DIRECT ROAD (founder, 2026-08-27: « Add the direct
+ * Fermer ma liste button as well »). The same confirm face, the same act,
+ * the same wire — reached without removing anything. The four questions:
+ * the tree survives the tap (gestion → the question → back → the farewell)
+ * · the entry is pressable and leads to the confirm whose primary is wired
+ * to the real POST · « Garder » backs out with zero wire · the next step is
+ * REACHED (the card back to the invitation, the handle gone, reload agrees).
+ */
+test('CREATOR — the direct « Fermer ma liste » asks the plain question, keeps on Garder, closes on confirm', async ({ page }) => {
+  await page.addInitScript(
+    ({ token, editCle }: { token: string; editCle: string }) => {
+      if (window.localStorage.getItem('shopplus.listes.v1') === null) {
+        window.localStorage.setItem(
+          'shopplus.listes.v1',
+          JSON.stringify({ 'aicha-4821': { token, editCle, nom: 'Awa', pids: ['p1', 'p2'], createdAt: 'T' } }),
+        );
+      }
+    },
+    { token: TOKEN, editCle: 'E'.repeat(32) },
+  );
+  const fermetures: Record<string, unknown>[] = [];
+  await page.route('**/listes/**', async (route: Route) => {
+    if (/\/fermer$/.test(route.request().url())) {
+      fermetures.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+      return;
+    }
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, liste: { nom: 'Awa', slug: 'aicha-4821', articles: [{ pid: 'p1', offert: false }, { pid: 'p2', offert: false }] } }),
+    });
+  });
+  await page.goto(`${BASE}/?demo-vitrine=aicha-4821`);
+  await expect(page.locator('[data-role="vitrine-liste-carte"]')).toContainText('La liste de Awa · 2 envies');
+
+  // gestion — BOTH articles still on the liste; the direct entry below them
+  await page.locator('[data-role="vitrine-liste-carte"] [data-action="liste-creer"]').click();
+  await expect(page.locator('[data-action="liste-retirer"][data-pid="p1"]')).toBeVisible();
+  await page.locator('[data-action="liste-fermer-demande"]').click();
+
+  // THE PLAIN QUESTION — the direct road's own sentence, zero wire so far
+  await expect(page.locator('[data-role="liste-fermer-question"]')).toHaveText(
+    'Fermer votre liste ? Votre lien ne marchera plus.',
+  );
+  expect(fermetures).toHaveLength(0);
+
+  // « Garder ma liste » walks back to the sheet — still zero wire
+  await page.locator('[data-action="liste-garder"]').click();
+  await expect(page.locator('[data-action="liste-retirer"][data-pid="p2"]')).toBeVisible();
+  expect(fermetures).toHaveLength(0);
+
+  // the confirmed close — the exact one-key wire, the farewell, the invitation
+  await page.locator('[data-action="liste-fermer-demande"]').click();
+  await page.locator('[data-action="liste-fermer-liste"]').click();
+  await expect(page.locator('[data-role="liste-fermee"]')).toContainText('votre liste est fermée');
+  expect(fermetures).toEqual([{ editCle: 'E'.repeat(32) }]);
+  await expect(page.locator('[data-role="vitrine-liste-inviter"]')).toBeVisible();
+
+  // the handle is gone; a reload agrees
+  const handle = await page.evaluate(() => window.localStorage.getItem('shopplus.listes.v1'));
+  expect(JSON.parse(handle ?? '{}')).toEqual({});
+  await page.reload();
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  await expect(page.locator('[data-role="vitrine-liste-inviter"]')).toBeVisible();
 });

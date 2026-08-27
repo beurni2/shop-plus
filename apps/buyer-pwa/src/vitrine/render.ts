@@ -679,6 +679,13 @@ export function renderListeGestion(
     ajoutables.length === 0
       ? `<div class="vt-liste-texte" data-role="liste-ajout-vide">${t('vit.liste_ajouter_vide')}</div>`
       : `<div class="vt-liste-rows">${ajoutables.map(rowAjoutable).join('')}</div>`,
+    // LISTE-FERMER-2 (founder, 2026-08-27: « Add the direct Fermer ma liste
+    // button as well ») — the direct road to the same asked question, a
+    // deliberate whisper BELOW both sections: closing is never the sheet's
+    // primary action. It shares the row-btn class so the in-flight act
+    // disable-and-wake law covers it with its siblings; the wire stays
+    // untouched until the confirm face answers.
+    `<button class="vt-liste-row-btn vt-liste-fermer-directe" data-action="liste-fermer-demande">${t('vit.liste_fermer_cta')}</button>`,
     '</div>',
     '</div>',
   ].join('');
@@ -694,13 +701,18 @@ export function renderListeGestion(
  * stops working), one primary action that closes, one whisper that keeps.
  * The refusal path is as dignified as the act (the trust test): « Garder ma
  * liste » walks straight back to the gestion sheet, nothing spent.
+ *
+ * LISTE-FERMER-2 — the SAME face now serves TWO roads, so the question is a
+ * parameter: the last-Retirer road explains why the tap led here; the
+ * direct « Fermer ma liste » entry asks plainly. One face, one confirm act,
+ * one wire — only the sentence differs.
  */
-export function renderListeFermerConfirm(): string {
+export function renderListeFermerConfirm(question: string): string {
   return [
     '<div class="vt-liste-voile" data-role="liste-sheet" data-face="fermer">',
     '<div class="vt-liste-sheet">',
     `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${t('vit.liste_sheet_titre')}</div><button class="vt-liste-fermer" data-action="liste-fermer" aria-label="${t('vit.liste_fermer_aria')}">×</button></div>`,
-    `<div class="vt-liste-texte" data-role="liste-fermer-question">${t('vit.liste_fermer_question')}</div>`,
+    `<div class="vt-liste-texte" data-role="liste-fermer-question">${question}</div>`,
     '<div class="vt-liste-alerte" data-role="liste-alerte" hidden></div>',
     `<button class="vt-liste-valider" data-action="liste-fermer-liste">${t('vit.liste_fermer_cta')}</button>`,
     `<button class="vt-liste-secondaire" data-action="liste-garder">${t('vit.liste_garder_cta')}</button>`,

@@ -488,15 +488,31 @@ describe('« Mes cadeaux » and « Fermer ma liste »', () => {
     expect(band).toContain('Mes cadeaux');
   });
 
-  it('the confirm face asks in plain words with the close primary and the keep whisper; the farewell states what changed', () => {
-    const confirm = renderListeFermerConfirm();
+  it('the confirm face asks the question IT WAS GIVEN (two roads, one face) with the close primary and the keep whisper; the farewell states what changed', () => {
+    const confirm = renderListeFermerConfirm('Retirer le dernier article ferme votre liste. Votre lien ne marchera plus.');
     expect(confirm).toContain('Retirer le dernier article ferme votre liste. Votre lien ne marchera plus.');
     expect(confirm).toContain('data-action="liste-fermer-liste"');
     expect(confirm).toContain('data-action="liste-garder"');
     expect(confirm).toContain('data-role="liste-alerte"');
+    const directe = renderListeFermerConfirm('Fermer votre liste ? Votre lien ne marchera plus.');
+    expect(directe).toContain('Fermer votre liste ?');
+    expect(directe).toContain('data-action="liste-fermer-liste"');
     const adieu = renderListeFermee();
     expect(adieu).toContain('votre liste est fermée');
     expect(adieu).toContain('data-action="liste-fermer"');
+  });
+
+  it('LISTE-FERMER-2 — the gestion sheet carries the direct close entry, a row-btn sibling below both sections', () => {
+    const catalogue = articlesPourModif(SF as never, prods() as never);
+    const [p1] = [...catalogue.values()];
+    const sheet = renderListeGestion([{ p: p1!, offert: false }], []);
+    expect(sheet).toContain('data-action="liste-fermer-demande"');
+    expect(sheet).toContain('Fermer ma liste');
+    // the row-btn class is load-bearing: it is what makes the in-flight act
+    // disable-and-wake law cover this button with its siblings
+    expect(sheet).toContain('vt-liste-row-btn vt-liste-fermer-directe');
+    // the entry renders AFTER the add section — a whisper below, never a header
+    expect(sheet.indexOf('liste-fermer-demande')).toBeGreaterThan(sheet.indexOf('liste-ajout-vide'));
   });
 
   it('the cadeaux sheet: empty is honest with the share way forward; hors-ligne retries by the SAME action; introuvable offers the fresh start', () => {

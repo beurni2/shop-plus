@@ -709,7 +709,7 @@ export function mountVitrine(
       // and effect stated, nothing on the wire until she answers.
       if (action === 'liste-retirer' && actuels.length <= 1) {
         const sheet = root.querySelector('[data-role="liste-sheet"][data-face="gestion"]');
-        if (sheet !== null) sheet.outerHTML = renderListeFermerConfirm();
+        if (sheet !== null) sheet.outerHTML = renderListeFermerConfirm(t('vit.liste_fermer_question'));
         return;
       }
       if (action === 'liste-ajouter' && actuels.length >= LISTE_MAX_ARTICLES) return direAlerte(t('vit.liste_trop'));
@@ -746,6 +746,13 @@ export function mountVitrine(
         const composed = composeGestion();
         if (sheet !== null && composed !== null) sheet.outerHTML = renderListeGestion(composed.miennes, composed.ajoutables);
       });
+    } else if (action === 'liste-fermer-demande') {
+      // LISTE-FERMER-2 — the direct road to the SAME question. Nothing on
+      // the wire until she answers; the acteEnCours guard is belt and
+      // braces (the button already sleeps with its row-btn siblings).
+      if (acteEnCours) return;
+      const sheet = root.querySelector('[data-role="liste-sheet"][data-face="gestion"]');
+      if (sheet !== null) sheet.outerHTML = renderListeFermerConfirm(t('vit.liste_fermer_directe'));
     } else if (action === 'liste-garder') {
       // LISTE-FERMER — the dignified way back from the question: recompose
       // the gestion sheet from the HELD truth. Zero wire, nothing lost.

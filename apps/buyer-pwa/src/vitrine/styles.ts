@@ -425,6 +425,13 @@ export const VITRINE_STYLES = `
   }
   .vt-liste-offert-badge svg { flex: none; }
 
+  /* LISTE-FERMER-2 — the direct close entry: full width below the sections,
+   * the alerte red spoken quietly (destructive, never shouting). */
+  .vt-liste-fermer-directe {
+    display: block; width: 100%; margin-top: 16px;
+    border-color: rgba(180,84,75,.45); color: #B4544B;
+  }
+
   /* LISTE-CADEAUX — her gifts' rows and the remise code (large, confident
    * figures — the money-moment trust law). */
   .vt-liste-cadeau {

@@ -1644,6 +1644,12 @@
   "screenClass": "status"
  },
  {
+  "key": "vit.liste_fermer_directe",
+  "fr": "Fermer votre liste ? Votre lien ne marchera plus.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "vit.liste_fermer_cta",
   "fr": "Fermer ma liste",
   "register": "neutral",
