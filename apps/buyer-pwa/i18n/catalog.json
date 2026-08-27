@@ -1692,6 +1692,12 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.liste_voix_trop_longue",
+  "fr": "Votre note est trop longue. Refaites-la plus courte.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "vit.liste_voix_en_cours",
   "fr": "Terminez d'abord votre note : appuyez sur Arrêter.",
   "register": "neutral",

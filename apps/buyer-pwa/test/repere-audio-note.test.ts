@@ -91,3 +91,42 @@ describe('the recorder — a device with no microphone road answers the honest r
     expect(await rec.arreter()).toBeNull();
   });
 });
+
+describe('LISTE-VOIX — the bitrate request reaches the recorder', () => {
+  it('reglages.audioBitsPerSecond rides the MediaRecorder constructor; absent means absent (the checkout unchanged)', async () => {
+    // A stub recorder at the NATIVE boundary only (the doubles law): it
+    // captures the constructor options — which is the whole claim under
+    // test, because the voice bitrate is what keeps a 5-minute note inside
+    // the wire's 1.4M-char bound.
+    const constructions: (MediaRecorderOptions | undefined)[] = [];
+    class FauxRecorder {
+      constructor(_stream: unknown, options?: MediaRecorderOptions) {
+        constructions.push(options);
+      }
+      static isTypeSupported(): boolean { return true; }
+      addEventListener(): void {}
+      start(): void {}
+    }
+    const held = {
+      MediaRecorder: (globalThis as { MediaRecorder?: unknown }).MediaRecorder,
+      navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'),
+    };
+    (globalThis as { MediaRecorder?: unknown }).MediaRecorder = FauxRecorder;
+    // Node's `navigator` is getter-only — replaced via defineProperty, and
+    // the original descriptor restored whole in the finally.
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: { mediaDevices: { getUserMedia: async () => ({ getTracks: () => [] }) } },
+    });
+    try {
+      const { creerEnregistreurNote } = await import('../src/cliente/voice-note');
+      expect(await creerEnregistreurNote({ audioBitsPerSecond: 24_000 }).demarrer()).toBe('recording');
+      expect(constructions[0]?.audioBitsPerSecond).toBe(24_000);
+      expect(await creerEnregistreurNote().demarrer()).toBe('recording');
+      expect(constructions[1]).not.toHaveProperty('audioBitsPerSecond');
+    } finally {
+      (globalThis as { MediaRecorder?: unknown }).MediaRecorder = held.MediaRecorder;
+      if (held.navigator !== undefined) Object.defineProperty(globalThis, 'navigator', held.navigator);
+    }
+  });
+});

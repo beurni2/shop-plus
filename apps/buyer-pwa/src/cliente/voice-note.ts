@@ -44,7 +44,15 @@ function base64Of(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
-export function creerEnregistreurNote(): EnregistreurNote {
+/** LISTE-VOIX — an optional bitrate REQUEST (the browser may approximate):
+ *  the liste's repère records five minutes, and only a voice-grade Opus
+ *  stream keeps five minutes inside the wire's ~1 MiB base64 bound. The
+ *  checkout's own recorder passes nothing and behaves exactly as before. */
+export interface ReglagesNote {
+  readonly audioBitsPerSecond?: number;
+}
+
+export function creerEnregistreurNote(reglages?: ReglagesNote): EnregistreurNote {
   let recorder: MediaRecorder | null = null;
   let stream: MediaStream | null = null;
   let chunks: Blob[] = [];
@@ -67,7 +75,10 @@ export function creerEnregistreurNote(): EnregistreurNote {
       }
       const mime = MIMES.find((m) => MediaRecorder.isTypeSupported(m));
       try {
-        recorder = mime !== undefined ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+        recorder = new MediaRecorder(stream, {
+          ...(mime !== undefined ? { mimeType: mime } : {}),
+          ...(reglages?.audioBitsPerSecond !== undefined ? { audioBitsPerSecond: reglages.audioBitsPerSecond } : {}),
+        });
       } catch {
         liberer();
         return 'refused';

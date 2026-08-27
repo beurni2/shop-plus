@@ -116,8 +116,10 @@ export interface ListeLivraison {
 const AUDIO_REF_LISTE = /^media\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 /** The note's wire bounds, mirrored from the order road (readBuyerContactWire):
- *  ~1 MiB of bytes base64'd (the capture UI stops at 30 s), alphabet-checked
- *  so a malformed note refuses LOUDLY instead of dying quietly on atob. */
+ *  ~1 MiB of bytes base64'd, alphabet-checked so a malformed note refuses
+ *  LOUDLY instead of dying quietly on atob. The liste's capture UI stops at
+ *  5 minutes and records at a voice bitrate that keeps the longest note
+ *  inside this bound (and mirrors it inline before the wire is spent). */
 const AUDIO_B64_MAX_CHARS = 1_400_000;
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 

@@ -694,7 +694,11 @@ export function mountVitrine(
       }
       voixDemande = true;
       const epochVoix = voixEpoch;
-      const enr = creerEnregistreurNote();
+      // 5-MINUTE NOTES (founder, 2026-08-27) fit the wire ONLY at a voice
+      // bitrate: 24 kbps Opus × 300 s ≈ 900 KB ≈ 1.2 M base64 chars, inside
+      // the order wire's 1.4 M bound with margin. Speech at 24 kbps Opus is
+      // clean; the browser may approximate, so créer mirrors the bound too.
+      const enr = creerEnregistreurNote({ audioBitsPerSecond: 24_000 });
       void enr.demarrer().then((etat) => {
         voixDemande = false;
         // The sheet that asked is gone (closed or replaced while the prompt
@@ -714,8 +718,10 @@ export function mountVitrine(
           noteListeSecondes += 1;
           const horloge = root.querySelector('[data-role="liste-voix-duree"]');
           if (horloge !== null) horloge.innerHTML = `<v>${dureeDe(noteListeSecondes)}</v>`;
-          // The C3 cap, same number: 30 s says everything a livreur needs.
-          if (noteListeSecondes >= 30) void arreterVoix();
+          // 5 minutes max (founder, 2026-08-27: « make 5 mn max instead of
+          // 30 seconds ») — at the voice bitrate above, the longest note
+          // still fits the wire.
+          if (noteListeSecondes >= 300) void arreterVoix();
         }, 1_000);
       });
     } else if (action === 'liste-voix-arreter') {
@@ -767,6 +773,13 @@ export function mountVitrine(
       // road where a note could vanish unnamed. Refused inline instead —
       // Arrêter is under her thumb.
       if (enregistreurListe !== null || voixDemande) return direAlerte(t('vit.liste_voix_en_cours'));
+      // The wire bound, mirrored INLINE (the whatsappDigits-band pattern): a
+      // browser that ignored the bitrate request could mint a note the door
+      // would refuse with a generic erreur — she learns HERE, with the fix
+      // under her thumb (refaire, plus courte).
+      if (noteListe !== null && noteListe.audioB64.length > 1_400_000) {
+        return direAlerte(t('vit.liste_voix_trop_longue'));
+      }
       if (pids.length === 0) return direAlerte(t('vit.liste_vide_choix'));
       // The door's ceiling, mirrored INLINE (verifier MINOR 2): a 21st check
       // must be told the rule, never met with a generic erreur a retry can
