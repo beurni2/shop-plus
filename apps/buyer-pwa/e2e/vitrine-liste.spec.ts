@@ -81,7 +81,7 @@ test('CREATOR — she builds her liste, the link is created, and her band rememb
   await page.locator('[data-role="liste-tel-livraison"]').fill('70 12 34 56');
   await page.locator('[data-action="liste-valider"]').click();
   await expect(page.locator('[data-role="liste-alerte"]')).toHaveText('Choisissez votre quartier.');
-  await page.locator('[data-role="liste-quartier"]').selectOption('Dassasgho');
+  await page.locator('[data-role="liste-quartier"]').selectOption('Dassasgo');
   await page.locator('[data-role="liste-repere"]').fill('Portail bleu');
 
   // …and a complete one rides the create. THE LINK STATE IS REACHED.
@@ -92,7 +92,7 @@ test('CREATOR — she builds her liste, the link is created, and her band rememb
   expect(creates).toHaveLength(1);
   expect(creates[0]).toEqual({
     slug: 'aicha-4821', nom: 'Awa', pids: ['p1'], telephone: '70 12 34 56',
-    livraison: { telephone: '70 12 34 56', quartier: 'Dassasgho', repere: 'Portail bleu', zone: 'Dassasgho, Ouagadougou' },
+    livraison: { telephone: '70 12 34 56', quartier: 'Dassasgo', repere: 'Portail bleu', zone: 'Dassasgo, Ouagadougou' },
   });
 
   // The way out closes the sheet; the band now shows HER liste.
@@ -420,7 +420,7 @@ test('CHECKOUT — listeRef rides the REAL order create; the confirmed screen of
   await page.locator('[data-screen="C1"]').waitFor();
   await page.locator('[data-action="commander"]').click();
   await page.locator('[data-screen="C3"]').waitFor();
-  await page.locator('[data-action="zone"][data-zone="Gounghin Sud"]').click();
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
   await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
   await page.locator('[data-role="phone"]').fill('70 12 34 56');
   await page.locator('[data-action="continuer-c3"]').click();
@@ -482,7 +482,7 @@ test('GIFT — the friend only pays: C3 never mounts, « Livré chez Awa, à son
     window.sessionStorage.setItem(
       'sp-reprise:v1',
       JSON.stringify({
-        lien: 'aicha-4821#p2', ecran: 'C5', zone: 'Gounghin Sud', repere: 'Face au marché',
+        lien: 'aicha-4821#p2', ecran: 'C5', zone: 'Gounghin', repere: 'Face au marché',
         indic: '', phone: '70 99 88 77', delivery: 'today', pay: 'A', orderId: null, buyerRef: null, essai: 0,
       }),
     );
@@ -876,7 +876,7 @@ test('CREATOR — she records the repère: the bytes ride the create inside livr
   await page.locator('[data-role="liste-voix-faite"]').waitFor();
 
   // the address facts, then the create
-  await page.locator('[data-role="liste-quartier"]').selectOption('Dassasgho');
+  await page.locator('[data-role="liste-quartier"]').selectOption('Dassasgo');
   await page.locator('[data-role="liste-tel-livraison"]').fill('70 12 34 56');
   await page.locator('[data-action="liste-valider"]').click();
 
@@ -890,7 +890,7 @@ test('CREATOR — she records the repère: the bytes ride the create inside livr
   expect(creates).toHaveLength(1);
   const livraison = creates[0]!['livraison'] as Record<string, unknown>;
   expect(Object.keys(livraison).sort()).toEqual(['audioB64', 'quartier', 'repere', 'telephone', 'zone']);
-  expect(livraison['quartier']).toBe('Dassasgho');
+  expect(livraison['quartier']).toBe('Dassasgo');
   expect('audioRef' in livraison).toBe(false);
   const bytes = Buffer.from(String(livraison['audioB64']), 'base64');
   expect(bytes.length).toBeGreaterThan(0);

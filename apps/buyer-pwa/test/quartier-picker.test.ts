@@ -18,7 +18,7 @@ describe('renderC3 — the quartier block', () => {
     const html = renderC3(BASE);
     expect(html).toContain('data-role="quartier-filtre"');
     expect(html).toContain('Votre quartier');
-    for (const q of ['Rimkièta', 'Ouaga 2000', 'Bissighin', 'Kossodo', 'Gounghin Sud']) {
+    for (const q of ['Rimkiéta', 'Ouaga 2000', 'Bissighin', 'Kossyam', 'Gounghin']) {
       expect(html).toContain(`data-zone="${q}"`);
     }
     expect((html.match(/data-action="zone"/g) ?? []).length).toBe(QUARTIERS_OUAGADOUGOU.length);
@@ -33,14 +33,14 @@ describe('renderC3 — the quartier block', () => {
 
   it('typing narrows accent- and case-insensitively', () => {
     const html = renderQuartierChips(null, 'rimkieta');
-    expect(html).toContain('data-zone="Rimkièta"');
+    expect(html).toContain('data-zone="Rimkiéta"');
     expect((html.match(/data-action="zone"/g) ?? []).length).toBe(1);
   });
 
   it('NO MATCH is never a dead end: her typed text is offered as the chip, escaped', () => {
-    const html = renderQuartierChips(null, 'Zone du Bois');
-    expect(html).toContain('Utiliser « Zone du Bois »');
-    expect(html).toContain('data-zone="Zone du Bois"');
+    const html = renderQuartierChips(null, 'Tanghin-Dassouri');
+    expect(html).toContain('Utiliser « Tanghin-Dassouri »');
+    expect(html).toContain('data-zone="Tanghin-Dassouri"');
     const hostile = renderQuartierChips(null, '<img src=x onerror=alert(1)>');
     expect(hostile).not.toContain('<img');
     // ATTRIBUTE context too (verifier note): her text also lands inside

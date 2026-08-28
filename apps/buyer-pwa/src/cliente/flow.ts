@@ -738,7 +738,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   function prefill(screen: EcranLineaire): void {
     const idx = ECRANS.indexOf(screen);
     if (idx >= 1) {
-      state.zone = state.zone || 'Gounghin Sud';
+      state.zone = state.zone || 'Gounghin';
       state.repere = state.repere || 'Face à la pharmacie du marché';
     }
     if (idx >= 2 && screen !== 'C3') state.delivery = state.delivery || 'today';
@@ -798,7 +798,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // Render-time fallbacks — the pixel's zoneUpper/repereRecap `||` pair,
         // so a direct C4 mount shows a coherent récap without touching state.
         return q === null ? renderRefus('') : renderC4(q, {
-          zone: state.zone || 'Gounghin Sud',
+          zone: state.zone || 'Gounghin',
           repereRecap: (state.repere || 'Face à la pharmacie du marché') + (state.indic ? ` · ${state.indic}` : ''),
           delivery: state.delivery,
           ligneUnique: state.serverQuote !== null,

@@ -158,8 +158,8 @@ export type ConfirmEtat = 'confirmed' | 'attente' | 'echec' | 'pending' | 'offli
 /**
  * QUARTIERS-OUAGA-1 (founder order 2026-08-22) — the eight hand-picked zones
  * are retired: the picker now carries the OFFICIAL répartition of Ouagadougou
- * (Loi n°066-2009/AN, 12 arrondissements — sourced and pinned in
- * quartiers-ouagadougou.ts), with a filter on top because 77 chips need a
+ * (12 arrondissements, 55 secteurs — the founder’s 2026-08-28 répartition,
+ * quartiers-ouagadougou.ts), with a filter on top because 101 chips need a
  * way in. No list can gate her: a quartier the doc does not know (villages
  * rattachés, new lotissements) is offered back as her own typed text.
  */

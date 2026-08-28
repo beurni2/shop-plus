@@ -80,7 +80,7 @@ export const DEMO_STORES: readonly DemoStore[] = [
   },
   {
     storefrontId: 'sf_kadi', resellerId: 'res_kadi', storeName: 'BOUTIQUE KADI', resellerName: 'Kadi',
-    shortCode: 'KADI-5530', zone: 'Dassasgho', vitrineZone: 'Dassasgho, Ouagadougou', slug: 'kadi-5530',
+    shortCode: 'KADI-5530', zone: 'Dassasgo', vitrineZone: 'Dassasgo, Ouagadougou', slug: 'kadi-5530',
     productCount: 9, verified: true, daysAgo: 3, deliveredSales: 61,
     products: [
       { productName: 'Chaussures femme', priceFcfa: 12_000, inStock: true },

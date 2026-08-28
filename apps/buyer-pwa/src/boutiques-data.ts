@@ -74,7 +74,7 @@ const STORES: readonly BoutiqueEntry[] = projectStores(demoStoreEvents()).map((s
 
 /** The zone filter chips, in mockup order (« TOUTES » is the no-filter chip). */
 export const BOUTIQUE_ZONES: readonly string[] = Object.freeze([
-  'Rood Woko', 'Gounghin', 'Dassasgho', 'Tanghin',
+  'Rood Woko', 'Gounghin', 'Dassasgo', 'Tanghin',
 ]);
 
 /** The deterministic order (SP-I11), already applied by the producer (last update desc). */

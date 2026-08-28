@@ -82,7 +82,7 @@ export const CERCLE_DIVERS = {
 } as const;
 
 export const RECIPES: readonly RecipeId[] = ['Nouveauté', 'Quartier', 'Dernières Pièces'];
-export const ZONES: readonly string[] = ['Ouaga 2000', 'Gounghin', 'Cissin', 'Dassasgho', 'Tampouy'];
+export const ZONES: readonly string[] = ['Ouaga 2000', 'Gounghin', 'Cissin', 'Dassasgo', 'Tampouy'];
 export const FENETRE = 'Samedi 10 h – 12 h'; // §9.1 frozen: ONE v1 window, a constant
 
 export const K_MIN = 0;
@@ -384,7 +384,7 @@ export const CERCLE_MEMBRES: readonly CercleMembre[] = [
   { name: 'Habibou Zongo', zone: 'Cissin', interet: 'Tissus', seg: 'Fidèle' },
   { name: 'Rihanata Sana', zone: 'Gounghin', interet: 'Nouveautés', seg: 'Nouvelle' },
   { name: 'Adja Compaoré', zone: 'Tampouy', interet: 'Beauté', seg: 'À relancer' },
-  { name: 'K. Traoré', zone: 'Dassasgho', interet: 'Maison', seg: 'Nouvelle' },
+  { name: 'K. Traoré', zone: 'Dassasgo', interet: 'Maison', seg: 'Nouvelle' },
 ];
 
 /** M1 filter chips (« Toutes » first; segment ∨ zone). */

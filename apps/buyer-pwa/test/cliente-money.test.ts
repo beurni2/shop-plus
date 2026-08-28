@@ -30,7 +30,7 @@ const N = '\u202f'; // the only NNBSP source in this test — no raw byte in the
 
 const Q = composeQuote(ROBE.priceFcfa);
 
-const C3_BASE: C3State = { zoneFiltre: '', zone: 'Gounghin Sud', repere: 'Face à la pharmacie du marché', indic: '', phone: '70 12 34 56', voice: 'idle', recTime: '0:00', canContinue: true };
+const C3_BASE: C3State = { zoneFiltre: '', zone: 'Gounghin', repere: 'Face à la pharmacie du marché', indic: '', phone: '70 12 34 56', voice: 'idle', recTime: '0:00', canContinue: true };
 
 /** Tags out, NOTHING inserted — the concatenated text a buyer reads. */
 const stripTags = (html: string): string => html.replace(/<[^>]+>/g, '');
@@ -158,7 +158,7 @@ describe('every rendered amount carries the money bytes; no bare F, no breakable
     ['C3-recorded', renderC3({ ...C3_BASE, voice: 'recorded', recTime: '0:07' })],
     ['C3-queued', renderC3({ ...C3_BASE, voice: 'queued' })],
     ['C3-refused', renderC3({ ...C3_BASE, voice: 'refused' })],
-    ['C4', renderC4(Q, { zone: 'Gounghin Sud', repereRecap: 'Face à la pharmacie du marché', delivery: 'today' })],
+    ['C4', renderC4(Q, { zone: 'Gounghin', repereRecap: 'Face à la pharmacie du marché', delivery: 'today' })],
     ['C5-choix-today', renderC5(ROBE, Q, { delivery: 'today', pay: 'B', paying: 'idle', bInel: false })],
     ['C5-choix-tomorrow', renderC5(ROBE, Q, { delivery: 'tomorrow', pay: 'A', paying: 'idle', bInel: false })],
     ['C5-inel', renderC5(ROBE, Q, { delivery: 'today', pay: 'A', paying: 'idle', bInel: true })],

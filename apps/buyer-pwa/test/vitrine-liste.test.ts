@@ -422,7 +422,7 @@ describe('the private address block', () => {
         globalThis.fetch = held;
       }
     };
-    const adresse = { telephone: '70123456', quartier: 'Dassasgho', repere: 'Portail bleu', zone: 'Dassasgho, Ouagadougou' };
+    const adresse = { telephone: '70123456', quartier: 'Dassasgo', repere: 'Portail bleu', zone: 'Dassasgo, Ouagadougou' };
     const fait = await run(adresse);
     expect(sent).toEqual({ slug: 's-1', nom: 'Awa', pids: ['p1'], livraison: adresse });
     expect(fait.status).toBe('creee');
@@ -710,7 +710,7 @@ describe('the recorded repère', () => {
         });
       },
       () => httpListePort('https://svc').creer('s-1', 'Awa', ['p1'], undefined, {
-        telephone: '70 12 34 56', quartier: 'Dassasgho', repere: '', zone: 'Dassasgho, Ouagadougou', audioB64: 'AAAA',
+        telephone: '70 12 34 56', quartier: 'Dassasgo', repere: '', zone: 'Dassasgo, Ouagadougou', audioB64: 'AAAA',
       }),
     );
     expect((sent?.['livraison'] as Record<string, unknown>)['audioB64']).toBe('AAAA');
