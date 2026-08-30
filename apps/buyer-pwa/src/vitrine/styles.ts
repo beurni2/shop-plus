@@ -437,6 +437,8 @@ export const VITRINE_STYLES = `
   }
   .vt-liste-voix-duree { font-variant-numeric: tabular-nums; }
   .vt-liste-voix-texte { flex: 1; min-width: 0; }
+  .vt-liste-geo { margin-top: 8px; display: flex; align-items: center; gap: 10px; }
+  .vt-liste-geo-btn { margin-top: 8px; }
 
   /* LISTE-FERMER-2 — the direct close entry: full width below the sections,
    * the alerte red spoken quietly (destructive, never shouting). */

@@ -3248,7 +3248,7 @@ export default {
         );
         if (luLivraison.status === 200) {
           const livre = (await luLivraison.json().catch(() => null)) as
-            | { livraison?: { telephone?: unknown; quartier?: unknown; repere?: unknown; zone?: unknown; audioRef?: unknown } }
+            | { livraison?: { telephone?: unknown; quartier?: unknown; repere?: unknown; zone?: unknown; audioRef?: unknown; pin?: unknown } }
             | null;
           const livraison = livre?.livraison;
           if (
@@ -3260,6 +3260,10 @@ export default {
             if (contact !== null) return refuse('liste_contact_conflit');
             const quoteZone = (quoteBody.fulfillment as { zoneTo?: unknown } | null | undefined)?.zoneTo;
             if (quoteZone !== livraison.zone) return refuse('liste_zone_incoherente');
+            // GEO-ACHAT-1 (liste half) — re-read through the pin validator as
+            // belt and braces; the stored-contact validator would refuse a
+            // malformed one anyway.
+            const pinListe = livraison.pin !== undefined ? readPin(livraison.pin) : null;
             contact = {
               phone: livraison.telephone,
               quartier: livraison.quartier,
@@ -3271,6 +3275,9 @@ export default {
               ...(typeof livraison.audioRef === 'string' && AUDIO_REF.test(livraison.audioRef)
                 ? { audioRef: livraison.audioRef }
                 : {}),
+              // GEO-ACHAT-1 (liste half) — her pin rides onto the same
+              // dispatch-board field a buyer's own tap lands on.
+              ...(pinListe !== null ? { pin: pinListe } : {}),
             };
           }
         }

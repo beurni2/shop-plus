@@ -897,3 +897,69 @@ test('CREATOR — she records the repère: the bytes ride the create inside livr
   // Chromium's recorder emits WebM — the exact EBML head the media door sniffs.
   expect([...bytes.subarray(0, 4)]).toEqual([0x1a, 0x45, 0xdf, 0xa3]);
 });
+
+/* ═══ GEO-ACHAT-1 (liste half) — HER PIN ON THE CREATE SHEET, DRIVEN ══════
+ * The real Geolocation API under Playwright's grant, the C3 walk's laws on
+ * this surface: consent spoken on the kept face, RETIRER total, the closed
+ * sheet forgets its pin, a pin alone touches the address block, and the
+ * create carries the EXACT bytes the device produced. */
+
+test('GEO-ACHAT-1 · her pin on the liste: consent spoken, RETIRER total, the closed sheet forgets, the exact bytes on the create', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation']);
+  await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });
+  const creates: Record<string, unknown>[] = [];
+  await page.route('**/listes', async (route: Route) => {
+    creates.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true, token: TOKEN, editCle: 'E'.repeat(32),
+        liste: { nom: 'Awa', slug: 'aicha-4821', articles: [{ pid: 'p1', offert: false }] },
+      }),
+    });
+  });
+  await page.goto(`${BASE}/?demo-vitrine=aicha-4821`);
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  await page.locator('[data-action="liste-creer"]').click();
+  await expect(page.locator('[data-role="liste-sheet"]')).toBeVisible();
+
+  // One tap → the kept face, its consent sentence verbatim.
+  await page.locator('[data-action="liste-geo-demander"]').click();
+  await page.locator('[data-role="liste-geo-faite"]').waitFor();
+  await expect(page.locator('[data-role="liste-geo-faite"]')).toContainText('partagée seulement avec votre livreur');
+
+  // RETIRER is total — the quiet offer returns.
+  await page.locator('[data-action="liste-geo-retirer"]').click();
+  await page.locator('[data-action="liste-geo-demander"]').waitFor();
+
+  // A closed sheet forgets its pin — DRIVEN, not read: capture, close,
+  // reopen, and the face is the quiet offer again.
+  await page.locator('[data-action="liste-geo-demander"]').click();
+  await page.locator('[data-role="liste-geo-faite"]').waitFor();
+  await page.locator('[data-action="liste-fermer"]').click();
+  await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
+  await page.locator('[data-action="liste-creer"]').click();
+  await page.locator('[data-role="liste-sheet"]').waitFor();
+  await page.locator('[data-action="liste-geo-demander"]').waitFor();
+
+  // A pin ALONE touches the address block: quartier + phone refuse inline
+  // (a pin with nobody to call ahead to is a delivery that cannot happen).
+  await page.locator('[data-action="liste-geo-demander"]').click();
+  await page.locator('[data-role="liste-geo-faite"]').waitFor();
+  await page.locator('input[data-liste-pid="p1"]').check();
+  await page.locator('[data-role="liste-nom"]').fill('Awa');
+  await page.locator('[data-action="liste-valider"]').click();
+  await expect(page.locator('[data-role="liste-alerte"]')).toHaveText('Choisissez votre quartier.');
+  expect(creates).toHaveLength(0); // the refusal spent no wire
+
+  // The whole road — and the wire carries the EXACT device bytes.
+  await page.locator('[data-role="liste-quartier"]').selectOption('Dassasgo');
+  await page.locator('[data-role="liste-tel-livraison"]').fill('70 12 34 56');
+  await page.locator('[data-action="liste-valider"]').click();
+  await expect(page.locator('[data-role="liste-lien"]')).toBeVisible();
+  expect(creates).toHaveLength(1);
+  const livraison = creates[0]!['livraison'] as Record<string, unknown>;
+  expect(Object.keys(livraison).sort()).toEqual(['pin', 'quartier', 'repere', 'telephone', 'zone']);
+  expect(livraison['pin']).toEqual({ lat: 12.371532, lng: -1.519931, accuracy: 12 });
+});

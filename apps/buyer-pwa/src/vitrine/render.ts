@@ -626,6 +626,7 @@ export function renderListeSheet(articles: readonly VitrineProduct[], precoche: 
     // block's aide above already says who never sees any of it; the typed
     // repère stays the primary road (the C3 recorder's own law).
     `<div data-role="liste-voix-slot">${renderListeVoix({ etape: 'repos' })}</div>`,
+    `<div data-role="liste-geo-slot">${renderListeGeo('repos')}</div>`,
     '<div class="vt-liste-alerte" data-role="liste-alerte" hidden></div>',
     `<button class="vt-liste-valider" data-action="liste-valider">${t('vit.liste_creer_cta')}</button>`,
     '</div>',
@@ -676,6 +677,32 @@ export function renderListeVoix(etat: ListeVoixEtat): string {
     return `<div class="vt-liste-texte" data-role="liste-voix-refus">${t('vit.liste_voix_refus')}</div>`;
   }
   return `<button class="vt-liste-row-btn vt-liste-voix-btn" data-action="liste-voix-demarrer">${t('vit.liste_voix_demarrer')}</button>`;
+}
+
+/**
+ * GEO-ACHAT-1 (liste half) — the position block's four faces, the C3 law on
+ * this surface: the quiet offer, the search under way, the kept pin speaking
+ * its consent sentence with a total Retirer, and the honest refusal that
+ * gates nothing. The render never sees a coordinate — only the face.
+ */
+export type ListeGeoEtat = 'repos' | 'encours' | 'faite' | 'refus';
+
+export function renderListeGeo(etat: ListeGeoEtat): string {
+  if (etat === 'encours') {
+    return `<div class="vt-liste-geo" data-role="liste-geo-cours"><span class="vt-liste-voix-point"></span><span>${t('vit.liste_geo_encours')}</span></div>`;
+  }
+  if (etat === 'faite') {
+    return [
+      '<div class="vt-liste-geo" data-role="liste-geo-faite">',
+      `<span class="vt-liste-voix-texte">${t('vit.liste_geo_faite')}</span>`,
+      `<button class="vt-liste-row-btn" data-action="liste-geo-retirer">${t('vit.liste_geo_retirer')}</button>`,
+      '</div>',
+    ].join('');
+  }
+  if (etat === 'refus') {
+    return `<div class="vt-liste-texte" data-role="liste-geo-refus">${t('vit.liste_geo_refus')}</div>`;
+  }
+  return `<button class="vt-liste-row-btn vt-liste-geo-btn" data-action="liste-geo-demander">${t('vit.liste_geo_demander')}</button>`;
 }
 
 /**

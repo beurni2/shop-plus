@@ -31,6 +31,7 @@ import {
   renderListeHorsLigne,
   renderListeIntrouvable,
   renderListeLien,
+  renderListeGeo,
   renderListeGestion,
   renderListeModif,
   renderListeSheet,
@@ -740,5 +741,29 @@ describe('LISTE-VOIX — the wire bound, mirrored pure', () => {
     expect(noteDepasseLaVoie(1_400_000)).toBe(false); // the door accepts AT the bound
     expect(noteDepasseLaVoie(1_400_001)).toBe(true);  // one char over refuses
     expect(noteDepasseLaVoie(1_200_000)).toBe(false); // a full 5-minute voice-bitrate note fits
+  });
+});
+
+describe('GEO-ACHAT-1 (liste half) — the position block faces, and its slot in the create sheet', () => {
+  it('the create sheet carries the geo slot on the quiet offer, below the voice road', () => {
+    const sheet = renderListeSheet(articlesPourListe(SF as never, prods() as never), new Set());
+    expect(sheet).toContain('data-role="liste-geo-slot"');
+    expect(sheet).toContain('data-action="liste-geo-demander"');
+    expect(sheet.indexOf('liste-geo-slot')).toBeGreaterThan(sheet.indexOf('liste-voix-slot'));
+  });
+
+  it('the four faces speak their catalog words — consent on the kept pin, a total Retirer, a refusal that apologises for nothing', () => {
+    expect(renderListeGeo('repos')).toContain('Ajouter ma position');
+    const cours = renderListeGeo('encours');
+    expect(cours).toContain('data-role="liste-geo-cours"');
+    expect(cours).toContain('Recherche de votre position…');
+    const faite = renderListeGeo('faite');
+    expect(faite).toContain('data-role="liste-geo-faite"');
+    expect(faite).toContain('Position ajoutée — partagée seulement avec votre livreur.');
+    expect(faite).toContain('data-action="liste-geo-retirer"');
+    const refus = renderListeGeo('refus');
+    expect(refus).toContain('data-role="liste-geo-refus"');
+    expect(refus).toContain('Votre repère écrit suffit.');
+    expect(refus).not.toContain('data-action="liste-geo-demander"');
   });
 });

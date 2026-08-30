@@ -108,12 +108,43 @@ export interface ListeLivraison {
    * where BC-1a's dispatch board already plays a buyer's own note.
    */
   readonly audioRef?: string;
+  /**
+   * GEO-ACHAT-1 (liste half) — her GPS pin, one optional tap on the create
+   * sheet so the rider finds the door. SUPPORTING EVIDENCE, NEVER PROOF
+   * (SE-I07); same privacy class as the telephone: it lives on the private
+   * livraison, rides the background attach onto the gift order's dispatch
+   * contact, and appears on no public projection.
+   */
+  readonly pin?: { readonly lat: number; readonly lng: number; readonly accuracy?: number };
 }
 
 /** The media ref's exact shape, mirrored from the order road's AUDIO_REF pin
  *  (worker/order-do.ts — `media/{uuid-v4}`): the ONE shape the media door has
  *  ever minted. Mirrored, not imported: src/ never imports worker/. */
 const AUDIO_REF_LISTE = /^media\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+/** GEO-ACHAT-1 — the pin's strict shape, mirrored from the order road's
+ *  `readPin` (worker/order-do.ts; src/ never imports worker/): exactly
+ *  {lat, lng, accuracy?}, finite numbers, on the globe, accuracy in
+ *  [0, 100 000] metres. Anything else refuses the livraison loudly. */
+function lirePinListe(value: unknown): { lat: number; lng: number; accuracy?: number } | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const p = value as Record<string, unknown>;
+  const allowed = new Set(['lat', 'lng', 'accuracy']);
+  for (const key of Object.keys(p)) {
+    if (!allowed.has(key)) return null;
+  }
+  const lat = p['lat'];
+  const lng = p['lng'];
+  if (typeof lat !== 'number' || !Number.isFinite(lat) || lat < -90 || lat > 90) return null;
+  if (typeof lng !== 'number' || !Number.isFinite(lng) || lng < -180 || lng > 180) return null;
+  const accuracy = p['accuracy'];
+  if (accuracy !== undefined) {
+    if (typeof accuracy !== 'number' || !Number.isFinite(accuracy) || accuracy < 0 || accuracy > 100_000) return null;
+    return { lat, lng, accuracy };
+  }
+  return { lat, lng };
+}
 
 /** The note's wire bounds, mirrored from the order road (readBuyerContactWire):
  *  ~1 MiB of bytes base64'd, alphabet-checked so a malformed note refuses
@@ -134,7 +165,7 @@ const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 export function readListeLivraison(value: unknown): { livraison: ListeLivraison; audioB64?: string } | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
   const r = value as Record<string, unknown>;
-  const allowed = new Set(['telephone', 'quartier', 'repere', 'zone', 'audioB64', 'audioRef']);
+  const allowed = new Set(['telephone', 'quartier', 'repere', 'zone', 'audioB64', 'audioRef', 'pin']);
   for (const key of Object.keys(r)) {
     if (!allowed.has(key)) return null;
   }
@@ -146,19 +177,25 @@ export function readListeLivraison(value: unknown): { livraison: ListeLivraison;
   if (typeof quartier !== 'string' || quartier.trim() === '' || quartier.length > 120) return null;
   if (typeof repere !== 'string' || repere.length > 200) return null;
   if (typeof zone !== 'string' || zone.trim() === '' || zone.length > 128) return null;
+  let pin: { lat: number; lng: number; accuracy?: number } | undefined;
+  if (r['pin'] !== undefined) {
+    const lu = lirePinListe(r['pin']);
+    if (lu === null) return null;
+    pin = lu;
+  }
   const audioB64 = r['audioB64'];
   const audioRef = r['audioRef'];
   if (audioB64 !== undefined && audioRef !== undefined) return null;
   if (audioRef !== undefined) {
     if (typeof audioRef !== 'string' || !AUDIO_REF_LISTE.test(audioRef)) return null;
-    return { livraison: { telephone, quartier, repere, zone, audioRef } };
+    return { livraison: { telephone, quartier, repere, zone, audioRef, ...(pin !== undefined ? { pin } : {}) } };
   }
   if (audioB64 !== undefined) {
     if (typeof audioB64 !== 'string' || audioB64.length === 0 || audioB64.length > AUDIO_B64_MAX_CHARS) return null;
     if (!BASE64.test(audioB64)) return null;
-    return { livraison: { telephone, quartier, repere, zone }, audioB64 };
+    return { livraison: { telephone, quartier, repere, zone, ...(pin !== undefined ? { pin } : {}) }, audioB64 };
   }
-  return { livraison: { telephone, quartier, repere, zone } };
+  return { livraison: { telephone, quartier, repere, zone, ...(pin !== undefined ? { pin } : {}) } };
 }
 
 /** What a telephone may look like ON THE WIRE before normalisation: digits

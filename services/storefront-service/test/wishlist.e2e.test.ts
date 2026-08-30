@@ -165,7 +165,7 @@ async function creerListe(
   nom = 'Awa',
   pids: string[] = ['pv-le-1', 'pv-le-2'],
   telephone?: string,
-  livraison?: { telephone: string; quartier: string; repere: string; zone: string; audioB64?: string; audioRef?: string },
+  livraison?: { telephone: string; quartier: string; repere: string; zone: string; audioB64?: string; audioRef?: string; pin?: unknown },
 ) {
   const res = await mf.dispatchFetch('http://c/listes', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1089,5 +1089,94 @@ describe('LISTE-VOIX — her recorded repère becomes a ref at create and rides 
     const trop = await creerListe(slug, 'Awa', ['pv-le-1'], undefined, { ...LIV, audioB64: 'A'.repeat(1_400_001) });
     expect(trop.status).toBe(400);
     expect(mediaCalls.length).toBe(avantMedia); // not one refused body reached the door
+  });
+});
+
+/* ═══ GEO-ACHAT-1 (liste half) — HER PIN ON THE PRIVATE LIVRAISON ═════════
+ * The C3 pin's laws, applied to this door: supporting evidence for the
+ * rider (SE-I07), same privacy class as her telephone — stored on the
+ * private livraison, attached in the background to the gift order, served
+ * ONLY on the founder's key-C dispatch read. */
+
+describe('GEO-ACHAT-1 (liste half) — her pin rides the livraison to the gift order and the board', () => {
+  const PIN = { lat: 12.371532, lng: -1.519931, accuracy: 12 };
+  const LIVRAISON_GEO = {
+    telephone: '70123456',
+    quartier: 'Dassasgo',
+    repere: 'Portail bleu, cour commune',
+    zone: 'Dassasgo, Ouagadougou',
+    pin: PIN,
+  };
+  /** Every coordinate byte, as a leak probe over any public answer. */
+  const OCTETS_PIN = /"pin"|12\.371532|-1\.519931/;
+
+  it('THE SEAM: pin at liste create → the gift order attaches it → the board serves the exact bytes — and no public read carries a coordinate', async () => {
+    const { slug, resellerId } = await boutique('0070');
+    const made = await creerListe(slug, 'Awa', ['pv-le-1'], undefined, LIVRAISON_GEO);
+    expect(made.status).toBe(200);
+    expect(made.text).not.toMatch(OCTETS_PIN);
+    const token = made.json['token'] as string;
+    const lu = await lireListe(token);
+    expect(lu.text).not.toMatch(OCTETS_PIN);
+
+    const quoteRes = await mf.dispatchFetch('http://c/checkout/quote', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug, pid: 'pv-le-1', paymentMode: 'FULL_PREPAY', listeRef: token,
+        attributionResellerId: resellerId, requestKey: freshKey(),
+      }),
+    });
+    expect(quoteRes.status).toBe(200);
+    const quoteText = await quoteRes.text();
+    expect(quoteText).not.toMatch(OCTETS_PIN);
+    const quote = safeJson(quoteText) as { quoteId?: string };
+    const held = await mf.dispatchFetch(
+      `http://c/checkout/quote/${encodeURIComponent(quote.quoteId as string)}/reserve`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commandId: 'cmd-reserve-0070', holderRef: 'holder-0070' }) },
+    );
+    expect(held.status).toBe(200);
+    const created = await mf.dispatchFetch('http://c/checkout/order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quoteId: quote.quoteId, holderRef: 'holder-0070', commandId: 'cmd-order-0070', listeRef: token,
+      }),
+    });
+    expect(created.status).toBe(200);
+    expect(await created.text()).not.toMatch(OCTETS_PIN);
+    const orderId = `ord-${quote.quoteId}`;
+
+    // THE LEDGER: the one reader of contacts serves the very bytes she tapped.
+    const board = await mf.dispatchFetch('http://c/checkout/dispatch', {
+      headers: { Authorization: `Bearer ${OPS_SECRET}` },
+    });
+    expect(board.status).toBe(200);
+    const rows = (safeJson(await board.text())['orders'] ?? []) as {
+      orderId?: string; contact?: Record<string, unknown>;
+    }[];
+    const mine = rows.find((r) => r.orderId === orderId);
+    expect(mine).toBeDefined();
+    expect(mine!.contact!['pin']).toEqual(PIN);
+    // And the public order view stays clean of it.
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}`);
+    expect(pub.status).toBe(200);
+    expect(await pub.text()).not.toMatch(OCTETS_PIN);
+  });
+
+  it('the wire REFUSES a malformed pin at the liste door — loudly, by field', async () => {
+    const { slug } = await boutique('0071');
+    const mauvais: unknown[] = [
+      { lat: 91, lng: 0 },
+      { lat: 12.3, lng: -1.5, alt: 300 },
+      { lat: '12.3', lng: -1.5 },
+      { lat: 12.3, lng: -1.5, accuracy: -1 },
+    ];
+    for (const pin of mauvais) {
+      const r = await creerListe(slug, 'Awa', ['pv-le-1'], undefined, { ...LIVRAISON_GEO, pin });
+      expect(r.status, `pin ${JSON.stringify(pin)} was not refused`).toBe(400);
+      expect(r.json).toEqual({ ok: false, reason: 'bad_field', field: 'livraison' });
+    }
+    // And a livraison WITHOUT a pin stays exactly the shipped shape — the
+    // board contact carries no pin key (the LISTE-ADRESSE road, untouched).
   });
 });

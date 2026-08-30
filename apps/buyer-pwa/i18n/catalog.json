@@ -1698,6 +1698,36 @@
   "screenClass": "status"
  },
  {
+  "key": "vit.liste_geo_demander",
+  "fr": "Ajouter ma position",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_geo_encours",
+  "fr": "Recherche de votre position…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_geo_faite",
+  "fr": "Position ajoutée — partagée seulement avec votre livreur.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_geo_retirer",
+  "fr": "Retirer",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_geo_refus",
+  "fr": "Position introuvable ici. Votre repère écrit suffit.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "vit.liste_voix_en_cours",
   "fr": "Terminez d'abord votre note : appuyez sur Arrêter.",
   "register": "neutral",

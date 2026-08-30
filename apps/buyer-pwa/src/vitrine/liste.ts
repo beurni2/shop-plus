@@ -54,6 +54,10 @@ export interface ListeLivraison {
   readonly repere: string;
   readonly zone: string;
   readonly audioB64?: string;
+  /** GEO-ACHAT-1 (liste half) — her GPS pin, one optional tap on the create
+   *  sheet (the checkout contact's own pin law): rides the CREATE only,
+   *  private to the delivery machine, never on any public read. */
+  readonly pin?: { readonly lat: number; readonly lng: number; readonly accuracy?: number };
 }
 
 /** What a successful create hands back: the share token, the edit key (kept

@@ -30,6 +30,7 @@ import {
   renderListeFermerConfirm,
   renderListeGestion,
   renderListeModif,
+  renderListeGeo,
   renderListeVoix,
   renderVitrineEmpty,
   renderVitrineInvalid,
@@ -375,6 +376,25 @@ export function mountVitrine(
     voixDemande = false;
     voixEpoch += 1;
   };
+  // GEO-ACHAT-1 (liste half) — the position block's state, the C3 law on
+  // this sheet: one optional capture, dropped if it lands after the sheet
+  // moved on, never persisted anywhere.
+  let pinListe: { lat: number; lng: number; accuracy?: number } | null = null;
+  let geoListe: Parameters<typeof renderListeGeo>[0] = 'repos';
+  let geoEpoch = 0;
+  const peindreGeo = (): void => {
+    // Teardown-safe like peindreVoix: no slot (sheet closed) → no paint.
+    const slot = root.querySelector('[data-role="liste-geo-slot"]');
+    if (slot !== null) slot.innerHTML = renderListeGeo(geoListe);
+  };
+  /** Everything forgotten — the sheet is closing or being replaced. A pin
+   *  the closed sheet no longer shows must never ride a later create (face
+   *  and wire would disagree). */
+  const rangerGeo = (): void => {
+    pinListe = null;
+    geoListe = 'repos';
+    geoEpoch += 1;
+  };
   const remplirListeSlot = (): void => {
     const slot = root.querySelector('[data-role="vitrine-liste-slot"]');
     if (slot === null || dernierPret === null) return;
@@ -649,6 +669,7 @@ export function mountVitrine(
       const gardee = listeGardee(dernierPret.sf.slug);
       root.querySelector('[data-role="liste-sheet"]')?.remove();
       rangerVoix(); // LISTE-VOIX — a replaced sheet forgets its note (face-and-wire law)
+      rangerGeo(); // GEO-ACHAT-1 — and its pin with it
       if (gardee === undefined || target.getAttribute('data-mode') === 'nouvelle') {
         const articles = articlesPourListe(dernierPret.sf, dernierPret.described);
         const precoche = new Set(articles.filter((p) => isFavorite(p.pid)).map((p) => p.pid));
@@ -686,6 +707,7 @@ export function mountVitrine(
     } else if (action === 'liste-fermer') {
       root.querySelector('[data-role="liste-sheet"]')?.remove();
       rangerVoix(); // LISTE-VOIX — mic off, ticker off, note forgotten with its sheet
+      rangerGeo(); // GEO-ACHAT-1 — the pin goes with its sheet
     } else if (action === 'liste-voix-demarrer') {
       // LISTE-VOIX — record (or re-record: the old note is REPLACED — one
       // note, one truth). The mic road is the C3 recorder module verbatim;
@@ -761,6 +783,48 @@ export function mountVitrine(
       bouton.textContent = t('vit.liste_voix_pause');
       // A blob that will not play lands back on repos — never a dead button.
       noteListeAudio.play().catch(repos);
+    } else if (action === 'liste-geo-demander') {
+      // GEO-ACHAT-1 (liste half) — one tap, HER choice; the browser's
+      // permission prompt answers first. A refusal (hers, a phone without
+      // GPS, a fix that never comes — the 10 s timeout is the way out) lands
+      // on the honest face, and the written address stays the whole road.
+      if (typeof navigator === 'undefined' || navigator.geolocation === undefined) {
+        geoListe = 'refus';
+        peindreGeo();
+        return;
+      }
+      geoListe = 'encours';
+      peindreGeo();
+      const epochGeo = geoEpoch;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          // A fix landing after the sheet moved on is DROPPED (the C3 law:
+          // an act she can no longer see is an act she cannot retract).
+          if (geoEpoch !== epochGeo || geoListe !== 'encours') return;
+          pinListe = {
+            // Six decimals ≈ 11 cm — every digit past that is noise on the
+            // wire pretending to be precision.
+            lat: Math.round(pos.coords.latitude * 1e6) / 1e6,
+            lng: Math.round(pos.coords.longitude * 1e6) / 1e6,
+            ...(Number.isFinite(pos.coords.accuracy)
+              ? { accuracy: Math.min(100_000, Math.max(0, Math.round(pos.coords.accuracy))) }
+              : {}),
+          };
+          geoListe = 'faite';
+          peindreGeo();
+        },
+        () => {
+          if (geoEpoch !== epochGeo || geoListe !== 'encours') return;
+          geoListe = 'refus';
+          peindreGeo();
+        },
+        { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
+      );
+    } else if (action === 'liste-geo-retirer') {
+      // Retirer is total: no coordinate survives it anywhere in this app.
+      pinListe = null;
+      geoListe = 'repos';
+      peindreGeo();
     } else if (action === 'liste-valider') {
       // Read what she checked and how she signs — refusals are INLINE and
       // actionable (« dites-nous votre prénom » is a field she can fill),
@@ -820,13 +884,17 @@ export function mountVitrine(
       // LISTE-VOIX — a RECORDED repère touches the block exactly as a typed
       // one does: a voice note with no quartier and no phone is a delivery
       // that cannot happen, refused inline while under her thumb.
-      if (quartierL !== '' || telL !== '' || repereL !== '' || noteListe !== null) {
+      // GEO-ACHAT-1 — a kept pin is the same kind of touch, for the same
+      // reason: a pin alone is a door nobody can call ahead to.
+      if (quartierL !== '' || telL !== '' || repereL !== '' || noteListe !== null || pinListe !== null) {
         if (quartierL === '') return direAlerte(t('vit.liste_quartier_manque'));
         if (telL === '') return direAlerte(t('vit.liste_tel_livraison_manque'));
         livraison = {
           telephone: telL, quartier: quartierL, repere: repereL,
           zone: `${quartierL}, ${villeDe(dernierPret.sf.zone)}`,
           ...(noteListe !== null ? { audioB64: noteListe.audioB64 } : {}),
+          // GEO-ACHAT-1 — present only while « Position ajoutée » stands.
+          ...(pinListe !== null ? { pin: pinListe } : {}),
         };
       }
       const bouton = target as HTMLButtonElement;
@@ -853,6 +921,7 @@ export function mountVitrine(
         // The note was consumed by the create (kept or honestly lost) — the
         // celebration face must never hide a live recorder state behind it.
         rangerVoix();
+        rangerGeo(); // GEO-ACHAT-1 — the pin was consumed by the create too
         remplirListeSlot();
       });
     } else if (action === 'liste-retirer' || action === 'liste-ajouter') {
