@@ -759,7 +759,7 @@ describe('GEO-ACHAT-1 (liste half) — the position block faces, and its slot in
     expect(cours).toContain('Recherche de votre position…');
     const faite = renderListeGeo('faite');
     expect(faite).toContain('data-role="liste-geo-faite"');
-    expect(faite).toContain('Position ajoutée — partagée seulement avec votre livreur.');
+    expect(faite).toContain('Position ajoutée. Seul votre livreur la voit.');
     expect(faite).toContain('data-action="liste-geo-retirer"');
     const refus = renderListeGeo('refus');
     expect(refus).toContain('data-role="liste-geo-refus"');

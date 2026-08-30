@@ -1711,7 +1711,7 @@
  },
  {
   "key": "vit.liste_geo_faite",
-  "fr": "Position ajoutée — partagée seulement avec votre livreur.",
+  "fr": "Position ajoutée. Seul votre livreur la voit.",
   "register": "neutral",
   "screenClass": "status"
  },

@@ -927,7 +927,7 @@ test('GEO-ACHAT-1 · her pin on the liste: consent spoken, RETIRER total, the cl
   // One tap → the kept face, its consent sentence verbatim.
   await page.locator('[data-action="liste-geo-demander"]').click();
   await page.locator('[data-role="liste-geo-faite"]').waitFor();
-  await expect(page.locator('[data-role="liste-geo-faite"]')).toContainText('partagée seulement avec votre livreur');
+  await expect(page.locator('[data-role="liste-geo-faite"]')).toContainText('Seul votre livreur la voit');
 
   // RETIRER is total — the quiet offer returns.
   await page.locator('[data-action="liste-geo-retirer"]').click();
