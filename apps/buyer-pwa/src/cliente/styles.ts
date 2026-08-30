@@ -354,7 +354,7 @@ export const CLIENTE_STYLES = `
   .cl-geo-done { margin-top: 9px; display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 15px; border-radius: 15px; border: 1.5px solid #1C1710; background: #FFFFFF; }
   .cl-geo-done-ic { color: #1C1710; display: flex; flex: none; }
   .cl-geo-done-txt { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.5; color: #1C1710; }
-  .cl-geo-retirer { border: none; background: transparent; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; white-space: nowrap; flex: none; }
+  .cl-geo-retirer { border: none; background: transparent; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; white-space: nowrap; flex: none; min-height: 44px; padding: 0 10px; display: flex; align-items: center; }
   .cl-geo-note { margin-top: 9px; display: flex; align-items: center; gap: 10px; padding: 13px 15px; border-radius: 15px; font-size: 12.5px; line-height: 1.5; }
   .cl-geo-refus { background: #F1E7D3; color: #4A3F33; }
   .cl-privline { margin-top: 14px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6F6355; }

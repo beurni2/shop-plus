@@ -1698,3 +1698,52 @@ test('GEO-ACHAT-1 · a REFUSED position gates nothing — the honest face, the r
   const contact = wire.orders[0]!.body['contact'] as Record<string, unknown>;
   expect(Object.keys(contact).sort()).toEqual(['phone', 'quartier', 'repere']);
 });
+
+test('GEO-ACHAT-1 · a fix landing AFTER she moved on is DROPPED — no pin without the consent sentence on screen (verifier MAJOR-1)', async ({ page }) => {
+  // The deferred variant of the ONE native double, bound stated as before:
+  // getCurrentPosition hands its success callback to the test instead of
+  // answering, so the fix can be fired at a chosen LATER moment. Only the
+  // browser API is doubled; no app code is stubbed.
+  await page.addInitScript(() => {
+    (window as unknown as { __geoLate: unknown }).__geoLate = null;
+    navigator.geolocation.getCurrentPosition = (ok) => {
+      (window as unknown as { __geoLate: unknown }).__geoLate = ok;
+    };
+  });
+  const wire = await scriptService(page, { orderStates: ['payment_pending'] });
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+
+  // She starts a capture, then leaves for the price without waiting for it.
+  await page.locator('[data-action="geo-demander"]').click();
+  await page.locator('[data-role="geo-cours"]').waitFor();
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
+  await page.locator('[data-role="phone"]').fill('70 12 34 56');
+  await page.locator('[data-action="continuer-c3"]').click();
+  await page.locator('[data-screen="C4"]').waitFor({ timeout: 15_000 });
+
+  // The fix lands NOW — on a screen where the consent sentence cannot show
+  // and RETIRER cannot be reached. It must go nowhere.
+  await page.evaluate(() => {
+    const ok = (window as unknown as { __geoLate: ((pos: unknown) => void) | null }).__geoLate;
+    ok?.({ coords: { latitude: 12.3, longitude: -1.5, accuracy: 8 }, timestamp: 0 });
+  });
+
+  // Back on C3 the face is the QUIET OFFER — never a phantom search, never a
+  // kept pin she was not shown. (C4 offers the retour twice — the round back
+  // and MODIFIER — one road, first affordance.)
+  await page.locator('[data-action="retour-c3"]').first().click();
+  await page.locator('[data-screen="C3"]').waitFor();
+  await page.locator('[data-action="geo-demander"]').waitFor();
+
+  // And the create carries NO pin: consent unspoken is a pin unsent.
+  await page.locator('[data-action="continuer-c3"]').click();
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+  const contact = wire.orders[0]!.body['contact'] as Record<string, unknown>;
+  expect(Object.keys(contact).sort()).toEqual(['phone', 'quartier', 'repere']);
+});
