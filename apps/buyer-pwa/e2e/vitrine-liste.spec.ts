@@ -963,3 +963,109 @@ test('GEO-ACHAT-1 · her pin on the liste: consent spoken, RETIRER total, the cl
   expect(Object.keys(livraison).sort()).toEqual(['pin', 'quartier', 'repere', 'telephone', 'zone']);
   expect(livraison['pin']).toEqual({ lat: 12.371532, lng: -1.519931, accuracy: 12 });
 });
+
+test('GEO-ACHAT-1 · a fix landing AFTER the sheet was torn down is DROPPED — the reopened sheet owes it nothing (verifier MAJOR-1, liste)', async ({ page }) => {
+  // The deferred variant of the ONE native double, bound stated as on the
+  // checkout walk: getCurrentPosition hands its success callback to the test
+  // instead of answering, so the fix can be fired at a chosen LATER moment.
+  // Only the browser API is doubled; no app code is stubbed.
+  await page.addInitScript(() => {
+    (window as unknown as { __geoLate: unknown }).__geoLate = null;
+    navigator.geolocation.getCurrentPosition = (ok) => {
+      (window as unknown as { __geoLate: unknown }).__geoLate = ok;
+    };
+  });
+  const creates: Record<string, unknown>[] = [];
+  await page.route('**/listes', async (route: Route) => {
+    creates.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true, token: TOKEN, editCle: 'E'.repeat(32),
+        liste: { nom: 'Awa', slug: 'aicha-4821', articles: [{ pid: 'p1', offert: false }] },
+      }),
+    });
+  });
+  await page.goto(`${BASE}/?demo-vitrine=aicha-4821`);
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  await page.locator('[data-action="liste-creer"]').click();
+  await expect(page.locator('[data-role="liste-sheet"]')).toBeVisible();
+
+  // She starts a capture, then closes the sheet without waiting for it.
+  await page.locator('[data-action="liste-geo-demander"]').click();
+  await page.locator('[data-role="liste-geo-cours"]').waitFor();
+  await page.locator('[data-action="liste-fermer"]').click();
+  await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
+
+  // She reopens — a fresh sheet, a fresh epoch — and only THEN the old fix
+  // lands. It answers a request from a sheet that no longer exists: on a
+  // surface where the consent sentence was never shown, it must go nowhere.
+  await page.locator('[data-action="liste-creer"]').click();
+  await page.locator('[data-role="liste-sheet"]').waitFor();
+  await page.evaluate(() => {
+    const ok = (window as unknown as { __geoLate: ((pos: unknown) => void) | null }).__geoLate;
+    ok?.({ coords: { latitude: 12.3, longitude: -1.5, accuracy: 8 }, timestamp: 0 });
+  });
+
+  // The face is the QUIET OFFER — never a phantom kept pin.
+  await page.locator('[data-action="liste-geo-demander"]').waitFor();
+  await expect(page.locator('[data-role="liste-geo-faite"]')).toHaveCount(0);
+
+  // And the create carries NO pin: consent unspoken is a pin unsent.
+  await page.locator('input[data-liste-pid="p1"]').check();
+  await page.locator('[data-role="liste-nom"]').fill('Awa');
+  await page.locator('[data-role="liste-quartier"]').selectOption('Dassasgo');
+  await page.locator('[data-role="liste-tel-livraison"]').fill('70 12 34 56');
+  await page.locator('[data-action="liste-valider"]').click();
+  await expect(page.locator('[data-role="liste-lien"]')).toBeVisible();
+  expect(creates).toHaveLength(1);
+  const livraison = creates[0]!['livraison'] as Record<string, unknown>;
+  expect(Object.keys(livraison).sort()).toEqual(['quartier', 'repere', 'telephone', 'zone']);
+});
+
+test('GEO-ACHAT-1 · a REFUSED position gates nothing on the liste — the honest face, the create goes through, no pin on the wire', async ({ page }) => {
+  // The ONE native double of this walk, its bound stated as on the checkout
+  // walk: headless Chromium has no reliable « she tapped non » knob, so the
+  // REFUSAL case replaces getCurrentPosition with an immediate
+  // PERMISSION_DENIED errback. It doubles the BROWSER's answer and nothing
+  // else — no app code is stubbed, and the granted walk above drives the
+  // fully real API.
+  await page.addInitScript(() => {
+    navigator.geolocation.getCurrentPosition = (_ok, err) => {
+      err?.({ code: 1, message: 'denied', PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 } as GeolocationPositionError);
+    };
+  });
+  const creates: Record<string, unknown>[] = [];
+  await page.route('**/listes', async (route: Route) => {
+    creates.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true, token: TOKEN, editCle: 'E'.repeat(32),
+        liste: { nom: 'Awa', slug: 'aicha-4821', articles: [{ pid: 'p1', offert: false }] },
+      }),
+    });
+  });
+  await page.goto(`${BASE}/?demo-vitrine=aicha-4821`);
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  await page.locator('[data-action="liste-creer"]').click();
+  await expect(page.locator('[data-role="liste-sheet"]')).toBeVisible();
+
+  await page.locator('[data-action="liste-geo-demander"]').click();
+  await page.locator('[data-role="liste-geo-refus"]').waitFor({ timeout: 15_000 });
+  await expect(page.locator('[data-role="liste-geo-refus"]')).toContainText('Votre repère écrit suffit.');
+
+  // The refusal gates nothing: she reaches the created liste with her
+  // written address alone.
+  await page.locator('input[data-liste-pid="p1"]').check();
+  await page.locator('[data-role="liste-nom"]').fill('Awa');
+  await page.locator('[data-role="liste-quartier"]').selectOption('Dassasgo');
+  await page.locator('[data-role="liste-tel-livraison"]').fill('70 12 34 56');
+  await page.locator('[data-action="liste-valider"]').click();
+  await expect(page.locator('[data-role="liste-lien"]')).toBeVisible();
+  expect(creates).toHaveLength(1);
+  const livraison = creates[0]!['livraison'] as Record<string, unknown>;
+  expect(Object.keys(livraison).sort()).toEqual(['quartier', 'repere', 'telephone', 'zone']);
+});
