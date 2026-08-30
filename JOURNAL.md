@@ -9,7 +9,9 @@ Format per entry:
 
 ---
 
-## 2026-08-28 · GEO-ACHAT-1 — her GPS pin, one optional tap, private to the dispatch read · IN-REVIEW (awaiting the founder's merge word)
+## 2026-08-28 · GEO-ACHAT-1 — her GPS pin, one optional tap, private to the dispatch read · DONE
+
+**MERGED AND DEPLOYED (founder: « merge and deploy », 2026-08-30).** `main` fast-forwarded `7ef9b41..6435ef1` (checkout half `d323607` + `5076788` · liste half `9d560af` + `cce75c6` + `12763e8` + journal). **All four push workflows green on 6435ef1 — ci run 590 · pwa-preview 380 (the buyer PWA with both position blocks, deployed to Pages) · expo-preview 413 · service-canon-drift 254 — then storefront-deploy run 74 SUCCESS** (dispatched on 6435ef1, 23:39:18Z → 23:40:01Z): the live worker now accepts the bounded pin on the order contact AND the liste livraison, stores both privately, attaches a liste pin to gift orders in the background, and serves them only through the OPS-gated dispatch read. No migration. A direct live probe was not possible from this container (the egress proxy refuses the workers.dev host — the standing restriction); the deploy workflow's success and the drift sentinel's next push probe are the live evidence.
 
 **Founder, 2026-08-28: « i would like to add geo-localization on the buyer's payment pwa that will communicate with the others. what do you think? » → the approved shape → « GO ».** Build `d323607` + verifier fixes (this commit), pushed to the branch. **No main merge, no deploy — waiting on his word.** The worker changed (the contact wire and its stored shape) — **a storefront-deploy will be required** alongside the PWA when approved; no migration (BuyerContact grew an optional field). The Séra rider display (« Itinéraire » deep link) is the named follow-up GEO-SERA-1, not this slice. **Amended 2026-08-30 — la liste aussi (`9d560af` + `cce75c6` + `12763e8`, the amendment block below).**
 
