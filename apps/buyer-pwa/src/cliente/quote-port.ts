@@ -237,6 +237,11 @@ export interface ContactLivraison {
    *  ONCE beside the text repère. The service turns it into an opaque media
    *  ref server-side; no ref ever travels FROM this app. */
   readonly audioB64?: string;
+  /** GEO-ACHAT-1 — her GPS pin, one optional tap on C3 so the rider finds the
+   *  door. Same privacy law as the phone: stored behind the founder-only
+   *  dispatch read, never on any public view. Supporting evidence for the
+   *  rider — it decides nothing (SE-I07). */
+  readonly pin?: { readonly lat: number; readonly lng: number; readonly accuracy?: number };
 }
 
 export interface QuotePort {
@@ -552,6 +557,17 @@ export function httpQuotePort(baseUrl: string): QuotePort {
                   // REPERE-AUDIO-REEL — the note's bytes, field-by-field like
                   // its neighbours; still no amount, still no spread.
                   ...(contact.audioB64 !== undefined ? { audioB64: contact.audioB64 } : {}),
+                  // GEO-ACHAT-1 — the pin, field-by-field like everything on
+                  // this wire: three named numbers, nothing spread.
+                  ...(contact.pin !== undefined
+                    ? {
+                        pin: {
+                          lat: contact.pin.lat,
+                          lng: contact.pin.lng,
+                          ...(contact.pin.accuracy !== undefined ? { accuracy: contact.pin.accuracy } : {}),
+                        },
+                      }
+                    : {}),
                 },
               }
             : {}),

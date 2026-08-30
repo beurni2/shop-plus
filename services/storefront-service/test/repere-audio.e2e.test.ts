@@ -262,3 +262,64 @@ describe('REPERE-AUDIO-REEL — the note rides the order, end to end on the real
     expect(mediaCalls.length).toBe(before);
   });
 });
+
+/* ═══ GEO-ACHAT-1 — HER PIN, END TO END ON THE REAL WORKER ═══════════════
+ * Same law as the phone and the voice ref: the pin exits through the
+ * founder's key-C dispatch read and NOWHERE else. Supporting evidence for
+ * the rider (SE-I07 upstream) — it decides nothing here and never will. */
+
+describe('GEO-ACHAT-1 — the pin rides the order, end to end on the real Worker', () => {
+  it('SEAM: pin at create → stored on the contact → the dispatch read serves it EXACTLY; the public view never carries a coordinate', async () => {
+    const quoteId = await reservedQuote('0011');
+    const { status } = await createOrder('0011', quoteId, {
+      phone: '70 12 34 60', quartier: 'Gounghin', repere: 'Face à la pharmacie',
+      pin: { lat: 12.371532, lng: -1.519931, accuracy: 12 },
+    });
+    expect(status).toBe(200);
+    // THE LEDGER: the founder's read serves the very bytes the device produced.
+    const row = await dispatchRow(`ord-${quoteId}`);
+    expect(row).toBeDefined();
+    const contact = row!['contact'] as Record<string, unknown>;
+    expect(contact['pin']).toEqual({ lat: 12.371532, lng: -1.519931, accuracy: 12 });
+    // THE LEAK PROBE: the public order view — anyone holding the link — has
+    // no pin key and no coordinate byte.
+    const pub = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(`ord-${quoteId}`)}`);
+    const bytes = await pub.text();
+    expect(pub.status).toBe(200);
+    expect(bytes).not.toContain('"pin"');
+    expect(bytes).not.toContain('12.371532');
+    expect(bytes).not.toContain('-1.519931');
+  });
+
+  it('a contact WITHOUT a pin stays byte-exact BC-1a — no pin key appears anywhere', async () => {
+    const quoteId = await reservedQuote('0012');
+    const { status } = await createOrder('0012', quoteId, {
+      phone: '70 12 34 61', quartier: 'Gounghin', repere: 'Portail vert',
+    });
+    expect(status).toBe(200);
+    const row = await dispatchRow(`ord-${quoteId}`);
+    const contact = row!['contact'] as Record<string, unknown>;
+    expect(Object.keys(contact).sort()).toEqual(['phone', 'quartier', 'repere']);
+  });
+
+  it('the wire REFUSES a malformed pin LOUDLY — off-globe, wrong types, smuggled keys, absurd accuracy', async () => {
+    const quoteId = await reservedQuote('0013');
+    const mauvais: unknown[] = [
+      { lat: 91, lng: 0 }, // north of the pole
+      { lat: 0, lng: 181 }, // east of the antimeridian
+      { lat: '12.3', lng: -1.5 }, // a string pretending
+      { lat: 12.3, lng: -1.5, accuracy: -1 }, // negative metres
+      { lat: 12.3, lng: -1.5, accuracy: 100_001 }, // beyond the 100 km bound
+      { lat: 12.3, lng: -1.5, alt: 300 }, // a key this wire never allowed
+      { lat: null, lng: -1.5 }, // what JSON makes of NaN
+      [12.3, -1.5], // an array is not a pin
+    ];
+    for (let i = 0; i < mauvais.length; i += 1) {
+      const r = await createOrder(`0013-${i}`, quoteId, {
+        phone: '70 12 34 62', quartier: 'Gounghin', repere: 'x', pin: mauvais[i],
+      });
+      expect(r.status, `pin fixture ${i} was not refused`).toBe(400);
+      expect(r.body).toEqual({ error: 'bad_field', field: 'contact' });
+    }
+  });
+});

@@ -10,7 +10,7 @@ import { QUARTIERS_OUAGADOUGOU } from '../src/cliente/quartiers-ouagadougou';
  */
 const BASE = {
   zone: null, zoneFiltre: '', repere: '', indic: '', phone: '',
-  voice: 'idle' as const, recTime: '0:00', canContinue: false,
+  voice: 'idle' as const, recTime: '0:00', geo: 'repos' as const, canContinue: false,
 };
 
 describe('renderC3 — the quartier block', () => {

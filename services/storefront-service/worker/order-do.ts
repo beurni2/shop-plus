@@ -335,6 +335,13 @@ export interface BuyerContact {
    *  media service AFTER this Worker handed it the bytes server-side. Never
    *  caller-supplied; absent when she typed instead of speaking. */
   readonly audioRef?: string;
+  /** GEO-ACHAT-1 — her GPS pin, captured with one optional tap on C3 so the
+   *  rider finds the door. SUPPORTING EVIDENCE, NEVER PROOF (SE-I07): it
+   *  decides nothing and releases nothing — quartier + repère + the drop
+   *  code stay the truth. Same privacy class as the phone: it exits through
+   *  the OPS-gated dispatch read and nowhere else. `accuracy` is the
+   *  device's own metres, so the rider knows the pin's confidence. */
+  readonly pin?: { readonly lat: number; readonly lng: number; readonly accuracy?: number };
 }
 
 const CONTACT_KEY = 'buyer-contact';
@@ -386,10 +393,34 @@ const AUDIO_REF = /^media\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3
  *  else is null (the caller refuses). The PUBLIC wire never carries
  *  `audioRef` — see `readBuyerContactWire`: a ref is minted server-side or it
  *  does not exist. */
+/** GEO-ACHAT-1 — the pin's strict shape: exactly {lat, lng, accuracy?}, all
+ *  finite numbers, lat/lng on the globe, accuracy in [0, 100 000] metres.
+ *  Anything else is null and the CONTACT refuses loudly — the pin comes from
+ *  this platform's own capture UI, so a malformed one is a hand-rolled
+ *  caller, never a buyer to accommodate. */
+function readPin(value: unknown): { lat: number; lng: number; accuracy?: number } | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const p = value as Record<string, unknown>;
+  const allowed = new Set(['lat', 'lng', 'accuracy']);
+  for (const key of Object.keys(p)) {
+    if (!allowed.has(key)) return null;
+  }
+  const lat = p['lat'];
+  const lng = p['lng'];
+  if (typeof lat !== 'number' || !Number.isFinite(lat) || lat < -90 || lat > 90) return null;
+  if (typeof lng !== 'number' || !Number.isFinite(lng) || lng < -180 || lng > 180) return null;
+  const accuracy = p['accuracy'];
+  if (accuracy !== undefined) {
+    if (typeof accuracy !== 'number' || !Number.isFinite(accuracy) || accuracy < 0 || accuracy > 100_000) return null;
+    return { lat, lng, accuracy };
+  }
+  return { lat, lng };
+}
+
 export function readBuyerContact(value: unknown): BuyerContact | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
   const r = value as Record<string, unknown>;
-  const allowed = new Set(['phone', 'quartier', 'repere', 'audioRef']);
+  const allowed = new Set(['phone', 'quartier', 'repere', 'audioRef', 'pin']);
   for (const key of Object.keys(r)) {
     if (!allowed.has(key)) return null;
   }
@@ -399,12 +430,18 @@ export function readBuyerContact(value: unknown): BuyerContact | null {
   if (typeof phone !== 'string' || phone.trim() === '' || phone.length > 32) return null;
   if (typeof quartier !== 'string' || quartier.trim() === '' || quartier.length > 120) return null;
   if (typeof repere !== 'string' || repere.length > 200) return null;
+  let pin: { lat: number; lng: number; accuracy?: number } | undefined;
+  if (r['pin'] !== undefined) {
+    const lu = readPin(r['pin']);
+    if (lu === null) return null;
+    pin = lu;
+  }
   const audioRef = r['audioRef'];
   if (audioRef !== undefined) {
     if (typeof audioRef !== 'string' || !AUDIO_REF.test(audioRef)) return null;
-    return { phone, quartier, repere, audioRef };
+    return { phone, quartier, repere, audioRef, ...(pin !== undefined ? { pin } : {}) };
   }
-  return { phone, quartier, repere };
+  return { phone, quartier, repere, ...(pin !== undefined ? { pin } : {}) };
 }
 
 /**
@@ -425,11 +462,19 @@ export function readBuyerContactWire(
 ): { contact: BuyerContact; audioB64?: string } | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
   const r = value as Record<string, unknown>;
-  const allowed = new Set(['phone', 'quartier', 'repere', 'audioB64']);
+  // GEO-ACHAT-1 — `pin` joins the public wire: unlike the voice note there is
+  // no raw/minted split (the pin IS its stored form), so it rides straight
+  // through the stored reader's own bounds.
+  const allowed = new Set(['phone', 'quartier', 'repere', 'audioB64', 'pin']);
   for (const key of Object.keys(r)) {
     if (!allowed.has(key)) return null;
   }
-  const contact = readBuyerContact({ phone: r['phone'], quartier: r['quartier'], repere: r['repere'] });
+  const contact = readBuyerContact({
+    phone: r['phone'],
+    quartier: r['quartier'],
+    repere: r['repere'],
+    ...(r['pin'] !== undefined ? { pin: r['pin'] } : {}),
+  });
   if (contact === null) return null;
   const audioB64 = r['audioB64'];
   if (audioB64 === undefined) return { contact };

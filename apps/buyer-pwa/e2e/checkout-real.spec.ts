@@ -1616,3 +1616,85 @@ test('REPERE-AUDIO-REEL · a LOST note gets its sentence — the diagnostic hole
   // …and the honest half-sentence beside it: her written repère DID travel.
   await expect(page.locator('main.cl-root')).toContainText('Votre repère écrit est bien transmis');
 });
+
+/* ═══ GEO-ACHAT-1 — HER PIN, DRIVEN (founder: « GO », 2026-08-28) ═════════
+ * The REAL Geolocation API under Playwright's grant: one tap keeps the pin
+ * with its consent sentence, RETIRER is total, and the create carries the
+ * EXACT bytes the device produced — never without her word. The denied road
+ * is walked beside it: the honest face, the road still open, no pin key on
+ * the wire. (SE-I07 upstream: the pin is supporting evidence, never proof.) */
+
+test('GEO-ACHAT-1 · one tap keeps her pin — consent spoken, RETIRER total, the exact bytes on the create', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation']);
+  await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });
+  const wire = await scriptService(page, { orderStates: ['payment_pending'] });
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+
+  // One tap → the kept face, its consent sentence verbatim.
+  await page.locator('[data-action="geo-demander"]').click();
+  await page.locator('[data-role="geo-done"]').waitFor();
+  await expect(page.locator('[data-role="geo-done"]')).toContainText('Position ajoutée — partagée seulement avec votre livreur.');
+
+  // RETIRER is total — the quiet offer returns, and she can change her mind back.
+  await page.locator('[data-action="geo-retirer"]').click();
+  await page.locator('[data-action="geo-demander"]').waitFor();
+  await page.locator('[data-action="geo-demander"]').click();
+  await page.locator('[data-role="geo-done"]').waitFor();
+
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
+  await page.locator('[data-role="phone"]').fill('70 12 34 56');
+  await page.locator('[data-action="continuer-c3"]').click();
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+
+  // THE WIRE: the pin rides INSIDE the contact — exact keys, exact bytes, no
+  // amount anywhere near it.
+  const body = wire.orders[0]!.body;
+  expect(Object.keys(body).sort()).toEqual(['commandId', 'contact', 'holderRef', 'quoteId']);
+  const contact = body['contact'] as Record<string, unknown>;
+  expect(Object.keys(contact).sort()).toEqual(['phone', 'pin', 'quartier', 'repere']);
+  expect(contact['pin']).toEqual({ lat: 12.371532, lng: -1.519931, accuracy: 12 });
+});
+
+test('GEO-ACHAT-1 · a REFUSED position gates nothing — the honest face, the road open, no pin on the wire', async ({ page }) => {
+  // THE ONE NATIVE DOUBLE OF THIS WALK, its bound stated: headless Chromium
+  // has no reliable « she tapped non » knob (an ungranted permission may deny
+  // at once or hang to the 10 s timeout — it did both on this very board), so
+  // the REFUSAL case replaces getCurrentPosition with an immediate
+  // PERMISSION_DENIED errback. It doubles the BROWSER's answer and nothing
+  // else — no app code is stubbed, and the granted road above drives the
+  // fully real API. This walk may never claim anything about the browser's
+  // real permission UI.
+  await page.addInitScript(() => {
+    navigator.geolocation.getCurrentPosition = (_ok, err) => {
+      err?.({ code: 1, message: 'denied', PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 } as GeolocationPositionError);
+    };
+  });
+  const wire = await scriptService(page, { orderStates: ['payment_pending'] });
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+
+  await page.locator('[data-action="geo-demander"]').click();
+  await page.locator('[data-role="geo-refus"]').waitFor({ timeout: 15_000 });
+  await expect(page.locator('[data-role="geo-refus"]')).toContainText('Votre repère écrit suffit.');
+
+  // The four questions end here: the tree stands, and she REACHES THE NEXT
+  // STEP with her written address alone.
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
+  await page.locator('[data-role="phone"]').fill('70 12 34 56');
+  await page.locator('[data-action="continuer-c3"]').click();
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+
+  const contact = wire.orders[0]!.body['contact'] as Record<string, unknown>;
+  expect(Object.keys(contact).sort()).toEqual(['phone', 'quartier', 'repere']);
+});

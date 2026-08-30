@@ -342,6 +342,21 @@ export const CLIENTE_STYLES = `
   .cl-voice-note svg { flex: none; }
   .cl-voice-queued { background: #F6E9C8; color: #5F4403; }
   .cl-voice-refused { background: #F1E7D3; color: #4A3F33; align-items: flex-start; }
+  .cl-geo-idle {
+    margin-top: 9px; display: flex; align-items: center; justify-content: center; gap: 9px;
+    width: 100%; height: 48px; border-radius: 15px; border: 1.5px solid #1C1710; background: #FFFFFF; color: #1C1710;
+    font-weight: 700; font-size: 13.5px; transition: transform .15s;
+  }
+  .cl-geo-idle:active { transform: scale(.98); }
+  .cl-geo-cours { margin-top: 9px; display: flex; align-items: center; gap: 10px; padding: 13px 15px; border-radius: 15px; background: #F1E7D3; color: #4A3F33; font-size: 12.5px; }
+  .cl-geo-dot { width: 10px; height: 10px; border-radius: 99px; background: #1C1710; flex: none; }
+  @media (prefers-reduced-motion: no-preference) { .cl-geo-dot { animation: clPulse 1s ease infinite; } }
+  .cl-geo-done { margin-top: 9px; display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 15px; border-radius: 15px; border: 1.5px solid #1C1710; background: #FFFFFF; }
+  .cl-geo-done-ic { color: #1C1710; display: flex; flex: none; }
+  .cl-geo-done-txt { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.5; color: #1C1710; }
+  .cl-geo-retirer { border: none; background: transparent; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; white-space: nowrap; flex: none; }
+  .cl-geo-note { margin-top: 9px; display: flex; align-items: center; gap: 10px; padding: 13px 15px; border-radius: 15px; font-size: 12.5px; line-height: 1.5; }
+  .cl-geo-refus { background: #F1E7D3; color: #4A3F33; }
   .cl-privline { margin-top: 14px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6F6355; }
   .cl-privline svg { flex: none; }
   .cl-cta-c3 { margin-top: 16px; }

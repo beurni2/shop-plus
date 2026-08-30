@@ -28,7 +28,7 @@ import {
   etapeDeSuivi,
   splitFor, MERCI, MESSAGES, SUIVI_STEPS, VOIX,
   type ClienteProduit, type ClienteQuote, type ConfirmEtat, type DoorEtat,
-  type Livraison, type ModePaiement, type VoiceEtat,
+  type GeoEtat, type Livraison, type ModePaiement, type VoiceEtat,
 } from './screens';
 import { fmtFCFA } from './money';
 import { caretApresChiffres, telEnPaires } from './telephone';
@@ -184,6 +184,13 @@ interface FlowState {
   /** REPERE-AUDIO-REEL — the RECORDED note (bytes + her replay URL), held on
    *  the phone until it rides the order create. null = nothing recorded. */
   note: NoteEnregistree | null;
+  /** GEO-ACHAT-1 — the position block's face. Like `zoneFiltre`, deliberately
+   *  NOT in the reprise snapshot: a refresh forgets the pin (no coordinates
+   *  ever sit in sessionStorage) and one tap brings it back. */
+  geo: GeoEtat;
+  /** The captured pin, held on the phone until it rides the order create
+   *  beside the rest of the contact. null = none captured. */
+  pin: { lat: number; lng: number; accuracy?: number } | null;
   delivery: Livraison | null;
   pay: ModePaiement | null;
   paying: 'idle' | 'submitting' | 'provider';
@@ -213,7 +220,7 @@ interface FlowState {
     reserve: (mode: ModePaiement) => Promise<ReserveFetch>;
     /** SP3.3c — create the order for the chosen mode, and read it back. Bound
      *  to the same per-mode quote the hold was taken on. */
-    commander: (mode: ModePaiement, essai: number, contact?: { phone: string; quartier: string; repere: string; audioB64?: string }) => Promise<OrderFetch>;
+    commander: (mode: ModePaiement, essai: number, contact?: { phone: string; quartier: string; repere: string; audioB64?: string; pin?: { lat: number; lng: number; accuracy?: number } }) => Promise<OrderFetch>;
     etatCommande: (orderId: string) => Promise<OrderFetch>;
     /** SP4.2b — ask for the product leg to be collected at her door. */
     payerALaPorte: (orderId: string, essai: number) => Promise<OrderFetch>;
@@ -457,6 +464,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     voice: (init.microRefuse ?? false) ? 'refused' : 'idle',
     vSec: 0,
     note: null,
+    geo: 'repos',
+    pin: null,
     delivery: null,
     pay: null,
     paying: 'idle',
@@ -792,7 +801,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       case 'C3':
         return renderC3({
           zone: state.zone, zoneFiltre: state.zoneFiltre, repere: state.repere, indic: state.indic, phone: state.phone,
-          voice: state.voice, recTime: recTime(), canContinue: canC3(),
+          voice: state.voice, recTime: recTime(), geo: state.geo, canContinue: canC3(),
         });
       case 'C4':
         // Render-time fallbacks — the pixel's zoneUpper/repereRecap `||` pair,
@@ -1397,7 +1406,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    *  quartier, and the repère (text plus the optional indication; possibly ''
    *  when she chose the voice note — the service accepts an empty repère).
    *  Assembled at SEND, so a corrected number on a retry travels corrected. */
-  function contactLivraison(): { phone: string; quartier: string; repere: string; audioB64?: string } | undefined {
+  function contactLivraison(): { phone: string; quartier: string; repere: string; audioB64?: string; pin?: { lat: number; lng: number; accuracy?: number } } | undefined {
     const phone = state.phone.trim();
     const quartier = state.zone ?? '';
     if (phone === '' || quartier === '') return undefined;
@@ -1409,6 +1418,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       // REPERE-AUDIO-REEL — her recorded note rides the create beside the
       // text, assembled at SEND like everything else here.
       ...(state.note !== null ? { audioB64: state.note.audioB64 } : {}),
+      // GEO-ACHAT-1 — her pin rides the same way: present only while the
+      // « Position ajoutée » face stands, gone the moment she retires it.
+      ...(state.pin !== null ? { pin: state.pin } : {}),
     };
   }
 
@@ -1642,6 +1654,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
           jump('C3', {
             zone: null, repere: '', indic: '', phone: '',
             voice: (init.microRefuse ?? false) ? 'refused' : 'idle', vSec: 0, note: null,
+            geo: 'repos', pin: null,
           });
         }
         return;
@@ -1801,6 +1814,56 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         });
         return;
       }
+      case 'geo-demander': {
+        /**
+         * GEO-ACHAT-1 — one tap, HER choice; the browser's permission prompt
+         * answers first. A refusal (hers, a phone without GPS, a fix that
+         * never comes — the 10 s timeout is the way out of this automatic
+         * act) lands on the honest face, and the written address stays the
+         * whole road: the pin is comfort for the rider, never a gate.
+         */
+        if (typeof navigator === 'undefined' || navigator.geolocation === undefined) {
+          state.geo = 'refus'; render(); return;
+        }
+        state.geo = 'encours';
+        render();
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            // A fix landing after she moved on is DROPPED (the LISTE-VOIX
+            // lesson: an act she can no longer see is an act she cannot
+            // retract) — and the face returns to the quiet offer so a later
+            // C3 never shows a search that is not running.
+            if (state.screen !== 'C3' || state.geo !== 'encours') {
+              if (state.geo === 'encours') state.geo = 'repos';
+              return;
+            }
+            state.pin = {
+              // Six decimals ≈ 11 cm — every digit past that is noise on the
+              // wire pretending to be precision.
+              lat: Math.round(pos.coords.latitude * 1e6) / 1e6,
+              lng: Math.round(pos.coords.longitude * 1e6) / 1e6,
+              ...(Number.isFinite(pos.coords.accuracy)
+                ? { accuracy: Math.min(100_000, Math.max(0, Math.round(pos.coords.accuracy))) }
+                : {}),
+            };
+            state.geo = 'faite';
+            render();
+          },
+          () => {
+            if (state.screen !== 'C3' || state.geo !== 'encours') {
+              if (state.geo === 'encours') state.geo = 'repos';
+              return;
+            }
+            state.geo = 'refus';
+            render();
+          },
+          { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
+        );
+        return;
+      }
+      case 'geo-retirer':
+        // Retirer is total: no coordinate survives it anywhere in this app.
+        state.pin = null; state.geo = 'repos'; render(); return;
       case 'continuer-c3':
         if (!canC3()) return;
         // SP3.2b — the destination is now known, so this is where the price is
@@ -2194,7 +2257,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       // Extras, not prefill: a resumed journey must never inherit the demo
       // zone/repère (the 2026-07-22 leak class) — what she typed, even empty,
       // wins last.
-      jump('C3', { zone: r.zone, repere: r.repere, indic: r.indic, phone: r.phone });
+      // GEO-ACHAT-1 — the snapshot never carries a pin (no coordinates in
+      // sessionStorage), so a resumed C3 opens on the quiet offer.
+      jump('C3', { zone: r.zone, repere: r.repere, indic: r.indic, phone: r.phone, geo: 'repos', pin: null });
       return;
     }
     if (r.ecran === 'C4' || r.ecran === 'C5' || r.ecran === 'C6') {

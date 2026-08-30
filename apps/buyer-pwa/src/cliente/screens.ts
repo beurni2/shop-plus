@@ -673,6 +673,11 @@ export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: bool
 
 /* ----------------------------------------------------------------- C3 ---- */
 
+/** GEO-ACHAT-1 — the position block's four faces: the quiet offer, the
+ *  capture under way, the kept pin (with its way out), and the honest
+ *  refusal that gates nothing. */
+export type GeoEtat = 'repos' | 'encours' | 'faite' | 'refus';
+
 export interface C3State {
   readonly zone: string | null;
   /** What she typed in the quartier filter — UI state, never persisted. */
@@ -683,6 +688,8 @@ export interface C3State {
   readonly phone: string;
   readonly voice: VoiceEtat;
   readonly recTime: string;
+  /** GEO-ACHAT-1 — the render never sees coordinates; only the face. */
+  readonly geo: GeoEtat;
   readonly canContinue: boolean;
 }
 
@@ -720,6 +727,34 @@ function renderVoiceBlock(s: C3State): string {
   }
 }
 
+/**
+ * GEO-ACHAT-1 — HER POSITION, ONE OPTIONAL TAP (founder: « GO », 2026-08-28).
+ * The pin helps the rider find the door; it is SUPPORTING EVIDENCE and never
+ * proof (SE-I07) — the written quartier + repère stay the whole road, so the
+ * refusal face gates nothing and apologises for nothing. The consent sentence
+ * rides the kept face because that is the moment the sharing becomes real:
+ * the pin goes to her livreur through the founder's dispatch read and
+ * appears on no public page — the same law as her number.
+ */
+function renderGeoBlock(s: C3State): string {
+  switch (s.geo) {
+    case 'repos':
+      return `<button class="cl-geo-idle" data-action="geo-demander">${iconFlag(16)}Ajouter ma position</button>`;
+    case 'encours':
+      return '<div class="cl-geo-cours" data-role="geo-cours"><span class="cl-geo-dot"></span>Recherche de votre position…</div>';
+    case 'faite':
+      return [
+        '<div class="cl-geo-done" data-role="geo-done">',
+        `<span class="cl-geo-done-ic">${iconCheck(15)}</span>`,
+        '<span class="cl-geo-done-txt">Position ajoutée — partagée seulement avec votre livreur.</span>',
+        '<button class="cl-geo-retirer" data-action="geo-retirer">RETIRER</button>',
+        '</div>',
+      ].join('');
+    case 'refus':
+      return '<div class="cl-geo-note cl-geo-refus" data-role="geo-refus">Position introuvable ici. Votre repère écrit suffit.</div>';
+  }
+}
+
 export function renderC3(s: C3State): string {
   return [
     '<div class="cl-screen" data-screen="C3">',
@@ -733,6 +768,7 @@ export function renderC3(s: C3State): string {
     `<input class="cl-field cl-field-indic" data-role="indic" value="${esc(s.indic)}" placeholder="Indication en plus (facultatif)">`,
     '<div class="cl-overline">Ou dites-le de vive voix</div>',
     renderVoiceBlock(s),
+    renderGeoBlock(s),
     /**
      * BC-1b — HER NUMBER, WITH ITS CAUSE STATED (founder-approved dispatch
      * contact). It sits AFTER the address block because it belongs to the
