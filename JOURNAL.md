@@ -1,6 +1,18 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-08-31 · QUARTIER-CHOISI-1 — a chosen quartier folds the picker: one row, her name, CHANGER · IN REVIEW
+
+**Founder, 2026-08-31: « In the 'chercher votre quartier' section once the quartier has been selected make that section disappear and show only the quartier selected with the option change it again. »** Build `f1e3ba4`, pushed to the branch. **No main merge, no deploy — waiting on his word.** No service touched, no migration; the buyer PWA (storefront-deploy surface) is the whole slice.
+
+**THE SHAPE.** C3's shared address block (ONE rendering — the body normally, the map face's sheet while it stands): zone chosen and not editing → the search field and the 101-chip cloud fold into one calm kept-state row — check glyph, her quartier's name, **CHANGER** in the app's quiet uppercase-verb convention. CHANGER (`zone-changer`) reopens the picker with her chip still PRESSED (the QUARTIERS-OUAGA « a selection never looks lost » law) and a fresh filter; any pick — official chip or the free-text offer — folds it again. `zoneEdition` is UI state exactly like `zoneFiltre`: never in the reprise snapshot, so a resumed zone lands on the folded row, the truthful face for a choice already made. The zone law is untouched — the row is display, never an input; canC3 and both wire shapes unchanged.
+
+**Evidence.** Units **1132/1132** (quartier-picker grew the fold + reopen cases incl. hostile-name escaping in the row; the geo-pin roles-once law now proven in BOTH quartier states of the carte sheet) · the new driven walk: fold → CHANGER → pressed chip → second pick → **the SECOND choice byte-asserted on both wires** (quote `zoneTo: 'Pissy, Ouagadougou'`, contact `quartier: 'Pissy'`, not one first-choice byte) · `quartiers.spec.ts` rewritten to the new law (deep-pick folds; CHANGER carries the journey to the free-text road) — full e2e file set green · turbo test **23/23 --force** · typecheck **19/19 --force** · `run-gates.sh` **ALL GATES GREEN**. One honest correction: the build commit first claimed « 1147/1147 » units unseen — re-run, the true count is 1132/1132, amended before push. **Mutations, anchor-verified, each red on exactly its guard:** the fold condition severed (picker always shows) → red at the row's toContainText · CHANGER's reopen severed → red at the filter's toBeVisible · fold-on-pick severed → red at the SECOND fold. All restored, walks re-green 2/2, porcelain clean.
+
+**The ONE fresh-context verifier (the order verbatim, the laws, the diff, the DoD): [PENDING].**
+
+---
+
 ## 2026-08-31 · GEO-CARTE-PRO-1 — the drag-to-place map face (his reference screenshot) on C3 + the liste · DONE
 
 **MERGED AND DEPLOYED (founder: « Go », 2026-08-31).** `main` fast-forwarded `af71174..ae33b8a` (build `6534159` blocked-on-budget · his « 320 » applied `3826d7e` · verifier MINORs `ae33b8a`). **ci 594 · pwa-preview 384 · expo-preview 417 green on ae33b8a → storefront-deploy 76 SUCCESS** — the buyer PWA live with the drag-map face, the live Worker rebuilt on canon 3.13.1. **service-canon-drift 258 went RED on the merge push, correctly:** the repo shipped 3.13.1 while the live Worker still ran 3.13.0 — the sentinel doing exactly its 2026-07-30 job; storefront-deploy 76 is its cure, and this stamp's own push re-runs it green. Canon main fast-forwarded `3065ec9..4c99762` the same hour — its ci 129 green (healing a pre-existing red on canon main's previous head, run 128).
