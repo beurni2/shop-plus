@@ -179,6 +179,16 @@ describe('reprise — the allowlist: what is stored is exactly what is named', (
     expect(r!.phone).toBe(MI_PARCOURS.phone);
   });
 
+  it('an OLD snapshot still carrying `indic` parses — the retired key is ignored, never a refusal (deploy-boundary compat)', () => {
+    const s = memStorage();
+    s.setItem(REPRISE_CLE, JSON.stringify({ ...MI_PARCOURS, indic: 'Portail vert' }));
+    const r = lireReprise(s, LIEN);
+    expect(r).toBeDefined();
+    expect(r!.ecran).toBe('C5');
+    expect(r!.repere).toBe(MI_PARCOURS.repere);
+    expect('indic' in (r as unknown as Record<string, unknown>)).toBe(false);
+  });
+
   it('an order screen with no zone resumes as itself — the tracking needs no quartier', () => {
     const s = memStorage();
     s.setItem(REPRISE_CLE, JSON.stringify({ ...PLEINE, zone: null }));
