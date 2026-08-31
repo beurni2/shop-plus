@@ -1722,6 +1722,37 @@ test('GEO-ACHAT-2 · the PHONE-ONLY road: confirmed position + number, no quarti
   expect(contact['pin']).toEqual({ lat: 12.371532, lng: -1.519931, accuracy: 12 });
 });
 
+test('GEO-ACHAT-2 · ANNULER reaches the wire on C3 too: the create after « ce n\'est pas là » carries not one pin byte', async ({ page, context }) => {
+  // The consent seam, driven on the checkout as on the liste (the verifier's
+  // finding named this twin): after Annuler the standing road applies and
+  // the contact must ride pin-free — face and wire never disagreeing.
+  await context.grantPermissions(['geolocation']);
+  await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });
+  await page.route('**://www.openstreetmap.org/**', (r) => r.abort());
+  const wire = await scriptService(page, { orderStates: ['payment_pending'] });
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+
+  await page.locator('[data-action="geo-demander"]').click();
+  await page.locator('[data-role="geo-carte"]').waitFor();
+  await page.locator('[data-action="geo-carte-annuler"]').click();
+  await page.locator('[data-action="geo-demander"]').waitFor();
+
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
+  await page.locator('[data-role="phone"]').fill('70 12 34 56');
+  await page.locator('[data-action="continuer-c3"]').click();
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+
+  const contact = wire.orders[0]!.body['contact'] as Record<string, unknown>;
+  expect(Object.keys(contact).sort()).toEqual(['phone', 'quartier', 'repere']);
+  expect(JSON.stringify(wire.orders[0]!.body)).not.toContain('12.371532');
+});
+
 test('GEO-ACHAT-1 · a REFUSED position gates nothing — the honest face, the road open, no pin on the wire', async ({ page }) => {
   // THE ONE NATIVE DOUBLE OF THIS WALK, its bound stated: headless Chromium
   // has no reliable « she tapped non » knob (an ungranted permission may deny

@@ -979,6 +979,47 @@ test('GEO-ACHAT-1 · her pin on the liste: consent spoken, RETIRER total, the cl
   expect(livraison['pin']).toEqual({ lat: 12.371532, lng: -1.519931, accuracy: 12 });
 });
 
+test('GEO-ACHAT-2 · ANNULER reaches the wire: a create after « ce n\'est pas là » carries not one pin byte (verifier MAJOR)', async ({ page, context }) => {
+  // The verifier proved the face-only annuler assert blind: a promote-on-
+  // capture regression kept every walk green. This one drives the CONSENT
+  // SEAM itself — annuler, then a full create, then the wire's bytes.
+  await context.grantPermissions(['geolocation']);
+  await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });
+  await page.route('**://www.openstreetmap.org/**', (r) => r.abort());
+  const creates: Record<string, unknown>[] = [];
+  await page.route('**/listes', async (route: Route) => {
+    creates.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true, token: TOKEN, editCle: 'E'.repeat(32),
+        liste: { nom: 'Awa', slug: 'aicha-4821', articles: [{ pid: 'p1', offert: false }] },
+      }),
+    });
+  });
+  await page.goto(`${BASE}/?demo-vitrine=aicha-4821`);
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  await page.locator('[data-action="liste-creer"]').click();
+  await expect(page.locator('[data-role="liste-sheet"]')).toBeVisible();
+
+  await page.locator('[data-action="liste-geo-demander"]').click();
+  await page.locator('[data-role="liste-geo-carte"]').waitFor();
+  await page.locator('[data-action="liste-geo-carte-annuler"]').click();
+  await page.locator('[data-action="liste-geo-demander"]').waitFor();
+
+  await page.locator('input[data-liste-pid="p1"]').check();
+  await page.locator('[data-role="liste-nom"]').fill('Awa');
+  await page.locator('[data-role="liste-quartier"]').selectOption('Dassasgo');
+  await page.locator('[data-role="liste-tel-livraison"]').fill('70 12 34 56');
+  await page.locator('[data-action="liste-valider"]').click();
+  await expect(page.locator('[data-role="liste-lien"]')).toBeVisible();
+  expect(creates).toHaveLength(1);
+  const livraison = creates[0]!['livraison'] as Record<string, unknown>;
+  expect(Object.keys(livraison).sort()).toEqual(['quartier', 'repere', 'telephone', 'zone']);
+  expect(JSON.stringify(creates[0])).not.toContain('12.371532');
+});
+
 test('GEO-ACHAT-1 · a fix landing AFTER the sheet was torn down is DROPPED — the reopened sheet owes it nothing (verifier MAJOR-1, liste)', async ({ page }) => {
   // The deferred variant of the ONE native double, bound stated as on the
   // checkout walk: getCurrentPosition hands its success callback to the test
