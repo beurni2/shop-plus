@@ -1,9 +1,11 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-08-31 · QUARTIER-CHOISI-1 — a chosen quartier folds the picker: one row, her name, CHANGER · IN REVIEW
+## 2026-08-31 · QUARTIER-CHOISI-1 — a chosen quartier folds the picker: one row, her name, CHANGER · DONE
 
-**Founder, 2026-08-31: « In the 'chercher votre quartier' section once the quartier has been selected make that section disappear and show only the quartier selected with the option change it again. »** Build `f1e3ba4`, pushed to the branch. **No main merge, no deploy — waiting on his word.** No service touched, no migration; the buyer PWA (storefront-deploy surface) is the whole slice.
+**MERGED AND DEPLOYED (founder: « Go », 2026-08-31).** `main` fast-forwarded `4c25541..89fa1eb` (build `f1e3ba4` + verdict stamp). **ci 596 · pwa-preview 386 · expo-preview 419 · service-canon-drift 261 green on 89fa1eb → storefront-deploy 77 SUCCESS** — the folded picker live on the buyer PWA.
+
+**Founder, 2026-08-31: « In the 'chercher votre quartier' section once the quartier has been selected make that section disappear and show only the quartier selected with the option change it again. »** Build `f1e3ba4`. No service touched, no migration; the buyer PWA (storefront-deploy surface) is the whole slice.
 
 **THE SHAPE.** C3's shared address block (ONE rendering — the body normally, the map face's sheet while it stands): zone chosen and not editing → the search field and the 101-chip cloud fold into one calm kept-state row — check glyph, her quartier's name, **CHANGER** in the app's quiet uppercase-verb convention. CHANGER (`zone-changer`) reopens the picker with her chip still PRESSED (the QUARTIERS-OUAGA « a selection never looks lost » law) and a fresh filter; any pick — official chip or the free-text offer — folds it again. `zoneEdition` is UI state exactly like `zoneFiltre`: never in the reprise snapshot, so a resumed zone lands on the folded row, the truthful face for a choice already made. The zone law is untouched — the row is display, never an input; canC3 and both wire shapes unchanged.
 
