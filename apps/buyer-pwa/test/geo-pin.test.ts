@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { renderC3, type C3State } from '../src/cliente/screens';
+import { renderC3, renderC4, type C3State } from '../src/cliente/screens';
+import { composeQuote, ROBE } from '../src/cliente/seed';
 
 /**
  * GEO-ACHAT-1 — the position block's four faces on C3. The render never sees
@@ -11,8 +12,8 @@ import { renderC3, type C3State } from '../src/cliente/screens';
  * e2e/checkout-real.spec.ts's GEO walk.
  */
 const BASE: C3State = {
-  zone: 'Gounghin', zoneFiltre: '', repere: 'Face à la pharmacie', indic: '',
-  phone: '70 12 34 56', voice: 'idle', recTime: '0:00', geo: 'repos', canContinue: true,
+  zone: 'Gounghin', zoneFiltre: '', repere: 'Face à la pharmacie',
+  phone: '70 12 34 56', voice: 'idle', recTime: '0:00', geo: 'repos', carte: null, canContinue: true,
 };
 
 describe('renderC3 — the position block (GEO-ACHAT-1)', () => {
@@ -48,5 +49,57 @@ describe('renderC3 — the position block (GEO-ACHAT-1)', () => {
     // comfort, never a gate (the quartier-list law, applied to GPS).
     expect(html).toContain('data-action="continuer-c3"');
     expect(html).not.toContain('data-action="continuer-c3" disabled');
+  });
+});
+
+describe('renderC3 — the carte face (GEO-ACHAT-2)', () => {
+  const CARTE: C3State = { ...BASE, geo: 'carte', carte: { lat: 12.371532, lng: -1.519931 } };
+
+  it('the map asks HER question: centred on the fix, one confirm, one way out', () => {
+    const html = renderC3(CARTE);
+    expect(html).toContain('data-role="geo-carte"');
+    expect(html).toContain('Votre position');
+    // The frame is OpenStreetMap's own embed, centred on the CANDIDATE —
+    // marker=lat,lng carries her exact fix, nothing else does.
+    expect(html).toContain('openstreetmap.org/export/embed.html');
+    expect(html).toContain('marker=12.371532%2C-1.519931');
+    expect(html).toContain('data-action="geo-confirmer"');
+    expect(html).toContain('Confirmer ma position');
+    expect(html).toContain('data-action="geo-carte-annuler"');
+    expect(html).toContain('Annuler');
+  });
+
+  it('behind the overlay the block keeps the searching face — never a kept pin she has not confirmed', () => {
+    const html = renderC3(CARTE);
+    expect(html).toContain('data-role="geo-cours"');
+    expect(html).not.toContain('data-role="geo-done"');
+  });
+
+  it('no candidate, no carte: the overlay cannot paint on coordinates it does not have', () => {
+    const html = renderC3({ ...BASE, geo: 'carte', carte: null });
+    expect(html).not.toContain('data-role="geo-carte"');
+  });
+});
+
+describe('the phone-only road (GEO-ACHAT-2)', () => {
+  it('faite says what-happens-next: the number is the only requirement now', () => {
+    const html = renderC3({ ...BASE, geo: 'faite' });
+    expect(html).toContain('data-role="geo-allege"');
+    expect(html).toContain('Votre numéro suffit pour continuer.');
+  });
+
+  it('« Indication en plus » is GONE — completely (founder, 2026-08-31)', () => {
+    const html = renderC3(BASE);
+    expect(html).not.toContain('Indication en plus');
+    expect(html).not.toContain('data-role="indic"');
+  });
+
+  it('the C4 récap on the pin road says the truth, never a fabricated quartier', () => {
+    const q = composeQuote(ROBE.priceFcfa);
+    const html = renderC4(q, { zone: '', repereRecap: '', positionGps: true, delivery: 'today' });
+    expect(html).toContain('data-role="recap-gps"');
+    expect(html).toContain('VOTRE POSITION GPS');
+    expect(html).toContain('Partagée seulement avec votre livreur.');
+    expect(html).not.toContain('GOUNGHIN');
   });
 });

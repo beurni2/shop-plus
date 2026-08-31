@@ -428,7 +428,7 @@ export function readBuyerContact(value: unknown): BuyerContact | null {
   const quartier = r['quartier'];
   const repere = r['repere'];
   if (typeof phone !== 'string' || phone.trim() === '' || phone.length > 32) return null;
-  if (typeof quartier !== 'string' || quartier.trim() === '' || quartier.length > 120) return null;
+  if (typeof quartier !== 'string' || quartier.length > 120) return null;
   if (typeof repere !== 'string' || repere.length > 200) return null;
   let pin: { lat: number; lng: number; accuracy?: number } | undefined;
   if (r['pin'] !== undefined) {
@@ -436,6 +436,10 @@ export function readBuyerContact(value: unknown): BuyerContact | null {
     if (lu === null) return null;
     pin = lu;
   }
+  // GEO-ACHAT-2 (founder, 2026-08-31): a confirmed pin may stand in for the
+  // quartier — the phone-only road. Without one, the standing law holds: a
+  // contact with no quartier is not an address anyone can ride to.
+  if (quartier.trim() === '' && pin === undefined) return null;
   const audioRef = r['audioRef'];
   if (audioRef !== undefined) {
     if (typeof audioRef !== 'string' || !AUDIO_REF.test(audioRef)) return null;

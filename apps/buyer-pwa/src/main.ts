@@ -794,8 +794,10 @@ if (app) {
           slug: signedSlug,
           pid,
           // Her quartier + HER SHOP'S CITY. The delivery source prices a city
-          // pair; the quartier is what the buyer actually names.
-          zoneTo: `${quartier}, ${ville}`,
+          // pair; the quartier is what the buyer actually names. GEO-ACHAT-2:
+          // on the phone-only road she names NO quartier — the bare city rides
+          // and prices identically (cityOf reads the last segment either way).
+          zoneTo: quartier === '' ? ville : `${quartier}, ${ville}`,
           // SP-I09 — the LOCKED reseller, read off the resolved storefront.
           // Absent ⇒ the service refuses `attribution_missing` by name.
           attributionResellerId: resolved.storefront.resellerId,

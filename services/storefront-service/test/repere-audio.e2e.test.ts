@@ -322,4 +322,36 @@ describe('GEO-ACHAT-1 — the pin rides the order, end to end on the real Worker
       expect(r.body).toEqual({ error: 'bad_field', field: 'contact' });
     }
   });
+
+  /* ═══ GEO-ACHAT-2 — THE PHONE-ONLY ROAD (founder, 2026-08-31) ═══
+   * A CONFIRMED pin stands in for the quartier: the contact may ride with
+   * quartier '' and repere '' when a pin is present. Without one, the
+   * standing refusal holds — a contact with no quartier and no pin is not
+   * an address anyone can ride to. */
+
+  it('SEAM (phone-only): pin + number with EMPTY quartier/repère → stored → the dispatch read serves all four fields as given', async () => {
+    const quoteId = await reservedQuote('0014');
+    const { status } = await createOrder('0014', quoteId, {
+      phone: '70 12 34 63', quartier: '', repere: '',
+      pin: { lat: 12.371532, lng: -1.519931, accuracy: 12 },
+    });
+    expect(status).toBe(200);
+    const row = await dispatchRow(`ord-${quoteId}`);
+    expect(row).toBeDefined();
+    const contact = row!['contact'] as Record<string, unknown>;
+    expect(Object.keys(contact).sort()).toEqual(['phone', 'pin', 'quartier', 'repere']);
+    expect(contact['phone']).toBe('70 12 34 63');
+    expect(contact['quartier']).toBe('');
+    expect(contact['repere']).toBe('');
+    expect(contact['pin']).toEqual({ lat: 12.371532, lng: -1.519931, accuracy: 12 });
+  });
+
+  it('an empty quartier WITHOUT a pin stays refused — the relaxation is the pin’s alone', async () => {
+    const quoteId = await reservedQuote('0015');
+    const r = await createOrder('0015', quoteId, {
+      phone: '70 12 34 64', quartier: '', repere: 'Face à la pharmacie',
+    });
+    expect(r.status).toBe(400);
+    expect(r.body).toEqual({ error: 'bad_field', field: 'contact' });
+  });
 });

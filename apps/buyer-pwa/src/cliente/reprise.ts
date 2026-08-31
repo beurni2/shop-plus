@@ -44,7 +44,6 @@ export interface Reprise {
   /* — what she entered on C3 — */
   readonly zone: string | null;
   readonly repere: string;
-  readonly indic: string;
   readonly phone: string;
   /* — her choices — */
   readonly delivery: Livraison | null;
@@ -71,7 +70,6 @@ export function garderReprise(r: Reprise, storage?: Storage): void {
         ecran: r.ecran,
         zone: r.zone,
         repere: r.repere,
-        indic: r.indic,
         phone: r.phone,
         delivery: r.delivery,
         pay: r.pay,
@@ -106,10 +104,9 @@ export function lireReprise(storage: Storage | undefined, lien: string): Reprise
     if (typeof ecran !== 'string' || !ECRANS_REPRISE.includes(ecran)) return undefined;
     const zone = o['zone'];
     const repere = o['repere'];
-    const indic = o['indic'];
     const phone = o['phone'];
     if (!chaineOuNull(zone)) return undefined;
-    if (typeof repere !== 'string' || typeof indic !== 'string' || typeof phone !== 'string') return undefined;
+    if (typeof repere !== 'string' || typeof phone !== 'string') return undefined;
     const delivery = o['delivery'];
     if (delivery !== null && delivery !== 'today' && delivery !== 'tomorrow') return undefined;
     const pay = o['pay'];
@@ -119,20 +116,23 @@ export function lireReprise(storage: Storage | undefined, lien: string): Reprise
     if (!chaineOuNull(orderId) || !chaineOuNull(buyerRef)) return undefined;
     const essai = o['essai'];
     if (typeof essai !== 'number' || !Number.isInteger(essai) || essai < 0) return undefined;
-    // Past C3, a zone exists — she cannot have left C3 without one, so a
-    // snapshot claiming otherwise is not hers.
-    if (ecran !== 'C3' && zone === null) return undefined;
+    // GEO-ACHAT-2 — a zone may legitimately be absent past C3 now: the
+    // phone-only road crosses on a confirmed pin, and the PIN NEVER PERSISTS
+    // (no coordinate in any storage — the consent law). So a priced screen
+    // resumed without a zone clamps back to C3, where she re-confirms her
+    // position or names a quartier; the order screens (C6+) resume as they
+    // are — their truth is the order's, and the zone plays no role there.
     // An order screen without its order cannot be resumed honestly — the
     // tracking would have nothing to poll and the code nothing to ask for.
     if ((ecran === 'C6' || ecran === 'C7' || ecran === 'C8' || ecran === 'C9') && (!nonVide(orderId) || !nonVide(buyerRef))) {
       return undefined;
     }
+    const ecranSur = (ecran === 'C4' || ecran === 'C5') && zone === null ? 'C3' : ecran;
     return {
       lien,
-      ecran: ecran as EcranReprise,
+      ecran: ecranSur as EcranReprise,
       zone: zone as string | null,
       repere,
-      indic,
       phone,
       delivery: delivery as Livraison | null,
       pay: pay as ModePaiement | null,

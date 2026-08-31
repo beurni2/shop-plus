@@ -9,8 +9,8 @@ import { QUARTIERS_OUAGADOUGOU } from '../src/cliente/quartiers-ouagadougou';
  * the same behavior on the live page is e2e/checkout-real.spec.ts.
  */
 const BASE = {
-  zone: null, zoneFiltre: '', repere: '', indic: '', phone: '',
-  voice: 'idle' as const, recTime: '0:00', geo: 'repos' as const, canContinue: false,
+  zone: null, zoneFiltre: '', repere: '', phone: '',
+  voice: 'idle' as const, recTime: '0:00', geo: 'repos' as const, carte: null, canContinue: false,
 };
 
 describe('renderC3 — the quartier block', () => {

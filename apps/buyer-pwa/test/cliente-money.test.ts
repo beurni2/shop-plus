@@ -30,7 +30,7 @@ const N = '\u202f'; // the only NNBSP source in this test — no raw byte in the
 
 const Q = composeQuote(ROBE.priceFcfa);
 
-const C3_BASE: C3State = { zoneFiltre: '', zone: 'Gounghin', repere: 'Face à la pharmacie du marché', indic: '', phone: '70 12 34 56', voice: 'idle', recTime: '0:00', geo: 'repos', canContinue: true };
+const C3_BASE: C3State = { zoneFiltre: '', zone: 'Gounghin', repere: 'Face à la pharmacie du marché', phone: '70 12 34 56', voice: 'idle', recTime: '0:00', geo: 'repos', carte: null, canContinue: true };
 
 /** Tags out, NOTHING inserted — the concatenated text a buyer reads. */
 const stripTags = (html: string): string => html.replace(/<[^>]+>/g, '');
@@ -370,10 +370,15 @@ describe('BC-1b — her number for the delivery: asked once, gated, sent at orde
     const flow = readFileSync(join(import.meta.dirname, '..', 'src/cliente/flow.ts'), 'utf8');
     // ≥ 8 digits judged on digits alone — spaces and prefixes welcome
     expect(flow).toContain("(state.phone.match(/[0-9]/g) ?? []).length >= 8");
-    expect(flow).toMatch(/const canC3 = \(\): boolean =>\n\s*!!state\.zone && telValide\(\)/);
+    // GEO-ACHAT-2 (founder, 2026-08-31): a confirmed pin makes the number the
+    // only gate; without one the standing law holds — zone + number + repère
+    // (written or spoken).
+    expect(flow).toMatch(/const canC3 = \(\): boolean =>\n\s*telValide\(\) &&\n\s*\(state\.pin !== null \|\|\n\s*\(!!state\.zone/);
     // asked ONCE: the contact is assembled from C3's own answers, never a second form
     expect(flow).toContain('const quartier = state.zone ?? ');
-    expect(flow).toContain("[state.repere.trim(), state.indic.trim()].filter((v) => v !== '').join(' · ')");
+    // …and the phone-only road still SENDS a contact: only « no quartier AND
+    // no pin » withholds it (an address nobody could ride to).
+    expect(flow).toContain("if (phone === '' || (quartier === '' && state.pin === null)) return undefined;");
     // and it rides the CREATE — the one call the service stores it from
     expect(flow).toContain('live.commander(mode, state.essai, contactLivraison())');
     // typing updates the gate live, like the repère — TEL-PAIRES (founder

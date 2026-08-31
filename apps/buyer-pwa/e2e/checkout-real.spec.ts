@@ -1617,24 +1617,41 @@ test('REPERE-AUDIO-REEL · a LOST note gets its sentence — the diagnostic hole
   await expect(page.locator('main.cl-root')).toContainText('Votre repère écrit est bien transmis');
 });
 
-/* ═══ GEO-ACHAT-1 — HER PIN, DRIVEN (founder: « GO », 2026-08-28) ═════════
- * The REAL Geolocation API under Playwright's grant: one tap keeps the pin
- * with its consent sentence, RETIRER is total, and the create carries the
- * EXACT bytes the device produced — never without her word. The denied road
- * is walked beside it: the honest face, the road still open, no pin key on
- * the wire. (SE-I07 upstream: the pin is supporting evidence, never proof.) */
+/* ═══ GEO-ACHAT-1/2 — HER PIN, DRIVEN (founder: « GO » + the 2026-08-31 map
+ * order). The REAL Geolocation API under Playwright's grant: the capture now
+ * lands on the CARTE face — a real map asking « est-ce bien ici ? » — and
+ * ONLY « Confirmer » keeps the pin, with its consent sentence. Annuler is a
+ * full answer, RETIRER is total, and the create carries the EXACT bytes the
+ * device produced — never without her word. The map's TILES are deliberately
+ * BLOCKED in this walk: a map that cannot load must never block the confirm
+ * (offline honesty — her position is the fix, not the tiles). The denied
+ * road is walked beside it: the honest face, the road still open, no pin key
+ * on the wire. (SE-I07 upstream: supporting evidence, never proof.) */
 
-test('GEO-ACHAT-1 · one tap keeps her pin — consent spoken, RETIRER total, the exact bytes on the create', async ({ page, context }) => {
+test('GEO-ACHAT-2 · the map asks, she answers — Annuler keeps nothing, Confirmer keeps the pin, RETIRER total, the exact bytes on the create', async ({ page, context }) => {
   await context.grantPermissions(['geolocation']);
   await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });
+  // The dead-map road, on purpose: the frame never loads, the buttons must.
+  await page.route('**://www.openstreetmap.org/**', (r) => r.abort());
   const wire = await scriptService(page, { orderStates: ['payment_pending'] });
   await page.goto(ENTRY);
   await page.locator('[data-screen="C1"]').waitFor();
   await page.locator('[data-action="commander"]').click();
   await page.locator('[data-screen="C3"]').waitFor();
 
-  // One tap → the kept face, its consent sentence verbatim.
+  // The tap opens the MAP, centred on her fix — nothing is kept yet.
   await page.locator('[data-action="geo-demander"]').click();
+  await page.locator('[data-role="geo-carte"]').waitFor();
+  await expect(page.locator('[data-role="geo-carte"] iframe')).toHaveAttribute('src', /marker=12\.371532%2C-1\.519931/);
+
+  // « Annuler » is a full answer: the quiet offer returns, no pin exists.
+  await page.locator('[data-action="geo-carte-annuler"]').click();
+  await page.locator('[data-action="geo-demander"]').waitFor();
+  await expect(page.locator('[data-role="geo-done"]')).toHaveCount(0);
+
+  // She asks again and CONFIRMS — the kept face, its consent sentence verbatim.
+  await page.locator('[data-action="geo-demander"]').click();
+  await page.locator('[data-action="geo-confirmer"]').click();
   await page.locator('[data-role="geo-done"]').waitFor();
   await expect(page.locator('[data-role="geo-done"]')).toContainText('Position ajoutée — partagée seulement avec votre livreur.');
 
@@ -1642,6 +1659,7 @@ test('GEO-ACHAT-1 · one tap keeps her pin — consent spoken, RETIRER total, th
   await page.locator('[data-action="geo-retirer"]').click();
   await page.locator('[data-action="geo-demander"]').waitFor();
   await page.locator('[data-action="geo-demander"]').click();
+  await page.locator('[data-action="geo-confirmer"]').click();
   await page.locator('[data-role="geo-done"]').waitFor();
 
   await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
@@ -1658,6 +1676,49 @@ test('GEO-ACHAT-1 · one tap keeps her pin — consent spoken, RETIRER total, th
   expect(Object.keys(body).sort()).toEqual(['commandId', 'contact', 'holderRef', 'quoteId']);
   const contact = body['contact'] as Record<string, unknown>;
   expect(Object.keys(contact).sort()).toEqual(['phone', 'pin', 'quartier', 'repere']);
+  expect(contact['pin']).toEqual({ lat: 12.371532, lng: -1.519931, accuracy: 12 });
+});
+
+test('GEO-ACHAT-2 · the PHONE-ONLY road: confirmed position + number, no quartier, no repère — and no fabricated byte anywhere', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation']);
+  await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });
+  await page.route('**://www.openstreetmap.org/**', (r) => r.abort());
+  const wire = await scriptService(page, { orderStates: ['payment_pending'] });
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+
+  // She confirms her position and touches NOTHING else.
+  await page.locator('[data-action="geo-demander"]').click();
+  await page.locator('[data-action="geo-confirmer"]').click();
+  await page.locator('[data-role="geo-done"]').waitFor();
+  // What-happens-next is stated on the kept face…
+  await expect(page.locator('[data-role="geo-allege"]')).toContainText('Votre numéro suffit pour continuer.');
+  // …and the number is STILL required: the pin alone opens nothing.
+  await expect(page.locator('[data-action="continuer-c3"]')).toBeDisabled();
+
+  await page.locator('[data-role="phone"]').fill('70 12 34 56');
+  await expect(page.locator('[data-action="continuer-c3"]')).toBeEnabled();
+  await page.locator('[data-action="continuer-c3"]').click();
+
+  // The récap says the truth — her position, never an invented « GOUNGHIN ».
+  await page.locator('[data-role="recap-gps"]').waitFor();
+  await expect(page.locator('[data-role="recap-gps"]')).toContainText('VOTRE POSITION GPS');
+  await expect(page.locator('[data-screen="C4"]')).not.toContainText('GOUNGHIN');
+
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+
+  // THE PRICE was asked for the BARE CITY — same tariff row, no quartier named.
+  expect(wire.quotes[0]!['zoneTo']).toBe('Ouagadougou');
+  // THE WIRE: phone + pin, and the empty fields ride EMPTY — nothing invented.
+  const contact = wire.orders[0]!.body['contact'] as Record<string, unknown>;
+  expect(Object.keys(contact).sort()).toEqual(['phone', 'pin', 'quartier', 'repere']);
+  expect(contact['phone']).toBe('70 12 34 56');
+  expect(contact['quartier']).toBe('');
+  expect(contact['repere']).toBe('');
   expect(contact['pin']).toEqual({ lat: 12.371532, lng: -1.519931, accuracy: 12 });
 });
 

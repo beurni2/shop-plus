@@ -673,23 +673,27 @@ export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: bool
 
 /* ----------------------------------------------------------------- C3 ---- */
 
-/** GEO-ACHAT-1 — the position block's four faces: the quiet offer, the
- *  capture under way, the kept pin (with its way out), and the honest
- *  refusal that gates nothing. */
-export type GeoEtat = 'repos' | 'encours' | 'faite' | 'refus';
+/** GEO-ACHAT-1/2 — the position block's five faces: the quiet offer, the
+ *  capture under way, the map asking her to confirm (GEO-ACHAT-2), the kept
+ *  pin (with its way out), and the honest refusal that gates nothing. */
+export type GeoEtat = 'repos' | 'encours' | 'carte' | 'faite' | 'refus';
 
 export interface C3State {
   readonly zone: string | null;
   /** What she typed in the quartier filter — UI state, never persisted. */
   readonly zoneFiltre: string;
   readonly repere: string;
-  readonly indic: string;
   /** BC-1b — her number, for the delivery and for nothing else. */
   readonly phone: string;
   readonly voice: VoiceEtat;
   readonly recTime: string;
-  /** GEO-ACHAT-1 — the render never sees coordinates; only the face. */
+  /** GEO-ACHAT-1 — the render never sees coordinates; only the face. ONE
+   *  exception (GEO-ACHAT-2): the CANDIDATE's lat/lng below, because the map
+   *  she is asked to confirm must be centred on the fix itself. */
   readonly geo: GeoEtat;
+  /** GEO-ACHAT-2 — the unconfirmed fix the carte face shows. Present iff
+   *  geo === 'carte'; never the kept pin, never persisted. */
+  readonly carte: { readonly lat: number; readonly lng: number } | null;
   readonly canContinue: boolean;
 }
 
@@ -741,6 +745,10 @@ function renderGeoBlock(s: C3State): string {
     case 'repos':
       return `<button class="cl-geo-idle" data-action="geo-demander">${iconFlag(16)}Ajouter ma position</button>`;
     case 'encours':
+    // GEO-ACHAT-2 — while the carte overlay stands, the block behind it keeps
+    // the searching face: the capture is not KEPT yet, and painting the kept
+    // face under an unanswered question would be the consent law inverted.
+    case 'carte':
       return '<div class="cl-geo-cours" data-role="geo-cours"><span class="cl-geo-dot"></span>Recherche de votre position…</div>';
     case 'faite':
       return [
@@ -749,10 +757,48 @@ function renderGeoBlock(s: C3State): string {
         '<span class="cl-geo-done-txt">Position ajoutée — partagée seulement avec votre livreur.</span>',
         '<button class="cl-geo-retirer" data-action="geo-retirer">RETIRER</button>',
         '</div>',
+        // GEO-ACHAT-2 — what-happens-next, stated (founder: with a confirmed
+        // position the number is the only requirement; quartier and repère
+        // help the rider but gate nothing any more).
+        '<div class="cl-geo-note cl-geo-allege" data-role="geo-allege">Votre numéro suffit pour continuer. Quartier et repère : si vous voulez.</div>',
       ].join('');
     case 'refus':
       return '<div class="cl-geo-note cl-geo-refus" data-role="geo-refus">Position introuvable ici. Votre repère écrit suffit.</div>';
   }
+}
+
+/**
+ * GEO-ACHAT-2 — THE MAP THAT ASKS (founder, 2026-08-31: « open a webview
+ * screen with the live map pinpointing the buyer's live location asking him
+ * to confirm »). A full-screen face over C3: the fix she just gave, pinned on
+ * a real map, with ONE question — is this the door?
+ *
+ *  · ONE static fix, never a following map (SE-I08): the frame is centred on
+ *    the capture and stays there. No watchPosition exists anywhere.
+ *  · The map is OpenStreetMap's own embed — no library, no key, no script.
+ *    Looking at a map of your own position means your DEVICE asks the map's
+ *    tile server for that area; that is her act, on her phone, same as any
+ *    maps app. The STORED pin still exits only through the founder's
+ *    dispatch read — this frame changes nothing about that law.
+ *  · OFFLINE IS HONEST: a map that cannot load is a blank frame, never a
+ *    wall — both buttons stand below it and the confirm still works. Her
+ *    position is the FIX, not the tiles.
+ *  · Nothing is kept until « Confirmer » — Annuler drops the candidate and
+ *    the block returns to the quiet offer.
+ */
+function renderGeoCarte(c: { lat: number; lng: number }): string {
+  const d = 0.003;
+  const bbox = `${(c.lng - d).toFixed(6)}%2C${(c.lat - d).toFixed(6)}%2C${(c.lng + d).toFixed(6)}%2C${(c.lat + d).toFixed(6)}`;
+  const src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${c.lat}%2C${c.lng}`;
+  return [
+    '<div class="cl-geo-carte" data-role="geo-carte">',
+    '<div class="cl-geo-carte-tete">Votre position</div>',
+    `<iframe class="cl-geo-carte-vue" title="Carte de votre position" src="${src}" referrerpolicy="no-referrer"></iframe>`,
+    '<div class="cl-geo-carte-aide">Vérifiez le point sur la carte.</div>',
+    '<button class="cl-cta cl-geo-carte-ok" data-action="geo-confirmer">Confirmer ma position</button>',
+    '<button class="cl-geo-carte-annuler" data-action="geo-carte-annuler">Annuler</button>',
+    '</div>',
+  ].join('');
 }
 
 export function renderC3(s: C3State): string {
@@ -765,7 +811,6 @@ export function renderC3(s: C3State): string {
     `<div class="cl-chips cl-chips-quartiers" data-role="quartier-chips">${renderQuartierChips(s.zone, s.zoneFiltre)}</div>`,
     '<div class="cl-overline">Le repère</div>',
     `<input class="cl-field" data-role="repere" value="${esc(s.repere)}" placeholder="Ex. : Face à la pharmacie du marché">`,
-    `<input class="cl-field cl-field-indic" data-role="indic" value="${esc(s.indic)}" placeholder="Indication en plus (facultatif)">`,
     '<div class="cl-overline">Ou dites-le de vive voix</div>',
     renderVoiceBlock(s),
     renderGeoBlock(s),
@@ -781,6 +826,10 @@ export function renderC3(s: C3State): string {
     `<input class="cl-field" data-role="phone" type="tel" inputmode="tel" value="${esc(s.phone)}" placeholder="Ex. : 70 12 34 56">`,
     `<div class="cl-privline">${iconLock(14)}Le livreur passe par un relais. Votre numéro reste privé.</div>`,
     `<button class="cl-cta cl-cta-c3${s.canContinue ? '' : ' cl-cta-off'}" data-action="continuer-c3"${s.canContinue ? '' : ' disabled'}>Continuer</button>`,
+    // GEO-ACHAT-2 — the carte face paints LAST so it stands over the whole
+    // screen: one question, answered before anything else on C3 can be
+    // touched.
+    s.geo === 'carte' && s.carte !== null ? renderGeoCarte(s.carte) : '',
     '</div>',
   ].join('');
 }
@@ -790,6 +839,10 @@ export function renderC3(s: C3State): string {
 export interface C4State {
   readonly zone: string;
   readonly repereRecap: string;
+  /** GEO-ACHAT-2 — she confirmed a GPS position and named no quartier: the
+   *  récap says the truth (« VOTRE POSITION GPS ») instead of a fabricated
+   *  zone. The coordinates themselves never reach this render. */
+  readonly positionGps?: boolean | undefined;
   /** LISTE-ADRESSE — the liste creator's first name. Present ⇒ the récap is
    *  the ONE sentence « Livré chez {nom}, à son adresse. » (founder's exact
    *  copy) with NO modifier — the address is not the friend's to see or
@@ -834,10 +887,20 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
     `<span class="cl-recap-flag">${iconFlag(18)}</span>`,
     s.livreChez !== undefined
       ? `<div class="cl-recap-col" data-role="livre-chez"><div class="cl-recap-zone">Livré chez <v>${esc(s.livreChez)}</v>, à son adresse.</div></div>`
-      : [
-          `<div class="cl-recap-col"><div class="cl-recap-zone">${esc(s.zone.toUpperCase())}</div><div class="cl-recap-rep">${esc(s.repereRecap)}</div></div>`,
-          '<button class="cl-modifier" data-action="retour-c3">MODIFIER</button>',
-        ].join(''),
+      : s.positionGps === true && s.zone === ''
+        ? [
+            // GEO-ACHAT-2 — the phone-only road's récap: her position IS the
+            // destination; a fabricated « GOUNGHIN » here would be a lie on
+            // the money path.
+            `<div class="cl-recap-col" data-role="recap-gps"><div class="cl-recap-zone">VOTRE POSITION GPS</div><div class="cl-recap-rep">${
+              s.repereRecap !== '' ? esc(s.repereRecap) : 'Partagée seulement avec votre livreur.'
+            }</div></div>`,
+            '<button class="cl-modifier" data-action="retour-c3">MODIFIER</button>',
+          ].join('')
+        : [
+            `<div class="cl-recap-col"><div class="cl-recap-zone">${esc(s.zone.toUpperCase())}</div><div class="cl-recap-rep">${esc(s.repereRecap)}</div></div>`,
+            '<button class="cl-modifier" data-action="retour-c3">MODIFIER</button>',
+          ].join(''),
     '</div>',
     '<div class="cl-law">Le prix de la course est fixé par Séra. Il est affiché à part — jamais caché dans le prix du produit.</div>',
     s.ligneUnique === true ? ligne : options.map((o) => {

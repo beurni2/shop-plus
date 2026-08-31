@@ -42,7 +42,6 @@ const PLEINE: Reprise = {
   ecran: 'C7',
   zone: 'Gounghin',
   repere: 'Face à la pharmacie du marché',
-  indic: 'Portail vert',
   phone: '70 12 34 56',
   delivery: 'today',
   pay: 'A',
@@ -56,7 +55,6 @@ const MI_PARCOURS: Reprise = {
   ecran: 'C5',
   zone: 'Pissy',
   repere: '',
-  indic: '',
   phone: '70 00 00 00',
   delivery: 'today',
   pay: 'B',
@@ -120,7 +118,6 @@ describe('reprise — malformed is NOTHING, never a crash and never a guess', ()
     ['a negative essai', JSON.stringify({ ...PLEINE, essai: -1 })],
     ['a fractional essai', JSON.stringify({ ...PLEINE, essai: 1.5 })],
     ['a string essai', JSON.stringify({ ...PLEINE, essai: '1' })],
-    ['a post-C3 screen with no zone', JSON.stringify({ ...MI_PARCOURS, zone: null })],
     ['an order screen without its orderId', JSON.stringify({ ...PLEINE, orderId: null })],
     ['an order screen with an EMPTY orderId', JSON.stringify({ ...PLEINE, orderId: '' })],
     ['an order screen without its buyerRef', JSON.stringify({ ...PLEINE, buyerRef: null })],
@@ -168,7 +165,29 @@ describe('reprise — a dead or absent storage costs the resumption, never a thr
 });
 
 describe('reprise — the allowlist: what is stored is exactly what is named', () => {
-  it('the serialized record carries the eleven named keys and NOTHING else — no code, no marks, no amounts can ride', () => {
+  // GEO-ACHAT-2 — the phone-only road: a priced screen (C4/C5) resumed with
+  // no zone is a PIN journey, and the pin never persists (no coordinate in
+  // any storage) — so it clamps back to C3 with what she typed kept, while an
+  // order screen (C6+) resumes as itself: its truth is the order's.
+  it('a priced screen with no zone clamps to C3 — her phone kept, no fabricated quartier', () => {
+    const s = memStorage();
+    s.setItem(REPRISE_CLE, JSON.stringify({ ...MI_PARCOURS, zone: null }));
+    const r = lireReprise(s, LIEN);
+    expect(r).toBeDefined();
+    expect(r!.ecran).toBe('C3');
+    expect(r!.zone).toBeNull();
+    expect(r!.phone).toBe(MI_PARCOURS.phone);
+  });
+
+  it('an order screen with no zone resumes as itself — the tracking needs no quartier', () => {
+    const s = memStorage();
+    s.setItem(REPRISE_CLE, JSON.stringify({ ...PLEINE, zone: null }));
+    const r = lireReprise(s, LIEN);
+    expect(r).toBeDefined();
+    expect(r!.ecran).toBe('C7');
+  });
+
+  it('the serialized record carries the ten named keys and NOTHING else — no code, no marks, no amounts can ride', () => {
     const s = memStorage();
     // Even a caller handing extra fields cannot smuggle them in: the writer
     // copies field by field, never spreads.
@@ -177,7 +196,7 @@ describe('reprise — the allowlist: what is stored is exactly what is named', (
     expect(brut).not.toBeNull();
     const o = JSON.parse(brut ?? '{}') as Record<string, unknown>;
     expect(Object.keys(o).sort()).toEqual(
-      ['buyerRef', 'delivery', 'ecran', 'essai', 'indic', 'lien', 'orderId', 'pay', 'phone', 'repere', 'zone'].sort(),
+      ['buyerRef', 'delivery', 'ecran', 'essai', 'lien', 'orderId', 'pay', 'phone', 'repere', 'zone'].sort(),
     );
     expect(brut).not.toContain('654321');
     expect(brut).not.toContain('livree');

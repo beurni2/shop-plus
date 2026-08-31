@@ -319,7 +319,6 @@ export const CLIENTE_STYLES = `
     margin-top: 8px; width: 100%; font: inherit; font-size: 15.5px; padding: 15px;
     border-radius: 14px; border: 1.5px solid #E5DCC9; background: #FFFFFF; color: #1C1710; outline: none;
   }
-  .cl-field-indic { margin-top: 9px; font-size: 14.5px; padding: 14px 15px; }
   .cl-field:focus { border-color: var(--vt-accent); box-shadow: 0 0 0 3px rgba(var(--vt-sh),.12); }
   .cl-voice-idle {
     margin-top: 9px; display: flex; align-items: center; justify-content: center; gap: 9px;
@@ -357,6 +356,22 @@ export const CLIENTE_STYLES = `
   .cl-geo-retirer { border: none; background: transparent; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; white-space: nowrap; flex: none; min-height: 44px; padding: 0 10px; display: flex; align-items: center; }
   .cl-geo-note { margin-top: 9px; display: flex; align-items: center; gap: 10px; padding: 13px 15px; border-radius: 15px; font-size: 12.5px; line-height: 1.5; }
   .cl-geo-refus { background: #F1E7D3; color: #4A3F33; }
+  .cl-geo-allege { background: #FFFFFF; border: 1.5px dashed #E5DCC9; color: #6F6355; }
+  .cl-geo-carte {
+    position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column;
+    padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0px)); background: #FAF6ED;
+  }
+  .cl-geo-carte-tete { font-size: 19px; font-weight: 800; color: #1C1710; }
+  .cl-geo-carte-vue {
+    margin-top: 12px; width: 100%; flex: 1; min-height: 0; border: 1.5px solid #E5DCC9;
+    border-radius: 16px; background: #F1E7D3;
+  }
+  .cl-geo-carte-aide { margin-top: 10px; font-size: 12.5px; color: #6F6355; }
+  .cl-geo-carte-ok { margin-top: 10px; }
+  .cl-geo-carte-annuler {
+    margin-top: 8px; width: 100%; min-height: 48px; border: none; background: transparent;
+    color: #6F6355; font: inherit; font-size: 14px; font-weight: 700; text-decoration: underline;
+  }
   .cl-privline { margin-top: 14px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6F6355; }
   .cl-privline svg { flex: none; }
   .cl-cta-c3 { margin-top: 16px; }

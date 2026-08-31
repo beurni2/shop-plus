@@ -176,7 +176,6 @@ interface FlowState {
    *  deliberately NOT part of the reprise snapshot (the pinned key list). */
   zoneFiltre: string;
   repere: string;
-  indic: string;
   /** BC-1b — her number, captured on C3 for the dispatch contact. */
   phone: string;
   voice: VoiceEtat;
@@ -459,7 +458,6 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     zone: null,
     zoneFiltre: '',
     repere: '',
-    indic: '',
     phone: '',
     voice: (init.microRefuse ?? false) ? 'refused' : 'idle',
     vSec: 0,
@@ -668,6 +666,12 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   const NOTE_MAX_SEC = 30;
   /** One replay element for HER OWN note (blob URL — never leaves the phone). */
   let noteAudio: HTMLAudioElement | null = null;
+  /** GEO-ACHAT-2 — the UNCONFIRMED fix the carte face is asking about. A
+   *  closure variable, never state: it exists only between the capture and
+   *  her answer, dies on Annuler and on every screen change, and cannot be
+   *  serialised into a snapshot by construction. Only `geo-confirmer` may
+   *  promote it to `state.pin`. */
+  let pinCandidat: { lat: number; lng: number; accuracy?: number } | null = null;
   /**
    * ═══ VOIX-ÉTAT-2 — HER OWN NOTE HAD NO FACE EITHER (founder, 2026-08-09) ═══
    *
@@ -746,7 +750,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
 
   function prefill(screen: EcranLineaire): void {
     const idx = ECRANS.indexOf(screen);
-    if (idx >= 1) {
+    // GEO-ACHAT-2 — a confirmed pin is a real destination: fabricating a
+    // demo zone/repère over it would put an invented quartier ON THE WIRE
+    // (the contact is assembled from these fields at send). The prefill
+    // exists for direct harness mounts, where no pin can exist.
+    if (idx >= 1 && state.pin === null) {
       state.zone = state.zone || 'Gounghin';
       state.repere = state.repere || 'Face à la pharmacie du marché';
     }
@@ -761,6 +769,11 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     // screen to stop it — the same defect Séra already treats as a bug when the
     // rider accepts a course. The control is gone; the sound goes with it.
     noteAudio?.pause();
+    // GEO-ACHAT-2 — a question she walked away from is a question answered
+    // « non »: the candidate dies with the screen, and a carte face never
+    // survives a navigation (the LISTE-VOIX consent lesson, on the map).
+    pinCandidat = null;
+    if (state.geo === 'carte') state.geo = 'repos';
     state.sheet = false;
     state.paying = 'idle';
     // Landing on a screen ends the refusal that was standing in front of it.
@@ -787,8 +800,14 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
 
   const recTime = (): string => `0:${String(state.vSec).padStart(2, '0')}`;
   const telValide = (): boolean => (state.phone.match(/[0-9]/g) ?? []).length >= 8;
+  // GEO-ACHAT-2 (founder, 2026-08-31): a CONFIRMED position makes the number
+  // the only requirement — the quartier and the repère still help the rider
+  // but gate nothing. Without a pin, the standing law is untouched: quartier
+  // + number + (written repère or her voice).
   const canC3 = (): boolean =>
-    !!state.zone && telValide() && (state.repere.trim().length > 0 || state.voice === 'recorded' || state.voice === 'queued');
+    telValide() &&
+    (state.pin !== null ||
+      (!!state.zone && (state.repere.trim().length > 0 || state.voice === 'recorded' || state.voice === 'queued')));
 
   function screenHtml(): string {
     // A NAMED REFUSAL OUTRANKS EVERY SCREEN. It is not an overlay and not a
@@ -800,15 +819,22 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         return renderC1(m, { epuise: state.stock === 'out', sansVoix: init.sansVoix ?? false });
       case 'C3':
         return renderC3({
-          zone: state.zone, zoneFiltre: state.zoneFiltre, repere: state.repere, indic: state.indic, phone: state.phone,
-          voice: state.voice, recTime: recTime(), geo: state.geo, canContinue: canC3(),
+          zone: state.zone, zoneFiltre: state.zoneFiltre, repere: state.repere, phone: state.phone,
+          voice: state.voice, recTime: recTime(), geo: state.geo,
+          // GEO-ACHAT-2 — the carte face's unconfirmed fix; the ONE place a
+          // coordinate reaches a render, because the map must centre on it.
+          carte: state.geo === 'carte' && pinCandidat !== null ? { lat: pinCandidat.lat, lng: pinCandidat.lng } : null,
+          canContinue: canC3(),
         });
       case 'C4':
         // Render-time fallbacks — the pixel's zoneUpper/repereRecap `||` pair,
         // so a direct C4 mount shows a coherent récap without touching state.
+        // GEO-ACHAT-2 — on the pin road NOTHING is fabricated: an invented
+        // « Gounghin » or demo repère would end up in the dispatch contact.
         return q === null ? renderRefus('') : renderC4(q, {
-          zone: state.zone || 'Gounghin',
-          repereRecap: (state.repere || 'Face à la pharmacie du marché') + (state.indic ? ` · ${state.indic}` : ''),
+          zone: state.zone || (state.pin !== null ? '' : 'Gounghin'),
+          repereRecap: state.pin !== null ? state.repere.trim() : state.repere || 'Face à la pharmacie du marché',
+          positionGps: state.pin !== null,
           delivery: state.delivery,
           ligneUnique: state.serverQuote !== null,
           // LISTE-ADRESSE — the récap the friend never wrote is replaced by
@@ -1041,7 +1067,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     if (reprendre !== undefined) {
       // Her C3 answers travel as jump EXTRAS so the demo prefill can never
       // dress a real journey (the 2026-07-22 leak class): extras win last.
-      const extras = { zone: reprendre.zone, repere: reprendre.repere, indic: reprendre.indic, phone: reprendre.phone };
+      const extras = { zone: reprendre.zone, repere: reprendre.repere, phone: reprendre.phone };
       if (reprendre.ecran === 'C6' && reprendre.orderId !== null && reprendre.buyerRef !== null) {
         // The order is hers again — but its truth is the SERVER'S: C6 mounts
         // WAITING and the payment watch re-asks, so a payment that was in
@@ -1403,14 +1429,16 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    * paid one.
    */
   /** BC-1b — the dispatch contact, from C3's own answers: her number, her
-   *  quartier, and the repère (text plus the optional indication; possibly ''
-   *  when she chose the voice note — the service accepts an empty repère).
+   *  quartier, and the repère (possibly '' when she chose the voice note or
+   *  the pin — the service accepts an empty repère). GEO-ACHAT-2: a confirmed
+   *  pin stands in for the quartier, so the contact rides with quartier ''
+   *  on the phone-only road — the service holds the same law at its door.
    *  Assembled at SEND, so a corrected number on a retry travels corrected. */
   function contactLivraison(): { phone: string; quartier: string; repere: string; audioB64?: string; pin?: { lat: number; lng: number; accuracy?: number } } | undefined {
     const phone = state.phone.trim();
     const quartier = state.zone ?? '';
-    if (phone === '' || quartier === '') return undefined;
-    const repere = [state.repere.trim(), state.indic.trim()].filter((v) => v !== '').join(' · ').slice(0, 200);
+    if (phone === '' || (quartier === '' && state.pin === null)) return undefined;
+    const repere = state.repere.trim().slice(0, 200);
     return {
       phone: phone.slice(0, 32),
       quartier: quartier.slice(0, 120),
@@ -1525,7 +1553,6 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         ecran: state.screen,
         zone: state.zone,
         repere: state.repere,
-        indic: state.indic,
         phone: state.phone,
         delivery: state.delivery,
         pay: state.pay,
@@ -1587,7 +1614,6 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       const nuage = container.querySelector('[data-role="quartier-chips"]');
       if (nuage !== null) nuage.innerHTML = renderQuartierChips(state.zone, state.zoneFiltre);
     }
-    if (role === 'indic') state.indic = el.value;
     if (role === 'phone') {
       /**
        * TEL-PAIRES (founder order 2026-08-09) — the field does what its own
@@ -1652,7 +1678,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
             return;
           }
           jump('C3', {
-            zone: null, repere: '', indic: '', phone: '',
+            zone: null, repere: '', phone: '',
             voice: (init.microRefuse ?? false) ? 'refused' : 'idle', vSec: 0, note: null,
             geo: 'repos', pin: null,
           });
@@ -1837,7 +1863,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
               if (state.geo === 'encours') state.geo = 'repos';
               return;
             }
-            state.pin = {
+            // GEO-ACHAT-2 — the fix is a CANDIDATE, not a pin: the carte face
+            // shows it on a real map and asks; only « Confirmer » keeps it.
+            pinCandidat = {
               // Six decimals ≈ 11 cm — every digit past that is noise on the
               // wire pretending to be precision.
               lat: Math.round(pos.coords.latitude * 1e6) / 1e6,
@@ -1846,7 +1874,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
                 ? { accuracy: Math.min(100_000, Math.max(0, Math.round(pos.coords.accuracy))) }
                 : {}),
             };
-            state.geo = 'faite';
+            state.geo = 'carte';
             render();
           },
           () => {
@@ -1861,6 +1889,22 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         );
         return;
       }
+      case 'geo-confirmer':
+        // GEO-ACHAT-2 — HER answer to the map's one question. This is the
+        // only line in the app that turns a candidate into a kept pin.
+        if (state.geo !== 'carte' || pinCandidat === null) return;
+        state.pin = pinCandidat;
+        pinCandidat = null;
+        state.geo = 'faite';
+        render();
+        return;
+      case 'geo-carte-annuler':
+        // « Ce n'est pas là » is a full answer: the candidate dies here and
+        // the quiet offer returns — nothing was kept, nothing rides.
+        pinCandidat = null;
+        state.geo = 'repos';
+        render();
+        return;
       case 'geo-retirer':
         // Retirer is total: no coordinate survives it anywhere in this app.
         state.pin = null; state.geo = 'repos'; render(); return;
@@ -2248,7 +2292,6 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   function reprendreParcours(r: Reprise): void {
     state.zone = r.zone;
     state.repere = r.repere;
-    state.indic = r.indic;
     state.phone = r.phone;
     state.delivery = r.delivery;
     state.pay = r.pay;
@@ -2259,7 +2302,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       // wins last.
       // GEO-ACHAT-1 — the snapshot never carries a pin (no coordinates in
       // sessionStorage), so a resumed C3 opens on the quiet offer.
-      jump('C3', { zone: r.zone, repere: r.repere, indic: r.indic, phone: r.phone, geo: 'repos', pin: null });
+      jump('C3', { zone: r.zone, repere: r.repere, phone: r.phone, geo: 'repos', pin: null });
       return;
     }
     if (r.ecran === 'C4' || r.ecran === 'C5' || r.ecran === 'C6') {
@@ -2283,12 +2326,12 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       // The voir-code entry, verbatim: jump, ask the remise route for the
       // code, restart the watch (e6bcc54 — a C9 whose watch is dead shows the
       // code for ever, no C10, no close).
-      jump('C9', { repere: r.repere, indic: r.indic, phone: r.phone });
+      jump('C9', { repere: r.repere, phone: r.phone });
       demanderLeCode();
       demarrerSuivi();
       return;
     }
-    jump('C7', { step: Math.max(state.step, 1), repere: r.repere, indic: r.indic, phone: r.phone });
+    jump('C7', { step: Math.max(state.step, 1), repere: r.repere, phone: r.phone });
     demarrerSuivi();
   }
 
