@@ -436,7 +436,7 @@ printf '\nrogue edit — this consumer copy drifted from canon\n' >> "$DRIFT_TMP
 capture drift-check-negative fail pnpm exec drift-check "$DRIFT_TMP/docs" --pinned-version "$PINNED_CANON"
 rm -rf "$DRIFT_TMP"
 
-log "gate: PWA payload budget — fresh build, initial payload < 300 KB compressed (PERF-BUDGETS, WO-4.4 hard gate)"
+log "gate: PWA payload budget — fresh build, initial payload < 320 KB compressed (PERF-BUDGETS 1.1, WO-4.4 hard gate)"
 capture pwa-payload-budget pass node scripts/gates/pwa-payload-budget.mjs
 
 log "buyer PWA — Playwright harness (shell boots on the shop-plus theme; §6.2 journey end-to-end incl. offline)"

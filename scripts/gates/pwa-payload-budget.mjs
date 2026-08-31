@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
  * WO-4.4 / WO-7.2b — THE PWA BUDGET GATE (PERF-BUDGETS.md, quoted):
- *   "Initial PWA payload (buyer surface) | < 300 KB compressed"
- *   "Buyer-page JS payload | ≤ 150 KB compressed (inside the 300 KB
+ *   "Initial PWA payload (buyer surface) | < 320 KB compressed" (Amendment
+ *    1.1, founder-signed « 320 » 2026-08-31; 300 KB from D17 2026-07-10)
+ *   "Buyer-page JS payload | ≤ 150 KB compressed (inside the 320 KB
  *    founder-signed total)"
- * Every web SURFACE is measured against the same 300 KB per-surface total, built
+ * Every web SURFACE is measured against the same 320 KB per-surface total, built
  * fresh so the measurement (and the Playwright harness that follows) serves
  * TODAY's bytes, never a stale dist. WO-7.2b adds the reseller media-kit surface
  * (`@shop-plus/reseller-kit`, the composeur) as its own line under the same
@@ -36,7 +37,7 @@ import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
 const ROOT = join(import.meta.dirname, '../..');
-const HARD_TOTAL_BYTES = 300 * 1024; // founder-signed, per surface
+const HARD_TOTAL_BYTES = 320 * 1024; // founder-signed, per surface (Amendment 1.1, « 320 », 2026-08-31)
 
 /**
  * Build a web surface fresh, then measure the gzip size of every byte the first
@@ -155,4 +156,4 @@ if (kit.worst >= HARD_TOTAL_BYTES) {
 }
 
 if (failed) process.exit(1);
-console.log('\nPWA payload budget OK (every surface under the 300 KB per-surface total)');
+console.log('\nPWA payload budget OK (every surface under the 320 KB per-surface total)');
