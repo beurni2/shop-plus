@@ -30,7 +30,7 @@ const N = '\u202f'; // the only NNBSP source in this test — no raw byte in the
 
 const Q = composeQuote(ROBE.priceFcfa);
 
-const C3_BASE: C3State = { zoneFiltre: '', zone: 'Gounghin', repere: 'Face à la pharmacie du marché', phone: '70 12 34 56', voice: 'idle', recTime: '0:00', geo: 'repos', carte: null, canContinue: true };
+const C3_BASE: C3State = { zoneFiltre: '', zoneEdition: false, zone: 'Gounghin', repere: 'Face à la pharmacie du marché', phone: '70 12 34 56', voice: 'idle', recTime: '0:00', geo: 'repos', carte: null, canContinue: true };
 
 /** Tags out, NOTHING inserted — the concatenated text a buyer reads. */
 const stripTags = (html: string): string => html.replace(/<[^>]+>/g, '');

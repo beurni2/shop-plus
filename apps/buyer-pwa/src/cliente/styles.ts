@@ -351,6 +351,21 @@ export const CLIENTE_STYLES = `
   .cl-geo-dot { width: 10px; height: 10px; border-radius: 99px; background: #1C1710; flex: none; }
   @media (prefers-reduced-motion: no-preference) { .cl-geo-dot { animation: clPulse 1s ease infinite; } }
   .cl-geo-done { margin-top: 9px; display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 15px; border-radius: 15px; border: 1.5px solid #1C1710; background: #FFFFFF; }
+  /* QUARTIER-CHOISI — the folded picker: the kept-state row anatomy her
+   * position row already speaks (white card, the quiet uppercase way out). */
+  .cl-zone-choisie {
+    margin-top: 10px; display: flex; align-items: center; gap: 10px;
+    padding: 13px 15px; border-radius: 15px; background: #FFFFFF;
+    border: 1.5px solid #E5DCC9;
+  }
+  .cl-zone-choisie-ic { color: #1C1710; display: flex; flex: none; }
+  .cl-zone-choisie-nom { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: #1C1710; }
+  .cl-zone-changer {
+    border: none; background: transparent; color: var(--vt-accent);
+    font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline;
+    white-space: nowrap; flex: none; min-height: 44px; padding: 0 10px;
+    display: flex; align-items: center;
+  }
   .cl-geo-done-ic { color: #1C1710; display: flex; flex: none; }
   .cl-geo-done-txt { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.5; color: #1C1710; }
   .cl-geo-retirer { border: none; background: transparent; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; white-space: nowrap; flex: none; min-height: 44px; padding: 0 10px; display: flex; align-items: center; }

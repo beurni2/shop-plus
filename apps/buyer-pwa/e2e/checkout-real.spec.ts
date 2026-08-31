@@ -1704,6 +1704,50 @@ test('GEO-ACHAT-2 · the map asks, she answers — Annuler keeps nothing, Confir
   expect(contact['pin']).toEqual({ lat: 12.371532, lng: -1.519931, accuracy: 12 });
 });
 
+test('QUARTIER-CHOISI · picking folds the picker into one row; CHANGER reopens it with her chip pressed; the SECOND choice rides the wire', async ({ page }) => {
+  const wire = await scriptService(page, { orderStates: ['payment_pending'] });
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+
+  // Untouched: the search field and the full cloud, no folded row.
+  await expect(page.locator('[data-role="quartier-filtre"]')).toBeVisible();
+  await expect(page.locator('[data-role="zone-choisie"]')).toHaveCount(0);
+
+  // She picks — the section disappears, as ordered: one calm row with her
+  // quartier and CHANGER, no field, no cloud.
+  await page.locator('[data-action="zone"][data-zone="Gounghin"]').click();
+  await expect(page.locator('[data-role="zone-choisie"]')).toContainText('Gounghin');
+  await expect(page.locator('[data-action="zone-changer"]')).toBeVisible();
+  await expect(page.locator('[data-role="quartier-filtre"]')).toHaveCount(0);
+  await expect(page.locator('[data-role="quartier-chips"]')).toHaveCount(0);
+
+  // CHANGER brings the picker back, her chip still pressed — the choice
+  // already made is never lost while she looks for a better one.
+  await page.locator('[data-action="zone-changer"]').click();
+  await expect(page.locator('[data-role="quartier-filtre"]')).toBeVisible();
+  await expect(page.locator('[data-action="zone"][data-zone="Gounghin"]')).toHaveClass(/cl-chip-on/);
+  await expect(page.locator('[data-role="zone-choisie"]')).toHaveCount(0);
+
+  // A second pick folds it again — and it is the SECOND choice that rides.
+  await page.locator('[data-action="zone"][data-zone="Pissy"]').click();
+  await expect(page.locator('[data-role="zone-choisie"]')).toContainText('Pissy');
+  await expect(page.locator('[data-role="quartier-filtre"]')).toHaveCount(0);
+
+  await page.locator('[data-role="repere"]').fill('Face à la pharmacie du marché');
+  await page.locator('[data-role="phone"]').fill('70 12 34 56');
+  await page.locator('[data-action="continuer-c3"]').click();
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+
+  expect(wire.quotes[0]!['zoneTo']).toBe('Pissy, Ouagadougou');
+  const contact = wire.orders[0]!.body['contact'] as Record<string, unknown>;
+  expect(contact['quartier']).toBe('Pissy');
+  expect(JSON.stringify(contact)).not.toContain('Gounghin');
+});
+
 test('GEO-CARTE-PRO · she DRAGS the town under the pin: the coordinates follow her hand, the viseur undoes, and the create carries the DRAGGED point — accuracy left behind', async ({ page, context }) => {
   await context.grantPermissions(['geolocation']);
   await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });

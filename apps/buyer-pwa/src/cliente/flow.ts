@@ -176,6 +176,10 @@ interface FlowState {
   /** QUARTIERS-OUAGA-1 — the quartier filter's text. UI state only: it is
    *  deliberately NOT part of the reprise snapshot (the pinned key list). */
   zoneFiltre: string;
+  /** QUARTIER-CHOISI — CHANGER reopened the folded picker. UI state like
+   *  the filter, never in the reprise snapshot: a resumed zone lands on the
+   *  folded row, the truthful face for a choice already made. */
+  zoneEdition: boolean;
   repere: string;
   /** BC-1b — her number, captured on C3 for the dispatch contact. */
   phone: string;
@@ -458,6 +462,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     toasts: [],
     zone: null,
     zoneFiltre: '',
+    zoneEdition: false,
     repere: '',
     phone: '',
     voice: (init.microRefuse ?? false) ? 'refused' : 'idle',
@@ -815,7 +820,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       (!!state.zone && (state.repere.trim().length > 0 || state.voice === 'recorded' || state.voice === 'queued')));
 
   const c3State = (): Parameters<typeof renderC3>[0] => ({
-    zone: state.zone, zoneFiltre: state.zoneFiltre, repere: state.repere, phone: state.phone,
+    zone: state.zone, zoneFiltre: state.zoneFiltre, zoneEdition: state.zoneEdition,
+    repere: state.repere, phone: state.phone,
     voice: state.voice, recTime: recTime(), geo: state.geo,
     // GEO-ACHAT-2 — the carte face's unconfirmed fix; the ONE place a
     // coordinate reaches a render, because the map must centre on it.
@@ -1813,7 +1819,20 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       }
       // — C3 —
       case 'zone':
-        state.zone = el.getAttribute('data-zone'); render(); return;
+        // QUARTIER-CHOISI — picking is also ANSWERING: the folded row takes
+        // the picker's place until CHANGER reopens it.
+        state.zone = el.getAttribute('data-zone');
+        state.zoneEdition = false;
+        render();
+        return;
+      case 'zone-changer':
+        // The way back is total: the picker returns with her chip pressed
+        // and a fresh filter — changing her mind never costs her the choice
+        // already made (the chip stays until she taps another).
+        state.zoneEdition = true;
+        state.zoneFiltre = '';
+        render();
+        return;
       case 'voix-demarrer':
       case 'voix-refaire':
         // REPERE-AUDIO-REEL — the REAL microphone, no more pantomime. The

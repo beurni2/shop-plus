@@ -12,7 +12,7 @@ import { composeQuote, ROBE } from '../src/cliente/seed';
  * e2e/checkout-real.spec.ts's GEO walk.
  */
 const BASE: C3State = {
-  zone: 'Gounghin', zoneFiltre: '', repere: 'Face à la pharmacie',
+  zone: 'Gounghin', zoneFiltre: '', zoneEdition: false, repere: 'Face à la pharmacie',
   phone: '70 12 34 56', voice: 'idle', recTime: '0:00', geo: 'repos', carte: null, canContinue: true,
 };
 
@@ -85,19 +85,29 @@ describe('renderC3 — the carte face (GEO-ACHAT-2)', () => {
     expect(carte).not.toContain('<iframe');
   });
 
-  it('her quartier and repère live IN the sheet while the face stands — each role exactly once across screen + face', () => {
-    const carte = renderGeoCarte(CARTE, CARTE.carte!);
-    const html = renderC3(CARTE) + carte;
-    expect(carte).toContain('data-role="quartier-filtre"');
-    expect(carte).toContain('data-role="quartier-chips"');
-    expect(carte).toContain('data-role="repere"');
-    // Exactly once EACH in the full render — the standing input handlers
-    // must never find a twin behind the face.
+  it('her quartier and repère live IN the sheet while the face stands — each role exactly once across screen + face, in BOTH quartier states', () => {
+    // QUARTIER-CHOISI — with a zone chosen the sheet carries the FOLDED row,
+    // not the picker; without one it carries the picker. Either way each
+    // role exists exactly once, so the standing handlers never find a twin.
+    const carteChoisi = renderGeoCarte(CARTE, CARTE.carte!);
+    const choisi = renderC3(CARTE) + carteChoisi;
+    expect(carteChoisi).toContain('data-role="zone-choisie"');
+    expect(carteChoisi).toContain('data-role="repere"');
+    for (const role of ['data-role="zone-choisie"', 'data-role="repere"']) {
+      expect(choisi.split(role).length - 1).toBe(1);
+    }
+    expect(choisi).not.toContain('data-role="quartier-filtre"');
+
+    const SANS_ZONE: C3State = { ...CARTE, zone: null };
+    const carteSans = renderGeoCarte(SANS_ZONE, SANS_ZONE.carte!);
+    const sans = renderC3(SANS_ZONE) + carteSans;
+    expect(carteSans).toContain('data-role="quartier-filtre"');
+    expect(carteSans).toContain('data-role="quartier-chips"');
     for (const role of ['data-role="quartier-filtre"', 'data-role="quartier-chips"', 'data-role="repere"']) {
-      expect(html.split(role).length - 1).toBe(1);
+      expect(sans.split(role).length - 1).toBe(1);
     }
     // And with the face down, the same blocks stand in the body as before.
-    const repos = renderC3(BASE);
+    const repos = renderC3({ ...BASE, zone: null });
     for (const role of ['data-role="quartier-filtre"', 'data-role="quartier-chips"', 'data-role="repere"']) {
       expect(repos.split(role).length - 1).toBe(1);
     }
@@ -111,11 +121,14 @@ describe('renderC3 — the carte face (GEO-ACHAT-2)', () => {
 
   it('no candidate, no carte — and the address blocks stay in the BODY when the face has nothing to paint on', () => {
     // The flow's layer guard requires a candidate; renderC3's own duty here
-    // is to keep her quartier/repère reachable when the overlay cannot open.
+    // is to keep her quartier/repère reachable when the overlay cannot open
+    // (the folded row for her chosen zone, the picker without one).
     const html = renderC3({ ...BASE, geo: 'carte', carte: null });
     expect(html).not.toContain('data-role="geo-carte"');
-    expect(html).toContain('data-role="quartier-filtre"');
+    expect(html).toContain('data-role="zone-choisie"');
     expect(html).toContain('data-role="repere"');
+    const sans = renderC3({ ...BASE, zone: null, geo: 'carte', carte: null });
+    expect(sans).toContain('data-role="quartier-filtre"');
   });
 });
 

@@ -9,7 +9,7 @@ import { QUARTIERS_OUAGADOUGOU } from '../src/cliente/quartiers-ouagadougou';
  * the same behavior on the live page is e2e/checkout-real.spec.ts.
  */
 const BASE = {
-  zone: null, zoneFiltre: '', repere: '', phone: '',
+  zone: null, zoneFiltre: '', zoneEdition: false, repere: '', phone: '',
   voice: 'idle' as const, recTime: '0:00', geo: 'repos' as const, carte: null, canContinue: false,
 };
 
@@ -35,6 +35,32 @@ describe('renderC3 — the quartier block', () => {
     const html = renderQuartierChips(null, 'rimkieta');
     expect(html).toContain('data-zone="Rimkiéta"');
     expect((html.match(/data-action="zone"/g) ?? []).length).toBe(1);
+  });
+
+  it('QUARTIER-CHOISI — a chosen quartier FOLDS the picker: one row, her name, CHANGER — no field, no cloud', () => {
+    const html = renderC3({ ...BASE, zone: 'Rimkiéta' });
+    expect(html).toContain('data-role="zone-choisie"');
+    expect(html).toContain('Rimkiéta');
+    expect(html).toContain('data-action="zone-changer"');
+    expect(html).toContain('CHANGER');
+    // The section disappears, as ordered: no search field, no chip cloud.
+    expect(html).not.toContain('data-role="quartier-filtre"');
+    expect(html).not.toContain('data-role="quartier-chips"');
+    expect(html).not.toContain('Chercher votre quartier');
+    // The overline stays — the row still answers « Votre quartier ».
+    expect(html).toContain('Votre quartier');
+    // Her name is escaped in the row like everywhere else.
+    const hostile = renderC3({ ...BASE, zone: '<img src=x>' });
+    expect(hostile).not.toContain('<img src=x>');
+  });
+
+  it('QUARTIER-CHOISI — CHANGER reopens the picker with her chip still pressed', () => {
+    const html = renderC3({ ...BASE, zone: 'Rimkiéta', zoneEdition: true });
+    expect(html).toContain('data-role="quartier-filtre"');
+    expect(html).toContain('data-role="quartier-chips"');
+    expect(html).not.toContain('data-role="zone-choisie"');
+    // The choice already made is never lost: her chip renders pressed.
+    expect(html).toContain(`cl-chip cl-chip-on" data-action="zone" data-zone="Rimkiéta"`);
   });
 
   it('NO MATCH is never a dead end: her typed text is offered as the chip, escaped', () => {

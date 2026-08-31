@@ -683,6 +683,9 @@ export interface C3State {
   readonly zone: string | null;
   /** What she typed in the quartier filter — UI state, never persisted. */
   readonly zoneFiltre: string;
+  /** QUARTIER-CHOISI — CHANGER reopened the folded picker. UI state, like
+   *  the filter: never persisted, false again the moment she picks. */
+  readonly zoneEdition: boolean;
   readonly repere: string;
   /** BC-1b — her number, for the delivery and for nothing else. */
   readonly phone: string;
@@ -816,12 +819,30 @@ export function renderGeoCarte(s: C3State, c: { lat: number; lng: number }): str
 }
 
 /** C3's quartier + repère — ONE rendering, placed in the body normally and
- *  inside the carte sheet while that face stands, so each role exists once. */
+ *  inside the carte sheet while that face stands, so each role exists once.
+ *
+ *  QUARTIER-CHOISI (founder, 2026-08-31: « once the quartier has been
+ *  selected make that section disappear and show only the quartier selected
+ *  with the option change it again ») — a chosen quartier FOLDS the search
+ *  field and the chip cloud away into one calm row: the name she picked and
+ *  CHANGER, which reopens the picker with her chip still pressed. The row
+ *  wears the kept-state anatomy her position row already taught her. */
 function renderAdresseBlocs(s: C3State): string {
+  const quartier = s.zone !== null && !s.zoneEdition
+    ? [
+        '<div class="cl-zone-choisie" data-role="zone-choisie">',
+        `<span class="cl-zone-choisie-ic">${iconCheck(15)}</span>`,
+        `<span class="cl-zone-choisie-nom">${esc(s.zone)}</span>`,
+        '<button class="cl-zone-changer" data-action="zone-changer">CHANGER</button>',
+        '</div>',
+      ].join('')
+    : [
+        `<input class="cl-field" data-role="quartier-filtre" value="${esc(s.zoneFiltre)}" placeholder="Chercher votre quartier…" autocomplete="off">`,
+        `<div class="cl-chips cl-chips-quartiers" data-role="quartier-chips">${renderQuartierChips(s.zone, s.zoneFiltre)}</div>`,
+      ].join('');
   return [
     '<div class="cl-overline">Votre quartier</div>',
-    `<input class="cl-field" data-role="quartier-filtre" value="${esc(s.zoneFiltre)}" placeholder="Chercher votre quartier…" autocomplete="off">`,
-    `<div class="cl-chips cl-chips-quartiers" data-role="quartier-chips">${renderQuartierChips(s.zone, s.zoneFiltre)}</div>`,
+    quartier,
     '<div class="cl-overline">Le repère</div>',
     `<input class="cl-field" data-role="repere" value="${esc(s.repere)}" placeholder="Ex. : Face à la pharmacie du marché">`,
   ].join('');
