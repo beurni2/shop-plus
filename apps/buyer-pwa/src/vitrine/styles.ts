@@ -438,6 +438,10 @@ export const VITRINE_STYLES = `
   .vt-liste-voix-duree { font-variant-numeric: tabular-nums; }
   .vt-liste-voix-texte { flex: 1; min-width: 0; }
   .vt-liste-geo { margin-top: 8px; display: flex; align-items: center; gap: 10px; }
+  .vt-geo-carte-vue {
+    margin-top: 14px; width: 100%; height: clamp(260px, 44vh, 400px); display: block;
+    border: 1.5px solid #EADFC9; border-radius: 16px; background: #F6EEDD;
+  }
   .vt-liste-geo-btn { margin-top: 8px; }
 
   /* LISTE-FERMER-2 — the direct close entry: full width below the sections,

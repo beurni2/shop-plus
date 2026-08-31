@@ -55,18 +55,23 @@ describe('renderC3 — the position block (GEO-ACHAT-1)', () => {
 describe('renderC3 — the carte face (GEO-ACHAT-2)', () => {
   const CARTE: C3State = { ...BASE, geo: 'carte', carte: { lat: 12.371532, lng: -1.519931 } };
 
-  it('the map asks HER question: centred on the fix, one confirm, one way out', () => {
+  it('the map asks HER question: the app\'s own header, the map a framed card, one confirm, the back chevron as the way out', () => {
     const html = renderC3(CARTE);
     expect(html).toContain('data-role="geo-carte"');
-    expect(html).toContain('Votre position');
+    // Founder amendment: NOT a chromeless full screen — the stepHead anatomy
+    // every C-step carries, with the annuler road on its back chevron.
+    const carte = html.slice(html.indexOf('data-role="geo-carte"'));
+    expect(carte).toContain('cl-stephead');
+    expect(carte).toContain('cl-steptitle');
+    expect(carte).toContain('Votre position');
     // The frame is OpenStreetMap's own embed, centred on the CANDIDATE —
     // marker=lat,lng carries her exact fix, nothing else does.
     expect(html).toContain('openstreetmap.org/export/embed.html');
     expect(html).toContain('marker=12.371532%2C-1.519931');
     expect(html).toContain('data-action="geo-confirmer"');
     expect(html).toContain('Confirmer ma position');
-    expect(html).toContain('data-action="geo-carte-annuler"');
-    expect(html).toContain('Annuler');
+    expect(carte).toContain('data-action="geo-carte-annuler"');
+    expect(carte).toContain('aria-label="Annuler"');
   });
 
   it('behind the overlay the block keeps the searching face — never a kept pin she has not confirmed', () => {

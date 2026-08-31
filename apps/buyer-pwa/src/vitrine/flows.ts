@@ -380,18 +380,25 @@ export function mountVitrine(
   // this sheet: one optional capture, dropped if it lands after the sheet
   // moved on, never persisted anywhere.
   let pinListe: { lat: number; lng: number; accuracy?: number } | null = null;
+  /** GEO-ACHAT-2 — the UNCONFIRMED fix the carte face is asking about (the
+   *  C3 candidate law on this sheet): it exists only between the capture and
+   *  her answer, dies on Annuler and on every teardown, and only
+   *  `liste-geo-confirmer` may promote it to `pinListe`. */
+  let pinCandidatListe: { lat: number; lng: number; accuracy?: number } | null = null;
   let geoListe: Parameters<typeof renderListeGeo>[0] = 'repos';
   let geoEpoch = 0;
   const peindreGeo = (): void => {
     // Teardown-safe like peindreVoix: no slot (sheet closed) → no paint.
     const slot = root.querySelector('[data-role="liste-geo-slot"]');
-    if (slot !== null) slot.innerHTML = renderListeGeo(geoListe);
+    if (slot !== null) slot.innerHTML = renderListeGeo(geoListe, geoListe === 'carte' ? pinCandidatListe : null);
   };
   /** Everything forgotten — the sheet is closing or being replaced. A pin
    *  the closed sheet no longer shows must never ride a later create (face
-   *  and wire would disagree). */
+   *  and wire would disagree) — and an unanswered carte question dies with
+   *  its sheet too. */
   const rangerGeo = (): void => {
     pinListe = null;
+    pinCandidatListe = null;
     geoListe = 'repos';
     geoEpoch += 1;
   };
@@ -801,7 +808,9 @@ export function mountVitrine(
           // A fix landing after the sheet moved on is DROPPED (the C3 law:
           // an act she can no longer see is an act she cannot retract).
           if (geoEpoch !== epochGeo || geoListe !== 'encours') return;
-          pinListe = {
+          // GEO-ACHAT-2 — the fix is a CANDIDATE: the map asks first, and
+          // only « Confirmer » keeps it.
+          pinCandidatListe = {
             // Six decimals ≈ 11 cm — every digit past that is noise on the
             // wire pretending to be precision.
             lat: Math.round(pos.coords.latitude * 1e6) / 1e6,
@@ -810,7 +819,7 @@ export function mountVitrine(
               ? { accuracy: Math.min(100_000, Math.max(0, Math.round(pos.coords.accuracy))) }
               : {}),
           };
-          geoListe = 'faite';
+          geoListe = 'carte';
           peindreGeo();
         },
         () => {
@@ -820,6 +829,19 @@ export function mountVitrine(
         },
         { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
       );
+    } else if (action === 'liste-geo-confirmer') {
+      // GEO-ACHAT-2 — HER answer to the map's one question: the only line
+      // on this sheet that turns a candidate into a kept pin.
+      if (geoListe !== 'carte' || pinCandidatListe === null) return;
+      pinListe = pinCandidatListe;
+      pinCandidatListe = null;
+      geoListe = 'faite';
+      peindreGeo();
+    } else if (action === 'liste-geo-carte-annuler') {
+      // « Ce n'est pas là » is a full answer: nothing kept, the quiet offer.
+      pinCandidatListe = null;
+      geoListe = 'repos';
+      peindreGeo();
     } else if (action === 'liste-geo-retirer') {
       // Retirer is total: no coordinate survives it anywhere in this app.
       pinListe = null;

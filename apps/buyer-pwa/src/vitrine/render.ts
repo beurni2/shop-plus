@@ -685,11 +685,44 @@ export function renderListeVoix(etat: ListeVoixEtat): string {
  * its consent sentence with a total Retirer, and the honest refusal that
  * gates nothing. The render never sees a coordinate — only the face.
  */
-export type ListeGeoEtat = 'repos' | 'encours' | 'faite' | 'refus';
+export type ListeGeoEtat = 'repos' | 'encours' | 'carte' | 'faite' | 'refus';
 
-export function renderListeGeo(etat: ListeGeoEtat): string {
+/**
+ * GEO-ACHAT-2 (founder amendment, 2026-08-31: « make sure it is the same
+ * thing for the wishlist as well ») — the map that asks, on the liste sheet.
+ * The C3 carte face in this surface's own anatomy: the SHEET's head (titre +
+ * the × annuler, exactly how every liste sheet opens and closes) over the
+ * map as a framed card — never a chromeless full screen. One static fix
+ * (SE-I08), OpenStreetMap's own embed, nothing kept until « Confirmer ».
+ * Blank tiles never block the confirm — her position is the fix.
+ */
+function renderListeGeoCarte(c: { readonly lat: number; readonly lng: number }): string {
+  const d = 0.003;
+  const bbox = `${(c.lng - d).toFixed(6)}%2C${(c.lat - d).toFixed(6)}%2C${(c.lng + d).toFixed(6)}%2C${(c.lat + d).toFixed(6)}`;
+  const src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${c.lat}%2C${c.lng}`;
+  return [
+    '<div class="vt-liste-voile" data-role="liste-geo-carte">',
+    '<div class="vt-liste-sheet">',
+    `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${t('vit.liste_geo_carte_titre')}</div><button class="vt-liste-fermer" data-action="liste-geo-carte-annuler" aria-label="${t('vit.liste_geo_annuler_aria')}">×</button></div>`,
+    `<iframe class="vt-geo-carte-vue" title="${t('vit.liste_geo_carte_titre')}" src="${src}" referrerpolicy="no-referrer"></iframe>`,
+    `<div class="vt-liste-texte">${t('vit.liste_geo_verifier')}</div>`,
+    `<button class="vt-liste-valider" data-action="liste-geo-confirmer">${t('vit.liste_geo_confirmer')}</button>`,
+    '</div>',
+    '</div>',
+  ].join('');
+}
+
+export function renderListeGeo(etat: ListeGeoEtat, carte?: { readonly lat: number; readonly lng: number } | null): string {
   if (etat === 'encours') {
     return `<div class="vt-liste-geo" data-role="liste-geo-cours"><span class="vt-liste-voix-point"></span><span>${t('vit.liste_geo_encours')}</span></div>`;
+  }
+  if (etat === 'carte') {
+    // The slot keeps the searching face (nothing is KEPT yet); the sheet-
+    // anatomy overlay above it carries the one question.
+    return [
+      `<div class="vt-liste-geo" data-role="liste-geo-cours"><span class="vt-liste-voix-point"></span><span>${t('vit.liste_geo_encours')}</span></div>`,
+      carte !== undefined && carte !== null ? renderListeGeoCarte(carte) : '',
+    ].join('');
   }
   if (etat === 'faite') {
     return [

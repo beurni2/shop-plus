@@ -358,20 +358,15 @@ export const CLIENTE_STYLES = `
   .cl-geo-refus { background: #F1E7D3; color: #4A3F33; }
   .cl-geo-allege { background: #FFFFFF; border: 1.5px dashed #E5DCC9; color: #6F6355; }
   .cl-geo-carte {
-    position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column;
+    position: fixed; inset: 0; z-index: 60; overflow-y: auto;
     padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0px)); background: #FAF6ED;
   }
-  .cl-geo-carte-tete { font-size: 19px; font-weight: 800; color: #1C1710; }
   .cl-geo-carte-vue {
-    margin-top: 12px; width: 100%; flex: 1; min-height: 0; border: 1.5px solid #E5DCC9;
-    border-radius: 16px; background: #F1E7D3;
+    margin-top: 14px; width: 100%; height: clamp(280px, 48vh, 420px); display: block;
+    border: 1.5px solid #E5DCC9; border-radius: 16px; background: #F1E7D3;
   }
   .cl-geo-carte-aide { margin-top: 10px; font-size: 12.5px; color: #6F6355; }
-  .cl-geo-carte-ok { margin-top: 10px; }
-  .cl-geo-carte-annuler {
-    margin-top: 8px; width: 100%; min-height: 48px; border: none; background: transparent;
-    color: #6F6355; font: inherit; font-size: 14px; font-weight: 700; text-decoration: underline;
-  }
+  .cl-geo-carte-ok { margin-top: 12px; }
   .cl-privline { margin-top: 14px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6F6355; }
   .cl-privline svg { flex: none; }
   .cl-cta-c3 { margin-top: 16px; }

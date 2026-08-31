@@ -1722,6 +1722,30 @@
   "screenClass": "label"
  },
  {
+  "key": "vit.liste_geo_carte_titre",
+  "fr": "Votre position",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_geo_verifier",
+  "fr": "Vérifiez le point sur la carte.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_geo_confirmer",
+  "fr": "Confirmer ma position",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "vit.liste_geo_annuler_aria",
+  "fr": "Annuler",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
   "key": "vit.liste_geo_refus",
   "fr": "Position introuvable ici. Votre repère écrit suffit.",
   "register": "neutral",

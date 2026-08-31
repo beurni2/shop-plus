@@ -907,6 +907,9 @@ test('CREATOR — she records the repère: the bytes ride the create inside livr
 test('GEO-ACHAT-1 · her pin on the liste: consent spoken, RETIRER total, the closed sheet forgets, the exact bytes on the create', async ({ page, context }) => {
   await context.grantPermissions(['geolocation']);
   await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });
+  // GEO-ACHAT-2 — the dead-map road on purpose: the frame never loads, the
+  // confirm must still land (her position is the fix, not the tiles).
+  await page.route('**://www.openstreetmap.org/**', (r) => r.abort());
   const creates: Record<string, unknown>[] = [];
   await page.route('**/listes', async (route: Route) => {
     creates.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);
@@ -924,8 +927,18 @@ test('GEO-ACHAT-1 · her pin on the liste: consent spoken, RETIRER total, the cl
   await page.locator('[data-action="liste-creer"]').click();
   await expect(page.locator('[data-role="liste-sheet"]')).toBeVisible();
 
-  // One tap → the kept face, its consent sentence verbatim.
+  // GEO-ACHAT-2 — the tap opens the MAP in the sheet's own anatomy; nothing
+  // is kept yet, and « Annuler » (the ×) is a full answer.
   await page.locator('[data-action="liste-geo-demander"]').click();
+  await page.locator('[data-role="liste-geo-carte"]').waitFor();
+  await expect(page.locator('[data-role="liste-geo-carte"] iframe')).toHaveAttribute('src', /marker=12\.371532%2C-1\.519931/);
+  await page.locator('[data-action="liste-geo-carte-annuler"]').click();
+  await page.locator('[data-action="liste-geo-demander"]').waitFor();
+  await expect(page.locator('[data-role="liste-geo-faite"]')).toHaveCount(0);
+
+  // She asks again and CONFIRMS → the kept face, its consent sentence verbatim.
+  await page.locator('[data-action="liste-geo-demander"]').click();
+  await page.locator('[data-action="liste-geo-confirmer"]').click();
   await page.locator('[data-role="liste-geo-faite"]').waitFor();
   await expect(page.locator('[data-role="liste-geo-faite"]')).toContainText('Seul votre livreur la voit');
 
@@ -933,9 +946,10 @@ test('GEO-ACHAT-1 · her pin on the liste: consent spoken, RETIRER total, the cl
   await page.locator('[data-action="liste-geo-retirer"]').click();
   await page.locator('[data-action="liste-geo-demander"]').waitFor();
 
-  // A closed sheet forgets its pin — DRIVEN, not read: capture, close,
-  // reopen, and the face is the quiet offer again.
+  // A closed sheet forgets its pin — DRIVEN, not read: capture, confirm,
+  // close, reopen, and the face is the quiet offer again.
   await page.locator('[data-action="liste-geo-demander"]').click();
+  await page.locator('[data-action="liste-geo-confirmer"]').click();
   await page.locator('[data-role="liste-geo-faite"]').waitFor();
   await page.locator('[data-action="liste-fermer"]').click();
   await expect(page.locator('[data-role="liste-sheet"]')).toHaveCount(0);
@@ -946,6 +960,7 @@ test('GEO-ACHAT-1 · her pin on the liste: consent spoken, RETIRER total, the cl
   // A pin ALONE touches the address block: quartier + phone refuse inline
   // (a pin with nobody to call ahead to is a delivery that cannot happen).
   await page.locator('[data-action="liste-geo-demander"]').click();
+  await page.locator('[data-action="liste-geo-confirmer"]').click();
   await page.locator('[data-role="liste-geo-faite"]').waitFor();
   await page.locator('input[data-liste-pid="p1"]').check();
   await page.locator('[data-role="liste-nom"]').fill('Awa');
@@ -1008,9 +1023,11 @@ test('GEO-ACHAT-1 · a fix landing AFTER the sheet was torn down is DROPPED — 
     ok?.({ coords: { latitude: 12.3, longitude: -1.5, accuracy: 8 }, timestamp: 0 });
   });
 
-  // The face is the QUIET OFFER — never a phantom kept pin.
+  // The face is the QUIET OFFER — never a phantom kept pin, and never a
+  // phantom map question she did not just ask (GEO-ACHAT-2).
   await page.locator('[data-action="liste-geo-demander"]').waitFor();
   await expect(page.locator('[data-role="liste-geo-faite"]')).toHaveCount(0);
+  await expect(page.locator('[data-role="liste-geo-carte"]')).toHaveCount(0);
 
   // And the create carries NO pin: consent unspoken is a pin unsent.
   await page.locator('input[data-liste-pid="p1"]').check();

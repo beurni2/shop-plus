@@ -766,4 +766,26 @@ describe('GEO-ACHAT-1 (liste half) — the position block faces, and its slot in
     expect(refus).toContain('Votre repère écrit suffit.');
     expect(refus).not.toContain('data-action="liste-geo-demander"');
   });
+
+  it('GEO-ACHAT-2 — the carte face asks in the SHEET\'s own anatomy: head + titre + × annuler, the map a framed card, one confirm', () => {
+    const carte = renderListeGeo('carte', { lat: 12.371532, lng: -1.519931 });
+    // Founder amendment (2026-08-31): never a chromeless full screen — the
+    // sheet-head every liste sheet opens with, the annuler on its ×.
+    expect(carte).toContain('data-role="liste-geo-carte"');
+    expect(carte).toContain('vt-liste-sheet-head');
+    expect(carte).toContain('Votre position');
+    expect(carte).toContain('openstreetmap.org/export/embed.html');
+    expect(carte).toContain('marker=12.371532%2C-1.519931');
+    expect(carte).toContain('data-action="liste-geo-confirmer"');
+    expect(carte).toContain('Confirmer ma position');
+    expect(carte).toContain('data-action="liste-geo-carte-annuler"');
+    // Behind the question the slot keeps the searching face — never a kept
+    // pin she has not confirmed.
+    expect(carte).toContain('data-role="liste-geo-cours"');
+    expect(carte).not.toContain('data-role="liste-geo-faite"');
+    // No candidate, no overlay: a carte face cannot paint on coordinates it
+    // does not have.
+    const sansFix = renderListeGeo('carte', null);
+    expect(sansFix).not.toContain('data-role="liste-geo-carte"');
+  });
 });

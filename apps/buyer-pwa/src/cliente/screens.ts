@@ -790,13 +790,16 @@ function renderGeoCarte(c: { lat: number; lng: number }): string {
   const d = 0.003;
   const bbox = `${(c.lng - d).toFixed(6)}%2C${(c.lat - d).toFixed(6)}%2C${(c.lng + d).toFixed(6)}%2C${(c.lat + d).toFixed(6)}`;
   const src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${c.lat}%2C${c.lng}`;
+  // Founder amendment (2026-08-31): NOT a chromeless full-screen webview —
+  // the carte face is an ordinary SCREEN, with the app's own header (the
+  // stepHead anatomy every C-step carries; the back chevron IS the annuler
+  // road, like every other screen) and the map as a FRAMED CARD below it.
   return [
     '<div class="cl-geo-carte" data-role="geo-carte">',
-    '<div class="cl-geo-carte-tete">Votre position</div>',
+    `<div class="cl-stephead"><button class="cl-round-btn" data-action="geo-carte-annuler" aria-label="Annuler">${iconBack(17)}</button><div class="cl-steptitle">Votre position</div></div>`,
     `<iframe class="cl-geo-carte-vue" title="Carte de votre position" src="${src}" referrerpolicy="no-referrer"></iframe>`,
     '<div class="cl-geo-carte-aide">Vérifiez le point sur la carte.</div>',
     '<button class="cl-cta cl-geo-carte-ok" data-action="geo-confirmer">Confirmer ma position</button>',
-    '<button class="cl-geo-carte-annuler" data-action="geo-carte-annuler">Annuler</button>',
     '</div>',
   ].join('');
 }
