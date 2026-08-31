@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-08-31 · CONFIER-AUTO-1 (this repo's half) — the dragged pin's shape seam-proven on the real Worker · IN REVIEW
+## 2026-08-31 · CONFIER-AUTO-1 (this repo's half) — the dragged pin's shape seam-proven on the real Worker · DONE
+
+**MERGED (founder: « Go », 2026-08-31).** `main` fast-forwarded `f8e5057..213dc4e`. **All four push workflows green on 213dc4e — ci 598 · pwa-preview 388 · expo-preview 421 · service-canon-drift 263.** No dispatched deploy, deliberately: only a service test file and this journal changed — nothing live moved, and drift 263 green confirms the live Worker still matches the repo's canon pin. The boutik-plus half (the fold itself) merged the same hour — its journal.
 
 **Founder, 2026-08-31: « on boutik+ i do not see the live localization … »** — the boutik-plus journal carries the primary entry (the fold's GPS + repère sections removed; her data rides the brief by itself). This repo's half is ONE seam test, `5c5c621`, pushed to the branch: the only undriven hop of his report was the GEO-CARTE-PRO dragged pin — `{lat, lng}` with NO accuracy, the shape the buyer PWA sends for a hand-placed point — crossing order create → contact store → key-C dispatch read. Quote '0016' in `repere-audio.e2e.test.ts` now drives it on the BUILT Worker under miniflare: stored, served back as exactly those two keys (`Object.keys(...).sort() === ['lat','lng']`), nothing invented on the way. **The wire was never broken — his screenshot's order simply carried no pin.** No source changed in this repo; no deploy needed. Boards FROM REPO ROOT after the addition: turbo test **23/23 --force** (storefront-service **661/661**) · typecheck **19/19 --force** · `run-gates.sh` **ALL GATES GREEN**. The slice's ONE fresh-context verifier covered both repos' diffs: NO BLOCKER (its four MINORs were all boutik-side copy/comment staleness — that journal).
 
