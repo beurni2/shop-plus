@@ -354,4 +354,26 @@ describe('GEO-ACHAT-1 — the pin rides the order, end to end on the real Worker
     expect(r.status).toBe(400);
     expect(r.body).toEqual({ error: 'bad_field', field: 'contact' });
   });
+
+  /* ═══ GEO-CARTE-PRO — THE DRAGGED PIN'S SHAPE (accuracy-less) ═══
+   * A pin PLACED by hand on the map carries no accuracy — the device never
+   * measured one, and inventing metres would be a fiction. This is the exact
+   * shape the buyer PWA now sends for a dragged point; the founder's
+   * « I do not see the live localization » report (2026-08-31) is closed by
+   * proving THIS shape crosses the real Worker to the dispatch read intact. */
+
+  it('SEAM (dragged pin): {lat, lng} with NO accuracy → stored → the dispatch read serves exactly those two keys', async () => {
+    const quoteId = await reservedQuote('0016');
+    const { status } = await createOrder('0016', quoteId, {
+      phone: '70 12 34 65', quartier: '', repere: '',
+      pin: { lat: 12.348271, lng: -1.512837 },
+    });
+    expect(status).toBe(200);
+    const row = await dispatchRow(`ord-${quoteId}`);
+    expect(row).toBeDefined();
+    const contact = row!['contact'] as Record<string, unknown>;
+    // Exactly her two coordinates — no accuracy key invented on the way.
+    expect(contact['pin']).toEqual({ lat: 12.348271, lng: -1.512837 });
+    expect(Object.keys(contact['pin'] as Record<string, unknown>).sort()).toEqual(['lat', 'lng']);
+  });
 });
