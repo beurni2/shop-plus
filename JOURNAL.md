@@ -1,6 +1,12 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-08-31 · CONFIER-AUTO-1 (this repo's half) — the dragged pin's shape seam-proven on the real Worker · IN REVIEW
+
+**Founder, 2026-08-31: « on boutik+ i do not see the live localization … »** — the boutik-plus journal carries the primary entry (the fold's GPS + repère sections removed; her data rides the brief by itself). This repo's half is ONE seam test, `5c5c621`, pushed to the branch: the only undriven hop of his report was the GEO-CARTE-PRO dragged pin — `{lat, lng}` with NO accuracy, the shape the buyer PWA sends for a hand-placed point — crossing order create → contact store → key-C dispatch read. Quote '0016' in `repere-audio.e2e.test.ts` now drives it on the BUILT Worker under miniflare: stored, served back as exactly those two keys (`Object.keys(...).sort() === ['lat','lng']`), nothing invented on the way. **The wire was never broken — his screenshot's order simply carried no pin.** No source changed in this repo; no deploy needed. Boards FROM REPO ROOT after the addition: turbo test **23/23 --force** (storefront-service **661/661**) · typecheck **19/19 --force** · `run-gates.sh` **ALL GATES GREEN**. The slice's ONE fresh-context verifier covered both repos' diffs: NO BLOCKER (its four MINORs were all boutik-side copy/comment staleness — that journal).
+
+---
+
 ## 2026-08-31 · QUARTIER-CHOISI-1 — a chosen quartier folds the picker: one row, her name, CHANGER · DONE
 
 **MERGED AND DEPLOYED (founder: « Go », 2026-08-31).** `main` fast-forwarded `4c25541..89fa1eb` (build `f1e3ba4` + verdict stamp). **ci 596 · pwa-preview 386 · expo-preview 419 · service-canon-drift 261 green on 89fa1eb → storefront-deploy 77 SUCCESS** — the folded picker live on the buyer PWA.
