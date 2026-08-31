@@ -1731,6 +1731,15 @@ test('GEO-CARTE-PRO · she DRAGS the town under the pin: the coordinates follow 
   await page.locator('[data-action="geo-recentrer"]').click();
   await expect(page.locator('[data-role="geo-coords"]')).toHaveText('12.37153, -1.51993');
 
+  // A MICRO-PRESS (3 px — a tap, not a drag) commits nothing AND the readout
+  // returns to the standing candidate (verifier MINORs 1+2: the tap rule was
+  // implemented but driven nowhere, and the readout kept speaking the drifted
+  // point the confirm would never keep). The wire-level half of the proof is
+  // below: the next drag's expectation starts from the UNMOVED fix, so a
+  // micro-press that committed would red the byte-exact create assert.
+  await glisserCarte(page, -3, 0);
+  await expect(page.locator('[data-role="geo-coords"]')).toHaveText('12.37153, -1.51993');
+
   // She drags again — a different pull — and CONFIRMS this one.
   const apres2 = centreApresGlisse({ lat: 12.371532, lng: -1.519931 }, 90, -140);
   await glisserCarte(page, 90, -140);

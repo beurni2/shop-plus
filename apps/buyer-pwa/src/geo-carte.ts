@@ -139,7 +139,14 @@ export function monterCarteVue(
     if (depart === null) return;
     depart = null;
     detacher();
-    if (Math.abs(dx) + Math.abs(dy) < 4) { tuiles.style.transform = ''; return; }
+    if (Math.abs(dx) + Math.abs(dy) < 4) {
+      // A tap is not a drag: nothing commits — and the READOUT returns to
+      // the standing candidate too, or the sheet would keep speaking a point
+      // the confirm will never keep (verifier MINOR, driven red first).
+      tuiles.style.transform = '';
+      if (surDeplacement !== undefined) surDeplacement(mondeVersGeo(c.x, c.y, GEO_ZOOM));
+      return;
+    }
     // The map moved right ⇒ the centre moved west: the offset SUBTRACTS.
     surCentre(mondeVersGeo(c.x - dx, c.y - dy, GEO_ZOOM));
   };

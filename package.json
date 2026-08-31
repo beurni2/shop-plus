@@ -17,8 +17,8 @@
     "baseline-check": "node scripts/baseline-check.mjs"
   },
   "dependencies": {
-    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#95c3ce40c3774c15b09b45dd51bb1b94c81c3837&path:packages/contracts",
-    "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#95c3ce40c3774c15b09b45dd51bb1b94c81c3837&path:packages/kernel-types",
+    "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#b384da99a0803471a052b2fa271dc768426454dd&path:packages/contracts",
+    "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#b384da99a0803471a052b2fa271dc768426454dd&path:packages/kernel-types",
     "@platform/i18n": "git+https://github.com/beurni2/platform-contracts.git#a418ca4ba5521d3f50ccf7c8abb538525a6ecc32&path:packages/i18n",
     "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#a418ca4ba5521d3f50ccf7c8abb538525a6ecc32&path:packages/ui-tokens",
     "@shop-plus/commerce-core": "workspace:*"

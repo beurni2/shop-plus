@@ -67,8 +67,8 @@ overrides:
   # and every reconciliation identity stay standing. Behaviour change, not a
   # shape change — MINOR by the versioning convention (no export moved).
   # contracts + kernel-types move together as always.
-  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#95c3ce40c3774c15b09b45dd51bb1b94c81c3837&path:packages/kernel-types"
-  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#95c3ce40c3774c15b09b45dd51bb1b94c81c3837&path:packages/contracts"
+  "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#b384da99a0803471a052b2fa271dc768426454dd&path:packages/kernel-types"
+  "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#b384da99a0803471a052b2fa271dc768426454dd&path:packages/contracts"
   # @platform/ui-tokens is UNIFIED at canon v0.9.9 (1c98ad1, + Storefront aggregate fields WO-5.13) — WO-7.0/WO-7.2b/SP#001-A
   # killed the WO-5.3 per-app skew and re-pinned the whole workspace to the current
   # release in one bump. reseller-app runs its visual layer on the Grand Teint API
