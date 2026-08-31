@@ -19,11 +19,12 @@
  * (2 600 ms). Never before (§3.2).
  */
 
+import { fmtCoords, monterCarteVue } from '../geo-carte';
 import { applyTheme, type VitrineThemeKey } from '../vitrine/themes';
 import {
   renderC1, renderC10, renderC3,
   renderQuartierChips, renderC4, renderC5, renderC6, renderC7, renderC8, renderC9,
-  renderGalerie, renderOffline, renderRefus, renderSheet, renderSkeleton, renderToasts,
+  renderGalerie, renderGeoCarte, renderOffline, renderRefus, renderSheet, renderSkeleton, renderToasts,
   galerieSlides,
   etapeDeSuivi,
   splitFor, MERCI, MESSAGES, SUIVI_STEPS, VOIX,
@@ -672,6 +673,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    *  serialised into a snapshot by construction. Only `geo-confirmer` may
    *  promote it to `state.pin`. */
   let pinCandidat: { lat: number; lng: number; accuracy?: number } | null = null;
+  /** GEO-CARTE-PRO — the CAPTURED fix, kept beside the candidate so the
+   *  viseur can undo her drags without a second sensor read. Same lifetime
+   *  as the candidate; never state, never a snapshot. */
+  let fixOrigine: { lat: number; lng: number; accuracy?: number } | null = null;
   /**
    * ═══ VOIX-ÉTAT-2 — HER OWN NOTE HAD NO FACE EITHER (founder, 2026-08-09) ═══
    *
@@ -809,6 +814,15 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     (state.pin !== null ||
       (!!state.zone && (state.repere.trim().length > 0 || state.voice === 'recorded' || state.voice === 'queued')));
 
+  const c3State = (): Parameters<typeof renderC3>[0] => ({
+    zone: state.zone, zoneFiltre: state.zoneFiltre, repere: state.repere, phone: state.phone,
+    voice: state.voice, recTime: recTime(), geo: state.geo,
+    // GEO-ACHAT-2 — the carte face's unconfirmed fix; the ONE place a
+    // coordinate reaches a render, because the map must centre on it.
+    carte: state.geo === 'carte' && pinCandidat !== null ? { lat: pinCandidat.lat, lng: pinCandidat.lng } : null,
+    canContinue: canC3(),
+  });
+
   function screenHtml(): string {
     // A NAMED REFUSAL OUTRANKS EVERY SCREEN. It is not an overlay and not a
     // toast: while it stands, there is no price, so no priced screen may draw.
@@ -818,14 +832,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       case 'C1':
         return renderC1(m, { epuise: state.stock === 'out', sansVoix: init.sansVoix ?? false });
       case 'C3':
-        return renderC3({
-          zone: state.zone, zoneFiltre: state.zoneFiltre, repere: state.repere, phone: state.phone,
-          voice: state.voice, recTime: recTime(), geo: state.geo,
-          // GEO-ACHAT-2 — the carte face's unconfirmed fix; the ONE place a
-          // coordinate reaches a render, because the map must centre on it.
-          carte: state.geo === 'carte' && pinCandidat !== null ? { lat: pinCandidat.lat, lng: pinCandidat.lng } : null,
-          canContinue: canC3(),
-        });
+        return renderC3(c3State());
       case 'C4':
         // Render-time fallbacks — the pixel's zoneUpper/repereRecap `||` pair,
         // so a direct C4 mount shows a coherent récap without touching state.
@@ -1584,11 +1591,41 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       `<div class="cl-stage">${state.loading ? renderSkeleton() : screenHtml()}</div>`,
       state.sheet ? renderSheet() : '',
       state.galerie !== null ? renderGalerie(m, state.galerie) : '',
+      // GEO-CARTE-PRO — the carte face is a TOP layer like the galerie, a
+      // SIBLING of the stage: inside `.cl-screen` its entry animation's
+      // transform would capture the face's position:fixed and pin it to the
+      // scrolled screen box (driven red before this line existed).
+      state.screen === 'C3' && state.refus === null && !state.loading && state.geo === 'carte' && pinCandidat !== null
+        ? renderGeoCarte(c3State(), { lat: pinCandidat.lat, lng: pinCandidat.lng })
+        : '',
       renderToasts(state.toasts),
     ].join('');
     if (noteEnCours && noteAudio !== null) {
       noteGlyphe(true);
       noteHorloge(fmtSecondes(noteAudio.currentTime));
+    }
+    // GEO-CARTE-PRO — the carte face just rebuilt: fill its tile grid around
+    // the candidate and wire the drag. A finished drag COMMITS to the
+    // candidate (accuracy dropped — the ±m described the sensor's fix, not
+    // the point her hand chose) and re-renders; mid-drag only the coordinate
+    // readout moves. Promotion to a kept pin stays `geo-confirmer`'s alone.
+    if (state.geo === 'carte' && pinCandidat !== null) {
+      const vue = container.querySelector('[data-role="geo-vue"]');
+      if (vue instanceof HTMLElement) {
+        monterCarteVue(
+          vue,
+          pinCandidat,
+          (c) => {
+            if (state.geo !== 'carte') return;
+            pinCandidat = { lat: Math.round(c.lat * 1e6) / 1e6, lng: Math.round(c.lng * 1e6) / 1e6 };
+            render();
+          },
+          (c) => {
+            const noeud = container.querySelector('[data-role="geo-coords"]');
+            if (noeud !== null) noeud.textContent = fmtCoords(c);
+          },
+        );
+      }
     }
     noterReprise();
   }
@@ -1874,6 +1911,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
                 ? { accuracy: Math.min(100_000, Math.max(0, Math.round(pos.coords.accuracy))) }
                 : {}),
             };
+            // GEO-CARTE-PRO — the capture is also the RECENTRE anchor: the
+            // viseur returns the dragged map to this fix, never to a fresh
+            // sensor read (SE-I08: one static capture seeds everything).
+            fixOrigine = pinCandidat;
             state.geo = 'carte';
             render();
           },
@@ -1902,7 +1943,16 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // « Ce n'est pas là » is a full answer: the candidate dies here and
         // the quiet offer returns — nothing was kept, nothing rides.
         pinCandidat = null;
+        fixOrigine = null;
         state.geo = 'repos';
+        render();
+        return;
+      case 'geo-recentrer':
+        // GEO-CARTE-PRO — the viseur undoes her drags: the candidate returns
+        // to the CAPTURED fix, accuracy and all (the ±m byte describes that
+        // point again). Never a new sensor read.
+        if (state.geo !== 'carte' || fixOrigine === null) return;
+        pinCandidat = { ...fixOrigine };
         render();
         return;
       case 'geo-retirer':

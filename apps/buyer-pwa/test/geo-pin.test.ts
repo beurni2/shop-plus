@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderC3, renderC4, type C3State } from '../src/cliente/screens';
+import { renderC3, renderC4, renderGeoCarte, type C3State } from '../src/cliente/screens';
 import { composeQuote, ROBE } from '../src/cliente/seed';
 
 /**
@@ -55,23 +55,52 @@ describe('renderC3 — the position block (GEO-ACHAT-1)', () => {
 describe('renderC3 — the carte face (GEO-ACHAT-2)', () => {
   const CARTE: C3State = { ...BASE, geo: 'carte', carte: { lat: 12.371532, lng: -1.519931 } };
 
-  it('the map asks HER question: the app\'s own header, the map a framed card, one confirm, the back chevron as the way out', () => {
-    const html = renderC3(CARTE);
-    expect(html).toContain('data-role="geo-carte"');
-    // Founder amendment: NOT a chromeless full screen — the stepHead anatomy
-    // every C-step carries, with the annuler road on its back chevron.
-    const carte = html.slice(html.indexOf('data-role="geo-carte"'));
-    expect(carte).toContain('cl-stephead');
-    expect(carte).toContain('cl-steptitle');
-    expect(carte).toContain('Votre position');
-    // The frame is OpenStreetMap's own embed, centred on the CANDIDATE —
-    // marker=lat,lng carries her exact fix, nothing else does.
-    expect(html).toContain('openstreetmap.org/export/embed.html');
-    expect(html).toContain('marker=12.371532%2C-1.519931');
-    expect(html).toContain('data-action="geo-confirmer"');
-    expect(html).toContain('Confirmer ma position');
+  it('the reference anatomy (GEO-CARTE-PRO): full-bleed view, fixed pin, the pill instruction, floating annuler + recentre, the live coordinates, one confirm', () => {
+    // The face is a TOP layer the flow paints BESIDE the screen (inside
+    // `.cl-screen` its entry animation's transform would capture the
+    // position:fixed — driven red on the real build), so the walk composes
+    // the two exactly as the flow does.
+    const carte = renderGeoCarte(CARTE, CARTE.carte!);
+    expect(renderC3(CARTE)).not.toContain('data-role="geo-carte"');
+    expect(carte).toContain('data-role="geo-carte"');
+    // The view she drags: the tile layer, the centre pin, the one instruction.
+    expect(carte).toContain('data-role="geo-vue"');
+    expect(carte).toContain('data-role="geo-tuiles"');
+    expect(carte).toContain('cl-geo-epingle');
+    expect(carte).toContain('Déplacez la carte pour placer le point');
+    // Floating chrome: the × way out and the viseur back to her fix.
     expect(carte).toContain('data-action="geo-carte-annuler"');
     expect(carte).toContain('aria-label="Annuler"');
+    expect(carte).toContain('data-action="geo-recentrer"');
+    expect(carte).toContain('aria-label="Revenir à ma position"');
+    // The sheet: the candidate's coordinates spoken (five decimals), one
+    // primary confirm in the reference's own words.
+    expect(carte).toContain('data-role="geo-coords"');
+    expect(carte).toContain('12.37153, -1.51993');
+    expect(carte).toContain('data-action="geo-confirmer"');
+    expect(carte).toContain('Confirmer ce lieu');
+    // The tiles are OSM's raster, never the retired embed; their credit rides.
+    expect(carte).toContain('© OpenStreetMap');
+    expect(carte).not.toContain('openstreetmap.org/export/embed.html');
+    expect(carte).not.toContain('<iframe');
+  });
+
+  it('her quartier and repère live IN the sheet while the face stands — each role exactly once across screen + face', () => {
+    const carte = renderGeoCarte(CARTE, CARTE.carte!);
+    const html = renderC3(CARTE) + carte;
+    expect(carte).toContain('data-role="quartier-filtre"');
+    expect(carte).toContain('data-role="quartier-chips"');
+    expect(carte).toContain('data-role="repere"');
+    // Exactly once EACH in the full render — the standing input handlers
+    // must never find a twin behind the face.
+    for (const role of ['data-role="quartier-filtre"', 'data-role="quartier-chips"', 'data-role="repere"']) {
+      expect(html.split(role).length - 1).toBe(1);
+    }
+    // And with the face down, the same blocks stand in the body as before.
+    const repos = renderC3(BASE);
+    for (const role of ['data-role="quartier-filtre"', 'data-role="quartier-chips"', 'data-role="repere"']) {
+      expect(repos.split(role).length - 1).toBe(1);
+    }
   });
 
   it('behind the overlay the block keeps the searching face — never a kept pin she has not confirmed', () => {
@@ -80,9 +109,13 @@ describe('renderC3 — the carte face (GEO-ACHAT-2)', () => {
     expect(html).not.toContain('data-role="geo-done"');
   });
 
-  it('no candidate, no carte: the overlay cannot paint on coordinates it does not have', () => {
+  it('no candidate, no carte — and the address blocks stay in the BODY when the face has nothing to paint on', () => {
+    // The flow's layer guard requires a candidate; renderC3's own duty here
+    // is to keep her quartier/repère reachable when the overlay cannot open.
     const html = renderC3({ ...BASE, geo: 'carte', carte: null });
     expect(html).not.toContain('data-role="geo-carte"');
+    expect(html).toContain('data-role="quartier-filtre"');
+    expect(html).toContain('data-role="repere"');
   });
 });
 

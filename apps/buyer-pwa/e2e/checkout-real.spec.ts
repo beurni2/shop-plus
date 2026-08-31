@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { GEO_ZOOM, geoVersMonde, mondeVersGeo } from '../src/geo-carte';
 
 /**
  * SP3.2b — THE REAL QUOTE PATH, IN A REAL BROWSER, AGAINST A SCRIPTED SERVICE.
@@ -1628,21 +1629,45 @@ test('REPERE-AUDIO-REEL · a LOST note gets its sentence — the diagnostic hole
  * road is walked beside it: the honest face, the road still open, no pin key
  * on the wire. (SE-I07 upstream: supporting evidence, never proof.) */
 
+/** GEO-CARTE-PRO — one drag of the town under the fixed pin: press at the
+ *  view's centre, pull by (dx, dy), release. The commit math is the app's
+ *  own module, so the walks can name the EXPECTED coordinates by value. */
+async function glisserCarte(page: Page, dx: number, dy: number): Promise<void> {
+  const bb = await page.locator('[data-role="geo-vue"]').boundingBox();
+  if (bb === null) throw new Error('geo-vue introuvable');
+  const cx = bb.x + bb.width / 2;
+  const cy = bb.y + bb.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + dx, cy + dy, { steps: 4 });
+  await page.mouse.up();
+}
+
+/** The centre a finished (dx, dy) drag must commit, to the app's own 1e-6
+ *  rounding — the map slid means the centre moved the OTHER way. */
+function centreApresGlisse(depuis: { lat: number; lng: number }, dx: number, dy: number): { lat: number; lng: number } {
+  const c = geoVersMonde(depuis.lat, depuis.lng, GEO_ZOOM);
+  const g = mondeVersGeo(c.x - dx, c.y - dy, GEO_ZOOM);
+  return { lat: Math.round(g.lat * 1e6) / 1e6, lng: Math.round(g.lng * 1e6) / 1e6 };
+}
+
 test('GEO-ACHAT-2 · the map asks, she answers — Annuler keeps nothing, Confirmer keeps the pin, RETIRER total, the exact bytes on the create', async ({ page, context }) => {
   await context.grantPermissions(['geolocation']);
   await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });
-  // The dead-map road, on purpose: the frame never loads, the buttons must.
+  // The dead-map road, on purpose: no tile ever loads, the buttons must.
   await page.route('**://www.openstreetmap.org/**', (r) => r.abort());
+  await page.route('**://tile.openstreetmap.org/**', (r) => r.abort());
   const wire = await scriptService(page, { orderStates: ['payment_pending'] });
   await page.goto(ENTRY);
   await page.locator('[data-screen="C1"]').waitFor();
   await page.locator('[data-action="commander"]').click();
   await page.locator('[data-screen="C3"]').waitFor();
 
-  // The tap opens the MAP, centred on her fix — nothing is kept yet.
+  // The tap opens the MAP, centred on her fix — nothing is kept yet. The
+  // sheet speaks the candidate's coordinates, five decimals.
   await page.locator('[data-action="geo-demander"]').click();
   await page.locator('[data-role="geo-carte"]').waitFor();
-  await expect(page.locator('[data-role="geo-carte"] iframe')).toHaveAttribute('src', /marker=12\.371532%2C-1\.519931/);
+  await expect(page.locator('[data-role="geo-coords"]')).toHaveText('12.37153, -1.51993');
 
   // « Annuler » is a full answer: the quiet offer returns, no pin exists.
   await page.locator('[data-action="geo-carte-annuler"]').click();
@@ -1679,10 +1704,58 @@ test('GEO-ACHAT-2 · the map asks, she answers — Annuler keeps nothing, Confir
   expect(contact['pin']).toEqual({ lat: 12.371532, lng: -1.519931, accuracy: 12 });
 });
 
+test('GEO-CARTE-PRO · she DRAGS the town under the pin: the coordinates follow her hand, the viseur undoes, and the create carries the DRAGGED point — accuracy left behind', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation']);
+  await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });
+  // Tiles blocked on purpose, again: the DRAG must work on the calm ground
+  // too — her hand's point is the fix, never the pixels under it.
+  await page.route('**://www.openstreetmap.org/**', (r) => r.abort());
+  await page.route('**://tile.openstreetmap.org/**', (r) => r.abort());
+  const wire = await scriptService(page, { orderStates: ['payment_pending'] });
+  await page.goto(ENTRY);
+  await page.locator('[data-screen="C1"]').waitFor();
+  await page.locator('[data-action="commander"]').click();
+  await page.locator('[data-screen="C3"]').waitFor();
+  await page.locator('[data-action="geo-demander"]').click();
+  await page.locator('[data-role="geo-carte"]').waitFor();
+  await expect(page.locator('[data-role="geo-coords"]')).toHaveText('12.37153, -1.51993');
+
+  // One drag — the sheet's coordinates must become EXACTLY the app's own
+  // inverse-Mercator of her hand's offset (the module computes the
+  // expectation, the walk holds the screen to it).
+  const apres1 = centreApresGlisse({ lat: 12.371532, lng: -1.519931 }, -120, 60);
+  await glisserCarte(page, -120, 60);
+  await expect(page.locator('[data-role="geo-coords"]')).toHaveText(`${apres1.lat.toFixed(5)}, ${apres1.lng.toFixed(5)}`);
+
+  // The viseur undoes her drags: back to the CAPTURED fix, by value.
+  await page.locator('[data-action="geo-recentrer"]').click();
+  await expect(page.locator('[data-role="geo-coords"]')).toHaveText('12.37153, -1.51993');
+
+  // She drags again — a different pull — and CONFIRMS this one.
+  const apres2 = centreApresGlisse({ lat: 12.371532, lng: -1.519931 }, 90, -140);
+  await glisserCarte(page, 90, -140);
+  await expect(page.locator('[data-role="geo-coords"]')).toHaveText(`${apres2.lat.toFixed(5)}, ${apres2.lng.toFixed(5)}`);
+  await page.locator('[data-action="geo-confirmer"]').click();
+  await page.locator('[data-role="geo-done"]').waitFor();
+
+  await page.locator('[data-role="phone"]').fill('70 12 34 56');
+  await page.locator('[data-action="continuer-c3"]').click();
+  await toPayer(page, 'A');
+  await page.locator('[data-action="payer"]').click();
+  await page.locator('[data-etat="attente-operateur"]').waitFor({ timeout: 10_000 });
+
+  // THE WIRE: the DRAGGED point, byte for byte — and NO accuracy key: the
+  // sensor's ±12 m described its fix, never the point her hand chose.
+  const contact = wire.orders[0]!.body['contact'] as Record<string, unknown>;
+  expect(contact['pin']).toEqual({ lat: apres2.lat, lng: apres2.lng });
+  expect(JSON.stringify(contact)).not.toContain('accuracy');
+});
+
 test('GEO-ACHAT-2 · the PHONE-ONLY road: confirmed position + number, no quartier, no repère — and no fabricated byte anywhere', async ({ page, context }) => {
   await context.grantPermissions(['geolocation']);
   await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });
   await page.route('**://www.openstreetmap.org/**', (r) => r.abort());
+  await page.route('**://tile.openstreetmap.org/**', (r) => r.abort());
   const wire = await scriptService(page, { orderStates: ['payment_pending'] });
   await page.goto(ENTRY);
   await page.locator('[data-screen="C1"]').waitFor();
@@ -1729,6 +1802,7 @@ test('GEO-ACHAT-2 · ANNULER reaches the wire on C3 too: the create after « ce 
   await context.grantPermissions(['geolocation']);
   await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });
   await page.route('**://www.openstreetmap.org/**', (r) => r.abort());
+  await page.route('**://tile.openstreetmap.org/**', (r) => r.abort());
   const wire = await scriptService(page, { orderStates: ['payment_pending'] });
   await page.goto(ENTRY);
   await page.locator('[data-screen="C1"]').waitFor();

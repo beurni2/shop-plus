@@ -14,6 +14,7 @@
 
 import { t, tf } from '../i18n';
 import { esc } from '../format';
+import { epingleSvg, fmtCoords, viseurSvg } from '../geo-carte';
 import { iconWhatsApp } from '../cliente/icons';
 import { fmtFCFA } from '../cliente/money';
 import { productFromSeed, seedProduct, type VitrineProduct, type VitrineSeedProduct } from './catalog';
@@ -688,40 +689,70 @@ export function renderListeVoix(etat: ListeVoixEtat): string {
 export type ListeGeoEtat = 'repos' | 'encours' | 'carte' | 'faite' | 'refus';
 
 /**
- * GEO-ACHAT-2 (founder amendment, 2026-08-31: « make sure it is the same
- * thing for the wishlist as well ») — the map that asks, on the liste sheet.
- * The C3 carte face in this surface's own anatomy: the SHEET's head (titre +
- * the × annuler, exactly how every liste sheet opens and closes) over the
- * map as a framed card — never a chromeless full screen. One static fix
- * (SE-I08), OpenStreetMap's own embed, nothing kept until « Confirmer ».
- * Blank tiles never block the confirm — her position is the fix.
+ * GEO-CARTE-PRO (founder, 2026-08-31, with the reference screen: « Make the
+ * webview look like this and same on the wishlist as well ») — the map she
+ * MOVES, on the liste. The reference anatomy exactly as C3 wears it: the
+ * map full-bleed under a fixed centre pin, the floating × and the one
+ * floating instruction, the recentre act, the sheet with the live
+ * coordinates, her quartier, her repère, and ONE « Confirmer ce lieu ».
+ *
+ * The quartier and repère here are MIRRORS of the liste sheet's own fields
+ * (which stand behind this face and are what `liste-valider` reads): typing
+ * in the mirror writes through to the real node at once, so every road out
+ * of this face — confirm, annuler, even the sheet closing — leaves the real
+ * fields carrying what she typed. One static fix seeds the view (SE-I08);
+ * blank tiles never block the confirm — her position is the fix.
  */
-function renderListeGeoCarte(c: { readonly lat: number; readonly lng: number }): string {
-  const d = 0.003;
-  const bbox = `${(c.lng - d).toFixed(6)}%2C${(c.lat - d).toFixed(6)}%2C${(c.lng + d).toFixed(6)}%2C${(c.lat + d).toFixed(6)}`;
-  const src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${c.lat}%2C${c.lng}`;
+function renderListeGeoCarte(
+  c: { readonly lat: number; readonly lng: number },
+  quartier: string,
+  repere: string,
+): string {
+  const options = QUARTIERS_OUAGADOUGOU.map(
+    (q) => `<option value="${esc(q)}"${q === quartier ? ' selected' : ''}>${esc(q)}</option>`,
+  ).join('');
   return [
-    '<div class="vt-liste-voile" data-role="liste-geo-carte">',
-    '<div class="vt-liste-sheet">',
-    `<div class="vt-liste-sheet-head"><div class="vt-liste-sheet-titre">${t('vit.liste_geo_carte_titre')}</div><button class="vt-liste-fermer" data-action="liste-geo-carte-annuler" aria-label="${t('vit.liste_geo_annuler_aria')}">×</button></div>`,
-    `<iframe class="vt-geo-carte-vue" title="${t('vit.liste_geo_carte_titre')}" src="${src}" referrerpolicy="no-referrer"></iframe>`,
-    `<div class="vt-liste-texte">${t('vit.liste_geo_verifier')}</div>`,
+    '<div class="vt-geo-carte" data-role="liste-geo-carte">',
+    '<div class="vt-geo-vue" data-role="geo-vue">',
+    '<div class="vt-geo-tuiles" data-role="geo-tuiles"></div>',
+    `<span class="vt-geo-epingle">${epingleSvg(40)}</span>`,
+    '<div class="vt-geo-haut">',
+    `<button class="vt-geo-flot" data-action="liste-geo-carte-annuler" aria-label="${t('vit.liste_geo_annuler_aria')}">×</button>`,
+    `<div class="vt-geo-pill">${t('vit.liste_geo_deplacer')}</div>`,
+    '</div>',
+    `<button class="vt-geo-flot vt-geo-recentrer" data-action="liste-geo-recentrer" aria-label="${t('vit.liste_geo_recentrer')}">${viseurSvg(20)}</button>`,
+    '<div class="vt-geo-attrib">© OpenStreetMap</div>',
+    '</div>',
+    '<div class="vt-geo-sheet">',
+    '<div class="vt-geo-poignee"></div>',
+    `<div class="vt-geo-coords"><span class="vt-geo-coords-ic">${epingleSvg(16)}</span><span data-role="geo-coords">${fmtCoords(c)}</span></div>`,
+    `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_quartier_label')}</span>`,
+    `<select class="vt-liste-nom-input" data-role="liste-carte-quartier"><option value=""${quartier === '' ? ' selected' : ''}>${t('vit.liste_quartier_choix')}</option>${options}</select></label>`,
+    `<label class="vt-liste-nom"><span class="vt-liste-nom-label">${t('vit.liste_repere_label')}</span>`,
+    `<input type="text" class="vt-liste-nom-input" data-role="liste-carte-repere" maxlength="200" value="${esc(repere)}"></label>`,
     `<button class="vt-liste-valider" data-action="liste-geo-confirmer">${t('vit.liste_geo_confirmer')}</button>`,
     '</div>',
     '</div>',
   ].join('');
 }
 
-export function renderListeGeo(etat: ListeGeoEtat, carte?: { readonly lat: number; readonly lng: number } | null): string {
+export function renderListeGeo(
+  etat: ListeGeoEtat,
+  carte?: { readonly lat: number; readonly lng: number } | null,
+  champs?: { readonly quartier: string; readonly repere: string },
+): string {
   if (etat === 'encours') {
     return `<div class="vt-liste-geo" data-role="liste-geo-cours"><span class="vt-liste-voix-point"></span><span>${t('vit.liste_geo_encours')}</span></div>`;
   }
   if (etat === 'carte') {
-    // The slot keeps the searching face (nothing is KEPT yet); the sheet-
-    // anatomy overlay above it carries the one question.
+    // The slot keeps the searching face (nothing is KEPT yet); the full-
+    // bleed overlay above it carries the one question. `champs` seeds the
+    // mirror fields with what the real sheet fields hold right now.
     return [
       `<div class="vt-liste-geo" data-role="liste-geo-cours"><span class="vt-liste-voix-point"></span><span>${t('vit.liste_geo_encours')}</span></div>`,
-      carte !== undefined && carte !== null ? renderListeGeoCarte(carte) : '',
+      carte !== undefined && carte !== null
+        ? renderListeGeoCarte(carte, champs?.quartier ?? '', champs?.repere ?? '')
+        : '',
     ].join('');
   }
   if (etat === 'faite') {

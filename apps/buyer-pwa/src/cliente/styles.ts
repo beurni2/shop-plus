@@ -357,16 +357,56 @@ export const CLIENTE_STYLES = `
   .cl-geo-note { margin-top: 9px; display: flex; align-items: center; gap: 10px; padding: 13px 15px; border-radius: 15px; font-size: 12.5px; line-height: 1.5; }
   .cl-geo-refus { background: #F1E7D3; color: #4A3F33; }
   .cl-geo-allege { background: #FFFFFF; border: 1.5px dashed #E5DCC9; color: #6F6355; }
-  .cl-geo-carte {
-    position: fixed; inset: 0; z-index: 60; overflow-y: auto;
-    padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0px)); background: #FAF6ED;
+  /* GEO-CARTE-PRO — the reference anatomy: the map full-bleed under a fixed
+   * centre pin, floating chrome over it, the sheet riding its bottom edge.
+   * The .cl-root prefix: the face is a direct child of main, where the
+   * legacy kill rule « main.cl-root > div » (display: block) outranks one
+   * class — without the boost the column collapses (vue 0px; driven red). */
+  .cl-root .cl-geo-carte { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: #FAF6ED; }
+  .cl-geo-vue { position: relative; flex: 1; min-height: 0; overflow: hidden; background: #F1E7D3; touch-action: none; cursor: grab; }
+  .cl-geo-tuiles { position: absolute; inset: 0; will-change: transform; }
+  .cl-geo-tuiles img { position: absolute; width: 256px; height: 256px; max-width: none; user-select: none; pointer-events: none; }
+  .cl-geo-epingle {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -100%);
+    color: var(--vt-accent); z-index: 3; pointer-events: none;
+    filter: drop-shadow(0 2px 3px rgba(28, 23, 16, .35));
   }
-  .cl-geo-carte-vue {
-    margin-top: 14px; width: 100%; height: clamp(280px, 48vh, 420px); display: block;
-    border: 1.5px solid #E5DCC9; border-radius: 16px; background: #F1E7D3;
+  .cl-geo-haut {
+    position: absolute; z-index: 4; left: 12px; right: 12px;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    display: flex; align-items: center; gap: 10px;
   }
-  .cl-geo-carte-aide { margin-top: 10px; font-size: 12.5px; color: #6F6355; }
-  .cl-geo-carte-ok { margin-top: 12px; }
+  .cl-geo-flot {
+    width: 44px; height: 44px; flex: none; border: none; border-radius: 14px;
+    background: rgba(255, 248, 238, .95); color: #1C1710; font-size: 20px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 10px rgba(28, 23, 16, .18);
+  }
+  .cl-geo-pill {
+    flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; justify-content: center;
+    padding: 10px 14px; border-radius: 14px; background: rgba(255, 248, 238, .95);
+    box-shadow: 0 2px 10px rgba(28, 23, 16, .18);
+    font-size: 13px; font-weight: 700; color: #1C1710; text-align: center; line-height: 1.35;
+  }
+  .cl-geo-recentrer { position: absolute; z-index: 4; right: 14px; bottom: 34px; }
+  .cl-geo-attrib {
+    position: absolute; z-index: 3; left: 10px; bottom: 22px;
+    font-size: 10px; color: #6F6355; background: rgba(255, 248, 238, .75);
+    padding: 1px 6px; border-radius: 8px; pointer-events: none;
+  }
+  .cl-geo-sheet {
+    position: relative; z-index: 5; flex: none; max-height: 52vh; overflow-y: auto;
+    margin-top: -18px; border-radius: 22px 22px 0 0; background: #FFF8EE;
+    padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -6px 18px rgba(28, 23, 16, .12);
+  }
+  .cl-geo-poignee { width: 44px; height: 5px; border-radius: 3px; background: #E5DCC9; margin: 2px auto 10px; }
+  .cl-geo-coords {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 700; color: #1C1710; font-variant-numeric: tabular-nums;
+  }
+  .cl-geo-coords-ic { color: var(--vt-accent); display: inline-flex; }
+  .cl-geo-carte-ok { margin-top: 14px; }
   .cl-privline { margin-top: 14px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6F6355; }
   .cl-privline svg { flex: none; }
   .cl-cta-c3 { margin-top: 16px; }

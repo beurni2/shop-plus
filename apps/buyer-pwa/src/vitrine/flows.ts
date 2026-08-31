@@ -46,6 +46,7 @@ import {
   renderVitrineReady,
   renderVitrineSkeleton,
 } from './render';
+import { fmtCoords, monterCarteVue } from '../geo-carte';
 import { applyTheme, DEFAULT_THEME } from './themes';
 import { VITRINE_STYLES } from './styles';
 import { ENTETES_STYLES, type EnteteKey } from './entetes';
@@ -385,12 +386,45 @@ export function mountVitrine(
    *  her answer, dies on Annuler and on every teardown, and only
    *  `liste-geo-confirmer` may promote it to `pinListe`. */
   let pinCandidatListe: { lat: number; lng: number; accuracy?: number } | null = null;
+  /** GEO-CARTE-PRO — the CAPTURED fix, kept beside the candidate so the
+   *  viseur can undo her drags without a second sensor read (SE-I08). */
+  let fixOrigineListe: { lat: number; lng: number; accuracy?: number } | null = null;
   let geoListe: Parameters<typeof renderListeGeo>[0] = 'repos';
   let geoEpoch = 0;
   const peindreGeo = (): void => {
     // Teardown-safe like peindreVoix: no slot (sheet closed) → no paint.
     const slot = root.querySelector('[data-role="liste-geo-slot"]');
-    if (slot !== null) slot.innerHTML = renderListeGeo(geoListe, geoListe === 'carte' ? pinCandidatListe : null);
+    if (slot === null) return;
+    // The carte face's mirror fields seed from what the REAL sheet fields
+    // hold at this instant — the querySelector finds the real nodes because
+    // they stand before this slot in the sheet's own order.
+    const champs = {
+      quartier: root.querySelector<HTMLSelectElement>('[data-role="liste-quartier"]')?.value ?? '',
+      repere: root.querySelector<HTMLInputElement>('[data-role="liste-repere"]')?.value ?? '',
+    };
+    slot.innerHTML = renderListeGeo(geoListe, geoListe === 'carte' ? pinCandidatListe : null, champs);
+    // GEO-CARTE-PRO — the face just rebuilt: fill the tile grid around the
+    // candidate and wire the drag. A finished drag commits to the CANDIDATE
+    // (accuracy dropped — the ±m described the sensor's fix, not her hand's
+    // point) and repaints; promotion stays `liste-geo-confirmer`'s alone.
+    if (geoListe === 'carte' && pinCandidatListe !== null) {
+      const vue = slot.querySelector('[data-role="geo-vue"]');
+      if (vue instanceof HTMLElement) {
+        monterCarteVue(
+          vue,
+          pinCandidatListe,
+          (c) => {
+            if (geoListe !== 'carte') return;
+            pinCandidatListe = { lat: Math.round(c.lat * 1e6) / 1e6, lng: Math.round(c.lng * 1e6) / 1e6 };
+            peindreGeo();
+          },
+          (c) => {
+            const noeud = slot.querySelector('[data-role="geo-coords"]');
+            if (noeud !== null) noeud.textContent = fmtCoords(c);
+          },
+        );
+      }
+    }
   };
   /** Everything forgotten — the sheet is closing or being replaced. A pin
    *  the closed sheet no longer shows must never ride a later create (face
@@ -399,6 +433,7 @@ export function mountVitrine(
   const rangerGeo = (): void => {
     pinListe = null;
     pinCandidatListe = null;
+    fixOrigineListe = null;
     geoListe = 'repos';
     geoEpoch += 1;
   };
@@ -605,6 +640,27 @@ export function mountVitrine(
   };
 
   load(SKELETON_MS, true);
+
+  // GEO-CARTE-PRO — the carte face's quartier/repère are MIRRORS of the real
+  // sheet fields (the ones `liste-valider` reads, standing behind the face):
+  // every keystroke writes through at once, so ANY road out of the face —
+  // confirm, annuler, the sheet closing — leaves the real fields carrying
+  // what she typed. 'change' rides along for the select, whose picks some
+  // browsers report only there.
+  const miroirCarte = (ev: Event): void => {
+    const el = ev.target;
+    if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLSelectElement)) return;
+    const role = el.getAttribute('data-role');
+    if (role === 'liste-carte-quartier') {
+      const vrai = root.querySelector<HTMLSelectElement>('[data-role="liste-quartier"]');
+      if (vrai !== null) vrai.value = el.value;
+    } else if (role === 'liste-carte-repere') {
+      const vrai = root.querySelector<HTMLInputElement>('[data-role="liste-repere"]');
+      if (vrai !== null) vrai.value = el.value;
+    }
+  };
+  root.addEventListener('input', miroirCarte);
+  root.addEventListener('change', miroirCarte);
 
   root.addEventListener('click', (ev) => {
     const target = (ev.target as HTMLElement).closest('[data-action]');
@@ -819,6 +875,8 @@ export function mountVitrine(
               ? { accuracy: Math.min(100_000, Math.max(0, Math.round(pos.coords.accuracy))) }
               : {}),
           };
+          // GEO-CARTE-PRO — the capture is also the recentre anchor.
+          fixOrigineListe = pinCandidatListe;
           geoListe = 'carte';
           peindreGeo();
         },
@@ -829,6 +887,12 @@ export function mountVitrine(
         },
         { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
       );
+    } else if (action === 'liste-geo-recentrer') {
+      // GEO-CARTE-PRO — the viseur undoes her drags: the candidate returns
+      // to the CAPTURED fix, accuracy and all. Never a new sensor read.
+      if (geoListe !== 'carte' || fixOrigineListe === null) return;
+      pinCandidatListe = { ...fixOrigineListe };
+      peindreGeo();
     } else if (action === 'liste-geo-confirmer') {
       // GEO-ACHAT-2 — HER answer to the map's one question: the only line
       // on this sheet that turns a candidate into a kept pin.
@@ -840,6 +904,7 @@ export function mountVitrine(
     } else if (action === 'liste-geo-carte-annuler') {
       // « Ce n'est pas là » is a full answer: nothing kept, the quiet offer.
       pinCandidatListe = null;
+      fixOrigineListe = null;
       geoListe = 'repos';
       peindreGeo();
     } else if (action === 'liste-geo-retirer') {

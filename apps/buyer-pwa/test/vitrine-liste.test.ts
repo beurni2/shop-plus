@@ -767,18 +767,28 @@ describe('GEO-ACHAT-1 (liste half) — the position block faces, and its slot in
     expect(refus).not.toContain('data-action="liste-geo-demander"');
   });
 
-  it('GEO-ACHAT-2 — the carte face asks in the SHEET\'s own anatomy: head + titre + × annuler, the map a framed card, one confirm', () => {
+  it('GEO-CARTE-PRO — the carte face wears the reference anatomy: full-bleed view, fixed pin, the pill, floating × + recentre, live coordinates, one confirm', () => {
     const carte = renderListeGeo('carte', { lat: 12.371532, lng: -1.519931 });
-    // Founder amendment (2026-08-31): never a chromeless full screen — the
-    // sheet-head every liste sheet opens with, the annuler on its ×.
     expect(carte).toContain('data-role="liste-geo-carte"');
-    expect(carte).toContain('vt-liste-sheet-head');
-    expect(carte).toContain('Votre position');
-    expect(carte).toContain('openstreetmap.org/export/embed.html');
-    expect(carte).toContain('marker=12.371532%2C-1.519931');
-    expect(carte).toContain('data-action="liste-geo-confirmer"');
-    expect(carte).toContain('Confirmer ma position');
+    // The view she drags: the tile layer, the centre pin, the instruction.
+    expect(carte).toContain('data-role="geo-vue"');
+    expect(carte).toContain('data-role="geo-tuiles"');
+    expect(carte).toContain('vt-geo-epingle');
+    expect(carte).toContain('Déplacez la carte pour placer le point');
+    // Floating chrome: the × way out and the viseur back to her fix.
     expect(carte).toContain('data-action="liste-geo-carte-annuler"');
+    expect(carte).toContain('data-action="liste-geo-recentrer"');
+    expect(carte).toContain('aria-label="Revenir à ma position"');
+    // The sheet: coordinates spoken (five decimals), one primary confirm in
+    // the reference's own words; the credit rides the tiles, never the
+    // retired embed.
+    expect(carte).toContain('data-role="geo-coords"');
+    expect(carte).toContain('12.37153, -1.51993');
+    expect(carte).toContain('data-action="liste-geo-confirmer"');
+    expect(carte).toContain('Confirmer ce lieu');
+    expect(carte).toContain('© OpenStreetMap');
+    expect(carte).not.toContain('openstreetmap.org/export/embed.html');
+    expect(carte).not.toContain('<iframe');
     // Behind the question the slot keeps the searching face — never a kept
     // pin she has not confirmed.
     expect(carte).toContain('data-role="liste-geo-cours"');
@@ -787,5 +797,22 @@ describe('GEO-ACHAT-1 (liste half) — the position block faces, and its slot in
     // does not have.
     const sansFix = renderListeGeo('carte', null);
     expect(sansFix).not.toContain('data-role="liste-geo-carte"');
+  });
+
+  it('GEO-CARTE-PRO — the sheet\'s quartier and repère are MIRRORS, seeded from what the real fields hold', () => {
+    const carte = renderListeGeo(
+      'carte',
+      { lat: 12.371532, lng: -1.519931 },
+      { quartier: 'Gounghin', repere: 'Face à la pharmacie' },
+    );
+    // Dedicated roles — the real nodes behind the face keep their own, so
+    // `liste-valider` still reads the one source of truth.
+    expect(carte).toContain('data-role="liste-carte-quartier"');
+    expect(carte).toContain('data-role="liste-carte-repere"');
+    expect(carte).not.toContain('data-role="liste-quartier"');
+    expect(carte).not.toContain('data-role="liste-repere"');
+    // Seeded with her current answers.
+    expect(carte).toContain('value="Gounghin" selected');
+    expect(carte).toContain('value="Face à la pharmacie"');
   });
 });

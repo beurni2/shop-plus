@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { GEO_ZOOM, geoVersMonde, mondeVersGeo } from '../src/geo-carte';
 
 /**
  * LISTE-ENVIES-1 — THE WALK (the 2026-08-10 screen law, on this repo's own
@@ -907,9 +908,10 @@ test('CREATOR — she records the repère: the bytes ride the create inside livr
 test('GEO-ACHAT-1 · her pin on the liste: consent spoken, RETIRER total, the closed sheet forgets, the exact bytes on the create', async ({ page, context }) => {
   await context.grantPermissions(['geolocation']);
   await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });
-  // GEO-ACHAT-2 — the dead-map road on purpose: the frame never loads, the
+  // GEO-ACHAT-2 — the dead-map road on purpose: no tile ever loads, the
   // confirm must still land (her position is the fix, not the tiles).
   await page.route('**://www.openstreetmap.org/**', (r) => r.abort());
+  await page.route('**://tile.openstreetmap.org/**', (r) => r.abort());
   const creates: Record<string, unknown>[] = [];
   await page.route('**/listes', async (route: Route) => {
     creates.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);
@@ -931,7 +933,7 @@ test('GEO-ACHAT-1 · her pin on the liste: consent spoken, RETIRER total, the cl
   // is kept yet, and « Annuler » (the ×) is a full answer.
   await page.locator('[data-action="liste-geo-demander"]').click();
   await page.locator('[data-role="liste-geo-carte"]').waitFor();
-  await expect(page.locator('[data-role="liste-geo-carte"] iframe')).toHaveAttribute('src', /marker=12\.371532%2C-1\.519931/);
+  await expect(page.locator('[data-role="geo-coords"]')).toHaveText('12.37153, -1.51993');
   await page.locator('[data-action="liste-geo-carte-annuler"]').click();
   await page.locator('[data-action="liste-geo-demander"]').waitFor();
   await expect(page.locator('[data-role="liste-geo-faite"]')).toHaveCount(0);
@@ -979,6 +981,87 @@ test('GEO-ACHAT-1 · her pin on the liste: consent spoken, RETIRER total, the cl
   expect(livraison['pin']).toEqual({ lat: 12.371532, lng: -1.519931, accuracy: 12 });
 });
 
+/** GEO-CARTE-PRO — one drag of the town under the fixed pin (the C3 walk's
+ *  own helper, on this surface). */
+async function glisserCarte(page: Page, dx: number, dy: number): Promise<void> {
+  const bb = await page.locator('[data-role="geo-vue"]').boundingBox();
+  if (bb === null) throw new Error('geo-vue introuvable');
+  const cx = bb.x + bb.width / 2;
+  const cy = bb.y + bb.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + dx, cy + dy, { steps: 4 });
+  await page.mouse.up();
+}
+
+/** The centre a finished (dx, dy) drag must commit, to the app's rounding. */
+function centreApresGlisse(depuis: { lat: number; lng: number }, dx: number, dy: number): { lat: number; lng: number } {
+  const c = geoVersMonde(depuis.lat, depuis.lng, GEO_ZOOM);
+  const g = mondeVersGeo(c.x - dx, c.y - dy, GEO_ZOOM);
+  return { lat: Math.round(g.lat * 1e6) / 1e6, lng: Math.round(g.lng * 1e6) / 1e6 };
+}
+
+test('GEO-CARTE-PRO · the liste face: she drags, the viseur undoes, the MIRROR fields write through, and the create carries the dragged point + her words', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation']);
+  await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });
+  await page.route('**://www.openstreetmap.org/**', (r) => r.abort());
+  await page.route('**://tile.openstreetmap.org/**', (r) => r.abort());
+  const creates: Record<string, unknown>[] = [];
+  await page.route('**/listes', async (route: Route) => {
+    creates.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true, token: TOKEN, editCle: 'E'.repeat(32),
+        liste: { nom: 'Awa', slug: 'aicha-4821', articles: [{ pid: 'p1', offert: false }] },
+      }),
+    });
+  });
+  await page.goto(`${BASE}/?demo-vitrine=aicha-4821`);
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  await page.locator('[data-action="liste-creer"]').click();
+  await expect(page.locator('[data-role="liste-sheet"]')).toBeVisible();
+
+  await page.locator('[data-action="liste-geo-demander"]').click();
+  await page.locator('[data-role="liste-geo-carte"]').waitFor();
+  await expect(page.locator('[data-role="geo-coords"]')).toHaveText('12.37153, -1.51993');
+
+  // One drag — the coordinates follow her hand, by the module's own math.
+  const apres1 = centreApresGlisse({ lat: 12.371532, lng: -1.519931 }, 80, -50);
+  await glisserCarte(page, 80, -50);
+  await expect(page.locator('[data-role="geo-coords"]')).toHaveText(`${apres1.lat.toFixed(5)}, ${apres1.lng.toFixed(5)}`);
+
+  // The viseur undoes; a second drag is the one she keeps.
+  await page.locator('[data-action="liste-geo-recentrer"]').click();
+  await expect(page.locator('[data-role="geo-coords"]')).toHaveText('12.37153, -1.51993');
+  const apres2 = centreApresGlisse({ lat: 12.371532, lng: -1.519931 }, -60, 110);
+  await glisserCarte(page, -60, 110);
+  await expect(page.locator('[data-role="geo-coords"]')).toHaveText(`${apres2.lat.toFixed(5)}, ${apres2.lng.toFixed(5)}`);
+
+  // The MIRROR fields on the face write through to the real sheet fields.
+  await page.locator('[data-role="liste-carte-quartier"]').selectOption('Dassasgo');
+  await page.locator('[data-role="liste-carte-repere"]').fill('Portail bleu, cour commune');
+  await page.locator('[data-action="liste-geo-confirmer"]').click();
+  await page.locator('[data-role="liste-geo-faite"]').waitFor();
+  await expect(page.locator('[data-role="liste-quartier"]')).toHaveValue('Dassasgo');
+  await expect(page.locator('[data-role="liste-repere"]')).toHaveValue('Portail bleu, cour commune');
+
+  // The whole road — the wire carries the DRAGGED point, her quartier, her
+  // repère; and NO accuracy key (the ±m described the sensor's fix).
+  await page.locator('input[data-liste-pid="p1"]').check();
+  await page.locator('[data-role="liste-nom"]').fill('Awa');
+  await page.locator('[data-role="liste-tel-livraison"]').fill('70 12 34 56');
+  await page.locator('[data-action="liste-valider"]').click();
+  await expect(page.locator('[data-role="liste-lien"]')).toBeVisible();
+  expect(creates).toHaveLength(1);
+  const livraison = creates[0]!['livraison'] as Record<string, unknown>;
+  expect(livraison['pin']).toEqual({ lat: apres2.lat, lng: apres2.lng });
+  expect(livraison['quartier']).toBe('Dassasgo');
+  expect(livraison['repere']).toBe('Portail bleu, cour commune');
+  expect(JSON.stringify(livraison)).not.toContain('accuracy');
+});
+
 test('GEO-ACHAT-2 · ANNULER reaches the wire: a create after « ce n\'est pas là » carries not one pin byte (verifier MAJOR)', async ({ page, context }) => {
   // The verifier proved the face-only annuler assert blind: a promote-on-
   // capture regression kept every walk green. This one drives the CONSENT
@@ -986,6 +1069,7 @@ test('GEO-ACHAT-2 · ANNULER reaches the wire: a create after « ce n\'est pas l
   await context.grantPermissions(['geolocation']);
   await context.setGeolocation({ latitude: 12.371532, longitude: -1.519931, accuracy: 12 });
   await page.route('**://www.openstreetmap.org/**', (r) => r.abort());
+  await page.route('**://tile.openstreetmap.org/**', (r) => r.abort());
   const creates: Record<string, unknown>[] = [];
   await page.route('**/listes', async (route: Route) => {
     creates.push(JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>);

@@ -19,6 +19,7 @@
  */
 
 import { esc } from '../format';
+import { epingleSvg, fmtCoords, viseurSvg } from '../geo-carte';
 import { filtrerQuartiers, QUARTIERS_OUAGADOUGOU } from './quartiers-ouagadougou';
 import { productGlyph } from '../vitrine/icons';
 import { fmtFCFA, groupFr, NNBSP } from './money';
@@ -768,52 +769,71 @@ function renderGeoBlock(s: C3State): string {
 }
 
 /**
- * GEO-ACHAT-2 — THE MAP THAT ASKS (founder, 2026-08-31: « open a webview
- * screen with the live map pinpointing the buyer's live location asking him
- * to confirm »). A full-screen face over C3: the fix she just gave, pinned on
- * a real map, with ONE question — is this the door?
+ * GEO-CARTE-PRO — THE MAP SHE MOVES (founder, 2026-08-31, with the
+ * reference screen: « Make the webview look like this »). The face is now
+ * the reference's own anatomy: the map FULL-BLEED with the pin held at the
+ * centre, a floating close and one floating instruction (« Déplacez la
+ * carte pour placer le point »), the recentre act, and a bottom sheet
+ * carrying the live coordinates, her quartier, her repère, and ONE primary
+ * « Confirmer ce lieu ». This supersedes the framed-card look of the
+ * 2026-08-31 morning amendment — his later order, his screenshot.
  *
- *  · ONE static fix, never a following map (SE-I08): the frame is centred on
- *    the capture and stays there. No watchPosition exists anywhere.
- *  · The map is OpenStreetMap's own embed — no library, no key, no script.
- *    Looking at a map of your own position means your DEVICE asks the map's
- *    tile server for that area; that is her act, on her phone, same as any
- *    maps app. The STORED pin still exits only through the founder's
- *    dispatch read — this frame changes nothing about that law.
- *  · OFFLINE IS HONEST: a map that cannot load is a blank frame, never a
- *    wall — both buttons stand below it and the confirm still works. Her
- *    position is the FIX, not the tiles.
- *  · Nothing is kept until « Confirmer » — Annuler drops the candidate and
- *    the block returns to the quiet offer.
+ *  · ONE static fix SEEDS the view (SE-I08); what moves after that is her
+ *    HAND on the map, never a sensor. No watchPosition exists anywhere.
+ *  · The tiles are OpenStreetMap's own, fetched by her device for the area
+ *    she is looking at — the same truth as the retired embed, now with the
+ *    attribution spoken by us since the frame is ours (src/geo-carte.ts).
+ *  · OFFLINE IS HONEST: no tiles is a calm ground — the pin, the
+ *    coordinates and the confirm all still stand. Her position is the FIX,
+ *    not the tiles.
+ *  · The quartier and repère blocks are C3's OWN, moved into the sheet
+ *    while the face stands (the face covers the screen, so each data-role
+ *    exists exactly once and every standing handler keeps working).
+ *  · Nothing is kept until « Confirmer ce lieu » — Annuler drops the
+ *    candidate and the block returns to the quiet offer.
  */
-function renderGeoCarte(c: { lat: number; lng: number }): string {
-  const d = 0.003;
-  const bbox = `${(c.lng - d).toFixed(6)}%2C${(c.lat - d).toFixed(6)}%2C${(c.lng + d).toFixed(6)}%2C${(c.lat + d).toFixed(6)}`;
-  const src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${c.lat}%2C${c.lng}`;
-  // Founder amendment (2026-08-31): NOT a chromeless full-screen webview —
-  // the carte face is an ordinary SCREEN, with the app's own header (the
-  // stepHead anatomy every C-step carries; the back chevron IS the annuler
-  // road, like every other screen) and the map as a FRAMED CARD below it.
+export function renderGeoCarte(s: C3State, c: { lat: number; lng: number }): string {
   return [
     '<div class="cl-geo-carte" data-role="geo-carte">',
-    `<div class="cl-stephead"><button class="cl-round-btn" data-action="geo-carte-annuler" aria-label="Annuler">${iconBack(17)}</button><div class="cl-steptitle">Votre position</div></div>`,
-    `<iframe class="cl-geo-carte-vue" title="Carte de votre position" src="${src}" referrerpolicy="no-referrer"></iframe>`,
-    '<div class="cl-geo-carte-aide">Vérifiez le point sur la carte.</div>',
-    '<button class="cl-cta cl-geo-carte-ok" data-action="geo-confirmer">Confirmer ma position</button>',
+    '<div class="cl-geo-vue" data-role="geo-vue">',
+    '<div class="cl-geo-tuiles" data-role="geo-tuiles"></div>',
+    `<span class="cl-geo-epingle">${epingleSvg(40)}</span>`,
+    '<div class="cl-geo-haut">',
+    '<button class="cl-geo-flot" data-action="geo-carte-annuler" aria-label="Annuler">×</button>',
+    '<div class="cl-geo-pill">Déplacez la carte pour placer le point</div>',
+    '</div>',
+    `<button class="cl-geo-flot cl-geo-recentrer" data-action="geo-recentrer" aria-label="Revenir à ma position">${viseurSvg(20)}</button>`,
+    '<div class="cl-geo-attrib">© OpenStreetMap</div>',
+    '</div>',
+    '<div class="cl-geo-sheet">',
+    '<div class="cl-geo-poignee"></div>',
+    `<div class="cl-geo-coords"><span class="cl-geo-coords-ic">${epingleSvg(16)}</span><span data-role="geo-coords">${fmtCoords(c)}</span></div>`,
+    renderAdresseBlocs(s),
+    '<button class="cl-cta cl-geo-carte-ok" data-action="geo-confirmer">Confirmer ce lieu</button>',
+    '</div>',
     '</div>',
   ].join('');
 }
 
-export function renderC3(s: C3State): string {
+/** C3's quartier + repère — ONE rendering, placed in the body normally and
+ *  inside the carte sheet while that face stands, so each role exists once. */
+function renderAdresseBlocs(s: C3State): string {
   return [
-    '<div class="cl-screen" data-screen="C3">',
-    stepHead('retour-c1', 'Où livrer ?'),
-    '<div class="cl-intro">Pas besoin d’adresse — ici, un bon repère vaut mieux. Le livreur connaît la ville.</div>',
     '<div class="cl-overline">Votre quartier</div>',
     `<input class="cl-field" data-role="quartier-filtre" value="${esc(s.zoneFiltre)}" placeholder="Chercher votre quartier…" autocomplete="off">`,
     `<div class="cl-chips cl-chips-quartiers" data-role="quartier-chips">${renderQuartierChips(s.zone, s.zoneFiltre)}</div>`,
     '<div class="cl-overline">Le repère</div>',
     `<input class="cl-field" data-role="repere" value="${esc(s.repere)}" placeholder="Ex. : Face à la pharmacie du marché">`,
+  ].join('');
+}
+
+export function renderC3(s: C3State): string {
+  const carteFace = s.geo === 'carte' && s.carte !== null;
+  return [
+    '<div class="cl-screen" data-screen="C3">',
+    stepHead('retour-c1', 'Où livrer ?'),
+    '<div class="cl-intro">Pas besoin d’adresse — ici, un bon repère vaut mieux. Le livreur connaît la ville.</div>',
+    carteFace ? '' : renderAdresseBlocs(s),
     '<div class="cl-overline">Ou dites-le de vive voix</div>',
     renderVoiceBlock(s),
     renderGeoBlock(s),
@@ -829,10 +849,11 @@ export function renderC3(s: C3State): string {
     `<input class="cl-field" data-role="phone" type="tel" inputmode="tel" value="${esc(s.phone)}" placeholder="Ex. : 70 12 34 56">`,
     `<div class="cl-privline">${iconLock(14)}Le livreur passe par un relais. Votre numéro reste privé.</div>`,
     `<button class="cl-cta cl-cta-c3${s.canContinue ? '' : ' cl-cta-off'}" data-action="continuer-c3"${s.canContinue ? '' : ' disabled'}>Continuer</button>`,
-    // GEO-ACHAT-2 — the carte face paints LAST so it stands over the whole
-    // screen: one question, answered before anything else on C3 can be
-    // touched.
-    s.geo === 'carte' && s.carte !== null ? renderGeoCarte(s.carte) : '',
+    // GEO-CARTE-PRO — the carte face is NOT rendered here: `.cl-screen`'s
+    // entry animation animates a transform, which would capture the face's
+    // position:fixed and pin it to the scrolled screen box (driven red on
+    // the real build). The flow paints it as a TOP layer beside the galerie;
+    // this render only VACATES the address blocks into it (above).
     '</div>',
   ].join('');
 }

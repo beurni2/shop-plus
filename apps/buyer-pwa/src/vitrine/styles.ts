@@ -438,10 +438,52 @@ export const VITRINE_STYLES = `
   .vt-liste-voix-duree { font-variant-numeric: tabular-nums; }
   .vt-liste-voix-texte { flex: 1; min-width: 0; }
   .vt-liste-geo { margin-top: 8px; display: flex; align-items: center; gap: 10px; }
-  .vt-geo-carte-vue {
-    margin-top: 14px; width: 100%; height: clamp(260px, 44vh, 400px); display: block;
-    border: 1.5px solid #EADFC9; border-radius: 16px; background: #F6EEDD;
+  /* GEO-CARTE-PRO — the reference anatomy: the map full-bleed under a fixed
+   * centre pin, floating chrome over it, the sheet riding its bottom edge. */
+  .vt-geo-carte { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: #FFF8EE; }
+  .vt-geo-vue { position: relative; flex: 1; min-height: 0; overflow: hidden; background: #F6EEDD; touch-action: none; cursor: grab; }
+  .vt-geo-tuiles { position: absolute; inset: 0; will-change: transform; }
+  .vt-geo-tuiles img { position: absolute; width: 256px; height: 256px; max-width: none; user-select: none; pointer-events: none; }
+  .vt-geo-epingle {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -100%);
+    color: #B4544B; z-index: 3; pointer-events: none;
+    filter: drop-shadow(0 2px 3px rgba(28, 23, 16, .35));
   }
+  .vt-geo-haut {
+    position: absolute; z-index: 4; left: 12px; right: 12px;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    display: flex; align-items: center; gap: 10px;
+  }
+  .vt-geo-flot {
+    width: 44px; height: 44px; flex: none; border: none; border-radius: 14px;
+    background: rgba(255, 248, 238, .95); color: #1C1710; font-size: 20px; line-height: 1;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    box-shadow: 0 2px 10px rgba(28, 23, 16, .18);
+  }
+  .vt-geo-pill {
+    flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; justify-content: center;
+    padding: 10px 14px; border-radius: 14px; background: rgba(255, 248, 238, .95);
+    box-shadow: 0 2px 10px rgba(28, 23, 16, .18);
+    font-size: 13px; font-weight: 700; color: #1C1710; text-align: center; line-height: 1.35;
+  }
+  .vt-geo-recentrer { position: absolute; z-index: 4; right: 14px; bottom: 34px; }
+  .vt-geo-attrib {
+    position: absolute; z-index: 3; left: 10px; bottom: 22px;
+    font-size: 10px; color: #6F6355; background: rgba(255, 248, 238, .75);
+    padding: 1px 6px; border-radius: 8px; pointer-events: none;
+  }
+  .vt-geo-sheet {
+    position: relative; z-index: 5; flex: none; max-height: 52vh; overflow-y: auto;
+    margin-top: -18px; border-radius: 22px 22px 0 0; background: #FFF8EE;
+    padding: 8px 20px calc(18px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -6px 18px rgba(28, 23, 16, .12);
+  }
+  .vt-geo-poignee { width: 44px; height: 5px; border-radius: 3px; background: #EADFC9; margin: 2px auto 10px; }
+  .vt-geo-coords {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 700; color: #1C1710; font-variant-numeric: tabular-nums;
+  }
+  .vt-geo-coords-ic { color: #B4544B; display: inline-flex; }
   .vt-liste-geo-btn { margin-top: 8px; }
 
   /* LISTE-FERMER-2 — the direct close entry: full width below the sections,
