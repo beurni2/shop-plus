@@ -712,6 +712,15 @@ describe('§6.1’s copy, on the screen, word for word', () => {
     // THE GLUE IS MARKUP, NOT COPY: what she reads is byte-identical to §6.1.
     expect(visible(chosenB)).toContain('Payer le produit à la livraison');
     expect(visible(sansB)).toContain('Payer le produit à la livraison');
+    // CHECKOUT-POLI-1 — the « recommandé » pill rides the SAME device, so it
+    // gets the SAME two pins (fresh verifier: the build's comment claimed this
+    // pin before it existed). The replace-literal must occur in titreA, and
+    // the pill must reach the markup — a drifted literal would drop the golden
+    // pill silently with every other assertion green. What she reads stays
+    // §6.1's own label, dash included.
+    expect(PAIEMENT.titreA).toContain(' — recommandé');
+    expect(chosenB).toContain(' — <span class="cl-reco">recommandé</span>');
+    expect(visible(chosenB)).toContain('Tout payer maintenant — recommandé');
   });
 
   it('the card and the replay agree about mode A’s door leg — both say 0', () => {

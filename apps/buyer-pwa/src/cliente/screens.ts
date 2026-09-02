@@ -1609,8 +1609,9 @@ const TITRE_B = PAIEMENT.titreB.replace(
  * `PAIEMENT.titreA` — §6.1's label, dash included — only markup is added. The
  * pill's uppercase is a CSS transform; the byte under it stays the spec's
  * lowercase word, so `visible()`-style reads and the copy gate see §6.1
- * exactly. Pinned as a substring by test: a `.replace` that stops matching is
- * a silent no-op.
+ * exactly. Pinned by the glued-tail test in cliente-paiement-61 (substring in
+ * titreA + pill present in the markup): a `.replace` that stops matching is a
+ * silent no-op.
  */
 const TITRE_A = PAIEMENT.titreA.replace(' — recommandé', ' — <span class="cl-reco">recommandé</span>');
 
