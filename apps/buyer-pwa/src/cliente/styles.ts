@@ -267,6 +267,23 @@ export const CLIENTE_STYLES = `
   .cl-wa-sub { display: block; font-size: 11.5px; font-weight: 500; color: #6F6355; margin-top: 1px; }
   .cl-wa-chev { color: var(--vt-accent); display: inline-flex; flex: none; }
 
+  /* ══ CHECKOUT-POLI-1 — l'habillage des trois écrans d'étape (C3 · C4 · C5),
+     founder-approved canvas 2026-09-02. The colours are the family's own:
+     θ (--vt-*) stays the action/choice; ok green #DFEEE3/#14603A = confirmed;
+     Séra amber (seraColour #D9A441/#8F6812/#B98A1F/#241A05, tint #FBF3DF,
+     warn #F6E9C8/#5F4403) = the course and the rider; terracotta (pwaColour
+     #F7E7D8/#C2571B/#7A340E) = what happens at her door; gold #E0A11B/#C89A3F
+     = the recommendation. All Jamais θ by the same rule as the semantic set. */
+  .cl-etape { background: radial-gradient(140% 36% at 100% 0%, var(--vt-soft) 0%, transparent 60%); }
+  .cl-etape-sera { background: radial-gradient(140% 36% at 100% 0%, #FBF3DF 0%, transparent 60%); }
+  .cl-rail { margin-top: 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .cl-rail-seg { height: 4px; border-radius: 99px; background: #E5DCC9; }
+  .cl-rail-on { background: var(--vt-accent); transition: background .3s; }
+  .cl-rail-done { background: #14603A; }
+  .cl-rail-lab { margin-top: 6px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #8A7D6B; }
+  .cl-rail-lab .cl-rail-ici { color: var(--vt-deep); }
+  .cl-rail-lab .cl-rail-fait { color: #14603A; }
+
   /* ══ CTA ══ */
   /* THE display: block BELOW IS LOAD-BEARING, not tidying (round 5, verifier).
      A button's UA display is inline-block, and the C5 orphan sweep enumerates
@@ -281,7 +298,13 @@ export const CLIENTE_STYLES = `
   .cl-cta {
     display: block;
     margin-top: 14px; width: 100%; height: 56px; border-radius: 16px; border: none;
-    background: var(--vt-accent); color: var(--vt-on);
+    /* CHECKOUT-POLI-1 — a breath of light at the top of the button; still θ,
+       so every habillage keeps its own primary. The COLOR stays on
+       background-color (the habillage e2e reads it there); the gradient rides
+       background-image on top. cl-cta-off's shorthand resets both. */
+    background-color: var(--vt-accent);
+    background-image: linear-gradient(180deg, color-mix(in srgb, var(--vt-accent) 86%, #FFFFFF) 0%, var(--vt-accent) 62%);
+    color: var(--vt-on);
     font-family: var(--cld); font-weight: 700; font-size: 16px;
     font-feature-settings: 'tnum';
     box-shadow: 0 12px 26px -10px rgba(var(--vt-sh),.5);
@@ -320,12 +343,23 @@ export const CLIENTE_STYLES = `
     border-radius: 14px; border: 1.5px solid #E5DCC9; background: #FFFFFF; color: #1C1710; outline: none;
   }
   .cl-field:focus { border-color: var(--vt-accent); box-shadow: 0 0 0 3px rgba(var(--vt-sh),.12); }
-  .cl-voice-idle {
-    margin-top: 9px; display: flex; align-items: center; justify-content: center; gap: 9px;
-    width: 100%; height: 52px; border-radius: 15px; border: 1.5px solid #1C1710; background: #FFFFFF; color: #1C1710;
-    font-weight: 700; font-size: 14px; transition: transform .15s;
+  /* CHECKOUT-POLI-1 — the two quiet offers (voix · position) become calm card
+     rows with a coloured chip and a chevron, so Continuer stays the one thing
+     on C3 that looks like a button. Non-idle states keep their own anatomy. */
+  .cl-ligne {
+    margin-top: 9px; display: flex; align-items: center; gap: 12px; text-align: left;
+    width: 100%; min-height: 60px; padding: 10px 14px; border-radius: 18px;
+    border: 1px solid #EDE4D3; background: #FFFFFF;
+    box-shadow: 0 1px 2px rgba(28,22,15,.04); transition: transform .15s;
   }
-  .cl-voice-idle:active { transform: scale(.98); }
+  .cl-ligne:active { transform: scale(.98); }
+  .cl-ligne-ic { width: 36px; height: 36px; border-radius: 12px; flex: none; display: flex; align-items: center; justify-content: center; }
+  .cl-ligne-ic-voix { background: #F7E7D8; color: #C2571B; }
+  .cl-ligne-ic-pos { background: var(--vt-soft); color: var(--vt-accent); }
+  .cl-ligne-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .cl-ligne-t { font-size: 14.5px; font-weight: 700; }
+  .cl-ligne-s { font-size: 12px; color: #6F6355; line-height: 1.4; }
+  .cl-ligne-chev { color: #C9BFAE; display: flex; flex: none; }
   .cl-voice-rec { margin-top: 9px; display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 8px 0 16px; border-radius: 15px; background: #1C1710; color: #F6F0E4; }
   .cl-rec-dot { width: 10px; height: 10px; border-radius: 99px; background: #E4572E; flex: none; }
   @media (prefers-reduced-motion: no-preference) { .cl-rec-dot { animation: clPulse 1s ease infinite; } }
@@ -341,12 +375,6 @@ export const CLIENTE_STYLES = `
   .cl-voice-note svg { flex: none; }
   .cl-voice-queued { background: #F6E9C8; color: #5F4403; }
   .cl-voice-refused { background: #F1E7D3; color: #4A3F33; align-items: flex-start; }
-  .cl-geo-idle {
-    margin-top: 9px; display: flex; align-items: center; justify-content: center; gap: 9px;
-    width: 100%; height: 48px; border-radius: 15px; border: 1.5px solid #1C1710; background: #FFFFFF; color: #1C1710;
-    font-weight: 700; font-size: 13.5px; transition: transform .15s;
-  }
-  .cl-geo-idle:active { transform: scale(.98); }
   .cl-geo-cours { margin-top: 9px; display: flex; align-items: center; gap: 10px; padding: 13px 15px; border-radius: 15px; background: #F1E7D3; color: #4A3F33; font-size: 12.5px; }
   .cl-geo-dot { width: 10px; height: 10px; border-radius: 99px; background: #1C1710; flex: none; }
   @media (prefers-reduced-motion: no-preference) { .cl-geo-dot { animation: clPulse 1s ease infinite; } }
@@ -354,17 +382,19 @@ export const CLIENTE_STYLES = `
   /* QUARTIER-CHOISI — the folded picker: the kept-state row anatomy her
    * position row already speaks (white card, the quiet uppercase way out). */
   .cl-zone-choisie {
-    margin-top: 10px; display: flex; align-items: center; gap: 10px;
-    padding: 13px 15px; border-radius: 15px; background: #FFFFFF;
-    border: 1.5px solid #E5DCC9;
+    margin-top: 10px; display: flex; align-items: center; gap: 12px;
+    min-height: 60px; padding: 10px 14px; border-radius: 18px; background: #FFFFFF;
+    border: 1px solid #EDE4D3; box-shadow: 0 1px 2px rgba(28,22,15,.04);
   }
-  .cl-zone-choisie-ic { color: #1C1710; display: flex; flex: none; }
-  .cl-zone-choisie-nom { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: #1C1710; }
+  .cl-zc-puce { width: 36px; height: 36px; border-radius: 12px; flex: none; display: flex; align-items: center; justify-content: center; background: #DFEEE3; color: #14603A; }
+  .cl-zone-choisie-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .cl-zone-choisie-nom { min-width: 0; font-size: 14.5px; font-weight: 700; color: #1C1710; }
+  .cl-zone-choisie-ville { font-size: 12px; color: #6F6355; }
   .cl-zone-changer {
-    border: none; background: transparent; color: var(--vt-accent);
-    font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline;
-    white-space: nowrap; flex: none; min-height: 44px; padding: 0 10px;
-    display: flex; align-items: center;
+    border: none; background: var(--vt-soft); color: var(--vt-deep);
+    font-size: 11.5px; font-weight: 700; letter-spacing: .05em;
+    white-space: nowrap; flex: none; min-height: 44px; padding: 0 14px; border-radius: 99px;
+    display: flex; align-items: center; transition: background .3s, color .3s;
   }
   .cl-geo-done-ic { color: #1C1710; display: flex; flex: none; }
   .cl-geo-done-txt { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.5; color: #1C1710; }
@@ -422,17 +452,19 @@ export const CLIENTE_STYLES = `
   }
   .cl-geo-coords-ic { color: var(--vt-accent); display: inline-flex; }
   .cl-geo-carte-ok { margin-top: 14px; }
-  .cl-privline { margin-top: 14px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6F6355; }
+  /* CHECKOUT-POLI-1 — the privacy line becomes a quiet green note: the claim
+     is a KEPT one (the relay exists), so it wears the confirmed colour. */
+  .cl-privline { margin-top: 14px; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px; background: #DFEEE3; color: #14603A; font-size: 12.5px; font-weight: 600; line-height: 1.45; }
   .cl-privline svg { flex: none; }
   .cl-cta-c3 { margin-top: 16px; }
 
   /* ══ C4 — récap + options livraison ══ */
-  .cl-recap { margin-top: 14px; display: flex; gap: 12px; align-items: flex-start; padding: 14px 15px; border-radius: 18px; border: 1px solid #EDE4D3; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,22,15,.04); }
-  .cl-recap-flag { color: var(--vt-accent); display: inline-flex; flex: none; margin-top: 2px; }
+  .cl-recap { margin-top: 10px; display: flex; gap: 12px; align-items: center; min-height: 60px; padding: 10px 14px; border-radius: 18px; border: 1px solid #EDE4D3; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,22,15,.04); }
+  .cl-recap-flag { width: 36px; height: 36px; border-radius: 12px; background: var(--vt-soft); color: var(--vt-accent); display: flex; align-items: center; justify-content: center; flex: none; transition: background .3s, color .3s; }
   .cl-recap-col { flex: 1; min-width: 0; }
   .cl-recap-zone { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; color: #6F6355; }
   .cl-recap-rep { margin-top: 3px; font-size: 14px; font-weight: 600; line-height: 1.4; }
-  .cl-modifier { border: none; background: transparent; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; flex: none; }
+  .cl-modifier { border: none; background: var(--vt-soft); color: var(--vt-deep); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; flex: none; min-height: 44px; padding: 0 14px; border-radius: 99px; display: flex; align-items: center; transition: background .3s, color .3s; }
   .cl-law { margin-top: 14px; font-size: 13px; line-height: 1.55; color: #4A3F33; }
   .cl-opt {
     margin-top: 11px; display: block; width: 100%; position: relative; padding: 16px;
@@ -448,11 +480,35 @@ export const CLIENTE_STYLES = `
   .cl-opt-title { flex: 1; font-weight: 700; font-size: 14.5px; }
   .cl-opt-fee { font-family: var(--cld); font-weight: 800; font-size: 17px; font-feature-settings: 'tnum'; white-space: nowrap; }
   .cl-opt-sub { margin-top: 5px; font-size: 13px; line-height: 1.5; color: #6F6355; }
-  .cl-quote { margin-top: 15px; border-left: 3px solid #1C1710; padding: 2px 0 2px 13px; font-size: 13.5px; font-weight: 600; line-height: 1.5; }
+  /* CHECKOUT-POLI-1 — the black-bar quote becomes a soft note. Base = the
+     confirmed green (C5's inspection promise); -sera = the course's amber
+     (C4's « payée à Séra »). Text-only on purpose: an svg child would compute
+     block and silently drop the sentence from the C5 orphan sweep. */
+  .cl-quote { margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: #DFEEE3; color: #14603A; font-size: 13.5px; font-weight: 600; line-height: 1.5; }
+  .cl-quote-sera { background: #F6E9C8; color: #5F4403; }
+  /* CHECKOUT-POLI-1 — the Séra course card (C4's one server-priced line):
+     amber wash, the woven gradient bar, the golden scooter chip, the fee in
+     Séra's deep amber, and the ecosystem's three proofs as green badges. */
+  .cl-course { padding: 0; overflow: hidden; border-color: #EBD9AE; background: linear-gradient(180deg, #FBF3DF 0%, #FFFFFF 62%); }
+  .cl-course-fil { height: 5px; background: linear-gradient(90deg, #D9A441 0%, #C89A3F 50%, #C2571B 100%); }
+  .cl-course-corps { padding: 15px 16px 14px; }
+  .cl-course-ic { width: 44px; height: 44px; border-radius: 14px; flex: none; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, #E4B657 0%, #D9A441 55%, #B98A1F 100%); color: #241A05; box-shadow: 0 6px 14px -8px rgba(143,104,18,.6); }
+  .cl-course-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .cl-course .cl-opt-fee { font-size: 22px; color: #8F6812; }
+  .cl-course-preuves { margin-top: 13px; padding-top: 13px; border-top: 1px solid #F3EDDE; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .cl-preuve { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 30px; border-radius: 99px; background: #DFEEE3; border: 1px solid #C9E2D1; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #14603A; }
+  .cl-preuve svg { flex: none; }
   .cl-cta-step { margin-top: 16px; }
 
   /* ══ C5 — récap montants + modes ══ */
-  .cl-bill { margin-top: 14px; padding: 4px 17px; border-radius: 20px; border: 1px solid #EDE4D3; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,22,15,.04); }
+  .cl-bill { margin-top: 10px; padding: 4px 17px 0; border-radius: 20px; border: 1px solid #EDE4D3; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,22,15,.04); }
+  /* CHECKOUT-POLI-1 — a coloured point before each bill line, naming whose
+     franc it is (Dan Fani rose = the article, Séra amber = the course). As
+     ::before, deliberately: an element child would blockify out of the orphan
+     sweep and the clip check; a pseudo is invisible to both filters. */
+  .cl-fil-art::before, .cl-fil-sera::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 99px; margin-right: 8px; }
+  .cl-fil-art::before { background: #A31D4E; }
+  .cl-fil-sera::before { background: #D9A441; }
   .cl-bill-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 12px 0; border-bottom: 1px solid #F3EDDE; font-size: 13.5px; }
   /* THE LABEL WRAPS; IT NEVER TRUNCATES (SP3.3b1, founder finding).
      It used to carry white-space nowrap + overflow hidden + text-overflow
@@ -466,9 +522,12 @@ export const CLIENTE_STYLES = `
   .cl-bill-row b { font-feature-settings: 'tnum'; white-space: nowrap; flex: none; }
   .cl-bill-liv { color: #6F6355; }
   .cl-bill-liv b { color: #1C1710; }
-  .cl-bill-total { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 13px 0; }
-  .cl-bill-total span { font-weight: 700; font-size: 14px; }
-  .cl-bill-total b { font-family: var(--cld); font-weight: 800; font-size: 20px; font-feature-settings: 'tnum'; white-space: nowrap; }
+  /* CHECKOUT-POLI-1 — the Total on its own θ-tinted band, full-bleed inside
+     the card (negative margins swallow the card's side padding), figure at
+     22 in the deep ink. Hierarchy stays: nothing else on the receipt is 22. */
+  .cl-bill-total { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 0 -17px; padding: 14px 17px; background: linear-gradient(90deg, var(--vt-soft) 0%, color-mix(in srgb, var(--vt-soft) 40%, #FFFFFF) 100%); border-top: 1px solid color-mix(in srgb, var(--vt-accent) 22%, #FFFFFF); border-radius: 0 0 19px 19px; transition: background .3s; }
+  .cl-bill-total span { font-weight: 700; font-size: 14px; color: var(--vt-deep); }
+  .cl-bill-total b { font-family: var(--cld); font-weight: 800; font-size: 22px; font-feature-settings: 'tnum'; white-space: nowrap; color: var(--vt-deep); }
   /* THE HONESTY LINE READS LIKE A SENTENCE, not like a layout accident.
      Right-aligned it wrapped « … chaque franc a / sa place. », stranding two
      words against the right edge. It needs 422px on one line and the column is
@@ -500,12 +559,20 @@ export const CLIENTE_STYLES = `
      A big amount (a 250 000 FCFA article) may still wrap, and MUST be allowed
      to: white-space nowrap here would push the card past a 360px phone, and a
      horizontal scrollbar on the payment screen is worse than a second line. */
-  .cl-payline { margin-top: 7px; font-weight: 700; font-size: 12px; line-height: 1.45; color: #1C1710; font-feature-settings: 'tnum'; }
-  .cl-payline + .cl-payline { margin-top: 2px; }
-  .cl-payline + .cl-payopt-body { margin-top: 9px; }
+  .cl-payline { margin: 8px -12px 0; padding: 8px 12px; border-radius: 11px; font-weight: 700; font-size: 12px; line-height: 1.45; background: var(--vt-soft); color: var(--vt-deep); font-feature-settings: 'tnum'; transition: background .3s, color .3s; }
+  /* CHECKOUT-POLI-1 — the two §6.1 lines wear their colours: θ = paid NOW
+     (the action), terracotta = paid at her DOOR. The sentences are the spec's
+     bytes, untouched; only the ground under them changed. Full-width rows,
+     never half-width tiles, and the tint's side padding is paid for by
+     NEGATIVE margins of the same size — the text measure stays byte-for-byte
+     the proven one (padding alone re-orphaned « … : 0 FCFA » at 320px under
+     the fallback face; driven red, then this). */
+  .cl-payline[data-role="payline-livraison"] { background: #F7E7D8; color: #7A340E; }
+  .cl-payline + .cl-payline { margin-top: 6px; }
+  .cl-payline + .cl-payopt-body { margin-top: 10px; }
   /* §6.1's non-refundable-delivery warning. Sober, never alarmist: it states a
      consequence, so it earns weight and the sable ground, not the danger set. */
-  .cl-payopt-warn { margin-top: 9px; padding: 9px 11px; border-radius: 12px; background: #FBF6EB; border: 1px solid #EDE4D3; font-size: 12.5px; font-weight: 600; line-height: 1.45; color: #6F6355; }
+  .cl-payopt-warn { margin-top: 9px; padding: 9px 11px; border-radius: 12px; background: #F6E9C8; border: 1px solid #EDD9A8; font-size: 12.5px; font-weight: 600; line-height: 1.45; color: #5F4403; }
   /* §6.1's one-line replay, immediately above the CTA: what she is about to
      agree to, in her own numbers, before the payment leaves. */
   .cl-redite { margin-top: 13px; text-align: center; font-size: 13.5px; font-weight: 700; line-height: 1.45; color: #1C1710; font-feature-settings: 'tnum'; }
@@ -587,7 +654,21 @@ export const CLIENTE_STYLES = `
   .cl-payinel-head span { font-weight: 700; font-size: 14.5px; }
   .cl-payinel-body { margin-top: 7px; font-size: 13px; line-height: 1.55; color: #6F6355; }
   .cl-cta-c5 { margin-top: 15px; }
+  /* CHECKOUT-POLI-1 — « recommandé » as a golden pill inside option A's title.
+     Kept display:inline so the title's children stay all-inline and the title
+     never leaves the orphan sweep; the uppercase is the transform's, the byte
+     underneath stays §6.1's lowercase word. */
+  .cl-reco { padding: 2px 8px; border-radius: 99px; background: linear-gradient(90deg, #E0A11B, #C89A3F); color: #241A05; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+  /* CHECKOUT-POLI-1 — the selected card gets a θ-soft breath under its θ
+     border, so « chosen » reads in colour as well as in the corner mark. */
+  .cl-opt-on { background: linear-gradient(180deg, color-mix(in srgb, var(--vt-soft) 55%, #FFFFFF) 0%, #FFFFFF 46%); }
   .cl-providers { margin-top: 10px; text-align: center; font-size: 10.5px; font-weight: 700; letter-spacing: .12em; color: #6F6355; }
+  /* Provider points — the operators' own colours, as pseudo-elements for the
+     same sweep reason as the bill points. */
+  .cl-prov-fin { white-space: nowrap; }
+  .cl-prov-om::before, .cl-prov-moov::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 99px; margin-right: 5px; }
+  .cl-prov-om::before { background: #F16E00; }
+  .cl-prov-moov::before { background: #0057A8; }
   .cl-footnote-c5 { margin-top: 5px; }
 
   /* ══ C5 — envoi / opérateur ══ */

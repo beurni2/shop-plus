@@ -510,6 +510,23 @@ function stepHead(action: string, title: string): string {
   return `<div class="cl-stephead">${backBtn(action)}<div class="cl-steptitle">${title}</div></div>`;
 }
 
+/**
+ * CHECKOUT-POLI-1 — the three-step rail (founder-approved canvas, 2026-09-02):
+ * she always knows where she is. Colour is state, not decoration — θ = here,
+ * green = done, sand = ahead. The labels never wrap (three short words at
+ * 10px in thirds of the narrowest phone).
+ */
+const RAIL_ETAPES = ['Adresse', 'Livraison', 'Paiement'] as const;
+function stepRail(etape: 1 | 2 | 3): string {
+  const segs = RAIL_ETAPES.map(
+    (_, i) => `<div class="cl-rail-seg${i + 1 < etape ? ' cl-rail-done' : i + 1 === etape ? ' cl-rail-on' : ''}"></div>`,
+  ).join('');
+  const labs = RAIL_ETAPES.map(
+    (nom, i) => `<span${i + 1 < etape ? ' class="cl-rail-fait"' : i + 1 === etape ? ' class="cl-rail-ici"' : ''}>${nom}</span>`,
+  ).join('');
+  return `<div class="cl-rail">${segs}</div><div class="cl-rail-lab">${labs}</div>`;
+}
+
 export function renderOffline(): string {
   return `<div class="cl-offline" data-role="offline-banner">${iconWifiOff(14)}Hors ligne : vos actions sont en attente, jamais perdues.</div>`;
 }
@@ -704,7 +721,15 @@ export interface C3State {
 function renderVoiceBlock(s: C3State): string {
   switch (s.voice) {
     case 'idle':
-      return `<button class="cl-voice-idle" data-action="voix-demarrer">${iconMic(17)}Enregistrer le repère</button>`;
+      // CHECKOUT-POLI-1 — a calm row, not a second button: terracotta chip
+      // (the buyer's own colour — her voice), title, one warm line, chevron.
+      return [
+        '<button class="cl-ligne" data-action="voix-demarrer">',
+        `<span class="cl-ligne-ic cl-ligne-ic-voix">${iconMic(17)}</span>`,
+        '<span class="cl-ligne-col"><span class="cl-ligne-t">Enregistrer le repère</span><span class="cl-ligne-s">Parlez comme au marché, c’est assez.</span></span>',
+        `<span class="cl-ligne-chev">${iconChevron(16)}</span>`,
+        '</button>',
+      ].join('');
     case 'recording':
       return [
         '<div class="cl-voice-rec" data-role="voice-recording">',
@@ -747,7 +772,16 @@ function renderVoiceBlock(s: C3State): string {
 function renderGeoBlock(s: C3State): string {
   switch (s.geo) {
     case 'repos':
-      return `<button class="cl-geo-idle" data-action="geo-demander">${iconFlag(16)}Ajouter ma position</button>`;
+      // CHECKOUT-POLI-1 — same row anatomy as the voice offer; θ chip (the
+      // position is an action she may take). The privacy clause rides the sub
+      // so consent is stated where the offer is made.
+      return [
+        '<button class="cl-ligne" data-action="geo-demander">',
+        `<span class="cl-ligne-ic cl-ligne-ic-pos">${iconFlag(16)}</span>`,
+        '<span class="cl-ligne-col"><span class="cl-ligne-t">Ajouter ma position</span><span class="cl-ligne-s">Partagée seulement avec votre livreur.</span></span>',
+        `<span class="cl-ligne-chev">${iconChevron(16)}</span>`,
+        '</button>',
+      ].join('');
     case 'encours':
     // GEO-ACHAT-2 — while the carte overlay stands, the block behind it keeps
     // the searching face: the capture is not KEPT yet, and painting the kept
@@ -830,9 +864,13 @@ export function renderGeoCarte(s: C3State, c: { lat: number; lng: number }): str
 function renderAdresseBlocs(s: C3State): string {
   const quartier = s.zone !== null && !s.zoneEdition
     ? [
+        // CHECKOUT-POLI-1 — the kept row wears the confirmed colour: green
+        // check chip, her quartier over its city, CHANGER as a θ-soft pill.
+        // (Every quartier on the official list is Ouagadougou's — the sub
+        // states the city, it never invents an address.)
         '<div class="cl-zone-choisie" data-role="zone-choisie">',
-        `<span class="cl-zone-choisie-ic">${iconCheck(15)}</span>`,
-        `<span class="cl-zone-choisie-nom">${esc(s.zone)}</span>`,
+        `<span class="cl-zc-puce">${iconCheck(15, 2.6)}</span>`,
+        `<span class="cl-zone-choisie-col"><span class="cl-zone-choisie-nom">${esc(s.zone)}</span><span class="cl-zone-choisie-ville">Ouagadougou</span></span>`,
         '<button class="cl-zone-changer" data-action="zone-changer">CHANGER</button>',
         '</div>',
       ].join('')
@@ -851,8 +889,9 @@ function renderAdresseBlocs(s: C3State): string {
 export function renderC3(s: C3State): string {
   const carteFace = s.geo === 'carte' && s.carte !== null;
   return [
-    '<div class="cl-screen" data-screen="C3">',
+    '<div class="cl-screen cl-etape" data-screen="C3">',
     stepHead('retour-c1', 'Où livrer ?'),
+    stepRail(1),
     '<div class="cl-intro">Pas besoin d’adresse — ici, un bon repère vaut mieux. Le livreur connaît la ville.</div>',
     carteFace ? '' : renderAdresseBlocs(s),
     '<div class="cl-overline">Ou dites-le de vive voix</div>',
@@ -919,15 +958,24 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
     // A PLAIN card, deliberately NOT `cl-opt-on`: the accent border and the
     // check mark mean « you chose this », and she chose nothing. It states a
     // fact. The one primary action on this screen stays the CTA.
-    '<div class="cl-opt" data-role="livraison-unique">',
-    `<div class="cl-opt-row"><span class="cl-opt-title">Livraison par Séra</span><span class="cl-opt-fee">${fmtFCFA(q.feeToday)}</span></div>`,
+    // CHECKOUT-POLI-1 — the fact is now the screen's hero: Séra's amber wash,
+    // the golden scooter chip, the fee large in the deep amber, and the
+    // ecosystem's badge language (vérifié · scellé · livré) as green proofs.
+    '<div class="cl-opt cl-course" data-role="livraison-unique">',
+    '<div class="cl-course-fil"></div>',
+    '<div class="cl-course-corps">',
+    `<div class="cl-opt-row"><span class="cl-course-ic">${iconScooter(20, 1.8)}</span><span class="cl-course-col"><span class="cl-opt-title">Livraison par Séra</span><span class="cl-opt-fee">${fmtFCFA(q.feeToday)}</span></span></div>`,
     '<div class="cl-opt-sub">Un livreur Séra vérifie et scelle le colis avant de partir.</div>',
+    `<div class="cl-course-preuves"><span class="cl-preuve">${iconCheck(12, 3)}Vérifié</span><span class="cl-preuve">${iconCheck(12, 3)}Scellé</span><span class="cl-preuve">${iconCheck(12, 3)}Livré</span></div>`,
+    '</div>',
     '</div>',
   ].join('');
   const can = s.ligneUnique === true || s.delivery !== null;
   return [
-    '<div class="cl-screen" data-screen="C4">',
+    '<div class="cl-screen cl-etape cl-etape-sera" data-screen="C4">',
     stepHead('retour-c3', 'La livraison'),
+    stepRail(2),
+    '<div class="cl-overline">Livrée à</div>',
     '<div class="cl-recap">',
     `<span class="cl-recap-flag">${iconFlag(18)}</span>`,
     s.livreChez !== undefined
@@ -958,7 +1006,7 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
         '</button>',
       ].join('');
     }).join(''),
-    '<div class="cl-quote">La course est payée à Séra. Chaque franc a sa place.</div>',
+    '<div class="cl-quote cl-quote-sera">La course est payée à Séra. Chaque franc a sa place.</div>',
     `<button class="cl-cta cl-cta-step${can ? '' : ' cl-cta-off'}" data-action="continuer-c4"${can ? '' : ' disabled'}>Continuer</button>`,
     '</div>',
   ].join('');
@@ -1555,6 +1603,17 @@ const TITRE_B = PAIEMENT.titreB.replace(
   `<span class="cl-titre-fin">${PAIEMENT.titreBFin}</span>`,
 );
 
+/**
+ * OPTION A'S TITLE with « recommandé » as the golden pill (CHECKOUT-POLI-1).
+ * Same device as TITRE_B: the rendered TEXT is byte-identical to
+ * `PAIEMENT.titreA` — §6.1's label, dash included — only markup is added. The
+ * pill's uppercase is a CSS transform; the byte under it stays the spec's
+ * lowercase word, so `visible()`-style reads and the copy gate see §6.1
+ * exactly. Pinned as a substring by test: a `.replace` that stops matching is
+ * a silent no-op.
+ */
+const TITRE_A = PAIEMENT.titreA.replace(' — recommandé', ' — <span class="cl-reco">recommandé</span>');
+
 /** §6.1's two bold lines for ONE mode, from that mode's own server split. */
 function lignesSplit(split: ModeSplit): string {
   return [
@@ -1711,11 +1770,13 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
     ].join('');
   }
   return [
-    '<div class="cl-screen" data-screen="C5" data-etat="choix">',
+    '<div class="cl-screen cl-etape" data-screen="C5" data-etat="choix">',
     stepHead('retour-c4', 'Le paiement'),
+    stepRail(3),
+    '<div class="cl-overline">Votre commande</div>',
     '<div class="cl-bill">',
-    `<div class="cl-bill-row"><span>${ligneProduit}</span><b>${produitStr}</b></div>`,
-    `<div class="cl-bill-row cl-bill-liv"><span>Livraison Séra — jamais\u00a0cachée</span><b>${feeStr}</b></div>`,
+    `<div class="cl-bill-row"><span class="cl-fil-art">${ligneProduit}</span><b>${produitStr}</b></div>`,
+    `<div class="cl-bill-row cl-bill-liv"><span class="cl-fil-sera">Livraison Séra — jamais\u00a0cachée</span><b>${feeStr}</b></div>`,
     `<div class="cl-bill-total"><span>Total</span><b>${totalStr}</b></div>`,
     '</div>',
     `<div class="cl-reconcile" data-role="reconcile">${reconcile}</div>`,
@@ -1723,7 +1784,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
     '<div class="cl-overline cl-overline-pay">Comment payer ?</div>',
     `<button class="cl-opt cl-payopt${s.pay === 'A' ? ' cl-opt-on' : ''}" data-action="choix-paiement" data-mode="A">`,
     s.pay === 'A' ? `<span class="cl-opt-mark">${iconCheck(14, 3)}</span>` : '',
-    `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconLockDot(17)}</span><span class="cl-opt-title">${PAIEMENT.titreA}</span></div>`,
+    `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconLockDot(17)}</span><span class="cl-opt-title">${TITRE_A}</span></div>`,
     lignesSplit(splitA),
     `<div class="cl-payopt-body">${PAIEMENT.corpsA}</div>`,
     '</button>',
@@ -1757,7 +1818,13 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
     '<div class="cl-quote">Vous inspectez le colis avant\u00a0de\u00a0payer\u00a0le\u00a0reste.</div>',
     redite === '' ? '' : `<div class="cl-redite" data-role="redite">${redite}</div>`,
     `<button class="cl-cta cl-cta-c5${can ? '' : ' cl-cta-off'}" data-action="payer"${can ? '' : ' disabled'}>${ctaLabel}</button>`,
-    '<div class="cl-providers">ORANGE MONEY · MOOV MONEY</div>',
+    // CHECKOUT-POLI-1 — each operator gets its own colour point (::before, so
+    // the line stays one all-inline text block). The sentence she reads is
+    // byte-identical: « ORANGE MONEY · MOOV MONEY ». The separator travels
+    // with the second operator as one amount-free no-wrap unit: the points
+    // cost 26px, and at 320px under the fallback face the line then wraps —
+    // this makes it wrap as « ORANGE MONEY / · MOOV MONEY », never a strand.
+    '<div class="cl-providers"><span class="cl-prov-om">ORANGE MONEY</span> <span class="cl-prov-fin">· <span class="cl-prov-moov">MOOV MONEY</span></span></div>',
     '<div class="cl-footnote cl-footnote-c5">Votre numéro reste privé.</div>',
     '</div>',
   ].join('');
