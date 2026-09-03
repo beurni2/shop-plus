@@ -50,14 +50,66 @@ export class DispatchIndexDO {
       return Response.json({ ok: true, status: 'registered' });
     }
 
-    /** The list — ids and first-seen clocks only, newest first. Unbounded at
-     *  pilot scale on purpose (the paid-order book's own reasoning). */
+    /**
+     * The list — ids and first-seen clocks only, newest first.
+     *
+     * DISPATCH-PAGES-1 (AUDIT-SHOP-1 slice b): PAGED on request. The index
+     * itself is one object's storage — listing it costs no subrequest — but
+     * every caller of this list fans out ONE subrequest per row to the
+     * order's own DO, and the platform caps subrequests per request. So a
+     * caller may ask for a page: `?limit=` rows after `?cursor=` (the `next`
+     * a previous page answered, echoed verbatim). NO limit = the whole list,
+     * byte-compatible with every caller that predates this.
+     *
+     * THE ORDER IS TOTAL — `firstSeenAt` desc, then `orderId` desc — because
+     * a cursor over a sort with ties is a cursor that can skip or repeat rows
+     * whose clocks collide. And the cursor is a COMPARISON, not an index:
+     * rows registered while the founder pages land BEFORE his cursor (newer)
+     * and are simply absent from this sweep — no row he is walking ever
+     * shifts, duplicates, or disappears.
+     */
     if (request.method === 'GET' && pathname === '/list') {
+      const params = new URL(request.url).searchParams;
+      const limitRaw = params.get('limit');
+      let limit: number | undefined;
+      if (limitRaw !== null) {
+        limit = Number(limitRaw);
+        if (!Number.isInteger(limit) || limit < 1) {
+          return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+        }
+      }
+      const cursorRaw = params.get('cursor');
+      let apres: { seen: string; id: string } | undefined;
+      if (cursorRaw !== null) {
+        const sep = cursorRaw.indexOf('|');
+        if (sep < 0) return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+        try {
+          apres = { seen: decodeURIComponent(cursorRaw.slice(0, sep)), id: decodeURIComponent(cursorRaw.slice(sep + 1)) };
+        } catch {
+          return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+        }
+      }
       const rows = await this.state.storage.list<DispatchRow>({ prefix: ROW_PREFIX });
-      const orders = [...rows.values()]
-        .sort((a, b) => (a.firstSeenAt < b.firstSeenAt ? 1 : -1))
-        .map((r) => ({ orderId: r.orderId, firstSeenAt: r.firstSeenAt }));
-      return Response.json({ ok: true, orders });
+      const tri = [...rows.values()].sort((a, b) =>
+        a.firstSeenAt === b.firstSeenAt
+          ? a.orderId < b.orderId ? 1 : -1
+          : a.firstSeenAt < b.firstSeenAt ? 1 : -1,
+      );
+      const debutIdx =
+        apres === undefined
+          ? 0
+          : tri.findIndex(
+              (r) => r.firstSeenAt < apres.seen || (r.firstSeenAt === apres.seen && r.orderId < apres.id),
+            );
+      const restant = debutIdx < 0 ? [] : tri.slice(debutIdx);
+      const page = limit === undefined ? restant : restant.slice(0, limit);
+      const orders = page.map((r) => ({ orderId: r.orderId, firstSeenAt: r.firstSeenAt }));
+      const dernier = page[page.length - 1];
+      const next =
+        limit !== undefined && dernier !== undefined && page.length < restant.length
+          ? `${encodeURIComponent(dernier.firstSeenAt)}|${encodeURIComponent(dernier.orderId)}`
+          : undefined;
+      return Response.json({ ok: true, orders, ...(next !== undefined ? { next } : {}) });
     }
 
     return Response.json({ error: 'not_found' }, { status: 404 });

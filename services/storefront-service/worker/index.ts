@@ -8,6 +8,15 @@ import {
   PlatformEventSchema,
 } from '@platform/contracts';
 import { DispatchIndexDO, DISPATCH_INDEX_NAME } from './dispatch-index-do.js';
+
+/**
+ * DISPATCH-PAGES-1 — the dispatch/gains page size AND its hard ceiling. One
+ * request spends 1 subrequest on the index list plus one per row; the platform
+ * budget is 50 per request on the plan this deploys to, so 40 rows leaves real
+ * margin for the CORS answer and any retry the runtime makes. A caller may ask
+ * for LESS, never more — a bigger page is the exact 500 this slice removes.
+ */
+const PAGE_DISPATCH = 40;
 import { ResellerFeedDO, RESELLER_FEED_NAME } from './reseller-feed-do.js';
 import { WishlistDO, mintListeToken } from './wishlist-do.js';
 import { LISTE_REF, LISTE_TOKEN, validateListeCreate, validateListeUpdate } from '../src/wishlist-core.js';
@@ -1072,44 +1081,59 @@ export default {
      * DROPPED here, never rendered wrong). Only `confirmed` rows leave: an
      * unpaid order has no gains to explain.
      */
-    if (pathname === '/checkout/gains') {
+    /**
+     * ═══ DISPATCH-PAGES-1 (AUDIT-SHOP-1 slice b) — THE FAN-OUT IS PAGED ═══
+     *
+     * Both reads below list the index and then make ONE subrequest per listed
+     * order to that order's own object — and the platform caps subrequests
+     * per request, so the console 500'd the moment the LIFETIME order count
+     * crossed the budget (measured ceiling ≈ 49 on the Free plan). Now each
+     * request reads ONE page: `?limit=` (absent = 40; 1..40, else 400 BY
+     * NAME — a bigger page would simply re-create the bug) after `?cursor=`
+     * (the `next` a previous page answered, echoed verbatim; the index
+     * refuses a malformed one by name). `next` present means more pages —
+     * the console follows it, one HTTP request per page, each within budget.
+     */
+    if (pathname === '/checkout/gains' || pathname === '/checkout/dispatch') {
       if (request.method === 'OPTIONS') return dispatchPreflight();
       if (request.method !== 'GET') return withDispatchCors(unauthorized());
       const refused = await rejectUnauthorizedOpsRead(request, env);
       if (refused) return withDispatchCors(refused);
+      const params = new URL(request.url).searchParams;
+      const limitRaw = params.get('limit');
+      const limit = limitRaw === null ? PAGE_DISPATCH : Number(limitRaw);
+      if (!Number.isInteger(limit) || limit < 1 || limit > PAGE_DISPATCH) {
+        return withDispatchCors(Response.json({ ok: false, reason: 'malformed' }, { status: 400 }));
+      }
+      const cursor = params.get('cursor');
       const stub = env.DISPATCH.get(env.DISPATCH.idFromName(DISPATCH_INDEX_NAME));
-      const listRes = await stub.fetch(new Request('https://do/list'));
+      const listRes = await stub.fetch(
+        new Request(`https://do/list?limit=${limit}${cursor === null ? '' : `&cursor=${encodeURIComponent(cursor)}`}`),
+      );
+      if (listRes.status === 400) {
+        // the index refused the cursor — the caller's mistake, named, never
+        // dressed up as an index outage
+        return withDispatchCors(Response.json({ ok: false, reason: 'malformed' }, { status: 400 }));
+      }
       const list = (await listRes.json().catch(() => null)) as
-        | { ok?: boolean; orders?: { orderId: string }[] }
+        | { ok?: boolean; orders?: { orderId: string; firstSeenAt: string }[]; next?: string }
         | null;
       if (list?.ok !== true || !Array.isArray(list.orders)) {
         return withDispatchCors(Response.json({ ok: false, reason: 'index_unavailable' }, { status: 503 }));
       }
-      const gains: unknown[] = [];
-      for (const entry of list.orders) {
-        const res = await env.ORDER.get(env.ORDER.idFromName(entry.orderId)).fetch(
-          new Request('https://do/entry/gains'),
-        );
-        const row = (await res.json().catch(() => null)) as
-          | { ok?: boolean; exists?: boolean; state?: string }
-          | null;
-        if (row?.ok === true && row.exists === true && row.state === 'confirmed') gains.push(row);
-      }
-      return withDispatchCors(Response.json({ ok: true, gains }));
-    }
-
-    if (pathname === '/checkout/dispatch') {
-      if (request.method === 'OPTIONS') return dispatchPreflight();
-      if (request.method !== 'GET') return withDispatchCors(unauthorized());
-      const refused = await rejectUnauthorizedOpsRead(request, env);
-      if (refused) return withDispatchCors(refused);
-      const stub = env.DISPATCH.get(env.DISPATCH.idFromName(DISPATCH_INDEX_NAME));
-      const listRes = await stub.fetch(new Request('https://do/list'));
-      const list = (await listRes.json().catch(() => null)) as
-        | { ok?: boolean; orders?: { orderId: string; firstSeenAt: string }[] }
-        | null;
-      if (list?.ok !== true || !Array.isArray(list.orders)) {
-        return withDispatchCors(Response.json({ ok: false, reason: 'index_unavailable' }, { status: 503 }));
+      const suite = typeof list.next === 'string' ? { next: list.next } : {};
+      if (pathname === '/checkout/gains') {
+        const gains: unknown[] = [];
+        for (const entry of list.orders) {
+          const res = await env.ORDER.get(env.ORDER.idFromName(entry.orderId)).fetch(
+            new Request('https://do/entry/gains'),
+          );
+          const row = (await res.json().catch(() => null)) as
+            | { ok?: boolean; exists?: boolean; state?: string }
+            | null;
+          if (row?.ok === true && row.exists === true && row.state === 'confirmed') gains.push(row);
+        }
+        return withDispatchCors(Response.json({ ok: true, gains, ...suite }));
       }
       const rows: unknown[] = [];
       for (const entry of list.orders) {
@@ -1119,7 +1143,7 @@ export default {
         const row = (await res.json().catch(() => null)) as { ok?: boolean; exists?: boolean } | null;
         if (row?.ok === true && row.exists === true) rows.push(row);
       }
-      return withDispatchCors(Response.json({ ok: true, orders: rows }));
+      return withDispatchCors(Response.json({ ok: true, orders: rows, ...suite }));
     }
 
     /**
