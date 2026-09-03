@@ -31,6 +31,43 @@ interface DispatchRow {
   readonly firstSeenAt: string;
 }
 
+/**
+ * DISPATCH-PAGES-1 — the page computation, PURE and exported so the one case
+ * the e2e cannot manufacture — two rows registered on the SAME millisecond —
+ * is deterministically provable: the DO mints `firstSeenAt` itself, so no
+ * test driving the real object can force a clock collision, and it is exactly
+ * under a collision that a tie-less sort would let the cursor repeat or skip
+ * rows. The order is TOTAL (`firstSeenAt` desc, then `orderId` desc) and the
+ * cursor is a COMPARISON against that order, never an index — a row
+ * registered mid-walk lands before the cursor and no walked row ever shifts.
+ */
+export function paginerRegistre(
+  rows: readonly DispatchRow[],
+  limit: number | undefined,
+  apres: { seen: string; id: string } | undefined,
+): { orders: { orderId: string; firstSeenAt: string }[]; next?: string } {
+  const tri = [...rows].sort((a, b) =>
+    a.firstSeenAt === b.firstSeenAt
+      ? a.orderId < b.orderId ? 1 : -1
+      : a.firstSeenAt < b.firstSeenAt ? 1 : -1,
+  );
+  const debutIdx =
+    apres === undefined
+      ? 0
+      : tri.findIndex(
+          (r) => r.firstSeenAt < apres.seen || (r.firstSeenAt === apres.seen && r.orderId < apres.id),
+        );
+  const restant = debutIdx < 0 ? [] : tri.slice(debutIdx);
+  const page = limit === undefined ? restant : restant.slice(0, limit);
+  const orders = page.map((r) => ({ orderId: r.orderId, firstSeenAt: r.firstSeenAt }));
+  const dernier = page[page.length - 1];
+  const next =
+    limit !== undefined && dernier !== undefined && page.length < restant.length
+      ? `${encodeURIComponent(dernier.firstSeenAt)}|${encodeURIComponent(dernier.orderId)}`
+      : undefined;
+  return { orders, ...(next !== undefined ? { next } : {}) };
+}
+
 export class DispatchIndexDO {
   constructor(private readonly state: DurableObjectState) {}
 
@@ -90,25 +127,7 @@ export class DispatchIndexDO {
         }
       }
       const rows = await this.state.storage.list<DispatchRow>({ prefix: ROW_PREFIX });
-      const tri = [...rows.values()].sort((a, b) =>
-        a.firstSeenAt === b.firstSeenAt
-          ? a.orderId < b.orderId ? 1 : -1
-          : a.firstSeenAt < b.firstSeenAt ? 1 : -1,
-      );
-      const debutIdx =
-        apres === undefined
-          ? 0
-          : tri.findIndex(
-              (r) => r.firstSeenAt < apres.seen || (r.firstSeenAt === apres.seen && r.orderId < apres.id),
-            );
-      const restant = debutIdx < 0 ? [] : tri.slice(debutIdx);
-      const page = limit === undefined ? restant : restant.slice(0, limit);
-      const orders = page.map((r) => ({ orderId: r.orderId, firstSeenAt: r.firstSeenAt }));
-      const dernier = page[page.length - 1];
-      const next =
-        limit !== undefined && dernier !== undefined && page.length < restant.length
-          ? `${encodeURIComponent(dernier.firstSeenAt)}|${encodeURIComponent(dernier.orderId)}`
-          : undefined;
+      const { orders, next } = paginerRegistre([...rows.values()], limit, apres);
       return Response.json({ ok: true, orders, ...(next !== undefined ? { next } : {}) });
     }
 
