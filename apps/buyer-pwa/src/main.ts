@@ -1101,3 +1101,18 @@ if (app) {
     app.prepend(suiviBtn);
   }
 }
+
+// ═══ LA COQUILLE HORS LIGNE (COQUILLE-HORS-LIGNE-1, Law 7) ═══
+// Installed and cold-opened without network, the PWA used to be the browser's
+// own error page. sw.js (built from sw.template.js) precaches the shell and
+// answers navigations only when the network has already failed — online
+// behaviour is byte-identical. './sw.js' resolves against document.baseURI,
+// which the deep-link restore pins to the app root, so the scope is the deploy
+// base on every road. PROD only: the dev server has no built sw.js. A failed
+// registration must leave the app exactly as it was before this slice — the
+// shell never waits on it and never surfaces it.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('./sw.js').catch(() => undefined);
+  });
+}

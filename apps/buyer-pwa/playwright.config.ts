@@ -13,6 +13,14 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: 'http://127.0.0.1:4173',
+    // COQUILLE-HORS-LIGNE-1 — the app now registers a service worker, and a
+    // fetch a worker answers (or re-issues) is INVISIBLE to page.route
+    // (Playwright's documented limitation): every stubbed **/listes/**,
+    // **/checkout/**, /s/… and font route in this suite would be silently
+    // bypassed, passing or failing for the wrong reason. These specs assert
+    // app flows, not caching — so the worker is blocked everywhere and driven
+    // deliberately by hors-ligne.spec.ts, which opts back in.
+    serviceWorkers: 'block',
     launchOptions: {
       ...(process.env.PW_EXECUTABLE ? { executablePath: process.env.PW_EXECUTABLE } : {}),
       // WO-4.4: the voice-note e2e records from Chromium's fake media stream
