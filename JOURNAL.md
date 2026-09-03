@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-03 · DISPATCH-PAGES-1 (AUDIT-SHOP-1 slice b) — the founder's dispatch and gains reads are paged · IN REVIEW (branch `ece518a` → `09494d0` + boutik-plus `e88eac5` → `2916efc`; awaiting the founder's word for merge + `storefront-deploy`; ⚠ the two halves deploy TOGETHER)
+## 2026-09-03 · DISPATCH-PAGES-1 (AUDIT-SHOP-1 slice b) — the founder's dispatch and gains reads are paged · DONE
+
+**MERGED AND DEPLOYED (founder: « Go », 2026-09-03), the two halves TOGETHER as required.** shop `main` → 37f6bb9: **ci 606 · pwa-preview 396 · expo-preview 429 · drift 273 · storefront-deploy 80, all green** — the paged Worker is live. boutik `main` → 163789c: **ci 343 · expo-preview 221 · web-deploy 71, all green** — the cursor-following console is live on the same Go. The ≈49-order ceiling on his delivery board and money screen is gone; the honest ceiling is now 1 000 orders, and past it the screen DECLARES « Lecture partielle » instead of lying. Next: slice (c), the buyerRef replay past quote expiry.
 
 **The audit's MAJOR (2), closed:** `/checkout/dispatch` and `/checkout/gains` listed the WHOLE lifetime index and made one subrequest per order to that order's own object; the platform caps subrequests per request, so the console 500'd for good at ≈49 orders — his delivery board and his money screen, dark at a count the pilot will reach.
 
