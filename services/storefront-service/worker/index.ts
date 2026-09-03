@@ -1608,14 +1608,35 @@ async function saBoutique(env: Env, accountId: string, storefrontId: string): Pr
 /** ONE mute not-found for everything that is not hers — never an oracle. */
 const pasLaSienne = (): Response => Response.json({ error: 'not_found' }, { status: 404 });
 
+/** A path segment that will not decode is nobody's — never a 500. */
+function decodeSur(segment: string): string | null {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+}
+
+/** Is this listing hers? Absent (a new id) is `true`; foreign or unreadable is `false`. */
+async function saListeOuLibre(env: Env, accountId: string, listingId: string): Promise<boolean> {
+  const res = await lstRouter
+    .fetch(new Request(`https://do/listings/${encodeURIComponent(listingId)}`), env)
+    .catch(() => undefined);
+  if (res === undefined) return false;
+  if (res.status === 404) return true;
+  if (res.status !== 200) return false;
+  const listing = (await res.json().catch(() => null)) as { resellerId?: unknown } | null;
+  return listing?.resellerId === accountId;
+}
+
 /**
  * RESELLER-AUTH-1 — the ownership rule, route by route, for a caller WITH a
  * session. `null` means « proceed ». A shop she creates must carry her own
  * account id (403 `not_owner` — there is no target to be mute about); every
  * act on an existing shop, listing or by-pid read must land on a shop that is
- * hers; the media upload and the supply read need only the active session,
- * because the upload becomes hers only through an owned attach, and the
- * supply read is the same catalogue for every admitted reseller.
+ * hers; the media upload names its shop in the query and that shop must be
+ * hers; only the supply read needs the active session alone, because it is
+ * the same catalogue for every admitted reseller.
  */
 async function refuserHorsPropriete(
   appelante: { accountId: string },
@@ -1624,33 +1645,72 @@ async function refuserHorsPropriete(
   env: Env,
 ): Promise<Response | null> {
   if (request.method === 'POST' && pathname === '/storefronts') {
-    const cmd = (await request.clone().json().catch(() => null)) as { resellerId?: unknown } | null;
-    return cmd?.resellerId === appelante.accountId ? null : Response.json({ error: 'not_owner' }, { status: 403 });
+    const cmd = (await request.clone().json().catch(() => null)) as { resellerId?: unknown; id?: unknown } | null;
+    if (cmd?.resellerId !== appelante.accountId) return Response.json({ error: 'not_owner' }, { status: 403 });
+    // VERIFIER (a2a): the core answers a COLLIDING id with the existing shop in
+    // the body — the very object the by-id read is muted to hide. An id that
+    // already belongs to someone else is therefore nobody's here; her own
+    // (the idempotent re-create) and a free id go through.
+    if (typeof cmd.id !== 'string' || cmd.id === '') return Response.json({ error: 'malformed' }, { status: 400 });
+    const existante = await sfRouter
+      .fetch(new Request(`https://do/storefronts/${encodeURIComponent(cmd.id)}`), env)
+      .catch(() => undefined);
+    if (existante === undefined) return pasLaSienne();
+    if (existante.status === 200) {
+      const shop = (await existante.json().catch(() => null)) as { resellerId?: unknown } | null;
+      if (shop?.resellerId !== appelante.accountId) return pasLaSienne();
+    }
+    return null;
+  }
+  // VERIFIER (a2a): the upload is not a blob she later attaches — `handleMediaUpload`
+  // itself points the shop in its query at the stored bytes (cover, avatar, voice)
+  // through the router directly. So the shop in the query must be hers.
+  if (request.method === 'POST' && pathname === '/media/upload') {
+    const storefrontId = new URL(request.url).searchParams.get('storefrontId');
+    if (storefrontId === null || storefrontId === '') return Response.json({ error: 'malformed' }, { status: 400 });
+    return (await saBoutique(env, appelante.accountId, storefrontId)) ? null : pasLaSienne();
   }
   let m = /^\/storefronts\/([^/]+)(?:\/.*)?$/.exec(pathname);
-  if (m) return (await saBoutique(env, appelante.accountId, decodeURIComponent(m[1]!))) ? null : pasLaSienne();
+  if (m) {
+    const id = decodeSur(m[1]!);
+    return id !== null && (await saBoutique(env, appelante.accountId, id)) ? null : pasLaSienne();
+  }
   if (request.method === 'POST' && pathname === '/listings') {
-    const cmd = (await request.clone().json().catch(() => null)) as { storefrontId?: unknown; resellerId?: unknown } | null;
+    const cmd = (await request.clone().json().catch(() => null)) as
+      | { storefrontId?: unknown; resellerId?: unknown; listingId?: unknown }
+      | null;
     // With an identity in hand, a publish that names no shop is a signed price
     // with no vitrine behind it — the NO-BOUTIQUE ruling, refused by name.
     if (typeof cmd?.storefrontId !== 'string' || cmd.storefrontId === '') {
       return Response.json({ error: 'malformed' }, { status: 400 });
     }
+    if (typeof cmd.listingId !== 'string' || cmd.listingId === '') {
+      return Response.json({ error: 'malformed' }, { status: 400 });
+    }
     // The listing's payee is HER — SP-I01 locks every order's resellerId from
     // this artifact, so a listing naming anyone else would route her sales away.
     if (cmd.resellerId !== appelante.accountId) return Response.json({ error: 'not_owner' }, { status: 403 });
-    return (await saBoutique(env, appelante.accountId, cmd.storefrontId)) ? null : pasLaSienne();
+    if (!(await saBoutique(env, appelante.accountId, cmd.storefrontId))) return pasLaSienne();
+    // VERIFIER (a2a): a publish is also a REWRITE of whatever already lives under
+    // `listingId` (version N+1, or the idempotent replay of its command). Ids are
+    // derivable, so an existing listing must be hers — or the id is nobody's.
+    return (await saListeOuLibre(env, appelante.accountId, cmd.listingId)) ? null : pasLaSienne();
   }
   m = /^\/listings\/by-pid\/([^/]+)\/[^/]+(?:\/economics)?$/.exec(pathname);
-  if (m) return (await saBoutique(env, appelante.accountId, decodeURIComponent(m[1]!))) ? null : pasLaSienne();
+  if (m) {
+    const id = decodeSur(m[1]!);
+    return id !== null && (await saBoutique(env, appelante.accountId, id)) ? null : pasLaSienne();
+  }
   m = /^\/listings\/([^/]+)(?:\/hide)?$/.exec(pathname);
   if (m) {
     // A listing by id is owned by its PAYEE: the canon artifact carries her
     // `resellerId` (the id SP-I01 locks every order to) and, past this gate,
     // a publish can only ever carry the caller's own. Absent, foreign, or
     // unreadable answer the same mute not-found.
+    const id = decodeSur(m[1]!);
+    if (id === null) return pasLaSienne();
     const res = await lstRouter
-      .fetch(new Request(`https://do/listings/${encodeURIComponent(decodeURIComponent(m[1]!))}`), env)
+      .fetch(new Request(`https://do/listings/${encodeURIComponent(id)}`), env)
       .catch(() => undefined);
     if (res === undefined || res.status !== 200) return pasLaSienne();
     const listing = (await res.json().catch(() => null)) as { resellerId?: unknown } | null;
