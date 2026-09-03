@@ -149,6 +149,11 @@ describe('RESELLER-PILOTE-1 — the book seats one, and refuses the second by na
     const reMintB = await founder('/access-code', b.accountId);
     expect(reMintB.status).toBe(409);
     expect(reMintB.json.reason).toBe('plafond_pilote');
+    // …and the book still holds HER code, byte for byte: the founder's reread
+    // answers the same plaintext, so the refused re-mint replaced nothing.
+    const relu = await founder('/access-code/reveal', b.accountId);
+    expect(relu.status, relu.text).toBe(200);
+    expect(relu.json.code).toBe(codeB.json.code);
 
     // THE SEATED ONE IS UNTOUCHED by the ceiling: her feed answers, and her
     // spent code re-presented is the idempotent « déjà », never a refusal.
@@ -164,7 +169,9 @@ describe('RESELLER-PILOTE-1 — the book seats one, and refuses the second by na
     const pendantPause = await admission(b.session, codeB.json.code!);
     expect(pendantPause.status).toBe(403);
     expect(pendantPause.json['reason']).toBe('plafond_pilote');
-    expect((await founder('/access-code', c.accountId)).status).toBe(409);
+    const mintPendantPause = await founder('/access-code', c.accountId);
+    expect(mintPendantPause.status).toBe(409);
+    expect(mintPendantPause.json.reason, 'the pilot, not « not_pending »').toBe('plafond_pilote');
     const resume = await founder('/resume', a.accountId);
     expect(resume.status, resume.text).toBe(200);
 

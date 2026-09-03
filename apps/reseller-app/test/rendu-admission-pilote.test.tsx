@@ -71,7 +71,9 @@ describe('the admission door when the pilot is full', () => {
     await screen.press('Ouvrir');
     await screen.settle();
 
-    // 1. the port was CALLED, with her code and her bearer — not a dead button.
+    // 1. the port was CALLED, with her code — not a dead button. (The wire
+    //    records path, method and body; the bearer rides a header it does
+    //    not keep, so nothing about it is claimed here.)
     const appel = fils.calls.find((c) => c.path === '/reseller/admission');
     expect(appel, `admission never left the phone; calls: ${JSON.stringify(fils.calls.map((c) => c.path))}`).toBeDefined();
     expect(appel!.body?.['code']).toBe(CODE);

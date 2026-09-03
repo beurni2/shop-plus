@@ -346,17 +346,22 @@ export class ResellerAccountsDO {
         // founder's cut-off outranks every credential she holds.
         return Response.json({ ok: false, reason: 'access_paused' }, { status: 403 });
       }
+      const code = typeof body?.code === 'string' ? body.code.trim() : '';
+      // The digest is taken BEFORE the seat is read, so that between the seat
+      // read and the seating write the only awaits are storage's own — which
+      // the object's input gate covers — never a non-storage promise that
+      // could let a second /admission observe the same free seat.
+      const presente = code === '' ? null : await sha256Hex(code);
       // RESELLER-PILOTE-1: the seat is checked BEFORE the code is looked at —
       // her code may be right and the pilot full; she hears the pilot, never
       // « bad code », and nothing is spent: the hash stays, the state stays.
       if (await this.plafondAtteint()) {
         return Response.json({ ok: false, reason: 'plafond_pilote' }, { status: 403 });
       }
-      const code = typeof body?.code === 'string' ? body.code.trim() : '';
-      if (code === '' || record.accessCodeHash === undefined) {
+      if (presente === null || record.accessCodeHash === undefined) {
         return Response.json({ ok: false, reason: 'code_refused' }, { status: 401 });
       }
-      if (!egaleConstante(await sha256Hex(code), record.accessCodeHash)) {
+      if (!egaleConstante(presente, record.accessCodeHash)) {
         return Response.json({ ok: false, reason: 'code_refused' }, { status: 401 });
       }
       // CONSUMED: the hash is deleted in the same write that flips the state,
