@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-03 · SECTEURS-PROGRES-1 (AUDIT-SHOP-1 slice e) — one progress credential per writer · DONE, awaiting HIS arming step
+## 2026-09-03 · SECTEURS-PROGRES-1 (AUDIT-SHOP-1 slice e) — one progress credential per writer · DONE, ARMED
+
+**ARMED (founder, 2026-09-03: « done, both secrets set »).** One fresh value minted on his machine and set by Worker name — `SERA_PROGRESS_SECRET` on `storefront-service`, `SHOP_PROGRESS_SECRET` on `custody-service` — via `wrangler secret put`; the value never crossed this session. The live classifier is now in SPLIT mode: the old shared value opens only Boutik+'s preparation facts. No probe from here can witness it (live reads are policy-blocked and a real credential is his alone); the running witness is the next real transaction — Séra's marks and Boutik+'s facts both landing. Optional hygiene, his call, no urgency: rotating `PROGRESS_WRITE_SECRET` (now shared with Boutik+ only) would retire the pre-split value entirely.
 
 **MERGED AND DEPLOYED (founder: « go », 2026-09-03).** shop `main` fast-forwarded `bd69e01..9d1608a`. **All five workflows green on 9d1608a — ci 612 · pwa-preview 402 · expo-preview 435 · service-canon-drift 280 · storefront-deploy 82.** The live Worker carries the classifier in LEGACY mode (byte-identical) until the founder arms the split: mint ONE new value, then back to back `wrangler secret put SERA_PROGRESS_SECRET` on shop's storefront-service and `wrangler secret put SHOP_PROGRESS_SECRET` on sera's custody-service — same value, either order; Séra's outboxes carry marks born inside the window; NEVER paste the Séra value into `PROGRESS_WRITE_SECRET`. Sera's doc-only commit `98e0cff` rides its branch (no sera deploy needed — no code change). Next per the audit order: **(f)** the Real-Money-Gate bundle, which absorbs the standing receipt-mutability finding.
 
