@@ -194,8 +194,10 @@ export async function rejectUnauthorizedOpsRead(request: Request, env: WriteAuth
  * legacy mode while the Séra binding does not exist yet: the one shared value
  * opens every progress door, byte-identical to before the split — the split
  * cannot exist before the founder mints the second credential. If the two
- * bindings ever held the SAME value, the boutik class wins the tie: the
- * shared-value world is exactly the legacy world, never an escalation.
+ * bindings ever held the SAME value, the boutik class wins the tie — NOT the
+ * legacy world (Séra's delivery marks would refuse 403 and retry on Séra's
+ * alarm until the values diverge): fail-closed in the right direction, never
+ * an escalation.
  */
 export type ProgressWriter = 'boutik' | 'sera' | 'either';
 

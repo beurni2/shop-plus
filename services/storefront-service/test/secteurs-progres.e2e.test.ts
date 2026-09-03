@@ -227,9 +227,13 @@ describe('SECTEURS-PROGRES-1 — with both secrets bound, each writer opens exac
     // …and the LEDGER agrees nothing landed: the order is not « livrée ».
     expect((await vue(orderId))['livree']).toBe(false);
 
-    // Boutik+'s credential on the refusal signal: same refusal, same silence.
+    // Boutik+'s credential on the refusal signal: refused BY NAME, and the
+    // ledger's outbox shows the refused-course wire was never even born.
     const volRefus = await progress(refused(orderId), BOUTIK_SECRET);
-    expect(volRefus.status).toBe(403);
+    expect(`${volRefus.status} ${(safeJson(await volRefus.text()))['reason']}`).toBe('403 wrong_writer');
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    const boite = safeJson(await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/outbox')).text());
+    expect(boite['refusOutbox'], 'no refused mark may land under the wrong credential').toBeUndefined();
 
     // Boutik+'s credential on the transit door: refused before any body work.
     const volTransit = await transit({ orderId, stage: 'en_route', asOf: T0 }, BOUTIK_SECRET);
@@ -254,6 +258,17 @@ describe('SECTEURS-PROGRES-1 — with both secrets bound, each writer opens exac
 
     expect((await progress(accepted(orderId, 'b2', '2026-09-03T09:05:00.000Z'), BOUTIK_SECRET)).status).toBe(200);
     expect((await vue(orderId))['acceptedAt']).toBe('2026-09-03T09:05:00.000Z');
+
+    // …and ready.v1 walks the same guard, both ways: Séra refused by name
+    // with nothing written, Boutik+ landing the instant.
+    const ready = (at: string, n: string) => ({
+      name: 'fulfillment.ready.v1', envelope: progressEnvelope(n), payload: { orderId, at },
+    });
+    const volReady = await progress(ready('2026-09-03T09:10:00.000Z', 'vr2'), SERA_SECRET);
+    expect(`${volReady.status} ${(safeJson(await volReady.text()))['reason']}`).toBe('403 wrong_writer');
+    expect((await vue(orderId))['readyAt']).toBeUndefined();
+    expect((await progress(ready('2026-09-03T09:15:00.000Z', 'br2'), BOUTIK_SECRET)).status).toBe(200);
+    expect((await vue(orderId))['readyAt']).toBe('2026-09-03T09:15:00.000Z');
   }, 60_000);
 
   it('an unknown credential stays the uniform 401 on both doors — the split adds no oracle', async () => {

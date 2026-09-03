@@ -678,10 +678,16 @@ export default {
        * FIRST (uniform 401, before any parse), and WHAT they may write is
        * enforced at each event's own dispatch: Boutik+'s credential opens the
        * preparation facts alone, Séra's the delivery marks alone. A valid
-       * credential on the wrong event is a 403 BY NAME — a producer wiring
-       * bug must surface as a repeating refusal in both Workers' logs, while
-       * both senders' outboxes treat it as a retry, so nothing is lost across
-       * the founder's secret-swap window.
+       * credential on the wrong event is a 403 BY NAME. The senders differ on
+       * what they do with it — the verifier's catch: Séra's three wires judge
+       * by `res.ok` alone and RETRY on their alarm, so the founder's
+       * secret-swap window loses no delivery mark in either order; Boutik+'s
+       * preparation wire PARKS a 403 permanently (`refused_by_consumer`,
+       * one attempt, its own deliberate law). A correct swap never shows
+       * Boutik+ a 403 — its credential stays valid on its own doors in both
+       * worlds — but pasting the Séra value into `PROGRESS_WRITE_SECRET`
+       * would silently park preparation facts: the runbook in wrangler.toml
+       * names it.
        */
       const writer = await progressWriter(request, env);
       if (writer === null) return unauthorized();

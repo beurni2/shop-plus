@@ -312,7 +312,14 @@ service = "custody-service"
 # compromised Boutik+ credential can no longer mint delivery marks (the
 # settlement-eligibility signal included), and Séra's can no longer write
 # preparation facts. A valid credential on the wrong event answers 403
-# `wrong_writer`, which both senders' outboxes treat as a retry.
+# `wrong_writer`. Séra's outboxes RETRY any non-ok, so its marks survive the
+# swap window; Boutik+'s preparation wire PARKS a 403 after one attempt
+# (`refused_by_consumer`, its own deliberate law) — a correct swap never
+# shows it one, because PROGRESS_WRITE_SECRET stays valid on its own doors.
+#
+# ⚠ NEVER paste the Séra value into PROGRESS_WRITE_SECRET: the classifier
+# would read Boutik+ as Séra and every preparation fact would park after one
+# attempt, silently. The two values are distinct by construction.
 #
 # UNSET ⇒ the split does not exist yet: the shared value opens every progress
 # door, byte-identical to before the slice. To arm it, the founder mints ONE
