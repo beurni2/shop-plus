@@ -47,6 +47,10 @@ export interface Wire {
     body: Record<string, unknown> | null;
     search: string;
     bytes: number;
+    /** RESELLER-AUTH-1 — the `Authorization` header the app sent, or null. The
+     *  ONE header the wire keeps: whether a write rode her session is the fact
+     *  slice a2a exists to make true, and no source scan can see a header. */
+    auth: string | null;
   }[];
 }
 
@@ -62,7 +66,9 @@ export function wire(routes: readonly Route[]): Wire {
     const raw = init?.body;
     const body = typeof raw === 'string' ? (JSON.parse(raw) as Record<string, unknown>) : null;
     const bytes = raw instanceof Uint8Array ? raw.byteLength : 0;
-    calls.push({ path, method: init?.method ?? 'GET', body, search: u.search, bytes });
+    const entetes = (init?.headers ?? {}) as Record<string, string>;
+    const auth = typeof entetes['Authorization'] === 'string' ? entetes['Authorization'] : null;
+    calls.push({ path, method: init?.method ?? 'GET', body, search: u.search, bytes, auth });
     for (const r of routes) {
       const answer = r(path, body);
       if (answer !== null) {

@@ -77,16 +77,27 @@ export const OFFERS_ROUTE = '/supply-projections';
 
 export class HttpOfferSource implements OfferSourcePort {
   private readonly base: string;
-  constructor(base: string, private readonly writeKey: string) {
+  /** RESELLER-AUTH-1 — the session rides the supply read too (see
+   *  `HttpStorefrontService`): with one, the Worker admits her by account. */
+  constructor(
+    base: string,
+    private readonly writeKey: string,
+    private readonly lireBearer: () => Promise<string | null> = async () => null,
+  ) {
     this.base = base.replace(/\/+$/, '');
   }
 
   async list(): Promise<OfferFeed> {
     let res: Response;
+    const bearer = await this.lireBearer().catch(() => null);
     try {
       res = await fetch(`${this.base}${OFFERS_ROUTE}`, {
         method: 'GET',
-        headers: { [WRITE_KEY_HEADER]: this.writeKey, Accept: 'application/json' },
+        headers: {
+          [WRITE_KEY_HEADER]: this.writeKey,
+          Accept: 'application/json',
+          ...(bearer !== null && bearer.startsWith('SPS-') ? { Authorization: `Bearer ${bearer}` } : {}),
+        },
       });
     } catch {
       return { status: 'unavailable' }; // offline or unreachable — never invented products
@@ -104,9 +115,11 @@ export class HttpOfferSource implements OfferSourcePort {
  * (RESELLER-SEAM-HONESTY-1). There is deliberately NO demo branch: a populated
  * fallback on a browse surface is the hazard this slice removes.
  */
-export function resolveOfferSource(): OfferSourcePort | null {
+export function resolveOfferSource(
+  lireBearer: () => Promise<string | null> = async () => null,
+): OfferSourcePort | null {
   const base = process.env.EXPO_PUBLIC_STOREFRONT_BASE;
   const key = process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY;
-  if (base && key) return new HttpOfferSource(base, key);
+  if (base && key) return new HttpOfferSource(base, key, lireBearer);
   return null;
 }

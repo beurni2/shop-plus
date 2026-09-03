@@ -412,13 +412,15 @@ export default function App() {
   // inlined; otherwise **null** (RESELLER-SEAM-HONESTY-1), never a demo adapter that
   // cannot fail. A re-tap is idempotent (same commandId/id), never a second shop —
   // and the identity behind it is now device-stored rather than per-session.
-  const service = useMemo(() => resolveStorefrontService(), []);
+  // RESELLER-AUTH-1 — the adapters read her session at each call, so a signup
+  // or a founder pause landing mid-session is honoured on the very next write.
+  const service = useMemo(() => resolveStorefrontService(() => accessCodeStore.read()), []);
   // BROWSE-SUPPLY-1 — Opportunités now reads boutik's LIVE offers through this
   // Worker. The seven « (démo) » products are GONE, not filtered and not a fallback:
   // an unconfigured or failing wire shows the honest empty state, because a demo
   // label on a browse surface is something she would learn to ignore rather than
   // notice. `undefined` = still loading.
-  const offerSource = useMemo(() => resolveOfferSource(), []);
+  const offerSource = useMemo(() => resolveOfferSource(() => accessCodeStore.read()), []);
   const [feed, setFeed] = useState<OfferFeed | undefined>(undefined);
   useEffect(() => {
     let live = true;

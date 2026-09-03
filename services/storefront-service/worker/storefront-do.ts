@@ -349,8 +349,16 @@ export default {
       const out = [];
       for (const r of rows) {
         const eRes = await sfStub(env, r.id).fetch(new Request('https://do/entry'));
-        const discoverable = eRes.status === 200 ? Boolean(((await eRes.json()) as { discoverable?: boolean }).discoverable) : false;
-        out.push({ id: r.id, slug: r.slug, name: r.name, discoverable });
+        const entry = eRes.status === 200 ? ((await eRes.json()) as { discoverable?: boolean; resellerId?: string }) : {};
+        // RESELLER-AUTH-1 — the owner rides the row, so the composition root can
+        // narrow the list to the caller's own shops when a session is presented.
+        out.push({
+          id: r.id,
+          slug: r.slug,
+          name: r.name,
+          discoverable: Boolean(entry.discoverable),
+          ...(typeof entry.resellerId === 'string' ? { resellerId: entry.resellerId } : {}),
+        });
       }
       return Response.json(out);
     }

@@ -128,6 +128,49 @@ describe('HttpStorefrontService — the request the app WOULD send', () => {
     const svc = new HttpStorefrontService('https://sf.example.dev', 'K');
     expect(await svc.list()).toEqual({ ok: false, reason: 'offline' });
   });
+
+  describe('RESELLER-AUTH-1 — her session rides every call, read at each call', () => {
+    const entetes = (calls: { init: RequestInit }[]) => calls.map((c) => c.init.headers as Record<string, string>);
+
+    it('with an SPS session on the device, create · getById · publishListing · upload · list all carry Authorization: Bearer — and the key still rides', async () => {
+      const calls = stubFetch(200, { status: 'created', storefront: { slug: 'boutik-0007' } });
+      const svc = new HttpStorefrontService('https://sf.example.dev', 'SECRET-KEY', async () => 'SPS-AAAA-BBBB-CCCC-DDDD');
+      await svc.create(CMD);
+      await svc.getById('sf-test-1');
+      await svc.publishListing({ storefrontId: 'sf-test-1', resellerId: 'rs-0001', productVersionId: 'pv-1', markup: 100, correlationId: 'c', at: '2026-09-03T08:00:00.000Z' });
+      await svc.uploadCover('sf-test-1', new Uint8Array([1]), 'image/png');
+      await svc.list();
+      expect(calls).toHaveLength(5);
+      for (const h of entetes(calls)) {
+        expect(h['Authorization']).toBe('Bearer SPS-AAAA-BBBB-CCCC-DDDD');
+        expect(h[WRITE_KEY_HEADER]).toBe('SECRET-KEY');
+      }
+    });
+
+    it('a legacy SP- feed code is a door, not an identity: it is NOT presented; no store means no header — byte-identical to before', async () => {
+      const calls = stubFetch(200, { status: 'created', storefront: { slug: 'boutik-0007' } });
+      await new HttpStorefrontService('https://sf.example.dev', 'K', async () => 'SP-AAAA-BBBB-CCCC-DDDD').create(CMD);
+      await new HttpStorefrontService('https://sf.example.dev', 'K').create(CMD);
+      await new HttpStorefrontService('https://sf.example.dev', 'K', async () => { throw new Error('store down'); }).create(CMD);
+      expect(calls).toHaveLength(3);
+      for (const h of entetes(calls)) {
+        expect('Authorization' in h).toBe(false);
+        expect(h[WRITE_KEY_HEADER]).toBe('K');
+      }
+    });
+
+    it('the bearer is read at EACH call, so a session that lands after construction rides the next request', async () => {
+      const calls = stubFetch(200, { status: 'created', storefront: { slug: 'boutik-0007' } });
+      let stocke: string | null = null;
+      const svc = new HttpStorefrontService('https://sf.example.dev', 'K', async () => stocke);
+      await svc.list();
+      stocke = 'SPS-1111-2222-3333-4444';
+      await svc.list();
+      const [avant, apres] = entetes(calls);
+      expect('Authorization' in avant!).toBe(false);
+      expect(apres!['Authorization']).toBe('Bearer SPS-1111-2222-3333-4444');
+    });
+  });
 });
 
 /**

@@ -24,6 +24,7 @@ import { resolveSupplySource } from '../src/supply-source.js';
 import { orderIdForQuote } from '../src/order-core.js';
 import type { R2BucketLike } from '../src/media/media-store.js';
 import {
+  isWrite,
   rejectUnauthorizedWrite,
   rejectUnauthorizedOpsRead,
   keyAuthorized,
@@ -1277,12 +1278,7 @@ export default {
       return answered;
     }
 
-    // SERVICE-WRITE-AUTH-1 — gate EVERY write at the one deployed entry, before
-    // any dispatch or existence lookup (so the 401 is never an existence oracle).
-    // Reads pass straight through; a Worker with no secret configured fails closed.
-    const denied = await rejectUnauthorizedWrite(request, env);
-    if (denied) return denied;
-    // KEY-GATED READS — safe methods skip the write gate above, so any read that is
+    // KEY-GATED READS — safe methods skip the write gate below, so any read that is
     // NOT buyer-facing is gated EXPLICITLY here, before any dispatch:
     //
     //   · GET /storefronts — the admin list (RESELLER-STOREFRONT-WRITE-1).
@@ -1326,11 +1322,57 @@ export default {
     //     boutik's side. `isListings` above is the same idiom and the reason this
     //     one is written with `===`.
     const isSupplyCollection = pathname === SUPPLY_COLLECTION_ROUTE;
-    if ((isListings || isStorefrontRead || isSupplyCollection) && !(await keyAuthorized(request, env))) {
-      return unauthorized();
+    /**
+     * ═══ RESELLER-AUTH-1 (AUDIT-SHOP-1 slice a2a) — WHO IS CALLING, AND WHAT IS HERS ═══
+     *
+     * The audit's MAJOR: every write ran on ONE shared key baked into the app,
+     * and the per-reseller session was never consulted on a write — so any
+     * admitted reseller could write into a rival's shop as herself. Now an
+     * ACTIVE account's session (`Authorization: Bearer SPS-…`, the same bearer
+     * her feed already rides) authorises every write and every key-gated read
+     * on its own, and when it does, OWNERSHIP IS ENFORCED: the shop she creates
+     * carries her own account id, and every act on a shop — reads included —
+     * reaches only a shop whose `resellerId` is hers (`saBoutique`); a foreign
+     * or absent shop answers ONE mute 404, so the check can never become an
+     * existence oracle. A listing is owned through its shop.
+     *
+     * THE SHARED KEY STILL OPENS EVERY DOOR IT OPENED — deliberately, for one
+     * more slice: the published app's access gate is off, so the phone in the
+     * founder's hand holds no session, and his shop was created under a device
+     * identity. Slice a2b (his word) arms the gate, seats him, and retires the
+     * key, the a1 ceiling and its var together. Until then a key-only caller is
+     * the pre-slice caller: no identity, no ownership — the residue the a1
+     * ceiling exists to bound.
+     */
+    const appelante =
+      isWrite(request.method) || isListings || isStorefrontRead || isSupplyCollection
+        ? await sessionActive(request, env)
+        : undefined;
+    if (appelante === undefined) {
+      // SERVICE-WRITE-AUTH-1 — gate EVERY write at the one deployed entry, before
+      // any dispatch or existence lookup (so the 401 is never an existence oracle).
+      // Reads pass straight through; a Worker with no secret configured fails closed.
+      const denied = await rejectUnauthorizedWrite(request, env);
+      if (denied) return denied;
+      if ((isListings || isStorefrontRead || isSupplyCollection) && !(await keyAuthorized(request, env))) {
+        return unauthorized();
+      }
+    } else {
+      const refus = await refuserHorsPropriete(appelante, request, pathname, env);
+      if (refus !== null) return refus;
     }
     // DO-management surfaces → the DO routers (idFromName addressing lives there).
-    if (pathname === '/storefronts' || pathname.startsWith('/storefronts/')) return sfRouter.fetch(request, env);
+    if (pathname === '/storefronts' || pathname.startsWith('/storefronts/')) {
+      const res = await sfRouter.fetch(request, env);
+      // RESELLER-AUTH-1 — with a session, the admin list is HER list: rows of
+      // other resellers' shops never leave. The key-only caller keeps the whole
+      // directory (the founder's operator read, until a2b).
+      if (appelante !== undefined && request.method === 'GET' && pathname === '/storefronts' && res.status === 200) {
+        const rows = (await res.json().catch(() => null)) as { resellerId?: unknown }[] | null;
+        return Response.json((rows ?? []).filter((r) => r.resellerId === appelante.accountId));
+      }
+      return res;
+    }
     // REAL-PRODUCT-RENDER-1 (a2) — MEMBERSHIP is stated HERE, at the composition
     // root, because it is CROSS-AGGREGATE: publishing a listing appends its pid to
     // the storefront's canon `curatedItems`. Neither aggregate router depends on
@@ -1537,6 +1579,85 @@ export default {
     return handleRequest(request, serviceEnv);
   },
 };
+
+/**
+ * RESELLER-AUTH-1 — the caller's ACTIVE session, or nobody. Only an `SPS-`
+ * bearer is consulted: key C and the progress secret ride the same header on
+ * routes answered above this gate, and a legacy `SP-` feed code is a door, not
+ * an identity. Pending and paused accounts resolve to nobody — the state the
+ * founder set outranks the credential she holds, here as on every read.
+ */
+async function sessionActive(request: Request, env: Env): Promise<{ accountId: string } | undefined> {
+  const auth = request.headers.get('Authorization') ?? '';
+  const bearer = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
+  if (!bearer.startsWith('SPS-')) return undefined;
+  const compte = await resoudreCompte(env, bearer);
+  return compte !== undefined && compte.state === 'active' ? { accountId: compte.accountId } : undefined;
+}
+
+/** Is this shop hers? Absent, unreadable and foreign all answer the same `false`. */
+async function saBoutique(env: Env, accountId: string, storefrontId: string): Promise<boolean> {
+  const res = await sfRouter
+    .fetch(new Request(`https://do/storefronts/${encodeURIComponent(storefrontId)}`), env)
+    .catch(() => undefined);
+  if (res === undefined || res.status !== 200) return false;
+  const shop = (await res.json().catch(() => null)) as { resellerId?: unknown } | null;
+  return shop?.resellerId === accountId;
+}
+
+/** ONE mute not-found for everything that is not hers — never an oracle. */
+const pasLaSienne = (): Response => Response.json({ error: 'not_found' }, { status: 404 });
+
+/**
+ * RESELLER-AUTH-1 — the ownership rule, route by route, for a caller WITH a
+ * session. `null` means « proceed ». A shop she creates must carry her own
+ * account id (403 `not_owner` — there is no target to be mute about); every
+ * act on an existing shop, listing or by-pid read must land on a shop that is
+ * hers; the media upload and the supply read need only the active session,
+ * because the upload becomes hers only through an owned attach, and the
+ * supply read is the same catalogue for every admitted reseller.
+ */
+async function refuserHorsPropriete(
+  appelante: { accountId: string },
+  request: Request,
+  pathname: string,
+  env: Env,
+): Promise<Response | null> {
+  if (request.method === 'POST' && pathname === '/storefronts') {
+    const cmd = (await request.clone().json().catch(() => null)) as { resellerId?: unknown } | null;
+    return cmd?.resellerId === appelante.accountId ? null : Response.json({ error: 'not_owner' }, { status: 403 });
+  }
+  let m = /^\/storefronts\/([^/]+)(?:\/.*)?$/.exec(pathname);
+  if (m) return (await saBoutique(env, appelante.accountId, decodeURIComponent(m[1]!))) ? null : pasLaSienne();
+  if (request.method === 'POST' && pathname === '/listings') {
+    const cmd = (await request.clone().json().catch(() => null)) as { storefrontId?: unknown; resellerId?: unknown } | null;
+    // With an identity in hand, a publish that names no shop is a signed price
+    // with no vitrine behind it — the NO-BOUTIQUE ruling, refused by name.
+    if (typeof cmd?.storefrontId !== 'string' || cmd.storefrontId === '') {
+      return Response.json({ error: 'malformed' }, { status: 400 });
+    }
+    // The listing's payee is HER — SP-I01 locks every order's resellerId from
+    // this artifact, so a listing naming anyone else would route her sales away.
+    if (cmd.resellerId !== appelante.accountId) return Response.json({ error: 'not_owner' }, { status: 403 });
+    return (await saBoutique(env, appelante.accountId, cmd.storefrontId)) ? null : pasLaSienne();
+  }
+  m = /^\/listings\/by-pid\/([^/]+)\/[^/]+(?:\/economics)?$/.exec(pathname);
+  if (m) return (await saBoutique(env, appelante.accountId, decodeURIComponent(m[1]!))) ? null : pasLaSienne();
+  m = /^\/listings\/([^/]+)(?:\/hide)?$/.exec(pathname);
+  if (m) {
+    // A listing by id is owned by its PAYEE: the canon artifact carries her
+    // `resellerId` (the id SP-I01 locks every order to) and, past this gate,
+    // a publish can only ever carry the caller's own. Absent, foreign, or
+    // unreadable answer the same mute not-found.
+    const res = await lstRouter
+      .fetch(new Request(`https://do/listings/${encodeURIComponent(decodeURIComponent(m[1]!))}`), env)
+      .catch(() => undefined);
+    if (res === undefined || res.status !== 200) return pasLaSienne();
+    const listing = (await res.json().catch(() => null)) as { resellerId?: unknown } | null;
+    return listing?.resellerId === appelante.accountId ? null : pasLaSienne();
+  }
+  return null;
+}
 
 /**
  * SP3.3a — COPY A DECIDED HOLD INTO THE ORDER THAT WILL BE ASKED ABOUT IT.

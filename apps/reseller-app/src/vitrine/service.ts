@@ -292,12 +292,32 @@ export function deriveShortCode(name: string, digitsSuffix: string): string {
 /** The REAL adapter — the live Worker over `fetch`, keyed with `X-Write-Key`. */
 export class HttpStorefrontService implements StorefrontServicePort {
   private readonly base: string;
-  constructor(base: string, private readonly writeKey: string) {
+  /**
+   * RESELLER-AUTH-1 (AUDIT-SHOP-1 slice a2a) — `lireBearer` answers the session
+   * this device holds (the same `SPS-` bearer her feed rides), read at EACH call
+   * because the store can change under a running app (signup, a founder pause
+   * refresh). With one, every request carries `Authorization: Bearer` and the
+   * Worker binds the act to HER account and HER shop. The shared key still rides
+   * alongside until slice a2b retires it; a device with no session (the access
+   * gate off) sends exactly what it sent before.
+   */
+  constructor(
+    base: string,
+    private readonly writeKey: string,
+    private readonly lireBearer: () => Promise<string | null> = async () => null,
+  ) {
     this.base = base.replace(/\/+$/, '');
   }
 
-  private headers(extra?: Record<string, string>): Record<string, string> {
-    return { [WRITE_KEY_HEADER]: this.writeKey, ...extra };
+  private async headers(extra?: Record<string, string>): Promise<Record<string, string>> {
+    const bearer = await this.lireBearer().catch(() => null);
+    return {
+      [WRITE_KEY_HEADER]: this.writeKey,
+      // Only a SESSION is an identity: a legacy `SP-` feed code opens the feed
+      // door and nothing else, so it is not presented here.
+      ...(bearer !== null && bearer.startsWith('SPS-') ? { Authorization: `Bearer ${bearer}` } : {}),
+      ...extra,
+    };
   }
 
   private async postJson(path: string, body: unknown): Promise<ServiceResult<{ status: string; slug: string | null; storefront?: Storefront }>> {
@@ -305,7 +325,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
     try {
       res = await fetch(`${this.base}${path}`, {
         method: 'POST',
-        headers: this.headers({ 'Content-Type': 'application/json' }),
+        headers: await this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body),
       });
     } catch {
@@ -344,7 +364,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
   async getById(id: string): Promise<ServiceResult<Storefront | undefined>> {
     let res: Response;
     try {
-      res = await fetch(`${this.base}/storefronts/${encodeURIComponent(id)}`, { headers: this.headers() });
+      res = await fetch(`${this.base}/storefronts/${encodeURIComponent(id)}`, { headers: await this.headers() });
     } catch {
       return { ok: false, reason: 'offline' };
     }
@@ -367,7 +387,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
     try {
       res = await fetch(`${this.base}/storefronts/${encodeURIComponent(id)}/identity`, {
         method: 'POST',
-        headers: this.headers({ 'Content-Type': 'application/json' }),
+        headers: await this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ patch, at }),
       });
     } catch {
@@ -403,7 +423,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
     try {
       res = await fetch(`${this.base}/media/upload${q}`, {
         method: 'POST',
-        headers: this.headers({ 'Content-Type': contentType }),
+        headers: await this.headers({ 'Content-Type': contentType }),
         // RN fetch accepts a typed array as the raw body at runtime; the cast bridges
         // the RN `BodyInit_` typing at this one network boundary.
         body: bytes as unknown as BodyInit_,
@@ -448,7 +468,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
     try {
       res = await fetch(`${this.base}/storefronts/${encodeURIComponent(storefrontId)}/voice/remove`, {
         method: 'POST',
-        headers: this.headers({ 'Content-Type': 'application/json' }),
+        headers: await this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ pid, at }),
       });
     } catch {
@@ -484,7 +504,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
     try {
       res = await fetch(`${this.base}/listings`, {
         method: 'POST',
-        headers: this.headers({ 'Content-Type': 'application/json' }),
+        headers: await this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           commandId: `publish-${listingId}`, // DERIVED — a re-tap is idempotent, not a second version
           listingId,
@@ -527,7 +547,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
     try {
       res = await fetch(`${this.base}/storefronts/${encodeURIComponent(storefrontId)}/items/remove`, {
         method: 'POST',
-        headers: this.headers({ 'Content-Type': 'application/json' }),
+        headers: await this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ pid, at }),
       });
     } catch {
@@ -558,7 +578,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
   async list(): Promise<ServiceResult<readonly StorefrontRow[]>> {
     let res: Response;
     try {
-      res = await fetch(`${this.base}/storefronts`, { method: 'GET', headers: this.headers() });
+      res = await fetch(`${this.base}/storefronts`, { method: 'GET', headers: await this.headers() });
     } catch {
       return { ok: false, reason: 'offline' };
     }
@@ -586,9 +606,11 @@ export class HttpStorefrontService implements StorefrontServicePort {
  * Both variables are set together or not at all: a base without a key would be a
  * keyless write the service refuses, so that combination resolves to `null` too.
  */
-export function resolveStorefrontService(): StorefrontServicePort | null {
+export function resolveStorefrontService(
+  lireBearer: () => Promise<string | null> = async () => null,
+): StorefrontServicePort | null {
   const base = process.env.EXPO_PUBLIC_STOREFRONT_BASE;
   const key = process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY;
-  if (base && key) return new HttpStorefrontService(base, key);
+  if (base && key) return new HttpStorefrontService(base, key, lireBearer);
   return null;
 }
