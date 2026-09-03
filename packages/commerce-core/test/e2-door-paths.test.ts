@@ -339,6 +339,21 @@ describe('per-mode funded legs (SP3.2 extended — WO-2.5 item 2)', () => {
 });
 
 describe('the door leg through the live spine (item 3 — provider truth only)', () => {
+  it('GARDE-PAIEMENT-1: a malformed DOOR webhook is refused malformed_payload with nothing applied; the honest one still confirms', () => {
+    const { spine, quote, provider } = confirmedOptionBSpine();
+    const good = doorWebhook(provider, quote.amountDueAtDelivery);
+    // fee 1.5 would crash the canon escrow parse — the door leg guards it the
+    // same as the checkout leg, and applies NOTHING (door still awaiting, no escrow).
+    const broken = { ...good, payload: { ...good.payload, fee: 1.5 } };
+    const refus = spine.onProviderDoorPaymentEvent(broken);
+    expect(refus).toEqual({ applied: false, reason: 'malformed_payload', alert: null });
+    expect(spine.doorLegState).not.toBe('paid');
+    expect(spine.ledger.escrowFor('order-b-1')?.paymentLegs.some((l) => l.legType === 'door') ?? false).toBe(false);
+    // …and the honest door webhook still lands afterwards.
+    expect(spine.onProviderDoorPaymentEvent(good).applied).toBe(true);
+    expect(spine.doorLegState).toBe('paid');
+  });
+
   it('a provider-confirmed door payment advances the door state and emits THE signal with the chain ids', () => {
     const { spine, quote, provider } = confirmedOptionBSpine();
     const outcome = spine.onProviderDoorPaymentEvent(doorWebhook(provider, quote.amountDueAtDelivery));

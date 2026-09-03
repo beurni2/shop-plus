@@ -161,7 +161,7 @@ describe('§3 misbehavior — payment provider mock vs the spine', () => {
     expect(spine.onProviderPaymentEvent(good)).toEqual({ applied: true, duplicate: false });
   });
 
-  it('PORTE-MONNAIE-1: an authenticated webhook whose escrow field would crash the canon parse is REFUSED by name, never thrown', () => {
+  it('GARDE-PAIEMENT-1: an authenticated webhook whose escrow field would crash the canon parse is REFUSED by name, never thrown', () => {
     const quote = issuedQuote();
     const { plan } = chargeAndPlan({}, quote);
     const good = plan[0]!.event;
@@ -169,7 +169,7 @@ describe('§3 misbehavior — payment provider mock vs the spine', () => {
     // Each broken field, on its OWN fresh spine (a refusal must apply nothing):
     // an empty collectRef and an empty provider both fail canon min(1); a
     // fractional and a negative fee both fail FcfaSchema int().min(0). Before
-    // PORTE-MONNAIE-1 each of these threw a ZodError out of the vault as an
+    // GARDE-PAIEMENT-1 each of these threw a ZodError out of the vault as an
     // unnamed 500 the provider retries forever; now each is a named refusal
     // the amount/status gate lets through only to name.
     const broken: Record<string, unknown>[] = [

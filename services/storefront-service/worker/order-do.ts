@@ -617,7 +617,7 @@ export class OrderDO {
         expiresAt: body.expiresAt,
       };
       /**
-       * ═══ ONCE THE ORDER EXISTS, THE RECEIPT IS FROZEN (PORTE-MONNAIE-1) ═══
+       * ═══ ONCE THE ORDER EXISTS, THE RECEIPT IS FROZEN (GARDE-PAIEMENT-1) ═══
        * (the COMMANDE-REJOUER-1 verifier's standing MAJOR, closed here.)
        *
        * The receipt is the identity authority `decideCreateOrder` and the
@@ -3007,7 +3007,7 @@ function statusForWebhook(reason: string): number {
   // emitter redelivers. A wrong AMOUNT is neither — it is refused, never applied.
   if (reason === 'out_of_order' || reason === 'wrong_correlation') return 409;
   if (reason === 'conflicting_escrow_for_order' || reason === 'door_leg_before_checkout_leg') return 409;
-  // PORTE-MONNAIE-1 — a payload that would crash the canon escrow parse is
+  // GARDE-PAIEMENT-1 — a payload that would crash the canon escrow parse is
   // refused 422 BY NAME (the default here, made explicit): a producer bug to
   // fix, NOT a 5xx the aggregator retries against forever. Amount/leg refusals
   // and everything else also land on 422.

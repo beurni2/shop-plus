@@ -70,7 +70,7 @@ export type SpineRefusalReason =
   /** NB-3 (E2): the webhook's own order_id contradicts the chain's. */
   | 'order_mismatch'
   /**
-   * PORTE-MONNAIE-1 (RMG): an AUTHENTICATED webhook whose escrow-bound fields
+   * GARDE-PAIEMENT-1 (RMG): an AUTHENTICATED webhook whose escrow-bound fields
    * would crash the canon `EscrowTxnSchema.parse` — an empty `collectRef` or
    * `provider`, or a `fee` that is not a non-negative integer. Before this,
    * such a body threw a ZodError out of the vault as an unnamed 500, which a
@@ -109,7 +109,7 @@ export type DoorPaymentOutcome =
     };
 
 /**
- * PORTE-MONNAIE-1 (RMG) — the escrow-bound payment fields, checked with the
+ * GARDE-PAIEMENT-1 (RMG) — the escrow-bound payment fields, checked with the
  * SAME fallback semantics the record call applies, so a well-formed webhook is
  * never newly refused: an ABSENT `collectRef`/`provider` falls back (to the
  * command_id / 'sandbox-provider') and is fine; an ABSENT/non-number `fee`
@@ -117,12 +117,17 @@ export type DoorPaymentOutcome =
  * empty-or-non-string `collectRef` or `provider`, or a `fee` that is a number
  * but not a non-negative integer (canon `FcfaSchema` is `int().min(0)`). These
  * are exactly the three inputs that would throw out of `EscrowTxnSchema.parse`.
+ *
+ * NULLISH, not just undefined: the record call reads `String(p['x'] ?? …)`, so
+ * an explicit `null` is absent to it and takes the fallback. The guard matches
+ * that with `!= null` — a provider that serialises an omitted field as `null`
+ * is accepted, never refused for a shape the record path would have coerced.
  */
 function escrowPayloadMalformed(p: Record<string, unknown>): boolean {
   const collectRef = p['collectRef'];
-  if (collectRef !== undefined && (typeof collectRef !== 'string' || collectRef === '')) return true;
+  if (collectRef != null && (typeof collectRef !== 'string' || collectRef === '')) return true;
   const provider = p['provider'];
-  if (provider !== undefined && (typeof provider !== 'string' || provider === '')) return true;
+  if (provider != null && (typeof provider !== 'string' || provider === '')) return true;
   const fee = p['fee'];
   if (typeof fee === 'number' && !(Number.isInteger(fee) && fee >= 0)) return true;
   return false;
@@ -390,7 +395,7 @@ export class OrderSpine {
     if (status !== 'held' && status !== 'captured') {
       return { applied: false, reason: 'unfunded_leg_status' };
     }
-    // PORTE-MONNAIE-1 — a present-but-broken escrow field is refused BY NAME
+    // GARDE-PAIEMENT-1 — a present-but-broken escrow field is refused BY NAME
     // before the canon parse, not thrown as an unnamed 500 the provider retries.
     if (escrowPayloadMalformed(p)) {
       return { applied: false, reason: 'malformed_payload' };
@@ -540,7 +545,7 @@ export class OrderSpine {
     if (status !== 'held' && status !== 'captured') {
       return { applied: false, reason: 'unfunded_leg_status', alert: null };
     }
-    // PORTE-MONNAIE-1 — same guard on the door leg (alert:null: a malformed
+    // GARDE-PAIEMENT-1 — same guard on the door leg (alert:null: a malformed
     // body is a producer bug to fix, not a provider-truth contradiction to alert).
     if (escrowPayloadMalformed(p)) {
       return { applied: false, reason: 'malformed_payload', alert: null };

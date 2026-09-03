@@ -5,7 +5,7 @@ import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
 
 /**
- * ═══ PORTE-MONNAIE-1 (AUDIT-SHOP-1 slice f) — the two money doors hardened,
+ * ═══ GARDE-PAIEMENT-1 (AUDIT-SHOP-1 slice f) — the two money doors hardened,
  * on the REAL combined Worker, the LEDGER consulted after every refusal ═══
  *
  * TWO closable Real-Money-Gate code items:
@@ -41,7 +41,7 @@ import { afterAll, describe, expect, it } from 'vitest';
  */
 
 const SCRIPT = 'dist/worker/worker.mjs';
-const persist = mkdtempSync(join(tmpdir(), 'porte-monnaie-'));
+const persist = mkdtempSync(join(tmpdir(), 'garde-paiement-'));
 const T0 = '2026-09-03T08:00:00.000Z';
 
 const WRITE_SECRET = 'test-write-secret-pm201';
@@ -159,13 +159,13 @@ async function orderNs() {
 async function audit(orderId: string) {
   const ns = await orderNs();
   return (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
-    receipt?: { holderRef?: string } | null;
+    receipt?: { holderRef?: string; expiresAt?: string } | null;
     legKeys?: Record<string, string>;
     state?: string;
   };
 }
 
-describe('PORTE-MONNAIE-1 — (1) the receipt is frozen once the order exists', () => {
+describe('GARDE-PAIEMENT-1 — (1) the receipt is frozen once the order exists', () => {
   it("a fresh hold's mirror after create is refused, the buyer's receipt stands, and a stranger's create never reaches her buyerRef", async () => {
     const elle = await creerCommande('0001');
     expect(typeof elle.buyerRef, elle.buyerRef).toBe('string');
@@ -173,10 +173,14 @@ describe('PORTE-MONNAIE-1 — (1) the receipt is frozen once the order exists', 
 
     // The stranger's fresh-hold mirror — the exact bytes the composition root
     // POSTs from the reserve road — arrives at the REAL order object AFTER the
-    // order exists. A strictly LATER expiry (what a genuinely new hold carries)
-    // is precisely what walked through the pre-order monotone guard before.
+    // order exists. Its expiry is derived STRICTLY LATER than the buyer's own
+    // receipt (read from the ledger, not the wall clock) — so before the fix
+    // the monotone guard provably moved it; the red-first is clock-independent.
+    const before = await audit(elle.orderId);
+    const ownExpiry = Date.parse(before.receipt?.expiresAt ?? '');
+    expect(Number.isNaN(ownExpiry), 'her receipt carries an expiry').toBe(false);
+    const later = new Date(ownExpiry + 3_600_000).toISOString();
     const ns = await orderNs();
-    const later = '2026-09-03T09:00:00.000Z';
     const mirror = await ns.get(ns.idFromName(elle.orderId)).fetch('https://do/entry/reserved', {
       method: 'POST',
       body: JSON.stringify({
@@ -217,7 +221,7 @@ describe('PORTE-MONNAIE-1 — (1) the receipt is frozen once the order exists', 
   }, 60_000);
 });
 
-describe('PORTE-MONNAIE-1 — (2) a malformed but authenticated webhook is 422 by name, never a retried 500', () => {
+describe('GARDE-PAIEMENT-1 — (2) a malformed but authenticated webhook is 422 by name, never a retried 500', () => {
   it('fee 1.5 and an empty collectRef each refuse malformed_payload with the order still unpaid; a genuine webhook then confirms', async () => {
     const elle = await creerCommande('0002');
     const a = await audit(elle.orderId);
