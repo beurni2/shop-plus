@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-03 · COMMANDE-REJOUER-1 (AUDIT-SHOP-1 slice c) — the answer already written survives the clock · IN REVIEW (branch `58ca2f5` + `d87b0b1`; awaiting the founder's word for merge + `storefront-deploy`)
+## 2026-09-03 · COMMANDE-REJOUER-1 (AUDIT-SHOP-1 slice c) — the answer already written survives the clock · DONE
+
+**MERGED AND DEPLOYED (founder: « go », 2026-09-03).** shop `main` fast-forwarded `ee25b4f..1c55df4`. **All four push workflows green on 1c55df4 — ci 608 · pwa-preview 398 · expo-preview 431 · service-canon-drift 276 — and `storefront-deploy` 81 green**: the replay road is live. A buyer whose create answer dies on the network can now recover her `buyerRef` — same command, same holder — past both the 2-minute hold and the 15-minute quote; every refusal keeps its public name. No app or console half in this slice. Next per the audit order: **(d)** the buyer PWA app-shell service worker + cold-offline walk.
 
 **The audit's MAJOR (5), closed at BOTH layers:** the order create ran its whole authorization — quote freshness and hold freshness included — BEFORE the replay cache, so a buyer whose 200 died on the network (ordinary, Law 7) and whose retry landed after expiry was refused by name, and the answer already written for her — her `buyerRef`, the only door to her suivi and her remise code — was unrecoverable forever.
 
