@@ -68,7 +68,15 @@ export type SpineRefusalReason =
   /** NB-3 (E2): the webhook names a charge this order never initiated. */
   | 'attempt_mismatch'
   /** NB-3 (E2): the webhook's own order_id contradicts the chain's. */
-  | 'order_mismatch';
+  | 'order_mismatch'
+  /**
+   * PORTE-MONNAIE-1 (RMG): an AUTHENTICATED webhook whose escrow-bound fields
+   * would crash the canon `EscrowTxnSchema.parse` — an empty `collectRef` or
+   * `provider`, or a `fee` that is not a non-negative integer. Before this,
+   * such a body threw a ZodError out of the vault as an unnamed 500, which a
+   * real aggregator retries forever. Named and refused 422 instead.
+   */
+  | 'malformed_payload';
 
 export type SpineOutcome =
   | { applied: true; duplicate: boolean }
@@ -99,6 +107,26 @@ export type DoorPaymentOutcome =
        */
       alert: PlatformEvent | null;
     };
+
+/**
+ * PORTE-MONNAIE-1 (RMG) — the escrow-bound payment fields, checked with the
+ * SAME fallback semantics the record call applies, so a well-formed webhook is
+ * never newly refused: an ABSENT `collectRef`/`provider` falls back (to the
+ * command_id / 'sandbox-provider') and is fine; an ABSENT/non-number `fee`
+ * coerces to 0 and is fine. Only a PRESENT-but-broken value is malformed — an
+ * empty-or-non-string `collectRef` or `provider`, or a `fee` that is a number
+ * but not a non-negative integer (canon `FcfaSchema` is `int().min(0)`). These
+ * are exactly the three inputs that would throw out of `EscrowTxnSchema.parse`.
+ */
+function escrowPayloadMalformed(p: Record<string, unknown>): boolean {
+  const collectRef = p['collectRef'];
+  if (collectRef !== undefined && (typeof collectRef !== 'string' || collectRef === '')) return true;
+  const provider = p['provider'];
+  if (provider !== undefined && (typeof provider !== 'string' || provider === '')) return true;
+  const fee = p['fee'];
+  if (typeof fee === 'number' && !(Number.isInteger(fee) && fee >= 0)) return true;
+  return false;
+}
 
 export class OrderSpine {
   readonly ledger = new LedgerRecords();
@@ -362,6 +390,11 @@ export class OrderSpine {
     if (status !== 'held' && status !== 'captured') {
       return { applied: false, reason: 'unfunded_leg_status' };
     }
+    // PORTE-MONNAIE-1 — a present-but-broken escrow field is refused BY NAME
+    // before the canon parse, not thrown as an unnamed 500 the provider retries.
+    if (escrowPayloadMalformed(p)) {
+      return { applied: false, reason: 'malformed_payload' };
+    }
 
     const recorded = this.ledger.recordEscrowFromProvider({
       orderId: this.orderId,
@@ -506,6 +539,11 @@ export class OrderSpine {
     }
     if (status !== 'held' && status !== 'captured') {
       return { applied: false, reason: 'unfunded_leg_status', alert: null };
+    }
+    // PORTE-MONNAIE-1 — same guard on the door leg (alert:null: a malformed
+    // body is a producer bug to fix, not a provider-truth contradiction to alert).
+    if (escrowPayloadMalformed(p)) {
+      return { applied: false, reason: 'malformed_payload', alert: null };
     }
 
     const recorded = this.ledger.recordEscrowFromProvider({

@@ -616,6 +616,26 @@ export class OrderDO {
         holderRef: body.holderRef,
         expiresAt: body.expiresAt,
       };
+      /**
+       * ═══ ONCE THE ORDER EXISTS, THE RECEIPT IS FROZEN (PORTE-MONNAIE-1) ═══
+       * (the COMMANDE-REJOUER-1 verifier's standing MAJOR, closed here.)
+       *
+       * The receipt is the identity authority `decideCreateOrder` and the
+       * replay road trust — « does this caller hold this quote ». Before the
+       * order exists it may legitimately move to a genuinely LATER hold (the
+       * monotone rule below). But once an order is CREATED against this quote,
+       * its first holder is its owner: the 2-minute hold then dies while the
+       * 15-minute quote stays fresh, so a STRANGER who has the quoteId could
+       * take a fresh hold, whose mirror would rewrite this receipt to him —
+       * and the origin-exists road answers `buyerRef` (her suivi + remise
+       * door) to whoever the receipt names. The order's existence binds the
+       * receipt: a fresh hold's mirror after create is refused, the stored
+       * receipt untouched, so the stranger's own create is refused
+       * `reservation_held_by_another` and never reaches her token.
+       *
+       * A redelivered mirror of the SAME hold stays the harmless no-op it was.
+       */
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
       const existing = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
       if (existing !== undefined) {
         // SAME HOLD ⇒ ALREADY DECIDED. Not an error, not an overwrite: the
@@ -624,9 +644,14 @@ export class OrderDO {
         if (existing.reservationId === receipt.reservationId) {
           return Response.json({ ok: true, stored: false, reason: 'already_decided' });
         }
-        // A DIFFERENT hold must be a genuinely LATER one. Strictly later: a
-        // fresh hold's TTL always runs from now, so anything not strictly later
-        // is an older mirror write landing out of order.
+        // A DIFFERENT hold, and an ORDER already exists: the first holder owns
+        // it. Never moved, whatever the clock or the new hold claims.
+        if (origin !== undefined) {
+          return Response.json({ ok: true, stored: false, reason: 'order_frozen' });
+        }
+        // Pre-order: a DIFFERENT hold must be a genuinely LATER one. Strictly
+        // later: a fresh hold's TTL always runs from now, so anything not
+        // strictly later is an older mirror write landing out of order.
         if (existing.expiresAt >= receipt.expiresAt) {
           return Response.json({ ok: true, stored: false, reason: 'not_later' });
         }
@@ -2982,6 +3007,10 @@ function statusForWebhook(reason: string): number {
   // emitter redelivers. A wrong AMOUNT is neither — it is refused, never applied.
   if (reason === 'out_of_order' || reason === 'wrong_correlation') return 409;
   if (reason === 'conflicting_escrow_for_order' || reason === 'door_leg_before_checkout_leg') return 409;
+  // PORTE-MONNAIE-1 — a payload that would crash the canon escrow parse is
+  // refused 422 BY NAME (the default here, made explicit): a producer bug to
+  // fix, NOT a 5xx the aggregator retries against forever. Amount/leg refusals
+  // and everything else also land on 422.
   return 422;
 }
 
