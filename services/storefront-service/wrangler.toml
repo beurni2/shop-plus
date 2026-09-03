@@ -301,3 +301,24 @@ service = "custody-service"
 # intake answers 401 to everyone — including a caller who sends no header at
 # all, which is asserted by its own test — and Boutik+'s outbox retries on its
 # backoff until both sides hold it. Nothing is lost while it is unset.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+# SECTEURS-PROGRES-1 (AUDIT-SHOP-1 slice e) — SÉRA'S OWN INTAKE SECRET.
+# ═══════════════════════════════════════════════════════════════════════════
+# `SERA_PROGRESS_SECRET` is the credential Séra presents on the SAME two
+# doors: `delivery.validated.v1` / `delivery.refused.v1` on
+# POST /fulfillment/progress, and POST /fulfillment/transit. Once it is set,
+# `PROGRESS_WRITE_SECRET` opens ONLY Boutik+'s preparation facts — a
+# compromised Boutik+ credential can no longer mint delivery marks (the
+# settlement-eligibility signal included), and Séra's can no longer write
+# preparation facts. A valid credential on the wrong event answers 403
+# `wrong_writer`, which both senders' outboxes treat as a retry.
+#
+# UNSET ⇒ the split does not exist yet: the shared value opens every progress
+# door, byte-identical to before the slice. To arm it, the founder mints ONE
+# new value and runs, back to back (piped, never as an argument):
+#   `wrangler secret put SERA_PROGRESS_SECRET`   on THIS Worker, and
+#   `wrangler secret put SHOP_PROGRESS_SECRET`   on Séra's custody-service.
+# Order does not matter: every Séra wire is a durable outbox on alarm
+# backoff, so marks born inside the swap window retry until both sides hold
+# the value. Nothing is lost.

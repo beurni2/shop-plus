@@ -30,7 +30,7 @@ import {
   keyAuthorized,
   paymentWebhookAuthorized,
   unauthorized,
-  rejectUnauthorizedProgress,
+  progressWriter,
   type WriteAuthEnv,
 } from './auth.js';
 
@@ -673,12 +673,25 @@ export default {
      */
     if (pathname === '/fulfillment/progress') {
       if (request.method !== 'POST') return unauthorized();
-      const refused = await rejectUnauthorizedProgress(request, env);
-      if (refused) return refused;
+      /**
+       * SECTEURS-PROGRES-1 (AUDIT-SHOP-1 slice e) — WHO is writing is settled
+       * FIRST (uniform 401, before any parse), and WHAT they may write is
+       * enforced at each event's own dispatch: Boutik+'s credential opens the
+       * preparation facts alone, Séra's the delivery marks alone. A valid
+       * credential on the wrong event is a 403 BY NAME — a producer wiring
+       * bug must surface as a repeating refusal in both Workers' logs, while
+       * both senders' outboxes treat it as a retry, so nothing is lost across
+       * the founder's secret-swap window.
+       */
+      const writer = await progressWriter(request, env);
+      if (writer === null) return unauthorized();
       const raw: unknown = await request.json().catch(() => null);
       const accepted = FulfillmentAcceptedEventSchema.safeParse(raw);
       const ready = accepted.success ? null : FulfillmentReadyEventSchema.safeParse(raw);
       if (accepted.success || (ready !== null && ready.success)) {
+        if (writer === 'sera') {
+          return Response.json({ ok: false, reason: 'wrong_writer' }, { status: 403 });
+        }
         const event = accepted.success ? accepted.data : ready!.data!;
         const fact = event.name === 'fulfillment.accepted.v1' ? 'accepted' : 'ready';
         return env.ORDER.get(env.ORDER.idFromName(event.payload.orderId)).fetch(
@@ -707,6 +720,9 @@ export default {
        */
       const refusee = PlatformEventSchema.safeParse(raw);
       if (refusee.success && refusee.data.name === 'delivery.refused.v1') {
+        if (writer === 'boutik') {
+          return Response.json({ ok: false, reason: 'wrong_writer' }, { status: 403 });
+        }
         const p = refusee.data.payload as Record<string, unknown>;
         if (typeof p['order_id'] !== 'string' || p['order_id'] === '' || p['order_id'].length > 256) {
           return Response.json({ ok: false, reason: 'event_not_canonical' }, { status: 400 });
@@ -720,6 +736,9 @@ export default {
       }
       const validated = PlatformEventSchema.safeParse(raw);
       if (validated.success && validated.data.name === 'delivery.validated.v1') {
+        if (writer === 'boutik') {
+          return Response.json({ ok: false, reason: 'wrong_writer' }, { status: 403 });
+        }
         const p = validated.data.payload as Record<string, unknown>;
         if (
           typeof p['order_id'] !== 'string' ||
@@ -751,10 +770,11 @@ export default {
      * Séra tells this Worker the rider departed (`en_route`) and arrived
      * (`arrivee`), so the buyer's « Mes commandes » can say where her package
      * stands — SP6's masked relay: a stage and an instant, never a rider
-     * identity and never a position. The SAME secret as `/fulfillment/progress`
-     * (`PROGRESS_WRITE_SECRET` — Séra already presents it on the eligibility
-     * signal, one credential per direction), and the gate runs BEFORE any
-     * dispatch so the 401 is never an existence oracle.
+     * identity and never a position. SÉRA'S OWN credential opens it
+     * (SECTEURS-PROGRES-1: `SERA_PROGRESS_SECRET` once the founder mints it,
+     * the legacy shared value until then — the same classifier as
+     * `/fulfillment/progress`), and the gate runs BEFORE any dispatch so the
+     * 401 is never an existence oracle.
      *
      * EXACT-SHAPE BODY: {orderId, stage, asOf} and nothing else — an unknown
      * field, an unknown stage or an unparseable instant refuses 400 BY NAME
@@ -764,8 +784,13 @@ export default {
      */
     if (pathname === '/fulfillment/transit') {
       if (request.method !== 'POST') return unauthorized();
-      const refused = await rejectUnauthorizedProgress(request, env);
-      if (refused) return refused;
+      // SECTEURS-PROGRES-1 — this whole door is Séra's: no body inspection
+      // needed to know Boutik+'s credential has no business here.
+      const writer = await progressWriter(request, env);
+      if (writer === null) return unauthorized();
+      if (writer === 'boutik') {
+        return Response.json({ ok: false, reason: 'wrong_writer' }, { status: 403 });
+      }
       const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
       if (body === null || typeof body !== 'object' || Array.isArray(body)) {
         return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });

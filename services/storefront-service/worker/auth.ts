@@ -65,8 +65,25 @@ export interface WriteAuthEnv {
    * key to write INTO Boutik+, and one key must never unlock the other
    * direction's capability. UNSET ⇒ the intake refuses everyone and Boutik+'s
    * outbox retries until the founder sets both sides.
+   *
+   * SECTEURS-PROGRES-1 sharpened its meaning: once `SERA_PROGRESS_SECRET`
+   * exists, this value opens ONLY the preparation facts — it is Boutik+'s
+   * credential, not the progress door's.
    */
   readonly PROGRESS_WRITE_SECRET?: string;
+  /**
+   * SECTEURS-PROGRES-1 (AUDIT-SHOP-1 slice e) — SÉRA'S OWN intake credential.
+   * One shared progress secret meant a compromised Boutik+ credential could
+   * mint Séra's delivery marks — up to `delivery.validated.v1`, which feeds
+   * settlement eligibility — and vice versa. Séra presents THIS value (its
+   * `SHOP_PROGRESS_SECRET` env holds it) for `delivery.validated.v1`,
+   * `delivery.refused.v1` and the transit marks; Boutik+'s value no longer
+   * opens those doors. UNSET ⇒ the split does not exist yet and the one
+   * shared value opens every progress door, byte-identical to before this
+   * slice — both sides' outboxes retry across the founder's swap window, so
+   * nothing is lost while the two `wrangler secret put` commands land.
+   */
+  readonly SERA_PROGRESS_SECRET?: string;
 }
 
 /** A write is any request whose method is not a safe read method. */
@@ -164,16 +181,33 @@ export async function rejectUnauthorizedOpsRead(request: Request, env: WriteAuth
 
 
 /**
- * READINESS-RETURN-1c — the return leg's gate. The same three properties every
- * gate in this file carries: FAIL CLOSED (no secret ⇒ nobody passes, including
- * a caller who sends nothing — empty-vs-empty must never match), constant-time,
- * and ONE identical 401 computed before any dispatch, so a refusal can never
- * become an existence oracle for order ids.
+ * READINESS-RETURN-1c → SECTEURS-PROGRES-1 — the return leg's gate, now a
+ * WRITER CLASSIFIER. The same three properties every gate in this file
+ * carries: FAIL CLOSED (no secret ⇒ nobody passes, including a caller who
+ * sends nothing — empty-vs-empty must never match), constant-time (BOTH
+ * compares always run, so timing reveals neither which secret exists nor
+ * which one missed), and ONE identical 401 computed before any dispatch, so
+ * a refusal can never become an existence oracle for order ids.
+ *
+ * `'boutik'` = `PROGRESS_WRITE_SECRET` (preparation facts only) · `'sera'` =
+ * `SERA_PROGRESS_SECRET` (delivery marks + transit only) · `'either'` = the
+ * legacy mode while the Séra binding does not exist yet: the one shared value
+ * opens every progress door, byte-identical to before the split — the split
+ * cannot exist before the founder mints the second credential. If the two
+ * bindings ever held the SAME value, the boutik class wins the tie: the
+ * shared-value world is exactly the legacy world, never an escalation.
  */
-export async function rejectUnauthorizedProgress(request: Request, env: WriteAuthEnv): Promise<Response | null> {
-  const secret = env.PROGRESS_WRITE_SECRET ?? '';
+export type ProgressWriter = 'boutik' | 'sera' | 'either';
+
+export async function progressWriter(request: Request, env: WriteAuthEnv): Promise<ProgressWriter | null> {
+  const boutik = env.PROGRESS_WRITE_SECRET ?? '';
+  const sera = env.SERA_PROGRESS_SECRET ?? '';
   const auth = request.headers.get('Authorization') ?? '';
   const provided = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
-  const match = await timingSafeEqual(provided, secret);
-  return secret.length > 0 && match ? null : unauthorized();
+  const matchBoutik = await timingSafeEqual(provided, boutik);
+  const matchSera = await timingSafeEqual(provided, sera);
+  if (sera.length === 0) return boutik.length > 0 && matchBoutik ? 'either' : null;
+  if (boutik.length > 0 && matchBoutik) return 'boutik';
+  if (matchSera) return 'sera';
+  return null;
 }
