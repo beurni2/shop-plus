@@ -34,12 +34,22 @@
 
 const VERSION = '__VERSION__';
 const PRECACHE = __PRECACHE__;
+const EN_PRECACHE = new Set(PRECACHE);
 const CACHE = `coquille-shop-plus-${VERSION}`;
 const RACINE = new URL('./', self.location.href);
 
-/** Content-addressed names never change bytes — reusable across versions. */
-function immuable(chemin) {
-  return chemin.startsWith('assets/') || chemin.startsWith('fonts/');
+/**
+ * ONLY vite-hashed names are content-addressed — those bytes can never change
+ * under an unchanged name, so they may be copied forward across versions. The
+ * fonts are the counter-example the verifier caught: fixed human names over
+ * charset SUBSETS, the one kind of file whose bytes change under the same
+ * name (re-subsetting when coverage grows) — copied forward, a stale face
+ * would have been pinned on installed phones forever, cache-first hiding it
+ * even online. Fonts therefore re-download with each new version (nine small
+ * woff2s), never crossing versions.
+ */
+function contenuAdresse(chemin) {
+  return chemin.startsWith('assets/');
 }
 
 self.addEventListener('install', (event) => {
@@ -51,18 +61,19 @@ async function precacher() {
   await Promise.all(
     PRECACHE.map(async (chemin) => {
       const url = new URL(chemin, RACINE);
-      if (immuable(chemin)) {
+      if (contenuAdresse(chemin)) {
         // A redeploy re-downloads only what actually changed: an unchanged
-        // hashed file is copied from the previous version's cache.
+        // vite-hashed file is copied from the previous version's cache.
         const deja = await caches.match(url.href);
         if (deja !== undefined) {
           await cache.put(url.href, deja);
           return;
         }
       }
-      // cache:'reload' on the mutable files (index.html, the manifest) so the
-      // HTTP cache can never seed a new worker version with old shell bytes.
-      const reponse = await fetch(url.href, immuable(chemin) ? undefined : { cache: 'reload' });
+      // cache:'reload' on every fixed-name file (index.html, the manifest,
+      // the fonts) so the HTTP cache can never seed a new worker version
+      // with old bytes.
+      const reponse = await fetch(url.href, contenuAdresse(chemin) ? undefined : { cache: 'reload' });
       if (!reponse.ok) throw new Error(`précache ${chemin}: ${reponse.status}`);
       await cache.put(url.href, reponse.clone());
       // The shell also answers the root URL itself (…/ and …/?/v/… restores).
@@ -98,7 +109,9 @@ self.addEventListener('fetch', (event) => {
   }
 
   const chemin = url.pathname.slice(RACINE.pathname.length);
-  if (immuable(chemin) || chemin === 'manifest.webmanifest') {
+  // Cache-first for exactly what THIS version precached: activate pruned the
+  // older caches, so a match can only be this version's own bytes.
+  if (chemin !== 'index.html' && EN_PRECACHE.has(chemin)) {
     event.respondWith(depuisCacheDabord(requete, url));
   }
   // Anything else in scope stays the browser's own business.

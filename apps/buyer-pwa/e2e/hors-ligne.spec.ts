@@ -14,9 +14,12 @@ import { expect, test } from '@playwright/test';
  * deep open below both landed on chrome-error:// and every assertion failed.
  *
  * The four walk questions, answered here: the tree survives the offline
- * reload · the primary action (a boutique card) is present and pressable ·
- * the worker's automatic road (redirect + restore) leaves her ON the vitrine,
- * not on an error page · she reaches the next screen with no network at all.
+ * reload · the primary action (a boutique card) is present and visible — the
+ * card is NOT clicked, because its base-absolute href is a pre-existing,
+ * journalled defect outside this slice; the next screen is reached by direct
+ * navigation instead · the worker's automatic road (redirect + restore)
+ * leaves her ON the vitrine, not on an error page · she reaches the next
+ * screen with no network at all.
  * The walk claims NOTHING about appearance — no colour, no layout; those stay
  * with the token checks and the founder's eyes.
  */
