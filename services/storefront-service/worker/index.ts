@@ -8,15 +8,6 @@ import {
   PlatformEventSchema,
 } from '@platform/contracts';
 import { DispatchIndexDO, DISPATCH_INDEX_NAME } from './dispatch-index-do.js';
-
-/**
- * DISPATCH-PAGES-1 — the dispatch/gains page size AND its hard ceiling. One
- * request spends 1 subrequest on the index list plus one per row; the platform
- * budget is 50 per request on the plan this deploys to, so 40 rows leaves real
- * margin for the CORS answer and any retry the runtime makes. A caller may ask
- * for LESS, never more — a bigger page is the exact 500 this slice removes.
- */
-const PAGE_DISPATCH = 40;
 import { ResellerFeedDO, RESELLER_FEED_NAME } from './reseller-feed-do.js';
 import { WishlistDO, mintListeToken } from './wishlist-do.js';
 import { LISTE_REF, LISTE_TOKEN, validateListeCreate, validateListeUpdate } from '../src/wishlist-core.js';
@@ -42,6 +33,15 @@ import {
   rejectUnauthorizedProgress,
   type WriteAuthEnv,
 } from './auth.js';
+
+/**
+ * DISPATCH-PAGES-1 — the dispatch/gains page size AND its hard ceiling. One
+ * request spends 1 subrequest on the index list plus one per row; the platform
+ * budget is 50 per request on the plan this deploys to, so 40 rows leaves real
+ * margin for the CORS answer and any retry the runtime makes. A caller may ask
+ * for LESS, never more — a bigger page is the exact 500 this slice removes.
+ */
+const PAGE_DISPATCH = 40;
 
 /**
  * THE COMBINED WORKER (STOREFRONT-DEPLOY-1, founder ruling: one combined Worker).

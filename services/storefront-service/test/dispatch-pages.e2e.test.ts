@@ -227,7 +227,7 @@ describe('DISPATCH-PAGES-1 — the dispatch read pages, and the pages ARE the li
   }, 60_000);
 
   it('refusals BY NAME: a limit past the budget, zero, junk, and an unreadable cursor are each 400 malformed — never a 500, never index_unavailable', async () => {
-    for (const q of ['?limit=41', '?limit=0', '?limit=abc', '?limit=1.5', '?cursor=pas-de-separateur', '?cursor=a%7C%25E0']) {
+    for (const q of ['?limit=41', '?limit=0', '?limit=', '?limit=abc', '?limit=1.5', '?cursor=pas-de-separateur', '?cursor=a%7C%25E0']) {
       const res = await lire('dispatch', q);
       expect(res.status, q).toBe(400);
       expect(res.json.reason, q).toBe('malformed');
