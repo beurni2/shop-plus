@@ -820,7 +820,9 @@ describe('RESELLER-STOREFRONT-WRITE-1 — CORS on reads + the admin list', () =>
     expect(listed.status).toBe(200);
     const rows = (await listed.json()) as { id: string; slug: string; name: string; discoverable: boolean }[];
     const mine = rows.find((r) => r.id === 'sf-list-0001');
-    expect(mine).toEqual({ id: 'sf-list-0001', slug: 'list-0001', name: 'Boutique liste', discoverable: false });
+    // RESELLER-AUTH-1 — the row now names its OWNER, so a session-narrowed list
+    // can be computed at the composition root; the key-only list keeps every row.
+    expect(mine).toEqual({ id: 'sf-list-0001', slug: 'list-0001', name: 'Boutique liste', discoverable: false, resellerId: 'rs-seller-0001' });
 
     // publish it → the list must reflect the LIVE discoverable, not a stale snapshot.
     const pub = await mf.dispatchFetch('http://c/storefronts/sf-list-0001/publish', {
