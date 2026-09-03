@@ -189,6 +189,12 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     const parB = await appel(`/storefronts/${SF_A}`, { headers: B.bearer });
     expect(parB.status).toBe(404);
     expect(parB.json).toEqual({ error: 'not_found' });
+    // a segment that will not decode is nobody's — the same mute 404, never a 500
+    const indechiffrable = await appel('/storefronts/%E0', { headers: B.bearer });
+    expect(indechiffrable.status, indechiffrable.text).toBe(404);
+    expect(indechiffrable.json).toEqual({ error: 'not_found' });
+    expect((await appel(`/listings/%E0`, { headers: B.bearer })).status).toBe(404);
+    expect((await appel(`/listings/by-pid/%E0/${PID}`, { headers: B.bearer })).status).toBe(404);
     const parA = await appel(`/storefronts/${SF_A}`, { headers: A.bearer });
     expect(parA.status, parA.text).toBe(200);
     expect(parA.json['resellerId']).toBe(A.accountId);
