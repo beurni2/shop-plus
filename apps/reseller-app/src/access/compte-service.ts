@@ -46,7 +46,10 @@ export type ConnexionResult =
 
 export type AdmissionResult =
   | { readonly ok: true }
-  | { readonly ok: false; readonly reason: 'code_refuse' | 'acces_coupe' | 'unreachable' };
+  /** RESELLER-PILOTE-1 — `pilote_complet`: the book seats one reseller while
+   *  writes ride the shared key; her account is PENDING, not cut, and her
+   *  code is unspent. A screen must never read it as the founder's pause. */
+  | { readonly ok: false; readonly reason: 'code_refuse' | 'acces_coupe' | 'pilote_complet' | 'unreachable' };
 
 export type SessionResult =
   | { readonly ok: true; readonly compte: CompteLocal }
@@ -182,7 +185,11 @@ export function resolveCompteService(): CompteServicePort | null {
     async admission(session, code): Promise<AdmissionResult> {
       const res = await appel('/reseller/admission', { method: 'POST', body: JSON.stringify({ code }) }, session);
       if (res === null) return { ok: false, reason: 'unreachable' };
-      if (res.status === 403) return { ok: false, reason: 'acces_coupe' };
+      // Two 403s, told apart BY NAME: the pilot ceiling leaves her pending
+      // (RESELLER-PILOTE-1); anything else at 403 is the founder's pause.
+      if (res.status === 403) {
+        return { ok: false, reason: res.body?.['reason'] === 'plafond_pilote' ? 'pilote_complet' : 'acces_coupe' };
+      }
       if (res.status === 401) return { ok: false, reason: 'code_refuse' };
       if (res.status !== 200 || res.body?.['ok'] !== true) return { ok: false, reason: 'unreachable' };
       return { ok: true };

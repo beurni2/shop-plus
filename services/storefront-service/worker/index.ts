@@ -128,6 +128,10 @@ interface Env extends WriteAuthEnv {
    * `printf '1' | wrangler secret put CHECKOUT_KILL` · `wrangler secret delete
    * CHECKOUT_KILL`. Declared here for documentation; the router never reads it. */
   CHECKOUT_KILL?: string;
+  /** RESELLER-PILOTE-1 — the account book's pilot ceiling, read by
+   * ResellerAccountsDO from its own env (absent ⇒ one seat). A `[vars]` value
+   * that leaves with slice a2. Declared for documentation; never read here. */
+  RESELLER_ADMISSION_CEILING?: string;
 }
 
 export default {

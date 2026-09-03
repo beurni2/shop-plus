@@ -62,6 +62,11 @@ const mf = new Miniflare({
     STOREFRONT_WRITE_SECRET: WRITE_SECRET,
     PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
     CHECKOUT_OPS_SECRET: OPS_SECRET,
+    // RESELLER-PILOTE-1: this suite admits MANY accounts to prove the laws
+    // below, so the pilot ceiling is lifted HERE and nowhere else. The ceiling
+    // itself is proven on its own Worker, bound exactly as deployed (no value
+    // ⇒ one seat), in `plafond-pilote.e2e.test.ts`.
+    RESELLER_ADMISSION_CEILING: '1000',
   },
   serviceBindings: {
     OFFER: async (request: Request) => {

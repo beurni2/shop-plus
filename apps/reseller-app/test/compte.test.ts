@@ -88,6 +88,16 @@ describe('RESELLER-ACCOUNTS-1d — the four calls, honestly mapped', () => {
     expect(await port.admission('SPS-1', 'SPA-X')).toEqual({ ok: false, reason: 'unreachable' });
   });
 
+  it('RESELLER-PILOTE-1 — a 403 that NAMES the pilot ceiling is its own answer, never « paused »: her account is pending, not cut', async () => {
+    vi.stubEnv(BASE, 'https://shop.example');
+    const port = resolveCompteService()!;
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'plafond_pilote' }), { status: 403 }));
+    expect(await port.admission('SPS-1', 'SPA-X')).toEqual({ ok: false, reason: 'pilote_complet' });
+    // a 403 with NO name (or an unknown one) stays the pause — the pre-slice reading
+    stubFetch(async () => new Response('{}', { status: 403 }));
+    expect(await port.admission('SPS-1', 'SPA-X')).toEqual({ ok: false, reason: 'acces_coupe' });
+  });
+
   it('the session refresh carries the Bearer and yields the fresh state — how a founder pause reaches a device already inside', async () => {
     vi.stubEnv(BASE, 'https://shop.example');
     const spy = stubFetch(async () => new Response(JSON.stringify({ ok: true, accountId: 'rs-1234', name: 'Awa', state: 'paused' })));

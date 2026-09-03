@@ -1349,6 +1349,9 @@ export default function App() {
                   setCompteErreurKey(
                     res.reason === 'code_refuse' ? 'admission.refuse'
                     : res.reason === 'acces_coupe' ? 'coupe.texte'
+                    // RESELLER-PILOTE-1: the pilot is full — she stays at the
+                    // door, pending, her code unspent; nothing is written.
+                    : res.reason === 'pilote_complet' ? 'admission.pilote_complet'
                     : 'compte.reseau',
                   );
                   if (res.reason === 'acces_coupe') await adopterCompte({ ...compte, state: 'paused' });

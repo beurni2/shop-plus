@@ -191,6 +191,16 @@ MEDIA_PUBLIC_BASE = "https://storefront-service.ilboudobernard2.workers.dev"
 # knows is right.
 PRODUCT_MEDIA_BASE = "https://media-service.ilboudobernard2.workers.dev"
 
+# RESELLER-PILOTE-1 (AUDIT-SHOP-1 slice a1) — the account book seats ONE
+# reseller while storefront writes still ride the shared write key; the next
+# admission is refused by name (`plafond_pilote`) at the mint and at the door.
+# Absent or malformed ALSO means one — the Worker fails closed with nothing to
+# configure; the value is stated here only so the deployed truth is readable.
+# NEVER RAISED ON THE DEPLOY: the ceiling leaves with slice a2 (every write
+# bound to the reseller's session, the shared key retired), and this line
+# leaves in that same commit. The accounts e2e lifts it on its own test Worker.
+RESELLER_ADMISSION_CEILING = "1"
+
 # SERVICE-WRITE-AUTH-1 — the shared write secret (STOREFRONT_WRITE_SECRET) is NOT
 # here and must NEVER be added to [vars]: all five repos are PUBLIC and anything in
 # [vars] is committed and published. It is set out-of-band with
