@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-03 · RESELLER-PILOTE-1 (AUDIT-SHOP-1 slice a1) — the account book seats ONE reseller while writes ride the shared key · IN REVIEW (branch `3cebce8` + `9aed471`; awaiting the founder's word for merge + `storefront-deploy`)
+## 2026-09-03 · RESELLER-PILOTE-1 (AUDIT-SHOP-1 slice a1) — the account book seats ONE reseller while writes ride the shared key · DONE
+
+**MERGED AND DEPLOYED (founder: « go », 2026-09-03).** `main` fast-forwarded `c587ef3..943ede7`. **All four push workflows green on 943ede7 — ci 602 · pwa-preview 392 · expo-preview 425 · service-canon-drift 269 — and `storefront-deploy` 78 green** (the Worker with the guard is live; the workflow's own provenance assertion passed — a direct `/health` read from this sandbox is blocked by its network policy, so the workflow is the witness). The app side (the door's new reading) rides expo-preview 425. **Still his:** the one seat must be his — if his roster shows one active account it already is; if none, he admits himself before anyone else. Next: **a2** — every write bound to the SPS session, `STOREFRONT_WRITE_SECRET` retired, this guard and `RESELLER_ADMISSION_CEILING` deleted in the same commit.
 
 **Founder, 2026-09-02: « go with your recommended order ».** Slice (a) split in two: **a1 (this)** — no second reseller can be seated while the standing hard gate stands; **a2 (next)** — every storefront write bound to the SPS session, `STOREFRONT_WRITE_SECRET` retired, and this guard deleted. The gate's own words (three entries below, 2026-07/08): « HARD GATE: no reseller other than the founder onboards until real per-reseller identity lands — a shared secret is safe only while the founder is the sole writer. » It had no enforcement in code; the audit named it « BLOCKER the moment a second admission code is minted ».
 
