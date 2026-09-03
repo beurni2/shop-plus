@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-03 · COQUILLE-HORS-LIGNE-1 (AUDIT-SHOP-1 slice d) — the shell cold-opens offline · IN REVIEW (branch `9c6fa3b` + `dd367ac` + `49d07f1`; awaiting the founder's word for merge; the PWA deploys with `pwa-preview` on the main push, no manual workflow)
+## 2026-09-03 · COQUILLE-HORS-LIGNE-1 (AUDIT-SHOP-1 slice d) — the shell cold-opens offline · DONE
+
+**MERGED AND DEPLOYED (founder: « go », 2026-09-03).** shop `main` fast-forwarded `37a2d7f..2baf6ae`. **All four push workflows green on 2baf6ae — ci 610 · pwa-preview 400 · expo-preview 433 · service-canon-drift 278** — `pwa-preview` ships dist with `sw.js`: any buyer who has opened her boutique link, suivi or liste once in her browser can now re-open it with no network and reach the real screen, not the browser error page (no installation involved — the founder's correction of my report wording, recorded: buyers install nothing; the installable app is the reseller's). Next per the audit order: **(e)** the `SERA_PROGRESS_SECRET` split.
 
 **The audit's MAJOR (3), closed:** the buyer PWA shipped NO service worker — installed and cold-opened without network it was the browser's own error page (Law 7 broken at the front door; the designed offline states existed but no road reached them cold).
 
