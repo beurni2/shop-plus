@@ -1448,6 +1448,22 @@ export class OrderDO {
    * the public GET already serves — but « who is asking » must be settled before
    * anything is served, or the day that answer grows (SP3.3b) the leak arrives
    * with it. Prove the hold first; only then replay.
+   *
+   * ═══ …AND THE CLOCK IS NOT PART OF THAT AUTHORIZATION (COMMANDE-REJOUER-1,
+   *     AUDIT-SHOP-1 slice c) ═══
+   *
+   * « Prove the hold first » once meant running ALL of `decideCreateOrder` —
+   * quote freshness and hold freshness included — before the cache. But expiry
+   * guards PRICING (a revived price nobody agreed to) and CHARGING (a hold
+   * whose time ran out); a replay prices nothing and charges nothing — it
+   * re-reads an answer already written. Judging the clock first meant a buyer
+   * whose 200 died on the network (ordinary, Law 7) and whose retry landed
+   * after expiry lost her `buyerRef` — the only door to her suivi and her
+   * remise — FOREVER, over an order that exists and is hers. So the replay
+   * road now proves IDENTITY on the receipt's own stored bytes (same quote,
+   * same holder — the finding-4 property, intact) and serves the stored
+   * answer whatever the clock says; every command that would MOVE something
+   * still runs the whole gate, expiry included.
    */
   private async create(
     quoteId: string,
@@ -1460,6 +1476,24 @@ export class OrderDO {
   ): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     const receipt = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
+    // THE REPLAY ROAD (see the header): a command that already MOVED something
+    // replays its stored answer to the receipt's own holder, clock unconsulted.
+    // OWN PROPERTY ONLY: a bare `results[commandId]` walks the prototype chain,
+    // so `constructor` or `toString` returned a function, serialised to an
+    // unparseable body, and pinned that command id to a permanent failure
+    // (verifier finding 5). Availability, not money — and closed anyway.
+    const results = (await this.state.storage.get<Record<string, unknown>>(RESULTS_KEY)) ?? {};
+    if (
+      Object.prototype.hasOwnProperty.call(results, commandId) &&
+      receipt !== undefined &&
+      receipt.quoteId === quoteId &&
+      receipt.holderRef === holderRef
+    ) {
+      return Response.json(results[commandId]);
+    }
+    // Everything past here can MOVE something, so the WHOLE gate runs — quote
+    // and hold freshness included. A cached command under the WRONG holder
+    // falls through to be refused by name here, never served.
     // THE ORDER'S OWN FROZEN BYTES WIN once it exists: an order is priced by the
     // quote it was created from, and no later read can re-price it.
     const bytes = origin?.quoteBytes ?? wireQuoteBytes;
@@ -1472,16 +1506,6 @@ export class OrderDO {
     });
     if (!decision.ok) {
       return Response.json({ ok: false, reason: decision.reason }, { status: 422 });
-    }
-
-    // AUTHORIZED. Now — and only now — a replayed command replays its answer.
-    // OWN PROPERTY ONLY: a bare `results[commandId]` walks the prototype chain,
-    // so `constructor` or `toString` returned a function, serialised to an
-    // unparseable body, and pinned that command id to a permanent failure
-    // (verifier finding 5). Availability, not money — and closed anyway.
-    const results = (await this.state.storage.get<Record<string, unknown>>(RESULTS_KEY)) ?? {};
-    if (Object.prototype.hasOwnProperty.call(results, commandId)) {
-      return Response.json(results[commandId]);
     }
     const quote = decision.quote;
     const leg = checkoutLegOf(decision.legs);
