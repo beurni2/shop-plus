@@ -3193,7 +3193,21 @@ export default {
         | { ok?: boolean; reason?: string; canonicalBytes?: string; fulfillment?: unknown; quote?: { paymentMode?: unknown } }
         | null;
       if (quoteBody === null) return refuse('quote_unknown');
-      if (quoteBody.ok !== true || typeof quoteBody.canonicalBytes !== 'string') {
+      /**
+       * ═══ COMMANDE-REJOUER-1 — AN EXPIRED QUOTE STILL REACHES THE OBJECT ═══
+       *
+       * The vault answers `expired` with NO bytes, and this router used to
+       * refuse right here — which made the object's clock-free replay road
+       * unreachable the moment the 15-minute quote died: a buyer whose 200
+       * was lost and whose retry landed late lost her `buyerRef` forever,
+       * the audit's own named case. The expired read now travels DOWN with
+       * no bytes: the object replays the stored answer to the receipt's own
+       * holder, and every other outcome on this road keeps today's public
+       * name — the mapping below folds the object's refusal back to
+       * `expired`, because that IS what this router's own read established.
+       */
+      const quoteExpiree = quoteBody.ok !== true && quoteBody.reason === 'expired';
+      if (!quoteExpiree && (quoteBody.ok !== true || typeof quoteBody.canonicalBytes !== 'string')) {
         return refuse(quoteBody.reason === 'not_found' ? 'quote_unknown' : (quoteBody.reason ?? 'quote_unknown'));
       }
 
@@ -3270,7 +3284,7 @@ export default {
        * An absent WISHLIST binding also changes nothing — the quote road is
        * already gated on it, so no address-priced quote can exist to attach.
        */
-      if (listeRef !== null && env.WISHLIST !== undefined) {
+      if (listeRef !== null && env.WISHLIST !== undefined && !quoteExpiree) {
         const luLivraison = await env.WISHLIST.get(env.WISHLIST.idFromName(`liste:${listeRef}`)).fetch(
           new Request('https://do/entry/livraison'),
         );
@@ -3321,7 +3335,10 @@ export default {
        * response (`noteVocale: 'perdue'`), never silent.
        */
       let noteVocale: 'gardee' | 'perdue' | undefined;
-      if (contact !== null && audioB64 !== undefined) {
+      // COMMANDE-REJOUER-1 — no upload on the expired road: only a replay can
+      // succeed there and a replay attaches nothing, so minting a ref would
+      // only orphan bytes in the media store.
+      if (contact !== null && audioB64 !== undefined && !quoteExpiree) {
         const ref = await televerserNoteVocale(env, audioB64);
         if (ref !== null) {
           contact = { ...contact, audioRef: ref };
@@ -3338,7 +3355,10 @@ export default {
             quoteId,
             holderRef: body['holderRef'],
             commandId: body['commandId'],
-            quoteBytes: quoteBody.canonicalBytes,
+            // COMMANDE-REJOUER-1 — the expired road carries no bytes (the
+            // vault held none back to carry); the object's own frozen origin
+            // judges any non-replay attempt, and it will refuse.
+            ...(quoteExpiree ? {} : { quoteBytes: quoteBody.canonicalBytes }),
             // ORDER-PAID-WIRE-1b — the fulfillment facts ride the SAME internal
             // hop as the bytes, from the same server-side read. The public body
             // above has no such field: a caller cannot name a product or a zone
@@ -3355,7 +3375,13 @@ export default {
         | { ok?: boolean; reason?: string; view?: unknown; buyerRef?: unknown }
         | null;
       if (decided === null) return refuse('not_found');
-      if (decided.ok !== true || decided.view === undefined) return refuse(decided.reason ?? 'not_found');
+      if (decided.ok !== true || decided.view === undefined) {
+        // The expired road keeps today's public name whatever the object
+        // said (`quote_expired` off the origin bytes, `quote_unknown` when no
+        // order was ever born): the router's own read established `expired`,
+        // and that is the sentence the buyer's screen already understands.
+        return refuse(quoteExpiree ? 'expired' : (decided.reason ?? 'not_found'));
+      }
       // THE BOUNDARY. Only the object's own projection ever reaches a buyer —
       // plus TWO create-only facts: what became of her voice note, and
       // (VRAI-SUIVI) her own read token, on the SAME create-only discipline —
