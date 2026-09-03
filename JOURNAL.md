@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-03 · RESELLER-AUTH-1 (AUDIT-SHOP-1 slice a2a) — her session is her key, and it opens only her shop · IN REVIEW (branch `b95a5f9` → `31154b4`; awaiting the founder's word for merge + `storefront-deploy`, and his word on a2b)
+## 2026-09-03 · RESELLER-AUTH-1 (AUDIT-SHOP-1 slice a2a) — her session is her key, and it opens only her shop · DONE
+
+**MERGED AND DEPLOYED (founder: « go », 2026-09-03).** `main` fast-forwarded `663435a..32cf289`. **All four push workflows green on 32cf289 — ci 604 · pwa-preview 394 · expo-preview 427 · service-canon-drift 271 — and `storefront-deploy` 79 green**: the live Worker now enforces session ownership. The app side (the bearer on every adapter call) rides expo-preview 427. Nothing changes on the founder's phone until a2b: with no session on the device the key path is byte-identical to before. **a2b awaits his separate word** — arm the access gate on the build, he seats himself (the a1 seat), his shop under his account, then the key, the a1 ceiling and its var retire together.
 
 **The audit's MAJOR, restated:** every storefront write ran on one shared key baked into the app, and the per-reseller session was never consulted on a write — so any admitted reseller could publish into a rival's shop as herself. a1 bounded it (one seat). **a2a binds the acts to the identity; a2b (his word) retires the key.**
 
