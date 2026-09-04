@@ -32,6 +32,13 @@ jobs:
       # but the founder onboards until real per-reseller identity lands (JOURNAL).
       EXPO_PUBLIC_STOREFRONT_BASE: ${{ secrets.EXPO_PUBLIC_STOREFRONT_BASE }}
       EXPO_PUBLIC_STOREFRONT_WRITE_KEY: ${{ secrets.EXPO_PUBLIC_STOREFRONT_WRITE_KEY }}
+      # ACCES-ARME-1 (a2b phase 1) — founder order 2026-09-04 « go a2b »: the
+      # access gate is ARMED on the published build. Every phone now signs up at
+      # the entrance and enters a founder-minted admission code (the 2026-08-04
+      # « off for now » ruling ends with this order). A literal, not a secret —
+      # « on » is a build posture and must be readable in review. Same babel
+      # inlining road as the two EXPO_PUBLIC_* values above.
+      EXPO_PUBLIC_ACCESS_GATE: 'on'
     steps:
       - name: Check EXPO_TOKEN presence (skip gracefully when absent)
         id: token

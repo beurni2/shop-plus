@@ -9,11 +9,13 @@ const appDir = join(import.meta.dirname, '..');
 const app = readFileSync(join(appDir, 'App.tsx'), 'utf8');
 
 /**
- * ACCESS-GATE-1 — ONE DOOR, AT THE ENTRANCE, DISARMED FOR NOW.
+ * ACCESS-GATE-1 — ONE DOOR, AT THE ENTRANCE.
  *
  * Founder order, 2026-08-04: « i do not want resellers feed to have any code
  * gated. the only gate i want is the access gate … build it but make the access
- * gate off for now for shop+ ».
+ * gate off for now for shop+ ». ARMED on the published build since
+ * ACCES-ARME-1 (founder 2026-09-04: « go a2b ») — expo-preview.yml ships the
+ * flag; unset stays the fail-open default everywhere else.
  *
  * Two properties this file exists to hold, and they pull in opposite
  * directions, which is why both are pinned:
@@ -41,7 +43,7 @@ describe('ACCESS-GATE-1 — the flag', () => {
     }
   });
 
-  it('is DISARMED when unset — the founder’s current instruction, and the state that cannot lock anyone out', () => {
+  it('is DISARMED when unset — the fail-open default, and the state that cannot lock anyone out', () => {
     vi.stubEnv('EXPO_PUBLIC_ACCESS_GATE', undefined as unknown as string);
     expect(gateArme()).toBe(false);
   });

@@ -15,6 +15,11 @@
  * so it can have access to the app and start using. build it but make the
  * access gate off for now for shop+ ».
  *
+ * ARMED — ACCES-ARME-1 (a2b phase 1), founder 2026-09-04: « go a2b ». The
+ * published build now ships `EXPO_PUBLIC_ACCESS_GATE: on` (expo-preview.yml),
+ * so every phone asks at the entrance. Unset stays the fail-open default
+ * everywhere else — tests and local runs are not gated by accident.
+ *
  * ═══ WHAT WAS WRONG, AND WHY HE IS RIGHT ═══
  *
  * The app had TWO code doors — « Mes ventes » and « Mes gains » — both asking
@@ -64,8 +69,9 @@
  */
 
 /** ON only for the exact string — an unset, empty, mistyped or « true » value
- *  leaves the gate DISARMED, which is the founder's current instruction and
- *  also the state that cannot lock anyone out by accident.
+ *  leaves the gate DISARMED, the fail-open default that cannot lock anyone out
+ *  by accident. The published build arms it in expo-preview.yml
+ *  (ACCES-ARME-1, founder 2026-09-04: « go a2b »).
  *
  *  Dot access on `process.env.EXPO_PUBLIC_*` is required: a computed access is
  *  invisible to the Metro inliner and would ship `undefined` forever. */

@@ -1296,12 +1296,55 @@ export default function App() {
         : t(SCREEN_TITLE_KEY[screen]);
 
   /**
+   * CLAVIER-MARGE — the two surfaces that carry the markup field, so the field
+   * can ask to be lifted CLEAR OF THE KEYPAD when it takes focus.
+   *
+   * `automaticallyAdjustKeyboardInsets` alone is not enough and that is a fact
+   * about what it does, not a preference: it scrolls the CARET to the keyboard's
+   * top edge (RN insets from `firstResponderFocus`, the selection rect + 15pt),
+   * so everything BELOW the caret inside the card — the ceiling note and « Prix
+   * cliente », the figure she is typing this number FOR — stays underneath. And
+   * when the field already sits above the keypad it scrolls nothing at all.
+   *
+   * `scrollResponderScrollNativeHandleToKeyboard` is the one RN path that takes
+   * an `additionalOffset`, i.e. slack BELOW the target. The offset is the height
+   * of what follows the field inside the money card.
+   */
+  const ficheScroll = useRef<ScrollView>(null);
+  const vitrineListe = useRef<FlatList<(typeof vitrineOffers)[number]>>(null);
+  /** Enough for the ceiling note + the « Prix cliente » row + the card's foot. */
+  const SOUS_LE_CHAMP = 120;
+  const leverFiche = useCallback((handle: number | null) => {
+    if (handle === null) return;
+    ficheScroll.current?.scrollResponderScrollNativeHandleToKeyboard?.(handle, SOUS_LE_CHAMP, true);
+  }, []);
+  const leverVitrine = useCallback((handle: number | null) => {
+    if (handle === null) return;
+    // RN types `getScrollResponder()` as `Element`, which does not carry the
+    // scroll-responder methods it actually returns; the cast names the ONE
+    // method used and nothing more.
+    const responder = vitrineListe.current?.getScrollResponder?.() as
+      | { scrollResponderScrollNativeHandleToKeyboard?: (h: number, offset: number, prevent: boolean) => void }
+      | undefined;
+    responder?.scrollResponderScrollNativeHandleToKeyboard?.(handle, SOUS_LE_CHAMP, true);
+  }, []);
+
+  /**
    * ACCESS-GATE-1 — THE ONE DOOR, AND IT IS AT THE ENTRANCE.
    *
-   * Disarmed today by founder order, so `decideAcces` returns « ouvert » for
-   * everyone and this branch never renders. Armed, it is the whole app: no tab,
-   * no screen and no read is reachable until a code opens it, which is what
-   * makes it an ACCESS gate rather than another wall in the middle.
+   * ARMED on the published build since ACCES-ARME-1 (a2b phase 1, founder
+   * 2026-09-04: « go a2b »): `expo-preview.yml` ships the flag, so this branch
+   * IS the app until an ACTIVE account opens it. No tab, no screen and no read
+   * is reachable before that, which is what makes it an ACCESS gate rather
+   * than another wall in the middle.
+   *
+   * IT RENDERS AFTER EVERY HOOK ABOVE, DELIBERATELY: this component's hook
+   * count must not change when the door opens MID-SESSION (an admission
+   * accepted, a pause lifted on « Vérifier à nouveau »). When this branch sat
+   * above the fiche/vitrine refs and callbacks it short-circuited, the
+   * door→ouvert transition rendered MORE hooks than the previous pass and
+   * React threw at the exact tap that seats a reseller — caught RED by
+   * `rendu-entree-armee` before it reached a phone.
    */
   const acces = decideAcces(gateArme(), compte);
   if (acces.kind !== 'ouvert') {
@@ -1375,40 +1418,6 @@ export default function App() {
       </SafeAreaView>
     );
   }
-
-  /**
-   * CLAVIER-MARGE — the two surfaces that carry the markup field, so the field
-   * can ask to be lifted CLEAR OF THE KEYPAD when it takes focus.
-   *
-   * `automaticallyAdjustKeyboardInsets` alone is not enough and that is a fact
-   * about what it does, not a preference: it scrolls the CARET to the keyboard's
-   * top edge (RN insets from `firstResponderFocus`, the selection rect + 15pt),
-   * so everything BELOW the caret inside the card — the ceiling note and « Prix
-   * cliente », the figure she is typing this number FOR — stays underneath. And
-   * when the field already sits above the keypad it scrolls nothing at all.
-   *
-   * `scrollResponderScrollNativeHandleToKeyboard` is the one RN path that takes
-   * an `additionalOffset`, i.e. slack BELOW the target. The offset is the height
-   * of what follows the field inside the money card.
-   */
-  const ficheScroll = useRef<ScrollView>(null);
-  const vitrineListe = useRef<FlatList<(typeof vitrineOffers)[number]>>(null);
-  /** Enough for the ceiling note + the « Prix cliente » row + the card's foot. */
-  const SOUS_LE_CHAMP = 120;
-  const leverFiche = useCallback((handle: number | null) => {
-    if (handle === null) return;
-    ficheScroll.current?.scrollResponderScrollNativeHandleToKeyboard?.(handle, SOUS_LE_CHAMP, true);
-  }, []);
-  const leverVitrine = useCallback((handle: number | null) => {
-    if (handle === null) return;
-    // RN types `getScrollResponder()` as `Element`, which does not carry the
-    // scroll-responder methods it actually returns; the cast names the ONE
-    // method used and nothing more.
-    const responder = vitrineListe.current?.getScrollResponder?.() as
-      | { scrollResponderScrollNativeHandleToKeyboard?: (h: number, offset: number, prevent: boolean) => void }
-      | undefined;
-    responder?.scrollResponderScrollNativeHandleToKeyboard?.(handle, SOUS_LE_CHAMP, true);
-  }, []);
 
   /**
    * POLICE-MESURE (founder, 2026-08-17, zoomed: the « e » of « vendre » sliced
