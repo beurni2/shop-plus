@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-03 · GARDE-PAIEMENT-1 (AUDIT-SHOP-1 slice f) — the two money doors hardened · IN REVIEW (shop `64aa144` + `7df308d` + `64440b0` — the recheck fixes; awaiting the founder's word for merge + `storefront-deploy`)
+## 2026-09-03 · GARDE-PAIEMENT-1 (AUDIT-SHOP-1 slice f) — the two money doors hardened · DONE
+
+**MERGED AND DEPLOYED (founder: « Go », 2026-09-04, after his ordered recheck and its four fixes).** shop `main` fast-forwarded `9870f56..59748d6`. **All five workflows green on 59748d6 — ci 615 · pwa-preview 405 · expo-preview 438 · service-canon-drift 283 · storefront-deploy 83.** The live Worker now: freezes an order's receipt to its holder (a stranger with the quote link can never reach her `buyerRef`; her own fresh hold still refreshes her recovery road; the order is born naming its creator whatever raced the create), and refuses a malformed-but-authenticated webhook 422 `malformed_payload` by name — bounded to exactly the crashing inputs, unsafe integers included — instead of an unnamed 500 retried forever. **This closes the last of AUDIT-SHOP-1's six MAJORs.** What remains of the audit programme: a2b (his word) and the E5 Real-Money-Gate items that hang on the aggregator/BCEAO ⏳ (HMAC, reconciliation drill, refunds — flagged, not built).
 
 **NAMED GARDE-PAIEMENT-1, not its first draft name.** The slice shipped once under a name that was itself the banned French word for « wallet » — the `no-wallet-no-funds` gate (Ten Laws #2) correctly failed the board on it across 7 comment/name sites. Renamed to GARDE-PAIEMENT-1 (« payment guard »), test file renamed to match; no logic moved in the rename. My own miss, caught by the gate exactly as designed (failure mode #6/#9 territory — a green board is not done until the board is actually green).
 
