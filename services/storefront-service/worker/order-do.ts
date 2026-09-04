@@ -629,11 +629,18 @@ export class OrderDO {
        * take a fresh hold, whose mirror would rewrite this receipt to him —
        * and the origin-exists road answers `buyerRef` (her suivi + remise
        * door) to whoever the receipt names. The order's existence binds the
-       * receipt: a fresh hold's mirror after create is refused, the stored
-       * receipt untouched, so the stranger's own create is refused
-       * `reservation_held_by_another` and never reaches her token.
+       * receipt TO ITS HOLDER: a FOREIGN fresh hold's mirror is refused and
+       * the stored receipt untouched, so the stranger's own create is refused
+       * `reservation_held_by_another` and never reaches her token — while the
+       * OWNER's own fresh hold still refreshes her receipt, because her
+       * payment-failure retry road runs the whole freshness gate and a
+       * receipt nobody could refresh would strand her order for ever.
        *
        * A redelivered mirror of the SAME hold stays the harmless no-op it was.
+       * And create() re-puts the receipt it validated at the order's own
+       * durable moment, so a mirror that slipped in DURING create (the
+       * attribution-lock await, before the origin existed — the recheck's
+       * race) is overwritten by the creator's receipt it raced.
        */
       const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
       const existing = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
@@ -644,14 +651,21 @@ export class OrderDO {
         if (existing.reservationId === receipt.reservationId) {
           return Response.json({ ok: true, stored: false, reason: 'already_decided' });
         }
-        // A DIFFERENT hold, and an ORDER already exists: the first holder owns
-        // it. Never moved, whatever the clock or the new hold claims.
-        if (origin !== undefined) {
+        // A DIFFERENT hold while an ORDER exists: the receipt may never change
+        // HANDS — a foreign holder is refused whatever the clock or the new
+        // hold claims. The OWNER's own fresh hold still refreshes it through
+        // the monotone rule below (the founder-ordered recheck caught the
+        // holder-blind first cut: it stranded a payment_failed order forever,
+        // because her retry needs a live hold and her receipt had no writer —
+        // the composition root's documented recovery, « the buyer's next
+        // reserve writes it again », must stay true for HER).
+        if (origin !== undefined && receipt.holderRef !== existing.holderRef) {
           return Response.json({ ok: true, stored: false, reason: 'order_frozen' });
         }
-        // Pre-order: a DIFFERENT hold must be a genuinely LATER one. Strictly
-        // later: a fresh hold's TTL always runs from now, so anything not
-        // strictly later is an older mirror write landing out of order.
+        // A DIFFERENT hold (pre-order, or the owner's own refresh) must be a
+        // genuinely LATER one. Strictly later: a fresh hold's TTL always runs
+        // from now, so anything not strictly later is an older mirror write
+        // landing out of order.
         if (existing.expiresAt >= receipt.expiresAt) {
           return Response.json({ ok: true, stored: false, reason: 'not_later' });
         }
@@ -1741,6 +1755,14 @@ export class OrderDO {
     // charged again, and the retry that follows reuses the SAME key rather than
     // minting a second collection for one leg.
     await this.state.storage.put(ORIGIN_KEY, stored);
+    // GARDE-PAIEMENT-1 (the recheck's race) — the receipt this create was
+    // AUTHORIZED on becomes the order's receipt at the same durable moment as
+    // the order itself. decideCreateOrder passed on `receipt` before the
+    // attribution-lock subrequest, whose open input gate could let a fresh
+    // hold's mirror interleave and win the pre-order monotone rule; whatever
+    // landed in that window, the order is born naming the holder that created
+    // it, and from here the holder-bound freeze above owns every later write.
+    if (receipt !== undefined) await this.state.storage.put(RECEIPT_KEY, receipt);
     await this.state.storage.put(LOG_KEY, log);
     await this.state.storage.put(ATTEMPTS_KEY, attempts);
     await this.state.storage.put(LEG_KEYS_KEY, { ...legKeys, [leg.legType]: providerKey });

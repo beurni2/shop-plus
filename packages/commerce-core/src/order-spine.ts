@@ -109,27 +109,25 @@ export type DoorPaymentOutcome =
     };
 
 /**
- * GARDE-PAIEMENT-1 (RMG) — the escrow-bound payment fields, checked with the
- * SAME fallback semantics the record call applies, so a well-formed webhook is
- * never newly refused: an ABSENT `collectRef`/`provider` falls back (to the
- * command_id / 'sandbox-provider') and is fine; an ABSENT/non-number `fee`
- * coerces to 0 and is fine. Only a PRESENT-but-broken value is malformed — an
- * empty-or-non-string `collectRef` or `provider`, or a `fee` that is a number
- * but not a non-negative integer (canon `FcfaSchema` is `int().min(0)`). These
- * are exactly the three inputs that would throw out of `EscrowTxnSchema.parse`.
+ * GARDE-PAIEMENT-1 (RMG) — the guard's bound is EXACTLY the set of payload
+ * values that would throw out of `EscrowTxnSchema.parse`, and nothing more
+ * (the founder-ordered recheck killed a wider first cut that newly refused
+ * values the record path had always coerced):
  *
- * NULLISH, not just undefined: the record call reads `String(p['x'] ?? …)`, so
- * an explicit `null` is absent to it and takes the fallback. The guard matches
- * that with `!= null` — a provider that serialises an omitted field as `null`
- * is accepted, never refused for a shape the record path would have coerced.
+ *   · `collectRef` / `provider`: the record call reads `String(p['x'] ?? …)`,
+ *     so null/undefined take the fallback (command_id / 'sandbox-provider')
+ *     and ANY other value — number, boolean, object — String()-coerces to a
+ *     non-empty string, exactly as it always did. The ONE value that reaches
+ *     the parse empty and throws (`min(1)`) is the empty string itself.
+ *   · `fee`: a non-number coerces to 0. A number must be a SAFE non-negative
+ *     integer — canon `FcfaSchema` is zod `.int().min(0)`, and zod's `.int()`
+ *     refuses 2^53 as `too_big`, while `Number.isInteger(2^53)` is true (the
+ *     recheck's BLOCKER: the first cut waved unsafe integers into the throw).
  */
 function escrowPayloadMalformed(p: Record<string, unknown>): boolean {
-  const collectRef = p['collectRef'];
-  if (collectRef != null && (typeof collectRef !== 'string' || collectRef === '')) return true;
-  const provider = p['provider'];
-  if (provider != null && (typeof provider !== 'string' || provider === '')) return true;
+  if (p['collectRef'] === '' || p['provider'] === '') return true;
   const fee = p['fee'];
-  if (typeof fee === 'number' && !(Number.isInteger(fee) && fee >= 0)) return true;
+  if (typeof fee === 'number' && !(Number.isSafeInteger(fee) && fee >= 0)) return true;
   return false;
 }
 

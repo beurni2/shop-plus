@@ -44,14 +44,14 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'garde-paiement-'));
 const T0 = '2026-09-03T08:00:00.000Z';
 
-const WRITE_SECRET = 'test-write-secret-pm201';
-const WEBHOOK_SECRET = 'test-payment-webhook-secret-pm201';
+const WRITE_SECRET = 'test-write-secret-gp201';
+const WEBHOOK_SECRET = 'test-payment-webhook-secret-gp201';
 const authed = { 'X-Write-Key': WRITE_SECRET };
 
 const SUPPLY = [
   {
-    productVersionId: 'pv-pm-1',
-    offerVersion: 'ov-pm-1',
+    productVersionId: 'pv-gp-1',
+    offerVersion: 'ov-gp-1',
     basePrice: 10_000,
     resellerCommission: 1_000,
     available: 9,
@@ -108,26 +108,26 @@ async function creerCommande(n: string) {
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST', headers: authed,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-pm-${n}`, resellerId: `rs-pm-${n}`,
-      shortCode: `PORTE-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
-      category: 'Général', correlationId: `corr-pm-${n}`, at: T0,
+      commandId: `cmd-create-${n}`, id: `sf-gp-${n}`, resellerId: `rs-gp-${n}`,
+      shortCode: `GARDE-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
+      category: 'Général', correlationId: `corr-gp-${n}`, at: T0,
     }),
   });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST', headers: authed,
     body: JSON.stringify({
-      commandId: `cmd-listing-${n}`, listingId: `lst-pm-${n}`, storefrontId: `sf-pm-${n}`,
-      resellerId: `rs-pm-${n}`, productVersionId: 'pv-pm-1', offerVersion: 'ov-pm-1',
-      markup: 1_500, correlationId: `corr-pm-${n}`, at: T0,
+      commandId: `cmd-listing-${n}`, listingId: `lst-gp-${n}`, storefrontId: `sf-gp-${n}`,
+      resellerId: `rs-gp-${n}`, productVersionId: 'pv-gp-1', offerVersion: 'ov-gp-1',
+      markup: 1_500, correlationId: `corr-gp-${n}`, at: T0,
     }),
   });
   if ((safeJson(await pub.text()) as { status?: string }).status !== 'published') throw new Error('setup: listing');
   const quoteRes = await mf.dispatchFetch('http://c/checkout/quote', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      slug: `porte-${n}`, pid: 'pv-pm-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
-      attributionResellerId: `rs-pm-${n}`, requestKey: `rk-pm-${n}-${'x'.repeat(12)}`,
+      slug: `garde-${n}`, pid: 'pv-gp-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
+      attributionResellerId: `rs-gp-${n}`, requestKey: `rk-gp-${n}-${'x'.repeat(12)}`,
     }),
   });
   const quote = safeJson(await quoteRes.text()) as { quoteId?: string };
@@ -159,9 +159,10 @@ async function orderNs() {
 async function audit(orderId: string) {
   const ns = await orderNs();
   return (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as {
-    receipt?: { holderRef?: string; expiresAt?: string } | null;
+    receipt?: { holderRef?: string; reservationId?: string; expiresAt?: string } | null;
     legKeys?: Record<string, string>;
     state?: string;
+    escrow?: unknown;
   };
 }
 
@@ -195,6 +196,44 @@ describe('GARDE-PAIEMENT-1 — (1) the receipt is frozen once the order exists',
     // THE LEDGER: the receipt still names the buyer, not the stranger.
     const a = await audit(elle.orderId);
     expect(a.receipt?.holderRef, 'the order owner may never change').toBe(elle.holderRef);
+
+    // A redelivered mirror of HER OWN hold, after the order exists, stays the
+    // harmless no-op — the freeze must not rename that road (recheck NOTE).
+    const redeliver = await ns.get(ns.idFromName(elle.orderId)).fetch('https://do/entry/reserved', {
+      method: 'POST',
+      body: JSON.stringify({
+        quoteId: elle.quoteId, reservationId: before.receipt?.reservationId,
+        holderRef: elle.holderRef, expiresAt: before.receipt?.expiresAt,
+      }),
+    });
+    expect(safeJson(await redeliver.text())['reason']).toBe('already_decided');
+
+    // HER OWN fresh hold REFRESHES her receipt — the recovery road the
+    // holder-blind first cut killed (recheck MAJOR: a payment-failed order
+    // whose hold lapsed could never be retried, because the receipt had no
+    // writer left). RED before the holder-aware freeze: order_frozen.
+    const refresh = await ns.get(ns.idFromName(elle.orderId)).fetch('https://do/entry/reserved', {
+      method: 'POST',
+      body: JSON.stringify({
+        quoteId: elle.quoteId, reservationId: 'res-elle-2', holderRef: elle.holderRef,
+        expiresAt: new Date(ownExpiry + 7_200_000).toISOString(),
+      }),
+    });
+    const refreshBody = safeJson(await refresh.text());
+    expect(refreshBody['stored'], JSON.stringify(refreshBody)).toBe(true);
+    const rafraichie = await audit(elle.orderId);
+    expect(rafraichie.receipt?.reservationId).toBe('res-elle-2');
+    expect(rafraichie.receipt?.holderRef, 'refreshed, never re-owned').toBe(elle.holderRef);
+
+    // …and the stranger is STILL refused against her refreshed receipt.
+    const volEncore = await ns.get(ns.idFromName(elle.orderId)).fetch('https://do/entry/reserved', {
+      method: 'POST',
+      body: JSON.stringify({
+        quoteId: elle.quoteId, reservationId: 'res-stranger-2', holderRef: 'holder-stranger',
+        expiresAt: new Date(ownExpiry + 10_800_000).toISOString(),
+      }),
+    });
+    expect(safeJson(await volEncore.text())['reason']).toBe('order_frozen');
 
     // The stranger now runs the REAL create road under his own holderRef on the
     // still-fresh quote. RED before the fix: 200 carrying HER buyerRef. Now the
@@ -255,9 +294,12 @@ describe('GARDE-PAIEMENT-1 — (2) a malformed but authenticated webhook is 422 
       expect(`${res.status} ${safeJson(text)['error']}`, JSON.stringify(over)).toBe('422 malformed_payload');
     }
 
-    // Nothing landed — the order is still payment_pending, no escrow.
+    // Nothing landed — the order is still payment_pending AND the ledger's
+    // own escrow record is absent (the recheck: state alone was one field
+    // short of « the ledger asked after every refusal »).
     const mid = await audit(elle.orderId);
     expect(mid.state).toBe('payment_pending');
+    expect(mid.escrow, 'no phantom money record behind a refusal').toBeNull();
 
     // The genuine webhook is accepted after all the malformed ones — the door
     // refuses the bad shape without poisoning the good one.

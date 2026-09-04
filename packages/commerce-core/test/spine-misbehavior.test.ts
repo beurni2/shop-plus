@@ -177,6 +177,12 @@ describe('§3 misbehavior — payment provider mock vs the spine', () => {
       { provider: '' },
       { fee: 1.5 },
       { fee: -10 },
+      // RECHECK BLOCKER: 2^53 is an integer to Number.isInteger but NOT a
+      // safe one — canon FcfaSchema (zod .int()) refuses it as too_big, so
+      // before the safe-integer guard it threw out of the vault as the exact
+      // unnamed 500 this slice claims closed. Written RED first.
+      { fee: 9_007_199_254_740_992 },
+      { fee: Number.NaN },
     ];
     for (const patch of broken) {
       const spine = spineAtPaymentPending(quote);
@@ -192,10 +198,23 @@ describe('§3 misbehavior — payment provider mock vs the spine', () => {
       expect(spine.onProviderPaymentEvent(good)).toEqual({ applied: true, duplicate: false });
     }
 
-    // The well-formed cousins each side of the guard stay ACCEPTED: an integer
-    // fee, fee 0, and — proving the fallback, not just a present value — a
-    // payload with collectRef genuinely ABSENT (the record uses command_id).
-    const accepted: Record<string, unknown>[] = [{ fee: 250 }, { fee: 0 }];
+    // The well-formed cousins each side of the guard stay ACCEPTED — the
+    // guard's bound is EXACTLY the throwing set, so everything the record
+    // path historically coerced keeps landing: an integer fee, fee 0, an
+    // explicit null on any of the three (the `??`/typeof fallbacks fire), a
+    // NON-STRING collectRef/provider (String()-coerced, as always — the
+    // recheck caught the first guard newly refusing these), a numeric-string
+    // fee (recorded as 0, the pre-existing coercion), and — proving the
+    // fallback, not just a present value — a payload with collectRef
+    // genuinely ABSENT (the record uses command_id).
+    const accepted: Record<string, unknown>[] = [
+      { fee: 250 },
+      { fee: 0 },
+      { collectRef: null, provider: null, fee: null },
+      { collectRef: 123 },
+      { provider: 456 },
+      { fee: '250' },
+    ];
     for (const patch of accepted) {
       const spine = spineAtPaymentPending(quote);
       const evt = { ...good, payload: { ...good.payload, ...patch } };
