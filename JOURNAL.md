@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-04 · ACCES-ARME-1 (a2b phase 1) — the access gate armed on the published build · BUILT, on the branch, awaiting his Go
+## 2026-09-04 · ACCES-ARME-1 (a2b phase 1) — the access gate armed on the published build · DONE
+
+**MERGED AND PUBLISHED (founder: « go », 2026-09-04).** `main` fast-forwarded `d4a1804..57305d9`. **All four push workflows green on 57305d9 — ci 617 · pwa-preview 407 · expo-preview 440 · service-canon-drift 286.** expo-preview 440 IS the deliverable: the armed build is on the preview channel, and the next second cold open of any phone lands at the entrance. No deploy dispatched, deliberately — no Worker changed, and drift 286 green confirms the live Worker still matches the canon pin. **The ball is his: seat himself (roster check → signup → mint on the console → admission), then his word « seated » starts ACCES-ARME-2.**
 
 **Founder, 2026-09-04: « go a2b ».** Phase 1 of the a2b sequence in RESELLER-AUTH-1's plan of record — « arm the gate on the build » — and ONLY that arrow: the key retirement, the session-only Worker, the ceiling deletion are **ACCES-ARME-2, blocked until he confirms he is seated** (deploying them first would brick the only phone in production). Commit `1c7f8d0`, pushed to the branch; NOT merged.
 
