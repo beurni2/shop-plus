@@ -137,6 +137,10 @@ describe('ENTREE-POLI-1 — the card, by token', () => {
     expect(lumiereFn).toMatch(/<LinearGradient pointerEvents="none" colors=\{\[shopColour\.onPrimary, shopColour\.primary\]\} style=\{styles\.buttonLumiere\} \/>/);
     const bouton = kit.slice(kit.indexOf('export function PrimaryButton('), kit.indexOf('export function SecondaryButton('));
     expect(bouton).toMatch(/<LumiereBouton \/>\s*<Text style=\{styles\.buttonPrimaryText\}>/);
+    // The clip must be APPLIED, not merely defined: without this the kit's
+    // buttons would paint a square-cornered veil over the rounded plum while
+    // the style-block pin below stayed green (the verifier's catch).
+    expect(bouton).toContain('styles.buttonPrimaryHote');
     expect(styleOf(kit, 'buttonPrimary')).toContain('backgroundColor: shopColour.primary');
     // The hero: the same veil as the FIRST child of its Pressable, and its
     // style clips it — otherwise the veil paints square corners over the plum.
