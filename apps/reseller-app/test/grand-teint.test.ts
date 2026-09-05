@@ -168,7 +168,14 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     // ~57.0.16 is what `expo/bundledNativeModules.json` pins for SDK 57 (VERIFIED by
     // reading that manifest), so it reaches Expo Go over the air with no rebuild.
     expect(pkg.dependencies['expo-image-manipulator']).toBe('~57.0.16');
-    // the only deps beyond the pre-WO set are exactly these eleven
+    // ENTREE-POLI-1 — expo-linear-gradient, FOUNDER RULING 2026-09-05, given
+    // after the cost was stated (« needs a new dependency ») and answered in
+    // one word: « gradient ». The kit's primary button paints the approved
+    // canvas's top-light with it. First-party Expo module at the version
+    // `expo/bundledNativeModules.json` pins for SDK 57 (read, not guessed) —
+    // Expo Go ships its native half, so it reaches his phone over the air.
+    expect(pkg.dependencies['expo-linear-gradient']).toBe('~57.0.1');
+    // the only deps beyond the pre-WO set are exactly these twelve
     const before = new Set([
       '@platform/ui-tokens', 'expo', 'expo-status-bar', 'expo-updates', 'react', 'react-native',
     ]);
@@ -176,7 +183,7 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     expect(added.sort()).toEqual([
       '@shop-plus/reseller-money',
       'expo-audio', 'expo-crypto', 'expo-file-system', 'expo-font', 'expo-haptics',
-      'expo-image-manipulator', 'expo-image-picker', 'expo-video',
+      'expo-image-manipulator', 'expo-image-picker', 'expo-linear-gradient', 'expo-video',
       'react-native-svg', 'react-native-webview',
     ]);
     // …and NO third-party runtime dep sneaks in under cover of the workspace one.

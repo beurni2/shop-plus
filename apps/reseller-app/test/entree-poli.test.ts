@@ -102,12 +102,40 @@ describe('ENTREE-POLI-1 — the card, by token', () => {
     expect(styleOf(src, 'lienRangee')).toContain('minHeight: touch.minTargetPx');
   });
 
-  it('the two new sentences exist in the catalog with their registers', () => {
+  it('the new sentences exist in the catalog with their registers', () => {
     const catalog = rawCatalog as readonly { key: string; fr: string; register: string }[];
     const byKey = new Map(catalog.map((e) => [e.key, e]));
     expect(byKey.get('compte.etape_compte')?.fr).toBe('Votre compte');
     expect(byKey.get('compte.gratuit')?.fr).toBe('Gratuit. Votre compte est prêt en deux minutes.');
     expect(byKey.get('compte.gratuit')?.register).toBe('selling');
+    expect(byKey.get('compte.afficher')?.fr).toBe('Afficher');
+    expect(byKey.get('compte.masquer')?.fr).toBe('Masquer');
+  });
+
+  it('the password toggle is a ≥48dp control that PAIRS the eye with its word, and the field is masked by default', () => {
+    const src = app();
+    const ecran = src.slice(src.indexOf('function EcranCompte('), src.indexOf('function EcranAdmission('));
+    expect(ecran).toContain('secureTextEntry={!mdpVisible}');
+    expect(ecran).toContain('useState(false)'); // masked is the default
+    expect(ecran).toMatch(/<IconOeil size=\{dimension\.iconSizePx\.listRow\} color=\{shopColour\.deep\} \/>\s*<Text style=\{styles\.mdpBasculeTexte\}>\{t\(mdpVisible \? 'compte\.masquer' : 'compte\.afficher'\)\}<\/Text>/);
+    expect(styleOf(src, 'mdpBascule')).toContain('minHeight: touch.minTargetPx');
+  });
+
+  it('the primary button carries the canvas\'s top-light: a native gradient from the on-primary tint into the plum, at a token-derived veil, with the colour still on backgroundColor', () => {
+    const kit = stripComments(readFileSync(join(appDir, 'src/ui/kit.tsx'), 'utf8'));
+    expect(kit).toContain("import { LinearGradient } from 'expo-linear-gradient';");
+    const bouton = kit.slice(kit.indexOf('export function PrimaryButton('), kit.indexOf('export function SecondaryButton('));
+    expect(bouton).toMatch(/<LinearGradient pointerEvents="none" colors=\{\[shopColour\.onPrimary, shopColour\.primary\]\} style=\{styles\.buttonLumiere\} \/>/);
+    expect(styleOf(kit, 'buttonPrimary')).toContain('backgroundColor: shopColour.primary');
+    const lumiere = styleOf(kit, 'buttonLumiere');
+    expect(lumiere).toContain('StyleSheet.absoluteFill');
+    expect(lumiere).toContain('interaction.pressedOpacity');
+    expect(lumiere).not.toMatch(/opacity:\s*0?\.\d+/); // no bare number
+    expect(styleOf(kit, 'buttonPrimaryHote')).toContain("overflow: 'hidden'");
+    // The veil is between 10 % and 20 % — the canvas's 14 % white, in order of magnitude.
+    const veil = (1 - 0.92) * 2;
+    expect(veil).toBeGreaterThanOrEqual(0.1);
+    expect(veil).toBeLessThanOrEqual(0.2);
   });
 });
 

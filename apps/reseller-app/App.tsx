@@ -6,7 +6,7 @@ import { File } from 'expo-file-system';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, touch, interaction, dimension } from '@platform/ui-tokens/legacy';
 import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './src/ui/faso-fonts';
-import { IconAccueil, IconChevron, IconProduits, IconGains, IconProfil, IconVitrine, IconCoche, IconVoix, IconTelephone, IconCle } from './src/ui/icons';
+import { IconAccueil, IconChevron, IconProduits, IconGains, IconProfil, IconVitrine, IconCoche, IconVoix, IconTelephone, IconCle, IconOeil } from './src/ui/icons';
 import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
 import { t, tf } from './src/i18n';
@@ -2974,6 +2974,9 @@ const styles = StyleSheet.create({
   telPrefixe: { paddingHorizontal: spacing.md, justifyContent: 'center', borderRightWidth: interaction.hairline.medium, borderRightColor: sharedColour.hairlineInput },
   telPrefixeTexte: { color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size), fontWeight: w(t2.scale.row.wght) },
   telInput: { flex: 1, minHeight: touch.minTargetPx, paddingHorizontal: spacing.md, color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size) },
+  mdpInput: { flex: 1, minHeight: touch.minTargetPx, paddingHorizontal: spacing.md, color: sharedColour.ink, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  mdpBascule: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: touch.minTargetPx, paddingHorizontal: spacing.md, borderLeftWidth: interaction.hairline.medium, borderLeftColor: sharedColour.hairlineInput },
+  mdpBasculeTexte: { color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.caps.size), fontWeight: w(t2.scale.caps.wght), letterSpacing: rmax(t2.scale.caps.size) * CAPS_TRACK, textTransform: 'uppercase' },
   noteVerte: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: sharedColour.okBg, borderRadius: rmax(radius.buttonSecondary), paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
   noteVerteTexte: { flex: 1, color: sharedColour.okFg, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   rayonsAide: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
@@ -3647,6 +3650,10 @@ function EcranCompte({ service, envoi, erreurKey, rayons, onEnvoi, onErreur, onC
   const [email, setEmail] = useState('');
   const [tel, setTel] = useState('');
   const [mdp, setMdp] = useState('');
+  // ENTREE-POLI-1 (founder 2026-09-05: « mask with the option to view ») — the
+  // password is MASKED by default and she can reveal it with one tap; the
+  // toggle is the same control in both modes and says what it will do next.
+  const [mdpVisible, setMdpVisible] = useState(false);
   // RAYONS-REVENDEUR-1 — her picks, capped at five. A sixth tap does not
   // silently die (the dead-button ban): the helper line switches to the
   // « maximum » sentence until she deselects one.
@@ -3770,10 +3777,30 @@ function EcranCompte({ service, envoi, erreurKey, rayons, onEnvoi, onErreur, onC
         </View>
         <View style={styles.champ}>
           <Text style={styles.champLabel}>{t('compte.mot_de_passe')}</Text>
-          {/* visible on purpose: she is alone with her screen, and seeing what she
-              types beats a masked field she cannot check — the console key made the
-              same call. A masking toggle can come with a founder ask. */}
-          <TextInput style={styles.champInput} value={mdp} onChangeText={setMdp} autoCapitalize="none" autoCorrect={false} accessibilityLabel={t('compte.mot_de_passe')} editable={!envoi} />
+          {/* Masked, with the way to check what she typed one tap away (the
+              founder's ask of 2026-09-05 — before it, the field was visible on
+              purpose so a woman alone with her screen could read her own word). */}
+          <View style={styles.telRangee}>
+            <TextInput
+              style={styles.mdpInput}
+              value={mdp}
+              onChangeText={setMdp}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry={!mdpVisible}
+              accessibilityLabel={t('compte.mot_de_passe')}
+              editable={!envoi}
+            />
+            <Pressable
+              onPress={() => setMdpVisible((v) => !v)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: mdpVisible }}
+              style={({ pressed }) => [styles.mdpBascule, pressed && styles.pressed]}
+            >
+              <IconOeil size={dimension.iconSizePx.listRow} color={shopColour.deep} />
+              <Text style={styles.mdpBasculeTexte}>{t(mdpVisible ? 'compte.masquer' : 'compte.afficher')}</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
 

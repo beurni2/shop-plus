@@ -10,6 +10,7 @@ import * as fsDouble from './doubles/expo-file-system';
 import * as audioDouble from './doubles/expo-audio';
 import * as videoDouble from './doubles/expo-video';
 import * as simpleDouble from './doubles/expo-simple';
+import * as gradientDouble from './doubles/expo-linear-gradient';
 
 /**
  * ═══ RENDU-RÉEL — the harness holds ITSELF to the mock-certification law ═══
@@ -70,6 +71,7 @@ const DOUBLED: readonly { readonly spec: string; readonly mod: Record<string, un
   { spec: 'expo-updates', mod: simpleDouble as unknown as Record<string, unknown> },
   { spec: 'expo-image-picker', mod: simpleDouble as unknown as Record<string, unknown> },
   { spec: 'expo-image-manipulator', mod: simpleDouble as unknown as Record<string, unknown> },
+  { spec: 'expo-linear-gradient', mod: gradientDouble as unknown as Record<string, unknown> },
 ];
 
 describe('every double is CERTIFIED to what the app imports', () => {

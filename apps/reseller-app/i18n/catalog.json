@@ -3646,5 +3646,17 @@
   "fr": "Gratuit. Votre compte est prêt en deux minutes.",
   "register": "selling",
   "screenClass": "status"
+ },
+ {
+  "key": "compte.afficher",
+  "fr": "Afficher",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.masquer",
+  "fr": "Masquer",
+  "register": "neutral",
+  "screenClass": "label"
  }
 ]

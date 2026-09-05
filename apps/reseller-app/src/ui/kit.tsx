@@ -17,6 +17,7 @@ import {
   money,
   skeleton as skeletonToken,
 } from '@platform/ui-tokens/legacy';
+import { LinearGradient } from 'expo-linear-gradient';
 import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './faso-fonts';
 import { fp } from './motion';
 import { WovenBand } from './signature';
@@ -198,14 +199,23 @@ export function ListRow({
 function buttonStyle(base: StyleProp<ViewStyle>) {
   return ({ pressed }: { pressed: boolean }) => [base, pressed && styles.pressed];
 }
+/**
+ * ENTREE-POLI-1 (founder 2026-09-05: « gradient ») — the primary button
+ * carries the approved canvas's TOP-LIGHT: a native gradient from the
+ * on-primary tint to the primary itself, laid over the plum at a token-derived
+ * opacity. THE COLOUR STAYS ON `backgroundColor` (the plum is the button; the
+ * light is a veil over it), so every scan and pin that reads the primary
+ * there keeps reading it. The veil ignores touches; the label sits above it.
+ */
 export function PrimaryButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
   return (
     <Pressable
-      style={buttonStyle([styles.buttonBase, styles.buttonPrimary, disabled === true && styles.buttonDisabled])}
+      style={buttonStyle([styles.buttonBase, styles.buttonPrimary, styles.buttonPrimaryHote, disabled === true && styles.buttonDisabled])}
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
     >
+      <LinearGradient pointerEvents="none" colors={[shopColour.onPrimary, shopColour.primary]} style={styles.buttonLumiere} />
       <Text style={styles.buttonPrimaryText}>{label}</Text>
     </Pressable>
   );
@@ -505,6 +515,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   buttonPrimary: { backgroundColor: shopColour.primary },
+  // The top-light's host clips the veil to the button's own radius; the veil
+  // fills the button and fades from the on-primary tint (top) into the plum
+  // (bottom) at an opacity DERIVED from the press token — the same order of
+  // magnitude as the canvas's 14 % white, and no bare number.
+  buttonPrimaryHote: { overflow: 'hidden' },
+  buttonLumiere: { ...StyleSheet.absoluteFill, opacity: (1 - interaction.pressedOpacity) * 2 },
   buttonPrimaryText: { color: shopColour.onPrimary, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },
   buttonSecondary: { backgroundColor: shopColour.soft },
   buttonSecondaryText: { color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght) },

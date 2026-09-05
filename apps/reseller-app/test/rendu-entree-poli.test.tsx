@@ -113,6 +113,38 @@ describe('ENTREE-POLI-1 — the redrawn entrance, driven', () => {
     screen.unmount();
   });
 
+  it('the password is MASKED by default; « Afficher » reveals it, « Masquer » hides it again — in both modes', async () => {
+    wire(routes());
+    const screen = await mountApp();
+    const mdp = (): { secureTextEntry?: boolean } => {
+      const inputs = screen.tree.root.findAllByType('TextInput' as never);
+      const field = inputs.find((i) => i.props['accessibilityLabel'] === 'Votre mot de passe (8 lettres ou plus)');
+      if (field === undefined) throw new Error(`no password field. Fields: ${JSON.stringify(inputs.map((i) => i.props['accessibilityLabel']))}`);
+      return field.props as { secureTextEntry?: boolean };
+    };
+
+    // Signup mode: masked, and the way to check what she typed is one tap away.
+    expect(mdp().secureTextEntry).toBe(true);
+    expect(screen.canPress('Afficher')).toBe(true);
+    await screen.press('Afficher');
+    expect(mdp().secureTextEntry).toBe(false);
+    expect(screen.canPress('Masquer')).toBe(true);
+    await screen.press('Masquer');
+    expect(mdp().secureTextEntry).toBe(true);
+
+    // Login mode: the same control, the same default.
+    await screen.press('Me connecter');
+    expect(mdp().secureTextEntry).toBe(true);
+    await screen.press('Afficher');
+    expect(mdp().secureTextEntry).toBe(false);
+    // …and what she typed still travels: the field stays the one the login reads.
+    await screen.type('motdepasse', 'Votre mot de passe (8 lettres ou plus)');
+    await screen.type('awa@example.bf', 'Votre email');
+    expect(screen.canPress('Me connecter')).toBe(true);
+
+    screen.unmount();
+  });
+
   it('the code door carries the SAME rail, its first step behind her', async () => {
     await seedPending();
     wire(routes());

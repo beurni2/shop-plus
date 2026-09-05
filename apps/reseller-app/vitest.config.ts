@@ -46,6 +46,9 @@ export default defineConfig({
       { find: 'expo-updates', replacement: at('./test/doubles/expo-simple.ts') },
       { find: 'expo-image-picker', replacement: at('./test/doubles/expo-simple.ts') },
       { find: 'expo-image-manipulator', replacement: at('./test/doubles/expo-simple.ts') },
+      // ENTREE-POLI-1 — the kit's primary button paints its top-light with a
+      // native gradient view; the double renders children and paints nothing.
+      { find: 'expo-linear-gradient', replacement: at('./test/doubles/expo-linear-gradient.tsx') },
     ],
   },
 });
