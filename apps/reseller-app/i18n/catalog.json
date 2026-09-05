@@ -3648,14 +3648,14 @@
   "screenClass": "status"
  },
  {
-  "key": "compte.afficher",
-  "fr": "Afficher",
+  "key": "compte.voir",
+  "fr": "Voir",
   "register": "neutral",
   "screenClass": "label"
  },
  {
-  "key": "compte.masquer",
-  "fr": "Masquer",
+  "key": "compte.cacher",
+  "fr": "Cacher",
   "register": "neutral",
   "screenClass": "label"
  }

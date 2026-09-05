@@ -113,7 +113,7 @@ describe('ENTREE-POLI-1 — the redrawn entrance, driven', () => {
     screen.unmount();
   });
 
-  it('the password is MASKED by default; « Afficher » reveals it, « Masquer » hides it again — in both modes', async () => {
+  it('the password is MASKED by default; « Voir » reveals it, « Cacher » hides it again — in both modes', async () => {
     wire(routes());
     const screen = await mountApp();
     const mdp = (): { secureTextEntry?: boolean } => {
@@ -125,11 +125,11 @@ describe('ENTREE-POLI-1 — the redrawn entrance, driven', () => {
 
     // Signup mode: masked, and the way to check what she typed is one tap away.
     expect(mdp().secureTextEntry).toBe(true);
-    expect(screen.canPress('Afficher')).toBe(true);
-    await screen.press('Afficher');
+    expect(screen.canPress('Voir')).toBe(true);
+    await screen.press('Voir');
     expect(mdp().secureTextEntry).toBe(false);
-    expect(screen.canPress('Masquer')).toBe(true);
-    await screen.press('Masquer');
+    expect(screen.canPress('Cacher')).toBe(true);
+    await screen.press('Cacher');
     expect(mdp().secureTextEntry).toBe(true);
 
     // Login mode: the SAME control stands and still flips. The mask state
@@ -138,7 +138,7 @@ describe('ENTREE-POLI-1 — the redrawn entrance, driven', () => {
     // the default is proven once, above, on the first mount.
     await screen.press('Me connecter');
     expect(mdp().secureTextEntry).toBe(true);
-    await screen.press('Afficher');
+    await screen.press('Voir');
     expect(mdp().secureTextEntry).toBe(false);
     // …and what she typed still travels: the field stays the one the login reads.
     await screen.type('motdepasse', 'Votre mot de passe (8 lettres ou plus)');

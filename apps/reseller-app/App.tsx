@@ -64,6 +64,7 @@ import {
   Card,
   EmptyState,
   GhostButton,
+  LumiereBouton,
   Overline,
   PrimaryButton,
   ScreenTransition,
@@ -1613,6 +1614,9 @@ export default function App() {
                 box — the kit's own button geometry — so a long French sentence
                 wraps inside the button instead of running past its edge. */}
             <Pressable style={({ pressed }) => [styles.sparkleCta, pressed && styles.pressed]} onPress={() => go('opportunites')} accessibilityRole="button">
+              {/* The kit's top-light (founder 2026-09-05: « make the hero match ») —
+                  the same veil every PrimaryButton carries; sparkleCta clips it. */}
+              <LumiereBouton />
               <Text style={styles.sparkleCtaText}>{t('accueil.cta_trouver')}</Text>
             </Pressable>
 
@@ -3007,6 +3011,7 @@ const styles = StyleSheet.create({
     minHeight: touch.minTargetPx + spacing.sm,
     borderRadius: radius.button,
     backgroundColor: shopColour.primary,
+    overflow: 'hidden',
   },
   sparkleCtaText: { color: shopColour.onPrimary, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght), textAlign: 'center' },
   homeSectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm },
@@ -3798,7 +3803,7 @@ function EcranCompte({ service, envoi, erreurKey, rayons, onEnvoi, onErreur, onC
               style={({ pressed }) => [styles.mdpBascule, pressed && styles.pressed]}
             >
               <IconOeil size={dimension.iconSizePx.listRow} color={shopColour.deep} />
-              <Text style={styles.mdpBasculeTexte}>{t(mdpVisible ? 'compte.masquer' : 'compte.afficher')}</Text>
+              <Text style={styles.mdpBasculeTexte}>{t(mdpVisible ? 'compte.cacher' : 'compte.voir')}</Text>
             </Pressable>
           </View>
         </View>

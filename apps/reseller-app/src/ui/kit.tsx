@@ -200,13 +200,19 @@ function buttonStyle(base: StyleProp<ViewStyle>) {
   return ({ pressed }: { pressed: boolean }) => [base, pressed && styles.pressed];
 }
 /**
- * ENTREE-POLI-1 (founder 2026-09-05: « gradient ») — the primary button
- * carries the approved canvas's TOP-LIGHT: a native gradient from the
- * on-primary tint to the primary itself, laid over the plum at a token-derived
- * opacity. THE COLOUR STAYS ON `backgroundColor` (the plum is the button; the
- * light is a veil over it), so every scan and pin that reads the primary
- * there keeps reading it. The veil ignores touches; the label sits above it.
+ * ENTREE-POLI-1 (founder 2026-09-05: « gradient », then « make the hero
+ * match ») — the TOP-LIGHT every plum button carries: a native gradient from
+ * the on-primary tint to the primary itself, laid over the plum at a
+ * token-derived opacity. THE COLOUR STAYS ON the host's `backgroundColor` (the
+ * plum is the button; the light is a veil over it), so every scan and pin that
+ * reads the primary there keeps reading it. The veil ignores touches; the
+ * label, rendered after it, sits above it. The host must clip (`overflow:
+ * 'hidden'`) so the veil follows the button's own radius. Built ONCE here —
+ * the kit's PrimaryButton and the accueil's hero CTA both render it.
  */
+export function LumiereBouton() {
+  return <LinearGradient pointerEvents="none" colors={[shopColour.onPrimary, shopColour.primary]} style={styles.buttonLumiere} />;
+}
 export function PrimaryButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
   return (
     <Pressable
@@ -215,7 +221,7 @@ export function PrimaryButton({ label, onPress, disabled }: { label: string; onP
       disabled={disabled}
       accessibilityRole="button"
     >
-      <LinearGradient pointerEvents="none" colors={[shopColour.onPrimary, shopColour.primary]} style={styles.buttonLumiere} />
+      <LumiereBouton />
       <Text style={styles.buttonPrimaryText}>{label}</Text>
     </Pressable>
   );

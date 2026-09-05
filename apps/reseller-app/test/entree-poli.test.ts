@@ -109,8 +109,12 @@ describe('ENTREE-POLI-1 — the card, by token', () => {
     expect(byKey.get('compte.etape_compte')?.fr).toBe('Votre compte');
     expect(byKey.get('compte.gratuit')?.fr).toBe('Gratuit. Votre compte est prêt en deux minutes.');
     expect(byKey.get('compte.gratuit')?.register).toBe('selling');
-    expect(byKey.get('compte.afficher')?.fr).toBe('Afficher');
-    expect(byKey.get('compte.masquer')?.fr).toBe('Masquer');
+    // Founder 2026-09-05: « make voir/cacher » — his word « view », shorter and
+    // warmer than Android's own « Afficher / Masquer ».
+    expect(byKey.get('compte.voir')?.fr).toBe('Voir');
+    expect(byKey.get('compte.cacher')?.fr).toBe('Cacher');
+    expect(byKey.has('compte.afficher'), 'the retired key must be gone').toBe(false);
+    expect(byKey.has('compte.masquer'), 'the retired key must be gone').toBe(false);
   });
 
   it('the password toggle is a ≥48dp control that PAIRS the eye with its word, and the field is masked by default', () => {
@@ -120,16 +124,27 @@ describe('ENTREE-POLI-1 — the card, by token', () => {
     // Anchored on THIS state: a bare `useState(false)` is also `plein`'s, and
     // would pass with the password visible by default (the verifier's catch).
     expect(ecran).toContain('const [mdpVisible, setMdpVisible] = useState(false);');
-    expect(ecran).toMatch(/<IconOeil size=\{dimension\.iconSizePx\.listRow\} color=\{shopColour\.deep\} \/>\s*<Text style=\{styles\.mdpBasculeTexte\}>\{t\(mdpVisible \? 'compte\.masquer' : 'compte\.afficher'\)\}<\/Text>/);
+    expect(ecran).toMatch(/<IconOeil size=\{dimension\.iconSizePx\.listRow\} color=\{shopColour\.deep\} \/>\s*<Text style=\{styles\.mdpBasculeTexte\}>\{t\(mdpVisible \? 'compte\.cacher' : 'compte\.voir'\)\}<\/Text>/);
     expect(styleOf(src, 'mdpBascule')).toContain('minHeight: touch.minTargetPx');
   });
 
   it('the primary button carries the canvas\'s top-light: a native gradient from the on-primary tint into the plum, at a token-derived veil, with the colour still on backgroundColor', () => {
     const kit = stripComments(readFileSync(join(appDir, 'src/ui/kit.tsx'), 'utf8'));
     expect(kit).toContain("import { LinearGradient } from 'expo-linear-gradient';");
+    // The veil is built ONCE (`LumiereBouton`) and rendered by the primary
+    // button — and by the accueil hero (founder: « make the hero match »).
+    const lumiereFn = kit.slice(kit.indexOf('export function LumiereBouton('), kit.indexOf('export function PrimaryButton('));
+    expect(lumiereFn).toMatch(/<LinearGradient pointerEvents="none" colors=\{\[shopColour\.onPrimary, shopColour\.primary\]\} style=\{styles\.buttonLumiere\} \/>/);
     const bouton = kit.slice(kit.indexOf('export function PrimaryButton('), kit.indexOf('export function SecondaryButton('));
-    expect(bouton).toMatch(/<LinearGradient pointerEvents="none" colors=\{\[shopColour\.onPrimary, shopColour\.primary\]\} style=\{styles\.buttonLumiere\} \/>/);
+    expect(bouton).toMatch(/<LumiereBouton \/>\s*<Text style=\{styles\.buttonPrimaryText\}>/);
     expect(styleOf(kit, 'buttonPrimary')).toContain('backgroundColor: shopColour.primary');
+    // The hero: the same veil as the FIRST child of its Pressable, and its
+    // style clips it — otherwise the veil paints square corners over the plum.
+    const src = app();
+    expect(src).toMatch(/styles\.sparkleCta, pressed && styles\.pressed\]\} onPress=\{\(\) => go\('opportunites'\)\} accessibilityRole="button">\s*(?:\{\}\s*)?<LumiereBouton \/>\s*<Text style=\{styles\.sparkleCtaText\}>/);
+    expect(styleOf(src, 'sparkleCta')).toContain("overflow: 'hidden'");
+    expect(styleOf(src, 'sparkleCta')).toContain('backgroundColor: shopColour.primary');
+    expect((src.match(/<LumiereBouton \/>/g) ?? []).length, 'the hero is the ONE place outside the kit that renders the veil').toBe(1);
     const lumiere = styleOf(kit, 'buttonLumiere');
     expect(lumiere).toContain('StyleSheet.absoluteFill');
     expect(lumiere).toContain('interaction.pressedOpacity');
