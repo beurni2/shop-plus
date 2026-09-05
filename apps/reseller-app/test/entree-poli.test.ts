@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { sharedColour, shopColour } from '@platform/ui-tokens';
+import { interaction } from '@platform/ui-tokens/legacy';
 import rawCatalog from '../i18n/catalog.json';
 
 /**
@@ -116,7 +117,9 @@ describe('ENTREE-POLI-1 — the card, by token', () => {
     const src = app();
     const ecran = src.slice(src.indexOf('function EcranCompte('), src.indexOf('function EcranAdmission('));
     expect(ecran).toContain('secureTextEntry={!mdpVisible}');
-    expect(ecran).toContain('useState(false)'); // masked is the default
+    // Anchored on THIS state: a bare `useState(false)` is also `plein`'s, and
+    // would pass with the password visible by default (the verifier's catch).
+    expect(ecran).toContain('const [mdpVisible, setMdpVisible] = useState(false);');
     expect(ecran).toMatch(/<IconOeil size=\{dimension\.iconSizePx\.listRow\} color=\{shopColour\.deep\} \/>\s*<Text style=\{styles\.mdpBasculeTexte\}>\{t\(mdpVisible \? 'compte\.masquer' : 'compte\.afficher'\)\}<\/Text>/);
     expect(styleOf(src, 'mdpBascule')).toContain('minHeight: touch.minTargetPx');
   });
@@ -132,8 +135,9 @@ describe('ENTREE-POLI-1 — the card, by token', () => {
     expect(lumiere).toContain('interaction.pressedOpacity');
     expect(lumiere).not.toMatch(/opacity:\s*0?\.\d+/); // no bare number
     expect(styleOf(kit, 'buttonPrimaryHote')).toContain("overflow: 'hidden'");
-    // The veil is between 10 % and 20 % — the canvas's 14 % white, in order of magnitude.
-    const veil = (1 - 0.92) * 2;
+    // The veil is between 10 % and 20 % — the canvas's 14 % white, in order of
+    // magnitude — computed from the TOKEN, so a moved press-dim moves this pin.
+    const veil = (1 - interaction.pressedOpacity) * 2;
     expect(veil).toBeGreaterThanOrEqual(0.1);
     expect(veil).toBeLessThanOrEqual(0.2);
   });

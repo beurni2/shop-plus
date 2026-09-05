@@ -132,7 +132,10 @@ describe('ENTREE-POLI-1 — the redrawn entrance, driven', () => {
     await screen.press('Masquer');
     expect(mdp().secureTextEntry).toBe(true);
 
-    // Login mode: the same control, the same default.
+    // Login mode: the SAME control stands and still flips. The mask state
+    // carries across the switch as the typed value does (one component, one
+    // state) — so this is not an independent proof of the login default;
+    // the default is proven once, above, on the first mount.
     await screen.press('Me connecter');
     expect(mdp().secureTextEntry).toBe(true);
     await screen.press('Afficher');
