@@ -25,9 +25,7 @@ import { orderIdForQuote } from '../src/order-core.js';
 import type { R2BucketLike } from '../src/media/media-store.js';
 import {
   isWrite,
-  rejectUnauthorizedWrite,
   rejectUnauthorizedOpsRead,
-  keyAuthorized,
   paymentWebhookAuthorized,
   unauthorized,
   progressWriter,
@@ -138,10 +136,6 @@ interface Env extends WriteAuthEnv {
    * `printf '1' | wrangler secret put CHECKOUT_KILL` · `wrangler secret delete
    * CHECKOUT_KILL`. Declared here for documentation; the router never reads it. */
   CHECKOUT_KILL?: string;
-  /** RESELLER-PILOTE-1 — the account book's pilot ceiling, read by
-   * ResellerAccountsDO from its own env (absent ⇒ one seat). A `[vars]` value
-   * that leaves with slice a2. Declared for documentation; never read here. */
-  RESELLER_ADMISSION_CEILING?: string;
 }
 
 export default {
@@ -1278,8 +1272,8 @@ export default {
      * later pay out against.
      *
      * THE SECRET IS ITS OWN (`PAYMENT_WEBHOOK_SECRET`, a `wrangler secret`,
-     * never `[vars]`, never in a bundle) and it FAILS CLOSED exactly as
-     * `rejectUnauthorizedWrite` does: with no secret configured, every webhook is
+     * never `[vars]`, never in a bundle) and it FAILS CLOSED like every gate in
+     * `auth.ts`: with no secret configured, every webhook is
      * 401. The check runs HERE, before any dispatch, so a rejected webhook never
      * reaches a Durable Object and the 401 can never become an existence oracle
      * for order ids. Matched with `===` and POST only — every other method on
@@ -1391,26 +1385,29 @@ export default {
      * or absent shop answers ONE mute 404, so the check can never become an
      * existence oracle. A listing is owned through its shop.
      *
-     * THE SHARED KEY STILL OPENS EVERY DOOR IT OPENED — deliberately, for one
-     * more slice: the published app's access gate is off, so the phone in the
-     * founder's hand holds no session, and his shop was created under a device
-     * identity. Slice a2b (his word) arms the gate, seats him, and retires the
-     * key, the a1 ceiling and its var together. Until then a key-only caller is
-     * the pre-slice caller: no identity, no ownership — the residue the a1
-     * ceiling exists to bound.
+     * ═══ ACCES-ARME-2 (a2b phase 2, founder « Seated » 2026-09-05) — THE SHARED
+     * KEY IS RETIRED. ═══ There is no key path any more: a write, a listings
+     * read, a storefront read or the supply read is HER SESSION or 401 — ONE
+     * identical 401, computed before any dispatch or existence lookup, so it
+     * can never become an existence oracle. Pending and paused sessions are
+     * nobody here (`sessionActive` resolves ACTIVE only). The two exemptions
+     * are the FOUNDER'S OWN roads on key C (`CHECKOUT_OPS_SECRET`, his
+     * credential alone, never in any bundle): the directory read `GET
+     * /storefronts` (the operator list the key used to open) and the orphan
+     * takedown `POST /storefronts/{id}/unpublish` (a key-era shop belongs to
+     * no account, so no session could ever unpublish it). Nothing else on key
+     * C: no create, no publish, no media, no listing.
      */
-    const appelante =
-      isWrite(request.method) || isListings || isStorefrontRead || isSupplyCollection
-        ? await sessionActive(request, env)
-        : undefined;
+    const gardee = isWrite(request.method) || isListings || isStorefrontRead || isSupplyCollection;
+    const appelante = gardee ? await sessionActive(request, env) : undefined;
     if (appelante === undefined) {
-      // SERVICE-WRITE-AUTH-1 — gate EVERY write at the one deployed entry, before
-      // any dispatch or existence lookup (so the 401 is never an existence oracle).
-      // Reads pass straight through; a Worker with no secret configured fails closed.
-      const denied = await rejectUnauthorizedWrite(request, env);
-      if (denied) return denied;
-      if ((isListings || isStorefrontRead || isSupplyCollection) && !(await keyAuthorized(request, env))) {
-        return unauthorized();
+      if (gardee) {
+        const routeOperateur =
+          (request.method === 'GET' && pathname === '/storefronts') ||
+          (request.method === 'POST' && /^\/storefronts\/[^/]+\/unpublish$/.test(pathname));
+        if (!routeOperateur) return unauthorized();
+        const refused = await rejectUnauthorizedOpsRead(request, env);
+        if (refused) return refused;
       }
     } else {
       const refus = await refuserHorsPropriete(appelante, request, pathname, env);
@@ -1420,8 +1417,8 @@ export default {
     if (pathname === '/storefronts' || pathname.startsWith('/storefronts/')) {
       const res = await sfRouter.fetch(request, env);
       // RESELLER-AUTH-1 — with a session, the admin list is HER list: rows of
-      // other resellers' shops never leave. The key-only caller keeps the whole
-      // directory (the founder's operator read, until a2b).
+      // other resellers' shops never leave. The founder's key-C read (the only
+      // other caller this far, ACCES-ARME-2) keeps the whole directory.
       if (appelante !== undefined && request.method === 'GET' && pathname === '/storefronts' && res.status === 200) {
         const rows = (await res.json().catch(() => null)) as { resellerId?: unknown }[] | null;
         return Response.json((rows ?? []).filter((r) => r.resellerId === appelante.accountId));

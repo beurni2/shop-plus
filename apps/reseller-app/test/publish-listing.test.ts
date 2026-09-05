@@ -81,7 +81,7 @@ describe('THE APP NEVER AUTHORS A SIGNED AMOUNT', () => {
       return { ok: true, status: 200, json: async () => ({ status: 'published' }) } as unknown as Response;
     }) as unknown as typeof fetch;
     try {
-      const svc = new HttpStorefrontService('https://svc.example', 'k');
+      const svc = new HttpStorefrontService('https://svc.example');
       const res = await svc.publishListing({
         storefrontId: 'sf-8291',
         resellerId: 'rs-8291',
@@ -110,7 +110,7 @@ describe('THE APP NEVER AUTHORS A SIGNED AMOUNT', () => {
     globalThis.fetch = (async () =>
       ({ ok: false, status, json: async () => ({ error: 'supply_unavailable' }) }) as unknown as Response) as unknown as typeof fetch;
     try {
-      const svc = new HttpStorefrontService('https://svc.example', 'k');
+      const svc = new HttpStorefrontService('https://svc.example');
       const req = {
         storefrontId: 'sf-1',
         resellerId: 'rs-1',

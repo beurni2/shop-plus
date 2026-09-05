@@ -2,7 +2,8 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance, type Seance } from './seance';
 import type { StorefrontView } from '../src/customer-projection.js';
 
 /**
@@ -12,9 +13,14 @@ import type { StorefrontView } from '../src/customer-projection.js';
  * `GET /s/{slug}` resolves through the DO — and the R2 media path: upload → store
  * in R2 → read back through `GET /media/{key}` with the immutable cache header.
  *
- * SERVICE-WRITE-AUTH-1 adds the write-gate proof below: every write is 401 without
- * the shared key and succeeds with it; every read answers with no credential; the
- * 401 is not an existence oracle; and a Worker with NO secret fails closed.
+ * SERVICE-WRITE-AUTH-1 added the write-gate proof below; ACCES-ARME-2 (a2b phase
+ * 2, founder « Seated » 2026-09-05) retired the shared key it proved, so the gate
+ * proven here is the SESSION gate: every write and every reseller read is 401
+ * without an ACTIVE session and succeeds with hers; every buyer read answers with
+ * no credential; the 401 is not an existence oracle; a Worker with NO account book
+ * bound can resolve no session and fails closed; the retired header opens nothing.
+ * `S` is the ONE reseller this suite seats on the real doors (`test/seance.ts`)
+ * — every shop below is hers, by the account id the book minted.
  *
  * WHAT THIS PROVES vs NOT: this exercises the real code paths (shim, R2 put/get,
  * the read route, the unguessable key, the auth gate). It does NOT prove the
@@ -27,23 +33,23 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'combined-do-'));
 const T0 = '2026-07-14T08:00:00.000Z';
 
-/** The configured shared secret + the wire header (independently stated here so a
- * rename of the code constant that breaks the contract is caught by this test). */
-const WRITE_SECRET = 'test-write-secret-0001';
-const WRITE_KEY_HEADER = 'X-Write-Key';
-const authed = { [WRITE_KEY_HEADER]: WRITE_SECRET };
+/** The seated reseller (ACCES-ARME-2) and her bearer alone — the same header
+ * set the retired key used to occupy, so every call below is otherwise
+ * byte-identical to what it sent before. */
+let S: Seance;
+const bearer = (): { Authorization: string } => ({ Authorization: S.bearer.Authorization });
 
-const SELLER_001 = {
+const SELLER_001 = () => ({
   commandId: 'cmd-seller001-create',
   id: 'sf-seller-0001',
-  resellerId: 'rs-seller-0001',
+  resellerId: S.accountId,
   shortCode: 'SELLER-0001',
   name: 'Boutique du fondateur',
   zone: 'Ouagadougou',
   category: 'Général',
   correlationId: 'corr-001',
   at: T0,
-};
+});
 
 /** A minimal VALID PNG the media validator accepts: sig + IHDR 256×256. */
 function tinyPng(): Uint8Array {
@@ -135,10 +141,10 @@ const MEDIA_PUBLIC_BASE = 'https://storefront-service.example.workers.dev';
 const mf = new Miniflare({
   modules: true,
   scriptPath: SCRIPT,
-  durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO' },
+  durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', COMPTES: 'ResellerAccountsDO' },
   r2Buckets: ['BUCKET'],
   durableObjectsPersist: persist,
-  bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET, PRODUCT_MEDIA_BASE, MEDIA_PUBLIC_BASE },
+  bindings: { CHECKOUT_OPS_SECRET: OPS_SECRET, PRODUCT_MEDIA_BASE, MEDIA_PUBLIC_BASE },
   // BROWSE-SUPPLY-BINDING-1 — a REAL service binding through workerd (miniflare's
   // serviceBindings), emulating boutik's collection producer: fresh asOf computed
   // AT REQUEST TIME so the 15-minute bound passes, one Bazin item, exact-path
@@ -176,7 +182,8 @@ const mf = new Miniflare({
   },
 });
 
-// A SECOND Worker with NO secret configured — to prove the gate fails CLOSED.
+// A SECOND Worker with NO account book and no secret — to prove the gate fails
+// CLOSED: no session can resolve, so a write with a bearer and one without both 401.
 const persistNoSecret = mkdtempSync(join(tmpdir(), 'combined-nosecret-'));
 const mfNoSecret = new Miniflare({
   modules: true,
@@ -184,7 +191,7 @@ const mfNoSecret = new Miniflare({
   durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO' },
   r2Buckets: ['BUCKET'],
   durableObjectsPersist: persistNoSecret,
-  // deliberately NO `bindings` → STOREFRONT_WRITE_SECRET is undefined
+  // deliberately NO `bindings` and NO COMPTES → nothing can authorise a write
 });
 
 // A THIRD Worker with the CUSTODY WIRES armed (audit E6) — to prove /health
@@ -204,6 +211,10 @@ const mfArmed = new Miniflare({
   },
 });
 
+beforeAll(async () => {
+  S = await seance(mf, 'combined');
+}, 60_000);
+
 afterAll(async () => {
   await mf.dispose();
   await mfNoSecret.dispose();
@@ -217,8 +228,8 @@ describe('combined Worker — the shim + the R2 media path, on real workerd', ()
   it('COMPOSITION: POST /storefronts then GET /s/{slug} resolves through the shim to the StorefrontView', async () => {
     const created = await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST',
-      headers: authed,
-      body: JSON.stringify(SELLER_001),
+      headers: bearer(),
+      body: JSON.stringify(SELLER_001()),
     });
     expect(((await created.json()) as { status: string }).status).toBe('created');
 
@@ -232,7 +243,7 @@ describe('combined Worker — the shim + the R2 media path, on real workerd', ()
   it('R2 WRITE→READ: an upload lands in R2 and reads back through GET /media/{key} with the immutable cache', async () => {
     const up = await mf.dispatchFetch('http://c/media/upload?kind=cover&storefrontId=sf-seller-0001', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: tinyPng(),
     });
     expect(up.status).toBe(201);
@@ -282,7 +293,7 @@ describe('combined Worker — the shim + the R2 media path, on real workerd', ()
   it('PORTÉE-MEDIA: the AVPlayer probe — Range: bytes=0-1 answers 206 with exactly two bytes and the total', async () => {
     const up = await mf.dispatchFetch('http://c/media/upload?kind=cover&storefrontId=sf-seller-0001', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: tinyPng(),
     });
     expect(up.status).toBe(201);
@@ -304,7 +315,7 @@ describe('combined Worker — the shim + the R2 media path, on real workerd', ()
   it('PORTÉE-MEDIA: open-ended and suffix ranges serve the right slices; the full read advertises ranges', async () => {
     const up = await mf.dispatchFetch('http://c/media/upload?kind=cover&storefrontId=sf-seller-0001', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: tinyPng(),
     });
     const rec = (await up.json()) as { url: string };
@@ -331,7 +342,7 @@ describe('combined Worker — the shim + the R2 media path, on real workerd', ()
   it('PORTÉE-MEDIA: a range past the end answers 416 with the total; a malformed Range is ignored, never a 500', async () => {
     const up = await mf.dispatchFetch('http://c/media/upload?kind=cover&storefrontId=sf-seller-0001', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: tinyPng(),
     });
     const rec = (await up.json()) as { url: string };
@@ -352,37 +363,37 @@ describe('combined Worker — the shim + the R2 media path, on real workerd', ()
  * shared key and processed with it; every read answers with no key; the 401 leaks
  * nothing about existence; and a Worker with no secret refuses all writes.
  */
-describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
-  const AUTH_SF = {
+describe('SERVICE-WRITE-AUTH-1 → ACCES-ARME-2 — the session write gate', () => {
+  const AUTH_SF = () => ({
     commandId: 'cmd-auth-create',
     id: 'sf-auth-0001',
-    resellerId: 'rs-seller-0001',
+    resellerId: S.accountId,
     shortCode: 'AUTH-0001',
     name: 'Boutique gate',
     zone: 'Ouagadougou',
     category: 'Général',
     correlationId: 'corr-auth',
     at: T0,
-  };
+  });
 
-  it('POST /storefronts is gated: 401 without the key, created with it', async () => {
+  it('POST /storefronts is gated: 401 without a session, created with hers', async () => {
     const noKey = await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST',
-      body: JSON.stringify(AUTH_SF),
+      body: JSON.stringify(AUTH_SF()),
     });
     expect(noKey.status).toBe(401);
     expect((await noKey.json()) as unknown).toEqual({ error: 'unauthorized' });
 
     const withKey = await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST',
-      headers: authed,
-      body: JSON.stringify(AUTH_SF),
+      headers: bearer(),
+      body: JSON.stringify(AUTH_SF()),
     });
     expect(withKey.status).toBe(200);
     expect(((await withKey.json()) as { status: string }).status).toBe('created');
   });
 
-  it('POST /storefronts/:id/voice/remove is gated — 401 without the key, processed with it (VOIX-SUPPRIMER-1)', async () => {
+  it('POST /storefronts/:id/voice/remove is gated — 401 without a session, processed with hers (VOIX-SUPPRIMER-1)', async () => {
     // This write ERASES a note from her public shop. An open route here would let
     // anyone who guessed a storefront id silence a seller\'s voice — so the
     // refusal is proven on the real composed worker, not assumed from the
@@ -396,7 +407,7 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     // is no_note — reaching the decision at all is what proves the gate passed it.
     const withKey = await mf.dispatchFetch('http://c/storefronts/sf-auth-0001/voice/remove', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body,
     });
     expect(withKey.status).toBe(200);
@@ -410,7 +421,7 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(pubNoKey.status).toBe(401);
     const pubOk = await mf.dispatchFetch('http://c/storefronts/sf-auth-0001/publish', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: toggleBody,
     });
     expect(pubOk.status).toBe(200);
@@ -419,7 +430,7 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(unpubNoKey.status).toBe(401);
     const unpubOk = await mf.dispatchFetch('http://c/storefronts/sf-auth-0001/unpublish', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: toggleBody,
     });
     expect(unpubOk.status).toBe(200);
@@ -430,7 +441,7 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
       commandId: 'cmd-auth-listing-1',
       listingId: 'lst-auth-0001',
       storefrontId: 'sf-auth-0001',
-      resellerId: 'rs-seller-0001',
+      resellerId: S.accountId,
       productVersionId: 'pv-auth-1',
       offerVersion: 'ov-auth-1',
       markup: 300, // within the 25 % cap of base 1 500 (MARGE-PLAFOND-25: cap 375)
@@ -443,7 +454,7 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
 
     const pubNoKey = await mf.dispatchFetch('http://c/listings', { method: 'POST', body: publishCmd });
     expect(pubNoKey.status).toBe(401);
-    const pubOk = await mf.dispatchFetch('http://c/listings', { method: 'POST', headers: authed, body: publishCmd });
+    const pubOk = await mf.dispatchFetch('http://c/listings', { method: 'POST', headers: bearer(), body: publishCmd });
     expect(pubOk.status).toBe(200);
     expect(((await pubOk.json()) as { status: string }).status).toBe('published');
 
@@ -452,14 +463,14 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(hideNoKey.status).toBe(401);
     const hideOk = await mf.dispatchFetch('http://c/listings/lst-auth-0001/hide', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: hideBody,
     });
     expect(hideOk.status).toBe(200);
     expect(((await hideOk.json()) as { status: string }).status).toBe('hidden');
   });
 
-  it('LISTING-READ-GATE-1 — GET /listings/:id is KEY-GATED: her markup is never readable without the key', async () => {
+  it('LISTING-READ-GATE-1 — GET /listings/:id is SESSION-GATED: her markup is never readable without a session', async () => {
     // THE LEAK THIS CLOSES: the canon ResellerListing carries `markup` (M). With her
     // displayed price (B + M), M yields the SUPPLIER'S BASE PRICE B by subtraction —
     // the exact economics leak SP-I03 exists to prevent (it was live on the deployed
@@ -468,10 +479,10 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(noKey.status).toBe(401);
     expect((await noKey.json()) as unknown).toEqual({ error: 'unauthorized' }); // same non-oracle 401
 
-    const withKey = await mf.dispatchFetch('http://c/listings/lst-auth-0001', { method: 'GET', headers: authed });
+    const withKey = await mf.dispatchFetch('http://c/listings/lst-auth-0001', { method: 'GET', headers: bearer() });
     expect(withKey.status).toBe(200);
     const listing = (await withKey.json()) as { markup?: number };
-    expect(listing.markup).toBe(300); // the operator read still works, unchanged
+    expect(listing.markup).toBe(300); // her own read still works, unchanged
   });
 
   it('/health is uncacheable THROUGH THE REAL BUNDLED WORKER — a cached release is indistinguishable from a stale deploy', async () => {
@@ -480,7 +491,7 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(res.headers.get('Cache-Control')).toBe('no-store');
   });
 
-  it('BROWSE-SUPPLY-1 — GET /supply-projections is KEY-GATED, and the gate is an EXACT match not a prefix', async () => {
+  it('BROWSE-SUPPLY-1 — GET /supply-projections is SESSION-GATED, and the gate is an EXACT match not a prefix', async () => {
     // WHY THIS ROUTE IS GATED: it returns basePrice and resellerCommission for every
     // offer — the same economics the listings gate protects. Open would be the exact
     // fail-open leak APPS caught on boutik's side, where a prefix check written for
@@ -489,12 +500,12 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(noKey.status).toBe(401);
     expect((await noKey.json()) as unknown).toEqual({ error: 'unauthorized' }); // the same non-oracle 401
 
-    // With the key it answers 200 THROUGH THE REAL SERVICE BINDING: the bound
+    // With her session it answers 200 THROUGH THE REAL SERVICE BINDING: the bound
     // producer serves one fresh Bazin, and the whole chain — binding fetch, canon
     // envelope, freshness bound, identity sweep — runs inside workerd, the same
     // runtime production uses. This is the hop that had NEVER succeeded over a
     // public URL; here it is exercised the way it will actually run.
-    const withKey = await mf.dispatchFetch('http://c/supply-projections', { method: 'GET', headers: authed });
+    const withKey = await mf.dispatchFetch('http://c/supply-projections', { method: 'GET', headers: bearer() });
     expect(withKey.status).toBe(200);
     const body = (await withKey.json()) as {
       offers?: { productName?: string; basePrice?: number }[];
@@ -508,12 +519,12 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(body.diagnostic?.target?.base).toBe('service-binding:OFFER');
   });
 
-  it('LISTING-READ-GATE-1 — an UNKNOWN listing id is the SAME 401 without the key (never an existence oracle)', async () => {
+  it('LISTING-READ-GATE-1 — an UNKNOWN listing id is the SAME 401 without a session (never an existence oracle)', async () => {
     const unknown = await mf.dispatchFetch('http://c/listings/lst-does-not-exist', { method: 'GET' });
     expect(unknown.status).toBe(401);
     expect((await unknown.json()) as unknown).toEqual({ error: 'unauthorized' });
-    // with the key it is an honest 404 — so the gate, not existence, drives the 401
-    const authedUnknown = await mf.dispatchFetch('http://c/listings/lst-does-not-exist', { method: 'GET', headers: authed });
+    // with her session it is an honest 404 — so the gate, not existence, drives the 401
+    const authedUnknown = await mf.dispatchFetch('http://c/listings/lst-does-not-exist', { method: 'GET', headers: bearer() });
     expect(authedUnknown.status).toBe(404);
   });
 
@@ -525,26 +536,26 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(sf.status).not.toBe(401);
   });
 
-  it('STOREFRONT-DELETE-1 — DELETE /storefronts/:id is gated BY METHOD: 401 without the key, real act with it', async () => {
-    // DELETE is not a safe method, so `rejectUnauthorizedWrite` refuses it before
+  it('STOREFRONT-DELETE-1 — DELETE /storefronts/:id is gated BY METHOD: 401 without a session, real act with hers', async () => {
+    // DELETE is not a safe method, so the composition root refuses it before
     // any dispatch — the new route needed NO new gate code, and this pins that the
     // method actually rides the write gate rather than slipping around it.
     const noKey = await mf.dispatchFetch('http://c/storefronts/sf-auth-0001', { method: 'DELETE' });
     expect(noKey.status).toBe(401);
     expect((await noKey.json()) as unknown).toEqual({ error: 'unauthorized' });
 
-    // with the key, an unknown id is the honest 404 (gate ≠ existence oracle), and
+    // with her session, an unknown id is the honest 404 (gate ≠ existence oracle), and
     // a real shop deletes: entry, slug pointer and directory row all gone.
-    const unknown = await mf.dispatchFetch('http://c/storefronts/sf-jamais-9999', { method: 'DELETE', headers: authed });
+    const unknown = await mf.dispatchFetch('http://c/storefronts/sf-jamais-9999', { method: 'DELETE', headers: bearer() });
     expect(unknown.status).toBe(404);
 
     const created = await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: JSON.stringify({
         commandId: 'cmd-del-e2e',
         id: 'sf-del-e2e',
-        resellerId: 'rs-del-e2e',
+        resellerId: S.accountId,
         shortCode: 'SELLER-0031',
         name: 'Boutique à retirer',
         zone: 'Ouagadougou',
@@ -554,38 +565,38 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
       }),
     });
     expect(((await created.json()) as { status: string }).status).toBe('created');
-    const del = await mf.dispatchFetch('http://c/storefronts/sf-del-e2e', { method: 'DELETE', headers: authed });
+    const del = await mf.dispatchFetch('http://c/storefronts/sf-del-e2e', { method: 'DELETE', headers: bearer() });
     expect(del.status).toBe(200);
     expect((await del.json()) as unknown).toEqual({ status: 'deleted', slug: 'seller-0031' });
     const gone = await mf.dispatchFetch('http://c/s/seller-0031', { method: 'GET' });
     expect(gone.status).toBe(404); // the buyer read is the honest not-found
     const list = (await (
-      await mf.dispatchFetch('http://c/storefronts', { method: 'GET', headers: authed })
+      await mf.dispatchFetch('http://c/storefronts', { method: 'GET', headers: bearer() })
     ).json()) as { id: string }[];
     expect(list.some((r) => r.id === 'sf-del-e2e')).toBe(false); // the admin list forgot it
   });
 
-  it('STOREFRONT-READ-GATE-1 — GET /storefronts/{id} is KEY-GATED (founder order); /s/{slug} stays open', async () => {
+  it('STOREFRONT-READ-GATE-1 — GET /storefronts/{id} is SESSION-GATED (founder order); /s/{slug} stays open', async () => {
     // The hole this closes: the admin LIST was gated, the by-id READ was not, so
     // a guessed id read a shop's curation, name and zone uncredentialled.
     const noKey = await mf.dispatchFetch('http://c/storefronts/sf-auth-0001', { method: 'GET' });
     expect(noKey.status).toBe(401);
     expect((await noKey.json()) as unknown).toEqual({ error: 'unauthorized' });
     // …and the 401 is NOT an existence oracle: an id that never existed answers
-    // exactly the same without the key, and the honest 404 only WITH it.
+    // exactly the same without a session, and the honest 404 only WITH hers.
     const ghost = await mf.dispatchFetch('http://c/storefronts/sf-never-existed', { method: 'GET' });
     expect(ghost.status).toBe(401);
-    expect((await mf.dispatchFetch('http://c/storefronts/sf-never-existed', { method: 'GET', headers: authed })).status).toBe(404);
-    // with the key the real read works, so the app is not broken by the gate
-    const keyed = await mf.dispatchFetch('http://c/storefronts/sf-auth-0001', { method: 'GET', headers: authed });
+    expect((await mf.dispatchFetch('http://c/storefronts/sf-never-existed', { method: 'GET', headers: bearer() })).status).toBe(404);
+    // with her session the real read works, so the app is not broken by the gate
+    const keyed = await mf.dispatchFetch('http://c/storefronts/sf-auth-0001', { method: 'GET', headers: bearer() });
     expect(keyed.status).toBe(200);
     // THE BUYER PAYS NOTHING: her public page is a different, stripped projection
     const buyer = await mf.dispatchFetch('http://c/s/auth-0001', { method: 'GET' });
     expect(buyer.status).not.toBe(401);
   });
 
-  it('PERSONNALISER-REAL-1 — POST /storefronts/:id/identity rides the write gate: 401 without the key', async () => {
-    // A POST, so `rejectUnauthorizedWrite` refuses it before any dispatch — the
+  it('PERSONNALISER-REAL-1 — POST /storefronts/:id/identity rides the write gate: 401 without a session', async () => {
+    // A POST, so the composition root refuses it before any dispatch — the
     // new route needed NO new gate code, and this pins that it actually rides it.
     const noKey = await mf.dispatchFetch('http://c/storefronts/sf-auth-0001/identity', {
       method: 'POST',
@@ -594,14 +605,14 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(noKey.status).toBe(401);
     expect((await noKey.json()) as unknown).toEqual({ error: 'unauthorized' });
 
-    // with the key it is a real act, and the buyer read reflects it
+    // with her session it is a real act, and the buyer read reflects it
     const created = await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: JSON.stringify({
         commandId: 'cmd-ident-e2e',
         id: 'sf-ident-e2e',
-        resellerId: 'rs-ident-e2e',
+        resellerId: S.accountId,
         shortCode: 'SELLER-0041',
         name: 'Boutique à renommer',
         zone: 'Ouagadougou',
@@ -613,7 +624,7 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(((await created.json()) as { status: string }).status).toBe('created');
     const saved = await mf.dispatchFetch('http://c/storefronts/sf-ident-e2e/identity', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: JSON.stringify({ patch: { name: 'Chez Bernard', theme: 'foret' }, at: T0 }),
     });
     expect(saved.status).toBe(200);
@@ -628,11 +639,11 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     // storefront itself — the app never gets to author a media address.
     await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: JSON.stringify({
         commandId: 'cmd-cover-e2e',
         id: 'sf-cover-e2e',
-        resellerId: 'rs-cover-e2e',
+        resellerId: S.accountId,
         shortCode: 'SELLER-0051',
         name: 'Boutique à photo',
         zone: 'Ouagadougou',
@@ -643,7 +654,7 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     });
     const up = await mf.dispatchFetch('http://c/media/upload?kind=cover&storefrontId=sf-cover-e2e', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: tinyPng(),
     });
     expect(up.status).toBe(201);
@@ -674,15 +685,20 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
   it('AN UPLOAD THAT NEVER REACHES A STOREFRONT FAILS LOUDLY — never a 201 over a 404', async () => {
     const up = await mf.dispatchFetch('http://c/media/upload?kind=cover&storefrontId=sf-does-not-exist-0001', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: tinyPng(),
     });
-    expect(up.status).toBe(502);
+    // ACCES-ARME-2: on the session road the ownership check meets the absent
+    // shop FIRST — a shop that does not exist is nobody's, so the upload is
+    // refused as the one mute not-found before any byte reaches R2 (the
+    // handler's own `storefront_absent` 502 stays behind it as depth). What
+    // the law forbids is unchanged: never a 201 over a shop that is not there.
+    expect(up.status).toBe(404);
     const body = (await up.json()) as { error?: string };
-    expect(body.error).toBe('storefront_absent');
+    expect(body.error).toBe('not_found');
   });
 
-  it('POST /media/upload is gated: 401 without the key, 201 with it', async () => {
+  it('POST /media/upload is gated: 401 without a session, 201 with hers', async () => {
     const noKey = await mf.dispatchFetch('http://c/media/upload?kind=avatar&storefrontId=sf-auth-0001', {
       method: 'POST',
       body: tinyPng(),
@@ -691,7 +707,7 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
 
     const withKey = await mf.dispatchFetch('http://c/media/upload?kind=avatar&storefrontId=sf-auth-0001', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: tinyPng(),
     });
     expect(withKey.status).toBe(201);
@@ -709,13 +725,21 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(media.status).toBe(404); // honest not-found, NOT 401
   });
 
-  it('a wrong key is rejected just like a missing one', async () => {
-    const res = await mf.dispatchFetch('http://c/storefronts', {
+  it('a bearer that is no session is rejected just like a missing one — and so is the retired key header (ACCES-ARME-2)', async () => {
+    const faux = await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST',
-      headers: { [WRITE_KEY_HEADER]: 'not-the-secret' },
-      body: JSON.stringify(AUTH_SF),
+      headers: { Authorization: 'Bearer SPS-0000-0000-0000-0000' },
+      body: JSON.stringify(AUTH_SF()),
     });
-    expect(res.status).toBe(401);
+    expect(faux.status).toBe(401);
+    expect((await faux.json()) as unknown).toEqual({ error: 'unauthorized' });
+    // The header the app used to ship opens NOTHING any more — a create, a read,
+    // the listings read and the supply read all answer the same 401 to it.
+    for (const [method, path] of [['POST', '/storefronts'], ['GET', '/storefronts'], ['GET', '/storefronts/sf-auth-0001'], ['GET', '/listings/lst-auth-0001'], ['GET', '/supply-projections']] as const) {
+      const cle = await mf.dispatchFetch(`http://c${path}`, { method, headers: { 'X-Write-Key': 'test-write-secret-0001' }, body: method === 'POST' ? JSON.stringify(AUTH_SF()) : undefined });
+      expect(cle.status, `${method} ${path} on the retired key`).toBe(401);
+      expect((await cle.json()) as unknown).toEqual({ error: 'unauthorized' });
+    }
   });
 
   it('the 401 is NOT an existence oracle: same response whether the target exists or not', async () => {
@@ -733,21 +757,21 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
     expect(await onExisting.text()).toBe(await onAbsent.text()); // byte-identical body
   });
 
-  it('FAIL CLOSED: a Worker with no secret configured refuses writes even WITH a header', async () => {
+  it('FAIL CLOSED: a Worker with no account book bound can resolve no session — a write WITH a bearer is 401 like one without', async () => {
     const withHeader = await mfNoSecret.dispatchFetch('http://c/storefronts', {
       method: 'POST',
-      headers: authed,
-      body: JSON.stringify(AUTH_SF),
+      headers: bearer(),
+      body: JSON.stringify(AUTH_SF()),
     });
     expect(withHeader.status).toBe(401);
 
     const withoutHeader = await mfNoSecret.dispatchFetch('http://c/storefronts', {
       method: 'POST',
-      body: JSON.stringify(AUTH_SF),
+      body: JSON.stringify(AUTH_SF()),
     });
     expect(withoutHeader.status).toBe(401);
 
-    // and a read still works with no secret configured
+    // and a buyer read still works with nothing configured
     const health = await mfNoSecret.dispatchFetch('http://c/health', { method: 'GET' });
     expect(health.status).toBe(200);
   });
@@ -755,7 +779,7 @@ describe('SERVICE-WRITE-AUTH-1 — the shared-secret write gate', () => {
 
 /**
  * RESELLER-STOREFRONT-WRITE-1 — CORS on the buyer read routes (the browser
- * boundary the miniflare e2e otherwise never crosses) and the key-gated admin list.
+ * boundary the miniflare e2e otherwise never crosses) and the session-gated list.
  */
 const ORIGIN = 'https://beurni2.github.io';
 describe('RESELLER-STOREFRONT-WRITE-1 — CORS on reads + the admin list', () => {
@@ -774,7 +798,7 @@ describe('RESELLER-STOREFRONT-WRITE-1 — CORS on reads + the admin list', () =>
     expect(media.headers.get('access-control-allow-origin')).toBe(ORIGIN);
   });
 
-  it('a preflight OPTIONS on a read route answers 204 + CORS with NO key (never hits the write gate)', async () => {
+  it('a preflight OPTIONS on a read route answers 204 + CORS with NO credential (never hits the write gate)', async () => {
     const pre = await mf.dispatchFetch('http://c/s/seller-0001', {
       method: 'OPTIONS',
       headers: { Origin: ORIGIN, 'Access-Control-Request-Method': 'GET' },
@@ -787,22 +811,22 @@ describe('RESELLER-STOREFRONT-WRITE-1 — CORS on reads + the admin list', () =>
   it('the WRITE route carries NO CORS header (browser origins must never write)', async () => {
     const up = await mf.dispatchFetch('http://c/media/upload?kind=cover&storefrontId=sf-seller-0001', {
       method: 'POST',
-      headers: { ...authed, Origin: ORIGIN },
+      headers: { ...bearer(), Origin: ORIGIN },
       body: tinyPng(),
     });
     expect(up.status).toBe(201);
     expect(up.headers.get('access-control-allow-origin')).toBeNull();
   });
 
-  it('GET /storefronts is key-gated and lists created storefronts with live discoverable', async () => {
+  it('GET /storefronts is session-gated and lists HER created storefronts with live discoverable', async () => {
     // create a fresh storefront, publish it, and assert the list reflects it.
     const create = await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: JSON.stringify({
         commandId: 'cmd-list-create',
         id: 'sf-list-0001',
-        resellerId: 'rs-seller-0001',
+        resellerId: S.accountId,
         shortCode: 'LIST-0001',
         name: 'Boutique liste',
         zone: 'Ouagadougou',
@@ -814,24 +838,28 @@ describe('RESELLER-STOREFRONT-WRITE-1 — CORS on reads + the admin list', () =>
     expect(((await create.json()) as { status: string }).status).toBe('created');
 
     const noKey = await mf.dispatchFetch('http://c/storefronts', { method: 'GET' });
-    expect(noKey.status).toBe(401); // GET, but the admin list is explicitly gated
+    expect(noKey.status).toBe(401); // GET, but the list is explicitly gated
 
-    const listed = await mf.dispatchFetch('http://c/storefronts', { method: 'GET', headers: authed });
+    const listed = await mf.dispatchFetch('http://c/storefronts', { method: 'GET', headers: bearer() });
     expect(listed.status).toBe(200);
     const rows = (await listed.json()) as { id: string; slug: string; name: string; discoverable: boolean }[];
     const mine = rows.find((r) => r.id === 'sf-list-0001');
     // RESELLER-AUTH-1 — the row now names its OWNER, so a session-narrowed list
-    // can be computed at the composition root; the key-only list keeps every row.
-    expect(mine).toEqual({ id: 'sf-list-0001', slug: 'list-0001', name: 'Boutique liste', discoverable: false, resellerId: 'rs-seller-0001' });
+    // is computed at the composition root; the founder's key-C list keeps every row.
+    expect(mine).toEqual({ id: 'sf-list-0001', slug: 'list-0001', name: 'Boutique liste', discoverable: false, resellerId: S.accountId });
+    // …and the founder's key-C read is the WHOLE directory (ACCES-ARME-2's operator road)
+    const tout = await mf.dispatchFetch('http://c/storefronts', { method: 'GET', headers: { Authorization: `Bearer ${OPS_SECRET}` } });
+    expect(tout.status).toBe(200);
+    expect(((await tout.json()) as { id: string }[]).some((r) => r.id === 'sf-list-0001')).toBe(true);
 
     // publish it → the list must reflect the LIVE discoverable, not a stale snapshot.
     const pub = await mf.dispatchFetch('http://c/storefronts/sf-list-0001/publish', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: JSON.stringify({ id: 'sf-list-0001', correlationId: 'corr-list', at: T0 }),
     });
     expect(pub.status).toBe(200);
-    const after = (await (await mf.dispatchFetch('http://c/storefronts', { method: 'GET', headers: authed })).json()) as {
+    const after = (await (await mf.dispatchFetch('http://c/storefronts', { method: 'GET', headers: bearer() })).json()) as {
       id: string;
       discoverable: boolean;
     }[];
@@ -848,23 +876,23 @@ describe('RESELLER-STOREFRONT-WRITE-1 — CORS on reads + the admin list', () =>
  * — every product is UNDESCRIBABLE and therefore OMITTED, never invented.
  */
 describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read path joins', () => {
-  const SF_A2 = {
+  const SF_A2 = () => ({
     commandId: 'cmd-a2-create',
     id: 'sf-a2-0001',
-    resellerId: 'rs-a2-0001',
+    resellerId: S.accountId,
     shortCode: 'AATWO-0001',
     name: 'Boutique jointure',
     zone: 'Ouagadougou',
     category: 'Général',
     correlationId: 'corr-a2',
     at: T0,
-  };
+  });
   const publishCmd = (over: Partial<Record<string, unknown>> = {}): string =>
     JSON.stringify({
       commandId: 'cmd-a2-listing-1',
       listingId: 'lst-a2-0001',
       storefrontId: 'sf-a2-0001',
-      resellerId: 'rs-a2-0001',
+      resellerId: S.accountId,
       productVersionId: 'pv-a2-1',
       offerVersion: 'ov-a2-1',
       markup: 1_200,
@@ -875,8 +903,8 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     });
 
   it('PUBLISH APPENDS THE PID to her canon curatedItems (membership), and republish does not append twice', async () => {
-    await mf.dispatchFetch('http://c/storefronts', { method: 'POST', headers: authed, body: JSON.stringify(SF_A2) });
-    const pub = await mf.dispatchFetch('http://c/listings', { method: 'POST', headers: authed, body: publishCmd() });
+    await mf.dispatchFetch('http://c/storefronts', { method: 'POST', headers: bearer(), body: JSON.stringify(SF_A2()) });
+    const pub = await mf.dispatchFetch('http://c/listings', { method: 'POST', headers: bearer(), body: publishCmd() });
     expect(((await pub.json()) as { status: string }).status).toBe('published');
 
     const read = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });
@@ -887,7 +915,7 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     // REPUBLISH (new commandId, same pid) — position preserved, never duplicated
     const re = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: publishCmd({ commandId: 'cmd-a2-listing-1-again' }),
     });
     expect(((await re.json()) as { status: string }).status).toBe('published');
@@ -915,7 +943,7 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     const SF_RM = {
       commandId: 'cmd-remise-create',
       id: 'sf-remise-0001',
-      resellerId: 'rs-remise-0001',
+      resellerId: S.accountId,
       shortCode: 'REMISE-0001',
       name: 'Boutique remise',
       zone: 'Ouagadougou',
@@ -923,16 +951,16 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
       correlationId: 'corr-remise',
       at: T0,
     };
-    await mf.dispatchFetch('http://c/storefronts', { method: 'POST', headers: authed, body: JSON.stringify(SF_RM) });
+    await mf.dispatchFetch('http://c/storefronts', { method: 'POST', headers: bearer(), body: JSON.stringify(SF_RM) });
     const publish = (): Promise<Response> =>
       mf.dispatchFetch('http://c/listings', {
         method: 'POST',
-        headers: authed,
+        headers: bearer(),
         body: publishCmd({
           commandId: 'cmd-remise-pinned', // the SAME id every time — the app derives it
           listingId: 'lst-remise-0001',
           storefrontId: 'sf-remise-0001',
-          resellerId: 'rs-remise-0001',
+          resellerId: S.accountId,
         }),
       });
 
@@ -943,7 +971,7 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     // RETIRER — on the exact route the app's removeItem calls.
     const removed = await mf.dispatchFetch('http://c/storefronts/sf-remise-0001/items/remove', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: JSON.stringify({ pid: 'pv-a2-1', at: '2026-08-13T09:00:00.000Z' }),
     });
     expect(((await removed.json()) as { status: string }).status).toBe('removed');
@@ -962,7 +990,7 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     expect(body.remise, 'an idempotent re-add after removal must SAY the product came back').toBe(true);
     expect(body.storefront?.curatedItems).toContain('pv-a2-1');
     // …and a FRESH read agrees — the append landed in the ledger, not only in the answer.
-    const fresh = await mf.dispatchFetch('http://c/storefronts/sf-remise-0001', { method: 'GET', headers: authed });
+    const fresh = await mf.dispatchFetch('http://c/storefronts/sf-remise-0001', { method: 'GET', headers: bearer() });
     expect(((await fresh.json()) as { curatedItems: string[] }).curatedItems).toContain('pv-a2-1');
 
     // A THIRD publish (same command, product now PRESENT): idempotent, and the
@@ -991,7 +1019,7 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     // refusal has its own test below.)
     const re = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: publishCmd({ commandId: 'cmd-a2-resign', markup: 1_800 }),
     });
     expect(((await re.json()) as { status: string }).status).toBe('published');
@@ -1005,7 +1033,7 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     try {
       const res = await mf.dispatchFetch('http://c/listings', {
         method: 'POST',
-        headers: authed,
+        headers: bearer(),
         body: publishCmd({ commandId: 'cmd-a2-nosupply', listingId: 'lst-a2-nosupply' }),
       });
       // 409, and the reason is NAMED rather than collapsed into a generic failure.
@@ -1024,7 +1052,7 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
   it('MONEY-SHAPE-1 — A SUPPLIED customerPriceFcfa IS REFUSED, not silently discarded', async () => {
     const res = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: publishCmd({ commandId: 'cmd-a2-price', listingId: 'lst-a2-price', customerPriceFcfa: 999 }),
     });
     // A caller who sends a money value and is ignored never learns it was ignored.
@@ -1039,7 +1067,7 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     // pv-a2-1 has basePrice 8 000, so the ceiling is 2 000 (25 % of base — MARGE-PLAFOND-25).
     const res = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: publishCmd({ commandId: 'cmd-a2-cap', listingId: 'lst-a2-cap', markup: 2_001 }),
     });
     expect(res.status).toBe(400);
@@ -1049,7 +1077,7 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     // …and exactly at the cap it signs, so the bound is a ceiling and not a wall.
     const ok = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: publishCmd({ commandId: 'cmd-a2-atcap', listingId: 'lst-a2-atcap', markup: 2_000 }),
     });
     expect(((await ok.json()) as { status: string }).status).toBe('published');
@@ -1059,7 +1087,7 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     for (const markup of [-100, 1.5, 'beaucoup', null]) {
       const res = await mf.dispatchFetch('http://c/listings', {
         method: 'POST',
-        headers: authed,
+        headers: bearer(),
         body: publishCmd({ commandId: `cmd-a2-bad-${String(markup)}`, listingId: 'lst-a2-bad', markup }),
       });
       expect(res.status).toBe(400);
@@ -1111,7 +1139,7 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
   it('inStock is DERIVED FROM LIVE STOCK — a zero-stock offer is never an in-stock tile', async () => {
     await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       // base 3 000 → 25 % cap 750, so the shared default 1 200 would refuse
       body: publishCmd({ commandId: 'cmd-a2-epuise', listingId: 'lst-a2-epuise', productVersionId: 'pv-epuise-1', markup: 600 }),
     });
@@ -1136,11 +1164,11 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     // passing test asserting nothing). A ONE-WAY act gets an ISOLATED shop.
     await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: JSON.stringify({
         commandId: 'cmd-lapse-create',
         id: 'sf-lapse-0001',
-        resellerId: 'rs-lapse-0001',
+        resellerId: S.accountId,
         shortCode: 'LAPSE-0001',
         name: 'Boutique offre échue',
         zone: 'Ouagadougou',
@@ -1151,12 +1179,12 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     });
     const pub = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
-      headers: authed,
+      headers: bearer(),
       body: publishCmd({
         commandId: 'cmd-lapse-listing',
         listingId: 'lst-lapse-0001',
         storefrontId: 'sf-lapse-0001',
-        resellerId: 'rs-lapse-0001',
+        resellerId: S.accountId,
       }),
     });
     expect(((await pub.json()) as { status: string }).status).toBe('published'); // live at publish — that is why it signed
@@ -1179,7 +1207,7 @@ describe('REAL-PRODUCT-RENDER-1 (a2) — publish states membership; the read pat
     // republish (a new version), never by drift.
     const after = await mf.dispatchFetch('http://c/s/lapse-0001', { method: 'GET' });
     expect(((await after.json()) as { products: unknown[] }).products).toEqual([]);
-    const listing = await mf.dispatchFetch('http://c/listings/lst-lapse-0001', { method: 'GET', headers: authed });
+    const listing = await mf.dispatchFetch('http://c/listings/lst-lapse-0001', { method: 'GET', headers: bearer() });
     expect(((await listing.json()) as { status: string }).status).toBe('auto_hidden');
     // …and the NEIGHBOURING shop's listings were untouched by this shop's lapse.
     const neighbour = await mf.dispatchFetch('http://c/s/aatwo-0001', { method: 'GET' });

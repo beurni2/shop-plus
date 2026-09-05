@@ -93,11 +93,12 @@ export function wire(routes: readonly Route[]): Wire {
  * prove nothing about the real one.
  */
 export function wiredEnv(): void {
-  // BOTH are required or `resolveStorefrontService` / `resolveOfferSource`
+  // The base is required or `resolveStorefrontService` / `resolveOfferSource`
   // answer null (RESELLER-SEAM-HONESTY-1) and the app renders its honest
-  // not-connected state — a walk that forgot this would prove nothing.
+  // not-connected state — a walk that forgot this would prove nothing. It is
+  // the ONLY env the adapters read (ACCES-ARME-2 retired the bundled key); the
+  // credential a walk observes is the session bearer the wire records.
   process.env['EXPO_PUBLIC_STOREFRONT_BASE'] = 'http://shop.test';
-  process.env['EXPO_PUBLIC_STOREFRONT_WRITE_KEY'] = 'cle-de-test';
 }
 
 export interface Screen {

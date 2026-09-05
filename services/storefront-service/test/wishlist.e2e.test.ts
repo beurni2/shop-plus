@@ -3,9 +3,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance } from './seance';
 
 /**
  * ═══ LISTE-ENVIES-1 — the wishlist, end to end on the REAL combined Worker ═══
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. Every boutique
+ * a liste is made on is seated through `seance()` — signup → the founder
+ * mints on key C → admission — and created with HER session bearer; her
+ * `resellerId` is the id the book minted. The liste doors, the buyer's road
+ * and the founder's key-C board are unchanged.
  *
  * The seam this file exists to cross (the standing seam-test law): a liste is
  * CREATED through the public door, a buyer ORDERS one of its articles with
@@ -23,12 +30,9 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'liste-envies-'));
 const T0 = '2026-08-25T08:00:00.000Z';
 
-const WRITE_SECRET = 'test-write-secret-le001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-le001';
-const OPS_SECRET = 'test-checkout-ops-secret-le001';
 const PROGRESS_SECRET = 'test-progress-write-secret-lc001';
 const MEDIA_KEY = 'test-media-write-key-lv001';
-const authed = { 'X-Write-Key': WRITE_SECRET };
 
 /** LISTE-VOIX — what the certified media door saw, for the seam's asserts. */
 const mediaCalls: { key: string | null; bytes: Uint8Array }[] = [];
@@ -69,10 +73,10 @@ beforeAll(() => {
       STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
       ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO',
       DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO', WISHLIST: 'WishlistDO',
+      COMPTES: 'ResellerAccountsDO',
     },
     durableObjectsPersist: persist,
     bindings: {
-      STOREFRONT_WRITE_SECRET: WRITE_SECRET,
       PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
       // LISTE-ADRESSE — the founder's dispatch board is THE LEDGER this
       // seam asks: the attached contact is asserted where it is actually
@@ -137,10 +141,11 @@ const freshKey = (): string => `rk-le-${String((keySeq += 1)).padStart(4, '0')}-
 
 /** One boutique with BOTH supply articles published — the liste's ground. */
 async function boutique(n: string): Promise<{ slug: string; resellerId: string }> {
+  const S = await seance(mf, `le${n}`);
   const created = await mf.dispatchFetch('http://c/storefronts', {
-    method: 'POST', headers: authed,
+    method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-le-${n}`, resellerId: `rs-le-${n}`,
+      commandId: `cmd-create-${n}`, id: `sf-le-${n}`, resellerId: S.accountId,
       shortCode: `LE-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-le-${n}`, at: T0,
     }),
@@ -148,16 +153,16 @@ async function boutique(n: string): Promise<{ slug: string; resellerId: string }
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   for (const [i, pv] of (['pv-le-1', 'pv-le-2'] as const).entries()) {
     const pub = await mf.dispatchFetch('http://c/listings', {
-      method: 'POST', headers: authed,
+      method: 'POST', headers: S.bearer,
       body: JSON.stringify({
         commandId: `cmd-listing-${n}-${i}`, listingId: `lst-le-${n}-${i}`, storefrontId: `sf-le-${n}`,
-        resellerId: `rs-le-${n}`, productVersionId: pv, offerVersion: `ov-le-${i + 1}`,
+        resellerId: S.accountId, productVersionId: pv, offerVersion: `ov-le-${i + 1}`,
         markup: 1_500, correlationId: `corr-le-${n}`, at: T0,
       }),
     });
     if (((await pub.json()) as { status?: string }).status !== 'published') throw new Error('setup: listing');
   }
-  return { slug: `le-${n}`, resellerId: `rs-le-${n}` };
+  return { slug: `le-${n}`, resellerId: S.accountId };
 }
 
 async function creerListe(

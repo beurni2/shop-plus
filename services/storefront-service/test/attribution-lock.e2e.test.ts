@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
 import { orderIdForQuote } from '../src/order-core.js';
+import { OPS_SECRET, seance } from './seance';
 
 /**
  * C1/C2 (audit) — THE ATTRIBUTION LOCK IS DURABLE AND CLAIMED IN PRODUCTION.
@@ -20,13 +21,17 @@ import { orderIdForQuote } from '../src/order-core.js';
  * Driven on the REAL bundle through real workerd, asking the BOOK for the
  * outcome rather than believing the response: the lock is read back through
  * Miniflare's namespace probe (there is deliberately NO public route to it).
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. Every shop
+ * fixture here is seated through `seance()` — signup → the founder mints on
+ * key C → admission — and is created with HER session bearer; the
+ * `resellerId` the lock must name is the id the book minted, never one this
+ * file chose.
  */
 
 const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'attribution-lock-'));
 const T0 = '2026-08-21T08:00:00.000Z';
-const WRITE_SECRET = 'test-write-secret-0001';
-const authed = { 'X-Write-Key': WRITE_SECRET };
 
 const SUPPLY = [
   {
@@ -52,9 +57,10 @@ const mf = new Miniflare({
     ORDER: 'OrderDO',
     LADDER: 'BuyerLadderDO',
     ATTRIBUTION_LOCK: 'AttributionLockDO',
+    COMPTES: 'ResellerAccountsDO',
   },
   durableObjectsPersist: persist,
-  bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
+  bindings: { CHECKOUT_OPS_SECRET: OPS_SECRET },
   serviceBindings: {
     OFFER: async (request: Request) => {
       const single = /^\/supply-projection\/([^/]+)$/.exec(new URL(request.url).pathname);
@@ -80,11 +86,12 @@ function safeJson(text: string): Record<string, unknown> {
 }
 
 async function seedShop(n: string): Promise<{ slug: string; resellerId: string }> {
+  const S = await seance(mf, `attr${n}`);
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-attr-${n}`, resellerId: `rs-attr-${n}`,
+      commandId: `cmd-create-${n}`, id: `sf-attr-${n}`, resellerId: S.accountId,
       shortCode: `ATTR-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-${n}`, at: T0,
     }),
@@ -92,16 +99,16 @@ async function seedShop(n: string): Promise<{ slug: string; resellerId: string }
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`, listingId: `lst-attr-${n}`, storefrontId: `sf-attr-${n}`,
-      resellerId: `rs-attr-${n}`, productVersionId: 'pv-attr-1', offerVersion: 'ov-attr-1',
+      resellerId: S.accountId, productVersionId: 'pv-attr-1', offerVersion: 'ov-attr-1',
       markup: 1_500, correlationId: `corr-${n}`, at: T0,
     }),
   });
   const decision = (await pub.json()) as { status?: string };
   if (decision.status !== 'published') throw new Error(`setup: listing ${JSON.stringify(decision)}`);
-  return { slug: `attr-${n}`, resellerId: `rs-attr-${n}` };
+  return { slug: `attr-${n}`, resellerId: S.accountId };
 }
 
 /** quote → reserve, returning the ids the create needs. */
@@ -138,6 +145,8 @@ describe('C1/C2 — the durable attribution lock, claimed on the real Worker', (
   it('NO DOOR: /locks/* on the public wire is not a route (the auth model is no route at all)', async () => {
     const res = await mf.dispatchFetch('http://c/locks/order-whatever', { method: 'GET' });
     expect(res.status).toBe(404);
+    // A write with no session is the root's ONE 401 (ACCES-ARME-2), before any
+    // route is even looked up — so the POST answers 401, and it is still no door.
     const post = await mf.dispatchFetch('http://c/locks/order-whatever', {
       method: 'POST',
       body: JSON.stringify({ checkoutRef: 'order-whatever', resellerId: 'rs-x', tokenId: 't-x', at: T0 }),

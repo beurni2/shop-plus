@@ -5,9 +5,15 @@ import { PlatformEventSchema } from '@platform/contracts';
 import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance } from './seance';
 
 /**
  * ═══ PORTE-CUSTODY part B — the door leg's provider truth reaches custody ═══
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. The shop each
+ * door order rides on is seated through `seance()` — signup → the founder
+ * mints on key C → admission — and created with HER session bearer; her
+ * `resellerId` is the id the book minted, never one this file chose.
  *
  * When `payment.door_leg_confirmed.v1` arrives on a pay-at-door order, Shop+
  * must FORWARD the provider truth to custody, at-least-once, or custody's
@@ -37,12 +43,10 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'porte-custody-'));
 const T0 = '2026-08-12T08:00:00.000Z';
 
-const WRITE_SECRET = 'test-write-secret-pc001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-pc001';
 const FULFILL_SECRET = 'test-fulfillment-write-secret-pc001';
 const PROGRESS_SECRET = 'test-progress-write-secret-pc001';
 const ARM_SECRET = 'test-shop-arm-secret-pc001';
-const authed = { 'X-Write-Key': WRITE_SECRET };
 const signed = { 'X-Payment-Webhook-Key': WEBHOOK_SECRET, 'Content-Type': 'application/json' };
 
 /** The arm fact's kind, assembled at runtime — the standing exposure-gate idiom. */
@@ -167,12 +171,12 @@ function makeMf(persistDir: string): Miniflare {
     durableObjects: {
       STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
       ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO',
-      RESELLER: 'ResellerFeedDO',
+      RESELLER: 'ResellerFeedDO', COMPTES: 'ResellerAccountsDO',
     },
     durableObjectsPersist: persistDir,
     bindings: {
-      STOREFRONT_WRITE_SECRET: WRITE_SECRET,
       PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
+      CHECKOUT_OPS_SECRET: OPS_SECRET,
       FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
       PROGRESS_WRITE_SECRET: PROGRESS_SECRET,
       SHOP_ARM_SECRET: ARM_SECRET,
@@ -248,20 +252,21 @@ const CONTACT = { phone: '70 12 34 56', quartier: 'Gounghin', repere: 'près du 
 
 /** The buyer's road to a CREATED pay-at-door order, over the public routes. */
 async function createdDoorOrder(n: string): Promise<{ orderId: string; quoteId: string; buyerRef: string }> {
+  const S = await seance(mf, `pc${n}`);
   const created = await mf.dispatchFetch('http://c/storefronts', {
-    method: 'POST', headers: authed,
+    method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-pc-${n}`, resellerId: `rs-pc-${n}`,
+      commandId: `cmd-create-${n}`, id: `sf-pc-${n}`, resellerId: S.accountId,
       shortCode: `PC-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-pc-${n}`, at: T0,
     }),
   });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
-    method: 'POST', headers: authed,
+    method: 'POST', headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`, listingId: `lst-pc-${n}`, storefrontId: `sf-pc-${n}`,
-      resellerId: `rs-pc-${n}`, productVersionId: 'pv-pc-1', offerVersion: 'ov-pc-1',
+      resellerId: S.accountId, productVersionId: 'pv-pc-1', offerVersion: 'ov-pc-1',
       markup: 1_500, correlationId: `corr-pc-${n}`, at: T0,
     }),
   });
@@ -270,7 +275,7 @@ async function createdDoorOrder(n: string): Promise<{ orderId: string; quoteId: 
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       slug: `pc-${n}`, pid: 'pv-pc-1', paymentMode: 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR',
-      zoneTo: 'Ouagadougou', attributionResellerId: `rs-pc-${n}`, requestKey: freshKey(),
+      zoneTo: 'Ouagadougou', attributionResellerId: S.accountId, requestKey: freshKey(),
     }),
   });
   const quote = safeJson(await quoteRes.text()) as { quoteId?: string };

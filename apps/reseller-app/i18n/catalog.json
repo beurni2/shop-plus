@@ -3444,12 +3444,6 @@
   "screenClass": "status"
  },
  {
-  "key": "admission.pilote_complet",
-  "fr": "L'application n'accueille pas encore de nouveau compte. Le vôtre est gardé : contactez-nous pour la suite.",
-  "register": "neutral",
-  "screenClass": "status"
- },
- {
   "key": "coupe.titre",
   "fr": "Votre accès est en pause",
   "register": "neutral",

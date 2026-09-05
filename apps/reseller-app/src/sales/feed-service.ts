@@ -1,15 +1,15 @@
 /**
  * RF-1b — HER CLIENT TO HER OWN FEED (`GET /reseller/ventes` on Shop+).
  *
- * THE CREDENTIAL IS NOT IN THE BUNDLE, and that is the whole point. Every
- * outbound key this app has shipped so far (`EXPO_PUBLIC_STOREFRONT_WRITE_KEY`)
- * rides inside the published EAS update — shared, readable, and unable to tell
- * one reseller from another; the repo's standing note calls it « a scanner-
- * stopper, not a lock », with a HARD GATE on onboarding any reseller but the
- * founder until real per-reseller identity lands. This seam is the first piece
- * of that identity: the code is TYPED BY HER, held on her device, sent as a
- * Bearer, and never compiled into anything. Only the BASE URL comes from the
- * environment.
+ * THE CREDENTIAL IS NOT IN THE BUNDLE, and that is the whole point. The one
+ * outbound key this app ever shipped (the shared storefront write key) rode
+ * inside the published EAS update — shared, readable, and unable to tell one
+ * reseller from another; the repo's standing note called it « a scanner-
+ * stopper, not a lock ». This seam was the first piece of real identity: the
+ * code is TYPED BY HER, held on her device, sent as a Bearer, and never
+ * compiled into anything. ACCES-ARME-2 finished the road — the write key is
+ * retired and her session is the only credential the app holds. Only the BASE
+ * URL comes from the environment.
  *
  * WHAT COMES BACK is the server's allowlist projection and nothing more — her
  * net (copied off the frozen Quote, never recomputed here), the order's own

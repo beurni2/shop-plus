@@ -3,9 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance } from './seance';
 
 /**
  * ═══ REPERE-AUDIO-REEL — the buyer's voice note rides the ORDER (2026-08-08) ═══
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. The shop each
+ * order rides on is seated through `seance()` — signup → the founder mints on
+ * key C → admission — and created with HER session bearer; her `resellerId`
+ * is the id the book minted. The founder's dispatch read stays on key C.
  *
  * REQUIRED BY THE NO-LOOP LAW: one test crosses the seam end to end. The seam:
  * the buyer's create body carries `contact.audioB64` → the REAL Worker hands
@@ -26,10 +32,7 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'repere-audio-'));
 const T0 = '2026-08-08T09:00:00.000Z';
 
-const WRITE_SECRET = 'test-write-secret-audio1';
-const OPS_SECRET = 'test-checkout-ops-secret-audio1';
 const MEDIA_KEY = 'test-media-write-key-audio1';
-const authed = { 'X-Write-Key': WRITE_SECRET };
 
 const SUPPLY = [
   {
@@ -72,10 +75,10 @@ const mf = new Miniflare({
     LADDER: 'BuyerLadderDO',
     DISPATCH: 'DispatchIndexDO',
     RESELLER: 'ResellerFeedDO',
+    COMPTES: 'ResellerAccountsDO',
   },
   durableObjectsPersist: persist,
   bindings: {
-    STOREFRONT_WRITE_SECRET: WRITE_SECRET,
     CHECKOUT_OPS_SECRET: OPS_SECRET,
     MEDIA_WRITE_KEY: MEDIA_KEY,
   },
@@ -133,11 +136,12 @@ const freshKey = (): string => `rk-audio-${String((keyN += 1)).padStart(4, '0')}
 
 /** The buyer's own road up to a RESERVED quote, ready for the order. */
 async function reservedQuote(n: string): Promise<string> {
+  const S = await seance(mf, `aud${n}`);
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-aud-${n}`, resellerId: `rs-aud-${n}`,
+      commandId: `cmd-create-${n}`, id: `sf-aud-${n}`, resellerId: S.accountId,
       shortCode: `AUD-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-${n}`, at: T0,
     }),
@@ -145,10 +149,10 @@ async function reservedQuote(n: string): Promise<string> {
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`, listingId: `lst-aud-${n}`, storefrontId: `sf-aud-${n}`,
-      resellerId: `rs-aud-${n}`, productVersionId: 'pv-audio-1', offerVersion: 'ov-audio-1',
+      resellerId: S.accountId, productVersionId: 'pv-audio-1', offerVersion: 'ov-audio-1',
       markup: 1_500, correlationId: `corr-${n}`, at: T0,
     }),
   });
@@ -159,7 +163,7 @@ async function reservedQuote(n: string): Promise<string> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       slug: `aud-${n}`, pid: 'pv-audio-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
-      attributionResellerId: `rs-aud-${n}`, requestKey: freshKey(),
+      attributionResellerId: S.accountId, requestKey: freshKey(),
     }),
   });
   const quote = safeJson(await quoteRes.text()) as { quoteId?: string };

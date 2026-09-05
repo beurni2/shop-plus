@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   HttpStorefrontService,
-  WRITE_KEY_HEADER,
   deriveShortCode,
   resolveStorefrontService,
   type CreateStorefrontCommand,
@@ -38,7 +37,6 @@ const CMD: CreateStorefrontCommand = {
 afterEach(() => {
   vi.restoreAllMocks();
   delete process.env.EXPO_PUBLIC_STOREFRONT_BASE;
-  delete process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY;
 });
 
 describe('deriveShortCode — a valid [A-Z]{2,12}-[0-9]{4} always', () => {
@@ -80,9 +78,15 @@ describe('HttpStorefrontService — the request the app WOULD send', () => {
     return calls;
   }
 
-  it('create → POST /storefronts with the X-Write-Key header and the command body', async () => {
+  /** ACCES-ARME-2 — the ONLY headers an adapter call may carry: the session
+   *  (when the device holds one) and the content negotiation. Any other name
+   *  would be a credential the bundle ships, which is exactly what was retired. */
+  const NOMS_PERMIS = new Set(['Authorization', 'Content-Type', 'Accept']);
+  const seulementPermis = (h: unknown): string[] => Object.keys(h as Record<string, string>).filter((k) => !NOMS_PERMIS.has(k));
+
+  it('create → POST /storefronts with the command body and NO key header (ACCES-ARME-2)', async () => {
     const calls = stubFetch(200, { status: 'created', storefront: { slug: 'boutik-0007' } });
-    const svc = new HttpStorefrontService('https://sf.example.dev/', 'SECRET-KEY');
+    const svc = new HttpStorefrontService('https://sf.example.dev/');
     const r = await svc.create(CMD);
     // ACCUEIL-PRO — the create value now HANDS THROUGH the decision's
     // storefront (validated by its slug), so the caller can adopt the
@@ -93,48 +97,48 @@ describe('HttpStorefrontService — the request the app WOULD send', () => {
     });
     expect(calls[0]!.url).toBe('https://sf.example.dev/storefronts');
     expect(calls[0]!.init.method).toBe('POST');
-    expect((calls[0]!.init.headers as Record<string, string>)[WRITE_KEY_HEADER]).toBe('SECRET-KEY');
+    expect(seulementPermis(calls[0]!.init.headers)).toEqual([]);
     expect(JSON.parse(calls[0]!.init.body as string)).toEqual(CMD);
   });
 
-  it('uploadCover → POST /media/upload?kind=cover&storefrontId=… with the key and raw bytes', async () => {
+  it('uploadCover → POST /media/upload?kind=cover&storefrontId=… with raw bytes and no key', async () => {
     const calls = stubFetch(201, { status: 'pending', url: '/media/storefronts/sf-test-1/cover/abc.png' });
-    const svc = new HttpStorefrontService('https://sf.example.dev', 'SECRET-KEY');
+    const svc = new HttpStorefrontService('https://sf.example.dev');
     const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
     const r = await svc.uploadCover('sf-test-1', bytes, 'image/png');
     expect(r.ok && r.value.url).toBe('/media/storefronts/sf-test-1/cover/abc.png');
     expect(calls[0]!.url).toBe('https://sf.example.dev/media/upload?kind=cover&storefrontId=sf-test-1');
-    expect((calls[0]!.init.headers as Record<string, string>)[WRITE_KEY_HEADER]).toBe('SECRET-KEY');
+    expect(seulementPermis(calls[0]!.init.headers)).toEqual([]);
     expect(calls[0]!.init.body).toBe(bytes);
   });
 
-  it('list → GET /storefronts with the key', async () => {
+  it('list → GET /storefronts, no key', async () => {
     const calls = stubFetch(200, [{ id: 'sf-test-1', slug: 'boutik-0007', name: 'B', discoverable: true }]);
-    const svc = new HttpStorefrontService('https://sf.example.dev', 'SECRET-KEY');
+    const svc = new HttpStorefrontService('https://sf.example.dev');
     const r = await svc.list();
     expect(r.ok && r.value.length).toBe(1);
     expect(calls[0]!.init.method).toBe('GET');
-    expect((calls[0]!.init.headers as Record<string, string>)[WRITE_KEY_HEADER]).toBe('SECRET-KEY');
+    expect(seulementPermis(calls[0]!.init.headers)).toEqual([]);
   });
 
   it('a non-2xx is an honest { ok:false }, never a throw', async () => {
     stubFetch(401, { error: 'unauthorized' });
-    const svc = new HttpStorefrontService('https://sf.example.dev', 'WRONG');
+    const svc = new HttpStorefrontService('https://sf.example.dev');
     expect(await svc.create(CMD)).toEqual({ ok: false, reason: 'http_401' });
   });
 
   it('a network throw is an honest { ok:false, reason:offline }, never a throw', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network down'); }));
-    const svc = new HttpStorefrontService('https://sf.example.dev', 'K');
+    const svc = new HttpStorefrontService('https://sf.example.dev');
     expect(await svc.list()).toEqual({ ok: false, reason: 'offline' });
   });
 
   describe('RESELLER-AUTH-1 — her session rides every call, read at each call', () => {
     const entetes = (calls: { init: RequestInit }[]) => calls.map((c) => c.init.headers as Record<string, string>);
 
-    it('with an SPS session on the device, create · getById · publishListing · upload · list all carry Authorization: Bearer — and the key still rides', async () => {
+    it('with an SPS session on the device, create · getById · publishListing · upload · list all carry Authorization: Bearer — and nothing else', async () => {
       const calls = stubFetch(200, { status: 'created', storefront: { slug: 'boutik-0007' } });
-      const svc = new HttpStorefrontService('https://sf.example.dev', 'SECRET-KEY', async () => 'SPS-AAAA-BBBB-CCCC-DDDD');
+      const svc = new HttpStorefrontService('https://sf.example.dev', async () => 'SPS-AAAA-BBBB-CCCC-DDDD');
       await svc.create(CMD);
       await svc.getById('sf-test-1');
       await svc.publishListing({ storefrontId: 'sf-test-1', resellerId: 'rs-0001', productVersionId: 'pv-1', markup: 100, correlationId: 'c', at: '2026-09-03T08:00:00.000Z' });
@@ -143,26 +147,26 @@ describe('HttpStorefrontService — the request the app WOULD send', () => {
       expect(calls).toHaveLength(5);
       for (const h of entetes(calls)) {
         expect(h['Authorization']).toBe('Bearer SPS-AAAA-BBBB-CCCC-DDDD');
-        expect(h[WRITE_KEY_HEADER]).toBe('SECRET-KEY');
+        expect(seulementPermis(h)).toEqual([]);
       }
     });
 
     it('a legacy SP- feed code is a door, not an identity: it is NOT presented; no store means no header — byte-identical to before', async () => {
       const calls = stubFetch(200, { status: 'created', storefront: { slug: 'boutik-0007' } });
-      await new HttpStorefrontService('https://sf.example.dev', 'K', async () => 'SP-AAAA-BBBB-CCCC-DDDD').create(CMD);
-      await new HttpStorefrontService('https://sf.example.dev', 'K').create(CMD);
-      await new HttpStorefrontService('https://sf.example.dev', 'K', async () => { throw new Error('store down'); }).create(CMD);
+      await new HttpStorefrontService('https://sf.example.dev', async () => 'SP-AAAA-BBBB-CCCC-DDDD').create(CMD);
+      await new HttpStorefrontService('https://sf.example.dev').create(CMD);
+      await new HttpStorefrontService('https://sf.example.dev', async () => { throw new Error('store down'); }).create(CMD);
       expect(calls).toHaveLength(3);
       for (const h of entetes(calls)) {
         expect('Authorization' in h).toBe(false);
-        expect(h[WRITE_KEY_HEADER]).toBe('K');
+        expect(seulementPermis(h)).toEqual([]); // no session ⇒ NO credential at all
       }
     });
 
     it('the bearer is read at EACH call, so a session that lands after construction rides the next request', async () => {
       const calls = stubFetch(200, { status: 'created', storefront: { slug: 'boutik-0007' } });
       let stocke: string | null = null;
-      const svc = new HttpStorefrontService('https://sf.example.dev', 'K', async () => stocke);
+      const svc = new HttpStorefrontService('https://sf.example.dev', async () => stocke);
       await svc.list();
       stocke = 'SPS-1111-2222-3333-4444';
       await svc.list();
@@ -183,18 +187,19 @@ describe('resolveStorefrontService — null on unset, never a fallback that cann
   it('unset env → null (the caller MUST have an honest unconfigured state)', () => {
     expect(resolveStorefrontService()).toBeNull();
   });
-  it('base + key set → the real HTTP adapter', () => {
+  it('base set → the real HTTP adapter (ACCES-ARME-2: the base alone; the credential is her session, read per call)', () => {
     process.env.EXPO_PUBLIC_STOREFRONT_BASE = 'https://sf.example.dev';
-    process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY = 'SECRET-KEY';
     expect(resolveStorefrontService()).toBeInstanceOf(HttpStorefrontService);
   });
-  it('base without key → null (fail safe, never a keyless write)', () => {
-    process.env.EXPO_PUBLIC_STOREFRONT_BASE = 'https://sf.example.dev';
-    expect(resolveStorefrontService()).toBeNull();
-  });
-  it('key without base → null (the pair is set together or not at all)', () => {
-    process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY = 'SECRET-KEY';
-    expect(resolveStorefrontService()).toBeNull();
+  it('the retired key variable is NOT read: set alone it resolves nothing, and the adapter source never names it', () => {
+    process.env['EXPO_PUBLIC_STOREFRONT_WRITE_KEY'] = 'SECRET-KEY';
+    try {
+      expect(resolveStorefrontService()).toBeNull();
+    } finally {
+      delete process.env['EXPO_PUBLIC_STOREFRONT_WRITE_KEY'];
+    }
+    const src = readFileSync(join(__dirname, '..', 'src', 'vitrine', 'service.ts'), 'utf8');
+    expect(src).not.toMatch(/EXPO_PUBLIC_STOREFRONT_WRITE_KEY|X-Write-Key/);
   });
   it('NEVER returns an adapter whose create cannot fail — the resolved value is null or HTTP, nothing else', () => {
     const unset = resolveStorefrontService();
@@ -229,22 +234,22 @@ describe('DemoStorefrontService — unchanged behaviour in its new module', () =
 describe('PERSONNALISER-REAL-1 — the identity seam', () => {
   const patch = { name: 'Chez Bernard', tagline: 'Le bon tissu', bio: 'Ouaga', theme: 'indigo' as const };
 
-  it('THE WIRE: POST /storefronts/{id}/identity with the key, the patch and the timestamp', async () => {
-    let seen: { url?: string | undefined; method?: string | undefined; key?: string | undefined; body?: unknown } = {};
+  it('THE WIRE: POST /storefronts/{id}/identity with the patch and the timestamp, and no key', async () => {
+    let seen: { url?: string | undefined; method?: string | undefined; entetes?: string[] | undefined; body?: unknown } = {};
     const original = globalThis.fetch;
     globalThis.fetch = (async (url: string, init: { method: string; headers: Record<string, string>; body: string }) => {
-      seen = { url, method: init.method, key: init.headers[WRITE_KEY_HEADER], body: JSON.parse(init.body) };
+      seen = { url, method: init.method, entetes: Object.keys(init.headers), body: JSON.parse(init.body) };
       return { ok: true, status: 200, json: async () => ({ status: 'saved' }) } as unknown as Response;
     }) as unknown as typeof fetch;
     try {
-      const svc = new HttpStorefrontService('https://svc.example', 'k-test');
+      const svc = new HttpStorefrontService('https://svc.example');
       expect(await svc.saveIdentity('sf-1', patch, 'T0')).toEqual({ ok: true, value: { status: 'saved' } });
     } finally {
       globalThis.fetch = original;
     }
     expect(seen.url).toBe('https://svc.example/storefronts/sf-1/identity');
     expect(seen.method).toBe('POST');
-    expect(seen.key).toBe('k-test');
+    expect(seen.entetes).toEqual(['Content-Type']); // no session on this stub, and no key exists any more
     expect(seen.body).toEqual({ patch, at: 'T0' });
     // NO MONEY ON THIS WIRE — presentation only (loi 5)
     const wire = JSON.stringify(seen.body);
@@ -256,7 +261,7 @@ describe('PERSONNALISER-REAL-1 — the identity seam', () => {
     globalThis.fetch = (async () =>
       ({ ok: false, status: 422, json: async () => ({ status: 'refused', reason: 'name_too_short' }) }) as unknown as Response) as unknown as typeof fetch;
     try {
-      const svc = new HttpStorefrontService('https://svc.example', 'k');
+      const svc = new HttpStorefrontService('https://svc.example');
       expect(await svc.saveIdentity('sf-1', { name: 'ab' }, 'T0')).toEqual({ ok: false, reason: 'name_too_short' });
     } finally {
       globalThis.fetch = original;
@@ -265,7 +270,7 @@ describe('PERSONNALISER-REAL-1 — the identity seam', () => {
 
   it('A 404 READ IS AN HONEST ABSENCE, a broken body is a FAULT — the two are never confused', async () => {
     const original = globalThis.fetch;
-    const svc = new HttpStorefrontService('https://svc.example', 'k');
+    const svc = new HttpStorefrontService('https://svc.example');
     try {
       globalThis.fetch = (async () => ({ ok: false, status: 404, json: async () => ({}) }) as unknown as Response) as unknown as typeof fetch;
       // no shop yet ⇒ ok with NO value: she has simply not gone live
@@ -303,7 +308,7 @@ describe('PERSONNALISER-REAL-1 — the identity seam', () => {
       return { ok: true, status: 200, json: async () => ({ status: 'saved' }) } as unknown as Response;
     }) as unknown as typeof fetch;
     try {
-      const svc = new HttpStorefrontService('https://svc.example', 'k-test');
+      const svc = new HttpStorefrontService('https://svc.example');
       expect(await svc.saveIdentity('sf-1', { headerStyle: 'royale' }, 'T0')).toEqual({ ok: true, value: { status: 'saved' } });
     } finally {
       globalThis.fetch = original;
@@ -317,7 +322,7 @@ describe('PERSONNALISER-REAL-1 — the identity seam', () => {
     globalThis.fetch = (async () =>
       ({ ok: false, status: 422, json: async () => ({ status: 'refused', reason: 'unknown_header_style' }) }) as unknown as Response) as unknown as typeof fetch;
     try {
-      const svc = new HttpStorefrontService('https://svc.example', 'k');
+      const svc = new HttpStorefrontService('https://svc.example');
       expect(await svc.saveIdentity('sf-1', { headerStyle: 'baroque' }, 'T0')).toEqual({ ok: false, reason: 'unknown_header_style' });
     } finally {
       globalThis.fetch = original;
@@ -570,7 +575,7 @@ describe('ENTETES-C — coverFocus / avatarFocus on the wire and in the demo', (
       return { ok: true, status: 200, json: async () => ({ status: 'saved' }) } as unknown as Response;
     }) as unknown as typeof fetch;
     try {
-      const svc = new HttpStorefrontService('https://svc.example', 'k-test');
+      const svc = new HttpStorefrontService('https://svc.example');
       await svc.saveIdentity('sf-1', { coverFocus: { x: 10, y: 90 } }, 'T0');
       await svc.saveIdentity('sf-1', { coverFocus: null, avatarFocus: { x: 40, y: 20 } }, 'T1');
     } finally {
@@ -588,7 +593,7 @@ describe('ENTETES-C — coverFocus / avatarFocus on the wire and in the demo', (
       for (const reason of ['bad_focus', 'no_photo_to_frame']) {
         globalThis.fetch = (async () =>
           ({ ok: false, status: 422, json: async () => ({ status: 'refused', reason }) }) as unknown as Response) as unknown as typeof fetch;
-        const svc = new HttpStorefrontService('https://svc.example', 'k');
+        const svc = new HttpStorefrontService('https://svc.example');
         expect(await svc.saveIdentity('sf-1', { coverFocus: { x: 1, y: 2 } }, 'T0')).toEqual({ ok: false, reason });
       }
     } finally {

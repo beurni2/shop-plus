@@ -3,10 +3,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance } from './seance';
 
 /**
  * ═══ SECTEURS-PROGRES-1 (AUDIT-SHOP-1 slice e) — one credential per writer,
  * on the REAL combined Worker ═══
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. The shop each
+ * paid order rides on is seated through `seance()` — signup → the founder
+ * mints on key C → admission — and created with HER session bearer; her
+ * `resellerId` is the id the book minted. Key C is bound here for that
+ * minting alone; the two progress doors under test stay their own secrets.
  *
  * The audit's MAJOR (4): one shared `PROGRESS_WRITE_SECRET` unlocked BOTH
  * Boutik+'s preparation facts AND Séra's delivery marks — up to
@@ -31,11 +38,9 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'secteurs-'));
 const T0 = '2026-09-03T08:00:00.000Z';
 
-const WRITE_SECRET = 'test-write-secret-sp201';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-sp201';
 const BOUTIK_SECRET = 'test-progress-write-secret-sp201';
 const SERA_SECRET = 'test-sera-progress-secret-sp201';
-const authed = { 'X-Write-Key': WRITE_SECRET };
 
 const SUPPLY = [
   {
@@ -57,12 +62,12 @@ const mf = new Miniflare({
   durableObjects: {
     STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
     ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO',
-    DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO',
+    DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO', COMPTES: 'ResellerAccountsDO',
   },
   durableObjectsPersist: persist,
   bindings: {
-    STOREFRONT_WRITE_SECRET: WRITE_SECRET,
     PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
+    CHECKOUT_OPS_SECRET: OPS_SECRET,
     PROGRESS_WRITE_SECRET: BOUTIK_SECRET,
     SERA_PROGRESS_SECRET: SERA_SECRET,
   },
@@ -99,20 +104,21 @@ function safeJson(text: string): Record<string, unknown> {
 }
 
 async function createdPaidOrder(n: string): Promise<string> {
+  const S = await seance(mf, `sp${n}`);
   const created = await mf.dispatchFetch('http://c/storefronts', {
-    method: 'POST', headers: authed,
+    method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-sp-${n}`, resellerId: `rs-sp-${n}`,
+      commandId: `cmd-create-${n}`, id: `sf-sp-${n}`, resellerId: S.accountId,
       shortCode: `SPLIT-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-sp-${n}`, at: T0,
     }),
   });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
-    method: 'POST', headers: authed,
+    method: 'POST', headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`, listingId: `lst-sp-${n}`, storefrontId: `sf-sp-${n}`,
-      resellerId: `rs-sp-${n}`, productVersionId: 'pv-sp-1', offerVersion: 'ov-sp-1',
+      resellerId: S.accountId, productVersionId: 'pv-sp-1', offerVersion: 'ov-sp-1',
       markup: 1_500, correlationId: `corr-sp-${n}`, at: T0,
     }),
   });
@@ -121,7 +127,7 @@ async function createdPaidOrder(n: string): Promise<string> {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       slug: `split-${n}`, pid: 'pv-sp-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
-      attributionResellerId: `rs-sp-${n}`, requestKey: `rk-sp-${n}-${'x'.repeat(12)}`,
+      attributionResellerId: S.accountId, requestKey: `rk-sp-${n}-${'x'.repeat(12)}`,
     }),
   });
   const quote = safeJson(await quoteRes.text()) as { quoteId?: string };

@@ -445,8 +445,9 @@ export default {
 
     // ═══ STOREFRONT-DELETE-1 — DELETE /storefronts/:id (operator cleanup) ═══
     //
-    // Key-gated BY METHOD at the composition root (DELETE is not a safe method,
-    // so `rejectUnauthorizedWrite` refuses it before this router is reached).
+    // Session-gated BY METHOD at the composition root (DELETE is not a safe
+    // method, so the root refuses it without an active session, and with one
+    // only on her own shop — ACCES-ARME-2 retired the key that used to open it).
     // ENTRY FIRST, then pointer, then index — the failure-safe order: the moment
     // the entry is erased, every buyer read is ALREADY the honest 404 (the
     // orphaned-pointer rule below), so a cleanup lost mid-flight can strand only

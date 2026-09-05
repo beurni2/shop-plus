@@ -2,7 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance, type Seance } from './seance';
 
 /**
  * ═══ VITRINE-RETRAIT — SHE TAKES A PRODUCT OUT, AND THE BUYER SEES IT GO ═══
@@ -22,19 +23,23 @@ import { afterAll, describe, expect, it } from 'vitest';
  * une ») and placed in a SECTION. A removal that dropped only the membership
  * would leave the buyer projection carrying ids the catalogue can no longer
  * describe — so the pin and the section row must go in the same act.
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. The reseller is
+ * seated through `seance()` — signup → the founder mints on key C → admission
+ * — and every write here rides HER session bearer; her shop carries the
+ * `resellerId` the book minted. The buyer's page (`GET /s/{slug}`) stays
+ * credential-free, as it must.
  */
 
 const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'vitrine-retrait-'));
-const WRITE_SECRET = 'test-write-secret-r001';
-const authed = { 'X-Write-Key': WRITE_SECRET, 'Content-Type': 'application/json' };
 
 const mf = new Miniflare({
   modules: true,
   scriptPath: SCRIPT,
-  durableObjects: { STOREFRONT: 'StorefrontDO' },
+  durableObjects: { STOREFRONT: 'StorefrontDO', COMPTES: 'ResellerAccountsDO' },
   durableObjectsPersist: persist,
-  bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
+  bindings: { CHECKOUT_OPS_SECRET: OPS_SECRET },
 });
 afterAll(async () => {
   await mf.dispose();
@@ -44,23 +49,29 @@ afterAll(async () => {
 const SF_ID = 'sf-retrait-001';
 const SLUG = 'retrait-0001';
 
+/** The seated reseller — the shop's one owner, every write is hers. */
+let S: Seance;
+beforeAll(async () => {
+  S = await seance(mf, 'retrait');
+});
+
 /** The create command shape the existing e2e already proves against this Worker. */
-const CREATE = {
+const creation = (resellerId: string) => ({
   commandId: 'c-retrait-001',
   id: SF_ID,
-  resellerId: 'rs-retrait-001',
+  resellerId,
   shortCode: 'RETRAIT-0001',
   name: 'Boutique retrait',
   zone: 'Ouagadougou',
   category: 'Général',
   correlationId: 'corr-retrait-001',
   at: '2026-08-11T08:00:00.000Z',
-};
+});
 
 async function post(path: string, body: unknown): Promise<Response> {
   return mf.dispatchFetch(`http://sf${path}`, {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify(body),
   }) as unknown as Promise<Response>;
 }
@@ -78,7 +89,7 @@ async function boutique(): Promise<{
 
 describe('VITRINE-RETRAIT — the removal reaches the buyer’s page', () => {
   it('a removed product leaves the boutique, with its pin and its section row', async () => {
-    const created = await post('/storefronts', CREATE);
+    const created = await post('/storefronts', creation(S.accountId));
     expect(created.status, await created.clone().text()).toBe(200);
 
     // Three products in her shop, through the REAL membership write.
@@ -125,17 +136,21 @@ describe('VITRINE-RETRAIT — the removal reaches the buyer’s page', () => {
   });
 
   it('an unknown shop is the honest 404, never a phantom removal', async () => {
+    // ACCES-ARME-2: with her session, a shop that is not hers — absent
+    // included — is the ownership gate's ONE mute not-found.
     const res = await post('/storefronts/sf-jamais-creee/items/remove', { pid: 'pv-a' });
     expect(res.status).toBe(404);
+    expect(await res.text()).toBe('{"error":"not_found"}');
   });
 
-  it('the write gate still stands — no key, no removal', async () => {
+  it('the write gate still stands — no session, no removal', async () => {
     const res = (await mf.dispatchFetch(`http://sf/storefronts/${SF_ID}/items/remove`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pid: 'pv-a' }),
     })) as unknown as Response;
     expect(res.status).toBe(401);
+    expect(await res.text()).toBe('{"error":"unauthorized"}');
     // …and the shop is untouched by the refused call.
     expect((await boutique()).curatedItems).toEqual(['pv-a', 'pv-c']);
   });

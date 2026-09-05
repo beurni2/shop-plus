@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { Miniflare } from 'miniflare';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance, type Seance } from './seance';
 
 /**
  * BC-1a — THE BUYER'S DISPATCH CONTACT, END TO END on real workerd (founder-
@@ -15,17 +16,23 @@ import { afterAll, describe, expect, it } from 'vitest';
  * order view. `GET /checkout/order/:id` is reachable by anyone holding the
  * order link; a phone number there would leak with every screenshot. The
  * suite asserts absence on the RAW RESPONSE BYTES, not on parsed fields.
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. Every shop
+ * here is seated through `seance()` — signup → the founder mints on key C →
+ * admission — and created with HER session bearer; her `resellerId` is the
+ * id the book minted, so every feed code minted for her names THAT id. Where
+ * a door matrix used to present the write key as « a shared credential that
+ * opens nothing here », it now presents an admitted reseller's SESSION — the
+ * credential that replaced it, and the one that must open nothing of the
+ * founder's either.
  */
 
 const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'dispatch-'));
 const T0 = '2026-08-02T08:00:00.000Z';
 
-const WRITE_SECRET = 'test-write-secret-d001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-d001';
 const FULFILL_SECRET = 'test-fulfillment-write-secret-d001';
-const OPS_SECRET = 'test-checkout-ops-secret-d001';
-const authed = { 'X-Write-Key': WRITE_SECRET };
 const signed = { 'X-Payment-Webhook-Key': WEBHOOK_SECRET, 'Content-Type': 'application/json' };
 
 const CONTACT = { phone: '70 12 34 56', quartier: 'Gounghin', repere: 'Face à la pharmacie' };
@@ -54,10 +61,10 @@ const mf = new Miniflare({
     ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO',
     DISPATCH: 'DispatchIndexDO',
     RESELLER: 'ResellerFeedDO',
+    COMPTES: 'ResellerAccountsDO',
   },
   durableObjectsPersist: persist,
   bindings: {
-    STOREFRONT_WRITE_SECRET: WRITE_SECRET,
     PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
     FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
     CHECKOUT_OPS_SECRET: OPS_SECRET,
@@ -86,6 +93,13 @@ afterAll(async () => {
   rmSync(persist, { recursive: true, force: true });
 });
 
+/** An admitted reseller with NO shop in this file — the session every door
+ *  matrix below presents as « a credential that opens nothing here ». */
+let temoin: Seance;
+beforeAll(async () => {
+  temoin = await seance(mf, 'temoin');
+});
+
 function safeJson(text: string): Record<string, unknown> {
   try {
     return JSON.parse(text) as Record<string, unknown>;
@@ -99,11 +113,12 @@ const freshKey = (): string => `rk-dispatch-${String((keyN += 1)).padStart(4, '0
 
 async function seedShop(n: string): Promise<{ slug: string; resellerId: string; pid: string }> {
   const shortCode = `DISP-${n}`;
+  const S = await seance(mf, `disp${n}`);
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-disp-${n}`, resellerId: `rs-disp-${n}`, shortCode,
+      commandId: `cmd-create-${n}`, id: `sf-disp-${n}`, resellerId: S.accountId, shortCode,
       name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
       correlationId: `corr-${n}`, at: T0,
     }),
@@ -111,22 +126,27 @@ async function seedShop(n: string): Promise<{ slug: string; resellerId: string; 
   if (created.status !== 200) throw new Error(`seed: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`, listingId: `lst-disp-${n}`, storefrontId: `sf-disp-${n}`,
-      resellerId: `rs-disp-${n}`, productVersionId: 'pv-dispatch-1', offerVersion: 'ov-dispatch-1',
+      resellerId: S.accountId, productVersionId: 'pv-dispatch-1', offerVersion: 'ov-dispatch-1',
       markup: 1_500, correlationId: `corr-${n}`, at: T0,
     }),
   });
   const decision = (await pub.json()) as { status?: string };
   if (decision.status !== 'published') throw new Error(`seed: listing ${JSON.stringify(decision)}`);
-  return { slug: shortCode.toLowerCase(), resellerId: `rs-disp-${n}`, pid: 'pv-dispatch-1' };
+  return { slug: shortCode.toLowerCase(), resellerId: S.accountId, pid: 'pv-dispatch-1' };
 }
 
-/** shop → quote → hold → order (with or without contact), the whole buyer path. */
-async function orderWith(n: string, contact: unknown): Promise<{ orderId: string; quoteId: string; created: { status: number; text: string; json: Record<string, unknown> } }> {
+/** shop → quote → hold → order (with or without contact), the whole buyer path.
+ *  The shop rides back too: its `resellerId` is the book-minted id a later
+ *  assertion may need to name. */
+async function orderWith(n: string, contact: unknown): Promise<{
+  orderId: string; quoteId: string; created: { status: number; text: string; json: Record<string, unknown> };
+  shop: { slug: string; resellerId: string; pid: string };
+}> {
   const shop = await seedShop(n);
-  return orderOnShop(shop, n, contact);
+  return { ...(await orderOnShop(shop, n, contact)), shop };
 }
 
 /** A SECOND order on a shop that already exists — so a test can put two orders
@@ -211,8 +231,8 @@ describe('BC-1a — the contact travels to exactly one reader', () => {
     }
   });
 
-  it('the door matrix: no key, the write key, the webhook secret, and a wrong value all answer ONE 401', async () => {
-    for (const bearer of [null, WRITE_SECRET, WEBHOOK_SECRET, FULFILL_SECRET, 'wrong']) {
+  it('the door matrix: no key, a reseller’s session, the webhook secret, and a wrong value all answer ONE 401', async () => {
+    for (const bearer of [null, temoin.session, WEBHOOK_SECRET, FULFILL_SECRET, 'wrong']) {
       const res = await dispatchRead(bearer);
       expect(res.status, String(bearer)).toBe(401);
       expect(res.text).toBe('{"error":"unauthorized"}');
@@ -237,7 +257,6 @@ describe('BC-1a — the contact travels to exactly one reader', () => {
       },
       durableObjectsPersist: bare,
       bindings: {
-        STOREFRONT_WRITE_SECRET: WRITE_SECRET,
         PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
         FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
         // deliberately NO CHECKOUT_OPS_SECRET
@@ -365,22 +384,30 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
     if (hook.status !== 200) throw new Error(`webhook ${hook.status} ${await hook.text()}`);
   }
 
-  it('the door matrix: no code, a wrong code, the write key, the webhook secret and the FOUNDER’S OWN ops key all answer ONE 401 — a shared credential opens nothing here', async () => {
+  it('the door matrix: no code, a wrong code, the webhook secret and the FOUNDER’S OWN ops key all answer ONE 401 — a shared credential opens nothing here; a reseller’s SESSION opens HER OWN feed and nobody else’s', async () => {
     // A REAL code must EXIST while these are refused (verifier, vacuous #4):
     // on an empty store this matrix passed even with the hash lookup deleted,
     // because there was nothing to match against. Now there is.
     const live = await opsPost('/reseller/code', { resellerId: 'rs-door-live' });
     expect(live.json['ok']).toBe(true);
     expect((await ventes(live.json['code'] as string)).status).toBe(200);
-    for (const bearer of [null, 'wrong', WRITE_SECRET, WEBHOOK_SECRET, OPS_SECRET]) {
+    for (const bearer of [null, 'wrong', WEBHOOK_SECRET, OPS_SECRET]) {
       const res = await ventes(bearer);
       expect(res.status, String(bearer)).toBe(401);
       expect(res.text).toBe('{"error":"unauthorized"}');
     }
+    // ACCES-ARME-2 — the write key this matrix used to present is retired;
+    // the credential that replaced it is NOT shared: an ACTIVE session is a
+    // door here (RESELLER-ACCOUNTS-1b), but onto HER feed alone — this
+    // reseller owns no shop and no sale, so her answer is her own emptiness,
+    // never the live code's rows.
+    const sienne = await ventes(temoin.session);
+    expect(sienne.status, sienne.text).toBe(200);
+    expect(sienne.json['ventes']).toEqual([]);
   });
 
   it('minting is the FOUNDER’S act — his ops key mints, everyone else is refused, and a smuggled field is malformed', async () => {
-    for (const bearer of [null, WRITE_SECRET, 'wrong']) {
+    for (const bearer of [null, temoin.session, 'wrong']) {
       const res = await opsPost('/reseller/code', { resellerId: 'rs-disp-0001' }, bearer);
       expect(res.status, String(bearer)).toBe(401);
     }
@@ -389,9 +416,14 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
     expect(smuggled.json['reason']).toBe('malformed');
   });
 
+  /** The book-minted id of shop 0011's reseller — the feed the tests below
+   *  keep re-minting codes for, in order, as they always have. */
+  let resellerOnze = '';
+
   it('THE WHOLE ROAD: a confirmed sale reaches her feed with her NET — and an unpaid one never does', async () => {
     // her shop, her order, paid
     const shop = await seedShop('0011');
+    resellerOnze = shop.resellerId;
     const paid = await orderOnShop(shop, '0011', CONTACT);
     expect(paid.created.status, paid.created.text).toBe(200);
     // a SECOND order, left unpaid, on the SAME shop — so it is HER order and
@@ -400,7 +432,7 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
     const unpaid = await orderOnShop(shop, '0012', CONTACT);
     expect(unpaid.created.status, unpaid.created.text).toBe(200);
 
-    const mint = await opsPost('/reseller/code', { resellerId: 'rs-disp-0011' });
+    const mint = await opsPost('/reseller/code', { resellerId: resellerOnze });
     expect(mint.json['ok']).toBe(true);
     const code = mint.json['code'] as string;
     expect(code.startsWith('SP-')).toBe(true);
@@ -435,7 +467,7 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
   });
 
   it('THE ECONOMICS BOUNDARY on raw bytes: no base price, no commission, no gross, no buyer contact ever rides her wire', async () => {
-    const mint = await opsPost('/reseller/code', { resellerId: 'rs-disp-0011' });
+    const mint = await opsPost('/reseller/code', { resellerId: resellerOnze });
     const res = await ventes(mint.json['code'] as string);
     // NEVER scan an empty feed for leaks — that proves nothing. This is the
     // reseller whose confirmed sale the previous test put on the wire.
@@ -478,7 +510,7 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
     expect(res.json['ventes']).toEqual([]);
     // and the emptiness is SCOPING, not an empty store: hers is non-empty at
     // this very instant, read through her own code.
-    const hers = await opsPost('/reseller/code', { resellerId: 'rs-disp-0011' });
+    const hers = await opsPost('/reseller/code', { resellerId: resellerOnze });
     expect(((await ventes(hers.json['code'] as string)).json['ventes'] as unknown[]).length).toBe(1);
   });
 
@@ -499,7 +531,7 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
   });
 
   it('B3 — a feed read in full says so: incomplet is false, so the flag means something', async () => {
-    const code = (await opsPost('/reseller/code', { resellerId: 'rs-disp-0011' })).json['code'] as string;
+    const code = (await opsPost('/reseller/code', { resellerId: resellerOnze })).json['code'] as string;
     const res = await ventes(code);
     expect((res.json['ventes'] as unknown[]).length).toBe(1);
     expect(res.json['incomplet']).toBe(false);
@@ -527,7 +559,7 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
   });
 
   it('M3/M5 — her feed refuses cleanly with no RESELLER binding, and a money-bearing answer is never cacheable', async () => {
-    const code = (await opsPost('/reseller/code', { resellerId: 'rs-disp-0011' })).json['code'] as string;
+    const code = (await opsPost('/reseller/code', { resellerId: resellerOnze })).json['code'] as string;
     const live = await ventes(code);
     expect(live.status).toBe(200);
     expect(live.headers.get('cache-control'), 'her sales must not sit in a cache').toBe('private, no-store');
@@ -575,8 +607,8 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
     expect(Object.keys(codes[0]!).sort()).toEqual(['mintedAt', 'resellerId', 'revelable']);
     expect(typeof codes[0]!['revelable']).toBe('boolean');
     expect(text.includes('hash')).toBe(false);
-    // and it is HIS door only
-    for (const bearer of [null, WRITE_SECRET, 'wrong']) {
+    // and it is HIS door only — a reseller's session opens no inventory
+    for (const bearer of [null, temoin.session, 'wrong']) {
       const refused = await mf.dispatchFetch('http://c/reseller/codes', {
         headers: bearer !== null ? { Authorization: `Bearer ${bearer}` } : {},
       });
@@ -673,8 +705,9 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
     expect(stranger.status).toBe(404);
     expect(((await stranger.json()) as { reason?: string }).reason).toBe('not_yours');
 
-    // and the same door opens for the reseller it IS attributed to
-    const owner = await stub.fetch('https://do/entry/reseller/rs-disp-0013');
+    // and the same door opens for the reseller it IS attributed to — the
+    // book-minted id her shop carries
+    const owner = await stub.fetch(`https://do/entry/reseller/${encodeURIComponent(mine.shop.resellerId)}`);
     expect(owner.status).toBe(200);
     expect(((await owner.json()) as { orderId?: string }).orderId).toBe(mine.orderId);
   });
@@ -707,7 +740,6 @@ describe('RF-1a — a reseller reads HER OWN confirmed sales, and only hers', ()
 describe('RF-1a B2 — a row lost at confirmation time is repaired by the next webhook', () => {
   const persistB2 = mkdtempSync(join(tmpdir(), 'rf1a-b2-'));
   const commonBindings = {
-    STOREFRONT_WRITE_SECRET: WRITE_SECRET,
     PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
     FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
     CHECKOUT_OPS_SECRET: OPS_SECRET,
@@ -736,7 +768,7 @@ describe('RF-1a B2 — a row lost at confirmation time is repaired by the next w
         LISTING: 'ListingDO',
         CHECKOUT: 'CheckoutDO',
         ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO',
-        DISPATCH: 'DispatchIndexDO',
+        DISPATCH: 'DispatchIndexDO', COMPTES: 'ResellerAccountsDO',
         ...(withFeed ? { RESELLER: 'ResellerFeedDO' } : {}),
       },
       durableObjectsPersist: persistB2,
@@ -750,13 +782,18 @@ describe('RF-1a B2 — a row lost at confirmation time is repaired by the next w
     let orderId = '';
     let amount = 0;
     let webhookBody = '';
+    let resellerId = '';
     try {
-      // seed + order + confirm on the Worker that CANNOT write her index
+      // seed + order + confirm on the Worker that CANNOT write her index —
+      // she is seated on that same Worker; the accounts book is durable, so
+      // the healed Worker below knows her id.
+      const S = await seance(blind, 'b2');
+      resellerId = S.accountId;
       const created = await blind.dispatchFetch('http://c/storefronts', {
         method: 'POST',
-        headers: authed,
+        headers: S.bearer,
         body: JSON.stringify({
-          commandId: `cmd-create-${N}`, id: `sf-disp-${N}`, resellerId: `rs-disp-${N}`, shortCode: `DISP-0021`,
+          commandId: `cmd-create-${N}`, id: `sf-disp-${N}`, resellerId: S.accountId, shortCode: `DISP-0021`,
           name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
           correlationId: `corr-${N}`, at: T0,
         }),
@@ -764,10 +801,10 @@ describe('RF-1a B2 — a row lost at confirmation time is repaired by the next w
       expect(created.status).toBe(200);
       const pub = await blind.dispatchFetch('http://c/listings', {
         method: 'POST',
-        headers: authed,
+        headers: S.bearer,
         body: JSON.stringify({
           commandId: `cmd-listing-${N}`, listingId: `lst-disp-${N}`, storefrontId: `sf-disp-${N}`,
-          resellerId: `rs-disp-${N}`, productVersionId: 'pv-dispatch-1', offerVersion: 'ov-dispatch-1',
+          resellerId: S.accountId, productVersionId: 'pv-dispatch-1', offerVersion: 'ov-dispatch-1',
           markup: 1_500, correlationId: `corr-${N}`, at: T0,
         }),
       });
@@ -777,7 +814,7 @@ describe('RF-1a B2 — a row lost at confirmation time is repaired by the next w
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slug: 'disp-0021', pid: 'pv-dispatch-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
-          attributionResellerId: `rs-disp-${N}`, requestKey: `rk-b2-0001-${'x'.repeat(10)}`,
+          attributionResellerId: S.accountId, requestKey: `rk-b2-0001-${'x'.repeat(10)}`,
         }),
       });
       const quoteId = ((await quoteRes.json()) as { quoteId: string }).quoteId;
@@ -816,7 +853,7 @@ describe('RF-1a B2 — a row lost at confirmation time is repaired by the next w
       const mint = await healed.dispatchFetch('http://c/reseller/code', {
         method: 'POST',
         headers: { Authorization: `Bearer ${OPS_SECRET}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resellerId: `rs-disp-${N}` }),
+        body: JSON.stringify({ resellerId }),
       });
       const code = ((await mint.json()) as { code: string }).code;
       const read = async (): Promise<Record<string, unknown>[]> => {
@@ -864,10 +901,10 @@ describe('RF-1a B3 — a feed longer than the fan-out cap is truncated and SAYS 
     durableObjects: {
       STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
       ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO',
+      COMPTES: 'ResellerAccountsDO',
     },
     durableObjectsPersist: persistT,
     bindings: {
-      STOREFRONT_WRITE_SECRET: WRITE_SECRET,
       PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
       FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
       CHECKOUT_OPS_SECRET: OPS_SECRET,
@@ -891,9 +928,10 @@ describe('RF-1a B3 — a feed longer than the fan-out cap is truncated and SAYS 
   });
 
   it('THREE real confirmed sales, a cap of two: she sees two and the answer declares itself partial', async () => {
-    const RID = 'rs-cap-01';
+    const S = await seance(capped, 'cap');
+    const RID = S.accountId;
     const seeded = await capped.dispatchFetch('http://c/storefronts', {
-      method: 'POST', headers: authed,
+      method: 'POST', headers: S.bearer,
       body: JSON.stringify({
         commandId: 'cmd-cap', id: 'sf-cap', resellerId: RID, shortCode: 'CAP-0001',
         name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
@@ -902,7 +940,7 @@ describe('RF-1a B3 — a feed longer than the fan-out cap is truncated and SAYS 
     });
     expect(seeded.status).toBe(200);
     const pub = await capped.dispatchFetch('http://c/listings', {
-      method: 'POST', headers: authed,
+      method: 'POST', headers: S.bearer,
       body: JSON.stringify({
         commandId: 'cmd-cap-l', listingId: 'lst-cap', storefrontId: 'sf-cap', resellerId: RID,
         productVersionId: 'pv-dispatch-1', offerVersion: 'ov-dispatch-1', markup: 1_500,
@@ -981,10 +1019,10 @@ describe('READINESS-RETURN-1c — preparation news arrives and reaches her feed'
     durableObjects: {
       STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
       ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO',
+      COMPTES: 'ResellerAccountsDO',
     },
     durableObjectsPersist: persistR,
     bindings: {
-      STOREFRONT_WRITE_SECRET: WRITE_SECRET,
       PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
       FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
       CHECKOUT_OPS_SECRET: OPS_SECRET,
@@ -1011,7 +1049,9 @@ describe('READINESS-RETURN-1c — preparation news arrives and reaches her feed'
     rmSync(persistR, { recursive: true, force: true });
   });
 
-  const RID = 'rs-rr1c-01';
+  /** Her book-minted id and her session, seated in « sets the stage ». */
+  let RID = '';
+  let sessionRid = '';
   let orderId = '';
   let code = '';
 
@@ -1034,8 +1074,11 @@ describe('READINESS-RETURN-1c — preparation news arrives and reaches her feed'
   };
 
   it('sets the stage: one confirmed sale of hers', async () => {
+    const S = await seance(world, 'rr1c');
+    RID = S.accountId;
+    sessionRid = S.session;
     const sf = await world.dispatchFetch('http://c/storefronts', {
-      method: 'POST', headers: authed,
+      method: 'POST', headers: S.bearer,
       body: JSON.stringify({
         commandId: 'cmd-rr1c', id: 'sf-rr1c', resellerId: RID, shortCode: 'RRC-0001',
         name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
@@ -1044,7 +1087,7 @@ describe('READINESS-RETURN-1c — preparation news arrives and reaches her feed'
     });
     expect(sf.status).toBe(200);
     const pub = await world.dispatchFetch('http://c/listings', {
-      method: 'POST', headers: authed,
+      method: 'POST', headers: S.bearer,
       body: JSON.stringify({
         commandId: 'cmd-rr1c-l', listingId: 'lst-rr1c', storefrontId: 'sf-rr1c', resellerId: RID,
         productVersionId: 'pv-dispatch-1', offerVersion: 'ov-dispatch-1', markup: 1_500,
@@ -1093,7 +1136,9 @@ describe('READINESS-RETURN-1c — preparation news arrives and reaches her feed'
   });
 
   it('THE DOOR: its own secret, and every other credential in the ecosystem is refused with ONE 401', async () => {
-    for (const bearer of [null, 'wrong', WRITE_SECRET, WEBHOOK_SECRET, FULFILL_SECRET, OPS_SECRET]) {
+    // …the shop OWNER's own session included: readiness is Boutik+'s fact,
+    // never something she can declare about her own sale.
+    for (const bearer of [null, 'wrong', sessionRid, WEBHOOK_SECRET, FULFILL_SECRET, OPS_SECRET]) {
       const res = await deliver(
         { name: 'fulfillment.accepted.v1', envelope: envelope('a'), payload: { orderId, at: T0 } },
         bearer,
@@ -1182,7 +1227,7 @@ describe('READINESS-RETURN-1c — with no PROGRESS_WRITE_SECRET, the intake refu
         ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO',
       },
       durableObjectsPersist: p,
-      bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET, PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET },
+      bindings: { PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET },
     });
     try {
       for (const headers of [{}, { Authorization: 'Bearer ' }, { Authorization: 'Bearer anything' }]) {
@@ -1237,9 +1282,9 @@ describe('SP6.3 — recording a refusal from the console: the buyer is named by 
     return { status: res.status, text, json: safeJson(text) };
   };
 
-  it('ONLY KEY C OPENS IT — no key, a wrong key, and the WRITE key are all 401', async () => {
+  it('ONLY KEY C OPENS IT — no key, a wrong key, and a reseller’s SESSION are all 401', async () => {
     const { orderId } = await orderWith('6001', acheteuse('76 00 00 01'));
-    for (const bearer of [null, 'not-the-key', WRITE_SECRET]) {
+    for (const bearer of [null, 'not-the-key', temoin.session]) {
       const res = await refuse(orderId, { reason: 'change_of_mind' }, bearer);
       expect(res.status, String(bearer)).toBe(401);
     }

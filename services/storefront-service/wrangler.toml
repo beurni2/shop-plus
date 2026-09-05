@@ -191,22 +191,15 @@ MEDIA_PUBLIC_BASE = "https://storefront-service.ilboudobernard2.workers.dev"
 # knows is right.
 PRODUCT_MEDIA_BASE = "https://media-service.ilboudobernard2.workers.dev"
 
-# RESELLER-PILOTE-1 (AUDIT-SHOP-1 slice a1) — the account book seats ONE
-# reseller while storefront writes still ride the shared write key; the next
-# admission is refused by name (`plafond_pilote`) at the mint and at the door.
-# Absent or malformed ALSO means one — the Worker fails closed with nothing to
-# configure; the value is stated here only so the deployed truth is readable.
-# NEVER RAISED ON THE DEPLOY: the ceiling leaves with slice a2 (every write
-# bound to the reseller's session, the shared key retired), and this line
-# leaves in that same commit. The accounts e2e lifts it on its own test Worker.
-RESELLER_ADMISSION_CEILING = "1"
-
-# SERVICE-WRITE-AUTH-1 — the shared write secret (STOREFRONT_WRITE_SECRET) is NOT
-# here and must NEVER be added to [vars]: all five repos are PUBLIC and anything in
-# [vars] is committed and published. It is set out-of-band with
-# `wrangler secret put STOREFRONT_WRITE_SECRET` (encrypted, not in the repo). The
-# gate fails CLOSED: until the secret is set, every write returns 401 by design —
-# so set the secret BEFORE (or right after) deploying the gate, or writes look broken.
+# ACCES-ARME-2 (a2b phase 2, founder « Seated » 2026-09-05) — the shared write
+# secret (STOREFRONT_WRITE_SECRET) and the a1 pilot ceiling
+# (RESELLER_ADMISSION_CEILING) are GONE. Every reseller write and every reseller
+# read is her session (`Authorization: Bearer SPS-…`, minted by the account book)
+# or 401; the founder's two operator roads on the storefront surface ride key C
+# (CHECKOUT_OPS_SECRET). The Worker no longer reads STOREFRONT_WRITE_SECRET — once
+# this is deployed, `wrangler secret delete STOREFRONT_WRITE_SECRET` retires the
+# value from the encrypted store as well. Nothing here or in any [vars] ever
+# carried it: all five repos are PUBLIC and anything in [vars] is published.
 
 # SP3.3a — PAYMENT_WEBHOOK_SECRET is likewise ABSENT from this file and must never
 # be added to [vars]. It gates `POST /checkout/webhook/payment`, the only route on

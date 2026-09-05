@@ -1,44 +1,37 @@
 /**
- * SERVICE-WRITE-AUTH-1 — the shared-secret WRITE gate for the storefront service.
+ * THE GATES of the storefront service — every credential this Worker reads, and
+ * the three properties each gate carries: FAIL CLOSED (no secret ⇒ nobody
+ * passes), constant-time (the compare always runs, so timing reveals neither
+ * whether a secret exists nor which one missed), and ONE identical 401 computed
+ * at the composition root BEFORE any dispatch, so a refusal can never become an
+ * existence oracle.
  *
- * THE FINDING it closes: every write endpoint on the live Worker
- * (POST /storefronts · /storefronts/:id/publish · /unpublish · /listings ·
- * /listings/:id/hide · /media/upload) was reachable with NO credential — anyone
- * with the URL could create storefronts or write objects into the founder's R2
- * bucket. This gate sits at the ONE deployed entry (worker/index.ts) BEFORE any
- * dispatch, so a rejected write never reaches a Durable Object or an existence
- * lookup — the 401 can never become an existence oracle.
+ * SERVICE-WRITE-AUTH-1 (history) put the first gate here: a shared write key,
+ * inlined in the reseller app bundle, in front of every write. It stopped
+ * scanners and nothing more — shared, it could not tell one reseller from
+ * another. RESELLER-AUTH-1 (a2a) bound every write and every reseller read to
+ * HER SESSION with ownership; ACCES-ARME-2 (a2b, founder « Seated » 2026-09-05)
+ * RETIRED THE KEY: there is no `STOREFRONT_WRITE_SECRET`, no `X-Write-Key`, and
+ * no key path at the root any more — a reseller write is her session or 401.
  *
- * WHAT IT IS AND IS NOT: a shared secret, inlined in the reseller app bundle
- * (EXPO_PUBLIC_*). It stops scanners and casual abuse. It does NOT stop a
- * determined attacker who decompiles the app, and — because the secret is shared —
- * it does NOT stop one reseller writing to another's storefront. Real per-reseller
- * identity is a HARD GATE before any reseller other than the founder onboards
- * (journaled).
- *
- * Reads (GET/HEAD/OPTIONS) carry no credential and are never gated — buyers hold
- * no secret and must never need one.
+ * Reads (GET/HEAD/OPTIONS) that are buyer-facing carry no credential and are
+ * never gated — buyers hold no secret and must never need one. `isWrite` is the
+ * root's classifier for what is not a read.
  */
 
-/** Methods that only ever read. Everything else is a write and needs the key. */
+/** Methods that only ever read. Everything else is a write and needs a session. */
 const SAFE_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS']);
-
-/** The header the reseller app presents the shared write key in. */
-export const WRITE_KEY_HEADER = 'X-Write-Key';
 
 /**
  * SP3.3a — the header the PAYMENT PROVIDER presents its own shared secret in.
- * A DIFFERENT header and a DIFFERENT secret from the write key on purpose: the
- * write key ships inside the reseller app bundle and is readable by anyone who
- * downloads it, so reusing it here would mean every phone that has the app can
- * assert that money arrived.
+ * Its OWN header and its OWN secret: the only route that can declare money
+ * received is authenticated by nothing a phone or a browser ever holds.
  */
 export const PAYMENT_WEBHOOK_KEY_HEADER = 'X-Payment-Webhook-Key';
 
-/** The env the gate reads its configured secret from — a wrangler SECRET, NEVER a
- * `[vars]` entry (all five repos are public; a var there would be published). */
+/** The env the gates read their configured secrets from — wrangler SECRETS, NEVER
+ * `[vars]` entries (all five repos are public; a var there would be published). */
 export interface WriteAuthEnv {
-  readonly STOREFRONT_WRITE_SECRET?: string;
   /**
    * SP3.3a — the payment webhook's shared secret. A `wrangler secret`, never a
    * `[vars]` entry and never in the bundle. UNSET ⇒ EVERY webhook is refused,
@@ -49,13 +42,14 @@ export interface WriteAuthEnv {
   /**
    * BC-1a — THE FOUNDER'S OWN DISPATCH CREDENTIAL (« value C », approved
    * 2026-08-02): it unlocks buyer contact (phone, quartier, repère) on the
-   * dispatch read, and NOTHING else opens that door — not the write key (it
-   * ships in the reseller bundle), not the webhook secret (the provider
-   * holds it), not Boutik+'s ops key (a different Worker's credential;
-   * buyer contact never crosses to Boutik+). It exists in exactly two
-   * places: this Worker's encrypted store (`wrangler secret put`, value
+   * dispatch read, and NOTHING else opens that door — not the webhook secret
+   * (the provider holds it), not Boutik+'s ops key (a different Worker's
+   * credential; buyer contact never crosses to Boutik+). It exists in exactly
+   * two places: this Worker's encrypted store (`wrangler secret put`, value
    * piped) and the founder's own browser. UNSET ⇒ the dispatch read is 401
-   * for everyone.
+   * for everyone. ACCES-ARME-2 gave it the two OPERATOR roads the retired
+   * write key used to open for him — the storefront directory read and the
+   * takedown of an orphaned key-era shop — and nothing else.
    */
   readonly CHECKOUT_OPS_SECRET?: string;
   /**
@@ -117,25 +111,11 @@ export async function timingSafeEqual(a: string, b: string): Promise<boolean> {
 }
 
 /**
- * The shared key check, FAIL CLOSED. True iff a non-empty secret is configured AND
- * the request's `X-Write-Key` matches it (constant-time). The compare runs
- * unconditionally (even with no secret configured) so timing does not reveal
- * whether a secret exists; the length guard keeps it fail-closed — an unset/empty
- * secret can never match a non-empty presented key.
- */
-export async function keyAuthorized(request: Request, env: WriteAuthEnv): Promise<boolean> {
-  const secret = env.STOREFRONT_WRITE_SECRET ?? '';
-  const provided = request.headers.get(WRITE_KEY_HEADER) ?? '';
-  const match = await timingSafeEqual(provided, secret);
-  return secret.length > 0 && match;
-}
-
-/**
- * SP3.3a — THE PAYMENT WEBHOOK GATE, FAIL CLOSED. Character-for-character the
- * same shape as `keyAuthorized` above, on a DIFFERENT secret and a DIFFERENT
- * header: the compare runs unconditionally so timing never reveals whether a
- * secret is configured, and the length guard keeps an unset secret from ever
- * matching a presented key.
+ * SP3.3a — THE PAYMENT WEBHOOK GATE, FAIL CLOSED. True iff a non-empty secret
+ * is configured AND the request's header matches it: the compare runs
+ * unconditionally (even with no secret configured) so timing never reveals
+ * whether a secret exists, and the length guard keeps an unset or empty secret
+ * from ever matching a presented key.
  *
  * IT IS THE WHOLE AUTHENTICATION OF THE ONLY ROUTE THAT CAN DECLARE MONEY
  * RECEIVED. It runs at the composition root BEFORE any dispatch, so a rejected
@@ -155,21 +135,12 @@ export function unauthorized(): Response {
 }
 
 /**
- * WRITE gate. Resolves to `null` iff authorised; else a 401, computed BEFORE any
- * target lookup so it can never be an existence oracle. A Worker with no secret
- * set refuses every write. Reads (safe methods) short-circuit to `null` — the
- * admin list (a key-gated GET) is gated separately at the composition root.
- */
-export async function rejectUnauthorizedWrite(request: Request, env: WriteAuthEnv): Promise<Response | null> {
-  if (!isWrite(request.method)) return null;
-  return (await keyAuthorized(request, env)) ? null : unauthorized();
-}
-
-/**
  * BC-1a — the dispatch read's gate: `Authorization: Bearer` against
  * CHECKOUT_OPS_SECRET, FAIL CLOSED, constant-time, one identical 401 computed
  * before any dispatch — the same three properties every gate in this file
- * carries, on the founder's own credential.
+ * carries, on the founder's own credential. ACCES-ARME-2: the composition root
+ * also asks it for the two operator roads on the storefront surface (the
+ * directory read, the orphan takedown) once no session answered.
  */
 export async function rejectUnauthorizedOpsRead(request: Request, env: WriteAuthEnv): Promise<Response | null> {
   const secret = env.CHECKOUT_OPS_SECRET ?? '';

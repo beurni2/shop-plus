@@ -4,10 +4,16 @@ import { join } from 'node:path';
 import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance } from './seance';
 
 /**
  * ═══ DISPATCH-PAGES-1 (AUDIT-SHOP-1 slice b) — THE FOUNDER'S TWO FAN-OUT
  * READS ARE PAGED, on the real combined Worker ═══
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. The five shops
+ * the orders ride on are seated through `seance()` — signup → the founder
+ * mints on key C → admission — and created with HER session bearer; her
+ * `resellerId` is the id the book minted. The paged reads stay on key C.
  *
  * The audit's MAJOR: `/checkout/dispatch` and `/checkout/gains` listed the
  * WHOLE lifetime index and then made one subrequest per order — the platform
@@ -23,10 +29,7 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'dispatch-pages-'));
 const T0 = '2026-09-03T08:00:00.000Z';
 
-const WRITE_SECRET = 'test-write-secret-p101';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-p101';
-const OPS_SECRET = 'test-checkout-ops-secret-p101';
-const authed = { 'X-Write-Key': WRITE_SECRET };
 const signed = { 'X-Payment-Webhook-Key': WEBHOOK_SECRET, 'Content-Type': 'application/json' };
 const cleC = { Authorization: `Bearer ${OPS_SECRET}` };
 
@@ -58,10 +61,10 @@ const mf = new Miniflare({
     LADDER: 'BuyerLadderDO',
     DISPATCH: 'DispatchIndexDO',
     RESELLER: 'ResellerFeedDO',
+    COMPTES: 'ResellerAccountsDO',
   },
   durableObjectsPersist: persist,
   bindings: {
-    STOREFRONT_WRITE_SECRET: WRITE_SECRET,
     PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
     CHECKOUT_OPS_SECRET: OPS_SECRET,
   },
@@ -100,11 +103,12 @@ const freshKey = (): string => `rk-pages-${String((keyN += 1)).padStart(4, '0')}
 /** shop → listing → quote → hold → order WITH contact — the whole buyer path,
  *  mirrored from dispatch.e2e; a 200 create is what registers the index row. */
 async function commander(n: string): Promise<{ orderId: string; amount: number }> {
+  const S = await seance(mf, `pages${n}`);
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-pages-${n}`, resellerId: `rs-pages-${n}`, shortCode: `PAGES-${n}`,
+      commandId: `cmd-create-${n}`, id: `sf-pages-${n}`, resellerId: S.accountId, shortCode: `PAGES-${n}`,
       name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
       correlationId: `corr-${n}`, at: T0,
     }),
@@ -112,10 +116,10 @@ async function commander(n: string): Promise<{ orderId: string; amount: number }
   if (created.status !== 200) throw new Error(`seed: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`, listingId: `lst-pages-${n}`, storefrontId: `sf-pages-${n}`,
-      resellerId: `rs-pages-${n}`, productVersionId: 'pv-pages-1', offerVersion: 'ov-pages-1',
+      resellerId: S.accountId, productVersionId: 'pv-pages-1', offerVersion: 'ov-pages-1',
       markup: 1_500, correlationId: `corr-${n}`, at: T0,
     }),
   });
@@ -125,7 +129,7 @@ async function commander(n: string): Promise<{ orderId: string; amount: number }
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       slug: `pages-${n}`, pid: 'pv-pages-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
-      attributionResellerId: `rs-pages-${n}`, requestKey: freshKey(),
+      attributionResellerId: S.accountId, requestKey: freshKey(),
     }),
   });
   const quote = safeJson(await quoteRes.text()) as { quoteId?: string };

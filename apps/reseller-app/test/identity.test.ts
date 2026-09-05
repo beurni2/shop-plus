@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { IDENTITY_VERSION, digitsFromBytes, identityFromDigits } from '../src/identity/mint';
@@ -149,11 +149,28 @@ describe('BANDEAUX-RETIRÉS — the operator line is gone, and the key is safer 
    * string in this file can carry any part of it. The pins invert rather than
    * being deleted, because the leak they forbid must stay forbidden.
    *
-   * The key itself is untouched where it belongs — the service layer
-   * (`src/vitrine/offers.ts`, `src/vitrine/service.ts`) still sends it on the
-   * wire. Removing a DISPLAY of its presence took nothing from the app's
-   * ability to write.
+   * ACCES-ARME-2 finished the road: the key no longer exists ANYWHERE in the
+   * app — not in the service layer, not in the env, not on the wire. The
+   * pins below stay (a leak that was forbidden stays forbidden) and one more
+   * joins them: no file under `src/` names the retired variable or header.
    */
+  it('ACCES-ARME-2 — nothing under src/ names the retired key or its header', () => {
+    const racine = join(import.meta.dirname, '..', 'src');
+    const fichiers: string[] = [];
+    const marcher = (dir: string): void => {
+      for (const nom of readdirSync(dir)) {
+        const p = join(dir, nom);
+        if (statSync(p).isDirectory()) marcher(p);
+        else if (/\.(ts|tsx)$/.test(nom)) fichiers.push(p);
+      }
+    };
+    marcher(racine);
+    expect(fichiers.length).toBeGreaterThan(20);
+    for (const f of fichiers) {
+      const code = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+      expect(code, `${f} names the retired key`).not.toMatch(/EXPO_PUBLIC_STOREFRONT_WRITE_KEY|X-Write-Key|WRITE_KEY_HEADER/);
+    }
+  });
   it('the screen file does not read the write key at all — the strongest form of « never leaks »', () => {
     const reads = [...app.matchAll(/process\.env\.EXPO_PUBLIC_STOREFRONT_WRITE_KEY/g)];
     expect(reads, 'App.tsx must not touch the write key now that the operator line is gone').toHaveLength(0);

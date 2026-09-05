@@ -18,19 +18,16 @@
  * NO LONGER EXISTS — it was removed in BROWSE-SUPPLY-BINDING-1, after a
  * write-only secret nobody could read back burned three founder round-trips.
  * Calling boutik directly would need boutik credentials inside the EAS
- * bundle — extending a weakness accepted once for the write key. So this asks the
- * Worker, which holds the service-to-service bearer, and sends the SAME
- * `X-Write-Key` the app already holds (founder ruling: a second bundled secret buys
- * separation of concerns and zero protection, since both are readable by anyone who
- * extracts the bundle).
+ * bundle — a weakness this app no longer carries for anything (ACCES-ARME-2
+ * retired the last bundled key). So this asks the Worker, which holds the
+ * service-to-service bearer, and presents HER SESSION — the credential the
+ * account book minted for her device and nothing a bundle could leak.
  *
  * RN-safe: no `@platform/*` runtime import (Metro law). The shape is mirrored here
  * and the SERVICE is what validates — every offer this receives has already been
  * through the certified consumer, the 15-minute freshness bound and the identity
  * sweep, server-side.
  */
-
-import { WRITE_KEY_HEADER } from './service';
 
 /** One offer as the browse card needs it. Mirrors the service's `SupplyOffer`. */
 export interface Offer {
@@ -78,10 +75,10 @@ export const OFFERS_ROUTE = '/supply-projections';
 export class HttpOfferSource implements OfferSourcePort {
   private readonly base: string;
   /** RESELLER-AUTH-1 — the session rides the supply read too (see
-   *  `HttpStorefrontService`): with one, the Worker admits her by account. */
+   *  `HttpStorefrontService`): with one, the Worker admits her by account;
+   *  ACCES-ARME-2 — it is the only credential the read has. */
   constructor(
     base: string,
-    private readonly writeKey: string,
     private readonly lireBearer: () => Promise<string | null> = async () => null,
   ) {
     this.base = base.replace(/\/+$/, '');
@@ -94,7 +91,6 @@ export class HttpOfferSource implements OfferSourcePort {
       res = await fetch(`${this.base}${OFFERS_ROUTE}`, {
         method: 'GET',
         headers: {
-          [WRITE_KEY_HEADER]: this.writeKey,
           Accept: 'application/json',
           ...(bearer !== null && bearer.startsWith('SPS-') ? { Authorization: `Bearer ${bearer}` } : {}),
         },
@@ -119,7 +115,6 @@ export function resolveOfferSource(
   lireBearer: () => Promise<string | null> = async () => null,
 ): OfferSourcePort | null {
   const base = process.env.EXPO_PUBLIC_STOREFRONT_BASE;
-  const key = process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY;
-  if (base && key) return new HttpOfferSource(base, key, lireBearer);
+  if (base) return new HttpOfferSource(base, lireBearer);
   return null;
 }

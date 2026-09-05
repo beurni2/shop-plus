@@ -5,9 +5,16 @@ import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance } from './seance';
 
 /**
  * ═══ SANDBOX-PAY-1 — the founder's tool, run EXACTLY as the workflow runs it ═══
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. The shop each
+ * order rides on is seated through `seance()` — signup → the founder mints on
+ * key C → admission — and created with HER session bearer; her `resellerId`
+ * is the id the book minted. The founder's gains and dispatch reads stay on
+ * key C, exactly as the console reaches them.
  *
  * REQUIRED BY THE NO-LOOP LAW: « a slice that crosses a seam is not done until
  * ONE test crosses that seam end to end. » The seam here is the founder's
@@ -29,11 +36,8 @@ const CONFIRM_SCRIPT = resolve(import.meta.dirname, '../../../scripts/sandbox-pa
 const persist = mkdtempSync(join(tmpdir(), 'sandbox-pay-'));
 const T0 = '2026-08-08T08:00:00.000Z';
 
-const WRITE_SECRET = 'test-write-secret-sp001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-sp001';
-const OPS_SECRET = 'test-checkout-ops-secret-sp001';
 const PROGRESS_SECRET = 'test-progress-write-secret-sp001';
-const authed = { 'X-Write-Key': WRITE_SECRET };
 
 const SUPPLY = [
   {
@@ -63,10 +67,10 @@ const mf = new Miniflare({
     LADDER: 'BuyerLadderDO',
     DISPATCH: 'DispatchIndexDO',
     RESELLER: 'ResellerFeedDO',
+    COMPTES: 'ResellerAccountsDO',
   },
   durableObjectsPersist: persist,
   bindings: {
-    STOREFRONT_WRITE_SECRET: WRITE_SECRET,
     PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
     CHECKOUT_OPS_SECRET: OPS_SECRET,
     PROGRESS_WRITE_SECRET: PROGRESS_SECRET,
@@ -108,11 +112,12 @@ const freshKey = (): string => `rk-sandbox-${String((keyN += 1)).padStart(4, '0'
 
 /** The buyer's own road: storefront → listing → quote → reserve → order. */
 async function realOrder(n: string): Promise<{ orderId: string }> {
+  const S = await seance(mf, `sand${n}`);
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-sand-${n}`, resellerId: `rs-sand-${n}`,
+      commandId: `cmd-create-${n}`, id: `sf-sand-${n}`, resellerId: S.accountId,
       shortCode: `SAND-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-${n}`, at: T0,
     }),
@@ -120,10 +125,10 @@ async function realOrder(n: string): Promise<{ orderId: string }> {
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`, listingId: `lst-sand-${n}`, storefrontId: `sf-sand-${n}`,
-      resellerId: `rs-sand-${n}`, productVersionId: 'pv-sandbox-1', offerVersion: 'ov-sandbox-1',
+      resellerId: S.accountId, productVersionId: 'pv-sandbox-1', offerVersion: 'ov-sandbox-1',
       markup: 1_500, correlationId: `corr-${n}`, at: T0,
     }),
   });
@@ -135,7 +140,7 @@ async function realOrder(n: string): Promise<{ orderId: string }> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       slug: `sand-${n}`, pid: 'pv-sandbox-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
-      attributionResellerId: `rs-sand-${n}`, requestKey: freshKey(),
+      attributionResellerId: S.accountId, requestKey: freshKey(),
     }),
   });
   const quote = safeJson(await quoteRes.text()) as { quoteId?: string };

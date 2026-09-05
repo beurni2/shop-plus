@@ -3,11 +3,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance, type Seance } from './seance';
 
 /**
  * SP3.2a — THE DURABLE CHECKOUT PATH ON REAL WORKERD (Miniflare), through the
  * COMBINED Worker bundle: the composition root, the write-gate exemption, the
  * CORS helper, both authority reads and the CheckoutDO, all the real code.
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. Every shop
+ * fixture here is seated through `seance()` — signup → the founder mints on
+ * key C → admission — and created with HER session bearer; the `resellerId`
+ * a quote must name is the id the book minted (`rs-NNNN`), never one this
+ * file chose. Every runtime this suite builds binds the accounts book and
+ * key C for that seating alone; the buyer's doors stay credential-free.
  *
  * EVERY DURABILITY CLAIM CROSSES A RESTART — the Miniflare instance is disposed
  * and re-created on the SAME persist dir, so « it survived » means a process
@@ -24,9 +32,6 @@ import { afterAll, describe, expect, it } from 'vitest';
 const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'checkout-do-'));
 const T0 = '2026-07-29T08:00:00.000Z';
-
-const WRITE_SECRET = 'test-write-secret-0001';
-const authed = { 'X-Write-Key': WRITE_SECRET };
 
 /**
  * The producer behind the OFFER binding — publish signs HER price from it, and
@@ -93,9 +98,10 @@ function makeMf(): Miniflare {
       LISTING: 'ListingDO',
       CHECKOUT: 'CheckoutDO',
       ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO',
+      COMPTES: 'ResellerAccountsDO',
     },
     durableObjectsPersist: persist,
-    bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
+    bindings: { CHECKOUT_OPS_SECRET: OPS_SECRET },
     serviceBindings: {
       OFFER: async (request: Request) => {
         const path = new URL(request.url).pathname;
@@ -138,15 +144,16 @@ async function seedShop(
   n: string,
   markup = 1_500,
   pid = 'pv-checkout-1',
-): Promise<{ slug: string; resellerId: string; pid: string }> {
+): Promise<{ slug: string; resellerId: string; pid: string; seance: Seance }> {
   const shortCode = `CHECK-${n}`;
+  const S = await seance(mf, `check${n}`);
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-create-${n}`,
       id: `sf-checkout-${n}`,
-      resellerId: `rs-checkout-${n}`,
+      resellerId: S.accountId,
       shortCode,
       name: 'Boutique du fondateur',
       zone: 'Ouagadougou',
@@ -158,12 +165,12 @@ async function seedShop(
   if (created.status !== 200) throw new Error(`seed: storefront create ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`,
       listingId: `lst-checkout-${n}`,
       storefrontId: `sf-checkout-${n}`,
-      resellerId: `rs-checkout-${n}`,
+      resellerId: S.accountId,
       productVersionId: pid,
       offerVersion: 'ov-checkout-1',
       markup,
@@ -173,7 +180,7 @@ async function seedShop(
   });
   const decision = (await pub.json()) as { status?: string };
   if (decision.status !== 'published') throw new Error(`seed: listing publish ${JSON.stringify(decision)}`);
-  return { slug: shortCode.toLowerCase(), resellerId: `rs-checkout-${n}`, pid };
+  return { slug: shortCode.toLowerCase(), resellerId: S.accountId, pid, seance: S };
 }
 
 interface QuoteBody {
@@ -786,9 +793,9 @@ describe('CheckoutDO — the emitted bytes carry no supplier economics (SP-I03)'
 /* ═══════════════════════ the public/gated boundary ════════════════════════ */
 
 describe('CheckoutDO — public by design, and it opens nothing else', () => {
-  it('the checkout POST answers WITHOUT a key, while every other write stays 401', async () => {
+  it('the checkout POST answers WITHOUT a session, while every other write stays 401', async () => {
     const { slug, resellerId } = await seedShop('0018');
-    const noKey = await postQuote({
+    const noSession = await postQuote({
       slug,
       pid: 'pv-checkout-1',
       paymentMode: 'FULL_PREPAY',
@@ -796,9 +803,10 @@ describe('CheckoutDO — public by design, and it opens nothing else', () => {
       attributionResellerId: resellerId,
       requestKey: freshKey(),
     });
-    expect(noKey.status).toBe(200); // a buyer holds no key, by design
+    expect(noSession.status).toBe(200); // a buyer holds no session, by design
 
-    // …and the exemption did not widen anything else on this Worker
+    // …and the exemption did not widen anything else on this Worker: with no
+    // session (ACCES-ARME-2) every write and every reseller read is ONE 401.
     const sf = await mf.dispatchFetch('http://c/storefronts', { method: 'POST', body: '{}' });
     expect(sf.status).toBe(401);
     const lst = await mf.dispatchFetch('http://c/listings', { method: 'POST', body: '{}' });
@@ -974,7 +982,7 @@ describe('CheckoutDO — the reservation is atomic, short, and durable', () => {
 
 describe('CheckoutDO — the payee is bound to the listing, never named by the caller', () => {
   it('a request naming ANOTHER reseller, an INVENTED one, or platform/supplier is REFUSED', async () => {
-    const { slug } = await seedShop('0041');
+    const { slug, resellerId } = await seedShop('0041');
     const other = await seedShop('0042'); // a real, different reseller
     for (const claimed of [other.resellerId, 'rs-attacker-does-not-exist', 'platform', 'supplier']) {
       const res = await postQuote({
@@ -996,15 +1004,15 @@ describe('CheckoutDO — the payee is bound to the listing, never named by the c
       pid: 'pv-checkout-1',
       paymentMode: 'FULL_PREPAY',
       zoneTo: 'Ouagadougou',
-      attributionResellerId: 'rs-checkout-0041',
+      attributionResellerId: resellerId,
       requestKey: freshKey(),
     });
     expect(ok.status).toBe(200);
   });
 
   it('a whitespace-padded payee refuses BY NAME — never a 500 from the canon parse', async () => {
-    const { slug } = await seedShop('0043');
-    for (const padded of ['   ', ' rs-checkout-0043', 'rs-checkout-0043 ', '\trs-checkout-0043']) {
+    const { slug, resellerId } = await seedShop('0043');
+    for (const padded of ['   ', ` ${resellerId}`, `${resellerId} `, `\t${resellerId}`]) {
       const res = await postQuote({
         slug,
         pid: 'pv-checkout-1',
@@ -1216,16 +1224,36 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
     readFileSync(join(import.meta.dirname, '..', '..', '..', 'gates', 'fixtures', 'buyer-quote-request.json'), 'utf8'),
   ) as Record<string, string>;
 
+  /**
+   * ACCES-ARME-2 — THE ONE SUBSTITUTION THE FIXTURE NOW NEEDS, named rather
+   * than hidden. The book mints every reseller id (`rs-NNNN`), so the
+   * fixture's `attributionResellerId` (`rs-checkout-fixture`) can no longer
+   * OWN a shop: a create naming it is 403 `not_owner`, and a quote naming it
+   * against her shop is 422 `attribution_mismatch`. The five other keys and
+   * their bytes stay the fixture's own; the payee is the seated reseller's,
+   * spliced into the raw bytes and asserted to be the ONLY difference.
+   */
+  let payeeFixture = '';
+  const fixtureBytes = (): string => {
+    const raw = readFileSync(join(import.meta.dirname, '..', '..', '..', 'gates', 'fixtures', 'buyer-quote-request.json'), 'utf8');
+    const spliced = raw.replace(JSON.stringify(FIXTURE['attributionResellerId']), JSON.stringify(payeeFixture));
+    expect(spliced, 'the payee must be spliced exactly once').not.toBe(raw);
+    expect(spliced.replace(JSON.stringify(payeeFixture), JSON.stringify(FIXTURE['attributionResellerId']))).toBe(raw);
+    return spliced;
+  };
+
   /** The shop the fixture names — HER short code derives the fixture's slug,
-   *  HER resellerId is the fixture's locked payee, HER zone is a real one. */
+   *  HER zone is a real one; her resellerId is the id the book minted. */
   async function seedFixtureShop(): Promise<void> {
+    const S = await seance(mf, 'fixture');
+    payeeFixture = S.accountId;
     const created = await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST',
-      headers: authed,
+      headers: S.bearer,
       body: JSON.stringify({
         commandId: 'cmd-create-fixture',
         id: 'sf-checkout-fixture',
-        resellerId: FIXTURE['attributionResellerId'],
+        resellerId: S.accountId,
         shortCode: FIXTURE['slug']!.toUpperCase(),
         name: 'Chez Aïcha Mode',
         zone: 'Rood Woko · Ouagadougou',
@@ -1237,12 +1265,12 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
     if (created.status !== 200) throw new Error(`fixture seed: storefront create ${created.status} ${await created.text()}`);
     const pub = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
-      headers: authed,
+      headers: S.bearer,
       body: JSON.stringify({
         commandId: 'cmd-listing-fixture',
         listingId: 'lst-checkout-fixture',
         storefrontId: 'sf-checkout-fixture',
-        resellerId: FIXTURE['attributionResellerId'],
+        resellerId: S.accountId,
         productVersionId: FIXTURE['pid'],
         offerVersion: 'ov-checkout-1',
         markup: 1_500,
@@ -1271,13 +1299,18 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
     expect(FIXTURE['zoneTo']).toBe('Gounghin, Ouagadougou');
   });
 
-  it('POSTing the fixture VERBATIM answers 200 with a view that reconciles to the franc', async () => {
+  it('POSTing the fixture VERBATIM (payee spliced to the seated reseller) answers 200 with a view that reconciles to the franc', async () => {
     await seedFixtureShop();
+    // …and the fixture's OWN payee is refused by name against her shop — the
+    // reason the splice exists, asserted rather than assumed.
+    const litteral = await postQuote({ ...(FIXTURE as unknown as QuoteBody), requestKey: freshKey() });
+    expect(litteral.status, litteral.text).toBe(422);
+    expect(litteral.json['error']).toBe('attribution_mismatch');
     const res = await mf.dispatchFetch('http://c/checkout/quote', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // THE FIXTURE'S OWN BYTES — not a re-built object.
-      body: readFileSync(join(import.meta.dirname, '..', '..', '..', 'gates', 'fixtures', 'buyer-quote-request.json'), 'utf8'),
+      // THE FIXTURE'S OWN BYTES — not a re-built object; one key spliced.
+      body: fixtureBytes(),
     });
     const text = await res.text();
     expect(res.status, text).toBe(200);
@@ -1296,6 +1329,7 @@ describe('CheckoutDO — the SHARED buyer wire fixture answers a reconciling quo
   it('THE DEFECT THIS SLICE CLOSED: the same request with a NON-Ouaga quartier is still refused by name', async () => {
     const res = await postQuote({
       ...(FIXTURE as unknown as QuoteBody),
+      attributionResellerId: payeeFixture,
       zoneTo: 'Sector 15, Bobo-Dioulasso',
       requestKey: freshKey(),
     });
@@ -1387,9 +1421,9 @@ describe('CheckoutDO — a supply read that FAILS no longer costs her the door, 
     return new Miniflare({
       modules: true,
       scriptPath: SCRIPT,
-      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO' },
+      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO', COMPTES: 'ResellerAccountsDO' },
       durableObjectsPersist: dir,
-      bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
+      bindings: { CHECKOUT_OPS_SECRET: OPS_SECRET },
       serviceBindings: {
         OFFER: async (request: Request) => {
           const single = /^\/supply-projection\/([^/]+)$/.exec(new URL(request.url).pathname);
@@ -1422,19 +1456,20 @@ describe('CheckoutDO — a supply read that FAILS no longer costs her the door, 
     return new Miniflare({
       modules: true,
       scriptPath: SCRIPT,
-      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO' },
+      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO', COMPTES: 'ResellerAccountsDO' },
       durableObjectsPersist: dir,
-      bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
+      bindings: { CHECKOUT_OPS_SECRET: OPS_SECRET },
     });
   }
 
   async function seedOn(inst: Miniflare, n: string): Promise<{ slug: string; resellerId: string }> {
     const shortCode = `BROKE-${n}`;
+    const S = await seance(inst, `broke${n}`);
     const created = await inst.dispatchFetch('http://c/storefronts', {
       method: 'POST',
-      headers: authed,
+      headers: S.bearer,
       body: JSON.stringify({
-        commandId: `cmd-create-${n}`, id: `sf-broke-${n}`, resellerId: `rs-broke-${n}`, shortCode,
+        commandId: `cmd-create-${n}`, id: `sf-broke-${n}`, resellerId: S.accountId, shortCode,
         name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
         correlationId: `corr-${n}`, at: T0,
       }),
@@ -1442,16 +1477,16 @@ describe('CheckoutDO — a supply read that FAILS no longer costs her the door, 
     if (created.status !== 200) throw new Error(`seed: storefront create ${created.status}`);
     const pub = await inst.dispatchFetch('http://c/listings', {
       method: 'POST',
-      headers: authed,
+      headers: S.bearer,
       body: JSON.stringify({
         commandId: `cmd-listing-${n}`, listingId: `lst-broke-${n}`, storefrontId: `sf-broke-${n}`,
-        resellerId: `rs-broke-${n}`, productVersionId: 'pv-checkout-1', offerVersion: 'ov-checkout-1',
+        resellerId: S.accountId, productVersionId: 'pv-checkout-1', offerVersion: 'ov-checkout-1',
         markup: 1_500, correlationId: `corr-${n}`, at: T0,
       }),
     });
     const decision = (await pub.json()) as { status?: string };
     if (decision.status !== 'published') throw new Error(`seed: listing publish ${JSON.stringify(decision)}`);
-    return { slug: shortCode.toLowerCase(), resellerId: `rs-broke-${n}` };
+    return { slug: shortCode.toLowerCase(), resellerId: S.accountId };
   }
 
   async function doorQuoteOn(inst: Miniflare, s: { slug: string; resellerId: string }, mode = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR') {
@@ -1528,15 +1563,16 @@ describe('CheckoutDO — a supply read that FAILS no longer costs her the door, 
       // so the listing itself refuses — which is the same fail-closed answer one
       // step earlier. Assert what the buyer is actually told: never a quote.
       const shortCode = 'ABSENT-0001';
+      const S = await seance(inst, 'absent');
       await inst.dispatchFetch('http://c/storefronts', {
-        method: 'POST', headers: authed,
+        method: 'POST', headers: S.bearer,
         body: JSON.stringify({
-          commandId: 'cmd-create-abs', id: 'sf-abs', resellerId: 'rs-abs', shortCode,
+          commandId: 'cmd-create-abs', id: 'sf-abs', resellerId: S.accountId, shortCode,
           name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
           correlationId: 'corr-abs', at: T0,
         }),
       });
-      const door = await doorQuoteOn(inst, { slug: shortCode.toLowerCase(), resellerId: 'rs-abs' });
+      const door = await doorQuoteOn(inst, { slug: shortCode.toLowerCase(), resellerId: S.accountId });
       expect([404, 422]).toContain(door.status);
       expect(door.text.includes('amountDueAtDelivery')).toBe(false);
       expect(door.text.includes('buyerTotal')).toBe(false);
@@ -1564,9 +1600,9 @@ describe('CheckoutDO — a supply read that FAILS no longer costs her the door, 
     const inst = new Miniflare({
       modules: true,
       scriptPath: SCRIPT,
-      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO' },
+      durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO', ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO', COMPTES: 'ResellerAccountsDO' },
       durableObjectsPersist: dir,
-      bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
+      bindings: { CHECKOUT_OPS_SECRET: OPS_SECRET },
       serviceBindings: {
         OFFER: async (request: Request) => {
           const single = /^\/supply-projection\/([^/]+)$/.exec(new URL(request.url).pathname);
@@ -1629,7 +1665,7 @@ describe('VITRINE-RETRAIT — a product she took out of her shop cannot be quote
    * obeys it too, not only the page.
    */
   it('quotes before the removal and refuses after — by the SAME name an unknown product gets', async () => {
-    const { slug, resellerId, pid } = await seedShop('9100');
+    const { slug, resellerId, pid, seance: elle } = await seedShop('9100');
 
     // BEFORE: the link works, which is what makes the after meaningful.
     const avant = await postQuote({
@@ -1638,9 +1674,9 @@ describe('VITRINE-RETRAIT — a product she took out of her shop cannot be quote
     });
     expect(avant.status, avant.text).toBe(200);
 
-    // She takes it out of her vitrine.
+    // She takes it out of her vitrine — as herself.
     const removed = await mf.dispatchFetch('http://c/storefronts/sf-checkout-9100/items/remove', {
-      method: 'POST', headers: authed, body: JSON.stringify({ pid, at: T0 }),
+      method: 'POST', headers: elle.bearer, body: JSON.stringify({ pid, at: T0 }),
     });
     expect(removed.status, await removed.clone().text()).toBe(200);
 
@@ -1663,13 +1699,13 @@ describe('VITRINE-RETRAIT — a product she took out of her shop cannot be quote
   });
 
   it('her OTHER products still quote — a removal removes ONE thing', async () => {
-    const { slug, resellerId } = await seedShop('9101');
+    const { slug, resellerId, seance: elle } = await seedShop('9101');
     // Add a second product to the same shop, then remove only the first.
     // A pid the supply fixture actually knows —  has no
     // economics, so its publish would refuse and the test would prove nothing.
     const second = 'pv-checkout-prov';
     const pub = await mf.dispatchFetch('http://c/listings', {
-      method: 'POST', headers: authed,
+      method: 'POST', headers: elle.bearer,
       body: JSON.stringify({
         commandId: 'cmd-listing-9101b', listingId: 'lst-checkout-9101b',
         storefrontId: 'sf-checkout-9101', resellerId, productVersionId: second,
@@ -1679,7 +1715,7 @@ describe('VITRINE-RETRAIT — a product she took out of her shop cannot be quote
     expect(((await pub.json()) as { status?: string }).status).toBe('published');
 
     await mf.dispatchFetch('http://c/storefronts/sf-checkout-9101/items/remove', {
-      method: 'POST', headers: authed, body: JSON.stringify({ pid: 'pv-checkout-1', at: T0 }),
+      method: 'POST', headers: elle.bearer, body: JSON.stringify({ pid: 'pv-checkout-1', at: T0 }),
     });
 
     const encore = await postQuote({
@@ -1699,15 +1735,20 @@ describe('PUBLIER SANS BOUTIQUE — a publication with no shop behind it is refu
    * « C'est ajouté à votre vitrine », and have it in no vitrine at all — a
    * success message that cannot fail, over a product no buyer could reach.
    */
-  it('publishing for a storefront that does not exist is REFUSED, by name', async () => {
+  it('publishing for a storefront that does not exist is REFUSED — the ownership gate\'s mute 404, and nothing lands', async () => {
+    // ACCES-ARME-2: with her session, a publish naming a shop that is not hers
+    // — absent included — is refused by the ownership gate BEFORE the
+    // composition root's own `storefront_absent` pre-check can speak: the ONE
+    // mute not-found, so the refusal is not an existence oracle either.
+    const S = await seance(mf, 'sans-shop');
     const res = await mf.dispatchFetch('http://c/listings', {
       method: 'POST',
-      headers: authed,
+      headers: S.bearer,
       body: JSON.stringify({
         commandId: 'cmd-listing-sans-shop',
         listingId: 'lst-sans-shop',
         storefrontId: 'sf-jamais-creee',
-        resellerId: 'rs-sans-shop',
+        resellerId: S.accountId,
         productVersionId: 'pv-checkout-1',
         offerVersion: 'ov-checkout-1',
         markup: 1_500,
@@ -1715,16 +1756,22 @@ describe('PUBLIER SANS BOUTIQUE — a publication with no shop behind it is refu
         at: T0,
       }),
     });
-    expect(res.status, await res.clone().text()).toBe(409);
-    expect(((await res.json()) as { error?: string }).error).toBe('storefront_absent');
+    expect(res.status, await res.clone().text()).toBe(404);
+    expect(((await res.json()) as { error?: string }).error).toBe('not_found');
+    // …and NO listing was born behind the refusal — her own read of the id
+    // she named finds nothing.
+    const rien = await mf.dispatchFetch('http://c/listings/lst-sans-shop', { headers: S.bearer });
+    expect(rien.status).toBe(404);
   });
 
   it('and the membership route itself no longer answers `absent` at 200', async () => {
     // The pre-check makes that path nearly unreachable — « nearly » is what a
     // shop deleted between the two calls costs, so the route is honest too.
+    // With her session the absent shop is the ownership gate's mute 404.
+    const S = await seance(mf, 'sans-shop-items');
     const res = await mf.dispatchFetch('http://c/storefronts/sf-jamais-creee/items', {
       method: 'POST',
-      headers: authed,
+      headers: S.bearer,
       body: JSON.stringify({ pid: 'pv-checkout-1', at: T0 }),
     });
     expect(res.status).toBe(404);
@@ -1768,10 +1815,11 @@ describe('G4 CHECKOUT-KILL — env-armed kill switch on the real Worker', () => 
         LISTING: 'ListingDO',
         CHECKOUT: 'CheckoutDO',
         ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO',
+        COMPTES: 'ResellerAccountsDO',
       },
       durableObjectsPersist: persistKill,
       bindings: {
-        STOREFRONT_WRITE_SECRET: WRITE_SECRET,
+        CHECKOUT_OPS_SECRET: OPS_SECRET,
         ...(killed ? { CHECKOUT_KILL: '1' } : {}),
       },
       serviceBindings: {
@@ -1788,14 +1836,18 @@ describe('G4 CHECKOUT-KILL — env-armed kill switch on the real Worker', () => 
 
   it('killed: every new quote refuses 503 checkout_killed — while her boutique keeps working; disarmed across a restart: the same buyer quotes normally', async () => {
     const killedMf = makeKillMf(true);
+    let payeeKill = '';
     try {
       // The WRITE surface still works while checkout is killed — the switch
-      // stops NEW QUOTES, never her shop.
+      // stops NEW QUOTES, never her shop. She is seated on the killed Worker
+      // itself: the accounts book is not behind the switch either.
+      const S = await seance(killedMf, 'kill');
+      payeeKill = S.accountId;
       const created = await killedMf.dispatchFetch('http://c/storefronts', {
         method: 'POST',
-        headers: authed,
+        headers: S.bearer,
         body: JSON.stringify({
-          commandId: 'cmd-create-kill', id: 'sf-checkout-kill', resellerId: 'rs-checkout-kill',
+          commandId: 'cmd-create-kill', id: 'sf-checkout-kill', resellerId: S.accountId,
           shortCode: 'CHECK-9401', name: 'Boutique du fondateur', zone: 'Ouagadougou',
           category: 'Général', correlationId: 'corr-kill', at: T0,
         }),
@@ -1803,10 +1855,10 @@ describe('G4 CHECKOUT-KILL — env-armed kill switch on the real Worker', () => 
       expect(created.status).toBe(200);
       const pub = await killedMf.dispatchFetch('http://c/listings', {
         method: 'POST',
-        headers: authed,
+        headers: S.bearer,
         body: JSON.stringify({
           commandId: 'cmd-listing-kill', listingId: 'lst-checkout-kill', storefrontId: 'sf-checkout-kill',
-          resellerId: 'rs-checkout-kill', productVersionId: 'pv-checkout-1', offerVersion: 'ov-checkout-1',
+          resellerId: S.accountId, productVersionId: 'pv-checkout-1', offerVersion: 'ov-checkout-1',
           markup: 1_500, correlationId: 'corr-kill', at: T0,
         }),
       });
@@ -1817,7 +1869,7 @@ describe('G4 CHECKOUT-KILL — env-armed kill switch on the real Worker', () => 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slug: 'check-9401', pid: 'pv-checkout-1', paymentMode: 'FULL_PREPAY',
-          zoneTo: 'Ouagadougou', attributionResellerId: 'rs-checkout-kill',
+          zoneTo: 'Ouagadougou', attributionResellerId: S.accountId,
           requestKey: 'rk-kill-0001-xxxxxxxxxxxx',
         }),
       });
@@ -1838,7 +1890,7 @@ describe('G4 CHECKOUT-KILL — env-armed kill switch on the real Worker', () => 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slug: 'check-9401', pid: 'pv-checkout-1', paymentMode: 'FULL_PREPAY',
-          zoneTo: 'Ouagadougou', attributionResellerId: 'rs-checkout-kill',
+          zoneTo: 'Ouagadougou', attributionResellerId: payeeKill,
           requestKey: 'rk-kill-0002-xxxxxxxxxxxx',
         }),
       });

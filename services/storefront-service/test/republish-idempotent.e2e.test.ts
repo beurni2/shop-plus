@@ -2,7 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance, type Seance } from './seance';
 
 /**
  * ═══ A SECOND « AJOUTER À MA VITRINE » CANNOT CHANGE HER PRICE ═══
@@ -21,12 +22,15 @@ import { afterAll, describe, expect, it } from 'vitest';
  *
  * IT ASKS THE LEDGER, NOT THE ANSWER: the marge is re-read from
  * `GET /listings/:id` after the second write, and the membership from the shop.
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. The reseller is
+ * seated through `seance()` — signup → the founder mints on key C → admission
+ * — and every write AND every read here (the shop, the listing) rides HER
+ * session bearer; her `resellerId` is the id the book minted.
  */
 
 const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'republish-idem-'));
-const WRITE_SECRET = 'test-write-secret-republish';
-const authed = { 'X-Write-Key': WRITE_SECRET, 'Content-Type': 'application/json' };
 
 const SF_ID = 'sf-republish-001';
 const PV = 'pv-republish-001';
@@ -35,9 +39,9 @@ const BASE_PRICE = 10_000;
 const mf = new Miniflare({
   modules: true,
   scriptPath: SCRIPT,
-  durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO' },
+  durableObjects: { STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', COMPTES: 'ResellerAccountsDO' },
   durableObjectsPersist: persist,
-  bindings: { STOREFRONT_WRITE_SECRET: WRITE_SECRET },
+  bindings: { CHECKOUT_OPS_SECRET: OPS_SECRET },
   serviceBindings: {
     // The live supply the Worker signs against — its own binding, never the
     // caller's word (PUBLISH-PRICE-1: the app sends a markup and no price).
@@ -75,10 +79,16 @@ afterAll(async () => {
   rmSync(persist, { recursive: true, force: true });
 });
 
+/** The seated reseller — the one owner every call below acts as. */
+let S: Seance;
+beforeAll(async () => {
+  S = await seance(mf, 'republish');
+});
+
 const post = (p: string, b: unknown): Promise<Response> =>
-  mf.dispatchFetch(`http://sf${p}`, { method: 'POST', headers: authed, body: JSON.stringify(b) });
+  mf.dispatchFetch(`http://sf${p}`, { method: 'POST', headers: S.bearer, body: JSON.stringify(b) });
 const get = (p: string): Promise<Response> =>
-  mf.dispatchFetch(`http://sf${p}`, { headers: { 'X-Write-Key': WRITE_SECRET } });
+  mf.dispatchFetch(`http://sf${p}`, { headers: S.bearer });
 
 /** The app's own derivation (`listingIdFor` + `publish-${listingId}`), mirrored:
  *  a re-tap must be the SAME command, or this proves nothing about the screen. */
@@ -88,7 +98,7 @@ const publish = (markup: number): Promise<Response> =>
     commandId: `publish-${LISTING_ID}`,
     listingId: LISTING_ID,
     storefrontId: SF_ID,
-    resellerId: 'rs-republish-001',
+    resellerId: S.accountId,
     productVersionId: PV,
     markup,
     correlationId: 'corr-republish-001',
@@ -100,7 +110,7 @@ describe('RE-PUBLISH — the second « Ajouter » is a no-op, and her signed mar
     const created = await post('/storefronts', {
       commandId: 'c-republish-001',
       id: SF_ID,
-      resellerId: 'rs-republish-001',
+      resellerId: S.accountId,
       shortCode: 'REPUB-0001',
       name: 'Boutique republish',
       zone: 'Ouagadougou',

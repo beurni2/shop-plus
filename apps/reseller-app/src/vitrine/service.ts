@@ -5,32 +5,31 @@
  *
  * THE SEAM (founder ruling — a NEW port, not VitrineCollectionPort, which is
  * listings/discoverability and assumes a storefront already exists): the real HTTP
- * adapter sends the shared write key in `X-Write-Key`, base + key from
- * `EXPO_PUBLIC_*`. When either is unset the resolver returns **`null`** — see
- * RESELLER-SEAM-HONESTY-1 on `resolveStorefrontService` below. It used to return an
+ * adapter reaches the base from `EXPO_PUBLIC_STOREFRONT_BASE` and presents HER
+ * SESSION (`Authorization: Bearer SPS-…`) on every call. When the base is unset the
+ * resolver returns **`null`** — see RESELLER-SEAM-HONESTY-1 on
+ * `resolveStorefrontService` below. It used to return an
  * in-memory demo adapter that CANNOT FAIL, which turned an unset env into a SUCCESS
  * TOAST with nothing written; that adapter now lives in `service.demo.ts`, is
  * imported by tests only, and `scripts/gates/no-demo-adapter-in-bundle.mjs` proves it
  * is absent from the exported bundle by grepping the artifact.
  *
- * THE KEY LIMITATION (founder-accepted, journaled): the key ships inside the
- * published EAS-update bundle — easier to read than decompiling a binary. It stops
- * scanners, not a determined attacker; and being SHARED it cannot stop one reseller
- * writing to another's storefront. HARD GATE: no reseller but the founder onboards
- * until real per-reseller identity lands.
+ * NO CREDENTIAL IN THE BUNDLE (ACCES-ARME-2, founder « Seated » 2026-09-05): the
+ * shared write key that used to ship inside the EAS update — shared, readable by
+ * anyone who extracted the bundle, unable to tell one reseller from another — is
+ * retired on both sides. Her session is minted by the service's account book at
+ * admission, lives only on her device, and is the ONLY thing that opens a write;
+ * the Worker binds every act to her account and her shop.
  *
  * RN-safe: no `@platform/*` runtime import (Metro law) — the command shape is
  * mirrored locally and the service validates it (an invalid `shortCode` is refused
- * server-side). The header name mirrors services/storefront-service/worker/auth.ts.
+ * server-side).
  */
 
 // PERSONNALISER-REAL-1 — the storefront shape is the one the customize screens
 // already mirror from canon (§3.1). TYPE-ONLY, so nothing new enters the RN
 // bundle: one shape for the seam and the screens, never two that drift.
 import type { Storefront } from './customize/storefront';
-
-/** Must equal WRITE_KEY_HEADER in services/storefront-service/worker/auth.ts. */
-export const WRITE_KEY_HEADER = 'X-Write-Key';
 
 /** The service's `CreateStorefrontCommand` (storefront-core.ts), mirrored. `shortCode`
  * is validated to `[A-Z]{2,12}-[0-9]{4}` server-side; the canon slug DERIVES from it. */
@@ -289,7 +288,7 @@ export function deriveShortCode(name: string, digitsSuffix: string): string {
 
 /* ---------------------------------------------------------------- HTTP -- */
 
-/** The REAL adapter — the live Worker over `fetch`, keyed with `X-Write-Key`. */
+/** The REAL adapter — the live Worker over `fetch`, her session as the bearer. */
 export class HttpStorefrontService implements StorefrontServicePort {
   private readonly base: string;
   /**
@@ -297,13 +296,13 @@ export class HttpStorefrontService implements StorefrontServicePort {
    * this device holds (the same `SPS-` bearer her feed rides), read at EACH call
    * because the store can change under a running app (signup, a founder pause
    * refresh). With one, every request carries `Authorization: Bearer` and the
-   * Worker binds the act to HER account and HER shop. The shared key still rides
-   * alongside until slice a2b retires it; a device with no session (the access
-   * gate off) sends exactly what it sent before.
+   * Worker binds the act to HER account and HER shop. ACCES-ARME-2: the session
+   * is the ONLY credential — a device with none sends no credential at all, and
+   * the Worker answers 401 (the access gate is armed, so no such device exists
+   * past the entrance).
    */
   constructor(
     base: string,
-    private readonly writeKey: string,
     private readonly lireBearer: () => Promise<string | null> = async () => null,
   ) {
     this.base = base.replace(/\/+$/, '');
@@ -312,7 +311,6 @@ export class HttpStorefrontService implements StorefrontServicePort {
   private async headers(extra?: Record<string, string>): Promise<Record<string, string>> {
     const bearer = await this.lireBearer().catch(() => null);
     return {
-      [WRITE_KEY_HEADER]: this.writeKey,
       // Only a SESSION is an identity: a legacy `SP-` feed code opens the feed
       // door and nothing else, so it is not presented here.
       ...(bearer !== null && bearer.startsWith('SPS-') ? { Authorization: `Bearer ${bearer}` } : {}),
@@ -603,14 +601,13 @@ export class HttpStorefrontService implements StorefrontServicePort {
  * and the demo adapter now lives in `service.demo.ts`, imported by tests only, so it
  * is ABSENT from the published bundle rather than merely unselected.
  *
- * Both variables are set together or not at all: a base without a key would be a
- * keyless write the service refuses, so that combination resolves to `null` too.
+ * ONE variable now (ACCES-ARME-2): the base. There is no key to pair it with —
+ * the credential is her session, read at each call through `lireBearer`.
  */
 export function resolveStorefrontService(
   lireBearer: () => Promise<string | null> = async () => null,
 ): StorefrontServicePort | null {
   const base = process.env.EXPO_PUBLIC_STOREFRONT_BASE;
-  const key = process.env.EXPO_PUBLIC_STOREFRONT_WRITE_KEY;
-  if (base && key) return new HttpStorefrontService(base, key, lireBearer);
+  if (base) return new HttpStorefrontService(base, lireBearer);
   return null;
 }

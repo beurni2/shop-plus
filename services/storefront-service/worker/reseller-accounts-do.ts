@@ -158,56 +158,18 @@ function champ(v: unknown, max = MAX_FIELD): string | null {
 }
 
 /**
- * ═══ RESELLER-PILOTE-1 (AUDIT-SHOP-1 slice a1; founder « go with your
- * recommended order », 2026-09-03) — THE PILOT CEILING ═══
- *
- * The journalled hard gate reads « real per-reseller identity before any
- * reseller other than the founder onboards » — and today every storefront
- * write still rides ONE shared key baked into the app bundle; the session is
- * never consulted on a write, so a second admitted reseller could write into
- * the first one's shop as herself. Until slice a2 binds every write to the
- * SPS session and retires that key, this book seats ONE account and refuses
- * the next BY NAME (`plafond_pilote`): at the MINT, so the founder learns it
- * on his console before a code is handed to anyone, and again at the DOOR,
- * for a code minted while nobody was seated yet (two pending accounts, two
- * codes — the first to enter is seated, the other keeps her unspent code and
- * her pending state). PAUSED COUNTS AS SEATED: a pause is the founder's
- * cut-off, not a free seat — or pause A → admit B → resume A would seat two.
- *
- * `RESELLER_ADMISSION_CEILING` exists ONLY so the accounts e2e, which admits
- * many accounts to prove other laws, can lift it. ABSENT OR MALFORMED MEANS
- * ONE: the deployed Worker fails closed with nothing to configure. It is never
- * raised on the deploy; a2 deletes this block and the var in the same commit.
+ * ACCES-ARME-2 (a2b phase 2, founder « Seated » 2026-09-05) DELETED the a1
+ * pilot ceiling that stood here (RESELLER-PILOTE-1: one seat, `plafond_pilote`
+ * at the mint and at the door, `RESELLER_ADMISSION_CEILING`). The ceiling
+ * existed because storefront writes rode ONE shared key that could not tell
+ * one reseller from another; every write is now her session with ownership
+ * and the key is gone, so the book seats every account the founder admits.
  */
-const PLAFOND_PILOTE = 1;
-
-export interface ComptesEnv {
-  readonly RESELLER_ADMISSION_CEILING?: string;
-}
-
-function plafondDepuis(env: ComptesEnv): number {
-  const n = Number(env.RESELLER_ADMISSION_CEILING);
-  return Number.isInteger(n) && n >= 1 ? n : PLAFOND_PILOTE;
-}
-
 export class ResellerAccountsDO {
-  // The runtime always passes (state, env); the default keeps an env-less
-  // construction honest — no value ⇒ the pilot ceiling, never « no ceiling ».
-  constructor(
-    private readonly state: DurableObjectState,
-    private readonly env: ComptesEnv = {},
-  ) {}
+  constructor(private readonly state: DurableObjectState) {}
 
   private async compte(accountId: string): Promise<AccountRecord | undefined> {
     return this.state.storage.get<AccountRecord>(`${ACCOUNT_PREFIX}${accountId}`);
-  }
-
-  /** RESELLER-PILOTE-1 — every seat past the door is taken, paused included. */
-  private async plafondAtteint(): Promise<boolean> {
-    const entries = await this.state.storage.list<AccountRecord>({ prefix: ACCOUNT_PREFIX });
-    let assis = 0;
-    for (const a of entries.values()) if (a.state !== 'pending_access') assis += 1;
-    return assis >= plafondDepuis(this.env);
   }
 
   /** The audit trail IS the canon event payload, parsed before it is written —
@@ -347,17 +309,10 @@ export class ResellerAccountsDO {
         return Response.json({ ok: false, reason: 'access_paused' }, { status: 403 });
       }
       const code = typeof body?.code === 'string' ? body.code.trim() : '';
-      // The digest is taken BEFORE the seat is read, so that between the seat
-      // read and the seating write the only awaits are storage's own — which
-      // the object's input gate covers — never a non-storage promise that
-      // could let a second /admission observe the same free seat.
+      // The digest is taken up front, so that from here to the seating write
+      // the only awaits are storage's own — which the object's input gate
+      // covers — never a non-storage promise between a read and its write.
       const presente = code === '' ? null : await sha256Hex(code);
-      // RESELLER-PILOTE-1: the seat is checked BEFORE the code is looked at —
-      // her code may be right and the pilot full; she hears the pilot, never
-      // « bad code », and nothing is spent: the hash stays, the state stays.
-      if (await this.plafondAtteint()) {
-        return Response.json({ ok: false, reason: 'plafond_pilote' }, { status: 403 });
-      }
       if (presente === null || record.accessCodeHash === undefined) {
         return Response.json({ ok: false, reason: 'code_refused' }, { status: 401 });
       }
@@ -546,11 +501,6 @@ export class ResellerAccountsDO {
         // An active account has no use for an admission code, and minting one
         // for a paused account would let an old handout undo the founder's cut.
         return Response.json({ ok: false, reason: 'not_pending' }, { status: 409 });
-      }
-      // RESELLER-PILOTE-1: refused at the mint, so the founder learns it on his
-      // console before a code is handed to anyone.
-      if (await this.plafondAtteint()) {
-        return Response.json({ ok: false, reason: 'plafond_pilote' }, { status: 409 });
       }
       const code = mintToken('SPA');
       await this.state.storage.put(`${ACCOUNT_PREFIX}${accountId}`, {

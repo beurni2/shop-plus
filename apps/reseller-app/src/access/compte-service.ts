@@ -46,10 +46,7 @@ export type ConnexionResult =
 
 export type AdmissionResult =
   | { readonly ok: true }
-  /** RESELLER-PILOTE-1 — `pilote_complet`: the book seats one reseller while
-   *  writes ride the shared key; her account is PENDING, not cut, and her
-   *  code is unspent. A screen must never read it as the founder's pause. */
-  | { readonly ok: false; readonly reason: 'code_refuse' | 'acces_coupe' | 'pilote_complet' | 'unreachable' };
+  | { readonly ok: false; readonly reason: 'code_refuse' | 'acces_coupe' | 'unreachable' };
 
 export type SessionResult =
   | { readonly ok: true; readonly compte: CompteLocal }
@@ -188,7 +185,7 @@ export function resolveCompteService(): CompteServicePort | null {
       // Two 403s, told apart BY NAME: the pilot ceiling leaves her pending
       // (RESELLER-PILOTE-1); anything else at 403 is the founder's pause.
       if (res.status === 403) {
-        return { ok: false, reason: res.body?.['reason'] === 'plafond_pilote' ? 'pilote_complet' : 'acces_coupe' };
+        return { ok: false, reason: 'acces_coupe' };
       }
       if (res.status === 401) return { ok: false, reason: 'code_refuse' };
       if (res.status !== 200 || res.body?.['ok'] !== true) return { ok: false, reason: 'unreachable' };

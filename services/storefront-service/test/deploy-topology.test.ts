@@ -7,10 +7,11 @@ import { describe, expect, it } from 'vitest';
  * `src/index.ts` exports a COMPLETE Worker (`export default { fetch: handleRequest }`)
  * whose `handleRequest` serves `POST /media/upload` with NO auth: it is the inner
  * sub-router, written to run ONLY behind `worker/index.ts`, which gates every write
- * at line ~880 (`rejectUnauthorizedWrite`) BEFORE delegating to `handleRequest`.
+ * at its composition root (an ACTIVE reseller session, or one 401 — ACCES-ARME-2
+ * retired the shared key) BEFORE delegating to `handleRequest`.
  * `combined-worker.e2e.test.ts` proves the deployed bundle refuses `/media/upload`
- * with 401 when unkeyed — but that proof holds only while the deployed artifact IS
- * the gated router. Nothing behavioural stops a refactor from re-pointing the deploy
+ * with 401 without a session — but that proof holds only while the deployed
+ * artifact IS the gated router. Nothing behavioural stops a refactor from re-pointing the deploy
  * at `src/index.ts`, at which point media upload is unauthenticated in production.
  *
  * This test locks the deploy TOPOLOGY: the one deployed entry is the gated combined

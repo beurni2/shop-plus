@@ -21,10 +21,10 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'accounts-'));
 const T0 = '2026-08-04T08:00:00.000Z';
 
-const WRITE_SECRET = 'test-write-secret-a001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-a001';
 const OPS_SECRET = 'test-checkout-ops-secret-a001';
-const authed = { 'X-Write-Key': WRITE_SECRET };
+/** ACCES-ARME-2 — her shop and her listing ride HER session, never a shared key. */
+const enTantQue = (session: string) => ({ Authorization: `Bearer ${session}`, 'Content-Type': 'application/json' });
 const signed = { 'X-Payment-Webhook-Key': WEBHOOK_SECRET, 'Content-Type': 'application/json' };
 const cleC = { Authorization: `Bearer ${OPS_SECRET}` };
 
@@ -59,14 +59,10 @@ const mf = new Miniflare({
   },
   durableObjectsPersist: persist,
   bindings: {
-    STOREFRONT_WRITE_SECRET: WRITE_SECRET,
     PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
     CHECKOUT_OPS_SECRET: OPS_SECRET,
-    // RESELLER-PILOTE-1: this suite admits MANY accounts to prove the laws
-    // below, so the pilot ceiling is lifted HERE and nowhere else. The ceiling
-    // itself is proven on its own Worker, bound exactly as deployed (no value
-    // ⇒ one seat), in `plafond-pilote.e2e.test.ts`.
-    RESELLER_ADMISSION_CEILING: '1000',
+    // ACCES-ARME-2: no write key and no pilot ceiling — this suite admits many
+    // accounts exactly as the deployed Worker now does.
   },
   serviceBindings: {
     OFFER: async (request: Request) => {
@@ -349,7 +345,7 @@ describe('RESELLER-ACCOUNTS — the session opens HER feed, and the suivi shows 
     // her storefront + listing ride HER server-minted id
     const i = `0${suivant()}`; // shortCode wants [A-Z]{2,12}-[0-9]{4}
     const sf = await mf.dispatchFetch('http://c/storefronts', {
-      method: 'POST', headers: authed,
+      method: 'POST', headers: enTantQue(s.json.session!),
       body: JSON.stringify({
         commandId: `cmd-sf-${i}`, id: `sf-acct-${i}`, resellerId: rid, shortCode: `ACCT-${i}`,
         name: 'Chez Awa', zone: 'Gounghin, Ouagadougou', category: 'Général', correlationId: `corr-${i}`, at: T0,
@@ -357,7 +353,7 @@ describe('RESELLER-ACCOUNTS — the session opens HER feed, and the suivi shows 
     });
     expect(sf.status, await sf.clone().text()).toBe(200);
     const lst = await mf.dispatchFetch('http://c/listings', {
-      method: 'POST', headers: authed,
+      method: 'POST', headers: enTantQue(s.json.session!),
       body: JSON.stringify({
         commandId: `cmd-lst-${i}`, listingId: `lst-acct-${i}`, storefrontId: `sf-acct-${i}`,
         resellerId: rid, productVersionId: 'pv-acct-1', offerVersion: 'ov-acct-1',
@@ -540,12 +536,14 @@ describe('CODE-REVU — the reseller FEED code rereads too, same law', () => {
  * whole (the fail-open law).
  */
 describe('CONTACT-WHATSAPP-1 — the registration number joins the boutique read, active accounts only', () => {
-  async function creerBoutique(resellerId: string, i: string): Promise<string> {
+  /** Her shop, created AS HER (ACCES-ARME-2: the session is the only credential,
+   *  and the shop's owner is the account the book minted, never a chosen id). */
+  async function creerBoutique(compte: { accountId: string; session: string }, i: string): Promise<string> {
     const res = await mf.dispatchFetch('http://c/storefronts', {
       method: 'POST',
-      headers: { 'X-Write-Key': WRITE_SECRET, 'Content-Type': 'application/json' },
+      headers: enTantQue(compte.session),
       body: JSON.stringify({
-        commandId: `cmd-wa-${i}`, id: `sf-wa-${i}`, resellerId,
+        commandId: `cmd-wa-${i}`, id: `sf-wa-${i}`, resellerId: compte.accountId,
         shortCode: `WACT-${i}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
         category: 'Général', correlationId: `corr-wa-${i}`, at: '2026-08-23T08:00:00.000Z',
       }),
@@ -566,7 +564,7 @@ describe('CONTACT-WHATSAPP-1 — the registration number joins the boutique read
     const accountId = s.json.accountId!;
     const mint = await minterCode(accountId);
     await admission(s.json.session!, mint.json.code!);
-    const slug = await creerBoutique(accountId, '0901');
+    const slug = await creerBoutique({ accountId, session: s.json.session! }, '0901');
 
     const avec = await lireBoutique(slug);
     expect(avec.status).toBe(200);
@@ -591,31 +589,35 @@ describe('CONTACT-WHATSAPP-1 — the registration number joins the boutique read
     expect((await lireBoutique(slug)).json.whatsapp).toBe('22670112233');
   }, 60_000);
 
-  it('NO COMPTE: a shop whose owner never signed up reads exactly as before — no key, page whole', async () => {
-    // An id the minter can never produce (it mints rs-{4 digits} only), so a
-    // same-run signup can never collide with this « no compte » owner.
-    const slug = await creerBoutique('rs-sans-compte', '0902');
-    const sans = await lireBoutique(slug);
-    expect(sans.status).toBe(200);
-    expect('whatsapp' in sans.json).toBe(false);
-    // and the page is intact — the fields the vitrine renders are all present
-    for (const champ of ['name', 'zone', 'slug', 'products']) {
-      expect(champ in (sans.json as Record<string, unknown>), champ).toBe(true);
-    }
-  }, 60_000);
+  // ACCES-ARME-2 retired the case « NO COMPTE: a shop whose owner never signed
+  // up »: no road creates such a shop any more — a create is her session or 401,
+  // and the shop's owner is the account the book minted. The read-side law it
+  // proved (a shop whose owner has no compte renders whole, without a number)
+  // still governs the key-era shops that exist in production and is pinned on
+  // the projection itself (`contact-whatsapp.test.ts`); only the API road to
+  // manufacture one is gone, which is the point of the slice.
 
-  it('PENDING: an account that signed up but was never admitted exposes nothing', async () => {
+  it('PENDING: an account that signed up but was never admitted is NOBODY at the write gate — her shop cannot even be created', async () => {
     const s = await inscrire({ phone: '+226 70 44 55 66' });
-    const slug = await creerBoutique(s.json.accountId!, '0903');
-    const lue = await lireBoutique(slug);
-    expect(lue.status).toBe(200);
-    expect('whatsapp' in lue.json).toBe(false);
+    const res = await mf.dispatchFetch('http://c/storefronts', {
+      method: 'POST',
+      headers: enTantQue(s.json.session!),
+      body: JSON.stringify({
+        commandId: 'cmd-wa-0903', id: 'sf-wa-0903', resellerId: s.json.accountId!,
+        shortCode: 'WACT-0903', name: 'Boutique en attente', zone: 'Ouagadougou',
+        category: 'Général', correlationId: 'corr-wa-0903', at: '2026-08-23T08:00:00.000Z',
+      }),
+    });
+    expect(res.status).toBe(401);
+    expect(safeJson(await res.text())).toEqual({ error: 'unauthorized' });
+    // and no page came into being for it
+    expect((await lireBoutique('wact-0903')).status).toBe(404);
   }, 60_000);
 
   it('⚠ the boutique read leaks NOTHING else from the account book — no email, no state, no credential material', async () => {
     const s = await inscrire({ phone: '+226 70 77 88 99' });
     await admission(s.json.session!, (await minterCode(s.json.accountId!)).json.code!);
-    const slug = await creerBoutique(s.json.accountId!, '0904');
+    const slug = await creerBoutique({ accountId: s.json.accountId!, session: s.json.session! }, '0904');
     const bytes = JSON.stringify((await lireBoutique(slug)).json);
     for (const banned of ['example.bf', 'passwordHash', 'passwordSalt', 'accessCode', 'pending_access', '"state"', 'email']) {
       expect(bytes.includes(banned), `the boutique read must not carry ${banned}`).toBe(false);

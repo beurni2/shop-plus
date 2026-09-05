@@ -8,12 +8,19 @@ import { MockPaymentProvider } from '@shop-plus/commerce-core';
 import { Miniflare } from 'miniflare';
 import { cleAcheteur } from '@shop-plus/commerce-core';
 import { afterAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance, type Seance } from './seance';
 
 /**
  * SP3.3a — THE PAYMENT LEGS ON REAL WORKERD (Miniflare), through the COMBINED
  * Worker bundle: the composition root, the public exemption, the webhook secret
  * gate, the reservation mirror, the CheckoutDO and the OrderDO — all the real
  * code, none of it stubbed.
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. Every shop on
+ * every runtime here is seated through `seance()` — signup → the founder
+ * mints on key C → admission — and created with HER session bearer; her
+ * `resellerId` is the id the book minted. Where a matrix used to present the
+ * write key as « not a payment key », it presents her SESSION now.
  *
  * EVERY DURABILITY CLAIM CROSSES A RESTART: the Miniflare instance is disposed
  * and re-created on the SAME persist dir, so « it survived » means a process
@@ -38,7 +45,6 @@ const persistEmptySecret = mkdtempSync(join(tmpdir(), 'order-do-emptysecret-'));
 const persistSeraless = mkdtempSync(join(tmpdir(), 'order-do-seraless-'));
 const T0 = '2026-07-30T08:00:00.000Z';
 
-const WRITE_SECRET = 'test-write-secret-0001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-0001';
 const FULFILL_SECRET = 'test-fulfillment-write-secret-0001';
 
@@ -100,7 +106,6 @@ async function waitForSeraPosts(n: number, timeoutMs = 5_000): Promise<void> {
 }
 
 await startSeraDoor();
-const authed = { 'X-Write-Key': WRITE_SECRET };
 const signed = { 'X-Payment-Webhook-Key': WEBHOOK_SECRET, 'Content-Type': 'application/json' };
 
 /** The producer behind the OFFER binding — publish signs HER price from it. */
@@ -155,10 +160,11 @@ function makeMf(
       LISTING: 'ListingDO',
       CHECKOUT: 'CheckoutDO',
       ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO',
+      COMPTES: 'ResellerAccountsDO',
     },
     durableObjectsPersist: persistDir,
     bindings: {
-      STOREFRONT_WRITE_SECRET: WRITE_SECRET,
+      CHECKOUT_OPS_SECRET: OPS_SECRET,
       FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
       // SE-LIVE-2a — Séra's intake door, as a REAL http origin the Worker's
       // global fetch actually calls (a local server, not a stub): the wire
@@ -304,18 +310,19 @@ async function seedShop(
   m: Miniflare,
   n: string,
   opts: { markup?: number; pid?: string; offer?: string } = {},
-): Promise<{ slug: string; resellerId: string; pid: string }> {
+): Promise<{ slug: string; resellerId: string; pid: string; seance: Seance }> {
   const markup = opts.markup ?? 1_500;
   const pid = opts.pid ?? 'pv-order-1';
   const offer = opts.offer ?? 'ov-order-1';
   const shortCode = `ORDER-${n}`;
+  const S = await seance(m, `order${n}`);
   const created = await m.dispatchFetch('http://c/storefronts', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-create-${n}`,
       id: `sf-order-${n}`,
-      resellerId: `rs-order-${n}`,
+      resellerId: S.accountId,
       shortCode,
       name: 'Boutique du fondateur',
       zone: 'Ouagadougou',
@@ -327,12 +334,12 @@ async function seedShop(
   if (created.status !== 200) throw new Error(`seed: storefront create ${created.status}`);
   const pub = await m.dispatchFetch('http://c/listings', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`,
       listingId: `lst-order-${n}`,
       storefrontId: `sf-order-${n}`,
-      resellerId: `rs-order-${n}`,
+      resellerId: S.accountId,
       productVersionId: pid,
       offerVersion: offer,
       markup,
@@ -342,7 +349,7 @@ async function seedShop(
   });
   const decision = (await pub.json()) as { status?: string };
   if (decision.status !== 'published') throw new Error(`seed: listing publish ${JSON.stringify(decision)}`);
-  return { slug: shortCode.toLowerCase(), resellerId: `rs-order-${n}`, pid };
+  return { slug: shortCode.toLowerCase(), resellerId: S.accountId, pid, seance: S };
 }
 
 async function issueQuoteFor(m: Miniflare, shop: { slug: string; resellerId: string; pid: string }) {
@@ -879,7 +886,7 @@ describe('OrderDO — one command, one charge, forever', () => {
 
 describe('OrderDO — the webhook is the ONLY payment truth, and it is authenticated first', () => {
   it('NO SECRET AND A WRONG SECRET ARE BOTH 401 — and nothing about the order moves', async () => {
-    const { created, orderId } = await orderedQuote(mf, '0007');
+    const { created, orderId, shop } = await orderedQuote(mf, '0007');
     expect(created.status).toBe(200);
     const event = webhookEvent(orderId, 12_500, 'att-forged-0007');
 
@@ -901,12 +908,14 @@ describe('OrderDO — the webhook is the ONLY payment truth, and it is authentic
     expect(state.json['state']).toBe('payment_pending');
     expect((await audit(mf, orderId)).escrow).toBeNull();
 
-    // the WRITE key is not a payment key — the blast radius does not cross over
-    const withWriteKey = await postWebhook(mf, event, {
-      'X-Payment-Webhook-Key': WRITE_SECRET,
+    // a reseller's SESSION is not a payment key — the blast radius does not
+    // cross over (ACCES-ARME-2: the session is the credential the write key
+    // it replaced used to stand in for here)
+    const withSession = await postWebhook(mf, event, {
+      'X-Payment-Webhook-Key': shop.seance.session,
       'Content-Type': 'application/json',
     });
-    expect(withWriteKey.status).toBe(401);
+    expect(withSession.status).toBe(401);
   });
 
   it('A SIGNED, AMOUNT-EXACT WEBHOOK PAYS AND CONFIRMS — with a funded checkout leg recorded', async () => {
@@ -1091,7 +1100,7 @@ describe('OrderDO — the order survives a process death', () => {
 
 describe('OrderDO — the emitted bytes carry no supplier economics and no payment key', () => {
   it('the response keys ARE the allowlist, and no banned NAME or VALUE appears in the raw bytes or the headers', async () => {
-    const { created, orderId } = await orderedQuote(mf, '0016', {
+    const { created, orderId, shop } = await orderedQuote(mf, '0016', {
       markup: 3_000,
       pid: 'pv-order-distinct',
       offer: 'ov-order-distinct',
@@ -1165,7 +1174,7 @@ describe('OrderDO — the emitted bytes carry no supplier economics and no payme
         expect(headerBytes.includes(value), `header ${value}`).toBe(false);
       }
       // …and the supplier's identity and the reseller's are absent too
-      expect(scannable.includes('rs-order-0016')).toBe(false);
+      expect(scannable.includes(shop.resellerId)).toBe(false);
       expect(scannable.includes('lst-order-0016')).toBe(false);
     }
   });
@@ -1185,9 +1194,9 @@ describe('OrderDO — the emitted bytes carry no supplier economics and no payme
 /* ═══════════════════════ the public/gated boundary ════════════════════════ */
 
 describe('OrderDO — public by design, and it opens nothing else', () => {
-  it('the order routes answer WITHOUT a key, while the webhook and every other write stay gated', async () => {
+  it('the order routes answer WITHOUT a session, while the webhook and every other write stay gated', async () => {
     const { created } = await orderedQuote(mf, '0018');
-    expect(created.status).toBe(200); // a buyer holds no key, by design
+    expect(created.status).toBe(200); // a buyer holds no session, by design
 
     const sf = await mf.dispatchFetch('http://c/storefronts', { method: 'POST', body: '{}' });
     expect(sf.status).toBe(401);
@@ -1427,7 +1436,7 @@ describe('OrderDO — an unconfigured webhook secret refuses EVERY webhook', () 
    * and later into settlement. This test is what stands between that line and a
    * silent regression.
    */
-  async function orderInRuntime(m: Miniflare, n: string): Promise<string> {
+  async function orderInRuntime(m: Miniflare, n: string): Promise<{ orderId: string; seance: Seance }> {
     const shop = await seedShop(m, n);
     const quote = await issueQuoteFor(m, shop);
     const held = await reserve(m, quote.quoteId, `cmd-reserve-${n}`, `holder-${n}`);
@@ -1438,19 +1447,20 @@ describe('OrderDO — an unconfigured webhook secret refuses EVERY webhook', () 
       commandId: `cmd-order-${n}`,
     });
     expect(created.status, created.text).toBe(200);
-    return `ord-${quote.quoteId}`;
+    return { orderId: `ord-${quote.quoteId}`, seance: shop.seance };
   }
 
   it('SECRET UNSET (the binding absent): every webhook is 401 and the order never moves', async () => {
     const m = noSecretMf();
-    const orderId = await orderInRuntime(m, '0040');
+    const { orderId, seance: elle } = await orderInRuntime(m, '0040');
     const event = webhookEvent(orderId, 12_500, 'pk-forge-0040');
-    // no header at all — the shape an attacker who knows nothing would send
+    // no header at all — the shape an attacker who knows nothing would send;
+    // then the reseller's own session, which is an identity and not a key
     for (const headers of [
       { 'Content-Type': 'application/json' },
       { 'X-Payment-Webhook-Key': '', 'Content-Type': 'application/json' },
       { 'X-Payment-Webhook-Key': WEBHOOK_SECRET, 'Content-Type': 'application/json' },
-      { 'X-Payment-Webhook-Key': WRITE_SECRET, 'Content-Type': 'application/json' },
+      { 'X-Payment-Webhook-Key': elle.session, 'Content-Type': 'application/json' },
     ]) {
       const res = await postWebhook(m, event, headers);
       expect(res.status, JSON.stringify(headers)).toBe(401);
@@ -1465,7 +1475,7 @@ describe('OrderDO — an unconfigured webhook secret refuses EVERY webhook', () 
 
   it('SECRET EMPTY: an empty configured secret matches nothing — 401, and the order never moves', async () => {
     const m = emptySecretMf();
-    const orderId = await orderInRuntime(m, '0041');
+    const { orderId } = await orderInRuntime(m, '0041');
     const event = webhookEvent(orderId, 12_500, 'pk-forge-0041');
     for (const headers of [
       { 'Content-Type': 'application/json' },
@@ -1661,10 +1671,10 @@ describe('SP4.2a — the door leg is provider truth, behind the secret, and neve
 
   /* ── SP4.2a-bis — asking for the product leg to be collected ─────────── */
 
-  it('the door-charge route is PUBLIC (no write key) and still refuses what it must', async () => {
+  it('the door-charge route is PUBLIC (no session) and still refuses what it must', async () => {
     const { orderId } = await orderedQuote(mf, '4205');
-    // NO KEY AT ALL — she holds none. It must not 401: this route cannot declare
-    // that money arrived, so it belongs on the public side of the gate.
+    // NO SESSION AT ALL — a buyer holds none. It must not 401: this route cannot
+    // declare that money arrived, so it belongs on the public side of the gate.
     const res = await mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(orderId)}/door-charge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

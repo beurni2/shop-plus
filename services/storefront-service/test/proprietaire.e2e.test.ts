@@ -15,18 +15,20 @@ import { afterAll, describe, expect, it } from 'vitest';
  * all, and asks the BOOK after every refusal: B's acts on A's shop must leave
  * A's shop byte-for-byte as it was, and must read as one mute not-found.
  *
- * The shared key still opens every door it opened — asserted here BY NAME as
- * the residue slice a2b retires, so that removal turns this test red on
- * purpose rather than silently.
+ * ACCES-ARME-2 (a2b phase 2, founder « Seated » 2026-09-05) retired the shared
+ * key this suite once named as its residue: the retired header now opens
+ * NOTHING (asserted below), the founder's key C opens exactly the directory
+ * read and the orphan takedown, and the a1 ceiling is gone — two seated
+ * accounts need no lifted binding any more.
  */
 
 const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'proprietaire-'));
 const T0 = '2026-09-03T08:00:00.000Z';
-const WRITE_SECRET = 'test-write-secret-o001';
 const OPS_SECRET = 'test-checkout-ops-secret-o001';
 const cleC = { Authorization: `Bearer ${OPS_SECRET}`, 'Content-Type': 'application/json' };
-const cle = { 'X-Write-Key': WRITE_SECRET, 'Content-Type': 'application/json' };
+/** The RETIRED header, presented exactly as the old app did — it must open nothing. */
+const cleRetiree = { 'X-Write-Key': 'test-write-secret-o001', 'Content-Type': 'application/json' };
 const MOT_DE_PASSE = 'grain-de-nere-77';
 const PID = 'pv-own-1';
 
@@ -60,12 +62,8 @@ const mf = new Miniflare({
   },
   durableObjectsPersist: persist,
   bindings: {
-    STOREFRONT_WRITE_SECRET: WRITE_SECRET,
     PAYMENT_WEBHOOK_SECRET: 'test-payment-webhook-secret-o001',
     CHECKOUT_OPS_SECRET: OPS_SECRET,
-    // Two seated accounts are the whole point of this suite; the a1 ceiling is
-    // lifted to exactly that on this test Worker and nowhere else.
-    RESELLER_ADMISSION_CEILING: '2',
   },
   serviceBindings: {
     OFFER: async (request: Request) => {
@@ -167,7 +165,9 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     const usurpe = await creer(A.accountId, 'sf-own-x', B.bearer);
     expect(usurpe.status, usurpe.text).toBe(403);
     expect(usurpe.json['error']).toBe('not_owner');
-    expect((await appel('/storefronts/sf-own-x', { headers: cle })).status, 'nothing was created').toBe(404);
+    // nothing was created — asked of the WHOLE directory, the founder's key-C read
+    const annuaire = (await appel('/storefronts', { headers: cleC })).json as unknown as { id: string }[];
+    expect(annuaire.some((r) => r.id === 'sf-own-x'), 'nothing was created').toBe(false);
     const b = await creer(B.accountId, SF_B, B.bearer);
     expect(b.status, b.text).toBe(200);
 
@@ -202,8 +202,8 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(listeA.map((r) => r.id)).toEqual([SF_A]);
     const listeB = (await appel('/storefronts', { headers: B.bearer })).json as unknown as { id: string }[];
     expect(listeB.map((r) => r.id)).toEqual([SF_B]);
-    // the key-only caller (the founder's operator read, until a2b) keeps the whole directory
-    const tout = (await appel('/storefronts', { headers: cle })).json as unknown as { id: string }[];
+    // the founder's key-C read (ACCES-ARME-2's operator road) keeps the whole directory
+    const tout = (await appel('/storefronts', { headers: cleC })).json as unknown as { id: string }[];
     expect(tout.map((r) => r.id).sort()).toEqual([SF_A, SF_B]);
   });
 
@@ -232,7 +232,7 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(intrusion.json).toEqual({ error: 'not_found' });
     // nothing landed: no listing, no membership, no pointer
     expect(((await appel(`/storefronts/${SF_A}`, { headers: A.bearer })).json as { curatedItems?: string[] }).curatedItems).toEqual([PID]);
-    expect((await appel('/listings/lst-own-intrus', { headers: cle })).status).toBe(404);
+    expect((await appel('/listings/lst-own-intrus', { headers: A.bearer })).status).toBe(404);
 
     expect((await appel(`/listings/by-pid/${SF_A}/${PID}`, { headers: B.bearer })).status).toBe(404);
     expect((await appel(`/listings/by-pid/${SF_A}/${PID}`, { headers: A.bearer })).status).toBe(200);
@@ -282,7 +282,7 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     const detourne = await publier(SF_A, 'lst-own-detourne', A.bearer, B.accountId);
     expect(detourne.status, detourne.text).toBe(403);
     expect(detourne.json['error']).toBe('not_owner');
-    expect((await appel('/listings/lst-own-detourne', { headers: cle })).status).toBe(404);
+    expect((await appel('/listings/lst-own-detourne', { headers: A.bearer })).status).toBe(404);
 
     // with an identity in hand, a publish that names no shop is refused by name
     const sansBoutique = await publier(undefined, 'lst-own-nulle', A.bearer, A.accountId);
@@ -347,12 +347,43 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(sansBoutique.status).toBe(400);
   });
 
-  it('RESIDUE until a2b, asserted by name: the shared key alone still opens every door with no ownership', async () => {
-    const libre = await creer('rs-nobody-0001', 'sf-own-key', cle);
-    expect(libre.status, libre.text).toBe(200);
-    expect((await appel(`/storefronts/${SF_A}`, { headers: cle })).status).toBe(200);
-    // a foreign remove on the key path goes THROUGH (200 — `not_present` for a
-    // pid that is not there); a2b retiring the key turns exactly this red
-    expect((await appel(`/storefronts/${SF_A}/items/remove`, { method: 'POST', headers: cle, body: JSON.stringify({ pid: 'pv-none', at: T0 }) })).status).toBe(200);
+  it('ACCES-ARME-2 — the RETIRED KEY opens nothing: no create, no read, no foreign act, no listing, no supply; and the book holds no ghost', async () => {
+    const libre = await creer('rs-nobody-0001', 'sf-own-key', cleRetiree);
+    expect(libre.status, libre.text).toBe(401);
+    expect(libre.json).toEqual({ error: 'unauthorized' });
+    expect((await appel(`/storefronts/${SF_A}`, { headers: cleRetiree })).status).toBe(401);
+    // the foreign remove that used to go THROUGH on the key path is refused
+    // before any dispatch — and A's shop is byte-identical afterwards
+    const avant = (await appel(`/storefronts/${SF_A}`, { headers: A.bearer })).text;
+    const retrait = await appel(`/storefronts/${SF_A}/items/remove`, { method: 'POST', headers: cleRetiree, body: JSON.stringify({ pid: PID, at: T0 }) });
+    expect(retrait.status).toBe(401);
+    expect((await appel(`/storefronts/${SF_A}`, { headers: A.bearer })).text).toBe(avant);
+    expect((await appel('/listings', { method: 'POST', headers: cleRetiree, body: '{}' })).status).toBe(401);
+    expect((await appel('/supply-projections', { headers: cleRetiree })).status).toBe(401);
+    // the directory never learned of the refused create
+    const annuaire = (await appel('/storefronts', { headers: cleC })).json as unknown as { id: string }[];
+    expect(annuaire.some((r) => r.id === 'sf-own-key')).toBe(false);
+  }, 60_000);
+
+  it('ACCES-ARME-2 — key C opens EXACTLY the directory read and the orphan takedown, nothing else', async () => {
+    // the founder's operator read: every row
+    const tout = (await appel('/storefronts', { headers: cleC })).json as unknown as { id: string }[];
+    expect(tout.map((r) => r.id)).toEqual(expect.arrayContaining([SF_A, SF_B]));
+    // …and the takedown of a shop no session owns any more (a key-era orphan
+    // in production): unpublish on key C flips ONLY discoverable; the page lives
+    const prise = await appel(`/storefronts/${SF_B}/unpublish`, { method: 'POST', headers: cleC, body: JSON.stringify({ id: SF_B, correlationId: 'corr-orphan', at: T0 }) });
+    expect(prise.status, prise.text).toBe(200);
+    const ligne = ((await appel('/storefronts', { headers: cleC })).json as unknown as { id: string; discoverable: boolean }[]).find((r) => r.id === SF_B);
+    expect(ligne?.discoverable).toBe(false);
+    // key C is NOT a write key: create, publish, media, listing, DELETE all refuse
+    expect((await creer('rs-nobody-0002', 'sf-own-cle-c', cleC)).status).toBe(401);
+    expect((await appel(`/storefronts/${SF_B}/publish`, { method: 'POST', headers: cleC, body: JSON.stringify({ id: SF_B, correlationId: 'c', at: T0 }) })).status).toBe(401);
+    expect((await appel(`/storefronts/${SF_B}`, { headers: cleC })).status).toBe(401);
+    expect((await appel(`/storefronts/${SF_B}`, { method: 'DELETE', headers: cleC })).status).toBe(401);
+    expect((await appel('/listings', { method: 'POST', headers: cleC, body: '{}' })).status).toBe(401);
+    expect((await appel('/supply-projections', { headers: cleC })).status).toBe(401);
+    expect((await appel(`/media/upload?kind=cover&storefrontId=${SF_B}`, { method: 'POST', headers: { Authorization: cleC.Authorization, 'Content-Type': 'image/png' }, body: new Uint8Array(64) })).status).toBe(401);
+    // and a WRONG key C is nobody at the directory
+    expect((await appel('/storefronts', { headers: { Authorization: 'Bearer not-the-founder' } })).status).toBe(401);
   }, 60_000);
 });

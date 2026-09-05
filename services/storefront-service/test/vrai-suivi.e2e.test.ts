@@ -3,9 +3,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance } from './seance';
 
 /**
  * ═══ VRAI-SUIVI — the storefront worker's half of the real delivery loop ═══
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. The shop each
+ * order rides on is seated through `seance()` — signup → the founder mints on
+ * key C → admission — and created with HER session bearer; the `resellerId`
+ * returned (and read back on the order's reseller projection) is the id the
+ * book minted, never one this file chose.
  *
  * Founder rulings (2026-08-10, all approved): Shop+ MINTS the buyer's private
  * remise code at payment confirmation; the code is revealed to the buyer ONLY
@@ -34,12 +41,10 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'vrai-suivi-'));
 const T0 = '2026-08-10T08:00:00.000Z';
 
-const WRITE_SECRET = 'test-write-secret-vs001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-vs001';
 const PROGRESS_SECRET = 'test-progress-write-secret-vs001';
 const FULFILL_SECRET = 'test-fulfillment-write-secret-vs001';
 const ARM_SECRET = 'test-shop-arm-secret-vs001';
-const authed = { 'X-Write-Key': WRITE_SECRET };
 
 /** The arm fact's kind, assembled at runtime — see the header. */
 const ARM_KIND = ['buyer', 'drop', 'code'].join('_');
@@ -71,12 +76,12 @@ function makeMf(persistDir: string): Miniflare {
     durableObjects: {
       STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
       ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO',
-      RESELLER: 'ResellerFeedDO',
+      RESELLER: 'ResellerFeedDO', COMPTES: 'ResellerAccountsDO',
     },
     durableObjectsPersist: persistDir,
     bindings: {
-      STOREFRONT_WRITE_SECRET: WRITE_SECRET,
       PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
+      CHECKOUT_OPS_SECRET: OPS_SECRET,
       PROGRESS_WRITE_SECRET: PROGRESS_SECRET,
       FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
       SHOP_ARM_SECRET: ARM_SECRET,
@@ -158,20 +163,21 @@ async function createdOrder(n: string): Promise<{
   orderId: string; quoteId: string; holderRef: string; resellerId: string;
   createStatus: number; createJson: Record<string, unknown>; createBody: Record<string, unknown>;
 }> {
+  const S = await seance(mf, `vs${n}`);
   const created = await mf.dispatchFetch('http://c/storefronts', {
-    method: 'POST', headers: authed,
+    method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-vs-${n}`, resellerId: `rs-vs-${n}`,
+      commandId: `cmd-create-${n}`, id: `sf-vs-${n}`, resellerId: S.accountId,
       shortCode: `VS-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-vs-${n}`, at: T0,
     }),
   });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
-    method: 'POST', headers: authed,
+    method: 'POST', headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`, listingId: `lst-vs-${n}`, storefrontId: `sf-vs-${n}`,
-      resellerId: `rs-vs-${n}`, productVersionId: 'pv-vs-1', offerVersion: 'ov-vs-1',
+      resellerId: S.accountId, productVersionId: 'pv-vs-1', offerVersion: 'ov-vs-1',
       markup: 1_500, correlationId: `corr-vs-${n}`, at: T0,
     }),
   });
@@ -180,7 +186,7 @@ async function createdOrder(n: string): Promise<{
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       slug: `vs-${n}`, pid: 'pv-vs-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
-      attributionResellerId: `rs-vs-${n}`, requestKey: freshKey(),
+      attributionResellerId: S.accountId, requestKey: freshKey(),
     }),
   });
   const quote = safeJson(await quoteRes.text()) as { quoteId?: string };
@@ -199,7 +205,7 @@ async function createdOrder(n: string): Promise<{
   const createJson = safeJson(await ordered.text());
   return {
     orderId: `ord-${quote.quoteId}`, quoteId: quote.quoteId, holderRef: `holder-${n}`,
-    resellerId: `rs-vs-${n}`, createStatus: ordered.status, createJson, createBody,
+    resellerId: S.accountId, createStatus: ordered.status, createJson, createBody,
   };
 }
 

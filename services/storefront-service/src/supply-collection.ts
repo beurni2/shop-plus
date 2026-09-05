@@ -15,20 +15,15 @@
  * The honest price of that choice, stated because it is real: this route had to be
  * ADDED. Supply was previously used only server-side inside `GET /s/{slug}`.
  *
- * ═══ WHY IT IS KEY-GATED, AND WHAT THAT WIDENS (founder ruling) ═══
+ * ═══ WHY IT IS GATED (founder ruling), AND ON WHAT ═══
  *
  * It returns `basePrice` and `resellerCommission` for every offer — precisely the
  * economics LISTING-READ-GATE-1 exists to protect. Open would be the same fail-open
- * leak APPS caught on boutik's side. It is gated on `X-Write-Key`, the key the app
- * ALREADY holds: a second bundled secret would buy separation of concerns and ZERO
- * protection, because both are readable by anyone who extracts the bundle, and it
- * would add a value the founder must set and could mismatch.
- *
- * SO THE BLAST RADIUS OF THAT KEY IS NOW WIDER, and this is the place it is written
- * down: it means « can write storefronts » AND « can read all supply economics ».
- * It rides the SAME hard gate already standing — no reseller but the founder
- * onboards until real per-reseller identity lands, at which point this becomes
- * per-reseller auth and the shared key GOES AWAY rather than being narrowed.
+ * leak APPS caught on boutik's side. It was first gated on the shared write key the
+ * app bundle carried (the founder's accepted limitation while he was the only
+ * reseller); RESELLER-AUTH-1 admitted an ACTIVE session on its own, and
+ * ACCES-ARME-2 retired the key: the read is now HER SESSION or 401, at the
+ * composition root, exactly like every other reseller surface.
  *
  * ═══ THE REASON IS PRESERVED, NOT COLLAPSED (the diagnostic half) ═══
  *

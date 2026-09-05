@@ -4,9 +4,15 @@ import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { PlatformEventSchema } from '@platform/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance } from './seance';
 
 /**
  * ═══ BOUTIK-SUIVI — the delivery reaches the SUPPLIER's console ═══
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. The shop each
+ * paid order rides on is seated through `seance()` — signup → the founder
+ * mints on key C → admission — and created with HER session bearer; her
+ * `resellerId` is the id the book minted, never one this file chose.
  *
  * Founder (2026-08-09): « add another screen again "livrer et terminer" for
  * when the delivery is completed and the product leaves en route to that
@@ -33,11 +39,9 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'livraison-boutik-'));
 const T0 = '2026-08-09T08:00:00.000Z';
 
-const WRITE_SECRET = 'test-write-secret-liv001';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-liv001';
 const PROGRESS_SECRET = 'test-progress-write-secret-liv001';
 const FULFILL_SECRET = 'test-fulfillment-write-secret-liv001';
-const authed = { 'X-Write-Key': WRITE_SECRET };
 
 const SUPPLY = [
   {
@@ -73,12 +77,12 @@ function makeMf(persistDir: string): Miniflare {
     durableObjects: {
       STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
       ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO', DISPATCH: 'DispatchIndexDO',
-      RESELLER: 'ResellerFeedDO',
+      RESELLER: 'ResellerFeedDO', COMPTES: 'ResellerAccountsDO',
     },
     durableObjectsPersist: persistDir,
     bindings: {
-      STOREFRONT_WRITE_SECRET: WRITE_SECRET,
       PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
+      CHECKOUT_OPS_SECRET: OPS_SECRET,
       PROGRESS_WRITE_SECRET: PROGRESS_SECRET,
       FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
     },
@@ -179,20 +183,21 @@ const freshKey = (): string => `rk-liv-${String((keySeq += 1)).padStart(4, '0')}
 
 /** The buyer's own road, to a PAID order. */
 async function realOrder(n: string): Promise<string> {
+  const S = await seance(mf, `liv${n}`);
   const created = await mf.dispatchFetch('http://c/storefronts', {
-    method: 'POST', headers: authed,
+    method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-liv-${n}`, resellerId: `rs-liv-${n}`,
+      commandId: `cmd-create-${n}`, id: `sf-liv-${n}`, resellerId: S.accountId,
       shortCode: `LIV-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-liv-${n}`, at: T0,
     }),
   });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
-    method: 'POST', headers: authed,
+    method: 'POST', headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`, listingId: `lst-liv-${n}`, storefrontId: `sf-liv-${n}`,
-      resellerId: `rs-liv-${n}`, productVersionId: 'pv-liv-1', offerVersion: 'ov-liv-1',
+      resellerId: S.accountId, productVersionId: 'pv-liv-1', offerVersion: 'ov-liv-1',
       markup: 1_500, correlationId: `corr-liv-${n}`, at: T0,
     }),
   });
@@ -201,7 +206,7 @@ async function realOrder(n: string): Promise<string> {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       slug: `liv-${n}`, pid: 'pv-liv-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
-      attributionResellerId: `rs-liv-${n}`, requestKey: freshKey(),
+      attributionResellerId: S.accountId, requestKey: freshKey(),
     }),
   });
   const quote = safeJson(await quoteRes.text()) as { quoteId?: string };

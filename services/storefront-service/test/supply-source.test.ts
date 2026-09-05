@@ -530,13 +530,70 @@ describe('SUPPLY-WIRE-AUTH-1 — the bearer credential, env-gated', () => {
 
   it('THE CREDENTIAL IS NOT THE APP WRITE KEY — the two are different kinds of thing and are never reused', () => {
     const src = readFileSync(join(import.meta.dirname, '../src/supply-source.ts'), 'utf8');
-    // the app write key ships INSIDE a bundle (readable by anyone who downloads
-    // it, so it stops scanners not attackers); this one never leaves two Workers.
+    // The app write key used to ship INSIDE a bundle (readable by anyone who
+    // downloaded it, so it stopped scanners not attackers); this credential
+    // never leaves two Workers. ACCES-ARME-2 (2026-09-05) retired that key
+    // outright — the service-wide pin is the next test — and this module
+    // still names neither the binding nor the header, which is what « never
+    // reused » has always meant here.
     expect(src).not.toContain('STOREFRONT_WRITE_SECRET');
     expect(src).not.toContain('X-Write-Key');
     expect(src).toContain('SUPPLY_READ_SECRET');
     // and no secret VALUE is ever hardcoded here
     expect(src).not.toMatch(/Bearer\s+[A-Za-z0-9_-]{16,}/);
+  });
+
+  /**
+   * ACCES-ARME-2 (2026-09-05) — THE APP WRITE KEY IS RETIRED FROM THE WHOLE
+   * SERVICE, pinned structurally so a key path cannot creep back in code while
+   * the prose still says it is gone. Every `.ts` under `src/` and `worker/` is
+   * scanned line by line; a mention is allowed ONLY on a comment line (the
+   * retirement note in `worker/auth.ts`, the ceiling's history in the accounts
+   * book). The one CODE line that still spells `X-Write-Key` is the media
+   * door's OWN credential (`MEDIA_WRITE_KEY`), presented by `order-do.ts` to
+   * ANOTHER Worker — never read by this one — and it is pinned by file so a
+   * second appearance, or a read of that header at this root, fails by name.
+   * The pilot ceiling (`RESELLER_ADMISSION_CEILING`, `plafond_pilote`) left
+   * with the same slice: prose only, no code.
+   */
+  it('ACCES-ARME-2 — no binding reads STOREFRONT_WRITE_SECRET, no gate reads X-Write-Key, and the pilot ceiling is gone from code', () => {
+    const roots = [join(import.meta.dirname, '../src'), join(import.meta.dirname, '../worker')];
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.ts') ? [join(dir, e.name)] : [],
+      );
+    const isComment = (line: string): boolean => /^\s*(\*|\/\/|\/\*)/.test(line);
+    const codeMentions: Record<string, string[]> = {
+      STOREFRONT_WRITE_SECRET: [],
+      'X-Write-Key': [],
+      RESELLER_ADMISSION_CEILING: [],
+      plafond_pilote: [],
+    };
+    let seen = 0;
+    for (const dir of roots) {
+      for (const file of walk(dir)) {
+        const relative = file.slice(file.indexOf('/storefront-service/') + '/storefront-service/'.length);
+        for (const line of readFileSync(file, 'utf8').split('\n')) {
+          for (const needle of Object.keys(codeMentions)) {
+            if (!line.includes(needle)) continue;
+            seen += 1;
+            if (!isComment(line)) codeMentions[needle]!.push(relative);
+          }
+        }
+      }
+    }
+    // The scan is not vacuous: the retirement prose itself is found.
+    expect(seen).toBeGreaterThan(0);
+    expect(codeMentions['STOREFRONT_WRITE_SECRET']).toEqual([]);
+    expect(codeMentions['RESELLER_ADMISSION_CEILING']).toEqual([]);
+    expect(codeMentions['plafond_pilote']).toEqual([]);
+    // The media door's own header, sent by exactly one file, to another Worker.
+    expect([...new Set(codeMentions['X-Write-Key'])]).toEqual(['worker/order-do.ts']);
+    // …and the composition root and the gates read no such header at all.
+    for (const gate of ['worker/index.ts', 'worker/auth.ts']) {
+      const lines = readFileSync(join(import.meta.dirname, '..', gate), 'utf8').split('\n');
+      expect(lines.filter((l) => l.includes('X-Write-Key') && !isComment(l)), gate).toEqual([]);
+    }
   });
 });
 

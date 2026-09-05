@@ -1,14 +1,20 @@
-// Harness v2 — adds the checkout DOs so /checkout/* routes work.
+// Harness v3 — adds the checkout DOs so /checkout/* routes work, and (ACCES-ARME-2)
+// the ACCOUNT BOOK + key C, because the shared write key is retired: a storefront
+// write is a reseller SESSION or 401. `seance()` seats one on the real doors and
+// `seance.json` in the persist dir carries her across the OLD → NEW runs.
 import { createRequire } from 'node:module';
-
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 const SVC = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'services', 'storefront-service');
 const req = createRequire(SVC + '/package.json');
 const { Miniflare } = req('miniflare');
 
-export const WRITE_SECRET = 'test-write-secret-0001';
-export const authed = { 'X-Write-Key': WRITE_SECRET };
+/** The founder's key C on this harness — the ONLY non-session credential the
+ *  Worker still reads on the storefront surface (the directory read, the orphan
+ *  takedown). A test value: the harness never touches the deployed store. */
+export const OPS_SECRET = 'compat-checkout-ops-secret-0001';
+export const cleC = { Authorization: `Bearer ${OPS_SECRET}`, 'Content-Type': 'application/json' };
 
 const SUPPLY = [
   { productVersionId: 'pv-a2-1', offerVersion: 'ov-a2-live', basePrice: 8000, resellerCommission: 600, available: 7, productName: 'Bogolan', assetRefs: ['media/hero-square/cap-a2'], category: 'fashion_bags_fabrics' },
@@ -25,11 +31,12 @@ export function makeMf(persist) {
       CHECKOUT: 'CheckoutDO',
       ORDER: 'OrderDO',
       LADDER: 'BuyerLadderDO',
+      COMPTES: 'ResellerAccountsDO',
     },
     r2Buckets: ['BUCKET'],
     durableObjectsPersist: persist,
     bindings: {
-      STOREFRONT_WRITE_SECRET: WRITE_SECRET,
+      CHECKOUT_OPS_SECRET: OPS_SECRET,
       PRODUCT_MEDIA_BASE: 'https://media-service.example.workers.dev/media/',
       MEDIA_PUBLIC_BASE: 'https://storefront-service.example.workers.dev',
     },
@@ -55,6 +62,35 @@ export function makeMf(persist) {
   });
 }
 
+/** Signup → the founder mints on key C → admission: an ACTIVE reseller. Persisted
+ *  to `<persist>/seance.json` so the NEW build's read pass can act AS HER — the
+ *  book itself lives in the same durable storage, so her session still resolves. */
+export async function seance(mf, persist) {
+  const post = async (path, headers, body) => {
+    const res = await mf.dispatchFetch(`http://c${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
+    const text = await res.text();
+    let json; try { json = JSON.parse(text); } catch { json = {}; }
+    if (res.status !== 200) throw new Error(`${path} -> ${res.status} ${text}`);
+    return json;
+  };
+  const s = await post('/reseller/signup', { 'Content-Type': 'application/json' }, { name: 'Awa Repro', email: `awa-repro-${Date.now()}@example.bf`, phone: '+226 70 00 00 01', password: 'grain-de-nere-77' });
+  const m = await post('/reseller/accounts/access-code', cleC, { accountId: s.accountId });
+  const bearer = { Authorization: `Bearer ${s.session}`, 'Content-Type': 'application/json' };
+  await post('/reseller/admission', bearer, { code: m.code });
+  const seat = { accountId: s.accountId, session: s.session };
+  writeFileSync(join(persist, 'seance.json'), JSON.stringify(seat));
+  return { ...seat, bearer, octets: (t) => ({ Authorization: `Bearer ${s.session}`, 'Content-Type': t }) };
+}
+
+/** The seat the OLD build's seed wrote. Absent ⇒ the seed predates ACCES-ARME-2
+ *  (it wrote with the retired key) — the caller must say so rather than guess. */
+export function lireSeance(persist) {
+  let raw;
+  try { raw = readFileSync(join(persist, 'seance.json'), 'utf8'); } catch { return null; }
+  const seat = JSON.parse(raw);
+  return { ...seat, bearer: { Authorization: `Bearer ${seat.session}`, 'Content-Type': 'application/json' } };
+}
+
 export async function show(label, res) {
   const text = await res.text();
   let body;
@@ -73,4 +109,3 @@ export function tinyPng() {
   b.set([0x00, 0x00, 0x01, 0x00], 20);
   return b;
 }
-

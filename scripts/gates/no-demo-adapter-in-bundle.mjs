@@ -68,12 +68,14 @@ const APP_DIR = 'apps/reseller-app';
  * encoding change, a bundler change, or a mangled read would make every absence
  * assertion vacuously true and the gate would go blind without saying so.
  *
- * `X-Write-Key` is the write-gate header (apps/reseller-app/src/vitrine/service.ts) —
- * ASCII by protocol (HTTP header names cannot be otherwise), and present in any bundle
- * that contains the real HTTP adapter, which is the very module this gate is about.
- * It CANNOT be removed without removing the write path itself.
+ * `/supply-projections` is the supply route the real HTTP offer source calls
+ * (apps/reseller-app/src/vitrine/offers.ts, `OFFERS_ROUTE`) — ASCII by construction
+ * (a URL path), and present in any bundle that contains the real HTTP adapters, which
+ * are the very modules this gate is about. It CANNOT be removed without removing the
+ * browse path itself. (Until ACCES-ARME-2 the control was the shared write key's
+ * header; the key is retired and the header no longer exists anywhere.)
  */
-const POSITIVE_CONTROL = { name: 'write-key header (proves the scan can see)', needle: 'X-Write-Key' };
+const POSITIVE_CONTROL = { name: 'supply route (proves the scan can see)', needle: '/supply-projections' };
 
 const FINGERPRINTS = [
   // Load-bearing: string literals live in the Hermes string table, so minification
@@ -100,7 +102,7 @@ try {
     stdio: ['ignore', 'pipe', 'pipe'],
     // The export must run with the env UNSET — the exact condition under which the
     // demo adapter used to be selected. If it is absent even here, it is absent.
-    env: { ...process.env, EXPO_PUBLIC_STOREFRONT_BASE: '', EXPO_PUBLIC_STOREFRONT_WRITE_KEY: '' },
+    env: { ...process.env, EXPO_PUBLIC_STOREFRONT_BASE: '' },
   });
 
   // `out` is absolute (mkdtempSync), and expo honours an absolute --output-dir even

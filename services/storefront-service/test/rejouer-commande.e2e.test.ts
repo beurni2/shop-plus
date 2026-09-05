@@ -3,10 +3,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance } from './seance';
 
 /**
  * ═══ COMMANDE-REJOUER-1 (AUDIT-SHOP-1 slice c) — A LOST CREATE ANSWER IS
  * RECOVERABLE, on the real combined Worker, across the REAL hold expiry ═══
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. The shop the
+ * order rides on is seated through `seance()` — signup → the founder mints on
+ * key C → admission — and created with HER session bearer; her `resellerId`
+ * is the id the book minted, never one this file chose.
  *
  * The audit's MAJOR (5): the create ran its whole authorization — quote
  * freshness and hold freshness included — BEFORE the replay cache, so a buyer
@@ -29,10 +35,7 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'rejouer-'));
 const T0 = '2026-09-03T08:00:00.000Z';
 
-const WRITE_SECRET = 'test-write-secret-r201';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-r201';
-const OPS_SECRET = 'test-checkout-ops-secret-r201';
-const authed = { 'X-Write-Key': WRITE_SECRET };
 
 const CONTACT = { phone: '70 12 34 56', quartier: 'Gounghin', repere: 'Face à la pharmacie' };
 
@@ -62,10 +65,10 @@ const mf = new Miniflare({
     LADDER: 'BuyerLadderDO',
     DISPATCH: 'DispatchIndexDO',
     RESELLER: 'ResellerFeedDO',
+    COMPTES: 'ResellerAccountsDO',
   },
   durableObjectsPersist: persist,
   bindings: {
-    STOREFRONT_WRITE_SECRET: WRITE_SECRET,
     PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
     CHECKOUT_OPS_SECRET: OPS_SECRET,
   },
@@ -99,11 +102,12 @@ function safeJson(text: string): Record<string, unknown> {
 }
 
 async function creerCommande(n: string) {
+  const S = await seance(mf, `rejoue${n}`);
   const created = await mf.dispatchFetch('http://c/storefronts', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-rejoue-${n}`, resellerId: `rs-rejoue-${n}`, shortCode: `REJOU-${n}`,
+      commandId: `cmd-create-${n}`, id: `sf-rejoue-${n}`, resellerId: S.accountId, shortCode: `REJOU-${n}`,
       name: 'Boutique du fondateur', zone: 'Ouagadougou', category: 'Général',
       correlationId: `corr-${n}`, at: T0,
     }),
@@ -111,10 +115,10 @@ async function creerCommande(n: string) {
   if (created.status !== 200) throw new Error(`seed: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
     method: 'POST',
-    headers: authed,
+    headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`, listingId: `lst-rejoue-${n}`, storefrontId: `sf-rejoue-${n}`,
-      resellerId: `rs-rejoue-${n}`, productVersionId: 'pv-rejoue-1', offerVersion: 'ov-rejoue-1',
+      resellerId: S.accountId, productVersionId: 'pv-rejoue-1', offerVersion: 'ov-rejoue-1',
       markup: 1_500, correlationId: `corr-${n}`, at: T0,
     }),
   });
@@ -124,7 +128,7 @@ async function creerCommande(n: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       slug: `rejou-${n}`, pid: 'pv-rejoue-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
-      attributionResellerId: `rs-rejoue-${n}`, requestKey: `rk-rejoue-${n}-${'x'.repeat(12)}`,
+      attributionResellerId: S.accountId, requestKey: `rk-rejoue-${n}-${'x'.repeat(12)}`,
     }),
   });
   const quote = safeJson(await quoteRes.text()) as { quoteId?: string };

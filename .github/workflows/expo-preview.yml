@@ -17,21 +17,23 @@ jobs:
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       # RESELLER-STOREFRONT-WRITE-1 — EXPO_PUBLIC_* are compiled INTO the bundle by
-      # babel at `eas update` time. Set BOTH as repo secrets to arm the app's real
-      # calls to the live storefront service.
+      # babel at `eas update` time. The base is a repo secret only so the live
+      # service's origin stays out of the public tree; it arms the app's real calls.
       #
-      # RESELLER-SEAM-HONESTY-1 — leave EITHER unset and `resolveStorefrontService()`
+      # RESELLER-SEAM-HONESTY-1 — leave it unset and `resolveStorefrontService()`
       # returns **null**, NOT a demo adapter: the app shows « Pas encore relié au
       # service » and writes nothing. It used to fall back to an in-memory adapter whose
       # create/publish could not fail, so an unset or mistyped secret produced a SUCCESS
       # TOAST with nothing written anywhere. That adapter is now absent from the
       # published bundle, proven by scripts/gates/no-demo-adapter-in-bundle.mjs against
-      # the real exported artifact. The write key therefore ships
-      # inside the published EAS-update bundle — inside the shared-secret limitation
-      # the founder accepted (easier to read than a decompiled binary); no reseller
-      # but the founder onboards until real per-reseller identity lands (JOURNAL).
+      # the real exported artifact.
+      #
+      # ACCES-ARME-2 (a2b phase 2, founder « Seated » 2026-09-05) — NO CREDENTIAL
+      # SHIPS IN THE BUNDLE ANY MORE. The shared write key (`EXPO_PUBLIC_STOREFRONT_
+      # WRITE_KEY`) is retired on both sides: the app presents her session, minted by
+      # the service's account book at admission. The repo secret of that name is
+      # unread from here on and can be deleted.
       EXPO_PUBLIC_STOREFRONT_BASE: ${{ secrets.EXPO_PUBLIC_STOREFRONT_BASE }}
-      EXPO_PUBLIC_STOREFRONT_WRITE_KEY: ${{ secrets.EXPO_PUBLIC_STOREFRONT_WRITE_KEY }}
       # ACCES-ARME-1 (a2b phase 1) — founder order 2026-09-04 « go a2b »: the
       # access gate is ARMED on the published build. Every phone now signs up at
       # the entrance and enters a founder-minted admission code (the 2026-08-04

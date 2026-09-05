@@ -31,3 +31,15 @@ operator is the CTO agent, which is bound to run it by the JOURNAL's
 Note: the final `/checkout/quote` probe is commit-sensitive (request shapes
 move) and is informational only — the GATE is the four storefront checks:
 same headerStyle, same cover, same curatedItems, and a successful publish.
+
+## ACCES-ARME-2 (2026-09-05) — the protocol rides a SESSION, not a key
+
+The shared write key is retired on the Worker: a storefront write is a seated
+reseller's session or 401. `seed-old.mjs` therefore seats one on the real doors
+(signup → the founder mints on key C → admission), writes the shop AS HER, and
+saves her seat in `<persist>/seance.json` beside the durable storage; the account
+book lives in that same storage, so `read-new.mjs` loads the seat and acts as her
+on the NEW build. A persist dir seeded by a build from BEFORE a2b carries no seat
+(it wrote with the retired key): `read-new.mjs` says so and runs the buyer half
+and the founder's key-C directory read only — re-seed with an a2b-or-later build
+for the reseller half.

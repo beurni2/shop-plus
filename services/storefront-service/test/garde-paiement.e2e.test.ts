@@ -3,10 +3,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
+import { OPS_SECRET, seance } from './seance';
 
 /**
  * ═══ GARDE-PAIEMENT-1 (AUDIT-SHOP-1 slice f) — the two money doors hardened,
  * on the REAL combined Worker, the LEDGER consulted after every refusal ═══
+ *
+ * ACCES-ARME-2 (2026-09-05): the shared write key is retired. The shop each
+ * order rides on is seated through `seance()` — signup → the founder mints on
+ * key C → admission — and created with HER session bearer; her `resellerId`
+ * is the id the book minted, never one this file chose.
  *
  * TWO closable Real-Money-Gate code items:
  *
@@ -44,9 +50,7 @@ const SCRIPT = 'dist/worker/worker.mjs';
 const persist = mkdtempSync(join(tmpdir(), 'garde-paiement-'));
 const T0 = '2026-09-03T08:00:00.000Z';
 
-const WRITE_SECRET = 'test-write-secret-gp201';
 const WEBHOOK_SECRET = 'test-payment-webhook-secret-gp201';
-const authed = { 'X-Write-Key': WRITE_SECRET };
 
 const SUPPLY = [
   {
@@ -68,12 +72,12 @@ const mf = new Miniflare({
   durableObjects: {
     STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
     ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO',
-    DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO',
+    DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO', COMPTES: 'ResellerAccountsDO',
   },
   durableObjectsPersist: persist,
   bindings: {
-    STOREFRONT_WRITE_SECRET: WRITE_SECRET,
     PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
+    CHECKOUT_OPS_SECRET: OPS_SECRET,
   },
   serviceBindings: {
     OFFER: async (request: Request) => {
@@ -105,20 +109,21 @@ function safeJson(text: string): Record<string, unknown> {
 }
 
 async function creerCommande(n: string) {
+  const S = await seance(mf, `gp${n}`);
   const created = await mf.dispatchFetch('http://c/storefronts', {
-    method: 'POST', headers: authed,
+    method: 'POST', headers: S.bearer,
     body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-gp-${n}`, resellerId: `rs-gp-${n}`,
+      commandId: `cmd-create-${n}`, id: `sf-gp-${n}`, resellerId: S.accountId,
       shortCode: `GARDE-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
       category: 'Général', correlationId: `corr-gp-${n}`, at: T0,
     }),
   });
   if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
   const pub = await mf.dispatchFetch('http://c/listings', {
-    method: 'POST', headers: authed,
+    method: 'POST', headers: S.bearer,
     body: JSON.stringify({
       commandId: `cmd-listing-${n}`, listingId: `lst-gp-${n}`, storefrontId: `sf-gp-${n}`,
-      resellerId: `rs-gp-${n}`, productVersionId: 'pv-gp-1', offerVersion: 'ov-gp-1',
+      resellerId: S.accountId, productVersionId: 'pv-gp-1', offerVersion: 'ov-gp-1',
       markup: 1_500, correlationId: `corr-gp-${n}`, at: T0,
     }),
   });
@@ -127,7 +132,7 @@ async function creerCommande(n: string) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       slug: `garde-${n}`, pid: 'pv-gp-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
-      attributionResellerId: `rs-gp-${n}`, requestKey: `rk-gp-${n}-${'x'.repeat(12)}`,
+      attributionResellerId: S.accountId, requestKey: `rk-gp-${n}-${'x'.repeat(12)}`,
     }),
   });
   const quote = safeJson(await quoteRes.text()) as { quoteId?: string };

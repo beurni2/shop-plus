@@ -88,12 +88,13 @@ describe('RESELLER-ACCOUNTS-1d — the four calls, honestly mapped', () => {
     expect(await port.admission('SPS-1', 'SPA-X')).toEqual({ ok: false, reason: 'unreachable' });
   });
 
-  it('RESELLER-PILOTE-1 — a 403 that NAMES the pilot ceiling is its own answer, never « paused »: her account is pending, not cut', async () => {
+  it('ACCES-ARME-2 — the pilot ceiling is gone: a 403 at the door is the founder\'s pause, whatever the body says', async () => {
     vi.stubEnv(BASE, 'https://shop.example');
     const port = resolveCompteService()!;
+    // The deployed book can no longer answer `plafond_pilote`; a build that
+    // still read it would carry a screen for a fact that cannot happen.
     stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'plafond_pilote' }), { status: 403 }));
-    expect(await port.admission('SPS-1', 'SPA-X')).toEqual({ ok: false, reason: 'pilote_complet' });
-    // a 403 with NO name (or an unknown one) stays the pause — the pre-slice reading
+    expect(await port.admission('SPS-1', 'SPA-X')).toEqual({ ok: false, reason: 'acces_coupe' });
     stubFetch(async () => new Response('{}', { status: 403 }));
     expect(await port.admission('SPS-1', 'SPA-X')).toEqual({ ok: false, reason: 'acces_coupe' });
   });
