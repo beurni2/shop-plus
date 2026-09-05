@@ -592,10 +592,11 @@ describe('CONTACT-WHATSAPP-1 — the registration number joins the boutique read
   // ACCES-ARME-2 retired the case « NO COMPTE: a shop whose owner never signed
   // up »: no road creates such a shop any more — a create is her session or 401,
   // and the shop's owner is the account the book minted. The read-side law it
-  // proved (a shop whose owner has no compte renders whole, without a number)
-  // still governs the key-era shops that exist in production and is pinned on
-  // the projection itself (`contact-whatsapp.test.ts`); only the API road to
-  // manufacture one is gone, which is the point of the slice.
+  // proved (a shop whose owner answers no ACTIVE compte renders whole, without
+  // a number) still governs the key-era shops that exist in production, and
+  // the PAUSED case above drives the very same branch of the port (no active
+  // compte ⇒ no number, page whole); only the API road to manufacture an
+  // ownerless shop is gone, which is the point of the slice.
 
   it('PENDING: an account that signed up but was never admitted is NOBODY at the write gate — her shop cannot even be created', async () => {
     const s = await inscrire({ phone: '+226 70 44 55 66' });

@@ -290,7 +290,7 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(sansBoutique.json['error']).toBe('malformed');
   });
 
-  it('only an ACTIVE session is a key: pending and paused sessions open nothing without the shared key', async () => {
+  it('only an ACTIVE session is a key: pending and paused sessions open nothing (ACCES-ARME-2: no shared key stands behind them any more)', async () => {
     const s = await mf.dispatchFetch('http://c/reseller/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -365,7 +365,7 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(annuaire.some((r) => r.id === 'sf-own-key')).toBe(false);
   }, 60_000);
 
-  it('ACCES-ARME-2 — key C opens EXACTLY the directory read and the orphan takedown, nothing else', async () => {
+  it('ACCES-ARME-2 — key C opens EXACTLY the directory read, a shop\'s takedown and its cleanup, nothing else', async () => {
     // the founder's operator read: every row
     const tout = (await appel('/storefronts', { headers: cleC })).json as unknown as { id: string }[];
     expect(tout.map((r) => r.id)).toEqual(expect.arrayContaining([SF_A, SF_B]));
@@ -379,11 +379,24 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect((await creer('rs-nobody-0002', 'sf-own-cle-c', cleC)).status).toBe(401);
     expect((await appel(`/storefronts/${SF_B}/publish`, { method: 'POST', headers: cleC, body: JSON.stringify({ id: SF_B, correlationId: 'c', at: T0 }) })).status).toBe(401);
     expect((await appel(`/storefronts/${SF_B}`, { headers: cleC })).status).toBe(401);
-    expect((await appel(`/storefronts/${SF_B}`, { method: 'DELETE', headers: cleC })).status).toBe(401);
     expect((await appel('/listings', { method: 'POST', headers: cleC, body: '{}' })).status).toBe(401);
     expect((await appel('/supply-projections', { headers: cleC })).status).toBe(401);
     expect((await appel(`/media/upload?kind=cover&storefrontId=${SF_B}`, { method: 'POST', headers: { Authorization: cleC.Authorization, 'Content-Type': 'image/png' }, body: new Uint8Array(64) })).status).toBe(401);
     // and a WRONG key C is nobody at the directory
     expect((await appel('/storefronts', { headers: { Authorization: 'Bearer not-the-founder' } })).status).toBe(401);
+    // …and the CLEANUP road (verifier, ACCES-ARME-2): a key-era orphan under a
+    // device-era `rs-NNNN` id must not linger for the book to mint that id
+    // again and hand a stranger its shop — so key C can DELETE a shop
+    // outright: entry, pointer and directory row gone, the public page 404.
+    const suppression = await appel(`/storefronts/${SF_B}`, { method: 'DELETE', headers: cleC });
+    expect(suppression.status, suppression.text).toBe(200);
+    expect(suppression.json['status']).toBe('deleted');
+    expect((await appel(`/s/${(suppression.json as { slug?: string }).slug ?? 'own-b'}`, {})).status).toBe(404);
+    const apres = (await appel('/storefronts', { headers: cleC })).json as unknown as { id: string }[];
+    expect(apres.some((r) => r.id === SF_B)).toBe(false);
+    // a wrong key C deletes nothing, and an unknown id is the honest 404
+    expect((await appel(`/storefronts/${SF_A}`, { method: 'DELETE', headers: { Authorization: 'Bearer not-the-founder' } })).status).toBe(401);
+    expect((await appel(`/storefronts/${SF_A}`, { headers: A.bearer })).status).toBe(200);
+    expect((await appel('/storefronts/sf-own-jamais', { method: 'DELETE', headers: cleC })).status).toBe(404);
   }, 60_000);
 });

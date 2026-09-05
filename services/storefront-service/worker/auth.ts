@@ -47,9 +47,10 @@ export interface WriteAuthEnv {
    * credential; buyer contact never crosses to Boutik+). It exists in exactly
    * two places: this Worker's encrypted store (`wrangler secret put`, value
    * piped) and the founder's own browser. UNSET ⇒ the dispatch read is 401
-   * for everyone. ACCES-ARME-2 gave it the two OPERATOR roads the retired
-   * write key used to open for him — the storefront directory read and the
-   * takedown of an orphaned key-era shop — and nothing else.
+   * for everyone. ACCES-ARME-2 gave it the OPERATOR roads the retired write
+   * key used to open for him — the storefront directory read, and the
+   * takedown (unpublish) and cleanup (DELETE) of a shop, meant for the
+   * orphaned key-era one — and nothing else.
    */
   readonly CHECKOUT_OPS_SECRET?: string;
   /**
@@ -139,8 +140,8 @@ export function unauthorized(): Response {
  * CHECKOUT_OPS_SECRET, FAIL CLOSED, constant-time, one identical 401 computed
  * before any dispatch — the same three properties every gate in this file
  * carries, on the founder's own credential. ACCES-ARME-2: the composition root
- * also asks it for the two operator roads on the storefront surface (the
- * directory read, the orphan takedown) once no session answered.
+ * also asks it for the operator roads on the storefront surface (the directory
+ * read, a shop's takedown and cleanup) once no session answered.
  */
 export async function rejectUnauthorizedOpsRead(request: Request, env: WriteAuthEnv): Promise<Response | null> {
   const secret = env.CHECKOUT_OPS_SECRET ?? '';

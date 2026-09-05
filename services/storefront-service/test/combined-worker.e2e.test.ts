@@ -771,6 +771,22 @@ describe('SERVICE-WRITE-AUTH-1 → ACCES-ARME-2 — the session write gate', () 
     });
     expect(withoutHeader.status).toBe(401);
 
+    // …and the key-C roads are CLOSED too when CHECKOUT_OPS_SECRET is unset
+    // (verifier, ACCES-ARME-2): an empty bearer and any bearer both 401 on the
+    // directory read — the `secret.length > 0` guard, not a lucky mismatch.
+    for (const auth of ['Bearer ', 'Bearer anything', 'Bearer SPS-0000-0000-0000-0000']) {
+      const dir = await mfNoSecret.dispatchFetch('http://c/storefronts', { method: 'GET', headers: { Authorization: auth } });
+      expect(dir.status, auth).toBe(401);
+      expect((await dir.json()) as unknown).toEqual({ error: 'unauthorized' });
+      const prise = await mfNoSecret.dispatchFetch('http://c/storefronts/sf-auth-0001/unpublish', {
+        method: 'POST',
+        headers: { Authorization: auth },
+        body: JSON.stringify({ id: 'sf-auth-0001', correlationId: 'c', at: T0 }),
+      });
+      expect(prise.status, auth).toBe(401);
+      expect((await mfNoSecret.dispatchFetch('http://c/storefronts/sf-auth-0001', { method: 'DELETE', headers: { Authorization: auth } })).status, auth).toBe(401);
+    }
+
     // and a buyer read still works with nothing configured
     const health = await mfNoSecret.dispatchFetch('http://c/health', { method: 'GET' });
     expect(health.status).toBe(200);

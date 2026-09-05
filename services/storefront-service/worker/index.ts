@@ -1393,10 +1393,13 @@ export default {
      * nobody here (`sessionActive` resolves ACTIVE only). The two exemptions
      * are the FOUNDER'S OWN roads on key C (`CHECKOUT_OPS_SECRET`, his
      * credential alone, never in any bundle): the directory read `GET
-     * /storefronts` (the operator list the key used to open) and the orphan
-     * takedown `POST /storefronts/{id}/unpublish` (a key-era shop belongs to
-     * no account, so no session could ever unpublish it). Nothing else on key
-     * C: no create, no publish, no media, no listing.
+     * /storefronts` (the operator list the key used to open), and on ANY shop
+     * the takedown `POST /storefronts/{id}/unpublish` and the cleanup `DELETE
+     * /storefronts/{id}` (STOREFRONT-DELETE-1's operator road) — both exist
+     * for the key-era orphan, a shop that belongs to no account, which no
+     * session could ever touch and which must not linger under a device-era
+     * id the book could one day mint again. Nothing else on key C: no create,
+     * no publish, no identity, no media, no listing, no by-id read.
      */
     const gardee = isWrite(request.method) || isListings || isStorefrontRead || isSupplyCollection;
     const appelante = gardee ? await sessionActive(request, env) : undefined;
@@ -1404,7 +1407,8 @@ export default {
       if (gardee) {
         const routeOperateur =
           (request.method === 'GET' && pathname === '/storefronts') ||
-          (request.method === 'POST' && /^\/storefronts\/[^/]+\/unpublish$/.test(pathname));
+          (request.method === 'POST' && /^\/storefronts\/[^/]+\/unpublish$/.test(pathname)) ||
+          (request.method === 'DELETE' && /^\/storefronts\/[^/]+$/.test(pathname));
         if (!routeOperateur) return unauthorized();
         const refused = await rejectUnauthorizedOpsRead(request, env);
         if (refused) return refused;
