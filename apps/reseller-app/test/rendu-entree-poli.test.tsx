@@ -68,8 +68,8 @@ describe('ENTREE-POLI-1 — the redrawn entrance, driven', () => {
 
     // The entrance, with the rail that says what comes after.
     expect(screen.shows(PORTE_COMPTE), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
-    expect(screen.shows('Votre compte')).toBe(true);
-    expect(screen.shows("Votre code d'accès")).toBe(true);
+    expect(screen.texts()).toContain('Votre compte');
+    expect(screen.texts()).toContain("Votre code d'accès");
     expect(screen.shows('Gratuit. Votre compte est prêt en deux minutes.')).toBe(true);
     // The primary act is present and wired; only disabled because the form is empty.
     expect(screen.canPress('Me connecter'), 'the link to the login road must be pressable').toBe(true);
@@ -119,8 +119,11 @@ describe('ENTREE-POLI-1 — the redrawn entrance, driven', () => {
     const screen = await mountApp();
 
     expect(screen.shows(PORTE_ADMISSION), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
-    expect(screen.shows('Votre compte')).toBe(true);
-    expect(screen.shows("Votre code d'accès")).toBe(true);
+    // EXACT text nodes, not substrings: the door's own subtitle begins with
+    // « Votre compte est prêt… », so `shows('Votre compte')` would pass with
+    // no rail at all (a mutation proved it). The rail's labels are whole nodes.
+    expect(screen.texts()).toContain('Votre compte');
+    expect(screen.texts()).toContain("Votre code d'accès");
     // The act stands, armed only once a code is typed.
     expect(screen.canPress('Ouvrir')).toBe(false);
     await screen.type('SPA-1111-2222-3333-4444', "Votre code d'accès");
