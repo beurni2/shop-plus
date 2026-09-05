@@ -6,7 +6,7 @@ import { File } from 'expo-file-system';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, touch, interaction, dimension } from '@platform/ui-tokens/legacy';
 import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_BOLD } from './src/ui/faso-fonts';
-import { IconAccueil, IconChevron, IconProduits, IconGains, IconProfil, IconVitrine, IconCoche, IconVoix } from './src/ui/icons';
+import { IconAccueil, IconChevron, IconProduits, IconGains, IconProfil, IconVitrine, IconCoche, IconVoix, IconTelephone, IconCle } from './src/ui/icons';
 import { formatFcfa } from './src/earnings';
 import { IS_PREVIEW } from './src/preview';
 import { t, tf } from './src/i18n';
@@ -97,6 +97,9 @@ const rmax = (v: number | { readonly min: number; readonly max: number }): numbe
   typeof v === 'number' ? v : v.max;
 /** RN fontWeight wants a string; the token carries the number. */
 const w = (n: number): '400' | '700' | '800' => String(n) as '400' | '700' | '800';
+/** The caps tracking the canon states as an em fraction (`.1em`), resolved to
+ *  RN's absolute letterSpacing at use: `size * CAPS_TRACK`. */
+const CAPS_TRACK = parseFloat(t2.scale.caps.letterSpacing);
 
 /** Bottom-nav glyph colour: active = accent deep, inactive = muted (matches label). */
 const navColor = (active: boolean): string => (active ? shopColour.deep : sharedColour.sub);
@@ -2942,6 +2945,44 @@ const styles = StyleSheet.create({
   accesTitre: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.screen.size, fontWeight: w(t2.scale.screen.wght) },
   accesSous: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size },
   accesMessage: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: t2.scale.pill.size },
+  // ENTREE-POLI-1 (founder 2026-09-05: « go with A ») — the entrance as ONE
+  // white card on the paper: a label above every field, the WhatsApp note in
+  // green, the chosen rayons ticked in plum, and a two-step rail that says
+  // what comes after. Every number below is a token expression.
+  entreeContenu: { paddingHorizontal: spacing.lg, paddingTop: spacing.xxl - spacing.xs, paddingBottom: spacing.xxl, gap: spacing.lg },
+  entreeEntete: { gap: spacing.xs + 2 },
+  entreeSous: { color: sharedColour.body, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  rail: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  railEtape: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  railBulle: { width: dimension.iconSizePx.tab + spacing.xs, height: dimension.iconSizePx.tab + spacing.xs, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', borderWidth: interaction.hairline.strong, borderColor: sharedColour.hairlineStrong },
+  railBulleOn: { backgroundColor: shopColour.primary, borderColor: shopColour.primary },
+  railBulleFait: { backgroundColor: sharedColour.okBg, borderColor: sharedColour.okBg },
+  railBulleTexte: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: dimension.iconSizePx.badge, fontWeight: w(t2.scale.pill.wght) },
+  railBulleTexteOn: { color: shopColour.onPrimary },
+  railLabel: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.caps.size), fontWeight: w(t2.scale.caps.wght), letterSpacing: rmax(t2.scale.caps.size) * CAPS_TRACK, textTransform: 'uppercase' },
+  railLabelOn: { color: sharedColour.ink },
+  railLabelFait: { color: sharedColour.okFg },
+  railTrait: { flex: 1, height: interaction.hairline.strong, borderRadius: radius.pill, backgroundColor: sharedColour.hairlineStrong },
+  railTraitFait: { backgroundColor: sharedColour.okBg },
+  entreeCarte: { backgroundColor: sharedColour.card, borderWidth: interaction.hairline.thin, borderColor: sharedColour.hairline, borderRadius: radius.card, paddingHorizontal: spacing.lg, paddingVertical: spacing.lg + 2, gap: spacing.lg },
+  carteTrait: { height: interaction.hairline.thin, backgroundColor: sharedColour.hairline },
+  champ: { gap: spacing.xs + 2 },
+  champLabel: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.caps.size), fontWeight: w(t2.scale.caps.wght), letterSpacing: rmax(t2.scale.caps.size) * CAPS_TRACK, textTransform: 'uppercase' },
+  champInput: { minHeight: touch.minTargetPx, borderWidth: interaction.hairline.medium, borderColor: sharedColour.hairlineInput, borderRadius: rmax(radius.buttonSecondary), paddingHorizontal: spacing.md + 2, color: sharedColour.ink, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), backgroundColor: sharedColour.paper },
+  telRangee: { flexDirection: 'row', alignItems: 'stretch', minHeight: touch.minTargetPx, borderWidth: interaction.hairline.medium, borderColor: sharedColour.hairlineInput, borderRadius: rmax(radius.buttonSecondary), backgroundColor: sharedColour.paper, overflow: 'hidden' },
+  telPrefixe: { paddingHorizontal: spacing.md, justifyContent: 'center', borderRightWidth: interaction.hairline.medium, borderRightColor: sharedColour.hairlineInput },
+  telPrefixeTexte: { color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size), fontWeight: w(t2.scale.row.wght) },
+  telInput: { flex: 1, minHeight: touch.minTargetPx, paddingHorizontal: spacing.md, color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size) },
+  noteVerte: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: sharedColour.okBg, borderRadius: spacing.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
+  noteVerteTexte: { flex: 1, color: sharedColour.okFg, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  rayonsAide: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  chipRangee: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2 },
+  lienRangee: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs + 2, minHeight: touch.minTargetPx },
+  lienTexte: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  lienAction: { color: shopColour.primary, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size), fontWeight: w(t2.scale.row.wght) },
+  confianceRangee: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs + 2 },
+  confianceTexte: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
+  codeInput: { minHeight: dimension.controlHeightPx.primaryButton, borderWidth: interaction.hairline.medium, borderColor: sharedColour.hairlineInput, borderRadius: rmax(radius.buttonSecondary), paddingHorizontal: spacing.lg, color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.view.size), fontWeight: w(t2.scale.view.wght), letterSpacing: rmax(t2.scale.view.size) * CAPS_TRACK, backgroundColor: sharedColour.paper, fontVariant: ['tabular-nums'] },
   // ACCUEIL-HONESTY-1 — the no-figure block. Full width because it replaces
   // BOTH cards: half a grid with one card in it would read as a figure that
   // failed to load, which is the opposite of what it says.
@@ -3550,6 +3591,44 @@ const styles = StyleSheet.create({
  * way out; a refused login is ONE sentence, because the server is not an email
  * oracle and this screen does not paint one.
  */
+/** The country prefix the entrance SHOWS beside her number, never typed: the
+ *  service's wa.me normal form (`whatsappDigits`, customer-projection) prefixes
+ *  exactly this to an 8-digit number, so what she reads here is what her buyers
+ *  will dial. The wire still carries what she typed. */
+const INDICATIF_BF = '+226';
+
+/**
+ * ENTREE-POLI-1 — the two-step rail at the entrance: « 1 Votre compte », then
+ * « 2 Votre code d'accès ». It says what comes after (the trust test: what
+ * happens next is always stated), and it is the SAME object on both screens,
+ * so the door she reaches after signing up reads as the second half of what
+ * she just did, not as a new wall. A label only: it decides nothing.
+ */
+function RailEntree({ etape }: { etape: 'compte' | 'code' }) {
+  const compteFait = etape === 'code';
+  return (
+    <View style={styles.rail}>
+      <View style={styles.railEtape}>
+        <View style={[styles.railBulle, compteFait ? styles.railBulleFait : styles.railBulleOn]}>
+          {compteFait ? (
+            <IconCoche size={dimension.iconSizePx.badge} color={sharedColour.okFg} />
+          ) : (
+            <Text style={[styles.railBulleTexte, styles.railBulleTexteOn]}>1</Text>
+          )}
+        </View>
+        <Text style={[styles.railLabel, compteFait ? styles.railLabelFait : styles.railLabelOn]}>{t('compte.etape_compte')}</Text>
+      </View>
+      <View style={[styles.railTrait, compteFait && styles.railTraitFait]} />
+      <View style={styles.railEtape}>
+        <View style={[styles.railBulle, compteFait && styles.railBulleOn]}>
+          <Text style={[styles.railBulleTexte, compteFait && styles.railBulleTexteOn]}>2</Text>
+        </View>
+        <Text style={[styles.railLabel, compteFait && styles.railLabelOn]}>{t('admission.champ')}</Text>
+      </View>
+    </View>
+  );
+}
+
 function EcranCompte({ service, envoi, erreurKey, rayons, onEnvoi, onErreur, onCompte }: {
   service: CompteServicePort | null;
   envoi: boolean;
@@ -3618,51 +3697,84 @@ function EcranCompte({ service, envoi, erreurKey, rayons, onEnvoi, onErreur, onC
     ? nom.trim() !== '' && email.trim() !== '' && tel.trim() !== '' && mdp.length >= 8
     : email.trim() !== '' && mdp !== '';
 
+  // ENTREE-POLI-1 — one white card holds the form; a label sits ABOVE every
+  // field (the placeholder no longer carries the field's name, so a filled
+  // field still says what it is); the primary act stands alone under the card.
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.accesEcran} keyboardShouldPersistTaps="handled">
-      <Text style={styles.accesTitre}>{t('acces.titre')}</Text>
-      <Text style={styles.accesSous}>{t(mode === 'creer' ? 'compte.creer_sous' : 'compte.connexion_sous')}</Text>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.entreeContenu} keyboardShouldPersistTaps="handled">
+      <View style={styles.entreeEntete}>
+        <Text style={styles.accesTitre}>{t('acces.titre')}</Text>
+        <Text style={styles.entreeSous}>{t(mode === 'creer' ? 'compte.creer_sous' : 'compte.connexion_sous')}</Text>
+      </View>
+      {mode === 'creer' && <RailEntree etape="compte" />}
 
-      {mode === 'creer' && (
-        <>
-          <TextInput style={styles.margeInput} value={nom} onChangeText={setNom} autoCorrect={false} placeholder={t('compte.nom')} accessibilityLabel={t('compte.nom')} editable={!envoi} />
-          <TextInput style={styles.margeInput} value={tel} onChangeText={setTel} keyboardType="phone-pad" placeholder={t('compte.telephone')} accessibilityLabel={t('compte.telephone')} editable={!envoi} />
-          {/* CONTACT-WHATSAPP-1 — said BEFORE she signs, not discovered on her
-              boutique: this number becomes the tap her buyers write to. */}
-          <Text style={styles.accesSous}>{t('compte.telephone_aide')}</Text>
-          {/* RAYONS-REVENDEUR-1 (founder, 2026-08-23) — up to five rayons,
-              from the LIVE browse wire (the CO-1 law: data-driven, never a
-              hardcoded taxonomy). Optional; a down wire hides the section. */}
-          {rayons.length > 0 && (
-            <View style={styles.compteRayons}>
-              <Text style={styles.compteRayonsTitre}>{t('compte.rayons_titre')}</Text>
-              <Text style={styles.accesSous}>{t(plein ? 'compte.rayons_max' : 'compte.rayons_aide')}</Text>
-              <View style={styles.compteRayonsRow}>
-                {rayons.map((c) => {
-                  const choisi = cats.includes(c);
-                  return (
-                    <Pressable
-                      key={c}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: choisi }}
-                      disabled={envoi}
-                      onPress={() => basculer(c)}
-                      style={[styles.oppChip, choisi && styles.oppChipOn]}
-                    >
-                      <Text style={[styles.oppChipText, choisi && styles.oppChipTextOn]}>{labelCategorie(c)}</Text>
-                    </Pressable>
-                  );
-                })}
+      <View style={styles.entreeCarte}>
+        {mode === 'creer' && (
+          <>
+            <View style={styles.champ}>
+              <Text style={styles.champLabel}>{t('compte.nom')}</Text>
+              <TextInput style={styles.champInput} value={nom} onChangeText={setNom} autoCorrect={false} accessibilityLabel={t('compte.nom')} editable={!envoi} />
+            </View>
+            <View style={styles.champ}>
+              <Text style={styles.champLabel}>{t('compte.telephone')}</Text>
+              <View style={styles.telRangee}>
+                <View style={styles.telPrefixe}>
+                  <Text style={styles.telPrefixeTexte}>{INDICATIF_BF}</Text>
+                </View>
+                <TextInput style={styles.telInput} value={tel} onChangeText={setTel} keyboardType="phone-pad" accessibilityLabel={t('compte.telephone')} editable={!envoi} />
+              </View>
+              {/* CONTACT-WHATSAPP-1 — said BEFORE she signs, not discovered on her
+                  boutique: this number becomes the tap her buyers write to. */}
+              <View style={styles.noteVerte}>
+                <IconTelephone size={dimension.iconSizePx.listRow} color={sharedColour.okFg} />
+                <Text style={styles.noteVerteTexte}>{t('compte.telephone_aide')}</Text>
               </View>
             </View>
-          )}
-        </>
-      )}
-      <TextInput style={styles.margeInput} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholder={t('compte.email')} accessibilityLabel={t('compte.email')} editable={!envoi} />
-      {/* visible on purpose: she is alone with her screen, and seeing what she
-          types beats a masked field she cannot check — the console key made the
-          same call. A masking toggle can come with a founder ask. */}
-      <TextInput style={styles.margeInput} value={mdp} onChangeText={setMdp} autoCapitalize="none" autoCorrect={false} placeholder={t('compte.mot_de_passe')} accessibilityLabel={t('compte.mot_de_passe')} editable={!envoi} />
+            {/* RAYONS-REVENDEUR-1 (founder, 2026-08-23) — up to five rayons,
+                from the LIVE browse wire (the CO-1 law: data-driven, never a
+                hardcoded taxonomy). Optional; a down wire hides the section. */}
+            {rayons.length > 0 && (
+              <>
+                <View style={styles.carteTrait} />
+                <View style={styles.compteRayons}>
+                  <Text style={styles.compteRayonsTitre}>{t('compte.rayons_titre')}</Text>
+                  <Text style={styles.rayonsAide}>{t(plein ? 'compte.rayons_max' : 'compte.rayons_aide')}</Text>
+                  <View style={styles.compteRayonsRow}>
+                    {rayons.map((c) => {
+                      const choisi = cats.includes(c);
+                      return (
+                        <Pressable
+                          key={c}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: choisi }}
+                          disabled={envoi}
+                          onPress={() => basculer(c)}
+                          style={[styles.oppChip, styles.chipRangee, choisi && styles.oppChipOn]}
+                        >
+                          {choisi && <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />}
+                          <Text style={[styles.oppChipText, choisi && styles.oppChipTextOn]}>{labelCategorie(c)}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              </>
+            )}
+            <View style={styles.carteTrait} />
+          </>
+        )}
+        <View style={styles.champ}>
+          <Text style={styles.champLabel}>{t('compte.email')}</Text>
+          <TextInput style={styles.champInput} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" accessibilityLabel={t('compte.email')} editable={!envoi} />
+        </View>
+        <View style={styles.champ}>
+          <Text style={styles.champLabel}>{t('compte.mot_de_passe')}</Text>
+          {/* visible on purpose: she is alone with her screen, and seeing what she
+              types beats a masked field she cannot check — the console key made the
+              same call. A masking toggle can come with a founder ask. */}
+          <TextInput style={styles.champInput} value={mdp} onChangeText={setMdp} autoCapitalize="none" autoCorrect={false} accessibilityLabel={t('compte.mot_de_passe')} editable={!envoi} />
+        </View>
+      </View>
 
       {envoi && <Text style={styles.accesMessage}>{t('compte.envoi')}</Text>}
       {!envoi && erreurKey !== null && <Text style={styles.accesMessage}>{t(erreurKey)}</Text>}
@@ -3675,12 +3787,24 @@ function EcranCompte({ service, envoi, erreurKey, rayons, onEnvoi, onErreur, onC
       <Pressable
         onPress={() => { onErreur(null); setMode(mode === 'creer' ? 'connexion' : 'creer'); }}
         accessibilityRole="button"
-        style={({ pressed }) => [pressed && styles.pressed]}
+        style={({ pressed }) => [styles.lienRangee, pressed && styles.pressed]}
       >
-        <Text style={styles.accesMessage}>
-          {t(mode === 'creer' ? 'compte.deja' : 'compte.nouveau')}
-        </Text>
+        {mode === 'creer' ? (
+          <>
+            <Text style={styles.lienTexte}>{t('compte.deja')}</Text>
+            <Text style={styles.lienAction}>{t('compte.se_connecter')}</Text>
+          </>
+        ) : (
+          <Text style={styles.lienAction}>{t('compte.nouveau')}</Text>
+        )}
+        <IconChevron size={dimension.iconSizePx.listRow} color={shopColour.primary} />
       </Pressable>
+      {mode === 'creer' && (
+        <View style={styles.confianceRangee}>
+          <IconCoche size={dimension.iconSizePx.badge} color={sharedColour.okFg} />
+          <Text style={styles.confianceTexte}>{t('compte.gratuit')}</Text>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -3698,24 +3822,37 @@ function EcranAdmission({ code, onCode, envoi, erreurKey, onEntrer }: {
   erreurKey: string | null;
   onEntrer: () => void;
 }) {
+  // ENTREE-POLI-1 — the second half of the rail she saw at signup: step 1 is
+  // ticked, step 2 is hers now; the code lives in the same white card.
   return (
-    <View style={styles.accesEcran}>
-      <Text style={styles.accesTitre}>{t('admission.titre')}</Text>
-      <Text style={styles.accesSous}>{t('admission.sous_titre')}</Text>
-      <TextInput
-        style={styles.margeInput}
-        value={code}
-        onChangeText={onCode}
-        autoCapitalize="characters"
-        autoCorrect={false}
-        placeholder="SPA-"
-        accessibilityLabel={t('admission.champ')}
-        editable={!envoi}
-      />
+    <ScrollView style={styles.screen} contentContainerStyle={styles.entreeContenu} keyboardShouldPersistTaps="handled">
+      <View style={styles.entreeEntete}>
+        <Text style={styles.accesTitre}>{t('admission.titre')}</Text>
+        <Text style={styles.entreeSous}>{t('admission.sous_titre')}</Text>
+      </View>
+      <RailEntree etape="code" />
+      <View style={styles.entreeCarte}>
+        <View style={styles.champ}>
+          <View style={styles.chipRangee}>
+            <IconCle size={dimension.iconSizePx.listRow} color={shopColour.primary} />
+            <Text style={styles.champLabel}>{t('admission.champ')}</Text>
+          </View>
+          <TextInput
+            style={styles.codeInput}
+            value={code}
+            onChangeText={onCode}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            placeholder="SPA-"
+            accessibilityLabel={t('admission.champ')}
+            editable={!envoi}
+          />
+        </View>
+      </View>
       {envoi && <Text style={styles.accesMessage}>{t('acces.verification')}</Text>}
       {!envoi && erreurKey !== null && <Text style={styles.accesMessage}>{t(erreurKey)}</Text>}
       <PrimaryButton label={t('admission.action')} onPress={onEntrer} disabled={envoi || code.trim() === ''} />
-    </View>
+    </ScrollView>
   );
 }
 

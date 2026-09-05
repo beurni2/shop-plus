@@ -3634,5 +3634,17 @@
   "fr": "La note ne se lit pas. Vérifiez le réseau et réessayez.",
   "register": "neutral",
   "screenClass": "status"
+ },
+ {
+  "key": "compte.etape_compte",
+  "fr": "Votre compte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.gratuit",
+  "fr": "Gratuit. Votre compte est prêt en deux minutes.",
+  "register": "selling",
+  "screenClass": "status"
  }
 ]
