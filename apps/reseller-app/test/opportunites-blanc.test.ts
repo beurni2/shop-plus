@@ -79,9 +79,15 @@ describe('OPPORTUNITÉS-BLANC — the ground is white, from the system’s own t
     // very style array pinned above (`styles.screen` + `screenBlanc`). A bar
     // that painted its own colour would be the strip this pin forbids; the
     // prop must be ABSENT, and the root's ground is what reaches under it.
-    const src = app();
-    expect(src).toMatch(/<StatusBar style="dark" \/>/);
-    expect(src).not.toMatch(/<StatusBar[^>]*backgroundColor/);
+    // Pinned at THE white-ground root, not anywhere a StatusBar appears (the
+    // gate screen has one too): the bar is the first child under the very
+    // style array that composes the white, and it paints nothing of its own.
+    // (Verifier MINOR, handled once: the prop's absence alone is already what
+    // tsc enforces — the placement is the fact this file can add.)
+    // (`app()` strips comments, which leaves the JSX comment's `{}` behind.)
+    expect(app()).toMatch(
+      /style=\{\[styles\.screen, surOpportunites && styles\.screenBlanc\]\}>\s*(?:\{\}\s*)?<StatusBar style="dark" \/>/,
+    );
   });
 });
 
