@@ -41,8 +41,8 @@ aucun paiement, aucune commande, aucune donnée de production. Le bandeau
 
 ## Version du SDK
 
-Cette application est sur **Expo SDK 54** (re-ciblage WO-4.0d : la version
-que l'Expo Go des stores exécute réellement). **L'Expo Go du Play Store est la voie normale** :
+Cette application est sur **Expo SDK 57** (EXPO-57-1, 2026-09-05 : l'Expo Go des
+stores a quitté le SDK 54 avec sa mise à jour — le re-ciblage WO-4.0d est levé). **L'Expo Go du Play Store est la voie normale** :
 installez-le, scannez le QR, l'aperçu s'ouvre directement.
 
 ## Aperçu sur iPhone (Expo Go iOS)

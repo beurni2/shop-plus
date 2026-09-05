@@ -74,7 +74,14 @@ describe('OPPORTUNITÉS-BLANC — the ground is white, from the system’s own t
   });
 
   it('the status bar follows the ground it sits on — no warm strip above a white screen', () => {
-    expect(app()).toContain('backgroundColor={surOpportunites ? sharedColour.card : sharedColour.paper}');
+    // EXPO-57-1: expo-status-bar dropped `backgroundColor` at SDK 56 — Android
+    // is edge-to-edge, so the bar's ground is the SafeAreaView's own fill, the
+    // very style array pinned above (`styles.screen` + `screenBlanc`). A bar
+    // that painted its own colour would be the strip this pin forbids; the
+    // prop must be ABSENT, and the root's ground is what reaches under it.
+    const src = app();
+    expect(src).toMatch(/<StatusBar style="dark" \/>/);
+    expect(src).not.toMatch(/<StatusBar[^>]*backgroundColor/);
   });
 });
 

@@ -50,8 +50,8 @@ export const CLIP_NATIF_DISPONIBLE = EXPO_VIDEO !== null;
  * opportunités, on ma vitrine ») — the ≤ 6 s product clip, on a PHONE.
  *
  * WHY A NATIVE MODULE EXISTS HERE AT ALL, stated because it cost a build: this
- * app had no video capability whatsoever. `expo-video` (~3.0.16, the version
- * Expo's own `bundledNativeModules.json` pairs with SDK 54 — read, not guessed)
+ * app had no video capability whatsoever. `expo-video` (~57.0.3, the version
+ * Expo's own `bundledNativeModules.json` pairs with SDK 57 — read, not guessed)
  * is a native module, so this screen cannot arrive as an over-the-air update;
  * the founder authorized the rebuild explicitly.
  *
@@ -165,7 +165,7 @@ function ClipVideo({ videoRef, photoUri, style, onAspect }: ProductClipProps): R
           style={S.fill}
           contentFit="cover"
           nativeControls={false}
-          allowsFullscreen={false}
+          fullscreenOptions={{ enable: false }}
           allowsPictureInPicture={false}
         />
       ) : null}
@@ -175,7 +175,7 @@ function ClipVideo({ videoRef, photoUri, style, onAspect }: ProductClipProps): R
 
 const S = StyleSheet.create({
   wrap: { overflow: 'hidden', position: 'relative' },
-  fill: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  fill: { ...StyleSheet.absoluteFill, width: '100%', height: '100%' },
 });
 
 /**

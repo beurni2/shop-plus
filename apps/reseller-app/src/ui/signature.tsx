@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   swapPlus: { color: sharedColour.sub, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size), fontWeight: String(t2.scale.row.wght) as '700' },
 
   // 5 · corner ticks
-  ticksLayer: { ...StyleSheet.absoluteFillObject },
+  ticksLayer: { ...StyleSheet.absoluteFill },
   tick: {
     position: 'absolute',
     width: interaction.cornerTick.sizePx,

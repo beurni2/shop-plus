@@ -1350,7 +1350,7 @@ export default function App() {
   if (acces.kind !== 'ouvert') {
     return (
       <SafeAreaView style={styles.screen}>
-        <StatusBar style="dark" backgroundColor={sharedColour.paper} />
+        <StatusBar style="dark" />
         <WaxBand />
         {acces.kind === 'lecture' ? (
           <View style={styles.accesEcran} />
@@ -1474,12 +1474,12 @@ export default function App() {
      * is typed here: the scan below this file forbids a literal, and rightly.
      */
     <SafeAreaView style={[styles.screen, surOpportunites && styles.screenBlanc]}>
-      {/* SDK 54: backgroundColor restored per the WO-4.0d-prep founder
-          ruling ③ — pre-edge-to-edge Android draws a default bar; the
-          surface token is the correct fill. OPPORTUNITÉS-BLANC: the bar
-          follows the ground it sits on, or Android draws a warm strip
-          above a white screen. */}
-      <StatusBar style="dark" backgroundColor={surOpportunites ? sharedColour.card : sharedColour.paper} />
+      {/* EXPO-57-1: `backgroundColor` left expo-status-bar at SDK 56 — Android
+          is edge-to-edge, so the bar's ground IS this SafeAreaView's own fill
+          (`styles.screen` / `screenBlanc`). The SDK-54 restore (WO-4.0d-prep
+          ruling ③) is retired with the re-target; OPPORTUNITÉS-BLANC still
+          holds because the white ground itself now reaches under the bar. */}
+      <StatusBar style="dark" />
       <WaxBand />
       {IS_PREVIEW && (
         <View style={styles.previewBanner}>

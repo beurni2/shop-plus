@@ -45,7 +45,7 @@ export const manipulateAsync = async (uri: string): Promise<{ uri: string; width
 });
 
 /**
- * The SDK 54 object API (`ImageManipulator.manipulate(uri).resize().renderAsync()`),
+ * The object API (`ImageManipulator.manipulate(uri).resize().renderAsync()`, SDK 54 onward),
  * which is what `src/vitrine/customize/photo-pick.ts` actually calls.
  *
  * IT RESIZES NOTHING. Every call answers the same 1000×1000 handle, so no walk

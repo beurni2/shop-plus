@@ -3,8 +3,8 @@
  * Imported ONLY by the app; the pure rule (`store.ts`) and its tests never touch native.
  *
  * WHY THESE TWO MODULES, confirmed against the installed SDK rather than assumed from
- * the general rule (`node_modules/expo/bundledNativeModules.json`, SDK 54):
- *   expo-file-system  ~19.0.23   expo-crypto  ~15.0.9
+ * the general rule (`node_modules/expo/bundledNativeModules.json`, SDK 57):
+ *   expo-file-system  ~57.0.6   expo-crypto  ~57.0.2
  * Both are FIRST-PARTY EXPO SDK modules, so Expo Go ships their native halves by
  * definition and this reaches the founder over the air with no rebuild. A community
  * module would have been the riskier choice on that exact point.

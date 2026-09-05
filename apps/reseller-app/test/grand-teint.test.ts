@@ -94,24 +94,29 @@ describe('the typeface substrate (Archivo, Latin) — data only, loads nothing',
 });
 
 describe('the approved dependencies (founder rulings) — nothing else', () => {
-  it('react-native-svg + expo-haptics + expo-font + expo-audio at the SDK-54 bundled versions, and no other new dep', () => {
+  // EXPO-57-1 (founder 2026-09-05: « go sdk ») — every version below is what
+  // `expo@57.0.20/bundledNativeModules.json` pins for SDK 57, read from the
+  // packed tarball, never guessed. The founder's Expo Go moved off SDK 54 with
+  // its store update, so the WO-4.0d re-target (SDK 57 → 54) is reversed; the
+  // rulings that admitted each dependency stand unchanged.
+  it('react-native-svg + expo-haptics + expo-font + expo-audio at the SDK-57 bundled versions, and no other new dep', () => {
     const pkg = JSON.parse(read('package.json')) as { dependencies: Record<string, string> };
-    expect(pkg.dependencies['react-native-svg']).toBe('15.12.1');
-    expect(pkg.dependencies['expo-haptics']).toBe('~15.0.8');
+    expect(pkg.dependencies['react-native-svg']).toBe('15.15.4');
+    expect(pkg.dependencies['expo-haptics']).toBe('~57.0.2');
     // expo-font — founder ruling 2026-07-14 (WO-FP-SHOP: load the Faso Premium faces
     // so the expo-preview evidence shows the real Bricolage/Instrument, cold-start law).
-    expect(pkg.dependencies['expo-font']).toBe('~14.0.12');
+    expect(pkg.dependencies['expo-font']).toBe('~57.0.3');
     // expo-audio — founder ruling 2026-07-19: REAL on-device per-product voice
     // capture (record/stop/playback + mic permission), no backend (persistence
-    // stays mocked). SDK-54 bundled version.
-    expect(pkg.dependencies['expo-audio']).toBe('~1.1.1');
+    // stays mocked).
+    expect(pkg.dependencies['expo-audio']).toBe('~57.0.4');
     // VIDEO-PARTOUT — expo-video, FOUNDER RULING 2026-08-03, given with the cost
     // stated and accepted: « yes add video to the reseller app ». This app had NO
     // video capability at all, so « opportunités » and « ma vitrine » could not
     // show a clip whatever the wire carried. It is a NATIVE module: the two
     // screens cannot arrive as an over-the-air update — the app needs a rebuild.
-    // Version read from `expo/bundledNativeModules.json` for SDK 54, never guessed.
-    expect(pkg.dependencies['expo-video']).toBe('~3.0.16');
+    // Version read from `expo/bundledNativeModules.json`, never guessed.
+    expect(pkg.dependencies['expo-video']).toBe('~57.0.3');
     // APERÇU EN-TÊTE — react-native-webview, FOUNDER RULING 2026-08-03, given
     // after the cost was stated and the cheaper option offered: I told him a
     // WebView is a NATIVE module and cannot ship over the air, and proposed
@@ -123,17 +128,17 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     //
     // THE ONE NON-EXPO RUNTIME DEP IN THIS APP, and named as such: no first-party
     // Expo module renders arbitrary HTML, so the « prefer expo, it reaches Expo
-    // Go over the air » rule below has nothing to prefer here. 13.15.0 is what
-    // `expo/bundledNativeModules.json` pins for SDK 54 — read, not guessed.
-    expect(pkg.dependencies['react-native-webview']).toBe('13.15.0');
+    // Go over the air » rule below has nothing to prefer here. 13.16.1 is what
+    // `expo/bundledNativeModules.json` pins for SDK 57 — read, not guessed.
+    expect(pkg.dependencies['react-native-webview']).toBe('13.16.1');
     // RESELLER-IDENTITY-1 — expo-crypto (the OS CSPRNG, replacing a Math.random mint)
     // and expo-file-system (the document directory, so the identity survives restart
     // and an EAS republish). BOTH are first-party Expo SDK modules, at the versions
-    // `expo/bundledNativeModules.json` pins for SDK 54 — which is what lets them reach
+    // `expo/bundledNativeModules.json` pins for SDK 57 — which is what lets them reach
     // Expo Go over the air with no rebuild. A community module would not have that
     // guarantee, and that is the whole reason for preferring these two.
-    expect(pkg.dependencies['expo-crypto']).toBe('~15.0.9');
-    expect(pkg.dependencies['expo-file-system']).toBe('~19.0.23');
+    expect(pkg.dependencies['expo-crypto']).toBe('~57.0.2');
+    expect(pkg.dependencies['expo-file-system']).toBe('~57.0.6');
     // MONEY-SHAPE-1 — @shop-plus/reseller-money is a WORKSPACE package, not a
     // third-party dependency, and it is the founder-ordered home of the markup
     // ceiling now that the SERVICE signs the price: « a service that signs must
@@ -148,11 +153,11 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     // dependency at all, so K3's « add a photo » was a setTimeout with no file —
     // capture was not broken, it was absent. Same first-party guarantee as
     // expo-crypto/file-system: the version below is what
-    // `expo/bundledNativeModules.json` pins for SDK 54 (VERIFIED by reading that
+    // `expo/bundledNativeModules.json` pins for SDK 57 (VERIFIED by reading that
     // manifest, not assumed), which is what lets it reach Expo Go over the air
     // with no rebuild. The PERMISSION prompt on device is the one thing a
     // manifest cannot prove — every failure is therefore named and surfaced.
-    expect(pkg.dependencies['expo-image-picker']).toBe('~17.0.11');
+    expect(pkg.dependencies['expo-image-picker']).toBe('~57.0.16');
     // MEDIA-2 — expo-image-manipulator, and it is what makes the picker USABLE.
     // The picker has NO max-dimension option (read its real `.d.ts`: `quality` is a
     // JPEG compression factor, nothing more), and the service refuses anything over
@@ -160,9 +165,9 @@ describe('the approved dependencies (founder rulings) — nothing else', () => {
     // refused, permanently, with advice about file weight that could never fix a
     // DIMENSION problem. The downscale happens on the device, before the bytes
     // leave: it is also the only version that respects a patchy-data budget.
-    // ~14.0.8 is what `expo/bundledNativeModules.json` pins for SDK 54 (VERIFIED by
+    // ~57.0.16 is what `expo/bundledNativeModules.json` pins for SDK 57 (VERIFIED by
     // reading that manifest), so it reaches Expo Go over the air with no rebuild.
-    expect(pkg.dependencies['expo-image-manipulator']).toBe('~14.0.8');
+    expect(pkg.dependencies['expo-image-manipulator']).toBe('~57.0.16');
     // the only deps beyond the pre-WO set are exactly these eleven
     const before = new Set([
       '@platform/ui-tokens', 'expo', 'expo-status-bar', 'expo-updates', 'react', 'react-native',
