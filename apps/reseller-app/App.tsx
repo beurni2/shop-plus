@@ -23,7 +23,7 @@ import { vignetteSaufHero } from './src/vitrine/vignette';
 import { cadreRatio, CADRE_DEFAUT } from './src/ui/cadre';
 import { HeroLedger, DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
-import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, type StorefrontIdentityPatch } from './src/vitrine/service';
+import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, publierRefusalToastKey, estSessionRefusee, type StorefrontIdentityPatch } from './src/vitrine/service';
 import type { Storefront } from './src/vitrine/customize/storefront';
 import { loadOrMintIdentity, remintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
@@ -331,6 +331,15 @@ export default function App() {
   const [ficheId, setFicheId] = useState<string | null>(null);
   const [shareId, setShareId] = useState<string | null>(null);
   const [markups, setMarkups] = useState<Record<string, number>>({});
+  /**
+   * PRIX-SIGNE-1 (AUDIT-SHOP-2 F-16) — the price the Worker SIGNED for each
+   * product she lists, keyed by pid, read on entering Ma Vitrine. Before this,
+   * the card and the share preview printed `markups[pid] ?? defaultMarkup` —
+   * React state that dies with the session — so after a relaunch they showed
+   * a cliente price the signed link did not charge (measured: « 10 000 »
+   * twice, the link charging 12 000, the by-pid route never asked).
+   */
+  const [prixSignes, setPrixSignes] = useState<Record<string, number>>({});
   // RESELLER-UX-2 (founder walk, item 2) — the untouched-slider CTA gate is GONE
   // and so is the `markupTouched` state that carried it. The gate guarded against
   // signing the old defaulted 1 500 she never chose; with DEFAULT_MARKUP now 0
@@ -562,8 +571,24 @@ export default function App() {
     void service.getById(identity.storefrontId).then((res) => {
       if (!live || !res.ok) return; // a fault leaves it UNASKED, never a fabricated shop
       // `null` (no shop yet) still lands directly — there is no clock to compare.
-      if (res.value === undefined) setLiveStorefront(null);
-      else adopterStorefront(res.value);
+      if (res.value === undefined) {
+        setLiveStorefront(null);
+        return;
+      }
+      adopterStorefront(res.value);
+      // PRIX-SIGNE-1 — the signed price of every product she lists, from the
+      // route the buyer join reads (behind her session). Bounded like the
+      // boutique read itself; a pid the Worker has no listing for stays unread
+      // (the default arithmetic stands, as before); a failed read changes
+      // nothing — never a number this app cannot vouch for.
+      void Promise.all(
+        res.value.curatedItems.slice(0, 20).map(async (pid) => [pid, await service.readListing(identity.storefrontId, pid)] as const),
+      ).then((lus) => {
+        if (!live) return;
+        const signes: Record<string, number> = {};
+        for (const [pid, lu] of lus) if (lu.ok && lu.value !== undefined) signes[pid] = lu.value.customerPriceFcfa;
+        if (Object.keys(signes).length > 0) setPrixSignes((prev) => ({ ...prev, ...signes }));
+      });
     });
     return () => {
       live = false;
@@ -805,9 +830,9 @@ export default function App() {
         correlationId: identity.correlationId,
         at,
       });
-      if (!created.ok) return setToast(tf('k.publier.erreur', { raison: created.reason }));
+      if (!created.ok) return direRefusPublication(created.reason);
       const pub = await service.publish(identity.storefrontId, identity.correlationId, at);
-      if (!pub.ok) return setToast(tf('k.publier.erreur', { raison: pub.reason }));
+      if (!pub.ok) return direRefusPublication(pub.reason);
       // MONEY-SHAPE-1 item 4 — THE TOAST THAT COULD NOT FAIL. This read
       // `created.value.slug ?? shortCode.toLowerCase()`, so when the service returned
       // NO slug the app COMPUTED one locally and printed it — « En ligne : {slug} »
@@ -834,7 +859,7 @@ export default function App() {
     // and « Aucune boutique en ligne » would be a lie shaped like a fact.
     if (service === null) return setToast(t('k.publier.non_relie'));
     const res = await service.list();
-    if (!res.ok) return setToast(tf('k.publier.erreur', { raison: res.reason }));
+    if (!res.ok) return direRefusPublication(res.reason);
     if (res.value.length === 0) return setToast(t('k.publier.aucune'));
     setToast(tf('k.publier.compte', { n: String(res.value.length), noms: res.value.map((r) => r.name).join(', ') }));
   }, [service]);
@@ -947,6 +972,17 @@ export default function App() {
    */
   function marginOf(id: string, basePrice: number, commission: number) {
     const cap = markupCap(basePrice);
+    // PRIX-SIGNE-1 — until she touches the marge THIS session, a product with
+    // a SIGNED price shows that price: the cliente row is the Worker's figure,
+    // the marge shown is what that figure implies over today's base (clamped
+    // to the control's range). Once she moves the control, the arithmetic
+    // answers her in place, as before — the frozen-marge question (does a
+    // moved slider re-sign?) is journalled and the founder's, unchanged here.
+    const signe = prixSignes[id];
+    if (markups[id] === undefined && signe !== undefined) {
+      const implique = Math.max(0, Math.min(cap, signe - basePrice));
+      return { ...marginBreakdown(basePrice, commission, implique), client: signe };
+    }
     return marginBreakdown(basePrice, commission, markups[id] ?? defaultMarkup(cap));
   }
   const viewOfOffer = (o: Offer) => marginOf(o.productVersionId, o.basePrice, o.resellerCommission);
@@ -1018,7 +1054,9 @@ export default function App() {
         // let her type a figure the fresh base refuses. Her own sentence, never
         // the raw wire token.
         if (res.reason === 'markup_over_cap') return setToast(t('k.publier.plafond'));
-        return setToast(res.reason === 'supply_unavailable' ? t('fiche.publier.reessayer') : tf('k.publier.erreur', { raison: res.reason }));
+        // RAISON-NOMMEE-1 — every other refusal earns its named sentence and
+        // never its wire token; a dead session asks the session road.
+        return direRefusPublication(res.reason);
       }
       // CONFIRMED. Membership is recorded now, keyed by productVersionId — the one
       // keyspace the fiche, the grid and the signed price all share.
@@ -1241,6 +1279,8 @@ export default function App() {
    *  session has ended on this phone: she has an account, and the sentence
    *  above the form says why she is here. */
   const [entreeMode, setEntreeMode] = useState<'creer' | 'connexion'>('creer');
+  /** F-46 — the coupe screen's « Vérifier à nouveau » failure sentence. */
+  const [coupeMessageKey, setCoupeMessageKey] = useState<string | null>(null);
 
   /**
    * HER ACCOUNT ID BECOMES HER APP IDENTITY. The server minted `rs-{4 digits}`;
@@ -1304,6 +1344,16 @@ export default function App() {
     if (bearer === null || !bearer.startsWith('SPS-')) return;
     const res = await compteService.session(bearer);
     if (!res.ok && res.reason === 'invalide') await finirSession('session.finie');
+  };
+  /**
+   * RAISON-NOMMEE-1 (AUDIT-SHOP-2 F-17a) — a refused publication is TOLD, never
+   * printed: the pure decision picks the sentence (transient → retry, named →
+   * its own true line, unknown → « not saved », no promise), and a 401 is the
+   * book's word, so the session road is asked and the entrance says why.
+   */
+  const direRefusPublication = (reason: string): void => {
+    if (estSessionRefusee(reason)) void verifierSession();
+    setToast(t(publierRefusalToastKey(reason)));
   };
   const deconnecter = async (): Promise<void> => {
     // THE PHONE FORGETS FIRST, the wire is told after (verifier finding): the
@@ -1503,13 +1553,21 @@ export default function App() {
               onPress={() => {
                 void (async () => {
                   if (compteService === null) return;
+                  setCoupeMessageKey(null);
                   const bearer = await accessCodeStore.read();
-                  if (bearer === null) return;
+                  // No credential to check with: this phone is out (SESSION-VIE-1).
+                  if (bearer === null) return finirSession('session.finie');
                   const res = await compteService.session(bearer);
-                  if (res.ok) await adopterCompte(res.compte);
+                  if (res.ok) return adopterCompte(res.compte);
+                  // RAISON-NOMMEE-1 (F-46) — the check that fails SAYS so: the
+                  // book's « no session » ends the session; a dead wire is one
+                  // honest sentence under the button, never silence.
+                  if (res.reason === 'invalide') return finirSession('session.finie');
+                  setCoupeMessageKey('compte.reseau');
                 })();
               }}
             />
+            {coupeMessageKey !== null && <Text style={styles.accesMessage}>{t(coupeMessageKey)}</Text>}
           </View>
         ) : acces.kind === 'admission' ? (
           <EcranAdmission
@@ -4080,6 +4138,7 @@ function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast, o
   const [plein, setPlein] = useState(false);
   const [mdpActuel, setMdpActuel] = useState('');
   const [mdpNouveau, setMdpNouveau] = useState('');
+  const [mdpVisible, setMdpVisible] = useState(false);
   const [envoi, setEnvoi] = useState<Section | null>(null);
   const [msg, setMsg] = useState<{ section: Section; key: string } | null>(null);
 
@@ -4332,9 +4391,21 @@ function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast, o
               <Card style={styles.profilCarte}>
                 <Overline>{t('profil.mdp_titre')}</Overline>
                 <Text style={styles.profilChampLabel}>{t('profil.mdp_actuel')}</Text>
-                <TextInput style={styles.profilInput} value={mdpActuel} onChangeText={setMdpActuel} autoCapitalize="none" autoCorrect={false} accessibilityLabel={t('profil.mdp_actuel')} editable={envoi === null} />
+                {/* RAISON-NOMMEE-1 (F-41) — MASKED, like the entrance (founder
+                    order 2026-09-05), with the same one-tap « Voir / Cacher »
+                    for both fields; they rendered in clear text here. */}
+                <TextInput style={styles.profilInput} value={mdpActuel} onChangeText={setMdpActuel} autoCapitalize="none" autoCorrect={false} secureTextEntry={!mdpVisible} accessibilityLabel={t('profil.mdp_actuel')} editable={envoi === null} />
                 <Text style={styles.profilChampLabel}>{t('profil.mdp_nouveau')}</Text>
-                <TextInput style={styles.profilInput} value={mdpNouveau} onChangeText={setMdpNouveau} autoCapitalize="none" autoCorrect={false} accessibilityLabel={t('profil.mdp_nouveau')} editable={envoi === null} />
+                <TextInput style={styles.profilInput} value={mdpNouveau} onChangeText={setMdpNouveau} autoCapitalize="none" autoCorrect={false} secureTextEntry={!mdpVisible} accessibilityLabel={t('profil.mdp_nouveau')} editable={envoi === null} />
+                <Pressable
+                  onPress={() => setMdpVisible((v) => !v)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: mdpVisible }}
+                  style={({ pressed }) => [styles.mdpBascule, pressed && styles.pressed]}
+                >
+                  <IconOeil size={dimension.iconSizePx.listRow} color={shopColour.deep} />
+                  <Text style={styles.mdpBasculeTexte}>{t(mdpVisible ? 'compte.cacher' : 'compte.voir')}</Text>
+                </Pressable>
                 {envoi === 'mdp' && <Text style={styles.accesMessage}>{t('compte.envoi')}</Text>}
                 {msg?.section === 'mdp' && <Text style={styles.accesMessage}>{t(msg.key)}</Text>}
                 <PrimaryButton

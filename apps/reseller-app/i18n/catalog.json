@@ -289,7 +289,7 @@
  },
  {
   "key": "ventes.titre",
-  "fr": "MES VENTES — LES PROBLÈMES D'ABORD",
+  "fr": "Mes ventes",
   "register": "neutral",
   "screenClass": "label"
  },
@@ -319,13 +319,13 @@
  },
  {
   "key": "ventes.reel_refus_titre",
-  "fr": "Ce code n'ouvre pas.",
+  "fr": "Vos ventes ne s’ouvrent pas pour le moment.",
   "register": "neutral",
   "screenClass": "status"
  },
  {
   "key": "ventes.reel_refus_hint",
-  "fr": "Vérifiez le code, ou demandez-en un nouveau.",
+  "fr": "Reconnectez-vous, puis réessayez.",
   "register": "neutral",
   "screenClass": "instruction"
  },
@@ -1141,7 +1141,7 @@
  },
  {
   "key": "k.cover.pilule_verif",
-  "fr": "EN VÉRIFICATION SÉRA",
+  "fr": "ENVOYÉE",
   "register": "neutral",
   "screenClass": "status"
  },
@@ -1177,7 +1177,7 @@
  },
  {
   "key": "k.cover.note_verif",
-  "fr": "Comme les photos produits, votre couverture passe la vérification Séra. L’ancienne version reste en ligne en attendant.",
+  "fr": "Votre couverture est envoyée. Elle apparaît sur votre boutique dès qu’elle est prête ; l’ancienne reste en ligne en attendant.",
   "register": "neutral",
   "screenClass": "status"
  },
@@ -2778,12 +2778,6 @@
   "screenClass": "status"
  },
  {
-  "key": "k.publier.erreur",
-  "fr": "L’envoi n’a pas marché — {raison} — réessayez",
-  "register": "neutral",
-  "screenClass": "status"
- },
- {
   "key": "k.publier.plafond",
   "fr": "Ce montant dépasse le plafond. Baissez ce que vous ajoutez et réessayez.",
   "register": "money",
@@ -3229,7 +3223,7 @@
  },
  {
   "key": "accueil.gains_verrouille_sub",
-  "fr": "Entrez votre code dans « Mes gains » pour les voir.",
+  "fr": "Connectez-vous pour voir vos gains.",
   "register": "money",
   "screenClass": "general"
  },
@@ -3688,5 +3682,23 @@
   "fr": "C'est envoyé, mais votre boutique n'a pas répondu. Rouvrez Ma vitrine pour voir.",
   "register": "neutral",
   "screenClass": "status"
+ },
+ {
+  "key": "k.publier.reseau",
+  "fr": "L’envoi n’a pas marché. Réessayez dans un moment.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.publier.refus",
+  "fr": "Ce n’est pas enregistré. Rien n’a changé.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.publier.adresse_prise",
+  "fr": "Ce nom donne une adresse déjà prise. Changez le nom de votre boutique, puis réessayez.",
+  "register": "neutral",
+  "screenClass": "instruction"
  }
 ]

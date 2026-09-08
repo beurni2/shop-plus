@@ -28,6 +28,7 @@ import type {
   StorefrontServicePort,
   UploadOutcome,
 } from './service';
+import type { SignedListing } from './service';
 // ENTETES-B — the CANON closed set, imported (never hand-copied): this module is
 // tests-only and Node-side, so the Metro law does not bind it, and the
 // no-demo-adapter-in-bundle gate proves it stays out of the exported bundle.
@@ -232,6 +233,11 @@ export class DemoStorefrontService implements StorefrontServicePort {
       ok: true,
       value: [...this.stores.entries()].map(([id, s]) => ({ id, slug: s.slug, name: s.name, discoverable: s.discoverable })),
     };
+  }
+
+  /** PRIX-SIGNE-1 — the demo holds no signed listing: an honest absence. */
+  async readListing(): Promise<ServiceResult<SignedListing | undefined>> {
+    return { ok: true, value: undefined };
   }
 
   /**

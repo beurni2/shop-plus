@@ -121,10 +121,12 @@ describe('HttpStorefrontService — the request the app WOULD send', () => {
     expect(seulementPermis(calls[0]!.init.headers)).toEqual([]);
   });
 
-  it('a non-2xx is an honest { ok:false }, never a throw', async () => {
+  it('a non-2xx is an honest { ok:false }, never a throw — carrying the Worker\'s NAMED reason when the body has one (RAISON-NOMMEE-1), the status otherwise', async () => {
     stubFetch(401, { error: 'unauthorized' });
     const svc = new HttpStorefrontService('https://sf.example.dev');
-    expect(await svc.create(CMD)).toEqual({ ok: false, reason: 'http_401' });
+    expect(await svc.create(CMD)).toEqual({ ok: false, reason: 'unauthorized' });
+    stubFetch(502, {});
+    expect(await svc.create(CMD)).toEqual({ ok: false, reason: 'http_502' });
   });
 
   it('a network throw is an honest { ok:false, reason:offline }, never a throw', async () => {
@@ -752,5 +754,61 @@ describe('VOIX-PRODUIT — the note upload seam, on the certified demo double', 
     const notes = back.ok ? back.value?.productNotes : undefined;
     expect(notes?.['pv_001']?.durationMs).toBe(3_000); // replaced
     expect(notes?.['pv_002']?.durationMs).toBe(2_000); // untouched
+  });
+});
+
+describe('PRIX-SIGNE-1 — readListing: the signed price, read by pid behind her session', () => {
+  const svc = () => new HttpStorefrontService('https://shop.example', async () => 'SPS-AAAA');
+  it('GET /listings/by-pid/{sf}/{pid} riding the Bearer → the signed listing', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ listingId: 'lst-SF-pv', productVersionId: 'pv', customerPriceFcfa: 12_000, status: 'published' })),
+    );
+    expect(await svc().readListing('SF', 'pv')).toEqual({
+      ok: true,
+      value: { listingId: 'lst-SF-pv', productVersionId: 'pv', customerPriceFcfa: 12_000, status: 'published' },
+    });
+    const [url, init] = spy.mock.calls[0]!;
+    expect(url).toBe('https://shop.example/listings/by-pid/SF/pv');
+    expect((init?.headers as Record<string, string>)['Authorization']).toBe('Bearer SPS-AAAA');
+  });
+  it('404 is an honest absence; a price that is not a franc integer is a FAULT, never a number on her card; a throw is offline', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'not_found' }), { status: 404 }));
+    expect(await svc().readListing('SF', 'pv')).toEqual({ ok: true, value: undefined });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ listingId: 'l', productVersionId: 'pv', customerPriceFcfa: 12000.5, status: 'published' })),
+    );
+    expect(await svc().readListing('SF', 'pv')).toEqual({ ok: false, reason: 'unreadable' });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ customerPriceFcfa: 12000 })));
+    expect(await svc().readListing('SF', 'pv')).toEqual({ ok: false, reason: 'unreadable' });
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('down'));
+    expect(await svc().readListing('SF', 'pv')).toEqual({ ok: false, reason: 'offline' });
+  });
+});
+
+describe('RAISON-NOMMEE-1 — the create/publish roads keep the Worker\'s named refusal, and the decision names the sentence', () => {
+  it('create answering 409 {error:"slug_taken"} → reason slug_taken (not http_409); a bodiless 500 → http_500', async () => {
+    const svc = new HttpStorefrontService('https://shop.example', async () => 'SPS-AAAA');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'slug_taken' }), { status: 409 }));
+    expect(await svc.create(CMD)).toEqual({ ok: false, reason: 'slug_taken' });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 500 }));
+    expect(await svc.publish('sf-1', 'c', 't')).toEqual({ ok: false, reason: 'http_500' });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+    expect(await svc.unpublish('sf-1', 'c', 't')).toEqual({ ok: false, reason: 'unauthorized' });
+  });
+  it('publierRefusalToastKey: transient and 408/429/5xx → the retry sentence; 401/unauthorized → the session road; named refusals → their own line; anything unknown → not saved, no promise', async () => {
+    const { publierRefusalToastKey, estSessionRefusee } = await import('../src/vitrine/service');
+    for (const r of ['offline', 'unreadable', 'http_500', 'http_503', 'http_408', 'http_429']) expect(publierRefusalToastKey(r), r).toBe('k.publier.reseau');
+    for (const r of ['http_401', 'unauthorized']) {
+      expect(publierRefusalToastKey(r), r).toBe('session.finie');
+      expect(estSessionRefusee(r)).toBe(true);
+    }
+    expect(publierRefusalToastKey('slug_taken')).toBe('k.publier.adresse_prise');
+    expect(publierRefusalToastKey('storefront_absent')).toBe('fiche.publier.pas_de_boutique');
+    expect(publierRefusalToastKey('supply_unavailable')).toBe('fiche.publier.reessayer');
+    expect(publierRefusalToastKey('markup_over_cap')).toBe('k.publier.plafond');
+    for (const r of ['http_400', 'http_409', 'markup_invalid', 'jamais_vu']) {
+      expect(publierRefusalToastKey(r), r).toBe('k.publier.refus');
+      expect(estSessionRefusee(r)).toBe(false);
+    }
   });
 });

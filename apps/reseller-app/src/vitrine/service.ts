@@ -103,6 +103,54 @@ export function saveRefusalToastKey(reason: string): string {
   return 'k.enreg.refus';
 }
 
+/**
+ * RAISON-NOMMEE-1 (AUDIT-SHOP-2 F-17a) — WHICH SENTENCE A REFUSED PUBLICATION
+ * EARNS: the create/publish/list roads and the listing publish. The old toast
+ * printed the wire's reason verbatim — « L’envoi n’a pas marché — http_401 —
+ * réessayez », « — offline — » — an English token where a reseller reads (Law
+ * 6), and « réessayez » for refusals that retrying can never fix. Same rule as
+ * `saveRefusalToastKey`: the retry sentence is earned ONLY by the transient;
+ * a dead session is the session road's (the caller asks the book); every
+ * named refusal gets its own true sentence; anything unknown is « not saved »
+ * with no promise.
+ */
+export function publierRefusalToastKey(reason: string): string {
+  if (TRANSIENT_REASONS.has(reason)) return 'k.publier.reseau';
+  const http = /^http_(\d{3})$/.exec(reason);
+  if (http !== null) {
+    const code = Number(http[1]);
+    if (code === 408 || code === 429 || code >= 500) return 'k.publier.reseau';
+    if (code === 401) return 'session.finie';
+    return 'k.publier.refus';
+  }
+  if (reason === 'unauthorized') return 'session.finie';
+  if (reason === 'slug_taken') return 'k.publier.adresse_prise';
+  if (reason === 'storefront_absent') return 'fiche.publier.pas_de_boutique';
+  if (reason === 'supply_unavailable') return 'fiche.publier.reessayer';
+  if (reason === 'markup_over_cap') return 'k.publier.plafond';
+  return 'k.publier.refus';
+}
+
+/** RAISON-NOMMEE-1 — is this reason the book's own « no session »? The caller
+ *  then asks the session road rather than believing a write's 401. */
+export function estSessionRefusee(reason: string): boolean {
+  return reason === 'http_401' || reason === 'unauthorized';
+}
+
+/**
+ * PRIX-SIGNE-1 (AUDIT-SHOP-2 F-16) — what the Worker holds for ONE listing of
+ * hers: the price it SIGNED. Read from `GET /listings/by-pid/{sf}/{pid}`, the
+ * route the buyer join uses, which carries the pid, her cliente price and the
+ * status — and deliberately no markup or commission. `undefined` = no listing
+ * for that pid (an honest absence, not a fault).
+ */
+export interface SignedListing {
+  readonly listingId: string;
+  readonly productVersionId: string;
+  readonly customerPriceFcfa: number;
+  readonly status: string;
+}
+
 export interface UploadOutcome {
   readonly status: string;
   readonly url: string;
@@ -237,6 +285,8 @@ export interface StorefrontServicePort {
     at: string,
   ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>>;
   list(): Promise<ServiceResult<readonly StorefrontRow[]>>;
+  /** PRIX-SIGNE-1 — the signed listing for one of her products, or `undefined`. */
+  readListing(storefrontId: string, productVersionId: string): Promise<ServiceResult<SignedListing | undefined>>;
   /**
    * PUBLISH-PRICE-1 — list a product at HER markup. The service signs the price.
    *
@@ -332,8 +382,11 @@ export class HttpStorefrontService implements StorefrontServicePort {
     } catch {
       return { ok: false, reason: 'offline' };
     }
-    const data = (await res.json().catch(() => null)) as { status?: string; storefront?: Storefront } | null;
-    if (!res.ok) return { ok: false, reason: `http_${res.status}` };
+    const data = (await res.json().catch(() => null)) as { status?: string; storefront?: Storefront; error?: string } | null;
+    // RAISON-NOMMEE-1 — the Worker's NAMED refusal survives (`slug_taken`,
+    // `unauthorized`, …) exactly as publishListing keeps its own; collapsing it
+    // to the status code threw away the one word that decides what she is told.
+    if (!res.ok) return { ok: false, reason: data?.error ?? `http_${res.status}` };
     // ACCUEIL-PRO (verifier) — the worker's create decision carries HER canon
     // storefront; hand it through (validated the same way getById validates)
     // so the caller can adopt the read-back. Without it, only `liveShop` moves
@@ -586,6 +639,38 @@ export class HttpStorefrontService implements StorefrontServicePort {
     if (!res.ok) return { ok: false, reason: `http_${res.status}` };
     const rows = (await res.json().catch(() => null)) as StorefrontRow[] | null;
     return { ok: true, value: Array.isArray(rows) ? rows : [] };
+  }
+
+  async readListing(storefrontId: string, productVersionId: string): Promise<ServiceResult<SignedListing | undefined>> {
+    let res: Response;
+    try {
+      res = await fetchBorne(
+        `${this.base}/listings/by-pid/${encodeURIComponent(storefrontId)}/${encodeURIComponent(productVersionId)}`,
+        { method: 'GET', headers: await this.headers() },
+        DELAI_LECTURE_MS,
+      );
+    } catch {
+      return { ok: false, reason: 'offline' };
+    }
+    if (res.status === 404) return { ok: true, value: undefined };
+    if (!res.ok) return { ok: false, reason: `http_${res.status}` };
+    const data = (await res.json().catch(() => null)) as Partial<SignedListing> | null;
+    // A price that is not a franc integer is a FAULT, never a number on her card.
+    if (
+      data === null ||
+      typeof data.listingId !== 'string' ||
+      typeof data.productVersionId !== 'string' ||
+      typeof data.customerPriceFcfa !== 'number' ||
+      !Number.isInteger(data.customerPriceFcfa) ||
+      data.customerPriceFcfa < 0 ||
+      typeof data.status !== 'string'
+    ) {
+      return { ok: false, reason: 'unreadable' };
+    }
+    return {
+      ok: true,
+      value: { listingId: data.listingId, productVersionId: data.productVersionId, customerPriceFcfa: data.customerPriceFcfa, status: data.status },
+    };
   }
 }
 

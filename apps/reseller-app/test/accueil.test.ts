@@ -155,9 +155,11 @@ describe('ACCUEIL-HONESTY-1 — a figure on the home screen means a real sale, o
     expect(Object.keys(refus.gains)).not.toContain('demandeCode');
     expect(Object.keys(porte.gains)).not.toContain('demandeCode');
 
-    // the sentence must actually tell her what to DO about a bad code
+    // the sentence must actually tell her what to DO. RAISON-NOMMEE-1 (F-51):
+    // with accounts there is no code to check — a refused feed read is a
+    // session matter, and the line says so: « Reconnectez-vous, puis réessayez. »
     const fr = new Map(catalog.map((e) => [e.key, e.fr]));
-    expect((fr.get(refus.gains.texteKey) ?? '').toLowerCase()).toContain('vérifiez');
+    expect((fr.get(refus.gains.texteKey) ?? '').toLowerCase()).toContain('reconnectez');
   });
 
   it('the preview shows HER rows, capped, and never a name — a reseller surface has never seen a buyer (SP-I03)', () => {
