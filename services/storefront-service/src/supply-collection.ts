@@ -37,6 +37,7 @@
 
 import { consumeSupplyItem } from '@shop-plus/supply-consumer/consumer';
 import type { SupplySourceEnv } from './supply-source.js';
+import { SUPPLY_READ_TIMEOUT_MS } from './delais.js';
 
 /** BROWSE-SUPPLY-BINDING-1 — with a binding there is no URL to name, so the target
  *  reports the BINDING NAME: readable in wrangler.toml, impossible to mistype into
@@ -229,10 +230,13 @@ export async function readSupplyCollection(
           // honest, reportable answer.
           ...(secret !== undefined && secret !== '' ? { Authorization: `Bearer ${secret}` } : {}),
         },
+        // VITRINE-LECTURE-1 (F-29) — a producer that does not answer in time is
+        // `unreachable` below, never a read that waits on it forever.
+        signal: AbortSignal.timeout(SUPPLY_READ_TIMEOUT_MS),
       }),
     );
   } catch {
-    // Nothing answered — the base is still the diagnosis-bearing fact.
+    // Nothing answered (or not in time) — the base is still the diagnosis-bearing fact.
     return { status: 'unreachable', offers: [], refusals: [], target: { base: resolvedBase } };
   }
   if (!res.ok) {

@@ -226,7 +226,7 @@ async function handleStorefrontRead(slug: string, env?: StorefrontServiceEnv): P
   if (storefront === undefined) {
     return Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 });
   }
-  const products = await describeProducts(storefront.id, storefront.curatedItems, env);
+  const { products, incomplet } = await describeProducts(storefront.id, storefront.curatedItems, env);
   /**
    * CONTACT-WHATSAPP-1 — the owner's registration phone joins her public page
    * as wa.me-ready digits, so a buyer can write to HER about a product (the
@@ -245,10 +245,37 @@ async function handleStorefrontRead(slug: string, env?: StorefrontServiceEnv): P
     if (phone !== undefined) whatsapp = whatsappDigits(phone);
   }
   return Response.json(
-    { ...toStorefrontView(storefront), products, ...(whatsapp !== undefined ? { whatsapp } : {}) },
+    {
+      ...toStorefrontView(storefront),
+      products,
+      ...(whatsapp !== undefined ? { whatsapp } : {}),
+      // VITRINE-LECTURE-1 — present ONLY when the page could not tell the whole
+      // truth (a pid past the ceiling, a failed hop, a supply hiccup); a shop
+      // whose every product was described carries no such key.
+      ...(incomplet ? { incomplet: true } : {}),
+    },
     { status: 200 },
   );
 }
+
+/**
+ * VITRINE-LECTURE-1 (AUDIT-SHOP-2 F-05) — THE BUDGET, STATED. The platform
+ * allows 50 subrequests per request on the plan this deploys to (the code's
+ * own statement in worker/index.ts). One boutique read spends: the slug
+ * pointer and the entry (2), the owner's contact (1), ONE supply collection
+ * read (1), then TWO listing hops per curated pid (its pid pointer, its
+ * entry), plus a single supply read for a pid the collection did not carry
+ * (rare) and a hide for a lapsed one (rarer). Past the budget `fetch` throws —
+ * and before this slice every catch on the path turned that throw into a
+ * silent omission: a shop with more than ~15 products rendered FEWER products
+ * with no word about it, and each pid cost its own supply round-trip, in
+ * sequence. So the read describes at most this many pids (4 + 2·20 = 44 hops,
+ * room for the rare extras), reads their listings in parallel, and SAYS when
+ * it could not tell the whole truth (`incomplet`, below).
+ */
+export const MAX_PRODUITS_DECRITS = 20;
+/** Listing hops in flight at once — the object hops are tiny; this keeps a large shop from opening forty at a time. */
+const LOT_LECTURE = 8;
 
 /**
  * THE JOIN, SERVER-SIDE (REAL-PRODUCT-RENDER-1 (a2)). For each pid in her
@@ -268,20 +295,55 @@ async function describeProducts(
   storefrontId: string,
   pids: readonly string[],
   env?: StorefrontServiceEnv,
-): Promise<readonly VitrineProductRecord[]> {
+): Promise<{ products: readonly VitrineProductRecord[]; incomplet: boolean }> {
   const listings = env?.LISTING_DO;
-  if (listings === undefined || pids.length === 0) return [];
+  if (listings === undefined || pids.length === 0) return { products: [], incomplet: false };
   const supply = resolveSupplySource(env);
+  // INCOMPLET names a truth the page could not tell: a pid left past the
+  // ceiling, a listing hop that failed or answered something other than a
+  // listing, a presence the producer could not settle. A pid with NO listing
+  // (an inconsistency the shop's own state carries) and a positive absence
+  // (`gone`) are legitimate omissions, as they always were, and raise no flag.
+  let incomplet = pids.length > MAX_PRODUITS_DECRITS;
+  const lus = pids.slice(0, MAX_PRODUITS_DECRITS);
+  type ListingSide = { listingId?: string; productVersionId: string; customerPriceFcfa: number; status: string };
+  const sides = new Map<string, ListingSide>();
+  for (let debut = 0; debut < lus.length; debut += LOT_LECTURE) {
+    const lot = lus.slice(debut, debut + LOT_LECTURE);
+    const reponses = await Promise.all(
+      lot.map((pid) =>
+        listings
+          .fetch(new Request(`https://do/listings/by-pid/${encodeURIComponent(storefrontId)}/${encodeURIComponent(pid)}`))
+          .catch(() => undefined),
+      ),
+    );
+    for (let i = 0; i < lot.length; i += 1) {
+      const res = reponses[i];
+      if (res === undefined) {
+        incomplet = true; // the hop itself failed — not an omission the shop chose
+        continue;
+      }
+      if (res.status === 404) continue; // no resolvable listing → omitted, as before
+      if (res.status !== 200) {
+        incomplet = true;
+        continue;
+      }
+      const side = (await res.json().catch(() => null)) as ListingSide | null;
+      if (side === null) {
+        incomplet = true;
+        continue;
+      }
+      sides.set(lot[i]!, side);
+    }
+  }
+  // THE SUPPLY SIDE, ONCE FOR THE WHOLE SHOP (the port's `presences`): the
+  // collection read answers for every pid it carries; the rest ask the single
+  // road, whose 404 is the producer's own denial.
+  const presences = await supply.presences([...sides.values()].map((side) => side.productVersionId));
   const out: VitrineProductRecord[] = [];
-  for (const pid of pids) {
-    const res = await listings
-      .fetch(new Request(`https://do/listings/by-pid/${encodeURIComponent(storefrontId)}/${encodeURIComponent(pid)}`))
-      .catch(() => undefined);
-    if (res === undefined || res.status !== 200) continue; // no resolvable listing → omitted
-    const side = (await res.json().catch(() => null)) as
-      | { listingId?: string; productVersionId: string; customerPriceFcfa: number; status: string }
-      | null;
-    if (side === null) continue;
+  for (const [pid, side] of sides) {
+    const seen = presences.get(side.productVersionId) ?? { kind: 'unknown' as const };
+    if (seen.kind === 'unknown') incomplet = true; // a hiccup, never a positive absence
     // ═══ AUTO-HIDE-WATCH-1 — THE WATCHER LIVES WHERE THE EVIDENCE APPEARS ═══
     //
     // There is no listings enumeration (per-listing DOs, no index), so a sweeping
@@ -299,7 +361,6 @@ async function describeProducts(
     // shop nobody reads keeps a stale listing standing — which nobody sees, and
     // the next read fixes. The hide is AWAITED: deterministic, testable, and the
     // latency lands only on the rare lapsed path whose record is omitted anyway.
-    const seen = await supply.presence(side.productVersionId);
     if (seen.kind === 'gone' && side.status === 'published' && typeof side.listingId === 'string') {
       await listings
         .fetch(
@@ -339,7 +400,7 @@ async function describeProducts(
     const record = joinVitrineProduct(side, supplied);
     if (record !== undefined) out.push(record); // undescribable → omitted, never invented
   }
-  return out;
+  return { products: out, incomplet };
 }
 
 /**

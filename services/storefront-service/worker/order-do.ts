@@ -1,4 +1,5 @@
 import { PlatformEventSchema, assertQuoteReconciles, type PlatformEvent, type Quote } from '@platform/contracts';
+import { FLUSHER_TIMEOUT_MS } from '../src/delais.js';
 import { decideBuyerRung, reconcileOrder } from '@shop-plus/commerce-core';
 import {
   acceptChargeForLeg,
@@ -2095,6 +2096,8 @@ export class OrderDO {
       const res = await this.env.OFFER.fetch(
         new Request('https://offer/fulfillment/order-confirmed', {
           method: 'POST',
+          // VITRINE-LECTURE-1 (F-29) — one bounded attempt; the alarm's backoff owns the retry.
+          signal: AbortSignal.timeout(FLUSHER_TIMEOUT_MS),
           headers: {
             'Content-Type': 'application/json',
             ...(this.env.FULFILLMENT_WRITE_SECRET !== undefined && this.env.FULFILLMENT_WRITE_SECRET !== ''
@@ -2186,6 +2189,8 @@ export class OrderDO {
       const res = await this.env.OFFER.fetch(
         new Request('https://offer/fulfillment/delivered', {
           method: 'POST',
+          // VITRINE-LECTURE-1 (F-29) — one bounded attempt; the alarm's backoff owns the retry.
+          signal: AbortSignal.timeout(FLUSHER_TIMEOUT_MS),
           headers: {
             'Content-Type': 'application/json',
             ...(this.env.FULFILLMENT_WRITE_SECRET !== undefined && this.env.FULFILLMENT_WRITE_SECRET !== ''
@@ -2234,6 +2239,8 @@ export class OrderDO {
       const res = await this.env.OFFER.fetch(
         new Request('https://offer/fulfillment/delivery-refused', {
           method: 'POST',
+          // VITRINE-LECTURE-1 (F-29) — one bounded attempt; the alarm's backoff owns the retry.
+          signal: AbortSignal.timeout(FLUSHER_TIMEOUT_MS),
           headers: {
             'Content-Type': 'application/json',
             ...(this.env.FULFILLMENT_WRITE_SECRET !== undefined && this.env.FULFILLMENT_WRITE_SECRET !== ''
@@ -2289,6 +2296,8 @@ export class OrderDO {
       const res = await this.env.CUSTODY.fetch(
         new Request('https://custody/produce-shop/secrets/arm', {
           method: 'POST',
+          // VITRINE-LECTURE-1 (F-29) — one bounded attempt; the alarm's backoff owns the retry.
+          signal: AbortSignal.timeout(FLUSHER_TIMEOUT_MS),
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
           body: JSON.stringify(outbox.fact),
         }),
@@ -2360,6 +2369,8 @@ export class OrderDO {
       const res = await this.env.CUSTODY.fetch(
         new Request('https://custody/produce-shop/door-signal', {
           method: 'POST',
+          // VITRINE-LECTURE-1 (F-29) — one bounded attempt; the alarm's backoff owns the retry.
+          signal: AbortSignal.timeout(FLUSHER_TIMEOUT_MS),
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
           body: JSON.stringify({
             ...outbox.fact,

@@ -57,6 +57,8 @@
 
 import { consumeSupplyProjection } from '@shop-plus/supply-consumer/consumer';
 import type { SellerTrustTier } from '@platform/contracts';
+import { readSupplyCollection } from './supply-collection.js';
+import { SUPPLY_READ_TIMEOUT_MS } from './delais.js';
 
 /**
  * THE PRODUCER'S ROUTE, read from boutik's own source, not from memory
@@ -169,6 +171,18 @@ export interface SupplySourcePort {
   /** AUTO-HIDE-WATCH-1 — presence with evidence semantics (see `SupplyPresence`). */
   presence(productVersionId: string): Promise<SupplyPresence>;
   /**
+   * VITRINE-LECTURE-1 (AUDIT-SHOP-2 F-05) — presence for MANY pids at once, the
+   * boutique read's instrument. ONE producer read (the collection route) answers
+   * for every pid it carries; a pid it does NOT carry is asked through the single
+   * route — absence from a list is never the producer's denial, only the single
+   * route's `404 unknown_product_version` is (AUTO-HIDE-WATCH-1's one-way-hide
+   * insurance survives intact). A collection that cannot be read falls back to
+   * the single route for every pid — today's behaviour, not a new failure.
+   * Descriptions from the collection carry no `sellerTier` (the browse wire never
+   * carried it); the buyer join reads none.
+   */
+  presences(productVersionIds: readonly string[]): Promise<ReadonlyMap<string, SupplyPresence>>;
+  /**
    * PUBLISH-PRICE-1 (founder ruling) — the live base for a signing decision.
    * `undefined` ⇒ **PUBLISH REFUSES**. Never a cached, assumed or app-supplied
    * base: *"a refusal she can retry is correct; a price signed against a number
@@ -238,6 +252,10 @@ export class AbsentSupplySource implements SupplySourcePort {
     return { kind: 'unknown' };
   }
 
+  async presences(productVersionIds: readonly string[]): Promise<ReadonlyMap<string, SupplyPresence>> {
+    return new Map(productVersionIds.map((id) => [id, { kind: 'unknown' as const }]));
+  }
+
   /** No source ⇒ no base ⇒ no signature. Publish refuses, by construction. */
   async economics(): Promise<undefined> {
     return undefined;
@@ -302,6 +320,9 @@ export class BoundSupplySource implements SupplySourcePort {
         new Request(`https://offer${SUPPLY_ROUTE_PREFIX}${encodeURIComponent(productVersionId)}`, {
           method: 'GET', // the producer answers 405 to anything else
           headers: this.headers(),
+          // VITRINE-LECTURE-1 (F-29) — a producer that does not answer in time is
+          // `unknown` (the catch below), never a read that waits on it forever.
+          signal: AbortSignal.timeout(SUPPLY_READ_TIMEOUT_MS),
         }),
       );
     } catch {
@@ -346,6 +367,41 @@ export class BoundSupplySource implements SupplySourcePort {
     if (r.verdict !== 'fresh') return undefined;
     const p = r.projection;
     return { productName: p.productName, assetRefs: [...p.assetRefs], available: p.available, category: p.category, ...(p.videoRef !== undefined ? { videoRef: p.videoRef } : {}), ...(p.sellerTier !== undefined ? { sellerTier: p.sellerTier } : {}) };
+  }
+
+  /**
+   * VITRINE-LECTURE-1 — one collection read for the shop, then the single road
+   * for whatever it did not carry (see the port's docblock for why a list's
+   * silence is never treated as the producer's denial).
+   */
+  async presences(productVersionIds: readonly string[]): Promise<ReadonlyMap<string, SupplyPresence>> {
+    const out = new Map<string, SupplyPresence>();
+    if (productVersionIds.length === 0) return out;
+    const collection = await readSupplyCollection(
+      { OFFER: this.fetcher, ...(this.readSecret !== undefined ? { SUPPLY_READ_SECRET: this.readSecret } : {}) },
+      new Date().toISOString(),
+    );
+    if (collection.status === 'ok') {
+      const parId = new Map(collection.offers.map((offer) => [offer.productVersionId, offer]));
+      for (const id of productVersionIds) {
+        const offer = parId.get(id);
+        if (offer === undefined) continue;
+        out.set(id, {
+          kind: 'present',
+          description: {
+            productName: offer.productName,
+            assetRefs: [...offer.assetRefs],
+            available: offer.available,
+            category: offer.category,
+            ...(offer.videoRef !== undefined ? { videoRef: offer.videoRef } : {}),
+          },
+        });
+      }
+    }
+    const restants = productVersionIds.filter((id) => !out.has(id));
+    const lus = await Promise.all(restants.map((id) => this.presence(id)));
+    restants.forEach((id, i) => out.set(id, lus[i]!));
+    return out;
   }
 
   /** AUTO-HIDE-WATCH-1 — the same one fetch, surfaced with evidence semantics. */

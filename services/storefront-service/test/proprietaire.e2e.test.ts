@@ -44,7 +44,27 @@ const SUPPLY = [
     category: 'fashion_bags_fabrics',
     sellerTier: 'verified',
   },
+  // VITRINE-LECTURE-1 — twenty-one more offers, so a shop can cross the read ceiling
+  ...Array.from({ length: 21 }, (_, i) => ({
+    productVersionId: `pv-own-${i + 2}`,
+    offerVersion: `ov-own-${i + 2}`,
+    basePrice: 10_000 + i,
+    resellerCommission: 1_000,
+    available: 9,
+    productName: `Article ${i + 2}`,
+    assetRefs: [] as string[],
+    category: 'fashion_bags_fabrics',
+    sellerTier: 'verified',
+  })),
 ];
+
+/** VITRINE-LECTURE-1 — what the producer stub observed, and how it misbehaves on demand. */
+let lecturesCollection = 0;
+let lecturesUnitaires = 0;
+/** pids the COLLECTION route omits (the single route still serves them) */
+const collectionOmet = new Set<string>();
+/** pids whose SINGLE read never answers */
+const unitaireSuspendu = new Set<string>();
 
 const mf = new Miniflare({
   modules: true,
@@ -70,12 +90,20 @@ const mf = new Miniflare({
       const path = new URL(request.url).pathname;
       const single = /^\/supply-projection\/([^/]+)$/.exec(path);
       if (single) {
-        const value = SUPPLY.find((v) => v.productVersionId === decodeURIComponent(single[1]!));
+        const pid = decodeURIComponent(single[1]!);
+        lecturesUnitaires += 1;
+        if (unitaireSuspendu.has(pid)) return new Promise<Response>(() => undefined); // never answers
+        const value = SUPPLY.find((v) => v.productVersionId === pid);
         if (value === undefined) return Response.json({ status: 'not_found' }, { status: 404 });
         return Response.json({ version: 1, asOf: new Date().toISOString(), value });
       }
       if (path === '/supply-projections') {
-        return Response.json({ offers: SUPPLY, diagnostic: { status: 'ok', refusals: [] } });
+        lecturesCollection += 1;
+        // the PRODUCER's collection shape — the canon envelope per item, as the
+        // real offer-service serves it (combined-worker.e2e's fixture)
+        const asOf = new Date().toISOString();
+        const items = SUPPLY.filter((v) => !collectionOmet.has(v.productVersionId)).map((value) => ({ version: 1, asOf, value }));
+        return Response.json({ asOf, items });
       }
       return Response.json({ status: 'not_found' }, { status: 404 });
     },
@@ -153,6 +181,18 @@ const creerAvec = (resellerId: string, id: string, headers: Record<string, strin
     body: JSON.stringify({
       commandId, id, resellerId, shortCode, name: `Boutique ${id}`,
       zone: 'Ouagadougou', category: 'Général', correlationId: `corr-${id}`, at: T0,
+    }),
+  });
+
+/** A publish of ANY pid into a shop (the `publier` above is pinned to PID). */
+const publierPid = (storefrontId: string, listingId: string, headers: Record<string, string>, resellerId: string, pid: string, offerVersion: string) =>
+  appel('/listings', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      commandId: `cmd-${listingId}`, listingId, storefrontId, resellerId,
+      productVersionId: pid, offerVersion, markup: 1_000,
+      stockAssurance: { source: 'hub' }, correlationId: `corr-${listingId}`, at: T0,
     }),
   });
 
@@ -521,4 +561,60 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(retour.json).toEqual({ error: 'slug_taken' });
     expect((await appel(`/s/${slugB}`, {})).json['id']).toBe('sf-own-b2');
   });
+
+  it('VITRINE-LECTURE-1 (AUDIT-SHOP-2 F-05, F-29) — one boutique read asks the producer ONCE for the whole shop; a pid the collection omits is asked alone (the denial road kept, nothing hidden); a producer that never answers costs the read its timeout, not the page — and the page SAYS it is incomplete', async () => {
+    // A's shop gains two more products (three curated in all)
+    for (const n of [2, 3]) {
+      const pub = await publierPid(SF_A, `lst-own-${n}`, A.bearer, A.accountId, `pv-own-${n}`, `ov-own-${n}`);
+      expect(pub.status, pub.text).toBe(200);
+    }
+    lecturesCollection = 0;
+    lecturesUnitaires = 0;
+    const page = await appel(`/s/${slugA}`, {});
+    expect(page.status, page.text).toBe(200);
+    const pids = (p: typeof page) => ((p.json['products'] as { pid: string }[]) ?? []).map((x) => x.pid).sort();
+    expect(pids(page)).toEqual(['pv-own-1', 'pv-own-2', 'pv-own-3']);
+    expect(lecturesCollection, 'ONE collection read for the whole shop').toBe(1);
+    expect(lecturesUnitaires, 'no single read when the collection carries every pid').toBe(0);
+    expect(page.json['incomplet']).toBeUndefined();
+    // the collection omits one pid: it is asked ALONE — a list's silence is never
+    // the producer's denial — and still renders; its listing stays published
+    collectionOmet.add('pv-own-3');
+    lecturesCollection = 0;
+    lecturesUnitaires = 0;
+    const encore = await appel(`/s/${slugA}`, {});
+    expect(pids(encore)).toEqual(['pv-own-1', 'pv-own-2', 'pv-own-3']);
+    expect(lecturesCollection).toBe(1);
+    expect(lecturesUnitaires).toBe(1);
+    expect(encore.json['incomplet']).toBeUndefined();
+    expect((await appel(`/listings/by-pid/${SF_A}/pv-own-3`, { headers: A.bearer })).json['status']).toBe('published');
+    // the single read never answers: the page comes back within the supply
+    // timeout, that product omitted, the page MARKED — never a silent loss
+    unitaireSuspendu.add('pv-own-3');
+    const debut = Date.now();
+    const coupe = await appel(`/s/${slugA}`, {});
+    const duree = Date.now() - debut;
+    expect(coupe.status, coupe.text).toBe(200);
+    expect(duree, 'bounded by the supply timeout, not by the producer').toBeLessThan(6_000);
+    expect(pids(coupe)).toEqual(['pv-own-1', 'pv-own-2']);
+    expect(coupe.json['incomplet']).toBe(true);
+    expect((await appel(`/listings/by-pid/${SF_A}/pv-own-3`, { headers: A.bearer })).json['status'], 'a hiccup never hides').toBe('published');
+    collectionOmet.clear();
+    unitaireSuspendu.clear();
+  }, 30_000);
+
+  it('VITRINE-LECTURE-1 — past the ceiling the page describes MAX_PRODUITS_DECRITS products, in her order, and says so — instead of throwing past the platform budget and dropping the rest in silence', async () => {
+    for (let n = 4; n <= 22; n += 1) {
+      const pub = await publierPid(SF_A, `lst-own-${n}`, A.bearer, A.accountId, `pv-own-${n}`, `ov-own-${n}`);
+      expect(pub.status, pub.text).toBe(200);
+    }
+    lecturesCollection = 0;
+    const page = await appel(`/s/${slugA}`, {});
+    expect(page.status, page.text).toBe(200);
+    const produits = page.json['products'] as { pid: string }[];
+    expect(produits).toHaveLength(20);
+    expect(produits.map((p) => p.pid)).toEqual(Array.from({ length: 20 }, (_, i) => `pv-own-${i + 1}`));
+    expect(page.json['incomplet']).toBe(true);
+    expect(lecturesCollection, 'still ONE collection read at twenty products').toBe(1);
+  }, 60_000);
 });
