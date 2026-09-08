@@ -3660,8 +3660,10 @@ export default {
     {
       const legKeyMatch = /^\/checkout\/webhook\/leg-key\/([^/]+)$/.exec(pathname);
       if (request.method === 'GET' && legKeyMatch !== null) {
-        const orderId = decodeURIComponent(legKeyMatch[1]!);
-        if (!ID_ALPHABET.test(orderId)) return badRequest('bad_field', 'orderId');
+        // PUBLIC-DECODE-1 (AUDIT-SHOP-2 F-26) — a segment that will not decode
+        // is not an id: the same named 400 the alphabet check answers, never a 500.
+        const orderId = decodeId(legKeyMatch[1]!);
+        if (orderId === undefined || !ID_ALPHABET.test(orderId)) return badRequest('bad_field', 'orderId');
         const leg = new URL(request.url).searchParams.get('leg') ?? 'checkout';
         const res = await orderStub(env, orderId).fetch(
           new Request(`https://do/entry/leg-key?leg=${encodeURIComponent(leg)}`),

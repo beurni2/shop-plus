@@ -4,6 +4,7 @@ import {
   type ListingEntry,
   type PublishListingCommand,
 } from '../src/listing-core.js';
+import { decodeSur } from '../src/decode-sur.js';
 
 /**
  * ListingDO — the DURABLE listing authority (STOREFRONT-READ-PATH-1, "same
@@ -167,7 +168,8 @@ export default {
 
     let m = /^\/listings\/([^/]+)\/hide$/.exec(pathname);
     if (m && request.method === 'POST') {
-      const listingId = decodeURIComponent(m[1]!);
+      const listingId = decodeSur(m[1]!);
+      if (listingId === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const args = (await request.clone().json().catch(() => ({}))) as Partial<HideArgs>;
       const res = await stub(env, listingId).fetch(
         new Request('https://do/entry/hide', { method: 'POST', body: JSON.stringify({ ...args, listingId }) }),
@@ -177,8 +179,9 @@ export default {
 
     m = /^\/listings\/by-pid\/([^/]+)\/([^/]+)$/.exec(pathname);
     if (m && request.method === 'GET') {
-      const storefrontId = decodeURIComponent(m[1]!);
-      const pid = decodeURIComponent(m[2]!);
+      const storefrontId = decodeSur(m[1]!);
+      const pid = decodeSur(m[2]!);
+      if (storefrontId === null || pid === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const ptrRes = await pidStub(env, storefrontId, pid).fetch(new Request('https://do/pid-pointer'));
       if (ptrRes.status === 404) return Response.json({ error: 'not_found' }, { status: 404 });
       const ptr = (await ptrRes.json()) as { listingId: string };
@@ -196,8 +199,9 @@ export default {
     // the `/listings*` key gate like everything else on this surface.
     m = /^\/listings\/by-pid\/([^/]+)\/([^/]+)\/economics$/.exec(pathname);
     if (m && request.method === 'GET') {
-      const storefrontId = decodeURIComponent(m[1]!);
-      const pid = decodeURIComponent(m[2]!);
+      const storefrontId = decodeSur(m[1]!);
+      const pid = decodeSur(m[2]!);
+      if (storefrontId === null || pid === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const ptrRes = await pidStub(env, storefrontId, pid).fetch(new Request('https://do/pid-pointer'));
       if (ptrRes.status === 404) return Response.json({ error: 'not_found' }, { status: 404 });
       const ptr = (await ptrRes.json()) as { listingId: string };
@@ -208,7 +212,8 @@ export default {
 
     m = /^\/listings\/([^/]+)$/.exec(pathname);
     if (m && request.method === 'GET') {
-      const listingId = decodeURIComponent(m[1]!);
+      const listingId = decodeSur(m[1]!);
+      if (listingId === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const res = await stub(env, listingId).fetch(new Request('https://do/entry'));
       return forward(res);
     }

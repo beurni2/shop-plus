@@ -413,6 +413,29 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect((await appel('/storefronts/sf-own-jamais', { method: 'DELETE', headers: cleC })).status).toBe(404);
   }, 60_000);
 
+  it('PUBLIC-DECODE-1 (AUDIT-SHOP-2 F-03, F-26) — a segment that will not decode is nobody\'s on EVERY road: the buyer\'s public reads, key C\'s operator roads, the session\'s pid segment, the webhook\'s leg-key read — never a 500', async () => {
+    // the buyer's public reads (these two answered `500 URIError` before)
+    const page = await appel('/s/%FF', {});
+    expect(page.status, page.text).toBe(404);
+    expect(page.json['error']).toBe('not_found');
+    expect((await appel('/media/%FF', {})).status).toBe(404);
+    expect((await appel('/media/a%C0', {})).status).toBe(404);
+    // key C's operator roads (the session roads were guarded at the root by a2a; these reach the router unguarded)
+    const prise = await appel('/storefronts/%FF/unpublish', { method: 'POST', headers: cleC, body: JSON.stringify({ id: '%FF', correlationId: 'c', at: T0 }) });
+    expect(prise.status, prise.text).toBe(404);
+    expect(prise.json).toEqual({ error: 'not_found' });
+    const efface = await appel('/storefronts/%FF', { method: 'DELETE', headers: cleC });
+    expect(efface.status, efface.text).toBe(404);
+    // the session's pid segment — the shop segment already read as her mute 404
+    expect((await appel(`/listings/by-pid/${SF_A}/%FF`, { headers: A.bearer })).status).toBe(404);
+    expect((await appel(`/listings/by-pid/${SF_A}/%FF/economics`, { headers: A.bearer })).status).toBe(404);
+    // the webhook's leg-key read: with the secret, the same NAMED 400 a bad alphabet earns; without it, 401 first
+    const leg = await appel('/checkout/webhook/leg-key/%FF', { headers: { 'X-Payment-Webhook-Key': 'test-payment-webhook-secret-o001' } });
+    expect(leg.status, leg.text).toBe(400);
+    expect(leg.json).toEqual({ error: 'bad_field', field: 'orderId' });
+    expect((await appel('/checkout/webhook/leg-key/%FF', {})).status).toBe(401);
+  });
+
   it('SLUG-UNIQUE-1 (AUDIT-SHOP-2 F-01) — a rival cannot take A\'s slug: her create under A\'s short code is refused by name, A\'s public page is byte-identical, nothing was created; the slug of a deleted shop is free again, and then held', async () => {
     // the canon short code is the slug upper-cased (`OWN-0001` → `own-0001`)
     const codeA = slugA.toUpperCase();

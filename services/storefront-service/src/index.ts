@@ -6,6 +6,7 @@ import { absoluteAssetRefs, joinVitrineProduct, toStorefrontView, whatsappDigits
 import { resolveStorefrontStore, type StorefrontStoreEnv } from './storefront-store.js';
 import { resolveSupplySource, type SupplySourceEnv } from './supply-source.js';
 import { SUPPLY_COLLECTION_ROUTE, readSupplyCollection } from './supply-collection.js';
+import { decodeSur } from './decode-sur.js';
 
 /**
  * storefront-service: Storefront authoring + customer-surface projections (Shop+
@@ -593,8 +594,18 @@ export const handleRequest = async (request: Request, env?: StorefrontServiceEnv
   const isReadRoute = url.pathname === '/health' || slugMatch !== null || mediaReadMatch !== null;
   // CORS preflight for the buyer read routes only.
   if (request.method === 'OPTIONS' && isReadRoute) return readPreflight();
-  if (request.method === 'GET' && slugMatch) return withReadCors(await handleStorefrontRead(decodeURIComponent(slugMatch[1]!), env));
-  if (request.method === 'GET' && mediaReadMatch) return withReadCors(await handleMediaRead(decodeURI(mediaReadMatch[1]!), env, request.headers.get('Range')));
+  // PUBLIC-DECODE-1 (AUDIT-SHOP-2 F-03) — a slug or a media key that will not
+  // decode (`/s/%FF`) is the honest not-found, never a 500 on the buyer's read.
+  if (request.method === 'GET' && slugMatch) {
+    const slug = decodeSur(slugMatch[1]!);
+    if (slug === null) return withReadCors(Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 }));
+    return withReadCors(await handleStorefrontRead(slug, env));
+  }
+  if (request.method === 'GET' && mediaReadMatch) {
+    const key = decodeSur(mediaReadMatch[1]!, decodeURI);
+    if (key === null) return withReadCors(Response.json({ service: SERVICE_NAME, error: 'not_found' }, { status: 404 }));
+    return withReadCors(await handleMediaRead(key, env, request.headers.get('Range')));
+  }
   // health (and the honest 404 fallthrough) — the buyer read surface, CORS on.
   return withReadCors(await healthWithProvenance(request, env?.CUSTODY_WIRES));
 };

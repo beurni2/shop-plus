@@ -15,6 +15,7 @@ import {
   type IdentityPatch,
   type StorefrontEntry,
 } from '../src/storefront-core.js';
+import { decodeSur } from '../src/decode-sur.js';
 
 /**
  * StorefrontDO — the DURABLE storefront authority (STOREFRONT-READ-PATH-1). One
@@ -432,7 +433,8 @@ export default {
 
     let m = /^\/storefronts\/([^/]+)\/(publish|unpublish)$/.exec(pathname);
     if (m && request.method === 'POST') {
-      const id = decodeURIComponent(m[1]!);
+      const id = decodeSur(m[1]!);
+      if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const args = (await request.clone().json().catch(() => ({}))) as Partial<ToggleArgs>;
       const res = await sfStub(env, id).fetch(
         new Request(`https://do/entry/${m[2]}`, { method: 'POST', body: JSON.stringify({ ...args, id }) }),
@@ -445,7 +447,8 @@ export default {
     // is reached (no new gate code, same as DELETE).
     m = /^\/storefronts\/([^/]+)\/identity$/.exec(pathname);
     if (m && request.method === 'POST') {
-      const id = decodeURIComponent(m[1]!);
+      const id = decodeSur(m[1]!);
+      if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const body = await request.clone().text();
       const res = await sfStub(env, id).fetch(
         new Request('https://do/entry/identity', { method: 'POST', body }),
@@ -455,7 +458,8 @@ export default {
 
     m = /^\/storefronts\/([^/]+)\/media$/.exec(pathname);
     if (m && request.method === 'POST') {
-      const id = decodeURIComponent(m[1]!);
+      const id = decodeSur(m[1]!);
+      if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const body = await request.clone().text();
       const res = await sfStub(env, id).fetch(new Request('https://do/entry/media', { method: 'POST', body }));
       return forward(res);
@@ -463,7 +467,8 @@ export default {
 
     m = /^\/storefronts\/([^/]+)\/voice$/.exec(pathname);
     if (m && request.method === 'POST') {
-      const id = decodeURIComponent(m[1]!);
+      const id = decodeSur(m[1]!);
+      if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const body = await request.clone().text();
       const res = await sfStub(env, id).fetch(new Request('https://do/entry/voice', { method: 'POST', body }));
       return forward(res);
@@ -471,7 +476,8 @@ export default {
 
     m = /^\/storefronts\/([^/]+)\/voice\/remove$/.exec(pathname);
     if (m && request.method === 'POST') {
-      const id = decodeURIComponent(m[1]!);
+      const id = decodeSur(m[1]!);
+      if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const body = await request.clone().text();
       const res = await sfStub(env, id).fetch(
         new Request('https://do/entry/voice/remove', { method: 'POST', body }),
@@ -481,7 +487,8 @@ export default {
 
     m = /^\/storefronts\/([^/]+)\/items$/.exec(pathname);
     if (m && request.method === 'POST') {
-      const id = decodeURIComponent(m[1]!);
+      const id = decodeSur(m[1]!);
+      if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const args = (await request.clone().json().catch(() => ({}))) as { pid?: string; at?: string };
       const res = await sfStub(env, id).fetch(
         new Request('https://do/entry/items/add', { method: 'POST', body: JSON.stringify(args) }),
@@ -495,7 +502,8 @@ export default {
     // one into the other is one typo away from emptying a shop.
     m = /^\/storefronts\/([^/]+)\/items\/remove$/.exec(pathname);
     if (m && request.method === 'POST') {
-      const id = decodeURIComponent(m[1]!);
+      const id = decodeSur(m[1]!);
+      if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const args = (await request.clone().json().catch(() => ({}))) as { pid?: string; at?: string };
       const res = await sfStub(env, id).fetch(
         new Request('https://do/entry/items/remove', { method: 'POST', body: JSON.stringify(args) }),
@@ -505,7 +513,8 @@ export default {
 
     m = /^\/storefronts\/([^/]+)$/.exec(pathname);
     if (m && request.method === 'GET') {
-      const id = decodeURIComponent(m[1]!);
+      const id = decodeSur(m[1]!);
+      if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const res = await sfStub(env, id).fetch(new Request('https://do/entry'));
       return forward(res);
     }
@@ -529,7 +538,8 @@ export default {
     // forever. Fully-cleaned ⇒ no row ⇒ no-op; every step is idempotent.
     m = /^\/storefronts\/([^/]+)$/.exec(pathname);
     if (m && request.method === 'DELETE') {
-      const id = decodeURIComponent(m[1]!);
+      const id = decodeSur(m[1]!);
+      if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const res = await sfStub(env, id).fetch(new Request('https://do/entry/delete', { method: 'POST' }));
       const decision = (await res.clone().json().catch(() => null)) as DeleteDecision | null;
       if (decision?.status === 'deleted') {
@@ -557,7 +567,8 @@ export default {
 
     m = /^\/s\/([^/]+)$/.exec(pathname);
     if (m && request.method === 'GET') {
-      const slug = decodeURIComponent(m[1]!);
+      const slug = decodeSur(m[1]!);
+      if (slug === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const ptrRes = await slugStub(env, slug).fetch(new Request('https://do/pointer'));
       if (ptrRes.status === 404) return Response.json({ error: 'not_found' }, { status: 404 });
       const ptr = (await ptrRes.json()) as SlugPointer;

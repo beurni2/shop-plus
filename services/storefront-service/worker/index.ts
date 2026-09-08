@@ -1,4 +1,5 @@
 import sfRouter, { StorefrontDO } from './storefront-do.js';
+import { decodeSur } from '../src/decode-sur.js';
 import lstRouter, { ListingDO } from './listing-do.js';
 import checkoutRouter, { CheckoutDO } from './checkout-do.js';
 import orderRouter, { OrderDO, televerserNoteVocale } from './order-do.js';
@@ -1664,14 +1665,6 @@ async function saBoutique(env: Env, accountId: string, storefrontId: string): Pr
 /** ONE mute not-found for everything that is not hers — never an oracle. */
 const pasLaSienne = (): Response => Response.json({ error: 'not_found' }, { status: 404 });
 
-/** A path segment that will not decode is nobody's — never a 500. */
-function decodeSur(segment: string): string | null {
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return null;
-  }
-}
 
 /** Is this listing hers? Absent (a new id) is `true`; foreign or unreadable is `false`. */
 async function saListeOuLibre(env: Env, accountId: string, listingId: string): Promise<boolean> {

@@ -101,6 +101,20 @@ describe('StorefrontDO — the durable read path GET /s/{slug}, Shape C slug poi
     expect((read.view as { error: string }).error).toBe('not_found');
   });
 
+  it('PUBLIC-DECODE-1 (AUDIT-SHOP-2 F-03, F-26): a segment that will not decode is nobody\'s on every router road — never a 500', async () => {
+    const roads: Array<[string, string]> = [
+      ['GET', '/s/%FF'], ['GET', '/storefronts/%FF'], ['POST', '/storefronts/%FF/publish'], ['POST', '/storefronts/%FF/unpublish'],
+      ['POST', '/storefronts/%FF/identity'], ['POST', '/storefronts/%FF/media'], ['POST', '/storefronts/%FF/voice'],
+      ['POST', '/storefronts/%FF/voice/remove'], ['POST', '/storefronts/%FF/items'], ['POST', '/storefronts/%FF/items/remove'],
+      ['DELETE', '/storefronts/%FF'],
+    ];
+    for (const [method, path] of roads) {
+      const res = await mf.dispatchFetch(`http://sf${path}`, { method, ...(method === 'POST' ? { body: '{}' } : {}) });
+      expect(res.status, `${method} ${path}`).toBe(404);
+      expect(await res.json(), `${method} ${path}`).toEqual({ error: 'not_found' });
+    }
+  });
+
   it('DURABLE ACROSS RESTART: a storefront + its slug pointer read back after a process death', async () => {
     await create({ ...SELLER_001, commandId: 'c-survive', id: 'sf-survive', shortCode: 'SELLER-0002' });
     const before = await readSlug('seller-0002');
