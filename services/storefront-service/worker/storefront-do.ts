@@ -8,6 +8,7 @@ import {
   decideRemoveVoiceNote,
   decideSetVoiceNote,
   decideToggle,
+  slugFromShortCode,
   type CreateDecision,
   type CreateStorefrontCommand,
   type DeleteDecision,
@@ -25,9 +26,12 @@ import {
  *
  * SLUG INDEX — SHAPE C (founder ruling): a per-slug POINTER is its OWN instance
  * of this same class, addressed by idFromName('slug:'+slug), holding just
- * `{ storefrontId }`. Write-once (the slug is immutable), no second binding, no
- * global-directory hotspot. The router resolves a read GET /s/:slug by hitting
- * the pointer instance, then the storefront instance — two tiny hops.
+ * `{ storefrontId }`. CLAIMED ONCE (SLUG-UNIQUE-1, AUDIT-SHOP-2 F-01): the
+ * first create to name a slug owns it, a later create naming ANOTHER id is
+ * refused `slug_taken`, and only a DELETE frees it — the slug is immutable, no
+ * second binding, no global-directory hotspot. The router resolves a read
+ * GET /s/:slug by hitting the pointer instance, then the storefront instance —
+ * two tiny hops.
  *
  * No money here: this is identity + discoverability only. The instance role
  * (storefront vs pointer) is chosen by the ROUTER's sub-path; the two never
@@ -222,15 +226,27 @@ export class StorefrontDO {
     }
 
     // ── slug-pointer-instance ops (idFromName('slug:'+slug)) — Shape C ───────
-    if (request.method === 'PUT' && pathname === '/pointer') {
-      let ptr: SlugPointer;
+    // SLUG-UNIQUE-1 (AUDIT-SHOP-2 F-01) — CLAIM-OR-TELL, the checkout key
+    // pointer's idiom: the read and the write are ONE act inside this object,
+    // so two creates racing for one slug cannot both win. A pointer that
+    // already names another id is TOLD, never overwritten — the unconditional
+    // put this replaces let any admitted reseller re-point a rival's public
+    // page to her own shop with a single create.
+    if (request.method === 'POST' && pathname === '/pointer/claim') {
+      let body: { storefrontId?: unknown };
       try {
-        ptr = (await request.json()) as SlugPointer;
+        body = (await request.json()) as { storefrontId?: unknown };
       } catch {
         return Response.json({ error: 'malformed' }, { status: 400 });
       }
+      if (typeof body.storefrontId !== 'string' || body.storefrontId === '') {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      const existing = await this.state.storage.get<SlugPointer>(POINTER_KEY);
+      if (existing !== undefined) return Response.json({ storefrontId: existing.storefrontId, claimed: false });
+      const ptr: SlugPointer = { storefrontId: body.storefrontId };
       await this.state.storage.put(POINTER_KEY, ptr);
-      return Response.json({ ok: true });
+      return Response.json({ storefrontId: ptr.storefrontId, claimed: true });
     }
     if (request.method === 'GET' && pathname === '/pointer') {
       const ptr = await this.state.storage.get<SlugPointer>(POINTER_KEY);
@@ -305,7 +321,7 @@ const forward = async (res: Response, status = res.status): Promise<Response> =>
 
 /**
  * Router — the durable storefront surface used by DurableStorefrontStore:
- *   POST /storefronts                     create (+ writes the slug pointer on 'created')
+ *   POST /storefronts                     create (claims the slug FIRST — `409 slug_taken` when another shop holds it)
  *   POST /storefronts/:id/publish|unpublish   discoverability toggle
  *   GET  /storefronts/:id                 the raw canon Storefront (or 404)
  *   GET  /s/:slug                         THE READ PATH — pointer → id → storefront (or 404)
@@ -320,15 +336,37 @@ export default {
       if (cmd == null || typeof cmd.id !== 'string') {
         return Response.json({ error: 'malformed' }, { status: 400 });
       }
-      const res = await sfStub(env, cmd.id).fetch(
-        new Request('https://do/entry/create', { method: 'POST', body: JSON.stringify(cmd) }),
-      );
-      const decision = (await res.clone().json()) as CreateDecision;
-      // Shape C: the slug pointer lands on the REAL create only (slug immutable → write-once).
-      if (decision.status === 'created') {
-        await slugStub(env, decision.storefront.slug).fetch(
-          new Request('https://do/pointer', { method: 'PUT', body: JSON.stringify({ storefrontId: cmd.id }) }),
+      // SLUG-UNIQUE-1 (AUDIT-SHOP-2 F-01) — the slug is CLAIMED before the entry
+      // exists, in the slug's own object (claim-or-tell). A pointer that names
+      // another id refuses the create BY NAME, so a rival can never take a slug
+      // that resolves; her own id (the idempotent replay, or a collision on her
+      // own shop) passes. Derived here exactly as the core derives it, so the
+      // two can never disagree; a short code the core would throw on is
+      // refused by name before any object is touched.
+      let slug: string;
+      try {
+        slug = slugFromShortCode(cmd.shortCode);
+      } catch {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      const claim = (await (
+        await slugStub(env, slug).fetch(
+          new Request('https://do/pointer/claim', { method: 'POST', body: JSON.stringify({ storefrontId: cmd.id }) }),
+        )
+      ).json()) as { storefrontId: string; claimed: boolean };
+      if (claim.storefrontId !== cmd.id) return Response.json({ error: 'slug_taken' }, { status: 409 });
+      const liberer = () => slugStub(env, slug).fetch(new Request('https://do/pointer/delete', { method: 'POST' }));
+      let res: Response;
+      try {
+        res = await sfStub(env, cmd.id).fetch(
+          new Request('https://do/entry/create', { method: 'POST', body: JSON.stringify(cmd) }),
         );
+      } catch (err) {
+        if (claim.claimed) await liberer();
+        throw err;
+      }
+      const decision = (await res.clone().json()) as CreateDecision;
+      if (decision.status === 'created') {
         // …and the immutable directory row, so the admin list can enumerate what exists.
         await indexStub(env).fetch(
           new Request('https://do/index/add', {
@@ -336,6 +374,13 @@ export default {
             body: JSON.stringify({ id: cmd.id, slug: decision.storefront.slug, name: decision.storefront.name }),
           }),
         );
+      } else if (claim.claimed && !(decision.status === 'idempotent' && decision.storefront.slug === slug)) {
+        // A FRESH claim that no create followed — a collision on her own id under
+        // a new short code, or a replay that names a slug other than the shop's —
+        // is released, or the slug would stay taken by a shop that does not
+        // exist. (A replay under the shop's OWN slug keeps the claim: it re-heals
+        // a pointer that had gone missing.)
+        await liberer();
       }
       return forward(res);
     }

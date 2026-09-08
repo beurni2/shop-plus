@@ -145,9 +145,21 @@ const publier = (storefrontId: string | undefined, listingId: string, headers: R
     }),
   });
 
+/** A create under an EXACT short code (the slug is derived from it), for the slug-uniqueness cases. */
+const creerAvec = (resellerId: string, id: string, headers: Record<string, string>, shortCode: string, commandId: string) =>
+  appel('/storefronts', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      commandId, id, resellerId, shortCode, name: `Boutique ${id}`,
+      zone: 'Ouagadougou', category: 'Général', correlationId: `corr-${id}`, at: T0,
+    }),
+  });
+
 let A!: Awaited<ReturnType<typeof seance>>;
 let B!: Awaited<ReturnType<typeof seance>>;
 let slugA = '';
+let slugB = '';
 const SF_A = 'sf-own-a';
 const SF_B = 'sf-own-b';
 const LST_A = 'lst-own-a';
@@ -170,6 +182,7 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect(annuaire.some((r) => r.id === 'sf-own-x'), 'nothing was created').toBe(false);
     const b = await creer(B.accountId, SF_B, B.bearer);
     expect(b.status, b.text).toBe(200);
+    slugB = (b.json['storefront'] as { slug: string }).slug;
 
     // ═══ VERIFIER MAJOR — a create that COLLIDES with a rival's id must not
     // hand her the rival's whole shop. The core answers `collision` WITH the
@@ -399,4 +412,37 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect((await appel(`/storefronts/${SF_A}`, { headers: A.bearer })).status).toBe(200);
     expect((await appel('/storefronts/sf-own-jamais', { method: 'DELETE', headers: cleC })).status).toBe(404);
   }, 60_000);
+
+  it('SLUG-UNIQUE-1 (AUDIT-SHOP-2 F-01) — a rival cannot take A\'s slug: her create under A\'s short code is refused by name, A\'s public page is byte-identical, nothing was created; the slug of a deleted shop is free again, and then held', async () => {
+    // the canon short code is the slug upper-cased (`OWN-0001` → `own-0001`)
+    const codeA = slugA.toUpperCase();
+    const codeB = slugB.toUpperCase();
+    const avant = await appel(`/s/${slugA}`, {});
+    expect(avant.status).toBe(200);
+    expect(avant.json['id']).toBe(SF_A);
+    // B, seated, names a NEW id of her own with A's short code — the hijack the
+    // audit measured: this create used to answer `created` and re-point A's page
+    const vol = await creerAvec(B.accountId, 'sf-own-vol', B.bearer, codeA, 'cmd-vol');
+    expect(vol.status, vol.text).toBe(409);
+    expect(vol.json).toEqual({ error: 'slug_taken' });
+    expect(vol.text, 'the refusal names nothing of A').not.toContain(A.accountId);
+    // THE BOOK: A's page resolves to A, byte for byte; B's id was never created;
+    // the directory holds exactly one row for the slug
+    expect((await appel(`/s/${slugA}`, {})).text).toBe(avant.text);
+    expect((await appel('/storefronts/sf-own-vol', { headers: B.bearer })).status).toBe(404);
+    const annuaire = (await appel('/storefronts', { headers: cleC })).json as unknown as { id: string; slug: string }[];
+    expect(annuaire.filter((r) => r.slug === slugA).map((r) => r.id)).toEqual([SF_A]);
+    expect(annuaire.some((r) => r.id === 'sf-own-vol')).toBe(false);
+    // B's shop was DELETED on key C above: its slug is free, and B takes it back
+    // under a new id — the only road that ever frees a slug
+    const reprise = await creerAvec(B.accountId, 'sf-own-b2', B.bearer, codeB, 'cmd-reprise');
+    expect(reprise.status, reprise.text).toBe(200);
+    expect(reprise.json['status']).toBe('created');
+    expect((await appel(`/s/${slugB}`, {})).json['id']).toBe('sf-own-b2');
+    // …and now that B holds it, A cannot take it either — the law has no owner bias
+    const retour = await creerAvec(A.accountId, 'sf-own-a2', A.bearer, codeB, 'cmd-retour');
+    expect(retour.status, retour.text).toBe(409);
+    expect(retour.json).toEqual({ error: 'slug_taken' });
+    expect((await appel(`/s/${slugB}`, {})).json['id']).toBe('sf-own-b2');
+  });
 });

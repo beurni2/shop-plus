@@ -131,6 +131,42 @@ describe('StorefrontDO — the durable read path GET /s/{slug}, Shape C slug poi
     expect((read.view as StorefrontView).name).toBe('Premier nom'); // never overwritten
   });
 
+  it('SLUG-UNIQUE-1 (AUDIT-SHOP-2 F-01): a DIFFERENT id naming an EXISTING short code is refused `slug_taken` — the pointer still names the first shop; a collision on her own id releases its fresh slug; the claim survives a restart; a DELETE frees the slug; a malformed short code is refused before any pointer exists', async () => {
+    await create({ ...SELLER_001, commandId: 'c-slug-a', id: 'sf-slug-a', shortCode: 'SELLER-0031', name: 'La vraie' });
+    const vol = await create({ ...SELLER_001, commandId: 'c-slug-b', id: 'sf-slug-b', resellerId: 'rs-rival-0001', shortCode: 'SELLER-0031', name: 'La fausse' });
+    expect(vol.code).toBe(409);
+    expect(vol.body).toEqual({ error: 'slug_taken' });
+    const read = await readSlug('seller-0031');
+    expect(read.code).toBe(200);
+    expect((read.view as StorefrontView).id).toBe('sf-slug-a');
+    expect((read.view as StorefrontView).name).toBe('La vraie');
+    // nothing was created under the refused id, and the directory holds ONE row for the slug
+    expect((await mf.dispatchFetch('http://sf/storefronts/sf-slug-b', { method: 'GET' })).status).toBe(404);
+    const list = (await (await mf.dispatchFetch('http://sf/storefronts', { method: 'GET' })).json()) as { id: string; slug: string }[];
+    expect(list.filter((r) => r.slug === 'seller-0031').map((r) => r.id)).toEqual(['sf-slug-a']);
+    // a collision on the FIRST shop's own id under a NEW short code RELEASES the
+    // fresh slug: another shop can take it (the pointer did not stay claimed by
+    // a shop that was never created)
+    const autre = await create({ ...SELLER_001, commandId: 'c-slug-autre', id: 'sf-slug-a', shortCode: 'SELLER-0032' });
+    expect(autre.body.status).toBe('collision');
+    const libre = await create({ ...SELLER_001, commandId: 'c-slug-c', id: 'sf-slug-c', shortCode: 'SELLER-0032' });
+    expect(libre.body.status).toBe('created');
+    expect(((await readSlug('seller-0032')).view as StorefrontView).id).toBe('sf-slug-c');
+    // the claim is durable: after a process death the slug is still refused…
+    await restart();
+    expect((await create({ ...SELLER_001, commandId: 'c-slug-d', id: 'sf-slug-d', shortCode: 'SELLER-0031' })).code).toBe(409);
+    // …and only a DELETE frees it for a new shop
+    expect((await mf.dispatchFetch('http://sf/storefronts/sf-slug-a', { method: 'DELETE' })).status).toBe(200);
+    const reprise = await create({ ...SELLER_001, commandId: 'c-slug-d', id: 'sf-slug-d', shortCode: 'SELLER-0031' });
+    expect(reprise.body.status).toBe('created');
+    expect(((await readSlug('seller-0031')).view as StorefrontView).id).toBe('sf-slug-d');
+    // a malformed short code: refused by name, and no object was touched
+    const mal = await create({ ...SELLER_001, commandId: 'c-slug-mal', id: 'sf-slug-mal', shortCode: 'x' });
+    expect(mal.code).toBe(400);
+    expect(mal.body).toEqual({ error: 'malformed' });
+    expect((await mf.dispatchFetch('http://sf/storefronts/sf-slug-mal', { method: 'GET' })).status).toBe(404);
+  });
+
   it('PUBLISH toggle is durable: discoverable flips true and survives a restart', async () => {
     const cmd = { ...SELLER_001, commandId: 'c-pub', id: 'sf-pub', shortCode: 'SELLER-0005' };
     await create(cmd);
@@ -343,8 +379,12 @@ describe('StorefrontDO — ENTETES-C: photo focus is durable and a new photo sta
     });
 
   it('focus set via /identity reaches GET /s/{slug} inside cover/avatar, survives restart, clears on a NEW photo', async () => {
-    const cmd = { ...SELLER_001, commandId: 'c-focus', id: 'sf-focus', shortCode: 'SELLER-0023' };
-    await create(cmd);
+    // SLUG-UNIQUE-1: this case once reused `SELLER-0023` (sf-entl's code above) and
+    // silently re-pointed that slug to sf-focus — the exact hijack the law now
+    // refuses. Its own code, and the create asserted, so a refusal can never
+    // hide behind a 404 further down.
+    const cmd = { ...SELLER_001, commandId: 'c-focus', id: 'sf-focus', shortCode: 'SELLER-0025' };
+    expect((await create(cmd)).body.status).toBe('created');
     expect((await media('sf-focus', 'cover', 'https://media.example/sf-focus/cover-1.jpg')).status).toBe(200);
     expect((await media('sf-focus', 'avatar', 'https://media.example/sf-focus/avatar-1.jpg')).status).toBe(200);
 
@@ -353,7 +393,7 @@ describe('StorefrontDO — ENTETES-C: photo focus is durable and a new photo sta
     expect(((await save.json()) as { status: string }).status).toBe('saved');
 
     // THE BUYER READ PATH carries the framing INSIDE the existing sub-objects…
-    const read = await readSlug('seller-0023');
+    const read = await readSlug('seller-0025');
     expect(read.code).toBe(200);
     const view = read.view as StorefrontView;
     expect(view.cover).toEqual({ status: 'live', url: 'https://media.example/sf-focus/cover-1.jpg', focus: { x: 10, y: 90 } });
@@ -363,14 +403,14 @@ describe('StorefrontDO — ENTETES-C: photo focus is durable and a new photo sta
 
     await restart(); // her framing must survive a process death
 
-    const after = (await readSlug('seller-0023')).view as StorefrontView;
+    const after = (await readSlug('seller-0025')).view as StorefrontView;
     expect(after.cover.focus).toEqual({ x: 10, y: 90 });
     expect(after.avatar.focus).toEqual({ x: 40, y: 20 });
 
     // A NEW cover upload starts UNFRAMED — proven on the READ path — while the
     // avatar keeps the framing she chose for the portrait she still has.
     expect((await media('sf-focus', 'cover', 'https://media.example/sf-focus/cover-2.jpg')).status).toBe(200);
-    const fresh = (await readSlug('seller-0023')).view as StorefrontView;
+    const fresh = (await readSlug('seller-0025')).view as StorefrontView;
     expect(fresh.cover.url).toBe('https://media.example/sf-focus/cover-2.jpg');
     expect(fresh.cover.focus).toBeUndefined(); // stale framing never crops a new photo
     expect(fresh.avatar.focus).toEqual({ x: 40, y: 20 }); // the other kind survives
