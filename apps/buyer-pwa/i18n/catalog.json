@@ -1212,6 +1212,18 @@
   "screenClass": "status"
  },
  {
+  "key": "vit.indisponible_titre",
+  "fr": "La boutique ne répond pas.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.indisponible_corps",
+  "fr": "Réessayez dans un instant. Rien n’est perdu — le lien reste bon.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "vit.reessayer",
   "fr": "Réessayer",
   "register": "neutral",

@@ -13,7 +13,7 @@ import {
 } from '@platform/ui-tokens/legacy';
 import { vitrineSlugFromPath, signedProductSlugFromPath, recordVitrineArrival, vitrineHref, deployBaseFromPath } from './vitrine-link';
 import { mountCadeau } from './cadeau';
-import { demoStorefrontPort, resolveStorefrontPort } from './vitrine/profile';
+import { demoStorefrontPort, resolveStorefrontPort, VitrineOffline } from './vitrine/profile';
 import { harnessProfil, mountVitrine, type VitrineEtat } from './vitrine/flows';
 import { enteteOverride } from './vitrine/entetes';
 import { ENT_STYLES } from './vitrine/entries';
@@ -683,8 +683,24 @@ if (app) {
     // profil lever. Widened to await ONE seam (STOREFRONT-READ-PATH-1).
     const isRealPath = signedProductSlugFromPath(window.location.pathname) !== undefined;
     const port = isRealPath ? resolveStorefrontPort() : demoStorefrontPort(profil);
-    void (async () => {
-    const resolved = await port.resolve(signedSlug);
+    // LIEN-HORS-LIGNE-1 (AUDIT-SHOP-2 F-02) — THE LINK SHE ACTUALLY SENDS, WITH
+    // NO SERVICE BEHIND IT. This road awaited the resolve with no catch: the
+    // port's offline marker (thrown on purpose so `/v/` can draw its card)
+    // escaped as an unhandled rejection and NOTHING was appended — a white
+    // page, no sentence, no way out, on the one link a reseller shares, on
+    // the network the product is built for. Now the same designed card the
+    // `/v/` road draws, and « Réessayer » re-runs THIS road: her offer, not
+    // the boutique. The road owns `#app`: every run starts it empty.
+    const monterOffre = async (): Promise<void> => {
+    app.replaceChildren();
+    let resolved: Awaited<ReturnType<typeof port.resolve>>;
+    try {
+      resolved = await port.resolve(signedSlug);
+    } catch (e) {
+      if (!(e instanceof VitrineOffline)) throw e;
+      mountVitrine(app as HTMLElement, signedSlug, { etat: 'offline', raison: e.raison, reessayer: () => void monterOffre() });
+      return;
+    }
     if (!resolved) {
       // Unknown or expired slug → the HONEST not-found, reusing the `/v/` path's
       // invalid surface exactly (no bespoke error wall; §5 honest states).
@@ -888,7 +904,8 @@ if (app) {
         app.append(main);
       }
     }
-    })();
+    };
+    void monterOffre();
   } else if (clienteDemo && (CLIENTE_ECRANS as readonly string[]).includes(clienteDemo)) {
     // The PWA CLIENTE harness — every C1–C9 screen/state × the four habillages,
     // reachable and gate-lockable (the shared link boots at root under preview).

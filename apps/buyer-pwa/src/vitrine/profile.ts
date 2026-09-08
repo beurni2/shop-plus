@@ -419,9 +419,15 @@ function notesFromWire(raw: unknown): ProductVoiceNotes {
 
 /** audit F3 — raised by the HTTP port when the fetch itself throws (no
  *  connection), so the mount can tell « pas de connexion » from a real
- *  not-found. Never raised by the demo port; caught only in `mountVitrine`. */
+ *  not-found. Never raised by the demo port; caught in `mountVitrine` and on
+ *  the signed road in `main.ts` (LIEN-HORS-LIGNE-1).
+ *
+ *  `raison` names WHICH absence it was (AUDIT-SHOP-2 F-52): `reseau` — the
+ *  fetch itself threw (no connection); `service` — the service was reached and
+ *  did not answer as itself (a 5xx, a proxy page). Both earn « Réessayer »,
+ *  never « lien invalide »; they differ only in the sentence. */
 export class VitrineOffline extends Error {
-  constructor() {
+  constructor(readonly raison: 'reseau' | 'service' = 'reseau') {
     super('vitrine-offline');
     this.name = 'VitrineOffline';
   }
@@ -443,8 +449,15 @@ export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
         // the ONE caller (mountVitrine) catches it.
         throw new VitrineOffline();
       }
-      if (!res.ok) return undefined; // 404 and any non-2xx → honest not-found
+      // LIEN-HORS-LIGNE-1 (AUDIT-SHOP-2 F-52) — a 5xx, or a 2xx whose body is
+      // not JSON (a proxy or captive-portal page), is the SERVICE not answering,
+      // not a wrong link: the buyer earns « Réessayer », never « lien invalide »
+      // and a sentence telling her to ask the seller for a new link. A 4xx (the
+      // 404 above all) stays the honest not-found.
+      if (res.status >= 500) throw new VitrineOffline('service');
+      if (!res.ok) return undefined; // 404 and any other 4xx → honest not-found
       const view: unknown = await res.json().catch(() => null);
+      if (view === null) throw new VitrineOffline('service');
       if (!looksLikeStorefront(view)) return undefined;
       // BUYER-LIVE-WIRE-3 — the service's `products` ride through. Defensive on
       // shape because this is a network boundary: a non-array is treated as

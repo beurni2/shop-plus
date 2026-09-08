@@ -74,6 +74,13 @@ export interface VitrineHarness {
   /** APERÇU NU — render her header with EMPTY photo frames, so the frame itself
    *  is what he sees while choosing. View-only; nothing is saved. */
   readonly sansPhotos?: boolean | undefined;
+  /** LIEN-HORS-LIGNE-1 (AUDIT-SHOP-2 F-02) — the signed road (`/s/{slug}`)
+   *  mounts THIS surface when its own resolve finds no service: `etat:
+   *  'offline'`, the absence the port named, and a « Réessayer » that re-runs
+   *  THAT road — her offer, not the boutique. Absent, « Réessayer » re-resolves
+   *  the vitrine as it always did. */
+  readonly raison?: 'reseau' | 'service' | undefined;
+  readonly reessayer?: (() => void) | undefined;
 }
 
 /**
@@ -214,10 +221,14 @@ export function mountVitrine(
    *  renders the creator's own band from the device-local record. */
   listeToken?: string,
 ): void {
-  const style = document.createElement('style');
-  style.setAttribute('data-vitrine', '');
-  style.textContent = VITRINE_STYLES;
-  document.head.appendChild(style);
+  // ONE sheet, however many mounts: the signed road re-mounts on « Réessayer »
+  // (LIEN-HORS-LIGNE-1), and a second identical sheet would only pile up.
+  if (document.head.querySelector('style[data-vitrine]') === null) {
+    const style = document.createElement('style');
+    style.setAttribute('data-vitrine', '');
+    style.textContent = VITRINE_STYLES;
+    document.head.appendChild(style);
+  }
 
   // ENTETES-A/B — the five headers' sheet, its own element so the vitrine sheet
   // stays byte-unchanged. Every rule is scoped under a per-style root class
@@ -268,6 +279,10 @@ export function mountVitrine(
   // not-found (`undefined`), or « pas de connexion » (`'offline'`, never a
   // value the port's own return type carries).
   type RenderInput = Resolved | 'offline';
+  // LIEN-HORS-LIGNE-1 — WHICH absence the last resolve met (the sentence on the
+  // offline card): the caller's word when it mounted the state itself, else
+  // whatever the port names when its fetch fails.
+  let raisonHorsLigne: 'reseau' | 'service' = harness.raison ?? 'reseau';
 
   // PANIER-VITRINE-1 — what the last READY render drew from, kept so a panier
   // tap can refresh the band in place without re-resolving or re-rendering
@@ -525,7 +540,7 @@ export function mountVitrine(
         root.innerHTML = renderVitrineSkeleton();
         break;
       case 'offline':
-        root.innerHTML = renderVitrineOffline();
+        root.innerHTML = renderVitrineOffline(raisonHorsLigne);
         break;
       case 'invalid':
         root.innerHTML = renderVitrineInvalid();
@@ -608,14 +623,23 @@ export function mountVitrine(
     try {
       resolved = await port.resolve(slug);
     } catch (e) {
-      if (e instanceof VitrineOffline) resolved = 'offline';
-      else throw e;
+      if (!(e instanceof VitrineOffline)) throw e;
+      raisonHorsLigne = e.raison;
+      resolved = 'offline';
     }
     await loadEntete(enteteForRender(harness.entete, resolved === 'offline' ? undefined : resolved?.storefront?.headerStyle));
     return resolved;
   };
 
   const load = (skeletonMs: number, isInitial: boolean): void => {
+    // LIEN-HORS-LIGNE-1 — an offline state the CALLER already established (the
+    // signed road's failed resolve, or the `?etat=offline` lever) draws at
+    // once: there is no second resolve to wait on — on a slow link that wait
+    // was the blank the card exists to replace — and nothing to record.
+    if (harness.etat === 'offline') {
+      render('offline', 'offline');
+      return;
+    }
     if (harness.etat !== undefined) {
       void resolveWithStyle().then((resolved) => {
         if (isInitial) recordArrival(resolved);
@@ -719,7 +743,9 @@ export function mountVitrine(
     } else if (action === 'retour') {
       window.history.back();
     } else if (action === 'reessayer') {
-      load(RETRY_MS, false);
+      // LIEN-HORS-LIGNE-1 — the signed road retries ITS road; the vitrine its own.
+      if (harness.reessayer !== undefined) harness.reessayer();
+      else load(RETRY_MS, false);
     } else if (action === 'decouvrir') {
       window.location.href = '/boutiques';
     } else if (action === 'liste-creer') {

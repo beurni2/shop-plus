@@ -800,14 +800,51 @@ describe('BUYER-LIVE-WIRE-6 — offline is not a wrong link (audit F3)', () => {
     }
   });
 
+  it('LIEN-HORS-LIGNE-1 (AUDIT-SHOP-2 F-52) — a 5xx or a non-JSON 2xx is the SERVICE absent, never a wrong link; a thrown fetch names the network', async () => {
+    const original = globalThis.fetch;
+    const cases: Array<[string, () => Response]> = [
+      ['a Worker 500', () => new Response('Internal Server Error', { status: 500 })],
+      ['a gateway 502 page', () => new Response('<html>502</html>', { status: 502, headers: { 'Content-Type': 'text/html' } })],
+      ['a 2xx that is not JSON (a proxy page)', () => new Response('<html>login</html>', { status: 200, headers: { 'Content-Type': 'text/html' } })],
+    ];
+    for (const [label, answer] of cases) {
+      globalThis.fetch = (async () => answer()) as unknown as typeof fetch;
+      try {
+        await expect(port.resolve('chez-x'), label).rejects.toMatchObject({ name: 'VitrineOffline', raison: 'service' });
+      } finally {
+        globalThis.fetch = original;
+      }
+    }
+    // the network itself: the fetch throws — `reseau`, the sentence that was always there
+    globalThis.fetch = (async () => { throw new TypeError('Failed to fetch'); }) as unknown as typeof fetch;
+    try {
+      await expect(port.resolve('chez-x')).rejects.toMatchObject({ name: 'VitrineOffline', raison: 'reseau' });
+    } finally {
+      globalThis.fetch = original;
+    }
+    // …and a 4xx other than 404 is still the honest not-found, not a retry
+    globalThis.fetch = (async () => new Response('gone', { status: 410 })) as unknown as typeof fetch;
+    try {
+      expect(await port.resolve('chez-x')).toBeUndefined();
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
   it('the mount catches the marker and routes the OFFLINE surface, never « invalide »', () => {
     // No DOM mount harness exists for the vitrine in this repo (the buyer PWA is
     // node/string-tested), so the wiring is pinned at the source the way the
     // rest of BUYER-LIVE-WIRE is: resolveWithStyle turns the thrown marker into
     // the local `'offline'` signal, and render forces the offline etat from it.
+    // (The DRIVEN proof of the signed road lives in e2e/lien-hors-ligne.spec.ts.)
     const flows = readFileSync(join(__dirname, '..', 'src/vitrine/flows.ts'), 'utf8');
-    expect(flows).toMatch(/if \(e instanceof VitrineOffline\) resolved = 'offline';/);
+    expect(flows).toMatch(/if \(!\(e instanceof VitrineOffline\)\) throw e;\s*raisonHorsLigne = e\.raison;\s*resolved = 'offline';/);
     expect(flows).toMatch(/const horsLigne = resolved === 'offline';/);
     expect(flows).toMatch(/horsLigne \? 'offline' : etatForRender\(/);
+    // LIEN-HORS-LIGNE-1 — the signed road catches the same marker and mounts the
+    // same card, with a retry that re-runs ITS road (not the vitrine's resolve).
+    const main = readFileSync(join(__dirname, '..', 'src/main.ts'), 'utf8');
+    expect(main).toMatch(/resolved = await port\.resolve\(signedSlug\);\s*\} catch \(e\) \{\s*if \(!\(e instanceof VitrineOffline\)\) throw e;\s*mountVitrine\(app as HTMLElement, signedSlug, \{ etat: 'offline', raison: e\.raison, reessayer: \(\) => void monterOffre\(\) \}\);/);
+    expect(flows).toMatch(/if \(harness\.reessayer !== undefined\) harness\.reessayer\(\);/);
   });
 });

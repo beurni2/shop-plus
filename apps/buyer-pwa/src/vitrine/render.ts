@@ -1267,14 +1267,19 @@ export function renderVitrineSkeleton(): string {
 }
 
 /** V4 — hors ligne (sans cache). C-VIT9. */
-export function renderVitrineOffline(): string {
+/** `raison` (LIEN-HORS-LIGNE-1, AUDIT-SHOP-2 F-52): `reseau` — no connection;
+ *  `service` — the service was reached and did not answer as itself. Same
+ *  card, same way out; only the sentence changes, so she is never told « pas
+ *  de réseau » while her WhatsApp works. */
+export function renderVitrineOffline(raison: 'reseau' | 'service' = 'reseau'): string {
+  const service = raison === 'service';
   return wrap(
     [
       topBar({ back: false, accent: '#C2571B' }),
-      '<div class="vt-state" data-etat="horsligne">',
+      `<div class="vt-state" data-etat="horsligne" data-raison="${raison}">`,
       `<div class="vt-picto">${iconWifiOff(30, '#1C1710', 1.9)}</div>`,
-      `<h3>${t('vit.horsligne_titre')}</h3>`,
-      `<p>${t('vit.horsligne_corps')}</p>`,
+      `<h3>${t(service ? 'vit.indisponible_titre' : 'vit.horsligne_titre')}</h3>`,
+      `<p>${t(service ? 'vit.indisponible_corps' : 'vit.horsligne_corps')}</p>`,
       `<span class="vt-ghostbtn" role="button" data-action="reessayer">${t('vit.reessayer')}</span>`,
       '</div>',
     ].join(''),
