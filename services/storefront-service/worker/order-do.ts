@@ -302,6 +302,11 @@ interface CreateArgs {
   /** LISTE-ENVIES-1 — the liste token from the public create body (charset-
    *  pinned at the router AND re-checked here). `null`/absent = no liste. */
   listeRef?: string | null;
+  /** NOTE-VOCALE-APRES-GARDE-1 (AUDIT-SHOP-2 F-04) — her voice note's RAW
+   *  BYTES (base64, wire-bounded at the router AND re-checked here). The
+   *  object hands them to the media door ITSELF, after its hold check passes:
+   *  a create the gate refuses never costs Boutik+ a byte. Absent = no note. */
+  audioB64?: string;
 }
 
 /**
@@ -554,6 +559,15 @@ export interface OrderDOEnv {
    * notices either way.
    */
   readonly WISHLIST?: DurableObjectNamespace;
+  /**
+   * NOTE-VOCALE-APRES-GARDE-1 — the media door (Boutik+'s media-service as a
+   * SERVICE BINDING) and this Worker's write key for it: the SAME two bindings
+   * the router's `televerserNoteVocale` reads, reachable here because the
+   * Durable Object receives the full Worker env. Either absent ⇒ the note is
+   * `perdue` and the sale untouched — the standing ruling, unchanged.
+   */
+  readonly MEDIA?: { fetch(request: Request): Promise<Response> };
+  readonly MEDIA_WRITE_KEY?: string;
 }
 
 export class OrderDO {
@@ -709,7 +723,22 @@ export class OrderDO {
         }
         listeRef = args.listeRef;
       }
-      return this.create(args.quoteId, args.holderRef, args.commandId, args.quoteBytes, args.fulfillment ?? undefined, contact, listeRef);
+      // NOTE-VOCALE-APRES-GARDE-1 — the bytes, re-checked at this door exactly
+      // as the contact is: the router bounded them, and this object refuses to
+      // carry what it would not have accepted itself.
+      let audioB64: string | undefined;
+      if (args.audioB64 !== undefined) {
+        if (
+          typeof args.audioB64 !== 'string' ||
+          args.audioB64.length === 0 ||
+          args.audioB64.length > AUDIO_B64_MAX_CHARS ||
+          !BASE64.test(args.audioB64)
+        ) {
+          return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+        }
+        audioB64 = args.audioB64;
+      }
+      return this.create(args.quoteId, args.holderRef, args.commandId, args.quoteBytes, args.fulfillment ?? undefined, contact, listeRef, audioB64);
     }
 
     /** ORDER-PAID-WIRE-1b — the OUTBOX READ. Internal wire only (the composition
@@ -1512,6 +1541,8 @@ export class OrderDO {
     wireFulfillment?: { productVersionId?: string; zoneTo?: string; offerVersion?: string },
     contact: BuyerContact | null = null,
     listeRef: string | null = null,
+    /** NOTE-VOCALE-APRES-GARDE-1 — her note's bytes; uploaded below, only past the gate. */
+    audioB64: string | undefined = undefined,
   ): Promise<Response> {
     const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
     const receipt = await this.state.storage.get<ReservationReceipt>(RECEIPT_KEY);
@@ -1750,6 +1781,31 @@ export class OrderDO {
       ];
     }
 
+    /**
+     * NOTE-VOCALE-APRES-GARDE-1 (AUDIT-SHOP-2 F-04) — HER NOTE BECOMES A REF
+     * HERE: after every refusal above and before anything durable. The hold
+     * check, the receipt and the attribution lock have all passed, so the
+     * bytes Boutik+ is asked to keep belong to an order that IS being born.
+     * The router used to upload BEFORE asking this object — one valid quote
+     * id (anonymously mintable) plus an invented holder relayed a megabyte
+     * per call into Boutik+'s bucket for orders that never existed, and every
+     * replay uploaded again. The replay road at the top of this method
+     * returns before this line, so a repeated command uploads nothing.
+     * BEST-EFFORT BY RULING, unchanged: a refusing or unreachable media door
+     * never blocks the sale — the loss is NAMED on the answer
+     * (`noteVocale: 'perdue'`), never silent.
+     */
+    let noteVocale: 'gardee' | 'perdue' | undefined;
+    if (contact !== null && audioB64 !== undefined) {
+      const ref = await televerserNoteVocale(this.env, audioB64);
+      if (ref !== null) {
+        contact = { ...contact, audioRef: ref };
+        noteVocale = 'gardee';
+      } else {
+        noteVocale = 'perdue';
+      }
+    }
+
     // THE ATTEMPT AND ITS PROVIDER KEY ARE DURABLE BEFORE THE PROVIDER IS CALLED.
     // If this process dies mid-charge, both survive: the attempt can never be
     // charged again, and the retry that follows reuses the SAME key rather than
@@ -1895,7 +1951,9 @@ export class OrderDO {
     // of this command id serves the SAME token byte-for-byte, forever.
     const answer = { ok: true, view, buyerRef };
     await this.state.storage.put(RESULTS_KEY, { ...results, [commandId]: answer });
-    return Response.json(answer);
+    // NOTE-VOCALE-APRES-GARDE-1 — what became of her note rides THIS answer
+    // only, never the stored replay: a replayed command uploaded nothing.
+    return Response.json(noteVocale === undefined ? answer : { ...answer, noteVocale });
   }
 
   /**
@@ -3377,28 +3435,17 @@ export default {
       }
 
       /**
-       * REPERE-AUDIO-REEL — the note becomes a REF before the order is born.
-       * This Worker hands the bytes to Boutik+'s media door with ITS OWN
-       * credential (the write key never rides in the buyer's public bundle),
-       * and only the minted opaque ref travels on. BEST-EFFORT BY RULING: an
-       * unreachable or refusing media backend must never block the sale — the
-       * typed repère is still on the contact — but the loss is NAMED on the
-       * response (`noteVocale: 'perdue'`), never silent.
+       * REPERE-AUDIO-REEL → NOTE-VOCALE-APRES-GARDE-1 (AUDIT-SHOP-2 F-04) —
+       * the note becomes a REF inside the OBJECT, after its own hold check
+       * (`create`), never here on an anonymous caller's word: this router
+       * used to hand the bytes to Boutik+'s media door BEFORE asking the
+       * object whether this holder may create at all. The bytes ride the
+       * internal hop below; the object hands them on with this Worker's own
+       * credential (the write key never rides in the buyer's public bundle)
+       * and only the minted opaque ref is stored. COMMANDE-REJOUER-1 stands:
+       * the expired road carries no bytes — only a replay can succeed there
+       * and a replay attaches nothing.
        */
-      let noteVocale: 'gardee' | 'perdue' | undefined;
-      // COMMANDE-REJOUER-1 — no upload on the expired road: only a replay can
-      // succeed there and a replay attaches nothing, so minting a ref would
-      // only orphan bytes in the media store.
-      if (contact !== null && audioB64 !== undefined && !quoteExpiree) {
-        const ref = await televerserNoteVocale(env, audioB64);
-        if (ref !== null) {
-          contact = { ...contact, audioRef: ref };
-          noteVocale = 'gardee';
-        } else {
-          noteVocale = 'perdue';
-        }
-      }
-
       const res = await orderStub(env, orderIdForQuote(quoteId)).fetch(
         new Request('https://do/entry/create', {
           method: 'POST',
@@ -3419,11 +3466,14 @@ export default {
             contact,
             // LISTE-ENVIES-1 — the validated liste token, or null.
             listeRef,
+            // NOTE-VOCALE-APRES-GARDE-1 — the bytes, for the object to upload
+            // past its gate (never on the expired road).
+            ...(contact !== null && audioB64 !== undefined && !quoteExpiree ? { audioB64 } : {}),
           }),
         }),
       );
       const decided = (await res.json().catch(() => null)) as
-        | { ok?: boolean; reason?: string; view?: unknown; buyerRef?: unknown }
+        | { ok?: boolean; reason?: string; view?: unknown; buyerRef?: unknown; noteVocale?: unknown }
         | null;
       if (decided === null) return refuse('not_found');
       if (decided.ok !== true || decided.view === undefined) {
@@ -3441,7 +3491,7 @@ export default {
       if (typeof decided.buyerRef === 'string' && decided.buyerRef !== '') {
         extras['buyerRef'] = decided.buyerRef;
       }
-      if (noteVocale !== undefined) extras['noteVocale'] = noteVocale;
+      if (decided.noteVocale === 'gardee' || decided.noteVocale === 'perdue') extras['noteVocale'] = decided.noteVocale;
       if (Object.keys(extras).length > 0) {
         return Response.json({ ...(decided.view as Record<string, unknown>), ...extras }, { status: 200 });
       }

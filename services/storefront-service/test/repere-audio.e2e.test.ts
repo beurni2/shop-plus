@@ -242,6 +242,39 @@ describe('REPERE-AUDIO-REEL — the note rides the order, end to end on the real
     expect((row!['contact'] as { audioRef?: string }).audioRef).toBeUndefined();
   });
 
+  it('NOTE-VOCALE-APRES-GARDE-1 (AUDIT-SHOP-2 F-04): a create the hold check REFUSES uploads NOTHING; the real holder uploads exactly once; a replay uploads nothing again', async () => {
+    const note = webmNote();
+    const quoteId = await reservedQuote('0031');
+    const before = mediaCalls.length;
+    // THE AUDIT'S MEASURED ROAD: a valid quote id (anonymously mintable) and an
+    // invented holder — refused by name, and NOT a byte relayed to Boutik+.
+    // Before this slice the router uploaded first and asked the object after:
+    // five such calls relayed five megabytes for zero orders.
+    const usurpe = await createOrder('0031x', quoteId, {
+      phone: '70 12 34 61', quartier: 'Gounghin', repere: 'Face à l\'école', audioB64: b64(note),
+    });
+    expect(usurpe.status, usurpe.body['reason'] as string).not.toBe(200);
+    expect(mediaCalls.length, 'no upload before the hold check').toBe(before);
+    expect(await dispatchRow(`ord-${quoteId}`), 'no order was born').toBeUndefined();
+    // the REAL holder: exactly one upload, after the gate
+    const first = await createOrder('0031', quoteId, {
+      phone: '70 12 34 61', quartier: 'Gounghin', repere: 'Face à l\'école', audioB64: b64(note),
+    });
+    expect(first.status).toBe(200);
+    expect(first.body['noteVocale']).toBe('gardee');
+    expect(mediaCalls.length).toBe(before + 1);
+    expect(mediaCalls[before]!.bytes).toEqual(note);
+    // …and a REPLAY of the same command, bytes and all, uploads nothing more
+    const replay = await createOrder('0031', quoteId, {
+      phone: '70 12 34 61', quartier: 'Gounghin', repere: 'Face à l\'école', audioB64: b64(note),
+    });
+    expect(replay.status).toBe(200);
+    expect(mediaCalls.length, 'a replay uploads nothing').toBe(before + 1);
+    // THE LEDGER: the order's contact carries the one minted ref
+    const row = await dispatchRow(`ord-${quoteId}`);
+    expect((row!['contact'] as { audioRef?: string }).audioRef).toBe(mintedRefs[mintedRefs.length - 1]);
+  });
+
   it('the wire REFUSES what must not travel: a caller-supplied audioRef, malformed base64, an oversize note', async () => {
     const quoteId = await reservedQuote('0004');
     const before = mediaCalls.length;

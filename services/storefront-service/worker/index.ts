@@ -24,6 +24,7 @@ import { signPrice } from '../src/publish-price.js';
 import { resolveSupplySource } from '../src/supply-source.js';
 import { orderIdForQuote } from '../src/order-core.js';
 import type { R2BucketLike } from '../src/media/media-store.js';
+import { IMAGE_MAX_BYTES } from '../src/media/service.js';
 import {
   isWrite,
   rejectUnauthorizedOpsRead,
@@ -139,9 +140,82 @@ interface Env extends WriteAuthEnv {
   CHECKOUT_KILL?: string;
 }
 
+/**
+ * CORPS-BORNE (AUDIT-SHOP-2 F-06) — WHAT A BODY MAY WEIGH, decided at the root
+ * BEFORE any route reads it.
+ *
+ * No route read `Content-Length`, and the quote road buffered its body twice
+ * (a peek at the root, then the object's own read): a 100 MB anonymous body —
+ * the platform's request cap — became 200 MB of strings, over the isolate's
+ * memory limit, and a memory-killed isolate cancels the OTHER buyers'
+ * in-flight requests, not only the attacker's. So every body is bounded here:
+ * a declared length above the road's cap is refused `413 body_too_large` at
+ * once, and an undeclared (chunked) body is read up to the cap and refused
+ * the byte it crosses — the bound is the bytes, never the header's word.
+ * Within the bound the body is buffered ONCE and handed down as an ordinary
+ * request; every `clone()` below reads that buffer.
+ *
+ * THE CAPS: 64 KiB for every write (a shop, a listing, the reseller book, the
+ * ops doors, the webhooks — none carries a kilobyte of real payload); 2 MiB
+ * for the two roads that may carry a ~1 MiB base64 voice note (an order, a
+ * liste create); the media validator's own image ceiling plus headroom for
+ * `/media/upload`, so the validator still names `too_large` first for a
+ * photo just over ITS line.
+ */
+const CORPS_MAX = 64 * 1024;
+const CORPS_MAX_NOTE = 2 * 1024 * 1024;
+const CORPS_MAX_MEDIA = IMAGE_MAX_BYTES + 64 * 1024;
+
+function corpsMaxPour(pathname: string): number {
+  if (pathname === '/media/upload') return CORPS_MAX_MEDIA;
+  if (pathname === '/checkout/order' || pathname === '/listes') return CORPS_MAX_NOTE;
+  return CORPS_MAX;
+}
+
+/** The buyer doors answer in their own shape and with CORS, so a browser can read the refusal. */
+function corpsTropGrand(pathname: string): Response {
+  const acheteur = pathname.startsWith('/checkout/') || pathname === '/listes' || pathname.startsWith('/listes/');
+  return acheteur
+    ? withReadCors(Response.json({ ok: false, reason: 'body_too_large' }, { status: 413 }))
+    : Response.json({ error: 'body_too_large' }, { status: 413 });
+}
+
+async function bornerCorps(request: Request, max: number): Promise<Request | Response> {
+  const { pathname } = new URL(request.url);
+  const declared = Number(request.headers.get('Content-Length') ?? Number.NaN);
+  if (Number.isFinite(declared) && declared > max) return corpsTropGrand(pathname);
+  const reader = request.body!.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel().catch(() => undefined);
+      return corpsTropGrand(pathname);
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new Request(request.url, { method: request.method, headers: request.headers, body: bytes });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
+
+    // CORPS-BORNE (AUDIT-SHOP-2 F-06) — bounded before anything reads it.
+    if (request.method !== 'GET' && request.method !== 'HEAD' && request.method !== 'OPTIONS' && request.body !== null) {
+      const borne = await bornerCorps(request, corpsMaxPour(pathname));
+      if (borne instanceof Response) return borne;
+      request = borne;
+    }
 
     // ═══ SP3.2a — THE CHECKOUT SURFACE IS PUBLIC, BY DESIGN AND BY NECESSITY ═══
     //

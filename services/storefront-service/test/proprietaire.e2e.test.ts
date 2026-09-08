@@ -413,6 +413,59 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     expect((await appel('/storefronts/sf-own-jamais', { method: 'DELETE', headers: cleC })).status).toBe(404);
   }, 60_000);
 
+  it('CORPS-BORNE (AUDIT-SHOP-2 F-06) — a body heavier than its road allows is refused 413 by name BEFORE any route reads it; a body within the bound reaches the road; an undeclared length is bounded by the bytes themselves', async () => {
+    const lourd = JSON.stringify({ requestKey: 'x'.repeat(70 * 1024) });
+    // the anonymous quote road, in the buyer's own shape with CORS on the refusal
+    const devis = await mf.dispatchFetch('http://c/checkout/quote', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://beurni2.github.io' }, body: lourd });
+    expect(devis.status).toBe(413);
+    expect(await devis.json()).toEqual({ ok: false, reason: 'body_too_large' });
+    expect(devis.headers.get('Access-Control-Allow-Origin')).toBe('https://beurni2.github.io');
+    // the reseller book, and a session write
+    expect((await appel('/reseller/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: lourd })).status).toBe(413);
+    const pub = await appel('/listings', { method: 'POST', headers: A.bearer, body: lourd });
+    expect(pub.status).toBe(413);
+    expect(pub.json).toEqual({ error: 'body_too_large' });
+    // the order may carry a ~1 MiB base64 voice note: 1.4 MB passes the ROOT
+    // (and is refused downstream BY NAME — no quote of that id), 2.2 MB does not
+    const note = JSON.stringify({ quoteId: 'q-jamais', holderRef: 'h', commandId: 'c', contact: { phone: '70 00 00 00', quartier: 'Gounghin', repere: 'x', audioB64: 'A'.repeat(1_400_000) } });
+    const cmd = await appel('/checkout/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: note });
+    expect(cmd.status, cmd.text).not.toBe(413);
+    expect(cmd.status).toBeGreaterThanOrEqual(400);
+    const trop = await appel('/checkout/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ x: 'A'.repeat(2_200_000) }) });
+    expect(trop.status).toBe(413);
+    // a body with NO declared length (a chunked stream) is bounded by its bytes
+    const flux = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const morceau = new Uint8Array(16 * 1024).fill(0x41);
+        for (let i = 0; i < 5; i += 1) controller.enqueue(morceau);
+        controller.close();
+      },
+    });
+    const sansLongueur = await mf.dispatchFetch('http://c/reseller/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: flux,
+      // @ts-expect-error — undici's half-duplex streaming body
+      duplex: 'half',
+    });
+    expect(sansLongueur.status).toBe(413);
+    // …and a small body with no declared length still reaches its road
+    const petit = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(JSON.stringify({ email: 'nobody@example.bf', password: 'grain-de-nere-77' })));
+        controller.close();
+      },
+    });
+    const entree = await mf.dispatchFetch('http://c/reseller/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: petit,
+      // @ts-expect-error — undici's half-duplex streaming body
+      duplex: 'half',
+    });
+    expect(entree.status, await entree.clone().text()).not.toBe(413);
+  });
+
   it('PUBLIC-DECODE-1 (AUDIT-SHOP-2 F-03, F-26) — a segment that will not decode is nobody\'s on EVERY road: the buyer\'s public reads, key C\'s operator roads, the session\'s pid segment, the webhook\'s leg-key read — never a 500', async () => {
     // the buyer's public reads (these two answered `500 URIError` before)
     const page = await appel('/s/%FF', {});
