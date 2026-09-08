@@ -167,6 +167,71 @@ describe('StorefrontDO — the durable read path GET /s/{slug}, Shape C slug poi
     expect((await mf.dispatchFetch('http://sf/storefronts/sf-slug-mal', { method: 'GET' })).status).toBe(404);
   });
 
+  it('SLUG-UNIQUE-1 (verifier): two creates RACING for one short code — exactly one wins, the other is refused by name; a re-run DELETE of a shop whose freed slug ANOTHER shop has since claimed does NOT free that shop\'s slug', async () => {
+    const [x, y] = await Promise.all([
+      create({ ...SELLER_001, commandId: 'c-race-x', id: 'sf-race-x', shortCode: 'SELLER-0041' }),
+      create({ ...SELLER_001, commandId: 'c-race-y', id: 'sf-race-y', resellerId: 'rs-rival-0002', shortCode: 'SELLER-0041' }),
+    ]);
+    const issues = [x, y].map((r) => (r.code === 409 ? 'slug_taken' : r.body.status)).sort();
+    expect(issues).toEqual(['created', 'slug_taken']);
+    const gagnant = x.code === 200 ? 'sf-race-x' : 'sf-race-y';
+    expect(((await readSlug('seller-0041')).view as StorefrontView).id).toBe(gagnant);
+
+    // THE RE-RUN DELETE (the verifier's road): X's cleanup interrupted AFTER its
+    // pointer was freed but BEFORE its directory row went — fabricated directly
+    // on the objects — then Y claims the freed slug, then the operator re-runs
+    // DELETE X. Before the by-id release, the absent branch erased whatever
+    // pointer X's ghost row named: Y's, leaving Y alive and invisible.
+    await create({ ...SELLER_001, commandId: 'c-int-x', id: 'sf-int-x', shortCode: 'SELLER-0042' });
+    const ns = await mf.getDurableObjectNamespace('STOREFRONT');
+    await ns.get(ns.idFromName('sf-int-x')).fetch('https://do/entry/delete', { method: 'POST' });
+    await ns.get(ns.idFromName('slug:seller-0042')).fetch('https://do/pointer/delete', {
+      method: 'POST',
+      body: JSON.stringify({ storefrontId: 'sf-int-x' }),
+    });
+    const y2 = await create({ ...SELLER_001, commandId: 'c-int-y', id: 'sf-int-y', resellerId: 'rs-rival-0003', shortCode: 'SELLER-0042' });
+    expect(y2.body.status).toBe('created');
+    const rerun = await mf.dispatchFetch('http://sf/storefronts/sf-int-x', { method: 'DELETE' });
+    expect(rerun.status).toBe(404); // X is gone — the honest absent
+    // Y's page still resolves to Y, and X's ghost row is gone
+    expect(((await readSlug('seller-0042')).view as StorefrontView).id).toBe('sf-int-y');
+    const list = (await (await mf.dispatchFetch('http://sf/storefronts', { method: 'GET' })).json()) as { id: string }[];
+    expect(list.some((r) => r.id === 'sf-int-x')).toBe(false);
+    expect(list.some((r) => r.id === 'sf-int-y')).toBe(true);
+    // …and a release that names the wrong shop releases nothing
+    const wrong = await ns.get(ns.idFromName('slug:seller-0042')).fetch('https://do/pointer/delete', {
+      method: 'POST',
+      body: JSON.stringify({ storefrontId: 'sf-int-x' }),
+    });
+    expect(await wrong.json()).toEqual({ ok: true, released: false });
+    expect(((await readSlug('seller-0042')).view as StorefrontView).id).toBe('sf-int-y');
+  });
+
+  it('SLUG-UNIQUE-1 (verifier): a shop whose pointer went missing gets it BACK from a create under its OWN slug — a collision or a replay re-heals, never releases', async () => {
+    await create({ ...SELLER_001, commandId: 'c-heal', id: 'sf-heal', shortCode: 'SELLER-0043' });
+    const ns = await mf.getDurableObjectNamespace('STOREFRONT');
+    // the pointer vanishes (an interrupted cleanup's other half) while the entry stands
+    await ns.get(ns.idFromName('slug:seller-0043')).fetch('https://do/pointer/delete', {
+      method: 'POST',
+      body: JSON.stringify({ storefrontId: 'sf-heal' }),
+    });
+    expect((await readSlug('seller-0043')).code).toBe(404);
+    // a COLLISION under the shop's own slug: the fresh claim names the shop
+    // that exists, so it stays — the page resolves again
+    const coll = await create({ ...SELLER_001, commandId: 'c-heal-autre', id: 'sf-heal', shortCode: 'SELLER-0043' });
+    expect(coll.body.status).toBe('collision');
+    expect(((await readSlug('seller-0043')).view as StorefrontView).id).toBe('sf-heal');
+    // …and the same for the idempotent REPLAY under the own slug
+    await ns.get(ns.idFromName('slug:seller-0043')).fetch('https://do/pointer/delete', {
+      method: 'POST',
+      body: JSON.stringify({ storefrontId: 'sf-heal' }),
+    });
+    expect((await readSlug('seller-0043')).code).toBe(404);
+    const rejoue = await create({ ...SELLER_001, commandId: 'c-heal', id: 'sf-heal', shortCode: 'SELLER-0043' });
+    expect(rejoue.body.status).toBe('idempotent');
+    expect(((await readSlug('seller-0043')).view as StorefrontView).id).toBe('sf-heal');
+  });
+
   it('PUBLISH toggle is durable: discoverable flips true and survives a restart', async () => {
     const cmd = { ...SELLER_001, commandId: 'c-pub', id: 'sf-pub', shortCode: 'SELLER-0005' };
     await create(cmd);

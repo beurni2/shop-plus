@@ -46,10 +46,15 @@ const BOUTIQUE = {
 
 type Service = 'coupe' | 'cinq-cents' | 'introuvable' | 'ok';
 
+/** How many times the browser asked the service for the shop — so a retry is
+ *  proven to RE-RUN the resolve, not merely to leave the same card standing. */
+let demandes = 0;
+
 /** Script the storefront read: unreachable, a 500, a 404, or the shop. */
 async function service(page: Page, mode: Service): Promise<void> {
   await page.unroute('**/api/s/**');
   await page.route('**/api/s/**', (route) => {
+    demandes += 1;
     if (mode === 'coupe') return route.abort('failed');
     if (mode === 'cinq-cents') return route.fulfill({ status: 500, contentType: 'text/plain', body: 'Worker threw exception' });
     if (mode === 'introuvable') return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"not_found"}' });
@@ -58,6 +63,7 @@ async function service(page: Page, mode: Service): Promise<void> {
 }
 
 async function ouvrir(page: Page, mode: Service): Promise<string[]> {
+  demandes = 0;
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e.message ?? e)));
   // the quote asks of the offer are not this walk's subject: they fail fast
@@ -75,9 +81,12 @@ test('F-02 — the service unreachable: the designed card, no pageerror; « Rée
   const reessayer = page.locator('[data-action="reessayer"]');
   await expect(reessayer).toBeVisible();
   expect(errors, 'the tree survived the failed resolve').toEqual([]);
+  expect(demandes, 'one resolve was asked on land').toBe(1);
 
-  // still no service: the retry lands on the same card, never a blank
+  // still no service: the retry RE-ASKS (a second resolve on the wire) and
+  // lands on the same card, never a blank
   await reessayer.click();
+  await expect.poll(() => demandes, { message: 'the retry re-ran the resolve' }).toBe(2);
   await expect(page.locator('[data-etat="horsligne"]')).toBeVisible();
   expect(errors).toEqual([]);
 
@@ -86,7 +95,8 @@ test('F-02 — the service unreachable: the designed card, no pageerror; « Rée
   await page.locator('[data-action="reessayer"]').click();
   await expect(page.locator('[data-screen="C1"]')).toBeVisible();
   await expect(page.locator('main.cl-root')).toContainText('Bazin riche brodé');
-  expect(page.locator('[data-etat="horsligne"]')).toHaveCount(0);
+  await expect(page.locator('[data-etat="horsligne"]')).toHaveCount(0);
+  expect(demandes).toBe(3);
   expect(errors).toEqual([]);
 });
 

@@ -253,11 +253,28 @@ export class StorefrontDO {
       if (!ptr) return Response.json({ error: 'not_found' }, { status: 404 });
       return Response.json(ptr);
     }
-    // STOREFRONT-DELETE-1 — pointer cleanup. Idempotent: clearing an already
-    // clear pointer is `ok` (the orphaned-pointer read is honest either way).
+    // STOREFRONT-DELETE-1 — pointer cleanup, BY ID (verifier, SLUG-UNIQUE-1):
+    // the pointer is released only while it still names the shop asking. A
+    // slug freed by an interrupted DELETE and since claimed by ANOTHER shop is
+    // that shop's, so a re-run of the first DELETE cannot leave the second
+    // alive and invisible. Idempotent: an already-clear pointer, or one that
+    // names someone else, answers `ok` with `released: false`.
     if (request.method === 'POST' && pathname === '/pointer/delete') {
+      let body: { storefrontId?: unknown };
+      try {
+        body = (await request.json()) as { storefrontId?: unknown };
+      } catch {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      if (typeof body.storefrontId !== 'string' || body.storefrontId === '') {
+        return Response.json({ error: 'malformed' }, { status: 400 });
+      }
+      const held = await this.state.storage.get<SlugPointer>(POINTER_KEY);
+      if (held === undefined || held.storefrontId !== body.storefrontId) {
+        return Response.json({ ok: true, released: false });
+      }
       await this.state.storage.delete(POINTER_KEY);
-      return Response.json({ ok: true });
+      return Response.json({ ok: true, released: true });
     }
 
     // ── directory-index-instance ops (idFromName('index')) — the admin list ───
@@ -355,7 +372,10 @@ export default {
         )
       ).json()) as { storefrontId: string; claimed: boolean };
       if (claim.storefrontId !== cmd.id) return Response.json({ error: 'slug_taken' }, { status: 409 });
-      const liberer = () => slugStub(env, slug).fetch(new Request('https://do/pointer/delete', { method: 'POST' }));
+      const liberer = () =>
+        slugStub(env, slug).fetch(
+          new Request('https://do/pointer/delete', { method: 'POST', body: JSON.stringify({ storefrontId: cmd.id }) }),
+        );
       let res: Response;
       try {
         res = await sfStub(env, cmd.id).fetch(
@@ -374,13 +394,15 @@ export default {
             body: JSON.stringify({ id: cmd.id, slug: decision.storefront.slug, name: decision.storefront.name }),
           }),
         );
-      } else if (claim.claimed && !(decision.status === 'idempotent' && decision.storefront.slug === slug)) {
-        // A FRESH claim that no create followed — a collision on her own id under
-        // a new short code, or a replay that names a slug other than the shop's —
-        // is released, or the slug would stay taken by a shop that does not
-        // exist. (A replay under the shop's OWN slug keeps the claim: it re-heals
-        // a pointer that had gone missing.)
-        await liberer();
+      } else if (claim.claimed) {
+        // A FRESH claim that no create followed is released — a collision on her
+        // own id under a NEW short code, or a replay naming a slug other than the
+        // shop's — or the slug would stay taken by a shop that does not exist.
+        // Under the shop's OWN slug the claim stays whichever answer the entry
+        // gave (verifier, SLUG-UNIQUE-1): it re-heals a pointer that had gone
+        // missing for a shop that exists.
+        const tenu = decision.status === 'collision' ? decision.existing.slug : decision.storefront.slug;
+        if (tenu !== slug) await liberer();
       }
       return forward(res);
     }
@@ -511,7 +533,9 @@ export default {
       const res = await sfStub(env, id).fetch(new Request('https://do/entry/delete', { method: 'POST' }));
       const decision = (await res.clone().json().catch(() => null)) as DeleteDecision | null;
       if (decision?.status === 'deleted') {
-        await slugStub(env, decision.slug).fetch(new Request('https://do/pointer/delete', { method: 'POST' }));
+        await slugStub(env, decision.slug).fetch(
+          new Request('https://do/pointer/delete', { method: 'POST', body: JSON.stringify({ storefrontId: id }) }),
+        );
         await indexStub(env).fetch(
           new Request('https://do/index/remove', { method: 'POST', body: JSON.stringify({ id }) }),
         );
@@ -519,7 +543,10 @@ export default {
         const rows = (await (await indexStub(env).fetch(new Request('https://do/index'))).json().catch(() => [])) as IndexRow[];
         const leftover = rows.find((r) => r.id === id);
         if (leftover !== undefined) {
-          await slugStub(env, leftover.slug).fetch(new Request('https://do/pointer/delete', { method: 'POST' }));
+          // BY ID: a slug another shop has claimed since stays that shop's.
+          await slugStub(env, leftover.slug).fetch(
+            new Request('https://do/pointer/delete', { method: 'POST', body: JSON.stringify({ storefrontId: id }) }),
+          );
           await indexStub(env).fetch(
             new Request('https://do/index/remove', { method: 'POST', body: JSON.stringify({ id }) }),
           );

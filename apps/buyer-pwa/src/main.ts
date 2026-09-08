@@ -690,9 +690,13 @@ if (app) {
     // page, no sentence, no way out, on the one link a reseller shares, on
     // the network the product is built for. Now the same designed card the
     // `/v/` road draws, and « Réessayer » re-runs THIS road: her offer, not
-    // the boutique. The road owns `#app`: every run starts it empty.
+    // the boutique. Every run clears what the road mounted before — never the
+    // « Ma commande » band, which the shell prepends beside it and which is her
+    // way back to a live order (verifier, LIEN-HORS-LIGNE-1).
     const monterOffre = async (): Promise<void> => {
-    app.replaceChildren();
+    for (const enfant of Array.from(app.children)) {
+      if (enfant.getAttribute('data-role') !== 'ma-commande') enfant.remove();
+    }
     let resolved: Awaited<ReturnType<typeof port.resolve>>;
     try {
       resolved = await port.resolve(signedSlug);
