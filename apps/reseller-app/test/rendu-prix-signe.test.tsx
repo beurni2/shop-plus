@@ -88,6 +88,31 @@ describe('PRIX-SIGNE-1 — the card and the share preview print the SIGNED price
     screen.unmount();
   });
 
+  it('the base ROSE past the signed price (12 500 live, 12 000 signed): the card still says the signed 12 000 — the figure the link charges, never today\'s arithmetic', async () => {
+    // Found under mutation: with the base unchanged, « signed » and « base +
+    // implied marge » are the same number, so only a moved base tells the two
+    // apart. The link charges what was SIGNED; the card must say that.
+    const fils = wire([
+      (path) =>
+        path === '/supply-projections'
+          ? { status: 200, json: { offers: [{ ...offer(), basePrice: 12_500 }], diagnostic: { status: 'ok', refusals: [] } } }
+          : null,
+      ...routes(12_000).slice(1),
+    ]);
+    const screen = await mountApp();
+    await screen.press('Ma Vitrine');
+    for (let i = 0; i < 8 && !screen.shows(formatFcfa(12_000)); i += 1) await screen.settle();
+    expect(fils.calls.some((c) => /^\/listings\/by-pid\//.test(c.path))).toBe(true);
+    const lu = screen.texts();
+    expect(lu.some((t) => t.includes(formatFcfa(12_000))), `the signed price; on screen: ${JSON.stringify(lu)}`).toBe(true);
+    // 12 500 is the BASE row only — it must not also stand as the cliente price.
+    expect(lu.filter((t) => t.includes(formatFcfa(12_500))).length).toBe(1);
+    await screen.press('Partager');
+    await screen.settle();
+    expect(screen.texts().join(' | ')).toContain(`Prix : ${formatFcfa(12_000)}`);
+    screen.unmount();
+  });
+
   it('CONTROL — no signed listing for the pid (404): the default arithmetic stands, nothing invented, no crash', async () => {
     const fils = wire(routes(null));
     const screen = await mountApp();
