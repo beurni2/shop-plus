@@ -604,6 +604,11 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
   }, 30_000);
 
   it('VITRINE-LECTURE-1 — past the ceiling the page describes MAX_PRODUITS_DECRITS products, in her order, and says so — instead of throwing past the platform budget and dropping the rest in silence', async () => {
+    // The stub's faults are reset HERE too, not only at the previous case's
+    // tail: a case that fails mid-way leaves them set, and this case would
+    // then fail for its neighbour's reason (seen under mutation).
+    collectionOmet.clear();
+    unitaireSuspendu.clear();
     for (let n = 4; n <= 22; n += 1) {
       const pub = await publierPid(SF_A, `lst-own-${n}`, A.bearer, A.accountId, `pv-own-${n}`, `ov-own-${n}`);
       expect(pub.status, pub.text).toBe(200);
