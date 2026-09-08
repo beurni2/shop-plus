@@ -1236,14 +1236,16 @@ export default function App() {
     if (!res.ok && res.reason === 'invalide') await finirSession('session.finie');
   };
   const deconnecter = async (): Promise<void> => {
-    // Best-effort on the wire: the row expires on its own if the book cannot
-    // be reached now, and the phone forgets either way — that is the act she
-    // asked for. Journalled.
-    if (compteService !== null) {
-      const bearer = await accessCodeStore.read();
-      if (bearer !== null && bearer.startsWith('SPS-')) await compteService.deconnecter(bearer);
-    }
+    // THE PHONE FORGETS FIRST, the wire is told after (verifier finding): the
+    // act she asked for is « this phone is out », and it lands at once. The
+    // book's row is revoked best-effort behind it — a dead network would have
+    // held her on an unchanged button for the client timeout, and the row
+    // expires on its own if the book cannot be reached now. Journalled.
+    const bearer = await accessCodeStore.read();
     await finirSession('session.deconnectee');
+    if (compteService !== null && bearer !== null && bearer.startsWith('SPS-')) {
+      void compteService.deconnecter(bearer);
+    }
   };
   const refusVu = useRef(false);
   useEffect(() => {

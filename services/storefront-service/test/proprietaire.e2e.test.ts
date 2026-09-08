@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Miniflare } from 'miniflare';
 import { afterAll, describe, expect, it } from 'vitest';
+import { MAX_PRODUITS_DECRITS } from '../src/index.js';
 
 /**
  * ═══ RESELLER-AUTH-1 (AUDIT-SHOP-1 slice a2a) — HER SESSION IS HER KEY, AND
@@ -65,6 +66,9 @@ let lecturesUnitaires = 0;
 const collectionOmet = new Set<string>();
 /** pids whose SINGLE read never answers */
 const unitaireSuspendu = new Set<string>();
+/** The collection road answers 500 — the producer's bad day, every pid left
+ *  to the single road (the worst path for the subrequest budget). */
+let collectionEnPanne = false;
 
 const mf = new Miniflare({
   modules: true,
@@ -99,6 +103,7 @@ const mf = new Miniflare({
       }
       if (path === '/supply-projections') {
         lecturesCollection += 1;
+        if (collectionEnPanne) return Response.json({ status: 'unavailable' }, { status: 500 });
         // the PRODUCER's collection shape — the canon envelope per item, as the
         // real offer-service serves it (combined-worker.e2e's fixture)
         const asOf = new Date().toISOString();
@@ -617,9 +622,23 @@ describe('RESELLER-AUTH-1 — a session creates, and creates only as herself', (
     const page = await appel(`/s/${slugA}`, {});
     expect(page.status, page.text).toBe(200);
     const produits = page.json['products'] as { pid: string }[];
-    expect(produits).toHaveLength(20);
-    expect(produits.map((p) => p.pid)).toEqual(Array.from({ length: 20 }, (_, i) => `pv-own-${i + 1}`));
+    expect(MAX_PRODUITS_DECRITS, 'the ceiling this case drives past').toBeLessThan(22);
+    expect(produits).toHaveLength(MAX_PRODUITS_DECRITS);
+    expect(produits.map((p) => p.pid)).toEqual(Array.from({ length: MAX_PRODUITS_DECRITS }, (_, i) => `pv-own-${i + 1}`));
     expect(page.json['incomplet']).toBe(true);
-    expect(lecturesCollection, 'still ONE collection read at twenty products').toBe(1);
+    expect(lecturesCollection, 'still ONE collection read at the ceiling').toBe(1);
+    // THE BUDGET, on the worst path: the collection FAILS, every described
+    // pid falls to the single road, and the page still answers — 4 + 3·15
+    // hops under the platform's 50, never the throw that killed the page.
+    collectionEnPanne = true;
+    lecturesCollection = 0;
+    lecturesUnitaires = 0;
+    const pire = await appel(`/s/${slugA}`, {});
+    expect(pire.status, pire.text).toBe(200);
+    expect(lecturesCollection).toBe(1);
+    expect(lecturesUnitaires, 'every described pid asked alone').toBe(MAX_PRODUITS_DECRITS);
+    expect((pire.json['products'] as { pid: string }[]).length).toBe(MAX_PRODUITS_DECRITS);
+    expect(pire.json['incomplet']).toBe(true);
+    collectionEnPanne = false;
   }, 60_000);
 });

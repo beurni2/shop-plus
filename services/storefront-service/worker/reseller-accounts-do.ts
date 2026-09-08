@@ -275,17 +275,29 @@ export class ResellerAccountsDO {
   }
 
   /** Every session of the account EXCEPT the one presented — how a password
-   *  change cuts off every other phone while the one in her hand stays in. */
+   *  change cuts off every other phone while the one in her hand stays in.
+   *  Two reads: the account's own index (every session minted or adopted
+   *  since this slice), AND the bare pre-slice rows (`session:{hash} →
+   *  accountId`, verifier finding): a row minted before the deploy has no
+   *  index entry until the phone holding it is next USED, and the phone that
+   *  was lost is exactly the one that is not — so the cut must walk the row
+   *  prefix for its bare rows. A scan only legacy rows keep alive: each is
+   *  either adopted (indexed) or swept at its next presentation. */
   private async effacerAutresSessions(accountId: string, sauf: string): Promise<number> {
     const index = await this.state.storage.list<string>({ prefix: `${SESSION_INDEX_PREFIX}${accountId}:` });
-    const cles: string[] = [];
+    const cles = new Set<string>();
     for (const cle of index.keys()) {
       const hash = cle.slice(`${SESSION_INDEX_PREFIX}${accountId}:`.length);
       if (hash === sauf) continue;
-      cles.push(`${SESSION_PREFIX}${hash}`, cle);
+      cles.add(`${SESSION_PREFIX}${hash}`);
+      cles.add(cle);
     }
-    if (cles.length > 0) await this.state.storage.delete(cles);
-    return cles.length / 2;
+    const lignes = await this.state.storage.list<SessionRow | string>({ prefix: SESSION_PREFIX });
+    for (const [cle, valeur] of lignes) {
+      if (typeof valeur === 'string' && valeur === accountId && cle !== `${SESSION_PREFIX}${sauf}`) cles.add(cle);
+    }
+    if (cles.size > 0) await this.state.storage.delete([...cles]);
+    return cles.size;
   }
 
   /** The audit trail IS the canon event payload, parsed before it is written —
@@ -396,6 +408,12 @@ export class ResellerAccountsDO {
       }
       // SESSION-VIE-1 — the refusal counter, keyed on the email's hash whether
       // or not that email has an account, read BEFORE any password work.
+      // COUNT FIRST, PROVE AFTER (verifier finding): the attempt is written as
+      // a failure right after the read — only storage awaits between the two,
+      // which the object's input gate serialises — and the row is DELETED on
+      // success. Written after the PBKDF2 (a non-storage await) two concurrent
+      // wrong tries both read nine and both wrote ten; the limit was « about
+      // ten ». Now it is ten.
       const emailHash = await sha256Hex(email);
       const cleEchecs = `${ECHECS_PREFIX}${emailHash}`;
       const nowMs = Date.now();
@@ -404,15 +422,20 @@ export class ResellerAccountsDO {
       if (dansLaFenetre && echecs.n >= LOGIN_FAIL_LIMIT) {
         return Response.json({ ok: false, reason: 'too_many_attempts' }, { status: 429 });
       }
+      await this.state.storage.put(cleEchecs, {
+        n: echecs !== undefined && dansLaFenetre ? echecs.n + 1 : 1,
+        depuis: echecs !== undefined && dansLaFenetre ? echecs.depuis : new Date(nowMs).toISOString(),
+      } satisfies LoginFailures);
+      // The counters of a flood on invented addresses would otherwise stand
+      // for ever (verifier finding): every login sweeps up to fifty expired
+      // ones, so the table holds about one window of attempts, never a year.
+      const anciens = await this.state.storage.list<LoginFailures>({ prefix: ECHECS_PREFIX, limit: 50 });
+      const expires = [...anciens].filter(([, v]) => nowMs - Date.parse(v.depuis) >= LOGIN_FAIL_WINDOW_MS).map(([k]) => k);
+      if (expires.length > 0) await this.state.storage.delete(expires);
       // ONE refusal for every wrong way in — an unknown email and a wrong
       // password are indistinguishable, so the door is not an email oracle;
       // both count the same against the same key.
-      const refuse = async () => {
-        const n = echecs !== undefined && dansLaFenetre ? echecs.n + 1 : 1;
-        const depuis = echecs !== undefined && dansLaFenetre ? echecs.depuis : new Date(nowMs).toISOString();
-        await this.state.storage.put(cleEchecs, { n, depuis } satisfies LoginFailures);
-        return Response.json({ ok: false, reason: 'bad_credentials' }, { status: 401 });
-      };
+      const refuse = () => Response.json({ ok: false, reason: 'bad_credentials' }, { status: 401 });
       const accountId = await this.state.storage.get<string>(`${EMAIL_PREFIX}${emailHash}`);
       if (accountId === undefined) return refuse();
       const record = await this.compte(accountId);
@@ -421,7 +444,7 @@ export class ResellerAccountsDO {
       if (!egaleConstante(derived, record.passwordHashHex)) return refuse();
       const { session, ecritures } = await this.minterSession(accountId);
       await this.state.storage.put(ecritures);
-      if (echecs !== undefined) await this.state.storage.delete(cleEchecs);
+      await this.state.storage.delete(cleEchecs);
       return Response.json({ ok: true, accountId, name: record.name, ...(record.categories !== undefined ? { categories: record.categories } : {}), state: record.state, session });
     }
 

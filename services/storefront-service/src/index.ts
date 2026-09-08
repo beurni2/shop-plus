@@ -273,7 +273,16 @@ async function handleStorefrontRead(slug: string, env?: StorefrontServiceEnv): P
  * room for the rare extras), reads their listings in parallel, and SAYS when
  * it could not tell the whole truth (`incomplet`, below).
  */
-export const MAX_PRODUITS_DECRITS = 20;
+/**
+ * THE ARITHMETIC (verifier finding, the platform's 50-subrequest budget): a
+ * boutique read costs 4 hops (pointer, entry, contact, the collection) + 2 per
+ * product on the listing side (the pid pointer, then the listing) + up to 1
+ * per product on the supply side when the collection did not carry it (an
+ * omitted pid, or a collection that failed and left every pid to the single
+ * road). 4 + 3·15 = 49 fits EVERY path; 20 fit only the happy one (64 on a
+ * collection outage — the very throw this slice exists to end).
+ */
+export const MAX_PRODUITS_DECRITS = 15;
 /** Listing hops in flight at once — the object hops are tiny; this keeps a large shop from opening forty at a time. */
 const LOT_LECTURE = 8;
 

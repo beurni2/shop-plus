@@ -211,22 +211,30 @@ describe('SESSION-VIE-1 — « Me déconnecter » on her page: the logout rides 
     screen.unmount();
   });
 
-  it('the row stands beside the network card too: a phone that cannot reach the book can still forget the session', async () => {
+  it('the row stands beside the network card too, and the phone forgets AT ONCE — the entrance lands before the book ever answers the logout', async () => {
     await seedAdmise();
     const livre = livreVivant();
     const fils = wire([
-      ...routes(livre).filter((r) => r('/reseller/profile', null) === null && r('/reseller/logout', null) === null),
-      (path) => (path === '/reseller/profile' || path === '/reseller/logout' ? { status: 503, json: { ok: false, reason: 'accounts_unavailable' } } : null),
+      ...routes(livre).filter((r) => r('/reseller/profile', null) === null),
+      (path) => (path === '/reseller/profile' ? { status: 503, json: { ok: false, reason: 'accounts_unavailable' } } : null),
     ]);
+    // The logout wire HANGS (a dead network, before the client's own timeout):
+    // the recorded fake answers every other path; this one never resolves.
+    const enregistre = (globalThis as { fetch: (u: string, i?: RequestInit) => Promise<Response> }).fetch;
+    (globalThis as { fetch: unknown }).fetch = (u: string, i?: RequestInit): Promise<Response> => {
+      const p = enregistre(u, i);
+      return new URL(u, 'http://shop.test').pathname === '/reseller/logout' ? new Promise<Response>(() => undefined) : p;
+    };
     const screen = await mountApp();
     await screen.press('Profil');
     await attendre(screen, 'Pas de réseau. Réessayez dès que ça revient.');
 
     expect(screen.canPress('Me déconnecter')).toBe(true);
     await screen.press('Me déconnecter');
-    await attendre(screen, DECONNECTEE);
-    expect(fils.calls.some((c) => c.path === '/reseller/logout')).toBe(true); // attempted
+    await attendre(screen, DECONNECTEE); // reached with the wire still hanging
+    expect(fils.calls.some((c) => c.path === '/reseller/logout' && c.auth === `Bearer ${SESSION}`), 'the book was told, riding her session').toBe(true);
     expect((await disque()).session).toBeNull(); // forgotten regardless
+    expect(screen.shows('Me connecter')).toBe(true);
     screen.unmount();
   });
 });
