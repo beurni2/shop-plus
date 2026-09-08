@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-08 · AUDIT-SHOP-2 TIER 1 — PUBLIC-DECODE-1 (F-03, F-26) · NOTE-VOCALE-APRES-GARDE-1 (F-04, F-06) · VITRINE-LECTURE-1 (F-05, F-29) · SESSION-VIE-1 (F-07, F-32) — four MAJORs closed · DONE, NOT MERGED (waiting for his word)
+## 2026-09-08 · AUDIT-SHOP-2 TIER 1 — PUBLIC-DECODE-1 (F-03, F-26) · NOTE-VOCALE-APRES-GARDE-1 (F-04, F-06) · VITRINE-LECTURE-1 (F-05, F-29) · SESSION-VIE-1 (F-07, F-32) — four MAJORs closed · DONE · MERGED + DEPLOYED 2026-09-08 (his word, below)
+
+**MERGED + DEPLOYED, both tiers — founder, 2026-09-08: « go for tier 1 and tier 0 ».** Tier 0's commits are ancestors of Tier 1's head, so ONE fast-forward carried both: `main` `f5d4cc0` → `9461159` (a fast-forward, verified before the push). On that commit: `storefront-deploy` #86 success (a dispatch that landed seconds after the push — the founder's own, ahead of mine; #87, mine, redeployed the same commit, success), its live assertions green — provenance `SHOP_RELEASE=9461159` on canon 3.13.1, all three custody wires read armed on the live Worker, the checkout smoke answering by name; `pwa-preview` #420 success (Tier 0's offline card on the shared link); `expo-preview` #453 success (the session state and « Me déconnecter » republished); `service-canon-drift` #303 success; `ci` #630 success (21:54 → 22:07 UTC). **I could not probe the live Worker by hand:** this sandbox's network policy refuses the tunnel to `workers.dev` (proxy `connect_rejected` 403), so the deploy workflow's own live assertions are the evidence. Nothing else moved. **Open, his (unchanged): the edge rate-limit rules; the PBKDF2 raise after the plan's cap is checked; one look at the « session finie » sentence on a phone. Next on his word: Tier 2 (the reseller app).**
 
 **Same founder go as Tier 0 (« proceed with your recommended order for the fixes »); same law: build, prove, push the branch, ask.** Commits on the branch, in order: `d1d7e3f` PUBLIC-DECODE-1 · `865241d` NOTE-VOCALE-APRES-GARDE-1 (+ the root body caps) · `1782775` the webhook roads' cap tier · `15600ef` VITRINE-LECTURE-1 · `6776e1f` a seam-case hygiene fix · `bb2b1a2` SESSION-VIE-1. **No main merge, no deploy.** The Worker changed in all four slices and the reseller app in the last one: his go means merge + `storefront-deploy` for the Worker, and an EAS republish (`expo-preview.yml`) for the app — the buyer PWA is untouched by this tier.
 
@@ -21,7 +23,7 @@ Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
 ---
 
-## 2026-09-08 · AUDIT-SHOP-2 TIER 0 — SLUG-UNIQUE-1 (F-01) · LIEN-HORS-LIGNE-1 (F-02, F-52) — the two blockers closed · DONE, NOT MERGED (waiting for his word)
+## 2026-09-08 · AUDIT-SHOP-2 TIER 0 — SLUG-UNIQUE-1 (F-01) · LIEN-HORS-LIGNE-1 (F-02, F-52) — the two blockers closed · DONE · MERGED + DEPLOYED 2026-09-08 (with Tier 1 — see that entry)
 
 **Founder, 2026-09-08: « proceed with your recommended order for the fixes ».** Read as the go to BUILD the ledger's slices in order (`_review/AUDIT-SHOP-2.md` §9), each under the standing laws, reporting per tier and waiting for his word before any merge or deploy — the ASK-BEFORE-MERGING order stands. Commits on the branch: `992c9d0` (SLUG-UNIQUE-1) · `aaa0113` (LIEN-HORS-LIGNE-1) · the verifier's findings handled once in the commit after this entry's. **No main merge, no deploy.** The Worker changed (the slug law) and the buyer PWA changed (the signed road): his go means merge + `storefront-deploy` for the Worker and the pwa-preview push deploy for the PWA.
 
