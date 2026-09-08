@@ -3676,5 +3676,17 @@
   "fr": "Trop d'essais. Attendez un quart d'heure, puis réessayez.",
   "register": "neutral",
   "screenClass": "status"
+ },
+ {
+  "key": "vitrine.toggle_echec",
+  "fr": "Votre boutique n'a pas changé. Réessayez dans un moment.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vitrine.toggle_incertain",
+  "fr": "C'est envoyé, mais votre boutique n'a pas répondu. Rouvrez Ma vitrine pour voir.",
+  "register": "neutral",
+  "screenClass": "status"
  }
 ]

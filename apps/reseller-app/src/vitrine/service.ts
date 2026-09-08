@@ -30,6 +30,7 @@
 // already mirror from canon (§3.1). TYPE-ONLY, so nothing new enters the RN
 // bundle: one shape for the seam and the screens, never two that drift.
 import type { Storefront } from './customize/storefront';
+import { DELAI_ENVOI_MS, DELAI_LECTURE_MS, fetchBorne } from './fetch-borne';
 
 /** The service's `CreateStorefrontCommand` (storefront-core.ts), mirrored. `shortCode`
  * is validated to `[A-Z]{2,12}-[0-9]{4}` server-side; the canon slug DERIVES from it. */
@@ -199,8 +200,10 @@ export interface StorefrontServicePort {
   /** PERSONNALISER-REAL-1 — persist the presentation. The named refusal reasons
    *  (`name_too_short`, `featured_over_cap`, …) survive to her screen. */
   saveIdentity(id: string, patch: StorefrontIdentityPatch, at: string): Promise<ServiceResult<{ status: string }>>;
-  publish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string }>>;
-  unpublish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string }>>;
+  /** VITRINE-VISIBLE-1 — the toggle's write. The decision may carry the shop
+   *  as the Worker now holds it, so the screen can adopt the read-back. */
+  publish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string; storefront?: Storefront }>>;
+  unpublish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string; storefront?: Storefront }>>;
   uploadCover(storefrontId: string, bytes: Uint8Array, contentType: string): Promise<ServiceResult<UploadOutcome>>;
   uploadAvatar(storefrontId: string, bytes: Uint8Array, contentType: string): Promise<ServiceResult<UploadOutcome>>;
   /**
@@ -321,11 +324,11 @@ export class HttpStorefrontService implements StorefrontServicePort {
   private async postJson(path: string, body: unknown): Promise<ServiceResult<{ status: string; slug: string | null; storefront?: Storefront }>> {
     let res: Response;
     try {
-      res = await fetch(`${this.base}${path}`, {
+      res = await fetchBorne(`${this.base}${path}`, {
         method: 'POST',
         headers: await this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body),
-      });
+      }, DELAI_LECTURE_MS);
     } catch {
       return { ok: false, reason: 'offline' };
     }
@@ -362,7 +365,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
   async getById(id: string): Promise<ServiceResult<Storefront | undefined>> {
     let res: Response;
     try {
-      res = await fetch(`${this.base}/storefronts/${encodeURIComponent(id)}`, { headers: await this.headers() });
+      res = await fetchBorne(`${this.base}/storefronts/${encodeURIComponent(id)}`, { headers: await this.headers() }, DELAI_LECTURE_MS);
     } catch {
       return { ok: false, reason: 'offline' };
     }
@@ -383,11 +386,11 @@ export class HttpStorefrontService implements StorefrontServicePort {
   async saveIdentity(id: string, patch: StorefrontIdentityPatch, at: string): Promise<ServiceResult<{ status: string }>> {
     let res: Response;
     try {
-      res = await fetch(`${this.base}/storefronts/${encodeURIComponent(id)}/identity`, {
+      res = await fetchBorne(`${this.base}/storefronts/${encodeURIComponent(id)}/identity`, {
         method: 'POST',
         headers: await this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ patch, at }),
-      });
+      }, DELAI_LECTURE_MS);
     } catch {
       return { ok: false, reason: 'offline' };
     }
@@ -397,11 +400,11 @@ export class HttpStorefrontService implements StorefrontServicePort {
     return { ok: true, value: { status: data?.status ?? 'saved' } };
   }
 
-  publish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string }>> {
+  publish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
     return this.postJson(`/storefronts/${encodeURIComponent(id)}/publish`, { id, correlationId, at });
   }
 
-  unpublish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string }>> {
+  unpublish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
     return this.postJson(`/storefronts/${encodeURIComponent(id)}/unpublish`, { id, correlationId, at });
   }
 
@@ -419,13 +422,13 @@ export class HttpStorefrontService implements StorefrontServicePort {
       (extra ? `&pid=${encodeURIComponent(extra.pid)}&durationMs=${String(Math.max(0, Math.floor(extra.durationMs)))}` : '');
     let res: Response;
     try {
-      res = await fetch(`${this.base}/media/upload${q}`, {
+      res = await fetchBorne(`${this.base}/media/upload${q}`, {
         method: 'POST',
         headers: await this.headers({ 'Content-Type': contentType }),
         // RN fetch accepts a typed array as the raw body at runtime; the cast bridges
         // the RN `BodyInit_` typing at this one network boundary.
         body: bytes as unknown as BodyInit_,
-      });
+      }, DELAI_ENVOI_MS);
     } catch {
       return { ok: false, reason: 'offline' };
     }
@@ -464,11 +467,11 @@ export class HttpStorefrontService implements StorefrontServicePort {
   ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
     let res: Response;
     try {
-      res = await fetch(`${this.base}/storefronts/${encodeURIComponent(storefrontId)}/voice/remove`, {
+      res = await fetchBorne(`${this.base}/storefronts/${encodeURIComponent(storefrontId)}/voice/remove`, {
         method: 'POST',
         headers: await this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ pid, at }),
-      });
+      }, DELAI_LECTURE_MS);
     } catch {
       return { ok: false, reason: 'offline' };
     }
@@ -500,7 +503,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
     const listingId = listingIdFor(req.storefrontId, req.productVersionId);
     let res: Response;
     try {
-      res = await fetch(`${this.base}/listings`, {
+      res = await fetchBorne(`${this.base}/listings`, {
         method: 'POST',
         headers: await this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
@@ -513,7 +516,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
           correlationId: req.correlationId,
           at: req.at,
         }),
-      });
+      }, DELAI_LECTURE_MS);
     } catch {
       return { ok: false, reason: 'offline' };
     }
@@ -543,11 +546,11 @@ export class HttpStorefrontService implements StorefrontServicePort {
   ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
     let res: Response;
     try {
-      res = await fetch(`${this.base}/storefronts/${encodeURIComponent(storefrontId)}/items/remove`, {
+      res = await fetchBorne(`${this.base}/storefronts/${encodeURIComponent(storefrontId)}/items/remove`, {
         method: 'POST',
         headers: await this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ pid, at }),
-      });
+      }, DELAI_LECTURE_MS);
     } catch {
       return { ok: false, reason: 'offline' };
     }
@@ -576,7 +579,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
   async list(): Promise<ServiceResult<readonly StorefrontRow[]>> {
     let res: Response;
     try {
-      res = await fetch(`${this.base}/storefronts`, { method: 'GET', headers: await this.headers() });
+      res = await fetchBorne(`${this.base}/storefronts`, { method: 'GET', headers: await this.headers() }, DELAI_LECTURE_MS);
     } catch {
       return { ok: false, reason: 'offline' };
     }

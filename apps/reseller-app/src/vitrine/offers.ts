@@ -29,6 +29,8 @@
  * sweep, server-side.
  */
 
+import { DELAI_LECTURE_MS, fetchBorne } from './fetch-borne';
+
 /** One offer as the browse card needs it. Mirrors the service's `SupplyOffer`. */
 export interface Offer {
   readonly productVersionId: string;
@@ -88,13 +90,13 @@ export class HttpOfferSource implements OfferSourcePort {
     let res: Response;
     const bearer = await this.lireBearer().catch(() => null);
     try {
-      res = await fetch(`${this.base}${OFFERS_ROUTE}`, {
+      res = await fetchBorne(`${this.base}${OFFERS_ROUTE}`, {
         method: 'GET',
         headers: {
           Accept: 'application/json',
           ...(bearer !== null && bearer.startsWith('SPS-') ? { Authorization: `Bearer ${bearer}` } : {}),
         },
-      });
+      }, DELAI_LECTURE_MS);
     } catch {
       return { status: 'unavailable' }; // offline or unreachable — never invented products
     }

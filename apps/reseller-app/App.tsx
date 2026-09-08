@@ -383,17 +383,19 @@ export default function App() {
   // D5 — Partager opened from a Cercle surface carries the campaign badge.
   const [shareCampBadge, setShareCampBadge] = useState(false);
   const campShare = shareCampBadge && partagerBadge(cercle.camp) ? cercle.camp : null;
+  // VITRINE-VISIBLE-1 (AUDIT-SHOP-2 F-13) — the fold no longer carries
+  // `discoverable`: that fact is the SERVICE's (`liveStorefront.discoverable`)
+  // and the toggle reads and writes it there. The session-local fold kept a
+  // private flag that toasted « Publique » while writing nothing.
   const vitrineCol = useMemo(() => {
     const emit = (e: VitrineEvent) => setVitrineLog((l) => [...l, e]);
     const at = () => new Date().toISOString();
-    const { live, discoverable } = foldVitrine(vitrineLog);
+    const { live } = foldVitrine(vitrineLog);
     return {
       addToVitrine: (listingId: string) => emit({ type: 'listing.published', listingId, at: at() }),
       removeFromVitrine: (listingId: string) => emit({ type: 'listing.auto_hidden', listingId, at: at() }),
-      setDiscoverable: (d: boolean) => emit({ type: 'storefront.published', discoverable: d, at: at() }),
       listings: (): readonly string[] => live,
       has: (listingId: string) => live.includes(listingId),
-      isDiscoverable: () => discoverable,
     };
   }, [vitrineLog]);
 
@@ -493,6 +495,8 @@ export default function App() {
    * demo slug opened a stranger's demo shop, which is exactly what the founder saw.
    */
   const [liveShop, setLiveShop] = useState<{ slug: string } | null | undefined>(undefined);
+  /** F-18 — TRUE after a directory read failed and no answer has landed since. */
+  const liveShopEnFaute = useRef(false);
   useEffect(() => {
     if (service === null || identity === null || identity === undefined) return;
     // BADGE-FIABLE (founder, 2026-08-17) — `undefined` is « never answered »:
@@ -502,16 +506,26 @@ export default function App() {
     // until an answer exists; an ANSWER (row or null) is stable — publish and
     // the create-response adoption move it from there.
     if (liveShop !== undefined) return;
+    // PORTS-DELAI-1 (AUDIT-SHOP-2 F-18) — a read that FAILED is answered-with-
+    // fault, not « never asked »: it is re-asked only on entering a screen that
+    // shows the badge (accueil, Ma Vitrine, Personnaliser), never on every tab.
+    // Measured: five tabs on a dead wire cost five directory reads.
+    if (liveShopEnFaute.current && !(screen === 'accueil' || surVitrine || surPersonnaliser)) return;
     let live = true;
     void service.list().then((res) => {
-      if (!live || !res.ok) return;
+      if (!live) return;
+      if (!res.ok) {
+        liveShopEnFaute.current = true;
+        return;
+      }
+      liveShopEnFaute.current = false;
       const mine = res.value.find((r) => r.id === identity.storefrontId);
       setLiveShop(mine !== undefined ? { slug: mine.slug } : null);
     });
     return () => {
       live = false;
     };
-  }, [service, identity, liveShop, screen]);
+  }, [service, identity, liveShop, screen, surVitrine, surPersonnaliser]);
 
   /**
    * PERSONNALISER-REAL-1 — HER STOREFRONT AS THE SERVICE HOLDS IT.
@@ -960,15 +974,22 @@ export default function App() {
       const markup = viewOfOffer(o).markup;
       setPublishing(true);
       setToast(t('k.publier.envoi'));
-      const res = await service.publishListing({
-        storefrontId: identity.storefrontId,
-        resellerId: identity.resellerId,
-        productVersionId: o.productVersionId,
-        markup,
-        correlationId: identity.correlationId,
-        at: new Date().toISOString(),
-      });
-      setPublishing(false);
+      // PORTS-DELAI-1 — the CTA's flag is released in `finally`: a call that
+      // throws or times out must never leave « Envoi en cours… » on the primary
+      // action for the rest of the session (measured on the mounted App).
+      let res: Awaited<ReturnType<typeof service.publishListing>>;
+      try {
+        res = await service.publishListing({
+          storefrontId: identity.storefrontId,
+          resellerId: identity.resellerId,
+          productVersionId: o.productVersionId,
+          markup,
+          correlationId: identity.correlationId,
+          at: new Date().toISOString(),
+        });
+      } finally {
+        setPublishing(false);
+      }
       if (!res.ok) {
         // The service's NAMED refusal decides what she is told. « Supply unavailable »
         // is a retry, not a defect, and saying so is the difference between a calm
@@ -1063,36 +1084,73 @@ export default function App() {
     async (pid: string): Promise<void> => {
       if (service === null || identity === null || identity === undefined) return;
       setRetiring(pid);
-      const res = await service.removeItem(identity.storefrontId, pid, new Date().toISOString());
-      if (!res.ok) {
+      // PORTS-DELAI-1 — the flag that disables every « Retirer » is released in
+      // `finally`, whatever the wire did: the port now ends every call, and a
+      // thrown or timed-out call must never leave the cards disabled for the
+      // session.
+      try {
+        const res = await service.removeItem(identity.storefrontId, pid, new Date().toISOString());
+        if (!res.ok) return setToast(t('vitrine.retirer_echec'));
+        vitrineCol.removeFromVitrine(pid);
+        /**
+         * THE SHOP COMES OFF THE WRITE, not a second read (verifier BLOCKER). The
+         * first cut re-read with `getById` and swallowed its failure, so a POST
+         * that landed followed by a GET that did not left the removed product on
+         * screen under « Retiré de votre boutique. » — the founder's own symptom
+         * with a success message painted over it. The decision body already
+         * carries the post-removal shop; a fallback read runs only if an older
+         * Worker sent none, and its failure is now SAID rather than swallowed.
+         */
+        if (res.value.storefront !== undefined) {
+          adopterStorefront(res.value.storefront);
+        } else {
+          const fresh = await service.getById(identity.storefrontId);
+          if (fresh.ok && fresh.value !== undefined) adopterStorefront(fresh.value);
+          else return setToast(t('vitrine.retirer_incertain'));
+        }
+        setToast(t('vitrine.retirer_fait'));
+      } finally {
         setRetiring(null);
-        return setToast(t('vitrine.retirer_echec'));
       }
-      vitrineCol.removeFromVitrine(pid);
-      /**
-       * THE SHOP COMES OFF THE WRITE, not a second read (verifier BLOCKER). The
-       * first cut re-read with `getById` and swallowed its failure, so a POST
-       * that landed followed by a GET that did not left the removed product on
-       * screen under « Retiré de votre boutique. » — the founder's own symptom
-       * with a success message painted over it. The decision body already
-       * carries the post-removal shop; a fallback read runs only if an older
-       * Worker sent none, and its failure is now SAID rather than swallowed.
-       */
+    },
+    [service, identity, vitrineCol],
+  );
+  /**
+   * VITRINE-VISIBLE-1 (AUDIT-SHOP-2 F-13) — Privée ⇄ Publique, FOR REAL.
+   *
+   * The toggle used to flip a session-local flag and toast « Votre boutique
+   * apparaît dans Découvrir » with ZERO writes — the fabricated-success shape
+   * this project refuses everywhere else, measured on the mounted App. Now it
+   * is the service's own act: `publish` / `unpublish` on her shop, the shop
+   * adopted from the read-back (the decision carries it; an older Worker's
+   * answer without it falls back to one read whose failure is SAID), and the
+   * toast only on a confirmed write. The label reads the service's flag, so a
+   * shop the wire says `discoverable: true` can no longer show « Privée ».
+   */
+  const [basculeEnCours, setBasculeEnCours] = useState(false);
+  const basculerVisibilite = useCallback(async (): Promise<void> => {
+    if (service === null || identity === null || identity === undefined) return;
+    if (liveStorefront === null || liveStorefront === undefined) return;
+    const versPublique = !liveStorefront.discoverable;
+    setBasculeEnCours(true);
+    try {
+      const at = new Date().toISOString();
+      const res = versPublique
+        ? await service.publish(identity.storefrontId, identity.correlationId, at)
+        : await service.unpublish(identity.storefrontId, identity.correlationId, at);
+      if (!res.ok) return setToast(t('vitrine.toggle_echec'));
       if (res.value.storefront !== undefined) {
         adopterStorefront(res.value.storefront);
       } else {
         const fresh = await service.getById(identity.storefrontId);
         if (fresh.ok && fresh.value !== undefined) adopterStorefront(fresh.value);
-        else {
-          setRetiring(null);
-          return setToast(t('vitrine.retirer_incertain'));
-        }
+        else return setToast(t('vitrine.toggle_incertain'));
       }
-      setRetiring(null);
-      setToast(t('vitrine.retirer_fait'));
-    },
-    [service, identity, vitrineCol],
-  );
+      setToast(versPublique ? t('vitrine.toast_publique') : t('vitrine.toast_privee'));
+    } finally {
+      setBasculeEnCours(false);
+    }
+  }, [service, identity, liveStorefront, adopterStorefront]);
   const ficheOffer = offers.find((o) => o.productVersionId === ficheId);
   /**
    * PARTAGER-PRO (founder, 2026-08-15: « more professional, very simple and
@@ -1192,7 +1250,18 @@ export default function App() {
    * write, her sales would ride the device-random id and her feed would be
    * forever empty: the exact split-brain this slice exists to end.
    */
+  /**
+   * ADMISSION-ORDRE-1 (AUDIT-SHOP-2 F-14) — every act that SETS the compte
+   * advances this counter; a refresh that started before the act carries an
+   * older value and is dropped. Measured on the mounted App: the launch
+   * refresh held on a slow link answered `pending_access` AFTER she had typed
+   * her code and been admitted, the stale answer overwrote disk and state,
+   * and the admission screen came back with no way out but killing the app.
+   * The `seq` idiom of `use-ventes-reelles`.
+   */
+  const compteSeq = useRef(0);
   const adopterCompte = async (nouveau: CompteLocal, session?: string): Promise<void> => {
+    compteSeq.current += 1;
     if (session !== undefined) await accessCodeStore.write(session);
     await compteStore.write(nouveau);
     setCompte(nouveau);
@@ -1220,6 +1289,7 @@ export default function App() {
    * /reseller/profile); a dead network never does (Ten Laws #7).
    */
   const finirSession = async (raisonKey: 'session.finie' | 'session.deconnectee'): Promise<void> => {
+    compteSeq.current += 1;
     await accessCodeStore.write('');
     await compteStore.clear();
     setEntreeMode('connexion');
@@ -1336,7 +1406,11 @@ export default function App() {
       if (connu !== null && compteService !== null) {
         const bearer = await accessCodeStore.read();
         if (bearer !== null && bearer.startsWith('SPS-')) {
+          const seq = compteSeq.current;
           const res = await compteService.session(bearer);
+          // ADMISSION-ORDRE-1 — an act landed while this read was in flight
+          // (admission, login, logout): the act is newer than the answer.
+          if (seq !== compteSeq.current) return;
           if (res.ok) {
             await compteStore.write(res.compte);
             setCompte(res.compte);
@@ -2224,19 +2298,25 @@ export default function App() {
                         </View>
                       ) : null}
                     </View>
-                    <Pressable
-                      style={({ pressed }) => [styles.vitrineToggle, pressed && styles.pressed]}
-                      onPress={() => {
-                        const nv = !vitrineCol.isDiscoverable();
-                        vitrineCol.setDiscoverable(nv);
-                        setToast(nv ? t('vitrine.toast_publique') : t('vitrine.toast_privee'));
-                      }}
-                      accessibilityRole="switch"
-                      accessibilityState={{ checked: vitrineCol.isDiscoverable() }}
-                    >
-                      <View style={[styles.toggleDot, vitrineCol.isDiscoverable() ? styles.toggleDotPublic : styles.toggleDotPrivate]} />
-                      <Text style={styles.toggleLabel}>{vitrineCol.isDiscoverable() ? t('vitrine.toggle_publique') : t('vitrine.toggle_privee')}</Text>
-                    </Pressable>
+                    {/* VITRINE-VISIBLE-1 — the toggle is the SERVICE's flag: it
+                        renders only over a shop the service answered, reads
+                        `discoverable` from it, and its press is a real
+                        publish/unpublish adopted from the read-back. Disabled
+                        while the wire answers, so a second tap cannot fire a
+                        second write. */}
+                    {liveStorefront !== null && liveStorefront !== undefined ? (
+                      <Pressable
+                        style={({ pressed }) => [styles.vitrineToggle, pressed && styles.pressed]}
+                        onPress={() => void basculerVisibilite()}
+                        disabled={basculeEnCours}
+                        accessibilityRole="switch"
+                        accessibilityState={{ checked: liveStorefront.discoverable, disabled: basculeEnCours }}
+                        accessibilityLabel={t(liveStorefront.discoverable ? 'vitrine.toggle_publique' : 'vitrine.toggle_privee')}
+                      >
+                        <View style={[styles.toggleDot, liveStorefront.discoverable ? styles.toggleDotPublic : styles.toggleDotPrivate]} />
+                        <Text style={styles.toggleLabel}>{t(liveStorefront.discoverable ? 'vitrine.toggle_publique' : 'vitrine.toggle_privee')}</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                   {/* PERSONNALISER-LISIBLE (founder orders 2026-08-03: « make the
                       personnaliser button more understandable and professional
