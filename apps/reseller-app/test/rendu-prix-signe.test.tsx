@@ -113,6 +113,47 @@ describe('PRIX-SIGNE-1 — the card and the share preview print the SIGNED price
     screen.unmount();
   });
 
+  it('« Retirer » clears the signed price with the listing: the re-add fiche quotes from the LIVE base, never from a dead listing (verifier finding)', async () => {
+    // Signed 12 000 while the base was 10 000; the base is 12 500 now. After the
+    // removal the listing no longer exists, so a re-add would sign 12 500 + M —
+    // the fiche must not promise 12 000.
+    const state = { curated: [PV] as string[] };
+    const fils = wire([
+      (path) =>
+        path === '/supply-projections'
+          ? { status: 200, json: { offers: [{ ...offer(), basePrice: 12_500 }], diagnostic: { status: 'ok', refusals: [] } } }
+          : null,
+      (path, body) => {
+        if (!/^\/storefronts\/[^/]+\/items\/remove$/.test(path)) return null;
+        state.curated = state.curated.filter((p) => p !== body?.['pid']);
+        return { status: 200, json: { status: 'removed', storefront: { ...storefront(), curatedItems: state.curated, updatedAt: '2026-08-15T08:00:01.000Z' } as never } };
+      },
+      (path) => (path === '/storefronts' ? { status: 200, json: [{ id: SF_ID, slug: SLUG, name: 'Boutique test' }] as never } : null),
+      (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 200, json: { ...storefront(), curatedItems: state.curated } as never } : null),
+      (path) => {
+        if (!/^\/listings\/by-pid\/[^/]+\/[^/]+$/.test(path)) return null;
+        if (!state.curated.includes(PV)) return { status: 404, json: { error: 'not_found' } };
+        return { status: 200, json: { listingId: `lst-${SF_ID}-${PV}`, productVersionId: PV, customerPriceFcfa: 12_000, status: 'published' } };
+      },
+    ]);
+    const screen = await mountApp();
+    await screen.press('Ma Vitrine');
+    for (let i = 0; i < 8 && !screen.shows(formatFcfa(12_000)); i += 1) await screen.settle();
+    expect(screen.shows(formatFcfa(12_000)), 'the card shows the signed price before the removal').toBe(true);
+
+    await screen.press('Retirer de ma vitrine');
+    for (let i = 0; i < 6 && !screen.shows('Retiré de votre boutique.'); i += 1) await screen.settle();
+    expect(fils.calls.some((c) => /\/items\/remove$/.test(c.path))).toBe(true);
+
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+    await screen.settle();
+    const fiche = screen.texts();
+    expect(fiche.some((t) => t.includes(formatFcfa(12_500))), `the live base; on screen: ${JSON.stringify(fiche)}`).toBe(true);
+    expect(fiche.some((t) => t.includes(formatFcfa(12_000))), 'the dead listing\'s price must not be quoted').toBe(false);
+    screen.unmount();
+  });
+
   it('CONTROL — no signed listing for the pid (404): the default arithmetic stands, nothing invented, no crash', async () => {
     const fils = wire(routes(null));
     const screen = await mountApp();

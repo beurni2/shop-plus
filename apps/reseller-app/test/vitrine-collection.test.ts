@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DemoVitrineCollection,
+  foldVitrine,
   capShareSelection,
   VITRINE_SHARE_CAP,
   type VitrineCollectionPort,
@@ -59,18 +60,13 @@ describe('WO-VITRINE-FLOW — vitrine-collection seam', () => {
     expect(v.shareSlug()).toMatch(/^\/v\//); // the canon identity path, not shop-plus.demo/…
   });
 
-  it('discoverable rule mirrors resolvePublishedStore: privée = accessible par lien but NOT in the directory; publique = both', () => {
-    const v = fresh();
-    // default privée — the link works (accessible par lien), directory does not
-    expect(v.isDiscoverable()).toBe(false);
-    expect(v.shareSlug()).toBe(REAL_SLUG); // link always valid
-    expect(v.resolvesInDirectory()).toBe(false); // resolvePublishedStore → undefined when unpublished
-    // publish → publique: now in the directory too
-    v.setDiscoverable(true);
-    expect(v.isDiscoverable()).toBe(true);
-    expect(v.resolvesInDirectory()).toBe(true);
-    // toggle back to privée — latest storefront.published wins
-    v.setDiscoverable(false);
-    expect(v.resolvesInDirectory()).toBe(false);
+  it('VITRINE-VISIBLE-1 — the seam carries MEMBERSHIP only: discoverability is the service\'s fact, and no session-local flag can claim it', () => {
+    const v = fresh() as unknown as Record<string, unknown>;
+    // The retired half must stay retired: a fold that answered « publique » from
+    // a local flag is how the toggle toasted a success over zero writes.
+    expect('isDiscoverable' in v).toBe(false);
+    expect('setDiscoverable' in v).toBe(false);
+    expect('resolvesInDirectory' in v).toBe(false);
+    expect(Object.keys(foldVitrine([]))).toEqual(['live']);
   });
 });

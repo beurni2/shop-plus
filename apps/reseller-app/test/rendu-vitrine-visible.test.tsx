@@ -125,6 +125,52 @@ describe('VITRINE-VISIBLE-1 — the label is the service\'s flag, and a press is
     screen.unmount();
   });
 
+  it('the write answers 401 unauthorized (a dead session): the toggle says the session is over and asks no retry — the session road, not « réessayez » (verifier finding)', async () => {
+    const svc = service(true);
+    const fils = wire([
+      (path) => (/^\/storefronts\/[^/]+\/(publish|unpublish)$/.test(path) ? { status: 401, json: { error: 'unauthorized' } } : null),
+      ...svc.routes,
+    ]);
+    const screen = await mountApp();
+    await screen.press('Ma Vitrine');
+    await screen.press('Publique');
+    for (let i = 0; i < 6 && !screen.shows('Votre session est finie. Connectez-vous à nouveau pour continuer.'); i += 1) await screen.settle();
+    expect(fils.calls.some((c) => /\/unpublish$/.test(c.path))).toBe(true);
+    expect(screen.shows('Votre session est finie. Connectez-vous à nouveau pour continuer.'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.shows("Votre boutique n'a pas changé. Réessayez dans un moment."), 'a dead session earns no retry promise').toBe(false);
+    screen.unmount();
+  });
+
+  it('the shop read FAILED while her session-local grid has a product: the toggle\'s place carries a sentence, never a vanished control (verifier finding)', async () => {
+    const fils = wire([
+      (path) =>
+        path === '/supply-projections'
+          ? {
+              status: 200,
+              json: {
+                offers: [{ productVersionId: PV, offerVersion: 'ov-1', basePrice: 10_000, resellerCommission: 1_000, available: 5, productName: 'Bazin riche', assetRefs: [], category: 'mode' }],
+                diagnostic: { status: 'ok', refusals: [] },
+              },
+            }
+          : null,
+      (path) => (path === '/listings' ? { status: 200, json: { status: 'published' } } : null),
+      (path) => (path === '/storefronts' ? { status: 200, json: [] as never } : null),
+      (path) => (/^\/storefronts\/[^/]+$/.test(path) ? { status: 500, json: {} } : null),
+    ]);
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+    await screen.press('Ajouter à ma vitrine');
+    await screen.settle();
+    expect(fils.calls.some((c) => c.path === '/listings' && c.method === 'POST')).toBe(true);
+    await screen.press('Ma Vitrine');
+    for (let i = 0; i < 6 && !screen.shows('Votre boutique n’a pas répondu. Rouvrez Ma vitrine pour voir si elle est publique.'); i += 1) await screen.settle();
+    expect(screen.shows('Bazin riche'), 'her product is on the grid from the session log').toBe(true);
+    expect(screen.shows('Votre boutique n’a pas répondu. Rouvrez Ma vitrine pour voir si elle est publique.'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.shows('Publique') || screen.shows('Privée'), 'no label the service did not answer').toBe(false);
+    screen.unmount();
+  });
+
   it('a shop the service says PRIVÉE opens on « Privée » — the label is read, not defaulted', async () => {
     const svc = service(false);
     wire(svc.routes);

@@ -3700,5 +3700,11 @@
   "fr": "Ce nom donne une adresse déjà prise. Changez le nom de votre boutique, puis réessayez.",
   "register": "neutral",
   "screenClass": "instruction"
+ },
+ {
+  "key": "vitrine.toggle_sans_reponse",
+  "fr": "Votre boutique n’a pas répondu. Rouvrez Ma vitrine pour voir si elle est publique.",
+  "register": "neutral",
+  "screenClass": "status"
  }
 ]

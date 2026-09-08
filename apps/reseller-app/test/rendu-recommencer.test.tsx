@@ -158,6 +158,27 @@ describe('RECOMMENCER — the address follows the name, in one confirmed tap', (
     screen.unmount();
   });
 
+  it('RAISON-NOMMEE-1 (verifier MAJOR) — the create is REFUSED (slug_taken): a sentence in her words, the tree alive, no wire token — never a throw over a frozen « Envoi en cours… »', async () => {
+    // This road's two refusal sites still called the deleted raw-token string
+    // after the slice — `t()` throws on a missing key, so a refused fresh start
+    // would have died mid-toast with the old shop already out of discovery.
+    const w = monde();
+    const refuse: Route = (path, body) =>
+      path === '/storefronts' && body !== null ? { status: 409, json: { error: 'slug_taken' } } : null;
+    const { screen, fils } = await surK1({ routes: [refuse, ...w.routes] });
+    await screen.press('Recommencer ma boutique');
+    await screen.press('Oui, changer d’adresse');
+    for (let i = 0; i < 6 && !screen.shows('Ce nom donne une adresse déjà prise. Changez le nom de votre boutique, puis réessayez.'); i += 1) await screen.settle();
+
+    expect(fils.calls.filter((c) => c.path === '/storefronts' && c.method === 'POST'), 'the create was attempted').toHaveLength(1);
+    expect(screen.shows('Ce nom donne une adresse déjà prise. Changez le nom de votre boutique, puis réessayez.'), `on screen: ${JSON.stringify(screen.texts().slice(0, 20))}`).toBe(true);
+    expect(screen.shows('Envoi en cours…'), 'the pending toast must not be frozen over a refusal').toBe(false);
+    expect(screen.texts().join(' ')).not.toMatch(/slug_taken|http_\d{3}/);
+    // …and the tree survived: her screen is still hers.
+    expect(screen.shows('Voir ma boutique en ligne') || screen.shows('Recommencer ma boutique'), 'the tree must survive the refusal').toBe(true);
+    screen.unmount();
+  });
+
   it('« Garder mon adresse » costs nothing — no write reaches the wire, the tree lives', async () => {
     const { screen, fils } = await surK1();
     await screen.press('Recommencer ma boutique');

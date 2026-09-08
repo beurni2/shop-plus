@@ -1130,6 +1130,13 @@ export default function App() {
         const res = await service.removeItem(identity.storefrontId, pid, new Date().toISOString());
         if (!res.ok) return setToast(t('vitrine.retirer_echec'));
         vitrineCol.removeFromVitrine(pid);
+        // PRIX-SIGNE-1 — the listing is gone, and so is the price it signed: a
+        // re-add must quote from the live base, never from a dead listing
+        // (verifier finding).
+        setPrixSignes((prev) => {
+          const { [pid]: _retire, ...reste } = prev;
+          return reste;
+        });
         /**
          * THE SHOP COMES OFF THE WRITE, not a second read (verifier BLOCKER). The
          * first cut re-read with `getById` and swallowed its failure, so a POST
@@ -1176,7 +1183,12 @@ export default function App() {
       const res = versPublique
         ? await service.publish(identity.storefrontId, identity.correlationId, at)
         : await service.unpublish(identity.storefrontId, identity.correlationId, at);
-      if (!res.ok) return setToast(t('vitrine.toggle_echec'));
+      if (!res.ok) {
+        // A dead session is the book's word, not a network hiccup: the
+        // session road decides (verifier finding) — never « réessayez ».
+        if (estSessionRefusee(res.reason)) return direRefusPublication(res.reason);
+        return setToast(t('vitrine.toggle_echec'));
+      }
       if (res.value.storefront !== undefined) {
         adopterStorefront(res.value.storefront);
       } else {
@@ -1435,9 +1447,9 @@ export default function App() {
       correlationId: neuve.identity.correlationId,
       at,
     });
-    if (!created.ok) return setToast(tf('k.publier.erreur', { raison: created.reason }));
+    if (!created.ok) return direRefusPublication(created.reason);
     const pub = await service.publish(neuve.identity.storefrontId, neuve.identity.correlationId, at);
-    if (!pub.ok) return setToast(tf('k.publier.erreur', { raison: pub.reason }));
+    if (!pub.ok) return direRefusPublication(pub.reason);
     if (created.value.slug === null || created.value.slug === '') {
       return setToast(t('k.publier.en_ligne_sans_slug'));
     }
@@ -2279,7 +2291,7 @@ export default function App() {
 
         {/* MA VITRINE (frame L239–267): title « Ma vitrine » 28/800 + name + vérifié,
             the œil → aperçu-cliente, the Privée/Publique toggle (the seam's
-            `setDiscoverable` + the verbatim toasts), and the product grid read from
+            the toggle — now the service's flag, VITRINE-VISIBLE-1), and the product grid read from
             the seam's live listings (`vitrineCol.listings()`). Each tile carries the
             client price (deep) and her net (small) — never a vendor. Empty is a
             designed state: the vitrine waits, with a way back to the opportunities. */}
@@ -2374,6 +2386,10 @@ export default function App() {
                         <View style={[styles.toggleDot, liveStorefront.discoverable ? styles.toggleDotPublic : styles.toggleDotPrivate]} />
                         <Text style={styles.toggleLabel}>{t(liveStorefront.discoverable ? 'vitrine.toggle_publique' : 'vitrine.toggle_privee')}</Text>
                       </Pressable>
+                    ) : liveStorefront === undefined ? (
+                      // The read failed: say so where the control would be
+                      // (verifier finding) — a vanished control is not a state.
+                      <Text style={styles.noteLine}>{t('vitrine.toggle_sans_reponse')}</Text>
                     ) : null}
                   </View>
                   {/* PERSONNALISER-LISIBLE (founder orders 2026-08-03: « make the

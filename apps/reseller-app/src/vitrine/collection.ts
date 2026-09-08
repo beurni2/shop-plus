@@ -5,7 +5,8 @@
  * `StoreProjectionEvent` (packages/store-projection/src/store-projection.ts:31):
  *   • `listing.published`     — a product joins the vitrine (the membership op)
  *   • `listing.auto_hidden`   — a product leaves it
- *   • `storefront.published {discoverable}` — the privée ⇄ publique toggle
+ *   (`storefront.published {discoverable}`, the privée ⇄ publique toggle, is the
+ *   SERVICE's fact now — VITRINE-VISIBLE-1 — and no longer folded here)
  * `StoreProjection` (…:63) exposes `productCount` (live listings), `discoverable`,
  * and the `/v/{slug}` identity; `resolvePublishedStore(events, slug)` (…:190)
  * resolves a slug to its store ONLY when discoverable (the DIRECTORY rule).
@@ -27,8 +28,7 @@
  * snapshot-shaped for the RN bundle (kept byte-aligned with store-projection.ts:31). */
 export type VitrineEvent =
   | { readonly type: 'listing.published'; readonly listingId: string; readonly at: string }
-  | { readonly type: 'listing.auto_hidden'; readonly listingId: string; readonly at: string }
-  | { readonly type: 'storefront.published'; readonly discoverable: boolean; readonly at: string };
+  | { readonly type: 'listing.auto_hidden'; readonly listingId: string; readonly at: string };
 
 export interface VitrineListing {
   readonly listingId: string;
@@ -47,19 +47,12 @@ export interface VitrineCollectionPort {
   addToVitrine(listingId: string): void;
   /** Remove a product — a `listing.auto_hidden`. */
   removeFromVitrine(listingId: string): void;
-  /** privée ⇄ publique — a `storefront.published {discoverable}`. */
-  setDiscoverable(discoverable: boolean): void;
   /** The LIVE listings (published, not auto-hidden) — StoreProjection.productCount's members. */
   listings(): readonly VitrineListing[];
   has(listingId: string): boolean;
-  /** Whether the vitrine is publique (in the directory). Privée stays accessible par lien. */
-  isDiscoverable(): boolean;
   /** The reseller's real `/v/{slug}` link (SP#001-B canon slug) — always valid,
    * even privée ("Vitrine privée — accessible par lien"). */
   shareSlug(): string;
-  /** Mirrors `resolvePublishedStore`: the slug is resolvable IN THE DIRECTORY only
-   * when discoverable (an unpublished vitrine is honestly not-found in discovery). */
-  resolvesInDirectory(): boolean;
 }
 
 /** Cap a share selection to ≤ VITRINE_SHARE_CAP, preserving order. */
@@ -69,34 +62,33 @@ export function capShareSelection(listingIds: readonly string[]): readonly strin
 
 /**
  * The demo fold — the RN stand-in for `projectStores`. A listing is live iff its
- * last event is `published` (not `auto_hidden`); discoverable is the latest
- * `storefront.published` value. Pure, so the class adapter and the App's
- * React-state adapter share one fold (no drift). VITRINE-REAL-BACKING swaps this
- * for the real `projectStores`.
+ * last event is `published` (not `auto_hidden`). Pure, so the class adapter and
+ * the App's React-state adapter share one fold (no drift). VITRINE-REAL-BACKING
+ * swaps this for the real `projectStores`.
+ *
+ * VITRINE-VISIBLE-1 (AUDIT-SHOP-2 F-13): the fold no longer carries
+ * `discoverable`. That fact is the SERVICE's (`Storefront.discoverable`) and the
+ * App reads and writes it there; a session-local flag here toasted « Publique »
+ * over a shop the wire said the opposite about.
  */
 export function foldVitrine(events: readonly VitrineEvent[]): {
   readonly live: readonly string[];
-  readonly discoverable: boolean;
 } {
   const membership = new Map<string, boolean>();
-  let discoverable = false;
   for (const e of events) {
     if (e.type === 'listing.published') membership.set(e.listingId, true);
-    else if (e.type === 'listing.auto_hidden') membership.set(e.listingId, false);
-    else discoverable = e.discoverable;
+    else membership.set(e.listingId, false);
   }
   return {
     live: [...membership.entries()].filter(([, isLive]) => isLive).map(([id]) => id),
-    discoverable,
   };
 }
 
 /**
  * The DEMO adapter — an in-memory `VitrineEvent` log + a minimal fold. The fold is
  * the RN stand-in for `projectStores` (VITRINE-REAL-BACKING swaps in the real one);
- * it applies the same two rules the real fold does: a listing is live iff its last
- * event is `published` (not `auto_hidden`), and discoverable is the latest
- * `storefront.published` value.
+ * it applies the same membership rule the real fold does: a listing is live iff
+ * its last event is `published` (not `auto_hidden`).
  */
 export class DemoVitrineCollection implements VitrineCollectionPort {
   private readonly log: VitrineEvent[] = [];
@@ -116,10 +108,6 @@ export class DemoVitrineCollection implements VitrineCollectionPort {
     this.log.push({ type: 'listing.auto_hidden', listingId, at: this.now() });
   }
 
-  setDiscoverable(discoverable: boolean): void {
-    this.log.push({ type: 'storefront.published', discoverable, at: this.now() });
-  }
-
   listings(): readonly VitrineListing[] {
     return foldVitrine(this.log).live.map((listingId) => ({ listingId }));
   }
@@ -128,15 +116,7 @@ export class DemoVitrineCollection implements VitrineCollectionPort {
     return foldVitrine(this.log).live.includes(listingId);
   }
 
-  isDiscoverable(): boolean {
-    return foldVitrine(this.log).discoverable;
-  }
-
   shareSlug(): string {
     return this.slug;
-  }
-
-  resolvesInDirectory(): boolean {
-    return this.isDiscoverable();
   }
 }
