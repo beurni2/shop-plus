@@ -1179,6 +1179,10 @@ export default function App() {
   const offresFiltrees = filtrerOffres(offresPourElle, catActive);
   const [compteEnvoi, setCompteEnvoi] = useState(false);
   const [compteErreurKey, setCompteErreurKey] = useState<string | null>(null);
+  /** SESSION-VIE-1 — which form the entrance opens on. « Connexion » once a
+   *  session has ended on this phone: she has an account, and the sentence
+   *  above the form says why she is here. */
+  const [entreeMode, setEntreeMode] = useState<'creer' | 'connexion'>('creer');
 
   /**
    * HER ACCOUNT ID BECOMES HER APP IDENTITY. The server minted `rs-{4 digits}`;
@@ -1198,7 +1202,60 @@ export default function App() {
       await expoIdentityStore().write(JSON.stringify({ version: 1, digits })).catch(() => undefined);
       setIdentity(identityFromDigits(digits));
     }
+    // SESSION-VIE-1 — a login on an ACTIVE account re-reads her feed with the
+    // session she just got: the hook read the store once at mount, so without
+    // this her sales stayed on the refusal the OLD session earned until the
+    // app was killed. Signup (pending) keeps its pre-slice road.
+    if (session !== undefined && nouveau.state === 'active') void ventesReelles.ouvrir(session);
   };
+
+  /**
+   * SESSION-VIE-1 (AUDIT-SHOP-2 F-07) — THE END OF A SESSION IS A DESIGNED
+   * STATE. Before this, a session the book no longer knew (revoked, reset,
+   * expired) left the phone believing it was in: every read refused with a
+   * sentence about the network, no door out, disk still « active ». Now the
+   * phone forgets the session AND the compte in one act and the entrance
+   * opens on the connexion form with one sentence saying why. Only the BOOK's
+   * own word ends a session (`invalide` — a 401 from /reseller/session or
+   * /reseller/profile); a dead network never does (Ten Laws #7).
+   */
+  const finirSession = async (raisonKey: 'session.finie' | 'session.deconnectee'): Promise<void> => {
+    await accessCodeStore.write('');
+    await compteStore.clear();
+    setEntreeMode('connexion');
+    setCompteErreurKey(raisonKey);
+    setCompte(null);
+  };
+  /** A 401 on her money feed is a REASON TO ASK, never the verdict: the feed
+   *  door also refuses the legacy code road, so the session read decides. */
+  const verifierSession = async (): Promise<void> => {
+    if (compteService === null) return;
+    const bearer = await accessCodeStore.read();
+    if (bearer === null || !bearer.startsWith('SPS-')) return;
+    const res = await compteService.session(bearer);
+    if (!res.ok && res.reason === 'invalide') await finirSession('session.finie');
+  };
+  const deconnecter = async (): Promise<void> => {
+    // Best-effort on the wire: the row expires on its own if the book cannot
+    // be reached now, and the phone forgets either way — that is the act she
+    // asked for. Journalled.
+    if (compteService !== null) {
+      const bearer = await accessCodeStore.read();
+      if (bearer !== null && bearer.startsWith('SPS-')) await compteService.deconnecter(bearer);
+    }
+    await finirSession('session.deconnectee');
+  };
+  const refusVu = useRef(false);
+  useEffect(() => {
+    if (!ventesReelles.refuse) {
+      refusVu.current = false;
+      return;
+    }
+    if (refusVu.current) return; // one refusal, one question — never a loop
+    refusVu.current = true;
+    void verifierSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ventesReelles.refuse]);
 
   /**
    * RECOMMENCER (founder, 2026-08-18: « each time a reseller creates a boutique,
@@ -1281,6 +1338,9 @@ export default function App() {
           if (res.ok) {
             await compteStore.write(res.compte);
             setCompte(res.compte);
+          } else if (res.reason === 'invalide') {
+            // SESSION-VIE-1 — the book's own word: this session is over.
+            await finirSession('session.finie');
           }
         }
       }
@@ -1410,6 +1470,7 @@ export default function App() {
             service={compteService}
             envoi={compteEnvoi}
             erreurKey={compteErreurKey}
+            modeInitial={entreeMode}
             rayons={categoriesPresentes(offers)}
             onEnvoi={setCompteEnvoi}
             onErreur={setCompteErreurKey}
@@ -2793,6 +2854,8 @@ export default function App() {
             onCompte={(c) => { void adopterCompte(c); }}
             onToast={setToast}
             onCercle={() => go('cercle')}
+            onSessionFinie={() => { void finirSession('session.finie'); }}
+            onDeconnexion={() => { void deconnecter(); }}
           />
         )}
       </View>
@@ -3635,10 +3698,13 @@ function RailEntree({ etape }: { etape: 'compte' | 'code' }) {
   );
 }
 
-function EcranCompte({ service, envoi, erreurKey, rayons, onEnvoi, onErreur, onCompte }: {
+function EcranCompte({ service, envoi, erreurKey, modeInitial = 'creer', rayons, onEnvoi, onErreur, onCompte }: {
   service: CompteServicePort | null;
   envoi: boolean;
   erreurKey: string | null;
+  /** SESSION-VIE-1 — the form the entrance opens on. The screen mounts fresh
+   *  each time the door closes, so the initial value is the whole contract. */
+  modeInitial?: 'creer' | 'connexion';
   /** RAYONS-REVENDEUR-1 — the categories PRESENT on the live browse wire,
    *  offered at signup. Empty (wire down, nothing published) hides the
    *  picker entirely: the choice is optional and absence is honest. */
@@ -3647,7 +3713,7 @@ function EcranCompte({ service, envoi, erreurKey, rayons, onEnvoi, onErreur, onC
   onErreur: (k: string | null) => void;
   onCompte: (c: CompteLocal, session: string) => void;
 }) {
-  const [mode, setMode] = useState<'creer' | 'connexion'>('creer');
+  const [mode, setMode] = useState<'creer' | 'connexion'>(modeInitial);
   const [nom, setNom] = useState('');
   const [email, setEmail] = useState('');
   const [tel, setTel] = useState('');
@@ -3698,6 +3764,7 @@ function EcranCompte({ service, envoi, erreurKey, rayons, onEnvoi, onErreur, onC
         res.reason === 'email_pris' ? 'compte.email_pris'
         : res.reason === 'champ_invalide' ? 'compte.champ_invalide'
         : res.reason === 'refuse' ? 'compte.refuse'
+        : res.reason === 'trop_essais' ? 'compte.trop_essais'
         : 'compte.reseau',
       );
     })();
@@ -3902,10 +3969,15 @@ function EcranAdmission({ code, onCode, envoi, erreurKey, onEntrer }: {
  * states until that answer lands. A saved WhatsApp number reaches her
  * boutique's buyer taps by itself — /contact-of reads the same record.
  */
-function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast, onCercle }: {
+function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast, onCercle, onSessionFinie, onDeconnexion }: {
   compte: CompteLocal | null | undefined;
   service: CompteServicePort | null;
   lireBearer: () => Promise<string | null>;
+  /** SESSION-VIE-1 — the book said this session is over (a 401 that is not
+   *  `bad_password`): the App ends it as a designed state. */
+  onSessionFinie: () => void;
+  /** SESSION-VIE-1 — « Me déconnecter »: her own way out, on her page. */
+  onDeconnexion: () => void;
   /** The live browse wire's rayons (the CO-1 law: data-driven, never a
    *  hardcoded taxonomy). Her saved-but-off-wire rayons stay pressable so a
    *  quiet wire can never trap a choice she wants to retire. */
@@ -3946,10 +4018,13 @@ function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast, o
         setTel(res.profil.phone);
         setEmail(res.profil.email);
         setCats(res.profil.categories ?? []);
+      } else if (res.reason === 'invalide') {
+        // SESSION-VIE-1 — a dead session is no longer dressed as a dead
+        // network: the App ends it and the entrance says why.
+        onSessionFinie();
       } else {
-        // A dead session and a dead network share one honest card with a
-        // retry — nothing else in the app can revive either. A founder's
-        // pause speaks as itself.
+        // A dead network is one honest card with a retry; a founder's pause
+        // speaks as itself.
         setProfil(res.reason === 'coupe' ? 'coupe' : 'reseau');
       }
     })();
@@ -3996,10 +4071,12 @@ function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast, o
         onToast(t('profil.enregistre'));
         return;
       }
-      // `invalide` (a session dead mid-save) folds into the network sentence
-      // DELIBERATELY, same rationale as the load path: sessions carry no TTL,
-      // nothing in-app can revive one, and a wrong-but-calm retry sentence
-      // beats naming a state she has no road out of. Journalled.
+      // SESSION-VIE-1 — a session dead mid-save ends the session (the road out
+      // now exists); the unsent edit is lost with it, which is the truth.
+      if (res.reason === 'invalide') {
+        onSessionFinie();
+        return;
+      }
       setMsg({
         section,
         key:
@@ -4186,6 +4263,14 @@ function EcranProfil({ compte, service, lireBearer, rayons, onCompte, onToast, o
               </Card>
             </>
           )}
+
+          {/* SESSION-VIE-1 — her way out, whatever the wire is doing (it stands
+              beside the network card too: a phone that cannot reach the book
+              can still forget the session). Secondary: the page's primary
+              acts are its saves. */}
+          <Card style={styles.profilCarte}>
+            <SecondaryButton label={t('profil.deconnexion')} onPress={onDeconnexion} />
+          </Card>
         </>
       )}
     </ScrollView>

@@ -3652,5 +3652,29 @@
   "fr": "Cacher",
   "register": "neutral",
   "screenClass": "label"
+ },
+ {
+  "key": "session.finie",
+  "fr": "Votre session est finie. Connectez-vous à nouveau pour continuer.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "session.deconnectee",
+  "fr": "Vous êtes bien déconnectée. Revenez quand vous voulez.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "profil.deconnexion",
+  "fr": "Me déconnecter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "compte.trop_essais",
+  "fr": "Trop d'essais. Attendez un quart d'heure, puis réessayez.",
+  "register": "neutral",
+  "screenClass": "status"
  }
 ]

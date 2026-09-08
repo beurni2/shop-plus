@@ -44,8 +44,73 @@ export const RESELLER_ACCOUNTS_NAME = 'reseller-accounts';
 
 const ACCOUNT_PREFIX = 'account:'; // account:{accountId} → AccountRecord
 const EMAIL_PREFIX = 'email:'; // email:{sha256(lowercased email)} → accountId
-const SESSION_PREFIX = 'session:'; // session:{sha256(token)} → accountId
+const SESSION_PREFIX = 'session:'; // session:{sha256(token)} → SessionRow (pre-slice: the bare accountId)
+const SESSION_INDEX_PREFIX = 'sessions-of:'; // sessions-of:{accountId}:{sha256(token)} → issuedAt
+const ECHECS_PREFIX = 'echecs:'; // echecs:{sha256(lowercased email)} → LoginFailures
 const AUDIT_PREFIX = 'audit:'; // audit:{accountId}:{isoAt} → canon change row
+
+/**
+ * ═══ SESSION-VIE-1 (AUDIT-SHOP-2 F-07, F-32) — A SESSION HAS A LIFE ═══
+ *
+ * Before this slice a session row was `session:{hash} → accountId`: no clock,
+ * no door out, and a password change rewrote the hash while every session
+ * minted before it kept opening her shop — measured on the real bundle. The
+ * session is the ONLY credential for every storefront write, every listing
+ * read and the money feed, so a phone lost in the market kept its access for
+ * ever, and the one recovery the app offered (« change my password ») cut
+ * nothing off.
+ *
+ * Now a session row carries when it was minted and when it was last USED, and
+ * three things end it: `/logout` (her own act, from the app), a password
+ * change (every OTHER session of the account is deleted in the same act —
+ * the phone she is holding stays in), and silence — a session not used for
+ * `SESSION_IDLE_MS` is refused and swept the next time it is presented. The
+ * idle clock, not an absolute one: a reseller who opens the app every week is
+ * never thrown out; the phone in a drawer is. A pre-slice row (the bare id)
+ * is adopted on first sight with the clock started THEN — nobody is logged
+ * out by the deploy, because the book holds no evidence of their idle time.
+ *
+ * The per-account index makes « every other session of this account » a
+ * prefix read of a few keys, never a scan of the whole book.
+ *
+ * `LOGIN_FAIL_*` — the login door counts refusals per email hash, existing or
+ * not (so the counter is not an email oracle either), and answers the SAME
+ * 429 once the count is reached inside the window, BEFORE the PBKDF2 work:
+ * a flood is refused cheaply, on the singleton every reseller shares. The
+ * count resets on a successful login and after the window. An IP-level
+ * limit belongs at the edge (the founder's dashboard), not in this object,
+ * which never sees an address.
+ */
+export const SESSION_IDLE_MS = 90 * 24 * 60 * 60 * 1000;
+/** `lastSeenAt` is rewritten at most this often — one storage write per hour
+ *  of use, not per request. Bounded by a quarter of the idle life so a short
+ *  test life still observes the touch. */
+const SESSION_TOUCH_MS = 60 * 60 * 1000;
+export const LOGIN_FAIL_LIMIT = 10;
+export const LOGIN_FAIL_WINDOW_MS = 15 * 60 * 1000;
+
+interface SessionRow {
+  readonly accountId: string;
+  readonly issuedAt: string;
+  readonly lastSeenAt: string;
+}
+
+interface LoginFailures {
+  readonly n: number;
+  readonly depuis: string;
+}
+
+/**
+ * The idle life this object applies. `SESSION_IDLE_MS` in the env may only
+ * SHORTEN it (the `FEED_FANOUT_MAX` idiom: a knob for the seam test, never a
+ * way to lengthen a life past the constant); unset, malformed or larger reads
+ * as the constant. Nothing in wrangler.toml sets it.
+ */
+function idleMsDe(env: { SESSION_IDLE_MS?: string }): number {
+  const raw = Number(env.SESSION_IDLE_MS);
+  if (!Number.isInteger(raw) || raw < 1) return SESSION_IDLE_MS;
+  return Math.min(raw, SESSION_IDLE_MS);
+}
 
 export interface AccountRecord {
   readonly accountId: string;
@@ -64,6 +129,11 @@ export interface AccountRecord {
   readonly createdAt: string;
   readonly passwordSaltHex: string;
   readonly passwordHashHex: string;
+  /** SESSION-VIE-1 (F-32) — the PBKDF2 count THIS hash was derived with, so
+   *  the constant can be raised at a later rotation while every older record
+   *  still verifies with its own. Absent on pre-slice records = the constant
+   *  as it stood then (60 000). */
+  readonly passwordIterations?: number;
   /** SHA-256 of the one-time admission code, present only while one is live. */
   readonly accessCodeHash?: string;
   /** CODE-REVU (founder ruling 2026-08-09, all code desks): the plaintext,
@@ -109,13 +179,19 @@ async function sha256Hex(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * 60 000 stands (AUDIT-SHOP-2 F-32 names the OWASP figure at 600 000): the
+ * Workers runtime caps PBKDF2 iterations by plan, and a raise past the cap
+ * would make every login throw. The count now rides each record, so the raise
+ * is a one-line rotation on the founder's word once the plan's cap is known.
+ */
 const PBKDF2_ITERATIONS = 60_000;
 
-async function derivePassword(password: string, saltHex: string): Promise<string> {
+async function derivePassword(password: string, saltHex: string, iterations = PBKDF2_ITERATIONS): Promise<string> {
   const salt = new Uint8Array(saltHex.match(/../g)!.map((h) => parseInt(h, 16)));
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PBKDF2_ITERATIONS },
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
     key,
     256,
   );
@@ -166,10 +242,50 @@ function champ(v: unknown, max = MAX_FIELD): string | null {
  * and the key is gone, so the book seats every account the founder admits.
  */
 export class ResellerAccountsDO {
-  constructor(private readonly state: DurableObjectState) {}
+  constructor(
+    private readonly state: DurableObjectState,
+    private readonly env: { readonly SESSION_IDLE_MS?: string } = {},
+  ) {}
 
   private async compte(accountId: string): Promise<AccountRecord | undefined> {
     return this.state.storage.get<AccountRecord>(`${ACCOUNT_PREFIX}${accountId}`);
+  }
+
+  /** SESSION-VIE-1 — mint a session and the two rows that make it revocable
+   *  by id: the row itself and its entry under the account's index. Returned
+   *  as the keys to write, so signup can land them in the SAME put as the
+   *  account and the email index. */
+  private async minterSession(accountId: string): Promise<{ session: string; ecritures: Record<string, unknown> }> {
+    const session = mintToken('SPS');
+    const hash = await sha256Hex(session);
+    const now = new Date().toISOString();
+    const row: SessionRow = { accountId, issuedAt: now, lastSeenAt: now };
+    return {
+      session,
+      ecritures: {
+        [`${SESSION_PREFIX}${hash}`]: row,
+        [`${SESSION_INDEX_PREFIX}${accountId}:${hash}`]: now,
+      },
+    };
+  }
+
+  /** Delete one session by hash — the row and its index entry. Idempotent. */
+  private async effacerSession(hash: string, accountId: string): Promise<void> {
+    await this.state.storage.delete([`${SESSION_PREFIX}${hash}`, `${SESSION_INDEX_PREFIX}${accountId}:${hash}`]);
+  }
+
+  /** Every session of the account EXCEPT the one presented — how a password
+   *  change cuts off every other phone while the one in her hand stays in. */
+  private async effacerAutresSessions(accountId: string, sauf: string): Promise<number> {
+    const index = await this.state.storage.list<string>({ prefix: `${SESSION_INDEX_PREFIX}${accountId}:` });
+    const cles: string[] = [];
+    for (const cle of index.keys()) {
+      const hash = cle.slice(`${SESSION_INDEX_PREFIX}${accountId}:`.length);
+      if (hash === sauf) continue;
+      cles.push(`${SESSION_PREFIX}${hash}`, cle);
+    }
+    if (cles.length > 0) await this.state.storage.delete(cles);
+    return cles.length / 2;
   }
 
   /** The audit trail IS the canon event payload, parsed before it is written —
@@ -255,13 +371,13 @@ export class ResellerAccountsDO {
       const passwordHashHex = await derivePassword(password, saltHex);
       const createdAt = new Date().toISOString();
       const record: AccountRecord = {
-        accountId, name, email, phone, ...(categories !== undefined ? { categories } : {}), state: 'pending_access', createdAt, passwordSaltHex: saltHex, passwordHashHex,
+        accountId, name, email, phone, ...(categories !== undefined ? { categories } : {}), state: 'pending_access', createdAt, passwordSaltHex: saltHex, passwordHashHex, passwordIterations: PBKDF2_ITERATIONS,
       };
-      const session = mintToken('SPS');
+      const { session, ecritures } = await this.minterSession(accountId);
       await this.state.storage.put({
         [`${ACCOUNT_PREFIX}${accountId}`]: record,
         [emailKey]: accountId,
-        [`${SESSION_PREFIX}${await sha256Hex(session)}`]: accountId,
+        ...ecritures,
       });
       await this.consigner(accountId, 'pending_access', 'signup');
       // The session exists BEFORE admission so the admission call can prove
@@ -275,33 +391,72 @@ export class ResellerAccountsDO {
       const password = typeof body?.['password'] === 'string' ? body['password'] : '';
       // ONE refusal for every wrong way in — an unknown email and a wrong
       // password are indistinguishable, so the door is not an email oracle.
-      const refuse = () => Response.json({ ok: false, reason: 'bad_credentials' }, { status: 401 });
-      if (email === null || password === '') return refuse();
-      const accountId = await this.state.storage.get<string>(`${EMAIL_PREFIX}${await sha256Hex(email)}`);
+      if (email === null || password === '') {
+        return Response.json({ ok: false, reason: 'bad_credentials' }, { status: 401 });
+      }
+      // SESSION-VIE-1 — the refusal counter, keyed on the email's hash whether
+      // or not that email has an account, read BEFORE any password work.
+      const emailHash = await sha256Hex(email);
+      const cleEchecs = `${ECHECS_PREFIX}${emailHash}`;
+      const nowMs = Date.now();
+      const echecs = await this.state.storage.get<LoginFailures>(cleEchecs);
+      const dansLaFenetre = echecs !== undefined && nowMs - Date.parse(echecs.depuis) < LOGIN_FAIL_WINDOW_MS;
+      if (dansLaFenetre && echecs.n >= LOGIN_FAIL_LIMIT) {
+        return Response.json({ ok: false, reason: 'too_many_attempts' }, { status: 429 });
+      }
+      // ONE refusal for every wrong way in — an unknown email and a wrong
+      // password are indistinguishable, so the door is not an email oracle;
+      // both count the same against the same key.
+      const refuse = async () => {
+        const n = echecs !== undefined && dansLaFenetre ? echecs.n + 1 : 1;
+        const depuis = echecs !== undefined && dansLaFenetre ? echecs.depuis : new Date(nowMs).toISOString();
+        await this.state.storage.put(cleEchecs, { n, depuis } satisfies LoginFailures);
+        return Response.json({ ok: false, reason: 'bad_credentials' }, { status: 401 });
+      };
+      const accountId = await this.state.storage.get<string>(`${EMAIL_PREFIX}${emailHash}`);
       if (accountId === undefined) return refuse();
       const record = await this.compte(accountId);
       if (record === undefined) return refuse();
-      const derived = await derivePassword(password, record.passwordSaltHex);
+      const derived = await derivePassword(password, record.passwordSaltHex, record.passwordIterations ?? PBKDF2_ITERATIONS);
       if (!egaleConstante(derived, record.passwordHashHex)) return refuse();
-      const session = mintToken('SPS');
-      await this.state.storage.put(`${SESSION_PREFIX}${await sha256Hex(session)}`, accountId);
+      const { session, ecritures } = await this.minterSession(accountId);
+      await this.state.storage.put(ecritures);
+      if (echecs !== undefined) await this.state.storage.delete(cleEchecs);
       return Response.json({ ok: true, accountId, name: record.name, ...(record.categories !== undefined ? { categories: record.categories } : {}), state: record.state, session });
+    }
+
+    /** SESSION-VIE-1 — her own way out. The row and its index entry go; an
+     *  unknown or already-gone session answers the same `ok` (idempotent, and
+     *  never an existence oracle). */
+    if (request.method === 'POST' && pathname === '/logout') {
+      const body = (await request.json().catch(() => null)) as { session?: unknown } | null;
+      const presented = body?.session;
+      if (typeof presented === 'string' && presented !== '') {
+        const hash = await sha256Hex(presented);
+        const row = await this.state.storage.get<SessionRow | string>(`${SESSION_PREFIX}${hash}`);
+        if (row !== undefined) {
+          await this.effacerSession(hash, typeof row === 'string' ? row : row.accountId);
+        }
+      }
+      return Response.json({ ok: true });
     }
 
     /** WHO AM I — the app's gate read. Bearer session in the body (the router
      *  passes it through; a DO fetch has no ambient auth). */
     if (request.method === 'POST' && pathname === '/session') {
       const body = (await request.json().catch(() => null)) as { session?: unknown } | null;
-      const record = await this.resoudreSession(body?.session);
-      if (record === null) return Response.json({ ok: false, reason: 'no_session' }, { status: 401 });
+      const resolue = await this.resoudreSession(body?.session);
+      if (resolue === null) return Response.json({ ok: false, reason: 'no_session' }, { status: 401 });
+      const { record } = resolue;
       return Response.json({ ok: true, accountId: record.accountId, name: record.name, ...(record.categories !== undefined ? { categories: record.categories } : {}), state: record.state });
     }
 
     /** ADMISSION — her one-time code, against HER account, exactly once. */
     if (request.method === 'POST' && pathname === '/admission') {
       const body = (await request.json().catch(() => null)) as { session?: unknown; code?: unknown } | null;
-      const record = await this.resoudreSession(body?.session);
-      if (record === null) return Response.json({ ok: false, reason: 'no_session' }, { status: 401 });
+      const resolue = await this.resoudreSession(body?.session);
+      if (resolue === null) return Response.json({ ok: false, reason: 'no_session' }, { status: 401 });
+      const { record } = resolue;
       if (record.state === 'active') return Response.json({ ok: true, state: 'active', deja: true });
       if (record.state === 'paused') {
         // A paused account does not re-admit itself with an old code — the
@@ -354,8 +509,9 @@ export class ResellerAccountsDO {
           return Response.json({ ok: false, reason: 'unknown_field', field: key }, { status: 400 });
         }
       }
-      const record = await this.resoudreSession(body['session']);
-      if (record === null) return Response.json({ ok: false, reason: 'no_session' }, { status: 401 });
+      const resolue = await this.resoudreSession(body['session']);
+      if (resolue === null) return Response.json({ ok: false, reason: 'no_session' }, { status: 401 });
+      const { record, hash: sessionHash } = resolue;
       if (record.state !== 'active') {
         return Response.json(
           { ok: false, reason: record.state === 'paused' ? 'access_paused' : 'access_required' },
@@ -364,6 +520,7 @@ export class ResellerAccountsDO {
       }
 
       let maj: AccountRecord = record;
+      let motDePasseChange = false;
       if (body['name'] !== undefined) {
         const name = champ(body['name'], 120);
         if (name === null) return Response.json({ ok: false, reason: 'bad_field', field: 'name' }, { status: 400 });
@@ -421,12 +578,13 @@ export class ResellerAccountsDO {
         }
         // The CURRENT password re-proves it is her — a stolen handset with a
         // live session must not be enough to lock her out of her own account.
-        const derive = await derivePassword(actuel, record.passwordSaltHex);
+        const derive = await derivePassword(actuel, record.passwordSaltHex, record.passwordIterations ?? PBKDF2_ITERATIONS);
         if (!egaleConstante(derive, record.passwordHashHex)) {
           return Response.json({ ok: false, reason: 'bad_password' }, { status: 401 });
         }
         const saltHex = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
-        maj = { ...maj, passwordSaltHex: saltHex, passwordHashHex: await derivePassword(nouveau, saltHex) };
+        maj = { ...maj, passwordSaltHex: saltHex, passwordHashHex: await derivePassword(nouveau, saltHex), passwordIterations: PBKDF2_ITERATIONS };
+        motDePasseChange = true;
       }
 
       if (maj !== record) {
@@ -437,6 +595,10 @@ export class ResellerAccountsDO {
         if (cleEmailNouvelle !== null) ecritures[cleEmailNouvelle] = record.accountId;
         await this.state.storage.put(ecritures);
         if (cleEmailAncienne !== null) await this.state.storage.delete(cleEmailAncienne);
+        // SESSION-VIE-1 — a new password is the moment a lost phone is cut
+        // off: every session but the one that just proved the CURRENT password
+        // is gone, in the same act. The list read is the account's own index.
+        if (motDePasseChange) await this.effacerAutresSessions(record.accountId, sessionHash);
       }
       return Response.json({
         ok: true,
@@ -560,11 +722,39 @@ export class ResellerAccountsDO {
     return Response.json({ ok: false, reason: 'not_found' }, { status: 404 });
   }
 
-  private async resoudreSession(presented: unknown): Promise<AccountRecord | null> {
+  /**
+   * SESSION-VIE-1 — the resolution every session-bearing call makes. A row is
+   * refused and swept once it has gone unused for the idle life; a live row
+   * has its `lastSeenAt` refreshed (at most every `SESSION_TOUCH_MS`, so use
+   * costs one write an hour, not one per request); a pre-slice row (the bare
+   * account id) is adopted with its clock started now. The hash rides back so
+   * a password change can spare the session that proved it.
+   */
+  private async resoudreSession(presented: unknown): Promise<{ record: AccountRecord; hash: string } | null> {
     if (typeof presented !== 'string' || presented === '') return null;
-    const accountId = await this.state.storage.get<string>(`${SESSION_PREFIX}${await sha256Hex(presented)}`);
-    if (accountId === undefined) return null;
-    return (await this.compte(accountId)) ?? null;
+    const hash = await sha256Hex(presented);
+    const cle = `${SESSION_PREFIX}${hash}`;
+    const brut = await this.state.storage.get<SessionRow | string>(cle);
+    if (brut === undefined) return null;
+    const nowMs = Date.now();
+    const now = new Date(nowMs).toISOString();
+    let row: SessionRow;
+    if (typeof brut === 'string') {
+      row = { accountId: brut, issuedAt: now, lastSeenAt: now };
+      await this.state.storage.put({ [cle]: row, [`${SESSION_INDEX_PREFIX}${brut}:${hash}`]: now });
+    } else {
+      row = brut;
+      const idle = idleMsDe(this.env);
+      if (nowMs - Date.parse(row.lastSeenAt) > idle) {
+        await this.effacerSession(hash, row.accountId);
+        return null;
+      }
+      if (nowMs - Date.parse(row.lastSeenAt) > Math.min(SESSION_TOUCH_MS, Math.floor(idle / 4))) {
+        await this.state.storage.put(cle, { ...row, lastSeenAt: now } satisfies SessionRow);
+      }
+    }
+    const record = await this.compte(row.accountId);
+    return record === undefined ? null : { record, hash };
   }
 }
 

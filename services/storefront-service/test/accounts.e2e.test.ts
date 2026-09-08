@@ -856,3 +856,186 @@ describe('PROFIL-REVENDEUR-1 — each section patches alone, and the BOOK answer
     expect('categories' in relu.json).toBe(false);
   }, 60_000);
 });
+
+/**
+ * ═══ SESSION-VIE-1 (AUDIT-SHOP-2 F-07, F-32) — A SESSION HAS A LIFE, on the
+ * deployed bundle ═══
+ *
+ * The audit MEASURED, on this bundle: two live sessions for one account; a
+ * password change with session 1 → 200; afterwards BOTH still answered
+ * `active` and session 2 still opened `GET /storefronts`. Every claim below is
+ * re-asked of the doors the session opens — /session, /profile, /reseller/
+ * ventes and the storefront gate — never believed from the act's own answer.
+ */
+async function sessionLue(bearer: string) {
+  const res = await mf.dispatchFetch('http://c/reseller/session', {
+    method: 'POST', headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' }, body: '{}',
+  });
+  return res.status;
+}
+async function deconnexion(bearer: string | null) {
+  const res = await mf.dispatchFetch('http://c/reseller/logout', {
+    method: 'POST',
+    headers: { ...(bearer === null ? {} : { Authorization: `Bearer ${bearer}` }), 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  const text = await res.text();
+  return { status: res.status, json: safeJson(text) };
+}
+async function connexion(email: string, password: string) {
+  const res = await mf.dispatchFetch('http://c/reseller/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }),
+  });
+  const text = await res.text();
+  return { status: res.status, json: safeJson(text) as { session?: string; reason?: string } };
+}
+/** The storefront gate — the door the audit's probe found still open. */
+async function porteBoutiques(bearer: string) {
+  const res = await mf.dispatchFetch('http://c/storefronts', { headers: enTantQue(bearer) });
+  return res.status;
+}
+
+describe('SESSION-VIE-1 — logout ends the session everywhere it opened, and is idempotent', () => {
+  it('after /reseller/logout the SAME bearer is refused by /session, /profile, /reseller/ventes and the storefront gate; a second logout and an unknown bearer answer ok', async () => {
+    const elle = await activer();
+    expect(await sessionLue(elle.session)).toBe(200);
+    expect(await porteBoutiques(elle.session)).toBe(200);
+
+    const sortie = await deconnexion(elle.session);
+    expect(sortie.status).toBe(200);
+    expect(sortie.json['ok']).toBe(true);
+
+    expect(await sessionLue(elle.session)).toBe(401);
+    expect((await profil(elle.session)).status).toBe(401);
+    expect((await ventes(elle.session)).status).toBe(401);
+    expect(await porteBoutiques(elle.session)).toBe(401);
+    // idempotent, and never an oracle: gone and never-existed answer alike
+    expect((await deconnexion(elle.session)).status).toBe(200);
+    expect((await deconnexion('SPS-JAMA-ISVU-JAMA-ISVU')).status).toBe(200);
+    expect((await deconnexion(null)).status).toBe(200);
+    // …and her account is intact: the new login opens as before
+    const retour = await connexion(elle.email, MOT_DE_PASSE);
+    expect(retour.status).toBe(200);
+    expect(await sessionLue(retour.json.session!)).toBe(200);
+  }, 60_000);
+});
+
+describe('SESSION-VIE-1 — a password change cuts off every OTHER session, and spares the one that proved it', () => {
+  it('two phones in; the change made from phone 1 → phone 2 is out at every door, phone 1 still in, and the new password mints a third', async () => {
+    const elle = await activer();
+    const phone1 = elle.session;
+    const phone2 = (await connexion(elle.email, MOT_DE_PASSE)).json.session!;
+    expect(await sessionLue(phone1)).toBe(200);
+    expect(await sessionLue(phone2)).toBe(200);
+    expect(await porteBoutiques(phone2)).toBe(200);
+
+    expect((await profil(phone1, { currentPassword: MOT_DE_PASSE, newPassword: 'toute-neuve-99' })).status).toBe(200);
+
+    // The audit's exact probe, now closed at every door phone 2 could open.
+    expect(await sessionLue(phone2)).toBe(401);
+    expect(await porteBoutiques(phone2)).toBe(401);
+    expect((await profil(phone2)).status).toBe(401);
+    expect((await ventes(phone2)).status).toBe(401);
+    // The phone in her hand stays in.
+    expect(await sessionLue(phone1)).toBe(200);
+    expect(await porteBoutiques(phone1)).toBe(200);
+    // The new password opens a fresh session; the old one refuses.
+    expect((await connexion(elle.email, MOT_DE_PASSE)).status).toBe(401);
+    const phone3 = await connexion(elle.email, 'toute-neuve-99');
+    expect(phone3.status).toBe(200);
+    expect(await sessionLue(phone3.json.session!)).toBe(200);
+  }, 60_000);
+
+  it('a change of name or phone (no password) revokes NOTHING — only the password is the cut', async () => {
+    const elle = await activer();
+    const phone2 = (await connexion(elle.email, MOT_DE_PASSE)).json.session!;
+    expect((await profil(elle.session, { name: 'Awa Ouédraogo' })).status).toBe(200);
+    expect(await sessionLue(phone2)).toBe(200);
+  }, 60_000);
+});
+
+describe('SESSION-VIE-1 — the login door counts refusals per email, existing or not, and never becomes an oracle', () => {
+  it('ten wrong passwords → the eleventh try is 429 even with the RIGHT password; an unknown email hits the same 429; a success resets the count', async () => {
+    const elle = await activer();
+    for (let i = 0; i < 10; i += 1) {
+      expect((await connexion(elle.email, 'pas-le-bon-8')).status).toBe(401);
+    }
+    const bloque = await connexion(elle.email, MOT_DE_PASSE);
+    expect(bloque.status).toBe(429);
+    expect(bloque.json.reason).toBe('too_many_attempts');
+    // …the refusal carries nothing about the account
+    expect('session' in bloque.json).toBe(false);
+
+    // An email the book has never seen counts and refuses IDENTICALLY.
+    const fantome = `personne${String(n).padStart(3, '0')}@example.bf`;
+    for (let i = 0; i < 10; i += 1) {
+      expect((await connexion(fantome, 'pas-le-bon-8')).status).toBe(401);
+    }
+    expect((await connexion(fantome, 'pas-le-bon-8')).status).toBe(429);
+
+    // The reset: nine failures, one success, nine failures → still open.
+    const autre = await activer();
+    for (let i = 0; i < 9; i += 1) expect((await connexion(autre.email, 'pas-le-bon-8')).status).toBe(401);
+    expect((await connexion(autre.email, MOT_DE_PASSE)).status).toBe(200);
+    for (let i = 0; i < 9; i += 1) expect((await connexion(autre.email, 'pas-le-bon-8')).status).toBe(401);
+    expect((await connexion(autre.email, MOT_DE_PASSE)).status, 'the success must have reset the count').toBe(200);
+  }, 120_000);
+});
+
+describe('SESSION-VIE-1 — a session unused for the idle life is refused; use keeps it alive', () => {
+  /** Its own Worker with the idle life SHORTENED to 1.5 s (the env may only
+   *  shorten, never lengthen); everything else identical to the deploy. */
+  const persistCourt = mkdtempSync(join(tmpdir(), 'accounts-idle-'));
+  const court = new Miniflare({
+    modules: true,
+    scriptPath: SCRIPT,
+    durableObjects: {
+      STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
+      ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO',
+      DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO', COMPTES: 'ResellerAccountsDO',
+    },
+    durableObjectsPersist: persistCourt,
+    bindings: { PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET, CHECKOUT_OPS_SECRET: OPS_SECRET, SESSION_IDLE_MS: '1500' },
+  });
+  afterAll(async () => {
+    await court.dispose();
+    rmSync(persistCourt, { recursive: true, force: true });
+  });
+  const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  async function sessionSur(mfx: Miniflare, bearer: string) {
+    const res = await mfx.dispatchFetch('http://c/reseller/session', {
+      method: 'POST', headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' }, body: '{}',
+    });
+    return res.status;
+  }
+
+  it('silent for longer than the life → 401 and swept; used every half-life → still in past twice the life; a fresh login opens again', async () => {
+    const s = await (async () => {
+      const res = await court.dispatchFetch('http://c/reseller/signup', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Awa Dormeuse', email: 'dormeuse@example.bf', phone: '+226 70 00 00 99', password: MOT_DE_PASSE }),
+      });
+      return safeJson(await res.text()) as { session?: string };
+    })();
+    expect(await sessionSur(court, s.session!)).toBe(200);
+    await dormir(1_700);
+    expect(await sessionSur(court, s.session!), 'unused past the idle life').toBe(401);
+    // …and once refused it stays refused (swept, not merely late)
+    expect(await sessionSur(court, s.session!)).toBe(401);
+
+    const vive = await court.dispatchFetch('http://c/reseller/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'dormeuse@example.bf', password: MOT_DE_PASSE }),
+    });
+    const bearer = (safeJson(await vive.text()) as { session?: string }).session!;
+    // Used every 600 ms for 3 s — four times the 1.5 s life — the session lives:
+    // the clock is IDLE time, not age. (Touches are written at most every
+    // life/4 = 375 ms, so every read here refreshes the row.)
+    for (let i = 0; i < 5; i += 1) {
+      await dormir(600);
+      expect(await sessionSur(court, bearer), `alive at read ${String(i + 1)}`).toBe(200);
+    }
+    await dormir(1_700);
+    expect(await sessionSur(court, bearer), 'then silent past the life').toBe(401);
+  }, 60_000);
+});

@@ -106,11 +106,15 @@ describe('ACCESS-GATE-1 — the app has exactly one door, and it is the entrance
     // concept is deleted from all three screen models; and with accounts, the
     // ONLY credential entry points are the gate branch's screens.
     expect(app).not.toMatch(/demandeCode/);
-    // `ventesReelles.ouvrir` — the legacy type-a-feed-code path — has NO mount
+    // `ventesReelles.ouvrir` — the legacy type-a-feed-code path — has NO SCREEN
     // left: the entrance signs in through the account service instead. The
-    // hook keeps the function (the founder's legacy code path server-side),
-    // but no screen offers it.
-    expect([...app.matchAll(/ventesReelles\.ouvrir\(/g)]).toHaveLength(0);
+    // hook keeps the function (the founder's legacy code path server-side).
+    // SESSION-VIE-1 — exactly ONE call site remains and it is not a screen and
+    // not a typed value: `adopterCompte` re-reads her feed with the session a
+    // LOGIN just minted, or the hook would show the dead session's refusal
+    // until the app was killed. Nothing a person types reaches it.
+    const sites = [...app.matchAll(/ventesReelles\.ouvrir\(([^)]*)\)/g)].map((m) => m[1]);
+    expect(sites).toEqual(['session']);
   });
 
   it('the entrance never renders a field it cannot verify, and never flashes on a slow store', () => {

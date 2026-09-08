@@ -42,7 +42,14 @@ export type InscriptionResult =
 
 export type ConnexionResult =
   | { readonly ok: true; readonly compte: CompteLocal; readonly session: string }
-  | { readonly ok: false; readonly reason: 'refuse' | 'unreachable' };
+  /** SESSION-VIE-1 — `trop_essais`: the door counted too many refusals for
+   *  this email and answers 429 for a while; a sentence, never a retry loop. */
+  | { readonly ok: false; readonly reason: 'refuse' | 'trop_essais' | 'unreachable' };
+
+/** SESSION-VIE-1 — the logout is best-effort on the wire: the phone forgets
+ *  the session either way (see `App.finirSession`), and an unreachable book
+ *  is named so the caller can decide what to tell her. */
+export type DeconnexionResult = { readonly ok: true } | { readonly ok: false; readonly reason: 'unreachable' };
 
 export type AdmissionResult =
   | { readonly ok: true }
@@ -87,6 +94,8 @@ export interface CompteServicePort {
   session(session: string): Promise<SessionResult>;
   /** PROFIL-REVENDEUR-1 — read with an empty patch, save with a sectioned one. */
   profil(session: string, patch?: ProfilPatch): Promise<ProfilResult>;
+  /** SESSION-VIE-1 — her own way out: the book forgets THIS session. */
+  deconnecter(session: string): Promise<DeconnexionResult>;
 }
 
 const COMPTE_TIMEOUT_MS = 12_000;
@@ -171,6 +180,7 @@ export function resolveCompteService(): CompteServicePort | null {
       // ONE refusal, whatever the cause — the server is deliberately not an
       // email oracle and this client does not reconstruct one.
       if (res.status === 401) return { ok: false, reason: 'refuse' };
+      if (res.status === 429) return { ok: false, reason: 'trop_essais' };
       const compte = lireCompte(res.body);
       const session = res.body?.['session'];
       if (res.status !== 200 || compte === null || typeof session !== 'string' || session === '') {
@@ -225,6 +235,12 @@ export function resolveCompteService(): CompteServicePort | null {
         return { ok: false, reason: 'unreachable' };
       }
       return { ok: true, profil: { ...compte, email, phone } };
+    },
+
+    async deconnecter(session): Promise<DeconnexionResult> {
+      const res = await appel('/reseller/logout', { method: 'POST', body: '{}' }, session);
+      if (res === null || res.status !== 200 || res.body?.['ok'] !== true) return { ok: false, reason: 'unreachable' };
+      return { ok: true };
     },
   };
 }

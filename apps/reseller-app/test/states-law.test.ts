@@ -97,10 +97,12 @@ describe('WO-FP-SHOP states-law — every existing rendered state survives the r
     // RESELLER-ACCOUNTS-1d — the entrance is the ACCOUNT (signup/login →
     // admission code → open). The pin follows the door: the account screens
     // mount inside the gate branch, and the legacy type-a-feed-code path has
-    // NO mount left anywhere.
+    // NO SCREEN left anywhere. SESSION-VIE-1 — its one remaining call site is
+    // not a screen: `adopterCompte` re-reads her feed with the session a
+    // LOGIN just minted (the pin's exact shape lives in acces.test).
     expect(app).toMatch(/<EcranCompte/);
     expect(app).toMatch(/<EcranAdmission/);
-    expect([...app.matchAll(/ventesReelles\.ouvrir\(/g)]).toHaveLength(0);
+    expect([...app.matchAll(/ventesReelles\.ouvrir\(([^)]*)\)/g)].map((m) => m[1])).toEqual(['session']);
     // offline gets a way forward, not an error wall
     expect(app).toMatch(/ecran\.kind === 'hors_ligne'/);
     expect(app).toMatch(/ventesReelles\.recharger\(\)/);

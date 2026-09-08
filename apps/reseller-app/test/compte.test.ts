@@ -204,3 +204,28 @@ describe('RESELLER-ACCOUNTS-1d — what the device remembers', () => {
     expect(await inconnu.read()).toBeNull();
   });
 });
+
+describe('SESSION-VIE-1 — the door out, and the door that counts', () => {
+  it('deconnecter POSTs /reseller/logout riding the Bearer with an empty body; 200 ok is the only success', async () => {
+    vi.stubEnv(BASE, 'https://shop.example');
+    const port = resolveCompteService()!;
+    const spy = stubFetch(async () => new Response(JSON.stringify({ ok: true })));
+    expect(await port.deconnecter('SPS-AAAA')).toEqual({ ok: true });
+    const [url, init] = spy.mock.calls[0]!;
+    expect(url).toBe('https://shop.example/reseller/logout');
+    expect(init?.method).toBe('POST');
+    expect((init?.headers as Record<string, string>)['Authorization']).toBe('Bearer SPS-AAAA');
+    expect(init?.body).toBe('{}');
+    // a dead network, a 503 and a body without ok are all « not reached »
+    stubFetch(() => Promise.reject(new Error('down')));
+    expect(await port.deconnecter('SPS-AAAA')).toEqual({ ok: false, reason: 'unreachable' });
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'accounts_unavailable' }), { status: 503 }));
+    expect(await port.deconnecter('SPS-AAAA')).toEqual({ ok: false, reason: 'unreachable' });
+  });
+
+  it('login: a 429 is « trop d\'essais », told apart from the one refusal — she must hear « wait », not « wrong password »', async () => {
+    vi.stubEnv(BASE, 'https://shop.example');
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'too_many_attempts' }), { status: 429 }));
+    expect(await resolveCompteService()!.connecter('a@b.bf', 'grain-de-nere-77')).toEqual({ ok: false, reason: 'trop_essais' });
+  });
+});
