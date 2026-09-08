@@ -103,6 +103,24 @@ jobs:
             exit 0
           fi
           printf '%s' "${SHOP_ARM_SECRET}" | npx --yes wrangler@4 secret put SHOP_ARM_SECRET
+      # ACCES-ARME-2 (founder « you can remove them yourself », 2026-09-08) — the
+      # RETIRED shared write secret leaves the Worker's encrypted store. The Worker
+      # has not read STOREFRONT_WRITE_SECRET since 735c2f5; this step removes the
+      # value itself, and it STAYS: a no-op once the name is gone, and a later
+      # `secret put` of that name is undone on the next deploy — the key cannot
+      # come back by accident. `secret list` prints NAMES only, never a value.
+      - name: Retire the shared write secret (ACCES-ARME-2 — deletes the name if present)
+        working-directory: services/storefront-service
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if npx --yes wrangler@4 secret list | grep -q '"name": *"STOREFRONT_WRITE_SECRET"'; then
+            printf 'y\n' | npx --yes wrangler@4 secret delete STOREFRONT_WRITE_SECRET
+            echo "STOREFRONT_WRITE_SECRET: deleted from the Worker's store"
+          else
+            echo "STOREFRONT_WRITE_SECRET: already absent"
+          fi
       # DEPLOY-SMOKE-1 — PROVE THE DEPLOYED SURFACE ANSWERS, here and nowhere else.
       #
       # A green `wrangler deploy` proves the upload was accepted. It does NOT prove
