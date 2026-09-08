@@ -169,6 +169,11 @@ const CORPS_MAX_MEDIA = IMAGE_MAX_BYTES + 64 * 1024;
 function corpsMaxPour(pathname: string): number {
   if (pathname === '/media/upload') return CORPS_MAX_MEDIA;
   if (pathname === '/checkout/order' || pathname === '/listes') return CORPS_MAX_NOTE;
+  // The two money webhooks are secret-gated, never anonymous, and the spine's
+  // own bounded-envelope law (a megabyte `command_id` is refused BY NAME,
+  // `malformed_payload`, pinned in order-do.e2e and porte-custody.e2e) must
+  // stay reachable rather than be shadowed by a 413 at the root.
+  if (pathname === '/checkout/webhook/payment' || pathname === '/checkout/webhook/door') return CORPS_MAX_NOTE;
   return CORPS_MAX;
 }
 
