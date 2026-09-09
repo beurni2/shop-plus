@@ -237,7 +237,35 @@ function sectionHead(glyph: string, title: string, linkLabel?: string, anchor?: 
  * `p.art` gradient + `p.glyph` came from VITRINE_SEED demo data that a real
  * product does not have; the demo now shows what a buyer will actually get.
  */
-function tileArt(veiled: boolean, assetRefs: readonly string[] = []): string {
+/**
+ * VIGNETTES-1 (AUDIT-SHOP-2 F-22) — the 320 px vignette for every SMALL frame.
+ *
+ * Boutik+'s media service answers `GET /media/{token}?v=thumb` with the
+ * vignette the device made beside the photograph (≤ 96 KB, long edge 320 px)
+ * — and FALLS BACK to the photograph itself when no vignette exists (a
+ * photograph older than THUMB-PRODUIT-1 never gains one), so this needs no
+ * client-side fallback: the URL is always answerable. Before this slice every
+ * 170 px grid tile, panier card and liste row pulled the full 1280 px
+ * derivative — a shop of eight articles cost 1–3 MB over a 1.5 Mbps link for
+ * two columns of thumbnails (PERF-BUDGETS: « thumbnail ≤ 15 KB »).
+ *
+ * `taille` names the frame: `'vignette'` for tiles, rows and posters,
+ * `'pleine'` for the « À la une » card (full-width, 210 px tall — a 320 px
+ * vignette upscaled ×3 on a dense screen is a blur on the one photograph the
+ * seller chose to lead with). The C1 frame and the gallery are full by
+ * construction (`cliente/screens.ts`) and never pass through here.
+ *
+ * Only http(s) refs are rewritten: a `data:` ref (harness seeds) would be
+ * corrupted by a query, and a ref already carrying one takes `&`.
+ */
+type TailleArt = 'vignette' | 'pleine';
+
+export function vignette(ref: string): string {
+  if (!/^https?:\/\//.test(ref)) return ref;
+  return `${ref}${ref.includes('?') ? '&' : '?'}v=thumb`;
+}
+
+function tileArt(veiled: boolean, assetRefs: readonly string[] = [], taille: TailleArt = 'vignette'): string {
   // REAL-PRODUCT-RENDER-1 — the HERO ref, when there is one. `assetRefs[0]` is
   // the hero by the convention boutik enforces AT ITS PRODUCER (the consumer
   // does not re-rank: no ordering logic, no scoring — loi 5 deterministic).
@@ -248,7 +276,7 @@ function tileArt(veiled: boolean, assetRefs: readonly string[] = []): string {
   if (hero !== undefined && hero !== '') {
     return [
       '<div class="vt-tile-art vt-tile-art-photo" data-role="tile-photo">',
-      `<img class="vt-tile-photo" src="${esc(hero)}" alt="" loading="lazy" decoding="async">`,
+      `<img class="vt-tile-photo" src="${esc(taille === 'vignette' ? vignette(hero) : hero)}" alt="" loading="lazy" decoding="async">`,
       veil,
       '</div>',
     ].join('');
@@ -341,21 +369,22 @@ function tile(p: VitrineProduct, note: ProductVoiceNote | undefined, slug: strin
  * ÉPUISÉ TILES STAY PHOTOGRAPHS: a sold-out tile is veiled and muette, and a
  * clip playing under a « épuisé » stamp advertises what cannot be bought.
  */
-function produitArt(p: VitrineProduct, veiled: boolean): string {
+function produitArt(p: VitrineProduct, veiled: boolean, taille: TailleArt = 'vignette'): string {
   const clip = p.videoRef;
   if (!veiled && clip !== undefined && clip !== '') {
     const poster = p.assetRefs[0];
+    const posterSrc = poster !== undefined && poster !== '' ? (taille === 'vignette' ? vignette(poster) : poster) : undefined;
     return [
       '<div class="vt-tile-art vt-tile-art-photo" data-role="tile-video">',
-      `<video class="vt-video-hero" data-role="video-hero" src="${esc(clip)}" muted playsinline loop preload="metadata"${poster !== undefined && poster !== '' ? ` poster="${esc(poster)}"` : ''}></video>`,
+      `<video class="vt-video-hero" data-role="video-hero" src="${esc(clip)}" muted playsinline loop preload="metadata"${posterSrc !== undefined ? ` poster="${esc(posterSrc)}"` : ''}></video>`,
       '</div>',
     ].join('');
   }
-  return tileArt(veiled, p.assetRefs);
+  return tileArt(veiled, p.assetRefs, taille);
 }
 
 function featuredArt(p: VitrineProduct): string {
-  return produitArt(p, false); // the hero is never an épuisé (auto-retrait)
+  return produitArt(p, false, 'pleine'); // the hero is never an épuisé (auto-retrait)
 }
 
 /**

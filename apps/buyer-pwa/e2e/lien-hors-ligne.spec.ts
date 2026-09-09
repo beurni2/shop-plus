@@ -40,8 +40,19 @@ const BOUTIQUE = {
   resellerId: 'rs-e2e-hl-1',
   name: 'Chez Aïcha Mode',
   zone: 'Rood Woko',
-  curatedItems: ['p1'],
-  products: [{ pid: 'p1', name: 'Bazin riche brodé', priceFcfa: 12_000, inStock: true, assetRefs: [] }],
+  curatedItems: ['p1', 'p2'],
+  // p1 pinned « À la une » (full derivative), so p2 is a GRID tile (vignette).
+  featuredItems: ['p1'],
+  // the boutique page reads these collections off the wire (a shop without
+  // `cover` throws before innerHTML — F-55, its own slice); the offer page did not
+  cover: { status: 'none' }, avatar: { mode: 'monogram' }, theme: 'laterite', sections: [], productNotes: {},
+  headerStyle: 'classique', discoverable: true, createdAt: '2026-09-01T00:00:00.000Z', updatedAt: '2026-09-01T00:00:00.000Z',
+  products: [
+    { pid: 'p1', name: 'Bazin riche brodé', priceFcfa: 12_000, inStock: true, assetRefs: [] },
+    // VIGNETTES-1 — one product WITH a photograph, so the grid's vignette ask
+    // and the C1 frame's full derivative are both walked on the real port.
+    { pid: 'p2', name: 'Pagne wax 6 yards', priceFcfa: 8_500, inStock: true, assetRefs: ['https://media.example/media/p2-hero'] },
+  ],
 };
 
 type Service = 'coupe' | 'cinq-cents' | 'introuvable' | 'ok';
@@ -120,4 +131,19 @@ test('control — a real 404 still earns the honest not-found, never the retry c
   await expect(page.locator('.vt-root[data-etat="invalid"]')).toBeVisible();
   await expect(page.locator('[data-etat="horsligne"]')).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test('VIGNETTES-1 (F-22) — on the real port the grid tile asks the media service for the 320 px vignette; the C1 frame keeps the full derivative', async ({ page }) => {
+  // the fake media host answers nothing — the walk is about the URL asked, not the bytes
+  await page.route('https://media.example/**', (route) => route.abort('failed'));
+  await page.route('**/checkout/**', (route) => route.abort('failed'));
+  await service(page, 'ok');
+  await page.goto('/?/v/aicha-4821');
+  await expect(page.locator('.vt-root[data-etat="ready"]')).toBeVisible();
+  const tuile = page.locator('.vt-tile[data-pid="p2"] img.vt-tile-photo');
+  await expect(tuile).toHaveAttribute('src', 'https://media.example/media/p2-hero?v=thumb');
+  // the offer page of the same product: the frame looked at, full
+  await page.goto('/?/s/aicha-4821&pid=p2');
+  await expect(page.locator('[data-screen="C1"]')).toBeVisible();
+  await expect(page.locator('.cl-photo-img')).toHaveAttribute('src', 'https://media.example/media/p2-hero');
 });
