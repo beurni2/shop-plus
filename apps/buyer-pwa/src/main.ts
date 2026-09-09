@@ -953,7 +953,10 @@ if (app) {
      * `sansVoix` is STILL PASSED below: it is C1's own prop, and the two agree.
      */
     const avecNote = params.get('voix') !== '0';
-    const { voiceDuree, voiceUrl, ...base } = clienteProduit({ name: sf?.name ?? '', slug: sf?.slug ?? 'aicha-4821' });
+    const { voiceDuree, voiceUrl: _ref, ...base } = clienteProduit({ name: sf?.name ?? '', slug: sf?.slug ?? 'aicha-4821' });
+    // BUNDLE-SANS-ZOD-1 (F-88) — the [DEMO] tone is its own chunk, fetched by
+    // this harness alone; the seed carries only a ref to it (`DEMO_VOICE_REF`).
+    const voiceUrl = avecNote ? (await import('./vitrine/voice-asset')).DEMO_VOICE_URL : undefined;
     const produit = {
       ...base,
       /**

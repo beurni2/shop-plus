@@ -19,7 +19,6 @@
 // Canon guards the boundary at name ≤ 120; the reseller app enforces 3–24 at
 // ITS edit boundary (§3.1/QA §8.6) — the buyer only renders.
 import type { Storefront } from '@platform/contracts';
-import { DEMO_VOICE_URL, DEMO_VOICE_DURATION_MS } from './voice-asset';
 import type { VitrineProduct } from './catalog';
 // ENTETES-B — the app's own closed key list (this surface consumes the WIRE,
 // not the canon package at runtime). Pinned to the EXECUTED canon import
@@ -184,25 +183,17 @@ const ABSENT_TRUST: VitrineTrust = { deliveredCount: 0, rating: '', reviewCount:
 // FOUNDER ORDER (2026-07-22): EVERY curated product carries a ready [DEMO]
 // note, so the « Note vocale » card is present and playable on every shared C1 —
 // not just p1/p5. Same placeholder asset; the media backend swaps the url.
-const AICHA_VOICE_NOTES: ProductVoiceNotes = {
-  p1: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
-  p2: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
-  p3: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
-  p4: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
-  p5: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
-  p7: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
-  p8: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
-  k1: { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS },
-};
-
-/** The DIRECT-landing signed product (no vitrine round trip) carries a demo note
- * too, so the product-page player is demonstrable on the default route. Same
- * [DEMO] asset; the real backend attaches the real note to the real listing. */
-export const DEMO_LANDING_VOICE: ProductVoiceNote = {
-  status: 'ready',
-  url: DEMO_VOICE_URL,
-  durationMs: DEMO_VOICE_DURATION_MS,
-};
+//
+// BUNDLE-SANS-ZOD-1 (AUDIT-SHOP-2 F-88): the tone is fetched HERE, lazily —
+// its 3.7 KB gzip rode the entry bundle for every real buyer while only this
+// demo adapter (and the `?demo-cliente=` harness) ever plays it. `resolve` is
+// already async, so the chunk lands on the one microtask that needs it.
+const AICHA_NOTE_PIDS = ['p1', 'p2', 'p3', 'p4', 'p5', 'p7', 'p8', 'k1'] as const;
+async function aichaVoiceNotes(): Promise<ProductVoiceNotes> {
+  const { DEMO_VOICE_URL, DEMO_VOICE_DURATION_MS } = await import('./voice-asset');
+  const note: ProductVoiceNote = { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS };
+  return Object.fromEntries(AICHA_NOTE_PIDS.map((pid) => [pid, note]));
+}
 
 /**
  * The demo adapter. `aicha-4821` resolves to the DEFAULT profile; the audit
@@ -216,12 +207,6 @@ export function demoStorefrontPort(variant: 'default' | 'customised' | 'empty' |
     // so this resolves on the next microtask with no network (the offline harness).
     async resolve(slug: string) {
       if (slug !== 'aicha-4821') return undefined;
-      if (variant === 'customised') return { storefront: AICHA_CUSTOMISED, trust: AICHA_TRUST, notes: AICHA_VOICE_NOTES };
-      // privée (canon §5.6, loi 4): absent from Découvrir (discoverable:false),
-      // but the SIGNED LINK still resolves — there is no « boutique fermée ». The
-      // product page mounts exactly as for a public store; only the directory
-      // (allBoutiques, projected on `discoverable`) hides her.
-      if (variant === 'private') return { storefront: { ...AICHA_DEFAULT, discoverable: false }, trust: AICHA_TRUST, notes: AICHA_VOICE_NOTES };
       if (variant === 'empty') {
         // V6 — before the first article: identity present, zero products, no
         // review chip yet (< 3 avis — a new reseller's honest day 1), no notes.
@@ -231,7 +216,14 @@ export function demoStorefrontPort(variant: 'default' | 'customised' | 'empty' |
           notes: {},
         };
       }
-      return { storefront: AICHA_DEFAULT, trust: AICHA_TRUST, notes: AICHA_VOICE_NOTES };
+      const notes = await aichaVoiceNotes();
+      if (variant === 'customised') return { storefront: AICHA_CUSTOMISED, trust: AICHA_TRUST, notes };
+      // privée (canon §5.6, loi 4): absent from Découvrir (discoverable:false),
+      // but the SIGNED LINK still resolves — there is no « boutique fermée ». The
+      // product page mounts exactly as for a public store; only the directory
+      // (allBoutiques, projected on `discoverable`) hides her.
+      if (variant === 'private') return { storefront: { ...AICHA_DEFAULT, discoverable: false }, trust: AICHA_TRUST, notes };
+      return { storefront: AICHA_DEFAULT, trust: AICHA_TRUST, notes };
     },
   };
 }

@@ -17,8 +17,6 @@ import { renderVitrineReady } from '../src/vitrine/render';
 import { looksLikeProductForTest, httpStorefrontPort, VitrineOffline } from '../src/vitrine/profile';
 import { toggleFavorite, resetFavoritesCache } from '../src/vitrine/favorites';
 import {
-  identityLinkSuffix,
-  identityLink,
   vitrineSlugFromPath,
   deployBaseFromPath,
   vitrineHref,
@@ -44,19 +42,11 @@ const model: VitrineViewModel = {
   ],
 };
 
-describe('the ONE LINK-FORMAT LAW — the emitted identity link is canon /v/{slug}', () => {
-  it('identityLinkSuffix is the canon shortCodeToSlug form', () => {
-    expect(identityLinkSuffix('AICHA-4821')).toBe('/v/aicha-4821');
-  });
-
-  it('the full card link is suffix-correct under the deployed project base', () => {
-    const link = identityLink('AICHA-4821', 'https://beurni2.github.io', '/shop-plus/');
-    expect(link).toBe('https://beurni2.github.io/shop-plus/v/aicha-4821');
-    expect(link.endsWith('/v/aicha-4821')).toBe(true);
-    // never a query-string link on the card
-    expect(link).not.toMatch(/[?&]/);
-  });
-
+describe('the ONE LINK-FORMAT LAW — the app READS the canon /v/{slug} form (it never emits one)', () => {
+  // BUNDLE-SANS-ZOD-1 (AUDIT-SHOP-2 F-21): `identityLinkSuffix`/`identityLink`
+  // were the buyer bundle's only reason to import `@platform/contracts` at
+  // runtime, and no app code called them. Emitting the link is the reseller
+  // app's job; this surface parses it.
   it('the app routes /v/{slug} from location.pathname (base-tolerant), never from a query', () => {
     expect(vitrineSlugFromPath('/shop-plus/v/aicha-4821')).toBe('aicha-4821');
     expect(vitrineSlugFromPath('/v/aicha-4821')).toBe('aicha-4821');

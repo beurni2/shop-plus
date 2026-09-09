@@ -1,4 +1,12 @@
-import { shortCodeToSlug, type AttributionArrival } from '@platform/contracts';
+// BUNDLE-SANS-ZOD-1 (AUDIT-SHOP-2 F-21) — TYPE-ONLY. This was the buyer
+// bundle's one runtime import of `@platform/contracts`, and it dragged the
+// whole barrel — zod and every canon schema — into the entry (24.8 KB gzip,
+// 19 % of first-load JS) for `shortCodeToSlug`, a one-line rule whose only
+// callers were two helpers no app code used. The helpers are gone; the app
+// only PARSES the canon `/v/{slug}` form (below) and never emits one — the
+// reseller app does. `scripts/gates/pwa-payload-budget.mjs` now refuses a
+// buyer bundle that names `ZodError`.
+import type { AttributionArrival } from '@platform/contracts';
 import { countDeliveredSales, resolvePublishedStore } from '@shop-plus/store-projection';
 import type { VitrineReputation, VitrineViewModel } from './vitrine-view';
 import { DEMO_STORES, demoDeliveredSaleEvents, demoStoreEvents } from './demo-stores';
@@ -6,23 +14,10 @@ import { DEMO_STORES, demoDeliveredSaleEvents, demoStoreEvents } from './demo-st
 /**
  * WO-7.1 — the ONE LINK-FORMAT LAW, in code. The identity link the system
  * emits is canon's `shortCodeToSlug` form (`/v/aicha-4821`) — never a
- * query-string. `shortCodeToSlug` already returns the `/v/{slug}` path; the
- * card link is that suffix under the deployed base (so `/shop-plus/v/aicha-4821`
- * in project-page hosting). The vitrine is reached by that path; a
- * `?demo-vitrine=<slug>` param is a LOCAL/GATE harness only (like
- * the retired Grand Teint demo params), never the shared link.
+ * query-string. The vitrine is reached by that path; a `?demo-vitrine=<slug>`
+ * param is a LOCAL/GATE harness only (like the retired Grand Teint demo
+ * params), never the shared link.
  */
-
-/** The canon identity link suffix for a reseller short code: `/v/{slug}`. */
-export function identityLinkSuffix(shortCode: string): string {
-  return shortCodeToSlug(shortCode); // e.g. AICHA-4821 → /v/aicha-4821
-}
-
-/** The full identity link under the app's deployed base (base ends with '/'). */
-export function identityLink(shortCode: string, origin: string, basePath: string): string {
-  const base = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
-  return `${origin}${base}${identityLinkSuffix(shortCode)}`;
-}
 
 /**
  * Parse a vitrine slug from a pathname, tolerant of the deployed base path

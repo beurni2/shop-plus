@@ -147,6 +147,24 @@ if (buyer.js > JS_BUDGET_BYTES) {
   console.error(`BUYER-PAGE JS BUDGET BROKEN: ${buyer.js} B > ${JS_BUDGET_BYTES} B`);
   failed = true;
 }
+// BUNDLE-SANS-ZOD-1 (AUDIT-SHOP-2 F-21) — the buyer surface consumes the WIRE,
+// never the canon package at runtime: one value import of `@platform/contracts`
+// carried zod and every schema into the entry (24.8 KB gzip for a one-line
+// slug rule). `ZodError` is the byte-level fingerprint of that regression;
+// it must appear in NO buyer chunk, lazy ones included.
+const buyerAssets = join(ROOT, 'apps/buyer-pwa/dist/assets');
+const zodHits = readdirSync(buyerAssets)
+  .filter((f) => f.endsWith('.js'))
+  .map((f) => ({ f, n: (readFileSync(join(buyerAssets, f), 'utf8').match(/ZodError/g) ?? []).length }))
+  .filter(({ n }) => n > 0);
+if (zodHits.length > 0) {
+  console.error(
+    `ZOD IN THE BUYER BUNDLE [buyer-pwa]: ${zodHits.map(({ f, n }) => `${f} ×${n}`).join(', ')} — a runtime import of @platform/contracts reached the entry`,
+  );
+  failed = true;
+} else {
+  console.log('[buyer-pwa] ZodError references: 0 (no canon-package runtime import)');
+}
 
 // WO-7.2b — the reseller media-kit surface (the composeur), same per-surface total.
 const kit = measureSurface({ name: 'reseller-kit', pkg: '@shop-plus/reseller-kit', dir: 'apps/reseller-kit' });

@@ -20,7 +20,16 @@ import type { ClienteProduit, ClienteQuote, LegSplits } from './screens';
 import type { VitrineThemeKey } from '../vitrine/themes';
 import type { VitrineProduct } from '../vitrine/catalog';
 import type { ProductVoiceNote } from '../vitrine/profile';
-import { DEMO_VOICE_URL } from '../vitrine/voice-asset';
+
+/**
+ * BUNDLE-SANS-ZOD-1 (AUDIT-SHOP-2 F-88) — the [DEMO] tone no longer rides the
+ * entry bundle. The harness product SAYS it carries a note (this ref), and the
+ * harness mount (`main.ts`, `?demo-cliente=`) swaps the ref for the lazily
+ * imported `DEMO_VOICE_URL` before anything renders — a real buyer never
+ * downloads the tone. Only tests ever see the ref itself; a player handed it
+ * takes the same « missing url » road it takes for any unplayable note.
+ */
+export const DEMO_VOICE_REF = 'demo:note-vocale';
 
 /** Séra's public fee card (§3.2 — the only two legs the buyer can choose). */
 const FRAIS_TODAY = 1000;
@@ -112,7 +121,7 @@ export const ROBE: ClienteProduit = {
   // NOT make the « photo réelle » promise (REAL-PRODUCT-RENDER-1).
   assetRefs: [],
   voiceDuree: '0:12',
-  voiceUrl: DEMO_VOICE_URL,
+  voiceUrl: DEMO_VOICE_REF,
   inStock: true,
 };
 
