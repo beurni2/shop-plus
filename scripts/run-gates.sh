@@ -298,7 +298,22 @@ capture no-emoji-in-chrome-negative fail node scripts/gates/no-emoji-in-chrome.m
 log "gate: lockfile-url-form — committed pnpm-lock.yaml pins deps by portable https-form URL (cold-install law, must pass)"
 capture lockfile-url-form-positive pass node scripts/gates/lockfile-url-form.mjs
 log "gate: lockfile-url-form — NEGATIVE FIXTURE (SSH-form git@ URL, must fail)"
-capture lockfile-url-form-negative fail node scripts/gates/lockfile-url-form.mjs gates/fixtures/negative/lockfile-url-form
+capture lockfile-url-form-negative fail node scripts/gates/lockfile-url-form.mjs gates/fixtures/negative/lockfile-url-form/lock.ssh.yaml
+log "gate: lockfile-url-form — NEGATIVE FIXTURE (CHAINE-DEPLOI-1 F-38: git+ssh:// and ssh://git@github.com/ scheme forms, must fail)"
+capture lockfile-url-form-ssh-scheme-negative fail node scripts/gates/lockfile-url-form.mjs gates/fixtures/negative/lockfile-url-form/lock.ssh-scheme.yaml
+
+# CHAINE-DEPLOI-1 (AUDIT-SHOP-2 F-35) — the dependency half of E0's « dependency
+# + secret scanning in CI ». The positive asks the registry about the REAL
+# workspace (a red here means a bump is owed, or a build-tooling ruling); the
+# negatives are saved reports: a high advisory on a runtime path, and a file
+# that is not a report at all — which must be « could not run » (exit 2), never
+# a pass on silence.
+log "gate: dependency-audit — pnpm audit --prod, high/critical outside the build-tooling allow-list (must pass)"
+capture dependency-audit-positive pass node scripts/gates/dependency-audit.mjs
+log "gate: dependency-audit — NEGATIVE FIXTURE (a high advisory on the Worker's zod — a runtime path — beside an allow-listed Expo one, must fail)"
+capture dependency-audit-negative fail node scripts/gates/dependency-audit.mjs --fixture gates/fixtures/negative/dependency-audit/audit.runtime-high.json
+log "gate: dependency-audit — NOT A REPORT (no metadata/advisories: the gate could not run and must say so with exit 2, never pass)"
+capture dependency-audit-not-a-report 2 node scripts/gates/dependency-audit.mjs --fixture gates/fixtures/negative/dependency-audit/not-a-report.json
 
 log "gate: French Voice copy-lint — reseller-app catalog (must pass)"
 capture copy-lint-reseller-positive pass pnpm exec copy-lint apps/reseller-app/i18n/catalog.json

@@ -1,0 +1,11 @@
+# NEGATIVE FIXTURE for lockfile-url-form (CHAINE-DEPLOI-1, AUDIT-SHOP-2 F-38).
+# The ssh:// SCHEME forms — `git+ssh://` and bare `ssh://git@github.com/` —
+# that the CI insteadOf rewrites name but the gate never caught. Both MUST
+# fail (exit 1). If this stops failing, the gate has gone blind.
+importers:
+  .:
+    dependencies:
+      '@platform/ui-tokens':
+        version: git+ssh://git@github.com/beurni2/platform-contracts.git#04af4b5266d53866a2b6d5800e270d3fffac2b35&path:packages/ui-tokens
+      '@platform/contracts':
+        version: ssh://git@github.com/beurni2/platform-contracts.git#04af4b5266d53866a2b6d5800e270d3fffac2b35&path:packages/contracts

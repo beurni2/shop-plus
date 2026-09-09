@@ -5,45 +5,31 @@ name: expo-preview
 # EXPO_TOKEN secret is absent; the founder adds it in repo settings to arm
 # the channel. The token is referenced ONLY as a secret via env — it appears
 # in no committed file, no echoed log line, no lockfile (scan-gated).
+#
+# CHAINE-DEPLOI-1 (AUDIT-SHOP-2 F-09) — the token and the EXPO_PUBLIC_* values
+# used to be JOB-level env, present in the shell of `pnpm install` and its
+# allow-listed postinstalls. They are STEP-scoped now: the presence check
+# reads the token to test that it exists, and the publish step is the only
+# other shell that ever holds it.
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+# CHAINE-DEPLOI-1 (F-09) — the job reads the tree; EAS is reached with
+# EXPO_TOKEN, never with GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   publish-preview:
     runs-on: ubuntu-latest
-    env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      # RESELLER-STOREFRONT-WRITE-1 — EXPO_PUBLIC_* are compiled INTO the bundle by
-      # babel at `eas update` time. The base is a repo secret only so the live
-      # service's origin stays out of the public tree; it arms the app's real calls.
-      #
-      # RESELLER-SEAM-HONESTY-1 — leave it unset and `resolveStorefrontService()`
-      # returns **null**, NOT a demo adapter: the app shows « Pas encore relié au
-      # service » and writes nothing. It used to fall back to an in-memory adapter whose
-      # create/publish could not fail, so an unset or mistyped secret produced a SUCCESS
-      # TOAST with nothing written anywhere. That adapter is now absent from the
-      # published bundle, proven by scripts/gates/no-demo-adapter-in-bundle.mjs against
-      # the real exported artifact.
-      #
-      # ACCES-ARME-2 (a2b phase 2, founder « Seated » 2026-09-05) — NO CREDENTIAL
-      # SHIPS IN THE BUNDLE ANY MORE. The shared write key (`EXPO_PUBLIC_STOREFRONT_
-      # WRITE_KEY`) is retired on both sides: the app presents her session, minted by
-      # the service's account book at admission. The repo secret of that name is
-      # unread from here on and can be deleted.
-      EXPO_PUBLIC_STOREFRONT_BASE: ${{ secrets.EXPO_PUBLIC_STOREFRONT_BASE }}
-      # ACCES-ARME-1 (a2b phase 1) — founder order 2026-09-04 « go a2b »: the
-      # access gate is ARMED on the published build. Every phone now signs up at
-      # the entrance and enters a founder-minted admission code (the 2026-08-04
-      # « off for now » ruling ends with this order). A literal, not a secret —
-      # « on » is a build posture and must be readable in review. Same babel
-      # inlining road as the two EXPO_PUBLIC_* values above.
-      EXPO_PUBLIC_ACCESS_GATE: 'on'
     steps:
       - name: Check EXPO_TOKEN presence (skip gracefully when absent)
         id: token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
             echo "::notice title=Aperçu Expo non publié::Le secret EXPO_TOKEN n'est pas configuré — l'ajouter dans Settings → Secrets pour armer la publication automatique (voir PREVIEW.md)."
@@ -51,26 +37,65 @@ jobs:
           else
             echo "present=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/checkout@v4
+      # CHAINE-DEPLOI-1 (F-09) — actions pinned to commit SHAs (tag kept beside
+      # each for reading); see ci.yml.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: steps.token.outputs.present == 'true'
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0 (what the moving v4 resolves to)
         if: steps.token.outputs.present == 'true'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: steps.token.outputs.present == 'true'
         with:
           node-version: 22
           cache: pnpm
-      - name: Authorize read access to platform-contracts (CI-only)
+      # CHAINE-DEPLOI-1 (F-36) — the scoped platform-contracts grant, exactly
+      # as ci.yml explains it: a temp gitconfig only this step reads, deleted
+      # after the install; nothing written when the secret is unset.
+      - name: Install (frozen lockfile) with a scoped platform-contracts grant, discarded after
         if: steps.token.outputs.present == 'true'
+        env:
+          GIT_CONFIG_GLOBAL: ${{ runner.temp }}/platform-contracts.gitconfig
+          PLATFORM_CONTRACTS_READ_TOKEN: ${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}
         run: |
-          git config --global url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "https://github.com/beurni2/platform-contracts"
-          git config --global --add url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "ssh://git@github.com/beurni2/platform-contracts"
-          git config --global --add url."https://x-access-token:${{ secrets.PLATFORM_CONTRACTS_READ_TOKEN }}@github.com/beurni2/platform-contracts".insteadOf "git@github.com:beurni2/platform-contracts"
-      - run: pnpm install --frozen-lockfile
-        if: steps.token.outputs.present == 'true'
+          set -euo pipefail
+          if [ -n "${PLATFORM_CONTRACTS_READ_TOKEN}" ]; then
+            B="https://x-access-token:${PLATFORM_CONTRACTS_READ_TOKEN}@github.com/beurni2/platform-contracts"
+            git config --global url."$B".insteadOf "https://github.com/beurni2/platform-contracts"
+            git config --global --add url."$B".insteadOf "git@github.com:beurni2/platform-contracts"
+            git config --global --add url."$B".insteadOf "ssh://git@github.com/beurni2/platform-contracts"
+          fi
+          pnpm install --frozen-lockfile
+          rm -f "$GIT_CONFIG_GLOBAL"
       - name: Publish reseller-app preview update (EAS, non-interactive)
         if: steps.token.outputs.present == 'true'
         working-directory: apps/reseller-app
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          # RESELLER-STOREFRONT-WRITE-1 — EXPO_PUBLIC_* are compiled INTO the bundle by
+          # babel at `eas update` time. The base is a repo secret only so the live
+          # service's origin stays out of the public tree; it arms the app's real calls.
+          #
+          # RESELLER-SEAM-HONESTY-1 — leave it unset and `resolveStorefrontService()`
+          # returns **null**, NOT a demo adapter: the app shows « Pas encore relié au
+          # service » and writes nothing. It used to fall back to an in-memory adapter whose
+          # create/publish could not fail, so an unset or mistyped secret produced a SUCCESS
+          # TOAST with nothing written anywhere. That adapter is now absent from the
+          # published bundle, proven by scripts/gates/no-demo-adapter-in-bundle.mjs against
+          # the real exported artifact.
+          #
+          # ACCES-ARME-2 (a2b phase 2, founder « Seated » 2026-09-05) — NO CREDENTIAL
+          # SHIPS IN THE BUNDLE ANY MORE. The shared write key (`EXPO_PUBLIC_STOREFRONT_
+          # WRITE_KEY`) is retired on both sides: the app presents her session, minted by
+          # the service's account book at admission. The repo secret of that name is
+          # unread from here on and can be deleted.
+          EXPO_PUBLIC_STOREFRONT_BASE: ${{ secrets.EXPO_PUBLIC_STOREFRONT_BASE }}
+          # ACCES-ARME-1 (a2b phase 1) — founder order 2026-09-04 « go a2b »: the
+          # access gate is ARMED on the published build. Every phone now signs up at
+          # the entrance and enters a founder-minted admission code (the 2026-08-04
+          # « off for now » ruling ends with this order). A literal, not a secret —
+          # « on » is a build posture and must be readable in review. Same babel
+          # inlining road as the two EXPO_PUBLIC_* values above.
+          EXPO_PUBLIC_ACCESS_GATE: 'on'
         # The documented non-interactive chain: init links/creates the
         # project under the token's account on first run; update:configure
         # writes the runtime/update config into the CI workspace only

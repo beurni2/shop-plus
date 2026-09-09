@@ -53,7 +53,8 @@ const BANNED = [
   { name: 'commission', regex: /\bcommission\b/ },
   { name: 'reseller margin', regex: /\b(marge|markup)\b/ },
   { name: 'seller economics', regex: /\b(re)?seller (net|base price|platform fee|gross( earnings)?|phone|tel|telephone|contact|whatsapp)\b/ },
-  { name: 'base price decomposition', regex: /\bbase (price|fcfa)\b|\bprix (de |d )?(base|fournisseur|gros|achat)\b/ },
+  // `d ?` — « prix d'achat » arrives as prixDAchat, whose words are « prix dachat ».
+  { name: 'base price decomposition', regex: /\bbase (price|fcfa)\b|\bprix (de |d ?)?(base|fournisseur|gros|achat)\b/ },
   { name: 'pickup location', regex: /\b(pickup|pick up|entrepot|depot|retrait|enlevement)\b/ },
   { name: 'phone / messaging contact', regex: /\b(tel|telephone|phone|whatsapp|portable)\b/ },
 ];
