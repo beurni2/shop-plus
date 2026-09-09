@@ -105,6 +105,8 @@ interface Env extends WriteAuthEnv {
   /** SP3.3a — the certified sandbox provider's behaviour knobs. UNSET on the
    *  deploy (the well-behaved provider); read by OrderDO, never by a route. */
   PAYMENT_SANDBOX_BEHAVIOR?: string;
+  /** RESERVATION-REGLE-2 — SANDBOX ONLY: CheckoutDO's certified release-wire fault (`{ "refuseFirstNReleases": N }`); unset on the deploy. */
+  CHECKOUT_SANDBOX_BEHAVIOR?: string;
   BUCKET?: R2BucketLike;
   MEDIA_PUBLIC_BASE?: string;
   STOREFRONT_GCS_BUCKET?: string;
@@ -1233,6 +1235,36 @@ export default {
         return withDispatchCors(Response.json({ ok: false, reason: 'dlq_unavailable' }, { status: 503 }));
       }
       return withDispatchCors(Response.json(book));
+    }
+
+    /**
+     * RESERVATION-REGLE-2 — THE ACKNOWLEDGEMENT, on key C like the account
+     * console's writes (one Shop+ ops door, one identity, a POST). The
+     * operator has read the bytes: the entry leaves the book and its digest,
+     * reason and the instant stay under `acknowledged` — nothing vanishes
+     * unread. Until this road a saturated book stayed full until a deploy.
+     */
+    if (pathname === '/checkout/dlq/acknowledge') {
+      if (request.method === 'OPTIONS') return dispatchPreflight('POST');
+      if (request.method !== 'POST') return withDispatchCors(unauthorized());
+      const refused = await rejectUnauthorizedOpsRead(request, env);
+      if (refused) return withDispatchCors(refused);
+      if (env.DLQ === undefined) {
+        return withDispatchCors(Response.json({ ok: false, reason: 'dlq_unbound' }, { status: 503 }));
+      }
+      let args: { parkId?: unknown };
+      try {
+        args = (await request.json()) as { parkId?: unknown };
+      } catch {
+        return withDispatchCors(Response.json({ ok: false, reason: 'malformed' }, { status: 400 }));
+      }
+      if (typeof args.parkId !== 'string' || !/^dlq-\d{1,9}$/.test(args.parkId)) {
+        return withDispatchCors(Response.json({ ok: false, reason: 'malformed' }, { status: 400 }));
+      }
+      const res = await env.DLQ.get(env.DLQ.idFromName(DLQ_NAME)).fetch(
+        new Request('https://do/entry/acknowledge', { method: 'POST', body: JSON.stringify({ parkId: args.parkId }) }),
+      );
+      return withDispatchCors(new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } }));
     }
 
     if (pathname === '/checkout/gains' || pathname === '/checkout/dispatch') {

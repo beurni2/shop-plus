@@ -37,9 +37,17 @@ export interface ParkArgs {
 
 export class DeadLetterQueue {
   private readonly entries: ParkedEntry[];
+  /**
+   * RESERVATION-REGLE-2 — everything EVER parked, so park ids and the event's
+   * aggregateVersion keep counting after an acknowledged entry has left the
+   * seed (an id may never be reused: `park:<id>` is a storage key). Defaults
+   * to the seed's length, which is the count while nothing was ever removed.
+   */
+  private parkedTotal: number;
 
-  constructor(seed: readonly ParkedEntry[] = []) {
+  constructor(seed: readonly ParkedEntry[] = [], parkedBefore: number = seed.length) {
     this.entries = [...seed];
+    this.parkedTotal = Math.max(parkedBefore, seed.length);
   }
 
   /**
@@ -50,8 +58,9 @@ export class DeadLetterQueue {
     entry: ParkedEntry;
     event: PlatformEvent;
   } {
+    this.parkedTotal += 1;
     const entry: ParkedEntry = {
-      parkId: `dlq-${this.entries.length + 1}`,
+      parkId: `dlq-${this.parkedTotal}`,
       original: raw,
       originalSha256: args.sha256Hex,
       reason: args.reason,
@@ -63,7 +72,7 @@ export class DeadLetterQueue {
       envelope: {
         command_id: `park-${entry.parkId}`,
         correlation_id: args.correlationId,
-        aggregateVersion: this.entries.length,
+        aggregateVersion: this.parkedTotal,
         actor: 'commerce-core:ops',
         serverTime: args.at,
         version: '1',

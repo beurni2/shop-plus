@@ -57,7 +57,17 @@ interface ParkedIndex {
   readonly ids: string[];
   readonly dropped: number;
   readonly oversize: { sha256Hex: string; bytes: number; reason: string; at: string }[];
+  /**
+   * RESERVATION-REGLE-2 — what the operator acknowledged: the entry leaves the
+   * book, its digest and reason stay here (nothing vanishes unread). Absent
+   * on an index written before this slice; read as empty.
+   */
+  readonly acknowledged?: { parkId: string; sha256Hex: string; reason: string; at: string }[];
+  readonly acknowledgedClipped?: number;
+  /** Everything ever KEPT, so ids keep counting past acknowledged entries; absent before this slice ⇒ `ids.length`. */
+  readonly parkedTotal?: number;
 }
+const PARK_ID = /^dlq-\d{1,9}$/;
 
 export interface ParkRequest {
   /** the body EXACTLY as the door received it (absent when oversize) */
@@ -114,7 +124,8 @@ export class DeadLetterDO {
         const entry = await this.state.storage.get<ParkedEntry>(`${ENTRY_PREFIX}${id}`);
         if (entry !== undefined) seed.push(entry);
       }
-      const queue = new DeadLetterQueue(seed);
+      const parkedTotal = index.parkedTotal ?? index.ids.length;
+      const queue = new DeadLetterQueue(seed, parkedTotal);
       const parked = queue.park(args.raw, { reason: args.reason, correlationId: args.correlationId, at, sha256Hex: args.sha256Hex });
       if (index.ids.length >= PARKED_CAP) {
         // The cap clips, and says so — never a silent drop.
@@ -124,10 +135,47 @@ export class DeadLetterDO {
       const events = ((await this.state.storage.get<PlatformEvent[]>(EVENTS_KEY)) ?? []).concat(parked.event).slice(-PARKED_CAP);
       await this.state.storage.put({
         [`${ENTRY_PREFIX}${parked.entry.parkId}`]: parked.entry,
-        [INDEX_KEY]: { ...index, ids: [...index.ids, parked.entry.parkId] },
+        [INDEX_KEY]: { ...index, ids: [...index.ids, parked.entry.parkId], parkedTotal: parkedTotal + 1 },
         [EVENTS_KEY]: events,
       });
       return Response.json({ ok: true, kept: true, parkId: parked.entry.parkId, event: parked.event });
+    }
+
+    /**
+     * RESERVATION-REGLE-2 — THE ACKNOWLEDGEMENT (verifier MAJOR: a full book
+     * stayed full until a deploy). The operator has read the bytes: the entry
+     * leaves the book and the slot frees; its digest, reason and the instant
+     * stay under `acknowledged`, capped and counted like everything else here.
+     * INTERNAL WIRE ONLY — the key-C road at the composition root is the caller.
+     */
+    if (request.method === 'POST' && pathname === '/entry/acknowledge') {
+      let args: { parkId?: unknown };
+      try {
+        args = (await request.json()) as { parkId?: unknown };
+      } catch {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      if (typeof args.parkId !== 'string' || !PARK_ID.test(args.parkId)) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const index = (await this.state.storage.get<ParkedIndex>(INDEX_KEY)) ?? { ids: [], dropped: 0, oversize: [] };
+      const entry = index.ids.includes(args.parkId)
+        ? await this.state.storage.get<ParkedEntry>(`${ENTRY_PREFIX}${args.parkId}`)
+        : undefined;
+      if (entry === undefined) {
+        return Response.json({ ok: false, reason: 'unknown_park_id' }, { status: 404 });
+      }
+      const at = new Date().toISOString();
+      const acknowledged = [...(index.acknowledged ?? []), { parkId: entry.parkId, sha256Hex: entry.originalSha256, reason: entry.reason, at }];
+      const acknowledgedClipped = (index.acknowledgedClipped ?? 0) + Math.max(0, acknowledged.length - PARKED_CAP);
+      await this.state.storage.delete(`${ENTRY_PREFIX}${args.parkId}`);
+      await this.state.storage.put(INDEX_KEY, {
+        ...index,
+        ids: index.ids.filter((id) => id !== args.parkId),
+        acknowledged: acknowledged.slice(-PARKED_CAP),
+        acknowledgedClipped,
+      });
+      return Response.json({ ok: true, acknowledged: entry.parkId, sha256Hex: entry.originalSha256, at });
     }
 
     /** The operator's read: every parked body, byte-exact, with its digest. INTERNAL WIRE ONLY. */
@@ -139,7 +187,15 @@ export class DeadLetterDO {
         if (entry !== undefined) entries.push({ ...entry, bytes: storedBytes(entry.original) });
       }
       const events = (await this.state.storage.get<PlatformEvent[]>(EVENTS_KEY)) ?? [];
-      return Response.json({ ok: true, entries, events, dropped: index.dropped, oversize: index.oversize });
+      return Response.json({
+        ok: true,
+        entries,
+        events,
+        dropped: index.dropped,
+        oversize: index.oversize,
+        acknowledged: index.acknowledged ?? [],
+        acknowledgedClipped: index.acknowledgedClipped ?? 0,
+      });
     }
 
     return Response.json({ error: 'not_found' }, { status: 404 });

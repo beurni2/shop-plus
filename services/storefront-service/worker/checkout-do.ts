@@ -93,6 +93,27 @@ const KEY_POINTER_KEY = 'request-key-pointer';
  */
 interface CheckoutKillEnv {
   readonly CHECKOUT_KILL?: string;
+  /**
+   * RESERVATION-REGLE-2 — SANDBOX ONLY. The certified fault on the release
+   * wire, as JSON (`{ "refuseFirstNReleases": N }`): the first N release
+   * commands this quote receives are answered 503 `sandbox_fault`, so a test
+   * against the REAL Worker can prove the order object's reconciliation net
+   * on a release that did not deliver. Deterministic (a durable count per
+   * quote), UNSET on the deploy, and it touches nothing but that answer.
+   */
+  readonly CHECKOUT_SANDBOX_BEHAVIOR?: string;
+}
+const SANDBOX_RELEASE_FAULTS_KEY = 'sandbox-release-faults';
+function refuseFirstNReleases(raw: string | undefined): number {
+  if (raw === undefined || raw === '') return 0;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return 0;
+    const n = (parsed as { refuseFirstNReleases?: unknown }).refuseFirstNReleases;
+    return typeof n === 'number' && Number.isSafeInteger(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
 }
 function flagsFrom(env: CheckoutKillEnv) {
   return {
@@ -239,6 +260,16 @@ export class CheckoutDO {
     }
 
     /**
+     * RESERVATION-REGLE-2 — THE LIVE HOLD, for the order object's
+     * reconciliation net when a release could not deliver. INTERNAL WIRE
+     * ONLY: a reservation state carries ids and an expiry, never an amount.
+     */
+    if (request.method === 'GET' && pathname === '/entry/reservation') {
+      const current = (await this.state.storage.get<ReservationState>(RESERVATION_KEY)) ?? { status: 'none' as const };
+      return Response.json({ ok: true, state: current });
+    }
+
+    /**
      * RESERVE. Atomic by construction: this object IS the quote, so two
      * concurrent reserves arrive one after the other and exactly one creates
      * the reservation. A reservation against a quote that does not exist, or
@@ -296,20 +327,38 @@ export class CheckoutDO {
      * somehow still held after this answer is the Contract-§6 alert class.
      */
     if (request.method === 'POST' && pathname === '/entry/release') {
-      let args: { commandId?: string; reason?: string };
+      let args: { commandId?: string; reason?: string; reservationId?: string };
       try {
-        args = (await request.json()) as { commandId?: string; reason?: string };
+        args = (await request.json()) as { commandId?: string; reason?: string; reservationId?: string };
       } catch {
         return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       }
       if (
         typeof args.commandId !== 'string' ||
         args.commandId === '' ||
-        (args.reason !== 'payment_failed' && args.reason !== 'cancelled')
+        (args.reason !== 'payment_failed' && args.reason !== 'cancelled') ||
+        (args.reservationId !== undefined && (typeof args.reservationId !== 'string' || args.reservationId === ''))
       ) {
         return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       }
+      // RESERVATION-REGLE-2 — the certified fault (sandbox only, see the env):
+      // a 503 is NOT an answer, so the caller's row stays pending and retries.
+      const faults = refuseFirstNReleases(this.env.CHECKOUT_SANDBOX_BEHAVIOR);
+      if (faults > 0) {
+        const refused = (await this.state.storage.get<number>(SANDBOX_RELEASE_FAULTS_KEY)) ?? 0;
+        if (refused < faults) {
+          await this.state.storage.put(SANDBOX_RELEASE_FAULTS_KEY, refused + 1);
+          return Response.json({ ok: false, reason: 'sandbox_fault' }, { status: 503 });
+        }
+      }
       const current = (await this.state.storage.get<ReservationState>(RESERVATION_KEY)) ?? { status: 'none' as const };
+      // RESERVATION-REGLE-2 — a release names the hold it is for. A DIFFERENT
+      // hold under this quote is the buyer's fresh one (a row that could not
+      // deliver, then her retry): not this order's to free. Answered by name,
+      // 200, so the row records it as delivered — nothing to release.
+      if (args.reservationId !== undefined && current.status === 'reserved' && current.reservationId !== args.reservationId) {
+        return Response.json({ ok: false, reason: 'reservation_mismatch' }, { status: 200 });
+      }
       const quoteId = current.status === 'none' ? '' : current.quoteId;
       const cmd: ReleaseCommand = {
         kind: 'release',

@@ -240,9 +240,18 @@ interface ReleaseRow {
   commandId: string;
   quoteId: string;
   reason: 'payment_failed';
+  /** RESERVATION-REGLE-2 — the hold this order was born with; a release names it (absent on rows written before). */
+  reservationId?: string;
   attempts: number;
   deliveredAt?: string;
   decision?: { ok: boolean; reason: string | null; state: string | null };
+}
+/** The hold this order was born with — the `reserved` advance's chain addition. */
+function reservationIdOf(log: readonly OrderInput[]): string | undefined {
+  for (const entry of log) {
+    if (entry.kind === 'advance' && entry.to === 'reserved') return entry.chainAdditions?.['reservation_id'];
+  }
+  return undefined;
 }
 /**
  * RESERVATION-REGLE-1 — THE STUCK-SAGA WATCH (Contract E2 exit: « DLQ +
@@ -261,6 +270,15 @@ interface ReleaseRow {
 const STUCK_SAGA_KEY = 'saga-stuck';
 const STUCK_SAGA_POLICY_VERSION = 'stuck-ttl.v1';
 const STUCK_SAGA_TTL_MS = 15 * 60_000;
+/**
+ * RESERVATION-REGLE-2 (E2 « paid-order-no-supplier-decision », AUDIT-SHOP-2
+ * F-96) — THE SUPPLIER-NOTIFICATION WATCH. An order never rests in `paid`
+ * here (the confirm lands in the webhook's own batch), so what this watches
+ * is the FIRST wire: a confirmed order whose order.confirmed.v1 is still
+ * `pending` past the same TTL, or `unsendable` at any age, is a supplier who
+ * never learned. Same alarm, same durable record, its own once-mark.
+ */
+const STUCK_SUPPLIER_KEY = 'saga-stuck-supplier';
 /**
  * VRAI-SUIVI — SÉRA'S TRANSIT MARKS, as this order received them through the
  * `/fulfillment/transit` door: `en_route` → `departedAt`, `arrivee` →
@@ -970,6 +988,7 @@ export class OrderDO {
         // once-mark, on this INTERNAL surface: the ledger the seam test asks.
         release: (await this.state.storage.get<ReleaseRow>(RELEASE_KEY)) ?? null,
         stuck: (await this.state.storage.get<{ emittedAt: string }>(STUCK_SAGA_KEY)) ?? null,
+        stuckSupplier: (await this.state.storage.get<{ emittedAt: string }>(STUCK_SUPPLIER_KEY)) ?? null,
         // RAPPROCHEMENT-1 — the durable alert record, the operator's read;
         // `reconAlertsDropped` counts what the cap clipped (never silent).
         ...(await (async () => {
@@ -1997,7 +2016,7 @@ export class OrderDO {
       await this.state.storage.put(LOG_KEY, log);
       // RESERVATION-REGLE-1 — the failure is durable; the hold's release rides
       // beside it and the alarm carries it (the release is the rule).
-      await this.queueReservationRelease(stored, `rel-${attemptId}`);
+      await this.queueReservationRelease(stored, `rel-${attemptId}`, reservationIdOf(log));
     }
     await this.state.storage.put(ATTEMPTS_KEY, attempts);
 
@@ -2052,7 +2071,7 @@ export class OrderDO {
       await this.state.storage.put(LOG_KEY, next);
       // RESERVATION-REGLE-1 — a defence fault ends the attempt through the
       // same failure edge, so it earns the same release.
-      await this.queueReservationRelease(stored, `rel-${attemptId}`);
+      await this.queueReservationRelease(stored, `rel-${attemptId}`, reservationIdOf(next));
     }
     return Response.json({ ok: false, reason: fault }, { status: 422 });
   }
@@ -2145,13 +2164,17 @@ export class OrderDO {
     // and the stuck-saga watch beside the wires.
     const releasePending = await this.flushReleaseOutbox();
     const stuckDueAt = await this.watchStuckSaga();
+    // RESERVATION-REGLE-2 — the supplier-notification watch, on the first
+    // wire's row, after its flush has had this tick's try.
+    const supplierDueAt = await this.watchStuckSupplier();
     const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending);
-    // ONE alarm, two wants: the outbox backoff and the watch's due time. The
-    // nearer wins; the other is re-derived when the alarm fires (setAlarm
-    // overwrites, it never merges).
+    // ONE alarm, three wants: the outbox backoff and the two watches' due
+    // times. The nearest wins; the others are re-derived when the alarm fires
+    // (setAlarm overwrites, it never merges).
     const wants: number[] = [];
     if (stillPending > 0) wants.push(Date.now() + outboxBackoffMs(stillPending));
     if (stuckDueAt !== undefined) wants.push(stuckDueAt);
+    if (supplierDueAt !== undefined) wants.push(supplierDueAt);
     if (wants.length > 0) {
       await this.state.storage.setAlarm(Math.min(...wants));
     }
@@ -2560,8 +2583,15 @@ export class OrderDO {
   /* ───────── RESERVATION-REGLE-1 — the release wire and the stuck-saga watch ───────── */
 
   /** Queue the hold's release beside the failure that earned it; the alarm carries it. */
-  private async queueReservationRelease(stored: StoredOrigin, commandId: string): Promise<void> {
-    const row: ReleaseRow = { status: 'pending', commandId, quoteId: stored.quoteId, reason: 'payment_failed', attempts: 0 };
+  private async queueReservationRelease(stored: StoredOrigin, commandId: string, reservationId: string | undefined): Promise<void> {
+    const row: ReleaseRow = {
+      status: 'pending',
+      commandId,
+      quoteId: stored.quoteId,
+      reason: 'payment_failed',
+      ...(reservationId !== undefined ? { reservationId } : {}),
+      attempts: 0,
+    };
     await this.state.storage.put(RELEASE_KEY, row);
     // The same durable-alarm discipline as the seven wires above. An alarm
     // that failed to schedule here is recovered by the next alarm any wire
@@ -2585,16 +2615,29 @@ export class OrderDO {
       const res = await ns.get(ns.idFromName(row.quoteId)).fetch(
         new Request('https://do/entry/release', {
           method: 'POST',
-          body: JSON.stringify({ commandId: row.commandId, reason: row.reason }),
+          body: JSON.stringify({
+            commandId: row.commandId,
+            reason: row.reason,
+            ...(row.reservationId !== undefined ? { reservationId: row.reservationId } : {}),
+          }),
         }),
       );
-      decision = (await res.json().catch(() => null)) as ReleaseAnswer | null;
+      // RESERVATION-REGLE-2 — only a 2xx is an ANSWER (a refusal by name rides
+      // 200); a 503 or a 400 is the wire failing and the row stays pending.
+      decision = res.ok ? ((await res.json().catch(() => null)) as ReleaseAnswer | null) : null;
     } catch {
       decision = null;
     }
     if (decision === null || typeof decision.ok !== 'boolean') {
       const attempts = row.attempts + 1;
       await this.state.storage.put(RELEASE_KEY, { ...row, attempts });
+      // RESERVATION-REGLE-2 — THE NET'S LIVE ARM (verifier MAJOR on REGLE-1):
+      // a release that did not deliver is the one case the net exists for, so
+      // it is judged HERE, on the hold as it stands now, not on an answer that
+      // never came. A wire that is down answers the read no better — then
+      // there is nothing to judge, and the pending row with its attempt count
+      // stays the signal.
+      await this.judgeHeldReservation(ns, row);
       return attempts;
     }
     const at = new Date().toISOString();
@@ -2619,9 +2662,73 @@ export class OrderDO {
     return 0;
   }
 
+  /** The net on the LIVE hold, after a release attempt that brought no answer. Faults are swallowed: the row is the signal. */
+  private async judgeHeldReservation(ns: DurableObjectNamespace, row: ReleaseRow): Promise<void> {
+    try {
+      const res = await ns.get(ns.idFromName(row.quoteId)).fetch(new Request('https://do/entry/reservation'));
+      if (!res.ok) return;
+      const read = (await res.json()) as { ok?: boolean; state?: ReservationState };
+      if (read.ok !== true || read.state === undefined) return;
+      const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+      const quote = origin === undefined ? undefined : parseStoredQuote(origin.quoteBytes);
+      if (origin === undefined || quote === undefined) return;
+      const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      const spine = rebuildOrderSpine(quote, origin, log);
+      const alert = reservationReconciliationAlert(spine, read.state, { serverTime: new Date().toISOString() });
+      if (alert !== null) await this.sinkReconAlerts([alert]);
+    } catch {
+      // the wire is down for the read as it was for the release — nothing to judge
+    }
+  }
+
   private stuckTtlMs(): number {
     const raw = Number(this.env.STUCK_SAGA_TTL_MS ?? '');
     return Number.isSafeInteger(raw) && raw > 0 ? raw : STUCK_SAGA_TTL_MS;
+  }
+
+  /**
+   * RESERVATION-REGLE-2 — the supplier-notification watch on the alarm; returns
+   * the next due time while the first wire is still pending and unreported.
+   */
+  private async watchStuckSupplier(): Promise<number | undefined> {
+    if ((await this.state.storage.get(STUCK_SUPPLIER_KEY)) !== undefined) return undefined;
+    const outbox = await this.state.storage.get<{ status: 'pending' | 'delivered' | 'unsendable' }>(OUTBOX_KEY);
+    if (outbox === undefined || outbox.status === 'delivered') return undefined;
+    const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+    if (origin === undefined) return undefined;
+    const quote = parseStoredQuote(origin.quoteBytes);
+    if (quote === undefined) return undefined;
+    const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+    const spine = rebuildOrderSpine(quote, origin, log);
+    if (spine.journey.state !== 'confirmed') return undefined;
+    // The clock is the confirm input's own serverTime — the instant this
+    // object observed the confirmation, the same one that starts boutik's
+    // preparation — never the provider's claim.
+    let since = origin.createdAt;
+    for (const entry of log) {
+      if (entry.kind === 'confirm') {
+        since = entry.serverTime;
+        break;
+      }
+    }
+    const now = new Date().toISOString();
+    const ttl = this.stuckTtlMs();
+    const stuck = spine.checkStuckSupplierNotification(
+      now,
+      { version: STUCK_SAGA_POLICY_VERSION, ttlMs: ttl },
+      { status: outbox.status, since },
+    );
+    if (stuck !== null) {
+      await this.sinkReconAlerts([stuck]);
+      await this.state.storage.put(STUCK_SUPPLIER_KEY, {
+        emittedAt: now,
+        commandId: stuck.envelope.command_id,
+        notificationStatus: outbox.status,
+        ttlPolicyVersion: STUCK_SAGA_POLICY_VERSION,
+      });
+      return undefined;
+    }
+    return Date.parse(since) + ttl + 1;
   }
 
   /** Arm the watch at an entry into payment_pending: the nearer of the existing alarm and the TTL. */

@@ -1,10 +1,6 @@
-import { createHash } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { Miniflare } from 'miniflare';
+import { rmSync } from 'node:fs';
 import { afterAll, describe, expect, it } from 'vitest';
-import { OPS_SECRET, cleC, seance } from './seance';
+import { offerDouble, porteRegle, regleWorker, safeJson, sha256Hex, sleep } from './regle-helpers';
 
 /**
  * ═══ RESERVATION-REGLE-1 (AUDIT-SHOP-2 F-08; F-96 named, not closed — `paid`
@@ -38,208 +34,28 @@ import { OPS_SECRET, cleC, seance } from './seance';
  * The net (« a hold still held after the release answer ») is the vault's
  * `reservationReconciliationAlert`, evaluated on every release answer; on a
  * healthy Worker the answer is `released` and the record stays clean —
- * asserted here. The held-after-failure world itself is not reachable through
- * the doors (the vault never answers a release with `reserved`), so that arm
- * stays proven at the vault (`e2-failure-paths.test`).
+ * asserted here. The held-after-failure world is reached in
+ * `reservation-regle-2.e2e.test.ts` through a certified fault on the release
+ * wire (RESERVATION-REGLE-2). The doors themselves live in `regle-helpers.ts`.
  */
 
-const SCRIPT = 'dist/worker/worker.mjs';
-const persist = mkdtempSync(join(tmpdir(), 'reservation-regle-'));
-const T0 = '2026-09-09T05:00:00.000Z';
-const WEBHOOK_SECRET = 'test-payment-webhook-secret-rr1';
 const STUCK_TTL_MS = 1_500;
-
-const SUPPLY = [
-  {
-    productVersionId: 'pv-rr-1',
-    offerVersion: 'ov-rr-1',
-    basePrice: 10_000,
-    resellerCommission: 1_000,
-    available: 9,
-    productName: 'Bazin riche',
-    assetRefs: [] as string[],
-    category: 'fashion_bags_fabrics',
-    sellerTier: 'verified',
-  },
-];
-
-const mf = new Miniflare({
-  modules: true,
-  scriptPath: SCRIPT,
-  durableObjects: {
-    STOREFRONT: 'StorefrontDO', LISTING: 'ListingDO', CHECKOUT: 'CheckoutDO',
-    ORDER: 'OrderDO', ATTRIBUTION_LOCK: 'AttributionLockDO', LADDER: 'BuyerLadderDO',
-    DISPATCH: 'DispatchIndexDO', RESELLER: 'ResellerFeedDO', COMPTES: 'ResellerAccountsDO',
-    DLQ: 'DeadLetterDO',
-  },
-  durableObjectsPersist: persist,
+const { mf, persist } = regleWorker({
+  persistPrefix: 'reservation-regle-',
   bindings: {
-    PAYMENT_WEBHOOK_SECRET: WEBHOOK_SECRET,
-    CHECKOUT_OPS_SECRET: OPS_SECRET,
     // The certified mock's misbehaviour: the FIRST charge of every order times
     // out (the budget is per order — `attemptsAlreadyInitiated` is subtracted),
     // so a retry is accepted. The same knob a deploy could set; empty deployed.
     PAYMENT_SANDBOX_BEHAVIOR: JSON.stringify({ timeoutFirstNInitiates: 1 }),
     STUCK_SAGA_TTL_MS: String(STUCK_TTL_MS),
   },
-  serviceBindings: {
-    OFFER: async (request: Request) => {
-      const path = new URL(request.url).pathname;
-      if (request.method === 'POST' && path === '/fulfillment/order-confirmed') {
-        return Response.json({ ok: true, status: 'registered' });
-      }
-      const single = /^\/supply-projection\/([^/]+)$/.exec(path);
-      if (single) {
-        const value = SUPPLY.find((v) => v.productVersionId === decodeURIComponent(single[1]!));
-        if (value === undefined) return Response.json({ status: 'not_found' }, { status: 404 });
-        return Response.json({ version: 1, asOf: new Date().toISOString(), value });
-      }
-      return Response.json({ status: 'not_found' }, { status: 404 });
-    },
-  },
+  offer: offerDouble({ supplier: false, refusals: 0 }),
 });
 afterAll(async () => {
   await mf.dispose();
   rmSync(persist, { recursive: true, force: true });
 });
-
-function safeJson(text: string): Record<string, unknown> {
-  try {
-    return JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
-const sha256Hex = (raw: string): string => createHash('sha256').update(raw, 'utf8').digest('hex');
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-interface Audit {
-  state?: string;
-  legKeys?: Record<string, string>;
-  release?: { status: string; commandId: string; attempts: number; decision?: { ok: boolean; reason: string | null; state: string | null } } | null;
-  stuck?: { emittedAt: string; commandId: string } | null;
-  reconAlerts?: { name: string; envelope: { command_id: string }; payload: Record<string, unknown> }[];
-}
-
-async function audit(orderId: string): Promise<Audit> {
-  const ns = await mf.getDurableObjectNamespace('ORDER');
-  return (await (await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit')).json()) as Audit;
-}
-
-/** Poll the ledger until `pick` answers true, or the deadline passes. */
-async function jusqua(orderId: string, pick: (a: Audit) => boolean, deadlineMs = 15_000): Promise<Audit> {
-  const start = Date.now();
-  let last = await audit(orderId);
-  while (!pick(last) && Date.now() - start < deadlineMs) {
-    await sleep(200);
-    last = await audit(orderId);
-  }
-  return last;
-}
-
-async function creerCommande(n: string) {
-  const S = await seance(mf, `rr${n}`);
-  const created = await mf.dispatchFetch('http://c/storefronts', {
-    method: 'POST', headers: S.bearer,
-    body: JSON.stringify({
-      commandId: `cmd-create-${n}`, id: `sf-rr-${n}`, resellerId: S.accountId,
-      shortCode: `REGLE-${n}`, name: 'Boutique du fondateur', zone: 'Ouagadougou',
-      category: 'Général', correlationId: `corr-rr-${n}`, at: T0,
-    }),
-  });
-  if (created.status !== 200) throw new Error(`setup: storefront ${created.status}`);
-  const pub = await mf.dispatchFetch('http://c/listings', {
-    method: 'POST', headers: S.bearer,
-    body: JSON.stringify({
-      commandId: `cmd-listing-${n}`, listingId: `lst-rr-${n}`, storefrontId: `sf-rr-${n}`,
-      resellerId: S.accountId, productVersionId: 'pv-rr-1', offerVersion: 'ov-rr-1',
-      markup: 1_500, correlationId: `corr-rr-${n}`, at: T0,
-    }),
-  });
-  if ((safeJson(await pub.text()) as { status?: string }).status !== 'published') throw new Error('setup: listing');
-  const quoteRes = await mf.dispatchFetch('http://c/checkout/quote', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      slug: `regle-${n}`, pid: 'pv-rr-1', paymentMode: 'FULL_PREPAY', zoneTo: 'Ouagadougou',
-      attributionResellerId: S.accountId, requestKey: `rk-rr-${n}-${'x'.repeat(12)}`,
-    }),
-  });
-  const quote = safeJson(await quoteRes.text()) as { quoteId?: string; amountPaidAtCheckout?: number };
-  if (typeof quote.quoteId !== 'string') throw new Error(`setup: quote ${quoteRes.status}`);
-  const held = await mf.dispatchFetch(`http://c/checkout/quote/${encodeURIComponent(quote.quoteId)}/reserve`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ commandId: `cmd-reserve-${n}`, holderRef: `holder-${n}` }),
-  });
-  const holdJson = safeJson(await held.text()) as { reservationId?: string };
-  if (held.status !== 200) throw new Error(`setup: reserve ${held.status}`);
-  const ordered = await mf.dispatchFetch('http://c/checkout/order', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ quoteId: quote.quoteId, holderRef: `holder-${n}`, commandId: `cmd-order-${n}` }),
-  });
-  const createText = await ordered.text();
-  const createJson = safeJson(createText);
-  if (ordered.status !== 200) throw new Error(`setup: order ${ordered.status} ${createText}`);
-  return {
-    n,
-    orderId: `ord-${quote.quoteId}`,
-    quoteId: quote.quoteId,
-    holderRef: `holder-${n}`,
-    firstReservationId: holdJson.reservationId as string,
-    state: (createJson['view'] as { state?: string } | undefined)?.state ?? (createJson['state'] as string | undefined),
-    amount: quote.amountPaidAtCheckout,
-  };
-}
-
-async function reserver(quoteId: string, holderRef: string, commandId: string) {
-  const res = await mf.dispatchFetch(`http://c/checkout/quote/${encodeURIComponent(quoteId)}/reserve`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ commandId, holderRef }),
-  });
-  return { status: res.status, body: safeJson(await res.text()) as { status?: string; reservationId?: string; error?: string } };
-}
-
-async function retenter(quoteId: string, holderRef: string, commandId: string) {
-  const res = await mf.dispatchFetch('http://c/checkout/order', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ quoteId, holderRef, commandId }),
-  });
-  const body = safeJson(await res.text());
-  // The create road answers the buyer's projection at the top level (with
-  // `buyerRef` beside it), as garde-paiement.e2e reads it.
-  return {
-    status: res.status,
-    state: (body['state'] as string | undefined) ?? (body['view'] as { state?: string } | undefined)?.state,
-    body,
-  };
-}
-
-const postWebhook = (body: string) =>
-  mf.dispatchFetch('http://c/checkout/webhook/payment', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Payment-Webhook-Key': WEBHOOK_SECRET },
-    body,
-  });
-/** The door leg's road — the same secret, the same book (verifier finding). */
-const postDoorWebhook = (body: string) =>
-  mf.dispatchFetch('http://c/checkout/webhook/door', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Payment-Webhook-Key': WEBHOOK_SECRET },
-    body,
-  });
-
-async function livreParque() {
-  const res = await mf.dispatchFetch('http://c/checkout/dlq', { headers: cleC });
-  return {
-    status: res.status,
-    book: safeJson(await res.text()) as {
-      ok?: boolean;
-      entries?: { parkId: string; original: string; originalSha256: string; reason: string; bytes: number }[];
-      events?: { name: string; payload: Record<string, unknown> }[];
-      dropped?: number;
-      oversize?: unknown[];
-    },
-  };
-}
+const { audit, jusqua, creerCommande, reserver, retenter, postWebhook, postDoorWebhook, livreParque } = porteRegle(mf);
 
 describe('RESERVATION-REGLE-1 — (1) the release is the rule, on the real Worker', () => {
   it('a timed-out charge lands payment_failed, the release wire delivers, the net stays clean, and her FRESH hold on the same quote succeeds at once', async () => {

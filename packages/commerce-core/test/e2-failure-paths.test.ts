@@ -90,6 +90,11 @@ describe('E2 scenario #1 — payment failure: the release is the rule, the alert
     // clean world → no alert
     const released: ReservationState = { status: 'released', quoteId: 'quote-pf2', priorReservationId: 'res-pf2' };
     expect(reservationReconciliationAlert(spine, released, { serverTime: LATER(3) })).toBeNull();
+    // RESERVATION-REGLE-2: a hold under ANOTHER id is the buyer's fresh hold
+    // after the release — healthy, not the held-after-failure class.
+    const fresh: ReservationState = { ...heldReservation, reservationId: 'res-pf2-fresh' };
+    expect(reservationReconciliationAlert(spine, fresh, { serverTime: LATER(3) })).toBeNull();
+    expect(alert!.payload['reservation_id_held']).toBe('res-pf2');
   });
 
   it('RETRY needs a genuinely new attempt id; the prior id is audited, never silently replaced', () => {
@@ -226,6 +231,77 @@ describe('E2 stuck-saga seed — clock-controlled, once, versioned TTL', () => {
       payload: { provider: 'sandbox-provider', payment_attempt_id: 'att-s2-1', collectRef: 'col-s2', amount: 12_500, fee: 0, status: 'held', order_id: 'order-s2', redelivery: 0 },
     });
     expect(spine.checkStuckSaga(LATER(60), POLICY)).toBeNull();
+  });
+});
+
+describe('RESERVATION-REGLE-2 — park ids never repeat after an acknowledgement', () => {
+  it('a queue rehydrated WITHOUT an acknowledged entry, told the total ever parked, numbers the next park past it', () => {
+    const first = new DeadLetterQueue();
+    const a = first.park('{"a":', { reason: 'not_json', correlationId: 'c', at: T, sha256Hex: sha256Hex('{"a":') });
+    const b = first.park('{"b":', { reason: 'not_json', correlationId: 'c', at: T, sha256Hex: sha256Hex('{"b":') });
+    expect([a.entry.parkId, b.entry.parkId]).toEqual(['dlq-1', 'dlq-2']);
+    // dlq-1 acknowledged: the seed holds dlq-2 alone, the book says two were ever parked.
+    const rehydrated = new DeadLetterQueue([b.entry], 2);
+    const c = rehydrated.park('{"c":', { reason: 'not_json', correlationId: 'c', at: T, sha256Hex: sha256Hex('{"c":') });
+    expect(c.entry.parkId).toBe('dlq-3');
+    expect(c.event.envelope.aggregateVersion).toBe(3);
+    // the default (no total given) is the seed's length — what every caller before this slice relied on
+    expect(new DeadLetterQueue([b.entry]).park('{"d":', { reason: 'not_json', correlationId: 'c', at: T, sha256Hex: sha256Hex('{"d":') }).entry.parkId).toBe('dlq-2');
+  });
+});
+
+describe('RESERVATION-REGLE-2 — the supplier-notification watch (E2 « paid-order-no-supplier-decision », F-96)', () => {
+  const POLICY = { version: 'stuck-ttl.v1', ttlMs: 15 * 60_000 };
+  const CONFIRMED_AT = LATER(1);
+
+  function confirmedSpine(seed: string): OrderSpine {
+    const spine = freshSpine(seed);
+    toPaymentPending(spine, seed);
+    const paid = spine.onProviderPaymentEvent({
+      name: 'payment.checkout_leg_confirmed.v1',
+      envelope: { command_id: `whk-${seed}`, correlation_id: `corr-${seed}`, aggregateVersion: 1, actor: 'payment-provider:sandbox', serverTime: CONFIRMED_AT, version: '1' },
+      payload: { provider: 'sandbox-provider', payment_attempt_id: `att-${seed}-1`, collectRef: `col-${seed}`, amount: 12_500, fee: 0, status: 'held', order_id: `order-${seed}`, redelivery: 0 },
+    });
+    if (!paid.applied) throw new Error(`setup: ${paid.reason}`);
+    const confirmed = spine.confirmOrder({ command_id: `cfm-${seed}`, actor: 'a', serverTime: CONFIRMED_AT });
+    if (!confirmed.applied) throw new Error(`setup: ${confirmed.reason}`);
+    expect(spine.journey.state).toBe('confirmed');
+    return spine;
+  }
+
+  it('a PENDING notification younger than the TTL is silent; older: exactly one saga.stuck.v1 naming the wire', () => {
+    const spine = confirmedSpine('sn1');
+    const pending = { status: 'pending' as const, since: CONFIRMED_AT };
+    expect(spine.checkStuckSupplierNotification(LATER(10), POLICY, pending)).toBeNull();
+    const stuck = spine.checkStuckSupplierNotification(LATER(17), POLICY, pending);
+    expect(stuck).not.toBeNull();
+    expect(stuck!.name).toBe('saga.stuck.v1');
+    expect(stuck!.envelope.command_id).toBe('saga-stuck-supplier-quote-sn1');
+    expect(stuck!.payload['stuck_in']).toBe('confirmed');
+    expect(stuck!.payload['blocked_on']).toBe('supplier_notification');
+    expect(stuck!.payload['notification_status']).toBe('pending');
+    expect(stuck!.payload['pending_since']).toBe(CONFIRMED_AT);
+    expect(stuck!.payload['ttl_policy_version']).toBe('stuck-ttl.v1');
+    expect(spine.checkStuckSupplierNotification(LATER(30), POLICY, pending)).toBeNull(); // once
+  });
+
+  it('an UNSENDABLE notification is stuck at any age — nothing retries what can never send', () => {
+    const spine = confirmedSpine('sn2');
+    const stuck = spine.checkStuckSupplierNotification(LATER(1), POLICY, { status: 'unsendable', since: CONFIRMED_AT });
+    expect(stuck).not.toBeNull();
+    expect(stuck!.payload['notification_status']).toBe('unsendable');
+  });
+
+  it('only a CONFIRMED order can be stuck on its supplier notification', () => {
+    const spine = freshSpine('sn3');
+    toPaymentPending(spine, 'sn3');
+    expect(spine.checkStuckSupplierNotification(LATER(60), POLICY, { status: 'pending', since: T })).toBeNull();
+  });
+
+  it('the two stuck marks are independent: a payment_pending alert never silences the supplier one', () => {
+    const spine = confirmedSpine('sn4');
+    expect(spine.checkStuckSaga(LATER(60), { version: 'stuck-ttl.v1', paymentPendingTtlMs: 1 })).toBeNull(); // confirmed, not pending
+    expect(spine.checkStuckSupplierNotification(LATER(60), POLICY, { status: 'pending', since: CONFIRMED_AT })).not.toBeNull();
   });
 });
 

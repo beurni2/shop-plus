@@ -25,6 +25,12 @@ export function reservationReconciliationAlert(
 ): PlatformEvent | null {
   if (spine.journey.state !== 'payment_failed') return null;
   if (reservation.status !== 'reserved') return null;
+  // RESERVATION-REGLE-2: the net judges THIS order's hold. A reservation held
+  // under another id is the buyer's fresh hold after the release — a healthy
+  // world, not the held-after-failure class. (The Worker feeds the LIVE state
+  // in; without this line a legitimate re-hold would raise a false alarm.)
+  const own = spine.journey.chain.reservation_id;
+  if (own !== undefined && reservation.reservationId !== own) return null;
   return PlatformEventSchema.parse({
     name: 'reconciliation.alert.v1',
     envelope: {
@@ -149,6 +155,7 @@ export class OrderSpine {
   private lastTransitionAt: string;
   private paymentFailure: { reason: PaymentFailureReason; at: string } | undefined;
   private stuckAlertEmitted = false;
+  private supplierStuckEmitted = false;
   private doorLeg: DoorLegState = 'none';
   private doorSignal: PlatformEvent | undefined;
 
@@ -284,6 +291,48 @@ export class OrderSpine {
         status: this.journeyState.state,
         stuck_in: 'payment_pending',
         pending_since: this.lastTransitionAt,
+        ttl_policy_version: policy.version,
+      },
+    });
+  }
+
+  /**
+   * RESERVATION-REGLE-2 (Contract E2 scenario « paid-order-no-supplier-
+   * decision »; AUDIT-SHOP-2 F-96). An order in this domain never RESTS in
+   * `paid`: the confirm lands in the same batch as the webhook that paid it.
+   * What can stall is the supplier ever LEARNING — the order.confirmed.v1
+   * wire to Boutik+ still `pending` past the TTL, or `unsendable` at any age
+   * (nothing retries what can never send). Detection only, once; the caller
+   * owns the wire's status and its clock, as it owns the outbox.
+   */
+  checkStuckSupplierNotification(
+    nowIso: string,
+    policy: { version: string; ttlMs: number },
+    notification: { status: 'pending' | 'unsendable'; since: string },
+  ): PlatformEvent | null {
+    if (this.supplierStuckEmitted) return null;
+    if (this.journeyState.state !== 'confirmed') return null;
+    if (notification.status === 'pending' && Date.parse(nowIso) - Date.parse(notification.since) <= policy.ttlMs) {
+      return null;
+    }
+    this.supplierStuckEmitted = true;
+    return PlatformEventSchema.parse({
+      name: 'saga.stuck.v1',
+      envelope: {
+        command_id: `saga-stuck-supplier-${this.journeyState.chain.quote_id}`,
+        correlation_id: this.journeyState.correlationId,
+        aggregateVersion: this.journeyState.aggregateVersion,
+        actor: 'commerce-core:ops',
+        serverTime: nowIso,
+        version: '1',
+      },
+      payload: {
+        ...this.journeyState.chain,
+        status: this.journeyState.state,
+        stuck_in: 'confirmed',
+        blocked_on: 'supplier_notification',
+        notification_status: notification.status,
+        pending_since: notification.since,
         ttl_policy_version: policy.version,
       },
     });

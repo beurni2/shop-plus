@@ -428,6 +428,11 @@ capture e2-failure-path pass node scripts/e2-failure-path.mjs
 # here keeps the E2 rule a line on the board, not a test lost in a count.
 log "gate: RESERVATION-REGLE-1 — release on payment failure, the reconciliation net, the stuck-saga watch and the DLQ, on the REAL Worker (must pass)"
 capture reservation-regle-seam pass pnpm --filter @shop-plus/storefront-service exec vitest run test/reservation-regle.e2e.test.ts
+# RESERVATION-REGLE-2 — the net's LIVE arm behind CheckoutDO's certified release
+# fault, the supplier-notification watch (E2 « paid-order-no-supplier-decision »,
+# F-96) and the dead-letter acknowledgement, on the same real Worker.
+log "gate: RESERVATION-REGLE-2 — the net on the live hold, the supplier-notification watch and the DLQ acknowledgement, on the REAL Worker (must pass)"
+capture reservation-regle-2-seam pass pnpm --filter @shop-plus/storefront-service exec vitest run test/reservation-regle-2.e2e.test.ts
 
 log "gate: attribution-lock-first-wins — collision refused, lock never moves (must pass)"
 capture attribution-lock-positive pass node scripts/gates/attribution-lock-first-wins.mjs gates/fixtures/attribution-first-lock.json
