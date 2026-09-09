@@ -3,8 +3,8 @@
  * COQUILLE-HORS-LIGNE-1 (AUDIT-SHOP-1 slice d, MAJOR 3). Law 7: offline-first.
  *
  * Before this worker, an installed PWA cold-opened without network was the
- * browser's own error page. Now the shell — index.html, the hashed asset
- * chunks, the Faso Premium faces, the manifest — is cached at first visit,
+ * browser's own error page. Now the shell — index.html, the ENTRY chunks, the
+ * Faso Premium faces, the manifest and its icons — is cached at first visit,
  * and answers only when the network has already failed:
  *
  *   · NAVIGATIONS are NETWORK-FIRST. Online behaviour is byte-identical to
@@ -22,8 +22,33 @@
  *     the file cache; « queued = pending » is never implicated because nothing
  *     is queued.
  *
+ * SW-PRECACHE-1 (AUDIT-SHOP-2 F-23) — WHAT IS PRECACHED, AND WHAT WAITS.
+ * The install used to fetch every `assets/*` chunk — the twenty-odd header
+ * styles behind dynamic import(), ≈ 105 KB gzip a buyer never draws (a shop
+ * wears ONE header) — and re-downloaded all nine faces (177 KB) on every
+ * deploy. Now:
+ *   · The precache is the ENTRY GRAPH (what index.html references) plus the
+ *     manifest, the icons and the faces. The faces stay precached on purpose:
+ *     every one is `font-display: optional`, which uses a face only if it is
+ *     already at hand when the page paints — a face that is not cached before
+ *     first paint is a face no buyer ever sees.
+ *   · A LAZY chunk (any other `assets/*`) is cached ON FIRST USE: the first
+ *     shop that wears « pagne » fetches its chunk once, and from then on that
+ *     header draws offline too. Only content-addressed names are cached this
+ *     way — a chunk's bytes can never change under its name.
+ *   · Fixed-name files (index.html, the manifest, the icons, the faces) are
+ *     fetched with `cache: 'no-cache'`: the browser REVALIDATES with the
+ *     origin (a conditional request, a 304 when unchanged) instead of
+ *     re-downloading. The HTTP cache can still never seed a new worker with
+ *     old bytes — the origin is asked every time — but unchanged bytes cost a
+ *     header, not a transfer.
+ *   · The version is a hash over EVERY file the worker may ever serve (the
+ *     lazy chunks and the faces included, precached or not), so a re-subset
+ *     face or a changed chunk is a new version and a fresh cache; nothing
+ *     fixed-name is ever copied forward across versions.
+ *
  * This file is a TEMPLATE: vite.config.ts fills the two placeholders below —
- * the version (a hash over the precached bytes) and the precache list (the
+ * the version (a hash over the served bytes) and the precache list (the
  * built files) — into dist/sw.js at the end of every build. The placeholder
  * names appear NOWHERE else in this file: the plugin's replace() takes the
  * first occurrence, and a mention in this comment once swallowed it, shipping
@@ -40,13 +65,13 @@ const RACINE = new URL('./', self.location.href);
 
 /**
  * ONLY vite-hashed names are content-addressed — those bytes can never change
- * under an unchanged name, so they may be copied forward across versions. The
- * fonts are the counter-example the verifier caught: fixed human names over
- * charset SUBSETS, the one kind of file whose bytes change under the same
- * name (re-subsetting when coverage grows) — copied forward, a stale face
- * would have been pinned on installed phones forever, cache-first hiding it
- * even online. Fonts therefore re-download with each new version (nine small
- * woff2s), never crossing versions.
+ * under an unchanged name, so they may be copied forward across versions and
+ * cached on first use. The fonts are the counter-example the verifier caught:
+ * fixed human names over charset SUBSETS, the one kind of file whose bytes
+ * change under the same name (re-subsetting when coverage grows) — copied
+ * forward, a stale face would have been pinned on installed phones forever.
+ * Fixed-name files therefore live only in their own version's cache, and are
+ * revalidated with the origin at install.
  */
 function contenuAdresse(chemin) {
   return chemin.startsWith('assets/');
@@ -70,10 +95,10 @@ async function precacher() {
           return;
         }
       }
-      // cache:'reload' on every fixed-name file (index.html, the manifest,
-      // the fonts) so the HTTP cache can never seed a new worker version
-      // with old bytes.
-      const reponse = await fetch(url.href, contenuAdresse(chemin) ? undefined : { cache: 'reload' });
+      // cache:'no-cache' on every fixed-name file: revalidate with the origin
+      // (304 when unchanged) — never a stale HTTP-cache seed, never a full
+      // re-download of bytes the origin says are the same.
+      const reponse = await fetch(url.href, contenuAdresse(chemin) ? undefined : { cache: 'no-cache' });
       if (!reponse.ok) throw new Error(`précache ${chemin}: ${reponse.status}`);
       await cache.put(url.href, reponse.clone());
       // The shell also answers the root URL itself (…/ and …/?/v/… restores).
@@ -109,17 +134,27 @@ self.addEventListener('fetch', (event) => {
   }
 
   const chemin = url.pathname.slice(RACINE.pathname.length);
-  // Cache-first for exactly what THIS version precached: activate pruned the
-  // older caches, so a match can only be this version's own bytes.
-  if (chemin !== 'index.html' && EN_PRECACHE.has(chemin)) {
-    event.respondWith(depuisCacheDabord(requete, url));
+  // Cache-first for what THIS version precached, and for every content-
+  // addressed chunk (cached on first use): activate pruned the older caches,
+  // so a match can only be this version's own bytes.
+  if (contenuAdresse(chemin) || (chemin !== 'index.html' && EN_PRECACHE.has(chemin))) {
+    event.respondWith(depuisCacheDabord(requete, url, contenuAdresse(chemin)));
   }
   // Anything else in scope stays the browser's own business.
 });
 
-async function depuisCacheDabord(requete, url) {
+async function depuisCacheDabord(requete, url, garderAuPassage) {
   const en_cache = await caches.match(url.href);
-  return en_cache ?? fetch(requete);
+  if (en_cache !== undefined) return en_cache;
+  const reponse = await fetch(requete);
+  // SW-PRECACHE-1 — a lazy chunk is kept the first time it is drawn. Only a
+  // content-addressed name may be kept this way (see contenuAdresse), and
+  // only a good answer: a 404 or a proxy page must never be pinned.
+  if (garderAuPassage && reponse.ok) {
+    const cache = await caches.open(CACHE);
+    await cache.put(url.href, reponse.clone());
+  }
+  return reponse;
 }
 
 async function naviguer(requete, url) {
