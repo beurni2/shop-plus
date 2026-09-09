@@ -1,6 +1,10 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
+## 2026-09-09 · FOUNDER STANDING ORDER — the build report is told in plain words, before and now · recorded in CLAUDE.md + AGENTS.md §6bis (parity kept in one commit)
+
+**Founder, 2026-09-09: « from now on after every build explain it this way »** — on the plain-words answer to « what was happening before and what changed? make the explaining well understandable and very simple » that followed the RESERVATION-REGLE-2 report. Recorded as a standing order in §6bis of the charter, in this repo's two copies (byte-identical). As with the earlier orders, the other repos' charters (`platform-contracts`, `boutik-plus`, `sera`) receive the same text at their next touch. Nothing else changed in this commit.
+
 ## 2026-09-09 · RESERVATION-REGLE-2 (the three items REGLE-1 left open; AUDIT-SHOP-2 F-96) — the reconciliation net judges the LIVE hold when a release does not deliver · a release names its own hold · the supplier-notification watch · the dead-letter acknowledgement · DONE, NOT MERGED (waiting for his word — a Worker change, no new migration)
 
 **Founder, 2026-09-09: « for the still open build it with your recommendations » (his word on the REGLE-1 merge report).** The three items put to him and my recommendation on each, built as recommended: the ⏳ stuck TTL STAYS at the 15-minute safest default (no number given; flagged again below) · RESERVATION-REGLE-2 as recommended (the net's live arm behind a certified fault, a key-C acknowledgement road) · F-96 in its honest form (below). Commits on the branch: `3a86d1a` (the slice) · `0551216` (a mutation-found fix) · `a825a72` (the verifier's findings, handled once). No screen changed; no contracts shape, event name, money amount or waterfall touched; no new Durable Object migration (the DLQ object gains roads, not a class).
