@@ -748,9 +748,10 @@ describe('PORTE-CUSTODY — crash-window recovery, held to the standing call-sit
     anchored('const doorSignalPending = await this.flushDoorSignalOutbox();');
     // STOCK-VENDU-1b widened the shared re-arm to the SIXTH wire (the
     // refused-course relay), LISTE-ENVIES-1 to the SEVENTH (the offert
-    // marker); the pin follows each widening so the fifth wire's count is
-    // still provably inside it.
-    anchored('Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending)');
+    // marker), RESERVATION-REGLE-1 to the EIGHTH (the reservation release);
+    // the pin follows each widening so the fifth wire's count is still
+    // provably inside it.
+    anchored('Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending)');
   });
 });
 

@@ -39,6 +39,15 @@ import type { PlatformEvent } from '@platform/contracts';
 export const DLQ_NAME = 'dlq';
 /** One storage value holds one body; 96 KiB leaves headroom under the 128 KiB value cap. */
 export const PARK_MAX_BYTES = 96 * 1024;
+/**
+ * The size at which a Durable Object value HOLDS a string: workerd's
+ * serializer keeps a Latin-1 string at one byte per code unit and any other
+ * at two — so `.length` under-measures a body with a single « ’ » in it by
+ * half, and a 64K–96K-code-unit body would pass a `.length` ceiling and still
+ * fail the 128 KiB `put` — swallowed, counted nowhere (verifier finding).
+ * Every ceiling in the book, and the door's, measures this way.
+ */
+export const storedBytes = (s: string): number => (/[^\u0000-\u00ff]/.test(s) ? s.length * 2 : s.length);
 const INDEX_KEY = 'parked-index';
 const EVENTS_KEY = 'park-events';
 const ENTRY_PREFIX = 'park:';
@@ -53,8 +62,8 @@ interface ParkedIndex {
 export interface ParkRequest {
   /** the body EXACTLY as the door received it (absent when oversize) */
   readonly raw?: string;
-  /** the refusal's name when the door already classified it; absent ⇒ the vault classifies (not_json / not_a_canonical_platform_event) */
-  readonly reason?: string;
+  /** the refusal's name — the door always classifies before it parks */
+  readonly reason: string;
   readonly correlationId: string;
   /** hex sha256 of the bytes, computed by the door on Web Crypto */
   readonly sha256Hex: string;
@@ -77,7 +86,7 @@ export class DeadLetterDO {
       if (
         typeof args.correlationId !== 'string' || args.correlationId === '' ||
         typeof args.sha256Hex !== 'string' || !/^[0-9a-f]{64}$/.test(args.sha256Hex) ||
-        (args.reason !== undefined && (typeof args.reason !== 'string' || args.reason === ''))
+        typeof args.reason !== 'string' || args.reason === ''
       ) {
         return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       }
@@ -90,12 +99,12 @@ export class DeadLetterDO {
         }
         // Not kept byte-exact (one storage value cannot hold it): digest,
         // length and reason are the record, and the answer says so.
-        const oversize = [...index.oversize, { sha256Hex: args.sha256Hex, bytes: args.oversize.bytes, reason: args.reason ?? 'unclassified', at }].slice(-PARKED_CAP);
+        const oversize = [...index.oversize, { sha256Hex: args.sha256Hex, bytes: args.oversize.bytes, reason: args.reason, at }].slice(-PARKED_CAP);
         await this.state.storage.put(INDEX_KEY, { ...index, oversize });
         return Response.json({ ok: true, kept: false, bytes: args.oversize.bytes });
       }
 
-      if (typeof args.raw !== 'string' || args.raw.length > PARK_MAX_BYTES) {
+      if (typeof args.raw !== 'string' || storedBytes(args.raw) > PARK_MAX_BYTES) {
         return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       }
       // Rehydrate the vault's queue from what is already parked, so park ids
@@ -106,17 +115,7 @@ export class DeadLetterDO {
         if (entry !== undefined) seed.push(entry);
       }
       const queue = new DeadLetterQueue(seed);
-      let parked: { entry: ParkedEntry; event: PlatformEvent };
-      if (args.reason !== undefined) {
-        parked = queue.park(args.raw, { reason: args.reason, correlationId: args.correlationId, at, sha256Hex: args.sha256Hex });
-      } else {
-        const verdict = queue.parkIfPoison(args.raw, { correlationId: args.correlationId, at, sha256Hex: args.sha256Hex });
-        if (!verdict.poison || verdict.entry === undefined || verdict.event === undefined) {
-          // The door called poison on a canon-valid event: nothing to park.
-          return Response.json({ ok: true, poison: false });
-        }
-        parked = { entry: verdict.entry, event: verdict.event };
-      }
+      const parked = queue.park(args.raw, { reason: args.reason, correlationId: args.correlationId, at, sha256Hex: args.sha256Hex });
       if (index.ids.length >= PARKED_CAP) {
         // The cap clips, and says so — never a silent drop.
         await this.state.storage.put(INDEX_KEY, { ...index, dropped: index.dropped + 1 });
@@ -137,7 +136,7 @@ export class DeadLetterDO {
       const entries: (ParkedEntry & { bytes: number })[] = [];
       for (const id of index.ids) {
         const entry = await this.state.storage.get<ParkedEntry>(`${ENTRY_PREFIX}${id}`);
-        if (entry !== undefined) entries.push({ ...entry, bytes: entry.original.length });
+        if (entry !== undefined) entries.push({ ...entry, bytes: storedBytes(entry.original) });
       }
       const events = (await this.state.storage.get<PlatformEvent[]>(EVENTS_KEY)) ?? [];
       return Response.json({ ok: true, entries, events, dropped: index.dropped, oversize: index.oversize });

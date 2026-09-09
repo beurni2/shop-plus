@@ -28,7 +28,7 @@ import { timingSafeEqual } from './auth.js';
  *  so the check and the vault agree on one string. */
 const DOOR_MODE = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
 import { RESELLER_FEED_NAME } from './reseller-feed-do.js';
-import { DLQ_NAME, PARK_MAX_BYTES } from './dead-letter-do.js';
+import { DLQ_NAME, PARK_MAX_BYTES, storedBytes } from './dead-letter-do.js';
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -2563,8 +2563,10 @@ export class OrderDO {
   private async queueReservationRelease(stored: StoredOrigin, commandId: string): Promise<void> {
     const row: ReleaseRow = { status: 'pending', commandId, quoteId: stored.quoteId, reason: 'payment_failed', attempts: 0 };
     await this.state.storage.put(RELEASE_KEY, row);
-    // The same durable-alarm discipline as the seven wires above: an alarm
-    // that failed to schedule is recovered by the next tick or webhook.
+    // The same durable-alarm discipline as the seven wires above. An alarm
+    // that failed to schedule here is recovered by the next alarm any wire
+    // arms — the stuck watch's, armed at create and at every retry — never
+    // by a webhook: a payment_failed order hears no duplicate-webhook recovery.
     await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
   }
 
@@ -3295,7 +3297,11 @@ interface Env {
   /** RESERVATION-REGLE-1 — the parked-poison book; absent ⇒ a refusal is answered by name and nothing is parked. */
   DLQ?: DurableObjectNamespace;
   ORDER: DurableObjectNamespace;
-  /** The quote authority — read-only from here: the order copies, never writes. */
+  /**
+   * The quote authority. The router only reads it; the OrderDO's release wire
+   * (RESERVATION-REGLE-1) writes ONE internal road, `/entry/release`, through
+   * its own binding — the order still copies amounts, never writes them.
+   */
   CHECKOUT: DurableObjectNamespace;
   /**
    * SP6.3 — the §6.4 ladder book, read-only from here. OPTIONAL: an
@@ -3331,7 +3337,7 @@ const POISON_REFUSALS = new Set(['malformed_payload', 'envelope_field_too_long',
  * Evidence-keeping beside a refusal already answered by name: a fault in the
  * book must never turn that named refusal into a 500, so this swallows its
  * own errors. Bodies past the book's byte-exact ceiling are recorded by
- * digest and length (`oversize`), never truncated and passed off as exact.
+ * digest and stored size (`oversize`), never truncated and passed off as exact.
  */
 async function parkPoison(env: Env, texte: string, args: { reason: string; correlationId: string }): Promise<void> {
   const ns = env.DLQ;
@@ -3339,12 +3345,15 @@ async function parkPoison(env: Env, texte: string, args: { reason: string; corre
   try {
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texte));
     const sha256Hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
-    const oversize = texte.length > PARK_MAX_BYTES;
+    // Measured as the book STORES it, not as `.length` counts it (verifier
+    // finding): one code unit past Latin-1 doubles the stored size.
+    const bytes = storedBytes(texte);
+    const oversize = bytes > PARK_MAX_BYTES;
     await ns.get(ns.idFromName(DLQ_NAME)).fetch(
       new Request('https://do/entry/park', {
         method: 'POST',
         body: JSON.stringify({
-          ...(oversize ? { oversize: { bytes: texte.length } } : { raw: texte }),
+          ...(oversize ? { oversize: { bytes } } : { raw: texte }),
           reason: args.reason,
           correlationId: args.correlationId,
           sha256Hex,
@@ -3979,12 +3988,28 @@ export default {
     }
 
     if (request.method === 'POST' && pathname === '/checkout/webhook/door') {
-      const raw = await request.json().catch(() => null);
+      // RESERVATION-REGLE-1 — the door leg's road parks what it refuses as
+      // poison on exactly the checkout road's terms (verifier finding: same
+      // secret, same refusal classes, same book twenty lines apart).
+      const texte = await request.text();
+      let raw: unknown;
+      try {
+        raw = JSON.parse(texte);
+      } catch {
+        await parkPoison(env, texte, { reason: 'not_json', correlationId: 'unrouted' });
+        return badRequest('malformed_event');
+      }
       const parsed = PlatformEventSchema.safeParse(raw);
-      if (!parsed.success) return badRequest('malformed_event');
+      if (!parsed.success) {
+        await parkPoison(env, texte, { reason: 'not_a_canonical_platform_event', correlationId: 'unrouted' });
+        return badRequest('malformed_event');
+      }
       const payload = parsed.data.payload as Record<string, unknown>;
       const orderId = payload['order_id'];
-      if (!bounded(orderId, 191) || !ID_ALPHABET.test(orderId)) return badRequest('bad_field', 'order_id');
+      if (!bounded(orderId, 191) || !ID_ALPHABET.test(orderId)) {
+        await parkPoison(env, texte, { reason: 'bad_order_id', correlationId: parsed.data.envelope.correlation_id });
+        return badRequest('bad_field', 'order_id');
+      }
 
       const res = await orderStub(env, orderId).fetch(
         new Request('https://do/entry/door-webhook', {
@@ -3997,6 +4022,9 @@ export default {
         | null;
       if (body === null) return refuse('unknown_order');
       if (body.ok !== true) {
+        if (typeof body.reason === 'string' && POISON_REFUSALS.has(body.reason)) {
+          await parkPoison(env, texte, { reason: body.reason, correlationId: parsed.data.envelope.correlation_id });
+        }
         return Response.json({ error: body.reason ?? 'refused' }, { status: res.status });
       }
       // The provider learns what happened to ITS event. `doorLeg` is a state,

@@ -7,8 +7,9 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { OPS_SECRET, cleC, seance } from './seance';
 
 /**
- * ═══ RESERVATION-REGLE-1 (AUDIT-SHOP-2 F-08, F-96) — the E2 failure rules, on
- * the REAL combined Worker, the LEDGER asked after every act ═══
+ * ═══ RESERVATION-REGLE-1 (AUDIT-SHOP-2 F-08; F-96 named, not closed — `paid`
+ * still has no watch) — the E2 failure rules, on the REAL combined Worker, the
+ * LEDGER asked after every act ═══
  *
  * WO-2.3 wrote « the release is the rule; the alert is the net; stuck-saga +
  * DLQ live », and the audit measured that none of the four had a production
@@ -218,6 +219,13 @@ const postWebhook = (body: string) =>
     headers: { 'Content-Type': 'application/json', 'X-Payment-Webhook-Key': WEBHOOK_SECRET },
     body,
   });
+/** The door leg's road — the same secret, the same book (verifier finding). */
+const postDoorWebhook = (body: string) =>
+  mf.dispatchFetch('http://c/checkout/webhook/door', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Payment-Webhook-Key': WEBHOOK_SECRET },
+    body,
+  });
 
 async function livreParque() {
   const res = await mf.dispatchFetch('http://c/checkout/dlq', { headers: cleC });
@@ -304,6 +312,7 @@ describe('RESERVATION-REGLE-1 — (3) the DLQ, on the real Worker', () => {
     const avant = await livreParque();
     expect(avant.status).toBe(200);
     const deja = avant.book.entries?.length ?? 0;
+    const dejaTrop = avant.book.oversize?.length ?? 0;
 
     // (a) not JSON — the door cannot even route it: 400, parked as not_json.
     const torn = '{"name":"payment.checkout_leg_conf'; // truncated mid-flight
@@ -328,16 +337,29 @@ describe('RESERVATION-REGLE-1 — (3) the DLQ, on the real Worker', () => {
     const empoisonne = event({ fee: '250' });
     const refus = await postWebhook(empoisonne);
     expect(`${refus.status} ${safeJson(await refus.text())['error']}`).toBe('422 malformed_payload');
+    // (d) the DOOR leg's road refuses on the same terms and parks in the same
+    //     book (verifier finding): not canon → 400, parked.
+    const pasCanonPorte = '{ "porte" : "pas un événement" }';
+    expect((await postDoorWebhook(pasCanonPorte)).status).toBe(400);
+    // (e) past the book's ceiling AS STORED: 70 000 code units with one « ’ »
+    //     is 140 000 stored bytes — over 96 KiB while `.length` is under —
+    //     recorded under `oversize` by digest and size, never a silent drop.
+    const trop = `${'x'.repeat(69_999)}’`;
+    expect((await postWebhook(trop)).status).toBe(400);
 
     const apres = await livreParque();
     const nouveaux = (apres.book.entries ?? []).slice(deja);
-    expect(nouveaux.map((e) => e.reason)).toEqual(['not_json', 'not_a_canonical_platform_event', 'malformed_payload']);
+    expect(nouveaux.map((e) => e.reason)).toEqual(['not_json', 'not_a_canonical_platform_event', 'malformed_payload', 'not_a_canonical_platform_event']);
     expect(nouveaux[0]!.original, 'byte-exact, never re-serialized').toBe(torn);
     expect(nouveaux[1]!.original).toBe(pasCanon);
     expect(nouveaux[2]!.original).toBe(empoisonne);
+    expect(nouveaux[3]!.original).toBe(pasCanonPorte);
     for (const e of nouveaux) expect(e.originalSha256).toBe(sha256Hex(e.original));
-    expect((apres.book.events ?? []).slice(-3).map((ev) => ev.name)).toEqual(['dlq.parked.v1', 'dlq.parked.v1', 'dlq.parked.v1']);
+    expect((apres.book.events ?? []).slice(-4).map((ev) => ev.name)).toEqual(['dlq.parked.v1', 'dlq.parked.v1', 'dlq.parked.v1', 'dlq.parked.v1']);
     expect(apres.book.dropped).toBe(0);
+    const surdimensionnes = (apres.book.oversize ?? []).slice(dejaTrop) as { sha256Hex: string; bytes: number; reason: string }[];
+    expect(surdimensionnes.map((o) => [o.reason, o.bytes])).toEqual([['not_json', 140_000]]);
+    expect(surdimensionnes[0]!.sha256Hex, 'the digest of the bytes it would not keep').toBe(sha256Hex(trop));
 
     // A GENUINE webhook after all that poison still confirms — and is not parked.
     const bon = await postWebhook(event({}));
@@ -345,12 +367,12 @@ describe('RESERVATION-REGLE-1 — (3) the DLQ, on the real Worker', () => {
     const fin = await jusqua(trois.orderId, (x) => x.state === 'paid' || x.state === 'confirmed');
     expect(['paid', 'confirmed']).toContain(fin.state);
     const inchange = await livreParque();
-    expect(inchange.book.entries?.length).toBe(deja + 3);
+    expect(inchange.book.entries?.length).toBe(deja + 4);
     // A valid event the vault refuses by STATE (a redelivery of the same
     // command id is absorbed; a second confirm with a new id is out_of_order)
     // is NOT poison and parks nothing.
     const tard = await postWebhook(event({ redelivery: true }));
     expect([200, 409, 422]).toContain(tard.status);
-    expect((await livreParque()).book.entries?.length).toBe(deja + 3);
+    expect((await livreParque()).book.entries?.length).toBe(deja + 4);
   }, 90_000);
 });
