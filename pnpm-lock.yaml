@@ -228,6 +228,9 @@ importers:
 
   packages/reseller-money:
     devDependencies:
+      '@platform/contracts':
+        specifier: git+https://github.com/beurni2/platform-contracts.git#b384da99a0803471a052b2fa271dc768426454dd&path:packages/contracts
+        version: https://codeload.github.com/beurni2/platform-contracts/tar.gz/b384da99a0803471a052b2fa271dc768426454dd#path:packages/contracts
       typescript:
         specifier: ^5.9.2
         version: 5.9.3

@@ -40,9 +40,9 @@ export interface MarginBreakdown {
   readonly cap: number;
   /** C + M. */
   readonly gross: number;
-  /** round(gross × rate) — the reseller platform fee. FRAIS-ZERO (founder
-   *  order 2026-08-25): the rate is 0, so this is 0 F on every breakdown —
-   *  the FIELD stays so his future fee design is a rate, not a reshape. */
+  /** floor(gross × rate) — the reseller platform fee, RoundingLaw v1. FRAIS-ZERO
+   *  (founder order 2026-08-25): the rate is 0, so this is 0 F on every
+   *  breakdown — the FIELD stays so his future fee design is a rate, not a reshape. */
   readonly fee: number;
   /** gross − fee — the reseller's net (the whole gross while the rate is 0). */
   readonly net: number;
@@ -67,6 +67,38 @@ export const DEFAULT_MARKUP = 0;
  * 2026-08-25: « Resellers cannot add more than 25% of the base price »,
  * superseding the 2026-07-16 loosening to 100 %). */
 export const MARKUP_CAP_RATE = 0.25;
+
+/**
+ * ═══ ARRONDI-REVENDEUSE-1 (AUDIT-SHOP-2 F-10) — THE FEE FLOORS, WITH THE CANON PAIR ═══
+ *
+ * RoundingLaw v1 (`@platform/contracts` rounding-law): `resellerPlatformFee =
+ * floor(rate × (C + M))` in exact integer arithmetic, the rate a
+ * numerator/denominator pair, the fraction of a franc staying with her. This
+ * module ROUNDED — `round(gross × 0)` — right while the rate is 0, and a SECOND
+ * rounding rule the day a rate returns: at the law's own 20 % the two disagree
+ * by one franc on 9 306 of 26 928 baskets (the audit's measurement), so the net
+ * on her screen and the settlement copied from the Quote would part ways on a
+ * third of sales. One law, one construction.
+ *
+ * This package still imports nothing (Metro carries it), so the pair is a COPY
+ * of the canon's and the money test pins it to the INSTALLED contracts: a
+ * re-tune that moves one and not the other fails the board before it reaches a
+ * phone. The canon's overflow guard is not copied — gross × 0 cannot overflow,
+ * and the property test compares every breakdown with the law itself.
+ */
+export interface FeeRate {
+  readonly numerator: number;
+  readonly denominator: number;
+}
+
+/** The reseller platform fee rate — FRAIS-ZERO (founder order 2026-08-25), 0/100.
+ * Pinned by test to `RESELLER_PLATFORM_FEE` in the installed `@platform/contracts`. */
+export const RESELLER_PLATFORM_FEE: FeeRate = { numerator: 0, denominator: 100 };
+
+/** floor(gross × numerator / denominator) — the law's `floorFraction`, integer-first. */
+export function resellerFeeOnGross(gross: number, rate: FeeRate = RESELLER_PLATFORM_FEE): number {
+  return Math.floor((gross * rate.numerator) / rate.denominator);
+}
 
 /** The markup ceiling for a base price — `floor(B × MARKUP_CAP_RATE)`.
  *
@@ -109,8 +141,8 @@ export function marginBreakdown(basePrice: number, commission: number, markup: n
   const gross = commission + markup;
   // FRAIS-ZERO (founder order 2026-08-25): « For now remove all charging
   // fees system everywhere » — the rate is 0, mirroring RoundingLaw's zeroed
-  // numerators in @platform/contracts. The construction stays.
-  const fee = Math.round(gross * 0);
+  // numerators in @platform/contracts. The construction stays — and floors.
+  const fee = resellerFeeOnGross(gross);
   return {
     markup,
     cap: markupCap(basePrice),
@@ -144,6 +176,6 @@ export function marginBreakdown(basePrice: number, commission: number, markup: n
 export function netFromStored(storedCommission: number, storedMarkup: number): number {
   const gross = storedCommission + storedMarkup;
   // FRAIS-ZERO (founder order 2026-08-25): rate 0 — her net IS the gross,
-  // still from stored fields alone, same construction.
-  return gross - Math.round(gross * 0);
+  // still from stored fields alone, same construction, same floor.
+  return gross - resellerFeeOnGross(gross);
 }
