@@ -3,7 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- INSTALLABLE-1 (AUDIT-SHOP-2 F-20): the Shop+ `primary` token (drift-guarded
+         in test/catalog.test.ts) and the home-screen icon iOS reads from the page. -->
+    <meta name="theme-color" content="#C2571B" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <title>Shop+</title>
     <script>
       // WO-7.1 — SPA-fallback RESTORE (rafgraph/spa-github-pages). When the

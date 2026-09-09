@@ -46,7 +46,7 @@ test('the S3 directory survives as the ?demo-boutiques= gallery, its laws intact
   await expect(firstStore).toHaveAttribute('href', '/v/aicha-4821');
 });
 
-test('the page declares itself an installable-ready PWA (manifest present)', async ({ page }) => {
+test('the page declares itself an installable PWA: manifest, a served 192/512 icon pair, theme-color, touch icon (INSTALLABLE-1)', async ({ page }) => {
   await page.goto('/');
   const manifestHref = await page.locator('link[rel="manifest"]').getAttribute('href');
   // WO-4.2E: base './' — the manifest link is RELATIVE so the same build
@@ -54,7 +54,27 @@ test('the page declares itself an installable-ready PWA (manifest present)', asy
   expect(manifestHref).toBe('./manifest.webmanifest');
   const manifest = await page.request.get('/manifest.webmanifest');
   expect(manifest.ok()).toBeTruthy();
-  expect(await manifest.json()).toMatchObject({ name: 'Shop+', display: 'standalone' });
+  const corps = (await manifest.json()) as { icons: Array<{ src: string; sizes: string; purpose: string }> };
+  expect(corps).toMatchObject({ name: 'Shop+', display: 'standalone' });
+  // AUDIT-SHOP-2 F-20: with `"icons": []` no install prompt ever fired. Each
+  // declared icon is a REAL served PNG of the declared size.
+  expect(corps.icons.map((i) => i.sizes).sort()).toEqual(['192x192', '512x512']);
+  for (const icone of corps.icons) {
+    expect(icone.purpose).toBe('any maskable');
+    const reponse = await page.request.get(new URL(icone.src, 'http://127.0.0.1:4173/manifest.webmanifest').href);
+    expect(reponse.ok(), icone.src).toBeTruthy();
+    expect(reponse.headers()['content-type']).toContain('image/png');
+    const octets = await reponse.body();
+    const taille = Number(icone.sizes.split('x')[0]);
+    expect(octets.readUInt32BE(16), `${icone.src} width`).toBe(taille);
+    expect(octets.readUInt32BE(20), `${icone.src} height`).toBe(taille);
+  }
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#C2571B');
+  const touche = await page.locator('link[rel="apple-touch-icon"]').getAttribute('href');
+  expect(touche).toBeTruthy();
+  const toucheReponse = await page.request.get(new URL(touche ?? '', 'http://127.0.0.1:4173/').href);
+  expect(toucheReponse.ok()).toBeTruthy();
+  expect((await toucheReponse.body()).readUInt32BE(16)).toBe(180);
 });
 
 // The E2 order-view/checkout demos (?demo-order / ?demo-checkout) rode the

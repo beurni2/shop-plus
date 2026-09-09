@@ -48,6 +48,21 @@ test('installed once, the shell cold-opens offline — the directory, then a dee
   );
   await expect(page.locator('main')).not.toContainText('CHEZ AÏCHA');
 
+  // INSTALLABLE-1 — the manifest and its icons answer from the worker's cache
+  // with no network (fetched from the PAGE, so the worker is on the road; an
+  // APIRequestContext would bypass it).
+  const servis = await page.evaluate(async () => {
+    const chemins = ['manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+    const reponses = await Promise.all(chemins.map((c) => fetch(c).then((r) => r.ok).catch(() => false)));
+    return Object.fromEntries(chemins.map((c, i) => [c, reponses[i]]));
+  });
+  expect(servis).toEqual({
+    'manifest.webmanifest': true,
+    'icons/icon-192.png': true,
+    'icons/icon-512.png': true,
+    'icons/apple-touch-icon.png': true,
+  });
+
   // Cold DEEP open, offline: /v/{slug} has no file behind it — online the
   // static host serves 404.html; offline the worker replays that exact road
   // (redirect to the root with the `?/` encoding), the restore script pins the

@@ -24,10 +24,12 @@ function coquilleHorsLigne(): Plugin {
     closeBundle() {
       const sortie = resolve(config.root, config.build.outDir);
       const fichiers = ['index.html', 'manifest.webmanifest'];
-      for (const dossier of ['assets', 'fonts']) {
+      for (const dossier of ['assets', 'fonts', 'icons']) {
         for (const nom of readdirSync(join(sortie, dossier))) {
-          // fonts/ also carries licences and budget notes — cache the faces only.
+          // fonts/ also carries licences and budget notes — cache the faces only;
+          // icons/ (INSTALLABLE-1) holds the manifest icons and the touch icon.
           if (dossier === 'fonts' && !nom.endsWith('.woff2')) continue;
+          if (dossier === 'icons' && !nom.endsWith('.png')) continue;
           fichiers.push(`${dossier}/${nom}`);
         }
       }
