@@ -16,7 +16,7 @@
 import { isFavorite, toggleFavorite } from './favorites';
 import { inPanier, togglePanier } from './panier';
 import { t } from '../i18n';
-import { recordVitrineArrival, signedHref, vitrineHref } from '../vitrine-link';
+import { deployBaseFromPath, recordVitrineArrival, signedHref, vitrineHref } from '../vitrine-link';
 import { demoStorefrontPort, resolveStorefrontPort, VitrineOffline, type StorefrontProfilePort } from './profile';
 import { garderListe, listeGardee, oublierListe, resolveListePort, LISTE_MAX_ARTICLES, type ListeLecture, type ListeLivraison } from './liste';
 import { creerEnregistreurNote, type EnregistreurNote, type NoteEnregistree } from '../cliente/voice-note';
@@ -747,7 +747,9 @@ export function mountVitrine(
       if (harness.reessayer !== undefined) harness.reessayer();
       else load(RETRY_MS, false);
     } else if (action === 'decouvrir') {
-      window.location.href = '/boutiques';
+      // RACINE-HONNETE-1 — the honest root (paste another link), under the
+      // deploy base; `/boutiques` was origin-absolute and led to the demo log.
+      window.location.href = `${deployBaseFromPath(window.location.pathname)}/`;
     } else if (action === 'liste-creer') {
       // LISTE-REFAIRE — ONE action, two lives. No liste yet (or the way out
       // of a dead handle, data-mode="nouvelle") → the builder that CREATES,

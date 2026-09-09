@@ -136,8 +136,9 @@ test('the retired S1–S7 achat routes are UN-GENERATABLE (they fall to the dire
     await page.goto(`/?demo-achat=${q}`);
     await expect(page.locator('.cl-root')).toHaveCount(0);
     await expect(page.locator('.ac-root')).toHaveCount(0);
-    // the shell falls through to the S3 découverte root — never a dead screen.
-    await expect(page.locator('.boutiques')).toBeVisible();
+    // the shell falls through to the honest root card (RACINE-HONNETE-1) —
+    // never a dead screen, never the demo directory.
+    await expect(page.locator('[data-screen="racine"]')).toBeVisible();
   }
   // and an unknown screen id is refused too (closed enum — C2 is now legal,
   // an S-era or invented id is not).

@@ -14,12 +14,11 @@ import { expect, test } from '@playwright/test';
  * deep open below both landed on chrome-error:// and every assertion failed.
  *
  * The four walk questions, answered here: the tree survives the offline
- * reload · the primary action (a boutique card) is present and visible — the
- * card is NOT clicked, because its base-absolute href is a pre-existing,
- * journalled defect outside this slice; the next screen is reached by direct
- * navigation instead · the worker's automatic road (redirect + restore)
- * leaves her ON the vitrine, not on an error page · she reaches the next
- * screen with no network at all.
+ * reload · the primary action (the honest card's field and button —
+ * RACINE-HONNETE-1 retired the demo directory from the root) is present and
+ * usable, and the offline band is painted (F-63) · the worker's automatic
+ * road (redirect + restore) leaves her ON the vitrine, not on an error page ·
+ * she reaches the next screen with no network at all.
  * The walk claims NOTHING about appearance — no colour, no layout; those stay
  * with the token checks and the founder's eyes.
  */
@@ -38,11 +37,16 @@ test('installed once, the shell cold-opens offline — the directory, then a dee
   await context.setOffline(true);
 
   // Cold reload at the root, offline: the cached shell answers, the app boots,
-  // and the directory renders with its primary action pressable.
+  // and the honest card renders — its field usable, its offline band painted,
+  // no invented seller.
   await page.reload();
-  const carte = page.locator('a[data-role="boutique"]').first();
-  await expect(carte).toBeVisible();
-  await expect(page.locator('main')).toContainText('CHEZ AÏCHA');
+  await expect(page.locator('[data-screen="racine"]')).toBeVisible();
+  await expect(page.locator('[data-role="racine-lien"]')).toBeEditable();
+  await expect(page.locator('[data-action="racine-ouvrir"]')).toBeEnabled();
+  await expect(page.locator('[data-role="offline"]')).toHaveText(
+    'Pas de réseau pour le moment. Le lien s’ouvrira quand la connexion reviendra.',
+  );
+  await expect(page.locator('main')).not.toContainText('CHEZ AÏCHA');
 
   // Cold DEEP open, offline: /v/{slug} has no file behind it — online the
   // static host serves 404.html; offline the worker replays that exact road

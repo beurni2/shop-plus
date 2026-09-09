@@ -1243,7 +1243,7 @@
  },
  {
   "key": "vit.decouvrir",
-  "fr": "Découvrir les boutiques Séra",
+  "fr": "Ouvrir une autre boutique",
   "register": "selling",
   "screenClass": "label"
  },
@@ -1894,5 +1894,53 @@
   "fr": "Livré",
   "register": "selling",
   "screenClass": "status"
+ },
+ {
+  "key": "racine.titre",
+  "fr": "Votre vendeuse vous a envoyé un lien ?",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "racine.sous_titre",
+  "fr": "Collez-le ici. Sa boutique s’ouvre avec ses prix.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "racine.lien_label",
+  "fr": "Le lien de la boutique",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "racine.lien_placeholder",
+  "fr": "Collez le lien ici",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "racine.ouvrir",
+  "fr": "OUVRIR LA BOUTIQUE",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "racine.refus",
+  "fr": "Ce lien n’ouvre pas de boutique. Demandez un nouveau lien à votre vendeuse.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "racine.hors_ligne",
+  "fr": "Pas de réseau pour le moment. Le lien s’ouvrira quand la connexion reviendra.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "racine.pied",
+  "fr": "Les prix sont ceux de votre vendeuse. La livraison est faite par Séra.",
+  "register": "selling",
+  "screenClass": "selling_surface"
  }
 ]

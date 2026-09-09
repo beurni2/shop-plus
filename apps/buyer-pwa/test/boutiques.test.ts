@@ -56,6 +56,16 @@ describe('SP-I05 — stores, never a product feed; no price/photo in the list', 
     expect(html).toMatch(/href="\/v\/mariam-2170"/);
   });
 
+  it('RACINE-HONNETE-1 — every href rides the deploy base: /v/ cards and the gallery exits (an origin-absolute /v/ 404ed off /shop-plus/)', () => {
+    const html = renderBoutiques({ state: 'default', base: '/shop-plus' });
+    expect(html).toMatch(/data-role="boutique"[^>]*href="\/shop-plus\/v\/aicha-4821"/);
+    expect(html).not.toMatch(/href="\/v\//);
+    expect(renderBoutiques({ state: 'empty', query: 'bazin', base: '/shop-plus' })).toContain('href="/shop-plus/?demo-boutiques=default"');
+    expect(renderBoutiques({ state: 'error', base: '/shop-plus' })).toContain('href="/shop-plus/?demo-boutiques=default"');
+    // the directory never links to the retired /boutiques path again
+    expect(renderBoutiques({ state: 'empty', query: 'bazin' })).not.toContain('/boutiques"');
+  });
+
   it('no supplier identity and no commission anywhere on the directory (SP-I03 family)', () => {
     const html = renderBoutiques({ state: 'default' });
     expect(html).not.toMatch(/supplier|fournisseur|commission|marge|markup|sellerBase|resellerNet|sup_/i);

@@ -69,7 +69,7 @@ function reputationChip(count: number): string {
   );
 }
 
-function storeCard(s: BoutiqueEntry, query: string): string {
+function storeCard(s: BoutiqueEntry, query: string, base: string): string {
   const initial = esc(s.storeName.replace(/^(CHEZ|BOUTIQUE)\s+/i, '').charAt(0));
   const meta = tf('boutiques.carte_meta', {
     // « engraissé » applies wherever the term matched — name OR zone.
@@ -80,9 +80,10 @@ function storeCard(s: BoutiqueEntry, query: string): string {
   const verified = s.verified
     ? `${verifiedCheck()}<span class="bq-verified-label">${t('boutiques.carte_verifiee')}</span>`
     : '';
-  // Tap opens HER vitrine at the canon /v/{slug} — never a query-string.
+  // Tap opens HER vitrine at the canon /v/{slug} — never a query-string — under
+  // the deploy base (RACINE-HONNETE-1: an origin-absolute `/v/` left `/shop-plus/`).
   return [
-    `<a class="bq-card" data-role="boutique" href="/v/${esc(s.slug)}">`,
+    `<a class="bq-card" data-role="boutique" href="${esc(base)}/v/${esc(s.slug)}">`,
     `<span class="bq-avatar" aria-hidden="true"><span class="bq-avatar-initial">${initial}</span></span>`,
     '<span class="bq-card-body">',
     `<span class="bq-card-head"><span class="bq-store-name">${highlight(s.storeName, query)}</span>${verified}</span>`,
@@ -135,30 +136,39 @@ function countLine(state: BoutiqueState, n: number, query: string): string {
   return tf('boutiques.compte', { n: String(n) });
 }
 
-function noResults(query: string): string {
+/** The directory is the `?demo-boutiques=` gallery (RACINE-HONNETE-1): its
+ *  exits stay inside the gallery, under the deploy base. */
+function galerieHref(base: string): string {
+  return `${esc(base)}/?demo-boutiques=default`;
+}
+
+function noResults(query: string, base: string): string {
   // copy.md gives ONE string (« Rien pour “{q}” — essayez… »); the « VOIR TOUTES
   // LES BOUTIQUES » exit is the mockup's one-tap-out (never a wall, no « suggestions »).
   return [
     '<div class="bq-empty" data-role="boutiques-empty">',
     `<p class="bq-empty-title">${tf('boutiques.aucun', { q: esc(query) })}</p>`,
-    `<a class="secondary-action" data-action="voir-tout" href="/boutiques">${t('boutiques.aucun_action')}</a>`,
+    `<a class="secondary-action" data-action="voir-tout" href="${galerieHref(base)}">${t('boutiques.aucun_action')}</a>`,
     '</div>',
   ].join('');
 }
 
-function errorBox(): string {
+function errorBox(base: string): string {
   return [
     '<div class="bq-error empty-state" data-role="boutiques-error">',
     `<p class="bq-error-title">${t('boutiques.erreur_titre')}</p>`,
     `<p class="bq-error-hint">${t('boutiques.erreur_hint')}</p>`,
-    `<a class="secondary-action" data-action="reessayer" href="/boutiques">${t('boutiques.reessayer')}</a>`,
+    `<a class="secondary-action" data-action="reessayer" href="${galerieHref(base)}">${t('boutiques.reessayer')}</a>`,
     '</div>',
   ].join('');
 }
 
-export function renderBoutiques(opts: { state: BoutiqueState; query?: string } = { state: 'default' }): string {
+/** `base` is the deploy base the current route carries (`deployBaseFromPath`):
+ *  '' at an origin root, '/shop-plus' on project-page hosting. */
+export function renderBoutiques(opts: { state: BoutiqueState; query?: string; base?: string } = { state: 'default' }): string {
   const state = opts.state;
   const query = opts.query ?? '';
+  const base = opts.base ?? '';
   const parts: string[] = ['<section class="boutiques" data-screen="boutiques">', header()];
 
   if (state === 'offline') {
@@ -168,7 +178,7 @@ export function renderBoutiques(opts: { state: BoutiqueState; query?: string } =
   parts.push(searchBar(state === 'offline'), zoneChips());
 
   if (state === 'error') {
-    parts.push(errorBox(), `<p class="bq-foot">${t('boutiques.pied')}</p>`, '</section>');
+    parts.push(errorBox(base), `<p class="bq-foot">${t('boutiques.pied')}</p>`, '</section>');
     return parts.join('');
   }
 
@@ -187,11 +197,11 @@ export function renderBoutiques(opts: { state: BoutiqueState; query?: string } =
   );
 
   if (state === 'empty' || stores.length === 0) {
-    parts.push(noResults(query));
+    parts.push(noResults(query, base));
   } else {
     parts.push(
       '<div class="bq-list" data-role="boutiques-list">',
-      stores.map((s) => storeCard(s, state === 'results' ? query : '')).join(''),
+      stores.map((s) => storeCard(s, state === 'results' ? query : '', base)).join(''),
       '</div>',
     );
   }

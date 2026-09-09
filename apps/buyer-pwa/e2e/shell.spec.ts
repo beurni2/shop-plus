@@ -12,23 +12,34 @@ function hexToRgb(hex: string): string {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
-test('the PWA shell boots on the shop-plus theme, S3 directory as root', async ({ page }) => {
-  // WO-7.2a — root IS the S3 store directory now (« root » entry, founder-ruled).
+test('the PWA shell boots on the shop-plus theme, the honest card as root', async ({ page }) => {
+  // RACINE-HONNETE-1 (AUDIT-SHOP-2 F-19) — the root is the card that takes her
+  // seller's link, never the demo directory. GRAND TEINT: quiet ink wordmark on
+  // warm paper.
   await page.goto('/');
   await expect(page).toHaveTitle('Shop+');
+  await expect(page.locator('[data-screen="racine"]')).toBeVisible();
+  const marque = page.locator('h1.racine-marque');
+  await expect(marque).toHaveText('Shop+');
+  await expect(marque).toHaveCSS('color', hexToRgb(theme.colours.ink));
+  await expect(page.locator('body')).toHaveCSS('background-color', hexToRgb(theme.colours.paper));
+  await expect(page.locator('[data-role="boutique"]')).toHaveCount(0);
+});
 
+test('the S3 directory survives as the ?demo-boutiques= gallery, its laws intact', async ({ page }) => {
+  await page.goto('/?demo-boutiques=default');
   // The S3 title « LES BOUTIQUES » owns the screen (the mockup carries no
-  // separate brand bar). GRAND TEINT: quiet ink title on warm paper.
+  // separate brand bar).
   const title = page.locator('h1.bq-title');
   await expect(title).toHaveText('LES BOUTIQUES');
   await expect(title).toHaveCSS('color', hexToRgb(theme.colours.ink));
-  await expect(page.locator('body')).toHaveCSS('background-color', hexToRgb(theme.colours.paper));
 
   // SP-I11: the deterministic order is stated ON-SCREEN, never a hidden score.
   await expect(page.locator('[data-role="ordering-sentence"]')).toContainText(
     'Classées par dernière mise à jour',
   );
-  // SP-I05: stores, not products — the first store card links to a vitrine.
+  // SP-I05: stores, not products — the first store card links to a vitrine,
+  // under the deploy base ('' at an origin root).
   const firstStore = page.locator('[data-role="boutique"]').first();
   await expect(firstStore).toBeVisible();
   await expect(firstStore).toContainText('CHEZ AÏCHA');

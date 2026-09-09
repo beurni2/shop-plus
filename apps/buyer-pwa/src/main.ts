@@ -51,6 +51,7 @@ import { VITRINE_THEMES, type VitrineThemeKey } from './vitrine/themes';
 // under base './' at / and /shop-plus/).
 import fontsCss from './fonts.css?raw';
 import { renderBoutiques, type BoutiqueState } from './boutiques-view';
+import { monterRacine } from './racine-view';
 
 /**
  * The buyer PWA shell (WO-5.3 chrome). The legacy Grand Teint demo params
@@ -560,6 +561,17 @@ style.textContent = `
   .bq-error-hint { margin: 0; font-size: var(--t-caption); color: var(--c-body); }
   .bq-foot { margin: 0; font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
 
+  /* RACINE-HONNETE-1 — the honest front door: one sentence, one field, one act. */
+  .racine { display: grid; gap: var(--sp-lg); }
+  .racine-tete { display: grid; gap: var(--sp-xs); }
+  .racine-marque { margin: 0; }
+  .racine-titre { margin: 0; font-size: var(--t-titleLG); font-weight: ${type.scale.titleLG.wght}; line-height: ${type.scale.titleLG.lh}; color: var(--c-ink); }
+  .racine-sous { margin: 0; font-size: var(--t-body); color: var(--c-body); line-height: ${type.scale.body.lh}; }
+  .racine-form { display: grid; gap: var(--sp-md); }
+  .racine-input[aria-invalid="true"] { border-color: var(--c-danger); }
+  .racine-refus { margin: 0; font-size: var(--t-caption); color: var(--c-danger); line-height: ${type.scale.caption.lh}; }
+  .racine-pied { margin: 0; font-size: var(--t-caption); color: var(--c-muted); line-height: ${type.scale.caption.lh}; }
+
   /* VRAI-SUIVI — « Ma commande », the quiet way back to a live order. Chrome,
      not content: a full-width sand band at the head of the shell, token-driven, one
      line, no new nav system. */
@@ -1039,10 +1051,12 @@ if (app) {
       sansPhotos: params.has('apercu-nu'),
     }, listeParam !== null && LISTE_TOKEN.test(listeParam) ? listeParam : undefined);
   } else {
-    // WO-7.2a — S3 DÉCOUVERTE is the root (« root » entry, founder-ruled) and
-    // the /boutiques path. The store directory owns the screen (its own
-    // « LES BOUTIQUES » title — no separate brand bar, per the mockup). The
-    // ?demo-boutiques=<state> harness drives the six states for the gallery.
+    // RACINE-HONNETE-1 (AUDIT-SHOP-2 F-19, F-63) — the root and every unmatched
+    // path land on the HONEST card: a boutique opens from the link her seller
+    // sent, and the card takes that link. The WO-7.2a S3 directory used to
+    // stand here over five invented sellers whose every link 404'd off the
+    // deploy base; it survives ONLY behind the ?demo-boutiques=<state> harness
+    // lever, as the six-state gallery it always was, its hrefs now base-aware.
     // (The legacy Grand Teint buyer demo params are retired, and so is the
     // S1–S7 achat module with its ?demo-achat= param; the pixel PWA CLIENTE
     // C1→C9 is the buyer purchase surface now, via /s/{slug} and ?demo-cliente=.)
@@ -1050,13 +1064,14 @@ if (app) {
       'default', 'skeleton', 'results', 'empty', 'offline', 'error',
     ];
     const demoBoutiques = params.get('demo-boutiques');
-    const state: BoutiqueState =
-      demoBoutiques && (BQ_STATES as readonly string[]).includes(demoBoutiques)
-        ? (demoBoutiques as BoutiqueState)
-        : 'default';
-    const query = params.get('q') ?? (state === 'results' || state === 'empty' ? (state === 'empty' ? 'bazin' : 'rood') : '');
     const main = document.createElement('main');
-    main.innerHTML = renderBoutiques({ state, query });
+    if (demoBoutiques !== null && (BQ_STATES as readonly string[]).includes(demoBoutiques)) {
+      const state = demoBoutiques as BoutiqueState;
+      const query = params.get('q') ?? (state === 'results' || state === 'empty' ? (state === 'empty' ? 'bazin' : 'rood') : '');
+      main.innerHTML = renderBoutiques({ state, query, base: deployBaseFromPath(window.location.pathname) });
+    } else {
+      monterRacine(main, { enLigne: navigator.onLine, pathname: window.location.pathname });
+    }
     app.append(main);
   }
 
