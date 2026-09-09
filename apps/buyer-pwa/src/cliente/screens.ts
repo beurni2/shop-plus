@@ -775,10 +775,16 @@ function renderGeoBlock(s: C3State): string {
       // CHECKOUT-POLI-1 — same row anatomy as the voice offer; θ chip (the
       // position is an action she may take). The privacy clause rides the sub
       // so consent is stated where the offer is made.
+      // TUILES-PRIVEES-1 (AUDIT-SHOP-2 F-24) — the clause tells the TRUTH: the
+      // exact point goes only to her rider, but the map she moves is drawn
+      // from OpenStreetMap tiles, which her phone asks for around her fix
+      // (her area to ~300 m, with her IP) the moment the map opens. A consent
+      // line that hid that was worse than none. The Worker tile proxy — the
+      // road that would keep OSM out of it — is the founder's call (journal).
       return [
         '<button class="cl-ligne" data-action="geo-demander">',
         `<span class="cl-ligne-ic cl-ligne-ic-pos">${iconFlag(16)}</span>`,
-        '<span class="cl-ligne-col"><span class="cl-ligne-t">Ajouter ma position</span><span class="cl-ligne-s">Partagée seulement avec votre livreur.</span></span>',
+        '<span class="cl-ligne-col"><span class="cl-ligne-t">Ajouter ma position</span><span class="cl-ligne-s">Le point exact va seulement à votre livreur. La carte autour vient d’OpenStreetMap.</span></span>',
         `<span class="cl-ligne-chev">${iconChevron(16)}</span>`,
         '</button>',
       ].join('');
@@ -792,7 +798,7 @@ function renderGeoBlock(s: C3State): string {
       return [
         '<div class="cl-geo-done" data-role="geo-done">',
         `<span class="cl-geo-done-ic">${iconCheck(15)}</span>`,
-        '<span class="cl-geo-done-txt">Position ajoutée — partagée seulement avec votre livreur.</span>',
+        '<span class="cl-geo-done-txt">Position ajoutée. Le point exact va seulement à votre livreur.</span>',
         '<button class="cl-geo-retirer" data-action="geo-retirer">RETIRER</button>',
         '</div>',
         // GEO-ACHAT-2 — what-happens-next, stated (founder: with a confirmed
@@ -986,7 +992,7 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
             // destination; a fabricated « GOUNGHIN » here would be a lie on
             // the money path.
             `<div class="cl-recap-col" data-role="recap-gps"><div class="cl-recap-zone">VOTRE POSITION GPS</div><div class="cl-recap-rep">${
-              s.repereRecap !== '' ? esc(s.repereRecap) : 'Partagée seulement avec votre livreur.'
+              s.repereRecap !== '' ? esc(s.repereRecap) : 'Le point exact va seulement à votre livreur.'
             }</div></div>`,
             '<button class="cl-modifier" data-action="retour-c3">MODIFIER</button>',
           ].join('')

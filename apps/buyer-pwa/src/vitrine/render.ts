@@ -795,7 +795,13 @@ export function renderListeGeo(
   if (etat === 'refus') {
     return `<div class="vt-liste-texte" data-role="liste-geo-refus">${t('vit.liste_geo_refus')}</div>`;
   }
-  return `<button class="vt-liste-row-btn vt-liste-geo-btn" data-action="liste-geo-demander">${t('vit.liste_geo_demander')}</button>`;
+  // TUILES-PRIVEES-1 (AUDIT-SHOP-2 F-24) — the consent sentence stands BEFORE
+  // the map opens, and it says the truth: the exact point is the rider's
+  // alone; the map around it is OpenStreetMap's, asked for by her phone.
+  return [
+    `<button class="vt-liste-row-btn vt-liste-geo-btn" data-action="liste-geo-demander">${t('vit.liste_geo_demander')}</button>`,
+    `<div class="vt-liste-texte" data-role="liste-geo-source">${t('vit.liste_geo_source')}</div>`,
+  ].join('');
 }
 
 /**

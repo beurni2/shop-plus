@@ -753,13 +753,17 @@ describe('GEO-ACHAT-1 (liste half) — the position block faces, and its slot in
   });
 
   it('the four faces speak their catalog words — consent on the kept pin, a total Retirer, a refusal that apologises for nothing', () => {
-    expect(renderListeGeo('repos')).toContain('Ajouter ma position');
+    const repos = renderListeGeo('repos');
+    expect(repos).toContain('Ajouter ma position');
+    // TUILES-PRIVEES-1 (F-24) — consent before the map opens, both roads named
+    expect(repos).toContain('data-role="liste-geo-source"');
+    expect(repos).toContain('Le point exact va seulement à votre livreur. La carte autour vient d’OpenStreetMap.');
     const cours = renderListeGeo('encours');
     expect(cours).toContain('data-role="liste-geo-cours"');
     expect(cours).toContain('Recherche de votre position…');
     const faite = renderListeGeo('faite');
     expect(faite).toContain('data-role="liste-geo-faite"');
-    expect(faite).toContain('Position ajoutée. Seul votre livreur la voit.');
+    expect(faite).toContain('Position ajoutée. Le point exact va seulement à votre livreur.');
     expect(faite).toContain('data-action="liste-geo-retirer"');
     const refus = renderListeGeo('refus');
     expect(refus).toContain('data-role="liste-geo-refus"');

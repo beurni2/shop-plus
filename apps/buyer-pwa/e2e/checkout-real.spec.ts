@@ -1678,7 +1678,7 @@ test('GEO-ACHAT-2 · the map asks, she answers — Annuler keeps nothing, Confir
   await page.locator('[data-action="geo-demander"]').click();
   await page.locator('[data-action="geo-confirmer"]').click();
   await page.locator('[data-role="geo-done"]').waitFor();
-  await expect(page.locator('[data-role="geo-done"]')).toContainText('Position ajoutée — partagée seulement avec votre livreur.');
+  await expect(page.locator('[data-role="geo-done"]')).toContainText('Position ajoutée. Le point exact va seulement à votre livreur.');
 
   // RETIRER is total — the quiet offer returns, and she can change her mind back.
   await page.locator('[data-action="geo-retirer"]').click();

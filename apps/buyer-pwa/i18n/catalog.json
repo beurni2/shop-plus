@@ -1723,7 +1723,13 @@
  },
  {
   "key": "vit.liste_geo_faite",
-  "fr": "Position ajoutée. Seul votre livreur la voit.",
+  "fr": "Position ajoutée. Le point exact va seulement à votre livreur.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vit.liste_geo_source",
+  "fr": "Le point exact va seulement à votre livreur. La carte autour vient d’OpenStreetMap.",
   "register": "neutral",
   "screenClass": "status"
  },

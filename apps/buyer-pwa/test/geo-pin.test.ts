@@ -21,6 +21,9 @@ describe('renderC3 — the position block (GEO-ACHAT-1)', () => {
     const html = renderC3(BASE);
     expect(html).toContain('data-action="geo-demander"');
     expect(html).toContain('Ajouter ma position');
+    // TUILES-PRIVEES-1 (F-24) — consent is stated BEFORE the map opens, and it
+    // names both roads: the point to the rider alone, the map from OpenStreetMap.
+    expect(html).toContain('Le point exact va seulement à votre livreur. La carte autour vient d’OpenStreetMap.');
     // It belongs to « où livrer ? »: after the voice block, before her number.
     const geoAt = html.indexOf('geo-demander');
     expect(geoAt).toBeGreaterThan(html.indexOf('voix-demarrer'));
@@ -37,7 +40,7 @@ describe('renderC3 — the position block (GEO-ACHAT-1)', () => {
   it('faite: the consent sentence rides the kept pin, and RETIRER is its way out', () => {
     const html = renderC3({ ...BASE, geo: 'faite' });
     expect(html).toContain('data-role="geo-done"');
-    expect(html).toContain('Position ajoutée — partagée seulement avec votre livreur.');
+    expect(html).toContain('Position ajoutée. Le point exact va seulement à votre livreur.');
     expect(html).toContain('data-action="geo-retirer"');
   });
 
@@ -145,12 +148,25 @@ describe('the phone-only road (GEO-ACHAT-2)', () => {
     expect(html).not.toContain('data-role="indic"');
   });
 
+  it('TUILES-PRIVEES-1 (F-24) — the false clause is gone from every surface: nothing in src/ says the position is « partagée seulement » while OSM tiles are fetched', async () => {
+    const { readFileSync, readdirSync, statSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = join(import.meta.dirname, '../src');
+    const tous = (d: string): string[] =>
+      readdirSync(d).flatMap((n) => (statSync(join(d, n)).isDirectory() ? tous(join(d, n)) : n.endsWith('.ts') ? [join(d, n)] : []));
+    for (const f of [...tous(src), join(import.meta.dirname, '../i18n/catalog.json')]) {
+      expect(readFileSync(f, 'utf8'), f).not.toMatch(/partagée seulement|Seul votre livreur la voit/i);
+    }
+    // …and the tiles still come from OpenStreetMap, which is exactly why the sentence names it
+    expect(readFileSync(join(src, 'geo-carte.ts'), 'utf8')).toContain('https://tile.openstreetmap.org/');
+  });
+
   it('the C4 récap on the pin road says the truth, never a fabricated quartier', () => {
     const q = composeQuote(ROBE.priceFcfa);
     const html = renderC4(q, { zone: '', repereRecap: '', positionGps: true, delivery: 'today' });
     expect(html).toContain('data-role="recap-gps"');
     expect(html).toContain('VOTRE POSITION GPS');
-    expect(html).toContain('Partagée seulement avec votre livreur.');
+    expect(html).toContain('Le point exact va seulement à votre livreur.');
     expect(html).not.toContain('GOUNGHIN');
   });
 });
