@@ -1577,6 +1577,14 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     );
   }
 
+  /** CONFIANCE-LISIBLE-1 (AUDIT-SHOP-2 F-57) — the screen the last paint drew.
+   *  Every paint replaces `container.innerHTML`, so focus fell to <body> on
+   *  every screen change and a screen reader heard nothing of the new screen.
+   *  When the SCREEN changes, the stage takes focus (tabindex -1, no ring) so
+   *  the new screen is announced; a state change on the same screen leaves
+   *  focus alone (typing never re-renders anyway), and the first paint too. */
+  let ecranPeint: ClienteEcran | null = null;
+
   function render(): void {
     // VOIX-ÉTAT-2 — THE FACE MUST SURVIVE THE REBUILD (verifier, 2026-08-09).
     // This replaces the WHOLE of `container.innerHTML`, so the recorded block
@@ -1594,7 +1602,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       '<div class="cl-status"></div>',
       '<div class="cl-lisere"></div>',
       state.offline ? renderOffline() : '',
-      `<div class="cl-stage">${state.loading ? renderSkeleton() : screenHtml()}</div>`,
+      `<div class="cl-stage" tabindex="-1">${state.loading ? renderSkeleton() : screenHtml()}</div>`,
       state.sheet ? renderSheet() : '',
       state.galerie !== null ? renderGalerie(m, state.galerie) : '',
       // GEO-CARTE-PRO — the carte face is a TOP layer like the galerie, a
@@ -1610,6 +1618,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       noteGlyphe(true);
       noteHorloge(fmtSecondes(noteAudio.currentTime));
     }
+    if (ecranPeint !== null && state.screen !== ecranPeint) {
+      container.querySelector<HTMLElement>('.cl-stage')?.focus({ preventScroll: true });
+    }
+    ecranPeint = state.screen;
     // GEO-CARTE-PRO — the carte face just rebuilt: fill its tile grid around
     // the candidate and wire the drag. A finished drag COMMITS to the
     // candidate (accuracy dropped — the ±m described the sensor's fix, not

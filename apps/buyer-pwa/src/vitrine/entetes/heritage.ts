@@ -174,7 +174,7 @@ const css = `
   .vt-he .he-cell + .he-cell { border-left: 1px solid rgba(199,154,69,.3); }
   .vt-he .he-cell-i { width: 40px; height: 40px; border-radius: 50%; background: var(--he-vert); display: flex; align-items: center; justify-content: center; }
   .vt-he .he-cell-l { font-family: Georgia, 'Times New Roman', serif; font-size: 11.5px; font-weight: 700; line-height: 1.22; color: var(--he-vert-texte); }
-  .vt-he .he-cell-s { font-size: 9px; line-height: 1.25; color: var(--he-or-sourd); }
+  .vt-he .he-cell-s { font-size: 10px; line-height: 1.25; color: #80683E; /* CONFIANCE-LISIBLE-1 — was var(--he-or-sourd) (3.36:1), now 4.70:1 */ }
 
   /* ═══════════════ ENTETES-D · full-bleed (founder order) ═══════════════
      This style FILLS THE SCREEN like the classique hero: its top surface

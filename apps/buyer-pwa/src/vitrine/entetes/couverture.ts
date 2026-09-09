@@ -144,7 +144,7 @@ const css = `
   .vt-cv .cv-col { position: relative; width: calc(100% - 172px); min-height: 252px; }
   .vt-cv .cv-kicker {
     display: flex; align-items: center; gap: 6px;
-    font-size: 9px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--cv-encre);
+    font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--cv-encre);
   }
   .vt-cv .cv-puce { width: 7px; height: 7px; flex: none; background: var(--cv-rouge); }
   .vt-cv .cv-name {
@@ -191,7 +191,7 @@ const css = `
     border: 2px solid var(--cv-rouge);
     box-shadow: inset 0 0 0 2.5px var(--cv-porcelaine), inset 0 0 0 3.5px rgba(200,51,42,.5);
   }
-  .vt-cv .cv-nouv-k { font-size: 8px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--cv-rouge); }
+  .vt-cv .cv-nouv-k { font-size: 10px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--cv-rouge); }
   .vt-cv .cv-nouv-t { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 13px; color: var(--cv-rouge); }
   .vt-cv .cv-trust {
     position: relative; padding: 12px 3px; background: var(--cv-encre);
@@ -203,8 +203,8 @@ const css = `
     width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--cv-porcelaine);
     display: flex; align-items: center; justify-content: center;
   }
-  .vt-cv .cv-cell-l { font-size: 9.5px; font-weight: 700; line-height: 1.28; color: var(--cv-porcelaine); }
-  .vt-cv .cv-cell-s { font-size: 8px; line-height: 1.25; color: var(--cv-corail); }
+  .vt-cv .cv-cell-l { font-size: 11px; font-weight: 700; line-height: 1.28; color: var(--cv-porcelaine); }
+  .vt-cv .cv-cell-s { font-size: 10px; line-height: 1.25; color: var(--cv-corail); }
   .vt-cv .cv-btn { background: var(--cv-porcelaine); box-shadow: inset 0 0 0 1.5px var(--cv-encre); }
   .vt-cv .vt-ent-btn { top: 70px; }
   .vt-cv .vt-ent-back { right: 20px; }

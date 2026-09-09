@@ -166,7 +166,7 @@ const css = `
   }
   .vt-hb .hb-col { position: relative; width: calc(100% - 158px); min-height: 236px; }
   .vt-hb .hb-kick {
-    display: flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 700;
+    display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700;
     letter-spacing: .18em; text-transform: uppercase; color: var(--hb-cram-d);
   }
   .vt-hb .hb-puce { flex: none; display: block; }

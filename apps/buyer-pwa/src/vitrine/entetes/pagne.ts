@@ -229,7 +229,7 @@ const css = `
     width: 15px; height: 15px; flex: none; border-radius: 50%; background: var(--pg-fuchsia);
     display: flex; align-items: center; justify-content: center;
   }
-  .vt-pg .pg-zone { margin-top: 6px; font-size: 11.5px; font-weight: 600; line-height: 1.4; color: var(--pg-sarcelle-2); }
+  .vt-pg .pg-zone { margin-top: 6px; font-size: 11.5px; font-weight: 600; line-height: 1.4; color: #177D71; /* CONFIANCE-LISIBLE-1 — was var(--pg-sarcelle-2) (4.49:1), now 4.65:1 */ }
   .vt-pg .pg-zone svg { vertical-align: -2px; margin-right: 5px; }
   .vt-pg .pg-proof-wrap { margin-top: 12px; }
   .vt-pg .pg-proof {
@@ -242,7 +242,7 @@ const css = `
     font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif;
     font-weight: 800; font-size: 19px; color: var(--pg-fuchsia);
   }
-  .vt-pg .pg-stars { font-size: 10.5px; font-weight: 700; color: var(--pg-orange-2); white-space: nowrap; }
+  .vt-pg .pg-stars { font-size: 10.5px; font-weight: 700; color: #9D5513; /* CONFIANCE-LISIBLE-1 — was var(--pg-orange-2) (3.20:1), now 4.64:1 */ white-space: nowrap; }
   .vt-pg .pg-stars svg { vertical-align: -1px; margin-right: 3px; }
   /* MINIMAL — the scalloped wax flower, tilted four degrees */
   .vt-pg .pg-nouv-wrap { margin-top: 13px; }
@@ -274,10 +274,10 @@ const css = `
   .vt-pg .pg-cell-i--f { background: var(--pg-fuchsia); }
   .vt-pg .pg-cell-i--o { background: var(--pg-orange); }
   .vt-pg .pg-cell-i--s { background: var(--pg-sarcelle); }
-  .vt-pg .pg-cell-l { font-size: 9.5px; font-weight: 800; line-height: 1.28; color: var(--pg-encre); }
-  .vt-pg .pg-cell-s { font-size: 8px; line-height: 1.25; }
+  .vt-pg .pg-cell-l { font-size: 11px; font-weight: 800; line-height: 1.28; color: var(--pg-encre); }
+  .vt-pg .pg-cell-s { font-size: 10px; line-height: 1.25; }
   .vt-pg .pg-cell-s--f { color: var(--pg-vin); }
-  .vt-pg .pg-cell-s--o { color: var(--pg-orange-2); }
+  .vt-pg .pg-cell-s--o { color: #B05F16; /* CONFIANCE-LISIBLE-1 — was var(--pg-orange-2) (3.87:1), now 4.65:1 */ }
   .vt-pg .pg-cell-s--s { color: var(--pg-sarcelle-2); }
   .vt-pg .pg-btn { background: rgba(255,255,255,.92); box-shadow: inset 0 0 0 1px rgba(42,30,34,.16), 0 6px 16px -10px rgba(42,30,34,.5); }
   .vt-pg .vt-ent-btn { top: 70px; }

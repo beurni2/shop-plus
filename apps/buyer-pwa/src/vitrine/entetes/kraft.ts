@@ -166,7 +166,7 @@ const css = `
   .vt-kr .kr-tampon {
     margin-top: 8px; display: inline-flex; max-width: 100%; transform: rotate(-2deg);
     border: 1.5px dashed var(--kr-tampon); border-radius: 8px; padding: 5px 9px;
-    font-size: 9.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
     line-height: 1.45; color: var(--kr-tampon);
   }
   .vt-kr .kr-tampon svg { vertical-align: -1px; margin-right: 4px; }
@@ -202,8 +202,8 @@ const css = `
     background: var(--kr-blanc); border: 1.5px solid var(--kr-encre);
     display: flex; align-items: center; justify-content: center;
   }
-  .vt-kr .kr-cell-l { font-size: 10px; font-weight: 700; line-height: 1.28; color: var(--kr-encre); }
-  .vt-kr .kr-cell-s { font-size: 8.5px; line-height: 1.25; color: var(--kr-t2); }
+  .vt-kr .kr-cell-l { font-size: 11px; font-weight: 700; line-height: 1.28; color: var(--kr-encre); }
+  .vt-kr .kr-cell-s { font-size: 10px; line-height: 1.25; color: #746147; /* CONFIANCE-LISIBLE-1 — was var(--kr-t2) (3.60:1), now 4.76:1 */ }
   /* the buttons carry a real hairline BORDER here, not a shadow */
   .vt-kr .kr-btn { background: var(--kr-btn); border: 1.5px solid rgba(51,38,26,.35); }
   .vt-kr .vt-ent-btn { top: 72px; }

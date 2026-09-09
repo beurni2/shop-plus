@@ -188,8 +188,8 @@ const css = `
   }
   .vt-dt .dt-col { position: relative; width: calc(100% - 156px); min-height: 236px; }
   .vt-dt .dt-kick {
-    display: flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 700;
-    letter-spacing: .18em; text-transform: uppercase; color: var(--dt-vieux);
+    display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700;
+    letter-spacing: .18em; text-transform: uppercase; color: #9D5866; /* CONFIANCE-LISIBLE-1 — was var(--dt-vieux) (3.18:1), now 4.66:1 */
   }
   .vt-dt .dt-oeil { flex: none; display: block; }
   .vt-dt .dt-bienv { margin-top: 9px; }
@@ -270,7 +270,7 @@ const css = `
     width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--dt-blush);
   }
   .vt-dt .dt-cell-l { font-size: 11.5px; font-weight: 700; line-height: 1.2; color: #FFF3F5; }
-  .vt-dt .dt-cell-s { font-size: 10px; line-height: 1.2; color: var(--dt-sous); }
+  .vt-dt .dt-cell-s { font-size: 10px; line-height: 1.2; color: #D9A0AB; /* CONFIANCE-LISIBLE-1 — was var(--dt-sous) (4.36:1), now 4.61:1 */ }
   .vt-dt .vt-ent-back { right: 20px; }
 
   @container (max-width: 339px) {

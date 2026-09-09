@@ -224,8 +224,8 @@ const css = `
     width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--bz-nacre);
     display: flex; align-items: center; justify-content: center;
   }
-  .vt-bz .bz-cell-l { font-size: 9.5px; font-weight: 700; line-height: 1.28; color: var(--bz-nacre); }
-  .vt-bz .bz-cell-s { font-size: 8px; line-height: 1.25; color: var(--bz-sous); }
+  .vt-bz .bz-cell-l { font-size: 11px; font-weight: 700; line-height: 1.28; color: var(--bz-nacre); }
+  .vt-bz .bz-cell-s { font-size: 10px; line-height: 1.25; color: var(--bz-sous); }
   .vt-bz .bz-btn { background: rgba(20,23,55,.8); box-shadow: inset 0 0 0 1px rgba(239,241,250,.45); }
   .vt-bz .vt-ent-btn { top: 70px; }
   .vt-bz .vt-ent-back { right: 20px; }

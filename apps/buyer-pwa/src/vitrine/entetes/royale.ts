@@ -177,8 +177,8 @@ const css = `
     border: 1px solid rgba(212,168,87,.6); background: rgba(212,168,87,.09);
     display: flex; align-items: center; justify-content: center;
   }
-  .vt-ry .ry-cell-l { font-size: 10.5px; font-weight: 600; line-height: 1.28; color: var(--ry-ivoire); }
-  .vt-ry .ry-cell-s { font-size: 9px; line-height: 1.25; color: var(--ry-rose); }
+  .vt-ry .ry-cell-l { font-size: 11px; font-weight: 600; line-height: 1.28; color: var(--ry-ivoire); }
+  .vt-ry .ry-cell-s { font-size: 10px; line-height: 1.25; color: var(--ry-rose); }
   .vt-ry .ry-btn { background: linear-gradient(115deg, var(--ry-pastille-a), var(--ry-pastille-b)); border: 1px solid rgba(212,168,87,.7); }
   .vt-ry .vt-ent-back { right: 14px; }
 

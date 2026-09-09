@@ -82,6 +82,9 @@ export const CLIENTE_STYLES = `
      content min-content (Blink); without this the STAGE itself grew past the
      viewport on 360px phones and every screen stretched with it. */
   .cl-stage { flex: 1; position: relative; min-width: 0; }
+  /* CONFIANCE-LISIBLE-1 (F-57) — the stage takes focus on a NEW screen so the
+     screen is announced; a ring around the whole stage would be noise. */
+  .cl-stage:focus { outline: none; }
   .cl-screen { padding: 16px 20px 46px; }
   @media (prefers-reduced-motion: no-preference) {
     .cl-screen { animation: clIn .32s cubic-bezier(.2,.8,.2,1); }
@@ -118,9 +121,13 @@ export const CLIENTE_STYLES = `
   .cl-voir { flex: none; }
   .cl-veri-check { color: var(--vt-accent); display: inline-flex; flex: none; }
   .cl-dotsep { color: #D8CDBA; }
-  .cl-voir { color: var(--vt-accent); font-weight: 700; cursor: pointer; border: none; background: transparent; padding: 0; font-size: 12px; }
+  /* CONFIANCE-LISIBLE-1 (AUDIT-SHOP-2 F-56) — every control on the buyer flow
+     is a ≥ 44px target. « Voir » keeps its 12px face inside the identity row:
+     the hit area grows through padding and the layout stays through the
+     negative margin. The discs, chips and the stop button simply grow to 44. */
+  .cl-voir { color: var(--vt-accent); font-weight: 700; cursor: pointer; border: none; background: transparent; padding: 16px 8px; margin: -16px -8px; min-height: 44px; min-width: 44px; font-size: 12px; }
   .cl-shield {
-    width: 40px; height: 40px; border-radius: 99px; flex: none;
+    width: 44px; height: 44px; border-radius: 99px; flex: none;
     border: 1px solid #E5DCC9; background: #FFFFFF;
     display: flex; align-items: center; justify-content: center;
     box-shadow: 0 1px 2px rgba(28,22,15,.05); color: var(--vt-accent);
@@ -128,7 +135,7 @@ export const CLIENTE_STYLES = `
   }
   .cl-shield:active { transform: scale(.92); }
   .cl-round-btn {
-    width: 40px; height: 40px; border-radius: 99px; flex: none;
+    width: 44px; height: 44px; border-radius: 99px; flex: none;
     border: 1px solid #E5DCC9; background: #FFFFFF; color: #1C1710;
     display: flex; align-items: center; justify-content: center;
     transition: transform .15s;
@@ -324,7 +331,7 @@ export const CLIENTE_STYLES = `
   /* ══ C3 — zones · repère · voix ══ */
   .cl-chips { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 8px; }
   .cl-chip {
-    display: inline-flex; align-items: center; height: 40px; padding: 0 15px; border-radius: 99px; white-space: nowrap;
+    display: inline-flex; align-items: center; height: 44px; padding: 0 15px; border-radius: 99px; white-space: nowrap;
     border: 1.5px solid #E5DCC9; background: #FFFFFF; color: #1C1710;
     font-size: 13.5px; font-weight: 600;
     transition: transform .15s, background .2s;
@@ -364,13 +371,13 @@ export const CLIENTE_STYLES = `
   .cl-rec-dot { width: 10px; height: 10px; border-radius: 99px; background: #E4572E; flex: none; }
   @media (prefers-reduced-motion: no-preference) { .cl-rec-dot { animation: clPulse 1s ease infinite; } }
   .cl-rec-time { flex: 1; font-weight: 700; font-size: 16px; font-feature-settings: 'tnum'; }
-  .cl-rec-stop { height: 40px; padding: 0 16px; border-radius: 11px; border: none; background: #F6F0E4; color: #1C1710; font-weight: 700; font-size: 12.5px; letter-spacing: .06em; }
+  .cl-rec-stop { height: 44px; padding: 0 16px; border-radius: 11px; border: none; background: #F6F0E4; color: #1C1710; font-weight: 700; font-size: 12.5px; letter-spacing: .06em; }
   .cl-rec-hint { margin-top: 8px; font-size: 12px; color: #6F6355; }
   .cl-voice-done { margin-top: 9px; display: flex; align-items: center; gap: 11px; height: 56px; padding: 0 12px 0 8px; border-radius: 15px; border: 1.5px solid #1C1710; background: #FFFFFF; }
-  .cl-voice-done-play { width: 40px; height: 40px; border-radius: 11px; border: none; background: #1C1710; color: #F6F0E4; display: flex; align-items: center; justify-content: center; flex: none; }
+  .cl-voice-done-play { width: 44px; height: 44px; border-radius: 11px; border: none; background: #1C1710; color: #F6F0E4; display: flex; align-items: center; justify-content: center; flex: none; }
   .cl-voice-done-wave { color: #1C1710; display: flex; flex: 1; min-width: 0; }
   .cl-voice-done-time { font-weight: 700; font-size: 13px; font-feature-settings: 'tnum'; flex: none; }
-  .cl-refaire { border: none; background: transparent; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; white-space: nowrap; flex: none; }
+  .cl-refaire { border: none; background: transparent; color: var(--vt-accent); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-decoration: underline; white-space: nowrap; flex: none; min-height: 44px; min-width: 44px; padding: 0 8px; }
   .cl-voice-note { margin-top: 9px; display: flex; align-items: center; gap: 10px; padding: 13px 15px; border-radius: 15px; font-size: 12.5px; line-height: 1.5; }
   .cl-voice-note svg { flex: none; }
   .cl-voice-queued { background: #F6E9C8; color: #5F4403; }

@@ -253,8 +253,8 @@ const css = `
   }
   .vt-fl .fl-cell-i--sauge { background: var(--fl-sauge); }
   .vt-fl .fl-cell-i--rose { background: #F2C6CC; }
-  .vt-fl .fl-cell-l { font-size: 9.5px; font-weight: 700; line-height: 1.28; color: #4A4534; }
-  .vt-fl .fl-cell-s { font-size: 8px; line-height: 1.25; color: var(--fl-t3); }
+  .vt-fl .fl-cell-l { font-size: 11px; font-weight: 700; line-height: 1.28; color: #4A4534; }
+  .vt-fl .fl-cell-s { font-size: 10px; line-height: 1.25; color: var(--fl-t3); }
   .vt-fl .fl-btn { background: rgba(255,255,255,.9); box-shadow: 0 4px 12px -3px rgba(150,90,90,.4); }
   .vt-fl .vt-ent-btn { top: 70px; }
   .vt-fl .vt-ent-back { right: 20px; }

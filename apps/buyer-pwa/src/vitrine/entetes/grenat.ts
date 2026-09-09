@@ -198,8 +198,8 @@ const css = `
     background: rgba(249,231,234,.1); box-shadow: inset 0 0 0 1px rgba(249,231,234,.35);
     display: flex; align-items: center; justify-content: center;
   }
-  .vt-gr .gr-cell-l { font-size: 10px; font-weight: 700; line-height: 1.28; color: var(--gr-blush-clair); }
-  .vt-gr .gr-cell-s { font-size: 8.5px; line-height: 1.25; color: rgba(242,200,207,.75); }
+  .vt-gr .gr-cell-l { font-size: 11px; font-weight: 700; line-height: 1.28; color: var(--gr-blush-clair); }
+  .vt-gr .gr-cell-s { font-size: 10px; line-height: 1.25; color: rgba(242,200,207,.75); }
   /* relevé: boutons blancs top 16 (+60), retour GAUCHE 16, partager DROITE 16 */
   .vt-gr .gr-btn { background: #FFFFFF; box-shadow: 0 4px 12px -3px rgba(94,18,36,.3); }
   .vt-gr .vt-ent-btn { top: 76px; }

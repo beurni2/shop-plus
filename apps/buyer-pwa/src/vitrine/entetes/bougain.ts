@@ -174,7 +174,7 @@ const css = `
      would otherwise take it out entirely, and « Ouagadougou » wraps at 320,
      which puts more of the line under the arch's petals. */
   .vt-bg .bg-kick {
-    display: flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 700;
+    display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700;
     letter-spacing: .18em; text-transform: uppercase; color: #A03A63;
     text-shadow: 0 0 5px var(--bg-creme), 0 0 5px var(--bg-creme), 0 0 8px var(--bg-creme);
   }

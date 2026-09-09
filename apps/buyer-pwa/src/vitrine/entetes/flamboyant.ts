@@ -177,7 +177,7 @@ const css = `
   .vt-fm .fm-col { position: relative; margin-top: 44px; width: calc(100% - 158px); min-height: 220px; }
   /* the cream halo — the canopy and the falling petals run behind this line */
   .vt-fm .fm-kick {
-    display: flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 700;
+    display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700;
     letter-spacing: .18em; text-transform: uppercase; color: #A34A22;
     text-shadow: 0 0 5px var(--fm-ciel), 0 0 5px var(--fm-ciel), 0 0 8px var(--fm-ciel);
   }

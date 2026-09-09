@@ -136,7 +136,12 @@ for (const width of [360, 320] as const) {
         // Measured max across 5 styles × 4 fixtures × both widths: 87 (320,
         // Terracotta). Shrinking the 9.5px relevé type to buy this back is
         // failure mode #9 and was reverted after review.
-        expect(trust!.height, `${fixture}: trust ${trust!.height}`).toBeLessThanOrEqual(92);
+        // CONFIANCE-LISIBLE-1 (AUDIT-SHOP-2 F-25) RAISED the relevé type —
+        // labels 11px, sublines 10px, the trust cells were the smallest text
+        // on the page — and the strip grew with it. Measured max after the
+        // floor: 96 (360, Harmattan and Séance). The ceiling moves only with a
+        // new measurement, as before.
+        expect(trust!.height, `${fixture}: trust ${trust!.height}`).toBeLessThanOrEqual(100);
         const box = await unit.boundingBox();
         // structural identity — the unit IS its status pad + hero + strip, so a
         // stray band or a collapsed margin shows up here rather than silently
@@ -149,7 +154,9 @@ for (const width of [360, 320] as const) {
         // grows past it has regressed, and the number moves only with a new
         // measurement. It is above the contract's window, and that gap is a
         // founder decision flagged in JOURNAL.md rather than a silent choice.
-        expect(box!.height, `${fixture}: header window ${box!.height}`).toBeLessThanOrEqual(505);
+        // CONFIANCE-LISIBLE-1 (F-25): the raised trust type grew the strip;
+        // measured max after the floor: 514 (320, Cauris, long name).
+        expect(box!.height, `${fixture}: header window ${box!.height}`).toBeLessThanOrEqual(515);
         expect(box!.width, `${fixture}: full bleed`).toBe(width);
 
         // proof and badge are mutually exclusive, per the data — and whichever

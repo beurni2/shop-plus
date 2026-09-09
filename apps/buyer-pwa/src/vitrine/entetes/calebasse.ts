@@ -215,7 +215,7 @@ const css = `
     font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif;
     font-weight: 800; font-size: 19px; color: var(--cb-rebord);
   }
-  .vt-cb .cb-stars { font-size: 10.5px; font-weight: 700; color: var(--cb-ambre-2); white-space: nowrap; }
+  .vt-cb .cb-stars { font-size: 10.5px; font-weight: 700; color: #8E6629; /* CONFIANCE-LISIBLE-1 — was var(--cb-ambre-2) (2.82:1), now 4.78:1 */ white-space: nowrap; }
   .vt-cb .cb-stars svg { vertical-align: -1px; margin-right: 3px; }
   /* MINIMAL — a market label on a dotted string, tilted two degrees */
   .vt-cb .cb-nouv-wrap { margin-top: 12px; }
@@ -243,8 +243,8 @@ const css = `
     width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--cb-ambre);
     display: flex; align-items: center; justify-content: center;
   }
-  .vt-cb .cb-cell-l { font-size: 9.5px; font-weight: 800; line-height: 1.28; color: var(--cb-creme); }
-  .vt-cb .cb-cell-s { font-size: 8px; line-height: 1.25; color: var(--cb-sable); }
+  .vt-cb .cb-cell-l { font-size: 11px; font-weight: 800; line-height: 1.28; color: var(--cb-creme); }
+  .vt-cb .cb-cell-s { font-size: 10px; line-height: 1.25; color: var(--cb-sable); }
   .vt-cb .cb-btn { background: rgba(255,246,227,.88); box-shadow: inset 0 0 0 1px rgba(138,90,32,.55); }
   .vt-cb .vt-ent-btn { top: 70px; }
   .vt-cb .vt-ent-back { right: 20px; }

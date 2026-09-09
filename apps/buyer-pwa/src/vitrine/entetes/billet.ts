@@ -195,7 +195,7 @@ const css = `
     border: 1.5px solid var(--bi-sarcelle);
     box-shadow: inset 0 0 0 2.5px var(--bi-papier), inset 0 0 0 3.5px rgba(31,81,72,.45);
   }
-  .vt-bi .bi-nouv-k { font-size: 8px; font-weight: 700; letter-spacing: .24em; text-transform: uppercase; color: var(--bi-sarcelle); }
+  .vt-bi .bi-nouv-k { font-size: 10px; font-weight: 700; letter-spacing: .24em; text-transform: uppercase; color: var(--bi-sarcelle); }
   .vt-bi .bi-nouv-t { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 13px; color: var(--bi-sarcelle); }
   .vt-bi .bi-trust {
     position: relative; padding: 12px 3px; background: var(--bi-rangee);
@@ -207,8 +207,8 @@ const css = `
     width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--bi-papier);
     display: flex; align-items: center; justify-content: center;
   }
-  .vt-bi .bi-cell-l { font-size: 9.5px; font-weight: 700; line-height: 1.28; color: var(--bi-papier); }
-  .vt-bi .bi-cell-s { font-size: 8px; line-height: 1.25; color: var(--bi-sous); }
+  .vt-bi .bi-cell-l { font-size: 11px; font-weight: 700; line-height: 1.28; color: var(--bi-papier); }
+  .vt-bi .bi-cell-s { font-size: 10px; line-height: 1.25; color: var(--bi-sous); }
   .vt-bi .bi-btn { background: rgba(237,230,210,.92); box-shadow: inset 0 0 0 1.5px rgba(31,81,72,.6); }
   .vt-bi .vt-ent-btn { top: 70px; }
   .vt-bi .vt-ent-back { right: 20px; }

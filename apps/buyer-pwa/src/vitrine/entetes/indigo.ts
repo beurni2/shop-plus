@@ -180,8 +180,8 @@ const css = `
     background: rgba(76,201,240,.12); box-shadow: inset 0 0 0 1px rgba(76,201,240,.5);
     display: flex; align-items: center; justify-content: center;
   }
-  .vt-in .in-cell-l { display: block; font-weight: 700; font-size: 10px; line-height: 1.2; color: #FFFFFF; }
-  .vt-in .in-cell-s { display: block; font-size: 8.5px; line-height: 1.2; color: rgba(155,224,250,.75); }
+  .vt-in .in-cell-l { display: block; font-weight: 700; font-size: 11px; line-height: 1.2; color: #FFFFFF; }
+  .vt-in .in-cell-s { display: block; font-size: 10px; line-height: 1.2; color: rgba(155,224,250,.75); }
   /* the controls sit on the photograph, so they carry their own scrim; +60 for
      the status pad the shell reserves (relevé says top 12) */
   .vt-in .in-btn { background: rgba(13,19,58,.5); box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); }

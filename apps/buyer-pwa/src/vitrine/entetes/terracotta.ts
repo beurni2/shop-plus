@@ -173,8 +173,8 @@ const css = `
   .vt-te .te-cell-i { width: 38px; height: 38px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
   .vt-te .te-cell-i--vert { background: var(--te-chip); }
   .vt-te .te-cell-i--rouille { background: var(--te-rouille); }
-  .vt-te .te-cell-l { display: block; font-size: 9.5px; font-weight: 700; line-height: 1.3; color: #2E2A20; }
-  .vt-te .te-cell-s { display: block; font-size: 9.5px; font-weight: 600; line-height: 1.3; }
+  .vt-te .te-cell-l { display: block; font-size: 11px; font-weight: 700; line-height: 1.3; color: #2E2A20; }
+  .vt-te .te-cell-s { display: block; font-size: 10px; font-weight: 600; line-height: 1.3; }
   .vt-te .te-cell-s--vert { color: #7C6A50; }
   .vt-te .te-cell-s--rouille { color: var(--te-rouille); }
   .vt-te .te-btn { background: var(--te-creme); }
@@ -209,8 +209,8 @@ const css = `
      declaration. Each style now carries its own; a grouped rule can only
      ship inside ONE chunk, and the other three shops would load without it. */
   .vt-te .te-cell-i { width: 32px; height: 32px; }
-  .vt-te .te-cell-l { font-size: 9.5px; line-height: 1.22; }
-  .vt-te .te-cell-s { font-size: 9.5px; line-height: 1.22; }
+  .vt-te .te-cell-l { font-size: 11px; line-height: 1.22; }
+  .vt-te .te-cell-s { font-size: 10px; line-height: 1.22; }
   .vt-te .te-cell { gap: 7px; padding: 0 4px; }
   @container (max-width: 339px) {
     .vt-te .te-scene { min-height: 238px; padding-top: 30px; }
@@ -222,8 +222,8 @@ const css = `
     .vt-te .te-bienv-t { font-size: 15px; }
     .vt-te .te-nouv { width: 84px; height: 84px; }
     .vt-te .te-cell-i { width: 30px; height: 30px; }
-    .vt-te .te-cell-l { font-size: 9.5px; line-height: 1.2; }
-    .vt-te .te-cell-s { font-size: 9.5px; line-height: 1.2; }
+    .vt-te .te-cell-l { font-size: 11px; line-height: 1.2; }
+    .vt-te .te-cell-s { font-size: 10px; line-height: 1.2; }
     .vt-te .te-cell { gap: 6px; padding: 0 3px; }
   }
 

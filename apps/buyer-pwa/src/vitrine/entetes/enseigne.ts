@@ -232,8 +232,8 @@ const css = `
     box-shadow: 0 0 10px rgba(255,122,168,.45);
     display: flex; align-items: center; justify-content: center;
   }
-  .vt-eg .eg-cell-l { font-size: 9.5px; font-weight: 700; line-height: 1.28; color: var(--eg-blanc); }
-  .vt-eg .eg-cell-s { font-size: 8px; line-height: 1.25; color: var(--eg-ambre); }
+  .vt-eg .eg-cell-l { font-size: 11px; font-weight: 700; line-height: 1.28; color: var(--eg-blanc); }
+  .vt-eg .eg-cell-s { font-size: 10px; line-height: 1.25; color: var(--eg-ambre); }
   .vt-eg .eg-btn { background: rgba(11,10,13,.85); box-shadow: inset 0 0 0 1px rgba(255,122,168,.6); }
   .vt-eg .vt-ent-btn { top: 70px; }
   .vt-eg .vt-ent-back { right: 20px; }

@@ -161,8 +161,8 @@ const css = `
   .vt-dy .dy-cell-i-v { background: linear-gradient(140deg, var(--dy-violet), var(--dy-violet-clair)); box-shadow: 0 6px 14px -8px rgba(110,43,184,.7); }
   .vt-dy .dy-cell-i-m { background: linear-gradient(140deg, var(--dy-magenta), #FF5CA8); box-shadow: 0 6px 14px -8px rgba(233,37,127,.7); }
   .vt-dy .dy-cell-i-a { background: linear-gradient(140deg, var(--dy-ambre), var(--dy-ambre-clair)); box-shadow: 0 6px 14px -8px rgba(224,138,43,.7); }
-  .vt-dy .dy-cell-l { font-size: 9.5px; font-weight: 700; line-height: 1.28; color: var(--dy-encre); }
-  .vt-dy .dy-cell-s { font-size: 8px; line-height: 1.25; color: var(--dy-sourd); }
+  .vt-dy .dy-cell-l { font-size: 11px; font-weight: 700; line-height: 1.28; color: var(--dy-encre); }
+  .vt-dy .dy-cell-s { font-size: 10px; line-height: 1.25; color: #7D708C; /* CONFIANCE-LISIBLE-1 — was var(--dy-sourd) (3.85:1), now 4.62:1 */ }
   .vt-dy .dy-tail { height: 12px; }
   .vt-dy .dy-btn { background: rgba(43,16,85,.45); border: 1px solid rgba(255,240,248,.32); }
   .vt-dy .vt-ent-btn { top: 10px; }

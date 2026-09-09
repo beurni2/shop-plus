@@ -173,7 +173,7 @@ const css = `
   .vt-pp .pp-col { position: relative; margin-top: 38px; width: calc(100% - 156px); min-height: 226px; }
   /* the lilac halo — the flight loop passes behind this line */
   .vt-pp .pp-kick {
-    display: flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 700;
+    display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700;
     letter-spacing: .18em; text-transform: uppercase; color: #6E3F9E;
     text-shadow: 0 0 5px var(--pp-lilas), 0 0 5px var(--pp-lilas), 0 0 8px var(--pp-lilas);
   }

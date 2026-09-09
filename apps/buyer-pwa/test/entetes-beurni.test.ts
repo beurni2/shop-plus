@@ -343,13 +343,18 @@ describe('ENTETES-F — nameTail: the deterministic anti-orphan rule, executed',
     }
   });
 
-  it('the trust strip keeps the relevé type (9.5px) at BOTH widths', () => {
-    // « titres 700/9.5 + sous-lignes 600 » in all five relevés. Shrinking this
-    // is failure mode #9 (a screen that dies on a 1GB Android in sunlight),
-    // and it is the kind of change a height budget quietly invites.
-    const sizes = [...sheet().matchAll(/\.(?:pr|te|et|do|ti)-cell-[ls] \{ font-size: ([^;]+);/g)].map((m) => m[1]);
-    expect(sizes.length, 'no trust-cell type rules found — asserting over nothing').toBeGreaterThanOrEqual(2);
-    for (const px of sizes) expect(px, 'trust label type below the relevé').toBe('9.5px');
+  it('the trust strip keeps the legibility floor (labels 11px, sublines 10px) at BOTH widths', () => {
+    // « titres 700/9.5 + sous-lignes 600 » in all five relevés was the drawn
+    // size; CONFIANCE-LISIBLE-1 (AUDIT-SHOP-2 F-25) RAISED it — the trust
+    // cells were the smallest text on the page, for Aïcha in sunlight.
+    // Shrinking below this is failure mode #9 (a screen that dies on a 1GB
+    // Android in sunlight), and it is the kind of change a height budget
+    // quietly invites.
+    const labels = [...sheet().matchAll(/\.(?:pr|te|et|do|ti)-cell-l \{ font-size: ([^;]+);/g)].map((m) => m[1]);
+    const sous = [...sheet().matchAll(/\.(?:pr|te|et|do|ti)-cell-s \{ font-size: ([^;]+);/g)].map((m) => m[1]);
+    expect(labels.length + sous.length, 'no trust-cell type rules found — asserting over nothing').toBeGreaterThanOrEqual(2);
+    for (const px of labels) expect(px, 'trust label type below the floor').toBe('11px');
+    for (const px of sous) expect(px, 'trust subline type below the floor').toBe('10px');
   });
 });
 

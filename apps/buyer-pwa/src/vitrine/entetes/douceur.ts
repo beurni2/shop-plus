@@ -152,15 +152,15 @@ const css = `
   }
   .vt-do .do-nouv-t { position: relative; text-align: center; line-height: 1.15; }
   .vt-do .do-nouv-a { display: block; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; font-size: 16px; color: #FFFFFF; }
-  .vt-do .do-nouv-b { display: block; margin-top: 1px; font-size: 8.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #FFFFFF; }
+  .vt-do .do-nouv-b { display: block; margin-top: 1px; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #FFFFFF; }
   .vt-do .do-trust { margin: 0 10px 12px; padding: 12px 6px; background: #FFFFFF; border-radius: 20px; box-shadow: 0 12px 26px -16px rgba(62,52,40,.5); display: grid; grid-template-columns: 1.12fr 1fr 1.04fr; }
   .vt-do .do-cell { padding: 0 5px; display: flex; align-items: center; gap: 8px; }
   .vt-do .do-cell-i { width: 38px; height: 38px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
   .vt-do .do-cell-i--sauge { background: var(--do-sauge); }
   .vt-do .do-cell-i--blush { background: var(--do-blush2); }
   .vt-do .do-cell-i--or { background: var(--do-or); }
-  .vt-do .do-cell-l { display: block; font-size: 9.5px; font-weight: 700; line-height: 1.3; color: var(--do-brun); }
-  .vt-do .do-cell-s { display: block; font-size: 9.5px; font-weight: 600; line-height: 1.3; color: var(--do-rose); }
+  .vt-do .do-cell-l { display: block; font-size: 11px; font-weight: 700; line-height: 1.3; color: var(--do-brun); }
+  .vt-do .do-cell-s { display: block; font-size: 10px; font-weight: 600; line-height: 1.3; color: #A2626A; /* CONFIANCE-LISIBLE-1 — was var(--do-rose) (4.07:1), now 4.70:1 */ }
   .vt-do .do-btn { background: #FFFFFF; box-shadow: 0 6px 16px -8px rgba(62,52,40,.5); }
   .vt-do .vt-ent-btn { top: 70px; }
   .vt-do .vt-ent-back { right: 20px; }
@@ -174,13 +174,13 @@ const css = `
      preserved, and they stay LAST, which is the cascade position they had. */
   .vt-do .do-trust { padding: 9px 4px; align-items: center; }
   .vt-do .do-cell-i { width: 32px; height: 32px; }
-  .vt-do .do-cell-l { font-size: 9.5px; line-height: 1.22; }
-  .vt-do .do-cell-s { font-size: 9.5px; line-height: 1.22; }
+  .vt-do .do-cell-l { font-size: 11px; line-height: 1.22; }
+  .vt-do .do-cell-s { font-size: 10px; line-height: 1.22; }
   .vt-do .do-cell { gap: 7px; padding: 0 4px; }
   .vt-do .do-nouv { width: 66px; height: 66px; }
   .vt-do .do-nouv-wrap { margin-top: 9px; }
   .vt-do .do-nouv-a { font-size: 12px; }
-  .vt-do .do-nouv-b { font-size: 8px; }
+  .vt-do .do-nouv-b { font-size: 10px; }
   .vt-do .do-col { width: calc(100% - 180px); padding-left: 32px; }
   .vt-do .do-textile { width: 32px; }
   .vt-do .do-frame { width: 168px; height: 240px; }
@@ -209,8 +209,8 @@ const css = `
     .vt-do .do-sceau-mono { width: 48px; height: 48px; }
     .vt-do .do-bienv-t { font-size: 17px; }
     .vt-do .do-cell-i { width: 30px; height: 30px; }
-    .vt-do .do-cell-l { font-size: 9.5px; line-height: 1.2; }
-    .vt-do .do-cell-s { font-size: 9.5px; line-height: 1.2; }
+    .vt-do .do-cell-l { font-size: 11px; line-height: 1.2; }
+    .vt-do .do-cell-s { font-size: 10px; line-height: 1.2; }
     .vt-do .do-cell { gap: 6px; padding: 0 3px; }
   }
 

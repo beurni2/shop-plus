@@ -130,7 +130,7 @@ const css = `
     position: absolute; font-weight: 800; color: #101014;
     text-shadow: 0 1px 0 rgba(255,255,255,.18), 0 -1px 0 rgba(0,0,0,.55);
   }
-  .vt-ho .ho-gaufre--k { left: 14px; top: 76px; font-size: 9px; letter-spacing: .3em; text-transform: uppercase; }
+  .vt-ho .ho-gaufre--k { left: 14px; top: 76px; font-size: 10px; letter-spacing: .3em; text-transform: uppercase; }
   .vt-ho .ho-gaufre--m { right: 16px; bottom: 16px; font-size: 15px; letter-spacing: .34em; text-transform: uppercase; }
   /* THE IRIDESCENT CROWN. The conic ring and its lilac glow reach ~10px past
      the circle, so the column clears the CROWN (x=190 at 360), not the 144. */
@@ -213,8 +213,8 @@ const css = `
     width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--ho-nacre);
     display: flex; align-items: center; justify-content: center;
   }
-  .vt-ho .ho-cell-l { font-size: 9.5px; font-weight: 700; line-height: 1.28; color: var(--ho-nacre); }
-  .vt-ho .ho-cell-s { font-size: 8px; line-height: 1.25; color: var(--ho-sous); }
+  .vt-ho .ho-cell-l { font-size: 11px; font-weight: 700; line-height: 1.28; color: var(--ho-nacre); }
+  .vt-ho .ho-cell-s { font-size: 10px; line-height: 1.25; color: var(--ho-sous); }
   .vt-ho .ho-btn { background: rgba(16,16,20,.85); box-shadow: inset 0 0 0 1px rgba(185,170,232,.6); }
   .vt-ho .vt-ent-btn { top: 70px; }
   .vt-ho .vt-ent-back { right: 20px; }

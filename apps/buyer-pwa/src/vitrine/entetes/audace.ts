@@ -147,7 +147,7 @@ const css = `
     box-shadow: 0 6px 14px -6px rgba(37,99,235,.8);
     font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif; font-weight: 800; font-size: 19px; color: #FFFFFF;
   }
-  .vt-au .au-marque-t { font-size: 9.5px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--au-bleu-clair); }
+  .vt-au .au-marque-t { font-size: 10px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--au-bleu-clair); }
   /* THE PHOTOGRAPH — relevé top 64, + 60 */
   .vt-au .au-cercle {
     position: absolute; top: 124px; right: -42px; width: 172px; height: 172px;
@@ -234,8 +234,8 @@ const css = `
   /* the board alternates blue / orange / blue */
   .vt-au .au-cell-i--b { background: var(--au-bleu); }
   .vt-au .au-cell-i--o { background: var(--au-orange); }
-  .vt-au .au-cell-l { font-size: 10px; font-weight: 700; line-height: 1.28; color: var(--au-encre); }
-  .vt-au .au-cell-s { font-size: 8.5px; line-height: 1.25; color: var(--au-sourd-2); }
+  .vt-au .au-cell-l { font-size: 11px; font-weight: 700; line-height: 1.28; color: var(--au-encre); }
+  .vt-au .au-cell-s { font-size: 10px; line-height: 1.25; color: #766757; /* CONFIANCE-LISIBLE-1 — was var(--au-sourd-2) (3.51:1), now 4.68:1 */ }
   .vt-au .au-btn { background: rgba(15,29,43,.55); box-shadow: inset 0 0 0 1px rgba(255,255,255,.3); }
   .vt-au .vt-ent-btn { top: 70px; }
   .vt-au .vt-ent-back { right: 20px; }

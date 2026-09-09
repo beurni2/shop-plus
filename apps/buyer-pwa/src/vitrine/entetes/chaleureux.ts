@@ -156,8 +156,8 @@ const css = `
   .vt-ch .ch-cell { padding: 0 7px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .vt-ch .ch-cell + .ch-cell { border-left: 1px solid var(--ch-sep); }
   .vt-ch .ch-cell-i { width: 34px; height: 34px; border-radius: 11px; background: var(--ch-corail-pale); display: flex; align-items: center; justify-content: center; }
-  .vt-ch .ch-cell-l { font-size: 10px; font-weight: 700; line-height: 1.28; color: var(--ch-encre); }
-  .vt-ch .ch-cell-s { font-size: 8.5px; line-height: 1.25; color: var(--ch-sourd-clair); }
+  .vt-ch .ch-cell-l { font-size: 11px; font-weight: 700; line-height: 1.28; color: var(--ch-encre); }
+  .vt-ch .ch-cell-s { font-size: 10px; line-height: 1.25; color: #827169; /* CONFIANCE-LISIBLE-1 — was var(--ch-sourd-clair) (3.59:1), now 4.67:1 */ }
   .vt-ch .ch-btn { background: #FFFFFF; box-shadow: 0 4px 12px -3px rgba(150,70,45,.35); }
   .vt-ch .vt-ent-btn { top: 22px; }
   .vt-ch .vt-ent-back { right: 20px; }

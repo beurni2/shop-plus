@@ -200,7 +200,7 @@ const css = `
   /* 44px clear of the garland, per the relevé */
   .vt-gu .gu-col { position: relative; margin-top: 44px; width: calc(100% - 158px); min-height: 226px; }
   .vt-gu .gu-kick {
-    display: flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 700;
+    display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700;
     letter-spacing: .18em; text-transform: uppercase; color: var(--gu-rose-d2);
   }
   .vt-gu .gu-puce { flex: none; display: block; }

@@ -881,14 +881,14 @@ function renderAdresseBlocs(s: C3State): string {
         '</div>',
       ].join('')
     : [
-        `<input class="cl-field" data-role="quartier-filtre" value="${esc(s.zoneFiltre)}" placeholder="Chercher votre quartier…" autocomplete="off">`,
+        `<input class="cl-field" data-role="quartier-filtre" aria-label="Votre quartier" value="${esc(s.zoneFiltre)}" placeholder="Chercher votre quartier…" autocomplete="off">`,
         `<div class="cl-chips cl-chips-quartiers" data-role="quartier-chips">${renderQuartierChips(s.zone, s.zoneFiltre)}</div>`,
       ].join('');
   return [
     '<div class="cl-overline">Votre quartier</div>',
     quartier,
     '<div class="cl-overline">Le repère</div>',
-    `<input class="cl-field" data-role="repere" value="${esc(s.repere)}" placeholder="Ex. : Face à la pharmacie du marché">`,
+    `<input class="cl-field" data-role="repere" aria-label="Le repère" value="${esc(s.repere)}" placeholder="Ex. : Face à la pharmacie du marché">`,
   ].join('');
 }
 
@@ -912,7 +912,7 @@ export function renderC3(s: C3State): string {
      * keeps every « Votre numéro reste privé » in this app a true sentence.
      */
     '<div class="cl-overline">Votre numéro, pour la livraison</div>',
-    `<input class="cl-field" data-role="phone" type="tel" inputmode="tel" value="${esc(s.phone)}" placeholder="Ex. : 70 12 34 56">`,
+    `<input class="cl-field" data-role="phone" aria-label="Votre numéro, pour la livraison" type="tel" inputmode="tel" value="${esc(s.phone)}" placeholder="Ex. : 70 12 34 56">`,
     `<div class="cl-privline">${iconLock(14)}Le livreur passe par un relais. Votre numéro reste privé.</div>`,
     `<button class="cl-cta cl-cta-c3${s.canContinue ? '' : ' cl-cta-off'}" data-action="continuer-c3"${s.canContinue ? '' : ' disabled'}>Continuer</button>`,
     // GEO-CARTE-PRO — the carte face is NOT rendered here: `.cl-screen`'s
@@ -1949,7 +1949,7 @@ export function renderC6(
             `<label class="cl-merci-label">${MERCI.prenomLabel}`,
             '<input type="text" class="cl-merci-input" data-role="merci-prenom" maxlength="24" autocomplete="given-name">',
             '</label>',
-            '<div class="cl-merci-alerte" data-role="merci-alerte" hidden></div>',
+            '<div class="cl-merci-alerte" data-role="merci-alerte" role="alert" hidden></div>',
             `<button class="cl-cta cl-merci-cta" data-action="merci-whatsapp">${MERCI.action}</button>`,
             '</div>',
           ].join('')

@@ -169,7 +169,8 @@ const css = `
      the sentence a sentence. */
   .vt-br .br-chip {
     display: inline-block; padding: 5px 10px; border-radius: 8px;
-    background: var(--br-corail); font-size: 11px; line-height: 1.3; color: var(--br-t1);
+    background: var(--br-corail); font-size: 11px; line-height: 1.3;
+    color: var(--br-charbon); /* CONFIANCE-LISIBLE-1 — was var(--br-t1) (2.06:1 on the coral), now 5.06:1 */
   }
   .vt-br .br-chip b {
     font-family: 'Bricolage Grotesque', 'Instrument Sans', sans-serif; font-weight: 800;
@@ -203,8 +204,8 @@ const css = `
     width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--br-charbon);
     display: flex; align-items: center; justify-content: center;
   }
-  .vt-br .br-cell-l { font-size: 9.5px; font-weight: 700; line-height: 1.28; color: var(--br-chip); }
-  .vt-br .br-cell-s { font-size: 8px; line-height: 1.25; color: var(--br-t3); }
+  .vt-br .br-cell-l { font-size: 11px; font-weight: 700; line-height: 1.28; color: var(--br-chip); }
+  .vt-br .br-cell-s { font-size: 10px; line-height: 1.25; color: #70665B; /* CONFIANCE-LISIBLE-1 — was var(--br-t3) (3.22:1), now 4.67:1 */ }
   /* the coral dash under each column — the board's signature */
   .vt-br .br-tiret { width: 18px; height: 2.5px; margin-top: 2px; border-radius: 2px; background: var(--br-corail); }
   .vt-br .br-btn { background: rgba(23,24,26,.7); box-shadow: inset 0 0 0 1px rgba(244,233,220,.35); }

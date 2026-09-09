@@ -54,9 +54,10 @@ export const VITRINE_STYLES = `
 
   /* Top bar — ← si venue d'une page produit, 40 r99. (Le partage a quitté
      l'en-tête le 2026-08-18, et le spacer qui le poussait à droite avec lui.) */
-  .vt-topbar { display: flex; align-items: center; gap: 10px; height: 40px; }
+  /* CONFIANCE-LISIBLE-1 (F-56) — the back button is a ≥ 44px target. */
+  .vt-topbar { display: flex; align-items: center; gap: 10px; height: 44px; }
   .vt-topbtn {
-    width: 40px; height: 40px; border-radius: 99px;
+    width: 44px; height: 44px; border-radius: 99px;
     display: flex; align-items: center; justify-content: center;
     background: #FFFFFF; border: 1px solid #E5DCC9;
     box-shadow: 0 1px 2px rgba(28, 22, 15, 0.05);
@@ -201,8 +202,10 @@ export const VITRINE_STYLES = `
     background: #F6F0E4;
   }
   .vt-cell-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .vt-cell-label { font-size: 10.5px; font-weight: 700; line-height: 1.25; color: #1C1710; }
-  .vt-cell-sub { font-size: 9.5px; font-weight: 400; line-height: 1.2; color: #6F6355; }
+  /* CONFIANCE-LISIBLE-1 (AUDIT-SHOP-2 F-25) — the trust row is the smallest
+     text on the page: labels floor at 11px, sublines at 10px (Aïcha, sunlight). */
+  .vt-cell-label { font-size: 11px; font-weight: 700; line-height: 1.25; color: #1C1710; }
+  .vt-cell-sub { font-size: 10px; font-weight: 400; line-height: 1.2; color: #6F6355; }
   .vt-avisrow {
     display: flex; align-items: center; justify-content: center; gap: 7px;
     margin-top: 8px; padding: 9px 12px;

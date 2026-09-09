@@ -163,8 +163,8 @@ const css = `
   .vt-et .et-cell-i--vert { background: var(--et-vert); box-shadow: inset 0 0 0 1.5px rgba(18,18,18,.3), 0 0 0 2px rgba(46,156,82,.35); }
   .vt-et .et-cell-i--jaune { background: var(--et-jaune); box-shadow: inset 0 0 0 1.5px rgba(18,18,18,.3), 0 0 0 2px rgba(217,163,28,.35); }
   .vt-et .et-cell-i--rouge { background: var(--et-rouge); box-shadow: inset 0 0 0 1.5px rgba(18,18,18,.3), 0 0 0 2px rgba(232,80,85,.35); }
-  .vt-et .et-cell-l { display: block; font-size: 9.5px; font-weight: 700; font-style: italic; line-height: 1.3; color: #FFFFFF; }
-  .vt-et .et-cell-s { display: block; font-size: 9.5px; font-weight: 600; line-height: 1.3; }
+  .vt-et .et-cell-l { display: block; font-size: 11px; font-weight: 700; font-style: italic; line-height: 1.3; color: #FFFFFF; }
+  .vt-et .et-cell-s { display: block; font-size: 10px; font-weight: 600; line-height: 1.3; }
   .vt-et .et-cell-s--vert { color: var(--et-vert-c); }
   .vt-et .et-cell-s--jaune { color: var(--et-jaune); }
   .vt-et .et-cell-s--rouge { color: var(--et-rouge-c); }
@@ -203,8 +203,8 @@ const css = `
      declaration. Each style now carries its own; a grouped rule can only
      ship inside ONE chunk, and the other three shops would load without it. */
   .vt-et .et-cell-i { width: 32px; height: 32px; }
-  .vt-et .et-cell-l { font-size: 9.5px; line-height: 1.22; }
-  .vt-et .et-cell-s { font-size: 9.5px; line-height: 1.22; }
+  .vt-et .et-cell-l { font-size: 11px; line-height: 1.22; }
+  .vt-et .et-cell-s { font-size: 10px; line-height: 1.22; }
   .vt-et .et-cell { gap: 7px; padding: 0 4px; }
   @container (max-width: 339px) {
     .vt-et .et-scene { min-height: 196px; }
@@ -214,8 +214,8 @@ const css = `
     .vt-et .et-tours, .vt-et .et-serpentin { display: none; }
     .vt-et .et-bienv-t { font-size: 15px; }
     .vt-et .et-cell-i { width: 30px; height: 30px; }
-    .vt-et .et-cell-l { font-size: 9.5px; line-height: 1.2; }
-    .vt-et .et-cell-s { font-size: 9.5px; line-height: 1.2; }
+    .vt-et .et-cell-l { font-size: 11px; line-height: 1.2; }
+    .vt-et .et-cell-s { font-size: 10px; line-height: 1.2; }
     .vt-et .et-cell { gap: 6px; padding: 0 3px; }
   }
 

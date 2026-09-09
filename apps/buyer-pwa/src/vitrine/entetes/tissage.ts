@@ -164,8 +164,8 @@ const css = `
   .vt-ti .ti-cell { padding: 0 5px; display: flex; align-items: center; gap: 8px; }
   .vt-ti .ti-cell-i { position: relative; width: 38px; height: 38px; flex: none; border-radius: 50%; background: var(--ti-vert); display: flex; align-items: center; justify-content: center; }
   .vt-ti .ti-cell-c { position: absolute; right: -3px; bottom: -3px; width: 15px; height: 15px; border-radius: 50%; background: var(--ti-or); border: 2px solid var(--ti-blanc); display: flex; align-items: center; justify-content: center; }
-  .vt-ti .ti-cell-l { display: block; font-size: 9.5px; font-weight: 700; line-height: 1.3; color: #14251A; }
-  .vt-ti .ti-cell-s { display: block; font-size: 9.5px; font-weight: 600; line-height: 1.3; color: var(--ti-sous); }
+  .vt-ti .ti-cell-l { display: block; font-size: 11px; font-weight: 700; line-height: 1.3; color: #14251A; }
+  .vt-ti .ti-cell-s { display: block; font-size: 10px; font-weight: 600; line-height: 1.3; color: var(--ti-sous); }
   .vt-ti .ti-btn { background: var(--ti-or); }
   .vt-ti .vt-ent-btn { top: 70px; }
   .vt-ti .vt-ent-back { right: 20px; }
@@ -184,8 +184,8 @@ const css = `
      declaration. Each style now carries its own; a grouped rule can only
      ship inside ONE chunk, and the other three shops would load without it. */
   .vt-ti .ti-cell-i { width: 32px; height: 32px; }
-  .vt-ti .ti-cell-l { font-size: 9.5px; line-height: 1.22; }
-  .vt-ti .ti-cell-s { font-size: 9.5px; line-height: 1.22; }
+  .vt-ti .ti-cell-l { font-size: 11px; line-height: 1.22; }
+  .vt-ti .ti-cell-s { font-size: 10px; line-height: 1.22; }
   .vt-ti .ti-cell { gap: 7px; padding: 0 4px; }
 
   /* 2 — THE MINIMAL BADGE. Each style's pastille is the contract's own shape,
@@ -221,8 +221,8 @@ const css = `
     .vt-ti .ti-bienv-t { font-size: 16px; }
     .vt-ti .ti-nouv { width: 78px; height: 78px; }
     .vt-ti .ti-cell-i { width: 30px; height: 30px; }
-    .vt-ti .ti-cell-l { font-size: 9.5px; line-height: 1.2; }
-    .vt-ti .ti-cell-s { font-size: 9.5px; line-height: 1.2; }
+    .vt-ti .ti-cell-l { font-size: 11px; line-height: 1.2; }
+    .vt-ti .ti-cell-s { font-size: 10px; line-height: 1.2; }
     .vt-ti .ti-cell { gap: 6px; padding: 0 3px; }
   }
 

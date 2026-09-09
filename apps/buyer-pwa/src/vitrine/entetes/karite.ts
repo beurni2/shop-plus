@@ -151,7 +151,7 @@ const css = `
   .vt-ka .ka-surtitre-p {
     display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 99px;
     background: #FFFFFF; box-shadow: 0 6px 14px -8px rgba(74,58,34,.4);
-    font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ka-miel-2);
+    font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #926C24; /* CONFIANCE-LISIBLE-1 — was var(--ka-miel-2) (3.83:1), now 4.77:1 */
   }
   .vt-ka .ka-surtitre-p svg { flex: none; }
   .vt-ka .ka-bienv { margin-top: 8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -190,7 +190,7 @@ const css = `
      so the card keeps the sentence and drops the ring. */
   .vt-ka .ka-proof-l { font-size: 11px; line-height: 1.35; color: var(--ka-cacao-2); }
   .vt-ka .ka-proof-l b { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-size: 13.5px; color: var(--ka-cacao); }
-  .vt-ka .ka-stars { font-size: 10.5px; font-weight: 600; color: var(--ka-feuille); white-space: nowrap; }
+  .vt-ka .ka-stars { font-size: 10.5px; font-weight: 600; color: #637B4A; /* CONFIANCE-LISIBLE-1 — was var(--ka-feuille) (3.17:1), now 4.69:1 */ white-space: nowrap; }
   .vt-ka .ka-stars svg { vertical-align: -1px; margin-right: 3px; }
   /* MINIMAL — the POT LABEL: a tilted white card with a dotted honey rule
      inside it, not a chip like the rest of the set. « étiquette de pot
@@ -217,8 +217,8 @@ const css = `
   .vt-ka .ka-cell-i--f { background: var(--ka-feuille); }
   .vt-ka .ka-cell-i--m { background: var(--ka-miel); }
   .vt-ka .ka-cell-i--n { background: var(--ka-noix); }
-  .vt-ka .ka-cell-l { font-size: 9.5px; font-weight: 700; line-height: 1.28; color: var(--ka-cacao); }
-  .vt-ka .ka-cell-s { font-size: 8px; line-height: 1.25; color: var(--ka-miel-2); }
+  .vt-ka .ka-cell-l { font-size: 11px; font-weight: 700; line-height: 1.28; color: var(--ka-cacao); }
+  .vt-ka .ka-cell-s { font-size: 10px; line-height: 1.25; color: #926C24; /* CONFIANCE-LISIBLE-1 — was var(--ka-miel-2) (3.83:1), now 4.77:1 */ }
   .vt-ka .ka-btn { background: #FFFFFF; box-shadow: 0 4px 12px -3px rgba(74,58,34,.35); }
   .vt-ka .vt-ent-btn { top: 70px; }
   .vt-ka .vt-ent-back { right: 20px; }
