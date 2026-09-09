@@ -191,6 +191,10 @@ export class DeadLetterDO {
         ok: true,
         entries,
         events,
+        // `held` is the INDEX's own count — the slots the cap sees. It equals
+        // `entries.length` in a healthy book; an acknowledgement that freed the
+        // key but not the slot would show here as a disagreement (mutation-found).
+        held: index.ids.length,
         dropped: index.dropped,
         oversize: index.oversize,
         acknowledged: index.acknowledged ?? [],

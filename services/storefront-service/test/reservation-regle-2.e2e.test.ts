@@ -188,6 +188,10 @@ describe('RESERVATION-REGLE-2 — (3) the acknowledgement, on key C', () => {
 
     const apres = await livreParque();
     expect(apres.book.entries?.some((e) => e.parkId === entry!.parkId), 'the entry left the book').toBe(false);
+    // The SLOT freed too, not only the key: the index's count follows the entries.
+    expect(avant.book.held, 'a healthy book before').toBe(avant.book.entries?.length);
+    expect(apres.book.held, 'the index let go of the id').toBe((avant.book.held ?? 0) - 1);
+    expect(apres.book.held).toBe(apres.book.entries?.length);
     const reconnu = (apres.book.acknowledged ?? []).slice(dejaReconnus);
     expect(reconnu.map((r) => [r.parkId, r.sha256Hex, r.reason])).toEqual([[entry!.parkId, sha256Hex(torn), 'not_json']]);
     // A second acknowledgement of the same id has nothing to act on.

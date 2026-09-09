@@ -125,6 +125,8 @@ export interface LivreParque {
     ok?: boolean;
     entries?: { parkId: string; original: string; originalSha256: string; reason: string; bytes: number }[];
     events?: { name: string; payload: Record<string, unknown> }[];
+    /** the index's own slot count — equals `entries.length` in a healthy book */
+    held?: number;
     dropped?: number;
     oversize?: unknown[];
     acknowledged?: { parkId: string; sha256Hex: string; reason: string; at: string }[];
