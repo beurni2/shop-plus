@@ -419,11 +419,15 @@ capture copy-lint-inline-refus-negative-scan-outside-src fail node scripts/gates
 log "gate: E2 failure path — the real service path end-to-end (must pass)"
 capture e2-failure-path pass node scripts/e2-failure-path.mjs
 
-log "gate: reservation-release-on-failure — real released world (must pass)"
-capture release-on-failure-positive pass node scripts/gates/reservation-release-on-failure.mjs gates/fixtures/payment-fail-released.json
-
-log "gate: reservation-release-on-failure — NEGATIVE (held after payment fail, no alert, must fail)"
-capture release-on-failure-negative fail node scripts/gates/reservation-release-on-failure.mjs gates/fixtures/negative/payment-fail-held.json
+# RESERVATION-REGLE-1 (AUDIT-SHOP-2 F-08) — the fixture replay this line used
+# to run (`reservation-release-on-failure.mjs` over a JSON snapshot) proved a
+# pure function, never the Worker: in the deployed service the release, the
+# alert, the stuck-saga watch and the DLQ had no call site. The rule is now
+# proven where it runs — the REAL combined Worker on miniflare, the ledger
+# asked after every act. `pnpm test` above already runs this file; naming it
+# here keeps the E2 rule a line on the board, not a test lost in a count.
+log "gate: RESERVATION-REGLE-1 — release on payment failure, the reconciliation net, the stuck-saga watch and the DLQ, on the REAL Worker (must pass)"
+capture reservation-regle-seam pass pnpm --filter @shop-plus/storefront-service exec vitest run test/reservation-regle.e2e.test.ts
 
 log "gate: attribution-lock-first-wins — collision refused, lock never moves (must pass)"
 capture attribution-lock-positive pass node scripts/gates/attribution-lock-first-wins.mjs gates/fixtures/attribution-first-lock.json

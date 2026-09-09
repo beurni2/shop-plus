@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   DeadLetterQueue,
@@ -12,6 +13,8 @@ import {
 
 const T = '2026-07-10T12:00:00.000Z';
 const LATER = (mins: number) => new Date(Date.parse(T) + mins * 60_000).toISOString();
+// RESERVATION-REGLE-1: the digest is the caller's (the vault is runtime-neutral) — Node's here, Web Crypto's in the Worker.
+const sha256Hex = (raw: string): string => createHash('sha256').update(raw, 'utf8').digest('hex');
 const flags = { version: 'e2-test', flags: {}, kills: [], killedCategories: [] };
 
 function freshSpine(seed: string): OrderSpine {
@@ -231,18 +234,30 @@ describe('E2 DLQ seed — poison parks byte-exact, nothing dropped silently', ()
     const dlq = new DeadLetterQueue();
     // deliberately weird spacing + unicode + key order — bytes must survive untouched
     const poison = '{ "name":"payment.checkout_leg_confirmed.v1" ,"envelope": {"command_id":"x"}, "extra": "Boutik+ × Shop+ × Séra" }';
-    const out = dlq.parkIfPoison(poison, { correlationId: 'corr-d1', at: T });
+    const out = dlq.parkIfPoison(poison, { correlationId: 'corr-d1', at: T, sha256Hex: sha256Hex(poison) });
     expect(out.poison).toBe(true);
     expect(out.entry!.original).toBe(poison); // byte-exact, not re-serialized
     expect(out.event!.name).toBe('dlq.parked.v1');
     expect(out.event!.payload['original_sha256']).toBe(out.entry!.originalSha256);
+    expect(out.entry!.originalSha256).toBe(sha256Hex(poison)); // the digest of the BYTES, not of a re-serialization
     expect(dlq.parked()).toHaveLength(1);
+  });
+
+  it('RESERVATION-REGLE-1 — a queue rehydrated from parked entries keeps counting: park ids and aggregateVersion continue', () => {
+    const first = new DeadLetterQueue();
+    const a = first.parkIfPoison('not json', { correlationId: 'corr-d3', at: T, sha256Hex: sha256Hex('not json') });
+    expect(a.entry!.parkId).toBe('dlq-1');
+    const rehydrated = new DeadLetterQueue(first.parked());
+    const b = rehydrated.park('{"torn":', { reason: 'malformed_payload', correlationId: 'corr-d3', at: T, sha256Hex: sha256Hex('{"torn":') });
+    expect(b.entry.parkId).toBe('dlq-2');
+    expect(b.event.envelope.aggregateVersion).toBe(2);
+    expect(rehydrated.parked().map((e) => e.parkId)).toEqual(['dlq-1', 'dlq-2']);
   });
 
   it('non-JSON parks too — a truncated storm survivor is never dropped', () => {
     const dlq = new DeadLetterQueue();
     const torn = '{"name":"order.confir'; // truncated mid-flight
-    const out = dlq.parkIfPoison(torn, { correlationId: 'corr-d2', at: T });
+    const out = dlq.parkIfPoison(torn, { correlationId: 'corr-d2', at: T, sha256Hex: sha256Hex(torn) });
     expect(out.poison).toBe(true);
     expect(out.entry!.original).toBe(torn);
     expect(out.entry!.reason).toBe('not_json');
@@ -255,7 +270,7 @@ describe('E2 DLQ seed — poison parks byte-exact, nothing dropped silently', ()
       envelope: { command_id: 'c', correlation_id: 'x', aggregateVersion: 1, actor: 'a', serverTime: T, version: '1' },
       payload: {},
     });
-    expect(dlq.parkIfPoison(healthy, { correlationId: 'x', at: T }).poison).toBe(false);
+    expect(dlq.parkIfPoison(healthy, { correlationId: 'x', at: T, sha256Hex: sha256Hex(healthy) }).poison).toBe(false);
     expect(dlq.parked()).toHaveLength(0);
   });
 });

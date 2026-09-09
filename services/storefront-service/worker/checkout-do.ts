@@ -1,4 +1,10 @@
-import { RESERVATION_TTL_MS, type ReservationState, type ReserveCommand } from '@shop-plus/commerce-core';
+import {
+  RESERVATION_TTL_MS,
+  decideReservation,
+  type ReleaseCommand,
+  type ReservationState,
+  type ReserveCommand,
+} from '@shop-plus/commerce-core';
 import {
   decideIssueQuote,
   decideReserveForQuote,
@@ -274,6 +280,51 @@ export class CheckoutDO {
         await this.state.storage.put(RESERVATION_KEY, decision.state);
       }
       return Response.json(decision, { status: decision.ok ? 200 : 409 });
+    }
+
+    /**
+     * RESERVATION-REGLE-1 (AUDIT-SHOP-2 F-08) — RELEASE. « The release is the
+     * rule » (WO-2.3, Contract E2 scenario #1): a HELD reservation whose
+     * payment failed is freed NOW, with its reason, instead of dying by the
+     * 2-minute TTL. The vault's own `release` command decides — idempotent on
+     * `commandId`, only a held reservation releases, a confirmed one refuses
+     * `already_confirmed` (un-confirming is E3's), an absent one answers
+     * `no_reservation`. INTERNAL WIRE ONLY: no public route reaches this; the
+     * order object's release outbox is its one caller. The decision's `state`
+     * rides the answer so the caller can run the reconciliation net on the
+     * SAME read (`reservationReconciliationAlert`) — a reservation that is
+     * somehow still held after this answer is the Contract-§6 alert class.
+     */
+    if (request.method === 'POST' && pathname === '/entry/release') {
+      let args: { commandId?: string; reason?: string };
+      try {
+        args = (await request.json()) as { commandId?: string; reason?: string };
+      } catch {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      if (
+        typeof args.commandId !== 'string' ||
+        args.commandId === '' ||
+        (args.reason !== 'payment_failed' && args.reason !== 'cancelled')
+      ) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const current = (await this.state.storage.get<ReservationState>(RESERVATION_KEY)) ?? { status: 'none' as const };
+      const quoteId = current.status === 'none' ? '' : current.quoteId;
+      const cmd: ReleaseCommand = {
+        kind: 'release',
+        command_id: args.commandId,
+        quoteId,
+        nowIso: new Date().toISOString(),
+        reason: args.reason,
+      };
+      const decision = decideReservation(current, cmd);
+      if (decision.ok && !decision.idempotentReplay) {
+        await this.state.storage.put(RESERVATION_KEY, decision.state);
+      }
+      // 200 whatever the vault decided: a refusal by name is an ANSWER the
+      // outbox must record as delivered (nothing to release is not a retry).
+      return Response.json(decision, { status: 200 });
     }
 
     // ── request-key-pointer ops (idFromName('key:'+requestKey)) — Shape C ────

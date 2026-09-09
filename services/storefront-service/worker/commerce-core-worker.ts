@@ -20,22 +20,29 @@ export * from '../../../packages/commerce-core/dist/reconcile.js';
 // implementation this Worker has. It is deterministic and config-driven: no
 // randomness, no clock, no network, and no aggregator named anywhere in it.
 export * from '../../../packages/commerce-core/dist/mocks/payment-provider-mock.js';
+// RESERVATION-REGLE-1 (AUDIT-SHOP-2 F-08) — the DLQ seed, now runtime-neutral
+// (the digest is the caller's, no `node:crypto` in the vault), so the Worker's
+// webhook door can PARK poison instead of dropping the bytes it refused.
+export * from '../../../packages/commerce-core/dist/dlq.js';
 
 /**
  * ═══ THE VAULT, NARROWED FOR THE WORKER BUNDLE — READ-ONLY, NOT REWRITTEN ═══
  *
  * `@shop-plus/commerce-core`'s package entry is a BARREL, and the barrel is not
- * bundlable for workerd: `dlq.js` opens with `import { createHash } from
- * 'node:crypto'`, which esbuild cannot resolve under `--platform=neutral` and
- * which workerd refuses to load without the `nodejs_compat` flag (both measured,
- * not assumed). The DLQ is E2 machinery this Worker never routes; it is simply
- * in the same barrel as the quote issuer.
+ * bundled for workerd: this file names the modules the Worker routes, and only
+ * those. (Until RESERVATION-REGLE-1, `dlq.js` opened with `import { createHash }
+ * from 'node:crypto'`, which esbuild cannot resolve under `--platform=neutral`
+ * and workerd refuses without `nodejs_compat` — both measured — so the DLQ was
+ * the one E2 module the Worker could not carry, and the deployed consumer
+ * parked nothing. The vault now takes the digest from its caller; the module is
+ * plain TypeScript again and joins the list above.)
  *
  * ═══ WHY THIS SHAPE AND NOT THE THREE ALTERNATIVES ═══
  *
- *  · EDITING THE VAULT is out, full stop. `packages/commerce-core` is FROZEN —
- *    byte-identical, zero diff — and a one-line `"sideEffects": false` or a
- *    subpath export in its package.json is still an edit to a frozen file.
+ *  · EDITING THE VAULT for bundling's sake is out: a `"sideEffects": false` or
+ *    a subpath export in its package.json would be a build concern leaking into
+ *    the money package. (The DLQ change above is a RUNTIME-NEUTRALITY change to
+ *    the module's own contract, not bundling plumbing.)
  *  · TURNING ON `nodejs_compat` would change the runtime of the whole deployed
  *    Worker AND break `combined-worker.e2e.test.ts`, whose Miniflare does not
  *    set the flag — an existing suite this slice may not touch.

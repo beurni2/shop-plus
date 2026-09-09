@@ -1,6 +1,6 @@
 import { PlatformEventSchema, assertQuoteReconciles, type PlatformEvent, type Quote } from '@platform/contracts';
 import { FLUSHER_TIMEOUT_MS } from '../src/delais.js';
-import { decideBuyerRung, reconcileOrder } from '@shop-plus/commerce-core';
+import { decideBuyerRung, reconcileOrder, reservationReconciliationAlert, type ReservationState } from '@shop-plus/commerce-core';
 import {
   acceptChargeForLeg,
   applyOrderInput,
@@ -28,6 +28,7 @@ import { timingSafeEqual } from './auth.js';
  *  so the check and the vault agree on one string. */
 const DOOR_MODE = 'DELIVERY_FEE_PREPAID_PRODUCT_AT_DOOR';
 import { RESELLER_FEED_NAME } from './reseller-feed-do.js';
+import { DLQ_NAME, PARK_MAX_BYTES } from './dead-letter-do.js';
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -212,6 +213,54 @@ const DOOR_SIGNAL_KEY = 'custody-door-signal-outbox';
  */
 const RECON_ALERTS_KEY = 'recon-alerts';
 const RECON_ALERTS_CAP = 50;
+/**
+ * RESERVATION-REGLE-1 (AUDIT-SHOP-2 F-08) — THE RELEASE OUTBOX, the eighth
+ * wire. « The release is the rule » (WO-2.3, Contract E2 scenario #1): when
+ * this order's payment FAILS, its quote's hold is freed NOW through
+ * CheckoutDO's `/entry/release`, not left to die by the 2-minute TTL — and
+ * the buyer's fresh hold on the same quote succeeds at once instead of
+ * answering `already_reserved` until the clock runs out. Durable beside the
+ * failure that earned it, flushed on the same alarm and backoff as every
+ * other wire (at-least-once; the vault's release command is idempotent on
+ * its command id, so a redelivery frees nothing twice). « The alert is the
+ * net »: every ANSWER is judged by the vault's `reservationReconciliationAlert`
+ * — a hold the answer still reports held after a payment failure sinks a
+ * reconciliation.alert.v1 beside the others. A wire that cannot deliver is
+ * a PENDING row with its attempt count on the audit read, never silence.
+ */
+const RELEASE_KEY = 'reservation-release-outbox';
+/** CheckoutDO's /entry/release answer — the vault's decision, `state` riding it for the net. */
+interface ReleaseAnswer {
+  ok?: boolean;
+  reason?: string;
+  state?: ReservationState;
+}
+interface ReleaseRow {
+  status: 'pending' | 'delivered';
+  commandId: string;
+  quoteId: string;
+  reason: 'payment_failed';
+  attempts: number;
+  deliveredAt?: string;
+  decision?: { ok: boolean; reason: string | null; state: string | null };
+}
+/**
+ * RESERVATION-REGLE-1 — THE STUCK-SAGA WATCH (Contract E2 exit: « DLQ +
+ * stuck-saga detection live »). An order still `payment_pending` past the
+ * versioned TTL emits `saga.stuck.v1` exactly once — the vault's own
+ * `checkStuckSaga`; its once-mark is persisted HERE because the spine is
+ * rebuilt from the log on every request and would forget. It rides this
+ * object's alarm: armed at every entry into `payment_pending`, re-derived
+ * from the log on every tick, sunk into the durable alert record the
+ * operator already reads. ⏳ THE TTL IS SPEC-SILENT: 15 minutes is WO-2.3's
+ * seed value and the quote's own life (a payment pending longer than the
+ * price it pays for is stuck) — applied as the documented safest default
+ * and flagged in the journal; `STUCK_SAGA_TTL_MS` (env; the seam test's
+ * knob, unset on the deployed Worker) overrides it.
+ */
+const STUCK_SAGA_KEY = 'saga-stuck';
+const STUCK_SAGA_POLICY_VERSION = 'stuck-ttl.v1';
+const STUCK_SAGA_TTL_MS = 15 * 60_000;
 /**
  * VRAI-SUIVI — SÉRA'S TRANSIT MARKS, as this order received them through the
  * `/fulfillment/transit` door: `en_route` → `departedAt`, `arrivee` →
@@ -494,6 +543,10 @@ export function readBuyerContactWire(
 }
 
 export interface OrderDOEnv {
+  /** RESERVATION-REGLE-1 — the quote authority, for the release wire (unbound ⇒ the row stays pending, retried, never dropped). */
+  readonly CHECKOUT?: DurableObjectNamespace;
+  /** RESERVATION-REGLE-1 — the stuck-saga TTL override, tests only; unset ⇒ the 15-minute default. */
+  readonly STUCK_SAGA_TTL_MS?: string;
   /**
    * SANDBOX ONLY. The certified mock's misbehaviour, as JSON, so a test against
    * the REAL Worker can make a charge time out deterministically. UNSET on the
@@ -913,6 +966,10 @@ export class OrderDO {
         // a genuine webhook names its leg's key, so the suites build webhooks
         // from the key the order actually holds instead of fabricating one.
         legKeys: (await this.state.storage.get<Record<string, string>>(LEG_KEYS_KEY)) ?? {},
+        // RESERVATION-REGLE-1 — the release wire's row and the stuck watch's
+        // once-mark, on this INTERNAL surface: the ledger the seam test asks.
+        release: (await this.state.storage.get<ReleaseRow>(RELEASE_KEY)) ?? null,
+        stuck: (await this.state.storage.get<{ emittedAt: string }>(STUCK_SAGA_KEY)) ?? null,
         // RAPPROCHEMENT-1 — the durable alert record, the operator's read;
         // `reconAlertsDropped` counts what the cap clipped (never silent).
         ...(await (async () => {
@@ -1822,6 +1879,9 @@ export class OrderDO {
     if (receipt !== undefined) await this.state.storage.put(RECEIPT_KEY, receipt);
     await this.state.storage.put(LOG_KEY, log);
     await this.state.storage.put(ATTEMPTS_KEY, attempts);
+    // RESERVATION-REGLE-1 — the order is `payment_pending` from this moment:
+    // the stuck-saga watch is armed with it, in the same durable act.
+    await this.armStuckWatch(now);
     await this.state.storage.put(LEG_KEYS_KEY, { ...legKeys, [leg.legType]: providerKey });
     // BC-1a — the dispatch contact rides the same durable moment as the order
     // itself. Reached only by create()'s two MUTATING branches, so it is
@@ -1935,6 +1995,9 @@ export class OrderDO {
         },
       ];
       await this.state.storage.put(LOG_KEY, log);
+      // RESERVATION-REGLE-1 — the failure is durable; the hold's release rides
+      // beside it and the alarm carries it (the release is the rule).
+      await this.queueReservationRelease(stored, `rel-${attemptId}`);
     }
     await this.state.storage.put(ATTEMPTS_KEY, attempts);
 
@@ -1987,6 +2050,9 @@ export class OrderDO {
     const next = [...log, ended];
     if (rebuildOrderSpine(quote, stored, next).journey.state === 'payment_failed') {
       await this.state.storage.put(LOG_KEY, next);
+      // RESERVATION-REGLE-1 — a defence fault ends the attempt through the
+      // same failure edge, so it earns the same release.
+      await this.queueReservationRelease(stored, `rel-${attemptId}`);
     }
     return Response.json({ ok: false, reason: fault }, { status: 422 });
   }
@@ -2075,9 +2141,19 @@ export class OrderDO {
     const doorSignalPending = await this.flushDoorSignalOutbox();
     const refusPending = await this.flushBoutikRefusedOutbox();
     const offertPending = await this.flushListeOffertOutbox();
-    const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending);
-    if (stillPending > 0) {
-      await this.state.storage.setAlarm(Date.now() + outboxBackoffMs(stillPending));
+    // RESERVATION-REGLE-1 adds the EIGHTH — the reservation release — likewise,
+    // and the stuck-saga watch beside the wires.
+    const releasePending = await this.flushReleaseOutbox();
+    const stuckDueAt = await this.watchStuckSaga();
+    const stillPending = Math.max(boutikPending, seraPending, livraisonPending, armPending, doorSignalPending, refusPending, offertPending, releasePending);
+    // ONE alarm, two wants: the outbox backoff and the watch's due time. The
+    // nearer wins; the other is re-derived when the alarm fires (setAlarm
+    // overwrites, it never merges).
+    const wants: number[] = [];
+    if (stillPending > 0) wants.push(Date.now() + outboxBackoffMs(stillPending));
+    if (stuckDueAt !== undefined) wants.push(stuckDueAt);
+    if (wants.length > 0) {
+      await this.state.storage.setAlarm(Math.min(...wants));
     }
   }
 
@@ -2481,6 +2557,114 @@ export class OrderDO {
    * RAPPROCHEMENT-1 — the ONE door into RECON_ALERTS_KEY: dedupe on the
    * alert's own envelope command_id, cap the record, write only on growth.
    */
+  /* ───────── RESERVATION-REGLE-1 — the release wire and the stuck-saga watch ───────── */
+
+  /** Queue the hold's release beside the failure that earned it; the alarm carries it. */
+  private async queueReservationRelease(stored: StoredOrigin, commandId: string): Promise<void> {
+    const row: ReleaseRow = { status: 'pending', commandId, quoteId: stored.quoteId, reason: 'payment_failed', attempts: 0 };
+    await this.state.storage.put(RELEASE_KEY, row);
+    // The same durable-alarm discipline as the seven wires above: an alarm
+    // that failed to schedule is recovered by the next tick or webhook.
+    await this.state.storage.setAlarm(Date.now()).catch(() => undefined);
+  }
+
+  /** Returns the attempt count if still pending after this try, else 0. */
+  private async flushReleaseOutbox(): Promise<number> {
+    const row = await this.state.storage.get<ReleaseRow>(RELEASE_KEY);
+    if (row === undefined || row.status !== 'pending') return 0;
+    const ns = this.env.CHECKOUT;
+    if (ns === undefined) {
+      const attempts = row.attempts + 1;
+      await this.state.storage.put(RELEASE_KEY, { ...row, attempts });
+      return attempts;
+    }
+    let decision: ReleaseAnswer | null = null;
+    try {
+      const res = await ns.get(ns.idFromName(row.quoteId)).fetch(
+        new Request('https://do/entry/release', {
+          method: 'POST',
+          body: JSON.stringify({ commandId: row.commandId, reason: row.reason }),
+        }),
+      );
+      decision = (await res.json().catch(() => null)) as ReleaseAnswer | null;
+    } catch {
+      decision = null;
+    }
+    if (decision === null || typeof decision.ok !== 'boolean') {
+      const attempts = row.attempts + 1;
+      await this.state.storage.put(RELEASE_KEY, { ...row, attempts });
+      return attempts;
+    }
+    const at = new Date().toISOString();
+    await this.state.storage.put(RELEASE_KEY, {
+      ...row,
+      status: 'delivered',
+      deliveredAt: at,
+      attempts: row.attempts + 1,
+      decision: { ok: decision.ok, reason: decision.reason ?? null, state: decision.state?.status ?? null },
+    });
+    // THE NET: the vault judges the ANSWER's own reservation state against
+    // this order's journey — the Contract-§6 class « a reservation stays held
+    // after payment failure » sinks beside every other alert.
+    const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+    const quote = origin === undefined ? undefined : parseStoredQuote(origin.quoteBytes);
+    if (origin !== undefined && quote !== undefined && decision.state !== undefined) {
+      const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      const spine = rebuildOrderSpine(quote, origin, log);
+      const alert = reservationReconciliationAlert(spine, decision.state, { serverTime: at });
+      if (alert !== null) await this.sinkReconAlerts([alert]);
+    }
+    return 0;
+  }
+
+  private stuckTtlMs(): number {
+    const raw = Number(this.env.STUCK_SAGA_TTL_MS ?? '');
+    return Number.isSafeInteger(raw) && raw > 0 ? raw : STUCK_SAGA_TTL_MS;
+  }
+
+  /** Arm the watch at an entry into payment_pending: the nearer of the existing alarm and the TTL. */
+  private async armStuckWatch(nowIso: string): Promise<void> {
+    const due = Date.parse(nowIso) + this.stuckTtlMs() + 1;
+    const existing = await this.state.storage.getAlarm().catch(() => null);
+    if (existing === null || existing > due) await this.state.storage.setAlarm(due).catch(() => undefined);
+  }
+
+  /** The vault's watch on the alarm; returns the next due time while the order is still pending and unreported. */
+  private async watchStuckSaga(): Promise<number | undefined> {
+    if ((await this.state.storage.get(STUCK_SAGA_KEY)) !== undefined) return undefined;
+    const origin = await this.state.storage.get<StoredOrigin>(ORIGIN_KEY);
+    if (origin === undefined) return undefined;
+    const quote = parseStoredQuote(origin.quoteBytes);
+    if (quote === undefined) return undefined;
+    const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+    const spine = rebuildOrderSpine(quote, origin, log);
+    if (spine.journey.state !== 'payment_pending') return undefined;
+    const now = new Date().toISOString();
+    const ttl = this.stuckTtlMs();
+    const stuck = spine.checkStuckSaga(now, { version: STUCK_SAGA_POLICY_VERSION, paymentPendingTtlMs: ttl });
+    if (stuck !== null) {
+      await this.sinkReconAlerts([stuck]);
+      await this.state.storage.put(STUCK_SAGA_KEY, {
+        emittedAt: now,
+        commandId: stuck.envelope.command_id,
+        ttlPolicyVersion: STUCK_SAGA_POLICY_VERSION,
+      });
+      return undefined;
+    }
+    // Not yet: due the instant the pending transition turns TTL old. The
+    // clock is the log's own — the last applied input's serverTime, the same
+    // one the vault's `lastTransitionAt` is rebuilt from.
+    let pendingSince = Date.parse(origin.createdAt);
+    for (let i = log.length - 1; i >= 0; i -= 1) {
+      const entry = log[i] as { serverTime?: unknown };
+      if (typeof entry.serverTime === 'string') {
+        pendingSince = Date.parse(entry.serverTime);
+        break;
+      }
+    }
+    return pendingSince + ttl + 1;
+  }
+
   private async sinkReconAlerts(alerts: readonly PlatformEvent[]): Promise<void> {
     if (alerts.length === 0) return;
     const held =
@@ -3108,6 +3292,8 @@ function statusForWebhook(reason: string): number {
 /* ───────────────────────────────── the router ────────────────────────────── */
 
 interface Env {
+  /** RESERVATION-REGLE-1 — the parked-poison book; absent ⇒ a refusal is answered by name and nothing is parked. */
+  DLQ?: DurableObjectNamespace;
   ORDER: DurableObjectNamespace;
   /** The quote authority — read-only from here: the order copies, never writes. */
   CHECKOUT: DurableObjectNamespace;
@@ -3135,6 +3321,39 @@ interface Env {
    *  quote road is gated on the same binding, so no address-priced quote
    *  can exist for this door to mismatch. */
   WISHLIST?: DurableObjectNamespace;
+}
+
+/** The order object's refusals that are SHAPE poison (the vault could not read the event), not state. */
+const POISON_REFUSALS = new Set(['malformed_payload', 'envelope_field_too_long', 'not_a_platform_event']);
+
+/**
+ * RESERVATION-REGLE-1 — hand the refused bytes to the parked-poison book.
+ * Evidence-keeping beside a refusal already answered by name: a fault in the
+ * book must never turn that named refusal into a 500, so this swallows its
+ * own errors. Bodies past the book's byte-exact ceiling are recorded by
+ * digest and length (`oversize`), never truncated and passed off as exact.
+ */
+async function parkPoison(env: Env, texte: string, args: { reason: string; correlationId: string }): Promise<void> {
+  const ns = env.DLQ;
+  if (ns === undefined) return;
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texte));
+    const sha256Hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+    const oversize = texte.length > PARK_MAX_BYTES;
+    await ns.get(ns.idFromName(DLQ_NAME)).fetch(
+      new Request('https://do/entry/park', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...(oversize ? { oversize: { bytes: texte.length } } : { raw: texte }),
+          reason: args.reason,
+          correlationId: args.correlationId,
+          sha256Hex,
+        }),
+      }),
+    );
+  } catch {
+    // named refusal already on its way; the book's fault is not the provider's
+  }
 }
 
 const orderStub = (env: Env, orderId: string): DurableObjectStub =>
@@ -3667,12 +3886,35 @@ export default {
        * Signature verification against the real provider's scheme is part of the
        * open aggregator Decision and lands with it at the Real-Money Gate.
        */
-      const raw = await request.json().catch(() => null);
+      /**
+       * RESERVATION-REGLE-1 (AUDIT-SHOP-2 F-08) — THE DOOR PARKS WHAT IT REFUSES
+       * AS POISON. The body is read as the TEXT it arrived as, so what the DLQ
+       * keeps is byte-exact (the vault's law: never parse-and-restringify
+       * before parking). Not JSON, not a canon PlatformEvent, no routable
+       * order id, and the order object's own shape refusals (`malformed_
+       * payload`, `envelope_field_too_long`, `not_a_platform_event`) park;
+       * every named refusal still answers exactly as before. VALID events the
+       * vault refuses by STATE are not poison and are not parked.
+       */
+      const texte = await request.text();
+      let raw: unknown;
+      try {
+        raw = JSON.parse(texte);
+      } catch {
+        await parkPoison(env, texte, { reason: 'not_json', correlationId: 'unrouted' });
+        return badRequest('malformed_event');
+      }
       const parsed = PlatformEventSchema.safeParse(raw);
-      if (!parsed.success) return badRequest('malformed_event');
+      if (!parsed.success) {
+        await parkPoison(env, texte, { reason: 'not_a_canonical_platform_event', correlationId: 'unrouted' });
+        return badRequest('malformed_event');
+      }
       const payload = parsed.data.payload as Record<string, unknown>;
       const orderId = payload['order_id'];
-      if (!bounded(orderId, 191) || !ID_ALPHABET.test(orderId)) return badRequest('bad_field', 'order_id');
+      if (!bounded(orderId, 191) || !ID_ALPHABET.test(orderId)) {
+        await parkPoison(env, texte, { reason: 'bad_order_id', correlationId: parsed.data.envelope.correlation_id });
+        return badRequest('bad_field', 'order_id');
+      }
 
       const res = await orderStub(env, orderId).fetch(
         new Request('https://do/entry/webhook', {
@@ -3685,6 +3927,9 @@ export default {
         | null;
       if (body === null) return refuse('unknown_order');
       if (body.ok !== true) {
+        if (typeof body.reason === 'string' && POISON_REFUSALS.has(body.reason)) {
+          await parkPoison(env, texte, { reason: body.reason, correlationId: parsed.data.envelope.correlation_id });
+        }
         return Response.json({ error: body.reason ?? 'refused' }, { status: res.status });
       }
       // The provider learns what happened to ITS event and nothing about money.

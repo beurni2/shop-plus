@@ -81,6 +81,15 @@ class_name = "AttributionLockDO"
 name = "WISHLIST"
 class_name = "WishlistDO"
 
+# RESERVATION-REGLE-1 (AUDIT-SHOP-2 F-08) — the parked-poison book, ONE
+# singleton (idFromName inside): every body the payment-webhook door refused
+# as POISON, byte-exact with its sha256, and the dlq.parked.v1 events. No
+# money — bytes the consumer refused, never applied to any order. Read only
+# through the founder's key-C road GET /checkout/dlq.
+[[durable_objects.bindings]]
+name = "DLQ"
+class_name = "DeadLetterDO"
+
 # FIRST-DEPLOY MIGRATION — create both DO classes. `new_sqlite_classes` is CORRECT
 # AND MANDATORY, not a coin-flip: Cloudflare stopped issuing key-value-backed DO
 # namespaces (changelog 2026-07-09) to any account without a pre-existing one, and
@@ -148,6 +157,13 @@ new_sqlite_classes = ["AttributionLockDO"]
 [[migrations]]
 tag = "v9"
 new_sqlite_classes = ["WishlistDO"]
+
+# RESERVATION-REGLE-1 — DeadLetterDO on its OWN tag, the append-only law every
+# tag above states. Same UNPROVEN-UNTIL-DEPLOY caveat: Miniflare binds this
+# class from its own test config, never from this file.
+[[migrations]]
+tag = "v10"
+new_sqlite_classes = ["DeadLetterDO"]
 
 # The PRIVATE R2 bucket (exists: Standard, jurisdiction default, location hint
 # ENAM). Reads go THROUGH the Worker (GET /media/{key}); never a public custom

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // WO-2.3 DoD: the E2 failure paths through the REAL service path,
-// deterministic ids/clock; --write-fixture regenerates the committed
-// release-on-failure gate fixture from this exact run.
-import { writeFileSync } from 'node:fs';
+// deterministic ids/clock. (RESERVATION-REGLE-1: the fixture this script
+// once wrote is retired — the release rule is proven on the real Worker by
+// services/storefront-service/test/reservation-regle.e2e.test.ts.)
+import { createHash } from 'node:crypto';
 import {
   DeadLetterQueue,
   OrderSpine,
@@ -45,13 +46,6 @@ if (!failed.ok) { console.error('failPayment refused'); process.exit(1); }
 res = decideReservation(res.state, { kind: 'release', command_id: 'c-release', quoteId: issued.quote.id, nowIso: AT(17), reason: 'payment_failed' });
 if (!res.ok || res.state.status !== 'released') { console.error('release refused'); process.exit(1); }
 const alertOnClean = reservationReconciliationAlert(spine, res.state, { serverTime: AT(18) });
-// snapshot the REAL failed+released world for the positive gate fixture
-const fixtureSnapshot = {
-  journey: { state: spine.journey.state, chain: { ...spine.journey.chain } },
-  reservation: res.state,
-  events: [],
-};
-
 // 4. RETRY with a NEW attempt → abandon → cancelled (the honest exits)
 const retried = spine.retryPayment({ command_id: 'c-retry', actor: 'buyer:pwa', serverTime: AT(19), newPaymentAttemptId: 'att-e2-0002' });
 if (!retried.ok) { console.error('retry refused'); process.exit(1); }
@@ -69,7 +63,7 @@ const report = problems.report({
 if (!report.ok) { console.error('problem report refused'); process.exit(1); }
 const dlq = new DeadLetterQueue();
 const poison = '{"name":"payment.checkout_leg_confirmed.v1","envelope":{"command_id":"whk-torn"';
-const parked = dlq.parkIfPoison(poison, { correlationId: 'corr-e2-0001', at: AT(23) });
+const parked = dlq.parkIfPoison(poison, { correlationId: 'corr-e2-0001', at: AT(23), sha256Hex: createHash('sha256').update(poison, 'utf8').digest('hex') });
 if (!parked.poison || parked.entry.original !== poison) { console.error('DLQ failed byte-exact preservation'); process.exit(1); }
 
 // ---- Evidence ----
@@ -81,9 +75,4 @@ console.log(`retry audit: prior attempts ${JSON.stringify(spine.journey.priorPay
 console.log(`problem report: ${report.report.reportId} reason=${report.report.reasonCode} event=${report.event.name}`);
 console.log(`dlq: parked ${parked.entry.parkId} sha256=${parked.entry.originalSha256.slice(0, 12)}… bytes preserved exactly: ${parked.entry.original === poison}`);
 
-if (process.argv.includes('--write-fixture')) {
-  // The POSITIVE gate fixture: the real failed+released world, captured live.
-  writeFileSync('gates/fixtures/payment-fail-released.json', JSON.stringify(fixtureSnapshot, null, 2) + '\n');
-  console.log('fixture written: gates/fixtures/payment-fail-released.json');
-}
 process.exit(0);

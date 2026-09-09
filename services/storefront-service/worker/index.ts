@@ -18,6 +18,7 @@ import {
   ResellerAccountsDO,
   resoudreCompte,
 } from './reseller-accounts-do.js';
+import { DLQ_NAME, DeadLetterDO } from './dead-letter-do.js';
 import { checkoutPreflight, handleRequest, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
 import { SUPPLY_COLLECTION_ROUTE } from '../src/supply-collection.js';
 import { signPrice } from '../src/publish-price.js';
@@ -56,7 +57,7 @@ const PAGE_DISPATCH = 40;
  *
  * wrangler binds these two classes by their exported names.
  */
-export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO, ResellerFeedDO, BuyerLadderDO, ResellerAccountsDO, WishlistDO };
+export { StorefrontDO, ListingDO, CheckoutDO, OrderDO, DispatchIndexDO, ResellerFeedDO, BuyerLadderDO, ResellerAccountsDO, WishlistDO, DeadLetterDO };
 /**
  * C1/C2 (audit) — the DURABLE attribution-lock authority (SP-I09b.3
  * first-lock-wins), deployed by joining THIS combined Worker like every other
@@ -97,6 +98,10 @@ interface Env extends WriteAuthEnv {
    *  OPTIONAL like COMPTES: a Worker deployed before migration v9 has no
    *  binding, and the liste doors answer a named 503 rather than throwing. */
   WISHLIST?: DurableObjectNamespace;
+  /** RESERVATION-REGLE-1 — the parked-poison book (one singleton). OPTIONAL like
+   *  WISHLIST: absent ⇒ the webhook door answers its named refusals and parks
+   *  nothing; present (wrangler.toml, migration v10) ⇒ poison is kept byte-exact. */
+  DLQ?: DurableObjectNamespace;
   /** SP3.3a — the certified sandbox provider's behaviour knobs. UNSET on the
    *  deploy (the well-behaved provider); read by OrderDO, never by a route. */
   PAYMENT_SANDBOX_BEHAVIOR?: string;
@@ -1207,6 +1212,29 @@ export default {
      * refuses a malformed one by name). `next` present means more pages —
      * the console follows it, one HTTP request per page, each within budget.
      */
+    /**
+     * RESERVATION-REGLE-1 — THE PARKED-POISON READ, on key C like the dispatch
+     * and gains reads (one Shop+ ops door, one identity): every body the
+     * webhook door refused as poison, byte-exact with its digest, the park
+     * events, and the honest counts of what the cap clipped. Nothing here is
+     * money — bytes the consumer REFUSED, never applied to any order.
+     */
+    if (pathname === '/checkout/dlq') {
+      if (request.method === 'OPTIONS') return dispatchPreflight();
+      if (request.method !== 'GET') return withDispatchCors(unauthorized());
+      const refused = await rejectUnauthorizedOpsRead(request, env);
+      if (refused) return withDispatchCors(refused);
+      if (env.DLQ === undefined) {
+        return withDispatchCors(Response.json({ ok: false, reason: 'dlq_unbound' }, { status: 503 }));
+      }
+      const res = await env.DLQ.get(env.DLQ.idFromName(DLQ_NAME)).fetch(new Request('https://do/entry/parked'));
+      const book = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+      if (book === null || book['ok'] !== true) {
+        return withDispatchCors(Response.json({ ok: false, reason: 'dlq_unavailable' }, { status: 503 }));
+      }
+      return withDispatchCors(Response.json(book));
+    }
+
     if (pathname === '/checkout/gains' || pathname === '/checkout/dispatch') {
       if (request.method === 'OPTIONS') return dispatchPreflight();
       if (request.method !== 'GET') return withDispatchCors(unauthorized());
@@ -1402,6 +1430,9 @@ export default {
       const answered = await orderRouter.fetch(request, {
         ORDER: env.ORDER,
         CHECKOUT: env.CHECKOUT,
+        // RESERVATION-REGLE-1 — the parked-poison book, handed to THIS road
+        // only: the webhook door is the one consumer that parks what it refuses.
+        ...(env.DLQ !== undefined ? { DLQ: env.DLQ } : {}),
         // SP6.3 — the §6.4 ladder book, NAMED EXPLICITLY like its two
         // neighbours. This composition root hands each router the exact
         // bindings it may reach rather than the whole env, so a capability
