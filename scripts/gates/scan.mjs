@@ -29,8 +29,9 @@ export const DEFAULT_ROOTS = ['apps', 'services', 'packages'];
  * decides which it is. The blind spot becomes a build break instead of silence.
  *
  * This list is the UNION across boutik-plus, shop-plus and sera so the three
- * copies stay in step. They are NOT byte-identical — boutik-plus carries an
- * `allow` carve-out these two lack — so this list is kept equal by review.
+ * copies stay in step. They are NOT byte-identical — boutik-plus and shop-plus
+ * (PORTES-FRANCAISES-1) carry the `allow` carve-out sera lacks — so this list
+ * is kept equal by review.
  */
 export const NON_PRODUCT_DIRS = new Map([
   ['scripts', 'the gate tooling itself — it necessarily spells every banned pattern'],
@@ -177,7 +178,7 @@ export function unclassifiedTopLevelDirs(roots = DEFAULT_ROOTS, cwd = process.cw
     .filter((name) => !roots.includes(name) && !NON_PRODUCT_DIRS.has(name));
 }
 
-export function runScanGate({ gateName, invariant, patterns, defaultRoots = DEFAULT_ROOTS, scanExtensions = SCANNED_EXTENSIONS }) {
+export function runScanGate({ gateName, invariant, patterns, defaultRoots = DEFAULT_ROOTS, scanExtensions = SCANNED_EXTENSIONS, allow = [] }) {
   const args = process.argv.slice(2);
   const roots = args.length > 0 ? args : defaultRoots;
   /* AUDIT-B+1 F2 — the layout audit runs whenever this invocation covers the
@@ -211,7 +212,24 @@ export function runScanGate({ gateName, invariant, patterns, defaultRoots = DEFA
     console.error(`${gateName} ERROR — no scannable files under ${roots.join(', ')}; refusing to pass on an empty scan`);
     process.exit(2);
   }
-  const hits = scanForPatterns(roots, patterns, scanExtensions);
+  const allHits = scanForPatterns(roots, patterns, scanExtensions);
+  /**
+   * FOUNDER-RULED CARVE-OUTS, the narrowest expressible (the boutik-plus
+   * mechanism, byte for byte): a hit is excused ONLY when its exact relative
+   * file AND pattern name match an `allow` entry, and every excused hit is
+   * PRINTED with its ruling — an invisible exemption is a gate nobody can
+   * audit. Any other file, any other pattern, and every negative fixture
+   * still fail exactly as before.
+   */
+  const hits = [];
+  for (const hit of allHits) {
+    const entry = allow.find((a) => a.file === hit.file && a.pattern === hit.pattern);
+    if (entry !== undefined) {
+      console.log(`${gateName} allowed — ${hit.file}:${hit.lineNo} [${hit.pattern}] (${entry.ruling})`);
+    } else {
+      hits.push(hit);
+    }
+  }
   if (hits.length === 0) {
     console.log(`${gateName} OK — no banned pattern in ${roots.join(', ')} (${invariant})`);
     process.exit(0);

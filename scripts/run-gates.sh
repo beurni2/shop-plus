@@ -66,6 +66,9 @@ capture money-reconciliation-option-b-negative fail node scripts/gates/money-rec
 log "gate: money-reconciliation — NEGATIVE FIXTURE (paymentMode omitted: the split check may not be skipped, must fail)"
 capture money-reconciliation-missing-mode-negative fail node scripts/gates/money-reconciliation.mjs gates/fixtures/negative/quote.missing-mode.json
 
+log "gate: money-reconciliation — NEGATIVE FIXTURE (PORTES-FRANCAISES-1 F-33: a coherent lie — the three sums reconcile, the nets and the gross are not the law's, must fail)"
+capture money-reconciliation-coherent-lie-negative fail node scripts/gates/money-reconciliation.mjs gates/fixtures/negative/quote.coherent-lie.json
+
 log "gate: net-first-display — real opportunity-card surface (must pass)"
 capture net-first-display-positive pass node scripts/gates/net-first-display.mjs gates/fixtures/surfaces/opportunity-card.json
 
@@ -131,6 +134,9 @@ capture discovery-returns-stores-negative fail node scripts/gates/discovery-retu
 log "gate: discovery-returns-stores — S3 NEGATIVE (a directory that leaked a product feed, must fail)"
 capture discovery-returns-stores-s3-negative fail node scripts/gates/discovery-returns-stores.mjs gates/fixtures/negative/discovery/boutiques-as-product-feed.json
 
+log "gate: discovery-returns-stores — NEGATIVE FIXTURE (PORTES-FRANCAISES-1 F-11: a well-formed stores[] beside a top-level « catalogue » pool, must fail)"
+capture discovery-returns-stores-catalogue-negative fail node scripts/gates/discovery-returns-stores.mjs gates/fixtures/negative/discovery/catalogue-beside-stores.json
+
 log "gate: attribution-tamper-fails-closed — valid signed token (must pass)"
 capture attribution-tamper-positive pass node scripts/gates/attribution-tamper.mjs gates/fixtures/attribution/valid-token.json
 
@@ -160,6 +166,12 @@ capture no-supplier-contact-supply-live pass node scripts/gates/no-supplier-cont
 
 log "gate: no-supplier-contact — NEGATIVE FIXTURE (supplier identity/contact/commission leak, must fail)"
 capture no-supplier-contact-negative fail node scripts/gates/no-supplier-contact.mjs gates/fixtures/negative/customer-surfaces/leaking-product-view.json
+
+log "gate: no-supplier-contact — NEGATIVE FIXTURE (PORTES-FRANCAISES-1 F-11: the same leak under FRENCH keys — fournisseur, telFournisseur, whatsapp, adresseEntrepôt, prixBase, marge, sellerPhone — must fail)"
+capture no-supplier-contact-french-negative fail node scripts/gates/no-supplier-contact.mjs gates/fixtures/negative/customer-surfaces/leaking-french-keys.json
+
+log "gate: no-supplier-contact — NEGATIVE FIXTURE (PORTES-FRANCAISES-1 F-11: clean keys, a phone number typed into the description VALUE; an ISO timestamp beside it must not be what trips it — must fail)"
+capture no-supplier-contact-phone-value-negative fail node scripts/gates/no-supplier-contact.mjs gates/fixtures/negative/customer-surfaces/leaking-phone-in-text.json
 
 log "gate: no-expo-token-leak — repo source + workflows + lockfile (must pass)"
 capture no-expo-token-leak-positive pass node scripts/gates/no-expo-token-leak.mjs
@@ -273,7 +285,10 @@ log "gate: no-drop-code-exposure — services + reseller app + packages (must pa
 capture no-drop-code-exposure-positive pass node scripts/gates/no-drop-code-exposure.mjs
 
 log "gate: no-drop-code-exposure — NEGATIVE FIXTURE (buyerDropCode on a reseller surface, must fail)"
-capture no-drop-code-exposure-negative fail node scripts/gates/no-drop-code-exposure.mjs gates/fixtures/negative/drop-code
+capture no-drop-code-exposure-negative fail node scripts/gates/no-drop-code-exposure.mjs gates/fixtures/negative/drop-code/reseller-sale-view.ts
+
+log "gate: no-drop-code-exposure — NEGATIVE FIXTURE (PORTES-FRANCAISES-1 F-11: codeDeRemise + buyerHandoffPin on a reseller surface, no English spelling present, must fail)"
+capture no-drop-code-exposure-french-negative fail node scripts/gates/no-drop-code-exposure.mjs gates/fixtures/negative/drop-code/reseller-vente-view.ts
 
 log "gate: no-emoji-in-chrome — app surfaces carry only canon SVG glyphs, never emoji (Grand Teint §8, must pass)"
 capture no-emoji-in-chrome-positive pass node scripts/gates/no-emoji-in-chrome.mjs

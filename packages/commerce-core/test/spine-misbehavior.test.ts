@@ -183,6 +183,12 @@ describe('§3 misbehavior — payment provider mock vs the spine', () => {
       // unnamed 500 this slice claims closed. Written RED first.
       { fee: 9_007_199_254_740_992 },
       { fee: Number.NaN },
+      // PORTES-FRANCAISES-1 (AUDIT-SHOP-2 F-34): a fee that is PRESENT and not
+      // a number used to be ACCEPTED and recorded as 0 — a franc the provider
+      // never said, in a record whose law is « provider truth, copied as-is ».
+      // Moved from the accepted list below; refused by name now.
+      { fee: '250' },
+      { fee: true },
     ];
     for (const patch of broken) {
       const spine = spineAtPaymentPending(quote);
@@ -203,17 +209,16 @@ describe('§3 misbehavior — payment provider mock vs the spine', () => {
     // path historically coerced keeps landing: an integer fee, fee 0, an
     // explicit null on any of the three (the `??`/typeof fallbacks fire), a
     // NON-STRING collectRef/provider (String()-coerced, as always — the
-    // recheck caught the first guard newly refusing these), a numeric-string
-    // fee (recorded as 0, the pre-existing coercion), and — proving the
+    // recheck caught the first guard newly refusing these), and — proving the
     // fallback, not just a present value — a payload with collectRef
-    // genuinely ABSENT (the record uses command_id).
+    // genuinely ABSENT (the record uses command_id). A numeric-STRING fee is
+    // no longer here: F-34 moved it to the refused list above.
     const accepted: Record<string, unknown>[] = [
       { fee: 250 },
       { fee: 0 },
       { collectRef: null, provider: null, fee: null },
       { collectRef: 123 },
       { provider: 456 },
-      { fee: '250' },
     ];
     for (const patch of accepted) {
       const spine = spineAtPaymentPending(quote);

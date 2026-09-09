@@ -1,0 +1,10 @@
+{
+  "stores": [
+    { "storefrontId": "sf_aicha", "resellerId": "res_aicha", "storeName": "CHEZ AÏCHA", "zone": "Rood Woko" },
+    { "storefrontId": "sf_mariam", "resellerId": "res_mariam", "storeName": "CHEZ MARIAM", "zone": "Gounghin" }
+  ],
+  "catalogue": [
+    { "productVersionId": "pv_bazin", "resellers": ["res_aicha", "res_mariam"] },
+    { "productVersionId": "pv_sac", "resellers": ["res_mariam"] }
+  ]
+}

@@ -291,7 +291,11 @@ describe('GARDE-PAIEMENT-1 — (2) a malformed but authenticated webhook is 422 
         body: JSON.stringify(body),
       });
 
-    for (const over of [{ fee: 1.5 }, { fee: -5 }, { collectRef: '' }, { provider: '' }]) {
+    // PORTES-FRANCAISES-1 (AUDIT-SHOP-2 F-34): a fee that is PRESENT and not a
+    // number (`'250'`, `true`) was 200 here and recorded as fee 0 — a franc the
+    // provider never said, in a record whose law is « copied as-is ». RED
+    // before the widening (200), 422 by name now, through the real Worker.
+    for (const over of [{ fee: 1.5 }, { fee: -5 }, { collectRef: '' }, { provider: '' }, { fee: '250' }, { fee: true }]) {
       const res = await post(event(over));
       const text = await res.text();
       // RED before the fix: 500 (the ZodError thrown out of the vault), retried

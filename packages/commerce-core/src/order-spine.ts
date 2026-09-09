@@ -119,16 +119,24 @@ export type DoorPaymentOutcome =
  *     and ANY other value — number, boolean, object — String()-coerces to a
  *     non-empty string, exactly as it always did. The ONE value that reaches
  *     the parse empty and throws (`min(1)`) is the empty string itself.
- *   · `fee`: a non-number coerces to 0. A number must be a SAFE non-negative
- *     integer — canon `FcfaSchema` is zod `.int().min(0)`, and zod's `.int()`
- *     refuses 2^53 as `too_big`, while `Number.isInteger(2^53)` is true (the
- *     recheck's BLOCKER: the first cut waved unsafe integers into the throw).
+ *   · `fee`: a number must be a SAFE non-negative integer — canon `FcfaSchema`
+ *     is zod `.int().min(0)`, and zod's `.int()` refuses 2^53 as `too_big`,
+ *     while `Number.isInteger(2^53)` is true (the recheck's BLOCKER: the first
+ *     cut waved unsafe integers into the throw). An ABSENT fee (undefined or
+ *     JSON null) records as 0, as the record path always did.
+ *
+ * PORTES-FRANCAISES-1 (AUDIT-SHOP-2 F-34) — ONE WIDENING, ON PURPOSE: a fee
+ * that is PRESENT and not a number (`'250'`, `true`) used to coerce to 0 at
+ * the record call — a franc the provider did not say, written into a money
+ * record whose law is « provider truth, copied as-is » (ledger.ts). It is now
+ * `malformed_payload`: what cannot be copied is refused, never invented.
  */
 function escrowPayloadMalformed(p: Record<string, unknown>): boolean {
   if (p['collectRef'] === '' || p['provider'] === '') return true;
   const fee = p['fee'];
-  if (typeof fee === 'number' && !(Number.isSafeInteger(fee) && fee >= 0)) return true;
-  return false;
+  if (fee === undefined || fee === null) return false;
+  if (typeof fee !== 'number') return true;
+  return !(Number.isSafeInteger(fee) && fee >= 0);
 }
 
 export class OrderSpine {
