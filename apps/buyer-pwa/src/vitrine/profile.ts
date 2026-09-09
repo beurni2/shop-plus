@@ -190,8 +190,21 @@ const ABSENT_TRUST: VitrineTrust = { deliveredCount: 0, rating: '', reviewCount:
 // already async, so the chunk lands on the one microtask that needs it.
 const AICHA_NOTE_PIDS = ['p1', 'p2', 'p3', 'p4', 'p5', 'p7', 'p8', 'k1'] as const;
 async function aichaVoiceNotes(): Promise<ProductVoiceNotes> {
-  const { DEMO_VOICE_URL, DEMO_VOICE_DURATION_MS } = await import('./voice-asset');
-  const note: ProductVoiceNote = { status: 'ready', url: DEMO_VOICE_URL, durationMs: DEMO_VOICE_DURATION_MS };
+  // VOIX-HORS-LIGNE (ci #633 on the Tier 3 merge): this chunk is lazy and
+  // NOT precached (SW-PRECACHE-1), so a cold offline open of the demo shop
+  // whose notes were never fetched online rejected here — and the whole
+  // resolve with it: the buyer got the offline card instead of the shop. The
+  // notes are an enhancement; the shop is not. Locally the walk never saw it
+  // because Chromium 141's offline emulation does not reach a service
+  // worker's own fetch (the chunk quietly came from the live server); the
+  // runner's Chromium 149 told the truth.
+  let asset: { DEMO_VOICE_URL: string; DEMO_VOICE_DURATION_MS: number };
+  try {
+    asset = await import('./voice-asset');
+  } catch {
+    return {};
+  }
+  const note: ProductVoiceNote = { status: 'ready', url: asset.DEMO_VOICE_URL, durationMs: asset.DEMO_VOICE_DURATION_MS };
   return Object.fromEntries(AICHA_NOTE_PIDS.map((pid) => [pid, note]));
 }
 

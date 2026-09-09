@@ -101,7 +101,23 @@ async function mount(page: Page, key: string, fixture: FixtureName): Promise<voi
     `</head><body><div class="page">${unit}</div></body></html>`,
   ].join('');
   await page.setContent(html, { waitUntil: 'load' });
-  await page.evaluate(() => document.fonts.ready);
+  // CI-TRUTH (ci #633 on the Tier 3 merge): the runner measured Séance's
+  // trust strip at 106.75 against the 100 ceiling — the exact height this
+  // strip has on the FALLBACK font (measured here with /fonts/ blocked), not
+  // on Instrument Sans. `font-display: block` lays the text out on the
+  // fallback metrics until the face lands, and `document.fonts.ready` alone
+  // resolves before a face nobody has asked for starts loading. So every
+  // declared face is loaded on purpose, and a face that did not land fails
+  // by NAME instead of as a geometry number — the harness never measures a
+  // font the cliente will not see.
+  const faces = await page.evaluate(async () => {
+    await Promise.all([...document.fonts].map((f) => f.load().catch(() => undefined)));
+    await document.fonts.ready;
+    return [...document.fonts].map((f) => `${f.family}/${f.weight}:${f.status}`);
+  });
+  const instrument = faces.filter((f) => f.startsWith('Instrument Sans/'));
+  expect(instrument.length, faces.join(' ')).toBeGreaterThan(0);
+  expect(instrument.every((f) => f.endsWith(':loaded')), `faces not loaded: ${faces.join(' ')}`).toBe(true);
 }
 
 for (const width of [360, 320] as const) {
