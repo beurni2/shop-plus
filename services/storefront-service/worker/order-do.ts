@@ -240,18 +240,17 @@ interface ReleaseRow {
   commandId: string;
   quoteId: string;
   reason: 'payment_failed';
-  /** RESERVATION-REGLE-2 — the hold this order was born with; a release names it (absent on rows written before). */
+  /**
+   * RESERVATION-REGLE-2 — the hold the FAILING ATTEMPT was authorized on: the
+   * receipt `decideCreateOrder` passed on, which the owner's fresh hold
+   * refreshes before her retry (the chain's `reservation_id` is the BIRTH hold,
+   * write-once — naming it would leave a failed retry's hold to die by the
+   * TTL: verifier MAJOR). Absent on rows written before this slice.
+   */
   reservationId?: string;
   attempts: number;
   deliveredAt?: string;
   decision?: { ok: boolean; reason: string | null; state: string | null };
-}
-/** The hold this order was born with — the `reserved` advance's chain addition. */
-function reservationIdOf(log: readonly OrderInput[]): string | undefined {
-  for (const entry of log) {
-    if (entry.kind === 'advance' && entry.to === 'reserved') return entry.chainAdditions?.['reservation_id'];
-  }
-  return undefined;
 }
 /**
  * RESERVATION-REGLE-1 — THE STUCK-SAGA WATCH (Contract E2 exit: « DLQ +
@@ -1954,7 +1953,7 @@ export class OrderDO {
       ? durableLegKeys[leg.legType]
       : undefined;
     if (durableKey === undefined || durableKey !== providerKey) {
-      return this.endAttemptOnFault(quote, stored, log, attemptId, 'leg_key_not_durable');
+      return this.endAttemptOnFault(quote, stored, log, attemptId, 'leg_key_not_durable', decision.reservationId);
     }
 
     const charge = await this.charge({
@@ -1989,7 +1988,7 @@ export class OrderDO {
      */
     const accepted = acceptChargeForLeg(leg, charge.chargedAmount);
     if (!accepted.ok) {
-      return this.endAttemptOnFault(quote, stored, log, attemptId, accepted.reason);
+      return this.endAttemptOnFault(quote, stored, log, attemptId, accepted.reason, decision.reservationId);
     }
 
     const record = attempts[attempts.length - 1] as AttemptRecord;
@@ -2015,8 +2014,9 @@ export class OrderDO {
       ];
       await this.state.storage.put(LOG_KEY, log);
       // RESERVATION-REGLE-1 — the failure is durable; the hold's release rides
-      // beside it and the alarm carries it (the release is the rule).
-      await this.queueReservationRelease(stored, `rel-${attemptId}`, reservationIdOf(log));
+      // beside it and the alarm carries it (the release is the rule). REGLE-2:
+      // it names the hold THIS attempt was authorized on (the receipt's).
+      await this.queueReservationRelease(stored, `rel-${attemptId}`, decision.reservationId);
     }
     await this.state.storage.put(ATTEMPTS_KEY, attempts);
 
@@ -2059,6 +2059,8 @@ export class OrderDO {
     log: readonly OrderInput[],
     attemptId: string,
     fault: ChargeFault,
+    /** the hold this attempt was authorized on — the release names it */
+    reservationId: string,
   ): Promise<Response> {
     const ended = chargeFaultInput({
       fault,
@@ -2071,7 +2073,7 @@ export class OrderDO {
       await this.state.storage.put(LOG_KEY, next);
       // RESERVATION-REGLE-1 — a defence fault ends the attempt through the
       // same failure edge, so it earns the same release.
-      await this.queueReservationRelease(stored, `rel-${attemptId}`, reservationIdOf(next));
+      await this.queueReservationRelease(stored, `rel-${attemptId}`, reservationId);
     }
     return Response.json({ ok: false, reason: fault }, { status: 422 });
   }
@@ -2583,13 +2585,13 @@ export class OrderDO {
   /* ───────── RESERVATION-REGLE-1 — the release wire and the stuck-saga watch ───────── */
 
   /** Queue the hold's release beside the failure that earned it; the alarm carries it. */
-  private async queueReservationRelease(stored: StoredOrigin, commandId: string, reservationId: string | undefined): Promise<void> {
+  private async queueReservationRelease(stored: StoredOrigin, commandId: string, reservationId: string): Promise<void> {
     const row: ReleaseRow = {
       status: 'pending',
       commandId,
       quoteId: stored.quoteId,
       reason: 'payment_failed',
-      ...(reservationId !== undefined ? { reservationId } : {}),
+      reservationId,
       attempts: 0,
     };
     await this.state.storage.put(RELEASE_KEY, row);
@@ -2656,7 +2658,10 @@ export class OrderDO {
     if (origin !== undefined && quote !== undefined && decision.state !== undefined) {
       const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
       const spine = rebuildOrderSpine(quote, origin, log);
-      const alert = reservationReconciliationAlert(spine, decision.state, { serverTime: at });
+      const alert = reservationReconciliationAlert(spine, decision.state, {
+        serverTime: at,
+        ...(row.reservationId !== undefined ? { ownReservationId: row.reservationId } : {}),
+      });
       if (alert !== null) await this.sinkReconAlerts([alert]);
     }
     return 0;
@@ -2674,7 +2679,10 @@ export class OrderDO {
       if (origin === undefined || quote === undefined) return;
       const log = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
       const spine = rebuildOrderSpine(quote, origin, log);
-      const alert = reservationReconciliationAlert(spine, read.state, { serverTime: new Date().toISOString() });
+      const alert = reservationReconciliationAlert(spine, read.state, {
+        serverTime: new Date().toISOString(),
+        ...(row.reservationId !== undefined ? { ownReservationId: row.reservationId } : {}),
+      });
       if (alert !== null) await this.sinkReconAlerts([alert]);
     } catch {
       // the wire is down for the read as it was for the release — nothing to judge

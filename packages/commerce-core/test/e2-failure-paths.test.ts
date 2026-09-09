@@ -95,6 +95,13 @@ describe('E2 scenario #1 — payment failure: the release is the rule, the alert
     const fresh: ReservationState = { ...heldReservation, reservationId: 'res-pf2-fresh' };
     expect(reservationReconciliationAlert(spine, fresh, { serverTime: LATER(3) })).toBeNull();
     expect(alert!.payload['reservation_id_held']).toBe('res-pf2');
+    // …unless the caller names THAT hold as the failing attempt's own (a retry
+    // authorized on the fresh hold, verifier MAJOR): then it IS the class.
+    const retryHeld = reservationReconciliationAlert(spine, fresh, { serverTime: LATER(3), ownReservationId: 'res-pf2-fresh' });
+    expect(retryHeld).not.toBeNull();
+    expect(retryHeld!.payload['reservation_id_held']).toBe('res-pf2-fresh');
+    // and the caller's word wins over the chain's birth hold in the other direction too
+    expect(reservationReconciliationAlert(spine, heldReservation, { serverTime: LATER(3), ownReservationId: 'res-pf2-fresh' })).toBeNull();
   });
 
   it('RETRY needs a genuinely new attempt id; the prior id is audited, never silently replaced', () => {

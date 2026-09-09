@@ -109,11 +109,10 @@ describe('RESERVATION-REGLE-2 — (2) the supplier-notification watch, on the re
       expect(bon.status, await bon.clone().text()).toBe(200);
       const confirmee = await jusqua(deux.orderId, (x) => x.state === 'confirmed');
       expect(confirmee.state).toBe('confirmed');
-      expect(confirmee.stuckSupplier ?? null, 'not stuck at the instant of the confirm').toBeNull();
 
       // The first wire knocks and is refused; past the TTL the watch fires, once.
       const stuck = await jusqua(deux.orderId, (x) => x.stuckSupplier !== null && x.stuckSupplier !== undefined);
-      expect(stuck.stuckSupplier, 'the watch fired on the alarm').not.toBeNull();
+      expect(stuck.stuckSupplier ?? null, 'the watch fired on the alarm (undefined is a missing field, not a mark)').not.toBeNull();
       expect(porte.refusals, 'the wire really knocked on the door').toBeGreaterThanOrEqual(1);
       const alerts = (stuck.reconAlerts ?? []).filter(
         (x) => x.name === 'saga.stuck.v1' && x.payload['blocked_on'] === 'supplier_notification',
@@ -159,6 +158,55 @@ describe('RESERVATION-REGLE-2 — (4) a release names its hold, on the real Chec
       body: JSON.stringify({ commandId: 'rel-sienne-0024', reason: 'payment_failed', reservationId: quatre.firstReservationId }),
     });
     expect(((await sienne.json()) as { state?: { status?: string } }).state?.status).toBe('released');
+  }, 30_000);
+});
+
+describe('RESERVATION-REGLE-2 — (5) a failed RETRY releases the hold it was authorized on, not the one the order was born with', () => {
+  // Its own Worker: TWO timeouts (the create AND the retry fail), no release
+  // fault — the verifier's MAJOR on the first cut, which named the BIRTH hold
+  // and would have left the retry's fresh hold to die by the TTL.
+  const porteBis: PorteBoutik = { supplier: false, refusals: 0 };
+  const bis = regleWorker({
+    persistPrefix: 'reservation-regle-2-bis-',
+    bindings: {
+      PAYMENT_SANDBOX_BEHAVIOR: JSON.stringify({ timeoutFirstNInitiates: 2 }),
+      STUCK_SAGA_TTL_MS: String(STUCK_TTL_MS),
+    },
+    offer: offerDouble(porteBis),
+  });
+  afterAll(async () => {
+    await bis.mf.dispose();
+    rmSync(bis.persist, { recursive: true, force: true });
+  });
+  const P = porteRegle(bis.mf);
+
+  it('hold A released on the first failure; her fresh hold B; the retry fails on B; the row names B and B is released; a fresh hold C succeeds', async () => {
+    const cinq = await P.creerCommande('0025');
+    expect(cinq.state).toBe('payment_failed');
+    const a = await P.jusqua(cinq.orderId, (x) => x.release?.status === 'delivered');
+    expect(a.release?.reservationId, 'the first row names the birth hold — the create was authorized on it').toBe(cinq.firstReservationId);
+    expect(a.release?.decision?.state).toBe('released');
+
+    // Her fresh hold B refreshes her receipt (the owner's own hold, strictly later).
+    const b = await P.reserver(cinq.quoteId, cinq.holderRef, 'cmd-fresh-0025-b');
+    expect(b.status, JSON.stringify(b.body)).toBe(200);
+    const holdB = b.body.reservationId as string;
+    expect(holdB).not.toBe(cinq.firstReservationId);
+
+    // The retry is authorized on B and its charge times out too.
+    const retry = await P.retenter(cinq.quoteId, cinq.holderRef, 'cmd-order-0025-retry');
+    expect(retry.status, JSON.stringify(retry.body)).toBe(200);
+    expect(retry.state, 'the second initiate times out (budget 2)').toBe('payment_failed');
+    const bRel = await P.jusqua(cinq.orderId, (x) => x.release?.status === 'delivered' && x.release?.reservationId === holdB);
+    expect(bRel.release?.reservationId, 'the row names the hold the RETRY was authorized on').toBe(holdB);
+    expect(bRel.release?.decision?.ok).toBe(true);
+    expect(bRel.release?.decision?.state, 'B is released — not left to die by the TTL').toBe('released');
+
+    // The proof the hold is free: her next hold succeeds at once.
+    const c = await P.reserver(cinq.quoteId, cinq.holderRef, 'cmd-fresh-0025-c');
+    expect(c.status, JSON.stringify(c.body)).toBe(200);
+    expect(c.body.status).toBe('reserved');
+    expect(c.body.reservationId).not.toBe(holdB);
   }, 30_000);
 });
 

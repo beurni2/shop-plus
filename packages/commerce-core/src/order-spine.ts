@@ -21,15 +21,25 @@ export type PaymentFailureReason = 'charge_rejected' | 'charge_timeout' | 'webho
 export function reservationReconciliationAlert(
   spine: OrderSpine,
   reservation: ReservationState,
-  args: { serverTime: string },
+  args: {
+    serverTime: string;
+    /**
+     * RESERVATION-REGLE-2 — the hold the FAILING ATTEMPT was authorized on.
+     * The chain's `reservation_id` is write-once (the hold the order was born
+     * with), while a retry runs on the owner's fresh hold; the caller that
+     * knows which hold the attempt used names it here. Absent ⇒ the chain's.
+     */
+    ownReservationId?: string;
+  },
 ): PlatformEvent | null {
   if (spine.journey.state !== 'payment_failed') return null;
   if (reservation.status !== 'reserved') return null;
-  // RESERVATION-REGLE-2: the net judges THIS order's hold. A reservation held
-  // under another id is the buyer's fresh hold after the release — a healthy
-  // world, not the held-after-failure class. (The Worker feeds the LIVE state
-  // in; without this line a legitimate re-hold would raise a false alarm.)
-  const own = spine.journey.chain.reservation_id;
+  // RESERVATION-REGLE-2: the net judges THIS attempt's hold. A reservation
+  // held under another id is the buyer's fresh hold after the release — a
+  // healthy world, not the held-after-failure class. (The Worker feeds the
+  // LIVE state in; without this line a legitimate re-hold would raise a false
+  // alarm.)
+  const own = args.ownReservationId ?? spine.journey.chain.reservation_id;
   if (own !== undefined && reservation.reservationId !== own) return null;
   return PlatformEventSchema.parse({
     name: 'reconciliation.alert.v1',
