@@ -144,6 +144,11 @@ for (const width of [360, 320] as const) {
         const scene = await page.locator(`.${style.p}-scene`).boundingBox();
         expect(scene!.height, `${fixture}: scene ${scene!.height} < min ${sceneMin}`).toBeGreaterThanOrEqual(sceneMin - 1);
         const trust = await page.locator('[data-role="vitrine-trust"]').boundingBox();
+        const unitBox = await unit.boundingBox();
+        // CI-TRUTH — every measurement is PRINTED, so a ceiling moves on the
+        // number the gate's own machine produced, never on a sandbox guess
+        // (ci #633/#634: the runner read 106.75 where this sandbox reads 94.75).
+        console.log(`MESURE ${style.key} @ ${width} ${fixture}: scene ${scene!.height} · trust ${trust!.height} · unit ${unitBox!.height}`);
         // The strip stays a strip. It runs taller than the contract's ~64 for a
         // reason that is not a defect: our catalog carries « Livraison Séra
         // vérifiée & scellée » as ONE label plus a separate subline, where the
@@ -157,8 +162,10 @@ for (const width of [360, 320] as const) {
         // on the page — and the strip grew with it. Measured max after the
         // floor: 96 (360, Harmattan and Séance). The ceiling moves only with a
         // new measurement, as before.
-        expect(trust!.height, `${fixture}: trust ${trust!.height}`).toBeLessThanOrEqual(100);
-        const box = await unit.boundingBox();
+        // SOFT on the two ceilings only: one fixture over its ceiling must not
+        // hide the other five behind it — a red run reports every number.
+        expect.soft(trust!.height, `${fixture}: trust ${trust!.height}`).toBeLessThanOrEqual(100);
+        const box = unitBox;
         // structural identity — the unit IS its status pad + hero + strip, so a
         // stray band or a collapsed margin shows up here rather than silently
         expect(box!.height, `${fixture}: unit ${box!.height}`).toBeGreaterThanOrEqual(60 + scene!.height);
@@ -172,7 +179,7 @@ for (const width of [360, 320] as const) {
         // founder decision flagged in JOURNAL.md rather than a silent choice.
         // CONFIANCE-LISIBLE-1 (F-25): the raised trust type grew the strip;
         // measured max after the floor: 514 (320, Cauris, long name).
-        expect(box!.height, `${fixture}: header window ${box!.height}`).toBeLessThanOrEqual(515);
+        expect.soft(box!.height, `${fixture}: header window ${box!.height}`).toBeLessThanOrEqual(515);
         expect(box!.width, `${fixture}: full bleed`).toBe(width);
 
         // proof and badge are mutually exclusive, per the data — and whichever

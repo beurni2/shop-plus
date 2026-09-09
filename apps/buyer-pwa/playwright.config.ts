@@ -28,7 +28,15 @@ export default defineConfig({
       args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
     },
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // CI-TRUTH (ci #633/#634 on the Tier 3 merge) — the FULL Chromium build, in
+  // its new headless mode, on every machine. Playwright's default headless
+  // target since 1.49 is the separate `chromium-headless-shell`; this sandbox
+  // has always driven the full binary (PW_EXECUTABLE), the GitHub runner drove
+  // the shell, and the two shape text differently enough that a subline near
+  // the 320 px wrap boundary broke one line later on the shell alone (the
+  // Séance trust strip: 106.75 there, 94.75 here, faces loaded on both). The
+  // full build is what a phone's Chrome runs; the harness measures that.
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], channel: 'chromium' } }],
   webServer: [
     {
       // --host 127.0.0.1: vite preview binds `localhost` by default, which on

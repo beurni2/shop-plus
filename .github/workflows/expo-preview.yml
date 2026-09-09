@@ -64,8 +64,10 @@ jobs:
             git config --global --add url."$B".insteadOf "git@github.com:beurni2/platform-contracts"
             git config --global --add url."$B".insteadOf "ssh://git@github.com/beurni2/platform-contracts"
           fi
+          # The grant dies with this step whatever the install does (a failing
+          # install under set -e must not leave it behind — Tier 4 verifier).
+          trap 'rm -f "$GIT_CONFIG_GLOBAL"' EXIT
           pnpm install --frozen-lockfile
-          rm -f "$GIT_CONFIG_GLOBAL"
       - name: Publish reseller-app preview update (EAS, non-interactive)
         if: steps.token.outputs.present == 'true'
         working-directory: apps/reseller-app

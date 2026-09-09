@@ -49,7 +49,8 @@ runScanGate({
     {
       file: 'services/storefront-service/test/livraison-boutik.e2e.test.ts',
       pattern: CODE_REMISE,
-      ruling: 'the e2e that pins the Boutik+ readiness/seller evidence code-free — it spells the identifier only to assert its ABSENCE',
+      ruling:
+        'the e2e that pins the Boutik+ readiness/seller evidence code-free — its `codeRemise` is a local VARIABLE holding the English name, built so the English patterns never see it, and the file asserts that name ABSENT; no French spelling is asserted or emitted there (Tier 4 verifier)',
     },
   ],
 });

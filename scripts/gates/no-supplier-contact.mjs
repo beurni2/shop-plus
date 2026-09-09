@@ -10,15 +10,28 @@ import { readFileSync } from 'node:fs';
  *
  * PORTES-FRANCAISES-1 (AUDIT-SHOP-2 F-11) — THE GATE READS FRENCH, AND READS
  * VALUES. Five English regexes over KEYS let `{fournisseur, telFournisseur,
- * whatsapp, adresseEntrepot, prixBase, marge, sellerPhone}` through with
- * « OK » (measured). This codebase names things in French, so the next leak
- * key will be French. Now every key is split into accent-folded words
+ * whatsappFournisseur, adresseEntrepot, prixBase, marge, sellerPhone}` through
+ * with « OK » (measured). This codebase names things in French, so the next
+ * leak key will be French. Now every key is split into accent-folded words
  * (`telFournisseur` → « tel fournisseur », `prix_de_base` → « prix de base »)
  * and matched against BOTH spellings of every family — and every string VALUE
  * is swept for a phone-shaped run of digits with `supply-consumer`'s own
  * CONTACT_NUMBER, the one high-signal content leak (a number typed into a
  * description). Only an ISO date/time SHAPE is excused from the value sweep,
  * never a key name: a leak under `updatedAt` would be a leak.
+ *
+ * THE ONE CONTACT THAT BELONGS ON THE PAGE (Tier 4 verifier, MAJOR): SP-I03's
+ * FIRST clause makes the reseller the commercial relationship, and
+ * CONTACT-WHATSAPP-1 (founder order 2026-08-23) puts HER WhatsApp on the
+ * buyer surface on purpose — the real `GET /s/{slug}` read spreads
+ * `{ whatsapp }` onto the StorefrontView. That exact bare key is therefore a
+ * founder-ruled carve-out, printed on every run like the drop-code gate's:
+ * the key alone, at any depth, with its value exempt from the phone sweep.
+ * Any compound — `whatsappFournisseur`, `supplierWhatsapp`, `sellerWhatsapp`
+ * — still fails through the supplier/seller families, and every other phone
+ * key or phone-shaped value still fails. The checked-in positive fixtures
+ * predate CONTACT-WHATSAPP-1 and carry no `whatsapp`; a faithful capture of
+ * the `/s/` read is owed (journalled), and passes here by construction.
  */
 const file = process.argv[2];
 if (!file) {
@@ -58,6 +71,14 @@ const BANNED = [
   { name: 'pickup location', regex: /\b(pickup|pick up|entrepot|depot|retrait|enlevement)\b/ },
   { name: 'phone / messaging contact', regex: /\b(tel|telephone|phone|whatsapp|portable)\b/ },
 ];
+// FOUNDER-RULED CARVE-OUTS: the exact key (its words), the ruling printed on
+// every hit. Nothing else is excused.
+const ALLOWED = [
+  {
+    mots: 'whatsapp',
+    ruling: "the reseller's own WhatsApp — SP-I03's first clause, CONTACT-WHATSAPP-1 (founder 2026-08-23); the `/s/{slug}` read emits this bare key on purpose",
+  },
+];
 // supply-consumer's CONTACT_NUMBER, verbatim: eight or more digits, each
 // optionally followed by a space, dot or dash — a Burkina number in any
 // customary spelling. An ISO date/time carries eight digits too and is the
@@ -78,6 +99,14 @@ function walk(value, path) {
   if (value !== null && typeof value === 'object') {
     for (const [k, v] of Object.entries(value)) {
       const mots = motsDeCle(k);
+      const allowed = ALLOWED.find((a) => a.mots === mots);
+      if (allowed !== undefined) {
+        console.log(`no-supplier-contact allowed — ${path}.${k} (${allowed.ruling})`);
+        // Her number is a bare string; anything STRUCTURED under the excused key
+        // is still read in full — the carve-out excuses one key, never a subtree.
+        if (typeof v !== 'string') walk(v, `${path}.${k}`);
+        continue;
+      }
       for (const { name, regex } of BANNED) {
         if (regex.test(mots)) hits.push(`${path}.${k} — ${name}`);
       }
