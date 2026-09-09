@@ -1939,7 +1939,7 @@
  },
  {
   "key": "racine.hors_ligne",
-  "fr": "Pas de réseau pour le moment. Le lien s’ouvrira quand la connexion reviendra.",
+  "fr": "Pas de réseau pour le moment. Vous pourrez ouvrir le lien quand la connexion reviendra.",
   "register": "neutral",
   "screenClass": "status"
  },

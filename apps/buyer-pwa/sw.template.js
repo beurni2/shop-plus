@@ -34,8 +34,10 @@
  *     first paint is a face no buyer ever sees.
  *   · A LAZY chunk (any other `assets/*`) is cached ON FIRST USE: the first
  *     shop that wears « pagne » fetches its chunk once, and from then on that
- *     header draws offline too. Only content-addressed names are cached this
- *     way — a chunk's bytes can never change under its name.
+ *     header draws offline too — across redeploys as well, because activate
+ *     copies the outgoing version's content-addressed entries forward before
+ *     deleting it. Only content-addressed names are cached this way — a
+ *     chunk's bytes can never change under its name.
  *   · Fixed-name files (index.html, the manifest, the icons, the faces) are
  *     fetched with `cache: 'no-cache'`: the browser REVALIDATES with the
  *     origin (a conditional request, a 304 when unchanged) instead of
@@ -114,11 +116,23 @@ self.addEventListener('activate', (event) => {
 
 async function activer() {
   const noms = await caches.keys();
-  await Promise.all(
-    noms
-      .filter((nom) => nom.startsWith('coquille-shop-plus-') && nom !== CACHE)
-      .map((nom) => caches.delete(nom)),
-  );
+  const anciens = noms.filter((nom) => nom.startsWith('coquille-shop-plus-') && nom !== CACHE);
+  // A header chunk kept on first use survives a redeploy: the outgoing
+  // version's content-addressed entries are copied into this one before it
+  // is deleted (their bytes can never change under their names). Fixed-name
+  // files are never copied — see contenuAdresse.
+  const cache = await caches.open(CACHE);
+  for (const nom of anciens) {
+    const ancien = await caches.open(nom);
+    for (const requete of await ancien.keys()) {
+      const url = new URL(requete.url);
+      if (!contenuAdresse(url.pathname.slice(RACINE.pathname.length))) continue;
+      if ((await cache.match(url.href)) !== undefined) continue;
+      const reponse = await ancien.match(requete);
+      if (reponse !== undefined) await cache.put(url.href, reponse);
+    }
+  }
+  await Promise.all(anciens.map((nom) => caches.delete(nom)));
   await self.clients.claim();
 }
 

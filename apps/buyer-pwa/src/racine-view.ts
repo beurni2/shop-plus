@@ -20,10 +20,10 @@ import { LISTE_TOKEN } from './vitrine/liste';
  * exactly as the C-ENT entries do. Anything else is refused on the card with
  * one sentence and the field kept — never a navigation to nowhere.
  *
- * Offline is a designed state here too (F-63): `navigator.onLine` false
- * paints the ink band, and the field stays usable — a pasted link still opens
- * the boutique's own offline card, whose « Réessayer » speaks when the
- * network returns.
+ * Offline is a designed state here too (F-63): the ink band follows
+ * `navigator.onLine` and the `online`/`offline` events, and the field stays
+ * usable — a pasted link still opens the boutique's own offline card, whose
+ * « Réessayer » is hers to press when the network returns.
  */
 
 export type RouteLien =
@@ -34,8 +34,10 @@ const SLUG_SEUL = /^[a-z0-9-]+$/;
 
 /** Parse what she pasted into one of the two canon routes, or nothing. */
 export function routeDepuisLien(texte: string): RouteLien | undefined {
-  // WhatsApp pastes arrive with quotes, guillemets and stray spaces around them.
-  const brut = texte.trim().replace(/^[«»"'\s]+|[«»"'\s]+$/g, '').trim();
+  // WhatsApp pastes arrive with quotes, guillemets and stray spaces around
+  // them — and a French sentence ends its link with a period or a bracket
+  // (verifier): « …/v/aicha-4821. » is a good link.
+  const brut = texte.trim().replace(/^[«»"'\s]+|[«»"'\s]+$/g, '').replace(/[.,;:!?)\]]+$/, '').trim();
   if (brut === '') return undefined;
   const bas = brut.toLowerCase();
   if (SLUG_SEUL.test(bas)) return { kind: 'vitrine', slug: bas };
@@ -71,7 +73,7 @@ export function renderRacine(opts: { readonly enLigne: boolean }): string {
   return [
     '<section class="racine" data-screen="racine">',
     `<header class="racine-tete"><h1 class="racine-marque">${t('app.title')}</h1></header>`,
-    opts.enLigne ? '' : `<p class="offline-banner" data-role="offline">${t('racine.hors_ligne')}</p>`,
+    `<p class="offline-banner" data-role="offline"${opts.enLigne ? ' hidden' : ''}>${t('racine.hors_ligne')}</p>`,
     `<h2 class="racine-titre">${t('racine.titre')}</h2>`,
     `<p class="racine-sous">${t('racine.sous_titre')}</p>`,
     '<form class="racine-form" data-role="racine-form" novalidate>',
@@ -114,4 +116,12 @@ export function monterRacine(
     refus.hidden = true;
     champ.removeAttribute('aria-invalid');
   });
+  // F-63 (verifier): the band follows the network while she stands on the
+  // card — a one-shot read stayed on after the network returned and never
+  // appeared when it dropped.
+  const bande = main.querySelector('[data-role="offline"]');
+  if (bande instanceof HTMLElement) {
+    window.addEventListener('online', () => { bande.hidden = true; });
+    window.addEventListener('offline', () => { bande.hidden = false; });
+  }
 }

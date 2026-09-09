@@ -219,6 +219,52 @@ describe('SW-PRECACHE-1 — un chunk paresseux est gardé au premier usage ; le 
   });
 });
 
+describe('SW-PRECACHE-1 — l’activation copie les chunks adressés par contenu de l’ancienne version, jamais un nom fixe (verifier)', () => {
+  it('un chunk d’en-tête gardé au premier usage survit au redéploiement ; une face à nom fixe ne traverse pas ; l’ancien cache est supprimé', async () => {
+    const source = readFileSync(resolve(__dirname, '../sw.template.js'), 'utf8')
+      .replace("'__VERSION__'", "'v2'")
+      .replace('__PRECACHE__', '[]');
+    const magasins = new Map<string, Map<string, Response>>([
+      ['coquille-shop-plus-v1', new Map([
+        [`${RACINE}assets/pagne-BoV2a2bb.js`, new Response('pagne')],
+        [`${RACINE}fonts/Sora-ExtraBold.woff2`, new Response('face')],
+      ])],
+    ]);
+    const supprimes: string[] = [];
+    const store = (nom: string) => {
+      if (!magasins.has(nom)) magasins.set(nom, new Map());
+      const m = magasins.get(nom)!;
+      return {
+        keys: async () => [...m.keys()].map((url) => ({ url })),
+        match: async (r: string | { url: string }) => m.get(typeof r === 'string' ? r : r.url),
+        put: async (cle: string, reponse: Response) => { m.set(cle, reponse); },
+      };
+    };
+    const caches = {
+      keys: async () => [...magasins.keys()],
+      open: async (nom: string) => store(nom),
+      match: async (cle: string) => { for (const m of magasins.values()) { const r = m.get(cle); if (r) return r; } return undefined; },
+      delete: async (nom: string) => { supprimes.push(nom); magasins.delete(nom); return true; },
+    };
+    const gestionnaires = new Map<string, Gestionnaire>();
+    const self = {
+      location: { href: `${RACINE}sw.js` },
+      addEventListener: (nom: string, g: Gestionnaire) => gestionnaires.set(nom, g),
+      skipWaiting: async () => undefined,
+      clients: { claim: async () => undefined },
+    };
+    new Function('self', 'caches', 'fetch', source)(self, caches, async () => new Response('reseau'));
+    let attendu: Promise<unknown> | undefined;
+    gestionnaires.get('activate')!({ waitUntil: (p: Promise<unknown>) => { attendu = p; } });
+    await attendu;
+    const nouveau = magasins.get('coquille-shop-plus-v2')!;
+    expect([...nouveau.keys()]).toEqual([`${RACINE}assets/pagne-BoV2a2bb.js`]);
+    expect(await nouveau.get(`${RACINE}assets/pagne-BoV2a2bb.js`)!.text()).toBe('pagne');
+    expect(supprimes).toEqual(['coquille-shop-plus-v1']);
+    expect(magasins.has('coquille-shop-plus-v1')).toBe(false);
+  });
+});
+
 describe('SW-PRECACHE-1 — la liste de précache est la trame d’entrée, la version hache tout ce qui peut être servi', () => {
   function distFactice(): string {
     const dist = mkdtempSync(join(tmpdir(), 'coquille-'));

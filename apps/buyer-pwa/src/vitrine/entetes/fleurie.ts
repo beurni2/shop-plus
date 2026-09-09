@@ -207,7 +207,7 @@ const css = `
   }
   .vt-fl .fl-pilule svg { flex: none; }
   .vt-fl .fl-pilule b { font-weight: 700; color: #4A3A32; }
-  .vt-fl .fl-stars { margin-top: 5px; font-size: 11px; font-weight: 600; color: #B0785A; }
+  .vt-fl .fl-stars { margin-top: 5px; font-size: 11px; font-weight: 600; color: #895E46; /* CONFIANCE-LISIBLE-1 (verifier, pattern-backed) — was #B0785A (3.15:1), now 4.78:1 */ }
   .vt-fl .fl-stars svg { vertical-align: -1.5px; margin-right: 3px; }
   /* THE GALET — an organic blob, ribboned white, relevé top 44 + 60 */
   .vt-fl .fl-galet {
@@ -254,7 +254,7 @@ const css = `
   .vt-fl .fl-cell-i--sauge { background: var(--fl-sauge); }
   .vt-fl .fl-cell-i--rose { background: #F2C6CC; }
   .vt-fl .fl-cell-l { font-size: 11px; font-weight: 700; line-height: 1.28; color: #4A4534; }
-  .vt-fl .fl-cell-s { font-size: 10px; line-height: 1.25; color: var(--fl-t3); }
+  .vt-fl .fl-cell-s { font-size: 10px; line-height: 1.25; color: #76665F; /* CONFIANCE-LISIBLE-1 (verifier, pattern-backed) — was var(--fl-t3) (2.78:1), now 4.66:1 */ }
   .vt-fl .fl-btn { background: rgba(255,255,255,.9); box-shadow: 0 4px 12px -3px rgba(150,90,90,.4); }
   .vt-fl .vt-ent-btn { top: 70px; }
   .vt-fl .vt-ent-back { right: 20px; }

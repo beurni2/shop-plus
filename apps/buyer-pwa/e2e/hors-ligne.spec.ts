@@ -43,9 +43,15 @@ test('installed once, the shell cold-opens offline — the directory, then a dee
   await expect(page.locator('[data-screen="racine"]')).toBeVisible();
   await expect(page.locator('[data-role="racine-lien"]')).toBeEditable();
   await expect(page.locator('[data-action="racine-ouvrir"]')).toBeEnabled();
+  await expect(page.locator('[data-role="offline"]')).toBeVisible();
   await expect(page.locator('[data-role="offline"]')).toHaveText(
-    'Pas de réseau pour le moment. Le lien s’ouvrira quand la connexion reviendra.',
+    'Pas de réseau pour le moment. Vous pourrez ouvrir le lien quand la connexion reviendra.',
   );
+  // F-63 (verifier) — the band follows the network while she stands on the card
+  await context.setOffline(false);
+  await expect(page.locator('[data-role="offline"]')).toBeHidden();
+  await context.setOffline(true);
+  await expect(page.locator('[data-role="offline"]')).toBeVisible();
   await expect(page.locator('main')).not.toContainText('CHEZ AÏCHA');
 
   // INSTALLABLE-1 — the manifest and its icons answer from the worker's cache

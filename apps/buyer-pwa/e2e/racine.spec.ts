@@ -30,14 +30,14 @@ test('the root is the honest card: no invented seller, one field, one act — an
   // the fiction is gone from the front door
   await expect(page.locator('[data-role="boutique"]')).toHaveCount(0);
   await expect(page.locator('main')).not.toContainText('CHEZ AÏCHA');
-  await expect(page.locator('[data-role="offline"]')).toHaveCount(0);
+  await expect(page.locator('[data-role="offline"]')).toBeHidden();
 
   const champ = page.locator('[data-role="racine-lien"]');
   const ouvrir = page.locator('[data-action="racine-ouvrir"]');
   await expect(champ).toBeVisible();
   await expect(ouvrir).toBeEnabled();
 
-  await champ.fill('  « https://beurni2.github.io/shop-plus/v/aicha-4821 »  ');
+  await champ.fill('  « https://beurni2.github.io/shop-plus/v/aicha-4821. »  ');
   await ouvrir.click();
   await expect(page).toHaveURL(`${PAGES}/shop-plus/v/aicha-4821`);
   await expect(page.locator('.vt-root[data-screen="vitrine"]')).toBeVisible({ timeout: 10_000 });

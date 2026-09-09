@@ -30,6 +30,17 @@ test('F-56 — the buyer flow\'s controls meet a 44px thumb (C1 discs and « Voi
   };
   await mesurer('.cl-shield', 'C1');
   await mesurer('.cl-voir', 'C1');
+  // (verifier) a box is not a target if the row clips it: the thumb must MEET
+  // the button at the top and bottom of its 44px, by hit-test, not by geometry
+  const touche = await page.locator('.cl-voir').first().evaluate((el) => {
+    const b = el.getBoundingClientRect();
+    const cx = b.left + b.width / 2;
+    return [b.top + 3, b.top + b.height / 2, b.bottom - 3].map((y) => {
+      const cible = document.elementFromPoint(cx, y);
+      return cible !== null && (cible === el || el.contains(cible));
+    });
+  });
+  expect(touche, 'the thumb meets « Voir » at the top, middle and bottom of its 44px').toEqual([true, true, true]);
   // the step back disc lives on the étape screens, the chips and the voice bar on C3
   await page.goto('/?demo-cliente=C3');
   await expect(page.locator('main.cl-root [data-screen="C3"]')).toBeVisible();

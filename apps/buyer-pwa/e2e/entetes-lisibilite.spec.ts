@@ -87,9 +87,13 @@ for (const key of ENTETE_KEYS) {
         let gradient = false;
         for (let a: HTMLElement | null = el; a !== null; a = a.parentElement) {
           const s = getComputedStyle(a);
-          if (s.backgroundImage !== 'none') { gradient = true; break; }
           const m = /rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(?:,\s*([\d.]+))?\s*\)/.exec(s.backgroundColor);
-          if (m !== null && (m[1] === undefined || Number(m[1]) >= 0.98)) { fond = s.backgroundColor; break; }
+          const opaque = m !== null && (m[1] === undefined || Number(m[1]) >= 0.98);
+          // (verifier) a TILED pattern (a background-size is set) is dots over a
+          // declared colour — judged against that colour, as the eye reads it; a
+          // full-cover gradient or an image stays reported, never judged.
+          if (s.backgroundImage !== 'none' && !(s.backgroundSize !== 'auto' && opaque)) { gradient = true; break; }
+          if (opaque) { fond = s.backgroundColor; break; }
         }
         sortie.push({ classe: el.className.toString(), texte: texte.slice(0, 40), taille, couleur: cs.color, fond, gradient });
       }

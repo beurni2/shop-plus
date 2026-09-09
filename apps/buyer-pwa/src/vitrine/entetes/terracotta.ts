@@ -152,7 +152,7 @@ const css = `
   .vt-te .te-proof { margin-top: 12px; display: flex; align-items: center; gap: 8px; }
   .vt-te .te-chip { flex: none; display: inline-flex; align-items: center; padding: 8px 12px; border-radius: 10px; background: var(--te-chip); font-weight: 800; font-size: 15px; color: var(--te-ivoire); }
   .vt-te .te-proof-t { font-size: 10.5px; line-height: 1.35; font-weight: 600; color: var(--te-txt); }
-  .vt-te .te-stars { display: flex; align-items: center; gap: 3px; margin-top: 1px; color: var(--te-etoile); }
+  .vt-te .te-stars { display: flex; align-items: center; gap: 3px; margin-top: 1px; color: #FEF3DA; /* CONFIANCE-LISIBLE-1 (verifier, pattern-backed) — was var(--te-etoile) (3.73:1), now 4.60:1 */ }
   .vt-te .te-nouv-wrap { margin-top: 14px; }
   .vt-te .te-nouv {
     position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
@@ -175,7 +175,7 @@ const css = `
   .vt-te .te-cell-i--rouille { background: var(--te-rouille); }
   .vt-te .te-cell-l { display: block; font-size: 11px; font-weight: 700; line-height: 1.3; color: #2E2A20; }
   .vt-te .te-cell-s { display: block; font-size: 10px; font-weight: 600; line-height: 1.3; }
-  .vt-te .te-cell-s--vert { color: #7C6A50; }
+  .vt-te .te-cell-s--vert { color: #75644B; /* CONFIANCE-LISIBLE-1 (verifier) — was #7C6A50 (4.20:1 on the creme under the dots), now 4.63:1 */ }
   .vt-te .te-cell-s--rouille { color: var(--te-rouille); }
   .vt-te .te-btn { background: var(--te-creme); }
   .vt-te .vt-ent-btn { top: 70px; }

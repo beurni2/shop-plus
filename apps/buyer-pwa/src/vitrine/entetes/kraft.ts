@@ -65,7 +65,7 @@ function render(v: Vals): string {
     `<div class="kr-name${v.longName ? ' vt-ent-long' : ''}">${weldSeal(v.tail, `<span class="kr-seal" aria-hidden="true"><span class="kr-seal-d">${iconCheckEnt(10, '#FFFFFF', 3.4)}</span><span class="kr-seal-f"></span></span>`)}</div>`,
     v.hasTag ? `<div class="kr-bienv"><v>${v.tagline}</v></div>` : '',
     // « Vendeuse vérifiée · {zone} » STAMPED — the style's verification mark
-    `<div class="kr-tampon"><span>${zoneLine(v, iconPinEnt(10, '#BE3D2A', 2.6))}</span></div>`,
+    `<div class="kr-tampon"><span>${zoneLine(v, iconPinEnt(10, '#A73625', 2.6))}</span></div>`,
     v.hasBio ? `<div class="kr-bio"><v>${v.bio}</v></div>` : '',
     v.showProof
       ? `<div class="kr-proof"><span data-role="reputation">${ventesLine(v)}</span>${
@@ -167,7 +167,7 @@ const css = `
     margin-top: 8px; display: inline-flex; max-width: 100%; transform: rotate(-2deg);
     border: 1.5px dashed var(--kr-tampon); border-radius: 8px; padding: 5px 9px;
     font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
-    line-height: 1.45; color: var(--kr-tampon);
+    line-height: 1.45; color: #A73625; /* CONFIANCE-LISIBLE-1 (verifier, pattern-backed) — was var(--kr-tampon) (3.88:1 on the kraft under the grain), now 4.72:1 */
   }
   .vt-kr .kr-tampon svg { vertical-align: -1px; margin-right: 4px; }
   .vt-kr .kr-bio { margin-top: 9px; font-size: 12px; line-height: 1.5; color: var(--kr-t1); }

@@ -115,7 +115,10 @@ export const CLIENTE_STYLES = `
   }
   .cl-idcol { flex: 1; min-width: 0; }
   .cl-shopname { font-family: var(--cld); font-weight: 800; font-size: 17px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cl-verirow { font-size: 12px; color: #6F6355; display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; min-width: 0; }
+  /* No overflow:hidden on the row (verifier, CONFIANCE-LISIBLE-1): it clipped « Voir »'s
+     44px hit box to the 12px line, so the thumb still met 15px. The ellipsis lives on
+     .cl-veri-txt, which clips itself. */
+  .cl-verirow { font-size: 12px; color: #6F6355; display: flex; align-items: center; gap: 5px; white-space: nowrap; min-width: 0; }
   .cl-verirow > * { min-width: 0; flex-shrink: 1; }
   .cl-veri-txt { overflow: hidden; text-overflow: ellipsis; }
   .cl-voir { flex: none; }

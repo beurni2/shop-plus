@@ -32,6 +32,13 @@ describe('routeDepuisLien — what she pastes', () => {
     expect(routeDepuisLien('/v/aicha-4821?liste=court')).toEqual({ kind: 'vitrine', slug: 'aicha-4821' });
   });
 
+  it('a French sentence ends its link with a period or a bracket — still a good link (verifier)', () => {
+    expect(routeDepuisLien('https://beurni2.github.io/shop-plus/v/aicha-4821.')).toEqual({ kind: 'vitrine', slug: 'aicha-4821' });
+    expect(routeDepuisLien('(https://beurni2.github.io/shop-plus/v/aicha-4821)')).toEqual({ kind: 'vitrine', slug: 'aicha-4821' });
+    expect(routeDepuisLien('/s/aicha-4821?pid=p2 !')).toEqual({ kind: 'offre', slug: 'aicha-4821', pid: 'p2' });
+    expect(routeDepuisLien('aicha-4821,')).toEqual({ kind: 'vitrine', slug: 'aicha-4821' });
+  });
+
   it('refuses what is not a Shop+ link — never a navigation to nowhere', () => {
     for (const texte of ['', '   ', 'https://wa.me/22670000000', 'https://beurni2.github.io/shop-plus/', '/boutiques', 'chez aïcha', 'javascript:alert(1)', 'http://[::1', '/v/', '/x/aicha-4821']) {
       expect(routeDepuisLien(texte), texte).toBeUndefined();
@@ -65,14 +72,15 @@ describe('renderRacine — one sentence, one field, one act; offline is a design
     expect(html.match(/class="primary-action"/g)).toHaveLength(1);
     expect(html).toMatch(/data-role="racine-refus" role="alert" hidden/);
     expect(html).toContain('Votre vendeuse vous a envoyé un lien ?');
-    expect(html).not.toContain('data-role="offline"');
+    // the band is always in the tree (it follows the network live) — hidden while online
+    expect(html).toMatch(/data-role="offline" hidden>/);
     // no invented seller, no fabricated count, no franc figure on the front door
     expect(html).not.toMatch(/CHEZ |ventes livrées|\d[\d ]*F(?:CFA)?\b/);
   });
 
   it('offline paints the ink band and keeps the field — a pasted link still opens the boutique\'s own offline card', () => {
     const html = renderRacine({ enLigne: false });
-    expect(html).toMatch(/data-role="offline">Pas de réseau pour le moment\./);
+    expect(html).toMatch(/data-role="offline">Pas de réseau pour le moment\. Vous pourrez ouvrir le lien quand la connexion reviendra\./);
     expect(html).toContain('data-role="racine-lien"');
     expect(html).toContain('data-action="racine-ouvrir"');
   });
