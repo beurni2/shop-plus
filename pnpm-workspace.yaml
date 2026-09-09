@@ -15,68 +15,49 @@ onlyBuiltDependencies:
   # adversarial tests (WO-1.1); its postinstall places the binary.
   - "workerd"
 
-# @platform/contracts depends on @platform/kernel-types@0.4.0, and
-# @platform/certification (WO-2.5: §3 re-certification of the grown payment
-# mock) depends on @platform/contracts@0.5.0 + @platform/ui-tokens@0.5.0 —
-# none exist on any registry; the overrides route every transitive
-# resolution to the same pinned git ref (CONSUMING.md). Pin = sha 0ff6696a
-# (canon v0.5.0; founder ruling: tags are unreliable, the release ref is
-# the commit).
+# ═══ THE OVERRIDES ARE THE REAL PIN ═══
 #
-# READINESS-RETURN-1c (founder order 2026-08-02): re-pinned to canon v3.3.0
-# (sha 58e249b) — the RETURN LEG, `fulfillment.accepted.v1` +
-# `fulfillment.ready.v1`, which this repo now RECEIVES so a reseller's
-# follow-up can continue past « payée ». ADDITIVE (no export removed, no
-# existing schema changed), hence MINOR. contracts + kernel-types move
-# together as always.
+# @platform/contracts depends on @platform/kernel-types at a version that
+# exists on no registry, and @platform/certification (WO-2.5) depends on
+# @platform/contracts + @platform/ui-tokens the same way; the overrides route
+# EVERY transitive resolution to the same pinned git ref (CONSUMING.md).
+# Founder ruling: tags are unreliable, the release ref is the commit.
+#
+# Editing the per-package dependency strings alone changes NOTHING: pnpm
+# routes every resolution through here, so a repin that misses this block
+# silently keeps the OLD canon while every package.json claims the new one.
+# That is not hypothetical — boutik-plus hit it in CATEGORY-WIRE-1: manifests
+# repinned, `pnpm install` green, typecheck 13/13, and the stale override held
+# contracts a MAJOR behind (wire TYPE from certification, RUNTIME schema from
+# contracts; 21 tests red). After touching any pin, verify the INSTALLED
+# package — `node -p "require('@platform/contracts/package.json').version"` —
+# never the manifest.
+#
+# LIVRES-1 (AUDIT-SHOP-2 F-37) — THIS BLOCK STATES ONLY WHAT IS INSTALLED
+# TODAY. It used to narrate every earlier pin, and its numbers drifted from
+# its own lines for two months (« 3.13.0 (35a21ea) » beside b384da9;
+# « v0.9.9 (1c98ad1) » beside be2199c and an installed 1.1.0): a warning that
+# models the hazard it warns about. The history of each move — 0ff6696
+# (v0.5.0) → 58e249b (v3.3.0, the return leg) → 767e6d0 (v3.0.0,
+# CATEGORY-WIRE-1) → a418ca4 (v3.12.0, POLITIQUE-AU-QUOTE) → 35a21ea (v3.13.0,
+# FRAIS-ZERO) → b384da9; ui-tokens 1c98ad1 (v0.9.9, WO-7.0 unification) →
+# be2199c — lives in JOURNAL.md under the slice that made it.
+#
+# INSTALLED (verified 2026-09-09):
+#   @platform/contracts    b384da9 → 3.13.1  FRAIS-ZERO (founder order
+#                          2026-08-25): both RoundingLaw numerators 0/100; the
+#                          law, the fee fields and every reconciliation
+#                          identity stand. 3.13.1 = 3.13.0 + canon's own
+#                          lockfile catch-up, content identical.
+#   @platform/kernel-types b384da9 → 3.13.1  moves WITH contracts, always.
+#   @platform/ui-tokens    be2199c → 1.1.0   ONE default instance for
+#                          buyer-pwa + reseller-app + the certification
+#                          transitive (Grand Teint API); the four manifests
+#                          that name it now name this same sha.
+#   @platform/i18n         NOT overridden — pinned directly in every manifest
+#                          to a418ca4 → 3.12.0 (the copy-lint with the F12
+#                          administrative-register stems).
 overrides:
-  # @platform/contracts re-pinned to canon v3.0.0 (sha 767e6d0) — CATEGORY-WIRE-1,
-  # founder-authorized 2026-08-01: `SupplyProjection` gains `category`, REQUIRED,
-  # so this service can pick the §6.2 at-door inspection row and stop reading a
-  # category off the buyer's own checkout request (§6.1). MAJOR, because the
-  # producer's wire shape changes — the same class as v2.0.0's
-  # productName/assetRefs. @platform/kernel-types moves WITH it this time
-  # (contracts@3.0.0 declares kernel-types@3.0.0); its content is unchanged, so
-  # the move only stops the override from asserting a version that is not there.
-  #
-  # THIS OVERRIDE IS THE REAL PIN. Editing the per-package dependency strings
-  # alone changes nothing: pnpm routes every resolution through here, so a
-  # repin that misses this line silently keeps the OLD canon while every
-  # package.json claims the new one.
-  #
-  # THAT IS NOT HYPOTHETICAL — boutik-plus hit it in this very slice. Its
-  # package.jsons were repinned, `pnpm install` succeeded, and `typecheck`
-  # passed 13/13, while the stale override held @platform/contracts a MAJOR
-  # behind: the wire TYPE came from @platform/certification (which had moved)
-  # and the RUNTIME schema from @platform/contracts (which had not). Types said
-  # eight fields, the validator refused the eighth, 21 tests failed. After
-  # touching any pin, verify the INSTALLED package, not the manifest.
-  # POLITIQUE-AU-QUOTE (founder authorisation 2026-08-12) — re-pinned to canon
-  # v3.12.0 (sha a418ca4): `Quote.policyVersions` gains OPTIONAL
-  # `payAtDoorPolicyVersion`, so an ADMITTED door quote records which §6.1
-  # policy admitted it. Additive and backwards-compatible, hence MINOR; every
-  # quote issued before the key existed still parses. contracts + kernel-types
-  # move together as always. And this block was edited FIRST, not last: the
-  # warning above is not decoration — the previous attempt at this bump moved
-  # all 19 package.json pins, installed clean, and resolved 3.10.0 anyway.
-  #
-  # FRAIS-ZERO (founder order 2026-08-25) — re-pinned to canon v3.13.0
-  # (sha 35a21ea — 0846780 plus canon's own lockfile catch-up; content identical):
-  # « For now remove all charging fees system everywhere. »
-  # Both RoundingLaw numerators go to 0/100; the waterfall, the fee fields
-  # and every reconciliation identity stay standing. Behaviour change, not a
-  # shape change — MINOR by the versioning convention (no export moved).
-  # contracts + kernel-types move together as always.
   "@platform/kernel-types": "git+https://github.com/beurni2/platform-contracts.git#b384da99a0803471a052b2fa271dc768426454dd&path:packages/kernel-types"
   "@platform/contracts": "git+https://github.com/beurni2/platform-contracts.git#b384da99a0803471a052b2fa271dc768426454dd&path:packages/contracts"
-  # @platform/ui-tokens is UNIFIED at canon v0.9.9 (1c98ad1, + Storefront aggregate fields WO-5.13) — WO-7.0/WO-7.2b/SP#001-A
-  # killed the WO-5.3 per-app skew and re-pinned the whole workspace to the current
-  # release in one bump. reseller-app runs its visual layer on the Grand Teint API
-  # (theme.colours, top-level type/spacing/radius/touch/interaction, the nav glyphs
-  # + dimension.iconSizePx.tab). ONE default instance for buyer-pwa + reseller-app
-  # + the @platform/certification transitive — no scoped exception. The former
-  # `@platform/certification>@platform/ui-tokens` v0.6.0 override is DELETED: the
-  # neutralColors→sharedColour rename landed at v0.8.0, so the report-html bug
-  # existed only in the ancient v0.6.0 snapshot; certification at v0.9.9 resolves
-  # sharedColour and needs no override (CTO ruling, WO-7.0 re-pin).
   "@platform/ui-tokens": "git+https://github.com/beurni2/platform-contracts.git#be2199c95d27e6ae5f6c7381c12e18a9796d9800&path:packages/ui-tokens"
