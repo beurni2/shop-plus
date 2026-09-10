@@ -1,8 +1,7 @@
-// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — SP3.3c.
-// C6's POST-PAYMENT copy carries administrative French (« veuillez », « nonobstant »,
-// « ultérieurement ») and blows the checkout reading budget. Every other table is
-// CLEAN, so only the CONFIRMATION extraction (and, since F-59, the raw
-// banned-register scan) can catch this.
+// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — VOIX-INLINE-1 (F-59),
+// the verifier's BLOCKER. A checklist's lines come from a CONST (`verifier:
+// LISTE_COMMUNE`): the key is present, the list is not a literal, and the first
+// cut skipped it in silence — five door lines vanished with no report.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
@@ -75,7 +74,7 @@ export const CONFIRMATION = {
   attenteAction: 'Vérifier à nouveau',
   attenteHorsPortee: 'Nous n’arrivons pas à joindre le service pour l’instant. Votre commande est bien là.',
   echecTitre: 'Le paiement n’a pas abouti.',
-  echecCorps: 'Nonobstant ce qui précède, veuillez noter que le règlement de votre commande n’a pu être mené à son terme et qu’il vous appartiendra ultérieurement de réitérer ladite opération auprès de l’opérateur concerné.',
+  echecCorps: 'Rien n’a été confirmé. Votre commande vous attend — vous pouvez réessayer.',
   echecAction: 'Réessayer le paiement',
   reference: 'Numéro de commande',
   etapeSuivre: 'Vous suivez chaque étape sur cette page.',
@@ -149,13 +148,7 @@ export const INSPECTION: Readonly<Record<string, RangeeInspection>> = {
     risque: 'Vous ne pouvez pas l’essayer à la porte. La coupe qui ne vous plaît pas ne compte pas comme un problème.',
   },
   shoes: {
-    verifier: [
-      'Ouvrez la boîte',
-      'C’est le bon modèle',
-      'La bonne pointure sur l’étiquette',
-      'Les deux pieds sont là',
-      'En bon état',
-    ],
+    verifier: LISTE_COMMUNE,
     motifs: ['Ce n’est pas le bon modèle', 'Ce n’est pas la bonne pointure', 'Il est abîmé', 'Il manque une chaussure'],
     risque: 'Si vous les portez, elles sont à vous. La pointure qui serre ne compte pas comme un problème.',
   },

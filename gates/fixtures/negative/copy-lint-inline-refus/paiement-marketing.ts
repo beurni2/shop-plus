@@ -1,8 +1,8 @@
-// NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
-// A view whose KEY IS QUOTED. `splitViews` matched bare identifiers only, so
-// this view and every string inside it went unread. The plant is marketing
-// urgency the raw scan cannot see: if the quoted view goes unread again, this
-// fixture goes green.
+// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — SP3.3b1.
+// The §6.1 PAYMENT copy carries MARKETING URGENCY in a money sentence — a word
+// the raw scan cannot see, so only the PAIEMENT extraction, linted as `money`,
+// can catch it. Every other table is CLEAN: if the gate stops reading that
+// table, this fixture goes green.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
@@ -15,12 +15,12 @@ const REFUS_GENERIQUE = {
 };
 
 const REFUS = {
-  'paiement_bloque': {
-    overline: 'LE PAIEMENT',
-    titre: 'Profitez-en.',
-    phrase: 'Offre limitée : le paiement est suspendu.',
-    action: 'reessayer-prix',
-    libelle: 'Réessayer',
+  expired: {
+    overline: 'LE PRIX',
+    titre: 'Ce prix a expiré.',
+    phrase: 'Un prix ne reste affiché qu’un moment. Rien n’a été payé.',
+    action: 'prix-a-jour',
+    libelle: 'Voir le prix à jour',
   },
   unreachable: {
     overline: 'HORS LIGNE',
@@ -47,7 +47,7 @@ export const PAIEMENT = {
   ligneMaintenant: 'À payer maintenant\u00a0:\u00a0{X}\u202fFCFA',
   ligneLivraison: 'À payer à la livraison : {Y}\u202fFCFA',
   titreA: 'Tout payer maintenant — recommandé',
-  corpsA: 'Votre paiement est protégé auprès de notre partenaire de paiement jusqu’à la confirmation de votre livraison. Le vendeur n’est payé qu’après validation.',
+  corpsA: 'Profitez de cette offre spéciale : votre paiement est gardé chez notre partenaire jusqu’à la livraison.',
   titreB: 'Payer le produit à la livraison',
   titreBFin: 'à la livraison',
   corpsB: 'Payez seulement les frais de livraison ({D}\u202fFCFA) maintenant. À l’arrivée du livreur, vérifiez votre article, puis payez le montant du produit de manière sécurisée avant de le recevoir.',

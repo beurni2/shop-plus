@@ -86,8 +86,18 @@ import { loadLintData } from '@platform/i18n/data-loader';
  * moment, linted as `selling`, its three flow-filled placeholders allowlisted
  * per field) and the §6.2 inspection matrix she reads at her door (INSPECTION
  * + INSPECTION_PRUDENTE — money register; two label lists and one status
- * sentence per row, no placeholder anywhere, every §6.2 row required). Both
- * are extracted on the same terms as the six tables above.
+ * sentence per row, no placeholder anywhere, every §6.2 row required, and
+ * every byte of a row and of the matrix's top level accounted for — a list
+ * read from a const, a `.concat(…)` tail, a spread row, a computed key are
+ * each a hard failure). Both are extracted on the same terms as the seven
+ * tables above.
+ *
+ * ONE RULE THE WIDER SCAN FORCED ON THE FIXTURES: a negative that plants a
+ * banned-register WORD now fails through the scan whatever the extractor
+ * does, so it can no longer go green when its extractor door regresses. Every
+ * extractor-door negative therefore plants what the scan cannot see — marketing
+ * urgency in a money sentence, or a blown reading budget — and only the
+ * scan-door negatives carry a banned word.
  *
  * And the raw scan grew from §6.1's two words to the lint's WHOLE
  * banned-register list, read from the same data file and matched with the
@@ -352,12 +362,19 @@ function objectBody(text, decl) {
  *  the gate printed the same counts and passed (verifier, round 6). Refusal
  *  names are snake_case and rarely need quotes — which is exactly what makes it
  *  a silent skip, and this file's header forbids skips in terms. */
-function splitViews(body) {
+function splitViews(body, gaps) {
   const views = [];
   let i = 0;
   for (;;) {
     const m = /(?:([A-Za-z_][\w]*)|'([^']*)'|"([^"]*)")\s*:\s*\{/.exec(body.slice(i));
-    if (m === null) return views;
+    if (m === null) {
+      if (gaps) gaps.push(body.slice(i));
+      return views;
+    }
+    // What lies BETWEEN two views — a caller that hands `gaps` in gets every
+    // byte no view accounted for (a spread, a computed key), so it can refuse
+    // it instead of letting whole rows ride past unread (verifier, F-59).
+    if (gaps) gaps.push(body.slice(i, i + m.index));
     const name = m[1] ?? m[2] ?? m[3];
     const open = i + m.index + m[0].length - 1;
     const close = matchBrace(body, open + 1);
@@ -805,19 +822,36 @@ function readList(raw, where) {
   return items;
 }
 
-function lintInspectionRow(name, body) {
+function lintInspectionRow(name, rawBody) {
+  // Comments go first, as `fieldsOf` does: a commented-out old `risque` must
+  // not be the line the lint reads while the live one beneath it ships unread
+  // (verifier, F-59 — it was, and the marketing line under it passed).
+  const body = stripComments(rawBody);
   const seen = new Set();
   for (const m of body.matchAll(/^\s*([A-Za-z_][\w]*)\s*:/gmu)) seen.add(m[1]);
   for (const required of [...Object.keys(INSPECTION_LISTS), ...Object.keys(INSPECTION_TEXT)]) {
     if (!seen.has(required)) problems.push(`INSPECTION.${name}: missing field « ${required} » (§6.2 door copy)`);
   }
+  // EVERY BYTE OF THE ROW is either a recognised field's span, an unknown
+  // field (reported above), or a problem — the same « every line accounted
+  // for » rule `fieldsOf` keeps for the flat tables. A `.concat(…)` after a
+  // list, a spread after `risque`, a value read from a const: none may ride.
+  let residue = body;
   for (const present of seen) {
     if (present in INSPECTION_LISTS || present in INSPECTION_TEXT) continue;
     problems.push(`INSPECTION.${name}: unknown field « ${present} » — if it is copy, teach this gate its screen class; nothing here may go unread`);
+    residue = residue.replace(new RegExp(`^\\s*${present}\\s*:.*$`, 'mu'), '');
   }
   for (const [field, screenClass] of Object.entries(INSPECTION_LISTS)) {
+    if (!seen.has(field)) continue;
     const m = new RegExp(`^\\s*${field}\\s*:\\s*\\[([\\s\\S]*?)\\]`, 'mu').exec(body);
-    if (m === null) continue;
+    if (m === null) {
+      // The key is there, the list is not: a checklist read from a const is copy nobody is linting (verifier BLOCKER, F-59).
+      problems.push(`INSPECTION.${name}.${field}: not a [ … ] list literal — a checklist read from elsewhere is copy nobody is linting`);
+      residue = residue.replace(new RegExp(`^\\s*${field}\\s*:.*$`, 'mu'), ''); // reported once, above
+      continue;
+    }
+    residue = residue.replace(m[0], '');
     const items = readList(m[1], `INSPECTION.${name}.${field}`);
     if (items.length === 0) problems.push(`INSPECTION.${name}.${field}: empty — a checklist with no line is no checklist`);
     for (const [i, text] of items.entries()) {
@@ -828,8 +862,14 @@ function lintInspectionRow(name, body) {
     }
   }
   for (const [field, screenClass] of Object.entries(INSPECTION_TEXT)) {
+    if (!seen.has(field)) continue;
     const m = new RegExp(`^\\s*${field}\\s*:\\s*(.+?),?\\s*$`, 'mu').exec(body);
-    if (m === null) continue;
+    if (m === null) {
+      problems.push(`INSPECTION.${name}.${field}: no readable value after the key — copy nobody is linting`);
+      residue = residue.replace(new RegExp(`^\\s*${field}\\s*:.*$`, 'mu'), ''); // reported once, above
+      continue;
+    }
+    residue = residue.replace(m[0], '');
     const v = readValue(m[1]);
     if (v.kind !== 'text') { problems.push(`INSPECTION.${name}.${field}: ${v.why ?? 'null is not copy'}`); continue; }
     if (v.text === '') { problems.push(`INSPECTION.${name}.${field}: empty — the risk line is the one that protects her`); continue; }
@@ -837,6 +877,8 @@ function lintInspectionRow(name, body) {
     entries.push({ key: `cliente.inspection.${name}.${field}.${n++}`, fr: v.text, register: 'money', screenClass });
     inspectionCount += 1;
   }
+  const left = residue.replace(/[\s,]/g, '');
+  if (left !== '') problems.push(`INSPECTION.${name}: unparsable, so its copy is unlinted → ${left.slice(0, 60)}`);
 }
 
 let inspectionCount = 0;
@@ -853,7 +895,12 @@ let inspectionRows = 0;
   if (matrix === null) {
     problems.push('the INSPECTION matrix is missing — the §6.2 door checklists would ship unlinted. Re-point this gate, never delete it.');
   } else {
-    const rows = splitViews(matrix);
+    const gaps = [];
+    const rows = splitViews(matrix, gaps);
+    // Between the rows, only comments and commas may live. A spread row or a
+    // computed key is a whole checklist the row regex cannot see (verifier, F-59).
+    const between = stripComments(gaps.join('\n')).replace(/[\s,]/g, '');
+    if (between !== '') problems.push(`INSPECTION: unparsable at the top of the matrix, so its copy is unlinted → ${between.slice(0, 60)}`);
     const names = rows.map((r) => r.name);
     for (const required of INSPECTION_ROWS) {
       if (!names.includes(required)) problems.push(`INSPECTION: the §6.2 row « ${required} » is missing — a deleted door checklist fails here`);
@@ -879,7 +926,7 @@ let inspectionRows = 0;
  *
  * Binary assets (fonts) are skipped by extension, not by guesswork.
  */
-const SCAN_EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs', '.cjs', '.html', '.css', '.json', '.webmanifest', '.txt'];
+const SCAN_EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs', '.cjs', '.html', '.css', '.json', '.webmanifest', '.txt', '.svg', '.md'];
 const walk = (dir) =>
   readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     const full = join(dir, e.name);
@@ -905,11 +952,13 @@ if (SCAN_ROOT !== undefined) {
   const app = join(root, 'apps/buyer-pwa');
   scanned = [
     join(app, 'index.html'),
+    // The service worker template becomes dist/sw.js — every buyer receives it (verifier, F-59).
+    join(app, 'sw.template.js'),
     ...walk(join(app, 'src')),
     ...walk(join(app, 'public')),
     ...walk(join(app, 'i18n')),
   ];
-  scanDescription = 'apps/buyer-pwa — index.html, src/, public/, i18n/ (' + SCAN_EXTENSIONS.join(' ') + ')';
+  scanDescription = 'apps/buyer-pwa — index.html, sw.template.js, src/, public/, i18n/ (' + SCAN_EXTENSIONS.join(' ') + ')';
 }
 /**
  * KEPT APART FROM `problems` ON PURPOSE. An extractor problem means « a string
@@ -993,7 +1042,8 @@ const catalog = join(dir, 'cliente-refus.catalog.json');
 writeFileSync(catalog, JSON.stringify(entries, null, 1), 'utf8');
 let lintFailed = false;
 try {
-  const out = execFileSync('pnpm', ['exec', 'copy-lint', catalog], { cwd: root, encoding: 'utf8' });
+  // stderr is piped, not inherited: on a failure the report is printed ONCE, below.
+  const out = execFileSync('pnpm', ['exec', 'copy-lint', catalog], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   console.log('  ' + out.trim());
 } catch (err) {
   console.error(err.stdout ?? '');
@@ -1026,7 +1076,7 @@ console.log('\ncopy-lint-inline-refus: OK');
 console.log(
   `  LINTED (French Voice): the REFUS table (${views.length} views), MESSAGES, the §6.1 PAIEMENT ` +
     `table (${paiementCount} strings), the C6 CONFIRMATION table (${confirmationCount} strings) ` +
-    `the PORTE table (${porteCount} strings), the C3 VOIX labels (${voixCount} strings), ` +
+    `, the PORTE table (${porteCount} strings), the C3 VOIX labels (${voixCount} strings), ` +
     `the SUIVI tracking table (${suiviCount} strings), the C10 MERCI gift message (${merciCount} strings) ` +
     `and the §6.2 INSPECTION door checklists (${inspectionCount} lines in ${inspectionRows} rows) ` +
     `— ${entries.length} strings from ${rel}.`,
@@ -1034,7 +1084,7 @@ console.log(
 console.log(
   '  NOT LINTED, and named so the gap is visible: every OTHER inline string in that module — the bill ' +
     'labels, the C5 quote line, the operator screens, and C6–C9 outside CONFIRMATION, SUIVI and MERCI. This ' +
-    'gate reads eight tables, not the file. Those strings ARE word-scanned for the banned register ' +
+    'gate reads nine tables, not the file. Those strings ARE word-scanned for the banned register ' +
     '(below), which catches administrative French but sees no reading budget and no register clash. ' +
     'The cure is the i18n catalog migration, which is its own slice.',
 );

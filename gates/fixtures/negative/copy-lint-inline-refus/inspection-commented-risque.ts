@@ -1,8 +1,7 @@
-// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — SP3.3b1.
-// The §6.1 PAYMENT copy carries administrative French (« veuillez », « conformément à »,
-// « préalablement », « ultérieurement ») and blows the checkout reading budget.
-// Every other table is CLEAN, so only the PAIEMENT extraction (and, since F-59,
-// the raw banned-register scan) can catch this.
+// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — VOIX-INLINE-1 (F-59).
+// A COMMENTED-OUT old risk line sits above the live one. The first cut read the
+// comment's sentence and let the live marketing line beneath it ship; comments
+// are stripped first now, so the live line is the one linted.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
@@ -47,7 +46,7 @@ export const PAIEMENT = {
   ligneMaintenant: 'À payer maintenant\u00a0:\u00a0{X}\u202fFCFA',
   ligneLivraison: 'À payer à la livraison : {Y}\u202fFCFA',
   titreA: 'Tout payer maintenant — recommandé',
-  corpsA: 'Conformément aux conditions applicables, veuillez noter que le règlement est conservé par notre partenaire préalablement à toute libération ultérieure des fonds au vendeur.',
+  corpsA: 'Votre paiement est protégé auprès de notre partenaire de paiement jusqu’à la confirmation de votre livraison. Le vendeur n’est payé qu’après validation.',
   titreB: 'Payer le produit à la livraison',
   titreBFin: 'à la livraison',
   corpsB: 'Payez seulement les frais de livraison ({D}\u202fFCFA) maintenant. À l’arrivée du livreur, vérifiez votre article, puis payez le montant du produit de manière sécurisée avant de le recevoir.',
@@ -157,7 +156,8 @@ export const INSPECTION: Readonly<Record<string, RangeeInspection>> = {
       'En bon état',
     ],
     motifs: ['Ce n’est pas le bon modèle', 'Ce n’est pas la bonne pointure', 'Il est abîmé', 'Il manque une chaussure'],
-    risque: 'Si vous les portez, elles sont à vous. La pointure qui serre ne compte pas comme un problème.',
+    /* risque: 'Ancienne phrase, calme.', */
+    risque: 'Profitez vite : si vous les portez, elles sont à vous.',
   },
   sealed_beauty_cosmetics: {
     verifier: [

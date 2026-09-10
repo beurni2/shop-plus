@@ -1,9 +1,8 @@
 // NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
-// An UNRECOGNISED copy field (`soustitre`) carrying administrative French. The
-// lint loop iterated a hardcoded allowlist, so this shipped unread while the
-// gate printed the same counts and « 0 violations ». (Since F-59 the raw
-// banned-register scan sees the word too; the extractor line is the one this
-// fixture is named for.)
+// An UNRECOGNISED copy field (`soustitre`) carrying marketing urgency. The lint
+// loop iterated a hardcoded allowlist, so this shipped unread while the gate
+// printed the same counts and « 0 violations ». The plant is a word the raw scan
+// cannot see, so only the unknown-field rule can fail this fixture.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
@@ -19,7 +18,7 @@ const REFUS = {
   expired: {
     overline: 'LE PRIX',
     titre: 'Ce prix a expiré.',
-    soustitre: 'Veuillez patienter, nonobstant ce qui précède.',
+    soustitre: 'Profitez de nos offres pendant l’attente.',
     phrase: 'Un prix ne reste affiché qu’un moment. Rien n’a été payé.',
     action: 'prix-a-jour',
     libelle: 'Voir le prix à jour',

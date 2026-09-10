@@ -1,8 +1,8 @@
-// NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
-// A view whose KEY IS QUOTED. `splitViews` matched bare identifiers only, so
-// this view and every string inside it went unread. The plant is marketing
-// urgency the raw scan cannot see: if the quoted view goes unread again, this
-// fixture goes green.
+// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — SP3.3c.
+// C6's POST-PAYMENT failure sentence carries MARKETING URGENCY — a word the raw
+// scan cannot see, so only the CONFIRMATION extraction, linted as `money`, can
+// catch it. Every other table is CLEAN: if the gate stops reading that table,
+// this fixture goes green and C6's newest money sentences ship unlinted.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
@@ -15,12 +15,12 @@ const REFUS_GENERIQUE = {
 };
 
 const REFUS = {
-  'paiement_bloque': {
-    overline: 'LE PAIEMENT',
-    titre: 'Profitez-en.',
-    phrase: 'Offre limitée : le paiement est suspendu.',
-    action: 'reessayer-prix',
-    libelle: 'Réessayer',
+  expired: {
+    overline: 'LE PRIX',
+    titre: 'Ce prix a expiré.',
+    phrase: 'Un prix ne reste affiché qu’un moment. Rien n’a été payé.',
+    action: 'prix-a-jour',
+    libelle: 'Voir le prix à jour',
   },
   unreachable: {
     overline: 'HORS LIGNE',
@@ -75,7 +75,7 @@ export const CONFIRMATION = {
   attenteAction: 'Vérifier à nouveau',
   attenteHorsPortee: 'Nous n’arrivons pas à joindre le service pour l’instant. Votre commande est bien là.',
   echecTitre: 'Le paiement n’a pas abouti.',
-  echecCorps: 'Rien n’a été confirmé. Votre commande vous attend — vous pouvez réessayer.',
+  echecCorps: 'Dépêchez-vous de réessayer, dernière chance : rien n’a été confirmé.',
   echecAction: 'Réessayer le paiement',
   reference: 'Numéro de commande',
   etapeSuivre: 'Vous suivez chaque étape sur cette page.',

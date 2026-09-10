@@ -1,6 +1,6 @@
 // NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
 // A view whose FIELD KEY is quoted — same silent-skip family as the quoted
-// view key, one level down.
+// view key, one level down. Marketing urgency the raw scan cannot see.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
@@ -15,7 +15,7 @@ const REFUS_GENERIQUE = {
 const REFUS = {
   expired: {
     overline: 'LE PRIX',
-    'titre': 'Veuillez patienter, nonobstant ce qui précède.',
+    'titre': 'Profitez de nos offres.',
     phrase: 'Un prix ne reste affiché qu’un moment. Rien n’a été payé.',
     action: 'prix-a-jour',
     libelle: 'Voir le prix à jour',

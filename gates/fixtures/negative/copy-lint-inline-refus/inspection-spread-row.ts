@@ -1,8 +1,7 @@
-// NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
-// A view whose KEY IS QUOTED. `splitViews` matched bare identifiers only, so
-// this view and every string inside it went unread. The plant is marketing
-// urgency the raw scan cannot see: if the quoted view goes unread again, this
-// fixture goes green.
+// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — VOIX-INLINE-1 (F-59).
+// A SPREAD at the top of the matrix (`...AUTRES_RANGEES`) pulls in rows the row
+// regex cannot see — whole checklists nobody is linting. Every byte between the
+// rows is now accounted for.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
@@ -15,12 +14,12 @@ const REFUS_GENERIQUE = {
 };
 
 const REFUS = {
-  'paiement_bloque': {
-    overline: 'LE PAIEMENT',
-    titre: 'Profitez-en.',
-    phrase: 'Offre limitée : le paiement est suspendu.',
-    action: 'reessayer-prix',
-    libelle: 'Réessayer',
+  expired: {
+    overline: 'LE PRIX',
+    titre: 'Ce prix a expiré.',
+    phrase: 'Un prix ne reste affiché qu’un moment. Rien n’a été payé.',
+    action: 'prix-a-jour',
+    libelle: 'Voir le prix à jour',
   },
   unreachable: {
     overline: 'HORS LIGNE',
@@ -137,6 +136,7 @@ export const INSPECTION_PRUDENTE: RangeeInspection = {
 };
 
 export const INSPECTION: Readonly<Record<string, RangeeInspection>> = {
+  ...AUTRES_RANGEES,
   fashion_bags_fabrics: {
     verifier: [
       'C’est le bon article — celui de la photo',

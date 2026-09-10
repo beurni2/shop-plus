@@ -1,17 +1,17 @@
 // NEGATIVE FIXTURE for the copy-lint-inline-refus gate — a REFUS table shaped
-// exactly like the real one, carrying the French Voice violations the gate must
-// catch on a buyer's refusal screen:
-//   · « veuillez » — banned administrative register (§10.5 condition a)
-//   · « séquestre » — the canonically forbidden word
-//   · « profitez » — marketing/urgency inside a register:money string (cond. b)
+// exactly like the real one, carrying French Voice violations the LINT must catch
+// on a buyer's refusal screen — chosen so the raw word scan cannot see them and
+// only the extraction can:
+//   · marketing urgency inside register:money strings (§10.5 condition b)
 //   · a sentence far over the 18-word status budget (condition c)
+// The banned-register words themselves are proven by the scan negatives beside this.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
 const REFUS_GENERIQUE = {
   overline: 'LE PRIX',
-  titre: 'Veuillez patienter.',
-  phrase: 'Profitez de nos offres pendant que votre argent reste en séquestre.',
+  titre: 'Profitez de nos offres.',
+  phrase: 'Dépêchez-vous, dernière chance : le prix est réservé pour vous.',
   action: 'reessayer-prix',
   libelle: 'Réessayer',
 };
@@ -19,8 +19,8 @@ const REFUS_GENERIQUE = {
 const REFUS = {
   expired: {
     overline: 'LE PRIX',
-    titre: 'Nonobstant ce qui précède, le prix susmentionné a expiré.',
-    phrase: 'Conformément à nos conditions générales de vente applicables, il vous appartient de solliciter préalablement une nouvelle cotation tarifaire auprès de nos services compétents.',
+    titre: 'Ce prix a expiré.',
+    phrase: 'Le prix affiché il y a un instant est parti et nous devons en demander un autre à la vendeuse avant que vous puissiez continuer votre achat.',
     action: 'prix-a-jour',
     libelle: 'Voir le prix à jour',
   },

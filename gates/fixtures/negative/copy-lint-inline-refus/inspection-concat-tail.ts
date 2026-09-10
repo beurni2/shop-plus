@@ -1,8 +1,6 @@
-// NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
-// A view whose KEY IS QUOTED. `splitViews` matched bare identifiers only, so
-// this view and every string inside it went unread. The plant is marketing
-// urgency the raw scan cannot see: if the quoted view goes unread again, this
-// fixture goes green.
+// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — VOIX-INLINE-1 (F-59).
+// A `.concat(…)` tail after a literal list adds lines the list regex never
+// captured. Every byte of a row is now accounted for.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
@@ -15,12 +13,12 @@ const REFUS_GENERIQUE = {
 };
 
 const REFUS = {
-  'paiement_bloque': {
-    overline: 'LE PAIEMENT',
-    titre: 'Profitez-en.',
-    phrase: 'Offre limitée : le paiement est suspendu.',
-    action: 'reessayer-prix',
-    libelle: 'Réessayer',
+  expired: {
+    overline: 'LE PRIX',
+    titre: 'Ce prix a expiré.',
+    phrase: 'Un prix ne reste affiché qu’un moment. Rien n’a été payé.',
+    action: 'prix-a-jour',
+    libelle: 'Voir le prix à jour',
   },
   unreachable: {
     overline: 'HORS LIGNE',
@@ -131,7 +129,7 @@ export const MERCI = {
 
 // The §6.2 inspection matrix (F-59) — verbatim from the real screens.ts.
 export const INSPECTION_PRUDENTE: RangeeInspection = {
-  verifier: ['C’est le bon article — celui de la photo', 'En bon état', 'Rien ne manque'],
+  verifier: ['C’est le bon article — celui de la photo', 'En bon état', 'Rien ne manque'].concat(['Profitez vite de cette offre spéciale']),
   motifs: ['Ce n’est pas le bon article', 'Il est abîmé', 'Il manque quelque chose'],
   risque: 'Vous ne pouvez pas l’essayer à la porte.',
 };

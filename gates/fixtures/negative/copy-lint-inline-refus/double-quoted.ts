@@ -1,12 +1,14 @@
 // NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
-// A DOUBLE-QUOTED refusal carrying administrative French. The first extractor
-// matched single quotes only, so this planted violation passed the gate.
+// A DOUBLE-QUOTED refusal carrying marketing urgency in a money sentence. The
+// first extractor matched single quotes only, so a planted violation passed the
+// gate; the plant is a word the raw scan cannot see, so only the extraction can
+// catch it — if double quotes go unread again, this fixture goes green.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
 const REFUS_GENERIQUE = {
   overline: 'LE PRIX',
-  titre: "Veuillez patienter.",
+  titre: "Profitez de nos offres.",
   phrase: 'Réessayez dans un instant. Rien n’a été payé.',
   action: 'reessayer-prix',
   libelle: 'Réessayer',
@@ -16,7 +18,7 @@ const REFUS = {
   expired: {
     overline: "LE PRIX",
     titre: "Ce prix a expiré.",
-    phrase: "Il vous appartient de solliciter préalablement une nouvelle cotation.",
+    phrase: "Dépêchez-vous, il ne reste qu’un instant.",
     action: 'prix-a-jour',
     libelle: "Voir le prix à jour",
   },

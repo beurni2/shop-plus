@@ -376,8 +376,8 @@ capture copy-lint-inline-refus-negative-quoted-field fail node scripts/gates/cop
 # itself, the raw §6.1 word scan (which sees what no string extractor can), the
 # structural floor (a DELETED §6.1 sentence), and the placeholder allowlist (a
 # money sentence assembled at runtime from a part nothing read).
-log "gate: French Voice copy-lint — NEGATIVE (administrative French in the §6.1 PAYMENT copy, must fail)"
-capture copy-lint-inline-refus-negative-paiement fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-administratif.ts
+log "gate: French Voice copy-lint — NEGATIVE (marketing urgency in the §6.1 PAYMENT copy — a word the raw scan cannot see, so only the extraction can — must fail)"
+capture copy-lint-inline-refus-negative-paiement fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-marketing.ts
 
 log "gate: French Voice copy-lint — NEGATIVE (§6.1's forbidden word in a CLASS NAME + data attribute, clean copy, must fail)"
 capture copy-lint-inline-refus-negative-escrow fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-escrow-classname.ts
@@ -402,8 +402,8 @@ capture copy-lint-inline-refus-negative-paiement-ecouter fail node scripts/gates
 # par l'opérateur » on a 2 400 ms timer and there was nothing else to lint.
 # Both fixtures are CLEAN everywhere except the CONFIRMATION table, so if the
 # gate ever stops reading that table they both go green in silence.
-log "gate: French Voice copy-lint — NEGATIVE (administrative French in C6's post-payment copy, must fail)"
-capture copy-lint-inline-refus-negative-confirmation fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/confirmation-administratif.ts
+log "gate: French Voice copy-lint — NEGATIVE (marketing urgency in C6's post-payment copy — a word the raw scan cannot see — must fail)"
+capture copy-lint-inline-refus-negative-confirmation fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/confirmation-marketing.ts
 
 log "gate: French Voice copy-lint — NEGATIVE (C6's waiting sentence DELETED: the structural floor must bite, must fail)"
 capture copy-lint-inline-refus-negative-confirmation-missing fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/confirmation-missing-field.ts
@@ -426,6 +426,14 @@ capture copy-lint-inline-refus-negative-scan-outside-src fail node scripts/gates
 # are words the raw scan cannot see, so they prove the EXTRACTION and its
 # register, not the scan. The clean base itself is captured first as the
 # positive control every negative's red is measured against.
+#
+# AND ONE RULE THE WIDER SCAN FORCED (the verifier's finding): a negative
+# whose plant is a banned-register WORD now fails through the scan whatever
+# the extractor does, so it could never go green again when its door regressed
+# — its red had stopped meaning anything. Every extractor-door negative above
+# therefore plants what the scan cannot see (marketing urgency in a money
+# sentence, a blown budget), no fixture header quotes a banned word, and only
+# the scan-door negatives carry one.
 log "gate: French Voice copy-lint — the CLEAN BASE every negative below derives from (must pass)"
 capture copy-lint-inline-refus-clean-base pass node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/clean-base.ts
 
@@ -449,6 +457,20 @@ capture copy-lint-inline-refus-negative-inspection-not-literal fail node scripts
 
 log "gate: French Voice copy-lint — NEGATIVE (administrative French in an INLINE string outside every table — the raw banned-register scan alone must catch it, must fail)"
 capture copy-lint-inline-refus-negative-scan-administratif-inline fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/scan-administratif-inline.ts
+
+# The matrix reader's four silent skips the verifier found in the first cut —
+# each one a way for door copy to ride past the gate unread, each now a fixture.
+log "gate: French Voice copy-lint — NEGATIVE (a checklist read from a CONST, key present and list absent — the verifier's blocker, must fail)"
+capture copy-lint-inline-refus-negative-inspection-list-from-const fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-list-from-const.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (a commented-out risk line above the live marketing one: the live line is the one linted, must fail)"
+capture copy-lint-inline-refus-negative-inspection-commented-risque fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-commented-risque.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (a SPREAD row at the top of the inspection matrix, must fail)"
+capture copy-lint-inline-refus-negative-inspection-spread-row fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-spread-row.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (a .concat(…) tail after a literal checklist, must fail)"
+capture copy-lint-inline-refus-negative-inspection-concat-tail fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-concat-tail.ts
 
 log "gate: E2 failure path — the real service path end-to-end (must pass)"
 capture e2-failure-path pass node scripts/e2-failure-path.mjs

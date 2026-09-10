@@ -1,12 +1,13 @@
 // NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
-// A TEMPLATE-LITERAL refusal carrying administrative French, with no
-// interpolation: it must be LINTED like any other string, never skipped.
+// A TEMPLATE-LITERAL refusal carrying marketing urgency, with no interpolation:
+// it must be LINTED like any other string, never skipped. The plant is a word
+// the raw scan cannot see, so only the extraction can catch it.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
 const REFUS_GENERIQUE = {
   overline: 'LE PRIX',
-  titre: `Nonobstant ce qui précède, le prix a expiré.`,
+  titre: `Profitez de nos offres.`,
   phrase: 'Réessayez dans un instant. Rien n’a été payé.',
   action: 'reessayer-prix',
   libelle: 'Réessayer',
@@ -16,7 +17,7 @@ const REFUS = {
   expired: {
     overline: `LE PRIX`,
     titre: `Ce prix a expiré.`,
-    phrase: `Conformément à nos conditions générales, veuillez solliciter une nouvelle cotation.`,
+    phrase: `Dernière chance : le prix part dans un instant.`,
     action: 'prix-a-jour',
     libelle: `Voir le prix à jour`,
   },
