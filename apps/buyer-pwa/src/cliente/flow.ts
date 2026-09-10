@@ -667,6 +667,19 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
   /** REPERE-AUDIO-REEL — the recorder behind « Enregistrer le repère ». One
    *  per flow; tests and the harness inject a fake through `init`. */
   const enregistreur: EnregistreurNote = init.enregistreur ?? creerEnregistreurNote();
+  /**
+   * PRIVEE-APRES-CONFIRMATION (AUDIT-SHOP-2 F-58) — release her recorded note:
+   * the bytes that rode the order and the local replay URL. The audit measured
+   * both living until the tab died (a whole delivery) and one more blob URL
+   * leaking on every REFAIRE, while the liste side revoked. Called when a take
+   * is replaced and once the operator has confirmed — never before: a retry
+   * after `payment_failed` sends her note again, so it must still be there.
+   */
+  function libererNote(): void {
+    if (state.note === null) return;
+    URL.revokeObjectURL(state.note.blobUrl);
+    state.note = null;
+  }
   /** The capture ceiling — a repère is a sentence, not a speech. The media
    *  door's own walls (2 MiB / 60 s) sit far behind this. */
   const NOTE_MAX_SEC = 30;
@@ -1152,7 +1165,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         if (etat !== 'attente') {
           state.relance = false;
           // LISTE-MERCI — the poll is the ordinary road to a confirmed sight.
-          if (etat === 'confirmed') chargerMerci();
+          if (etat === 'confirmed') {
+            chargerMerci();
+            libererNote(); // PRIVEE-APRES-CONFIRMATION — her note has ridden; nothing needs it now
+          }
           render();
           return;
         }
@@ -1516,7 +1532,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       if (etat === 'attente') suivreLePaiement(r.order.orderId, generation, 0);
       // LISTE-MERCI — a create that answered ALREADY-CONFIRMED (the replay /
       // double-tap road) is a confirmed sight too.
-      if (etat === 'confirmed') chargerMerci();
+      if (etat === 'confirmed') {
+        chargerMerci();
+        libererNote(); // PRIVEE-APRES-CONFIRMATION — same moment, this road
+      }
     });
   }
 
@@ -1560,13 +1579,20 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       oublierReprise(rep.storage);
       return;
     }
+    // PRIVEE-APRES-CONFIRMATION (AUDIT-SHOP-2 F-58) — once the operator has
+    // CONFIRMED, the order holds her contact and no retry can ever need it
+    // again, so the snapshot stops carrying her number and her repère for the
+    // rest of the delivery (a whole day, on a shared phone). Before that
+    // moment they stay: a retry after `payment_failed` assembles the contact
+    // again from what she typed, and a refresh on C6-attente must keep it.
+    const confirmee = state.orderId !== null && state.confirmState === 'confirmed';
     garderReprise(
       {
         lien: rep.lien,
         ecran: state.screen,
         zone: state.zone,
-        repere: state.repere,
-        phone: state.phone,
+        repere: confirmee ? '' : state.repere,
+        phone: confirmee ? '' : state.phone,
         delivery: state.delivery,
         pay: state.pay,
         orderId: state.orderId,
@@ -1851,7 +1877,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // permission prompt answers first; a refusal (hers, or a browser with
         // no recorder) lands on the standing honest state, and the typed
         // repère stays the primary road.
-        state.note = null;
+        // PRIVEE-APRES-CONFIRMATION (F-58) — REFAIRE releases the old take:
+        // its bytes and its replay URL, which leaked once per re-record.
+        libererNote();
         // VOIX-ÉTAT-2 — REFAIRE while her old note is playing must silence it:
         // recording over her own voice coming out of the speaker is a note
         // nobody can use.
@@ -2092,7 +2120,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         state.paying = 'submitting'; render();
         t1 = setTimeout(() => {
           state.paying = 'provider'; render();
-          t2 = setTimeout(() => jump('C6', { confirmState: 'confirmed', step: 1 }), 2400);
+          t2 = setTimeout(() => {
+            jump('C6', { confirmState: 'confirmed', step: 1 });
+            libererNote(); // PRIVEE-APRES-CONFIRMATION — the demo road too
+          }, 2400);
         }, 1200);
         return;
       }

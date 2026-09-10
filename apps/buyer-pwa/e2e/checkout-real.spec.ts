@@ -1495,6 +1495,14 @@ test('REPRISE · un rechargement après paiement retombe sur sa commande', async
     JSON.stringify(Object.keys(sessionStorage).map((k) => [k, sessionStorage.getItem(k)])),
   );
   expect(stocke, 'the drop code was persisted on the phone').not.toContain('654321');
+  // PRIVEE-APRES-CONFIRMATION (AUDIT-SHOP-2 F-58) — nor her NUMBER: once the
+  // operator confirmed, the order holds her contact and the tab's snapshot
+  // stops carrying it for the rest of the delivery. Real sessionStorage, real
+  // build: the snapshot is still there (the refresh above resumed on it) and
+  // it names the order, not her.
+  expect(stocke, 'the snapshot still exists — the refresh resumed on it').toContain('sp-reprise:v1');
+  expect(stocke, 'her number persisted on the phone for the whole delivery').not.toContain('70 12 34 56');
+  expect(stocke, 'her number persisted on the phone (digits without spaces)').not.toContain('70123456');
   // ═══ AND THE C9-RESUME RESTARTS THE WATCH TOO (verifier MAJOR, 2026-08-13:
   // deleting demarrerSuivi() from THIS resume branch left the whole suite
   // green — the code re-showed via demanderLeCode alone while the delivery
