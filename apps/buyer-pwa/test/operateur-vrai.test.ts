@@ -54,9 +54,17 @@ const C5_WAIT: C5State = { delivery: 'today', pay: 'B', paying: 'provider', bIne
 const provBody = (html: string): string => /<div class="cl-prov-body">([\s\S]*?)<\/div>/.exec(html)?.[1] ?? '';
 const visible = (html: string): string => html.replace(/<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, '');
 
-const ecrans = (): Array<[string, string]> => [
+/**
+ * C8's door figure is deliberately NOT the product price (11 500) nor the paid-now
+ * leg (1 000): the server's split is what the screen must follow, and a fixture
+ * where every figure is equal cannot tell « the right leg » from « the same
+ * number » (verifier, F-60).
+ */
+const DU_A_LA_PORTE = 11_250;
+
+const ecrans = (): [[string, string], [string, string]] => [
   ['C5 · opérateur', renderC5(ROBE, Q, C5_WAIT)],
-  ['C8 · paiement à la porte', renderC8(ROBE, Q, { door: 'accepted', pay: 'B', reason: null, duAlaPorte: 11_500 })],
+  ['C8 · paiement à la porte', renderC8(ROBE, Q, { door: 'accepted', pay: 'B', reason: null, duAlaPorte: DU_A_LA_PORTE })],
 ];
 
 describe('OPERATEUR-VRAI-1 — no wait screen names an operator the app does not know', () => {
@@ -71,7 +79,8 @@ describe('OPERATEUR-VRAI-1 — no wait screen names an operator the app does not
   it('the sentence still carries the server’s own amount for that leg — C5 the paid-now leg, C8 the door leg', () => {
     const [[, c5], [, c8]] = ecrans();
     expect(visible(provBody(c5))).toContain(`1${N}000${N}FCFA`);
-    expect(visible(provBody(c8))).toContain(`11${N}500${N}FCFA`);
+    expect(visible(provBody(c8))).toContain(`11${N}250${N}FCFA`);
+    expect(visible(provBody(c8))).not.toContain(`11${N}500`); // the product price is NOT the door figure
   });
 
   it('the checkout still tells her which operators are accepted, so « votre opérateur » has its referent', () => {
