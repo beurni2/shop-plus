@@ -262,6 +262,16 @@ export function demoStorefrontPort(variant: 'default' | 'customised' | 'empty' |
  * is STRIPPED at the boundary below, exactly as `headerStyle` and the
  * cover/avatar `focus` already are, and a stripped category is an absent one:
  * the conservative row.
+ *
+ * BORNES-VITRINE-1 (AUDIT-SHOP-2 F-55) — THE PHOTOGRAPHS FOLLOW THE SAME LAW.
+ * This guard used to ask `Array.isArray(assetRefs)` and nothing about the
+ * items, so `assetRefs: [123]` passed here and threw in the renderer's
+ * `esc(vignette(123))` — before `innerHTML`, so the whole shop went BLANK on
+ * one bad photograph reference (the audit measured it). The four fields the
+ * tile cannot draw without stay required; the photographs are normalised in
+ * `productFromWire`: a non-string item is dropped, a non-array is no photo.
+ * A product without a usable photograph is a « sans photo » tile, never a
+ * vanished product and never a blank page.
  */
 function looksLikeProduct(v: unknown): v is VitrineProduct {
   if (v === null || typeof v !== 'object') return false;
@@ -277,9 +287,35 @@ function looksLikeProduct(v: unknown): v is VitrineProduct {
     /^[A-Za-z0-9_-]+$/.test(p.pid) &&
     typeof p.name === 'string' &&
     typeof p.priceFcfa === 'number' &&
-    typeof p.inStock === 'boolean' &&
-    Array.isArray(p.assetRefs)
+    typeof p.inStock === 'boolean'
   );
+}
+
+/** A wire collection of identifiers: the strings it holds, nothing else — a non-array is empty. */
+function chaines(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+}
+/** A wire text: the string it is, or nothing. */
+function texte(v: unknown): string {
+  return typeof v === 'string' ? v : '';
+}
+/**
+ * BORNES-VITRINE-1 — a wire `cover`/`avatar`: the object with its `url` kept
+ * only as a string (a number reached `esc(...).replace` and threw), its
+ * `focus` through the ENTETES-C sanitizer, or the seed's default when the
+ * field is absent or not an object with its discriminant. The renderer draws
+ * `none`/`monogram` as the woven habillage — the designed empty state.
+ */
+function partFromWire<T extends { readonly focus?: unknown; readonly url?: unknown }>(
+  raw: unknown,
+  discriminant: 'status' | 'mode',
+  fallback: T,
+): T {
+  if (raw === null || typeof raw !== 'object') return fallback;
+  const part = raw as T & Record<'status' | 'mode', unknown>;
+  if (typeof part[discriminant] !== 'string') return fallback;
+  const { url, ...rest } = part;
+  return sanitizeFocus({ ...rest, ...(typeof url === 'string' ? { url } : {}) } as T);
 }
 
 /**
@@ -293,17 +329,28 @@ function looksLikeProduct(v: unknown): v is VitrineProduct {
 function productFromWire(p: VitrineProduct): VitrineProduct {
   // VIDEO-PRODUIT — same boundary law as `category`: a non-string (or absent)
   // videoRef becomes an ABSENT key; downstream never re-checks it.
-  const { category, videoRef, ...rest } = p;
+  const { category, videoRef, assetRefs, ...rest } = p;
   return {
     ...rest,
+    // BORNES-VITRINE-1 — only string references reach the renderer.
+    assetRefs: chaines(assetRefs),
     ...(typeof category === 'string' ? { category } : {}),
     ...(typeof videoRef === 'string' && videoRef !== '' ? { videoRef } : {}),
   };
 }
 
-/** A storefront looks real when the service handed back at least an id + slug. */
+/**
+ * A storefront looks real when the service handed back an id, a slug and a
+ * NAME — the renderer reads `name` in eight places (the monogram, the title,
+ * the WhatsApp line) and a shop without one is not a shop Boutik+ published:
+ * the honest not-found, never a throw (BORNES-VITRINE-1). Every OTHER field
+ * the page reads is defaulted at the boundary below, so an old or partial
+ * projection draws the designed empty states instead of a blank.
+ */
 function looksLikeStorefront(v: unknown): v is Storefront {
-  return typeof v === 'object' && v !== null && typeof (v as Storefront).id === 'string' && typeof (v as Storefront).slug === 'string';
+  if (typeof v !== 'object' || v === null) return false;
+  const sf = v as Storefront;
+  return typeof sf.id === 'string' && typeof sf.slug === 'string' && typeof sf.name === 'string';
 }
 
 /* Test seams — CATEGORY-WIRE-1 r2. Both are boundary logic a verifier proved
@@ -481,12 +528,23 @@ export function httpStorefrontPort(baseUrl: string): StorefrontProfilePort {
         // downstream reader indexes VITRINE_THEMES with a key that exists.
         theme: themeFromWire((view as { theme?: unknown }).theme),
       } as Storefront;
-      const rawCover = (withHeader as { cover?: unknown }).cover;
-      const rawAvatar = (withHeader as { avatar?: unknown }).avatar;
+      // BORNES-VITRINE-1 (AUDIT-SHOP-2 F-55) — every field the page reads is
+      // made SAFE HERE, once: the collections are the strings they hold, the
+      // texts are strings or empty, cover and avatar carry the seed's default
+      // when absent. A storefront the service handed back without `cover`
+      // threw at `sf.cover.status` before `innerHTML` — a blank page for the
+      // buyer on one missing field. Now it draws the designed empty states.
+      const w = withHeader as unknown as Record<string, unknown>;
       const storefront: Storefront = {
         ...withHeader,
-        ...(rawCover !== null && typeof rawCover === 'object' ? { cover: sanitizeFocus(rawCover as Storefront['cover']) } : {}),
-        ...(rawAvatar !== null && typeof rawAvatar === 'object' ? { avatar: sanitizeFocus(rawAvatar as Storefront['avatar']) } : {}),
+        zone: texte(w['zone']),
+        tagline: texte(w['tagline']),
+        bio: texte(w['bio']),
+        curatedItems: chaines(w['curatedItems']),
+        featuredItems: chaines(w['featuredItems']),
+        sections: Array.isArray(w['sections']) ? (w['sections'] as Storefront['sections']) : [],
+        cover: partFromWire<Storefront['cover']>(w['cover'], 'status', { status: 'none' }),
+        avatar: partFromWire<Storefront['avatar']>(w['avatar'], 'mode', { mode: 'monogram' }),
       };
       // VOIX-PRODUIT — HER OWN notes now arrive on the wire, so the `{}` that
       // BUYER-REAL-HONESTY-1 put here is replaced by the real thing rather than
