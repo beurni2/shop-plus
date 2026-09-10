@@ -186,6 +186,8 @@ interface Script {
   state: 'payment_pending' | 'confirmed' | 'payment_failed';
   /** Every contact a create was handed, verbatim, in order. */
   creates: Array<Record<string, unknown> | undefined>;
+  /** How the price ask answers: at once, refused (« Pas de connexion »), or never (still on the wire). */
+  quote?: 'ready' | 'unreachable' | 'deferred';
 }
 
 function serviceScripte(script: Script): (quartier: string) => Promise<QuoteFetch> {
@@ -198,7 +200,10 @@ function serviceScripte(script: Script): (quartier: string) => Promise<QuoteFetc
     doorLeg: 'none',
     acceptedAt: ISO,
   });
-  return async (): Promise<QuoteFetch> => ({
+  return async (): Promise<QuoteFetch> => {
+    if (script.quote === 'unreachable') return { status: 'unreachable' };
+    if (script.quote === 'deferred') return new Promise<QuoteFetch>(() => {});
+    return {
     status: 'ready',
     quote: QUOTE,
     bIndisponible: false,
@@ -212,6 +217,15 @@ function serviceScripte(script: Script): (quartier: string) => Promise<QuoteFetc
     etatCommande: async (): Promise<OrderFetch> => ({ status: 'order', order: ordre() }),
     payerALaPorte: async (): Promise<OrderFetch> => ({ status: 'order', order: ordre() }),
     remise: async (): Promise<RemiseFetch> => ({ status: 'code', code: '654321' }),
+    };
+  };
+}
+
+/** A snapshot as a C6-attente refresh leaves it: the order exists, the operator has not answered. */
+function snapshotC6(): string {
+  return JSON.stringify({
+    lien: LIEN, ecran: 'C6', zone: 'Gounghin', repere: REPERE, phone: PHONE,
+    delivery: 'today', pay: 'A', orderId: 'ord-privee-1', buyerRef: 'ref-privee-1', essai: 1,
   });
 }
 
@@ -243,28 +257,27 @@ describe('PRIVEE-APRES-CONFIRMATION — what the phone keeps of her, and for how
     vi.useRealTimers();
   });
 
-  function monter(script: Script): { c: FauxConteneur; storage: FauxStorage } {
+  function monter(script: Script, storageDonne?: FauxStorage): { c: FauxConteneur; storage: FauxStorage; arreter: () => void } {
     const c = fauxConteneur();
-    const storage = new FauxStorage();
+    const storage = storageDonne ?? new FauxStorage();
     const service = serviceScripte(script);
     const ordre = async (): Promise<OrderFetch> => ({
       status: 'order',
       order: { orderId: 'ord-privee-1', state: script.state, amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, buyerRef: 'ref-privee-1', doorLeg: 'none', acceptedAt: ISO },
     });
-    arrets.push(
-      createCliente(c as unknown as HTMLElement, {
-        produit: PRODUIT,
-        quoteSource: service,
-        enregistreur: fauxEnregistreur(),
-        reprise: {
-          lien: LIEN,
-          storage,
-          etatCommande: ordre,
-          remise: async (): Promise<RemiseFetch> => ({ status: 'code', code: '654321' }),
-        },
-      }),
-    );
-    return { c, storage };
+    const arreter = createCliente(c as unknown as HTMLElement, {
+      produit: PRODUIT,
+      quoteSource: service,
+      enregistreur: fauxEnregistreur(),
+      reprise: {
+        lien: LIEN,
+        storage,
+        etatCommande: ordre,
+        remise: async (): Promise<RemiseFetch> => ({ status: 'code', code: '654321' }),
+      },
+    });
+    arrets.push(arreter);
+    return { c, storage, arreter };
   }
 
   /** C1 → C3 with her answers and ONE recorded take → C4 → C5 (mode A) → Payer.
@@ -396,4 +409,106 @@ describe('PRIVEE-APRES-CONFIRMATION — what the phone keeps of her, and for how
     await souffler();
     expect(script.creates[0]?.['audioB64']).toBe('PRISE2');
   });
+});
+
+/**
+ * THE VERIFIER'S ROAD (F-58, handled once): a refresh WHILE « Nous attendons
+ * l'opérateur » is on screen. The resumed order id plus the flow's mount
+ * default (the demo's « confirmed ») made the first cut blank her contact on
+ * the skeleton render, BEFORE the server had been re-asked — and when that
+ * re-ask was refused, the blank stood. A second refresh then resumed with no
+ * number, and a later retry went out contactless. Only the server's own word
+ * may say « confirmed ».
+ */
+describe('PRIVEE-APRES-CONFIRMATION — a refresh on « Nous attendons l’opérateur » keeps her contact until the server itself confirms', () => {
+  const vraiHTMLElement = globalThis.HTMLElement as unknown;
+  let arrets: Array<() => void> = [];
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    (globalThis as Record<string, unknown>)['HTMLElement'] = FauxElement;
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    for (const arreter of arrets) arreter();
+    arrets = [];
+    (globalThis as Record<string, unknown>)['HTMLElement'] = vraiHTMLElement;
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  function remonter(script: Script, storage: FauxStorage): { c: FauxConteneur; arreter: () => void } {
+    const c = fauxConteneur();
+    const service = serviceScripte(script);
+    const ordre = async (): Promise<OrderFetch> => ({
+      status: 'order',
+      order: { orderId: 'ord-privee-1', state: script.state, amountPaidAtCheckout: 12_500, amountDueAtDelivery: 0, buyerRef: 'ref-privee-1', doorLeg: 'none', acceptedAt: ISO },
+    });
+    const arreter = createCliente(c as unknown as HTMLElement, {
+      produit: PRODUIT,
+      quoteSource: service,
+      enregistreur: fauxEnregistreur(),
+      reprise: { lien: LIEN, storage, etatCommande: ordre, remise: async (): Promise<RemiseFetch> => ({ status: 'code', code: '654321' }) },
+    });
+    arrets.push(arreter);
+    return { c, arreter };
+  }
+
+  it('while the resumed C6 still waits for the price (the skeleton), the snapshot carries her contact', () => {
+    const storage = new FauxStorage();
+    storage.setItem(REPRISE_CLE, snapshotC6());
+    remonter({ state: 'payment_pending', creates: [], quote: 'deferred' }, storage);
+    const k = carnet(storage);
+    expect(k['ecran']).toBe('C6');
+    expect(k['phone']).toBe(PHONE);
+    expect(k['repere']).toBe(REPERE);
+  });
+
+  it('a resumed C6 whose price ask is REFUSED keeps her contact in the standing snapshot', async () => {
+    const storage = new FauxStorage();
+    storage.setItem(REPRISE_CLE, snapshotC6());
+    const { c } = remonter({ state: 'payment_pending', creates: [], quote: 'unreachable' }, storage);
+    await souffler();
+    expect(c.innerHTML).toContain('data-screen="REFUS"');
+    const k = carnet(storage);
+    expect(k['phone'], 'refused ask: the standing snapshot must still carry her number').toBe(PHONE);
+    expect(k['repere']).toBe(REPERE);
+  });
+
+  it('two refreshes on C6-attente (the first ask refused), then payment_failed: the retry still sends what she typed', async () => {
+    const storage = new FauxStorage();
+    storage.setItem(REPRISE_CLE, snapshotC6());
+    const un = remonter({ state: 'payment_pending', creates: [], quote: 'unreachable' }, storage);
+    await souffler();
+    un.arreter();
+    const s2: Script = { state: 'payment_failed', creates: [], quote: 'ready' };
+    const { c } = remonter(s2, storage);
+    await souffler();
+    expect(c.innerHTML).toContain('data-screen="C6"');
+    await vi.advanceTimersByTimeAsync(SUIVI_PAIEMENT_MS[0]! + 10);
+    expect(c.innerHTML).toContain('data-action="reessayer-paiement"');
+    presser(c, 'reessayer-paiement');
+    await souffler();
+    expect(s2.creates).toHaveLength(1);
+    expect(s2.creates[0], 'the retry after two refreshes must still carry her contact').toBeDefined();
+    expect(s2.creates[0]?.['phone']).toBe(PHONE);
+    expect(s2.creates[0]?.['repere']).toBe(REPERE);
+  });
+
+  it('CONTROL — a resumed C6 whose price answers at once, then the operator confirms: the contact leaves the snapshot only then', async () => {
+    const storage = new FauxStorage();
+    storage.setItem(REPRISE_CLE, snapshotC6());
+    const script: Script = { state: 'payment_pending', creates: [], quote: 'ready' };
+    const { c } = remonter(script, storage);
+    await souffler();
+    expect(c.innerHTML).toContain('data-etat="attente-operateur"');
+    expect(carnet(storage)['phone']).toBe(PHONE);
+    script.state = 'confirmed';
+    await vi.advanceTimersByTimeAsync(SUIVI_PAIEMENT_MS[0]! + 10);
+    expect(c.innerHTML).toContain('data-etat="confirmee"');
+    expect(carnet(storage)['phone']).toBe('');
+    expect(carnet(storage)['repere']).toBe('');
+  });
+
 });

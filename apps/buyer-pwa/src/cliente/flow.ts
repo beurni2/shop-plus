@@ -199,6 +199,12 @@ interface FlowState {
   pay: ModePaiement | null;
   paying: 'idle' | 'submitting' | 'provider';
   confirmState: ConfirmEtat;
+  /** PRIVEE-APRES-CONFIRMATION (F-58) — the operator's confirmation as a FACT
+   *  the server stated (or the demo timer played): set only there, never by a
+   *  default. `confirmState` cannot carry this: its mount default is the demo's
+   *  « confirmed », and a resumed C6 holds that default until the server has
+   *  been re-asked (verifier, F-58). */
+  confirmeParServeur: boolean;
   step: number;
   problem: boolean;
   door: DoorEtat;
@@ -474,6 +480,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     pay: null,
     paying: 'idle',
     confirmState: init.conf ?? 'confirmed',
+    confirmeParServeur: false,
     step: 1,
     problem: false,
     door: 'inspecting',
@@ -1033,6 +1040,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     // quote; carrying it forward would let « Vérifier à nouveau » poll an order
     // that no longer describes what she is about to pay.
     state.orderId = null;
+    state.confirmeParServeur = false;
     state.essai = 0;
     state.relance = false;
     state.horsPortee = false;
@@ -1166,6 +1174,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
           state.relance = false;
           // LISTE-MERCI — the poll is the ordinary road to a confirmed sight.
           if (etat === 'confirmed') {
+            state.confirmeParServeur = true;
             chargerMerci();
             libererNote(); // PRIVEE-APRES-CONFIRMATION — her note has ridden; nothing needs it now
           }
@@ -1519,6 +1528,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         );
       }
       const etat = etatDeC6(r.order.state);
+      // PRIVEE-APRES-CONFIRMATION — the server's word is recorded BEFORE the
+      // jump renders, so the snapshot that render writes already carries it
+      // (a create that answers already-confirmed is the replay / double-tap road).
+      if (etat === 'confirmed') state.confirmeParServeur = true;
       jump('C6', { confirmState: etat, step: 1, orderId: r.order.orderId, relance: false, horsPortee: false });
       // REPERE-AUDIO-REEL — a LOST note gets its sentence, spoken once, calm:
       // her order is untouched and her written repère travelled. Silence here
@@ -1584,8 +1597,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     // again, so the snapshot stops carrying her number and her repère for the
     // rest of the delivery (a whole day, on a shared phone). Before that
     // moment they stay: a retry after `payment_failed` assembles the contact
-    // again from what she typed, and a refresh on C6-attente must keep it.
-    const confirmee = state.orderId !== null && state.confirmState === 'confirmed';
+    // again from what she typed, and a refresh on C6-attente must keep it —
+    // including the resumed C6 whose re-ask stands refused, where `confirmState`
+    // is still the mount default and only the server's own word may decide.
+    const confirmee = state.orderId !== null && state.confirmeParServeur;
     garderReprise(
       {
         lien: rep.lien,
@@ -2121,7 +2136,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         t1 = setTimeout(() => {
           state.paying = 'provider'; render();
           t2 = setTimeout(() => {
-            jump('C6', { confirmState: 'confirmed', step: 1 });
+            jump('C6', { confirmState: 'confirmed', confirmeParServeur: true, step: 1 });
             libererNote(); // PRIVEE-APRES-CONFIRMATION — the demo road too
           }, 2400);
         }, 1200);
@@ -2287,6 +2302,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // cleared with her: leaving `orderId` and the marks behind would let a
         // later screen resurrect a delivery she has finished with.
         state.orderId = null;
+        state.confirmeParServeur = false;
         state.buyerRef = null;
         state.marques = {};
         state.livree = false;
