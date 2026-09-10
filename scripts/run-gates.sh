@@ -472,6 +472,13 @@ capture copy-lint-inline-refus-negative-inspection-spread-row fail node scripts/
 log "gate: French Voice copy-lint — NEGATIVE (a .concat(…) tail after a literal checklist, must fail)"
 capture copy-lint-inline-refus-negative-inspection-concat-tail fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-concat-tail.ts
 
+# OPERATEUR-VRAI-1 (AUDIT-SHOP-2 F-60) — the sentence a buyer reads while her
+# payment sits with the operator used to name ONE operator for every buyer and
+# was read by no gate. It is a linted table now; this negative plants marketing
+# urgency (a word the raw scan cannot see) so only the extraction can catch it.
+log "gate: French Voice copy-lint — NEGATIVE (marketing urgency in the operator wait sentence, money register, must fail)"
+capture copy-lint-inline-refus-negative-operateur-marketing fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/operateur-marketing.ts
+
 log "gate: E2 failure path — the real service path end-to-end (must pass)"
 capture e2-failure-path pass node scripts/e2-failure-path.mjs
 

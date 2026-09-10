@@ -592,6 +592,70 @@ if (porte === null) {
   }
 }
 
+/* ═══ OPERATEUR-VRAI-1 (F-60) — the operator wait screens, on the same terms ═══ */
+
+/**
+ * The words a buyer reads while her payment is in the operator's hands — C5's
+ * wait after « Payer » and C8's door leg in front of the rider. Until F-60
+ * both named ONE operator (« code secret Orange Money ») for every buyer while
+ * the app knows none, and neither sentence was read by any gate. Money
+ * register; `corps` is filled with ONE server amount (`{X}` — C5's paid-now,
+ * C8's due-at-door), `cle` is the credential phrase the renderer glues as one
+ * no-wrap unit and is pinned as a SUBSTRING of `corps` by test (the
+ * `rediteFin` precedent), the rest carries nothing.
+ */
+const OPERATEUR_FIELDS = {
+  titre: { screenClass: 'label', fills: [] },
+  corps: { screenClass: 'checkout', fills: ['{X}'] },
+  cle: { screenClass: 'label', fills: [] },
+  attente: { screenClass: 'status', fills: [] },
+  loi: { screenClass: 'checkout', fills: [] },
+  porteTitre: { screenClass: 'label', fills: [] },
+  porteLoi: { screenClass: 'checkout', fills: [] },
+};
+
+let operateurCount = 0;
+const oper = /export const OPERATEUR\s*=\s*\{([\s\S]*?)\n\}/.exec(src);
+if (oper === null) {
+  problems.push(
+    'the OPERATEUR block is missing — it is what a buyer reads while her payment sits with the operator, ' +
+      'and it would ship unlinted. Re-point this gate, never delete it.',
+  );
+} else {
+  const fields = fieldsOf(oper[1], 'OPERATEUR');
+  for (const required of Object.keys(OPERATEUR_FIELDS)) {
+    if (!(required in fields)) problems.push(`OPERATEUR: missing field « ${required} » (operator wait copy)`);
+  }
+  for (const present of Object.keys(fields)) {
+    if (present in OPERATEUR_FIELDS) continue;
+    problems.push(
+      `OPERATEUR: unknown field « ${present} » — add it to OPERATEUR_FIELDS with its screen class ` +
+        'so it gets linted; nothing here may go unread',
+    );
+  }
+  for (const [field, { screenClass, fills }] of Object.entries(OPERATEUR_FIELDS)) {
+    if (!(field in fields)) continue;
+    const v = readValue(fields[field]);
+    if (v.kind !== 'text') {
+      problems.push(`OPERATEUR.${field}: ${v.why ?? 'null is not copy'}`);
+      continue;
+    }
+    if (v.text === '') {
+      problems.push(`OPERATEUR.${field}: empty — a wait with no sentence is a wait with no honesty`);
+      continue;
+    }
+    for (const brace of v.text.match(/\{[^}]*\}/gu) ?? []) {
+      if (fills.includes(brace)) continue;
+      problems.push(
+        `OPERATEUR.${field}: « ${brace} » is filled by nothing — only \`corps\` takes the one server amount, ` +
+          'and the buyer would read the token itself',
+      );
+    }
+    entries.push({ key: `cliente.operateur.${field}.${n++}`, fr: v.text, register: 'money', screenClass });
+    operateurCount += 1;
+  }
+}
+
 /* ════════ SP3.3c — C6's post-payment copy, on the same terms ═════════════ */
 
 let confirmationCount = 0;
@@ -1020,6 +1084,7 @@ console.log(
     `${confirmationCount} C6 post-payment string(s) · ${porteCount} door string(s) · ` +
     `${voixCount} voice-control label(s) · ${suiviCount} tracking string(s) · ` +
     `${merciCount} gift-message string(s) · ${inspectionCount} door-checklist line(s) in ${inspectionRows} row(s) · ` +
+    `${operateurCount} operator-wait string(s) · ` +
     `${entries.length} user-facing strings extracted from ${rel} · ${scanned.length} file(s) scanned`,
 );
 
@@ -1078,13 +1143,14 @@ console.log(
     `table (${paiementCount} strings), the C6 CONFIRMATION table (${confirmationCount} strings) ` +
     `, the PORTE table (${porteCount} strings), the C3 VOIX labels (${voixCount} strings), ` +
     `the SUIVI tracking table (${suiviCount} strings), the C10 MERCI gift message (${merciCount} strings) ` +
-    `and the §6.2 INSPECTION door checklists (${inspectionCount} lines in ${inspectionRows} rows) ` +
+    `the §6.2 INSPECTION door checklists (${inspectionCount} lines in ${inspectionRows} rows) ` +
+    `and the OPERATEUR wait screens (${operateurCount} strings) ` +
     `— ${entries.length} strings from ${rel}.`,
 );
 console.log(
   '  NOT LINTED, and named so the gap is visible: every OTHER inline string in that module — the bill ' +
-    'labels, the C5 quote line, the operator screens, and C6–C9 outside CONFIRMATION, SUIVI and MERCI. This ' +
-    'gate reads nine tables, not the file. Those strings ARE word-scanned for the banned register ' +
+    'labels, the C5 quote line, and C6–C9 outside CONFIRMATION, SUIVI, MERCI and OPERATEUR. This ' +
+    'gate reads ten tables, not the file. Those strings ARE word-scanned for the banned register ' +
     '(below), which catches administrative French but sees no reading budget and no register clash. ' +
     'The cure is the i18n catalog migration, which is its own slice.',
 );

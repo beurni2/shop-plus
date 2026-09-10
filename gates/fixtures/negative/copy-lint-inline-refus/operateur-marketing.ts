@@ -1,13 +1,14 @@
-// NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
-// A TEMPLATE-LITERAL refusal carrying marketing urgency, with no interpolation:
-// it must be LINTED like any other string, never skipped. The plant is a word
-// the raw scan cannot see, so only the extraction can catch it.
+// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — OPERATEUR-VRAI-1 (F-60).
+// The sentence a buyer reads while her payment sits with the operator carries
+// MARKETING URGENCY in a money sentence — a word the raw scan cannot see, so
+// only the OPERATEUR extraction, linted as `money`, can catch it. If the gate
+// stops reading that table this fixture goes green.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
 const REFUS_GENERIQUE = {
   overline: 'LE PRIX',
-  titre: `Profitez de nos offres.`,
+  titre: 'Nous ne pouvons pas afficher le prix.',
   phrase: 'Réessayez dans un instant. Rien n’a été payé.',
   action: 'reessayer-prix',
   libelle: 'Réessayer',
@@ -15,11 +16,11 @@ const REFUS_GENERIQUE = {
 
 const REFUS = {
   expired: {
-    overline: `LE PRIX`,
-    titre: `Ce prix a expiré.`,
-    phrase: `Dernière chance : le prix part dans un instant.`,
+    overline: 'LE PRIX',
+    titre: 'Ce prix a expiré.',
+    phrase: 'Un prix ne reste affiché qu’un moment. Rien n’a été payé.',
     action: 'prix-a-jour',
-    libelle: `Voir le prix à jour`,
+    libelle: 'Voir le prix à jour',
   },
   unreachable: {
     overline: 'HORS LIGNE',
@@ -69,7 +70,7 @@ export const PORTE = {
 // The operator wait screens (OPERATEUR-VRAI-1, F-60) — verbatim from the real screens.ts.
 export const OPERATEUR = {
   titre: 'Confirmez sur votre téléphone',
-  corps: 'Votre opérateur vous demande votre code secret pour valider {X}.',
+  corps: 'Dépêchez-vous : votre opérateur vous demande votre code secret pour valider {X}.',
   cle: 'code secret',
   attente: 'En attente de la confirmation de l’opérateur…',
   loi: 'Rien n’est confirmé tant que l’opérateur n’a pas répondu. Nous ne dirons\u00a0jamais\u00a0le\u00a0contraire.',

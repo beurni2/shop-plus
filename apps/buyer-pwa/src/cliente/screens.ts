@@ -1771,10 +1771,10 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
       stepHead('retour-c4', 'Le paiement'),
       '<div class="cl-prov">',
       `<div class="cl-prov-phone">${iconPhone(30)}</div>`,
-      '<div class="cl-prov-title">Confirmez sur votre téléphone</div>',
-      `<div class="cl-prov-body">Composez votre <span class="cl-prov-cle">code secret <b>Orange Money</b></span> pour valider <b>${payNowStr}</b>.</div>`,
-      '<div class="cl-prov-wait"><span class="cl-prov-dots"><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span></span><span>En attente de la confirmation de l’opérateur…</span></div>',
-      '<div class="cl-prov-law">Rien n’est confirmé tant que l’opérateur n’a pas répondu. Nous ne dirons\u00a0jamais\u00a0le\u00a0contraire.</div>',
+      `<div class="cl-prov-title">${OPERATEUR.titre}</div>`,
+      `<div class="cl-prov-body">${phraseOperateur(payNowStr)}</div>`,
+      `<div class="cl-prov-wait"><span class="cl-prov-dots"><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span></span><span>${OPERATEUR.attente}</span></div>`,
+      `<div class="cl-prov-law">${OPERATEUR.loi}</div>`,
       '</div></div>',
     ].join('');
   }
@@ -1864,6 +1864,50 @@ export const PORTE = {
   echecCorps: 'Rien n’a été confirmé. Votre commande est toujours là — vous pouvez réessayer.',
   echecAction: 'Réessayer le paiement',
 } as const;
+
+/**
+ * OPERATEUR-VRAI-1 (AUDIT-SHOP-2 F-60) — THE OPERATOR WAIT SCREENS SAY WHAT THE
+ * APP KNOWS, AND NOTHING IT DOES NOT.
+ *
+ * Both screens that ask her for her code — C5's wait after « Payer » and C8's
+ * door leg in front of the rider — read « Composez votre code secret Orange
+ * Money » for EVERY buyer, while the checkout above lists « ORANGE MONEY ·
+ * MOOV MONEY » as accepted and nothing in the flow, the quote or the
+ * contracts carries which operator she uses (there is no provider choice; the
+ * live provider is the sandbox mock). A Moov buyer was told to type an Orange
+ * Money code at the exact moment her money moves — the trust test failed on
+ * the one screen it matters most (§5; Contract §10.5: cause and effect stated
+ * plainly, no fiction).
+ *
+ * The sentence now names HER operator, whoever it is: it is her operator that
+ * asks for her secret code, and the figure is the server's own for that leg.
+ * `cle` is the credential phrase the renderer glues as one no-wrap unit
+ * (`.cl-prov-cle`); it is a SUBSTRING of `corps`, pinned by test, because a
+ * `.replace` that stops matching is a silent no-op. Linted by
+ * `copy-lint-inline-refus.mjs` as money copy: `corps` takes exactly `{X}`,
+ * nothing else takes a placeholder, and a deleted sentence fails the floor.
+ */
+export const OPERATEUR = {
+  titre: 'Confirmez sur votre téléphone',
+  corps: 'Votre opérateur vous demande votre code secret pour valider {X}.',
+  cle: 'code secret',
+  attente: 'En attente de la confirmation de l’opérateur…',
+  loi: 'Rien n’est confirmé tant que l’opérateur n’a pas répondu. Nous ne dirons\u00a0jamais\u00a0le\u00a0contraire.',
+  porteTitre: 'Payez le reste, en sécurité',
+  porteLoi: 'Le livreur ne peut pas dire « payé » à votre place. Seul l’opérateur confirme.',
+} as const;
+
+/**
+ * The credential sentence with the server's figure in bold and the credential
+ * phrase as one no-wrap unit. `montant` arrives ALREADY FORMATTED by the caller
+ * from its own server byte — C5's paid-now leg, C8's door leg — so this takes
+ * the figure whole and never re-formats or re-derives a number.
+ */
+function phraseOperateur(montant: string): string {
+  return OPERATEUR.corps
+    .replace('{X}', `<b>${montant}</b>`)
+    .replace(OPERATEUR.cle, `<span class="cl-prov-cle">${OPERATEUR.cle}</span>`);
+}
 
 /* ----------------------------------------------------------------- C6 ---- */
 
@@ -2178,10 +2222,10 @@ export function renderC8(m: ClienteProduit, q: ClienteQuote, s: C8State): string
     body = [
       '<div class="cl-door-pay" data-etat="paiement-porte">',
       `<div class="cl-prov-phone">${iconPhone(30)}</div>`,
-      '<div class="cl-prov-title">Payez le reste, en sécurité</div>',
-      `<div class="cl-prov-body">Composez votre <span class="cl-prov-cle">code secret <b>Orange Money</b></span> pour valider <b>${produitStr}</b>.</div>`,
-      '<div class="cl-prov-wait"><span class="cl-prov-dots"><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span></span><span>En attente de la confirmation de l’opérateur…</span></div>',
-      '<div class="cl-prov-law">Le livreur ne peut pas dire « payé » à votre place. Seul l’opérateur confirme.</div>',
+      `<div class="cl-prov-title">${OPERATEUR.porteTitre}</div>`,
+      `<div class="cl-prov-body">${phraseOperateur(produitStr)}</div>`,
+      `<div class="cl-prov-wait"><span class="cl-prov-dots"><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span><span class="cl-prov-dot"></span></span><span>${OPERATEUR.attente}</span></div>`,
+      `<div class="cl-prov-law">${OPERATEUR.porteLoi}</div>`,
       '</div>',
     ].join('');
   } else if (s.door === 'echec') {

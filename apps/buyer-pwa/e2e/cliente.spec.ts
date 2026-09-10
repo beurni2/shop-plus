@@ -614,7 +614,7 @@ test('C5 at 360px — every bill label renders in full, and NO sentence orphans,
   for (const { label, glued } of tous.filter((s) => s.attendu === 'operateur')) {
     expect(
       glued.some((g) => g.cls.includes('cl-prov-cle')),
-      `${label}: « code secret Orange Money » is no longer one no-wrap unit — back to 0.363`,
+      `${label}: « code secret » is no longer one no-wrap unit — back to 0.363`,
     ).toBe(true);
   }
   // …AND OPTION B'S NAME, on every state that shows the payment cards (round 7).
@@ -947,7 +947,7 @@ for (const regime of ['face réelle', 'repli'] as const) {
         for (const { label, glued } of etats.filter((e) => e.attendu === 'operateur')) {
           expect(
             glued.some((g) => g.cls.includes('cl-prov-cle')),
-            `${label}: « code secret Orange Money » is no longer one no-wrap unit`,
+            `${label}: « code secret » is no longer one no-wrap unit`,
           ).toBe(true);
         }
       }
@@ -1019,15 +1019,17 @@ test('C5 — the article variant never orphans, at any text width (font-independ
 /**
  * THE CREDENTIAL GLUE ON C8 IS ITS OWN MARKUP (round 7, fresh verifier).
  *
- * « Composez votre code secret Orange Money pour valider {X} » is rendered
- * TWICE — C5's opérateur screen and C8's door-payment screen — each with its
- * own `<span class="cl-prov-cle">`. Only the C5 copy was ever named by a test.
+ * « Votre opérateur vous demande votre code secret pour valider {X}. » is
+ * rendered TWICE — C5's opérateur screen and C8's door-payment screen — each
+ * with its own `<span class="cl-prov-cle">` around the credential phrase
+ * (OPERATEUR-VRAI-1, F-60: it named « Orange Money » for every buyer before).
+ * Only the C5 copy was ever named by a test.
  * The two are covered TRANSITIVELY today because they share one CSS rule, so
  * deleting the RULE fails on C5; but deleting the SPAN from C8's markup alone
  * fails nothing at all, and C8 is the screen where she pays the second leg
  * standing in front of the rider. Named here, on the screen that renders it.
  */
-test('C8 at 360px — the door payment keeps « code secret Orange Money » as one no-wrap unit', async ({ page }) => {
+test('C8 at 360px — the door payment keeps « code secret » as one no-wrap unit', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 900 });
   // C8 mounts with the prefill's mode B, so « Tout est bon » opens the door
   // payment rather than jumping straight to C9. It self-advances after 2 600 ms.
@@ -1052,10 +1054,10 @@ test('C8 at 360px — the door payment keeps « code secret Orange Money » as o
     for (const t of sorted) if (tops.length === 0 || t - tops[tops.length - 1]! > 2) tops.push(t);
     return { text: (el.textContent ?? '').trim(), nowrap: getComputedStyle(el).whiteSpace === 'nowrap', lines: tops.length };
   });
-  expect(cle, 'C8’s « code secret Orange Money » span is gone — the door-leg glue is unprotected').not.toBeNull();
-  expect(cle?.text).toBe('code secret Orange Money');
+  expect(cle, 'C8’s « code secret » span is gone — the door-leg glue is unprotected').not.toBeNull();
+  expect(cle?.text).toBe('code secret');
   expect(cle?.nowrap, 'C8’s credential clause no longer computes nowrap').toBe(true);
-  expect(cle?.lines, 'C8’s « code secret Orange Money » wrapped — the credential is split across lines').toBe(1);
+  expect(cle?.lines, 'C8’s « code secret » wrapped — the credential is split across lines').toBe(1);
 });
 
 /**

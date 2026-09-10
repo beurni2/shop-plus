@@ -726,13 +726,17 @@ export const CLIENTE_STYLES = `
      card past a 360px phone, and a horizontal scrollbar on a payment screen is
      worse than a second line). A tail is therefore unavailable; gluing « pour
      valider » alone changes nothing, measured, because those words already sit
-     together. What DOES move the break is « code secret Orange Money » — the
-     name of the credential she is being asked to compose, which was itself
-     being split across two lines. Held together it reads « Composez votre /
-     code secret Orange Money / pour valider {X} FCFA. » → 0.581 at the smallest
-     basket and 0.754 at the largest. The unit is 273px and carries no amount,
-     so it cannot grow past the 290px measure. Used by BOTH screens that ask for
-     the code — C5's opérateur and C8's door leg — because it is one sentence. */
+     together. What DOES move the break is the name of the credential she is
+     being asked to compose, which was itself being split across two lines.
+     Held together it read « Composez votre / code secret Orange Money / pour
+     valider {X} FCFA. » → 0.581 at the smallest basket and 0.754 at the
+     largest. Used by BOTH screens that ask for the code — C5's opérateur and
+     C8's door leg — because it is one sentence.
+     OPERATEUR-VRAI-1 (F-60): the sentence no longer names an operator the app
+     does not know — it is OPERATEUR.corps, « Votre opérateur vous demande
+     votre code secret pour valider {X}. » — and the glued unit is
+     OPERATEUR.cle, « code secret », the credential phrase alone. The e2e
+     sweep re-measures the last-line ratio on both screens at every basket. */
   .cl-prov-cle { white-space: nowrap; }
   .cl-prov-wait { margin-top: 22px; display: flex; align-items: center; gap: 10px; padding: 12px 17px; border-radius: 15px; border: 1.5px solid #E0D6C2; background: #FFFFFF; }
   .cl-prov-dots { display: inline-flex; gap: 4px; }

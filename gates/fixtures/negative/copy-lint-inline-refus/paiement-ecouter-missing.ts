@@ -69,6 +69,17 @@ export const PORTE = {
   echecAction: 'Réessayer le paiement',
 } as const;
 
+// The operator wait screens (OPERATEUR-VRAI-1, F-60) — verbatim from the real screens.ts.
+export const OPERATEUR = {
+  titre: 'Confirmez sur votre téléphone',
+  corps: 'Votre opérateur vous demande votre code secret pour valider {X}.',
+  cle: 'code secret',
+  attente: 'En attente de la confirmation de l’opérateur…',
+  loi: 'Rien n’est confirmé tant que l’opérateur n’a pas répondu. Nous ne dirons\u00a0jamais\u00a0le\u00a0contraire.',
+  porteTitre: 'Payez le reste, en sécurité',
+  porteLoi: 'Le livreur ne peut pas dire « payé » à votre place. Seul l’opérateur confirme.',
+} as const;
+
 // C6's post-payment copy (SP3.3c) — verbatim from the real screens.ts.
 export const CONFIRMATION = {
   attenteTitre: 'Nous attendons l’opérateur.',
