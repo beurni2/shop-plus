@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-10 · BORNES-VITRINE-1 (AUDIT-SHOP-2 F-55) — a malformed wire field never blanks her shop: every field the buyer page reads is made safe at the one network boundary · DONE, NOT MERGED (waiting for his word — buyer PWA only, a Pages republish, no Worker change)
+## 2026-09-10 · BORNES-VITRINE-1 (AUDIT-SHOP-2 F-55) — a malformed wire field never blanks her shop: every field the buyer page reads is made safe at the one network boundary · DONE · MERGED + DEPLOYED 2026-09-10 (his word, below)
+
+**MERGED + DEPLOYED — founder, 2026-09-10: « go » (his word on the BORNES-VITRINE-1 report).** `main` `fa8cfb7` → `03dbb0d`, a fast-forward (the slice `d537fab`, the verifier's finding `bf0c596`, the journal `03dbb0d`). On that commit every push-triggered workflow completed **success**: `ci` #641 (02:54 → 03:08 UTC — the whole gate board on the runner, the new browser walk among the 192), `pwa-preview` #429 (02:54 → 02:55 UTC — the Pages republish, THIS slice's deploy: the buyer page now makes every wire field safe at its boundary), `expo-preview` #462, `service-canon-drift` #313. No `storefront-deploy` was dispatched: the Worker is untouched by this slice and stays on `5926fc0` (REGLE-2's deploy). Verified on the GitHub runs list (conclusions), not by a live probe of the page from here.
 
 **Founder, 2026-09-10: « go for the next slice with your recommendations » (his word on the REGLE-2 merge report).** The numbered ledger of AUDIT-SHOP-2 is finished; of the deferred items, F-55 is the one a buyer feels (a blank page on a single bad field), it is small, and it needs no decision from him — so it is the slice. Commit on the branch: `d537fab`. Buyer PWA only: `src/vitrine/profile.ts` (the port), one unit walk, one browser walk. No renderer change, no demo-port change, no money, no contracts, no Worker, no migration.
 
