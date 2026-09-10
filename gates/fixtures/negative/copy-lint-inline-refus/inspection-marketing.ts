@@ -1,9 +1,8 @@
-// NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
-// An UNRECOGNISED copy field (`soustitre`) carrying administrative French. The
-// lint loop iterated a hardcoded allowlist, so this shipped unread while the
-// gate printed the same counts and « 0 violations ». (Since F-59 the raw
-// banned-register scan sees the word too; the extractor line is the one this
-// fixture is named for.)
+// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — VOIX-INLINE-1 (F-59).
+// The shoes row's RISK line — the door sentence that protects her — opens with
+// MARKETING URGENCY (« Profitez-en ») in a MONEY-register sentence. Not a
+// banned-register word, so the raw scan cannot see it: only the INSPECTION
+// extraction, linted as `money`, can.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
@@ -19,7 +18,6 @@ const REFUS = {
   expired: {
     overline: 'LE PRIX',
     titre: 'Ce prix a expiré.',
-    soustitre: 'Veuillez patienter, nonobstant ce qui précède.',
     phrase: 'Un prix ne reste affiché qu’un moment. Rien n’a été payé.',
     action: 'prix-a-jour',
     libelle: 'Voir le prix à jour',
@@ -159,7 +157,7 @@ export const INSPECTION: Readonly<Record<string, RangeeInspection>> = {
       'En bon état',
     ],
     motifs: ['Ce n’est pas le bon modèle', 'Ce n’est pas la bonne pointure', 'Il est abîmé', 'Il manque une chaussure'],
-    risque: 'Si vous les portez, elles sont à vous. La pointure qui serre ne compte pas comme un problème.',
+    risque: 'Profitez-en : si vous les portez, elles sont à vous. La pointure qui serre ne compte pas comme un problème.',
   },
   sealed_beauty_cosmetics: {
     verifier: [

@@ -1041,7 +1041,9 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
  *     nothing at all is queued on this screen.
  *   · An UNKNOWN name gets the generic sentence, never the raw name. A server
  *     word on a buyer's screen is a leak and an insult at the same time.
- *   · No blame, no « erreur », no code number, no « veuillez ».
+ *   · No blame, no « erreur », no code number, none of the administrative
+ *     register the French Voice lint bans (the gate now scans this file for
+ *     that list, comments included — so the words are not quoted here).
  */
 interface RefusVue {
   readonly overline: string;

@@ -416,6 +416,40 @@ capture copy-lint-inline-refus-negative-confirmation-missing fail node scripts/g
 log "gate: French Voice copy-lint — NEGATIVE (§6.1's forbidden word in index.html, outside src/, must fail)"
 capture copy-lint-inline-refus-negative-scan-outside-src fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/scan-outside-src/clean-screens.ts --scan-root gates/fixtures/negative/copy-lint-inline-refus/scan-outside-src
 
+# VOIX-INLINE-1 (AUDIT-SHOP-2 F-59). Two more tables are extracted and linted —
+# the C10 WhatsApp gift message (MERCI, register `selling`) and the §6.2
+# inspection matrix (INSPECTION, register `money`) — and every text file a buyer
+# receives is now raw-scanned for the lint's WHOLE banned-register list, not
+# only §6.1's two words. Every negative below is the CLEAN BASE plus one plant,
+# so the only thing that can fail it is its named door; the two lint-door plants
+# (finance jargon in a selling sentence, marketing urgency in a money sentence)
+# are words the raw scan cannot see, so they prove the EXTRACTION and its
+# register, not the scan. The clean base itself is captured first as the
+# positive control every negative's red is measured against.
+log "gate: French Voice copy-lint — the CLEAN BASE every negative below derives from (must pass)"
+capture copy-lint-inline-refus-clean-base pass node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/clean-base.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (finance jargon in the SELLING-register gift message, invisible to the raw scan, must fail)"
+capture copy-lint-inline-refus-negative-merci-jargon fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/merci-jargon.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (an amount placeholder the flow never fills, in the gift message, must fail)"
+capture copy-lint-inline-refus-negative-merci-placeholder fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/merci-placeholder.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (the gift screen's prénom sentence DELETED: the structural floor must bite, must fail)"
+capture copy-lint-inline-refus-negative-merci-missing fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/merci-missing-field.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (marketing urgency in a §6.2 door RISK line, money register, invisible to the raw scan, must fail)"
+capture copy-lint-inline-refus-negative-inspection-marketing fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-marketing.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (the §6.2 SHOES row DELETED from the inspection matrix, must fail)"
+capture copy-lint-inline-refus-negative-inspection-missing-row fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-missing-row.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (a checklist line pulled in by a SPREAD, copy the extractor cannot read, must fail)"
+capture copy-lint-inline-refus-negative-inspection-not-literal fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-not-literal.ts
+
+log "gate: French Voice copy-lint — NEGATIVE (administrative French in an INLINE string outside every table — the raw banned-register scan alone must catch it, must fail)"
+capture copy-lint-inline-refus-negative-scan-administratif-inline fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/scan-administratif-inline.ts
+
 log "gate: E2 failure path — the real service path end-to-end (must pass)"
 capture e2-failure-path pass node scripts/e2-failure-path.mjs
 

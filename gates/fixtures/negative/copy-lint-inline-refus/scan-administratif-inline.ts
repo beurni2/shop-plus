@@ -1,9 +1,8 @@
-// NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
-// An UNRECOGNISED copy field (`soustitre`) carrying administrative French. The
-// lint loop iterated a hardcoded allowlist, so this shipped unread while the
-// gate printed the same counts and « 0 violations ». (Since F-59 the raw
-// banned-register scan sees the word too; the extractor line is the one this
-// fixture is named for.)
+// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — VOIX-INLINE-1 (F-59).
+// Every linted table is CLEAN. The administrative word lives in an INLINE string
+// outside every table — the C5 quote line, the kind of copy the extractor does
+// not read — so before F-59 this shipped while the gate printed green. Only the
+// raw banned-register scan can catch it.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
@@ -19,7 +18,6 @@ const REFUS = {
   expired: {
     overline: 'LE PRIX',
     titre: 'Ce prix a expiré.',
-    soustitre: 'Veuillez patienter, nonobstant ce qui précède.',
     phrase: 'Un prix ne reste affiché qu’un moment. Rien n’a été payé.',
     action: 'prix-a-jour',
     libelle: 'Voir le prix à jour',
@@ -173,3 +171,7 @@ export const INSPECTION: Readonly<Record<string, RangeeInspection>> = {
     risque: 'N’ouvrez pas le scellé avant d’accepter. Un scellé ouvert par vous ne compte pas comme un problème.',
   },
 };
+
+export function renderQuoteLine(): string {
+  return '<p class="cl-quote">Veuillez patienter, le prix arrive.</p>';
+}

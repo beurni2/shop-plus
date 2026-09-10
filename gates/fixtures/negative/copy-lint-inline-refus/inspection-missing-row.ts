@@ -1,9 +1,7 @@
-// NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
-// An UNRECOGNISED copy field (`soustitre`) carrying administrative French. The
-// lint loop iterated a hardcoded allowlist, so this shipped unread while the
-// gate printed the same counts and « 0 violations ». (Since F-59 the raw
-// banned-register scan sees the word too; the extractor line is the one this
-// fixture is named for.)
+// NEGATIVE FIXTURE for the copy-lint-inline-refus gate — VOIX-INLINE-1 (F-59).
+// The §6.2 SHOES row has been DELETED from the inspection matrix. Every other row
+// is present and clean, so nothing lints red: a deleted door checklist must fail
+// as loudly as a violated one.
 // Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
 // negatives from one clean base): the ONLY thing that can fail this fixture is the defect
 // named above. A negative that fails for the wrong reason proves nothing about its door.
@@ -19,7 +17,6 @@ const REFUS = {
   expired: {
     overline: 'LE PRIX',
     titre: 'Ce prix a expiré.',
-    soustitre: 'Veuillez patienter, nonobstant ce qui précède.',
     phrase: 'Un prix ne reste affiché qu’un moment. Rien n’a été payé.',
     action: 'prix-a-jour',
     libelle: 'Voir le prix à jour',
@@ -149,17 +146,6 @@ export const INSPECTION: Readonly<Record<string, RangeeInspection>> = {
     ],
     motifs: ['Ce n’est pas le bon article', 'Ce n’est pas la bonne couleur', 'Il est abîmé', 'Il en manque'],
     risque: 'Vous ne pouvez pas l’essayer à la porte. La coupe qui ne vous plaît pas ne compte pas comme un problème.',
-  },
-  shoes: {
-    verifier: [
-      'Ouvrez la boîte',
-      'C’est le bon modèle',
-      'La bonne pointure sur l’étiquette',
-      'Les deux pieds sont là',
-      'En bon état',
-    ],
-    motifs: ['Ce n’est pas le bon modèle', 'Ce n’est pas la bonne pointure', 'Il est abîmé', 'Il manque une chaussure'],
-    risque: 'Si vous les portez, elles sont à vous. La pointure qui serre ne compte pas comme un problème.',
   },
   sealed_beauty_cosmetics: {
     verifier: [

@@ -4,6 +4,11 @@ import { mkdtempSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'n
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// VOIX-INLINE-1 (AUDIT-SHOP-2 F-59) — the lint's OWN token matcher and its
+// maintained banned-register list, so the raw scan below and the catalog lint
+// can never disagree about what a banned word is.
+import { findToken } from '@platform/i18n';
+import { loadLintData } from '@platform/i18n/data-loader';
 
 /**
  * CI gate: copy-lint-inline-refus — THE FRENCH VOICE GATE READS THE STRINGS THAT
@@ -73,6 +78,25 @@ import { fileURLToPath } from 'node:url';
  * under the buyer app's `src/`, not just this one file. (The canon ledger record
  * `EscrowTxn` lives in `packages/commerce-core` — server-side, never a buyer
  * surface — and is deliberately outside this scan's reach.)
+ *
+ * ═══ VOIX-INLINE-1 (AUDIT-SHOP-2 F-59) — TWO MORE TABLES, AND THE WHOLE REGISTER ═══
+ *
+ * The audit named the two tables this gate still did not read: the C10 gift
+ * message a buyer sends to a friend from her own WhatsApp (MERCI — a SELLING
+ * moment, linted as `selling`, its three flow-filled placeholders allowlisted
+ * per field) and the §6.2 inspection matrix she reads at her door (INSPECTION
+ * + INSPECTION_PRUDENTE — money register; two label lists and one status
+ * sentence per row, no placeholder anywhere, every §6.2 row required). Both
+ * are extracted on the same terms as the six tables above.
+ *
+ * And the raw scan grew from §6.1's two words to the lint's WHOLE
+ * banned-register list, read from the same data file and matched with the
+ * same matcher the catalog lint uses. The inline strings this gate still does
+ * not extract (the bill labels, the C5 quote line, the operator screens) can
+ * no longer carry « veuillez » or « nonobstant » past a green tick; what they
+ * still can carry unread is a blown reading budget or a register clash, and
+ * the success lines say so. Every negative fixture is now ONE clean base plus
+ * ONE plant, with the base captured as the positive control.
  *
  * ═══ THE DEBT, NAMED ═══
  *
@@ -681,6 +705,167 @@ if (suivi === null) {
   }
 }
 
+/* ═══ VOIX-INLINE-1 (F-59) — C10's WhatsApp gift message, on the same terms ═══ */
+
+/**
+ * The words a buyer reads when she has just paid for a friend's wish and is
+ * about to tell her — and the MESSAGE she sends from her own WhatsApp. That
+ * message was the audit's named gap: it carries three placeholders the flow
+ * fills (`{prenom}`, `{article}`, `{lien}` — flow.ts, one `.replace` each) and
+ * nothing else, so the allowlist is exactly those three. This is a SELLING
+ * moment (Contract §10.5: sharing, community — warm), so the register is
+ * `selling`: the lint refuses finance jargon here as it refuses marketing
+ * urgency on the money screens.
+ */
+const MERCI_FIELDS = {
+  titreAvant: { screenClass: 'label', fills: [] },
+  corps: { screenClass: 'general', fills: [] },
+  prenomLabel: { screenClass: 'label', fills: [] },
+  prenomManque: { screenClass: 'status', fills: [] },
+  action: { screenClass: 'label', fills: [] },
+  message: { screenClass: 'general', fills: ['{prenom}', '{article}', '{lien}'] },
+};
+
+let merciCount = 0;
+const merci = /export const MERCI\s*=\s*\{([\s\S]*?)\n\}/.exec(src);
+if (merci === null) {
+  problems.push(
+    'the MERCI block is missing — the sentence a buyer sends to a friend from her own WhatsApp would ' +
+      'ship unlinted. Re-point this gate, never delete it.',
+  );
+} else {
+  const fields = fieldsOf(merci[1], 'MERCI');
+  for (const required of Object.keys(MERCI_FIELDS)) {
+    if (!(required in fields)) problems.push(`MERCI: missing field « ${required} » (C10 gift copy)`);
+  }
+  for (const present of Object.keys(fields)) {
+    if (present in MERCI_FIELDS) continue;
+    problems.push(
+      `MERCI: unknown field « ${present} » — add it to MERCI_FIELDS with its screen class so it gets ` +
+        'linted; nothing here may go unread',
+    );
+  }
+  for (const [field, { screenClass, fills }] of Object.entries(MERCI_FIELDS)) {
+    if (!(field in fields)) continue;
+    const v = readValue(fields[field]);
+    if (v.kind !== 'text') {
+      problems.push(`MERCI.${field}: ${v.why ?? 'null is not copy'}`);
+      continue;
+    }
+    if (v.text === '') {
+      problems.push(`MERCI.${field}: empty — a gift with no words is a gift nobody hears about`);
+      continue;
+    }
+    for (const brace of v.text.match(/\{[^}]*\}/gu) ?? []) {
+      if (fills.includes(brace)) continue;
+      problems.push(
+        `MERCI.${field}: « ${brace} » is filled by nothing — the flow fills ` +
+          `${fills.length === 0 ? 'no placeholder in this field' : fills.join(' ')} and the friend would read the token itself`,
+      );
+    }
+    entries.push({ key: `cliente.merci.${field}.${n++}`, fr: v.text, register: 'selling', screenClass });
+    merciCount += 1;
+  }
+}
+
+/* ═══ VOIX-INLINE-1 (F-59) — the §6.2 inspection matrix, on the same terms ═══ */
+
+/**
+ * The checklist she reads AT THE DOOR before she decides — what she may check,
+ * what a refusal will be honoured for, and what stays at her own risk. Three
+ * §6.2 rows plus the conservative row for a category the spec does not cover.
+ * Every row carries EXACTLY these three fields; the two lists are labels (short
+ * lines, exempt from the sentence budget, still banned-token and register
+ * checked) and `risque` is a money-register status sentence — the one that
+ * protects her, and the hardest to keep plain. Nothing here takes a
+ * placeholder: a door rule does not vary with an amount. A DELETED row or item
+ * fails as loudly as a violated one (the structural floor), and an item that is
+ * not a readable string literal is copy nobody is linting.
+ */
+const INSPECTION_ROWS = ['fashion_bags_fabrics', 'shoes', 'sealed_beauty_cosmetics'];
+const INSPECTION_LISTS = { verifier: 'label', motifs: 'label' };
+const INSPECTION_TEXT = { risque: 'status' };
+
+/** Every string literal of a `[ … ]` list, and a problem for anything else in it. */
+function readList(raw, where) {
+  const items = [];
+  const literal = /'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|`([^`]*)`/g;
+  // One text for both passes, comments gone: a literal quoted in a comment is
+  // not a checklist line, and must neither be linted nor hide behind `rest`.
+  const clean = stripComments(raw);
+  for (const m of clean.matchAll(literal)) {
+    if (m[3] !== undefined && m[3].includes('${')) {
+      problems.push(`${where}: a template literal with an interpolation cannot be linted as the buyer reads it`);
+      continue;
+    }
+    items.push(unescapeJs(m[1] ?? m[2] ?? m[3]));
+  }
+  const rest = clean.replace(literal, '').replace(/[\s,]/g, '');
+  if (rest !== '') problems.push(`${where}: not only string literals in the list — « ${rest.slice(0, 40)} » is copy nobody is linting`);
+  return items;
+}
+
+function lintInspectionRow(name, body) {
+  const seen = new Set();
+  for (const m of body.matchAll(/^\s*([A-Za-z_][\w]*)\s*:/gmu)) seen.add(m[1]);
+  for (const required of [...Object.keys(INSPECTION_LISTS), ...Object.keys(INSPECTION_TEXT)]) {
+    if (!seen.has(required)) problems.push(`INSPECTION.${name}: missing field « ${required} » (§6.2 door copy)`);
+  }
+  for (const present of seen) {
+    if (present in INSPECTION_LISTS || present in INSPECTION_TEXT) continue;
+    problems.push(`INSPECTION.${name}: unknown field « ${present} » — if it is copy, teach this gate its screen class; nothing here may go unread`);
+  }
+  for (const [field, screenClass] of Object.entries(INSPECTION_LISTS)) {
+    const m = new RegExp(`^\\s*${field}\\s*:\\s*\\[([\\s\\S]*?)\\]`, 'mu').exec(body);
+    if (m === null) continue;
+    const items = readList(m[1], `INSPECTION.${name}.${field}`);
+    if (items.length === 0) problems.push(`INSPECTION.${name}.${field}: empty — a checklist with no line is no checklist`);
+    for (const [i, text] of items.entries()) {
+      if (text === '') { problems.push(`INSPECTION.${name}.${field}[${i}]: empty`); continue; }
+      if (/\{[^}]*\}/u.test(text)) problems.push(`INSPECTION.${name}.${field}[${i}]: a placeholder in a door rule — nothing fills it`);
+      entries.push({ key: `cliente.inspection.${name}.${field}.${i}.${n++}`, fr: text, register: 'money', screenClass });
+      inspectionCount += 1;
+    }
+  }
+  for (const [field, screenClass] of Object.entries(INSPECTION_TEXT)) {
+    const m = new RegExp(`^\\s*${field}\\s*:\\s*(.+?),?\\s*$`, 'mu').exec(body);
+    if (m === null) continue;
+    const v = readValue(m[1]);
+    if (v.kind !== 'text') { problems.push(`INSPECTION.${name}.${field}: ${v.why ?? 'null is not copy'}`); continue; }
+    if (v.text === '') { problems.push(`INSPECTION.${name}.${field}: empty — the risk line is the one that protects her`); continue; }
+    if (/\{[^}]*\}/u.test(v.text)) problems.push(`INSPECTION.${name}.${field}: a placeholder in a door rule — nothing fills it`);
+    entries.push({ key: `cliente.inspection.${name}.${field}.${n++}`, fr: v.text, register: 'money', screenClass });
+    inspectionCount += 1;
+  }
+}
+
+let inspectionCount = 0;
+let inspectionRows = 0;
+{
+  const prudente = objectBody(src, /export const INSPECTION_PRUDENTE[^=]*=\s*\{/);
+  if (prudente === null) {
+    problems.push('the INSPECTION_PRUDENTE row is missing — the conservative door checklist would ship unlinted. Re-point this gate, never delete it.');
+  } else {
+    lintInspectionRow('PRUDENTE', prudente);
+    inspectionRows += 1;
+  }
+  const matrix = objectBody(src, /export const INSPECTION\s*:[^=]*=\s*\{/);
+  if (matrix === null) {
+    problems.push('the INSPECTION matrix is missing — the §6.2 door checklists would ship unlinted. Re-point this gate, never delete it.');
+  } else {
+    const rows = splitViews(matrix);
+    const names = rows.map((r) => r.name);
+    for (const required of INSPECTION_ROWS) {
+      if (!names.includes(required)) problems.push(`INSPECTION: the §6.2 row « ${required} » is missing — a deleted door checklist fails here`);
+    }
+    for (const row of rows) {
+      if (row.body === null) { problems.push(`INSPECTION.${row.name}: unterminated object literal`); continue; }
+      lintInspectionRow(row.name, row.body);
+      inspectionRows += 1;
+    }
+  }
+}
+
 /* ══ §6.1: « séquestre »/« escrow » appear NOWHERE a buyer can read them ═══ */
 
 /**
@@ -747,16 +932,51 @@ for (const file of scanned) {
   }
 }
 
+/* ═══ VOIX-INLINE-1 (F-59) — the lint's WHOLE banned register, scanned raw ═══ */
+
+/**
+ * The extractor reads eight tables. The buyer's module holds more copy than
+ * that — the bill labels, the C5 quote line, the operator screens, C6–C9
+ * outside their tables — and the catalog migration that will lint all of it is
+ * its own slice. Until then, every text file a buyer receives is scanned for
+ * the French Voice lint's OWN banned-register list (« veuillez »,
+ * « nonobstant », « conformément à », « ci-joint » and the rest), read from the
+ * same data file the catalog lint reads and matched with the lint's own
+ * matcher, so the two can never disagree about what a banned word is. Same
+ * terms as the §6.1 scan above: comments, class names, attributes and dead
+ * code are all read — a buyer's module is not a place to quote them.
+ *
+ * This is a WORD scan, not the lint. It cannot see a reading budget or a
+ * register clash, and the NOT LINTED line below says so in those words.
+ */
+const lint = await loadLintData();
+const REGISTER_TOKENS = lint.bannedRegisterTokens.filter((t) => !BANNED_WORDS.test(t));
+if (REGISTER_TOKENS.length === 0) {
+  problems.push("the i18n banned-register list holds nothing beyond §6.1's two words — the raw scan would scan for nothing");
+}
+for (const file of scanned) {
+  const text = file === SOURCE ? src : readFileSync(file, 'utf8');
+  for (const [i, line] of text.split('\n').entries()) {
+    const token = findToken(line, REGISTER_TOKENS);
+    if (token === undefined) continue;
+    scanHits.push(
+      `${file.replace(root + '/', '')}:${i + 1}: « ${token} » — the administrative register the French Voice ` +
+        'lint bans (Contract §10.5), found by the raw scan outside any linted table',
+    );
+  }
+}
+
 console.log(
   `  ${views.length} refusal view(s) · ${paiementCount} §6.1 payment string(s) · ` +
     `${confirmationCount} C6 post-payment string(s) · ${porteCount} door string(s) · ` +
     `${voixCount} voice-control label(s) · ${suiviCount} tracking string(s) · ` +
+    `${merciCount} gift-message string(s) · ${inspectionCount} door-checklist line(s) in ${inspectionRows} row(s) · ` +
     `${entries.length} user-facing strings extracted from ${rel} · ${scanned.length} file(s) scanned`,
 );
 
 const reportScan = () => {
   if (scanHits.length === 0) return;
-  console.error('  ✘ §6.1: the custody-of-funds words must not appear where a buyer can read them:');
+  console.error('  ✘ words the French Voice forbids appear where a buyer can read them (§6.1\'s two, and the banned register):');
   for (const h of scanHits) console.error(`    · ${h}`);
 };
 
@@ -806,14 +1026,19 @@ console.log('\ncopy-lint-inline-refus: OK');
 console.log(
   `  LINTED (French Voice): the REFUS table (${views.length} views), MESSAGES, the §6.1 PAIEMENT ` +
     `table (${paiementCount} strings), the C6 CONFIRMATION table (${confirmationCount} strings) ` +
-    `the PORTE table (${porteCount} strings), the C3 VOIX labels (${voixCount} strings) ` +
-    `and the SUIVI tracking table (${suiviCount} strings) ` +
+    `the PORTE table (${porteCount} strings), the C3 VOIX labels (${voixCount} strings), ` +
+    `the SUIVI tracking table (${suiviCount} strings), the C10 MERCI gift message (${merciCount} strings) ` +
+    `and the §6.2 INSPECTION door checklists (${inspectionCount} lines in ${inspectionRows} rows) ` +
     `— ${entries.length} strings from ${rel}.`,
 );
 console.log(
   '  NOT LINTED, and named so the gap is visible: every OTHER inline string in that module — the bill ' +
-    'labels, the C5 quote line, the operator screens, and C6–C9 outside CONFIRMATION and SUIVI. This ' +
-    'gate reads six tables, not the file. ' +
+    'labels, the C5 quote line, the operator screens, and C6–C9 outside CONFIRMATION, SUIVI and MERCI. This ' +
+    'gate reads eight tables, not the file. Those strings ARE word-scanned for the banned register ' +
+    '(below), which catches administrative French but sees no reading budget and no register clash. ' +
     'The cure is the i18n catalog migration, which is its own slice.',
 );
-console.log(`  SCANNED for the two words §6.1 forbids: ${scanned.length} file(s) — ${scanDescription}.`);
+console.log(
+  `  SCANNED for the two words §6.1 forbids AND the ${REGISTER_TOKENS.length} other banned-register words of the ` +
+    `French Voice lint: ${scanned.length} file(s) — ${scanDescription}.`,
+);

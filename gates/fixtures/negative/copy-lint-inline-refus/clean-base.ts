@@ -1,12 +1,10 @@
-// NEGATIVE FIXTURE for the copy-lint-inline-refus gate.
-// An UNRECOGNISED copy field (`soustitre`) carrying administrative French. The
-// lint loop iterated a hardcoded allowlist, so this shipped unread while the
-// gate printed the same counts and « 0 violations ». (Since F-59 the raw
-// banned-register scan sees the word too; the extractor line is the one this
-// fixture is named for.)
-// Every table below is CLEAN and copied from the real screens.ts (F-59 rebuilt all of these
-// negatives from one clean base): the ONLY thing that can fail this fixture is the defect
-// named above. A negative that fails for the wrong reason proves nothing about its door.
+// CLEAN BASE for the copy-lint-inline-refus negatives — VOIX-INLINE-1 (F-59).
+// Every table the gate reads, with the real screens.ts copy (the REFUS table trimmed to its
+// generic view and two named views — the structural floor asks for the fields, not the count).
+// It MUST pass the gate: every negative beside it is this file plus ONE planted defect, so the
+// only thing that can fail a negative is the defect its header names. If this base ever goes
+// red, every negative's red stops meaning anything.
+
 const REFUS_GENERIQUE = {
   overline: 'LE PRIX',
   titre: 'Nous ne pouvons pas afficher le prix.',
@@ -19,7 +17,6 @@ const REFUS = {
   expired: {
     overline: 'LE PRIX',
     titre: 'Ce prix a expiré.',
-    soustitre: 'Veuillez patienter, nonobstant ce qui précède.',
     phrase: 'Un prix ne reste affiché qu’un moment. Rien n’a été payé.',
     action: 'prix-a-jour',
     libelle: 'Voir le prix à jour',
