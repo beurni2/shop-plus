@@ -125,12 +125,30 @@ describe('BORNES-VITRINE-1 — the storefront: the fields the page reads are def
     expect(html).not.toContain('src="123"');
   });
 
-  it('a well-formed shop passes through UNCHANGED in every defaulted field (the seed shape, byte for byte)', async () => {
-    const full: Storefront & { products: unknown[] } = { ...resolved.storefront, id: 'sf_full', slug: 'binta-7412', name: 'Chez Binta', products: [] };
+  it('a well-formed shop passes through UNCHANGED in every defaulted field — the CUSTOMISED variant, whose values differ from every fallback', async () => {
+    // The verifier's finding on the first cut: the DEFAULT variant's tagline,
+    // bio, featuredItems and sections already equal the fallbacks, so a default
+    // that overwrote a real value with '' or [] passed. The customised shop
+    // carries a tagline, a bio, a live framed cover, a framed avatar, a featured
+    // list and sections — none of which may move an inch through the boundary.
+    const custom = (await demoStorefrontPort('customised').resolve('aicha-4821'))!;
+    const full: Storefront & { products: unknown[] } = { ...custom.storefront, id: 'sf_full', slug: 'binta-7412', name: 'Chez Binta', products: [] };
+    expect(full.tagline).not.toBe('');
+    expect(full.bio).not.toBe('');
+    expect(full.featuredItems.length).toBeGreaterThan(0);
+    expect(full.sections.length).toBeGreaterThan(0);
+    expect(full.cover).not.toEqual({ status: 'none' });
+    expect(full.avatar).not.toEqual({ mode: 'monogram' });
     const got = await resolve(full);
     const sf = got!.storefront;
     for (const key of ['zone', 'tagline', 'bio', 'curatedItems', 'featuredItems', 'sections', 'cover', 'avatar'] as const) {
       expect(sf[key], key).toEqual(full[key]);
+    }
+    // and the default variant too — the seed shape, byte for byte
+    const plain: Storefront & { products: unknown[] } = { ...resolved.storefront, id: 'sf_plain', slug: 'binta-7412', name: 'Chez Binta', products: [] };
+    const gotPlain = await resolve(plain);
+    for (const key of ['zone', 'tagline', 'bio', 'curatedItems', 'featuredItems', 'sections', 'cover', 'avatar'] as const) {
+      expect(gotPlain!.storefront[key], key).toEqual(plain[key]);
     }
   });
 
