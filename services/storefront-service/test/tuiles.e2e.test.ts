@@ -86,7 +86,11 @@ describe('TUILES-PROXY — the real Worker serves the buyer’s tiles as itself'
     expect(asked.url).toBe('https://tile.openstreetmap.org/17/65432/32109.png');
     expect(asked.method).toBe('GET');
     expect(asked.headers['user-agent']).toBe(TUILES_USER_AGENT);
-    for (const jamais of ['cookie', 'referer', 'x-forwarded-for', 'authorization', 'cf-connecting-ip']) {
+    // NOT `cf-connecting-ip` here: miniflare's outbound interceptor strips that
+    // one itself before any scripted host sees it, so asserting it at this seam
+    // would prove nothing (verifier). The unit test asserts it on a bare
+    // scripted fetch, where it is real; these four ride through untouched.
+    for (const jamais of ['cookie', 'referer', 'x-forwarded-for', 'authorization']) {
       expect(asked.headers[jamais], `${jamais} rode upstream`).toBeUndefined();
     }
   });

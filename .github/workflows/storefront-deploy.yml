@@ -283,3 +283,25 @@ jobs:
           test "$CODE" = "404" || { echo "SMOKE FAILED: expected 404, got $CODE"; exit 1; }
           grep -q '"error":"listing_unknown"' "$OUT" || { echo "SMOKE FAILED: no named refusal in the body"; exit 1; }
           echo "SMOKE OK — CheckoutDO is live and refuses by name."
+      # TUILES-PROXY (AUDIT-SHOP-2 F-24) — the buyer's map tiles come through this
+      # Worker. Two things only a live probe can say: the road is up (a real tile
+      # over Ouagadougou answers 200 image/png, a wrong zoom 404 by name), and
+      # whether the EDGE copy exists on this host at all — the verifier's finding:
+      # the Cache API is documented as a no-op on `*.workers.dev` (a custom domain
+      # is needed), which miniflare cannot show. The second ask's cf-cache-status is
+      # PRINTED, never asserted: it is the evidence the journal is waiting for.
+      - name: Smoke — the buyer's tile road is live, and what the edge says about caching
+        run: |
+          set -euo pipefail
+          BASE=https://storefront-service.ilboudobernard2.workers.dev
+          OUT=$(mktemp); HDR=$(mktemp)
+          CODE=$(curl -sS -o "$OUT" -D "$HDR" -w '%{http_code}' "$BASE/tiles/17/65000/61000.png" || echo 000)
+          echo "HTTP $CODE"; grep -i '^content-type\|^cache-control\|^cf-cache-status' "$HDR" || true
+          test "$CODE" = "200" || { echo "SMOKE FAILED: expected 200 on a tile, got $CODE"; exit 1; }
+          grep -qi '^content-type: image/png' "$HDR" || { echo "SMOKE FAILED: the tile is not image/png"; exit 1; }
+          CODE=$(curl -sS -o "$OUT" -w '%{http_code}' "$BASE/tiles/16/1/1.png" || echo 000)
+          test "$CODE" = "404" || { echo "SMOKE FAILED: expected 404 outside the map's zoom, got $CODE"; exit 1; }
+          grep -q '"error":"tile_not_found"' "$OUT" || { echo "SMOKE FAILED: no named refusal for a wrong zoom"; exit 1; }
+          curl -sS -o /dev/null -D "$HDR" "$BASE/tiles/17/65000/61000.png" || true
+          echo "second ask: $(grep -i '^cf-cache-status' "$HDR" || echo 'cf-cache-status: (absent — no edge copy on this host)')"
+          echo "SMOKE OK — the tile road is live and refuses by name."

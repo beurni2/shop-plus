@@ -180,4 +180,23 @@ describe('servirTuile — read-only, our identity upstream, cached at the edge, 
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: 'tile_upstream' });
   });
+
+  it('a host whose BODY fails after the headers (a reset, the budget expiring mid-stream) is the same 502, not cached, never a crash (verifier)', async () => {
+    const cache = cacheMemoire();
+    const amont = amontScripte(
+      () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              controller.error(new Error('connection reset'));
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'image/png' } },
+        ),
+    );
+    const res = await servirTuile(GET('/tiles/17/5/6.png'), { fetch: amont.fetch, cache });
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: 'tile_upstream' });
+    expect(cache.cles).toEqual([]);
+  });
 });

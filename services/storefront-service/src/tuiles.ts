@@ -90,19 +90,21 @@ export async function servirTuile(
   if (gardee !== undefined) return corps(gardee, request.method);
 
   // OUR request, built from nothing: the tile's coordinates and our name.
-  let amont: Response;
+  let octets: ArrayBuffer;
   try {
-    amont = await deps.fetch(cle.url, {
+    const amont = await deps.fetch(cle.url, {
       method: 'GET',
       headers: { 'User-Agent': TUILES_USER_AGENT, Accept: 'image/png' },
       signal: AbortSignal.timeout(TUILES_DELAI_MS),
     });
+    if (amont.status !== 200) return Response.json({ error: 'tile_upstream' }, { status: 502 });
+    // The body is read INSIDE the budget too: a stream that resets or times
+    // out after the headers is the same failure, by the same name (verifier).
+    octets = await amont.arrayBuffer();
   } catch {
     return Response.json({ error: 'tile_upstream' }, { status: 502 });
   }
-  if (amont.status !== 200) return Response.json({ error: 'tile_upstream' }, { status: 502 });
 
-  const octets = await amont.arrayBuffer();
   const copie = new Response(octets, { status: 200, headers: ENTETES_TUILE });
   await deps.cache.put(cle, copie.clone());
   return corps(copie, request.method);

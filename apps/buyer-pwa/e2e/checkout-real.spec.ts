@@ -1793,9 +1793,16 @@ test('GEO-CARTE-PRO · she DRAGS the town under the pin: the coordinates follow 
     expect(u, 'a tile asked outside the proxy shape on OUR base').toMatch(/^http:\/\/127\.0\.0\.1:9099\/api\/tiles\/17\/\d+\/\d+\.png$/);
   }
   expect(versOsm, 'her phone spoke to OpenStreetMap').toEqual([]);
-  // …and the tiles the proxy answered are ON the screen, loaded, not removed
-  // by the broken-image road (`monterCarteVue` drops a tile that errors).
-  await expect.poll(() => page.locator('[data-role="geo-tuiles"] img').count()).toBeGreaterThan(0);
+  // …and the tiles the proxy answered are ON the screen and LOADED — a
+  // decoded pixel, not merely an <img> not yet errored (`monterCarteVue`
+  // drops a tile that errors; an appended node counts before either event).
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        [...document.querySelectorAll<HTMLImageElement>('[data-role="geo-tuiles"] img')].filter((i) => i.complete && i.naturalWidth > 0).length,
+      ),
+    )
+    .toBeGreaterThan(0);
 
   // One drag — the sheet's coordinates must become EXACTLY the app's own
   // inverse-Mercator of her hand's offset (the module computes the
