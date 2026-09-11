@@ -16,8 +16,9 @@
  *
  * WHAT IT IS NOT: a general tile CDN. It answers the map's ONE zoom (GEO_ZOOM,
  * 17) and in-range integer coordinates, GET/HEAD only; everything else is a
- * named 404/405 that never reaches the host. There is no rate limit in front
- * of it — that is the standing edge-rate-limit item, not this slice.
+ * named 404/405 that never reaches the host. A per-address ceiling stands in
+ * front of it since LIMITE-ANONYME-1 (worker/index.ts asks it before the
+ * cache; src/limite.ts has the numbers and what they do not close).
  *
  * DETERMINISTIC AND HONEST ON FAILURE: a host that answers anything but 200,
  * or does not answer within TUILES_DELAI_MS, is a 502 by name and is NOT

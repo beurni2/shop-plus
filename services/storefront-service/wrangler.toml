@@ -296,11 +296,16 @@ service = "custody-service"
 
 # ═══ LIMITE-ANONYME-1 — CEILINGS ON THE ANONYMOUS DOORS (src/limite.ts has the why). ═══
 # Cloudflare's Rate Limiting binding: a per-colo sliding count, keyed by the
-# caller's address, nothing stored by us. Two budgets: the buyer's map tiles,
-# and the two anonymous create doors (quote, order) together. THE NUMBERS ARE
-# FOR CARRIER-GRADE NAT — many phones behind one address in Ouagadougou — so
-# they let a neighbourhood of buyers through and refuse a scraper: a map open
-# asks ~20 tiles, a drag ~20 more; a quote is one ask per screen. `period` may
+# caller's address (an IPv6 caller by its /64), nothing stored by us. Two
+# budgets: the buyer's map tiles, and the three anonymous create doors (quote,
+# order, liste) together. THE NUMBERS ARE FOR CARRIER-GRADE NAT — many phones
+# behind one address in Ouagadougou — so they let a neighbourhood of buyers
+# through and refuse a scraper: a map open asks ~20 tiles and a drag up to
+# ~20 more; a price screen asks TWO quotes (full + door), an order is one ask
+# per purchase and per retry — thirty buyers in a minute ≈ 90 creates and up
+# to 1 200 tiles, so the ceilings sit at twice that. They bound the WORK an
+# address can make us do, never the request COUNT the Free plan meters (a 429
+# is a counted invocation) — src/limite.ts says so at length. `period` may
 # only be 10 or 60 (seconds). `namespace_id` is unique per account, chosen here.
 # ABSENT binding ⇒ the door stays OPEN (fail open, by law) — so a deploy that
 # refused this block would not lock anyone out; it would only leave the doors
@@ -309,12 +314,12 @@ service = "custody-service"
 [[ratelimits]]
 name = "LIMITE_TUILES"
 namespace_id = "1001"
-simple = { limit = 600, period = 60 }
+simple = { limit = 1200, period = 60 }
 
 [[ratelimits]]
 name = "LIMITE_CREATIONS"
 namespace_id = "1002"
-simple = { limit = 60, period = 60 }
+simple = { limit = 180, period = 60 }
 
 # ═══════════════════════════════════════════════════════════════════════════
 # READINESS-RETURN-1c — THE RETURN LEG'S INTAKE SECRET.

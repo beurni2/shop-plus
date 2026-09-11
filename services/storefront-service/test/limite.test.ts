@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLE_SANS_ADRESSE, RETRY_AFTER_S, admis, cleAppelant, refusLimite, type Limiteur } from '../src/limite';
+import { CLE_SANS_ADRESSE, RETRY_AFTER_S, admis, cleAdresse, cleAppelant, refusLimite, type Limiteur } from '../src/limite';
 
 /**
  * LIMITE-ANONYME-1 — the pure rules of the ceiling: who the caller is, what
@@ -27,6 +27,22 @@ describe('LIMITE-ANONYME-1 — the caller is the edge-stamped address', () => {
   it('keys on CF-Connecting-IP, and on a fixed word when the edge stamped none', () => {
     expect(cleAppelant(requete('203.0.113.9'))).toBe('203.0.113.9');
     expect(cleAppelant(requete())).toBe(CLE_SANS_ADRESSE);
+  });
+
+  it('keys an IPv6 caller on its /64 — one caller, not 2^64 keys — and leaves IPv4 whole', () => {
+    expect(cleAdresse('203.0.113.9')).toBe('203.0.113.9');
+    expect(cleAdresse('2001:db8:1:2:3:4:5:6')).toBe('2001:db8:1:2::/64');
+    // Two addresses of one /64 share the key; the next /64 does not.
+    expect(cleAdresse('2001:DB8:1:2:ffff:ffff:ffff:ffff')).toBe('2001:db8:1:2::/64');
+    expect(cleAdresse('2001:db8:1:3::1')).toBe('2001:db8:1:3::/64');
+    // `::` compression, wherever it sits, expands before the prefix is cut.
+    expect(cleAdresse('2001:db8::1')).toBe('2001:db8:0:0::/64');
+    expect(cleAdresse('::1')).toBe('0:0:0:0::/64');
+    expect(cleAdresse('fe80::')).toBe('fe80:0:0:0::/64');
+    expect(cleAdresse('2001:0db8:0000:0001::5')).toBe('2001:db8:0:1::/64');
+    // An IPv4-mapped form is an IPv4 caller and stays whole.
+    expect(cleAdresse('::ffff:203.0.113.9')).toBe('::ffff:203.0.113.9');
+    expect(cleAppelant(requete('2001:db8:1:2:3:4:5:6'))).toBe('2001:db8:1:2::/64');
   });
 });
 

@@ -230,6 +230,26 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
 
+    // ═══ LIMITE-ANONYME-1 — THE ANONYMOUS CREATE DOORS SHARE ONE CEILING ═══
+    // A new quote, a new order and a new liste are the buyer's anonymous
+    // CREATE doors (the reserve, the door charge and every liste edit need an
+    // existing object; every read is uncounted). Asked here, BEFORE the body
+    // is read: a refused flood must not cost us a 2 MiB read per ask, and the
+    // ceiling needs only the address and the path. The preflight is never
+    // refused (OPTIONS is not a POST). Past the ceiling the answer is a named
+    // 429 the browser can read, and « Rien n'a été payé » stays true. What
+    // stays OPEN, said plainly: the reseller's signup and login doors — they
+    // need a budget of their own (a reseller must never be refused because
+    // buyers in her neighbourhood are ordering), its own slice. The numbers
+    // and the fail-open law are in src/limite.ts and wrangler.toml.
+    if (
+      request.method === 'POST' &&
+      (pathname === '/checkout/quote' || pathname === '/checkout/order' || pathname === '/listes') &&
+      !(await admis(env.LIMITE_CREATIONS, request))
+    ) {
+      return withReadCors(refusLimite());
+    }
+
     // CORPS-BORNE (AUDIT-SHOP-2 F-06) — bounded before anything reads it.
     if (request.method !== 'GET' && request.method !== 'HEAD' && request.method !== 'OPTIONS' && request.body !== null) {
       const borne = await bornerCorps(request, corpsMaxPour(pathname));
@@ -287,9 +307,11 @@ export default {
     //     the franc against the immutable Quote by the frozen vault.
     // KNOWN AND ACCEPTED RESIDUE (journalled): an open POST lets an anonymous
     // caller create quote objects at will. They are per-request-key, expire in
-    // 15 minutes, and hold no money — but there is no rate limit in front of
-    // them, and that belongs on the real-money gate's checklist, not on a
-    // pretend one here.
+    // 15 minutes, and hold no money. LIMITE-ANONYME-1 put a per-address
+    // ceiling in front of this door (asked at the top of this handler, before
+    // the body is read) — it bounds the WORK one address can make us do, not
+    // the request count the Free plan meters, which only a paid plan or a
+    // zone-level rule bounds; that half stays on the real-money gate's list.
     const isCheckoutQuote = pathname === '/checkout/quote';
     const isCheckoutQuoteById = /^\/checkout\/quote\/[^/]+$/.test(pathname);
     const isCheckoutReserve = /^\/checkout\/quote\/[^/]+\/reserve$/.test(pathname);
@@ -338,15 +360,6 @@ export default {
         isOrderDoorCharge || isOrderRemise || isOrderListeMerci)
     ) {
       return checkoutPreflight();
-    }
-    // ═══ LIMITE-ANONYME-1 — THE TWO ANONYMOUS CREATE DOORS SHARE ONE CEILING ═══
-    // A new quote and a new order are the only anonymous WRITES on this Worker
-    // (the reserve and the door charge need an existing quote or order); past
-    // the ceiling the answer is a named 429 the browser can read, and « Rien
-    // n'a été payé » stays true. Reads are never counted. The numbers and the
-    // fail-open law are in src/limite.ts and wrangler.toml.
-    if (request.method === 'POST' && (isCheckoutQuote || isOrderCreate) && !(await admis(env.LIMITE_CREATIONS, request))) {
-      return withReadCors(refusLimite());
     }
     if (isPublicQuote) {
       /**
@@ -509,9 +522,11 @@ export default {
      * KNOWN AND ACCEPTED RESIDUE (journalled — the THIRD named admission of
      * this class, after the open quote POST and the signup POST): an open
      * POST lets an anonymous caller create liste objects at will. They hold
-     * no money and no personal data beyond a first name, but there is no
-     * rate limit in front of them, and that belongs on the real-money gate's
-     * checklist, not on a pretend one here.
+     * no money and no personal data beyond a first name. LIMITE-ANONYME-1
+     * bounds this door with the buyer's create ceiling (asked at the top of
+     * this handler, before the body — and this door's body may carry a voice
+     * note, so the read it spares is the largest on the Worker); the request
+     * COUNT the Free plan meters stays unbounded, as on the quote door.
      */
     const isListeCreate = pathname === '/listes';
     const isListeByToken = /^\/listes\/[^/]+$/.test(pathname);
@@ -1021,9 +1036,12 @@ export default {
      * be able to CREATE an account and LOG IN. What that does not open: no
      * money can arrive or leave through these routes, the admission code is
      * founder-minted, and every read behind them refuses on account state.
-     * KNOWN RESIDUE (journalled, same class as the open quote POST): no rate
-     * limit in front of signup — that belongs on the real-money gate's
-     * checklist, not on a pretend one here.
+     * KNOWN RESIDUE (journalled): NO rate limit in front of signup or login,
+     * still — LIMITE-ANONYME-1 bounded the BUYER's create doors and left these
+     * open on purpose: a reseller must never be refused because buyers behind
+     * her carrier address are ordering, so these doors need a budget of their
+     * own (login is a credential-guessing surface and the more urgent of the
+     * two). Its own slice, on the real-money gate's checklist.
      */
     if (
       pathname === '/reseller/signup' ||

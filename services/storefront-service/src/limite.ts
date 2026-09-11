@@ -20,16 +20,25 @@
  * THE NUMBERS ARE FOR OUAGADOUGOU, NOT FOR A DATACENTRE. Many phones here sit
  * behind ONE carrier address (carrier-grade NAT), so a ceiling per address is
  * a ceiling per NEIGHBOURHOOD: it must let thirty buyers open the map at the
- * same minute and refuse a scraper. A map open asks ~20 tiles and a drag ~20
- * more; a quote is asked once per screen, an order once per purchase. Hence
- * (wrangler.toml): tiles 600 / minute, creates 60 / minute, per address.
+ * same minute and refuse a scraper. What one buyer costs, counted from the
+ * buyer app: a map open asks ~20 tiles (a 360×480 view at zoom 17 plus one
+ * ring) and a drag re-mount up to ~20 more; a PRICE SCREEN asks TWO quotes
+ * (the full ask and the door ask, concurrently — quote-model.ts) and asks
+ * them again on every « Réessayer », « Voir le prix à jour » and expiry
+ * refresh; an order is one ask per purchase and one more per payment retry;
+ * a liste is one ask. Thirty buyers in one minute ≈ 90 creates and 600–1 200
+ * tiles. Hence (wrangler.toml): tiles 1 200 / minute, creates 180 / minute,
+ * per address — twice the neighbourhood, a fraction of any flood.
  *
- * WHAT THIS DOES NOT CLOSE, said plainly: a single determined address can
- * still spend 600 × 1 440 tile asks a day, far over a Free plan's daily
- * budget. This ceiling stops floods by accident (a looping client, a naive
- * scraper) and slows the deliberate ones; the budget itself is closed only by
- * a paid plan or by a zone-level rule (which needs a custom domain). Named
- * here so nobody reads « rate-limited » as « safe ».
+ * WHAT THIS DOES NOT CLOSE, said plainly. A REFUSED ASK IS STILL A COUNTED
+ * ASK: the Free plan meters every invocation, and a 429 we answer is one. So
+ * this ceiling bounds the WORK one address can make us do — the misses that
+ * reach the tile host under our name, the objects created, the bodies read —
+ * and bounds NOTHING of the request count: 100 000 tile asks from one address
+ * still spend the day's budget, refused or not, and checkout's availability
+ * is coupled to that exactly as before. Only a paid plan or a zone-level rule
+ * (which needs a custom domain) bounds the count. Named here so nobody reads
+ * « rate-limited » as « safe ».
  *
  * FAIL OPEN, BY LAW: no binding (a deploy before its config, a test suite that
  * binds none) or a binding that throws leaves the door OPEN. A limiter that
@@ -45,7 +54,26 @@ export interface Limiteur {
 /** The caller as Cloudflare names it — set by the edge, never by the client. */
 export const CLE_SANS_ADRESSE = 'sans-adresse';
 export function cleAppelant(request: Request): string {
-  return request.headers.get('CF-Connecting-IP') ?? CLE_SANS_ADRESSE;
+  const adresse = request.headers.get('CF-Connecting-IP');
+  return adresse === null ? CLE_SANS_ADRESSE : cleAdresse(adresse);
+}
+
+/**
+ * An IPv6 client owns a whole /64 (2^64 addresses), so keyed on the full
+ * address a deliberate caller would never meet the ceiling; keyed on the /64
+ * it is one caller. IPv4 — every Burkina mobile network today, behind carrier
+ * NAT — is the address itself.
+ */
+export function cleAdresse(adresse: string): string {
+  if (!adresse.includes(':') || adresse.includes('.')) return adresse;
+  const [tete = '', queue = ''] = adresse.split('::');
+  const gauche = tete === '' ? [] : tete.split(':');
+  const droite = queue === '' ? [] : queue.split(':');
+  const zeros = Array.from({ length: Math.max(8 - gauche.length - droite.length, 0) }, () => '0');
+  return [...gauche, ...zeros, ...droite]
+    .slice(0, 4)
+    .map((g) => g.toLowerCase().replace(/^0+(?=.)/, ''))
+    .join(':') + '::/64';
 }
 
 /** Is this request within the ceiling? Open when no ceiling exists or it cannot be asked. */
