@@ -22,8 +22,10 @@ téléphone. Deux postures existent, choisies par la variable `EXPO_PUBLIC_PROFI
 - **Le canal publié (Chemin 1)** est l'application réelle des revendeuses depuis
   ACCES-ARME-2 : vraies sessions, vraies boutiques, vrais liens. Le workflow y
   déclare le profil `production` (PROFIL-PUBLIÉ, F-43) et aucun bandeau n'y est
-  affiché. Les paiements restent en période d'essai, et l'écran des gains le dit
-  (« essai »).
+  affiché. Les paiements restent en période d'essai (le fournisseur de paiement
+  est encore le bac à sable) et, depuis le retrait du bandeau, l'application ne
+  le dit nulle part à l'écran — la question est posée au fondateur (journal,
+  PROFIL-PUBLIÉ).
 - **Un lancement local (Chemin 2)** laisse la variable vide : c'est le profil
   `preview`, un **bac à sable** sur votre propre téléphone, et le bandeau
   **« Aperçu — bac à sable »** reste affiché en permanence pour le rappeler.

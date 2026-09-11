@@ -43,9 +43,17 @@ describe('preview banner (WO-4.0)', () => {
    */
   it('the PUBLISHED channel declares the production profile — the banner is for local runs only (F-43)', () => {
     const workflow = readFileSync(join(appDir, '..', '..', '.github', 'workflows', 'expo-preview.yml'), 'utf8');
-    const publish = workflow.slice(workflow.indexOf('Publish reseller-app preview update'));
-    expect(publish.length, 'the publish step is not in the workflow').toBeGreaterThan(0);
-    expect(publish).toMatch(/^\s+EXPO_PUBLIC_PROFILE: 'production'$/m);
+    const debut = workflow.indexOf('Publish reseller-app preview update');
+    expect(debut, 'the publish step is not in the workflow').toBeGreaterThanOrEqual(0);
+    // The literal must sit in the step's `env:` block — which ends where its
+    // `run:` begins — not in a comment (the `#` would break `^\s+E`) and not
+    // inside the shell script, where babel would never see it.
+    const step = workflow.slice(debut);
+    const finEnv = step.indexOf('\n        run:');
+    expect(finEnv, 'the publish step has no run: line').toBeGreaterThan(0);
+    const env = step.slice(0, finEnv);
+    expect(env).toContain('\n        env:\n');
+    expect(env).toMatch(/^\s+EXPO_PUBLIC_PROFILE: 'production'$/m);
     // …and that literal is exactly what the signal reads as NOT preview.
     expect(isPreviewProfile('production')).toBe(false);
   });

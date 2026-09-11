@@ -24,7 +24,11 @@ import { resetFiles } from './doubles/expo-file-system';
 
 const BANDEAU = 'Aperçu — bac à sable';
 const HUBS = ['Accueil', 'Opportunités', 'Ma Vitrine', 'Gains'] as const;
-const ONGLETS = ['Accueil', 'Opportunités', 'Ma Vitrine', 'Cercle', 'Gains'];
+/** The bar's five labels (Cercle is retired; Profil is a tab), so « own content »
+ *  cannot be met by chrome alone — the title and « ← Retour » are two. */
+const ONGLETS = ['Accueil', 'Opportunités', 'Ma Vitrine', 'Gains', 'Profil'];
+/** A string only the fiche renders — the grid already shows the product's name. */
+const FICHE = 'Ajouter à ma vitrine';
 
 const OFFER = {
   productVersionId: 'pv-1',
@@ -72,11 +76,13 @@ describe('PROFIL-PUBLIÉ — the published profile wears no aperçu banner; the 
       expect(own.length, `${hub} rendered no content of its own`).toBeGreaterThan(2);
     }
 
-    // The primary road still runs without the banner above it.
+    // The primary road still runs without the banner above it: the tile opens
+    // its fiche — asserted by a string the grid never shows.
     await screen.press('Opportunités');
     expect(screen.canPress('Bazin riche')).toBe(true);
+    expect(screen.shows(FICHE)).toBe(false);
     await screen.press('Bazin riche');
-    expect(screen.shows('Bazin riche')).toBe(true);
+    expect(screen.shows(FICHE), 'the tile did not open its fiche').toBe(true);
     expect(screen.shows(BANDEAU)).toBe(false);
     screen.unmount();
   });
@@ -89,6 +95,7 @@ describe('PROFIL-PUBLIÉ — the published profile wears no aperçu banner; the 
     expect(screen.shows(BANDEAU), 'the local default lost its banner — the walk above would then measure nothing').toBe(true);
     await screen.press('Opportunités');
     await screen.press('Bazin riche');
+    expect(screen.shows(FICHE)).toBe(true);
     expect(screen.shows(BANDEAU)).toBe(true);
     screen.unmount();
   });

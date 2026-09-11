@@ -1,8 +1,10 @@
 # Shop+ — le parcours à pied (WO-4.1)
 
-Ouvrez l'aperçu dans Expo Go (voir PREVIEW.md à la racine). Le bandeau
-« Aperçu — bac à sable » reste visible : tout ici est un essai, rien n'est
-réel. « Retour » en haut à gauche revient toujours en arrière.
+Ouvrez l'aperçu dans Expo Go (voir PREVIEW.md à la racine). Sur un lancement
+local (profil `preview`), le bandeau « Aperçu — bac à sable » reste visible ;
+sur le canal publié il n'y a pas de bandeau (PROFIL-PUBLIÉ, F-43 — c'est
+l'application réelle des revendeuses). « Retour » en haut à gauche revient
+toujours en arrière.
 
 ## Le chemin, étape par étape
 
