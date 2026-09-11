@@ -26,23 +26,33 @@ const catalog = CatalogSchema.parse(JSON.parse(readFileSync(join(appDir, 'i18n/c
 const keys = new Set(catalog.map((e) => e.key));
 const MODULES = ['src/cliente/screens.ts', 'src/cliente/flow.ts'];
 const KEY_CALL = /(?<![\w.])tf?\('([^']+)'/g;
+/** Comments out first: a call inside a comment is not a call, and a commented-out
+ *  `t('cl.x')` must not keep `cl.x` alive for the orphan check (verifier, MINOR 2). */
+const sansCommentaires = (code: string): string => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const clesNommees = (): Set<string> => {
+  const named = new Set<string>();
+  for (const f of MODULES) for (const m of sansCommentaires(readFileSync(join(appDir, f), 'utf8')).matchAll(KEY_CALL)) named.add(m[1]!);
+  return named;
+};
 
 describe('CATALOGUE-CLIENTE-1 — the module names keys the catalog has, and the catalog holds no orphan', () => {
   it('the key-extraction regex still extracts keys (the guard on the guard)', () => {
     expect([..."x = t('a.b') + tf('c.d', {})".matchAll(KEY_CALL)].map((m) => m[1])).toEqual(['a.b', 'c.d']);
   });
 
+  it('a commented-out call is not a call (the guard on the comment strip)', () => {
+    expect([...sansCommentaires("// t('a.b')\nconst x = t('c.d'); /* tf('e.f') */").matchAll(KEY_CALL)].map((m) => m[1])).toEqual(['c.d']);
+  });
+
   it('every t()/tf() key in screens.ts and flow.ts exists', () => {
-    const named = new Set<string>();
-    for (const f of MODULES) for (const m of readFileSync(join(appDir, f), 'utf8').matchAll(KEY_CALL)) named.add(m[1]!);
+    const named = clesNommees();
     expect(named.size).toBeGreaterThan(300);
     const manquent = [...named].filter((k) => !keys.has(k));
     expect(manquent, 'keys named by the module and absent from the catalog').toEqual([]);
   });
 
   it('every cl.* key is named by the module — no copy nobody renders', () => {
-    const named = new Set<string>();
-    for (const f of MODULES) for (const m of readFileSync(join(appDir, f), 'utf8').matchAll(KEY_CALL)) named.add(m[1]!);
+    const named = clesNommees();
     const orphelines = catalog.map((e) => e.key).filter((k) => k.startsWith('cl.') && !named.has(k));
     expect(orphelines).toEqual([]);
   });
@@ -57,5 +67,9 @@ describe('CATALOGUE-CLIENTE-1 — the glued tails are substrings of their senten
 
   it('option A’s pill word is cut from option A’s label', () => {
     expect(PAIEMENT.titreA).toContain(` — ${PAIEMENT.reco}`);
+  });
+
+  it('option B’s bold clause is cut from option B’s body (the one tail that had no pin)', () => {
+    expect(PAIEMENT.corpsB).toContain(PAIEMENT.corpsBAccent);
   });
 });

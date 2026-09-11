@@ -377,6 +377,15 @@ capture copy-lint-inline-refus-negative-accent fail node scripts/gates/copy-lint
 log "gate: French Voice — NEGATIVE (T2: an ASCII-only sentence as an HTML text node, must fail)"
 capture copy-lint-inline-refus-negative-noeud-texte fail node scripts/gates/copy-lint-inline-refus.mjs --source gates/fixtures/negative/copy-lint-inline-refus/source/noeud-texte.ts
 
+log "gate: French Voice — NEGATIVE (T2 on a BARE literal: the module's dominant HTML style, an ASCII text node, must fail)"
+capture copy-lint-inline-refus-negative-noeud-texte-nu fail node scripts/gates/copy-lint-inline-refus.mjs --source gates/fixtures/negative/copy-lint-inline-refus/source/noeud-texte-nu.ts
+
+log "gate: French Voice — NEGATIVE (T4: a bare phrase with a digit and an ASCII apostrophe, must fail)"
+capture copy-lint-inline-refus-negative-phrase-chiffres fail node scripts/gates/copy-lint-inline-refus.mjs --source gates/fixtures/negative/copy-lint-inline-refus/source/phrase-chiffres.ts
+
+log "gate: French Voice — a call inside a COMMENT is not a call: the commented key below does not exist and must not be counted (must pass)"
+capture copy-lint-inline-refus-cle-commentee pass node scripts/gates/copy-lint-inline-refus.mjs --source gates/fixtures/negative/copy-lint-inline-refus/source/cle-commentee.ts
+
 log "gate: French Voice — NEGATIVE (T3: an ASCII-only placeholder a screen reader speaks, must fail)"
 capture copy-lint-inline-refus-negative-attribut fail node scripts/gates/copy-lint-inline-refus.mjs --source gates/fixtures/negative/copy-lint-inline-refus/source/attribut.ts
 

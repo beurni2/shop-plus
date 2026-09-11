@@ -3399,7 +3399,7 @@
  {
   "key": "cl.c4.demo_demain_sous",
   "fr": "Course groupée dans votre zone — un peu moins chère.",
-  "register": "selling",
+  "register": "money",
   "screenClass": "status"
  },
  {
@@ -3598,30 +3598,30 @@
   "key": "cl.c6.etape_scelle",
   "fr": "Séra vérifie et scelle le colis",
   "register": "money",
-  "screenClass": "label"
+  "screenClass": "checkout"
  },
  {
   "key": "cl.c6.pending_titre",
   "fr": "C’est noté.",
-  "register": "neutral",
+  "register": "money",
   "screenClass": "label"
  },
  {
   "key": "cl.c6.pending_corps",
   "fr": "En attente du réseau. Votre commande est gardée sur ce téléphone — elle part dès que le réseau revient.",
-  "register": "neutral",
+  "register": "money",
   "screenClass": "status"
  },
  {
   "key": "cl.c6.pending_chip",
   "fr": "EN ATTENTE — JAMAIS PERDUE",
-  "register": "neutral",
+  "register": "money",
   "screenClass": "label"
  },
  {
   "key": "cl.c6.offline_titre",
   "fr": "Hors ligne — rien n’est perdu.",
-  "register": "neutral",
+  "register": "money",
   "screenClass": "label"
  },
  {
