@@ -22,13 +22,15 @@ import { ResellerAccountsDO, SONDE_PBKDF2_SEL_HEX, sondePbkdf2 } from '../worker
  */
 function memoire() {
   const m = new Map<string, unknown>();
+  /** The keys each `put` wrote, in order — so « one commit » can be asserted, not read. */
+  const puts: string[][] = [];
   const storage = {
     async get<T>(key: string): Promise<T | undefined> {
       return m.get(key) as T | undefined;
     },
     async put(keyOrEntries: string | Record<string, unknown>, value?: unknown): Promise<void> {
-      if (typeof keyOrEntries === 'string') m.set(keyOrEntries, value);
-      else for (const [k, v] of Object.entries(keyOrEntries)) m.set(k, v);
+      if (typeof keyOrEntries === 'string') { m.set(keyOrEntries, value); puts.push([keyOrEntries]); }
+      else { for (const [k, v] of Object.entries(keyOrEntries)) m.set(k, v); puts.push(Object.keys(keyOrEntries)); }
     },
     async delete(keyOrKeys: string | string[]): Promise<boolean | number> {
       const keys = typeof keyOrKeys === 'string' ? [keyOrKeys] : keyOrKeys;
@@ -46,7 +48,7 @@ function memoire() {
       return out;
     },
   };
-  return { m, state: { storage } as unknown as ConstructorParameters<typeof ResellerAccountsDO>[0] };
+  return { m, puts, state: { storage } as unknown as ConstructorParameters<typeof ResellerAccountsDO>[0] };
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -129,9 +131,9 @@ describe('PBKDF2-HAUSSE-1 — 100 000 iterations, and an older record is lifted 
     expect(rec.passwordHashHex).toBe(await pbkdf2Hex(MOT_DE_PASSE, rec.passwordSaltHex, 100_000));
   });
 
-  it('a record derived at 60 000 (the count on it, or NO count — the pre-SESSION-VIE-1 shape) logs in, is lifted to 100 000 with a fresh salt in the same commit, and logs in again at the new count', async () => {
+  it('a record derived at 60 000 (the count on it, or NO count — the pre-SESSION-VIE-1 shape) logs in, is lifted to 100 000 with a fresh salt in the same commit as the session, and logs in again at the new count', async () => {
     for (const avecCompte of [true, false]) {
-      const { m, state } = memoire();
+      const { m, puts, state } = memoire();
       const livre = new ResellerAccountsDO(state);
       const inscrite = await appel(livre, '/signup', { name: 'Fati', email: 'fati@example.bf', phone: '+226 70 00 00 02', password: MOT_DE_PASSE });
       const id = inscrite.json['accountId'] as string;
@@ -142,8 +144,13 @@ describe('PBKDF2-HAUSSE-1 — 100 000 iterations, and an older record is lifted 
       else delete ancien.passwordIterations;
       m.set(`account:${id}`, ancien);
 
+      puts.length = 0;
       const entree = await appel(livre, '/login', { email: 'fati@example.bf', password: MOT_DE_PASSE });
       expect(entree.status, `login on the old hash (count ${avecCompte ? 'present' : 'absent'})`).toBe(200);
+      // ONE COMMIT: the lifted record and the new session rows leave in the SAME put.
+      const dernier = puts[puts.length - 1]!;
+      expect(dernier).toContain(`account:${id}`);
+      expect(dernier.some((k) => k.startsWith('session:'))).toBe(true);
       const leve = m.get(`account:${id}`) as Enregistrement;
       expect(leve.passwordIterations).toBe(100_000);
       expect(leve.passwordSaltHex).not.toBe(selAncien);
@@ -153,6 +160,51 @@ describe('PBKDF2-HAUSSE-1 — 100 000 iterations, and an older record is lifted 
       // …and the session minted by the lifting login is alive.
       expect((await appel(livre, '/session', { session: entree.json['session'] })).status).toBe(200);
     }
+  });
+
+  it('a change that lands on the record WHILE the lifting login derives is kept, not overwritten: the lift spreads a re-read record', async () => {
+    const { m, state } = memoire();
+    const livre = new ResellerAccountsDO(state);
+    const inscrite = await appel(livre, '/signup', { name: 'Salimata', email: 'sali@example.bf', phone: '+226 70 00 00 05', password: MOT_DE_PASSE });
+    const id = inscrite.json['accountId'] as string;
+    const selAncien = '1234567890abcdef1234567890abcdef';
+    m.set(`account:${id}`, { ...(m.get(`account:${id}`) as Enregistrement), passwordSaltHex: selAncien, passwordHashHex: await pbkdf2Hex(MOT_DE_PASSE, selAncien, 60_000), passwordIterations: 60_000 });
+    // The double's `get`: on the login's SECOND read of the account (the re-read
+    // before the lift), a concurrent profile change has renamed her.
+    const storage = (state as unknown as { storage: { get: (k: string) => Promise<unknown> } }).storage;
+    const get = storage.get.bind(storage);
+    let lectures = 0;
+    storage.get = async (k: string) => {
+      if (k === `account:${id}` && (lectures += 1) === 2) m.set(k, { ...(m.get(k) as Enregistrement), name: 'Salimata Ouédraogo' });
+      return get(k);
+    };
+    expect((await appel(livre, '/login', { email: 'sali@example.bf', password: MOT_DE_PASSE })).status).toBe(200);
+    const apres = m.get(`account:${id}`) as Enregistrement & { name: string };
+    expect(apres.name, 'the change that landed mid-login survives the lift').toBe('Salimata Ouédraogo');
+    expect(apres.passwordIterations).toBe(100_000);
+    expect(apres.passwordHashHex).toBe(await pbkdf2Hex(MOT_DE_PASSE, apres.passwordSaltHex, 100_000));
+  });
+
+  it('a PASSWORD CHANGE that lands while the lifting login derives wins: the lift writes nothing over a hash it did not verify, and the login still opens', async () => {
+    const { m, state } = memoire();
+    const livre = new ResellerAccountsDO(state);
+    const inscrite = await appel(livre, '/signup', { name: 'Mariam', email: 'mariam@example.bf', phone: '+226 70 00 00 06', password: MOT_DE_PASSE });
+    const id = inscrite.json['accountId'] as string;
+    const selAncien = 'abcdef1234567890abcdef1234567890';
+    m.set(`account:${id}`, { ...(m.get(`account:${id}`) as Enregistrement), passwordSaltHex: selAncien, passwordHashHex: await pbkdf2Hex(MOT_DE_PASSE, selAncien, 60_000), passwordIterations: 60_000 });
+    const selNeuf = '0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f';
+    const hashNeuf = await pbkdf2Hex('toute-neuve-99', selNeuf, 100_000);
+    const storage = (state as unknown as { storage: { get: (k: string) => Promise<unknown> } }).storage;
+    const get = storage.get.bind(storage);
+    let lectures = 0;
+    storage.get = async (k: string) => {
+      if (k === `account:${id}` && (lectures += 1) === 2) m.set(k, { ...(m.get(k) as Enregistrement), passwordSaltHex: selNeuf, passwordHashHex: hashNeuf, passwordIterations: 100_000 });
+      return get(k);
+    };
+    expect((await appel(livre, '/login', { email: 'mariam@example.bf', password: MOT_DE_PASSE })).status, 'the verified login still opens').toBe(200);
+    const apres = m.get(`account:${id}`) as Enregistrement;
+    expect(apres.passwordSaltHex, 'the new password’s salt stands').toBe(selNeuf);
+    expect(apres.passwordHashHex, 'the lift did not overwrite a hash it never verified').toBe(hashNeuf);
   });
 
   it('a WRONG password on an old record is refused and lifts nothing — the record is byte-identical after', async () => {
@@ -185,7 +237,7 @@ describe('PBKDF2-HAUSSE-1 — 100 000 iterations, and an older record is lifted 
     expect(apres.passwordHashHex).toBe(await pbkdf2Hex('toute-neuve-99', apres.passwordSaltHex, 100_000));
   });
 
-  it('the probe derives at 100 000 over fixed bytes, and its digest is what an independent derivation gives — a probe that skipped the work could not answer it', async () => {
+  it('the probe derives at 100 000 over fixed bytes (after one pass at the inherited 60 000 — a lifting login’s exact cost), and its digest is what an independent derivation gives', async () => {
     const sonde = await sondePbkdf2();
     expect(sonde.iterations).toBe(100_000);
     expect(sonde.ok).toBe(true);

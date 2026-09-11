@@ -216,11 +216,15 @@ async function derivePassword(password: string, saltHex: string, iterations = PB
 }
 
 /**
- * PBKDF2-HAUSSE-1 — one derivation at the current count over FIXED bytes, so
- * the deploy smoke can ask the LIVE runtime whether it accepts the count
- * before any reseller meets a refusal at her login. The digest's first bytes
- * ride the answer and are pinned by test: a probe that skipped the derivation
- * could not produce them. Nothing secret is derived or revealed.
+ * PBKDF2-HAUSSE-1 — the deploy smoke's probe: it derives over fixed bytes
+ * FIRST at the inherited count, THEN at the current one — the exact work of
+ * the heaviest path the raise creates, a LIFTING LOGIN (verify at 60 000,
+ * re-derive at 100 000, one invocation), which is what every pre-raise
+ * reseller's first login costs. So the LIVE runtime answers for the worst
+ * case, not the light one, before any reseller meets a refusal (verifier,
+ * MAJOR 2). The second digest's first bytes ride the answer and are pinned by
+ * test: a probe that skipped a derivation could not produce them. Nothing
+ * secret is derived or revealed.
  */
 export interface SondePbkdf2 {
   readonly iterations: number;
@@ -231,6 +235,7 @@ export interface SondePbkdf2 {
 export const SONDE_PBKDF2_SEL_HEX = '00112233445566778899aabbccddeeff';
 export async function sondePbkdf2(): Promise<SondePbkdf2> {
   try {
+    await derivePassword('sonde-pbkdf2', SONDE_PBKDF2_SEL_HEX, PBKDF2_ITERATIONS_HERITEES);
     const digest = await derivePassword('sonde-pbkdf2', SONDE_PBKDF2_SEL_HEX);
     return { iterations: PBKDF2_ITERATIONS, ok: true, digest: digest.slice(0, 16) };
   } catch (e) {
@@ -486,14 +491,22 @@ export class ResellerAccountsDO {
       const { session, ecritures } = await this.minterSession(accountId);
       // PBKDF2-HAUSSE-1 — an older hash is lifted NOW, while the password is
       // in hand: a fresh salt, the current count, one commit with the session.
+      // The derivations are non-storage awaits, so another request on this
+      // account (a profile change) may have landed since the record was read:
+      // the lift spreads a RE-READ record (a gated storage read), and only if
+      // the hash it just verified is still the hash on it (verifier, MINOR 4).
       if (iterations < PBKDF2_ITERATIONS) {
         const saltHex = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
-        ecritures[`${ACCOUNT_PREFIX}${accountId}`] = {
-          ...record,
-          passwordSaltHex: saltHex,
-          passwordHashHex: await derivePassword(password, saltHex),
-          passwordIterations: PBKDF2_ITERATIONS,
-        } satisfies AccountRecord;
+        const leve = await derivePassword(password, saltHex);
+        const frais = await this.compte(accountId);
+        if (frais !== undefined && frais.passwordHashHex === record.passwordHashHex) {
+          ecritures[`${ACCOUNT_PREFIX}${accountId}`] = {
+            ...frais,
+            passwordSaltHex: saltHex,
+            passwordHashHex: leve,
+            passwordIterations: PBKDF2_ITERATIONS,
+          } satisfies AccountRecord;
+        }
       }
       await this.state.storage.put(ecritures);
       await this.state.storage.delete(cleEchecs);

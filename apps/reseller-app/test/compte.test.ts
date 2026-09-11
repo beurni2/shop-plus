@@ -223,10 +223,17 @@ describe('SESSION-VIE-1 — the door out, and the door that counts', () => {
     expect(await port.deconnecter('SPS-AAAA')).toEqual({ ok: false, reason: 'unreachable' });
   });
 
-  it('signup: a 429 is « trop d\'essais » too (LIMITE-REVENDEUSE-1, the door\'s per-address ceiling) — she must hear « wait », not « réseau »', async () => {
+  it('signup: the ceiling\'s 429 (`too_many_requests`, a minute) is « trop vite », the book\'s 429 (`too_many_attempts`, a quarter hour) is « trop d\'essais » — two waits, never « réseau » (LIMITE-REVENDEUSE-1)', async () => {
     vi.stubEnv(BASE, 'https://shop.example');
+    const port = resolveCompteService()!;
     stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'too_many_requests' }), { status: 429 }));
-    expect(await resolveCompteService()!.inscrire({ name: 'A', email: 'a@b.bf', phone: '70000000', password: 'x'.repeat(8) })).toEqual({ ok: false, reason: 'trop_essais' });
+    expect(await port.inscrire({ name: 'A', email: 'a@b.bf', phone: '70000000', password: 'x'.repeat(8) })).toEqual({ ok: false, reason: 'trop_vite' });
+    expect(await port.connecter('a@b.bf', 'grain-de-nere-77')).toEqual({ ok: false, reason: 'trop_vite' });
+    stubFetch(async () => new Response(JSON.stringify({ ok: false, reason: 'too_many_attempts' }), { status: 429 }));
+    expect(await port.inscrire({ name: 'A', email: 'a@b.bf', phone: '70000000', password: 'x'.repeat(8) })).toEqual({ ok: false, reason: 'trop_essais' });
+    // A 429 with no readable name is the safer, longer wait.
+    stubFetch(async () => new Response('', { status: 429 }));
+    expect(await port.connecter('a@b.bf', 'grain-de-nere-77')).toEqual({ ok: false, reason: 'trop_essais' });
   });
 
   it('login: a 429 is « trop d\'essais », told apart from the one refusal — she must hear « wait », not « wrong password »', async () => {

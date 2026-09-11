@@ -14,10 +14,11 @@ import { resetFiles } from './doubles/expo-file-system';
  *   · did the tree survive the tap — the 429 lands and the entrance stands;
  *   · is the act still pressable — « Créer mon compte » / « Me connecter »
  *     fire again after the refusal (the way out is a minute of patience);
- *   · does she hear the truth — the same « Trop d'essais » sentence the book's
- *     own per-email 429 already earns, on BOTH doors, whichever 429 name rides
- *     the body (the ceiling's `too_many_requests`, the book's `too_many_attempts`);
- *   · the control — a plain 401 still says « incorrect », not « attendez ».
+ *   · does she hear the truth — the ceiling's own name (`too_many_requests`,
+ *     a minute) earns « dans une minute, ça repart » on BOTH doors, and the
+ *     book's per-email name (`too_many_attempts`, a quarter hour) keeps its
+ *     own « quart d'heure » sentence: two waits, two sentences;
+ *   · the control — a plain 401 still says « incorrect », not a wait.
  *
  * The fakes are contract-certified against the real doors' answers, and the
  * ceiling itself is seam-proven on the built Worker in
@@ -26,14 +27,15 @@ import { resetFiles } from './doubles/expo-file-system';
  * WHAT IT MAY NEVER CLAIM: appearance — see `test/doubles/react-native.tsx`.
  */
 
+const TROP_VITE = "Trop de demandes d'un coup. Dans une minute, ça repart.";
 const TROP = "Trop d'essais. Attendez un quart d'heure, puis réessayez.";
 const INCORRECT = 'Email ou mot de passe incorrect. Vérifiez et réessayez.';
 const PORTE_COMPTE = 'Créer mon compte';
 const CONNECTER = 'Me connecter';
 
-function routes(signup: number, login: number): Route[] {
+function routes(signup: number, login: number, nom429 = 'too_many_requests'): Route[] {
   const refus = (status: number) =>
-    status === 429 ? { status, json: { ok: false, reason: 'too_many_requests' } } : { status, json: { ok: false, reason: 'bad_credentials' } };
+    status === 429 ? { status, json: { ok: false, reason: nom429 } } : { status, json: { ok: false, reason: 'bad_credentials' } };
   return [
     (path) => (path === '/supply-projections' ? { status: 200, json: { offers: [], diagnostic: { status: 'ok', refusals: [] } } } : null),
     (path) => (path === '/reseller/signup' ? refus(signup) : null),
@@ -65,7 +67,7 @@ afterEach(() => {
 });
 
 describe('LIMITE-REVENDEUSE-1 — the entrance meets the ceiling', () => {
-  it('signup 429 (the ceiling’s name) → « Trop d’essais », the tree stands, the act fires again; login 429 → the same sentence; a 401 still says « incorrect »', async () => {
+  it('signup 429 (the ceiling’s name) → « dans une minute », the tree stands, the act fires again; login 429 → the same; the book’s name → « quart d’heure »; a 401 still says « incorrect »', async () => {
     await seedTelephone();
     const fils = wire(routes(429, 429));
     const screen = await mountApp();
@@ -77,7 +79,7 @@ describe('LIMITE-REVENDEUSE-1 — the entrance meets the ceiling', () => {
     await screen.type('awa@example.bf', 'Votre email');
     await screen.type('motdepasse', 'Votre mot de passe (8 lettres ou plus)');
     await screen.press(PORTE_COMPTE);
-    await attendre(screen, TROP);
+    await attendre(screen, TROP_VITE);
     expect(fils.calls.filter((c) => c.path === '/reseller/signup').length, 'the signup left the phone').toBe(1);
     expect(screen.shows('Pas de réseau'), 'never the network sentence on a working wire').toBe(false);
     // The way out: the act still fires (a second signup leaves, and is refused again by name).
@@ -92,16 +94,23 @@ describe('LIMITE-REVENDEUSE-1 — the entrance meets the ceiling', () => {
     await screen.type('awa@example.bf', 'Votre email');
     await screen.type('motdepasse', 'Votre mot de passe');
     await screen.press(CONNECTER);
-    await attendre(screen, TROP);
+    await attendre(screen, TROP_VITE);
     expect(fils.calls.filter((c) => c.path === '/reseller/login').length).toBe(1);
     expect(screen.canPress(CONNECTER)).toBe(true);
 
-    // CONTROL — a plain refusal is a different sentence: the 429 sentence is
-    // not what every refusal says.
+    // The BOOK's own 429 (ten wrong tries on one email) keeps its own wait.
+    wire(routes(429, 429, 'too_many_attempts'));
+    await screen.press(CONNECTER);
+    await attendre(screen, TROP);
+    expect(screen.shows(TROP_VITE)).toBe(false);
+
+    // CONTROL — a plain refusal is a different sentence: neither wait is
+    // what every refusal says.
     wire(routes(429, 401));
     await screen.press(CONNECTER);
     await attendre(screen, INCORRECT);
     expect(screen.shows(TROP)).toBe(false);
+    expect(screen.shows(TROP_VITE)).toBe(false);
     screen.unmount();
   });
 });

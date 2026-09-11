@@ -22,8 +22,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  *   · the PBKDF2 probe (`GET /health?pbkdf2=1`) answers the live count and
  *     SPENDS the login budget — it costs what a login costs; a plain /health
  *     carries no probe and costs nothing;
- *   · the buyer's create door, bound to no limiter here, stays open whatever
- *     the reseller budgets say (fail open, and no sharing).
+ *   · the buyer's budgets are SEPARATE: with the create budget spent first,
+ *     signups and logins from the same address still reach their doors, and
+ *     the create door's own refusal stands on its own count.
  *
  * MINIFLARE'S LIMITER IS A FIXED WINDOW aligned on the wall clock; `beforeAll`
  * waits out the last seconds of a minute so the walk cannot straddle a reset.
@@ -49,6 +50,11 @@ const mf = new Miniflare({
   durableObjectsPersist: persist,
   bindings: {},
   ratelimits: {
+    // The buyer's two limiters are bound TOO, at small ceilings, so « separate
+    // budgets » is proven by spending one and watching the others stand —
+    // not by a door that was open for want of a binding (verifier, MINOR 1).
+    LIMITE_TUILES: { namespace_id: '1001', simple: { limit: 2, period: 60 } },
+    LIMITE_CREATIONS: { namespace_id: '1002', simple: { limit: 2, period: 60 } },
     LIMITE_INSCRIPTIONS: { namespace_id: '1003', simple: { limit: 2, period: 60 } },
     LIMITE_CONNEXIONS: { namespace_id: '1004', simple: { limit: 3, period: 60 } },
   },
@@ -71,6 +77,10 @@ const corps = { headers: { 'Content-Type': 'application/json' }, method: 'POST',
 
 describe('LIMITE-REVENDEUSE-1 — signup and login, two budgets per address', () => {
   it('signup: the asks within the ceiling reach the book; the one past it is 429 by name, readable by the app; login is a SEPARATE budget; another address is untouched', async () => {
+    // FIRST the buyer's create budget is SPENT from address A — so whatever the
+    // reseller doors answer below, it cannot be that budget speaking for them.
+    for (let i = 0; i < 2; i += 1) expect((await de(A, '/checkout/quote', corps)).status, `create ${i + 1} of 2`).not.toBe(429);
+    expect((await de(A, '/checkout/quote', corps)).status).toBe(429);
     // Two signups within the ceiling: the book's own answer to an empty body
     // (a 400 by field), never the ceiling's — the door itself was reached.
     for (let i = 0; i < 2; i += 1) {
@@ -94,9 +104,6 @@ describe('LIMITE-REVENDEUSE-1 — signup and login, two budgets per address', ()
     // Another address has its own budgets.
     expect((await de(B, '/reseller/signup', corps)).status).not.toBe(429);
     expect((await de(B, '/reseller/login', corps)).status).toBe(401);
-    // The buyer's create door, bound to no limiter in this suite, is open —
-    // whatever A's reseller budgets say (separate, and fail open).
-    expect((await de(A, '/checkout/quote', corps)).status).not.toBe(429);
     // A preflight is never refused, budget or no budget.
     expect((await de(A, '/reseller/login', { method: 'OPTIONS' })).status).toBe(204);
   });
@@ -117,6 +124,9 @@ describe('LIMITE-REVENDEUSE-1 — signup and login, two budgets per address', ()
     const tropSonde = await de(C, '/health?pbkdf2=1');
     expect(tropSonde.status).toBe(429);
     expect(await tropSonde.json()).toEqual({ error: 'too_many_requests' });
+    // A HEAD with the flag is neither counted nor refused: it derives nothing
+    // (the service runs the probe on GET only), so there is nothing to bound.
+    expect((await de(C, '/health?pbkdf2=1', { method: 'HEAD' })).status).toBe(200);
     // A plain /health from the same spent address: 200, no probe field — it
     // was neither counted nor derived.
     const sante = await de(C, '/health');

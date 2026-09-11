@@ -36,17 +36,21 @@ export type InscriptionResult =
   | { readonly ok: true; readonly compte: CompteLocal; readonly session: string }
   | {
       readonly ok: false;
-      /** LIMITE-REVENDEUSE-1 — `trop_essais`: the door's per-address ceiling
-       *  answered 429; « attendez », never « réseau » — the wire was fine. */
-      readonly reason: 'email_pris' | 'champ_invalide' | 'trop_essais' | 'unreachable';
+      /** LIMITE-REVENDEUSE-1 — `trop_vite`: the door's per-ADDRESS ceiling
+       *  (a minute) answered 429 by its own name; `trop_essais`: the book's
+       *  per-email count (a quarter hour). Two waits, two sentences — and
+       *  never « réseau »: the wire was fine. */
+      readonly reason: 'email_pris' | 'champ_invalide' | 'trop_vite' | 'trop_essais' | 'unreachable';
       readonly field?: string;
     };
 
 export type ConnexionResult =
   | { readonly ok: true; readonly compte: CompteLocal; readonly session: string }
   /** SESSION-VIE-1 — `trop_essais`: the door counted too many refusals for
-   *  this email and answers 429 for a while; a sentence, never a retry loop. */
-  | { readonly ok: false; readonly reason: 'refuse' | 'trop_essais' | 'unreachable' };
+   *  this email and answers 429 for a quarter hour; LIMITE-REVENDEUSE-1 —
+   *  `trop_vite`: the per-address ceiling, a minute. A sentence each, never a
+   *  retry loop. */
+  | { readonly ok: false; readonly reason: 'refuse' | 'trop_vite' | 'trop_essais' | 'unreachable' };
 
 /** SESSION-VIE-1 — the logout is best-effort on the wire: the phone forgets
  *  the session either way (see `App.finirSession`), and an unreachable book
@@ -102,6 +106,13 @@ export interface CompteServicePort {
 
 const COMPTE_TIMEOUT_MS = 12_000;
 const ETATS: readonly string[] = ['pending_access', 'active', 'paused'];
+
+/** Which wait a 429 asks for: the door's per-ADDRESS ceiling names itself
+ *  `too_many_requests` (a minute); anything else on a 429 is the book's
+ *  per-email count (`too_many_attempts`, a quarter hour). */
+function attente(body: Record<string, unknown> | null): 'trop_vite' | 'trop_essais' {
+  return body?.['reason'] === 'too_many_requests' ? 'trop_vite' : 'trop_essais';
+}
 
 function lireCompte(body: Record<string, unknown> | null): CompteLocal | null {
   const accountId = body?.['accountId'];
@@ -168,7 +179,7 @@ export function resolveCompteService(): CompteServicePort | null {
         const field = res.body?.['field'];
         return { ok: false, reason: 'champ_invalide', ...(typeof field === 'string' ? { field } : {}) };
       }
-      if (res.status === 429) return { ok: false, reason: 'trop_essais' };
+      if (res.status === 429) return { ok: false, reason: attente(res.body) };
       const compte = lireCompte(res.body);
       const session = res.body?.['session'];
       if (res.status !== 200 || compte === null || typeof session !== 'string' || session === '') {
@@ -183,7 +194,7 @@ export function resolveCompteService(): CompteServicePort | null {
       // ONE refusal, whatever the cause — the server is deliberately not an
       // email oracle and this client does not reconstruct one.
       if (res.status === 401) return { ok: false, reason: 'refuse' };
-      if (res.status === 429) return { ok: false, reason: 'trop_essais' };
+      if (res.status === 429) return { ok: false, reason: attente(res.body) };
       const compte = lireCompte(res.body);
       const session = res.body?.['session'];
       if (res.status !== 200 || compte === null || typeof session !== 'string' || session === '') {

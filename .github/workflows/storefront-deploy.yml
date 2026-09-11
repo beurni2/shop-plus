@@ -308,10 +308,14 @@ jobs:
       # PBKDF2-HAUSSE-1 — the password hash's iteration count (100 000) is the Free
       # plan's documented ceiling, and the LOCAL runtime enforces none (it derives
       # at 600 000 without complaint): only the LIVE Worker can say whether it
-      # derives at that count. This asks it to, once, BEFORE any reseller's login
-      # can meet a refusal. Red means the raise must be reverted, not that anyone
-      # is locked out: every record still verifies at the count it was derived
-      # with, and the lift happens only at a login that just succeeded.
+      # derives at that count. This asks it to — the probe derives at the OLD count
+      # then the new one in ONE invocation, the exact cost of a pre-raise reseller's
+      # first login (verify, then lift) — BEFORE any reseller's login can meet a
+      # refusal. This runs AFTER the upload, so red is a SIGNAL, not a rollback:
+      # revert the constant (one line) and redeploy. Nobody is locked out by a red
+      # probe alone — every record still verifies at the count it was derived with
+      # — but a runtime that refuses the count would fail the lift on each first
+      # login, so a red here is acted on the same hour.
       - name: Smoke — the live runtime derives the password hash at the raised count
         run: |
           set -euo pipefail

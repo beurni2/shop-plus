@@ -33,6 +33,11 @@ describe(SERVICE_NAME, () => {
     expect(await demande.json()).toEqual({ service: SERVICE_NAME, status: 'ok', release: 'dev', canon: 'dev', pbkdf2: { iterations: 7, ok: true, digest: 'abcd' } });
     expect(demande.headers.get('Cache-Control')).toBe('no-store');
     expect(appels).toBe(1);
+    // A HEAD with the flag derives NOTHING: the ceiling is asked on GET, so a
+    // HEAD that derived would be a free derivation from any address (verifier, MAJOR 1).
+    const tete = await worker.fetch(new Request('https://storefront-service.shop.internal/health?pbkdf2=1', { method: 'HEAD' }), env as never);
+    expect(tete.status).toBe(200);
+    expect(appels).toBe(1);
   });
 
   it('unknown routes are 404', async () => {

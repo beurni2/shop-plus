@@ -3672,6 +3672,12 @@
   "screenClass": "status"
  },
  {
+  "key": "compte.trop_vite",
+  "fr": "Trop de demandes d'un coup. Dans une minute, ça repart.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
   "key": "vitrine.toggle_echec",
   "fr": "Votre boutique n'a pas changé. Réessayez dans un moment.",
   "register": "neutral",

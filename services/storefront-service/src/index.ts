@@ -79,7 +79,10 @@ async function healthWithProvenance(request: Request, custody?: CustodyWires, so
   if (res.status !== 200) return res;
   const body = (await res.json()) as Record<string, unknown>;
   if (custody !== undefined) body['custody'] = custody;
-  if (sonde !== undefined && new URL(request.url).searchParams.get('pbkdf2') === '1') body['pbkdf2'] = await sonde();
+  // GET only: a HEAD carries no body to answer with, and the router's ceiling
+  // is asked on GET — a HEAD that derived would be the free derivation the
+  // ceiling exists to refuse (verifier, MAJOR 1).
+  if (sonde !== undefined && request.method === 'GET' && new URL(request.url).searchParams.get('pbkdf2') === '1') body['pbkdf2'] = await sonde();
   const headers = new Headers(res.headers);
   // THE FRESHNESS INSTRUMENT MUST NOT BE CACHEABLE (founder finding, on a real
   // deploy): this response existed to answer WHICH BUILD IS LIVE, and it carried no

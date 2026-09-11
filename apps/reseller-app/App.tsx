@@ -3920,6 +3920,7 @@ function EcranCompte({ service, envoi, erreurKey, modeInitial = 'creer', rayons,
         res.reason === 'email_pris' ? 'compte.email_pris'
         : res.reason === 'champ_invalide' ? 'compte.champ_invalide'
         : res.reason === 'refuse' ? 'compte.refuse'
+        : res.reason === 'trop_vite' ? 'compte.trop_vite'
         : res.reason === 'trop_essais' ? 'compte.trop_essais'
         : 'compte.reseau',
       );
