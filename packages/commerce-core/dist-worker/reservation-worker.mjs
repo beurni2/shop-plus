@@ -1,7 +1,7 @@
 // src/reservation.ts
 var RESERVATION_TTL_MS = 2 * 60 * 1e3;
 function expired(state, nowIso) {
-  return nowIso > state.expiresAt;
+  return Date.parse(nowIso) > Date.parse(state.expiresAt);
 }
 function decideReservation(state, cmd) {
   if (state.status !== "none" && "quoteId" in state && state.quoteId !== cmd.quoteId) {
