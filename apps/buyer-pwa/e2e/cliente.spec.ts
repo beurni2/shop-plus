@@ -454,262 +454,319 @@ async function sweepEveryState(
  *
  * Asserted in the LIVE DOM because only the DOM can see it: the HTML string
  * carries the full label either way — it is the rendering that truncated.
+ *
+ * ROUND 9 — THE FACE IS DECIDED, NOT RACED. Everything this test measures —
+ * clipping, orphans, glue, the two-line bound — depends on which face laid
+ * the text out, and until now that was whichever face won the
+ * `font-display: optional` race: this test went red on an identical sha
+ * twice (run 31064422388, 2026-08-06; ci #647 attempt 1, 2026-09-11 — 0.268
+ * on one of the large basket's paylines) and green on the re-run, teaching
+ * everyone to re-run instead of read. Waiting cannot fix it (the pinned
+ * sweep's comment, round 8, has the measurements). So it now runs twice with
+ * the face pinned by policy — the real face, and the fallback a cold low-end
+ * phone keeps for the page's whole life — with the same guard on the guard
+ * the pinned sweep uses, after every navigation this test makes itself.
+ * The pin's CSS, the témoin reader and its two bounds live with that sweep
+ * below and are shared BY NAME, so the two tests cannot drift apart. Not one
+ * assertion changed; only the face it is made on is now known.
  */
-test('C5 at 360px — every bill label renders in full, and NO sentence orphans, in every state', async ({ page }) => {
-  await page.setViewportSize({ width: 360, height: 900 });
-  await page.goto('/?demo-cliente=C5&theme=indigo');
-  await policesChargees(page);
-  await expect(page.locator('[data-screen="C5"]')).toBeVisible();
-
-  // (1)+(2) NOTHING IS CLIPPED: every label's laid-out width fits its box.
-  const labels = await page.evaluate(() =>
-    [...document.querySelectorAll('.cl-bill-row span, .cl-bill-total span, .cl-bill-row b, .cl-bill-total b')].map((el) => ({
-      text: el.textContent ?? '',
-      clipped: el.scrollWidth > el.clientWidth + 1,
-    })),
-  );
-  expect(labels.length).toBeGreaterThanOrEqual(6);
-  for (const l of labels) {
-    expect(l.clipped, `« ${l.text} » is cut off on a 360px phone`).toBe(false);
-  }
-
-  // …and the two sentences that were being eaten are readable, whole.
-  // NO-BREAK SPACES READ AS SPACES. « jamais\u00a0cachée » is welded so the
-  // promise can never lose its last word to a line of its own (the orphan the
-  // sweep below now catches on the shipped face); the sentence she reads is
-  // unchanged, so the readability assertion normalises the byte.
-  const bill = (await page.locator('.cl-bill').innerText()).replace(/\u00a0/g, ' ');
-  expect(bill).toContain('Livraison Séra — jamais cachée');
-  expect(bill).toContain('Robe brodée bogolan');
-  // no ellipsis anywhere on the bill — neither the character nor three dots
-  expect(bill).not.toContain('…');
-  expect(bill).not.toMatch(/\.\.\./);
-
-  // (3) NO SENTENCE ON THIS SCREEN ENDS ON AN ORPHAN — and « this screen »
-  // means EVERY text block, in EVERY state the buyer can put it in, AT MORE
-  // THAN ONE BASKET, found structurally rather than by a list of selectors.
-  //
-  // THE LESSON THIS ENCODES, now three deep. Each time, the guard was real and
-  // the SCOPE was the defect:
-  //   · BY SELECTOR (round 2). The honesty line was fixed and the test scoped to
-  //     `.cl-reconcile`. Two reviewers then checked that element and passed the
-  //     screen — while the REPLAY, one element below, stranded « d'accord ? » on
-  //     a third line at 28.6%: the question she is asked to agree to, alone.
-  //   · BY STATE (round 4). A sweep of « every block » still saw nothing,
-  //     because C5 mounts with NO mode chosen and the replay only exists after
-  //     she chooses. Hence three states, and an explicit assertion that the
-  //     replay was IN the swept set.
-  //   · BY COMPUTED DISPLAY and BY CONTENT (round 5, and both are fixed here).
-  //     A button's UA display is inline-block, so `isTextBlock` rejected the
-  //     CTA — the one element that carries an amount AND is the screen's single
-  //     primary action — before a ratio was ever taken. And the sweep ran three
-  //     times against ONE basket, the harness's 12 500, where the paylines and
-  //     the CTA all fit on one line, so a wrap none of them can perform at that
-  //     basket was never measured. Both are the same shape of miss: the guard
-  //     passes because it never looked, and every previous instance of that
-  //     shape had hidden a real defect.
-  //   · BY SUB-STATE (round 6). The sweep clicked the mode cards and never
-  //     pressed Payer, so `envoi` and `operateur` — the two branches on the far
-  //     side of this screen's one primary action, which every buyer sees on
-  //     every purchase — had never been measured at all. « ENVOI SÉCURISÉ »
-  //     was stranding « l'opérateur. » at 0.334, in all four combinations,
-  //     fixed regardless of the amount: the party the money is going to, alone
-  //     on a line, at the moment the payment leaves her hands.
-  //
-  // THE RULE, and it is the actual deliverable here, because it has now held
-  // SIX times without a single exception:
-  //
-  //   EVERY TIME THIS SWEEP HAS BEEN BOUNDED BY ANYTHING OTHER THAN « the whole
-  //   screen, in every state a buyer can reach », THE BOUNDARY HAS HIDDEN A
-  //   DEFECT — by selector, by element, by mount state, by computed display, by
-  //   fixture amount, and now by sub-state.
-  //
-  // The corollary is the one to act on: the next narrowing will look just as
-  // reasonable as these six did. Widen the sweep; never the exemption list.
-  const BASKET_DEFAULT = 'basket 12 500';
-  const BASKET_LARGE = 'basket 19 753 086';
-  const URL_DEFAULT = '/?demo-cliente=C5&theme=indigo';
-  const URL_LARGE = '/?demo-cliente=C5&theme=indigo&prix=9876543&frais=9876543';
-
-  const petit = await sweepEveryState(page, BASKET_DEFAULT, URL_DEFAULT);
-
-  // THE SAME SCREEN, THE SAME STATES, A BASKET WHOSE SENTENCES WRAP. `prix` and
-  // `frais` are harness levers into the certified mock quote service
-  // (`harnessFrancs`) — no screen computes anything new; the service is simply
-  // asked to price a bigger article and a bigger course. At this basket the two
-  // §6.1 paylines wrap, the replay wraps, and mode B's CTA — « Payer 9 876 543
-  // FCFA maintenant » — wraps too, which is what puts it in the swept set.
-  await page.goto(URL_LARGE);
-  await policesChargees(page);
-  await expect(page.locator('[data-screen="C5"]')).toBeVisible();
-  const grand = await sweepEveryState(page, BASKET_LARGE, URL_LARGE);
-
-  const tous = [...petit, ...grand];
-  for (const { label, etat, blocks, attendu, plancher } of tous) {
-    // THE SWEEP MEASURED THE SCREEN IT MEANT TO. `envoi` and `operateur` are
-    // timed branches; a ratio read off the wrong one would be a number that
-    // proves nothing, so the state travels with the measurement.
-    expect(etat, `${label}: swept « ${etat} » — this is not the branch under test`).toBe(attendu);
-    // The sweep really did see the screen — an empty result would pass in silence.
-    expect(blocks.length, `${label}: no multi-line text found on C5`).toBeGreaterThanOrEqual(plancher);
-    for (const b of blocks) {
-      expect(
-        b.lastRatio,
-        `${label}: « ${b.text} » ends on an orphan line (${Math.round(b.lastRatio * 100)}% of the block, ${b.lines} lines)`,
-      ).toBeGreaterThan(PLANCHER_ORPHELIN);
+for (const regime of ['face réelle', 'repli'] as const) {
+  test(`C5 at 360px — every bill label renders in full, and NO sentence orphans, in every state (face PINNED · ${regime})`, async ({ page }) => {
+    if (regime === 'repli') {
+      await page.route('**/*.woff2', (route) => route.abort());
+    } else {
+      // Before the first navigation, and on every navigation the test makes.
+      await page.addInitScript((css: string) => {
+        const poser = (): void => {
+          const style = document.createElement('style');
+          style.setAttribute('data-face-epinglee', '1');
+          style.textContent = css;
+          document.head.appendChild(style);
+        };
+        if (document.head !== null) poser();
+        else document.addEventListener('DOMContentLoaded', poser, { once: true });
+      }, CSS_FACE_EPINGLEE);
     }
-  }
+    // THE GUARD ON THE GUARD, after each navigation this test makes before it
+    // measures: the pin must have CHANGED the layout, read off the témoin that
+    // is already laid out — and the témoin must be on the screen at all, since
+    // -1 satisfies a « less than » bound.
+    const assurerLaFace = async (ou: string): Promise<void> => {
+      const temoin = await largeurDuTemoin(page);
+      expect(temoin, `${regime} · ${ou}: « .cl-quote » is not on the screen — the sentence the pin is measured on is gone`).toBeGreaterThan(0);
+      if (regime === 'face réelle') {
+        expect(
+          temoin,
+          `${regime} · ${ou}: the real face is NOT laid out (témoin ${temoin}px) — the pinned @font-face did not apply, ` +
+            `so this run would measure a race and prove nothing`,
+        ).toBeLessThan(TEMOIN_MAX_FACE_REELLE);
+      } else {
+        expect(
+          temoin,
+          `${regime} · ${ou}: the webfont was NOT blocked (témoin ${temoin}px) — the fallback regime is measuring the real face`,
+        ).toBeGreaterThan(TEMOIN_MIN_REPLI);
+      }
+    };
 
-  // …and the REPLAY was actually in the swept set once she had chosen, at BOTH
-  // baskets: the sentence this test exists for must not be able to leave
-  // coverage quietly. Selected BY LABEL, not by index — a sweep that grows new
-  // states must not silently re-point this assertion at one of them.
-  for (const { label, blocks } of tous.filter((s) => s.attendu === 'choix' && s.mode !== null)) {
-    expect(
-      blocks.some((b) => b.text.startsWith('Vous payez')),
-      `${label}: the replay line was not swept — coverage shrank without failing`,
-    ).toBe(true);
-  }
+    await page.setViewportSize({ width: 360, height: 900 });
+    await page.goto('/?demo-cliente=C5&theme=indigo');
+    await policesChargees(page);
+    await expect(page.locator('[data-screen="C5"]')).toBeVisible();
+    await assurerLaFace('360px · basket 12 500');
 
-  // …AND THE TWO BRANCHES BEHIND THE PAYER BUTTON WERE REALLY ENTERED, each
-  // with the sentence that carries the amount on it. Same discipline as the
-  // replay and the CTA: naming the element that must be in the swept set is
-  // what stops the set from shrinking back to `choix` without a red test.
-  for (const { label, blocks } of tous.filter((s) => s.attendu === 'envoi')) {
-    expect(
-      blocks.some((b) => b.cls.includes('cl-sub-body')),
-      `${label}: « ENVOI SÉCURISÉ » was not swept — the payment-leaving screen left coverage`,
-    ).toBe(true);
-  }
-  for (const { label, blocks } of tous.filter((s) => s.attendu === 'operateur')) {
-    expect(
-      blocks.some((b) => b.cls.includes('cl-prov-body')),
-      `${label}: the opérateur screen was not swept — the code-secret screen left coverage`,
-    ).toBe(true);
-  }
-
-  // EVERY GLUED CLAUSE HOLDS — AND EVERY ONE OF THEM STILL EXISTS.
-  //
-  // TWO DIFFERENT ASSERTIONS, BECAUSE THEY CATCH TWO DIFFERENT FAILURES, and
-  // conflating them is the mistake round 6 made (see the table in `sweepC5`):
-  //   · the LOOP below catches a glue that WRAPPED. It is measured only for
-  //     units that are still there.
-  //   · the PRESENCE checks catch a glue that was REMOVED — which the loop
-  //     cannot, because a removed unit is not in `glued` to be measured, and
-  //     which the 0.35 ratio bar catches only when the un-glued screen happens
-  //     to fall below 0.35. For cl-prov-cle (0.363) and cl-titre-fin (0.362) it
-  //     does not, so presence is the ONLY thing standing between those two
-  //     fixes and a silent regression on the next copy tweak.
-  for (const { label, glued } of tous) {
-    for (const g of glued) {
-      expect(g.lines, `${label}: the no-wrap unit « ${g.text} » (${g.cls}) wrapped onto ${g.lines} lines`).toBe(1);
+    // (1)+(2) NOTHING IS CLIPPED: every label's laid-out width fits its box.
+    const labels = await page.evaluate(() =>
+      [...document.querySelectorAll('.cl-bill-row span, .cl-bill-total span, .cl-bill-row b, .cl-bill-total b')].map((el) => ({
+        text: el.textContent ?? '',
+        clipped: el.scrollWidth > el.clientWidth + 1,
+      })),
+    );
+    expect(labels.length).toBeGreaterThanOrEqual(6);
+    for (const l of labels) {
+      expect(l.clipped, `« ${l.text} » is cut off on a 360px phone`).toBe(false);
     }
-  }
-  for (const { label, glued } of tous.filter((s) => s.attendu === 'envoi')) {
-    expect(
-      glued.some((g) => g.cls.includes('cl-envoi-fin')),
-      `${label}: « à l’opérateur. » is no longer one no-wrap unit — the orphan at 0.334 is back`,
-    ).toBe(true);
-  }
-  for (const { label, glued } of tous.filter((s) => s.attendu === 'operateur')) {
-    expect(
-      glued.some((g) => g.cls.includes('cl-prov-cle')),
-      `${label}: « code secret » is no longer one no-wrap unit — back to 0.363`,
-    ).toBe(true);
-  }
-  // …AND OPTION B'S NAME, on every state that shows the payment cards (round 7).
-  // cl-titre-fin was the one glue on this screen that NOTHING defended: neutered
-  // (nowrap → normal) the whole e2e stayed green, sweep included, while the title
-  // went back to breaking as « Payer le produit à la / livraison » and stranding
-  // the word that says WHICH option it is at 0.362 — above the bar, so invisible
-  // to every ratio. It is rendered on both `choix` sites (the payable card and
-  // the « Pas disponible » head), which is why `choix` is the right scope.
-  for (const { label, glued } of tous.filter((s) => s.attendu === 'choix')) {
-    expect(
-      glued.some((g) => g.cls.includes('cl-titre-fin')),
-      `${label}: « à la livraison » is no longer one no-wrap unit — option B's name orphans again at 0.362`,
-    ).toBe(true);
-  }
-  // A FLOOR ON THE SET ITSELF, so the invariant cannot pass by measuring nothing.
-  //
-  // Every assertion above is a `for … of glued` or a `.some(…)`; an empty or
-  // shrunken `glued` satisfies the loop vacuously and only the named units would
-  // notice. The floor is the count ACTUALLY MEASURED on `choix`: the bill's three
-  // amounts (`.cl-bill-row b` ×2, `.cl-bill-total b`), the honesty promise, and
-  // option B's name. Five, asserted, so deleting an un-named glue is a red test
-  // rather than a quieter suite.
-  //
-  // « Écouter la note » IS NOT IN THIS SET, and is not counted here — its `svg`
-  // child computes `display: block`, so the glue filter above skips it exactly
-  // as the text-block filter does. Saying so is the point of this round: a floor
-  // that quietly counted it would be this comment overstating its own reach
-  // again. That control is asserted on its own, by name, in the « Écouter la
-  // note » test below.
-  const PLANCHER_GLUE_CHOIX = 5;
-  for (const { label, glued } of tous.filter((s) => s.attendu === 'choix')) {
-    expect(
-      glued.length,
-      `${label}: only ${glued.length} no-wrap unit(s) on the payment screen — the glued set shrank ` +
-        `(${glued.map((g) => g.cls).join(' · ')})`,
-    ).toBeGreaterThanOrEqual(PLANCHER_GLUE_CHOIX);
-  }
 
-  // …AND THE CTA WAS IN THE SWEPT SET TOO — the assertion the replay has had
-  // since round 4 and the CTA had not. It is the only text on this screen that
-  // both carries an amount and is the primary action, and until `display: block`
-  // it could not be measured at all. If that declaration is removed, the button
-  // computes to inline-block, `isTextBlock` drops it, and this fails BY NAME
-  // rather than by a silently smaller swept set.
-  const ctaState = grand.find((s) => s.attendu === 'choix' && s.mode === 'B');
-  // MEASURABLE, not wrapped. The old read went through `blocks` — the WRAPPED
-  // set — so it also asserted that the CTA happens to wrap at this basket,
-  // which depends on which face won the `font-display: optional` race. That
-  // made a MONEY screen's test flaky (run 31064422388 red, 31064768627 green,
-  // same sha), and a flaky test on a money screen is worse than none: it
-  // teaches everyone to re-run instead of read. The invariant this line was
-  // always for is that the CTA is a text block BY DISPLAY, and so can be
-  // measured at all; remove `display: block` and it computes to inline-block,
-  // leaves `mesurables`, and this fails by name exactly as before.
-  expect(
-    ctaState?.mesurables.some((cls) => cls.includes('cl-cta-c5')),
-    `${BASKET_LARGE}: the CTA is not a text block by display — it cannot be measured for orphans`,
-  ).toBe(true);
+    // …and the two sentences that were being eaten are readable, whole.
+    // NO-BREAK SPACES READ AS SPACES. « jamais\u00a0cachée » is welded so the
+    // promise can never lose its last word to a line of its own (the orphan the
+    // sweep below now catches on the shipped face); the sentence she reads is
+    // unchanged, so the readability assertion normalises the byte.
+    const bill = (await page.locator('.cl-bill').innerText()).replace(/\u00a0/g, ' ');
+    expect(bill).toContain('Livraison Séra — jamais cachée');
+    expect(bill).toContain('Robe brodée bogolan');
+    // no ellipsis anywhere on the bill — neither the character nor three dots
+    expect(bill).not.toContain('…');
+    expect(bill).not.toMatch(/\.\.\./);
 
-  // …and the honesty line says what it says, on at most two lines.
-  //
-  // EVOLVED (CI run 30773205806, 2026-08-02 — failed on a path this diff never
-  // touched). The old read went through the SWEEP set, which keeps only
-  // WRAPPED blocks — an assertion that the sentence takes two lines, smuggled
-  // inside an assertion about its words. On the CI runner the sentence was not
-  // in the set (a one-line render or a not-yet-rendered bill — either drops it)
-  // and the read came back `undefined`: a report about layout dressed as a
-  // report about text, reproducible 0/4 locally. The wrap was never the
-  // invariant; the WORDS and the no-spill bound are. So the sentence is read
-  // off its OWN element now, with a real wait — one line is better than two,
-  // and a bill that never renders fails BY NAME on the wait, not as undefined.
-  await page.goto(URL_DEFAULT);
-  await policesChargees(page);
-  const recEl = page.locator('[data-screen="C5"] [data-role="reconcile"]');
-  await recEl.waitFor({ state: 'visible' });
-  const rec = await recEl.evaluate((el) => {
-    // Same line-clustering as the sweep (rects within 2px of the line's top).
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    const rects = [...range.getClientRects()].filter((r) => r.width > 0).sort((a, b) => a.top - b.top);
-    let lines = 0;
-    let groupTop = Number.NEGATIVE_INFINITY;
-    for (const r of rects) {
-      if (r.top - groupTop > 2) {
-        lines += 1;
-        groupTop = r.top;
+    // (3) NO SENTENCE ON THIS SCREEN ENDS ON AN ORPHAN — and « this screen »
+    // means EVERY text block, in EVERY state the buyer can put it in, AT MORE
+    // THAN ONE BASKET, found structurally rather than by a list of selectors.
+    //
+    // THE LESSON THIS ENCODES, now three deep. Each time, the guard was real and
+    // the SCOPE was the defect:
+    //   · BY SELECTOR (round 2). The honesty line was fixed and the test scoped to
+    //     `.cl-reconcile`. Two reviewers then checked that element and passed the
+    //     screen — while the REPLAY, one element below, stranded « d'accord ? » on
+    //     a third line at 28.6%: the question she is asked to agree to, alone.
+    //   · BY STATE (round 4). A sweep of « every block » still saw nothing,
+    //     because C5 mounts with NO mode chosen and the replay only exists after
+    //     she chooses. Hence three states, and an explicit assertion that the
+    //     replay was IN the swept set.
+    //   · BY COMPUTED DISPLAY and BY CONTENT (round 5, and both are fixed here).
+    //     A button's UA display is inline-block, so `isTextBlock` rejected the
+    //     CTA — the one element that carries an amount AND is the screen's single
+    //     primary action — before a ratio was ever taken. And the sweep ran three
+    //     times against ONE basket, the harness's 12 500, where the paylines and
+    //     the CTA all fit on one line, so a wrap none of them can perform at that
+    //     basket was never measured. Both are the same shape of miss: the guard
+    //     passes because it never looked, and every previous instance of that
+    //     shape had hidden a real defect.
+    //   · BY SUB-STATE (round 6). The sweep clicked the mode cards and never
+    //     pressed Payer, so `envoi` and `operateur` — the two branches on the far
+    //     side of this screen's one primary action, which every buyer sees on
+    //     every purchase — had never been measured at all. « ENVOI SÉCURISÉ »
+    //     was stranding « l'opérateur. » at 0.334, in all four combinations,
+    //     fixed regardless of the amount: the party the money is going to, alone
+    //     on a line, at the moment the payment leaves her hands.
+    //
+    // THE RULE, and it is the actual deliverable here, because it has now held
+    // SIX times without a single exception:
+    //
+    //   EVERY TIME THIS SWEEP HAS BEEN BOUNDED BY ANYTHING OTHER THAN « the whole
+    //   screen, in every state a buyer can reach », THE BOUNDARY HAS HIDDEN A
+    //   DEFECT — by selector, by element, by mount state, by computed display, by
+    //   fixture amount, and now by sub-state.
+    //
+    // The corollary is the one to act on: the next narrowing will look just as
+    // reasonable as these six did. Widen the sweep; never the exemption list.
+    const BASKET_DEFAULT = 'basket 12 500';
+    const BASKET_LARGE = 'basket 19 753 086';
+    const URL_DEFAULT = '/?demo-cliente=C5&theme=indigo';
+    const URL_LARGE = '/?demo-cliente=C5&theme=indigo&prix=9876543&frais=9876543';
+
+    const petit = await sweepEveryState(page, BASKET_DEFAULT, URL_DEFAULT);
+
+    // THE SAME SCREEN, THE SAME STATES, A BASKET WHOSE SENTENCES WRAP. `prix` and
+    // `frais` are harness levers into the certified mock quote service
+    // (`harnessFrancs`) — no screen computes anything new; the service is simply
+    // asked to price a bigger article and a bigger course. At this basket the two
+    // §6.1 paylines wrap, the replay wraps, and mode B's CTA — « Payer 9 876 543
+    // FCFA maintenant » — wraps too, which is what puts it in the swept set.
+    await page.goto(URL_LARGE);
+    await policesChargees(page);
+    await expect(page.locator('[data-screen="C5"]')).toBeVisible();
+    await assurerLaFace('360px · basket 19 753 086');
+    const grand = await sweepEveryState(page, BASKET_LARGE, URL_LARGE);
+
+    const tous = [...petit, ...grand];
+    for (const { label, etat, blocks, attendu, plancher } of tous) {
+      // THE SWEEP MEASURED THE SCREEN IT MEANT TO. `envoi` and `operateur` are
+      // timed branches; a ratio read off the wrong one would be a number that
+      // proves nothing, so the state travels with the measurement.
+      expect(etat, `${label}: swept « ${etat} » — this is not the branch under test`).toBe(attendu);
+      // The sweep really did see the screen — an empty result would pass in silence.
+      expect(blocks.length, `${label}: no multi-line text found on C5`).toBeGreaterThanOrEqual(plancher);
+      for (const b of blocks) {
+        expect(
+          b.lastRatio,
+          `${label}: « ${b.text} » ends on an orphan line (${Math.round(b.lastRatio * 100)}% of the block, ${b.lines} lines)`,
+        ).toBeGreaterThan(PLANCHER_ORPHELIN);
       }
     }
-    return { text: (el.textContent ?? '').trim(), lines };
+
+    // …and the REPLAY was actually in the swept set once she had chosen, at BOTH
+    // baskets: the sentence this test exists for must not be able to leave
+    // coverage quietly. Selected BY LABEL, not by index — a sweep that grows new
+    // states must not silently re-point this assertion at one of them.
+    for (const { label, blocks } of tous.filter((s) => s.attendu === 'choix' && s.mode !== null)) {
+      expect(
+        blocks.some((b) => b.text.startsWith('Vous payez')),
+        `${label}: the replay line was not swept — coverage shrank without failing`,
+      ).toBe(true);
+    }
+
+    // …AND THE TWO BRANCHES BEHIND THE PAYER BUTTON WERE REALLY ENTERED, each
+    // with the sentence that carries the amount on it. Same discipline as the
+    // replay and the CTA: naming the element that must be in the swept set is
+    // what stops the set from shrinking back to `choix` without a red test.
+    for (const { label, blocks } of tous.filter((s) => s.attendu === 'envoi')) {
+      expect(
+        blocks.some((b) => b.cls.includes('cl-sub-body')),
+        `${label}: « ENVOI SÉCURISÉ » was not swept — the payment-leaving screen left coverage`,
+      ).toBe(true);
+    }
+    for (const { label, blocks } of tous.filter((s) => s.attendu === 'operateur')) {
+      expect(
+        blocks.some((b) => b.cls.includes('cl-prov-body')),
+        `${label}: the opérateur screen was not swept — the code-secret screen left coverage`,
+      ).toBe(true);
+    }
+
+    // EVERY GLUED CLAUSE HOLDS — AND EVERY ONE OF THEM STILL EXISTS.
+    //
+    // TWO DIFFERENT ASSERTIONS, BECAUSE THEY CATCH TWO DIFFERENT FAILURES, and
+    // conflating them is the mistake round 6 made (see the table in `sweepC5`):
+    //   · the LOOP below catches a glue that WRAPPED. It is measured only for
+    //     units that are still there.
+    //   · the PRESENCE checks catch a glue that was REMOVED — which the loop
+    //     cannot, because a removed unit is not in `glued` to be measured, and
+    //     which the 0.35 ratio bar catches only when the un-glued screen happens
+    //     to fall below 0.35. For cl-prov-cle (0.363) and cl-titre-fin (0.362) it
+    //     does not, so presence is the ONLY thing standing between those two
+    //     fixes and a silent regression on the next copy tweak.
+    for (const { label, glued } of tous) {
+      for (const g of glued) {
+        expect(g.lines, `${label}: the no-wrap unit « ${g.text} » (${g.cls}) wrapped onto ${g.lines} lines`).toBe(1);
+      }
+    }
+    for (const { label, glued } of tous.filter((s) => s.attendu === 'envoi')) {
+      expect(
+        glued.some((g) => g.cls.includes('cl-envoi-fin')),
+        `${label}: « à l’opérateur. » is no longer one no-wrap unit — the orphan at 0.334 is back`,
+      ).toBe(true);
+    }
+    for (const { label, glued } of tous.filter((s) => s.attendu === 'operateur')) {
+      expect(
+        glued.some((g) => g.cls.includes('cl-prov-cle')),
+        `${label}: « code secret » is no longer one no-wrap unit — back to 0.363`,
+      ).toBe(true);
+    }
+    // …AND OPTION B'S NAME, on every state that shows the payment cards (round 7).
+    // cl-titre-fin was the one glue on this screen that NOTHING defended: neutered
+    // (nowrap → normal) the whole e2e stayed green, sweep included, while the title
+    // went back to breaking as « Payer le produit à la / livraison » and stranding
+    // the word that says WHICH option it is at 0.362 — above the bar, so invisible
+    // to every ratio. It is rendered on both `choix` sites (the payable card and
+    // the « Pas disponible » head), which is why `choix` is the right scope.
+    for (const { label, glued } of tous.filter((s) => s.attendu === 'choix')) {
+      expect(
+        glued.some((g) => g.cls.includes('cl-titre-fin')),
+        `${label}: « à la livraison » is no longer one no-wrap unit — option B's name orphans again at 0.362`,
+      ).toBe(true);
+    }
+    // A FLOOR ON THE SET ITSELF, so the invariant cannot pass by measuring nothing.
+    //
+    // Every assertion above is a `for … of glued` or a `.some(…)`; an empty or
+    // shrunken `glued` satisfies the loop vacuously and only the named units would
+    // notice. The floor is the count ACTUALLY MEASURED on `choix`: the bill's three
+    // amounts (`.cl-bill-row b` ×2, `.cl-bill-total b`), the honesty promise, and
+    // option B's name. Five, asserted, so deleting an un-named glue is a red test
+    // rather than a quieter suite.
+    //
+    // « Écouter la note » IS NOT IN THIS SET, and is not counted here — its `svg`
+    // child computes `display: block`, so the glue filter above skips it exactly
+    // as the text-block filter does. Saying so is the point of this round: a floor
+    // that quietly counted it would be this comment overstating its own reach
+    // again. That control is asserted on its own, by name, in the « Écouter la
+    // note » test below.
+    const PLANCHER_GLUE_CHOIX = 5;
+    for (const { label, glued } of tous.filter((s) => s.attendu === 'choix')) {
+      expect(
+        glued.length,
+        `${label}: only ${glued.length} no-wrap unit(s) on the payment screen — the glued set shrank ` +
+          `(${glued.map((g) => g.cls).join(' · ')})`,
+      ).toBeGreaterThanOrEqual(PLANCHER_GLUE_CHOIX);
+    }
+
+    // …AND THE CTA WAS IN THE SWEPT SET TOO — the assertion the replay has had
+    // since round 4 and the CTA had not. It is the only text on this screen that
+    // both carries an amount and is the primary action, and until `display: block`
+    // it could not be measured at all. If that declaration is removed, the button
+    // computes to inline-block, `isTextBlock` drops it, and this fails BY NAME
+    // rather than by a silently smaller swept set.
+    const ctaState = grand.find((s) => s.attendu === 'choix' && s.mode === 'B');
+    // MEASURABLE, not wrapped. The old read went through `blocks` — the WRAPPED
+    // set — so it also asserted that the CTA happens to wrap at this basket,
+    // which depends on which face won the `font-display: optional` race. That
+    // made a MONEY screen's test flaky (run 31064422388 red, 31064768627 green,
+    // same sha), and a flaky test on a money screen is worse than none: it
+    // teaches everyone to re-run instead of read. The invariant this line was
+    // always for is that the CTA is a text block BY DISPLAY, and so can be
+    // measured at all; remove `display: block` and it computes to inline-block,
+    // leaves `mesurables`, and this fails by name exactly as before.
+    expect(
+      ctaState?.mesurables.some((cls) => cls.includes('cl-cta-c5')),
+      `${BASKET_LARGE}: the CTA is not a text block by display — it cannot be measured for orphans`,
+    ).toBe(true);
+
+    // …and the honesty line says what it says, on at most two lines.
+    //
+    // EVOLVED (CI run 30773205806, 2026-08-02 — failed on a path this diff never
+    // touched). The old read went through the SWEEP set, which keeps only
+    // WRAPPED blocks — an assertion that the sentence takes two lines, smuggled
+    // inside an assertion about its words. On the CI runner the sentence was not
+    // in the set (a one-line render or a not-yet-rendered bill — either drops it)
+    // and the read came back `undefined`: a report about layout dressed as a
+    // report about text, reproducible 0/4 locally. The wrap was never the
+    // invariant; the WORDS and the no-spill bound are. So the sentence is read
+    // off its OWN element now, with a real wait — one line is better than two,
+    // and a bill that never renders fails BY NAME on the wait, not as undefined.
+    await page.goto(URL_DEFAULT);
+    await policesChargees(page);
+    await expect(page.locator('[data-screen="C5"]')).toBeVisible();
+    await assurerLaFace('360px · basket 12 500 · the reconciliation line');
+    const recEl = page.locator('[data-screen="C5"] [data-role="reconcile"]');
+    await recEl.waitFor({ state: 'visible' });
+    const rec = await recEl.evaluate((el) => {
+      // Same line-clustering as the sweep (rects within 2px of the line's top).
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const rects = [...range.getClientRects()].filter((r) => r.width > 0).sort((a, b) => a.top - b.top);
+      let lines = 0;
+      let groupTop = Number.NEGATIVE_INFINITY;
+      for (const r of rects) {
+        if (r.top - groupTop > 2) {
+          lines += 1;
+          groupTop = r.top;
+        }
+      }
+      return { text: (el.textContent ?? '').trim(), lines };
+    });
+    expect(rec.text).toBe(`12${NNBSP}500 = 11${NNBSP}500 + 1${NNBSP}000 — chaque franc a sa place.`);
+    expect(rec.lines, 'the reconciliation sentence rendered no measurable line').toBeGreaterThan(0);
+    expect(rec.lines, 'the reconciliation sentence spilled past two lines').toBeLessThanOrEqual(2);
   });
-  expect(rec.text).toBe(`12${NNBSP}500 = 11${NNBSP}500 + 1${NNBSP}000 — chaque franc a sa place.`);
-  expect(rec.lines, 'the reconciliation sentence rendered no measurable line').toBeGreaterThan(0);
-  expect(rec.lines, 'the reconciliation sentence spilled past two lines').toBeLessThanOrEqual(2);
-});
+}
 
 /**
  * ═══ THE SWEEP ABOVE RACES THE FONT. THIS ONE DECIDES IT. (round 8) ═══
