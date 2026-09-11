@@ -26,6 +26,7 @@ import { resolveSupplySource } from '../src/supply-source.js';
 import { orderIdForQuote } from '../src/order-core.js';
 import type { R2BucketLike } from '../src/media/media-store.js';
 import { IMAGE_MAX_BYTES } from '../src/media/service.js';
+import { servirTuile } from '../src/tuiles.js';
 import {
   isWrite,
   rejectUnauthorizedOpsRead,
@@ -227,6 +228,20 @@ export default {
       const borne = await bornerCorps(request, corpsMaxPour(pathname));
       if (borne instanceof Response) return borne;
       request = borne;
+    }
+
+    // ═══ TUILES-PROXY (AUDIT-SHOP-2 F-24) — THE BUYER'S MAP TILES, PUBLIC AND READ-ONLY ═══
+    // Above every gate on purpose: a buyer holds no key. The route matches its
+    // own exact path rule inside (the map's one zoom, in-range integers,
+    // GET/HEAD) and asks the tile host as THIS Worker — nothing of her request
+    // rides upstream, and the copy stays at the edge (src/tuiles.ts has the why).
+    if (pathname.startsWith('/tiles/')) {
+      // The global `fetch` must be CALLED as the global's own method: handed
+      // over as a bare property it runs with the wrong `this` and workerd
+      // refuses it as an illegal invocation — which the road would turn into
+      // a 502 for every tile. The seam test caught exactly that; the arrow
+      // keeps the call on the global.
+      return servirTuile(request, { fetch: (entree, init) => fetch(entree, init), cache: caches.default });
     }
 
     // ═══ SP3.2a — THE CHECKOUT SURFACE IS PUBLIC, BY DESIGN AND BY NECESSITY ═══

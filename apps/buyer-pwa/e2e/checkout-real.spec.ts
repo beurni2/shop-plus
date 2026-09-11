@@ -28,6 +28,9 @@ import { GEO_ZOOM, geoVersMonde, mondeVersGeo } from '../src/geo-carte';
  */
 
 const BASE = 'http://127.0.0.1:4175';
+/** TUILES-PROXY — a real one-pixel PNG the scripted proxy answers with, so a
+ *  tile the map asked for LOADS (and stays on screen) rather than erroring. */
+const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 const ENTRY = `${BASE}/?demo-signed=aicha-4821`;
 
 const FULL_QUOTE = {
@@ -1763,6 +1766,20 @@ test('GEO-CARTE-PRO · she DRAGS the town under the pin: the coordinates follow 
   // too — her hand's point is the fix, never the pixels under it.
   await page.route('**://www.openstreetmap.org/**', (r) => r.abort());
   await page.route('**://tile.openstreetmap.org/**', (r) => r.abort());
+  // TUILES-PROXY (AUDIT-SHOP-2 F-24) — WHERE HER PHONE ASKS FOR THE MAP. Every
+  // request the page makes is recorded; the tile host stays aborted above (a
+  // request there would be both aborted AND counted); our Worker's proxy path
+  // is served a one-pixel PNG so the tiles really load. What the walk holds:
+  // the tiles are asked of OUR base in the proxy's own shape, and not one
+  // request leaves for OpenStreetMap.
+  const tuilesDemandees: string[] = [];
+  const versOsm: string[] = [];
+  page.on('request', (r) => {
+    const u = r.url();
+    if (/openstreetmap\.org/.test(u)) versOsm.push(u);
+    if (/\/tiles\//.test(u)) tuilesDemandees.push(u);
+  });
+  await page.route('**/tiles/**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from(PNG_1PX, 'base64') }));
   const wire = await scriptService(page, { orderStates: ['payment_pending'] });
   await page.goto(ENTRY);
   await page.locator('[data-screen="C1"]').waitFor();
@@ -1771,6 +1788,14 @@ test('GEO-CARTE-PRO · she DRAGS the town under the pin: the coordinates follow 
   await page.locator('[data-action="geo-demander"]').click();
   await page.locator('[data-role="geo-carte"]').waitFor();
   await expect(page.locator('[data-role="geo-coords"]')).toHaveText('12.37153, -1.51993');
+  await expect.poll(() => tuilesDemandees.length, { message: 'the map asked for no tile at all' }).toBeGreaterThan(0);
+  for (const u of tuilesDemandees) {
+    expect(u, 'a tile asked outside the proxy shape on OUR base').toMatch(/^http:\/\/127\.0\.0\.1:9099\/api\/tiles\/17\/\d+\/\d+\.png$/);
+  }
+  expect(versOsm, 'her phone spoke to OpenStreetMap').toEqual([]);
+  // …and the tiles the proxy answered are ON the screen, loaded, not removed
+  // by the broken-image road (`monterCarteVue` drops a tile that errors).
+  await expect.poll(() => page.locator('[data-role="geo-tuiles"] img').count()).toBeGreaterThan(0);
 
   // One drag — the sheet's coordinates must become EXACTLY the app's own
   // inverse-Mercator of her hand's offset (the module computes the

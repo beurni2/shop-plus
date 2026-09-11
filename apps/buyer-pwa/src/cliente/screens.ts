@@ -776,11 +776,12 @@ function renderGeoBlock(s: C3State): string {
       // position is an action she may take). The privacy clause rides the sub
       // so consent is stated where the offer is made.
       // TUILES-PRIVEES-1 (AUDIT-SHOP-2 F-24) — the clause tells the TRUTH: the
-      // exact point goes only to her rider, but the map she moves is drawn
-      // from OpenStreetMap tiles, which her phone asks for around her fix
-      // (her area to ~300 m, with her IP) the moment the map opens. A consent
-      // line that hid that was worse than none. The Worker tile proxy — the
-      // road that would keep OSM out of it — is the founder's call (journal).
+      // exact point goes only to her rider, and the map she moves is drawn
+      // from OpenStreetMap tiles — since TUILES-PROXY (his choice of road)
+      // asked of OUR Worker, which asks the host as itself: her phone never
+      // speaks to the host, and neither her address nor her cookies reach it.
+      // The sentence names the map's source because that stays true; the
+      // privacy it implies is now true as well.
       return [
         '<button class="cl-ligne" data-action="geo-demander">',
         `<span class="cl-ligne-ic cl-ligne-ic-pos">${iconFlag(16)}</span>`,
@@ -823,9 +824,10 @@ function renderGeoBlock(s: C3State): string {
  *
  *  · ONE static fix SEEDS the view (SE-I08); what moves after that is her
  *    HAND on the map, never a sensor. No watchPosition exists anywhere.
- *  · The tiles are OpenStreetMap's own, fetched by her device for the area
- *    she is looking at — the same truth as the retired embed, now with the
- *    attribution spoken by us since the frame is ours (src/geo-carte.ts).
+ *  · The tiles are OpenStreetMap's own, asked of OUR Worker for the area she
+ *    is looking at (TUILES-PROXY, F-24 — her phone never speaks to the tile
+ *    host), with the attribution spoken by us since the frame is ours
+ *    (src/geo-carte.ts).
  *  · OFFLINE IS HONEST: no tiles is a calm ground — the pin, the
  *    coordinates and the confirm all still stand. Her position is the FIX,
  *    not the tiles.

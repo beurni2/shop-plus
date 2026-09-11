@@ -9,11 +9,14 @@
  * WHY NO LIBRARY: a slippy map at ONE fixed zoom is Web-Mercator arithmetic
  * plus a grid of <img> tiles — deterministic, dependency-free, and small
  * enough to hold to the franc-level standard the money paths live by. The
- * tiles are OpenStreetMap's own (their attribution rides the view, always);
- * her device fetches the area it is looking at, exactly as the retired
- * embed already did. A view that cannot load its tiles is a calm sand
- * surface with the pin, the coordinates, and the confirm all still standing
- * — her position is the FIX, never the tiles (offline honesty).
+ * tiles are OpenStreetMap's own (their attribution rides the view, always)
+ * — asked of OUR Worker (`{base}/tiles/{z}/{x}/{y}.png`, TUILES-PROXY, F-24),
+ * which asks the tile host as itself: her phone never speaks to the host, so
+ * neither her address nor her cookies reach it, and the area she looks at is
+ * a Cloudflare address's question, not hers. Without a service base there is
+ * no proxy to ask and no tile is asked for. A view that cannot load its tiles
+ * is a calm sand surface with the pin, the coordinates, and the confirm all
+ * still standing — her position is the FIX, never the tiles (offline honesty).
  *
  * WHAT THIS MODULE NEVER DOES: it keeps no coordinate. The dragged centre
  * goes to the caller through `surCentre` and nowhere else — each surface's
@@ -48,13 +51,31 @@ export function mondeVersGeo(x: number, y: number, zoom: number): { lat: number;
   return { lat, lng };
 }
 
-/** Tile URL — x wraps around the antimeridian, y outside the globe is null
- *  (those rows simply do not exist; the view shows its own calm ground). */
-export function urlTuile(zoom: number, xt: number, yt: number): string | null {
+/** Tile URL, through the proxy — x wraps around the antimeridian, y outside
+ *  the globe is null (those rows simply do not exist; the view shows its own
+ *  calm ground), and no base is no url: the tile host is never named here. */
+export function urlTuile(base: string | null, zoom: number, xt: number, yt: number): string | null {
+  if (base === null) return null;
   const cote = Math.pow(2, zoom);
   if (yt < 0 || yt >= cote) return null;
   const x = ((xt % cote) + cote) % cote;
-  return `https://tile.openstreetmap.org/${zoom}/${x}/${yt}.png`;
+  return `${base}/tiles/${zoom}/${x}/${yt}.png`;
+}
+
+/** The proxy's base — the same `VITE_STOREFRONT_BASE` the quote port, the
+ *  liste and the profile read (inlined by Vite at build; the demo build and
+ *  the unit runs leave it unset). A trailing slash is trimmed so the path
+ *  joins once. */
+export function baseTuiles(): string | null {
+  const env = (import.meta as { env?: { VITE_STOREFRONT_BASE?: string } }).env;
+  return normaliserBase(env?.VITE_STOREFRONT_BASE);
+}
+
+/** The rule, apart from the env read so it can be pinned by value: unset or
+ *  empty is no base; a trailing slash is trimmed. */
+export function normaliserBase(brute: string | undefined): string | null {
+  if (typeof brute !== 'string' || brute.length === 0) return null;
+  return brute.replace(/\/+$/, '');
 }
 
 /** The coordinates as the sheet speaks them: five decimals (~1 m), the
@@ -98,6 +119,7 @@ export function monterCarteVue(
   const w = vue.clientWidth || 360;
   const h = vue.clientHeight || 480;
   const c = geoVersMonde(centre.lat, centre.lng, GEO_ZOOM);
+  const base = baseTuiles();
 
   tuiles.style.transform = '';
   tuiles.textContent = '';
@@ -108,7 +130,7 @@ export function monterCarteVue(
   const y1 = Math.floor((c.y + h / 2) / TUILE) + 1;
   for (let yt = y0; yt <= y1; yt += 1) {
     for (let xt = x0; xt <= x1; xt += 1) {
-      const url = urlTuile(GEO_ZOOM, xt, yt);
+      const url = urlTuile(base, GEO_ZOOM, xt, yt);
       if (url === null) continue;
       const img = vue.ownerDocument.createElement('img');
       img.src = url;

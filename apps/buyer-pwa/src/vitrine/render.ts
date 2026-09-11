@@ -797,7 +797,8 @@ export function renderListeGeo(
   }
   // TUILES-PRIVEES-1 (AUDIT-SHOP-2 F-24) — the consent sentence stands BEFORE
   // the map opens, and it says the truth: the exact point is the rider's
-  // alone; the map around it is OpenStreetMap's, asked for by her phone.
+  // alone; the map around it is OpenStreetMap's — asked of OUR Worker since
+  // TUILES-PROXY, never by her phone of the host.
   return [
     `<button class="vt-liste-row-btn vt-liste-geo-btn" data-action="liste-geo-demander">${t('vit.liste_geo_demander')}</button>`,
     `<div class="vt-liste-texte" data-role="liste-geo-source">${t('vit.liste_geo_source')}</div>`,

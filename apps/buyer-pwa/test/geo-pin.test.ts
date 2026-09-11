@@ -157,8 +157,14 @@ describe('the phone-only road (GEO-ACHAT-2)', () => {
     for (const f of [...tous(src), join(import.meta.dirname, '../i18n/catalog.json')]) {
       expect(readFileSync(f, 'utf8'), f).not.toMatch(/partagée seulement|Seul votre livreur la voit/i);
     }
-    // …and the tiles still come from OpenStreetMap, which is exactly why the sentence names it
-    expect(readFileSync(join(src, 'geo-carte.ts'), 'utf8')).toContain('https://tile.openstreetmap.org/');
+    // TUILES-PROXY (F-24, the founder's choice of road) — the tiles are still
+    // OpenStreetMap's, which is why the sentence and the attribution name it;
+    // but her phone asks OUR Worker for them, and nothing in the buyer bundle
+    // names the tile host any more: a direct ask is unsayable, not just unsaid.
+    for (const f of tous(src)) {
+      expect(readFileSync(f, 'utf8'), f).not.toMatch(/tile\.openstreetmap\.org/);
+    }
+    expect(readFileSync(join(src, 'geo-carte.ts'), 'utf8')).toContain('/tiles/');
   });
 
   it('the C4 récap on the pin road says the truth, never a fabricated quartier', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GEO_ZOOM, fmtCoords, geoVersMonde, mondeVersGeo, urlTuile } from '../src/geo-carte';
+import { GEO_ZOOM, baseTuiles, fmtCoords, geoVersMonde, mondeVersGeo, normaliserBase, urlTuile } from '../src/geo-carte';
 
 /**
  * GEO-CARTE-PRO — the drag-map's arithmetic, pinned by value. The view's
@@ -38,13 +38,42 @@ describe('geo-carte — Web-Mercator forward/inverse', () => {
     expect(apres.lat).toBeCloseTo(OUAGA.lat, 9);
   });
 
-  it('tile urls: OSM host pinned, x wraps the antimeridian, y off the globe is null', () => {
-    expect(urlTuile(17, 65000, 63000)).toBe('https://tile.openstreetmap.org/17/65000/63000.png');
+  /**
+   * TUILES-PROXY (AUDIT-SHOP-2 F-24) — the tiles come through OUR Worker
+   * (`GET {base}/tiles/{z}/{x}/{y}.png`), never straight from the tile host:
+   * a direct ask sent her area (~300 m) and her IP to a third party under a
+   * sentence that promised the point to her rider alone. The base is the one
+   * the quote port and the liste already read; without it there is no proxy
+   * to ask, and no tiles is the calm ground — her position is the FIX.
+   */
+  it('tile urls: through OUR Worker in the proxy path shape, x wraps the antimeridian, y off the globe is null', () => {
+    const B = 'https://svc.test';
+    expect(urlTuile(B, 17, 65000, 63000)).toBe('https://svc.test/tiles/17/65000/63000.png');
     // One full world east of tile 10 is tile 10 again.
-    expect(urlTuile(17, 10 + 2 ** 17, 63000)).toBe(urlTuile(17, 10, 63000));
-    expect(urlTuile(17, -1, 63000)).toBe(urlTuile(17, 2 ** 17 - 1, 63000));
-    expect(urlTuile(17, 10, -1)).toBeNull();
-    expect(urlTuile(17, 10, 2 ** 17)).toBeNull();
+    expect(urlTuile(B, 17, 10 + 2 ** 17, 63000)).toBe(urlTuile(B, 17, 10, 63000));
+    expect(urlTuile(B, 17, -1, 63000)).toBe(urlTuile(B, 17, 2 ** 17 - 1, 63000));
+    expect(urlTuile(B, 17, 10, -1)).toBeNull();
+    expect(urlTuile(B, 17, 10, 2 ** 17)).toBeNull();
+    // The tile host is never named by the buyer bundle: a url without a base is no url.
+    expect(urlTuile(null, 17, 10, 10)).toBeNull();
+    expect(urlTuile(B, 17, 10, 10)).not.toContain('openstreetmap');
+  });
+
+  describe('the proxy base — the same env the quote port reads', () => {
+    // The env read itself (`import.meta.env.VITE_STOREFRONT_BASE`, inlined by
+    // Vite at build) is proven where it is real: the real-path browser build in
+    // `e2e/checkout-real.spec.ts`, which sets the base and watches the tiles
+    // go to it. Here the RULE is pinned by value, and the unit run's own truth:
+    it('unset (a demo build, this unit run): no base, so no tile is ever asked for', () => {
+      expect(baseTuiles()).toBeNull();
+      expect(normaliserBase(undefined)).toBeNull();
+      expect(normaliserBase('')).toBeNull();
+    });
+    it('set: the base, with any trailing slash trimmed so the path joins once', () => {
+      expect(normaliserBase('https://svc.test/')).toBe('https://svc.test');
+      expect(normaliserBase('https://svc.test')).toBe('https://svc.test');
+      expect(urlTuile(normaliserBase('http://127.0.0.1:9099/api'), GEO_ZOOM, 1, 2)).toBe('http://127.0.0.1:9099/api/tiles/17/1/2.png');
+    });
   });
 
   it('the sheet speaks five decimals — the reference register, display only', () => {
