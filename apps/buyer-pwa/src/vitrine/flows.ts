@@ -1229,7 +1229,9 @@ export function mountVitrine(
  *  whose attribute was somehow not a wa.me URL opens nothing, returns false. */
 export function ouvrirWhatsApp(href: string): boolean {
   if (!href.startsWith('https://wa.me/')) return false;
-  window.open(href, '_blank', 'noopener');
+  // POLITIQUE-CONTENU-1 (F-61) — `noreferrer` too: the vitrine's URL can carry
+  // `?liste=<token>`, and an old WebView would hand it to wa.me as the Referer.
+  window.open(href, '_blank', 'noopener,noreferrer');
   return true;
 }
 

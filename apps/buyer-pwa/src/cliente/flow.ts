@@ -1832,7 +1832,10 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
           .replace('{prenom}', () => prenom)
           .replace('{article}', () => m.productName)
           .replace('{lien}', () => source.lienCadeau(state.orderId as string));
-        window.open(`https://wa.me/${state.merci.telephone}?text=${encodeURIComponent(texte)}`, '_blank', 'noopener');
+        // POLITIQUE-CONTENU-1 (F-61) — `noreferrer` beside `noopener`: the page
+        // she opens WhatsApp from can carry `?liste=` or `?pid=` in its URL, and an
+        // old WebView would send that URL as the Referer. Now nothing is sent.
+        window.open(`https://wa.me/${state.merci.telephone}?text=${encodeURIComponent(texte)}`, '_blank', 'noopener,noreferrer');
         return;
       }
       // — C1 —

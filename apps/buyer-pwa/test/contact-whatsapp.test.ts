@@ -179,7 +179,9 @@ describe('ouvrirWhatsApp — the delegated opener, by execution', () => {
     const appels = avecWindow(() => {
       expect(ouvrirWhatsApp('https://wa.me/22670112233?text=Bonjour')).toBe(true);
     });
-    expect(appels).toEqual([['https://wa.me/22670112233?text=Bonjour', '_blank', 'noopener']]);
+    // POLITIQUE-CONTENU-1 (F-61) — noopener AND noreferrer: the opened site
+    // gets neither a handle on this page nor its URL (which can carry a liste token).
+    expect(appels).toEqual([['https://wa.me/22670112233?text=Bonjour', '_blank', 'noopener,noreferrer']]);
   });
   it('anything that is not wa.me opens NOTHING — the chip cannot be steered elsewhere', () => {
     const appels = avecWindow(() => {
