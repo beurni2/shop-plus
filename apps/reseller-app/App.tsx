@@ -1294,8 +1294,8 @@ export default function App() {
     // signed up read « pas encore reliée » on « Mes ventes » until a relaunch.
     // The session is on disk from the signup; an active account re-reads with it.
     if (nouveau.state === 'active') {
-      const credential = session ?? (await accessCodeStore.read().catch(() => null));
-      if (credential !== null && credential !== '') void ventesReelles.ouvrir(credential);
+      const sessionActive = session ?? (await accessCodeStore.read().catch(() => null));
+      if (sessionActive !== null && sessionActive !== '') void ventesReelles.ouvrir(sessionActive);
     }
   };
 

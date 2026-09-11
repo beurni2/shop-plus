@@ -110,11 +110,13 @@ describe('ACCESS-GATE-1 — the app has exactly one door, and it is the entrance
     // left: the entrance signs in through the account service instead. The
     // hook keeps the function (the founder's legacy code path server-side).
     // SESSION-VIE-1 — exactly ONE call site remains and it is not a screen and
-    // not a typed value: `adopterCompte` re-reads her feed with the session a
-    // LOGIN just minted, or the hook would show the dead session's refusal
-    // until the app was killed. Nothing a person types reaches it.
+    // not a typed value: `adopterCompte` re-reads her feed with her ACTIVE
+    // session — the one a LOGIN just minted, or (PORTE-VENTES-1) the one a
+    // signup wrote to disk before the admission that made her active — or the
+    // hook would show a dead session's refusal, or « pas encore reliée » on an
+    // admitted phone, until the app was killed. Nothing a person types reaches it.
     const sites = [...app.matchAll(/ventesReelles\.ouvrir\(([^)]*)\)/g)].map((m) => m[1]);
-    expect(sites).toEqual(['session']);
+    expect(sites).toEqual(['sessionActive']);
   });
 
   it('the entrance never renders a field it cannot verify, and never flashes on a slow store', () => {
