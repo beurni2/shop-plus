@@ -49,7 +49,6 @@ import {
 } from './src/access/compte-service';
 import { identityFromDigits } from './src/identity/mint';
 import { ecranAccueil } from './src/sales/accueil-model';
-import { type DemoOpportunity } from './src/demo/store';
 import {
   AppHeader,
   Card,
@@ -831,7 +830,7 @@ export default function App() {
   // WO-VITRINE-FLOW — the vitrine + share derived state, all from the seam's fold,
   // the frozen seed inputs (B, C), and the reseller's own markup. `vitrineOpps` are
   // the products she added (the seam's live listings); `shareOffer` is the
-  // to-share product. `viewOf` is the reseller-margin view at her markup
+  // to-share product. `viewOfOffer` is the reseller-margin view at her markup
   // (markups[pid]) or the capped default — the ONE money computation the reseller
   // surfaces share (opp row · fiche · vitrine tile · partager), all reconciling.
   // PUBLISH-PRICE-1 — ONE KEYSPACE, `productVersionId`, EVERYWHERE.
@@ -923,7 +922,6 @@ export default function App() {
   // THAT WAS NOT THE ONE HE TAPPED. Same family as the markup keyspace defect:
   // one id, two worlds, and the join silently picking the wrong one.
   const shareOffer = offers.find((o) => o.productVersionId === shareId);
-  const viewOf = (opp: DemoOpportunity) => marginOf(opp.id, opp.input.sellerBasePrice, opp.input.sellerFundedCommission);
   /**
    * BROWSE-SUPPLY-1 — THE ONE money computation, now reachable from a LIVE offer as
    * well as a seed. Nothing new is calculated here: it is the same `marginBreakdown`

@@ -1066,6 +1066,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     state.relance = false;
     state.horsPortee = false;
     state.doorLeg = null;
+    state.montants = null;
     state.essaiPorte = 0;
     // …and the old order's delivery facts die with its id (VRAI-SUIVI).
     state.buyerRef = null;
@@ -2330,6 +2331,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // later screen resurrect a delivery she has finished with.
         state.orderId = null;
         state.confirmeParServeur = false;
+        state.montants = null;
         state.buyerRef = null;
         state.marques = {};
         state.livree = false;

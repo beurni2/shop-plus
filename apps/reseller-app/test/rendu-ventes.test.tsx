@@ -82,6 +82,11 @@ describe('VENTE-DETAIL-RETIRÉ (F-42) — « Mes ventes » stands on its own, wi
     const lu = screen.texts().join(' | ');
     expect(lu, `the list mounted — on screen: ${lu.slice(0, 400)}`).toContain('Mes ventes');
     for (const demo of DEMO) expect(lu, `the demo byte « ${demo} » is back on the screen`).not.toContain(demo);
+    // No account is linked in this fixture, so the list must say so — its
+    // honest « pas encore reliée » state — and print no figure: a net line here
+    // would be a sale nobody made.
+    expect(lu, `the honest state renders — on screen: ${lu.slice(0, 400)}`).toContain('Pas encore reliée à votre compte');
+    expect(lu, 'no net figure on an unwired feed').not.toMatch(/\+\s?\d/);
     expect(screen.canPress('Retour'), 'the way out').toBe(true);
     await screen.press('Retour');
     await screen.settle();
