@@ -374,11 +374,16 @@ test('CHECKOUT — listeRef rides the REAL order create; the confirmed screen of
   const orders: Record<string, unknown>[] = [];
   const mercis: string[] = [];
   const quoteAsks: string[] = [];
-  // window.open recorded, never followed — the wa.me URL is the assertion.
+  // window.open recorded, never followed — the wa.me URL is the assertion,
+  // and (POLITIQUE-CONTENU-1, F-61) so are the window features: the C10 open
+  // must carry noopener AND noreferrer, the one site no unit test reaches.
   await page.addInitScript(() => {
-    (window as unknown as { __waOuvert: string[] }).__waOuvert = [];
-    window.open = ((url: string) => {
-      (window as unknown as { __waOuvert: string[] }).__waOuvert.push(String(url));
+    const w = window as unknown as { __waOuvert: string[]; __waFlags: string[] };
+    w.__waOuvert = [];
+    w.__waFlags = [];
+    window.open = ((url: string, _cible?: string, features?: string) => {
+      w.__waOuvert.push(String(url));
+      w.__waFlags.push(String(features));
       return null;
     }) as typeof window.open;
   });
@@ -456,6 +461,9 @@ test('CHECKOUT — listeRef rides the REAL order create; the confirmed screen of
   const ouverts = await page.evaluate(() => (window as unknown as { __waOuvert: string[] }).__waOuvert);
   expect(ouverts).toHaveLength(1);
   expect(ouverts[0]).toMatch(/^https:\/\/wa\.me\/22670123456\?text=/);
+  // POLITIQUE-CONTENU-1 (F-61) — the C10 open hands wa.me neither a handle on
+  // this page nor its URL (which carries the ?cadeau= link she was sent).
+  expect(await page.evaluate(() => (window as unknown as { __waFlags: string[] }).__waFlags)).toEqual(['noopener,noreferrer']);
   const texte = decodeURIComponent(ouverts[0]!.split('?text=')[1]!);
   expect(texte).toContain('Karim');
   expect(texte).toContain('Robe brodée bogolan');

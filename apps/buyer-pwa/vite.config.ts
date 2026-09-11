@@ -170,12 +170,17 @@ function politiqueContenuPlugin(): Plugin {
       order: 'post',
       handler: (html) => injecterPolitique(html, process.env['VITE_STOREFRONT_BASE']),
     },
-    // 404.html is copied from public/ untouched by vite: the same policy, its
-    // own inline script's hash. (Its bytes are not in the offline shell's
-    // served set, so the worker's version is unaffected by this rewrite.)
+    // Every other page vite copies from public/ untouched (404.html, the
+    // font-check harness): the same policy, each page's own inline script
+    // hash. (None of them is in the offline shell's served set, so the
+    // worker's version is unaffected by this rewrite.)
     closeBundle() {
-      const chemin = join(resolve(config.root, config.build.outDir), '404.html');
-      writeFileSync(chemin, injecterPolitique(readFileSync(chemin, 'utf8'), process.env['VITE_STOREFRONT_BASE']));
+      const sortie = resolve(config.root, config.build.outDir);
+      for (const nom of readdirSync(sortie)) {
+        if (!nom.endsWith('.html') || nom === 'index.html') continue;
+        const chemin = join(sortie, nom);
+        writeFileSync(chemin, injecterPolitique(readFileSync(chemin, 'utf8'), process.env['VITE_STOREFRONT_BASE']));
+      }
     },
   };
 }

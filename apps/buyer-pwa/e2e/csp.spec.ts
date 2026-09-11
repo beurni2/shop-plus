@@ -46,8 +46,13 @@ async function ecouterViolations(page: Page): Promise<void> {
   });
 }
 
-const violations = (page: Page): Promise<Violation[]> =>
-  page.evaluate(() => (window as unknown as { __csp?: Violation[] }).__csp ?? []);
+/** What the collector heard — and LOUD if it was never installed in this
+ *  document, so « no violation » can never pass by an absent instrument. */
+const violations = async (page: Page): Promise<Violation[]> => {
+  const v = await page.evaluate(() => (window as unknown as { __csp?: Violation[] }).__csp);
+  if (v === undefined) throw new Error('the violation collector is not installed in this document — « no violation » would be vacuous');
+  return v;
+};
 
 /** The two metas as the served page carries them. */
 const metas = (page: Page): Promise<{ csp: string | null; referrer: string | null }> =>

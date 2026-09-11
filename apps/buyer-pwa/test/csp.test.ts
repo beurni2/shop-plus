@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { REFERRER_POLICY, hachagesInline, injecterPolitique, politiqueContenu } from '../vite.config';
@@ -115,6 +115,18 @@ describe('POLITIQUE-CONTENU-1 — where the metas land', () => {
     const html = injecterPolitique(QUATRE_CENT_QUATRE, DEPLOI);
     expect(meta(html, 'http-equiv', 'Content-Security-Policy')).toContain(hachagesInline(QUATRE_CENT_QUATRE)[0]);
     expect(html.indexOf('http-equiv="Content-Security-Policy"')).toBeLessThan(html.indexOf('<script>'));
+  });
+
+  it('every other page public/ ships (the font-check harness) has the anchor and one inline script — the build treats it like 404.html (verifier)', () => {
+    const pages = readdirSync(join(racine, 'public')).filter((n) => n.endsWith('.html'));
+    expect(pages.sort()).toEqual(['404.html', 'font-check.html']);
+    for (const nom of pages) {
+      const source = readFileSync(join(racine, 'public', nom), 'utf8');
+      const html = injecterPolitique(source, undefined);
+      expect(hachagesInline(source), nom).toHaveLength(1);
+      expect(meta(html, 'http-equiv', 'Content-Security-Policy'), nom).toContain(hachagesInline(source)[0]);
+      expect(html.indexOf('http-equiv="Content-Security-Policy"'), nom).toBeLessThan(html.indexOf('<script>'));
+    }
   });
 
   it('a page without the charset anchor is a build error, never a page without a policy', () => {
