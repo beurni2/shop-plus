@@ -139,3 +139,20 @@ function noticesPour(incomplet: boolean, nonConfirmees: number): readonly string
 export function totalAffiche(lignes: readonly VenteLigne[]): number {
   return lignes.reduce((sum, l) => sum + l.netFcfa, 0);
 }
+
+/**
+ * Net-first surface descriptor (SP-I04/SP-I12) — what the `net-first-display`
+ * gate reads for the REAL « Mes ventes » row (`gates/fixtures/surfaces/
+ * ventes-row.json`, pinned equal to this by test). The row renders ONE money
+ * figure, her net (`VenteLigne.netFcfa`, copied from the wire); it can name no
+ * gross and no commission. Lived in the demo model (`sales/ventes.ts`) until
+ * SEMENCE-DEMO-RETIRÉE (founder, 2026-09-11) — the descriptor stays with the
+ * presenter that actually renders the row.
+ */
+export interface EarningsSurfaceDescriptor {
+  readonly surface: string;
+  readonly moneyFieldsInRenderOrder: readonly string[];
+}
+export function ventesRowSurface(): EarningsSurfaceDescriptor {
+  return { surface: 'ventes-row', moneyFieldsInRenderOrder: ['resellerNet'] };
+}

@@ -147,3 +147,12 @@ describe('RF-1c — every state her screen can reach is honest and nameable', ()
     expect(totalAffiche(e.lignes)).toBe(3_500);
   });
 });
+
+describe('SEMENCE-DEMO-RETIRÉE — the net-first gate reads the REAL row, pinned to this presenter', () => {
+  it('the ventes-row fixture the gate runs on is byte-equal to the presenter\'s own descriptor (net, and nothing else)', async () => {
+    const { ventesRowSurface } = await import('../src/sales/feed-screen');
+    const fixture = JSON.parse(readFileSync(new URL('../../../gates/fixtures/surfaces/ventes-row.json', import.meta.url), 'utf8')) as unknown;
+    expect(fixture).toEqual(ventesRowSurface());
+    expect(ventesRowSurface().moneyFieldsInRenderOrder).toEqual(['resellerNet']);
+  });
+});

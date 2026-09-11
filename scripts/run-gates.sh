@@ -72,7 +72,7 @@ capture money-reconciliation-coherent-lie-negative fail node scripts/gates/money
 log "gate: net-first-display — real opportunity-card surface (must pass)"
 capture net-first-display-positive pass node scripts/gates/net-first-display.mjs gates/fixtures/surfaces/opportunity-card.json
 
-log "gate: net-first-display — S7 ventes row surface (WO-7.2a, pinned to the presenter; must pass)"
+log "gate: net-first-display — the REAL ventes row surface (pinned to feed-screen.ts by test; must pass)"
 capture net-first-display-ventes-row pass node scripts/gates/net-first-display.mjs gates/fixtures/surfaces/ventes-row.json
 
 log "gate: net-first-display — SP6.1 gains ladder (pinned to gains-model.ts by unit test; must pass)"
