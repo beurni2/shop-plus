@@ -1,10 +1,11 @@
 /**
  * WO-4.0 — the PREVIEW PROFILE signal. `EXPO_PUBLIC_PROFILE` is inlined at
- * bundle time by Expo; the preview channel leaves it unset (default
- * 'preview'), and any FUTURE production profile must set it explicitly —
- * a preview build can therefore never be mistaken for the real thing,
- * and no production profile exists in this repo today (E4-BUILD opening
- * slice: delivery channel only).
+ * bundle time by Expo. UNSET means 'preview': a local Expo Go run, the
+ * sandbox that wears « Aperçu — bac à sable » on every screen. The published
+ * channel sets it explicitly to 'production' (expo-preview.yml — PROFIL-PUBLIÉ,
+ * AUDIT-SHOP-2 F-43): since ACCES-ARME-2 that channel is the delivery road to
+ * real resellers, and the explicit value is the only way out of the banner —
+ * so a preview build can never be mistaken for it, and it never for one.
  */
 export const PREVIEW_PROFILE = 'preview';
 

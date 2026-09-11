@@ -98,6 +98,17 @@ jobs:
           # « on » is a build posture and must be readable in review. Same babel
           # inlining road as the two EXPO_PUBLIC_* values above.
           EXPO_PUBLIC_ACCESS_GATE: 'on'
+          # PROFIL-PUBLIÉ (AUDIT-SHOP-2 F-43) — THE PUBLISHED CHANNEL IS NOT AN
+          # APERÇU. Since ACCES-ARME-2 this channel is the delivery road to real
+          # resellers: real sessions, real shops, real links. Left unset, the
+          # profile defaults to `preview` in src/preview.ts and the shell wore
+          # « Aperçu — bac à sable » on every screen of every phone this step
+          # publishes to (plus the voice sheet's diagnostic suffixes). That posture
+          # is for a local Expo Go run — Chemin 2 in PREVIEW.md — never for here.
+          # A literal, like the gate above: a build posture must be readable in
+          # review. The EAS channel keeps its NAME (`preview`): renaming it would
+          # orphan every installed phone's update subscription.
+          EXPO_PUBLIC_PROFILE: 'production'
         # The documented non-interactive chain: init links/creates the
         # project under the token's account on first run; update:configure
         # writes the runtime/update config into the CI workspace only

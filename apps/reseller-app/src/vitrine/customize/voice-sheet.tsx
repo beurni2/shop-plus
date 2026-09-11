@@ -18,7 +18,6 @@ import { t, tf } from '../../i18n';
 import { DEFAULT_VOICE_NOTES, cancelRecording, deleteNote, failPublish, fmtVoiceDuration, fusionnerNotesStockees, noteOf, publishNote, readyNote, startRecording, stopRecording, type ProductVoiceNote, type ProductVoiceNotes } from './voice';
 import { useVoiceCapture } from './voice-capture';
 import { K_RAW_STYLES } from './k-styles';
-import { IS_PREVIEW } from '../../preview';
 
 const S = K_RAW_STYLES as unknown as Record<keyof typeof K_RAW_STYLES, ViewStyle & TextStyle>;
 
@@ -137,16 +136,12 @@ export function useVoiceNotes(
   const recorder = useVoiceCapture();
 
   return useMemo<VoiceNotesController>(() => {
-    // BUG 1 step 1 — DIAGNOSTIC (temporary, IS_PREVIEW-gated). On the founder's
-    // preview build, surface the ACTUAL failure instead of the calm « interrompu »
-    // toast, so a permission cause (handled above → the « Micro refusé » banner) is
-    // distinguishable from an expo-audio API throw (and which call threw). Production
-    // profiles (IS_PREVIEW=false) keep the clean toast. Removed/narrowed in step 3
-    // once the on-device cause is known. This is diagnostic text, not product copy.
-    const interrupted = (stage: string, err?: unknown): string =>
-      IS_PREVIEW
-        ? `Diag micro (${stage}) : ${err instanceof Error ? err.message : err === undefined ? 'fichier vide (uri null)' : String(err)}`
-        : t('k.voix.interrompu');
+    // PROFIL-PUBLIÉ (F-43) — the BUG 1 step 1 diagnostic that replaced this
+    // sentence on the preview profile (the detector's name and the machine's
+    // error message, in a toast) is gone with its bug: a permission cause is the
+    // « Micro refusé » state above, and every other interruption is the one calm
+    // catalog sentence, on every profile.
+    const interrupted = (): string => t('k.voix.interrompu');
 
     const startRec = async (pid: string): Promise<void> => {
       const perm = await recorder.requestPermission();
@@ -155,19 +150,19 @@ export function useVoiceNotes(
       try {
         await recorder.start();
         setNotes((cur) => startRecording(cur, pid));
-      } catch (err) {
+      } catch {
         setNotes((cur) => cancelRecording(cur, pid));
-        onToast(interrupted('démarrage', err));
+        onToast(interrupted());
       }
     };
     const stopRec = async (pid: string): Promise<void> => {
       try {
         const take = await recorder.stop();
-        if (!take.url) { setNotes((cur) => cancelRecording(cur, pid)); onToast(interrupted('fichier')); return; }
+        if (!take.url) { setNotes((cur) => cancelRecording(cur, pid)); onToast(interrupted()); return; }
         setNotes((cur) => stopRecording(cur, pid, take));
-      } catch (err) {
+      } catch {
         setNotes((cur) => cancelRecording(cur, pid)); // mid-record interruption: drop the partial
-        onToast(interrupted('arrêt', err));
+        onToast(interrupted());
       }
     };
     /**
@@ -230,11 +225,11 @@ export function useVoiceNotes(
          * load reaches JS as nothing at all (expo-audio registers no error
          * listener), so the adapter detects it and this callback gives the
          * button back and tells her — instead of « Pause » over permanent
-         * silence, which was his symptom. The IS_PREVIEW suffix is the same
-         * diag pattern as `interrupted()` above: which detector fired, in
-         * parentheses — diagnostic text, not product copy.
+         * silence, which was his symptom. (The « (stage) » suffix that named
+         * the detector on the preview profile is gone — PROFIL-PUBLIÉ, F-43;
+         * the adapter still passes it, and nothing she reads needs it.)
          */
-        (stage) => {
+        () => {
           // A stale failure is NOT this listen's business (verifier,
           // 2026-08-13): if she already left — paused, or started another
           // take — the ref no longer names this pid, and a toast about the
@@ -243,7 +238,7 @@ export function useVoiceNotes(
           playingPidRef.current = null;
           setPlayingPid((cur) => (cur === pid ? null : cur));
           setPlayingSec(0);
-          onToast(IS_PREVIEW ? `${t('k.voix.lecture_echec')} (${stage})` : t('k.voix.lecture_echec'));
+          onToast(t('k.voix.lecture_echec'));
         },
       );
       setPlayingPid(pid);

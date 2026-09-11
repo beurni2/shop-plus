@@ -1,4 +1,4 @@
-# Aperçu Shop+ (bac à sable)
+# Aperçu Shop+
 
 ## Le parcours acheteur, dans le navigateur (WO-4.2E)
 
@@ -17,9 +17,16 @@ Actions ».*
 # L'application revendeur dans Expo Go
 
 Cette page explique comment ouvrir l'application revendeur **Shop+** sur votre
-téléphone, en mode **aperçu**. Un aperçu est un **bac à sable** : rien n'y est réel —
-aucun paiement, aucune commande, aucune donnée de production. Le bandeau
-**« Aperçu — bac à sable »** reste affiché en permanence pour le rappeler.
+téléphone. Deux postures existent, choisies par la variable `EXPO_PUBLIC_PROFILE` :
+
+- **Le canal publié (Chemin 1)** est l'application réelle des revendeuses depuis
+  ACCES-ARME-2 : vraies sessions, vraies boutiques, vrais liens. Le workflow y
+  déclare le profil `production` (PROFIL-PUBLIÉ, F-43) et aucun bandeau n'y est
+  affiché. Les paiements restent en période d'essai, et l'écran des gains le dit
+  (« essai »).
+- **Un lancement local (Chemin 2)** laisse la variable vide : c'est le profil
+  `preview`, un **bac à sable** sur votre propre téléphone, et le bandeau
+  **« Aperçu — bac à sable »** reste affiché en permanence pour le rappeler.
 
 ## Chemin 1 — automatique, à chaque fusion sur `main`
 
