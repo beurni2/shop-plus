@@ -1949,4 +1949,1949 @@
   "register": "selling",
   "screenClass": "selling_surface"
  }
+,
+ {
+  "key": "cl.suivi.etape1_titre",
+  "fr": "Commande enregistrée",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.suivi.etape1_corps",
+  "fr": "Nous avons bien reçu votre commande.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.suivi.etape2_titre",
+  "fr": "Préparée par la vendeuse",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.suivi.etape2_corps",
+  "fr": "La vendeuse prépare votre colis.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.suivi.etape3_titre",
+  "fr": "Prête chez la vendeuse",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.suivi.etape3_corps",
+  "fr": "Le colis attend le livreur Séra.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.suivi.etape4_titre",
+  "fr": "En route",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.suivi.etape4_corps",
+  "fr": "Le colis est en chemin vers votre repère.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.suivi.etape5_titre",
+  "fr": "À votre porte",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.suivi.etape5_corps",
+  "fr": "Inspectez avant d’accepter.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.suivi.etape6_titre",
+  "fr": "Remise",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.suivi.etape6_corps",
+  "fr": "Votre code fait foi.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.suivi.intro",
+  "fr": "Revenez ici quand vous voulez : cette page se met à jour.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.suivi.gps",
+  "fr": "Pas de point GPS — des étapes claires, que vous suivez ici.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.suivi.verifier",
+  "fr": "Vérifier à nouveau",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.suivi.hors_portee",
+  "fr": "Nous n’arrivons pas à joindre le service pour l’instant. Votre commande est bien là.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.suivi.voir_code",
+  "fr": "Voir mon code",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.suivi.terminee",
+  "fr": "C’est terminé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.suivi.reentree",
+  "fr": "Ma commande",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.suivi.c9_attente",
+  "fr": "Votre code apparaîtra ici quand le livreur sera à votre porte. Jamais avant.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.suivi.c9_arrivee",
+  "fr": "Le livreur est là. Votre code arrive dans un instant.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.suivi.code_demo",
+  "fr": "Code de démonstration",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.suivi.merci_titre",
+  "fr": "Merci !",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.suivi.merci_corps",
+  "fr": "Votre commande est livrée. Nous espérons qu’elle vous plaît.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.suivi.merci_preuve",
+  "fr": "La preuve de votre livraison est gardée.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.suivi.merci_fermer",
+  "fr": "Terminer",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.message.prix_rafraichi_identique",
+  "fr": "Nouveau prix demandé. Le montant n’a pas changé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.message.prix_rafraichi_different",
+  "fr": "Le prix a été mis à jour. Nouveau total :",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.message.prix_en_cours_de_mise_ajour",
+  "fr": "Nous demandons un nouveau prix…",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.message.note_injouable",
+  "fr": "La note ne se lance pas sur ce téléphone.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.paiement.ligne_maintenant",
+  "fr": "À payer maintenant\u00a0:\u00a0{X}\u202fFCFA",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.paiement.ligne_livraison",
+  "fr": "À payer à la livraison : {Y}\u202fFCFA",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.paiement.titre_a",
+  "fr": "Tout payer maintenant — recommandé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.paiement.corps_a",
+  "fr": "Votre paiement est protégé auprès de notre partenaire de paiement jusqu’à la confirmation de votre livraison. Le vendeur n’est payé qu’après validation.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.paiement.titre_b",
+  "fr": "Payer le produit à la livraison",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.paiement.titre_bfin",
+  "fr": "à la livraison",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.paiement.corps_b",
+  "fr": "Payez seulement les frais de livraison ({D}\u202fFCFA) maintenant. À l’arrivée du livreur, vérifiez votre article, puis payez le montant du produit de manière sécurisée avant de le recevoir.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.paiement.corps_baccent",
+  "fr": "avant de le recevoir",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.paiement.avertissement_b",
+  "fr": "Frais de livraison non remboursables si vous annulez ou êtes absent(e).",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.paiement.redite",
+  "fr": "Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.paiement.redite_a",
+  "fr": "Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.paiement.redite_fin",
+  "fr": "à la livraison — d’accord ?",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.paiement.ecouter_note",
+  "fr": "Écouter la note de la vendeuse",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.paiement.reco",
+  "fr": "recommandé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.voix.ecouter",
+  "fr": "Écouter",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.voix.pause",
+  "fr": "Pause",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.voix.titre",
+  "fr": "Note vocale",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.voix.ecouter_produit",
+  "fr": "Écouter la note vocale",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.confirmation.attente_titre",
+  "fr": "Nous attendons l’opérateur.",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.confirmation.attente_corps",
+  "fr": "Votre commande est bien enregistrée. Nous dirons « payé » seulement quand l’opérateur l’aura confirmé.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.confirmation.attente_chip",
+  "fr": "EN ATTENTE DE L’OPÉRATEUR",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.confirmation.attente_action",
+  "fr": "Vérifier à nouveau",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.confirmation.attente_hors_portee",
+  "fr": "Nous n’arrivons pas à joindre le service pour l’instant. Votre commande est bien là.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.confirmation.echec_titre",
+  "fr": "Le paiement n’a pas abouti.",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.confirmation.echec_corps",
+  "fr": "Rien n’a été confirmé. Votre commande vous attend — vous pouvez réessayer.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.confirmation.echec_action",
+  "fr": "Réessayer le paiement",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.confirmation.reference",
+  "fr": "Numéro de commande",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.confirmation.etape_suivre",
+  "fr": "Vous suivez chaque étape sur cette page.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.merci.titre_avant",
+  "fr": "Prévenez",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.merci.corps",
+  "fr": "Votre message partira de votre WhatsApp, avec le lien pour suivre la livraison.",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "cl.merci.prenom_label",
+  "fr": "Votre prénom",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.merci.prenom_manque",
+  "fr": "Dites-nous votre prénom.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.merci.action",
+  "fr": "Prévenir sur WhatsApp",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.merci.message",
+  "fr": "C’est {prenom} — je viens de t’offrir « {article} » de ta liste d’envies. Tu peux suivre la livraison ici : {lien}",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "cl.porte.reste_apayer",
+  "fr": "Reste à payer, après inspection",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.porte.echec_titre",
+  "fr": "Le paiement n’a pas abouti.",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.porte.echec_corps",
+  "fr": "Rien n’a été confirmé. Votre commande est toujours là — vous pouvez réessayer.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.porte.echec_action",
+  "fr": "Réessayer le paiement",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.operateur.titre",
+  "fr": "Confirmez sur votre téléphone",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.operateur.corps",
+  "fr": "Votre opérateur vous demande votre code secret pour valider {X}.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.operateur.cle",
+  "fr": "code secret",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.operateur.attente",
+  "fr": "En attente de la confirmation de l’opérateur…",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.operateur.loi",
+  "fr": "Rien n’est confirmé tant que l’opérateur n’a pas répondu. Nous ne dirons\u00a0jamais\u00a0le\u00a0contraire.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.operateur.porte_titre",
+  "fr": "Payez le reste, en sécurité",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.operateur.porte_loi",
+  "fr": "Le livreur ne peut pas dire « payé » à votre place. Seul l’opérateur confirme.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.refus.generique.overline",
+  "fr": "LE PRIX",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.generique.titre",
+  "fr": "Nous ne pouvons pas afficher le prix.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.generique.phrase",
+  "fr": "Réessayez dans un instant. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.generique.libelle",
+  "fr": "Réessayer",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.listing_unknown.overline",
+  "fr": "L’ARTICLE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.listing_unknown.titre",
+  "fr": "Cet article n’est plus dans cette boutique.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.listing_unknown.phrase",
+  "fr": "Il a été retiré. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.listing_unknown.libelle",
+  "fr": "Voir la boutique",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.not_found.overline",
+  "fr": "L’ARTICLE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.not_found.titre",
+  "fr": "Cet article n’est plus dans cette boutique.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.not_found.phrase",
+  "fr": "Il a été retiré. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.not_found.libelle",
+  "fr": "Voir la boutique",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.listing_not_live.overline",
+  "fr": "L’ARTICLE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.listing_not_live.titre",
+  "fr": "Cet article n’est plus en vente.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.listing_not_live.phrase",
+  "fr": "La vendeuse l’a retiré. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.listing_not_live.libelle",
+  "fr": "Voir la boutique",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.out_of_stock.overline",
+  "fr": "L’ARTICLE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.out_of_stock.titre",
+  "fr": "Cet article vient d’être épuisé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.out_of_stock.phrase",
+  "fr": "Quelqu’un a pris le dernier. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.out_of_stock.libelle",
+  "fr": "Voir la boutique",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.delivery_not_serviceable.overline",
+  "fr": "LA LIVRAISON",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.delivery_not_serviceable.titre",
+  "fr": "Séra ne livre pas encore ici.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.delivery_not_serviceable.phrase",
+  "fr": "Essayez une autre zone. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.delivery_not_serviceable.libelle",
+  "fr": "Changer de zone",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.attribution_missing.overline",
+  "fr": "LE LIEN",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.attribution_missing.titre",
+  "fr": "Ce lien ne permet pas de commander.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.attribution_missing.phrase",
+  "fr": "Demandez à la vendeuse son lien à jour. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.attribution_missing.libelle",
+  "fr": "Voir la boutique",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.attribution_mismatch.overline",
+  "fr": "LE LIEN",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.attribution_mismatch.titre",
+  "fr": "Ce lien ne permet pas de commander.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.attribution_mismatch.phrase",
+  "fr": "Demandez à la vendeuse son lien à jour. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.attribution_mismatch.libelle",
+  "fr": "Voir la boutique",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.checkout_killed.overline",
+  "fr": "LES COMMANDES",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.checkout_killed.titre",
+  "fr": "Les commandes sont suspendues un moment.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.checkout_killed.phrase",
+  "fr": "Réessayez dans un moment. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.checkout_killed.libelle",
+  "fr": "Réessayer",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.expired.overline",
+  "fr": "LE PRIX",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.expired.titre",
+  "fr": "Ce prix a expiré.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.expired.phrase",
+  "fr": "Un prix ne reste affiché qu’un moment. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.expired.libelle",
+  "fr": "Voir le prix à jour",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.already_reserved.overline",
+  "fr": "LA COMMANDE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.already_reserved.titre",
+  "fr": "Cette commande est déjà en cours.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.already_reserved.phrase",
+  "fr": "Elle est gardée un court moment. Attendez, puis réessayez.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.already_reserved.libelle",
+  "fr": "Réessayer",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.unreachable.overline",
+  "fr": "HORS LIGNE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.unreachable.titre",
+  "fr": "Pas de connexion.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.unreachable.phrase",
+  "fr": "Le prix ne peut pas être affiché sans réseau. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.unreachable.libelle",
+  "fr": "Réessayer",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.request_key_reused.overline",
+  "fr": "LE PRIX",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.request_key_reused.titre",
+  "fr": "Ce prix ne peut plus être utilisé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.request_key_reused.phrase",
+  "fr": "Nous en demandons un nouveau. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.request_key_reused.libelle",
+  "fr": "Demander un nouveau prix",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.bad_field.overline",
+  "fr": "LE PRIX",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.bad_field.titre",
+  "fr": "Nous ne pouvons pas afficher le prix.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.bad_field.phrase",
+  "fr": "Demandons-en un nouveau. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.bad_field.libelle",
+  "fr": "Demander un nouveau prix",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.malformed.overline",
+  "fr": "LE PRIX",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.malformed.titre",
+  "fr": "Nous ne pouvons pas afficher le prix.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.malformed.phrase",
+  "fr": "Demandons-en un nouveau. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.malformed.libelle",
+  "fr": "Demander un nouveau prix",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.unknown_field.overline",
+  "fr": "LE PRIX",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.unknown_field.titre",
+  "fr": "Nous ne pouvons pas afficher le prix.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.unknown_field.phrase",
+  "fr": "Demandons-en un nouveau. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.unknown_field.libelle",
+  "fr": "Demander un nouveau prix",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.no_secure_random.overline",
+  "fr": "LE PRIX",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.no_secure_random.titre",
+  "fr": "Ce téléphone ne peut pas ouvrir la commande.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.no_secure_random.phrase",
+  "fr": "Essayez depuis un autre navigateur. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.inspection.prudente.verifier_1",
+  "fr": "C’est le bon article — celui de la photo",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.prudente.verifier_2",
+  "fr": "En bon état",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.prudente.verifier_3",
+  "fr": "Rien ne manque",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.prudente.motifs_1",
+  "fr": "Ce n’est pas le bon article",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.prudente.motifs_2",
+  "fr": "Il est abîmé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.prudente.motifs_3",
+  "fr": "Il manque quelque chose",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.prudente.risque",
+  "fr": "Vous ne pouvez pas l’essayer à la porte.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.inspection.fashion_bags_fabrics.verifier_1",
+  "fr": "C’est le bon article — celui de la photo",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.fashion_bags_fabrics.verifier_2",
+  "fr": "La bonne couleur",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.fashion_bags_fabrics.verifier_3",
+  "fr": "La bonne taille sur l’étiquette",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.fashion_bags_fabrics.verifier_4",
+  "fr": "Le bon nombre",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.fashion_bags_fabrics.verifier_5",
+  "fr": "En bon état, rien ne manque",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.fashion_bags_fabrics.motifs_1",
+  "fr": "Ce n’est pas le bon article",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.fashion_bags_fabrics.motifs_2",
+  "fr": "Ce n’est pas la bonne couleur",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.fashion_bags_fabrics.motifs_3",
+  "fr": "Il est abîmé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.fashion_bags_fabrics.motifs_4",
+  "fr": "Il en manque",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.fashion_bags_fabrics.risque",
+  "fr": "Vous ne pouvez pas l’essayer à la porte. La coupe qui ne vous plaît pas ne compte pas comme un problème.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.inspection.shoes.verifier_1",
+  "fr": "Ouvrez la boîte",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.shoes.verifier_2",
+  "fr": "C’est le bon modèle",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.shoes.verifier_3",
+  "fr": "La bonne pointure sur l’étiquette",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.shoes.verifier_4",
+  "fr": "Les deux pieds sont là",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.shoes.verifier_5",
+  "fr": "En bon état",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.shoes.motifs_1",
+  "fr": "Ce n’est pas le bon modèle",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.shoes.motifs_2",
+  "fr": "Ce n’est pas la bonne pointure",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.shoes.motifs_3",
+  "fr": "Il est abîmé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.shoes.motifs_4",
+  "fr": "Il manque une chaussure",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.shoes.risque",
+  "fr": "Si vous les portez, elles sont à vous. La pointure qui serre ne compte pas comme un problème.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.inspection.sealed_beauty_cosmetics.verifier_1",
+  "fr": "Regardez l’emballage, sans l’ouvrir",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.sealed_beauty_cosmetics.verifier_2",
+  "fr": "Le scellé du fabricant est intact",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.sealed_beauty_cosmetics.verifier_3",
+  "fr": "Le bon nom et la bonne teinte",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.sealed_beauty_cosmetics.verifier_4",
+  "fr": "Le bon nombre",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.sealed_beauty_cosmetics.verifier_5",
+  "fr": "La date n’est pas dépassée",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.sealed_beauty_cosmetics.motifs_1",
+  "fr": "Le scellé est cassé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.sealed_beauty_cosmetics.motifs_2",
+  "fr": "Ce n’est pas la bonne teinte",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.sealed_beauty_cosmetics.motifs_3",
+  "fr": "La date est dépassée",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.sealed_beauty_cosmetics.motifs_4",
+  "fr": "Il est abîmé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.inspection.sealed_beauty_cosmetics.risque",
+  "fr": "N’ouvrez pas le scellé avant d’accepter. Un scellé ouvert par vous ne compte pas comme un problème.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.chrome.retour",
+  "fr": "Retour",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.chrome.rail_adresse",
+  "fr": "Adresse",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.chrome.rail_livraison",
+  "fr": "Livraison",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.chrome.rail_paiement",
+  "fr": "Paiement",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.chrome.hors_ligne",
+  "fr": "Hors ligne : vos actions sont en attente, jamais perdues.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.chrome.numero_prive",
+  "fr": "Votre numéro reste privé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.chrome.continuer",
+  "fr": "Continuer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.protections.titre",
+  "fr": "Vos protections",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c1.epuise",
+  "fr": "ÉPUISÉ",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c1.voir_photos",
+  "fr": "Voir les photos",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c1.photo_reelle_caps",
+  "fr": "PHOTO RÉELLE DU PRODUIT",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c1.photos_compte",
+  "fr": "{n} photos",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c1.sans_photo",
+  "fr": "SANS PHOTO",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c1.wa_sujet",
+  "fr": "Bonjour {prenom}, je vous écris au sujet de « {article} » vu sur {boutique}.",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "cl.c1.wa_titre",
+  "fr": "Une question ? Écrire à {prenom} sur WhatsApp",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c1.wa_sous",
+  "fr": "Message ou note vocale — à propos de cet article.",
+  "register": "selling",
+  "screenClass": "general"
+ },
+ {
+  "key": "cl.c1.page_signee",
+  "fr": "PAGE SIGNÉE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c1.prix_signe_epuise",
+  "fr": "Le prix reste signé — il reviendra tel quel si le stock revient.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c1.livraison_a_part",
+  "fr": "Livraison Séra en plus — affichée à part, jamais cachée.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c1.vendeuse_verifiee",
+  "fr": "Vendeuse vérifiée",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c1.voir_boutique",
+  "fr": "Voir la boutique ›",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c1.photo_reelle",
+  "fr": "Photo réelle — ce que vous recevrez.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c1.vendu_par",
+  "fr": "Vendu par {boutique}",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c1.prix",
+  "fr": "PRIX",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c1.livre_par_sera",
+  "fr": "Livré par Séra, à votre repère",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c1.paiement_protege",
+  "fr": "Paiement protégé — inspectez avant de payer",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c1.epuise_carte",
+  "fr": "Ce produit est épuisé pour le moment. Revenez voir sa boutique — elle ajoute souvent de nouveaux articles.",
+  "register": "selling",
+  "screenClass": "selling_surface"
+ },
+ {
+  "key": "cl.c1.commander",
+  "fr": "Commander",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.voix_titre",
+  "fr": "Enregistrer le repère",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.voix_sous",
+  "fr": "Parlez comme au marché, c’est assez.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c3.voix_arreter",
+  "fr": "ARRÊTER",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.voix_conseil",
+  "fr": "Parlez comme au marché : « Face à la pharmacie, portail bleu. »",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "cl.c3.voix_refaire",
+  "fr": "REFAIRE",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.voix_gardee",
+  "fr": "Note vocale gardée. C’est noté — en attente du réseau.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c3.voix_refus",
+  "fr": "Le micro n’est pas disponible. Écrivez le repère au-dessus — ça marche aussi bien.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c3.geo_titre",
+  "fr": "Ajouter ma position",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.geo_sous",
+  "fr": "Le point exact va seulement à votre livreur. La carte autour vient d’OpenStreetMap.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c3.geo_recherche",
+  "fr": "Recherche de votre position…",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c3.geo_faite",
+  "fr": "Position ajoutée. Le point exact va seulement à votre livreur.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c3.geo_retirer",
+  "fr": "RETIRER",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.geo_allege",
+  "fr": "Votre numéro suffit pour continuer. Quartier et repère : si vous voulez.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c3.geo_refus",
+  "fr": "Position introuvable ici. Votre repère écrit suffit.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c3.carte_annuler",
+  "fr": "Annuler",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.carte_consigne",
+  "fr": "Déplacez la carte pour placer le point",
+  "register": "neutral",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "cl.c3.carte_recentrer",
+  "fr": "Revenir à ma position",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.carte_confirmer",
+  "fr": "Confirmer ce lieu",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.ville",
+  "fr": "Ouagadougou",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.zone_changer",
+  "fr": "CHANGER",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.quartier",
+  "fr": "Votre quartier",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.quartier_chercher",
+  "fr": "Chercher votre quartier…",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.repere",
+  "fr": "Le repère",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.repere_exemple",
+  "fr": "Ex. : Face à la pharmacie du marché",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.zone_utiliser",
+  "fr": "Utiliser « {quartier} »",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.titre",
+  "fr": "Où livrer ?",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.intro",
+  "fr": "Pas besoin d’adresse — ici, un bon repère vaut mieux. Le livreur connaît la ville.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c3.voix_overline",
+  "fr": "Ou dites-le de vive voix",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.numero",
+  "fr": "Votre numéro, pour la livraison",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.numero_exemple",
+  "fr": "Ex. : 70 12 34 56",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c3.relais",
+  "fr": "Le livreur passe par un relais. Votre numéro reste privé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c4.demo_aujourdhui",
+  "fr": "Aujourd’hui, avant 19 h",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c4.verifie_scelle",
+  "fr": "Un livreur Séra vérifie et scelle le colis avant de partir.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c4.demo_demain",
+  "fr": "Demain, 9 h – 12 h",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c4.demo_demain_sous",
+  "fr": "Course groupée dans votre zone — un peu moins chère.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c4.livraison_par_sera",
+  "fr": "Livraison par Séra",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c4.preuve_verifie",
+  "fr": "Vérifié",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c4.preuve_scelle",
+  "fr": "Scellé",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c4.preuve_livre",
+  "fr": "Livré",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c4.titre",
+  "fr": "La livraison",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c4.livree_a",
+  "fr": "Livrée à",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c4.livre_chez",
+  "fr": "Livré chez {nom}, à son adresse.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c4.position_gps",
+  "fr": "VOTRE POSITION GPS",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c4.point_exact",
+  "fr": "Le point exact va seulement à votre livreur.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c4.modifier",
+  "fr": "MODIFIER",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c4.loi",
+  "fr": "Le prix de la course est fixé par Séra. Il est affiché à part — jamais caché dans le prix du produit.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c4.citation",
+  "fr": "La course est payée à Séra. Chaque franc a sa place.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.titre_ecran",
+  "fr": "Le prix",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c5.cta_choisir",
+  "fr": "Choisissez pour continuer",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c5.cta_payer",
+  "fr": "Payer {X}",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c5.cta_payer_maintenant",
+  "fr": "Payer {X} maintenant",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c5.titre",
+  "fr": "Le paiement",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c5.envoi_overline",
+  "fr": "ENVOI SÉCURISÉ",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c5.envoi_titre",
+  "fr": "Un instant.",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c5.envoi_corps",
+  "fr": "Nous envoyons votre demande de paiement de {X}\u00a0à l’opérateur.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.c5.envoi_fin",
+  "fr": "à l’opérateur.",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c5.commande",
+  "fr": "Votre commande",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c5.bill_livraison",
+  "fr": "Livraison Séra — jamais\u00a0cachée",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c5.bill_total",
+  "fr": "Total",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c5.reconcile_promesse",
+  "fr": "chaque franc a sa place.",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c5.comment_payer",
+  "fr": "Comment payer ?",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c5.b_indisponible",
+  "fr": "Pas disponible pour cette commande. Vous pouvez tout payer maintenant, en sécurité — et toujours inspecter avant d’accepter.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.c5.citation",
+  "fr": "Vous inspectez le colis avant\u00a0de\u00a0payer\u00a0le\u00a0reste.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c6.confirmee_titre",
+  "fr": "Commande enregistrée.",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c6.paiement_confirme",
+  "fr": "Paiement confirmé par l’opérateur.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.c6.paiement_confirme_montant",
+  "fr": "Paiement de {X} confirmé par l’opérateur.",
+  "register": "money",
+  "screenClass": "checkout"
+ },
+ {
+  "key": "cl.c6.etape_prepare",
+  "fr": "{boutique} prépare votre commande",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c6.etape_scelle",
+  "fr": "Séra vérifie et scelle le colis",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c6.pending_titre",
+  "fr": "C’est noté.",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c6.pending_corps",
+  "fr": "En attente du réseau. Votre commande est gardée sur ce téléphone — elle part dès que le réseau revient.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c6.pending_chip",
+  "fr": "EN ATTENTE — JAMAIS PERDUE",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c6.offline_titre",
+  "fr": "Hors ligne — rien n’est perdu.",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c6.offline_corps",
+  "fr": "Votre commande attend sur ce téléphone. Le paiement partira quand le réseau reviendra. Nous ne dirons jamais « payé » avant l’opérateur.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c6.suivre",
+  "fr": "Suivre ma commande",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c7.titre",
+  "fr": "Le suivi",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c7.probleme",
+  "fr": "Problème signalé. Une personne s’en occupe. La commande reste protégée.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c7.maintenant",
+  "fr": "MAINTENANT",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c7.porte",
+  "fr": "Je suis à la porte",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.demo.simuler",
+  "fr": "Simuler l’étape suivante — {etape} (démo)",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.demo.etape_preparee",
+  "fr": "Préparée",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.demo.etape_prete",
+  "fr": "Prête",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.demo.etape_en_route",
+  "fr": "En route",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.demo.etape_porte",
+  "fr": "À votre porte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c7.signaler",
+  "fr": "Signaler un problème",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c8.titre",
+  "fr": "À la porte",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c8.report_titre",
+  "fr": "Qu’est-ce qui ne va pas ?",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c8.report_sous",
+  "fr": "Dites-le simplement. Vous ne payez rien de plus.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c8.report_note",
+  "fr": "Le colis repart avec le livreur. Vous ne payez rien de plus. La commande reste protégée.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c8.report_cta",
+  "fr": "C’est noté",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c8.porte_titre_1",
+  "fr": "Ouvrez. Vérifiez.",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c8.porte_titre_2",
+  "fr": "Ensuite seulement, payez.",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c8.porte_sous",
+  "fr": "Prenez votre temps — 2 à 4 minutes, c’est votre droit. Le livreur attend.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c8.ligne_variante",
+  "fr": "{ligne} — {variante}",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c8.tout_bon",
+  "fr": "Tout est bon",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c8.un_probleme",
+  "fr": "Un problème",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c8.egalite",
+  "fr": "Les deux chemins se valent. Un refus justifié ne compte jamais contre vous.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c9.titre",
+  "fr": "Le code de remise",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c9.preuve_overline",
+  "fr": "VOTRE PREUVE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c9.preuve",
+  "fr": "Ce code est votre preuve.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c9.comment",
+  "fr": "Donnez-le au livreur seulement au moment de la remise. Montrez-le, ou dites-le à voix haute.",
+  "register": "money",
+  "screenClass": "instruction"
+ },
+ {
+  "key": "cl.c9.garde",
+  "fr": "Le code reste sur cet écran — gardez la page ouverte jusqu’à la remise.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c2.inspecter_titre",
+  "fr": "Vous inspectez avant de payer",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c2.inspecter_detail",
+  "fr": "Ouvrez le colis à la porte. Prenez 2 à 4 minutes. Payez seulement si c’est bon.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c2.remboursement_titre",
+  "fr": "Le remboursement n’est jamais bloqué",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c2.remboursement_detail",
+  "fr": "Un problème avéré, c’est un remboursement. Sans condition cachée, sans attente d’un fonds.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c2.numero_titre",
+  "fr": "Votre numéro reste privé",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c2.numero_detail",
+  "fr": "Le livreur passe par un relais. Personne ne voit votre numéro.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c2.code_titre",
+  "fr": "Le code de remise fait foi",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.c2.code_detail",
+  "fr": "La remise n’existe que quand vous donnez votre code. C’est votre preuve.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.c2.fermer",
+  "fr": "Compris",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.galerie.titre",
+  "fr": "Photos du produit",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.galerie.fermer",
+  "fr": "Fermer",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.galerie.precedente",
+  "fr": "‹ Précédente",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.galerie.compteur",
+  "fr": "{n} sur {total}",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.galerie.suivante",
+  "fr": "Suivante ›",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.flow.note_perdue",
+  "fr": "Votre note vocale n’a pas pu être gardée. Votre repère écrit est bien transmis.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.demo.note_toast",
+  "fr": "{titre} — {duree} (démo)",
+  "register": "neutral",
+  "screenClass": "label"
+ }
 ]

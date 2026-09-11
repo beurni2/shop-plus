@@ -85,7 +85,9 @@ describe('source discipline — zero raw U+202F laundered into ANY app source (P
     });
   }
   it('the welds that stop C5 sentences orphaning are written as escapes, and are still there', () => {
-    const src = readFileSync(join(srcRoot, 'cliente', 'screens.ts'), 'utf8');
+    // CATALOGUE-CLIENTE-1 — the sentences live in the catalog now, and a JSON
+    // file spells the no-break space the same way: ` `, never the byte.
+    const src = readFileSync(join(import.meta.dirname, '..', 'i18n', 'catalog.json'), 'utf8');
     // Not a byte count: the ESCAPE, so a weld deleted in a copy tweak is a red
     // test rather than a sentence quietly free to break again.
     expect(src).toContain('avant\\u00a0de\\u00a0payer\\u00a0le\\u00a0reste.');

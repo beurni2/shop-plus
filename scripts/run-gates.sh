@@ -335,149 +335,65 @@ capture copy-lint-administrative fail pnpm exec copy-lint gates/fixtures/negativ
 log "gate: French Voice copy-lint — NEGATIVE FIXTURE (veuillez/séquestre + marketing-in-money + Mooré-in-instruction, must fail)"
 capture copy-lint-negative fail pnpm exec copy-lint gates/fixtures/negative/catalog.negative.json
 
-log "gate: French Voice copy-lint — the PWA CLIENTE refusal strings that live INLINE in screens.ts (SP3.2b, must pass)"
+# CATALOGUE-CLIENTE-1 (AUDIT-SHOP-2 F-59 « M ») — the gate no longer reads
+# source literals: the ten inline tables and every text node, attribute and
+# bare label of the buyer module moved into apps/buyer-pwa/i18n/catalog.json
+# under `cl.`, where copy-lint-pwa-positive lints them with their budgets (the
+# thing the source extractor could never do for the strings outside its
+# tables). What this gate keeps, each proven by ONE negative below: the
+# STRUCTURAL FLOOR on the catalog (a deleted sentence, a class re-tagged to
+# slip a budget, a placeholder nothing fills, a register swapped, a deleted
+# door-checklist line), the TRIPWIRES on the source (an accent, an ASCII text
+# node, a spoken attribute, a bare phrase left inline — one per detector,
+# each planted where the others are blind), the KEYS (a call naming a key the
+# catalog lacks) and the RAW SCAN (a banned word every tripwire is blind to by
+# design, and one outside src/). Catalog negatives are PATCHES applied over
+# the real catalog, so they cannot rot; source negatives are the clean base
+# plus one plant, with the base captured as the positive control.
+log "gate: French Voice — the buyer module's copy is in the catalog, tagged and called, and nothing French is left inline (CATALOGUE-CLIENTE-1, must pass)"
 capture copy-lint-inline-refus-positive pass node scripts/gates/copy-lint-inline-refus.mjs
 
-log "gate: French Voice copy-lint — NEGATIVE FIXTURE (an inline REFUS table with veuillez/séquestre/profitez + an over-budget sentence, must fail)"
-capture copy-lint-inline-refus-negative fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/screens.ts
+log "gate: French Voice — the CLEAN source base every source negative derives from (must pass)"
+capture copy-lint-inline-refus-clean-base pass node scripts/gates/copy-lint-inline-refus.mjs --source gates/fixtures/negative/copy-lint-inline-refus/source/base-propre.ts
 
-# The extractor, not the lint, was the hole the verifier walked through: the
-# first version read single-quoted strings only, so administrative French in a
-# double-quoted or template-literal refusal passed with « 0 violations ». One
-# negative per quoting style, plus one for a DELETED string, so no style can go
-# unread again and an omission fails as loudly as a violation.
-log "gate: French Voice copy-lint — NEGATIVE (a DOUBLE-QUOTED refusal carrying administrative French, must fail)"
-capture copy-lint-inline-refus-negative-double fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/double-quoted.ts
+log "gate: French Voice — NEGATIVE (a §6.1 sentence DELETED from the catalog: the floor must bite, must fail)"
+capture copy-lint-inline-refus-negative-cle-manquante fail node scripts/gates/copy-lint-inline-refus.mjs --catalog-patch gates/fixtures/negative/copy-lint-inline-refus/catalogue/manque-corps-a.json
 
-log "gate: French Voice copy-lint — NEGATIVE (a TEMPLATE-LITERAL refusal carrying administrative French, must fail)"
-capture copy-lint-inline-refus-negative-template fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/template-literal.ts
+log "gate: French Voice — NEGATIVE (the §6.1 replay re-tagged label to slip the checkout budget, must fail)"
+capture copy-lint-inline-refus-negative-classe fail node scripts/gates/copy-lint-inline-refus.mjs --catalog-patch gates/fixtures/negative/copy-lint-inline-refus/catalogue/redite-en-label.json
 
-log "gate: French Voice copy-lint — NEGATIVE (an INTERPOLATED money sentence, refused outright, must fail)"
-capture copy-lint-inline-refus-negative-interp fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/interpolated.ts
+log "gate: French Voice — NEGATIVE (a {X} planted into option B's body, which fills only {D}, must fail)"
+capture copy-lint-inline-refus-negative-jeton fail node scripts/gates/copy-lint-inline-refus.mjs --catalog-patch gates/fixtures/negative/copy-lint-inline-refus/catalogue/corps-b-jeton-x.json
 
-log "gate: French Voice copy-lint — NEGATIVE (a DELETED refusal string: the structural floor must bite, must fail)"
-capture copy-lint-inline-refus-negative-missing fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/missing-field.ts
+log "gate: French Voice — NEGATIVE (the gift message's SELLING register swapped to money, must fail)"
+capture copy-lint-inline-refus-negative-registre fail node scripts/gates/copy-lint-inline-refus.mjs --catalog-patch gates/fixtures/negative/copy-lint-inline-refus/catalogue/merci-en-money.json
 
-# The gate's own blind spots, one level up from the ones above: a field it did
-# not recognise and a view key it could not parse were both DROPPED IN SILENCE
-# while it printed unchanged counts and « 0 violations ». Adding a subtitle line
-# to a refusal is an ordinary next edit; it must not be able to ship unread.
-log "gate: French Voice copy-lint — NEGATIVE (an UNKNOWN copy field carrying administrative French, must fail)"
-capture copy-lint-inline-refus-negative-unknown fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/unknown-field.ts
+log "gate: French Voice — NEGATIVE (a §6.2 door-checklist line DELETED, must fail)"
+capture copy-lint-inline-refus-negative-ligne-de-porte fail node scripts/gates/copy-lint-inline-refus.mjs --catalog-patch gates/fixtures/negative/copy-lint-inline-refus/catalogue/ligne-de-porte-supprimee.json
 
-log "gate: French Voice copy-lint — NEGATIVE (a QUOTED view key hiding a whole refusal, must fail)"
-capture copy-lint-inline-refus-negative-quoted-key fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/quoted-key.ts
+log "gate: French Voice — NEGATIVE (T1: an accented label typed back inline, must fail)"
+capture copy-lint-inline-refus-negative-accent fail node scripts/gates/copy-lint-inline-refus.mjs --source gates/fixtures/negative/copy-lint-inline-refus/source/accent-inline.ts
 
-log "gate: French Voice copy-lint — NEGATIVE (a QUOTED field key, same family one level down, must fail)"
-capture copy-lint-inline-refus-negative-quoted-field fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/quoted-field.ts
+log "gate: French Voice — NEGATIVE (T2: an ASCII-only sentence as an HTML text node, must fail)"
+capture copy-lint-inline-refus-negative-noeud-texte fail node scripts/gates/copy-lint-inline-refus.mjs --source gates/fixtures/negative/copy-lint-inline-refus/source/noeud-texte.ts
 
-# SP3.3b1 — the §6.1 TWO-OPTION CHECKOUT COPY is now extracted and linted by the
-# same gate, and each negative below bites through a DIFFERENT door: the lint
-# itself, the raw §6.1 word scan (which sees what no string extractor can), the
-# structural floor (a DELETED §6.1 sentence), and the placeholder allowlist (a
-# money sentence assembled at runtime from a part nothing read).
-log "gate: French Voice copy-lint — NEGATIVE (marketing urgency in the §6.1 PAYMENT copy — a word the raw scan cannot see, so only the extraction can — must fail)"
-capture copy-lint-inline-refus-negative-paiement fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-marketing.ts
+log "gate: French Voice — NEGATIVE (T3: an ASCII-only placeholder a screen reader speaks, must fail)"
+capture copy-lint-inline-refus-negative-attribut fail node scripts/gates/copy-lint-inline-refus.mjs --source gates/fixtures/negative/copy-lint-inline-refus/source/attribut.ts
 
-log "gate: French Voice copy-lint — NEGATIVE (§6.1's forbidden word in a CLASS NAME + data attribute, clean copy, must fail)"
-capture copy-lint-inline-refus-negative-escrow fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-escrow-classname.ts
+log "gate: French Voice — NEGATIVE (T4: a bare ASCII phrase in a const, rendered through an expression, must fail)"
+capture copy-lint-inline-refus-negative-litteral-nu fail node scripts/gates/copy-lint-inline-refus.mjs --source gates/fixtures/negative/copy-lint-inline-refus/source/litteral-nu.ts
 
-log "gate: French Voice copy-lint — NEGATIVE (a DELETED §6.1 payment sentence: the structural floor must bite, must fail)"
-capture copy-lint-inline-refus-negative-paiement-missing fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-missing-field.ts
+log "gate: French Voice — NEGATIVE (a call naming a key the catalog does not have, must fail)"
+capture copy-lint-inline-refus-negative-cle-inconnue fail node scripts/gates/copy-lint-inline-refus.mjs --source gates/fixtures/negative/copy-lint-inline-refus/source/cle-inconnue.ts
 
-log "gate: French Voice copy-lint — NEGATIVE (an unknown runtime placeholder in a §6.1 money sentence, must fail)"
-capture copy-lint-inline-refus-negative-paiement-placeholder fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-placeholder.ts
+log "gate: French Voice — NEGATIVE (a banned-register word where every tripwire is blind: only the raw scan sees it, must fail)"
+capture copy-lint-inline-refus-negative-scan-veuillez fail node scripts/gates/copy-lint-inline-refus.mjs --source gates/fixtures/negative/copy-lint-inline-refus/source/scan-veuillez.ts
 
-# « Écouter la note de la vendeuse » was removed from this screen once already,
-# by a founder override that has since been revoked (2026-07-30). The label is
-# now a linted §6.1 string, and this fixture is the proof that DELETING IT
-# specifically fails the structural floor — every other string in it is present
-# and lints green, so nothing else can be what fails.
-log "gate: French Voice copy-lint — NEGATIVE (the DELETED « Écouter la note » label, must fail)"
-capture copy-lint-inline-refus-negative-paiement-ecouter fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/paiement-ecouter-missing.ts
-
-# SP3.3c — C6's POST-PAYMENT copy. These are the sentences a buyer reads while
-# her money is in the air and when it did not go through, and they are the
-# newest money strings in the app: before this slice the screen said « confirmé
-# par l'opérateur » on a 2 400 ms timer and there was nothing else to lint.
-# Both fixtures are CLEAN everywhere except the CONFIRMATION table, so if the
-# gate ever stops reading that table they both go green in silence.
-log "gate: French Voice copy-lint — NEGATIVE (marketing urgency in C6's post-payment copy — a word the raw scan cannot see — must fail)"
-capture copy-lint-inline-refus-negative-confirmation fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/confirmation-marketing.ts
-
-log "gate: French Voice copy-lint — NEGATIVE (C6's waiting sentence DELETED: the structural floor must bite, must fail)"
-capture copy-lint-inline-refus-negative-confirmation-missing fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/confirmation-missing-field.ts
-
-# The scan used to walk src/**/*.ts ONLY, so the forbidden word planted in the
-# entry HTML shipped while this gate printed « appear nowhere in the buyer
-# source ». It now walks every text file a buyer receives — index.html, public/,
-# i18n/, css — and this fixture's source half lints green, so the ONLY thing
-# that can fail it is the scan reaching outside src/.
-log "gate: French Voice copy-lint — NEGATIVE (§6.1's forbidden word in index.html, outside src/, must fail)"
-capture copy-lint-inline-refus-negative-scan-outside-src fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/scan-outside-src/clean-screens.ts --scan-root gates/fixtures/negative/copy-lint-inline-refus/scan-outside-src
-
-# VOIX-INLINE-1 (AUDIT-SHOP-2 F-59). Two more tables are extracted and linted —
-# the C10 WhatsApp gift message (MERCI, register `selling`) and the §6.2
-# inspection matrix (INSPECTION, register `money`) — and every text file a buyer
-# receives is now raw-scanned for the lint's WHOLE banned-register list, not
-# only §6.1's two words. Every negative below is the CLEAN BASE plus one plant,
-# so the only thing that can fail it is its named door; the two lint-door plants
-# (finance jargon in a selling sentence, marketing urgency in a money sentence)
-# are words the raw scan cannot see, so they prove the EXTRACTION and its
-# register, not the scan. The clean base itself is captured first as the
-# positive control every negative's red is measured against.
-#
-# AND ONE RULE THE WIDER SCAN FORCED (the verifier's finding): a negative
-# whose plant is a banned-register WORD now fails through the scan whatever
-# the extractor does, so it could never go green again when its door regressed
-# — its red had stopped meaning anything. Every extractor-door negative above
-# therefore plants what the scan cannot see (marketing urgency in a money
-# sentence, a blown budget), no fixture header quotes a banned word, and only
-# the scan-door negatives carry one.
-log "gate: French Voice copy-lint — the CLEAN BASE every negative below derives from (must pass)"
-capture copy-lint-inline-refus-clean-base pass node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/clean-base.ts
-
-log "gate: French Voice copy-lint — NEGATIVE (finance jargon in the SELLING-register gift message, invisible to the raw scan, must fail)"
-capture copy-lint-inline-refus-negative-merci-jargon fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/merci-jargon.ts
-
-log "gate: French Voice copy-lint — NEGATIVE (an amount placeholder the flow never fills, in the gift message, must fail)"
-capture copy-lint-inline-refus-negative-merci-placeholder fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/merci-placeholder.ts
-
-log "gate: French Voice copy-lint — NEGATIVE (the gift screen's prénom sentence DELETED: the structural floor must bite, must fail)"
-capture copy-lint-inline-refus-negative-merci-missing fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/merci-missing-field.ts
-
-log "gate: French Voice copy-lint — NEGATIVE (marketing urgency in a §6.2 door RISK line, money register, invisible to the raw scan, must fail)"
-capture copy-lint-inline-refus-negative-inspection-marketing fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-marketing.ts
-
-log "gate: French Voice copy-lint — NEGATIVE (the §6.2 SHOES row DELETED from the inspection matrix, must fail)"
-capture copy-lint-inline-refus-negative-inspection-missing-row fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-missing-row.ts
-
-log "gate: French Voice copy-lint — NEGATIVE (a checklist line pulled in by a SPREAD, copy the extractor cannot read, must fail)"
-capture copy-lint-inline-refus-negative-inspection-not-literal fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-not-literal.ts
-
-log "gate: French Voice copy-lint — NEGATIVE (administrative French in an INLINE string outside every table — the raw banned-register scan alone must catch it, must fail)"
-capture copy-lint-inline-refus-negative-scan-administratif-inline fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/scan-administratif-inline.ts
-
-# The matrix reader's four silent skips the verifier found in the first cut —
-# each one a way for door copy to ride past the gate unread, each now a fixture.
-log "gate: French Voice copy-lint — NEGATIVE (a checklist read from a CONST, key present and list absent — the verifier's blocker, must fail)"
-capture copy-lint-inline-refus-negative-inspection-list-from-const fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-list-from-const.ts
-
-log "gate: French Voice copy-lint — NEGATIVE (a commented-out risk line above the live marketing one: the live line is the one linted, must fail)"
-capture copy-lint-inline-refus-negative-inspection-commented-risque fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-commented-risque.ts
-
-log "gate: French Voice copy-lint — NEGATIVE (a SPREAD row at the top of the inspection matrix, must fail)"
-capture copy-lint-inline-refus-negative-inspection-spread-row fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-spread-row.ts
-
-log "gate: French Voice copy-lint — NEGATIVE (a .concat(…) tail after a literal checklist, must fail)"
-capture copy-lint-inline-refus-negative-inspection-concat-tail fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/inspection-concat-tail.ts
-
-# OPERATEUR-VRAI-1 (AUDIT-SHOP-2 F-60) — the sentence a buyer reads while her
-# payment sits with the operator used to name ONE operator for every buyer and
-# was read by no gate. It is a linted table now; this negative plants marketing
-# urgency (a word the raw scan cannot see) so only the extraction can catch it.
-log "gate: French Voice copy-lint — NEGATIVE (marketing urgency in the operator wait sentence, money register, must fail)"
-capture copy-lint-inline-refus-negative-operateur-marketing fail node scripts/gates/copy-lint-inline-refus.mjs gates/fixtures/negative/copy-lint-inline-refus/operateur-marketing.ts
+# The scan walks every text file a buyer receives — index.html, public/, i18n/,
+# css — not src/**/*.ts alone: the forbidden word planted in an entry HTML must
+# fail through the widened scan while the real module lints green.
+log "gate: French Voice — NEGATIVE (§6.1's forbidden word in index.html, outside src/, must fail)"
+capture copy-lint-inline-refus-negative-scan-outside-src fail node scripts/gates/copy-lint-inline-refus.mjs --scan-root gates/fixtures/negative/copy-lint-inline-refus/scan-outside-src
 
 log "gate: E2 failure path — the real service path end-to-end (must pass)"
 capture e2-failure-path pass node scripts/e2-failure-path.mjs

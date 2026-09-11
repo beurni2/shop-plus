@@ -12,6 +12,15 @@
  * exists here — the §0 wall: the four banned buyer-facing terms grep to 0
  * across this module, sources included.
  *
+ * CATALOGUE-CLIENTE-1 (AUDIT-SHOP-2 F-59 « M »): every sentence a buyer reads
+ * here is a CATALOG KEY under `cl.` (apps/buyer-pwa/i18n/catalog.json, with a
+ * register and a screen class the French Voice lint budgets) — this module
+ * only NAMES keys through `t()`/`tf()`. The copy tables keep their shapes, so
+ * their consumers and the gate's structural floor are unchanged; the gate
+ * (`scripts/gates/copy-lint-inline-refus.mjs`) pins each table key's tags and
+ * placeholders and trips on any French typed back inline. Brand names, the
+ * currency, the map attribution and glyph runs stay inline: they are not copy.
+ *
  * The photo placeholder draws the CANON SVG product glyph (vitrine set) — the
  * pixel prototype's emoji is forbidden by the no-emoji-in-chrome gate (the
  * achat precedent). Glyph color on the sable frame is undefined in the
@@ -19,6 +28,7 @@
  */
 
 import { esc } from '../format';
+import { t, tf } from '../i18n';
 import { epingleSvg, fmtCoords, viseurSvg } from '../geo-carte';
 import { filtrerQuartiers, QUARTIERS_OUAGADOUGOU } from './quartiers-ouagadougou';
 import { productGlyph } from '../vitrine/icons';
@@ -183,7 +193,7 @@ export function renderQuartierChips(zone: string | null, filtre: string): string
     const garde = zone !== null && zone !== texte
       ? `<button class="cl-chip cl-chip-on" data-action="zone" data-zone="${esc(zone)}">${esc(zone)}</button>`
       : '';
-    return `${garde}<button class="cl-chip cl-chip-libre${zone === texte ? ' cl-chip-on' : ''}" data-action="zone" data-zone="${propre}">Utiliser « ${propre} »</button>`;
+    return `${garde}<button class="cl-chip cl-chip-libre${zone === texte ? ' cl-chip-on' : ''}" data-action="zone" data-zone="${propre}">${tf('cl.c3.zone_utiliser', { quartier: propre })}</button>`;
   }
   // The chosen quartier stays visible even when the filter no longer
   // matches it — a selection must never look lost.
@@ -196,7 +206,7 @@ export function renderQuartierChips(zone: string | null, filtre: string): string
 }
 
 /**
- * ═══ VRAI-SUIVI — C7/C9's COPY TABLE, read by `copy-lint-inline-refus` ═══
+ * ═══ VRAI-SUIVI — C7/C9's COPY TABLE — its keys pinned by `copy-lint-inline-refus` ═══
  *
  * The tracking became REAL (founder, 2026-08-10): the six steps derive from the
  * order's own recorded facts, so every sentence here had to become one a fact
@@ -219,51 +229,51 @@ export function renderQuartierChips(zone: string | null, filtre: string): string
  * beside the title is a server byte the renderer appends — never interpolated.
  */
 export const SUIVI = {
-  etape1Titre: 'Commande enregistrée',
-  etape1Corps: 'Nous avons bien reçu votre commande.',
-  etape2Titre: 'Préparée par la vendeuse',
-  etape2Corps: 'La vendeuse prépare votre colis.',
-  etape3Titre: 'Prête chez la vendeuse',
-  etape3Corps: 'Le colis attend le livreur Séra.',
-  etape4Titre: 'En route',
-  etape4Corps: 'Le colis est en chemin vers votre repère.',
-  etape5Titre: 'À votre porte',
-  etape5Corps: 'Inspectez avant d’accepter.',
-  etape6Titre: 'Remise',
-  etape6Corps: 'Votre code fait foi.',
+  etape1Titre: t('cl.suivi.etape1_titre'),
+  etape1Corps: t('cl.suivi.etape1_corps'),
+  etape2Titre: t('cl.suivi.etape2_titre'),
+  etape2Corps: t('cl.suivi.etape2_corps'),
+  etape3Titre: t('cl.suivi.etape3_titre'),
+  etape3Corps: t('cl.suivi.etape3_corps'),
+  etape4Titre: t('cl.suivi.etape4_titre'),
+  etape4Corps: t('cl.suivi.etape4_corps'),
+  etape5Titre: t('cl.suivi.etape5_titre'),
+  etape5Corps: t('cl.suivi.etape5_corps'),
+  etape6Titre: t('cl.suivi.etape6_titre'),
+  etape6Corps: t('cl.suivi.etape6_corps'),
   /** The honest intro — she may leave; the page tells the truth on return. */
-  intro: 'Revenez ici quand vous voulez : cette page se met à jour.',
+  intro: t('cl.suivi.intro'),
   /** The honest footnote — no GPS point exists and none is promised. */
-  gps: 'Pas de point GPS — des étapes claires, que vous suivez ici.',
+  gps: t('cl.suivi.gps'),
   /** One more read, on her word, after the automatic checks stopped. */
-  verifier: 'Vérifier à nouveau',
+  verifier: t('cl.suivi.verifier'),
   /** The last read did not arrive. Says nothing about the delivery. */
-  horsPortee: 'Nous n’arrivons pas à joindre le service pour l’instant. Votre commande est bien là.',
+  horsPortee: t('cl.suivi.hors_portee'),
   /** Her code road on the tracking — open for the whole live delivery
    *  (CODE-VISIBLE, 2026-08-13: the arrival gate blocked her at the door). */
-  voirCode: 'Voir mon code',
+  voirCode: t('cl.suivi.voir_code'),
   /** livree — she dismisses the finished order and the phone forgets it. */
-  terminee: 'C’est terminé',
+  terminee: t('cl.suivi.terminee'),
   /** The re-entry affordance on the shell — her way back to a live order. */
-  reentree: 'Ma commande',
+  reentree: t('cl.suivi.reentree'),
   /** C9 before the rider arrives — the code appears at arrival, per the
    *  founder's 2026-08-10 ruling, and never before. */
-  c9Attente: 'Votre code apparaîtra ici quand le livreur sera à votre porte. Jamais avant.',
+  c9Attente: t('cl.suivi.c9_attente'),
   /** C9 once the arrival fact exists but the code has not landed yet. */
-  c9Arrivee: 'Le livreur est là. Votre code arrive dans un instant.',
+  c9Arrivee: t('cl.suivi.c9_arrivee'),
   /** The demo C9's code is a demonstration, and says so. */
-  codeDemo: 'Code de démonstration',
+  codeDemo: t('cl.suivi.code_demo'),
   /* ── C10 « merci », the end of a delivery (founder, 2026-08-12) ───────── */
   /** The title. Warm and short — she has her parcel and is done reading. */
-  merciTitre: 'Merci !',
+  merciTitre: t('cl.suivi.merci_titre'),
   /** WHAT HAPPENED, stated as fact, because a thank-you that does not say what
    *  it is thanking her for is decoration. */
-  merciCorps: 'Votre commande est livrée. Nous espérons qu’elle vous plaît.',
+  merciCorps: t('cl.suivi.merci_corps'),
   /** The reassurance she may need tomorrow: the proof is not lost with this
    *  screen — it stays with the order on the service. */
-  merciPreuve: 'La preuve de votre livraison est gardée.',
+  merciPreuve: t('cl.suivi.merci_preuve'),
   /** The ONE action. It closes the order and gives the shop back. */
-  merciFermer: 'Terminer',
+  merciFermer: t('cl.suivi.merci_fermer'),
 } as const;
 
 /** Les 6 étapes du suivi (§4 C7) — DERIVED from the linted SUIVI table, so the
@@ -278,7 +288,7 @@ export const SUIVI_STEPS: ReadonlyArray<{ t: string; d: string }> = [
 ];
 
 /** [DEMO] le libellé de l'étape suivante (index = step courant 1–4). */
-export const SIM_LABELS: readonly string[] = ['', 'Préparée', 'Prête', 'En route', 'À votre porte'];
+export const SIM_LABELS: readonly string[] = ['', t('cl.demo.etape_preparee'), t('cl.demo.etape_prete'), t('cl.demo.etape_en_route'), t('cl.demo.etape_porte')];
 
 /**
  * ═══ VRAI-SUIVI — WHICH STEP THE FACTS PROVE ═══
@@ -368,9 +378,9 @@ export interface RangeeInspection {
 
 /** The conservative row: no category known, or one §6.2 does not cover. */
 export const INSPECTION_PRUDENTE: RangeeInspection = {
-  verifier: ['C’est le bon article — celui de la photo', 'En bon état', 'Rien ne manque'],
-  motifs: ['Ce n’est pas le bon article', 'Il est abîmé', 'Il manque quelque chose'],
-  risque: 'Vous ne pouvez pas l’essayer à la porte.',
+  verifier: [t('cl.inspection.prudente.verifier_1'), t('cl.inspection.prudente.verifier_2'), t('cl.inspection.prudente.verifier_3')],
+  motifs: [t('cl.inspection.prudente.motifs_1'), t('cl.inspection.prudente.motifs_2'), t('cl.inspection.prudente.motifs_3')],
+  risque: t('cl.inspection.prudente.risque'),
 };
 
 export const INSPECTION: Readonly<Record<string, RangeeInspection>> = {
@@ -379,42 +389,60 @@ export const INSPECTION: Readonly<Record<string, RangeeInspection>> = {
    *  buyer-risk « no try-on; fit dissatisfaction ». */
   fashion_bags_fabrics: {
     verifier: [
-      'C’est le bon article — celui de la photo',
-      'La bonne couleur',
-      'La bonne taille sur l’étiquette',
-      'Le bon nombre',
-      'En bon état, rien ne manque',
+
+      t('cl.inspection.fashion_bags_fabrics.verifier_1'),
+
+      t('cl.inspection.fashion_bags_fabrics.verifier_2'),
+
+      t('cl.inspection.fashion_bags_fabrics.verifier_3'),
+
+      t('cl.inspection.fashion_bags_fabrics.verifier_4'),
+
+      t('cl.inspection.fashion_bags_fabrics.verifier_5'),
+
     ],
-    motifs: ['Ce n’est pas le bon article', 'Ce n’est pas la bonne couleur', 'Il est abîmé', 'Il en manque'],
-    risque: 'Vous ne pouvez pas l’essayer à la porte. La coupe qui ne vous plaît pas ne compte pas comme un problème.',
+    motifs: [t('cl.inspection.fashion_bags_fabrics.motifs_1'), t('cl.inspection.fashion_bags_fabrics.motifs_2'), t('cl.inspection.fashion_bags_fabrics.motifs_3'), t('cl.inspection.fashion_bags_fabrics.motifs_4')],
+    risque: t('cl.inspection.fashion_bags_fabrics.risque'),
   },
   /** §6.2 row 2 — « box-open, model, size label, pair, condition » ·
    *  rejection « wrong size-label/model/damage » · buyer-risk « fit (wearing =
    *  buyer risk) ». */
   shoes: {
     verifier: [
-      'Ouvrez la boîte',
-      'C’est le bon modèle',
-      'La bonne pointure sur l’étiquette',
-      'Les deux pieds sont là',
-      'En bon état',
+
+      t('cl.inspection.shoes.verifier_1'),
+
+      t('cl.inspection.shoes.verifier_2'),
+
+      t('cl.inspection.shoes.verifier_3'),
+
+      t('cl.inspection.shoes.verifier_4'),
+
+      t('cl.inspection.shoes.verifier_5'),
+
     ],
-    motifs: ['Ce n’est pas le bon modèle', 'Ce n’est pas la bonne pointure', 'Il est abîmé', 'Il manque une chaussure'],
-    risque: 'Si vous les portez, elles sont à vous. La pointure qui serre ne compte pas comme un problème.',
+    motifs: [t('cl.inspection.shoes.motifs_1'), t('cl.inspection.shoes.motifs_2'), t('cl.inspection.shoes.motifs_3'), t('cl.inspection.shoes.motifs_4')],
+    risque: t('cl.inspection.shoes.risque'),
   },
   /** §6.2 row 3 — « outer only; mfr seal intact; name, variant, quantity,
    *  expiry, damage » · rejection « broken seal/wrong variant/expired/damage » ·
    *  buyer-risk « opening the inner seal ». */
   sealed_beauty_cosmetics: {
     verifier: [
-      'Regardez l’emballage, sans l’ouvrir',
-      'Le scellé du fabricant est intact',
-      'Le bon nom et la bonne teinte',
-      'Le bon nombre',
-      'La date n’est pas dépassée',
+
+      t('cl.inspection.sealed_beauty_cosmetics.verifier_1'),
+
+      t('cl.inspection.sealed_beauty_cosmetics.verifier_2'),
+
+      t('cl.inspection.sealed_beauty_cosmetics.verifier_3'),
+
+      t('cl.inspection.sealed_beauty_cosmetics.verifier_4'),
+
+      t('cl.inspection.sealed_beauty_cosmetics.verifier_5'),
+
     ],
-    motifs: ['Le scellé est cassé', 'Ce n’est pas la bonne teinte', 'La date est dépassée', 'Il est abîmé'],
-    risque: 'N’ouvrez pas le scellé avant d’accepter. Un scellé ouvert par vous ne compte pas comme un problème.',
+    motifs: [t('cl.inspection.sealed_beauty_cosmetics.motifs_1'), t('cl.inspection.sealed_beauty_cosmetics.motifs_2'), t('cl.inspection.sealed_beauty_cosmetics.motifs_3'), t('cl.inspection.sealed_beauty_cosmetics.motifs_4')],
+    risque: t('cl.inspection.sealed_beauty_cosmetics.risque'),
   },
 };
 
@@ -503,7 +531,7 @@ export function splitFor(q: ClienteQuote, d: Livraison, mode: ModePaiement): Mod
 /* ------------------------------------------------------------- chrome ---- */
 
 function backBtn(action: string): string {
-  return `<button class="cl-round-btn" data-action="${action}" aria-label="Retour">${iconBack(17)}</button>`;
+  return `<button class="cl-round-btn" data-action="${action}" aria-label="${t('cl.chrome.retour')}">${iconBack(17)}</button>`;
 }
 
 function stepHead(action: string, title: string): string {
@@ -516,7 +544,7 @@ function stepHead(action: string, title: string): string {
  * green = done, sand = ahead. The labels never wrap (three short words at
  * 10px in thirds of the narrowest phone).
  */
-const RAIL_ETAPES = ['Adresse', 'Livraison', 'Paiement'] as const;
+const RAIL_ETAPES = [t('cl.chrome.rail_adresse'), t('cl.chrome.rail_livraison'), t('cl.chrome.rail_paiement')] as const;
 function stepRail(etape: 1 | 2 | 3): string {
   const segs = RAIL_ETAPES.map(
     (_, i) => `<div class="cl-rail-seg${i + 1 < etape ? ' cl-rail-done' : i + 1 === etape ? ' cl-rail-on' : ''}"></div>`,
@@ -528,7 +556,7 @@ function stepRail(etape: 1 | 2 | 3): string {
 }
 
 export function renderOffline(): string {
-  return `<div class="cl-offline" data-role="offline-banner">${iconWifiOff(14)}Hors ligne : vos actions sont en attente, jamais perdues.</div>`;
+  return `<div class="cl-offline" data-role="offline-banner">${iconWifiOff(14)}${t('cl.chrome.hors_ligne')}</div>`;
 }
 
 export function renderSkeleton(): string {
@@ -565,7 +593,7 @@ function photoFrame(m: ClienteProduit, out: boolean): string {
   const src = hero(m);
   const ticks =
     '<div class="cl-tick cl-tick-tl"></div><div class="cl-tick cl-tick-tr"></div><div class="cl-tick cl-tick-bl"></div><div class="cl-tick cl-tick-br"></div>';
-  const veil = out ? '<div class="cl-photo-veil"><span class="cl-epuise-stamp">ÉPUISÉ</span></div>' : '';
+  const veil = out ? `<div class="cl-photo-veil"><span class="cl-epuise-stamp">${t('cl.c1.epuise')}</span></div>` : '';
   if (src !== undefined) {
     // RESELLER-UX-2 item 4 (founder order — his own C1, his own lift): WITH a
     // photo the frame is a TAP TARGET onto the full gallery, because the wire
@@ -599,11 +627,11 @@ function photoFrame(m: ClienteProduit, out: boolean): string {
         ? `<video class="cl-photo-img" data-role="video-hero" src="${esc(clip)}" poster="${esc(src)}" autoplay muted playsinline loop preload="metadata"></video>`
         : `<img class="cl-photo-img" src="${esc(src)}" alt="" decoding="async">`;
     return [
-      `<div class="cl-photo" data-role="photo-reelle" data-action="photo-galerie" role="button" tabindex="0" aria-label="Voir les photos">`,
+      `<div class="cl-photo" data-role="photo-reelle" data-action="photo-galerie" role="button" tabindex="0" aria-label="${t('cl.c1.voir_photos')}">`,
       art,
       ticks,
-      '<div class="cl-photo-caps">PHOTO RÉELLE DU PRODUIT</div>',
-      count > 1 ? `<div class="cl-photo-count">${count} photos</div>` : '',
+      `<div class="cl-photo-caps">${t('cl.c1.photo_reelle_caps')}</div>`,
+      count > 1 ? `<div class="cl-photo-count">${tf('cl.c1.photos_compte', { n: String(count) })}</div>` : '',
       veil,
       '</div>',
     ].join('');
@@ -612,7 +640,7 @@ function photoFrame(m: ClienteProduit, out: boolean): string {
     '<div class="cl-photo cl-photo-sansphoto" data-role="photo-sans">',
     '<div class="cl-weave"></div>',
     ticks,
-    '<div class="cl-photo-caps">SANS PHOTO</div>',
+    `<div class="cl-photo-caps">${t('cl.c1.sans_photo')}</div>`,
     veil,
     '</div>',
   ].join('');
@@ -630,22 +658,22 @@ export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: bool
    * no-contact state); the row renders on an épuisé product too — « quand
    * est-ce qu'il revient ? » is exactly a WhatsApp question.
    */
-  const waSujet = `Bonjour ${m.prenom}, je vous écris au sujet de « ${m.productName}${m.variant ? ` — ${m.variant}` : ''} » vu sur ${m.shopName}.`;
+  const waSujet = tf('cl.c1.wa_sujet', { prenom: m.prenom, article: `${m.productName}${m.variant ? ` — ${m.variant}` : ''}`, boutique: m.shopName });
   const waRow = m.whatsapp
     ? [
         `<a class="cl-wa" data-role="whatsapp" href="${esc(`https://wa.me/${m.whatsapp}?text=${encodeURIComponent(waSujet)}`)}" target="_blank" rel="noopener noreferrer">`,
         `<span class="cl-wa-ic">${iconWhatsApp(18, 1.7)}</span>`,
-        `<span class="cl-wa-txt">Une question ? Écrire à ${esc(m.prenom)} sur WhatsApp<span class="cl-wa-sub">Message ou note vocale — à propos de cet article.</span></span>`,
+        `<span class="cl-wa-txt">${tf('cl.c1.wa_titre', { prenom: esc(m.prenom) })}<span class="cl-wa-sub">${t('cl.c1.wa_sous')}</span></span>`,
         `<span class="cl-wa-chev">${iconChevron(14)}</span>`,
         '</a>',
       ].join('')
     : '';
   const pbPill = out
-    ? '<span class="cl-pb-pill">ÉPUISÉ</span>'
-    : `<span class="cl-pb-pill">PAGE SIGNÉE ${iconCheck(10, 3)}</span>`;
+    ? `<span class="cl-pb-pill">${t('cl.c1.epuise')}</span>`
+    : `<span class="cl-pb-pill">${t('cl.c1.page_signee')} ${iconCheck(10, 3)}</span>`;
   const pbFoot = out
-    ? 'Le prix reste signé — il reviendra tel quel si le stock revient.'
-    : 'Livraison Séra en plus — affichée à part, jamais cachée.';
+    ? t('cl.c1.prix_signe_epuise')
+    : t('cl.c1.livraison_a_part');
   const voix = !o.sansVoix && m.voiceDuree
     ? [
         '<div class="cl-voix" data-role="voix">',
@@ -662,29 +690,29 @@ export function renderC1(m: ClienteProduit, o: { epuise: boolean; sansVoix: bool
     '<div class="cl-head">',
     `<div class="cl-avatar">${esc(m.prenom.charAt(0).toUpperCase())}</div>`,
     `<div class="cl-idcol"><div class="cl-shopname">${esc(m.shopName)}</div>`,
-    `<div class="cl-verirow"><span class="cl-veri-txt">Vendeuse vérifiée</span> <span class="cl-veri-check">${iconCheck(13, 2.6)}</span><span class="cl-dotsep">·</span><button class="cl-voir" data-action="voir-boutique" data-slug="${esc(m.slug)}">Voir la boutique ›</button></div></div>`,
-    `<button class="cl-shield" data-action="ouvrir-protections" aria-label="Vos protections">${iconShieldCheck(18, 1.9)}</button>`,
+    `<div class="cl-verirow"><span class="cl-veri-txt">${t('cl.c1.vendeuse_verifiee')}</span> <span class="cl-veri-check">${iconCheck(13, 2.6)}</span><span class="cl-dotsep">·</span><button class="cl-voir" data-action="voir-boutique" data-slug="${esc(m.slug)}">${t('cl.c1.voir_boutique')}</button></div></div>`,
+    `<button class="cl-shield" data-action="ouvrir-protections" aria-label="${t('cl.protections.titre')}">${iconShieldCheck(18, 1.9)}</button>`,
     '</div>',
     photoFrame(m, out),
-    `<div class="cl-caption-row">${hero(m) !== undefined ? '<span>Photo réelle — ce que vous recevrez.</span>' : '<span></span>'}<span class="cl-vendu">Vendu par ${esc(m.shopName)}</span></div>`,
+    `<div class="cl-caption-row">${hero(m) !== undefined ? `<span>${t('cl.c1.photo_reelle')}</span>` : '<span></span>'}<span class="cl-vendu">${tf('cl.c1.vendu_par', { boutique: esc(m.shopName) })}</span></div>`,
     `<div class="cl-prodtitle">${esc(m.productName)}</div>`,
     `<div class="cl-chiprow">${m.variant ? `<span class="cl-variant">${esc(m.variant)}</span>` : ''}<span class="cl-prod-zone">${esc(m.zone)}</span></div>`,
     voix,
     `<div class="cl-pb${out ? ' cl-pb-epuise' : ''}" data-role="price-band">`,
     '<div class="cl-pb-fil"></div><div class="cl-pb-tex"></div><div class="cl-pb-inner">',
-    `<div class="cl-pb-top"><span class="cl-pb-overline">PRIX</span>${pbPill}</div>`,
+    `<div class="cl-pb-top"><span class="cl-pb-overline">${t('cl.c1.prix')}</span>${pbPill}</div>`,
     `<div class="cl-pb-amount"><span class="cl-pb-hero">${groupFr(m.priceFcfa)}</span><span class="cl-pb-suffix">${NNBSP}FCFA</span></div>`,
     `<div class="cl-pb-foot">${pbFoot}</div>`,
     '</div></div>',
     '<div class="cl-trust">',
-    `<div class="cl-trust-row"><span class="cl-trust-ic">${iconScooter(17, 1.8)}</span><span class="cl-trust-txt">Livré par Séra, à votre repère</span></div>`,
-    `<div class="cl-trust-row"><span class="cl-trust-ic">${iconShieldCheck(17, 1.8)}</span><span class="cl-trust-txt">Paiement protégé — inspectez avant de payer</span></div>`,
-    `<button class="cl-trust-link" data-action="ouvrir-protections"><span class="cl-trust-ic">${iconLock(16, 1.9)}</span><span class="cl-trust-link-txt">Vos protections</span><span class="cl-trust-chev">${iconChevron(14)}</span></button>`,
+    `<div class="cl-trust-row"><span class="cl-trust-ic">${iconScooter(17, 1.8)}</span><span class="cl-trust-txt">${t('cl.c1.livre_par_sera')}</span></div>`,
+    `<div class="cl-trust-row"><span class="cl-trust-ic">${iconShieldCheck(17, 1.8)}</span><span class="cl-trust-txt">${t('cl.c1.paiement_protege')}</span></div>`,
+    `<button class="cl-trust-link" data-action="ouvrir-protections"><span class="cl-trust-ic">${iconLock(16, 1.9)}</span><span class="cl-trust-link-txt">${t('cl.protections.titre')}</span><span class="cl-trust-chev">${iconChevron(14)}</span></button>`,
     '</div>',
     waRow,
-    out ? '<div class="cl-epuise-card">Ce produit est épuisé pour le moment. Revenez voir sa boutique — elle ajoute souvent de nouveaux articles.</div>' : '',
-    `<button class="cl-cta cl-cta-c1${out ? ' cl-cta-off' : ''}" data-action="commander"${out ? ' disabled' : ''}>Commander</button>`,
-    '<div class="cl-footnote">Votre numéro reste privé.</div>',
+    out ? `<div class="cl-epuise-card">${t('cl.c1.epuise_carte')}</div>` : '',
+    `<button class="cl-cta cl-cta-c1${out ? ' cl-cta-off' : ''}" data-action="commander"${out ? ' disabled' : ''}>${t('cl.c1.commander')}</button>`,
+    `<div class="cl-footnote">${t('cl.chrome.numero_prive')}</div>`,
     '</div>',
   ].join('');
 }
@@ -726,7 +754,7 @@ function renderVoiceBlock(s: C3State): string {
       return [
         '<button class="cl-ligne" data-action="voix-demarrer">',
         `<span class="cl-ligne-ic cl-ligne-ic-voix">${iconMic(17)}</span>`,
-        '<span class="cl-ligne-col"><span class="cl-ligne-t">Enregistrer le repère</span><span class="cl-ligne-s">Parlez comme au marché, c’est assez.</span></span>',
+        `<span class="cl-ligne-col"><span class="cl-ligne-t">${t('cl.c3.voix_titre')}</span><span class="cl-ligne-s">${t('cl.c3.voix_sous')}</span></span>`,
         `<span class="cl-ligne-chev">${iconChevron(16)}</span>`,
         '</button>',
       ].join('');
@@ -735,9 +763,9 @@ function renderVoiceBlock(s: C3State): string {
         '<div class="cl-voice-rec" data-role="voice-recording">',
         '<span class="cl-rec-dot"></span>',
         `<span class="cl-rec-time" data-role="rec-time">${esc(s.recTime)}</span>`,
-        '<button class="cl-rec-stop" data-action="voix-arreter">ARRÊTER</button>',
+        `<button class="cl-rec-stop" data-action="voix-arreter">${t('cl.c3.voix_arreter')}</button>`,
         '</div>',
-        '<div class="cl-rec-hint">Parlez comme au marché : « Face à la pharmacie, portail bleu. »</div>',
+        `<div class="cl-rec-hint">${t('cl.c3.voix_conseil')}</div>`,
       ].join('');
     case 'recorded':
       // VOIX-ÉTAT-2 — the two nodes the player drives carry ROLE hooks, so the
@@ -750,13 +778,13 @@ function renderVoiceBlock(s: C3State): string {
         `<button class="cl-voice-done-play" data-role="note-play" data-action="voix-lire-note" aria-label="${VOIX.ecouter}">${iconPlaySmall(13, 14)}</button>`,
         `<span class="cl-voice-done-wave">${RECORDED_WAVE_SVG}</span>`,
         `<span class="cl-voice-done-time" data-role="note-time">${esc(s.recTime)}</span>`,
-        '<button class="cl-refaire" data-action="voix-refaire">REFAIRE</button>',
+        `<button class="cl-refaire" data-action="voix-refaire">${t('cl.c3.voix_refaire')}</button>`,
         '</div>',
       ].join('');
     case 'queued':
-      return `<div class="cl-voice-note cl-voice-queued" data-role="voice-queued">${iconClock(16)}Note vocale gardée. C’est noté — en attente du réseau.</div>`;
+      return `<div class="cl-voice-note cl-voice-queued" data-role="voice-queued">${iconClock(16)}${t('cl.c3.voix_gardee')}</div>`;
     case 'refused':
-      return `<div class="cl-voice-note cl-voice-refused" data-role="voice-refused">${iconMicOff(16)}Le micro n’est pas disponible. Écrivez le repère au-dessus — ça marche aussi bien.</div>`;
+      return `<div class="cl-voice-note cl-voice-refused" data-role="voice-refused">${iconMicOff(16)}${t('cl.c3.voix_refus')}</div>`;
   }
 }
 
@@ -785,7 +813,7 @@ function renderGeoBlock(s: C3State): string {
       return [
         '<button class="cl-ligne" data-action="geo-demander">',
         `<span class="cl-ligne-ic cl-ligne-ic-pos">${iconFlag(16)}</span>`,
-        '<span class="cl-ligne-col"><span class="cl-ligne-t">Ajouter ma position</span><span class="cl-ligne-s">Le point exact va seulement à votre livreur. La carte autour vient d’OpenStreetMap.</span></span>',
+        `<span class="cl-ligne-col"><span class="cl-ligne-t">${t('cl.c3.geo_titre')}</span><span class="cl-ligne-s">${t('cl.c3.geo_sous')}</span></span>`,
         `<span class="cl-ligne-chev">${iconChevron(16)}</span>`,
         '</button>',
       ].join('');
@@ -794,21 +822,21 @@ function renderGeoBlock(s: C3State): string {
     // the searching face: the capture is not KEPT yet, and painting the kept
     // face under an unanswered question would be the consent law inverted.
     case 'carte':
-      return '<div class="cl-geo-cours" data-role="geo-cours"><span class="cl-geo-dot"></span>Recherche de votre position…</div>';
+      return `<div class="cl-geo-cours" data-role="geo-cours"><span class="cl-geo-dot"></span>${t('cl.c3.geo_recherche')}</div>`;
     case 'faite':
       return [
         '<div class="cl-geo-done" data-role="geo-done">',
         `<span class="cl-geo-done-ic">${iconCheck(15)}</span>`,
-        '<span class="cl-geo-done-txt">Position ajoutée. Le point exact va seulement à votre livreur.</span>',
-        '<button class="cl-geo-retirer" data-action="geo-retirer">RETIRER</button>',
+        `<span class="cl-geo-done-txt">${t('cl.c3.geo_faite')}</span>`,
+        `<button class="cl-geo-retirer" data-action="geo-retirer">${t('cl.c3.geo_retirer')}</button>`,
         '</div>',
         // GEO-ACHAT-2 — what-happens-next, stated (founder: with a confirmed
         // position the number is the only requirement; quartier and repère
         // help the rider but gate nothing any more).
-        '<div class="cl-geo-note cl-geo-allege" data-role="geo-allege">Votre numéro suffit pour continuer. Quartier et repère : si vous voulez.</div>',
+        `<div class="cl-geo-note cl-geo-allege" data-role="geo-allege">${t('cl.c3.geo_allege')}</div>`,
       ].join('');
     case 'refus':
-      return '<div class="cl-geo-note cl-geo-refus" data-role="geo-refus">Position introuvable ici. Votre repère écrit suffit.</div>';
+      return `<div class="cl-geo-note cl-geo-refus" data-role="geo-refus">${t('cl.c3.geo_refus')}</div>`;
   }
 }
 
@@ -844,17 +872,17 @@ export function renderGeoCarte(s: C3State, c: { lat: number; lng: number }): str
     '<div class="cl-geo-tuiles" data-role="geo-tuiles"></div>',
     `<span class="cl-geo-epingle">${epingleSvg(40)}</span>`,
     '<div class="cl-geo-haut">',
-    '<button class="cl-geo-flot" data-action="geo-carte-annuler" aria-label="Annuler">×</button>',
-    '<div class="cl-geo-pill">Déplacez la carte pour placer le point</div>',
+    `<button class="cl-geo-flot" data-action="geo-carte-annuler" aria-label="${t('cl.c3.carte_annuler')}">×</button>`,
+    `<div class="cl-geo-pill">${t('cl.c3.carte_consigne')}</div>`,
     '</div>',
-    `<button class="cl-geo-flot cl-geo-recentrer" data-action="geo-recentrer" aria-label="Revenir à ma position">${viseurSvg(20)}</button>`,
+    `<button class="cl-geo-flot cl-geo-recentrer" data-action="geo-recentrer" aria-label="${t('cl.c3.carte_recentrer')}">${viseurSvg(20)}</button>`,
     '<div class="cl-geo-attrib">© OpenStreetMap</div>',
     '</div>',
     '<div class="cl-geo-sheet">',
     '<div class="cl-geo-poignee"></div>',
     `<div class="cl-geo-coords"><span class="cl-geo-coords-ic">${epingleSvg(16)}</span><span data-role="geo-coords">${fmtCoords(c)}</span></div>`,
     renderAdresseBlocs(s),
-    '<button class="cl-cta cl-geo-carte-ok" data-action="geo-confirmer">Confirmer ce lieu</button>',
+    `<button class="cl-cta cl-geo-carte-ok" data-action="geo-confirmer">${t('cl.c3.carte_confirmer')}</button>`,
     '</div>',
     '</div>',
   ].join('');
@@ -878,19 +906,19 @@ function renderAdresseBlocs(s: C3State): string {
         // states the city, it never invents an address.)
         '<div class="cl-zone-choisie" data-role="zone-choisie">',
         `<span class="cl-zc-puce">${iconCheck(15, 2.6)}</span>`,
-        `<span class="cl-zone-choisie-col"><span class="cl-zone-choisie-nom">${esc(s.zone)}</span><span class="cl-zone-choisie-ville">Ouagadougou</span></span>`,
-        '<button class="cl-zone-changer" data-action="zone-changer">CHANGER</button>',
+        `<span class="cl-zone-choisie-col"><span class="cl-zone-choisie-nom">${esc(s.zone)}</span><span class="cl-zone-choisie-ville">${t('cl.c3.ville')}</span></span>`,
+        `<button class="cl-zone-changer" data-action="zone-changer">${t('cl.c3.zone_changer')}</button>`,
         '</div>',
       ].join('')
     : [
-        `<input class="cl-field" data-role="quartier-filtre" aria-label="Votre quartier" value="${esc(s.zoneFiltre)}" placeholder="Chercher votre quartier…" autocomplete="off">`,
+        `<input class="cl-field" data-role="quartier-filtre" aria-label="${t('cl.c3.quartier')}" value="${esc(s.zoneFiltre)}" placeholder="${t('cl.c3.quartier_chercher')}" autocomplete="off">`,
         `<div class="cl-chips cl-chips-quartiers" data-role="quartier-chips">${renderQuartierChips(s.zone, s.zoneFiltre)}</div>`,
       ].join('');
   return [
-    '<div class="cl-overline">Votre quartier</div>',
+    `<div class="cl-overline">${t('cl.c3.quartier')}</div>`,
     quartier,
-    '<div class="cl-overline">Le repère</div>',
-    `<input class="cl-field" data-role="repere" aria-label="Le repère" value="${esc(s.repere)}" placeholder="Ex. : Face à la pharmacie du marché">`,
+    `<div class="cl-overline">${t('cl.c3.repere')}</div>`,
+    `<input class="cl-field" data-role="repere" aria-label="${t('cl.c3.repere')}" value="${esc(s.repere)}" placeholder="${t('cl.c3.repere_exemple')}">`,
   ].join('');
 }
 
@@ -898,11 +926,11 @@ export function renderC3(s: C3State): string {
   const carteFace = s.geo === 'carte' && s.carte !== null;
   return [
     '<div class="cl-screen cl-etape" data-screen="C3">',
-    stepHead('retour-c1', 'Où livrer ?'),
+    stepHead('retour-c1', t('cl.c3.titre')),
     stepRail(1),
-    '<div class="cl-intro">Pas besoin d’adresse — ici, un bon repère vaut mieux. Le livreur connaît la ville.</div>',
+    `<div class="cl-intro">${t('cl.c3.intro')}</div>`,
     carteFace ? '' : renderAdresseBlocs(s),
-    '<div class="cl-overline">Ou dites-le de vive voix</div>',
+    `<div class="cl-overline">${t('cl.c3.voix_overline')}</div>`,
     renderVoiceBlock(s),
     renderGeoBlock(s),
     /**
@@ -913,10 +941,10 @@ export function renderC3(s: C3State): string {
      * else, never to the seller, never on any public page. That is what
      * keeps every « Votre numéro reste privé » in this app a true sentence.
      */
-    '<div class="cl-overline">Votre numéro, pour la livraison</div>',
-    `<input class="cl-field" data-role="phone" aria-label="Votre numéro, pour la livraison" type="tel" inputmode="tel" value="${esc(s.phone)}" placeholder="Ex. : 70 12 34 56">`,
-    `<div class="cl-privline">${iconLock(14)}Le livreur passe par un relais. Votre numéro reste privé.</div>`,
-    `<button class="cl-cta cl-cta-c3${s.canContinue ? '' : ' cl-cta-off'}" data-action="continuer-c3"${s.canContinue ? '' : ' disabled'}>Continuer</button>`,
+    `<div class="cl-overline">${t('cl.c3.numero')}</div>`,
+    `<input class="cl-field" data-role="phone" aria-label="${t('cl.c3.numero')}" type="tel" inputmode="tel" value="${esc(s.phone)}" placeholder="${t('cl.c3.numero_exemple')}">`,
+    `<div class="cl-privline">${iconLock(14)}${t('cl.c3.relais')}</div>`,
+    `<button class="cl-cta cl-cta-c3${s.canContinue ? '' : ' cl-cta-off'}" data-action="continuer-c3"${s.canContinue ? '' : ' disabled'}>${t('cl.chrome.continuer')}</button>`,
     // GEO-CARTE-PRO — the carte face is NOT rendered here: `.cl-screen`'s
     // entry animation animates a transform, which would capture the face's
     // position:fixed and pin it to the scrolled screen box (driven red on
@@ -957,8 +985,8 @@ export interface C4State {
 
 export function renderC4(q: ClienteQuote, s: C4State): string {
   const options: ReadonlyArray<{ k: Livraison; title: string; feeF: string; sub: string }> = [
-    { k: 'today', title: 'Aujourd’hui, avant 19 h', feeF: fmtFCFA(q.feeToday), sub: 'Un livreur Séra vérifie et scelle le colis avant de partir.' },
-    { k: 'tomorrow', title: 'Demain, 9 h – 12 h', feeF: fmtFCFA(q.feeTomorrow), sub: 'Course groupée dans votre zone — un peu moins chère.' },
+    { k: 'today', title: t('cl.c4.demo_aujourdhui'), feeF: fmtFCFA(q.feeToday), sub: t('cl.c4.verifie_scelle') },
+    { k: 'tomorrow', title: t('cl.c4.demo_demain'), feeF: fmtFCFA(q.feeTomorrow), sub: t('cl.c4.demo_demain_sous') },
   ];
   // The one server-priced line: her destination, Séra's fee, the custody
   // sentence. Not a button — there is no second thing to pick.
@@ -972,38 +1000,38 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
     '<div class="cl-opt cl-course" data-role="livraison-unique">',
     '<div class="cl-course-fil"></div>',
     '<div class="cl-course-corps">',
-    `<div class="cl-opt-row"><span class="cl-course-ic">${iconScooter(20, 1.8)}</span><span class="cl-course-col"><span class="cl-opt-title">Livraison par Séra</span><span class="cl-opt-fee">${fmtFCFA(q.feeToday)}</span></span></div>`,
-    '<div class="cl-opt-sub">Un livreur Séra vérifie et scelle le colis avant de partir.</div>',
-    `<div class="cl-course-preuves"><span class="cl-preuve">${iconCheck(12, 3)}Vérifié</span><span class="cl-preuve">${iconCheck(12, 3)}Scellé</span><span class="cl-preuve">${iconCheck(12, 3)}Livré</span></div>`,
+    `<div class="cl-opt-row"><span class="cl-course-ic">${iconScooter(20, 1.8)}</span><span class="cl-course-col"><span class="cl-opt-title">${t('cl.c4.livraison_par_sera')}</span><span class="cl-opt-fee">${fmtFCFA(q.feeToday)}</span></span></div>`,
+    `<div class="cl-opt-sub">${t('cl.c4.verifie_scelle')}</div>`,
+    `<div class="cl-course-preuves"><span class="cl-preuve">${iconCheck(12, 3)}${t('cl.c4.preuve_verifie')}</span><span class="cl-preuve">${iconCheck(12, 3)}${t('cl.c4.preuve_scelle')}</span><span class="cl-preuve">${iconCheck(12, 3)}${t('cl.c4.preuve_livre')}</span></div>`,
     '</div>',
     '</div>',
   ].join('');
   const can = s.ligneUnique === true || s.delivery !== null;
   return [
     '<div class="cl-screen cl-etape cl-etape-sera" data-screen="C4">',
-    stepHead('retour-c3', 'La livraison'),
+    stepHead('retour-c3', t('cl.c4.titre')),
     stepRail(2),
-    '<div class="cl-overline">Livrée à</div>',
+    `<div class="cl-overline">${t('cl.c4.livree_a')}</div>`,
     '<div class="cl-recap">',
     `<span class="cl-recap-flag">${iconFlag(18)}</span>`,
     s.livreChez !== undefined
-      ? `<div class="cl-recap-col" data-role="livre-chez"><div class="cl-recap-zone">Livré chez <v>${esc(s.livreChez)}</v>, à son adresse.</div></div>`
+      ? `<div class="cl-recap-col" data-role="livre-chez"><div class="cl-recap-zone">${tf('cl.c4.livre_chez', { nom: `<v>${esc(s.livreChez)}</v>` })}</div></div>`
       : s.positionGps === true && s.zone === ''
         ? [
             // GEO-ACHAT-2 — the phone-only road's récap: her position IS the
             // destination; a fabricated « GOUNGHIN » here would be a lie on
             // the money path.
-            `<div class="cl-recap-col" data-role="recap-gps"><div class="cl-recap-zone">VOTRE POSITION GPS</div><div class="cl-recap-rep">${
-              s.repereRecap !== '' ? esc(s.repereRecap) : 'Le point exact va seulement à votre livreur.'
+            `<div class="cl-recap-col" data-role="recap-gps"><div class="cl-recap-zone">${t('cl.c4.position_gps')}</div><div class="cl-recap-rep">${
+              s.repereRecap !== '' ? esc(s.repereRecap) : t('cl.c4.point_exact')
             }</div></div>`,
-            '<button class="cl-modifier" data-action="retour-c3">MODIFIER</button>',
+            `<button class="cl-modifier" data-action="retour-c3">${t('cl.c4.modifier')}</button>`,
           ].join('')
         : [
             `<div class="cl-recap-col"><div class="cl-recap-zone">${esc(s.zone.toUpperCase())}</div><div class="cl-recap-rep">${esc(s.repereRecap)}</div></div>`,
-            '<button class="cl-modifier" data-action="retour-c3">MODIFIER</button>',
+            `<button class="cl-modifier" data-action="retour-c3">${t('cl.c4.modifier')}</button>`,
           ].join(''),
     '</div>',
-    '<div class="cl-law">Le prix de la course est fixé par Séra. Il est affiché à part — jamais caché dans le prix du produit.</div>',
+    `<div class="cl-law">${t('cl.c4.loi')}</div>`,
     s.ligneUnique === true ? ligne : options.map((o) => {
       const on = s.delivery === o.k;
       return [
@@ -1014,8 +1042,8 @@ export function renderC4(q: ClienteQuote, s: C4State): string {
         '</button>',
       ].join('');
     }).join(''),
-    '<div class="cl-quote cl-quote-sera">La course est payée à Séra. Chaque franc a sa place.</div>',
-    `<button class="cl-cta cl-cta-step${can ? '' : ' cl-cta-off'}" data-action="continuer-c4"${can ? '' : ' disabled'}>Continuer</button>`,
+    `<div class="cl-quote cl-quote-sera">${t('cl.c4.citation')}</div>`,
+    `<button class="cl-cta cl-cta-step${can ? '' : ' cl-cta-off'}" data-action="continuer-c4"${can ? '' : ' disabled'}>${t('cl.chrome.continuer')}</button>`,
     '</div>',
   ].join('');
 }
@@ -1061,93 +1089,93 @@ interface RefusVue {
 }
 
 const REFUS_GENERIQUE: RefusVue = {
-  overline: 'LE PRIX',
-  titre: 'Nous ne pouvons pas afficher le prix.',
-  phrase: 'Réessayez dans un instant. Rien n’a été payé.',
+  overline: t('cl.refus.generique.overline'),
+  titre: t('cl.refus.generique.titre'),
+  phrase: t('cl.refus.generique.phrase'),
   action: 'reessayer-prix',
-  libelle: 'Réessayer',
+  libelle: t('cl.refus.generique.libelle'),
 };
 
 const REFUS: Readonly<Record<string, RefusVue>> = {
   listing_unknown: {
-    overline: 'L’ARTICLE',
-    titre: 'Cet article n’est plus dans cette boutique.',
-    phrase: 'Il a été retiré. Rien n’a été payé.',
+    overline: t('cl.refus.listing_unknown.overline'),
+    titre: t('cl.refus.listing_unknown.titre'),
+    phrase: t('cl.refus.listing_unknown.phrase'),
     action: 'voir-boutique',
-    libelle: 'Voir la boutique',
+    libelle: t('cl.refus.listing_unknown.libelle'),
   },
   not_found: {
-    overline: 'L’ARTICLE',
-    titre: 'Cet article n’est plus dans cette boutique.',
-    phrase: 'Il a été retiré. Rien n’a été payé.',
+    overline: t('cl.refus.not_found.overline'),
+    titre: t('cl.refus.not_found.titre'),
+    phrase: t('cl.refus.not_found.phrase'),
     action: 'voir-boutique',
-    libelle: 'Voir la boutique',
+    libelle: t('cl.refus.not_found.libelle'),
   },
   listing_not_live: {
-    overline: 'L’ARTICLE',
-    titre: 'Cet article n’est plus en vente.',
-    phrase: 'La vendeuse l’a retiré. Rien n’a été payé.',
+    overline: t('cl.refus.listing_not_live.overline'),
+    titre: t('cl.refus.listing_not_live.titre'),
+    phrase: t('cl.refus.listing_not_live.phrase'),
     action: 'voir-boutique',
-    libelle: 'Voir la boutique',
+    libelle: t('cl.refus.listing_not_live.libelle'),
   },
   out_of_stock: {
-    overline: 'L’ARTICLE',
-    titre: 'Cet article vient d’être épuisé.',
-    phrase: 'Quelqu’un a pris le dernier. Rien n’a été payé.',
+    overline: t('cl.refus.out_of_stock.overline'),
+    titre: t('cl.refus.out_of_stock.titre'),
+    phrase: t('cl.refus.out_of_stock.phrase'),
     action: 'voir-boutique',
-    libelle: 'Voir la boutique',
+    libelle: t('cl.refus.out_of_stock.libelle'),
   },
   delivery_not_serviceable: {
-    overline: 'LA LIVRAISON',
-    titre: 'Séra ne livre pas encore ici.',
-    phrase: 'Essayez une autre zone. Rien n’a été payé.',
+    overline: t('cl.refus.delivery_not_serviceable.overline'),
+    titre: t('cl.refus.delivery_not_serviceable.titre'),
+    phrase: t('cl.refus.delivery_not_serviceable.phrase'),
     action: 'retour-c3',
-    libelle: 'Changer de zone',
+    libelle: t('cl.refus.delivery_not_serviceable.libelle'),
   },
   attribution_missing: {
-    overline: 'LE LIEN',
-    titre: 'Ce lien ne permet pas de commander.',
-    phrase: 'Demandez à la vendeuse son lien à jour. Rien n’a été payé.',
+    overline: t('cl.refus.attribution_missing.overline'),
+    titre: t('cl.refus.attribution_missing.titre'),
+    phrase: t('cl.refus.attribution_missing.phrase'),
     action: 'voir-boutique',
-    libelle: 'Voir la boutique',
+    libelle: t('cl.refus.attribution_missing.libelle'),
   },
   attribution_mismatch: {
-    overline: 'LE LIEN',
-    titre: 'Ce lien ne permet pas de commander.',
-    phrase: 'Demandez à la vendeuse son lien à jour. Rien n’a été payé.',
+    overline: t('cl.refus.attribution_mismatch.overline'),
+    titre: t('cl.refus.attribution_mismatch.titre'),
+    phrase: t('cl.refus.attribution_mismatch.phrase'),
     action: 'voir-boutique',
-    libelle: 'Voir la boutique',
+    libelle: t('cl.refus.attribution_mismatch.libelle'),
   },
   checkout_killed: {
-    overline: 'LES COMMANDES',
-    titre: 'Les commandes sont suspendues un moment.',
+    overline: t('cl.refus.checkout_killed.overline'),
+    titre: t('cl.refus.checkout_killed.titre'),
     // The sentence and the button now say the SAME thing (verifier copy note):
     // « Revenez dans un moment » under a button labelled « Réessayer » told her
     // to do two different things at once.
-    phrase: 'Réessayez dans un moment. Rien n’a été payé.',
+    phrase: t('cl.refus.checkout_killed.phrase'),
     action: 'reessayer-prix',
-    libelle: 'Réessayer',
+    libelle: t('cl.refus.checkout_killed.libelle'),
   },
   expired: {
-    overline: 'LE PRIX',
-    titre: 'Ce prix a expiré.',
-    phrase: 'Un prix ne reste affiché qu’un moment. Rien n’a été payé.',
+    overline: t('cl.refus.expired.overline'),
+    titre: t('cl.refus.expired.titre'),
+    phrase: t('cl.refus.expired.phrase'),
     action: 'prix-a-jour',
-    libelle: 'Voir le prix à jour',
+    libelle: t('cl.refus.expired.libelle'),
   },
   already_reserved: {
-    overline: 'LA COMMANDE',
-    titre: 'Cette commande est déjà en cours.',
-    phrase: 'Elle est gardée un court moment. Attendez, puis réessayez.',
+    overline: t('cl.refus.already_reserved.overline'),
+    titre: t('cl.refus.already_reserved.titre'),
+    phrase: t('cl.refus.already_reserved.phrase'),
     action: 'reessayer-prix',
-    libelle: 'Réessayer',
+    libelle: t('cl.refus.already_reserved.libelle'),
   },
   unreachable: {
-    overline: 'HORS LIGNE',
-    titre: 'Pas de connexion.',
-    phrase: 'Le prix ne peut pas être affiché sans réseau. Rien n’a été payé.',
+    overline: t('cl.refus.unreachable.overline'),
+    titre: t('cl.refus.unreachable.titre'),
+    phrase: t('cl.refus.unreachable.phrase'),
     action: 'reessayer-prix',
-    libelle: 'Réessayer',
+    libelle: t('cl.refus.unreachable.libelle'),
   },
   /**
    * ═══ THE REFUSALS WHOSE ONLY CURE IS A NEW KEY (verifier BLOCKER 6) ═══
@@ -1162,32 +1190,32 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
    * → a new key on the wire), under a label that says what will happen.
    */
   request_key_reused: {
-    overline: 'LE PRIX',
-    titre: 'Ce prix ne peut plus être utilisé.',
-    phrase: 'Nous en demandons un nouveau. Rien n’a été payé.',
+    overline: t('cl.refus.request_key_reused.overline'),
+    titre: t('cl.refus.request_key_reused.titre'),
+    phrase: t('cl.refus.request_key_reused.phrase'),
     action: 'prix-a-jour',
-    libelle: 'Demander un nouveau prix',
+    libelle: t('cl.refus.request_key_reused.libelle'),
   },
   bad_field: {
-    overline: 'LE PRIX',
-    titre: 'Nous ne pouvons pas afficher le prix.',
-    phrase: 'Demandons-en un nouveau. Rien n’a été payé.',
+    overline: t('cl.refus.bad_field.overline'),
+    titre: t('cl.refus.bad_field.titre'),
+    phrase: t('cl.refus.bad_field.phrase'),
     action: 'prix-a-jour',
-    libelle: 'Demander un nouveau prix',
+    libelle: t('cl.refus.bad_field.libelle'),
   },
   malformed: {
-    overline: 'LE PRIX',
-    titre: 'Nous ne pouvons pas afficher le prix.',
-    phrase: 'Demandons-en un nouveau. Rien n’a été payé.',
+    overline: t('cl.refus.malformed.overline'),
+    titre: t('cl.refus.malformed.titre'),
+    phrase: t('cl.refus.malformed.phrase'),
     action: 'prix-a-jour',
-    libelle: 'Demander un nouveau prix',
+    libelle: t('cl.refus.malformed.libelle'),
   },
   unknown_field: {
-    overline: 'LE PRIX',
-    titre: 'Nous ne pouvons pas afficher le prix.',
-    phrase: 'Demandons-en un nouveau. Rien n’a été payé.',
+    overline: t('cl.refus.unknown_field.overline'),
+    titre: t('cl.refus.unknown_field.titre'),
+    phrase: t('cl.refus.unknown_field.phrase'),
     action: 'prix-a-jour',
-    libelle: 'Demander un nouveau prix',
+    libelle: t('cl.refus.unknown_field.libelle'),
   },
   /**
    * No CSPRNG on this device — `mintUuid` found neither API.
@@ -1203,9 +1231,9 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
    * The `stepHead` back arrow remains, so she is not trapped.
    */
   no_secure_random: {
-    overline: 'LE PRIX',
-    titre: 'Ce téléphone ne peut pas ouvrir la commande.',
-    phrase: 'Essayez depuis un autre navigateur. Rien n’a été payé.',
+    overline: t('cl.refus.no_secure_random.overline'),
+    titre: t('cl.refus.no_secure_random.titre'),
+    phrase: t('cl.refus.no_secure_random.phrase'),
     action: null,
     libelle: '',
   },
@@ -1215,16 +1243,16 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
 
 /**
  * The short spoken messages the flow raises as toasts. They live here, beside
- * the refusal copy, so the `copy-lint-inline-refus` gate reads them too — a
- * user-facing money sentence that lives in `flow.ts` would have no gate.
+ * the refusal copy, as catalog keys the `copy-lint-inline-refus` gate pins — a
+ * user-facing money sentence typed inline in `flow.ts` trips its tripwires.
  */
 export const MESSAGES = {
   /** The price was re-asked automatically because the old one had run out. */
-  prixRafraichiIdentique: 'Nouveau prix demandé. Le montant n’a pas changé.',
+  prixRafraichiIdentique: t('cl.message.prix_rafraichi_identique'),
   /** …and the amount moved. The new total is appended by the caller. */
-  prixRafraichiDifferent: 'Le prix a été mis à jour. Nouveau total :',
+  prixRafraichiDifferent: t('cl.message.prix_rafraichi_different'),
   /** While the new price is on its way. */
-  prixEnCoursDeMiseAJour: 'Nous demandons un nouveau prix…',
+  prixEnCoursDeMiseAJour: t('cl.message.prix_en_cours_de_mise_ajour'),
   /**
    * THE PAYMENT SCREEN'S « Écouter la note » WOULD NOT PLAY (founder ruling
    * 2026-07-30). The note EXISTS — C5 renders no control otherwise — and this
@@ -1238,7 +1266,7 @@ export const MESSAGES = {
    * #5 · Execution Contract §3). No blame, no code, nothing about her network —
    * the note is on this page, so the network is not the story.
    */
-  noteInjouable: 'La note ne se lance pas sur ce téléphone.',
+  noteInjouable: t('cl.message.note_injouable'),
 } as const;
 
 /**
@@ -1246,8 +1274,8 @@ export const MESSAGES = {
  *
  * `docs/Shop-Plus-Build-Spec.md` §6.1, VERBATIM. Not paraphrased, not
  * softened, not re-registered — the spec wrote these sentences and this table
- * is where they live so the `copy-lint-inline-refus` gate reads them exactly as
- * it reads the refusal table. They are `register: money`, `screenClass:
+ * names their catalog keys, whose register, class and placeholders the
+ * `copy-lint-inline-refus` gate pins exactly as the refusal table's. They are `register: money`, `screenClass:
  * checkout` — the reading budget the i18n data says is « seeded to accept the
  * canonical Shop+ §6.1 checkout copy ».
  *
@@ -1270,15 +1298,15 @@ export const MESSAGES = {
  */
 export const PAIEMENT = {
   /** §6.1's first bold line — X is the chosen mode's `amountPaidAtCheckout`. */
-  ligneMaintenant: 'À payer maintenant\u00a0:\u00a0{X}\u202fFCFA',
+  ligneMaintenant: t('cl.paiement.ligne_maintenant'),
   /** …and the second — Y is that same mode's `amountDueAtDelivery`. */
-  ligneLivraison: 'À payer à la livraison : {Y}\u202fFCFA',
+  ligneLivraison: t('cl.paiement.ligne_livraison'),
   /** Option A's label. « recommandé » IS the label, per §6.1. */
-  titreA: 'Tout payer maintenant — recommandé',
-  corpsA: 'Votre paiement est protégé auprès de notre partenaire de paiement jusqu’à la confirmation de votre livraison. Le vendeur n’est payé qu’après validation.',
+  titreA: t('cl.paiement.titre_a'),
+  corpsA: t('cl.paiement.corps_a'),
   /** Option B's label — the spec's full name, so the unavailable block and the
    *  card call the same option the same thing. */
-  titreB: 'Payer le produit à la livraison',
+  titreB: t('cl.paiement.titre_b'),
   /**
    * OPTION B'S TAIL, HELD TOGETHER (round 5, founder reversal of « leave it »).
    *
@@ -1304,14 +1332,14 @@ export const PAIEMENT = {
    * SUBSTRING of `titreB` — pinned as one by test, because a `.replace` that
    * stops matching is a silent no-op.
    */
-  titreBFin: 'à la livraison',
-  corpsB: 'Payez seulement les frais de livraison ({D}\u202fFCFA) maintenant. À l’arrivée du livreur, vérifiez votre article, puis payez le montant du produit de manière sécurisée avant de le recevoir.',
+  titreBFin: t('cl.paiement.titre_bfin'),
+  corpsB: t('cl.paiement.corps_b'),
   /** The clause §6.1 sets in bold inside `corpsB`. Held apart so the emphasis
    *  is markup the renderer adds, and the copy stays copy. */
-  corpsBAccent: 'avant de le recevoir',
-  avertissementB: 'Frais de livraison non remboursables si vous annulez ou êtes absent(e).',
+  corpsBAccent: t('cl.paiement.corps_baccent'),
+  avertissementB: t('cl.paiement.avertissement_b'),
   /** The one-line replay before payment (§6.1), mode B — both legs are real. */
-  redite: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
+  redite: t('cl.paiement.redite'),
   /**
    * …and mode A's, which is THE SAME NORMATIVE SENTENCE.
    *
@@ -1329,11 +1357,11 @@ export const PAIEMENT = {
    *     of her BEFORE she chooses.
    *
    * It stays its own field, byte-identical to `redite`, so both sentences a
-   * buyer can read are extracted and linted BY NAME and a deletion still fails
+   * buyer can read are catalog keys linted BY NAME and a deletion still fails
    * the gate's structural floor. The test pinning the two equal is what stops
    * one from being edited without the other.
    */
-  rediteA: 'Vous payez {X}\u202fFCFA maintenant et {Y}\u202fFCFA à la livraison — d’accord ?',
+  rediteA: t('cl.paiement.redite_a'),
   /**
    * THE CLOSING CLAUSE, HELD TOGETHER (round 4, founder review).
    *
@@ -1347,7 +1375,7 @@ export const PAIEMENT = {
    * modes, and it never grows with the amount — the francs are all upstream of
    * it, which is why gluing here cannot overflow a 360px card.
    */
-  rediteFin: 'à la livraison — d’accord ?',
+  rediteFin: t('cl.paiement.redite_fin'),
   /**
    * « ÉCOUTER LA NOTE » — THE RESELLER'S OWN RECORDED NOTE, ON THE PAYMENT
    * SCREEN (FOUNDER RULING 2026-07-30; the reversal it carries is recorded at
@@ -1362,7 +1390,12 @@ export const PAIEMENT = {
    * vendeuse » is the word this app already uses for her everywhere else
    * (« Vendeuse vérifiée », « Préparée par la vendeuse »).
    */
-  ecouterNote: 'Écouter la note de la vendeuse',
+  ecouterNote: t('cl.paiement.ecouter_note'),
+  /** The word §6.1 sets as option A's own label, held apart so the golden pill
+   *  is markup the renderer adds (the `titreBFin` device): a SUBSTRING of
+   *  `titreA`, pinned by test, because a `.replace` that stops matching is a
+   *  silent no-op. */
+  reco: t('cl.paiement.reco'),
 } as const;
 
 /**
@@ -1395,9 +1428,9 @@ export const PAIEMENT = {
  * every path here; « rien n'a été prélevé » is not, and the difference is a
  * buyer being told her money is safe when nobody knows that yet.
  *
- * Linted by `copy-lint-inline-refus.mjs` exactly as `REFUS` and `PAIEMENT` are,
- * on the same structural floor: a DELETED sentence fails as loudly as a
- * violated one.
+ * Pinned by `copy-lint-inline-refus.mjs` exactly as `REFUS` and `PAIEMENT` are,
+ * on the same structural floor: a DELETED key fails as loudly as a violated
+ * sentence fails the catalog lint.
  */
 /**
  * ═══ C3 — THE VOICE CONTROL'S OWN NAME (journalled debt, closed 2026-08-09) ═══
@@ -1409,20 +1442,19 @@ export const PAIEMENT = {
  * and this module's inline-copy gate did not know these two existed.
  *
  * They live here for the same reason `PAIEMENT.ecouterNote` does: THIS TABLE IS
- * WHAT THE GATE READS. Putting a string in it makes it linted, structurally
- * required (deleting one fails as loudly as violating one) and single-sourced
+ * WHAT THE GATE PINS. Naming a key in it makes it structurally required
+ * (deleting one fails as loudly as violating one) and single-sourced
  * between the markup that renders it at rest and the handler that swaps it
  * during playback — which is also how the two can no longer drift apart.
  *
- * NOT the full catalog migration Ten Laws #6 ultimately asks of the cliente
- * module — that remains its own slice, named in the gate's own header. This is
- * the two strings THIS change introduced, carried rather than left behind.
+ * The full catalog migration Ten Laws #6 asks of the cliente module came with
+ * CATALOGUE-CLIENTE-1; these were the two strings carried ahead of it.
  */
 export const VOIX = {
   /** At rest: the control offers to play her note back. */
-  ecouter: 'Écouter',
+  ecouter: t('cl.voix.ecouter'),
   /** While it plays: what the next tap actually does. */
-  pause: 'Pause',
+  pause: t('cl.voix.pause'),
   /**
    * NOTE-VOCALE (founder, 2026-08-14) — the C1 card title. It replaced
    * « La voix d’{prénom} », whose hardcoded elision broke on every
@@ -1430,18 +1462,18 @@ export const VOIX = {
    * Ma Vitrine already uses for the same object, so the reseller and her
    * buyer read one vocabulary.
    */
-  titre: 'Note vocale',
+  titre: t('cl.voix.titre'),
   /** The C1 play control's at-rest announcement (same order, same reason). */
-  ecouterProduit: 'Écouter la note vocale',
+  ecouterProduit: t('cl.voix.ecouter_produit'),
 } as const;
 
 export const CONFIRMATION = {
   /** The order exists on the service; the operator has not answered. */
-  attenteTitre: 'Nous attendons l’opérateur.',
-  attenteCorps: 'Votre commande est bien enregistrée. Nous dirons « payé » seulement quand l’opérateur l’aura confirmé.',
-  attenteChip: 'EN ATTENTE DE L’OPÉRATEUR',
+  attenteTitre: t('cl.confirmation.attente_titre'),
+  attenteCorps: t('cl.confirmation.attente_corps'),
+  attenteChip: t('cl.confirmation.attente_chip'),
   /** …and her way to ask again once the automatic checks have stopped. */
-  attenteAction: 'Vérifier à nouveau',
+  attenteAction: t('cl.confirmation.attente_action'),
   /**
    * THE READ DID NOT REACH THE SERVICE (verifier BLOCKER 2).
    *
@@ -1456,11 +1488,11 @@ export const CONFIRMATION = {
    * which is exactly the line between « we learned nothing » and « something
    * went wrong with your payment ».
    */
-  attenteHorsPortee: 'Nous n’arrivons pas à joindre le service pour l’instant. Votre commande est bien là.',
+  attenteHorsPortee: t('cl.confirmation.attente_hors_portee'),
   /** The order's state came back `payment_failed`. No blame, no code, no wall. */
-  echecTitre: 'Le paiement n’a pas abouti.',
-  echecCorps: 'Rien n’a été confirmé. Votre commande vous attend — vous pouvez réessayer.',
-  echecAction: 'Réessayer le paiement',
+  echecTitre: t('cl.confirmation.echec_titre'),
+  echecCorps: t('cl.confirmation.echec_corps'),
+  echecAction: t('cl.confirmation.echec_action'),
   /**
    * SANDBOX-PAY-1 (founder, 2026-08-08, from a live buy): the waiting screen
    * named no order, so the one value that lets anyone act on the order — the
@@ -1469,14 +1501,14 @@ export const CONFIRMATION = {
    * appended by the renderer from the server's own byte (the same rule as
    * PORTE.resteAPayer's figure) — never interpolated into this sentence.
    */
-  reference: 'Numéro de commande',
+  reference: t('cl.confirmation.reference'),
   /**
    * VRAI-SUIVI — the third « what happens next » row. It read « Nous vous
    * prévenons à chaque étape » — a push notification this app does not send.
    * What is true, and now said: the tracking page exists and she follows the
    * steps there herself.
    */
-  etapeSuivre: 'Vous suivez chaque étape sur cette page.',
+  etapeSuivre: t('cl.confirmation.etape_suivre'),
 } as const;
 
 /**
@@ -1491,12 +1523,12 @@ export const CONFIRMATION = {
  * DOM — it stays in state and becomes the wa.me address only.
  */
 export const MERCI = {
-  titreAvant: 'Prévenez',
-  corps: 'Votre message partira de votre WhatsApp, avec le lien pour suivre la livraison.',
-  prenomLabel: 'Votre prénom',
-  prenomManque: 'Dites-nous votre prénom.',
-  action: 'Prévenir sur WhatsApp',
-  message: 'C’est {prenom} — je viens de t’offrir « {article} » de ta liste d’envies. Tu peux suivre la livraison ici : {lien}',
+  titreAvant: t('cl.merci.titre_avant'),
+  corps: t('cl.merci.corps'),
+  prenomLabel: t('cl.merci.prenom_label'),
+  prenomManque: t('cl.merci.prenom_manque'),
+  action: t('cl.merci.action'),
+  message: t('cl.merci.message'),
 } as const;
 
 /** The view a refusal name renders as — the generic one for every name this
@@ -1510,7 +1542,7 @@ export function renderRefus(reason: string): string {
   const v = refusVue(reason);
   return [
     `<div class="cl-screen" data-screen="REFUS" data-motif="${esc(reason)}">`,
-    stepHead('retour-c3', 'Le prix'),
+    stepHead('retour-c3', t('cl.refus.titre_ecran')),
     '<div class="cl-sub">',
     `<div class="cl-sub-overline">${v.overline}</div>`,
     `<div class="cl-sub-title">${v.titre}</div>`,
@@ -1623,7 +1655,7 @@ const TITRE_B = PAIEMENT.titreB.replace(
  * titreA + pill present in the markup): a `.replace` that stops matching is a
  * silent no-op.
  */
-const TITRE_A = PAIEMENT.titreA.replace(' — recommandé', ' — <span class="cl-reco">recommandé</span>');
+const TITRE_A = PAIEMENT.titreA.replace(` — ${PAIEMENT.reco}`, ` — <span class="cl-reco">${PAIEMENT.reco}</span>`);
 
 /** §6.1's two bold lines for ONE mode, from that mode's own server split. */
 function lignesSplit(split: ModeSplit): string {
@@ -1652,7 +1684,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
    * read it through `textContent`, which is what the buyer reads.
    */
   const reconcileIdentite = `${groupFr(total(q, s.delivery))} = ${groupFr(q.produitFcfa)} + ${groupFr(fee(q, s.delivery))} — `;
-  const reconcile = `${reconcileIdentite}<span class="cl-reconcile-promesse">chaque franc a sa place.</span>`;
+  const reconcile = `${reconcileIdentite}<span class="cl-reconcile-promesse">${t('cl.c5.reconcile_promesse')}</span>`;
   // ANTI-ORPHAN (CI-caught 2026-07-30, latent since §6.1): « Robe brodée
   // bogolan · M » wraps here, and with a NARROWER face than Instrument Sans —
   // any phone whose fallback wins the font-display:optional race — the line
@@ -1735,10 +1767,10 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
   const payNowStr = chosen === undefined ? '' : fmtFCFA(chosen.paidNow);
   const ctaLabel =
     chosen === undefined
-      ? 'Choisissez pour continuer'
+      ? t('cl.c5.cta_choisir')
       : s.pay === 'A'
-        ? `Payer ${payNowStr}`
-        : `Payer ${payNowStr} maintenant`;
+        ? tf('cl.c5.cta_payer', { X: payNowStr })
+        : tf('cl.c5.cta_payer_maintenant', { X: payNowStr });
   const can = chosen !== undefined;
   // THE ONE-LINE REPLAY (§6.1), after she has chosen and before the payment
   // leaves. ONE SENTENCE, BOTH MODES, BOTH LEGS FILLED (founder ruling
@@ -1758,11 +1790,11 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
   if (s.paying === 'submitting') {
     return [
       '<div class="cl-screen" data-screen="C5" data-etat="envoi">',
-      stepHead('retour-c4', 'Le paiement'),
+      stepHead('retour-c4', t('cl.c5.titre')),
       '<div class="cl-sub">',
-      '<div class="cl-sub-overline">ENVOI SÉCURISÉ</div>',
-      '<div class="cl-sub-title">Un instant.</div>',
-      `<div class="cl-sub-body">Nous envoyons votre demande de paiement de <b>${payNowStr}</b>\u00a0<span class="cl-envoi-fin">à l’opérateur.</span></div>`,
+      `<div class="cl-sub-overline">${t('cl.c5.envoi_overline')}</div>`,
+      `<div class="cl-sub-title">${t('cl.c5.envoi_titre')}</div>`,
+      `<div class="cl-sub-body">${tf('cl.c5.envoi_corps', { X: `<b>${payNowStr}</b>` }).replace(t('cl.c5.envoi_fin'), `<span class="cl-envoi-fin">${t('cl.c5.envoi_fin')}</span>`)}</div>`,
       '<div class="cl-bar-track"><div class="cl-bar-fill"></div></div>',
       '</div></div>',
     ].join('');
@@ -1770,7 +1802,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
   if (s.paying === 'provider') {
     return [
       '<div class="cl-screen" data-screen="C5" data-etat="operateur">',
-      stepHead('retour-c4', 'Le paiement'),
+      stepHead('retour-c4', t('cl.c5.titre')),
       '<div class="cl-prov">',
       `<div class="cl-prov-phone">${iconPhone(30)}</div>`,
       `<div class="cl-prov-title">${OPERATEUR.titre}</div>`,
@@ -1782,17 +1814,17 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
   }
   return [
     '<div class="cl-screen cl-etape" data-screen="C5" data-etat="choix">',
-    stepHead('retour-c4', 'Le paiement'),
+    stepHead('retour-c4', t('cl.c5.titre')),
     stepRail(3),
-    '<div class="cl-overline">Votre commande</div>',
+    `<div class="cl-overline">${t('cl.c5.commande')}</div>`,
     '<div class="cl-bill">',
     `<div class="cl-bill-row"><span class="cl-fil-art">${ligneProduit}</span><b>${produitStr}</b></div>`,
-    `<div class="cl-bill-row cl-bill-liv"><span class="cl-fil-sera">Livraison Séra — jamais\u00a0cachée</span><b>${feeStr}</b></div>`,
-    `<div class="cl-bill-total"><span>Total</span><b>${totalStr}</b></div>`,
+    `<div class="cl-bill-row cl-bill-liv"><span class="cl-fil-sera">${t('cl.c5.bill_livraison')}</span><b>${feeStr}</b></div>`,
+    `<div class="cl-bill-total"><span>${t('cl.c5.bill_total')}</span><b>${totalStr}</b></div>`,
     '</div>',
     `<div class="cl-reconcile" data-role="reconcile">${reconcile}</div>`,
     ecouterNote,
-    '<div class="cl-overline cl-overline-pay">Comment payer ?</div>',
+    `<div class="cl-overline cl-overline-pay">${t('cl.c5.comment_payer')}</div>`,
     `<button class="cl-opt cl-payopt${s.pay === 'A' ? ' cl-opt-on' : ''}" data-action="choix-paiement" data-mode="A">`,
     s.pay === 'A' ? `<span class="cl-opt-mark">${iconCheck(14, 3)}</span>` : '',
     `<div class="cl-opt-row"><span class="cl-payopt-ic">${iconLockDot(17)}</span><span class="cl-opt-title">${TITRE_A}</span></div>`,
@@ -1803,7 +1835,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
       ? [
           '<div class="cl-payinel" data-role="pay-inel">',
           `<div class="cl-payinel-head">${iconScooter(18)}<span>${TITRE_B}</span></div>`,
-          '<div class="cl-payinel-body">Pas disponible pour cette commande. Vous pouvez tout payer maintenant, en sécurité — et toujours inspecter avant d’accepter.</div>',
+          `<div class="cl-payinel-body">${t('cl.c5.b_indisponible')}</div>`,
           '</div>',
         ].join('')
       : [
@@ -1826,7 +1858,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
     // and passed, which is why it read as a flake for three runs. Welding the
     // whole clause moves the only break point to after « colis », measured at
     // 0.553 (real face) and 0.700 (fallback) at 360px, 0.639 / 0.808 at 320px.
-    '<div class="cl-quote">Vous inspectez le colis avant\u00a0de\u00a0payer\u00a0le\u00a0reste.</div>',
+    `<div class="cl-quote">${t('cl.c5.citation')}</div>`,
     redite === '' ? '' : `<div class="cl-redite" data-role="redite">${redite}</div>`,
     `<button class="cl-cta cl-cta-c5${can ? '' : ' cl-cta-off'}" data-action="payer"${can ? '' : ' disabled'}>${ctaLabel}</button>`,
     // CHECKOUT-POLI-1 — each operator gets its own colour point (::before, so
@@ -1836,7 +1868,7 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
     // cost 26px, and at 320px under the fallback face the line then wraps —
     // this makes it wrap as « ORANGE MONEY / · MOOV MONEY », never a strand.
     '<div class="cl-providers"><span class="cl-prov-om">ORANGE MONEY</span> <span class="cl-prov-fin">· <span class="cl-prov-moov">MOOV MONEY</span></span></div>',
-    '<div class="cl-footnote cl-footnote-c5">Votre numéro reste privé.</div>',
+    `<div class="cl-footnote cl-footnote-c5">${t('cl.chrome.numero_prive')}</div>`,
     '</div>',
   ].join('');
 }
@@ -1853,18 +1885,18 @@ export function renderC5(m: ClienteProduit, q: ClienteQuote, s: C5State): string
  * provider possibly having collected. « Rien n'a été confirmé » is true on
  * every path here; the stronger sentence is not.
  *
- * Linted by `copy-lint-inline-refus.mjs` on the same terms as REFUS, PAIEMENT
- * and CONFIRMATION — structural floor, unknown-field hard failure, and NO
- * placeholders: the one amount on this screen is rendered by the caller from a
+ * Pinned by `copy-lint-inline-refus.mjs` on the same terms as REFUS, PAIEMENT
+ * and CONFIRMATION — structural floor, and NO placeholders: the one amount on
+ * this screen is rendered by the caller from a
  * server byte, never interpolated into a sentence.
  */
 export const PORTE = {
   /** The row above the two door buttons — what is still owed, with the figure
    *  appended by the renderer from the server's own split. */
-  resteAPayer: 'Reste à payer, après inspection',
-  echecTitre: 'Le paiement n’a pas abouti.',
-  echecCorps: 'Rien n’a été confirmé. Votre commande est toujours là — vous pouvez réessayer.',
-  echecAction: 'Réessayer le paiement',
+  resteAPayer: t('cl.porte.reste_apayer'),
+  echecTitre: t('cl.porte.echec_titre'),
+  echecCorps: t('cl.porte.echec_corps'),
+  echecAction: t('cl.porte.echec_action'),
 } as const;
 
 /**
@@ -1885,18 +1917,18 @@ export const PORTE = {
  * asks for her secret code, and the figure is the server's own for that leg.
  * `cle` is the credential phrase the renderer glues as one no-wrap unit
  * (`.cl-prov-cle`); it is a SUBSTRING of `corps`, pinned by test, because a
- * `.replace` that stops matching is a silent no-op. Linted by
+ * `.replace` that stops matching is a silent no-op. Pinned by
  * `copy-lint-inline-refus.mjs` as money copy: `corps` takes exactly `{X}`,
  * nothing else takes a placeholder, and a deleted sentence fails the floor.
  */
 export const OPERATEUR = {
-  titre: 'Confirmez sur votre téléphone',
-  corps: 'Votre opérateur vous demande votre code secret pour valider {X}.',
-  cle: 'code secret',
-  attente: 'En attente de la confirmation de l’opérateur…',
-  loi: 'Rien n’est confirmé tant que l’opérateur n’a pas répondu. Nous ne dirons\u00a0jamais\u00a0le\u00a0contraire.',
-  porteTitre: 'Payez le reste, en sécurité',
-  porteLoi: 'Le livreur ne peut pas dire « payé » à votre place. Seul l’opérateur confirme.',
+  titre: t('cl.operateur.titre'),
+  corps: t('cl.operateur.corps'),
+  cle: t('cl.operateur.cle'),
+  attente: t('cl.operateur.attente'),
+  loi: t('cl.operateur.loi'),
+  porteTitre: t('cl.operateur.porte_titre'),
+  porteLoi: t('cl.operateur.porte_loi'),
 } as const;
 
 /**
@@ -1965,19 +1997,18 @@ export function renderC6(
   if (o.confirmState === 'confirmed') {
     // ONE BYTE, ONE SENTENCE. The amount clause exists only when the server
     // carried an amount for the mode she chose.
-    const montant = o.paid === undefined ? '' : ` de <b>${fmtFCFA(o.paid.paidNow)}</b>`;
     body = [
       '<div class="cl-conf" data-etat="confirmee">',
       `<div class="cl-conf-disc">${iconCheck(36, 2.6)}</div>`,
-      '<div class="cl-conf-title">Commande enregistrée.</div>',
-      `<div class="cl-conf-body">Paiement${montant} confirmé par l’opérateur.</div>`,
+      `<div class="cl-conf-title">${t('cl.c6.confirmee_titre')}</div>`,
+      `<div class="cl-conf-body">${o.paid === undefined ? t('cl.c6.paiement_confirme') : tf('cl.c6.paiement_confirme_montant', { X: `<b>${fmtFCFA(o.paid.paidNow)}</b>` })}</div>`,
       '</div>',
       '<div class="cl-steps">',
       // VENDU-PAR (verifier, 2026-08-14): the FULL boutique name here too —
       // the first-word cut read « La prépare votre commande » for a boutique
       // named « La … », the same root the founder reported on C1.
-      `<div class="cl-step-row"><span class="cl-step-num">1</span><span class="cl-step-txt">${esc(m.shopName)} prépare votre commande</span></div>`,
-      '<div class="cl-step-row"><span class="cl-step-num">2</span><span class="cl-step-txt">Séra vérifie et scelle le colis</span></div>',
+      `<div class="cl-step-row"><span class="cl-step-num">1</span><span class="cl-step-txt">${tf('cl.c6.etape_prepare', { boutique: esc(m.shopName) })}</span></div>`,
+      `<div class="cl-step-row"><span class="cl-step-num">2</span><span class="cl-step-txt">${t('cl.c6.etape_scelle')}</span></div>`,
       // VRAI-SUIVI — the honest third row, from the linted table: no push
       // exists, so none is promised; the « Suivre ma commande » CTA below is
       // the road this sentence points at.
@@ -2042,17 +2073,17 @@ export function renderC6(
     body = [
       '<div class="cl-conf" data-etat="attente">',
       `<div class="cl-conf-ring">${iconClock(34)}</div>`,
-      '<div class="cl-conf-title cl-conf-title-pending">C’est noté.</div>',
-      '<div class="cl-conf-body cl-conf-body-max">En attente du réseau. Votre commande est gardée sur ce téléphone — elle part dès que le réseau revient.</div>',
-      '<div class="cl-conf-chip">EN ATTENTE — JAMAIS PERDUE</div>',
+      `<div class="cl-conf-title cl-conf-title-pending">${t('cl.c6.pending_titre')}</div>`,
+      `<div class="cl-conf-body cl-conf-body-max">${t('cl.c6.pending_corps')}</div>`,
+      `<div class="cl-conf-chip">${t('cl.c6.pending_chip')}</div>`,
       '</div>',
     ].join('');
   } else {
     body = [
       '<div class="cl-conf" data-etat="hors-ligne">',
       `<div class="cl-conf-ring">${iconWifiOff(32)}</div>`,
-      '<div class="cl-conf-title cl-conf-title-offline">Hors ligne — rien n’est perdu.</div>',
-      '<div class="cl-conf-body cl-conf-body-max">Votre commande attend sur ce téléphone. Le paiement partira quand le réseau reviendra. Nous ne dirons jamais « payé » avant l’opérateur.</div>',
+      `<div class="cl-conf-title cl-conf-title-offline">${t('cl.c6.offline_titre')}</div>`,
+      `<div class="cl-conf-body cl-conf-body-max">${t('cl.c6.offline_corps')}</div>`,
       '</div>',
     ].join('');
   }
@@ -2091,9 +2122,9 @@ export function renderC6(
      * automatic checks stop, and that is the only thing there is to offer.
      */
     o.confirmState === 'confirmed'
-      ? '<button class="cl-cta cl-cta-c6" data-action="suivre">Suivre ma commande</button>'
+      ? `<button class="cl-cta cl-cta-c6" data-action="suivre">${t('cl.c6.suivre')}</button>`
       : '',
-    '<div class="cl-footnote">Votre numéro reste privé.</div>',
+    `<div class="cl-footnote">${t('cl.chrome.numero_prive')}</div>`,
     '</div>',
   ].join('');
 }
@@ -2141,11 +2172,11 @@ export function renderC7(s: C7State): string {
   const canSim = s.demo && !(s.reel === true) && s.step < 5 && !s.problem;
   return [
     '<div class="cl-screen" data-screen="C7">',
-    `<div class="cl-stephead"><div class="cl-steptitle">Le suivi</div>${
+    `<div class="cl-stephead"><div class="cl-steptitle">${t('cl.c7.titre')}</div>${
       s.commande !== undefined && s.commande !== '' ? `<span class="cl-cmd">${esc(s.commande)}</span>` : ''
     }</div>`,
     `<div class="cl-c7-intro">${SUIVI.intro}</div>`,
-    s.problem ? '<div class="cl-problem" data-role="problem-banner">Problème signalé. Une personne s’en occupe. La commande reste protégée.</div>' : '',
+    s.problem ? `<div class="cl-problem" data-role="problem-banner">${t('cl.c7.probleme')}</div>` : '',
     // The last read did not land — one added fact about the network, zero
     // removed facts about the delivery (the C6 hors-portee law, one screen on).
     s.horsPortee === true
@@ -2168,13 +2199,13 @@ export function renderC7(s: C7State): string {
         `<div class="cl-tl-rail">${dot}${bar}</div>`,
         '<div class="cl-tl-body"><div class="cl-tl-toprow">',
         `<span class="cl-tl-t ${tClass}">${st.t}</span>`,
-        current ? '<span class="cl-now-badge">MAINTENANT</span>' : '',
+        current ? `<span class="cl-now-badge">${t('cl.c7.maintenant')}</span>` : '',
         `</div><div class="cl-tl-d">${st.d}</div></div>`,
         '</div>',
       ].join('');
     }).join(''),
     '</div>',
-    atDoor ? '<button class="cl-cta cl-cta-door" data-action="porte">Je suis à la porte</button>' : '',
+    atDoor ? `<button class="cl-cta cl-cta-door" data-action="porte">${t('cl.c7.porte')}</button>` : '',
     // VRAI-SUIVI · CODE-VISIBLE — her code road, open for the whole live
     // delivery (2026-08-13; it used to wait on the arrival fact, which locked
     // her out at the door whenever that fact lagged). The code itself remains
@@ -2190,10 +2221,10 @@ export function renderC7(s: C7State): string {
     s.terminee === true
       ? `<button class="cl-conf-relance" data-role="suivi-terminer" data-action="suivi-terminer">${SUIVI.terminee}</button>`
       : '',
-    canSim ? `<button class="cl-sim" data-action="simuler">▶ Simuler l’étape suivante — ${SIM_LABELS[s.step] ?? ''} (démo)</button>` : '',
+    canSim ? `<button class="cl-sim" data-action="simuler">▶ ${tf('cl.demo.simuler', { etape: SIM_LABELS[s.step] ?? '' })}</button>` : '',
     '<div class="cl-c7-actions">',
-    '<button class="cl-c7-btn" data-action="ouvrir-protections">Vos protections</button>',
-    '<button class="cl-c7-btn cl-c7-report" data-action="signaler-c7">Signaler un problème</button>',
+    `<button class="cl-c7-btn" data-action="ouvrir-protections">${t('cl.protections.titre')}</button>`,
+    `<button class="cl-c7-btn cl-c7-report" data-action="signaler-c7">${t('cl.c7.signaler')}</button>`,
     '</div>',
     `<div class="cl-footnote">${SUIVI.gps}</div>`,
     '</div>',
@@ -2245,8 +2276,8 @@ export function renderC8(m: ClienteProduit, q: ClienteQuote, s: C8State): string
   } else if (s.door === 'report') {
     body = [
       '<div data-etat="signalement">',
-      '<div class="cl-report-title">Qu’est-ce qui ne va pas ?</div>',
-      '<div class="cl-report-sub">Dites-le simplement. Vous ne payez rien de plus.</div>',
+      `<div class="cl-report-title">${t('cl.c8.report_titre')}</div>`,
+      `<div class="cl-report-sub">${t('cl.c8.report_sous')}</div>`,
       '<div class="cl-reasons">',
       inspectionPour(m.category).motifs
         .map((r) => `<button class="cl-reason${s.reason === r ? ' cl-reason-on' : ''}" data-action="motif" data-motif="${esc(r)}">${r}</button>`)
@@ -2254,8 +2285,8 @@ export function renderC8(m: ClienteProduit, q: ClienteQuote, s: C8State): string
       '</div>',
       s.reason
         ? [
-            '<div class="cl-report-note" data-role="report-note">Le colis repart avec le livreur. Vous ne payez rien de plus. La commande reste protégée.</div>',
-            '<button class="cl-report-cta" data-action="confirmer-signalement">C’est noté</button>',
+            `<div class="cl-report-note" data-role="report-note">${t('cl.c8.report_note')}</div>`,
+            `<button class="cl-report-cta" data-action="confirmer-signalement">${t('cl.c8.report_cta')}</button>`,
           ].join('')
         : '',
       '</div>',
@@ -2269,12 +2300,12 @@ export function renderC8(m: ClienteProduit, q: ClienteQuote, s: C8State): string
     const checklist = variante === undefined
       ? rangee.verifier
       : rangee.verifier.map((c) =>
-          /taille|pointure/i.test(c) ? `${c} — ${esc(varianteCourte(variante))}` : c,
+          /taille|pointure/i.test(c) ? tf('cl.c8.ligne_variante', { ligne: c, variante: esc(varianteCourte(variante)) }) : c,
         );
     body = [
       '<div data-etat="inspection">',
-      '<div class="cl-door-title">Ouvrez. Vérifiez.<br>Ensuite seulement, payez.</div>',
-      '<div class="cl-door-sub">Prenez votre temps — 2 à 4 minutes, c’est votre droit. Le livreur attend.</div>',
+      `<div class="cl-door-title">${t('cl.c8.porte_titre_1')}<br>${t('cl.c8.porte_titre_2')}</div>`,
+      `<div class="cl-door-sub">${t('cl.c8.porte_sous')}</div>`,
       '<div class="cl-checklist">',
       checklist.map((c) => `<div class="cl-check-row">${iconCheckSquare(17)}<span>${c}</span></div>`).join(''),
       '</div>',
@@ -2282,20 +2313,20 @@ export function renderC8(m: ClienteProduit, q: ClienteQuote, s: C8State): string
         ? `<div class="cl-owing" data-role="owing"><span>${PORTE.resteAPayer}</span><b>${produitStr}</b></div>`
         : '',
       '<div class="cl-door-paths">',
-      '<button class="cl-door-good" data-action="porte-bon">Tout est bon</button>',
-      '<button class="cl-door-bad" data-action="porte-probleme">Un problème</button>',
+      `<button class="cl-door-good" data-action="porte-bon">${t('cl.c8.tout_bon')}</button>`,
+      `<button class="cl-door-bad" data-action="porte-probleme">${t('cl.c8.un_probleme')}</button>`,
       '</div>',
       // §6.2's THIRD column, said before she chooses — what a refusal will NOT
       // be honoured for. « Opened-then-refused … without seller fault →
       // buyer-fault » is the rule this line exists to keep out of her way.
       `<div class="cl-door-risque" data-role="risque">${rangee.risque}</div>`,
-      '<div class="cl-door-equal">Les deux chemins se valent. Un refus justifié ne compte jamais contre vous.</div>',
+      `<div class="cl-door-equal">${t('cl.c8.egalite')}</div>`,
       '</div>',
     ].join('');
   }
   return [
     '<div class="cl-screen" data-screen="C8">',
-    stepHead('retour-c7', 'À la porte'),
+    stepHead('retour-c7', t('cl.c8.titre')),
     body,
     '</div>',
   ].join('');
@@ -2329,20 +2360,20 @@ export function renderC9(o: {
   const body = figure !== undefined
     ? [
         '<div class="cl-code-revealed" data-role="code-revele">',
-        '<div class="cl-code-overline">VOTRE PREUVE</div>',
+        `<div class="cl-code-overline">${t('cl.c9.preuve_overline')}</div>`,
         '<div class="cl-code-card">',
         '<div class="cl-code-tick cl-code-tick-tl"></div><div class="cl-code-tick cl-code-tick-tr"></div><div class="cl-code-tick cl-code-tick-bl"></div><div class="cl-code-tick cl-code-tick-br"></div>',
         `<div class="cl-code-figure">${esc(figure)}</div>`,
         '</div>',
-        '<div class="cl-code-proof">Ce code est votre preuve.</div>',
-        '<div class="cl-code-how">Donnez-le au livreur seulement au moment de la remise. Montrez-le, ou dites-le à voix haute.</div>',
+        `<div class="cl-code-proof">${t('cl.c9.preuve')}</div>`,
+        `<div class="cl-code-how">${t('cl.c9.comment')}</div>`,
         reel ? '' : `<div class="cl-code-how" data-role="code-demo">${SUIVI.codeDemo}</div>`,
         // REPRISE-PWA (verifier MINOR, 2026-08-13): the old sentence promised
         // « même sans réseau » — but the code is DELIBERATELY never stored on
         // the phone, so a refresh without network cannot bring it back. The
         // sentence now says the true bound: it stays as long as this screen
         // does.
-        `<div class="cl-code-kept">${iconShieldCheck(15, 1.9)}Le code reste sur cet écran — gardez la page ouverte jusqu’à la remise.</div>`,
+        `<div class="cl-code-kept">${iconShieldCheck(15, 1.9)}${t('cl.c9.garde')}</div>`,
         '</div>',
       ].join('')
     : [
@@ -2359,7 +2390,7 @@ export function renderC9(o: {
       ].join('');
   return [
     '<div class="cl-screen" data-screen="C9">',
-    stepHead('retour-c7', 'Le code de remise'),
+    stepHead('retour-c7', t('cl.c9.titre')),
     body,
     '</div>',
   ].join('');
@@ -2399,18 +2430,18 @@ export function renderC10(): string {
 /* ------------------------------------------------------------ C2 sheet --- */
 
 export function renderSheet(): string {
-  const row = (icon: string, t: string, d: string): string =>
-    `<div class="cl-prot-row"><span class="cl-prot-ic">${icon}</span><div><div class="cl-prot-t">${t}</div><div class="cl-prot-d">${d}</div></div></div>`;
+  const row = (icon: string, titre: string, detail: string): string =>
+    `<div class="cl-prot-row"><span class="cl-prot-ic">${icon}</span><div><div class="cl-prot-t">${titre}</div><div class="cl-prot-d">${detail}</div></div></div>`;
   return [
     '<div class="cl-scrim" data-action="fermer-protections">',
     '<div class="cl-sheet" data-screen="C2" data-role="sheet" data-action="sheet-noop">',
     '<div class="cl-grabber"></div>',
-    '<div class="cl-sheet-title">Vos protections</div>',
-    row(iconEye(19), 'Vous inspectez avant de payer', 'Ouvrez le colis à la porte. Prenez 2 à 4 minutes. Payez seulement si c’est bon.'),
-    row(iconShieldCheck(19, 1.8), 'Le remboursement n’est jamais bloqué', 'Un problème avéré, c’est un remboursement. Sans condition cachée, sans attente d’un fonds.'),
-    row(iconLock(18, 1.8), 'Votre numéro reste privé', 'Le livreur passe par un relais. Personne ne voit votre numéro.'),
-    row(iconKey(18), 'Le code de remise fait foi', 'La remise n’existe que quand vous donnez votre code. C’est votre preuve.'),
-    '<button class="cl-sheet-cta" data-action="fermer-protections-cta">Compris</button>',
+    `<div class="cl-sheet-title">${t('cl.protections.titre')}</div>`,
+    row(iconEye(19), t('cl.c2.inspecter_titre'), t('cl.c2.inspecter_detail')),
+    row(iconShieldCheck(19, 1.8), t('cl.c2.remboursement_titre'), t('cl.c2.remboursement_detail')),
+    row(iconLock(18, 1.8), t('cl.c2.numero_titre'), t('cl.c2.numero_detail')),
+    row(iconKey(18), t('cl.c2.code_titre'), t('cl.c2.code_detail')),
+    `<button class="cl-sheet-cta" data-action="fermer-protections-cta">${t('cl.c2.fermer')}</button>`,
     '</div></div>',
   ].join('');
 }
@@ -2464,16 +2495,16 @@ export function renderGalerie(m: ClienteProduit, idx: number): string {
       ? `<video class="cl-galerie-img" data-role="galerie-video" src="${esc(slide.src)}" controls autoplay muted playsinline loop preload="metadata"></video>`
       : `<img class="cl-galerie-img" src="${esc(slide.src)}" alt="" decoding="async">`;
   return [
-    '<div class="cl-galerie" data-role="galerie" role="dialog" aria-label="Photos du produit">',
+    `<div class="cl-galerie" data-role="galerie" role="dialog" aria-label="${t('cl.galerie.titre')}">`,
     '<div class="cl-galerie-top">',
     `<span class="cl-galerie-titre">${esc(m.productName)}</span>`,
-    '<button class="cl-galerie-fermer" data-action="galerie-fermer">Fermer</button>',
+    `<button class="cl-galerie-fermer" data-action="galerie-fermer">${t('cl.galerie.fermer')}</button>`,
     '</div>',
     `<div class="cl-galerie-scene">${scene}</div>`,
     '<div class="cl-galerie-bas">',
-    `<button class="cl-galerie-nav" data-action="galerie-precedente"${shown === 0 ? ' disabled' : ''}>‹ Précédente</button>`,
-    `<span class="cl-galerie-compteur" data-role="galerie-compteur">${shown + 1} sur ${slides.length}</span>`,
-    `<button class="cl-galerie-nav" data-action="galerie-suivante"${shown === slides.length - 1 ? ' disabled' : ''}>Suivante ›</button>`,
+    `<button class="cl-galerie-nav" data-action="galerie-precedente"${shown === 0 ? ' disabled' : ''}>${t('cl.galerie.precedente')}</button>`,
+    `<span class="cl-galerie-compteur" data-role="galerie-compteur">${tf('cl.galerie.compteur', { n: String(shown + 1), total: String(slides.length) })}</span>`,
+    `<button class="cl-galerie-nav" data-action="galerie-suivante"${shown === slides.length - 1 ? ' disabled' : ''}>${t('cl.galerie.suivante')}</button>`,
     '</div>',
     '</div>',
   ].join('');

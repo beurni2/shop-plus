@@ -31,6 +31,7 @@ import {
   type ClienteProduit, type ClienteQuote, type ConfirmEtat, type DoorEtat,
   type GeoEtat, type Livraison, type ModePaiement, type VoiceEtat,
 } from './screens';
+import { t, tf } from '../i18n';
 import { fmtFCFA } from './money';
 import { caretApresChiffres, telEnPaires } from './telephone';
 import { iconPause, iconPauseSmall, iconPlay, iconPlaySmall } from './icons';
@@ -47,6 +48,7 @@ function fmtSecondes(sec: number): string {
 import { prixExpire, type OrderFetch, type QuoteFetch, type RemiseFetch, type ReserveFetch } from './quote-model';
 import { garderCommande, localStorageOrUndefined, oublierCommande, type ServerOrder } from './quote-port';
 import { garderReprise, lireReprise, oublierReprise, type Reprise } from './reprise';
+import { DEMO_ADRESSE } from './seed';
 import { creerEnregistreurNote, type EnregistreurNote, type NoteEnregistree } from './voice-note';
 
 export type ClienteEcran = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9' | 'C10';
@@ -785,8 +787,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     // (the contact is assembled from these fields at send). The prefill
     // exists for direct harness mounts, where no pin can exist.
     if (idx >= 1 && state.pin === null) {
-      state.zone = state.zone || 'Gounghin';
-      state.repere = state.repere || 'Face à la pharmacie du marché';
+      state.zone = state.zone || DEMO_ADRESSE.zone;
+      state.repere = state.repere || DEMO_ADRESSE.repere;
     }
     if (idx >= 2 && screen !== 'C3') state.delivery = state.delivery || 'today';
     if (idx >= 4) state.pay = state.pay || 'B';
@@ -865,8 +867,8 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // GEO-ACHAT-2 — on the pin road NOTHING is fabricated: an invented
         // « Gounghin » or demo repère would end up in the dispatch contact.
         return q === null ? renderRefus('') : renderC4(q, {
-          zone: state.zone || (state.pin !== null ? '' : 'Gounghin'),
-          repereRecap: state.pin !== null ? state.repere.trim() : state.repere || 'Face à la pharmacie du marché',
+          zone: state.zone || (state.pin !== null ? '' : DEMO_ADRESSE.zone),
+          repereRecap: state.pin !== null ? state.repere.trim() : state.repere || DEMO_ADRESSE.repere,
           positionGps: state.pin !== null,
           delivery: state.delivery,
           ligneUnique: state.serverQuote !== null,
@@ -1538,7 +1540,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
       // was the diagnostic hole the founder hit — a note could die on the
       // media hop with nothing anywhere saying so.
       if (r.order.noteVocale === 'perdue') {
-        toast('Votre note vocale n’a pas pu être gardée. Votre repère écrit est bien transmis.');
+        toast(t('cl.flow.note_perdue'));
       }
       // `jump` cleared the timers and bumped the generation — so the watch must
       // start from the NEW one, or its first read would discard itself.
@@ -1849,7 +1851,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // exactly as before — the work order that added C5's control put C1's
         // behaviour explicitly out of scope.
         const url = el.getAttribute('data-voix-url');
-        const demo = (): void => toast(`${VOIX.titre} — ${m.voiceDuree ?? ''} (démo)`);
+        const demo = (): void => toast(tf('cl.demo.note_toast', { titre: VOIX.titre, duree: m.voiceDuree ?? '' }));
         if (url) jouerLaNote(url, demo, el);
         else demo();
         return;

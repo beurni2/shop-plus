@@ -125,6 +125,12 @@ export const ROBE: ClienteProduit = {
   inStock: true,
 };
 
+/** The harness's prefilled destination for a direct `?demo-cliente=C4…` mount
+ *  (the `jump()` prefill): a real Ouagadougou quartier and the pixel source's
+ *  example landmark. DATA, not copy — it stands where a buyer's own words
+ *  would, exactly as the robe stands for her product. Never on the pin road. */
+export const DEMO_ADRESSE = { zone: 'Gounghin', repere: 'Face à la pharmacie du marché' } as const;
+
 /** Build the harness product from the resolved demo storefront (no inline shop
  * identity in the shell) — the robe under HER name/slug. */
 export function clienteProduit(storefront: { name: string; slug: string }): ClienteProduit {
