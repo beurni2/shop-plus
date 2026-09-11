@@ -294,6 +294,28 @@ service = "media-service"
 binding = "CUSTODY"
 service = "custody-service"
 
+# ═══ LIMITE-ANONYME-1 — CEILINGS ON THE ANONYMOUS DOORS (src/limite.ts has the why). ═══
+# Cloudflare's Rate Limiting binding: a per-colo sliding count, keyed by the
+# caller's address, nothing stored by us. Two budgets: the buyer's map tiles,
+# and the two anonymous create doors (quote, order) together. THE NUMBERS ARE
+# FOR CARRIER-GRADE NAT — many phones behind one address in Ouagadougou — so
+# they let a neighbourhood of buyers through and refuse a scraper: a map open
+# asks ~20 tiles, a drag ~20 more; a quote is one ask per screen. `period` may
+# only be 10 or 60 (seconds). `namespace_id` is unique per account, chosen here.
+# ABSENT binding ⇒ the door stays OPEN (fail open, by law) — so a deploy that
+# refused this block would not lock anyone out; it would only leave the doors
+# as they were. UNPROVEN UNTIL A REAL `wrangler deploy` RUNS, like every
+# binding above; miniflare binds its own for the seam test.
+[[ratelimits]]
+name = "LIMITE_TUILES"
+namespace_id = "1001"
+simple = { limit = 600, period = 60 }
+
+[[ratelimits]]
+name = "LIMITE_CREATIONS"
+namespace_id = "1002"
+simple = { limit = 60, period = 60 }
+
 # ═══════════════════════════════════════════════════════════════════════════
 # READINESS-RETURN-1c — THE RETURN LEG'S INTAKE SECRET.
 # ═══════════════════════════════════════════════════════════════════════════

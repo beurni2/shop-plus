@@ -27,6 +27,7 @@ import { orderIdForQuote } from '../src/order-core.js';
 import type { R2BucketLike } from '../src/media/media-store.js';
 import { IMAGE_MAX_BYTES } from '../src/media/service.js';
 import { servirTuile } from '../src/tuiles.js';
+import { admis, refusLimite, type Limiteur } from '../src/limite.js';
 import {
   isWrite,
   rejectUnauthorizedOpsRead,
@@ -146,6 +147,12 @@ interface Env extends WriteAuthEnv {
    * `printf '1' | wrangler secret put CHECKOUT_KILL` · `wrangler secret delete
    * CHECKOUT_KILL`. Declared here for documentation; the router never reads it. */
   CHECKOUT_KILL?: string;
+  /** LIMITE-ANONYME-1 — the two Rate Limiting bindings (`[[ratelimits]]` in
+   * wrangler.toml): a ceiling per caller address on the map tiles, and one on
+   * the two anonymous create doors together. OPTIONAL by law: absent (a deploy
+   * before its config, a suite that binds none) ⇒ the door stays OPEN. */
+  LIMITE_TUILES?: Limiteur;
+  LIMITE_CREATIONS?: Limiteur;
 }
 
 /**
@@ -241,6 +248,9 @@ export default {
       // refuses it as an illegal invocation — which the road would turn into
       // a 502 for every tile. The seam test caught exactly that; the arrow
       // keeps the call on the global.
+      // LIMITE-ANONYME-1 — the ceiling is asked BEFORE the cache: every ask
+      // spends the budget, a hit no less than a miss.
+      if (!(await admis(env.LIMITE_TUILES, request))) return refusLimite();
       return servirTuile(request, { fetch: (entree, init) => fetch(entree, init), cache: caches.default });
     }
 
@@ -328,6 +338,15 @@ export default {
         isOrderDoorCharge || isOrderRemise || isOrderListeMerci)
     ) {
       return checkoutPreflight();
+    }
+    // ═══ LIMITE-ANONYME-1 — THE TWO ANONYMOUS CREATE DOORS SHARE ONE CEILING ═══
+    // A new quote and a new order are the only anonymous WRITES on this Worker
+    // (the reserve and the door charge need an existing quote or order); past
+    // the ceiling the answer is a named 429 the browser can read, and « Rien
+    // n'a été payé » stays true. Reads are never counted. The numbers and the
+    // fail-open law are in src/limite.ts and wrangler.toml.
+    if (request.method === 'POST' && (isCheckoutQuote || isOrderCreate) && !(await admis(env.LIMITE_CREATIONS, request))) {
+      return withReadCors(refusLimite());
     }
     if (isPublicQuote) {
       /**
