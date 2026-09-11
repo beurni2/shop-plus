@@ -162,13 +162,19 @@ export function useVentesReelles(store: CodeStore, port: ResellerFeedPort | null
   );
 
   const recharger = useCallback(async (): Promise<void> => {
-    if (code.current === null) {
+    // PORTE-VENTES-1 — `code.current` is set only by a read that SUCCEEDED, so
+    // a phone launched with the feed down held none here, and the reload
+    // locked the screen (« pas encore reliée ») without ever leaving the phone:
+    // a retry with no way out, on an admitted phone. The credential is on
+    // disk; the reload asks the store before it asks the door.
+    const credential = code.current ?? (await store.read().catch(() => null));
+    if (credential === null || credential === '') {
       setVue({ kind: 'locked' });
       setGains({ kind: 'verrouille' });
       return;
     }
-    await lire(code.current);
-  }, [lire]);
+    await lire(credential);
+  }, [lire, store]);
 
   return {
     ecran: ecranDesVentes(vue),

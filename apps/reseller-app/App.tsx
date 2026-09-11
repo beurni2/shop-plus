@@ -1288,7 +1288,15 @@ export default function App() {
     // session she just got: the hook read the store once at mount, so without
     // this her sales stayed on the refusal the OLD session earned until the
     // app was killed. Signup (pending) keeps its pre-slice road.
-    if (session !== undefined && nouveau.state === 'active') void ventesReelles.ouvrir(session);
+    // PORTE-VENTES-1 — and an ADMISSION in the same app session too: signup
+    // passed the session with `pending_access` (skipped), admission passed
+    // `active` with no session (skipped), so a reseller admitted the day she
+    // signed up read « pas encore reliée » on « Mes ventes » until a relaunch.
+    // The session is on disk from the signup; an active account re-reads with it.
+    if (nouveau.state === 'active') {
+      const credential = session ?? (await accessCodeStore.read().catch(() => null));
+      if (credential !== null && credential !== '') void ventesReelles.ouvrir(credential);
+    }
   };
 
   /**

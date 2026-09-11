@@ -123,6 +123,9 @@ describe('VENTE-DETAIL-RETIRÉ (F-42) · SEMENCE-DEMO-RETIRÉE — « Mes ventes
     await attendre(screen, NET_LIGNE);
     const lu = screen.texts().join(' | ');
     expect(lu).toContain('Mes ventes');
+    // The LIST's own footer — the accueil also carries her row and the net
+    // line, so this is what proves « Tout voir » opened the list itself.
+    expect(lu, 'the list opened, not the accueil').toContain('La suite (route, livraison) arrive avec Séra.');
     expect(lu, 'the operator-confirmed state, by name').toContain('PAYÉE');
     expect(lu, 'a linked phone never sees the no-account sentence').not.toContain(PAS_RELIEE);
     for (const demo of DEMO.filter((d) => d !== 'Awa')) expect(lu, `the demo byte « ${demo} » is back on the screen`).not.toContain(demo);

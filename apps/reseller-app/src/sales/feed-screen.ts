@@ -22,6 +22,7 @@
  */
 
 import type { FeedVue } from './feed-model';
+import type { EarningsSurfaceDescriptor } from '../earnings';
 
 /** One row as the screen paints it. No client name (a reseller surface has
  *  never seen a buyer's identity and does not start now), no gross, no
@@ -147,12 +148,9 @@ export function totalAffiche(lignes: readonly VenteLigne[]): number {
  * figure, her net (`VenteLigne.netFcfa`, copied from the wire); it can name no
  * gross and no commission. Lived in the demo model (`sales/ventes.ts`) until
  * SEMENCE-DEMO-RETIRÉE (founder, 2026-09-11) — the descriptor stays with the
- * presenter that actually renders the row.
+ * presenter that actually renders the row. The descriptor type is the app's
+ * one (`earnings.ts`), the same the opportunity card and the gains ladder use.
  */
-export interface EarningsSurfaceDescriptor {
-  readonly surface: string;
-  readonly moneyFieldsInRenderOrder: readonly string[];
-}
 export function ventesRowSurface(): EarningsSurfaceDescriptor {
   return { surface: 'ventes-row', moneyFieldsInRenderOrder: ['resellerNet'] };
 }
