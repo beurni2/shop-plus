@@ -6,11 +6,8 @@ import {
   allSales,
   orderedSales,
   ventesListModel,
-  ventesDetailModel,
-  demoDetail,
   statusIsServerFact,
   ventesRowSurface,
-  ventesDetailSurface,
   type Sale,
   type SaleStatus,
   netPaye,
@@ -76,17 +73,6 @@ describe('SP-I04/SP-I12 — the NET is first; commission/supplier stay unreprese
     }
     expect(ventesRowSurface().moneyFieldsInRenderOrder).toEqual(['resellerNet']);
   });
-
-  it('the detail is NET-FIRST (D3-era law): net hero first, the brut/frais/−Cercle derivation UNDER it; commission/supplier unrepresentable', () => {
-    const d = demoDetail();
-    // the descriptor renders resellerNet FIRST — the gate's mechanical law
-    expect(ventesDetailSurface().moneyFieldsInRenderOrder[0]).toBe('resellerNet');
-    expect(ventesDetailSurface().moneyFieldsInRenderOrder).toEqual(['resellerNet', 'campContribution', 'customerPrice']);
-    // the derivation is DERIVED from the pinned waterfall, never hand-authored
-    expect(d.brutFcfa).toBe(d.netFcfa + d.fraisFcfa);
-    // commission / supplier / marge vocabulary stays unrepresentable
-    expect(JSON.stringify(d)).not.toMatch(/commission|fournisseur|supplier|sellerBase|markup|marge/i);
-  });
 });
 
 describe('the client is a first name only — her number never exists (relais masqué)', () => {
@@ -110,38 +96,12 @@ describe('LIVRÉE is a server fact — never a green lie before the operator', (
   });
 });
 
-describe('the detail timeline is coarse and honest (steps, never a GPS point)', () => {
-  it('o1 CMD-2417 (À préparer) → step 1 is « now »; the demo detail IS the D3 porteur', () => {
-    const d = demoDetail();
-    expect(d.code).toBe('CMD-2417');
-    expect(d.timeline.map((s) => s.phase)).toEqual(['done', 'now', 'later', 'later']);
-    expect(d.isProblem).toBe(false);
-    // D3 — the derivation the detail renders UNDER the net hero (net-first).
-    // FRAIS-ZERO: frais 0, so brut == net (2 500).
-    expect(d.brutFcfa).toBe(2500);
-    expect(d.fraisFcfa).toBe(0);
-    expect(d.campFcfa).toBe(600);
-    expect(d.netPayeFcfa).toBe(1900);
-  });
-
-  it('an en-route sale walks the steps; a problem sale flags isProblem', () => {
-    const o7 = allSales().find((s) => s.code === 'CMD-2413')!;
-    expect(ventesDetailModel(o7).timeline.map((s) => s.phase)).toEqual(['done', 'done', 'now', 'later']);
-    const o3 = allSales().find((s) => s.code === 'CMD-2411')!;
-    expect(ventesDetailModel(o3).isProblem).toBe(true);
-    // a non-campaign detail renders NO contribution (camp 0 ⇒ line absent)
-    expect(ventesDetailModel(o7).campFcfa).toBe(0);
-  });
-});
-
-describe('every one of the seven states has its designed strings in the catalog', () => {
-  it('list · empty · skeleton · problème · détail · offline · error strings all resolve', () => {
+describe('every one of the six states has its designed strings in the catalog', () => {
+  it('list · empty · skeleton · problème · offline · error strings all resolve', () => {
     const required = [
       'ventes.titre', // list
       'ventes.vide_titre', 'ventes.vide_hint', 'ventes.vide_action', // empty
       'ventes.probleme_encart', 'ventes.probleme_action', 'ventes.probleme_rien', // problème ouvert
-      'vente.net_label', 'vente.net_regle', 'vente.son_prix', 'vente.timeline_titre', // détail
-      'vente.etape_payee', 'vente.etape_scellee', 'vente.etape_en_route', 'vente.etape_livree', 'vente.maintenant',
       'ventes.hors_ligne', 'ventes.hors_ligne_pied', 'ventes.titre_hier', // offline
       'ventes.erreur_titre', 'ventes.erreur_hint', 'ventes.reessayer', // error
     ];

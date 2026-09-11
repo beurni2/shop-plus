@@ -125,13 +125,10 @@ describe('WO-FP-SHOP states-law — every existing rendered state survives the r
     expect(app).toMatch(/vitrineOffers\.length === 0 \? \(/);
   });
 
-  it('TIMELINE — done · now · later custody phases all render (S7 detail)', () => {
-    const timeline = readFileSync(join(appDir, 'App.tsx'), 'utf8');
-    expect(timeline).toMatch(/step\.phase === 'done'/);
-    expect(timeline).toMatch(/step\.phase === 'now'|const now = step\.phase === 'now'/);
-    expect(timeline).toMatch(/step\.phase === 'later'/);
-    expect(timeline).toMatch(/styles\.timelineDotNow/);
-  });
+  // The S7 detail timeline pin (done · now · later) stood here. VENTE-DETAIL-RETIRÉ
+  // (AUDIT-SHOP-2 F-42): the sale-detail screen was unreachable and rendered a demo
+  // sale; it is gone with its timeline, and `test/rendu-ventes.test.tsx` pins that
+  // neither comes back.
 
   it('DISABLED — the primary button carries a disabled state (kit buttonDisabled)', () => {
     const kit = readFileSync(join(appDir, 'src/ui/kit.tsx'), 'utf8');

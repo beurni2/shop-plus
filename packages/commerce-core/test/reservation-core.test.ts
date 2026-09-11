@@ -80,3 +80,53 @@ describe('reservation pure core — idempotent, refuse-closed (WO-1.1 b)', () =>
     expect(wrongQuote).toMatchObject({ ok: false, reason: 'quote_mismatch' });
   });
 });
+
+/**
+ * F-94 (AUDIT-SHOP-2) — THE EXPIRY IS AN INSTANT, NOT A STRING. `expiresAt` is
+ * minted as a UTC `toISOString()`; a caller's `nowIso` is a valid instant in
+ * every production path, but an ISO instant may legally carry an offset, and
+ * a text compare read `…T14:01:00+02:00` (12:01 UTC, one minute into the
+ * hold) as PAST `…T12:02:00.000Z`. Written red first: the +02:00 pair below
+ * failed on the string compare.
+ */
+describe('F-94 — the TTL is judged on instants: an offset-bearing clock inside the hold does not expire it', () => {
+  // Both are 12:01 UTC and 12:03 UTC — the same instants as T1_IN_TTL / T3_PAST_TTL, spelt with an offset.
+  const T1_OFFSET_IN_TTL = '2026-07-09T14:01:00.000+02:00';
+  const T3_OFFSET_PAST_TTL = '2026-07-09T14:03:00.000+02:00';
+
+  it('inside the hold, spelt with an offset: confirm succeeds, a second reserve is refused, expire refuses — the hold stands', () => {
+    const r1 = decideReservation(NONE, reserve('c-a'));
+    if (!r1.ok) throw new Error('setup');
+    expect(decideReservation(r1.state, { ...reserve('c-b'), holderRef: 'buyer-2', nowIso: T1_OFFSET_IN_TTL })).toMatchObject({
+      ok: false,
+      reason: 'already_reserved',
+    });
+    expect(decideReservation(r1.state, { kind: 'expire', quoteId: 'q-1', nowIso: T1_OFFSET_IN_TTL })).toMatchObject({
+      ok: false,
+      reason: 'not_expired',
+    });
+    const c1 = decideReservation(r1.state, confirm('c-c', T1_OFFSET_IN_TTL));
+    expect(c1.ok && c1.state.status).toBe('confirmed');
+  });
+
+  it('past the hold, spelt with an offset: confirm is refused expired and the sweep releases — the instant decides, not the spelling', () => {
+    const r1 = decideReservation(NONE, reserve('c-a'));
+    if (!r1.ok) throw new Error('setup');
+    expect(decideReservation(r1.state, confirm('c-c', T3_OFFSET_PAST_TTL))).toMatchObject({ ok: false, reason: 'reservation_expired' });
+    const swept = decideReservation(r1.state, { kind: 'expire', quoteId: 'q-1', nowIso: T3_OFFSET_PAST_TTL });
+    expect(swept.ok && swept.state.status).toBe('released');
+  });
+
+  it('a clock that does not parse never expires a hold: the reserve and expire roads keep refusing closed', () => {
+    const r1 = decideReservation(NONE, reserve('c-a'));
+    if (!r1.ok) throw new Error('setup');
+    expect(decideReservation(r1.state, { ...reserve('c-b'), holderRef: 'buyer-2', nowIso: 'pas-une-date' })).toMatchObject({
+      ok: false,
+      reason: 'already_reserved',
+    });
+    expect(decideReservation(r1.state, { kind: 'expire', quoteId: 'q-1', nowIso: 'pas-une-date' })).toMatchObject({
+      ok: false,
+      reason: 'not_expired',
+    });
+  });
+});

@@ -326,8 +326,13 @@ describe('REACHABILITY — a screen nobody mounts fails here (the C-ENT lesson)'
     expect(app).toMatch(/screen === 'membres' && <CercleMembres/);
     // D2 — the Accueil card is mounted and routes to the hub
     expect(app).toMatch(/<CercleAccueilCard[^/]*onPress=\{\(\) => go\('cercle'\)\}/);
-    // D3/D4/D5 — the deltas are mounted in their carrier screens
-    expect(app).toMatch(/saleDetail\.campFcfa > 0 &&/);
+    // D3/D4/D5 — the deltas are mounted in their carrier screens.
+    // VENTE-DETAIL-RETIRÉ (AUDIT-SHOP-2 F-42) — THE D3 DELTA LOST ITS CARRIER
+    // TOO: the sale-detail screen that rendered « −camp » under the net hero
+    // was reachable by no control and rendered a demo sale on every mount. It
+    // is gone with its `saleDetail.campFcfa > 0 &&` line; the honest pin is
+    // that the demo carrier does not come back.
+    expect(app).not.toMatch(/saleDetail/);
     // SP6.1 — THE D4 DELTA LOST ITS CARRIER, and that is the correct state.
     // Both of these were mounted on the DEMO gains screen (`PendingHero` fed by
     // `enAttenteNet()`, `GainsSaleCard` per DEMO_SALES row). That screen is now

@@ -94,8 +94,18 @@ export type ReservationDecision =
         | 'quote_mismatch';
     };
 
+/**
+ * F-94 (AUDIT-SHOP-2) — INSTANTS, NOT STRINGS. `expiresAt` is minted below as
+ * a UTC `toISOString()`; `nowIso` is a valid instant on every production path
+ * (`new Date().toISOString()`), but an ISO instant may legally carry an
+ * offset, and a text compare read `…T14:01:00+02:00` (12:01 UTC, one minute
+ * into the hold) as PAST `…T12:02:00.000Z` — a live hold expired, and a
+ * second reserve let in over it. Both sides are parsed. A `nowIso` that does
+ * not parse compares false (NaN) and so never expires a hold: the reserve
+ * and expire roads keep refusing closed on it, which is the safe side.
+ */
 function expired(state: Extract<ReservationState, { status: 'reserved' }>, nowIso: string): boolean {
-  return nowIso > state.expiresAt;
+  return Date.parse(nowIso) > Date.parse(state.expiresAt);
 }
 
 export function decideReservation(state: ReservationState, cmd: ReservationCommand): ReservationDecision {

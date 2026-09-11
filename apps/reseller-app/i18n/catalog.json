@@ -492,84 +492,6 @@
   "screenClass": "label"
  },
  {
-  "key": "vente.titre",
-  "fr": "VENTE — {name}",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "vente.net_label",
-  "fr": "VOTRE GAIN NET",
-  "register": "money",
-  "screenClass": "label"
- },
- {
-  "key": "vente.net_regle",
-  "fr": "Réglé après livraison validée.",
-  "register": "money",
-  "screenClass": "general"
- },
- {
-  "key": "vente.son_prix",
-  "fr": "SON PRIX : {amount}",
-  "register": "money",
-  "screenClass": "label"
- },
- {
-  "key": "vente.timeline_titre",
-  "fr": "OÙ EN EST LA COMMANDE",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "vente.etape_payee",
-  "fr": "Payée",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "vente.etape_payee_note",
-  "fr": "Confirmée par l'opérateur.",
-  "register": "neutral",
-  "screenClass": "general"
- },
- {
-  "key": "vente.etape_scellee",
-  "fr": "Vérifiée et scellée par Séra",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "vente.etape_scellee_note",
-  "fr": "Le colis est contrôlé avant de partir.",
-  "register": "neutral",
-  "screenClass": "general"
- },
- {
-  "key": "vente.etape_en_route",
-  "fr": "En route",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "vente.etape_en_route_note",
-  "fr": "Vers son repère, avec Séra.",
-  "register": "neutral",
-  "screenClass": "general"
- },
- {
-  "key": "vente.etape_livree",
-  "fr": "Livrée — après son inspection",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
-  "key": "vente.maintenant",
-  "fr": "MAINTENANT",
-  "register": "neutral",
-  "screenClass": "label"
- },
- {
   "key": "ventes.nav",
   "fr": "Mes ventes",
   "register": "neutral",
@@ -2726,18 +2648,6 @@
  {
   "key": "ce.gains_cercle_label",
   "fr": "Contribution Cercle",
-  "register": "money",
-  "screenClass": "label"
- },
- {
-  "key": "vente.brut_label",
-  "fr": "Gain brut",
-  "register": "money",
-  "screenClass": "label"
- },
- {
-  "key": "vente.camp_label",
-  "fr": "Contribution campagne Cercle",
   "register": "money",
   "screenClass": "label"
  },

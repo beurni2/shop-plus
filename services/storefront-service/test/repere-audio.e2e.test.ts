@@ -62,6 +62,9 @@ const b64 = (bytes: Uint8Array): string => Buffer.from(bytes).toString('base64')
 /** What the certified media stub observed — the seam's other side. */
 const mediaCalls: { key: string | null; bytes: Uint8Array }[] = [];
 const mintedRefs: string[] = [];
+/** F-64 — when set, the media door awaits this before answering (a barrier a
+ *  test raises to hold two uploads open at once, then lowers). */
+let barriereMedia: (() => Promise<void>) | null = null;
 
 const mf = new Miniflare({
   modules: true,
@@ -108,6 +111,10 @@ const mf = new Miniflare({
       const key = request.headers.get('X-Write-Key');
       const bytes = new Uint8Array(await request.arrayBuffer());
       mediaCalls.push({ key, bytes });
+      // F-64 — a test may HOLD the door's answer (see `barriereMedia`): the
+      // upload is the one await in `create()` a test can stretch from outside,
+      // which is what makes the read-then-write window reproducible.
+      if (barriereMedia !== null) await barriereMedia();
       // Gate FIRST, before any validation — the real entry's order.
       if (key !== MEDIA_KEY) return Response.json({ error: 'unauthorized' }, { status: 401 });
       const isWebm = bytes.length >= 4 && bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
@@ -412,5 +419,86 @@ describe('GEO-ACHAT-1 — the pin rides the order, end to end on the real Worker
     // Exactly her two coordinates — no accuracy key invented on the way.
     expect(contact['pin']).toEqual({ lat: 12.348271, lng: -1.512837 });
     expect(Object.keys(contact['pin'] as Record<string, unknown>).sort()).toEqual(['lat', 'lng']);
+  });
+});
+
+/**
+ * ═══ F-64 (AUDIT-SHOP-2) — TWO CREATES IN ONE WINDOW, ON THE REAL OBJECT ═══
+ *
+ * `create()` decides on reads taken before two awaits that are NOT storage —
+ * the attribution-lock subrequest and the note's upload — and a Durable
+ * Object's input gate holds other requests only across storage awaits. So a
+ * second create for the same quote under a fresh command id (a double tap, a
+ * lost first response) can enter in that window, read the same « no order
+ * yet », and both write: two charge attempts under ONE leg key, the second's
+ * log written over the first's, the record's attempt id absent from its own
+ * log. The audit reasoned it and left it unpinned; this suite can hold the
+ * upload open from OUTSIDE the Worker (the certified media door above), which
+ * makes the window as wide as the test needs. Written RED first: on the code
+ * as the audit found it, the record held TWO attempts.
+ */
+async function auditDe(orderId: string) {
+  const ns = await mf.getDurableObjectNamespace('ORDER');
+  const res = await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit');
+  return (await res.json()) as {
+    chain?: Record<string, string>;
+    attempts?: { attemptId: string; providerKey: string; outcome: string }[];
+  };
+}
+
+async function creerSous(quoteId: string, holderRef: string, commandId: string, contact: Record<string, unknown>) {
+  const res = await mf.dispatchFetch('http://c/checkout/order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quoteId, holderRef, commandId, contact }),
+  });
+  return { status: res.status, body: safeJson(await res.text()) };
+}
+
+describe('F-64 — two creates in the same window birth ONE order and ONE charge, and the record names its own attempt', () => {
+  it('the media door holds both uploads until both have arrived; the second create answers the order AS IT STANDS — one attempt, its id on the journey', async () => {
+    const note = webmNote();
+    const quoteId = await reservedQuote('0064');
+    const holderRef = 'holder-0064';
+    const orderId = `ord-${quoteId}`;
+    // A barrier that opens once TWO uploads are inside the door.
+    let arrivees = 0;
+    let ouvrir: () => void = () => {};
+    const ouverte = new Promise<void>((resolve) => { ouvrir = resolve; });
+    barriereMedia = async () => {
+      arrivees += 1;
+      if (arrivees >= 2) ouvrir();
+      await ouverte;
+    };
+    try {
+      const contact = { phone: '70 12 34 64', quartier: 'Gounghin', repere: 'Face à la mosquée', audioB64: b64(note) };
+      const [a, b] = await Promise.all([
+        creerSous(quoteId, holderRef, 'cmd-order-0064-a', contact),
+        creerSous(quoteId, holderRef, 'cmd-order-0064-b', contact),
+      ]);
+      expect(arrivees, 'both creates reached the upload — the window was open for both').toBe(2);
+      for (const r of [a, b]) {
+        expect(r.status, JSON.stringify(r.body)).toBe(200);
+        expect(r.body['orderId']).toBe(orderId);
+        expect(r.body['state']).toBe('payment_pending');
+      }
+      // THE OBSERVABLE, FROM OUTSIDE: a first birth names its note (« gardée »);
+      // « the order as it stands » does not — the order carries the WINNER's
+      // note, and the loser's upload is the best-effort orphan it always was.
+      // Two « gardée » answers are two births: the second wrote its log over
+      // the first's and charged the leg again, and nothing the record shows
+      // afterwards can tell — the overwrite is self-consistent (both attempts
+      // asserted below hold on the overwritten record too). This line is the
+      // one that went red on the code as the audit found it.
+      expect([a, b].filter((r) => r.body['noteVocale'] === 'gardee'), 'exactly one birth').toHaveLength(1);
+      const record = await auditDe(orderId);
+      expect(record.attempts, 'one leg, one attempt — never two collections').toHaveLength(1);
+      expect(record.attempts![0]!.outcome).toBe('accepted');
+      // The journey's own attempt id is the one on the record: a log written
+      // over by a second birth would name an attempt the record never held.
+      expect(record.chain!['payment_attempt_id']).toBe(record.attempts![0]!.attemptId);
+    } finally {
+      barriereMedia = null;
+    }
   });
 });

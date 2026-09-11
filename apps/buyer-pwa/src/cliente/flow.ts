@@ -29,7 +29,7 @@ import {
   etapeDeSuivi,
   splitFor, MERCI, MESSAGES, SUIVI_STEPS, VOIX,
   type ClienteProduit, type ClienteQuote, type ConfirmEtat, type DoorEtat,
-  type GeoEtat, type Livraison, type ModePaiement, type VoiceEtat,
+  type GeoEtat, type Livraison, type ModePaiement, type ModeSplit, type VoiceEtat,
 } from './screens';
 import { t, tf } from '../i18n';
 import { fmtFCFA } from './money';
@@ -263,6 +263,15 @@ interface FlowState {
    * `null` until an order exists. See `revelationPermise`.
    */
   doorLeg: string | null;
+  /**
+   * MONTANT-COMMANDE-1 (AUDIT-SHOP-2 F-54) — the ORDER's own amounts, as the
+   * SERVER last carried them (`amountPaidAtCheckout` / `amountDueAtDelivery`
+   * on every order read). `null` until an order read arrives. C6's confirmed
+   * sentence states THIS, never the quote's carried split: a confirmed payment
+   * is read off the order the operator confirmed, not off a price screen she
+   * looked at before the order existed (« ask the ledger, not the response »).
+   */
+  montants: ModeSplit | null;
   /** Which DOOR-charge attempt this is — +1 per deliberate retry. */
   essaiPorte: number;
   /* ── VRAI-SUIVI — the delivery's facts, and her code ───────────────────── */
@@ -499,6 +508,7 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
     relance: false,
     horsPortee: false,
     doorLeg: null,
+    montants: null,
     essaiPorte: 0,
     buyerRef: null,
     merci: null,
@@ -888,9 +898,18 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         // the operator had confirmed. `state.pay === null` now yields no split,
         // and C6 renders the sentence without an amount rather than with a
         // guessed one.
+        // MONTANT-COMMANDE-1 (F-54) — once the SERVER has named an order, the
+        // amount C6 states is that order's own (`montants`, carried by every
+        // order read), never the quote's split: the confirmed sentence is read
+        // off the order the operator confirmed. `orderId` set with `montants`
+        // still null is the resumed C6, which mounts in `attente` and prints no
+        // amount until its re-ask answers. The quote's split remains only where
+        // no server order exists — the demo road.
         return q === null ? renderRefus('') : renderC6(m, {
           confirmState: state.confirmState,
-          paid: state.pay === null ? undefined : splitFor(q, state.delivery ?? 'today', state.pay),
+          paid: state.orderId !== null
+            ? (state.montants ?? undefined)
+            : state.pay === null ? undefined : splitFor(q, state.delivery ?? 'today', state.pay),
           relance: state.relance,
           horsPortee: state.horsPortee,
           // SANDBOX-PAY-1 — the server's own order id, or nothing: the
@@ -1291,6 +1310,9 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
    * resurrect a finished tracking.
    */
   function absorberMarques(order: ServerOrder): void {
+    // MONTANT-COMMANDE-1 (F-54) — the order's own amounts ride every order read
+    // the same way its marks do; C6's confirmed sentence is read off them.
+    state.montants = { paidNow: order.amountPaidAtCheckout, dueAtDelivery: order.amountDueAtDelivery };
     state.marques = {
       ...(order.acceptedAt !== undefined ? { acceptedAt: order.acceptedAt } : {}),
       ...(order.readyAt !== undefined ? { readyAt: order.readyAt } : {}),

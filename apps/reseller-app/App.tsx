@@ -21,7 +21,7 @@ import { PhotoGallery } from './src/ui/photo-gallery';
 import { ProductClip } from './src/ui/product-clip';
 import { vignetteSaufHero } from './src/vitrine/vignette';
 import { cadreRatio, CADRE_DEFAUT } from './src/ui/cadre';
-import { HeroLedger, DuotoneTile } from './src/ui/signature';
+import { DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
 import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, publierRefusalToastKey, estSessionRefusee, type StorefrontIdentityPatch } from './src/vitrine/service';
 import type { Storefront } from './src/vitrine/customize/storefront';
@@ -49,16 +49,7 @@ import {
 } from './src/access/compte-service';
 import { identityFromDigits } from './src/identity/mint';
 import { ecranAccueil } from './src/sales/accueil-model';
-import {
-  demoDetail,
-  type SaleDetail,
-  type TimelineStep,
-} from './src/sales/ventes';
-import {
-  createDemoWorld,
-  type DemoOpportunity,
-  type DemoWorld,
-} from './src/demo/store';
+import { type DemoOpportunity } from './src/demo/store';
 import {
   AppHeader,
   Card,
@@ -115,31 +106,6 @@ const navColor = (active: boolean): string => (active ? shopColour.deep : shared
  * does, so the mapping had no input left. Deleted with its caller rather than
  * left behind for a future screen to rediscover and trust. */
 
-/* S7 detail — the coarse custody timeline (« OÙ EN EST LA COMMANDE »): a dot
- * column (done: ink · now: accent ring + MAINTENANT · later: hairline) + label
- * + note. Never a map, never a GPS point — steps only (SE custody law). */
-function TimelineRow({ step, last }: { step: TimelineStep; last: boolean }) {
-  const done = step.phase === 'done';
-  const now = step.phase === 'now';
-  return (
-    <View style={styles.timelineStep}>
-      <View style={styles.timelineDotCol}>
-        <View style={[styles.timelineDot, done && styles.timelineDotDone, now && styles.timelineDotNow]} />
-        {!last && <View style={[styles.timelineConnector, done && styles.timelineConnectorDone]} />}
-      </View>
-      <View style={styles.timelineBody}>
-        <View style={styles.timelineHead}>
-          <Text style={[styles.timelineLabel, now && styles.timelineLabelNow, step.phase === 'later' && styles.timelineLabelLater]}>
-            {t(step.labelKey)}
-          </Text>
-          {now && <StatusChip tone="info" label={t('vente.maintenant')} />}
-        </View>
-        {step.noteKey !== undefined && <Text style={styles.noteLine}>{t(step.noteKey)}</Text>}
-      </View>
-    </View>
-  );
-}
-
 /** The dock hubs — Accueil · Opportunités · Ma Vitrine · Gains · Profil
  * (CERCLE-PROFIL-1, founder order 2026-08-25: the Cercle tab is retired; the
  * hub now opens from the Profil screen's own row, and from the accueil card
@@ -169,7 +135,6 @@ const SCREEN_TITLE_KEY: Record<Screen, string> = {
   // Hub — brand in the header; the big « Gains » title lands in-content (frame L644).
   gains: 'app.title',
   ventes: 'ventes.titre',
-  vente_detail: 'vente.titre',
   // Hub — brand in the header; the big « Mon profil » title lands in-content.
   profil: 'app.title',
 };
@@ -303,7 +268,6 @@ export default function App() {
     const minuteur = setTimeout(() => setAttenteExpiree(true), PLAFOND_ATTENTE_POLICES_MS);
     return () => clearTimeout(minuteur);
   }, [facesPretes]);
-  const [world, setWorld] = useState<DemoWorld>(() => createDemoWorld());
   const [stack, setStack] = useState<Screen[]>([START]);
   const screen = stack[stack.length - 1] ?? START;
   /**
@@ -866,8 +830,8 @@ export default function App() {
 
   // WO-VITRINE-FLOW — the vitrine + share derived state, all from the seam's fold,
   // the frozen seed inputs (B, C), and the reseller's own markup. `vitrineOpps` are
-  // the products she added (the seam's live listings); `ficheOpp`/`shareOffer` are the
-  // tapped / to-share products. `viewOf` is the reseller-margin view at her markup
+  // the products she added (the seam's live listings); `shareOffer` is the
+  // to-share product. `viewOf` is the reseller-margin view at her markup
   // (markups[pid]) or the capped default — the ONE money computation the reseller
   // surfaces share (opp row · fiche · vitrine tile · partager), all reconciling.
   // PUBLISH-PRICE-1 — ONE KEYSPACE, `productVersionId`, EVERYWHERE.
@@ -952,7 +916,6 @@ export default function App() {
    * reported; this fix removes the trap, it does not open the door.
    */
   const dejaDansVitrine = (pid: string): boolean => vitrineLive.includes(pid);
-  const ficheOpp = world.opportunities.find((o) => o.id === ficheId);
   // RESELLER-UX-1 item 5 — THE SHARE LOOKUP JOINS THE LIVE KEYSPACE. `shareId` is a
   // productVersionId since PUBLISH-PRICE-1, but this screen still looked it up in
   // the DEMO world by seed id — so tapping « Partager » on her real product found
@@ -1485,17 +1448,11 @@ export default function App() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const saleDetail = demoDetail();
-  const headerTitle =
-    screen === 'vente_detail'
-      ? tf('vente.titre', { name: saleDetail.clientFirstName })
-      : // Screens that render their OWN big in-content title (frame's 28/800)
-        // suppress the chrome title so it isn't a duplicate — the header keeps
-        // only the back chip. (Set membership, not a `screen === …` literal, so
-        // the net-first block-slice bounds in ui-kit.test stay intact.)
-        IN_CONTENT_TITLE.includes(screen)
-        ? ''
-        : t(SCREEN_TITLE_KEY[screen]);
+  // Screens that render their OWN big in-content title (frame's 28/800)
+  // suppress the chrome title so it isn't a duplicate — the header keeps
+  // only the back chip. (Set membership, not a `screen === …` literal, so
+  // the net-first block-slice bounds in ui-kit.test stay intact.)
+  const headerTitle = IN_CONTENT_TITLE.includes(screen) ? '' : t(SCREEN_TITLE_KEY[screen]);
 
   /**
    * CLAVIER-MARGE — the two surfaces that carry the markup field, so the field
@@ -2854,67 +2811,6 @@ export default function App() {
           )
         )}
 
-        {screen === 'vente_detail' && (
-          <ScrollView style={styles.screenScroll} contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
-            {/* Product card (frame L316–322) — the duotone art-tile, what was
-                sold and to whom (her client's first name; no zone in the model,
-                no seller ever). A static info card, not a control. */}
-            <View style={styles.oppRow}>
-              <View style={styles.artTile}>
-                <View style={styles.artTileStripe} />
-                <Text style={styles.artTileGlyph}>{saleDetail.productName.slice(0, 1)}</Text>
-              </View>
-              <View style={styles.homeSaleBody}>
-                <Text style={styles.homeSaleTitle} numberOfLines={1}>{saleDetail.productName}</Text>
-                <Text style={styles.homeSaleSub} numberOfLines={1}>{saleDetail.clientFirstName}</Text>
-              </View>
-            </View>
-            {/* NET FIRST, always — the net before SON prix; the commission
-                exists nowhere; only her client's first name (relais). The frame's
-                gross « Gain brut » + « Frais Ma Boutique » breakdown is barred
-                (Law #1 / #10) — the HeroLedger net hero is the compliant card. */}
-            <Card style={styles.netCard}>
-              {/* the hero ledger (signature module): the locked net as the hero,
-                  its « réglé » reassurance as the ledger whisper below. D3: on a
-                  campaign order the hero IS net − camp (1 900) and the derivation
-                  renders UNDER it — NET-FIRST (SP-I04/I12) outranks the planche's
-                  top-to-bottom ledger order (flagged divergence, journaled).
-                  FRAIS-ZERO (founder 2026-08-25): no frais row — there is no
-                  fee to show, and « −0 F » would name a charge that isn't. */}
-              <HeroLedger
-                label={t('vente.net_label')}
-                amount={formatFcfa(saleDetail.netPayeFcfa)}
-                ledger={t('vente.net_regle')}
-              />
-              {saleDetail.campFcfa > 0 && (
-                <View style={styles.campLedger}>
-                  <View style={styles.campLedgerRow}>
-                    <Text style={styles.campLedgerLabel}>{t('vente.brut_label')}</Text>
-                    <Text style={styles.campLedgerVal}>{formatFcfa(saleDetail.brutFcfa)}</Text>
-                  </View>
-                  <View style={styles.campLedgerRow}>
-                    <Text style={styles.campLedgerLabel}>{t('vente.camp_label')}</Text>
-                    <Text style={styles.campLedgerVal}>{`−${formatFcfa(saleDetail.campFcfa)}`}</Text>
-                  </View>
-                </View>
-              )}
-            </Card>
-            <Card>
-              <Text style={styles.cardTitle}>
-                {tf('vente.son_prix', { amount: formatFcfa(saleDetail.sonPrixFcfa) })}
-              </Text>
-            </Card>
-            <Card>
-              <Overline>{t('vente.timeline_titre')}</Overline>
-              <View style={styles.timeline}>
-                {saleDetail.timeline.map((step, i) => (
-                  <TimelineRow key={String(i)} step={step} last={i === saleDetail.timeline.length - 1} />
-                ))}
-              </View>
-            </Card>
-          </ScrollView>
-        )}
-
         {/* VITRINE PUBLIQUE — APERÇU CLIENTE (frame L714–740): read-only, the
             cliente's exact view. Client price ONLY — never net, never marge, never a
             vendor. The « Lecture seule » pill + the ink banner state the boundary. */}
@@ -3453,40 +3349,6 @@ const styles = StyleSheet.create({
   gainsSommeilMontant: { color: sharedColour.sub, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.view.size), fontWeight: w(t2.scale.view.wght) },
   gainsCompte: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   problemeEncart: { gap: spacing.sm },
-  netCard: {
-    borderWidth: spacing.xs / 2,
-    borderColor: shopColour.primary,
-  },
-  timeline: { gap: spacing.md, paddingTop: spacing.sm },
-  timelineStep: { flexDirection: 'row', gap: spacing.md },
-  timelineDotCol: { alignItems: 'center', width: spacing.md },
-  timelineDot: {
-    width: spacing.sm,
-    height: spacing.sm,
-    borderRadius: radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: sharedColour.hairlineStrong,
-    backgroundColor: sharedColour.card,
-  },
-  timelineDotDone: { backgroundColor: sharedColour.ink, borderColor: sharedColour.ink },
-  timelineDotNow: { backgroundColor: shopColour.primary, borderColor: shopColour.primary },
-  timelineConnector: {
-    flex: 1,
-    width: StyleSheet.hairlineWidth,
-    minHeight: spacing.md,
-    backgroundColor: sharedColour.hairlineStrong,
-  },
-  timelineConnectorDone: { backgroundColor: sharedColour.ink },
-  timelineBody: { flex: 1, gap: spacing.xs, paddingBottom: spacing.sm },
-  timelineHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  timelineLabel: {
-    color: sharedColour.ink,
-    fontFamily: TEXT_FAMILY_BOLD,
-    fontSize: rmax(t2.scale.row.size),
-    fontWeight: w(t2.scale.row.wght),
-  },
-  timelineLabelNow: { color: sharedColour.ink },
-  timelineLabelLater: { color: sharedColour.sub },
   message: {
     color: sharedColour.ink,
     fontFamily: TEXT_FAMILY,
@@ -3737,10 +3599,6 @@ const styles = StyleSheet.create({
   },
   // ── MA VITRINE per-product card (art 110 + live net + slider + share) ──
   vitrineCard: { gap: spacing.sm },
-  campLedger: { marginTop: spacing.md, borderTopWidth: interaction.hairline.thin, borderTopColor: sharedColour.hairlineStrong, paddingTop: spacing.sm },
-  campLedgerRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.xs, gap: spacing.sm },
-  campLedgerLabel: { color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
-  campLedgerVal: { color: sharedColour.ink, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
   gainsPayeLine: { marginTop: spacing.sm, color: shopColour.onPrimary, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size), fontVariant: ['tabular-nums'] },
   campagneLigne: { marginTop: spacing.sm, color: shopColour.deep, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.body.size) },
   vitrineVoiceBtn: {

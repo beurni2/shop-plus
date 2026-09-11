@@ -14,7 +14,6 @@ export type Screen =
   | 'lien'
   | 'gains'
   | 'ventes'
-  | 'vente_detail'
   // LE CERCLE (SP9 — founder-override scoped to UI + certified mock, journaled)
   | 'cercle'
   | 'campnew'
@@ -52,9 +51,10 @@ export const JOURNEY: Record<Screen, readonly Screen[]> = {
   // ways — an edge no UI walks is the same lie as a screen nobody reaches. The
   // dock's own `toHub` does not travel this map.
   gains: [],
-  // WO-7.2a — S7: « Mes ventes » (the sales list) → a sale's detail.
-  ventes: ['vente_detail'],
-  vente_detail: [],
+  // WO-7.2a — S7: « Mes ventes » (the sales list). VENTE-DETAIL-RETIRÉ
+  // (AUDIT-SHOP-2 F-42): the edge to a sale's detail is gone — no control ever
+  // walked it, and the screen behind it rendered a demo sale on every mount.
+  ventes: [],
   // CERCLE (HANDOFF §4): hub → wizard / campaign / funding / reputation /
   // members / share; the wizard and the campaign both exit into Partager
   // (« Pack de partage », campaign badge riding).

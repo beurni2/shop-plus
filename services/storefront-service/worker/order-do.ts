@@ -1575,6 +1575,23 @@ export class OrderDO {
   /* ───────────────────────────── creation ──────────────────────────────── */
 
   /**
+   * THE ORDER AS IT STANDS — the answer to any create that finds one already
+   * born and not failed: a double tap, a lost first response, or the loser of
+   * the F-64 window inside `create`. The stored buyer token rides it too, so a
+   * client re-creating under a fresh command id still reaches her suivi.
+   */
+  private async repondreCommeElleEst(): Promise<Response> {
+    const view = await this.projectForBuyer();
+    if (view === undefined) return Response.json({ ok: false, reason: 'unknown_order' });
+    const jetonExistant = await this.state.storage.get<string>(BUYER_REF_KEY);
+    return Response.json({
+      ok: true,
+      view,
+      ...(jetonExistant !== undefined ? { buyerRef: jetonExistant } : {}),
+    });
+  }
+
+  /**
    * CREATE THE ORDER FROM A RESERVED QUOTE — or refuse, by name.
    *
    * IDEMPOTENT ON `commandId`, and deliberately only for ACCEPTED outcomes: a
@@ -1741,6 +1758,9 @@ export class OrderDO {
     let log: OrderInput[];
     let attempts: AttemptRecord[];
     let attemptId: string;
+    /** The log AS THIS COMMAND READ IT (empty on a first birth) — re-read
+     *  under the gate before the first durable write, see F-64 below. */
+    let logLu: OrderInput[] = [];
 
     if (origin === undefined) {
       /* ── the first creation: quote_issued → reserved → payment_pending ── */
@@ -1810,6 +1830,7 @@ export class OrderDO {
       attempts = [{ attemptId, providerKey, requestedAt: now, amount: leg.amount, outcome: 'pending' }];
     } else {
       const existingLog = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+      logLu = existingLog;
       const existingAttempts = (await this.state.storage.get<AttemptRecord[]>(ATTEMPTS_KEY)) ?? [];
       const spine = rebuildOrderSpine(quote, origin, existingLog);
       if (spine.journey.state !== 'payment_failed') {
@@ -1824,14 +1845,7 @@ export class OrderDO {
          * this branch is exactly the lost-first-response recovery — a client
          * that re-creates under a fresh command id must still reach her token.
          */
-        const view = await this.projectForBuyer();
-        if (view === undefined) return Response.json({ ok: false, reason: 'unknown_order' });
-        const jetonExistant = await this.state.storage.get<string>(BUYER_REF_KEY);
-        return Response.json({
-          ok: true,
-          view,
-          ...(jetonExistant !== undefined ? { buyerRef: jetonExistant } : {}),
-        });
+        return this.repondreCommeElleEst();
       }
       /* ── the retry: payment_failed → payment_pending, a NEW attempt id ── */
       stored = origin;
@@ -1881,6 +1895,27 @@ export class OrderDO {
         noteVocale = 'perdue';
       }
     }
+
+    /**
+     * ═══ F-64 (AUDIT-SHOP-2) — THE WINDOW BETWEEN THE READ AND THE WRITE ═══
+     *
+     * Everything this branch decided was decided on reads taken BEFORE two
+     * awaits that are not storage: the attribution-lock subrequest and the
+     * note's upload. A Durable Object's input gate holds other requests only
+     * across STORAGE awaits, so a second create for this quote — a double tap
+     * under a fresh command id, a lost first response — can enter in that
+     * window, read the same « no order yet », and both would then write: two
+     * attempts under ONE leg key, the second's log written over the first's,
+     * the record's attempt id absent from its own log (proven on the real
+     * object, `repere-audio.e2e`, with the upload held open). So the log is
+     * re-read under the gate, right before the first durable write: if it
+     * moved, another command won this window, and the answer is the order AS
+     * IT STANDS — never a second birth, never a charge on a stale read. From
+     * this read to the last `put` below every await is storage, so nothing
+     * can interleave again.
+     */
+    const logFrais = (await this.state.storage.get<OrderInput[]>(LOG_KEY)) ?? [];
+    if (logFrais.length !== logLu.length) return this.repondreCommeElleEst();
 
     // THE ATTEMPT AND ITS PROVIDER KEY ARE DURABLE BEFORE THE PROVIDER IS CALLED.
     // If this process dies mid-charge, both survive: the attempt can never be

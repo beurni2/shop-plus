@@ -135,81 +135,6 @@ export function ventesListModel(sales: readonly Sale[] = DEMO_SALES): readonly S
   }));
 }
 
-/** The four custody steps of the detail timeline (« OÙ EN EST LA COMMANDE »). */
-export type TimelinePhase = 'done' | 'now' | 'later';
-export interface TimelineStep {
-  readonly labelKey: string;
-  readonly noteKey?: string;
-  readonly phase: TimelinePhase;
-}
-const TIMELINE: readonly { labelKey: string; noteKey?: string }[] = [
-  { labelKey: 'vente.etape_payee', noteKey: 'vente.etape_payee_note' },
-  { labelKey: 'vente.etape_scellee', noteKey: 'vente.etape_scellee_note' },
-  { labelKey: 'vente.etape_en_route', noteKey: 'vente.etape_en_route_note' },
-  { labelKey: 'vente.etape_livree' },
-];
-/** Status → the current custody step (deterministic). « à la porte » is the tail of en route. */
-const STATUS_STEP: Record<SaleStatus, number> = {
-  payee: 0,
-  en_preparation: 1,
-  en_route: 2,
-  a_la_porte: 2,
-  livree: 3,
-  probleme: 2, // a problem is raised in transit; the encart carries its truth
-};
-
-/** The detail — NET FIRST (net before son prix), then the coarse custody timeline. */
-export interface SaleDetail {
-  readonly code: string;
-  readonly clientFirstName: string;
-  /** The product sold — real sale data (never a seller identity), for the
-   * detail's product card (WO-FP-SHOP view 7, frame L319). */
-  readonly productName: string;
-  readonly netFcfa: number;
-  readonly sonPrixFcfa: number;
-  readonly status: SaleStatus;
-  readonly isProblem: boolean;
-  /** D3 — the Cercle contribution (0 = line not rendered) + the derivation
-   * lines. NET-FIRST law holds on the SURFACE: the net hero renders first,
-   * the brut/frais/contribution derivation renders UNDER it (SP-I04/SP-I12
-   * outranks the planche's top-to-bottom ledger order — flagged divergence). */
-  readonly campFcfa: number;
-  readonly netPayeFcfa: number;
-  readonly brutFcfa: number;
-  readonly fraisFcfa: number;
-  readonly timeline: readonly TimelineStep[];
-}
-
-export function ventesDetailModel(sale: Sale): SaleDetail {
-  const current = STATUS_STEP[sale.status];
-  const timeline = TIMELINE.map((step, i): TimelineStep => ({
-    labelKey: step.labelKey,
-    ...(step.noteKey ? { noteKey: step.noteKey } : {}),
-    phase: i < current ? 'done' : i === current ? 'now' : 'later',
-  }));
-  return {
-    code: sale.code,
-    clientFirstName: sale.clientFirstName,
-    productName: sale.productName,
-    netFcfa: sale.netFcfa,
-    sonPrixFcfa: sale.sonPrixFcfa,
-    status: sale.status,
-    isProblem: sale.status === 'probleme',
-    campFcfa: sale.campFcfa,
-    netPayeFcfa: netPaye(sale),
-    // FRAIS-ZERO (founder 2026-08-25): rate 0 — brut == net, frais 0 F.
-    brutFcfa: sale.netFcfa + Math.round((sale.input.sellerFundedCommission + sale.input.resellerMarkup) * 0),
-    fraisFcfa: Math.round((sale.input.sellerFundedCommission + sale.input.resellerMarkup) * 0),
-    timeline,
-  };
-}
-
-/** The demo detail — D3's porteur: o1 CMD-2417 (the campaign order). */
-export function demoDetail(): SaleDetail {
-  const o1 = DEMO_SALES.find((s) => s.id === 'o1')!;
-  return ventesDetailModel(o1);
-}
-
 /**
  * Net-first surface descriptors (SP-I04/SP-I12) — fed to the net-first-display
  * gate. The row shows only the net; the detail shows the net BEFORE son prix.
@@ -245,7 +170,4 @@ export function gainsCards(sales: readonly Sale[] = DEMO_SALES): readonly GainsC
 
 export function ventesRowSurface(): EarningsSurfaceDescriptor {
   return { surface: 'ventes-row', moneyFieldsInRenderOrder: ['resellerNet'] };
-}
-export function ventesDetailSurface(): EarningsSurfaceDescriptor {
-  return { surface: 'ventes-detail', moneyFieldsInRenderOrder: ['resellerNet', 'campContribution', 'customerPrice'] };
 }
