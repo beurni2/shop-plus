@@ -1,7 +1,9 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-11 · FACE-EPINGLEE-C5 — the C5 money-screen walk decides its font face instead of racing it (the 2026-08-06 residue) · DONE, NOT MERGED (waiting for his word — one test file, no app change, nothing to deploy)
+## 2026-09-11 · FACE-EPINGLEE-C5 — the C5 money-screen walk decides its font face instead of racing it (the 2026-08-06 residue) · DONE · MERGED + DEPLOYED 2026-09-11 (his word, below)
+
+**MERGED + DEPLOYED — founder, 2026-09-11: « Go » (his word on the FACE-EPINGLEE-C5 report; the merge push 06:26 UTC).** `main` `7a49896` → `f8b9ed7`, a fast-forward (the slice `05627ad`, the journal `f8b9ed7`). On that commit every push-triggered workflow completed **success** on its first attempt: `ci` #649 (06:26 → 06:40 UTC — the whole gate board on the runner; its Playwright line reads **193 passed (8.1m)**, the two pinned C5 walks among them — the first run of `main` in which this walk could not race its font), `pwa-preview` #437 (the Pages republish — the buyer bundle is byte-for-byte the same code, since nothing under `apps/` changed but one e2e spec), `expo-preview` #470, `service-canon-drift` #322. No `storefront-deploy` was dispatched: the Worker is untouched by this slice and stays on `5926fc0` (REGLE-2's deploy). Verified on the GitHub runs list and the `gates` job's log (conclusions and the counts line), not by a live probe of the page from here.
 
 **Founder, 2026-09-11: « Go » (his word on the PRIVEE-APRES-CONFIRMATION merge report, which recommended this slice).** Commit on the branch: `05627ad`. File: `apps/buyer-pwa/e2e/cliente.spec.ts` only. No app source, no CSS, no copy, no gate script, no workflow, no Worker, no migration. Ultracode was on when the slice started and off by its end; under the 2026-08-14 law (« one subagent, or none ») it was never used for the build, and the one dispatch it was tried on — the verifier — produced nothing (the verifier paragraph below has the record).
 
