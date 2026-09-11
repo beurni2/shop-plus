@@ -59,11 +59,27 @@ export interface CustodyWires {
   readonly shopArmSecret: boolean;
 }
 
-async function healthWithProvenance(request: Request, custody?: CustodyWires): Promise<Response> {
+/**
+ * PBKDF2-HAUSSE-1 — what `/health?pbkdf2=1` answers: one derivation at the
+ * accounts book's current iteration count, run by the probe the composition
+ * root injects. The deploy smoke asks it so the LIVE runtime — the only one
+ * that enforces the plan's ceiling — says whether it accepts the count before
+ * any reseller's login can meet a refusal. Only on the flag: a plain /health
+ * stays the cheap freshness instrument it is.
+ */
+export interface SondePbkdf2 {
+  readonly iterations: number;
+  readonly ok: boolean;
+  readonly digest?: string;
+  readonly error?: string;
+}
+
+async function healthWithProvenance(request: Request, custody?: CustodyWires, sonde?: () => Promise<SondePbkdf2>): Promise<Response> {
   const res = health(request);
   if (res.status !== 200) return res;
   const body = (await res.json()) as Record<string, unknown>;
   if (custody !== undefined) body['custody'] = custody;
+  if (sonde !== undefined && new URL(request.url).searchParams.get('pbkdf2') === '1') body['pbkdf2'] = await sonde();
   const headers = new Headers(res.headers);
   // THE FRESHNESS INSTRUMENT MUST NOT BE CACHEABLE (founder finding, on a real
   // deploy): this response existed to answer WHICH BUILD IS LIVE, and it carried no
@@ -204,6 +220,10 @@ export type StorefrontServiceEnv = MediaEnv &
      * wires, computed at the composition root. Absent in Node/unit contexts
      * (no worker env to read); the deployed router always passes it. */
     readonly CUSTODY_WIRES?: CustodyWires;
+    /** PBKDF2-HAUSSE-1 — the probe `/health?pbkdf2=1` runs (see `SondePbkdf2`).
+     * Injected at the composition root; absent in Node/unit contexts, where the
+     * flag is then simply ignored. */
+    readonly PBKDF2_SONDE?: () => Promise<SondePbkdf2>;
     /**
      * CONTACT-WHATSAPP-1 — the owner-contact port, injected at the
      * composition root over the accounts book's internal `/contact-of`
@@ -677,7 +697,7 @@ export const handleRequest = async (request: Request, env?: StorefrontServiceEnv
     return withReadCors(await handleMediaRead(key, env, request.headers.get('Range')));
   }
   // health (and the honest 404 fallthrough) — the buyer read surface, CORS on.
-  return withReadCors(await healthWithProvenance(request, env?.CUSTODY_WIRES));
+  return withReadCors(await healthWithProvenance(request, env?.CUSTODY_WIRES, env?.PBKDF2_SONDE));
 };
 
 export default { fetch: handleRequest };

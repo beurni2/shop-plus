@@ -1,21 +1,27 @@
 /**
  * ═══ LIMITE-ANONYME-1 — A CEILING ON THE ANONYMOUS DOORS, AT THE EDGE ═══
  *
- * WHY: three doors on this Worker answer with no credential at all — the
- * buyer's map tiles (`GET /tiles/…`, TUILES-PROXY), a new quote (`POST
- * /checkout/quote`) and a new order (`POST /checkout/order`). A buyer holds no
- * key and must never need one, so nothing can be asked of her; but nothing
- * bounded the caller either, and on the Free plan every one of those requests
- * spends the same daily budget the paying road spends (the verifier's finding
- * on TUILES-PROXY: an unlimited proxy coupled to checkout's availability, and
- * lending abusers our identity at the tile host).
+ * WHY: the doors on this Worker that answer with no credential at all — the
+ * buyer's map tiles (`GET /tiles/…`, TUILES-PROXY), a new quote, a new order,
+ * a new liste; and, since LIMITE-REVENDEUSE-1, the reseller's signup and
+ * login. A buyer holds no key and must never need one, and a stranger must be
+ * able to create an account and log in; but nothing bounded the caller, and on
+ * the Free plan every one of those requests spends the same daily budget the
+ * paying road spends (the verifier's finding on TUILES-PROXY: an unlimited
+ * proxy coupled to checkout's availability, and lending abusers our identity
+ * at the tile host).
  *
  * WHAT: Cloudflare's Rate Limiting binding (`[[ratelimits]]` in wrangler.toml)
  * — a per-colo sliding count, no storage of ours, keyed here by the caller's
- * address. Two limiters, two budgets: the tile road, and the two create doors
- * together. Over the ceiling the door answers `429 too_many_requests` with a
- * `Retry-After`; the map drops that tile to its calm ground, the checkout
- * shows its honest generic refusal (« Rien n'a été payé » stays true).
+ * address. Four limiters, four budgets: the tile road; the buyer's three
+ * create doors together; the reseller's signup; the reseller's login (which
+ * the PBKDF2 probe on /health shares, costing what a login costs). Budgets are
+ * never shared across those lines: a neighbourhood ordering must never lock a
+ * reseller out, and a signup flood (an account and one of 10 000 ids each)
+ * is not a login flood (one derivation and one guess each). Over the ceiling
+ * the door answers `429 too_many_requests` with a `Retry-After`; the map drops
+ * that tile to its calm ground, the checkout shows its honest generic refusal
+ * (« Rien n'a été payé » stays true), the reseller app says « attendez ».
  *
  * THE NUMBERS ARE FOR OUAGADOUGOU, NOT FOR A DATACENTRE. Many phones here sit
  * behind ONE carrier address (carrier-grade NAT), so a ceiling per address is
@@ -91,4 +97,11 @@ export const RETRY_AFTER_S = 60;
 /** The refusal, by name: the caller knows what happened and when to come back. */
 export function refusLimite(): Response {
   return Response.json({ error: 'too_many_requests' }, { status: 429, headers: { 'Retry-After': String(RETRY_AFTER_S) } });
+}
+
+/** The same refusal in the account doors' own shape — `{ ok, reason }` is what
+ *  every one of those doors answers and what the reseller app reads; a 429
+ *  there already means « wait » on her screen. */
+export function refusLimiteCompte(): Response {
+  return Response.json({ ok: false, reason: 'too_many_requests' }, { status: 429, headers: { 'Retry-After': String(RETRY_AFTER_S) } });
 }

@@ -305,3 +305,26 @@ jobs:
           curl -sS -o /dev/null -D "$HDR" "$BASE/tiles/17/65000/61000.png" || true
           echo "second ask: $(grep -i '^cf-cache-status' "$HDR" || echo 'cf-cache-status: (absent — no edge copy on this host)')"
           echo "SMOKE OK — the tile road is live and refuses by name."
+      # PBKDF2-HAUSSE-1 — the password hash's iteration count (100 000) is the Free
+      # plan's documented ceiling, and the LOCAL runtime enforces none (it derives
+      # at 600 000 without complaint): only the LIVE Worker can say whether it
+      # derives at that count. This asks it to, once, BEFORE any reseller's login
+      # can meet a refusal. Red means the raise must be reverted, not that anyone
+      # is locked out: every record still verifies at the count it was derived
+      # with, and the lift happens only at a login that just succeeded.
+      - name: Smoke — the live runtime derives the password hash at the raised count
+        run: |
+          set -euo pipefail
+          BASE=https://storefront-service.ilboudobernard2.workers.dev
+          OUT=$(mktemp)
+          CODE=$(curl -sS -o "$OUT" -w '%{http_code}' "$BASE/health?pbkdf2=1" || echo 000)
+          echo "HTTP $CODE"; cat "$OUT"; echo
+          test "$CODE" = "200" || { echo "SMOKE FAILED: expected 200 on the probe, got $CODE"; exit 1; }
+          node -e '
+            const b = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).pbkdf2;
+            if (!b || b.ok !== true || b.iterations !== 100000) {
+              console.error("SMOKE FAILED: the live runtime did not derive at 100000 —", JSON.stringify(b));
+              process.exit(1);
+            }
+            console.log("SMOKE OK — the live runtime derives PBKDF2 at", b.iterations, "iterations.");
+          ' "$OUT"

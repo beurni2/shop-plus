@@ -36,7 +36,9 @@ export type InscriptionResult =
   | { readonly ok: true; readonly compte: CompteLocal; readonly session: string }
   | {
       readonly ok: false;
-      readonly reason: 'email_pris' | 'champ_invalide' | 'unreachable';
+      /** LIMITE-REVENDEUSE-1 — `trop_essais`: the door's per-address ceiling
+       *  answered 429; « attendez », never « réseau » — the wire was fine. */
+      readonly reason: 'email_pris' | 'champ_invalide' | 'trop_essais' | 'unreachable';
       readonly field?: string;
     };
 
@@ -166,6 +168,7 @@ export function resolveCompteService(): CompteServicePort | null {
         const field = res.body?.['field'];
         return { ok: false, reason: 'champ_invalide', ...(typeof field === 'string' ? { field } : {}) };
       }
+      if (res.status === 429) return { ok: false, reason: 'trop_essais' };
       const compte = lireCompte(res.body);
       const session = res.body?.['session'];
       if (res.status !== 200 || compte === null || typeof session !== 'string' || session === '') {

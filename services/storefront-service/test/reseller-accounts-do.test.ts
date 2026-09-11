@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ResellerAccountsDO } from '../worker/reseller-accounts-do.js';
+import { ResellerAccountsDO, SONDE_PBKDF2_SEL_HEX, sondePbkdf2 } from '../worker/reseller-accounts-do.js';
 
 /**
  * ═══ SESSION-VIE-1 — THE PRE-SLICE ROW, on the REAL account book with only its
@@ -103,5 +103,92 @@ describe('SESSION-VIE-1 — a password change reaches the sessions minted BEFORE
     // …and the OTHER account's pre-slice row is untouched.
     expect(m.has(`session:${await sha256Hex(phoneC)}`)).toBe(true);
     expect((await appel(livre, '/session', { session: phoneC })).status).toBe(200);
+  });
+});
+
+/* ═══ PBKDF2-HAUSSE-1 — the raise, and the lift at login ═══ */
+
+/** An INDEPENDENT derivation (WebCrypto, this test's own call) — never the book's function. */
+async function pbkdf2Hex(password: string, saltHex: string, iterations: number): Promise<string> {
+  const salt = new Uint8Array(saltHex.match(/../g)!.map((h) => parseInt(h, 16)));
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, key, 256);
+  return [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+interface Enregistrement { passwordSaltHex: string; passwordHashHex: string; passwordIterations?: number; state: string }
+
+describe('PBKDF2-HAUSSE-1 — 100 000 iterations, and an older record is lifted at its next login', () => {
+  it('a new account is derived at 100 000, and the stored hash is what an independent PBKDF2 gives', async () => {
+    const { m, state } = memoire();
+    const livre = new ResellerAccountsDO(state);
+    const inscrite = await appel(livre, '/signup', { name: 'Awa Traoré', email: 'awa@example.bf', phone: '+226 70 00 00 01', password: MOT_DE_PASSE });
+    expect(inscrite.status).toBe(200);
+    const rec = m.get(`account:${inscrite.json['accountId'] as string}`) as Enregistrement;
+    expect(rec.passwordIterations).toBe(100_000);
+    expect(rec.passwordHashHex).toBe(await pbkdf2Hex(MOT_DE_PASSE, rec.passwordSaltHex, 100_000));
+  });
+
+  it('a record derived at 60 000 (the count on it, or NO count — the pre-SESSION-VIE-1 shape) logs in, is lifted to 100 000 with a fresh salt in the same commit, and logs in again at the new count', async () => {
+    for (const avecCompte of [true, false]) {
+      const { m, state } = memoire();
+      const livre = new ResellerAccountsDO(state);
+      const inscrite = await appel(livre, '/signup', { name: 'Fati', email: 'fati@example.bf', phone: '+226 70 00 00 02', password: MOT_DE_PASSE });
+      const id = inscrite.json['accountId'] as string;
+      // Plant the OLD hash: an independent derivation at 60 000 over a salt of our own.
+      const selAncien = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+      const ancien = { ...(m.get(`account:${id}`) as Enregistrement), passwordSaltHex: selAncien, passwordHashHex: await pbkdf2Hex(MOT_DE_PASSE, selAncien, 60_000) };
+      if (avecCompte) ancien.passwordIterations = 60_000;
+      else delete ancien.passwordIterations;
+      m.set(`account:${id}`, ancien);
+
+      const entree = await appel(livre, '/login', { email: 'fati@example.bf', password: MOT_DE_PASSE });
+      expect(entree.status, `login on the old hash (count ${avecCompte ? 'present' : 'absent'})`).toBe(200);
+      const leve = m.get(`account:${id}`) as Enregistrement;
+      expect(leve.passwordIterations).toBe(100_000);
+      expect(leve.passwordSaltHex).not.toBe(selAncien);
+      expect(leve.passwordHashHex).toBe(await pbkdf2Hex(MOT_DE_PASSE, leve.passwordSaltHex, 100_000));
+      // The lifted record opens again — verified at the NEW count now.
+      expect((await appel(livre, '/login', { email: 'fati@example.bf', password: MOT_DE_PASSE })).status).toBe(200);
+      // …and the session minted by the lifting login is alive.
+      expect((await appel(livre, '/session', { session: entree.json['session'] })).status).toBe(200);
+    }
+  });
+
+  it('a WRONG password on an old record is refused and lifts nothing — the record is byte-identical after', async () => {
+    const { m, state } = memoire();
+    const livre = new ResellerAccountsDO(state);
+    const inscrite = await appel(livre, '/signup', { name: 'Mariam', email: 'mariam@example.bf', phone: '+226 70 00 00 03', password: MOT_DE_PASSE });
+    const id = inscrite.json['accountId'] as string;
+    const selAncien = '0f1e2d3c4b5a69788796a5b4c3d2e1f0';
+    const ancien = { ...(m.get(`account:${id}`) as Enregistrement), passwordSaltHex: selAncien, passwordHashHex: await pbkdf2Hex(MOT_DE_PASSE, selAncien, 60_000), passwordIterations: 60_000 };
+    m.set(`account:${id}`, ancien);
+    const avant = JSON.stringify(ancien);
+    expect((await appel(livre, '/login', { email: 'mariam@example.bf', password: 'pas-le-bon-mot' })).status).toBe(401);
+    expect(JSON.stringify(m.get(`account:${id}`))).toBe(avant);
+  });
+
+  it('a password CHANGE on a record with no count verifies the current password at the inherited 60 000 — the raise must not lock her out of her own change', async () => {
+    const { m, state } = memoire();
+    const livre = new ResellerAccountsDO(state);
+    const inscrite = await appel(livre, '/signup', { name: 'Kadi', email: 'kadi@example.bf', phone: '+226 70 00 00 04', password: MOT_DE_PASSE });
+    const id = inscrite.json['accountId'] as string;
+    const session = inscrite.json['session'] as string;
+    const selAncien = 'ffeeddccbbaa99887766554433221100';
+    const ancien = { ...(m.get(`account:${id}`) as Enregistrement), state: 'active', passwordSaltHex: selAncien, passwordHashHex: await pbkdf2Hex(MOT_DE_PASSE, selAncien, 60_000) };
+    delete ancien.passwordIterations;
+    m.set(`account:${id}`, ancien);
+    const change = await appel(livre, '/profile', { session, currentPassword: MOT_DE_PASSE, newPassword: 'toute-neuve-99' });
+    expect(change.status, JSON.stringify(change.json)).toBe(200);
+    const apres = m.get(`account:${id}`) as Enregistrement;
+    expect(apres.passwordIterations).toBe(100_000);
+    expect(apres.passwordHashHex).toBe(await pbkdf2Hex('toute-neuve-99', apres.passwordSaltHex, 100_000));
+  });
+
+  it('the probe derives at 100 000 over fixed bytes, and its digest is what an independent derivation gives — a probe that skipped the work could not answer it', async () => {
+    const sonde = await sondePbkdf2();
+    expect(sonde.iterations).toBe(100_000);
+    expect(sonde.ok).toBe(true);
+    expect(sonde.digest).toBe((await pbkdf2Hex('sonde-pbkdf2', SONDE_PBKDF2_SEL_HEX, 100_000)).slice(0, 16));
   });
 });

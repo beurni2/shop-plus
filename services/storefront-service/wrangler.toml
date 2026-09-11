@@ -321,6 +321,25 @@ name = "LIMITE_CREATIONS"
 namespace_id = "1002"
 simple = { limit = 180, period = 60 }
 
+# LIMITE-REVENDEUSE-1 — the reseller's two anonymous doors, each its OWN budget
+# (never the buyer's, never each other's): a signup creates an account and
+# spends one of 10 000 ids — ten a minute per address lets a training room of
+# thirty sign up in three minutes and stops a flood from eating the id space in
+# an evening; a login is one derivation and one guess — sixty a minute per
+# address lets a neighbourhood of resellers open the app at the same hour and
+# bounds a password spray across emails (the book behind the door already
+# counts ten refusals per email per quarter hour). The /health PBKDF2 probe
+# spends the login budget: it costs what a login costs.
+[[ratelimits]]
+name = "LIMITE_INSCRIPTIONS"
+namespace_id = "1003"
+simple = { limit = 10, period = 60 }
+
+[[ratelimits]]
+name = "LIMITE_CONNEXIONS"
+namespace_id = "1004"
+simple = { limit = 60, period = 60 }
+
 # ═══════════════════════════════════════════════════════════════════════════
 # READINESS-RETURN-1c — THE RETURN LEG'S INTAKE SECRET.
 # ═══════════════════════════════════════════════════════════════════════════

@@ -23,7 +23,9 @@ import {
  *
  * ═══ CREDENTIALS NEVER LEAVE THIS OBJECT ═══
  *
- * The password is stored as PBKDF2-SHA-256 (CSPRNG salt, 60 000 iterations —
+ * The password is stored as PBKDF2-SHA-256 (CSPRNG salt, 100 000 iterations —
+ * the Workers Free plan's ceiling; a record derived at the older 60 000 is
+ * lifted at its next login, PBKDF2-HAUSSE-1 —
  * WebCrypto is the only primitive a Worker has; deterministic, allowed: the
  * Ten-Laws #5 ban is on learned/generative logic, not on cryptography).
  * Sessions and admission codes are stored ONLY as SHA-256, the same discipline
@@ -180,12 +182,27 @@ async function sha256Hex(value: string): Promise<string> {
 }
 
 /**
- * 60 000 stands (AUDIT-SHOP-2 F-32 names the OWASP figure at 600 000): the
- * Workers runtime caps PBKDF2 iterations by plan, and a raise past the cap
- * would make every login throw. The count now rides each record, so the raise
- * is a one-line rotation on the founder's word once the plan's cap is known.
+ * PBKDF2-HAUSSE-1 (founder, 2026-09-11: « go for … the PBKDF2 raise »). 100 000
+ * is the Workers Free plan's documented ceiling for PBKDF2 iterations — a
+ * platform fact from the runtime's docs, which the LOCAL workerd does not
+ * enforce (it derives at 600 000 without complaint), so only the LIVE runtime
+ * can prove the count is accepted: the deploy smoke asks `/health?pbkdf2=1`,
+ * which derives once at this count, BEFORE any reseller's login can meet a
+ * refusal. OWASP's 600 000 (AUDIT-SHOP-2 F-32) stays out of reach on this
+ * plan. The count rides each record, so the next raise is again one line plus
+ * the smoke.
+ *
+ * RECORDS DERIVED AT AN OLDER COUNT ARE LIFTED AT THEIR NEXT LOGIN: the
+ * password is in hand at that moment and nowhere else, so the book re-derives
+ * it at the current count with a fresh salt and stores the new hash in the
+ * same commit as the session — nobody is asked to reset anything, and a record
+ * that never logs in again simply keeps verifying at its own count.
  */
-const PBKDF2_ITERATIONS = 60_000;
+const PBKDF2_ITERATIONS = 100_000;
+/** What a record with no `passwordIterations` was derived with — the constant
+ *  as it stood before SESSION-VIE-1 wrote the count onto each record. Verifying
+ *  such a record at the raised count would refuse every one of them. */
+const PBKDF2_ITERATIONS_HERITEES = 60_000;
 
 async function derivePassword(password: string, saltHex: string, iterations = PBKDF2_ITERATIONS): Promise<string> {
   const salt = new Uint8Array(saltHex.match(/../g)!.map((h) => parseInt(h, 16)));
@@ -196,6 +213,29 @@ async function derivePassword(password: string, saltHex: string, iterations = PB
     256,
   );
   return [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * PBKDF2-HAUSSE-1 — one derivation at the current count over FIXED bytes, so
+ * the deploy smoke can ask the LIVE runtime whether it accepts the count
+ * before any reseller meets a refusal at her login. The digest's first bytes
+ * ride the answer and are pinned by test: a probe that skipped the derivation
+ * could not produce them. Nothing secret is derived or revealed.
+ */
+export interface SondePbkdf2 {
+  readonly iterations: number;
+  readonly ok: boolean;
+  readonly digest?: string;
+  readonly error?: string;
+}
+export const SONDE_PBKDF2_SEL_HEX = '00112233445566778899aabbccddeeff';
+export async function sondePbkdf2(): Promise<SondePbkdf2> {
+  try {
+    const digest = await derivePassword('sonde-pbkdf2', SONDE_PBKDF2_SEL_HEX);
+    return { iterations: PBKDF2_ITERATIONS, ok: true, digest: digest.slice(0, 16) };
+  } catch (e) {
+    return { iterations: PBKDF2_ITERATIONS, ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /** Constant-time hex compare — a mismatch costs the same as a match. */
@@ -440,9 +480,21 @@ export class ResellerAccountsDO {
       if (accountId === undefined) return refuse();
       const record = await this.compte(accountId);
       if (record === undefined) return refuse();
-      const derived = await derivePassword(password, record.passwordSaltHex, record.passwordIterations ?? PBKDF2_ITERATIONS);
+      const iterations = record.passwordIterations ?? PBKDF2_ITERATIONS_HERITEES;
+      const derived = await derivePassword(password, record.passwordSaltHex, iterations);
       if (!egaleConstante(derived, record.passwordHashHex)) return refuse();
       const { session, ecritures } = await this.minterSession(accountId);
+      // PBKDF2-HAUSSE-1 — an older hash is lifted NOW, while the password is
+      // in hand: a fresh salt, the current count, one commit with the session.
+      if (iterations < PBKDF2_ITERATIONS) {
+        const saltHex = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+        ecritures[`${ACCOUNT_PREFIX}${accountId}`] = {
+          ...record,
+          passwordSaltHex: saltHex,
+          passwordHashHex: await derivePassword(password, saltHex),
+          passwordIterations: PBKDF2_ITERATIONS,
+        } satisfies AccountRecord;
+      }
       await this.state.storage.put(ecritures);
       await this.state.storage.delete(cleEchecs);
       return Response.json({ ok: true, accountId, name: record.name, ...(record.categories !== undefined ? { categories: record.categories } : {}), state: record.state, session });
@@ -601,7 +653,7 @@ export class ResellerAccountsDO {
         }
         // The CURRENT password re-proves it is her — a stolen handset with a
         // live session must not be enough to lock her out of her own account.
-        const derive = await derivePassword(actuel, record.passwordSaltHex, record.passwordIterations ?? PBKDF2_ITERATIONS);
+        const derive = await derivePassword(actuel, record.passwordSaltHex, record.passwordIterations ?? PBKDF2_ITERATIONS_HERITEES);
         if (!egaleConstante(derive, record.passwordHashHex)) {
           return Response.json({ ok: false, reason: 'bad_password' }, { status: 401 });
         }

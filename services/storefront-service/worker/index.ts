@@ -17,6 +17,7 @@ import {
   RESELLER_ACCOUNTS_NAME,
   ResellerAccountsDO,
   resoudreCompte,
+  sondePbkdf2,
 } from './reseller-accounts-do.js';
 import { DLQ_NAME, DeadLetterDO } from './dead-letter-do.js';
 import { checkoutPreflight, handleRequest, withReadCors, type StorefrontServiceEnv } from '../src/index.js';
@@ -27,7 +28,7 @@ import { orderIdForQuote } from '../src/order-core.js';
 import type { R2BucketLike } from '../src/media/media-store.js';
 import { IMAGE_MAX_BYTES } from '../src/media/service.js';
 import { servirTuile } from '../src/tuiles.js';
-import { admis, refusLimite, type Limiteur } from '../src/limite.js';
+import { admis, refusLimite, refusLimiteCompte, type Limiteur } from '../src/limite.js';
 import {
   isWrite,
   rejectUnauthorizedOpsRead,
@@ -153,6 +154,10 @@ interface Env extends WriteAuthEnv {
    * before its config, a suite that binds none) ⇒ the door stays OPEN. */
   LIMITE_TUILES?: Limiteur;
   LIMITE_CREATIONS?: Limiteur;
+  /** LIMITE-REVENDEUSE-1 — the reseller's signup and login, each its own
+   * budget; the /health PBKDF2 probe spends the login one. Same fail-open law. */
+  LIMITE_INSCRIPTIONS?: Limiteur;
+  LIMITE_CONNEXIONS?: Limiteur;
 }
 
 /**
@@ -228,7 +233,8 @@ async function bornerCorps(request: Request, max: number): Promise<Request | Res
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const { pathname } = new URL(request.url);
+    const url = new URL(request.url);
+    const { pathname } = url;
 
     // ═══ LIMITE-ANONYME-1 — THE ANONYMOUS CREATE DOORS SHARE ONE CEILING ═══
     // A new quote, a new order and a new liste are the buyer's anonymous
@@ -237,16 +243,37 @@ export default {
     // is read: a refused flood must not cost us a 2 MiB read per ask, and the
     // ceiling needs only the address and the path. The preflight is never
     // refused (OPTIONS is not a POST). Past the ceiling the answer is a named
-    // 429 the browser can read, and « Rien n'a été payé » stays true. What
-    // stays OPEN, said plainly: the reseller's signup and login doors — they
-    // need a budget of their own (a reseller must never be refused because
-    // buyers in her neighbourhood are ordering), its own slice. The numbers
-    // and the fail-open law are in src/limite.ts and wrangler.toml.
+    // 429 the browser can read, and « Rien n'a été payé » stays true. The
+    // reseller's signup and login doors have budgets of their OWN, just below
+    // (LIMITE-REVENDEUSE-1): a reseller must never be refused because buyers
+    // in her neighbourhood are ordering. The numbers and the fail-open law are
+    // in src/limite.ts and wrangler.toml.
     if (
       request.method === 'POST' &&
       (pathname === '/checkout/quote' || pathname === '/checkout/order' || pathname === '/listes') &&
       !(await admis(env.LIMITE_CREATIONS, request))
     ) {
+      return withReadCors(refusLimite());
+    }
+
+    // ═══ LIMITE-REVENDEUSE-1 — THE RESELLER'S TWO ANONYMOUS DOORS, EACH ITS OWN BUDGET ═══
+    // Signup and login answer a stranger by design. They share neither the
+    // buyer's budget nor each other's: a signup creates an account and spends
+    // one of 10 000 ids, a login is one derivation and one guess — different
+    // costs, different floods. The book behind the login door still counts
+    // refusals per EMAIL (SESSION-VIE-1); this is the per-ADDRESS ceiling the
+    // book cannot see, asked before the body is read. The refusal wears the
+    // doors' own shape (`{ ok, reason }`), which the app already reads as
+    // « attendez ». The PBKDF2 probe on /health spends the LOGIN budget: it
+    // costs exactly what a login costs (one derivation) and must not be a
+    // free way to burn it.
+    if (request.method === 'POST' && pathname === '/reseller/signup' && !(await admis(env.LIMITE_INSCRIPTIONS, request))) {
+      return withResellerCors(refusLimiteCompte());
+    }
+    if (request.method === 'POST' && pathname === '/reseller/login' && !(await admis(env.LIMITE_CONNEXIONS, request))) {
+      return withResellerCors(refusLimiteCompte());
+    }
+    if (request.method === 'GET' && pathname === '/health' && url.searchParams.get('pbkdf2') === '1' && !(await admis(env.LIMITE_CONNEXIONS, request))) {
       return withReadCors(refusLimite());
     }
 
@@ -1036,12 +1063,12 @@ export default {
      * be able to CREATE an account and LOG IN. What that does not open: no
      * money can arrive or leave through these routes, the admission code is
      * founder-minted, and every read behind them refuses on account state.
-     * KNOWN RESIDUE (journalled): NO rate limit in front of signup or login,
-     * still — LIMITE-ANONYME-1 bounded the BUYER's create doors and left these
-     * open on purpose: a reseller must never be refused because buyers behind
-     * her carrier address are ordering, so these doors need a budget of their
-     * own (login is a credential-guessing surface and the more urgent of the
-     * two). Its own slice, on the real-money gate's checklist.
+     * LIMITE-REVENDEUSE-1: signup and login each carry a per-ADDRESS ceiling,
+     * asked at the top of this handler before the body is read (their own
+     * budgets — never the buyer's, never each other's); the book behind the
+     * login door adds its per-EMAIL count (SESSION-VIE-1). What the address
+     * ceiling does not close: the request COUNT the Free plan meters (a 429 is
+     * a counted invocation), exactly as on the buyer's doors.
      */
     if (
       pathname === '/reseller/signup' ||
@@ -1814,6 +1841,10 @@ export default {
         seraIntakeSecret: (env.SERA_INTAKE_SECRET ?? '') !== '',
         shopArmSecret: (env.SHOP_ARM_SECRET ?? '') !== '',
       },
+      // PBKDF2-HAUSSE-1 — the probe the deploy smoke asks (`/health?pbkdf2=1`):
+      // one derivation at the current count, so the LIVE runtime says whether it
+      // accepts the raise before any reseller's login can meet a refusal.
+      PBKDF2_SONDE: sondePbkdf2,
       // CONTACT-WHATSAPP-1 — the owner-contact port over the accounts book's
       // internal /contact-of: the phone of an ACTIVE account, or undefined for
       // everything else (no compte, paused, pending, transport failure — the

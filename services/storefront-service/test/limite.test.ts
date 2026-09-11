@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLE_SANS_ADRESSE, RETRY_AFTER_S, admis, cleAdresse, cleAppelant, refusLimite, type Limiteur } from '../src/limite';
+import { CLE_SANS_ADRESSE, RETRY_AFTER_S, admis, cleAdresse, cleAppelant, refusLimite, refusLimiteCompte, type Limiteur } from '../src/limite';
 
 /**
  * LIMITE-ANONYME-1 — the pure rules of the ceiling: who the caller is, what
@@ -74,5 +74,12 @@ describe('LIMITE-ANONYME-1 — the refusal', () => {
     expect(res.status).toBe(429);
     expect(res.headers.get('Retry-After')).toBe(String(RETRY_AFTER_S));
     expect(await res.json()).toEqual({ error: 'too_many_requests' });
+  });
+
+  it('LIMITE-REVENDEUSE-1 — the account doors’ refusal wears their own shape, { ok:false, reason }, with the same Retry-After', async () => {
+    const res = refusLimiteCompte();
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toBe(String(RETRY_AFTER_S));
+    expect(await res.json()).toEqual({ ok: false, reason: 'too_many_requests' });
   });
 });
