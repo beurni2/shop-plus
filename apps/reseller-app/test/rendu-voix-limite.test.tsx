@@ -128,8 +128,10 @@ describe('VOIX-LIMITE-1 (F-48) — the take stops by itself at the minute', () =
     vi.useFakeTimers();
     await screen.press('Enregistrer une note');
     expect(screen.shows('Enregistrement…'), 'the take is running').toBe(true);
+    // the limit fires at the minute; the native recorder takes a moment to
+    // stop, so the clock the take reads is a little PAST it — the real phone.
     await act(async () => {
-      vi.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(60_050);
       await Promise.resolve();
     });
     await screen.settle();
