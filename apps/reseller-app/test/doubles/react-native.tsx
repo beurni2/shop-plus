@@ -288,6 +288,32 @@ export const PanResponder = {
 };
 
 /**
+ * AppState is the OS's FOREGROUND SIGNAL — a native boundary, and it RECORDS
+ * its listeners so a walk can bring the app back to the front by hand
+ * (`AppState.simuler('active')`), which is how the outbox's « replay when she
+ * returns » road is driven. BOUND: it lays out nothing and claims nothing
+ * about the phone — whether Android fires 'active' when she unlocks is the
+ * OS's fact, never this harness's. `currentState` starts 'active', as a
+ * freshly mounted app is.
+ */
+export const AppState = {
+  currentState: 'active' as string,
+  listeners: [] as ((etat: string) => void)[],
+  addEventListener: (_type: string, fn: (etat: string) => void): { remove: () => void } => {
+    AppState.listeners.push(fn);
+    return {
+      remove: () => {
+        AppState.listeners = AppState.listeners.filter((l) => l !== fn);
+      },
+    };
+  },
+  simuler: (etat: string): void => {
+    AppState.currentState = etat;
+    for (const l of AppState.listeners.slice()) l(etat);
+  },
+};
+
+/**
  * Share is a NATIVE BOUNDARY and it RECORDS, like Linking: « Partager » is a
  * primary act on this app's cards, and a walk that pressed it must be able to
  * ask WHAT would have been shared rather than trust that something was.

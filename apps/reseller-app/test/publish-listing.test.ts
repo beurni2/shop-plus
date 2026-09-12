@@ -62,7 +62,9 @@ describe('ONE KEYSPACE — a markup written on the card is the markup the fiche 
     expect(app).not.toMatch(/\[item\.id\]: m/);
     expect(app).not.toMatch(/onMarge\(item\.id, m\)/);
     // the grid itself reads the LIVE feed under that key, not the demo world
-    expect(app).toMatch(/offers\.filter\(\(o\) => vitrineLive\.includes\(o\.productVersionId\)\)/);
+    // PIN EVOLVED (FILE-ATTENTE-1): a product whose add WAITS on the phone is
+    // on the grid too — under the SAME key, `productVersionId`, on both halves.
+    expect(app).toMatch(/offers\.filter\(\(o\) => vitrineLive\.includes\(o\.productVersionId\) \|\| ajoutsEnAttente\.has\(o\.productVersionId\)\)/);
   });
 });
 
@@ -237,11 +239,23 @@ describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
   it('ITEM 4 — a CONFIRMED add lands her on Ma Vitrine, after membership, never before', () => {
     const handler = /const publishListing = useCallback\([\s\S]*?\n  \);/.exec(app)?.[0] ?? '';
     const addIdx = handler.indexOf('vitrineCol.addToVitrine');
-    const navIdx = handler.indexOf("toHub('vitrine')");
+    // PIN EVOLVED (FILE-ATTENTE-1, F-17b): the handler now carries TWO roads to
+    // Ma Vitrine. The CONFIRMED one is the LAST nav and still sits after the
+    // membership write; the KEPT one (a network refusal, the intent deposited
+    // on the phone) sits INSIDE the `!res.ok` block, BEFORE any membership, and
+    // is preceded by the deposit — she lands on a card that says it waits,
+    // never on a membership the service did not confirm.
+    const navIdx = handler.lastIndexOf("toHub('vitrine')");
     expect(addIdx).toBeGreaterThan(-1);
     expect(navIdx).toBeGreaterThan(addIdx); // navigate AFTER the confirmed write
-    // and never on the refusal path — the nav sits after the !res.ok return
-    expect(handler.indexOf('if (!res.ok)')).toBeLessThan(navIdx);
+    const refusIdx = handler.indexOf('if (!res.ok)');
+    const navGarde = handler.indexOf("toHub('vitrine')");
+    expect(navGarde).toBeGreaterThan(refusIdx);
+    expect(navGarde).toBeLessThan(addIdx);
+    expect(handler.slice(refusIdx, navGarde)).toContain("deposer('listing.publish'");
+    expect(handler.slice(refusIdx, navGarde)).not.toContain('addToVitrine');
+    // and the confirmed nav is never on the refusal path — it sits after the !res.ok block
+    expect(refusIdx).toBeLessThan(navIdx);
   });
 
   it('ITEM 5 — the share preview reads the LIVE offer: name, client price, net, photo', () => {

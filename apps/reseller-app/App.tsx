@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
-import { FlatList, Image, KeyboardAvoidingView, Linking, Platform, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, View, findNodeHandle } from 'react-native';
+import { AppState, FlatList, Image, KeyboardAvoidingView, Linking, Platform, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, View, findNodeHandle } from 'react-native';
 import { File } from 'expo-file-system';
 import { sharedColour, shopColour, type as t2, radius } from '@platform/ui-tokens';
 import { spacing, touch, interaction, dimension } from '@platform/ui-tokens/legacy';
@@ -24,13 +24,15 @@ import { cadreRatio, CADRE_DEFAUT } from './src/ui/cadre';
 import { choisirClipActif } from './src/ui/clip-actif';
 import { DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
-import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, publierRefusalToastKey, estSessionRefusee, type StorefrontIdentityPatch } from './src/vitrine/service';
+import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, publierRefusalToastKey, estSessionRefusee, raisonReseau, verdictReplay, type StorefrontIdentityPatch } from './src/vitrine/service';
 import type { Storefront } from './src/vitrine/customize/storefront';
 import { loadOrMintIdentity, remintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
 import { categoriesPresentes, filtrerOffres, filtrerParSelection, labelCategorie } from './src/vitrine/rayons';
 import type { ResellerIdentity } from './src/identity/mint';
 import { expoIdentityStore, expoRandomBytes } from './src/identity/expoStore';
+import { FileAttente, type QueueEntry } from './src/offline/queue';
+import { expoFileAttenteStore } from './src/offline/expoStore';
 import { useVoiceNotes, VoiceCardRow, VoiceNoteSheet, voiceCardLabel, type VoiceNotesController, type VoiceRemover, type VoiceUploader } from './src/vitrine/customize/voice-sheet';
 import { noteOf } from './src/vitrine/customize/voice';
 import {
@@ -84,6 +86,12 @@ import {
  *  of anything (ruling ① 2026-07-12: no device millisecond is invented here);
  *  past it the app paints in the fallback, as it did before this slice. */
 export const PLAFOND_ATTENTE_POLICES_MS = 1500;
+/** FILE-ATTENTE-1 — how often the outbox tries again WHILE something waits
+ *  (never when nothing does): one cheap attempt every half minute on a phone
+ *  that may find its network back at any moment; the launch, the return to
+ *  the front and her own tap fire it too. A CEILING on the wait, not a
+ *  measurement of anything. */
+export const DELAI_REJEU_MS = 30_000;
 
 const rmax = (v: number | { readonly min: number; readonly max: number }): number =>
   typeof v === 'number' ? v : v.max;
@@ -418,10 +426,14 @@ export interface VitrineCardProps {
   readonly onRetirer: (pid: string) => void;
   readonly onMarge: (pid: string, markup: number) => void;
   readonly onFocusField: (handle: number | null) => void;
+  /** FILE-ATTENTE-1 — the intent this card is waiting to send (kept on the
+   *  phone, not yet on the service), or null when the card is the shop's word. */
+  readonly attente: 'ajout' | 'retrait' | null;
+  readonly onAnnulerAttente: (pid: string) => void;
 }
 
 export const VitrineCard = memo(function VitrineCard({
-  item, markup, cap, net, client, ctl, retiring, onGalerie, onVoix, onPartager, onRetirer, onMarge, onFocusField,
+  item, markup, cap, net, client, ctl, retiring, onGalerie, onVoix, onPartager, onRetirer, onMarge, onFocusField, attente, onAnnulerAttente,
 }: VitrineCardProps) {
   // Per-product card (founder recomposition of the planche read-only
   // grid): art 110 · client price (deep) ↔ net (small, live) · the
@@ -486,6 +498,15 @@ export const VitrineCard = memo(function VitrineCard({
         </View>
       )}
       <Text style={styles.tileName} numberOfLines={2}>{item.productName}</Text>
+      {/* FILE-ATTENTE-1 (F-17b) — QUEUED IS PENDING, NEVER DONE (Law 7): a
+          card whose intent is still on the phone SAYS so, first, before any
+          figure. An add that waits is not « dans votre vitrine »; a removal
+          that waits has not removed anything yet. */}
+      {attente !== null && (
+        <View style={styles.attenteChipRow}>
+          <StatusChip tone="warn" label={t(attente === 'ajout' ? 'attente.chip_ajout' : 'attente.chip_retrait')} />
+        </View>
+      )}
       {/* NET-FIRST hero — her gain is the biggest, deepest figure on
           HER vitrine (SP-I04/I12). RESELLER-UX-2 item 3 (founder walk:
           « the base amount, the gain and everything else »): under it,
@@ -530,6 +551,12 @@ export const VitrineCard = memo(function VitrineCard({
           `voiceCardLabel` still decides between « ajouter »,
           « à publier » and « en attente », so the card never
           claims more than the note actually is. */}
+      {/* FILE-ATTENTE-1 — no voice block on a card whose ADD still waits: the
+          product is not on her shop yet, so the note's upload could only be
+          refused — a control whose only outcome is failure is the dead
+          control this app refuses. A pending REMOVAL keeps it (the product is
+          still hers on the service). */}
+      {attente !== 'ajout' && (
       <Pressable
         style={({ pressed }) => [styles.vitrineVoiceBtn, pressed && styles.pressed]}
         onPress={() => onVoix(item.productVersionId, item.productName)}
@@ -548,12 +575,13 @@ export const VitrineCard = memo(function VitrineCard({
           {!noteEnMain && <Text style={styles.vitrineVoiceSous}>{t('k.voix.carte_sous')}</Text>}
         </View>
       </Pressable>
+      )}
       {/* VOIX-CARTE (founder 2026-08-13) — play/pause + the clock
           + « Refaire » at the row's end, ON the product. Refaire
           opens the sheet AND starts the take — the sheet owns the
           mic-permission banner, Annuler and the recording UI, so
           a Refaire that only opened it would be a two-tap lie. */}
-      {noteEnMain && (
+      {noteEnMain && attente !== 'ajout' && (
         <VoiceCardRow
           pid={item.productVersionId}
           ctl={ctl}
@@ -563,6 +591,23 @@ export const VitrineCard = memo(function VitrineCard({
           }}
         />
       )}
+      {/* FILE-ATTENTE-1 — a card that WAITS offers one act: take the intent
+          back. « Partager » is withheld (an add that has not landed has no
+          signed link for a cliente to open; a product about to leave should
+          not be shared), and « Retirer » gives way to « Annuler » — the way
+          OUT of an act that will otherwise fire by itself when the network
+          returns, which is the one thing an automatic act must always have. */}
+      {attente !== null ? (
+        <Pressable
+          style={({ pressed }) => [styles.vitrineRetirer, pressed && styles.pressed]}
+          onPress={() => onAnnulerAttente(item.productVersionId)}
+          accessibilityRole="button"
+          accessibilityLabel={t(attente === 'ajout' ? 'attente.annuler_ajout' : 'attente.annuler_retrait')}
+        >
+          <Text style={styles.vitrineRetirerLabel}>{t(attente === 'ajout' ? 'attente.annuler_ajout' : 'attente.annuler_retrait')}</Text>
+        </Pressable>
+      ) : (
+      <>
       <SecondaryButton
         label={t('vitrine.partager')}
         onPress={() => onPartager(item.productVersionId)}
@@ -587,9 +632,70 @@ export const VitrineCard = memo(function VitrineCard({
           {retiring === item.productVersionId ? t('vitrine.retirer_encours') : t('vitrine.retirer')}
         </Text>
       </Pressable>
+      </>
+      )}
     </Card>
   );
 });
+
+/**
+ * FILE-ATTENTE-1 (AUDIT-SHOP-2 F-17b) — WHAT WAITS ON HER PHONE, said where
+ * the cards are. Two facts, each only when true: how many intents wait for
+ * the network (with the one act she can take now — send them herself,
+ * because an act that fires by itself must leave a way in as well as out),
+ * and every intent the SERVICE refused on a replay, named, with the same
+ * true sentence a refused tap would have earned and the one act that closes
+ * it. Nothing here claims that anything landed: what landed left the file
+ * and is read back from the shop like everything else on this screen.
+ */
+function AttenteBandeau({ nAttente, echecs, nomDe, rejeu, onEnvoyer, onAbandonner }: {
+  readonly nAttente: number;
+  readonly echecs: readonly QueueEntry[];
+  readonly nomDe: (pid: string) => string;
+  readonly rejeu: boolean;
+  readonly onEnvoyer: () => void;
+  readonly onAbandonner: (pid: string) => void;
+}) {
+  if (nAttente === 0 && echecs.length === 0) return null;
+  return (
+    <Card style={styles.attenteBandeau}>
+      {nAttente > 0 && (
+        <>
+          <Text style={styles.attenteTexte}>
+            {nAttente === 1 ? t('attente.bandeau_un') : tf('attente.bandeau_n', { n: String(nAttente) })}
+          </Text>
+          <Pressable
+            style={({ pressed }) => [styles.attenteEnvoyer, pressed && styles.pressed]}
+            onPress={onEnvoyer}
+            disabled={rejeu}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: rejeu }}
+            accessibilityLabel={t('attente.envoyer')}
+          >
+            <Text style={styles.attenteEnvoyerLabel}>{rejeu ? t('attente.envoi_en_cours') : t('attente.envoyer')}</Text>
+          </Pressable>
+        </>
+      )}
+      {echecs.map((e) => (
+        <View key={e.pid} style={styles.attenteEchec}>
+          <Overline>{t('attente.echec_titre')}</Overline>
+          <Text style={styles.attenteEchecNom}>{nomDe(e.pid)}</Text>
+          {/* The SAME sentence a refused tap earns (RAISON-NOMMEE-1): the
+              service's named word decides, never the wire token. */}
+          <Text style={styles.noteLine}>{t(publierRefusalToastKey(e.failureReason ?? ''))}</Text>
+          <Pressable
+            style={({ pressed }) => [styles.vitrineRetirer, pressed && styles.pressed]}
+            onPress={() => onAbandonner(e.pid)}
+            accessibilityRole="button"
+            accessibilityLabel={t('attente.retirer_liste')}
+          >
+            <Text style={styles.vitrineRetirerLabel}>{t('attente.retirer_liste')}</Text>
+          </Pressable>
+        </View>
+      ))}
+    </Card>
+  );
+}
 
 export default function App() {
   // COLD-START LAW, CORRECTED (POLICE-MESURE, founder 2026-08-17): the result
@@ -665,6 +771,57 @@ export default function App() {
    * stated where the button is) and clears the moment a publish succeeds.
    */
   const [sansBoutique, setSansBoutique] = useState(false);
+  /**
+   * ═══ FILE-ATTENTE-1 (AUDIT-SHOP-2 F-17b) — HER OUTBOX, ON THE PHONE ═══
+   *
+   * « Ajouter à ma vitrine » and « Retirer » with no network used to end in
+   * a sentence, and the intent died with it — measured by the audit: one
+   * toast, no second POST, ever, so D17's « every queued action survives
+   * app-kill and reboot » measured nothing. Now a tap the NETWORK refused
+   * (never one the service decided) is KEPT in a durable file on the phone
+   * (`src/offline/queue.ts`, `Paths.document`), shown on Ma Vitrine as what
+   * it is — waiting — and replayed by itself: at launch, when she brings the
+   * app back to the front, every DELAI_REJEU_MS while something waits, and
+   * on her own tap. Queued is pending, never done (Law 7): a waiting card
+   * carries a chip and no share; nothing is claimed until the service
+   * answers and the shop is read back.
+   *
+   * The file is a ref (the outbox is not render state); `attentes` is the
+   * snapshot the screens read, refreshed after every change.
+   */
+  const fileAttente = useRef<FileAttente | null>(null);
+  const [attentes, setAttentes] = useState<readonly QueueEntry[]>([]);
+  const [fileOuverte, setFileOuverte] = useState(false);
+  const rafraichirAttentes = useCallback(() => setAttentes(fileAttente.current?.tout() ?? []), []);
+  useEffect(() => {
+    let live = true;
+    void FileAttente.ouvrir(expoFileAttenteStore()).then((q) => {
+      if (!live) return;
+      fileAttente.current = q;
+      setAttentes(q.tout());
+      setFileOuverte(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const ajoutsEnAttente = useMemo(
+    () => new Set(attentes.filter((e) => e.status === 'pending' && e.name === 'listing.publish').map((e) => e.pid)),
+    [attentes],
+  );
+  const retraitsEnAttente = useMemo(
+    () => new Set(attentes.filter((e) => e.status === 'pending' && e.name === 'listing.remove').map((e) => e.pid)),
+    [attentes],
+  );
+  const echecsAttente = useMemo(() => attentes.filter((e) => e.status === 'failed'), [attentes]);
+  const attenteDe = (pid: string): 'ajout' | 'retrait' | null =>
+    ajoutsEnAttente.has(pid) ? 'ajout' : retraitsEnAttente.has(pid) ? 'retrait' : null;
+  /** The product's name for the banner: the live feed's, else the name the
+   *  intent carried (a reboot with no network has no feed), else « Ce produit ». */
+  const nomAttente = (pid: string): string => {
+    const nom = attentes.find((e) => e.pid === pid)?.payload['nom'];
+    return offers.find((o) => o.productVersionId === pid)?.productName ?? (typeof nom === 'string' ? nom : t('attente.produit'));
+  };
   // RESELLER-UX-2 (items 2 + 3) — the photo gallery: which product's photos are
   // open full-screen. null = closed (the voice-sheet idiom).
   const [gallery, setGallery] = useState<{ name: string; refs: readonly string[]; startAt?: number } | null>(null);
@@ -749,7 +906,15 @@ export default function App() {
     // asks again.
     if (feed !== undefined && !surOpportunites && !surVitrine) return;
     void offerSource.list().then((f) => {
-      if (live) setFeed(f);
+      if (!live) return;
+      // FILE-ATTENTE-1 (F-17b) — THE READ IS ADDITIVE, FOR REAL. The comment
+      // below promised « a failed refresh leaves what she was already reading
+      // on screen », and the code did the opposite: `setFeed(f)` replaced an
+      // « ok » feed with « unavailable », so with no network every entry into
+      // Ma Vitrine or Opportunités emptied her products — her live ones, and
+      // now the card that WAITS. A refresh that could not be read keeps the
+      // last list she had; the first read (no list yet) still lands as it is.
+      setFeed((prev) => (f.status !== 'ok' && prev?.status === 'ok' ? prev : f));
     });
     return () => {
       live = false;
@@ -1217,7 +1382,10 @@ export default function App() {
    */
   const vitrineLive: readonly string[] =
     liveStorefront === undefined ? vitrineCol.listings() : (liveStorefront?.curatedItems ?? []);
-  const vitrineOffers = offers.filter((o) => vitrineLive.includes(o.productVersionId));
+  // FILE-ATTENTE-1 — a product whose ADD waits on the phone is on Ma Vitrine
+  // too, as a WAITING card (the chip says so); the shop's own membership is
+  // untouched until the service answers.
+  const vitrineOffers = offers.filter((o) => vitrineLive.includes(o.productVersionId) || ajoutsEnAttente.has(o.productVersionId));
   /**
    * ═══ DÉJÀ-DANS-MA-VITRINE (founder, 2026-08-12) — ONE MEMBERSHIP, BOTH SCREENS ═══
    *
@@ -1261,7 +1429,10 @@ export default function App() {
    * founder's call, not something to invent inside a screen fix. Journalled and
    * reported; this fix removes the trap, it does not open the door.
    */
-  const dejaDansVitrine = (pid: string): boolean => vitrineLive.includes(pid);
+  // FILE-ATTENTE-1 — an add that WAITS closes the CTA too: a second tap
+  // would only replace the same intent, and the fiche says what is true
+  // (« attend le réseau », not « déjà dans votre vitrine »).
+  const dejaDansVitrine = (pid: string): boolean => vitrineLive.includes(pid) || ajoutsEnAttente.has(pid);
   // RESELLER-UX-1 item 5 — THE SHARE LOOKUP JOINS THE LIVE KEYSPACE. `shareId` is a
   // productVersionId since PUBLISH-PRICE-1, but this screen still looked it up in
   // the DEMO world by seed id — so tapping « Partager » on her real product found
@@ -1334,6 +1505,32 @@ export default function App() {
         setPublishing(false);
       }
       if (!res.ok) {
+        /**
+         * FILE-ATTENTE-1 (F-17b) — THE NETWORK REFUSED, NOT THE SERVICE: the
+         * intent is KEPT on the phone, she is told exactly that, and the add
+         * lands her on Ma Vitrine where the waiting card is. It goes out by
+         * itself when the network returns (`rejouer`). ONLY the network road
+         * queues — a named refusal below is a decision, and a decision is
+         * told, never retried behind her back. The markup kept is the one
+         * her fiche shows, and it follows the control if she moves it.
+         */
+        const file = fileAttente.current;
+        if (raisonReseau(res.reason) && file !== null) {
+          await file.deposer('listing.publish', o.productVersionId, {
+            storefrontId: identity.storefrontId,
+            resellerId: identity.resellerId,
+            productVersionId: o.productVersionId,
+            markup,
+            correlationId: identity.correlationId,
+            // the NAME rides along for the banner alone (a refusal after a
+            // reboot with no feed must still say which product) — never sent
+            nom: o.productName,
+          });
+          rafraichirAttentes();
+          setToast(tf('attente.ajout_garde', { nom: o.productName }));
+          toHub('vitrine');
+          return;
+        }
         // The service's NAMED refusal decides what she is told. « Supply unavailable »
         // is a retry, not a defect, and saying so is the difference between a calm
         // money moment and an anxious one.
@@ -1410,7 +1607,7 @@ export default function App() {
       // « Retour » from here does not replay the fiche.
       toHub('vitrine');
     },
-    [service, identity, markups, vitrineCol, toHub, adopterStorefront],
+    [service, identity, markups, vitrineCol, toHub, adopterStorefront, rafraichirAttentes],
   );
   /**
    * VITRINE-RETRAIT — « Retirer de ma vitrine », the act that was missing.
@@ -1435,7 +1632,19 @@ export default function App() {
       // session.
       try {
         const res = await service.removeItem(identity.storefrontId, pid);
-        if (!res.ok) return setToast(t('vitrine.retirer_echec'));
+        if (!res.ok) {
+          // FILE-ATTENTE-1 — the network's refusal keeps the removal on the
+          // phone (the card stays, chip « Retrait en attente », until the
+          // service says it is gone); the service's own refusal is told.
+          const file = fileAttente.current;
+          if (raisonReseau(res.reason) && file !== null) {
+            const nom = offers.find((o) => o.productVersionId === pid)?.productName ?? t('attente.produit');
+            await file.deposer('listing.remove', pid, { storefrontId: identity.storefrontId, pid, nom });
+            rafraichirAttentes();
+            return setToast(tf('attente.retrait_garde', { nom }));
+          }
+          return setToast(t('vitrine.retirer_echec'));
+        }
         vitrineCol.removeFromVitrine(pid);
         // PRIX-SIGNE-1 — the listing is gone, and so is the price it signed: a
         // re-add must quote from the live base, never from a dead listing
@@ -1465,7 +1674,7 @@ export default function App() {
         setRetiring(null);
       }
     },
-    [service, identity, vitrineCol],
+    [service, identity, vitrineCol, offers, rafraichirAttentes],
   );
   /**
    * VITRINE-VISIBLE-1 (AUDIT-SHOP-2 F-13) — Privée ⇄ Publique, FOR REAL.
@@ -1874,7 +2083,121 @@ export default function App() {
   const ouvrirVoix = useCallback((pid: string, name: string) => setVoiceSheet({ pid, name }), []);
   const partagerDepuisCarte = useCallback((pid: string) => { setShareCampBadge(false); setShareId(pid); go('lien'); }, [go]);
   const retirerProduit = useCallback((pid: string) => { void retirerDeVitrine(pid); }, [retirerDeVitrine]);
-  const changerMarge = useCallback((pid: string, m: number) => setMarkups((prev) => ({ ...prev, [pid]: m })), []);
+  const changerMarge = useCallback((pid: string, m: number) => {
+    setMarkups((prev) => ({ ...prev, [pid]: m }));
+    // FILE-ATTENTE-1 — a WAITING add carries her marge: when she moves the
+    // control on that card, the kept intent follows, so the replay signs
+    // what her card reads and never a figure she has since changed.
+    const file = fileAttente.current;
+    const attente = file?.enAttente().find((e) => e.name === 'listing.publish' && e.pid === pid);
+    if (file !== null && file !== undefined && attente !== undefined) {
+      void file.deposer('listing.publish', pid, { ...attente.payload, markup: m }).then(rafraichirAttentes);
+    }
+  }, [rafraichirAttentes]);
+  /** FILE-ATTENTE-1 — her way out of an intent that would otherwise fire by
+   *  itself: the entry leaves the file, nothing was ever sent, and she is told. */
+  const annulerAttente = useCallback((pid: string) => {
+    const file = fileAttente.current;
+    if (file === null) return;
+    void file.abandonner(pid).then(() => {
+      rafraichirAttentes();
+      setToast(t('attente.annule'));
+    });
+  }, [rafraichirAttentes]);
+  /**
+   * ═══ FILE-ATTENTE-1 — THE REPLAY ═══
+   *
+   * The same two ports the taps use (`publishListing`, `removeItem`), the
+   * same reading of their answers, and the outbox keeps the book: a decision
+   * leaves the file (and the local log and the held shop move exactly as a
+   * confirmed tap moves them); a NAMED refusal fails the entry with its word
+   * kept for the banner; the network halts the pass and counts nothing; a
+   * dead session halts it and asks the session road, as every 401 does.
+   * After a pass that landed anything the shop is READ BACK — the replay
+   * may fire while she is looking at Ma Vitrine, and the grid reads the
+   * service's membership, not the write's answer. One pass at a time
+   * (`rejouEnCours`): the timer, the foreground signal and her tap may all
+   * ask at once, and two passes over one file would send an intent twice.
+   *
+   * The session road is reached through a ref: `verifierSession` is minted
+   * per render, and naming it in the deps would remint this callback — and
+   * re-fire the launch replay — on every render of the App.
+   */
+  const rejouEnCours = useRef(false);
+  const [rejeu, setRejeu] = useState(false);
+  const verifierSessionRef = useRef(verifierSession);
+  verifierSessionRef.current = verifierSession;
+  const rejouer = useCallback(async (): Promise<void> => {
+    const file = fileAttente.current;
+    if (file === null || service === null || identity === null || identity === undefined) return;
+    if (rejouEnCours.current || file.enAttente().length === 0) return;
+    rejouEnCours.current = true;
+    setRejeu(true);
+    try {
+      const bilan = await file.rejouer(async (entry) => {
+        const horodatage = new Date().toISOString();
+        if (entry.name === 'listing.publish') {
+          const res = await service.publishListing({
+            storefrontId: identity.storefrontId,
+            resellerId: identity.resellerId,
+            productVersionId: entry.pid,
+            // the kept intent's marge — the one her card showed when she tapped, or moved since
+            markup: typeof entry.payload['markup'] === 'number' ? entry.payload['markup'] : 0,
+            correlationId: identity.correlationId,
+          });
+          if (!res.ok) return verdictReplay(res.reason);
+          setVitrineLog((l) => [...l, { type: 'listing.published', listingId: entry.pid, at: horodatage }]);
+          if (res.value.storefront !== undefined) adopterStorefront(res.value.storefront);
+          setSansBoutique(false);
+          return { kind: 'delivered' };
+        }
+        const res = await service.removeItem(identity.storefrontId, entry.pid);
+        if (!res.ok) return verdictReplay(res.reason);
+        setVitrineLog((l) => [...l, { type: 'listing.auto_hidden', listingId: entry.pid, at: horodatage }]);
+        // PRIX-SIGNE-1 — the listing is gone, and so is the price it signed.
+        setPrixSignes((prev) => {
+          const { [entry.pid]: _retire, ...reste } = prev;
+          return reste;
+        });
+        if (res.value.storefront !== undefined) adopterStorefront(res.value.storefront);
+        return { kind: 'delivered' };
+      });
+      rafraichirAttentes();
+      if (bilan.livres > 0) {
+        // THE READ-BACK — the grid reads the shop's membership, so the shop
+        // is asked; a read that fails here changes nothing (the next entry
+        // into Ma Vitrine reads again), and the toast says only what the
+        // service already confirmed.
+        const fresh = await service.getById(identity.storefrontId);
+        if (fresh.ok && fresh.value !== undefined) adopterStorefront(fresh.value);
+        setToast(bilan.livres === 1 ? t('attente.envoye_un') : tf('attente.envoyes_n', { n: String(bilan.livres) }));
+      }
+      if (bilan.arret === 'session') void verifierSessionRef.current();
+    } finally {
+      rejouEnCours.current = false;
+      setRejeu(false);
+    }
+  }, [service, identity, adopterStorefront, rafraichirAttentes]);
+  // WHEN THE REPLAY FIRES: at launch once the file is open and the seam and
+  // her identity are ready; when the app comes back to the front; every
+  // DELAI_REJEU_MS while something waits; and on her tap (the banner).
+  useEffect(() => {
+    if (fileOuverte) void rejouer();
+  }, [fileOuverte, rejouer]);
+  useEffect(() => {
+    const abonnement = AppState.addEventListener('change', (etat) => {
+      if (etat === 'active') void rejouer();
+    });
+    return () => abonnement.remove();
+  }, [rejouer]);
+  const attenteNonVide = ajoutsEnAttente.size > 0 || retraitsEnAttente.size > 0;
+  useEffect(() => {
+    if (!attenteNonVide) return;
+    const minuteur = setInterval(() => {
+      void rejouer();
+    }, DELAI_REJEU_MS);
+    return () => clearInterval(minuteur);
+  }, [attenteNonVide, rejouer]);
 
   /**
    * ACCESS-GATE-1 — THE ONE DOOR, AND IT IS AT THE ENTRANCE.
@@ -2532,7 +2855,7 @@ export default function App() {
                     action per screen, and it must be one that can succeed. */}
                 {dejaDansVitrine(opp.productVersionId) ? (
                   <>
-                    <Text style={styles.noteLine}>{t('fiche.deja')}</Text>
+                    <Text style={styles.noteLine}>{t(ajoutsEnAttente.has(opp.productVersionId) ? 'fiche.attente' : 'fiche.deja')}</Text>
                     <PrimaryButton label={t('fiche.cta_voir')} onPress={() => toHub('vitrine')} />
                   </>
                 ) : (
@@ -2588,6 +2911,16 @@ export default function App() {
                 ) : null}
               </View>
               <Text style={styles.noteLine}>{t('vitrine.sous_titre')}</Text>
+              {/* FILE-ATTENTE-1 — a refused replay can leave a shop empty AND
+                  a failure to read; the banner lives in both branches. */}
+              <AttenteBandeau
+                nAttente={ajoutsEnAttente.size + retraitsEnAttente.size}
+                echecs={echecsAttente}
+                nomDe={nomAttente}
+                rejeu={rejeu}
+                onEnvoyer={() => void rejouer()}
+                onAbandonner={annulerAttente}
+              />
               <EmptyState
                 glyph={<IconVitrine size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />}
                 title={t('vitrine.vide')}
@@ -2689,6 +3022,14 @@ export default function App() {
                     <Text style={styles.vitrinePersoLabel}>{t('k.entree')}</Text>
                   </Pressable>
                   <Text style={styles.noteLine}>{t('vitrine.sous_titre')}</Text>
+                  <AttenteBandeau
+                    nAttente={ajoutsEnAttente.size + retraitsEnAttente.size}
+                    echecs={echecsAttente}
+                    nomDe={nomAttente}
+                    rejeu={rejeu}
+                    onEnvoyer={() => void rejouer()}
+                    onAbandonner={annulerAttente}
+                  />
                 </View>
               }
               renderItem={({ item }) => {
@@ -2708,6 +3049,8 @@ export default function App() {
                     onRetirer={retirerProduit}
                     onMarge={changerMarge}
                     onFocusField={leverVitrine}
+                    attente={attenteDe(item.productVersionId)}
+                    onAnnulerAttente={annulerAttente}
                   />
                 );
               }}
@@ -3176,6 +3519,38 @@ const styles = StyleSheet.create({
   // OPPORTUNITES-LEGER-1 — the clip surface over the tile's photograph: the
   // same frame, laid on top, so the photograph underneath never unmounts.
   oppTileClip: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  // FILE-ATTENTE-1 — the waiting card's chip row, and the banner: the warm
+  // pending pair (warnBg / warnFgAlt), the family's own « in progress » tone.
+  attenteChipRow: { flexDirection: 'row' },
+  attenteBandeau: { gap: spacing.sm, backgroundColor: sharedColour.warnBg },
+  attenteTexte: {
+    color: sharedColour.warnFgAlt,
+    fontFamily: TEXT_FAMILY,
+    fontSize: rmax(t2.scale.body.size),
+  },
+  attenteEnvoyer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: touch.minTargetPx,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.buttonSecondary.max,
+    borderWidth: interaction.hairline.thin,
+    borderColor: sharedColour.hairlineStrong,
+    backgroundColor: sharedColour.card,
+  },
+  attenteEnvoyerLabel: {
+    color: shopColour.deep,
+    fontFamily: TEXT_FAMILY_BOLD,
+    fontSize: rmax(t2.scale.body.size),
+    fontWeight: '700',
+  },
+  attenteEchec: { gap: spacing.xs, paddingTop: spacing.sm },
+  attenteEchecNom: {
+    color: sharedColour.ink,
+    fontFamily: TEXT_FAMILY_BOLD,
+    fontSize: t2.scale.row.size,
+    fontWeight: '700',
+  },
   // RESELLER-UX-1 item 3 — the typed-markup field. Sized to the touch law, framed
   // with the same hairline grammar as the cards; tabular figure styling comes from
   // margeAmount's family via fontFamily below.

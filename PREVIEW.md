@@ -14,6 +14,15 @@ boutique Shop+ : pas de vrais vendeurs, pas de vrais comptes, pas d'argent.
 un seul clic l'arme — shop-plus → Settings → Pages → Source : « GitHub
 Actions ».*
 
+**Hors ligne, côté cliente : rien n'attend dans une file — par choix.** Une
+cliente sans réseau lit un écran honnête (« Pas de connexion. Rien n'a été
+payé. ») et rien n'est gardé pour plus tard : un paiement n'est jamais mis en
+attente (loi 7 — jamais d'acte final hors ligne), et les étapes d'avant se
+reprennent depuis le lien. La ligne « file hors ligne durable » du budget
+(`docs/PERF-BUDGETS.md`, D17) se mesure donc sur l'application revendeuse
+(Ma vitrine : ajouter et retirer un produit, depuis FILE-ATTENTE-1) et sur
+Séra — pas sur ce parcours (AUDIT-SHOP-2 F-62).
+
 # L'application revendeur dans Expo Go
 
 Cette page explique comment ouvrir l'application revendeur **Shop+** sur votre

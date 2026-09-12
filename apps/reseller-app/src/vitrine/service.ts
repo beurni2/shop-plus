@@ -30,6 +30,7 @@
 // already mirror from canon (§3.1). TYPE-ONLY, so nothing new enters the RN
 // bundle: one shape for the seam and the screens, never two that drift.
 import type { Storefront } from './customize/storefront';
+import type { Verdict } from '../offline/queue';
 import { DELAI_ENVOI_MS, DELAI_LECTURE_MS, fetchBorne, baseSure } from './fetch-borne';
 
 /** The service's `CreateStorefrontCommand` (storefront-core.ts), mirrored. `shortCode`
@@ -78,16 +79,45 @@ export type ServiceResult<T> = { readonly ok: true; readonly value: T } | { read
  */
 const TRANSIENT_REASONS: ReadonlySet<string> = new Set(['offline', 'unreadable']);
 
-export function saveRefusalToastKey(reason: string): string {
-  // …the network, or a service that answered nothing we could read. Trying
-  // again in a moment is TRUE here, and it is the only place it is.
-  if (TRANSIENT_REASONS.has(reason)) return 'k.enreg.echec';
-  // 408/429/5xx — the request never reached a decision. Also honestly retryable.
+/**
+ * FILE-ATTENTE-1 (AUDIT-SHOP-2 F-17b) — IS THIS REASON THE NETWORK'S, or a
+ * service that answered without deciding? The one rule the two toast
+ * decisions below already shared — the network, an unreadable answer, or a
+ * 408/429/5xx — stated ONCE now that a third road reads it: these are the
+ * reasons that earn « réessayez » AND the only reasons a Ma Vitrine intent
+ * is kept on the phone instead of being told. A NAMED refusal is a decision,
+ * and a decision is told, never retried behind her back.
+ */
+export function raisonReseau(reason: string): boolean {
+  if (TRANSIENT_REASONS.has(reason)) return true;
   const http = /^http_(\d{3})$/.exec(reason);
-  if (http !== null) {
-    const code = Number(http[1]);
-    return code === 408 || code === 429 || code >= 500 ? 'k.enreg.echec' : 'k.enreg.refus';
-  }
+  if (http === null) return false;
+  const code = Number(http[1]);
+  return code === 408 || code === 429 || code >= 500;
+}
+
+/**
+ * FILE-ATTENTE-1 — what ONE replayed send came to, for the outbox's book
+ * (`src/offline/queue.ts`): a dead session halts everything and asks the
+ * session road; the network halts everything and counts nothing; a service
+ * that answered without deciding (5xx/408/429 — and `supply_unavailable`,
+ * the Worker's own « I could not read the base right now ») counts one
+ * fault; anything else is the service's NAMED word, and the intent fails
+ * with it kept.
+ */
+export function verdictReplay(reason: string): Verdict {
+  if (estSessionRefusee(reason)) return { kind: 'session' };
+  if (TRANSIENT_REASONS.has(reason)) return { kind: 'unreachable' };
+  if (raisonReseau(reason) || reason === 'supply_unavailable') return { kind: 'fault', reason };
+  return { kind: 'refused', reason };
+}
+
+export function saveRefusalToastKey(reason: string): string {
+  // …the network, or a service that answered nothing we could read, or a
+  // 408/429/5xx that never reached a decision. Trying again in a moment is
+  // TRUE here, and it is the only place it is.
+  if (raisonReseau(reason)) return 'k.enreg.echec';
+  if (/^http_\d{3}$/.test(reason)) return 'k.enreg.refus';
   // …the named refusals, each with the true thing to tell her.
   if (reason === 'name_too_short' || reason === 'name_too_long') return 'k.identite.nom_requis';
   if (reason === 'featured_over_cap') return 'k.une.refus_cap';
@@ -114,15 +144,9 @@ export function saveRefusalToastKey(reason: string): string {
  * with no promise.
  */
 export function publierRefusalToastKey(reason: string): string {
-  if (TRANSIENT_REASONS.has(reason)) return 'k.publier.reseau';
-  const http = /^http_(\d{3})$/.exec(reason);
-  if (http !== null) {
-    const code = Number(http[1]);
-    if (code === 408 || code === 429 || code >= 500) return 'k.publier.reseau';
-    if (code === 401) return 'session.finie';
-    return 'k.publier.refus';
-  }
-  if (reason === 'unauthorized') return 'session.finie';
+  if (raisonReseau(reason)) return 'k.publier.reseau';
+  if (estSessionRefusee(reason)) return 'session.finie';
+  if (/^http_\d{3}$/.test(reason)) return 'k.publier.refus';
   if (reason === 'slug_taken') return 'k.publier.adresse_prise';
   if (reason === 'storefront_absent') return 'fiche.publier.pas_de_boutique';
   if (reason === 'supply_unavailable') return 'fiche.publier.reessayer';

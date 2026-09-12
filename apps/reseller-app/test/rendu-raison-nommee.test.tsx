@@ -55,26 +55,37 @@ afterEach(() => {
 });
 
 describe('RAISON-NOMMEE-1 (F-17a) — a refused publication is told in her words, never in the wire\'s', () => {
-  it('/listings throws → « L’envoi n’a pas marché. Réessayez dans un moment. », no « offline », the CTA is back', async () => {
+  // PIN EVOLVED (FILE-ATTENTE-1, F-17b): a thrown `/listings` is the NETWORK's
+  // refusal, and the intent is now KEPT on the phone instead of told and lost
+  // — the sentence is « gardé sur votre téléphone » and the way out is
+  // « Annuler l’ajout » on the waiting card. What this pin still owns is
+  // F-17a's law: never the wire token on her screen.
+  it('/listings throws → the intent is kept and SAID in her words, no « offline » token, and the way out is « Annuler l’ajout »', async () => {
     const fils = wire(routesDeBase);
     couperSur('/listings');
     const screen = await mountApp();
     await screen.press('Opportunités');
     await screen.press('Bazin riche');
     await screen.press('Ajouter à ma vitrine');
-    for (let i = 0; i < 6 && !screen.shows('L’envoi n’a pas marché. Réessayez dans un moment.'); i += 1) await screen.settle();
+    for (let i = 0; i < 8 && !screen.shows('est gardé sur votre téléphone.'); i += 1) await screen.settle();
 
     expect(fils.calls.some((c) => c.path === '/listings' && c.method === 'POST')).toBe(true);
-    expect(screen.shows('L’envoi n’a pas marché. Réessayez dans un moment.'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.shows('L’ajout de Bazin riche est gardé sur votre téléphone.'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
     expect(screen.texts().join(' '), 'a wire token is not a sentence (Law 6)').not.toMatch(/offline|http_\d{3}/);
-    expect(screen.canPress('Ajouter à ma vitrine'), 'the way out').toBe(true);
+    expect(screen.canPress('Annuler l’ajout'), 'the way out').toBe(true);
     screen.unmount();
   });
 
-  it('/listings answers a bodiless 500 → the same retry sentence; 400 with an unknown named reason → « not saved », and no promise to retry', async () => {
+  // PIN EVOLVED (FILE-ATTENTE-1, F-17b): a NAMED refusal (400 with a reason) is
+  // still TOLD and never kept — « not saved », no promise, the CTA back; a
+  // bodiless 500 is the service answering without deciding, which is now KEPT
+  // like the network (one fault counted on the replay) rather than told and
+  // lost. The named case comes FIRST here because a kept intent moves her to
+  // Ma Vitrine and closes the fiche's CTA.
+  it('400 with an unknown named reason → « not saved », no promise, never the token; a bodiless 500 → KEPT on the phone, never « http_500 »', async () => {
     // A real Worker 500 carries NO named error (the runtime's own page); a
     // body with `error` is the Worker refusing BY NAME and is read as such.
-    const reponses: { status: number; json: Record<string, unknown> } = { status: 500, json: {} };
+    const reponses: { status: number; json: Record<string, unknown> } = { status: 400, json: { error: 'markup_invalid' } };
     const fils = wire([
       (path) => (path === '/listings' ? { status: reponses.status, json: reponses.json } : null),
       ...routesDeBase,
@@ -83,16 +94,19 @@ describe('RAISON-NOMMEE-1 (F-17a) — a refused publication is told in her words
     await screen.press('Opportunités');
     await screen.press('Bazin riche');
     await screen.press('Ajouter à ma vitrine');
-    for (let i = 0; i < 6 && !screen.shows('L’envoi n’a pas marché. Réessayez dans un moment.'); i += 1) await screen.settle();
-    expect(screen.shows('L’envoi n’a pas marché. Réessayez dans un moment.'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
-    expect(screen.texts().join(' ')).not.toMatch(/http_\d{3}/);
-
-    reponses.status = 400;
-    reponses.json = { error: 'markup_invalid' };
-    await screen.press('Ajouter à ma vitrine');
     for (let i = 0; i < 6 && !screen.shows('Ce n’est pas enregistré. Rien n’a changé.'); i += 1) await screen.settle();
     expect(screen.shows('Ce n’est pas enregistré. Rien n’a changé.'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
     expect(screen.texts().join(' ')).not.toContain('markup_invalid');
+    expect(screen.canPress('Ajouter à ma vitrine'), 'a told refusal leaves the CTA — nothing was kept').toBe(true);
+    expect(screen.shows('En attente d’envoi'), 'a named refusal is never « waiting »').toBe(false);
+
+    reponses.status = 500;
+    reponses.json = {};
+    await screen.press('Ajouter à ma vitrine');
+    for (let i = 0; i < 8 && !screen.shows('est gardé sur votre téléphone.'); i += 1) await screen.settle();
+    expect(screen.shows('L’ajout de Bazin riche est gardé sur votre téléphone.'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.texts().join(' ')).not.toMatch(/http_\d{3}/);
+    expect(screen.shows('En attente d’envoi')).toBe(true);
     expect(fils.calls.filter((c) => c.path === '/listings').length).toBe(2);
     screen.unmount();
   });

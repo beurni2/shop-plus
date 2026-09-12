@@ -182,6 +182,8 @@ describe('VitrineCard — a digit typed into card A renders A and no other card'
               onRetirer={noop}
               onMarge={onMarge}
               onFocusField={noop}
+              attente={null}
+              onAnnulerAttente={noop}
             />
           ))}
         </>

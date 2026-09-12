@@ -60,7 +60,7 @@ afterEach(() => {
 });
 
 describe('PORTS-DELAI-1 (F-15) — a stalled publish ends, and the primary action comes back', () => {
-  it('/listings held → « Envoi en cours… » → at the ceiling the wait ends: the CTA is pressable again and the pending sentence is gone', async () => {
+  it('/listings held → « Envoi en cours… » → at the ceiling the wait ends: the pending sentence is gone and the intent is KEPT with its way out', async () => {
     vi.useFakeTimers();
     const fils = wire(routesDeBase);
     pendreSur('/listings');
@@ -81,13 +81,19 @@ describe('PORTS-DELAI-1 (F-15) — a stalled publish ends, and the primary actio
     expect(screen.canPress('Ajouter à ma vitrine'), 'not before the ceiling').toBe(false);
 
     await vi.advanceTimersByTimeAsync(1);
-    for (let i = 0; i < 6 && !screen.canPress('Ajouter à ma vitrine'); i += 1) await screen.settle();
-    expect(screen.canPress('Ajouter à ma vitrine'), 'the way out: the primary action is back').toBe(true);
-    // The toast of « Envoi en cours… » was replaced by the outcome; whatever it
-    // says, it is no longer « in progress » (RAISON-NOMMEE-1 owns the wording).
+    // PIN EVOLVED (FILE-ATTENTE-1, F-17b): a publish the ceiling ended is the
+    // network's refusal, and the intent is now KEPT rather than dropped — the
+    // way out is the waiting card's « Annuler l’ajout » on Ma Vitrine, where
+    // the kept add lands her. What this pin still owns: the wait ENDS at the
+    // ceiling, « Envoi en cours… » is gone, and nothing is claimed as added.
+    for (let i = 0; i < 8 && !screen.canPress('Annuler l’ajout'); i += 1) await screen.settle();
+    expect(screen.canPress('Annuler l’ajout'), 'the way out: the kept intent, with its cancel').toBe(true);
     expect(screen.shows('Envoi en cours…')).toBe(false);
-    // …and NOTHING was recorded as added: no fabricated membership.
+    // …and NOTHING was recorded as added: no fabricated membership — the card
+    // that landed says it WAITS.
     expect(screen.shows('Ce produit est déjà dans votre vitrine.')).toBe(false);
+    expect(screen.shows('C’est ajouté à votre vitrine.')).toBe(false);
+    expect(screen.shows('En attente d’envoi')).toBe(true);
     screen.unmount();
   });
 });

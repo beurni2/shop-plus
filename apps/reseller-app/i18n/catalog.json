@@ -3226,5 +3226,107 @@
   "fr": "En ligne",
   "register": "neutral",
   "screenClass": "status"
+ },
+ {
+  "key": "attente.chip_ajout",
+  "fr": "En attente d’envoi",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "attente.chip_retrait",
+  "fr": "Retrait en attente",
+  "register": "selling",
+  "screenClass": "label"
+ },
+ {
+  "key": "attente.ajout_garde",
+  "fr": "L’envoi n’est pas passé. L’ajout de {nom} est gardé sur votre téléphone. Il partira tout seul dès que le réseau revient.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "attente.retrait_garde",
+  "fr": "L’envoi n’est pas passé. Le retrait de {nom} est gardé sur votre téléphone. Il partira tout seul dès que le réseau revient.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "attente.produit",
+  "fr": "Ce produit",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "attente.bandeau_un",
+  "fr": "1 envoi attend le réseau. Il partira tout seul dès que le réseau revient.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "attente.bandeau_n",
+  "fr": "{n} envois attendent le réseau. Ils partiront tout seuls dès que le réseau revient.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "attente.envoyer",
+  "fr": "Envoyer maintenant",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "attente.envoi_en_cours",
+  "fr": "Envoi…",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "attente.envoye_un",
+  "fr": "Envoyé. Votre vitrine est à jour.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "attente.envoyes_n",
+  "fr": "{n} envois passés. Votre vitrine est à jour.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "attente.annuler_ajout",
+  "fr": "Annuler l’ajout",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "attente.annuler_retrait",
+  "fr": "Annuler le retrait",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "attente.annule",
+  "fr": "Annulé. Rien n’a été envoyé.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "attente.echec_titre",
+  "fr": "N’a pas pu partir",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "attente.retirer_liste",
+  "fr": "Retirer de la liste",
+  "register": "neutral",
+  "screenClass": "label"
+ },
+ {
+  "key": "fiche.attente",
+  "fr": "Cet ajout attend le réseau. Vous le verrez dans Ma vitrine.",
+  "register": "selling",
+  "screenClass": "status"
  }
 ]
