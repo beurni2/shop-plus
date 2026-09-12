@@ -1713,7 +1713,7 @@ export default {
     // nobody authorised. A refusal she can retry is the correct failure.
     if (request.method === 'POST' && pathname === '/listings') {
       const cmd = (await request.clone().json().catch(() => null)) as
-        | { storefrontId?: string; productVersionId?: string; markup?: unknown; customerPriceFcfa?: unknown; at?: string }
+        | { storefrontId?: string; productVersionId?: string; markup?: unknown; customerPriceFcfa?: unknown }
         | null;
       if (cmd === null || typeof cmd.productVersionId !== 'string' || cmd.productVersionId === '') {
         return Response.json({ error: 'malformed' }, { status: 400 });
@@ -1807,7 +1807,8 @@ export default {
         const added = await sfRouter.fetch(
           new Request(`https://do/storefronts/${encodeURIComponent(cmd.storefrontId)}/items`, {
             method: 'POST',
-            body: JSON.stringify({ pid: cmd.productVersionId, at: cmd.at }),
+            // DURCISSEMENT-SERVICE-1 (F-65) — no `at`: the storefront router stamps it.
+            body: JSON.stringify({ pid: cmd.productVersionId }),
           }),
           env,
         );

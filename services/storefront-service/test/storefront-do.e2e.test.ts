@@ -628,4 +628,32 @@ describe('DURCISSEMENT-SERVICE-1 (F-65) — a client at = 2099 never becomes the
     expect(add.status).toBe(200);
     entre(((await readSlug('seller-0065')).view as StorefrontView).updatedAt, avant, 'updatedAt at items/add');
   });
+
+  it('media · voice · voice/remove · items/remove · unpublish — every remaining write road, each a REAL change, each stamped at ITS call site (verifier MINOR 1: call sites, not the helper)', async () => {
+    const avant = Date.now() - 1_000;
+    const created = await create({ ...SELLER_001, commandId: 'c-f65b', id: 'sf-f65b', shortCode: 'SELLER-0066', at: FUTUR });
+    expect(created.body.status).toBe('created');
+    const poste = (path: string, body: object) =>
+      mf.dispatchFetch(`http://sf/storefronts/sf-f65b/${path}`, { method: 'POST', body: JSON.stringify(body) });
+    const luApres = async (etiquette: string): Promise<void> => {
+      const raw = (await (await mf.dispatchFetch('http://sf/storefronts/sf-f65b', { method: 'GET' })).json()) as { updatedAt: string };
+      entre(raw.updatedAt, avant, etiquette);
+    };
+    // each road is a real change so `updatedAt` MOVES — to the router's instant, never 2099
+    expect((await poste('items', { pid: 'pv-f65b', at: FUTUR })).status).toBe(200);
+    expect((await poste('media', { kind: 'cover', url: 'https://m/f65b.jpg', at: FUTUR })).status).toBe(200);
+    await luApres('updatedAt at media');
+    expect((await poste('voice', { pid: 'pv-f65b', url: 'https://m/f65b.m4a', durationMs: 8_000, at: FUTUR })).status).toBe(200);
+    await luApres('updatedAt at voice');
+    expect((await poste('voice/remove', { pid: 'pv-f65b', at: FUTUR })).status).toBe(200);
+    await luApres('updatedAt at voice/remove');
+    expect((await poste('items/remove', { pid: 'pv-f65b', at: FUTUR })).status).toBe(200);
+    await luApres('updatedAt at items/remove');
+    expect((await poste('publish', { correlationId: 'corr-f65b', at: FUTUR })).status).toBe(200);
+    const unpub = await poste('unpublish', { correlationId: 'corr-f65b', at: FUTUR });
+    const body = (await unpub.json()) as { status: string; storefront: { updatedAt: string }; event: { envelope: { serverTime: string } } };
+    expect(body.status).toBe('changed');
+    entre(body.storefront.updatedAt, avant, 'updatedAt at unpublish');
+    entre(body.event.envelope.serverTime, avant, 'serverTime on the unpublished event');
+  });
 });

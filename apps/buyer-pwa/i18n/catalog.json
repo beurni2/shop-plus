@@ -6,12 +6,6 @@
   "screenClass": "general"
  },
  {
-  "key": "order.problem.ack",
-  "fr": "Signalement bien reçu. Une personne de l'équipe vous répond.",
-  "register": "neutral",
-  "screenClass": "status"
- },
- {
   "key": "attribution.collision",
   "fr": "Ce lien vient d'un autre vendeur. Votre commande reste avec le premier vendeur.",
   "register": "selling",

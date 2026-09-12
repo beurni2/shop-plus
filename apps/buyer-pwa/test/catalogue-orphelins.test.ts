@@ -16,17 +16,19 @@ import { describe, expect, it } from 'vitest';
  *
  * ALIVE means: the exact quoted key appears in the app's comment-stripped source
  * (`t('key')`, `tf('key'`, or a constant naming it), OR the key is named BY
- * REFERENCE from another package — the two below are carried as message refs
- * by the attribution lock (`buyerMessageRef: 'attribution.collision'`) and the
- * commerce-core problem path (`humanReasonRef: 'order.problem.ack'`), so
- * « nothing names it » is false for them and they stay.
+ * REFERENCE from another package's PRODUCT code — `attribution.collision` is
+ * carried as `buyerMessageRef` by the attribution lock (lock.ts), so « nothing
+ * names it » is false for it and it stays. (`order.problem.ack` was first kept
+ * on the same ground; the verifier found its only namers were a commerce-core
+ * TEST and a gate script passing a free string — no product code, no lookup —
+ * so it went with the others. The E2–E3 refusal ladder brings its own key.)
  */
 
 const appDir = join(import.meta.dirname, '..');
 const catalog = JSON.parse(readFileSync(join(appDir, 'i18n/catalog.json'), 'utf8')) as { key: string }[];
 
-/** Keys another package names by reference — see the header. */
-const NOMMEES_AILLEURS = new Set(['attribution.collision', 'order.problem.ack']);
+/** Keys another package's product code names by reference — see the header. */
+const NOMMEES_AILLEURS = new Set(['attribution.collision']);
 
 function fichiers(dir: string, garde: (f: string) => boolean): string[] {
   const out: string[] = [];
@@ -64,11 +66,10 @@ describe('CATALOGUES-ORPHELINS-1 — every buyer catalog key is rendered by the 
     expect(orphelines).toEqual([]);
   });
 
-  it('the two keys kept by reference are still referenced where the header says', () => {
+  it('the key kept by reference is still named by PRODUCT code where the header says — and the one that was not is gone', () => {
     const lock = readFileSync(join(appDir, '../../services/attribution-service/src/lock.ts'), 'utf8');
     expect(lock).toContain("'attribution.collision'");
-    const probleme = readFileSync(join(appDir, '../../packages/commerce-core/test/e2-failure-paths.test.ts'), 'utf8');
-    expect(probleme).toContain("'order.problem.ack'");
     for (const k of NOMMEES_AILLEURS) expect(catalog.some((e) => e.key === k), k).toBe(true);
+    expect(catalog.some((e) => e.key === 'order.problem.ack')).toBe(false);
   });
 });
