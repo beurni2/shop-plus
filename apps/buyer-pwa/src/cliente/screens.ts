@@ -1255,6 +1255,13 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
    *     maintenant » already chosen: the only mode the service will take
    *     for a gift, or for a buyer the door ladder refuses. Her hold on the
    *     FULL quote is taken fresh when she pays.
+   *   · NO action for `liste_contact_conflit` (verifier, handled once): its
+   *     one reachable road is a stale fiche — the liste's address was stored
+   *     after her page loaded, so the address form mounted and her contact
+   *     rode the create. Every in-app button would re-send that contact into
+   *     the same refusal; the true road is the liste's link, reopened, which
+   *     loads the stored address and never mounts the form. The back arrow
+   *     stands, as on `no_secure_random`.
    *
    * `charge_rejected` is deliberately absent: it never crosses as a refusal
    * name — a rejected charge comes back as an ORDER at `payment_failed`, and
@@ -1306,8 +1313,8 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
     overline: t('cl.refus.liste_contact_conflit.overline'),
     titre: t('cl.refus.liste_contact_conflit.titre'),
     phrase: t('cl.refus.liste_contact_conflit.phrase'),
-    action: 'prix-a-jour',
-    libelle: t('cl.refus.liste_contact_conflit.libelle'),
+    action: null,
+    libelle: '',
   },
   pay_at_door_not_eligible: {
     overline: t('cl.refus.pay_at_door_not_eligible.overline'),

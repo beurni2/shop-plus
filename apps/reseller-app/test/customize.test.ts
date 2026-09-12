@@ -73,12 +73,14 @@ describe('K property pins — the Phase-0 table bytes in the runtime StyleSheet'
     expect(flat(S.defautPill).backgroundColor).toBe('#EFE8DA');
   });
 
-  it('C-K7 order row: min-h 62, art 44 r12, arrows 30 r9, star 38 r12 (pinned bg #F8E4EC), pills #F8E4EC/#701134 + #EFE8DA/#6F6355, épuisé opacity .62', () => {
+  it('C-K7 order row: min-h 62, art 44 r12, arrows and star at the 48 touch token (r9 / r12; pinned bg #F8E4EC), pills #F8E4EC/#701134 + #EFE8DA/#6F6355, épuisé opacity .62', () => {
     expect(flat(S.orderRow).minHeight).toBe(62);
     expect(flat(S.orderRow).gap).toBe(11);
     expect(flat(S.orderArt)).toMatchObject({ width: 44, height: 44, borderRadius: 12 });
-    expect(flat(S.arrowBtn)).toMatchObject({ width: 30, height: 30, borderRadius: 9 });
-    expect(flat(S.starBtn)).toMatchObject({ width: 38, height: 38, borderRadius: 12 });
+    // F-45 (verifier, handled once): the arrows sat at 30 and the star at 38 —
+    // pressables under the token; both now read `touch.minTargetPx`.
+    expect(flat(S.arrowBtn)).toMatchObject({ width: 48, height: 48, borderRadius: 9 });
+    expect(flat(S.starBtn)).toMatchObject({ width: 48, height: 48, borderRadius: 12 });
     expect(flat(S.starBtnPinned).backgroundColor).toBe('#F8E4EC');
     expect(flat(S.unePill).backgroundColor).toBe('#F8E4EC');
     expect(flat(S.unePillText).color).toBe('#701134');

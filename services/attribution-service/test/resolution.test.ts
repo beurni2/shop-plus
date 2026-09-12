@@ -30,6 +30,7 @@ describe('SP-I09b.1 — a locked order is IMMUTABLE (first-lock-wins)', () => {
       typedShortCode: 'AICHA-4821',
       arrivals: [identityArrival('res_awa', '2026-07-12T00:00:00.000Z')],
       nowIso: NOW,
+      correlationId: 'corr-locked',
       resolveShortCode,
     });
     expect(out.resolution).toEqual({ attributed: true, resellerId: 'res_locked', source: 'locked' });
@@ -43,6 +44,7 @@ describe('SP-I09b.2 — an explicit code at payment BEATS any arrival', () => {
       typedShortCode: 'aicha 4821', // tolerant input → AICHA-4821 → res_aicha
       arrivals: [identityArrival('res_awa', '2026-07-12T00:00:00.000Z')],
       nowIso: NOW,
+      correlationId: 'corr-explicit',
       resolveShortCode,
     });
     expect(out.resolution).toEqual({ attributed: true, resellerId: 'res_aicha', source: 'explicit_code' });
@@ -58,6 +60,7 @@ describe('SP-I09b.3 — else the most recent UNEXPIRED arrival wins (last-touch,
         identityArrival('res_recent', '2026-07-10T00:00:00.000Z'), // within 30d
       ],
       nowIso: NOW,
+      correlationId: 'corr-last-touch',
       resolveShortCode,
     });
     expect(out.resolution).toEqual({ attributed: true, resellerId: 'res_recent', source: 'arrival' });

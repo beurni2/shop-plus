@@ -40,14 +40,28 @@ describe('Personnaliser (k-styles, raw values) — each named control reaches th
     expect(taille(S['segBtn']!, 'height'), 'segBtn height').toBeGreaterThanOrEqual(MIN);
     expect(taille(S['vStopBtn']!, 'height'), 'vStopBtn height — the « Arrêter » of a running take').toBeGreaterThanOrEqual(MIN);
   });
+
+  // The verifier's list beside the audit's (handled once): the voice sheet's
+  // PRIMARY action sat at the charter floor (44) under the 48 token, with its
+  // neighbours; the arrows and stars of the sections editor at 30 and 38.
+  it('vPublishBtn · vGhost · vPlayBtn · vRecBtn · ghostSmall (height) · vEcouteDisque · starBtn · arrowBtn (square)', () => {
+    const S = K_RAW_STYLES as unknown as Record<string, Record<string, unknown>>;
+    for (const name of ['vPublishBtn', 'vGhost', 'vPlayBtn', 'vRecBtn', 'ghostSmall']) {
+      expect(taille(S[name]!, 'height'), name).toBeGreaterThanOrEqual(MIN);
+    }
+    for (const name of ['vEcouteDisque', 'starBtn', 'arrowBtn']) {
+      expect(taille(S[name]!, 'height'), `${name} height`).toBeGreaterThanOrEqual(MIN);
+      expect(taille(S[name]!, 'width'), `${name} width`).toBeGreaterThanOrEqual(MIN);
+    }
+  });
 });
 
 describe('Cercle (raw values) — each named control reaches the token', () => {
-  it('backBtn · chipRose · zoneChip · segChip', () => {
+  it('backBtn · chipRose · zoneChip · segChip · toutVoir', () => {
     const S = CERCLE_RAW_STYLES as unknown as Record<string, Record<string, unknown>>;
     expect(taille(S['backBtn']!, 'height'), 'backBtn').toBeGreaterThanOrEqual(MIN);
     expect(taille(S['backBtn']!, 'width'), 'backBtn width').toBeGreaterThanOrEqual(MIN);
-    for (const name of ['chipRose', 'zoneChip', 'segChip']) {
+    for (const name of ['chipRose', 'zoneChip', 'segChip', 'toutVoir']) {
       expect(taille(S[name]!, 'height'), name).toBeGreaterThanOrEqual(MIN);
     }
   });

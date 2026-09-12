@@ -235,7 +235,7 @@ export const CERCLE_RAW_STYLES = {
   mt12: { marginTop: 12 }, mt14: { marginTop: 14 }, mt16: { marginTop: 16 }, mt10: { marginTop: 10 }, mt18: { marginTop: 18 },
   rowBody: { flex: 1, minWidth: 0 },
   sectionRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  toutVoir: { height: 32, paddingHorizontal: 12, borderRadius: 99, borderWidth: 1, borderColor: '#E5DCC9', alignItems: 'center', justifyContent: 'center' },
+  toutVoir: { height: touch.minTargetPx, paddingHorizontal: 12, borderRadius: 99, borderWidth: 1, borderColor: '#E5DCC9', alignItems: 'center', justifyContent: 'center' },
   toutVoirText: { fontFamily: TEXT_FAMILY_SEMIBOLD, fontSize: 12, color: '#1C1710' },
   lawNote: { marginTop: 13, padding: 14, paddingHorizontal: 16, borderRadius: 18, backgroundColor: '#F8E4EC' },
   lawNoteText: { fontFamily: TEXT_FAMILY, fontSize: 12.5, lineHeight: 19.375, color: '#701134' },

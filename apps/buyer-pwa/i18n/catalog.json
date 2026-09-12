@@ -2288,21 +2288,15 @@
  },
  {
   "key": "cl.refus.liste_contact_conflit.titre",
-  "fr": "L’adresse de la liste sera utilisée.",
+  "fr": "La liste a déjà une adresse.",
   "register": "money",
   "screenClass": "status"
  },
  {
   "key": "cl.refus.liste_contact_conflit.phrase",
-  "fr": "Une seule adresse par commande. Demandez un prix à jour. Rien n’a été payé.",
+  "fr": "Rouvrez le lien de la liste, puis commandez. Rien n’a été payé.",
   "register": "money",
   "screenClass": "status"
- },
- {
-  "key": "cl.refus.liste_contact_conflit.libelle",
-  "fr": "Voir le prix à jour",
-  "register": "money",
-  "screenClass": "label"
  },
  {
   "key": "cl.refus.pay_at_door_not_eligible.overline",

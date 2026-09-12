@@ -131,7 +131,7 @@ export const K_RAW_STYLES = {
   noteWarn: { borderRadius: 14, backgroundColor: '#F6E9C8', padding: 12, marginTop: 12 },
   noteWarnText: { fontFamily: TEXT_FAMILY, fontSize: 12, lineHeight: 18, color: '#7A5104' },
   ghostSmall: {
-    height: 44, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E5DCC9',
+    height: touch.minTargetPx, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E5DCC9',
     alignItems: 'center', justifyContent: 'center', marginTop: 12, paddingHorizontal: 18, alignSelf: 'flex-start',
   },
   ghostSmallText: { fontFamily: DISPLAY_FAMILY, fontSize: 13.5, fontWeight: '700', color: '#1C1710' },
@@ -203,12 +203,12 @@ export const K_RAW_STYLES = {
   epuisePill: { borderRadius: 99, backgroundColor: '#EFE8DA', paddingVertical: 2, paddingHorizontal: 7 },
   epuisePillText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 9, fontWeight: '700', color: '#6F6355' },
   arrowBtn: {
-    width: 30, height: 30, borderRadius: 9, borderWidth: 1, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF',
+    width: touch.minTargetPx, height: touch.minTargetPx, borderRadius: 9, borderWidth: 1, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF',
     alignItems: 'center', justifyContent: 'center',
   },
   arrowText: { fontSize: 11, color: '#1C1710' },
   starBtn: {
-    width: 38, height: 38, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5DCC9',
+    width: touch.minTargetPx, height: touch.minTargetPx, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5DCC9',
     alignItems: 'center', justifyContent: 'center',
   },
   starBtnPinned: { backgroundColor: '#F8E4EC', borderColor: '#F8E4EC' },
@@ -231,7 +231,7 @@ export const K_RAW_STYLES = {
   vPrice: { fontFamily: DISPLAY_FAMILY, fontSize: 13, fontWeight: '800', color: '#701134', marginTop: 2 },
   vRecBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    height: 46, borderRadius: 14, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF',
+    height: touch.minTargetPx, borderRadius: 14, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF',
   },
   vRecBtnText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13.5, fontWeight: '700', color: '#A31D4E' },
   vRecording: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -240,9 +240,9 @@ export const K_RAW_STYLES = {
   vStopBtn: { height: touch.minTargetPx, borderRadius: 12, paddingHorizontal: 16, backgroundColor: '#A31D4E', alignItems: 'center', justifyContent: 'center' },
   vStopText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13, fontWeight: '700', color: '#FFF6EC' },
   vActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  vPublishBtn: { height: 44, borderRadius: 14, paddingHorizontal: 18, backgroundColor: '#A31D4E', alignItems: 'center', justifyContent: 'center' },
+  vPublishBtn: { height: touch.minTargetPx, borderRadius: 14, paddingHorizontal: 18, backgroundColor: '#A31D4E', alignItems: 'center', justifyContent: 'center' },
   vPublishText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13.5, fontWeight: '700', color: '#FFF6EC' },
-  vGhost: { height: 44, borderRadius: 14, paddingHorizontal: 14, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  vGhost: { height: touch.minTargetPx, borderRadius: 14, paddingHorizontal: 14, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   vGhostText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13, fontWeight: '700', color: '#1C1710' },
   vDanger: { borderColor: '#D9A49C' },
   vDangerText: { color: '#8C1D18' },
@@ -256,7 +256,7 @@ export const K_RAW_STYLES = {
   // status: 6.98:1 on its ground, against the shipped pending pair's 5.79:1.
   vLivePill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 99, paddingVertical: 5, paddingHorizontal: 11, backgroundColor: '#DFEEE3' },
   vLiveText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 11.5, fontWeight: '700', color: '#2E5638' },
-  vPlayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, borderRadius: 14, paddingHorizontal: 14, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF' },
+  vPlayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: touch.minTargetPx, borderRadius: 14, paddingHorizontal: 14, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF' },
   /* ÉCOUTE — the take she just made, given its own block (founder 2026-08-04:
      « make its area more visible, nice and professional … I am able to replay
      it, listen before adding it to the product »).
@@ -274,7 +274,7 @@ export const K_RAW_STYLES = {
     backgroundColor: '#F4EDDF', borderWidth: 1, borderColor: '#E5DCC9',
   },
   vEcouteDisque: {
-    width: 46, height: 46, borderRadius: 99, alignItems: 'center', justifyContent: 'center',
+    width: touch.minTargetPx, height: touch.minTargetPx, borderRadius: 99, alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#A31D4E',
   },
   vEcouteTexte: { flex: 1, gap: 2 },

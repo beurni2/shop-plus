@@ -147,7 +147,7 @@ const REFUS_VIEWS = ['generique', 'listing_unknown', 'not_found', 'listing_not_l
   // REFUS-NOMMÉS-1 (F-53) — the reserve and order roads' names
   'reservation_expired', 'quote_not_reserved', 'reservation_held_by_another', 'quote_unknown', 'stored_quote_unreadable',
   'liste_prepaiement_requis', 'liste_contact_conflit', 'pay_at_door_not_eligible'];
-const REFUS_SANS_ACTION = new Set(['no_secure_random']);
+const REFUS_SANS_ACTION = new Set(['no_secure_random', 'liste_contact_conflit']);
 for (const view of REFUS_VIEWS) {
   const fields = { overline: L(), titre: S(), phrase: S() };
   if (!REFUS_SANS_ACTION.has(view)) fields.libelle = L();

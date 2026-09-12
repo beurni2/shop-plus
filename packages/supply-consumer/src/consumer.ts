@@ -41,17 +41,22 @@ export type SupplyVerdict =
 /** A phone number embedded in a free-text VALUE, in the shape of a BURKINA
  *  number and nothing wider (DURCISSEMENT-SERVICE-2, AUDIT-SHOP-2 F-93): an
  *  optional +226 / 00226, then eight digits that start with 2 (a landline) or
- *  5, 6, 7 (a mobile), grouped by at most one space, dot or dash — « 70 12 34
- *  56 », « +226 70123456 », « 25.30.40.50 » — and NOT part of a longer digit
- *  run (the lookbehind and lookahead), so « Réf 2024-0001-77 », « Lot 12345678 »
- *  and a bar code are the product names they are, not refused as leaks. The
- *  old sweep (« any eight grouped digits ») was honest but refused those in
- *  silence. Deliberately NOT the IDENTITY_LEAK word-list, which matches
+ *  5, 6, 7 (a mobile), grouped by at most one space, dot, dash or slash —
+ *  « 70 12 34 56 », « +226 70123456 », « 25.30.40.50 » — and NOT part of a
+ *  longer GROUPED digit run (the lookbehind and lookahead each look one
+ *  separator past the digits), so « Réf 2024-0001-77 », « Lot 12345678 »,
+ *  « Série 2024-7012-3456 » and a bar code are the product names they are,
+ *  not refused as leaks. STATED BOUND: a date written « 2026-09-12 » has a
+ *  landline's exact shape (eight digits, 2-leading, grouped) and is refused
+ *  — the sweep cannot tell the two apart by digits, and refusing closed is
+ *  the side it errs on. The old sweep (« any eight grouped digits ») was
+ *  honest but refused every digit-heavy name in silence. Deliberately NOT
+ *  the IDENTITY_LEAK word-list, which matches
  *  « phone » — a value scan with it would refuse « Coque téléphone », a real
  *  product. Broader prose moderation (whatsapp, « appelez-moi », addresses) is
  *  Boutik+'s at authoring; this is the one high-signal content leak the
  *  consumer catches (audit D3). */
-const CONTACT_NUMBER = /(?<!\d)(?:(?:\+|00)\s?226[\s.\-]?)?[2567](?:[\s.\-]?\d){7}(?![\s.\-]?\d)/;
+const CONTACT_NUMBER = /(?<!\d[\s.\-/]?)(?:(?:\+|00)\s?226[\s.\-/]?)?[2567](?:[\s.\-/]?\d){7}(?![\s.\-/]?\d)/;
 
 function hasIdentityLeak(raw: unknown): boolean {
   if (raw === null || typeof raw !== 'object') return false;

@@ -310,25 +310,30 @@ describe('REFUS-NOMMÉS-1 — the reserve and order roads, walked', () => {
 /* ────────────────── the table — every name, one true sentence ───────────── */
 
 describe('REFUS-NOMMÉS-1 — the eight names render their own sentence, one action, « Rien n’a été payé »', () => {
-  const cases: Array<[string, string, string]> = [
+  // `null` = NO primary action, on purpose: `liste_contact_conflit`'s one
+  // reachable road is a stale fiche whose contact every in-app retry would
+  // re-send into the same refusal (verifier, handled once); the sentence names
+  // the true road — the liste's link, reopened — and the back arrow stands.
+  const cases: Array<[string, string, string | null]> = [
     ['reservation_expired', 'Le temps de garde est passé.', 'prix-a-jour'],
     ['quote_not_reserved', 'Cette commande n’est plus gardée.', 'prix-a-jour'],
     ['reservation_held_by_another', 'Quelqu’un d’autre garde cette commande.', 'prix-a-jour'],
     ['quote_unknown', 'Ce prix n’est plus connu.', 'prix-a-jour'],
     ['stored_quote_unreadable', 'Ce prix ne peut plus être lu.', 'prix-a-jour'],
     ['liste_prepaiement_requis', 'Pour un cadeau, on paie tout maintenant.', 'payer-tout'],
-    ['liste_contact_conflit', 'L’adresse de la liste sera utilisée.', 'prix-a-jour'],
+    ['liste_contact_conflit', 'La liste a déjà une adresse.', null],
     ['pay_at_door_not_eligible', 'Le paiement à la porte n’est pas possible pour cette commande.', 'payer-tout'],
   ];
   for (const [reason, titre, action] of cases) {
-    it(`« ${reason} » → « ${titre} » with the one action « ${action} »`, () => {
+    it(`« ${reason} » → « ${titre} » with ${action === null ? 'NO primary action (the back arrow only)' : `the one action « ${action} »`}`, () => {
       const html = renderRefus(reason);
       const lu = visible(html);
       expect(lu).toContain(titre);
       expect(lu).toContain('Rien n’a été payé');
       expect(lu, 'not the generic price sentence').not.toContain('afficher le prix');
       expect(lu, 'the raw name is never shown').not.toContain(reason);
-      expect(html.match(/class="cl-cta /g) ?? [], 'exactly one primary action').toHaveLength(1);
+      expect(html.match(/class="cl-cta /g) ?? [], action === null ? 'no primary action' : 'exactly one primary action').toHaveLength(action === null ? 0 : 1);
+      expect(html, 'the back arrow always stands').toContain('data-action="retour-c3"');
       expect(refusVue(reason).action).toBe(action);
       expect(html).not.toContain('FCFA');
       for (const banned of ['erreur', 'Erreur', 'veuillez', 'Veuillez', 'invalide', 'échec', 'en attente']) {

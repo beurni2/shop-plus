@@ -118,14 +118,23 @@ describe('consumeSupplyProjection — pull, parse, sweep, freshness', () => {
       src.set({ productVersionId: 'pv_x', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: name, assetRefs: [], category: 'fashion_bags_fabrics', asOf: minutesAgo(1), version: 2 });
       return consumeSupplyProjection(src, 'pv_x', NOW).status;
     };
-    // Before: « ≥ 8 grouped digits » refused these three honest names in silence.
+    // Before: « ≥ 8 grouped digits » refused these honest names in silence.
     expect(verdict('Réf 2024-0001-77'), 'a reference').toBe('fresh');
     expect(verdict('Lot 12345678'), 'a lot number (starts with 1 — no Burkina number does)').toBe('fresh');
     expect(verdict('Code-barres 6111234567890'), 'a bar code').toBe('fresh');
+    // a number-shaped group INSIDE a longer grouped run is part of that run,
+    // not a phone (verifier, handled once: the lookbehind looks one separator back)
+    expect(verdict('Série 2024-7012-3456'), 'a grouped series').toBe('fresh');
     // …and every shape a Burkina number takes is still caught.
-    for (const leak of ['appelez 70 12 34 56', '+226 70123456', '00226 70 12 34 56', 'Tel: 25.30.40.50', 'wa 76-54-32-10', '+226 5 6 1 2 3 4 5 6']) {
+    for (const leak of ['appelez 70 12 34 56', '+226 70123456', '00226 70 12 34 56', 'Tel: 25.30.40.50', 'wa 76-54-32-10', '+226 5 6 1 2 3 4 5 6', 'joindre 70/12/34/56', '(+226) 70 12 34 56']) {
       expect(verdict(leak), leak).toBe('rejected');
     }
+  });
+
+  it('STATED BOUND (F-93) — a date written 2026-09-12 has a landline’s exact shape and is refused; the sweep errs closed', () => {
+    const src = new MockSupplyProjectionSource();
+    src.set({ productVersionId: 'pv_d', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: 'Lot 2026-09-12', assetRefs: [], category: 'fashion_bags_fabrics', asOf: minutesAgo(1), version: 2 });
+    expect(consumeSupplyProjection(src, 'pv_d', NOW).status).toBe('rejected');
   });
 
   it('a non-contract payload and an absent product are both refused / absent (never a silent pass)', () => {
