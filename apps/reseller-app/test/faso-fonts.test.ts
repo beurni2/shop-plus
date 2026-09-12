@@ -149,8 +149,11 @@ describe('Faso Premium fonts — money-render / cmap guard (RN surface)', () => 
   it('every non-ASCII codepoint in the reseller catalog copy is covered by every face', () => {
     const needed = [...catalogCodepoints];
     expect(needed.length).toBeGreaterThan(0);
-    // The typographic minus U+2212 really is in the copy — the guard's live premise.
-    expect(catalogCodepoints.has(0x2212)).toBe(true);
+    // The guard's live premise: a typographic codepoint really is in the copy.
+    // It was U+2212 (the minus in « − {amount} ») until CATALOGUES-ORPHELINS-1
+    // took that demo-era line with the other orphans; the apostrophe U+2019
+    // (« n’a pas ») is on every screen and stays.
+    expect(catalogCodepoints.has(0x2019)).toBe(true);
     for (const face of manifest.faces) {
       const cover = new Set(face.codepoints);
       const missing = needed.filter((cp) => !cover.has(cp));

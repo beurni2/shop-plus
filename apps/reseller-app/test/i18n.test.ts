@@ -12,23 +12,26 @@ import { t, tf } from '../src/i18n.js';
 
 describe('reseller-app tf() — loud-fail interpolation', () => {
   it('resolves every placeholder from its params (round-trip, no braces left)', () => {
-    const out = tf('share.code', { code: 'AICHA-4821' });
-    expect(out).toBe(t('share.code').replace('{code}', 'AICHA-4821'));
+    // CATALOGUES-ORPHELINS-1 — the fixtures are LIVE keys (the QR fallback line
+    // and the sales row's net), not the demo-era `share.code` / `gains.brut`
+    // this test alone kept in the catalog.
+    const out = tf('share.qr_repli', { code: 'AICHA-4821' });
+    expect(out).toBe(t('share.qr_repli').replace('{code}', 'AICHA-4821'));
     expect(out).toContain('AICHA-4821');
     expect(out).not.toContain('{code}');
     // a multi-nothing string with one placeholder still resolves cleanly
-    expect(tf('gains.brut', { amount: '2 000 F' })).toContain('2 000 F');
-    expect(tf('gains.brut', { amount: '2 000 F' })).not.toMatch(/\{amount\}/);
+    expect(tf('ventes.net_ligne', { amount: '2 000 F' })).toContain('2 000 F');
+    expect(tf('ventes.net_ligne', { amount: '2 000 F' })).not.toMatch(/\{amount\}/);
   });
 
   it('THROWS on a mistyped placeholder — the string keeps {code}, the param never lands', () => {
     // `cede` is a typo for `code`: the old `.replace('{code}', …)` would have
-    // silently shipped « Code : {code} ». Now it fails loud.
-    expect(() => tf('share.code', { cede: 'AICHA-4821' })).toThrow(/\{code\}/);
+    // silently shipped « … le code suffit — {code}. ». Now it fails loud.
+    expect(() => tf('share.qr_repli', { cede: 'AICHA-4821' })).toThrow(/\{code\}/);
   });
 
   it('THROWS when a placeholder the string carries has no value', () => {
-    expect(() => tf('gains.brut', {})).toThrow(/no value for placeholder \{amount\}/);
+    expect(() => tf('ventes.net_ligne', {})).toThrow(/no value for placeholder \{amount\}/);
   });
 
   it('THROWS when a provided param matches no placeholder (extra/mistyped param)', () => {

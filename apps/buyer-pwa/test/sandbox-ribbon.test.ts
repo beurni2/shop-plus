@@ -18,10 +18,15 @@ import { describe, expect, it } from 'vitest';
  *
  * WHAT THE REMOVAL COST, recorded here and in JOURNAL.md so it cannot be
  * forgotten: while the payment provider is still the certified sandbox mock,
- * NO band on the buyer's screen says the payment is a test. The sentences that
- * speak on their own events are untouched and still true — « Rien n'a été
- * débité » on a refusal, on a cancellation — because those state what
- * happened, rather than labelling the whole surface.
+ * NO band on the buyer's screen says the payment is a test.
+ *
+ * (This file once added « the per-event sentences survive » — « Rien n'a été
+ * débité » under `order.payment_failed.body` / `order.cancelled.body`.
+ * CATALOGUES-ORPHELINS-1 found that nothing had rendered those keys since the
+ * prototype-era shell: dead strings, the exact class the pin below refuses to
+ * leave behind, and they went with the rest of the `order.*` namespace. The
+ * buyer's refusal sentences live under `cl.` today, pinned by the inline-refus
+ * gate.)
  *
  * The build-base test at the bottom never had anything to do with the ribbon;
  * it lives here by history and is KEPT, not orphaned by the removal.
@@ -59,12 +64,9 @@ describe('BANDEAUX-RETIRÉS — the sandbox ribbon no longer renders anywhere', 
     expect(code).not.toMatch(/child !== ribbon/);
   });
 
-  it('the honest per-event sentences SURVIVE — the removal took chrome, never a fact', () => {
-    // These speak about what actually happened to her money, and they stay.
+  it('the prototype-era `order.*` sentences are gone too — CATALOGUES-ORPHELINS-1 took the dead strings this file once kept alive', () => {
     for (const key of ['order.payment_failed.body', 'order.cancelled.body']) {
-      const entry = catalog.find((e) => e.key === key);
-      expect(entry, `${key} must still exist`).toBeDefined();
-      expect(entry!.fr).toMatch(/débité/);
+      expect(catalog.find((e) => e.key === key), `${key} must not linger`).toBeUndefined();
     }
   });
 

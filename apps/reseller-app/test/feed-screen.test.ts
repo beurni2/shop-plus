@@ -69,8 +69,9 @@ describe('RF-1c — every state her screen can reach is honest and nameable', ()
         );
     // NOTE the deliberate absence of a bare « porte » term: the code-door
     // strings are `ventes.reel_porte_*` (the door SHE opens), which is not the
-    // buyer's doorstep. The delivery key is `ventes.etat_porte`, banned below
-    // by its exact name — a looser term would fail on a legitimate string and
+    // buyer's doorstep. The demo-era delivery key was `ventes.etat_porte`
+    // (gone with the seed's strings, CATALOGUES-ORPHELINS-1); its exact name
+    // stays banned below — a looser term would fail on a legitimate string and
     // teach the next reader to weaken the scan.
     for (const invented of ['en_route', 'etat_porte', 'livree', 'probleme', 'courier', 'custody']) {
       expect(bytes.includes(invented), `the screen can express a state nobody proved: ${invented}`).toBe(false);
