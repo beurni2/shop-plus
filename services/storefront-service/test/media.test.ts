@@ -102,6 +102,21 @@ describe('oversized / wrong-type / bad input rejected (never stored)', () => {
     expect(await s.upload({ storefrontId: 'sf', kind: 'voice', pid: 'p1', bytes: wavBytes(), durationMs: 90_000, at: NOW })).toEqual({ ok: false, reason: 'bad_duration' });
     expect(await s.upload({ storefrontId: 'sf', kind: 'voice', pid: 'p1', bytes: new Uint8Array([1, 2, 3]), durationMs: 5_000, at: NOW })).toEqual({ ok: false, reason: 'unsupported_type' });
   });
+
+  it('DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-71): a duration that is not a whole number of milliseconds — NaN from `durationMs=abc`, a fraction — is bad_duration, and the bytes are NEVER stored', async () => {
+    // `NaN <= 0` and `NaN > MAX` are both false, so the cap let NaN through:
+    // the bytes reached the bucket, the DO refused the pointer, the route
+    // answered 502 — and the object stayed behind with nothing pointing at it.
+    const store = new InMemoryMediaStore();
+    const s = new StorefrontMediaService(store);
+    for (const durationMs of [Number('abc'), 8_000.5, Number.POSITIVE_INFINITY]) {
+      expect(await s.upload({ storefrontId: 'sf', kind: 'voice', pid: 'p1', bytes: wavBytes(), durationMs, at: NOW }), String(durationMs)).toEqual({
+        ok: false,
+        reason: 'bad_duration',
+      });
+    }
+    expect(store.objects.size, 'a refused duration must leave nothing in the bucket').toBe(0);
+  });
 });
 
 describe('moderation — cover/avatar are held STORED-BUT-NOT-LIVE; the buyer only ever sees live', () => {
@@ -169,6 +184,17 @@ describe('the upload endpoint (through-a-service HTTP path)', () => {
 
     const notFound = await worker.fetch(new Request('https://storefront-service.shop.internal/nope'));
     expect(notFound.status).toBe(404);
+  });
+
+  it('DURCISSEMENT-SERVICE-1 (F-71): `durationMs=abc` on the wire is a 400 bad_duration — refused before any byte is stored', async () => {
+    const res = await worker.fetch(
+      new Request('https://storefront-service.shop.internal/media/upload?storefrontId=sf&kind=voice&pid=p1&durationMs=abc', {
+        method: 'POST',
+        body: wavBytes().buffer,
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('bad_duration');
   });
 });
 

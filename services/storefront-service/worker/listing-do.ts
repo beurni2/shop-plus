@@ -148,8 +148,10 @@ export default {
       if (cmd == null || typeof cmd.listingId !== 'string') {
         return Response.json({ error: 'malformed' }, { status: 400 });
       }
+      // DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-65) — the SERVER stamps the clock:
+      // the event's `serverTime` used to be whatever the client wrote in `at`.
       const res = await stub(env, cmd.listingId).fetch(
-        new Request('https://do/entry/publish', { method: 'POST', body: JSON.stringify(cmd) }),
+        new Request('https://do/entry/publish', { method: 'POST', body: JSON.stringify({ ...cmd, at: new Date().toISOString() }) }),
       );
       const decision = (await res.clone().json().catch(() => null)) as { status?: string } | null;
       if (decision?.status === 'published') {
@@ -172,7 +174,7 @@ export default {
       if (listingId === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const args = (await request.clone().json().catch(() => ({}))) as Partial<HideArgs>;
       const res = await stub(env, listingId).fetch(
-        new Request('https://do/entry/hide', { method: 'POST', body: JSON.stringify({ ...args, listingId }) }),
+        new Request('https://do/entry/hide', { method: 'POST', body: JSON.stringify({ ...args, listingId, at: new Date().toISOString() }) }),
       );
       return forward(res);
     }

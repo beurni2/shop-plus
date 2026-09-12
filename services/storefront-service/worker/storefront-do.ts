@@ -338,6 +338,32 @@ const forward = async (res: Response, status = res.status): Promise<Response> =>
   new Response(await res.text(), { status, headers: { 'Content-Type': 'application/json' } });
 
 /**
+ * DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-65) — THE SERVER STAMPS THE CLOCK.
+ *
+ * Every write used to carry the CLIENT's `at` into `createdAt` / `updatedAt`
+ * and the event's `serverTime`, so a reseller could set her shop's clock to
+ * 2099 — the directory's ordering truth. This router overwrites `at` on every
+ * write road it serves; whatever a body says about time is ignored. Not a
+ * money field, not a shape change: who sets the field, not what it is.
+ *
+ * `horodate` re-stamps a body that crosses this router VERBATIM (identity,
+ * media, voice): a body that will not parse, or is not an object, crosses
+ * untouched so the object still names it `malformed` — the exact-key checks
+ * downstream see the same keys they saw before, `at` included.
+ */
+const maintenant = (): string => new Date().toISOString();
+const horodate = (body: string): string => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return body;
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return body;
+  return JSON.stringify({ ...(parsed as Record<string, unknown>), at: maintenant() });
+};
+
+/**
  * Router — the durable storefront surface used by DurableStorefrontStore:
  *   POST /storefronts                     create (claims the slug FIRST — `409 slug_taken` when another shop holds it)
  *   POST /storefronts/:id/publish|unpublish   discoverability toggle
@@ -380,7 +406,7 @@ export default {
       let res: Response;
       try {
         res = await sfStub(env, cmd.id).fetch(
-          new Request('https://do/entry/create', { method: 'POST', body: JSON.stringify(cmd) }),
+          new Request('https://do/entry/create', { method: 'POST', body: JSON.stringify({ ...cmd, at: maintenant() }) }),
         );
       } catch (err) {
         if (claim.claimed) await liberer();
@@ -437,7 +463,7 @@ export default {
       if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const args = (await request.clone().json().catch(() => ({}))) as Partial<ToggleArgs>;
       const res = await sfStub(env, id).fetch(
-        new Request(`https://do/entry/${m[2]}`, { method: 'POST', body: JSON.stringify({ ...args, id }) }),
+        new Request(`https://do/entry/${m[2]}`, { method: 'POST', body: JSON.stringify({ ...args, id, at: maintenant() }) }),
       );
       return forward(res);
     }
@@ -449,7 +475,7 @@ export default {
     if (m && request.method === 'POST') {
       const id = decodeSur(m[1]!);
       if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
-      const body = await request.clone().text();
+      const body = horodate(await request.clone().text());
       const res = await sfStub(env, id).fetch(
         new Request('https://do/entry/identity', { method: 'POST', body }),
       );
@@ -460,7 +486,7 @@ export default {
     if (m && request.method === 'POST') {
       const id = decodeSur(m[1]!);
       if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
-      const body = await request.clone().text();
+      const body = horodate(await request.clone().text());
       const res = await sfStub(env, id).fetch(new Request('https://do/entry/media', { method: 'POST', body }));
       return forward(res);
     }
@@ -469,7 +495,7 @@ export default {
     if (m && request.method === 'POST') {
       const id = decodeSur(m[1]!);
       if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
-      const body = await request.clone().text();
+      const body = horodate(await request.clone().text());
       const res = await sfStub(env, id).fetch(new Request('https://do/entry/voice', { method: 'POST', body }));
       return forward(res);
     }
@@ -478,7 +504,7 @@ export default {
     if (m && request.method === 'POST') {
       const id = decodeSur(m[1]!);
       if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
-      const body = await request.clone().text();
+      const body = horodate(await request.clone().text());
       const res = await sfStub(env, id).fetch(
         new Request('https://do/entry/voice/remove', { method: 'POST', body }),
       );
@@ -491,7 +517,7 @@ export default {
       if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const args = (await request.clone().json().catch(() => ({}))) as { pid?: string; at?: string };
       const res = await sfStub(env, id).fetch(
-        new Request('https://do/entry/items/add', { method: 'POST', body: JSON.stringify(args) }),
+        new Request('https://do/entry/items/add', { method: 'POST', body: JSON.stringify({ ...args, at: maintenant() }) }),
       );
       return forward(res);
     }
@@ -506,7 +532,7 @@ export default {
       if (id === null) return Response.json({ error: 'not_found' }, { status: 404 });
       const args = (await request.clone().json().catch(() => ({}))) as { pid?: string; at?: string };
       const res = await sfStub(env, id).fetch(
-        new Request('https://do/entry/items/remove', { method: 'POST', body: JSON.stringify(args) }),
+        new Request('https://do/entry/items/remove', { method: 'POST', body: JSON.stringify({ ...args, at: maintenant() }) }),
       );
       return forward(res);
     }

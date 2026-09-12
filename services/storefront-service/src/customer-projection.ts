@@ -269,8 +269,12 @@ export function toStorefrontView(sf: Storefront): StorefrontView {
     cover: sf.cover,
     avatar: sf.avatar,
     curatedItems: [...sf.curatedItems],
-    featuredItems: [...sf.featuredItems],
-    sections: sf.sections,
+    // DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-31) — `?? []` IS THE MIGRATION, exactly
+    // as `?? {}` is for the notes below: an entry written before these two fields
+    // existed sits in DO storage without them, and `[...undefined]` THROWS — a 500
+    // on the public read for every buyer of that shop.
+    featuredItems: [...(sf.featuredItems ?? [])],
+    sections: sf.sections ?? [],
     // READY + a real url, or the pid is not on the buyer's surface at all.
     // Both halves are checked: canon lets `url` be absent while pending, so
     // testing the status alone would let `undefined` through as a url.

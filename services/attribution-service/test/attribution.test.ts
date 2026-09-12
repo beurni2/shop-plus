@@ -88,6 +88,15 @@ describe('attribution-tamper-fails-closed (canonical AttributionToken)', () => {
     });
   });
 
+  it('DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-92): an EMPTY key refuses every token, closed — « unset ⇒ nothing verifies » no longer depends on the caller', () => {
+    const token = signAttributionToken(unsigned, TEST_KEY);
+    expect(verifyAttributionToken(token, '', now)).toEqual({ ok: false, reason: 'bad_signature' });
+    // `createHmac('sha256', '')` is a valid HMAC: a token signed under the empty
+    // key used to VERIFY under the empty key. No key is no key — refused too.
+    const sousVide = signAttributionToken(unsigned, '');
+    expect(verifyAttributionToken(sousVide, '', now)).toEqual({ ok: false, reason: 'bad_signature' });
+  });
+
   it('the checked-in gate fixtures match this implementation (pinning)', () => {
     const dir = join(import.meta.dirname, '../../../gates/fixtures/attribution');
     const valid = JSON.parse(readFileSync(join(dir, 'valid-token.json'), 'utf8'));

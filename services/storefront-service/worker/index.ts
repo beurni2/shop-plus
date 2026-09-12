@@ -524,8 +524,9 @@ export default {
      *   · MATCHED EXACTLY — one `===`, one anchored single-segment regex,
      *     and one anchored two-segment action regex whose second segment is a
      *     LITERAL ALTERNATION (`fermer|cadeaux` — LISTE-CADEAUX); every other
-     *     method and every other `/listes/...` shape falls through to the
-     *     write gate and is refused 401.
+     *     method and every other `/listes/...` shape answers the namespace's
+     *     own LOCAL 404 right below (DURCISSEMENT-SERVICE-1, F-27) — never
+     *     the write gate, never the shared handler that logs the path.
      *   · THE CADEAUX DOOR SERVES THE CREATOR ONLY — the edit key is the
      *     credential (hash-compared inside the object, wrong key ≡ absent
      *     liste), and what leaves per gift is the pid, the journey facts the
@@ -789,6 +790,21 @@ export default {
           new Request('https://do/entry/update', { method: 'POST', body: updateBody }),
         ),
       );
+    }
+    /**
+     * DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-27) — A TOKEN-BEARING PATH NEVER
+     * REACHES THE SHARED 404. Every other method and every other `/listes/...`
+     * shape used to fall through the whole router to the shared health
+     * handler, whose « route not found » line logs the PATH verbatim — a
+     * 192-bit liste secret, in clear, in the Worker's log (measured: `HEAD
+     * /listes/<token>`, `GET /listes/<token>/cadeaux`). The namespace answers
+     * its own not-found here, in the doors' own shape, and logs nothing.
+     * Oracle-free like the doors: no object is touched to answer it.
+     */
+    if (isListeCreate || pathname.startsWith('/listes/')) {
+      const absent = Response.json({ ok: false, reason: 'not_found' }, { status: 404 });
+      absent.headers.set('Cache-Control', 'private, no-store');
+      return withReadCors(absent);
     }
 
     /**
@@ -1162,7 +1178,20 @@ export default {
       if (env.COMPTES === undefined || env.RESELLER === undefined) {
         return withDispatchCors(Response.json({ ok: false, reason: 'accounts_unavailable' }, { status: 503 }));
       }
+      /**
+       * DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-28) — ONE BUDGET FOR EVERY
+       * SUBREQUEST THIS HANDLER MAKES. The roster read and the feed read used
+       * to sit OUTSIDE the « global order-read budget » (and the feed was read
+       * once PER account): 1 + 50 + 40 = 91 asks on a platform that allows 50,
+       * so past a handful of accounts with sales the board degraded to
+       * `incomplet` rows for a reason the budget never named. Now the feed
+       * answers every account's rows in ONE read (`/rows-for-many`), and the
+       * roster and that read are paid from the same budget as the order reads
+       * — the ceiling the code declares is the ceiling the code spends.
+       */
+      let budget = feedFanoutMax(env);
       const comptes = env.COMPTES.get(env.COMPTES.idFromName(RESELLER_ACCOUNTS_NAME));
+      budget -= 1; // the roster
       const listRes = await comptes.fetch(new Request('https://do/accounts'));
       const list = (await listRes.json().catch(() => null)) as
         | { ok?: boolean; accounts?: { accountId: string; name: string; state: string }[] }
@@ -1171,23 +1200,27 @@ export default {
         return withDispatchCors(Response.json({ ok: false, reason: 'unreadable' }, { status: 502 }));
       }
       const feed = env.RESELLER.get(env.RESELLER.idFromName(RESELLER_FEED_NAME));
-      let budget = feedFanoutMax(env); // one global order-read budget for the whole board
-      const lignes: unknown[] = [];
-      for (const acc of list.accounts.slice(0, 50)) {
+      const page = list.accounts.slice(0, 50);
+      type Feuille = { ok?: boolean; rows?: Record<string, { orderId: string }[]> } | null;
+      let feuille: Feuille = null;
+      if (budget > 0) {
+        budget -= 1; // the feed, ONE read for every account on the page
         const rowsRes = await feed
-          .fetch(new Request('https://do/rows', { method: 'POST', body: JSON.stringify({ resellerId: acc.accountId }) }))
+          .fetch(new Request('https://do/rows-for-many', { method: 'POST', body: JSON.stringify({ resellerIds: page.map((a) => a.accountId) }) }))
           .catch(() => null);
-        const rows = rowsRes === null
-          ? null
-          : ((await rowsRes.json().catch(() => null)) as { ok?: boolean; orders?: { orderId: string }[] } | null);
-        if (rows?.ok !== true || !Array.isArray(rows.orders)) {
+        feuille = rowsRes === null ? null : ((await rowsRes.json().catch(() => null)) as Feuille);
+      }
+      const lignes: unknown[] = [];
+      for (const acc of page) {
+        const rows = feuille?.ok === true ? feuille.rows?.[acc.accountId] : undefined;
+        if (!Array.isArray(rows)) {
           lignes.push({ accountId: acc.accountId, name: acc.name, state: acc.state, ventes: 0, netFcfa: 0, incomplet: true });
           continue;
         }
         let net = 0;
         let lues = 0;
         let incomplet = false;
-        for (const row of rows.orders) {
+        for (const row of rows) {
           if (budget <= 0) { incomplet = true; break; }
           budget -= 1;
           try {

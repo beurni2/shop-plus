@@ -70,6 +70,12 @@ export function verifyAttributionToken(
   key: string,
   now: Date,
 ): AttributionVerdict {
+  // DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-92) — NO KEY IS NO KEY. `createHmac('sha256', '')`
+  // is a valid HMAC, so the header's « UNSET ⇒ every presented token refuses » held only
+  // as long as no caller ever passed ''. It holds here, before anything is compared.
+  if (key === '') {
+    return { ok: false, reason: 'bad_signature' };
+  }
   const parsed = AttributionTokenSchema.safeParse(token);
   if (!parsed.success) {
     return { ok: false, reason: 'malformed' };

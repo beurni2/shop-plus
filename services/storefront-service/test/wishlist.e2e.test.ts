@@ -1185,3 +1185,41 @@ describe('GEO-ACHAT-1 (liste half) — her pin rides the livraison to the gift o
     // board contact carries no pin key (the LISTE-ADRESSE road, untouched).
   });
 });
+
+/**
+ * DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-27) — A LISTE PATH THE DOORS DO NOT
+ * MATCH NEVER REACHES THE SHARED 404.
+ *
+ * The liste token is a 192-bit secret that rides the PATH. A shape the doors
+ * do not admit (`HEAD /listes/<token>`, `GET /listes/<token>/cadeaux`, a PUT)
+ * used to fall through the whole router to the shared health handler, whose
+ * « route not found » line logs the path VERBATIM — the secret, in clear, in
+ * the Worker's log. The namespace now answers its own not-found locally, in
+ * the liste doors' own shape, before anything can log the path. The shape IS
+ * the proof: only the local branch produces `{ ok: false, reason }` with
+ * `no-store` on this namespace; the shared handler answers `{ service, status }`
+ * with no cache header and it is the only code that logs the path.
+ */
+describe('DURCISSEMENT-SERVICE-1 (F-27) — unmatched liste shapes answer a LOCAL not-found, never the shared logging 404', () => {
+  it('HEAD by token · GET cadeaux · PUT by token · GET /listes: the liste doors\' own 404, no-store, every time', async () => {
+    const { slug } = await boutique('0027');
+    const made = await creerListe(slug);
+    expect(made.status).toBe(200);
+    const token = made.json['token'] as string;
+    const routes: Array<[string, string]> = [
+      ['HEAD', `/listes/${token}`],
+      ['GET', `/listes/${token}/cadeaux`],
+      ['GET', `/listes/${token}/autre`],
+      ['PUT', `/listes/${token}`],
+      ['GET', '/listes'],
+    ];
+    for (const [method, path] of routes) {
+      const res = await mf.dispatchFetch(`http://c${path}`, { method });
+      expect(res.status, `${method} ${path}`).toBe(404);
+      expect(res.headers.get('Cache-Control'), `${method} ${path}`).toBe('private, no-store');
+      if (method !== 'HEAD') expect(safeJson(await res.text()), `${method} ${path}`).toEqual({ ok: false, reason: 'not_found' });
+    }
+    // and the doors themselves still open — the local not-found took nothing
+    expect((await lireListe(token)).status).toBe(200);
+  });
+});

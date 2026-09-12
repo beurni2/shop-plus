@@ -198,7 +198,11 @@ export class StorefrontMediaService {
       const fmt = sniffAudio(bytes);
       if (fmt === null) return { ok: false, reason: 'unsupported_type' };
       const d = input.durationMs ?? 0;
-      if (d <= 0 || d > AUDIO_MAX_DURATION_MS) return { ok: false, reason: 'bad_duration' };
+      // DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-71) — a duration that is not a whole
+      // number of milliseconds (NaN from `?durationMs=abc`, a fraction, ∞) is refused
+      // HERE, before the bytes reach the bucket: `NaN <= 0` and `NaN > MAX` are both
+      // false, so the cap alone let NaN through — stored, unpointable, orphaned.
+      if (!Number.isInteger(d) || d <= 0 || d > AUDIO_MAX_DURATION_MS) return { ok: false, reason: 'bad_duration' };
       contentType = fmt === 'wav' ? 'audio/wav' : fmt === 'ogg' ? 'audio/ogg' : fmt === 'webm' ? 'audio/webm' : 'audio/mp4';
       durationMs = d;
     }

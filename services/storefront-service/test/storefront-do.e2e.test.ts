@@ -578,3 +578,54 @@ describe('VOIX-SUPPRIMER-1 — the remove route on the REAL worker, over HTTP', 
     expect(Object.hasOwn(shop.productNotes, 'pv-vs-1')).toBe(false);
   });
 });
+
+/**
+ * DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-65) — THE SERVER STAMPS THE CLOCK.
+ *
+ * Every storefront write used to carry the CLIENT's `at` into `createdAt` /
+ * `updatedAt` and the event's `serverTime` — a reseller could set her shop's
+ * clock to 2099 and sit on top of the directory's ordering truth. The router
+ * now stamps `at` itself on every write road; whatever a body says is ignored.
+ * Not a money field, not a canon shape change: who sets the field, not what
+ * the field is.
+ */
+describe('DURCISSEMENT-SERVICE-1 (F-65) — a client at = 2099 never becomes the shop\'s clock', () => {
+  const FUTUR = '2099-01-01T00:00:00.000Z';
+  const entre = (stamp: string, avant: number, etiquette: string): void => {
+    expect(stamp, etiquette).not.toBe(FUTUR);
+    expect(Date.parse(stamp), etiquette).toBeGreaterThanOrEqual(avant);
+    expect(Date.parse(stamp), etiquette).toBeLessThanOrEqual(Date.now() + 1_000);
+  };
+
+  it('create · publish · identity · items — createdAt, updatedAt and serverTime are the router\'s own instants', async () => {
+    const avant = Date.now() - 1_000;
+    const created = await create({ ...SELLER_001, commandId: 'c-f65', id: 'sf-f65', shortCode: 'SELLER-0065', at: FUTUR });
+    expect(created.body.status).toBe('created');
+    const lu1 = (await readSlug('seller-0065')).view as StorefrontView;
+    entre(lu1.createdAt, avant, 'createdAt at create');
+    entre(lu1.updatedAt, avant, 'updatedAt at create');
+
+    const pub = await mf.dispatchFetch('http://sf/storefronts/sf-f65/publish', {
+      method: 'POST',
+      body: JSON.stringify({ correlationId: 'corr-f65', at: FUTUR }),
+    });
+    const pubBody = (await pub.json()) as { status: string; storefront: { updatedAt: string }; event: { envelope: { serverTime: string } } };
+    expect(pubBody.status).toBe('changed');
+    entre(pubBody.storefront.updatedAt, avant, 'updatedAt at publish');
+    entre(pubBody.event.envelope.serverTime, avant, 'serverTime on the published event');
+
+    const save = await mf.dispatchFetch('http://sf/storefronts/sf-f65/identity', {
+      method: 'POST',
+      body: JSON.stringify({ patch: { name: 'Chez F65' }, at: FUTUR }),
+    });
+    expect(save.status).toBe(200);
+    entre(((await readSlug('seller-0065')).view as StorefrontView).updatedAt, avant, 'updatedAt at identity');
+
+    const add = await mf.dispatchFetch('http://sf/storefronts/sf-f65/items', {
+      method: 'POST',
+      body: JSON.stringify({ pid: 'pv-f65', at: FUTUR }),
+    });
+    expect(add.status).toBe(200);
+    entre(((await readSlug('seller-0065')).view as StorefrontView).updatedAt, avant, 'updatedAt at items/add');
+  });
+});

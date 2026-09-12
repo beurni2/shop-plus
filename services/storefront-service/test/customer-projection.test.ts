@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { computeWaterfall } from '@platform/contracts';
-import { toCustomerProductView } from '../src/customer-projection.js';
+import { computeWaterfall, type Storefront } from '@platform/contracts';
+import { toCustomerProductView, toStorefrontView } from '../src/customer-projection.js';
+import { decideCreate } from '../src/storefront-core.js';
 
 // CI gate: no-supplier-contact (SP-I03) — the customer surface never carries
 // supplier identity/contact, commission, or seller economics.
@@ -51,5 +52,33 @@ describe('no-supplier-contact', () => {
       ),
     );
     expect(view).toEqual(fixture);
+  });
+});
+
+/**
+ * DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-31) — A RAW PRE-CANON ENTRY STILL
+ * PROJECTS. A storefront written before `featuredItems` / `sections` existed
+ * sits in DO storage as a plain object that never re-parses on read (canon
+ * defaults apply on PARSE only — the `productNotes ?? {}` precedent in the
+ * same function). `[...undefined]` THROWS, and a throw on the public read is a
+ * 500 for that shop's every buyer. The projection defaults the two fields the
+ * way it already defaults the notes.
+ */
+describe('DURCISSEMENT-SERVICE-1 (F-31) — the buyer projection survives an entry from before featuredItems/sections', () => {
+  it('a canon storefront with those fields stripped (the stored pre-canon shape) projects to empty arrays, never a throw', () => {
+    const { decision } = decideCreate(undefined, {
+      commandId: 'cmd-precanon', id: 'sf-precanon', resellerId: 'rs-precanon', shortCode: 'PRECANON-0001',
+      name: 'Boutique d’avant', zone: 'Ouagadougou', category: 'Général', correlationId: 'corr-precanon', at: '2026-07-01T08:00:00.000Z',
+    });
+    if (decision.status !== 'created') throw new Error('fixture: create');
+    const stocke = JSON.parse(JSON.stringify(decision.storefront)) as Record<string, unknown>;
+    delete stocke['featuredItems'];
+    delete stocke['sections'];
+    delete stocke['productNotes'];
+    const view = toStorefrontView(stocke as unknown as Storefront);
+    expect(view.featuredItems).toEqual([]);
+    expect(view.sections).toEqual([]);
+    expect(view.productNotes).toEqual({});
+    expect(view.id).toBe('sf-precanon');
   });
 });

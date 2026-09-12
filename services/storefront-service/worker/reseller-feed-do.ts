@@ -244,6 +244,33 @@ export class ResellerFeedDO {
       return Response.json({ ok: true, resellerId, orders });
     }
 
+    /**
+     * DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-28) — the SAME projection for MANY
+     * ids in ONE read, for the founder's suivi: one subrequest for the whole
+     * board instead of one per account, so the board's declared budget can
+     * cover everything it spends. Same validation per id as `/rows`; at most
+     * 50 ids (the roster's own page); an id with no row is present and EMPTY,
+     * never missing — absence must never read as « unreadable » upstream.
+     */
+    if (request.method === 'POST' && pathname === '/rows-for-many') {
+      const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+      const ids = body?.['resellerIds'];
+      if (
+        !Array.isArray(ids) || ids.length > 50 ||
+        !ids.every((id) => typeof id === 'string' && id !== '' && id.length <= 128)
+      ) {
+        return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
+      }
+      const rows: Record<string, { orderId: string; at: string }[]> = {};
+      for (const resellerId of ids as string[]) {
+        const listed = await this.state.storage.list<FeedRow>({ prefix: `${ROW_PREFIX}${encodeURIComponent(resellerId)}:` });
+        rows[resellerId] = [...listed.values()]
+          .sort((a, b) => (a.at < b.at ? 1 : -1))
+          .map((r) => ({ orderId: r.orderId, at: r.at }));
+      }
+      return Response.json({ ok: true, rows });
+    }
+
     return Response.json({ error: 'not_found' }, { status: 404 });
   }
 }

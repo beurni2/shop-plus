@@ -101,6 +101,29 @@ describe('ListingDO — durable publish / auto-hide / read, HER price carried', 
     expect((await get('lst-nope')).code).toBe(404);
   });
 
+  it('DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-65): the SERVER stamps the clock — a publish or a hide sent with at = 2099 carries the router\'s own instant, never the client\'s', async () => {
+    const FUTUR = '2099-01-01T00:00:00.000Z';
+    const avant = Date.now() - 1_000;
+    const pub = await mf.dispatchFetch('http://l/listings', {
+      method: 'POST',
+      body: JSON.stringify({ ...OFFER, commandId: 'c-f65', listingId: 'lst-f65', at: FUTUR }),
+    });
+    const pubBody = (await pub.json()) as { status: string; event: { envelope: { serverTime: string } } };
+    expect(pubBody.status).toBe('published');
+    expect(pubBody.event.envelope.serverTime).not.toBe(FUTUR);
+    expect(Date.parse(pubBody.event.envelope.serverTime)).toBeGreaterThanOrEqual(avant);
+    expect(Date.parse(pubBody.event.envelope.serverTime)).toBeLessThanOrEqual(Date.now() + 1_000);
+
+    const hide = await mf.dispatchFetch('http://l/listings/lst-f65/hide', {
+      method: 'POST',
+      body: JSON.stringify({ correlationId: 'corr-001', at: FUTUR }),
+    });
+    const hideBody = (await hide.json()) as { status: string; event: { envelope: { serverTime: string } } };
+    expect(hideBody.status).toBe('hidden');
+    expect(hideBody.event.envelope.serverTime).not.toBe(FUTUR);
+    expect(Date.parse(hideBody.event.envelope.serverTime)).toBeGreaterThanOrEqual(avant);
+  });
+
   it('MOCK-CERTIFIED: DurableListingStore forwards over fetch to the REAL DO', async () => {
     const worker: StorefrontFetcher = {
       async fetch(req: Request): Promise<Response> {

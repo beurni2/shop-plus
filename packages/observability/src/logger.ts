@@ -52,7 +52,16 @@ export function createLogger(options: {
 
 export const CORRELATION_HEADER = 'x-correlation-id';
 
-/** Read the inbound correlation id, or mint one so the chain always exists. */
+/**
+ * DURCISSEMENT-SERVICE-1 (AUDIT-SHOP-2 F-27) — the inbound header is
+ * ATTACKER-CONTROLLED and lands verbatim on every log line and on the response;
+ * unbounded, one request could write kilobytes into the log per line. 64 holds
+ * any real chain id (a UUID is 36) and never a payload.
+ */
+export const CORRELATION_ID_MAX = 64;
+
+/** Read the inbound correlation id (capped), or mint one so the chain always exists. */
 export function correlationIdFrom(request: Request): string {
-  return request.headers.get(CORRELATION_HEADER) ?? crypto.randomUUID();
+  const inbound = request.headers.get(CORRELATION_HEADER);
+  return inbound === null ? crypto.randomUUID() : inbound.slice(0, CORRELATION_ID_MAX);
 }
