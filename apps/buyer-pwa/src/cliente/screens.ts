@@ -1237,6 +1237,85 @@ const REFUS: Readonly<Record<string, RefusVue>> = {
     action: null,
     libelle: '',
   },
+  /**
+   * ═══ REFUS-NOMMÉS-1 (AUDIT-SHOP-2 F-53) — THE RESERVE AND ORDER ROADS ═══
+   *
+   * This table knew the QUOTE road's names and nothing past it: a hold that
+   * ran out, a hold that vanished, a hold someone else has, a quote the
+   * service no longer knows or cannot read back, a gift paid at the door, a
+   * second address on a liste, and the buyer the door ladder turns away
+   * (§6.3 — a road DESIGNED to end here) all read « Nous ne pouvons pas
+   * afficher le prix » with a « Réessayer » that re-asked a price she already
+   * had; for the two door refusals that button led back into the same wall.
+   *
+   * Two roads out, and each name takes the one that is true for it:
+   *   · `prix-a-jour` — a NEW key, a NEW price: the hold is gone or is not
+   *     hers, or the quote itself is; retrying the same key cannot succeed.
+   *   · `payer-tout` — back to the payment choice with « Tout payer
+   *     maintenant » already chosen: the only mode the service will take
+   *     for a gift, or for a buyer the door ladder refuses. Her hold on the
+   *     FULL quote is taken fresh when she pays.
+   *
+   * `charge_rejected` is deliberately absent: it never crosses as a refusal
+   * name — a rejected charge comes back as an ORDER at `payment_failed`, and
+   * the confirmation screen's own échec sentence speaks it.
+   */
+  reservation_expired: {
+    overline: t('cl.refus.reservation_expired.overline'),
+    titre: t('cl.refus.reservation_expired.titre'),
+    phrase: t('cl.refus.reservation_expired.phrase'),
+    action: 'prix-a-jour',
+    libelle: t('cl.refus.reservation_expired.libelle'),
+  },
+  quote_not_reserved: {
+    overline: t('cl.refus.quote_not_reserved.overline'),
+    titre: t('cl.refus.quote_not_reserved.titre'),
+    phrase: t('cl.refus.quote_not_reserved.phrase'),
+    action: 'prix-a-jour',
+    libelle: t('cl.refus.quote_not_reserved.libelle'),
+  },
+  reservation_held_by_another: {
+    overline: t('cl.refus.reservation_held_by_another.overline'),
+    titre: t('cl.refus.reservation_held_by_another.titre'),
+    phrase: t('cl.refus.reservation_held_by_another.phrase'),
+    action: 'prix-a-jour',
+    libelle: t('cl.refus.reservation_held_by_another.libelle'),
+  },
+  quote_unknown: {
+    overline: t('cl.refus.quote_unknown.overline'),
+    titre: t('cl.refus.quote_unknown.titre'),
+    phrase: t('cl.refus.quote_unknown.phrase'),
+    action: 'prix-a-jour',
+    libelle: t('cl.refus.quote_unknown.libelle'),
+  },
+  stored_quote_unreadable: {
+    overline: t('cl.refus.stored_quote_unreadable.overline'),
+    titre: t('cl.refus.stored_quote_unreadable.titre'),
+    phrase: t('cl.refus.stored_quote_unreadable.phrase'),
+    action: 'prix-a-jour',
+    libelle: t('cl.refus.stored_quote_unreadable.libelle'),
+  },
+  liste_prepaiement_requis: {
+    overline: t('cl.refus.liste_prepaiement_requis.overline'),
+    titre: t('cl.refus.liste_prepaiement_requis.titre'),
+    phrase: t('cl.refus.liste_prepaiement_requis.phrase'),
+    action: 'payer-tout',
+    libelle: t('cl.refus.liste_prepaiement_requis.libelle'),
+  },
+  liste_contact_conflit: {
+    overline: t('cl.refus.liste_contact_conflit.overline'),
+    titre: t('cl.refus.liste_contact_conflit.titre'),
+    phrase: t('cl.refus.liste_contact_conflit.phrase'),
+    action: 'prix-a-jour',
+    libelle: t('cl.refus.liste_contact_conflit.libelle'),
+  },
+  pay_at_door_not_eligible: {
+    overline: t('cl.refus.pay_at_door_not_eligible.overline'),
+    titre: t('cl.refus.pay_at_door_not_eligible.titre'),
+    phrase: t('cl.refus.pay_at_door_not_eligible.phrase'),
+    action: 'payer-tout',
+    libelle: t('cl.refus.pay_at_door_not_eligible.libelle'),
+  },
 };
 
 /* ═══════════════════ COPY-LINT REGION · messages ═════════════════════════ */

@@ -143,7 +143,10 @@ const TABLES = [
 /** The refusal views. `no_secure_random` offers no action, so no label. */
 const REFUS_VIEWS = ['generique', 'listing_unknown', 'not_found', 'listing_not_live', 'out_of_stock', 'delivery_not_serviceable',
   'attribution_missing', 'attribution_mismatch', 'checkout_killed', 'expired', 'already_reserved', 'unreachable',
-  'request_key_reused', 'bad_field', 'malformed', 'unknown_field', 'no_secure_random'];
+  'request_key_reused', 'bad_field', 'malformed', 'unknown_field', 'no_secure_random',
+  // REFUS-NOMMÉS-1 (F-53) — the reserve and order roads' names
+  'reservation_expired', 'quote_not_reserved', 'reservation_held_by_another', 'quote_unknown', 'stored_quote_unreadable',
+  'liste_prepaiement_requis', 'liste_contact_conflit', 'pay_at_door_not_eligible'];
 const REFUS_SANS_ACTION = new Set(['no_secure_random']);
 for (const view of REFUS_VIEWS) {
   const fields = { overline: L(), titre: S(), phrase: S() };

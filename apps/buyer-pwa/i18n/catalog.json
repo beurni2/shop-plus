@@ -2137,6 +2137,198 @@
   "screenClass": "status"
  },
  {
+  "key": "cl.refus.reservation_expired.overline",
+  "fr": "LA COMMANDE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.reservation_expired.titre",
+  "fr": "Le temps de garde est passé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.reservation_expired.phrase",
+  "fr": "Nous gardons une commande un court moment. Demandez un prix à jour. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.reservation_expired.libelle",
+  "fr": "Voir le prix à jour",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.quote_not_reserved.overline",
+  "fr": "LA COMMANDE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.quote_not_reserved.titre",
+  "fr": "Cette commande n’est plus gardée.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.quote_not_reserved.phrase",
+  "fr": "Demandez un prix à jour, puis payez. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.quote_not_reserved.libelle",
+  "fr": "Voir le prix à jour",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.reservation_held_by_another.overline",
+  "fr": "LA COMMANDE",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.reservation_held_by_another.titre",
+  "fr": "Quelqu’un d’autre garde cette commande.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.reservation_held_by_another.phrase",
+  "fr": "Demandez un prix à jour pour la vôtre. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.reservation_held_by_another.libelle",
+  "fr": "Voir le prix à jour",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.quote_unknown.overline",
+  "fr": "LE PRIX",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.quote_unknown.titre",
+  "fr": "Ce prix n’est plus connu.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.quote_unknown.phrase",
+  "fr": "Demandez un prix à jour. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.quote_unknown.libelle",
+  "fr": "Voir le prix à jour",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.stored_quote_unreadable.overline",
+  "fr": "LE PRIX",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.stored_quote_unreadable.titre",
+  "fr": "Ce prix ne peut plus être lu.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.stored_quote_unreadable.phrase",
+  "fr": "Demandez un prix à jour. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.stored_quote_unreadable.libelle",
+  "fr": "Voir le prix à jour",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.liste_prepaiement_requis.overline",
+  "fr": "LE CADEAU",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.liste_prepaiement_requis.titre",
+  "fr": "Pour un cadeau, on paie tout maintenant.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.liste_prepaiement_requis.phrase",
+  "fr": "Le paiement à la porte n’existe pas pour une liste. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.liste_prepaiement_requis.libelle",
+  "fr": "Tout payer maintenant",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.liste_contact_conflit.overline",
+  "fr": "LA LIVRAISON",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.liste_contact_conflit.titre",
+  "fr": "L’adresse de la liste sera utilisée.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.liste_contact_conflit.phrase",
+  "fr": "Une seule adresse par commande. Demandez un prix à jour. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.liste_contact_conflit.libelle",
+  "fr": "Voir le prix à jour",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.pay_at_door_not_eligible.overline",
+  "fr": "LE PAIEMENT",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
+  "key": "cl.refus.pay_at_door_not_eligible.titre",
+  "fr": "Le paiement à la porte n’est pas possible pour cette commande.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.pay_at_door_not_eligible.phrase",
+  "fr": "Payez tout maintenant : votre argent est protégé jusqu’à la livraison. Rien n’a été payé.",
+  "register": "money",
+  "screenClass": "status"
+ },
+ {
+  "key": "cl.refus.pay_at_door_not_eligible.libelle",
+  "fr": "Tout payer maintenant",
+  "register": "money",
+  "screenClass": "label"
+ },
+ {
   "key": "cl.inspection.prudente.verifier_1",
   "fr": "C’est le bon article — celui de la photo",
   "register": "money",

@@ -571,7 +571,10 @@ describe('the refusal surface — one cause, one consequence, one action, for ev
   it('EVERY unknown name — including amounts_disagree and the stored_* family — gets the generic sentence, never the raw word', () => {
     // NB `request_key_reused` moved OUT of this list: it now has its own card
     // with the key-minting action (verifier BLOCKER 6), asserted in §7c.
-    for (const reason of ['amounts_disagree', 'quote_not_issuable', 'stored_quote_unreadable', 'stored_amounts_incoherent', 'commission_not_frozen', '', 'wat']) {
+    // REFUS-NOMMÉS-1 (F-53): `stored_quote_unreadable` moved out too — it is
+    // a name the reserve and order roads answer, and now has its own card
+    // (test/refus-nommes.test.ts); the rest of the stored_* family stays generic.
+    for (const reason of ['amounts_disagree', 'quote_not_issuable', 'stored_amounts_incoherent', 'commission_not_frozen', '', 'wat']) {
       const html = renderRefus(reason);
       expect(html, reason).toContain('Nous ne pouvons pas afficher le prix.');
       expect(html, reason).toContain('Réessayer');

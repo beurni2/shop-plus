@@ -1826,6 +1826,12 @@ export function createCliente(container: HTMLElement, init: ClienteInit): () => 
         render(); return;
       case 'retour-c4':
         clearT(); state.paying = 'idle'; state.refus = null; state.screen = 'C4'; render(); return;
+      // REFUS-NOMMÉS-1 (F-53) — the two door refusals (a gift, a buyer the
+      // door ladder turns away) send her back to the payment choice with
+      // « Tout payer maintenant » already chosen: the one mode the service
+      // will take. The next Payer holds the FULL quote fresh.
+      case 'payer-tout':
+        clearT(); state.paying = 'idle'; state.refus = null; state.pay = 'A'; state.screen = 'C5'; render(); return;
       case 'retour-c7':
         jump('C7', { step: Math.max(state.step, 1) });
         // VRAI-SUIVI — landing back on the tracking restarts its watch, in
