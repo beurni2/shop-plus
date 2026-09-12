@@ -184,6 +184,7 @@ describe('VitrineCard — a digit typed into card A renders A and no other card'
               onFocusField={noop}
               attente={null}
               onAnnulerAttente={noop}
+              rejeu={false}
             />
           ))}
         </>

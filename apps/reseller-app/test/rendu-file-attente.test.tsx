@@ -83,8 +83,15 @@ function service(opts: { offers: readonly string[]; curated: readonly string[]; 
       if (opts.refuserMarge === true) return { status: 422, json: { error: 'markup_over_cap' } };
       const replay = seen.has(commandId);
       seen.add(commandId);
-      if (!state.curated.includes(pid)) state.curated.push(pid);
-      return { status: 200, json: { status: replay ? 'idempotent' : 'published' } };
+      const absent = !state.curated.includes(pid);
+      if (absent) state.curated.push(pid);
+      // RE-AJOUT, as the real Worker answers it (combined-worker.e2e): a
+      // replayed command id whose pid was GONE returns with `remise: true`
+      // and the post-add shop; a replayed id whose pid is present answers
+      // `idempotent` alone. The marge is NOT re-signed on either.
+      if (!replay) return { status: 200, json: { status: 'published' } };
+      if (absent) return { status: 200, json: { status: 'idempotent', remise: true, storefront: storefront(state.curated) as never } };
+      return { status: 200, json: { status: 'idempotent' } };
     },
     (path, body) => {
       if (!/^\/storefronts\/[^/]+\/items\/remove$/.test(path)) return null;
@@ -109,12 +116,16 @@ function service(opts: { offers: readonly string[]; curated: readonly string[]; 
  * when the signal goes. `tentatives` counts the calls the dead network ate,
  * which the wire cannot see.
  */
-function reseau(): { mort: boolean; tentatives: string[] } {
-  const etat = { mort: false, tentatives: [] as string[] };
+function reseau(): { mort: boolean; lectureMorte: boolean; tentatives: string[] } {
+  const etat = { mort: false, lectureMorte: false, tentatives: [] as string[] };
   const fil = globalThis.fetch;
   globalThis.fetch = (async (input: string, init?: RequestInit): Promise<Response> => {
-    if (etat.mort) {
-      etat.tentatives.push(new URL(input, 'http://shop.test').pathname);
+    const chemin = new URL(input, 'http://shop.test').pathname;
+    // `lectureMorte`: only the shop READ dies — the POST-lands-GET-fails
+    // shape Law 7 names as an ordinary event on this network.
+    const lecture = (init?.method ?? 'GET') === 'GET' && /^\/storefronts\/[^/]+$/.test(chemin);
+    if (etat.mort || (etat.lectureMorte && lecture)) {
+      etat.tentatives.push(chemin);
       throw new TypeError('Network request failed');
     }
     return fil(input, init);
@@ -169,7 +180,7 @@ describe('FILE-ATTENTE-1 — « Ajouter à ma vitrine » with no network is KEPT
     expect(screen.shows('L’ajout de Bazin riche est gardé sur votre téléphone.')).toBe(true);
     expect(screen.shows('Bazin riche'), 'the waiting card is on her vitrine').toBe(true);
     expect(screen.shows('En attente d’envoi'), 'and it SAYS it waits').toBe(true);
-    expect(screen.shows('1 envoi attend le réseau.'), 'the banner counts it').toBe(true);
+    expect(screen.shows('1 envoi attend sur votre téléphone.'), 'the banner counts it').toBe(true);
     // QUEUED IS PENDING, NEVER DONE: no share, no « Retirer », the way out instead
     expect(screen.canPress('Annuler l’ajout')).toBe(true);
     expect(screen.canPress('Retirer de ma vitrine')).toBe(false);
@@ -204,7 +215,7 @@ describe('FILE-ATTENTE-1 — « Ajouter à ma vitrine » with no network is KEPT
     // …and the card is the shop's word now: no chip, the real controls back
     expect(screen.shows('Envoyé. Votre vitrine est à jour.')).toBe(true);
     expect(screen.shows('En attente d’envoi')).toBe(false);
-    expect(screen.shows('1 envoi attend le réseau.')).toBe(false);
+    expect(screen.shows('1 envoi attend sur votre téléphone.')).toBe(false);
     expect(screen.canPress('Retirer de ma vitrine')).toBe(true);
     expect(screen.canPress('Partager')).toBe(true);
     screen.unmount();
@@ -234,16 +245,19 @@ describe('FILE-ATTENTE-1 — « Ajouter à ma vitrine » with no network is KEPT
     const second = await mountApp();
     await second.press('Ma Vitrine');
     await second.settle();
-    expect(second.shows('1 envoi attend le réseau.'), 'the kept intent survived the kill').toBe(true);
+    expect(second.shows('1 envoi attend sur votre téléphone.'), 'the kept intent survived the kill').toBe(true);
     expect(second.shows('C’est ajouté à votre vitrine.'), 'no success invented over the reboot').toBe(false);
-    expect(svc.state.publishes, 'the launch replay tried nothing while the network was dead').toEqual([]);
+    // THE LAUNCH REPLAY'S CALL SITE (verifier minor): it DID try the wire on
+    // boot — the dead network ate the attempt — and nothing reached the service.
+    expect(net.tentatives.filter((p) => p === '/listings').length, 'the launch replay fired').toBeGreaterThan(1);
+    expect(svc.state.publishes, 'nothing reached the service while the network was dead').toEqual([]);
 
     // ── SHE UNLOCKS THE PHONE WITH SIGNAL: the foreground signal replays ───
     net.mort = false;
     await retourAuPremierPlan(second);
     expect(w.calls.filter((c) => c.path === '/listings'), 'the kept send went out on the return to the front').toHaveLength(1);
     expect(svc.state.curated).toEqual([PV_A]);
-    expect(second.shows('1 envoi attend le réseau.')).toBe(false);
+    expect(second.shows('1 envoi attend sur votre téléphone.')).toBe(false);
     // the feed re-reads when she opens a product screen (its own law); the
     // product is then hers on Ma Vitrine, with its real control and no chip
     await second.press('Opportunités');
@@ -325,6 +339,82 @@ describe('FILE-ATTENTE-1 — « Ajouter à ma vitrine » with no network is KEPT
     screen.unmount();
   }, 20_000);
 
+  it('MAJOR (verifier) — a re-add kept with a NEW marge replays as `idempotent`: she is told it is BACK at the marge she signed before, never « à jour »', async () => {
+    /**
+     * THE MONEY LIE THIS CLOSES: remove online, re-add OFFLINE after typing a
+     * new marge, replay. The wire's command id is pinned to the listing, so
+     * the Worker answers `idempotent` + `remise` and RE-SIGNS NOTHING — the
+     * product is back at its ORIGINAL marge. The first cut toasted « Envoyé.
+     * Votre vitrine est à jour. » over that: a card computing B + 500 beside
+     * a buyer page charging B + 0. The tap road already tells the truth
+     * (RE-AJOUT); the replay now says the same sentence.
+     */
+    const svc = service({ offers: [PV_A], curated: [] });
+    const w = wire(svc.routes);
+    const net = reseau();
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+    await screen.press('Ajouter à ma vitrine');
+    await laisserPasser(screen);
+    expect(screen.canPress('Retirer de ma vitrine')).toBe(true);
+    await screen.press('Retirer de ma vitrine');
+    await laisserPasser(screen);
+    expect(screen.shows('Bazin riche')).toBe(false);
+    // ── offline: she re-adds with a marge of 500 typed on the fiche ────────
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+    await screen.type('500');
+    net.mort = true;
+    await screen.press('Ajouter à ma vitrine');
+    await laisserPasser(screen);
+    expect(screen.shows('En attente d’envoi')).toBe(true);
+    net.mort = false;
+    await screen.press('Envoyer maintenant');
+    await laisserPasser(screen);
+    const pubs = w.calls.filter((c) => c.path === '/listings');
+    expect(pubs).toHaveLength(2);
+    expect(pubs[1]?.body?.['commandId'], 'the SAME pinned command id — the replay the Worker will not re-sign').toBe(pubs[0]?.body?.['commandId']);
+    expect(pubs[1]?.body?.['markup']).toBe(500);
+    // THE TRUTH: back, at the marge signed before — and never « à jour »
+    expect(screen.shows('C’est de retour dans votre vitrine, au montant que vous aviez ajouté.'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.shows('Envoyé. Votre vitrine est à jour.'), 'a marge the service did not sign is never « à jour »').toBe(false);
+    expect(screen.canPress('Retirer de ma vitrine')).toBe(true);
+    screen.unmount();
+  }, 20_000);
+
+  it('MAJOR (verifier) — the publish lands but the shop READ fails: the waiting card stays until the shop answered, then she is told honestly — never « à jour »', async () => {
+    const svc = service({ offers: [PV_A, PV_B], curated: [PV_B] });
+    wire(svc.routes);
+    const net = reseau();
+    const screen = await mountApp();
+    await screen.press('Ma Vitrine');
+    await screen.settle();
+    expect(screen.shows('Sac en cuir'), 'the shop is HELD from this read — the shape the defect needs').toBe(true);
+    await screen.press('Opportunités');
+    await screen.press('Bazin riche');
+    net.mort = true;
+    await screen.press('Ajouter à ma vitrine');
+    await laisserPasser(screen);
+    expect(screen.shows('En attente d’envoi')).toBe(true);
+    // the POST lands, the GET that follows does not
+    net.mort = false;
+    net.lectureMorte = true;
+    await screen.press('Envoyer maintenant');
+    await laisserPasser(screen);
+    expect(svc.state.curated, 'the publish DID land').toEqual([PV_B, PV_A]);
+    expect(screen.shows('Envoyé, mais votre boutique n’a pas répondu. Rouvrez Ma vitrine pour voir.'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.shows('Envoyé. Votre vitrine est à jour.'), 'a shop that did not answer is never « à jour »').toBe(false);
+    // …and the way back: opening Ma Vitrine again reads the shop, the product is hers
+    net.lectureMorte = false;
+    await screen.press('Opportunités');
+    await screen.press('Ma Vitrine');
+    await laisserPasser(screen);
+    expect(screen.shows('Bazin riche')).toBe(true);
+    expect(screen.shows('En attente d’envoi')).toBe(false);
+    screen.unmount();
+  }, 20_000);
+
   it('the timer: while something waits, the outbox tries again by itself every half minute', async () => {
     const svc = service({ offers: [PV_A], curated: [] });
     const w = wire(svc.routes);
@@ -369,7 +459,10 @@ describe('FILE-ATTENTE-1 — « Retirer de ma vitrine » with no network is KEPT
     expect(screen.shows('Bazin riche')).toBe(true);
     expect(screen.shows('Retrait en attente')).toBe(true);
     expect(screen.canPress('Annuler le retrait')).toBe(true);
-    // the OTHER card keeps its real control; the waiting one has none
+    // the OTHER card keeps its real control; the waiting one has none:
+    // exactly ONE « Retirer » on a screen of two cards
+    // (host nodes only: the double renders each Pressable as a component AND a host element, both carrying the props)
+    expect(screen.tree.root.findAll((n) => typeof n.type === 'string' && n.props['accessibilityLabel'] === 'Retirer de ma vitrine' && typeof n.props['onPress'] === 'function')).toHaveLength(1);
     expect(screen.canPress('Retirer de ma vitrine')).toBe(true);
     expect(screen.shows('Retiré de votre boutique.'), 'no success was invented').toBe(false);
 

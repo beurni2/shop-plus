@@ -150,7 +150,7 @@ describe('FILE-ATTENTE-1 — the outbox replays through the app’s port onto th
     const direct = await port.publishListing({ storefrontId: SF_ID, resellerId: S.accountId, productVersionId: PV, markup: 1_500, correlationId: 'corr-attente-001' });
     expect(direct.ok).toBe(false);
     expect(!direct.ok && svc.raisonReseau(direct.reason), 'the dead network is the reason the App queues on').toBe(true);
-    await q1.deposer('listing.publish', PV, { storefrontId: SF_ID, resellerId: S.accountId, productVersionId: PV, markup: 1_500, correlationId: 'corr-attente-001' });
+    await q1.deposer('listing.publish', PV, { markup: 1_500, nom: 'Bazin riche' });
     const mort = await q1.rejouer(envoyer);
     expect(mort).toEqual({ livres: 0, refuses: 0, restants: 1, arret: 'reseau' });
     expect(q1.enAttente()[0]?.attempts, 'the network counts nothing').toBe(0);
@@ -171,7 +171,7 @@ describe('FILE-ATTENTE-1 — the outbox replays through the app’s port onto th
 
     // ── a kept REMOVAL, the same road ───────────────────────────────────────
     reseau.mort = true;
-    await q2.deposer('listing.remove', PV, { storefrontId: SF_ID, pid: PV });
+    await q2.deposer('listing.remove', PV, { nom: 'Bazin riche' });
     expect((await q2.rejouer(envoyer)).arret).toBe('reseau');
     expect((await boutique()).curatedItems, 'still there while the network is dead').toEqual([PV]);
     reseau.mort = false;

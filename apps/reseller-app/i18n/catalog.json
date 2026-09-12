@@ -3230,24 +3230,24 @@
  {
   "key": "attente.chip_ajout",
   "fr": "En attente d’envoi",
-  "register": "selling",
+  "register": "neutral",
   "screenClass": "label"
  },
  {
   "key": "attente.chip_retrait",
   "fr": "Retrait en attente",
-  "register": "selling",
+  "register": "neutral",
   "screenClass": "label"
  },
  {
   "key": "attente.ajout_garde",
-  "fr": "L’envoi n’est pas passé. L’ajout de {nom} est gardé sur votre téléphone. Il partira tout seul dès que le réseau revient.",
+  "fr": "L’envoi n’est pas passé. L’ajout de {nom} est gardé sur votre téléphone. Il repartira tout seul dès que ça passe.",
   "register": "neutral",
   "screenClass": "status"
  },
  {
   "key": "attente.retrait_garde",
-  "fr": "L’envoi n’est pas passé. Le retrait de {nom} est gardé sur votre téléphone. Il partira tout seul dès que le réseau revient.",
+  "fr": "L’envoi n’est pas passé. Le retrait de {nom} est gardé sur votre téléphone. Il repartira tout seul dès que ça passe.",
   "register": "neutral",
   "screenClass": "status"
  },
@@ -3259,13 +3259,13 @@
  },
  {
   "key": "attente.bandeau_un",
-  "fr": "1 envoi attend le réseau. Il partira tout seul dès que le réseau revient.",
+  "fr": "1 envoi attend sur votre téléphone. Il repartira tout seul dès que ça passe.",
   "register": "neutral",
   "screenClass": "status"
  },
  {
   "key": "attente.bandeau_n",
-  "fr": "{n} envois attendent le réseau. Ils partiront tout seuls dès que le réseau revient.",
+  "fr": "{n} envois attendent sur votre téléphone. Ils repartiront tout seuls dès que ça passe.",
   "register": "neutral",
   "screenClass": "status"
  },
@@ -3326,6 +3326,12 @@
  {
   "key": "fiche.attente",
   "fr": "Cet ajout attend le réseau. Vous le verrez dans Ma vitrine.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
+  "key": "attente.envoye_incertain",
+  "fr": "Envoyé, mais votre boutique n’a pas répondu. Rouvrez Ma vitrine pour voir.",
   "register": "selling",
   "screenClass": "status"
  }

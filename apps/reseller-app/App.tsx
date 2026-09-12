@@ -430,10 +430,13 @@ export interface VitrineCardProps {
    *  phone, not yet on the service), or null when the card is the shop's word. */
   readonly attente: 'ajout' | 'retrait' | null;
   readonly onAnnulerAttente: (pid: string) => void;
+  /** A replay pass is in flight: « Annuler » sleeps meanwhile (a send that
+   *  lands after a cancel would make « Rien n'a été envoyé » false). */
+  readonly rejeu: boolean;
 }
 
 export const VitrineCard = memo(function VitrineCard({
-  item, markup, cap, net, client, ctl, retiring, onGalerie, onVoix, onPartager, onRetirer, onMarge, onFocusField, attente, onAnnulerAttente,
+  item, markup, cap, net, client, ctl, retiring, onGalerie, onVoix, onPartager, onRetirer, onMarge, onFocusField, attente, onAnnulerAttente, rejeu,
 }: VitrineCardProps) {
   // Per-product card (founder recomposition of the planche read-only
   // grid): art 110 · client price (deep) ↔ net (small, live) · the
@@ -601,7 +604,9 @@ export const VitrineCard = memo(function VitrineCard({
         <Pressable
           style={({ pressed }) => [styles.vitrineRetirer, pressed && styles.pressed]}
           onPress={() => onAnnulerAttente(item.productVersionId)}
+          disabled={rejeu}
           accessibilityRole="button"
+          accessibilityState={{ disabled: rejeu }}
           accessibilityLabel={t(attente === 'ajout' ? 'attente.annuler_ajout' : 'attente.annuler_retrait')}
         >
           <Text style={styles.vitrineRetirerLabel}>{t(attente === 'ajout' ? 'attente.annuler_ajout' : 'attente.annuler_retrait')}</Text>
@@ -1516,16 +1521,11 @@ export default function App() {
          */
         const file = fileAttente.current;
         if (raisonReseau(res.reason) && file !== null) {
-          await file.deposer('listing.publish', o.productVersionId, {
-            storefrontId: identity.storefrontId,
-            resellerId: identity.resellerId,
-            productVersionId: o.productVersionId,
-            markup,
-            correlationId: identity.correlationId,
-            // the NAME rides along for the banner alone (a refusal after a
-            // reboot with no feed must still say which product) — never sent
-            nom: o.productName,
-          });
+          // The intent keeps HER facts only — the marge she chose, and the
+          // name for the banner (a refusal after a reboot with no feed must
+          // still say which product; never sent). The replay addresses her
+          // shop from the device's identity at replay time.
+          await file.deposer('listing.publish', o.productVersionId, { markup, nom: o.productName });
           rafraichirAttentes();
           setToast(tf('attente.ajout_garde', { nom: o.productName }));
           toHub('vitrine');
@@ -1565,6 +1565,10 @@ export default function App() {
       // CONFIRMED. Membership is recorded now, keyed by productVersionId — the one
       // keyspace the fiche, the grid and the signed price all share.
       vitrineCol.addToVitrine(o.productVersionId);
+      // FILE-ATTENTE-1 (verifier minor) — a landed tap closes a stale FAILED
+      // intent for the same product, or the banner would name a failure
+      // beside a live card.
+      void fileAttente.current?.abandonner(o.productVersionId).then(rafraichirAttentes);
       // A publish that landed proves the boutique exists — the persistent
       // « créez d'abord » note comes down with the fact that made it true.
       setSansBoutique(false);
@@ -1639,13 +1643,14 @@ export default function App() {
           const file = fileAttente.current;
           if (raisonReseau(res.reason) && file !== null) {
             const nom = offers.find((o) => o.productVersionId === pid)?.productName ?? t('attente.produit');
-            await file.deposer('listing.remove', pid, { storefrontId: identity.storefrontId, pid, nom });
+            await file.deposer('listing.remove', pid, { nom });
             rafraichirAttentes();
             return setToast(tf('attente.retrait_garde', { nom }));
           }
           return setToast(t('vitrine.retirer_echec'));
         }
         vitrineCol.removeFromVitrine(pid);
+        void fileAttente.current?.abandonner(pid).then(rafraichirAttentes);
         // PRIX-SIGNE-1 — the listing is gone, and so is the price it signed: a
         // re-add must quote from the live base, never from a dead listing
         // (verifier finding).
@@ -2134,9 +2139,22 @@ export default function App() {
     rejouEnCours.current = true;
     setRejeu(true);
     try {
+      /**
+       * WHAT EACH DELIVERED PUBLISH CAME TO (verifier MAJOR): `published`
+       * signed her marge; `idempotent` means the service recognised the
+       * command id and wrote NOTHING — `remise` when the product was gone and
+       * is BACK at its ORIGINAL signed marge (RE-AJOUT). The tap road tells her
+       * exactly that (« de retour … au montant que vous aviez ajouté » /
+       * « déjà … votre marge n'a pas changé »); the replay says the same and
+       * never « à jour » over a marge the service did not sign — a kept marge
+       * on a re-add is the very case the wire's pinned command id refuses.
+       */
+      const idempotents: { remise: boolean }[] = [];
       const bilan = await file.rejouer(async (entry) => {
         const horodatage = new Date().toISOString();
         if (entry.name === 'listing.publish') {
+          // The replay ADDRESSES her shop as it is now (the device's identity);
+          // the kept intent carries only her own facts — the marge she chose.
           const res = await service.publishListing({
             storefrontId: identity.storefrontId,
             resellerId: identity.resellerId,
@@ -2146,6 +2164,7 @@ export default function App() {
             correlationId: identity.correlationId,
           });
           if (!res.ok) return verdictReplay(res.reason);
+          if (res.value.status === 'idempotent') idempotents.push({ remise: res.value.remise === true });
           setVitrineLog((l) => [...l, { type: 'listing.published', listingId: entry.pid, at: horodatage }]);
           if (res.value.storefront !== undefined) adopterStorefront(res.value.storefront);
           setSansBoutique(false);
@@ -2162,15 +2181,23 @@ export default function App() {
         if (res.value.storefront !== undefined) adopterStorefront(res.value.storefront);
         return { kind: 'delivered' };
       });
-      rafraichirAttentes();
       if (bilan.livres > 0) {
-        // THE READ-BACK — the grid reads the shop's membership, so the shop
-        // is asked; a read that fails here changes nothing (the next entry
-        // into Ma Vitrine reads again), and the toast says only what the
-        // service already confirmed.
+        // THE READ-BACK, BEFORE THE WAITING CARD MOVES (verifier MAJOR): a
+        // `published` answer carries no storefront, so a delivered pid is in
+        // neither the waiting set nor the held shop until the shop is read
+        // back. Refreshing the waiting set FIRST made the card she was
+        // watching vanish for the read's duration — and for good, under
+        // « à jour », when the read failed. So the card stays « waiting »
+        // until the shop has answered, and a read that fails is SAID in the
+        // removal road's own sentence family, never claimed « à jour ».
         const fresh = await service.getById(identity.storefrontId);
         if (fresh.ok && fresh.value !== undefined) adopterStorefront(fresh.value);
-        setToast(bilan.livres === 1 ? t('attente.envoye_un') : tf('attente.envoyes_n', { n: String(bilan.livres) }));
+        rafraichirAttentes();
+        if (!fresh.ok) setToast(t('attente.envoye_incertain'));
+        else if (idempotents.length > 0) setToast(t(idempotents.some((i) => i.remise) ? 'fiche.publier.retour' : 'fiche.publier.deja'));
+        else setToast(bilan.livres === 1 ? t('attente.envoye_un') : tf('attente.envoyes_n', { n: String(bilan.livres) }));
+      } else {
+        rafraichirAttentes();
       }
       if (bilan.arret === 'session') void verifierSessionRef.current();
     } finally {
@@ -3051,6 +3078,7 @@ export default function App() {
                     onFocusField={leverVitrine}
                     attente={attenteDe(item.productVersionId)}
                     onAnnulerAttente={annulerAttente}
+                    rejeu={rejeu}
                   />
                 );
               }}

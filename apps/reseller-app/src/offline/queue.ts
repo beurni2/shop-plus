@@ -67,7 +67,9 @@ export interface QueueEntry {
   readonly name: IntentName;
   /** The product this intent is about — the ONE key (her last word per pid wins). */
   readonly pid: string;
-  /** The wire payload the replay sends, verbatim (JSON-serializable). */
+  /** The intent's OWN facts (JSON-serializable): the marge she chose, the
+   *  product's name for the banner. The replay ADDRESSES her shop from the
+   *  device's identity at replay time — nothing here names a shop. */
   readonly payload: Readonly<Record<string, unknown>>;
   readonly status: EntryStatus;
   /** Service FAULTS seen so far (never the network — see the header). */
