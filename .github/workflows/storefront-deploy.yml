@@ -238,6 +238,11 @@ jobs:
             echo "::warning title=Signal custody illisible::/health answered $CODE — the custody-armed signal could not be read; check the wires by hand."
             exit 0
           fi
+          # DURCISSEMENT-SERVICE-2 (F-68): the fourth wire is Sera's progress split;
+          # unset, Boutik+'s credential can still mint delivery.validated.v1.
+          # (A shell comment on purpose: the node script below is a SINGLE-QUOTED
+          # shell string, and an apostrophe inside it closes the string — deploy #96
+          # failed exactly so, "//: Is a directory". No apostrophe may enter it.)
           UNARMED=$(node -e '
             // Verifier note (E6): this reads a network body inside a WARN-ONLY
             // step — a malformed 200 must land in the warn branch, never fail.
@@ -246,8 +251,6 @@ jobs:
               c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).custody;
             } catch { console.log("__NO_FIELD__"); process.exit(0); }
             if (c === undefined || c === null) { console.log("__NO_FIELD__"); process.exit(0); }
-            // DURCISSEMENT-SERVICE-2 (F-68): the fourth wire is Séra's progress
-            // split — unset, Boutik+'s credential can still mint delivery.validated.v1.
             const names = { seraIntakeBase: "SERA_INTAKE_BASE", seraIntakeSecret: "SERA_INTAKE_SECRET", shopArmSecret: "SHOP_ARM_SECRET", seraProgressSecret: "SERA_PROGRESS_SECRET" };
             console.log(Object.entries(names).filter(([k]) => c[k] !== true).map(([, n]) => n).join(" "));
           ' "$OUT")
