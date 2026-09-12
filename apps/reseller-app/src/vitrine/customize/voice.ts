@@ -261,3 +261,24 @@ export function fusionnerNotesStockees(
   }
   return suivant ?? local;
 }
+
+/**
+ * VOIX-LIMITE-1 (AUDIT-SHOP-2 F-48) — THE PHONE'S CAP IS THE SERVICE'S CAP.
+ *
+ * The service refuses a note past one minute (`AUDIO_MAX_DURATION_MS`,
+ * media/service.ts) — and the phone had no cap of its own, so she could talk
+ * for three minutes and only learn at Publier, as « réessayez ». The take now
+ * stops by itself here; the value is pinned equal to the service's by test
+ * (`test/voice.test.ts`), never a second copy that drifts.
+ */
+export const VOIX_MAX_MS = 60_000;
+
+/**
+ * A refused publish, named. `too_large` and `bad_duration` are the service
+ * saying the take can NEVER be accepted as it is — a retry sentence would be
+ * a lie told politely; she is told to redo it shorter. Everything else keeps
+ * the transient sentence (a hiccup, a dead network).
+ */
+export function voixRefusToastKey(reason: string): string {
+  return reason === 'too_large' || reason === 'bad_duration' ? 'k.voix.toast_trop_longue' : 'k.voix.toast_echec';
+}

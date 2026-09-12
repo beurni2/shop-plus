@@ -3208,5 +3208,23 @@
   "fr": "Votre boutique n’a pas répondu. Rouvrez Ma vitrine pour voir si elle est publique.",
   "register": "neutral",
   "screenClass": "status"
+ },
+ {
+  "key": "k.voix.toast_limite",
+  "fr": "Une minute, c’est la limite. Votre note est gardée : écoutez-la, puis publiez.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "k.voix.toast_trop_longue",
+  "fr": "Note trop longue. Refaites-la en moins d’une minute.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "vitrine.en_ligne",
+  "fr": "En ligne",
+  "register": "neutral",
+  "screenClass": "status"
  }
 ]

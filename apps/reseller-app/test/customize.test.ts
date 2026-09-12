@@ -63,7 +63,7 @@ describe('K property pins — the Phase-0 table bytes in the runtime StyleSheet'
 
   it('C-K5 segments: piste #ECE3D1 r14 p4, seg h38 r11 13/700; C-K6 theme card r18, rest 1.5 #E0D6C2, selected 2 #A31D4E + check 26; swatches 20 r99', () => {
     expect(flat(S.segTrack)).toMatchObject({ backgroundColor: '#ECE3D1', borderRadius: 14, padding: 4 });
-    expect(flat(S.segBtn)).toMatchObject({ height: 38, borderRadius: 11 });
+    expect(flat(S.segBtn)).toMatchObject({ height: 48, borderRadius: 11 }); // CIBLES-TACTILES-1 (F-45): the touch token, not the table's 38
     expect(flat(S.segText).fontSize).toBe(13);
     expect(flat(S.themeCard).borderRadius).toBe(18);
     expect(flat(S.themeCardRest)).toMatchObject({ borderWidth: 1.5, borderColor: '#E0D6C2' });

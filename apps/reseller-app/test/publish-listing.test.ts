@@ -88,7 +88,6 @@ describe('THE APP NEVER AUTHORS A SIGNED AMOUNT', () => {
         productVersionId: 'pv-live-1',
         markup: 2_500,
         correlationId: 'corr-1',
-        at: '2026-07-25T00:00:00.000Z',
       });
       expect(res.ok).toBe(true);
     } finally {
@@ -117,7 +116,6 @@ describe('THE APP NEVER AUTHORS A SIGNED AMOUNT', () => {
         productVersionId: 'pv-1',
         markup: 500,
         correlationId: 'c',
-        at: 'T',
       };
       // « réessayez » and « c'est un défaut » are different things to tell her, so the
       // named reason must survive the adapter rather than becoming a status code.
@@ -164,7 +162,7 @@ describe('THE DEMO ADAPTER CAN FAIL (certified-mock rule, Execution Contract §3
   it('IT REFUSES WHEN SUPPLY IS UNAVAILABLE, exactly as the real service does', async () => {
     const demo = new DemoStorefrontService();
     demo.refuseSupplyFor.add('pv-lapsed');
-    const req = { storefrontId: 'sf-1', resellerId: 'rs-1', markup: 1_000, correlationId: 'c', at: 'T' };
+    const req = { storefrontId: 'sf-1', resellerId: 'rs-1', markup: 1_000, correlationId: 'c' };
     expect(await demo.publishListing({ ...req, productVersionId: 'pv-lapsed' })).toEqual({
       ok: false,
       reason: 'supply_unavailable',
@@ -184,7 +182,6 @@ describe('THE DEMO ADAPTER CAN FAIL (certified-mock rule, Execution Contract §3
       productVersionId: 'pv-1',
       markup: 2_500,
       correlationId: 'c',
-      at: 'T',
     });
     expect(demo.published).toEqual([{ storefrontId: 'sf-1', productVersionId: 'pv-1', markup: 2_500 }]);
     expect(JSON.stringify(demo.published)).not.toContain('Price');
@@ -192,7 +189,7 @@ describe('THE DEMO ADAPTER CAN FAIL (certified-mock rule, Execution Contract §3
 
   it('A RE-TAP AT THE SAME MARKUP IS IDEMPOTENT, never a second signed version', async () => {
     const demo = new DemoStorefrontService();
-    const req = { storefrontId: 'sf-1', resellerId: 'rs-1', productVersionId: 'pv-1', markup: 900, correlationId: 'c', at: 'T' };
+    const req = { storefrontId: 'sf-1', resellerId: 'rs-1', productVersionId: 'pv-1', markup: 900, correlationId: 'c' };
     expect((await demo.publishListing(req)).ok && (await demo.publishListing(req))).toEqual({
       ok: true,
       value: { status: 'idempotent' },

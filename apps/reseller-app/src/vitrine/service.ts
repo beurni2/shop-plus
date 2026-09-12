@@ -30,7 +30,7 @@
 // already mirror from canon (§3.1). TYPE-ONLY, so nothing new enters the RN
 // bundle: one shape for the seam and the screens, never two that drift.
 import type { Storefront } from './customize/storefront';
-import { DELAI_ENVOI_MS, DELAI_LECTURE_MS, fetchBorne } from './fetch-borne';
+import { DELAI_ENVOI_MS, DELAI_LECTURE_MS, fetchBorne, baseSure } from './fetch-borne';
 
 /** The service's `CreateStorefrontCommand` (storefront-core.ts), mirrored. `shortCode`
  * is validated to `[A-Z]{2,12}-[0-9]{4}` server-side; the canon slug DERIVES from it. */
@@ -43,7 +43,6 @@ export interface CreateStorefrontCommand {
   readonly zone: string;
   readonly category: string;
   readonly correlationId: string;
-  readonly at: string;
 }
 
 /** One row of the admin list (GET /storefronts). */
@@ -189,7 +188,6 @@ export interface PublishListingRequest {
   /** M — the ONLY money value the app is trusted with, because she chose it. */
   readonly markup: number;
   readonly correlationId: string;
-  readonly at: string;
 }
 
 /** Derived, never random — see `PublishListingRequest`. Stable per shop+product. */
@@ -247,11 +245,11 @@ export interface StorefrontServicePort {
   getById(id: string): Promise<ServiceResult<Storefront | undefined>>;
   /** PERSONNALISER-REAL-1 — persist the presentation. The named refusal reasons
    *  (`name_too_short`, `featured_over_cap`, …) survive to her screen. */
-  saveIdentity(id: string, patch: StorefrontIdentityPatch, at: string): Promise<ServiceResult<{ status: string }>>;
+  saveIdentity(id: string, patch: StorefrontIdentityPatch): Promise<ServiceResult<{ status: string }>>;
   /** VITRINE-VISIBLE-1 — the toggle's write. The decision may carry the shop
    *  as the Worker now holds it, so the screen can adopt the read-back. */
-  publish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string; storefront?: Storefront }>>;
-  unpublish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string; storefront?: Storefront }>>;
+  publish(id: string, correlationId: string): Promise<ServiceResult<{ status: string; storefront?: Storefront }>>;
+  unpublish(id: string, correlationId: string): Promise<ServiceResult<{ status: string; storefront?: Storefront }>>;
   uploadCover(storefrontId: string, bytes: Uint8Array, contentType: string): Promise<ServiceResult<UploadOutcome>>;
   uploadAvatar(storefrontId: string, bytes: Uint8Array, contentType: string): Promise<ServiceResult<UploadOutcome>>;
   /**
@@ -282,7 +280,6 @@ export interface StorefrontServicePort {
   removeVoiceNote(
     storefrontId: string,
     pid: string,
-    at: string,
   ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>>;
   list(): Promise<ServiceResult<readonly StorefrontRow[]>>;
   /** PRIX-SIGNE-1 — the signed listing for one of her products, or `undefined`. */
@@ -322,7 +319,6 @@ export interface StorefrontServicePort {
   removeItem(
     storefrontId: string,
     pid: string,
-    at: string,
   ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>>;
 }
 
@@ -436,13 +432,13 @@ export class HttpStorefrontService implements StorefrontServicePort {
    * (422 `{status:'refused', reason}`) survive as that reason, because « votre nom
    * est trop court » and « c'est un défaut » are different things to tell her.
    */
-  async saveIdentity(id: string, patch: StorefrontIdentityPatch, at: string): Promise<ServiceResult<{ status: string }>> {
+  async saveIdentity(id: string, patch: StorefrontIdentityPatch): Promise<ServiceResult<{ status: string }>> {
     let res: Response;
     try {
       res = await fetchBorne(`${this.base}/storefronts/${encodeURIComponent(id)}/identity`, {
         method: 'POST',
         headers: await this.headers({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ patch, at }),
+        body: JSON.stringify({ patch }),
       }, DELAI_LECTURE_MS);
     } catch {
       return { ok: false, reason: 'offline' };
@@ -453,12 +449,12 @@ export class HttpStorefrontService implements StorefrontServicePort {
     return { ok: true, value: { status: data?.status ?? 'saved' } };
   }
 
-  publish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
-    return this.postJson(`/storefronts/${encodeURIComponent(id)}/publish`, { id, correlationId, at });
+  publish(id: string, correlationId: string): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
+    return this.postJson(`/storefronts/${encodeURIComponent(id)}/publish`, { id, correlationId });
   }
 
-  unpublish(id: string, correlationId: string, at: string): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
-    return this.postJson(`/storefronts/${encodeURIComponent(id)}/unpublish`, { id, correlationId, at });
+  unpublish(id: string, correlationId: string): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
+    return this.postJson(`/storefronts/${encodeURIComponent(id)}/unpublish`, { id, correlationId });
   }
 
   private async upload(
@@ -516,14 +512,13 @@ export class HttpStorefrontService implements StorefrontServicePort {
   async removeVoiceNote(
     storefrontId: string,
     pid: string,
-    at: string,
   ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
     let res: Response;
     try {
       res = await fetchBorne(`${this.base}/storefronts/${encodeURIComponent(storefrontId)}/voice/remove`, {
         method: 'POST',
         headers: await this.headers({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ pid, at }),
+        body: JSON.stringify({ pid }),
       }, DELAI_LECTURE_MS);
     } catch {
       return { ok: false, reason: 'offline' };
@@ -567,7 +562,6 @@ export class HttpStorefrontService implements StorefrontServicePort {
           productVersionId: req.productVersionId,
           markup: req.markup, // the ONLY money value the app sends
           correlationId: req.correlationId,
-          at: req.at,
         }),
       }, DELAI_LECTURE_MS);
     } catch {
@@ -595,14 +589,13 @@ export class HttpStorefrontService implements StorefrontServicePort {
   async removeItem(
     storefrontId: string,
     pid: string,
-    at: string,
   ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
     let res: Response;
     try {
       res = await fetchBorne(`${this.base}/storefronts/${encodeURIComponent(storefrontId)}/items/remove`, {
         method: 'POST',
         headers: await this.headers({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ pid, at }),
+        body: JSON.stringify({ pid }),
       }, DELAI_LECTURE_MS);
     } catch {
       return { ok: false, reason: 'offline' };
@@ -695,7 +688,7 @@ export class HttpStorefrontService implements StorefrontServicePort {
 export function resolveStorefrontService(
   lireBearer: () => Promise<string | null> = async () => null,
 ): StorefrontServicePort | null {
-  const base = process.env.EXPO_PUBLIC_STOREFRONT_BASE;
-  if (base) return new HttpStorefrontService(base, lireBearer);
+  const base = baseSure(process.env.EXPO_PUBLIC_STOREFRONT_BASE);
+  if (base !== null) return new HttpStorefrontService(base, lireBearer);
   return null;
 }

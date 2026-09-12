@@ -20,6 +20,7 @@
  * RN-safe (Metro law): zero `@platform/*` runtime imports — the row shape is
  * mirrored locally and the service is the authority that produced it.
  */
+import { baseSure } from '../vitrine/fetch-borne';
 
 /** A read that hangs forever is a screen that lies « chargement » forever
  *  (the law learned the hard way on the founder's console). */
@@ -142,7 +143,7 @@ export class HttpResellerFeed implements ResellerFeedPort {
  *  (RESELLER-SEAM-HONESTY-1: an unset env must not look like a working feed).
  *  Note there is NO key here: her code is typed, never bundled. */
 export function resolveResellerFeed(): ResellerFeedPort | null {
-  const base = process.env.EXPO_PUBLIC_STOREFRONT_BASE;
-  if (base) return new HttpResellerFeed(base);
+  const base = baseSure(process.env.EXPO_PUBLIC_STOREFRONT_BASE);
+  if (base !== null) return new HttpResellerFeed(base);
   return null;
 }

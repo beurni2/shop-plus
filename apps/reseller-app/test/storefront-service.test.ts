@@ -31,7 +31,6 @@ const CMD: CreateStorefrontCommand = {
   zone: 'Ouagadougou',
   category: 'Général',
   correlationId: 'corr-1',
-  at: '2026-07-24T00:00:00.000Z',
 };
 
 afterEach(() => {
@@ -58,7 +57,7 @@ describe('DemoStorefrontService — the zero-network substrate', () => {
     const first = await svc.create({ ...CMD, commandId: 'cmd-2' });
     expect(first).toEqual({ ok: true, value: { status: 'idempotent', slug: 'boutik-0007' } });
 
-    await svc.publish(CMD.id, 'c', CMD.at);
+    await svc.publish(CMD.id, 'c');
     const listed = await svc.list();
     expect(listed.ok && listed.value).toEqual([{ id: 'sf-test-1', slug: 'boutik-0007', name: 'Boutique test', discoverable: true }]);
 
@@ -143,7 +142,7 @@ describe('HttpStorefrontService — the request the app WOULD send', () => {
       const svc = new HttpStorefrontService('https://sf.example.dev', async () => 'SPS-AAAA-BBBB-CCCC-DDDD');
       await svc.create(CMD);
       await svc.getById('sf-test-1');
-      await svc.publishListing({ storefrontId: 'sf-test-1', resellerId: 'rs-0001', productVersionId: 'pv-1', markup: 100, correlationId: 'c', at: '2026-09-03T08:00:00.000Z' });
+      await svc.publishListing({ storefrontId: 'sf-test-1', resellerId: 'rs-0001', productVersionId: 'pv-1', markup: 100, correlationId: 'c' });
       await svc.uploadCover('sf-test-1', new Uint8Array([1]), 'image/png');
       await svc.list();
       expect(calls).toHaveLength(5);
@@ -219,8 +218,8 @@ describe('DemoStorefrontService — unchanged behaviour in its new module', () =
   it('still cannot fail, which is exactly why it may not be reachable from the app', async () => {
     const svc = new DemoStorefrontService();
     expect((await svc.create(CMD)).ok).toBe(true);
-    expect((await svc.publish(CMD.id, 'c', CMD.at)).ok).toBe(true);
-    expect((await svc.publish('never-created', 'c', CMD.at)).ok).toBe(true);
+    expect((await svc.publish(CMD.id, 'c')).ok).toBe(true);
+    expect((await svc.publish('never-created', 'c')).ok).toBe(true);
   });
 });
 
@@ -245,14 +244,14 @@ describe('PERSONNALISER-REAL-1 — the identity seam', () => {
     }) as unknown as typeof fetch;
     try {
       const svc = new HttpStorefrontService('https://svc.example');
-      expect(await svc.saveIdentity('sf-1', patch, 'T0')).toEqual({ ok: true, value: { status: 'saved' } });
+      expect(await svc.saveIdentity('sf-1', patch)).toEqual({ ok: true, value: { status: 'saved' } });
     } finally {
       globalThis.fetch = original;
     }
     expect(seen.url).toBe('https://svc.example/storefronts/sf-1/identity');
     expect(seen.method).toBe('POST');
     expect(seen.entetes).toEqual(['Content-Type']); // no session on this stub, and no key exists any more
-    expect(seen.body).toEqual({ patch, at: 'T0' });
+    expect(seen.body).toEqual({ patch }); // SANS-AT-1: no clock on the wire
     // NO MONEY ON THIS WIRE — presentation only (loi 5)
     const wire = JSON.stringify(seen.body);
     expect(wire).not.toMatch(/customerPriceFcfa|markup|basePrice|resellerCommission/);
@@ -264,7 +263,7 @@ describe('PERSONNALISER-REAL-1 — the identity seam', () => {
       ({ ok: false, status: 422, json: async () => ({ status: 'refused', reason: 'name_too_short' }) }) as unknown as Response) as unknown as typeof fetch;
     try {
       const svc = new HttpStorefrontService('https://svc.example');
-      expect(await svc.saveIdentity('sf-1', { name: 'ab' }, 'T0')).toEqual({ ok: false, reason: 'name_too_short' });
+      expect(await svc.saveIdentity('sf-1', { name: 'ab' })).toEqual({ ok: false, reason: 'name_too_short' });
     } finally {
       globalThis.fetch = original;
     }
@@ -290,16 +289,20 @@ describe('PERSONNALISER-REAL-1 — the identity seam', () => {
     const svc = new DemoStorefrontService();
     await svc.create(CMD);
     // saved → read back, by value
-    expect((await svc.saveIdentity(CMD.id, patch, 'T1')).ok).toBe(true);
+    expect((await svc.saveIdentity(CMD.id, patch)).ok).toBe(true);
     const read = await svc.getById(CMD.id);
     expect(read.ok && read.value?.name).toBe('Chez Bernard');
     expect(read.ok && read.value?.theme).toBe('indigo');
-    expect(read.ok && read.value?.updatedAt).toBe('T1');
+    // SANS-AT-1: the demo stamps the clock itself now, as the service does — a
+    // real instant, not the caller's; it moved past the create's stamp.
+    const stamp = read.ok ? read.value?.updatedAt ?? '' : '';
+    expect(Number.isNaN(Date.parse(stamp))).toBe(false);
+    expect(stamp >= (read.ok ? read.value?.createdAt ?? '' : '')).toBe(true);
     // an unknown shop is an honest absence, not a fabricated one
     expect(await svc.getById('sf-never')).toEqual({ ok: true, value: undefined });
     // …and the mock CAN fail, or it would make every test greener than the system
     svc.refuseIdentityFor.add(CMD.id);
-    expect(await svc.saveIdentity(CMD.id, patch, 'T2')).toEqual({ ok: false, reason: 'name_too_short' });
+    expect(await svc.saveIdentity(CMD.id, patch)).toEqual({ ok: false, reason: 'name_too_short' });
   });
 
   it('ENTETES-B THE WIRE: the HTTP adapter posts a headerStyle patch AS-IS — nothing strips or renames it', async () => {
@@ -311,12 +314,12 @@ describe('PERSONNALISER-REAL-1 — the identity seam', () => {
     }) as unknown as typeof fetch;
     try {
       const svc = new HttpStorefrontService('https://svc.example');
-      expect(await svc.saveIdentity('sf-1', { headerStyle: 'royale' }, 'T0')).toEqual({ ok: true, value: { status: 'saved' } });
+      expect(await svc.saveIdentity('sf-1', { headerStyle: 'royale' })).toEqual({ ok: true, value: { status: 'saved' } });
     } finally {
       globalThis.fetch = original;
     }
     expect(seen.url).toBe('https://svc.example/storefronts/sf-1/identity');
-    expect(seen.body).toEqual({ patch: { headerStyle: 'royale' }, at: 'T0' });
+    expect(seen.body).toEqual({ patch: { headerStyle: 'royale' } });
   });
 
   it("ENTETES-B THE SERVICE'S NAMED REFUSAL SURVIVES — « unknown_header_style » is not « une erreur »", async () => {
@@ -325,7 +328,7 @@ describe('PERSONNALISER-REAL-1 — the identity seam', () => {
       ({ ok: false, status: 422, json: async () => ({ status: 'refused', reason: 'unknown_header_style' }) }) as unknown as Response) as unknown as typeof fetch;
     try {
       const svc = new HttpStorefrontService('https://svc.example');
-      expect(await svc.saveIdentity('sf-1', { headerStyle: 'baroque' }, 'T0')).toEqual({ ok: false, reason: 'unknown_header_style' });
+      expect(await svc.saveIdentity('sf-1', { headerStyle: 'baroque' })).toEqual({ ok: false, reason: 'unknown_header_style' });
     } finally {
       globalThis.fetch = original;
     }
@@ -335,12 +338,12 @@ describe('PERSONNALISER-REAL-1 — the identity seam', () => {
     const svc = new DemoStorefrontService();
     await svc.create(CMD);
     // saved → read back, by value, with the other fields untouched
-    expect((await svc.saveIdentity(CMD.id, { headerStyle: 'royale' }, 'T1')).ok).toBe(true);
+    expect((await svc.saveIdentity(CMD.id, { headerStyle: 'royale' })).ok).toBe(true);
     const read = await svc.getById(CMD.id);
     expect(read.ok && read.value?.headerStyle).toBe('royale');
     expect(read.ok && read.value?.name).toBe(CMD.name); // absent fields stay untouched
     // an unknown key refuses by the service's own name, and writes NOTHING
-    expect(await svc.saveIdentity(CMD.id, { headerStyle: 'baroque' }, 'T2')).toEqual({ ok: false, reason: 'unknown_header_style' });
+    expect(await svc.saveIdentity(CMD.id, { headerStyle: 'baroque' })).toEqual({ ok: false, reason: 'unknown_header_style' });
     const after = await svc.getById(CMD.id);
     expect(after.ok && after.value?.headerStyle).toBe('royale');
   });
@@ -486,17 +489,17 @@ describe('PERSONNALISER-REAL-1 — the demo seed can never be saved over her sho
     await svc.create(CMD);
     const grouped = [{ id: 's1', name: 'Tissus', pids: [] }];
     // her grouping reaches the shop (the wire still accepts the field)…
-    expect((await svc.saveIdentity(CMD.id, { sections: grouped }, 'T1')).ok).toBe(true);
+    expect((await svc.saveIdentity(CMD.id, { sections: grouped })).ok).toBe(true);
     // …then an unrelated save shaped EXACTLY like setSf's ride-along — every
     // field it sends, and no `sections` key at all.
     const ride = { name: 'Chez Awa', tagline: 'Le wax', bio: '', zone: 'Ouagadougou', theme: 'danfani', featuredItems: [] };
     expect('sections' in ride).toBe(false);
-    expect((await svc.saveIdentity(CMD.id, ride, 'T2')).ok).toBe(true);
+    expect((await svc.saveIdentity(CMD.id, ride)).ok).toBe(true);
     const read = await svc.getById(CMD.id);
     expect(read.ok && read.value?.name).toBe('Chez Awa'); // the save landed…
     expect(read.ok && read.value?.sections, 'her stored grouping must survive a save that does not mention it').toEqual(grouped);
     // …and the wipe shape really is a wipe, so the absence above is load-bearing
-    expect((await svc.saveIdentity(CMD.id, { sections: [] }, 'T3')).ok).toBe(true);
+    expect((await svc.saveIdentity(CMD.id, { sections: [] })).ok).toBe(true);
     const wiped = await svc.getById(CMD.id);
     expect(wiped.ok && wiped.value?.sections).toEqual([]);
   });
@@ -578,14 +581,14 @@ describe('ENTETES-C — coverFocus / avatarFocus on the wire and in the demo', (
     }) as unknown as typeof fetch;
     try {
       const svc = new HttpStorefrontService('https://svc.example');
-      await svc.saveIdentity('sf-1', { coverFocus: { x: 10, y: 90 } }, 'T0');
-      await svc.saveIdentity('sf-1', { coverFocus: null, avatarFocus: { x: 40, y: 20 } }, 'T1');
+      await svc.saveIdentity('sf-1', { coverFocus: { x: 10, y: 90 } });
+      await svc.saveIdentity('sf-1', { coverFocus: null, avatarFocus: { x: 40, y: 20 } });
     } finally {
       globalThis.fetch = original;
     }
-    expect(bodies[0]).toEqual({ patch: { coverFocus: { x: 10, y: 90 } }, at: 'T0' });
+    expect(bodies[0]).toEqual({ patch: { coverFocus: { x: 10, y: 90 } } });
     // the CLEAR really is on the wire as null — JSON.stringify keeps it
-    expect(bodies[1]).toEqual({ patch: { coverFocus: null, avatarFocus: { x: 40, y: 20 } }, at: 'T1' });
+    expect(bodies[1]).toEqual({ patch: { coverFocus: null, avatarFocus: { x: 40, y: 20 } } });
     expect(JSON.stringify(bodies[1])).toContain('"coverFocus":null');
   });
 
@@ -596,7 +599,7 @@ describe('ENTETES-C — coverFocus / avatarFocus on the wire and in the demo', (
         globalThis.fetch = (async () =>
           ({ ok: false, status: 422, json: async () => ({ status: 'refused', reason }) }) as unknown as Response) as unknown as typeof fetch;
         const svc = new HttpStorefrontService('https://svc.example');
-        expect(await svc.saveIdentity('sf-1', { coverFocus: { x: 1, y: 2 } }, 'T0')).toEqual({ ok: false, reason });
+        expect(await svc.saveIdentity('sf-1', { coverFocus: { x: 1, y: 2 } })).toEqual({ ok: false, reason });
       }
     } finally {
       globalThis.fetch = original;
@@ -607,12 +610,12 @@ describe('ENTETES-C — coverFocus / avatarFocus on the wire and in the demo', (
     const svc = new DemoStorefrontService();
     await svc.create(CMD);
     // no photo yet (cover none, avatar monogram) → no_photo_to_frame, nothing stored
-    expect(await svc.saveIdentity(CMD.id, { coverFocus: { x: 50, y: 50 } }, 'T1')).toEqual({ ok: false, reason: 'no_photo_to_frame' });
-    expect(await svc.saveIdentity(CMD.id, { avatarFocus: { x: 50, y: 50 } }, 'T1')).toEqual({ ok: false, reason: 'no_photo_to_frame' });
+    expect(await svc.saveIdentity(CMD.id, { coverFocus: { x: 50, y: 50 } })).toEqual({ ok: false, reason: 'no_photo_to_frame' });
+    expect(await svc.saveIdentity(CMD.id, { avatarFocus: { x: 50, y: 50 } })).toEqual({ ok: false, reason: 'no_photo_to_frame' });
     // a real photo, then malformed pairs → bad_focus, by the canon schema
     await svc.uploadCover(CMD.id, new Uint8Array([1]), 'image/jpeg');
     for (const bad of [{ x: 50 }, { x: -1, y: 50 }, { x: 1.5, y: 2 }, { x: '50', y: '50' }, { x: 5, y: 6, z: 7 }]) {
-      expect(await svc.saveIdentity(CMD.id, { coverFocus: bad as never }, 'T1'), JSON.stringify(bad)).toEqual({
+      expect(await svc.saveIdentity(CMD.id, { coverFocus: bad as never }), JSON.stringify(bad)).toEqual({
         ok: false,
         reason: 'bad_focus',
       });
@@ -627,22 +630,22 @@ describe('ENTETES-C — coverFocus / avatarFocus on the wire and in the demo', (
     const withCover = await svc.getById(CMD.id);
     expect(withCover.ok && withCover.value?.cover.url).toBe(`demo://cover/${CMD.id}`);
     // set → read back by value
-    expect((await svc.saveIdentity(CMD.id, { coverFocus: { x: 10, y: 90 } }, 'T1')).ok).toBe(true);
+    expect((await svc.saveIdentity(CMD.id, { coverFocus: { x: 10, y: 90 } })).ok).toBe(true);
     const framed = await svc.getById(CMD.id);
     expect(framed.ok && framed.value?.cover.focus).toEqual({ x: 10, y: 90 });
     // clear → the KEY is gone, never focus:null; the photo itself untouched
-    expect((await svc.saveIdentity(CMD.id, { coverFocus: null }, 'T2')).ok).toBe(true);
+    expect((await svc.saveIdentity(CMD.id, { coverFocus: null })).ok).toBe(true);
     const cleared = await svc.getById(CMD.id);
     expect(cleared.ok && cleared.value !== undefined && 'focus' in cleared.value.cover).toBe(false);
     expect(cleared.ok && cleared.value?.cover.url).toBe(`demo://cover/${CMD.id}`);
     // frame again, then a NEW upload — the fresh photo starts unframed
-    await svc.saveIdentity(CMD.id, { coverFocus: { x: 33, y: 44 } }, 'T3');
+    await svc.saveIdentity(CMD.id, { coverFocus: { x: 33, y: 44 } });
     await svc.uploadCover(CMD.id, new Uint8Array([1, 2]), 'image/jpeg');
     const fresh = await svc.getById(CMD.id);
     expect(fresh.ok && fresh.value !== undefined && 'focus' in fresh.value.cover).toBe(false);
     // …and the AVATAR framing is its own: set on avatar survives a COVER upload
     await svc.uploadAvatar(CMD.id, new Uint8Array([1]), 'image/jpeg');
-    await svc.saveIdentity(CMD.id, { avatarFocus: { x: 40, y: 20 } }, 'T4');
+    await svc.saveIdentity(CMD.id, { avatarFocus: { x: 40, y: 20 } });
     await svc.uploadCover(CMD.id, new Uint8Array([1, 2, 3]), 'image/jpeg');
     const after = await svc.getById(CMD.id);
     expect(after.ok && after.value?.avatar.focus).toEqual({ x: 40, y: 20 });
@@ -791,9 +794,9 @@ describe('RAISON-NOMMEE-1 — the create/publish roads keep the Worker\'s named 
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'slug_taken' }), { status: 409 }));
     expect(await svc.create(CMD)).toEqual({ ok: false, reason: 'slug_taken' });
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 500 }));
-    expect(await svc.publish('sf-1', 'c', 't')).toEqual({ ok: false, reason: 'http_500' });
+    expect(await svc.publish('sf-1', 'c')).toEqual({ ok: false, reason: 'http_500' });
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
-    expect(await svc.unpublish('sf-1', 'c', 't')).toEqual({ ok: false, reason: 'unauthorized' });
+    expect(await svc.unpublish('sf-1', 'c')).toEqual({ ok: false, reason: 'unauthorized' });
   });
   it('publierRefusalToastKey: transient and 408/429/5xx → the retry sentence; 401/unauthorized → the session road; named refusals → their own line; anything unknown → not saved, no promise', async () => {
     const { publierRefusalToastKey, estSessionRefusee } = await import('../src/vitrine/service');

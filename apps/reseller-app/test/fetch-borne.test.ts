@@ -64,8 +64,8 @@ describe('PORTS-DELAI-1 — through the ports: a stalled wire is « offline », 
     const pendants = [
       svc.list(),
       svc.getById('SF'),
-      svc.publishListing({ storefrontId: 'SF', resellerId: 'RS', productVersionId: 'pv', markup: 0, correlationId: 'c', at: 't' }),
-      svc.removeItem('SF', 'pv', 't'),
+      svc.publishListing({ storefrontId: 'SF', resellerId: 'RS', productVersionId: 'pv', markup: 0, correlationId: 'c' }),
+      svc.removeItem('SF', 'pv'),
     ];
     await vi.advanceTimersByTimeAsync(DELAI_LECTURE_MS + 1);
     for (const r of await Promise.all(pendants)) expect(r).toEqual({ ok: false, reason: 'offline' });

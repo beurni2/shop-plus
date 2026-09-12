@@ -5,7 +5,7 @@
     "version": "0.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#FFFDF7",
+    "backgroundColor": "#F4EFE6",
     "platforms": [
       "android",
       "ios"
@@ -18,6 +18,13 @@
         "expo-audio",
         {
           "microphonePermission": "Shop+ utilise le micro pour enregistrer vos notes vocales sur vos articles."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Shop+ utilise vos photos pour présenter votre boutique.",
+          "cameraPermission": false
         }
       ],
       [

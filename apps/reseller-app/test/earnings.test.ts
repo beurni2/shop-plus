@@ -76,8 +76,11 @@ describe('reseller-app catalog discipline (same law as every app)', () => {
   });
 
   it('app.json static backgroundColor stays equal to the ui-tokens paper (drift guard)', async () => {
-    const { shopPlusTheme } = await import('@platform/ui-tokens/legacy');
+    // CONFIG-APP-1 (AUDIT-SHOP-2 F-77) — the ground the app PAINTS is the Faso
+    // Premium `sharedColour.paper`; the legacy theme's paper is the colour the
+    // cold start used to flash before it. The manifest matches what is painted.
+    const { sharedColour } = await import('@platform/ui-tokens');
     const appConfig = JSON.parse(readFileSync(join(appDir, 'app.json'), 'utf8'));
-    expect(appConfig.expo.backgroundColor).toBe(shopPlusTheme.colours.paper);
+    expect(appConfig.expo.backgroundColor).toBe(sharedColour.paper);
   });
 });

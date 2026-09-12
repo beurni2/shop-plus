@@ -3,6 +3,7 @@
  * property tests can pin them Node-side. Values are the Phase-0 table's bytes
  * (bp-K1…K5). `screens.tsx` feeds this straight into StyleSheet.create.
  */
+import { touch } from '@platform/ui-tokens/legacy';
 import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_SEMIBOLD, TEXT_FAMILY_BOLD } from '../../ui/faso-fonts';
 
 export const K_RAW_STYLES = {
@@ -11,8 +12,10 @@ export const K_RAW_STYLES = {
   scrollPad: { padding: 16, paddingBottom: 46 },
   pressed: { opacity: 0.85 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  // CIBLES-TACTILES-1 (F-45) — the touch token on every control here; the
+  // table's 40 / 38 were under it.
   backBtn: {
-    width: 40, height: 40, borderRadius: 99, backgroundColor: '#FFFFFF',
+    width: touch.minTargetPx, height: touch.minTargetPx, borderRadius: 99, backgroundColor: '#FFFFFF',
     borderWidth: 1, borderColor: '#E5DCC9', alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { flex: 1, fontFamily: DISPLAY_FAMILY, fontSize: 19, fontWeight: '800', color: '#1C1710', letterSpacing: -0.19 },
@@ -138,7 +141,7 @@ export const K_RAW_STYLES = {
 
   /* C-K5 segments portrait */
   segTrack: { flexDirection: 'row', backgroundColor: '#ECE3D1', borderRadius: 14, padding: 4, gap: 4 },
-  segBtn: { flex: 1, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  segBtn: { flex: 1, height: touch.minTargetPx, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   segBtnActive: {
     backgroundColor: '#FFFFFF',
     shadowColor: '#1C160F', shadowOpacity: 0.12, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 2,
@@ -234,7 +237,7 @@ export const K_RAW_STYLES = {
   vRecording: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   vRecDot: { width: 10, height: 10, borderRadius: 99, backgroundColor: '#C4574B' },
   vRecLabel: { flex: 1, fontFamily: TEXT_FAMILY, fontSize: 13, color: '#6F6355' },
-  vStopBtn: { height: 40, borderRadius: 12, paddingHorizontal: 16, backgroundColor: '#A31D4E', alignItems: 'center', justifyContent: 'center' },
+  vStopBtn: { height: touch.minTargetPx, borderRadius: 12, paddingHorizontal: 16, backgroundColor: '#A31D4E', alignItems: 'center', justifyContent: 'center' },
   vStopText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13, fontWeight: '700', color: '#FFF6EC' },
   vActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   vPublishBtn: { height: 44, borderRadius: 14, paddingHorizontal: 18, backgroundColor: '#A31D4E', alignItems: 'center', justifyContent: 'center' },

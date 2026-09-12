@@ -247,6 +247,22 @@ const accessCodeStore = expoAccessCodeStore();
  *  last-known state). Durable beside the bearer; never a credential. */
 const compteStore = compteStoreSur(expoAccessCodeStore('reseller-compte.v1.txt'));
 
+/**
+ * MARQUE-MOT-1 (AUDIT-SHOP-2 F-78) — the mark beside her shop's name SAYS ITS
+ * WORD. It used to be a bare check icon on the accueil, on Ma Vitrine and on
+ * the share card — charter §5: « icons always paired with text ». The word is
+ * « En ligne », which is what the mark means (the service answered her shop
+ * live) and all it means: nobody has verified anything (HUB-ASSURANCE-1).
+ */
+function MarqueEnLigne() {
+  return (
+    <View style={styles.enLigne}>
+      <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
+      <Text style={styles.enLigneMot}>{t('vitrine.en_ligne')}</Text>
+    </View>
+  );
+}
+
 export default function App() {
   // COLD-START LAW, CORRECTED (POLICE-MESURE, founder 2026-08-17): the result
   // is READ now. Its premise — a « metrics-close » system fallback — was false
@@ -681,7 +697,7 @@ export default function App() {
       if (service === null || identity === null || identity === undefined) {
         return { ok: false, reason: 'unconfigured' };
       }
-      const r = await service.removeVoiceNote(identity.storefrontId, pid, new Date().toISOString());
+      const r = await service.removeVoiceNote(identity.storefrontId, pid);
       if (!r.ok) return { ok: false, reason: r.reason };
       if (r.value.storefront !== undefined) setLiveStorefront(r.value.storefront);
       // `no_note` is a success with nothing to show — the note is not on her
@@ -732,7 +748,7 @@ export default function App() {
       // only once her real storefront has been loaded AND adopted. `undefined`
       // (not asked / read failed) and `null` (no shop yet) both refuse.
       if (liveStorefront === null || liveStorefront === undefined) return false;
-      const res = await service.saveIdentity(identity.storefrontId, patch, new Date().toISOString());
+      const res = await service.saveIdentity(identity.storefrontId, patch);
       if (res.ok) {
         // READ BACK, never assumed: the service owns `updatedAt` and the canon
         // shape, so the next screen reads what was actually stored.
@@ -750,10 +766,24 @@ export default function App() {
   );
   useEffect(() => {
     let live = true;
-    void loadOrMintIdentity(expoIdentityStore(), expoRandomBytes).then((outcome) => {
-      if (!live) return;
-      setIdentity(outcome.ok ? outcome.identity : null);
-    });
+    void (async () => {
+      // IDENTITE-COMPTE-1 (AUDIT-SHOP-2 F-47) — HER ACCOUNT IS HER IDENTITY.
+      // The admission's identity-file write is best-effort (a full disk, a
+      // killed app), and a launch that read the FILE alone then acted as the
+      // device-random reseller: her shop split from her account, every read a
+      // mute 404, a create the service would refuse as not hers. The compte on
+      // disk is the truth the service keys by; the file is only the
+      // pre-account road, and it is brought back in line here, best-effort.
+      const connu = await compteStore.read().catch(() => null);
+      const digits = connu === null ? undefined : /^rs-(\d{4})$/.exec(connu.accountId)?.[1];
+      if (digits !== undefined) {
+        if (live) setIdentity(identityFromDigits(digits));
+        await expoIdentityStore().write(JSON.stringify({ version: 1, digits })).catch(() => undefined);
+        return;
+      }
+      const outcome = await loadOrMintIdentity(expoIdentityStore(), expoRandomBytes);
+      if (live) setIdentity(outcome.ok ? outcome.identity : null);
+    })();
     return () => {
       live = false;
     };
@@ -781,7 +811,6 @@ export default function App() {
       }
       setToast(t('k.publier.envoi'));
       const shortCode = deriveShortCode(sf.name, identity.digits);
-      const at = new Date().toISOString();
       const created = await service.create({
         commandId: identity.commandId,
         id: identity.storefrontId,
@@ -791,10 +820,9 @@ export default function App() {
         zone: sf.zone,
         category: sf.category,
         correlationId: identity.correlationId,
-        at,
       });
       if (!created.ok) return direRefusPublication(created.reason);
-      const pub = await service.publish(identity.storefrontId, identity.correlationId, at);
+      const pub = await service.publish(identity.storefrontId, identity.correlationId);
       if (!pub.ok) return direRefusPublication(pub.reason);
       // MONEY-SHAPE-1 item 4 — THE TOAST THAT COULD NOT FAIL. This read
       // `created.value.slug ?? shortCode.toLowerCase()`, so when the service returned
@@ -982,7 +1010,6 @@ export default function App() {
           productVersionId: o.productVersionId,
           markup,
           correlationId: identity.correlationId,
-          at: new Date().toISOString(),
         });
       } finally {
         setPublishing(false);
@@ -1088,7 +1115,7 @@ export default function App() {
       // thrown or timed-out call must never leave the cards disabled for the
       // session.
       try {
-        const res = await service.removeItem(identity.storefrontId, pid, new Date().toISOString());
+        const res = await service.removeItem(identity.storefrontId, pid);
         if (!res.ok) return setToast(t('vitrine.retirer_echec'));
         vitrineCol.removeFromVitrine(pid);
         // PRIX-SIGNE-1 — the listing is gone, and so is the price it signed: a
@@ -1140,10 +1167,9 @@ export default function App() {
     const versPublique = !liveStorefront.discoverable;
     setBasculeEnCours(true);
     try {
-      const at = new Date().toISOString();
       const res = versPublique
-        ? await service.publish(identity.storefrontId, identity.correlationId, at)
-        : await service.unpublish(identity.storefrontId, identity.correlationId, at);
+        ? await service.publish(identity.storefrontId, identity.correlationId)
+        : await service.unpublish(identity.storefrontId, identity.correlationId);
       if (!res.ok) {
         // A dead session is the book's word, not a network hiccup: the
         // session road decides (verifier finding) — never « réessayez ».
@@ -1397,14 +1423,13 @@ export default function App() {
     // for) — the accepted residual is an old shop still discoverable until the
     // founder unpublishes it with the admin key; after the remint the app can
     // never address the old id again. Journalled, not prevented.
-    await service.unpublish(identity.storefrontId, identity.correlationId, new Date().toISOString()).catch(() => undefined);
+    await service.unpublish(identity.storefrontId, identity.correlationId).catch(() => undefined);
     const neuve = await remintIdentity(expoIdentityStore(), expoRandomBytes, identity.digits);
     if (!neuve.ok) return setToast(t('k.publier.identite_absente'));
     setIdentity(neuve.identity);
     // The session-local vitrine log described the OLD shop's session; the new
     // shop starts empty on the service, so the log restarts with it.
     setVitrineLog([]);
-    const at = new Date().toISOString();
     const created = await service.create({
       commandId: neuve.identity.commandId,
       id: neuve.identity.storefrontId,
@@ -1414,10 +1439,9 @@ export default function App() {
       zone: ancienne.zone,
       category: ancienne.category,
       correlationId: neuve.identity.correlationId,
-      at,
     });
     if (!created.ok) return direRefusPublication(created.reason);
-    const pub = await service.publish(neuve.identity.storefrontId, neuve.identity.correlationId, at);
+    const pub = await service.publish(neuve.identity.storefrontId, neuve.identity.correlationId);
     if (!pub.ok) return direRefusPublication(pub.reason);
     if (created.value.slug === null || created.value.slug === '') {
       return setToast(t('k.publier.en_ligne_sans_slug'));
@@ -1728,9 +1752,7 @@ export default function App() {
                 {liveStorefront !== null && liveStorefront !== undefined ? (
                   <View style={styles.homeSubRow}>
                     <Text style={styles.homeSubName} numberOfLines={1}>{liveStorefront.name}</Text>
-                    {liveShop !== null && liveShop !== undefined ? (
-                      <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
-                    ) : null}
+                    {liveShop !== null && liveShop !== undefined ? <MarqueEnLigne /> : null}
                     {liveStorefront.zone !== '' ? (
                       <Text style={styles.homeSubZone} numberOfLines={1}>{` · ${liveStorefront.zone}`}</Text>
                     ) : null}
@@ -2268,9 +2290,7 @@ export default function App() {
                 {liveStorefront !== null && liveStorefront !== undefined ? (
                   <View style={styles.homeSubRow}>
                     <Text style={styles.homeSubName} numberOfLines={1}>{liveStorefront.name}</Text>
-                    {liveShop !== null && liveShop !== undefined ? (
-                      <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
-                    ) : null}
+                    {liveShop !== null && liveShop !== undefined ? <MarqueEnLigne /> : null}
                   </View>
                 ) : null}
               </View>
@@ -2325,9 +2345,7 @@ export default function App() {
                       {liveStorefront !== null && liveStorefront !== undefined ? (
                         <View style={styles.homeSubRow}>
                           <Text style={styles.homeSubName} numberOfLines={1}>{liveStorefront.name}</Text>
-                          {liveShop !== null && liveShop !== undefined ? (
-                            <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
-                          ) : null}
+                          {liveShop !== null && liveShop !== undefined ? <MarqueEnLigne /> : null}
                         </View>
                       ) : null}
                     </View>
@@ -2607,7 +2625,7 @@ export default function App() {
                   </View>
                   <View style={styles.shareShopRow}>
                     <Text style={styles.shareShopName} numberOfLines={1}>{partage.nomBoutique}</Text>
-                    <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />
+                    <MarqueEnLigne />
                   </View>
                   <Text style={styles.cardTitle}>{partage.offre.productName}</Text>
                   <Text style={styles.shareHeroPrice}>{tf('share.prix', { amount: formatFcfa(partage.vue.client) })}</Text>
@@ -3054,6 +3072,8 @@ const styles = StyleSheet.create({
   homeHeaderBody: { flex: 1, minWidth: 0 },
   homeTitle: { color: sharedColour.ink, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.view.size), fontWeight: w(t2.scale.view.wght) },
   homeSubRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  enLigne: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexShrink: 0 },
+  enLigneMot: { color: shopColour.primary, fontFamily: TEXT_FAMILY_BOLD, fontSize: rmax(t2.scale.pill.size), fontWeight: w(t2.scale.pill.wght) },
   homeSubName: { flexShrink: 1, color: sharedColour.sub, fontFamily: TEXT_FAMILY, fontSize: rmax(t2.scale.body.size) },
   // `flexShrink: 1` because this sits in a ROW (`homeSubRow`) where RN's
   // default shrink of 0 would paint a long quartier past the screen edge.
@@ -3134,7 +3154,7 @@ const styles = StyleSheet.create({
   sparkleCtaText: { color: shopColour.onPrimary, fontFamily: DISPLAY_FAMILY, fontSize: rmax(t2.scale.row.size), fontWeight: w(t2.scale.row.wght), textAlign: 'center' },
   homeSectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm },
   toutVoirPill: {
-    minHeight: spacing.xl + spacing.sm,
+    minHeight: touch.minTargetPx,
     borderRadius: radius.pill,
     borderWidth: interaction.hairline.thin,
     borderColor: sharedColour.hairlineStrong,
@@ -3496,7 +3516,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    minHeight: spacing.xxl + spacing.md,
+    minHeight: touch.minTargetPx,
     paddingHorizontal: spacing.md,
     marginTop: spacing.sm,
     borderRadius: radius.pill,
@@ -3510,13 +3530,14 @@ const styles = StyleSheet.create({
     fontSize: rmax(t2.scale.body.size),
     fontWeight: '700',
   },
-  /* VITRINE-RETRAIT — the quiet exit. Same 44px+ touch box every control on this
-     screen carries, no border and no fill: it must be reachable and legible, and
-     it must never compete with « Partager », which is what she came to do. */
+  /* VITRINE-RETRAIT — the quiet exit. The touch token's box (CIBLES-TACTILES-1,
+     F-45: it was 46 under a comment that said « 44px+ »), no border and no fill:
+     reachable and legible, never competing with « Partager », which is what she
+     came to do. */
   vitrineRetirer: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: spacing.xxl + spacing.md,
+    minHeight: touch.minTargetPx,
     paddingHorizontal: spacing.md,
     marginTop: spacing.xs,
   },
@@ -3527,8 +3548,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   vitrineIconBtn: {
-    width: spacing.xxl + spacing.md,
-    height: spacing.xxl + spacing.md,
+    width: touch.minTargetPx,
+    height: touch.minTargetPx,
     borderRadius: radius.pill,
     borderWidth: interaction.hairline.thin,
     borderColor: sharedColour.hairlineStrong,
@@ -3541,7 +3562,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    minHeight: spacing.xxl + spacing.md,
+    minHeight: touch.minTargetPx,
     paddingHorizontal: spacing.md,
     borderRadius: radius.pill,
     borderWidth: interaction.hairline.thin,

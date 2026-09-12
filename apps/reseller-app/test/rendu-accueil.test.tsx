@@ -119,6 +119,9 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
     // The vérifié mark is PRESENT — her shop is live in this fixture.
     const { IconCoche } = await import('../src/ui/icons');
     expect(screen.tree.root.findAllByType(IconCoche).length).toBeGreaterThanOrEqual(1);
+    // MARQUE-MOT-1 (AUDIT-SHOP-2 F-78) — « icons always paired with text »: the
+    // mark says its word, « En ligne », and never stands alone.
+    expect(lu, 'the mark must carry its word').toContain('En ligne');
     screen.unmount();
   });
 
@@ -131,6 +134,7 @@ describe('ACCUEIL-PRO — the first screen carries real bytes or honest silence'
     // An unconditional badge is a fake badge: no shop, no vérifié mark.
     const { IconCoche } = await import('../src/ui/icons');
     expect(screen.tree.root.findAllByType(IconCoche), 'a vérifié mark with no live shop').toHaveLength(0);
+    expect(lu, 'no mark, no word either').not.toContain('En ligne');
     // Ma Vitrine's header holds the same law — its badge sites are SEPARATE
     // JSX from the accueil's, so this walk must stand on that screen too.
     // PROFIL-REVENDEUR-1: with no shop, the accueil header (now the pressable

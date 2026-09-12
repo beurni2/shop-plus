@@ -12,6 +12,8 @@
  * (dock bg stays the .88 tint).
  */
 import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_SEMIBOLD, TEXT_FAMILY_BOLD } from '../ui/faso-fonts';
+// CIBLES-TACTILES-1 (F-45) — the touch token on every control (the table's 36–40 were under it)
+import { touch } from '@platform/ui-tokens/legacy';
 
 export const CE = {
   paper: '#F4EFE6', card: '#FFFFFF', ink: '#1C1710', inkSoft: '#4A3F33', sub: '#6F6355',
@@ -76,7 +78,7 @@ export const CERCLE_RAW_STYLES = {
   suggestion: { padding: 16, paddingHorizontal: 17, borderRadius: 20, borderWidth: 1, borderColor: '#EDE4D3', backgroundColor: '#FFFFFF' },
   suggestionText: { marginTop: 8, fontFamily: TEXT_FAMILY, fontSize: 14, lineHeight: 21, color: '#1C1710' },
   suggestionWhy: { marginTop: 6, fontFamily: TEXT_FAMILY, fontSize: 12, lineHeight: 18, color: '#6F6355' },
-  chipRose: { alignSelf: 'flex-start', height: 38, paddingHorizontal: 15, borderRadius: 99, backgroundColor: '#F8E4EC', alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  chipRose: { alignSelf: 'flex-start', height: touch.minTargetPx, paddingHorizontal: 15, borderRadius: 99, backgroundColor: '#F8E4EC', alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   chipRoseText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13, fontWeight: '700', color: '#701134' },
   duo: { flexDirection: 'row', gap: 10 },
   duoSoft: { flex: 1, height: 48, borderRadius: 14, backgroundColor: '#F8E4EC', alignItems: 'center', justifyContent: 'center' },
@@ -95,7 +97,7 @@ export const CERCLE_RAW_STYLES = {
 
   /* C-CE9 wizard header + dots */
   wizHead: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 16, paddingHorizontal: 20 },
-  backBtn: { width: 40, height: 40, borderRadius: 99, borderWidth: 1, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  backBtn: { width: touch.minTargetPx, height: touch.minTargetPx, borderRadius: 99, borderWidth: 1, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   wizTitle: { flex: 1, fontFamily: DISPLAY_FAMILY, fontSize: 16, fontWeight: '700', color: '#1C1710' },
   wizStep: { fontFamily: TEXT_FAMILY, fontSize: 16, color: '#6F6355', fontVariant: ['tabular-nums'] },
   wizDots: { flexDirection: 'row', gap: 6, marginTop: 14, paddingHorizontal: 20 },
@@ -135,7 +137,7 @@ export const CERCLE_RAW_STYLES = {
 
   /* C-CE13 zone chips */
   zoneChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 9 },
-  zoneChip: { height: 40, paddingHorizontal: 15, borderRadius: 99, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  zoneChip: { height: touch.minTargetPx, paddingHorizontal: 15, borderRadius: 99, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   zoneChipOn: { borderColor: '#A31D4E', backgroundColor: '#F8E4EC' },
   zoneChipText: { fontFamily: TEXT_FAMILY_SEMIBOLD, fontSize: 13.5, color: '#1C1710' },
   zoneChipTextOn: { color: '#701134' },
@@ -191,7 +193,7 @@ export const CERCLE_RAW_STYLES = {
   /* C-CE21 member rows + segments */
   segScroll: { marginHorizontal: -20, marginTop: 14 },
   segRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20 },
-  segChip: { height: 36, paddingHorizontal: 14, borderRadius: 99, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  segChip: { height: touch.minTargetPx, paddingHorizontal: 14, borderRadius: 99, borderWidth: 1.5, borderColor: '#E5DCC9', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   segChipOn: { borderColor: '#A31D4E', backgroundColor: '#F8E4EC' },
   segChipText: { fontFamily: TEXT_FAMILY_SEMIBOLD, fontSize: 12.5, color: '#1C1710' },
   segChipTextOn: { color: '#701134' },

@@ -295,7 +295,7 @@ describe('property pins — the Phase-0 table bytes in the runtime styles', () =
   it('wizard chrome: dots h4 r99 on #A31D4E; back 40 r99; W4 CTA bar bottom pad 40', () => {
     expect(S.wizDot).toMatchObject({ height: 4, borderRadius: 99, backgroundColor: '#E5DCC9' });
     expect(S.wizDotOn.backgroundColor).toBe('#A31D4E');
-    expect(S.backBtn).toMatchObject({ width: 40, height: 40, borderRadius: 99 });
+    expect(S.backBtn).toMatchObject({ width: 48, height: 48, borderRadius: 99 }); // CIBLES-TACTILES-1 (F-45): the touch token, not the table's 40
     expect(S.ctaBar).toMatchObject({ paddingBottom: 40 });
   });
 });

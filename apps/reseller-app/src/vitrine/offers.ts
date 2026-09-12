@@ -29,7 +29,7 @@
  * sweep, server-side.
  */
 
-import { DELAI_LECTURE_MS, fetchBorne } from './fetch-borne';
+import { DELAI_LECTURE_MS, fetchBorne, baseSure } from './fetch-borne';
 
 /** One offer as the browse card needs it. Mirrors the service's `SupplyOffer`. */
 export interface Offer {
@@ -116,7 +116,7 @@ export class HttpOfferSource implements OfferSourcePort {
 export function resolveOfferSource(
   lireBearer: () => Promise<string | null> = async () => null,
 ): OfferSourcePort | null {
-  const base = process.env.EXPO_PUBLIC_STOREFRONT_BASE;
-  if (base) return new HttpOfferSource(base, lireBearer);
+  const base = baseSure(process.env.EXPO_PUBLIC_STOREFRONT_BASE);
+  if (base !== null) return new HttpOfferSource(base, lireBearer);
   return null;
 }

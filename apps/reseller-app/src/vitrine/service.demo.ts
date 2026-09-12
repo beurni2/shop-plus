@@ -74,7 +74,7 @@ export class DemoStorefrontService implements StorefrontServicePort {
 
   /** PERSONNALISER-REAL-1 — persists the patch AND refuses like the real service:
    *  a mock that could only succeed would make every test greener than the system. */
-  async saveIdentity(id: string, patch: StorefrontIdentityPatch, at: string): Promise<ServiceResult<{ status: string }>> {
+  async saveIdentity(id: string, patch: StorefrontIdentityPatch): Promise<ServiceResult<{ status: string }>> {
     if (this.refuseIdentityFor.has(id)) return { ok: false, reason: 'name_too_short' };
     // ENTETES-B — the demo refuses exactly what the service refuses, by the same
     // NAME, against the CANON set (certified-mock rule: a mock that only succeeds
@@ -122,19 +122,19 @@ export class DemoStorefrontService implements StorefrontServicePort {
       ...(patch.headerStyle !== undefined ? { headerStyle: patch.headerStyle } : {}),
       ...(patch.coverFocus !== undefined ? { cover: withFocus(current.cover, patch.coverFocus) } : {}),
       ...(patch.avatarFocus !== undefined ? { avatar: withFocus(current.avatar, patch.avatarFocus) } : {}),
-      updatedAt: at,
+      updatedAt: new Date().toISOString(),
     });
     return { ok: true, value: { status: 'saved' } };
   }
 
-  async publish(id: string, _correlationId?: string, _at?: string): Promise<ServiceResult<{ status: string }>> {
+  async publish(id: string, _correlationId?: string): Promise<ServiceResult<{ status: string }>> {
     const s = this.stores.get(id);
     if (!s) return { ok: true, value: { status: 'absent' } };
     s.discoverable = true;
     return { ok: true, value: { status: 'changed' } };
   }
 
-  async unpublish(id: string, _correlationId?: string, _at?: string): Promise<ServiceResult<{ status: string }>> {
+  async unpublish(id: string, _correlationId?: string): Promise<ServiceResult<{ status: string }>> {
     const s = this.stores.get(id);
     if (!s) return { ok: true, value: { status: 'absent' } };
     s.discoverable = false;
@@ -215,7 +215,6 @@ export class DemoStorefrontService implements StorefrontServicePort {
   async removeVoiceNote(
     storefrontId: string,
     pid: string,
-    _at?: string,
   ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
     const read = await this.getById(storefrontId);
     if (!read.ok || read.value === undefined) return { ok: true, value: { status: 'absent' } };
@@ -274,7 +273,6 @@ export class DemoStorefrontService implements StorefrontServicePort {
   async removeItem(
     storefrontId: string,
     pid: string,
-    at: string,
   ): Promise<ServiceResult<{ status: string; storefront?: Storefront }>> {
     const read = await this.getById(storefrontId);
     const current = read.ok ? read.value : undefined;
@@ -286,7 +284,7 @@ export class DemoStorefrontService implements StorefrontServicePort {
       curatedItems: current.curatedItems.filter((p: string) => p !== pid),
       featuredItems: current.featuredItems.filter((p: string) => p !== pid),
       sections: current.sections.map((sec) => ({ ...sec, pids: sec.pids.filter((p: string) => p !== pid) })),
-      updatedAt: at,
+      updatedAt: new Date().toISOString(),
     };
     this.identities.set(storefrontId, next);
     // The SHOP rides back, exactly as the real answer carries it — a demo that

@@ -283,3 +283,26 @@ describe('fusionnerNotesStockees — what the shop holds, safely', () => {
     expect(Object.keys(out), 'not one of these is playable').toEqual([]);
   });
 });
+
+/**
+ * VOIX-LIMITE-1 (AUDIT-SHOP-2 F-48) — the phone's cap IS the service's cap,
+ * and a refusal maps to its own sentence.
+ */
+describe('VOIX-LIMITE-1 — the cap and the named refusal', () => {
+  it('VOIX_MAX_MS equals the service\'s AUDIO_MAX_DURATION_MS — one minute, read off the service source, never a second copy that drifts', async () => {
+    const { VOIX_MAX_MS } = await import('../src/vitrine/customize/voice');
+    const svc = readFileSync(join(import.meta.dirname, '../../../services/storefront-service/src/media/service.ts'), 'utf8');
+    const m = /export const AUDIO_MAX_DURATION_MS = ([\d_]+);/.exec(svc);
+    expect(m, 'the service constant must be found').not.toBeNull();
+    expect(VOIX_MAX_MS).toBe(Number(m![1]!.replace(/_/g, '')));
+  });
+
+  it('too_large and bad_duration name the length; everything else keeps the transient sentence', async () => {
+    const { voixRefusToastKey } = await import('../src/vitrine/customize/voice');
+    expect(voixRefusToastKey('too_large')).toBe('k.voix.toast_trop_longue');
+    expect(voixRefusToastKey('bad_duration')).toBe('k.voix.toast_trop_longue');
+    for (const r of ['offline', 'http_502', 'not_confirmed', 'storefront_absent', 'unsupported_type', '']) {
+      expect(voixRefusToastKey(r), r).toBe('k.voix.toast_echec');
+    }
+  });
+});

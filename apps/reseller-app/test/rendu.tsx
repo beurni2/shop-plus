@@ -98,7 +98,8 @@ export function wiredEnv(): void {
   // not-connected state — a walk that forgot this would prove nothing. It is
   // the ONLY env the adapters read (ACCES-ARME-2 retired the bundled key); the
   // credential a walk observes is the session bearer the wire records.
-  process.env['EXPO_PUBLIC_STOREFRONT_BASE'] = 'http://shop.test';
+  // BASE-SURE-1 (F-76): the adapters refuse a plain-http base, so the harness's base is https
+  process.env['EXPO_PUBLIC_STOREFRONT_BASE'] = 'https://shop.test';
 }
 
 export interface Screen {

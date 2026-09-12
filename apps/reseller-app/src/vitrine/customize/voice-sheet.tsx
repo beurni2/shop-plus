@@ -15,7 +15,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { t, tf } from '../../i18n';
-import { DEFAULT_VOICE_NOTES, cancelRecording, deleteNote, failPublish, fmtVoiceDuration, fusionnerNotesStockees, noteOf, publishNote, readyNote, startRecording, stopRecording, type ProductVoiceNote, type ProductVoiceNotes } from './voice';
+import { DEFAULT_VOICE_NOTES, VOIX_MAX_MS, cancelRecording, deleteNote, failPublish, fmtVoiceDuration, fusionnerNotesStockees, noteOf, publishNote, readyNote, startRecording, stopRecording, voixRefusToastKey, type ProductVoiceNote, type ProductVoiceNotes } from './voice';
 import { useVoiceCapture } from './voice-capture';
 import { K_RAW_STYLES } from './k-styles';
 
@@ -134,6 +134,17 @@ export function useVoiceNotes(
    */
   const playingPidRef = useRef<string | null>(null);
   const recorder = useVoiceCapture();
+  /**
+   * VOIX-LIMITE-1 (AUDIT-SHOP-2 F-48) — the running take's own clock. Armed at
+   * `start`, cleared by every road that ends the take (stop, cancel, unmount);
+   * when it fires the take is STOPPED for her — she keeps it and is told —
+   * rather than talking past the minute the service refuses beyond.
+   */
+  const limite = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const desarmerLimite = (): void => {
+    if (limite.current !== null) { clearTimeout(limite.current); limite.current = null; }
+  };
+  useEffect(() => () => { if (limite.current !== null) clearTimeout(limite.current); }, []);
 
   return useMemo<VoiceNotesController>(() => {
     // PROFIL-PUBLIÉ (F-43) — the BUG 1 step 1 diagnostic that replaced this
@@ -150,16 +161,20 @@ export function useVoiceNotes(
       try {
         await recorder.start();
         setNotes((cur) => startRecording(cur, pid));
+        desarmerLimite();
+        limite.current = setTimeout(() => { void stopRec(pid, true); }, VOIX_MAX_MS);
       } catch {
         setNotes((cur) => cancelRecording(cur, pid));
         onToast(interrupted());
       }
     };
-    const stopRec = async (pid: string): Promise<void> => {
+    const stopRec = async (pid: string, parLimite = false): Promise<void> => {
+      desarmerLimite();
       try {
         const take = await recorder.stop();
         if (!take.url) { setNotes((cur) => cancelRecording(cur, pid)); onToast(interrupted()); return; }
         setNotes((cur) => stopRecording(cur, pid, take));
+        if (parLimite) onToast(t('k.voix.toast_limite'));
       } catch {
         setNotes((cur) => cancelRecording(cur, pid)); // mid-record interruption: drop the partial
         onToast(interrupted());
@@ -187,14 +202,16 @@ export function useVoiceNotes(
         return;
       }
       onToast(t('k.voix.toast_publiee'));
-      const res = await upload(pid, take.url, take.durationMs);
+      // the clock of a take stopped AT the limit can read a few ms past it —
+      // the service refuses beyond the minute, so the minute is what leaves
+      const res = await upload(pid, take.url, Math.min(take.durationMs, VOIX_MAX_MS));
       if (res.ok) {
         setNotes((cur) => readyNote(cur, pid, res.url));
         onToast(t('k.voix.toast_en_ligne'));
         return;
       }
       setNotes((cur) => failPublish(cur, pid));
-      onToast(t('k.voix.toast_echec'));
+      onToast(t(voixRefusToastKey(res.reason)));
     };
     const playRec = async (pid: string, url: string): Promise<void> => {
       if (playingPid === pid) {
@@ -252,6 +269,7 @@ export function useVoiceNotes(
       startRec: (pid) => void startRec(pid),
       stopRec: (pid) => void stopRec(pid),
       cancelRec: (pid) => {
+        desarmerLimite();
         void recorder.stop().catch(() => undefined);
         setNotes((cur) => cancelRecording(cur, pid));
       },

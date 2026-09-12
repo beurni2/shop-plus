@@ -18,6 +18,7 @@
  */
 
 import type { CodeStore } from '../sales/use-ventes-reelles';
+import { baseSure } from '../vitrine/fetch-borne';
 
 export type EtatAcces = 'pending_access' | 'active' | 'paused';
 
@@ -133,8 +134,8 @@ function lireCompte(body: Record<string, unknown> | null): CompteLocal | null {
 }
 
 export function resolveCompteService(): CompteServicePort | null {
-  const base = process.env.EXPO_PUBLIC_STOREFRONT_BASE;
-  if (base === undefined || base === '') return null;
+  const base = baseSure(process.env.EXPO_PUBLIC_STOREFRONT_BASE);
+  if (base === null) return null;
   const trimmed = base.replace(/\/+$/, '');
 
   async function appel(chemin: string, init: RequestInit, bearer?: string) {

@@ -26,3 +26,14 @@ export async function fetchBorne(input: string, init: RequestInit, delaiMs: numb
     clearTimeout(timer);
   }
 }
+
+/**
+ * BASE-SURE-1 (AUDIT-SHOP-2 F-76) — the service base is https or it is nothing.
+ * Every adapter crosses this: a plain-http base (a typo in the workflow secret,
+ * a dev value that leaked) would send her password and her session bearer in
+ * clear. Refused here, it resolves to the same NULL an unset base does — the
+ * honest « non branché » state the app already designs for.
+ */
+export function baseSure(raw: string | undefined): string | null {
+  return raw !== undefined && raw.startsWith('https://') ? raw : null;
+}
