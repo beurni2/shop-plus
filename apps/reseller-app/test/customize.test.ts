@@ -34,7 +34,7 @@ import { StorefrontSchema, STOREFRONT_THEMES } from '@platform/contracts';
 const flat = (style: unknown): Record<string, unknown> => style as Record<string, unknown>;
 
 describe('K property pins — the Phase-0 table bytes in the runtime StyleSheet', () => {
-  it('C-K2 row: 64 min-height, pad 10/16, glyph 38 r12 soft/deep, title 14.5/700, sub 12 #6F6355, divider #F3EDDE', () => {
+  it('C-K2 row: 64 min-height, pad 10/16, glyph 38 r12 soft/deep, title 14.5/700, sub 12 #6F6355, divider = the hairline token (#EDE4D3; the table\u2019s #F3EDDE normalised, F-44)', () => {
     expect(flat(S.row).minHeight).toBe(64);
     expect(flat(S.row).paddingVertical).toBe(10);
     expect(flat(S.row).paddingHorizontal).toBe(16);

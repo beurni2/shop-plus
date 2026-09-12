@@ -1,5 +1,6 @@
 import React from 'react';
 import Module from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { act, create, type ReactTestRenderer, type ReactTestInstance } from 'react-test-renderer';
 import { expect } from 'vitest';
 
@@ -19,7 +20,7 @@ import { expect } from 'vitest';
  * package name resolves — exactly what the config does for imports.
  */
 const DOUBLES_RUNTIME: Record<string, string> = {
-  'expo-video': new URL('./doubles/expo-video.cjs', import.meta.url).pathname,
+  'expo-video': fileURLToPath(new URL('./doubles/expo-video.cjs', import.meta.url)),
 };
 const moduleInterne = Module as unknown as {
   _resolveFilename: (request: string, ...rest: unknown[]) => string;

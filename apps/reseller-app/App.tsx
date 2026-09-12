@@ -337,13 +337,22 @@ export const OppTile = memo(function OppTile({ item, net, deja, actif, onOuvrir,
         {item.assetRefs[0] || item.videoRef ? (
           // OPPORTUNITES-LEGER-1 (F-49) — ONE player for the grid: the
           // tile in view plays its clip; every other tile is the
-          // photograph alone, with no player behind it. Switched by
-          // COMPONENT, never by prop, so each keeps a constant hook set.
-          clip !== undefined && actif ? (
-            <ProductClip videoRef={clip} photoUri={item.assetRefs[0]} style={styles.artPhoto} onAspect={mesurerCadre} />
-          ) : (
+          // photograph alone, with no player behind it.
+          //
+          // THE PHOTOGRAPH NEVER UNMOUNTS (verifier, minor): it renders on
+          // its own, always, and the clip surface is laid OVER it only
+          // while this tile is the one in view. Swapping the whole
+          // component on the hand-over unmounted and remounted the
+          // <Image> as she scrolled — a possible blink of the tile's
+          // ground on a 1 GB Android whose image cache has been trimmed.
+          // The overlay carries no photograph of its own (the one
+          // underneath is the fallback), and its player is released the
+          // moment it leaves. Two components, each with a constant hook
+          // set — never a hook behind a prop.
+          <>
             <ProductPhoto photoUri={item.assetRefs[0]} style={styles.artPhoto} onAspect={mesurerCadre} />
-          )
+            {clip !== undefined && actif ? <ProductClip videoRef={clip} style={styles.oppTileClip} /> : null}
+          </>
         ) : (
           <>
             <View style={styles.artTileStripe} />
@@ -3164,6 +3173,9 @@ const styles = StyleSheet.create({
   // RESELLER-PHOTOS-1 — the photograph fills its art container; every container
   // already clips (overflow hidden) and carries the token radius.
   artPhoto: { width: '100%', height: '100%' },
+  // OPPORTUNITES-LEGER-1 — the clip surface over the tile's photograph: the
+  // same frame, laid on top, so the photograph underneath never unmounts.
+  oppTileClip: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   // RESELLER-UX-1 item 3 — the typed-markup field. Sized to the touch law, framed
   // with the same hairline grammar as the cards; tabular figure styling comes from
   // margeAmount's family via fontFamily below.

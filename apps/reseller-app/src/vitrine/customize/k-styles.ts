@@ -20,6 +20,15 @@ import { DISPLAY_FAMILY, TEXT_FAMILY, TEXT_FAMILY_SEMIBOLD, TEXT_FAMILY_BOLD } f
  * quietly normalised to a neighbouring token (a design change nobody asked
  * for). A test pins this list: nothing may join it unnoticed. Turning any of
  * them into a canon token is a platform-contracts change — the founder's.
+ *
+ * ONE TOKEN GAP, NAMED (verifier, PERSONNALISER-JETONS-1): the quiet metadata
+ * ink — chevrons, counters, the cover specs, the grip, the placeholder, the
+ * icon strokes — is #8A7D6B, and the ONLY token carrying that byte is
+ * `sharedColour.disabledCtaFg`. It reads that token so the byte stays a
+ * token's, but its ROLE is « disabled CTA foreground »: a retune of the
+ * disabled button would recolour every hint glyph here. The v2 palette has no
+ * « quieter than sub » text token; adding one (`hint`) is a platform-contracts
+ * change — the founder's call, flagged in the journal.
  */
 export const K_SANS_JETON = {
   /** the sand tint: the sable note, the order-row art, the preview stage */
@@ -66,7 +75,7 @@ export const K_RAW_STYLES = {
   etatPill: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: radius.pill, paddingVertical: spacing.xs, paddingHorizontal: 9 },
   etatPillOk: { backgroundColor: sharedColour.okBg },
   etatPillNeutre: { backgroundColor: sharedColour.mutedBg },
-  etatPillText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.caps.size.min, fontWeight: '700', color: sharedColour.sub },
+  etatPillText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.caps.size.min, fontWeight: '700', color: sharedColour.mutedFg },
   etatDot: { width: 6, height: 6, borderRadius: radius.pill },
   caps: { fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.caps.size.max, fontWeight: '700', letterSpacing: 1.1, color: sharedColour.sub, marginTop: spacing.lg, marginBottom: 10 },
   capsGap: { marginTop: 22 },
@@ -175,7 +184,7 @@ export const K_RAW_STYLES = {
   noteWarn: { borderRadius: radius.art.max, backgroundColor: sharedColour.warnBg, padding: spacing.md, marginTop: spacing.md },
   noteWarnText: { fontFamily: TEXT_FAMILY, fontSize: 12, lineHeight: 18, color: sharedColour.warnFgAlt },
   ghostSmall: {
-    height: touch.minTargetPx, borderRadius: radius.art.max, backgroundColor: sharedColour.card, borderWidth: 1.5, borderColor: sharedColour.hairlineStrong,
+    height: touch.minTargetPx, borderRadius: radius.buttonSecondary.min, backgroundColor: sharedColour.card, borderWidth: 1.5, borderColor: sharedColour.hairlineStrong,
     alignItems: 'center', justifyContent: 'center', marginTop: spacing.md, paddingHorizontal: 18, alignSelf: 'flex-start',
   },
   ghostSmallText: { fontFamily: DISPLAY_FAMILY, fontSize: 13.5, fontWeight: '700', color: sharedColour.ink },
@@ -218,7 +227,7 @@ export const K_RAW_STYLES = {
   themeNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingTop: 9, paddingHorizontal: 14 },
   themeName: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 14, fontWeight: '700', color: sharedColour.ink },
   defautPill: { borderRadius: radius.pill, backgroundColor: sharedColour.mutedBg, paddingVertical: 3, paddingHorizontal: spacing.sm },
-  defautPillText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 9.5, fontWeight: '700', color: sharedColour.sub },
+  defautPillText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 9.5, fontWeight: '700', color: sharedColour.mutedFg },
   themeCheck: {
     position: 'absolute', top: 16, right: 10, width: 26, height: 26, borderRadius: radius.pill,
     backgroundColor: shopColour.primary, alignItems: 'center', justifyContent: 'center',
@@ -245,7 +254,7 @@ export const K_RAW_STYLES = {
   unePill: { borderRadius: radius.pill, backgroundColor: shopColour.soft, paddingVertical: 2, paddingHorizontal: 7 },
   unePillText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 9, fontWeight: '700', color: shopColour.deep },
   epuisePill: { borderRadius: radius.pill, backgroundColor: sharedColour.mutedBg, paddingVertical: 2, paddingHorizontal: 7 },
-  epuisePillText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 9, fontWeight: '700', color: sharedColour.sub },
+  epuisePillText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 9, fontWeight: '700', color: sharedColour.mutedFg },
   arrowBtn: {
     width: touch.minTargetPx, height: touch.minTargetPx, borderRadius: 9, borderWidth: 1, borderColor: sharedColour.hairlineStrong, backgroundColor: sharedColour.card,
     alignItems: 'center', justifyContent: 'center',
@@ -275,7 +284,7 @@ export const K_RAW_STYLES = {
   vPrice: { fontFamily: DISPLAY_FAMILY, fontSize: t2.scale.body.size.min, fontWeight: '800', color: shopColour.deep, marginTop: 2 },
   vRecBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
-    height: touch.minTargetPx, borderRadius: radius.art.max, borderWidth: 1.5, borderColor: sharedColour.hairlineStrong, backgroundColor: sharedColour.card,
+    height: touch.minTargetPx, borderRadius: radius.buttonSecondary.min, borderWidth: 1.5, borderColor: sharedColour.hairlineStrong, backgroundColor: sharedColour.card,
   },
   vRecBtnText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13.5, fontWeight: '700', color: shopColour.primary },
   vRecording: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -284,9 +293,9 @@ export const K_RAW_STYLES = {
   vStopBtn: { height: touch.minTargetPx, borderRadius: 12, paddingHorizontal: spacing.lg, backgroundColor: shopColour.primary, alignItems: 'center', justifyContent: 'center' },
   vStopText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.body.size.min, fontWeight: '700', color: shopColour.onPrimary },
   vActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  vPublishBtn: { height: touch.minTargetPx, borderRadius: radius.art.max, paddingHorizontal: 18, backgroundColor: shopColour.primary, alignItems: 'center', justifyContent: 'center' },
+  vPublishBtn: { height: touch.minTargetPx, borderRadius: radius.buttonSecondary.min, paddingHorizontal: 18, backgroundColor: shopColour.primary, alignItems: 'center', justifyContent: 'center' },
   vPublishText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 13.5, fontWeight: '700', color: shopColour.onPrimary },
-  vGhost: { height: touch.minTargetPx, borderRadius: radius.art.max, paddingHorizontal: 14, borderWidth: 1.5, borderColor: sharedColour.hairlineStrong, backgroundColor: sharedColour.card, alignItems: 'center', justifyContent: 'center' },
+  vGhost: { height: touch.minTargetPx, borderRadius: radius.buttonSecondary.min, paddingHorizontal: 14, borderWidth: 1.5, borderColor: sharedColour.hairlineStrong, backgroundColor: sharedColour.card, alignItems: 'center', justifyContent: 'center' },
   vGhostText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: t2.scale.body.size.min, fontWeight: '700', color: sharedColour.ink },
   vDanger: { borderColor: K_SANS_JETON.lisereDanger },
   vDangerText: { color: sharedColour.dangerFg },
@@ -300,7 +309,7 @@ export const K_RAW_STYLES = {
   // status: 6.98:1 on its ground, against the shipped pending pair's 5.79:1.
   vLivePill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: radius.pill, paddingVertical: 5, paddingHorizontal: 11, backgroundColor: sharedColour.okBg },
   vLiveText: { fontFamily: TEXT_FAMILY_BOLD, fontSize: 11.5, fontWeight: '700', color: sharedColour.okFg },
-  vPlayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: touch.minTargetPx, borderRadius: radius.art.max, paddingHorizontal: 14, borderWidth: 1.5, borderColor: sharedColour.hairlineStrong, backgroundColor: sharedColour.card },
+  vPlayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: touch.minTargetPx, borderRadius: radius.buttonSecondary.min, paddingHorizontal: 14, borderWidth: 1.5, borderColor: sharedColour.hairlineStrong, backgroundColor: sharedColour.card },
   /* ÉCOUTE — the take she just made, given its own block (founder 2026-08-04:
      « make its area more visible, nice and professional … I am able to replay
      it, listen before adding it to the product »).
@@ -361,7 +370,7 @@ export const K_RAW_STYLES = {
   frVerite: { fontFamily: TEXT_FAMILY, fontSize: 11.5, lineHeight: 17, color: sharedColour.sub, textAlign: 'center', marginTop: 10 },
   frActions: { marginTop: 14 },
   frGhostWide: {
-    height: 48, borderRadius: radius.art.max, backgroundColor: sharedColour.card, borderWidth: 1.5, borderColor: sharedColour.hairlineStrong,
+    height: 48, borderRadius: radius.buttonSecondary.min, backgroundColor: sharedColour.card, borderWidth: 1.5, borderColor: sharedColour.hairlineStrong,
     alignItems: 'center', justifyContent: 'center', marginTop: 10,
   },
 } as const;

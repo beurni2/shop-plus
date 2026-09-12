@@ -553,8 +553,8 @@ function K1({ sf, th, onBack, go, onPublishOnline, onRecommencer, onListStorefro
         onBack={onBack}
         pill={
           <View style={[S.etatPill, sf.discoverable ? S.etatPillOk : S.etatPillNeutre]}>
-            <View style={[S.etatDot, { backgroundColor: sf.discoverable ? sharedColour.okFg : sharedColour.sub }]} />
-            <Text style={[S.etatPillText, { color: sf.discoverable ? sharedColour.okFg : sharedColour.sub }]}>{t(sf.discoverable ? 'k.etat_publiee' : 'k.etat_privee')}</Text>
+            <View style={[S.etatDot, { backgroundColor: sf.discoverable ? sharedColour.okFg : sharedColour.mutedFg }]} />
+            <Text style={[S.etatPillText, { color: sf.discoverable ? sharedColour.okFg : sharedColour.mutedFg }]}>{t(sf.discoverable ? 'k.etat_publiee' : 'k.etat_privee')}</Text>
           </View>
         }
       />

@@ -295,8 +295,12 @@ describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
     // the `partage` derivation (`partage.offre.assetRefs[0]`) — same live
     // offer, new spelling — so the alternation carries it alongside the others.
     // PIN EVOLVED (OPPORTUNITES-LEGER-1, F-49): the opportunités tile renders
-    // `ProductClip` only for the ONE tile in view and `ProductPhoto` — the same
-    // photograph, no player — for every other; both spellings carry the photo.
+    // `ProductPhoto` — the photograph, no player — ALWAYS, and lays a bare
+    // `ProductClip` surface over it only for the ONE tile in view (verifier
+    // minor: the photograph must not unmount on the hand-over). That overlay
+    // carries no photoUri of its own on purpose: its fallback is the sibling
+    // underneath, so the « never a bare video » law holds by construction and
+    // the alternation below still names the photo-carrying spellings.
     const CLIP_WITH_PHOTO = /<Product(?:Clip\s+videoRef=\{(?:item\.videoRef|clip)\}|Photo)\s+photoUri=\{item\.assetRefs\[0\]\}/g;
     const photoSites = [
       ...(app.match(/<Image source=\{\{ uri: (item|opp|partage\.offre)\.assetRefs\[0\] \}\}/g) ?? []),

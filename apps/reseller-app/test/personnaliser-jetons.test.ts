@@ -51,7 +51,11 @@ describe('the style table: every colour is a token byte or one of the named exce
 
   it('source: the ONLY hex literals in k-styles.ts are inside K_SANS_JETON — the table itself carries none', () => {
     const src = lire('src/vitrine/customize/k-styles.ts');
-    const table = src.slice(src.indexOf('export const K_RAW_STYLES'));
+    // THE ANCHOR MUST MATCH (verifier): `indexOf` = -1 would slice ONE
+    // character and pass this test over a table that no longer exists.
+    const debut = src.indexOf('export const K_RAW_STYLES');
+    expect(debut, 'the style table marker is gone').toBeGreaterThan(-1);
+    const table = src.slice(debut);
     const code = table.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     expect(code.match(HEX) ?? []).toEqual([]);
     expect(code).not.toMatch(/rgba\(/);
