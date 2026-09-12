@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { FlatList, Image, KeyboardAvoidingView, Linking, Platform, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, View, findNodeHandle } from 'react-native';
@@ -18,9 +18,10 @@ import { FONTS_TO_LOAD } from './src/ui/fonts-load';
 import { foldVitrine, type VitrineEvent } from './src/vitrine/collection';
 import { marginBreakdown, markupCap, defaultMarkup, snapMarkup } from './src/vitrine/margin';
 import { PhotoGallery } from './src/ui/photo-gallery';
-import { ProductClip } from './src/ui/product-clip';
+import { ProductClip, ProductPhoto } from './src/ui/product-clip';
 import { vignetteSaufHero } from './src/vitrine/vignette';
 import { cadreRatio, CADRE_DEFAUT } from './src/ui/cadre';
+import { choisirClipActif } from './src/ui/clip-actif';
 import { DuotoneTile } from './src/ui/signature';
 import { CustomizeStack } from './src/vitrine/customize/screens';
 import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, publierRefusalToastKey, estSessionRefusee, type StorefrontIdentityPatch } from './src/vitrine/service';
@@ -30,7 +31,7 @@ import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/of
 import { categoriesPresentes, filtrerOffres, filtrerParSelection, labelCategorie } from './src/vitrine/rayons';
 import type { ResellerIdentity } from './src/identity/mint';
 import { expoIdentityStore, expoRandomBytes } from './src/identity/expoStore';
-import { useVoiceNotes, VoiceCardRow, VoiceNoteSheet, voiceCardLabel, type VoiceRemover, type VoiceUploader } from './src/vitrine/customize/voice-sheet';
+import { useVoiceNotes, VoiceCardRow, VoiceNoteSheet, voiceCardLabel, type VoiceNotesController, type VoiceRemover, type VoiceUploader } from './src/vitrine/customize/voice-sheet';
 import { noteOf } from './src/vitrine/customize/voice';
 import {
   useCercle, CercleHub, CampWizard, CampaignActive, CampaignFunding, CercleReputation,
@@ -263,6 +264,324 @@ function MarqueEnLigne() {
   );
 }
 
+/**
+ * ═══ OPPORTUNITES-LEGER-1 (AUDIT-SHOP-2 F-49) — THE TILE OWNS ITS OWN WORK ═══
+ *
+ * The grid used to be one inline expression inside App: every photograph that
+ * loaded wrote an App-level map and re-rendered EVERY tile, every tile mounted
+ * its own native video player (clip or no clip — the hook cannot be
+ * conditional), and any App re-render at all redrew the whole grid. On a
+ * one-gigabyte Android with forty products that is forty players and a redraw
+ * per photograph.
+ *
+ * Now the tile is a memoized component that keeps ITS photograph's shape as
+ * its own state, and only the ONE tile the grid names `actif` — the one in
+ * view — carries a player; the rest are the photograph alone. Its props are
+ * primitives and stable callbacks, so a re-render of App reaches a tile only
+ * when something about THAT tile changed.
+ */
+export interface OppTileProps {
+  readonly item: Offer;
+  /** Her net at the markup the fiche opens on — computed by the parent, a number. */
+  readonly net: number;
+  readonly deja: boolean;
+  /** The ONE tile whose clip plays: the one in view (the first clip tile until a layout is known). */
+  readonly actif: boolean;
+  readonly onOuvrir: (pid: string) => void;
+  /** Where this tile sits in its column (y, height), so the grid can tell which clip is in view. */
+  readonly onMesure: (pid: string, y: number, height: number) => void;
+}
+
+export const OppTile = memo(function OppTile({ item, net, deja, actif, onOuvrir, onMesure }: OppTileProps) {
+  // CADRE — the photograph's own shape, measured once when it loads. Local to
+  // the tile: a second load of the same bytes reports the same ratio and
+  // writes nothing, and no other tile hears about it.
+  const [cadre, setCadre] = useState<number>(CADRE_DEFAUT);
+  const mesurerCadre = useCallback((w: number, h: number) => {
+    const ratio = cadreRatio(w, h);
+    setCadre((cur) => (cur === ratio ? cur : ratio));
+  }, []);
+  const clip = item.videoRef !== undefined && item.videoRef !== '' ? item.videoRef : undefined;
+  return (
+    // §4 L70 — a tappable product TILE → its FICHE (journey edge
+    // opportunites→fiche). RESELLER-UX-3 (founder reference): the
+    // marketplace tile — SQUARE photo edge-to-edge on top (cover; a
+    // square frame barely trims, which is why the reference looks
+    // professional), then the compact detail: 2-line name, « Gagnez ≈
+    // {net} net » as the price position (NET FIRST in render order —
+    // SP-I04/I12; gross never), the base as the quiet metadata line,
+    // the source pill and the honest épuisé chip. The estimate reads
+    // at the default markup (0 — founder override), same figure the
+    // fiche opens on.
+    <Pressable
+      style={({ pressed }) => [styles.oppTile, pressed && styles.pressed]}
+      onPress={() => onOuvrir(item.productVersionId)}
+      // OPPORTUNITES-LEGER-1 — where this tile sits in its column,
+      // so the grid can tell which clip is in view.
+      onLayout={(e) => onMesure(item.productVersionId, e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
+      accessibilityRole="button"
+    >
+      {/* CADRE (founder order: « Drop the square rule ») — the frame
+          takes THIS photograph's proportions, bounded by cadreRatio.
+          Unmeasured ⇒ the neutral square, so nothing jumps on first
+          paint; measured ⇒ tall stays tall, and it is this per-product
+          height that finally makes the two columns fall out of step. */}
+      <View style={[styles.oppTileArt, { aspectRatio: cadre }]}>
+        {/* RESELLER-PHOTOS-1 — the REAL photograph when the wire carries
+            one (absolute URL, absolutized server-side with the same base
+            as the buyer wire). No ref ⇒ the designed glyph tile. */}
+        {/* VIDEO-PARTOUT — a clip PLAYS here when the product has one
+            (muted, looping, the photograph underneath as the resting
+            state); no clip ⇒ ProductClip renders the photo alone, so
+            this branch reads exactly as it did before. */}
+        {item.assetRefs[0] || item.videoRef ? (
+          // OPPORTUNITES-LEGER-1 (F-49) — ONE player for the grid: the
+          // tile in view plays its clip; every other tile is the
+          // photograph alone, with no player behind it. Switched by
+          // COMPONENT, never by prop, so each keeps a constant hook set.
+          clip !== undefined && actif ? (
+            <ProductClip videoRef={clip} photoUri={item.assetRefs[0]} style={styles.artPhoto} onAspect={mesurerCadre} />
+          ) : (
+            <ProductPhoto photoUri={item.assetRefs[0]} style={styles.artPhoto} onAspect={mesurerCadre} />
+          )
+        ) : (
+          <>
+            <View style={styles.artTileStripe} />
+            <Text style={styles.ficheHeroGlyph}>{item.productName.slice(0, 1)}</Text>
+          </>
+        )}
+      </View>
+      <View style={styles.oppCardBody}>
+        <Text style={styles.oppTileName} numberOfLines={2}>{item.productName}</Text>
+        {/* NET FIRST, in RENDER ORDER (SP-I04/I12): gagnez holds the
+            tile's price position; the base is the metadata whisper. */}
+        <Text style={styles.oppNet}>{tf('opportunity.gagnez', { amount: formatFcfa(net) })}</Text>
+        <View style={styles.margeHeadRow}>
+          <Overline>{t('fiche.prix_base')}</Overline>
+          <Text style={styles.oppTileBase}>{formatFcfa(item.basePrice)}</Text>
+        </View>
+        {/* THE SOURCE MARK (founder ruling) — a PROVENANCE mark, not a
+            location: boutik strips zone deliberately (supplier-
+            identifying). Same pill family as « livré par Séra »,
+            deliberately quieter than « Vérifiée ». CONSTANT, never data.
+            HARD GATE: a second supplier makes this line a LIE. */}
+        <View style={styles.oppSourcePill}>
+          <Text style={styles.oppSourcePillText}>{t('opportunites.source')}</Text>
+        </View>
+        {/* Honest stock: a zero-stock offer says so on the tile, before
+            she invests a tap (the wire's `available`, stated not styled). */}
+        {item.available === 0 && <StatusChip tone="muted" label={t('opportunites.epuise')} />}
+        {/* DÉJÀ-DANS-MA-VITRINE — said on the TILE, before she spends
+            a tap on a fiche that can only tell her the same thing.
+            Same chip family as « épuisé »: a fact about this product,
+            stated rather than styled. */}
+        {deja && (
+          <StatusChip tone="ok" label={t('opportunites.deja')} />
+        )}
+      </View>
+    </Pressable>
+  );
+});
+
+/**
+ * ═══ OPPORTUNITES-LEGER-1 (F-49) — HER CARD ON MA VITRINE, MEMOIZED ═══
+ *
+ * The markup field commits AS SHE TYPES (a founder correction that stays), and
+ * every keystroke is an App-level state write: with the card inline in the
+ * list's `renderItem`, that redrew every card on screen per digit. The card is
+ * a component now, with primitive props and stable callbacks, so a keystroke
+ * re-renders HER card and no other. `ctl` (the voice controller) is already
+ * memoized on its own state, so it changes only when a note or a playback
+ * clock does — and then every card that shows a note must redraw, and does.
+ */
+export interface VitrineCardProps {
+  readonly item: Offer;
+  readonly markup: number;
+  readonly cap: number;
+  readonly net: number;
+  readonly client: number;
+  readonly ctl: VoiceNotesController;
+  /** Which product a removal is in flight for (every « Retirer » is disabled meanwhile), or null. */
+  readonly retiring: string | null;
+  readonly onGalerie: (name: string, refs: readonly string[], startAt?: number) => void;
+  readonly onVoix: (pid: string, name: string) => void;
+  readonly onPartager: (pid: string) => void;
+  readonly onRetirer: (pid: string) => void;
+  readonly onMarge: (pid: string, markup: number) => void;
+  readonly onFocusField: (handle: number | null) => void;
+}
+
+export const VitrineCard = memo(function VitrineCard({
+  item, markup, cap, net, client, ctl, retiring, onGalerie, onVoix, onPartager, onRetirer, onMarge, onFocusField,
+}: VitrineCardProps) {
+  // Per-product card (founder recomposition of the planche read-only
+  // grid): art 110 · client price (deep) ↔ net (small, live) · the
+  // marge SLIDER (0→cap, pas 100 → live net/client via marginBreakdown,
+  // reseller-margin only) · a per-product « Partager ». Net-first: the
+  // reseller sees her net beside the client price; gross is never shown.
+  // PUBLISH-PRICE-1 — the card now reads the LIVE offer under the SAME
+  // key the fiche and the signed price use. `item.id`/`item.name` were
+  // demo-world fields, and keying the slider on `item.id` is exactly why
+  // the control never reached a live offer.
+  // VOIX-CARTE — which state the card's voice block draws. A note
+  // in hand (recorded | pending | ready) gets the player row; the
+  // no-note states keep the plain invitation strip unchanged.
+  const noteVocale = noteOf(ctl.notes, item.productVersionId);
+  const noteEnMain =
+    noteVocale.status === 'recorded' || noteVocale.status === 'pending' || noteVocale.status === 'ready';
+  return (
+    <Card style={styles.vitrineCard}>
+      {/* RESELLER-UX-3 — the PRODUCT-PAGE treatment on HER card
+          (founder reference): a SQUARE cover photograph, and the
+          thumbnail strip under it — each capture visible, each a
+          tap into the gallery ON that photo. Sans photo, the
+          duotone tile and no affordance. */}
+      {item.assetRefs.length > 0 ? (
+        <>
+          <Pressable
+            style={({ pressed }) => [styles.vitrineCardArt, pressed && styles.pressed]}
+            onPress={() => onGalerie(item.productName, item.assetRefs)}
+            accessibilityRole="button"
+            accessibilityLabel={t('galerie.ouvrir')}
+          >
+            <ProductClip videoRef={item.videoRef} photoUri={item.assetRefs[0]} style={styles.artPhoto} />
+          </Pressable>
+          {item.assetRefs.length > 1 && (
+            <View style={styles.thumbRow}>
+              {item.assetRefs.map((ref, i) => (
+                <Pressable
+                  key={`${i}-${ref}`}
+                  style={styles.thumb}
+                  onPress={() => onGalerie(item.productName, item.assetRefs, i)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('galerie.ouvrir')}
+                >
+                  {/* VIGNETTE — same rule as the fiche strip: small
+                      render, small file; the card hero stays full. Here
+                      the hero is always capture 0 (this strip does not
+                      switch it), so index 0 re-uses the hero's file. */}
+                  <Image
+                    source={{ uri: vignetteSaufHero(ref, i, 0) }}
+                    style={styles.artPhoto}
+                    resizeMode="cover"
+                  />
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </>
+      ) : (
+        <View style={styles.vitrineCardArt}>
+          <View style={styles.artTileStripe} />
+          <Text style={styles.vitrineCardGlyph}>{item.productName.slice(0, 1)}</Text>
+        </View>
+      )}
+      <Text style={styles.tileName} numberOfLines={2}>{item.productName}</Text>
+      {/* NET-FIRST hero — her gain is the biggest, deepest figure on
+          HER vitrine (SP-I04/I12). RESELLER-UX-2 item 3 (founder walk:
+          « the base amount, the gain and everything else »): under it,
+          the SAME three named money rows the fiche reasons over —
+          Prix de base · Marge · Prix cliente — so the two screens
+          speak one vocabulary and neither leaves her guessing. */}
+      <Overline>{t('opportunity.net_label')}</Overline>
+      <Text style={styles.vitrineNetHero}>{formatFcfa(net)}</Text>
+      <View style={styles.margeHeadRow}>
+        <Overline>{t('fiche.prix_base')}</Overline>
+        <Text style={styles.margeAmount}>{formatFcfa(item.basePrice)}</Text>
+      </View>
+      {/* MARGE-EXACTE — the SAME control as the fiche, not a
+          read-only row plus a slider underneath it. She sets the
+          figure where she reads it, and « Prix cliente » below is
+          the arithmetic answering her in place. */}
+      <MarkupControl
+        onFocusField={onFocusField}
+        value={markup}
+        cap={cap}
+        onChange={(m) => onMarge(item.productVersionId, m)}
+      />
+      <View style={styles.margeHeadRow}>
+        <Overline>{t('fiche.prix_cliente')}</Overline>
+        <Text style={styles.margeAmount}>{formatFcfa(client)}</Text>
+      </View>
+      {/* Note vocale — the mic lives WITH the product (founder Option A);
+          tapping opens the record sheet for THIS article. */}
+      {/* VOIX-VISIBLE (founder 2026-08-04: « I was talking about
+          the "ajouter une note vocale" on the product card … make
+          it be more visible, nice and professional on both sides »).
+
+          IT WAS A BARE TEXT LINK — a small magenta line with a mic
+          beside it, sitting under the price rows with no surface of
+          its own. Next to a full-width « Partager » button it read
+          as fine print, which is the wrong weight for the one act
+          that makes her shop sound like a person.
+
+          It is a real card now: tinted panel, the mic in a filled
+          disc, the state sentence on top and a second line saying
+          what it is for. The STATE SENTENCE IS UNCHANGED —
+          `voiceCardLabel` still decides between « ajouter »,
+          « à publier » and « en attente », so the card never
+          claims more than the note actually is. */}
+      <Pressable
+        style={({ pressed }) => [styles.vitrineVoiceBtn, pressed && styles.pressed]}
+        onPress={() => onVoix(item.productVersionId, item.productName)}
+        accessibilityRole="button"
+        accessibilityLabel={t('k.voix.note_produit')}
+      >
+        <View style={styles.vitrineVoiceDisc}>
+          <IconVoix size={dimension.iconSizePx.badge} color={shopColour.onPrimary} />
+        </View>
+        <View style={styles.vitrineVoiceTexte}>
+          <Text style={styles.vitrineVoiceLabel}>{voiceCardLabel(ctl.notes[item.productVersionId])}</Text>
+          {/* VOIX-CARTE — « Parlez de ce produit à vos clientes »
+              is the INVITATION to add a note; under a note that
+              already exists it is a wrong invitation, and the
+              player row below carries the real acts instead. */}
+          {!noteEnMain && <Text style={styles.vitrineVoiceSous}>{t('k.voix.carte_sous')}</Text>}
+        </View>
+      </Pressable>
+      {/* VOIX-CARTE (founder 2026-08-13) — play/pause + the clock
+          + « Refaire » at the row's end, ON the product. Refaire
+          opens the sheet AND starts the take — the sheet owns the
+          mic-permission banner, Annuler and the recording UI, so
+          a Refaire that only opened it would be a two-tap lie. */}
+      {noteEnMain && (
+        <VoiceCardRow
+          pid={item.productVersionId}
+          ctl={ctl}
+          onRefaire={() => {
+            onVoix(item.productVersionId, item.productName);
+            ctl.startRec(item.productVersionId);
+          }}
+        />
+      )}
+      <SecondaryButton
+        label={t('vitrine.partager')}
+        onPress={() => onPartager(item.productVersionId)}
+      />
+      {/* VITRINE-RETRAIT — « Retirer de ma vitrine ». It WHISPERS
+          (§5: one primary action per screen; Partager is the loud
+          one on this card) and it is disabled while the service is
+          answering, so a second tap cannot fire a second removal.
+          It carries no confirmation step on purpose: putting the
+          product back is one tap from Opportunités, so a mistap
+          costs her a tap — not a confirmation dialog on every
+          card she ever tidies. */}
+      <Pressable
+        style={({ pressed }) => [styles.vitrineRetirer, pressed && styles.pressed]}
+        onPress={() => onRetirer(item.productVersionId)}
+        disabled={retiring !== null}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: retiring !== null }}
+        accessibilityLabel={t('vitrine.retirer')}
+      >
+        <Text style={styles.vitrineRetirerLabel}>
+          {retiring === item.productVersionId ? t('vitrine.retirer_encours') : t('vitrine.retirer')}
+        </Text>
+      </Pressable>
+    </Card>
+  );
+});
+
 export default function App() {
   // COLD-START LAW, CORRECTED (POLICE-MESURE, founder 2026-08-17): the result
   // is READ now. Its premise — a « metrics-close » system fallback — was false
@@ -343,19 +662,10 @@ export default function App() {
   // RESELLER-UX-3 — which capture the fiche héro shows (the reference's
   // thumbnail-switches-hero behaviour). Reset to 0 at every fiche open.
   const [ficheHeroIdx, setFicheHeroIdx] = useState(0);
-  /**
-   * CADRE (founder order 2026-08-03: « Drop the square rule ») — each product's
-   * measured photo shape, keyed by productVersionId, filled in as photographs
-   * load. A pid absent here has not been measured yet (or its photo failed), and
-   * `cadreRatio`'s neutral square stands in — so the grid renders correctly on
-   * the very first frame and simply grows into its true proportions.
-   *
-   * WHY STATE AND NOT A LAYOUT MEASUREMENT: the shape must come from the
-   * PHOTOGRAPH, not from the space the card happens to occupy. Measuring the
-   * rendered view would read back whatever the frame already imposed — the
-   * square — and dutifully confirm it forever.
-   */
-  const [cadres, setCadres] = useState<Record<string, number>>({});
+  // CADRE (founder order 2026-08-03: « Drop the square rule ») — each tile
+  // measures ITS photograph and keeps the shape itself (`OppTile`), since
+  // OPPORTUNITES-LEGER-1: an App-level map re-rendered the whole grid once
+  // per photograph that loaded.
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
     if (toast === null) return;
@@ -1268,10 +1578,37 @@ export default function App() {
    * chips row then lives entirely inside it (« Tout » = all of HER rayons).
    * No compte, or no choice made, leaves everything — the pre-slice screen.
    */
-  const offresPourElle = filtrerParSelection(offers, compte?.categories);
+  const categoriesChoisies = compte?.categories;
+  const offresPourElle = useMemo(() => filtrerParSelection(offers, categoriesChoisies), [offers, categoriesChoisies]);
   const categoriesOpp = useMemo(() => categoriesPresentes(offresPourElle), [offresPourElle]);
   const catActive = catFiltre !== null && categoriesOpp.includes(catFiltre) ? catFiltre : null;
-  const offresFiltrees = filtrerOffres(offresPourElle, catActive);
+  const offresFiltrees = useMemo(() => filtrerOffres(offresPourElle, catActive), [offresPourElle, catActive]);
+  /**
+   * OPPORTUNITES-LEGER-1 (F-49) — WHICH CLIP PLAYS: the tile in view.
+   *
+   * The grid's ScrollView reports its height and its scroll offset, the
+   * columns block its top, and each tile its own place in its column; the
+   * clip-bearing tile with the most of itself inside the viewport is the one
+   * that plays. Until a layout is known (first paint, and the test double),
+   * the FIRST clip tile in order plays, so the top of the list moves at once.
+   * State changes only when the answer changes — scrolling within one tile
+   * writes nothing.
+   */
+  const [clipActif, setClipActif] = useState<string | null>(null);
+  const tuilesMesurees = useRef(new Map<string, { y: number; h: number }>());
+  const grilleY = useRef(0);
+  const fenetreOpp = useRef({ y: 0, h: 0 });
+  const offresFiltreesRef = useRef(offresFiltrees);
+  offresFiltreesRef.current = offresFiltrees;
+  const recalculerClipActif = useCallback(() => {
+    const choix = choisirClipActif(offresFiltreesRef.current, tuilesMesurees.current, grilleY.current, fenetreOpp.current);
+    setClipActif((cur) => (cur === choix ? cur : choix));
+  }, []);
+  useEffect(() => { recalculerClipActif(); }, [offresFiltrees, recalculerClipActif]);
+  const mesurerTuile = useCallback((pid: string, y: number, h: number) => {
+    tuilesMesurees.current.set(pid, { y, h });
+    recalculerClipActif();
+  }, [recalculerClipActif]);
   const [compteEnvoi, setCompteEnvoi] = useState(false);
   const [compteErreurKey, setCompteErreurKey] = useState<string | null>(null);
   /** SESSION-VIE-1 — which form the entrance opens on. « Connexion » once a
@@ -1517,6 +1854,18 @@ export default function App() {
       | undefined;
     responder?.scrollResponderScrollNativeHandleToKeyboard?.(handle, SOUS_LE_CHAMP, true);
   }, []);
+  // OPPORTUNITES-LEGER-1 (F-49) — the memoized tile and card take STABLE
+  // callbacks (setters are stable; `go` moves only on navigation, which
+  // unmounts the list anyway), so a keystroke or a photograph re-renders one
+  // tile, not the screen.
+  const ouvrirFiche = useCallback((pid: string) => { setFicheId(pid); setFicheHeroIdx(0); go('fiche'); }, [go]);
+  const ouvrirGalerie = useCallback((name: string, refs: readonly string[], startAt?: number) => {
+    setGallery(startAt === undefined ? { name, refs } : { name, refs, startAt });
+  }, []);
+  const ouvrirVoix = useCallback((pid: string, name: string) => setVoiceSheet({ pid, name }), []);
+  const partagerDepuisCarte = useCallback((pid: string) => { setShareCampBadge(false); setShareId(pid); go('lien'); }, [go]);
+  const retirerProduit = useCallback((pid: string) => { void retirerDeVitrine(pid); }, [retirerDeVitrine]);
+  const changerMarge = useCallback((pid: string, m: number) => setMarkups((prev) => ({ ...prev, [pid]: m })), []);
 
   /**
    * ACCESS-GATE-1 — THE ONE DOOR, AND IT IS AT THE ENTRANCE.
@@ -1905,6 +2254,10 @@ export default function App() {
             // all to serve this order would be a change he did not ask for.
             contentContainerStyle={styles.oppGrid}
             showsVerticalScrollIndicator={false}
+            // OPPORTUNITES-LEGER-1 — the viewport, so the grid knows which clip is in view.
+            onLayout={(e) => { fenetreOpp.current = { ...fenetreOpp.current, h: e.nativeEvent.layout.height }; recalculerClipActif(); }}
+            onScroll={(e) => { fenetreOpp.current = { ...fenetreOpp.current, y: e.nativeEvent.contentOffset.y }; recalculerClipActif(); }}
+            scrollEventThrottle={100}
           >
             {/* Frame L113–114 — the big screen title (Bricolage 800/28) lands
                 in-content; the net-first selling subtitle sits under it. */}
@@ -1960,88 +2313,19 @@ export default function App() {
                 />
               )
             ) : (
-              <View style={styles.oppColumns}>
+              <View style={styles.oppColumns} onLayout={(e) => { grilleY.current = e.nativeEvent.layout.y; recalculerClipActif(); }}>
                 {([0, 1] as const).map((col) => (
                   <View key={col} style={styles.oppColumn}>
                     {offresFiltrees.filter((_, i) => i % 2 === col).map((item) => (
-                      // §4 L70 — a tappable product TILE → its FICHE (journey edge
-                      // opportunites→fiche). RESELLER-UX-3 (founder reference): the
-                      // marketplace tile — SQUARE photo edge-to-edge on top (cover; a
-                      // square frame barely trims, which is why the reference looks
-                      // professional), then the compact detail: 2-line name, « Gagnez ≈
-                      // {net} net » as the price position (NET FIRST in render order —
-                      // SP-I04/I12; gross never), the base as the quiet metadata line,
-                      // the source pill and the honest épuisé chip. The estimate reads
-                      // at the default markup (0 — founder override), same figure the
-                      // fiche opens on.
-                      <Pressable
+                      <OppTile
                         key={item.productVersionId}
-                        style={({ pressed }) => [styles.oppTile, pressed && styles.pressed]}
-                        onPress={() => { setFicheId(item.productVersionId); setFicheHeroIdx(0); go('fiche'); }}
-                        accessibilityRole="button"
-                      >
-                        {/* CADRE (founder order: « Drop the square rule ») — the frame
-                            takes THIS photograph's proportions, bounded by cadreRatio.
-                            Unmeasured ⇒ the neutral square, so nothing jumps on first
-                            paint; measured ⇒ tall stays tall, and it is this per-product
-                            height that finally makes the two columns fall out of step. */}
-                        <View style={[styles.oppTileArt, { aspectRatio: cadres[item.productVersionId] ?? CADRE_DEFAUT }]}>
-                          {/* RESELLER-PHOTOS-1 — the REAL photograph when the wire carries
-                              one (absolute URL, absolutized server-side with the same base
-                              as the buyer wire). No ref ⇒ the designed glyph tile. */}
-                          {/* VIDEO-PARTOUT — a clip PLAYS here when the product has one
-                              (muted, looping, the photograph underneath as the resting
-                              state); no clip ⇒ ProductClip renders the photo alone, so
-                              this branch reads exactly as it did before. */}
-                          {item.assetRefs[0] || item.videoRef ? (
-                            <ProductClip
-                              videoRef={item.videoRef}
-                              photoUri={item.assetRefs[0]}
-                              style={styles.artPhoto}
-                              onAspect={(w, h) => {
-                                const ratio = cadreRatio(w, h);
-                                // Written ONCE per product: `onLoad` can fire again on
-                                // re-mount, and a state write on every fire would
-                                // re-render the whole grid for an identical value.
-                                setCadres((prev) => (prev[item.productVersionId] === ratio ? prev : { ...prev, [item.productVersionId]: ratio }));
-                              }}
-                            />
-                          ) : (
-                            <>
-                              <View style={styles.artTileStripe} />
-                              <Text style={styles.ficheHeroGlyph}>{item.productName.slice(0, 1)}</Text>
-                            </>
-                          )}
-                        </View>
-                        <View style={styles.oppCardBody}>
-                          <Text style={styles.oppTileName} numberOfLines={2}>{item.productName}</Text>
-                          {/* NET FIRST, in RENDER ORDER (SP-I04/I12): gagnez holds the
-                              tile's price position; the base is the metadata whisper. */}
-                          <Text style={styles.oppNet}>{tf('opportunity.gagnez', { amount: formatFcfa(viewOfOffer(item).net) })}</Text>
-                          <View style={styles.margeHeadRow}>
-                            <Overline>{t('fiche.prix_base')}</Overline>
-                            <Text style={styles.oppTileBase}>{formatFcfa(item.basePrice)}</Text>
-                          </View>
-                          {/* THE SOURCE MARK (founder ruling) — a PROVENANCE mark, not a
-                              location: boutik strips zone deliberately (supplier-
-                              identifying). Same pill family as « livré par Séra »,
-                              deliberately quieter than « Vérifiée ». CONSTANT, never data.
-                              HARD GATE: a second supplier makes this line a LIE. */}
-                          <View style={styles.oppSourcePill}>
-                            <Text style={styles.oppSourcePillText}>{t('opportunites.source')}</Text>
-                          </View>
-                          {/* Honest stock: a zero-stock offer says so on the tile, before
-                              she invests a tap (the wire's `available`, stated not styled). */}
-                          {item.available === 0 && <StatusChip tone="muted" label={t('opportunites.epuise')} />}
-                          {/* DÉJÀ-DANS-MA-VITRINE — said on the TILE, before she spends
-                              a tap on a fiche that can only tell her the same thing.
-                              Same chip family as « épuisé »: a fact about this product,
-                              stated rather than styled. */}
-                          {dejaDansVitrine(item.productVersionId) && (
-                            <StatusChip tone="ok" label={t('opportunites.deja')} />
-                          )}
-                        </View>
-                      </Pressable>
+                        item={item}
+                        net={viewOfOffer(item).net}
+                        deja={dejaDansVitrine(item.productVersionId)}
+                        actif={clipActif === item.productVersionId}
+                        onOuvrir={ouvrirFiche}
+                        onMesure={mesurerTuile}
+                      />
                     ))}
                   </View>
                 ))}
@@ -2399,173 +2683,23 @@ export default function App() {
                 </View>
               }
               renderItem={({ item }) => {
-                // Per-product card (founder recomposition of the planche read-only
-                // grid): art 110 · client price (deep) ↔ net (small, live) · the
-                // marge SLIDER (0→cap, pas 100 → live net/client via marginBreakdown,
-                // reseller-margin only) · a per-product « Partager ». Net-first: the
-                // reseller sees her net beside the client price; gross is never shown.
-                // PUBLISH-PRICE-1 — the card now reads the LIVE offer under the SAME
-                // key the fiche and the signed price use. `item.id`/`item.name` were
-                // demo-world fields, and keying the slider on `item.id` is exactly why
-                // the control never reached a live offer.
                 const v = viewOfOffer(item);
-                const markup = v.markup;
-                // VOIX-CARTE — which state the card's voice block draws. A note
-                // in hand (recorded | pending | ready) gets the player row; the
-                // no-note states keep the plain invitation strip unchanged.
-                const noteVocale = noteOf(voice.notes, item.productVersionId);
-                const noteEnMain =
-                  noteVocale.status === 'recorded' || noteVocale.status === 'pending' || noteVocale.status === 'ready';
                 return (
-                  <Card style={styles.vitrineCard}>
-                    {/* RESELLER-UX-3 — the PRODUCT-PAGE treatment on HER card
-                        (founder reference): a SQUARE cover photograph, and the
-                        thumbnail strip under it — each capture visible, each a
-                        tap into the gallery ON that photo. Sans photo, the
-                        duotone tile and no affordance. */}
-                    {item.assetRefs.length > 0 ? (
-                      <>
-                        <Pressable
-                          style={({ pressed }) => [styles.vitrineCardArt, pressed && styles.pressed]}
-                          onPress={() => setGallery({ name: item.productName, refs: item.assetRefs })}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('galerie.ouvrir')}
-                        >
-                          <ProductClip videoRef={item.videoRef} photoUri={item.assetRefs[0]} style={styles.artPhoto} />
-                        </Pressable>
-                        {item.assetRefs.length > 1 && (
-                          <View style={styles.thumbRow}>
-                            {item.assetRefs.map((ref, i) => (
-                              <Pressable
-                                key={`${i}-${ref}`}
-                                style={styles.thumb}
-                                onPress={() => setGallery({ name: item.productName, refs: item.assetRefs, startAt: i })}
-                                accessibilityRole="button"
-                                accessibilityLabel={t('galerie.ouvrir')}
-                              >
-                                {/* VIGNETTE — same rule as the fiche strip: small
-                                    render, small file; the card hero stays full. Here
-                                    the hero is always capture 0 (this strip does not
-                                    switch it), so index 0 re-uses the hero's file. */}
-                                <Image
-                                  source={{ uri: vignetteSaufHero(ref, i, 0) }}
-                                  style={styles.artPhoto}
-                                  resizeMode="cover"
-                                />
-                              </Pressable>
-                            ))}
-                          </View>
-                        )}
-                      </>
-                    ) : (
-                      <View style={styles.vitrineCardArt}>
-                        <View style={styles.artTileStripe} />
-                        <Text style={styles.vitrineCardGlyph}>{item.productName.slice(0, 1)}</Text>
-                      </View>
-                    )}
-                    <Text style={styles.tileName} numberOfLines={2}>{item.productName}</Text>
-                    {/* NET-FIRST hero — her gain is the biggest, deepest figure on
-                        HER vitrine (SP-I04/I12). RESELLER-UX-2 item 3 (founder walk:
-                        « the base amount, the gain and everything else »): under it,
-                        the SAME three named money rows the fiche reasons over —
-                        Prix de base · Marge · Prix cliente — so the two screens
-                        speak one vocabulary and neither leaves her guessing. */}
-                    <Overline>{t('opportunity.net_label')}</Overline>
-                    <Text style={styles.vitrineNetHero}>{formatFcfa(v.net)}</Text>
-                    <View style={styles.margeHeadRow}>
-                      <Overline>{t('fiche.prix_base')}</Overline>
-                      <Text style={styles.margeAmount}>{formatFcfa(item.basePrice)}</Text>
-                    </View>
-                    {/* MARGE-EXACTE — the SAME control as the fiche, not a
-                        read-only row plus a slider underneath it. She sets the
-                        figure where she reads it, and « Prix cliente » below is
-                        the arithmetic answering her in place. */}
-                    <MarkupControl
-                      onFocusField={leverVitrine}
-                      value={markup}
-                      cap={v.cap}
-                      onChange={(m) => setMarkups((prev) => ({ ...prev, [item.productVersionId]: m }))}
-                    />
-                    <View style={styles.margeHeadRow}>
-                      <Overline>{t('fiche.prix_cliente')}</Overline>
-                      <Text style={styles.margeAmount}>{formatFcfa(v.client)}</Text>
-                    </View>
-                    {/* Note vocale — the mic lives WITH the product (founder Option A);
-                        tapping opens the record sheet for THIS article. */}
-                    {/* VOIX-VISIBLE (founder 2026-08-04: « I was talking about
-                        the "ajouter une note vocale" on the product card … make
-                        it be more visible, nice and professional on both sides »).
-
-                        IT WAS A BARE TEXT LINK — a small magenta line with a mic
-                        beside it, sitting under the price rows with no surface of
-                        its own. Next to a full-width « Partager » button it read
-                        as fine print, which is the wrong weight for the one act
-                        that makes her shop sound like a person.
-
-                        It is a real card now: tinted panel, the mic in a filled
-                        disc, the state sentence on top and a second line saying
-                        what it is for. The STATE SENTENCE IS UNCHANGED —
-                        `voiceCardLabel` still decides between « ajouter »,
-                        « à publier » and « en attente », so the card never
-                        claims more than the note actually is. */}
-                    <Pressable
-                      style={({ pressed }) => [styles.vitrineVoiceBtn, pressed && styles.pressed]}
-                      onPress={() => setVoiceSheet({ pid: item.productVersionId, name: item.productName })}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('k.voix.note_produit')}
-                    >
-                      <View style={styles.vitrineVoiceDisc}>
-                        <IconVoix size={dimension.iconSizePx.badge} color={shopColour.onPrimary} />
-                      </View>
-                      <View style={styles.vitrineVoiceTexte}>
-                        <Text style={styles.vitrineVoiceLabel}>{voiceCardLabel(voice.notes[item.productVersionId])}</Text>
-                        {/* VOIX-CARTE — « Parlez de ce produit à vos clientes »
-                            is the INVITATION to add a note; under a note that
-                            already exists it is a wrong invitation, and the
-                            player row below carries the real acts instead. */}
-                        {!noteEnMain && <Text style={styles.vitrineVoiceSous}>{t('k.voix.carte_sous')}</Text>}
-                      </View>
-                    </Pressable>
-                    {/* VOIX-CARTE (founder 2026-08-13) — play/pause + the clock
-                        + « Refaire » at the row's end, ON the product. Refaire
-                        opens the sheet AND starts the take — the sheet owns the
-                        mic-permission banner, Annuler and the recording UI, so
-                        a Refaire that only opened it would be a two-tap lie. */}
-                    {noteEnMain && (
-                      <VoiceCardRow
-                        pid={item.productVersionId}
-                        ctl={voice}
-                        onRefaire={() => {
-                          setVoiceSheet({ pid: item.productVersionId, name: item.productName });
-                          voice.startRec(item.productVersionId);
-                        }}
-                      />
-                    )}
-                    <SecondaryButton
-                      label={t('vitrine.partager')}
-                      onPress={() => { setShareCampBadge(false); setShareId(item.productVersionId); go('lien'); }}
-                    />
-                    {/* VITRINE-RETRAIT — « Retirer de ma vitrine ». It WHISPERS
-                        (§5: one primary action per screen; Partager is the loud
-                        one on this card) and it is disabled while the service is
-                        answering, so a second tap cannot fire a second removal.
-                        It carries no confirmation step on purpose: putting the
-                        product back is one tap from Opportunités, so a mistap
-                        costs her a tap — not a confirmation dialog on every
-                        card she ever tidies. */}
-                    <Pressable
-                      style={({ pressed }) => [styles.vitrineRetirer, pressed && styles.pressed]}
-                      onPress={() => void retirerDeVitrine(item.productVersionId)}
-                      disabled={retiring !== null}
-                      accessibilityRole="button"
-                      accessibilityState={{ disabled: retiring !== null }}
-                      accessibilityLabel={t('vitrine.retirer')}
-                    >
-                      <Text style={styles.vitrineRetirerLabel}>
-                        {retiring === item.productVersionId ? t('vitrine.retirer_encours') : t('vitrine.retirer')}
-                      </Text>
-                    </Pressable>
-                  </Card>
+                  <VitrineCard
+                    item={item}
+                    markup={v.markup}
+                    cap={v.cap}
+                    net={v.net}
+                    client={v.client}
+                    ctl={voice}
+                    retiring={retiring}
+                    onGalerie={ouvrirGalerie}
+                    onVoix={ouvrirVoix}
+                    onPartager={partagerDepuisCarte}
+                    onRetirer={retirerProduit}
+                    onMarge={changerMarge}
+                    onFocusField={leverVitrine}
+                  />
                 );
               }}
             />

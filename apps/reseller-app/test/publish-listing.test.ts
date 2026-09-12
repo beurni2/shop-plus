@@ -55,8 +55,12 @@ describe('ONE KEYSPACE — a markup written on the card is the markup the fiche 
   it('BOTH SURFACES KEY ON productVersionId IN THE SOURCE — no `item.id` write survives', () => {
     const app = read('App.tsx');
     expect(app).toMatch(/\[opp\.productVersionId\]: m/); // the fiche slider
-    expect(app).toMatch(/\[item\.productVersionId\]: m/); // the Ma Vitrine card slider
+    // PIN EVOLVED (OPPORTUNITES-LEGER-1): the Ma Vitrine card writes through
+    // the stable App callback keyed by pid — same key, spelled at both ends.
+    expect(app).toMatch(/onMarge\(item\.productVersionId, m\)/); // the Ma Vitrine card slider
+    expect(app).toMatch(/setMarkups\(\(prev\) => \(\{ \.\.\.prev, \[pid\]: m \}\)\)/);
     expect(app).not.toMatch(/\[item\.id\]: m/);
+    expect(app).not.toMatch(/onMarge\(item\.id, m\)/);
     // the grid itself reads the LIVE feed under that key, not the demo world
     expect(app).toMatch(/offers\.filter\(\(o\) => vitrineLive\.includes\(o\.productVersionId\)\)/);
   });
@@ -290,7 +294,10 @@ describe('RESELLER-UX-1 — the seven-item founder walk, pinned', () => {
     // PIN EVOLVED (PARTAGER-PRO): the share héro now reads the photo through
     // the `partage` derivation (`partage.offre.assetRefs[0]`) — same live
     // offer, new spelling — so the alternation carries it alongside the others.
-    const CLIP_WITH_PHOTO = /<ProductClip\s+videoRef=\{item\.videoRef\}\s+photoUri=\{item\.assetRefs\[0\]\}/g;
+    // PIN EVOLVED (OPPORTUNITES-LEGER-1, F-49): the opportunités tile renders
+    // `ProductClip` only for the ONE tile in view and `ProductPhoto` — the same
+    // photograph, no player — for every other; both spellings carry the photo.
+    const CLIP_WITH_PHOTO = /<Product(?:Clip\s+videoRef=\{(?:item\.videoRef|clip)\}|Photo)\s+photoUri=\{item\.assetRefs\[0\]\}/g;
     const photoSites = [
       ...(app.match(/<Image source=\{\{ uri: (item|opp|partage\.offre)\.assetRefs\[0\] \}\}/g) ?? []),
       ...(app.match(CLIP_WITH_PHOTO) ?? []),
@@ -368,7 +375,10 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     // home in test/cadre.test.ts, together with the bounds that stop one bad
     // upload owning a column. Asserting `aspectRatio: 1` here now would pin the
     // exact rule the founder retired.
-    expect(app).toContain('{ aspectRatio: cadres[item.productVersionId] ?? CADRE_DEFAUT }');
+    // PIN EVOLVED (OPPORTUNITES-LEGER-1): the ratio is the TILE's own state now
+    // (`cadre`, seeded with the square), not an App-level map.
+    expect(app).toContain('{ aspectRatio: cadre }');
+    expect(app).toContain('useState<number>(CADRE_DEFAUT)');
     const oppTileIdx = app.indexOf('styles.oppTile,');
     const body = app.slice(oppTileIdx, app.indexOf('</Pressable>', oppTileIdx));
     expect(body).toContain('numberOfLines={2}');
@@ -519,7 +529,10 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
     expect(app).toMatch(/onPress=\{\(\) => setFicheHeroIdx\(i\)\}/);
     // …and the héro index resets on every fiche open, so product B never opens
     // on product A's remembered photo
-    expect(app).toMatch(/setFicheId\(item\.productVersionId\); setFicheHeroIdx\(0\);/);
+    // PIN EVOLVED (OPPORTUNITES-LEGER-1): the tile opens the fiche through the
+    // stable App callback `ouvrirFiche(pid)`, which resets the héro index.
+    expect(app).toMatch(/setFicheId\(pid\); setFicheHeroIdx\(0\); go\('fiche'\);/);
+    expect(app).toMatch(/onPress=\{\(\) => onOuvrir\(item\.productVersionId\)\}/);
     expect(app).toContain("accessibilityLabel={t('galerie.ouvrir')}");
     expect(app).toContain('<PhotoGallery product={gallery} onClose=');
   });
@@ -558,9 +571,12 @@ describe('RESELLER-UX-2 — the four-item founder walk, pinned', () => {
   });
 
   it('item 3 (UX-3 form) — Ma Vitrine card is a PRODUCT PAGE: square photo, thumbnail strip, named money rows', () => {
-    expect(app).toMatch(/setGallery\(\{ name: item\.productName, refs: item\.assetRefs \}\)/);
+    // PIN EVOLVED (OPPORTUNITES-LEGER-1): the card opens the gallery through
+    // the stable App callback `ouvrirGalerie(name, refs, startAt?)`.
+    expect(app).toMatch(/onPress=\{\(\) => onGalerie\(item\.productName, item\.assetRefs\)\}/);
     // each thumbnail opens the gallery ON that capture
-    expect(app).toMatch(/setGallery\(\{ name: item\.productName, refs: item\.assetRefs, startAt: i \}\)/);
+    expect(app).toMatch(/onPress=\{\(\) => onGalerie\(item\.productName, item\.assetRefs, i\)\}/);
+    expect(app).toMatch(/setGallery\(startAt === undefined \? \{ name, refs \} : \{ name, refs, startAt \}\)/);
     expect(app).toMatch(/item\.assetRefs\.length > 1 && \(\s*\n\s*<View style=\{styles\.thumbRow\}>/);
     // the card reasons in the fiche's vocabulary: base · marge · prix cliente
     const cardIdx = app.indexOf('styles.vitrineCard}');

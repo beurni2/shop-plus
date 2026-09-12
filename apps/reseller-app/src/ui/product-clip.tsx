@@ -189,3 +189,16 @@ const S = StyleSheet.create({
  */
 export const ProductClip: (props: ProductClipProps) => React.ReactElement =
   EXPO_VIDEO === null ? ClipPhoto : ClipVideo;
+
+/**
+ * OPPORTUNITES-LEGER-1 (AUDIT-SHOP-2 F-49) — THE PHOTOGRAPH, WITH NO PLAYER.
+ *
+ * `ProductClip` creates a native player on EVERY mount, clip or no clip (the
+ * hook cannot be conditional, so a null source still costs a player object).
+ * A grid that mounts one per tile asks the phone for forty players. A tile
+ * that is not the one in view renders THIS instead — the same frame, the same
+ * photograph, the same measurement callback, and no player at all. The caller
+ * switches between the two by component, never by prop, which is what keeps
+ * the hook set of each one constant.
+ */
+export const ProductPhoto: (props: ProductClipProps) => React.ReactElement = ClipPhoto;

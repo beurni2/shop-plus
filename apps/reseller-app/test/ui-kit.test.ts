@@ -160,15 +160,33 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     for (const [name, region] of [['opp', opp], ['fiche', fiche], ['vitrine', vitrine]] as const) {
       expect(region.length, `${name} region is EMPTY — the pin is watching nothing`).toBeGreaterThan(200);
     }
-    expect(opp, 'opp row net line').toContain("'opportunity.gagnez'");
+    // PIN EVOLVED (OPPORTUNITES-LEGER-1, F-49): the opp tile and the vitrine
+    // card are memoized components ABOVE App now (`OppTile`, `VitrineCard`);
+    // the render blocks compose them and hand them the net as a number. The
+    // property is unchanged — net first, never gross — asserted where each
+    // line now lives, and the two component regions join the gross scan.
+    const region = (from: string, to: string): string => {
+      const i = app.indexOf(from);
+      const j = app.indexOf(to, i + 1);
+      expect(i, `no region start « ${from} »`).toBeGreaterThan(-1);
+      expect(j, `no region end « ${to} »`).toBeGreaterThan(i);
+      return app.slice(i, j);
+    };
+    const oppTile = region('export const OppTile = memo(', 'export interface VitrineCardProps');
+    const vitrineCard = region('export const VitrineCard = memo(', 'export default function App()');
+    expect(opp, 'opp block composes the tile').toContain('<OppTile');
+    expect(opp, 'the tile is handed the NET, computed by App').toContain('net={viewOfOffer(item).net}');
+    expect(oppTile, 'opp tile net line').toContain("'opportunity.gagnez'");
     expect(fiche, 'fiche net line').toContain("'opportunity.gagnez'");
-    // MA VITRINE leads with the net hero (« Votre gain net » + formatFcfa(v.net));
+    // MA VITRINE leads with the net hero (« Votre gain net » + formatFcfa(net));
     // the cliente price is the secondary line beneath it.
-    expect(vitrine, 'vitrine net hero label').toContain("'opportunity.net_label'");
-    expect(vitrine, 'vitrine net hero figure').toContain('styles.vitrineNetHero');
-    expect(vitrine).toContain('formatFcfa(v.net)');
+    expect(vitrine, 'vitrine block composes the card').toContain('<VitrineCard');
+    expect(vitrine, 'the card is handed the NET, computed by App').toContain('net={v.net}');
+    expect(vitrineCard, 'vitrine net hero label').toContain("'opportunity.net_label'");
+    expect(vitrineCard, 'vitrine net hero figure').toContain('styles.vitrineNetHero');
+    expect(vitrineCard).toContain('formatFcfa(net)');
     // gross is computed in the margin module but NEVER rendered on these surfaces.
-    for (const [name, slice] of [['opp', opp], ['fiche', fiche], ['vitrine', vitrine]] as const) {
+    for (const [name, slice] of [['opp', opp], ['fiche', fiche], ['vitrine', vitrine], ['OppTile', oppTile], ['VitrineCard', vitrineCard]] as const) {
       expect(slice, `${name} must not render gross`).not.toMatch(/\.gross\b|grossFcfa|resellerGrossEarnings/);
     }
     // the kit's row still renders net before detail in source order (unchanged)
@@ -193,15 +211,24 @@ describe('WO-4.2R visual layer (reseller-app)', () => {
     // NOT `markups[item.id]`. The demo-seed key was the defect — the Ma Vitrine
     // control and the fiche that signs the price never shared a key, so on a live
     // offer only `defaultMarkup(cap)` was ever reachable.
-    expect(app).toMatch(/setMarkups\(\(prev\) => \(\{ \.\.\.prev, \[item\.productVersionId\]: m \}\)\)/);
+    // PIN EVOLVED (OPPORTUNITES-LEGER-1): the card hands the write to ONE
+    // stable App callback (`changerMarge`) keyed by pid — the same keyspace,
+    // spelled at the two ends of the seam instead of inline in renderItem.
+    expect(app).toMatch(/setMarkups\(\(prev\) => \(\{ \.\.\.prev, \[pid\]: m \}\)\)/);
+    expect(app).toMatch(/onChange=\{\(m\) => onMarge\(item\.productVersionId, m\)\}/);
     expect(app).not.toMatch(/setMarkups\(\(prev\) => \(\{ \.\.\.prev, \[item\.id\]: m \}\)\)/);
+    expect(app).not.toMatch(/onMarge\(item\.id, m\)/);
     // RESELLER-UX-2 (founder walk item 2): the DECIDED bit is retired with the
     // gate it fed — the default is now 0, so publish-on-arrival signs the
     // lowest cliente price and no untouched-slider guard is needed. The state
     // must be gone entirely, not lingering half-wired.
     expect(app).not.toMatch(/setMarkupTouched/);
-    // the control's value comes from the SAME margin view the signed price is quoted from
-    expect(app).toMatch(/const markup = v\.markup;/);
+    // the control's value comes from the SAME margin view the signed price is
+    // quoted from (PIN EVOLVED, OPPORTUNITES-LEGER-1: App reads the view once
+    // per card and hands the card `markup={v.markup}`; the card's control reads
+    // that prop)
+    expect(app).toMatch(/markup=\{v\.markup\}/);
+    expect(app).toMatch(/<MarkupControl\s+onFocusField=\{onFocusField\}\s+value=\{markup\}/);
     // MARGE-EXACTE — the field routes through the SHARED `snapMarkup`, at step 1:
     // the clamp is still the one pricing bound, and nothing rounds her figure.
     // MARGE-EFFACÉE (2026-08-26): an emptied field commits zero through the same call.

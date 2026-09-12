@@ -66,8 +66,11 @@ describe('CADRE, wired — the square is gone from opportunités and KEPT elsewh
   it('the opportunités frame carries NO fixed aspectRatio — a stylesheet value is the same for every product', () => {
     const frame = app.slice(app.indexOf('oppTileArt: {'), app.indexOf('}', app.indexOf('justifyContent', app.indexOf('oppTileArt: {'))));
     expect(frame).not.toMatch(/aspectRatio:/);
-    // …and the per-card ratio is supplied at the call site from the measurement
-    expect(app).toContain('{ aspectRatio: cadres[item.productVersionId] ?? CADRE_DEFAUT }');
+    // …and the per-card ratio is supplied at the call site from the measurement.
+    // PIN EVOLVED (OPPORTUNITES-LEGER-1, F-49): the tile is `OppTile` and the
+    // ratio is ITS state, seeded with the square — no App-level map.
+    expect(app).toContain('{ aspectRatio: cadre }');
+    expect(app).toContain('useState<number>(CADRE_DEFAUT)');
   });
 
   it('the measurement comes from the PHOTOGRAPH, once, and is bounded before use', () => {
@@ -75,8 +78,9 @@ describe('CADRE, wired — the square is gone from opportunités and KEPT elsewh
     expect(clip).toContain('e.nativeEvent.source');
     expect(app).toContain('cadreRatio(w, h)'); // bounded — never the raw pixels
     // written once per product: an unguarded setState on every onLoad re-renders
-    // the whole grid for a value that did not change
-    expect(app).toMatch(/prev\[item\.productVersionId\] === ratio \? prev :/);
+    // the tile for a value that did not change (PIN EVOLVED, OPPORTUNITES-
+    // LEGER-1: the guard is on the tile's own state now)
+    expect(app).toMatch(/setCadre\(\(cur\) => \(cur === ratio \? cur : ratio\)\)/);
   });
 
   it('THE FICHE AND MA VITRINE KEEP THEIR SQUARE — the order was about the opportunités stagger', () => {

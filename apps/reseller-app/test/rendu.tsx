@@ -1,6 +1,37 @@
 import React from 'react';
+import Module from 'node:module';
 import { act, create, type ReactTestRenderer, type ReactTestInstance } from 'react-test-renderer';
 import { expect } from 'vitest';
+
+/**
+ * THE RUNTIME `require` SEES THE SAME DOUBLES AS `import` (OPPORTUNITES-LEGER-1).
+ *
+ * vite's alias table (vitest.config.ts) governs every `import` in the app;
+ * the app's GUARDED runtime loads — `require('expo-video')` in product-clip,
+ * so an older binary degrades to the photograph instead of crashing — go
+ * through vite-node's `require`, which is Node's, and Node knows nothing of
+ * vite's aliases. It found the real native package and threw, so every walk
+ * ever run here rendered the photograph road: the clip road, and the number
+ * of players a grid asks for, were unreachable by any test.
+ *
+ * This maps the SAME names onto the SAME stand-ins in Node's resolver. It is
+ * the alias table, not a stub: no app code is touched, only where a native
+ * package name resolves — exactly what the config does for imports.
+ */
+const DOUBLES_RUNTIME: Record<string, string> = {
+  'expo-video': new URL('./doubles/expo-video.cjs', import.meta.url).pathname,
+};
+const moduleInterne = Module as unknown as {
+  _resolveFilename: (request: string, ...rest: unknown[]) => string;
+  __renduPatched?: boolean;
+};
+if (moduleInterne.__renduPatched !== true) {
+  const resoudre = moduleInterne._resolveFilename;
+  moduleInterne._resolveFilename = function (request: string, ...rest: unknown[]): string {
+    return DOUBLES_RUNTIME[request] ?? resoudre.call(this, request, ...rest);
+  };
+  moduleInterne.__renduPatched = true;
+}
 
 /**
  * ═══ RENDU-RÉEL (Shop+ reseller) — mount her real screen and USE it ═══
