@@ -1874,6 +1874,7 @@ export default {
         seraIntakeBase: (env.SERA_INTAKE_BASE ?? '') !== '',
         seraIntakeSecret: (env.SERA_INTAKE_SECRET ?? '') !== '',
         shopArmSecret: (env.SHOP_ARM_SECRET ?? '') !== '',
+        seraProgressSecret: (env.SERA_PROGRESS_SECRET ?? '') !== '',
       },
       // PBKDF2-HAUSSE-1 — the probe the deploy smoke asks (`/health?pbkdf2=1`):
       // one derivation at the current count, so the LIVE runtime says whether it

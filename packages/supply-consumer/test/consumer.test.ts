@@ -112,6 +112,22 @@ describe('consumeSupplyProjection — pull, parse, sweep, freshness', () => {
     expect(consumeSupplyProjection(bien, 'pv_2', NOW).status).toBe('fresh');
   });
 
+  it('DURCISSEMENT-SERVICE-2 (F-93) — the sweep is bound to BURKINA shapes: digit-heavy product names pass, every Burkina number form is refused', () => {
+    const verdict = (name: string): string => {
+      const src = new MockSupplyProjectionSource();
+      src.set({ productVersionId: 'pv_x', offerVersion: '1', basePrice: 8_000, resellerCommission: 800, available: 4, productName: name, assetRefs: [], category: 'fashion_bags_fabrics', asOf: minutesAgo(1), version: 2 });
+      return consumeSupplyProjection(src, 'pv_x', NOW).status;
+    };
+    // Before: « ≥ 8 grouped digits » refused these three honest names in silence.
+    expect(verdict('Réf 2024-0001-77'), 'a reference').toBe('fresh');
+    expect(verdict('Lot 12345678'), 'a lot number (starts with 1 — no Burkina number does)').toBe('fresh');
+    expect(verdict('Code-barres 6111234567890'), 'a bar code').toBe('fresh');
+    // …and every shape a Burkina number takes is still caught.
+    for (const leak of ['appelez 70 12 34 56', '+226 70123456', '00226 70 12 34 56', 'Tel: 25.30.40.50', 'wa 76-54-32-10', '+226 5 6 1 2 3 4 5 6']) {
+      expect(verdict(leak), leak).toBe('rejected');
+    }
+  });
+
   it('a non-contract payload and an absent product are both refused / absent (never a silent pass)', () => {
     const src = new MockSupplyProjectionSource();
     expect(consumeSupplyProjection(src, 'pv_unknown', NOW).status).toBe('absent');

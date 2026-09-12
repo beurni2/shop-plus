@@ -164,7 +164,7 @@ const doorPosts: { auth: string | null; body: Record<string, unknown> | null; st
 
 let mf: Miniflare;
 
-function makeMf(persistDir: string): Miniflare {
+function makeMf(persistDir: string, knobs: Record<string, string> = {}): Miniflare {
   return new Miniflare({
     modules: true,
     scriptPath: SCRIPT,
@@ -180,6 +180,8 @@ function makeMf(persistDir: string): Miniflare {
       FULFILLMENT_WRITE_SECRET: FULFILL_SECRET,
       PROGRESS_WRITE_SECRET: PROGRESS_SECRET,
       SHOP_ARM_SECRET: ARM_SECRET,
+      // F-30 — the door-attempt ceiling's lower-only knob, when a walk needs it.
+      ...knobs,
     },
     serviceBindings: {
       OFFER: async (request: Request) => {
@@ -795,5 +797,78 @@ describe('§6.3 — the code is withheld while the door leg is due, revealed onc
     expect(revealed.status, revealed.text).toBe(200);
     expect(revealed.json['ok']).toBe(true);
     expect(/^\d{6}$/.test(revealed.json['code'] as string), 'six digits, as armed').toBe(true);
+  });
+});
+
+/**
+ * ═══ DURCISSEMENT-SERVICE-2 (AUDIT-SHOP-2 F-30) — THE DOOR ROAD HAS A CEILING ═══
+ *
+ * While the door leg is `due`, every fresh command id was authorized again and
+ * appended one attempt record (and one result when accepted) — with no bound,
+ * until the 128 KiB value limit wedged the order's door road: the one road
+ * that lets her pay the rider. The ceiling counts attempts BY NAME and refuses
+ * `door_attempts_exhausted` before any write. What it must never touch: a
+ * replayed command still answers its stored result, and the provider's webhook
+ * still confirms the leg — money truth is not gated on a count.
+ *
+ * Driven on the REAL Worker with the lower-only knob at 2 (three real charges
+ * reach the ceiling instead of twenty-six); the LEDGER is asked through the
+ * internal audit road, never the response alone.
+ */
+describe('F-30 — the door-attempt ceiling, on the real Worker', () => {
+  const persistPlafond = mkdtempSync(join(tmpdir(), 'porte-plafond-'));
+  let mfBase: Miniflare;
+  beforeAll(() => {
+    mfBase = mf;
+    mf = makeMf(persistPlafond, { DOOR_ATTEMPTS_MAX: '2' });
+  });
+  afterAll(async () => {
+    await mf.dispose();
+    mf = mfBase;
+    rmSync(persistPlafond, { recursive: true, force: true });
+  });
+
+  async function doorAttemptsOf(orderId: string): Promise<unknown[]> {
+    const ns = await mf.getDurableObjectNamespace('ORDER');
+    const res = await ns.get(ns.idFromName(orderId)).fetch('https://do/entry/audit');
+    const record = (await res.json()) as { doorAttempts?: unknown[] };
+    return record.doorAttempts ?? [];
+  }
+
+  it('the third fresh command is refused by NAME before any write; a replay and the webhook are untouched', async () => {
+    const o = await confirmedDoorOrder('0030');
+    expect((await vue(o.orderId))['doorLeg']).toBe('due');
+    const charge = (n: string) =>
+      mf.dispatchFetch(`http://c/checkout/order/${encodeURIComponent(o.orderId)}/door-charge`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ holderRef: 'holder-0030', commandId: `cmd-door-0030-${n}` }),
+      });
+
+    // Two fresh commands while the leg is due: both authorized (the leg IS
+    // due), both recorded — the growth the audit measured, two steps of it.
+    expect((await charge('1')).status).toBe(200);
+    expect((await charge('2')).status).toBe(200);
+    expect(await doorAttemptsOf(o.orderId), 'two attempts on the ledger').toHaveLength(2);
+
+    // The third: refused by name, and the ledger did not grow.
+    const trois = await charge('3');
+    expect(trois.status).toBe(422);
+    // the public door's refusal shape: the name under `error`, as every 422 it answers
+    expect(await trois.json()).toEqual({ error: 'door_attempts_exhausted' });
+    expect(await doorAttemptsOf(o.orderId), 'the ceiling wrote nothing').toHaveLength(2);
+    expect((await vue(o.orderId))['doorLeg'], 'nothing moved').toBe('due');
+
+    // A REPLAY of an accepted command still answers its stored result — the
+    // replay road sits before the ceiling, as before the write.
+    const rejoue = await charge('1');
+    expect(rejoue.status).toBe(200);
+    // the public door answers the order VIEW on success — the stored one, replayed
+    expect(((await rejoue.json()) as { orderId?: string }).orderId).toBe(o.orderId);
+    expect(await doorAttemptsOf(o.orderId), 'a replay is not an attempt').toHaveLength(2);
+
+    // The provider's truth still lands: the door webhook confirms the leg.
+    const paid = await postWebhook('/checkout/webhook/door', await trueDoorEvent(o.orderId));
+    expect(paid.status, paid.text).toBe(200);
+    expect((await vue(o.orderId))['doorLeg']).toBe('paid');
   });
 });

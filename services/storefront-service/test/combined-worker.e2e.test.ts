@@ -208,6 +208,8 @@ const mfArmed = new Miniflare({
     SERA_INTAKE_BASE: 'https://sera-intake.example.workers.dev',
     SERA_INTAKE_SECRET: 'test-sera-intake-secret-e6',
     SHOP_ARM_SECRET: 'test-shop-arm-secret-e6',
+    // DURCISSEMENT-SERVICE-2 (F-68) — the fourth wire, Séra's progress split.
+    SERA_PROGRESS_SECRET: 'test-sera-progress-secret-f68',
   },
 });
 
@@ -1299,7 +1301,7 @@ describe('SERVICE-PROVENANCE-1 — /health answers which build is live', () => {
     const body = (await res.json()) as { custody?: Record<string, boolean> };
     // This instance binds none of the three — the honest answer is three falses,
     // PRESENT (an absent field would be indistinguishable from an old bundle).
-    expect(body.custody).toEqual({ seraIntakeBase: false, seraIntakeSecret: false, shopArmSecret: false });
+    expect(body.custody).toEqual({ seraIntakeBase: false, seraIntakeSecret: false, shopArmSecret: false, seraProgressSecret: false });
   });
 
   it('CUSTODY-ARMED-SIGNAL (audit E6) — /health answers true when the custody wires are bound, and never leaks a value', async () => {
@@ -1307,11 +1309,12 @@ describe('SERVICE-PROVENANCE-1 — /health answers which build is live', () => {
     expect(res.status).toBe(200);
     const raw = await res.text();
     const body = JSON.parse(raw) as { custody?: Record<string, boolean> };
-    expect(body.custody).toEqual({ seraIntakeBase: true, seraIntakeSecret: true, shopArmSecret: true });
+    expect(body.custody).toEqual({ seraIntakeBase: true, seraIntakeSecret: true, shopArmSecret: true, seraProgressSecret: true });
     // Presence only, never the value: the bound fakes must not appear anywhere
     // in the body. (The base is a public URL, but the same law keeps it out.)
     expect(raw).not.toContain('test-sera-intake-secret-e6');
     expect(raw).not.toContain('test-shop-arm-secret-e6');
+    expect(raw).not.toContain('test-sera-progress-secret-f68');
     expect(raw).not.toContain('sera-intake.example');
   });
 

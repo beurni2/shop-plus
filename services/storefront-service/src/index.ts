@@ -57,6 +57,14 @@ export interface CustodyWires {
   readonly seraIntakeSecret: boolean;
   /** VRAI-SUIVI — the key this Worker presents to arm the buyer's drop code. */
   readonly shopArmSecret: boolean;
+  /**
+   * DURCISSEMENT-SERVICE-2 (AUDIT-SHOP-2 F-68) — the key Séra's progress
+   * door must present to mark an arrival here (SECTEURS-PROGRES-1). The one
+   * presence fact the signal did not carry, and the one that decides whether
+   * Boutik+'s credential can still mint `delivery.validated.v1` on its own:
+   * unset, the split is not armed and the shared write secret still rules.
+   */
+  readonly seraProgressSecret: boolean;
 }
 
 /**

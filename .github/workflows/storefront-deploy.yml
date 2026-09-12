@@ -246,7 +246,9 @@ jobs:
               c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).custody;
             } catch { console.log("__NO_FIELD__"); process.exit(0); }
             if (c === undefined || c === null) { console.log("__NO_FIELD__"); process.exit(0); }
-            const names = { seraIntakeBase: "SERA_INTAKE_BASE", seraIntakeSecret: "SERA_INTAKE_SECRET", shopArmSecret: "SHOP_ARM_SECRET" };
+            // DURCISSEMENT-SERVICE-2 (F-68): the fourth wire is Séra's progress
+            // split — unset, Boutik+'s credential can still mint delivery.validated.v1.
+            const names = { seraIntakeBase: "SERA_INTAKE_BASE", seraIntakeSecret: "SERA_INTAKE_SECRET", shopArmSecret: "SHOP_ARM_SECRET", seraProgressSecret: "SERA_PROGRESS_SECRET" };
             console.log(Object.entries(names).filter(([k]) => c[k] !== true).map(([, n]) => n).join(" "));
           ' "$OUT")
           if [ "$UNARMED" = "__NO_FIELD__" ]; then
@@ -256,8 +258,8 @@ jobs:
             exit 0
           fi
           if [ -z "$UNARMED" ]; then
-            echo "CUSTODY ARMED — all three wires present on the live Worker."
-            echo "**Custody armée** — the live Worker holds all three custody wires (SERA_INTAKE_BASE, SERA_INTAKE_SECRET, SHOP_ARM_SECRET)." >> "$GITHUB_STEP_SUMMARY"
+            echo "CUSTODY ARMED — all four wires present on the live Worker."
+            echo "**Custody armée** — the live Worker holds all four custody wires (SERA_INTAKE_BASE, SERA_INTAKE_SECRET, SHOP_ARM_SECRET, SERA_PROGRESS_SECRET)." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           for W in $UNARMED; do
@@ -268,7 +270,7 @@ jobs:
             echo ""
             echo "The live Worker answers \`custody\` with these wires ABSENT: **$UNARMED**."
             echo ""
-            echo "Nothing is lost — the outbox holds and retries — but the buyer's drop code cannot arm custody (and/or the funding fact cannot reach Séra) until the repo secret(s) are set and \`storefront-deploy\` is re-dispatched."
+            echo "Nothing is lost — the outbox holds and retries — but the buyer's drop code cannot arm custody (and/or the funding fact cannot reach Séra; and/or, with SERA_PROGRESS_SECRET unset, the progress split is not armed and Boutik+'s credential can still mint delivery.validated.v1) until the repo secret(s) are set and \`storefront-deploy\` is re-dispatched."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Smoke — the deployed checkout surface answers by NAME, not by crashing
         run: |

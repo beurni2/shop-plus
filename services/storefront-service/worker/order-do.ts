@@ -310,6 +310,36 @@ const LEG_KEYS_KEY = 'provider-leg-keys';
 const DOOR_ATTEMPTS_KEY = 'door-payment-attempts';
 const DOOR_RESULTS_KEY = 'door-command-results';
 
+/**
+ * DURCISSEMENT-SERVICE-2 (AUDIT-SHOP-2 F-30) — THE DOOR ROAD HAS A CEILING.
+ *
+ * While the door leg is `due`, every fresh `commandId` was authorized again
+ * (rightly: the leg IS due) and appended one attempt record (~200 B) and, when
+ * accepted, one result — with no bound at all, until the 128 KiB value limit
+ * wedged the order's door road for good: the one road that lets her pay the
+ * rider. No money risk (one stable provider key per leg — every attempt is the
+ * SAME collection to the provider), only the wedge.
+ *
+ * The ceiling counts ATTEMPTS, by name: at the cap a new door charge is
+ * refused `door_attempts_exhausted` before anything is written, so storage
+ * stops growing there. Twenty-five is a number no buyer at a door reaches
+ * (the provider's own answer — accepted, timed out — ends each attempt) and
+ * a hostile client reaches in seconds; it is MINE, not the founder's, and is
+ * journalled as a safest default. What the ceiling never touches: a replayed
+ * command still replays its stored answer, and the provider's webhook still
+ * confirms the leg — the truth of money is never gated on this count.
+ *
+ * A test knob that can ONLY LOWER it (the `FEED_FANOUT_MAX` idiom): the seam
+ * test reaches the ceiling with three real charges instead of twenty-six, and
+ * a typo in the environment can shorten the road but never raise the wedge.
+ */
+const MAX_DOOR_ATTEMPTS = 25;
+function doorAttemptsMax(env: { readonly DOOR_ATTEMPTS_MAX?: string }): number {
+  const raw = Number(env.DOOR_ATTEMPTS_MAX);
+  if (!Number.isInteger(raw) || raw < 1) return MAX_DOOR_ATTEMPTS;
+  return Math.min(raw, MAX_DOOR_ATTEMPTS);
+}
+
 /** The actor every command from this service carries into the canon envelope. */
 const ORDER_ACTOR = 'storefront-service:checkout';
 
@@ -595,6 +625,8 @@ export interface OrderDOEnv {
    */
   readonly SERA_INTAKE_BASE?: string;
   readonly SERA_INTAKE_SECRET?: string;
+  /** F-30 — the door-attempt ceiling's test knob, lower-only (see `doorAttemptsMax`). */
+  readonly DOOR_ATTEMPTS_MAX?: string;
   /** RF-1a — the reseller feed index (one singleton). Bound on the Worker, so
    *  this object writes her row at the confirm transition without a
    *  composition-root shim, exactly as `OFFER` needs none. ABSENT ⇒ the
@@ -953,6 +985,7 @@ export class OrderDO {
           exists: false,
           state: null,
           attempts: [],
+          doorAttempts: [],
           escrow: null,
           receipt: held ?? null,
         });
@@ -975,6 +1008,9 @@ export class OrderDO {
         chain: spine.journey.chain,
         priorPaymentAttemptIds: spine.journey.priorPaymentAttemptIds,
         attempts,
+        // F-30 — the door road's own attempt ledger, so the ceiling can be
+        // asked of storage rather than believed from a response.
+        doorAttempts: (await this.state.storage.get<AttemptRecord[]>(DOOR_ATTEMPTS_KEY)) ?? [],
         escrow: spine.ledger.escrowFor(origin.orderId) ?? null,
         doorLeg: spine.doorLegState,
         receipt: receipt ?? null,
@@ -3153,6 +3189,11 @@ export class OrderDO {
     const providerKey = existingKey ?? mintProviderLegKey();
     const now = new Date().toISOString();
     const attempts = (await this.state.storage.get<AttemptRecord[]>(DOOR_ATTEMPTS_KEY)) ?? [];
+    // THE CEILING (F-30) — refused by name BEFORE any write, so the road
+    // stops growing exactly here; the replay above and the webhook are untouched.
+    if (attempts.length >= doorAttemptsMax(this.env)) {
+      return Response.json({ ok: false, reason: 'door_attempts_exhausted' }, { status: 422 });
+    }
     const attemptId = mintPaymentAttemptId();
     const record: AttemptRecord = {
       attemptId,

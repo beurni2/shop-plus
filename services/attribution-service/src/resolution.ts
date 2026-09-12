@@ -40,7 +40,15 @@ export interface CheckoutAttributionInput {
   /** Recorded arrivals (identity from the vitrine, product from signed links). */
   readonly arrivals: readonly AttributionArrival[];
   readonly nowIso: string;
-  readonly correlationId?: string;
+  /**
+   * REQUIRED (DURCISSEMENT-SERVICE-2, AUDIT-SHOP-2 F-40). It was optional and
+   * fell back to the literal `checkout`, so every unresolved checkout that
+   * arrived without one raised an alert under ONE `command_id`
+   * (`attr-unresolved-checkout`): a sink deduping on the command id kept the
+   * first contested checkout and silently dropped every other. The alert's
+   * identity IS the checkout's correlation id, so the caller must name it.
+   */
+  readonly correlationId: string;
   /** Server-side registry: a valid short code → the reseller it names, or undefined. */
   readonly resolveShortCode: (code: string) => string | undefined;
 }
@@ -86,8 +94,8 @@ export function resolveCheckoutAttribution(input: CheckoutAttributionInput): Che
       alert: PlatformEventSchema.parse({
         name: 'reconciliation.alert.v1',
         envelope: {
-          command_id: `attr-unresolved-${input.correlationId ?? 'checkout'}`,
-          correlation_id: input.correlationId ?? 'unknown',
+          command_id: `attr-unresolved-${input.correlationId}`,
+          correlation_id: input.correlationId,
           aggregateVersion: 1,
           actor: 'attribution-service:resolution',
           serverTime: input.nowIso,

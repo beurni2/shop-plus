@@ -71,6 +71,7 @@ describe('SP-I09b.4 — a PRESENTED reference that resolves to nobody attributes
       typedShortCode: 'not a code',
       arrivals: [],
       nowIso: NOW,
+      correlationId: 'corr-garbage',
       resolveShortCode,
     });
     expect(out.resolution).toEqual({ attributed: false, reason: 'none' });
@@ -83,6 +84,7 @@ describe('SP-I09b.4 — a PRESENTED reference that resolves to nobody attributes
       typedShortCode: 'BOGUS-9999',
       arrivals: [],
       nowIso: NOW,
+      correlationId: 'corr-unknown-code',
       resolveShortCode,
     });
     expect(out.resolution.attributed).toBe(false);
@@ -93,6 +95,7 @@ describe('SP-I09b.4 — a PRESENTED reference that resolves to nobody attributes
     const out = resolveCheckoutAttribution({
       arrivals: [identityArrival('res_expired', '2026-05-01T00:00:00.000Z')],
       nowIso: NOW,
+      correlationId: 'corr-expired',
       resolveShortCode,
     });
     expect(out.resolution).toEqual({ attributed: false, reason: 'none' });
@@ -104,6 +107,7 @@ describe('SP-I09b.4 — a PRESENTED reference that resolves to nobody attributes
       presentedTokenFailed: true,
       arrivals: [],
       nowIso: NOW,
+      correlationId: 'corr-token-refused',
       resolveShortCode,
     });
     expect(out.resolution).toEqual({ attributed: false, reason: 'none' });
@@ -112,9 +116,28 @@ describe('SP-I09b.4 — a PRESENTED reference that resolves to nobody attributes
   });
 
   it('NOTHING presented (organic arrival, no code, no arrivals, no token) → nobody, NO alert', () => {
-    const out = resolveCheckoutAttribution({ arrivals: [], nowIso: NOW, resolveShortCode });
+    const out = resolveCheckoutAttribution({ arrivals: [], nowIso: NOW, correlationId: 'corr-organic', resolveShortCode });
     expect(out.resolution).toEqual({ attributed: false, reason: 'none' });
     expect(out.alert).toBeUndefined();
+  });
+
+  it('DURCISSEMENT-SERVICE-2 (F-40) — two contested checkouts raise two alerts under two command ids, keyed by THEIR correlation ids', () => {
+    // Before: `correlationId` was optional and fell back to the literal
+    // `checkout`, so two unresolved checkouts without one shared
+    // `attr-unresolved-checkout` — a sink deduping on the command id kept the
+    // first and dropped the second. The id is required now, and the alert's
+    // command id is the checkout's own.
+    const a = resolveCheckoutAttribution({ typedShortCode: 'BOGUS-9999', arrivals: [], nowIso: NOW, correlationId: 'corr-a', resolveShortCode });
+    const b = resolveCheckoutAttribution({ typedShortCode: 'BOGUS-9999', arrivals: [], nowIso: NOW, correlationId: 'corr-b', resolveShortCode });
+    expect(a.alert?.envelope.command_id).toBe('attr-unresolved-corr-a');
+    expect(b.alert?.envelope.command_id).toBe('attr-unresolved-corr-b');
+    expect(a.alert?.envelope.correlation_id).toBe('corr-a');
+    expect(b.alert?.envelope.correlation_id).toBe('corr-b');
+    expect(a.alert?.envelope.command_id).not.toBe(b.alert?.envelope.command_id);
+    // …and the same checkout, re-resolved, raises the SAME command id: the
+    // alert is idempotent per checkout, never per call.
+    const a2 = resolveCheckoutAttribution({ typedShortCode: 'BOGUS-9999', arrivals: [], nowIso: NOW, correlationId: 'corr-a', resolveShortCode });
+    expect(a2.alert?.envelope.command_id).toBe('attr-unresolved-corr-a');
   });
 
   it('the alert is the canonical reconciliation.alert.v1 (ops sees an unresolved presented reference)', () => {

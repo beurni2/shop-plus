@@ -36,6 +36,12 @@ import {
   LISTE_TOKEN,
   type ListeRecord,
 } from '../src/wishlist-core.js';
+// DURCISSEMENT-SERVICE-2 (AUDIT-SHOP-2 F-67) — the edit key's hash is compared
+// with the HOUSE constant-time compare, never `!==`: a byte-wise early exit
+// leaks a hash-prefix fact through timing (hash vs hash, so not the key — but
+// the remise door and the webhook gate already use this compare, and one
+// hand-rolled `!==` beside them is the kind of exception that spreads).
+import { timingSafeEqual } from './auth.js';
 
 const LISTE_KEY = 'liste-record';
 
@@ -135,7 +141,7 @@ export class WishlistDO {
       const record = await this.state.storage.get<ListeRecord>(LISTE_KEY);
       // An absent liste and a wrong edit key are the SAME refusal, decided
       // here so no upstream branch can become an existence oracle for tokens.
-      if (record === undefined || (await sha256Hex(asked.value.editCle)) !== record.editCleHash) {
+      if (record === undefined || !(await timingSafeEqual(await sha256Hex(asked.value.editCle), record.editCleHash))) {
         return Response.json({ ok: false, reason: 'not_found' }, { status: 404 });
       }
       const next = applyListeUpdate(record, {
@@ -164,7 +170,7 @@ export class WishlistDO {
         return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       }
       const record = await this.state.storage.get<ListeRecord>(LISTE_KEY);
-      if (record === undefined || (await sha256Hex(body.editCle)) !== record.editCleHash) {
+      if (record === undefined || !(await timingSafeEqual(await sha256Hex(body.editCle), record.editCleHash))) {
         return Response.json({ ok: false, reason: 'not_found' }, { status: 404 });
       }
       return Response.json({ ok: true, nom: record.nom, cadeaux: listeCadeaux(record) });
@@ -192,7 +198,7 @@ export class WishlistDO {
         return Response.json({ ok: false, reason: 'malformed' }, { status: 400 });
       }
       const record = await this.state.storage.get<ListeRecord>(LISTE_KEY);
-      if (record === undefined || (await sha256Hex(body.editCle)) !== record.editCleHash) {
+      if (record === undefined || !(await timingSafeEqual(await sha256Hex(body.editCle), record.editCleHash))) {
         return Response.json({ ok: false, reason: 'not_found' }, { status: 404 });
       }
       await this.state.storage.deleteAll();
