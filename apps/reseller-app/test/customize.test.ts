@@ -15,6 +15,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { sharedColour } from '@platform/ui-tokens';
 import {
   DEFAULT_STOREFRONT,
   FEATURED_CAP,
@@ -42,7 +43,9 @@ describe('K property pins — the Phase-0 table bytes in the runtime StyleSheet'
     expect(flat(S.rowGlyphText).color).toBe('#701134');
     expect(flat(S.rowTitle)).toMatchObject({ fontSize: 14.5, color: '#1C1710' });
     expect(flat(S.rowSub)).toMatchObject({ fontSize: 12, color: '#6F6355' });
-    expect(flat(S.rowDivider).borderTopColor).toBe('#F3EDDE');
+    // PERSONNALISER-JETONS-1 (F-44): the divider reads the family hairline
+    // token — the table's #F3EDDE was one shade off it and had no token.
+    expect(flat(S.rowDivider).borderTopColor).toBe(sharedColour.hairline);
   });
 
   it('C-K3 counted field: r14 border 1.5 #E5DCC9, focus #A31D4E, error #C4574B, label 11/700 ls1.1', () => {

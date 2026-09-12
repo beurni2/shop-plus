@@ -20,6 +20,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, findNodeHandle, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { t, tf } from '../../i18n';
+import { pwaColour, sharedColour, shopColour } from '@platform/ui-tokens';
 import {
   DEFAULT_STOREFRONT,
   FEATURED_CAP,
@@ -62,9 +63,11 @@ import { K_RAW_STYLES } from './k-styles';
 /** ONE money source — the app's canonical formatter (U+202F+FCFA, re-pin site). */
 export const fmtFcfa = formatFcfa;
 
-const SHOP = { accent: '#A31D4E', deep: '#701134', soft: '#F8E4EC' }; // §1.3 chrome fixe
-const GOLD_K = '#E0A11B'; // §1.3 liseré or (K chrome)
-const GOLD_BUYER = '#C89A3F';
+// PERSONNALISER-JETONS-1 (F-44) — the chrome reads the Faso Premium tokens
+// that carry its bytes; the woven band's buyer gold is the PWA's own token.
+const SHOP = { accent: shopColour.primary, deep: shopColour.deep, soft: shopColour.soft }; // §1.3 chrome fixe
+const GOLD_K = shopColour.gold; // §1.3 liseré or (K chrome)
+const GOLD_BUYER = pwaColour.gold;
 
 /* SECTIONS RETIRÉES (founder order, 2026-08-13: « remove 'Sections' from
    personnaliser ») — the k6/k6b routes, their two screens, the K1 row and the
@@ -143,7 +146,7 @@ function IconCamera({ size, color }: { size: number; color: string }) {
 
 function IconStarK({ size, filled }: { size: number; filled: boolean }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? SHOP.accent : 'none'} stroke={filled ? SHOP.accent : '#8A7D6B'} strokeWidth={1.8} strokeLinejoin="round">
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? SHOP.accent : 'none'} stroke={filled ? SHOP.accent : sharedColour.disabledCtaFg} strokeWidth={1.8} strokeLinejoin="round">
       <Path d="M12 3.4l2.7 5.4 6 .9-4.3 4.2 1 6-5.4-2.8-5.4 2.8 1-6L3.3 9.7l6-.9z" />
     </Svg>
   );
@@ -151,7 +154,7 @@ function IconStarK({ size, filled }: { size: number; filled: boolean }) {
 
 function IconBackK({ size }: { size: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#1C1710" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round">
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={sharedColour.ink} strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M14.5 6l-6 6 6 6" />
     </Svg>
   );
@@ -180,7 +183,7 @@ function IconDevantureK({ size, color }: { size: number; color: string }) {
 export function WovenBand({ accent, gold, height }: { accent: string; gold: string; height: number }) {
   const seq: { c: string; w: number }[] = [];
   for (let i = 0; i < 12; i++) {
-    seq.push({ c: accent, w: 18 }, { c: '#F4EFE6', w: 6 }, { c: gold, w: 8 }, { c: '#F4EFE6', w: 6 });
+    seq.push({ c: accent, w: 18 }, { c: sharedColour.paper, w: 6 }, { c: gold, w: 8 }, { c: sharedColour.paper, w: 6 });
   }
   return (
     <View style={{ height, flexDirection: 'row', overflow: 'hidden' }}>
@@ -550,8 +553,8 @@ function K1({ sf, th, onBack, go, onPublishOnline, onRecommencer, onListStorefro
         onBack={onBack}
         pill={
           <View style={[S.etatPill, sf.discoverable ? S.etatPillOk : S.etatPillNeutre]}>
-            <View style={[S.etatDot, { backgroundColor: sf.discoverable ? '#14603A' : '#6F6355' }]} />
-            <Text style={[S.etatPillText, { color: sf.discoverable ? '#14603A' : '#6F6355' }]}>{t(sf.discoverable ? 'k.etat_publiee' : 'k.etat_privee')}</Text>
+            <View style={[S.etatDot, { backgroundColor: sf.discoverable ? sharedColour.okFg : sharedColour.sub }]} />
+            <Text style={[S.etatPillText, { color: sf.discoverable ? sharedColour.okFg : sharedColour.sub }]}>{t(sf.discoverable ? 'k.etat_publiee' : 'k.etat_privee')}</Text>
           </View>
         }
       />
@@ -752,7 +755,7 @@ function CountedField({ label, value, max, onChange, onCommit, placeholder, mult
         // had none), which is also what lets the walks target it exactly.
         accessibilityLabel={label}
         placeholder={placeholder}
-        placeholderTextColor="#8A7D6B"
+        placeholderTextColor={sharedColour.disabledCtaFg}
         multiline={multiline}
         onFocus={() => {
           setFocused(true);
@@ -852,7 +855,7 @@ function K3({ sf, onBack, onPickCover, onRetry, uploadWired, onPickAvatar, cover
           of her own picture. */}
       {(st === 'pending' || st === 'live') && (
         <View style={[S.pill, S.pillSous, st === 'pending' ? S.pillWarn : S.pillOk]}>
-          <Text style={[S.pillText, { color: st === 'pending' ? '#7A5104' : '#14603A' }]}>{t(st === 'pending' ? 'k.cover.pilule_verif' : 'k.cover.pilule_ligne')}</Text>
+          <Text style={[S.pillText, { color: st === 'pending' ? sharedColour.warnFgAlt : sharedColour.okFg }]}>{t(st === 'pending' ? 'k.cover.pilule_verif' : 'k.cover.pilule_ligne')}</Text>
         </View>
       )}
       {st === 'error' && (
@@ -932,7 +935,7 @@ function PortraitSegments({ sf, onPickAvatar, sending, onAdjust }: { sf: Storefr
             ) : sf.avatar.url ? (
               <Image source={{ uri: sf.avatar.url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             ) : (
-              <IconCamera size={20} color="#8A7D6B" />
+              <IconCamera size={20} color={sharedColour.disabledCtaFg} />
             )}
           </Pressable>
           <Text style={S.portraitNote}>{t('k.portrait.note_photo')}</Text>
@@ -1001,7 +1004,7 @@ function K4({ sf, onBack, onPick, onPickEntete, enteteEnCours, liveSlug, onCadre
               </View>
               {selected && (
                 <View style={S.themeCheck}>
-                  <IconCheckK size={14} color="#FCF4EE" />
+                  <IconCheckK size={14} color={shopColour.onPrimary} />
                 </View>
               )}
             </Pressable>
@@ -1036,7 +1039,7 @@ function K4({ sf, onBack, onPick, onPickEntete, enteteEnCours, liveSlug, onCadre
                 <Text style={S.enteteEnCours}>{t('k.entete.en_cours')}</Text>
               ) : selected ? (
                 <View style={S.themeCheck}>
-                  <IconCheckK size={14} color="#FCF4EE" />
+                  <IconCheckK size={14} color={shopColour.onPrimary} />
                 </View>
               ) : null}
             </Pressable>

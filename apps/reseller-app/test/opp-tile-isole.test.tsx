@@ -65,6 +65,9 @@ beforeEach(() => {
   wiredEnv();
   resetFiles();
   resetJoueurs();
+  // this file mounts with react-test-renderer's `act` directly (no mountApp):
+  // React asks the environment to say so, or it warns on every update
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 afterEach(() => {
@@ -78,7 +81,10 @@ describe('OppTile — the photograph’s shape is the tile’s own state', () =>
     const A = offre('pv-a', 'Bazin riche', true);
     const B = offre('pv-b', 'Sac en cuir');
     const onOuvrir = (): void => {};
-    const onMesure = (): void => {};
+    const mesures: Array<[string, number, number]> = [];
+    const onMesure = (pid: string, y: number, h: number): void => {
+      mesures.push([pid, y, h]);
+    };
     let rendusParent = 0;
     let bump: () => void = () => {};
     function Parent(): React.ReactElement {
@@ -127,6 +133,17 @@ describe('OppTile — the photograph’s shape is the tile’s own state', () =>
     expect(chargeur(tree, 'pv-a'), 'memo: same props, no render').toBe(a1);
     expect(chargeur(tree, 'pv-b')).toBe(b0);
     expect(joueurs.crees, 'no player was created again').toBe(1);
+
+    // THE CALL SITE: the tile's own layout event reaches the grid's measure
+    // with its pid — the road the viewport rule is fed by (the double lays
+    // out nothing, so the event is delivered here by hand)
+    const pressables = tree.root.findAll((n) => typeof n.type === 'string' && typeof n.props['onLayout'] === 'function' && typeof n.props['onPress'] === 'function');
+    expect(pressables.length, 'two tiles, two measured pressables').toBe(2);
+    await act(async () => {
+      (pressables[1]!.props['onLayout'] as (e: unknown) => void)({ nativeEvent: { layout: { x: 0, y: 310, width: 160, height: 300 } } });
+      await Promise.resolve();
+    });
+    expect(mesures).toEqual([['pv-b', 310, 300]]);
     tree.unmount();
   });
 });

@@ -15,6 +15,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { t, tf } from '../../i18n';
+import { sharedColour, shopColour } from '@platform/ui-tokens';
 import { DEFAULT_VOICE_NOTES, VOIX_MAX_MS, cancelRecording, deleteNote, failPublish, fmtVoiceDuration, fusionnerNotesStockees, noteOf, publishNote, readyNote, startRecording, stopRecording, voixRefusToastKey, type ProductVoiceNote, type ProductVoiceNotes } from './voice';
 import { useVoiceCapture } from './voice-capture';
 import { K_RAW_STYLES } from './k-styles';
@@ -340,7 +341,7 @@ export function voiceCardLabel(note: ProductVoiceNote | undefined): string {
 export function PlayBtn({ playing, onPress }: { playing: boolean; onPress: () => void }): React.ReactElement {
   return (
     <Pressable style={({ pressed }) => [S.vPlayBtn, pressed && S.pressed]} onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: playing }}>
-      {playing ? <IconPauseK size={15} color="#1C1710" /> : <IconPlayK size={15} color="#1C1710" />}
+      {playing ? <IconPauseK size={15} color={sharedColour.ink} /> : <IconPlayK size={15} color={sharedColour.ink} />}
       <Text style={S.vGhostText}>{t(playing ? 'k.voix.pause' : 'k.voix.ecouter')}</Text>
     </Pressable>
   );
@@ -417,7 +418,7 @@ export function VoiceNoteControls({ pid, ctl }: { pid: string; ctl: VoiceNotesCo
           accessibilityRole="button"
           accessibilityState={{ disabled: ctl.anyRecording }}
         >
-          <IconMic size={17} color="#A31D4E" />
+          <IconMic size={17} color={shopColour.primary} />
           <Text style={S.vRecBtnText}>{t('k.voix.enregistrer')}</Text>
         </Pressable>
       )}
@@ -453,7 +454,7 @@ export function VoiceNoteControls({ pid, ctl }: { pid: string; ctl: VoiceNotesCo
               accessibilityLabel={t(playing ? 'k.voix.pause' : 'k.voix.ecouter')}
             >
               <View style={S.vEcouteDisque}>
-                {playing ? <IconPauseK size={18} color="#FFF6EC" /> : <IconPlayK size={18} color="#FFF6EC" />}
+                {playing ? <IconPauseK size={18} color={shopColour.onPrimary} /> : <IconPlayK size={18} color={shopColour.onPrimary} />}
               </View>
               <View style={S.vEcouteTexte}>
                 <Text style={S.vEcouteTitre}>{t(playing ? 'k.voix.pause' : 'k.voix.ecouter')}</Text>
