@@ -1810,7 +1810,20 @@ export default function App() {
    */
   const categoriesChoisies = compte?.categories;
   const offresPourElle = useMemo(() => filtrerParSelection(offers, categoriesChoisies), [offers, categoriesChoisies]);
-  const categoriesOpp = useMemo(() => categoriesPresentes(offresPourElle), [offresPourElle]);
+  /**
+   * RAYONS-CHIPS-CHOISIS-1 (founder, 2026-09-16: « show all five rayons as
+   * chips ») — the chips row is HER rayons, every one, in her book's order,
+   * whether or not the feed carries a product in it today: a rayon she just
+   * chose must be visible where she looks for it, and one with nothing yet
+   * says so behind its chip instead of vanishing. No choice made ⇒ the row
+   * still builds from what the feed contains (the pre-slice screen).
+   */
+  const categoriesOpp = useMemo(
+    () => (categoriesChoisies !== undefined && categoriesChoisies.length > 0
+      ? rayonsDuLivre(categoriesChoisies)
+      : categoriesPresentes(offresPourElle)),
+    [categoriesChoisies, offresPourElle],
+  );
   const catActive = catFiltre !== null && categoriesOpp.includes(catFiltre) ? catFiltre : null;
   const offresFiltrees = useMemo(() => filtrerOffres(offresPourElle, catActive), [offresPourElle, catActive]);
   /**
@@ -2646,9 +2659,10 @@ export default function App() {
               <Text style={styles.screenTitle}>{t('opportunites.title')}</Text>
               <Text style={styles.oppSub}>{t('opportunites.sous_titre')}</Text>
             </View>
-            {/* CATEGORIES-OPPORTUNITES-1 (founder, 2026-08-23) — the rayons
-                row: « Tout » + one chip per category PRESENT in the live feed,
-                in the feed's own order. No categories on the wire ⇒ no row at
+            {/* CATEGORIES-OPPORTUNITES-1 (founder, 2026-08-23) → RAYONS-CHIPS-
+                CHOISIS-1 (2026-09-16) — the rayons row: « Tout » + one chip per
+                rayon SHE chose (her book's order), or, with no choice made, per
+                category PRESENT in the live feed. Nothing to show ⇒ no row at
                 all — an empty filter bar would be furniture. The chips scroll
                 horizontally; the grid below re-renders filtered in place. */}
             {categoriesOpp.length > 0 && (
@@ -2693,6 +2707,15 @@ export default function App() {
                   hint=""
                 />
               )
+            ) : catActive !== null && offresFiltrees.length === 0 ? (
+              /* RAYONS-CHIPS-CHOISIS-1 — a chosen rayon with no product on the
+                 feed today: its chip stays, and the grid says so by name,
+                 never a blank under a chip she can press. */
+              <EmptyState
+                glyph={<IconProduits size={dimension.iconSizePx.emptyState} color={sharedColour.sub} />}
+                title={tf('opportunites.rayon_vide', { rayon: labelCategorie(catActive) })}
+                hint={t('opportunites.rayon_vide_aide')}
+              />
             ) : (
               <View style={styles.oppColumns} onLayout={(e) => { grilleY.current = e.nativeEvent.layout.y; recalculerClipActif(); }}>
                 {([0, 1] as const).map((col) => (

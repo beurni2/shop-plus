@@ -18,8 +18,11 @@
  * hand copy this file carried for four days is gone with its drift.
  *
  * Two pickers, two laws, on purpose:
- *   · the Opportunités CHIPS ROW is built from what the feed actually
- *     contains — a chip must never point at an empty grid;
+ *   · the Opportunités CHIPS ROW is HER rayons (RAYONS-CHIPS-CHOISIS-1,
+ *     founder 2026-09-16: « show all five rayons as chips ») — every one she
+ *     chose, whether or not the feed carries a product in it today; a rayon
+ *     with nothing yet says so behind its chip. With no choice made, the row
+ *     is built from what the feed contains (`categoriesPresentes`), as before;
  *   · the PICKERS (« Mes rayons », the entrance) offer the whole taxonomy
  *     PLUS whatever the wire or her account carries that the taxonomy does
  *     not know — a rayon with no product on the feed yet (« Maison ») must

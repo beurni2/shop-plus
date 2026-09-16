@@ -15,7 +15,8 @@ import { RAYONS } from '../src/vitrine/rayons';
  *     POST carries exactly what she chose. She reaches the admission step.
  *   · OPPORTUNITÉS (gate disarmed, compte on disk): her selection narrows
  *     the whole screen — products outside her rayons never render, the chips
- *     row is HER rayons only, and a compte with no choice sees everything.
+ *     row is HER rayons — ALL of them since RAYONS-CHIPS-CHOISIS-1, an empty
+ *     one included — and a compte with no choice sees everything.
  */
 
 const CAT = { A: 'Mode femme', B: 'Sacs', C: 'Poussette', D: 'Chaussures', E: 'Vase', F: 'Coiffeuse' } as const;
@@ -216,12 +217,37 @@ describe('OPPORTUNITÉS — her rayons narrow the whole screen', () => {
     screen.unmount();
   });
 
-  it('every rayon she chose can be EMPTY today — the honest empty state, never a blank', async () => {
+  it('every rayon she chose can be EMPTY today — the honest empty state, never a blank; RAYONS-CHIPS-CHOISIS-1: its chip STANDS all the same', async () => {
     await seedCompte(['Bavoir']);
     wire(routes());
     const screen = await mountApp();
     await screen.press('Opportunités');
     expect(screen.shows('Aucun produit à afficher'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    // Her one rayon is a chip although the feed has nothing in it (the
+    // pre-slice row hid it: a chip only for a category PRESENT on the feed).
+    expect(screen.canPress('Bavoir')).toBe(true);
+    expect(screen.canPress('Tout')).toBe(true);
+    await screen.press('Bavoir');
+    // Nothing of hers at all ⇒ the whole-screen sentence, whichever chip.
+    expect(screen.shows('Aucun produit à afficher')).toBe(true);
+    screen.unmount();
+  });
+
+  it('RAYONS-CHIPS-CHOISIS-1 — a chosen rayon with nothing on the feed is a chip beside her full ones; behind it, the grid names the rayon; with NO choice made the row is still what the feed contains', async () => {
+    await seedCompte([CAT.A, 'Bavoir']);
+    wire(routes());
+    const screen = await mountApp();
+    await screen.press('Opportunités');
+    expect(screen.shows('Bazin riche')).toBe(true);
+    expect(screen.canPress(CAT.A)).toBe(true);
+    expect(screen.canPress('Bavoir'), 'the empty rayon is a chip').toBe(true);
+    expect(screen.canPress(CAT.B), 'a rayon she did not choose is not').toBe(false);
+    await screen.press('Bavoir');
+    expect(screen.shows('Rien dans « Bavoir » pour l’instant.'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.shows('Bazin riche')).toBe(false);
+    await screen.press(CAT.A);
+    expect(screen.shows('Bazin riche')).toBe(true);
+    expect(screen.shows('Rien dans « Bavoir » pour l’instant.')).toBe(false);
     screen.unmount();
   });
 });

@@ -670,11 +670,13 @@ describe('RAYONS-HERITES-1 (verifier finding, handled once) — a book holding B
   });
 });
 
-describe('FOUNDER REPORT 2026-09-16 — « when I select other categories from the profile, the categories are not showing on Opportunités and the products are not displaying »', () => {
+describe('FOUNDER REPORT 2026-09-16 — « when I select other categories from the profile, the categories are not showing on Opportunités and the products are not displaying » → RAYONS-CHIPS-CHOISIS-1 (« build it and show all five rayons as chips »)', () => {
   // Written FIRST, on his exact screens: the book holds « Sacs » alone; the feed
-  // carries products in Sacs AND in the four rayons he then picks. After the
-  // save, Opportunités must carry all five chips and all their products —
-  // without a relaunch, on the compte the save just wrote.
+  // carries products in Sacs and in THREE of the four rayons he then picks —
+  // « Draps & housses » has nothing on the feed today. After the save,
+  // Opportunités must carry all five chips (the empty rayon among them, saying
+  // so by name behind its chip) and every product of hers — without a
+  // relaunch, on the compte the save just wrote.
   const SES_RAYONS = ['Coiffeuse', 'Draps & housses', 'Maison', 'Mode femme'] as const;
   const SON_FEED = [
     { pv: 'pv-s1', nom: 'SAC DUFFEL', cat: 'Sacs' },
@@ -682,14 +684,13 @@ describe('FOUNDER REPORT 2026-09-16 — « when I select other categories from t
     { pv: 'pv-s3', nom: 'Cross Corps Sacs', cat: 'Sacs' },
     { pv: 'pv-s4', nom: 'Oxford Sac a dos', cat: 'Sacs' },
     { pv: 'pv-c1', nom: 'Coiffeuse dorée', cat: 'Coiffeuse' },
-    { pv: 'pv-d1', nom: 'Draps 2 places', cat: 'Draps & housses' },
     { pv: 'pv-m1', nom: 'Lampe de chevet', cat: 'Maison' },
     { pv: 'pv-f1', nom: 'Bazin riche', cat: 'Mode femme' },
     { pv: 'pv-p1', nom: 'Poussette double', cat: 'Poussette' },
   ] as const;
   const SIENS = SON_FEED.filter((f) => f.cat !== 'Poussette').map((f) => f.nom);
 
-  it('« Sacs » alone on the book → four bags, one chip; pick four more rayons, save, back to Opportunités → five chips, eight products, the Poussette still outside', async () => {
+  it('« Sacs » alone on the book → four bags, one chip; pick four more rayons, save, back to Opportunités → FIVE chips, seven products, the Poussette still outside, the empty rayon named behind its chip', async () => {
     await seedCompte(['Sacs']);
     const serveur = profilInitial(['Sacs']);
     wire(routes(serveur, {}, SON_FEED));
@@ -699,7 +700,7 @@ describe('FOUNDER REPORT 2026-09-16 — « when I select other categories from t
     for (const nom of ['SAC DUFFEL', 'Tote Sacs', 'Cross Corps Sacs', 'Oxford Sac a dos']) {
       expect(screen.shows(nom), `${nom} — on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
     }
-    for (const nom of ['Coiffeuse dorée', 'Draps 2 places', 'Lampe de chevet', 'Bazin riche', 'Poussette double']) {
+    for (const nom of ['Coiffeuse dorée', 'Lampe de chevet', 'Bazin riche', 'Poussette double']) {
       expect(screen.shows(nom), `${nom} must be outside her one rayon`).toBe(false);
     }
     expect(screen.canPress('Sacs')).toBe(true);
@@ -728,6 +729,17 @@ describe('FOUNDER REPORT 2026-09-16 — « when I select other categories from t
     expect(screen.shows('SAC DUFFEL')).toBe(false);
     await screen.press('Tout');
     expect(screen.shows('SAC DUFFEL')).toBe(true);
+    // THE RAYON WITH NOTHING YET (his ask): its chip stands, pressable, and
+    // behind it the grid says so by name — never a blank, never a vanished chip.
+    await screen.press('Draps & housses');
+    expect(screen.shows('Rien dans « Draps & housses » pour l’instant.'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    expect(screen.shows('Dès qu’un produit arrive dans ce rayon, il sera ici.')).toBe(true);
+    for (const nom of SIENS) expect(screen.shows(nom), `${nom} must not render under the empty rayon`).toBe(false);
+    // The chips row is still there to leave by — and « Tout » does.
+    expect(screen.canPress('Sacs')).toBe(true);
+    await screen.press('Tout');
+    expect(screen.shows('Rien dans « Draps & housses » pour l’instant.')).toBe(false);
+    for (const nom of SIENS) expect(screen.shows(nom), `${nom} back under « Tout »`).toBe(true);
     screen.unmount();
   });
 });

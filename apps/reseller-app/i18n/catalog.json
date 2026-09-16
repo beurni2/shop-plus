@@ -60,6 +60,18 @@
   "screenClass": "status"
  },
  {
+  "key": "opportunites.rayon_vide",
+  "fr": "Rien dans « {rayon} » pour l’instant.",
+  "register": "neutral",
+  "screenClass": "status"
+ },
+ {
+  "key": "opportunites.rayon_vide_aide",
+  "fr": "Dès qu’un produit arrive dans ce rayon, il sera ici.",
+  "register": "selling",
+  "screenClass": "status"
+ },
+ {
   "key": "vitrine.title",
   "fr": "Ma vitrine",
   "register": "neutral",
