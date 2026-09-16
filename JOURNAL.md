@@ -1,7 +1,7 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-16 · SWEEP-ID-1 — the founder's video product was refused by its OWN ID: « 7875351-6 » in `b7875351-6d7…` read as the mobile 78 75 35 16; producer-minted identifiers are references now, never text · DONE on the branch · NOT MERGED · NOT DEPLOYED — awaiting his word
+## 2026-09-16 · SWEEP-ID-1 — the founder's video product was refused by its OWN ID: « 7875351-6 » in `b7875351-6d7…` read as the mobile 78 75 35 16; producer-minted identifiers are references now, never text · MERGED + DEPLOYED 2026-09-16 (founder: « Go »)
 
 **Founder, 2026-09-16 (after SWEEP-CLIP-1 + RAYONS-CHIPS-CHOISIS-1 were live on his phone): « When I select the category maison on opportunité the product with the video is still not showing »** — with the screenshot: « Maison » chip active, « Rien dans « Maison » pour l’instant. » Commit `d30d05a` on the branch (the build, with the verifier's one code MINOR folded in before the commit). Nothing merged, nothing deployed.
 
@@ -19,7 +19,9 @@ Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
 **Said plainly, for the record.** SWEEP-CLIP-1 fixed a real instance of this class (a clip key CAN take that shape) but it was not the instance in the founder's hand; the journal had said so (« only the live feed can tell »), and the fix shipped anyway because the door to ask was built in the same slice and key C is his. This entry's lesson: when the diagnosis rests on live data, get the live data first — the read-only live check on the runner reads what the sandbox cannot.
 
-**Open:** his word to merge and deploy (`storefront-deploy` on `main` — the Worker changed; no app update needed) · then his re-check: « Maison » on Opportunités shows the video product.
+**MERGED AND DEPLOYED (founder: « Go », 2026-09-16).** `main` fast-forwarded `d6f8d16 → 9b130ea` (ancestry verified before the push). **ci 671 · pwa-preview 459 · expo-preview 492 · service-canon-drift 350 · storefront-deploy 99, all green on `9b130ea`** — `storefront-deploy` dispatched on `main` (the Worker changed): the live Worker's consumer now skips the producer-minted ids; the push workflows republished the app and the page unchanged in behaviour (no app code moved in this slice).
+
+**Open:** his re-check — « Maison » on Opportunités shows the video product (the app re-reads the feed on entering the tab).
 
 ## 2026-09-16 · RAYONS-CHIPS-CHOISIS-1 (founder: « build it and show all fives rayons as chips selected ») — Opportunités' chips row is HER rayons, every one, in her book's order; a rayon with nothing on the feed yet keeps its chip and says so by name behind it · MERGED + DEPLOYED 2026-09-16 (founder: « Go »)
 
