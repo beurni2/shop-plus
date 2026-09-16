@@ -669,3 +669,65 @@ describe('RAYONS-HERITES-1 (verifier finding, handled once) — a book holding B
     screen.unmount();
   });
 });
+
+describe('FOUNDER REPORT 2026-09-16 — « when I select other categories from the profile, the categories are not showing on Opportunités and the products are not displaying »', () => {
+  // Written FIRST, on his exact screens: the book holds « Sacs » alone; the feed
+  // carries products in Sacs AND in the four rayons he then picks. After the
+  // save, Opportunités must carry all five chips and all their products —
+  // without a relaunch, on the compte the save just wrote.
+  const SES_RAYONS = ['Coiffeuse', 'Draps & housses', 'Maison', 'Mode femme'] as const;
+  const SON_FEED = [
+    { pv: 'pv-s1', nom: 'SAC DUFFEL', cat: 'Sacs' },
+    { pv: 'pv-s2', nom: 'Tote Sacs', cat: 'Sacs' },
+    { pv: 'pv-s3', nom: 'Cross Corps Sacs', cat: 'Sacs' },
+    { pv: 'pv-s4', nom: 'Oxford Sac a dos', cat: 'Sacs' },
+    { pv: 'pv-c1', nom: 'Coiffeuse dorée', cat: 'Coiffeuse' },
+    { pv: 'pv-d1', nom: 'Draps 2 places', cat: 'Draps & housses' },
+    { pv: 'pv-m1', nom: 'Lampe de chevet', cat: 'Maison' },
+    { pv: 'pv-f1', nom: 'Bazin riche', cat: 'Mode femme' },
+    { pv: 'pv-p1', nom: 'Poussette double', cat: 'Poussette' },
+  ] as const;
+  const SIENS = SON_FEED.filter((f) => f.cat !== 'Poussette').map((f) => f.nom);
+
+  it('« Sacs » alone on the book → four bags, one chip; pick four more rayons, save, back to Opportunités → five chips, eight products, the Poussette still outside', async () => {
+    await seedCompte(['Sacs']);
+    const serveur = profilInitial(['Sacs']);
+    wire(routes(serveur, {}, SON_FEED));
+    const screen = await mountApp();
+
+    await screen.press('Opportunités');
+    for (const nom of ['SAC DUFFEL', 'Tote Sacs', 'Cross Corps Sacs', 'Oxford Sac a dos']) {
+      expect(screen.shows(nom), `${nom} — on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    }
+    for (const nom of ['Coiffeuse dorée', 'Draps 2 places', 'Lampe de chevet', 'Bazin riche', 'Poussette double']) {
+      expect(screen.shows(nom), `${nom} must be outside her one rayon`).toBe(false);
+    }
+    expect(screen.canPress('Sacs')).toBe(true);
+    for (const r of SES_RAYONS) expect(screen.canPress(r), `${r} chip before the save`).toBe(false);
+
+    await screen.press('Profil');
+    await attendre(screen, '1 rayon sur 5');
+    await screen.press('Mes rayons');
+    await attendre(screen, '1 sur 5');
+    for (const r of SES_RAYONS) await screen.press(r);
+    expect(screen.shows('5 sur 5')).toBe(true);
+    await screen.press('Enregistrer');
+    await attendre(screen, 'Rayons enregistrés. Vos opportunités suivent vos choix.');
+    expect(screen.shows('Mon profil')).toBe(true);
+    expect(screen.shows('5 rayons sur 5')).toBe(true);
+
+    await screen.press('Opportunités');
+    for (const nom of SIENS) {
+      expect(screen.shows(nom), `${nom} — after the save; on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    }
+    expect(screen.shows('Poussette double'), 'not hers').toBe(false);
+    for (const r of ['Sacs', ...SES_RAYONS]) expect(screen.canPress(r), `${r} chip after the save`).toBe(true);
+    // The new chip filters, and « Tout » brings everything of hers back.
+    await screen.press('Maison');
+    expect(screen.shows('Lampe de chevet')).toBe(true);
+    expect(screen.shows('SAC DUFFEL')).toBe(false);
+    await screen.press('Tout');
+    expect(screen.shows('SAC DUFFEL')).toBe(true);
+    screen.unmount();
+  });
+});
