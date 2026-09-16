@@ -1412,9 +1412,11 @@ describe('SWEEP-CLIP-1 + DIAGNOSTIC-OFFRE-1 — the clip key is served; the foun
       status: string;
       served: { productVersionId: string; productName: string }[];
       refusals: { productVersionId?: string; reason: string }[];
+      httpStatus?: number;
       target?: { base?: string };
     };
     expect(body.status).toBe('ok');
+    expect(body.httpStatus, 'the producer’s own status — an operator’s first clue').toBe(200);
     expect(body.served).toEqual([{ productVersionId: 'pv-video-1', productName: 'Coiffeuse dorée' }]);
     expect(body.refusals).toEqual([{ productVersionId: 'pv-fuite-1', reason: 'identity_material_refused' }]);
     expect(body.target?.base).toBe('service-binding:OFFER');

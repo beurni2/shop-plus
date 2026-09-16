@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RAYONS as RAYONS_PLATEFORME, CATEGORIES as CATEGORIES_PLATEFORME } from '@platform/taxonomy';
-import { autresRayons, CATEGORIES, labelCategorie, rayonCanon, RAYONS } from '../src/vitrine/rayons';
+import { autresRayons, CATEGORIES, labelCategorie, rayonCanon, rayonsDuLivre, RAYONS } from '../src/vitrine/rayons';
 
 /**
  * RAYONS-CANON-1 (founder, 2026-09-12: « Add the product category Maison and
@@ -34,6 +34,12 @@ describe('RAYONS-HERITES-1 — one rayon, whatever its spelling on the wire', ()
     expect(rayonCanon('fashion_bags_fabrics')).toBe('fashion_bags_fabrics');
     expect(rayonCanon(' Chaussures ')).toBe('Chaussures');
     expect(rayonCanon('Tapis berbère')).toBe('Tapis berbère');
+  });
+
+  it('rayonsDuLivre — a book holding both spellings of one rayon reads as ONE choice, in the book’s order; an absent book is empty', () => {
+    expect(rayonsDuLivre(['shoes', 'Vase', 'Chaussures', ' Vase '])).toEqual(['Chaussures', 'Vase']);
+    expect(rayonsDuLivre(['fashion_bags_fabrics', 'shoes'])).toEqual(['fashion_bags_fabrics', 'Chaussures']);
+    expect(rayonsDuLivre(undefined)).toEqual([]);
   });
 
   it('the label still reads as words for every id — the screen’s business, unchanged', () => {

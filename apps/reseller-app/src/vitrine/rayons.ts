@@ -70,6 +70,21 @@ export function rayonCanon(raw: string): string {
   return nom !== undefined && CATEGORIES.has(nom) ? nom : v;
 }
 
+/** Her BOOK as rayons: each spelling mapped to its rayon, each rayon ONCE, in
+ *  the book's order. An account that chose `shoes` in the id era and ticked
+ *  « Chaussures » beside it later (the pre-RAYONS-HERITES picker allowed it)
+ *  holds both spellings of one rayon; on her screen that is one choice, one
+ *  count — and the next save SHE makes writes it back once (verifier finding,
+ *  handled once). */
+export function rayonsDuLivre(categories: readonly string[] | undefined): readonly string[] {
+  const vues: string[] = [];
+  for (const raw of categories ?? []) {
+    const c = rayonCanon(raw);
+    if (c !== '' && !vues.includes(c)) vues.push(c);
+  }
+  return vues;
+}
+
 /** The distinct rayons PRESENT in the live feed, in first-appearance order —
  *  stable across renders because the feed's order is the service's. Each
  *  rayon ONCE, whatever its spelling on the wire (an id-era product and a

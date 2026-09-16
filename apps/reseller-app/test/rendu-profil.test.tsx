@@ -646,3 +646,26 @@ describe('RAYONS-HERITES-1 — an id-era rayon on her account is ONE chip, ticke
     screen.unmount();
   });
 });
+
+describe('RAYONS-HERITES-1 (verifier finding, handled once) — a book holding BOTH spellings of one rayon is one choice on every screen', () => {
+  it('« shoes » AND « Chaussures » on the book: the hub counts ONE rayon; the leaf shows « Vos choix : Chaussures » once and « 1 sur 5 »; her save writes it back once', async () => {
+    await seedCompte(['shoes', 'Chaussures']);
+    const serveur = profilInitial(['shoes', 'Chaussures']);
+    const fils = wire(routes(serveur, {}, []));
+    const screen = await mountApp();
+    await screen.press('Profil');
+    expect(screen.shows('1 rayon sur 5'), JSON.stringify(screen.texts())).toBe(true);
+    expect(screen.shows('2 rayons sur 5')).toBe(false);
+    await screen.press('Mes rayons');
+
+    expect(screen.shows('Vos choix : Chaussures')).toBe(true);
+    expect(screen.shows('Chaussures · Chaussures')).toBe(false);
+    expect(screen.shows('1 sur 5')).toBe(true);
+    await screen.press('Maison');
+    expect(screen.shows('2 sur 5')).toBe(true);
+    await screen.press('Enregistrer');
+    expect(lectures(fils)[1]!.body).toEqual({ categories: ['Chaussures', 'Maison'] });
+    expect(screen.shows('2 rayons sur 5')).toBe(true);
+    screen.unmount();
+  });
+});

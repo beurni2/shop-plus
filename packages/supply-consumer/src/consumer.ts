@@ -67,7 +67,10 @@ const CONTACT_NUMBER = /(?<!\d[\s.\-/]?)(?:(?:\+|00)\s?226[\s.\-/]?)?[2567](?:[\
  * happens to read as eight digits led by 2, 5, 6 or 7 made the WHOLE product
  * vanish, silently to her, for the one product that carried a clip. STATED
  * BOUND: this skips exactly the one string-typed media reference; every other
- * string value (ids included) is still swept, fail closed.
+ * string value (ids included) is still swept, fail closed. The wire itself does
+ * not enforce that a ref is opaque (`AssetRefSchema` is a non-empty string) —
+ * the bound is the PRODUCER's, exactly as it has been for `assetRefs` since
+ * v2.0.0, and the value is never rendered as text on any surface.
  */
 const REFERENCE_KEYS: ReadonlySet<string> = new Set(['videoRef']);
 

@@ -28,7 +28,7 @@ import { resolveStorefrontService, deriveShortCode, saveRefusalToastKey, publier
 import type { Storefront } from './src/vitrine/customize/storefront';
 import { loadOrMintIdentity, remintIdentity } from './src/identity/store';
 import { resolveOfferSource, type Offer, type OfferFeed } from './src/vitrine/offers';
-import { categoriesPresentes, filtrerOffres, filtrerParSelection, labelCategorie, rayonCanon, RAYONS, autresRayons } from './src/vitrine/rayons';
+import { categoriesPresentes, filtrerOffres, filtrerParSelection, labelCategorie, rayonsDuLivre, RAYONS, autresRayons } from './src/vitrine/rayons';
 import type { ResellerIdentity } from './src/identity/mint';
 import { expoIdentityStore, expoRandomBytes } from './src/identity/expoStore';
 import { FileAttente, type QueueEntry } from './src/offline/queue';
@@ -4866,7 +4866,9 @@ function EcranProfil({ compte, profil, onRecharger, onInfos, onRayons, onMdp, on
   // a freshly paused reseller must not read « Compte actif » one card above
   // the pause sentence while the background refresh is still in flight.
   const etatLu = profil === 'coupe' ? 'paused' : compte?.state ?? null;
-  const nRayons = typeof profil === 'object' ? (profil.categories ?? []).length : 0;
+  // RAYONS-HERITES-1 — counted as RAYONS, like the leaf seeds them: a book that
+  // holds `shoes` beside « Chaussures » is one rayon, not two.
+  const nRayons = typeof profil === 'object' ? rayonsDuLivre(profil.categories).length : 0;
   const resumeRayons =
     nRayons === 0 ? t('profil.rayons_aucun')
     : nRayons === 1 ? t('profil.rayons_resume_un')
@@ -5052,13 +5054,13 @@ function EcranProfilRayons({ compte, profil, rayons, onRecharger, onSauver, onRe
   // the book still holds (`shoes`) is seeded as its shelf's category
   // (« Chaussures »), so one chip stands for it, and the next save SHE makes
   // writes the label back — the only migration, and never a silent one.
-  const [cats, setCats] = useState<readonly string[]>(typeof profil === 'object' ? (profil.categories ?? []).map(rayonCanon) : []);
+  const [cats, setCats] = useState<readonly string[]>(typeof profil === 'object' ? rayonsDuLivre(profil.categories) : []);
   const [plein, setPlein] = useState(false);
   const [envoi, setEnvoi] = useState(false);
   const [msgKey, setMsgKey] = useState<string | null>(null);
   useEffect(() => {
     if (typeof profil !== 'object') return;
-    setCats((profil.categories ?? []).map(rayonCanon));
+    setCats(rayonsDuLivre(profil.categories));
   }, [profil]);
 
   if (compte === null || compte === undefined) return <FeuilleHorsLigne etat="sans_compte" onRecharger={onRecharger} />;
