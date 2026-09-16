@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountApp, wire, wiredEnv, type Route } from './rendu';
 import { resetFiles } from './doubles/expo-file-system';
+import { RAYONS_BOUTIK } from '../src/vitrine/rayons';
 
 /**
  * ═══ RENDU-RÉEL — RAYONS-REVENDEUR-1 (founder, 2026-08-23: « during reseller
@@ -89,6 +90,10 @@ afterEach(() => {
 });
 
 describe('the ENTRANCE — she chooses her rayons while signing up', () => {
+  // PIN EVOLVED (RAYONS-CANON-1): the six live rayons are taxonomy values, so
+  // they are the same six chips — now among Boutik+'s whole taxonomy rather
+  // than alone. The properties (pressable, the cap, the sentence, the POST in
+  // pick order, the next step) are unchanged.
   it('the picker offers the live rayons, caps at five WITH the sentence, and the signup POST carries exactly her picks', async () => {
     process.env['EXPO_PUBLIC_ACCESS_GATE'] = 'on';
     const fils = wire(routes());
@@ -120,6 +125,42 @@ describe('the ENTRANCE — she chooses her rayons while signing up', () => {
     expect(signup, 'the signup must have been sent').toBeDefined();
     expect(signup!.body?.['categories']).toEqual([CAT.A, CAT.B, CAT.C, CAT.D, CAT.F]);
     // and she reached the NEXT step — the admission door.
+    expect(screen.shows('Encore un pas'), `after signup: ${JSON.stringify(screen.texts())}`).toBe(true);
+    screen.unmount();
+  });
+
+  it('RAYONS-CANON-1 — the WHOLE taxonomy at the entrance too: on a feed with ZERO offers every shelf and category is pressable, « Maison » among them, and the signup POST carries it', async () => {
+    process.env['EXPO_PUBLIC_ACCESS_GATE'] = 'on';
+    // The wire is quiet: no live offer at all — the old picker rendered NO
+    // chip here (the founder's « only 4 categories » on a four-category feed).
+    const muet: Route[] = [
+      (path) =>
+        path === '/supply-projections'
+          ? { status: 200, json: { offers: [], diagnostic: { status: 'ok', refusals: [] } } }
+          : null,
+      ...routes().slice(1),
+    ];
+    const fils = wire(muet);
+    const screen = await mountApp();
+    expect(screen.shows('Créer mon compte'), `on screen: ${JSON.stringify(screen.texts())}`).toBe(true);
+    // The walk follows the MIRROR, never a hand-picked three.
+    for (const rayon of RAYONS_BOUTIK) {
+      expect(screen.shows(rayon.titre), rayon.titre).toBe(true);
+      for (const c of rayon.categories) expect(screen.canPress(c), c).toBe(true);
+    }
+    expect(screen.shows('Autres rayons'), 'nothing on the wire the mirror does not know').toBe(false);
+    expect(screen.shows('Vous pourrez changer ça plus tard, dans votre profil.')).toBe(true);
+
+    await screen.press('Maison');
+    await screen.type('Awa Traoré', 'Votre nom');
+    await screen.type('70 11 22 33', 'Votre numéro WhatsApp');
+    await screen.type('awa@example.bf', 'Votre email');
+    await screen.type('motdepasse', 'Votre mot de passe (8 lettres ou plus)');
+    await screen.press('Créer mon compte');
+
+    const signup = fils.calls.find((c) => c.path === '/reseller/signup');
+    expect(signup, 'the signup must have been sent').toBeDefined();
+    expect(signup!.body?.['categories']).toEqual(['Maison']);
     expect(screen.shows('Encore un pas'), `after signup: ${JSON.stringify(screen.texts())}`).toBe(true);
     screen.unmount();
   });

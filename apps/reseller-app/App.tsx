@@ -4454,40 +4454,22 @@ function EcranCompte({ service, envoi, erreurKey, modeInitial = 'creer', rayons,
                 <Text style={styles.noteVerteTexte}>{t('compte.telephone_aide')}</Text>
               </View>
             </View>
-            {/* RAYONS-REVENDEUR-1 (founder, 2026-08-23) — up to five rayons,
-                from the LIVE browse wire (the CO-1 law: data-driven, never a
-                hardcoded taxonomy). Optional; a down wire hides the section. */}
-            {rayons.length > 0 && (
-              <>
-                <View style={styles.carteTrait} />
-                <View style={styles.compteRayons}>
-                  <Text style={styles.compteRayonsTitre}>{t('compte.rayons_titre')}</Text>
-                  <Text style={styles.rayonsAide}>{t(plein ? 'compte.rayons_max' : 'compte.rayons_aide')}</Text>
-                  <View style={styles.compteRayonsRow}>
-                    {rayons.map((c) => {
-                      const choisi = cats.includes(c);
-                      return (
-                        <Pressable
-                          key={c}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: choisi }}
-                          disabled={envoi}
-                          onPress={() => basculer(c)}
-                          style={[styles.oppChip, styles.chipRangee, choisi && styles.oppChipOn]}
-                        >
-                          {choisi && <IconCoche size={dimension.iconSizePx.badge} color={shopColour.primary} />}
-                          <Text style={[styles.oppChipText, choisi && styles.oppChipTextOn]}>{labelCategorie(c)}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  {/* RAYONS-CANON-1 — the whole taxonomy lives on her profile
-                      (« Mes rayons »); a new reseller is told where, so a
-                      quiet feed at signup never reads as « that is all ». */}
-                  <Text style={styles.profilAide}>{t('profil.rayons_plus_tard')}</Text>
-                </View>
-              </>
-            )}
+            {/* RAYONS-REVENDEUR-1 (founder, 2026-08-23) — up to five rayons.
+                RAYONS-CANON-1 (founder, 2026-09-12: « it shows only 4 product
+                categories there ») — the picker offers Boutik+'s WHOLE
+                taxonomy, shelf by shelf, plus whatever the live wire carries
+                that the mirror does not know; a rayon with no product on the
+                feed yet (« Maison ») is choosable from her first minute, on a
+                quiet wire too. Choosing nothing stays a real option. */}
+            <View style={styles.carteTrait} />
+            <View style={styles.compteRayons}>
+              <Text style={styles.compteRayonsTitre}>{t('compte.rayons_titre')}</Text>
+              <Text style={styles.rayonsAide}>{t(plein ? 'compte.rayons_max' : 'compte.rayons_aide')}</Text>
+              <ChoixRayons choisis={cats} autres={autresRayons(cats, rayons)} onBasculer={basculer} desactive={envoi} />
+              {/* The same list lives on her profile (« Mes rayons »): a first
+                  choice is never a final one. */}
+              <Text style={styles.profilAide}>{t('profil.rayons_plus_tard')}</Text>
+            </View>
             <View style={styles.carteTrait} />
           </>
         )}
@@ -4826,8 +4808,10 @@ function ChoixRayons({ choisis, autres, onBasculer, desactive }: {
       </Pressable>
     );
   };
+  // The shelves only — each render site picks its surface (the profile leaf
+  // wraps them in a Card; the entrance's white card already is one).
   return (
-    <Card style={styles.profilCarte}>
+    <View style={styles.profilCarte}>
       {RAYONS_BOUTIK.map((rayon) => (
         <View key={rayon.titre} style={styles.profilCarte}>
           <Text style={styles.profilRangTitre}>{rayon.titre}</Text>
@@ -4840,7 +4824,7 @@ function ChoixRayons({ choisis, autres, onBasculer, desactive }: {
           <View style={styles.compteRayonsRow}>{autres.map(chip)}</View>
         </View>
       )}
-    </Card>
+    </View>
   );
 }
 
@@ -5113,7 +5097,9 @@ function EcranProfilRayons({ compte, profil, rayons, onRecharger, onSauver, onRe
           <Text style={styles.profilAide}>{t('compte.rayons_aide')}</Text>
           <Text style={styles.message}>{cats.length === 0 ? t('profil.rayons_aucun') : tf('profil.rayons_choisis', { liste })}</Text>
         </Card>
-        <ChoixRayons choisis={cats} autres={autres} onBasculer={basculer} desactive={envoi} />
+        <Card style={styles.profilCarte}>
+          <ChoixRayons choisis={cats} autres={autres} onBasculer={basculer} desactive={envoi} />
+        </Card>
       </ScrollView>
       <View style={styles.profilPied}>
         {envoi ? (
