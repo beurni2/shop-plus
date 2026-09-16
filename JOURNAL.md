@@ -1,7 +1,7 @@
 # JOURNAL — shop-plus
 Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
-## 2026-09-16 · RAYONS-CHIPS-CHOISIS-1 (founder: « build it and show all fives rayons as chips selected ») — Opportunités' chips row is HER rayons, every one, in her book's order; a rayon with nothing on the feed yet keeps its chip and says so by name behind it · DONE on the branch · NOT MERGED · NOT DEPLOYED — awaiting his word
+## 2026-09-16 · RAYONS-CHIPS-CHOISIS-1 (founder: « build it and show all fives rayons as chips selected ») — Opportunités' chips row is HER rayons, every one, in her book's order; a rayon with nothing on the feed yet keeps its chip and says so by name behind it · MERGED + DEPLOYED 2026-09-16 (founder: « Go »)
 
 **Founder order 2026-09-16**, given on the RAYONS-OPPORTUNITES-RAPPORT report (the entry above: the app's road proven green on his exact screens, the feed he read predating the clip-sweep Worker deploy), where the design point was offered as his call. Commit `e51a431` (build) + `a4ef000` (the verifier's MINOR, handled once) on the branch. Nothing merged, nothing deployed.
 
@@ -17,7 +17,9 @@ Continuity ledger per CTO charter §6/§6bis. Every entry is evidence-grounded.
 
 **What did NOT change:** money, contracts, the feed request, the account book, the pickers, the id-era rule, the narrowing law (products outside her rayons never render).
 
-**Open:** his word to merge and deploy (an EAS update of the reseller app; no Worker changed) · his re-check that the products he expected under those rayons now appear (the clip-sweep Worker deploy of 20:02 UTC — the entry above).
+**MERGED AND DEPLOYED (founder: « Go », 2026-09-16).** `main` fast-forwarded `9bc1781 → 7e08bf9` (ancestry verified before the push). **ci 669 · pwa-preview 457 · expo-preview 490 · service-canon-drift 348, all green on `7e08bf9`** — expo-preview published the reseller app's update (the chips row and the two sentences reach her phone on its next launch); no Worker deploy (no Worker changed).
+
+**Open:** his re-check that the products he expected under those rayons now appear (the clip-sweep Worker deploy of 20:02 UTC — the entry above).
 
 ## 2026-09-16 · RAYONS-OPPORTUNITES-RAPPORT — the founder's report « when I select other categories from the profile, the categories are not showing on Opportunités and the products are not displaying » · WALK WRITTEN FIRST, GREEN ON ITS FIRST RUN — the app's road is proven; the feed his phone read predates the clip-sweep fix · test-only commit on the branch, not merged
 
